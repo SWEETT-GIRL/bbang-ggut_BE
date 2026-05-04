@@ -35,3 +35,12 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### OMC (oh-my-claudecode) ###
+.omc/
+
+### Spring Boot - sensitive config ###
+application-local.properties
+application-local.yml
+application-secret.properties
+application-secret.yml
