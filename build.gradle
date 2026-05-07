@@ -55,3 +55,11 @@ checkstyle {
     ignoreFailures = false
     maxWarnings = 0
 }
+
+tasks.register('installGitHooks', Exec) {
+    commandLine 'git', 'config', 'core.hooksPath', '.githooks'
+}
+
+tasks.named('compileJava') {
+    dependsOn 'installGitHooks'
+}
