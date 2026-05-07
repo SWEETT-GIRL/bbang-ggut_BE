@@ -17,6 +17,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -24,7 +25,8 @@ import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.enums.OAuthProvider;
 
 @Entity
-@Table(name = "oauth")
+@Table(name = "oauth", uniqueConstraints = @UniqueConstraint(name = "uq_oauth", columnNames = {
+	"provider", "providerId"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
