@@ -69,9 +69,4 @@ public class StoreReport extends BaseTimeEntity {
 		this.message = message;
 		this.status = StoreReportStatus.PENDING;
 	}
-
-	public void review(StoreReportStatus status) {
-		this.status = status;
-		this.reviewedAt = LocalDateTime.now();
-	}
 }
