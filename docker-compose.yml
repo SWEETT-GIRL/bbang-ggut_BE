@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  app:
+    image: ${DOCKER_USERNAME}/bbang-ggut-be:${IMAGE_TAG:-latest}
+    container_name: bbang-ggut-be
+    restart: always
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILE}
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "8080:8080"
