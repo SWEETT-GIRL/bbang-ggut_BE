@@ -23,13 +23,8 @@ import lombok.NoArgsConstructor;
 import sweetgirl.croissant.menu.entity.MenuCategory;
 
 @Entity
-@Table(
-	name = "liked_menu_category",
-	uniqueConstraints = @UniqueConstraint(
-		name = "uq_liked_menu_category",
-		columnNames = {"member_id", "menu_category_id"}
-	)
-)
+@Table(uniqueConstraints = @UniqueConstraint(name = "uq_liked_menu_category", columnNames = {
+	"member_id", "menu_category_id"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
