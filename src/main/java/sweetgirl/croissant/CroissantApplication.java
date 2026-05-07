@@ -6,8 +6,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class CroissantApplication {
 
-    public static void main(String[] args) {
-        SpringApplication.run(CroissantApplication.class, args);
-    }
+	public static void main(String[] args) {
+		SpringApplication.run(CroissantApplication.class, args);
+	}
 
 }
