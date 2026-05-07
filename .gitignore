@@ -44,6 +44,6 @@ application-local.properties
 application-local.yml
 application-secret.properties
 application-secret.yml
-src/main/resources/firebase/
+.claude/settings.local.json
 
 TODO.md
