@@ -53,7 +53,7 @@ public class Store extends BaseTimeEntity {
 
 	@Builder
 	public Store(String name, LocalTime startTime, LocalTime endTime, String address,
-		Point location, String phone) {
+			Point location, String phone) {
 		this.name = name;
 		this.startTime = startTime;
 		this.endTime = endTime;

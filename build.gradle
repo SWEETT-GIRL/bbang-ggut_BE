@@ -50,6 +50,9 @@ dependencies {
     // DevTools
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
 
+    // Firebase
+    implementation 'com.google.firebase:firebase-admin:9.4.2'
+
     // Testing
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'com.h2database:h2'
