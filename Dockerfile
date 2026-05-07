@@ -7,7 +7,7 @@ COPY build.gradle .
 COPY settings.gradle .
 COPY config config
 COPY src src
-RUN chmod +x ./gradlew && ./gradlew build -x test --no-daemon
+RUN chmod +x ./gradlew && ./gradlew build -x test -x installGitHooks --no-daemon
 
 # Run stage
 FROM eclipse-temurin:17-jre-alpine
