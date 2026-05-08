@@ -31,20 +31,9 @@ API:
 
 구현 TODO:
 
-- [ ] `SubscribedStoreRepository.findByMember(Member member)`
-- [ ] `SubscribedStoreResponse`
-    - `storeId`
-    - `storeName`
-    - `address`
-    - `status`
 - [ ] `StoreService.getSubscribedStores(Member member)`
 - [ ] `StoreController`에 `GET /stores/subscribed` 등록
 - [ ] 테스트: 구독 가게 목록 정상 조회 확인
-
-주의:
-
-- 위치 체크 전 테스트 데이터 확인에 도움 되는 API
-- `SubscribedStoreRepository`, `StoreController`는 이현정 팀원 작업과 중복 가능성 있음
 
 ---
 
