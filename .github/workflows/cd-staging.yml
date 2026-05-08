@@ -62,6 +62,9 @@ jobs:
           spring.security.oauth2.client.provider.kakao.user-info-uri=https://kapi.kakao.com/v2/user/me
           spring.security.oauth2.client.provider.kakao.user-name-attribute=id
 
+          kakao.api.base-url=https://dapi.kakao.com
+          kakao.api.key=${KAKAO_API_KEY}
+
           jwt.secret=${JWT_SECRET}
           jwt.access-token-expiry=3600000
           jwt.refresh-token-expiry=1209600000
@@ -114,6 +117,7 @@ jobs:
             KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}
             JWT_SECRET=${{ secrets.JWT_SECRET }}
             STAGING_SERVER_IP=${{ secrets.STAGING_SERVER_IP }}
+            KAKAO_API_KEY=${{ secrets.KAKAO_API_KEY }}
             EOF
 
             docker compose pull
