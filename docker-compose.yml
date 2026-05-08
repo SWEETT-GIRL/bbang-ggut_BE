@@ -14,5 +14,6 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       PROD_SERVER_IP: ${PROD_SERVER_IP}
       STAGING_SERVER_IP: ${STAGING_SERVER_IP}
+      KAKAO_API_KEY: ${KAKAO_API_KEY}
     ports:
       - "8080:8080"
