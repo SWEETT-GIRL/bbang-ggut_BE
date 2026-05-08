@@ -7,11 +7,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.alarm.code.AlarmErrorCode;
 import sweetgirl.croissant.alarm.dto.response.StoreNotificationResponse;
 import sweetgirl.croissant.alarm.entity.StoreNotification;
+import sweetgirl.croissant.alarm.exception.AlarmException;
 import sweetgirl.croissant.alarm.repository.StoreNotificationRepository;
-import sweetgirl.croissant.global.code.GeneralErrorCode;
-import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.member.entity.Member;
 
 @Service
@@ -34,10 +34,10 @@ public class AlarmService {
 	public void markAsRead(Member member, Long alarmId) {
 
 		StoreNotification notification = storeNotificationRepository.findById(alarmId)
-			.orElseThrow(() -> new CustomException(GeneralErrorCode._NOT_FOUND));
+			.orElseThrow(() -> new AlarmException(AlarmErrorCode.ALARM_NOT_FOUND));
 
 		if (member != null && !notification.getMember().getId().equals(member.getId())) {
-			throw new CustomException(GeneralErrorCode._FORBIDDEN);
+			throw new AlarmException(AlarmErrorCode.ALARM_FORBIDDEN);
 		}
 		notification.markAsRead();
 	}

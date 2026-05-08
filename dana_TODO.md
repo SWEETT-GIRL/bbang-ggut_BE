@@ -22,34 +22,6 @@
 - `Store.location`은 `Point` 타입이므로 PostGIS 쿼리 사용 가능
 - `SubscribedStoreRepository`, `StoreController`, `MemberController`는 팀원 작업과 충돌 가능성 있음
 ---
-
-### 3. 읽음 처리
-
-API:
-
-- [ ] `POST /alarm/read`
-
-구현 TODO:
-
-- [ ] `AlarmReadRequest`
-    - `@NotNull Long alarmId`
-- [ ] `StoreNotification.markAsRead()` 추가
-- [ ] `AlarmService.markAsRead(Member member, Long alarmId)`
-- [ ] `AlarmController`에 `POST /alarm/read` 등록
-- [ ] 테스트: 읽음 처리 후 `readAt` 값 변경 확인
-
-검증:
-
-- 요청한 알림이 현재 로그인한 사용자의 알림인지 확인
-- 다른 사용자의 알림이면 예외 처리
-
-주의:
-
-- `markAsRead()`는 `@Transactional` 서비스 메서드 안에서 호출
-- JPA 더티 체킹으로 업데이트되므로 별도 `save()`는 필수 아님
-
----
-
 ### 4. 유저 통계 조회
 
 API:
