@@ -35,7 +35,7 @@ public class AlarmController {
 	// 알람 히스토리 조회
 	@GetMapping("/history")
 	public ApiResponse<List<StoreNotificationResponse>> getNotificationHistory() {
-		// TODO:
+		// TODO
 		return ApiResponse.ok(null);
 
 	}
