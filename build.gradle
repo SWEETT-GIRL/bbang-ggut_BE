@@ -32,6 +32,9 @@ dependencies {
     implementation 'org.hibernate.orm:hibernate-spatial'
     runtimeOnly 'org.postgresql:postgresql'
 
+    //OAuth
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+
     // JSON & JWT
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'

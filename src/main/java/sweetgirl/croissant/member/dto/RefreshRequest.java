@@ -1,0 +1,14 @@
+package sweetgirl.croissant.member.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+@Getter
+@NoArgsConstructor
+public class RefreshRequest {
+
+	// 클라이언트가 보낸 Refresh Token
+	@NotBlank(message = "refreshToken은 필수입니다.")
+	private String refreshToken;
+}
