@@ -22,22 +22,6 @@
 - `Store.location`은 `Point` 타입이므로 PostGIS 쿼리 사용 가능
 - `SubscribedStoreRepository`, `StoreController`, `MemberController`는 팀원 작업과 충돌 가능성 있음
 ---
-### 4. 유저 통계 조회
-
-API:
-
-- [ ] `GET /users/me/store-count`
-
-구현 TODO:
-
-- [ ] `SubscribedStoreRepository.countByMember(Member member)`
-- [ ] `MemberService.getSubscribedStoreCount(Member member)`
-
-
-주의:
-- 단순 count API이므로 위치 기반 알림보다 먼저 구현
-
----
 
 ### 5. 알림받는 가게 전체 조회
 

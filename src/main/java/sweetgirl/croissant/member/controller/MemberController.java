@@ -17,7 +17,7 @@ public class MemberController {
 
 	@GetMapping("/me/store-count")
 	public ApiResponse<Long> getStoreCount() {
-		// TODO: 인증 구현 후 SecurityContext에서 Member 꺼내기
+		// TODO: 인증 구현 후 SecurityContext에서 memberId 꺼내기
 		long count = memberService.getSubscribedStoreCount(null);
 		return ApiResponse.ok(count);
 	}
