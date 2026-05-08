@@ -26,9 +26,9 @@ public class JwtProvider {
 	private final long refreshTokenExpiry;
 
 	public JwtProvider(
-		@Value("${jwt.secret}") String secret,
-		@Value("${jwt.access-token-expiry}") long accessTokenExpiry,
-		@Value("${jwt.refresh-token-expiry}") long refreshTokenExpiry) {
+			@Value("${jwt.secret}") String secret,
+			@Value("${jwt.access-token-expiry}") long accessTokenExpiry,
+			@Value("${jwt.refresh-token-expiry}") long refreshTokenExpiry) {
 		// Base64 인코딩된 secret 문자열을 디코딩하여 HMAC-SHA 서명 키 생성
 		this.secretKey = Keys.hmacShaKeyFor(java.util.Base64.getDecoder().decode(secret));
 		this.accessTokenExpiry = accessTokenExpiry;

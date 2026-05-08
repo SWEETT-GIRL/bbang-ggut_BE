@@ -40,10 +40,9 @@ public class SecurityConfig {
 
 		// 요청별 접근 권한 설정
 		http.authorizeHttpRequests(auth -> auth
-			.requestMatchers("/oauth2/**").permitAll()
-			.requestMatchers("/login/**").permitAll()
-			.requestMatchers("/api/v1/oauth2/**").permitAll()
-			.requestMatchers("/api/v1/auth/**").permitAll()
+			.requestMatchers("/oauth2/**").permitAll() // 카카오 로그인 진입점을 위해 : /oauth2/authorization/kakao
+			.requestMatchers("/api/v1/oauth2/**").permitAll() // 인가 : /api/v1/oauth2/kakao
+			.requestMatchers("/auth/**").permitAll() // controller 호출
 			.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
 			.anyRequest().authenticated());
 

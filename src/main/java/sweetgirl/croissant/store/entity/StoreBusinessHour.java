@@ -44,7 +44,7 @@ public class StoreBusinessHour {
 
 	@Builder
 	public StoreBusinessHour(Store store, DayOfWeek dayOfWeek, LocalTime openTime, LocalTime closeTime,
-		boolean isClosed) {
+			boolean isClosed) {
 		this.store = store;
 		this.dayOfWeek = dayOfWeek;
 		this.openTime = openTime;

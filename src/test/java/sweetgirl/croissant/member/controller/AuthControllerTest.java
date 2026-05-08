@@ -44,7 +44,7 @@ class AuthControllerTest {
 	void refresh_returns200WithAccessToken_whenRequestIsValid() throws Exception {
 		given(authService.refresh("valid.token")).willReturn("new.access.token");
 
-		mockMvc.perform(post("/api/v1/auth/refresh")
+		mockMvc.perform(post("/auth/refresh")
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"refreshToken\":\"valid.token\"}"))
 			.andExpect(status().isOk())
@@ -54,7 +54,7 @@ class AuthControllerTest {
 
 	@Test
 	void refresh_returns400_whenTokenIsEmpty() throws Exception {
-		mockMvc.perform(post("/api/v1/auth/refresh")
+		mockMvc.perform(post("/auth/refresh")
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"refreshToken\":\"\"}"))
 			.andExpect(status().isBadRequest());
@@ -62,7 +62,7 @@ class AuthControllerTest {
 
 	@Test
 	void refresh_returns400_whenTokenFieldIsMissing() throws Exception {
-		mockMvc.perform(post("/api/v1/auth/refresh")
+		mockMvc.perform(post("/auth/refresh")
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{}"))
 			.andExpect(status().isBadRequest());
@@ -73,7 +73,7 @@ class AuthControllerTest {
 		given(authService.refresh("invalid.token"))
 			.willThrow(new CustomException(GeneralErrorCode._UNAUTHORIZED));
 
-		mockMvc.perform(post("/api/v1/auth/refresh")
+		mockMvc.perform(post("/auth/refresh")
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"refreshToken\":\"invalid.token\"}"))
 			.andExpect(status().isUnauthorized());
@@ -85,7 +85,7 @@ class AuthControllerTest {
 	void logout_returns200_whenRequestIsValid() throws Exception {
 		willDoNothing().given(authService).logout("valid.token");
 
-		mockMvc.perform(post("/api/v1/auth/logout")
+		mockMvc.perform(post("/auth/logout")
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"refreshToken\":\"valid.token\"}"))
 			.andExpect(status().isOk())
@@ -94,7 +94,7 @@ class AuthControllerTest {
 
 	@Test
 	void logout_returns400_whenTokenIsEmpty() throws Exception {
-		mockMvc.perform(post("/api/v1/auth/logout")
+		mockMvc.perform(post("/auth/logout")
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"refreshToken\":\"\"}"))
 			.andExpect(status().isBadRequest());

@@ -42,9 +42,9 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 	@Override
 	@Transactional
 	public void onAuthenticationSuccess(
-		HttpServletRequest request,
-		HttpServletResponse response,
-		Authentication authentication) throws IOException {
+			HttpServletRequest request,
+			HttpServletResponse response,
+			Authentication authentication) throws IOException {
 
 		// authentication.getPrincipal()은 CustomOAuth2UserService.loadUser()의 반환값
 		// CustomOAuth2User로 캐스팅해서 우리 DB의 memberId를 꺼냄
