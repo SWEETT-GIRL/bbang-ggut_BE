@@ -52,4 +52,8 @@ public class StoreNotification {
 		this.message = message;
 		this.sentAt = sentAt;
 	}
+
+	public void markAsRead() {
+		this.readAt = LocalDateTime.now();
+	}
 }

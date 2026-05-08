@@ -55,12 +55,10 @@ API:
 API:
 
 - [ ] `GET /users/me/store-count`
-- [ ] `GET /users/me/alarm-count`
 
 구현 TODO:
 
 - [ ] `SubscribedStoreRepository.countByMember(Member member)`
-- [ ] `StoreNotificationRepository.countByMember(Member member)`
 - [ ] `MemberService.getSubscribedStoreCount(Member member)`
 - [ ] `MemberService.getAlarmCount(Member member)`
 - [ ] `MemberController`에 두 API 등록

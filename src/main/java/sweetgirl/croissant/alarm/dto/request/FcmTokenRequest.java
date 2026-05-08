@@ -8,7 +8,6 @@ import sweetgirl.croissant.common.enums.DeviceOs;
 
 @Getter
 @NoArgsConstructor
-
 public class FcmTokenRequest {
 
 	@NotBlank
