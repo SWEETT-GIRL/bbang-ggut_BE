@@ -80,9 +80,11 @@ jobs:
           EOF
 
       - name: Create Firebase service account file
+        env:
+          FIREBASE_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
         run: |
           mkdir -p src/main/resources/firebase
-          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}" | base64 -d > src/main/resources/firebase/firebase-service-account.json
+          echo "$FIREBASE_JSON" > src/main/resources/firebase/firebase-service-account.json
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
