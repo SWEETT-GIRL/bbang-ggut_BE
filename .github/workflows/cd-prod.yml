@@ -41,6 +41,41 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Create application-prod.properties
+        run: |
+          cat > src/main/resources/application-prod.properties << 'EOF'
+          spring.datasource.url=${DB_URL}
+          spring.datasource.username=${DB_USERNAME}
+          spring.datasource.password=${DB_PASSWORD}
+          spring.datasource.driver-class-name=org.postgresql.Driver
+
+          spring.security.oauth2.client.registration.kakao.client-id=${KAKAO_CLIENT_ID}
+          spring.security.oauth2.client.registration.kakao.client-secret=${KAKAO_CLIENT_SECRET}
+          spring.security.oauth2.client.registration.kakao.redirect-uri=http://${PROD_SERVER_IP}:8080/api/v1/oauth2/kakao
+          spring.security.oauth2.client.registration.kakao.authorization-grant-type=authorization_code
+          spring.security.oauth2.client.registration.kakao.scope=profile_nickname,account_email
+          spring.security.oauth2.client.registration.kakao.client-name=Kakao
+          spring.security.oauth2.client.registration.kakao.client-authentication-method=client_secret_post
+
+          spring.security.oauth2.client.provider.kakao.authorization-uri=https://kauth.kakao.com/oauth/authorize
+          spring.security.oauth2.client.provider.kakao.token-uri=https://kauth.kakao.com/oauth/token
+          spring.security.oauth2.client.provider.kakao.user-info-uri=https://kapi.kakao.com/v2/user/me
+          spring.security.oauth2.client.provider.kakao.user-name-attribute=id
+
+          jwt.secret=${JWT_SECRET}
+          jwt.access-token-expiry=3600000
+          jwt.refresh-token-expiry=1209600000
+
+          firebase.config.path=firebase/firebase-service-account.json
+
+          oauth2.front-redirect-uri=bbanggut://permission-location
+
+          spring.jpa.hibernate.ddl-auto=validate
+          spring.jpa.show-sql=false
+          spring.jpa.properties.hibernate.format_sql=false
+          spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+          EOF
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -75,6 +110,10 @@ jobs:
             DB_URL=${{ secrets.PROD_DB_URL }}
             DB_USERNAME=${{ secrets.PROD_DB_USERNAME }}
             DB_PASSWORD=${{ secrets.PROD_DB_PASSWORD }}
+            KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}
+            KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            PROD_SERVER_IP=${{ secrets.PROD_SERVER_IP }}
             EOF
 
             docker compose pull
