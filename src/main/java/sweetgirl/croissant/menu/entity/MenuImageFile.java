@@ -1,19 +1,10 @@
 package sweetgirl.croissant.menu.entity;
 
-import java.time.LocalDateTime;
-
-import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -21,6 +12,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import sweetgirl.croissant.common.entity.ImageFile;
 import sweetgirl.croissant.common.enums.MimeType;
 
 @Entity
@@ -28,35 +20,15 @@ import sweetgirl.croissant.common.enums.MimeType;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
-public class MenuImageFile {
-
-	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private Long id;
+public class MenuImageFile extends ImageFile {
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "menu_id", nullable = false)
 	private Menu menu;
 
-	@Column(nullable = false, length = 255)
-	private String name;
-
-	@Enumerated(EnumType.STRING)
-	@Column(nullable = false, length = 50)
-	private MimeType mimeType;
-
-	@Column(nullable = false, length = 255)
-	private String awsKey;
-
-	@CreatedDate
-	@Column(nullable = false, updatable = false)
-	private LocalDateTime createdAt;
-
 	@Builder
 	public MenuImageFile(Menu menu, String name, MimeType mimeType, String awsKey) {
+		super(name, mimeType, awsKey);
 		this.menu = menu;
-		this.name = name;
-		this.mimeType = mimeType;
-		this.awsKey = awsKey;
 	}
 }
