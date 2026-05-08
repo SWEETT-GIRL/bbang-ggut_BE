@@ -1,4 +1,4 @@
-package sweetgirl.croissant.member.entity;
+package sweetgirl.croissant.alarm.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -17,6 +17,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
 import sweetgirl.croissant.common.enums.DeviceOs;
+import sweetgirl.croissant.member.entity.Member;
 
 @Entity
 @Table(name = "fcm_token")
@@ -50,6 +51,11 @@ public class FcmToken extends BaseTimeEntity {
 		this.member = member;
 		this.deviceId = deviceId;
 		this.deviceOs = deviceOs;
+		this.token = token;
+		this.isActive = true;
+	}
+
+	public void updateToken(String token) {
 		this.token = token;
 		this.isActive = true;
 	}

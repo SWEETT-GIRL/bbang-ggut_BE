@@ -8,7 +8,8 @@
         <setting id="org.eclipse.jdt.core.formatter.insert_new_line_after_annotation_on_local_variable"
                  value="do not insert"/>
         <setting id="org.eclipse.jdt.core.formatter.insert_new_line_after_annotation_on_member" value="insert"/>
-        <setting id="org.eclipse.jdt.core.formatter.insert_new_line_after_annotation_on_parameter" value="insert"/>
+        <setting id="org.eclipse.jdt.core.formatter.insert_new_line_after_annotation_on_parameter"
+                 value="do not insert"/>
 
         <!-- End of Declarations chapter -->
 
@@ -94,8 +95,8 @@
         <setting id="org.eclipse.jdt.core.formatter.comment.line_length" value="120"/>
 
         <!-- [indentation-after-line-wrapping] -->
-        <setting id="org.eclipse.jdt.core.formatter.continuation_indentation" value="1"/>
-        <setting id="org.eclipse.jdt.core.formatter.continuation_indentation_for_array_initializer" value="1"/>
+        <setting id="org.eclipse.jdt.core.formatter.continuation_indentation" value="2"/>
+        <setting id="org.eclipse.jdt.core.formatter.continuation_indentation_for_array_initializer" value="2"/>
 
         <!-- [line-wrapping-position] -->
         <setting id="org.eclipse.jdt.core.formatter.join_wrapped_lines" value="false"/>
