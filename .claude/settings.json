@@ -11,6 +11,16 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/danalim/Desktop/bbangggut/bbang-ggut_BE/.claude/check-claude-md.sh"
+          }
+        ]
+      }
     ]
   }
 }
