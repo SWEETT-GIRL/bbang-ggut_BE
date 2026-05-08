@@ -24,7 +24,6 @@ public class AlarmController {
 	private final FcmService fcmService;
 	private final AlarmService alarmService;
 
-	//
 	@PostMapping("/fcm-token")
 	public ApiResponse<Void> registerFcmToken(@RequestBody @Valid FcmTokenRequest request) {
 		// TODO: memberId는 인증 구현 후 SecurityContext에서 꺼내기
@@ -35,8 +34,9 @@ public class AlarmController {
 	// 알람 히스토리 조회
 	@GetMapping("/history")
 	public ApiResponse<List<StoreNotificationResponse>> getNotificationHistory() {
-		// TODO
-		return ApiResponse.ok(null);
 
+		// TODO: 인증 구현 후 SecurityContext에서 member 꺼내기
+		List<StoreNotificationResponse> history = alarmService.getStoreNotificationHistory(null);
+		return ApiResponse.ok(history);
 	}
 }
