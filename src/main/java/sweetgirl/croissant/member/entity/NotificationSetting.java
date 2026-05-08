@@ -54,8 +54,8 @@ public class NotificationSetting extends BaseTimeEntity {
 
 	@Builder
 	public NotificationSetting(Member member, boolean isNotificationEnabled, float notificationRadius,
-			LocalTime startTime, LocalTime endTime, String daysOfWeek,
-			boolean isMarketingEnabled, boolean isDndEnabled) {
+		LocalTime startTime, LocalTime endTime, String daysOfWeek,
+		boolean isMarketingEnabled, boolean isDndEnabled) {
 		this.member = member;
 		this.isNotificationEnabled = isNotificationEnabled;
 		this.notificationRadius = notificationRadius;

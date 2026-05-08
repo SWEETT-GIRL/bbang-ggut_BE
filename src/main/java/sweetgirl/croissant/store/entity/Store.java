@@ -45,7 +45,7 @@ public class Store extends BaseTimeEntity {
 
 	@Builder
 	public Store(String name, String address,
-			Point location, String phone) {
+		Point location, String phone) {
 		this.name = name;
 		this.address = address;
 		this.location = location;

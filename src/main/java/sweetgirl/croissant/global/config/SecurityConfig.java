@@ -44,7 +44,7 @@ public class SecurityConfig {
 			.requestMatchers("/login/**").permitAll()
 			.requestMatchers("/api/v1/oauth2/**").permitAll()
 			.requestMatchers("/api/v1/auth/**").permitAll()
-			.requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+			.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
 			.anyRequest().authenticated());
 
 		// OAuth2 로그인 설정

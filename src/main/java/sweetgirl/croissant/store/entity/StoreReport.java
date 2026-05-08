@@ -61,7 +61,7 @@ public class StoreReport extends BaseTimeEntity {
 
 	@Builder
 	public StoreReport(Member member, Store store, Menu menu,
-			StoreReportType requestType, String message) {
+		StoreReportType requestType, String message) {
 		this.member = member;
 		this.store = store;
 		this.menu = menu;
