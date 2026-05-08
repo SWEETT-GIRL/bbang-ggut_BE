@@ -2,10 +2,13 @@ package sweetgirl.croissant.store.service;
 
 import java.util.List;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.dto.StoreDetailResponse;
@@ -13,6 +16,7 @@ import sweetgirl.croissant.store.dto.SubscribedStoreResponse;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreBusinessHour;
 import sweetgirl.croissant.store.entity.StoreImageFile;
+import sweetgirl.croissant.store.entity.SubscribedStore;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
@@ -37,15 +41,13 @@ public class StoreService {
 		return StoreDetailResponse.of(store, businessHours, images);
 	}
 
-	public List<SubscribedStoreResponse> getSubscribedStores(Member member) {
-		return subscribedStoreRepository.findAllByMember(member)
-			.stream()
-			.map(subscribedStore -> {
-				List<StoreImageFile> images = storeImageFileRepository.findByStoreId(
-					subscribedStore.getStore().getId());
-				String imageUrl = images.isEmpty() ? null : images.get(0).getAwsKey();
-				return SubscribedStoreResponse.from(subscribedStore, imageUrl);
-			})
-			.toList();
+	public SliceResponse<SubscribedStoreResponse> getSubscribedStores(Member member, Pageable pageable) {
+		Slice<SubscribedStore> slice = subscribedStoreRepository.findAllByMemberOrderByCreatedAtDesc(member, pageable);
+		Slice<SubscribedStoreResponse> responsSlice = slice.map(subscribedStore -> {
+			List<StoreImageFile> images = storeImageFileRepository.findByStoreId(subscribedStore.getStore().getId());
+			String imageUrl = images.isEmpty() ? null : images.get(0).getAwsKey();
+			return SubscribedStoreResponse.from(subscribedStore, imageUrl);
+		});
+		return SliceResponse.from(responsSlice);
 	}
 }

@@ -1,7 +1,7 @@
 package sweetgirl.croissant.store.repository;
 
-import java.util.List;
-
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import sweetgirl.croissant.member.entity.Member;
@@ -11,6 +11,6 @@ public interface SubscribedStoreRepository extends JpaRepository<SubscribedStore
 
 	long countByMember(Member member);
 
-	List<SubscribedStore> findAllByMember(Member member);
+	Slice<SubscribedStore> findAllByMemberOrderByCreatedAtDesc(Member member, Pageable pageable);
 
 }
