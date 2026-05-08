@@ -79,6 +79,11 @@ jobs:
           spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
           EOF
 
+      - name: Create Firebase service account file
+        run: |
+          mkdir -p src/main/resources/firebase
+          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}" | base64 -d > src/main/resources/firebase/firebase-service-account.json
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
