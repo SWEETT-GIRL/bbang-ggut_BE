@@ -7,13 +7,15 @@ public record SubscribedStoreResponse(
 		Long storeId,
 		String storeName,
 		String address,
-		StoreStatus status) {
+		StoreStatus status,
+		String imageUrl) {
 
-	public static SubscribedStoreResponse from(SubscribedStore subscribedStore) {
+	public static SubscribedStoreResponse from(SubscribedStore subscribedStore, String imageUrl) {
 		return new SubscribedStoreResponse(
 			subscribedStore.getStore().getId(),
 			subscribedStore.getStore().getName(),
 			subscribedStore.getStore().getAddress(),
-			subscribedStore.getStore().getStatus());
+			subscribedStore.getStore().getStatus(),
+			imageUrl);
 	}
 }

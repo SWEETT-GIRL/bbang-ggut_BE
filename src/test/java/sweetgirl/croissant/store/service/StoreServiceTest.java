@@ -17,6 +17,7 @@ import sweetgirl.croissant.common.enums.StoreStatus;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.store.dto.SubscribedStoreResponse;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.entity.SubscribedStore;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
@@ -51,10 +52,14 @@ class StoreServiceTest {
 		given(store.getAddress()).willReturn("서울시 강남구 테헤란로 1");
 		given(store.getStatus()).willReturn(StoreStatus.ACTIVE);
 
+		StoreImageFile image = mock(StoreImageFile.class);
+		given(image.getAwsKey()).willReturn("stores/1/thumbnail.jpg");
+
 		SubscribedStore subscribedStore = mock(SubscribedStore.class);
 		given(subscribedStore.getStore()).willReturn(store);
 
 		given(subscribedStoreRepository.findAllByMember(member)).willReturn(List.of(subscribedStore));
+		given(storeImageFileRepository.findByStoreId(1L)).willReturn(List.of(image));
 
 		List<SubscribedStoreResponse> result = storeService.getSubscribedStores(member);
 
@@ -63,6 +68,29 @@ class StoreServiceTest {
 		assertThat(result.get(0).storeName()).isEqualTo("뚜레쥬르");
 		assertThat(result.get(0).address()).isEqualTo("서울시 강남구 테헤란로 1");
 		assertThat(result.get(0).status()).isEqualTo(StoreStatus.ACTIVE);
+		assertThat(result.get(0).imageUrl()).isEqualTo("stores/1/thumbnail.jpg");
+	}
+
+	@Test
+	@DisplayName("getSubscribedStores: 이미지가 없으면 imageUrl은 null이다")
+	void getSubscribedStores_returnsNullImageUrl_whenNoImages() {
+		Member member = mock(Member.class);
+		Store store = mock(Store.class);
+		given(store.getId()).willReturn(1L);
+		given(store.getName()).willReturn("뚜레쥬르");
+		given(store.getAddress()).willReturn("서울시 강남구 테헤란로 1");
+		given(store.getStatus()).willReturn(StoreStatus.ACTIVE);
+
+		SubscribedStore subscribedStore = mock(SubscribedStore.class);
+		given(subscribedStore.getStore()).willReturn(store);
+
+		given(subscribedStoreRepository.findAllByMember(member)).willReturn(List.of(subscribedStore));
+		given(storeImageFileRepository.findByStoreId(1L)).willReturn(List.of());
+
+		List<SubscribedStoreResponse> result = storeService.getSubscribedStores(member);
+
+		assertThat(result).hasSize(1);
+		assertThat(result.get(0).imageUrl()).isNull();
 	}
 
 	@Test

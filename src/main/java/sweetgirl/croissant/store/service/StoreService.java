@@ -40,7 +40,12 @@ public class StoreService {
 	public List<SubscribedStoreResponse> getSubscribedStores(Member member) {
 		return subscribedStoreRepository.findAllByMember(member)
 			.stream()
-			.map(SubscribedStoreResponse::from)
+			.map(subscribedStore -> {
+				List<StoreImageFile> images = storeImageFileRepository.findByStoreId(
+					subscribedStore.getStore().getId());
+				String imageUrl = images.isEmpty() ? null : images.get(0).getAwsKey();
+				return SubscribedStoreResponse.from(subscribedStore, imageUrl);
+			})
 			.toList();
 	}
 }
