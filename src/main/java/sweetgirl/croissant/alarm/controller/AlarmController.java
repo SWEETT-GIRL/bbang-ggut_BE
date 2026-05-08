@@ -3,6 +3,7 @@ package sweetgirl.croissant.alarm.controller;
 import java.util.List;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,5 +39,13 @@ public class AlarmController {
 		// TODO: 인증 구현 후 SecurityContext에서 member 꺼내기
 		List<StoreNotificationResponse> history = alarmService.getStoreNotificationHistory(null);
 		return ApiResponse.ok(history);
+	}
+
+	//알람 읽음 처리
+	@PostMapping("/{id}")
+	public ApiResponse<Void> readNotification(@PathVariable Long id) {
+		// TODO: 인증 구현 후 SecurityContext에서 member 꺼내기
+		alarmService.markAsRead(null, id);
+		return ApiResponse.ok(null);
 	}
 }
