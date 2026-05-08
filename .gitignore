@@ -39,6 +39,9 @@ out/
 ### OMC (oh-my-claudecode) ###
 .omc/
 
+### Firebase credentials ###
+src/main/resources/firebase/
+
 ### Spring Boot - sensitive config ###
 application-local.properties
 application-local.yml

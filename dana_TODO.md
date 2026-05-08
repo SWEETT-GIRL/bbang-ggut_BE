@@ -32,14 +32,10 @@ API:
 
 - [ ] `SubscribedStoreRepository.countByMember(Member member)`
 - [ ] `MemberService.getSubscribedStoreCount(Member member)`
-- [ ] `MemberService.getAlarmCount(Member member)`
-- [ ] `MemberController`에 두 API 등록
-- [ ] 테스트: count 정상 반환 확인
+
 
 주의:
-
 - 단순 count API이므로 위치 기반 알림보다 먼저 구현
-- `MemberController`는 김나영 팀원 작업과 충돌 가능성 있음
 
 ---
 
