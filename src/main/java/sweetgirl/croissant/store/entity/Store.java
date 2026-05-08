@@ -1,7 +1,5 @@
 package sweetgirl.croissant.store.entity;
 
-import java.time.LocalTime;
-
 import org.locationtech.jts.geom.Point;
 
 import jakarta.persistence.Column;
@@ -32,12 +30,6 @@ public class Store extends BaseTimeEntity {
 	@Column(nullable = false, length = 100)
 	private String name;
 
-	@Column
-	private LocalTime startTime;
-
-	@Column
-	private LocalTime endTime;
-
 	@Column(nullable = false, length = 255)
 	private String address;
 
@@ -52,11 +44,9 @@ public class Store extends BaseTimeEntity {
 	private StoreStatus status;
 
 	@Builder
-	public Store(String name, LocalTime startTime, LocalTime endTime, String address,
+	public Store(String name, String address,
 			Point location, String phone) {
 		this.name = name;
-		this.startTime = startTime;
-		this.endTime = endTime;
 		this.address = address;
 		this.location = location;
 		this.phone = phone;
