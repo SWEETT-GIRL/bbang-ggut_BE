@@ -9,11 +9,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.store.dto.StoreDetailResponse;
+import sweetgirl.croissant.store.dto.StoreSearchResponse;
 import sweetgirl.croissant.store.dto.SubscribedStoreResponse;
 import sweetgirl.croissant.store.service.StoreService;
 
@@ -38,5 +40,14 @@ public class StoreController {
 			@RequestParam(defaultValue = "10") int size) {
 		// TODO: 인증 구현 후 SecurityContext에서 member 꺼내도록 수정
 		return ResponseEntity.ok(ApiResponse.ok(storeService.getSubscribedStores(null, PageRequest.of(page, size))));
+	}
+
+	@Operation(summary = "빵집 검색", description = "빵집 이름으로 검색합니다. DB에 결과 없으면 카카오 로컬 API로 fallback합니다.")
+	@GetMapping("/search")
+	public ResponseEntity<ApiResponse<SliceResponse<StoreSearchResponse>>> searchStores(
+			@Parameter(description = "검색어") @RequestParam String keyword,
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "15") int size) {
+		return ResponseEntity.ok(ApiResponse.ok(storeService.searchStores(keyword, PageRequest.of(page, size))));
 	}
 }

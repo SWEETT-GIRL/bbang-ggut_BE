@@ -7,6 +7,7 @@ public record StoreSearchResponse(
 		Long id,
 		String name,
 		String address,
+		String thumbnailUrl,
 		Source source,
 		String kakaoPlaceId,
 		String phone,
@@ -17,13 +18,14 @@ public record StoreSearchResponse(
 		DB, KAKAO
 	}
 
-	public static StoreSearchResponse ofStore(Store store) {
+	public static StoreSearchResponse ofStore(Store store, String thumbnailUrl) {
 		return new StoreSearchResponse(
 			store.getId(),
 			store.getName(),
 			store.getAddress(),
-			Source.DB,
-			null, null, null, null);
+			thumbnailUrl,
+			Source.DB, store.getKakaoPlaceId(), store.getPhone(), String.valueOf(store.getLocation().getX()),
+			String.valueOf(store.getLocation().getY()));
 	}
 
 	public static StoreSearchResponse ofKakao(KakaoPlace place) {
@@ -34,6 +36,7 @@ public record StoreSearchResponse(
 			null,
 			place.placeName(),
 			address,
+			null,
 			Source.KAKAO,
 			place.id(),
 			place.phone(),
