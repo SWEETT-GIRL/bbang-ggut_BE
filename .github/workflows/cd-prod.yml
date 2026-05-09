@@ -113,19 +113,17 @@ jobs:
           script: |
             cd ~/app
 
-            cat > .env << 'EOF'
-            DOCKER_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
-            IMAGE_TAG=${{ steps.tag.outputs.IMAGE_TAG }}
-            SPRING_PROFILE=prod
-            DB_URL=${{ secrets.PROD_DB_URL }}
-            DB_USERNAME=${{ secrets.PROD_DB_USERNAME }}
-            DB_PASSWORD=${{ secrets.PROD_DB_PASSWORD }}
-            KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}
-            KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
-            PROD_SERVER_IP=${{ secrets.PROD_SERVER_IP }}
-            KAKAO_API_KEY=${{ secrets.KAKAO_API_KEY }}
-            EOF
+            echo "DOCKER_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}" > .env
+            echo "IMAGE_TAG=${{ steps.tag.outputs.IMAGE_TAG }}" >> .env
+            echo "SPRING_PROFILE=prod" >> .env
+            echo "DB_URL=${{ secrets.PROD_DB_URL }}" >> .env
+            echo "DB_USERNAME=${{ secrets.PROD_DB_USERNAME }}" >> .env
+            echo "DB_PASSWORD=${{ secrets.PROD_DB_PASSWORD }}" >> .env
+            echo "KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}" >> .env
+            echo "KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}" >> .env
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+            echo "PROD_SERVER_IP=${{ secrets.PROD_SERVER_IP }}" >> .env
+            echo "KAKAO_API_KEY=${{ secrets.KAKAO_API_KEY }}" >> .env
 
             docker compose pull
             docker compose up -d
