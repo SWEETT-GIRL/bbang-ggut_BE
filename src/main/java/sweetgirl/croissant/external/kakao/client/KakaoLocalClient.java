@@ -14,6 +14,8 @@ import sweetgirl.croissant.external.kakao.dto.KakaoRegionResponse;
 import sweetgirl.croissant.external.kakao.dto.KakaoSearchResponse;
 import sweetgirl.croissant.external.kakao.dto.KakaoSearchResult;
 import sweetgirl.croissant.external.kakao.enums.KakaoCategoryCode;
+import sweetgirl.croissant.external.kakao.exception.KakaoErrorCode;
+import sweetgirl.croissant.external.kakao.exception.KakaoLocalApiException;
 
 @Slf4j
 @Component
@@ -27,15 +29,20 @@ public class KakaoLocalClient {
 	private final RestClient kakaoRestClient;
 
 	public KakaoSearchResult searchByKeyword(String query, int page) {
-		KakaoSearchResponse response = kakaoRestClient.get()
-			.uri(uriBuilder -> uriBuilder
-				.path(KEYWORD_SEARCH_PATH)
-				.queryParam("query", query)
-				.queryParam("size", MAX_SIZE)
-				.queryParam("page", page)
-				.build())
-			.retrieve()
-			.body(KakaoSearchResponse.class);
+		KakaoSearchResponse response;
+		try {
+			response = kakaoRestClient.get()
+				.uri(uriBuilder -> uriBuilder
+					.path(KEYWORD_SEARCH_PATH)
+					.queryParam("query", query)
+					.queryParam("size", MAX_SIZE)
+					.queryParam("page", page)
+					.build())
+				.retrieve()
+				.body(KakaoSearchResponse.class);
+		} catch (RestClientException e) {
+			throw new KakaoLocalApiException(KakaoErrorCode.KEYWORD_SEARCH_ERROR, e);
+		}
 
 		if (response == null) {
 			return new KakaoSearchResult(List.of(), true);
@@ -64,20 +71,13 @@ public class KakaoLocalClient {
 			if (response == null || response.documents() == null) {
 				return null;
 			}
-			log.info("[coord2regioncode] x={}, y={} → 응답 문서 수: {}", longitude, latitude,
-				response.documents().size());
-			response.documents().forEach(doc -> log.info("  region_type={} | depth1={} | depth2={}",
-				doc.regionType(), doc.regionDepth1Name(), doc.regionDepth2Name()));
 
-			District district = response.documents().stream()
+			return response.documents().stream()
 				.filter(doc -> "B".equals(doc.regionType()))
 				.findFirst()
 				.flatMap(doc -> District.from(doc.regionDepth1Name(), doc.regionDepth2Name()))
 				.orElse(null);
-			log.info("  → 매핑 결과: {}", district);
-			return district;
 		} catch (RestClientException e) {
-			log.warn("coord2regioncode 호출 실패: x={}, y={}", longitude, latitude);
 			return null;
 		}
 	}
