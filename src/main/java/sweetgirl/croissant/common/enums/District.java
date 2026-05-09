@@ -60,7 +60,7 @@ public enum District {
 
 	private final String name;
 
-	private static final Map<String, District> BY_KOREAN_NAME = Arrays.stream(values())
+	private static final Map<String, District> BY_NAME = Arrays.stream(values())
 		.collect(Collectors.toMap(d -> d.name, d -> d));
 
 	District(String name) {
@@ -72,12 +72,12 @@ public enum District {
 			return Optional.empty();
 		}
 		if (region1.contains("서울")) {
-			return Optional.ofNullable(BY_KOREAN_NAME.get(region2));
+			return Optional.ofNullable(BY_NAME.get(region2));
 		}
 		String cityName = region2 != null && region2.contains(" ")
 			? region2.split(" ")[0]
 			: region2;
-		return Optional.ofNullable(BY_KOREAN_NAME.get(region1))
-			.or(() -> Optional.ofNullable(BY_KOREAN_NAME.get(cityName)));
+		return Optional.ofNullable(BY_NAME.get(region1))
+			.or(() -> Optional.ofNullable(BY_NAME.get(cityName)));
 	}
 }
