@@ -7,7 +7,6 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.common.enums.District;
 import sweetgirl.croissant.external.kakao.dto.KakaoPlace;
 import sweetgirl.croissant.external.kakao.dto.KakaoRegionResponse;
@@ -17,7 +16,6 @@ import sweetgirl.croissant.external.kakao.enums.KakaoCategoryCode;
 import sweetgirl.croissant.external.kakao.exception.KakaoErrorCode;
 import sweetgirl.croissant.external.kakao.exception.KakaoLocalApiException;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class KakaoLocalClient {
