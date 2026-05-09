@@ -36,6 +36,9 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 		// 카카오 응답 JSON을 파싱해서 필요한 값(providerId, email, nickname)만 추출
 		KakaoOAuth2UserInfo userInfo = new KakaoOAuth2UserInfo(oAuth2User.getAttributes());
 
+		Boolean isNewMember = !oAuthRepository.existsByProviderAndProviderId(OAuthProvider.KAKAO,
+			userInfo.getProviderId());
+
 		// DB에서 provider(KAKAO) + providerId 조합으로 기존 OAuth 레코드 조회
 		// 없으면 신규 가입, 있으면 기존 유저
 		OAuth oAuth = oAuthRepository
@@ -45,7 +48,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 		// CustomOAuth2User로 감싸서 반환
 		// 카카오 원본 OAuth2User + 우리 DB의 memberId를 함께 보관
 		// OAuth2SuccessHandler에서 authentication.getPrincipal()로 꺼내 JWT 생성에 사용
-		return new CustomOAuth2User(oAuth2User, oAuth.getMember().getId());
+		return new CustomOAuth2User(oAuth2User, oAuth.getMember().getId(), isNewMember);
 	}
 
 	// 신규 가입 처리: Member 생성 → OAuth 생성 → 저장
