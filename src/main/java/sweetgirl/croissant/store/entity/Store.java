@@ -16,6 +16,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
 import sweetgirl.croissant.common.enums.District;
+import sweetgirl.croissant.common.enums.StoreSource;
 import sweetgirl.croissant.common.enums.StoreStatus;
 
 @Entity
@@ -48,13 +49,22 @@ public class Store extends BaseTimeEntity {
 	@Column(nullable = false, length = 50)
 	private StoreStatus status;
 
+	@Column(name = "kakao_place_id", length = 50, unique = true)
+	private String kakaoPlaceId;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 50)
+	private StoreSource source;
+
 	@Builder
 	public Store(String name, String address,
-			Point location, String phone) {
+			Point location, String phone, String kakaoPlaceId, StoreSource source) {
 		this.name = name;
 		this.address = address;
 		this.location = location;
 		this.phone = phone;
+		this.kakaoPlaceId = kakaoPlaceId;
+		this.source = source != null ? source : StoreSource.ADMIN_REGISTERED;
 		this.status = StoreStatus.ACTIVE;
 	}
 }

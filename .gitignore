@@ -54,3 +54,5 @@ application-staging.yml
 .claude/settings.local.json
 
 TODO.md
+
+**/firebase/
