@@ -80,4 +80,15 @@ public enum District {
 		return Optional.ofNullable(BY_NAME.get(region1))
 			.or(() -> Optional.ofNullable(BY_NAME.get(cityName)));
 	}
+
+	public static Optional<District> fromAddress(String address) {
+		if (address == null || address.isBlank()) {
+			return Optional.empty();
+		}
+		String[] parts = address.split(" ");
+		if (parts.length < 2) {
+			return Optional.empty();
+		}
+		return from(parts[0], parts[1]);
+	}
 }
