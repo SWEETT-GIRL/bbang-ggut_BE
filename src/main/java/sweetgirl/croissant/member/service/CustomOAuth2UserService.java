@@ -38,7 +38,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
 		// DB에서 provider(KAKAO) + providerId 조합으로 기존 OAuth 레코드 조회
 		// 없으면 신규 가입, 있으면 기존 유저
-		OAuth oAuth = oAuthRepository
+		OAuth oAuth = oAuthRepository //Oauth 객체 반환
 			.findByProviderAndProviderId(OAuthProvider.KAKAO, userInfo.getProviderId())
 			.orElseGet(() -> registerNewMember(userInfo)); // 없으면 신규 가입 처리
 
