@@ -15,6 +15,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
+import sweetgirl.croissant.common.enums.District;
 import sweetgirl.croissant.common.enums.StoreStatus;
 
 @Entity
@@ -32,6 +33,10 @@ public class Store extends BaseTimeEntity {
 
 	@Column(nullable = false, length = 255)
 	private String address;
+
+	@Enumerated(EnumType.STRING)
+	@Column(length = 50)
+	private District district;
 
 	@Column(nullable = false, columnDefinition = "geography(Point, 4326)")
 	private Point location;
