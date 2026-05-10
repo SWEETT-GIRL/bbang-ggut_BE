@@ -50,6 +50,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 		// CustomOAuth2User로 캐스팅해서 우리 DB의 memberId를 꺼냄
 		CustomOAuth2User oAuth2User = (CustomOAuth2User)authentication.getPrincipal();
 		Long memberId = oAuth2User.getMemberId();
+		boolean isNew = oAuth2User.getIsNewMember();
 
 		// CustomAuthorizationRequestResolver가 저장해둔 deviceId 쿠키에서 복원
 		String deviceId = extractCookieValue(request, "deviceId");
@@ -65,9 +66,10 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 		clearCookie(response, "deviceId");
 
 		// bbanggut://oauth?accessToken=xxx&refreshToken=yyy 형태로 앱에 딥링크 redirect
-		String redirectUrl = frontRedirectUri
+		String redirectUrl = "bbanggut://"
 			+ "?accessToken=" + accessToken
-			+ "&refreshToken=" + refreshToken;
+			+ "&refreshToken=" + refreshToken
+			+ "&isNew=" + isNew;
 
 		getRedirectStrategy().sendRedirect(request, response, redirectUrl);
 	}

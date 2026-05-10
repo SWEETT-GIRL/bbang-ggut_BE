@@ -20,9 +20,12 @@ public class CustomOAuth2User implements OAuth2User {
 	// 우리 DB Member 테이블 PK — JWT subject로 사용
 	private final Long memberId;
 
-	public CustomOAuth2User(OAuth2User delegate, Long memberId) {
+	private final Boolean isNewMember;
+
+	public CustomOAuth2User(OAuth2User delegate, Long memberId, Boolean isNewMember) {
 		this.delegate = delegate;
 		this.memberId = memberId;
+		this.isNewMember = isNewMember;
 	}
 
 	@Override
