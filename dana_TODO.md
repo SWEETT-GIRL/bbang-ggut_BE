@@ -22,18 +22,13 @@
 - `Store.location`은 `Point` 타입이므로 PostGIS 쿼리 사용 가능
 - `SubscribedStoreRepository`, `StoreController`, `MemberController`는 팀원 작업과 충돌 가능성 있음
 
-남은 TODO: ([#37](https://github.com/SWEETT-GIRL/bbang-ggut_BE/issues/37))
+### 1. FCM 토큰 비활성화 ([#37](https://github.com/SWEETT-GIRL/bbang-ggut_BE/issues/37))
 
-- [ ] `FcmToken` 엔티티에 `deactivate()` 메서드 추가 (`isActive = false`)
-- [ ] `FcmTokenRepository`에 `findByToken(String token)` 메서드 추가
-- [ ] `AlarmErrorCode`에 `FCM_TOKEN_NOT_FOUND` 에러 코드 추가
-- [ ] `FcmService`에 `deactivateToken(String token)` 내부 메서드 추가
-- [ ] `FcmService.sendPushNotification(String fcmToken, String title, String body)` 구현 — `FirebaseMessagingException` 캐치 후 `UNREGISTERED`·`INVALID_ARGUMENT` 시 자동 비활성화
 - [ ] (선택) `AlarmController`에 관리자용 `PATCH /alarm/fcm-token/{tokenId}/deactivate` 추가
 
 ---
 
-### 2. 알림 중복 방지 로직을 내부 메서드로 먼저 구현
+### 2. 알림 중복 방지 내부 메서드 구현
 
 우선순위:
 
@@ -119,8 +114,6 @@ API 후보:
 
 - 이 API는 우선순위 낮음
 - 위치 기반 알림 구현 후 프론트 요구에 따라 추가
-
-```
 
 ---
 
