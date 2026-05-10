@@ -28,7 +28,7 @@ public class AlarmController {
 	@PostMapping("/fcm-token")
 	public ApiResponse<Void> registerFcmToken(@RequestBody @Valid FcmTokenRequest request) {
 		// TODO: memberId는 인증 구현 후 SecurityContext에서 꺼내기
-		fcmService.saveOrUpdateToken(null, request);
+		fcmService.saveOrUpdateFcmToken(null, request);
 		return ApiResponse.ok(null);
 	}
 
