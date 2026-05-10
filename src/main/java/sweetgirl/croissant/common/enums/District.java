@@ -1,9 +1,7 @@
 package sweetgirl.croissant.common.enums;
 
 import java.util.Arrays;
-import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import lombok.Getter;
 
@@ -61,27 +59,11 @@ public enum District {
 	private final String province;
 	private final String provinceShort;
 	private final String city;
-	private static final Map<String, District> BY_NAME = Arrays.stream(values())
-		.collect(Collectors.toMap(d -> d.city, d -> d));
 
 	District(String province, String provinceShort, String city) {
 		this.province = province;
 		this.provinceShort = provinceShort;
 		this.city = city;
-	}
-
-	public static Optional<District> from(String region1, String region2) {
-		if (region1 == null) {
-			return Optional.empty();
-		}
-		if (region1.contains("서울")) {
-			return Optional.ofNullable(BY_NAME.get(region2));
-		}
-		String cityName = region2 != null && region2.contains(" ")
-			? region2.split(" ")[0]
-			: region2;
-		return Optional.ofNullable(BY_NAME.get(region1))
-			.or(() -> Optional.ofNullable(BY_NAME.get(cityName)));
 	}
 
 	public static Optional<District> fromAddress(String address) {
@@ -90,14 +72,14 @@ public enum District {
 		}
 
 		return Arrays.stream(values())
-			.filter(district -> isMatch(address, district))
-			.findFirst();
+				.filter(district -> isMatch(address, district))
+				.findFirst();
 	}
 
 	private static boolean isMatch(String address, District district) {
 		boolean hasCity = address.contains(district.getCity());
 		boolean hasProvince = address.contains(district.getProvince())
-			|| address.contains(district.getProvinceShort());
+				|| address.contains(district.getProvinceShort());
 
 		return hasProvince && hasCity;
 	}
