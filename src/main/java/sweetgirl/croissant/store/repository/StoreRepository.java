@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import sweetgirl.croissant.common.enums.StoreStatus;
+import sweetgirl.croissant.store.dto.NearbyStoreProjection;
 import sweetgirl.croissant.store.entity.Store;
 
 public interface StoreRepository extends JpaRepository<Store, Long> {
@@ -31,4 +32,17 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 			@Param("y") double latitude,
 			@Param("phone") String phone,
 			@Param("kakaoPlaceId") String kakaoPlaceId);
+	@Query(value = """
+				SELECT
+					s.id,
+					s.name,
+					s.district,
+					ST_Distance( s.location , ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS distance_meters
+				FROM store s
+				WHERE ST_DWithin( s.location , ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography , :radius)
+				AND s.status = 'ACTIVE'
+				ORDER BY distance_meters ASC
+			""", nativeQuery = true)
+	Slice<NearbyStoreProjection> findNearbyStores(@Param("lng") double longitude, @Param("lat") double latitude,
+			@Param("radius") double radiusMeters, Pageable pageable);
 }

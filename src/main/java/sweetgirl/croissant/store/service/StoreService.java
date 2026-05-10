@@ -1,6 +1,9 @@
 package sweetgirl.croissant.store.service;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -15,8 +18,11 @@ import sweetgirl.croissant.external.kakao.dto.KakaoSearchResult;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.store.code.StoreErrorCode;
+import sweetgirl.croissant.store.dto.NearbyStoreProjection;
+import sweetgirl.croissant.store.dto.NearbyStoreResponse;
 import sweetgirl.croissant.store.dto.StoreDetailResponse;
 import sweetgirl.croissant.store.dto.StoreSearchResponse;
+import sweetgirl.croissant.store.dto.StoreImageThumbnailProjection;
 import sweetgirl.croissant.store.dto.SubscribedStoreResponse;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreBusinessHour;
@@ -83,4 +89,26 @@ public class StoreService {
 		return new SliceResponse<>(responses, !kakaoResult.isEnd());
 	}
 
+
+	public SliceResponse<NearbyStoreResponse> getNearbyStores(double longitude, double latitude, Pageable pageable) {
+		Slice<NearbyStoreProjection> slice = storeRepository.findNearbyStores(longitude, latitude, radiusMeters,
+			pageable);
+		List<Long> storeIds = slice.getContent().stream()
+			.map(NearbyStoreProjection::getId)
+			.toList();
+		Map<Long, String> thumbnailMap = storeIds.isEmpty()
+			? Collections.emptyMap()
+			: storeImageFileRepository.findThumbnailsByStoreIdIn(storeIds).stream()
+				.collect(Collectors.toMap(
+					StoreImageThumbnailProjection::getStoreId,
+					StoreImageThumbnailProjection::getAwsKey,
+					(first, second) -> first));
+
+		Slice<NearbyStoreResponse> responseSlice = slice.map(nearbyStore -> {
+			int rounded = (int)Math.round(nearbyStore.getDistanceMeters());
+			String thumbnailUrl = thumbnailMap.get(nearbyStore.getId());
+			return NearbyStoreResponse.of(nearbyStore, thumbnailUrl, rounded);
+		});
+		return SliceResponse.from(responseSlice);
+	}
 }

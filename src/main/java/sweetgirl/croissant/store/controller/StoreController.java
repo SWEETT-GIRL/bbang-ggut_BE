@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.global.response.SliceResponse;
+import sweetgirl.croissant.store.dto.NearbyStoreResponse;
 import sweetgirl.croissant.store.dto.StoreDetailResponse;
 import sweetgirl.croissant.store.dto.StoreSearchResponse;
 import sweetgirl.croissant.store.dto.SubscribedStoreResponse;
@@ -49,5 +50,15 @@ public class StoreController {
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "15") int size) {
 		return ResponseEntity.ok(ApiResponse.ok(storeService.searchStores(keyword, PageRequest.of(page, size))));
+	}
+
+	@Operation(summary = "근처 빵집 목록 조회")
+	@GetMapping("/nearby")
+	public ResponseEntity<ApiResponse<SliceResponse<NearbyStoreResponse>>> getNearbyStore(
+			@RequestParam double lat, @RequestParam double lng,
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "10") int size) {
+		return ResponseEntity.ok(
+			ApiResponse.ok(storeService.getNearbyStores(lng, lat, PageRequest.of(page, size))));
 	}
 }
