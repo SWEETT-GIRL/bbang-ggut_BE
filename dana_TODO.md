@@ -37,24 +37,25 @@
 
 구현 TODO:
 
-- [ ] `StoreNotificationRepository.existsByMemberAndStoreAndSentAtAfter(...)`
+- [ ] `StoreNotificationRepository.existsByMemberAndStoreAndSentAtAfter(member, store, after)`
 - [ ] `AlarmService.isDuplicateAlarm(Member member, Store store)`
-- [ ] 기준 시간 `N분` 임시 상수 지정
-- [ ] 팀 협의 후 기준 시간 확정
 
-예상 메서드:
+기준: **자정 기준 하루 1회** (팀 협의 완료)
 
 ```java
-boolean existsByMemberAndStoreAndSentAtAfter(
-    Member member,
-    Store store,
-    LocalDateTime after
-);
+// Repository — 메서드명은 기존과 동일, after에 자정을 넘김
+boolean existsByMemberAndStoreAndSentAtAfter(Member member, Store store, LocalDateTime after);
+
+// Service
+public boolean isDuplicateAlarm(Member member, Store store) {
+    LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
+    return storeNotificationRepository.existsByMemberAndStoreAndSentAtAfter(member, store, startOfToday);
+}
 ```
 
 주의:
 
-- 짧은 시간 안에 같은 가게 알림이 반복 발송되지 않도록 처리
+- 같은 날 자정 이후 발송 기록이 있으면 skip
 - 외부 API 공개 여부는 프론트 요구 확인 후 결정
 
 ---
@@ -126,7 +127,6 @@ API 후보:
 | `StoreController` 수정        | 이현정  | `/stores/subscribed` API 파일 충돌 방지 |
 | `SubscribedStoreRepository` | 이현정  | 중복 생성 방지                          |
 | `notificationRadius` 단위     | 팀 전체 | m / km / 기본값 확인                   |
-| 중복 알림 기준 시간                 | 팀 전체 | 최근 N분 기준 확정                       |
 | 마케팅 알림 히스토리                 | 프론트  | Dana 담당 여부 확인                     |
 | FCM 실패 정책                   | 팀 전체 | 발송 실패 시 응답/DB 저장 정책               |
 | PostGIS 의존성                 | 이현정  | `ST_DWithin` 사용 가능 여부 확인          |
