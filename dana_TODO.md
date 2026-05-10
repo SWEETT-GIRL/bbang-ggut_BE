@@ -22,45 +22,7 @@
 - `Store.location`은 `Point` 타입이므로 PostGIS 쿼리 사용 가능
 - `SubscribedStoreRepository`, `StoreController`, `MemberController`는 팀원 작업과 충돌 가능성 있음
 
-### 1. FCM 토큰 비활성화 ([#37](https://github.com/SWEETT-GIRL/bbang-ggut_BE/issues/37))
-
-- [ ] (선택) `AlarmController`에 관리자용 `PATCH /alarm/fcm-token/{tokenId}/deactivate` 추가
-
----
-
-### 2. 알림 중복 방지 내부 메서드 구현
-
-우선순위:
-
-- 컨트롤러 API로 바로 공개하지 않음
-- `location-check` 내부에서 먼저 사용
-
-구현 TODO:
-
-- [ ] `StoreNotificationRepository.existsByMemberAndStoreAndSentAtAfter(member, store, after)`
-- [ ] `AlarmService.isDuplicateAlarm(Member member, Store store)`
-
-기준: **자정 기준 하루 1회** (팀 협의 완료)
-
-```java
-// Repository — 메서드명은 기존과 동일, after에 자정을 넘김
-boolean existsByMemberAndStoreAndSentAtAfter(Member member, Store store, LocalDateTime after);
-
-// Service
-public boolean isDuplicateAlarm(Member member, Store store) {
-    LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
-    return storeNotificationRepository.existsByMemberAndStoreAndSentAtAfter(member, store, startOfToday);
-}
-```
-
-주의:
-
-- 같은 날 자정 이후 발송 기록이 있으면 skip
-- 외부 API 공개 여부는 프론트 요구 확인 후 결정
-
----
-
-### 3. 위치 기반 근접 체크
+### 1. 위치 기반 근접 체크
 
 API:
 
@@ -100,7 +62,7 @@ API:
 
 ---
 
-### 4. 중복 체크 API 외부 공개 여부 결정
+### 2. 중복 체크 API 외부 공개 여부 결정
 
 API 후보:
 
