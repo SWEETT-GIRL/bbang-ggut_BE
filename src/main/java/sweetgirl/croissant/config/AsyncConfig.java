@@ -18,6 +18,9 @@ public class AsyncConfig implements AsyncConfigurer {
 		executor.setMaxPoolSize(3);
 		executor.setQueueCapacity(30);
 		executor.setThreadNamePrefix("async-store-");
+
+		executor.setRejectedExecutionHandler(new java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy());
+
 		executor.initialize();
 		return executor;
 	}
