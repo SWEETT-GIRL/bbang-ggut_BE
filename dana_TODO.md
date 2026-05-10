@@ -22,61 +22,7 @@
 - `Store.location`은 `Point` 타입이므로 PostGIS 쿼리 사용 가능
 - `SubscribedStoreRepository`, `StoreController`, `MemberController`는 팀원 작업과 충돌 가능성 있음
 
-
-### 1. FCM 토큰/발송 준비 -- FCM 토큰 저장/갱신 흐름 확인
-
-구현 TODO:
-
-- [x] 기존 FCM 토큰 저장 API 존재 여부 확인 → `POST /alarm/fcm-token` 존재
-- [x] 기존 구현이 있으면 재사용 → `FcmService.saveOrUpdateToken()` upsert 로직 완료
-- [x] `FcmTokenRepository` 정리 → `findByMemberAndIsActive(member, true)` 메서드 존재
-- [x] 활성 FCM 토큰 조회 방식 확인 → `findByMemberAndIsActive(member, true)` 사용
-
-위치 기반 알림에서 필요한 조건:
-
-- [x] 같은 `member` + `deviceId` 재등록 시 token 갱신 가능 → `updateToken()` + `isActive = true` 처리됨
-- [x] `isActive`가 false인 토큰은 발송 대상에서 제외 → `findByMemberAndIsActive` 로 필터 가능
-- [ ] 로그인 유저의 활성 토큰 조회 가능 → 인증 미구현 (컨트롤러 전 메서드 `memberId = null`)
-
-남은 TODO:
-
-- [ ] `FcmService.sendPushNotification(String fcmToken, String title, String body)` 구현 — Firebase Admin SDK 초기화는 완료, `FirebaseMessaging.send()` 호출 로직 없음
-- [ ] 토큰 비활성화 로직 — `isActive = false` 로 바꾸는 API/내부 메서드 없음 (FCM 발송 실패 시 필요)
-
----
-
-### 2. 알림 중복 방지 로직을 내부 메서드로 먼저 구현
-
-우선순위:
-
-- 컨트롤러 API로 바로 공개하지 않음
-- `location-check` 내부에서 먼저 사용
-
-구현 TODO:
-
-- [ ] `StoreNotificationRepository.existsByMemberAndStoreAndSentAtAfter(...)`
-- [ ] `AlarmService.isDuplicateAlarm(Member member, Store store)`
-- [ ] 기준 시간 `N분` 임시 상수 지정
-- [ ] 팀 협의 후 기준 시간 확정
-
-예상 메서드:
-
-```java
-boolean existsByMemberAndStoreAndSentAtAfter(
-    Member member,
-    Store store,
-    LocalDateTime after
-);
-```
-
-주의:
-
-- 짧은 시간 안에 같은 가게 알림이 반복 발송되지 않도록 처리
-- 외부 API 공개 여부는 프론트 요구 확인 후 결정
-
----
-
-### 3. 위치 기반 근접 체크
+### 1. 위치 기반 근접 체크
 
 API:
 
@@ -116,7 +62,7 @@ API:
 
 ---
 
-### 4. 중복 체크 API 외부 공개 여부 결정
+### 2. 중복 체크 API 외부 공개 여부 결정
 
 API 후보:
 
@@ -132,8 +78,6 @@ API 후보:
 - 이 API는 우선순위 낮음
 - 위치 기반 알림 구현 후 프론트 요구에 따라 추가
 
-```
-
 ---
 
 ## 팀원과 맞춰야 할 것
@@ -145,7 +89,6 @@ API 후보:
 | `StoreController` 수정        | 이현정  | `/stores/subscribed` API 파일 충돌 방지 |
 | `SubscribedStoreRepository` | 이현정  | 중복 생성 방지                          |
 | `notificationRadius` 단위     | 팀 전체 | m / km / 기본값 확인                   |
-| 중복 알림 기준 시간                 | 팀 전체 | 최근 N분 기준 확정                       |
 | 마케팅 알림 히스토리                 | 프론트  | Dana 담당 여부 확인                     |
 | FCM 실패 정책                   | 팀 전체 | 발송 실패 시 응답/DB 저장 정책               |
 | PostGIS 의존성                 | 이현정  | `ST_DWithin` 사용 가능 여부 확인          |

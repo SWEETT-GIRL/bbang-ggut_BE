@@ -33,6 +33,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 sweetgirl.croissant
 ├── {domain}/    controller · service · repository · entity · dto/request · dto/response
 │   (alarm · member · menu · store)
+├── external/    외부 API 연동 (kakao — KakaoLocalClient, DTO, 에러코드)
 ├── global/      ApiResponse, CustomException, BaseErrorCode, GlobalExceptionHandler
 ├── config/      FirebaseConfig, JpaConfig, SwaggerConfig
 └── common/      BaseTimeEntity, 공통 Enum
