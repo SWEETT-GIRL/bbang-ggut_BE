@@ -59,4 +59,8 @@ public class FcmToken extends BaseTimeEntity {
 		this.token = token;
 		this.isActive = true;
 	}
+
+	public void deactivate() {
+		this.isActive = false;
+	}
 }

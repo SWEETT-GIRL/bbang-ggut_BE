@@ -22,26 +22,14 @@
 - `Store.location`은 `Point` 타입이므로 PostGIS 쿼리 사용 가능
 - `SubscribedStoreRepository`, `StoreController`, `MemberController`는 팀원 작업과 충돌 가능성 있음
 
+남은 TODO: ([#37](https://github.com/SWEETT-GIRL/bbang-ggut_BE/issues/37))
 
-### 1. FCM 토큰/발송 준비 -- FCM 토큰 저장/갱신 흐름 확인
-
-구현 TODO:
-
-- [x] 기존 FCM 토큰 저장 API 존재 여부 확인 → `POST /alarm/fcm-token` 존재
-- [x] 기존 구현이 있으면 재사용 → `FcmService.saveOrUpdateToken()` upsert 로직 완료
-- [x] `FcmTokenRepository` 정리 → `findByMemberAndIsActive(member, true)` 메서드 존재
-- [x] 활성 FCM 토큰 조회 방식 확인 → `findByMemberAndIsActive(member, true)` 사용
-
-위치 기반 알림에서 필요한 조건:
-
-- [x] 같은 `member` + `deviceId` 재등록 시 token 갱신 가능 → `updateToken()` + `isActive = true` 처리됨
-- [x] `isActive`가 false인 토큰은 발송 대상에서 제외 → `findByMemberAndIsActive` 로 필터 가능
-- [ ] 로그인 유저의 활성 토큰 조회 가능 → 인증 미구현 (컨트롤러 전 메서드 `memberId = null`)
-
-남은 TODO:
-
-- [ ] `FcmService.sendPushNotification(String fcmToken, String title, String body)` 구현 — Firebase Admin SDK 초기화는 완료, `FirebaseMessaging.send()` 호출 로직 없음
-- [ ] 토큰 비활성화 로직 — `isActive = false` 로 바꾸는 API/내부 메서드 없음 (FCM 발송 실패 시 필요)
+- [ ] `FcmToken` 엔티티에 `deactivate()` 메서드 추가 (`isActive = false`)
+- [ ] `FcmTokenRepository`에 `findByToken(String token)` 메서드 추가
+- [ ] `AlarmErrorCode`에 `FCM_TOKEN_NOT_FOUND` 에러 코드 추가
+- [ ] `FcmService`에 `deactivateToken(String token)` 내부 메서드 추가
+- [ ] `FcmService.sendPushNotification(String fcmToken, String title, String body)` 구현 — `FirebaseMessagingException` 캐치 후 `UNREGISTERED`·`INVALID_ARGUMENT` 시 자동 비활성화
+- [ ] (선택) `AlarmController`에 관리자용 `PATCH /alarm/fcm-token/{tokenId}/deactivate` 추가
 
 ---
 
