@@ -71,15 +71,14 @@ public enum District {
 			return Optional.empty();
 		}
 
-		return Arrays.stream(values())
-				.filter(district -> isMatch(address, district))
-				.findFirst();
+		return Arrays.stream(values()).filter(district -> isMatch(address, district))
+			.findFirst();
 	}
 
 	private static boolean isMatch(String address, District district) {
 		boolean hasCity = address.contains(district.getCity());
 		boolean hasProvince = address.contains(district.getProvince())
-				|| address.contains(district.getProvinceShort());
+			|| address.contains(district.getProvinceShort());
 
 		return hasProvince && hasCity;
 	}

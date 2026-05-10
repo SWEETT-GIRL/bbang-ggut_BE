@@ -27,14 +27,14 @@ public class KakaoLocalClient {
 		KakaoSearchResponse response;
 		try {
 			response = kakaoRestClient.get()
-					.uri(uriBuilder -> uriBuilder
-							.path(KEYWORD_SEARCH_PATH)
-							.queryParam("query", query)
-							.queryParam("size", MAX_SIZE)
-							.queryParam("page", page)
-							.build())
-					.retrieve()
-					.body(KakaoSearchResponse.class);
+				.uri(uriBuilder -> uriBuilder
+					.path(KEYWORD_SEARCH_PATH)
+					.queryParam("query", query)
+					.queryParam("size", MAX_SIZE)
+					.queryParam("page", page)
+					.build())
+				.retrieve()
+				.body(KakaoSearchResponse.class);
 		} catch (RestClientException e) {
 			throw new KakaoLocalApiException(KakaoErrorCode.KEYWORD_SEARCH_ERROR, e);
 		}
@@ -44,9 +44,9 @@ public class KakaoLocalClient {
 		}
 
 		List<KakaoPlace> places = response.documents() == null ? List.of()
-				: response.documents().stream()
-				  .filter(this::isBreadPlace)
-				  .toList();
+			: response.documents().stream()
+				.filter(this::isBreadPlace)
+				.toList();
 
 		boolean isEnd = response.meta() == null || response.meta().isEnd();
 		return new KakaoSearchResult(places, isEnd);
@@ -54,7 +54,7 @@ public class KakaoLocalClient {
 
 	private boolean isBreadPlace(KakaoPlace place) {
 		return KakaoCategoryCode.from(place.categoryGroupCode())
-				.map(code -> code.matches(place.categoryName()))
-				.orElse(false);
+			.map(code -> code.matches(place.categoryName()))
+			.orElse(false);
 	}
 }
