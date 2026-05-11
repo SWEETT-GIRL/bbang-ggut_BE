@@ -32,6 +32,8 @@ import sweetgirl.croissant.store.dto.StoreDetailResponse;
 import sweetgirl.croissant.store.dto.StoreImageThumbnailProjection;
 import sweetgirl.croissant.store.dto.StoreSearchResponse;
 import sweetgirl.croissant.store.dto.SubscribedStoreResponse;
+import sweetgirl.croissant.store.dto.TopSubscribedStoreProjection;
+import sweetgirl.croissant.store.dto.TopSubscribedStoreResponse;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreBusinessHour;
 import sweetgirl.croissant.store.entity.StoreImageFile;
@@ -132,6 +134,20 @@ public class StoreService {
 			return NearbyStoreResponse.of(nearbyStore, storeThumbnailUrl, roundedDistance);
 		});
 		return SliceResponse.from(responseSlice);
+	}
+
+	public List<TopSubscribedStoreResponse> getTopSubscribedStores(double longitude, double latitude) {
+		List<TopSubscribedStoreProjection> topStores = storeRepository.findTopSubscribedStores(longitude, latitude,
+			TOP_SUBSCRIBED_STORE_LIMIT);
+		List<Long> storeIds = topStores.stream()
+			.map(TopSubscribedStoreProjection::getId)
+			.toList();
+		Map<Long, String> storeThumbnailMap = getStoreThumbnails(storeIds);
+
+		return topStores.stream()
+			.map(store -> TopSubscribedStoreResponse.of(store, storeThumbnailMap.get(store.getId()),
+				Math.round(store.getDistanceMeters())))
+			.toList();
 	}
 
 	private Map<Long, String> getStoreThumbnails(List<Long> storeIds) {

@@ -1,5 +1,7 @@
 package sweetgirl.croissant.store.repository;
 
+import java.util.List;
+
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -9,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 
 import sweetgirl.croissant.common.enums.StoreStatus;
 import sweetgirl.croissant.store.dto.NearbyStoreProjection;
+import sweetgirl.croissant.store.dto.TopSubscribedStoreProjection;
 import sweetgirl.croissant.store.entity.Store;
 
 public interface StoreRepository extends JpaRepository<Store, Long> {
@@ -46,4 +49,21 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 			""", nativeQuery = true)
 	Slice<NearbyStoreProjection> findNearbyStores(@Param("lng") double longitude, @Param("lat") double latitude,
 			@Param("radius") double radiusMeters, Pageable pageable);
+
+	@Query(value = """
+				SELECT
+					s.id,
+					s.name,
+					s.district,
+					COUNT(ss.id) AS subscribe_count,
+					ST_Distance( s.location , ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS distance_meters
+				FROM store s
+				LEFT JOIN subscribed_store ss ON ss.store_id = s.id
+				WHERE s.status = 'ACTIVE'
+				GROUP BY s.id
+				ORDER BY subscribe_count DESC
+				LIMIT :limit
+			""", nativeQuery = true)
+	List<TopSubscribedStoreProjection> findTopSubscribedStores(@Param("lng") double longitude,
+			@Param("lat") double latitude, @Param("limit") int limit);
 }

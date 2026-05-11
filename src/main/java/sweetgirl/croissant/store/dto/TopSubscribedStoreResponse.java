@@ -5,10 +5,10 @@ public record TopSubscribedStoreResponse(
 		String name,
 		String district,
 		String storeThumbnailUrl,
-		int distanceMeters,
+		Long distanceMeters,
 		long subscribeCount) {
 	public static TopSubscribedStoreResponse of(TopSubscribedStoreProjection projection, String storeThumbnailUrl,
-			int distanceMeters) {
+			Long distanceMeters) {
 		return new TopSubscribedStoreResponse(
 			projection.getId(),
 			projection.getName(),
