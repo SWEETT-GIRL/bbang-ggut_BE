@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -198,6 +199,7 @@ class AlarmServiceTest {
 		given(subscribedStoreRepository.findNearbySubscribedStores(memberId, 37.5, 127.0, 50))
 			.willReturn(List.of());
 		given(fcmTokenRepository.findByMemberAndIsActive(member, true)).willReturn(List.of());
+		given(storeNotificationRepository.findNotifiedStoreIdsSince(eq(member), any())).willReturn(Set.of());
 
 		LocationCheckResponse result = alarmService.checkProximity(memberId, request);
 
@@ -223,13 +225,14 @@ class AlarmServiceTest {
 		given(request.getLatitude()).willReturn(37.5);
 		given(request.getLongitude()).willReturn(127.0);
 		given(setting.getNotificationRadius()).willReturn(NotificationRadius.RADIUS_50);
+		given(store.getId()).willReturn(10L);
 		given(subscribedStore.getStore()).willReturn(store);
 		given(subscribedStoreRepository.findNearbySubscribedStores(memberId, 37.5, 127.0, 50))
 			.willReturn(List.of(subscribedStore));
 		given(fcmTokenRepository.findByMemberAndIsActive(member, true)).willReturn(List.of());
-		// 오늘 이미 발송 기록 있음
-		given(storeNotificationRepository.existsByMemberAndStoreAndSentAtAfter(eq(member), eq(store), any()))
-			.willReturn(true);
+		// 오늘 이미 발송 기록 있음 — storeId=10이 이미 포함된 Set 반환
+		given(storeNotificationRepository.findNotifiedStoreIdsSince(eq(member), any()))
+			.willReturn(Set.of(10L));
 
 		LocationCheckResponse result = alarmService.checkProximity(memberId, request);
 
@@ -263,8 +266,8 @@ class AlarmServiceTest {
 		given(subscribedStoreRepository.findNearbySubscribedStores(memberId, 37.5, 127.0, 50))
 			.willReturn(List.of(subscribedStore));
 		given(fcmTokenRepository.findByMemberAndIsActive(member, true)).willReturn(List.of(token));
-		given(storeNotificationRepository.existsByMemberAndStoreAndSentAtAfter(eq(member), eq(store), any()))
-			.willReturn(false);
+		// 오늘 발송 기록 없음 — 빈 Set 반환
+		given(storeNotificationRepository.findNotifiedStoreIdsSince(eq(member), any())).willReturn(Set.of());
 
 		LocationCheckResponse result = alarmService.checkProximity(memberId, request);
 

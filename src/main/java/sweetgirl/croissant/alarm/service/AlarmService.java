@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -69,13 +70,6 @@ public class AlarmService {
 		notification.markAsRead();
 	}
 
-	// 같은 날 자정 이후 발송 기록이 있으면 skip -- 중복 방지 처리
-	@Transactional(readOnly = true)
-	public boolean isDuplicateAlarm(Member member, Store store) {
-		LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
-		return storeNotificationRepository.existsByMemberAndStoreAndSentAtAfter(member, store, startOfToday);
-	}
-
 	// 위치 기반 푸시 알림 트리거 — 현재 위치가 구독 빵집 근처이면 FCM 발송
 	public LocationCheckResponse checkProximity(Long memberId, LocationCheckRequest request) {
 		Member member = getMember(memberId);
@@ -99,8 +93,12 @@ public class AlarmService {
 		// 4. 멤버의 활성 FCM 토큰 목록 조회 (기기별 발송용)
 		List<FcmToken> tokens = fcmTokenRepository.findByMemberAndIsActive(member, true);
 
-		// 5. 가게별 중복 체크 → FCM 발송 → 히스토리 저장
-		List<String> notified = sendNotificationsIfEligible(member, nearby, tokens);
+		// 5. 오늘 이미 발송한 storeId를 한 번에 조회 — 루프 내 N+1 방지
+		Set<Long> notifiedToday = storeNotificationRepository.findNotifiedStoreIdsSince(
+			member, LocalDate.now().atStartOfDay());
+
+		// 6. 가게별 중복 체크 → FCM 발송 → 히스토리 저장
+		List<String> notified = sendNotificationsIfEligible(member, nearby, tokens, notifiedToday);
 
 		return LocationCheckResponse.builder()
 			.triggered(!notified.isEmpty())
@@ -131,7 +129,7 @@ public class AlarmService {
 
 	// 반경 내 가게 중 오늘 미발송 가게에 FCM 발송 + StoreNotification 저장
 	private List<String> sendNotificationsIfEligible(Member member, List<SubscribedStore> nearby,
-			List<FcmToken> tokens) {
+			List<FcmToken> tokens, Set<Long> notifiedToday) {
 
 		List<String> notified = new ArrayList<>();
 
@@ -139,7 +137,7 @@ public class AlarmService {
 			Store store = ss.getStore();
 
 			// 오늘 이미 이 가게 알림 발송했으면 skip
-			if (isDuplicateAlarm(member, store)) {
+			if (notifiedToday.contains(store.getId())) {
 				continue;
 			}
 
