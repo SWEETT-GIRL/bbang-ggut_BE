@@ -2,6 +2,7 @@ package sweetgirl.croissant.alarm.controller;
 
 import java.util.List;
 
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,33 +29,31 @@ public class AlarmController {
 	private final AlarmService alarmService;
 
 	@PostMapping("/fcm-token")
-	public ApiResponse<Void> registerFcmToken(@RequestBody @Valid FcmTokenRequest request) {
-		// TODO: memberId는 인증 구현 후 SecurityContext에서 꺼내기
-		fcmService.saveOrUpdateFcmToken(null, request);
+	public ApiResponse<Void> registerFcmToken(@AuthenticationPrincipal Long memberId,
+			@RequestBody @Valid FcmTokenRequest request) {
+		fcmService.saveOrUpdateFcmToken(memberId, request);
 		return ApiResponse.ok(null);
 	}
 
 	// 알람 히스토리 조회
 	@GetMapping("/history")
-	public ApiResponse<List<StoreNotificationResponse>> getNotificationHistory() {
-
-		// TODO: 인증 구현 후 SecurityContext에서 member 꺼내기
-		List<StoreNotificationResponse> history = alarmService.getStoreNotificationHistory(null);
+	public ApiResponse<List<StoreNotificationResponse>> getNotificationHistory(@AuthenticationPrincipal Long memberId) {
+		List<StoreNotificationResponse> history = alarmService.getStoreNotificationHistory(memberId);
 		return ApiResponse.ok(history);
 	}
 
 	//알람 읽음 처리
 	@PostMapping("/{id}")
-	public ApiResponse<Void> readNotification(@PathVariable Long id) {
-		// TODO: 인증 구현 후 SecurityContext에서 member 꺼내기
-		alarmService.markAsRead(null, id);
+	public ApiResponse<Void> readNotification(@AuthenticationPrincipal Long memberId, @PathVariable Long id) {
+		alarmService.markAsRead(memberId, id);
 		return ApiResponse.ok(null);
 	}
 
+	// 위치 기반 근접 체크 - 구독 빵집 근처 진입 시 FCM 알림 발송
 	@PostMapping("/location-check")
-	public ApiResponse<LocationCheckResponse> checkLocation(@RequestBody @Valid LocationCheckRequest request) {
-		LocationCheckResponse response = alarmService.checkProximity(null, request);
+	public ApiResponse<LocationCheckResponse> checkLocation(@AuthenticationPrincipal Long memberId,
+			@RequestBody @Valid LocationCheckRequest request) {
+		LocationCheckResponse response = alarmService.checkProximity(memberId, request);
 		return ApiResponse.ok(response);
-
 	}
 }

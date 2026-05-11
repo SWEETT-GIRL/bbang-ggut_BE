@@ -20,9 +20,11 @@ import sweetgirl.croissant.alarm.entity.StoreNotification;
 import sweetgirl.croissant.alarm.exception.AlarmException;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
 import sweetgirl.croissant.alarm.repository.StoreNotificationRepository;
-import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
+import sweetgirl.croissant.member.exception.MemberException;
+import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.SubscribedStore;
@@ -38,11 +40,12 @@ public class AlarmService {
 	final FcmTokenRepository fcmTokenRepository;
 	final FcmService fcmService;
 	final SubscribedStoreRepository subscribedStoreRepository;
+	final MemberRepository memberRepository;
 
 	// 알람 히스토리 목록 조회
 	@Transactional(readOnly = true)
-	public List<StoreNotificationResponse> getStoreNotificationHistory(Member member) {
-
+	public List<StoreNotificationResponse> getStoreNotificationHistory(Long memberId) {
+		Member member = getMember(memberId);
 		return storeNotificationRepository.findByMemberAndSentAtAfterOrderBySentAtDesc(member,
 			LocalDateTime.now().minusWeeks(1))
 			.stream()
@@ -51,12 +54,12 @@ public class AlarmService {
 	}
 
 	// 알람 읽음 처리
-	public void markAsRead(Member member, Long alarmId) {
+	public void markAsRead(Long memberId, Long alarmId) {
 
 		StoreNotification notification = storeNotificationRepository.findById(alarmId)
 			.orElseThrow(() -> new AlarmException(AlarmErrorCode.ALARM_NOT_FOUND));
 
-		if (member != null && !notification.getMember().getId().equals(member.getId())) {
+		if (memberId != null && !notification.getMember().getId().equals(memberId)) {
 			throw new AlarmException(AlarmErrorCode.ALARM_FORBIDDEN);
 		}
 		notification.markAsRead();
@@ -70,11 +73,12 @@ public class AlarmService {
 	}
 
 	// 위치 기반 푸시 알림 트리거 — 현재 위치가 구독 빵집 근처이면 FCM 발송
-	public LocationCheckResponse checkProximity(Member member, LocationCheckRequest request) {
+	public LocationCheckResponse checkProximity(Long memberId, LocationCheckRequest request) {
+		Member member = getMember(memberId);
 
 		// 1. 알림 설정 조회
 		NotificationSetting setting = notificationSettingRepository.findByMember(member)
-			.orElseThrow(() -> new CustomException(AlarmErrorCode.ALARM_NOT_FOUND));
+			.orElseThrow(() -> new AlarmException(AlarmErrorCode.ALARM_NOT_FOUND));
 
 		// 2. 알림 차단 조건(ON/OFF, DND, 시간, 요일) 체크
 		if (isNotificationBlocked(setting)) {
@@ -167,6 +171,11 @@ public class AlarmService {
 			case SATURDAY -> "토";
 			case SUNDAY -> "일";
 		};
+	}
+
+	private Member getMember(Long memberId) {
+		return memberRepository.findById(memberId)
+			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 	}
 
 }

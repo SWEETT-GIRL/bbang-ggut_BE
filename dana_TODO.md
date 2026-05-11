@@ -7,52 +7,6 @@
 
 ## 구현 순서
 
-### 0. 기존 엔티티/레포 구조 확인
-
-- [ ] `StoreNotification`, `SubscribedStore`, `FcmToken`, `NotificationSetting`, `Store` 실제 필드 확인
-- [ ] 이미 존재하는 Repository / Controller / Service 중복 확인
-- [ ] 인증에서 `Member`를 어떻게 꺼내는지 확인
-    - `@AuthenticationPrincipal`
-    - `SecurityContext`
-    - 커스텀 인증 유틸 여부
-
-확인 포인트:
-
-- `StoreNotification`은 `isRead` 필드가 없고 `readAt == null` 여부로 읽음 상태 판단
-- `Store.location`은 `Point` 타입이므로 PostGIS 쿼리 사용 가능
-- `SubscribedStoreRepository`, `StoreController`, `MemberController`는 팀원 작업과 충돌 가능성 있음
-
-### 1. 위치 기반 근접 체크
-
-API:
-
-- [ ] `POST /alarm/location-check`
-
-- [ ] `NotificationSettingRepository.findByMember(Member member)`
-- [ ] `SubscribedStoreRepository.findNearbySubscribedStores(...)`
-- [ ] `AlarmService.checkProximity(Member member, LocationCheckRequest request)`
-- [ ] `FcmService.sendPushNotification(String fcmToken, String title, String body)`
-- [ ] 조건 충족 시 `StoreNotification` 저장
-- [ ] `AlarmController`에 `POST /alarm/location-check` 등록
-- [ ] 테스트: 가게 좌표 근처 위경도 요청 시 알림 발송 및 DB 저장 확인
-
-처리 흐름:
-
-1. `NotificationSetting` 조회
-2. 알림 ON/OFF, DND, 시간대, 요일 조건 확인
-3. PostGIS `ST_DWithin`으로 반경 내 구독 가게 조회
-4. 가게별 중복 알림 여부 확인
-5. 조건 충족 가게에 대해 FCM 발송
-6. `StoreNotification` 저장
-7. `LocationCheckResponse` 반환
-
-주의:
-
-- `notificationRadius` 단위는 팀과 확인 필요
-- `Store.location`이 `Point` 타입이므로 Haversine 직접 구현보다 PostGIS 쿼리 우선
-- FCM 발송 실패 시 전체 요청 실패로 볼지, 해당 토큰만 실패 처리할지 정책 필요
-
----
 
 ### 2. 중복 체크 API 외부 공개 여부 결정
 
@@ -74,13 +28,9 @@ API 후보:
 
 ## 팀원과 맞춰야 할 것
 
-| 항목                          | 대상   | 내용                                |
-|-----------------------------|------|-----------------------------------|
-| 인증 방식                       | 김나영  | JWT에서 `Member` 꺼내는 방식             |
-| `MemberController` 수정       | 김나영  | `/users/me/*` API 파일 충돌 방지        |
-| `StoreController` 수정        | 이현정  | `/stores/subscribed` API 파일 충돌 방지 |
-| `SubscribedStoreRepository` | 이현정  | 중복 생성 방지                          |
-| `notificationRadius` 단위     | 팀 전체 | m / km / 기본값 확인                   |
-| 마케팅 알림 히스토리                 | 프론트  | Dana 담당 여부 확인                     |
-| FCM 실패 정책                   | 팀 전체 | 발송 실패 시 응답/DB 저장 정책               |
-| PostGIS 의존성                 | 이현정  | `ST_DWithin` 사용 가능 여부 확인          |
+| 항목                      | 대상   | 내용                                |
+|-------------------------|------|-----------------------------------|
+| 인증 방식                   | 김나영  | JWT에서 `Member` 꺼내는 방식             |
+| `notificationRadius` 단위 | 팀 전체 | m 단위 확정, 기본값 협의 필요               |
+| 마케팅 알림 히스토리             | 프론트  | Dana 담당 여부 확인                     |
+| FCM 실패 정책               | 팀 전체 | 발송 실패 시 응답/DB 저장 정책               |
