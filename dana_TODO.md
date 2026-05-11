@@ -46,17 +46,38 @@ src/main/java/sweetgirl/croissant/alarm
         ├── alreadyNotified(...) 추가
         └── sendStoreNotification(...) 추가
 
-src/main/java/sweetgirl/croissant/store
-└── repository
-    ├── GeofenceCandidateProjection.java 신규
-    └── SubscribedStoreRepository.java
-        ├── findGeofenceCandidates(...) 추가
-        ├── existsSubscribedStoreWithinRadius(...) 추가
-
-src/main/java/sweetgirl/croissant/common/enums
-└── NotificationRadius.java
-    └── 100/300/500m/700m/1000km.
 ```
+
+1. Projection 먼저
+      - GeofenceCandidateProjection.java
+      - SubscribedStoreRepository.findGeofenceCandidates(...)가 이 타입을 반환할 가능
+        성이 높아서 먼저 필요함.
+  2. Repository 메서드 추가
+      - SubscribedStoreRepository
+          - findGeofenceCandidates(...)
+          - existsSubscribedStoreWithinRadius(...)
+      - StoreNotificationRepository
+          - existsByMemberAndStoreAndSentAtAfter(...)
+  3. DTO 추가
+      - request
+          - GeofenceEnterRequest.java
+      - response
+          - GeofenceCandidateResponse.java
+          - GeofenceCandidatesResponse.java
+  4. AlarmService 내부 공통 로직부터
+      - isNotificationBlocked(...)
+      - alreadyNotified(...)
+      - sendStoreNotification(...)
+  5. AlarmService 공개 메서드 구현
+      - getGeofenceCandidates(...)
+      - handleGeofenceEnter(...)
+  6. AlarmController 엔드포인트 추가
+      - GET /alarm/geofence-candidates
+      - POST /alarm/geofence/enter
+  7. 테스트 / 컴파일 확인
+      - repository query 검증
+      - service 조건 검증
+      - controller 요청/응답 검증
 
 ## 신규 API 1: Geofence 후보 조회
 
