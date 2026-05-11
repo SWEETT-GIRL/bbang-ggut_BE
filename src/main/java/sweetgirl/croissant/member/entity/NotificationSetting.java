@@ -60,6 +60,9 @@ public class NotificationSetting extends BaseTimeEntity {
 	public NotificationSetting(Member member, boolean isNotificationEnabled, NotificationRadius notificationRadius,
 			LocalTime startTime, LocalTime endTime, String daysOfWeek,
 			boolean isMarketingEnabled, boolean isTimeRestricted) {
+		if (isTimeRestricted && (startTime == null || endTime == null)) {
+			throw new IllegalArgumentException("isTimeRestricted=true 이면 startTime과 endTime이 필요합니다.");
+		}
 		this.member = member;
 		this.isNotificationEnabled = isNotificationEnabled;
 		this.notificationRadius = notificationRadius != null ? notificationRadius : NotificationRadius.RADIUS_50;

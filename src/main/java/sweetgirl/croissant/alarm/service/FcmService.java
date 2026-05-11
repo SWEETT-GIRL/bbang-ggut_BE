@@ -19,7 +19,9 @@ import sweetgirl.croissant.alarm.exception.AlarmException;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
 import sweetgirl.croissant.common.enums.DeviceOs;
 import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.MemberRepository;
 
 @Service
@@ -35,7 +37,8 @@ public class FcmService {
 	// 기기별 FCM Token 저장 또는 갱신
 	public void saveOrUpdateFcmToken(Long memberId, FcmTokenRequest fcmTokenRequest) {
 
-		Member member = memberRepository.findById(memberId).orElseThrow();
+		Member member = memberRepository.findById(memberId)
+			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 
 		String deviceId = fcmTokenRequest.getDeviceId();
 		DeviceOs deviceOs = fcmTokenRequest.getDeviceOs();

@@ -76,7 +76,7 @@ public class AlarmService {
 
 		// 1. 알림 설정 조회
 		NotificationSetting setting = notificationSettingRepository.findByMember(member)
-			.orElseThrow(() -> new AlarmException(AlarmErrorCode.ALARM_NOT_FOUND));
+			.orElseThrow(() -> new AlarmException(AlarmErrorCode.NOTIFICATION_SETTING_NOT_FOUND));
 
 		// 2. 알림 차단 조건(ON/OFF, DND, 시간, 요일) 체크
 		if (isNotificationBlocked(setting)) {
