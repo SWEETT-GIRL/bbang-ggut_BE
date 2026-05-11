@@ -68,7 +68,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 		clearCookie(response, "deviceId");
 
 		// bbanggut://oauth?accessToken=xxx&refreshToken=yyy 형태로 앱에 딥링크 redirect
-		String redirectUrl = "bbanggut:oauth//"
+		String redirectUrl = "bbanggut://oauth"
 			+ "?accessToken=" + accessToken
 			+ "&refreshToken=" + refreshToken
 			+ "&isNew=" + isNew;
