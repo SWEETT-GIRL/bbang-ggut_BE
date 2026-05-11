@@ -1,5 +1,7 @@
 package sweetgirl.croissant.member.service;
 
+import java.time.LocalTime;
+
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
@@ -12,8 +14,10 @@ import sweetgirl.croissant.common.enums.OAuthProvider;
 import sweetgirl.croissant.member.dto.CustomOAuth2User;
 import sweetgirl.croissant.member.dto.KakaoOAuth2UserInfo;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.entity.NotificationSetting;
 import sweetgirl.croissant.member.entity.OAuth;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.repository.NotificationSettingRepository;
 import sweetgirl.croissant.member.repository.OAuthRepository;
 
 @Service
@@ -21,6 +25,7 @@ import sweetgirl.croissant.member.repository.OAuthRepository;
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
 	private final MemberRepository memberRepository;
+	private final NotificationSettingRepository notificationSettingRepository;
 	private final OAuthRepository oAuthRepository;
 
 	// Spring Security가 카카오 사용자 정보를 받아온 직후 자동으로 호출하는 메서드
@@ -45,6 +50,9 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 			.findByProviderAndProviderId(OAuthProvider.KAKAO, userInfo.getProviderId())
 			.orElseGet(() -> registerNewMember(userInfo)); // 없으면 신규 가입 처리
 
+		notificationSettingRepository.findByMemberId(oAuth.getMember().getId())
+			.orElseGet(() -> createDefaultNotificationSetting(oAuth.getMember()));
+
 		// CustomOAuth2User로 감싸서 반환
 		// 카카오 원본 OAuth2User + 우리 DB의 memberId를 함께 보관
 		// OAuth2SuccessHandler에서 authentication.getPrincipal()로 꺼내 JWT 생성에 사용
@@ -61,12 +69,31 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 				.build());
 
 		// Member와 카카오 정보를 연결하는 OAuth 레코드 생성 및 저장
-		return oAuthRepository.save(
+		OAuth oAuth = oAuthRepository.save(
 			OAuth.builder()
 				.member(member)
 				.provider(OAuthProvider.KAKAO) // 소셜 로그인 제공자 (KAKAO)
 				.providerId(userInfo.getProviderId()) // 카카오 고유 유저 ID
 				.email(userInfo.getEmail()) // 카카오 계정 이메일
 				.build());
+		return oAuth;
 	}
+
+	private NotificationSetting createDefaultNotificationSetting(Member member) {
+		NotificationSetting setting = notificationSettingRepository.save(
+			NotificationSetting.builder()
+				.member(member)
+				.startTime(LocalTime.of(8, 0))
+				.endTime(LocalTime.of(21, 0))
+				.daysOfWeek("")
+				.notificationRadius(500)
+				.isDndEnabled(false)
+				.isMarketingEnabled(false)
+				.isNotificationEnabled(false)
+				.isTimeRestricted(false)
+				.build());
+
+		return setting;
+	}
+
 }
