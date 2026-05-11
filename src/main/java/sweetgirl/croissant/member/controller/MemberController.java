@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
+import sweetgirl.croissant.member.dto.DayOfWeekResponse;
 import sweetgirl.croissant.member.dto.MenuCategoryResponse;
 import sweetgirl.croissant.member.service.MemberService;
 import sweetgirl.croissant.menu.entity.MenuCategory;
@@ -44,6 +45,19 @@ public class MemberController {
 	public ApiResponse<Void> enrollLikeMenuCategory(@AuthenticationPrincipal Long memberId,
 			@RequestBody String[] bread) {
 		memberService.updateLikeMenuCategory(memberId, bread);
+		return ApiResponse.ok(null);
+	}
+
+	@GetMapping("/me/notification-days")
+	public ApiResponse<DayOfWeekResponse> getNotificationDays(@AuthenticationPrincipal Long memberId) {
+		DayOfWeekResponse result = memberService.getNotificationDays(memberId);
+		return ApiResponse.ok(result);
+	}
+
+	@PostMapping("/me/notification-days")
+	public ApiResponse<Void> enrollNotificationDays(@AuthenticationPrincipal Long memberId,
+			@RequestBody String dayList) {
+		memberService.updateNotificationDays(memberId, dayList);
 		return ApiResponse.ok(null);
 	}
 

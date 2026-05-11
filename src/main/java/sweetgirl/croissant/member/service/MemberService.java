@@ -5,15 +5,22 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.validation.constraints.Null;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.common.enums.MenuKind;
+import sweetgirl.croissant.common.enums.NotificationDay;
+import sweetgirl.croissant.member.code.DayErrorCode;
 import sweetgirl.croissant.member.code.MemberErrorCode;
+import sweetgirl.croissant.member.dto.DayOfWeekResponse;
 import sweetgirl.croissant.member.dto.MenuCategoryResponse;
 import sweetgirl.croissant.member.entity.LikedMenuCategory;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.entity.NotificationSetting;
+import sweetgirl.croissant.member.exception.DayException;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.LikedMenuCategoryRepository;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.repository.NotificationSettingRepository;
 import sweetgirl.croissant.menu.entity.MenuCategory;
 import sweetgirl.croissant.menu.repository.MenuCategoryRepository;
 import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
@@ -27,6 +34,7 @@ public class MemberService {
 	private final SubscribedStoreRepository subscribedStoreRepository;
 	private final MenuCategoryRepository menuCategoryRepository;
 	private final LikedMenuCategoryRepository likedMenuCategoryRepository;
+	private final NotificationSettingRepository notificationSettingRepository;
 
 	@Transactional(readOnly = true)
 	public long getSubscribedStoreCount(Long memberId) {
@@ -59,4 +67,39 @@ public class MemberService {
 		return new MenuCategoryResponse(breadKinds);
 	}
 
+	//유저 알람 가능 요일 조회
+	public DayOfWeekResponse getNotificationDays(Long memberId) {
+		NotificationSetting notificationSetting = notificationSettingRepository.findByMemberId(memberId)
+			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
+
+		String result = notificationSetting.getDaysOfWeek();
+		DayOfWeekResponse dayList = new DayOfWeekResponse();
+
+		if (result == null || result.isEmpty()) {
+			return new DayOfWeekResponse();
+		}
+
+		dayList = new DayOfWeekResponse(result.split(","));
+
+		return dayList;
+
+	}
+
+	//유저 알람 가능 요일 수정 ( 가입한 모든 유저에 한해서 가입시에는 NotificationSetting 테이블에 한 행씩 디폴트 값으로 생성 )
+	public void updateNotificationDays(Long memberId, String dayList) {
+		String[] spliteDays = dayList.split(",");
+
+		for (String day : spliteDays) {
+			try {
+				NotificationDay.valueOf(day);
+			} catch (IllegalArgumentException e) {
+				throw new DayException(DayErrorCode.DAY_NOT_FOUND);
+			}
+		}
+
+		NotificationSetting setting = notificationSettingRepository.findByMemberId(memberId)
+			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
+
+		setting.setDaysOfWeek(dayList);
+	}
 }
