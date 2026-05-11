@@ -65,7 +65,7 @@ public class NotificationSetting extends BaseTimeEntity {
 		}
 		this.member = member;
 		this.isNotificationEnabled = isNotificationEnabled;
-		this.notificationRadius = notificationRadius != null ? notificationRadius : NotificationRadius.RADIUS_50;
+		this.notificationRadius = notificationRadius != null ? notificationRadius : NotificationRadius.RADIUS_500;
 		this.startTime = startTime;
 		this.endTime = endTime;
 		this.daysOfWeek = daysOfWeek;
