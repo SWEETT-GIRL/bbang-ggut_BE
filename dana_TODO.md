@@ -28,14 +28,6 @@ API:
 
 - [ ] `POST /alarm/location-check`
 
-구현 TODO:
-
-- [ ] `LocationCheckRequest`
-    - `@NotNull Double latitude`
-    - `@NotNull Double longitude`
-- [ ] `LocationCheckResponse`
-    - `boolean triggered`
-    - `List<String> storeNames`
 - [ ] `NotificationSettingRepository.findByMember(Member member)`
 - [ ] `SubscribedStoreRepository.findNearbySubscribedStores(...)`
 - [ ] `AlarmService.checkProximity(Member member, LocationCheckRequest request)`
