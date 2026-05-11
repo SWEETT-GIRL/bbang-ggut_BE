@@ -16,8 +16,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.dto.request.FcmTokenRequest;
-import sweetgirl.croissant.alarm.dto.request.LocationCheckRequest;
-import sweetgirl.croissant.alarm.dto.response.LocationCheckResponse;
 import sweetgirl.croissant.alarm.dto.response.StoreNotificationResponse;
 import sweetgirl.croissant.alarm.service.AlarmService;
 import sweetgirl.croissant.alarm.service.FcmService;
@@ -55,11 +53,4 @@ public class AlarmController {
 		return ApiResponse.ok(null);
 	}
 
-	@Operation(summary = "위치 기반 근접 체크", description = "현재 위치 기반으로 구독 빵집 근처 진입 여부를 확인하고, 조건 충족 시 FCM 알림을 발송합니다.")
-	@PostMapping("/location-check")
-	public ApiResponse<LocationCheckResponse> checkLocation(@AuthenticationPrincipal Long memberId,
-			@RequestBody @Valid LocationCheckRequest request) {
-		LocationCheckResponse response = alarmService.checkProximity(memberId, request);
-		return ApiResponse.ok(response);
-	}
 }
