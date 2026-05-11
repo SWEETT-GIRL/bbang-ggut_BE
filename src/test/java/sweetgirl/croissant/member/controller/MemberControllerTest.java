@@ -77,7 +77,7 @@ class MemberControllerTest {
 
 	@Test
 	void enrollFavoriteBread_returns200_whenValidBreadList() throws Exception {
-		willDoNothing().given(memberService).updateLikedMenu(any(), any());
+		willDoNothing().given(memberService).updateLikeMenuCategory(any(), any());
 
 		mockMvc.perform(post("/users/me/favorite-bread")
 			.contentType(MediaType.APPLICATION_JSON)
@@ -89,7 +89,7 @@ class MemberControllerTest {
 	@Test
 	void enrollFavoriteBread_returns404_whenMemberNotFound() throws Exception {
 		willThrow(new MemberException(MemberErrorCode.MEMBER_NOT_FOUND))
-			.given(memberService).updateLikedMenu(any(), any());
+			.given(memberService).updateLikeMenuCategory(any(), any());
 
 		mockMvc.perform(post("/users/me/favorite-bread")
 			.contentType(MediaType.APPLICATION_JSON)
@@ -100,7 +100,7 @@ class MemberControllerTest {
 	@Test
 	void enrollFavoriteBread_returns404_whenMenuNotFound() throws Exception {
 		willThrow(new MemberException(MemberErrorCode.MENU_NOT_FOUND))
-			.given(memberService).updateLikedMenu(any(), any());
+			.given(memberService).updateLikeMenuCategory(any(), any());
 
 		mockMvc.perform(post("/users/me/favorite-bread")
 			.contentType(MediaType.APPLICATION_JSON)

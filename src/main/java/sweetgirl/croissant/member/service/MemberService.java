@@ -36,7 +36,7 @@ public class MemberService {
 	}
 
 	//유저가 좋아한다고 한 빵종류 업데이트
-	public void updateLikedMenu(Long memberId, String[] likedList) {
+	public void updateLikeMenuCategory(Long memberId, String[] likedList) {
 		Member member = memberRepository.findById(memberId)
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 
@@ -52,8 +52,8 @@ public class MemberService {
 
 	//유저가 좋아한다고 한 빵 종류 조회
 	public MenuCategoryResponse getLikedMenu(Long memberId) {
-		List<MenuCategory> list = likedMenuCategoryRepository.findMenuCategoriesByMemberId(memberId);
-		String[] breadKinds = list.stream()
+		List<MenuCategory> likedMenuCategories = likedMenuCategoryRepository.findMenuCategoriesByMemberId(memberId);
+		String[] breadKinds = likedMenuCategories.stream()
 			.map(MenuCategory::getName)
 			.toArray(String[]::new);
 		return new MenuCategoryResponse(breadKinds);

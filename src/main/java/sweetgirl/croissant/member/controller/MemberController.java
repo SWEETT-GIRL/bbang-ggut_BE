@@ -34,15 +34,16 @@ public class MemberController {
 
 	@Operation(summary = "좋아하는 빵 종류 조회", description = "로그인한 유저의 즐겨찾는 빵 카테고리 목록을 반환합니다.")
 	@GetMapping("/me/favorite-bread")
-	public ApiResponse<MenuCategoryResponse> getFavoriteBread(@AuthenticationPrincipal Long memberId) {
+	public ApiResponse<MenuCategoryResponse> getLikeMenuCategory(@AuthenticationPrincipal Long memberId) {
 		return ApiResponse.ok(memberService.getLikedMenu(memberId));
 	}
 
 	@Operation(summary = "좋아하는 빵 종류 등록", description = "로그인한 유저의 즐겨찾는 빵 카테고리 목록을 업데이트합니다."
 		+ " body에 빵 종류 배열을 담아 보내주세요. 예: [\"소금빵\", \"크루아상\", \"베이글\"]")
 	@PostMapping("/me/favorite-bread")
-	public ApiResponse<Void> enrollFavoriteBread(@AuthenticationPrincipal Long memberId, @RequestBody String[] bread) {
-		memberService.updateLikedMenu(memberId, bread);
+	public ApiResponse<Void> enrollLikeMenuCategory(@AuthenticationPrincipal Long memberId,
+			@RequestBody String[] bread) {
+		memberService.updateLikeMenuCategory(memberId, bread);
 		return ApiResponse.ok(null);
 	}
 
