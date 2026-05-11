@@ -7,6 +7,8 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +36,8 @@ import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
 @RequiredArgsConstructor
 @Transactional
 public class AlarmService {
+
+	private static final Logger log = LoggerFactory.getLogger(AlarmService.class);
 
 	final StoreNotificationRepository storeNotificationRepository;
 	final NotificationSettingRepository notificationSettingRepository;
@@ -141,9 +145,13 @@ public class AlarmService {
 
 			String message = store.getName() + " 근처에 있어요!";
 
-			// 멤버의 모든 활성 기기에 FCM 발송
+			// 멤버의 모든 활성 기기에 FCM 발송 — 개별 토큰 실패는 로그 후 skip
 			for (FcmToken token : tokens) {
-				fcmService.sendPushNotification(token.getToken(), store.getName(), message);
+				try {
+					fcmService.sendPushNotification(token.getToken(), store.getName(), message);
+				} catch (AlarmException e) {
+					log.warn("FCM 발송 skip [storeId={}, token={}]", store.getId(), token.getToken());
+				}
 			}
 
 			// 발송 기록 저장 — readAt=null이면 읽지 않은 상태

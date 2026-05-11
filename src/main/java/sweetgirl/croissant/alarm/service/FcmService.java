@@ -1,5 +1,7 @@
 package sweetgirl.croissant.alarm.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.code.AlarmErrorCode;
 import sweetgirl.croissant.alarm.dto.request.FcmTokenRequest;
 import sweetgirl.croissant.alarm.entity.FcmToken;
+import sweetgirl.croissant.alarm.exception.AlarmException;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
 import sweetgirl.croissant.common.enums.DeviceOs;
 import sweetgirl.croissant.global.exception.CustomException;
@@ -23,6 +26,8 @@ import sweetgirl.croissant.member.repository.MemberRepository;
 @RequiredArgsConstructor
 @Transactional
 public class FcmService {
+
+	private static final Logger log = LoggerFactory.getLogger(FcmService.class);
 
 	final FcmTokenRepository fcmTokenRepository;
 	final MemberRepository memberRepository;
@@ -67,12 +72,15 @@ public class FcmService {
 			.build();
 
 		try {
-			FirebaseMessaging.getInstance().send(message); // 전송
+			FirebaseMessaging.getInstance().send(message);
 		} catch (FirebaseMessagingException e) {
 			MessagingErrorCode errorCode = e.getMessagingErrorCode();
-			if (errorCode == MessagingErrorCode.UNREGISTERED //토큰 만료되거나 앱 삭제됨
-				|| errorCode == MessagingErrorCode.INVALID_ARGUMENT) { // 아니면 토큰 형식 잘못됨
+			if (errorCode == MessagingErrorCode.UNREGISTERED
+				|| errorCode == MessagingErrorCode.INVALID_ARGUMENT) {
 				deactivateFcmToken(fcmToken);
+			} else {
+				log.error("FCM 발송 실패 [token={}, errorCode={}]", fcmToken, errorCode, e);
+				throw new AlarmException(AlarmErrorCode.FCM_SEND_FAILED);
 			}
 		}
 	}
