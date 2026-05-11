@@ -44,7 +44,7 @@ class MemberControllerTest {
 
 	@Test
 	void getFavoriteBread_returns200WithBreadList_whenMemberExists() throws Exception {
-		MenuCategoryResponse response = new MenuCategoryResponse(new String[]{"소금빵", "크루아상"});
+		MenuCategoryResponse response = new MenuCategoryResponse(new String[] {"소금빵", "크루아상"});
 		given(memberService.getLikedMenu(any())).willReturn(response);
 
 		mockMvc.perform(get("/users/me/favorite-bread"))
@@ -56,7 +56,7 @@ class MemberControllerTest {
 
 	@Test
 	void getFavoriteBread_returns200WithEmptyList_whenNoFavoritesRegistered() throws Exception {
-		given(memberService.getLikedMenu(any())).willReturn(new MenuCategoryResponse(new String[]{}));
+		given(memberService.getLikedMenu(any())).willReturn(new MenuCategoryResponse(new String[] {}));
 
 		mockMvc.perform(get("/users/me/favorite-bread"))
 			.andExpect(status().isOk())
@@ -80,8 +80,8 @@ class MemberControllerTest {
 		willDoNothing().given(memberService).updateLikedMenu(any(), any());
 
 		mockMvc.perform(post("/users/me/favorite-bread")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("[\"소금빵\", \"크루아상\", \"베이글\"]"))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("[\"소금빵\", \"크루아상\", \"베이글\"]"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true));
 	}
@@ -92,8 +92,8 @@ class MemberControllerTest {
 			.given(memberService).updateLikedMenu(any(), any());
 
 		mockMvc.perform(post("/users/me/favorite-bread")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("[\"소금빵\"]"))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("[\"소금빵\"]"))
 			.andExpect(status().isNotFound());
 	}
 
@@ -103,8 +103,8 @@ class MemberControllerTest {
 			.given(memberService).updateLikedMenu(any(), any());
 
 		mockMvc.perform(post("/users/me/favorite-bread")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content("[\"존재하지않는빵\"]"))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("[\"존재하지않는빵\"]"))
 			.andExpect(status().isNotFound());
 	}
 }

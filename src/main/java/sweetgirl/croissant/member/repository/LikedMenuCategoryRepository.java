@@ -12,7 +12,7 @@ import sweetgirl.croissant.member.entity.LikedMenuCategory;
 import sweetgirl.croissant.menu.entity.MenuCategory;
 
 @Repository
-public interface LikedMenuCategoryRepository extends JpaRepository<LikedMenuCategory,Long> {
+public interface LikedMenuCategoryRepository extends JpaRepository<LikedMenuCategory, Long> {
 
 	@Query("SELECT lm.menuCategory FROM LikedMenuCategory lm WHERE lm.member.id = :memberId")
 	List<MenuCategory> findMenuCategoriesByMemberId(@Param("memberId") Long memberId);

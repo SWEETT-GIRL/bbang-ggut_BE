@@ -10,5 +10,5 @@ import sweetgirl.croissant.menu.entity.MenuCategory;
 
 @Repository
 public interface MenuCategoryRepository extends JpaRepository<MenuCategory, Long> {
-		Optional<MenuCategory> findByName(MenuKind kind);
+	Optional<MenuCategory> findByName(MenuKind kind);
 }
