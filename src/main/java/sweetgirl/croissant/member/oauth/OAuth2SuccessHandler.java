@@ -63,7 +63,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
 		// RefreshToken DB upsert: 같은 기기(deviceId)로 재로그인 시 기존 토큰 삭제 후 새 토큰 저장
 		saveRefreshToken(memberId, deviceId, refreshToken);
-		log.info("토큰 저장");
+
 		// deviceId 임시 쿠키 삭제 (더 이상 필요 없음, MaxAge=0으로 즉시 만료)
 		clearCookie(response, "deviceId");
 
