@@ -8,10 +8,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.common.enums.StoreStatus;
+import sweetgirl.croissant.external.kakao.client.KakaoLocalClient;
+import sweetgirl.croissant.external.kakao.dto.KakaoPlace;
+import sweetgirl.croissant.external.kakao.dto.KakaoSearchResult;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.dto.StoreDetailResponse;
+import sweetgirl.croissant.store.dto.StoreSearchResponse;
 import sweetgirl.croissant.store.dto.SubscribedStoreResponse;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreBusinessHour;
@@ -32,6 +37,8 @@ public class StoreService {
 	private final StoreBusinessHourRepository storeBusinessHourRepository;
 	private final StoreImageFileRepository storeImageFileRepository;
 	private final SubscribedStoreRepository subscribedStoreRepository;
+	private final KakaoLocalClient kakaoLocalClient;
+	private final StoreAsyncService storeAsyncService;
 
 	public StoreDetailResponse getStoreDetail(Long storeId) {
 		Store store = storeRepository.findById(storeId)
@@ -50,4 +57,30 @@ public class StoreService {
 		});
 		return SliceResponse.from(responsSlice);
 	}
+
+	public SliceResponse<StoreSearchResponse> searchStores(String keyword, Pageable pageable) {
+		Slice<Store> dbResult = storeRepository.findByNameContainingAndStatus(keyword, StoreStatus.ACTIVE, pageable);
+
+		if (!dbResult.isEmpty()) {
+			return SliceResponse.from(dbResult.map(store -> {
+				String thumbnailUrl = storeImageFileRepository.findFirstByStoreIdOrderByIdAsc(store.getId())
+					.map(StoreImageFile::getAwsKey)
+					.orElse(null);
+				return StoreSearchResponse.ofStore(store, thumbnailUrl);
+			}));
+		}
+
+		KakaoSearchResult kakaoResult = kakaoLocalClient.searchByKeyword(keyword, pageable.getPageNumber() + 1);
+		List<KakaoPlace> places = kakaoResult.places();
+
+		if (!places.isEmpty()) {
+			storeAsyncService.saveKakaoPlaces(places);
+		}
+
+		List<StoreSearchResponse> responses = places.stream()
+			.map(StoreSearchResponse::ofKakao)
+			.toList();
+		return new SliceResponse<>(responses, !kakaoResult.isEnd());
+	}
+
 }
