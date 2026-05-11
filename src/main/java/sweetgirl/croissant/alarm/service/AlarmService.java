@@ -115,7 +115,7 @@ public class AlarmService {
 			return true;
 		}
 
-		if (!setting.isDndEnabled()) {
+		if (!setting.isTimeRestricted()) {
 			return false;
 		}
 

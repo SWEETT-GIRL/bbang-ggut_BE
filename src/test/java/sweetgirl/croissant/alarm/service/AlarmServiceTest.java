@@ -157,8 +157,8 @@ class AlarmServiceTest {
 	}
 
 	@Test
-	@DisplayName("checkProximity: DND ON이고 허용 요일이 아니면 triggered=false를 반환한다")
-	void checkProximity_returnsNotTriggered_whenDndBlockedByDay() {
+	@DisplayName("checkProximity: 시간 제한이 있고 허용 요일이 아니면 triggered=false를 반환한다")
+	void checkProximity_returnsNotTriggered_whenTimeRestrictedBlockedByDay() {
 		Long memberId = 1L;
 		Member member = mock(Member.class);
 		NotificationSetting setting = mock(NotificationSetting.class);
@@ -167,7 +167,7 @@ class AlarmServiceTest {
 		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(notificationSettingRepository.findByMember(member)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
-		given(setting.isDndEnabled()).willReturn(true);
+		given(setting.isTimeRestricted()).willReturn(true);
 		given(setting.getStartTime()).willReturn(LocalTime.of(0, 0));
 		given(setting.getEndTime()).willReturn(LocalTime.of(23, 59));
 		given(setting.getDaysOfWeek()).willReturn(""); // 어떤 요일도 포함하지 않음
@@ -190,7 +190,7 @@ class AlarmServiceTest {
 		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(notificationSettingRepository.findByMember(member)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
-		given(setting.isDndEnabled()).willReturn(false);
+		given(setting.isTimeRestricted()).willReturn(false);
 		given(member.getId()).willReturn(memberId);
 		given(request.getLatitude()).willReturn(37.5);
 		given(request.getLongitude()).willReturn(127.0);
@@ -218,7 +218,7 @@ class AlarmServiceTest {
 		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(notificationSettingRepository.findByMember(member)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
-		given(setting.isDndEnabled()).willReturn(false);
+		given(setting.isTimeRestricted()).willReturn(false);
 		given(member.getId()).willReturn(memberId);
 		given(request.getLatitude()).willReturn(37.5);
 		given(request.getLongitude()).willReturn(127.0);
@@ -252,7 +252,7 @@ class AlarmServiceTest {
 		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(notificationSettingRepository.findByMember(member)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
-		given(setting.isDndEnabled()).willReturn(false);
+		given(setting.isTimeRestricted()).willReturn(false);
 		given(member.getId()).willReturn(memberId);
 		given(request.getLatitude()).willReturn(37.5);
 		given(request.getLongitude()).willReturn(127.0);
