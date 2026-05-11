@@ -20,6 +20,11 @@ import sweetgirl.croissant.external.kakao.dto.KakaoPlace;
 import sweetgirl.croissant.external.kakao.dto.KakaoSearchResult;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.menu.dto.MenuImageThumbnailProjection;
+import sweetgirl.croissant.menu.dto.MenuSummaryDto;
+import sweetgirl.croissant.menu.dto.StoreMenuProjection;
+import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
+import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.dto.NearbyStoreProjection;
 import sweetgirl.croissant.store.dto.NearbyStoreResponse;
@@ -48,6 +53,8 @@ public class StoreService {
 	private final SubscribedStoreRepository subscribedStoreRepository;
 	private final KakaoLocalClient kakaoLocalClient;
 	private final StoreAsyncService storeAsyncService;
+	private final MenuImageFileRepository menuImageFileRepository;
+	private final MenuRepository menuRepository;
 
 	public StoreDetailResponse getStoreDetail(Long storeId) {
 		Store store = storeRepository.findById(storeId)
@@ -68,15 +75,28 @@ public class StoreService {
 	}
 
 	public SliceResponse<StoreSearchResponse> searchStores(String keyword, Pageable pageable) {
-		Slice<Store> dbResult = storeRepository.findByNameContainingAndStatus(keyword, StoreStatus.ACTIVE, pageable);
+		Slice<Store> dbResultSlice = storeRepository.findByNameContainingAndStatus(keyword, StoreStatus.ACTIVE,
+			pageable);
 
-		if (!dbResult.isEmpty()) {
-			return SliceResponse.from(dbResult.map(store -> {
-				String thumbnailUrl = storeImageFileRepository.findFirstByStoreIdOrderByIdAsc(store.getId())
-					.map(StoreImageFile::getAwsKey)
-					.orElse(null);
-				return StoreSearchResponse.ofStore(store, thumbnailUrl);
-			}));
+		if (!dbResultSlice.isEmpty()) {
+			List<Long> storeIds = dbResultSlice.getContent().stream()
+				.map(Store::getId)
+				.toList();
+			Map<Long, String> storeThumbnailMap = getStoreThumbnails(storeIds);
+			Map<Long, List<StoreMenuProjection>> topMenusByStore = getTopMenusByStore(storeIds);
+			Map<Long, String> menuThumbnailMap = getMenuThumbnails(topMenusByStore);
+
+			Slice<StoreSearchResponse> responseSlice = dbResultSlice.map(store -> {
+				String storeThumbnailUrl = storeThumbnailMap.get(store.getId());
+				List<MenuSummaryDto> topMenus = topMenusByStore.getOrDefault(store.getId(), Collections.emptyList())
+					.stream()
+					.map(menu -> MenuSummaryDto.of(menu, menuThumbnailMap.get(menu.getMenuId())))
+					.toList();
+
+				return StoreSearchResponse.ofStore(store, storeThumbnailUrl, topMenus);
+			});
+
+			return SliceResponse.from(responseSlice);
 		}
 
 		KakaoSearchResult kakaoResult = kakaoLocalClient.searchByKeyword(keyword, pageable.getPageNumber() + 1);
@@ -119,6 +139,32 @@ public class StoreService {
 			.collect(Collectors.toMap(
 				StoreImageThumbnailProjection::getStoreId,
 				StoreImageThumbnailProjection::getAwsKey,
+				(first, second) -> first));
+	}
+
+	private Map<Long, List<StoreMenuProjection>> getTopMenusByStore(List<Long> storeIds) {
+		return menuRepository.findTopRecommendedMenusByStoreIds(storeIds).stream()
+			.collect(Collectors.groupingBy(
+				StoreMenuProjection::getStoreId,
+				Collectors.collectingAndThen(
+					Collectors.toList(),
+					list -> list.stream().limit(TOP_MENU_LIMIT).toList())));
+	}
+
+	private Map<Long, String> getMenuThumbnails(Map<Long, List<StoreMenuProjection>> menusByStore) {
+		List<Long> menuIds = menusByStore.values().stream()
+			.flatMap(List::stream)
+			.map(StoreMenuProjection::getMenuId)
+			.toList();
+
+		if (menuIds.isEmpty()) {
+			return Collections.emptyMap();
+		}
+
+		return menuImageFileRepository.findThumbnailsByMenuIdIn(menuIds).stream()
+			.collect(Collectors.toMap(
+				MenuImageThumbnailProjection::getMenuId,
+				MenuImageThumbnailProjection::getAwsKey,
 				(first, second) -> first));
 	}
 }
