@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.dto.request.FcmTokenRequest;
+import sweetgirl.croissant.alarm.dto.request.LocationCheckRequest;
+import sweetgirl.croissant.alarm.dto.response.LocationCheckResponse;
 import sweetgirl.croissant.alarm.dto.response.StoreNotificationResponse;
 import sweetgirl.croissant.alarm.service.AlarmService;
 import sweetgirl.croissant.alarm.service.FcmService;
@@ -47,5 +49,12 @@ public class AlarmController {
 		// TODO: 인증 구현 후 SecurityContext에서 member 꺼내기
 		alarmService.markAsRead(null, id);
 		return ApiResponse.ok(null);
+	}
+
+	@PostMapping("/location-check")
+	public ApiResponse<LocationCheckResponse> checkLocation(@RequestBody @Valid LocationCheckRequest request) {
+		LocationCheckResponse response = alarmService.checkProximity(null, request);
+		return ApiResponse.ok(response);
+
 	}
 }
