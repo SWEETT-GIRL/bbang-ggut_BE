@@ -25,6 +25,7 @@ public class MemberController {
 
 	private final MemberService memberService;
 
+	@Operation(summary = "내 찜 매장 수 조회", description = "로그인한 사용자가 알람 받는 중인 매장의 개수를 조회합니다.")
 	@GetMapping("/me/store-count")
 	public ApiResponse<Long> getStoreCount(@AuthenticationPrincipal Long memberId) {
 		long count = memberService.getSubscribedStoreCount(memberId);
