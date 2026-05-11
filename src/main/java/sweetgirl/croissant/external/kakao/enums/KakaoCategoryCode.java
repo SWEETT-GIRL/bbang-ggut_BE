@@ -6,7 +6,7 @@ import java.util.Optional;
 
 public enum KakaoCategoryCode {
 	CE7(List.of()),
-	FD6(Arrays.stream(BakeryKeyword.values()).map(Enum::name).toList());
+	FD6(Arrays.stream(StoreCategoryKeyword.values()).map(Enum::name).toList());
 
 	private final List<String> allowedKeywords;
 
