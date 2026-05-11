@@ -1,6 +1,9 @@
 package sweetgirl.croissant.store.dto;
 
+import java.util.List;
+
 import sweetgirl.croissant.external.kakao.dto.KakaoPlace;
+import sweetgirl.croissant.menu.dto.MenuSummaryDto;
 import sweetgirl.croissant.store.entity.Store;
 
 public record StoreSearchResponse(
@@ -12,20 +15,21 @@ public record StoreSearchResponse(
 		String kakaoPlaceId,
 		String phone,
 		String x,
-		String y) {
+		String y,
+		List<MenuSummaryDto> topMenus) {
 
 	public enum Source {
 		DB, KAKAO
 	}
 
-	public static StoreSearchResponse ofStore(Store store, String thumbnailUrl) {
+	public static StoreSearchResponse ofStore(Store store, String thumbnailUrl, List<MenuSummaryDto> topMenus) {
 		return new StoreSearchResponse(
 			store.getId(),
 			store.getName(),
 			store.getAddress(),
 			thumbnailUrl,
 			Source.DB, store.getKakaoPlaceId(), store.getPhone(), String.valueOf(store.getLocation().getX()),
-			String.valueOf(store.getLocation().getY()));
+			String.valueOf(store.getLocation().getY()), topMenus);
 	}
 
 	public static StoreSearchResponse ofKakao(KakaoPlace place) {
@@ -41,6 +45,6 @@ public record StoreSearchResponse(
 			place.id(),
 			place.phone(),
 			place.x(),
-			place.y());
+			place.y(), null);
 	}
 }
