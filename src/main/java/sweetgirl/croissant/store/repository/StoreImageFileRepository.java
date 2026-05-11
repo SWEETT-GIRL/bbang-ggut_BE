@@ -4,7 +4,10 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import sweetgirl.croissant.store.dto.StoreImageThumbnailProjection;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 
 public interface StoreImageFileRepository extends JpaRepository<StoreImageFile, Long> {
@@ -12,4 +15,13 @@ public interface StoreImageFileRepository extends JpaRepository<StoreImageFile, 
 	List<StoreImageFile> findByStoreId(Long storeId);
 
 	Optional<StoreImageFile> findFirstByStoreIdOrderByIdAsc(Long storeId);
+
+	@Query("""
+			SELECT s.store.id AS storeId, s.awsKey AS awsKey
+			FROM StoreImageFile s
+			WHERE s.store.id IN :storeIds
+			ORDER BY s.id DESC
+			""")
+	List<StoreImageThumbnailProjection> findThumbnailsByStoreIdIn(@Param("storeIds") List<Long> storeIds);
+
 }
