@@ -10,7 +10,8 @@ import sweetgirl.croissant.global.code.BaseErrorCode;
 @AllArgsConstructor
 public enum MemberErrorCode implements BaseErrorCode {
 
-	MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "MEMBER404", "존재하지 않는 회원입니다.");
+	MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "MEMBER404", "존재하지 않는 회원입니다."),
+	MENU_NOT_FOUND(HttpStatus.NOT_FOUND, "MENU404", "존재하지 않는 메뉴입니다.");
 
 	private final HttpStatus httpStatus;
 	private final String code;
