@@ -1,12 +1,16 @@
 package sweetgirl.croissant.store.service;
 
+import static sweetgirl.croissant.store.code.StoreConstants.*;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +49,7 @@ public class StoreService {
 	private final SubscribedStoreRepository subscribedStoreRepository;
 	private final KakaoLocalClient kakaoLocalClient;
 	private final StoreAsyncService storeAsyncService;
+
 
 	public StoreDetailResponse getStoreDetail(Long storeId) {
 		Store store = storeRepository.findById(storeId)
@@ -91,24 +96,32 @@ public class StoreService {
 
 
 	public SliceResponse<NearbyStoreResponse> getNearbyStores(double longitude, double latitude, Pageable pageable) {
-		Slice<NearbyStoreProjection> slice = storeRepository.findNearbyStores(longitude, latitude, radiusMeters,
-			pageable);
-		List<Long> storeIds = slice.getContent().stream()
+		Slice<NearbyStoreProjection> storeSlice = storeRepository.findNearbyStores(longitude, latitude,
+			SEARCH_NEARBY_RADIUS, pageable);
+		if (!storeSlice.hasContent()) {
+			Slice<NearbyStoreResponse> emptySlice = new SliceImpl<>(Collections.emptyList(), pageable, false);
+			return SliceResponse.from(emptySlice);
+		}
+
+		List<Long> storeIds = storeSlice.getContent().stream()
 			.map(NearbyStoreProjection::getId)
 			.toList();
-		Map<Long, String> thumbnailMap = storeIds.isEmpty()
-			? Collections.emptyMap()
-			: storeImageFileRepository.findThumbnailsByStoreIdIn(storeIds).stream()
-				.collect(Collectors.toMap(
-					StoreImageThumbnailProjection::getStoreId,
-					StoreImageThumbnailProjection::getAwsKey,
-					(first, second) -> first));
+		Map<Long, String> storeThumbnailMap = getStoreThumbnails(storeIds);
 
-		Slice<NearbyStoreResponse> responseSlice = slice.map(nearbyStore -> {
-			int rounded = (int)Math.round(nearbyStore.getDistanceMeters());
-			String thumbnailUrl = thumbnailMap.get(nearbyStore.getId());
-			return NearbyStoreResponse.of(nearbyStore, thumbnailUrl, rounded);
+		Slice<NearbyStoreResponse> responseSlice = storeSlice.map(nearbyStore -> {
+			int roundedDistance = (int)Math.round(nearbyStore.getDistanceMeters());
+			String storeThumbnailUrl = storeThumbnailMap.get(nearbyStore.getId());
+
+			return NearbyStoreResponse.of(nearbyStore, storeThumbnailUrl, roundedDistance);
 		});
 		return SliceResponse.from(responseSlice);
+	}
+
+	private Map<Long, String> getStoreThumbnails(List<Long> storeIds) {
+		return storeImageFileRepository.findThumbnailsByStoreIdIn(storeIds).stream()
+			.collect(Collectors.toMap(
+				StoreImageThumbnailProjection::getStoreId,
+				StoreImageThumbnailProjection::getAwsKey,
+				(first, second) -> first));
 	}
 }
