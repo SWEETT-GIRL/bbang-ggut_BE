@@ -14,6 +14,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.member.dto.CustomOAuth2User;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.RefreshToken;
@@ -23,6 +24,7 @@ import sweetgirl.croissant.member.repository.RefreshTokenRepository;
 
 // 카카오 로그인 성공 시 Spring Security가 자동으로 호출하는 핸들러
 // JWT 발급 → RefreshToken DB 저장 → 앱 딥링크로 redirect
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
@@ -61,17 +63,19 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
 		// RefreshToken DB upsert: 같은 기기(deviceId)로 재로그인 시 기존 토큰 삭제 후 새 토큰 저장
 		saveRefreshToken(memberId, deviceId, refreshToken);
-
+		log.info("토큰 저장");
 		// deviceId 임시 쿠키 삭제 (더 이상 필요 없음, MaxAge=0으로 즉시 만료)
 		clearCookie(response, "deviceId");
 
 		// bbanggut://oauth?accessToken=xxx&refreshToken=yyy 형태로 앱에 딥링크 redirect
-		String redirectUrl = "bbanggut://"
+		String redirectUrl = "bbanggut:oauth//"
 			+ "?accessToken=" + accessToken
 			+ "&refreshToken=" + refreshToken
 			+ "&isNew=" + isNew;
+		log.info("redirectUrl: " + redirectUrl);
 
 		getRedirectStrategy().sendRedirect(request, response, redirectUrl);
+		log.info("redirect 했니??");
 	}
 
 	// RefreshToken 저장: member + deviceId 조합이 이미 있으면 삭제 후 새로 저장
