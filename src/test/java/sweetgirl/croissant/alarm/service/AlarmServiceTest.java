@@ -30,6 +30,7 @@ import sweetgirl.croissant.alarm.entity.FcmToken;
 import sweetgirl.croissant.alarm.entity.StoreNotification;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
 import sweetgirl.croissant.alarm.repository.StoreNotificationRepository;
+import sweetgirl.croissant.common.enums.NotificationRadius;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
 import sweetgirl.croissant.member.repository.MemberRepository;
@@ -193,8 +194,8 @@ class AlarmServiceTest {
 		given(member.getId()).willReturn(memberId);
 		given(request.getLatitude()).willReturn(37.5);
 		given(request.getLongitude()).willReturn(127.0);
-		given(setting.getNotificationRadius()).willReturn(300f);
-		given(subscribedStoreRepository.findNearbySubscribedStores(memberId, 37.5, 127.0, 300f))
+		given(setting.getNotificationRadius()).willReturn(NotificationRadius.RADIUS_50);
+		given(subscribedStoreRepository.findNearbySubscribedStores(memberId, 37.5, 127.0, 50))
 			.willReturn(List.of());
 		given(fcmTokenRepository.findByMemberAndIsActive(member, true)).willReturn(List.of());
 
@@ -221,9 +222,9 @@ class AlarmServiceTest {
 		given(member.getId()).willReturn(memberId);
 		given(request.getLatitude()).willReturn(37.5);
 		given(request.getLongitude()).willReturn(127.0);
-		given(setting.getNotificationRadius()).willReturn(300f);
+		given(setting.getNotificationRadius()).willReturn(NotificationRadius.RADIUS_50);
 		given(subscribedStore.getStore()).willReturn(store);
-		given(subscribedStoreRepository.findNearbySubscribedStores(memberId, 37.5, 127.0, 300f))
+		given(subscribedStoreRepository.findNearbySubscribedStores(memberId, 37.5, 127.0, 50))
 			.willReturn(List.of(subscribedStore));
 		given(fcmTokenRepository.findByMemberAndIsActive(member, true)).willReturn(List.of());
 		// 오늘 이미 발송 기록 있음
@@ -255,11 +256,11 @@ class AlarmServiceTest {
 		given(member.getId()).willReturn(memberId);
 		given(request.getLatitude()).willReturn(37.5);
 		given(request.getLongitude()).willReturn(127.0);
-		given(setting.getNotificationRadius()).willReturn(300f);
+		given(setting.getNotificationRadius()).willReturn(NotificationRadius.RADIUS_50);
 		given(store.getName()).willReturn("뚜레쥬르");
 		given(subscribedStore.getStore()).willReturn(store);
 		given(token.getToken()).willReturn("fcm-token-123");
-		given(subscribedStoreRepository.findNearbySubscribedStores(memberId, 37.5, 127.0, 300f))
+		given(subscribedStoreRepository.findNearbySubscribedStores(memberId, 37.5, 127.0, 50))
 			.willReturn(List.of(subscribedStore));
 		given(fcmTokenRepository.findByMemberAndIsActive(member, true)).willReturn(List.of(token));
 		given(storeNotificationRepository.existsByMemberAndStoreAndSentAtAfter(eq(member), eq(store), any()))

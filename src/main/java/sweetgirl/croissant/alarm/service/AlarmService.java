@@ -90,7 +90,7 @@ public class AlarmService {
 			member.getId(),
 			request.getLatitude(),
 			request.getLongitude(),
-			setting.getNotificationRadius());
+			setting.getNotificationRadius().getMeters());
 
 		// 4. 멤버의 활성 FCM 토큰 목록 조회 (기기별 발송용)
 		List<FcmToken> tokens = fcmTokenRepository.findByMemberAndIsActive(member, true);
