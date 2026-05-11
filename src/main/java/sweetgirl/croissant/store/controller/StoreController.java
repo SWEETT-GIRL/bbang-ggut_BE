@@ -1,5 +1,7 @@
 package sweetgirl.croissant.store.controller;
 
+import java.util.List;
+
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,6 +20,7 @@ import sweetgirl.croissant.store.dto.NearbyStoreResponse;
 import sweetgirl.croissant.store.dto.StoreDetailResponse;
 import sweetgirl.croissant.store.dto.StoreSearchResponse;
 import sweetgirl.croissant.store.dto.SubscribedStoreResponse;
+import sweetgirl.croissant.store.dto.TopSubscribedStoreResponse;
 import sweetgirl.croissant.store.service.StoreService;
 
 @Tag(name = "Store", description = "빵집 API")
@@ -60,5 +63,12 @@ public class StoreController {
 			@RequestParam(defaultValue = "10") int size) {
 		return ResponseEntity.ok(
 			ApiResponse.ok(storeService.getNearbyStores(lng, lat, PageRequest.of(page, size))));
+	}
+
+	@Operation(summary = "인기 빵집 목록 조회", description = "구독 수 내림차순으로 상위 빵집 목록을 조회합니다.")
+	@GetMapping("/popular")
+	public ResponseEntity<ApiResponse<List<TopSubscribedStoreResponse>>> getTopSubscribedStores(
+			@RequestParam double lat, @RequestParam double lng) {
+		return ResponseEntity.ok(ApiResponse.ok(storeService.getTopSubscribedStores(lng, lat)));
 	}
 }
