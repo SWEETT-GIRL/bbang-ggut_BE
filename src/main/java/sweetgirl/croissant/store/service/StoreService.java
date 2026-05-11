@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
@@ -25,8 +24,8 @@ import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.dto.NearbyStoreProjection;
 import sweetgirl.croissant.store.dto.NearbyStoreResponse;
 import sweetgirl.croissant.store.dto.StoreDetailResponse;
-import sweetgirl.croissant.store.dto.StoreSearchResponse;
 import sweetgirl.croissant.store.dto.StoreImageThumbnailProjection;
+import sweetgirl.croissant.store.dto.StoreSearchResponse;
 import sweetgirl.croissant.store.dto.SubscribedStoreResponse;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreBusinessHour;
@@ -49,7 +48,6 @@ public class StoreService {
 	private final SubscribedStoreRepository subscribedStoreRepository;
 	private final KakaoLocalClient kakaoLocalClient;
 	private final StoreAsyncService storeAsyncService;
-
 
 	public StoreDetailResponse getStoreDetail(Long storeId) {
 		Store store = storeRepository.findById(storeId)
@@ -93,7 +91,6 @@ public class StoreService {
 			.toList();
 		return new SliceResponse<>(responses, !kakaoResult.isEnd());
 	}
-
 
 	public SliceResponse<NearbyStoreResponse> getNearbyStores(double longitude, double latitude, Pageable pageable) {
 		Slice<NearbyStoreProjection> storeSlice = storeRepository.findNearbyStores(longitude, latitude,

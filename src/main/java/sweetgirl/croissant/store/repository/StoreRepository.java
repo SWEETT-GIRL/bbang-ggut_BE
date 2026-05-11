@@ -32,6 +32,7 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 			@Param("y") double latitude,
 			@Param("phone") String phone,
 			@Param("kakaoPlaceId") String kakaoPlaceId);
+
 	@Query(value = """
 				SELECT
 					s.id,
