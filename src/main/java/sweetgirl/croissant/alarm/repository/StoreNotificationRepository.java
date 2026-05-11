@@ -21,6 +21,6 @@ public interface StoreNotificationRepository extends JpaRepository<StoreNotifica
 	@Query("SELECT sn.store.id FROM StoreNotification sn WHERE sn.member = :member AND sn.sentAt > :after")
 	Set<Long> findNotifiedStoreIdsSince(@Param("member") Member member, @Param("after") LocalDateTime after);
 
-	//
+	// 중복 알림 방지용 -- 같은 멤버 + 같은 가게에 대해 sentAt이 특정 시각 이후인 알림 이력 존재하는지 확인 (오늘 보냈나?)
 	boolean existsByMemberAndStoreAndSentAtAfter(Member member, Store store, LocalDateTime from);
 }
