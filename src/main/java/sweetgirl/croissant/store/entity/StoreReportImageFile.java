@@ -1,9 +1,6 @@
 package sweetgirl.croissant.store.entity;
 
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-
 import jakarta.persistence.Entity;
-import jakarta.persistence.EntityListeners;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -19,7 +16,6 @@ import sweetgirl.croissant.common.enums.MimeType;
 @Table(name = "store_report_image_file")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@EntityListeners(AuditingEntityListener.class)
 public class StoreReportImageFile extends ImageFile {
 
 	@ManyToOne(fetch = FetchType.LAZY)

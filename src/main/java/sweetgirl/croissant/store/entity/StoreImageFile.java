@@ -1,6 +1,5 @@
 package sweetgirl.croissant.store.entity;
 
-import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
@@ -22,9 +21,6 @@ public class StoreImageFile extends ImageFile {
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "store_id", nullable = false)
 	private Store store;
-
-	@Column(nullable = false, length = 255)
-	private String name;
 
 	@Builder
 	public StoreImageFile(Store store, String name, MimeType mimeType, String awsKey) {
