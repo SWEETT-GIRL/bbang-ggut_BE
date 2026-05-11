@@ -33,15 +33,8 @@ src/main/java/sweetgirl/croissant/alarm
     └── AlarmService.java
         ├── getGeofenceCandidates(...) 추가
         ├── handleGeofenceEnter(...) 추가
-        ├── isNotificationBlocked(...) 공통화
-        ├── alreadyNotified(...) 추가
-        └── sendStoreNotification(...) 추가
 
-```
-  4. AlarmService 내부 공통 로직부터
-      - isNotificationBlocked(...)
-      - alreadyNotified(...)
-      - sendStoreNotification(...)
+
   5. AlarmService 공개 메서드 구현
       - getGeofenceCandidates(...)
       - handleGeofenceEnter(...)
@@ -67,56 +60,15 @@ GET /alarm/geofence-candidates?lat=37.5&lng=127.0
 - 현재 위치 기준 가까운 구독 가게를 최대 20개 반환한다.
 - `LIMIT 20`은 iOS `CLLocationManager` region 등록 제한을 고려한 값이다.
 
-### Response
-
-```json
-{
-  "stores": [
-    {
-      "storeId": 12,
-      "name": "성수빵집",
-      "latitude": 37.544,
-      "longitude": 127.055,
-      "radiusMeters": 300,
-      "distanceMeters": 1520.4
-    }
-  ]
-}
-```
-
 ### 작업
 
-- [ ] `GeofenceCandidatesResponse` DTO 추가
-- [ ] `GeofenceCandidateResponse` DTO 추가
-- [ ] `GeofenceCandidateProjection` 추가
-- [ ] `SubscribedStoreRepository.findGeofenceCandidates(...)` native query 추가
+- [x] `GeofenceCandidatesResponse` DTO 추가
+- [x] `GeofenceCandidateResponse` DTO 추가
+- [x] `GeofenceCandidateProjection` 추가
+- [x] `SubscribedStoreRepository.findGeofenceCandidates(...)` native query 추가
 - [ ] `AlarmService.getGeofenceCandidates(memberId, lat, lng)` 추가
 - [ ] `AlarmController.getGeofenceCandidates(...)` 추가
 
-### 후보 조회 쿼리
-
-```sql
-SELECT
-  s.id AS storeId,
-  s.name AS name,
-  ST_Y(s.location::geometry) AS latitude,
-  ST_X(s.location::geometry) AS longitude,
-  ST_Distance(
-    s.location,
-    ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography
-  ) AS distanceMeters
-FROM subscribed_store ss
-JOIN store s ON ss.store_id = s.id
-WHERE ss.member_id = :memberId
-  AND s.status = 'ACTIVE'
-  AND ST_DWithin(
-    s.location,
-    ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography,
-    :candidateRadius
-  )
-ORDER BY distanceMeters ASC
-LIMIT 20
-```
 
 ### 구현 메모
 
@@ -156,7 +108,7 @@ POST /alarm/geofence/enter
 
 ### 서버 검증 순서
 
-1. [ ] `memberId`로 `Member` 조회
+1. [x] `memberId`로 `Member` 조회
 2. [ ] `NotificationSetting` 조회
 3. [ ] 알림 OFF / 시간 제한 / 요일 제한 체크
 4. [ ] `storeId`가 사용자의 구독 가게인지 확인
@@ -165,24 +117,6 @@ POST /alarm/geofence/enter
 7. [ ] 활성 FCM 토큰 조회
 8. [ ] FCM 발송
 9. [ ] `StoreNotification` 저장
-
-### 구독 + 거리 검증 쿼리
-
-```sql
-SELECT EXISTS (
-  SELECT 1
-  FROM subscribed_store ss
-  JOIN store s ON ss.store_id = s.id
-  WHERE ss.member_id = :memberId
-    AND s.id = :storeId
-    AND s.status = 'ACTIVE'
-    AND ST_DWithin(
-      s.location,
-      ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography,
-      :radius
-    )
-)
-```
 
 ### 구현 메모
 
