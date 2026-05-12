@@ -100,6 +100,6 @@ public class MemberService {
 		NotificationSetting setting = notificationSettingRepository.findByMemberId(memberId)
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 
-		setting.setDaysOfWeek(dayList);
+		setting.setDaysOfWeekList(dayList);
 	}
 }

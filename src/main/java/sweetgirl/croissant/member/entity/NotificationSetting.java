@@ -15,13 +15,11 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
 
 @Entity
 @Table(name = "notification_setting")
 @Getter
-@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class NotificationSetting extends BaseTimeEntity {
 
@@ -53,6 +51,10 @@ public class NotificationSetting extends BaseTimeEntity {
 
 	@Column(nullable = false)
 	private boolean isDndEnabled;
+
+	public void setDaysOfWeekList(String dayList) {
+		this.daysOfWeek = dayList;
+	}
 
 	@Column(nullable = false)
 	private boolean isTimeRestricted;
