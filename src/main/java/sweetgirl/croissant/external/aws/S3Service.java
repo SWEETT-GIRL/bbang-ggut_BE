@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ import sweetgirl.croissant.external.aws.exception.S3StorageException;
 
 @Service
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "aws.credentials.access-key")
 public class S3Service {
 
 	private final S3Presigner s3Presigner;
