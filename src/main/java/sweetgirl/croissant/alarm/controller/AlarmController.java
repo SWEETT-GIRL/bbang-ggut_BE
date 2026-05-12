@@ -17,6 +17,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.dto.request.FcmTokenRequest;
+import sweetgirl.croissant.alarm.dto.request.GeofenceEnterRequest;
 import sweetgirl.croissant.alarm.dto.response.GeofenceCandidatesResponse;
 import sweetgirl.croissant.alarm.dto.response.StoreNotificationResponse;
 import sweetgirl.croissant.alarm.service.AlarmService;
@@ -55,11 +56,21 @@ public class AlarmController {
 		return ApiResponse.ok(null);
 	}
 
-	@Operation(summary = "", description = "")
+	@Operation(summary = "Geofence 후보 가게 조회", description = "현재 위치 기준 구독 가게 최대 20개 반환. 앱 OS Geofence 등록용.")
 	@GetMapping("/geofence-candidates")
 	public ApiResponse<GeofenceCandidatesResponse> getGeofenceCandidates(@AuthenticationPrincipal Long memberId,
-			@Parameter(description = "") @RequestParam double lat, @RequestParam double lng) {
+			@Parameter(description = "현재 위치 위도") @RequestParam double lat,
+			@Parameter(description = "현재 위치 경도") @RequestParam double lng) {
 		GeofenceCandidatesResponse geofenceCandidates = alarmService.getGeofenceCandidates(memberId, lat, lng);
 		return ApiResponse.ok(geofenceCandidates);
 	}
+
+	@Operation(summary = "Geofence 진입 이벤트 처리", description = "OS enter 이벤트 수신 시 서버 재검증 후 FCM 발송.")
+	@PostMapping("/geofence/enter")
+	public ApiResponse<Void> handleGeofenceEnter(@AuthenticationPrincipal Long memberId,
+			@RequestBody @Valid GeofenceEnterRequest request) {
+		alarmService.handleGeofenceEnter(memberId, request);
+		return ApiResponse.ok(null);
+	}
+
 }

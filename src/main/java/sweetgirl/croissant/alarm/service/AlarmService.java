@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.code.AlarmErrorCode;
+import sweetgirl.croissant.alarm.dto.request.GeofenceEnterRequest;
 import sweetgirl.croissant.alarm.dto.response.GeofenceCandidateResponse;
 import sweetgirl.croissant.alarm.dto.response.GeofenceCandidatesResponse;
 import sweetgirl.croissant.alarm.dto.response.StoreNotificationResponse;
@@ -27,7 +28,10 @@ import sweetgirl.croissant.member.entity.NotificationSetting;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
+import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.exception.StoreException;
+import sweetgirl.croissant.store.repository.StoreRepository;
 import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
 
 @Service
@@ -44,6 +48,7 @@ public class AlarmService {
 	final FcmService fcmService;
 	final SubscribedStoreRepository subscribedStoreRepository;
 	final MemberRepository memberRepository;
+	final StoreRepository storeRepository;
 
 	// 알람 히스토리 목록 조회
 	@Transactional(readOnly = true)
@@ -151,6 +156,35 @@ public class AlarmService {
 
 	}
 
+	// Geofence 진입 이벤트 처리 — 클라이언트 OS가 enter 이벤트를 받으면 서버에서 재검증 후 FCM 발송
+	@Transactional
+	public void handleGeofenceEnter(Long memberId, GeofenceEnterRequest request) {
+
+		NotificationSetting setting = getNotificationSetting(memberId); // 알림 설정 조회 - 제한 있으면 silent skip
+		if (isNotificationBlocked(setting)) {
+			return;
+		}
+
+		Store store = storeRepository.findById(request.getStoreId())
+			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
+		Member member = getMember(memberId);
+		int radius = setting.getNotificationRadius().getMeters();
+
+		// 구독 여부 확인 + 요청 좌표가 사용자 반경 안인지 POSTGIS로 재검증 (OS 위변조 방지)
+		boolean valid = subscribedStoreRepository.existsSubscribedStoreWithinRadius(memberId, request.getStoreId(),
+			request.getLatitude(), request.getLongitude(), radius);
+
+		if (!valid) {
+			throw new AlarmException(AlarmErrorCode.GEOFENCE_NOT_SUBSCRIBED);
+		}
+		if (alreadyNotified(member, store)) { // 오늘 이미 이 가게에 알림을 보냈으면 중복 발송 방지 (silent skip)
+			return;
+		}
+		List<FcmToken> tokens = fcmTokenRepository.findByMemberAndIsActive(member, true);
+		sendStoreNotification(member, store, tokens);
+
+	}
+
 	private Member getMember(Long memberId) {
 		return memberRepository.findById(memberId)
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
@@ -160,4 +194,5 @@ public class AlarmService {
 		return notificationSettingRepository.findByMember(getMember(memberId))
 			.orElseThrow(() -> new MemberException(MemberErrorCode.NOTIFICATION_SETTING_NOT_FOUND));
 	}
+
 }

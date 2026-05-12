@@ -32,12 +32,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```
 sweetgirl.croissant
 ├── {domain}/    controller · service · repository · entity · dto/request · dto/response
-│   (alarm · member · menu · store)
+│   (alarm · member · menu · store · admin)
 ├── external/    외부 API 연동 (kakao — KakaoLocalClient, DTO, 에러코드)
 ├── global/      ApiResponse, CustomException, BaseErrorCode, GlobalExceptionHandler
 ├── config/      FirebaseConfig, JpaConfig, SwaggerConfig
 └── common/      BaseTimeEntity, 공통 Enum
 ```
+
+## 관련 프로젝트
+
+| 폴더 | 설명 | 스택 |
+|------|------|------|
+| `../bbang-ggut_admin_web/` | 관리자 웹 대시보드 — 빵집·메뉴·배너·신고 관리 | React 19, Vite, TypeScript, Tailwind CSS 4 |
+| `../bbang-ggut_FE/bbanggut/` | 사용자 앱 | Expo SDK 54, TypeScript, NativeWind v4 |
 
 ## 주요 명령어
 
