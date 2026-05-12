@@ -1,4 +1,4 @@
-package sweetgirl.croissant.member.dto;
+package sweetgirl.croissant.member.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;

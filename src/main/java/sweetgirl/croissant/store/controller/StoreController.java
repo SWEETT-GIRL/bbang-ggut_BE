@@ -17,11 +17,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.global.response.SliceResponse;
-import sweetgirl.croissant.store.dto.NearbyStoreResponse;
-import sweetgirl.croissant.store.dto.StoreDetailResponse;
-import sweetgirl.croissant.store.dto.StoreSearchResponse;
-import sweetgirl.croissant.store.dto.SubscribedStoreResponse;
-import sweetgirl.croissant.store.dto.TopSubscribedStoreResponse;
+import sweetgirl.croissant.store.dto.response.NearbyStoreResponse;
+import sweetgirl.croissant.store.dto.response.StoreDetailResponse;
+import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
+import sweetgirl.croissant.store.dto.response.SubscribedStoreResponse;
+import sweetgirl.croissant.store.dto.response.TopSubscribedStoreResponse;
 import sweetgirl.croissant.store.service.StoreService;
 
 @Tag(name = "Store", description = "빵집 API")

@@ -1,4 +1,4 @@
-package sweetgirl.croissant.menu.dto;
+package sweetgirl.croissant.menu.dto.projection;
 
 public interface MenuImageThumbnailProjection {
 	Long getMenuId();

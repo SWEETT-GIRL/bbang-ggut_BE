@@ -20,7 +20,7 @@ import sweetgirl.croissant.common.enums.StoreStatus;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
-import sweetgirl.croissant.store.dto.SubscribedStoreResponse;
+import sweetgirl.croissant.store.dto.response.SubscribedStoreResponse;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.entity.SubscribedStore;

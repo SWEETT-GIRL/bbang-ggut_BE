@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import sweetgirl.croissant.store.dto.StoreImageThumbnailProjection;
+import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 
 public interface StoreImageFileRepository extends JpaRepository<StoreImageFile, Long> {

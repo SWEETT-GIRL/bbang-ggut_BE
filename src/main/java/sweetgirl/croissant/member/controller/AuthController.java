@@ -8,8 +8,8 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
-import sweetgirl.croissant.member.dto.RefreshRequest;
-import sweetgirl.croissant.member.dto.RefreshResponse;
+import sweetgirl.croissant.member.dto.request.RefreshRequest;
+import sweetgirl.croissant.member.dto.response.RefreshResponse;
 import sweetgirl.croissant.member.entity.RefreshToken;
 import sweetgirl.croissant.member.service.AuthService;
 

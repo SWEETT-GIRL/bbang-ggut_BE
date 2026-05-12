@@ -1,4 +1,4 @@
-package sweetgirl.croissant.member.dto;
+package sweetgirl.croissant.member.dto.dto;
 
 import java.util.Collection;
 import java.util.Map;

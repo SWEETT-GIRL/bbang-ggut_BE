@@ -1,4 +1,6 @@
-package sweetgirl.croissant.store.dto;
+package sweetgirl.croissant.store.dto.response;
+
+import sweetgirl.croissant.store.dto.projection.NearbyStoreProjection;
 
 public record NearbyStoreResponse(
 		Long id,

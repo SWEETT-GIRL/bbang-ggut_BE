@@ -1,4 +1,6 @@
-package sweetgirl.croissant.store.dto;
+package sweetgirl.croissant.store.dto.response;
+
+import sweetgirl.croissant.store.dto.projection.TopSubscribedStoreProjection;
 
 public record TopSubscribedStoreResponse(
 		Long id,

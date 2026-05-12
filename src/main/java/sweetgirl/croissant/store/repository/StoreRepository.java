@@ -10,8 +10,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import sweetgirl.croissant.common.enums.StoreStatus;
-import sweetgirl.croissant.store.dto.NearbyStoreProjection;
-import sweetgirl.croissant.store.dto.TopSubscribedStoreProjection;
+import sweetgirl.croissant.store.dto.projection.NearbyStoreProjection;
+import sweetgirl.croissant.store.dto.projection.TopSubscribedStoreProjection;
 import sweetgirl.croissant.store.entity.Store;
 
 public interface StoreRepository extends JpaRepository<Store, Long> {

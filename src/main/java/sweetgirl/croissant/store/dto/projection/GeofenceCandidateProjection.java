@@ -1,6 +1,5 @@
-package sweetgirl.croissant.store.repository;
+package sweetgirl.croissant.store.dto.projection;
 
-// OS Geofence 등록 후보 조회 쿼리 결과 매핑용 Projection
 public interface GeofenceCandidateProjection {
 	Long getStoreId();
 
