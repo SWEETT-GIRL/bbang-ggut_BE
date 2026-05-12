@@ -52,6 +52,27 @@ public class KakaoLocalClient {
 		return new KakaoSearchResult(places, isEnd);
 	}
 
+	public List<KakaoPlace> searchByKeywordForAddress(String query) {
+		KakaoSearchResponse response;
+		try {
+			response = kakaoRestClient.get()
+				.uri(uriBuilder -> uriBuilder
+					.path(KEYWORD_SEARCH_PATH)
+					.queryParam("query", query)
+					.queryParam("size", MAX_SIZE)
+					.build())
+				.retrieve()
+				.body(KakaoSearchResponse.class);
+		} catch (RestClientException e) {
+			throw new KakaoLocalApiException(KakaoErrorCode.KEYWORD_SEARCH_ERROR, e);
+		}
+
+		if (response == null || response.documents() == null) {
+			return List.of();
+		}
+		return response.documents();
+	}
+
 	private boolean isBreadPlace(KakaoPlace place) {
 		return KakaoCategoryCode.from(place.categoryGroupCode())
 			.map(code -> code.matches(place.categoryName()))
