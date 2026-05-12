@@ -12,7 +12,7 @@ import sweetgirl.croissant.menu.entity.MenuImageFile;
 public interface MenuImageFileRepository extends JpaRepository<MenuImageFile, Long> {
 
 	@Query("""
-			SELECT m.menu.id AS menuId, m.awsKey AS awsKey
+			SELECT m.id AS imageId, m.menu.id AS menuId, m.awsKey AS awsKey
 			FROM MenuImageFile m WHERE m.menu.id IN :menuIds ORDER BY m.id DESC
 			""")
 	List<MenuImageThumbnailProjection> findThumbnailsByMenuIdIn(@Param("menuIds") List<Long> menuIds);
