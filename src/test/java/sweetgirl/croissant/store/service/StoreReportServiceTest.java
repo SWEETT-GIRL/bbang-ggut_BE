@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -26,6 +27,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.menu.code.MenuErrorCode;
+import sweetgirl.croissant.menu.dto.request.MenuEditReportRequest;
+import sweetgirl.croissant.menu.entity.Menu;
+import sweetgirl.croissant.menu.exception.MenuException;
+import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.code.StoreReportErrorCode;
@@ -56,6 +62,8 @@ class StoreReportServiceTest {
 	MemberReader memberReader;
 	@Mock
 	MenuRepository menuRepository;
+	@Mock
+	MenuImageFileRepository menuImageFileRepository;
 	@Mock
 	StoreRepository storeRepository;
 	@Mock
@@ -145,6 +153,20 @@ class StoreReportServiceTest {
 
 		assertThat(result.reportId()).isEqualTo(10L);
 		verify(storeReportImageFileRepository).saveAll(anyList());
+	}
+
+	@Test
+	@DisplayName("createImageReport: addImages의 awsKey prefix가 올바르지 않으면 REPORT_INVALID_AWS_KEY를 던진다")
+	void createImageReport_invalidAwsKeyPrefix_throwsInvalidKey() {
+		ReportImageRequest img = new ReportImageRequest("test.jpg", "image/jpeg",
+			"wrong/path/uuid.jpg");
+		StoreImageReportRequest request = new StoreImageReportRequest(List.of(), List.of(img), null);
+
+		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
+
+		assertThatThrownBy(() -> storeReportService.createImageReport(1L, 1L, request))
+			.isInstanceOf(StoreReportException.class)
+			.hasMessageContaining(StoreReportErrorCode.REPORT_INVALID_AWS_KEY.getMessage());
 	}
 
 	// ───────────────────────── createBusinessHoursReport ─────────────────────────
@@ -254,6 +276,148 @@ class StoreReportServiceTest {
 
 		assertThat(result.reportId()).isEqualTo(10L);
 		assertThat(result.status()).isEqualTo(StoreReportStatus.PENDING);
+	}
+
+	// ───────────────────────── createMenuEditReport ─────────────────────────
+
+	@Test
+	@DisplayName("createMenuEditReport: menu가 없으면 MenuException을 던진다")
+	void createMenuEditReport_menuNotFound_throwsException() {
+		MenuEditReportRequest request = new MenuEditReportRequest(6500, null, null, null);
+
+		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
+		given(menuRepository.findById(1L)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> storeReportService.createMenuEditReport(1L, 1L, request))
+			.isInstanceOf(MenuException.class)
+			.hasMessageContaining(MenuErrorCode.MENU_NOT_FOUND.getMessage());
+	}
+
+	@Test
+	@DisplayName("createMenuEditReport: price·deleteImageIds·addImages 모두 비어있으면 REPORT_EDIT_CONTENT_EMPTY를 던진다")
+	void createMenuEditReport_allEmpty_throwsContentEmpty() {
+		MenuEditReportRequest request = new MenuEditReportRequest(null, List.of(), List.of(), null);
+
+		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
+		given(menuRepository.findById(1L)).willReturn(Optional.of(mock(Menu.class)));
+
+		assertThatThrownBy(() -> storeReportService.createMenuEditReport(1L, 1L, request))
+			.isInstanceOf(StoreReportException.class)
+			.hasMessageContaining(StoreReportErrorCode.REPORT_EDIT_CONTENT_EMPTY.getMessage());
+	}
+
+	@Test
+	@DisplayName("createMenuEditReport: deleteImageIds가 해당 menu 소유가 아니면 REPORT_MENU_IMAGE_NOT_OWNED를 던진다")
+	void createMenuEditReport_deleteImageNotOwned_throwsNotOwned() {
+		MenuEditReportRequest request = new MenuEditReportRequest(null, List.of(1L, 2L), null, null);
+
+		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
+		given(menuRepository.findById(1L)).willReturn(Optional.of(mock(Menu.class)));
+		given(menuImageFileRepository.countByIdInAndMenuId(List.of(1L, 2L), 1L)).willReturn(1L);
+
+		assertThatThrownBy(() -> storeReportService.createMenuEditReport(1L, 1L, request))
+			.isInstanceOf(StoreReportException.class)
+			.hasMessageContaining(StoreReportErrorCode.REPORT_MENU_IMAGE_NOT_OWNED.getMessage());
+	}
+
+	@Test
+	@DisplayName("createMenuEditReport: addImages의 awsKey prefix가 올바르지 않으면 REPORT_INVALID_AWS_KEY를 던진다")
+	void createMenuEditReport_invalidAwsKeyPrefix_throwsInvalidKey() {
+		ReportImageRequest img = new ReportImageRequest("menu.jpg", "image/jpeg", "wrong/path/uuid");
+		MenuEditReportRequest request = new MenuEditReportRequest(null, null, List.of(img), null);
+		Menu menu = mock(Menu.class);
+		Store store = mock(Store.class);
+		given(store.getId()).willReturn(7L);
+		given(menu.getStore()).willReturn(store);
+
+		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
+		given(menuRepository.findById(1L)).willReturn(Optional.of(menu));
+
+		assertThatThrownBy(() -> storeReportService.createMenuEditReport(1L, 1L, request))
+			.isInstanceOf(StoreReportException.class)
+			.hasMessageContaining(StoreReportErrorCode.REPORT_INVALID_AWS_KEY.getMessage());
+	}
+
+	@Test
+	@DisplayName("createMenuEditReport: 허용하지 않는 MIME 타입이면 예외를 던진다")
+	void createMenuEditReport_invalidMimeType_throwsException() {
+		ReportImageRequest img = new ReportImageRequest("menu.gif", "image/gif",
+			"reports/stores/7/menus/1/uuid");
+		MenuEditReportRequest request = new MenuEditReportRequest(null, null, List.of(img), null);
+		Menu menu = mock(Menu.class);
+		Store store = mock(Store.class);
+		given(store.getId()).willReturn(7L);
+		given(menu.getStore()).willReturn(store);
+
+		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
+		given(menuRepository.findById(1L)).willReturn(Optional.of(menu));
+
+		assertThatThrownBy(() -> storeReportService.createMenuEditReport(1L, 1L, request))
+			.isInstanceOf(RuntimeException.class);
+	}
+
+	@Test
+	@DisplayName("createMenuEditReport: 정상 요청이면 StoreReport를 저장하고 PENDING 상태를 반환한다")
+	void createMenuEditReport_validRequest_returnsPendingStatus() throws JsonProcessingException {
+		MenuEditReportRequest request = new MenuEditReportRequest(6500, null, null, "가격 변경");
+		StoreReport savedReport = savedReportMock(4L);
+		Menu menu = mock(Menu.class);
+		Store store = mock(Store.class);
+		given(menu.getStore()).willReturn(store);
+
+		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
+		given(menuRepository.findById(1L)).willReturn(Optional.of(menu));
+		given(objectMapper.writeValueAsString(request)).willReturn("{}");
+		given(storeReportRepository.save(any())).willReturn(savedReport);
+
+		StoreReportResponse result = storeReportService.createMenuEditReport(1L, 1L, request);
+
+		assertThat(result.reportId()).isEqualTo(4L);
+		assertThat(result.status()).isEqualTo(StoreReportStatus.PENDING);
+		verify(storeReportImageFileRepository, never()).saveAll(anyList());
+	}
+
+	@Test
+	@DisplayName("createMenuEditReport: addImages가 있으면 StoreReportImageFile도 저장한다")
+	void createMenuEditReport_withAddImages_savesImageFiles() throws JsonProcessingException {
+		ReportImageRequest img = new ReportImageRequest("menu.jpg", "image/jpeg",
+			"reports/stores/7/menus/1/uuid");
+		MenuEditReportRequest request = new MenuEditReportRequest(null, null, List.of(img), null);
+		StoreReport savedReport = savedReportMock(4L);
+		Menu menu = mock(Menu.class);
+		Store store = mock(Store.class);
+		given(store.getId()).willReturn(7L);
+		given(menu.getStore()).willReturn(store);
+
+		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
+		given(menuRepository.findById(1L)).willReturn(Optional.of(menu));
+		given(objectMapper.writeValueAsString(request)).willReturn("{}");
+		given(storeReportRepository.save(any())).willReturn(savedReport);
+
+		StoreReportResponse result = storeReportService.createMenuEditReport(1L, 1L, request);
+
+		assertThat(result.reportId()).isEqualTo(4L);
+		verify(storeReportImageFileRepository).saveAll(anyList());
+	}
+
+	@Test
+	@DisplayName("createMenuEditReport: 정상 생성 시 member가 로그인 사용자로 전달된다")
+	void createMenuEditReport_validRequest_memberSaved() throws JsonProcessingException {
+		MenuEditReportRequest request = new MenuEditReportRequest(6500, null, null, null);
+		Member member = mock(Member.class);
+		StoreReport savedReport = savedReportMock(4L);
+		Menu menu = mock(Menu.class);
+		Store store = mock(Store.class);
+		given(menu.getStore()).willReturn(store);
+
+		given(memberReader.getMember(1L)).willReturn(member);
+		given(menuRepository.findById(1L)).willReturn(Optional.of(menu));
+		given(objectMapper.writeValueAsString(request)).willReturn("{}");
+		given(storeReportRepository.save(any())).willReturn(savedReport);
+
+		storeReportService.createMenuEditReport(1L, 1L, request);
+
+		verify(storeReportRepository).save(argThat(r -> r.getMember() == member));
 	}
 
 	private StoreReport savedReportMock(Long id) {

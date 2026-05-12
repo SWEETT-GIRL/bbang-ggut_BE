@@ -37,8 +37,8 @@ import sweetgirl.croissant.alarm.repository.StoreNotificationRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
 import sweetgirl.croissant.member.enums.NotificationRadius;
-import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
+import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.dto.projection.GeofenceCandidateProjection;
 import sweetgirl.croissant.store.entity.Store;
@@ -60,7 +60,7 @@ class AlarmServiceTest {
 	@Mock
 	SubscribedStoreRepository subscribedStoreRepository;
 	@Mock
-	MemberRepository memberRepository;
+	MemberReader memberReader;
 	@Mock
 	StoreRepository storeRepository;
 
@@ -85,7 +85,7 @@ class AlarmServiceTest {
 		given(notification.getSentAt()).willReturn(sentAt);
 		given(notification.getReadAt()).willReturn(null);
 
-		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
+		given(memberReader.getMember(memberId)).willReturn(member);
 		given(storeNotificationRepository.findByMemberAndSentAtAfterOrderBySentAtDesc(
 			eq(member), any(LocalDateTime.class)))
 			.willReturn(List.of(notification));
@@ -106,7 +106,7 @@ class AlarmServiceTest {
 	void getStoreNotificationHistory_returnsEmptyList_whenNoNotifications() {
 		Long memberId = 1L;
 		Member member = mock(Member.class);
-		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
+		given(memberReader.getMember(memberId)).willReturn(member);
 		given(storeNotificationRepository.findByMemberAndSentAtAfterOrderBySentAtDesc(
 			eq(member), any(LocalDateTime.class)))
 			.willReturn(List.of());
@@ -132,7 +132,7 @@ class AlarmServiceTest {
 		given(notification.getSentAt()).willReturn(LocalDateTime.now().minusDays(1));
 		given(notification.getReadAt()).willReturn(readAt);
 
-		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
+		given(memberReader.getMember(memberId)).willReturn(member);
 		given(storeNotificationRepository.findByMemberAndSentAtAfterOrderBySentAtDesc(
 			eq(member), any(LocalDateTime.class)))
 			.willReturn(List.of(notification));
@@ -153,7 +153,6 @@ class AlarmServiceTest {
 		NotificationSetting setting = mock(NotificationSetting.class);
 		GeofenceEnterRequest request = mock(GeofenceEnterRequest.class);
 
-		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(false);
 
@@ -166,13 +165,13 @@ class AlarmServiceTest {
 	@DisplayName("handleGeofenceEnter: storeId에 해당하는 가게가 없으면 StoreException을 던진다")
 	void handleGeofenceEnter_storeNotFound_throwsException() {
 		Long memberId = 1L;
-		Member member = mock(Member.class);
 		NotificationSetting setting = mock(NotificationSetting.class);
 		GeofenceEnterRequest request = mock(GeofenceEnterRequest.class);
 
-		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
+		given(setting.getStartTime()).willReturn(LocalTime.of(0, 0));
+		given(setting.getEndTime()).willReturn(LocalTime.of(23, 59));
 		given(setting.getDaysOfWeek()).willReturn("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY");
 		given(request.getStoreId()).willReturn(99L);
 		given(storeRepository.findById(99L)).willReturn(Optional.empty());
@@ -191,9 +190,11 @@ class AlarmServiceTest {
 		NotificationSetting setting = mock(NotificationSetting.class);
 		GeofenceEnterRequest request = mock(GeofenceEnterRequest.class);
 
-		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
+		given(memberReader.getMember(memberId)).willReturn(member);
 		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
+		given(setting.getStartTime()).willReturn(LocalTime.of(0, 0));
+		given(setting.getEndTime()).willReturn(LocalTime.of(23, 59));
 		given(setting.getDaysOfWeek()).willReturn("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY");
 		given(setting.getNotificationRadius()).willReturn(NotificationRadius.R300);
 		given(request.getStoreId()).willReturn(1L);
@@ -217,9 +218,11 @@ class AlarmServiceTest {
 		NotificationSetting setting = mock(NotificationSetting.class);
 		GeofenceEnterRequest request = mock(GeofenceEnterRequest.class);
 
-		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
+		given(memberReader.getMember(memberId)).willReturn(member);
 		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
+		given(setting.getStartTime()).willReturn(LocalTime.of(0, 0));
+		given(setting.getEndTime()).willReturn(LocalTime.of(23, 59));
 		given(setting.getDaysOfWeek()).willReturn("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY");
 		given(setting.getNotificationRadius()).willReturn(NotificationRadius.R300);
 		given(request.getStoreId()).willReturn(1L);
@@ -251,7 +254,7 @@ class AlarmServiceTest {
 		NotificationSetting setting = mock(NotificationSetting.class);
 		GeofenceEnterRequest request = mock(GeofenceEnterRequest.class);
 
-		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
+		given(memberReader.getMember(memberId)).willReturn(member);
 		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
 		given(setting.getStartTime()).willReturn(LocalTime.of(8, 0));
@@ -291,7 +294,7 @@ class AlarmServiceTest {
 		NotificationSetting setting = mock(NotificationSetting.class);
 		GeofenceEnterRequest request = mock(GeofenceEnterRequest.class);
 
-		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
+		given(memberReader.getMember(memberId)).willReturn(member);
 		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
 		given(setting.getStartTime()).willReturn(LocalTime.of(8, 0));
@@ -324,7 +327,6 @@ class AlarmServiceTest {
 		Member member = mock(Member.class);
 		NotificationSetting setting = mock(NotificationSetting.class);
 
-		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(false);
 
@@ -341,7 +343,6 @@ class AlarmServiceTest {
 		NotificationSetting setting = mock(NotificationSetting.class);
 		GeofenceCandidateProjection projection = mock(GeofenceCandidateProjection.class);
 
-		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
 		given(setting.getNotificationRadius()).willReturn(NotificationRadius.R300);

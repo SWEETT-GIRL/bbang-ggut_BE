@@ -11,6 +11,8 @@ import sweetgirl.croissant.menu.entity.MenuImageFile;
 
 public interface MenuImageFileRepository extends JpaRepository<MenuImageFile, Long> {
 
+	long countByIdInAndMenuId(List<Long> ids, Long menuId);
+
 	@Query("""
 			SELECT m.id AS imageId, m.menu.id AS menuId, m.awsKey AS awsKey
 			FROM MenuImageFile m WHERE m.menu.id IN :menuIds ORDER BY m.id DESC

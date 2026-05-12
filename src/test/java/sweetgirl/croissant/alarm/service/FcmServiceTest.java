@@ -32,7 +32,7 @@ import sweetgirl.croissant.alarm.exception.AlarmException;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
 import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.member.entity.Member;
-import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.service.MemberReader;
 
 @ExtendWith(MockitoExtension.class)
 class FcmServiceTest {
@@ -41,7 +41,7 @@ class FcmServiceTest {
 	FcmTokenRepository fcmTokenRepository;
 
 	@Mock
-	MemberRepository memberRepository;
+	MemberReader memberReader;
 
 	@InjectMocks
 	FcmService fcmService;
@@ -62,7 +62,7 @@ class FcmServiceTest {
 		given(request.getDeviceOs()).willReturn(DeviceOs.IOS);
 		given(request.getToken()).willReturn("new-token");
 
-		given(memberRepository.findById(1L)).willReturn(Optional.of(member));
+		given(memberReader.getMember(1L)).willReturn(member);
 		given(fcmTokenRepository.findByMemberAndDeviceId(member, "device-001"))
 			.willReturn(Optional.of(existingToken));
 
@@ -81,7 +81,7 @@ class FcmServiceTest {
 		given(request.getDeviceOs()).willReturn(DeviceOs.ANDROID);
 		given(request.getToken()).willReturn("new-token");
 
-		given(memberRepository.findById(1L)).willReturn(Optional.of(member));
+		given(memberReader.getMember(1L)).willReturn(member);
 		given(fcmTokenRepository.findByMemberAndDeviceId(member, "device-001"))
 			.willReturn(Optional.empty());
 

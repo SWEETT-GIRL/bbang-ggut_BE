@@ -5,7 +5,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,7 +17,7 @@ import org.springframework.data.domain.SliceImpl;
 
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.entity.Member;
-import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.store.dto.response.SubscribedStoreResponse;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreImageFile;
@@ -45,7 +44,7 @@ class StoreServiceTest {
 	SubscribedStoreRepository subscribedStoreRepository;
 
 	@Mock
-	MemberRepository memberRepository;
+	MemberReader memberReader;
 
 	@InjectMocks
 	StoreService storeService;
@@ -69,7 +68,7 @@ class StoreServiceTest {
 		SubscribedStore subscribedStore = mock(SubscribedStore.class);
 		given(subscribedStore.getStore()).willReturn(store);
 
-		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
+		given(memberReader.getMember(memberId)).willReturn(member);
 		given(subscribedStoreRepository.findAllByMemberOrderByCreatedAtDesc(member, pageable))
 			.willReturn(new SliceImpl<>(List.of(subscribedStore), pageable, false));
 		given(storeImageFileRepository.findByStoreId(1L)).willReturn(List.of(image));
@@ -101,7 +100,7 @@ class StoreServiceTest {
 		SubscribedStore subscribedStore = mock(SubscribedStore.class);
 		given(subscribedStore.getStore()).willReturn(store);
 
-		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
+		given(memberReader.getMember(memberId)).willReturn(member);
 		given(subscribedStoreRepository.findAllByMemberOrderByCreatedAtDesc(member, pageable))
 			.willReturn(new SliceImpl<>(List.of(subscribedStore), pageable, false));
 		given(storeImageFileRepository.findByStoreId(1L)).willReturn(List.of());
@@ -119,7 +118,7 @@ class StoreServiceTest {
 		Member member = mock(Member.class);
 		PageRequest pageable = PageRequest.of(0, 10);
 
-		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
+		given(memberReader.getMember(memberId)).willReturn(member);
 		given(subscribedStoreRepository.findAllByMemberOrderByCreatedAtDesc(member, pageable))
 			.willReturn(new SliceImpl<>(List.of(), pageable, false));
 
