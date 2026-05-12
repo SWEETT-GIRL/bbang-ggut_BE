@@ -11,7 +11,9 @@ import sweetgirl.croissant.global.code.BaseErrorCode;
 public enum MemberErrorCode implements BaseErrorCode {
 
 	MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "MEMBER404", "존재하지 않는 회원입니다."),
-	MENU_NOT_FOUND(HttpStatus.NOT_FOUND, "MENU404", "존재하지 않는 메뉴입니다.");
+	MENU_NOT_FOUND(HttpStatus.NOT_FOUND, "MENU404", "존재하지 않는 메뉴입니다."),
+	NOTIFICATION_RADIUS_ALREADY_MIN(HttpStatus.BAD_REQUEST, "RADIUS400_MIN", "이미 최소 반경입니다."),
+	NOTIFICATION_RADIUS_ALREADY_MAX(HttpStatus.BAD_REQUEST, "RADIUS400_MAX", "이미 최대 반경입니다.");
 
 	private final HttpStatus httpStatus;
 	private final String code;

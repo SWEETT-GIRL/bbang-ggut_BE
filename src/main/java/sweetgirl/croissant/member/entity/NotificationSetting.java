@@ -56,6 +56,11 @@ public class NotificationSetting extends BaseTimeEntity {
 		this.daysOfWeek = dayList;
 	}
 
+	// 알림 반경을 새 값으로 업데이트 (dirty checking으로 자동 저장)
+	public void updateRadius(float radius) {
+		this.notificationRadius = radius;
+	}
+
 	@Builder
 	public NotificationSetting(Member member, boolean isNotificationEnabled, float notificationRadius,
 			LocalTime startTime, LocalTime endTime, String daysOfWeek,
