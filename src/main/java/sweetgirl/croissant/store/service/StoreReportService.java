@@ -14,6 +14,7 @@ import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.external.aws.enums.MimeType;
 import sweetgirl.croissant.external.aws.util.S3PathGenerator;
+import sweetgirl.croissant.external.kakao.client.KakaoLocalClient;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
@@ -29,6 +30,7 @@ import sweetgirl.croissant.store.dto.request.ReportPresignedUrlRequest;
 import sweetgirl.croissant.store.dto.request.StoreAddressReportRequest;
 import sweetgirl.croissant.store.dto.request.StoreBusinessHoursReportRequest;
 import sweetgirl.croissant.store.dto.request.StoreImageReportRequest;
+import sweetgirl.croissant.store.dto.response.AddressSearchResult;
 import sweetgirl.croissant.store.dto.response.PresignedUrlInfo;
 import sweetgirl.croissant.store.dto.response.PresignedUrlInfoResponse;
 import sweetgirl.croissant.store.dto.response.StoreReportResponse;
@@ -47,6 +49,7 @@ import sweetgirl.croissant.store.repository.StoreRepository;
 @RequiredArgsConstructor
 public class StoreReportService {
 
+	private final KakaoLocalClient kakaoLocalClient;
 	private final S3Service s3Service;
 	private final ObjectMapper objectMapper;
 	private final MemberReader memberReader;
@@ -56,6 +59,12 @@ public class StoreReportService {
 	private final StoreImageFileRepository storeImageFileRepository;
 	private final StoreReportRepository storeReportRepository;
 	private final StoreReportImageFileRepository storeReportImageFileRepository;
+
+	public List<AddressSearchResult> searchAddress(String searchKeyword) {
+		return kakaoLocalClient.searchByKeywordForAddress(searchKeyword).stream()
+			.map(AddressSearchResult::from)
+			.toList();
+	}
 
 	// STORE - mimeType 개수만큼 S3에 PresignedUrl 발급 요청
 	public PresignedUrlInfoResponse generateStoreReportPresignedUrls(Long memberId, Long storeId,
