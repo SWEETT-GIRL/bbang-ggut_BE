@@ -144,7 +144,7 @@ public class AlarmService {
 			return GeofenceCandidatesResponse.builder().stores(List.of()).build();
 		}
 
-		int radiusMeters = setting.getNotificationRadius().getMeters();
+		int radiusMeters = setting.getNotificationRadius().getValue();
 
 		List<GeofenceCandidateResponse> stores = subscribedStoreRepository.findGeofenceCandidates(memberId, lat, lng,
 			CANDIDATE_RADIUS_METERS)
@@ -168,7 +168,7 @@ public class AlarmService {
 		Store store = storeRepository.findById(request.getStoreId())
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 		Member member = getMember(memberId);
-		int radius = setting.getNotificationRadius().getMeters();
+		int radius = setting.getNotificationRadius().getValue();
 
 		// 구독 여부 확인 + 요청 좌표가 사용자 반경 안인지 POSTGIS로 재검증 (OS 위변조 방지)
 		boolean valid = subscribedStoreRepository.existsSubscribedStoreWithinRadius(memberId, request.getStoreId(),
