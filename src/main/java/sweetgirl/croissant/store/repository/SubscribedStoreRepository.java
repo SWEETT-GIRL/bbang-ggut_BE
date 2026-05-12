@@ -1,6 +1,7 @@
 package sweetgirl.croissant.store.repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -17,6 +18,10 @@ public interface SubscribedStoreRepository extends JpaRepository<SubscribedStore
 	long countByMember(Member member);
 
 	Slice<SubscribedStore> findAllByMemberOrderByCreatedAtDesc(Member member, Pageable pageable);
+
+	boolean existsByMemberIdAndStoreId(Long memberId, Long storeId);
+
+	Optional<SubscribedStore> findByMemberIdAndStoreId(Long memberId, Long storeId);
 
 	// 현재 위치 기준 반경 내 구독 가게 후보 최대 20개 반환 (OS Geofence 등록용)
 	@Query(value = """

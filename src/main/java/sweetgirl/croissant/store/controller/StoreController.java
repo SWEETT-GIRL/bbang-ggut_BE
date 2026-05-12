@@ -5,8 +5,10 @@ import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -72,5 +74,23 @@ public class StoreController {
 	public ResponseEntity<ApiResponse<List<TopSubscribedStoreResponse>>> getTopSubscribedStores(
 			@RequestParam double lat, @RequestParam double lng) {
 		return ResponseEntity.ok(ApiResponse.ok(storeService.getTopSubscribedStores(lng, lat)));
+	}
+
+	@Operation(summary = "빵집 구독 (빵알람 등록)", description = "빵집을 구독합니다. 이미 구독 중이면 409를 반환합니다.")
+	@PostMapping("/{storeId}/subscribe")
+	public ResponseEntity<ApiResponse<Void>> subscribeStore(
+			@PathVariable Long storeId,
+			@AuthenticationPrincipal Long memberId) {
+		storeService.subscribeStore(storeId, memberId);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "빵집 구독 취소 (빵알람 해제)", description = "빵집 구독을 취소합니다. 구독 중이 아니면 400을 반환합니다.")
+	@DeleteMapping("/{storeId}/subscribe")
+	public ResponseEntity<ApiResponse<Void>> unsubscribeStore(
+			@PathVariable Long storeId,
+			@AuthenticationPrincipal Long memberId) {
+		storeService.unsubscribeStore(storeId, memberId);
+		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 }

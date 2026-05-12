@@ -155,6 +155,29 @@ public class StoreService {
 			.toList();
 	}
 
+	@Transactional
+	public void subscribeStore(Long storeId, Long memberId) {
+		Store store = storeRepository.findById(storeId)
+			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
+		if (subscribedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId)) {
+			throw new StoreException(StoreErrorCode.ALREADY_SUBSCRIBED);
+		}
+		subscribedStoreRepository.save(SubscribedStore.builder()
+			.member(memberReader.getMember(memberId))
+			.store(store)
+			.build());
+	}
+
+	@Transactional
+	public void unsubscribeStore(Long storeId, Long memberId) {
+		if (!storeRepository.existsById(storeId)) {
+			throw new StoreException(StoreErrorCode.STORE_NOT_FOUND);
+		}
+		SubscribedStore subscribedStore = subscribedStoreRepository.findByMemberIdAndStoreId(memberId, storeId)
+			.orElseThrow(() -> new StoreException(StoreErrorCode.NOT_SUBSCRIBED));
+		subscribedStoreRepository.delete(subscribedStore);
+	}
+
 	private Map<Long, String> getStoreThumbnails(List<Long> storeIds) {
 		return storeImageFileRepository.findThumbnailsByStoreIdIn(storeIds).stream()
 			.collect(Collectors.toMap(
