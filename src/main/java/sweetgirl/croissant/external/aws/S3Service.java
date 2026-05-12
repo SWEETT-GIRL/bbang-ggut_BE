@@ -13,7 +13,6 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
-import sweetgirl.croissant.external.aws.enums.S3Folder;
 import sweetgirl.croissant.external.aws.exception.S3ErrorCode;
 import sweetgirl.croissant.external.aws.exception.S3StorageException;
 
@@ -26,9 +25,8 @@ public class S3Service {
 	@Value("${aws.s3.bucket}")
 	private String bucketName;
 
-	public PresignedUrlResponse generatePresignedUrl(S3Folder folder, Long targetId, String mimeTypeStr) {
+	public PresignedUrlResponse generatePresignedUrl(String path, String mimeTypeStr) {
 		MimeType mimeType = MimeType.fromString(mimeTypeStr);
-		String path = (targetId != null) ? folder.getValue() + "/" + targetId : folder.getValue();
 		String awsKey = path + "/" + UUID.randomUUID();
 
 		try {
