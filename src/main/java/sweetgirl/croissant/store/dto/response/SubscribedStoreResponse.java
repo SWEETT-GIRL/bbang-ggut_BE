@@ -1,7 +1,7 @@
 package sweetgirl.croissant.store.dto.response;
 
-import sweetgirl.croissant.common.enums.StoreStatus;
 import sweetgirl.croissant.store.entity.SubscribedStore;
+import sweetgirl.croissant.store.enums.StoreStatus;
 
 public record SubscribedStoreResponse(
 		Long storeId,

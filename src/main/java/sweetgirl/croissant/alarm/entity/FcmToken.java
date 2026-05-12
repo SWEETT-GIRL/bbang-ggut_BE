@@ -15,8 +15,8 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import sweetgirl.croissant.alarm.enums.DeviceOs;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
-import sweetgirl.croissant.common.enums.DeviceOs;
 import sweetgirl.croissant.member.entity.Member;
 
 @Entity

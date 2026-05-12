@@ -10,13 +10,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
-import sweetgirl.croissant.common.enums.NotificationRadius;
-import sweetgirl.croissant.common.enums.OAuthProvider;
 import sweetgirl.croissant.member.dto.dto.CustomOAuth2User;
 import sweetgirl.croissant.member.dto.dto.KakaoOAuth2UserInfo;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
 import sweetgirl.croissant.member.entity.OAuth;
+import sweetgirl.croissant.member.enums.NotificationRadius;
+import sweetgirl.croissant.member.enums.OAuthProvider;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
 import sweetgirl.croissant.member.repository.OAuthRepository;

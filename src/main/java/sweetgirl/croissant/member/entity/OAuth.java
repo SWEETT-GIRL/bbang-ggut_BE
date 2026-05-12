@@ -22,7 +22,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import sweetgirl.croissant.common.enums.OAuthProvider;
+import sweetgirl.croissant.member.enums.OAuthProvider;
 
 @Entity
 @Table(name = "oauth", uniqueConstraints = @UniqueConstraint(name = "uq_oauth", columnNames = {

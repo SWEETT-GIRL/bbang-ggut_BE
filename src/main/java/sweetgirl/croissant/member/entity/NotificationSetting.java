@@ -18,7 +18,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
-import sweetgirl.croissant.common.enums.NotificationRadius;
+import sweetgirl.croissant.member.enums.NotificationRadius;
 
 @Entity
 @Table(name = "notification_setting")

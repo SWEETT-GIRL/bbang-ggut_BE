@@ -7,7 +7,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import sweetgirl.croissant.alarm.entity.FcmToken;
-import sweetgirl.croissant.common.enums.DeviceOs;
+import sweetgirl.croissant.alarm.enums.DeviceOs;
 
 class FcmTokenTest {
 

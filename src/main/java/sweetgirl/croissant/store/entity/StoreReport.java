@@ -18,10 +18,10 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
-import sweetgirl.croissant.common.enums.StoreReportStatus;
-import sweetgirl.croissant.common.enums.StoreReportType;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.menu.entity.Menu;
+import sweetgirl.croissant.store.enums.StoreReportStatus;
+import sweetgirl.croissant.store.enums.StoreReportType;
 
 @Entity
 @Table(name = "store_report")

@@ -6,9 +6,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
-import sweetgirl.croissant.common.enums.MenuKind;
-import sweetgirl.croissant.common.enums.NotificationDay;
-import sweetgirl.croissant.common.enums.NotificationRadius;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.dto.request.NotificationRadiusRequest;
 import sweetgirl.croissant.member.dto.response.DayOfWeekResponse;
@@ -17,11 +14,14 @@ import sweetgirl.croissant.member.dto.response.NotificationRadiusResponse;
 import sweetgirl.croissant.member.entity.LikedMenuCategory;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
+import sweetgirl.croissant.member.enums.NotificationDay;
+import sweetgirl.croissant.member.enums.NotificationRadius;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.LikedMenuCategoryRepository;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
 import sweetgirl.croissant.menu.entity.MenuCategory;
+import sweetgirl.croissant.menu.enums.MenuKind;
 import sweetgirl.croissant.menu.repository.MenuCategoryRepository;
 import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
 

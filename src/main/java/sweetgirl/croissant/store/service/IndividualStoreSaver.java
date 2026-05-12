@@ -5,8 +5,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
-import sweetgirl.croissant.common.enums.District;
 import sweetgirl.croissant.external.kakao.dto.KakaoPlace;
+import sweetgirl.croissant.store.enums.District;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
 @Component
