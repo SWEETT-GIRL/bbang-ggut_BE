@@ -45,6 +45,7 @@ public class SecurityConfig {
 			.requestMatchers("/auth/**").permitAll() // controller 호출
 			.requestMatchers("/terms").permitAll()
 			.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+			.requestMatchers("/**").permitAll()
 			.anyRequest().authenticated());
 
 		// OAuth2 로그인 설정
