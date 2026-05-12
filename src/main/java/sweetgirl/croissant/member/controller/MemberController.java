@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -12,10 +13,13 @@ import org.springframework.web.bind.annotation.RestController;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.member.dto.DayOfWeekResponse;
 import sweetgirl.croissant.member.dto.MenuCategoryResponse;
+import sweetgirl.croissant.member.dto.NotificationRadiusRequest;
+import sweetgirl.croissant.member.dto.NotificationRadiusResponse;
 import sweetgirl.croissant.member.service.MemberService;
 import sweetgirl.croissant.menu.entity.MenuCategory;
 
@@ -59,6 +63,28 @@ public class MemberController {
 			@RequestBody String dayList) {
 		memberService.updateNotificationDays(memberId, dayList);
 		return ApiResponse.ok(null);
+	}
+
+	@Operation(summary = "알림 반경 조회", description = "현재 설정된 알림 반경(m)을 반환합니다.")
+	@GetMapping("/me/notification-radius")
+	public ApiResponse<NotificationRadiusResponse> getNotificationRadius(
+			@AuthenticationPrincipal Long memberId) {
+		System.out.println("ㅇㅇㅇㅇ");
+		return ApiResponse.ok(memberService.getNotificationRadius(memberId));
+	}
+
+	@Operation(summary = "알림 반경 변경", description = "반경을 한 단계 증가하거나 감소합니다. 단계: 100 → 300 → 500 → 700 → 1000 (m)\n\n"
+		+ "**Request Body 예시**\n"
+		+ "```json\n"
+		+ "{ \"direction\": \"UP\" }   // 한 단계 증가\n"
+		+ "{ \"direction\": \"DOWN\" } // 한 단계 감소\n"
+		+ "```\n\n"
+		+ "이미 최솟값(100m)에서 DOWN 요청 시 400, 최댓값(1000m)에서 UP 요청 시 400 반환")
+	@PatchMapping("/me/notification-radius")
+	public ApiResponse<NotificationRadiusResponse> updateNotificationRadius(
+			@AuthenticationPrincipal Long memberId,
+			@RequestBody @Valid NotificationRadiusRequest request) {
+		return ApiResponse.ok(memberService.updateNotificationRadius(memberId, request));
 	}
 
 }

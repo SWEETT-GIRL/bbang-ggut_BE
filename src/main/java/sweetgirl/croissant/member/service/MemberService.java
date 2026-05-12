@@ -8,9 +8,12 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.common.enums.MenuKind;
 import sweetgirl.croissant.common.enums.NotificationDay;
+import sweetgirl.croissant.common.enums.NotificationRadius;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.dto.DayOfWeekResponse;
 import sweetgirl.croissant.member.dto.MenuCategoryResponse;
+import sweetgirl.croissant.member.dto.NotificationRadiusRequest;
+import sweetgirl.croissant.member.dto.NotificationRadiusResponse;
 import sweetgirl.croissant.member.entity.LikedMenuCategory;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
@@ -94,5 +97,40 @@ public class MemberService {
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 
 		setting.setDaysOfWeekList(dayList);
+	}
+
+	// 유저의 현재 알림 반경 조회
+	@Transactional(readOnly = true)
+	public NotificationRadiusResponse getNotificationRadius(Long memberId) {
+		NotificationSetting setting = notificationSettingRepository.findByMemberId(memberId)
+			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
+
+		// DB 저장값 → enum 변환 후 응답 반환
+		NotificationRadius current = NotificationRadius.from(setting.getNotificationRadius());
+		return NotificationRadiusResponse.of(current);
+	}
+
+	// 유저의 알림 반경을 한 단계 UP 또는 DOWN으로 변경 후 변경된 반경 반환
+	public NotificationRadiusResponse updateNotificationRadius(Long memberId, NotificationRadiusRequest request) {
+		NotificationSetting setting = notificationSettingRepository.findByMemberId(memberId)
+			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
+
+		// 현재 반경을 enum으로 변환
+		NotificationRadius current = NotificationRadius.from(setting.getNotificationRadius());
+
+		// direction에 따라 다음 단계 계산
+		NotificationRadius next = request.isUp() ? current.next() : current.prev();
+
+		// 이미 최대/최솟값이면 예외
+		if (next == null) {
+			throw new MemberException(
+				request.isUp()
+					? MemberErrorCode.NOTIFICATION_RADIUS_ALREADY_MAX
+					: MemberErrorCode.NOTIFICATION_RADIUS_ALREADY_MIN);
+		}
+
+		// 변경된 반경 저장 (dirty checking으로 자동 반영)
+		setting.updateRadius(next.getValue());
+		return NotificationRadiusResponse.of(next);
 	}
 }
