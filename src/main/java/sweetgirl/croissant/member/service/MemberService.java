@@ -5,18 +5,15 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.validation.constraints.Null;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.common.enums.MenuKind;
 import sweetgirl.croissant.common.enums.NotificationDay;
-import sweetgirl.croissant.member.code.DayErrorCode;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.dto.DayOfWeekResponse;
 import sweetgirl.croissant.member.dto.MenuCategoryResponse;
 import sweetgirl.croissant.member.entity.LikedMenuCategory;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
-import sweetgirl.croissant.member.exception.DayException;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.LikedMenuCategoryRepository;
 import sweetgirl.croissant.member.repository.MemberRepository;
@@ -90,11 +87,7 @@ public class MemberService {
 		String[] spliteDays = dayList.split(",");
 
 		for (String day : spliteDays) {
-			try {
-				NotificationDay.valueOf(day);
-			} catch (IllegalArgumentException e) {
-				throw new DayException(DayErrorCode.DAY_NOT_FOUND);
-			}
+			NotificationDay.from(day.trim());
 		}
 
 		NotificationSetting setting = notificationSettingRepository.findByMemberId(memberId)
