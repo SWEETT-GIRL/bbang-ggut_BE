@@ -77,6 +77,11 @@ jobs:
           spring.jpa.show-sql=false
           spring.jpa.properties.hibernate.format_sql=false
           spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+          
+          aws.credentials.access-key=${PROD_AWS_ACCESS_KEY}
+          aws.credentials.secret-key=${PROD_AWS_SECRET_KEY}
+          aws.region=${AWS_REGION}
+          aws.s3.bucket=${PROD_AWS_S3_BUCKET}
           EOF
 
       - name: Create Firebase service account file
@@ -124,6 +129,10 @@ jobs:
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
             echo "PROD_SERVER_IP=${{ secrets.PROD_SERVER_IP }}" >> .env
             echo "KAKAO_API_KEY=${{ secrets.KAKAO_API_KEY }}" >> .env
+            echo "AWS_ACCESS_KEY=${{ secrets.PROD_AWS_ACCESS_KEY }}" >> .env
+            echo "AWS_SECRET_KEY=${{ secrets.PROD_AWS_SECRET_KEY }}" >> .env
+            echo "AWS_REGION=ap-northeast-2" >> .env
+            echo "AWS_S3_BUCKET=${{ secrets.PROD_AWS_S3_BUCKET }}" >> .env
 
             docker compose pull
             docker compose up -d
