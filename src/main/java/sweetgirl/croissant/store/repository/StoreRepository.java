@@ -66,4 +66,6 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 			""", nativeQuery = true)
 	List<TopSubscribedStoreProjection> findTopSubscribedStores(@Param("lng") double longitude,
 			@Param("lat") double latitude, @Param("limit") int limit);
+
+	boolean existsById(Long storeId);
 }

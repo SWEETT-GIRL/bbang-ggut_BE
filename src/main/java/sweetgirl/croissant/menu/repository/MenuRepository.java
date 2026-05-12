@@ -17,4 +17,12 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
 			ORDER BY m.store.id ASC, m.recommendCount DESC
 			""")
 	List<StoreMenuProjection> findTopRecommendedMenusByStoreIds(@Param("storeIds") List<Long> storeIds);
+
+	@Query("""
+			SELECT m FROM Menu m
+			JOIN FETCH m.menuCategory
+			WHERE m.store.id = :storeId AND m.deletedAt IS NULL
+			ORDER BY m.recommendCount DESC
+			""")
+	List<Menu> findByStoreIdOrderByRecommendCountDesc(@Param("storeId") Long storeId);
 }
