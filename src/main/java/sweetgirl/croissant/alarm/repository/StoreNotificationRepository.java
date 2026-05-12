@@ -14,5 +14,6 @@ public interface StoreNotificationRepository extends JpaRepository<StoreNotifica
 
 	List<StoreNotification> findByMemberAndSentAtAfterOrderBySentAtDesc(Member member, LocalDateTime from);
 
-	boolean existsByMemberAndStoreAndSentAtAfter(Member member, Store store, LocalDateTime after);
+	// 중복 알림 방지 — 같은 멤버 + 같은 가게에 오늘 이미 발송했는지 확인
+	boolean existsByMemberAndStoreAndSentAtAfter(Member member, Store store, LocalDateTime from);
 }

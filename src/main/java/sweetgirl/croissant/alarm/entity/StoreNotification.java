@@ -56,4 +56,13 @@ public class StoreNotification {
 	public void markAsRead() {
 		this.readAt = LocalDateTime.now();
 	}
+
+	public static StoreNotification of(Member member, Store store, String message) {
+		return StoreNotification.builder()
+			.member(member)
+			.store(store)
+			.message(message)
+			.sentAt(LocalDateTime.now())
+			.build();
+	}
 }
