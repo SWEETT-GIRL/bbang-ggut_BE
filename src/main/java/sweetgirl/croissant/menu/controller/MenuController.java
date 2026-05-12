@@ -3,8 +3,11 @@ package sweetgirl.croissant.menu.controller;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,4 +36,23 @@ public class MenuController {
 	public ResponseEntity<ApiResponse<MenuDetailResponse>> getMenuDetail(@PathVariable Long menuId) {
 		return ResponseEntity.ok(ApiResponse.ok(menuService.getMenuDetail(menuId)));
 	}
+
+	@Operation(summary = "메뉴 추천")
+	@PostMapping("/menus/{menuId}/recommend")
+	public ResponseEntity<ApiResponse<Void>> recommendMenu(
+			@PathVariable Long menuId,
+			@AuthenticationPrincipal Long memberId) {
+		menuService.recommendMenu(menuId, 1L);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "메뉴 추천 취소")
+	@DeleteMapping("/menus/{menuId}/recommend")
+	public ResponseEntity<ApiResponse<Void>> cancelMenuRecommend(
+			@PathVariable Long menuId,
+			@AuthenticationPrincipal Long memberId) {
+		menuService.cancelMenuRecommend(menuId, 1L);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
 }
