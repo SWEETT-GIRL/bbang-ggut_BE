@@ -8,11 +8,12 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
-import sweetgirl.croissant.external.aws.emum.S3Folder;
+import sweetgirl.croissant.external.aws.enums.S3Folder;
 import sweetgirl.croissant.external.aws.exception.S3ErrorCode;
 import sweetgirl.croissant.external.aws.exception.S3StorageException;
 
@@ -45,7 +46,7 @@ public class S3Service {
 			String url = s3Presigner.presignPutObject(presignRequest).url().toString();
 			return new PresignedUrlResponse(url, awsKey);
 
-		} catch (software.amazon.awssdk.services.s3.model.S3Exception e) {
+		} catch (S3Exception e) {
 			throw new S3StorageException(S3ErrorCode.PRE_SIGNED_URL_FAILED, e.awsErrorDetails().errorMessage());
 		}
 	}
