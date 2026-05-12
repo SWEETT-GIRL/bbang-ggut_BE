@@ -3,6 +3,7 @@ package sweetgirl.croissant.member.controller;
 import java.util.List;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -120,6 +121,14 @@ public class MemberController {
 			@AuthenticationPrincipal Long memberId,
 			@RequestBody @Valid NotificationTimeRequest request) {
 		return ApiResponse.ok(memberService.updateNotificationTime(memberId, request));
+	}
+
+	@Operation(summary = "회원 탈퇴", description = "로그인한 사용자의 계정을 탈퇴 처리합니다. 탈퇴 시 모든 RefreshToken이 revoke되고 FCM 토큰이 삭제됩니다.")
+	// TODO: 인증 완료 후 SecurityContext에서 memberId 주입
+	@DeleteMapping("/me")
+	public ApiResponse<Void> deleteMember(@AuthenticationPrincipal Long memberId) {
+		memberService.deleteMember(memberId); // soft delete 수행
+		return ApiResponse.ok(null); // 응답 바디 없이 200 반환
 	}
 
 }
