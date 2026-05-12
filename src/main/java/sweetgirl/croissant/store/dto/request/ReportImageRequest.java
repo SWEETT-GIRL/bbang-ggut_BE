@@ -1,13 +1,9 @@
 package sweetgirl.croissant.store.dto.request;
 
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import jakarta.validation.constraints.NotBlank;
 
-@Getter
-@NoArgsConstructor
-public class ReportImageRequest {
-	private String fileName;
-	private String contentType;
-	private String awsKey;
-
+public record ReportImageRequest(
+		@NotBlank String fileName,
+		@NotBlank String contentType,
+		@NotBlank String awsKey) {
 }

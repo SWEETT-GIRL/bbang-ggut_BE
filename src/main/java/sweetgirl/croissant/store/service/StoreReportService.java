@@ -1,14 +1,21 @@
 package sweetgirl.croissant.store.service;
 
+import java.time.LocalTime;
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
+import sweetgirl.croissant.external.aws.enums.MimeType;
 import sweetgirl.croissant.external.aws.util.S3PathGenerator;
+import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.exception.MenuException;
@@ -16,10 +23,21 @@ import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.code.StoreReportErrorCode;
 import sweetgirl.croissant.store.dto.request.ReportPresignedUrlRequest;
+import sweetgirl.croissant.store.dto.request.StoreAddressReportRequest;
+import sweetgirl.croissant.store.dto.request.StoreBusinessHoursReportRequest;
+import sweetgirl.croissant.store.dto.request.StoreImageReportRequest;
 import sweetgirl.croissant.store.dto.response.PresignedUrlInfo;
 import sweetgirl.croissant.store.dto.response.PresignedUrlInfoResponse;
+import sweetgirl.croissant.store.dto.response.StoreReportResponse;
+import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.entity.StoreReport;
+import sweetgirl.croissant.store.entity.StoreReportImageFile;
+import sweetgirl.croissant.store.enums.StoreReportType;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.exception.StoreReportException;
+import sweetgirl.croissant.store.repository.StoreImageFileRepository;
+import sweetgirl.croissant.store.repository.StoreReportImageFileRepository;
+import sweetgirl.croissant.store.repository.StoreReportRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
 @Service
@@ -27,13 +45,19 @@ import sweetgirl.croissant.store.repository.StoreRepository;
 public class StoreReportService {
 
 	private final S3Service s3Service;
-	private final StoreRepository storeRepository;
+	private final ObjectMapper objectMapper;
+	private final MemberReader memberReader;
 	private final MenuRepository menuRepository;
+	private final StoreRepository storeRepository;
+	private final StoreImageFileRepository storeImageFileRepository;
+	private final StoreReportRepository storeReportRepository;
+	private final StoreReportImageFileRepository storeReportImageFileRepository;
 
-	// mimeType 개수만큼 S3에 PresignedUrl 발급 요청
-	public PresignedUrlInfoResponse generateStoreReportPresignedUrls(Long storeId,
+	// STORE - mimeType 개수만큼 S3에 PresignedUrl 발급 요청
+	public PresignedUrlInfoResponse generateStoreReportPresignedUrls(Long memberId, Long storeId,
 			ReportPresignedUrlRequest request) {
 
+		memberReader.getMember(memberId);
 		storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 
@@ -43,18 +67,19 @@ public class StoreReportService {
 
 		List<PresignedUrlInfo> urls = request.mimeTypes().stream()
 			.map(mimeType -> {
-				String path = S3PathGenerator.getReportStoreImagePath(storeId); // storeId 기반 S3 저장 경로 생성
-				PresignedUrlResponse response = s3Service.generatePresignedUrl(path, mimeType); // presigned URL 발급 요청
+				String path = S3PathGenerator.getReportStoreImagePath(memberId, storeId);
+				PresignedUrlResponse response = s3Service.generatePresignedUrl(path, mimeType);
 				return new PresignedUrlInfo(response.uploadUrl(), response.awsKey());
 			}).toList();
 
 		return new PresignedUrlInfoResponse(urls);
 	}
 
-	// mimeType 개수만큼 S3에 PresignedUrl 발급 요청
-	public PresignedUrlInfoResponse generateMenuReportPresignedUrls(Long menuId,
+	// MENU - mimeType 개수만큼 S3에 PresignedUrl 발급 요청
+	public PresignedUrlInfoResponse generateMenuReportPresignedUrls(Long memberId, Long menuId,
 			ReportPresignedUrlRequest request) {
 
+		memberReader.getMember(memberId);
 		Menu menu = menuRepository.findById(menuId)
 			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
 
@@ -65,12 +90,111 @@ public class StoreReportService {
 		List<PresignedUrlInfo> urls = request.mimeTypes().stream()
 			.map(mimeType -> {
 				Long storeId = menu.getStore().getId();
-				String path = S3PathGenerator.getReportMenuPath(storeId, menuId);
-				PresignedUrlResponse response = s3Service.generatePresignedUrl(path, mimeType); // presigned URL 발급 요청
+				String path = S3PathGenerator.getReportMenuPath(memberId, storeId, menuId);
+				PresignedUrlResponse response = s3Service.generatePresignedUrl(path, mimeType);
 				return new PresignedUrlInfo(response.uploadUrl(), response.awsKey());
 			}).toList();
 
 		return new PresignedUrlInfoResponse(urls);
+	}
+
+	// 가게 이미지 추가/삭제 제보 — 삭제·추가 대상 검증 후 StoreReport 및 이미지 파일 저장
+	@Transactional
+	public StoreReportResponse createImageReport(Long memberId, Long storeId, StoreImageReportRequest request) {
+		Member member = memberReader.getMember(memberId);
+
+		boolean hasDelete = request.deleteImageIds() != null && !request.deleteImageIds().isEmpty();
+		boolean hasAdd = request.addImages() != null && !request.addImages().isEmpty();
+		if (!hasDelete && !hasAdd) {
+			throw new StoreReportException(StoreReportErrorCode.REPORT_CONTENT_EMPTY);
+		}
+
+		if (hasDelete) {
+			long count = storeImageFileRepository.countByIdInAndStoreId(request.deleteImageIds(), storeId);
+			if (count != request.deleteImageIds().size()) {
+				throw new StoreReportException(StoreReportErrorCode.REPORT_IMAGE_NOT_OWNED);
+			}
+		}
+
+		Store store = storeRepository.findById(storeId)
+			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
+
+		StoreReport report = storeReportRepository.save(StoreReport.builder()
+			.member(member)
+			.store(store)
+			.requestType(StoreReportType.MOD_BAKERY_IMG)
+			.message(serializeMessage(request))
+			.build());
+
+		if (hasAdd) {
+			List<StoreReportImageFile> imageFiles = request.addImages().stream()
+				.map(img -> StoreReportImageFile.builder()
+					.storeReport(report)
+					.name(img.fileName())
+					.mimeType(MimeType.fromString(img.contentType()))
+					.awsKey(img.awsKey())
+					.build())
+				.toList();
+			storeReportImageFileRepository.saveAll(imageFiles);
+		}
+
+		return new StoreReportResponse(report.getId(), report.getStatus());
+	}
+
+	// 가게 영업시간 수정 제보 — 오픈·마감 시간 유효성 검증 후 StoreReport 저장
+	@Transactional
+	public StoreReportResponse createBusinessHoursReport(Long memberId, Long storeId,
+			StoreBusinessHoursReportRequest request) {
+		Member member = memberReader.getMember(memberId);
+
+		for (StoreBusinessHoursReportRequest.BusinessHourEntry hour : request.hours()) {
+			if (!hour.closed()) {
+				if (hour.openTime() == null || hour.closeTime() == null) {
+					throw new StoreReportException(StoreReportErrorCode.REPORT_TIME_REQUIRED);
+				}
+				if (!LocalTime.parse(hour.openTime()).isBefore(LocalTime.parse(hour.closeTime()))) {
+					throw new StoreReportException(StoreReportErrorCode.REPORT_INVALID_TIME_RANGE);
+				}
+			}
+		}
+
+		Store store = storeRepository.findById(storeId)
+			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
+
+		StoreReport report = storeReportRepository.save(StoreReport.builder()
+			.member(member)
+			.store(store)
+			.requestType(StoreReportType.MOD_BAKERY_TIME)
+			.message(serializeMessage(request))
+			.build());
+
+		return new StoreReportResponse(report.getId(), report.getStatus());
+	}
+
+	// 가게 주소 수정 제보 — StoreReport 저장
+	@Transactional
+	public StoreReportResponse createAddressReport(Long memberId, Long storeId, StoreAddressReportRequest request) {
+		Member member = memberReader.getMember(memberId);
+
+		Store store = storeRepository.findById(storeId)
+			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
+
+		StoreReport report = storeReportRepository.save(StoreReport.builder()
+			.member(member)
+			.store(store)
+			.requestType(StoreReportType.MOD_BAKERY_ADDRESS)
+			.message(serializeMessage(request))
+			.build());
+
+		return new StoreReportResponse(report.getId(), report.getStatus());
+	}
+
+	private String serializeMessage(Object request) {
+		try {
+			return objectMapper.writeValueAsString(request);
+		} catch (JsonProcessingException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 }

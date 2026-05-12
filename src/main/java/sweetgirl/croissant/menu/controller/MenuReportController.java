@@ -1,6 +1,7 @@
 package sweetgirl.croissant.menu.controller;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -27,8 +28,10 @@ public class MenuReportController {
 	@Operation(summary = "메뉴 수정 제보 이미지 Presigned URL 발급", description = "mimeTypes 배열 크기만큼 URL을 반환합니다.")
 	@PostMapping("/{menuId}/reports/images/presigned-urls")
 	public ResponseEntity<ApiResponse<PresignedUrlInfoResponse>> getPresignedUrls(
+			@AuthenticationPrincipal Long memberId,
 			@PathVariable Long menuId,
 			@Valid @RequestBody ReportPresignedUrlRequest request) {
-		return ResponseEntity.ok(ApiResponse.ok(storeReportService.generateMenuReportPresignedUrls(menuId, request)));
+		return ResponseEntity
+			.ok(ApiResponse.ok(storeReportService.generateMenuReportPresignedUrls(memberId, menuId, request)));
 	}
 }

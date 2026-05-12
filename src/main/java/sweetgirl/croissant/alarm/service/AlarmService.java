@@ -28,8 +28,8 @@ import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
 import sweetgirl.croissant.member.exception.MemberException;
-import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
+import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.exception.StoreException;
@@ -49,7 +49,7 @@ public class AlarmService {
 	final FcmTokenRepository fcmTokenRepository;
 	final FcmService fcmService;
 	final SubscribedStoreRepository subscribedStoreRepository;
-	final MemberRepository memberRepository;
+	final MemberReader memberReader;
 	final StoreRepository storeRepository;
 
 	// 빵알람 수신 여부 조회
@@ -83,7 +83,7 @@ public class AlarmService {
 	// 알람 히스토리 목록 조회
 	@Transactional(readOnly = true)
 	public List<StoreNotificationResponse> getStoreNotificationHistory(Long memberId) {
-		Member member = getMember(memberId);
+		Member member = memberReader.getMember(memberId);
 		return storeNotificationRepository.findByMemberAndSentAtAfterOrderBySentAtDesc(member,
 			LocalDateTime.now().minusWeeks(1))
 			.stream()
@@ -197,7 +197,7 @@ public class AlarmService {
 
 		Store store = storeRepository.findById(request.getStoreId())
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
-		Member member = getMember(memberId);
+		Member member = memberReader.getMember(memberId);
 		int radius = setting.getNotificationRadius().getValue();
 
 		// 구독 여부 확인 + 요청 좌표가 사용자 반경 안인지 POSTGIS로 재검증 (OS 위변조 방지)
@@ -213,11 +213,6 @@ public class AlarmService {
 		List<FcmToken> tokens = fcmTokenRepository.findByMemberAndIsActive(member, true);
 		sendStoreNotification(member, store, tokens);
 
-	}
-
-	private Member getMember(Long memberId) {
-		return memberRepository.findById(memberId)
-			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 	}
 
 	private NotificationSetting getNotificationSetting(Long memberId) {

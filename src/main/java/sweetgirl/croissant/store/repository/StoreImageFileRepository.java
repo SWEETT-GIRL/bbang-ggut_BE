@@ -24,4 +24,6 @@ public interface StoreImageFileRepository extends JpaRepository<StoreImageFile, 
 			""")
 	List<StoreImageThumbnailProjection> findThumbnailsByStoreIdIn(@Param("storeIds") List<Long> storeIds);
 
+	long countByIdInAndStoreId(List<Long> ids, Long storeId);
+
 }
