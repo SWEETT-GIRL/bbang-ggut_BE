@@ -1,4 +1,4 @@
-package sweetgirl.croissant.config;
+package sweetgirl.croissant.external.kakao.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

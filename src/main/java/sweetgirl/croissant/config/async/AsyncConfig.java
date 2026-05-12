@@ -1,4 +1,4 @@
-package sweetgirl.croissant.config;
+package sweetgirl.croissant.config.async;
 
 import java.util.concurrent.Executor;
 

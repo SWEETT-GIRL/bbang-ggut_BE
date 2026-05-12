@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import sweetgirl.croissant.common.enums.DeviceOs;
+import sweetgirl.croissant.alarm.enums.DeviceOs;
 
 @Getter
 @NoArgsConstructor

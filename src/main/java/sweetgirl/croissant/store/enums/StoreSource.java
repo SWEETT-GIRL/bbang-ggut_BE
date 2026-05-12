@@ -1,4 +1,4 @@
-package sweetgirl.croissant.common.enums;
+package sweetgirl.croissant.store.enums;
 
 public enum StoreSource {
 	KAKAO_IMPORTED,

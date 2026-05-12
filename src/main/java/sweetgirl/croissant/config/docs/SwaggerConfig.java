@@ -1,4 +1,4 @@
-package sweetgirl.croissant.config;
+package sweetgirl.croissant.config.docs;
 
 import java.util.List;
 

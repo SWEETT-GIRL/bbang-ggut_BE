@@ -1,4 +1,4 @@
-package sweetgirl.croissant.common.enums;
+package sweetgirl.croissant.member.enums;
 
 import sweetgirl.croissant.member.code.DayErrorCode;
 import sweetgirl.croissant.member.exception.DayException;

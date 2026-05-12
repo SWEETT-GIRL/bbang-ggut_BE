@@ -1,4 +1,4 @@
-package sweetgirl.croissant.config;
+package sweetgirl.croissant.external.firebase.config;
 
 import java.io.IOException;
 import java.io.InputStream;

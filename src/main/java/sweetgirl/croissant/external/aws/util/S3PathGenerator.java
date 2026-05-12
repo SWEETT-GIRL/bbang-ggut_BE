@@ -1,4 +1,4 @@
-package sweetgirl.croissant.common.util;
+package sweetgirl.croissant.external.aws.util;
 
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;

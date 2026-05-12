@@ -1,4 +1,4 @@
-package sweetgirl.croissant.common.enums;
+package sweetgirl.croissant.menu.enums;
 
 public enum MenuKind {
 	소금빵,

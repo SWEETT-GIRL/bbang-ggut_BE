@@ -16,7 +16,7 @@ import jakarta.persistence.MappedSuperclass;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import sweetgirl.croissant.common.enums.MimeType;
+import sweetgirl.croissant.external.aws.enums.MimeType;
 
 @MappedSuperclass
 @Getter

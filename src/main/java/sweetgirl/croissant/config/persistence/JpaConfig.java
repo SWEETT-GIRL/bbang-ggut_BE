@@ -1,4 +1,4 @@
-package sweetgirl.croissant.config;
+package sweetgirl.croissant.config.persistence;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;

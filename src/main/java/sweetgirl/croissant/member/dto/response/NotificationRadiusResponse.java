@@ -2,7 +2,7 @@ package sweetgirl.croissant.member.dto.response;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import sweetgirl.croissant.common.enums.NotificationRadius;
+import sweetgirl.croissant.member.enums.NotificationRadius;
 
 @Getter
 @RequiredArgsConstructor

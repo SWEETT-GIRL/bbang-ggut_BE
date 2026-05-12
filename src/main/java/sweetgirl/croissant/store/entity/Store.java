@@ -15,9 +15,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
-import sweetgirl.croissant.common.enums.District;
-import sweetgirl.croissant.common.enums.StoreSource;
-import sweetgirl.croissant.common.enums.StoreStatus;
+import sweetgirl.croissant.store.enums.District;
+import sweetgirl.croissant.store.enums.StoreSource;
+import sweetgirl.croissant.store.enums.StoreStatus;
 
 @Entity
 @Table(name = "store")
