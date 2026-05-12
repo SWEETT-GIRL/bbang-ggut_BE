@@ -6,7 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **모든 API 응답은 `ApiResponse<T>` 사용** — `ApiResponse.ok(data)` / `ApiResponse.fail(errorCode)`
 - **도메인 에러코드는 `BaseErrorCode` 구현 Enum으로 정의** → `CustomException`으로 throw
-- **코드 스타일: Naver Java 컨벤션** — pre-commit 시 `spotlessApply` + `checkstyle` 자동 실행
+- **코드 스타일: Naver Java 컨벤션** — pre-commit 시 `spotlessApply` + `checkstyle` 자동 실행; 코드 작성 시부터 컨벤션 준수 필요
+  - import 순서: `java` → `javax` → `org` → `com` → `io` 순, 그룹 내 알파벳순
+  - 들여쓰기: 탭(tab) 사용
+  - 줄바꿈: 여는 중괄호 같은 줄, 닫는 중괄호 새 줄
 - **인증 미구현** — `memberId`는 현재 null 처리, 인증 완료 후 `SecurityContext`에서 꺼내도록 TODO 표시됨
 - 테스트 DB는 H2 사용 — PostGIS 공간 쿼리(`Store.location`) 포함 시 Repository 테스트 불가
 
