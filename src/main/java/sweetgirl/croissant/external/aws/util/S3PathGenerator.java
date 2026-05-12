@@ -15,16 +15,14 @@ public class S3PathGenerator {
 		return String.format("%s/%d", S3Folder.MENUS.getValue(), menuId);
 	}
 
-	public static String getReportStoreImagePath(Long storeId) {
-		return String.format("%s/stores/%d/images",
-			S3Folder.REPORTS.getValue(), storeId);
+	public static String getReportStoreImagePath(Long memberId, Long storeId) {
+		return String.format("%s/stores/%d/members/%d/images",
+			S3Folder.REPORTS.getValue(), storeId, memberId);
 	}
 
-	public static String getReportMenuPath(Long storeId, Long menuId) {
+	public static String getReportMenuPath(Long memberId, Long storeId, Long menuId) {
 		String base = String.format("%s/stores/%d/menus", S3Folder.REPORTS.getValue(), storeId);
-
 		String subPath = (menuId != null) ? String.valueOf(menuId) : "new";
-
-		return base + "/" + subPath;
+		return String.format("%s/%s/members/%d", base, subPath, memberId);
 	}
 }
