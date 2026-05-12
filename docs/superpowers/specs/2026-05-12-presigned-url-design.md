@@ -10,15 +10,6 @@
 ## 파일 구조
 
 ### 신규 파일
-
-```
-store/
-  controller/StoreReportController.java
-  service/StoreReportService.java
-  dto/request/ReportPresignedUrlRequest.java
-  dto/response/PresignedUrlInfo.java
-  code/StoreReportErrorCode.java
-
 menu/
   controller/MenuReportController.java
   code/MenuErrorCode.java
