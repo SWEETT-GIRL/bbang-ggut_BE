@@ -17,8 +17,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
+import sweetgirl.croissant.member.dto.request.ConsentUpdateRequest;
 import sweetgirl.croissant.member.dto.request.NotificationRadiusRequest;
 import sweetgirl.croissant.member.dto.request.NotificationTimeRequest;
+import sweetgirl.croissant.member.dto.response.ConsentResponse;
 import sweetgirl.croissant.member.dto.response.DayOfWeekResponse;
 import sweetgirl.croissant.member.dto.response.MenuCategoryResponse;
 import sweetgirl.croissant.member.dto.response.NotificationRadiusResponse;
@@ -39,6 +41,20 @@ public class MemberController {
 	public ApiResponse<Long> getStoreCount(@AuthenticationPrincipal Long memberId) {
 		long count = memberService.getSubscribedStoreCount(memberId);
 		return ApiResponse.ok(count);
+	}
+
+	@Operation(summary = "개인정보 동의 상태 조회", description = "로그인한 사용자의 필수 약관 및 마케팅 수신 동의 상태를 반환합니다.")
+	@GetMapping("/me/consent")
+	public ApiResponse<ConsentResponse> getConsent(@AuthenticationPrincipal Long memberId) {
+		return ApiResponse.ok(memberService.getConsent(memberId));
+	}
+
+	@Operation(summary = "개인정보/마케팅 동의 상태 갱신", description = "선택 동의인 마케팅 수신 동의 상태를 변경합니다.")
+	@PatchMapping("/me/consent")
+	public ApiResponse<ConsentResponse> updateConsent(
+			@AuthenticationPrincipal Long memberId,
+			@RequestBody @Valid ConsentUpdateRequest request) {
+		return ApiResponse.ok(memberService.updateConsent(memberId, request));
 	}
 
 	@Operation(summary = "좋아하는 빵 종류 조회", description = "로그인한 유저의 즐겨찾는 빵 카테고리 목록을 반환합니다.")

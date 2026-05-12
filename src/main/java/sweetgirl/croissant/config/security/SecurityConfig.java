@@ -43,6 +43,7 @@ public class SecurityConfig {
 			.requestMatchers("/oauth2/**").permitAll() // 카카오 로그인 진입점을 위해 : /oauth2/authorization/kakao
 			.requestMatchers("/api/v1/oauth2/**").permitAll() // 인가 : /api/v1/oauth2/kakao
 			.requestMatchers("/auth/**").permitAll() // controller 호출
+			.requestMatchers("/terms").permitAll()
 			.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
 			.anyRequest().authenticated());
 

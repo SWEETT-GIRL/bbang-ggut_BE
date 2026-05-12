@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.member.code.MemberErrorCode;
+import sweetgirl.croissant.member.dto.response.ConsentResponse;
 import sweetgirl.croissant.member.dto.response.MenuCategoryResponse;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.service.MemberService;
@@ -106,5 +107,50 @@ class MemberControllerTest {
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("[\"존재하지않는빵\"]"))
 			.andExpect(status().isNotFound());
+	}
+
+	// ── GET /users/me/consent ─────────────────────────────────────────────────
+
+	@Test
+	void getConsent_returns200WithConsentStatus_whenMemberExists() throws Exception {
+		ConsentResponse response = new ConsentResponse(true, false, null, null);
+		given(memberService.getConsent(any())).willReturn(response);
+
+		mockMvc.perform(get("/users/me/consent"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true))
+			.andExpect(jsonPath("$.data.agreeToTerms").value(true))
+			.andExpect(jsonPath("$.data.agreeToMarketing").value(false));
+	}
+
+	@Test
+	void getConsent_returns404_whenMemberNotFound() throws Exception {
+		given(memberService.getConsent(any()))
+			.willThrow(new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
+
+		mockMvc.perform(get("/users/me/consent"))
+			.andExpect(status().isNotFound());
+	}
+
+	// ── PATCH /users/me/consent ───────────────────────────────────────────────
+
+	@Test
+	void updateConsent_returns200WithUpdatedStatus_whenValidRequest() throws Exception {
+		ConsentResponse response = new ConsentResponse(true, true, null, null);
+		given(memberService.updateConsent(any(), any())).willReturn(response);
+
+		mockMvc.perform(patch("/users/me/consent")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"agreeToMarketing\": true}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.agreeToMarketing").value(true));
+	}
+
+	@Test
+	void updateConsent_returns400_whenAgreeToMarketingIsNull() throws Exception {
+		mockMvc.perform(patch("/users/me/consent")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"agreeToMarketing\": null}"))
+			.andExpect(status().isBadRequest());
 	}
 }

@@ -29,13 +29,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | SubscribedStore | 사용자가 구독한 빵집 |
 | StoreNotification | 빵집 알림 발송 히스토리 |
 | NotificationSetting | 알림 수신 시간대·반경·요일 설정 |
+| Inquiry | 사용자 문의 (category: STORE·ACCOUNT·BUG·ETC) |
+| Terms | 약관/정책 (SERVICE·PRIVACY·MARKETING, 텍스트 하드코딩) |
 
 ## 프로젝트 구조
 
 ```
 sweetgirl.croissant
 ├── {domain}/    controller · service · repository · entity · dto/request · dto/response
-│   (alarm · member · menu · store · admin)
+│   (alarm · member · menu · store · admin · inquiry · policy)
 ├── external/    외부 API 연동 (kakao — KakaoLocalClient, DTO, 에러코드)
 ├── global/      ApiResponse, CustomException, BaseErrorCode, GlobalExceptionHandler
 ├── config/      FirebaseConfig, JpaConfig, SwaggerConfig

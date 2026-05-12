@@ -7,8 +7,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.member.code.MemberErrorCode;
+import sweetgirl.croissant.member.dto.request.ConsentUpdateRequest;
 import sweetgirl.croissant.member.dto.request.NotificationRadiusRequest;
 import sweetgirl.croissant.member.dto.request.NotificationTimeRequest;
+import sweetgirl.croissant.member.dto.response.ConsentResponse;
 import sweetgirl.croissant.member.dto.response.DayOfWeekResponse;
 import sweetgirl.croissant.member.dto.response.MenuCategoryResponse;
 import sweetgirl.croissant.member.dto.response.NotificationRadiusResponse;
@@ -37,18 +39,28 @@ public class MemberService {
 	private final MenuCategoryRepository menuCategoryRepository;
 	private final LikedMenuCategoryRepository likedMenuCategoryRepository;
 	private final NotificationSettingRepository notificationSettingRepository;
+	private final MemberReader memberReader;
 
 	@Transactional(readOnly = true)
 	public long getSubscribedStoreCount(Long memberId) {
-		Member member = memberRepository.findById(memberId)
-			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
+		Member member = memberReader.getMember(memberId);
 		return subscribedStoreRepository.countByMember(member);
+	}
+
+	@Transactional(readOnly = true)
+	public ConsentResponse getConsent(Long memberId) {
+		return ConsentResponse.from(memberReader.getMember(memberId));
+	}
+
+	public ConsentResponse updateConsent(Long memberId, ConsentUpdateRequest request) {
+		Member member = memberReader.getMember(memberId);
+		member.updateMarketingAgreement(request.agreeToMarketing());
+		return ConsentResponse.from(member);
 	}
 
 	//유저가 좋아한다고 한 빵종류 업데이트
 	public void updateLikeMenuCategory(Long memberId, String[] likedList) {
-		Member member = memberRepository.findById(memberId)
-			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
+		Member member = memberReader.getMember(memberId);
 
 		for (String like : likedList) {
 			MenuKind menuKind = MenuKind.valueOf(like);

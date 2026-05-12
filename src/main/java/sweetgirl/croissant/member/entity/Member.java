@@ -35,6 +35,18 @@ public class Member {
 	@Column
 	private LocalDateTime deletedAt;
 
+	@Column(nullable = false, columnDefinition = "boolean default true")
+	private boolean agreeToTerms;
+
+	@Column(nullable = false, columnDefinition = "boolean default false")
+	private boolean agreeToMarketing;
+
+	@Column
+	private LocalDateTime termsAgreedAt;
+
+	@Column
+	private LocalDateTime marketingAgreedAt;
+
 	@CreatedDate
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
@@ -46,5 +58,12 @@ public class Member {
 	@Builder
 	public Member(String nickname) {
 		this.nickname = nickname;
+		this.agreeToTerms = true;
+		this.termsAgreedAt = LocalDateTime.now();
+	}
+
+	public void updateMarketingAgreement(boolean agreeToMarketing) {
+		this.agreeToMarketing = agreeToMarketing;
+		this.marketingAgreedAt = agreeToMarketing ? LocalDateTime.now() : null;
 	}
 }
