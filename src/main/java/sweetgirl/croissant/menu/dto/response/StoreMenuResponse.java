@@ -1,6 +1,6 @@
 package sweetgirl.croissant.menu.dto.response;
 
-import sweetgirl.croissant.common.dto.ImageResponse;
+import sweetgirl.croissant.global.dto.ImageResponse;
 import sweetgirl.croissant.menu.entity.Menu;
 
 public record StoreMenuResponse(

@@ -9,8 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
-import sweetgirl.croissant.common.dto.ImageResponse;
-import sweetgirl.croissant.menu.dto.MenuImageThumbnailProjection;
+import sweetgirl.croissant.global.dto.ImageResponse;
+import sweetgirl.croissant.menu.dto.projection.MenuImageThumbnailProjection;
 import sweetgirl.croissant.menu.dto.response.StoreMenuResponse;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
