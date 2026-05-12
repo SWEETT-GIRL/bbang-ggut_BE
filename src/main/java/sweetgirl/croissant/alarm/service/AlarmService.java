@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.code.AlarmErrorCode;
+import sweetgirl.croissant.alarm.dto.response.GeofenceCandidateResponse;
+import sweetgirl.croissant.alarm.dto.response.GeofenceCandidatesResponse;
 import sweetgirl.croissant.alarm.dto.response.StoreNotificationResponse;
 import sweetgirl.croissant.alarm.entity.FcmToken;
 import sweetgirl.croissant.alarm.entity.StoreNotification;
@@ -34,6 +36,7 @@ import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
 public class AlarmService {
 
 	private static final Logger log = LoggerFactory.getLogger(AlarmService.class);
+	private static final double CANDIDATE_RADIUS_METERS = 3000.0;
 
 	final StoreNotificationRepository storeNotificationRepository;
 	final NotificationSettingRepository notificationSettingRepository;
@@ -128,9 +131,33 @@ public class AlarmService {
 
 	}
 
+	// Geofence에 등록할 구독 가게 후보 조회
+	@Transactional(readOnly = true)
+	public GeofenceCandidatesResponse getGeofenceCandidates(Long memberId, double lat, double lng) {
+		NotificationSetting setting = getNotificationSetting(memberId);
+		if (!setting.isNotificationEnabled()) {
+			return GeofenceCandidatesResponse.builder().stores(List.of()).build();
+		}
+
+		int radiusMeters = setting.getNotificationRadius().getMeters();
+
+		List<GeofenceCandidateResponse> stores = subscribedStoreRepository.findGeofenceCandidates(memberId, lat, lng,
+			CANDIDATE_RADIUS_METERS)
+			.stream()
+			.map(p -> GeofenceCandidateResponse.from(p, radiusMeters))
+			.toList();
+
+		return GeofenceCandidatesResponse.builder().stores(stores).build();
+
+	}
+
 	private Member getMember(Long memberId) {
 		return memberRepository.findById(memberId)
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 	}
 
+	private NotificationSetting getNotificationSetting(Long memberId) {
+		return notificationSettingRepository.findByMember(getMember(memberId))
+			.orElseThrow(() -> new MemberException(MemberErrorCode.NOTIFICATION_SETTING_NOT_FOUND));
+	}
 }

@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,6 +17,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.dto.request.FcmTokenRequest;
+import sweetgirl.croissant.alarm.dto.response.GeofenceCandidatesResponse;
 import sweetgirl.croissant.alarm.dto.response.StoreNotificationResponse;
 import sweetgirl.croissant.alarm.service.AlarmService;
 import sweetgirl.croissant.alarm.service.FcmService;
@@ -53,4 +55,11 @@ public class AlarmController {
 		return ApiResponse.ok(null);
 	}
 
+	@Operation(summary = "", description = "")
+	@GetMapping("/geofence-candidates")
+	public ApiResponse<GeofenceCandidatesResponse> getGeofenceCandidates(@AuthenticationPrincipal Long memberId,
+			@Parameter(description = "") @RequestParam double lat, @RequestParam double lng) {
+		GeofenceCandidatesResponse geofenceCandidates = alarmService.getGeofenceCandidates(memberId, lat, lng);
+		return ApiResponse.ok(geofenceCandidates);
+	}
 }

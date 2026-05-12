@@ -34,50 +34,6 @@ src/main/java/sweetgirl/croissant/alarm
         ├── getGeofenceCandidates(...) 추가
         ├── handleGeofenceEnter(...) 추가
 
-
-  5. AlarmService 공개 메서드 구현
-      - getGeofenceCandidates(...)
-      - handleGeofenceEnter(...)
-  6. AlarmController 엔드포인트 추가
-      - GET /alarm/geofence-candidates
-      - POST /alarm/geofence/enter
-  7. 테스트 / 컴파일 확인
-      - repository query 검증
-      - service 조건 검증
-      - controller 요청/응답 검증
-
-## 신규 API 1: Geofence 후보 조회
-
-### Endpoint
-
-```http
-GET /alarm/geofence-candidates?lat=37.5&lng=127.0
-```
-
-### 용도
-
-- 앱이 OS Geofence에 등록할 구독 가게 후보를 조회한다.
-- 현재 위치 기준 가까운 구독 가게를 최대 20개 반환한다.
-- `LIMIT 20`은 iOS `CLLocationManager` region 등록 제한을 고려한 값이다.
-
-### 작업
-
-- [x] `GeofenceCandidatesResponse` DTO 추가
-- [x] `GeofenceCandidateResponse` DTO 추가
-- [x] `GeofenceCandidateProjection` 추가
-- [x] `SubscribedStoreRepository.findGeofenceCandidates(...)` native query 추가
-- [ ] `AlarmService.getGeofenceCandidates(memberId, lat, lng)` 추가
-- [ ] `AlarmController.getGeofenceCandidates(...)` 추가
-
-
-### 구현 메모
-
-- `candidateRadius`는 후보 탐색 범위다. 사용자 알림 반경과 다르다.
-- 예: `candidateRadius = 3000m` 또는 `5000m`.
-- `radiusMeters`는 앱이 실제 Geofence 등록에 사용할 반경이다.
-- 알림 설정이 OFF인 경우 후보를 빈 리스트로 내려주는 방향을 우선 검토한다.
-- `ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography`를 사용해 미터 단위 거리 계산을 보장한다.
-
 ## 신규 API 2: Geofence 진입 이벤트
 
 ### Endpoint
@@ -108,8 +64,7 @@ POST /alarm/geofence/enter
 
 ### 서버 검증 순서
 
-1. [x] `memberId`로 `Member` 조회
-2. [ ] `NotificationSetting` 조회
+1. [ ] `NotificationSetting` 조회
 3. [ ] 알림 OFF / 시간 제한 / 요일 제한 체크
 4. [ ] `storeId`가 사용자의 구독 가게인지 확인
 5. [ ] 요청 좌표가 해당 가게 반경 안인지 PostGIS로 재검증
