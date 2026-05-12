@@ -3,6 +3,7 @@ package sweetgirl.croissant.store.dto;
 import java.time.LocalTime;
 import java.util.List;
 
+import sweetgirl.croissant.common.dto.ImageResponse;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreBusinessHour;
 import sweetgirl.croissant.store.entity.StoreImageFile;
@@ -13,7 +14,7 @@ public record StoreDetailResponse(
 		String address,
 		List<BusinessHourResponse> businessHours,
 		String phone,
-		List<String> imageUrls) {
+		List<ImageResponse> images) {
 
 	public record BusinessHourResponse(
 			String dayOfWeek,
@@ -36,6 +37,6 @@ public record StoreDetailResponse(
 					bh.isClosed()))
 				.toList(),
 			store.getPhone(),
-			images.stream().map(StoreImageFile::getAwsKey).toList());
+			images.stream().map(img -> new ImageResponse(img.getId(), img.getAwsKey())).toList());
 	}
 }
