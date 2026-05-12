@@ -52,6 +52,10 @@ public class NotificationSetting extends BaseTimeEntity {
 	@Column(nullable = false)
 	private boolean isDndEnabled;
 
+	public void setDaysOfWeekList(String dayList) {
+		this.daysOfWeek = dayList;
+	}
+
 	@Builder
 	public NotificationSetting(Member member, boolean isNotificationEnabled, float notificationRadius,
 			LocalTime startTime, LocalTime endTime, String daysOfWeek,

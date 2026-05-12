@@ -30,6 +30,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		// 요청 헤더에서 JWT 추출
 		String token = resolveToken(request);
 
+		if (token != null && !jwtProvider.validateToken(token)) {
+			response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+			response.setContentType("application/json;charset=UTF-8");
+			response.getWriter().write("""
+					{"success":false,"code":"COMMON401","message":"인증이 필요합니다.","data":null}""");
+			return;
+		}
+
 		// 토큰이 존재하고 유효한 경우에만 인증 처리
 		if (token != null && jwtProvider.validateToken(token)) {
 
