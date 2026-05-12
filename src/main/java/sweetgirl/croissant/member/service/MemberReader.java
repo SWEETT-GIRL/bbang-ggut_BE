@@ -15,7 +15,11 @@ public class MemberReader {
 	private final MemberRepository memberRepository;
 
 	public Member getMember(Long memberId) {
-		return memberRepository.findById(memberId)
+		Member member = memberRepository.findById(memberId)
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
+		if (member.getDeletedAt() != null) {
+			throw new MemberException(MemberErrorCode.MEMBER_DELETED);
+		}
+		return member;
 	}
 }
