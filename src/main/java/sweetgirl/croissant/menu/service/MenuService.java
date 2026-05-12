@@ -10,11 +10,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.dto.ImageResponse;
+import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.menu.code.MenuErrorCode;
 import sweetgirl.croissant.menu.dto.projection.MenuImageThumbnailProjection;
+import sweetgirl.croissant.menu.dto.response.MenuDetailResponse;
 import sweetgirl.croissant.menu.dto.response.StoreMenuResponse;
 import sweetgirl.croissant.menu.entity.Menu;
+import sweetgirl.croissant.menu.exception.MenuException;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
+import sweetgirl.croissant.menu.repository.RecommendMenuRepository;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.StoreRepository;
@@ -26,6 +31,8 @@ public class MenuService {
 
 	private final MenuRepository menuRepository;
 	private final MenuImageFileRepository menuImageFileRepository;
+	private final RecommendMenuRepository recommendMenuRepository;
+	private final MemberRepository memberRepository;
 	private final StoreRepository storeRepository;
 
 	public List<StoreMenuResponse> getStoreMenus(Long storeId) {
@@ -41,6 +48,17 @@ public class MenuService {
 		return menus.stream()
 			.map(menu -> StoreMenuResponse.of(menu, imageMap.get(menu.getId())))
 			.toList();
+	}
+
+	public MenuDetailResponse getMenuDetail(Long menuId) {
+		Menu menu = menuRepository.findByIdWithDetails(menuId)
+			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
+
+		List<ImageResponse> images = menuImageFileRepository.findImagesByMenuId(menuId).stream()
+			.map(img -> new ImageResponse(img.getId(), img.getAwsKey()))
+			.toList();
+
+		return MenuDetailResponse.of(menu, images);
 	}
 
 	private Map<Long, ImageResponse> buildMenuImageMap(List<Menu> menus) {

@@ -1,6 +1,7 @@
 package sweetgirl.croissant.menu.repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -17,6 +18,14 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
 			ORDER BY m.store.id ASC, m.recommendCount DESC
 			""")
 	List<StoreMenuProjection> findTopRecommendedMenusByStoreIds(@Param("storeIds") List<Long> storeIds);
+
+	@Query("""
+			SELECT m FROM Menu m
+			JOIN FETCH m.store
+			JOIN FETCH m.menuCategory
+			WHERE m.id = :menuId AND m.deletedAt IS NULL
+			""")
+	Optional<Menu> findByIdWithDetails(@Param("menuId") Long menuId);
 
 	@Query("""
 			SELECT m FROM Menu m
