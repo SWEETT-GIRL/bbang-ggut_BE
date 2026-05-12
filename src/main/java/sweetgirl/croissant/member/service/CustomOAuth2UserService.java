@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.common.enums.NotificationRadius;
 import sweetgirl.croissant.common.enums.OAuthProvider;
 import sweetgirl.croissant.member.dto.CustomOAuth2User;
 import sweetgirl.croissant.member.dto.KakaoOAuth2UserInfo;
@@ -86,8 +87,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 				.startTime(LocalTime.of(8, 0))
 				.endTime(LocalTime.of(21, 0))
 				.daysOfWeek("")
-				.notificationRadius(500)
-				.isDndEnabled(false)
+				.notificationRadius(NotificationRadius.RADIUS_500)
+				.isTimeRestricted(false)
 				.isMarketingEnabled(false)
 				.isNotificationEnabled(false)
 				.build());

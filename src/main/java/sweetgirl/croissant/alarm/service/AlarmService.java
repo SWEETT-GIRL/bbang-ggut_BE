@@ -196,7 +196,7 @@ public class AlarmService {
 	}
 
 	private NotificationSetting getNotificationSetting(Long memberId) {
-		return notificationSettingRepository.findByMember(getMember(memberId))
+		return notificationSettingRepository.findByMemberId(memberId)
 			.orElseThrow(() -> new MemberException(MemberErrorCode.NOTIFICATION_SETTING_NOT_FOUND));
 	}
 

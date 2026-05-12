@@ -153,7 +153,7 @@ class AlarmServiceTest {
 		GeofenceEnterRequest request = mock(GeofenceEnterRequest.class);
 
 		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
-		given(notificationSettingRepository.findByMember(member)).willReturn(Optional.of(setting));
+		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(false);
 
 		alarmService.handleGeofenceEnter(memberId, request);
@@ -170,7 +170,7 @@ class AlarmServiceTest {
 		GeofenceEnterRequest request = mock(GeofenceEnterRequest.class);
 
 		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
-		given(notificationSettingRepository.findByMember(member)).willReturn(Optional.of(setting));
+		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
 		given(setting.isTimeRestricted()).willReturn(false);
 		given(setting.getDaysOfWeek()).willReturn("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY");
@@ -192,7 +192,7 @@ class AlarmServiceTest {
 		GeofenceEnterRequest request = mock(GeofenceEnterRequest.class);
 
 		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
-		given(notificationSettingRepository.findByMember(member)).willReturn(Optional.of(setting));
+		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
 		given(setting.isTimeRestricted()).willReturn(false);
 		given(setting.getDaysOfWeek()).willReturn("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY");
@@ -219,7 +219,7 @@ class AlarmServiceTest {
 		GeofenceEnterRequest request = mock(GeofenceEnterRequest.class);
 
 		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
-		given(notificationSettingRepository.findByMember(member)).willReturn(Optional.of(setting));
+		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
 		given(setting.isTimeRestricted()).willReturn(false);
 		given(setting.getDaysOfWeek()).willReturn("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY");
@@ -254,7 +254,7 @@ class AlarmServiceTest {
 		GeofenceEnterRequest request = mock(GeofenceEnterRequest.class);
 
 		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
-		given(notificationSettingRepository.findByMember(member)).willReturn(Optional.of(setting));
+		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
 		given(setting.isTimeRestricted()).willReturn(false);
 		given(setting.getDaysOfWeek()).willReturn("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY");
@@ -293,7 +293,7 @@ class AlarmServiceTest {
 		GeofenceEnterRequest request = mock(GeofenceEnterRequest.class);
 
 		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
-		given(notificationSettingRepository.findByMember(member)).willReturn(Optional.of(setting));
+		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
 		given(setting.isTimeRestricted()).willReturn(false);
 		given(setting.getDaysOfWeek()).willReturn("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY");
@@ -325,7 +325,7 @@ class AlarmServiceTest {
 		NotificationSetting setting = mock(NotificationSetting.class);
 
 		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
-		given(notificationSettingRepository.findByMember(member)).willReturn(Optional.of(setting));
+		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(false);
 
 		GeofenceCandidatesResponse result = alarmService.getGeofenceCandidates(memberId, 37.5, 127.0);
@@ -342,7 +342,7 @@ class AlarmServiceTest {
 		GeofenceCandidateProjection projection = mock(GeofenceCandidateProjection.class);
 
 		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
-		given(notificationSettingRepository.findByMember(member)).willReturn(Optional.of(setting));
+		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
 		given(setting.getNotificationRadius()).willReturn(NotificationRadius.RADIUS_300);
 		given(projection.getStoreId()).willReturn(1L);
