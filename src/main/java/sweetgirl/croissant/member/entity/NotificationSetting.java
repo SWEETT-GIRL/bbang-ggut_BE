@@ -56,13 +56,10 @@ public class NotificationSetting extends BaseTimeEntity {
 		this.daysOfWeek = dayList;
 	}
 
-	@Column(nullable = false)
-	private boolean isTimeRestricted;
-
 	@Builder
 	public NotificationSetting(Member member, boolean isNotificationEnabled, float notificationRadius,
 			LocalTime startTime, LocalTime endTime, String daysOfWeek,
-			boolean isMarketingEnabled, boolean isDndEnabled, boolean isTimeRestricted) {
+			boolean isMarketingEnabled, boolean isDndEnabled) {
 		this.member = member;
 		this.isNotificationEnabled = isNotificationEnabled;
 		this.notificationRadius = notificationRadius;
@@ -71,6 +68,5 @@ public class NotificationSetting extends BaseTimeEntity {
 		this.daysOfWeek = daysOfWeek;
 		this.isMarketingEnabled = isMarketingEnabled;
 		this.isDndEnabled = isDndEnabled;
-		this.isTimeRestricted = isTimeRestricted;
 	}
 }

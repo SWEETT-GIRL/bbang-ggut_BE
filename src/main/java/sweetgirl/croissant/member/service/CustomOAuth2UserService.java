@@ -90,7 +90,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 				.isDndEnabled(false)
 				.isMarketingEnabled(false)
 				.isNotificationEnabled(false)
-				.isTimeRestricted(false)
 				.build());
 
 		return setting;
