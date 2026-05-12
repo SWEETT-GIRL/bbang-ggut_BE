@@ -44,6 +44,7 @@ public class SecurityConfig {
 			.requestMatchers("/api/v1/oauth2/**").permitAll() // 인가 : /api/v1/oauth2/kakao
 			.requestMatchers("/auth/**").permitAll() // controller 호출
 			.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+			.requestMatchers("/**").permitAll()
 			.anyRequest().authenticated());
 
 		// OAuth2 로그인 설정

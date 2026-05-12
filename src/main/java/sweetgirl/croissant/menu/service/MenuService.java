@@ -16,6 +16,7 @@ import sweetgirl.croissant.menu.dto.projection.MenuImageThumbnailProjection;
 import sweetgirl.croissant.menu.dto.response.MenuDetailResponse;
 import sweetgirl.croissant.menu.dto.response.StoreMenuResponse;
 import sweetgirl.croissant.menu.entity.Menu;
+import sweetgirl.croissant.menu.entity.RecommendMenu;
 import sweetgirl.croissant.menu.exception.MenuException;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
@@ -59,6 +60,34 @@ public class MenuService {
 			.toList();
 
 		return MenuDetailResponse.of(menu, images);
+	}
+
+	@Transactional
+	public void recommendMenu(Long menuId, Long memberId) {
+		Menu menu = menuRepository.findById(menuId)
+			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
+
+		if (recommendMenuRepository.existsByMemberIdAndMenuId(memberId, menuId)) {
+			throw new MenuException(MenuErrorCode.ALREADY_RECOMMENDED);
+		}
+
+		recommendMenuRepository.save(RecommendMenu.builder()
+			.member(memberRepository.getReferenceById(memberId))
+			.menu(menu)
+			.build());
+		menu.incrementRecommendCount();
+	}
+
+	@Transactional
+	public void cancelMenuRecommend(Long menuId, Long memberId) {
+		Menu menu = menuRepository.findById(menuId)
+			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
+
+		RecommendMenu recommendMenu = recommendMenuRepository.findByMemberIdAndMenuId(memberId, menuId)
+			.orElseThrow(() -> new MenuException(MenuErrorCode.NOT_RECOMMENDED));
+
+		recommendMenuRepository.delete(recommendMenu);
+		menu.decrementRecommendCount();
 	}
 
 	private Map<Long, ImageResponse> buildMenuImageMap(List<Menu> menus) {

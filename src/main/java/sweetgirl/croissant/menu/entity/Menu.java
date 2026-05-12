@@ -60,4 +60,12 @@ public class Menu extends BaseTimeEntity {
 		this.description = description;
 		this.recommendCount = 0;
 	}
+
+	public void incrementRecommendCount() {
+		this.recommendCount++;
+	}
+
+	public void decrementRecommendCount() {
+		this.recommendCount = Math.max(0, this.recommendCount - 1);
+	}
 }
