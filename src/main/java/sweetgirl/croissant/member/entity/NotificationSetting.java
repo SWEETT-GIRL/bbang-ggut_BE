@@ -57,6 +57,16 @@ public class NotificationSetting extends BaseTimeEntity {
 		this.daysOfWeek = dayList;
 	}
 
+	// 빵알람 수신 여부를 현재 값의 반대로 토글
+	public void toggleNotificationEnabled() {
+		this.isNotificationEnabled = !this.isNotificationEnabled; // true → false, false → true
+	}
+
+	// 마케팅 알람 수신 여부를 현재 값의 반대로 토글
+	public void toggleMarketingEnabled() {
+		this.isMarketingEnabled = !this.isMarketingEnabled; // true → false, false → true
+	}
+
 	// 알림 반경을 새 값으로 업데이트 (dirty checking으로 자동 저장)
 	public void updateRadius(NotificationRadius radius) {
 		this.notificationRadius = radius;
