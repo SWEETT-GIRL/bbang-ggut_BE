@@ -53,7 +53,7 @@ public class NotificationSetting extends BaseTimeEntity {
 	@Column(nullable = false)
 	private boolean isMarketingEnabled;
 
-	@Column(nullable = false)
+	@Column(nullable = false, columnDefinition = "boolean not null default false")
 	private boolean isTimeRestricted;
 
 	public void setDaysOfWeekList(String dayList) {
