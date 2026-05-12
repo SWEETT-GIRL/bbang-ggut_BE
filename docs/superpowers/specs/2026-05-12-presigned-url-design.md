@@ -10,6 +10,7 @@
 ## 파일 구조
 
 ### 신규 파일
+
 menu/
   controller/MenuReportController.java
   code/MenuErrorCode.java
