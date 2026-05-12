@@ -27,6 +27,7 @@ import com.google.firebase.messaging.MessagingErrorCode;
 import sweetgirl.croissant.alarm.code.AlarmErrorCode;
 import sweetgirl.croissant.alarm.dto.request.FcmTokenRequest;
 import sweetgirl.croissant.alarm.entity.FcmToken;
+import sweetgirl.croissant.alarm.exception.AlarmException;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
 import sweetgirl.croissant.common.enums.DeviceOs;
 import sweetgirl.croissant.global.exception.CustomException;
@@ -202,7 +203,8 @@ class FcmServiceTest {
 			staticMock.when(FirebaseMessaging::getInstance).thenReturn(mockFirebaseMessaging);
 			given(mockFirebaseMessaging.send(any())).willThrow(exception);
 
-			fcmService.sendPushNotification("some-token", "제목", "내용");
+			assertThatThrownBy(() -> fcmService.sendPushNotification("some-token", "제목", "내용"))
+				.isInstanceOf(AlarmException.class);
 
 			verify(fcmTokenRepository, never()).findByToken(any());
 		}

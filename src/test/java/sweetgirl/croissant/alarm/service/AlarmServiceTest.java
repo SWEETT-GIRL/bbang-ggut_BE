@@ -148,11 +148,9 @@ class AlarmServiceTest {
 	@DisplayName("handleGeofenceEnter: 알림 OFF이면 FCM 발송 없이 종료한다")
 	void handleGeofenceEnter_notificationDisabled_silentReturn() {
 		Long memberId = 1L;
-		Member member = mock(Member.class);
 		NotificationSetting setting = mock(NotificationSetting.class);
 		GeofenceEnterRequest request = mock(GeofenceEnterRequest.class);
 
-		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(false);
 
@@ -165,11 +163,9 @@ class AlarmServiceTest {
 	@DisplayName("handleGeofenceEnter: storeId에 해당하는 가게가 없으면 StoreException을 던진다")
 	void handleGeofenceEnter_storeNotFound_throwsException() {
 		Long memberId = 1L;
-		Member member = mock(Member.class);
 		NotificationSetting setting = mock(NotificationSetting.class);
 		GeofenceEnterRequest request = mock(GeofenceEnterRequest.class);
 
-		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
 		given(setting.isTimeRestricted()).willReturn(false);
@@ -321,10 +317,8 @@ class AlarmServiceTest {
 	@DisplayName("getGeofenceCandidates: 알림 OFF이면 빈 리스트를 반환한다")
 	void getGeofenceCandidates_notificationDisabled_returnsEmpty() {
 		Long memberId = 1L;
-		Member member = mock(Member.class);
 		NotificationSetting setting = mock(NotificationSetting.class);
 
-		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(false);
 
@@ -337,11 +331,9 @@ class AlarmServiceTest {
 	@DisplayName("getGeofenceCandidates: 정상 조건이면 후보 가게 목록을 반환한다")
 	void getGeofenceCandidates_normal_returnsCandidates() {
 		Long memberId = 1L;
-		Member member = mock(Member.class);
 		NotificationSetting setting = mock(NotificationSetting.class);
 		GeofenceCandidateProjection projection = mock(GeofenceCandidateProjection.class);
 
-		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
 		given(setting.getNotificationRadius()).willReturn(NotificationRadius.RADIUS_300);
