@@ -17,11 +17,14 @@ import sweetgirl.croissant.external.aws.util.S3PathGenerator;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
+import sweetgirl.croissant.menu.dto.request.MenuEditReportRequest;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.exception.MenuException;
+import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.code.StoreReportErrorCode;
+import sweetgirl.croissant.store.dto.request.ReportImageRequest;
 import sweetgirl.croissant.store.dto.request.ReportPresignedUrlRequest;
 import sweetgirl.croissant.store.dto.request.StoreAddressReportRequest;
 import sweetgirl.croissant.store.dto.request.StoreBusinessHoursReportRequest;
@@ -48,6 +51,7 @@ public class StoreReportService {
 	private final ObjectMapper objectMapper;
 	private final MemberReader memberReader;
 	private final MenuRepository menuRepository;
+	private final MenuImageFileRepository menuImageFileRepository;
 	private final StoreRepository storeRepository;
 	private final StoreImageFileRepository storeImageFileRepository;
 	private final StoreReportRepository storeReportRepository;
@@ -113,6 +117,15 @@ public class StoreReportService {
 			long count = storeImageFileRepository.countByIdInAndStoreId(request.deleteImageIds(), storeId);
 			if (count != request.deleteImageIds().size()) {
 				throw new StoreReportException(StoreReportErrorCode.REPORT_IMAGE_NOT_OWNED);
+			}
+		}
+
+		if (hasAdd) {
+			String expectedPrefix = "reports/stores/" + storeId + "/";
+			for (ReportImageRequest img : request.addImages()) {
+				if (!img.awsKey().startsWith(expectedPrefix)) {
+					throw new StoreReportException(StoreReportErrorCode.REPORT_INVALID_AWS_KEY);
+				}
 			}
 		}
 
@@ -185,6 +198,62 @@ public class StoreReportService {
 			.requestType(StoreReportType.MOD_BAKERY_ADDRESS)
 			.message(serializeMessage(request))
 			.build());
+
+		return new StoreReportResponse(report.getId(), report.getStatus());
+	}
+
+	// 메뉴 수정 제보 — 가격·이미지 삭제·이미지 추가를 하나의 제보로 접수
+	@Transactional
+	public StoreReportResponse createMenuEditReport(Long memberId, Long menuId, MenuEditReportRequest request) {
+		Member member = memberReader.getMember(memberId);
+
+		Menu menu = menuRepository.findById(menuId)
+			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
+
+		boolean hasPrice = request.price() != null;
+		boolean hasDelete = request.deleteImageIds() != null && !request.deleteImageIds().isEmpty();
+		boolean hasAdd = request.addImages() != null && !request.addImages().isEmpty();
+		if (!hasPrice && !hasDelete && !hasAdd) {
+			throw new StoreReportException(StoreReportErrorCode.REPORT_EDIT_CONTENT_EMPTY);
+		}
+
+		if (hasDelete) {
+			long count = menuImageFileRepository.countByIdInAndMenuId(request.deleteImageIds(), menuId);
+			if (count != request.deleteImageIds().size()) {
+				throw new StoreReportException(StoreReportErrorCode.REPORT_MENU_IMAGE_NOT_OWNED);
+			}
+		}
+
+		if (hasAdd) {
+			Long storeId = menu.getStore().getId();
+			String expectedPrefix = "reports/stores/" + storeId + "/menus/" + menuId + "/";
+			for (ReportImageRequest img : request.addImages()) {
+				MimeType.fromString(img.contentType());
+				if (!img.awsKey().startsWith(expectedPrefix)) {
+					throw new StoreReportException(StoreReportErrorCode.REPORT_INVALID_AWS_KEY);
+				}
+			}
+		}
+
+		StoreReport report = storeReportRepository.save(StoreReport.builder()
+			.member(member)
+			.store(menu.getStore())
+			.menu(menu)
+			.requestType(StoreReportType.MOD_BREAD)
+			.message(serializeMessage(request))
+			.build());
+
+		if (hasAdd) {
+			List<StoreReportImageFile> imageFiles = request.addImages().stream()
+				.map(img -> StoreReportImageFile.builder()
+					.storeReport(report)
+					.name(img.fileName())
+					.mimeType(MimeType.fromString(img.contentType()))
+					.awsKey(img.awsKey())
+					.build())
+				.toList();
+			storeReportImageFileRepository.saveAll(imageFiles);
+		}
 
 		return new StoreReportResponse(report.getId(), report.getStatus());
 	}

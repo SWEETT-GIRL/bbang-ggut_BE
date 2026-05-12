@@ -17,7 +17,9 @@ public enum StoreReportErrorCode implements BaseErrorCode {
 	REPORT_IMAGE_NOT_OWNED(BAD_REQUEST, "REPORT4003", "삭제 요청한 이미지가 해당 가게 소유가 아닙니다."),
 	REPORT_INVALID_AWS_KEY(BAD_REQUEST, "REPORT4004", "유효하지 않은 이미지 키입니다."),
 	REPORT_TIME_REQUIRED(BAD_REQUEST, "REPORT4005", "영업 중인 요일은 오픈·마감 시간이 필요합니다."),
-	REPORT_INVALID_TIME_RANGE(BAD_REQUEST, "REPORT4006", "오픈 시간은 마감 시간보다 빨라야 합니다.");
+	REPORT_INVALID_TIME_RANGE(BAD_REQUEST, "REPORT4006", "오픈 시간은 마감 시간보다 빨라야 합니다."),
+	REPORT_EDIT_CONTENT_EMPTY(BAD_REQUEST, "REPORT4007", "변경 내용을 하나 이상 입력해 주세요."),
+	REPORT_MENU_IMAGE_NOT_OWNED(BAD_REQUEST, "REPORT4008", "삭제 요청한 이미지가 해당 메뉴 소유가 아닙니다.");
 
 	private final HttpStatus httpStatus;
 	private final String code;

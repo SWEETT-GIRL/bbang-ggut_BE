@@ -1,5 +1,6 @@
 package sweetgirl.croissant.store.controller;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -46,8 +47,8 @@ public class StoreReportController {
 			@AuthenticationPrincipal Long memberId,
 			@PathVariable Long storeId,
 			@Valid @RequestBody StoreImageReportRequest request) {
-		return ResponseEntity.ok(
-			ApiResponse.ok(storeReportService.createImageReport(memberId, storeId, request)));
+		return ResponseEntity.status(HttpStatus.CREATED)
+			.body(ApiResponse.created(storeReportService.createImageReport(memberId, storeId, request)));
 	}
 
 	@Operation(summary = "가게 제보 - 영업시간 수정 요청", description = "")
@@ -56,8 +57,8 @@ public class StoreReportController {
 			@AuthenticationPrincipal Long memberId,
 			@PathVariable Long storeId,
 			@Valid @RequestBody StoreBusinessHoursReportRequest request) {
-		return ResponseEntity.ok(
-			ApiResponse.ok(storeReportService.createBusinessHoursReport(memberId, storeId, request)));
+		return ResponseEntity.status(HttpStatus.CREATED)
+			.body(ApiResponse.created(storeReportService.createBusinessHoursReport(memberId, storeId, request)));
 	}
 
 	@Operation(summary = "가게 제보 - 주소 수정 요청", description = "")
@@ -66,8 +67,8 @@ public class StoreReportController {
 			@AuthenticationPrincipal Long memberId,
 			@PathVariable Long storeId,
 			@Valid @RequestBody StoreAddressReportRequest request) {
-		return ResponseEntity.ok(
-			ApiResponse.ok(storeReportService.createAddressReport(memberId, storeId, request)));
+		return ResponseEntity.status(HttpStatus.CREATED)
+			.body(ApiResponse.created(storeReportService.createAddressReport(memberId, storeId, request)));
 	}
 
 }

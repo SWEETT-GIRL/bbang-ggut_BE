@@ -1,5 +1,6 @@
 package sweetgirl.croissant.menu.controller;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,8 +14,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
+import sweetgirl.croissant.menu.dto.request.MenuEditReportRequest;
 import sweetgirl.croissant.store.dto.request.ReportPresignedUrlRequest;
 import sweetgirl.croissant.store.dto.response.PresignedUrlInfoResponse;
+import sweetgirl.croissant.store.dto.response.StoreReportResponse;
 import sweetgirl.croissant.store.service.StoreReportService;
 
 @Tag(name = "Menu Report", description = "메뉴 정보 수정 제보 API")
@@ -33,5 +36,15 @@ public class MenuReportController {
 			@Valid @RequestBody ReportPresignedUrlRequest request) {
 		return ResponseEntity
 			.ok(ApiResponse.ok(storeReportService.generateMenuReportPresignedUrls(memberId, menuId, request)));
+	}
+
+	@Operation(summary = "메뉴 수정 제보 - 가격·사진 변경 요청", description = "")
+	@PostMapping("/{menuId}/reports/edit")
+	public ResponseEntity<ApiResponse<StoreReportResponse>> createMenuEditReport(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable Long menuId,
+			@Valid @RequestBody MenuEditReportRequest request) {
+		return ResponseEntity.status(HttpStatus.CREATED)
+			.body(ApiResponse.created(storeReportService.createMenuEditReport(memberId, menuId, request)));
 	}
 }
