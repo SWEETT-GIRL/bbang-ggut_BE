@@ -18,9 +18,11 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.member.dto.request.NotificationRadiusRequest;
+import sweetgirl.croissant.member.dto.request.NotificationTimeRequest;
 import sweetgirl.croissant.member.dto.response.DayOfWeekResponse;
 import sweetgirl.croissant.member.dto.response.MenuCategoryResponse;
 import sweetgirl.croissant.member.dto.response.NotificationRadiusResponse;
+import sweetgirl.croissant.member.dto.response.NotificationTimeResponse;
 import sweetgirl.croissant.member.service.MemberService;
 import sweetgirl.croissant.menu.entity.MenuCategory;
 
@@ -87,6 +89,21 @@ public class MemberController {
 			@AuthenticationPrincipal Long memberId,
 			@RequestBody @Valid NotificationRadiusRequest request) {
 		return ApiResponse.ok(memberService.updateNotificationRadius(memberId, request));
+	}
+
+	@Operation(summary = "알림 시간대 조회", description = "현재 설정된 알림 시작/종료 시간을 반환합니다. (HH:mm 형식)")
+	@GetMapping("/me/notification-time")
+	public ApiResponse<NotificationTimeResponse> getNotificationTime(
+			@AuthenticationPrincipal Long memberId) {
+		return ApiResponse.ok(memberService.getNotificationTime(memberId));
+	}
+
+	@Operation(summary = "알림 시간대 수정", description = "알림 시작/종료 시간을 수정합니다. (HH:mm 형식, 시작 시간은 종료 시간보다 이전이어야 합니다.)")
+	@PatchMapping("/me/notification-time")
+	public ApiResponse<NotificationTimeResponse> updateNotificationTime(
+			@AuthenticationPrincipal Long memberId,
+			@RequestBody @Valid NotificationTimeRequest request) {
+		return ApiResponse.ok(memberService.updateNotificationTime(memberId, request));
 	}
 
 }

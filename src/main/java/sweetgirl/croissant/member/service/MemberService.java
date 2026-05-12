@@ -11,9 +11,11 @@ import sweetgirl.croissant.common.enums.NotificationDay;
 import sweetgirl.croissant.common.enums.NotificationRadius;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.dto.request.NotificationRadiusRequest;
+import sweetgirl.croissant.member.dto.request.NotificationTimeRequest;
 import sweetgirl.croissant.member.dto.response.DayOfWeekResponse;
 import sweetgirl.croissant.member.dto.response.MenuCategoryResponse;
 import sweetgirl.croissant.member.dto.response.NotificationRadiusResponse;
+import sweetgirl.croissant.member.dto.response.NotificationTimeResponse;
 import sweetgirl.croissant.member.entity.LikedMenuCategory;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
@@ -132,5 +134,24 @@ public class MemberService {
 		// 변경된 반경 저장 (dirty checking으로 자동 반영)
 		setting.updateRadius(next);
 		return NotificationRadiusResponse.of(next);
+	}
+
+	// 유저의 현재 알림 시간대 조회
+	@Transactional(readOnly = true)
+	public NotificationTimeResponse getNotificationTime(Long memberId) {
+		NotificationSetting setting = notificationSettingRepository.findByMemberId(memberId)
+			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
+
+		return NotificationTimeResponse.of(setting);
+	}
+
+	// 유저의 알림 시간대 수정 후 변경된 시간대 반환
+	public NotificationTimeResponse updateNotificationTime(Long memberId, NotificationTimeRequest request) {
+		NotificationSetting setting = notificationSettingRepository.findByMemberId(memberId)
+			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
+
+		// 시간대 업데이트 (dirty checking으로 자동 반영)
+		setting.updateTime(request.toStartTime(), request.toEndTime());
+		return NotificationTimeResponse.of(setting);
 	}
 }
