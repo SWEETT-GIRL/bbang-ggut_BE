@@ -42,7 +42,7 @@ public class MenuController {
 	public ResponseEntity<ApiResponse<Void>> recommendMenu(
 			@PathVariable Long menuId,
 			@AuthenticationPrincipal Long memberId) {
-		menuService.recommendMenu(menuId, 1L);
+		menuService.recommendMenu(menuId, memberId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -51,7 +51,7 @@ public class MenuController {
 	public ResponseEntity<ApiResponse<Void>> cancelMenuRecommend(
 			@PathVariable Long menuId,
 			@AuthenticationPrincipal Long memberId) {
-		menuService.cancelMenuRecommend(menuId, 1L);
+		menuService.cancelMenuRecommend(menuId, memberId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
