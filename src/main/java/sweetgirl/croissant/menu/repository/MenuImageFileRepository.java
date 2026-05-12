@@ -16,4 +16,6 @@ public interface MenuImageFileRepository extends JpaRepository<MenuImageFile, Lo
 			FROM MenuImageFile m WHERE m.menu.id IN :menuIds ORDER BY m.id DESC
 			""")
 	List<MenuImageThumbnailProjection> findThumbnailsByMenuIdIn(@Param("menuIds") List<Long> menuIds);
+
+	List<MenuImageFile> findByMenuStoreId(Long storeId);
 }

@@ -53,7 +53,7 @@ public class StoreReport extends BaseTimeEntity {
 	@Column(nullable = false, length = 20)
 	private StoreReportStatus status;
 
-	@Column(nullable = false, length = 255)
+	@Column(nullable = false, columnDefinition = "TEXT")
 	private String message;
 
 	@Column
