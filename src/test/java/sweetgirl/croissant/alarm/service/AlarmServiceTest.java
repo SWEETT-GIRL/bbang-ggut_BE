@@ -196,7 +196,7 @@ class AlarmServiceTest {
 		given(setting.isNotificationEnabled()).willReturn(true);
 		given(setting.isTimeRestricted()).willReturn(false);
 		given(setting.getDaysOfWeek()).willReturn("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY");
-		given(setting.getNotificationRadius()).willReturn(NotificationRadius.RADIUS_300);
+		given(setting.getNotificationRadius()).willReturn(NotificationRadius.R300);
 		given(request.getStoreId()).willReturn(1L);
 		given(request.getLatitude()).willReturn(37.5);
 		given(request.getLongitude()).willReturn(127.0);
@@ -223,7 +223,7 @@ class AlarmServiceTest {
 		given(setting.isNotificationEnabled()).willReturn(true);
 		given(setting.isTimeRestricted()).willReturn(false);
 		given(setting.getDaysOfWeek()).willReturn("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY");
-		given(setting.getNotificationRadius()).willReturn(NotificationRadius.RADIUS_300);
+		given(setting.getNotificationRadius()).willReturn(NotificationRadius.R300);
 		given(request.getStoreId()).willReturn(1L);
 		given(request.getLatitude()).willReturn(37.5);
 		given(request.getLongitude()).willReturn(127.0);
@@ -258,7 +258,7 @@ class AlarmServiceTest {
 		given(setting.isNotificationEnabled()).willReturn(true);
 		given(setting.isTimeRestricted()).willReturn(false);
 		given(setting.getDaysOfWeek()).willReturn("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY");
-		given(setting.getNotificationRadius()).willReturn(NotificationRadius.RADIUS_300);
+		given(setting.getNotificationRadius()).willReturn(NotificationRadius.R300);
 		given(request.getStoreId()).willReturn(1L);
 		given(request.getLatitude()).willReturn(37.5);
 		given(request.getLongitude()).willReturn(127.0);
@@ -297,7 +297,7 @@ class AlarmServiceTest {
 		given(setting.isNotificationEnabled()).willReturn(true);
 		given(setting.isTimeRestricted()).willReturn(false);
 		given(setting.getDaysOfWeek()).willReturn("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY");
-		given(setting.getNotificationRadius()).willReturn(NotificationRadius.RADIUS_300);
+		given(setting.getNotificationRadius()).willReturn(NotificationRadius.R300);
 		given(request.getStoreId()).willReturn(1L);
 		given(request.getLatitude()).willReturn(37.5);
 		given(request.getLongitude()).willReturn(127.0);
@@ -344,7 +344,7 @@ class AlarmServiceTest {
 		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
-		given(setting.getNotificationRadius()).willReturn(NotificationRadius.RADIUS_300);
+		given(setting.getNotificationRadius()).willReturn(NotificationRadius.R300);
 		given(projection.getStoreId()).willReturn(1L);
 		given(projection.getStoreName()).willReturn("뚜레쥬르");
 		given(projection.getLatitude()).willReturn(37.5);

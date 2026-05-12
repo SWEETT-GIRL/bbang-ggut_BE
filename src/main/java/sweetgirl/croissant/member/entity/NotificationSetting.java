@@ -61,7 +61,7 @@ public class NotificationSetting extends BaseTimeEntity {
 	}
 
 	// 알림 반경을 새 값으로 업데이트 (dirty checking으로 자동 저장)
-	public void updateRadius(float radius) {
+	public void updateRadius(NotificationRadius radius) {
 		this.notificationRadius = radius;
 	}
 
@@ -74,7 +74,7 @@ public class NotificationSetting extends BaseTimeEntity {
 		}
 		this.member = member;
 		this.isNotificationEnabled = isNotificationEnabled;
-		this.notificationRadius = notificationRadius != null ? notificationRadius : NotificationRadius.RADIUS_500;
+		this.notificationRadius = notificationRadius != null ? notificationRadius : NotificationRadius.R500;
 		this.startTime = startTime;
 		this.endTime = endTime;
 		this.daysOfWeek = daysOfWeek;

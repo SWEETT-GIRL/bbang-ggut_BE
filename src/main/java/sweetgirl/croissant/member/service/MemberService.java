@@ -106,7 +106,7 @@ public class MemberService {
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 
 		// DB 저장값 → enum 변환 후 응답 반환
-		NotificationRadius current = NotificationRadius.from(setting.getNotificationRadius());
+		NotificationRadius current = setting.getNotificationRadius();
 		return NotificationRadiusResponse.of(current);
 	}
 
@@ -116,7 +116,7 @@ public class MemberService {
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 
 		// 현재 반경을 enum으로 변환
-		NotificationRadius current = NotificationRadius.from(setting.getNotificationRadius());
+		NotificationRadius current = setting.getNotificationRadius();
 
 		// direction에 따라 다음 단계 계산
 		NotificationRadius next = request.isUp() ? current.next() : current.prev();
@@ -130,7 +130,7 @@ public class MemberService {
 		}
 
 		// 변경된 반경 저장 (dirty checking으로 자동 반영)
-		setting.updateRadius(next.getValue());
+		setting.updateRadius(next);
 		return NotificationRadiusResponse.of(next);
 	}
 }
