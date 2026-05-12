@@ -84,24 +84,19 @@ public class AlarmService {
 		ZoneId zoneId = ZoneId.of("Asia/Seoul");
 
 		// 2. 시간 제한 체크
-		if (setting.isTimeRestricted()) {
-			LocalTime now = LocalTime.now(zoneId);
-			LocalTime start = setting.getStartTime();
-			LocalTime end = setting.getEndTime();
+		LocalTime now = LocalTime.now(zoneId);
+		LocalTime start = setting.getStartTime();
+		LocalTime end = setting.getEndTime();
 
-			boolean isOutsideAllowedTime;
-			if (start.isBefore(end)) {
-				// 일반적인 경우 (예: 09:00 ~ 18:00)
-				isOutsideAllowedTime = now.isBefore(start) || now.isAfter(end);
-			} else {
-				// 자정을 넘기는 경우 (예: 22:00 ~ 06:00)
-				// 시작 시간 이전 '이고' 종료 시간 이후이면 차단
-				isOutsideAllowedTime = now.isBefore(start) && now.isAfter(end);
-			}
+		boolean isOutsideAllowedTime;
+		if (start.isBefore(end)) {
+			isOutsideAllowedTime = now.isBefore(start) || now.isAfter(end);
+		} else {
+			isOutsideAllowedTime = now.isBefore(start) && now.isAfter(end);
+		}
 
-			if (isOutsideAllowedTime) {
-				return true;
-			}
+		if (isOutsideAllowedTime) {
+			return true;
 		}
 
 		// 3. 요일 제한 체크

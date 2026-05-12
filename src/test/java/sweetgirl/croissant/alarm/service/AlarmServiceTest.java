@@ -14,6 +14,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -172,7 +173,8 @@ class AlarmServiceTest {
 		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
-		given(setting.isTimeRestricted()).willReturn(false);
+		given(setting.getStartTime()).willReturn(LocalTime.of(8, 0));
+		given(setting.getEndTime()).willReturn(LocalTime.of(21, 0));
 		given(setting.getDaysOfWeek()).willReturn("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY");
 		given(request.getStoreId()).willReturn(99L);
 		given(storeRepository.findById(99L)).willReturn(Optional.empty());
@@ -194,7 +196,8 @@ class AlarmServiceTest {
 		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
-		given(setting.isTimeRestricted()).willReturn(false);
+		given(setting.getStartTime()).willReturn(LocalTime.of(8, 0));
+		given(setting.getEndTime()).willReturn(LocalTime.of(21, 0));
 		given(setting.getDaysOfWeek()).willReturn("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY");
 		given(setting.getNotificationRadius()).willReturn(NotificationRadius.RADIUS_300);
 		given(request.getStoreId()).willReturn(1L);
@@ -221,7 +224,8 @@ class AlarmServiceTest {
 		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
-		given(setting.isTimeRestricted()).willReturn(false);
+		given(setting.getStartTime()).willReturn(LocalTime.of(8, 0));
+		given(setting.getEndTime()).willReturn(LocalTime.of(21, 0));
 		given(setting.getDaysOfWeek()).willReturn("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY");
 		given(setting.getNotificationRadius()).willReturn(NotificationRadius.RADIUS_300);
 		given(request.getStoreId()).willReturn(1L);
@@ -256,7 +260,8 @@ class AlarmServiceTest {
 		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
-		given(setting.isTimeRestricted()).willReturn(false);
+		given(setting.getStartTime()).willReturn(LocalTime.of(8, 0));
+		given(setting.getEndTime()).willReturn(LocalTime.of(21, 0));
 		given(setting.getDaysOfWeek()).willReturn("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY");
 		given(setting.getNotificationRadius()).willReturn(NotificationRadius.RADIUS_300);
 		given(request.getStoreId()).willReturn(1L);
@@ -295,7 +300,8 @@ class AlarmServiceTest {
 		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
 		given(setting.isNotificationEnabled()).willReturn(true);
-		given(setting.isTimeRestricted()).willReturn(false);
+		given(setting.getStartTime()).willReturn(LocalTime.of(8, 0));
+		given(setting.getEndTime()).willReturn(LocalTime.of(21, 0));
 		given(setting.getDaysOfWeek()).willReturn("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY");
 		given(setting.getNotificationRadius()).willReturn(NotificationRadius.RADIUS_300);
 		given(request.getStoreId()).willReturn(1L);
