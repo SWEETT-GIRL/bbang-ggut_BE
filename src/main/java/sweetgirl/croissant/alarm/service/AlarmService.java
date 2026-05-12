@@ -115,7 +115,7 @@ public class AlarmService {
 		return storeNotificationRepository.existsByMemberAndStoreAndSentAtAfter(member, store, todayStart);
 	}
 
-	//FCM 알림 발송 + 이력 저장
+	// FCM 알림 발송 + 이력 저장 — 하나라도 성공했을 때만 저장 (전부 실패 시 당일 재시도 가능)
 	private void sendStoreNotification(Member member, Store store, List<FcmToken> tokens) {
 		if (tokens.isEmpty()) { // 토큰 있는지 확인
 			return;
@@ -123,16 +123,21 @@ public class AlarmService {
 		String title = "빵집 알림";
 		String body = store.getName() + " 근처에 있어요! 지금 방문해보세요";
 
+		boolean anySent = false;
+
 		for (FcmToken fcmToken : tokens) { // 등록된 모든 기기의 토큰에게 발송
 			try {
 				fcmService.sendPushNotification(fcmToken.getToken(), title, body);
+				anySent = true;
 			} catch (AlarmException e) {
 				log.warn("FCM 발송 실패 [memberId={}, storeId={}, token={}]",
 					member.getId(), store.getId(), fcmToken.getToken());
 			}
 		}
 		// 알림 발송 이력 저장
-		storeNotificationRepository.save(StoreNotification.of(member, store, body));
+		if (anySent) {
+			storeNotificationRepository.save(StoreNotification.of(member, store, body));
+		}
 
 	}
 
