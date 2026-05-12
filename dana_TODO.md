@@ -1,164 +1,75 @@
-# 사용자 제보 API TODO
+# 앱스토어 / 플레이스토어 심사 준비 TODO
 
-프론트의 `app/bakery/edit-request.tsx` 기준으로 필요한 사용자 제보 API 중 아직 남은 작업만 정리한다.
+> 애플 로그인·계정 탈퇴 구현 완료 후 심사 제출 전까지 아래 항목 처리 필요
 
-현재 백엔드는 `/api/v1` prefix를 쓰지 않고 `/stores`, `/alarm`, `/auth`처럼 도메인 루트로 라우팅하고 있으므로, 아래 API도 같은 규칙으로 잡는다.
+## 1. 개인정보처리방침 공개 URL
 
-카카오 주소 검색 API는 프론트에서 `src/services/kakao/kakaoLocalApi.ts`로 직접 처리 중이므로 백엔드 구현 범위에서 제외한다.
+- [ ] 별도 웹 페이지 URL 생성 (PDF 지양)
+- [ ] 페이지에 아래 내용 포함:
+  - 개발자/사업자 정보
+  - 개인정보 문의 연락처
+  - 수집하는 개인정보 항목 (이메일, 닉네임, deviceId, FCM토큰, 위치 등)
+  - 이용 목적
+  - 제3자 제공/공유 여부 (Firebase, S3, Kakao API 등)
+  - 보안 처리 방식
+  - 보유 및 삭제 정책
+  - 앱 이름 또는 스토어 등록 주체 명시
+- [ ] App Store Connect → Privacy Policy URL 등록
+- [ ] Play Console → 개인정보처리방침 URL 등록
 
-## 남은 정책/검증 TODO
+> 현재 `TermsType.PRIVACY` 텍스트는 앱 내부 안내 수준 — 별도 공개 URL 필요
 
-- 제보 생성 API는 HTTP 201과 `ApiResponse.created(data)`를 사용한다.
-- 새 이미지 추가 요청의 `awsKey`는 예상 prefix로 시작해야 한다.
-- 삭제 이미지 ID가 하나라도 대상 가게/메뉴 소유가 아니면 전체 요청을 400으로 실패시킨다.
+## 2. 고객지원 URL / 문의 수단
 
-`awsKey` prefix:
+- [ ] 외부 접근 가능한 고객지원 URL 준비 (이메일 폼, 노션, 구글 폼 등)
+- [ ] App Store Connect → Support URL 등록 (필수)
+- [ ] Play Console → 고객지원 이메일 또는 URL 등록
 
-```text
-reports/stores/{storeId}/images/
-reports/stores/{storeId}/menus/{menuId}/
-```
+## 3. 심사용 데모 계정 / 접근 안내
 
-## 선행 수정 필요
+- [ ] 만료되지 않는 테스트 계정 준비 (카카오 또는 Apple 로그인)
+- [ ] App Store Connect → Review Notes에 아래 작성:
+  - 테스트 계정 로그인 방법
+  - 필요한 권한 허용 안내 (알림, 위치)
+  - 위치 기반 알림 테스트 방법
+  - 심사자가 접근해야 할 주요 화면 경로
+- [ ] Play Console → App content에 제한 기능 접근 안내 작성
 
-### 메뉴 삭제 대상 이미지 소유 검증 메서드 추가
+## 4. Google Play Data Safety 작성
 
-```java
-long countByIdInAndMenuId(List<Long> ids, Long menuId);
-```
+- [ ] Play Console Data safety form 작성 — 아래 항목 신고 필요:
+  - [ ] 소셜 로그인 식별자
+  - [ ] 이메일
+  - [ ] 닉네임
+  - [ ] deviceId
+  - [ ] FCM 토큰
+  - [ ] 위치 기반 기능 사용 여부
+  - [ ] 앱 활동/서비스 이용 기록
+  - [ ] 문의/제보 데이터
+  - [ ] 사용자 업로드 이미지
+- [ ] Firebase, S3, Kakao API 외부 서비스 사용 내역과 개인정보처리방침 일치 여부 확인
 
-`MenuImageFileRepository`에 추가한다.
+## 5. 앱 내부 약관/개인정보 접근성
 
-검증 기준:
+- [ ] 가입 전 또는 설정 화면에서 개인정보처리방침 확인 가능하도록 FE 처리
+- [ ] 서비스 약관 확인 가능하도록 FE 처리
+- [ ] 마케팅 수신 동의를 선택 동의로 분리 확인
+- [ ] 마케팅 수신 철회 가능한 UI 제공 확인
 
-- 요청한 삭제 이미지 ID 개수와 count 결과가 다르면 400.
-- 이미지 ID가 비어 있으면 count 검증은 건너뛴다.
+> 마케팅 동의 변경 API는 이미 구현됨: `MemberController.java:52`
 
-## 1. 사용자 제보: 메뉴 수정 요청
+## 6. 알림/위치 권한 설명
 
-가격 변경, 사진 삭제, 사진 추가를 한 번에 접수한다.
+- [ ] 알림 권한 요청 문구와 실제 기능(빵집 오픈 알림) 일치 확인
+- [ ] 위치 권한 요청 문구와 실제 기능(주변 빵집 조회/지오펜스) 일치 확인
+- [ ] Apple: 권한 요청 전 사용 맥락 설명 텍스트 확인 (NSLocationWhenInUseUsageDescription 등)
+- [ ] Google: 민감 권한 사용 목적이 앱 설명/기능과 일치하는지 확인
 
-```http
-POST /menus/{menuId}/reports/edit
-Authorization: Bearer {accessToken}
-Content-Type: application/json
-```
+## 7. 깨진 링크/미완성 흔적 제거
 
-Request:
-
-```json
-{
-  "price": 6500,
-  "deleteImageIds": [301, 302],
-  "addImages": [
-    {
-      "fileName": "menu-photo-1.jpg",
-      "contentType": "image/jpeg",
-      "awsKey": "reports/stores/7/menus/14/uuid"
-    }
-  ],
-  "reason": "가격과 메뉴 사진이 현재 매장 정보와 다릅니다."
-}
-```
-
-Response:
-
-```json
-{
-  "success": true,
-  "code": "COMMON201",
-  "message": "리소스가 생성되었습니다.",
-  "data": {
-    "reportId": 4,
-    "status": "PENDING"
-  }
-}
-```
-
-저장 방식:
-
-- `StoreReport.member = member`
-- `StoreReport.requestType = MOD_BREAD`
-- `StoreReport.store = menu.store`
-- `StoreReport.menu = menu`
-- `StoreReport.message`에는 요청 본문 JSON 저장
-- `addImages`는 `StoreReportImageFile`에 저장
-
-검증:
-
-- menu 존재 여부 확인.
-- `price`, `deleteImageIds`, `addImages` 중 최소 하나 필수.
-- `price`는 0보다 큰 정수.
-- 삭제 이미지 ID는 모두 해당 menu의 이미지여야 한다.
-- `addImages[].contentType`은 `MimeType.fromString()`으로 검증.
-- `addImages[].awsKey`는 `reports/stores/{storeId}/menus/{menuId}/`로 시작해야 한다.
-
-## 공통 보정 TODO
-
-- `POST /stores/{storeId}/reports/images` 응답을 HTTP 201과 `ApiResponse.created(data)`로 변경.
-- `POST /stores/{storeId}/reports/business-hours` 응답을 HTTP 201과 `ApiResponse.created(data)`로 변경.
-- `POST /stores/{storeId}/reports/address` 응답을 HTTP 201과 `ApiResponse.created(data)`로 변경.
-- 가게 사진 제보의 `addImages[].awsKey` prefix 검증 추가.
-- 메뉴 수정 제보의 `addImages[].awsKey` prefix 검증 추가.
-
-## 남은 API 목록
-
-```http
-POST /menus/{menuId}/reports/edit
-```
-
-## 구현 순서 추천
-
-1. `MenuImageFileRepository`에 삭제 대상 소유 검증 메서드 추가.
-2. 메뉴 수정 제보 요청 DTO 추가.
-3. 메뉴 수정 제보 서비스 로직 추가.
-4. `MenuReportController`에 `POST /menus/{menuId}/reports/edit` 추가.
-5. 제보 생성 API 응답을 HTTP 201과 `ApiResponse.created(data)`로 보정.
-6. 가게/메뉴 이미지 제보에 `awsKey` prefix 검증 추가.
-7. 서비스 단위 테스트 추가.
-
-## 테스트 시나리오
-
-- 가게 사진 제보: `awsKey` prefix가 다르면 400.
-- 메뉴 수정 제보: 변경 내용이 모두 비어 있으면 400.
-- 메뉴 수정 제보: 삭제 이미지가 해당 menu 소유가 아니면 400.
-- 메뉴 수정 제보: `awsKey` prefix가 다르면 400.
-- 메뉴 수정 제보: 허용하지 않는 MIME 타입이면 400.
-- 정상 제보 생성 시 HTTP 201과 `ApiResponse.created(data)`를 반환.
-- 정상 제보 생성 시 `StoreReport.status = PENDING`.
-- 정상 제보 생성 시 `StoreReport.member`가 로그인 사용자로 저장됨.
-
-## GitHub Issue 분리 추천
-
-### Issue 4. 메뉴 제보 API + 테스트 보강
-
-범위:
-
-- `POST /menus/{menuId}/reports/edit`
-- 가격 변경 요청 처리.
-- 메뉴 사진 삭제 요청 처리.
-- 메뉴 사진 추가 요청 처리.
-- 삭제 이미지가 해당 menu 소유인지 검증.
-- 추가 이미지 `awsKey` prefix 검증.
-- 가게 사진 제보 `awsKey` prefix 검증 보강.
-- 제보 생성 API HTTP 201 응답 보정.
-- 가게 사진 제보 정상/실패 테스트.
-- 영업시간 제보 정상/실패 테스트.
-- 주소 제보 정상/실패 테스트.
-- 메뉴 수정 제보 정상/실패 테스트.
-
-주요 실패 케이스:
-
-- 대상 menu 없음.
-- 요청 내용이 모두 비어 있음.
-- 삭제 이미지가 대상 menu 소유가 아님.
-- `awsKey` prefix 불일치.
-- 허용하지 않는 MIME 타입.
-
-완료 기준:
-
-- 가격 변경, 사진 삭제, 사진 추가 내역을 하나의 메뉴 수정 제보로 저장할 수 있다.
-- 정상 생성 시 HTTP 201과 `ApiResponse.created(data)`를 반환한다.
-- 메뉴 수정 제보는 `StoreReport.requestType = MOD_BREAD`로 저장된다.
-- 핵심 검증 로직이 서비스 단위 테스트로 보호된다.
-- 정상 생성 시 `StoreReport.status = PENDING`과 `StoreReport.member` 저장이 확인된다.
+- [ ] 개인정보처리방침 URL 정상 접근 확인
+- [ ] 고객지원 URL 정상 접근 확인
+- [ ] 약관 링크 정상 접근 확인
+- [ ] 빈 화면/placeholder 문구 없음 확인
+- [ ] Swagger나 개발용 화면이 앱에서 노출되지 않음 확인
+- [ ] 심사용 계정으로 모든 주요 기능 접근 가능 확인
