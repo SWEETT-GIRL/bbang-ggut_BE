@@ -66,4 +66,8 @@ public class Member {
 		this.agreeToMarketing = agreeToMarketing;
 		this.marketingAgreedAt = agreeToMarketing ? LocalDateTime.now() : null;
 	}
+
+	public void softDelete() {
+		this.deletedAt = LocalDateTime.now();
+	}
 }

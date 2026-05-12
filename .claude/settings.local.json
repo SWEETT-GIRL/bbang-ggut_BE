@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(security find-generic-password *)",
-      "Bash(security find-internet-password *)"
+      "Bash(security find-internet-password *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

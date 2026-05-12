@@ -58,4 +58,8 @@ public class RefreshToken {
 		this.token = token;
 		this.expiredAt = expiredAt;
 	}
+
+	public void revoke() {
+		this.revokedAt = LocalDateTime.now();
+	}
 }

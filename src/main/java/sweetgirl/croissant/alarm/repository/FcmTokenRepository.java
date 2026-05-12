@@ -17,4 +17,7 @@ public interface FcmTokenRepository extends JpaRepository<FcmToken, Long> {
 	boolean existsByMemberAndDeviceId(Member member, String deviceId);
 
 	Optional<FcmToken> findByToken(String token);
+
+	// 회원 탈퇴 시 해당 회원의 모든 FCM 토큰 삭제를 위해 사용
+	void deleteAllByMember(Member member);
 }

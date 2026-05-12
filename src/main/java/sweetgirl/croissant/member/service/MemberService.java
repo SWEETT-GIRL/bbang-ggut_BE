@@ -1,11 +1,12 @@
 package sweetgirl.croissant.member.service;
 
-import java.util.List;
+import java.util.List; // RefreshToken 목록을 받아오기 위해 import
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.alarm.repository.FcmTokenRepository; // 탈퇴 시 FCM 토큰 삭제를 위해 import
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.dto.request.ConsentUpdateRequest;
 import sweetgirl.croissant.member.dto.request.NotificationRadiusRequest;
@@ -18,12 +19,14 @@ import sweetgirl.croissant.member.dto.response.NotificationTimeResponse;
 import sweetgirl.croissant.member.entity.LikedMenuCategory;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
+import sweetgirl.croissant.member.entity.RefreshToken; // 탈퇴 시 revoke 처리할 토큰 엔티티
 import sweetgirl.croissant.member.enums.NotificationDay;
 import sweetgirl.croissant.member.enums.NotificationRadius;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.LikedMenuCategoryRepository;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
+import sweetgirl.croissant.member.repository.RefreshTokenRepository; // 탈퇴 시 RefreshToken revoke를 위해 import
 import sweetgirl.croissant.menu.entity.MenuCategory;
 import sweetgirl.croissant.menu.enums.MenuKind;
 import sweetgirl.croissant.menu.repository.MenuCategoryRepository;
@@ -40,6 +43,8 @@ public class MemberService {
 	private final LikedMenuCategoryRepository likedMenuCategoryRepository;
 	private final NotificationSettingRepository notificationSettingRepository;
 	private final MemberReader memberReader;
+	private final RefreshTokenRepository refreshTokenRepository; // 탈퇴 시 해당 회원의 모든 RefreshToken을 revoke하기 위해 주입
+	private final FcmTokenRepository fcmTokenRepository; // 탈퇴 시 해당 회원의 모든 FCM 토큰을 삭제하기 위해 주입
 
 	@Transactional(readOnly = true)
 	public long getSubscribedStoreCount(Long memberId) {
@@ -165,5 +170,22 @@ public class MemberService {
 		// 시간대 업데이트 (dirty checking으로 자동 반영)
 		setting.updateTime(request.toStartTime(), request.toEndTime());
 		return NotificationTimeResponse.of(setting);
+	}
+
+	// 회원 탈퇴 (soft delete) — deletedAt 설정 후 토큰 무효화
+	public void deleteMember(Long memberId) {
+		Member member = memberRepository.findById(memberId) // id로 회원 조회
+			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND)); // 존재하지 않으면 예외
+
+		if (member.getDeletedAt() != null) { // 이미 탈퇴한 회원이면
+			throw new MemberException(MemberErrorCode.MEMBER_ALREADY_DELETED); // 중복 탈퇴 방지
+		}
+
+		member.softDelete(); // deletedAt = now() 설정 (dirty checking으로 자동 반영)
+
+		List<RefreshToken> refreshTokens = refreshTokenRepository.findAllByMember(member); // 해당 회원의 모든 RefreshToken 조회
+		refreshTokens.forEach(RefreshToken::revoke); // 각 토큰의 revokedAt = now() 설정 → 재로그인 차단
+
+		fcmTokenRepository.deleteAllByMember(member); // 해당 회원의 FCM 토큰 전체 삭제 → 탈퇴 후 푸시 알림 차단
 	}
 }
