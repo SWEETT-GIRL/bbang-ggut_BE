@@ -36,6 +36,11 @@ public class AuthService {
 		RefreshToken savedToken = refreshTokenRepository.findByToken(refreshToken)
 			.orElseThrow(() -> new CustomException(GeneralErrorCode._UNAUTHORIZED));
 
+		// revokedAt이 설정된 경우 — 로그아웃 또는 탈퇴로 무효화된 토큰
+		if (savedToken.getRevokedAt() != null) {
+			throw new CustomException(GeneralErrorCode._UNAUTHORIZED);
+		}
+
 		// DB에 저장된 만료 시각 확인
 		if (savedToken.getExpiredAt().isBefore(LocalDateTime.now())) {
 			throw new CustomException(GeneralErrorCode._UNAUTHORIZED);
@@ -46,13 +51,13 @@ public class AuthService {
 		return jwtProvider.generateAccessToken(memberId);
 	}
 
-	// 로그아웃: DB에서 RefreshToken 삭제
-	// 삭제하면 해당 토큰으로 재발급 불가 → 사실상 로그아웃
+	// 로그아웃: RefreshToken의 revokedAt을 현재 시각으로 설정
+	// 삭제 대신 revoke하여 이력을 보존하고, refresh() 호출 시 revokedAt 체크로 재발급 차단
 	@Transactional
 	public void logout(String refreshToken) {
 
 		// DB에서 토큰 조회 — 없으면 이미 로그아웃된 상태이므로 무시
 		refreshTokenRepository.findByToken(refreshToken)
-			.ifPresent(refreshTokenRepository::delete);
+			.ifPresent(RefreshToken::revoke); // revokedAt = now() 설정 (dirty checking으로 자동 반영)
 	}
 }
