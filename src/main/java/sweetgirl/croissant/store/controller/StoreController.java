@@ -81,7 +81,7 @@ public class StoreController {
 	public ResponseEntity<ApiResponse<Void>> subscribeStore(
 			@PathVariable Long storeId,
 			@AuthenticationPrincipal Long memberId) {
-		storeService.subscribeStore(storeId, 2L);
+		storeService.subscribeStore(storeId, memberId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -90,7 +90,7 @@ public class StoreController {
 	public ResponseEntity<ApiResponse<Void>> unsubscribeStore(
 			@PathVariable Long storeId,
 			@AuthenticationPrincipal Long memberId) {
-		storeService.unsubscribeStore(storeId, 2L);
+		storeService.unsubscribeStore(storeId, memberId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 }
