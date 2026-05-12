@@ -87,8 +87,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 				.startTime(LocalTime.of(8, 0))
 				.endTime(LocalTime.of(21, 0))
 				.daysOfWeek("")
-				.notificationRadius(NotificationRadius.R500)
-				.isTimeRestricted(false)
+				.notificationRadius(NotificationRadius.RADIUS_500)
 				.isMarketingEnabled(false)
 				.isNotificationEnabled(false)
 				.build());

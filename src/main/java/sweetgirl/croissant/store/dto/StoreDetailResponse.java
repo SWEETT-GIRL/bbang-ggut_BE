@@ -3,7 +3,8 @@ package sweetgirl.croissant.store.dto;
 import java.time.LocalTime;
 import java.util.List;
 
-import sweetgirl.croissant.common.dto.ImageResponse;
+import sweetgirl.croissant.global.dto.ImageResponse;
+import sweetgirl.croissant.menu.entity.MenuImageFile;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreBusinessHour;
 import sweetgirl.croissant.store.entity.StoreImageFile;
@@ -14,7 +15,8 @@ public record StoreDetailResponse(
 		String address,
 		List<BusinessHourResponse> businessHours,
 		String phone,
-		List<ImageResponse> images) {
+		List<ImageResponse> images,
+		List<MenuImageResponse> menuImages) {
 
 	public record BusinessHourResponse(
 			String dayOfWeek,
@@ -23,8 +25,11 @@ public record StoreDetailResponse(
 			boolean isClosed) {
 	}
 
+	public record MenuImageResponse(Long menuId, Long id, String awsKey) {
+	}
+
 	public static StoreDetailResponse of(Store store, List<StoreBusinessHour> businessHours,
-			List<StoreImageFile> images) {
+			List<StoreImageFile> images, List<MenuImageFile> menuImages) {
 		return new StoreDetailResponse(
 			store.getId(),
 			store.getName(),
@@ -37,6 +42,8 @@ public record StoreDetailResponse(
 					bh.isClosed()))
 				.toList(),
 			store.getPhone(),
-			images.stream().map(img -> new ImageResponse(img.getId(), img.getAwsKey())).toList());
+			images.stream().map(img -> new ImageResponse(img.getId(), img.getAwsKey())).toList(),
+			menuImages.stream().map(mi -> new MenuImageResponse(mi.getMenu().getId(), mi.getId(), mi.getAwsKey()))
+				.toList());
 	}
 }

@@ -26,6 +26,7 @@ import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.menu.dto.MenuImageThumbnailProjection;
 import sweetgirl.croissant.menu.dto.MenuSummaryDto;
 import sweetgirl.croissant.menu.dto.StoreMenuProjection;
+import sweetgirl.croissant.menu.entity.MenuImageFile;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.code.StoreErrorCode;
@@ -67,7 +68,8 @@ public class StoreService {
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 		List<StoreBusinessHour> businessHours = storeBusinessHourRepository.findByStoreIdOrderByDayOfWeekAsc(storeId);
 		List<StoreImageFile> images = storeImageFileRepository.findByStoreId(storeId);
-		return StoreDetailResponse.of(store, businessHours, images);
+		List<MenuImageFile> menuImages = menuImageFileRepository.findByMenuStoreId(storeId);
+		return StoreDetailResponse.of(store, businessHours, images, menuImages);
 	}
 
 	public SliceResponse<SubscribedStoreResponse> getSubscribedStores(Long memberId, Pageable pageable) {

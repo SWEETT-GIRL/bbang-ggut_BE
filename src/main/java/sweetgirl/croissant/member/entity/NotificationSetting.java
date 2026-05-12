@@ -53,9 +53,6 @@ public class NotificationSetting extends BaseTimeEntity {
 	@Column(nullable = false)
 	private boolean isMarketingEnabled;
 
-	@Column(nullable = false, columnDefinition = "boolean not null default false")
-	private boolean isTimeRestricted;
-
 	public void setDaysOfWeekList(String dayList) {
 		this.daysOfWeek = dayList;
 	}
@@ -68,10 +65,7 @@ public class NotificationSetting extends BaseTimeEntity {
 	@Builder
 	public NotificationSetting(Member member, boolean isNotificationEnabled, NotificationRadius notificationRadius,
 			LocalTime startTime, LocalTime endTime, String daysOfWeek,
-			boolean isMarketingEnabled, boolean isTimeRestricted) {
-		if (isTimeRestricted && (startTime == null || endTime == null)) {
-			throw new IllegalArgumentException("isTimeRestricted=true 이면 startTime과 endTime이 필요합니다.");
-		}
+			boolean isMarketingEnabled) {
 		this.member = member;
 		this.isNotificationEnabled = isNotificationEnabled;
 		this.notificationRadius = notificationRadius != null ? notificationRadius : NotificationRadius.R500;
@@ -79,6 +73,5 @@ public class NotificationSetting extends BaseTimeEntity {
 		this.endTime = endTime;
 		this.daysOfWeek = daysOfWeek;
 		this.isMarketingEnabled = isMarketingEnabled;
-		this.isTimeRestricted = isTimeRestricted;
 	}
 }

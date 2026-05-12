@@ -52,8 +52,8 @@ application-prod.yml
 application-staging.properties
 application-staging.yml
 .claude/settings.local.json
-
 TODO.md
 ny_plan.md
 
 **/firebase/
+
