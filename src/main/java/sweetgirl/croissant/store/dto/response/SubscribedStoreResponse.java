@@ -1,4 +1,4 @@
-package sweetgirl.croissant.store.dto;
+package sweetgirl.croissant.store.dto.response;
 
 import sweetgirl.croissant.common.enums.StoreStatus;
 import sweetgirl.croissant.store.entity.SubscribedStore;

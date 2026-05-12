@@ -1,0 +1,9 @@
+package sweetgirl.croissant.store.repository;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import sweetgirl.croissant.store.entity.StoreReportImageFile;
+
+public interface StoreReportImageFileRepository extends JpaRepository<StoreReportImageFile, Long> {
+
+}

@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import sweetgirl.croissant.menu.dto.StoreMenuProjection;
+import sweetgirl.croissant.menu.dto.projection.StoreMenuProjection;
 import sweetgirl.croissant.menu.entity.Menu;
 
 public interface MenuRepository extends JpaRepository<Menu, Long> {

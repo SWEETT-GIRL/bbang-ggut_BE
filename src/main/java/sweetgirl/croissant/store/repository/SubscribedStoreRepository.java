@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.store.dto.projection.GeofenceCandidateProjection;
 import sweetgirl.croissant.store.entity.SubscribedStore;
 
 public interface SubscribedStoreRepository extends JpaRepository<SubscribedStore, Long> {

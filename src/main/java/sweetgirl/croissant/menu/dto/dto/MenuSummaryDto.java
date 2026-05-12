@@ -1,4 +1,6 @@
-package sweetgirl.croissant.menu.dto;
+package sweetgirl.croissant.menu.dto.dto;
+
+import sweetgirl.croissant.menu.dto.projection.StoreMenuProjection;
 
 public record MenuSummaryDto(
 		Long menuId,

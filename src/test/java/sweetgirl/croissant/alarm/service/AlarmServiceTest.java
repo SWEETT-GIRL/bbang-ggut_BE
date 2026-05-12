@@ -40,9 +40,9 @@ import sweetgirl.croissant.member.entity.NotificationSetting;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
 import sweetgirl.croissant.store.code.StoreErrorCode;
+import sweetgirl.croissant.store.dto.projection.GeofenceCandidateProjection;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.exception.StoreException;
-import sweetgirl.croissant.store.repository.GeofenceCandidateProjection;
 import sweetgirl.croissant.store.repository.StoreRepository;
 import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
 

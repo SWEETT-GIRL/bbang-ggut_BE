@@ -17,10 +17,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
-import sweetgirl.croissant.member.dto.DayOfWeekResponse;
-import sweetgirl.croissant.member.dto.MenuCategoryResponse;
-import sweetgirl.croissant.member.dto.NotificationRadiusRequest;
-import sweetgirl.croissant.member.dto.NotificationRadiusResponse;
+import sweetgirl.croissant.member.dto.request.NotificationRadiusRequest;
+import sweetgirl.croissant.member.dto.response.DayOfWeekResponse;
+import sweetgirl.croissant.member.dto.response.MenuCategoryResponse;
+import sweetgirl.croissant.member.dto.response.NotificationRadiusResponse;
 import sweetgirl.croissant.member.service.MemberService;
 import sweetgirl.croissant.menu.entity.MenuCategory;
 

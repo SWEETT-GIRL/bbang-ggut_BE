@@ -1,4 +1,4 @@
-package sweetgirl.croissant.member.dto;
+package sweetgirl.croissant.member.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

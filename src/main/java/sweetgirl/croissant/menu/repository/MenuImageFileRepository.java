@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import sweetgirl.croissant.menu.dto.MenuImageThumbnailProjection;
+import sweetgirl.croissant.menu.dto.projection.MenuImageThumbnailProjection;
 import sweetgirl.croissant.menu.entity.MenuImageFile;
 
 public interface MenuImageFileRepository extends JpaRepository<MenuImageFile, Long> {

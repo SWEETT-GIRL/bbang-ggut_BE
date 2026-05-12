@@ -1,4 +1,4 @@
-package sweetgirl.croissant.store.dto;
+package sweetgirl.croissant.store.dto.projection;
 
 public interface StoreImageThumbnailProjection {
 	Long getStoreId();

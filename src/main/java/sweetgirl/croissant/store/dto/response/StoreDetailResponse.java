@@ -1,4 +1,4 @@
-package sweetgirl.croissant.store.dto;
+package sweetgirl.croissant.store.dto.response;
 
 import java.time.LocalTime;
 import java.util.List;

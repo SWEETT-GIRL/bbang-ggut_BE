@@ -1,9 +1,9 @@
-package sweetgirl.croissant.store.dto;
+package sweetgirl.croissant.store.dto.response;
 
 import java.util.List;
 
 import sweetgirl.croissant.external.kakao.dto.KakaoPlace;
-import sweetgirl.croissant.menu.dto.MenuSummaryDto;
+import sweetgirl.croissant.menu.dto.dto.MenuSummaryDto;
 import sweetgirl.croissant.store.entity.Store;
 
 public record StoreSearchResponse(
