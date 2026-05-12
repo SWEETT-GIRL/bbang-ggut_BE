@@ -16,6 +16,8 @@ import sweetgirl.croissant.alarm.code.AlarmErrorCode;
 import sweetgirl.croissant.alarm.dto.request.GeofenceEnterRequest;
 import sweetgirl.croissant.alarm.dto.response.GeofenceCandidateResponse;
 import sweetgirl.croissant.alarm.dto.response.GeofenceCandidatesResponse;
+import sweetgirl.croissant.alarm.dto.response.MarketingEnabledResponse;
+import sweetgirl.croissant.alarm.dto.response.NotificationEnabledResponse;
 import sweetgirl.croissant.alarm.dto.response.StoreNotificationResponse;
 import sweetgirl.croissant.alarm.entity.FcmToken;
 import sweetgirl.croissant.alarm.entity.StoreNotification;
@@ -49,6 +51,34 @@ public class AlarmService {
 	final SubscribedStoreRepository subscribedStoreRepository;
 	final MemberRepository memberRepository;
 	final StoreRepository storeRepository;
+
+	// 빵알람 수신 여부 조회
+	@Transactional(readOnly = true) // 조회만 하므로 readOnly
+	public NotificationEnabledResponse getNotificationEnabled(Long memberId) {
+		NotificationSetting setting = getNotificationSetting(memberId); // 알림 설정 조회, 없으면 예외
+		return NotificationEnabledResponse.from(setting); // 현재 빵알람 여부를 DTO 로 변환해 반환
+	}
+
+	// 빵알람 수신 여부 토글 — 현재 값을 반전시키고 변경된 상태 반환
+	public NotificationEnabledResponse toggleNotificationEnabled(Long memberId) {
+		NotificationSetting setting = getNotificationSetting(memberId); // 알림 설정 조회, 없으면 예외
+		setting.toggleNotificationEnabled(); // true → false 또는 false → true 로 반전
+		return NotificationEnabledResponse.from(setting); // 변경된 빵알람 여부를 DTO 로 반환
+	}
+
+	// 마케팅 알람 수신 여부 조회
+	@Transactional(readOnly = true) // 조회만 하므로 readOnly
+	public MarketingEnabledResponse getMarketingEnabled(Long memberId) {
+		NotificationSetting setting = getNotificationSetting(memberId); // 알림 설정 조회, 없으면 예외
+		return MarketingEnabledResponse.from(setting); // 현재 마케팅 알람 여부를 DTO 로 변환해 반환
+	}
+
+	// 마케팅 알람 수신 여부 토글 — 현재 값을 반전시키고 변경된 상태 반환
+	public MarketingEnabledResponse toggleMarketingEnabled(Long memberId) {
+		NotificationSetting setting = getNotificationSetting(memberId); // 알림 설정 조회, 없으면 예외
+		setting.toggleMarketingEnabled(); // true → false 또는 false → true 로 반전
+		return MarketingEnabledResponse.from(setting); // 변경된 마케팅 알람 여부를 DTO 로 반환
+	}
 
 	// 알람 히스토리 목록 조회
 	@Transactional(readOnly = true)

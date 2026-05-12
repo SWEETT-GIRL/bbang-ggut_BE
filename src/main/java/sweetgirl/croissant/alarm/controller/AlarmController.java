@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,6 +20,8 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.dto.request.FcmTokenRequest;
 import sweetgirl.croissant.alarm.dto.request.GeofenceEnterRequest;
 import sweetgirl.croissant.alarm.dto.response.GeofenceCandidatesResponse;
+import sweetgirl.croissant.alarm.dto.response.MarketingEnabledResponse;
+import sweetgirl.croissant.alarm.dto.response.NotificationEnabledResponse;
 import sweetgirl.croissant.alarm.dto.response.StoreNotificationResponse;
 import sweetgirl.croissant.alarm.service.AlarmService;
 import sweetgirl.croissant.alarm.service.FcmService;
@@ -54,6 +57,30 @@ public class AlarmController {
 			@Parameter(description = "읽음 처리할 알림 ID") @PathVariable Long id) {
 		alarmService.markAsRead(memberId, id);
 		return ApiResponse.ok(null);
+	}
+
+	@Operation(summary = "빵알람 수신 여부 조회", description = "현재 빵알람 수신 여부를 반환합니다.")
+	@GetMapping("/settings/notification") // GET /alarm/settings/notification
+	public ApiResponse<NotificationEnabledResponse> getNotificationEnabled(@AuthenticationPrincipal Long memberId) {
+		return ApiResponse.ok(alarmService.getNotificationEnabled(memberId)); // 서비스에서 현재 상태 조회 후 응답
+	}
+
+	@Operation(summary = "빵알람 수신 여부 토글", description = "빵알람 수신 여부를 반전시키고 변경된 상태를 반환합니다.")
+	@PatchMapping("/settings/notification") // PATCH /alarm/settings/notification — request body 없이 호출
+	public ApiResponse<NotificationEnabledResponse> toggleNotificationEnabled(@AuthenticationPrincipal Long memberId) {
+		return ApiResponse.ok(alarmService.toggleNotificationEnabled(memberId)); // 토글 후 변경된 상태 응답
+	}
+
+	@Operation(summary = "마케팅 알람 수신 여부 조회", description = "현재 마케팅 알람 수신 여부를 반환합니다.")
+	@GetMapping("/settings/marketing") // GET /alarm/settings/marketing
+	public ApiResponse<MarketingEnabledResponse> getMarketingEnabled(@AuthenticationPrincipal Long memberId) {
+		return ApiResponse.ok(alarmService.getMarketingEnabled(memberId)); // 서비스에서 현재 상태 조회 후 응답
+	}
+
+	@Operation(summary = "마케팅 알람 수신 여부 토글", description = "마케팅 알람 수신 여부를 반전시키고 변경된 상태를 반환합니다.")
+	@PatchMapping("/settings/marketing") // PATCH /alarm/settings/marketing — request body 없이 호출
+	public ApiResponse<MarketingEnabledResponse> toggleMarketingEnabled(@AuthenticationPrincipal Long memberId) {
+		return ApiResponse.ok(alarmService.toggleMarketingEnabled(memberId)); // 토글 후 변경된 상태 응답
 	}
 
 	@Operation(summary = "Geofence 후보 가게 조회", description = "현재 위치 기준 구독 가게 최대 20개 반환. 앱 OS Geofence 등록용.")
