@@ -6,11 +6,12 @@ type: project
 
 ## notificationRadius
 
-허용값: 30, 50, 70 (단위: 미터)  
-기본값: 50m (`NotificationRadius.RADIUS_50`)  
+허용값: 100, 300, 500, 700, 1000 (단위: 미터)  
+기본값: 500m (`NotificationRadius.RADIUS_500`)  
 구현: `NotificationRadius` enum (`common/enums/`) — DB에 STRING으로 저장
 
-**Why:** 팀 협의로 3단계 선택지로 확정. 연속값 아닌 이산값이라 enum으로 표현.
+**Why:** Geofence 전환으로 30~70m는 GPS 오차 범위 내라 불안정. 100m 이상으로 상향. 5단계로 확장.  
+**How to apply:** 기존 DB 데이터(RADIUS_30/50/70)가 있으면 RADIUS_100으로 migration 필요.
 
 ## 마케팅 알림 히스토리
 
@@ -23,6 +24,7 @@ type: project
 
 - `UNREGISTERED` / `INVALID_ARGUMENT` → FCM 토큰 비활성화 (기존)
 - 그 외 오류 → `log.error` + `AlarmException(FCM_SEND_FAILED)` throw
-- `AlarmService`에서 토큰별로 catch → `log.warn` 후 skip, `StoreNotification`은 정상 저장
+- `AlarmService`에서 토큰별로 catch → `log.warn` 후 skip
+- **하나라도 성공한 경우에만** `StoreNotification` 저장 (전부 실패 시 미저장 → 당일 재시도 가능)
 
-**Why:** FCM 예상 외 오류는 인지해야 하지만, 한 토큰 실패가 전체 히스토리 저장을 막으면 안 됨.
+**Why:** 전부 실패 시 저장하면 중복 방지 로직이 "오늘 발송됨"으로 판단해 당일 재시도 기회를 차단함.
