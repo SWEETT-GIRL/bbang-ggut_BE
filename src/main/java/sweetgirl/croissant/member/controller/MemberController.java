@@ -23,6 +23,7 @@ import sweetgirl.croissant.member.dto.NotificationRadiusResponse;
 import sweetgirl.croissant.member.service.MemberService;
 import sweetgirl.croissant.menu.entity.MenuCategory;
 
+@Tag(name = "Member", description = "사용자 API")
 @RestController
 @RequestMapping("/users")
 @RequiredArgsConstructor
@@ -30,7 +31,7 @@ public class MemberController {
 
 	private final MemberService memberService;
 
-	@Operation(summary = "내 찜 매장 수 조회", description = "로그인한 사용자가 알람 받는 중인 매장의 개수를 조회합니다.")
+	@Operation(summary = "구독 빵집 수 조회", description = "로그인한 사용자가 알림 구독 중인 빵집의 총 개수를 반환합니다.")
 	@GetMapping("/me/store-count")
 	public ApiResponse<Long> getStoreCount(@AuthenticationPrincipal Long memberId) {
 		long count = memberService.getSubscribedStoreCount(memberId);

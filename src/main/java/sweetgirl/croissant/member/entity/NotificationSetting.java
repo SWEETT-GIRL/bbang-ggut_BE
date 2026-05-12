@@ -4,6 +4,8 @@ import java.time.LocalTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -16,6 +18,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
+import sweetgirl.croissant.common.enums.NotificationRadius;
 
 @Entity
 @Table(name = "notification_setting")
@@ -34,8 +37,9 @@ public class NotificationSetting extends BaseTimeEntity {
 	@Column(nullable = false)
 	private boolean isNotificationEnabled;
 
-	@Column(nullable = false)
-	private float notificationRadius;
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 20)
+	private NotificationRadius notificationRadius;
 
 	@Column(nullable = false)
 	private LocalTime startTime;
@@ -50,7 +54,7 @@ public class NotificationSetting extends BaseTimeEntity {
 	private boolean isMarketingEnabled;
 
 	@Column(nullable = false)
-	private boolean isDndEnabled;
+	private boolean isTimeRestricted;
 
 	public void setDaysOfWeekList(String dayList) {
 		this.daysOfWeek = dayList;
@@ -62,16 +66,19 @@ public class NotificationSetting extends BaseTimeEntity {
 	}
 
 	@Builder
-	public NotificationSetting(Member member, boolean isNotificationEnabled, float notificationRadius,
+	public NotificationSetting(Member member, boolean isNotificationEnabled, NotificationRadius notificationRadius,
 			LocalTime startTime, LocalTime endTime, String daysOfWeek,
-			boolean isMarketingEnabled, boolean isDndEnabled) {
+			boolean isMarketingEnabled, boolean isTimeRestricted) {
+		if (isTimeRestricted && (startTime == null || endTime == null)) {
+			throw new IllegalArgumentException("isTimeRestricted=true 이면 startTime과 endTime이 필요합니다.");
+		}
 		this.member = member;
 		this.isNotificationEnabled = isNotificationEnabled;
-		this.notificationRadius = notificationRadius;
+		this.notificationRadius = notificationRadius != null ? notificationRadius : NotificationRadius.RADIUS_500;
 		this.startTime = startTime;
 		this.endTime = endTime;
 		this.daysOfWeek = daysOfWeek;
 		this.isMarketingEnabled = isMarketingEnabled;
-		this.isDndEnabled = isDndEnabled;
+		this.isTimeRestricted = isTimeRestricted;
 	}
 }

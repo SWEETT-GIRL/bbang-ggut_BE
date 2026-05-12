@@ -5,6 +5,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ import org.springframework.data.domain.SliceImpl;
 import sweetgirl.croissant.common.enums.StoreStatus;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.store.dto.SubscribedStoreResponse;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreImageFile;
@@ -42,12 +44,16 @@ class StoreServiceTest {
 	@Mock
 	SubscribedStoreRepository subscribedStoreRepository;
 
+	@Mock
+	MemberRepository memberRepository;
+
 	@InjectMocks
 	StoreService storeService;
 
 	@Test
 	@DisplayName("getSubscribedStores: 구독 가게 목록을 SliceResponse로 반환한다")
 	void getSubscribedStores_returnsDtoList() {
+		Long memberId = 1L;
 		Member member = mock(Member.class);
 		PageRequest pageable = PageRequest.of(0, 10);
 
@@ -63,11 +69,12 @@ class StoreServiceTest {
 		SubscribedStore subscribedStore = mock(SubscribedStore.class);
 		given(subscribedStore.getStore()).willReturn(store);
 
+		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(subscribedStoreRepository.findAllByMemberOrderByCreatedAtDesc(member, pageable))
 			.willReturn(new SliceImpl<>(List.of(subscribedStore), pageable, false));
 		given(storeImageFileRepository.findByStoreId(1L)).willReturn(List.of(image));
 
-		SliceResponse<SubscribedStoreResponse> result = storeService.getSubscribedStores(member, pageable);
+		SliceResponse<SubscribedStoreResponse> result = storeService.getSubscribedStores(memberId, pageable);
 
 		assertThat(result.content()).hasSize(1);
 		assertThat(result.hasNext()).isFalse();
@@ -81,6 +88,7 @@ class StoreServiceTest {
 	@Test
 	@DisplayName("getSubscribedStores: 이미지가 없으면 imageUrl은 null이다")
 	void getSubscribedStores_returnsNullImageUrl_whenNoImages() {
+		Long memberId = 1L;
 		Member member = mock(Member.class);
 		PageRequest pageable = PageRequest.of(0, 10);
 
@@ -93,11 +101,12 @@ class StoreServiceTest {
 		SubscribedStore subscribedStore = mock(SubscribedStore.class);
 		given(subscribedStore.getStore()).willReturn(store);
 
+		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(subscribedStoreRepository.findAllByMemberOrderByCreatedAtDesc(member, pageable))
 			.willReturn(new SliceImpl<>(List.of(subscribedStore), pageable, false));
 		given(storeImageFileRepository.findByStoreId(1L)).willReturn(List.of());
 
-		SliceResponse<SubscribedStoreResponse> result = storeService.getSubscribedStores(member, pageable);
+		SliceResponse<SubscribedStoreResponse> result = storeService.getSubscribedStores(memberId, pageable);
 
 		assertThat(result.content()).hasSize(1);
 		assertThat(result.content().get(0).imageUrl()).isNull();
@@ -106,13 +115,15 @@ class StoreServiceTest {
 	@Test
 	@DisplayName("getSubscribedStores: 구독 가게 없으면 빈 content를 반환한다")
 	void getSubscribedStores_returnsEmptyList_whenNoSubscriptions() {
+		Long memberId = 1L;
 		Member member = mock(Member.class);
 		PageRequest pageable = PageRequest.of(0, 10);
 
+		given(memberRepository.findById(memberId)).willReturn(Optional.of(member));
 		given(subscribedStoreRepository.findAllByMemberOrderByCreatedAtDesc(member, pageable))
 			.willReturn(new SliceImpl<>(List.of(), pageable, false));
 
-		SliceResponse<SubscribedStoreResponse> result = storeService.getSubscribedStores(member, pageable);
+		SliceResponse<SubscribedStoreResponse> result = storeService.getSubscribedStores(memberId, pageable);
 
 		assertThat(result.content()).isEmpty();
 		assertThat(result.hasNext()).isFalse();

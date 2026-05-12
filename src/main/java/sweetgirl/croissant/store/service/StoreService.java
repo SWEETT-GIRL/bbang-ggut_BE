@@ -19,7 +19,10 @@ import sweetgirl.croissant.external.kakao.client.KakaoLocalClient;
 import sweetgirl.croissant.external.kakao.dto.KakaoPlace;
 import sweetgirl.croissant.external.kakao.dto.KakaoSearchResult;
 import sweetgirl.croissant.global.response.SliceResponse;
+import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.exception.MemberException;
+import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.menu.dto.MenuImageThumbnailProjection;
 import sweetgirl.croissant.menu.dto.MenuSummaryDto;
 import sweetgirl.croissant.menu.dto.StoreMenuProjection;
@@ -55,6 +58,7 @@ public class StoreService {
 	private final SubscribedStoreRepository subscribedStoreRepository;
 	private final KakaoLocalClient kakaoLocalClient;
 	private final StoreAsyncService storeAsyncService;
+	private final MemberRepository memberRepository;
 	private final MenuImageFileRepository menuImageFileRepository;
 	private final MenuRepository menuRepository;
 
@@ -66,7 +70,9 @@ public class StoreService {
 		return StoreDetailResponse.of(store, businessHours, images);
 	}
 
-	public SliceResponse<SubscribedStoreResponse> getSubscribedStores(Member member, Pageable pageable) {
+	public SliceResponse<SubscribedStoreResponse> getSubscribedStores(Long memberId, Pageable pageable) {
+		Member member = memberRepository.findById(memberId)
+			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 		Slice<SubscribedStore> slice = subscribedStoreRepository.findAllByMemberOrderByCreatedAtDesc(member, pageable);
 		Slice<SubscribedStoreResponse> responsSlice = slice.map(subscribedStore -> {
 			List<StoreImageFile> images = storeImageFileRepository.findByStoreId(subscribedStore.getStore().getId());
