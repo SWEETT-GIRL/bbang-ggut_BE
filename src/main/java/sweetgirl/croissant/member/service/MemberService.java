@@ -84,8 +84,11 @@ public class MemberService {
 	}
 
 	//유저가 좋아한다고 한 빵종류 업데이트
+	@Transactional
 	public void updateLikeMenuCategory(Long memberId, String[] likedList) {
 		Member member = memberReader.getMember(memberId);
+
+		likedMenuCategoryRepository.deleteByMemberId(memberId);
 
 		for (String like : likedList) {
 			MenuKind menuKind = MenuKind.valueOf(like);

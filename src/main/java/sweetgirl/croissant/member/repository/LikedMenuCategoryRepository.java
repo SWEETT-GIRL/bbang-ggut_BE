@@ -16,4 +16,6 @@ public interface LikedMenuCategoryRepository extends JpaRepository<LikedMenuCate
 
 	@Query("SELECT lm.menuCategory FROM LikedMenuCategory lm WHERE lm.member.id = :memberId")
 	List<MenuCategory> findMenuCategoriesByMemberId(@Param("memberId") Long memberId);
+
+	void deleteByMemberId(Long memberId);
 }
