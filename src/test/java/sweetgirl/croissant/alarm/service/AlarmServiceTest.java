@@ -102,6 +102,32 @@ class AlarmServiceTest {
 	}
 
 	@Test
+	@DisplayName("getStoreNotificationHistory: 응답 DTO에 storeId가 포함된다")
+	void getStoreNotificationHistory_includesStoreId() {
+		Long memberId = 1L;
+		Member member = mock(Member.class);
+		Store store = mock(Store.class);
+		given(store.getId()).willReturn(10L);
+		given(store.getName()).willReturn("뚜레쥬르");
+
+		StoreNotification notification = mock(StoreNotification.class);
+		given(notification.getId()).willReturn(1L);
+		given(notification.getStore()).willReturn(store);
+		given(notification.getMessage()).willReturn("오픈했어요");
+		given(notification.getSentAt()).willReturn(LocalDateTime.now().minusDays(1));
+		given(notification.getReadAt()).willReturn(null);
+
+		given(memberReader.getMember(memberId)).willReturn(member);
+		given(storeNotificationRepository.findByMemberAndSentAtAfterOrderBySentAtDesc(
+			eq(member), any(LocalDateTime.class)))
+			.willReturn(List.of(notification));
+
+		List<StoreNotificationResponse> result = alarmService.getStoreNotificationHistory(memberId);
+
+		assertThat(result.get(0).getStoreId()).isEqualTo(10L);
+	}
+
+	@Test
 	@DisplayName("getStoreNotificationHistory: 알림 없으면 빈 리스트를 반환한다")
 	void getStoreNotificationHistory_returnsEmptyList_whenNoNotifications() {
 		Long memberId = 1L;
