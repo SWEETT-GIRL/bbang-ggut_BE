@@ -5,6 +5,8 @@ services:
     container_name: bbang-ggut-be
     restart: always
     environment:
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Seoul"
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILE}
       DB_URL: ${DB_URL}
       DB_USERNAME: ${DB_USERNAME}
