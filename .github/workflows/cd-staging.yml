@@ -82,6 +82,11 @@ jobs:
           aws.credentials.secret-key=${STAGING_AWS_SECRET_KEY}
           aws.region=${AWS_REGION}
           aws.s3.bucket=${STAGING_AWS_S3_BUCKET}
+
+          springdoc.swagger-ui.enabled=true
+          springdoc.api-docs.enabled=true
+          swagger.server-url=http://${STAGING_SERVER_IP}:8080
+          swagger.server-description=Staging
           EOF
 
       - name: Create Firebase service account file
