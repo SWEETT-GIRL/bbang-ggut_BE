@@ -30,6 +30,7 @@ import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.dto.projection.NearbyStoreProjection;
 import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
 import sweetgirl.croissant.store.dto.projection.TopSubscribedStoreProjection;
+import sweetgirl.croissant.store.dto.response.DistrictStoreResponse;
 import sweetgirl.croissant.store.dto.response.NearbyStoreResponse;
 import sweetgirl.croissant.store.dto.response.StoreDetailResponse;
 import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
@@ -39,6 +40,7 @@ import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreBusinessHour;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.entity.SubscribedStore;
+import sweetgirl.croissant.store.enums.District;
 import sweetgirl.croissant.store.enums.StoreStatus;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
@@ -119,6 +121,25 @@ public class StoreService {
 			.map(StoreSearchResponse::ofKakao)
 			.toList();
 		return new SliceResponse<>(responses, !kakaoResult.isEnd());
+	}
+
+	public SliceResponse<DistrictStoreResponse> getStoresByDistrict(String city, Pageable pageable) {
+		District district = District.fromCity(city)
+			.orElseThrow(() -> new StoreException(StoreErrorCode.INVALID_DISTRICT));
+
+		Slice<Store> storeSlice = storeRepository.findAllByDistrictAndStatus(district, StoreStatus.ACTIVE, pageable);
+
+		List<Long> storeIds = storeSlice.getContent().stream()
+			.map(Store::getId)
+			.toList();
+		Map<Long, String> storeThumbnailMap = getStoreThumbnails(storeIds);
+
+		Slice<DistrictStoreResponse> responseSlice = storeSlice.map(store -> {
+			String storeThumbnailUrl = storeThumbnailMap.get(store.getId());
+			return DistrictStoreResponse.of(store.getId(), store.getName(), store.getAddress(), storeThumbnailUrl);
+		});
+
+		return SliceResponse.from(responseSlice);
 	}
 
 	public SliceResponse<NearbyStoreResponse> getNearbyStores(double longitude, double latitude, Pageable pageable) {
