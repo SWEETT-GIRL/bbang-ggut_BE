@@ -41,6 +41,9 @@ public class Member {
 	@Column(nullable = false, columnDefinition = "boolean default false")
 	private boolean agreeToMarketing;
 
+	@Column(nullable = false, columnDefinition = "boolean default false")
+	private boolean agreeToNightMarketing;
+
 	@Column
 	private LocalDateTime termsAgreedAt;
 
@@ -65,6 +68,10 @@ public class Member {
 	public void updateMarketingAgreement(boolean agreeToMarketing) {
 		this.agreeToMarketing = agreeToMarketing;
 		this.marketingAgreedAt = agreeToMarketing ? LocalDateTime.now() : null;
+	}
+
+	public void updateNightMarketingAgreement(boolean agreeToNightMarketing) {
+		this.agreeToNightMarketing = agreeToNightMarketing;
 	}
 
 	public void softDelete() {

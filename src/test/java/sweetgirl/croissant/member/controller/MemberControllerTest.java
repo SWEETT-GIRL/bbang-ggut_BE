@@ -113,14 +113,15 @@ class MemberControllerTest {
 
 	@Test
 	void getConsent_returns200WithConsentStatus_whenMemberExists() throws Exception {
-		ConsentResponse response = new ConsentResponse(true, false, null, null);
+		ConsentResponse response = new ConsentResponse(true, false, false, null, null);
 		given(memberService.getConsent(any())).willReturn(response);
 
 		mockMvc.perform(get("/users/me/consent"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.agreeToTerms").value(true))
-			.andExpect(jsonPath("$.data.agreeToMarketing").value(false));
+			.andExpect(jsonPath("$.data.agreeToMarketing").value(false))
+			.andExpect(jsonPath("$.data.agreeToNightMarketing").value(false));
 	}
 
 	@Test
@@ -135,8 +136,8 @@ class MemberControllerTest {
 	// ── PATCH /users/me/consent ───────────────────────────────────────────────
 
 	@Test
-	void updateConsent_returns200WithUpdatedStatus_whenValidRequest() throws Exception {
-		ConsentResponse response = new ConsentResponse(true, true, null, null);
+	void updateConsent_returns200_whenOnlyAgreeToMarketingProvided() throws Exception {
+		ConsentResponse response = new ConsentResponse(true, true, false, null, null);
 		given(memberService.updateConsent(any(), any())).willReturn(response);
 
 		mockMvc.perform(patch("/users/me/consent")
@@ -147,10 +148,27 @@ class MemberControllerTest {
 	}
 
 	@Test
-	void updateConsent_returns400_whenAgreeToMarketingIsNull() throws Exception {
+	void updateConsent_returns200_whenOnlyAgreeToNightMarketingProvided() throws Exception {
+		ConsentResponse response = new ConsentResponse(true, false, true, null, null);
+		given(memberService.updateConsent(any(), any())).willReturn(response);
+
 		mockMvc.perform(patch("/users/me/consent")
 			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"agreeToMarketing\": null}"))
-			.andExpect(status().isBadRequest());
+			.content("{\"agreeToNightMarketing\": true}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.agreeToNightMarketing").value(true));
+	}
+
+	@Test
+	void updateConsent_returns200_whenBothFieldsProvided() throws Exception {
+		ConsentResponse response = new ConsentResponse(true, true, true, null, null);
+		given(memberService.updateConsent(any(), any())).willReturn(response);
+
+		mockMvc.perform(patch("/users/me/consent")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"agreeToMarketing\": true, \"agreeToNightMarketing\": true}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.agreeToMarketing").value(true))
+			.andExpect(jsonPath("$.data.agreeToNightMarketing").value(true));
 	}
 }
