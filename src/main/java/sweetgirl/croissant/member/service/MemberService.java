@@ -61,7 +61,12 @@ public class MemberService {
 
 	public ConsentResponse updateConsent(Long memberId, ConsentUpdateRequest request) {
 		Member member = memberReader.getMember(memberId);
-		member.updateMarketingAgreement(request.agreeToMarketing());
+		if (request.agreeToMarketing() != null) {
+			member.updateMarketingAgreement(request.agreeToMarketing());
+		}
+		if (request.agreeToNightMarketing() != null) {
+			member.updateNightMarketingAgreement(request.agreeToNightMarketing());
+		}
 		return ConsentResponse.from(member);
 	}
 

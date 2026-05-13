@@ -7,6 +7,7 @@ import sweetgirl.croissant.member.entity.Member;
 public record ConsentResponse(
 		boolean agreeToTerms,
 		boolean agreeToMarketing,
+		boolean agreeToNightMarketing,
 		LocalDateTime termsAgreedAt,
 		LocalDateTime marketingAgreedAt) {
 
@@ -14,6 +15,7 @@ public record ConsentResponse(
 		return new ConsentResponse(
 			member.isAgreeToTerms(),
 			member.isAgreeToMarketing(),
+			member.isAgreeToNightMarketing(),
 			member.getTermsAgreedAt(),
 			member.getMarketingAgreedAt());
 	}
