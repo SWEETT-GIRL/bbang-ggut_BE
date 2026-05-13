@@ -51,7 +51,8 @@ public class StoreReportController {
 			ApiResponse.ok(storeReportService.generateStoreReportPresignedUrls(memberId, storeId, request)));
 	}
 
-	@Operation(summary = "가게 제보 이미지 추가/삭제 요청", description = "")
+	@Operation(summary = "가게 제보 이미지 추가/삭제 요청", description = "가게 이미지 추가 또는 삭제 제보를 등록합니다."
+		+ " 이미지는 Presigned URL로 업로드 후 imageKeys 배열에 담아 전달하세요. 201 반환.")
 	@PostMapping("/stores/{storeId}/reports/images")
 	public ResponseEntity<ApiResponse<StoreReportResponse>> createImageReport(
 			@AuthenticationPrincipal Long memberId,
@@ -61,7 +62,7 @@ public class StoreReportController {
 			.body(ApiResponse.created(storeReportService.createImageReport(memberId, storeId, request)));
 	}
 
-	@Operation(summary = "가게 제보 - 영업시간 수정 요청", description = "")
+	@Operation(summary = "가게 제보 - 영업시간 수정 요청", description = "가게 영업시간 수정 제보를 등록합니다. 201 반환.")
 	@PostMapping("/stores/{storeId}/reports/business-hours")
 	public ResponseEntity<ApiResponse<StoreReportResponse>> createBusinessHoursReport(
 			@AuthenticationPrincipal Long memberId,
@@ -71,7 +72,7 @@ public class StoreReportController {
 			.body(ApiResponse.created(storeReportService.createBusinessHoursReport(memberId, storeId, request)));
 	}
 
-	@Operation(summary = "가게 제보 - 주소 수정 요청", description = "")
+	@Operation(summary = "가게 제보 - 주소 수정 요청", description = "가게 주소 수정 제보를 등록합니다. 주소 검색 결과를 그대로 body에 담아 전달하세요. 201 반환.")
 	@PostMapping("/stores/{storeId}/reports/address")
 	public ResponseEntity<ApiResponse<StoreReportResponse>> createAddressReport(
 			@AuthenticationPrincipal Long memberId,

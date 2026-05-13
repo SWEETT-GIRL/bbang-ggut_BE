@@ -83,12 +83,14 @@ public class MemberController {
 		return ApiResponse.ok(null);
 	}
 
+	@Operation(summary = "알림 요일 조회", description = "현재 설정된 알림 수신 요일 목록을 반환합니다.")
 	@GetMapping("/me/notification-days")
 	public ApiResponse<DayOfWeekResponse> getNotificationDays(@AuthenticationPrincipal Long memberId) {
 		DayOfWeekResponse result = memberService.getNotificationDays(memberId);
 		return ApiResponse.ok(result);
 	}
 
+	@Operation(summary = "알림 요일 등록", description = "알림 수신 요일을 설정합니다. body에 요일 문자열을 담아 보내주세요.")
 	@PostMapping("/me/notification-days")
 	public ApiResponse<Void> enrollNotificationDays(@AuthenticationPrincipal Long memberId,
 			@RequestBody String dayList) {

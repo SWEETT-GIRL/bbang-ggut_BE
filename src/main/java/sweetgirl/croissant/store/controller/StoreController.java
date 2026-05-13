@@ -60,7 +60,7 @@ public class StoreController {
 		return ResponseEntity.ok(ApiResponse.ok(storeService.searchStores(keyword, PageRequest.of(page, size))));
 	}
 
-	@Operation(summary = "근처 빵집 목록 조회")
+	@Operation(summary = "근처 빵집 목록 조회", description = "위도(lat)·경도(lng) 기준 반경 내 빵집을 거리 오름차순으로 반환합니다.")
 	@GetMapping("/nearby")
 	public ResponseEntity<ApiResponse<SliceResponse<NearbyStoreResponse>>> getNearbyStore(
 			@RequestParam double lat, @RequestParam double lng,

@@ -38,7 +38,8 @@ public class MenuReportController {
 			.ok(ApiResponse.ok(storeReportService.generateMenuReportPresignedUrls(memberId, menuId, request)));
 	}
 
-	@Operation(summary = "메뉴 수정 제보 - 가격·사진 변경 요청", description = "")
+	@Operation(summary = "메뉴 수정 제보 - 가격·사진 변경 요청", description = "메뉴 가격 또는 사진 변경 제보를 등록합니다."
+		+ " 이미지는 Presigned URL로 업로드 후 imageKeys 배열에 담아 전달하세요. 201 반환.")
 	@PostMapping("/{menuId}/reports/edit")
 	public ResponseEntity<ApiResponse<StoreReportResponse>> createMenuEditReport(
 			@AuthenticationPrincipal Long memberId,

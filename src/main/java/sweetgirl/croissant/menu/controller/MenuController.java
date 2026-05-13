@@ -31,13 +31,13 @@ public class MenuController {
 		return ResponseEntity.ok(ApiResponse.ok(menuService.getStoreMenus(storeId)));
 	}
 
-	@Operation(summary = "메뉴 상세 조회")
+	@Operation(summary = "메뉴 상세 조회", description = "menuId로 메뉴 상세 정보(이름·가격·사진·카테고리·추천 수)를 반환합니다.")
 	@GetMapping("/menus/{menuId}")
 	public ResponseEntity<ApiResponse<MenuDetailResponse>> getMenuDetail(@PathVariable Long menuId) {
 		return ResponseEntity.ok(ApiResponse.ok(menuService.getMenuDetail(menuId)));
 	}
 
-	@Operation(summary = "메뉴 추천")
+	@Operation(summary = "메뉴 추천", description = "로그인한 사용자가 메뉴를 추천합니다. 이미 추천한 경우 409를 반환합니다.")
 	@PostMapping("/menus/{menuId}/recommend")
 	public ResponseEntity<ApiResponse<Void>> recommendMenu(
 			@PathVariable Long menuId,
@@ -46,7 +46,7 @@ public class MenuController {
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
-	@Operation(summary = "메뉴 추천 취소")
+	@Operation(summary = "메뉴 추천 취소", description = "로그인한 사용자의 메뉴 추천을 취소합니다. 추천하지 않은 메뉴에 요청 시 400을 반환합니다.")
 	@DeleteMapping("/menus/{menuId}/recommend")
 	public ResponseEntity<ApiResponse<Void>> cancelMenuRecommend(
 			@PathVariable Long menuId,
