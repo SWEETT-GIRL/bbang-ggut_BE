@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
+import sweetgirl.croissant.member.dto.request.ConsentCreateRequest;
 import sweetgirl.croissant.member.dto.request.ConsentUpdateRequest;
 import sweetgirl.croissant.member.dto.request.NotificationRadiusRequest;
 import sweetgirl.croissant.member.dto.request.NotificationTimeRequest;
@@ -42,6 +43,15 @@ public class MemberController {
 	public ApiResponse<Long> getStoreCount(@AuthenticationPrincipal Long memberId) {
 		long count = memberService.getSubscribedStoreCount(memberId);
 		return ApiResponse.ok(count);
+	}
+
+	@Operation(summary = "최초 동의 저장", description = "온보딩 시 약관·마케팅·야간 광고 동의 내용을 저장합니다.")
+	@PostMapping("/me/consent")
+	public ApiResponse<Void> createConsent(
+			@AuthenticationPrincipal Long memberId,
+			@RequestBody @Valid ConsentCreateRequest request) {
+		memberService.createConsent(memberId, request);
+		return ApiResponse.ok(null);
 	}
 
 	@Operation(summary = "개인정보 동의 상태 조회", description = "로그인한 사용자의 필수 약관 및 마케팅 수신 동의 상태를 반환합니다.")
