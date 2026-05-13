@@ -15,7 +15,9 @@ public class MemberReader {
 	private final MemberRepository memberRepository;
 
 	public Member getMember(Long memberId) {
-		Member member = memberRepository.findById(memberId)
+		// TODO: 인증 완료 후 아래 폴백 제거 — SecurityContext에서 memberId 주입
+		Long resolvedId = memberId != null ? memberId : 1L;
+		Member member = memberRepository.findById(resolvedId)
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 		if (member.getDeletedAt() != null) {
 			throw new MemberException(MemberErrorCode.MEMBER_DELETED);
