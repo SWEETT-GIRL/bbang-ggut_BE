@@ -1,6 +1,8 @@
 package sweetgirl.croissant.member.service;
 
+import java.util.Arrays;
 import java.util.List; // RefreshToken 목록을 받아오기 위해 import
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -106,16 +108,35 @@ public class MemberService {
 
 	//유저 알람 가능 요일 수정 ( 가입한 모든 유저에 한해서 가입시에는 NotificationSetting 테이블에 한 행씩 디폴트 값으로 생성 )
 	public void updateNotificationDays(Long memberId, String dayList) {
-		String[] spliteDays = dayList.split(",");
-
-		for (String day : spliteDays) {
-			NotificationDay.from(day.trim());
+		// StringHttpMessageConverter가 JSON 따옴표를 그대로 읽는 경우 제거 (예: `""` → ``)
+		if (dayList != null) {
+			dayList = dayList.trim();
+			if (dayList.startsWith("\"") && dayList.endsWith("\"")) {
+				dayList = dayList.substring(1, dayList.length() - 1);
+			}
 		}
+		if (dayList == null || dayList.isBlank()) {
+			NotificationSetting setting = notificationSettingRepository.findByMemberId(memberId)
+				.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
+			setting.setDaysOfWeekList("");
+			return;
+		}
+
+		String[] splitDays = Arrays.stream(dayList.split(","))
+			.map(String::trim)
+			.filter(s -> !s.isBlank())
+			.toArray(String[]::new);
+
+		for (String day : splitDays) {
+			NotificationDay.from(day);
+		}
+
+		String cleanedDayList = Arrays.stream(splitDays).collect(Collectors.joining(","));
 
 		NotificationSetting setting = notificationSettingRepository.findByMemberId(memberId)
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 
-		setting.setDaysOfWeekList(dayList);
+		setting.setDaysOfWeekList(cleanedDayList);
 	}
 
 	// 유저의 현재 알림 반경 조회
