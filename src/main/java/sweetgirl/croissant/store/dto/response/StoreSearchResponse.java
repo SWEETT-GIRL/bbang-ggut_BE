@@ -1,5 +1,6 @@
 package sweetgirl.croissant.store.dto.response;
 
+import java.util.Collections;
 import java.util.List;
 
 import sweetgirl.croissant.external.kakao.dto.KakaoPlace;
@@ -45,6 +46,6 @@ public record StoreSearchResponse(
 			place.id(),
 			place.phone(),
 			place.x(),
-			place.y(), null);
+			place.y(), Collections.emptyList());
 	}
 }
