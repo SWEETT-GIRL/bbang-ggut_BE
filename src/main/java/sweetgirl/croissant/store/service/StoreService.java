@@ -61,13 +61,15 @@ public class StoreService {
 	private final MenuImageFileRepository menuImageFileRepository;
 	private final MenuRepository menuRepository;
 
-	public StoreDetailResponse getStoreDetail(Long storeId) {
+	public StoreDetailResponse getStoreDetail(Long memberId, Long storeId) {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 		List<StoreBusinessHour> businessHours = storeBusinessHourRepository.findByStoreIdOrderByDayOfWeekAsc(storeId);
 		List<StoreImageFile> images = storeImageFileRepository.findByStoreId(storeId);
 		List<MenuImageFile> menuImages = menuImageFileRepository.findByMenuStoreId(storeId);
-		return StoreDetailResponse.of(store, businessHours, images, menuImages);
+		boolean isSubscribed = memberId != null
+			&& subscribedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId);
+		return StoreDetailResponse.of(store, businessHours, images, menuImages, isSubscribed);
 	}
 
 	public SliceResponse<SubscribedStoreResponse> getSubscribedStores(Long memberId, Pageable pageable) {
