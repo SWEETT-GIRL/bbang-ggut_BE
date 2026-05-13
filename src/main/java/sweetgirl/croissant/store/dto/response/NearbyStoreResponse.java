@@ -1,6 +1,7 @@
 package sweetgirl.croissant.store.dto.response;
 
 import sweetgirl.croissant.store.dto.projection.NearbyStoreProjection;
+import sweetgirl.croissant.store.enums.District;
 
 public record NearbyStoreResponse(
 		Long id,
@@ -13,7 +14,7 @@ public record NearbyStoreResponse(
 		return new NearbyStoreResponse(
 			projection.getId(),
 			projection.getName(),
-			projection.getDistrict(),
+			District.toCityName(projection.getDistrict()),
 			storeThumbnailUrl,
 			distanceMeters);
 	}

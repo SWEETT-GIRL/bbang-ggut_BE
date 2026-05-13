@@ -1,6 +1,7 @@
 package sweetgirl.croissant.store.dto.response;
 
 import sweetgirl.croissant.store.dto.projection.TopSubscribedStoreProjection;
+import sweetgirl.croissant.store.enums.District;
 
 public record TopSubscribedStoreResponse(
 		Long id,
@@ -14,7 +15,7 @@ public record TopSubscribedStoreResponse(
 		return new TopSubscribedStoreResponse(
 			projection.getId(),
 			projection.getName(),
-			projection.getDistrict(),
+			District.toCityName(projection.getDistrict()),
 			storeThumbnailUrl,
 			distanceMeters,
 			projection.getSubscribeCount());
