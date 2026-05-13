@@ -71,8 +71,20 @@ public enum District {
 			return Optional.empty();
 		}
 
-		return Arrays.stream(values()).filter(district -> isMatch(address, district))
+		return Arrays.stream(values())
+			.filter(district -> isMatch(address, district))
 			.findFirst();
+	}
+
+	public static String toCityName(String enumName) {
+		if (enumName == null) {
+			return null;
+		}
+		try {
+			return District.valueOf(enumName).getCity();
+		} catch (IllegalArgumentException e) {
+			return enumName;
+		}
 	}
 
 	private static boolean isMatch(String address, District district) {
