@@ -109,6 +109,32 @@ class MemberControllerTest {
 			.andExpect(status().isNotFound());
 	}
 
+	// ── POST /users/me/consent ───────────────────────────────────────────────
+
+	@Test
+	void createConsent_returns200_whenAllFieldsProvided() throws Exception {
+		willDoNothing().given(memberService).createConsent(any(), any());
+
+		mockMvc.perform(post("/users/me/consent")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"termsAgreed\":true,\"privacyAgreed\":true,\"ageOver14Agreed\":true,"
+				+ "\"marketingAgreed\":false,\"nightMarketingAgreed\":false,"
+				+ "\"termsVersion\":\"2026-05-12\",\"privacyVersion\":\"2026-05-12\","
+				+ "\"agreedAt\":\"2026-05-13T10:00:00\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true))
+			.andExpect(jsonPath("$.data").doesNotExist());
+	}
+
+	@Test
+	void createConsent_returns400_whenRequiredFieldMissing() throws Exception {
+		mockMvc.perform(post("/users/me/consent")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"privacyAgreed\":true,\"ageOver14Agreed\":true,"
+				+ "\"marketingAgreed\":false,\"nightMarketingAgreed\":false}"))
+			.andExpect(status().isBadRequest());
+	}
+
 	// ── GET /users/me/consent ─────────────────────────────────────────────────
 
 	@Test

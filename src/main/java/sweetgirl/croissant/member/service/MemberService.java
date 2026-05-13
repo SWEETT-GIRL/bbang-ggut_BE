@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository; // 탈퇴 시 FCM 토큰 삭제를 위해 import
 import sweetgirl.croissant.member.code.MemberErrorCode;
+import sweetgirl.croissant.member.dto.request.ConsentCreateRequest;
 import sweetgirl.croissant.member.dto.request.ConsentUpdateRequest;
 import sweetgirl.croissant.member.dto.request.NotificationRadiusRequest;
 import sweetgirl.croissant.member.dto.request.NotificationTimeRequest;
@@ -52,6 +53,18 @@ public class MemberService {
 	public long getSubscribedStoreCount(Long memberId) {
 		Member member = memberReader.getMember(memberId);
 		return subscribedStoreRepository.countByMember(member);
+	}
+
+	public void createConsent(Long memberId, ConsentCreateRequest request) {
+		Member member = memberReader.getMember(memberId);
+		member.applyInitialConsent(
+			request.termsAgreed(),
+			request.privacyAgreed(),
+			request.ageOver14Agreed(),
+			request.marketingAgreed(),
+			request.nightMarketingAgreed(),
+			request.termsVersion(),
+			request.privacyVersion());
 	}
 
 	@Transactional(readOnly = true)

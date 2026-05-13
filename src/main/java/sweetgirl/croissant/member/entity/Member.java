@@ -44,6 +44,18 @@ public class Member {
 	@Column(nullable = false, columnDefinition = "boolean default false")
 	private boolean agreeToNightMarketing;
 
+	@Column(nullable = false, columnDefinition = "boolean default false")
+	private boolean agreeToPrivacy;
+
+	@Column(nullable = false, columnDefinition = "boolean default false")
+	private boolean agreeToAgeOver14;
+
+	@Column(length = 20)
+	private String termsVersion;
+
+	@Column(length = 20)
+	private String privacyVersion;
+
 	@Column
 	private LocalDateTime termsAgreedAt;
 
@@ -72,6 +84,22 @@ public class Member {
 
 	public void updateNightMarketingAgreement(boolean agreeToNightMarketing) {
 		this.agreeToNightMarketing = agreeToNightMarketing;
+	}
+
+	public void applyInitialConsent(
+			boolean termsAgreed, boolean privacyAgreed, boolean ageOver14Agreed,
+			boolean marketingAgreed, boolean nightMarketingAgreed,
+			String termsVersion, String privacyVersion) {
+		LocalDateTime now = LocalDateTime.now();
+		this.agreeToTerms = termsAgreed;
+		this.agreeToPrivacy = privacyAgreed;
+		this.agreeToAgeOver14 = ageOver14Agreed;
+		this.agreeToMarketing = marketingAgreed;
+		this.agreeToNightMarketing = nightMarketingAgreed;
+		this.termsAgreedAt = termsAgreed ? now : null;
+		this.marketingAgreedAt = marketingAgreed ? now : null;
+		this.termsVersion = termsVersion;
+		this.privacyVersion = privacyVersion;
 	}
 
 	public void softDelete() {
