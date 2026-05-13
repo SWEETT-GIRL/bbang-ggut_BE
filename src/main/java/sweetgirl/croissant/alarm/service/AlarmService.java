@@ -24,9 +24,12 @@ import sweetgirl.croissant.alarm.entity.StoreNotification;
 import sweetgirl.croissant.alarm.exception.AlarmException;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
 import sweetgirl.croissant.alarm.repository.StoreNotificationRepository;
+import sweetgirl.croissant.global.code.GeneralErrorCode;
+import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
+import sweetgirl.croissant.member.enums.NotificationRadius;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
 import sweetgirl.croissant.member.service.MemberReader;
@@ -216,8 +219,23 @@ public class AlarmService {
 	}
 
 	private NotificationSetting getNotificationSetting(Long memberId) {
+		if (memberId == null) {
+			throw new CustomException(GeneralErrorCode._UNAUTHORIZED);
+		}
 		return notificationSettingRepository.findByMemberId(memberId)
-			.orElseThrow(() -> new MemberException(MemberErrorCode.NOTIFICATION_SETTING_NOT_FOUND));
+			.orElseGet(() -> {
+				Member member = memberReader.getMember(memberId);
+				return notificationSettingRepository.save(
+					NotificationSetting.builder()
+						.member(member)
+						.startTime(LocalTime.of(8, 0))
+						.endTime(LocalTime.of(21, 0))
+						.daysOfWeek("")
+						.notificationRadius(NotificationRadius.R500)
+						.isMarketingEnabled(false)
+						.isNotificationEnabled(false)
+						.build());
+			});
 	}
 
 }
