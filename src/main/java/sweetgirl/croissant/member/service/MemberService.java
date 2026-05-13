@@ -213,6 +213,9 @@ public class MemberService {
 
 	// 회원 탈퇴 (soft delete) — deletedAt 설정 후 토큰 무효화
 	public void deleteMember(Long memberId) {
+		if (memberId == null) {
+			throw new MemberException(MemberErrorCode.UNAUTHORIZED);
+		}
 		Member member = memberRepository.findById(memberId) // id로 회원 조회
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND)); // 존재하지 않으면 예외
 
