@@ -133,10 +133,17 @@ public class StoreService {
 			.map(Store::getId)
 			.toList();
 		Map<Long, String> storeThumbnailMap = getStoreThumbnails(storeIds);
+		Map<Long, List<StoreMenuProjection>> topMenusByStore = getTopMenusByStore(storeIds);
+		Map<Long, String> menuThumbnailMap = getMenuThumbnails(topMenusByStore);
 
 		Slice<DistrictStoreResponse> responseSlice = storeSlice.map(store -> {
 			String storeThumbnailUrl = storeThumbnailMap.get(store.getId());
-			return DistrictStoreResponse.of(store.getId(), store.getName(), store.getAddress(), storeThumbnailUrl);
+			List<MenuSummaryDto> topMenus = topMenusByStore.getOrDefault(store.getId(), Collections.emptyList())
+				.stream()
+				.map(menu -> MenuSummaryDto.of(menu, menuThumbnailMap.get(menu.getMenuId())))
+				.toList();
+			return DistrictStoreResponse.of(store.getId(), store.getName(), store.getAddress(), storeThumbnailUrl,
+				topMenus);
 		});
 
 		return SliceResponse.from(responseSlice);
