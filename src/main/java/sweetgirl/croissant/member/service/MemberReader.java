@@ -15,6 +15,9 @@ public class MemberReader {
 	private final MemberRepository memberRepository;
 
 	public Member getMember(Long memberId) {
+		if (memberId == null) {
+			throw new MemberException(MemberErrorCode.UNAUTHORIZED);
+		}
 		Member member = memberRepository.findById(memberId)
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 		if (member.getDeletedAt() != null) {
