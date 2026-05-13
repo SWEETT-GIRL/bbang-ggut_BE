@@ -35,9 +35,10 @@ public class StoreController {
 	private final StoreService storeService;
 
 	@Operation(summary = "빵집 상세 조회", description = "빵집 ID로 상세 정보를 조회합니다.")
-	@GetMapping("/{id}")
-	public ResponseEntity<ApiResponse<StoreDetailResponse>> getStoreDetail(@PathVariable Long id) {
-		return ResponseEntity.ok(ApiResponse.ok(storeService.getStoreDetail(id)));
+	@GetMapping("/{storeId}")
+	public ResponseEntity<ApiResponse<StoreDetailResponse>> getStoreDetail(@AuthenticationPrincipal Long memberId,
+			@PathVariable Long storeId) {
+		return ResponseEntity.ok(ApiResponse.ok(storeService.getStoreDetail(memberId, storeId)));
 	}
 
 	@Operation(summary = "알림받는 빵집 목록 조회", description = "사용자 ID로 알림받는 빵집 목록을 조회합니다.")

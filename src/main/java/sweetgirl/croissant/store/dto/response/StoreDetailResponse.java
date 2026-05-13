@@ -16,7 +16,8 @@ public record StoreDetailResponse(
 		List<BusinessHourResponse> businessHours,
 		String phone,
 		List<ImageResponse> images,
-		List<MenuImageResponse> menuImages) {
+		List<MenuImageResponse> menuImages,
+		boolean isSubscribed) {
 
 	public record BusinessHourResponse(
 			String dayOfWeek,
@@ -29,7 +30,7 @@ public record StoreDetailResponse(
 	}
 
 	public static StoreDetailResponse of(Store store, List<StoreBusinessHour> businessHours,
-			List<StoreImageFile> images, List<MenuImageFile> menuImages) {
+			List<StoreImageFile> images, List<MenuImageFile> menuImages, boolean isSubscribed) {
 		return new StoreDetailResponse(
 			store.getId(),
 			store.getName(),
@@ -44,6 +45,7 @@ public record StoreDetailResponse(
 			store.getPhone(),
 			images.stream().map(img -> new ImageResponse(img.getId(), img.getAwsKey())).toList(),
 			menuImages.stream().map(mi -> new MenuImageResponse(mi.getMenu().getId(), mi.getId(), mi.getAwsKey()))
-				.toList());
+				.toList(),
+			isSubscribed);
 	}
 }
