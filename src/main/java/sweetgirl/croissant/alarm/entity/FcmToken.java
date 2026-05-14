@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -20,7 +21,8 @@ import sweetgirl.croissant.common.entity.BaseTimeEntity;
 import sweetgirl.croissant.member.entity.Member;
 
 @Entity
-@Table(name = "fcm_token")
+@Table(name = "fcm_token", uniqueConstraints = @UniqueConstraint(name = "uq_fcm_token_member_device", columnNames = {
+	"member_id", "device_id"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class FcmToken extends BaseTimeEntity {
@@ -40,7 +42,7 @@ public class FcmToken extends BaseTimeEntity {
 	@Column(nullable = false, length = 10)
 	private DeviceOs deviceOs;
 
-	@Column(nullable = false, length = 255)
+	@Column(nullable = false, length = 4096)
 	private String token;
 
 	@Column(nullable = false)
