@@ -12,11 +12,14 @@ import org.springframework.data.repository.query.Param;
 import sweetgirl.croissant.store.dto.projection.NearbyStoreProjection;
 import sweetgirl.croissant.store.dto.projection.TopSubscribedStoreProjection;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.enums.District;
 import sweetgirl.croissant.store.enums.StoreStatus;
 
 public interface StoreRepository extends JpaRepository<Store, Long> {
 
 	Slice<Store> findByNameContainingAndStatus(String name, StoreStatus status, Pageable pageable);
+
+	Slice<Store> findAllByDistrictAndStatus(District district, StoreStatus status, Pageable pageable);
 
 	@Modifying(flushAutomatically = true, clearAutomatically = true)
 	@Query(value = """

@@ -3,6 +3,7 @@ package sweetgirl.croissant.menu.service;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -36,7 +37,7 @@ public class MenuService {
 	private final MemberRepository memberRepository;
 	private final StoreRepository storeRepository;
 
-	public List<StoreMenuResponse> getStoreMenus(Long storeId) {
+	public List<StoreMenuResponse> getStoreMenus(Long storeId, Long memberId) {
 		if (!storeRepository.existsById(storeId)) {
 			throw new StoreException(StoreErrorCode.STORE_NOT_FOUND);
 		}
@@ -46,8 +47,21 @@ public class MenuService {
 			return Collections.emptyList();
 		}
 		Map<Long, ImageResponse> imageMap = buildMenuImageMap(menus);
+
+		Set<Long> recommendedMenuIds = Collections.emptySet();
+		if (memberId != null) {
+			List<Long> menuIds = menus.stream().map(Menu::getId).toList();
+			recommendedMenuIds = recommendMenuRepository.findByMemberIdAndMenuIdIn(memberId, menuIds).stream()
+				.map(rm -> rm.getMenu().getId())
+				.collect(Collectors.toSet());
+		}
+
+		Set<Long> finalRecommendedMenuIds = recommendedMenuIds;
 		return menus.stream()
-			.map(menu -> StoreMenuResponse.of(menu, imageMap.get(menu.getId())))
+			.map(menu -> StoreMenuResponse.of(
+				menu,
+				imageMap.get(menu.getId()),
+				finalRecommendedMenuIds.contains(menu.getId())))
 			.toList();
 	}
 

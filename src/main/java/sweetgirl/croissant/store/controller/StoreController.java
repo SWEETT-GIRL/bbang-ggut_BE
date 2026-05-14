@@ -19,6 +19,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.global.response.SliceResponse;
+import sweetgirl.croissant.store.dto.response.DistrictStoreResponse;
 import sweetgirl.croissant.store.dto.response.NearbyStoreResponse;
 import sweetgirl.croissant.store.dto.response.StoreDetailResponse;
 import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
@@ -49,6 +50,15 @@ public class StoreController {
 			@RequestParam(defaultValue = "10") int size) {
 		return ResponseEntity
 			.ok(ApiResponse.ok(storeService.getSubscribedStores(memberId, PageRequest.of(page, size))));
+	}
+
+	@Operation(summary = "지역별 빵집 조회", description = "지역명(city)으로 빵집 목록을 조회합니다.")
+	@GetMapping("/district")
+	public ResponseEntity<ApiResponse<SliceResponse<DistrictStoreResponse>>> getStoresByDistrict(
+			@Parameter(description = "지역명 (예: 종로구, 강남구)") @RequestParam String city,
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "15") int size) {
+		return ResponseEntity.ok(ApiResponse.ok(storeService.getStoresByDistrict(city, PageRequest.of(page, size))));
 	}
 
 	@Operation(summary = "빵집 검색", description = "빵집 이름으로 검색합니다. DB에 결과 없으면 카카오 로컬 API로 fallback합니다.")

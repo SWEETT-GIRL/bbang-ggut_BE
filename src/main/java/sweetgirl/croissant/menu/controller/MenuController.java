@@ -27,8 +27,10 @@ public class MenuController {
 
 	@Operation(summary = "가게 메뉴 목록 조회", description = "추천수 내림차순 전체 반환. 인기메뉴(top5) / 카테고리 필터는 클라이언트에서 처리.")
 	@GetMapping("/stores/{storeId}/menus")
-	public ResponseEntity<ApiResponse<List<StoreMenuResponse>>> getStoreMenus(@PathVariable Long storeId) {
-		return ResponseEntity.ok(ApiResponse.ok(menuService.getStoreMenus(storeId)));
+	public ResponseEntity<ApiResponse<List<StoreMenuResponse>>> getStoreMenus(
+			@PathVariable Long storeId,
+			@AuthenticationPrincipal Long memberId) {
+		return ResponseEntity.ok(ApiResponse.ok(menuService.getStoreMenus(storeId, memberId)));
 	}
 
 	@Operation(summary = "메뉴 상세 조회", description = "menuId로 메뉴 상세 정보(이름·가격·사진·카테고리·추천 수)를 반환합니다.")

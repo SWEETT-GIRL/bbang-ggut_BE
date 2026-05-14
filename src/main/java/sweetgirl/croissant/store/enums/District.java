@@ -76,6 +76,15 @@ public enum District {
 			.findFirst();
 	}
 
+	public static Optional<District> fromCity(String city) {
+		if (city == null || city.isBlank()) {
+			return Optional.empty();
+		}
+		return Arrays.stream(values())
+			.filter(district -> district.getCity().equals(city))
+			.findFirst();
+	}
+
 	public static String toCityName(String enumName) {
 		if (enumName == null) {
 			return null;
