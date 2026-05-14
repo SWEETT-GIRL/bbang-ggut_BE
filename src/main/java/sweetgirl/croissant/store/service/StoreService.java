@@ -42,7 +42,6 @@ import sweetgirl.croissant.store.entity.StoreBusinessHour;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.entity.SubscribedStore;
 import sweetgirl.croissant.store.enums.District;
-import sweetgirl.croissant.store.enums.StoreStatus;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
@@ -87,30 +86,6 @@ public class StoreService {
 	}
 
 	public SliceResponse<StoreSearchResponse> searchStores(String keyword, Pageable pageable) {
-		Slice<Store> dbResultSlice = storeRepository.findByNameContainingAndStatus(keyword, StoreStatus.ACTIVE,
-			pageable);
-
-		if (!dbResultSlice.isEmpty()) {
-			List<Long> storeIds = dbResultSlice.getContent().stream()
-				.map(Store::getId)
-				.toList();
-			Map<Long, String> storeThumbnailMap = getStoreThumbnails(storeIds);
-			Map<Long, List<StoreMenuProjection>> topMenusByStore = getTopMenusByStore(storeIds);
-			Map<Long, String> menuThumbnailMap = getMenuThumbnails(topMenusByStore);
-
-			Slice<StoreSearchResponse> responseSlice = dbResultSlice.map(store -> {
-				String storeThumbnailUrl = storeThumbnailMap.get(store.getId());
-				List<MenuSummaryDto> topMenus = topMenusByStore.getOrDefault(store.getId(), Collections.emptyList())
-					.stream()
-					.map(menu -> MenuSummaryDto.of(menu, menuThumbnailMap.get(menu.getMenuId())))
-					.toList();
-
-				return StoreSearchResponse.ofStore(store, storeThumbnailUrl, topMenus);
-			});
-
-			return SliceResponse.from(responseSlice);
-		}
-
 		KakaoSearchResult kakaoResult = kakaoLocalClient.searchByKeyword(keyword, pageable.getPageNumber() + 1);
 		List<KakaoPlace> places = kakaoResult.places();
 
@@ -118,9 +93,42 @@ public class StoreService {
 			storeAsyncService.saveKakaoPlaces(places);
 		}
 
-		List<StoreSearchResponse> responses = places.stream()
-			.map(StoreSearchResponse::ofKakao)
+		List<String> kakaoPlaceIds = places.stream()
+			.map(KakaoPlace::id)
 			.toList();
+
+		Map<String, Store> dbStoreByKakaoPlaceId = storeRepository.findByKakaoPlaceIdIn(kakaoPlaceIds)
+			.stream()
+			.collect(Collectors.toMap(Store::getKakaoPlaceId, store -> store));
+
+		List<Long> matchedStoreIds = dbStoreByKakaoPlaceId.values().stream()
+			.map(Store::getId)
+			.toList();
+
+		Map<Long, String> storeThumbnailMap = matchedStoreIds.isEmpty()
+			? Collections.emptyMap()
+			: getStoreThumbnails(matchedStoreIds);
+		Map<Long, List<StoreMenuProjection>> topMenusByStore = matchedStoreIds.isEmpty()
+			? Collections.emptyMap()
+			: getTopMenusByStore(matchedStoreIds);
+		Map<Long, String> menuThumbnailMap = getMenuThumbnails(topMenusByStore);
+
+		List<StoreSearchResponse> responses = places.stream()
+			.map(place -> {
+				Store dbStore = dbStoreByKakaoPlaceId.get(place.id());
+				if (dbStore != null) {
+					String thumbnailUrl = storeThumbnailMap.get(dbStore.getId());
+					List<MenuSummaryDto> topMenus = topMenusByStore
+						.getOrDefault(dbStore.getId(), Collections.emptyList())
+						.stream()
+						.map(menu -> MenuSummaryDto.of(menu, menuThumbnailMap.get(menu.getMenuId())))
+						.toList();
+					return StoreSearchResponse.ofKakao(place, dbStore.getId(), thumbnailUrl, topMenus);
+				}
+				return StoreSearchResponse.ofKakao(place, null, null, Collections.emptyList());
+			})
+			.toList();
+
 		return new SliceResponse<>(responses, !kakaoResult.isEnd());
 	}
 
