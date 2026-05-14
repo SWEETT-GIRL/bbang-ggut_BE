@@ -27,6 +27,7 @@ import sweetgirl.croissant.menu.entity.MenuImageFile;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.code.StoreErrorCode;
+import sweetgirl.croissant.store.dto.projection.DistrictStoreProjection;
 import sweetgirl.croissant.store.dto.projection.NearbyStoreProjection;
 import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
 import sweetgirl.croissant.store.dto.projection.TopSubscribedStoreProjection;
@@ -123,14 +124,20 @@ public class StoreService {
 		return new SliceResponse<>(responses, !kakaoResult.isEnd());
 	}
 
-	public SliceResponse<DistrictStoreResponse> getStoresByDistrict(String city, Pageable pageable) {
+	public SliceResponse<DistrictStoreResponse> getStoresByDistrict(String city, double lat, double lng,
+			Pageable pageable) {
 		District district = District.fromCity(city)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.INVALID_DISTRICT));
 
-		Slice<Store> storeSlice = storeRepository.findAllByDistrictAndStatus(district, StoreStatus.ACTIVE, pageable);
+		Slice<DistrictStoreProjection> storeSlice = storeRepository.findStoresByDistrictWithStats(
+			district.name(), lng, lat, pageable);
+
+		if (!storeSlice.hasContent()) {
+			return SliceResponse.from(new SliceImpl<>(Collections.emptyList(), pageable, false));
+		}
 
 		List<Long> storeIds = storeSlice.getContent().stream()
-			.map(Store::getId)
+			.map(DistrictStoreProjection::getId)
 			.toList();
 		Map<Long, String> storeThumbnailMap = getStoreThumbnails(storeIds);
 		Map<Long, List<StoreMenuProjection>> topMenusByStore = getTopMenusByStore(storeIds);
@@ -142,8 +149,7 @@ public class StoreService {
 				.stream()
 				.map(menu -> MenuSummaryDto.of(menu, menuThumbnailMap.get(menu.getMenuId())))
 				.toList();
-			return DistrictStoreResponse.of(store.getId(), store.getName(), store.getAddress(), storeThumbnailUrl,
-				topMenus);
+			return DistrictStoreResponse.of(store, storeThumbnailUrl, topMenus);
 		});
 
 		return SliceResponse.from(responseSlice);

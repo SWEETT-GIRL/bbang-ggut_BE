@@ -52,13 +52,16 @@ public class StoreController {
 			.ok(ApiResponse.ok(storeService.getSubscribedStores(memberId, PageRequest.of(page, size))));
 	}
 
-	@Operation(summary = "지역별 빵집 조회", description = "지역명(city)으로 빵집 목록을 조회합니다.")
+	@Operation(summary = "지역별 빵집 조회", description = "지역명(city)으로 빵집 목록을 조회합니다. 거리 계산을 위해 현재 위치(lat, lng)가 필요합니다.")
 	@GetMapping("/district")
 	public ResponseEntity<ApiResponse<SliceResponse<DistrictStoreResponse>>> getStoresByDistrict(
 			@Parameter(description = "지역명 (예: 종로구, 강남구)") @RequestParam String city,
+			@RequestParam double lat,
+			@RequestParam double lng,
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "15") int size) {
-		return ResponseEntity.ok(ApiResponse.ok(storeService.getStoresByDistrict(city, PageRequest.of(page, size))));
+		return ResponseEntity.ok(
+			ApiResponse.ok(storeService.getStoresByDistrict(city, lat, lng, PageRequest.of(page, size))));
 	}
 
 	@Operation(summary = "빵집 검색", description = "빵집 이름으로 검색합니다. DB에 결과 없으면 카카오 로컬 API로 fallback합니다.")
