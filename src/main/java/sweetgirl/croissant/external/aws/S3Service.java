@@ -8,6 +8,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
@@ -23,6 +25,7 @@ import sweetgirl.croissant.external.aws.exception.S3StorageException;
 public class S3Service {
 
 	private final S3Presigner s3Presigner;
+	private final S3Client s3Client;
 
 	@Value("${aws.s3.bucket}")
 	private String bucketName;
@@ -49,6 +52,18 @@ public class S3Service {
 
 		} catch (S3Exception e) {
 			throw new S3StorageException(S3ErrorCode.PRE_SIGNED_URL_FAILED, e.awsErrorDetails().errorMessage());
+		}
+	}
+
+	public void deleteObject(String awsKey) {
+		try {
+			DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+				.bucket(bucketName)
+				.key(awsKey)
+				.build();
+			s3Client.deleteObject(deleteRequest);
+		} catch (S3Exception e) {
+			throw new S3StorageException(S3ErrorCode.DELETE_FAILED, e.awsErrorDetails().errorMessage());
 		}
 	}
 }
