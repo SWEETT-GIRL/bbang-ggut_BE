@@ -67,4 +67,26 @@ public class Store extends BaseTimeEntity {
 		this.source = source != null ? source : StoreSource.ADMIN_REGISTERED;
 		this.status = StoreStatus.ACTIVE;
 	}
+
+	public void update(String name, String address, Point location, District district,
+			String phone, StoreStatus status) {
+		if (name != null) {
+			this.name = name;
+		}
+		if (address != null) {
+			this.address = address;
+		}
+		if (location != null) {
+			this.location = location;
+		}
+		if (district != null) {
+			this.district = district;
+		}
+		if (phone != null) {
+			this.phone = phone;
+		}
+		if (status != null) {
+			this.status = status;
+		}
+	}
 }

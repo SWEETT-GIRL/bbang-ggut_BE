@@ -8,4 +8,6 @@ import sweetgirl.croissant.store.entity.StoreBusinessHour;
 
 public interface StoreBusinessHourRepository extends JpaRepository<StoreBusinessHour, Long> {
 	List<StoreBusinessHour> findByStoreIdOrderByDayOfWeekAsc(Long storeId);
+
+	void deleteByStoreId(Long storeId);
 }

@@ -68,4 +68,23 @@ public class Menu extends BaseTimeEntity {
 	public void decrementRecommendCount() {
 		this.recommendCount = Math.max(0, this.recommendCount - 1);
 	}
+
+	public void update(String name, Integer price, String description, MenuCategory menuCategory) {
+		if (name != null) {
+			this.name = name;
+		}
+		if (price != null) {
+			this.price = price;
+		}
+		if (description != null) {
+			this.description = description;
+		}
+		if (menuCategory != null) {
+			this.menuCategory = menuCategory;
+		}
+	}
+
+	public void softDelete() {
+		this.deletedAt = LocalDateTime.now();
+	}
 }
