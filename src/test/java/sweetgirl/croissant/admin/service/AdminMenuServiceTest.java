@@ -55,7 +55,7 @@ class AdminMenuServiceTest {
 		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
 
 		MenuCategory category = mock(MenuCategory.class);
-		given(category.getName()).willReturn("소금빵");
+		given(category.getName()).willReturn(MenuKind.소금빵);
 		given(menuCategoryRepository.findByName(MenuKind.소금빵)).willReturn(Optional.of(category));
 
 		Menu saved = mock(Menu.class);
@@ -101,7 +101,7 @@ class AdminMenuServiceTest {
 		given(storeRepository.existsById(1L)).willReturn(true);
 
 		MenuCategory category = mock(MenuCategory.class);
-		given(category.getName()).willReturn("소금빵");
+		given(category.getName()).willReturn(MenuKind.소금빵);
 
 		Menu activeMenu = mock(Menu.class);
 		given(activeMenu.getId()).willReturn(1L);

@@ -27,7 +27,7 @@ public record AdminMenuResponse(
 			priceStr,
 			menu.getDescription(),
 			menu.getRecommendCount(),
-			menu.getMenuCategory().getName(),
+			menu.getMenuCategory().getName().name(),
 			photoUrls,
 			null,
 			statusStr,
