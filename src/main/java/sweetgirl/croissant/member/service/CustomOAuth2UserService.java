@@ -42,7 +42,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 		// 카카오 응답 JSON을 파싱해서 필요한 값(providerId, email, nickname)만 추출
 		KakaoOAuth2UserInfo userInfo = new KakaoOAuth2UserInfo(oAuth2User.getAttributes());
 
-		Boolean isNewMember = !oAuthRepository.existsByProviderAndProviderId(OAuthProvider.KAKAO,
+		boolean existsOAuth = oAuthRepository.existsByProviderAndProviderId(OAuthProvider.KAKAO,
 			userInfo.getProviderId());
 
 		// DB에서 provider(KAKAO) + providerId 조합으로 기존 OAuth 레코드 조회
@@ -51,13 +51,21 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 			.findByProviderAndProviderId(OAuthProvider.KAKAO, userInfo.getProviderId())
 			.orElseGet(() -> registerNewMember(userInfo)); // 없으면 신규 가입 처리
 
-		notificationSettingRepository.findByMemberId(oAuth.getMember().getId())
-			.orElseGet(() -> createDefaultNotificationSetting(oAuth.getMember()));
+		Member member = oAuth.getMember();
+		boolean isDeletedMember = member.isDeleted();
+		if (isDeletedMember) {
+			member.reactivate();
+		}
+		// 신규 가입이거나 탈퇴 후 재가입이면 isNew = true
+		Boolean isNewMember = !existsOAuth || isDeletedMember;
+
+		notificationSettingRepository.findByMemberId(member.getId())
+			.orElseGet(() -> createDefaultNotificationSetting(member));
 
 		// CustomOAuth2User로 감싸서 반환
 		// 카카오 원본 OAuth2User + 우리 DB의 memberId를 함께 보관
 		// OAuth2SuccessHandler에서 authentication.getPrincipal()로 꺼내 JWT 생성에 사용
-		return new CustomOAuth2User(oAuth2User, oAuth.getMember().getId(), isNewMember);
+		return new CustomOAuth2User(oAuth2User, member.getId(), isNewMember);
 	}
 
 	// 신규 가입 처리: Member 생성 → OAuth 생성 → 저장

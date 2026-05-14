@@ -40,16 +40,24 @@ public class AppleAuthService {
 	public AppleLoginResponse login(String identityToken, String deviceId) {
 		AppleTokenClaims claims = appleTokenVerifier.verify(identityToken);
 
-		boolean isNew = !oAuthRepository.existsByProviderAndProviderId(OAuthProvider.APPLE, claims.sub());
+		boolean existsOAuth = oAuthRepository.existsByProviderAndProviderId(OAuthProvider.APPLE, claims.sub());
 
 		OAuth oAuth = oAuthRepository
 			.findByProviderAndProviderId(OAuthProvider.APPLE, claims.sub())
 			.orElseGet(() -> registerNewMember(claims));
 
-		notificationSettingRepository.findByMemberId(oAuth.getMember().getId())
-			.orElseGet(() -> createDefaultNotificationSetting(oAuth.getMember()));
+		Member member = oAuth.getMember();
+		boolean isDeletedMember = member.isDeleted();
+		if (isDeletedMember) {
+			member.reactivate();
+		}
+		// 신규 가입이거나 탈퇴 후 재가입이면 isNew = true
+		boolean isNew = !existsOAuth || isDeletedMember;
 
-		Long memberId = oAuth.getMember().getId();
+		notificationSettingRepository.findByMemberId(member.getId())
+			.orElseGet(() -> createDefaultNotificationSetting(member));
+
+		Long memberId = member.getId();
 		String accessToken = jwtProvider.generateAccessToken(memberId);
 		String refreshToken = jwtProvider.generateRefreshToken(memberId);
 
