@@ -3,6 +3,7 @@ package sweetgirl.croissant.admin.controller;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -65,6 +66,14 @@ public class AdminStoreController {
 			@Parameter(description = "가게 ID") @PathVariable Long storeId,
 			@RequestBody AdminStoreUpdateRequest request) {
 		adminStoreService.updateStore(storeId, request);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "가게 삭제", description = "가게를 soft-delete합니다 (status → DELETED).")
+	@DeleteMapping("/{storeId}")
+	public ResponseEntity<ApiResponse<Void>> deleteStore(
+			@Parameter(description = "가게 ID") @PathVariable Long storeId) {
+		adminStoreService.deleteStore(storeId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 }

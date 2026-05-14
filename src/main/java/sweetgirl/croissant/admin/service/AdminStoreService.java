@@ -125,6 +125,13 @@ public class AdminStoreService {
 		}
 	}
 
+	@Transactional
+	public void deleteStore(Long storeId) {
+		Store store = storeRepository.findById(storeId)
+			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
+		store.update(null, null, null, null, null, StoreStatus.DELETED);
+	}
+
 	private AdminStoreResponse buildResponse(Store store) {
 		List<StoreBusinessHour> hours = storeBusinessHourRepository.findByStoreIdOrderByDayOfWeekAsc(store.getId());
 		List<StoreImageFile> photos = storeImageFileRepository.findByStoreId(store.getId());
