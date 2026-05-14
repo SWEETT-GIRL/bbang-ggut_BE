@@ -1,4 +1,4 @@
-package sweetgirl.croissant.admin.cotroller;
+package sweetgirl.croissant.admin.controller;
 
 import java.util.List;
 
