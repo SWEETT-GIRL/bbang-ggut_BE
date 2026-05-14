@@ -92,11 +92,11 @@ public class MemberService {
 
 		for (String like : likedList) {
 			MenuKind menuKind = MenuKind.valueOf(like);
-			MenuCategory memuCatergory = menuCategoryRepository.findByName(menuKind)
+			MenuCategory menuCategory = menuCategoryRepository.findByName(menuKind)
 				.orElseThrow(() -> new MemberException(MemberErrorCode.MENU_NOT_FOUND));
 
 			likedMenuCategoryRepository
-				.save(LikedMenuCategory.builder().member(member).menuCategory(memuCatergory).build());
+				.save(LikedMenuCategory.builder().member(member).menuCategory(menuCategory).build());
 		}
 	}
 
@@ -104,7 +104,7 @@ public class MemberService {
 	public MenuCategoryResponse getLikedMenu(Long memberId) {
 		List<MenuCategory> likedMenuCategories = likedMenuCategoryRepository.findMenuCategoriesByMemberId(memberId);
 		String[] breadKinds = likedMenuCategories.stream()
-			.map(MenuCategory::getName)
+			.map(menuCategory -> menuCategory.getName().name())
 			.toArray(String[]::new);
 		return new MenuCategoryResponse(breadKinds);
 	}

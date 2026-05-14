@@ -16,7 +16,7 @@ public record StoreMenuResponse(
 		return new StoreMenuResponse(
 			menu.getId(),
 			menu.getName(),
-			menu.getMenuCategory().getName(),
+			menu.getMenuCategory().getName().name(),
 			image,
 			menu.getPrice(),
 			menu.getRecommendCount(),
