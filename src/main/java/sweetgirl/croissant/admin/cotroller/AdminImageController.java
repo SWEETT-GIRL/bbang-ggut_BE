@@ -22,7 +22,7 @@ import sweetgirl.croissant.global.response.ApiResponse;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/admin/images")
+@RequestMapping("/admin/images")
 public class AdminImageController {
 
 	private final AdminImageService adminImageService;
