@@ -28,7 +28,7 @@ public class S3PathGenerator {
 		return String.format("%s/%s/members/%d", base, subPath, memberId);
 	}
 
-	public static String getRequirementMenuTempPath() {
-		return String.format("%s/temp/%s", S3Folder.REQUIREMENT_MENUS.getValue(), UUID.randomUUID());
+	public static String getMenuAddReportTempPath() {
+		return String.format("%s/temp/%s", S3Folder.MENU_ADD_REPORTS.getValue(), UUID.randomUUID());
 	}
 }

@@ -13,19 +13,19 @@ import sweetgirl.croissant.common.entity.ImageFile;
 import sweetgirl.croissant.external.aws.enums.MimeType;
 
 @Entity
-@Table(name = "requirement_menu_image_file")
+@Table(name = "menu_add_report_image_file")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class RequirementMenuImageFile extends ImageFile {
+public class MenuAddReportImageFile extends ImageFile {
 
 	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "requirement_menu_id", nullable = false)
-	private RequirementMenu requirementMenu;
+	@JoinColumn(name = "menu_add_report_id", nullable = false)
+	private MenuAddReport menuAddReport;
 
 	@Builder
-	public RequirementMenuImageFile(RequirementMenu requirementMenu, String name, MimeType mimeType,
+	public MenuAddReportImageFile(MenuAddReport menuAddReport, String name, MimeType mimeType,
 			String awsKey) {
 		super(name, mimeType, awsKey);
-		this.requirementMenu = requirementMenu;
+		this.menuAddReport = menuAddReport;
 	}
 }

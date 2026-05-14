@@ -18,10 +18,10 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.store.entity.Store;
 
 @Entity
-@Table(name = "requirement_menu")
+@Table(name = "menu_add_report")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class RequirementMenu extends BaseTimeEntity {
+public class MenuAddReport extends BaseTimeEntity {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -49,7 +49,7 @@ public class RequirementMenu extends BaseTimeEntity {
 	private String description;
 
 	@Builder
-	public RequirementMenu(Store store, Member member, MenuCategory menuCategory,
+	public MenuAddReport(Store store, Member member, MenuCategory menuCategory,
 			String name, Integer price, String description) {
 		this.store = store;
 		this.member = member;
