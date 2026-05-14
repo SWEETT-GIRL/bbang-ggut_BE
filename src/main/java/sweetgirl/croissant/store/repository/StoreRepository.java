@@ -88,4 +88,6 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 			@Param("lat") double latitude, @Param("limit") int limit);
 
 	boolean existsById(Long storeId);
+
+	List<Store> findByKakaoPlaceIdIn(List<String> kakaoPlaceIds);
 }
