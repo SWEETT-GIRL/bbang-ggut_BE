@@ -14,11 +14,13 @@ import sweetgirl.croissant.global.dto.ImageResponse;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
 import sweetgirl.croissant.menu.dto.projection.MenuImageThumbnailProjection;
+import sweetgirl.croissant.menu.dto.response.MenuCategoryResponse;
 import sweetgirl.croissant.menu.dto.response.MenuDetailResponse;
 import sweetgirl.croissant.menu.dto.response.StoreMenuResponse;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.entity.RecommendMenu;
 import sweetgirl.croissant.menu.exception.MenuException;
+import sweetgirl.croissant.menu.repository.MenuCategoryRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.menu.repository.RecommendMenuRepository;
@@ -36,6 +38,13 @@ public class MenuService {
 	private final RecommendMenuRepository recommendMenuRepository;
 	private final MemberRepository memberRepository;
 	private final StoreRepository storeRepository;
+	private final MenuCategoryRepository menuCategoryRepository;
+
+	public List<MenuCategoryResponse> getCategories() {
+		return menuCategoryRepository.findAll().stream()
+			.map(MenuCategoryResponse::from)
+			.toList();
+	}
 
 	public List<StoreMenuResponse> getStoreMenus(Long storeId, Long memberId) {
 		if (!storeRepository.existsById(storeId)) {

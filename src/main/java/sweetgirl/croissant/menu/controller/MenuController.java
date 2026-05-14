@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
+import sweetgirl.croissant.menu.dto.response.MenuCategoryResponse;
 import sweetgirl.croissant.menu.dto.response.MenuDetailResponse;
 import sweetgirl.croissant.menu.dto.response.StoreMenuResponse;
 import sweetgirl.croissant.menu.service.MenuService;
@@ -24,6 +25,12 @@ import sweetgirl.croissant.menu.service.MenuService;
 public class MenuController {
 
 	private final MenuService menuService;
+
+	@Operation(summary = "메뉴 카테고리 목록 조회", description = "등록된 모든 메뉴 카테고리(id, name)를 반환합니다.")
+	@GetMapping("/menu-categories")
+	public ResponseEntity<ApiResponse<List<MenuCategoryResponse>>> getCategories() {
+		return ResponseEntity.ok(ApiResponse.ok(menuService.getCategories()));
+	}
 
 	@Operation(summary = "가게 메뉴 목록 조회", description = "추천수 내림차순 전체 반환. 인기메뉴(top5) / 카테고리 필터는 클라이언트에서 처리.")
 	@GetMapping("/stores/{storeId}/menus")
