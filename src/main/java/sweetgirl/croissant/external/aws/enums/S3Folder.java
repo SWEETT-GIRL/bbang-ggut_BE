@@ -8,7 +8,8 @@ import lombok.Getter;
 public enum S3Folder {
 	STORES("stores"),
 	MENUS("menus"),
-	REPORTS("reports");
+	REPORTS("reports"),
+	REQUIREMENT_MENUS("requirement-menus");
 
 	private final String value;
 }

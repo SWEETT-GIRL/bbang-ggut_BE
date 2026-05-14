@@ -1,5 +1,7 @@
 package sweetgirl.croissant.external.aws.util;
 
+import java.util.UUID;
+
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.external.aws.enums.S3Folder;
@@ -24,5 +26,9 @@ public class S3PathGenerator {
 		String base = String.format("%s/stores/%d/menus", S3Folder.REPORTS.getValue(), storeId);
 		String subPath = (menuId != null) ? String.valueOf(menuId) : "new";
 		return String.format("%s/%s/members/%d", base, subPath, memberId);
+	}
+
+	public static String getRequirementMenuTempPath() {
+		return String.format("%s/temp/%s", S3Folder.REQUIREMENT_MENUS.getValue(), UUID.randomUUID());
 	}
 }
