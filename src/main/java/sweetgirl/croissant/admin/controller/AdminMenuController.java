@@ -92,4 +92,5 @@ public class AdminMenuController {
 		adminMenuService.deleteMenu(menuId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
+
 }

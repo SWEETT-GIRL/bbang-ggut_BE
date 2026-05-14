@@ -80,14 +80,14 @@ class AuthServiceTest {
 	// ── logout ───────────────────────────────────────────────────────────
 
 	@Test
-	void logout_deletesTokenFromDb_whenTokenExists() {
+	void logout_revokesToken_whenTokenExists() {
 		RefreshToken savedToken = mock(RefreshToken.class);
 
 		given(refreshTokenRepository.findByToken(REFRESH_TOKEN)).willReturn(Optional.of(savedToken));
 
 		authService.logout(REFRESH_TOKEN);
 
-		then(refreshTokenRepository).should().delete(savedToken);
+		then(savedToken).should().revoke();
 	}
 
 	@Test
