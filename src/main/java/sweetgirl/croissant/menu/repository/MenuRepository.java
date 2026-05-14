@@ -3,6 +3,8 @@ package sweetgirl.croissant.menu.repository;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -34,6 +36,10 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
 			ORDER BY m.recommendCount DESC
 			""")
 	List<Menu> findByStoreIdOrderByRecommendCountDesc(@Param("storeId") Long storeId);
+
+	@Query(value = "SELECT m FROM Menu m JOIN FETCH m.menuCategory JOIN FETCH m.store "
+		+ "ORDER BY m.store.id ASC, m.createdAt DESC", countQuery = "SELECT COUNT(m) FROM Menu m")
+	Page<Menu> findAllMenusWithDetails(Pageable pageable);
 
 	@Query("""
 			SELECT m FROM Menu m

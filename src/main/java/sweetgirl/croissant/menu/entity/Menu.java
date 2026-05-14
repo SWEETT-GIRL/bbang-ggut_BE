@@ -51,6 +51,9 @@ public class Menu extends BaseTimeEntity {
 	@Column(length = 255)
 	private String description;
 
+	@Column(name = "display_order")
+	private Integer displayOrder;
+
 	@Builder
 	public Menu(Store store, MenuCategory menuCategory, String name, Integer price, String description) {
 		this.store = store;
@@ -86,5 +89,9 @@ public class Menu extends BaseTimeEntity {
 
 	public void softDelete() {
 		this.deletedAt = LocalDateTime.now();
+	}
+
+	public void updateOrder(Integer displayOrder) {
+		this.displayOrder = displayOrder;
 	}
 }

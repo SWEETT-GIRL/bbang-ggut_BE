@@ -29,7 +29,7 @@ public record AdminMenuResponse(
 			menu.getRecommendCount(),
 			menu.getMenuCategory().getName(),
 			photoUrls,
-			null,
+			menu.getDisplayOrder(),
 			statusStr,
 			menu.getCreatedAt() != null ? menu.getCreatedAt().toString() : null);
 	}
