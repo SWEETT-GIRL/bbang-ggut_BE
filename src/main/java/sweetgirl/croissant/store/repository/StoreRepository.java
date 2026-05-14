@@ -9,17 +9,34 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import sweetgirl.croissant.store.dto.projection.DistrictStoreProjection;
 import sweetgirl.croissant.store.dto.projection.NearbyStoreProjection;
 import sweetgirl.croissant.store.dto.projection.TopSubscribedStoreProjection;
 import sweetgirl.croissant.store.entity.Store;
-import sweetgirl.croissant.store.enums.District;
 import sweetgirl.croissant.store.enums.StoreStatus;
 
 public interface StoreRepository extends JpaRepository<Store, Long> {
 
 	Slice<Store> findByNameContainingAndStatus(String name, StoreStatus status, Pageable pageable);
 
-	Slice<Store> findAllByDistrictAndStatus(District district, StoreStatus status, Pageable pageable);
+	@Query(value = """
+				SELECT
+					s.id,
+					s.name,
+					s.address,
+					ST_Distance(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS distance_meters,
+					COUNT(ss.id) AS subscribe_count
+				FROM store s
+				LEFT JOIN subscribed_store ss ON ss.store_id = s.id
+				WHERE s.district = CAST(:district AS VARCHAR)
+				AND s.status = 'ACTIVE'
+				GROUP BY s.id
+			""", nativeQuery = true)
+	Slice<DistrictStoreProjection> findStoresByDistrictWithStats(
+			@Param("district") String district,
+			@Param("lng") double longitude,
+			@Param("lat") double latitude,
+			Pageable pageable);
 
 	@Modifying(flushAutomatically = true, clearAutomatically = true)
 	@Query(value = """
