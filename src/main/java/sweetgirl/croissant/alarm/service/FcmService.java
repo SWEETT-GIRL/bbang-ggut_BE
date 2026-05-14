@@ -2,6 +2,7 @@ package sweetgirl.croissant.alarm.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,17 +42,20 @@ public class FcmService {
 		DeviceOs deviceOs = fcmTokenRequest.getDeviceOs();
 		String token = fcmTokenRequest.getToken();
 
-		fcmTokenRepository.findByMemberAndDeviceId(member, deviceId)
-			.ifPresentOrElse(
-				fcmToken -> fcmToken.updateToken(token),
-				() -> fcmTokenRepository.save(FcmToken.builder()
-					.member(member)
-					.deviceId(deviceId)
-					.deviceOs(deviceOs)
-					.token(token)
-					.build())
-
-			);
+		try {
+			fcmTokenRepository.findByMemberAndDeviceId(member, deviceId)
+				.ifPresentOrElse(
+					fcmToken -> fcmToken.updateToken(token),
+					() -> fcmTokenRepository.save(FcmToken.builder()
+						.member(member)
+						.deviceId(deviceId)
+						.deviceOs(deviceOs)
+						.token(token)
+						.build()));
+		} catch (DataIntegrityViolationException e) {
+			fcmTokenRepository.findByMemberAndDeviceId(member, deviceId)
+				.ifPresent(fcmToken -> fcmToken.updateToken(token));
+		}
 	}
 
 	// FCM Token 비활성화
