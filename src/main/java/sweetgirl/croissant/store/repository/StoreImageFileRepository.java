@@ -14,6 +14,8 @@ public interface StoreImageFileRepository extends JpaRepository<StoreImageFile, 
 
 	List<StoreImageFile> findByStoreId(Long storeId);
 
+	List<StoreImageFile> findByStoreIdIn(List<Long> storeIds);
+
 	Optional<StoreImageFile> findFirstByStoreIdOrderByIdAsc(Long storeId);
 
 	@Query("""

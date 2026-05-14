@@ -17,6 +17,12 @@ public interface SubscribedStoreRepository extends JpaRepository<SubscribedStore
 
 	long countByMember(Member member);
 
+	long countByStoreId(Long storeId);
+
+	@Query("SELECT ss.store.id, COUNT(ss) FROM SubscribedStore ss "
+		+ "WHERE ss.store.id IN :storeIds GROUP BY ss.store.id")
+	List<Object[]> countByStoreIdIn(@Param("storeIds") List<Long> storeIds);
+
 	Slice<SubscribedStore> findAllByMemberOrderByCreatedAtDesc(Member member, Pageable pageable);
 
 	boolean existsByMemberIdAndStoreId(Long memberId, Long storeId);

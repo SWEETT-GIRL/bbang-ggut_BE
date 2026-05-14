@@ -2,6 +2,7 @@ package sweetgirl.croissant.store.repository;
 
 import java.util.List;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -18,6 +19,12 @@ import sweetgirl.croissant.store.enums.StoreStatus;
 public interface StoreRepository extends JpaRepository<Store, Long> {
 
 	Slice<Store> findByNameContainingAndStatus(String name, StoreStatus status, Pageable pageable);
+
+	Page<Store> findByNameContainingIgnoreCase(String name, Pageable pageable);
+
+	Page<Store> findByStatus(StoreStatus status, Pageable pageable);
+
+	Page<Store> findByNameContainingIgnoreCaseAndStatus(String name, StoreStatus status, Pageable pageable);
 
 	@Query(value = """
 				SELECT
