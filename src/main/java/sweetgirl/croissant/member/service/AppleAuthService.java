@@ -90,7 +90,7 @@ public class AppleAuthService {
 				.daysOfWeek("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY")
 				.notificationRadius(NotificationRadius.R500)
 				.isMarketingEnabled(false)
-				.isNotificationEnabled(false)
+				.isNotificationEnabled(true)
 				.build());
 	}
 
