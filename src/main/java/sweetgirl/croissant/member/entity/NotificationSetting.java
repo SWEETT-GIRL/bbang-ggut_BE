@@ -47,7 +47,7 @@ public class NotificationSetting extends BaseTimeEntity {
 	@Column(nullable = false)
 	private LocalTime endTime;
 
-	@Column(nullable = false, length = 50)
+	@Column(nullable = false, length = 255)
 	private String daysOfWeek;
 
 	@Column(nullable = false)
