@@ -15,7 +15,7 @@ services:
       KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET}
       JWT_SECRET: ${JWT_SECRET}
       PROD_SERVER_IP: ${PROD_SERVER_IP}
-      STAGING_SERVER_IP: ${STAGING_SERVER_IP}
+      STAGING_SERVER_IP: "https://bbang-ggut.site"
       KAKAO_API_KEY: ${KAKAO_API_KEY}
     ports:
       - "8080:8080"
