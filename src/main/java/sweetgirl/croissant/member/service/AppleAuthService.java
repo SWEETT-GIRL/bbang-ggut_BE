@@ -48,16 +48,23 @@ public class AppleAuthService {
 
 		Member member = oAuth.getMember();
 		boolean isDeletedMember = member.isDeleted();
+		Member activeMember;
 		if (isDeletedMember) {
-			member.reactivate();
+			activeMember = memberRepository.save(
+				Member.builder()
+					.nickname("애플유저")
+					.build());
+			oAuth.updateMember(activeMember);
+		} else {
+			activeMember = member;
 		}
 		// 신규 가입이거나 탈퇴 후 재가입이면 isNew = true
 		boolean isNew = !existsOAuth || isDeletedMember;
 
-		notificationSettingRepository.findByMemberId(member.getId())
-			.orElseGet(() -> createDefaultNotificationSetting(member));
+		notificationSettingRepository.findByMemberId(activeMember.getId())
+			.orElseGet(() -> createDefaultNotificationSetting(activeMember));
 
-		Long memberId = member.getId();
+		Long memberId = activeMember.getId();
 		String accessToken = jwtProvider.generateAccessToken(memberId);
 		String refreshToken = jwtProvider.generateRefreshToken(memberId);
 

@@ -53,19 +53,26 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
 		Member member = oAuth.getMember();
 		boolean isDeletedMember = member.isDeleted();
+		Member activeMember;
 		if (isDeletedMember) {
-			member.reactivate();
+			activeMember = memberRepository.save(
+				Member.builder()
+					.nickname(userInfo.getNickname())
+					.build());
+			oAuth.updateMember(activeMember);
+		} else {
+			activeMember = member;
 		}
 		// 신규 가입이거나 탈퇴 후 재가입이면 isNew = true
 		Boolean isNewMember = !existsOAuth || isDeletedMember;
 
-		notificationSettingRepository.findByMemberId(member.getId())
-			.orElseGet(() -> createDefaultNotificationSetting(member));
+		notificationSettingRepository.findByMemberId(activeMember.getId())
+			.orElseGet(() -> createDefaultNotificationSetting(activeMember));
 
 		// CustomOAuth2User로 감싸서 반환
 		// 카카오 원본 OAuth2User + 우리 DB의 memberId를 함께 보관
 		// OAuth2SuccessHandler에서 authentication.getPrincipal()로 꺼내 JWT 생성에 사용
-		return new CustomOAuth2User(oAuth2User, member.getId(), isNewMember);
+		return new CustomOAuth2User(oAuth2User, activeMember.getId(), isNewMember);
 	}
 
 	// 신규 가입 처리: Member 생성 → OAuth 생성 → 저장
