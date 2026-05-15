@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.google.firebase.messaging.FirebaseMessaging;
@@ -66,6 +67,8 @@ public class FcmService {
 	}
 
 	// Firebase에 푸시 메시지를 쏘는 메서드
+	// NOT_SUPPORTED: 부모 트랜잭션과 분리해 FCM 실패가 DB 트랜잭션을 rollback-only로 오염시키지 않도록
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	public void sendPushNotification(String fcmToken, String title, String body) {
 		Message message = Message.builder()
 			.setToken(fcmToken) // 어느 기기로 보낼지
