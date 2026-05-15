@@ -230,7 +230,7 @@ public class AlarmService {
 						.member(member)
 						.startTime(LocalTime.of(8, 0))
 						.endTime(LocalTime.of(21, 0))
-						.daysOfWeek("")
+						.daysOfWeek("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY")
 						.notificationRadius(NotificationRadius.R500)
 						.isMarketingEnabled(false)
 						.isNotificationEnabled(false)
