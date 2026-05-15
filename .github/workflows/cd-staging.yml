@@ -51,7 +51,7 @@ jobs:
 
           spring.security.oauth2.client.registration.kakao.client-id=${KAKAO_CLIENT_ID}
           spring.security.oauth2.client.registration.kakao.client-secret=${KAKAO_CLIENT_SECRET}
-          spring.security.oauth2.client.registration.kakao.redirect-uri=http://${STAGING_SERVER_IP}:8080/api/v1/oauth2/kakao
+          spring.security.oauth2.client.registration.kakao.redirect-uri=https://bbang-ggut.site/api/v1/oauth2/kakao
           spring.security.oauth2.client.registration.kakao.authorization-grant-type=authorization_code
           spring.security.oauth2.client.registration.kakao.scope=profile_nickname,account_email
           spring.security.oauth2.client.registration.kakao.client-name=Kakao
@@ -84,7 +84,7 @@ jobs:
           aws.s3.bucket=${{ secrets.STAGING_AWS_S3_BUCKET }}
           springdoc.swagger-ui.enabled=true
           springdoc.api-docs.enabled=true
-          swagger.server-url=http://${STAGING_SERVER_IP}:8080
+          swagger.server-url=https://bbang-ggut.site
           swagger.server-description=Staging
           EOF
 
@@ -131,7 +131,6 @@ jobs:
             echo "KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}" >> .env
             echo "KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}" >> .env
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
-            echo "STAGING_SERVER_IP=${{ secrets.STAGING_SERVER_IP }}" >> .env
             echo "KAKAO_API_KEY=${{ secrets.KAKAO_API_KEY }}" >> .env
             echo "AWS_ACCESS_KEY=${{ secrets.STAGING_AWS_ACCESS_KEY }}" >> .env
             echo "AWS_SECRET_KEY=${{ secrets.STAGING_AWS_SECRET_KEY }}" >> .env
