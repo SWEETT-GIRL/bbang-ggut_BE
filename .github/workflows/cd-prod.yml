@@ -1,0 +1,139 @@
+name: CD - Production
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew build -x test --no-daemon
+
+      - name: Set image tag
+        id: tag
+        run: echo "IMAGE_TAG=prod-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create application-prod.properties
+        run: |
+          cat > src/main/resources/application-prod.properties << 'EOF'
+          spring.datasource.url=${DB_URL}
+          spring.datasource.username=${DB_USERNAME}
+          spring.datasource.password=${DB_PASSWORD}
+          spring.datasource.driver-class-name=org.postgresql.Driver
+
+          spring.security.oauth2.client.registration.kakao.client-id=${KAKAO_CLIENT_ID}
+          spring.security.oauth2.client.registration.kakao.client-secret=${KAKAO_CLIENT_SECRET}
+          spring.security.oauth2.client.registration.kakao.redirect-uri=http://${PROD_SERVER_IP}:8080/api/v1/oauth2/kakao
+          spring.security.oauth2.client.registration.kakao.authorization-grant-type=authorization_code
+          spring.security.oauth2.client.registration.kakao.scope=profile_nickname,account_email
+          spring.security.oauth2.client.registration.kakao.client-name=Kakao
+          spring.security.oauth2.client.registration.kakao.client-authentication-method=client_secret_post
+
+          spring.security.oauth2.client.provider.kakao.authorization-uri=https://kauth.kakao.com/oauth/authorize
+          spring.security.oauth2.client.provider.kakao.token-uri=https://kauth.kakao.com/oauth/token
+          spring.security.oauth2.client.provider.kakao.user-info-uri=https://kapi.kakao.com/v2/user/me
+          spring.security.oauth2.client.provider.kakao.user-name-attribute=id
+
+          kakao.api.base-url=https://dapi.kakao.com
+          kakao.api.key=${KAKAO_API_KEY}
+
+          jwt.secret=${JWT_SECRET}
+          jwt.access-token-expiry=3600000
+          jwt.refresh-token-expiry=1209600000
+
+          firebase.config.path=firebase/firebase-service-account.json
+
+          oauth2.front-redirect-uri=bbanggut://permission-location
+
+          spring.jpa.hibernate.ddl-auto=update
+          spring.jpa.show-sql=false
+          spring.jpa.properties.hibernate.format_sql=false
+          spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+          
+          aws.credentials.access-key=${{ secrets.PROD_AWS_ACCESS_KEY }}
+          aws.credentials.secret-key=${{ secrets.PROD_AWS_SECRET_KEY }}
+          aws.region=ap-northeast-2
+          aws.s3.bucket=${{ secrets.PROD_AWS_S3_BUCKET }}
+          EOF
+
+      - name: Create Firebase service account file
+        env:
+          FIREBASE_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          mkdir -p src/main/resources/firebase
+          echo "$FIREBASE_JSON" > src/main/resources/firebase/firebase-service-account.json
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/bbang-ggut-be:${{ steps.tag.outputs.IMAGE_TAG }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/bbang-ggut-be:latest
+
+      - name: Upload docker-compose to Production EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.PROD_EC2_HOST }}
+          username: ${{ secrets.PROD_EC2_USER }}
+          key: ${{ secrets.PROD_EC2_KEY }}
+          source: docker-compose.yml
+          target: ~/app
+
+      - name: Deploy to Production EC2
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PROD_EC2_HOST }}
+          username: ${{ secrets.PROD_EC2_USER }}
+          key: ${{ secrets.PROD_EC2_KEY }}
+          script: |
+            cd ~/app
+
+            echo "DOCKER_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}" > .env
+            echo "IMAGE_TAG=${{ steps.tag.outputs.IMAGE_TAG }}" >> .env
+            echo "SPRING_PROFILE=prod" >> .env
+            echo "DB_URL=${{ secrets.PROD_DB_URL }}" >> .env
+            echo "DB_USERNAME=${{ secrets.PROD_DB_USERNAME }}" >> .env
+            echo "DB_PASSWORD=${{ secrets.PROD_DB_PASSWORD }}" >> .env
+            echo "KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}" >> .env
+            echo "KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}" >> .env
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+            echo "PROD_SERVER_IP=${{ secrets.PROD_SERVER_IP }}" >> .env
+            echo "KAKAO_API_KEY=${{ secrets.KAKAO_API_KEY }}" >> .env
+            echo "AWS_ACCESS_KEY=${{ secrets.PROD_AWS_ACCESS_KEY }}" >> .env
+            echo "AWS_SECRET_KEY=${{ secrets.PROD_AWS_SECRET_KEY }}" >> .env
+            echo "AWS_REGION=ap-northeast-2" >> .env
+            echo "AWS_S3_BUCKET=${{ secrets.PROD_AWS_S3_BUCKET }}" >> .env
+
+            docker compose pull
+            docker compose up -d
+            docker image prune -a -f

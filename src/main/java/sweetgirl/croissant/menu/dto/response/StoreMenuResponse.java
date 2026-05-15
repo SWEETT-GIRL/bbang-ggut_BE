@@ -1,0 +1,25 @@
+package sweetgirl.croissant.menu.dto.response;
+
+import sweetgirl.croissant.global.dto.ImageResponse;
+import sweetgirl.croissant.menu.entity.Menu;
+
+public record StoreMenuResponse(
+		Long menuId,
+		String name,
+		String category,
+		ImageResponse image,
+		Integer price,
+		int recommendCount,
+		boolean isRecommended) {
+
+	public static StoreMenuResponse of(Menu menu, ImageResponse image, boolean isRecommended) {
+		return new StoreMenuResponse(
+			menu.getId(),
+			menu.getName(),
+			menu.getMenuCategory().getName().name(),
+			image,
+			menu.getPrice(),
+			menu.getRecommendCount(),
+			isRecommended);
+	}
+}

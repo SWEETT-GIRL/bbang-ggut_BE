@@ -1,0 +1,23 @@
+#!/bin/sh
+
+echo "Running Spotless (auto format)..."
+./gradlew spotlessApply --daemon -q 2>&1
+
+if [ $? -ne 0 ]; then
+    echo "Spotless failed."
+    exit 1
+fi
+
+git add -u
+
+echo "Running Checkstyle (Naver convention)..."
+./gradlew checkstyleMain checkstyleTest --daemon -q 2>&1
+
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "Checkstyle failed. Fix the issues above before committing."
+    echo "Tip: Check the report at build/reports/checkstyle/"
+    exit 1
+fi
+
+echo "All checks passed."

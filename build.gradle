@@ -2,6 +2,8 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '4.0.6'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'checkstyle'
+    id 'com.diffplug.spotless' version '6.25.0'
 }
 
 group = 'sweetgirl'
@@ -19,16 +21,75 @@ repositories {
 }
 
 dependencies {
+    // Spring Boot Starters
     implementation 'org.springframework.boot:spring-boot-starter'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'com.nimbusds:nimbus-jose-jwt:9.37.3'
+
+    // Database & Persistence
+    implementation 'org.hibernate.orm:hibernate-spatial'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    //OAuth
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+
+    // JSON & JWT
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+    // Documentation
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.4'
+
+    // Lombok
     compileOnly 'org.projectlombok:lombok'
-    developmentOnly 'org.springframework.boot:spring-boot-devtools'
     annotationProcessor 'org.projectlombok:lombok'
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testCompileOnly 'org.projectlombok:lombok'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testAnnotationProcessor 'org.projectlombok:lombok'
+
+    // DevTools
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+
+    // Firebase
+    implementation 'com.google.firebase:firebase-admin:9.4.2'
+
+    //AWS S3
+    implementation 'software.amazon.awssdk:s3:2.42.41'
+
+    // Testing
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'com.h2database:h2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+spotless {
+    java {
+        eclipse().configFile('config/naver-eclipse-formatter.xml')
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+}
+
+checkstyle {
+    toolVersion = '10.12.1'
+    configFile = file('config/checkstyle/naver-checkstyle-rules.xml')
+    configProperties = ['suppressionFile': 'config/checkstyle/naver-checkstyle-suppressions.xml']
+    ignoreFailures = false
+    maxWarnings = 0
+}
+
+tasks.register('installGitHooks', Exec) {
+    commandLine 'git', 'config', 'core.hooksPath', '.githooks'
+}
+
+tasks.named('compileJava') {
+    dependsOn 'installGitHooks'
 }

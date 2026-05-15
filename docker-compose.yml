@@ -1,0 +1,21 @@
+version: '3.8'
+services:
+  app:
+    image: ${DOCKER_USERNAME}/bbang-ggut-be:${IMAGE_TAG:-latest}
+    container_name: bbang-ggut-be
+    restart: always
+    environment:
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Seoul"
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILE}
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      KAKAO_CLIENT_ID: ${KAKAO_CLIENT_ID}
+      KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET}
+      JWT_SECRET: ${JWT_SECRET}
+      PROD_SERVER_IP: ${PROD_SERVER_IP}
+      STAGING_SERVER_IP: "https://bbang-ggut.site"
+      KAKAO_API_KEY: ${KAKAO_API_KEY}
+    ports:
+      - "8080:8080"
