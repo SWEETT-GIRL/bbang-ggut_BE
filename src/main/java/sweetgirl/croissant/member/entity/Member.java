@@ -110,16 +110,4 @@ public class Member {
 		return this.deletedAt != null;
 	}
 
-	public void reactivate() {
-		this.deletedAt = null;
-		this.agreeToTerms = false;
-		this.agreeToPrivacy = false;
-		this.agreeToAgeOver14 = false;
-		this.agreeToMarketing = false;
-		this.agreeToNightMarketing = false;
-		this.termsVersion = null;
-		this.privacyVersion = null;
-		this.termsAgreedAt = null;
-		this.marketingAgreedAt = null;
-	}
 }

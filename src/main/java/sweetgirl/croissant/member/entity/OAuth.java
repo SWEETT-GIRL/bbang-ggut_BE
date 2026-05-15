@@ -61,4 +61,8 @@ public class OAuth {
 		this.providerId = providerId;
 		this.email = email;
 	}
+
+	public void updateMember(Member newMember) {
+		this.member = newMember;
+	}
 }
