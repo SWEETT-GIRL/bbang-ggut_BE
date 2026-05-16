@@ -1,6 +1,5 @@
 package sweetgirl.croissant.menu.service;
 
-import java.util.Collections;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -66,17 +65,14 @@ public class MenuAddReportService {
 
 		menuAddReportRepository.save(menuAddReport);
 
-		List<ImageSaveRequest> images = request.getImages() != null ? request.getImages() : Collections.emptyList();
-		if (!images.isEmpty()) {
-			List<MenuAddReportImageFile> imageFiles = images.stream()
-				.map(img -> MenuAddReportImageFile.builder()
-					.menuAddReport(menuAddReport)
-					.name(img.getFileName())
-					.mimeType(MimeType.fromString(img.getMimeType()))
-					.awsKey(img.getAwsKey())
-					.build())
-				.toList();
-			menuAddReportImageFileRepository.saveAll(imageFiles);
-		}
+		List<MenuAddReportImageFile> imageFiles = request.getImages().stream()
+			.map(img -> MenuAddReportImageFile.builder()
+				.menuAddReport(menuAddReport)
+				.name(img.getFileName())
+				.mimeType(MimeType.fromString(img.getMimeType()))
+				.awsKey(img.getAwsKey())
+				.build())
+			.toList();
+		menuAddReportImageFileRepository.saveAll(imageFiles);
 	}
 }
