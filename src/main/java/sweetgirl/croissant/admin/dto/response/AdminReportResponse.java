@@ -3,6 +3,7 @@ package sweetgirl.croissant.admin.dto.response;
 import java.util.List;
 
 import sweetgirl.croissant.menu.entity.MenuAddReport;
+import sweetgirl.croissant.menu.entity.MenuAddReportImageFile;
 import sweetgirl.croissant.store.entity.StoreReport;
 import sweetgirl.croissant.store.entity.StoreReportImageFile;
 
@@ -34,7 +35,7 @@ public record AdminReportResponse(
 			report.getCreatedAt() != null ? report.getCreatedAt().toString() : null);
 	}
 
-	public static AdminReportResponse ofMenuAddReport(MenuAddReport report) {
+	public static AdminReportResponse ofMenuAddReport(MenuAddReport report, List<MenuAddReportImageFile> images) {
 		String message = report.getName()
 			+ (report.getPrice() != null ? " / " + report.getPrice() + "원" : "")
 			+ (report.getDescription() != null ? " / " + report.getDescription() : "");
@@ -47,7 +48,7 @@ public record AdminReportResponse(
 			"MENU_ADD",
 			report.getStatus().name(),
 			message,
-			List.of(),
+			images.stream().map(MenuAddReportImageFile::getAwsKey).toList(),
 			report.getReviewedAt() != null ? report.getReviewedAt().toString() : null,
 			report.getCreatedAt() != null ? report.getCreatedAt().toString() : null);
 	}

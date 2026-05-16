@@ -15,6 +15,8 @@ import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
 import sweetgirl.croissant.admin.dto.response.AdminReportResponse;
 import sweetgirl.croissant.admin.exception.AdminException;
 import sweetgirl.croissant.menu.entity.MenuAddReport;
+import sweetgirl.croissant.menu.entity.MenuAddReportImageFile;
+import sweetgirl.croissant.menu.repository.MenuAddReportImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuAddReportRepository;
 import sweetgirl.croissant.store.entity.StoreReport;
 import sweetgirl.croissant.store.entity.StoreReportImageFile;
@@ -30,6 +32,7 @@ public class AdminReportService {
 	private final StoreReportRepository storeReportRepository;
 	private final MenuAddReportRepository menuAddReportRepository;
 	private final StoreReportImageFileRepository storeReportImageFileRepository;
+	private final MenuAddReportImageFileRepository menuAddReportImageFileRepository;
 
 	public Page<AdminReportResponse> getReports(String kind, String statusStr, int page, int size) {
 		StoreReportStatus status = statusStr != null ? toStatus(statusStr) : null;
@@ -89,7 +92,14 @@ public class AdminReportService {
 		Page<MenuAddReport> reports = status != null
 			? menuAddReportRepository.findByStatusWithDetails(status, PageRequest.of(page, size))
 			: menuAddReportRepository.findAllWithDetails(PageRequest.of(page, size));
-		return reports.map(AdminReportResponse::ofMenuAddReport);
+
+		List<Long> reportIds = reports.getContent().stream().map(MenuAddReport::getId).toList();
+		Map<Long, List<MenuAddReportImageFile>> imageMap = menuAddReportImageFileRepository
+			.findByMenuAddReportIdIn(reportIds).stream()
+			.collect(Collectors.groupingBy(img -> img.getMenuAddReport().getId()));
+
+		return reports.map(r -> AdminReportResponse.ofMenuAddReport(r,
+			imageMap.getOrDefault(r.getId(), List.of())));
 	}
 
 	private StoreReportStatus toStatus(String statusStr) {
