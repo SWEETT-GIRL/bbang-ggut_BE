@@ -31,14 +31,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | NotificationSetting | 알림 수신 시간대·반경·요일 설정 |
 | Inquiry | 사용자 문의 (category: STORE·ACCOUNT·BUG·ETC) |
 | Terms | 약관/정책 (SERVICE·PRIVACY·MARKETING, 텍스트 하드코딩) |
+| Banner | 앱 메인 배너 (썸네일 + 상세 이미지, S3 presigned URL로 직접 업로드) |
 
 ## 프로젝트 구조
 
 ```
 sweetgirl.croissant
 ├── {domain}/    controller · service · repository · entity · dto/request · dto/response
-│   (alarm · member · menu · store · admin · inquiry · policy)
-├── external/    외부 API 연동 (kakao — KakaoLocalClient, DTO, 에러코드)
+│   (alarm · banner · member · menu · store · admin · inquiry · policy)
+├── external/    외부 API 연동 (kakao — KakaoLocalClient, DTO, 에러코드 / aws — S3Service, presigned URL, MimeType)
 ├── global/      ApiResponse, CustomException, BaseErrorCode, GlobalExceptionHandler
 ├── config/      FirebaseConfig, JpaConfig, SwaggerConfig
 └── common/      BaseTimeEntity, 공통 Enum
