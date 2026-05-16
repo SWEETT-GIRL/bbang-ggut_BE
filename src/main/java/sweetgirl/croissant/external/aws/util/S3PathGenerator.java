@@ -31,4 +31,8 @@ public class S3PathGenerator {
 	public static String getMenuAddReportTempPath() {
 		return String.format("%s/temp/%s", S3Folder.MENU_ADD_REPORTS.getValue(), UUID.randomUUID());
 	}
+
+	public static String getBannerPath() {
+		return String.format("%s/%s", S3Folder.BANNERS.getValue(), UUID.randomUUID());
+	}
 }

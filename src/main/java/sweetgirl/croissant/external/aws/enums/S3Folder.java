@@ -9,7 +9,8 @@ public enum S3Folder {
 	STORES("stores"),
 	MENUS("menus"),
 	REPORTS("reports"),
-	MENU_ADD_REPORTS("menu-add-reports");
+	MENU_ADD_REPORTS("menu-add-reports"),
+	BANNERS("banners");
 
 	private final String value;
 }
