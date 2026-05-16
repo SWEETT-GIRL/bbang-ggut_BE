@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -146,16 +147,21 @@ public class AlarmService {
 	// FCM 알림 발송 + 이력 저장 — 하나라도 성공했을 때만 저장 (전부 실패 시 당일 재시도 가능)
 	private void sendStoreNotification(Member member, Store store, List<FcmToken> tokens) {
 		if (tokens.isEmpty()) { // 토큰 있는지 확인
+			log.info("geofenceEnter: FCM 토큰 없음 [memberId={}, storeId={}]", member.getId(), store.getId());
 			return;
 		}
 		String title = "빵집 알림";
 		String body = store.getName() + " 근처에 있어요! 지금 방문해보세요";
+		Map<String, String> data = Map.of(
+			"type", "GEOFENCE_ENTER",
+			"storeId", String.valueOf(store.getId()),
+			"screen", "bakeryDetail");
 
 		boolean anySent = false;
 
 		for (FcmToken fcmToken : tokens) { // 등록된 모든 기기의 토큰에게 발송
 			try {
-				fcmService.sendPushNotification(fcmToken.getToken(), title, body);
+				fcmService.sendPushNotification(fcmToken.getToken(), title, body, data);
 				anySent = true;
 			} catch (AlarmException e) {
 				log.warn("FCM 발송 실패 [memberId={}, storeId={}, token={}]",
@@ -192,9 +198,12 @@ public class AlarmService {
 	// Geofence 진입 이벤트 처리 — 클라이언트 OS가 enter 이벤트를 받으면 서버에서 재검증 후 FCM 발송
 	@Transactional
 	public void handleGeofenceEnter(Long memberId, GeofenceEnterRequest request) {
+		log.info("geofenceEnter: 진입 요청 [memberId={}, storeId={}, lat={}, lng={}]",
+			memberId, request.getStoreId(), request.getLatitude(), request.getLongitude());
 
 		NotificationSetting setting = getNotificationSetting(memberId); // 알림 설정 조회 - 제한 있으면 silent skip
 		if (isNotificationBlocked(setting)) {
+			log.info("geofenceEnter: 알림 차단 (시간/요일 설정) [memberId={}]", memberId);
 			return;
 		}
 
@@ -208,12 +217,16 @@ public class AlarmService {
 			request.getLatitude(), request.getLongitude(), radius);
 
 		if (!valid) {
+			log.info("geofenceEnter: 구독 미등록 또는 반경 외 [memberId={}, storeId={}]", memberId, request.getStoreId());
 			throw new AlarmException(AlarmErrorCode.GEOFENCE_NOT_SUBSCRIBED);
 		}
 		if (alreadyNotified(member, store)) { // 오늘 이미 이 가게에 알림을 보냈으면 중복 발송 방지 (silent skip)
+			log.info("geofenceEnter: 오늘 이미 알림 발송됨 [memberId={}, storeId={}]", memberId, store.getId());
 			return;
 		}
 		List<FcmToken> tokens = fcmTokenRepository.findByMemberAndIsActive(member, true);
+		log.info("geofenceEnter: FCM 발송 시작 [memberId={}, storeId={}, tokenCount={}]",
+			memberId, store.getId(), tokens.size());
 		sendStoreNotification(member, store, tokens);
 
 	}

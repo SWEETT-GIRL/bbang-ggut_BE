@@ -9,6 +9,7 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
@@ -131,7 +132,7 @@ class FcmServiceTest {
 			staticMock.when(FirebaseMessaging::getInstance).thenReturn(mockFirebaseMessaging);
 			given(mockFirebaseMessaging.send(any())).willReturn("message-id");
 
-			fcmService.sendPushNotification("some-token", "제목", "내용");
+			fcmService.sendPushNotification("some-token", "제목", "내용", Map.of());
 
 			verify(fcmTokenRepository, never()).findByToken(any());
 		}
@@ -158,7 +159,7 @@ class FcmServiceTest {
 			given(mockFirebaseMessaging.send(any())).willThrow(exception);
 			given(fcmTokenRepository.findByToken("some-token")).willReturn(Optional.of(fcmToken));
 
-			fcmService.sendPushNotification("some-token", "제목", "내용");
+			fcmService.sendPushNotification("some-token", "제목", "내용", Map.of());
 
 			assertThat(fcmToken.isActive()).isFalse();
 		}
@@ -185,7 +186,7 @@ class FcmServiceTest {
 			given(mockFirebaseMessaging.send(any())).willThrow(exception);
 			given(fcmTokenRepository.findByToken("bad-token")).willReturn(Optional.of(fcmToken));
 
-			fcmService.sendPushNotification("bad-token", "제목", "내용");
+			fcmService.sendPushNotification("bad-token", "제목", "내용", Map.of());
 
 			assertThat(fcmToken.isActive()).isFalse();
 		}
@@ -203,7 +204,7 @@ class FcmServiceTest {
 			staticMock.when(FirebaseMessaging::getInstance).thenReturn(mockFirebaseMessaging);
 			given(mockFirebaseMessaging.send(any())).willThrow(exception);
 
-			assertThatThrownBy(() -> fcmService.sendPushNotification("some-token", "제목", "내용"))
+			assertThatThrownBy(() -> fcmService.sendPushNotification("some-token", "제목", "내용", Map.of()))
 				.isInstanceOf(AlarmException.class);
 
 			verify(fcmTokenRepository, never()).findByToken(any());
