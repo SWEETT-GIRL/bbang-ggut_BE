@@ -297,7 +297,7 @@ class AlarmServiceTest {
 			.willReturn(false);
 		given(fcmTokenRepository.findByMemberAndIsActive(member, true)).willReturn(List.of(token));
 		doThrow(new AlarmException(AlarmErrorCode.FCM_SEND_FAILED))
-			.when(fcmService).sendPushNotification(any(), any(), any());
+			.when(fcmService).sendPushNotification(any(), any(), any(), any());
 
 		alarmService.handleGeofenceEnter(memberId, request);
 
@@ -337,7 +337,7 @@ class AlarmServiceTest {
 			.willReturn(false);
 		given(fcmTokenRepository.findByMemberAndIsActive(member, true)).willReturn(List.of(tokenA, tokenB));
 		doThrow(new AlarmException(AlarmErrorCode.FCM_SEND_FAILED))
-			.when(fcmService).sendPushNotification(eq("token-a"), any(), any());
+			.when(fcmService).sendPushNotification(eq("token-a"), any(), any(), any());
 
 		alarmService.handleGeofenceEnter(memberId, request);
 

@@ -3,6 +3,7 @@ package sweetgirl.croissant.menu.dto.request;
 import java.util.List;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
@@ -27,5 +28,6 @@ public class MenuAddReportRequest {
 	@Size(max = 500, message = "메뉴 설명은 500자 이하여야 합니다.")
 	private String description;
 
+	@NotEmpty(message = "사진은 최소 1장 이상 필수입니다.")
 	private List<ImageSaveRequest> images;
 }
