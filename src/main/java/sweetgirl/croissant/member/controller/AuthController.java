@@ -12,10 +12,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.member.dto.request.AppleLoginRequest;
+import sweetgirl.croissant.member.dto.request.LogoutRequest;
 import sweetgirl.croissant.member.dto.request.RefreshRequest;
 import sweetgirl.croissant.member.dto.response.AppleLoginResponse;
 import sweetgirl.croissant.member.dto.response.RefreshResponse;
-import sweetgirl.croissant.member.entity.RefreshToken;
 import sweetgirl.croissant.member.service.AppleAuthService;
 import sweetgirl.croissant.member.service.AuthService;
 
@@ -43,10 +43,10 @@ public class AuthController {
 	}
 
 	// 로그아웃
-	// refreshToken을 DB에서 삭제해서 해당 토큰으로 재발급 불가능하게 만듦
+	// refreshToken을 DB에서 revoke 처리, fcmToken이 함께 오면 비활성화도 같이 처리
 	@PostMapping("/logout")
-	public ApiResponse<Void> logout(@Valid @RequestBody RefreshRequest request) {
-		authService.logout(request.getRefreshToken());
+	public ApiResponse<Void> logout(@Valid @RequestBody LogoutRequest request) {
+		authService.logout(request.getRefreshToken(), request.getFcmToken());
 		return ApiResponse.ok(null);
 	}
 }

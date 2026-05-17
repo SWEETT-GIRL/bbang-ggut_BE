@@ -83,11 +83,22 @@ class AuthControllerTest {
 
 	@Test
 	void logout_returns200_whenRequestIsValid() throws Exception {
-		willDoNothing().given(authService).logout("valid.token");
+		willDoNothing().given(authService).logout("valid.token", null);
 
 		mockMvc.perform(post("/auth/logout")
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"refreshToken\":\"valid.token\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
+	}
+
+	@Test
+	void logout_returns200WithFcmToken_whenRequestIncludesFcmToken() throws Exception {
+		willDoNothing().given(authService).logout("valid.token", "fcm-token-value");
+
+		mockMvc.perform(post("/auth/logout")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"refreshToken\":\"valid.token\",\"fcmToken\":\"fcm-token-value\"}"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true));
 	}

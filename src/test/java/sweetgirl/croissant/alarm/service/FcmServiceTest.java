@@ -9,6 +9,7 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -92,6 +93,68 @@ class FcmServiceTest {
 		verify(fcmTokenRepository).save(captor.capture());
 		assertThat(captor.getValue().getToken()).isEqualTo("new-token");
 		assertThat(captor.getValue().getDeviceId()).isEqualTo("device-001");
+	}
+
+	@Test
+	@DisplayName("saveOrUpdateFcmToken: 다른 member에 동일 token이 활성으로 있으면 비활성화한다")
+	void saveOrUpdateFcmToken_deactivatesOtherMemberToken_whenSameTokenActive() {
+		Member currentMember = mock(Member.class);
+
+		Member otherMember = mock(Member.class);
+		given(otherMember.getId()).willReturn(5L);
+
+		FcmToken otherMemberToken = FcmToken.builder()
+			.member(otherMember)
+			.deviceId("device-shared")
+			.deviceOs(DeviceOs.IOS)
+			.token("shared-token")
+			.build();
+
+		FcmTokenRequest request = mock(FcmTokenRequest.class);
+		given(request.getDeviceId()).willReturn("device-shared");
+		given(request.getDeviceOs()).willReturn(DeviceOs.IOS);
+		given(request.getToken()).willReturn("shared-token");
+
+		given(memberReader.getMember(10L)).willReturn(currentMember);
+		given(fcmTokenRepository.findAllByTokenAndIsActiveTrue("shared-token"))
+			.willReturn(List.of(otherMemberToken));
+		given(fcmTokenRepository.findByMemberAndDeviceId(currentMember, "device-shared"))
+			.willReturn(Optional.empty());
+
+		fcmService.saveOrUpdateFcmToken(10L, request);
+
+		assertThat(otherMemberToken.isActive()).isFalse();
+		verify(fcmTokenRepository).save(any());
+	}
+
+	@Test
+	@DisplayName("saveOrUpdateFcmToken: 동일 member의 활성 token row는 비활성화하지 않는다")
+	void saveOrUpdateFcmToken_keepsOwnActiveToken() {
+		Member currentMember = mock(Member.class);
+		given(currentMember.getId()).willReturn(10L);
+
+		FcmToken ownToken = FcmToken.builder()
+			.member(currentMember)
+			.deviceId("device-001")
+			.deviceOs(DeviceOs.IOS)
+			.token("same-token")
+			.build();
+
+		FcmTokenRequest request = mock(FcmTokenRequest.class);
+		given(request.getDeviceId()).willReturn("device-001");
+		given(request.getDeviceOs()).willReturn(DeviceOs.IOS);
+		given(request.getToken()).willReturn("same-token");
+
+		given(memberReader.getMember(10L)).willReturn(currentMember);
+		given(fcmTokenRepository.findAllByTokenAndIsActiveTrue("same-token"))
+			.willReturn(List.of(ownToken));
+		given(fcmTokenRepository.findByMemberAndDeviceId(currentMember, "device-001"))
+			.willReturn(Optional.of(ownToken));
+
+		fcmService.saveOrUpdateFcmToken(10L, request);
+
+		assertThat(ownToken.isActive()).isTrue();
+		assertThat(ownToken.getToken()).isEqualTo("same-token");
 	}
 
 	@Test

@@ -12,6 +12,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import sweetgirl.croissant.alarm.entity.FcmToken;
+import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
 import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.member.entity.RefreshToken;
 import sweetgirl.croissant.member.jwt.JwtProvider;
@@ -25,6 +27,9 @@ class AuthServiceTest {
 
 	@Mock
 	private RefreshTokenRepository refreshTokenRepository;
+
+	@Mock
+	private FcmTokenRepository fcmTokenRepository;
 
 	@InjectMocks
 	private AuthService authService;
@@ -85,7 +90,7 @@ class AuthServiceTest {
 
 		given(refreshTokenRepository.findByToken(REFRESH_TOKEN)).willReturn(Optional.of(savedToken));
 
-		authService.logout(REFRESH_TOKEN);
+		authService.logout(REFRESH_TOKEN, null);
 
 		then(savedToken).should().revoke();
 	}
@@ -94,7 +99,33 @@ class AuthServiceTest {
 	void logout_doesNotThrow_whenTokenNotFound() {
 		given(refreshTokenRepository.findByToken(REFRESH_TOKEN)).willReturn(Optional.empty());
 
-		assertThatCode(() -> authService.logout(REFRESH_TOKEN)).doesNotThrowAnyException();
+		assertThatCode(() -> authService.logout(REFRESH_TOKEN, null)).doesNotThrowAnyException();
 		then(refreshTokenRepository).should(never()).delete(any());
+	}
+
+	@Test
+	void logout_deactivatesFcmToken_whenFcmTokenProvided() {
+		RefreshToken savedToken = mock(RefreshToken.class);
+		FcmToken fcmToken = mock(FcmToken.class);
+
+		given(refreshTokenRepository.findByToken(REFRESH_TOKEN)).willReturn(Optional.of(savedToken));
+		given(fcmTokenRepository.findByToken("fcm-token-value")).willReturn(Optional.of(fcmToken));
+
+		authService.logout(REFRESH_TOKEN, "fcm-token-value");
+
+		then(savedToken).should().revoke();
+		then(fcmToken).should().deactivate();
+	}
+
+	@Test
+	void logout_skipsFcmDeactivation_whenFcmTokenIsBlank() {
+		RefreshToken savedToken = mock(RefreshToken.class);
+
+		given(refreshTokenRepository.findByToken(REFRESH_TOKEN)).willReturn(Optional.of(savedToken));
+
+		authService.logout(REFRESH_TOKEN, "   ");
+
+		then(savedToken).should().revoke();
+		then(fcmTokenRepository).shouldHaveNoInteractions();
 	}
 }
