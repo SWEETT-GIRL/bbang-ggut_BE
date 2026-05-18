@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.external.kakao.dto.KakaoPlace;
 import sweetgirl.croissant.external.kakao.dto.KakaoSearchResponse;
 import sweetgirl.croissant.external.kakao.dto.KakaoSearchResult;
+import sweetgirl.croissant.external.kakao.enums.FranchiseName;
 import sweetgirl.croissant.external.kakao.enums.KakaoCategoryCode;
 import sweetgirl.croissant.external.kakao.exception.KakaoErrorCode;
 import sweetgirl.croissant.external.kakao.exception.KakaoLocalApiException;
@@ -30,6 +31,7 @@ public class KakaoLocalClient {
 
 		List<KakaoPlace> places = Stream.concat(fd6Places.stream(), ce7Places.stream())
 			.filter(this::isBreadPlace)
+			.filter(place -> !FranchiseName.matches(place.placeName()))
 			.distinct()
 			.toList();
 
