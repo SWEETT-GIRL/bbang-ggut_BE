@@ -305,6 +305,43 @@ class AlarmServiceTest {
 	}
 
 	@Test
+	@DisplayName("handleGeofenceEnter: 동일 token이 여러 row에 있어도 한 번만 발송한다")
+	void handleGeofenceEnter_duplicateTokens_sendsOnce() {
+		Long memberId = 1L;
+		Member member = mock(Member.class);
+		Store store = mock(Store.class);
+		given(store.getId()).willReturn(1L);
+		given(store.getName()).willReturn("뚜레쥬르");
+		FcmToken tokenRow1 = mock(FcmToken.class);
+		given(tokenRow1.getToken()).willReturn("dup-token");
+		FcmToken tokenRow2 = mock(FcmToken.class);
+		given(tokenRow2.getToken()).willReturn("dup-token");
+		NotificationSetting setting = mock(NotificationSetting.class);
+		GeofenceEnterRequest request = mock(GeofenceEnterRequest.class);
+
+		given(memberReader.getMember(memberId)).willReturn(member);
+		given(notificationSettingRepository.findByMemberId(memberId)).willReturn(Optional.of(setting));
+		given(setting.isNotificationEnabled()).willReturn(true);
+		given(setting.getStartTime()).willReturn(LocalTime.of(0, 0));
+		given(setting.getEndTime()).willReturn(LocalTime.of(23, 59));
+		given(setting.getDaysOfWeek()).willReturn("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY");
+		given(setting.getNotificationRadius()).willReturn(NotificationRadius.R300);
+		given(request.getStoreId()).willReturn(1L);
+		given(request.getLatitude()).willReturn(37.5);
+		given(request.getLongitude()).willReturn(127.0);
+		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
+		given(subscribedStoreRepository.existsSubscribedStoreWithinRadius(memberId, 1L, 37.5, 127.0, 300))
+			.willReturn(true);
+		given(storeNotificationRepository.existsByMemberAndStoreAndSentAtAfter(eq(member), eq(store), any()))
+			.willReturn(false);
+		given(fcmTokenRepository.findByMemberAndIsActive(member, true)).willReturn(List.of(tokenRow1, tokenRow2));
+
+		alarmService.handleGeofenceEnter(memberId, request);
+
+		verify(fcmService, times(1)).sendPushNotification(eq("dup-token"), any(), any(), any());
+	}
+
+	@Test
 	@DisplayName("handleGeofenceEnter: 하나라도 FCM 성공하면 StoreNotification을 저장한다")
 	void handleGeofenceEnter_anyFcmSuccess_savesNotification() {
 		Long memberId = 1L;
