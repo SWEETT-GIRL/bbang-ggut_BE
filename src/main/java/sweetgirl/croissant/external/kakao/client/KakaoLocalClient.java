@@ -1,6 +1,7 @@
 package sweetgirl.croissant.external.kakao.client;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -10,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.external.kakao.dto.KakaoPlace;
 import sweetgirl.croissant.external.kakao.dto.KakaoSearchResponse;
 import sweetgirl.croissant.external.kakao.dto.KakaoSearchResult;
+import sweetgirl.croissant.external.kakao.enums.FranchiseName;
 import sweetgirl.croissant.external.kakao.enums.KakaoCategoryCode;
 import sweetgirl.croissant.external.kakao.exception.KakaoErrorCode;
 import sweetgirl.croissant.external.kakao.exception.KakaoLocalApiException;
@@ -24,6 +26,20 @@ public class KakaoLocalClient {
 	private final RestClient kakaoRestClient;
 
 	public KakaoSearchResult searchByKeyword(String query, int page) {
+		List<KakaoPlace> fd6Places = searchByCategory(query, "FD6", page);
+		List<KakaoPlace> ce7Places = searchByCategory(query, "CE7", page);
+
+		List<KakaoPlace> places = Stream.concat(fd6Places.stream(), ce7Places.stream())
+			.filter(this::isBreadPlace)
+			.filter(place -> !FranchiseName.matches(place.placeName()))
+			.distinct()
+			.toList();
+
+		boolean isEnd = places.size() < MAX_SIZE;
+		return new KakaoSearchResult(places, isEnd);
+	}
+
+	private List<KakaoPlace> searchByCategory(String query, String categoryCode, int page) {
 		KakaoSearchResponse response;
 		try {
 			response = kakaoRestClient.get()
@@ -32,6 +48,7 @@ public class KakaoLocalClient {
 					.queryParam("query", query)
 					.queryParam("size", MAX_SIZE)
 					.queryParam("page", page)
+					.queryParam("category_group_code", categoryCode)
 					.build())
 				.retrieve()
 				.body(KakaoSearchResponse.class);
@@ -39,17 +56,10 @@ public class KakaoLocalClient {
 			throw new KakaoLocalApiException(KakaoErrorCode.KEYWORD_SEARCH_ERROR, e);
 		}
 
-		if (response == null) {
-			return new KakaoSearchResult(List.of(), true);
+		if (response == null || response.documents() == null) {
+			return List.of();
 		}
-
-		List<KakaoPlace> places = response.documents() == null ? List.of()
-			: response.documents().stream()
-				.filter(this::isBreadPlace)
-				.toList();
-
-		boolean isEnd = response.meta() == null || response.meta().isEnd();
-		return new KakaoSearchResult(places, isEnd);
+		return response.documents();
 	}
 
 	public List<KakaoPlace> searchByKeywordForAddress(String query) {
