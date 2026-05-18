@@ -157,15 +157,21 @@ public class AlarmService {
 			"storeId", String.valueOf(store.getId()),
 			"screen", "bakeryDetail");
 
+		// 같은 디바이스 다중 row(legacy 데이터)에 의한 중복 발송 방지 — 발송 직전 토큰 문자열 기준 dedup
+		List<String> uniqueTokens = tokens.stream()
+			.map(FcmToken::getToken)
+			.distinct()
+			.toList();
+
 		boolean anySent = false;
 
-		for (FcmToken fcmToken : tokens) { // 등록된 모든 기기의 토큰에게 발송
+		for (String token : uniqueTokens) { // 등록된 모든 기기의 토큰에게 발송
 			try {
-				fcmService.sendPushNotification(fcmToken.getToken(), title, body, data);
+				fcmService.sendPushNotification(token, title, body, data);
 				anySent = true;
 			} catch (AlarmException e) {
 				log.warn("FCM 발송 실패 [memberId={}, storeId={}, token={}]",
-					member.getId(), store.getId(), fcmToken.getToken());
+					member.getId(), store.getId(), token);
 			}
 		}
 		// 알림 발송 이력 저장

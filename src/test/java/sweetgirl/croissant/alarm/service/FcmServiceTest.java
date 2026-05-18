@@ -158,6 +158,36 @@ class FcmServiceTest {
 	}
 
 	@Test
+	@DisplayName("saveOrUpdateFcmToken: 동일 member여도 다른 deviceId의 동일 token row는 비활성화한다")
+	void saveOrUpdateFcmToken_deactivatesSameMemberOtherDevice_whenSameTokenActive() {
+		Member currentMember = mock(Member.class);
+		given(currentMember.getId()).willReturn(10L);
+
+		FcmToken oldDeviceToken = FcmToken.builder()
+			.member(currentMember)
+			.deviceId("device-old")
+			.deviceOs(DeviceOs.IOS)
+			.token("same-token")
+			.build();
+
+		FcmTokenRequest request = mock(FcmTokenRequest.class);
+		given(request.getDeviceId()).willReturn("device-new");
+		given(request.getDeviceOs()).willReturn(DeviceOs.IOS);
+		given(request.getToken()).willReturn("same-token");
+
+		given(memberReader.getMember(10L)).willReturn(currentMember);
+		given(fcmTokenRepository.findAllByTokenAndIsActiveTrue("same-token"))
+			.willReturn(List.of(oldDeviceToken));
+		given(fcmTokenRepository.findByMemberAndDeviceId(currentMember, "device-new"))
+			.willReturn(Optional.empty());
+
+		fcmService.saveOrUpdateFcmToken(10L, request);
+
+		assertThat(oldDeviceToken.isActive()).isFalse();
+		verify(fcmTokenRepository).save(any());
+	}
+
+	@Test
 	@DisplayName("deactivateFcmToken: 토큰이 존재하면 비활성화한다")
 	void deactivateFcmToken_deactivatesToken_whenTokenExists() {
 		Member member = mock(Member.class);

@@ -45,10 +45,11 @@ public class FcmService {
 		DeviceOs deviceOs = fcmTokenRequest.getDeviceOs();
 		String token = fcmTokenRequest.getToken();
 
-		// 같은 기기에서 다른 계정으로 재로그인한 경우, 다른 member에 활성으로 남은 동일 token row를 비활성화
-		// (잘못된 member에게 푸시가 가는 것을 방지)
+		// 동일 token을 가진 다른 row를 모두 비활성화 — (memberId, deviceId)가 정확히 일치하는 row만 활성으로 유지
+		// 다른 member든 같은 member의 다른 deviceId든, 잔재된 활성 row가 중복 발송을 일으키지 않도록 정리
 		fcmTokenRepository.findAllByTokenAndIsActiveTrue(token).stream()
-			.filter(other -> !other.getMember().getId().equals(memberId))
+			.filter(other -> !(other.getMember().getId().equals(memberId)
+				&& other.getDeviceId().equals(deviceId)))
 			.forEach(FcmToken::deactivate);
 
 		try {
