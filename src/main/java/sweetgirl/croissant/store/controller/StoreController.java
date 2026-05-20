@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -19,7 +20,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.global.response.SliceResponse;
+import sweetgirl.croissant.store.dto.request.KakaoStoreRegisterRequest;
 import sweetgirl.croissant.store.dto.response.DistrictStoreResponse;
+import sweetgirl.croissant.store.dto.response.KakaoStoreRegisterResponse;
 import sweetgirl.croissant.store.dto.response.NearbyStoreResponse;
 import sweetgirl.croissant.store.dto.response.StoreDetailResponse;
 import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
@@ -88,6 +91,13 @@ public class StoreController {
 	public ResponseEntity<ApiResponse<List<TopSubscribedStoreResponse>>> getTopSubscribedStores(
 			@RequestParam double lat, @RequestParam double lng) {
 		return ResponseEntity.ok(ApiResponse.ok(storeService.getTopSubscribedStores(lng, lat)));
+	}
+
+	@Operation(summary = "카카오 검색 결과 빵집 등록", description = "카카오 검색 결과에서 클릭한 빵집을 DB에 저장하고 storeId를 반환")
+	@PostMapping("/kakao")
+	public ResponseEntity<ApiResponse<KakaoStoreRegisterResponse>> registerKakaoStore(
+			@RequestBody KakaoStoreRegisterRequest request) {
+		return ResponseEntity.ok(ApiResponse.ok(storeService.registerKakaoStore(request)));
 	}
 
 	@Operation(summary = "빵집 구독 (빵알람 등록)", description = "빵집을 구독합니다. 이미 구독 중이면 409를 반환합니다.")
