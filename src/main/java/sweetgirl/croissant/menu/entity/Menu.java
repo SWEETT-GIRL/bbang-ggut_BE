@@ -76,9 +76,7 @@ public class Menu extends BaseTimeEntity {
 		if (name != null) {
 			this.name = name;
 		}
-		if (price != null) {
-			this.price = price;
-		}
+		this.price = price;
 		if (description != null) {
 			this.description = description;
 		}

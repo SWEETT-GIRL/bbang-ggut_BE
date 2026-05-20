@@ -94,7 +94,7 @@ public class AdminMenuService {
 		}
 
 		MenuCategory newCategory = request.category() != null ? resolveCategory(request.category()) : null;
-		Integer newPrice = request.price() != null ? parsePrice(request.price()) : null;
+		Integer newPrice = parsePrice(request.price());
 		menu.update(request.name(), newPrice, request.desc(), newCategory);
 	}
 
@@ -166,7 +166,8 @@ public class AdminMenuService {
 			return null;
 		}
 		try {
-			return Integer.parseInt(priceStr.replace("원", "").trim());
+			int val = Integer.parseInt(priceStr.replace("원", "").trim());
+			return val == 0 ? null : val;
 		} catch (NumberFormatException e) {
 			return null;
 		}
