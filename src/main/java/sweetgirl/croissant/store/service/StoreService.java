@@ -86,6 +86,34 @@ public class StoreService {
 	}
 
 	public SliceResponse<StoreSearchResponse> searchStores(String keyword, Pageable pageable) {
+		Slice<Store> dbSlice = storeRepository.findActiveWesternStoresByKeyword(keyword, pageable);
+		if (dbSlice.hasContent()) {
+			return buildResponseFromDb(dbSlice);
+		}
+		return searchFromKakao(keyword, pageable);
+	}
+
+	private SliceResponse<StoreSearchResponse> buildResponseFromDb(Slice<Store> dbSlice) {
+		List<Long> storeIds = dbSlice.getContent().stream().map(Store::getId).toList();
+		Map<Long, String> storeThumbnailMap = getStoreThumbnails(storeIds);
+		Map<Long, List<StoreMenuProjection>> topMenusByStore = getTopMenusByStore(storeIds);
+		Map<Long, String> menuThumbnailMap = getMenuThumbnails(topMenusByStore);
+
+		List<StoreSearchResponse> responses = dbSlice.getContent().stream()
+			.map(store -> {
+				List<MenuSummaryDto> topMenus = topMenusByStore
+					.getOrDefault(store.getId(), Collections.emptyList())
+					.stream()
+					.map(menu -> MenuSummaryDto.of(menu, menuThumbnailMap.get(menu.getMenuId())))
+					.toList();
+				return StoreSearchResponse.ofDb(store, storeThumbnailMap.get(store.getId()), topMenus);
+			})
+			.toList();
+
+		return new SliceResponse<>(responses, dbSlice.hasNext());
+	}
+
+	private SliceResponse<StoreSearchResponse> searchFromKakao(String keyword, Pageable pageable) {
 		KakaoSearchResult kakaoResult = kakaoLocalClient.searchByKeyword(keyword, pageable.getPageNumber() + 1);
 		List<KakaoPlace> places = kakaoResult.places();
 
@@ -93,24 +121,16 @@ public class StoreService {
 			storeAsyncService.saveKakaoPlaces(places);
 		}
 
-		List<String> kakaoPlaceIds = places.stream()
-			.map(KakaoPlace::id)
-			.toList();
-
+		List<String> kakaoPlaceIds = places.stream().map(KakaoPlace::id).toList();
 		Map<String, Store> dbStoreByKakaoPlaceId = storeRepository.findByKakaoPlaceIdIn(kakaoPlaceIds)
 			.stream()
 			.collect(Collectors.toMap(Store::getKakaoPlaceId, store -> store));
 
-		List<Long> matchedStoreIds = dbStoreByKakaoPlaceId.values().stream()
-			.map(Store::getId)
-			.toList();
-
+		List<Long> matchedStoreIds = dbStoreByKakaoPlaceId.values().stream().map(Store::getId).toList();
 		Map<Long, String> storeThumbnailMap = matchedStoreIds.isEmpty()
-			? Collections.emptyMap()
-			: getStoreThumbnails(matchedStoreIds);
+			? Collections.emptyMap() : getStoreThumbnails(matchedStoreIds);
 		Map<Long, List<StoreMenuProjection>> topMenusByStore = matchedStoreIds.isEmpty()
-			? Collections.emptyMap()
-			: getTopMenusByStore(matchedStoreIds);
+			? Collections.emptyMap() : getTopMenusByStore(matchedStoreIds);
 		Map<Long, String> menuThumbnailMap = getMenuThumbnails(topMenusByStore);
 
 		List<StoreSearchResponse> responses = places.stream()
