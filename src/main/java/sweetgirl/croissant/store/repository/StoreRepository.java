@@ -1,6 +1,7 @@
 package sweetgirl.croissant.store.repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -105,4 +106,6 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 	boolean existsById(Long storeId);
 
 	List<Store> findByKakaoPlaceIdIn(List<String> kakaoPlaceIds);
+
+	Optional<Store> findByKakaoPlaceId(String kakaoPlaceId);
 }
