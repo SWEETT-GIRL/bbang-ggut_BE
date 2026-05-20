@@ -31,7 +31,9 @@ import sweetgirl.croissant.store.dto.projection.DistrictStoreProjection;
 import sweetgirl.croissant.store.dto.projection.NearbyStoreProjection;
 import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
 import sweetgirl.croissant.store.dto.projection.TopSubscribedStoreProjection;
+import sweetgirl.croissant.store.dto.request.KakaoStoreRegisterRequest;
 import sweetgirl.croissant.store.dto.response.DistrictStoreResponse;
+import sweetgirl.croissant.store.dto.response.KakaoStoreRegisterResponse;
 import sweetgirl.croissant.store.dto.response.NearbyStoreResponse;
 import sweetgirl.croissant.store.dto.response.StoreDetailResponse;
 import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
@@ -116,10 +118,6 @@ public class StoreService {
 	private SliceResponse<StoreSearchResponse> searchFromKakao(String keyword, Pageable pageable) {
 		KakaoSearchResult kakaoResult = kakaoLocalClient.searchByKeyword(keyword, pageable.getPageNumber() + 1);
 		List<KakaoPlace> places = kakaoResult.places();
-
-		if (!places.isEmpty()) {
-			storeAsyncService.saveKakaoPlaces(places);
-		}
 
 		List<String> kakaoPlaceIds = places.stream().map(KakaoPlace::id).toList();
 		Map<String, Store> dbStoreByKakaoPlaceId = storeRepository.findByKakaoPlaceIdIn(kakaoPlaceIds)
@@ -217,6 +215,20 @@ public class StoreService {
 			.map(store -> TopSubscribedStoreResponse.of(store, storeThumbnailMap.get(store.getId()),
 				Math.round(store.getDistanceMeters())))
 			.toList();
+	}
+
+	@Transactional
+	public KakaoStoreRegisterResponse registerKakaoStore(KakaoStoreRegisterRequest request) {
+		District district = District.fromAddress(request.address()).orElse(null);
+		storeRepository.insertIfNotExistsByKakaoPlaceId(
+			request.name(), request.address(),
+			district != null ? district.name() : null,
+			Double.parseDouble(request.x()), Double.parseDouble(request.y()),
+			request.phone(), request.kakaoPlaceId());
+		Long storeId = storeRepository.findByKakaoPlaceId(request.kakaoPlaceId())
+			.map(Store::getId)
+			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
+		return new KakaoStoreRegisterResponse(storeId);
 	}
 
 	@Transactional
