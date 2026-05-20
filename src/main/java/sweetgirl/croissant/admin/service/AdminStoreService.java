@@ -67,7 +67,7 @@ public class AdminStoreService {
 			.phone(request.phone())
 			.kakaoPlaceId(request.kakaoPlaceId())
 			.source(StoreSource.ADMIN_REGISTERED)
-			.category(request.categoryId())
+			.category(request.category())
 			.build();
 		store = storeRepository.save(store);
 
@@ -119,7 +119,7 @@ public class AdminStoreService {
 		StoreStatus newStatus = resolveStatus(request);
 
 		store.update(request.name(), request.address(), newLocation, newDistrict, request.phone(), newStatus,
-			request.categoryId());
+			request.category());
 
 		if (request.hours() != null) {
 			storeBusinessHourRepository.deleteByStoreId(storeId);
