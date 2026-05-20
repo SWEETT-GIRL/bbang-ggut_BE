@@ -93,7 +93,25 @@ public enum FranchiseName {
 	심봉사도로케,
 	따삐오,
 	마리웨일237,
-	읍천리382;
+	읍천리382,
+
+	// 보드게임, 만화
+	보드게임카페,
+	히어로보드게임카페,
+	레드버튼,
+	홈즈앤루팡,
+	벌툰,
+	캣툰,
+
+	// 키즈카페
+	큐리키즈카페,
+	서울형키즈카페,
+	우리끼리키즈카페,
+	플레이타임,
+	볼베어파크,
+	노리파크,
+	모넬로,
+	놀숲;
 
 	public static boolean matches(String placeName) {
 		return Arrays.stream(values()).anyMatch(f -> placeName.startsWith(f.name()));
