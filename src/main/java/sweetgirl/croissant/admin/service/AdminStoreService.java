@@ -67,6 +67,7 @@ public class AdminStoreService {
 			.phone(request.phone())
 			.kakaoPlaceId(request.kakaoPlaceId())
 			.source(StoreSource.ADMIN_REGISTERED)
+			.category(request.categoryId())
 			.build();
 		store = storeRepository.save(store);
 
@@ -117,7 +118,8 @@ public class AdminStoreService {
 			? District.fromAddress(request.address()).orElse(null) : null;
 		StoreStatus newStatus = resolveStatus(request);
 
-		store.update(request.name(), request.address(), newLocation, newDistrict, request.phone(), newStatus);
+		store.update(request.name(), request.address(), newLocation, newDistrict, request.phone(), newStatus,
+			request.categoryId());
 
 		if (request.hours() != null) {
 			storeBusinessHourRepository.deleteByStoreId(storeId);
@@ -129,7 +131,7 @@ public class AdminStoreService {
 	public void deleteStore(Long storeId) {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
-		store.update(null, null, null, null, null, StoreStatus.DELETED);
+		store.update(null, null, null, null, null, StoreStatus.DELETED, null);
 	}
 
 	private AdminStoreResponse buildResponse(Store store) {

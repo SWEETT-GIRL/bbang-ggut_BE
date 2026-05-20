@@ -3,6 +3,7 @@ package sweetgirl.croissant.admin.dto.request;
 import java.util.Map;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import sweetgirl.croissant.store.enums.StoreCategory;
 
 @Schema(description = "가게 수정 요청 (모든 필드 선택적)")
 public record AdminStoreUpdateRequest(
@@ -12,6 +13,7 @@ public record AdminStoreUpdateRequest(
 		@Schema(description = "전화번호") String phone,
 		@Schema(description = "가게 상태 (active | inactive)") String status,
 		@Schema(description = "보관 처리 일시 — non-null이면 상태를 DELETED로 변경") String archivedAt,
+		@Schema(description = "가게 카테고리 ID (0: WESTERN | 1: CAFE | 2: BAKERY | 3: SANDWICH)") StoreCategory categoryId,
 		@Schema(description = "영업시간 (mon~sun 키, closed=true면 휴무)") Map<String, BusinessHourRequest> hours) {
 
 	@Schema(description = "좌표")
