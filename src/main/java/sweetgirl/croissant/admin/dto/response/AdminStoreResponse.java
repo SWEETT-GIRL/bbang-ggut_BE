@@ -69,12 +69,13 @@ public record AdminStoreResponse(
 		CoordResponse coord = store.getLocation() != null
 			? new CoordResponse(store.getLocation().getY(), store.getLocation().getX()) : null;
 
+		String categoryStr = store.getCategory() != null ? store.getCategory().name() : null;
 		return new AdminStoreResponse(
 			store.getId(),
 			store.getName(),
 			area,
 			null,
-			null,
+			categoryStr,
 			alarmCount,
 			0,
 			store.getAddress(),
