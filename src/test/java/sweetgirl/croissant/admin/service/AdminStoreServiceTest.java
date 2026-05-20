@@ -69,6 +69,7 @@ class AdminStoreServiceTest {
 			"02-1234-5678",
 			null,
 			"active",
+			null,
 			Map.of("mon", new BusinessHourRequest(9, 0, 21, 0, false)));
 
 		AdminStoreResponse response = adminStoreService.createStore(request);
@@ -117,7 +118,7 @@ class AdminStoreServiceTest {
 		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
 
 		AdminStoreUpdateRequest request = new AdminStoreUpdateRequest(
-			"새이름", null, null, null, "active", null,
+			"새이름", null, null, null, "active", null, null,
 			Map.of("mon", new BusinessHourRequest(9, 0, 21, 0, false)));
 
 		adminStoreService.updateStore(1L, request);
