@@ -6,7 +6,8 @@ import java.util.Optional;
 
 public enum KakaoCategoryCode {
 	CE7(List.of(), Arrays.stream(CafeExcludeKeyword.values()).map(CafeExcludeKeyword::keyword).toList()),
-	FD6(Arrays.stream(FoodCategoryKeyword.values()).map(Enum::name).toList(), List.of());
+	FD6(Arrays.stream(FoodCategoryKeyword.values()).map(Enum::name).toList(),
+			Arrays.stream(FoodExcludeKeyword.values()).map(Enum::name).toList());
 
 	private final List<String> allowedKeywords;
 	private final List<String> excludedKeywords;
