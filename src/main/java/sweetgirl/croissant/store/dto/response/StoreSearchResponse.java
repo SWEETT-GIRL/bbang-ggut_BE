@@ -3,8 +3,11 @@ package sweetgirl.croissant.store.dto.response;
 import java.util.Collections;
 import java.util.List;
 
+import org.locationtech.jts.geom.Point;
+
 import sweetgirl.croissant.external.kakao.dto.KakaoPlace;
 import sweetgirl.croissant.menu.dto.dto.MenuSummaryDto;
+import sweetgirl.croissant.store.entity.Store;
 
 public record StoreSearchResponse(
 		Long id,
@@ -31,6 +34,22 @@ public record StoreSearchResponse(
 			place.phone(),
 			place.x(),
 			place.y(),
+			topMenus != null ? topMenus : Collections.emptyList());
+	}
+
+	public static StoreSearchResponse ofDb(Store store, String thumbnailUrl, List<MenuSummaryDto> topMenus) {
+		Point location = store.getLocation();
+		String longitude = location != null ? String.valueOf(location.getX()) : null;
+		String latitude = location != null ? String.valueOf(location.getY()) : null;
+		return new StoreSearchResponse(
+			store.getId(),
+			store.getName(),
+			store.getAddress(),
+			thumbnailUrl,
+			store.getKakaoPlaceId(),
+			store.getPhone(),
+			longitude,
+			latitude,
 			topMenus != null ? topMenus : Collections.emptyList());
 	}
 }

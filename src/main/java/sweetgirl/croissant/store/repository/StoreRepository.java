@@ -64,6 +64,14 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 			@Param("kakaoPlaceId") String kakaoPlaceId);
 
 	@Query(value = """
+			SELECT * FROM store
+			WHERE status = 'ACTIVE'
+			AND category = 'WESTERN'
+			AND name ILIKE CONCAT('%', :keyword, '%')
+			""", nativeQuery = true)
+	Slice<Store> findActiveWesternStoresByKeyword(@Param("keyword") String keyword, Pageable pageable);
+
+	@Query(value = """
 				SELECT
 					s.id,
 					s.name,
