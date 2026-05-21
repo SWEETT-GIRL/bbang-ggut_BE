@@ -151,12 +151,13 @@ public class StoreService {
 	}
 
 	public SliceResponse<DistrictStoreResponse> getStoresByDistrict(String city, double lat, double lng,
-			Pageable pageable) {
+			String sort, Pageable pageable) {
 		District district = District.fromCity(city)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.INVALID_DISTRICT));
 
-		Slice<DistrictStoreProjection> storeSlice = storeRepository.findStoresByDistrictWithStats(
-			district.name(), lng, lat, pageable);
+		Slice<DistrictStoreProjection> storeSlice = "distance".equals(sort)
+			? storeRepository.findStoresByDistrictOrderByDistance(district.name(), lng, lat, pageable)
+			: storeRepository.findStoresByDistrictOrderBySubscribeCount(district.name(), lng, lat, pageable);
 
 		if (!storeSlice.hasContent()) {
 			return SliceResponse.from(new SliceImpl<>(Collections.emptyList(), pageable, false));
