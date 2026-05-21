@@ -12,6 +12,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.posthog.server.PostHogCaptureOptions;
+import com.posthog.server.PostHogInterface;
+
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.code.AlarmErrorCode;
 import sweetgirl.croissant.alarm.dto.request.GeofenceEnterRequest;
@@ -27,11 +30,9 @@ import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
 import sweetgirl.croissant.alarm.repository.StoreNotificationRepository;
 import sweetgirl.croissant.global.code.GeneralErrorCode;
 import sweetgirl.croissant.global.exception.CustomException;
-import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
 import sweetgirl.croissant.member.enums.NotificationRadius;
-import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.store.code.StoreErrorCode;
@@ -55,6 +56,7 @@ public class AlarmService {
 	final SubscribedStoreRepository subscribedStoreRepository;
 	final MemberReader memberReader;
 	final StoreRepository storeRepository;
+	final PostHogInterface postHog;
 
 	// 빵알람 수신 여부 조회
 	@Transactional(readOnly = true) // 조회만 하므로 readOnly
@@ -169,6 +171,15 @@ public class AlarmService {
 			try {
 				fcmService.sendPushNotification(token, title, body, data);
 				anySent = true;
+
+				postHog.capture(
+					String.valueOf(member.getId()),
+					"push_sent",
+					PostHogCaptureOptions.builder()
+						.property("store_id", String.valueOf(store.getId()))
+						.property("store_name", store.getName())
+						.property("notification_type", "geofence_enter")
+						.build());
 			} catch (AlarmException e) {
 				log.warn("FCM 발송 실패 [memberId={}, storeId={}, token={}]",
 					member.getId(), store.getId(), token);
