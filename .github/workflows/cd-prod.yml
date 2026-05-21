@@ -83,7 +83,7 @@ jobs:
           aws.region=ap-northeast-2
           aws.s3.bucket=${{ secrets.PROD_AWS_S3_BUCKET }}
 
-          posthog.api-key=${PROD_POSTHOG_API_KEY}
+          posthog.api-key=${{secrets.PROD_POSTHOG_API_KEY}}
           posthog.host=https://us.i.posthog.com
           EOF
 
