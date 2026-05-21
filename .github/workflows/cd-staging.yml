@@ -82,6 +82,10 @@ jobs:
           aws.credentials.secret-key=${{ secrets.STAGING_AWS_SECRET_KEY }}
           aws.region=ap-northeast-2
           aws.s3.bucket=${{ secrets.STAGING_AWS_S3_BUCKET }}
+
+          posthog.api-key=${STAGING_POSTHOG_API_KEY}
+          posthog.host=https://us.i.posthog.com
+
           springdoc.swagger-ui.enabled=true
           springdoc.api-docs.enabled=true
           swagger.server-url=https://bbang-ggut.site
@@ -136,6 +140,7 @@ jobs:
             echo "AWS_SECRET_KEY=${{ secrets.STAGING_AWS_SECRET_KEY }}" >> .env
             echo "AWS_REGION=ap-northeast-2" >> .env
             echo "AWS_S3_BUCKET=${{ secrets.STAGING_AWS_S3_BUCKET }}" >> .env
+            echo "STAGING_POSTHOG_API_KEY=${{ secrets.STAGING_POSTHOG_API_KEY }}" >> .env
 
             docker compose pull
             docker compose up -d

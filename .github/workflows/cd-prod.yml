@@ -82,6 +82,9 @@ jobs:
           aws.credentials.secret-key=${{ secrets.PROD_AWS_SECRET_KEY }}
           aws.region=ap-northeast-2
           aws.s3.bucket=${{ secrets.PROD_AWS_S3_BUCKET }}
+
+          posthog.api-key=${PROD_POSTHOG_API_KEY}
+          posthog.host=https://us.i.posthog.com
           EOF
 
       - name: Create Firebase service account file
@@ -133,6 +136,7 @@ jobs:
             echo "AWS_SECRET_KEY=${{ secrets.PROD_AWS_SECRET_KEY }}" >> .env
             echo "AWS_REGION=ap-northeast-2" >> .env
             echo "AWS_S3_BUCKET=${{ secrets.PROD_AWS_S3_BUCKET }}" >> .env
+            echo "PROD_POSTHOG_API_KEY=${{ secrets.PROD_POSTHOG_API_KEY }}" >> .env
 
             docker compose pull
             docker compose up -d
