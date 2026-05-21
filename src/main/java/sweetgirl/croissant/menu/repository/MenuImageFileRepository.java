@@ -13,14 +13,18 @@ public interface MenuImageFileRepository extends JpaRepository<MenuImageFile, Lo
 
 	long countByIdInAndMenuId(List<Long> ids, Long menuId);
 
+	List<MenuImageFile> findByIdInAndMenuId(List<Long> ids, Long menuId);
+
 	@Query("""
 			SELECT m.id AS imageId, m.menu.id AS menuId, m.awsKey AS awsKey
-			FROM MenuImageFile m WHERE m.menu.id IN :menuIds ORDER BY m.id DESC
+			FROM MenuImageFile m WHERE m.menu.id IN :menuIds
+			ORDER BY m.displayOrder ASC, m.id ASC
 			""")
 	List<MenuImageThumbnailProjection> findThumbnailsByMenuIdIn(@Param("menuIds") List<Long> menuIds);
 
 	@Query("""
-			SELECT m FROM MenuImageFile m WHERE m.menu.id = :menuId ORDER BY m.id DESC
+			SELECT m FROM MenuImageFile m WHERE m.menu.id = :menuId
+			ORDER BY m.displayOrder ASC, m.id ASC
 			""")
 	List<MenuImageFile> findImagesByMenuId(@Param("menuId") Long menuId);
 
