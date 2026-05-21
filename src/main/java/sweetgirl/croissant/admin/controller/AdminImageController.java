@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -18,6 +19,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.admin.service.AdminImageService;
 import sweetgirl.croissant.external.aws.dto.AdminImageResponse;
+import sweetgirl.croissant.external.aws.dto.ImageOrderUpdateRequest;
 import sweetgirl.croissant.external.aws.dto.ImageSaveRequest;
 import sweetgirl.croissant.external.aws.dto.ImageUploadRequest;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
@@ -54,6 +56,15 @@ public class AdminImageController {
 		return ResponseEntity.ok().build();
 	}
 
+	@Operation(summary = "가게 이미지 순서 수정", description = "가게 이미지들의 displayOrder를 일괄 업데이트합니다.")
+	@PatchMapping("/stores/{storeId}/order")
+	public ResponseEntity<ApiResponse<Void>> reorderStoreImages(
+			@Parameter(description = "가게 ID") @PathVariable Long storeId,
+			@RequestBody @Valid ImageOrderUpdateRequest request) {
+		adminImageService.reorderStoreImages(storeId, request);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
 	@Operation(summary = "가게 이미지 삭제", description = "가게 이미지를 S3와 DB에서 함께 삭제합니다.")
 	@DeleteMapping("/stores/{storeId}/images/{imageId}")
 	public ResponseEntity<ApiResponse<Void>> deleteStoreImage(
@@ -77,6 +88,15 @@ public class AdminImageController {
 			@RequestBody List<ImageSaveRequest> requests) {
 		adminImageService.saveMenuImages(menuId, requests);
 		return ResponseEntity.ok().build();
+	}
+
+	@Operation(summary = "메뉴 이미지 순서 수정", description = "메뉴 이미지들의 displayOrder를 일괄 업데이트합니다.")
+	@PatchMapping("/menus/{menuId}/order")
+	public ResponseEntity<ApiResponse<Void>> reorderMenuImages(
+			@Parameter(description = "메뉴 ID") @PathVariable Long menuId,
+			@RequestBody @Valid ImageOrderUpdateRequest request) {
+		adminImageService.reorderMenuImages(menuId, request);
+		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
 	@Operation(summary = "메뉴 이미지 삭제", description = "메뉴 이미지를 S3와 DB에서 함께 삭제합니다.")

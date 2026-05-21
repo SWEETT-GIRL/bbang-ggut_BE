@@ -136,7 +136,7 @@ public class AdminStoreService {
 
 	private AdminStoreResponse buildResponse(Store store) {
 		List<StoreBusinessHour> hours = storeBusinessHourRepository.findByStoreIdOrderByDayOfWeekAsc(store.getId());
-		List<StoreImageFile> photos = storeImageFileRepository.findByStoreId(store.getId());
+		List<StoreImageFile> photos = storeImageFileRepository.findByStoreIdOrderByDisplayOrderAscIdAsc(store.getId());
 		long alarmCount = subscribedStoreRepository.countByStoreId(store.getId());
 		return AdminStoreResponse.of(store, hours, photos, alarmCount);
 	}

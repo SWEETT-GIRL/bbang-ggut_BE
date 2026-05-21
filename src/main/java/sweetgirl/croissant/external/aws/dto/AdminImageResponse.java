@@ -6,6 +6,7 @@ public record AdminImageResponse(
 		Long id,
 		String awsKey,
 		String mimeType,
+		int displayOrder,
 		LocalDateTime createdAt) {
 
 }
