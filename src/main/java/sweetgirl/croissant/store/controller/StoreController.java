@@ -3,6 +3,7 @@ package sweetgirl.croissant.store.controller;
 import java.util.List;
 
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -62,9 +63,13 @@ public class StoreController {
 			@RequestParam double lat,
 			@RequestParam double lng,
 			@RequestParam(defaultValue = "0") int page,
-			@RequestParam(defaultValue = "15") int size) {
+			@RequestParam(defaultValue = "15") int size,
+			@RequestParam(defaultValue = "distance") String sort) {
+		Sort sortObj = sort.equals("subscribe")
+			? Sort.by("subscribe_count").descending()
+			: Sort.by("distance_meters").ascending();
 		return ResponseEntity.ok(
-			ApiResponse.ok(storeService.getStoresByDistrict(city, lat, lng, PageRequest.of(page, size))));
+			ApiResponse.ok(storeService.getStoresByDistrict(city, lat, lng, PageRequest.of(page, size, sortObj))));
 	}
 
 	@Operation(summary = "빵집 검색", description = "빵집 이름으로 검색합니다. DB에 결과 없으면 카카오 로컬 API로 fallback합니다.")
