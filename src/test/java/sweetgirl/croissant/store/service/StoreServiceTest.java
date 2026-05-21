@@ -71,7 +71,7 @@ class StoreServiceTest {
 		given(memberReader.getMember(memberId)).willReturn(member);
 		given(subscribedStoreRepository.findAllByMemberOrderByCreatedAtDesc(member, pageable))
 			.willReturn(new SliceImpl<>(List.of(subscribedStore), pageable, false));
-		given(storeImageFileRepository.findByStoreId(1L)).willReturn(List.of(image));
+		given(storeImageFileRepository.findByStoreIdOrderByDisplayOrderAscIdAsc(1L)).willReturn(List.of(image));
 
 		SliceResponse<SubscribedStoreResponse> result = storeService.getSubscribedStores(memberId, pageable);
 
@@ -103,7 +103,7 @@ class StoreServiceTest {
 		given(memberReader.getMember(memberId)).willReturn(member);
 		given(subscribedStoreRepository.findAllByMemberOrderByCreatedAtDesc(member, pageable))
 			.willReturn(new SliceImpl<>(List.of(subscribedStore), pageable, false));
-		given(storeImageFileRepository.findByStoreId(1L)).willReturn(List.of());
+		given(storeImageFileRepository.findByStoreIdOrderByDisplayOrderAscIdAsc(1L)).willReturn(List.of());
 
 		SliceResponse<SubscribedStoreResponse> result = storeService.getSubscribedStores(memberId, pageable);
 

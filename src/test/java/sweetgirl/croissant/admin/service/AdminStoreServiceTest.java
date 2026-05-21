@@ -59,7 +59,8 @@ class AdminStoreServiceTest {
 		given(saved.getStatus()).willReturn(StoreStatus.ACTIVE);
 		given(storeRepository.save(any(Store.class))).willReturn(saved);
 		given(subscribedStoreRepository.countByStoreId(1L)).willReturn(0L);
-		given(storeImageFileRepository.findByStoreId(1L)).willReturn(Collections.emptyList());
+		given(storeImageFileRepository.findByStoreIdOrderByDisplayOrderAscIdAsc(1L))
+			.willReturn(Collections.emptyList());
 		given(storeBusinessHourRepository.findByStoreIdOrderByDayOfWeekAsc(1L)).willReturn(Collections.emptyList());
 
 		AdminStoreCreateRequest request = new AdminStoreCreateRequest(

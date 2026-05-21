@@ -69,7 +69,7 @@ public class StoreService {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 		List<StoreBusinessHour> businessHours = storeBusinessHourRepository.findByStoreIdOrderByDayOfWeekAsc(storeId);
-		List<StoreImageFile> images = storeImageFileRepository.findByStoreId(storeId);
+		List<StoreImageFile> images = storeImageFileRepository.findByStoreIdOrderByDisplayOrderAscIdAsc(storeId);
 		List<MenuImageFile> menuImages = menuImageFileRepository.findByMenuStoreId(storeId);
 		boolean isSubscribed = memberId != null
 			&& subscribedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId);
@@ -80,7 +80,8 @@ public class StoreService {
 		Member member = memberReader.getMember(memberId);
 		Slice<SubscribedStore> slice = subscribedStoreRepository.findAllByMemberOrderByCreatedAtDesc(member, pageable);
 		Slice<SubscribedStoreResponse> responsSlice = slice.map(subscribedStore -> {
-			List<StoreImageFile> images = storeImageFileRepository.findByStoreId(subscribedStore.getStore().getId());
+			List<StoreImageFile> images = storeImageFileRepository
+				.findByStoreIdOrderByDisplayOrderAscIdAsc(subscribedStore.getStore().getId());
 			String imageUrl = images.isEmpty() ? null : images.get(0).getAwsKey();
 			return SubscribedStoreResponse.from(subscribedStore, imageUrl);
 		});
