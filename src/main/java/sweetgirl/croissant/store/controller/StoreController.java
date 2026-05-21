@@ -62,9 +62,10 @@ public class StoreController {
 			@RequestParam double lat,
 			@RequestParam double lng,
 			@RequestParam(defaultValue = "0") int page,
-			@RequestParam(defaultValue = "15") int size) {
+			@RequestParam(defaultValue = "15") int size,
+			@RequestParam(defaultValue = "distance") String sort) {
 		return ResponseEntity.ok(
-			ApiResponse.ok(storeService.getStoresByDistrict(city, lat, lng, PageRequest.of(page, size))));
+			ApiResponse.ok(storeService.getStoresByDistrict(city, lat, lng, sort, PageRequest.of(page, size))));
 	}
 
 	@Operation(summary = "빵집 검색", description = "빵집 이름으로 검색합니다. DB에 결과 없으면 카카오 로컬 API로 fallback합니다.")

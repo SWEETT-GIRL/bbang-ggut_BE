@@ -39,8 +39,29 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 				WHERE s.district = CAST(:district AS VARCHAR)
 				AND s.status = 'ACTIVE'
 				GROUP BY s.id
+				ORDER BY distance_meters ASC
 			""", nativeQuery = true)
-	Slice<DistrictStoreProjection> findStoresByDistrictWithStats(
+	Slice<DistrictStoreProjection> findStoresByDistrictOrderByDistance(
+			@Param("district") String district,
+			@Param("lng") double longitude,
+			@Param("lat") double latitude,
+			Pageable pageable);
+
+	@Query(value = """
+				SELECT
+					s.id,
+					s.name,
+					s.address,
+					ST_Distance(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS distance_meters,
+					COUNT(ss.id) AS subscribe_count
+				FROM store s
+				LEFT JOIN subscribed_store ss ON ss.store_id = s.id
+				WHERE s.district = CAST(:district AS VARCHAR)
+				AND s.status = 'ACTIVE'
+				GROUP BY s.id
+				ORDER BY subscribe_count DESC
+			""", nativeQuery = true)
+	Slice<DistrictStoreProjection> findStoresByDistrictOrderBySubscribeCount(
 			@Param("district") String district,
 			@Param("lng") double longitude,
 			@Param("lat") double latitude,

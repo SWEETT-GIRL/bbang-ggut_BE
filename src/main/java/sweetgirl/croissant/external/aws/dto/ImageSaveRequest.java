@@ -1,6 +1,7 @@
 package sweetgirl.croissant.external.aws.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -17,4 +18,7 @@ public class ImageSaveRequest {
 
 	@NotBlank(message = "MIME 타입은 필수입니다.")
 	private String mimeType;
+
+	@NotNull(message = "순서는 필수입니다.")
+	private Integer displayOrder;
 }

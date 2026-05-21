@@ -1,6 +1,7 @@
 package sweetgirl.croissant.admin.service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -9,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.AdminImageResponse;
+import sweetgirl.croissant.external.aws.dto.ImageOrderUpdateRequest;
 import sweetgirl.croissant.external.aws.dto.ImageSaveRequest;
 import sweetgirl.croissant.external.aws.dto.ImageUploadRequest;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
@@ -57,9 +59,9 @@ public class AdminImageService {
 		if (!storeRepository.existsById(storeId)) {
 			throw new StoreException(StoreErrorCode.STORE_NOT_FOUND);
 		}
-		return storeImageFileRepository.findByStoreId(storeId).stream()
+		return storeImageFileRepository.findByStoreIdOrderByDisplayOrderAscIdAsc(storeId).stream()
 			.map(img -> new AdminImageResponse(img.getId(), img.getAwsKey(), img.getMimeType().getValue(),
-				img.getCreatedAt()))
+				img.getDisplayOrder(), img.getCreatedAt()))
 			.collect(Collectors.toList());
 	}
 
@@ -69,7 +71,7 @@ public class AdminImageService {
 		}
 		return menuImageFileRepository.findImagesByMenuId(menuId).stream()
 			.map(img -> new AdminImageResponse(img.getId(), img.getAwsKey(), img.getMimeType().getValue(),
-				img.getCreatedAt()))
+				img.getDisplayOrder(), img.getCreatedAt()))
 			.collect(Collectors.toList());
 	}
 
@@ -84,9 +86,9 @@ public class AdminImageService {
 				.name(req.getFileName())
 				.mimeType(MimeType.fromString(req.getMimeType()))
 				.awsKey(req.getAwsKey())
+				.displayOrder(req.getDisplayOrder())
 				.build())
 			.collect(Collectors.toList());
-
 		storeImageFileRepository.saveAll(imageFiles);
 	}
 
@@ -101,10 +103,48 @@ public class AdminImageService {
 				.name(req.getFileName())
 				.mimeType(MimeType.fromString(req.getMimeType()))
 				.awsKey(req.getAwsKey())
+				.displayOrder(req.getDisplayOrder())
 				.build())
 			.collect(Collectors.toList());
-
 		menuImageFileRepository.saveAll(imageFiles);
+	}
+
+	@Transactional
+	public void reorderStoreImages(Long storeId, ImageOrderUpdateRequest request) {
+		if (!storeRepository.existsById(storeId)) {
+			throw new StoreException(StoreErrorCode.STORE_NOT_FOUND);
+		}
+		List<Long> imageIds = request.getOrders().stream()
+			.map(ImageOrderUpdateRequest.ImageOrder::getId)
+			.toList();
+		if (storeImageFileRepository.countByIdInAndStoreId(imageIds, storeId) != imageIds.size()) {
+			throw new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND);
+		}
+		Map<Long, Integer> orderMap = request.getOrders().stream()
+			.collect(Collectors.toMap(
+				ImageOrderUpdateRequest.ImageOrder::getId,
+				ImageOrderUpdateRequest.ImageOrder::getDisplayOrder));
+		storeImageFileRepository.findByIdInAndStoreId(imageIds, storeId)
+			.forEach(img -> img.updateDisplayOrder(orderMap.get(img.getId())));
+	}
+
+	@Transactional
+	public void reorderMenuImages(Long menuId, ImageOrderUpdateRequest request) {
+		if (!menuRepository.existsById(menuId)) {
+			throw new MenuException(MenuErrorCode.MENU_NOT_FOUND);
+		}
+		List<Long> imageIds = request.getOrders().stream()
+			.map(ImageOrderUpdateRequest.ImageOrder::getId)
+			.toList();
+		if (menuImageFileRepository.countByIdInAndMenuId(imageIds, menuId) != imageIds.size()) {
+			throw new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND);
+		}
+		Map<Long, Integer> orderMap = request.getOrders().stream()
+			.collect(Collectors.toMap(
+				ImageOrderUpdateRequest.ImageOrder::getId,
+				ImageOrderUpdateRequest.ImageOrder::getDisplayOrder));
+		menuImageFileRepository.findByIdInAndMenuId(imageIds, menuId)
+			.forEach(img -> img.updateDisplayOrder(orderMap.get(img.getId())));
 	}
 
 	@Transactional

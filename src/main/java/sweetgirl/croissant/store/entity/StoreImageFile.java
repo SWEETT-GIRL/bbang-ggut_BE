@@ -1,5 +1,6 @@
 package sweetgirl.croissant.store.entity;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
@@ -22,9 +23,17 @@ public class StoreImageFile extends ImageFile {
 	@JoinColumn(name = "store_id", nullable = false)
 	private Store store;
 
+	@Column(nullable = false)
+	private int displayOrder;
+
 	@Builder
-	public StoreImageFile(Store store, String name, MimeType mimeType, String awsKey) {
+	public StoreImageFile(Store store, String name, MimeType mimeType, String awsKey, int displayOrder) {
 		super(name, mimeType, awsKey);
 		this.store = store;
+		this.displayOrder = displayOrder;
+	}
+
+	public void updateDisplayOrder(int displayOrder) {
+		this.displayOrder = displayOrder;
 	}
 }

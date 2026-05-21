@@ -1,5 +1,6 @@
 package sweetgirl.croissant.menu.entity;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
@@ -22,9 +23,17 @@ public class MenuImageFile extends ImageFile {
 	@JoinColumn(name = "menu_id", nullable = false)
 	private Menu menu;
 
+	@Column(nullable = false)
+	private int displayOrder;
+
 	@Builder
-	public MenuImageFile(Menu menu, String name, MimeType mimeType, String awsKey) {
+	public MenuImageFile(Menu menu, String name, MimeType mimeType, String awsKey, int displayOrder) {
 		super(name, mimeType, awsKey);
 		this.menu = menu;
+		this.displayOrder = displayOrder;
+	}
+
+	public void updateDisplayOrder(int displayOrder) {
+		this.displayOrder = displayOrder;
 	}
 }
