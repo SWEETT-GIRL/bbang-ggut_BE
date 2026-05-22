@@ -1,0 +1,26 @@
+package sweetgirl.croissant.store.dto.response;
+
+import java.util.List;
+
+import sweetgirl.croissant.menu.dto.dto.MenuSummaryDto;
+import sweetgirl.croissant.store.dto.projection.RegionBySubscribeProjection;
+
+public record RegionBySubscribeResponse(
+		Long id,
+		String name,
+		String address,
+		String thumbnailUrl,
+		List<MenuSummaryDto> topMenus,
+		long subscribeCount) {
+
+	public static RegionBySubscribeResponse of(RegionBySubscribeProjection projection, String thumbnailUrl,
+			List<MenuSummaryDto> topMenus) {
+		return new RegionBySubscribeResponse(
+			projection.getId(),
+			projection.getName(),
+			projection.getAddress(),
+			thumbnailUrl,
+			topMenus,
+			projection.getSubscribeCount());
+	}
+}

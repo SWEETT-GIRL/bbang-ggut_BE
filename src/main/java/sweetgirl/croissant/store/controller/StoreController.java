@@ -21,7 +21,6 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.store.dto.request.KakaoStoreRegisterRequest;
-import sweetgirl.croissant.store.dto.response.DistrictStoreResponse;
 import sweetgirl.croissant.store.dto.response.KakaoStoreRegisterResponse;
 import sweetgirl.croissant.store.dto.response.NearbyStoreResponse;
 import sweetgirl.croissant.store.dto.response.StoreDetailResponse;
@@ -55,17 +54,21 @@ public class StoreController {
 			.ok(ApiResponse.ok(storeService.getSubscribedStores(memberId, PageRequest.of(page, size))));
 	}
 
-	@Operation(summary = "지역별 빵집 조회", description = "지역명(city)으로 빵집 목록을 조회합니다. 거리 계산을 위해 현재 위치(lat, lng)가 필요합니다.")
+	@Operation(summary = "지역별 빵집 조회", description = "지역 키워드로 빵집 목록을 조회합니다. 거리순 정렬 시 현재 위치(lat, lng)가 필요합니다.")
 	@GetMapping("/district")
-	public ResponseEntity<ApiResponse<SliceResponse<DistrictStoreResponse>>> getStoresByDistrict(
-			@Parameter(description = "지역명 (예: 종로구, 강남구)") @RequestParam String city,
-			@RequestParam double lat,
-			@RequestParam double lng,
+	public ResponseEntity<ApiResponse<SliceResponse<?>>> getStoresByDistrict(
+			@Parameter(description = "지역 키워드 (예: 연남, 강남구, 부산)") @RequestParam String keyword,
+			@RequestParam(required = false) Double lat,
+			@RequestParam(required = false) Double lng,
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "15") int size,
 			@RequestParam(defaultValue = "distance") String sort) {
-		return ResponseEntity.ok(
-			ApiResponse.ok(storeService.getStoresByDistrict(city, lat, lng, sort, PageRequest.of(page, size))));
+		if ("subscribe".equals(sort)) {
+			return ResponseEntity.ok(ApiResponse.ok(
+				storeService.getStoresByDistrictOrderBySubscribe(keyword, PageRequest.of(page, size))));
+		}
+		return ResponseEntity.ok(ApiResponse.ok(
+			storeService.getStoresByDistrictOrderByDistance(keyword, lat, lng, PageRequest.of(page, size))));
 	}
 
 	@Operation(summary = "빵집 검색", description = "빵집 이름으로 검색합니다. DB에 결과 없으면 카카오 로컬 API로 fallback합니다.")
