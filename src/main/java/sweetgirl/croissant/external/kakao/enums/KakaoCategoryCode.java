@@ -1,37 +1,19 @@
 package sweetgirl.croissant.external.kakao.enums;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
 
 public enum KakaoCategoryCode {
-	CE7(List.of(), Arrays.stream(CafeExcludeKeyword.values()).map(CafeExcludeKeyword::keyword).toList(), List.of()),
-	FD6(Arrays.stream(FoodCategoryKeyword.values()).map(Enum::name).toList(),
-			Arrays.stream(FoodExcludeKeyword.values()).map(Enum::name).toList(),
-			Arrays.stream(FoodPriorityKeyword.values()).map(Enum::name).toList());
-
-	private final List<String> allowedKeywords;
-	private final List<String> excludedKeywords;
-	private final List<String> priorityIncludeKeywords;
-
-	KakaoCategoryCode(List<String> allowedKeywords, List<String> excludedKeywords,
-			List<String> priorityIncludeKeywords) {
-		this.allowedKeywords = allowedKeywords;
-		this.excludedKeywords = excludedKeywords;
-		this.priorityIncludeKeywords = priorityIncludeKeywords;
-	}
+	CE7, FD6;
 
 	public boolean matches(String categoryName) {
-		if (priorityIncludeKeywords.stream().anyMatch(categoryName::contains)) {
+		if (KakaoResponsePriorityKeyword.matches(categoryName)) {
 			return true;
 		}
-		if (excludedKeywords.stream().anyMatch(categoryName::contains)) {
+		if (KakaoResponseExcludeKeyword.matches(categoryName)) {
 			return false;
 		}
-		if (allowedKeywords.isEmpty()) {
-			return true;
-		}
-		return allowedKeywords.stream().anyMatch(categoryName::contains);
+		return KakaoResponseCategoryKeyword.matches(categoryName);
 	}
 
 	public static Optional<KakaoCategoryCode> from(String code) {
