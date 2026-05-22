@@ -46,7 +46,7 @@ public record AdminStoreResponse(
 
 	public static AdminStoreResponse of(Store store, List<StoreBusinessHour> businessHours,
 			List<StoreImageFile> photos, long alarmCount) {
-		String area = store.getDistrict() != null ? store.getDistrict().getCity() : null;
+		String area = store.getRegion2nd();
 		String statusStr = store.getStatus() == StoreStatus.ACTIVE ? "active" : "inactive";
 		String archivedAt = store.getStatus() == StoreStatus.DELETED && store.getUpdatedAt() != null
 			? store.getUpdatedAt().toString() : null;

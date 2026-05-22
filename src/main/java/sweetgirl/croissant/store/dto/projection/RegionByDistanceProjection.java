@@ -1,6 +1,6 @@
 package sweetgirl.croissant.store.dto.projection;
 
-public interface DistrictStoreProjection {
+public interface RegionByDistanceProjection {
 	Long getId();
 
 	String getName();
@@ -8,6 +8,4 @@ public interface DistrictStoreProjection {
 	String getAddress();
 
 	double getDistanceMeters();
-
-	long getSubscribeCount();
 }
