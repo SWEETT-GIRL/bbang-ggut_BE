@@ -21,11 +21,11 @@ import sweetgirl.croissant.admin.dto.request.AdminStoreCreateRequest;
 import sweetgirl.croissant.admin.dto.request.AdminStoreUpdateRequest;
 import sweetgirl.croissant.admin.dto.request.BusinessHourRequest;
 import sweetgirl.croissant.admin.dto.response.AdminStoreResponse;
+import sweetgirl.croissant.store.AddressParser;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreBusinessHour;
 import sweetgirl.croissant.store.entity.StoreImageFile;
-import sweetgirl.croissant.store.enums.District;
 import sweetgirl.croissant.store.enums.StoreSource;
 import sweetgirl.croissant.store.enums.StoreStatus;
 import sweetgirl.croissant.store.exception.StoreException;
@@ -58,11 +58,14 @@ public class AdminStoreService {
 	@Transactional
 	public AdminStoreResponse createStore(AdminStoreCreateRequest request) {
 		Point location = toPoint(request.coord().latitude(), request.coord().longitude());
-		District district = District.fromAddress(request.address()).orElse(null);
+		String[] addr = AddressParser.parse(request.address());
 
 		Store store = Store.builder()
 			.name(request.name())
 			.address(request.address())
+			.region1st(addr[0])
+			.region2nd(addr[1])
+			.region3rd(addr[2])
 			.location(location)
 			.phone(request.phone())
 			.kakaoPlaceId(request.kakaoPlaceId())
@@ -114,12 +117,11 @@ public class AdminStoreService {
 
 		Point newLocation = request.coord() != null
 			? toPoint(request.coord().latitude(), request.coord().longitude()) : null;
-		District newDistrict = request.address() != null
-			? District.fromAddress(request.address()).orElse(null) : null;
+		String[] addr = request.address() != null ? AddressParser.parse(request.address()) : new String[3];
 		StoreStatus newStatus = resolveStatus(request);
 
-		store.update(request.name(), request.address(), newLocation, newDistrict, request.phone(), newStatus,
-			request.category());
+		store.update(request.name(), request.address(), newLocation, addr[0], addr[1], addr[2],
+			request.phone(), newStatus, request.category());
 
 		if (request.hours() != null) {
 			storeBusinessHourRepository.deleteByStoreId(storeId);
@@ -131,7 +133,7 @@ public class AdminStoreService {
 	public void deleteStore(Long storeId) {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
-		store.update(null, null, null, null, null, StoreStatus.DELETED, null);
+		store.update(null, null, null, null, null, null, null, StoreStatus.DELETED, null);
 	}
 
 	private AdminStoreResponse buildResponse(Store store) {
