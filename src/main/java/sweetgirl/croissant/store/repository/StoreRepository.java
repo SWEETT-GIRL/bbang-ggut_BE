@@ -171,8 +171,8 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 				SELECT
 					s.id,
 					s.name,
-					s.region_1st,
-					s.region_2nd,
+					s.region_1st AS region1st,
+					s.region_2nd AS region2nd,
 					ST_Distance(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS distance_meters
 				FROM store s
 				WHERE ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radius)
@@ -186,8 +186,8 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 				SELECT
 					s.id,
 					s.name,
-					s.region_1st,
-					s.region_2nd,
+					s.region_1st AS region1st,
+					s.region_2nd AS region2nd,
 					COUNT(ss.id) AS subscribe_count,
 					ST_Distance(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS distance_meters
 				FROM store s
