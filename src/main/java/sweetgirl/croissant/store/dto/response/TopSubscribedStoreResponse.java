@@ -1,12 +1,11 @@
 package sweetgirl.croissant.store.dto.response;
 
 import sweetgirl.croissant.store.dto.projection.TopSubscribedStoreProjection;
-import sweetgirl.croissant.store.enums.District;
 
 public record TopSubscribedStoreResponse(
 		Long id,
 		String name,
-		String district,
+		String region,
 		String storeThumbnailUrl,
 		Long distanceMeters,
 		long subscribeCount) {
@@ -15,9 +14,19 @@ public record TopSubscribedStoreResponse(
 		return new TopSubscribedStoreResponse(
 			projection.getId(),
 			projection.getName(),
-			District.toCityName(projection.getDistrict()),
+			joinRegion(projection.getRegion1st(), projection.getRegion2nd()),
 			storeThumbnailUrl,
 			distanceMeters,
 			projection.getSubscribeCount());
+	}
+
+	private static String joinRegion(String region1st, String region2nd) {
+		if (region1st == null) {
+			return region2nd;
+		}
+		if (region2nd == null) {
+			return region1st;
+		}
+		return region1st + " " + region2nd;
 	}
 }

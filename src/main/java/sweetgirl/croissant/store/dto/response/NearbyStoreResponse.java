@@ -1,12 +1,11 @@
 package sweetgirl.croissant.store.dto.response;
 
 import sweetgirl.croissant.store.dto.projection.NearbyStoreProjection;
-import sweetgirl.croissant.store.enums.District;
 
 public record NearbyStoreResponse(
 		Long id,
 		String name,
-		String district,
+		String region,
 		String storeThumbnailUrl,
 		int distanceMeters) {
 	public static NearbyStoreResponse of(NearbyStoreProjection projection, String storeThumbnailUrl,
@@ -14,8 +13,18 @@ public record NearbyStoreResponse(
 		return new NearbyStoreResponse(
 			projection.getId(),
 			projection.getName(),
-			District.toCityName(projection.getDistrict()),
+			joinRegion(projection.getRegion1st(), projection.getRegion2nd()),
 			storeThumbnailUrl,
 			distanceMeters);
+	}
+
+	private static String joinRegion(String region1st, String region2nd) {
+		if (region1st == null) {
+			return region2nd;
+		}
+		if (region2nd == null) {
+			return region1st;
+		}
+		return region1st + " " + region2nd;
 	}
 }

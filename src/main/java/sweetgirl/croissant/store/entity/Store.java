@@ -15,7 +15,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
-import sweetgirl.croissant.store.enums.District;
 import sweetgirl.croissant.store.enums.StoreCategory;
 import sweetgirl.croissant.store.enums.StoreSource;
 import sweetgirl.croissant.store.enums.StoreStatus;
@@ -36,9 +35,14 @@ public class Store extends BaseTimeEntity {
 	@Column(nullable = false, length = 255)
 	private String address;
 
-	@Enumerated(EnumType.STRING)
-	@Column(length = 50)
-	private District district;
+	@Column(name = "region_1st", length = 50)
+	private String region1st;
+
+	@Column(name = "region_2nd", length = 50)
+	private String region2nd;
+
+	@Column(name = "region_3rd", length = 50)
+	private String region3rd;
 
 	@Column(nullable = false, columnDefinition = "geography(Point, 4326)")
 	private Point location;
@@ -62,10 +66,13 @@ public class Store extends BaseTimeEntity {
 	private StoreCategory category;
 
 	@Builder
-	public Store(String name, String address,
+	public Store(String name, String address, String region1st, String region2nd, String region3rd,
 			Point location, String phone, String kakaoPlaceId, StoreSource source, StoreCategory category) {
 		this.name = name;
 		this.address = address;
+		this.region1st = region1st;
+		this.region2nd = region2nd;
+		this.region3rd = region3rd;
 		this.location = location;
 		this.phone = phone;
 		this.kakaoPlaceId = kakaoPlaceId;
@@ -74,8 +81,8 @@ public class Store extends BaseTimeEntity {
 		this.category = category;
 	}
 
-	public void update(String name, String address, Point location, District district,
-			String phone, StoreStatus status, StoreCategory category) {
+	public void update(String name, String address, Point location, String region1st, String region2nd,
+			String region3rd, String phone, StoreStatus status, StoreCategory category) {
 		if (name != null) {
 			this.name = name;
 		}
@@ -85,8 +92,14 @@ public class Store extends BaseTimeEntity {
 		if (location != null) {
 			this.location = location;
 		}
-		if (district != null) {
-			this.district = district;
+		if (region1st != null) {
+			this.region1st = region1st;
+		}
+		if (region2nd != null) {
+			this.region2nd = region2nd;
+		}
+		if (region3rd != null) {
+			this.region3rd = region3rd;
 		}
 		if (phone != null) {
 			this.phone = phone;

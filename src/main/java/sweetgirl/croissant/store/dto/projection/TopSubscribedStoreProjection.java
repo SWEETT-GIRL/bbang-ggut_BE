@@ -5,7 +5,9 @@ public interface TopSubscribedStoreProjection {
 
 	String getName();
 
-	String getDistrict();
+	String getRegion1st();
+
+	String getRegion2nd();
 
 	double getDistanceMeters();
 
