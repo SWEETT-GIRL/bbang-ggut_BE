@@ -6,10 +6,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import sweetgirl.croissant.admin.bulkimport.code.BulkImportRateLimiter;
+
 @Configuration
 public class BulkImportAsyncConfig {
 
 	public static final String EXECUTOR_NAME = "bulkImportExecutor";
+
+	private static final long KAKAO_MIN_INTERVAL_MS = 400L;
 
 	@Bean(name = EXECUTOR_NAME)
 	public Executor bulkImportExecutor() {
@@ -20,5 +24,10 @@ public class BulkImportAsyncConfig {
 		executor.setThreadNamePrefix("bulk-import-");
 		executor.initialize();
 		return executor;
+	}
+
+	@Bean
+	public BulkImportRateLimiter bulkImportRateLimiter() {
+		return new BulkImportRateLimiter(KAKAO_MIN_INTERVAL_MS);
 	}
 }
