@@ -3,7 +3,24 @@ package sweetgirl.croissant.external.kakao.enums;
 import java.util.Arrays;
 
 public enum KakaoResponseExcludeKeyword {
-	과일, 생과일, 다방, 라이브, 고양이, 강아지, 애견, 사주, 테마카페, 패스트푸드, 가정생활("가정,생활");
+	과일,
+	생과일,
+	다방,
+	라이브,
+	고양이,
+	강아지,
+	애견,
+	사주,
+	테마카페,
+	패스트푸드,
+	스터디카페,
+	키즈카페,
+	북카페,
+	만화카페,
+	보드게임,
+	룸카페,
+	반려동물,
+	가정생활("가정,생활");
 
 	private final String keyword;
 
