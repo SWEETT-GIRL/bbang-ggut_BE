@@ -56,7 +56,6 @@ public class BulkImportProgress extends BaseTimeEntity {
 	private LocalDateTime lastAttemptedAt;
 
 	private BulkImportProgress(String region1st, String region2nd, String region3rd) {
-		//
 		this.region1st = region1st;
 		this.region2nd = region2nd;
 		this.region3rd = region3rd;
@@ -75,6 +74,10 @@ public class BulkImportProgress extends BaseTimeEntity {
 	}
 
 	public void markCompleted(int foundCount, int insertedCount) {
+		if (this.status != BulkImportStatus.IN_PROGRESS) {
+			throw new IllegalStateException(
+				"Cannot mark COMPLETED from status: " + this.status);
+		}
 		this.status = BulkImportStatus.COMPLETED;
 		this.foundCount = foundCount;
 		this.insertedCount = insertedCount;
@@ -82,11 +85,16 @@ public class BulkImportProgress extends BaseTimeEntity {
 	}
 
 	public void markFailed(String errorMessage) {
+		if (this.status != BulkImportStatus.IN_PROGRESS) {
+			throw new IllegalStateException(
+				"Cannot mark FAILED from status: " + this.status);
+		}
 		this.status = BulkImportStatus.FAILED;
 		this.errorMessage = errorMessage;
 	}
 
 	public void resetToPending() {
 		this.status = BulkImportStatus.PENDING;
+		this.errorMessage = null;
 	}
 }

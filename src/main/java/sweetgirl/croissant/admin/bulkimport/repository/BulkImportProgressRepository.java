@@ -22,7 +22,7 @@ public interface BulkImportProgressRepository extends JpaRepository<BulkImportPr
 
 	List<BulkImportProgress> findByStatusOrderByLastAttemptedAtDesc(BulkImportStatus status);
 
-	@Modifying
+	@Modifying(clearAutomatically = true)
 	@Query("UPDATE BulkImportProgress p SET p.status = :newStatus WHERE p.status = :oldStatus")
 	int bulkUpdateStatus(@Param("oldStatus") BulkImportStatus oldStatus,
 			@Param("newStatus") BulkImportStatus newStatus);
