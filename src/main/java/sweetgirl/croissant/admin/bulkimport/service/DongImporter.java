@@ -18,7 +18,7 @@ import sweetgirl.croissant.external.kakao.dto.KakaoSearchResult;
 @RequiredArgsConstructor
 public class DongImporter {
 
-	private static final int MAX_PAGES = 3;
+	private static final int MAX_PAGES = 20;
 
 	private final KakaoLocalClient kakaoLocalClient;
 	private final BulkImportRateLimiter rateLimiter;
@@ -52,9 +52,11 @@ public class DongImporter {
 				dedup.putIfAbsent(place.id(), place);
 			}
 			if (result.isEnd()) {
-				break;
+				return;
 			}
 		}
+		log.warn("[BulkImport] page cap 도달 - 추가 결과 가능, query='{}', maxPages={}",
+			query, MAX_PAGES);
 	}
 
 	public record DongImportResult(int foundCount, int insertedCount) {
