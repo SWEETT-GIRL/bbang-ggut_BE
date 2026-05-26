@@ -142,10 +142,11 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 	@Query(value = """
 			INSERT INTO store (
 					name, address, region_1st, region_2nd, region_3rd,
-					location, phone, kakao_place_id, source, status, created_at, updated_at)
+					location, phone, kakao_place_id, source, status, category,
+					created_at, updated_at)
 			VALUES (:name, :address, :region1st, :region2nd, :region3rd,
 					ST_SetSRID(ST_MakePoint(:x, :y), 4326)::geography, :phone, :kakaoPlaceId,
-					'KAKAO_IMPORTED', 'ACTIVE', NOW(), NOW())
+					'KAKAO_IMPORTED', 'ACTIVE', :category, NOW(), NOW())
 			ON CONFLICT (kakao_place_id) DO NOTHING
 			""", nativeQuery = true)
 	void insertIfNotExistsByKakaoPlaceId(
@@ -157,7 +158,8 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 			@Param("x") double longitude,
 			@Param("y") double latitude,
 			@Param("phone") String phone,
-			@Param("kakaoPlaceId") String kakaoPlaceId);
+			@Param("kakaoPlaceId") String kakaoPlaceId,
+			@Param("category") String category);
 
 	@Query(value = """
 			SELECT * FROM store

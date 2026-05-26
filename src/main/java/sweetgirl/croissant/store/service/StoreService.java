@@ -234,7 +234,8 @@ public class StoreService {
 			request.name(), request.address(),
 			addr[0], addr[1], addr[2],
 			Double.parseDouble(request.x()), Double.parseDouble(request.y()),
-			request.phone(), request.kakaoPlaceId());
+			request.phone(), request.kakaoPlaceId(),
+			null);
 		Long storeId = storeRepository.findByKakaoPlaceId(request.kakaoPlaceId())
 			.map(Store::getId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
