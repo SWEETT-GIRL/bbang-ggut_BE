@@ -110,6 +110,22 @@ class BulkImportOrchestratorTest {
 	}
 
 	@Test
+	@DisplayName("runImport: 처리 대상이 비어도 정상 종료하고 running 플래그를 해제한다")
+	void runImport_emptyTargets_completesAndResetsRunning() throws Exception {
+		given(dongListLoader.load()).willReturn(List.of(new DongRow("서울", "강남구", "역삼동")));
+		BulkImportProgress p1 = BulkImportProgress.of("서울", "강남구", "역삼동");
+		given(progressService.findOrCreate("서울", "강남구", "역삼동")).willReturn(p1);
+		given(progressService.getPendingOrFailed()).willReturn(List.of());
+
+		orchestrator.tryStart();
+		orchestrator.runImport();
+
+		verify(dongImporter, never()).importDong(anyString(), anyString(), anyString());
+		assertThat(orchestrator.isRunning()).isFalse();
+		assertThat(orchestrator.tryStart()).isTrue();
+	}
+
+	@Test
 	@DisplayName("recoverStaleOnStartup: 시작 시 IN_PROGRESS를 PENDING으로 되돌린다")
 	void recoverStaleOnStartup_resetsInProgressToPending() {
 		given(progressService.recoverStaleInProgress()).willReturn(2);
