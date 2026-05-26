@@ -60,7 +60,7 @@ class DongImporterTest {
 	}
 
 	@Test
-	@DisplayName("isEnd=false면 다음 페이지까지 호출한다 (최대 3페이지)")
+	@DisplayName("isEnd=false면 다음 페이지까지 호출한다 (MAX_PAGES 상한)")
 	void importDong_pagesUntilIsEnd() throws Exception {
 		KakaoPlace placeA = place("kakao-A", "A");
 		given(kakaoLocalClient.searchByKeyword(anyString(), org.mockito.ArgumentMatchers.eq(1)))
