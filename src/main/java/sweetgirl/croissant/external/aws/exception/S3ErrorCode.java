@@ -14,7 +14,8 @@ public enum S3ErrorCode implements BaseErrorCode {
 	IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "S34002", "이미지를 찾을 수 없습니다."),
 	INVALID_STATUS_VALUE(HttpStatus.BAD_REQUEST, "S34003", "유효하지 않은 이미지 상태값입니다."),
 	PRE_SIGNED_URL_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "S35001", "URL 생성 중 오류가 발생했습니다."),
-	DELETE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "S35002", "이미지 삭제 중 오류가 발생했습니다.");
+	DELETE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "S35002", "이미지 삭제 중 오류가 발생했습니다."),
+	COPY_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "S35003", "이미지 복사 중 오류가 발생했습니다.");
 
 	private final HttpStatus httpStatus;
 	private final String code;

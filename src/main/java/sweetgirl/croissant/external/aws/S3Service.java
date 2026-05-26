@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -64,6 +65,22 @@ public class S3Service {
 			s3Client.deleteObject(deleteRequest);
 		} catch (S3Exception e) {
 			throw new S3StorageException(S3ErrorCode.DELETE_FAILED, e.awsErrorDetails().errorMessage());
+		}
+	}
+
+	// reports/ 영역의 객체를 stores/, menus/ 등 최종 경로로 server-side copy
+	// 동일 버킷·리전이라 네트워크 전송 비용 없음, PUT 1회 요금만 발생
+	public void copyObject(String sourceKey, String destinationKey) {
+		try {
+			CopyObjectRequest copyRequest = CopyObjectRequest.builder()
+				.sourceBucket(bucketName)
+				.sourceKey(sourceKey)
+				.destinationBucket(bucketName)
+				.destinationKey(destinationKey)
+				.build();
+			s3Client.copyObject(copyRequest);
+		} catch (S3Exception e) {
+			throw new S3StorageException(S3ErrorCode.COPY_FAILED, e.awsErrorDetails().errorMessage());
 		}
 	}
 }
