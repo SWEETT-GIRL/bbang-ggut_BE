@@ -17,6 +17,23 @@ class KakaoResponseExcludeKeywordTest {
 	}
 
 	@Test
+	@DisplayName("공간 임대형 카페는 제외 대상이다 (스터디/키즈/북/만화/보드게임/룸)")
+	void matches_true_whenSpaceRentalCafe() {
+		assertThat(KakaoResponseExcludeKeyword.matches("음식점 > 카페 > 스터디카페")).isTrue();
+		assertThat(KakaoResponseExcludeKeyword.matches("음식점 > 카페 > 키즈카페")).isTrue();
+		assertThat(KakaoResponseExcludeKeyword.matches("음식점 > 카페 > 북카페")).isTrue();
+		assertThat(KakaoResponseExcludeKeyword.matches("음식점 > 카페 > 만화카페")).isTrue();
+		assertThat(KakaoResponseExcludeKeyword.matches("음식점 > 카페 > 보드게임카페")).isTrue();
+		assertThat(KakaoResponseExcludeKeyword.matches("음식점 > 카페 > 룸카페")).isTrue();
+	}
+
+	@Test
+	@DisplayName("반려동물카페는 제외 대상이다")
+	void matches_true_whenPetCafe() {
+		assertThat(KakaoResponseExcludeKeyword.matches("음식점 > 카페 > 반려동물카페")).isTrue();
+	}
+
+	@Test
 	@DisplayName("category_name이 제외 키워드를 포함하지 않으면 false다")
 	void matches_false_whenNoExcludeKeyword() {
 		assertThat(KakaoResponseExcludeKeyword.matches("음식점 > 간식 > 베이커리"))
