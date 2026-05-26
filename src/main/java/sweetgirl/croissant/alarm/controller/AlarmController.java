@@ -24,9 +24,11 @@ import sweetgirl.croissant.alarm.dto.request.GeofenceEnterRequest;
 import sweetgirl.croissant.alarm.dto.response.GeofenceCandidatesResponse;
 import sweetgirl.croissant.alarm.dto.response.MarketingEnabledResponse;
 import sweetgirl.croissant.alarm.dto.response.NotificationEnabledResponse;
+import sweetgirl.croissant.alarm.dto.response.ReportNotificationResponse;
 import sweetgirl.croissant.alarm.dto.response.StoreNotificationResponse;
 import sweetgirl.croissant.alarm.service.AlarmService;
 import sweetgirl.croissant.alarm.service.FcmService;
+import sweetgirl.croissant.alarm.service.ReportNotificationService;
 import sweetgirl.croissant.global.response.ApiResponse;
 
 @Tag(name = "Alarm", description = "알림 API")
@@ -37,6 +39,7 @@ public class AlarmController {
 
 	private final FcmService fcmService;
 	private final AlarmService alarmService;
+	private final ReportNotificationService reportNotificationService;
 
 	@Operation(summary = "FCM 토큰 등록/갱신", description = "디바이스의 FCM 푸시 토큰을 등록하거나 갱신합니다. 동일 deviceId가 존재하면 토큰을 업데이트합니다.")
 	@PostMapping("/fcm-token")
@@ -91,6 +94,21 @@ public class AlarmController {
 	@PatchMapping("/settings/marketing") // PATCH /alarm/settings/marketing — request body 없이 호출
 	public ApiResponse<MarketingEnabledResponse> toggleMarketingEnabled(@AuthenticationPrincipal Long memberId) {
 		return ApiResponse.ok(alarmService.toggleMarketingEnabled(memberId)); // 토글 후 변경된 상태 응답
+	}
+
+	@Operation(summary = "내 제보 알림 목록 조회", description = "사용자가 제출한 제보의 승인/거절 알림 목록을 최신순으로 반환합니다.")
+	@GetMapping("/report-notifications")
+	public ApiResponse<List<ReportNotificationResponse>> getMyReportNotifications(
+			@AuthenticationPrincipal Long memberId) {
+		return ApiResponse.ok(reportNotificationService.getMyReportNotifications(memberId));
+	}
+
+	@Operation(summary = "제보 알림 읽음 처리", description = "특정 제보 알림을 읽음 상태로 변경합니다.")
+	@PatchMapping("/report-notifications/{id}/read")
+	public ApiResponse<Void> readReportNotification(@AuthenticationPrincipal Long memberId,
+			@Parameter(description = "제보 알림 ID") @PathVariable Long id) {
+		reportNotificationService.markAsRead(memberId, id);
+		return ApiResponse.ok(null);
 	}
 
 	@Operation(summary = "Geofence 후보 가게 조회", description = "현재 위치 기준 구독 가게 최대 20개 반환. 앱 OS Geofence 등록용.")
