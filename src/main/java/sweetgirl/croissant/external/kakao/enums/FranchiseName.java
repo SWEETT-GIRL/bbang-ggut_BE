@@ -93,7 +93,9 @@ public enum FranchiseName {
 	심봉사도로케,
 	따삐오,
 	마리웨일237,
-	읍천리382;
+	읍천리382,
+	커피니,
+	핫브레드;
 
 	public static boolean matches(String placeName) {
 		return Arrays.stream(values()).anyMatch(f -> placeName.startsWith(f.name()));
