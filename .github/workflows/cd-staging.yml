@@ -90,6 +90,9 @@ jobs:
           springdoc.api-docs.enabled=true
           swagger.server-url=https://bbang-ggut.site
           swagger.server-description=Staging
+
+          # AES-256 암호화 키 
+          encrypt.secret-key=${ENCRYPT_SECRET_KEY}
           EOF
 
       - name: Create Firebase service account file
@@ -141,6 +144,7 @@ jobs:
             echo "AWS_REGION=ap-northeast-2" >> .env
             echo "AWS_S3_BUCKET=${{ secrets.STAGING_AWS_S3_BUCKET }}" >> .env
             echo "STAGING_POSTHOG_API_KEY=${{ secrets.STAGING_POSTHOG_API_KEY }}" >> .env
+            echo "ENCRYPT_SECRET_KEY=${{ secrets.ENCRYPT_SECRET_KEY }}" >> .env
 
             docker compose pull
             docker compose up -d

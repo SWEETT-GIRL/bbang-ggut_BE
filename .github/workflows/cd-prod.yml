@@ -85,6 +85,9 @@ jobs:
 
           posthog.api-key=${{secrets.PROD_POSTHOG_API_KEY}}
           posthog.host=https://us.i.posthog.com
+
+          # AES-256 암호화 키 
+          encrypt.secret-key=${ENCRYPT_SECRET_KEY}
           EOF
 
       - name: Create Firebase service account file
@@ -137,6 +140,7 @@ jobs:
             echo "AWS_REGION=ap-northeast-2" >> .env
             echo "AWS_S3_BUCKET=${{ secrets.PROD_AWS_S3_BUCKET }}" >> .env
             echo "PROD_POSTHOG_API_KEY=${{ secrets.PROD_POSTHOG_API_KEY }}" >> .env
+            echo "ENCRYPT_SECRET_KEY=${{ secrets.ENCRYPT_SECRET_KEY }}" >> .env
 
             docker compose pull
             docker compose up -d
