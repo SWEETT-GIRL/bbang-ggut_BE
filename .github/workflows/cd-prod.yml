@@ -65,6 +65,8 @@ jobs:
           kakao.api.base-url=https://dapi.kakao.com
           kakao.api.key=${KAKAO_API_KEY}
 
+          google.places.api-key=${GOOGLE_PLACES_API_KEY}
+
           jwt.secret=${JWT_SECRET}
           jwt.access-token-expiry=3600000
           jwt.refresh-token-expiry=1209600000
@@ -135,6 +137,7 @@ jobs:
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
             echo "PROD_SERVER_IP=${{ secrets.PROD_SERVER_IP }}" >> .env
             echo "KAKAO_API_KEY=${{ secrets.KAKAO_API_KEY }}" >> .env
+            echo "GOOGLE_PLACES_API_KEY=${{ secrets.GOOGLE_PLACES_API_KEY }}" >> .env
             echo "AWS_ACCESS_KEY=${{ secrets.PROD_AWS_ACCESS_KEY }}" >> .env
             echo "AWS_SECRET_KEY=${{ secrets.PROD_AWS_SECRET_KEY }}" >> .env
             echo "AWS_REGION=ap-northeast-2" >> .env
