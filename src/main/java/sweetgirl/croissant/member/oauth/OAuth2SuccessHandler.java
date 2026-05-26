@@ -15,6 +15,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.global.encrypt.TokenHasher;
 import sweetgirl.croissant.member.dto.dto.CustomOAuth2User;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.RefreshToken;
@@ -32,6 +33,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 	private final JwtProvider jwtProvider;
 	private final MemberRepository memberRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
+	// DB 저장 전 refreshToken을 SHA-256 해시로 변환하기 위해 주입
+	private final TokenHasher tokenHasher;
 
 	// application-local.properties의 oauth2.front-redirect-uri 값 주입 (bbanggut://oauth)
 	@Value("${oauth2.front-redirect-uri}")
@@ -87,12 +90,12 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 		refreshTokenRepository.findByMemberAndDeviceId(memberRef, deviceId)
 			.ifPresent(refreshTokenRepository::delete);
 
-		// 새 RefreshToken 저장
+		// 새 RefreshToken 저장 — 원본 JWT 대신 SHA-256 해시값으로 저장
 		refreshTokenRepository.save(
 			RefreshToken.builder()
 				.member(memberRef)
 				.deviceId(deviceId)
-				.token(refreshToken)
+				.token(tokenHasher.hash(refreshToken))
 				.expiredAt(LocalDateTime.now().plusSeconds(refreshTokenExpiry / 1000)) // ms → 초 변환
 				.build());
 	}

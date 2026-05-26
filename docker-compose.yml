@@ -17,6 +17,7 @@ services:
       PROD_SERVER_IP: "https://bbang-ggut.cloud"
       STAGING_SERVER_IP: "https://bbang-ggut.site"
       KAKAO_API_KEY: ${KAKAO_API_KEY}
+      ENCRYPT_SECRET_KEY: ${ENCRYPT_SECRET_KEY}
       GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY}
     ports:
       - "8080:8080"

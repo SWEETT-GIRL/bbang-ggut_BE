@@ -6,6 +6,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.EnumType;
@@ -22,6 +23,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import sweetgirl.croissant.global.encrypt.EncryptedStringConverter;
 import sweetgirl.croissant.member.enums.OAuthProvider;
 
 @Entity
@@ -44,10 +46,13 @@ public class OAuth {
 	@Column(nullable = false, length = 20)
 	private OAuthProvider provider;
 
+	// providerId는 카카오/애플 고유 식별자 — SHA-256 해시값(64자)으로 저장
 	@Column(nullable = false, length = 255)
 	private String providerId;
 
-	@Column(length = 255)
+	// 이메일은 PII이므로 AES-256-GCM 암호화 후 저장
+	@Convert(converter = EncryptedStringConverter.class)
+	@Column(length = 500)
 	private String email;
 
 	@CreatedDate

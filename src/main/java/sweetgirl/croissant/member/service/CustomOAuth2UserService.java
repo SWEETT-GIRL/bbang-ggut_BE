@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.global.encrypt.TokenHasher;
 import sweetgirl.croissant.member.dto.dto.CustomOAuth2User;
 import sweetgirl.croissant.member.dto.dto.KakaoOAuth2UserInfo;
 import sweetgirl.croissant.member.entity.Member;
@@ -28,6 +29,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 	private final MemberRepository memberRepository;
 	private final NotificationSettingRepository notificationSettingRepository;
 	private final OAuthRepository oAuthRepository;
+	// providerId를 DB 저장/조회 전 SHA-256 해시로 변환하기 위해 주입
+	private final TokenHasher tokenHasher;
 
 	// Spring Security가 카카오 사용자 정보를 받아온 직후 자동으로 호출하는 메서드
 	// 여기서 DB upsert(신규 가입 or 기존 유저 조회)를 처리하고 인증된 유저 정보를 반환
@@ -42,13 +45,16 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 		// 카카오 응답 JSON을 파싱해서 필요한 값(providerId, email, nickname)만 추출
 		KakaoOAuth2UserInfo userInfo = new KakaoOAuth2UserInfo(oAuth2User.getAttributes());
 
-		boolean existsOAuth = oAuthRepository.existsByProviderAndProviderId(OAuthProvider.KAKAO,
-			userInfo.getProviderId());
+		// DB에는 providerId가 SHA-256 해시로 저장되어 있으므로, 조회 전에 동일하게 해시 변환
+		String hashedProviderId = tokenHasher.hash(userInfo.getProviderId());
 
-		// DB에서 provider(KAKAO) + providerId 조합으로 기존 OAuth 레코드 조회
+		boolean existsOAuth = oAuthRepository.existsByProviderAndProviderId(OAuthProvider.KAKAO,
+			hashedProviderId);
+
+		// DB에서 provider(KAKAO) + providerId 해시 조합으로 기존 OAuth 레코드 조회
 		// 없으면 신규 가입, 있으면 기존 유저
 		OAuth oAuth = oAuthRepository //Oauth 객체 반환
-			.findByProviderAndProviderId(OAuthProvider.KAKAO, userInfo.getProviderId())
+			.findByProviderAndProviderId(OAuthProvider.KAKAO, hashedProviderId)
 			.orElseGet(() -> registerNewMember(userInfo)); // 없으면 신규 가입 처리
 
 		Member member = oAuth.getMember();
@@ -89,8 +95,10 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 			OAuth.builder()
 				.member(member)
 				.provider(OAuthProvider.KAKAO) // 소셜 로그인 제공자 (KAKAO)
-				.providerId(userInfo.getProviderId()) // 카카오 고유 유저 ID
-				.email(userInfo.getEmail()) // 카카오 계정 이메일
+				// providerId는 SHA-256 해시로 저장 (이후 조회 시에도 동일하게 해시 변환해서 조회)
+				.providerId(tokenHasher.hash(userInfo.getProviderId()))
+				// email은 EncryptedStringConverter가 자동으로 AES-256 암호화 처리
+				.email(userInfo.getEmail())
 				.build());
 		return oAuth;
 	}

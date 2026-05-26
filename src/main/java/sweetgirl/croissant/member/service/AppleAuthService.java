@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.global.encrypt.TokenHasher;
 import sweetgirl.croissant.member.dto.dto.AppleTokenClaims;
 import sweetgirl.croissant.member.dto.response.AppleLoginResponse;
 import sweetgirl.croissant.member.entity.Member;
@@ -32,6 +33,7 @@ public class AppleAuthService {
 	private final RefreshTokenRepository refreshTokenRepository;
 	private final NotificationSettingRepository notificationSettingRepository;
 	private final JwtProvider jwtProvider;
+	private final TokenHasher tokenHasher;
 
 	@Value("${jwt.refresh-token-expiry}")
 	private long refreshTokenExpiry;
@@ -40,10 +42,13 @@ public class AppleAuthService {
 	public AppleLoginResponse login(String identityToken, String deviceId) {
 		AppleTokenClaims claims = appleTokenVerifier.verify(identityToken);
 
-		boolean existsOAuth = oAuthRepository.existsByProviderAndProviderId(OAuthProvider.APPLE, claims.sub());
+		// DB에는 providerId가 SHA-256 해시로 저장되어 있으므로, 조회 전에 동일하게 해시 변환
+		String hashedProviderId = tokenHasher.hash(claims.sub());
+
+		boolean existsOAuth = oAuthRepository.existsByProviderAndProviderId(OAuthProvider.APPLE, hashedProviderId);
 
 		OAuth oAuth = oAuthRepository
-			.findByProviderAndProviderId(OAuthProvider.APPLE, claims.sub())
+			.findByProviderAndProviderId(OAuthProvider.APPLE, hashedProviderId)
 			.orElseGet(() -> registerNewMember(claims));
 
 		Member member = oAuth.getMember();
@@ -83,7 +88,9 @@ public class AppleAuthService {
 			OAuth.builder()
 				.member(member)
 				.provider(OAuthProvider.APPLE)
-				.providerId(claims.sub())
+				// providerId는 SHA-256 해시로 저장
+				.providerId(tokenHasher.hash(claims.sub()))
+				// email은 EncryptedStringConverter가 자동으로 AES-256 암호화 처리
 				.email(claims.email())
 				.build());
 	}
@@ -109,7 +116,8 @@ public class AppleAuthService {
 			RefreshToken.builder()
 				.member(memberRef)
 				.deviceId(deviceId)
-				.token(refreshToken)
+				// 원본 JWT 대신 SHA-256 해시값으로 저장
+				.token(tokenHasher.hash(refreshToken))
 				.expiredAt(LocalDateTime.now().plusSeconds(refreshTokenExpiry / 1000))
 				.build());
 	}
