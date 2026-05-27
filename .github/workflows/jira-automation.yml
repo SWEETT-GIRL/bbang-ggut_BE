@@ -1,0 +1,133 @@
+name: Jira Automation - Create GitHub Issue & Branch
+
+on:
+  repository_dispatch:
+    types: [jira_issue_created]
+
+jobs:
+  create-issue-and-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Formulate Branch Name and Find Template
+        id: setup
+        run: |
+          IKEY="${{ github.event.client_payload.key }}"
+          ITYPE="${{ github.event.client_payload.type }}"
+          ISUMMARY="${{ github.event.client_payload.summary }}"
+          IREPORTER="${{ github.event.client_payload.reporter }}"
+          IJIRAURL="${{ github.event.client_payload.jiraUrl }}"
+          IBODY="${{ github.event.client_payload.body }}"
+          PARENT_KEY="${{ github.event.client_payload.parentKey }}"
+
+          ILABEL=$(echo "$ITYPE" | tr '[:upper:]' '[:lower:]')
+          
+          TEMPLATE_FILE=".github/ISSUE_TEMPLATE/✨-feature.md"
+          TYPE_SHORT="feat"
+
+          if [ "$ILABEL" == "story" ] || [ "$ILABEL" == "스토리" ]; then
+            TYPE_SHORT="story"
+            TEMPLATE_FILE=".github/ISSUE_TEMPLATE/📖-story.md"
+          elif [ "$ILABEL" == "bug" ] || [ "$ILABEL" == "bug fix" ] || [ "$ILABEL" == "버그" ]; then
+            TYPE_SHORT="fix"
+            TEMPLATE_FILE=".github/ISSUE_TEMPLATE/🐛-fix.md"
+          elif [ "$ILABEL" == "refactor" ] || [ "$ILABEL" == "리팩토링" ]; then
+            TYPE_SHORT="refactor"
+            TEMPLATE_FILE=".github/ISSUE_TEMPLATE/♻️-refactor.md"
+          elif [ "$ILABEL" == "documentation" ] || [ "$ILABEL" == "docs" ] || [ "$ILABEL" == "문서" ]; then
+            TYPE_SHORT="docs"
+            TEMPLATE_FILE=".github/ISSUE_TEMPLATE/📝-docs.md"
+          elif [ "$ILABEL" == "test" ] || [ "$ILABEL" == "테스트" ]; then
+            TYPE_SHORT="test"
+            TEMPLATE_FILE=".github/ISSUE_TEMPLATE/✅-test.md"
+          elif [ "$ILABEL" == "ci/cd" ] || [ "$ILABEL" == "cicd" ] || [ "$ILABEL" == "ci-cd" ]; then
+            TYPE_SHORT="cicd"
+            TEMPLATE_FILE=".github/ISSUE_TEMPLATE/💚-ci-cd.md"
+          fi
+
+          CLEAN_SUMMARY=$(echo "$ISUMMARY" | tr ' ' '-' | tr -cd '[:alnum:]-')
+          BRANCH_NAME="${IKEY}-${TYPE_SHORT}-${CLEAN_SUMMARY}"
+          
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          echo "TYPE_SHORT=$TYPE_SHORT" >> $GITHUB_ENV
+
+          if [ -n "$PARENT_KEY" ] && [ "$PARENT_KEY" != "null" ]; then
+            TITLE="[$IKEY] (from $PARENT_KEY) $ISUMMARY"
+          else
+            TITLE="[$IKEY] $ISUMMARY"
+          fi
+          echo "ISSUE_TITLE=$TITLE" >> $GITHUB_ENV
+
+          if [ -f "$TEMPLATE_FILE" ]; then
+            PURE_TEMPLATE=$(sed '1,/^---$/d' "$TEMPLATE_FILE")
+          else
+            PURE_TEMPLATE="# Title\n- 자세한 개요 작성\n# TODO\n- [ ] 투두 내용 작성"
+          fi
+
+          JIRA_INFO="- **생성자**: ${IREPORTER}\n- **Jira 링크**: ${IJIRAURL}\n\n"
+          FINAL_BODY=$(echo -e "${JIRA_INFO}## 지라 내용\n${IBODY}\n\n${PURE_TEMPLATE}")
+
+          echo "FINAL_BODY<<EOF" >> $GITHUB_ENV
+          echo "$FINAL_BODY" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Create GitHub Issue via GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.JIRA_GITHUB_TOKEN }}
+        run: |
+          NEW_ISSUE_URL=$(gh issue create \
+            --title "${{ env.ISSUE_TITLE }}" \
+            --body "$FINAL_BODY" \
+            --label "${{ env.TYPE_SHORT }}" \
+            --repo "${{ github.repository }}")
+          
+          echo "ISSUE_URL=$NEW_ISSUE_URL" >> $GITHUB_ENV
+          echo "새 생성된 이슈 URL: $NEW_ISSUE_URL"
+
+      - name: Link Task to Parent Story Issue via GitHub Tasklists
+        env:
+          GH_TOKEN: ${{ secrets.JIRA_GITHUB_TOKEN }}
+        run: |
+          PARENT_KEY="${{ github.event.client_payload.parentKey }}"
+
+          if [ -n "$PARENT_KEY" ] && [ "$PARENT_KEY" != "null" ]; then
+            echo "부모 스토리 이슈 검색 중: $PARENT_KEY"
+
+            PARENT_ISSUE_NUM=$(gh issue list \
+              --search "[$PARENT_KEY] in:title" \
+              --json number \
+              --jq '.[0].number')
+            
+            if [ -n "$PARENT_ISSUE_NUM" ] && [ "$PARENT_ISSUE_NUM" != "null" ]; then
+              echo "매칭되는 깃허브 부모 이슈 발견: #$PARENT_ISSUE_NUM"
+
+              PARENT_BODY=$(gh issue view $PARENT_ISSUE_NUM --json body --jq '.body')
+              TASK_LINK="${{ env.ISSUE_URL }}"
+
+              if [[ "$PARENT_BODY" != *"\`\`\`tasklist"* ]]; then
+                NEW_BODY="${PARENT_BODY}\n\n### 📋 하위 작업\n\`\`\`tasklist\n- $TASK_LINK\n\`\`\`"
+              else
+                CLEANED_BODY=$(echo -e "$PARENT_BODY" | sed 's/\`\`\`$//')
+                NEW_BODY="${CLEANED_BODY}- ${TASK_LINK}\n\`\`\`"
+              fi
+              
+              gh issue edit $PARENT_ISSUE_NUM --body -e "$NEW_BODY"
+              echo "부모 이슈 #$PARENT_ISSUE_NUM 에 성공적으로 연동했습니다."
+            else
+              echo "깃허브에서 [$PARENT_KEY] 타이틀을 가진 부모 이슈를 찾지 못해 연동을 건너뜁니다."
+            fi
+          fi
+
+      - name: Create and Push Git Branch
+        if: env.TYPE_SHORT != 'story'
+        run: |
+          git config --global user.name "jira-bot"
+          git config --global user.email "jira-bot@github.com"
+
+          git fetch origin dev
+          git checkout dev
+
+          git checkout -b ${{ env.BRANCH_NAME }}
+          git push origin ${{ env.BRANCH_NAME }}
