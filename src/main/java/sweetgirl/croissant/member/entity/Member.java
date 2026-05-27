@@ -32,7 +32,7 @@ public class Member {
 	private Long id;
 
 	@Convert(converter = EncryptedStringConverter.class)
-	@Column(nullable = false, length = 200)
+	@Column(nullable = false, length = 255)
 	private String nickname;
 
 	@Column
