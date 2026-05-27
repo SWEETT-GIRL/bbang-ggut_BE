@@ -44,10 +44,14 @@ public class PersonalDataMigrationRunner implements ApplicationRunner {
 	@Override
 	public void run(ApplicationArguments args) {
 		log.info("[Migration] 개인정보 암호화 마이그레이션 시작");
-		migrateMemberNicknames();
-		migrateOAuthData();
-		migrateRefreshTokens();
-		log.info("[Migration] 개인정보 암호화 마이그레이션 완료");
+		try {
+			migrateMemberNicknames();
+			migrateOAuthData();
+			migrateRefreshTokens();
+			log.info("[Migration] 개인정보 암호화 마이그레이션 완료");
+		} catch (Exception e) {
+			log.error("[Migration] 마이그레이션 중 오류 발생 — 앱은 계속 기동됩니다", e);
+		}
 	}
 
 	private void migrateMemberNicknames() {
@@ -73,26 +77,50 @@ public class PersonalDataMigrationRunner implements ApplicationRunner {
 
 	private void migrateOAuthData() {
 		List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-			"SELECT id, provider_id, email FROM oauth");
+			"SELECT id, provider, provider_id, email FROM oauth");
 
-		int count = 0;
+		int converted = 0;
+		int deleted = 0;
 		for (Map<String, Object> row : rows) {
 			Long id = ((Number)row.get("id")).longValue();
+			String provider = (String)row.get("provider");
 			String providerId = (String)row.get("provider_id");
 			String email = (String)row.get("email");
 
-			String newProviderId = (providerId != null && !isSha256Hash(providerId))
-				? tokenHasher.hash(providerId) : providerId;
+			// 이미 해시된 행은 이메일만 암호화
+			if (isSha256Hash(providerId)) {
+				if (email != null && !isAlreadyEncrypted(email)) {
+					jdbcTemplate.update(
+						"UPDATE oauth SET email = ? WHERE id = ?",
+						aesEncryptor.encrypt(email), id);
+					converted++;
+				}
+				continue;
+			}
+
+			String hashedProviderId = tokenHasher.hash(providerId);
+
+			// 동일 (provider, 해시) 행이 이미 존재하면 기존 평문 행 삭제
+			Integer conflict = jdbcTemplate.queryForObject(
+				"SELECT COUNT(*) FROM oauth WHERE provider = ? AND provider_id = ? AND id != ?",
+				Integer.class, provider, hashedProviderId, id);
+
+			if (conflict != null && conflict > 0) {
+				jdbcTemplate.update("DELETE FROM oauth WHERE id = ?", id);
+				log.warn("[Migration] oauth id={} 삭제 (재로그인으로 생긴 해시 행이 이미 존재: provider={})", id, provider);
+				deleted++;
+				continue;
+			}
 
 			String newEmail = (email != null && !isAlreadyEncrypted(email))
 				? aesEncryptor.encrypt(email) : email;
 
 			jdbcTemplate.update(
 				"UPDATE oauth SET provider_id = ?, email = ? WHERE id = ?",
-				newProviderId, newEmail, id);
-			count++;
+				hashedProviderId, newEmail, id);
+			converted++;
 		}
-		log.info("[Migration] oauth {}건 변환 완료", count);
+		log.info("[Migration] oauth 변환 {}건, 중복 삭제 {}건 완료", converted, deleted);
 	}
 
 	private void migrateRefreshTokens() {
