@@ -153,18 +153,33 @@ jobs:
             docker compose up -d
             docker image prune -a -f
 
+      - name: Get PR title
+        id: pr_info
+        run: |
+          PR_TITLE=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+            --jq '.[0].title // ""' 2>/dev/null || echo "")
+          if [ -z "$PR_TITLE" ]; then
+            PR_TITLE="${{ github.event.head_commit.message }}"
+          fi
+          echo "title=$PR_TITLE" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Notify Discord
         if: success()
         run: |
+          jq -n \
+            --arg pr "${{ steps.pr_info.outputs.title }}" \
+            --arg tag "${{ steps.tag.outputs.IMAGE_TAG }}" \
+            '{embeds: [{
+              "title": "🚀 배포 완료 [PROD]",
+              "color": 3066993,
+              "fields": [
+                {"name": "PR", "value": $pr, "inline": false},
+                {"name": "Image Tag", "value": $tag, "inline": true},
+                {"name": "Branch", "value": "main", "inline": true}
+              ]
+            }]}' | \
           curl -s -X POST "${{ secrets.DISCORD_DEPLOY_WEBHOOK_URL_PROD }}" \
             -H "Content-Type: application/json" \
-            -d '{
-              "embeds": [{
-                "title": "🚀 배포 완료 [PROD]",
-                "color": 3066993,
-                "fields": [
-                  {"name": "Image Tag", "value": "${{ steps.tag.outputs.IMAGE_TAG }}", "inline": true},
-                  {"name": "Branch", "value": "main", "inline": true}
-                ]
-              }]
-            }'
+            -d @-
