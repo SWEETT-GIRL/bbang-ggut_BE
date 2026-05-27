@@ -18,6 +18,7 @@ jobs:
           ITYPE="${{ github.event.client_payload.type }}"
           ISUMMARY="${{ github.event.client_payload.summary }}"
           IREPORTER="${{ github.event.client_payload.reporter }}"
+          IASSIGNEE="${{ github.event.client_payload.assignee }}"
           IJIRAURL="${{ github.event.client_payload.jiraUrl }}"
           IBODY="${{ github.event.client_payload.body }}"
           PARENT_KEY="${{ github.event.client_payload.parentKey }}"
@@ -26,24 +27,31 @@ jobs:
           
           TEMPLATE_FILE=".github/ISSUE_TEMPLATE/✨-feature.md"
           TYPE_SHORT="feat"
+          GH_LABEL="feature"
 
-          if [ "$ILABEL" == "story" ] || [ "$ILABEL" == "스토리" ]; then
+          if [[ "$ILABEL" == *"story"* ]]; then
             TYPE_SHORT="story"
+            GH_LABEL="story"
             TEMPLATE_FILE=".github/ISSUE_TEMPLATE/📖-story.md"
-          elif [ "$ILABEL" == "bug" ] || [ "$ILABEL" == "bug fix" ] || [ "$ILABEL" == "버그" ]; then
+          elif [[ "$ILABEL" == *"bug"* ]]; then
             TYPE_SHORT="fix"
+            GH_LABEL="bug"
             TEMPLATE_FILE=".github/ISSUE_TEMPLATE/🐛-fix.md"
-          elif [ "$ILABEL" == "refactor" ] || [ "$ILABEL" == "리팩토링" ]; then
+          elif [[ "$ILABEL" == *"refactor"* ]]; then
             TYPE_SHORT="refactor"
+            GH_LABEL="refactor"
             TEMPLATE_FILE=".github/ISSUE_TEMPLATE/♻️-refactor.md"
-          elif [ "$ILABEL" == "documentation" ] || [ "$ILABEL" == "docs" ] || [ "$ILABEL" == "문서" ]; then
+          elif [[ "$ILABEL" == *"documentation"* ]]; then
             TYPE_SHORT="docs"
+            GH_LABEL="documentation"
             TEMPLATE_FILE=".github/ISSUE_TEMPLATE/📝-docs.md"
-          elif [ "$ILABEL" == "test" ] || [ "$ILABEL" == "테스트" ]; then
+          elif [[ "$ILABEL" == *"test"* ]]; then
             TYPE_SHORT="test"
+            GH_LABEL="test"
             TEMPLATE_FILE=".github/ISSUE_TEMPLATE/✅-test.md"
-          elif [ "$ILABEL" == "ci/cd" ] || [ "$ILABEL" == "cicd" ] || [ "$ILABEL" == "ci-cd" ]; then
-            TYPE_SHORT="cicd"
+          elif [[ "$ILABEL" == *"ci/cd"* ]]; then
+            TYPE_SHORT="cicd"         
+            GH_LABEL="ci/cd"         
             TEMPLATE_FILE=".github/ISSUE_TEMPLATE/💚-ci-cd.md"
           fi
 
@@ -52,22 +60,60 @@ jobs:
           
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
           echo "TYPE_SHORT=$TYPE_SHORT" >> $GITHUB_ENV
+          echo "GH_LABEL=$GH_LABEL" >> $GITHUB_ENV
+
+          GH_USER=""
+          if [ -n "$IASSIGNEE" ] && [ "$IASSIGNEE" != "null" ]; then
+            case "$IASSIGNEE" in
+              "이현정") GH_USER="howareyou2" ;;
+              # "지라이름") GH_USER="깃허브ID" ;;
+              *) GH_USER="" ;;
+            esac
+          fi
+          echo "GH_ASSIGNEE=$GH_USER" >> $GITHUB_ENV
+
+          TEMPLATE_PREFIX=""
+          if [ -f "$TEMPLATE_FILE" ]; then
+            # 템플릿 파일에서 'title: '이 포함된 라인을 찾아 따옴표와 title: 텍스트를 제거하고 알맹이만 추출
+            TEMPLATE_PREFIX=$(grep '^title:' "$TEMPLATE_FILE" | sed 's/title://g' | tr -d '"' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          fi
 
           if [ -n "$PARENT_KEY" ] && [ "$PARENT_KEY" != "null" ]; then
-            TITLE="[$IKEY] (from $PARENT_KEY) $ISUMMARY"
+            TITLE="[$IKEY] (from $PARENT_KEY) ${TEMPLATE_PREFIX}${ISUMMARY}"
           else
-            TITLE="[$IKEY] $ISUMMARY"
+            TITLE="[$IKEY] ${TEMPLATE_PREFIX}${ISUMMARY}"
           fi
           echo "ISSUE_TITLE=$TITLE" >> $GITHUB_ENV
 
+          NORM_BODY=$(echo -e "$IBODY")
+          
+          EXTRACT_TITLE=$(echo "$NORM_BODY" | sed -n '/# Title/,/# TODO/p' | grep -v -E '# Title|# TODO' | sed '/^[[:space:]]*$/d')
+          EXTRACT_TODO=$(echo "$NORM_BODY" | sed -n '/# TODO/,/# etc/p' | grep -v -E '# TODO|# etc' | sed '/^[[:space:]]*$/d')
+          EXTRACT_ETC=$(echo "$NORM_BODY" | sed -n '/# etc/,$p' | grep -v -E '# etc' | sed '/^[[:space:]]*$/d')
+
           if [ -f "$TEMPLATE_FILE" ]; then
-            PURE_TEMPLATE=$(sed '1,/^---$/d' "$TEMPLATE_FILE")
+            TEMPLATE_CONTENT=$(sed '1,/^---$/d' "$TEMPLATE_FILE")
           else
-            PURE_TEMPLATE="# Title\n- 자세한 개요 작성\n# TODO\n- [ ] 투두 내용 작성"
+            TEMPLATE_CONTENT="# Title\n\n# TODO\n\n# etc"
           fi
 
-          JIRA_INFO="- **생성자**: ${IREPORTER}\n- **Jira 링크**: ${IJIRAURL}\n\n"
-          FINAL_BODY=$(echo -e "${JIRA_INFO}## 지라 내용\n${IBODY}\n\n${PURE_TEMPLATE}")
+          MAPPED_BODY="$TEMPLATE_CONTENT"
+          
+          if [ -n "$EXTRACT_TITLE" ]; then
+            MAPPED_BODY=$(echo -e "$MAPPED_BODY" | sed "s/- 이 스토리가 해결하고자 하는 비즈니스 가치나 유저 시나리오를 기술합니다./$EXTRACT_TITLE/g" 2>/dev/null || echo -e "$MAPPED_BODY" | sed "s/- 자세한 개요 작성/$EXTRACT_TITLE/g")
+          fi
+          
+          if [ -n "$EXTRACT_TODO" ]; then
+            MAPPED_BODY=$(echo -e "$MAPPED_BODY" | sed "s/- \[ \] 요구사항 정의 및 설계 검토\n- \[ \] 하위 개발 Task 카드 생성 및 연역 맵핑\n- \[ \] 테스트 코드 작성 및 기능 검증/$EXTRACT_TODO/g" 2>/dev/null || echo -e "$MAPPED_BODY" | sed "s/- \[ \] 투두 내용 작성/$EXTRACT_TODO/g")
+          fi
+
+          if [ -n "$EXTRACT_ETC" ]; then
+            MAPPED_BODY=$(echo -e "$MAPPED_BODY" | sed "s/- 와이어프레임, 기획서 링크 또는 참고자료 등을 첨부합니다./$EXTRACT_ETC/g" 2>/dev/null || echo -e "$MAPPED_BODY" | sed "s/- 참고 자료 작성/$EXTRACT_ETC/g")
+          fi
+
+          LOWER_BANNER="\n\n---\n### 🔗 연동 정보\n- **Jira 링크**: [${IKEY} 바로가기](${IJIRAURL})"
+          
+          FINAL_BODY=$(echo -e "${MAPPED_BODY}${LOWER_BANNER}")
 
           echo "FINAL_BODY<<EOF" >> $GITHUB_ENV
           echo "$FINAL_BODY" >> $GITHUB_ENV
@@ -77,11 +123,20 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.JIRA_GITHUB_TOKEN }}
         run: |
-          NEW_ISSUE_URL=$(gh issue create \
-            --title "${{ env.ISSUE_TITLE }}" \
-            --body "$FINAL_BODY" \
-            --label "${{ env.TYPE_SHORT }}" \
-            --repo "${{ github.repository }}")
+          if [ -n "${{ env.GH_ASSIGNEE }}" ]; then
+            NEW_ISSUE_URL=$(gh issue create \
+              --title "${{ env.ISSUE_TITLE }}" \
+              --body "$FINAL_BODY" \
+              --label "${{ env.GH_LABEL }}" \
+              --assignee "${{ env.GH_ASSIGNEE }}" \
+              --repo "${{ github.repository }}")
+          else
+            NEW_ISSUE_URL=$(gh issue create \
+              --title "${{ env.ISSUE_TITLE }}" \
+              --body "$FINAL_BODY" \
+              --label "${{ env.GH_LABEL }}" \
+              --repo "${{ github.repository }}")
+          fi
           
           echo "ISSUE_URL=$NEW_ISSUE_URL" >> $GITHUB_ENV
           echo "새 생성된 이슈 URL: $NEW_ISSUE_URL"
