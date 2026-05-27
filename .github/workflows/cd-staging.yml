@@ -93,8 +93,11 @@ jobs:
           swagger.server-url=https://bbang-ggut.site
           swagger.server-description=Staging
 
-          # AES-256 암호화 키 
+          # AES-256 암호화 키
           encrypt.secret-key=${ENCRYPT_SECRET_KEY}
+
+          # Discord 에러 알림 웹훅
+          discord.webhook.url=${DISCORD_WEBHOOK_URL}
           EOF
 
       - name: Create Firebase service account file
@@ -148,6 +151,7 @@ jobs:
             echo "AWS_S3_BUCKET=${{ secrets.STAGING_AWS_S3_BUCKET }}" >> .env
             echo "STAGING_POSTHOG_API_KEY=${{ secrets.STAGING_POSTHOG_API_KEY }}" >> .env
             echo "ENCRYPT_SECRET_KEY=${{ secrets.ENCRYPT_SECRET_KEY }}" >> .env
+            echo "DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK_URL_STAGING }}" >> .env
 
             docker compose pull
             docker compose up -d
