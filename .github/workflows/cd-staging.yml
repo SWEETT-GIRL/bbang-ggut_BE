@@ -156,3 +156,19 @@ jobs:
             docker compose pull
             docker compose up -d
             docker image prune -a -f
+
+      - name: Notify Discord
+        if: success()
+        run: |
+          curl -s -X POST "${{ secrets.DISCORD_DEPLOY_WEBHOOK_URL_STAGING }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "embeds": [{
+                "title": "🚀 배포 완료 [STAGING]",
+                "color": 5814783,
+                "fields": [
+                  {"name": "Image Tag", "value": "${{ steps.tag.outputs.IMAGE_TAG }}", "inline": true},
+                  {"name": "Branch", "value": "dev", "inline": true}
+                ]
+              }]
+            }'
