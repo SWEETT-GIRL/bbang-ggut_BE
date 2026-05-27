@@ -174,6 +174,8 @@ jobs:
 
       - name: Create and Push Git Branch
         if: env.TYPE_SHORT != 'story'
+        env:
+          MY_PAT: ${{ secrets.JIRA_GITHUB_TOKEN }}
         run: |
           git config --global user.name "jira-bot"
           git config --global user.email "jira-bot@github.com"
@@ -182,4 +184,4 @@ jobs:
           git checkout dev
 
           git checkout -b ${{ env.BRANCH_NAME }}
-          git push origin ${{ env.BRANCH_NAME }}
+          git push https://x-access-token:${{ env.MY_PAT }}@github.com/${{ github.repository }}.git ${{ env.BRANCH_NAME }}
