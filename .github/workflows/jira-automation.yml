@@ -28,31 +28,38 @@ jobs:
           TEMPLATE_FILE=".github/ISSUE_TEMPLATE/✨-feature.md"
           TYPE_SHORT="feat"
           GH_LABEL="feature"
+          TITLE_PREFIX="✨ feat: "
 
           if [[ "$ILABEL" == *"story"* ]]; then
             TYPE_SHORT="story"
             GH_LABEL="story"
             TEMPLATE_FILE=".github/ISSUE_TEMPLATE/📖-story.md"
+            TITLE_PREFIX="📖 story: "
           elif [[ "$ILABEL" == *"bug"* ]]; then
             TYPE_SHORT="fix"
             GH_LABEL="bug"
             TEMPLATE_FILE=".github/ISSUE_TEMPLATE/🐛-fix.md"
+            TITLE_PREFIX="🐛 fix: "
           elif [[ "$ILABEL" == *"refactor"* ]]; then
             TYPE_SHORT="refactor"
             GH_LABEL="refactor"
             TEMPLATE_FILE=".github/ISSUE_TEMPLATE/♻️-refactor.md"
+            TITLE_PREFIX="♻️ refactor: "
           elif [[ "$ILABEL" == *"documentation"* ]]; then
             TYPE_SHORT="docs"
             GH_LABEL="documentation"
             TEMPLATE_FILE=".github/ISSUE_TEMPLATE/📝-docs.md"
+            TITLE_PREFIX="📝 docs: "
           elif [[ "$ILABEL" == *"test"* ]]; then
             TYPE_SHORT="test"
             GH_LABEL="test"
             TEMPLATE_FILE=".github/ISSUE_TEMPLATE/✅-test.md"
+            TITLE_PREFIX="✅ test: "
           elif [[ "$ILABEL" == *"ci/cd"* ]]; then
             TYPE_SHORT="cicd"         
             GH_LABEL="ci/cd"         
             TEMPLATE_FILE=".github/ISSUE_TEMPLATE/💚-ci-cd.md"
+            TITLE_PREFIX="💚 ci/cd: "
           fi
 
           CLEAN_SUMMARY=$(echo "$ISUMMARY" | tr ' ' '-' | tr -cd '[:alnum:]-')
@@ -72,17 +79,7 @@ jobs:
           fi
           echo "GH_ASSIGNEE=$GH_USER" >> $GITHUB_ENV
 
-          TEMPLATE_PREFIX=""
-          if [ -f "$TEMPLATE_FILE" ]; then
-            # 템플릿 파일에서 'title: '이 포함된 라인을 찾아 따옴표와 title: 텍스트를 제거하고 알맹이만 추출
-            TEMPLATE_PREFIX=$(grep '^title:' "$TEMPLATE_FILE" | sed 's/title://g' | tr -d '"' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-          fi
-
-          if [ -n "$PARENT_KEY" ] && [ "$PARENT_KEY" != "null" ]; then
-            TITLE="[$IKEY] (from $PARENT_KEY) ${TEMPLATE_PREFIX}${ISUMMARY}"
-          else
-            TITLE="[$IKEY] ${TEMPLATE_PREFIX}${ISUMMARY}"
-          fi
+          TITLE="[$IKEY] ${TITLE_PREFIX}${ISUMMARY}"
           echo "ISSUE_TITLE=$TITLE" >> $GITHUB_ENV
 
           NORM_BODY=$(echo -e "$IBODY")
@@ -162,13 +159,13 @@ jobs:
               TASK_LINK="${{ env.ISSUE_URL }}"
 
               if [[ "$PARENT_BODY" != *"\`\`\`tasklist"* ]]; then
-                NEW_BODY="${PARENT_BODY}\n\n### 📋 하위 작업\n\`\`\`tasklist\n- $TASK_LINK\n\`\`\`"
+                echo -e "${PARENT_BODY}\n\n### 📋 하위 작업\n\`\`\`tasklist\n- $TASK_LINK\n\`\`\`" > new_body.txt
               else
                 CLEANED_BODY=$(echo -e "$PARENT_BODY" | sed 's/\`\`\`$//')
-                NEW_BODY="${CLEANED_BODY}- ${TASK_LINK}\n\`\`\`"
+                echo -e "${CLEANED_BODY}- ${TASK_LINK}\n\`\`\`" > new_body.txt
               fi
               
-              gh issue edit $PARENT_ISSUE_NUM --body -e "$NEW_BODY"
+              gh issue edit $PARENT_ISSUE_NUM -F new_body.txt
               echo "부모 이슈 #$PARENT_ISSUE_NUM 에 성공적으로 연동했습니다."
             else
               echo "깃허브에서 [$PARENT_KEY] 타이틀을 가진 부모 이슈를 찾지 못해 연동을 건너뜁니다."
