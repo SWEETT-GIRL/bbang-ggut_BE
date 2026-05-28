@@ -2,7 +2,7 @@ name: Jira Automation - Create GitHub Issue & Branch
 
 on:
   repository_dispatch:
-    types: [jira_issue_created]
+    types: [ jira_issue_created ]
 
 jobs:
   create-issue-and-branch:
@@ -14,14 +14,12 @@ jobs:
       - name: Formulate Branch Name and Find Template
         id: setup
         run: |
-          IKEY="${{ github.event.client_payload.key }}"
-          ITYPE="${{ github.event.client_payload.type }}"
-          ISUMMARY="${{ github.event.client_payload.summary }}"
-          IREPORTER="${{ github.event.client_payload.reporter }}"
-          IASSIGNEE="${{ github.event.client_payload.assignee }}"
-          IJIRAURL="${{ github.event.client_payload.jiraUrl }}"
-          IBODY="${{ github.event.client_payload.body }}"
-          PARENT_KEY="${{ github.event.client_payload.parentKey }}"
+          IKEY="${{ github.event.client_payload.jira_key }}"
+          ILABELS="${{ github.event.client_payload.jira_labels }}"
+          ISUMMARY="${{ github.event.client_payload.jira_title }}"
+          IASSIGNEE="${{ github.event.client_payload.jira_assignee }}"
+          IJIRAURL="${{ github.event.client_payload.jira_url }}"
+          PARENT_KEY="${{ github.event.client_payload.jira_parent_key }}"
 
           ILABEL=$(echo "$ITYPE" | tr '[:upper:]' '[:lower:]')
           
@@ -82,35 +80,14 @@ jobs:
           TITLE="[$IKEY] ${TITLE_PREFIX}${ISUMMARY}"
           echo "ISSUE_TITLE=$TITLE" >> $GITHUB_ENV
 
-          NORM_BODY=$(echo -e "$IBODY")
-          
-          EXTRACT_TITLE=$(echo "$NORM_BODY" | sed -n '/# Title/,/# TODO/p' | grep -v -E '# Title|# TODO' | sed '/^[[:space:]]*$/d')
-          EXTRACT_TODO=$(echo "$NORM_BODY" | sed -n '/# TODO/,/# etc/p' | grep -v -E '# TODO|# etc' | sed '/^[[:space:]]*$/d')
-          EXTRACT_ETC=$(echo "$NORM_BODY" | sed -n '/# etc/,$p' | grep -v -E '# etc' | sed '/^[[:space:]]*$/d')
-
           if [ -f "$TEMPLATE_FILE" ]; then
             TEMPLATE_CONTENT=$(sed '1,/^---$/d' "$TEMPLATE_FILE")
           else
             TEMPLATE_CONTENT="# Title\n\n# TODO\n\n# etc"
           fi
 
-          MAPPED_BODY="$TEMPLATE_CONTENT"
-          
-          if [ -n "$EXTRACT_TITLE" ]; then
-            MAPPED_BODY=$(echo -e "$MAPPED_BODY" | sed "s/- 이 스토리가 해결하고자 하는 비즈니스 가치나 유저 시나리오를 기술합니다./$EXTRACT_TITLE/g" 2>/dev/null || echo -e "$MAPPED_BODY" | sed "s/- 자세한 개요 작성/$EXTRACT_TITLE/g")
-          fi
-          
-          if [ -n "$EXTRACT_TODO" ]; then
-            MAPPED_BODY=$(echo -e "$MAPPED_BODY" | sed "s/- \[ \] 요구사항 정의 및 설계 검토\n- \[ \] 하위 개발 Task 카드 생성 및 연역 맵핑\n- \[ \] 테스트 코드 작성 및 기능 검증/$EXTRACT_TODO/g" 2>/dev/null || echo -e "$MAPPED_BODY" | sed "s/- \[ \] 투두 내용 작성/$EXTRACT_TODO/g")
-          fi
-
-          if [ -n "$EXTRACT_ETC" ]; then
-            MAPPED_BODY=$(echo -e "$MAPPED_BODY" | sed "s/- 와이어프레임, 기획서 링크 또는 참고자료 등을 첨부합니다./$EXTRACT_ETC/g" 2>/dev/null || echo -e "$MAPPED_BODY" | sed "s/- 참고 자료 작성/$EXTRACT_ETC/g")
-          fi
-
           LOWER_BANNER="\n\n---\n### 🔗 연동 정보\n- **Jira 링크**: [${IKEY} 바로가기](${IJIRAURL})"
-          
-          FINAL_BODY=$(echo -e "${MAPPED_BODY}${LOWER_BANNER}")
+          FINAL_BODY=$(echo -e "${TEMPLATE_CONTENT}${LOWER_BANNER}")
 
           echo "FINAL_BODY<<EOF" >> $GITHUB_ENV
           echo "$FINAL_BODY" >> $GITHUB_ENV
@@ -146,12 +123,8 @@ jobs:
 
           if [ -n "$PARENT_KEY" ] && [ "$PARENT_KEY" != "null" ]; then
             echo "부모 스토리 이슈 검색 중: $PARENT_KEY"
-
-            PARENT_ISSUE_NUM=$(gh issue list \
-              --search "[$PARENT_KEY] in:title" \
-              --json number \
-              --jq '.[0].number')
-            
+            PARENT_ISSUE_NUM=$(gh issue list --search "[$PARENT_KEY] in:title" --json number --jq '.[0].number')
+          
             if [ -n "$PARENT_ISSUE_NUM" ] && [ "$PARENT_ISSUE_NUM" != "null" ]; then
               echo "매칭되는 깃허브 부모 이슈 발견: #$PARENT_ISSUE_NUM"
 
@@ -164,7 +137,7 @@ jobs:
                 CLEANED_BODY=$(echo -e "$PARENT_BODY" | sed 's/\`\`\`$//')
                 echo -e "${CLEANED_BODY}- ${TASK_LINK}\n\`\`\`" > new_body.txt
               fi
-              
+          
               gh issue edit $PARENT_ISSUE_NUM -F new_body.txt
               echo "부모 이슈 #$PARENT_ISSUE_NUM 에 성공적으로 연동했습니다."
             else
