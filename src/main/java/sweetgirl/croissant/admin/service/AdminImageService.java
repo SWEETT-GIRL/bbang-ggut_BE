@@ -1,5 +1,6 @@
 package sweetgirl.croissant.admin.service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -80,15 +81,19 @@ public class AdminImageService {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 
-		List<StoreImageFile> imageFiles = requests.stream()
-			.map(req -> StoreImageFile.builder()
+		// displayOrder 가 null 인 경우 (자동 크롤러 등) 기존 최대값 + 1 부터 순차 부여.
+		int nextOrder = storeImageFileRepository.findMaxDisplayOrderByStoreId(storeId) + 1;
+		List<StoreImageFile> imageFiles = new ArrayList<>();
+		for (ImageSaveRequest req : requests) {
+			int order = req.getDisplayOrder() != null ? req.getDisplayOrder() : nextOrder++;
+			imageFiles.add(StoreImageFile.builder()
 				.store(store)
 				.name(req.getFileName())
 				.mimeType(MimeType.fromString(req.getMimeType()))
 				.awsKey(req.getAwsKey())
-				.displayOrder(req.getDisplayOrder())
-				.build())
-			.collect(Collectors.toList());
+				.displayOrder(order)
+				.build());
+		}
 		storeImageFileRepository.saveAll(imageFiles);
 	}
 
@@ -97,15 +102,18 @@ public class AdminImageService {
 		Menu menu = menuRepository.findById(menuId)
 			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
 
-		List<MenuImageFile> imageFiles = requests.stream()
-			.map(req -> MenuImageFile.builder()
+		int nextOrder = menuImageFileRepository.findMaxDisplayOrderByMenuId(menuId) + 1;
+		List<MenuImageFile> imageFiles = new ArrayList<>();
+		for (ImageSaveRequest req : requests) {
+			int order = req.getDisplayOrder() != null ? req.getDisplayOrder() : nextOrder++;
+			imageFiles.add(MenuImageFile.builder()
 				.menu(menu)
 				.name(req.getFileName())
 				.mimeType(MimeType.fromString(req.getMimeType()))
 				.awsKey(req.getAwsKey())
-				.displayOrder(req.getDisplayOrder())
-				.build())
-			.collect(Collectors.toList());
+				.displayOrder(order)
+				.build());
+		}
 		menuImageFileRepository.saveAll(imageFiles);
 	}
 

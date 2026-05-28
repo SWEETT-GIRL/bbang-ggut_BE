@@ -1,5 +1,7 @@
 package sweetgirl.croissant.store.entity;
 
+import java.time.Instant;
+
 import org.locationtech.jts.geom.Point;
 
 import jakarta.persistence.Column;
@@ -57,6 +59,17 @@ public class Store extends BaseTimeEntity {
 	@Column(name = "kakao_place_id", length = 50, unique = true)
 	private String kakaoPlaceId;
 
+	// 네이버 플레이스 매칭 결과 — 최초 1회 검색으로 얻고 영구화. 사진/메뉴 재크롤링 시 검색 단계 스킵.
+	@Column(name = "naver_place_id", length = 50, unique = true)
+	private String naverPlaceId;
+
+	// 네이버 매칭 시도 시각 — 성공/실패와 무관하게 시도 시점에 기록.
+	// naverPlaceId NULL + naverMatchedAt NULL    → 미시도 (큐 대상)
+	// naverPlaceId NULL + naverMatchedAt 있음    → 매칭 실패 (재시도 정책 적용)
+	// naverPlaceId 있음                          → 매칭 완료
+	@Column(name = "naver_matched_at")
+	private Instant naverMatchedAt;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 50)
 	private StoreSource source;
@@ -79,6 +92,26 @@ public class Store extends BaseTimeEntity {
 		this.source = source != null ? source : StoreSource.ADMIN_REGISTERED;
 		this.status = StoreStatus.ACTIVE;
 		this.category = category;
+	}
+
+	public void markNaverMatched(String naverPlaceId) {
+		this.naverPlaceId = naverPlaceId;
+		this.naverMatchedAt = Instant.now();
+	}
+
+	public void markNaverEnrichFailed() {
+		this.naverMatchedAt = Instant.now();
+	}
+
+	// 잘못 매칭된 ID 초기화 — 큐에 다시 진입.
+	public void clearNaverMatch() {
+		this.naverPlaceId = null;
+		this.naverMatchedAt = null;
+	}
+
+	// 실패 throttle 강제 해제 — 큐 진입 (naverPlaceId 는 유지하지 않음, 어차피 null 인 상태에서만 의미 있음).
+	public void resetNaverEnrichThrottle() {
+		this.naverMatchedAt = null;
 	}
 
 	public void update(String name, String address, Point location, String region1st, String region2nd,

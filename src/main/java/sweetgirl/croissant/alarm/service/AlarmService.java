@@ -237,6 +237,17 @@ public class AlarmService {
 			log.info("geofenceEnter: 구독 미등록 또는 반경 외 [memberId={}, storeId={}]", memberId, request.getStoreId());
 			throw new AlarmException(AlarmErrorCode.GEOFENCE_NOT_SUBSCRIBED);
 		}
+
+		// (memberId, storeId) 단위 동시 요청을 트랜잭션 advisory lock 으로 직렬화.
+		// iOS region monitoring 의 enter 이벤트가 짧은 간격으로 2~5회 발화해 BE 에 동시 도달하는 케이스 방어.
+		// 잠금 실패 → 다른 트랜잭션이 같은 키로 처리 중 → silent skip.
+		long lockKey = (memberId << 32) | (store.getId() & 0xFFFFFFFFL);
+		if (!storeNotificationRepository.tryAdvisoryXactLock(lockKey)) {
+			log.info("geofenceEnter: 동시 요청 차단 (advisory lock) [memberId={}, storeId={}]",
+				memberId, store.getId());
+			return;
+		}
+
 		if (alreadyNotified(member, store)) { // 오늘 이미 이 가게에 알림을 보냈으면 중복 발송 방지 (silent skip)
 			log.info("geofenceEnter: 오늘 이미 알림 발송됨 [memberId={}, storeId={}]", memberId, store.getId());
 			return;

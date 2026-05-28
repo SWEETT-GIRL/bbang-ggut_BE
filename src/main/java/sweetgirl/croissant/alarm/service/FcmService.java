@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.google.firebase.messaging.AndroidConfig;
+import com.google.firebase.messaging.ApnsConfig;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
@@ -75,10 +77,27 @@ public class FcmService {
 		token.deactivate();
 	}
 
+	// FCM 메시지 TTL — 1시간. OS 가 throttle 해서 묵힌 알림이 한꺼번에 쏟아지는 현상 방지.
+	private static final long FCM_TTL_MILLIS = 60L * 60 * 1000;
+
 	// Firebase에 푸시 메시지를 쏘는 메서드
 	// NOT_SUPPORTED: 부모 트랜잭션과 분리해 FCM 실패가 DB 트랜잭션을 rollback-only로 오염시키지 않도록
 	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	public void sendPushNotification(String fcmToken, String title, String body, Map<String, String> data) {
+		// Android: HIGH priority 명시 (Doze 우회 시도) + 1시간 TTL.
+		AndroidConfig androidConfig = AndroidConfig.builder()
+			.setPriority(AndroidConfig.Priority.HIGH)
+			.setTtl(FCM_TTL_MILLIS)
+			.build();
+
+		// iOS: apns-priority 10 (즉시 전달) + push-type alert + 1시간 만료.
+		long apnsExpirationEpochSec = System.currentTimeMillis() / 1000 + (FCM_TTL_MILLIS / 1000);
+		ApnsConfig apnsConfig = ApnsConfig.builder()
+			.putHeader("apns-priority", "10")
+			.putHeader("apns-push-type", "alert")
+			.putHeader("apns-expiration", String.valueOf(apnsExpirationEpochSec))
+			.build();
+
 		Message message = Message.builder()
 			.setToken(fcmToken) // 어느 기기로 보낼지
 			.setNotification(Notification.builder() // 뭘 보낼지 (제목 + 본문)
@@ -86,6 +105,8 @@ public class FcmService {
 				.setBody(body)
 				.build())
 			.putAllData(data)
+			.setAndroidConfig(androidConfig)
+			.setApnsConfig(apnsConfig)
 			.build();
 
 		try {

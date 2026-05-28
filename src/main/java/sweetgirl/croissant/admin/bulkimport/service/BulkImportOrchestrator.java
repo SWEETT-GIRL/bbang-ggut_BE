@@ -53,8 +53,14 @@ public class BulkImportOrchestrator {
 			List<DongRow> allDongs = dongListLoader.load();
 			log.info("[BulkImport] 시작 — 전체 동 수: {}", allDongs.size());
 
-			for (DongRow row : allDongs) {
-				progressService.findOrCreate(row.region1st(), row.region2nd(), row.region3rd());
+			long existingTotal = progressService.countTotal();
+			if (existingTotal >= allDongs.size()) {
+				log.info("[BulkImport] Phase 1 skip — 메타 적재 이미 완료 (existing={}, csv={})",
+					existingTotal, allDongs.size());
+			} else {
+				for (DongRow row : allDongs) {
+					progressService.findOrCreate(row.region1st(), row.region2nd(), row.region3rd());
+				}
 			}
 
 			List<BulkImportProgress> targets = progressService.getPendingOrFailed();
