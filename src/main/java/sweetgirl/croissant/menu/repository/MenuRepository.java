@@ -63,4 +63,7 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
 	@Query("UPDATE Menu m SET m.deletedAt = CURRENT_TIMESTAMP "
 		+ "WHERE m.store.id = :storeId AND m.deletedAt IS NULL")
 	int softDeleteByStoreId(@Param("storeId") Long storeId);
+
+	@Query("SELECT m FROM Menu m WHERE m.store.id = :storeId AND m.deletedAt IS NULL")
+	List<Menu> findActiveByStoreId(@Param("storeId") Long storeId);
 }

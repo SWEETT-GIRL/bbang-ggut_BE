@@ -37,4 +37,11 @@ public interface StoreImageFileRepository extends JpaRepository<StoreImageFile, 
 
 	@Query("SELECT COALESCE(MAX(s.displayOrder), 0) FROM StoreImageFile s WHERE s.store.id = :storeId")
 	int findMaxDisplayOrderByStoreId(@Param("storeId") Long storeId);
+
+	@Query("SELECT s FROM StoreImageFile s WHERE s.store.id = :storeId AND s.sourceUrl = :sourceUrl")
+	java.util.Optional<StoreImageFile> findByStoreIdAndSourceUrl(
+			@Param("storeId") Long storeId, @Param("sourceUrl") String sourceUrl);
+
+	@Query("SELECT s.awsKey FROM StoreImageFile s")
+	List<String> findAllAwsKeys();
 }

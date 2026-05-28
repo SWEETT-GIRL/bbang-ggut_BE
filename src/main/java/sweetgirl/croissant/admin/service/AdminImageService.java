@@ -3,21 +3,26 @@ package sweetgirl.croissant.admin.service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.AdminImageResponse;
 import sweetgirl.croissant.external.aws.dto.ImageOrderUpdateRequest;
 import sweetgirl.croissant.external.aws.dto.ImageSaveRequest;
+import sweetgirl.croissant.external.aws.dto.ImageUploadFromUrlRequest;
+import sweetgirl.croissant.external.aws.dto.ImageUploadFromUrlResponse;
 import sweetgirl.croissant.external.aws.dto.ImageUploadRequest;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.external.aws.enums.MimeType;
 import sweetgirl.croissant.external.aws.exception.S3ErrorCode;
 import sweetgirl.croissant.external.aws.exception.S3StorageException;
+import sweetgirl.croissant.external.aws.util.ImageDownloader;
 import sweetgirl.croissant.external.aws.util.S3PathGenerator;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
 import sweetgirl.croissant.menu.entity.Menu;
@@ -32,16 +37,22 @@ import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AdminImageService {
+
+	private static final String DOMAIN_STORES = "stores";
+	private static final String DOMAIN_MENUS = "menus";
 
 	private final S3Service s3Service;
 	private final StoreRepository storeRepository;
 	private final MenuRepository menuRepository;
 	private final StoreImageFileRepository storeImageFileRepository;
 	private final MenuImageFileRepository menuImageFileRepository;
+	private final ImageDownloader imageDownloader;
+	private final ImageRowSaver imageRowSaver;
 
 	public PresignedUrlResponse getPresignedUrl(ImageUploadRequest request) {
 		String path;
@@ -173,5 +184,119 @@ public class AdminImageService {
 
 		s3Service.deleteObject(image.getAwsKey());
 		menuImageFileRepository.delete(image);
+	}
+
+	// 백엔드가 download → S3 → DB 를 모두 처리해 Python 스크래퍼의 S3 orphan 위험을 차단.
+	// 한 URL 실패가 다른 URL 처리를 막지 않도록 per-URL 격리.
+	public ImageUploadFromUrlResponse uploadImagesFromUrls(
+			String domain, Long targetId, List<ImageUploadFromUrlRequest> requests) {
+		String path = resolvePath(domain, targetId);
+		assertTargetExists(domain, targetId);
+
+		int nextOrder = nextDisplayOrder(domain, targetId);
+		List<ImageUploadFromUrlResponse.Item> results = new ArrayList<>();
+		int successCount = 0;
+		int failureCount = 0;
+
+		for (ImageUploadFromUrlRequest req : requests) {
+			int displayOrder = req.getDisplayOrder() != null ? req.getDisplayOrder() : nextOrder++;
+			ImageUploadFromUrlResponse.Item item = uploadOne(domain, targetId, path, req.getUrl(), displayOrder);
+			results.add(item);
+			ImageUploadFromUrlResponse.Status status = item.status();
+			if (status == ImageUploadFromUrlResponse.Status.SUCCESS
+				|| status == ImageUploadFromUrlResponse.Status.SKIPPED) {
+				successCount++;
+			} else {
+				failureCount++;
+			}
+		}
+		return new ImageUploadFromUrlResponse(results, successCount, failureCount);
+	}
+
+	private ImageUploadFromUrlResponse.Item uploadOne(
+			String domain, Long targetId, String path, String url, int displayOrder) {
+		if (url == null || url.isBlank()) {
+			return ImageUploadFromUrlResponse.Item.failure(
+				url, ImageUploadFromUrlResponse.Status.INVALID_URL, "blank url");
+		}
+
+		// Idempotency — 같은 (target, source_url) 이미 저장돼 있으면 다운로드 자체를 스킵.
+		ImageUploadFromUrlResponse.Item existing = findExistingBySourceUrl(domain, targetId, url);
+		if (existing != null) {
+			return existing;
+		}
+
+		ImageDownloader.Result downloaded = imageDownloader.download(url);
+		if (!downloaded.isSuccess()) {
+			log.warn("[uploadOne] download fail url={} reason={}", url, downloaded.failureReason());
+			return ImageUploadFromUrlResponse.Item.failure(
+				url, ImageUploadFromUrlResponse.Status.DOWNLOAD_FAILED, downloaded.failureReason());
+		}
+
+		String fileName = UUID.randomUUID().toString();
+		String awsKey = path + "/" + fileName;
+		try {
+			s3Service.putObject(awsKey, downloaded.bytes(), downloaded.mimeType());
+		} catch (RuntimeException e) {
+			log.warn("[uploadOne] s3 put fail url={} key={} reason={}", url, awsKey, e.getMessage());
+			return ImageUploadFromUrlResponse.Item.failure(
+				url, ImageUploadFromUrlResponse.Status.UPLOAD_FAILED, e.getMessage());
+		}
+
+		try {
+			Long imageId = DOMAIN_STORES.equals(domain)
+				? imageRowSaver.saveStoreImage(targetId, fileName, awsKey, downloaded.mimeType(), displayOrder, url)
+				: imageRowSaver.saveMenuImage(targetId, fileName, awsKey, downloaded.mimeType(), displayOrder, url);
+			return ImageUploadFromUrlResponse.Item.success(url, imageId, awsKey);
+		} catch (RuntimeException e) {
+			log.warn("[uploadOne] db save fail url={} key={} reason={}", url, awsKey, e.getMessage());
+			try {
+				s3Service.deleteObject(awsKey);
+			} catch (RuntimeException cleanupError) {
+				log.error("[uploadOne] orphan in s3 key={} cleanup failed: {}", awsKey, cleanupError.getMessage());
+			}
+			return ImageUploadFromUrlResponse.Item.failure(
+				url, ImageUploadFromUrlResponse.Status.DB_FAILED, e.getMessage());
+		}
+	}
+
+	private ImageUploadFromUrlResponse.Item findExistingBySourceUrl(String domain, Long targetId, String url) {
+		if (DOMAIN_STORES.equalsIgnoreCase(domain)) {
+			return storeImageFileRepository.findByStoreIdAndSourceUrl(targetId, url)
+				.map(img -> ImageUploadFromUrlResponse.Item.skipped(url, img.getId(), img.getAwsKey()))
+				.orElse(null);
+		}
+		return menuImageFileRepository.findByMenuIdAndSourceUrl(targetId, url)
+			.map(img -> ImageUploadFromUrlResponse.Item.skipped(url, img.getId(), img.getAwsKey()))
+			.orElse(null);
+	}
+
+	private String resolvePath(String domain, Long targetId) {
+		if (DOMAIN_STORES.equalsIgnoreCase(domain)) {
+			return S3PathGenerator.getStorePath(targetId);
+		}
+		if (DOMAIN_MENUS.equalsIgnoreCase(domain)) {
+			return S3PathGenerator.getMenuPath(targetId);
+		}
+		throw new IllegalArgumentException("지원하지 않는 도메인입니다: " + domain);
+	}
+
+	private void assertTargetExists(String domain, Long targetId) {
+		if (DOMAIN_STORES.equalsIgnoreCase(domain)) {
+			if (!storeRepository.existsById(targetId)) {
+				throw new StoreException(StoreErrorCode.STORE_NOT_FOUND);
+			}
+		} else if (DOMAIN_MENUS.equalsIgnoreCase(domain)) {
+			if (!menuRepository.existsById(targetId)) {
+				throw new MenuException(MenuErrorCode.MENU_NOT_FOUND);
+			}
+		}
+	}
+
+	private int nextDisplayOrder(String domain, Long targetId) {
+		if (DOMAIN_STORES.equalsIgnoreCase(domain)) {
+			return storeImageFileRepository.findMaxDisplayOrderByStoreId(targetId) + 1;
+		}
+		return menuImageFileRepository.findMaxDisplayOrderByMenuId(targetId) + 1;
 	}
 }
