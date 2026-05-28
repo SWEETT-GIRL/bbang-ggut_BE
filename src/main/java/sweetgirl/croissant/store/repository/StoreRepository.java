@@ -262,4 +262,16 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 				WHERE s.status = sweetgirl.croissant.store.enums.StoreStatus.ACTIVE
 			""")
 	long countActiveTotal();
+
+	// 매칭 실패 후 7일 throttle 진행 중인 가게 — 어드민에서 "왜 실패했나" 보거나 즉시 재시도 트리거.
+	// 큐(findNaverEnrichQueue)는 throttle 만료된 것만 보여주므로 분리.
+	@Query("""
+				SELECT s FROM Store s
+				WHERE s.status = sweetgirl.croissant.store.enums.StoreStatus.ACTIVE
+				AND s.naverPlaceId IS NULL
+				AND s.naverMatchedAt IS NOT NULL
+				AND s.naverMatchedAt >= :throttleAliveSince
+				ORDER BY s.naverMatchedAt DESC
+			""")
+	Page<Store> findNaverThrottled(@Param("throttleAliveSince") Instant throttleAliveSince, Pageable pageable);
 }
