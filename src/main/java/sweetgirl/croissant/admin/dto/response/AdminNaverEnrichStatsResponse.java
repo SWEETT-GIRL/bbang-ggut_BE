@@ -5,5 +5,9 @@ public record AdminNaverEnrichStatsResponse(
 		long matched,
 		long pending,
 		long failed,
-		long total) {
+		long total,
+		// 진행률 표시용 — 일괄 작업이 돌고 있을 때만 채워짐. 그 외엔 null/0.
+		String runningMode,
+		String startedAt,
+		long startedQueueCount) {
 }

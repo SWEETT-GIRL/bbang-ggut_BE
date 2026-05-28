@@ -66,6 +66,22 @@ public class AdminStoreController {
 			ApiResponse.ok(adminStoreService.getNaverEnrichQueue(PageRequest.of(page, size))));
 	}
 
+	@Operation(summary = "사진 보충 큐 조회", description = "매칭은 됐지만 가게 사진이 0장인 가게 목록. Python 크롤러가 이 큐를 폴링하면 "
+		+ "placeId 가 이미 있으니 검색을 스킵하고 사진만 가져옴.")
+	@GetMapping("/naver-photos-backfill-queue")
+	public ResponseEntity<ApiResponse<Page<AdminNaverEnrichQueueItem>>> getPhotoBackfillQueue(
+			@Parameter(description = "페이지 번호 (0부터 시작)") @RequestParam(defaultValue = "0") int page,
+			@Parameter(description = "페이지 크기") @RequestParam(defaultValue = "100") int size) {
+		return ResponseEntity.ok(
+			ApiResponse.ok(adminStoreService.getPhotoBackfillQueue(PageRequest.of(page, size))));
+	}
+
+	@Operation(summary = "사진 보충 큐 카운트", description = "사진 보충 대상 가게 수만 반환 — 어드민 진행상황 표시용.")
+	@GetMapping("/naver-photos-backfill-count")
+	public ResponseEntity<ApiResponse<Long>> getPhotoBackfillCount() {
+		return ResponseEntity.ok(ApiResponse.ok(adminStoreService.countPhotoBackfillQueue()));
+	}
+
 	@Operation(summary = "네이버 플레이스 ID 저장", description = "Python 크롤러 또는 어드민이 호출. "
 		+ "naverPlaceId 와 naverMatchedAt 을 함께 갱신. replaceMenus=true 면 기존 메뉴를 soft-delete (어드민 후보 선택 UI 용).")
 	@PutMapping("/{storeId}/naver-place-id")
@@ -159,7 +175,20 @@ public class AdminStoreController {
 		+ "이미 실행 중이면 409. 진행상황은 /naver-enrich-stats 로 폴링.")
 	@PostMapping("/naver-enrich-start")
 	public ResponseEntity<ApiResponse<Void>> startBulkNaverEnrich() {
-		if (!naverEnrichOrchestrator.tryStart()) {
+		// 진행률 % 계산을 위해 시작 시점의 큐 크기 (= pending 가게 수) 측정
+		long initialCount = adminStoreService.getNaverEnrichStats().pending();
+		if (!naverEnrichOrchestrator.tryStart(false, initialCount)) {
+			throw new CustomException(StoreErrorCode.NAVER_ENRICH_ALREADY_RUNNING);
+		}
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "사진 보충 일괄 시작 (async)", description = "매칭됨+사진 0장 큐에 대해 --photos-only --loop 로 크롤러 실행. "
+		+ "이미 실행 중이면 409. enrich 와 동일한 orchestrator 라 두 모드 동시 실행 불가.")
+	@PostMapping("/naver-photos-backfill-start")
+	public ResponseEntity<ApiResponse<Void>> startPhotoBackfill() {
+		long initialCount = adminStoreService.countPhotoBackfillQueue();
+		if (!naverEnrichOrchestrator.tryStart(true, initialCount)) {
 			throw new CustomException(StoreErrorCode.NAVER_ENRICH_ALREADY_RUNNING);
 		}
 		return ResponseEntity.ok(ApiResponse.ok(null));

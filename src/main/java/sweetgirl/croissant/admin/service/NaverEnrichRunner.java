@@ -15,6 +15,7 @@ import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.exception.StoreException;
+import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
 /**
@@ -30,6 +31,7 @@ public class NaverEnrichRunner {
 
 	private final StoreRepository storeRepository;
 	private final MenuRepository menuRepository;
+	private final StoreImageFileRepository storeImageFileRepository;
 
 	@Value("${naver.crawler.python:python3}")
 	private String pythonBinary;
@@ -61,7 +63,7 @@ public class NaverEnrichRunner {
 			process = pb.start();
 		} catch (IOException e) {
 			log.error("[NaverEnrich] subprocess 실행 실패", e);
-			return new AdminNaverEnrichRunResponse(false, null, null, 0, -1,
+			return new AdminNaverEnrichRunResponse(false, null, null, 0, 0, -1,
 				"크롤러 실행 실패: " + e.getMessage());
 		}
 
@@ -71,12 +73,12 @@ public class NaverEnrichRunner {
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 			process.destroyForcibly();
-			return new AdminNaverEnrichRunResponse(false, null, null, 0, -1, "인터럽트됨");
+			return new AdminNaverEnrichRunResponse(false, null, null, 0, 0, -1, "인터럽트됨");
 		}
 		if (!finished) {
 			process.destroyForcibly();
 			log.warn("[NaverEnrich] 타임아웃 - id={}, timeout={}s", storeId, timeoutSeconds);
-			return new AdminNaverEnrichRunResponse(false, null, null, 0, -1,
+			return new AdminNaverEnrichRunResponse(false, null, null, 0, 0, -1,
 				"타임아웃 (" + timeoutSeconds + "초)");
 		}
 
@@ -89,10 +91,13 @@ public class NaverEnrichRunner {
 			.findFirst()
 			.map(row -> (Long)row[1])
 			.orElse(0L);
+		long photoCount = storeImageFileRepository
+			.findByStoreIdOrderByDisplayOrderAscIdAsc(storeId).size();
 
 		boolean matched = after.getNaverPlaceId() != null;
 		String msg = matched
-			? "매칭 성공 (naverPlaceId=" + after.getNaverPlaceId() + ", 메뉴 " + menuCount + "개)"
+			? "매칭 성공 (naverPlaceId=" + after.getNaverPlaceId()
+				+ ", 메뉴 " + menuCount + "개, 사진 " + photoCount + "장)"
 			: "매칭 실패 또는 신뢰 매칭 못 찾음";
 		log.info("[NaverEnrich] 단일 가게 완료 - id={}, matched={}, exitCode={}", storeId, matched, exitCode);
 
@@ -101,6 +106,7 @@ public class NaverEnrichRunner {
 			after.getNaverPlaceId(),
 			after.getNaverMatchedAt() != null ? after.getNaverMatchedAt().toString() : null,
 			menuCount,
+			photoCount,
 			exitCode,
 			msg);
 	}

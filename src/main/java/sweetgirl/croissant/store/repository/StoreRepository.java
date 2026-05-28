@@ -258,6 +258,29 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 			""")
 	Page<Store> findNaverEnrichQueue(@Param("retryThreshold") Instant retryThreshold, Pageable pageable);
 
+	// 매칭은 됐지만 가게 사진이 0장인 가게 — 사진 보충 일괄 크롤 대상.
+	// 이미지 테이블을 left join 해서 NULL/empty 만 필터.
+	@Query("""
+				SELECT s FROM Store s
+				WHERE s.status = sweetgirl.croissant.store.enums.StoreStatus.ACTIVE
+				AND s.naverPlaceId IS NOT NULL
+				AND NOT EXISTS (
+					SELECT 1 FROM StoreImageFile i WHERE i.store.id = s.id
+				)
+				ORDER BY s.id ASC
+			""")
+	Page<Store> findMatchedWithoutPhotos(Pageable pageable);
+
+	@Query("""
+				SELECT COUNT(s) FROM Store s
+				WHERE s.status = sweetgirl.croissant.store.enums.StoreStatus.ACTIVE
+				AND s.naverPlaceId IS NOT NULL
+				AND NOT EXISTS (
+					SELECT 1 FROM StoreImageFile i WHERE i.store.id = s.id
+				)
+			""")
+	long countMatchedWithoutPhotos();
+
 	Optional<Store> findByNaverPlaceId(String naverPlaceId);
 
 	// ── Naver enrich stats ──────────────────────────────────────────────────
