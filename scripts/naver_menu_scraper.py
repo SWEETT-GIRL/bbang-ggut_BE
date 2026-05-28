@@ -59,6 +59,7 @@ except ImportError:
 DEFAULT_SERVER = "http://localhost:8080"
 DEFAULT_CATEGORY = "빵"  # MenuKind 한글 enum 의 fallback
 QUEUE_BATCH_SIZE = 50
+STORE_PHOTO_LIMIT = 5
 INTER_STORE_DELAY_SEC = 1.0
 MAX_LOCATION_DISTANCE_M = 100  # 매칭 신뢰 거리 임계
 # 네이버 차단 의심 — 큐 모드에서 N건 연속 검색 결과 0이면 abort (대량 false-fail 방지).
@@ -145,14 +146,48 @@ CATEGORY_RULES: list[tuple[list[str], str]] = [
 
 # 매장 접미사 제거 — 공백 있는 상태에서 적용 (공백을 어휘 경계로 사용).
 # 예: '테라로사 본점' → '테라로사', '카페드파리 성남본점' → '카페드파리',
-#      '올선데이 광안직영점' → '올선데이', '포스톤즈 커피로스터스 삼청점' → '포스톤즈 커피로스터스'.
+#      '올선데이 광안직영점' → '올선데이', '포스톤즈 커피로스터스 삼청점' → '포스톤즈 커피로스터스',
+#      '만 1호점' → '만'.
 # 공백 없이 붙어 있는 케이스 (예: '올유캔잇본점')는 strip 안 되지만, 뒤의 substring 비교가 대응.
-_BRANCH_SUFFIX_RE = re.compile(r"\s+(?:[가-힣a-zA-Z0-9]+점|매장|플래그십|플래그쉽)$")
+_BRANCH_SUFFIX_RE = re.compile(r"\s+(?:\d+호점|[가-힣a-zA-Z0-9]+점|매장|플래그십|플래그쉽)$")
 
 # 검색어용 — 위치 정보 없는 일반 접미사만 제거. '강남점/광교앨리웨이점' 같이 지역 힌트 포함된 ○○점은 보존
 # (지점명이 들어가야 체인점에서 네이버 결과 1페이지에 진짜 매장이 떠오름).
 # 공백 없이 붙은 케이스도 strip — '서초본점' → '서초' (지역 힌트는 유지), '광안직영점' → '광안'.
-_GENERIC_BRANCH_SUFFIX_RE = re.compile(r"\s*(?:본점|지점|매장|플래그십|플래그쉽|직영점)$")
+# '1호점/2호점' 도 위치 정보 없는 일반 접미사로 취급 (호점 번호만으로는 지역 추정 불가).
+# 공백 + 단독 '점' (예: '갤러리아west 점') 도 떼어냄.
+_GENERIC_BRANCH_SUFFIX_RE = re.compile(r"(?:\s+점|\s*(?:본점|지점|매장|플래그십|플래그쉽|직영점|\d+호점))$")
+
+# 회사명/사업자명 노이즈 — 카카오 데이터에 사업자등록명이 같이 붙어있는 케이스.
+# 예: '브래드무어 주식회사더크리스마스컴퍼니' → '브래드무어'.
+# 공백 있는 분리 + 공백 없이 붙은 두 케이스 모두 처리. 어휘 앞쪽 (브랜드명) 만 보존.
+_COMPANY_SUFFIX_RE = re.compile(
+	r"\s*(?:주식회사|\(주\)|㈜|\(유\)|유한회사|\(합\)|합자회사).*$"
+)
+
+
+def strip_company_suffix(name: str) -> str:
+	"""사업자명 꼬리 제거. 브랜드 이름이 회사명 앞에 와있는 케이스 전제."""
+	if not name:
+		return name
+	return _COMPANY_SUFFIX_RE.sub("", name).strip()
+
+
+# 검색어에서 떼어내볼 카테고리 단어 — 1차 검색 실패 시 strip 후 재시도용.
+# '유어사이드 커피로스터리' → '유어사이드', '비파티세리 신세계센트럴시티점' → '비파티세리'.
+# 매칭 검증(name_matches)은 원본 이름과 비교하므로 strip 결과는 검색 쿼리에만 영향.
+_CATEGORY_SUFFIX_RE = re.compile(
+	r"\s+(?:커피로스터리|커피로스터스|로스터리|로스터스|베이커리|빵집|카페|커피"
+	r"|레스토랑|파티세리|파티쎄리|부띠끄|부티크|케이크부티크|케이크부띠끄|디저트"
+	r"|키친|하우스|스튜디오)$"
+)
+
+
+def strip_category_suffix(name: str) -> str:
+	"""'유어사이드 커피로스터리' 같이 카테고리 단어가 꼬리에 붙은 경우 검색용으로 떼어냄."""
+	if not name:
+		return name
+	return _CATEGORY_SUFFIX_RE.sub("", name).strip()
 
 
 def strip_branch_suffix(name: str) -> str:
@@ -170,12 +205,13 @@ def strip_generic_branch_suffix(name: str) -> str:
 
 
 def normalize_name(name: str) -> str:
-	"""이름 정규화: HTML/괄호 제거 → 매장 접미사 제거 → 공백/특수문자 제거 → 연결어(&↔앤) 정규화 → 소문자화."""
+	"""이름 정규화: HTML/괄호 제거 → 사업자명/매장 접미사 제거 → 공백/특수문자 제거 → &↔앤 → 소문자."""
 	if not name:
 		return ""
 	s = re.sub(r"<[^>]+>", "", name)             # HTML 태그 (네이버 응답 일부에 있음)
 	s = re.sub(r"\(.*?\)|\[.*?\]", "", s)         # 괄호 내용
 	s = s.strip()
+	s = strip_company_suffix(s)                   # '주식회사X' 노이즈 제거 (카카오 데이터 특성)
 	s = strip_branch_suffix(s)                    # 공백 있는 상태에서 매장 접미사 제거
 	s = re.sub(r"\s+", "", s)                     # 모든 공백
 	s = re.sub(r"[^\w가-힣]", "", s)               # 특수문자 ('&' 등 제거)
@@ -289,8 +325,9 @@ def is_reliable_match(kakao: dict, naver: dict) -> tuple[bool, str]:
 
 # ─── 백엔드 API 클라이언트 ────────────────────────────────────────────────────
 
-def fetch_queue(server: str, size: int) -> list[dict]:
-	url = f"{server}/api/admin/stores/naver-enrich-queue?page=0&size={size}"
+def fetch_queue(server: str, size: int, photos_only: bool = False) -> list[dict]:
+	path = "naver-photos-backfill-queue" if photos_only else "naver-enrich-queue"
+	url = f"{server}/api/admin/stores/{path}?page=0&size={size}"
 	resp = requests.get(url, timeout=15)
 	resp.raise_for_status()
 	return resp.json().get("data", {}).get("content", []) or []
@@ -499,31 +536,81 @@ def _naver_search_once(page: Page, query: str) -> list[dict]:
 	return captured
 
 
+def _extract_road_name(address: Optional[str]) -> str:
+	"""주소에서 도로명 토큰 (○○로/○○길) 한 개 반환. 짧은 가게명 검색 보강용.
+	'서울 관악구 남부순환로 1850' → '남부순환로', '경기 용인시 기흥구 공세로 73' → '공세로'.
+	"""
+	if not address:
+		return ""
+	for tok in re.split(r"\s+", address.strip()):
+		if tok.endswith(("로", "길")) and len(tok) >= 3:
+			return tok
+	return ""
+
+
 def search_naver_candidates(page: Page, store_name: str, store_address: Optional[str] = None) -> list[dict]:
 	"""네이버 지도 검색 → 후보 places 반환.
 
-	검색 전략:
-	  1) "{이름} {지역}" 으로 좁혀서 검색 — 체인점의 진짜 매장이 1페이지에 떠오르게.
-	     일반 접미사(본점/지점)는 떼고 '○○점' (강남점/광교앨리웨이점) 같은 지역 힌트는 유지.
-	  2) 1차 결과가 비면 이름만으로 fallback — 네이버에 해당 지역명 인덱스 없는 케이스 대응.
+	검색 전략 (각 단계에서 결과 나오면 즉시 반환):
+	  1) "{이름} {행정구역}" — 체인점의 진짜 매장이 1페이지에 떠오르게.
+	     일반 접미사(본점/지점/호점)는 떼고 '○○점' 같은 지역 힌트는 유지.
+	  2) "{카테고리 strip된 이름} {행정구역}" — '유어사이드 커피로스터리' 같이 카테고리 단어 꼬리
+	     붙은 케이스에서 핵심 브랜드명으로 좁혀 재시도.
+	  3) "{이름} {도로명}" — 행정구역만으로 좁혀지지 않는 짧은 이름('올'/'오리' 등) 대응.
+	  4) 이름만 — 지역 인덱스 없는 케이스 fallback.
 	잘못된 후보는 뒤의 is_reliable_match 가 걸러냄.
 	"""
-	base = strip_generic_branch_suffix(store_name) or store_name
+	# 사업자명 노이즈 먼저 제거 (브랜드명만 남김)
+	cleaned = strip_company_suffix(store_name) or store_name
+	base = strip_generic_branch_suffix(cleaned) or cleaned
+	category_stripped = strip_category_suffix(base)
 	district = extract_best_district(store_address or "")
+	road = _extract_road_name(store_address)
+
+	tried: set[str] = set()
+
+	def try_query(q: str) -> Optional[list[dict]]:
+		q = q.strip()
+		if not q or q in tried:
+			return None
+		tried.add(q)
+		print(f"  검색: '{q}'")
+		results = _naver_search_once(page, q)
+		return results if results else None
 
 	if district:
-		query = f"{base} {district}"
-		print(f"  검색: '{query}'")
-		results = _naver_search_once(page, query)
+		results = try_query(f"{base} {district}")
 		if results:
 			return results
-		print(f"  → 0건, fallback: '{base}'")
+		# 카테고리 단어 strip 결과가 다르면 한 번 더 시도
+		if category_stripped != base and category_stripped:
+			results = try_query(f"{category_stripped} {district}")
+			if results:
+				return results
 
-	return _naver_search_once(page, base)
+	# 짧은 이름은 도로명으로 좁혀야 1페이지에 진짜 매장이 떠오름
+	if road and len(base) <= 3:
+		results = try_query(f"{base} {road}")
+		if results:
+			return results
+
+	# 최종 fallback — 이름만
+	results = try_query(base)
+	if results:
+		return results
+	if category_stripped != base and category_stripped:
+		results = try_query(category_stripped)
+		if results:
+			return results
+	return []
 
 
 def fetch_menu_data(page: Page, naver_place_id: str) -> dict[str, dict]:
-	"""네이버 플레이스 메뉴 탭 DOM → {메뉴명: {"src": imageUrl, "desc": 설명}}."""
+	"""네이버 플레이스 메뉴 탭 DOM → {메뉴명: {"src": imageUrl, "desc": 설명, "price": int|None}}.
+
+	어드민이 placeId 를 수동 매칭한 경로에서는 menuInfo (검색결과 문자열) 가 없어서
+	DOM 에서 직접 가격도 같이 긁어와야 함. priceRe 매칭 텍스트가 1개면 가격으로 채택.
+	"""
 	try:
 		page.goto(
 			f"https://map.naver.com/p/entry/place/{naver_place_id}",
@@ -551,16 +638,81 @@ def fetch_menu_data(page: Page, naver_place_id: str) -> dict[str, dict]:
 						if (t && t.length > 1) texts.push(t);
 					}
 				});
-				const nonPrice = [...new Set(texts)].filter(t => !priceRe.test(t) && t !== '대표');
+				const uniq = [...new Set(texts)].filter(t => t !== '대표');
+				const priceTexts = uniq.filter(t => priceRe.test(t));
+				const nonPrice = uniq.filter(t => !priceRe.test(t));
 				const name = nonPrice[0] || '';
 				const desc = nonPrice[1] || '';
-				if (name) results.push({ name, src, desc });
+				const price = priceTexts[0] || '';
+				if (name) results.push({ name, src, desc, price });
 			});
 			return results;
 		}""")
-		return {it["name"]: {"src": it["src"], "desc": it["desc"]} for it in items if it.get("name")}
+		def parse_price(p: str) -> Optional[int]:
+			if not p:
+				return None
+			digits = p.replace(",", "").replace("원", "").strip()
+			return int(digits) if digits.isdigit() else None
+		return {
+			it["name"]: {
+				"src": it.get("src", ""),
+				"desc": it.get("desc", ""),
+				"price": parse_price(it.get("price", "")),
+			}
+			for it in items if it.get("name")
+		}
 	except Exception:
 		return {}
+
+
+def fetch_store_photos(page: Page, naver_place_id: str, limit: int = 5) -> list[str]:
+	"""네이버 플레이스 사진 탭에서 최대 N장의 이미지 URL 수집.
+
+	메뉴 탭과 동일한 entryIframe 경로 (pcmap.place.naver.com/{type}/{id}/photo) 를 따라간 후
+	img[src*="pstatic"] 의 src 를 순서대로 수집. limit 이상이면 잘라냄.
+	"""
+	try:
+		page.goto(
+			f"https://map.naver.com/p/entry/place/{naver_place_id}",
+			wait_until="domcontentloaded", timeout=15000)
+		page.wait_for_timeout(2500)
+		frame = page.frame("entryIframe")
+		if not frame:
+			return []
+		m = re.search(r"pcmap\.place\.naver\.com/(\w+)/\d+", frame.url)
+		place_type = m.group(1) if m else "restaurant"
+		frame.goto(
+			f"https://pcmap.place.naver.com/{place_type}/{naver_place_id}/photo",
+			wait_until="domcontentloaded", timeout=10000)
+		page.wait_for_timeout(2000)
+		urls = frame.evaluate("""(limit) => {
+			const seen = new Set();
+			const out = [];
+			document.querySelectorAll('img[src*="pstatic"]').forEach(img => {
+				const src = img.getAttribute('src') || '';
+				if (!src || seen.has(src)) return;
+				seen.add(src);
+				if (out.length < limit) out.push(src);
+			});
+			return out;
+		}""", limit)
+		return urls or []
+	except Exception:
+		return []
+
+
+def upload_store_image(server: str, store_id: int, image_url: str) -> bool:
+	"""가게 사진 1장 업로드 — 메뉴 이미지 흐름과 동일하지만 domain=stores."""
+	mime = detect_mime(image_url)
+	try:
+		presigned = get_presigned_url(server, "stores", store_id, mime)
+		data = download_bytes(image_url)
+		upload_to_s3(presigned["uploadUrl"], data, mime)
+		save_image_metadata(server, "stores", store_id, presigned["fileName"], presigned["awsKey"], mime)
+		return True
+	except Exception as e:
+		print(f"  [가게 이미지 업로드 실패] store_id={store_id}: {e}")
+		return False
 
 
 # ─── 메뉴 데이터 파싱 ────────────────────────────────────────────────────────
@@ -603,18 +755,31 @@ def parse_menu_info(menu_info_str: str) -> list[dict]:
 def process_store(page: Page, store: dict, server: str, dry_run: bool, verbose: bool) -> dict:
 	"""
 	큐의 한 store 처리.
-	  - 네이버 검색 → 신뢰 매칭 1건 선택
-	  - 매칭 성공: naverPlaceId 저장. existingMenuCount == 0 이면 메뉴 등록.
+	  - placeId 이미 있음: 검색/매칭 스킵하고 바로 메뉴+사진 크롤 (어드민 수동 매칭 직후 경로)
+	  - placeId 없음: 네이버 검색 → 신뢰 매칭 1건 선택 → placeId 저장 → 메뉴+사진 크롤
 	  - 매칭 실패: mark_failed
 	"""
 	stats = {"matched": 0, "menus_created": 0, "images_uploaded": 0, "skipped_menu_crawl": 0,
+			"photos_uploaded": 0, "skipped_photo_crawl": 0,
 			"failed": 0, "no_candidates": False}
 
 	store_id = store["id"]
 	store_name = store["name"]
 	existing_menu_count = store.get("existingMenuCount", 0) or 0
+	existing_photo_count = store.get("existingPhotoCount", 0) or 0
+	existing_place_id = store.get("naverPlaceId") or None
 
-	print(f"\n[가게] id={store_id} | {store_name}  (메뉴 {existing_menu_count}개 보유)")
+	print(f"\n[가게] id={store_id} | {store_name}  (메뉴 {existing_menu_count}개, 사진 {existing_photo_count}장)")
+
+	# 어드민이 placeId 를 수동 저장한 직후 경로: 검색/매칭 스킵하고 그 placeId 로 바로 크롤
+	if existing_place_id:
+		print(f"  ✓ placeId 이미 있음 ({existing_place_id}) — 검색 스킵하고 크롤로 점프")
+		stats["matched"] = 1
+		if dry_run:
+			print("  [dry-run] 크롤 생략")
+			return stats
+		return _enrich_with_place_id(page, store_id, existing_place_id,
+			existing_menu_count, existing_photo_count, None, server, stats)
 
 	candidates = search_naver_candidates(page, store_name, store.get("address"))
 	if not candidates:
@@ -658,49 +823,94 @@ def process_store(page: Page, store: dict, server: str, dry_run: bool, verbose: 
 	# naverPlaceId 저장
 	save_naver_place_id(server, store_id, naver_id)
 
-	# 메뉴 이미 있으면 ID 만 채우고 종료
+	return _enrich_with_place_id(
+		page, store_id, naver_id,
+		existing_menu_count, existing_photo_count,
+		matched_place.get("menuInfo") or "",
+		server, stats)
+
+
+def _enrich_with_place_id(
+		page: Page,
+		store_id: int,
+		naver_place_id: str,
+		existing_menu_count: int,
+		existing_photo_count: int,
+		menu_info_str: str,
+		server: str,
+		stats: dict) -> dict:
+	"""placeId 가 확정된 가게에 대해 메뉴 + 가게 사진을 크롤하고 업로드.
+
+	검색 매칭 경로와 수동 매칭 경로 둘 다에서 사용.
+	  - menu_info_str 있음: 네이버 search 응답의 menuInfo 를 1차 소스로 사용 (가격 보장)
+	  - menu_info_str 없음: 메뉴 탭 DOM 을 1차 소스로 사용 (수동 매칭 경로)
+	"""
+	# 메뉴 탭 DOM 은 두 경로 모두에서 필요 (수동 매칭 → 1차 소스, 검색 매칭 → 이미지/설명/fallback 가격)
+	place_menu_map = fetch_menu_data(page, naver_place_id) if naver_place_id else {}
+
 	if existing_menu_count > 0:
-		print(f"  → 메뉴 {existing_menu_count}개 보유 — 메뉴 크롤링 생략 (ID만 채움)")
+		print(f"  → 메뉴 {existing_menu_count}개 보유 — 메뉴 크롤링 생략")
 		stats["skipped_menu_crawl"] = 1
-		return stats
+	else:
+		if menu_info_str:
+			primary_menus = parse_menu_info(menu_info_str)
+		else:
+			# 수동 매칭 경로: 메뉴 탭 DOM 만으로 구성. 음료/카테고리 추정은 동일 규칙.
+			primary_menus = [
+				{"name": name, "price": data.get("price"), "category": guess_category(name)}
+				for name, data in place_menu_map.items()
+				if not is_drink(name)
+			]
 
-	# 메뉴 크롤링 & 등록
-	menu_info_str = matched_place.get("menuInfo") or ""
-	parsed_menus = parse_menu_info(menu_info_str)
-	if not parsed_menus:
-		print("  → 네이버에 메뉴 정보 없음 (menuInfo 비어있음)")
-		return stats
+		if not primary_menus:
+			print("  → 네이버에 메뉴 정보 없음")
+		else:
+			def match_menu_extra(menu_name: str) -> dict:
+				if menu_name in place_menu_map:
+					return place_menu_map[menu_name]
+				n_norm = re.sub(r"\(.*?\)", "", menu_name).replace(" ", "")
+				return next(
+					(v for k, v in place_menu_map.items()
+					 if re.sub(r"\(.*?\)", "", k).replace(" ", "") == n_norm),
+					{},
+				)
 
-	place_menu_map = fetch_menu_data(page, naver_id) if naver_id else {}
+			for menu in primary_menus:
+				extra = match_menu_extra(menu["name"])
+				img_url = extra.get("src") or None
+				desc = extra.get("desc") or None
+				# 검색 menuInfo 에 가격 없으면 DOM 가격으로 보완
+				price = menu.get("price") if menu.get("price") is not None else extra.get("price")
 
-	def match_menu_img(menu_name: str) -> dict:
-		if menu_name in place_menu_map:
-			return place_menu_map[menu_name]
-		n_norm = re.sub(r"\(.*?\)", "", menu_name).replace(" ", "")
-		return next(
-			(v for k, v in place_menu_map.items()
-			 if re.sub(r"\(.*?\)", "", k).replace(" ", "") == n_norm),
-			{},
-		)
+				menu_id = create_menu(server, store_id, menu["name"], price, menu["category"], desc)
+				if not menu_id:
+					continue
+				stats["menus_created"] += 1
+				price_str = f"{price}원" if price else "-"
+				print(f"    + 등록 [{menu_id}] {menu['name']}  {price_str}")
 
-	for menu in parsed_menus:
-		matched_img = match_menu_img(menu["name"])
-		img_url = matched_img.get("src") or None
-		desc = matched_img.get("desc") or None
+				if img_url:
+					if upload_menu_image(server, menu_id, img_url):
+						stats["images_uploaded"] += 1
+						print(f"      └ 이미지 업로드 완료")
 
-		menu_id = create_menu(server, store_id, menu["name"], menu["price"], menu["category"], desc)
-		if not menu_id:
-			continue
-		stats["menus_created"] += 1
-		price_str = f"{menu['price']}원" if menu["price"] else "-"
-		print(f"    + 등록 [{menu_id}] {menu['name']}  {price_str}")
+				time.sleep(0.1)
 
-		if img_url:
-			if upload_menu_image(server, menu_id, img_url):
-				stats["images_uploaded"] += 1
-				print(f"      └ 이미지 업로드 완료")
-
-		time.sleep(0.1)
+	# 가게 사진 — 기존 사진 0장일 때만
+	if existing_photo_count > 0:
+		print(f"  → 가게 사진 {existing_photo_count}장 보유 — 사진 크롤링 생략")
+		stats["skipped_photo_crawl"] = 1
+	else:
+		photo_urls = fetch_store_photos(page, naver_place_id, limit=STORE_PHOTO_LIMIT) if naver_place_id else []
+		if not photo_urls:
+			print("  → 네이버 사진 탭에서 이미지 못 찾음")
+		else:
+			print(f"  → 가게 사진 {len(photo_urls)}장 업로드 시도")
+			for url in photo_urls:
+				if upload_store_image(server, store_id, url):
+					stats["photos_uploaded"] += 1
+				time.sleep(0.1)
+			print(f"      └ 가게 사진 {stats['photos_uploaded']}/{len(photo_urls)}장 업로드 완료")
 
 	return stats
 
@@ -715,6 +925,8 @@ def main() -> None:
 		help="단일 가게 모드 — 지정한 store id 만 처리하고 종료 (어드민 'Enrich' 버튼용)")
 	parser.add_argument("--dry-run", action="store_true", help="매칭만 시뮬레이션, 실제 저장 X")
 	parser.add_argument("--verbose", action="store_true", help="신뢰 매칭 실패 후보까지 출력")
+	parser.add_argument("--photos-only", action="store_true",
+		help="매칭됨+사진 0장 큐만 처리 — 검색은 스킵하고 사진만 보충 (process_store 분기로 자동 처리)")
 	parser.add_argument("--headless", action="store_true", default=True, help="브라우저 창 숨김 (기본 ON)")
 	parser.add_argument("--show-browser", dest="headless", action="store_false", help="브라우저 창 표시")
 	args = parser.parse_args()
@@ -723,9 +935,11 @@ def main() -> None:
 	if args.store_id:
 		print(f"단일 가게 모드: store_id={args.store_id}")
 	else:
-		print(f"큐 모드 — 배치 크기: {args.batch}, loop={args.loop}, dry-run={args.dry_run}")
+		mode = "photos-backfill" if args.photos_only else "enrich"
+		print(f"큐 모드 [{mode}] — 배치 크기: {args.batch}, loop={args.loop}, dry-run={args.dry_run}")
 
-	total = {"matched": 0, "menus_created": 0, "images_uploaded": 0, "skipped_menu_crawl": 0, "failed": 0}
+	total = {"matched": 0, "menus_created": 0, "images_uploaded": 0, "skipped_menu_crawl": 0,
+			"photos_uploaded": 0, "skipped_photo_crawl": 0, "failed": 0}
 
 	with sync_playwright() as p:
 		browser = p.chromium.launch(
@@ -753,7 +967,7 @@ def main() -> None:
 			batches_done = 0
 			no_candidate_streak = 0
 			while True:
-				queue = fetch_queue(args.server, args.batch)
+				queue = fetch_queue(args.server, args.batch, photos_only=args.photos_only)
 				if not queue:
 					print("\n[큐 비어있음 — 종료]")
 					break

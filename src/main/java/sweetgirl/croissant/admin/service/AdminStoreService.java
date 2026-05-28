@@ -159,14 +159,35 @@ public class AdminStoreService {
 		Page<Store> stores = storeRepository.findNaverEnrichQueue(retryThreshold, pageable);
 		List<Long> storeIds = stores.getContent().stream().map(Store::getId).toList();
 		Map<Long, Long> menuCountMap = getMenuCountMap(storeIds);
-		return stores.map(s -> AdminNaverEnrichQueueItem.from(s, menuCountMap.getOrDefault(s.getId(), 0L)));
+		Map<Long, Long> photoCountMap = getPhotoCountMap(storeIds);
+		return stores.map(s -> AdminNaverEnrichQueueItem.from(
+			s,
+			menuCountMap.getOrDefault(s.getId(), 0L),
+			photoCountMap.getOrDefault(s.getId(), 0L)));
+	}
+
+	// 매칭은 됐지만 사진이 0장인 가게 — 사진 보충 일괄 크롤 큐.
+	// Python 스크래퍼는 store.naverPlaceId 가 들어있으면 검색을 스킵하고 바로 사진만 가져옴.
+	public Page<AdminNaverEnrichQueueItem> getPhotoBackfillQueue(Pageable pageable) {
+		Page<Store> stores = storeRepository.findMatchedWithoutPhotos(pageable);
+		List<Long> storeIds = stores.getContent().stream().map(Store::getId).toList();
+		Map<Long, Long> menuCountMap = getMenuCountMap(storeIds);
+		return stores.map(s -> AdminNaverEnrichQueueItem.from(
+			s,
+			menuCountMap.getOrDefault(s.getId(), 0L),
+			0L));
+	}
+
+	public long countPhotoBackfillQueue() {
+		return storeRepository.countMatchedWithoutPhotos();
 	}
 
 	public AdminNaverEnrichQueueItem getNaverEnrichItem(Long storeId) {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 		long menuCount = getMenuCountMap(List.of(storeId)).getOrDefault(storeId, 0L);
-		return AdminNaverEnrichQueueItem.from(store, menuCount);
+		long photoCount = getPhotoCountMap(List.of(storeId)).getOrDefault(storeId, 0L);
+		return AdminNaverEnrichQueueItem.from(store, menuCount, photoCount);
 	}
 
 	public Page<AdminNaverThrottledItem> getNaverThrottledList(Pageable pageable) {
@@ -183,6 +204,16 @@ public class AdminStoreService {
 			return Collections.emptyMap();
 		}
 		return menuRepository.countActiveMenusByStoreIds(storeIds).stream()
+			.collect(Collectors.toMap(
+				row -> (Long)row[0],
+				row -> (Long)row[1]));
+	}
+
+	private Map<Long, Long> getPhotoCountMap(List<Long> storeIds) {
+		if (storeIds.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		return storeImageFileRepository.countByStoreIdIn(storeIds).stream()
 			.collect(Collectors.toMap(
 				row -> (Long)row[0],
 				row -> (Long)row[1]));
@@ -234,12 +265,16 @@ public class AdminStoreService {
 	}
 
 	public AdminNaverEnrichStatsResponse getNaverEnrichStats() {
+		java.time.Instant startedAt = naverEnrichOrchestrator.getStartedAt();
 		return new AdminNaverEnrichStatsResponse(
 			naverEnrichOrchestrator.isRunning(),
 			storeRepository.countNaverMatched(),
 			storeRepository.countNaverPending(),
 			storeRepository.countNaverFailed(),
-			storeRepository.countActiveTotal());
+			storeRepository.countActiveTotal(),
+			naverEnrichOrchestrator.getRunningMode(),
+			startedAt != null ? startedAt.toString() : null,
+			naverEnrichOrchestrator.getStartedQueueCount());
 	}
 
 	@Transactional

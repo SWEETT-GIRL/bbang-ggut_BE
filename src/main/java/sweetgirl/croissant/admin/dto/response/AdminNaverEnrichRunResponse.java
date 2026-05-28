@@ -5,6 +5,7 @@ public record AdminNaverEnrichRunResponse(
 		String naverPlaceId,
 		String naverMatchedAt,
 		long menuCount,
+		long photoCount,
 		int subprocessExitCode,
 		String message) {
 }
