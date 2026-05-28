@@ -1,5 +1,7 @@
 package sweetgirl.croissant.admin.controller;
 
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
@@ -18,9 +20,11 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.admin.dto.request.AdminNaverEnrichCandidateRequest;
 import sweetgirl.croissant.admin.dto.request.AdminNaverPlaceIdUpdateRequest;
 import sweetgirl.croissant.admin.dto.request.AdminStoreCreateRequest;
 import sweetgirl.croissant.admin.dto.request.AdminStoreUpdateRequest;
+import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichCandidateResponse;
 import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichQueueItem;
 import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichRunResponse;
 import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichStatsResponse;
@@ -62,13 +66,14 @@ public class AdminStoreController {
 			ApiResponse.ok(adminStoreService.getNaverEnrichQueue(PageRequest.of(page, size))));
 	}
 
-	@Operation(summary = "네이버 플레이스 ID 저장", description = "Python 크롤러가 네이버에서 매칭에 성공한 후 호출. "
-		+ "naverPlaceId 와 naverMatchedAt 을 함께 갱신합니다.")
+	@Operation(summary = "네이버 플레이스 ID 저장", description = "Python 크롤러 또는 어드민이 호출. "
+		+ "naverPlaceId 와 naverMatchedAt 을 함께 갱신. replaceMenus=true 면 기존 메뉴를 soft-delete (어드민 후보 선택 UI 용).")
 	@PutMapping("/{storeId}/naver-place-id")
 	public ResponseEntity<ApiResponse<Void>> updateNaverPlaceId(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId,
 			@Valid @RequestBody AdminNaverPlaceIdUpdateRequest request) {
-		adminStoreService.updateNaverPlaceId(storeId, request.naverPlaceId());
+		boolean replaceMenus = Boolean.TRUE.equals(request.replaceMenus());
+		adminStoreService.updateNaverPlaceId(storeId, request.naverPlaceId(), replaceMenus);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -79,6 +84,24 @@ public class AdminStoreController {
 			@Parameter(description = "가게 ID") @PathVariable Long storeId) {
 		adminStoreService.markNaverEnrichFailed(storeId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "네이버 매칭 후보 저장", description = "Python 크롤러가 매칭 실패 시 검색된 후보들을 저장. "
+		+ "기존 후보는 전부 삭제되고 새로 교체. 어드민이 '후보 보기' UI 에서 선택해 수동 매칭 가능.")
+	@PostMapping("/{storeId}/naver-enrich-candidates")
+	public ResponseEntity<ApiResponse<Void>> saveNaverEnrichCandidates(
+			@Parameter(description = "가게 ID") @PathVariable Long storeId,
+			@Valid @RequestBody List<AdminNaverEnrichCandidateRequest> candidates) {
+		adminStoreService.replaceCandidates(storeId, candidates);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "네이버 매칭 후보 조회", description = "어드민 UI 가 '후보 보기' 모달에서 호출. "
+		+ "matched 된 store 는 후보가 자동 삭제돼서 빈 리스트 반환.")
+	@GetMapping("/{storeId}/naver-enrich-candidates")
+	public ResponseEntity<ApiResponse<List<AdminNaverEnrichCandidateResponse>>> getNaverEnrichCandidates(
+			@Parameter(description = "가게 ID") @PathVariable Long storeId) {
+		return ResponseEntity.ok(ApiResponse.ok(adminStoreService.getCandidates(storeId)));
 	}
 
 	@Operation(summary = "네이버 enrich 통계", description = "ACTIVE store 기준 매칭/대기/실패/전체 카운트. 대시보드용.")
