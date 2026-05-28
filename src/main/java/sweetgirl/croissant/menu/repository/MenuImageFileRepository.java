@@ -36,4 +36,11 @@ public interface MenuImageFileRepository extends JpaRepository<MenuImageFile, Lo
 
 	@Query("SELECT COALESCE(MAX(m.displayOrder), 0) FROM MenuImageFile m WHERE m.menu.id = :menuId")
 	int findMaxDisplayOrderByMenuId(@Param("menuId") Long menuId);
+
+	@Query("SELECT m FROM MenuImageFile m WHERE m.menu.id = :menuId AND m.sourceUrl = :sourceUrl")
+	java.util.Optional<MenuImageFile> findByMenuIdAndSourceUrl(
+			@Param("menuId") Long menuId, @Param("sourceUrl") String sourceUrl);
+
+	@Query("SELECT m.awsKey FROM MenuImageFile m")
+	List<String> findAllAwsKeys();
 }

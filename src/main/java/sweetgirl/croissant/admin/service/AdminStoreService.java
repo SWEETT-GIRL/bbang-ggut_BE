@@ -223,6 +223,12 @@ public class AdminStoreService {
 	public void updateNaverPlaceId(Long storeId, String naverPlaceId, boolean replaceMenus) {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
+		// DB 의 unique 제약이 막아주지만, 사전 검사로 명시적 409 를 돌려줘서 운영자가 원인을 바로 본다.
+		storeRepository.findByNaverPlaceId(naverPlaceId).ifPresent(owner -> {
+			if (!owner.getId().equals(storeId)) {
+				throw new StoreException(StoreErrorCode.NAVER_PLACE_ID_DUPLICATE);
+			}
+		});
 		if (replaceMenus) {
 			menuRepository.softDeleteByStoreId(storeId);
 		}

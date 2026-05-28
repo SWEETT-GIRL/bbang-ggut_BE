@@ -56,3 +56,11 @@ TODO.md
 ny_plan.md
 
 
+
+### Python ###
+__pycache__/
+*.py[cod]
+*.pyo
+
+### Claude Code ###
+.claude/scheduled_tasks.lock

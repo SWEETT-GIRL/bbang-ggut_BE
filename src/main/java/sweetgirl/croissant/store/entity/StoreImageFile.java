@@ -29,11 +29,17 @@ public class StoreImageFile extends ImageFile {
 	@Column(nullable = false)
 	private int displayOrder;
 
+	// 외부 크롤러가 다운로드한 원본 URL — idempotency 키. 어드민 웹 업로드는 null.
+	@Column(length = 500)
+	private String sourceUrl;
+
 	@Builder
-	public StoreImageFile(Store store, String name, MimeType mimeType, String awsKey, int displayOrder) {
+	public StoreImageFile(Store store, String name, MimeType mimeType, String awsKey,
+			int displayOrder, String sourceUrl) {
 		super(name, mimeType, awsKey);
 		this.store = store;
 		this.displayOrder = displayOrder;
+		this.sourceUrl = sourceUrl;
 	}
 
 	public void updateDisplayOrder(int displayOrder) {
