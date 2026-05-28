@@ -22,6 +22,8 @@ public record AdminStoreResponse(
 		String phone,
 		CoordResponse coord,
 		String kakaoPlaceId,
+		String naverPlaceId,
+		String naverMatchedAt,
 		String status,
 		List<String> photos,
 		int mainPhotoIndex,
@@ -70,6 +72,7 @@ public record AdminStoreResponse(
 			? new CoordResponse(store.getLocation().getY(), store.getLocation().getX()) : null;
 
 		String categoryStr = store.getCategory() != null ? store.getCategory().name() : null;
+		String naverMatchedAtStr = store.getNaverMatchedAt() != null ? store.getNaverMatchedAt().toString() : null;
 		return new AdminStoreResponse(
 			store.getId(),
 			store.getName(),
@@ -82,6 +85,8 @@ public record AdminStoreResponse(
 			store.getPhone(),
 			coord,
 			store.getKakaoPlaceId(),
+			store.getNaverPlaceId(),
+			naverMatchedAtStr,
 			statusStr,
 			photoUrls,
 			0,

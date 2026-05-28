@@ -1,7 +1,9 @@
 package sweetgirl.croissant.admin.service;
 
 import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -20,7 +22,10 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.admin.dto.request.AdminStoreCreateRequest;
 import sweetgirl.croissant.admin.dto.request.AdminStoreUpdateRequest;
 import sweetgirl.croissant.admin.dto.request.BusinessHourRequest;
+import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichQueueItem;
+import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichStatsResponse;
 import sweetgirl.croissant.admin.dto.response.AdminStoreResponse;
+import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.AddressParser;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
@@ -54,6 +59,8 @@ public class AdminStoreService {
 	private final StoreBusinessHourRepository storeBusinessHourRepository;
 	private final StoreImageFileRepository storeImageFileRepository;
 	private final SubscribedStoreRepository subscribedStoreRepository;
+	private final MenuRepository menuRepository;
+	private final NaverEnrichOrchestrator naverEnrichOrchestrator;
 
 	@Transactional
 	public AdminStoreResponse createStore(AdminStoreCreateRequest request) {
@@ -134,6 +141,73 @@ public class AdminStoreService {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 		store.update(null, null, null, null, null, null, null, StoreStatus.DELETED, null);
+	}
+
+	// ── Naver enrich 큐 ─────────────────────────────────────────────────────
+
+	// 실패 후 재시도 가능 시점 — 매칭 실패한 가게는 7일 후부터 다시 큐에 노출.
+	private static final long NAVER_RETRY_AFTER_DAYS = 7;
+
+	public Page<AdminNaverEnrichQueueItem> getNaverEnrichQueue(Pageable pageable) {
+		Instant retryThreshold = Instant.now().minus(NAVER_RETRY_AFTER_DAYS, ChronoUnit.DAYS);
+		Page<Store> stores = storeRepository.findNaverEnrichQueue(retryThreshold, pageable);
+		List<Long> storeIds = stores.getContent().stream().map(Store::getId).toList();
+		Map<Long, Long> menuCountMap = getMenuCountMap(storeIds);
+		return stores.map(s -> AdminNaverEnrichQueueItem.from(s, menuCountMap.getOrDefault(s.getId(), 0L)));
+	}
+
+	public AdminNaverEnrichQueueItem getNaverEnrichItem(Long storeId) {
+		Store store = storeRepository.findById(storeId)
+			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
+		long menuCount = getMenuCountMap(List.of(storeId)).getOrDefault(storeId, 0L);
+		return AdminNaverEnrichQueueItem.from(store, menuCount);
+	}
+
+	private Map<Long, Long> getMenuCountMap(List<Long> storeIds) {
+		if (storeIds.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		return menuRepository.countActiveMenusByStoreIds(storeIds).stream()
+			.collect(Collectors.toMap(
+				row -> (Long)row[0],
+				row -> (Long)row[1]));
+	}
+
+	@Transactional
+	public void updateNaverPlaceId(Long storeId, String naverPlaceId) {
+		Store store = storeRepository.findById(storeId)
+			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
+		store.markNaverMatched(naverPlaceId);
+	}
+
+	@Transactional
+	public void markNaverEnrichFailed(Long storeId) {
+		Store store = storeRepository.findById(storeId)
+			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
+		store.markNaverEnrichFailed();
+	}
+
+	public AdminNaverEnrichStatsResponse getNaverEnrichStats() {
+		return new AdminNaverEnrichStatsResponse(
+			naverEnrichOrchestrator.isRunning(),
+			storeRepository.countNaverMatched(),
+			storeRepository.countNaverPending(),
+			storeRepository.countNaverFailed(),
+			storeRepository.countActiveTotal());
+	}
+
+	@Transactional
+	public void clearNaverPlaceId(Long storeId) {
+		Store store = storeRepository.findById(storeId)
+			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
+		store.clearNaverMatch();
+	}
+
+	@Transactional
+	public void retryNaverEnrich(Long storeId) {
+		Store store = storeRepository.findById(storeId)
+			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
+		store.resetNaverEnrichThrottle();
 	}
 
 	private AdminStoreResponse buildResponse(Store store) {

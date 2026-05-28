@@ -13,7 +13,8 @@ public class BulkImportAsyncConfig {
 
 	public static final String EXECUTOR_NAME = "bulkImportExecutor";
 
-	private static final long KAKAO_MIN_INTERVAL_MS = 400L;
+	// Kakao 무료 한도 월 300만 호출 — 200ms (초당 5건) 페이스로도 월 8% 미만이라 안전
+	private static final long KAKAO_MIN_INTERVAL_MS = 200L;
 
 	@Bean(name = EXECUTOR_NAME)
 	public Executor bulkImportExecutor() {

@@ -48,4 +48,12 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
 			ORDER BY m.createdAt DESC
 			""")
 	List<Menu> findByStoreIdIncludingDeleted(@Param("storeId") Long storeId);
+
+	@Query("""
+			SELECT m.store.id AS storeId, COUNT(m) AS cnt
+			FROM Menu m
+			WHERE m.store.id IN :storeIds AND m.deletedAt IS NULL
+			GROUP BY m.store.id
+			""")
+	List<Object[]> countActiveMenusByStoreIds(@Param("storeIds") List<Long> storeIds);
 }

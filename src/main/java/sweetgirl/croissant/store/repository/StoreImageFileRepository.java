@@ -31,4 +31,6 @@ public interface StoreImageFileRepository extends JpaRepository<StoreImageFile, 
 
 	long countByIdInAndStoreId(List<Long> ids, Long storeId);
 
+	@Query("SELECT COALESCE(MAX(s.displayOrder), 0) FROM StoreImageFile s WHERE s.store.id = :storeId")
+	int findMaxDisplayOrderByStoreId(@Param("storeId") Long storeId);
 }
