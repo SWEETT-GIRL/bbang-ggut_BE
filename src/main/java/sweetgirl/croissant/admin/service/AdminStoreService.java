@@ -24,6 +24,7 @@ import sweetgirl.croissant.admin.dto.request.AdminStoreUpdateRequest;
 import sweetgirl.croissant.admin.dto.request.BusinessHourRequest;
 import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichQueueItem;
 import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichStatsResponse;
+import sweetgirl.croissant.admin.dto.response.AdminNaverThrottledItem;
 import sweetgirl.croissant.admin.dto.response.AdminStoreResponse;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.AddressParser;
@@ -161,6 +162,12 @@ public class AdminStoreService {
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 		long menuCount = getMenuCountMap(List.of(storeId)).getOrDefault(storeId, 0L);
 		return AdminNaverEnrichQueueItem.from(store, menuCount);
+	}
+
+	public Page<AdminNaverThrottledItem> getNaverThrottledList(Pageable pageable) {
+		Instant throttleAliveSince = Instant.now().minus(NAVER_RETRY_AFTER_DAYS, ChronoUnit.DAYS);
+		return storeRepository.findNaverThrottled(throttleAliveSince, pageable)
+			.map(s -> AdminNaverThrottledItem.from(s, NAVER_RETRY_AFTER_DAYS));
 	}
 
 	private Map<Long, Long> getMenuCountMap(List<Long> storeIds) {

@@ -24,6 +24,7 @@ import sweetgirl.croissant.admin.dto.request.AdminStoreUpdateRequest;
 import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichQueueItem;
 import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichRunResponse;
 import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichStatsResponse;
+import sweetgirl.croissant.admin.dto.response.AdminNaverThrottledItem;
 import sweetgirl.croissant.admin.dto.response.AdminStoreResponse;
 import sweetgirl.croissant.admin.service.AdminStoreService;
 import sweetgirl.croissant.admin.service.NaverEnrichOrchestrator;
@@ -84,6 +85,16 @@ public class AdminStoreController {
 	@GetMapping("/naver-enrich-stats")
 	public ResponseEntity<ApiResponse<AdminNaverEnrichStatsResponse>> getNaverEnrichStats() {
 		return ResponseEntity.ok(ApiResponse.ok(adminStoreService.getNaverEnrichStats()));
+	}
+
+	@Operation(summary = "네이버 매칭 실패 throttle 목록", description = "naverPlaceId NULL + naverMatchedAt 있는 가게 — "
+		+ "현재 7일 throttle 진행 중. 어드민에서 클릭해 보기 + 즉시 재시도 가능.")
+	@GetMapping("/naver-throttled")
+	public ResponseEntity<ApiResponse<Page<AdminNaverThrottledItem>>> getNaverThrottledList(
+			@Parameter(description = "페이지 번호 (0부터 시작)") @RequestParam(defaultValue = "0") int page,
+			@Parameter(description = "페이지 크기") @RequestParam(defaultValue = "100") int size) {
+		return ResponseEntity.ok(
+			ApiResponse.ok(adminStoreService.getNaverThrottledList(PageRequest.of(page, size))));
 	}
 
 	@Operation(summary = "네이버 플레이스 ID 초기화", description = "잘못 매칭된 ID 를 비웁니다. "
