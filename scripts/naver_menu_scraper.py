@@ -461,7 +461,11 @@ def _naver_search_once(page: Page, query: str) -> list[dict]:
 		if "json" in ct:
 			try:
 				data = response.json()
-				places = data.get("result", {}).get("place", {}).get("list", [])
+				# 네이버는 "결과 없음" 을 result.place=null 로 시그널 — `.get(..., {})` 디폴트는
+				# 키가 없을 때만 적용되므로 `or {}` 로 명시적 null 도 빈 dict 처리.
+				result = data.get("result") or {}
+				place = result.get("place") or {}
+				places = place.get("list") or []
 				if places:
 					captured.extend(places)
 			except Exception as e:
