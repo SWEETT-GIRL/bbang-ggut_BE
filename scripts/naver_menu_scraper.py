@@ -140,15 +140,51 @@ CATEGORY_RULES: list[tuple[list[str], str]] = [
 
 # ─── 매칭 신뢰도 검증 ─────────────────────────────────────────────────────────
 
+# 매장 접미사 제거 — 공백 있는 상태에서 적용 (공백을 어휘 경계로 사용).
+# 예: '테라로사 본점' → '테라로사', '카페드파리 성남본점' → '카페드파리',
+#      '올선데이 광안직영점' → '올선데이', '포스톤즈 커피로스터스 삼청점' → '포스톤즈 커피로스터스'.
+# 공백 없이 붙어 있는 케이스 (예: '올유캔잇본점')는 strip 안 되지만, 뒤의 substring 비교가 대응.
+_BRANCH_SUFFIX_RE = re.compile(r"\s+(?:[가-힣a-zA-Z0-9]+점|매장|플래그십|플래그쉽)$")
+
+
+def strip_branch_suffix(name: str) -> str:
+	"""이름 끝의 매장 접미사 1회 제거 (공백으로 어휘 경계 확보)."""
+	if not name:
+		return name
+	return _BRANCH_SUFFIX_RE.sub("", name)
+
+
 def normalize_name(name: str) -> str:
-	"""이름 정규화: 괄호 내용·공백·구두점 제거, 소문자화. 매장 식별을 위한 비교용."""
+	"""이름 정규화: HTML/괄호 제거 → 매장 접미사 제거 → 공백/특수문자 제거 → 연결어(&↔앤) 정규화 → 소문자화."""
 	if not name:
 		return ""
 	s = re.sub(r"<[^>]+>", "", name)             # HTML 태그 (네이버 응답 일부에 있음)
 	s = re.sub(r"\(.*?\)|\[.*?\]", "", s)         # 괄호 내용
+	s = s.strip()
+	s = strip_branch_suffix(s)                    # 공백 있는 상태에서 매장 접미사 제거
 	s = re.sub(r"\s+", "", s)                     # 모든 공백
-	s = re.sub(r"[^\w가-힣]", "", s)               # 특수문자
+	s = re.sub(r"[^\w가-힣]", "", s)               # 특수문자 ('&' 등 제거)
+	s = s.replace("앤", "")                       # '앤'(한글 '&' 표기) 제거 — Kakao '&' ↔ Naver '앤' 등가 처리
 	return s.lower()
+
+
+def name_matches(a: str, b: str) -> bool:
+	"""정규화된 이름 비교.
+	- exact 일치 → 통과
+	- prefix 관계(브랜드명 + 추가 수식어): 짧은 쪽 ≥ 3자, 길이비 ≥ 50%
+	- mid-string substring: 짧은 쪽 ≥ 3자, 길이비 ≥ 60% (오매칭 위험이 더 커서 더 엄격)
+	"""
+	if not a or not b:
+		return False
+	if a == b:
+		return True
+	shorter, longer = (a, b) if len(a) <= len(b) else (b, a)
+	if len(shorter) < 3:
+		return False
+	ratio = len(shorter) / len(longer)
+	if longer.startswith(shorter):
+		return ratio >= 0.5
+	return shorter in longer and ratio >= 0.6
 
 
 def haversine_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
@@ -182,7 +218,7 @@ def is_reliable_match(kakao: dict, naver: dict) -> tuple[bool, str]:
 	n_name = normalize_name(naver.get("name", ""))
 	if not k_name or not n_name:
 		return False, "이름 비어있음"
-	if k_name != n_name:
+	if not name_matches(k_name, n_name):
 		return False, f"이름 불일치 '{kakao.get('name')}' ≠ '{naver.get('name')}'"
 
 	# 주소 구/동 겹침
@@ -339,7 +375,12 @@ def upload_menu_image(server: str, menu_id: int, image_url: str) -> bool:
 # ─── 네이버 크롤링 (Playwright) ──────────────────────────────────────────────
 
 def search_naver_candidates(page: Page, store_name: str) -> list[dict]:
-	"""네이버 지도 검색 → allSearch 응답 가로채서 후보 places 전부 반환."""
+	"""네이버 지도 검색 → allSearch 응답 가로채서 후보 places 전부 반환.
+
+	검색어에서도 매장 접미사 제거 (네이버 인덱스는 '본점/지점' 없이 등록된 케이스가 많음 — 예: '카페비읍미음 본점'을
+	그대로 검색하면 0건이지만 '카페비읍미음'으로 검색하면 찾힘). 잘못된 후보는 뒤의 이름·주소 비교가 걸러냄.
+	"""
+	search_term = strip_branch_suffix(store_name) or store_name
 	captured: list[dict] = []
 
 	def handle_response(response):
@@ -355,11 +396,11 @@ def search_naver_candidates(page: Page, store_name: str) -> list[dict]:
 	page.on("response", handle_response)
 	try:
 		page.goto(
-			f"https://map.naver.com/p/search/{urllib.parse.quote(store_name)}",
+			f"https://map.naver.com/p/search/{urllib.parse.quote(search_term)}",
 			wait_until="domcontentloaded", timeout=15000)
 		page.wait_for_timeout(3000)
 	except Exception as e:
-		print(f"  [페이지 로드 실패] {store_name}: {e}")
+		print(f"  [페이지 로드 실패] {search_term}: {e}")
 	page.remove_listener("response", handle_response)
 	return captured
 

@@ -2,6 +2,7 @@ package sweetgirl.croissant.admin.service;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -20,6 +21,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
 public class NaverEnrichOrchestrator {
+
+	private static final int SIGTERM_GRACE_SECONDS = 5;
 
 	private final AtomicBoolean running = new AtomicBoolean(false);
 	private volatile Process currentProcess;
@@ -52,10 +55,25 @@ public class NaverEnrichOrchestrator {
 
 	public void requestStop() {
 		Process proc = currentProcess;
-		if (proc != null && proc.isAlive()) {
-			log.info("[NaverEnrich] 중단 요청 — SIGTERM 전송");
-			proc.destroy();
+		if (proc == null || !proc.isAlive()) {
+			return;
 		}
+		log.info("[NaverEnrich] 중단 요청 — SIGTERM 전송");
+		proc.destroy();
+		// Playwright 가 SIGTERM 을 가로채는 경우가 있어, 일정 시간 안 죽으면 SIGKILL 로 강제 종료
+		Thread killer = new Thread(() -> {
+			try {
+				if (!proc.waitFor(SIGTERM_GRACE_SECONDS, TimeUnit.SECONDS)) {
+					log.warn("[NaverEnrich] SIGTERM {}초 무시 — SIGKILL 강제 종료", SIGTERM_GRACE_SECONDS);
+					proc.destroyForcibly();
+				}
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				proc.destroyForcibly();
+			}
+		}, "naver-enrich-killer");
+		killer.setDaemon(true);
+		killer.start();
 	}
 
 	private void runBulkLoop() {
