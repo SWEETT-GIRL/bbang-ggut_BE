@@ -19,9 +19,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.admin.dto.request.AdminNaverEnrichCandidateRequest;
 import sweetgirl.croissant.admin.dto.request.AdminStoreCreateRequest;
 import sweetgirl.croissant.admin.dto.request.AdminStoreUpdateRequest;
 import sweetgirl.croissant.admin.dto.request.BusinessHourRequest;
+import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichCandidateResponse;
 import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichQueueItem;
 import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichStatsResponse;
 import sweetgirl.croissant.admin.dto.response.AdminNaverThrottledItem;
@@ -29,12 +31,14 @@ import sweetgirl.croissant.admin.dto.response.AdminStoreResponse;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.AddressParser;
 import sweetgirl.croissant.store.code.StoreErrorCode;
+import sweetgirl.croissant.store.entity.NaverEnrichCandidate;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreBusinessHour;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.enums.StoreSource;
 import sweetgirl.croissant.store.enums.StoreStatus;
 import sweetgirl.croissant.store.exception.StoreException;
+import sweetgirl.croissant.store.repository.NaverEnrichCandidateRepository;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
@@ -62,6 +66,7 @@ public class AdminStoreService {
 	private final SubscribedStoreRepository subscribedStoreRepository;
 	private final MenuRepository menuRepository;
 	private final NaverEnrichOrchestrator naverEnrichOrchestrator;
+	private final NaverEnrichCandidateRepository candidateRepository;
 
 	@Transactional
 	public AdminStoreResponse createStore(AdminStoreCreateRequest request) {
@@ -166,8 +171,11 @@ public class AdminStoreService {
 
 	public Page<AdminNaverThrottledItem> getNaverThrottledList(Pageable pageable) {
 		Instant throttleAliveSince = Instant.now().minus(NAVER_RETRY_AFTER_DAYS, ChronoUnit.DAYS);
-		return storeRepository.findNaverThrottled(throttleAliveSince, pageable)
-			.map(s -> AdminNaverThrottledItem.from(s, NAVER_RETRY_AFTER_DAYS));
+		Page<Store> stores = storeRepository.findNaverThrottled(throttleAliveSince, pageable);
+		List<Long> storeIds = stores.getContent().stream().map(Store::getId).toList();
+		Map<Long, Long> menuCountMap = getMenuCountMap(storeIds);
+		return stores.map(s -> AdminNaverThrottledItem.from(
+			s, menuCountMap.getOrDefault(s.getId(), 0L), NAVER_RETRY_AFTER_DAYS));
 	}
 
 	private Map<Long, Long> getMenuCountMap(List<Long> storeIds) {
@@ -181,10 +189,41 @@ public class AdminStoreService {
 	}
 
 	@Transactional
-	public void updateNaverPlaceId(Long storeId, String naverPlaceId) {
+	public void updateNaverPlaceId(Long storeId, String naverPlaceId, boolean replaceMenus) {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
+		if (replaceMenus) {
+			menuRepository.softDeleteByStoreId(storeId);
+		}
 		store.markNaverMatched(naverPlaceId);
+		// 매칭 확정됐으니 보관 중이던 후보 목록 정리
+		candidateRepository.deleteByStoreId(storeId);
+	}
+
+	@Transactional
+	public void replaceCandidates(Long storeId, List<AdminNaverEnrichCandidateRequest> requests) {
+		if (!storeRepository.existsById(storeId)) {
+			throw new StoreException(StoreErrorCode.STORE_NOT_FOUND);
+		}
+		candidateRepository.deleteByStoreId(storeId);
+		int order = 0;
+		for (AdminNaverEnrichCandidateRequest req : requests) {
+			candidateRepository.save(NaverEnrichCandidate.builder()
+				.storeId(storeId)
+				.naverPlaceId(req.naverPlaceId())
+				.name(req.name())
+				.address(req.address())
+				.lat(req.lat())
+				.lng(req.lng())
+				.displayOrder(order++)
+				.build());
+		}
+	}
+
+	public List<AdminNaverEnrichCandidateResponse> getCandidates(Long storeId) {
+		return candidateRepository.findByStoreIdOrderByDisplayOrderAsc(storeId).stream()
+			.map(AdminNaverEnrichCandidateResponse::from)
+			.toList();
 	}
 
 	@Transactional

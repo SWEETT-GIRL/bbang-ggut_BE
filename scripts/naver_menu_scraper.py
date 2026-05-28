@@ -146,12 +146,23 @@ CATEGORY_RULES: list[tuple[list[str], str]] = [
 # 공백 없이 붙어 있는 케이스 (예: '올유캔잇본점')는 strip 안 되지만, 뒤의 substring 비교가 대응.
 _BRANCH_SUFFIX_RE = re.compile(r"\s+(?:[가-힣a-zA-Z0-9]+점|매장|플래그십|플래그쉽)$")
 
+# 검색어용 — 위치 정보 없는 일반 접미사만 제거. '강남점/광교앨리웨이점' 같이 지역 힌트 포함된 ○○점은 보존
+# (지점명이 들어가야 체인점에서 네이버 결과 1페이지에 진짜 매장이 떠오름).
+_GENERIC_BRANCH_SUFFIX_RE = re.compile(r"\s+(?:본점|지점|매장|플래그십|플래그쉽|직영점)$")
+
 
 def strip_branch_suffix(name: str) -> str:
 	"""이름 끝의 매장 접미사 1회 제거 (공백으로 어휘 경계 확보)."""
 	if not name:
 		return name
 	return _BRANCH_SUFFIX_RE.sub("", name)
+
+
+def strip_generic_branch_suffix(name: str) -> str:
+	"""검색어용: '본점/지점/매장' 등 위치 정보 없는 접미사만 제거. '강남점' 같은 지역 힌트는 유지."""
+	if not name:
+		return name
+	return _GENERIC_BRANCH_SUFFIX_RE.sub("", name)
 
 
 def normalize_name(name: str) -> str:
@@ -199,6 +210,10 @@ def haversine_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
 
 _DIST_SUFFIXES = ("구", "동", "읍", "면", "리", "시", "군")
 
+# 검색어에 부착할 행정 토큰 우선순위 — 좁은 단위가 먼저 (구정면이 강릉시보다 정확함).
+# endswith 매칭이므로 '구정면'은 '면'에 매칭되어 '구' 보다 먼저 시도됨.
+_DIST_PRIORITY = ("동", "읍", "면", "리", "구", "시", "군")
+
 
 def extract_district_tokens(address: str) -> set[str]:
 	"""주소 문자열에서 행정구역 토큰만 추출 (광역시/구/동/...). 비교용 set."""
@@ -206,6 +221,21 @@ def extract_district_tokens(address: str) -> set[str]:
 		return set()
 	tokens = re.split(r"\s+", address.strip())
 	return {t for t in tokens if t and t.endswith(_DIST_SUFFIXES)}
+
+
+def extract_best_district(address: str) -> str:
+	"""주소에서 가장 구체적인 행정 토큰 한 개 반환 (없으면 빈 문자열).
+	검색어에 부착해 네이버 결과 1페이지에 진짜 매장이 떠오르도록 좁히는 용도.
+	"""
+	if not address:
+		return ""
+	tokens = re.split(r"\s+", address.strip())
+	for suffix in _DIST_PRIORITY:
+		for t in tokens:
+			# len > 1 — '구'/'시' 한 글자 토큰 (도로명 일부) 배제
+			if t.endswith(suffix) and len(t) > 1:
+				return t
+	return ""
 
 
 def is_reliable_match(kakao: dict, naver: dict) -> tuple[bool, str]:
@@ -291,6 +321,40 @@ def mark_failed(server: str, store_id: int) -> None:
 		print(f"  [실패 마킹 실패] store_id={store_id}: {e}")
 
 
+def save_candidates(server: str, store_id: int, candidates: list[dict]) -> None:
+	"""매칭 실패한 후보들을 BE 에 저장 (어드민 '후보 보기' UI 용).
+	기존 후보는 BE 가 전부 지우고 교체. 빈 리스트면 호출 안 함.
+	"""
+	if not candidates:
+		return
+	url = f"{server}/api/admin/stores/{store_id}/naver-enrich-candidates"
+	payload = []
+	for c in candidates[:20]:  # 너무 많으면 어드민이 압도됨 — 상위 20개만
+		try:
+			lat = float(c.get("y") or 0) or None
+			lng = float(c.get("x") or 0) or None
+		except (TypeError, ValueError):
+			lat = lng = None
+		naver_id = c.get("id")
+		name = c.get("name")
+		if not naver_id or not name:
+			continue
+		payload.append({
+			"naverPlaceId": str(naver_id),
+			"name": re.sub(r"<[^>]+>", "", name),  # <b> 태그 제거
+			"address": c.get("address") or c.get("roadAddress"),
+			"lat": lat,
+			"lng": lng,
+		})
+	if not payload:
+		return
+	try:
+		resp = requests.post(url, json=payload, timeout=10)
+		resp.raise_for_status()
+	except Exception as e:
+		print(f"  [후보 저장 실패] store_id={store_id}: {e}")
+
+
 def get_existing_menus(server: str, store_id: int) -> dict[str, int]:
 	"""DB의 기존 메뉴 {이름: menu_id}. soft-delete 포함된다는 점 유의."""
 	try:
@@ -374,13 +438,8 @@ def upload_menu_image(server: str, menu_id: int, image_url: str) -> bool:
 
 # ─── 네이버 크롤링 (Playwright) ──────────────────────────────────────────────
 
-def search_naver_candidates(page: Page, store_name: str) -> list[dict]:
-	"""네이버 지도 검색 → allSearch 응답 가로채서 후보 places 전부 반환.
-
-	검색어에서도 매장 접미사 제거 (네이버 인덱스는 '본점/지점' 없이 등록된 케이스가 많음 — 예: '카페비읍미음 본점'을
-	그대로 검색하면 0건이지만 '카페비읍미음'으로 검색하면 찾힘). 잘못된 후보는 뒤의 이름·주소 비교가 걸러냄.
-	"""
-	search_term = strip_branch_suffix(store_name) or store_name
+def _naver_search_once(page: Page, query: str) -> list[dict]:
+	"""네이버 지도 한 번 검색 → allSearch 응답 가로채서 후보 places 반환."""
 	captured: list[dict] = []
 
 	def handle_response(response):
@@ -396,13 +455,36 @@ def search_naver_candidates(page: Page, store_name: str) -> list[dict]:
 	page.on("response", handle_response)
 	try:
 		page.goto(
-			f"https://map.naver.com/p/search/{urllib.parse.quote(search_term)}",
+			f"https://map.naver.com/p/search/{urllib.parse.quote(query)}",
 			wait_until="domcontentloaded", timeout=15000)
 		page.wait_for_timeout(3000)
 	except Exception as e:
-		print(f"  [페이지 로드 실패] {search_term}: {e}")
+		print(f"  [페이지 로드 실패] {query}: {e}")
 	page.remove_listener("response", handle_response)
 	return captured
+
+
+def search_naver_candidates(page: Page, store_name: str, store_address: Optional[str] = None) -> list[dict]:
+	"""네이버 지도 검색 → 후보 places 반환.
+
+	검색 전략:
+	  1) "{이름} {지역}" 으로 좁혀서 검색 — 체인점의 진짜 매장이 1페이지에 떠오르게.
+	     일반 접미사(본점/지점)는 떼고 '○○점' (강남점/광교앨리웨이점) 같은 지역 힌트는 유지.
+	  2) 1차 결과가 비면 이름만으로 fallback — 네이버에 해당 지역명 인덱스 없는 케이스 대응.
+	잘못된 후보는 뒤의 is_reliable_match 가 걸러냄.
+	"""
+	base = strip_generic_branch_suffix(store_name) or store_name
+	district = extract_best_district(store_address or "")
+
+	if district:
+		query = f"{base} {district}"
+		print(f"  검색: '{query}'")
+		results = _naver_search_once(page, query)
+		if results:
+			return results
+		print(f"  → 0건, fallback: '{base}'")
+
+	return _naver_search_once(page, base)
 
 
 def fetch_menu_data(page: Page, naver_place_id: str) -> dict[str, dict]:
@@ -498,7 +580,7 @@ def process_store(page: Page, store: dict, server: str, dry_run: bool, verbose: 
 
 	print(f"\n[가게] id={store_id} | {store_name}  (메뉴 {existing_menu_count}개 보유)")
 
-	candidates = search_naver_candidates(page, store_name)
+	candidates = search_naver_candidates(page, store_name, store.get("address"))
 	if not candidates:
 		print("  → 네이버 검색 결과 없음")
 		if not dry_run:
@@ -522,6 +604,8 @@ def process_store(page: Page, store: dict, server: str, dry_run: bool, verbose: 
 			for name, ok, why in reasons[:5]:
 				print(f"     - [{'O' if ok else 'X'}] {name}  ({why})")
 		if not dry_run:
+			# 어드민이 직접 고를 수 있게 후보 저장 — '후보 보기' UI 가 읽음
+			save_candidates(server, store_id, candidates)
 			mark_failed(server, store_id)
 		stats["failed"] = 1
 		return stats
