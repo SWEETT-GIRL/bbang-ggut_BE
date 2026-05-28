@@ -625,6 +625,12 @@ def fetch_menu_data(page: Page, naver_place_id: str) -> dict[str, dict]:
 			f"https://pcmap.place.naver.com/{place_type}/{naver_place_id}/menu/list",
 			wait_until="domcontentloaded", timeout=10000)
 		page.wait_for_timeout(2000)
+		# 메뉴 탭 없는 가게: 위 goto 가 SPA fallback (/home 등) 되어 리뷰 위젯의
+		# 사용자 프사·리뷰 사진이 메뉴 이미지로 잘못 들어가는 사례 차단.
+		# /menu/ path 가 아니면 abort + 진단 로그.
+		if "/menu/" not in frame.url:
+			print(f"  [diag] 메뉴 탭 없음 — frame fallback URL: {frame.url[:100]}")
+			return {}
 		items = frame.evaluate("""() => {
 			const priceRe = /^[\\d,]+원?$/;
 			const results = [];
@@ -644,7 +650,9 @@ def fetch_menu_data(page: Page, naver_place_id: str) -> dict[str, dict]:
 				const name = nonPrice[0] || '';
 				const desc = nonPrice[1] || '';
 				const price = priceTexts[0] || '';
-				if (name) results.push({ name, src, desc, price });
+				// 메뉴 li 최소 시그널 — 가격(○○원) 이나 pstatic 이미지 없으면
+				// 네비/탭/UI chrome 이라 메뉴로 인식하면 안 됨.
+				if (name && (price || src)) results.push({ name, src, desc, price });
 			});
 			return results;
 		}""")
