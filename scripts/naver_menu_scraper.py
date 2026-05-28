@@ -61,6 +61,9 @@ DEFAULT_CATEGORY = "빵"  # MenuKind 한글 enum 의 fallback
 QUEUE_BATCH_SIZE = 50
 INTER_STORE_DELAY_SEC = 1.0
 MAX_LOCATION_DISTANCE_M = 100  # 매칭 신뢰 거리 임계
+# 네이버 차단 의심 — 큐 모드에서 N건 연속 검색 결과 0이면 abort (대량 false-fail 방지).
+# 정상 baseline 누락률은 낮으므로 5건 연속은 차단 시그널로 충분.
+NO_CANDIDATE_ABORT_THRESHOLD = 5
 
 NAVER_UA = (
 	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -439,18 +442,30 @@ def upload_menu_image(server: str, menu_id: int, image_url: str) -> bool:
 # ─── 네이버 크롤링 (Playwright) ──────────────────────────────────────────────
 
 def _naver_search_once(page: Page, query: str) -> list[dict]:
-	"""네이버 지도 한 번 검색 → allSearch 응답 가로채서 후보 places 반환."""
+	"""네이버 지도 한 번 검색 → allSearch 응답 가로채서 후보 places 반환.
+
+	0건일 때만 진단 로그(응답 상태/파싱 오류/allSearch 미발사) 출력 — 정상 케이스는 노이즈 X.
+	"""
 	captured: list[dict] = []
+	statuses: list[tuple[int, str]] = []  # (status, content-type) — allSearch 응답만
+	parse_errors: list[str] = []
+	allsearch_seen = False
 
 	def handle_response(response):
-		if "allSearch" in response.url and "json" in response.headers.get("content-type", ""):
+		nonlocal allsearch_seen
+		if "allSearch" not in response.url:
+			return
+		allsearch_seen = True
+		ct = response.headers.get("content-type", "")
+		statuses.append((response.status, ct[:40]))
+		if "json" in ct:
 			try:
 				data = response.json()
 				places = data.get("result", {}).get("place", {}).get("list", [])
 				if places:
 					captured.extend(places)
-			except Exception:
-				pass
+			except Exception as e:
+				parse_errors.append(str(e)[:80])
 
 	page.on("response", handle_response)
 	try:
@@ -461,6 +476,19 @@ def _naver_search_once(page: Page, query: str) -> list[dict]:
 	except Exception as e:
 		print(f"  [페이지 로드 실패] {query}: {e}")
 	page.remove_listener("response", handle_response)
+
+	if not captured:
+		if not allsearch_seen:
+			print(f"  [diag] allSearch XHR 미발사 — 페이지 로드 실패 or 차단 의심")
+		else:
+			non_200 = [(s, c) for s, c in statuses if s != 200]
+			if non_200:
+				print(f"  [diag] allSearch non-200: {non_200[:3]}")
+			if parse_errors:
+				print(f"  [diag] JSON 파싱 에러: {parse_errors[:2]}")
+			if not non_200 and not parse_errors:
+				print(f"  [diag] allSearch 200 응답이나 places 비어있음 — 실제 무결과")
+
 	return captured
 
 
@@ -572,7 +600,8 @@ def process_store(page: Page, store: dict, server: str, dry_run: bool, verbose: 
 	  - 매칭 성공: naverPlaceId 저장. existingMenuCount == 0 이면 메뉴 등록.
 	  - 매칭 실패: mark_failed
 	"""
-	stats = {"matched": 0, "menus_created": 0, "images_uploaded": 0, "skipped_menu_crawl": 0, "failed": 0}
+	stats = {"matched": 0, "menus_created": 0, "images_uploaded": 0, "skipped_menu_crawl": 0,
+			"failed": 0, "no_candidates": False}
 
 	store_id = store["id"]
 	store_name = store["name"]
@@ -586,6 +615,7 @@ def process_store(page: Page, store: dict, server: str, dry_run: bool, verbose: 
 		if not dry_run:
 			mark_failed(server, store_id)
 		stats["failed"] = 1
+		stats["no_candidates"] = True
 		return stats
 
 	# 신뢰 매칭 통과한 1순위 선택
@@ -714,6 +744,7 @@ def main() -> None:
 		else:
 			# 큐 모드 (Option B 또는 운영자 CLI)
 			batches_done = 0
+			no_candidate_streak = 0
 			while True:
 				queue = fetch_queue(args.server, args.batch)
 				if not queue:
@@ -724,6 +755,17 @@ def main() -> None:
 					result = process_store(page, store, args.server, args.dry_run, args.verbose)
 					for k in total:
 						total[k] += result.get(k, 0)
+					# 네이버 차단 의심 — N건 연속으로 검색 결과 0이면 abort (대량 false-fail 방지)
+					if result.get("no_candidates"):
+						no_candidate_streak += 1
+						if no_candidate_streak >= NO_CANDIDATE_ABORT_THRESHOLD:
+							print(f"\n[ABORT] {no_candidate_streak}건 연속 검색 결과 0 — 네이버 차단 의심.")
+							print(f"        위의 [diag] 로그 확인. IP/UA/요청간격 점검 후 재시도하세요.")
+							print(f"        실패 마킹된 가게는 /naver-enrich-retry 로 throttle 해제 가능.")
+							browser.close()
+							sys.exit(3)
+					else:
+						no_candidate_streak = 0
 					time.sleep(INTER_STORE_DELAY_SEC)
 				batches_done += 1
 				if not args.loop:
