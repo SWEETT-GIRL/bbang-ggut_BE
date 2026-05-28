@@ -151,7 +151,8 @@ _BRANCH_SUFFIX_RE = re.compile(r"\s+(?:[가-힣a-zA-Z0-9]+점|매장|플래그�
 
 # 검색어용 — 위치 정보 없는 일반 접미사만 제거. '강남점/광교앨리웨이점' 같이 지역 힌트 포함된 ○○점은 보존
 # (지점명이 들어가야 체인점에서 네이버 결과 1페이지에 진짜 매장이 떠오름).
-_GENERIC_BRANCH_SUFFIX_RE = re.compile(r"\s+(?:본점|지점|매장|플래그십|플래그쉽|직영점)$")
+# 공백 없이 붙은 케이스도 strip — '서초본점' → '서초' (지역 힌트는 유지), '광안직영점' → '광안'.
+_GENERIC_BRANCH_SUFFIX_RE = re.compile(r"\s*(?:본점|지점|매장|플래그십|플래그쉽|직영점)$")
 
 
 def strip_branch_suffix(name: str) -> str:
@@ -185,20 +186,22 @@ def normalize_name(name: str) -> str:
 def name_matches(a: str, b: str) -> bool:
 	"""정규화된 이름 비교.
 	- exact 일치 → 통과
-	- prefix 관계(브랜드명 + 추가 수식어): 짧은 쪽 ≥ 3자, 길이비 ≥ 50%
-	- mid-string substring: 짧은 쪽 ≥ 3자, 길이비 ≥ 60% (오매칭 위험이 더 커서 더 엄격)
+	- prefix 관계(브랜드명 + 수식어): 짧은 쪽 ≥ 2자, 길이비 ≥ 40%
+	- mid-string substring: 짧은 쪽 ≥ 3자, 길이비 ≥ 60% (mid 는 오매칭 위험 커서 그대로 엄격)
+	2자 한글 브랜드(베통/공차 등) 및 '브랜드 + 길게 붙는 수식어' 케이스 대응. 오매칭은
+	뒤의 is_reliable_match 의 주소/거리 게이트가 받음.
 	"""
 	if not a or not b:
 		return False
 	if a == b:
 		return True
 	shorter, longer = (a, b) if len(a) <= len(b) else (b, a)
-	if len(shorter) < 3:
+	if len(shorter) < 2:
 		return False
 	ratio = len(shorter) / len(longer)
 	if longer.startswith(shorter):
-		return ratio >= 0.5
-	return shorter in longer and ratio >= 0.6
+		return ratio >= 0.4
+	return len(shorter) >= 3 and shorter in longer and ratio >= 0.6
 
 
 def haversine_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
