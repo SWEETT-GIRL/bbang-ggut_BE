@@ -46,19 +46,28 @@ def db_config() -> dict:
 			"password": cfg["spring.datasource.password"]}
 
 
-def naver_address(pid: str) -> str:
-	"""placeId 의 네이버 실제 주소(roadAddress 우선) 한 줄. 실패 시 ''."""
-	for typ in ("restaurant", "cafe", "place"):
-		try:
-			r = requests.get(f"https://m.place.naver.com/{typ}/{pid}/home", headers=UA, timeout=12)
-			r.encoding = "utf-8"
-			addrs = [a for a in re.findall(r'"roadAddress":"([^"]{6,50})"', r.text) if a != "주소"]
-			if not addrs:
-				addrs = [a for a in re.findall(r'"address":"([^"]{6,50})"', r.text) if a != "주소"]
-			if addrs:
-				return addrs[0]
-		except Exception:
-			pass
+def _extract_addr(html: str) -> str:
+	addrs = [a for a in re.findall(r'"roadAddress":"([^"]{6,50})"', html) if a != "주소"]
+	if not addrs:
+		addrs = [a for a in re.findall(r'"address":"([^"]{6,50})"', html) if a != "주소"]
+	return addrs[0] if addrs else ""
+
+
+def naver_address(pid: str, retries: int = 3) -> str:
+	"""placeId 의 네이버 실제 주소(roadAddress 우선). rate-limit 대비 재시도+백오프."""
+	for attempt in range(retries):
+		for typ in ("restaurant", "cafe", "place"):
+			try:
+				r = requests.get(f"https://m.place.naver.com/{typ}/{pid}/home", headers=UA, timeout=15)
+				if r.status_code == 429:
+					break  # rate-limit → 백오프 후 재시도
+				r.encoding = "utf-8"
+				a = _extract_addr(r.text)
+				if a:
+					return a
+			except Exception:
+				pass
+		time.sleep(1.5 * (attempt + 1))  # 1.5s, 3s, 4.5s 백오프
 	return ""
 
 
@@ -92,8 +101,8 @@ def main() -> None:
 			mismatches.append((sid, name, addr, pid, nv,
 							"; ".join(f"[{o[0]}]{o[1]}" for o in owner) or "(우리DB에 없음)"))
 		if checked % 50 == 0:
-			print(f"  ...{checked}/{len(stores)} (오매칭 {len(mismatches)}, 조회실패 {failed_lookup})")
-		time.sleep(0.25)
+			print(f"  ...{checked}/{len(stores)} (오매칭 {len(mismatches)}, 조회실패 {failed_lookup})", flush=True)
+		time.sleep(0.6)
 
 	with OUT_CSV.open("w", newline="", encoding="utf-8-sig") as f:
 		w = csv.writer(f)
