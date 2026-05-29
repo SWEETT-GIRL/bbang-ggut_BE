@@ -236,12 +236,16 @@ def guess_category(name: str) -> str:
 
 # ─── 메뉴 텍스트 분류기 (item 4) ──────────────────────────────────────────────
 
-# 케이스 무시 exact 일치 — 라벨이라 메뉴 데이터에서 제거
-LABEL_TOKENS = {
+# 케이스 무시 exact 일치 — 순수 라벨이라 항상 제거 (메뉴를 구분하지 않음).
+PURE_LABEL_TOKENS = {
 	"대표", "BEST", "NEW", "추천", "신메뉴", "인기",
-	"소", "중", "대", "S", "M", "L",
 }
-_LABEL_TOKENS_UPPER = {s.upper() for s in LABEL_TOKENS}
+_PURE_LABELS_UPPER = {s.upper() for s in PURE_LABEL_TOKENS}
+
+# 사이즈 토큰 — 한 항목에 여러 개면 '한 메뉴의 사이즈 옵션'이라 생략하지만, 딱 1개만 있으면
+# '사이즈 변종 구분자'라 이름에 붙인다(소/대 별도 메뉴를 떼다가 같은 이름으로 충돌·소실 방지).
+SIZE_TOKENS = {"소", "중", "대", "S", "M", "L"}
+_SIZE_TOKENS_UPPER = {s.upper() for s in SIZE_TOKENS}
 
 # price-like 지만 DB price 는 None 으로. desc 에서도 제외.
 PRICE_LIKE_NULL = {"시가", "변동", "문의"}
@@ -287,12 +291,16 @@ def classify_menu_texts(uniq: list[str]) -> dict:
 	"""
 	price: Optional[int] = None
 	name_candidates: list[str] = []
+	size_tokens: list[str] = []
 
 	for raw in uniq:
 		t = (raw or "").strip()
 		if not t:
 			continue
-		if t.upper() in _LABEL_TOKENS_UPPER:
+		if t.upper() in _PURE_LABELS_UPPER:
+			continue
+		if t.upper() in _SIZE_TOKENS_UPPER:
+			size_tokens.append(t)
 			continue
 		if t in PRICE_LIKE_NULL or any(t.startswith(p) for p in PRICE_LIKE_NULL_PREFIXES):
 			continue
@@ -314,6 +322,11 @@ def classify_menu_texts(uniq: list[str]) -> dict:
 	else:
 		name = ""
 		desc_parts = []
+
+	# 사이즈 토큰이 딱 1종이면 사이즈 변종이므로 이름에 붙여 구분 유지(예: '아메리카노 대').
+	# 여러 종(소·대 등)이면 한 메뉴의 사이즈 옵션이라 이름에 안 붙임.
+	if name and len(set(size_tokens)) == 1:
+		name = f"{name} {size_tokens[0]}"
 
 	desc = " · ".join(desc_parts).strip()
 	if len(desc) > DESC_MAX_LEN:
