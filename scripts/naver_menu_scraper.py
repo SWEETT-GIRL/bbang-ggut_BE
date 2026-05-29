@@ -360,10 +360,13 @@ def fetch_menu_data(page: Page, naver_place_id: str) -> dict[str, dict]:
 			f"https://pcmap.place.naver.com/{place_type}/{naver_place_id}/menu/list",
 			wait_until="domcontentloaded", timeout=10000)
 		page.wait_for_timeout(2000)
-		# 메뉴 탭 없는 가게: 위 goto 가 SPA fallback (/home 등) 되어 리뷰 위젯의
-		# 사용자 프사·리뷰 사진이 메뉴 이미지로 잘못 들어가는 사례 차단.
-		if "/menu/" not in frame.url:
-			print(f"  [diag] 메뉴 탭 없음 — frame fallback URL: {frame.url[:100]}")
+		# 두 가지 차단:
+		#  (1) 메뉴 탭 없는 가게: goto 가 SPA fallback(/home 등) 되어 리뷰 위젯의 프사·리뷰사진이
+		#      메뉴로 잘못 들어가는 사례.
+		#  (2) carryover: 직전 가게 iframe 이 갈아끼워지지 않아 '옆 가게 메뉴 페이지'를 읽는 사례.
+		#      frame.url 에 이 place_id 가 있는지 확인해 다른 가게 메뉴 혼입을 막는다.
+		if "/menu/" not in frame.url or str(naver_place_id) not in frame.url:
+			print(f"  [diag] 메뉴 페이지 불일치(id={naver_place_id}) — frame URL: {frame.url[:100]}")
 			return {}
 		items = frame.evaluate("""() => {
 			const out = [];
@@ -422,6 +425,11 @@ def fetch_store_photos(page: Page, naver_place_id: str, limit: int = 5) -> list[
 		frame.goto(
 			f"https://pcmap.place.naver.com/{place_type}/{naver_place_id}/photo?filterType=%EC%97%85%EC%B2%B4",
 			wait_until="domcontentloaded", timeout=10000)
+
+		# carryover 방지: 직전 가게 iframe 이 갈아끼워지지 않아 옆 가게 사진을 읽는 것 차단.
+		if str(naver_place_id) not in frame.url:
+			print(f"  [diag] 사진 페이지 불일치(id={naver_place_id}) — frame URL: {frame.url[:100]}")
+			return []
 
 		# pstatic 이미지 등장까지 대기 (고정 wait 대신 selector wait — 빠르고 안정적).
 		# 업체 사진 0장이면 timeout 빈 그리드로 정상 종료.
