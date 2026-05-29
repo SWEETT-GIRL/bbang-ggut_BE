@@ -538,23 +538,20 @@ def fetch_store_photos(page: Page, naver_place_id: str, limit: int = 5) -> list[
 					return u.origin + u.pathname;
 				} catch (e) { return src; }
 			}
-			// ?type=fW_H 또는 ?type=ffW_H 의 W*H 픽셀 수. 없으면 0.
-			function sizeScore(src) {
-				const m = src.match(/[?&]type=f{1,2}(\\d+)_(\\d+)/);
-				return m ? parseInt(m[1], 10) * parseInt(m[2], 10) : 0;
-			}
-			const groups = new Map();
+			const seen = new Set();
+			const out = [];
 			document.querySelectorAll('img[src*="pstatic"]').forEach(img => {
 				const src = img.getAttribute('src') || '';
 				if (!src) return;
+				// canonical(원본 origin+path)을 반환 — 래퍼(278px 썸네일) 대신 풀해상도 원본을
+				// 저장하고, 같은 사진이 항상 동일 키로 수렴해 dedup·멱등성도 안정.
 				const key = canonical(src);
-				const score = sizeScore(src);
-				const prev = groups.get(key);
-				if (!prev || score > prev.score) {
-					groups.set(key, { src, score });
+				if (key && !seen.has(key)) {
+					seen.add(key);
+					out.push(key);
 				}
 			});
-			return Array.from(groups.values()).slice(0, limit).map(v => v.src);
+			return out.slice(0, limit);
 		}""", limit)
 		return urls or []
 	except Exception:
