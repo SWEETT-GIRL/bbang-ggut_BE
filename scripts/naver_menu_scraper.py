@@ -81,6 +81,50 @@ NAVER_UA = (
 )
 
 
+def canonicalize_pstatic(src: str) -> str:
+	"""네이버 pstatic 이미지 URL 을 원본(풀해상도) canonical 형태로 정규화.
+
+	네이버 그리드/라이트박스는 search.pstatic.net/common?...&type=w278&src=ENCODED 리사이즈
+	프록시 래퍼로 썸네일(278px 등)을 렌더링한다. 이 래퍼를 그대로 저장하면 (1) 저화질이고
+	(2) 같은 사진이 크롤마다 다른 type/파라미터로 와서 멱등성 키가 흔들려 중복 insert 된다.
+
+	→ 래퍼면 안쪽 src 를 디코딩해 origin+path 만 사용(쿼리 제거 = 원본 풀해상도), 직접 pstatic
+	URL 도 origin+path 로 잘라 ?type= 변형을 무시한다. 같은 사진은 항상 동일 canonical URL 로
+	수렴하므로 화질·dedup·멱등성이 동시에 해결된다. pstatic 이 아니면 원본 그대로 반환.
+	"""
+	if not src:
+		return src
+	try:
+		u = urllib.parse.urlparse(src)
+		inner = urllib.parse.parse_qs(u.query).get("src")
+		if inner:
+			iu = urllib.parse.urlparse(inner[0])
+			if iu.scheme and iu.netloc:
+				return f"{iu.scheme}://{iu.netloc}{iu.path}"
+		if "pstatic" in u.netloc:
+			return f"{u.scheme}://{u.netloc}{u.path}"
+		return src
+	except Exception:
+		return src
+
+
+def _wait_entry_frame(page, timeout_ms: int = 8000):
+	"""entryIframe 이 실제로 로드(url 확보)될 때까지 폴링한다.
+
+	page.frame("entryIframe") 단발 호출은 진입 직후 타이밍에 따라 None 또는 url 빈 프레임을
+	반환해, 메뉴/사진이 통째로 누락(0건)되는 flakiness 가 있었다(예: 오디티 재크롤 시 메뉴 0개).
+	→ url 이 잡힐 때까지 재시도.
+	"""
+	waited = 0
+	while waited < timeout_ms:
+		fr = page.frame("entryIframe")
+		if fr and fr.url and fr.url != "about:blank":
+			return fr
+		page.wait_for_timeout(400)
+		waited += 400
+	return page.frame("entryIframe")
+
+
 # ─── 백엔드 API 클라이언트 ────────────────────────────────────────────────────
 
 def fetch_queue(server: str, size: int, photos_only: bool = False) -> list[dict]:
@@ -350,8 +394,7 @@ def fetch_menu_data(page: Page, naver_place_id: str) -> dict[str, dict]:
 		page.goto(
 			f"https://map.naver.com/p/entry/place/{naver_place_id}",
 			wait_until="domcontentloaded", timeout=15000)
-		page.wait_for_timeout(2500)
-		frame = page.frame("entryIframe")
+		frame = _wait_entry_frame(page)
 		if not frame:
 			return {}
 		m = re.search(r"pcmap\.place\.naver\.com/(\w+)/\d+", frame.url)
@@ -359,7 +402,21 @@ def fetch_menu_data(page: Page, naver_place_id: str) -> dict[str, dict]:
 		frame.goto(
 			f"https://pcmap.place.naver.com/{place_type}/{naver_place_id}/menu/list",
 			wait_until="domcontentloaded", timeout=10000)
-		page.wait_for_timeout(2000)
+		try:
+			frame.wait_for_selector("li", timeout=5000)
+		except Exception:
+			pass
+		# lazy-load 메뉴까지 스크롤로 모두 로드 (안 하면 하단 메뉴 누락). li 가 더 안 늘면 종료.
+		# 주의: '더보기' 텍스트 클릭은 금지 — 메뉴 페이지의 사진 '더보기' 앵커를 눌러 photo 로
+		# 이탈하는 사례가 있어 스크롤만 사용한다.
+		prev = -1
+		for _ in range(8):
+			count = frame.evaluate("document.querySelectorAll('li').length")
+			if count == prev:
+				break
+			prev = count
+			frame.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+			page.wait_for_timeout(600)
 		# 두 가지 차단:
 		#  (1) 메뉴 탭 없는 가게: goto 가 SPA fallback(/home 등) 되어 리뷰 위젯의 프사·리뷰사진이
 		#      메뉴로 잘못 들어가는 사례.
@@ -381,9 +438,11 @@ def fetch_menu_data(page: Page, naver_place_id: str) -> dict[str, dict]:
 					}
 				});
 				const uniq = [...new Set(texts)];
-				// 메뉴 li 시그널 — 가격성 텍스트(숫자+원, 시가/변동/문의) 또는 pstatic 이미지 필요.
-				// 없으면 네비/탭/UI chrome 이라 메뉴 아님.
-				const hasPriceLike = uniq.some(t => /\\d.*원|시가|변동|문의/.test(t));
+				// 메뉴 li 시그널 — 가격성 텍스트 또는 pstatic 이미지 필요. 없으면 네비/탭/UI chrome.
+				// 가격은 '6,000원' 뿐 아니라 '6,000'/'7500' 처럼 '원' 없이 숫자만 별도 노드로 오는
+				// 레이아웃도 있어(예: 카페 디저트), 콤마 숫자·3~6자리 숫자도 가격성으로 인정.
+				const hasPriceLike = uniq.some(t => /\\d.*원|시가|변동|문의/.test(t)
+					|| /^\\d{1,3}(,\\d{3})+$/.test(t.trim()) || /^\\d{3,6}$/.test(t.trim()));
 				if (uniq.length && (hasPriceLike || src)) out.push({ uniq, src });
 			});
 			return out;
@@ -415,8 +474,7 @@ def fetch_store_photos(page: Page, naver_place_id: str, limit: int = 5) -> list[
 		page.goto(
 			f"https://map.naver.com/p/entry/place/{naver_place_id}",
 			wait_until="domcontentloaded", timeout=15000)
-		page.wait_for_timeout(2500)
-		frame = page.frame("entryIframe")
+		frame = _wait_entry_frame(page)
 		if not frame:
 			return []
 		m = re.search(r"pcmap\.place\.naver\.com/(\w+)/\d+", frame.url)
