@@ -710,6 +710,9 @@ def _enrich_with_place_id(
 	else:
 		# 메뉴 탭 DOM (수동 매칭 → 1차 소스, 검색 매칭 → 이미지/설명/fallback 가격)
 		place_menu_map = fetch_menu_data(page, naver_place_id) if naver_place_id else {}
+		# iframe 로드 타이밍 flakiness 로 비어 나오는 경우 1회 재시도 (메뉴 있는데 0개로 누락 방지).
+		if not place_menu_map and naver_place_id:
+			place_menu_map = fetch_menu_data(page, naver_place_id)
 		if menu_info_str:
 			primary_menus = parse_menu_info(menu_info_str)
 		else:
@@ -763,6 +766,9 @@ def _enrich_with_place_id(
 		stats["skipped_photo_crawl"] = 1
 	else:
 		photo_urls = fetch_store_photos(page, naver_place_id, limit=STORE_PHOTO_LIMIT) if naver_place_id else []
+		# iframe 로드 flakiness 로 비어 나오면 1회 재시도 (사진 있는데 0장으로 누락 방지).
+		if not photo_urls and naver_place_id:
+			photo_urls = fetch_store_photos(page, naver_place_id, limit=STORE_PHOTO_LIMIT)
 		if not photo_urls:
 			print("  → 네이버 사진 탭에서 이미지 못 찾음")
 		else:
