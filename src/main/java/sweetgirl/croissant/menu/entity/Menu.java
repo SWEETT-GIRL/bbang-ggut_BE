@@ -85,6 +85,18 @@ public class Menu extends BaseTimeEntity {
 		}
 	}
 
+	// 크롤러 재실행(match-and-enrich) 시 비어 있는 필드만 채운다. 어드민/기존 값은 덮어쓰지 않음.
+	// LocalData 로 들어온 한글 메뉴의 빈 가격·설명을 네이버 크롤 값으로 보강하는 용도.
+	public void enrichIfMissing(Integer price, String description) {
+		if (this.price == null && price != null) {
+			this.price = price;
+		}
+		if ((this.description == null || this.description.isBlank())
+			&& description != null && !description.isBlank()) {
+			this.description = description;
+		}
+	}
+
 	public void softDelete() {
 		this.deletedAt = LocalDateTime.now();
 	}

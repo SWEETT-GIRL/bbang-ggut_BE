@@ -1,6 +1,7 @@
 package sweetgirl.croissant.member.service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,16 +37,21 @@ public class AuthService {
 		}
 
 		// DB에서 토큰 조회 — 존재하지 않으면 이미 로그아웃된 토큰
-		RefreshToken savedToken = refreshTokenRepository.findByToken(refreshToken)
-			.orElseThrow(() -> new CustomException(GeneralErrorCode._UNAUTHORIZED));
+		List<RefreshToken> savedTokens = refreshTokenRepository.findAllByToken(refreshToken);
+		if (savedTokens.isEmpty()) {
+			throw new CustomException(GeneralErrorCode._UNAUTHORIZED);
+		}
 
 		// revokedAt이 설정된 경우 — 로그아웃 또는 탈퇴로 무효화된 토큰
-		if (savedToken.getRevokedAt() != null) {
+		if (savedTokens.stream().anyMatch(savedToken -> savedToken.getRevokedAt() != null)) {
 			throw new CustomException(GeneralErrorCode._UNAUTHORIZED);
 		}
 
 		// DB에 저장된 만료 시각 확인
-		if (savedToken.getExpiredAt().isBefore(LocalDateTime.now())) {
+		LocalDateTime now = LocalDateTime.now();
+		boolean hasValidToken = savedTokens.stream()
+			.anyMatch(savedToken -> !savedToken.getExpiredAt().isBefore(now));
+		if (!hasValidToken) {
 			throw new CustomException(GeneralErrorCode._UNAUTHORIZED);
 		}
 
@@ -61,13 +67,13 @@ public class AuthService {
 	public void logout(String refreshToken, String fcmToken) {
 
 		// DB에서 토큰 조회 — 없으면 이미 로그아웃된 상태이므로 무시
-		refreshTokenRepository.findByToken(refreshToken)
-			.ifPresent(RefreshToken::revoke); // revokedAt = now() 설정 (dirty checking으로 자동 반영)
+		refreshTokenRepository.findAllByToken(refreshToken)
+			.forEach(RefreshToken::revoke); // revokedAt = now() 설정 (dirty checking으로 자동 반영)
 
 		// fcmToken이 같이 왔으면 비활성화 (FCM 토큰 없는 사용자도 있을 수 있어 optional)
 		if (StringUtils.hasText(fcmToken)) {
-			fcmTokenRepository.findByToken(fcmToken)
-				.ifPresent(token -> token.deactivate());
+			fcmTokenRepository.findAllByToken(fcmToken)
+				.forEach(token -> token.deactivate());
 		}
 	}
 }
