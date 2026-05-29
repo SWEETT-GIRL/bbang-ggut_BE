@@ -520,6 +520,12 @@ def select_match(
 	if not ok:
 		return None, scored, f"게이트 실패: {why}"
 
+	# 주소 확정 매칭 — 도로명+건물번호가 정확히 일치하고 좌표도 같은 자리(≤30m)면, 네이버 등록명이
+	# 달라도(예: '카페폴리' ↔ '폴리 합정') 동일 장소로 확신. 점수/격차 컷 면제(이름 다른 같은 가게 구제).
+	dist_m = top_score["distance_m"]
+	if top_score["breakdown"]["road"] > 0 and dist_m is not None and dist_m <= 30:
+		return top_cand, scored, f"주소 확정 매칭 ({why})"
+
 	if top_score["total"] < MIN_SCORE_AUTO_SELECT:
 		return None, scored, f"점수 미달 ({top_score['total']} < {MIN_SCORE_AUTO_SELECT})"
 
