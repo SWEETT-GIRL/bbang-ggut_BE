@@ -45,8 +45,9 @@ public class AdminMenuService {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 
-		// Idempotency — 같은 store 의 활성 메뉴 중 정규화 이름이 일치하면 기존 메뉴 반환.
-		// 스크래퍼 타임아웃 후 재시도해도 메뉴가 중복 생성되지 않도록.
+		// Idempotency + enrich — 같은 store 의 활성 메뉴 중 정규화 이름이 일치하면 새로 만들지 않고
+		// 기존 메뉴를 반환한다(스크래퍼 재시도/재크롤 시 중복 생성 방지). 이때 비어 있는 가격·설명은
+		// 요청 값으로 보강한다 — LocalData 한글 메뉴의 빈 필드가 네이버 크롤로 채워지도록.
 		// soft-delete 된 메뉴는 어드민이 의도적으로 지운 것으로 보고 무시.
 		String normalized = MenuNameNormalizer.normalize(request.name());
 		Menu existing = menuRepository.findActiveByStoreId(storeId).stream()
@@ -54,6 +55,7 @@ public class AdminMenuService {
 			.findFirst()
 			.orElse(null);
 		if (existing != null) {
+			existing.enrichIfMissing(parsePrice(request.price()), request.desc());
 			List<String> existingPhotoUrls = menuImageFileRepository.findImagesByMenuId(existing.getId()).stream()
 				.map(img -> img.getAwsKey())
 				.toList();

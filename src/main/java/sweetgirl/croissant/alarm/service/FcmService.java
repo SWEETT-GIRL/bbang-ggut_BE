@@ -1,5 +1,6 @@
 package sweetgirl.croissant.alarm.service;
 
+import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -11,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.google.firebase.messaging.AndroidConfig;
 import com.google.firebase.messaging.ApnsConfig;
+import com.google.firebase.messaging.Aps;
+import com.google.firebase.messaging.ApsAlert;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
@@ -72,9 +75,12 @@ public class FcmService {
 
 	// FCM Token 비활성화
 	public void deactivateFcmToken(String fcmToken) {
-		FcmToken token = fcmTokenRepository.findByToken(fcmToken)
-			.orElseThrow(() -> new CustomException(AlarmErrorCode.FCM_TOKEN_NOT_FOUND));
-		token.deactivate();
+		List<FcmToken> tokens = fcmTokenRepository.findAllByToken(fcmToken);
+		if (tokens.isEmpty()) {
+			throw new CustomException(AlarmErrorCode.FCM_TOKEN_NOT_FOUND);
+		}
+
+		tokens.forEach(FcmToken::deactivate);
 	}
 
 	// FCM 메시지 TTL — 1시간. OS 가 throttle 해서 묵힌 알림이 한꺼번에 쏟아지는 현상 방지.
@@ -96,6 +102,13 @@ public class FcmService {
 			.putHeader("apns-priority", "10")
 			.putHeader("apns-push-type", "alert")
 			.putHeader("apns-expiration", String.valueOf(apnsExpirationEpochSec))
+			.setAps(Aps.builder()
+				.setAlert(ApsAlert.builder()
+					.setTitle(title)
+					.setBody(body)
+					.build())
+				.setSound("default")
+				.build())
 			.build();
 
 		Message message = Message.builder()

@@ -114,6 +114,41 @@ class AdminMenuServiceTest {
 	}
 
 	@Test
+	@DisplayName("createMenu: 기존 메뉴와 이름이 같으면 비어있는 가격·설명을 요청 값으로 보강한다")
+	void createMenu_duplicateName_enrichesMissingFields() {
+		Store store = mock(Store.class);
+		given(store.getId()).willReturn(1L);
+		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
+
+		MenuCategory category = mock(MenuCategory.class);
+		given(category.getName()).willReturn(MenuKind.소금빵);
+
+		// LocalData 로 들어온 빈 메뉴 — 가격·설명 없음.
+		Menu existing = mock(Menu.class);
+		given(existing.getId()).willReturn(99L);
+		given(existing.getName()).willReturn("플레인 소금빵");
+		given(existing.getPrice()).willReturn(null);
+		given(existing.getDescription()).willReturn(null);
+		given(existing.getRecommendCount()).willReturn(0);
+		given(existing.getDeletedAt()).willReturn(null);
+		given(existing.getStore()).willReturn(store);
+		given(existing.getMenuCategory()).willReturn(category);
+		given(existing.getCreatedAt()).willReturn(null);
+
+		given(menuRepository.findActiveByStoreId(1L)).willReturn(List.of(existing));
+		given(menuImageFileRepository.findImagesByMenuId(99L)).willReturn(Collections.emptyList());
+
+		AdminMenuCreateRequest request = new AdminMenuCreateRequest(
+			1L, "플레인소금빵", "3000원", "기본에 충실한 담백함과 바삭한 식감", "소금빵", "active");
+
+		adminMenuService.createMenu(1L, request);
+
+		// 새로 만들지 않고(중복 방지) 기존 메뉴에 빠진 가격·설명만 채운다.
+		verify(menuRepository, org.mockito.Mockito.never()).save(any(Menu.class));
+		verify(existing).enrichIfMissing(3000, "기본에 충실한 담백함과 바삭한 식감");
+	}
+
+	@Test
 	@DisplayName("createMenu: soft-delete 된 메뉴와 이름이 같으면 무시하고 새로 생성한다")
 	void createMenu_softDeletedMatch_createsNew() {
 		Store store = mock(Store.class);

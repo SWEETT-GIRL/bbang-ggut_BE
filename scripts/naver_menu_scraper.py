@@ -80,6 +80,7 @@ NAVER_UA = (
 	"Chrome/124.0.0.0 Safari/537.36"
 )
 
+
 # ─── 백엔드 API 클라이언트 ────────────────────────────────────────────────────
 
 def fetch_queue(server: str, size: int, photos_only: bool = False) -> list[dict]:
@@ -390,7 +391,7 @@ def fetch_menu_data(page: Page, naver_place_id: str) -> dict[str, dict]:
 			if not parsed["name"]:
 				continue
 			menu_map[parsed["name"]] = {
-				"src": it.get("src", ""),
+				"src": canonicalize_pstatic(it.get("src", "")),
 				"desc": parsed["desc"],
 				"price": parsed["price"],
 			}
@@ -515,7 +516,8 @@ def parse_menu_info(menu_info_str: str) -> list[dict]:
 
 # ─── 메인 처리 ────────────────────────────────────────────────────────────────
 
-def process_store(page: Page, store: dict, server: str, dry_run: bool, verbose: bool) -> dict:
+def process_store(page: Page, store: dict, server: str, dry_run: bool, verbose: bool,
+		crawl_menus: bool = True) -> dict:
 	"""
 	큐의 한 store 처리.
 	  - placeId 이미 있음: 검색/매칭 스킵하고 바로 메뉴+사진 크롤 (어드민 수동 매칭 직후 경로)
@@ -542,7 +544,7 @@ def process_store(page: Page, store: dict, server: str, dry_run: bool, verbose: 
 			print("  [dry-run] 크롤 생략")
 			return stats
 		return _enrich_with_place_id(page, store_id, existing_place_id,
-			existing_menu_count, existing_photo_count, None, server, stats)
+			existing_menu_count, existing_photo_count, None, server, stats, crawl_menus)
 
 	candidates = search_naver_candidates(page, store_name, store.get("address"))
 	if not candidates:
@@ -598,7 +600,7 @@ def process_store(page: Page, store: dict, server: str, dry_run: bool, verbose: 
 		page, store_id, naver_id,
 		existing_menu_count, existing_photo_count,
 		matched_place.get("menuInfo") or "",
-		server, stats)
+		server, stats, crawl_menus)
 
 
 def _enrich_with_place_id(
@@ -609,20 +611,24 @@ def _enrich_with_place_id(
 		existing_photo_count: int,
 		menu_info_str: str,
 		server: str,
-		stats: dict) -> dict:
+		stats: dict,
+		crawl_menus: bool = True) -> dict:
 	"""placeId 가 확정된 가게에 대해 메뉴 + 가게 사진을 크롤하고 업로드.
 
 	검색 매칭 경로와 수동 매칭 경로 둘 다에서 사용.
 	  - menu_info_str 있음: 네이버 search 응답의 menuInfo 를 1차 소스로 사용 (가격 보장)
 	  - menu_info_str 없음: 메뉴 탭 DOM 을 1차 소스로 사용 (수동 매칭 경로)
+	  - crawl_menus=False (photos-only 백필): 메뉴는 건드리지 않고 가게 사진만 처리
 	"""
-	# 메뉴 탭 DOM 은 두 경로 모두에서 필요 (수동 매칭 → 1차 소스, 검색 매칭 → 이미지/설명/fallback 가격)
-	place_menu_map = fetch_menu_data(page, naver_place_id) if naver_place_id else {}
-
-	if existing_menu_count > 0:
-		print(f"  → 메뉴 {existing_menu_count}개 보유 — 메뉴 크롤링 생략")
+	# photos-only 백필은 메뉴를 건드리지 않음(사진만 보충). enrich 경로는 기존 메뉴 수와 무관하게
+	# 항상 match-and-enrich — 백엔드 createMenu 가 정규화 이름으로 기존 메뉴를 매칭해 누락된
+	# price/desc/이미지를 보강하거나(중복 생성 X) 없으면 생성한다. 덕분에 LocalData 한글 메뉴의
+	# 빈 가격·설명·사진이 채워지고, 재실행해도 메뉴가 중복되지 않는다.
+	if not crawl_menus:
 		stats["skipped_menu_crawl"] = 1
 	else:
+		# 메뉴 탭 DOM (수동 매칭 → 1차 소스, 검색 매칭 → 이미지/설명/fallback 가격)
+		place_menu_map = fetch_menu_data(page, naver_place_id) if naver_place_id else {}
 		if menu_info_str:
 			primary_menus = parse_menu_info(menu_info_str)
 		else:
@@ -653,13 +659,16 @@ def _enrich_with_place_id(
 				# 검색 menuInfo 에 가격 없으면 DOM 가격으로 보완
 				price = menu.get("price") if menu.get("price") is not None else extra.get("price")
 
+				# 기존 메뉴면 백엔드가 매칭해 보강 후 그 id 반환, 신규면 생성.
 				menu_id = create_menu(server, store_id, menu["name"], price, menu["category"], desc)
 				if not menu_id:
 					continue
 				stats["menus_created"] += 1
 				price_str = f"{price}원" if price else "-"
-				print(f"    + 등록 [{menu_id}] {menu['name']}  {price_str}")
+				print(f"    + 메뉴 [{menu_id}] {menu['name']}  {price_str}")
 
+				# 이미지는 source_url(canonical) 멱등성으로 중복 방지 — 기존 메뉴에 같은 사진이
+				# 이미 있으면 백엔드가 SKIP, 없으면 추가(한글 메뉴 사진 보강).
 				if img_url:
 					if upload_images_from_urls(server, "menus", menu_id, [img_url]) > 0:
 						stats["images_uploaded"] += 1
@@ -728,7 +737,8 @@ def main() -> None:
 				print(f"[종료] store_id={args.store_id} fetch 실패")
 				browser.close()
 				sys.exit(2)
-			result = process_store(page, store, args.server, args.dry_run, args.verbose)
+			result = process_store(page, store, args.server, args.dry_run, args.verbose,
+				crawl_menus=not args.photos_only)
 			for k in total:
 				total[k] += result.get(k, 0)
 		else:
@@ -742,7 +752,8 @@ def main() -> None:
 					break
 				print(f"\n=== 배치 #{batches_done + 1} — {len(queue)}건 ===")
 				for store in queue:
-					result = process_store(page, store, args.server, args.dry_run, args.verbose)
+					result = process_store(page, store, args.server, args.dry_run, args.verbose,
+						crawl_menus=not args.photos_only)
 					for k in total:
 						total[k] += result.get(k, 0)
 					# 네이버 차단 의심 — N건 연속으로 검색 결과 0이면 abort (대량 false-fail 방지)

@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -248,6 +249,19 @@ public class AdminImageService {
 				? imageRowSaver.saveStoreImage(targetId, fileName, awsKey, downloaded.mimeType(), displayOrder, url)
 				: imageRowSaver.saveMenuImage(targetId, fileName, awsKey, downloaded.mimeType(), displayOrder, url);
 			return ImageUploadFromUrlResponse.Item.success(url, imageId, awsKey);
+		} catch (DataIntegrityViolationException e) {
+			// UNIQUE(target, source_url) 위반 — 동시 크롤이 같은 이미지를 먼저 저장함. 방금 올린 S3 는
+			// orphan 이므로 정리하고, 기존 행을 찾아 SKIPPED 로 반환(중복 행 생성 방지).
+			log.info("[uploadOne] duplicate source_url (race) url={} — skip", url);
+			try {
+				s3Service.deleteObject(awsKey);
+			} catch (RuntimeException cleanupError) {
+				log.error("[uploadOne] orphan in s3 key={} cleanup failed: {}", awsKey, cleanupError.getMessage());
+			}
+			ImageUploadFromUrlResponse.Item raced = findExistingBySourceUrl(domain, targetId, url);
+			return raced != null ? raced
+				: ImageUploadFromUrlResponse.Item.failure(
+					url, ImageUploadFromUrlResponse.Status.DB_FAILED, "duplicate source_url");
 		} catch (RuntimeException e) {
 			log.warn("[uploadOne] db save fail url={} key={} reason={}", url, awsKey, e.getMessage());
 			try {
