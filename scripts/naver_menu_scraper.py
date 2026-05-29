@@ -386,6 +386,19 @@ def search_naver_candidates(page: Page, store_name: str, store_address: Optional
 		results = try_query(category_stripped)
 		if results:
 			return results
+
+	# 카페가 네이버에 '카페 ○○' / '○○ 카페' 로 등록된 경우 대응 — 위 검색이 다 실패했을 때만
+	# 추가로 카페 prefix/suffix 변형을 시도(예: '만바네' → '카페 만바네', '만바네 카페').
+	if "카페" not in base:
+		variants: list[str] = []
+		for v in (f"카페 {base}", f"{base} 카페"):
+			if district:
+				variants.append(f"{v} {district}")
+			variants.append(v)
+		for q in variants:
+			results = try_query(q)
+			if results:
+				return results
 	return []
 
 
