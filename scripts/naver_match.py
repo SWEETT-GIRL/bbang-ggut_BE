@@ -483,12 +483,15 @@ def _gate_pass(kakao: dict, naver: dict, score: dict) -> tuple[bool, str]:
 		return True, "체인 게이트 통과"
 
 	if dist_m is not None:
-		# B: 비-체인, 좌표 있음 — 거리 ≤ 60m (이름 exact + 동 일치면 80m 까지 허용)
-		if dist_m <= 60:
-			return True, f"거리 통과 ({dist_m:.0f}m)"
-		if dist_m <= 80 and kind == "exact" and bk["district"] > 0:
-			return True, f"거리 완화 통과 ({dist_m:.0f}m, exact+동)"
-		return False, f"거리 미달 ({dist_m:.0f}m)"
+		# B: 비-체인, 좌표 있음.
+		# 같은 브랜드 근접 지점을 옆 지점 placeId 에 잘못 매칭하던 문제 방지 —
+		#   · 도로명+번지 일치: 같은 주소 확정 → 거리 ≤ 80m 까지 허용(좌표 오차 흡수).
+		#   · 도로명 불일치: 다른 지점일 수 있으므로 같은 건물 수준(≤ 20m)일 때만 허용.
+		if bk["road"] > 0 and dist_m <= 80:
+			return True, f"도로명+거리 통과 ({dist_m:.0f}m)"
+		if dist_m <= 30:
+			return True, f"근접 통과 ({dist_m:.0f}m)"
+		return False, f"도로명 불일치 + 거리 미달 ({dist_m:.0f}m)"
 
 	# C: 좌표 없음 — 도로명+건물번호 필수
 	if bk["road"] > 0:

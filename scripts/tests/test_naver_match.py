@@ -165,17 +165,23 @@ class TestSelectMatch:
 		assert chosen is None
 		assert "체인" in why
 
-	def test_non_chain_60m_accepted(self):
-		# 60m 이내 — 이름 exact, road 다름
-		n = _naver(y=37.50054, address="서울 강남구 봉은사로 50")
-		chosen, _, _ = select_match(_kakao(), [n])
-		assert chosen is not None
+	def test_non_chain_60m_road_match_accepted(self):
+		# 60m 이지만 도로명+번지 일치 → 같은 주소 확정이라 통과(좌표 오차 흡수).
+		n = _naver(y=37.50054, address="서울 강남구 테헤란로 100")
+		chosen, _, why = select_match(_kakao(address="서울 강남구 테헤란로 100"), [n])
+		assert chosen is not None, why
 
-	def test_non_chain_75m_with_exact_and_district_accepted(self):
-		# 75m — 80m 완화 룰 (exact + 동 일치)
-		k = _kakao(address="서울 강남구 역삼동 테헤란로 100")
-		n = _naver(y=37.50068, address="서울 강남구 역삼동 봉은사로 50")
-		chosen, _, why = select_match(k, [n])
+	def test_non_chain_60m_road_mismatch_rejected(self):
+		# 60m + 도로명 다름 → 옆 지점(브랜드)일 수 있어 거부(브랜드 지점 오매칭 방지).
+		n = _naver(y=37.50054, address="서울 강남구 봉은사로 50")
+		chosen, _, why = select_match(_kakao(address="서울 강남구 테헤란로 100"), [n])
+		assert chosen is None
+		assert "도로명" in why
+
+	def test_non_chain_close_road_mismatch_accepted(self):
+		# 30m 이내(같은 건물 수준) — 도로명 표기 차이여도 통과.
+		n = _naver(y=37.50022, address="서울 강남구 봉은사로 50")
+		chosen, _, why = select_match(_kakao(address="서울 강남구 테헤란로 100"), [n])
 		assert chosen is not None, why
 
 	def test_non_chain_120m_rejected(self):
