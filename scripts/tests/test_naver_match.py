@@ -231,8 +231,14 @@ class TestClassifyMenuTexts:
 		assert r["desc"] == "바닐라빈 · 진한 풍미"
 
 	def test_size_labels_stripped(self):
+		# 한 카드에 사이즈 옵션(소·대)이 함께 — 한 메뉴라 사이즈 생략.
 		r = classify_menu_texts(["소", "대", "아메리카노", "3,000원"])
 		assert r == {"name": "아메리카노", "price": 3000, "desc": None}
+
+	def test_single_size_token_kept_as_variant(self):
+		# 사이즈가 1종만 — 별도 사이즈 변종이라 이름에 붙여 구분 유지(충돌·소실 방지).
+		assert classify_menu_texts(["아메리카노", "대", "4,000원"])["name"] == "아메리카노 대"
+		assert classify_menu_texts(["카페라떼", "L", "5,500원"])["name"] == "카페라떼 L"
 
 	def test_desc_truncated_to_255(self):
 		long = "가" * 300

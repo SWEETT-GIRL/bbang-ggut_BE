@@ -32,6 +32,7 @@
 
 import argparse
 import json
+import random
 import re
 import sys
 import time
@@ -69,7 +70,11 @@ from naver_match import (
 DEFAULT_SERVER = "http://localhost:8080"
 QUEUE_BATCH_SIZE = 50
 STORE_PHOTO_LIMIT = 5
-INTER_STORE_DELAY_SEC = 1.0
+# 가게 간 기본 딜레이 + 랜덤 지터(아래) — 너무 규칙적/빠른 접속은 네이버 rate-limit 유발하므로
+# 봇처럼 안 보이게 간격을 두고 흔든다.
+INTER_STORE_DELAY_SEC = 1.5
+INTER_STORE_JITTER_SEC = 1.5  # 0~이 값 사이 랜덤 추가 → 실제 1.5~3.0s
+INTER_BATCH_DELAY_SEC = 8.0
 # 네이버 차단 의심 — 큐 모드에서 N건 연속 검색 결과 0이면 abort (대량 false-fail 방지).
 # 정상 baseline 누락률은 낮으므로 5건 연속은 차단 시그널로 충분.
 NO_CANDIDATE_ABORT_THRESHOLD = 5
@@ -833,15 +838,15 @@ def main() -> None:
 							sys.exit(3)
 					else:
 						no_candidate_streak = 0
-					time.sleep(INTER_STORE_DELAY_SEC)
+					time.sleep(INTER_STORE_DELAY_SEC + random.uniform(0, INTER_STORE_JITTER_SEC))
 				batches_done += 1
 				if not args.loop:
 					break
 				if args.max_batches and batches_done >= args.max_batches:
 					print(f"\n[max-batches {args.max_batches} 도달 — 종료]")
 					break
-				print(f"\n--- 다음 배치 5초 대기 ---")
-				time.sleep(5)
+				print(f"\n--- 다음 배치 {INTER_BATCH_DELAY_SEC:.0f}초 대기 ---")
+				time.sleep(INTER_BATCH_DELAY_SEC)
 
 		browser.close()
 
