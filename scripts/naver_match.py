@@ -373,6 +373,76 @@ def is_chain_like(name: str) -> bool:
 	return bool(_BRANCH_PATTERN.search(name))
 
 
+# ─── 지점명 충돌 / 일반어 동일성 ──────────────────────────────────────────────
+
+def branch_token(name: str) -> str:
+	"""이름 끝의 분점 토큰(○○점·N호점·매장 등)을 반환. 없으면 빈 문자열.
+
+	'씨엘비베이커리 광주2호점' → '광주2호점', '이성당' → '' (신관은 점 접미사 아님 → '').
+	normalize_name 이 떼어내는 그 토큰을 '떼기 전' 원본에서 추출한다.
+	"""
+	if not name:
+		return ""
+	s = re.sub(r"<[^>]+>", "", name)
+	s = re.sub(r"\(.*?\)|\[.*?\]", "", s)
+	s = strip_company_suffix(s.strip())
+	m = _BRANCH_SUFFIX_RE.search(s)
+	return m.group(0).strip() if m else ""
+
+
+# 분점 토큰 — 이름 '어디에 있든' 매칭. 네이버 가게명이 SEO 키워드로 도배된 경우
+# ('씨엘비베이커리 광주점 디저트맛집...') 끝 토큰만 보면 못 잡으므로 finditer 로 전부 수집.
+_BRANCH_TOKEN_RE = re.compile(r"[가-힣A-Za-z0-9]*(?:\d+호점|점)")
+
+
+def branch_tokens(name: str) -> set[str]:
+	if not name:
+		return set()
+	s = re.sub(r"<[^>]+>", "", name)
+	s = re.sub(r"\(.*?\)|\[.*?\]", "", s)
+	s = strip_company_suffix(s.strip())
+	return {m.group(0) for m in _BRANCH_TOKEN_RE.finditer(s) if len(m.group(0)) >= 2}
+
+
+def branch_conflict(a: str, b: str) -> bool:
+	"""양쪽 다 분점 토큰이 있는데 공통이 하나도 없으면 True (다른 지점에 오매칭 방지).
+
+	'씨엘비 광주2호점' vs '씨엘비 광주점 디저트맛집' → True (광주2호점 ∩ 광주점 = ∅).
+	'류재은베이커리 류하우스점' vs '류재은베이커리' → False (한쪽만 있음 = 지점명 생략, 같은 가게).
+	"""
+	ta, tb = branch_tokens(a), branch_tokens(b)
+	if not ta or not tb:
+		return False
+	return ta.isdisjoint(tb)
+
+
+# 카테고리성 일반어 — 이름에서 빼도 가게 정체성이 유지되는 단어. mid 매칭이 '머리(브랜드)
+# 잘림'인지 '일반어 차이'인지 가르는 데 쓴다. 긴 단어 먼저(제과점 → 제과 순서 보존).
+_GENERIC_NAME_WORDS = (
+	"베이커리", "제과점", "제과", "카페", "커피", "케이크", "디저트",
+	"베이글", "브레드", "도넛", "분식", "스토어",
+)
+
+
+def _strip_generic_words(normalized: str) -> str:
+	s = normalized
+	for w in _GENERIC_NAME_WORDS:
+		s = s.replace(w, "")
+	return s
+
+
+def names_same_ignoring_generic(a: str, b: str) -> bool:
+	"""일반어(카페/제과 등)만 빼면 동일한 이름인가.
+
+	'카페메리고라운드'↔'메리고라운드' → True, '베지경주제과'↔'경주제과' → False(베지 머리 잘림).
+	"""
+	ga = _strip_generic_words(normalize_name(a))
+	gb = _strip_generic_words(normalize_name(b))
+	if len(ga) < 2 or len(gb) < 2:
+		return False
+	return ga == gb
+
+
 # ─── 폐업 감지 ────────────────────────────────────────────────────────────────
 
 _CLOSED_TOKENS = ("폐업", "(폐업)", "CLOSED")
@@ -474,6 +544,19 @@ def _gate_pass(kakao: dict, naver: dict, score: dict) -> tuple[bool, str]:
 	if score["closed"]:
 		return False, "폐업"
 
+	k_name = kakao.get("name", "")
+	n_name = naver.get("name", "")
+
+	# 지점명 충돌 — 양쪽 다 분점 토큰이 있고 다르면 다른 지점이므로 거부 (체인·비체인 공통).
+	# 예: '씨엘비 광주2호점' ↔ '씨엘비 광주점'. 한쪽만 있으면(지점명 생략) 통과.
+	if branch_conflict(k_name, n_name):
+		return False, "지점명 충돌"
+
+	# mid(중간/꼬리 부분일치)는 '머리(브랜드) 잘림'일 위험 — 일반어(카페/제과) 차이일 때만 인정.
+	# 예: '베지경주제과'↔'경주제과'(베지 머리 잘림)는 도로명이 겹쳐도 거부. '카페X'↔'X'는 통과.
+	if kind == "mid" and not names_same_ignoring_generic(k_name, n_name):
+		return False, "이름 부분일치(머리 다름)"
+
 	if chain:
 		# A: 체인성 — 거리 ≤ 30m AND (도로명번호 일치 OR 이름 exact)
 		if dist_m is None or dist_m > 30:
@@ -489,6 +572,16 @@ def _gate_pass(kakao: dict, naver: dict, score: dict) -> tuple[bool, str]:
 		#   · 도로명 불일치: 다른 지점일 수 있으므로 같은 건물 수준(≤ 20m)일 때만 허용.
 		if bk["road"] > 0 and dist_m <= 80:
 			return True, f"도로명+거리 통과 ({dist_m:.0f}m)"
+		# 이름 exact + 행정동/리 일치면 같은 가게라는 강한 증거 — 단, 양쪽 도로명+번지가 모두
+		# 있는데 서로 다를 때(테헤란로 vs 봉은사로)는 옆지점 충돌이므로 제외. 한쪽이 지번이라
+		# 비교 불가하거나(코티지송송) 도로명이 일치하면 좌표 오차(≤80m)를 흡수.
+		# 비-exact 는 아래 30m 컷 유지 → 브랜드 옆지점 오매칭 방지는 그대로.
+		k_road, k_num = extract_road_and_number(kakao.get("address", ""))
+		n_addr = naver.get("address") or naver.get("roadAddress") or ""
+		n_road, n_num = extract_road_and_number(n_addr)
+		road_conflict = bool(k_road and n_road and (k_road != n_road or k_num != n_num))
+		if kind == "exact" and bk["district"] > 0 and not road_conflict and dist_m <= 80:
+			return True, f"이름 일치+동 일치, 거리 통과 ({dist_m:.0f}m)"
 		if dist_m <= 30:
 			return True, f"근접 통과 ({dist_m:.0f}m)"
 		return False, f"도로명 불일치 + 거리 미달 ({dist_m:.0f}m)"
@@ -520,18 +613,86 @@ def select_match(
 	if not ok:
 		return None, scored, f"게이트 실패: {why}"
 
-	# 주소 확정 매칭 — 도로명+건물번호가 정확히 일치하고 좌표도 같은 자리(≤30m)면, 네이버 등록명이
-	# 달라도(예: '카페폴리' ↔ '폴리 합정') 동일 장소로 확신. 점수/격차 컷 면제(이름 다른 같은 가게 구제).
 	dist_m = top_score["distance_m"]
-	if top_score["breakdown"]["road"] > 0 and dist_m is not None and dist_m <= 30:
-		return top_cand, scored, f"주소 확정 매칭 ({why})"
+	kind = top_score["name_kind"]
+	bk = top_score["breakdown"]
+
+	def _gap_ok() -> bool:
+		# 박빙 후보 2개면 모호 → 거부(동점 오매칭 차단). 후보 1개면 항상 OK.
+		if len(scored) < 2:
+			return True
+		return (top_score["total"] - scored[1][1]["total"]) >= MIN_SCORE_GAP_AUTO_SELECT
+
+	# 확정 매칭 — 점수컷 면제(이름 표기차로 점수 낮은 '같은 가게' 구제). 단 격차 컷은 유지.
+	#  · 주소 확정: 도로명+번지 일치 + ≤30m. 이름이 전혀 달라도 동일 장소 확신(예: '카페폴리'↔'폴리 합정').
+	#  · 좌표+이름 확정: 같은 건물(≤30m) + 이름 관련(비-none) + 동 일치 + 비-체인.
+	#    이름 표기차(메리고라운드↔카페메리고라운드)뿐인 같은 가게를 구제하되, 우연 근접(이름 무관)·
+	#    체인 옆지점은 제외.
+	# 게이트에서 이미 '머리 다른 mid'·지점명 충돌은 걸러졌으므로, 여기선 이름 관련(비-none)이면
+	# 같은 가게로 본다. exact/prefix/일반어차이-mid 만 여기 도달.
+	addr_confirmed = bk["road"] > 0 and dist_m is not None and dist_m <= 30
+	prox_confirmed = (
+		dist_m is not None and dist_m <= 30
+		and kind != "none"
+		and bk["district"] > 0
+		and not is_chain_like(kakao.get("name", ""))
+	)
+	if addr_confirmed or prox_confirmed:
+		if not _gap_ok():
+			gap = top_score["total"] - scored[1][1]["total"]
+			return None, scored, f"top1-top2 격차 부족 ({gap} < {MIN_SCORE_GAP_AUTO_SELECT})"
+		label = "주소 확정 매칭" if addr_confirmed else "좌표+이름 확정 매칭"
+		return top_cand, scored, f"{label} ({why})"
 
 	if top_score["total"] < MIN_SCORE_AUTO_SELECT:
 		return None, scored, f"점수 미달 ({top_score['total']} < {MIN_SCORE_AUTO_SELECT})"
 
-	if len(scored) >= 2:
+	if not _gap_ok():
 		gap = top_score["total"] - scored[1][1]["total"]
-		if gap < MIN_SCORE_GAP_AUTO_SELECT:
-			return None, scored, f"top1-top2 격차 부족 ({gap} < {MIN_SCORE_GAP_AUTO_SELECT})"
+		return None, scored, f"top1-top2 격차 부족 ({gap} < {MIN_SCORE_GAP_AUTO_SELECT})"
 
 	return top_cand, scored, why
+
+
+# ─── 실패 진단 분류 ───────────────────────────────────────────────────────────
+
+def classify_store(
+	candidates: list[dict],
+	matched: Optional[dict],
+	reason: str,
+	scored: list[tuple[dict, dict]],
+) -> dict:
+	"""select_match 결과를 진단 버킷으로 분류 (순수 함수).
+
+	버킷:
+	  - SEARCH_EMPTY: 검색 결과 0건 → 검색어 문제 (A)
+	  - WOULD_MATCH: 지금 돌리면 매칭됨 → 과거 flaky 실패 (재시도 시 해결)
+	  - GATE_REJECT: 후보는 떴으나 점수/게이트가 거부 → 매칭 로직 문제 (B)
+
+	반환 dict: bucket, reason, num_candidates, top_cand_name, top_score,
+	name_kind, distance_m, road_match.
+	"""
+	if not candidates:
+		return {
+			"bucket": "SEARCH_EMPTY",
+			"reason": reason,
+			"num_candidates": 0,
+			"top_cand_name": None,
+			"top_score": None,
+			"name_kind": None,
+			"distance_m": None,
+			"road_match": None,
+		}
+
+	bucket = "WOULD_MATCH" if matched else "GATE_REJECT"
+	top_cand, top_score = scored[0]
+	return {
+		"bucket": bucket,
+		"reason": reason,
+		"num_candidates": len(candidates),
+		"top_cand_name": top_cand.get("name"),
+		"top_score": top_score["total"],
+		"name_kind": top_score["name_kind"],
+		"distance_m": top_score["distance_m"],
+		"road_match": top_score["breakdown"]["road"] > 0,
+	}
