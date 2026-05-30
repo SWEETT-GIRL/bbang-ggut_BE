@@ -62,22 +62,38 @@ public class NaverEnrichOrchestrator {
 		return running.get() ? startedQueueCount : 0L;
 	}
 
-	public boolean tryStart() {
-		return tryStart(false, 0L);
+	/**
+	 * 일괄 처리 모드. 각 모드는 Python 크롤러 플래그와 진행률 표시용 라벨을 가진다.
+	 */
+	public enum Mode {
+		// 검색 + 매칭 + enrich (naverPlaceId 미매칭 큐).
+		ENRICH("enrich", null),
+		// 사진만 보충 (매칭됨 + 사진 0장 큐).
+		PHOTOS_BACKFILL("photos", "--photos-only"),
+		// 풀 enrich 백필 (매칭됨인데 메뉴 OR 사진이 빈 큐) — 수동/후보 매칭으로 placeId 만 채워진 가게 자동 포함.
+		ENRICH_BACKFILL("enrich-backfill", "--enrich-backfill");
+
+		private final String label;
+		private final String crawlerFlag;
+
+		Mode(String label, String crawlerFlag) {
+			this.label = label;
+			this.crawlerFlag = crawlerFlag;
+		}
 	}
 
 	/**
-	 * @param photosOnly true 면 Python 크롤러를 사진 보충 모드로 띄움 (매칭됨 + 사진 0장 큐).
+	 * @param mode 실행 모드 — 어느 큐를 어떤 깊이로 처리할지 결정.
 	 * @param initialQueueCount 시작 시점의 큐 크기 — 진행률 % 계산용. 0 이면 진행률 표시 안 됨.
 	 */
-	public boolean tryStart(boolean photosOnly, long initialQueueCount) {
+	public boolean tryStart(Mode mode, long initialQueueCount) {
 		if (!running.compareAndSet(false, true)) {
 			return false;
 		}
-		runningMode = photosOnly ? "photos" : "enrich";
+		runningMode = mode.label;
 		startedAt = Instant.now();
 		startedQueueCount = initialQueueCount;
-		Thread worker = new Thread(() -> runBulkLoop(photosOnly), "naver-enrich-bulk");
+		Thread worker = new Thread(() -> runBulkLoop(mode), "naver-enrich-bulk");
 		worker.setDaemon(true);
 		worker.start();
 		return true;
@@ -106,17 +122,16 @@ public class NaverEnrichOrchestrator {
 		killer.start();
 	}
 
-	private void runBulkLoop(boolean photosOnly) {
-		String mode = photosOnly ? "photos-backfill" : "enrich";
-		log.info("[NaverEnrich] 일괄 시작 — mode={}, batch={}, backend={}", mode, batchSize, backendUrl);
+	private void runBulkLoop(Mode mode) {
+		log.info("[NaverEnrich] 일괄 시작 — mode={}, batch={}, backend={}", mode.label, batchSize, backendUrl);
 		try {
 			java.util.List<String> cmd = new java.util.ArrayList<>(java.util.List.of(
 				pythonBinary, "-u", scriptPath,
 				"--server", backendUrl,
 				"--loop",
 				"--batch", String.valueOf(batchSize)));
-			if (photosOnly) {
-				cmd.add("--photos-only");
+			if (mode.crawlerFlag != null) {
+				cmd.add(mode.crawlerFlag);
 			}
 			// -u 플래그: stdout/stderr unbuffered. SIGTERM 으로 종료될 때도 로그가 flush 되어 디버깅 가능.
 			ProcessBuilder pb = new ProcessBuilder(cmd);
@@ -124,7 +139,7 @@ public class NaverEnrichOrchestrator {
 			pb.redirectOutput(new File("/tmp/naver-enrich-bulk.log"));
 			currentProcess = pb.start();
 			int exitCode = currentProcess.waitFor();
-			log.info("[NaverEnrich] 일괄 종료 mode={}, exitCode={}", mode, exitCode);
+			log.info("[NaverEnrich] 일괄 종료 mode={}, exitCode={}", mode.label, exitCode);
 		} catch (IOException e) {
 			log.error("[NaverEnrich] subprocess 실행 실패", e);
 		} catch (InterruptedException e) {

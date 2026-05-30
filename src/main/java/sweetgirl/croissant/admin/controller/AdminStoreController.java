@@ -82,6 +82,22 @@ public class AdminStoreController {
 		return ResponseEntity.ok(ApiResponse.ok(adminStoreService.countPhotoBackfillQueue()));
 	}
 
+	@Operation(summary = "풀 enrich 백필 큐 조회", description = "placeId 는 있으나 메뉴 또는 사진이 비어 enrich 가 안 끝난 가게 목록. "
+		+ "수동/후보로 매칭만 하고 크롤이 안 된 가게가 자동으로 포함됨. 크롤러가 메뉴+사진 둘 다 보충.")
+	@GetMapping("/naver-enrich-backfill-queue")
+	public ResponseEntity<ApiResponse<Page<AdminNaverEnrichQueueItem>>> getEnrichBackfillQueue(
+			@Parameter(description = "페이지 번호 (0부터 시작)") @RequestParam(defaultValue = "0") int page,
+			@Parameter(description = "페이지 크기") @RequestParam(defaultValue = "100") int size) {
+		return ResponseEntity.ok(
+			ApiResponse.ok(adminStoreService.getEnrichBackfillQueue(PageRequest.of(page, size))));
+	}
+
+	@Operation(summary = "풀 enrich 백필 큐 카운트", description = "풀 enrich 백필 대상 가게 수만 반환 — 어드민 진행상황 표시용.")
+	@GetMapping("/naver-enrich-backfill-count")
+	public ResponseEntity<ApiResponse<Long>> getEnrichBackfillCount() {
+		return ResponseEntity.ok(ApiResponse.ok(adminStoreService.countEnrichBackfillQueue()));
+	}
+
 	@Operation(summary = "네이버 플레이스 ID 저장", description = "Python 크롤러 또는 어드민이 호출. "
 		+ "naverPlaceId 와 naverMatchedAt 을 함께 갱신. replaceMenus=true 면 기존 메뉴를 soft-delete (어드민 후보 선택 UI 용).")
 	@PutMapping("/{storeId}/naver-place-id")
@@ -177,7 +193,7 @@ public class AdminStoreController {
 	public ResponseEntity<ApiResponse<Void>> startBulkNaverEnrich() {
 		// 진행률 % 계산을 위해 시작 시점의 큐 크기 (= pending 가게 수) 측정
 		long initialCount = adminStoreService.getNaverEnrichStats().pending();
-		if (!naverEnrichOrchestrator.tryStart(false, initialCount)) {
+		if (!naverEnrichOrchestrator.tryStart(NaverEnrichOrchestrator.Mode.ENRICH, initialCount)) {
 			throw new CustomException(StoreErrorCode.NAVER_ENRICH_ALREADY_RUNNING);
 		}
 		return ResponseEntity.ok(ApiResponse.ok(null));
@@ -188,7 +204,19 @@ public class AdminStoreController {
 	@PostMapping("/naver-photos-backfill-start")
 	public ResponseEntity<ApiResponse<Void>> startPhotoBackfill() {
 		long initialCount = adminStoreService.countPhotoBackfillQueue();
-		if (!naverEnrichOrchestrator.tryStart(true, initialCount)) {
+		if (!naverEnrichOrchestrator.tryStart(NaverEnrichOrchestrator.Mode.PHOTOS_BACKFILL, initialCount)) {
+			throw new CustomException(StoreErrorCode.NAVER_ENRICH_ALREADY_RUNNING);
+		}
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "풀 enrich 백필 일괄 시작 (async)", description = "placeId 있음 + 메뉴 OR 사진 빈 큐에 대해 "
+		+ "--enrich-backfill --loop 로 크롤러 실행. 수동/후보 매칭으로 placeId 만 채워진 가게의 메뉴+사진을 "
+		+ "일괄 보충. 이미 실행 중이면 409.")
+	@PostMapping("/naver-enrich-backfill-start")
+	public ResponseEntity<ApiResponse<Void>> startEnrichBackfill() {
+		long initialCount = adminStoreService.countEnrichBackfillQueue();
+		if (!naverEnrichOrchestrator.tryStart(NaverEnrichOrchestrator.Mode.ENRICH_BACKFILL, initialCount)) {
 			throw new CustomException(StoreErrorCode.NAVER_ENRICH_ALREADY_RUNNING);
 		}
 		return ResponseEntity.ok(ApiResponse.ok(null));

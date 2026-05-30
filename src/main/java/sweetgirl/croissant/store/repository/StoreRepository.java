@@ -281,6 +281,32 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 			""")
 	long countMatchedWithoutPhotos();
 
+	// 매칭됐지만(naverPlaceId 있음) 활성 메뉴 또는 사진이 비어 enrich 가 안 끝난 가게 — 풀 enrich 백필 대상.
+	// 수동/후보 매칭으로 placeId 만 채워진 가게(메뉴·사진 0)가 자동으로 여기 들어온다. (사진만 보충하는
+	// findMatchedWithoutPhotos 와 달리 메뉴 누락도 잡고, 크롤러가 메뉴+사진 둘 다 채운다.)
+	@Query("""
+				SELECT s FROM Store s
+				WHERE s.status = sweetgirl.croissant.store.enums.StoreStatus.ACTIVE
+				AND s.naverPlaceId IS NOT NULL
+				AND (
+					NOT EXISTS (SELECT 1 FROM Menu m WHERE m.store.id = s.id AND m.deletedAt IS NULL)
+					OR NOT EXISTS (SELECT 1 FROM StoreImageFile i WHERE i.store.id = s.id)
+				)
+				ORDER BY s.id ASC
+			""")
+	Page<Store> findMatchedNeedingEnrich(Pageable pageable);
+
+	@Query("""
+				SELECT COUNT(s) FROM Store s
+				WHERE s.status = sweetgirl.croissant.store.enums.StoreStatus.ACTIVE
+				AND s.naverPlaceId IS NOT NULL
+				AND (
+					NOT EXISTS (SELECT 1 FROM Menu m WHERE m.store.id = s.id AND m.deletedAt IS NULL)
+					OR NOT EXISTS (SELECT 1 FROM StoreImageFile i WHERE i.store.id = s.id)
+				)
+			""")
+	long countMatchedNeedingEnrich();
+
 	Optional<Store> findByNaverPlaceId(String naverPlaceId);
 
 	// ── Naver enrich stats ──────────────────────────────────────────────────

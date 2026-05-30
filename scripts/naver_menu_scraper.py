@@ -132,8 +132,7 @@ def _wait_entry_frame(page, timeout_ms: int = 8000):
 
 # ─── 백엔드 API 클라이언트 ────────────────────────────────────────────────────
 
-def fetch_queue(server: str, size: int, photos_only: bool = False) -> list[dict]:
-	path = "naver-photos-backfill-queue" if photos_only else "naver-enrich-queue"
+def fetch_queue(server: str, size: int, path: str = "naver-enrich-queue") -> list[dict]:
 	url = f"{server}/api/admin/stores/{path}?page=0&size={size}"
 	resp = requests.get(url, timeout=15)
 	resp.raise_for_status()
@@ -792,15 +791,25 @@ def main() -> None:
 	parser.add_argument("--verbose", action="store_true", help="신뢰 매칭 실패 후보까지 출력")
 	parser.add_argument("--photos-only", action="store_true",
 		help="매칭됨+사진 0장 큐만 처리 — 검색은 스킵하고 사진만 보충 (process_store 분기로 자동 처리)")
+	parser.add_argument("--enrich-backfill", action="store_true",
+		help="매칭됨(placeId 있음)인데 메뉴 OR 사진 빈 큐 처리 — 검색 스킵, 메뉴+사진 둘 다 풀 보충")
 	parser.add_argument("--headless", action="store_true", default=True, help="브라우저 창 숨김 (기본 ON)")
 	parser.add_argument("--show-browser", dest="headless", action="store_false", help="브라우저 창 표시")
 	args = parser.parse_args()
+
+	# 모드 결정 — 어느 큐를 어떤 깊이로 처리할지. photos-only(사진만) / enrich-backfill(메뉴+사진 풀 보충) /
+	# enrich(검색+매칭+enrich). backfill 모드들은 placeId 가 이미 있어 process_store 가 검색을 스킵한다.
+	if args.photos_only:
+		mode, queue_path, crawl_menus = "photos-backfill", "naver-photos-backfill-queue", False
+	elif args.enrich_backfill:
+		mode, queue_path, crawl_menus = "enrich-backfill", "naver-enrich-backfill-queue", True
+	else:
+		mode, queue_path, crawl_menus = "enrich", "naver-enrich-queue", True
 
 	print(f"서버: {args.server}")
 	if args.store_id:
 		print(f"단일 가게 모드: store_id={args.store_id}")
 	else:
-		mode = "photos-backfill" if args.photos_only else "enrich"
 		print(f"큐 모드 [{mode}] — 배치 크기: {args.batch}, loop={args.loop}, dry-run={args.dry_run}")
 
 	total = {"matched": 0, "menus_created": 0, "images_uploaded": 0, "skipped_menu_crawl": 0,
@@ -825,7 +834,7 @@ def main() -> None:
 				browser.close()
 				sys.exit(2)
 			result = process_store(page, store, args.server, args.dry_run, args.verbose,
-				crawl_menus=not args.photos_only)
+				crawl_menus=crawl_menus)
 			for k in total:
 				total[k] += result.get(k, 0)
 		else:
@@ -833,14 +842,14 @@ def main() -> None:
 			batches_done = 0
 			no_candidate_streak = 0
 			while True:
-				queue = fetch_queue(args.server, args.batch, photos_only=args.photos_only)
+				queue = fetch_queue(args.server, args.batch, path=queue_path)
 				if not queue:
 					print("\n[큐 비어있음 — 종료]")
 					break
 				print(f"\n=== 배치 #{batches_done + 1} — {len(queue)}건 ===")
 				for store in queue:
 					result = process_store(page, store, args.server, args.dry_run, args.verbose,
-						crawl_menus=not args.photos_only)
+						crawl_menus=crawl_menus)
 					for k in total:
 						total[k] += result.get(k, 0)
 					# 네이버 차단 의심 — N건 연속으로 검색 결과 0이면 abort (대량 false-fail 방지)

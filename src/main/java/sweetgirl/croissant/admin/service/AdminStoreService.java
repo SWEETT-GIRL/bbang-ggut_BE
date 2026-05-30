@@ -182,6 +182,23 @@ public class AdminStoreService {
 		return storeRepository.countMatchedWithoutPhotos();
 	}
 
+	// placeId 는 있으나 메뉴 또는 사진이 비어 enrich 가 안 끝난 가게 — 메뉴+사진 풀 enrich 백필 큐.
+	// 수동/후보 매칭(updateNaverPlaceId)으로 placeId 만 채워진 가게가 자동으로 여기 들어와 크롤된다.
+	public Page<AdminNaverEnrichQueueItem> getEnrichBackfillQueue(Pageable pageable) {
+		Page<Store> stores = storeRepository.findMatchedNeedingEnrich(pageable);
+		List<Long> storeIds = stores.getContent().stream().map(Store::getId).toList();
+		Map<Long, Long> menuCountMap = getMenuCountMap(storeIds);
+		Map<Long, Long> photoCountMap = getPhotoCountMap(storeIds);
+		return stores.map(s -> AdminNaverEnrichQueueItem.from(
+			s,
+			menuCountMap.getOrDefault(s.getId(), 0L),
+			photoCountMap.getOrDefault(s.getId(), 0L)));
+	}
+
+	public long countEnrichBackfillQueue() {
+		return storeRepository.countMatchedNeedingEnrich();
+	}
+
 	public AdminNaverEnrichQueueItem getNaverEnrichItem(Long storeId) {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
