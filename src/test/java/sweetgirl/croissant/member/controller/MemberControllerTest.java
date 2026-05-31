@@ -139,7 +139,7 @@ class MemberControllerTest {
 
 	@Test
 	void getConsent_returns200WithConsentStatus_whenMemberExists() throws Exception {
-		ConsentResponse response = new ConsentResponse(true, false, false, null, null);
+		ConsentResponse response = new ConsentResponse(true, false, false, false, null, null);
 		given(memberService.getConsent(any())).willReturn(response);
 
 		mockMvc.perform(get("/users/me/consent"))
@@ -163,7 +163,7 @@ class MemberControllerTest {
 
 	@Test
 	void updateConsent_returns200_whenOnlyAgreeToMarketingProvided() throws Exception {
-		ConsentResponse response = new ConsentResponse(true, true, false, null, null);
+		ConsentResponse response = new ConsentResponse(true, true, false, false, null, null);
 		given(memberService.updateConsent(any(), any())).willReturn(response);
 
 		mockMvc.perform(patch("/users/me/consent")
@@ -175,7 +175,7 @@ class MemberControllerTest {
 
 	@Test
 	void updateConsent_returns200_whenOnlyAgreeToNightMarketingProvided() throws Exception {
-		ConsentResponse response = new ConsentResponse(true, false, true, null, null);
+		ConsentResponse response = new ConsentResponse(true, false, true, false, null, null);
 		given(memberService.updateConsent(any(), any())).willReturn(response);
 
 		mockMvc.perform(patch("/users/me/consent")
@@ -187,7 +187,7 @@ class MemberControllerTest {
 
 	@Test
 	void updateConsent_returns200_whenBothFieldsProvided() throws Exception {
-		ConsentResponse response = new ConsentResponse(true, true, true, null, null);
+		ConsentResponse response = new ConsentResponse(true, true, true, false, null, null);
 		given(memberService.updateConsent(any(), any())).willReturn(response);
 
 		mockMvc.perform(patch("/users/me/consent")
