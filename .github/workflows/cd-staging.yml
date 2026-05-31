@@ -112,8 +112,6 @@ jobs:
         with:
           context: .
           push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/bbang-ggut-be:${{ steps.tag.outputs.IMAGE_TAG }}
             ${{ secrets.DOCKERHUB_USERNAME }}/bbang-ggut-be:develop-latest
