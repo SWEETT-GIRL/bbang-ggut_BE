@@ -53,6 +53,9 @@ public class Member {
 	@Column(nullable = false, columnDefinition = "boolean default false")
 	private boolean agreeToAgeOver14;
 
+	@Column(nullable = false, columnDefinition = "boolean default false")
+	private boolean agreeToLocation;
+
 	@Column(length = 20)
 	private String termsVersion;
 
@@ -91,7 +94,7 @@ public class Member {
 
 	public void applyInitialConsent(
 			boolean termsAgreed, boolean privacyAgreed, boolean ageOver14Agreed,
-			boolean marketingAgreed, boolean nightMarketingAgreed,
+			boolean marketingAgreed, boolean nightMarketingAgreed, boolean locationAgreed,
 			String termsVersion, String privacyVersion) {
 		LocalDateTime now = LocalDateTime.now();
 		this.agreeToTerms = termsAgreed;
@@ -99,6 +102,7 @@ public class Member {
 		this.agreeToAgeOver14 = ageOver14Agreed;
 		this.agreeToMarketing = marketingAgreed;
 		this.agreeToNightMarketing = nightMarketingAgreed;
+		this.agreeToLocation = locationAgreed;
 		this.termsAgreedAt = termsAgreed ? now : null;
 		this.marketingAgreedAt = marketingAgreed ? now : null;
 		this.termsVersion = termsVersion;

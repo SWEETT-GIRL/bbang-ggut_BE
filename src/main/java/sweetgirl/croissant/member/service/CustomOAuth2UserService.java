@@ -42,6 +42,10 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 		// 내부적으로 카카오 User Info API(https://kapi.kakao.com/v2/user/me)를 호출
 		OAuth2User oAuth2User = super.loadUser(userRequest);
 
+		return processOAuth2User(oAuth2User);
+	}
+
+	protected OAuth2User processOAuth2User(OAuth2User oAuth2User) {
 		// 카카오 응답 JSON을 파싱해서 필요한 값(providerId, email, nickname)만 추출
 		KakaoOAuth2UserInfo userInfo = new KakaoOAuth2UserInfo(oAuth2User.getAttributes());
 
@@ -58,6 +62,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 			.orElseGet(() -> registerNewMember(userInfo)); // 없으면 신규 가입 처리
 
 		Member member = oAuth.getMember();
+		//
 		boolean isDeletedMember = member.isDeleted();
 		Member activeMember;
 		if (isDeletedMember) {
