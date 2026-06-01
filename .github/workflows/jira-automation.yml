@@ -78,7 +78,9 @@ jobs:
           echo "ISSUE_TITLE=$TITLE" >> $GITHUB_ENV
 
           IDESCRIPTION="${{ github.event.client_payload.jira_description }}"
-          TRIMMED_DESC=$(echo "$IDESCRIPTION" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+          TRIMMED_DESC=$(echo "$IDESCRIPTION" \
+            | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+            | sed 's/^h1\. /# /; s/^h2\. /## /; s/^h3\. /### /; s/^h4\. /#### /; s/^h5\. /##### /; s/^h6\. /###### /')
 
           LOWER_BANNER="---\n### 🔗 연동 정보\n- **Jira 링크**: [${IKEY}](${IJIRAURL})"
           if [ -n "$TRIMMED_DESC" ] && [ "$TRIMMED_DESC" != "null" ]; then
