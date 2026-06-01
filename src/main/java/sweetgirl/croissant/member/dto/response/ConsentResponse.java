@@ -8,6 +8,7 @@ public record ConsentResponse(
 		boolean agreeToTerms,
 		boolean agreeToMarketing,
 		boolean agreeToNightMarketing,
+		boolean agreeToLocation,
 		LocalDateTime termsAgreedAt,
 		LocalDateTime marketingAgreedAt) {
 
@@ -16,6 +17,7 @@ public record ConsentResponse(
 			member.isAgreeToTerms(),
 			member.isAgreeToMarketing(),
 			member.isAgreeToNightMarketing(),
+			member.isAgreeToLocation(),
 			member.getTermsAgreedAt(),
 			member.getMarketingAgreedAt());
 	}

@@ -63,6 +63,7 @@ public class MemberService {
 			request.ageOver14Agreed(),
 			request.marketingAgreed(),
 			request.nightMarketingAgreed(),
+			request.locationAgreed(),
 			request.termsVersion(),
 			request.privacyVersion());
 	}
