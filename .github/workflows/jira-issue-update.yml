@@ -47,7 +47,9 @@ jobs:
           elif [[ "$ILABELS_LOWER" == *"ci/cd"* ]]; then GH_LABEL="ci/cd"; TITLE_PREFIX="💚 ci/cd: "; fi
           echo "GH_LABEL=$GH_LABEL" >> $GITHUB_ENV
 
-          TRIMMED_BODY=$(echo "$IBODY" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+          TRIMMED_BODY=$(echo "$IBODY" \
+            | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+            | sed 's/^h1\. /# /; s/^h2\. /## /; s/^h3\. /### /; s/^h4\. /#### /; s/^h5\. /##### /; s/^h6\. /###### /')
 
           CONTENT=""
           if [ -n "$TRIMMED_BODY" ] && [ "$TRIMMED_BODY" != "null" ]; then
