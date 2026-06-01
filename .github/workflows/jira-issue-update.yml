@@ -59,16 +59,21 @@ jobs:
             export JIRA_OUT_TITLE="${EXTRACT_TITLE:-"$IBODY"}"
           fi
 
-          export JIRA_OUT_TODO="${ICHECKLIST:-"- [ ] 투두 내용 작성"}"
+          if [ -n "$ICHECKLIST" ] && [ "$ICHECKLIST" != "null" ]; then
+            DECODED_CHECKLIST=$(python3 -c "import sys, urllib.parse; print(urllib.parse.unquote_plus(sys.argv[1]))" "$ICHECKLIST")
+            export JIRA_OUT_TODO=$(echo "$DECODED_CHECKLIST" | sed 's/^\* \[/- [/g')
+          else
+            export JIRA_OUT_TODO="- [ ] 투두 내용 작성"
+          fi
           export JIRA_OUT_ETC="- 참고 자료 작성"
 
           TEMPLATE_CONTENT="# Title\n\n# TODO\n\n# etc"
           MAPPED_BODY=$(echo -e "$TEMPLATE_CONTENT")
           MAPPED_BODY="${MAPPED_BODY//"# Title"/"# Title"$'\n'"$JIRA_OUT_TITLE"}"
           MAPPED_BODY="${MAPPED_BODY//"# TODO"/"# TODO"$'\n'"$JIRA_OUT_TODO"}"
-          MAPPED_BODY="${MAPPED_BODY//"# etc"/"# etc"$'\n'"$... 변경 사항 없음 ...""$JIRA_OUT_ETC"}"
+          MAPPED_BODY="${MAPPED_BODY//"# etc"/"# etc"$'\n'"$JIRA_OUT_ETC"}"
 
-          LOWER_BANNER="\n\n---\n### 🔗 연동 정보\n- **Jira 링크**: [${IKEY} 바로가기](${IJIRAURL})"
+          LOWER_BANNER="\n\n---\n### 🔗 연동 정보\n- **Jira 링크**: [${IKEY}](${IJIRAURL})"
           FINAL_BODY=$(echo -e "${MAPPED_BODY}${LOWER_BANNER}")
 
           echo "$FINAL_BODY" > updated_body.txt
@@ -87,7 +92,7 @@ jobs:
             gh issue edit ${{ env.TARGET_ISSUE_NUM }} \
               --title "${{ env.UPDATED_TITLE }}" \
               --add-label "${{ env.GH_LABEL }}" \
-              --assignee "${{ env.GH_ASSIGNEE }}" \
+              --add-assignee "${{ env.GH_ASSIGNEE }}" \
               -F updated_body.txt
           else
             gh issue edit ${{ env.TARGET_ISSUE_NUM }} \
