@@ -10,60 +10,64 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.JIRA_GITHUB_TOKEN }}
 
       - name: Formulate Branch Name and Find Template
         id: setup
         run: |
           IKEY="${{ github.event.client_payload.jira_key }}"
+          ITYPE="${{ github.event.client_payload.kind }}"
           ILABELS="${{ github.event.client_payload.jira_labels }}"
           ISUMMARY="${{ github.event.client_payload.jira_title }}"
           IASSIGNEE="${{ github.event.client_payload.jira_assignee }}"
           IJIRAURL="${{ github.event.client_payload.jira_url }}"
           PARENT_KEY="${{ github.event.client_payload.jira_parent_key }}"
 
-          ILABEL=$(echo "$ITYPE" | tr '[:upper:]' '[:lower:]')
-          
+          ITYPE_LOWER=$(echo "$ITYPE" | tr '[:upper:]' '[:lower:]')
+          ILABELS_LOWER=$(echo "$ILABELS" | tr '[:upper:]' '[:lower:]')
+
           TEMPLATE_FILE=".github/ISSUE_TEMPLATE/✨-feature.md"
           TYPE_SHORT="feat"
           GH_LABEL="feature"
           TITLE_PREFIX="✨ feat: "
 
-          if [[ "$ILABEL" == *"story"* ]]; then
+          if [[ "$ITYPE_LOWER" == *"story"* ]]; then
             TYPE_SHORT="story"
             GH_LABEL="story"
             TEMPLATE_FILE=".github/ISSUE_TEMPLATE/📖-story.md"
             TITLE_PREFIX="📖 story: "
-          elif [[ "$ILABEL" == *"bug"* ]]; then
+          elif [[ "$ITYPE_LOWER" == *"bug"* ]]; then
             TYPE_SHORT="fix"
             GH_LABEL="bug"
             TEMPLATE_FILE=".github/ISSUE_TEMPLATE/🐛-fix.md"
             TITLE_PREFIX="🐛 fix: "
-          elif [[ "$ILABEL" == *"refactor"* ]]; then
+          elif [[ "$ILABELS_LOWER" == *"refactor"* ]]; then
             TYPE_SHORT="refactor"
             GH_LABEL="refactor"
             TEMPLATE_FILE=".github/ISSUE_TEMPLATE/♻️-refactor.md"
             TITLE_PREFIX="♻️ refactor: "
-          elif [[ "$ILABEL" == *"documentation"* ]]; then
+          elif [[ "$ILABELS_LOWER" == *"documentation"* ]]; then
             TYPE_SHORT="docs"
             GH_LABEL="documentation"
             TEMPLATE_FILE=".github/ISSUE_TEMPLATE/📝-docs.md"
             TITLE_PREFIX="📝 docs: "
-          elif [[ "$ILABEL" == *"test"* ]]; then
+          elif [[ "$ILABELS_LOWER" == *"test"* ]]; then
             TYPE_SHORT="test"
             GH_LABEL="test"
             TEMPLATE_FILE=".github/ISSUE_TEMPLATE/✅-test.md"
             TITLE_PREFIX="✅ test: "
-          elif [[ "$ILABEL" == *"ci/cd"* ]]; then
-            TYPE_SHORT="cicd"         
-            GH_LABEL="ci/cd"         
+          elif [[ "$ILABELS_LOWER" == *"ci/cd"* ]]; then
+            TYPE_SHORT="cicd"
+            GH_LABEL="ci/cd"
             TEMPLATE_FILE=".github/ISSUE_TEMPLATE/💚-ci-cd.md"
             TITLE_PREFIX="💚 ci/cd: "
           fi
 
-          CLEAN_SUMMARY=$(echo "$ISUMMARY" | tr ' ' '-' | tr -cd '[:alnum:]-')
-          BRANCH_NAME="${IKEY}-${TYPE_SHORT}-${CLEAN_SUMMARY}"
-          
-          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          CLEAN_SUMMARY=$(echo "$ISUMMARY" | tr ' ' '-' | tr -d '/:?*[\\^~@{}()!#%&<>|"'"'"'')
+          BRANCH_BODY="${IKEY}-${CLEAN_SUMMARY}"
+
+          echo "BRANCH_BODY=$BRANCH_BODY" >> $GITHUB_ENV
           echo "TYPE_SHORT=$TYPE_SHORT" >> $GITHUB_ENV
           echo "GH_LABEL=$GH_LABEL" >> $GITHUB_ENV
 
@@ -86,7 +90,7 @@ jobs:
             TEMPLATE_CONTENT="# Title\n\n# TODO\n\n# etc"
           fi
 
-          LOWER_BANNER="\n\n---\n### 🔗 연동 정보\n- **Jira 링크**: [${IKEY} 바로가기](${IJIRAURL})"
+          LOWER_BANNER="\n\n---\n### 🔗 연동 정보\n- **Jira 링크**: [${IKEY}](${IJIRAURL})"
           FINAL_BODY=$(echo -e "${TEMPLATE_CONTENT}${LOWER_BANNER}")
 
           echo "FINAL_BODY<<EOF" >> $GITHUB_ENV
@@ -112,8 +116,11 @@ jobs:
               --repo "${{ github.repository }}")
           fi
           
+          ISSUE_NUMBER=$(echo "$NEW_ISSUE_URL" | grep -oE '[0-9]+$')
+          BRANCH_NAME="${TYPE_SHORT}/${ISSUE_NUMBER}-${BRANCH_BODY}"
           echo "ISSUE_URL=$NEW_ISSUE_URL" >> $GITHUB_ENV
-          echo "새 생성된 이슈 URL: $NEW_ISSUE_URL"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          echo "새 생성된 이슈 URL: $NEW_ISSUE_URL / 브랜치명: $BRANCH_NAME"
 
       - name: Link Task to Parent Story Issue via GitHub Tasklists
         env:
