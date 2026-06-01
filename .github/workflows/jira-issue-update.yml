@@ -1,0 +1,95 @@
+name: Jira Automation - Update GitHub Issue
+
+on:
+  repository_dispatch:
+    types: [ jira_issue_updated ]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  update-github-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Formulate Updated Content
+        id: parse
+        run: |
+          ISSUE_NUM="${{ github.event.client_payload.jira_issue_number }}"
+          IKEY="${{ github.event.client_payload.jira_key }}"
+          IJIRAURL="${{ github.event.client_payload.jira_url }}"
+          ISUMMARY="${{ github.event.client_payload.jira_title }}"
+          IBODY="${{ github.event.client_payload.jira_description }}"
+          ICHECKLIST="${{ github.event.client_payload.jira_checklist }}"
+          IASSIGNEE="${{ github.event.client_payload.jira_assignee }}"
+          ILABELS="${{ github.event.client_payload.jira_labels }}"
+
+          GH_USER=""
+          if [ -n "$IASSIGNEE" ] && [ "$IASSIGNEE" != "null" ]; then
+            case "$IASSIGNEE" in
+              "이현정") GH_USER="howareyou2" ;;
+            esac
+          fi
+          echo "GH_ASSIGNEE=$GH_USER" >> $GITHUB_ENV
+
+          ILABEL=$(echo "$ILABELS" | tr '[:upper:]' '[:lower:]')
+          GH_LABEL="feature"
+          TITLE_PREFIX="✨ feat: "
+          if [[ "$ILABEL" == *"story"* ]]; then GH_LABEL="story"; TITLE_PREFIX="📖 story: ";
+          elif [[ "$ILABEL" == *"bug"* ]]; then GH_LABEL="bug"; TITLE_PREFIX="🐛 fix: ";
+          elif [[ "$ILABEL" == *"refactor"* ]]; then GH_LABEL="refactor"; TITLE_PREFIX="♻️ refactor: ";
+          elif [[ "$ILABEL" == *"documentation"* ]]; then GH_LABEL="documentation"; TITLE_PREFIX="📝 docs: ";
+          elif [[ "$ILABEL" == *"test"* ]]; then GH_LABEL="test"; TITLE_PREFIX="✅ test: ";
+          elif [[ "$ILABEL" == *"ci/cd"* ]]; then GH_LABEL="ci/cd"; TITLE_PREFIX="💚 ci/cd: "; fi
+          echo "GH_LABEL=$GH_LABEL" >> $GITHUB_ENV
+
+          TRIMMED_BODY=$(echo "$IBODY" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+
+          if [ -z "$TRIMMED_BODY" ] || [ "$TRIMMED_BODY" = "null" ]; then
+            export JIRA_OUT_TITLE="- ${ISUMMARY}"
+          else
+            NORM_BODY=$(echo -e "$IBODY")
+            CLEANED_JIRA_BODY=$(echo "$NORM_BODY" | sed -E 's/#[[:space:]]*([a-zA-Z])/# \1/g')
+            EXTRACT_TITLE=$(echo "$CLEANED_JIRA_BODY" | sed -n '/# Title/,/# TODO/p' | grep -v -E '# Title|# TODO' | sed '/^[[:space:]]*$/d')
+          
+            export JIRA_OUT_TITLE="${EXTRACT_TITLE:-"$IBODY"}"
+          fi
+
+          export JIRA_OUT_TODO="${ICHECKLIST:-"- [ ] 투두 내용 작성"}"
+          export JIRA_OUT_ETC="- 참고 자료 작성"
+
+          TEMPLATE_CONTENT="# Title\n\n# TODO\n\n# etc"
+          MAPPED_BODY=$(echo -e "$TEMPLATE_CONTENT")
+          MAPPED_BODY="${MAPPED_BODY//"# Title"/"# Title"$'\n'"$JIRA_OUT_TITLE"}"
+          MAPPED_BODY="${MAPPED_BODY//"# TODO"/"# TODO"$'\n'"$JIRA_OUT_TODO"}"
+          MAPPED_BODY="${MAPPED_BODY//"# etc"/"# etc"$'\n'"$... 변경 사항 없음 ...""$JIRA_OUT_ETC"}"
+
+          LOWER_BANNER="\n\n---\n### 🔗 연동 정보\n- **Jira 링크**: [${IKEY} 바로가기](${IJIRAURL})"
+          FINAL_BODY=$(echo -e "${MAPPED_BODY}${LOWER_BANNER}")
+
+          echo "$FINAL_BODY" > updated_body.txt
+
+          echo "UPDATED_TITLE=[$IKEY] ${TITLE_PREFIX}${ISUMMARY}" >> $GITHUB_ENV
+          echo "TARGET_ISSUE_NUM=$ISSUE_NUM" >> $GITHUB_ENV
+
+      - name: Update GitHub Issue via GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.JIRA_GITHUB_TOKEN }}
+        run: |
+          echo "타겟 깃허브 이슈 번호: #${{ env.TARGET_ISSUE_NUM }} 업데이트 진행"
+          
+          # 담당자가 지정되어 있을 경우와 아닐 경우 분기 처리하여 완벽 동기화
+          if [ -n "${{ env.GH_ASSIGNEE }}" ]; then
+            gh issue edit ${{ env.TARGET_ISSUE_NUM }} \
+              --title "${{ env.UPDATED_TITLE }}" \
+              --add-label "${{ env.GH_LABEL }}" \
+              --assignee "${{ env.GH_ASSIGNEE }}" \
+              -F updated_body.txt
+          else
+            gh issue edit ${{ env.TARGET_ISSUE_NUM }} \
+              --title "${{ env.UPDATED_TITLE }}" \
+              --add-label "${{ env.GH_LABEL }}" \
+              -F updated_body.txt
+          fi
