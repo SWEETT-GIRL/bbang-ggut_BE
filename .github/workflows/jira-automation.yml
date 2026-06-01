@@ -141,13 +141,12 @@ jobs:
               echo "매칭되는 깃허브 부모 이슈 발견: #$PARENT_ISSUE_NUM"
 
               PARENT_BODY=$(gh issue view $PARENT_ISSUE_NUM --json body --jq '.body')
-              TASK_LINK="${{ env.ISSUE_URL }}"
+              CHILD_NUM=$(echo "${{ env.ISSUE_URL }}" | grep -oE '[0-9]+$')
 
-              if [[ "$PARENT_BODY" != *"\`\`\`tasklist"* ]]; then
-                echo -e "${PARENT_BODY}\n\n### 📋 하위 작업\n\`\`\`tasklist\n- $TASK_LINK\n\`\`\`" > new_body.txt
+              if [[ "$PARENT_BODY" != *"### 📋 하위 작업"* ]]; then
+                echo -e "${PARENT_BODY}\n\n### 📋 하위 작업\n- #${CHILD_NUM}" > new_body.txt
               else
-                CLEANED_BODY=$(echo -e "$PARENT_BODY" | sed 's/\`\`\`$//')
-                echo -e "${CLEANED_BODY}- ${TASK_LINK}\n\`\`\`" > new_body.txt
+                echo -e "${PARENT_BODY}\n- #${CHILD_NUM}" > new_body.txt
               fi
           
               gh issue edit $PARENT_ISSUE_NUM -F new_body.txt
