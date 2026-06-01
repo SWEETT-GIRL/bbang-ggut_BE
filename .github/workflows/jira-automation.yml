@@ -137,7 +137,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.JIRA_GITHUB_TOKEN }}
         run: |
-          PARENT_KEY="${{ github.event.client_payload.parentKey }}"
+          PARENT_KEY="${{ github.event.client_payload.jira_parent_key }}"
 
           if [ -n "$PARENT_KEY" ] && [ "$PARENT_KEY" != "null" ]; then
             echo "부모 스토리 이슈 검색 중: $PARENT_KEY"
