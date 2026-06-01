@@ -49,32 +49,19 @@ jobs:
 
           TRIMMED_BODY=$(echo "$IBODY" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 
-          if [ -z "$TRIMMED_BODY" ] || [ "$TRIMMED_BODY" = "null" ]; then
-            export JIRA_OUT_TITLE="- ${ISUMMARY}"
-          else
-            NORM_BODY=$(echo -e "$IBODY")
-            CLEANED_JIRA_BODY=$(echo "$NORM_BODY" | sed -E 's/#[[:space:]]*([a-zA-Z])/# \1/g')
-            EXTRACT_TITLE=$(echo "$CLEANED_JIRA_BODY" | sed -n '/# Title/,/# TODO/p' | grep -v -E '# Title|# TODO' | sed '/^[[:space:]]*$/d')
-          
-            export JIRA_OUT_TITLE="${EXTRACT_TITLE:-"$IBODY"}"
+          CONTENT=""
+          if [ -n "$TRIMMED_BODY" ] && [ "$TRIMMED_BODY" != "null" ]; then
+            CONTENT="$TRIMMED_BODY"
           fi
 
           if [ -n "$ICHECKLIST" ] && [ "$ICHECKLIST" != "null" ]; then
             DECODED_CHECKLIST=$(python3 -c "import sys, urllib.parse; print(urllib.parse.unquote_plus(sys.argv[1]))" "$ICHECKLIST")
-            export JIRA_OUT_TODO=$(echo "$DECODED_CHECKLIST" | sed 's/^\* \[/- [/g')
-          else
-            export JIRA_OUT_TODO="- [ ] 투두 내용 작성"
+            CHECKLIST=$(echo "$DECODED_CHECKLIST" | sed 's/^\* \[/- [/g')
+            CONTENT="${CONTENT:+$CONTENT$'\n\n'}$CHECKLIST"
           fi
-          export JIRA_OUT_ETC="- 참고 자료 작성"
 
-          TEMPLATE_CONTENT="# Title\n\n# TODO\n\n# etc"
-          MAPPED_BODY=$(echo -e "$TEMPLATE_CONTENT")
-          MAPPED_BODY="${MAPPED_BODY//"# Title"/"# Title"$'\n'"$JIRA_OUT_TITLE"}"
-          MAPPED_BODY="${MAPPED_BODY//"# TODO"/"# TODO"$'\n'"$JIRA_OUT_TODO"}"
-          MAPPED_BODY="${MAPPED_BODY//"# etc"/"# etc"$'\n'"$JIRA_OUT_ETC"}"
-
-          LOWER_BANNER="\n\n---\n### 🔗 연동 정보\n- **Jira 링크**: [${IKEY}](${IJIRAURL})"
-          FINAL_BODY=$(echo -e "${MAPPED_BODY}${LOWER_BANNER}")
+          LOWER_BANNER="---\n### 🔗 연동 정보\n- **Jira 링크**: [${IKEY}](${IJIRAURL})"
+          FINAL_BODY=$(echo -e "${CONTENT:+$CONTENT$'\n\n'}${LOWER_BANNER}")
 
           echo "$FINAL_BODY" > updated_body.txt
 
