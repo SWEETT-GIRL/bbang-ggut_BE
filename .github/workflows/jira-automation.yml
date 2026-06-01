@@ -100,6 +100,9 @@ jobs:
       - name: Create GitHub Issue via GitHub CLI
         env:
           GH_TOKEN: ${{ secrets.JIRA_GITHUB_TOKEN }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
         run: |
           if [ -n "${{ env.GH_ASSIGNEE }}" ]; then
             NEW_ISSUE_URL=$(gh issue create \
@@ -115,12 +118,20 @@ jobs:
               --label "${{ env.GH_LABEL }}" \
               --repo "${{ github.repository }}")
           fi
-          
+
           ISSUE_NUMBER=$(echo "$NEW_ISSUE_URL" | grep -oE '[0-9]+$')
           BRANCH_NAME="${TYPE_SHORT}/${ISSUE_NUMBER}-${BRANCH_BODY}"
           echo "ISSUE_URL=$NEW_ISSUE_URL" >> $GITHUB_ENV
           echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
           echo "새 생성된 이슈 URL: $NEW_ISSUE_URL / 브랜치명: $BRANCH_NAME"
+
+          AUTH=$(echo -n "$JIRA_USER_EMAIL:$JIRA_API_TOKEN" | base64 -w 0)
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
+            -H "Authorization: Basic $AUTH" \
+            -H "Content-Type: application/json" \
+            -d "{\"fields\": {\"customfield_10074\": \"$ISSUE_NUMBER\"}}" \
+            "$JIRA_BASE_URL/rest/api/3/issue/${{ github.event.client_payload.jira_key }}")
+          echo "Jira customfield_10074 업데이트 결과: HTTP $HTTP_STATUS"
 
       - name: Link Task to Parent Story Issue via GitHub Tasklists
         env:
