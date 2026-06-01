@@ -27,7 +27,6 @@ jobs:
           ITYPE_LOWER=$(echo "$ITYPE" | tr '[:upper:]' '[:lower:]')
           ILABELS_LOWER=$(echo "$ILABELS" | tr '[:upper:]' '[:lower:]')
 
-          TEMPLATE_FILE=".github/ISSUE_TEMPLATE/✨-feature.md"
           TYPE_SHORT="feat"
           GH_LABEL="feature"
           TITLE_PREFIX="✨ feat: "
@@ -35,32 +34,26 @@ jobs:
           if [[ "$ITYPE_LOWER" == *"story"* ]]; then
             TYPE_SHORT="story"
             GH_LABEL="story"
-            TEMPLATE_FILE=".github/ISSUE_TEMPLATE/📖-story.md"
             TITLE_PREFIX="📖 story: "
           elif [[ "$ITYPE_LOWER" == *"bug"* ]]; then
             TYPE_SHORT="fix"
             GH_LABEL="bug"
-            TEMPLATE_FILE=".github/ISSUE_TEMPLATE/🐛-fix.md"
             TITLE_PREFIX="🐛 fix: "
           elif [[ "$ILABELS_LOWER" == *"refactor"* ]]; then
             TYPE_SHORT="refactor"
             GH_LABEL="refactor"
-            TEMPLATE_FILE=".github/ISSUE_TEMPLATE/♻️-refactor.md"
             TITLE_PREFIX="♻️ refactor: "
           elif [[ "$ILABELS_LOWER" == *"documentation"* ]]; then
             TYPE_SHORT="docs"
             GH_LABEL="documentation"
-            TEMPLATE_FILE=".github/ISSUE_TEMPLATE/📝-docs.md"
             TITLE_PREFIX="📝 docs: "
           elif [[ "$ILABELS_LOWER" == *"test"* ]]; then
             TYPE_SHORT="test"
             GH_LABEL="test"
-            TEMPLATE_FILE=".github/ISSUE_TEMPLATE/✅-test.md"
             TITLE_PREFIX="✅ test: "
           elif [[ "$ILABELS_LOWER" == *"ci/cd"* ]]; then
             TYPE_SHORT="cicd"
             GH_LABEL="ci/cd"
-            TEMPLATE_FILE=".github/ISSUE_TEMPLATE/💚-ci-cd.md"
             TITLE_PREFIX="💚 ci/cd: "
           fi
 
@@ -84,14 +77,15 @@ jobs:
           TITLE="[$IKEY] ${TITLE_PREFIX}${ISUMMARY}"
           echo "ISSUE_TITLE=$TITLE" >> $GITHUB_ENV
 
-          if [ -f "$TEMPLATE_FILE" ]; then
-            TEMPLATE_CONTENT=$(sed '1,/^---$/d' "$TEMPLATE_FILE")
-          else
-            TEMPLATE_CONTENT="# Title\n\n# TODO\n\n# etc"
-          fi
+          IDESCRIPTION="${{ github.event.client_payload.jira_description }}"
+          TRIMMED_DESC=$(echo "$IDESCRIPTION" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 
-          LOWER_BANNER="\n\n---\n### 🔗 연동 정보\n- **Jira 링크**: [${IKEY}](${IJIRAURL})"
-          FINAL_BODY=$(echo -e "${TEMPLATE_CONTENT}${LOWER_BANNER}")
+          LOWER_BANNER="---\n### 🔗 연동 정보\n- **Jira 링크**: [${IKEY}](${IJIRAURL})"
+          if [ -n "$TRIMMED_DESC" ] && [ "$TRIMMED_DESC" != "null" ]; then
+            FINAL_BODY=$(echo -e "${TRIMMED_DESC}\n\n${LOWER_BANNER}")
+          else
+            FINAL_BODY=$(echo -e "${LOWER_BANNER}")
+          fi
 
           echo "FINAL_BODY<<EOF" >> $GITHUB_ENV
           echo "$FINAL_BODY" >> $GITHUB_ENV
