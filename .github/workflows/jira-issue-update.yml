@@ -23,6 +23,7 @@ jobs:
           ISUMMARY="${{ github.event.client_payload.jira_title }}"
           IBODY="${{ github.event.client_payload.jira_description }}"
           ICHECKLIST="${{ github.event.client_payload.jira_checklist }}"
+          ITYPE="${{ github.event.client_payload.kind }}"
           IASSIGNEE="${{ github.event.client_payload.jira_assignee }}"
           ILABELS="${{ github.event.client_payload.jira_labels }}"
 
@@ -34,15 +35,16 @@ jobs:
           fi
           echo "GH_ASSIGNEE=$GH_USER" >> $GITHUB_ENV
 
-          ILABEL=$(echo "$ILABELS" | tr '[:upper:]' '[:lower:]')
+          ITYPE_LOWER=$(echo "$ITYPE" | tr '[:upper:]' '[:lower:]')
+          ILABELS_LOWER=$(echo "$ILABELS" | tr '[:upper:]' '[:lower:]')
           GH_LABEL="feature"
           TITLE_PREFIX="✨ feat: "
-          if [[ "$ILABEL" == *"story"* ]]; then GH_LABEL="story"; TITLE_PREFIX="📖 story: ";
-          elif [[ "$ILABEL" == *"bug"* ]]; then GH_LABEL="bug"; TITLE_PREFIX="🐛 fix: ";
-          elif [[ "$ILABEL" == *"refactor"* ]]; then GH_LABEL="refactor"; TITLE_PREFIX="♻️ refactor: ";
-          elif [[ "$ILABEL" == *"documentation"* ]]; then GH_LABEL="documentation"; TITLE_PREFIX="📝 docs: ";
-          elif [[ "$ILABEL" == *"test"* ]]; then GH_LABEL="test"; TITLE_PREFIX="✅ test: ";
-          elif [[ "$ILABEL" == *"ci/cd"* ]]; then GH_LABEL="ci/cd"; TITLE_PREFIX="💚 ci/cd: "; fi
+          if [[ "$ITYPE_LOWER" == *"story"* ]]; then GH_LABEL="story"; TITLE_PREFIX="📖 story: ";
+          elif [[ "$ITYPE_LOWER" == *"bug"* ]]; then GH_LABEL="bug"; TITLE_PREFIX="🐛 fix: ";
+          elif [[ "$ILABELS_LOWER" == *"refactor"* ]]; then GH_LABEL="refactor"; TITLE_PREFIX="♻️ refactor: ";
+          elif [[ "$ILABELS_LOWER" == *"documentation"* ]]; then GH_LABEL="documentation"; TITLE_PREFIX="📝 docs: ";
+          elif [[ "$ILABELS_LOWER" == *"test"* ]]; then GH_LABEL="test"; TITLE_PREFIX="✅ test: ";
+          elif [[ "$ILABELS_LOWER" == *"ci/cd"* ]]; then GH_LABEL="ci/cd"; TITLE_PREFIX="💚 ci/cd: "; fi
           echo "GH_LABEL=$GH_LABEL" >> $GITHUB_ENV
 
           TRIMMED_BODY=$(echo "$IBODY" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
