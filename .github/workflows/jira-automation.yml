@@ -22,7 +22,6 @@ jobs:
           ISUMMARY="${{ github.event.client_payload.jira_title }}"
           IASSIGNEE="${{ github.event.client_payload.jira_assignee }}"
           IJIRAURL="${{ github.event.client_payload.jira_url }}"
-          PARENT_KEY="${{ github.event.client_payload.jira_parent_key }}"
 
           ITYPE_LOWER=$(echo "$ITYPE" | tr '[:upper:]' '[:lower:]')
           ILABELS_LOWER=$(echo "$ILABELS" | tr '[:upper:]' '[:lower:]')
@@ -31,11 +30,7 @@ jobs:
           GH_LABEL="feature"
           TITLE_PREFIX="✨ feat: "
 
-          if [[ "$ITYPE_LOWER" == *"story"* ]]; then
-            TYPE_SHORT="story"
-            GH_LABEL="story"
-            TITLE_PREFIX="📖 story: "
-          elif [[ "$ITYPE_LOWER" == *"bug"* ]]; then
+          if [[ "$ITYPE_LOWER" == *"bug"* ]]; then
             TYPE_SHORT="fix"
             GH_LABEL="bug"
             TITLE_PREFIX="🐛 fix: "
@@ -74,7 +69,7 @@ jobs:
           fi
           echo "GH_ASSIGNEE=$GH_USER" >> $GITHUB_ENV
 
-          TITLE="[$IKEY] ${TITLE_PREFIX}${ISUMMARY}"
+          TITLE="${TITLE_PREFIX}${ISUMMARY}"
           echo "ISSUE_TITLE=$TITLE" >> $GITHUB_ENV
 
           IDESCRIPTION="${{ github.event.client_payload.jira_description }}"
@@ -129,37 +124,7 @@ jobs:
             "$JIRA_BASE_URL/rest/api/3/issue/${{ github.event.client_payload.jira_key }}")
           echo "Jira customfield_10074 업데이트 결과: HTTP $HTTP_STATUS"
 
-      - name: Link Task to Parent Story Issue via GitHub Tasklists
-        env:
-          GH_TOKEN: ${{ secrets.JIRA_GITHUB_TOKEN }}
-        run: |
-          PARENT_KEY="${{ github.event.client_payload.jira_parent_key }}"
-
-          if [ -n "$PARENT_KEY" ] && [ "$PARENT_KEY" != "null" ]; then
-            echo "부모 스토리 이슈 검색 중: $PARENT_KEY"
-            PARENT_ISSUE_NUM=$(gh issue list --search "[$PARENT_KEY] in:title" --json number --jq '.[0].number')
-          
-            if [ -n "$PARENT_ISSUE_NUM" ] && [ "$PARENT_ISSUE_NUM" != "null" ]; then
-              echo "매칭되는 깃허브 부모 이슈 발견: #$PARENT_ISSUE_NUM"
-
-              PARENT_BODY=$(gh issue view $PARENT_ISSUE_NUM --json body --jq '.body')
-              CHILD_NUM=$(echo "${{ env.ISSUE_URL }}" | grep -oE '[0-9]+$')
-
-              if [[ "$PARENT_BODY" != *"### 📋 하위 작업"* ]]; then
-                echo -e "${PARENT_BODY}\n\n### 📋 하위 작업\n- #${CHILD_NUM}" > new_body.txt
-              else
-                echo -e "${PARENT_BODY}\n- #${CHILD_NUM}" > new_body.txt
-              fi
-          
-              gh issue edit $PARENT_ISSUE_NUM -F new_body.txt
-              echo "부모 이슈 #$PARENT_ISSUE_NUM 에 성공적으로 연동했습니다."
-            else
-              echo "깃허브에서 [$PARENT_KEY] 타이틀을 가진 부모 이슈를 찾지 못해 연동을 건너뜁니다."
-            fi
-          fi
-
       - name: Create and Push Git Branch
-        if: env.TYPE_SHORT != 'story'
         env:
           MY_PAT: ${{ secrets.JIRA_GITHUB_TOKEN }}
         run: |

@@ -39,8 +39,7 @@ jobs:
           ILABELS_LOWER=$(echo "$ILABELS" | tr '[:upper:]' '[:lower:]')
           GH_LABEL="feature"
           TITLE_PREFIX="✨ feat: "
-          if [[ "$ITYPE_LOWER" == *"story"* ]]; then GH_LABEL="story"; TITLE_PREFIX="📖 story: ";
-          elif [[ "$ITYPE_LOWER" == *"bug"* ]]; then GH_LABEL="bug"; TITLE_PREFIX="🐛 fix: ";
+          if [[ "$ITYPE_LOWER" == *"bug"* ]]; then GH_LABEL="bug"; TITLE_PREFIX="🐛 fix: ";
           elif [[ "$ILABELS_LOWER" == *"refactor"* ]]; then GH_LABEL="refactor"; TITLE_PREFIX="♻️ refactor: ";
           elif [[ "$ILABELS_LOWER" == *"documentation"* ]]; then GH_LABEL="documentation"; TITLE_PREFIX="📝 docs: ";
           elif [[ "$ILABELS_LOWER" == *"test"* ]]; then GH_LABEL="test"; TITLE_PREFIX="✅ test: ";
@@ -67,7 +66,7 @@ jobs:
 
           echo "$FINAL_BODY" > updated_body.txt
 
-          echo "UPDATED_TITLE=[$IKEY] ${TITLE_PREFIX}${ISUMMARY}" >> $GITHUB_ENV
+          echo "UPDATED_TITLE=${TITLE_PREFIX}${ISUMMARY}" >> $GITHUB_ENV
           echo "TARGET_ISSUE_NUM=$ISSUE_NUM" >> $GITHUB_ENV
 
       - name: Update GitHub Issue via GitHub CLI
