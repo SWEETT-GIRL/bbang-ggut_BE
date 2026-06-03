@@ -109,12 +109,14 @@ public class AdminStoreController {
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
-	@Operation(summary = "네이버 enrich 실패 마킹", description = "Python 크롤러가 매칭에 실패한 후 호출. naverMatchedAt 만 기록되어 "
-		+ "재시도 윈도우(7일)가 지나기 전까지는 큐에 다시 노출되지 않습니다.")
+	@Operation(summary = "네이버 enrich 실패 마킹", description = "Python 크롤러가 매칭에 실패한 후 호출. naverMatchedAt 이 기록되어 "
+		+ "재시도 윈도우(7일)가 지나기 전까지는 큐에 다시 노출되지 않습니다. "
+		+ "noCandidates=true(검색 후보 0건=진짜 무결과)면 파킹 카운터가 +1 되어 임계 누적 시 큐에서 영구 제외됩니다.")
 	@PostMapping("/{storeId}/naver-enrich-failed")
 	public ResponseEntity<ApiResponse<Void>> markNaverEnrichFailed(
-			@Parameter(description = "가게 ID") @PathVariable Long storeId) {
-		adminStoreService.markNaverEnrichFailed(storeId);
+			@Parameter(description = "가게 ID") @PathVariable Long storeId,
+			@Parameter(description = "검색 후보 0건 여부(파킹 대상)") @RequestParam(defaultValue = "false") boolean noCandidates) {
+		adminStoreService.markNaverEnrichFailed(storeId, noCandidates);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 

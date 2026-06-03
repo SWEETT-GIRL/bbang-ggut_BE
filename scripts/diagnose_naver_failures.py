@@ -64,12 +64,15 @@ def _load_stores(server: str, ids: Optional[list[int]], limit: int) -> list[dict
 
 def _diagnose_one(page, store: dict) -> dict:
 	"""한 가게 검색+매칭 시뮬레이션 → classify_store 결과 + store 식별자."""
-	candidates = search_naver_candidates(page, store["name"], store.get("address"))
+	search_diag: dict = {}
+	candidates = search_naver_candidates(page, store["name"], store.get("address"), diag=search_diag)
 	matched, scored, reason = select_match(store, candidates)
 	result = classify_store(candidates, matched, reason, scored)
 	result["store_id"] = store["id"]
 	result["store_name"] = store["name"]
 	result["store_address"] = store.get("address") or ""
+	# 차단 신호(allSearch 미발사/non-200)와 진짜 무결과(200 빈응답) 구분 — abort 판단용.
+	result["blocked"] = bool(candidates) is False and search_diag.get("blocked", False)
 	return result
 
 
@@ -151,11 +154,12 @@ def main() -> None:
 			_print_line(r)
 			rows.append(r)
 
-			# 네이버 차단 의심 — 연속 검색 0건이 임계 넘으면 abort (남은 가게는 미진단)
-			if r["bucket"] == "SEARCH_EMPTY":
+			# 네이버 차단 의심 — '차단 신호(allSearch 미발사/non-200)'가 연속 임계 넘으면 abort.
+			# 200 빈응답(진짜 없는 가게)은 정상 진단으로 계속 — 못 찾는 가게가 몰려도 중단 안 함.
+			if r.get("blocked"):
 				empty_streak += 1
 				if empty_streak >= NO_CANDIDATE_ABORT_THRESHOLD:
-					print(f"\n[ABORT] {empty_streak}건 연속 검색 결과 0 — 네이버 차단 의심. 부분 결과만 기록.")
+					print(f"\n[ABORT] 차단 신호 {empty_streak}건 연속 — 네이버 차단 의심. 부분 결과만 기록.")
 					break
 			else:
 				empty_streak = 0

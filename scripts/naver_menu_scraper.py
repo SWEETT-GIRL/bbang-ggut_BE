@@ -179,10 +179,12 @@ def save_naver_place_id(server: str, store_id: int, naver_place_id: str) -> tupl
 		return False, "ERROR"
 
 
-def mark_failed(server: str, store_id: int) -> None:
+def mark_failed(server: str, store_id: int, no_candidates: bool = False) -> None:
+	# no_candidates=True (검색 후보 0건=진짜 무결과)면 백엔드 파킹 카운터가 +1 — 임계 누적 시 큐 제외.
+	# GATE_REJECT(후보 있음)는 False 로 호출해 카운트 안 함(수동 후보선택 대상).
 	url = f"{server}/api/admin/stores/{store_id}/naver-enrich-failed"
 	try:
-		requests.post(url, timeout=10)
+		requests.post(url, params={"noCandidates": str(no_candidates).lower()}, timeout=10)
 	except Exception as e:
 		print(f"  [실패 마킹 실패] store_id={store_id}: {e}")
 
@@ -208,7 +210,8 @@ def save_candidates(server: str, store_id: int, candidates: list[dict]) -> None:
 		payload.append({
 			"naverPlaceId": str(naver_id),
 			"name": re.sub(r"<[^>]+>", "", name),  # <b> 태그 제거
-			"address": c.get("address") or c.get("roadAddress"),
+			# 실패 후보 저장 시에도 도로명주소를 우선 보관해야 나중에 수동/재검증에서 road_match 가 살아난다.
+			"address": c.get("roadAddress") or c.get("address"),
 			"lat": lat,
 			"lng": lng,
 		})
@@ -276,10 +279,13 @@ def upload_images_from_urls(server: str, domain: str, target_id: int, urls: list
 
 # ─── 네이버 크롤링 (Playwright) ──────────────────────────────────────────────
 
-def _naver_search_once(page: Page, query: str) -> list[dict]:
-	"""네이버 지도 한 번 검색 → allSearch 응답 가로채서 후보 places 반환.
+def _naver_search_once(page: Page, query: str) -> tuple[list[dict], bool]:
+	"""네이버 지도 한 번 검색 → (후보 places, 차단의심 여부) 반환.
 
-	0건일 때만 진단 로그(응답 상태/파싱 오류/allSearch 미발사) 출력 — 정상 케이스는 노이즈 X.
+	차단의심(blocked)은 후보가 0건일 때만 의미 있음:
+	  · True  — allSearch XHR 미발사 OR non-200 응답 → IP/UA 차단·페이지 로드 실패 의심.
+	  · False — allSearch 200 응답 + 빈 list → 네이버에 진짜 없는 가게(폐업/오등록 등).
+	0건일 때만 진단 로그 출력 — 정상 케이스는 노이즈 X.
 	"""
 	captured: list[dict] = []
 	statuses: list[tuple[int, str]] = []  # (status, content-type) — allSearch 응답만
@@ -316,31 +322,43 @@ def _naver_search_once(page: Page, query: str) -> list[dict]:
 		print(f"  [페이지 로드 실패] {query}: {e}")
 	page.remove_listener("response", handle_response)
 
+	blocked = False
 	if not captured:
+		non_200 = [(s, c) for s, c in statuses if s != 200]
 		if not allsearch_seen:
 			print(f"  [diag] allSearch XHR 미발사 — 페이지 로드 실패 or 차단 의심")
+			blocked = True
 		else:
-			non_200 = [(s, c) for s, c in statuses if s != 200]
 			if non_200:
 				print(f"  [diag] allSearch non-200: {non_200[:3]}")
+				blocked = True
 			if parse_errors:
 				print(f"  [diag] JSON 파싱 에러: {parse_errors[:2]}")
 			if not non_200 and not parse_errors:
 				print(f"  [diag] allSearch 200 응답이나 places 비어있음 — 실제 무결과")
 
-	return captured
+	return captured, blocked
 
 
-def search_naver_candidates(page: Page, store_name: str, store_address: Optional[str] = None) -> list[dict]:
+def search_naver_candidates(
+		page: Page,
+		store_name: str,
+		store_address: Optional[str] = None,
+		diag: Optional[dict] = None) -> list[dict]:
 	"""네이버 지도 검색 → 후보 places 반환.
 
-	검색 전략 (각 단계에서 결과 나오면 즉시 반환):
-	  1) "{이름} {행정구역}" — 체인점의 진짜 매장이 1페이지에 떠오르게.
+	diag 가 주어지면 후보 0건일 때 diag["blocked"] 에 차단의심 여부를 기록한다 —
+	시도한 쿼리 중 하나라도 차단 신호(allSearch 미발사/non-200)면 True, 전부 200 빈
+	응답이면 False(진짜 없는 가게). 호출부(main 루프)가 이걸로 abort 여부를 가른다.
+
+	검색 전략 (지역/도로명 후보는 dedup 해서 모은 뒤 반환):
+	  1) 짧은 이름이면 "{이름} {도로명}" 우선 — 흔한 2~5자 이름의 엉뚱한 후보 방지.
+	  2) "{이름} {행정구역}" — 체인점의 진짜 매장이 1페이지에 떠오르게.
 	     일반 접미사(본점/지점/호점)는 떼고 '○○점' 같은 지역 힌트는 유지.
-	  2) "{카테고리 strip된 이름} {행정구역}" — '유어사이드 커피로스터리' 같이 카테고리 단어 꼬리
+	  3) "{카테고리 strip된 이름} {행정구역}" — '유어사이드 커피로스터리' 같이 카테고리 단어 꼬리
 	     붙은 케이스에서 핵심 브랜드명으로 좁혀 재시도.
-	  3) "{이름} {도로명}" — 행정구역만으로 좁혀지지 않는 짧은 이름('올'/'오리' 등) 대응.
-	  4) 이름만 — 지역 인덱스 없는 케이스 fallback.
+	  4) "{이름} {도로명}" — 행정구역 결과가 엉뚱한 짧은 이름('올'/'오리' 등) 대응.
+	  5) 이름만 — 지역 인덱스 없는 케이스 fallback.
 	잘못된 후보는 뒤의 select_match 가 점수+게이트로 걸러냄.
 	"""
 	# 사업자명 노이즈 먼저 제거 (브랜드명만 남김)
@@ -351,40 +369,69 @@ def search_naver_candidates(page: Page, store_name: str, store_address: Optional
 	road = extract_road_name(store_address)
 
 	tried: set[str] = set()
+	seen: set[str] = set()
+	collected: list[dict] = []
+	blocked_any = False
 
-	def try_query(q: str) -> Optional[list[dict]]:
+	def candidate_key(c: dict) -> str:
+		return str(c.get("id") or (
+			f"{c.get('name')}|{c.get('address') or c.get('roadAddress')}|"
+			f"{c.get('x')}|{c.get('y')}"))
+
+	def add_results(results: list[dict]) -> None:
+		for cand in results:
+			key = candidate_key(cand)
+			if key in seen:
+				continue
+			seen.add(key)
+			collected.append(cand)
+
+	def try_query(q: str) -> list[dict]:
+		nonlocal blocked_any
 		q = q.strip()
 		if not q or q in tried:
-			return None
+			return []
 		tried.add(q)
 		print(f"  검색: '{q}'")
-		results = _naver_search_once(page, q)
-		return results if results else None
+		results, blocked = _naver_search_once(page, q)
+		if not results and blocked:
+			blocked_any = True
+		if results:
+			add_results(results)
+		return results
+
+	name_len = len(normalize_name(category_stripped or base))
+	road_fallback = bool(road and name_len <= 5)
+
+	# 짧고 흔한 이름은 '구'보다 도로명이 훨씬 강한 힌트다. 기존에는 구 검색 결과가
+	# 하나라도 나오면 도로명 fallback 을 타지 않아 top 후보가 엉뚱해지는 케이스가 많았다.
+	if road_fallback and name_len <= 3:
+		try_query(f"{base} {road}")
+		if category_stripped != base and category_stripped:
+			try_query(f"{category_stripped} {road}")
 
 	if district:
-		results = try_query(f"{base} {district}")
-		if results:
-			return results
+		try_query(f"{base} {district}")
 		# 카테고리 단어 strip 결과가 다르면 한 번 더 시도
 		if category_stripped != base and category_stripped:
-			results = try_query(f"{category_stripped} {district}")
-			if results:
-				return results
+			try_query(f"{category_stripped} {district}")
 
-	# 짧은 이름은 도로명으로 좁혀야 1페이지에 진짜 매장이 떠오름
-	if road and len(base) <= 3:
-		results = try_query(f"{base} {road}")
-		if results:
-			return results
+	if road_fallback and name_len > 3:
+		try_query(f"{base} {road}")
+		if category_stripped != base and category_stripped:
+			try_query(f"{category_stripped} {road}")
+
+	if collected:
+		return collected
 
 	# 최종 fallback — 이름만
 	results = try_query(base)
 	if results:
-		return results
+		return collected
 	if category_stripped != base and category_stripped:
 		results = try_query(category_stripped)
 		if results:
-			return results
+			return collected
 
 	# 카페가 네이버에 '카페 ○○' / '○○ 카페' 로 등록된 경우 대응 — 위 검색이 다 실패했을 때만
 	# 추가로 카페 prefix/suffix 변형을 시도(예: '만바네' → '카페 만바네', '만바네 카페').
@@ -397,8 +444,10 @@ def search_naver_candidates(page: Page, store_name: str, store_address: Optional
 		for q in variants:
 			results = try_query(q)
 			if results:
-				return results
-	return []
+				return collected
+	if diag is not None:
+		diag["blocked"] = blocked_any
+	return collected
 
 
 def fetch_menu_data(page: Page, naver_place_id: str) -> dict[str, dict]:
@@ -606,7 +655,7 @@ def process_store(page: Page, store: dict, server: str, dry_run: bool, verbose: 
 	"""
 	stats = {"matched": 0, "menus_created": 0, "images_uploaded": 0, "skipped_menu_crawl": 0,
 			"photos_uploaded": 0, "skipped_photo_crawl": 0,
-			"failed": 0, "no_candidates": False}
+			"failed": 0, "no_candidates": False, "blocked": False}
 
 	store_id = store["id"]
 	store_name = store["name"]
@@ -626,13 +675,17 @@ def process_store(page: Page, store: dict, server: str, dry_run: bool, verbose: 
 		return _enrich_with_place_id(page, store_id, existing_place_id,
 			existing_menu_count, existing_photo_count, None, server, stats, crawl_menus)
 
-	candidates = search_naver_candidates(page, store_name, store.get("address"))
+	search_diag: dict = {}
+	candidates = search_naver_candidates(page, store_name, store.get("address"), diag=search_diag)
 	if not candidates:
-		print("  → 네이버 검색 결과 없음")
+		blocked = search_diag.get("blocked", False)
+		print("  → 네이버 검색 결과 없음" + ("  (차단 의심)" if blocked else "  (진짜 무결과)"))
 		if not dry_run:
-			mark_failed(server, store_id)
+			# 차단 의심이면 파킹 카운트 제외(우리 쪽 문제) — 진짜 무결과만 +1.
+			mark_failed(server, store_id, no_candidates=not blocked)
 		stats["failed"] = 1
 		stats["no_candidates"] = True
+		stats["blocked"] = blocked
 		return stats
 
 	# 점수 + 게이트로 후보 평가 → top1 선택. select_match 가 (체인성, 거리, 도로명, 점수컷,
@@ -840,7 +893,7 @@ def main() -> None:
 		else:
 			# 큐 모드 (Option B 또는 운영자 CLI)
 			batches_done = 0
-			no_candidate_streak = 0
+			blocked_streak = 0
 			while True:
 				queue = fetch_queue(args.server, args.batch, path=queue_path)
 				if not queue:
@@ -852,17 +905,19 @@ def main() -> None:
 						crawl_menus=crawl_menus)
 					for k in total:
 						total[k] += result.get(k, 0)
-					# 네이버 차단 의심 — N건 연속으로 검색 결과 0이면 abort (대량 false-fail 방지)
-					if result.get("no_candidates"):
-						no_candidate_streak += 1
-						if no_candidate_streak >= NO_CANDIDATE_ABORT_THRESHOLD:
-							print(f"\n[ABORT] {no_candidate_streak}건 연속 검색 결과 0 — 네이버 차단 의심.")
+					# 네이버 차단 의심 — '차단 신호(allSearch 미발사/non-200)' 검색이 N건 연속이면
+					# abort. 200 빈응답(진짜 없는 가게)은 abort 안 함 — 못 찾는 가게가 큐에 몰려도
+					# 배치 전체를 죽이지 않고 mark_failed 후 계속 진행(대량 false-abort 방지).
+					if result.get("blocked"):
+						blocked_streak += 1
+						if blocked_streak >= NO_CANDIDATE_ABORT_THRESHOLD:
+							print(f"\n[ABORT] 차단 신호 {blocked_streak}건 연속 — 네이버 차단 의심.")
 							print(f"        위의 [diag] 로그 확인. IP/UA/요청간격 점검 후 재시도하세요.")
 							print(f"        실패 마킹된 가게는 /naver-enrich-retry 로 throttle 해제 가능.")
 							browser.close()
 							sys.exit(3)
 					else:
-						no_candidate_streak = 0
+						blocked_streak = 0
 					time.sleep(INTER_STORE_DELAY_SEC + random.uniform(0, INTER_STORE_JITTER_SEC))
 				batches_done += 1
 				if not args.loop:

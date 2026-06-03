@@ -132,7 +132,7 @@ def normalize_name(name: str) -> str:
 	s = strip_company_suffix(s)
 	s = strip_branch_suffix(s)
 	s = re.sub(r"\s+", "", s)
-	s = re.sub(r"[^\w가-힣]", "", s)
+	s = re.sub(r"[^0-9A-Za-z가-힣]", "", s)
 	s = s.replace("앤", "")
 	return s.lower()
 
@@ -219,6 +219,39 @@ def extract_road_and_number(address: Optional[str]) -> tuple[str, str]:
 			if i + 1 < len(tokens) and _NUMBER_TOKEN_RE.match(tokens[i + 1]):
 				return tok, tokens[i + 1]
 	return "", ""
+
+
+def _naver_address_values(naver: dict) -> list[str]:
+	"""네이버 후보 주소들을 roadAddress 우선순위로 반환.
+
+	allSearch 는 address(지번)와 roadAddress(도로명)를 둘 다 주는 경우가 있다. 도로명 비교는
+	반드시 roadAddress 를 먼저 봐야 한다. 저장 후보/수동 후보처럼 address 하나만 남은 경우도
+	호환한다.
+	"""
+	values: list[str] = []
+	for key in ("roadAddress", "roadAddressName", "road_address_name", "address"):
+		value = naver.get(key)
+		if not value:
+			continue
+		value = str(value).strip()
+		if value and value not in values:
+			values.append(value)
+	return values
+
+
+def _naver_road_and_number(naver: dict) -> tuple[str, str]:
+	for addr in _naver_address_values(naver):
+		road, num = extract_road_and_number(addr)
+		if road and num:
+			return road, num
+	return "", ""
+
+
+def _naver_district_tokens(naver: dict) -> set[str]:
+	tokens: set[str] = set()
+	for addr in _naver_address_values(naver):
+		tokens |= extract_district_tokens(addr)
+	return tokens
 
 
 # ─── 메뉴 카테고리 ────────────────────────────────────────────────────────────
@@ -404,6 +437,20 @@ def branch_tokens(name: str) -> set[str]:
 	return {m.group(0) for m in _BRANCH_TOKEN_RE.finditer(s) if len(m.group(0)) >= 2}
 
 
+def _canonical_branch_token(token: str) -> str:
+	"""지점 토큰 표기차 정규화.
+
+	'신사역점' ↔ '신사점', '홍대지점' ↔ '홍대점', 'GS직영점' ↔ 'GS점' 같은
+	동일 지점 표기차를 충돌로 보지 않기 위한 보조 정규화다.
+	"""
+	if not token:
+		return ""
+	t = token.strip()
+	t = re.sub(r"(?:지점|직영점|본점|매장)$", "점", t)
+	t = re.sub(r"역점$", "점", t)
+	return t
+
+
 def branch_conflict(a: str, b: str) -> bool:
 	"""양쪽 다 분점 토큰이 있는데 공통이 하나도 없으면 True (다른 지점에 오매칭 방지).
 
@@ -413,14 +460,33 @@ def branch_conflict(a: str, b: str) -> bool:
 	ta, tb = branch_tokens(a), branch_tokens(b)
 	if not ta or not tb:
 		return False
-	return ta.isdisjoint(tb)
+	for left in ta:
+		for right in tb:
+			c_left = _canonical_branch_token(left)
+			c_right = _canonical_branch_token(right)
+			if left == right or c_left == c_right:
+				return False
+			# 카카오는 '롯데백화점강남점', 네이버는 '강남점'처럼 입점 시설명이
+			# 분점 토큰 앞에 붙거나 떨어지는 경우가 많다. suffix containment 는 같은
+			# 지점 표기차로 본다. ('광주2호점' vs '광주점'은 containment 가 아니므로 충돌 유지)
+			if len(c_left) >= 3 and len(c_right) >= 3 and (
+					c_left.endswith(c_right) or c_right.endswith(c_left)):
+				return False
+	return True
 
 
 # 카테고리성 일반어 — 이름에서 빼도 가게 정체성이 유지되는 단어. mid 매칭이 '머리(브랜드)
 # 잘림'인지 '일반어 차이'인지 가르는 데 쓴다. 긴 단어 먼저(제과점 → 제과 순서 보존).
 _GENERIC_NAME_WORDS = (
+	"주문제작", "레터링", "베이킹", "로스터스", "로스터리", "플래그쉽", "플래그십",
 	"베이커리", "제과점", "제과", "카페", "커피", "케이크", "디저트",
-	"베이글", "브레드", "도넛", "분식", "스토어",
+	"베이글", "브레드", "도넛", "분식", "스토어", "스튜디오", "전문점", "비건",
+	"쿠킹클래스", "글루텐프리", "케이크샵", "에그타르트", "생과일",
+	"24시", "무인", "샵",
+	"롯데백화점", "현대백화점", "신세계백화점", "백화점", "더현대",
+	"스타필드", "타임스퀘어", "월드몰", "센터필드", "아울렛", "호텔",
+	"coffee", "cafe", "bakery", "bread", "cakes", "cake", "dessert",
+	"bagels", "bagel", "roastery", "roasters", "roaster", "studio", "shop", "store", "vegan",
 )
 
 
@@ -440,7 +506,34 @@ def names_same_ignoring_generic(a: str, b: str) -> bool:
 	gb = _strip_generic_words(normalize_name(b))
 	if len(ga) < 2 or len(gb) < 2:
 		return False
-	return ga == gb
+	if ga == gb:
+		return True
+	ka = re.sub(r"[^가-힣]", "", ga)
+	kb = re.sub(r"[^가-힣]", "", gb)
+	return len(ka) >= 2 and len(kb) >= 2 and ka == kb
+
+
+def names_related_for_near_match(a: str, b: str) -> bool:
+	"""30m 이내 확정 후보에서만 쓰는 넓은 이름 관련성 판정.
+
+	일반어/영문 카테고리 제거 후 동일하거나, 후보명 앞에 지역/시설 prefix 가 붙고 핵심명이
+	그대로 남는 경우를 허용한다. 짧은 1~2자 이름은 prefix/suffix 완화를 하지 않아 '오라',
+	'수' 같은 동명이점 오매칭을 막는다.
+	"""
+	if names_same_ignoring_generic(a, b):
+		return True
+	ga = _strip_generic_words(normalize_name(a))
+	gb = _strip_generic_words(normalize_name(b))
+	if len(ga) < 3 or len(gb) < 3:
+		return False
+	shorter, longer = (ga, gb) if len(ga) <= len(gb) else (gb, ga)
+	if len(shorter) < 3:
+		return False
+	if longer.endswith(shorter) and len(longer) - len(shorter) <= 4:
+		return True
+	if longer.startswith(shorter) and len(longer) - len(shorter) <= 4:
+		return True
+	return False
 
 
 # ─── 폐업 감지 ────────────────────────────────────────────────────────────────
@@ -501,13 +594,12 @@ def score_candidate(kakao: dict, naver: dict) -> dict:
 
 	# 도로명 + 건물번호 일치
 	k_road, k_num = extract_road_and_number(kakao.get("address", ""))
-	n_addr = naver.get("address") or naver.get("roadAddress") or ""
-	n_road, n_num = extract_road_and_number(n_addr)
+	n_road, n_num = _naver_road_and_number(naver)
 	road_pts = 15 if (k_road and n_road and k_road == n_road and k_num == n_num) else 0
 
 	# 행정동 겹침
 	k_dist = extract_district_tokens(kakao.get("address", ""))
-	n_dist = extract_district_tokens(n_addr)
+	n_dist = _naver_district_tokens(naver)
 	district_pts = 5 if (k_dist & n_dist) else 0
 
 	# 폐업
@@ -533,6 +625,61 @@ def score_candidate(kakao: dict, naver: dict) -> dict:
 MIN_SCORE_AUTO_SELECT = 60
 MIN_SCORE_GAP_AUTO_SELECT = 15
 
+# exact 이름 + 행정동/리 일치 + 도로명 충돌 없음일 때 허용 거리.
+#  · 양쪽 도로명+번지 비교 가능: 80m (좌표 오차 흡수, 도시 동명이점 오매칭 방지).
+#  · 한쪽이 지번이라 도로명 비교 불가: 110m — 시골 지번 가게는 지오코딩 오차가 커서
+#    84m('하얀오골계 베이커리카페') 같은 동일 가게가 80m 컷에 걸리던 문제 구제.
+EXACT_DONG_RADIUS_M = 80
+EXACT_DONG_JIBUN_RADIUS_M = 110
+CHAIN_EXACT_DONG_RADIUS_M = 90
+
+
+def _road_conflict(kakao: dict, naver: dict) -> bool:
+	k_road, k_num = extract_road_and_number(kakao.get("address", ""))
+	n_road, n_num = _naver_road_and_number(naver)
+	return bool(k_road and n_road and (k_road != n_road or k_num != n_num))
+
+
+def _exact_dong_confirm(kakao: dict, naver: dict, score: dict) -> bool:
+	"""exact 이름 + 행정동/리 일치 + 도로명 충돌 없음 + 비체인 + 거리 통과 = 동일 가게 확정.
+
+	도로명을 양쪽 다 비교 가능하면 EXACT_DONG_RADIUS_M, 한쪽이 지번이라 비교 불가하면
+	EXACT_DONG_JIBUN_RADIUS_M 까지 허용. 게이트 통과 + 점수컷(60) 면제 양쪽에서 공용.
+	"""
+	if score["name_kind"] != "exact" or score["breakdown"]["district"] <= 0:
+		return False
+	dist_m = score["distance_m"]
+	if dist_m is None:
+		return False
+	if is_chain_like(kakao.get("name", "")):
+		return False
+	if _road_conflict(kakao, naver):
+		return False  # 도로명 충돌 = 옆 지점이므로 제외
+	k_road, _ = extract_road_and_number(kakao.get("address", ""))
+	n_road, _ = _naver_road_and_number(naver)
+	limit = EXACT_DONG_RADIUS_M if (k_road and n_road) else EXACT_DONG_JIBUN_RADIUS_M
+	return dist_m <= limit
+
+
+def _chain_exact_dong_confirm(kakao: dict, naver: dict, score: dict) -> bool:
+	"""체인/분점 이름 exact 이고 같은 행정구역이면 지번 주소 좌표 오차를 일부 흡수.
+
+	체인명만 exact 인 오매칭을 피하려고, 유명 체인 힌트로 잡힌 가게는 지점 토큰이 한쪽에라도
+	있을 때만 완화한다. 도로명+번지가 양쪽 모두 있는데 다르면 다른 지점으로 본다.
+	"""
+	if score["name_kind"] != "exact" or score["breakdown"]["district"] <= 0:
+		return False
+	dist_m = score["distance_m"]
+	if dist_m is None or dist_m > CHAIN_EXACT_DONG_RADIUS_M:
+		return False
+	if _road_conflict(kakao, naver):
+		return False
+	k_name = kakao.get("name", "")
+	n_name = naver.get("name", "")
+	if any(k_name.startswith(h) for h in CHAIN_HINTS) and not (branch_tokens(k_name) or branch_tokens(n_name)):
+		return False
+	return True
+
 
 def _gate_pass(kakao: dict, naver: dict, score: dict) -> tuple[bool, str]:
 	"""점수 외 추가 게이트. (통과 여부, 사유)."""
@@ -554,15 +701,28 @@ def _gate_pass(kakao: dict, naver: dict, score: dict) -> tuple[bool, str]:
 
 	# mid(중간/꼬리 부분일치)는 '머리(브랜드) 잘림'일 위험 — 일반어(카페/제과) 차이일 때만 인정.
 	# 예: '베지경주제과'↔'경주제과'(베지 머리 잘림)는 도로명이 겹쳐도 거부. '카페X'↔'X'는 통과.
-	if kind == "mid" and not names_same_ignoring_generic(k_name, n_name):
+	if kind == "mid" and not (
+			names_same_ignoring_generic(k_name, n_name)
+			or (dist_m is not None and dist_m <= 30 and names_related_for_near_match(k_name, n_name))):
 		return False, "이름 부분일치(머리 다름)"
 
 	if chain:
-		# A: 체인성 — 거리 ≤ 30m AND (도로명번호 일치 OR 이름 exact)
-		if dist_m is None or dist_m > 30:
+		# A: 체인성 — 기본은 거리 ≤ 30m AND (도로명번호 일치 OR 이름 exact).
+		# 단, 백화점/아울렛/대형몰 입점 매장은 카카오/네이버 좌표가 건물 양끝으로 50~80m
+		# 흔들리는 경우가 많다. 이름 exact + 도로명번호 일치면 같은 입점 매장으로 보고 80m 까지 허용.
+		related_name = kind != "none" or names_related_for_near_match(k_name, n_name)
+		if dist_m is None:
+			if bk["road"] > 0:
+				return True, "체인 좌표 없음, 도로명번호 일치"
 			return False, f"체인 거리 미달 (dist={dist_m})"
-		if not (bk["road"] > 0 or kind == "exact"):
-			return False, "체인 도로명번호 불일치 + 이름 비-exact"
+		if kind == "exact" and bk["road"] > 0 and dist_m <= 80:
+			return True, f"체인 도로명+거리 통과 ({dist_m:.0f}m)"
+		if _chain_exact_dong_confirm(kakao, naver, score):
+			return True, f"체인 이름 일치+동 일치, 거리 통과 ({dist_m:.0f}m)"
+		if dist_m > 30:
+			return False, f"체인 거리 미달 (dist={dist_m})"
+		if not (bk["road"] > 0 or related_name):
+			return False, "체인 도로명번호 불일치 + 이름 무관"
 		return True, "체인 게이트 통과"
 
 	if dist_m is not None:
@@ -574,13 +734,9 @@ def _gate_pass(kakao: dict, naver: dict, score: dict) -> tuple[bool, str]:
 			return True, f"도로명+거리 통과 ({dist_m:.0f}m)"
 		# 이름 exact + 행정동/리 일치면 같은 가게라는 강한 증거 — 단, 양쪽 도로명+번지가 모두
 		# 있는데 서로 다를 때(테헤란로 vs 봉은사로)는 옆지점 충돌이므로 제외. 한쪽이 지번이라
-		# 비교 불가하거나(코티지송송) 도로명이 일치하면 좌표 오차(≤80m)를 흡수.
+		# 비교 불가하거나(코티지송송·하얀오골계) 도로명이 일치하면 좌표 오차를 흡수.
 		# 비-exact 는 아래 30m 컷 유지 → 브랜드 옆지점 오매칭 방지는 그대로.
-		k_road, k_num = extract_road_and_number(kakao.get("address", ""))
-		n_addr = naver.get("address") or naver.get("roadAddress") or ""
-		n_road, n_num = extract_road_and_number(n_addr)
-		road_conflict = bool(k_road and n_road and (k_road != n_road or k_num != n_num))
-		if kind == "exact" and bk["district"] > 0 and not road_conflict and dist_m <= 80:
+		if _exact_dong_confirm(kakao, naver, score):
 			return True, f"이름 일치+동 일치, 거리 통과 ({dist_m:.0f}m)"
 		if dist_m <= 30:
 			return True, f"근접 통과 ({dist_m:.0f}m)"
@@ -631,13 +787,23 @@ def select_match(
 	# 게이트에서 이미 '머리 다른 mid'·지점명 충돌은 걸러졌으므로, 여기선 이름 관련(비-none)이면
 	# 같은 가게로 본다. exact/prefix/일반어차이-mid 만 여기 도달.
 	addr_confirmed = bk["road"] > 0 and dist_m is not None and dist_m <= 30
+	related_name = kind != "none" or names_related_for_near_match(kakao.get("name", ""), top_cand.get("name", ""))
+	chain = is_chain_like(kakao.get("name", ""))
 	prox_confirmed = (
 		dist_m is not None and dist_m <= 30
-		and kind != "none"
+		and related_name
 		and bk["district"] > 0
-		and not is_chain_like(kakao.get("name", ""))
+		and not chain
 	)
-	if addr_confirmed or prox_confirmed:
+	chain_prox_confirmed = (
+		dist_m is not None and dist_m <= 30
+		and related_name
+		and chain
+	)
+	# exact + 동 일치 + 지번(도로명 비교 불가)이면 ≤110m 까지 동일 가게 확정 — 점수컷 면제.
+	# 84m '하얀오골계'처럼 도로명 점수가 없어 60 미만이라도 구제(게이트와 동일 기준).
+	exact_dong_confirmed = _exact_dong_confirm(kakao, top_cand, top_score)
+	if addr_confirmed or prox_confirmed or chain_prox_confirmed or exact_dong_confirmed:
 		if not _gap_ok():
 			gap = top_score["total"] - scored[1][1]["total"]
 			return None, scored, f"top1-top2 격차 부족 ({gap} < {MIN_SCORE_GAP_AUTO_SELECT})"
