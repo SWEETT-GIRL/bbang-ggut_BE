@@ -132,9 +132,16 @@ def _wait_entry_frame(page, timeout_ms: int = 8000):
 
 # ─── 백엔드 API 클라이언트 ────────────────────────────────────────────────────
 
-def fetch_queue(server: str, size: int, path: str = "naver-enrich-queue") -> list[dict]:
-	url = f"{server}/api/admin/stores/{path}?page=0&size={size}"
-	resp = requests.get(url, timeout=15)
+def fetch_queue(
+		server: str,
+		size: int,
+		path: str = "naver-enrich-queue",
+		partition: Optional[str] = None) -> list[dict]:
+	url = f"{server}/api/admin/stores/{path}"
+	params = {"page": 0, "size": size}
+	if partition:
+		params["partition"] = partition
+	resp = requests.get(url, params=params, timeout=15)
 	resp.raise_for_status()
 	return resp.json().get("data", {}).get("content", []) or []
 
@@ -846,6 +853,8 @@ def main() -> None:
 		help="매칭됨+사진 0장 큐만 처리 — 검색은 스킵하고 사진만 보충 (process_store 분기로 자동 처리)")
 	parser.add_argument("--enrich-backfill", action="store_true",
 		help="매칭됨(placeId 있음)인데 메뉴 OR 사진 빈 큐 처리 — 검색 스킵, 메뉴+사진 둘 다 풀 보충")
+	parser.add_argument("--partition", choices=["P1", "P2", "P3"],
+		help="작업 파티션(큐 모드 필수): P1/P2/P3 = store id 기준 균등 분배")
 	parser.add_argument("--headless", action="store_true", default=True, help="브라우저 창 숨김 (기본 ON)")
 	parser.add_argument("--show-browser", dest="headless", action="store_false", help="브라우저 창 표시")
 	args = parser.parse_args()
@@ -863,7 +872,12 @@ def main() -> None:
 	if args.store_id:
 		print(f"단일 가게 모드: store_id={args.store_id}")
 	else:
+		if not args.partition:
+			print("[오류] 큐 모드는 --partition P1|P2|P3 중 하나가 필요합니다. 전체 큐 실행은 중복 위험 때문에 막혀 있습니다.")
+			sys.exit(2)
 		print(f"큐 모드 [{mode}] — 배치 크기: {args.batch}, loop={args.loop}, dry-run={args.dry_run}")
+		if args.partition:
+			print(f"작업 파티션: {args.partition}")
 
 	total = {"matched": 0, "menus_created": 0, "images_uploaded": 0, "skipped_menu_crawl": 0,
 			"photos_uploaded": 0, "skipped_photo_crawl": 0, "failed": 0}
@@ -895,7 +909,7 @@ def main() -> None:
 			batches_done = 0
 			blocked_streak = 0
 			while True:
-				queue = fetch_queue(args.server, args.batch, path=queue_path)
+				queue = fetch_queue(args.server, args.batch, path=queue_path, partition=args.partition)
 				if not queue:
 					print("\n[큐 비어있음 — 종료]")
 					break
