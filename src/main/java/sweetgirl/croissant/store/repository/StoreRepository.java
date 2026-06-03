@@ -229,11 +229,18 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 				AND s.naverPlaceId IS NULL
 				AND s.naverEnrichAttempts < :maxAttempts
 				AND (s.naverMatchedAt IS NULL OR s.naverMatchedAt < :retryThreshold)
+				AND (
+					:partition IS NULL
+					OR (:partition = 'P1' AND MOD(s.id, 3) = 0)
+					OR (:partition = 'P2' AND MOD(s.id, 3) = 1)
+					OR (:partition = 'P3' AND MOD(s.id, 3) = 2)
+				)
 				ORDER BY s.id ASC
 			""")
 	Page<Store> findNaverEnrichQueue(
 			@Param("retryThreshold") Instant retryThreshold,
 			@Param("maxAttempts") int maxAttempts,
+			@Param("partition") String partition,
 			Pageable pageable);
 
 	// 매칭은 됐지만 가게 사진이 0장인 가게 — 사진 보충 일괄 크롤 대상.
@@ -245,9 +252,15 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 				AND NOT EXISTS (
 					SELECT 1 FROM StoreImageFile i WHERE i.store.id = s.id
 				)
+				AND (
+					:partition IS NULL
+					OR (:partition = 'P1' AND MOD(s.id, 3) = 0)
+					OR (:partition = 'P2' AND MOD(s.id, 3) = 1)
+					OR (:partition = 'P3' AND MOD(s.id, 3) = 2)
+				)
 				ORDER BY s.id ASC
 			""")
-	Page<Store> findMatchedWithoutPhotos(Pageable pageable);
+	Page<Store> findMatchedWithoutPhotos(@Param("partition") String partition, Pageable pageable);
 
 	@Query("""
 				SELECT COUNT(s) FROM Store s
@@ -256,8 +269,14 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 				AND NOT EXISTS (
 					SELECT 1 FROM StoreImageFile i WHERE i.store.id = s.id
 				)
+				AND (
+					:partition IS NULL
+					OR (:partition = 'P1' AND MOD(s.id, 3) = 0)
+					OR (:partition = 'P2' AND MOD(s.id, 3) = 1)
+					OR (:partition = 'P3' AND MOD(s.id, 3) = 2)
+				)
 			""")
-	long countMatchedWithoutPhotos();
+	long countMatchedWithoutPhotos(@Param("partition") String partition);
 
 	// 매칭됐지만(naverPlaceId 있음) 활성 메뉴 또는 사진이 비어 enrich 가 안 끝난 가게 — 풀 enrich 백필 대상.
 	// 수동/후보 매칭으로 placeId 만 채워진 가게(메뉴·사진 0)가 자동으로 여기 들어온다. (사진만 보충하는
@@ -270,9 +289,15 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 					NOT EXISTS (SELECT 1 FROM Menu m WHERE m.store.id = s.id AND m.deletedAt IS NULL)
 					OR NOT EXISTS (SELECT 1 FROM StoreImageFile i WHERE i.store.id = s.id)
 				)
+				AND (
+					:partition IS NULL
+					OR (:partition = 'P1' AND MOD(s.id, 3) = 0)
+					OR (:partition = 'P2' AND MOD(s.id, 3) = 1)
+					OR (:partition = 'P3' AND MOD(s.id, 3) = 2)
+				)
 				ORDER BY s.id ASC
 			""")
-	Page<Store> findMatchedNeedingEnrich(Pageable pageable);
+	Page<Store> findMatchedNeedingEnrich(@Param("partition") String partition, Pageable pageable);
 
 	@Query("""
 				SELECT COUNT(s) FROM Store s
@@ -282,8 +307,14 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 					NOT EXISTS (SELECT 1 FROM Menu m WHERE m.store.id = s.id AND m.deletedAt IS NULL)
 					OR NOT EXISTS (SELECT 1 FROM StoreImageFile i WHERE i.store.id = s.id)
 				)
+				AND (
+					:partition IS NULL
+					OR (:partition = 'P1' AND MOD(s.id, 3) = 0)
+					OR (:partition = 'P2' AND MOD(s.id, 3) = 1)
+					OR (:partition = 'P3' AND MOD(s.id, 3) = 2)
+				)
 			""")
-	long countMatchedNeedingEnrich();
+	long countMatchedNeedingEnrich(@Param("partition") String partition);
 
 	Optional<Store> findByNaverPlaceId(String naverPlaceId);
 

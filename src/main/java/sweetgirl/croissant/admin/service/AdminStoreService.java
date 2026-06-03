@@ -158,9 +158,17 @@ public class AdminStoreService {
 	private static final int NAVER_MAX_ENRICH_ATTEMPTS = 3;
 
 	public Page<AdminNaverEnrichQueueItem> getNaverEnrichQueue(Pageable pageable) {
+		return getNaverEnrichQueue(pageable, null);
+	}
+
+	public Page<AdminNaverEnrichQueueItem> getNaverEnrichQueue(
+			Pageable pageable, NaverEnrichPartition partition) {
 		Instant retryThreshold = Instant.now().minus(NAVER_RETRY_AFTER_DAYS, ChronoUnit.DAYS);
 		Page<Store> stores = storeRepository.findNaverEnrichQueue(
-			retryThreshold, NAVER_MAX_ENRICH_ATTEMPTS, pageable);
+			retryThreshold,
+			NAVER_MAX_ENRICH_ATTEMPTS,
+			NaverEnrichPartition.valueOfNullable(partition),
+			pageable);
 		List<Long> storeIds = stores.getContent().stream().map(Store::getId).toList();
 		Map<Long, Long> menuCountMap = getMenuCountMap(storeIds);
 		Map<Long, Long> photoCountMap = getPhotoCountMap(storeIds);
@@ -173,7 +181,13 @@ public class AdminStoreService {
 	// 매칭은 됐지만 사진이 0장인 가게 — 사진 보충 일괄 크롤 큐.
 	// Python 스크래퍼는 store.naverPlaceId 가 들어있으면 검색을 스킵하고 바로 사진만 가져옴.
 	public Page<AdminNaverEnrichQueueItem> getPhotoBackfillQueue(Pageable pageable) {
-		Page<Store> stores = storeRepository.findMatchedWithoutPhotos(pageable);
+		return getPhotoBackfillQueue(pageable, null);
+	}
+
+	public Page<AdminNaverEnrichQueueItem> getPhotoBackfillQueue(
+			Pageable pageable, NaverEnrichPartition partition) {
+		Page<Store> stores = storeRepository.findMatchedWithoutPhotos(
+			NaverEnrichPartition.valueOfNullable(partition), pageable);
 		List<Long> storeIds = stores.getContent().stream().map(Store::getId).toList();
 		Map<Long, Long> menuCountMap = getMenuCountMap(storeIds);
 		return stores.map(s -> AdminNaverEnrichQueueItem.from(
@@ -183,13 +197,23 @@ public class AdminStoreService {
 	}
 
 	public long countPhotoBackfillQueue() {
-		return storeRepository.countMatchedWithoutPhotos();
+		return countPhotoBackfillQueue(null);
+	}
+
+	public long countPhotoBackfillQueue(NaverEnrichPartition partition) {
+		return storeRepository.countMatchedWithoutPhotos(NaverEnrichPartition.valueOfNullable(partition));
 	}
 
 	// placeId 는 있으나 메뉴 또는 사진이 비어 enrich 가 안 끝난 가게 — 메뉴+사진 풀 enrich 백필 큐.
 	// 수동/후보 매칭(updateNaverPlaceId)으로 placeId 만 채워진 가게가 자동으로 여기 들어와 크롤된다.
 	public Page<AdminNaverEnrichQueueItem> getEnrichBackfillQueue(Pageable pageable) {
-		Page<Store> stores = storeRepository.findMatchedNeedingEnrich(pageable);
+		return getEnrichBackfillQueue(pageable, null);
+	}
+
+	public Page<AdminNaverEnrichQueueItem> getEnrichBackfillQueue(
+			Pageable pageable, NaverEnrichPartition partition) {
+		Page<Store> stores = storeRepository.findMatchedNeedingEnrich(
+			NaverEnrichPartition.valueOfNullable(partition), pageable);
 		List<Long> storeIds = stores.getContent().stream().map(Store::getId).toList();
 		Map<Long, Long> menuCountMap = getMenuCountMap(storeIds);
 		Map<Long, Long> photoCountMap = getPhotoCountMap(storeIds);
@@ -200,7 +224,11 @@ public class AdminStoreService {
 	}
 
 	public long countEnrichBackfillQueue() {
-		return storeRepository.countMatchedNeedingEnrich();
+		return countEnrichBackfillQueue(null);
+	}
+
+	public long countEnrichBackfillQueue(NaverEnrichPartition partition) {
+		return storeRepository.countMatchedNeedingEnrich(NaverEnrichPartition.valueOfNullable(partition));
 	}
 
 	public AdminNaverEnrichQueueItem getNaverEnrichItem(Long storeId) {
@@ -300,6 +328,7 @@ public class AdminStoreService {
 			storeRepository.countNaverFailed(),
 			storeRepository.countActiveTotal(),
 			naverEnrichOrchestrator.getRunningMode(),
+			naverEnrichOrchestrator.getRunningPartition(),
 			startedAt != null ? startedAt.toString() : null,
 			naverEnrichOrchestrator.getStartedQueueCount());
 	}
