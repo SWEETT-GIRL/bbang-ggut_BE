@@ -28,8 +28,11 @@ import sweetgirl.croissant.admin.dto.request.AdminStoreUpdateRequest;
 import sweetgirl.croissant.admin.dto.request.BusinessHourRequest;
 import sweetgirl.croissant.admin.dto.response.AdminStoreResponse;
 import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.enums.StoreStatus;
+import sweetgirl.croissant.store.exception.StoreException;
+import sweetgirl.croissant.store.repository.NaverEnrichCandidateRepository;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
@@ -46,6 +49,8 @@ class AdminStoreServiceTest {
 	StoreImageFileRepository storeImageFileRepository;
 	@Mock
 	SubscribedStoreRepository subscribedStoreRepository;
+	@Mock
+	NaverEnrichCandidateRepository candidateRepository;
 
 	@InjectMocks
 	AdminStoreService adminStoreService;
@@ -126,5 +131,48 @@ class AdminStoreServiceTest {
 
 		verify(storeBusinessHourRepository).deleteByStoreId(1L);
 		verify(storeBusinessHourRepository).saveAll(anyList());
+	}
+
+	@Test
+	@DisplayName("updateNaverPlaceId: 다른 store 가 이미 같은 placeId 를 쓰면 409 로 거절한다")
+	void updateNaverPlaceId_duplicate_throws() {
+		Store target = mock(Store.class);
+		Store other = mock(Store.class);
+		given(other.getId()).willReturn(2L);
+		given(storeRepository.findById(1L)).willReturn(Optional.of(target));
+		given(storeRepository.findByNaverPlaceId("place-abc")).willReturn(Optional.of(other));
+
+		assertThatThrownBy(() -> adminStoreService.updateNaverPlaceId(1L, "place-abc", false))
+			.isInstanceOf(StoreException.class)
+			.hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.NAVER_PLACE_ID_DUPLICATE);
+
+		verify(target, org.mockito.Mockito.never()).markNaverMatched(any());
+	}
+
+	@Test
+	@DisplayName("updateNaverPlaceId: 같은 store 가 본인 placeId 를 다시 저장하면 통과한다")
+	void updateNaverPlaceId_sameStore_passes() {
+		Store target = mock(Store.class);
+		given(target.getId()).willReturn(1L);
+		given(storeRepository.findById(1L)).willReturn(Optional.of(target));
+		given(storeRepository.findByNaverPlaceId("place-abc")).willReturn(Optional.of(target));
+
+		adminStoreService.updateNaverPlaceId(1L, "place-abc", false);
+
+		verify(target).markNaverMatched("place-abc");
+		verify(candidateRepository).deleteByStoreId(1L);
+	}
+
+	@Test
+	@DisplayName("updateNaverPlaceId: placeId 가 신규면 markNaverMatched 호출한다")
+	void updateNaverPlaceId_new_passes() {
+		Store target = mock(Store.class);
+		given(storeRepository.findById(1L)).willReturn(Optional.of(target));
+		given(storeRepository.findByNaverPlaceId("place-abc")).willReturn(Optional.empty());
+
+		adminStoreService.updateNaverPlaceId(1L, "place-abc", false);
+
+		verify(target).markNaverMatched("place-abc");
+		verify(candidateRepository).deleteByStoreId(1L);
 	}
 }

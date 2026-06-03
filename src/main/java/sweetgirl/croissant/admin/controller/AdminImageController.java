@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,10 +18,14 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.admin.dto.response.AdminS3ReconcileResponse;
 import sweetgirl.croissant.admin.service.AdminImageService;
+import sweetgirl.croissant.admin.service.AdminS3ReconcileService;
 import sweetgirl.croissant.external.aws.dto.AdminImageResponse;
 import sweetgirl.croissant.external.aws.dto.ImageOrderUpdateRequest;
 import sweetgirl.croissant.external.aws.dto.ImageSaveRequest;
+import sweetgirl.croissant.external.aws.dto.ImageUploadFromUrlRequest;
+import sweetgirl.croissant.external.aws.dto.ImageUploadFromUrlResponse;
 import sweetgirl.croissant.external.aws.dto.ImageUploadRequest;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.global.response.ApiResponse;
@@ -32,6 +37,7 @@ import sweetgirl.croissant.global.response.ApiResponse;
 public class AdminImageController {
 
 	private final AdminImageService adminImageService;
+	private final AdminS3ReconcileService adminS3ReconcileService;
 
 	@Operation(summary = "Presigned URL 발급", description = "S3 업로드용 Presigned URL을 발급합니다.")
 	@PostMapping("/presigned-url")
@@ -106,5 +112,23 @@ public class AdminImageController {
 			@Parameter(description = "이미지 ID") @PathVariable Long imageId) {
 		adminImageService.deleteMenuImage(menuId, imageId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "S3 ↔ DB 정합성 검사 및 orphan 정리", description = "DB awsKey 에 없는 S3 객체 식별, dryRun=false 면 삭제.")
+	@PostMapping("/reconcile")
+	public ResponseEntity<ApiResponse<AdminS3ReconcileResponse>> reconcileS3(
+			@RequestParam(name = "dryRun", defaultValue = "true") boolean dryRun) {
+		return ResponseEntity.ok(ApiResponse.ok(adminS3ReconcileService.reconcile(dryRun)));
+	}
+
+	@Operation(summary = "URL에서 이미지 일괄 업로드", description = "외부 URL 리스트를 받아 백엔드가 다운로드 → S3 업로드 → DB 저장을 한 번에 처리합니다. "
+		+ "Python 스크래퍼 등 외부 호출자의 S3 orphan 위험을 차단합니다. per-URL 성공/실패 결과를 반환합니다.")
+	@PostMapping("/{domain}/{targetId}/from-url")
+	public ResponseEntity<ApiResponse<ImageUploadFromUrlResponse>> uploadImagesFromUrls(
+			@Parameter(description = "도메인 (stores 또는 menus)") @PathVariable String domain,
+			@Parameter(description = "가게 또는 메뉴 ID") @PathVariable Long targetId,
+			@RequestBody @Valid List<ImageUploadFromUrlRequest> requests) {
+		return ResponseEntity.ok(
+			ApiResponse.ok(adminImageService.uploadImagesFromUrls(domain, targetId, requests)));
 	}
 }

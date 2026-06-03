@@ -1,6 +1,7 @@
 package sweetgirl.croissant.member.jwt;
 
 import java.util.Date;
+import java.util.UUID;
 
 import javax.crypto.SecretKey;
 
@@ -52,6 +53,7 @@ public class JwtProvider {
 
 		return Jwts.builder()
 			.subject(String.valueOf(memberId)) // 토큰 주체: memberId
+			.id(UUID.randomUUID().toString())
 			.issuedAt(now) // 발급 시각
 			.expiration(expiryDate) // 만료 시각
 			.signWith(secretKey) // 서명 키로 HMAC-SHA 서명
