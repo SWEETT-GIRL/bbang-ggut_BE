@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,7 +43,7 @@ class AuthServiceTest {
 		RefreshToken savedToken = mock(RefreshToken.class);
 
 		given(jwtProvider.validateToken(REFRESH_TOKEN)).willReturn(true);
-		given(refreshTokenRepository.findAllByToken(REFRESH_TOKEN)).willReturn(List.of(savedToken));
+		given(refreshTokenRepository.findByToken(REFRESH_TOKEN)).willReturn(Optional.of(savedToken));
 		given(savedToken.getExpiredAt()).willReturn(LocalDateTime.now().plusDays(7));
 		given(jwtProvider.getMemberId(REFRESH_TOKEN)).willReturn(1L);
 		given(jwtProvider.generateAccessToken(1L)).willReturn("new.access.token");
@@ -64,7 +64,7 @@ class AuthServiceTest {
 	@Test
 	void refresh_throwsException_whenTokenNotFoundInDb() {
 		given(jwtProvider.validateToken(REFRESH_TOKEN)).willReturn(true);
-		given(refreshTokenRepository.findAllByToken(REFRESH_TOKEN)).willReturn(List.of());
+		given(refreshTokenRepository.findByToken(REFRESH_TOKEN)).willReturn(Optional.empty());
 
 		assertThatThrownBy(() -> authService.refresh(REFRESH_TOKEN))
 			.isInstanceOf(CustomException.class);
@@ -75,7 +75,7 @@ class AuthServiceTest {
 		RefreshToken expiredToken = mock(RefreshToken.class);
 
 		given(jwtProvider.validateToken(REFRESH_TOKEN)).willReturn(true);
-		given(refreshTokenRepository.findAllByToken(REFRESH_TOKEN)).willReturn(List.of(expiredToken));
+		given(refreshTokenRepository.findByToken(REFRESH_TOKEN)).willReturn(Optional.of(expiredToken));
 		given(expiredToken.getExpiredAt()).willReturn(LocalDateTime.now().minusDays(1));
 
 		assertThatThrownBy(() -> authService.refresh(REFRESH_TOKEN))
@@ -88,7 +88,7 @@ class AuthServiceTest {
 	void logout_revokesToken_whenTokenExists() {
 		RefreshToken savedToken = mock(RefreshToken.class);
 
-		given(refreshTokenRepository.findAllByToken(REFRESH_TOKEN)).willReturn(List.of(savedToken));
+		given(refreshTokenRepository.findByToken(REFRESH_TOKEN)).willReturn(Optional.of(savedToken));
 
 		authService.logout(REFRESH_TOKEN, null);
 
@@ -96,21 +96,8 @@ class AuthServiceTest {
 	}
 
 	@Test
-	void logout_revokesAllTokens_whenRefreshTokenDuplicated() {
-		RefreshToken firstToken = mock(RefreshToken.class);
-		RefreshToken secondToken = mock(RefreshToken.class);
-
-		given(refreshTokenRepository.findAllByToken(REFRESH_TOKEN)).willReturn(List.of(firstToken, secondToken));
-
-		authService.logout(REFRESH_TOKEN, null);
-
-		then(firstToken).should().revoke();
-		then(secondToken).should().revoke();
-	}
-
-	@Test
 	void logout_doesNotThrow_whenTokenNotFound() {
-		given(refreshTokenRepository.findAllByToken(REFRESH_TOKEN)).willReturn(List.of());
+		given(refreshTokenRepository.findByToken(REFRESH_TOKEN)).willReturn(Optional.empty());
 
 		assertThatCode(() -> authService.logout(REFRESH_TOKEN, null)).doesNotThrowAnyException();
 		then(refreshTokenRepository).should(never()).delete(any());
@@ -121,8 +108,8 @@ class AuthServiceTest {
 		RefreshToken savedToken = mock(RefreshToken.class);
 		FcmToken fcmToken = mock(FcmToken.class);
 
-		given(refreshTokenRepository.findAllByToken(REFRESH_TOKEN)).willReturn(List.of(savedToken));
-		given(fcmTokenRepository.findAllByToken("fcm-token-value")).willReturn(List.of(fcmToken));
+		given(refreshTokenRepository.findByToken(REFRESH_TOKEN)).willReturn(Optional.of(savedToken));
+		given(fcmTokenRepository.findByToken("fcm-token-value")).willReturn(Optional.of(fcmToken));
 
 		authService.logout(REFRESH_TOKEN, "fcm-token-value");
 
@@ -131,26 +118,10 @@ class AuthServiceTest {
 	}
 
 	@Test
-	void logout_deactivatesAllFcmTokens_whenFcmTokenDuplicated() {
-		RefreshToken savedToken = mock(RefreshToken.class);
-		FcmToken firstFcmToken = mock(FcmToken.class);
-		FcmToken secondFcmToken = mock(FcmToken.class);
-
-		given(refreshTokenRepository.findAllByToken(REFRESH_TOKEN)).willReturn(List.of(savedToken));
-		given(fcmTokenRepository.findAllByToken("fcm-token-value")).willReturn(List.of(firstFcmToken, secondFcmToken));
-
-		authService.logout(REFRESH_TOKEN, "fcm-token-value");
-
-		then(savedToken).should().revoke();
-		then(firstFcmToken).should().deactivate();
-		then(secondFcmToken).should().deactivate();
-	}
-
-	@Test
 	void logout_skipsFcmDeactivation_whenFcmTokenIsBlank() {
 		RefreshToken savedToken = mock(RefreshToken.class);
 
-		given(refreshTokenRepository.findAllByToken(REFRESH_TOKEN)).willReturn(List.of(savedToken));
+		given(refreshTokenRepository.findByToken(REFRESH_TOKEN)).willReturn(Optional.of(savedToken));
 
 		authService.logout(REFRESH_TOKEN, "   ");
 

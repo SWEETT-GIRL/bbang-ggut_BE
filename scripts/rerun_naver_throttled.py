@@ -43,13 +43,20 @@ def retry_store(server: str, store_id: int) -> None:
 	resp.raise_for_status()
 
 
-def extract_started_store_ids(log_path: str) -> set[int]:
-	if not log_path:
+def extract_started_store_ids(log_paths: list[str]) -> set[int]:
+	if not log_paths:
 		return set()
+	pattern = re.compile(r"^=== \[\d+/\d+\] store_id=(\d+) ")
+	store_ids: set[int] = set()
+	for log_path in log_paths:
+		store_ids |= _extract_started_store_ids_from_one_log(log_path, pattern)
+	return store_ids
+
+
+def _extract_started_store_ids_from_one_log(log_path: str, pattern: re.Pattern) -> set[int]:
 	path = Path(log_path)
 	if not path.exists():
 		return set()
-	pattern = re.compile(r"^=== \[\d+/\d+\] store_id=(\d+) ")
 	store_ids: set[int] = set()
 	for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
 		m = pattern.match(line)
@@ -75,7 +82,12 @@ def main() -> None:
 	parser.add_argument("--verbose", action="store_true", help="후보 상세 로그까지 남김")
 	parser.add_argument("--no-reset-throttle", action="store_true", help="처리 전 retry API 호출 생략")
 	parser.add_argument("--log-file", default="/tmp/naver-rerun-throttled.log")
-	parser.add_argument("--exclude-log", default="", help="이미 시작된 store_id 를 제외할 이전 로그")
+	parser.add_argument(
+		"--exclude-log",
+		action="append",
+		default=[],
+		help="이미 시작된 store_id 를 제외할 이전 로그. 여러 번 지정 가능",
+	)
 	args = parser.parse_args()
 
 	log_path = Path(args.log_file)
@@ -91,7 +103,7 @@ def main() -> None:
 	print(f"서버: {args.server}")
 	print(f"throttled 재실행 대상: {len(items)}건")
 	if excluded_ids:
-		print(f"이전 로그 제외: {len(excluded_ids)}건 ({args.exclude_log})")
+		print(f"이전 로그 제외: {len(excluded_ids)}건 ({', '.join(args.exclude_log)})")
 	print(f"상세 로그: {log_path}")
 	if not items:
 		return

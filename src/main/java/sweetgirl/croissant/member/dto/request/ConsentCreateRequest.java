@@ -8,6 +8,7 @@ public record ConsentCreateRequest(
 		@NotNull Boolean ageOver14Agreed,
 		@NotNull Boolean marketingAgreed,
 		@NotNull Boolean nightMarketingAgreed,
+		@NotNull Boolean locationAgreed,
 		String termsVersion,
 		String privacyVersion,
 		String agreedAt) {

@@ -1,6 +1,5 @@
 package sweetgirl.croissant.alarm.service;
 
-import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -75,12 +74,9 @@ public class FcmService {
 
 	// FCM Token 비활성화
 	public void deactivateFcmToken(String fcmToken) {
-		List<FcmToken> tokens = fcmTokenRepository.findAllByToken(fcmToken);
-		if (tokens.isEmpty()) {
-			throw new CustomException(AlarmErrorCode.FCM_TOKEN_NOT_FOUND);
-		}
-
-		tokens.forEach(FcmToken::deactivate);
+		FcmToken token = fcmTokenRepository.findByToken(fcmToken)
+			.orElseThrow(() -> new CustomException(AlarmErrorCode.FCM_TOKEN_NOT_FOUND));
+		token.deactivate();
 	}
 
 	// FCM 메시지 TTL — 1시간. OS 가 throttle 해서 묵힌 알림이 한꺼번에 쏟아지는 현상 방지.

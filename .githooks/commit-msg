@@ -1,0 +1,31 @@
+#!/bin/sh
+
+COMMIT_MSG_FILE=$1
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+BRANCH=$(git branch --show-current)
+
+if echo "$COMMIT_MSG" | grep -qE "^Merge |^Rebase "; then
+  exit 0
+fi
+
+ISSUE_NUM=$(echo "$BRANCH" | sed 's|.*/||' | grep -oE '^[0-9]+')
+JIRA_KEY=$(echo "$BRANCH" | grep -oE '[A-Z]+-[0-9]+')
+
+if [ -z "$JIRA_KEY" ] && [ -z "$ISSUE_NUM" ]; then
+  exit 0
+fi
+
+if echo "$COMMIT_MSG" | grep -qF "[$JIRA_KEY]"; then
+  exit 0
+fi
+
+if [ -n "$JIRA_KEY" ] && [ -n "$ISSUE_NUM" ]; then
+  FOOTER="[$JIRA_KEY] #${ISSUE_NUM}"
+elif [ -n "$JIRA_KEY" ]; then
+  FOOTER="[$JIRA_KEY]"
+else
+  FOOTER="#${ISSUE_NUM}"
+fi
+
+TRIMMED=$(echo "$COMMIT_MSG" | sed -e 's/[[:space:]]*$//')
+printf '%s\n\n%s\n' "$TRIMMED" "$FOOTER" > "$COMMIT_MSG_FILE"
