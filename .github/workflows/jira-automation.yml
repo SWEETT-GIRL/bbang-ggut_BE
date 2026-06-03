@@ -20,7 +20,7 @@ jobs:
           ITYPE="${{ github.event.client_payload.kind }}"
           ILABELS="${{ github.event.client_payload.jira_labels }}"
           ISUMMARY="${{ github.event.client_payload.jira_title }}"
-          IASSIGNEE="${{ github.event.client_payload.jira_assignee }}"
+          IASSIGNEE_EMAIL="${{ github.event.client_payload.jira_assignee_email }}"
           IJIRAURL="${{ github.event.client_payload.jira_url }}"
 
           ITYPE_LOWER=$(echo "$ITYPE" | tr '[:upper:]' '[:lower:]')
@@ -60,12 +60,8 @@ jobs:
           echo "GH_LABEL=$GH_LABEL" >> $GITHUB_ENV
 
           GH_USER=""
-          if [ -n "$IASSIGNEE" ] && [ "$IASSIGNEE" != "null" ]; then
-            case "$IASSIGNEE" in
-              "이현정") GH_USER="howareyou2" ;;
-              # "지라이름") GH_USER="깃허브ID" ;;
-              *) GH_USER="" ;;
-            esac
+          if [ -n "$IASSIGNEE_EMAIL" ] && [ "$IASSIGNEE_EMAIL" != "null" ]; then
+            GH_USER=$(jq -r --arg email "$IASSIGNEE_EMAIL" '.[$email] // empty' .github/jira-git-user-mapping.json)
           fi
           echo "GH_ASSIGNEE=$GH_USER" >> $GITHUB_ENV
 
