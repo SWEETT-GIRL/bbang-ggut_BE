@@ -24,14 +24,12 @@ jobs:
           IBODY="${{ github.event.client_payload.jira_description }}"
           ICHECKLIST="${{ github.event.client_payload.jira_checklist }}"
           ITYPE="${{ github.event.client_payload.kind }}"
-          IASSIGNEE="${{ github.event.client_payload.jira_assignee }}"
+          IASSIGNEE_EMAIL="${{ github.event.client_payload.jira_assignee_email }}"
           ILABELS="${{ github.event.client_payload.jira_labels }}"
 
           GH_USER=""
-          if [ -n "$IASSIGNEE" ] && [ "$IASSIGNEE" != "null" ]; then
-            case "$IASSIGNEE" in
-              "이현정") GH_USER="howareyou2" ;;
-            esac
+          if [ -n "$IASSIGNEE_EMAIL" ] && [ "$IASSIGNEE_EMAIL" != "null" ]; then
+            GH_USER=$(jq -r --arg email "$IASSIGNEE_EMAIL" '.[$email] // empty' .github/jira-git-user-mapping.json)
           fi
           echo "GH_ASSIGNEE=$GH_USER" >> $GITHUB_ENV
 
@@ -39,8 +37,7 @@ jobs:
           ILABELS_LOWER=$(echo "$ILABELS" | tr '[:upper:]' '[:lower:]')
           GH_LABEL="feature"
           TITLE_PREFIX="✨ feat: "
-          if [[ "$ITYPE_LOWER" == *"story"* ]]; then GH_LABEL="story"; TITLE_PREFIX="📖 story: ";
-          elif [[ "$ITYPE_LOWER" == *"bug"* ]]; then GH_LABEL="bug"; TITLE_PREFIX="🐛 fix: ";
+          if [[ "$ITYPE_LOWER" == *"bug"* ]]; then GH_LABEL="bug"; TITLE_PREFIX="🐛 fix: ";
           elif [[ "$ILABELS_LOWER" == *"refactor"* ]]; then GH_LABEL="refactor"; TITLE_PREFIX="♻️ refactor: ";
           elif [[ "$ILABELS_LOWER" == *"documentation"* ]]; then GH_LABEL="documentation"; TITLE_PREFIX="📝 docs: ";
           elif [[ "$ILABELS_LOWER" == *"test"* ]]; then GH_LABEL="test"; TITLE_PREFIX="✅ test: ";
@@ -67,7 +64,7 @@ jobs:
 
           echo "$FINAL_BODY" > updated_body.txt
 
-          echo "UPDATED_TITLE=[$IKEY] ${TITLE_PREFIX}${ISUMMARY}" >> $GITHUB_ENV
+          echo "UPDATED_TITLE=${TITLE_PREFIX}${ISUMMARY}" >> $GITHUB_ENV
           echo "TARGET_ISSUE_NUM=$ISSUE_NUM" >> $GITHUB_ENV
 
       - name: Update GitHub Issue via GitHub CLI
