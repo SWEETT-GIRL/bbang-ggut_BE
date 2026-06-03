@@ -12,28 +12,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.gradle/caches
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
-          restore-keys: ${{ runner.os }}-gradle-
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x ./gradlew
-
-      - name: Build with Gradle
-        run: ./gradlew build -x test --no-daemon
-
       - name: Set image tag
         id: tag
         run: echo "IMAGE_TAG=prod-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -65,6 +51,8 @@ jobs:
           kakao.api.base-url=https://dapi.kakao.com
           kakao.api.key=${KAKAO_API_KEY}
 
+          google.places.api-key=${GOOGLE_PLACES_API_KEY}
+
           jwt.secret=${JWT_SECRET}
           jwt.access-token-expiry=3600000
           jwt.refresh-token-expiry=1209600000
@@ -85,6 +73,12 @@ jobs:
 
           posthog.api-key=${{secrets.PROD_POSTHOG_API_KEY}}
           posthog.host=https://us.i.posthog.com
+
+          # AES-256 암호화 키
+          encrypt.secret-key=${ENCRYPT_SECRET_KEY}
+
+          # Discord 에러 알림 웹훅
+          discord.webhook.url=${DISCORD_WEBHOOK_URL}
           EOF
 
       - name: Create Firebase service account file
@@ -132,12 +126,46 @@ jobs:
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
             echo "PROD_SERVER_IP=${{ secrets.PROD_SERVER_IP }}" >> .env
             echo "KAKAO_API_KEY=${{ secrets.KAKAO_API_KEY }}" >> .env
+            echo "GOOGLE_PLACES_API_KEY=${{ secrets.GOOGLE_PLACES_API_KEY }}" >> .env
             echo "AWS_ACCESS_KEY=${{ secrets.PROD_AWS_ACCESS_KEY }}" >> .env
             echo "AWS_SECRET_KEY=${{ secrets.PROD_AWS_SECRET_KEY }}" >> .env
             echo "AWS_REGION=ap-northeast-2" >> .env
             echo "AWS_S3_BUCKET=${{ secrets.PROD_AWS_S3_BUCKET }}" >> .env
             echo "PROD_POSTHOG_API_KEY=${{ secrets.PROD_POSTHOG_API_KEY }}" >> .env
+            echo "ENCRYPT_SECRET_KEY=${{ secrets.ENCRYPT_SECRET_KEY }}" >> .env
+            echo "DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK_URL_PROD }}" >> .env
 
             docker compose pull
             docker compose up -d
             docker image prune -a -f
+
+      - name: Get PR title
+        id: pr_info
+        run: |
+          PR_TITLE=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+            --jq '.[0].title // ""' 2>/dev/null || echo "")
+          if [ -z "$PR_TITLE" ]; then
+            PR_TITLE="${{ github.event.head_commit.message }}"
+          fi
+          echo "title=$PR_TITLE" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify Discord
+        if: success()
+        run: |
+          jq -n \
+            --arg pr "${{ steps.pr_info.outputs.title }}" \
+            --arg tag "${{ steps.tag.outputs.IMAGE_TAG }}" \
+            '{embeds: [{
+              "title": "🚀 배포 완료 [PROD]",
+              "color": 3066993,
+              "fields": [
+                {"name": "PR", "value": $pr, "inline": false},
+                {"name": "Image Tag", "value": $tag, "inline": true},
+                {"name": "Branch", "value": "main", "inline": true}
+              ]
+            }]}' | \
+          curl -s -X POST "${{ secrets.DISCORD_DEPLOY_WEBHOOK_URL_PROD }}" \
+            -H "Content-Type: application/json" \
+            -d @-

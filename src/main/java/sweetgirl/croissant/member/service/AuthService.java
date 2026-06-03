@@ -10,6 +10,7 @@ import org.springframework.util.StringUtils;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
 import sweetgirl.croissant.global.code.GeneralErrorCode;
+import sweetgirl.croissant.global.encrypt.TokenHasher;
 import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.member.entity.RefreshToken;
 import sweetgirl.croissant.member.jwt.JwtProvider;
@@ -22,6 +23,7 @@ public class AuthService {
 	private final JwtProvider jwtProvider;
 	private final RefreshTokenRepository refreshTokenRepository;
 	private final FcmTokenRepository fcmTokenRepository;
+	private final TokenHasher tokenHasher;
 
 	// Access Token 재발급
 	// 1. JWT 유효성 검증 (만료/위변조)
@@ -36,11 +38,9 @@ public class AuthService {
 			throw new CustomException(GeneralErrorCode._UNAUTHORIZED);
 		}
 
-		// DB에서 토큰 조회 — 존재하지 않으면 이미 로그아웃된 토큰
-		List<RefreshToken> savedTokens = refreshTokenRepository.findAllByToken(refreshToken);
-		if (savedTokens.isEmpty()) {
-			throw new CustomException(GeneralErrorCode._UNAUTHORIZED);
-		}
+		// DB에는 SHA-256 해시가 저장되어 있으므로, 조회 전에 동일하게 해시 변환
+		RefreshToken savedToken = refreshTokenRepository.findByToken(tokenHasher.hash(refreshToken))
+			.orElseThrow(() -> new CustomException(GeneralErrorCode._UNAUTHORIZED));
 
 		// revokedAt이 설정된 경우 — 로그아웃 또는 탈퇴로 무효화된 토큰
 		if (savedTokens.stream().anyMatch(savedToken -> savedToken.getRevokedAt() != null)) {
@@ -66,9 +66,9 @@ public class AuthService {
 	@Transactional
 	public void logout(String refreshToken, String fcmToken) {
 
-		// DB에서 토큰 조회 — 없으면 이미 로그아웃된 상태이므로 무시
-		refreshTokenRepository.findAllByToken(refreshToken)
-			.forEach(RefreshToken::revoke); // revokedAt = now() 설정 (dirty checking으로 자동 반영)
+		// DB에는 SHA-256 해시가 저장되어 있으므로, 조회 전에 동일하게 해시 변환
+		refreshTokenRepository.findByToken(tokenHasher.hash(refreshToken))
+			.ifPresent(RefreshToken::revoke); // revokedAt = now() 설정 (dirty checking으로 자동 반영)
 
 		// fcmToken이 같이 왔으면 비활성화 (FCM 토큰 없는 사용자도 있을 수 있어 optional)
 		if (StringUtils.hasText(fcmToken)) {

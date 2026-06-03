@@ -7,6 +7,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
@@ -17,6 +18,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import sweetgirl.croissant.global.encrypt.EncryptedStringConverter;
 
 @Entity
 @Table(name = "member")
@@ -29,7 +31,8 @@ public class Member {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	@Column(nullable = false, length = 50)
+	@Convert(converter = EncryptedStringConverter.class)
+	@Column(nullable = false, length = 255)
 	private String nickname;
 
 	@Column
@@ -49,6 +52,9 @@ public class Member {
 
 	@Column(nullable = false, columnDefinition = "boolean default false")
 	private boolean agreeToAgeOver14;
+
+	@Column(nullable = false, columnDefinition = "boolean default false")
+	private boolean agreeToLocation;
 
 	@Column(length = 20)
 	private String termsVersion;
@@ -88,7 +94,7 @@ public class Member {
 
 	public void applyInitialConsent(
 			boolean termsAgreed, boolean privacyAgreed, boolean ageOver14Agreed,
-			boolean marketingAgreed, boolean nightMarketingAgreed,
+			boolean marketingAgreed, boolean nightMarketingAgreed, boolean locationAgreed,
 			String termsVersion, String privacyVersion) {
 		LocalDateTime now = LocalDateTime.now();
 		this.agreeToTerms = termsAgreed;
@@ -96,6 +102,7 @@ public class Member {
 		this.agreeToAgeOver14 = ageOver14Agreed;
 		this.agreeToMarketing = marketingAgreed;
 		this.agreeToNightMarketing = nightMarketingAgreed;
+		this.agreeToLocation = locationAgreed;
 		this.termsAgreedAt = termsAgreed ? now : null;
 		this.marketingAgreedAt = marketingAgreed ? now : null;
 		this.termsVersion = termsVersion;

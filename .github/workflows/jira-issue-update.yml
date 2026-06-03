@@ -1,0 +1,88 @@
+name: Jira Automation - Update GitHub Issue
+
+on:
+  repository_dispatch:
+    types: [ jira_issue_updated ]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  update-github-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Formulate Updated Content
+        id: parse
+        run: |
+          ISSUE_NUM="${{ github.event.client_payload.jira_issue_number }}"
+          IKEY="${{ github.event.client_payload.jira_key }}"
+          IJIRAURL="${{ github.event.client_payload.jira_url }}"
+          ISUMMARY="${{ github.event.client_payload.jira_title }}"
+          IBODY="${{ github.event.client_payload.jira_description }}"
+          ICHECKLIST="${{ github.event.client_payload.jira_checklist }}"
+          ITYPE="${{ github.event.client_payload.kind }}"
+          IASSIGNEE_EMAIL="${{ github.event.client_payload.jira_assignee_email }}"
+          ILABELS="${{ github.event.client_payload.jira_labels }}"
+
+          GH_USER=""
+          if [ -n "$IASSIGNEE_EMAIL" ] && [ "$IASSIGNEE_EMAIL" != "null" ]; then
+            GH_USER=$(jq -r --arg email "$IASSIGNEE_EMAIL" '.[$email] // empty' .github/jira-git-user-mapping.json)
+          fi
+          echo "GH_ASSIGNEE=$GH_USER" >> $GITHUB_ENV
+
+          ITYPE_LOWER=$(echo "$ITYPE" | tr '[:upper:]' '[:lower:]')
+          ILABELS_LOWER=$(echo "$ILABELS" | tr '[:upper:]' '[:lower:]')
+          GH_LABEL="feature"
+          TITLE_PREFIX="✨ feat: "
+          if [[ "$ITYPE_LOWER" == *"bug"* ]]; then GH_LABEL="bug"; TITLE_PREFIX="🐛 fix: ";
+          elif [[ "$ILABELS_LOWER" == *"refactor"* ]]; then GH_LABEL="refactor"; TITLE_PREFIX="♻️ refactor: ";
+          elif [[ "$ILABELS_LOWER" == *"documentation"* ]]; then GH_LABEL="documentation"; TITLE_PREFIX="📝 docs: ";
+          elif [[ "$ILABELS_LOWER" == *"test"* ]]; then GH_LABEL="test"; TITLE_PREFIX="✅ test: ";
+          elif [[ "$ILABELS_LOWER" == *"ci/cd"* ]]; then GH_LABEL="ci/cd"; TITLE_PREFIX="💚 ci/cd: "; fi
+          echo "GH_LABEL=$GH_LABEL" >> $GITHUB_ENV
+
+          TRIMMED_BODY=$(echo "$IBODY" \
+            | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+            | sed 's/^h1\. /# /; s/^h2\. /## /; s/^h3\. /### /; s/^h4\. /#### /; s/^h5\. /##### /; s/^h6\. /###### /')
+
+          CONTENT=""
+          if [ -n "$TRIMMED_BODY" ] && [ "$TRIMMED_BODY" != "null" ]; then
+            CONTENT="$TRIMMED_BODY"
+          fi
+
+          if [ -n "$ICHECKLIST" ] && [ "$ICHECKLIST" != "null" ]; then
+            DECODED_CHECKLIST=$(python3 -c "import sys, urllib.parse; print(urllib.parse.unquote_plus(sys.argv[1]))" "$ICHECKLIST")
+            CHECKLIST=$(echo "$DECODED_CHECKLIST" | sed 's/^\* \[/- [/g')
+            CONTENT="${CONTENT:+$CONTENT$'\n\n'}$CHECKLIST"
+          fi
+
+          LOWER_BANNER="---\n### 🔗 연동 정보\n- **Jira 링크**: [${IKEY}](${IJIRAURL})"
+          FINAL_BODY=$(echo -e "${CONTENT:+$CONTENT$'\n\n'}${LOWER_BANNER}")
+
+          echo "$FINAL_BODY" > updated_body.txt
+
+          echo "UPDATED_TITLE=${TITLE_PREFIX}${ISUMMARY}" >> $GITHUB_ENV
+          echo "TARGET_ISSUE_NUM=$ISSUE_NUM" >> $GITHUB_ENV
+
+      - name: Update GitHub Issue via GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.JIRA_GITHUB_TOKEN }}
+        run: |
+          echo "타겟 깃허브 이슈 번호: #${{ env.TARGET_ISSUE_NUM }} 업데이트 진행"
+          
+          # 담당자가 지정되어 있을 경우와 아닐 경우 분기 처리하여 완벽 동기화
+          if [ -n "${{ env.GH_ASSIGNEE }}" ]; then
+            gh issue edit ${{ env.TARGET_ISSUE_NUM }} \
+              --title "${{ env.UPDATED_TITLE }}" \
+              --add-label "${{ env.GH_LABEL }}" \
+              --add-assignee "${{ env.GH_ASSIGNEE }}" \
+              -F updated_body.txt
+          else
+            gh issue edit ${{ env.TARGET_ISSUE_NUM }} \
+              --title "${{ env.UPDATED_TITLE }}" \
+              --add-label "${{ env.GH_LABEL }}" \
+              -F updated_body.txt
+          fi

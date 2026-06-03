@@ -1,0 +1,134 @@
+name: Jira Automation - Create GitHub Issue & Branch
+
+on:
+  repository_dispatch:
+    types: [ jira_issue_created ]
+
+jobs:
+  create-issue-and-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.JIRA_GITHUB_TOKEN }}
+
+      - name: Formulate Branch Name and Find Template
+        id: setup
+        run: |
+          IKEY="${{ github.event.client_payload.jira_key }}"
+          ITYPE="${{ github.event.client_payload.kind }}"
+          ILABELS="${{ github.event.client_payload.jira_labels }}"
+          ISUMMARY="${{ github.event.client_payload.jira_title }}"
+          IASSIGNEE_EMAIL="${{ github.event.client_payload.jira_assignee_email }}"
+          IJIRAURL="${{ github.event.client_payload.jira_url }}"
+
+          ITYPE_LOWER=$(echo "$ITYPE" | tr '[:upper:]' '[:lower:]')
+          ILABELS_LOWER=$(echo "$ILABELS" | tr '[:upper:]' '[:lower:]')
+
+          TYPE_SHORT="feat"
+          GH_LABEL="feature"
+          TITLE_PREFIX="✨ feat: "
+
+          if [[ "$ITYPE_LOWER" == *"bug"* ]]; then
+            TYPE_SHORT="fix"
+            GH_LABEL="bug"
+            TITLE_PREFIX="🐛 fix: "
+          elif [[ "$ILABELS_LOWER" == *"refactor"* ]]; then
+            TYPE_SHORT="refactor"
+            GH_LABEL="refactor"
+            TITLE_PREFIX="♻️ refactor: "
+          elif [[ "$ILABELS_LOWER" == *"documentation"* ]]; then
+            TYPE_SHORT="docs"
+            GH_LABEL="documentation"
+            TITLE_PREFIX="📝 docs: "
+          elif [[ "$ILABELS_LOWER" == *"test"* ]]; then
+            TYPE_SHORT="test"
+            GH_LABEL="test"
+            TITLE_PREFIX="✅ test: "
+          elif [[ "$ILABELS_LOWER" == *"ci/cd"* ]]; then
+            TYPE_SHORT="cicd"
+            GH_LABEL="ci/cd"
+            TITLE_PREFIX="💚 ci/cd: "
+          fi
+
+          CLEAN_SUMMARY=$(echo "$ISUMMARY" | tr ' ' '-' | tr -d '/:?*[\\^~@{}()!#%&<>|"'"'"'')
+          BRANCH_BODY="${IKEY}-${CLEAN_SUMMARY}"
+
+          echo "BRANCH_BODY=$BRANCH_BODY" >> $GITHUB_ENV
+          echo "TYPE_SHORT=$TYPE_SHORT" >> $GITHUB_ENV
+          echo "GH_LABEL=$GH_LABEL" >> $GITHUB_ENV
+
+          GH_USER=""
+          if [ -n "$IASSIGNEE_EMAIL" ] && [ "$IASSIGNEE_EMAIL" != "null" ]; then
+            GH_USER=$(jq -r --arg email "$IASSIGNEE_EMAIL" '.[$email] // empty' .github/jira-git-user-mapping.json)
+          fi
+          echo "GH_ASSIGNEE=$GH_USER" >> $GITHUB_ENV
+
+          TITLE="${TITLE_PREFIX}${ISUMMARY}"
+          echo "ISSUE_TITLE=$TITLE" >> $GITHUB_ENV
+
+          IDESCRIPTION="${{ github.event.client_payload.jira_description }}"
+          TRIMMED_DESC=$(echo "$IDESCRIPTION" \
+            | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+            | sed 's/^h1\. /# /; s/^h2\. /## /; s/^h3\. /### /; s/^h4\. /#### /; s/^h5\. /##### /; s/^h6\. /###### /')
+
+          LOWER_BANNER="---\n### 🔗 연동 정보\n- **Jira 링크**: [${IKEY}](${IJIRAURL})"
+          if [ -n "$TRIMMED_DESC" ] && [ "$TRIMMED_DESC" != "null" ]; then
+            FINAL_BODY=$(echo -e "${TRIMMED_DESC}\n\n${LOWER_BANNER}")
+          else
+            FINAL_BODY=$(echo -e "${LOWER_BANNER}")
+          fi
+
+          echo "FINAL_BODY<<EOF" >> $GITHUB_ENV
+          echo "$FINAL_BODY" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Create GitHub Issue via GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.JIRA_GITHUB_TOKEN }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+        run: |
+          if [ -n "${{ env.GH_ASSIGNEE }}" ]; then
+            NEW_ISSUE_URL=$(gh issue create \
+              --title "${{ env.ISSUE_TITLE }}" \
+              --body "$FINAL_BODY" \
+              --label "${{ env.GH_LABEL }}" \
+              --assignee "${{ env.GH_ASSIGNEE }}" \
+              --repo "${{ github.repository }}")
+          else
+            NEW_ISSUE_URL=$(gh issue create \
+              --title "${{ env.ISSUE_TITLE }}" \
+              --body "$FINAL_BODY" \
+              --label "${{ env.GH_LABEL }}" \
+              --repo "${{ github.repository }}")
+          fi
+
+          ISSUE_NUMBER=$(echo "$NEW_ISSUE_URL" | grep -oE '[0-9]+$')
+          BRANCH_NAME="${TYPE_SHORT}/${ISSUE_NUMBER}-${BRANCH_BODY}"
+          echo "ISSUE_URL=$NEW_ISSUE_URL" >> $GITHUB_ENV
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          echo "새 생성된 이슈 URL: $NEW_ISSUE_URL / 브랜치명: $BRANCH_NAME"
+
+          AUTH=$(echo -n "$JIRA_USER_EMAIL:$JIRA_API_TOKEN" | base64 -w 0)
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
+            -H "Authorization: Basic $AUTH" \
+            -H "Content-Type: application/json" \
+            -d "{\"fields\": {\"customfield_10074\": \"$ISSUE_NUMBER\"}}" \
+            "$JIRA_BASE_URL/rest/api/3/issue/${{ github.event.client_payload.jira_key }}")
+          echo "Jira customfield_10074 업데이트 결과: HTTP $HTTP_STATUS"
+
+      - name: Create and Push Git Branch
+        env:
+          MY_PAT: ${{ secrets.JIRA_GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "jira-bot"
+          git config --global user.email "jira-bot@github.com"
+
+          git fetch origin dev
+          git checkout dev
+
+          git checkout -b ${{ env.BRANCH_NAME }}
+          git push https://x-access-token:${{ env.MY_PAT }}@github.com/${{ github.repository }}.git ${{ env.BRANCH_NAME }}
