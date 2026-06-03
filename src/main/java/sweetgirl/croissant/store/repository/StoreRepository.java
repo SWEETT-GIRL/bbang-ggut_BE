@@ -222,14 +222,19 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 	//   - 매칭 실패 후 retryThreshold 시점 경과 — 재시도 큐 진입
 	// 메뉴 유무는 큐 조건에서 제외. naverPlaceId 가 없으면 메뉴가 이미 있어도 ID 만 채우러 들어옴.
 	// 매칭 성공 시 markNaverMatched 가 naverPlaceId 와 naverMatchedAt 을 모두 set 해서 자동 제외됨.
+	// 파킹: naverEnrichAttempts >= maxAttempts 면 '진짜 못 찾는 가게'로 보고 큐에서 제외(무한 재시도 방지).
 	@Query("""
 				SELECT s FROM Store s
 				WHERE s.status = sweetgirl.croissant.store.enums.StoreStatus.ACTIVE
 				AND s.naverPlaceId IS NULL
+				AND s.naverEnrichAttempts < :maxAttempts
 				AND (s.naverMatchedAt IS NULL OR s.naverMatchedAt < :retryThreshold)
 				ORDER BY s.id ASC
 			""")
-	Page<Store> findNaverEnrichQueue(@Param("retryThreshold") Instant retryThreshold, Pageable pageable);
+	Page<Store> findNaverEnrichQueue(
+			@Param("retryThreshold") Instant retryThreshold,
+			@Param("maxAttempts") int maxAttempts,
+			Pageable pageable);
 
 	// 매칭은 됐지만 가게 사진이 0장인 가게 — 사진 보충 일괄 크롤 대상.
 	// 이미지 테이블을 left join 해서 NULL/empty 만 필터.

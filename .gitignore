@@ -64,3 +64,8 @@ __pycache__/
 
 ### Claude Code ###
 .claude/scheduled_tasks.lock
+
+# blog_score local secrets & cache
+scripts/blog_score/.secrets.json
+scripts/blog_score/cache/
+scripts/blog_score/snapshots/

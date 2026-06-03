@@ -18,6 +18,7 @@ from naver_match import (  # noqa: E402
 	is_chain_like,
 	is_closed,
 	name_match_kind,
+	names_related_for_near_match,
 	names_same_ignoring_generic,
 	normalize_name,
 	score_candidate,
@@ -39,6 +40,9 @@ class TestNormalize:
 
 	def test_ampersand_korean_equivalent(self):
 		assert normalize_name("브레드 & 버터") == normalize_name("브레드앤버터")
+
+	def test_underscore_removed(self):
+		assert normalize_name("브레드_히어_") == normalize_name("브레드히어")
 
 
 class TestNameMatchKind:
@@ -105,6 +109,13 @@ class TestBranchAndGeneric:
 		assert branch_conflict("씨엘비 광주2호점", "씨엘비 광주점")
 		assert not branch_conflict("류재은베이커리 류하우스점", "류재은베이커리")
 		assert not branch_conflict("이성당 신관", "이성당")
+		assert not branch_conflict("몽슈슈 현대백화점무역센터점", "몽슈슈 무역센터점")
+		assert not branch_conflict("밤부베이커리 롯데백화점강남점", "밤부베이커리 강남점")
+		assert not branch_conflict("써브웨이 신사점", "써브웨이 신사역점")
+		assert not branch_conflict("미쉐 홍대점", "미쉐 홍대지점")
+		assert not branch_conflict("에그드랍 역삼GS점", "에그드랍 역삼GS직영점")
+		assert not branch_conflict("플레어비 도곡본점", "플레어비 도곡점")
+		assert branch_conflict("브레드데이 동탄2호점", "브레드데이 동탄3호점")
 
 	def test_branch_conflict_seo_stuffed_name(self):
 		# 네이버 SEO 도배명에서도 지점 충돌 감지 — 끝 토큰이 키워드여도 finditer 로 잡음.
@@ -116,8 +127,19 @@ class TestBranchAndGeneric:
 	def test_names_same_ignoring_generic(self):
 		assert names_same_ignoring_generic("카페메리고라운드", "메리고라운드")
 		assert names_same_ignoring_generic("케이크오라", "오라")
+		assert names_same_ignoring_generic("VB커피", "VB COFFEE")
+		assert names_same_ignoring_generic("보라곰케이크", "보라곰 주문제작&레터링케이크")
+		assert names_same_ignoring_generic("스윗바이비", "비건제과 스윗바이비")
 		assert not names_same_ignoring_generic("베지경주제과", "경주제과")
 		assert not names_same_ignoring_generic("오해피데이", "해피데이")
+		assert not names_same_ignoring_generic("미운오리", "주남팥집")
+
+	def test_names_related_for_near_match(self):
+		assert names_related_for_near_match("시트로넬", "시트로넬 베이킹스튜디오")
+		assert names_related_for_near_match("캐리베이커리", "캐리 베이커리 CARRIE BAKERY")
+		assert names_related_for_near_match("크림데이", "크림데이 글루텐프리 케이크샵")
+		assert names_related_for_near_match("SF베이글", "SF bagels")
+		assert not names_related_for_near_match("오라", "오라하우스")
 
 
 # ─── is_closed ────────────────────────────────────────────────────────────────
@@ -139,8 +161,13 @@ def _kakao(name="테라로사", lat=37.5, lng=127.0, address="서울 강남구 �
 	return {"name": name, "lat": lat, "lng": lng, "address": address}
 
 
-def _naver(name="테라로사", y=37.5, x=127.0, address="서울 강남구 테헤란로 100", category="베이커리"):
-	return {"name": name, "y": str(y), "x": str(x), "address": address, "category": category, "id": "123"}
+def _naver(
+		name="테라로사", y=37.5, x=127.0, address="서울 강남구 테헤란로 100",
+		category="베이커리", road_address=None):
+	naver = {"name": name, "y": str(y), "x": str(x), "address": address, "category": category, "id": "123"}
+	if road_address is not None:
+		naver["roadAddress"] = road_address
+	return naver
 
 
 class TestScoreCandidate:
@@ -170,6 +197,12 @@ class TestScoreCandidate:
 		assert s["breakdown"]["distance"] == 0
 		assert s["distance_m"] is None
 
+	def test_road_address_preferred_over_jibun_address(self):
+		k = _kakao(address="서울 강남구 테헤란로 100")
+		n = _naver(address="서울 강남구 역삼동 1", road_address="서울 강남구 테헤란로 100")
+		s = score_candidate(k, n)
+		assert s["breakdown"]["road"] == 15
+
 
 class TestSelectMatch:
 	def test_empty_candidates(self):
@@ -187,13 +220,70 @@ class TestSelectMatch:
 		chosen, _, why = select_match(k, [n])
 		assert chosen is not None, why
 
-	def test_chain_beyond_30m_rejected(self):
+	def test_chain_exact_road_match_60m_accepted(self):
+		# 백화점/몰 입점 매장 좌표 오차 회귀: exact 이름 + 도로명번호 일치면 80m 까지 허용.
 		k = _kakao(name="스타벅스 강남점")
-		# 50m 떨어짐
-		n = _naver(name="스타벅스 강남점", y=37.50045)
+		n = _naver(name="스타벅스 강남점", y=37.50054)
+		chosen, _, why = select_match(k, [n])
+		assert chosen is not None, why
+
+	def test_chain_beyond_80m_rejected(self):
+		k = _kakao(name="스타벅스 강남점")
+		# 90m 떨어짐 — exact + road match 여도 체인 좌표 오차 허용 범위 밖.
+		n = _naver(name="스타벅스 강남점", y=37.50081)
 		chosen, _, why = select_match(k, [n])
 		assert chosen is None
 		assert "체인" in why
+
+	def test_chain_exact_jibun_district_70m_accepted(self):
+		# 이름은 exact 인데 네이버 후보가 지번만 남아 도로명 비교가 불가능한 백화점/몰 입점 매장.
+		k = _kakao(
+			name="성심당 옛맛솜씨 롯데백화점 대전점",
+			address="대전 서구 계룡로 598")
+		n = _naver(
+			name="성심당 옛맛솜씨 롯데백화점 대전점",
+			y=37.50063,
+			address="대전 서구 괴정동 1")
+		chosen, _, why = select_match(k, [n])
+		assert chosen is not None, why
+
+	def test_chain_exact_jibun_district_beyond_90m_rejected(self):
+		k = _kakao(
+			name="성심당 옛맛솜씨 롯데백화점 대전점",
+			address="대전 서구 계룡로 598")
+		n = _naver(
+			name="성심당 옛맛솜씨 롯데백화점 대전점",
+			y=37.50095,
+			address="대전 서구 괴정동 1")
+		chosen, _, why = select_match(k, [n])
+		assert chosen is None
+		assert "체인" in why
+
+	def test_chain_near_related_name_accepted(self):
+		# 체인/분점도 30m 이내에서 이름 관련성이 충분하면 도로명번호가 없어도 통과.
+		k = _kakao(name="탠저린 논현점", address="서울 강남구 강남대로132길 59")
+		n = _naver(name="탠저린 논현", y=37.50002, address="서울 강남구 논현동 1")
+		chosen, _, why = select_match(k, [n])
+		assert chosen is not None, why
+
+	def test_chain_near_generic_name_gets_score_cut_exemption(self):
+		# 게이트는 통과했는데 점수 35점이라 떨어지던 회귀:
+		# 입점 시설/일반어만 다른 같은 이름은 체인/분점에서도 점수컷 면제.
+		k = _kakao(
+			name="몽슈슈 현대백화점무역센터점",
+			address="서울 강남구 테헤란로 517")
+		n = _naver(
+			name="몽슈슈 현대백화점 무역센터점",
+			y=37.50002,
+			address="서울 강남구 삼성동 1")
+		chosen, _, why = select_match(k, [n])
+		assert chosen is not None, why
+
+	def test_chain_near_generic_prefix_name_gets_score_cut_exemption(self):
+		k = _kakao(name="프루케 위례점", address="경기 성남시 수정구 위례광장로 5")
+		n = _naver(name="프루케 생과일케이크 위례점", y=37.50002, address="경기 성남시 수정구 창곡동 1")
+		chosen, _, why = select_match(k, [n])
+		assert chosen is not None, why
 
 	def test_non_chain_60m_road_match_accepted(self):
 		# 60m 이지만 도로명+번지 일치 → 같은 주소 확정이라 통과(좌표 오차 흡수).
@@ -253,6 +343,25 @@ class TestSelectMatch:
 		chosen, _, why = select_match(k, [n])
 		assert chosen is not None, why
 
+	def test_exact_jibun_rural_84m_accepted(self):
+		# 하얀오골계 회귀(id=2573): exact + 같은 면 + 도로명 비교 불가(네이버 지번) →
+		# 시골 지번 가게는 좌표 오차가 커 84m도 동일 가게. 80m→110m 완화로 구제.
+		k = _kakao(name="하얀오골계 베이커리카페",
+			address="강원특별자치도 원주시 판부면 내남송길 98-11")
+		n = _naver(name="하얀오골계 베이커리 카페", y=37.50076,
+			address="강원특별자치도 원주시 판부면 서곡리 100")
+		chosen, _, why = select_match(k, [n])
+		assert chosen is not None, why
+
+	def test_exact_road_comparable_beyond_80m_rejected(self):
+		# 양쪽 도로명 비교 가능(둘 다 도로명+번지)하면 완화 안 됨 — 90m 거부.
+		# 지번 완화는 '도로명 비교 불가'일 때만. 도시 동명이점 오매칭 방지.
+		k = _kakao(name="하얀오골계", address="서울 강남구 테헤란로 100")
+		n = _naver(name="하얀오골계", y=37.50081, address="서울 강남구 테헤란로 200")
+		chosen, _, why = select_match(k, [n])
+		assert chosen is None
+		assert "거리" in why or "도로명" in why
+
 	def test_proximity_related_name_accepted(self):
 		# 같은 가게 표기차(메리고라운드 ↔ 카페메리고라운드) + 같은 건물(≤30m) + 동 일치 → 매칭.
 		# 이름 점수만으론 60 미만이지만 좌표+이름관련 확정으로 점수컷 면제.
@@ -281,6 +390,26 @@ class TestSelectMatch:
 		# 일반어(카페)만 다른 같은 가게 — '하얀파도' ↔ '카페 하얀파도'. 근접+동 → 매칭.
 		k = _kakao(name="하얀파도")
 		n = _naver(name="카페 하얀파도", y=37.50005, address="서울 강남구 봉은사로 50")
+		chosen, _, why = select_match(k, [n])
+		assert chosen is not None, why
+
+	def test_prox_english_generic_word_diff_accepted(self):
+		k = _kakao(name="VB커피", address="서울 강남구 논현로149길 8")
+		n = _naver(name="VB COFFEE", y=37.50002, address="서울 강남구 논현동 1")
+		chosen, _, why = select_match(k, [n])
+		assert chosen is not None, why
+
+	def test_prox_long_generic_word_diff_accepted(self):
+		k = _kakao(name="보라곰케이크", address="서울 마포구 신촌로2안길 12")
+		n = _naver(name="보라곰 주문제작&레터링케이크", y=37.50002, address="서울 마포구 동교동 1")
+		chosen, _, why = select_match(k, [n])
+		assert chosen is not None, why
+
+	def test_prox_short_generic_word_diff_accepted(self):
+		# 짧은 이름도 일반어만 다르고 30m 이내 + 같은 구/동이면 같은 가게로 본다.
+		# 예: '오라' ↔ '케이크오라', '콤마' ↔ '카페 콤마'.
+		k = _kakao(name="오라", address="경기 고양시 덕양구 오부자로 14")
+		n = _naver(name="케이크오라", y=37.50002, address="경기 고양시 덕양구 오부자로 14")
 		chosen, _, why = select_match(k, [n])
 		assert chosen is not None, why
 

@@ -153,10 +153,14 @@ public class AdminStoreService {
 
 	// 실패 후 재시도 가능 시점 — 매칭 실패한 가게는 7일 후부터 다시 큐에 노출.
 	private static final long NAVER_RETRY_AFTER_DAYS = 7;
+	// '진짜 무결과(후보 0건)' 가 이 횟수 이상 누적되면 큐에서 파킹(제외). 폐업/오등록/빵집 아님 등
+	// 영영 못 찾는 가게의 무한 재시도를 막는다. 어드민 retry / placeId 초기화로 0 리셋되어 재진입.
+	private static final int NAVER_MAX_ENRICH_ATTEMPTS = 3;
 
 	public Page<AdminNaverEnrichQueueItem> getNaverEnrichQueue(Pageable pageable) {
 		Instant retryThreshold = Instant.now().minus(NAVER_RETRY_AFTER_DAYS, ChronoUnit.DAYS);
-		Page<Store> stores = storeRepository.findNaverEnrichQueue(retryThreshold, pageable);
+		Page<Store> stores = storeRepository.findNaverEnrichQueue(
+			retryThreshold, NAVER_MAX_ENRICH_ATTEMPTS, pageable);
 		List<Long> storeIds = stores.getContent().stream().map(Store::getId).toList();
 		Map<Long, Long> menuCountMap = getMenuCountMap(storeIds);
 		Map<Long, Long> photoCountMap = getPhotoCountMap(storeIds);
@@ -281,10 +285,10 @@ public class AdminStoreService {
 	}
 
 	@Transactional
-	public void markNaverEnrichFailed(Long storeId) {
+	public void markNaverEnrichFailed(Long storeId, boolean noCandidates) {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
-		store.markNaverEnrichFailed();
+		store.markNaverEnrichFailed(noCandidates);
 	}
 
 	public AdminNaverEnrichStatsResponse getNaverEnrichStats() {
