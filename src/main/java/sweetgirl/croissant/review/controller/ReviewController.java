@@ -3,7 +3,9 @@ package sweetgirl.croissant.review.controller;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -17,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.review.dto.request.ReviewCreateRequest;
 import sweetgirl.croissant.review.dto.request.ReviewPresignedUrlRequest;
+import sweetgirl.croissant.review.dto.request.ReviewUpdateRequest;
 import sweetgirl.croissant.review.dto.response.MyReviewListResponse;
 import sweetgirl.croissant.review.dto.response.ReviewCreateResponse;
 import sweetgirl.croissant.review.dto.response.ReviewDetailResponse;
@@ -90,5 +93,23 @@ public class ReviewController {
 			@Valid @RequestBody ReviewCreateRequest request) {
 		return ResponseEntity.status(HttpStatus.CREATED)
 			.body(ApiResponse.created(reviewService.createReview(menuId, memberId, request)));
+	}
+
+	@Operation(summary = "작성한 리뷰 수정", description = "로그인 사용자가 본인이 작성한 리뷰를 수정합니다.")
+	@PatchMapping("/reviews/{reviewId}")
+	public ResponseEntity<ApiResponse<ReviewDetailResponse>> updateReview(
+			@PathVariable Long reviewId,
+			@AuthenticationPrincipal Long memberId,
+			@Valid @RequestBody ReviewUpdateRequest request) {
+		return ResponseEntity.ok(ApiResponse.ok(reviewService.updateReview(reviewId, memberId, request)));
+	}
+
+	@Operation(summary = "작성한 리뷰 삭제", description = "로그인 사용자가 본인이 작성한 리뷰를 삭제합니다.")
+	@DeleteMapping("/reviews/{reviewId}")
+	public ResponseEntity<ApiResponse<Void>> deleteReview(
+			@PathVariable Long reviewId,
+			@AuthenticationPrincipal Long memberId) {
+		reviewService.deleteReview(reviewId, memberId);
+		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 }
