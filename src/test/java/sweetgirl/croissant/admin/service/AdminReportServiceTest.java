@@ -45,6 +45,9 @@ import sweetgirl.croissant.menu.repository.MenuAddReportImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuAddReportRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
+import sweetgirl.croissant.report.entity.UserReport;
+import sweetgirl.croissant.report.enums.UserReportStatus;
+import sweetgirl.croissant.report.repository.UserReportRepository;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreBusinessHour;
 import sweetgirl.croissant.store.entity.StoreImageFile;
@@ -64,6 +67,8 @@ class AdminReportServiceTest {
 	StoreReportRepository storeReportRepository;
 	@Mock
 	MenuAddReportRepository menuAddReportRepository;
+	@Mock
+	UserReportRepository userReportRepository;
 	@Mock
 	StoreReportImageFileRepository storeReportImageFileRepository;
 	@Mock
@@ -88,6 +93,7 @@ class AdminReportServiceTest {
 		adminReportService = new AdminReportService(
 			storeReportRepository,
 			menuAddReportRepository,
+			userReportRepository,
 			storeReportImageFileRepository,
 			menuAddReportImageFileRepository,
 			storeImageFileRepository,
@@ -323,6 +329,36 @@ class AdminReportServiceTest {
 		verify(s3Service).copyObject("reports/stores/6/menus/200/members/9/key-m", "menus/200/key-m");
 		verify(s3Service).deleteObject("reports/stores/6/menus/200/members/9/key-m");
 		verify(report).approve();
+	}
+
+	@Test
+	@DisplayName("UserReport ACCEPT: 신고 상태만 승인 처리하고 제보 알림은 발송하지 않는다")
+	void userReport_accept_updatesStatusOnly() {
+		UserReport report = mock(UserReport.class);
+		given(report.getStatus()).willReturn(UserReportStatus.PENDING);
+		given(userReportRepository.findById(31L)).willReturn(Optional.of(report));
+
+		adminReportService.reviewReport(31L, new AdminReportReviewRequest("USER_REPORT", "ACCEPT"));
+
+		verify(report).accept();
+		verify(report, never()).reject();
+		verify(reportNotificationService, never()).notifyReportResult(
+			any(), any(), any(), any(), any(), anyString());
+	}
+
+	@Test
+	@DisplayName("UserReport REJECT: 신고 상태만 거절 처리하고 제보 알림은 발송하지 않는다")
+	void userReport_reject_updatesStatusOnly() {
+		UserReport report = mock(UserReport.class);
+		given(report.getStatus()).willReturn(UserReportStatus.PENDING);
+		given(userReportRepository.findById(32L)).willReturn(Optional.of(report));
+
+		adminReportService.reviewReport(32L, new AdminReportReviewRequest("USER_REPORT", "REJECT"));
+
+		verify(report).reject();
+		verify(report, never()).accept();
+		verify(reportNotificationService, never()).notifyReportResult(
+			any(), any(), any(), any(), any(), anyString());
 	}
 
 	@Test
