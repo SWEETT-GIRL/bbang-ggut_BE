@@ -6,5 +6,12 @@ import jakarta.validation.constraints.NotBlank;
 // null/false 면 ID 만 교체 (기본).
 public record AdminNaverPlaceIdUpdateRequest(
 		@NotBlank String naverPlaceId,
-		Boolean replaceMenus) {
+		Boolean replaceMenus,
+		String address,
+		CoordRequest coord) {
+
+	public record CoordRequest(
+			double latitude,
+			double longitude) {
+	}
 }

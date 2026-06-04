@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -16,6 +18,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.locationtech.jts.geom.Point;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -134,6 +137,30 @@ class AdminStoreServiceTest {
 	}
 
 	@Test
+	@DisplayName("deleteStore: 가게를 DELETED 처리하고 네이버 후보를 정리한다")
+	void deleteStore_marksDeletedAndClearsCandidates() {
+		Store store = mock(Store.class);
+		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
+
+		adminStoreService.deleteStore(1L);
+
+		verify(store).update(null, null, null, null, null, null, null, StoreStatus.DELETED, null);
+		verify(candidateRepository).deleteByStoreId(1L);
+	}
+
+	@Test
+	@DisplayName("deleteNaverClosedSuspect: 폐업 의심 가게를 soft-delete한다")
+	void deleteNaverClosedSuspect_marksDeleted() {
+		Store store = mock(Store.class);
+		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
+
+		adminStoreService.deleteNaverClosedSuspect(1L);
+
+		verify(store).update(null, null, null, null, null, null, null, StoreStatus.DELETED, null);
+		verify(candidateRepository).deleteByStoreId(1L);
+	}
+
+	@Test
 	@DisplayName("updateNaverPlaceId: 다른 store 가 이미 같은 placeId 를 쓰면 409 로 거절한다")
 	void updateNaverPlaceId_duplicate_throws() {
 		Store target = mock(Store.class);
@@ -173,6 +200,30 @@ class AdminStoreServiceTest {
 		adminStoreService.updateNaverPlaceId(1L, "place-abc", false);
 
 		verify(target).markNaverMatched("place-abc");
+		verify(candidateRepository).deleteByStoreId(1L);
+	}
+
+	@Test
+	@DisplayName("updateNaverPlaceId: 네이버 후보 주소와 좌표가 있으면 가게 주소도 함께 갱신한다")
+	void updateNaverPlaceId_withAddress_updatesStoreLocation() {
+		Store target = mock(Store.class);
+		String address = "경기도 하남시 신장1로3번길 62";
+		given(storeRepository.findById(1L)).willReturn(Optional.of(target));
+		given(storeRepository.findByNaverPlaceId("1009971635")).willReturn(Optional.empty());
+
+		adminStoreService.updateNaverPlaceId(1L, "1009971635", false, address, 37.539, 127.214);
+
+		verify(target).update(
+			isNull(),
+			eq(address),
+			any(Point.class),
+			eq("경기도"),
+			eq("하남시"),
+			eq("신장1로3번길"),
+			isNull(),
+			isNull(),
+			isNull());
+		verify(target).markNaverMatched("1009971635");
 		verify(candidateRepository).deleteByStoreId(1L);
 	}
 }

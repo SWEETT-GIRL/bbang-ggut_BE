@@ -110,13 +110,20 @@ public class AdminStoreController {
 	}
 
 	@Operation(summary = "네이버 플레이스 ID 저장", description = "Python 크롤러 또는 어드민이 호출. "
-		+ "naverPlaceId 와 naverMatchedAt 을 함께 갱신. replaceMenus=true 면 기존 메뉴를 soft-delete (어드민 후보 선택 UI 용).")
+		+ "naverPlaceId 와 naverMatchedAt 을 함께 갱신. replaceMenus=true 면 기존 메뉴를 soft-delete. "
+		+ "address/coord 가 함께 오면 네이버 후보 주소와 좌표로 가게 위치도 갱신합니다.")
 	@PutMapping("/{storeId}/naver-place-id")
 	public ResponseEntity<ApiResponse<Void>> updateNaverPlaceId(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId,
 			@Valid @RequestBody AdminNaverPlaceIdUpdateRequest request) {
 		boolean replaceMenus = Boolean.TRUE.equals(request.replaceMenus());
-		adminStoreService.updateNaverPlaceId(storeId, request.naverPlaceId(), replaceMenus);
+		adminStoreService.updateNaverPlaceId(
+			storeId,
+			request.naverPlaceId(),
+			replaceMenus,
+			request.address(),
+			request.coord() != null ? request.coord().latitude() : null,
+			request.coord() != null ? request.coord().longitude() : null);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -190,6 +197,15 @@ public class AdminStoreController {
 	public ResponseEntity<ApiResponse<AdminNaverEnrichQueueItem>> getNaverEnrichItem(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId) {
 		return ResponseEntity.ok(ApiResponse.ok(adminStoreService.getNaverEnrichItem(storeId)));
+	}
+
+	@Operation(summary = "네이버 폐업 의심 가게 삭제", description = "네이버 후보가 폐업으로 확인된 가게를 soft-delete합니다 "
+		+ "(status → DELETED). 저장된 네이버 후보도 함께 정리됩니다.")
+	@DeleteMapping("/{storeId}/naver-closed-suspect")
+	public ResponseEntity<ApiResponse<Void>> deleteNaverClosedSuspect(
+			@Parameter(description = "가게 ID") @PathVariable Long storeId) {
+		adminStoreService.deleteNaverClosedSuspect(storeId);
+		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
 	@Operation(summary = "단일 가게 네이버 enrich 실행 (sync)", description = "Python 크롤러 subprocess 로 한 가게만 매칭 + 메뉴 보강. "

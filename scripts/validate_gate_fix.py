@@ -63,11 +63,11 @@ def main() -> None:
 		r["store_address"] = kakao["address"]
 		rows.append(r)
 
-	# 분류: WOULD_MATCH = 이번 수정으로 회복(후보 동일, 게이트만 바뀜) / GATE_REJECT = 여전히 거부
-	#       SEARCH_EMPTY = 저장된 후보 없음(검색 0건) → 게이트 무관
-	recovered = [r for r in rows if r["bucket"] == "WOULD_MATCH"]
-	still_reject = [r for r in rows if r["bucket"] == "GATE_REJECT"]
-	no_cands = [r for r in rows if r["bucket"] == "SEARCH_EMPTY"]
+	# 분류: MATCH = 이번 수정으로 회복(후보 동일, 게이트만 바뀜) / MISMATCH = 여전히 거부
+	#       NO_CAND = 저장된 후보 없음(검색 0건) → 게이트 무관
+	recovered = [r for r in rows if r["bucket"] == "MATCH"]
+	still_reject = [r for r in rows if r["bucket"] == "MISMATCH"]
+	no_cands = [r for r in rows if r["bucket"] == "NO_CAND"]
 
 	print(f"{'=' * 64}")
 	print(f"총 {len(rows)}건")

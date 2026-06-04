@@ -147,6 +147,12 @@ public class AdminStoreService {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 		store.update(null, null, null, null, null, null, null, StoreStatus.DELETED, null);
+		candidateRepository.deleteByStoreId(storeId);
+	}
+
+	@Transactional
+	public void deleteNaverClosedSuspect(Long storeId) {
+		deleteStore(storeId);
 	}
 
 	// ── Naver enrich 큐 ─────────────────────────────────────────────────────
@@ -270,6 +276,17 @@ public class AdminStoreService {
 
 	@Transactional
 	public void updateNaverPlaceId(Long storeId, String naverPlaceId, boolean replaceMenus) {
+		updateNaverPlaceId(storeId, naverPlaceId, replaceMenus, null, null, null);
+	}
+
+	@Transactional
+	public void updateNaverPlaceId(
+			Long storeId,
+			String naverPlaceId,
+			boolean replaceMenus,
+			String address,
+			Double latitude,
+			Double longitude) {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 		// DB 의 unique 제약이 막아주지만, 사전 검사로 명시적 409 를 돌려줘서 운영자가 원인을 바로 본다.
@@ -281,6 +298,9 @@ public class AdminStoreService {
 		if (replaceMenus) {
 			menuRepository.softDeleteByStoreId(storeId);
 		}
+		Point newLocation = latitude != null && longitude != null ? toPoint(latitude, longitude) : null;
+		String[] addr = address != null ? AddressParser.parse(address) : new String[3];
+		store.update(null, address, newLocation, addr[0], addr[1], addr[2], null, null, null);
 		store.markNaverMatched(naverPlaceId);
 		// 매칭 확정됐으니 보관 중이던 후보 목록 정리
 		candidateRepository.deleteByStoreId(storeId);

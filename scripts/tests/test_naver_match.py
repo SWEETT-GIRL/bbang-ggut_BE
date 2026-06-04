@@ -15,10 +15,12 @@ from naver_match import (  # noqa: E402
 	classify_menu_texts,
 	classify_store,
 	extract_road_and_number,
+	headquarters_conflict,
 	is_chain_like,
 	is_closed,
 	name_match_kind,
 	names_related_for_near_match,
+	names_related_for_same_address,
 	names_same_ignoring_generic,
 	normalize_name,
 	score_candidate,
@@ -124,6 +126,11 @@ class TestBranchAndGeneric:
 		# 같은 지점이면 충돌 아님
 		assert not branch_conflict("세라젬웰파크 청량리점", "세라젬 웰파크 청량리점 건강관리")
 
+	def test_headquarters_conflict(self):
+		assert headquarters_conflict("빈스로드 본사", "빈스로드 상봉본점")
+		assert not headquarters_conflict("빈스로드 본사", "빈스로드 본사")
+		assert not headquarters_conflict("빈스로드 상봉점", "빈스로드 상봉본점")
+
 	def test_names_same_ignoring_generic(self):
 		assert names_same_ignoring_generic("카페메리고라운드", "메리고라운드")
 		assert names_same_ignoring_generic("케이크오라", "오라")
@@ -139,7 +146,17 @@ class TestBranchAndGeneric:
 		assert names_related_for_near_match("캐리베이커리", "캐리 베이커리 CARRIE BAKERY")
 		assert names_related_for_near_match("크림데이", "크림데이 글루텐프리 케이크샵")
 		assert names_related_for_near_match("SF베이글", "SF bagels")
+		assert names_related_for_near_match("황제찹쌀꽈배기 논현영동시장점", "영동황제꽈배기 논현영동시장점")
 		assert not names_related_for_near_match("오라", "오라하우스")
+
+	def test_names_related_for_same_address(self):
+		assert names_related_for_same_address("하트카페", "역삼 하트카페")
+		assert names_related_for_same_address("아토커피 역삼점", "ATTO커피 본점")
+		assert names_related_for_same_address("하이드아웃", "Hideout")
+		assert names_related_for_same_address("지유가오카핫쵸메 7호점", "지유가오카 핫초메 논현점")
+		assert names_related_for_same_address("플레플레", "플레플레 케이크 주문케이크 떡케이크")
+		assert names_related_for_same_address("뚜쥬루 갤러리아점", "뚜쥬루갤러리아백화점센터시티점")
+		assert not names_related_for_same_address("오리", "푸른목장")
 
 
 # ─── is_closed ────────────────────────────────────────────────────────────────
@@ -153,6 +170,9 @@ class TestClosed:
 
 	def test_not_closed(self):
 		assert not is_closed({"name": "테라로사", "category": "베이커리"})
+
+	def test_closed_in_status(self):
+		assert is_closed({"name": "테라로사", "status": "OUT_OF_BUSINESS"})
 
 
 # ─── score_candidate / select_match ──────────────────────────────────────────
@@ -227,13 +247,37 @@ class TestSelectMatch:
 		chosen, _, why = select_match(k, [n])
 		assert chosen is not None, why
 
-	def test_chain_beyond_80m_rejected(self):
+	def test_chain_beyond_150m_rejected(self):
 		k = _kakao(name="스타벅스 강남점")
-		# 90m 떨어짐 — exact + road match 여도 체인 좌표 오차 허용 범위 밖.
-		n = _naver(name="스타벅스 강남점", y=37.50081)
+		# 170m 이상 떨어짐 — exact + road match 여도 체인 좌표 오차 허용 범위 밖.
+		n = _naver(name="스타벅스 강남점", y=37.5016)
 		chosen, _, why = select_match(k, [n])
 		assert chosen is None
 		assert "체인" in why
+
+	def test_chain_same_road_related_name_130m_accepted(self):
+		# 대형 건물/백화점 좌표는 100m 이상 흔들릴 수 있다. 도로명+건물번호와 이름이
+		# 모두 같은 지점이면 150m 까지 흡수.
+		k = _kakao(name="곤트란쉐리에 논현건설회관점", address="서울 강남구 언주로 711")
+		n = _naver(name="곤트란쉐리에 논현건설회관점", y=37.50115, address="서울 강남구 언주로 711")
+		chosen, _, why = select_match(k, [n])
+		assert chosen is not None, why
+
+	def test_chain_large_facility_exact_road_match_500m_accepted(self):
+		# 실패 throttle 회귀: 백화점 입점 매장은 같은 도로명+번지·이름 exact 여도
+		# 카카오/네이버 좌표가 백화점 건물 안팎 기준점 차이로 크게 흔들릴 수 있다.
+		k = _kakao(
+			name="솔아띠몽 롯데백화점 청량리점",
+			address="서울 동대문구 왕산로 214",
+		)
+		n = _naver(
+			name="솔아띠몽 롯데백화점 청량리점",
+			y=37.5045,
+			address="서울 동대문구 왕산로 214",
+		)
+		chosen, _, why = select_match(k, [n])
+		assert chosen is not None, why
+		assert "대형시설" in why
 
 	def test_chain_exact_jibun_district_70m_accepted(self):
 		# 이름은 exact 인데 네이버 후보가 지번만 남아 도로명 비교가 불가능한 백화점/몰 입점 매장.
@@ -378,13 +422,20 @@ class TestSelectMatch:
 		chosen, _, _ = select_match(k, [n])
 		assert chosen is None
 
-	def test_prox_head_truncated_brand_rejected(self):
-		# 머리(브랜드) 잘림 — '베지경주제과' ↔ '경주제과'. 도로명·좌표 겹쳐도 다른 가게로 보고 거부.
+	def test_prox_head_truncated_brand_without_same_road_rejected(self):
+		# 머리(브랜드) 잘림 — '베지경주제과' ↔ '경주제과'. 같은 주소 증거가 없으면 거부.
 		k = _kakao(name="베지경주제과 황리단길점", address="경북 경주시 포석로 1047")
-		n = _naver(name="경주제과", y=37.50002, address="경북 경주시 포석로 1047")
+		n = _naver(name="경주제과", y=37.50002, address="경북 경주시 태종로 1")
 		chosen, _, why = select_match(k, [n])
 		assert chosen is None
 		assert "머리" in why or "부분일치" in why
+
+	def test_same_road_near_head_truncated_brand_accepted(self):
+		# 같은 도로명+건물번호와 근접 좌표가 있으면 지역/브랜드 prefix 표기 차이를 허용.
+		k = _kakao(name="베지경주제과 황리단길점", address="경북 경주시 포석로 1047")
+		n = _naver(name="경주제과", y=37.50002, address="경북 경주시 포석로 1047")
+		chosen, _, why = select_match(k, [n])
+		assert chosen is not None, why
 
 	def test_prox_generic_word_diff_accepted(self):
 		# 일반어(카페)만 다른 같은 가게 — '하얀파도' ↔ '카페 하얀파도'. 근접+동 → 매칭.
@@ -414,12 +465,25 @@ class TestSelectMatch:
 		assert chosen is not None, why
 
 	def test_branch_conflict_rejected(self):
-		# 양쪽 다른 지점 토큰 — '씨엘비 광주2호점' ↔ '씨엘비 광주점'. 1m여도 거부(옆지점 오매칭 방지).
-		k = _kakao(name="씨엘비베이커리 광주2호점", address="광주 동구 충장로 1")
-		n = _naver(name="씨엘비베이커리 광주점", y=37.50001, address="광주 동구 충장로 1")
+		# 양쪽 다른 번호 지점 토큰 — 1m여도 거부(옆지점 오매칭 방지).
+		k = _kakao(name="브레드데이 동탄2호점", address="경기 화성시 동탄순환대로18길 16")
+		n = _naver(name="브레드데이 동탄3호점", y=37.50001, address="경기 화성시 동탄순환대로18길 16")
 		chosen, _, why = select_match(k, [n])
 		assert chosen is None
 		assert "지점" in why
+
+	def test_branch_conflict_same_road_variant_accepted(self):
+		# 같은 주소/좌표이면 본점·직영점·세부 지역명이 섞인 지점 표기차는 허용.
+		k = _kakao(name="천안당호두과자 의정부점", address="경기 의정부시 서부로 685")
+		n = _naver(name="천안당호두과자 의정부1호점", y=37.50001, address="경기 의정부시 서부로 685")
+		chosen, _, why = select_match(k, [n])
+		assert chosen is not None, why
+
+	def test_branch_conflict_same_road_spelling_variant_accepted(self):
+		k = _kakao(name="지유가오카핫쵸메 7호점", address="서울 강남구 강남대로118길 59")
+		n = _naver(name="지유가오카 핫초메 논현점", y=37.50001, address="서울 강남구 강남대로118길 59")
+		chosen, _, why = select_match(k, [n])
+		assert chosen is not None, why
 
 	def test_branch_one_sided_accepted(self):
 		# 한쪽만 지점 토큰(생략) — '류재은베이커리 류하우스점' ↔ '류재은베이커리'. 같은 가게로 매칭.
@@ -427,6 +491,14 @@ class TestSelectMatch:
 		n = _naver(name="류재은베이커리", y=37.50002, address="경기 파주시 문산읍 반구정로 36")
 		chosen, _, why = select_match(k, [n])
 		assert chosen is not None, why
+
+	def test_headquarters_store_candidate_rejected(self):
+		# '본사'는 회사/사무실일 수 있어 같은 주소여도 본사로 등록된 후보가 아니면 수동 확인.
+		k = _kakao(name="빈스로드 본사", address="서울 중랑구 봉화산로 111")
+		n = _naver(name="빈스로드 상봉본점", y=37.50001, address="서울 중랑구 봉화산로 111")
+		chosen, _, why = select_match(k, [n])
+		assert chosen is None
+		assert "본사" in why
 
 	def test_proximity_related_name_ambiguous_rejected(self):
 		# 근접+이름관련이라도 비슷한 후보 2개가 점수 박빙이면 모호 → 거부(격차 컷 유지).
@@ -553,35 +625,42 @@ class TestClassifyMenuTexts:
 
 class TestClassifyStore:
 	def test_search_empty(self):
-		# 후보 0건 → SEARCH_EMPTY
+		# 후보 0건 → NO_CAND
 		chosen, scored, reason = select_match(_kakao(), [])
 		r = classify_store([], chosen, reason, scored)
-		assert r["bucket"] == "SEARCH_EMPTY"
+		assert r["bucket"] == "NO_CAND"
 		assert r["num_candidates"] == 0
 		assert r["top_cand_name"] is None
 		assert r["top_score"] is None
 
 	def test_would_match(self):
-		# 지금 돌리면 매칭됨 → WOULD_MATCH (과거 flaky 실패)
+		# 지금 돌리면 매칭됨 → MATCH (과거 flaky 실패)
 		cands = [_naver()]
 		chosen, scored, reason = select_match(_kakao(), cands)
 		assert chosen is not None
 		r = classify_store(cands, chosen, reason, scored)
-		assert r["bucket"] == "WOULD_MATCH"
+		assert r["bucket"] == "MATCH"
 		assert r["num_candidates"] == 1
 		assert r["top_cand_name"] == "테라로사"
 		assert r["name_kind"] == "exact"
 		assert r["road_match"] is True
 
 	def test_gate_reject(self):
-		# 후보는 떴으나 게이트 거부 (120m) → GATE_REJECT, reason 보존
+		# 후보는 떴으나 게이트 거부 (120m) → MISMATCH, reason 보존
 		cands = [_naver(y=37.50108, address="서울 강남구 봉은사로 50")]
 		chosen, scored, reason = select_match(_kakao(), cands)
 		assert chosen is None
 		r = classify_store(cands, chosen, reason, scored)
-		assert r["bucket"] == "GATE_REJECT"
+		assert r["bucket"] == "MISMATCH"
 		assert r["num_candidates"] == 1
 		assert r["reason"] == reason
 		assert r["top_cand_name"] == "테라로사"
 		assert r["distance_m"] is not None
 		assert r["distance_m"] > 100
+
+	def test_closed_candidate(self):
+		cands = [_naver(name="테라로사 폐업")]
+		chosen, scored, reason = select_match(_kakao(), cands)
+		assert chosen is None
+		r = classify_store(cands, chosen, reason, scored)
+		assert r["bucket"] == "CLOSED"
