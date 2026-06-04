@@ -13,7 +13,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.ImageFile;
-import sweetgirl.croissant.external.aws.enums.MimeType;
+import sweetgirl.croissant.common.enums.MimeType;
 
 @Entity
 @Table(name = "store_image_file")
