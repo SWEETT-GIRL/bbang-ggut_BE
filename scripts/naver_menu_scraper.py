@@ -54,11 +54,13 @@ except ImportError:
 from naver_match import (
 	classify_menu_texts,
 	extract_best_district,
+	extract_road_and_number,
 	extract_road_name,
 	guess_category,
 	is_drink,
 	normalize_name,
 	select_match,
+	strip_branch_suffix,
 	strip_category_suffix,
 	strip_company_suffix,
 	strip_generic_branch_suffix,
@@ -83,6 +85,11 @@ NAVER_UA = (
 	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
 	"AppleWebKit/537.36 (KHTML, like Gecko) "
 	"Chrome/124.0.0.0 Safari/537.36"
+)
+
+_SEARCH_FACILITY_SUFFIX_RE = re.compile(
+	r"\s+(?:롯데백화점|현대백화점|신세계백화점|갤러리아백화점|백화점|더현대|스타필드"
+	r"|타임스퀘어|월드몰|아울렛|몰|마트)$"
 )
 
 
@@ -132,9 +139,16 @@ def _wait_entry_frame(page, timeout_ms: int = 8000):
 
 # ─── 백엔드 API 클라이언트 ────────────────────────────────────────────────────
 
-def fetch_queue(server: str, size: int, path: str = "naver-enrich-queue") -> list[dict]:
-	url = f"{server}/api/admin/stores/{path}?page=0&size={size}"
-	resp = requests.get(url, timeout=15)
+def fetch_queue(
+		server: str,
+		size: int,
+		path: str = "naver-enrich-queue",
+		partition: Optional[str] = None) -> list[dict]:
+	url = f"{server}/api/admin/stores/{path}"
+	params = {"page": 0, "size": size}
+	if partition:
+		params["partition"] = partition
+	resp = requests.get(url, params=params, timeout=15)
 	resp.raise_for_status()
 	return resp.json().get("data", {}).get("content", []) or []
 
@@ -181,7 +195,7 @@ def save_naver_place_id(server: str, store_id: int, naver_place_id: str) -> tupl
 
 def mark_failed(server: str, store_id: int, no_candidates: bool = False) -> None:
 	# no_candidates=True (검색 후보 0건=진짜 무결과)면 백엔드 파킹 카운터가 +1 — 임계 누적 시 큐 제외.
-	# GATE_REJECT(후보 있음)는 False 로 호출해 카운트 안 함(수동 후보선택 대상).
+	# MISMATCH(후보 있음)는 False 로 호출해 카운트 안 함(수동 후보선택 대상).
 	url = f"{server}/api/admin/stores/{store_id}/naver-enrich-failed"
 	try:
 		requests.post(url, params={"noCandidates": str(no_candidates).lower()}, timeout=10)
@@ -340,6 +354,123 @@ def _naver_search_once(page: Page, query: str) -> tuple[list[dict], bool]:
 	return captured, blocked
 
 
+def _strip_search_facility_suffix(name: str) -> str:
+	if not name:
+		return name
+	return _SEARCH_FACILITY_SUFFIX_RE.sub("", name).strip()
+
+
+def _unique_texts(values: list[str]) -> list[str]:
+	seen: set[str] = set()
+	out: list[str] = []
+	for raw in values:
+		value = (raw or "").strip()
+		if not value or value in seen:
+			continue
+		seen.add(value)
+		out.append(value)
+	return out
+
+
+def _relaxed_search_names(cleaned: str, base: str, category_stripped: str) -> list[str]:
+	"""정확 검색이 전부 실패했을 때만 쓸 완화 이름 후보.
+
+	지점명/입점시설 꼬리가 네이버 등록명에는 없는 throttle 실패가 많았다. 완화 이름은
+	후보 0건일 때만 사용하고, 실제 매칭은 select_match 의 주소·거리 게이트가 계속 막는다.
+	"""
+	candidates = [base, category_stripped]
+	for name in (cleaned, base, category_stripped):
+		generic_stripped = strip_generic_branch_suffix(name) or name
+		branch_stripped = strip_branch_suffix(generic_stripped)
+		category_then_branch = strip_branch_suffix(strip_category_suffix(generic_stripped))
+		for value in (branch_stripped, category_then_branch):
+			candidates.append(value)
+			candidates.append(_strip_search_facility_suffix(value))
+	return _unique_texts(candidates)
+
+
+def build_naver_search_query_groups(store_name: str, store_address: Optional[str] = None) -> tuple[list[str], list[str]]:
+	"""네이버 검색 쿼리를 primary/fallback 으로 나눈다.
+
+	primary 는 기존처럼 지역·도로명 힌트를 보존해 정확도를 우선한다. fallback 은 primary 결과가
+	0건일 때만 쓰는 느슨한 검색어라 지점명/입점시설 꼬리를 일부 제거한다.
+	"""
+	cleaned = strip_company_suffix(store_name) or store_name
+	base = strip_generic_branch_suffix(cleaned) or cleaned
+	category_stripped = strip_category_suffix(base)
+	district = extract_best_district(store_address or "")
+	road, road_num = extract_road_and_number(store_address)
+	road_name = road or extract_road_name(store_address)
+	road_hint = f"{road} {road_num}".strip() if road and road_num else road_name
+
+	primary: list[str] = []
+	name_len = len(normalize_name(category_stripped or base))
+	road_fallback = bool(road_hint and name_len <= 5)
+
+	if road_fallback and name_len <= 3:
+		primary.append(f"{base} {road_hint}")
+		if category_stripped != base and category_stripped:
+			primary.append(f"{category_stripped} {road_hint}")
+
+	if district:
+		primary.append(f"{base} {district}")
+		if category_stripped != base and category_stripped:
+			primary.append(f"{category_stripped} {district}")
+
+	if road_hint:
+		if district:
+			primary.append(f"{base} {district} {road_hint}")
+			if category_stripped != base and category_stripped:
+				primary.append(f"{category_stripped} {district} {road_hint}")
+		if road_fallback or road_num:
+			primary.append(f"{base} {road_hint}")
+			if category_stripped != base and category_stripped:
+				primary.append(f"{category_stripped} {road_hint}")
+
+	if road_fallback and name_len > 3 and road_name and road_name != road_hint:
+		primary.append(f"{base} {road_name}")
+		if category_stripped != base and category_stripped:
+			primary.append(f"{category_stripped} {road_name}")
+
+	fallback: list[str] = []
+	relaxed_names = _relaxed_search_names(cleaned, base, category_stripped)
+	for name in relaxed_names:
+		if name not in (base, category_stripped):
+			if district:
+				fallback.append(f"{name} {district}")
+			if road_hint:
+				fallback.append(f"{name} {road_hint}")
+		fallback.append(name)
+
+	for name in relaxed_names:
+		if "카페" in name:
+			continue
+		for variant in (f"카페 {name}", f"{name} 카페"):
+			if district:
+				fallback.append(f"{variant} {district}")
+			fallback.append(variant)
+
+	primary = _unique_texts(primary)
+	fallback = [q for q in _unique_texts(fallback) if q not in set(primary)]
+	return primary, fallback
+
+
+def _candidate_detail_for_log(cand: dict) -> str:
+	parts: list[str] = []
+	place_id = cand.get("id")
+	if place_id:
+		parts.append(f"id={place_id}")
+	category = cand.get("category") or cand.get("categoryName") or cand.get("category_name")
+	if category:
+		parts.append(f"cat={category}")
+	for key in ("roadAddress", "roadAddressName", "road_address_name", "address"):
+		value = cand.get(key)
+		if value:
+			parts.append(f"addr={str(value).strip()}")
+			break
+	return " ".join(parts)
+
+
 def search_naver_candidates(
 		page: Page,
 		store_name: str,
@@ -352,21 +483,17 @@ def search_naver_candidates(
 	응답이면 False(진짜 없는 가게). 호출부(main 루프)가 이걸로 abort 여부를 가른다.
 
 	검색 전략 (지역/도로명 후보는 dedup 해서 모은 뒤 반환):
-	  1) 짧은 이름이면 "{이름} {도로명}" 우선 — 흔한 2~5자 이름의 엉뚱한 후보 방지.
+	  1) 짧은 이름이면 "{이름} {도로명+건물번호}" 우선 — 흔한 2~5자 이름의 엉뚱한 후보 방지.
 	  2) "{이름} {행정구역}" — 체인점의 진짜 매장이 1페이지에 떠오르게.
 	     일반 접미사(본점/지점/호점)는 떼고 '○○점' 같은 지역 힌트는 유지.
 	  3) "{카테고리 strip된 이름} {행정구역}" — '유어사이드 커피로스터리' 같이 카테고리 단어 꼬리
 	     붙은 케이스에서 핵심 브랜드명으로 좁혀 재시도.
-	  4) "{이름} {도로명}" — 행정구역 결과가 엉뚱한 짧은 이름('올'/'오리' 등) 대응.
+	  4) "{이름} {행정구역} {도로명+건물번호}" / "{이름} {도로명+건물번호}" —
+	     행정구역 결과가 엉뚱한 짧은 이름('올'/'오리' 등) 대응.
 	  5) 이름만 — 지역 인덱스 없는 케이스 fallback.
 	잘못된 후보는 뒤의 select_match 가 점수+게이트로 걸러냄.
 	"""
-	# 사업자명 노이즈 먼저 제거 (브랜드명만 남김)
-	cleaned = strip_company_suffix(store_name) or store_name
-	base = strip_generic_branch_suffix(cleaned) or cleaned
-	category_stripped = strip_category_suffix(base)
-	district = extract_best_district(store_address or "")
-	road = extract_road_name(store_address)
+	primary_queries, fallback_queries = build_naver_search_query_groups(store_name, store_address)
 
 	tried: set[str] = set()
 	seen: set[str] = set()
@@ -400,51 +527,16 @@ def search_naver_candidates(
 			add_results(results)
 		return results
 
-	name_len = len(normalize_name(category_stripped or base))
-	road_fallback = bool(road and name_len <= 5)
-
-	# 짧고 흔한 이름은 '구'보다 도로명이 훨씬 강한 힌트다. 기존에는 구 검색 결과가
-	# 하나라도 나오면 도로명 fallback 을 타지 않아 top 후보가 엉뚱해지는 케이스가 많았다.
-	if road_fallback and name_len <= 3:
-		try_query(f"{base} {road}")
-		if category_stripped != base and category_stripped:
-			try_query(f"{category_stripped} {road}")
-
-	if district:
-		try_query(f"{base} {district}")
-		# 카테고리 단어 strip 결과가 다르면 한 번 더 시도
-		if category_stripped != base and category_stripped:
-			try_query(f"{category_stripped} {district}")
-
-	if road_fallback and name_len > 3:
-		try_query(f"{base} {road}")
-		if category_stripped != base and category_stripped:
-			try_query(f"{category_stripped} {road}")
+	for q in primary_queries:
+		try_query(q)
 
 	if collected:
 		return collected
 
-	# 최종 fallback — 이름만
-	results = try_query(base)
-	if results:
-		return collected
-	if category_stripped != base and category_stripped:
-		results = try_query(category_stripped)
+	for q in fallback_queries:
+		results = try_query(q)
 		if results:
 			return collected
-
-	# 카페가 네이버에 '카페 ○○' / '○○ 카페' 로 등록된 경우 대응 — 위 검색이 다 실패했을 때만
-	# 추가로 카페 prefix/suffix 변형을 시도(예: '만바네' → '카페 만바네', '만바네 카페').
-	if "카페" not in base:
-		variants: list[str] = []
-		for v in (f"카페 {base}", f"{base} 카페"):
-			if district:
-				variants.append(f"{v} {district}")
-			variants.append(v)
-		for q in variants:
-			results = try_query(q)
-			if results:
-				return collected
 	if diag is not None:
 		diag["blocked"] = blocked_any
 	return collected
@@ -655,7 +747,7 @@ def process_store(page: Page, store: dict, server: str, dry_run: bool, verbose: 
 	"""
 	stats = {"matched": 0, "menus_created": 0, "images_uploaded": 0, "skipped_menu_crawl": 0,
 			"photos_uploaded": 0, "skipped_photo_crawl": 0,
-			"failed": 0, "no_candidates": False, "blocked": False}
+			"failed": 0, "no_candidates": False, "blocked": False, "closed_candidate": False}
 
 	store_id = store["id"]
 	store_name = store["name"]
@@ -694,11 +786,16 @@ def process_store(page: Page, store: dict, server: str, dry_run: bool, verbose: 
 
 	if not matched_place:
 		print(f"  → 매칭 실패: {reason} (후보 {len(candidates)}개)")
+		if scored and scored[0][1].get("closed"):
+			stats["closed_candidate"] = True
+			print("  → 네이버 폐업 후보 감지 — 자동 매칭/삭제 없이 후보로 보관")
 		if verbose:
 			for cand, sc in scored[:5]:
 				bk = sc["breakdown"]
 				dist = f"{sc['distance_m']:.0f}m" if sc["distance_m"] is not None else "-"
-				print(f"     - {sc['total']}점 [{sc['name_kind']}/{dist}/road{bk['road']}] {cand.get('name')}")
+				detail = _candidate_detail_for_log(cand)
+				detail_suffix = f" ({detail})" if detail else ""
+				print(f"     - {sc['total']}점 [{sc['name_kind']}/{dist}/road{bk['road']}] {cand.get('name')}{detail_suffix}")
 		if not dry_run:
 			# 어드민이 직접 고를 수 있게 후보 저장 — '후보 보기' UI 가 읽음
 			save_candidates(server, store_id, candidates)
@@ -846,6 +943,8 @@ def main() -> None:
 		help="매칭됨+사진 0장 큐만 처리 — 검색은 스킵하고 사진만 보충 (process_store 분기로 자동 처리)")
 	parser.add_argument("--enrich-backfill", action="store_true",
 		help="매칭됨(placeId 있음)인데 메뉴 OR 사진 빈 큐 처리 — 검색 스킵, 메뉴+사진 둘 다 풀 보충")
+	parser.add_argument("--partition", choices=["P1", "P2", "P3"],
+		help="작업 파티션(큐 모드 필수): P1/P2/P3 = store id 기준 균등 분배")
 	parser.add_argument("--headless", action="store_true", default=True, help="브라우저 창 숨김 (기본 ON)")
 	parser.add_argument("--show-browser", dest="headless", action="store_false", help="브라우저 창 표시")
 	args = parser.parse_args()
@@ -863,10 +962,16 @@ def main() -> None:
 	if args.store_id:
 		print(f"단일 가게 모드: store_id={args.store_id}")
 	else:
+		if not args.partition:
+			print("[오류] 큐 모드는 --partition P1|P2|P3 중 하나가 필요합니다. 전체 큐 실행은 중복 위험 때문에 막혀 있습니다.")
+			sys.exit(2)
 		print(f"큐 모드 [{mode}] — 배치 크기: {args.batch}, loop={args.loop}, dry-run={args.dry_run}")
+		if args.partition:
+			print(f"작업 파티션: {args.partition}")
 
 	total = {"matched": 0, "menus_created": 0, "images_uploaded": 0, "skipped_menu_crawl": 0,
-			"photos_uploaded": 0, "skipped_photo_crawl": 0, "failed": 0}
+			"photos_uploaded": 0, "skipped_photo_crawl": 0, "failed": 0,
+			"no_candidates": 0, "mismatch": 0, "closed_suspects": 0, "blocked": 0}
 
 	with sync_playwright() as p:
 		browser = p.chromium.launch(
@@ -888,14 +993,23 @@ def main() -> None:
 				sys.exit(2)
 			result = process_store(page, store, args.server, args.dry_run, args.verbose,
 				crawl_menus=crawl_menus)
-			for k in total:
+			for k in ("matched", "menus_created", "images_uploaded", "skipped_menu_crawl",
+					"photos_uploaded", "skipped_photo_crawl", "failed"):
 				total[k] += result.get(k, 0)
+			if result.get("no_candidates"):
+				total["no_candidates"] += 1
+			elif result.get("closed_candidate"):
+				total["closed_suspects"] += 1
+			elif result.get("failed"):
+				total["mismatch"] += 1
+			if result.get("blocked"):
+				total["blocked"] += 1
 		else:
 			# 큐 모드 (Option B 또는 운영자 CLI)
 			batches_done = 0
 			blocked_streak = 0
 			while True:
-				queue = fetch_queue(args.server, args.batch, path=queue_path)
+				queue = fetch_queue(args.server, args.batch, path=queue_path, partition=args.partition)
 				if not queue:
 					print("\n[큐 비어있음 — 종료]")
 					break
@@ -903,8 +1017,17 @@ def main() -> None:
 				for store in queue:
 					result = process_store(page, store, args.server, args.dry_run, args.verbose,
 						crawl_menus=crawl_menus)
-					for k in total:
+					for k in ("matched", "menus_created", "images_uploaded", "skipped_menu_crawl",
+							"photos_uploaded", "skipped_photo_crawl", "failed"):
 						total[k] += result.get(k, 0)
+					if result.get("no_candidates"):
+						total["no_candidates"] += 1
+					elif result.get("closed_candidate"):
+						total["closed_suspects"] += 1
+					elif result.get("failed"):
+						total["mismatch"] += 1
+					if result.get("blocked"):
+						total["blocked"] += 1
 					# 네이버 차단 의심 — '차단 신호(allSearch 미발사/non-200)' 검색이 N건 연속이면
 					# abort. 200 빈응답(진짜 없는 가게)은 abort 안 함 — 못 찾는 가게가 큐에 몰려도
 					# 배치 전체를 죽이지 않고 mark_failed 후 계속 진행(대량 false-abort 방지).

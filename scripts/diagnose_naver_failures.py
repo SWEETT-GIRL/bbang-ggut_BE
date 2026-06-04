@@ -4,9 +4,10 @@
 버킷으로 분류한다. 서버에 **아무것도 쓰지 않는다** (완전 read-only).
 
 버킷:
-  - SEARCH_EMPTY  : 네이버 검색 결과 0건 → 검색어 문제 (A)
-  - WOULD_MATCH   : 지금 돌리면 매칭됨 → 과거 flaky 실패 (재시도 시 해결)
-  - GATE_REJECT   : 후보는 떴으나 점수/게이트가 거부 → 매칭 로직 문제 (B)
+  - NO_CAND   : 네이버 검색 결과 0건
+  - CLOSED    : 네이버 폐업 후보가 top 후보
+  - MISMATCH  : 후보는 떴으나 주소/지점명/점수 게이트에서 거부
+  - MATCH     : 지금 돌리면 매칭됨
 
 실행 예:
   cd scripts && source .venv/bin/activate
@@ -77,15 +78,15 @@ def _diagnose_one(page, store: dict) -> dict:
 
 
 def _print_line(r: dict) -> None:
-	if r["bucket"] == "SEARCH_EMPTY":
-		print(f"  [SEARCH_EMPTY] {r['store_name']} — 검색 결과 0건")
+	if r["bucket"] == "NO_CAND":
+		print(f"  [NO_CAND] {r['store_name']} — 검색 결과 0건")
 		return
 	dist = f"{r['distance_m']:.0f}m" if r["distance_m"] is not None else "-"
 	road = "road1" if r["road_match"] else "road0"
 	print(
 		f"  [{r['bucket']}] {r['store_name']} → top '{r['top_cand_name']}'"
 		f" ({r['top_score']}점/{r['name_kind']}/{dist}/{road})"
-		f"{'  · ' + r['reason'] if r['bucket'] == 'GATE_REJECT' else ''}"
+		f"{'  · ' + r['reason'] if r['bucket'] in {'MISMATCH', 'CLOSED'} else ''}"
 	)
 
 
@@ -101,16 +102,16 @@ def _print_histogram(rows: list[dict]) -> None:
 	buckets = Counter(r["bucket"] for r in rows)
 	print(f"\n{'=' * 60}")
 	print(f"진단 완료 — 총 {len(rows)}건")
-	for bucket in ("SEARCH_EMPTY", "GATE_REJECT", "WOULD_MATCH"):
+	for bucket in ("NO_CAND", "CLOSED", "MISMATCH", "MATCH"):
 		n = buckets.get(bucket, 0)
 		if n:
 			print(f"  {bucket:14s}: {n}")
-	# GATE_REJECT 는 사유별로 한 번 더 쪼갬
+	# MISMATCH 는 사유별로 한 번 더 쪼갬
 	gate_reasons = Counter(
-		r["reason"] for r in rows if r["bucket"] == "GATE_REJECT"
+		r["reason"] for r in rows if r["bucket"] == "MISMATCH"
 	)
 	if gate_reasons:
-		print("\n  GATE_REJECT 사유별:")
+		print("\n  MISMATCH 사유별:")
 		for reason, n in gate_reasons.most_common():
 			print(f"    {n:3d}× {reason}")
 	print(f"\n  → CSV: scripts/{CSV_PATH}")

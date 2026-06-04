@@ -71,7 +71,7 @@ public class Store extends BaseTimeEntity {
 	private Instant naverMatchedAt;
 
 	// 네이버 검색 '진짜 무결과(후보 0건)' 누적 실패 횟수 — 폐업/오등록/빵집 아님 등으로 영영 못 찾는
-	// 가게를 무한 재시도하지 않도록 파킹하는 카운터. GATE_REJECT(후보 있음)는 증가시키지 않는다.
+	// 가게를 무한 재시도하지 않도록 파킹하는 카운터. MISMATCH(후보 있음)는 증가시키지 않는다.
 	// 임계치 이상이면 enrich 큐에서 제외. retry/clear 시 0 으로 리셋되어 다시 큐 진입.
 	@Column(name = "naver_enrich_attempts", nullable = false)
 	private int naverEnrichAttempts;
@@ -106,7 +106,7 @@ public class Store extends BaseTimeEntity {
 	}
 
 	// 매칭 실패 기록. noCandidates(검색 후보 0건 = 진짜 무결과)면 파킹 카운터를 +1 한다.
-	// GATE_REJECT(후보는 떴으나 게이트 거부)는 수동 후보선택 대상이라 카운트하지 않는다.
+	// MISMATCH(후보는 떴으나 게이트 거부)는 수동 후보선택 대상이라 카운트하지 않는다.
 	public void markNaverEnrichFailed(boolean noCandidates) {
 		this.naverMatchedAt = Instant.now();
 		if (noCandidates) {
