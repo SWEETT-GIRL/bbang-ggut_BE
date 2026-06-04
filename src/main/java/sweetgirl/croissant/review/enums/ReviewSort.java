@@ -16,6 +16,9 @@ public enum ReviewSort {
 	private final String value;
 
 	public static ReviewSort from(String value) {
+		if (value == null) {
+			throw new ReviewException(ReviewErrorCode.INVALID_REVIEW_SORT);
+		}
 		for (ReviewSort sort : values()) {
 			if (sort.value.equals(value.toLowerCase(Locale.ROOT))) {
 				return sort;
