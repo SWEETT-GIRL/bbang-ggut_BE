@@ -1,0 +1,271 @@
+package sweetgirl.croissant.review.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.StreamSupport;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Pageable;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import sweetgirl.croissant.external.aws.S3Service;
+import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
+import sweetgirl.croissant.external.aws.enums.MimeType;
+import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.menu.entity.Menu;
+import sweetgirl.croissant.menu.repository.MenuRepository;
+import sweetgirl.croissant.review.code.ReviewErrorCode;
+import sweetgirl.croissant.review.dto.projection.ReviewAuthorAggregateProjection;
+import sweetgirl.croissant.review.dto.request.ReviewCreateRequest;
+import sweetgirl.croissant.review.dto.request.ReviewImageRequest;
+import sweetgirl.croissant.review.dto.request.ReviewPresignedUrlRequest;
+import sweetgirl.croissant.review.dto.response.ReviewCreateResponse;
+import sweetgirl.croissant.review.dto.response.ReviewListResponse;
+import sweetgirl.croissant.review.dto.response.ReviewPresignedUrlInfoResponse;
+import sweetgirl.croissant.review.dto.response.ReviewSummaryResponse;
+import sweetgirl.croissant.review.entity.Review;
+import sweetgirl.croissant.review.entity.ReviewImageFile;
+import sweetgirl.croissant.review.enums.TextureTag;
+import sweetgirl.croissant.review.exception.ReviewException;
+import sweetgirl.croissant.review.repository.ReviewImageFileRepository;
+import sweetgirl.croissant.review.repository.ReviewLikeRepository;
+import sweetgirl.croissant.review.repository.ReviewRepository;
+
+@ExtendWith(MockitoExtension.class)
+class ReviewServiceTest {
+
+	@Mock
+	S3Service s3Service;
+	@Mock
+	MemberReader memberReader;
+	@Mock
+	MenuRepository menuRepository;
+	@Mock
+	ReviewRepository reviewRepository;
+	@Mock
+	ReviewImageFileRepository reviewImageFileRepository;
+	@Mock
+	ReviewLikeRepository reviewLikeRepository;
+
+	@InjectMocks
+	ReviewService reviewService;
+
+	@Test
+	@DisplayName("getReviewSummary: liked 정렬 기본 조회와 로그인 사용자의 isLiked를 반영한다")
+	void getReviewSummary_likedSort_returnsPreviewWithLikedState() {
+		Member author = member(10L, "단팥");
+		Review review = review(1L, author, BigDecimal.valueOf(4.5), 7, LocalDateTime.of(2026, 6, 4, 10, 0));
+		ReviewImageFile image = image(100L, review, "reviews/members/10/images/a");
+
+		given(menuRepository.findByIdWithDetails(1L)).willReturn(Optional.of(mock(Menu.class)));
+		given(reviewRepository.findActiveReviewsOrderByLiked(eq(1L), eq(false), any(Pageable.class)))
+			.willReturn(List.of(review));
+		given(reviewRepository.findActiveRatingsByMenuId(1L))
+			.willReturn(List.of(BigDecimal.valueOf(4.0), BigDecimal.valueOf(5.0)));
+		given(reviewRepository.countActiveByMenuId(1L)).willReturn(2L);
+		given(reviewImageFileRepository.findByReviewIdInOrderByReviewIdAscDisplayOrderAscIdAsc(List.of(1L)))
+			.willReturn(List.of(image));
+		given(reviewLikeRepository.findLikedReviewIds(99L, List.of(1L))).willReturn(List.of(1L));
+		given(reviewRepository.findAuthorAggregatesByMemberIds(Set.of(10L)))
+			.willReturn(List.of(authorAggregate(10L, 3L, 4.0)));
+
+		ReviewSummaryResponse result = reviewService.getReviewSummary(1L, "liked", false, 2, 99L);
+
+		assertThat(result.averageRating()).isEqualByComparingTo("4.5");
+		assertThat(result.reviewCount()).isEqualTo(2L);
+		assertThat(result.previewReviews()).hasSize(1);
+		assertThat(result.previewReviews().get(0).isLiked()).isTrue();
+		assertThat(result.previewReviews().get(0).photos().get(0).awsKey())
+			.isEqualTo("reviews/members/10/images/a");
+		assertThat(result.previewReviews().get(0).author().reviewCount()).isEqualTo(3L);
+	}
+
+	@Test
+	@DisplayName("getReviews: recent 정렬은 size+1 조회로 hasNext를 계산한다")
+	void getReviews_recentSort_usesSizePlusOneAndHasNext() {
+		Member author = member(10L, "단팥");
+		List<Review> reviews = List.of(
+			review(1L, author, BigDecimal.valueOf(5.0), 0, LocalDateTime.now()),
+			review(2L, author, BigDecimal.valueOf(4.0), 0, LocalDateTime.now()),
+			review(3L, author, BigDecimal.valueOf(3.0), 0, LocalDateTime.now()));
+
+		given(menuRepository.findByIdWithDetails(1L)).willReturn(Optional.of(mock(Menu.class)));
+		given(reviewRepository.findActiveReviewsOrderByRecent(eq(1L), eq(true), any(Pageable.class)))
+			.willReturn(reviews);
+		given(reviewRepository.findActiveRatingsByMenuId(1L)).willReturn(List.of(BigDecimal.valueOf(4.0)));
+		given(reviewRepository.countActiveByMenuId(1L)).willReturn(3L);
+		given(reviewImageFileRepository.findByReviewIdInOrderByReviewIdAscDisplayOrderAscIdAsc(List.of(1L, 2L)))
+			.willReturn(List.of());
+		given(reviewRepository.findAuthorAggregatesByMemberIds(Set.of(10L)))
+			.willReturn(List.of(authorAggregate(10L, 3L, 4.0)));
+
+		ReviewListResponse result = reviewService.getReviews(1L, "recent", true, 1, 2, null);
+
+		assertThat(result.content()).hasSize(2);
+		assertThat(result.hasNext()).isTrue();
+		verify(reviewRepository).findActiveReviewsOrderByRecent(
+			eq(1L),
+			eq(true),
+			argThat(pageable -> pageable.getPageNumber() == 1 && pageable.getPageSize() == 3));
+		verify(reviewLikeRepository, never()).findLikedReviewIds(any(), any());
+	}
+
+	@Test
+	@DisplayName("createReview: 정상 요청이면 리뷰와 이미지를 저장한다")
+	void createReview_validRequest_savesReviewAndImages() {
+		Member member = member(7L, "슈크림");
+		ReviewCreateRequest request = createRequest(
+			BigDecimal.valueOf(4.5),
+			"  다시 살래요  ",
+			List.of(new ReviewImageRequest("a.jpg", "image/jpeg", "reviews/members/7/images/a")));
+
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(menuRepository.findByIdWithDetails(1L)).willReturn(Optional.of(mock(Menu.class)));
+		given(reviewRepository.existsByMemberIdAndMenuIdAndDeletedAtIsNull(7L, 1L)).willReturn(false);
+		given(reviewRepository.save(any())).willAnswer(invocation -> {
+			Review review = invocation.getArgument(0);
+			ReflectionTestUtils.setField(review, "id", 11L);
+			ReflectionTestUtils.setField(review, "createdAt", LocalDateTime.of(2026, 6, 4, 11, 0));
+			return review;
+		});
+
+		ReviewCreateResponse result = reviewService.createReview(1L, 7L, request);
+
+		assertThat(result.reviewId()).isEqualTo(11L);
+		verify(reviewImageFileRepository).saveAll(argThat(images -> {
+			List<ReviewImageFile> imageList = StreamSupport.stream(images.spliterator(), false).toList();
+			return imageList.size() == 1 && imageList.get(0).getDisplayOrder() == 0;
+		}));
+	}
+
+	@Test
+	@DisplayName("createReview: 활성 리뷰가 이미 있으면 REVIEW_ALREADY_EXISTS를 던진다")
+	void createReview_duplicateActiveReview_throwsConflict() {
+		given(memberReader.getMember(7L)).willReturn(member(7L, "슈크림"));
+		given(menuRepository.findByIdWithDetails(1L)).willReturn(Optional.of(mock(Menu.class)));
+		given(reviewRepository.existsByMemberIdAndMenuIdAndDeletedAtIsNull(7L, 1L)).willReturn(true);
+
+		assertThatThrownBy(
+			() -> reviewService.createReview(1L, 7L, createRequest(BigDecimal.valueOf(4.5), "", List.of())))
+			.isInstanceOf(ReviewException.class)
+			.hasMessageContaining(ReviewErrorCode.REVIEW_ALREADY_EXISTS.getMessage());
+	}
+
+	@Test
+	@DisplayName("createReview: 0.5 단위가 아닌 별점이면 INVALID_RATING을 던진다")
+	void createReview_invalidRating_throwsInvalidRating() {
+		given(memberReader.getMember(7L)).willReturn(member(7L, "슈크림"));
+		given(menuRepository.findByIdWithDetails(1L)).willReturn(Optional.of(mock(Menu.class)));
+
+		assertThatThrownBy(
+			() -> reviewService.createReview(1L, 7L, createRequest(BigDecimal.valueOf(4.3), "", List.of())))
+			.isInstanceOf(ReviewException.class)
+			.hasMessageContaining(ReviewErrorCode.INVALID_RATING.getMessage());
+	}
+
+	@Test
+	@DisplayName("generateReviewPresignedUrls: JPEG/PNG만 허용한다")
+	void generateReviewPresignedUrls_allowsOnlyJpegAndPng() {
+		given(memberReader.getMember(7L)).willReturn(member(7L, "슈크림"));
+		given(s3Service.generatePresignedUrl("reviews/members/7/images", "image/jpeg"))
+			.willReturn(new PresignedUrlResponse("a", "image/jpeg", "https://upload", "reviews/members/7/images/a"));
+
+		ReviewPresignedUrlInfoResponse result = reviewService.generateReviewPresignedUrls(
+			7L,
+			new ReviewPresignedUrlRequest(List.of("image/jpeg")));
+
+		assertThat(result.presignedUrls()).hasSize(1);
+		assertThat(result.presignedUrls().get(0).awsKey()).isEqualTo("reviews/members/7/images/a");
+
+		assertThatThrownBy(
+			() -> reviewService.generateReviewPresignedUrls(7L, new ReviewPresignedUrlRequest(List.of("image/webp"))))
+			.isInstanceOf(ReviewException.class)
+			.hasMessageContaining(ReviewErrorCode.INVALID_REVIEW_IMAGE_MIME_TYPE.getMessage());
+	}
+
+	private ReviewCreateRequest createRequest(BigDecimal rating, String content, List<ReviewImageRequest> images) {
+		return new ReviewCreateRequest(
+			rating,
+			"yes",
+			"medium",
+			"full",
+			List.of(TextureTag.CRISPY),
+			content,
+			images);
+	}
+
+	private Member member(Long id, String nickname) {
+		Member member = Member.builder()
+			.nickname(nickname)
+			.build();
+		ReflectionTestUtils.setField(member, "id", id);
+		return member;
+	}
+
+	private Review review(Long id, Member member, BigDecimal rating, int likeCount, LocalDateTime createdAt) {
+		Review review = Review.builder()
+			.menu(mock(Menu.class))
+			.member(member)
+			.rating(rating)
+			.repurchaseIntent("yes")
+			.sweetness("medium")
+			.fillingAmount("full")
+			.textureTags(List.of(TextureTag.CRISPY))
+			.content("맛있어요")
+			.build();
+		ReflectionTestUtils.setField(review, "id", id);
+		ReflectionTestUtils.setField(review, "likeCount", likeCount);
+		ReflectionTestUtils.setField(review, "createdAt", createdAt);
+		return review;
+	}
+
+	private ReviewImageFile image(Long id, Review review, String awsKey) {
+		ReviewImageFile image = ReviewImageFile.builder()
+			.review(review)
+			.name("a.jpg")
+			.mimeType(MimeType.IMAGE_JPEG)
+			.awsKey(awsKey)
+			.displayOrder(0)
+			.build();
+		ReflectionTestUtils.setField(image, "id", id);
+		return image;
+	}
+
+	private ReviewAuthorAggregateProjection authorAggregate(Long memberId, Long reviewCount, Double averageRating) {
+		return new ReviewAuthorAggregateProjection() {
+			@Override
+			public Long getMemberId() {
+				return memberId;
+			}
+
+			@Override
+			public Long getReviewCount() {
+				return reviewCount;
+			}
+
+			@Override
+			public Double getAverageRating() {
+				return averageRating;
+			}
+		};
+	}
+}
