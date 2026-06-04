@@ -13,4 +13,8 @@ public enum S3Folder {
 	BANNERS("banners");
 
 	private final String value;
+
+	public String prefix() {
+		return value + "/";
+	}
 }
