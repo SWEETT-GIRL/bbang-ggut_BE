@@ -54,6 +54,8 @@ class AdminReportControllerTest {
 			"문제된 리뷰",
 			List.of("reviews/members/20/images/a.jpg"),
 			"2026-06-04T18:00",
+			null,
+			null,
 			null);
 		given(adminReportService.getReportDetail(eq(1L), eq("USER_REPORT")))
 			.willReturn(new AdminUserReportDetailResponse(

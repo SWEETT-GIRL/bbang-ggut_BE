@@ -50,6 +50,8 @@ public record AdminUserReportDetailResponse(
 			String content,
 			List<String> images,
 			String createdAt,
+			String hiddenAt,
+			String hiddenReason,
 			String deletedAt) {
 
 		public static ReviewTarget of(Review review, List<String> images) {
@@ -64,6 +66,8 @@ public record AdminUserReportDetailResponse(
 				review.getContent(),
 				images,
 				review.getCreatedAt() != null ? review.getCreatedAt().toString() : null,
+				review.getHiddenAt() != null ? review.getHiddenAt().toString() : null,
+				review.getHiddenReason(),
 				review.getDeletedAt() != null ? review.getDeletedAt().toString() : null);
 		}
 	}
