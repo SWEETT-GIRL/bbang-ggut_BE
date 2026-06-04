@@ -31,6 +31,15 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 			JOIN FETCH r.member
 			JOIN FETCH r.menu m
 			JOIN FETCH m.store
+			WHERE r.id = :reviewId
+			""")
+	Optional<Review> findByIdWithDetails(@Param("reviewId") Long reviewId);
+
+	@Query("""
+			SELECT r FROM Review r
+			JOIN FETCH r.member
+			JOIN FETCH r.menu m
+			JOIN FETCH m.store
 			WHERE r.member.id = :memberId AND r.deletedAt IS NULL
 			ORDER BY r.createdAt DESC, r.id DESC
 			""")
