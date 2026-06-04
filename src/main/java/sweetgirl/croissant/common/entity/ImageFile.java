@@ -2,6 +2,7 @@ package sweetgirl.croissant.common.entity;
 
 import java.time.LocalDateTime;
 
+import org.hibernate.annotations.ColumnDefault;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -16,6 +17,7 @@ import jakarta.persistence.MappedSuperclass;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import sweetgirl.croissant.common.enums.ImageStatus;
 import sweetgirl.croissant.external.aws.enums.MimeType;
 
 @MappedSuperclass
@@ -37,6 +39,11 @@ public abstract class ImageFile {
 	@Column(nullable = false, length = 255)
 	private String awsKey;
 
+	@Enumerated(EnumType.STRING)
+	@ColumnDefault("'DONE'")
+	@Column(nullable = false, length = 20)
+	private ImageStatus imageStatus;
+
 	@CreatedDate
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
@@ -45,5 +52,14 @@ public abstract class ImageFile {
 		this.name = name;
 		this.mimeType = mimeType;
 		this.awsKey = awsKey;
+		this.imageStatus = ImageStatus.PENDING;
+	}
+
+	public void markDone() {
+		this.imageStatus = ImageStatus.DONE;
+	}
+
+	public void markFailed() {
+		this.imageStatus = ImageStatus.FAILED;
 	}
 }
