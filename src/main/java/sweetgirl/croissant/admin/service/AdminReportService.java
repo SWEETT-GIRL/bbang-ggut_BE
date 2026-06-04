@@ -38,6 +38,9 @@ import sweetgirl.croissant.menu.repository.MenuAddReportImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuAddReportRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
+import sweetgirl.croissant.report.entity.UserReport;
+import sweetgirl.croissant.report.enums.UserReportStatus;
+import sweetgirl.croissant.report.repository.UserReportRepository;
 import sweetgirl.croissant.store.AddressParser;
 import sweetgirl.croissant.store.dto.request.ReportImageRequest;
 import sweetgirl.croissant.store.dto.request.StoreAddressReportRequest;
@@ -65,6 +68,7 @@ public class AdminReportService {
 
 	private final StoreReportRepository storeReportRepository;
 	private final MenuAddReportRepository menuAddReportRepository;
+	private final UserReportRepository userReportRepository;
 	private final StoreReportImageFileRepository storeReportImageFileRepository;
 	private final MenuAddReportImageFileRepository menuAddReportImageFileRepository;
 	private final StoreImageFileRepository storeImageFileRepository;
@@ -76,12 +80,16 @@ public class AdminReportService {
 	private final ReportNotificationService reportNotificationService;
 
 	public Page<AdminReportResponse> getReports(String kind, String statusStr, int page, int size) {
-		StoreReportStatus status = statusStr != null ? toStatus(statusStr) : null;
-
 		if ("MENU_ADD_REPORT".equals(kind)) {
-			return getMenuAddReports(status, page, size);
+			return getMenuAddReports(toStoreReportStatus(statusStr), page, size);
 		}
-		return getStoreReports(status, page, size);
+		if ("USER_REPORT".equals(kind)) {
+			return getUserReports(toUserReportStatus(statusStr), page, size);
+		}
+		if (kind != null && !"STORE_REPORT".equals(kind)) {
+			throw new AdminException(AdminErrorCode.REPORT_INVALID_KIND);
+		}
+		return getStoreReports(toStoreReportStatus(statusStr), page, size);
 	}
 
 	@Transactional
@@ -122,6 +130,17 @@ public class AdminReportService {
 				report.getMember(), report.getStore(), report.getId(), ReportKind.STORE_REPORT,
 				accept ? ReportNotificationAction.APPROVED : ReportNotificationAction.REJECTED,
 				subjectLabel(report.getRequestType()));
+		} else if ("USER_REPORT".equals(request.kind())) {
+			UserReport report = userReportRepository.findById(reportId)
+				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
+			if (report.getStatus() != UserReportStatus.PENDING) {
+				throw new AdminException(AdminErrorCode.REPORT_ALREADY_REVIEWED);
+			}
+			if (accept) {
+				report.accept();
+			} else {
+				report.reject();
+			}
 		} else {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_KIND);
 		}
@@ -383,9 +402,31 @@ public class AdminReportService {
 			imageMap.getOrDefault(r.getId(), List.of())));
 	}
 
-	private StoreReportStatus toStatus(String statusStr) {
+	private Page<AdminReportResponse> getUserReports(UserReportStatus status, int page, int size) {
+		Page<UserReport> reports = status != null
+			? userReportRepository.findByStatus(status, PageRequest.of(page, size))
+			: userReportRepository.findAll(PageRequest.of(page, size));
+
+		return reports.map(AdminReportResponse::ofUserReport);
+	}
+
+	private StoreReportStatus toStoreReportStatus(String statusStr) {
+		if (statusStr == null) {
+			return null;
+		}
 		try {
 			return StoreReportStatus.valueOf(statusStr.toUpperCase());
+		} catch (IllegalArgumentException e) {
+			throw new AdminException(AdminErrorCode.REPORT_INVALID_ACTION);
+		}
+	}
+
+	private UserReportStatus toUserReportStatus(String statusStr) {
+		if (statusStr == null) {
+			return null;
+		}
+		try {
+			return UserReportStatus.valueOf(statusStr.toUpperCase());
 		} catch (IllegalArgumentException e) {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_ACTION);
 		}
