@@ -22,7 +22,9 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 			JOIN FETCH r.member
 			JOIN FETCH r.menu m
 			JOIN FETCH m.store
-			WHERE r.id = :reviewId AND r.deletedAt IS NULL
+			WHERE r.id = :reviewId
+				AND r.deletedAt IS NULL
+				AND r.hiddenAt IS NULL
 			""")
 	Optional<Review> findActiveByIdWithDetails(@Param("reviewId") Long reviewId);
 
@@ -40,7 +42,9 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 			JOIN FETCH r.member
 			JOIN FETCH r.menu m
 			JOIN FETCH m.store
-			WHERE r.member.id = :memberId AND r.deletedAt IS NULL
+			WHERE r.member.id = :memberId
+				AND r.deletedAt IS NULL
+				AND r.hiddenAt IS NULL
 			ORDER BY r.createdAt DESC, r.id DESC
 			""")
 	List<Review> findActiveByMemberIdOrderByRecent(
@@ -49,13 +53,17 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
 	@Query("""
 			SELECT COUNT(r) FROM Review r
-			WHERE r.menu.id = :menuId AND r.deletedAt IS NULL
+			WHERE r.menu.id = :menuId
+				AND r.deletedAt IS NULL
+				AND r.hiddenAt IS NULL
 			""")
 	long countActiveByMenuId(@Param("menuId") Long menuId);
 
 	@Query("""
 			SELECT r.rating FROM Review r
-			WHERE r.menu.id = :menuId AND r.deletedAt IS NULL
+			WHERE r.menu.id = :menuId
+				AND r.deletedAt IS NULL
+				AND r.hiddenAt IS NULL
 			""")
 	List<BigDecimal> findActiveRatingsByMenuId(@Param("menuId") Long menuId);
 
@@ -64,6 +72,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 			JOIN FETCH r.member
 			WHERE r.menu.id = :menuId
 				AND r.deletedAt IS NULL
+				AND r.hiddenAt IS NULL
 				AND (:photoOnly = false OR EXISTS (
 					SELECT 1 FROM ReviewImageFile image
 					WHERE image.review = r
@@ -80,6 +89,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 			JOIN FETCH r.member
 			WHERE r.menu.id = :menuId
 				AND r.deletedAt IS NULL
+				AND r.hiddenAt IS NULL
 				AND (:photoOnly = false OR EXISTS (
 					SELECT 1 FROM ReviewImageFile image
 					WHERE image.review = r
@@ -96,7 +106,9 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 				COUNT(r) AS reviewCount,
 				AVG(r.rating) AS averageRating
 			FROM Review r
-			WHERE r.member.id IN :memberIds AND r.deletedAt IS NULL
+			WHERE r.member.id IN :memberIds
+				AND r.deletedAt IS NULL
+				AND r.hiddenAt IS NULL
 			GROUP BY r.member.id
 			""")
 	List<ReviewAuthorAggregateProjection> findAuthorAggregatesByMemberIds(@Param("memberIds") Set<Long> memberIds);

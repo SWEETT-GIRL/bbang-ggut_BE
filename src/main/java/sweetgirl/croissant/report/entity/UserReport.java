@@ -94,4 +94,8 @@ public class UserReport extends BaseTimeEntity {
 		this.status = UserReportStatus.REJECTED;
 		this.reviewedAt = LocalDateTime.now();
 	}
+
+	public void applyModerationAction(UserReportAction action) {
+		this.moderationAction = action;
+	}
 }

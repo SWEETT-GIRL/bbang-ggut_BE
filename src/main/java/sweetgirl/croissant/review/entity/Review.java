@@ -74,6 +74,16 @@ public class Review extends BaseTimeEntity {
 	@Column
 	private LocalDateTime deletedAt;
 
+	@Column
+	private LocalDateTime hiddenAt;
+
+	@Column(length = 500)
+	private String hiddenReason;
+
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "hidden_by")
+	private Member hiddenBy;
+
 	@Builder
 	public Review(
 			Menu menu,
@@ -122,5 +132,22 @@ public class Review extends BaseTimeEntity {
 
 	public void softDelete() {
 		this.deletedAt = LocalDateTime.now();
+	}
+
+	public void hide(String reason, Member hiddenBy) {
+		this.hiddenAt = LocalDateTime.now();
+		this.hiddenReason = reason;
+		this.hiddenBy = hiddenBy;
+	}
+
+	public void restoreModeration() {
+		this.deletedAt = null;
+		restoreHidden();
+	}
+
+	public void restoreHidden() {
+		this.hiddenAt = null;
+		this.hiddenReason = null;
+		this.hiddenBy = null;
 	}
 }
