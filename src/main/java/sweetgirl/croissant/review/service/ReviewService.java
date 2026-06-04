@@ -32,8 +32,10 @@ import sweetgirl.croissant.review.dto.request.ReviewCreateRequest;
 import sweetgirl.croissant.review.dto.request.ReviewImageRequest;
 import sweetgirl.croissant.review.dto.request.ReviewPresignedUrlRequest;
 import sweetgirl.croissant.review.dto.response.MenuReviewResponse;
+import sweetgirl.croissant.review.dto.response.MyReviewListResponse;
 import sweetgirl.croissant.review.dto.response.ReviewAuthorResponse;
 import sweetgirl.croissant.review.dto.response.ReviewCreateResponse;
+import sweetgirl.croissant.review.dto.response.ReviewDetailResponse;
 import sweetgirl.croissant.review.dto.response.ReviewListResponse;
 import sweetgirl.croissant.review.dto.response.ReviewPhotoResponse;
 import sweetgirl.croissant.review.dto.response.ReviewPresignedUrlInfo;
@@ -111,6 +113,28 @@ public class ReviewService {
 			reviewRepository.countActiveByMenuId(menuId),
 			toReviewResponses(pageReviews, memberId),
 			hasNext);
+	}
+
+	public ReviewDetailResponse getReviewDetail(Long reviewId, Long memberId) {
+		Review review = reviewRepository.findActiveByIdWithDetails(reviewId)
+			.orElseThrow(() -> new ReviewException(ReviewErrorCode.REVIEW_NOT_FOUND));
+
+		return toReviewDetailResponses(List.of(review), memberId).get(0);
+	}
+
+	public MyReviewListResponse getMyReviews(Long memberId, int page, int size) {
+		if (page < 0 || size < 1) {
+			throw new IllegalArgumentException("page and size must be valid");
+		}
+		memberReader.getMember(memberId);
+
+		List<Review> reviews = reviewRepository.findActiveByMemberIdOrderByRecent(
+			memberId,
+			PageRequest.of(page, size + 1));
+		boolean hasNext = reviews.size() > size;
+		List<Review> pageReviews = hasNext ? reviews.subList(0, size) : reviews;
+
+		return new MyReviewListResponse(toReviewDetailResponses(pageReviews, memberId), hasNext);
 	}
 
 	public ReviewPresignedUrlInfoResponse generateReviewPresignedUrls(
@@ -208,6 +232,23 @@ public class ReviewService {
 			.toList();
 	}
 
+	private List<ReviewDetailResponse> toReviewDetailResponses(List<Review> reviews, Long memberId) {
+		if (reviews.isEmpty()) {
+			return List.of();
+		}
+
+		List<Long> reviewIds = reviews.stream()
+			.map(Review::getId)
+			.toList();
+		Map<Long, List<ReviewPhotoResponse>> photoMap = buildPhotoMap(reviewIds);
+		Set<Long> likedReviewIds = findLikedReviewIds(memberId, reviewIds);
+		Map<Long, AuthorStats> authorStatsMap = buildAuthorStatsMap(reviews);
+
+		return reviews.stream()
+			.map(review -> toReviewDetailResponse(review, photoMap, likedReviewIds, authorStatsMap))
+			.toList();
+	}
+
 	private Map<Long, List<ReviewPhotoResponse>> buildPhotoMap(List<Long> reviewIds) {
 		return reviewImageFileRepository.findByReviewIdInOrderByReviewIdAscDisplayOrderAscIdAsc(reviewIds).stream()
 			.collect(Collectors.groupingBy(
@@ -264,6 +305,41 @@ public class ReviewService {
 				null),
 			photoMap.getOrDefault(review.getId(), List.of()),
 			review.getCreatedAt());
+	}
+
+	private ReviewDetailResponse toReviewDetailResponse(
+			Review review,
+			Map<Long, List<ReviewPhotoResponse>> photoMap,
+			Set<Long> likedReviewIds,
+			Map<Long, AuthorStats> authorStatsMap) {
+		Long memberId = review.getMember().getId();
+		AuthorStats authorStats = authorStatsMap.getOrDefault(memberId, AuthorStats.empty());
+
+		return new ReviewDetailResponse(
+			review.getId(),
+			review.getMenu().getId(),
+			review.getMenu().getName(),
+			review.getMenu().getStore().getId(),
+			review.getMenu().getStore().getName(),
+			review.getRating(),
+			review.getRepurchaseIntent(),
+			review.getSweetness(),
+			review.getFillingAmount(),
+			review.getTextureTags(),
+			review.getContent(),
+			review.getLikeCount(),
+			review.getCommentCount(),
+			likedReviewIds.contains(review.getId()),
+			new ReviewAuthorResponse(
+				memberId,
+				review.getMember().getNickname(),
+				authorStats.reviewCount(),
+				authorStats.averageRating(),
+				null,
+				null),
+			photoMap.getOrDefault(review.getId(), List.of()),
+			review.getCreatedAt(),
+			review.getUpdatedAt());
 	}
 
 	private BigDecimal toAverageRating(Double value) {

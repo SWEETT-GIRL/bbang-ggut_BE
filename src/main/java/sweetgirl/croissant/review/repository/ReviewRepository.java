@@ -2,6 +2,7 @@ package sweetgirl.croissant.review.repository;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import org.springframework.data.domain.Pageable;
@@ -15,6 +16,27 @@ import sweetgirl.croissant.review.entity.Review;
 public interface ReviewRepository extends JpaRepository<Review, Long> {
 
 	boolean existsByMemberIdAndMenuIdAndDeletedAtIsNull(Long memberId, Long menuId);
+
+	@Query("""
+			SELECT r FROM Review r
+			JOIN FETCH r.member
+			JOIN FETCH r.menu m
+			JOIN FETCH m.store
+			WHERE r.id = :reviewId AND r.deletedAt IS NULL
+			""")
+	Optional<Review> findActiveByIdWithDetails(@Param("reviewId") Long reviewId);
+
+	@Query("""
+			SELECT r FROM Review r
+			JOIN FETCH r.member
+			JOIN FETCH r.menu m
+			JOIN FETCH m.store
+			WHERE r.member.id = :memberId AND r.deletedAt IS NULL
+			ORDER BY r.createdAt DESC, r.id DESC
+			""")
+	List<Review> findActiveByMemberIdOrderByRecent(
+			@Param("memberId") Long memberId,
+			Pageable pageable);
 
 	@Query("""
 			SELECT COUNT(r) FROM Review r

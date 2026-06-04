@@ -17,7 +17,9 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.review.dto.request.ReviewCreateRequest;
 import sweetgirl.croissant.review.dto.request.ReviewPresignedUrlRequest;
+import sweetgirl.croissant.review.dto.response.MyReviewListResponse;
 import sweetgirl.croissant.review.dto.response.ReviewCreateResponse;
+import sweetgirl.croissant.review.dto.response.ReviewDetailResponse;
 import sweetgirl.croissant.review.dto.response.ReviewListResponse;
 import sweetgirl.croissant.review.dto.response.ReviewPresignedUrlInfoResponse;
 import sweetgirl.croissant.review.dto.response.ReviewSummaryResponse;
@@ -53,6 +55,23 @@ public class ReviewController {
 			@AuthenticationPrincipal Long memberId) {
 		return ResponseEntity.ok(ApiResponse.ok(
 			reviewService.getReviews(menuId, sort, photoOnly, page, size, memberId)));
+	}
+
+	@Operation(summary = "리뷰 상세 조회", description = "리뷰 ID로 리뷰 상세 정보를 조회합니다.")
+	@GetMapping("/reviews/{reviewId}")
+	public ResponseEntity<ApiResponse<ReviewDetailResponse>> getReviewDetail(
+			@PathVariable Long reviewId,
+			@AuthenticationPrincipal Long memberId) {
+		return ResponseEntity.ok(ApiResponse.ok(reviewService.getReviewDetail(reviewId, memberId)));
+	}
+
+	@Operation(summary = "내가 쓴 리뷰 목록 조회", description = "로그인 사용자가 작성한 리뷰 목록을 최신순으로 조회합니다.")
+	@GetMapping("/users/me/reviews")
+	public ResponseEntity<ApiResponse<MyReviewListResponse>> getMyReviews(
+			@AuthenticationPrincipal Long memberId,
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "20") int size) {
+		return ResponseEntity.ok(ApiResponse.ok(reviewService.getMyReviews(memberId, page, size)));
 	}
 
 	@Operation(summary = "리뷰 이미지 Presigned URL 발급", description = "mimeTypes 배열 크기만큼 리뷰 이미지 업로드 URL을 반환합니다.")
