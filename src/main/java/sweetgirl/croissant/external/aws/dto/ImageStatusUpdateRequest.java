@@ -15,4 +15,6 @@ public class ImageStatusUpdateRequest {
 
 	@NotNull(message = "status는 필수입니다.")
 	private ImageStatus status;
+
+	private String failReason;
 }

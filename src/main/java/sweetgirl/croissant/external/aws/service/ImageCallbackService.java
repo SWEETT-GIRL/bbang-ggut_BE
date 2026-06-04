@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.common.entity.ImageFile;
 import sweetgirl.croissant.common.enums.ImageStatus;
 import sweetgirl.croissant.external.aws.dto.ImageStatusUpdateRequest;
@@ -12,6 +13,7 @@ import sweetgirl.croissant.external.aws.exception.S3StorageException;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ImageCallbackService {
@@ -32,6 +34,7 @@ public class ImageCallbackService {
 		if (status == ImageStatus.DONE) {
 			image.markDone();
 		} else {
+			log.warn("이미지 lambda 처리 실패 [awsKey: {}] 사유: {}", request.getAwsKey(), request.getFailReason());
 			image.markFailed();
 		}
 	}
