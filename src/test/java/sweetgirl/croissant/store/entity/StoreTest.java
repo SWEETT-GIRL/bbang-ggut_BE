@@ -29,7 +29,7 @@ class StoreTest {
 	}
 
 	@Test
-	@DisplayName("GATE_REJECT(후보 있음) 실패는 파킹 카운터를 올리지 않는다")
+	@DisplayName("MISMATCH(후보 있음) 실패는 파킹 카운터를 올리지 않는다")
 	void markFailed_withCandidates_doesNotIncrement() {
 		Store store = newStore();
 		store.markNaverEnrichFailed(false);

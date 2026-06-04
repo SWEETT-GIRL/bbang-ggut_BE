@@ -43,18 +43,42 @@ def retry_store(server: str, store_id: int) -> None:
 	resp.raise_for_status()
 
 
-def extract_started_store_ids(log_path: str) -> set[int]:
-	if not log_path:
+def delete_closed_suspect(server: str, store_id: int) -> None:
+	url = f"{server}/api/admin/stores/{store_id}/naver-closed-suspect"
+	resp = requests.delete(url, timeout=15)
+	resp.raise_for_status()
+
+
+def extract_started_store_ids(log_paths: list[str]) -> set[int]:
+	if not log_paths:
 		return set()
+	pattern = re.compile(r"^=== \[\d+/\d+\] store_id=(\d+) ")
+	store_ids: set[int] = set()
+	for log_path in log_paths:
+		store_ids |= _extract_started_store_ids_from_one_log(log_path, pattern)
+	return store_ids
+
+
+def _extract_started_store_ids_from_one_log(log_path: str, pattern: re.Pattern) -> set[int]:
 	path = Path(log_path)
 	if not path.exists():
 		return set()
-	pattern = re.compile(r"^=== \[\d+/\d+\] store_id=(\d+) ")
 	store_ids: set[int] = set()
 	for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
 		m = pattern.match(line)
 		if m:
 			store_ids.add(int(m.group(1)))
+	return store_ids
+
+
+def parse_store_ids(raw: str) -> list[int]:
+	if not raw.strip():
+		return []
+	store_ids: list[int] = []
+	for part in re.split(r"[\s,]+", raw.strip()):
+		if not part:
+			continue
+		store_ids.append(int(part))
 	return store_ids
 
 
@@ -71,17 +95,32 @@ def main() -> None:
 	parser.add_argument("--server", default=DEFAULT_SERVER)
 	parser.add_argument("--size", type=int, default=1000, help="throttled 목록 fetch size")
 	parser.add_argument("--limit", type=int, default=0, help="앞에서 N건만 처리(0=전체)")
+	parser.add_argument("--ids", default="", help="쉼표/공백으로 구분한 store_id 만 처리")
 	parser.add_argument("--dry-run", action="store_true", help="저장 없이 매칭만 시뮬레이션")
 	parser.add_argument("--verbose", action="store_true", help="후보 상세 로그까지 남김")
 	parser.add_argument("--no-reset-throttle", action="store_true", help="처리 전 retry API 호출 생략")
+	parser.add_argument(
+		"--delete-closed-suspects",
+		action="store_true",
+		help="네이버 폐업 후보(CLOSED)로 분류된 store 를 soft-delete",
+	)
 	parser.add_argument("--log-file", default="/tmp/naver-rerun-throttled.log")
-	parser.add_argument("--exclude-log", default="", help="이미 시작된 store_id 를 제외할 이전 로그")
+	parser.add_argument(
+		"--exclude-log",
+		action="append",
+		default=[],
+		help="이미 시작된 store_id 를 제외할 이전 로그. 여러 번 지정 가능",
+	)
 	args = parser.parse_args()
 
 	log_path = Path(args.log_file)
 	log_path.write_text("", encoding="utf-8")
 
 	items = fetch_throttled(args.server, args.size)
+	selected_ids = parse_store_ids(args.ids)
+	if selected_ids:
+		items_by_id = {int(item["id"]): item for item in items}
+		items = [items_by_id[store_id] for store_id in selected_ids if store_id in items_by_id]
 	excluded_ids = extract_started_store_ids(args.exclude_log)
 	if excluded_ids:
 		items = [item for item in items if int(item["id"]) not in excluded_ids]
@@ -90,8 +129,13 @@ def main() -> None:
 
 	print(f"서버: {args.server}")
 	print(f"throttled 재실행 대상: {len(items)}건")
+	if selected_ids:
+		missing_ids = [store_id for store_id in selected_ids if store_id not in {int(item["id"]) for item in items}]
+		print(f"ID 필터: {len(selected_ids)}건 요청")
+		if missing_ids:
+			print(f"throttled 목록에 없는 ID: {', '.join(map(str, missing_ids))}")
 	if excluded_ids:
-		print(f"이전 로그 제외: {len(excluded_ids)}건 ({args.exclude_log})")
+		print(f"이전 로그 제외: {len(excluded_ids)}건 ({', '.join(args.exclude_log)})")
 	print(f"상세 로그: {log_path}")
 	if not items:
 		return
@@ -105,9 +149,13 @@ def main() -> None:
 		"skipped_photo_crawl": 0,
 		"failed": 0,
 		"no_candidates": 0,
+		"mismatch": 0,
+		"closed_suspects": 0,
+		"closed_deleted": 0,
 		"blocked": 0,
 		"fetch_failed": 0,
 		"retry_failed": 0,
+		"closed_delete_failed": 0,
 	}
 
 	with sync_playwright() as p:
@@ -127,21 +175,30 @@ def main() -> None:
 				store_id = int(item["id"])
 				name = item.get("name") or ""
 
-				if not args.dry_run and not args.no_reset_throttle:
-					try:
-						retry_store(args.server, store_id)
-					except Exception as e:
-						total["retry_failed"] += 1
-						total["failed"] += 1
-						print(f"[{idx:3d}/{len(items)}] RETRY_FAIL id={store_id} {name}: {e}")
-						continue
-
 				store = fetch_single_store(args.server, store_id)
 				if not store:
 					total["fetch_failed"] += 1
 					total["failed"] += 1
 					print(f"[{idx:3d}/{len(items)}] FETCH_FAIL id={store_id} {name}")
 					continue
+
+				if not args.dry_run and not args.no_reset_throttle:
+					if store.get("naverPlaceId"):
+						print(f"[{idx:3d}/{len(items)}] ALREADY_MATCHED id={store_id} {name} — retry 생략")
+					else:
+						try:
+							retry_store(args.server, store_id)
+						except Exception as e:
+							total["retry_failed"] += 1
+							total["failed"] += 1
+							print(f"[{idx:3d}/{len(items)}] RETRY_FAIL id={store_id} {name}: {e}")
+							continue
+						store = fetch_single_store(args.server, store_id)
+						if not store:
+							total["fetch_failed"] += 1
+							total["failed"] += 1
+							print(f"[{idx:3d}/{len(items)}] FETCH_FAIL id={store_id} {name}")
+							continue
 
 				with log_path.open("a", encoding="utf-8") as log:
 					log.write(f"\n\n=== [{idx}/{len(items)}] store_id={store_id} {name} ===\n")
@@ -160,6 +217,10 @@ def main() -> None:
 					total[key] += result.get(key, 0)
 				if result.get("no_candidates"):
 					total["no_candidates"] += 1
+				elif result.get("closed_candidate"):
+					total["closed_suspects"] += 1
+				elif result.get("failed"):
+					total["mismatch"] += 1
 				if result.get("blocked"):
 					total["blocked"] += 1
 					blocked_streak += 1
@@ -172,8 +233,18 @@ def main() -> None:
 					status = "BLOCKED"
 				elif result.get("no_candidates"):
 					status = "NO_CAND"
+				elif result.get("closed_candidate"):
+					status = "CLOSED"
+					if args.delete_closed_suspects and not args.dry_run:
+						try:
+							delete_closed_suspect(args.server, store_id)
+							total["closed_deleted"] += 1
+							status = "CLOSED_DEL"
+						except Exception as e:
+							total["closed_delete_failed"] += 1
+							print(f"[{idx:3d}/{len(items)}] CLOSED_DELETE_FAIL id={store_id} {name}: {e}")
 				else:
-					status = "FAIL"
+					status = "MISMATCH"
 
 				print(
 					f"[{idx:3d}/{len(items)}] {status:8s} id={store_id} {name[:26]} "
