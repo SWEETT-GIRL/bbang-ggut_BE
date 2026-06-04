@@ -1,0 +1,355 @@
+package sweetgirl.croissant.review.service;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.external.aws.S3Service;
+import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
+import sweetgirl.croissant.external.aws.enums.MimeType;
+import sweetgirl.croissant.external.aws.util.S3PathGenerator;
+import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.menu.code.MenuErrorCode;
+import sweetgirl.croissant.menu.entity.Menu;
+import sweetgirl.croissant.menu.exception.MenuException;
+import sweetgirl.croissant.menu.repository.MenuRepository;
+import sweetgirl.croissant.review.code.ReviewErrorCode;
+import sweetgirl.croissant.review.dto.projection.ReviewAuthorAggregateProjection;
+import sweetgirl.croissant.review.dto.request.ReviewCreateRequest;
+import sweetgirl.croissant.review.dto.request.ReviewImageRequest;
+import sweetgirl.croissant.review.dto.request.ReviewPresignedUrlRequest;
+import sweetgirl.croissant.review.dto.response.MenuReviewResponse;
+import sweetgirl.croissant.review.dto.response.ReviewAuthorResponse;
+import sweetgirl.croissant.review.dto.response.ReviewCreateResponse;
+import sweetgirl.croissant.review.dto.response.ReviewListResponse;
+import sweetgirl.croissant.review.dto.response.ReviewPhotoResponse;
+import sweetgirl.croissant.review.dto.response.ReviewPresignedUrlInfo;
+import sweetgirl.croissant.review.dto.response.ReviewPresignedUrlInfoResponse;
+import sweetgirl.croissant.review.dto.response.ReviewSummaryResponse;
+import sweetgirl.croissant.review.entity.Review;
+import sweetgirl.croissant.review.entity.ReviewImageFile;
+import sweetgirl.croissant.review.enums.ReviewSort;
+import sweetgirl.croissant.review.enums.TextureTag;
+import sweetgirl.croissant.review.exception.ReviewException;
+import sweetgirl.croissant.review.repository.ReviewImageFileRepository;
+import sweetgirl.croissant.review.repository.ReviewLikeRepository;
+import sweetgirl.croissant.review.repository.ReviewRepository;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+public class ReviewService {
+
+	private static final int MAX_REVIEW_IMAGES = 5;
+	private static final int MAX_CONTENT_LENGTH = 1000;
+	private static final BigDecimal MIN_RATING = BigDecimal.valueOf(0.5);
+	private static final BigDecimal MAX_RATING = BigDecimal.valueOf(5.0);
+	private static final BigDecimal HALF_STEP_MULTIPLIER = BigDecimal.valueOf(2);
+	private static final Set<String> ALLOWED_IMAGE_MIME_TYPES = Set.of("image/jpeg", "image/png");
+
+	private final S3Service s3Service;
+	private final MemberReader memberReader;
+	private final MenuRepository menuRepository;
+	private final ReviewRepository reviewRepository;
+	private final ReviewImageFileRepository reviewImageFileRepository;
+	private final ReviewLikeRepository reviewLikeRepository;
+
+	public ReviewSummaryResponse getReviewSummary(
+			Long menuId,
+			String sort,
+			boolean photoOnly,
+			int previewSize,
+			Long memberId) {
+		if (previewSize < 0) {
+			throw new IllegalArgumentException("previewSize must be greater than or equal to 0");
+		}
+		validateMenuExists(menuId);
+
+		List<Review> reviews = previewSize == 0
+			? List.of()
+			: findReviews(menuId, ReviewSort.from(sort), photoOnly, PageRequest.of(0, previewSize));
+
+		return new ReviewSummaryResponse(
+			menuId,
+			calculateAverageRating(menuId),
+			reviewRepository.countActiveByMenuId(menuId),
+			toReviewResponses(reviews, memberId));
+	}
+
+	public ReviewListResponse getReviews(
+			Long menuId,
+			String sort,
+			boolean photoOnly,
+			int page,
+			int size,
+			Long memberId) {
+		if (page < 0 || size < 1) {
+			throw new IllegalArgumentException("page and size must be valid");
+		}
+		validateMenuExists(menuId);
+
+		List<Review> reviews = findReviews(menuId, ReviewSort.from(sort), photoOnly, PageRequest.of(page, size + 1));
+		boolean hasNext = reviews.size() > size;
+		List<Review> pageReviews = hasNext ? reviews.subList(0, size) : reviews;
+
+		return new ReviewListResponse(
+			menuId,
+			calculateAverageRating(menuId),
+			reviewRepository.countActiveByMenuId(menuId),
+			toReviewResponses(pageReviews, memberId),
+			hasNext);
+	}
+
+	public ReviewPresignedUrlInfoResponse generateReviewPresignedUrls(
+			Long memberId,
+			ReviewPresignedUrlRequest request) {
+		memberReader.getMember(memberId);
+		validatePresignedUrlRequest(request);
+
+		List<ReviewPresignedUrlInfo> presignedUrls = request.mimeTypes().stream()
+			.map(mimeType -> {
+				PresignedUrlResponse response = s3Service.generatePresignedUrl(
+					S3PathGenerator.getReviewImagePath(memberId),
+					mimeType);
+				return new ReviewPresignedUrlInfo(response.uploadUrl(), response.awsKey());
+			})
+			.toList();
+
+		return new ReviewPresignedUrlInfoResponse(presignedUrls);
+	}
+
+	@Transactional
+	public ReviewCreateResponse createReview(Long menuId, Long memberId, ReviewCreateRequest request) {
+		Member member = memberReader.getMember(memberId);
+		Menu menu = menuRepository.findByIdWithDetails(menuId)
+			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
+
+		if (reviewRepository.existsByMemberIdAndMenuIdAndDeletedAtIsNull(memberId, menuId)) {
+			throw new ReviewException(ReviewErrorCode.REVIEW_ALREADY_EXISTS);
+		}
+
+		BigDecimal rating = validateRating(request.rating());
+		List<TextureTag> textureTags = validateTextureTags(request.textureTags());
+		String content = normalizeContent(request.content());
+		List<ReviewImageRequest> images = validateReviewImages(memberId, request.images());
+
+		Review review = reviewRepository.save(Review.builder()
+			.menu(menu)
+			.member(member)
+			.rating(rating)
+			.repurchaseIntent(request.repurchaseIntent())
+			.sweetness(request.sweetness())
+			.fillingAmount(request.fillingAmount())
+			.textureTags(textureTags)
+			.content(content)
+			.build());
+
+		if (!images.isEmpty()) {
+			reviewImageFileRepository.saveAll(toImageFiles(review, images));
+		}
+
+		return new ReviewCreateResponse(review.getId(), review.getCreatedAt());
+	}
+
+	private List<Review> findReviews(Long menuId, ReviewSort sort, boolean photoOnly, PageRequest pageRequest) {
+		if (sort == ReviewSort.LIKED) {
+			return reviewRepository.findActiveReviewsOrderByLiked(menuId, photoOnly, pageRequest);
+		}
+		return reviewRepository.findActiveReviewsOrderByRecent(menuId, photoOnly, pageRequest);
+	}
+
+	private void validateMenuExists(Long menuId) {
+		if (menuRepository.findByIdWithDetails(menuId).isEmpty()) {
+			throw new MenuException(MenuErrorCode.MENU_NOT_FOUND);
+		}
+	}
+
+	private BigDecimal calculateAverageRating(Long menuId) {
+		List<BigDecimal> ratings = reviewRepository.findActiveRatingsByMenuId(menuId);
+		return calculateAverage(ratings);
+	}
+
+	private BigDecimal calculateAverage(List<BigDecimal> ratings) {
+		if (ratings.isEmpty()) {
+			return BigDecimal.ZERO.setScale(1);
+		}
+		BigDecimal sum = ratings.stream()
+			.reduce(BigDecimal.ZERO, BigDecimal::add);
+		return sum.divide(BigDecimal.valueOf(ratings.size()), 1, RoundingMode.HALF_UP);
+	}
+
+	private List<MenuReviewResponse> toReviewResponses(List<Review> reviews, Long memberId) {
+		if (reviews.isEmpty()) {
+			return List.of();
+		}
+
+		List<Long> reviewIds = reviews.stream()
+			.map(Review::getId)
+			.toList();
+		Map<Long, List<ReviewPhotoResponse>> photoMap = buildPhotoMap(reviewIds);
+		Set<Long> likedReviewIds = findLikedReviewIds(memberId, reviewIds);
+		Map<Long, AuthorStats> authorStatsMap = buildAuthorStatsMap(reviews);
+
+		return reviews.stream()
+			.map(review -> toReviewResponse(review, photoMap, likedReviewIds, authorStatsMap))
+			.toList();
+	}
+
+	private Map<Long, List<ReviewPhotoResponse>> buildPhotoMap(List<Long> reviewIds) {
+		return reviewImageFileRepository.findByReviewIdInOrderByReviewIdAscDisplayOrderAscIdAsc(reviewIds).stream()
+			.collect(Collectors.groupingBy(
+				image -> image.getReview().getId(),
+				Collectors.mapping(
+					image -> new ReviewPhotoResponse(image.getId(), image.getAwsKey()),
+					Collectors.toList())));
+	}
+
+	private Set<Long> findLikedReviewIds(Long memberId, List<Long> reviewIds) {
+		if (memberId == null) {
+			return Collections.emptySet();
+		}
+		return new HashSet<>(reviewLikeRepository.findLikedReviewIds(memberId, reviewIds));
+	}
+
+	private Map<Long, AuthorStats> buildAuthorStatsMap(List<Review> reviews) {
+		Set<Long> memberIds = reviews.stream()
+			.map(review -> review.getMember().getId())
+			.collect(Collectors.toSet());
+		return reviewRepository.findAuthorAggregatesByMemberIds(memberIds).stream()
+			.collect(Collectors.toMap(
+				ReviewAuthorAggregateProjection::getMemberId,
+				projection -> new AuthorStats(
+					projection.getReviewCount(),
+					toAverageRating(projection.getAverageRating()))));
+	}
+
+	private MenuReviewResponse toReviewResponse(
+			Review review,
+			Map<Long, List<ReviewPhotoResponse>> photoMap,
+			Set<Long> likedReviewIds,
+			Map<Long, AuthorStats> authorStatsMap) {
+		Long memberId = review.getMember().getId();
+		AuthorStats authorStats = authorStatsMap.getOrDefault(memberId, AuthorStats.empty());
+
+		return new MenuReviewResponse(
+			review.getId(),
+			review.getRating(),
+			review.getRepurchaseIntent(),
+			review.getSweetness(),
+			review.getFillingAmount(),
+			review.getTextureTags(),
+			review.getContent(),
+			review.getLikeCount(),
+			review.getCommentCount(),
+			likedReviewIds.contains(review.getId()),
+			new ReviewAuthorResponse(
+				memberId,
+				review.getMember().getNickname(),
+				authorStats.reviewCount(),
+				authorStats.averageRating(),
+				null,
+				null),
+			photoMap.getOrDefault(review.getId(), List.of()),
+			review.getCreatedAt());
+	}
+
+	private BigDecimal toAverageRating(Double value) {
+		if (value == null) {
+			return BigDecimal.ZERO.setScale(1);
+		}
+		return BigDecimal.valueOf(value).setScale(1, RoundingMode.HALF_UP);
+	}
+
+	private void validatePresignedUrlRequest(ReviewPresignedUrlRequest request) {
+		if (request.mimeTypes() == null || request.mimeTypes().isEmpty()) {
+			throw new ReviewException(ReviewErrorCode.INVALID_REVIEW_IMAGE_MIME_TYPE);
+		}
+		if (request.mimeTypes().size() > MAX_REVIEW_IMAGES) {
+			throw new ReviewException(ReviewErrorCode.REVIEW_IMAGE_COUNT_EXCEEDED);
+		}
+		request.mimeTypes().forEach(this::validateReviewMimeType);
+	}
+
+	private BigDecimal validateRating(BigDecimal rating) {
+		if (rating == null
+			|| rating.compareTo(MIN_RATING) < 0
+			|| rating.compareTo(MAX_RATING) > 0
+			|| rating.multiply(HALF_STEP_MULTIPLIER).remainder(BigDecimal.ONE).compareTo(BigDecimal.ZERO) != 0) {
+			throw new ReviewException(ReviewErrorCode.INVALID_RATING);
+		}
+		return rating.setScale(1, RoundingMode.UNNECESSARY);
+	}
+
+	private List<TextureTag> validateTextureTags(List<TextureTag> textureTags) {
+		if (textureTags == null || textureTags.isEmpty() || textureTags.size() > 5) {
+			throw new ReviewException(ReviewErrorCode.INVALID_TEXTURE_TAGS);
+		}
+		return textureTags;
+	}
+
+	private String normalizeContent(String content) {
+		String normalized = content == null ? "" : content.trim();
+		if (normalized.length() > MAX_CONTENT_LENGTH) {
+			throw new ReviewException(ReviewErrorCode.REVIEW_CONTENT_TOO_LONG);
+		}
+		return normalized;
+	}
+
+	private List<ReviewImageRequest> validateReviewImages(Long memberId, List<ReviewImageRequest> images) {
+		if (images == null) {
+			return List.of();
+		}
+		if (images.size() > MAX_REVIEW_IMAGES) {
+			throw new ReviewException(ReviewErrorCode.REVIEW_IMAGE_COUNT_EXCEEDED);
+		}
+
+		String expectedPrefix = S3PathGenerator.getReviewImagePath(memberId) + "/";
+		for (ReviewImageRequest image : images) {
+			validateReviewMimeType(image.contentType());
+			if (!image.awsKey().startsWith(expectedPrefix)) {
+				throw new ReviewException(ReviewErrorCode.INVALID_REVIEW_IMAGE_KEY);
+			}
+		}
+		return images;
+	}
+
+	private void validateReviewMimeType(String mimeType) {
+		if (mimeType == null || !ALLOWED_IMAGE_MIME_TYPES.contains(mimeType.toLowerCase(Locale.ROOT))) {
+			throw new ReviewException(ReviewErrorCode.INVALID_REVIEW_IMAGE_MIME_TYPE);
+		}
+	}
+
+	private List<ReviewImageFile> toImageFiles(Review review, List<ReviewImageRequest> images) {
+		return IntStream.range(0, images.size())
+			.mapToObj(index -> {
+				ReviewImageRequest image = images.get(index);
+				return ReviewImageFile.builder()
+					.review(review)
+					.name(image.fileName())
+					.mimeType(MimeType.fromString(image.contentType()))
+					.awsKey(image.awsKey())
+					.displayOrder(index)
+					.build();
+			})
+			.toList();
+	}
+
+	private record AuthorStats(Long reviewCount, BigDecimal averageRating) {
+		private static AuthorStats empty() {
+			return new AuthorStats(0L, BigDecimal.ZERO.setScale(1));
+		}
+	}
+}
