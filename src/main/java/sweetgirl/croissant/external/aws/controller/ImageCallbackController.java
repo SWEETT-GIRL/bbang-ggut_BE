@@ -23,7 +23,7 @@ import sweetgirl.croissant.global.response.ApiResponse;
 @RequiredArgsConstructor
 public class ImageCallbackController {
 
-	@Value("${callback.api.secret-key}")
+	@Value("${lambda.callback.secret-key}")
 	private String secretKey;
 
 	private final ImageCallbackService imageCallbackService;
