@@ -1,5 +1,7 @@
 package sweetgirl.croissant.store.entity;
 
+import org.hibernate.annotations.SQLRestriction;
+
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
@@ -14,6 +16,7 @@ import sweetgirl.croissant.common.enums.MimeType;
 
 @Entity
 @Table(name = "store_report_image_file")
+@SQLRestriction("image_status = 'DONE'")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class StoreReportImageFile extends ImageFile {
