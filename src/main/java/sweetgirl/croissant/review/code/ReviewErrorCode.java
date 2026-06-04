@@ -25,6 +25,7 @@ public enum ReviewErrorCode implements BaseErrorCode {
 			"리뷰 이미지는 JPEG 또는 PNG만 업로드할 수 있습니다."),
 	INVALID_REVIEW_IMAGE_KEY(
 			BAD_REQUEST, "REVIEW_INVALID_IMAGE_KEY", "유효하지 않은 리뷰 이미지 키입니다."),
+	REVIEW_ALREADY_EXISTS(CONFLICT, "REVIEW_ALREADY_EXISTS", "이미 이 메뉴에 작성한 리뷰가 있습니다.");
 	REVIEW_CONTENT_TOO_LONG(
 			BAD_REQUEST, "REVIEW_CONTENT_TOO_LONG", "리뷰 내용은 최대 1000자까지 입력할 수 있습니다."),
 	REVIEW_ALREADY_EXISTS(CONFLICT, "REVIEW_ALREADY_EXISTS", "이미 이 메뉴에 작성한 리뷰가 있습니다."),
