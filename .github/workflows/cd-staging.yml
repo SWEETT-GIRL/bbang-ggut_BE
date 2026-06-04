@@ -86,7 +86,7 @@ jobs:
           discord.webhook.url=${DISCORD_WEBHOOK_URL}
 
           # Lambda 콜백 인증 키
-          lambda.callback.secret-key=${LAMBDA_CALLBACK_SECRET_KEY}
+          lambda.callback.secret-key=${{secrets.LAMBDA_CALLBACK_SECRET_KEY}}
           EOF
 
       - name: Create Firebase service account file
