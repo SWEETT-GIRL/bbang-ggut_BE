@@ -25,13 +25,16 @@ Codex에게 바로 이어서 요청할 때는 아래 "복붙용 요청" 블록�
 - `POST /reports`: 리뷰/프로필 공통 신고 접수
 - `GET /api/admin/reports?kind=USER_REPORT`: 관리자 신고 목록 조회
 - `PATCH /api/admin/reports/{reportId}` with `kind=USER_REPORT`: 신고 승인/거절
+- `GET /api/admin/reports/{reportId}?kind=USER_REPORT`: 관리자 신고 상세 조회
+- `POST /api/admin/reports/{reportId}/moderation-actions`: 리뷰 숨김/삭제/복구 moderation action
 - `user_report` 테이블 마이그레이션
+- `review.hidden_at` 및 `moderation_action` 테이블 마이그레이션
 - 신고 운영 정책 문서
 
-현재 관리자 승인/거절은 신고 상태만 변경한다.
-실제 리뷰 숨김, 리뷰 삭제, 프로필 초기화, 회원 제한은 아직 구현하지 않았다.
+현재 관리자 승인/거절은 신고 상태를 변경하고, 승인된 리뷰 신고에는 숨김/삭제/복구 조치를 적용할 수 있다.
+프로필 초기화와 회원 제한은 아직 구현하지 않았다.
 
-## 1. 관리자 신고 상세 조회
+## 1. 관리자 신고 상세 조회 ✅ 완료
 
 목표:
 
@@ -85,7 +88,7 @@ GET /api/admin/reports/{reportId}?kind=USER_REPORT
 Add admin user report detail API
 ```
 
-## 2. 리뷰 숨김/삭제 moderation action
+## 2. 리뷰 숨김/삭제 moderation action ✅ 완료
 
 목표:
 
