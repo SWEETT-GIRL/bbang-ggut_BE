@@ -72,7 +72,7 @@ public class StoreService {
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 		List<StoreBusinessHour> businessHours = storeBusinessHourRepository.findByStoreIdOrderByDayOfWeekAsc(storeId);
 		List<StoreImageFile> images = storeImageFileRepository.findByStoreIdOrderByDisplayOrderAscIdAsc(storeId);
-		List<MenuImageFile> menuImages = menuImageFileRepository.findByMenuStoreId(storeId);
+		List<MenuImageFile> menuImages = menuImageFileRepository.findByMenuStoreIdOrderByDisplayOrderAscIdAsc(storeId);
 		boolean isSubscribed = memberId != null
 			&& subscribedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId);
 		return StoreDetailResponse.of(store, businessHours, images, menuImages, isSubscribed);

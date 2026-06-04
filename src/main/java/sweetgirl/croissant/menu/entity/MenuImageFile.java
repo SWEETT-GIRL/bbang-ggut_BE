@@ -1,5 +1,7 @@
 package sweetgirl.croissant.menu.entity;
 
+import org.hibernate.annotations.SQLRestriction;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -15,6 +17,7 @@ import sweetgirl.croissant.external.aws.enums.MimeType;
 
 @Entity
 @Table(name = "menu_image_file")
+@SQLRestriction("image_status = 'DONE'")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MenuImageFile extends ImageFile {

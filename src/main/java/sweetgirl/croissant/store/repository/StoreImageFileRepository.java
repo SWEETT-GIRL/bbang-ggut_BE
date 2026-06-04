@@ -1,6 +1,7 @@
 package sweetgirl.croissant.store.repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -16,6 +17,9 @@ public interface StoreImageFileRepository extends JpaRepository<StoreImageFile, 
 	List<StoreImageFile> findByStoreIdIn(List<Long> storeIds);
 
 	List<StoreImageFile> findByIdInAndStoreId(List<Long> ids, Long storeId);
+
+	@Query(value = "SELECT * FROM store_image_file WHERE aws_key = :awsKey", nativeQuery = true)
+	Optional<StoreImageFile> findByAwsKey(@Param("awsKey") String awsKey);
 
 	@Query("""
 			SELECT s.store.id AS storeId, s.awsKey AS awsKey
