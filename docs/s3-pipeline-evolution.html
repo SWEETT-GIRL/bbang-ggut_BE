@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S3 이미지 처리 파이프라인 — 3단계 진화</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
+            background: #f0f2f5;
+            color: #1a1a2e;
+        }
+
+        header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            text-align: center;
+            padding: 44px 20px 36px;
+        }
+        header h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em; }
+        header p  { color: rgba(255,255,255,.55); font-size: .88rem; margin-top: 8px; }
+
+        /* ── timeline nav ── */
+        .timeline {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0;
+            padding: 28px 20px 8px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .tl-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            flex: 1;
+        }
+        .tl-circle {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: .92rem;
+            color: #fff;
+            position: relative;
+            z-index: 1;
+        }
+        .tl-label {
+            font-size: .72rem;
+            font-weight: 700;
+            text-align: center;
+            color: #636e72;
+            max-width: 100px;
+        }
+        .tl-line {
+            flex: 1;
+            height: 3px;
+            margin-bottom: 24px;
+        }
+        .c1 { background: #d63031; }
+        .c2 { background: #0984e3; }
+        .c3 { background: #00b894; }
+        .l1 { background: linear-gradient(90deg, #d63031, #0984e3); }
+        .l2 { background: linear-gradient(90deg, #0984e3, #00b894); }
+
+        main { max-width: 1600px; margin: 0 auto; padding: 20px 24px 64px; }
+
+        /* ── section ── */
+        .section { margin-bottom: 56px; }
+
+        .section-head {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            margin-bottom: 20px;
+            padding-bottom: 14px;
+            border-bottom: 2px solid #e4e6eb;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 5px 14px;
+            border-radius: 20px;
+            font-size: .74rem;
+            font-weight: 700;
+            letter-spacing: .06em;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .badge-1 { background: #ffd6d6; color: #b71c1c; }
+        .badge-2 { background: #cce5ff; color: #00418a; }
+        .badge-3 { background: #c8f7e4; color: #0a5c31; }
+        .section-head h2 { font-size: 1.1rem; font-weight: 700; }
+        .section-head p  { font-size: .82rem; color: #636e72; margin-top: 4px; }
+
+        /* ── grid ── */
+        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .grid1 { display: grid; grid-template-columns: 1fr; gap: 20px; }
+
+        @media (max-width: 1020px) { .grid2 { grid-template-columns: 1fr; } }
+
+        /* ── card ── */
+        .card {
+            background: #fff;
+            border-radius: 16px;
+            padding: 26px 24px;
+            box-shadow: 0 2px 10px rgba(0,0,0,.07);
+        }
+        .card h3 {
+            font-size: .88rem;
+            font-weight: 700;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .pill {
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: .72rem;
+            font-weight: 700;
+        }
+        .pill-up   { background: #ffd6e7; color: #9b1041; }
+        .pill-read { background: #cce5ff; color: #00418a; }
+
+        /* ── problem/benefit callout ── */
+        .callout {
+            margin-top: 16px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: .8rem;
+            line-height: 1.6;
+        }
+        .callout-warn { background: #fff3cd; border-left: 4px solid #f0ad00; color: #5a3e00; }
+        .callout-info { background: #e3f0ff; border-left: 4px solid #0984e3; color: #00418a; }
+        .callout-ok   { background: #d4f8e8; border-left: 4px solid #00b894; color: #0a5c31; }
+        .callout b { display: block; margin-bottom: 4px; }
+
+        /* ── mermaid wrap ── */
+        .diagram-wrap { overflow-x: auto; }
+        .mermaid { display: flex; justify-content: center; }
+
+        /* ── diff table ── */
+        .diff-card {
+            background: #fff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,.07);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .84rem;
+        }
+        th {
+            padding: 11px 16px;
+            text-align: left;
+            font-weight: 700;
+            border-bottom: 2px solid #e4e6eb;
+        }
+        th:nth-child(1) { background: #f5f6fa; }
+        th:nth-child(2) { background: #ffeaea; }
+        th:nth-child(3) { background: #e3f0ff; }
+        th:nth-child(4) { background: #d4f8e8; }
+        td {
+            padding: 11px 16px;
+            border-bottom: 1px solid #f0f0f0;
+            vertical-align: middle;
+        }
+        tr:last-child td { border-bottom: none; }
+        tbody tr:nth-child(even) td { background: #fafbfc; }
+
+        .chip {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 5px;
+            font-size: .72rem;
+            font-weight: 700;
+            margin-right: 4px;
+        }
+        .chip-1 { background: #ffe3e3; color: #b71c1c; }
+        .chip-2 { background: #cce5ff; color: #00418a; }
+        .chip-3 { background: #d4f8e0; color: #1b5e20; }
+
+        /* ── section divider ── */
+        .arrow-divider {
+            text-align: center;
+            font-size: 1.6rem;
+            color: #b2bec3;
+            margin: -20px 0 20px;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>S3 이미지 처리 파이프라인 — 3단계 진화</h1>
+    <p>AS-IS (단일 버킷)  →  서버 비동기 처리  →  AWS Lambda 위임</p>
+</header>
+
+<!-- timeline -->
+<div class="timeline">
+    <div class="tl-step">
+        <div class="tl-circle c1">1</div>
+        <div class="tl-label">AS-IS<br>단일 버킷</div>
+    </div>
+    <div class="tl-line l1"></div>
+    <div class="tl-step">
+        <div class="tl-circle c2">2</div>
+        <div class="tl-label">서버 비동기<br>@Async</div>
+    </div>
+    <div class="tl-line l2"></div>
+    <div class="tl-step">
+        <div class="tl-circle c3">3</div>
+        <div class="tl-label">Lambda<br>이벤트 처리</div>
+    </div>
+</div>
+
+<main>
+
+    <!-- ══════════════ STAGE 1 ══════════════ -->
+    <section class="section">
+        <div class="section-head">
+            <span class="badge badge-1">STAGE 1 · AS-IS</span>
+            <div>
+                <h2>현재 구조</h2>
+                <p>단일 버킷 · 서버 검증 없음 · CDN 없음 · 이미지 상태 없음</p>
+            </div>
+        </div>
+
+        <div class="grid2">
+            <div class="card">
+                <h3><span class="pill pill-up">업로드</span> 이미지 등록 흐름</h3>
+                <div class="diagram-wrap">
+                    <div class="mermaid">
+sequenceDiagram
+    participant C as 클라이언트
+    participant BE as Backend
+    participant S3 as S3 단일 버킷
+    participant DB as PostgreSQL
+
+    C->>BE: ① presigned URL 요청 (mimeType)
+    BE-->>C: ② presigned URL + awsKey 반환
+
+    C->>S3: ③ PUT 원본 파일 직접 업로드
+    Note over C,S3: ⚠ 서버 검증 없음 — MIME·크기 클라이언트 선언에 의존
+    S3-->>C: 200 OK
+
+    C->>BE: ④ POST 이미지 등록 (awsKey)
+    BE->>DB: ⑤ INSERT imageFile (awsKey 저장)
+    DB-->>BE: 저장 완료
+    BE-->>C: ⑥ 200 OK
+                    </div>
+                </div>
+                <div class="callout callout-warn">
+                    <b>⚠ 문제점</b>
+                    MIME 타입은 클라이언트 선언 값만 신뢰 — 악성 파일 업로드 가능<br>
+                    리사이즈 없음 → 원본 대용량 이미지를 그대로 서빙<br>
+                    이미지 상태 없음 → 업로드 중 이미지도 즉시 노출
+                </div>
+            </div>
+
+            <div class="card">
+                <h3><span class="pill pill-read">조회</span> 이미지 응답 흐름</h3>
+                <div class="diagram-wrap">
+                    <div class="mermaid">
+sequenceDiagram
+    participant C as 클라이언트
+    participant BE as Backend
+    participant DB as PostgreSQL
+    participant S3 as S3 단일 버킷
+
+    C->>BE: GET /stores/{id}/images
+    BE->>DB: SELECT awsKey (상태 필터 없음)
+    DB-->>BE: awsKey 목록 반환
+    BE-->>C: S3 직접 URL 목록 반환
+    Note over BE,C: https://s3.ap-northeast-2.amazonaws.com/{bucket}/{key}
+
+    C->>S3: 이미지 GET (S3 직접 접근)
+    S3-->>C: 이미지 데이터
+                    </div>
+                </div>
+                <div class="callout callout-warn">
+                    <b>⚠ 문제점</b>
+                    S3 버킷 URL이 클라이언트에 직접 노출<br>
+                    CDN 없음 → 매번 Origin S3에서 풀링 (레이턴시 + 비용)<br>
+                    상태 필터 없음 → PENDING/FAILED 이미지도 함께 반환
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="arrow-divider">↓</div>
+
+    <!-- ══════════════ STAGE 2 ══════════════ -->
+    <section class="section">
+        <div class="section-head">
+            <span class="badge badge-2">STAGE 2 · 서버 비동기</span>
+            <div>
+                <h2>서버 내 비동기 처리 (@Async)</h2>
+                <p>staging / final 버킷 분리 · 매직바이트 검증 · Thumbnailator 리사이즈 · CloudFront CDN</p>
+            </div>
+        </div>
+
+        <div class="grid1">
+            <div class="card">
+                <h3><span class="pill pill-up">업로드</span> 이미지 등록 흐름</h3>
+                <div class="diagram-wrap">
+                    <div class="mermaid">
+sequenceDiagram
+    participant C as 클라이언트
+    participant BE as Backend
+    participant ST as S3 staging
+    participant DB as PostgreSQL
+    participant POOL as imageProcessingExecutor<br>(corePool=2 · max=5 · queue=50)
+    participant FN as S3 final
+
+    C->>BE: ① presigned URL 요청
+    BE-->>C: ② staging presigned URL + awsKey
+
+    C->>ST: ③ PUT 원본 파일
+    ST-->>C: 200 OK
+
+    C->>BE: ④ POST 이미지 등록 (awsKey)
+
+    rect rgb(219, 234, 254)
+        Note over BE,DB: HTTP 요청 스레드 (동기)
+        BE->>DB: ⑤ INSERT imageStatus = PENDING
+        DB-->>BE: commit 완료
+        BE-->>C: ⑥ 200 즉시 반환
+    end
+
+    rect rgb(237, 231, 255)
+        Note over POOL,FN: @Async(imageProcessingExecutor) — 백엔드 스레드풀
+        BE-)POOL: ⑦ 비동기 트리거 (commit 직후)
+        POOL->>ST: ⑧ 파일 다운로드 (S3 GetObject)
+        ST-->>POOL: 파일 바이트 스트림
+
+        Note over POOL: USER 요청: 매직바이트 검증<br>ADMIN 요청: 검증 스킵
+
+        alt 검증 실패 (USER only)
+            POOL->>ST: 원본 삭제 (DeleteObject)
+            POOL->>DB: UPDATE imageStatus = FAILED
+        else JPEG · PNG (리사이즈 지원)
+            POOL->>POOL: Thumbnailator 리사이즈 (max 1280px)
+            POOL->>FN: PutObject (동일 awsKey)
+            POOL->>ST: 원본 삭제 (DeleteObject)
+            POOL->>DB: UPDATE imageStatus = DONE
+        else WebP · HEIC (리사이즈 미지원)
+            POOL->>FN: CopyObject (동일 awsKey)
+            POOL->>ST: 원본 삭제 (DeleteObject)
+            POOL->>DB: UPDATE imageStatus = DONE
+        end
+    end
+                    </div>
+                </div>
+                <div class="callout callout-info">
+                    <b>⚠ 한계 — 이 방식의 부하 지점</b>
+                    <strong>다운로드 부하</strong>: 백엔드 서버가 S3에서 원본 파일을 직접 내려받아 메모리에 올림 → 대용량 이미지·동시 업로드 시 힙 압박<br>
+                    <strong>CPU 부하</strong>: Thumbnailator 리사이즈는 CPU 집약 작업 — API 서버와 스레드풀을 공유하므로 경쟁 발생<br>
+                    <strong>스레드풀 고갈</strong>: queue=50 초과 시 RejectedExecutionException → 업로드 실패<br>
+                    <strong>스케일 아웃 비효율</strong>: 이미지 처리를 위해 API 서버 전체를 스케일 아웃해야 함
+                </div>
+            </div>
+
+            <div class="card">
+                <h3><span class="pill pill-read">조회</span> 이미지 응답 흐름</h3>
+                <div class="diagram-wrap">
+                    <div class="mermaid">
+sequenceDiagram
+    participant C as 클라이언트
+    participant BE as Backend
+    participant DB as PostgreSQL
+    participant CDN as CloudFront CDN
+    participant FN as S3 final
+
+    C->>BE: GET /stores/{id}/images
+    BE->>DB: SELECT awsKey WHERE imageStatus = DONE
+    DB-->>BE: DONE 상태 awsKey 목록 반환
+    Note over DB,BE: PENDING · FAILED 이미지는 응답에서 제외
+    BE-->>C: CDN URL 목록 반환
+    Note over BE,C: https://cdn.bbanggut.com/{awsKey}
+
+    C->>CDN: 이미지 GET
+    alt 캐시 히트
+        CDN-->>C: 즉시 이미지 응답
+    else 캐시 미스
+        CDN->>FN: Origin Fetch
+        FN-->>CDN: 원본 파일
+        CDN-->>C: 이미지 응답 (엣지 캐시 저장)
+    end
+                    </div>
+                </div>
+                <div class="callout callout-info">
+                    <b>✓ 개선 포인트</b>
+                    CloudFront CDN 경유 → S3 버킷 URL 비노출, 엣지 캐싱으로 레이턴시 감소<br>
+                    imageStatus = DONE 필터 → 처리 전 이미지는 자동 은닉
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="arrow-divider">↓</div>
+
+    <!-- ══════════════ STAGE 3 ══════════════ -->
+    <section class="section">
+        <div class="section-head">
+            <span class="badge badge-3">STAGE 3 · AWS Lambda</span>
+            <div>
+                <h2>AWS Lambda 이벤트 처리</h2>
+                <p>S3 이벤트 트리거 · 서버리스 처리 · 백엔드 부하 완전 분리 · CloudFront CDN</p>
+            </div>
+        </div>
+
+        <div class="grid1">
+            <div class="card">
+                <h3><span class="pill pill-up">업로드</span> 이미지 등록 흐름</h3>
+                <div class="diagram-wrap">
+                    <div class="mermaid">
+sequenceDiagram
+    participant C as 클라이언트
+    participant BE as Backend
+    participant ST as S3 staging
+    participant DB as PostgreSQL
+    participant LB as AWS Lambda<br>(img-processor)
+    participant FN as S3 final
+
+    C->>BE: ① presigned URL 요청
+    BE-->>C: ② staging presigned URL + awsKey
+
+    C->>ST: ③ PUT 원본 파일
+    Note over ST: s3:ObjectCreated:* 이벤트 발생
+    ST-->>C: 200 OK
+
+    C->>BE: ④ POST 이미지 등록 (awsKey)
+
+    rect rgb(219, 234, 254)
+        Note over BE,DB: HTTP 요청 스레드 (동기) — 기존보다 더 가벼워짐
+        BE->>DB: ⑤ INSERT imageStatus = PENDING
+        DB-->>BE: commit 완료
+        BE-->>C: ⑥ 200 즉시 반환
+    end
+
+    rect rgb(209, 250, 229)
+        Note over ST,FN: AWS Lambda — S3 이벤트 자동 트리거 · 독립 실행 환경
+        ST-)LB: ⑦ S3 Event Notification (PutObject)
+        Note over LB: Lambda 자동 확장 — 동시 업로드 수만큼 병렬 실행
+
+        LB->>ST: ⑧ GetObject (awsKey)
+        ST-->>LB: 파일 바이트 스트림
+
+        Note over LB: USER 요청: 매직바이트 검증<br>ADMIN 요청: 검증 스킵<br>(awsKey prefix 또는 S3 메타데이터로 판별)
+
+        alt 검증 실패 (USER only)
+            LB->>ST: DeleteObject
+            LB->>BE: ⑨ PATCH /internal/images/{awsKey}/status<br>body: {status: "FAILED"}
+            BE->>DB: UPDATE imageStatus = FAILED
+        else JPEG · PNG (리사이즈 지원)
+            LB->>LB: Sharp 리사이즈 (max 1280px)<br>(Node.js) 또는 Pillow (Python)
+            LB->>FN: PutObject (동일 awsKey)
+            LB->>ST: DeleteObject
+            LB->>BE: ⑨ PATCH /internal/images/{awsKey}/status<br>body: {status: "DONE"}
+            BE->>DB: UPDATE imageStatus = DONE
+        else WebP · HEIC (리사이즈 미지원)
+            LB->>FN: CopyObject (동일 awsKey)
+            LB->>ST: DeleteObject
+            LB->>BE: ⑨ PATCH /internal/images/{awsKey}/status<br>body: {status: "DONE"}
+            BE->>DB: UPDATE imageStatus = DONE
+        end
+    end
+                    </div>
+                </div>
+                <div class="callout callout-ok">
+                    <b>✓ Lambda 방식의 이점</b>
+                    <strong>백엔드 부하 0</strong>: 다운로드·리사이즈 모두 Lambda가 담당 — API 서버 힙·CPU 영향 없음<br>
+                    <strong>자동 수평 확장</strong>: 동시 업로드 N건 → Lambda N개 병렬 실행 (기본 동시성 1000)<br>
+                    <strong>스레드풀 불필요</strong>: @Async / imageProcessingExecutor 설정 제거 가능<br>
+                    <strong>독립 배포</strong>: 리사이즈 로직 변경 시 Lambda만 재배포 → API 서버 무중단<br>
+                    <strong>비용 효율</strong>: 유휴 시 비용 0 (요청 수·실행 시간 기준 과금)
+                </div>
+            </div>
+
+            <div class="card">
+                <h3><span class="pill pill-read">조회</span> 이미지 응답 흐름</h3>
+                <div class="diagram-wrap">
+                    <div class="mermaid">
+sequenceDiagram
+    participant C as 클라이언트
+    participant BE as Backend
+    participant DB as PostgreSQL
+    participant CDN as CloudFront CDN
+    participant FN as S3 final
+
+    C->>BE: GET /stores/{id}/images
+    BE->>DB: SELECT awsKey WHERE imageStatus = DONE
+    DB-->>BE: DONE 상태 awsKey 목록 반환
+    Note over DB,BE: PENDING · FAILED 이미지는 응답에서 제외
+    BE-->>C: CDN URL 목록 반환
+    Note over BE,C: https://cdn.bbanggut.com/{awsKey}
+
+    C->>CDN: 이미지 GET
+    alt 캐시 히트
+        CDN-->>C: 즉시 이미지 응답
+    else 캐시 미스
+        CDN->>FN: Origin Fetch (S3 final)
+        FN-->>CDN: 원본 파일
+        CDN-->>C: 이미지 응답 (엣지 캐시 저장)
+    end
+                    </div>
+                </div>
+                <div class="callout callout-ok">
+                    <b>✓ 조회 흐름은 Stage 2와 동일</b>
+                    Lambda 도입 후에도 조회 경로는 변경 없음 — CloudFront → S3 final<br>
+                    Lambda 처리 완료(imageStatus = DONE) 이후에만 CDN URL 노출
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════ 3단계 비교표 ══════════════ -->
+    <section class="section">
+        <div class="section-head">
+            <div>
+                <h2>3단계 비교 요약</h2>
+                <p>AS-IS vs 서버 비동기 vs Lambda 핵심 차이점</p>
+            </div>
+        </div>
+
+        <div class="diff-card">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:16%">항목</th>
+                        <th style="width:28%">① AS-IS</th>
+                        <th style="width:28%">② 서버 비동기 (@Async)</th>
+                        <th style="width:28%">③ AWS Lambda</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>S3 버킷</strong></td>
+                        <td><span class="chip chip-1">단일</span> 원본 그대로 저장</td>
+                        <td><span class="chip chip-2">staging + final</span> 처리 완료 후 이관</td>
+                        <td><span class="chip chip-3">staging + final</span> 동일 (Lambda가 이관)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>이미지 처리 주체</strong></td>
+                        <td><span class="chip chip-1">없음</span></td>
+                        <td><span class="chip chip-2">Backend 서버</span> @Async 스레드풀</td>
+                        <td><span class="chip chip-3">AWS Lambda</span> 서버리스·독립 환경</td>
+                    </tr>
+                    <tr>
+                        <td><strong>트리거 방식</strong></td>
+                        <td>—</td>
+                        <td>TransactionSynchronization<br>afterCommit() → @Async 호출</td>
+                        <td>S3 ObjectCreated 이벤트<br>→ Lambda 자동 실행</td>
+                    </tr>
+                    <tr>
+                        <td><strong>파일 다운로드</strong></td>
+                        <td><span class="chip chip-1">없음</span></td>
+                        <td><span class="chip chip-2">Backend 서버</span> 힙 메모리에 올림</td>
+                        <td><span class="chip chip-3">Lambda</span> 별도 실행 환경 (512MB~10GB)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>리사이즈 라이브러리</strong></td>
+                        <td><span class="chip chip-1">없음</span></td>
+                        <td><span class="chip chip-2">Thumbnailator</span> (Java)</td>
+                        <td><span class="chip chip-3">Sharp</span> (Node.js) 또는 Pillow (Python)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>백엔드 부하</strong></td>
+                        <td>낮음 (처리 없음)</td>
+                        <td><span class="chip chip-2">높음</span> CPU·메모리 공유, 스레드풀 경쟁</td>
+                        <td><span class="chip chip-3">최소</span> PENDING 저장 + 콜백 수신만</td>
+                    </tr>
+                    <tr>
+                        <td><strong>수평 확장</strong></td>
+                        <td>—</td>
+                        <td>API 서버 전체 스케일 아웃 필요</td>
+                        <td><span class="chip chip-3">Lambda 자동 확장</span> 동시성 최대 1000</td>
+                    </tr>
+                    <tr>
+                        <td><strong>배포 독립성</strong></td>
+                        <td>—</td>
+                        <td>리사이즈 로직 변경 = API 서버 재배포</td>
+                        <td><span class="chip chip-3">Lambda만 재배포</span> API 서버 무중단</td>
+                    </tr>
+                    <tr>
+                        <td><strong>파일 검증</strong></td>
+                        <td><span class="chip chip-1">없음</span></td>
+                        <td><span class="chip chip-2">매직바이트</span> (Backend 인메모리)</td>
+                        <td><span class="chip chip-3">매직바이트</span> (Lambda 내부)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>이미지 상태</strong></td>
+                        <td><span class="chip chip-1">없음</span></td>
+                        <td><span class="chip chip-2">PENDING → DONE/FAILED</span></td>
+                        <td><span class="chip chip-3">PENDING → DONE/FAILED</span><br>Lambda → 콜백 API → DB</td>
+                    </tr>
+                    <tr>
+                        <td><strong>이미지 서빙</strong></td>
+                        <td><span class="chip chip-1">S3 직접 URL</span> CDN 없음</td>
+                        <td><span class="chip chip-2">CloudFront</span> 엣지 캐싱</td>
+                        <td><span class="chip chip-3">CloudFront</span> 동일</td>
+                    </tr>
+                    <tr>
+                        <td><strong>비용 구조</strong></td>
+                        <td>S3 스토리지·요청 비용</td>
+                        <td>EC2/ECS 고정 비용 (항상 on)</td>
+                        <td><span class="chip chip-3">요청 수·실행 시간 과금</span><br>유휴 시 비용 0</td>
+                    </tr>
+                    <tr>
+                        <td><strong>추가 구현 필요</strong></td>
+                        <td>—</td>
+                        <td>@Async 설정, ThreadPoolTaskExecutor</td>
+                        <td>Lambda 함수, S3 이벤트 설정,<br><code>PATCH /internal/images/{awsKey}/status</code> 내부 API</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+</main>
+
+<script>
+    mermaid.initialize({
+        startOnLoad: true,
+        theme: 'base',
+        themeVariables: {
+            fontSize: '13px',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            sequenceNumberColor: '#2d3436',
+            actorBkg: '#f5f6fa',
+            actorBorder: '#b2bec3',
+            actorTextColor: '#2d3436',
+            actorLineColor: '#b2bec3',
+            noteBkgColor: '#fffbea',
+            noteBorderColor: '#f0c040',
+            noteTextColor: '#5a4500',
+            activationBkgColor: '#dfe6e9',
+            activationBorderColor: '#636e72',
+            labelBoxBkgColor: '#f5f6fa',
+            labelBoxBorderColor: '#b2bec3',
+            labelTextColor: '#2d3436',
+            signalColor: '#2d3436',
+            signalTextColor: '#2d3436',
+            loopTextColor: '#2d3436',
+        },
+        sequence: {
+            diagramMarginX: 20,
+            diagramMarginY: 20,
+            actorMargin: 60,
+            width: 160,
+            height: 40,
+            boxMargin: 10,
+            boxTextMargin: 5,
+            noteMargin: 10,
+            messageMargin: 40,
+            mirrorActors: false,
+            useMaxWidth: true,
+        }
+    });
+</script>
+
+</body>
+</html>

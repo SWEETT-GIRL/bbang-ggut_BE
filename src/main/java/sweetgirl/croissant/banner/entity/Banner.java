@@ -1,5 +1,7 @@
 package sweetgirl.croissant.banner.entity;
 
+import org.hibernate.annotations.ColumnDefault;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -13,6 +15,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
+import sweetgirl.croissant.common.enums.ImageStatus;
 import sweetgirl.croissant.external.aws.enums.MimeType;
 
 @Entity
@@ -48,6 +51,11 @@ public class Banner extends BaseTimeEntity {
 	@Column(nullable = false)
 	private int displayOrder;
 
+	@Enumerated(EnumType.STRING)
+	@ColumnDefault("'DONE'")
+	@Column(nullable = false, length = 20)
+	private ImageStatus imageStatus;
+
 	@Builder
 	public Banner(String thumbnailName, MimeType thumbnailMimeType, String thumbnailKey,
 			String detailName, MimeType detailMimeType, String detailKey, int displayOrder) {
@@ -58,9 +66,18 @@ public class Banner extends BaseTimeEntity {
 		this.detailMimeType = detailMimeType;
 		this.detailKey = detailKey;
 		this.displayOrder = displayOrder;
+		this.imageStatus = ImageStatus.PENDING;
 	}
 
 	public void updateDisplayOrder(int displayOrder) {
 		this.displayOrder = displayOrder;
+	}
+
+	public void markDone() {
+		this.imageStatus = ImageStatus.DONE;
+	}
+
+	public void markFailed() {
+		this.imageStatus = ImageStatus.FAILED;
 	}
 }
