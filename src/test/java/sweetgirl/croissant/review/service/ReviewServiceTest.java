@@ -38,7 +38,9 @@ import sweetgirl.croissant.review.dto.projection.ReviewAuthorAggregateProjection
 import sweetgirl.croissant.review.dto.request.ReviewCreateRequest;
 import sweetgirl.croissant.review.dto.request.ReviewImageRequest;
 import sweetgirl.croissant.review.dto.request.ReviewPresignedUrlRequest;
+import sweetgirl.croissant.review.dto.request.ReviewUpdateRequest;
 import sweetgirl.croissant.review.dto.response.ReviewCreateResponse;
+import sweetgirl.croissant.review.dto.response.ReviewDetailResponse;
 import sweetgirl.croissant.review.dto.response.ReviewListResponse;
 import sweetgirl.croissant.review.dto.response.ReviewPresignedUrlInfoResponse;
 import sweetgirl.croissant.review.dto.response.ReviewSummaryResponse;
@@ -49,6 +51,7 @@ import sweetgirl.croissant.review.exception.ReviewException;
 import sweetgirl.croissant.review.repository.ReviewImageFileRepository;
 import sweetgirl.croissant.review.repository.ReviewLikeRepository;
 import sweetgirl.croissant.review.repository.ReviewRepository;
+import sweetgirl.croissant.store.entity.Store;
 
 @ExtendWith(MockitoExtension.class)
 class ReviewServiceTest {
@@ -202,6 +205,95 @@ class ReviewServiceTest {
 			.hasMessageContaining(ReviewErrorCode.INVALID_REVIEW_IMAGE_MIME_TYPE.getMessage());
 	}
 
+	@Test
+	@DisplayName("getMyReviews: 내 활성 리뷰를 최신순 slice로 반환한다")
+	void getMyReviews_returnsMyActiveReviews() {
+		Member member = member(7L, "슈크림");
+		Review review = reviewWithMenu(1L, member, BigDecimal.valueOf(4.5), 0, LocalDateTime.now());
+
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(reviewRepository.findActiveByMemberIdOrderByRecent(eq(7L), any(Pageable.class)))
+			.willReturn(List.of(review));
+		given(reviewImageFileRepository.findByReviewIdInOrderByReviewIdAscDisplayOrderAscIdAsc(List.of(1L)))
+			.willReturn(List.of());
+		given(reviewLikeRepository.findLikedReviewIds(7L, List.of(1L))).willReturn(List.of());
+		given(reviewRepository.findAuthorAggregatesByMemberIds(Set.of(7L)))
+			.willReturn(List.of(authorAggregate(7L, 1L, 4.5)));
+
+		var result = reviewService.getMyReviews(7L, 0, 20);
+
+		assertThat(result.content()).hasSize(1);
+		assertThat(result.content().get(0).storeName()).isEqualTo("단팥당");
+		assertThat(result.hasNext()).isFalse();
+	}
+
+	@Test
+	@DisplayName("updateReview: 작성자 본인만 리뷰와 이미지를 교체할 수 있다")
+	void updateReview_owner_replacesReviewAndImages() {
+		Member member = member(7L, "슈크림");
+		Review review = reviewWithMenu(1L, member, BigDecimal.valueOf(4.5), 0, LocalDateTime.now());
+		ReviewImageFile oldImage = image(100L, review, "reviews/members/7/images/old");
+		ReviewUpdateRequest request = updateRequest(List.of(
+			new ReviewImageRequest("new.jpg", "image/jpeg", "reviews/members/7/images/new")));
+
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(reviewRepository.findActiveByIdWithDetails(1L)).willReturn(Optional.of(review));
+		given(reviewImageFileRepository.findByReviewIdOrderByDisplayOrderAscIdAsc(1L))
+			.willReturn(List.of(oldImage));
+		given(reviewImageFileRepository.findByReviewIdInOrderByReviewIdAscDisplayOrderAscIdAsc(List.of(1L)))
+			.willReturn(List.of());
+		given(reviewLikeRepository.findLikedReviewIds(7L, List.of(1L))).willReturn(List.of());
+		given(reviewRepository.findAuthorAggregatesByMemberIds(Set.of(7L)))
+			.willReturn(List.of(authorAggregate(7L, 1L, 3.5)));
+
+		ReviewDetailResponse result = reviewService.updateReview(1L, 7L, request);
+
+		assertThat(result.rating()).isEqualByComparingTo("3.5");
+		assertThat(result.textureTags()).containsExactly(TextureTag.CHEWY);
+		assertThat(result.content()).isEqualTo("수정했어요");
+		verify(s3Service).deleteObject("reviews/members/7/images/old");
+		verify(reviewImageFileRepository).deleteAll(List.of(oldImage));
+		verify(reviewImageFileRepository).saveAll(argThat(images -> {
+			List<ReviewImageFile> imageList = StreamSupport.stream(images.spliterator(), false).toList();
+			return imageList.size() == 1
+				&& imageList.get(0).getAwsKey().equals("reviews/members/7/images/new");
+		}));
+	}
+
+	@Test
+	@DisplayName("updateReview: 타인의 리뷰는 수정할 수 없다")
+	void updateReview_otherMember_throwsAccessDenied() {
+		Member owner = member(8L, "단팥");
+		Review review = reviewWithMenu(1L, owner, BigDecimal.valueOf(4.5), 0, LocalDateTime.now());
+
+		given(memberReader.getMember(7L)).willReturn(member(7L, "슈크림"));
+		given(reviewRepository.findActiveByIdWithDetails(1L)).willReturn(Optional.of(review));
+
+		assertThatThrownBy(() -> reviewService.updateReview(1L, 7L, updateRequest(List.of())))
+			.isInstanceOf(ReviewException.class)
+			.hasMessageContaining(ReviewErrorCode.REVIEW_ACCESS_DENIED.getMessage());
+	}
+
+	@Test
+	@DisplayName("deleteReview: 작성자 본인은 이미지와 좋아요를 정리하고 리뷰를 soft delete한다")
+	void deleteReview_owner_softDeletesAndCleansUp() {
+		Member member = member(7L, "슈크림");
+		Review review = reviewWithMenu(1L, member, BigDecimal.valueOf(4.5), 0, LocalDateTime.now());
+		ReviewImageFile image = image(100L, review, "reviews/members/7/images/a");
+
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(reviewRepository.findActiveByIdWithDetails(1L)).willReturn(Optional.of(review));
+		given(reviewImageFileRepository.findByReviewIdOrderByDisplayOrderAscIdAsc(1L))
+			.willReturn(List.of(image));
+
+		reviewService.deleteReview(1L, 7L);
+
+		assertThat(review.getDeletedAt()).isNotNull();
+		verify(s3Service).deleteObject("reviews/members/7/images/a");
+		verify(reviewImageFileRepository).deleteAll(List.of(image));
+		verify(reviewLikeRepository).deleteByReviewId(1L);
+	}
+
 	private ReviewCreateRequest createRequest(BigDecimal rating, String content, List<ReviewImageRequest> images) {
 		return new ReviewCreateRequest(
 			rating,
@@ -210,6 +302,17 @@ class ReviewServiceTest {
 			"full",
 			List.of(TextureTag.CRISPY),
 			content,
+			images);
+	}
+
+	private ReviewUpdateRequest updateRequest(List<ReviewImageRequest> images) {
+		return new ReviewUpdateRequest(
+			BigDecimal.valueOf(3.5),
+			"yes",
+			"medium",
+			"full",
+			List.of(TextureTag.CHEWY),
+			"수정했어요",
 			images);
 	}
 
@@ -236,6 +339,27 @@ class ReviewServiceTest {
 		ReflectionTestUtils.setField(review, "likeCount", likeCount);
 		ReflectionTestUtils.setField(review, "createdAt", createdAt);
 		return review;
+	}
+
+	private Review reviewWithMenu(Long id, Member member, BigDecimal rating, int likeCount, LocalDateTime createdAt) {
+		Review review = review(id, member, rating, likeCount, createdAt);
+		ReflectionTestUtils.setField(review, "menu", menu());
+		return review;
+	}
+
+	private Menu menu() {
+		Store store = Store.builder()
+			.name("단팥당")
+			.address("서울 마포구")
+			.build();
+		ReflectionTestUtils.setField(store, "id", 3L);
+		Menu menu = Menu.builder()
+			.store(store)
+			.name("소금빵")
+			.price(3000)
+			.build();
+		ReflectionTestUtils.setField(menu, "id", 2L);
+		return menu;
 	}
 
 	private ReviewImageFile image(Long id, Review review, String awsKey) {
