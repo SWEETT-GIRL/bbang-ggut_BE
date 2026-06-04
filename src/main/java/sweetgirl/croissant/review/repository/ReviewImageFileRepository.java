@@ -9,4 +9,6 @@ import sweetgirl.croissant.review.entity.ReviewImageFile;
 public interface ReviewImageFileRepository extends JpaRepository<ReviewImageFile, Long> {
 
 	List<ReviewImageFile> findByReviewIdInOrderByReviewIdAscDisplayOrderAscIdAsc(List<Long> reviewIds);
+
+	List<ReviewImageFile> findByReviewIdOrderByDisplayOrderAscIdAsc(Long reviewId);
 }

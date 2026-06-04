@@ -15,4 +15,6 @@ public interface ReviewLikeRepository extends JpaRepository<ReviewLike, Long> {
 			WHERE rl.member.id = :memberId AND rl.review.id IN :reviewIds
 			""")
 	List<Long> findLikedReviewIds(@Param("memberId") Long memberId, @Param("reviewIds") List<Long> reviewIds);
+
+	long deleteByReviewId(Long reviewId);
 }
