@@ -25,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.admin.code.AdminErrorCode;
 import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
 import sweetgirl.croissant.admin.dto.response.AdminReportResponse;
+import sweetgirl.croissant.admin.dto.response.AdminUserReportDetailResponse;
 import sweetgirl.croissant.admin.exception.AdminException;
 import sweetgirl.croissant.alarm.enums.ReportKind;
 import sweetgirl.croissant.alarm.enums.ReportNotificationAction;
@@ -39,8 +40,13 @@ import sweetgirl.croissant.menu.repository.MenuAddReportRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.report.entity.UserReport;
+import sweetgirl.croissant.report.enums.ReportTargetType;
 import sweetgirl.croissant.report.enums.UserReportStatus;
 import sweetgirl.croissant.report.repository.UserReportRepository;
+import sweetgirl.croissant.review.entity.Review;
+import sweetgirl.croissant.review.entity.ReviewImageFile;
+import sweetgirl.croissant.review.repository.ReviewImageFileRepository;
+import sweetgirl.croissant.review.repository.ReviewRepository;
 import sweetgirl.croissant.store.AddressParser;
 import sweetgirl.croissant.store.dto.request.ReportImageRequest;
 import sweetgirl.croissant.store.dto.request.StoreAddressReportRequest;
@@ -75,6 +81,8 @@ public class AdminReportService {
 	private final StoreBusinessHourRepository storeBusinessHourRepository;
 	private final MenuRepository menuRepository;
 	private final MenuImageFileRepository menuImageFileRepository;
+	private final ReviewRepository reviewRepository;
+	private final ReviewImageFileRepository reviewImageFileRepository;
 	private final S3Service s3Service;
 	private final ObjectMapper objectMapper;
 	private final ReportNotificationService reportNotificationService;
@@ -90,6 +98,16 @@ public class AdminReportService {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_KIND);
 		}
 		return getStoreReports(toStoreReportStatus(statusStr), page, size);
+	}
+
+	public AdminUserReportDetailResponse getReportDetail(Long reportId, String kind) {
+		if (!"USER_REPORT".equals(kind)) {
+			throw new AdminException(AdminErrorCode.REPORT_INVALID_KIND);
+		}
+
+		UserReport report = userReportRepository.findByIdWithMembers(reportId)
+			.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
+		return AdminUserReportDetailResponse.of(report, toUserReportTarget(report));
 	}
 
 	@Transactional
@@ -408,6 +426,19 @@ public class AdminReportService {
 			: userReportRepository.findAll(PageRequest.of(page, size));
 
 		return reports.map(AdminReportResponse::ofUserReport);
+	}
+
+	private Object toUserReportTarget(UserReport report) {
+		if (report.getTargetType() == ReportTargetType.REVIEW) {
+			Review review = reviewRepository.findByIdWithDetails(report.getTargetId())
+				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
+			List<String> images = reviewImageFileRepository.findByReviewIdOrderByDisplayOrderAscIdAsc(review.getId())
+				.stream()
+				.map(ReviewImageFile::getAwsKey)
+				.toList();
+			return AdminUserReportDetailResponse.ReviewTarget.of(review, images);
+		}
+		return AdminUserReportDetailResponse.MemberProfileTarget.from(report.getReportedMember());
 	}
 
 	private StoreReportStatus toStoreReportStatus(String statusStr) {

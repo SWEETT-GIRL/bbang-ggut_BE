@@ -29,6 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import sweetgirl.croissant.admin.code.AdminErrorCode;
 import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
+import sweetgirl.croissant.admin.dto.response.AdminUserReportDetailResponse;
 import sweetgirl.croissant.admin.exception.AdminException;
 import sweetgirl.croissant.alarm.enums.ReportKind;
 import sweetgirl.croissant.alarm.enums.ReportNotificationAction;
@@ -46,8 +47,15 @@ import sweetgirl.croissant.menu.repository.MenuAddReportRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.report.entity.UserReport;
+import sweetgirl.croissant.report.enums.ReportReasonType;
+import sweetgirl.croissant.report.enums.ReportTargetType;
+import sweetgirl.croissant.report.enums.UserReportAction;
 import sweetgirl.croissant.report.enums.UserReportStatus;
 import sweetgirl.croissant.report.repository.UserReportRepository;
+import sweetgirl.croissant.review.entity.Review;
+import sweetgirl.croissant.review.entity.ReviewImageFile;
+import sweetgirl.croissant.review.repository.ReviewImageFileRepository;
+import sweetgirl.croissant.review.repository.ReviewRepository;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreBusinessHour;
 import sweetgirl.croissant.store.entity.StoreImageFile;
@@ -82,6 +90,10 @@ class AdminReportServiceTest {
 	@Mock
 	MenuImageFileRepository menuImageFileRepository;
 	@Mock
+	ReviewRepository reviewRepository;
+	@Mock
+	ReviewImageFileRepository reviewImageFileRepository;
+	@Mock
 	S3Service s3Service;
 	@Mock
 	ReportNotificationService reportNotificationService;
@@ -100,9 +112,102 @@ class AdminReportServiceTest {
 			storeBusinessHourRepository,
 			menuRepository,
 			menuImageFileRepository,
+			reviewRepository,
+			reviewImageFileRepository,
 			s3Service,
 			new ObjectMapper(),
 			reportNotificationService);
+	}
+
+	@Test
+	@DisplayName("UserReport 상세 조회: 리뷰 대상 원문과 이미지를 반환한다")
+	void getReportDetail_userReportReview_returnsReviewTarget() {
+		Member reporter = mock(Member.class);
+		given(reporter.getId()).willReturn(10L);
+		Member reportedMember = mock(Member.class);
+		given(reportedMember.getId()).willReturn(20L);
+		UserReport report = mock(UserReport.class);
+		given(report.getId()).willReturn(1L);
+		given(report.getTargetType()).willReturn(ReportTargetType.REVIEW);
+		given(report.getTargetId()).willReturn(123L);
+		given(report.getReasonType()).willReturn(ReportReasonType.ABUSE);
+		given(report.getReasonDetail()).willReturn("욕설");
+		given(report.getStatus()).willReturn(UserReportStatus.PENDING);
+		given(report.getModerationAction()).willReturn(UserReportAction.NONE);
+		given(report.getReporter()).willReturn(reporter);
+		given(report.getReportedMember()).willReturn(reportedMember);
+		given(userReportRepository.findByIdWithMembers(1L)).willReturn(Optional.of(report));
+
+		Store store = mock(Store.class);
+		given(store.getId()).willReturn(2L);
+		given(store.getName()).willReturn("빵집");
+		Menu menu = mock(Menu.class);
+		given(menu.getId()).willReturn(3L);
+		given(menu.getName()).willReturn("소금빵");
+		given(menu.getStore()).willReturn(store);
+		Review review = mock(Review.class);
+		given(review.getId()).willReturn(123L);
+		given(review.getMenu()).willReturn(menu);
+		given(review.getMember()).willReturn(reportedMember);
+		given(review.getContent()).willReturn("문제된 리뷰");
+		given(reviewRepository.findByIdWithDetails(123L)).willReturn(Optional.of(review));
+
+		ReviewImageFile image = mock(ReviewImageFile.class);
+		given(image.getAwsKey()).willReturn("reviews/members/20/images/a.jpg");
+		given(reviewImageFileRepository.findByReviewIdOrderByDisplayOrderAscIdAsc(123L))
+			.willReturn(List.of(image));
+
+		AdminUserReportDetailResponse response = adminReportService.getReportDetail(1L, "USER_REPORT");
+
+		assertThat(response.reportId()).isEqualTo(1L);
+		assertThat(response.targetType()).isEqualTo("REVIEW");
+		assertThat(response.reporterId()).isEqualTo(10L);
+		assertThat(response.reportedMemberId()).isEqualTo(20L);
+		assertThat(response.target()).isInstanceOf(AdminUserReportDetailResponse.ReviewTarget.class);
+		AdminUserReportDetailResponse.ReviewTarget target =
+			(AdminUserReportDetailResponse.ReviewTarget)response.target();
+		assertThat(target.reviewId()).isEqualTo(123L);
+		assertThat(target.menuName()).isEqualTo("소금빵");
+		assertThat(target.storeName()).isEqualTo("빵집");
+		assertThat(target.content()).isEqualTo("문제된 리뷰");
+		assertThat(target.images()).containsExactly("reviews/members/20/images/a.jpg");
+	}
+
+	@Test
+	@DisplayName("UserReport 상세 조회: 프로필 대상이면 신고된 회원 프로필 정보를 반환한다")
+	void getReportDetail_userReportMemberProfile_returnsMemberTarget() {
+		Member reporter = mock(Member.class);
+		given(reporter.getId()).willReturn(10L);
+		Member reportedMember = mock(Member.class);
+		given(reportedMember.getId()).willReturn(20L);
+		given(reportedMember.getNickname()).willReturn("부적절닉네임");
+		UserReport report = mock(UserReport.class);
+		given(report.getId()).willReturn(2L);
+		given(report.getTargetType()).willReturn(ReportTargetType.MEMBER_PROFILE);
+		given(report.getTargetId()).willReturn(20L);
+		given(report.getReasonType()).willReturn(ReportReasonType.ETC);
+		given(report.getStatus()).willReturn(UserReportStatus.PENDING);
+		given(report.getModerationAction()).willReturn(UserReportAction.NONE);
+		given(report.getReporter()).willReturn(reporter);
+		given(report.getReportedMember()).willReturn(reportedMember);
+		given(userReportRepository.findByIdWithMembers(2L)).willReturn(Optional.of(report));
+
+		AdminUserReportDetailResponse response = adminReportService.getReportDetail(2L, "USER_REPORT");
+
+		assertThat(response.targetType()).isEqualTo("MEMBER_PROFILE");
+		assertThat(response.target()).isInstanceOf(AdminUserReportDetailResponse.MemberProfileTarget.class);
+		AdminUserReportDetailResponse.MemberProfileTarget target =
+			(AdminUserReportDetailResponse.MemberProfileTarget)response.target();
+		assertThat(target.memberId()).isEqualTo(20L);
+		assertThat(target.nickname()).isEqualTo("부적절닉네임");
+	}
+
+	@Test
+	@DisplayName("UserReport 상세 조회: USER_REPORT 외 kind는 예외를 던진다")
+	void getReportDetail_invalidKind_throws() {
+		assertThatThrownBy(() -> adminReportService.getReportDetail(1L, "STORE_REPORT"))
+			.isInstanceOf(AdminException.class)
+			.hasMessageContaining(AdminErrorCode.REPORT_INVALID_KIND.getMessage());
 	}
 
 	@Test
