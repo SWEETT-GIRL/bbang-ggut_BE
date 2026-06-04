@@ -17,6 +17,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
 import sweetgirl.croissant.admin.dto.response.AdminReportResponse;
+import sweetgirl.croissant.admin.dto.response.AdminUserReportDetailResponse;
 import sweetgirl.croissant.admin.service.AdminReportService;
 import sweetgirl.croissant.global.response.ApiResponse;
 
@@ -36,6 +37,14 @@ public class AdminReportController {
 			@Parameter(description = "페이지 번호 (0부터 시작)") @RequestParam(defaultValue = "0") int page,
 			@Parameter(description = "페이지 크기") @RequestParam(defaultValue = "20") int size) {
 		return ResponseEntity.ok(ApiResponse.ok(adminReportService.getReports(kind, status, page, size)));
+	}
+
+	@Operation(summary = "사용자 신고 상세 조회")
+	@GetMapping("/{reportId}")
+	public ResponseEntity<ApiResponse<AdminUserReportDetailResponse>> getReportDetail(
+			@Parameter(description = "제보 ID") @PathVariable Long reportId,
+			@Parameter(description = "제보 종류") @RequestParam String kind) {
+		return ResponseEntity.ok(ApiResponse.ok(adminReportService.getReportDetail(reportId, kind)));
 	}
 
 	@Operation(summary = "제보 승인/거절", description = "제보를 승인(ACCEPT) 또는 거절(REJECT)합니다. "
