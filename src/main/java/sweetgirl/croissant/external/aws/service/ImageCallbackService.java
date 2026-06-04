@@ -8,10 +8,13 @@ import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.common.entity.ImageFile;
 import sweetgirl.croissant.common.enums.ImageStatus;
 import sweetgirl.croissant.external.aws.dto.ImageStatusUpdateRequest;
+import sweetgirl.croissant.external.aws.enums.S3Folder;
 import sweetgirl.croissant.external.aws.exception.S3ErrorCode;
 import sweetgirl.croissant.external.aws.exception.S3StorageException;
+import sweetgirl.croissant.menu.repository.MenuAddReportImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
+import sweetgirl.croissant.store.repository.StoreReportImageFileRepository;
 
 @Slf4j
 @Service
@@ -20,6 +23,8 @@ public class ImageCallbackService {
 
 	private final StoreImageFileRepository storeImageFileRepository;
 	private final MenuImageFileRepository menuImageFileRepository;
+	private final StoreReportImageFileRepository storeReportImageFileRepository;
+	private final MenuAddReportImageFileRepository menuAddReportImageFileRepository;
 
 	@Transactional
 	public void updateImageStatus(ImageStatusUpdateRequest request) {
@@ -40,12 +45,20 @@ public class ImageCallbackService {
 	}
 
 	private ImageFile findByAwsKey(String awsKey) {
-		if (awsKey.startsWith("stores/")) {
+		if (awsKey.startsWith(S3Folder.STORES.prefix())) {
 			return storeImageFileRepository.findByAwsKey(awsKey)
 				.orElseThrow(() -> new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND));
 		}
-		if (awsKey.startsWith("menus/")) {
+		if (awsKey.startsWith(S3Folder.MENUS.prefix())) {
 			return menuImageFileRepository.findByAwsKey(awsKey)
+				.orElseThrow(() -> new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND));
+		}
+		if (awsKey.startsWith(S3Folder.REPORTS.prefix())) {
+			return storeReportImageFileRepository.findByAwsKey(awsKey)
+				.orElseThrow(() -> new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND));
+		}
+		if (awsKey.startsWith(S3Folder.MENU_ADD_REPORTS.prefix())) {
+			return menuAddReportImageFileRepository.findByAwsKey(awsKey)
 				.orElseThrow(() -> new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND));
 		}
 		throw new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND);
