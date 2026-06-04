@@ -1,6 +1,7 @@
 package sweetgirl.croissant.menu.repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -15,6 +16,9 @@ public interface MenuImageFileRepository extends JpaRepository<MenuImageFile, Lo
 
 	List<MenuImageFile> findByIdInAndMenuId(List<Long> ids, Long menuId);
 
+	@Query(value = "SELECT * FROM menu_image_file WHERE aws_key = :awsKey", nativeQuery = true)
+	Optional<MenuImageFile> findByAwsKey(@Param("awsKey") String awsKey);
+
 	@Query("""
 			SELECT m.id AS imageId, m.menu.id AS menuId, m.awsKey AS awsKey
 			FROM MenuImageFile m WHERE m.menu.id IN :menuIds
@@ -28,5 +32,5 @@ public interface MenuImageFileRepository extends JpaRepository<MenuImageFile, Lo
 			""")
 	List<MenuImageFile> findImagesByMenuId(@Param("menuId") Long menuId);
 
-	List<MenuImageFile> findByMenuStoreId(Long storeId);
+	List<MenuImageFile> findByMenuStoreIdOrderByDisplayOrderAscIdAsc(Long storeId);
 }
