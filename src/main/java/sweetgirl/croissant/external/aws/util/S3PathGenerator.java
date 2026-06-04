@@ -17,6 +17,10 @@ public class S3PathGenerator {
 		return String.format("%s/%d", S3Folder.MENUS.getValue(), menuId);
 	}
 
+	public static String getReviewImagePath(Long memberId) {
+		return String.format("%s/members/%d/images", S3Folder.REVIEWS.getValue(), memberId);
+	}
+
 	public static String getReportStoreImagePath(Long memberId, Long storeId) {
 		return String.format("%s/stores/%d/members/%d/images",
 			S3Folder.REPORTS.getValue(), storeId, memberId);
