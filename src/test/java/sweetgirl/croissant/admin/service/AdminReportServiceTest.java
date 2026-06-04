@@ -164,8 +164,7 @@ class AdminReportServiceTest {
 		assertThat(response.reporterId()).isEqualTo(10L);
 		assertThat(response.reportedMemberId()).isEqualTo(20L);
 		assertThat(response.target()).isInstanceOf(AdminUserReportDetailResponse.ReviewTarget.class);
-		AdminUserReportDetailResponse.ReviewTarget target =
-			(AdminUserReportDetailResponse.ReviewTarget)response.target();
+		var target = (AdminUserReportDetailResponse.ReviewTarget)response.target();
 		assertThat(target.reviewId()).isEqualTo(123L);
 		assertThat(target.menuName()).isEqualTo("소금빵");
 		assertThat(target.storeName()).isEqualTo("빵집");
@@ -196,8 +195,7 @@ class AdminReportServiceTest {
 
 		assertThat(response.targetType()).isEqualTo("MEMBER_PROFILE");
 		assertThat(response.target()).isInstanceOf(AdminUserReportDetailResponse.MemberProfileTarget.class);
-		AdminUserReportDetailResponse.MemberProfileTarget target =
-			(AdminUserReportDetailResponse.MemberProfileTarget)response.target();
+		var target = (AdminUserReportDetailResponse.MemberProfileTarget)response.target();
 		assertThat(target.memberId()).isEqualTo(20L);
 		assertThat(target.nickname()).isEqualTo("부적절닉네임");
 	}
