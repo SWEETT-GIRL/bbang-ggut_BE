@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.external.aws.enums.MimeType;
@@ -31,9 +32,12 @@ import sweetgirl.croissant.review.dto.projection.ReviewAuthorAggregateProjection
 import sweetgirl.croissant.review.dto.request.ReviewCreateRequest;
 import sweetgirl.croissant.review.dto.request.ReviewImageRequest;
 import sweetgirl.croissant.review.dto.request.ReviewPresignedUrlRequest;
+import sweetgirl.croissant.review.dto.request.ReviewUpdateRequest;
 import sweetgirl.croissant.review.dto.response.MenuReviewResponse;
+import sweetgirl.croissant.review.dto.response.MyReviewListResponse;
 import sweetgirl.croissant.review.dto.response.ReviewAuthorResponse;
 import sweetgirl.croissant.review.dto.response.ReviewCreateResponse;
+import sweetgirl.croissant.review.dto.response.ReviewDetailResponse;
 import sweetgirl.croissant.review.dto.response.ReviewListResponse;
 import sweetgirl.croissant.review.dto.response.ReviewPhotoResponse;
 import sweetgirl.croissant.review.dto.response.ReviewPresignedUrlInfo;
@@ -50,6 +54,7 @@ import sweetgirl.croissant.review.repository.ReviewRepository;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 @Transactional(readOnly = true)
 public class ReviewService {
 
@@ -113,6 +118,28 @@ public class ReviewService {
 			hasNext);
 	}
 
+	public ReviewDetailResponse getReviewDetail(Long reviewId, Long memberId) {
+		Review review = reviewRepository.findActiveByIdWithDetails(reviewId)
+			.orElseThrow(() -> new ReviewException(ReviewErrorCode.REVIEW_NOT_FOUND));
+
+		return toReviewDetailResponses(List.of(review), memberId).get(0);
+	}
+
+	public MyReviewListResponse getMyReviews(Long memberId, int page, int size) {
+		if (page < 0 || size < 1) {
+			throw new IllegalArgumentException("page and size must be valid");
+		}
+		memberReader.getMember(memberId);
+
+		List<Review> reviews = reviewRepository.findActiveByMemberIdOrderByRecent(
+			memberId,
+			PageRequest.of(page, size + 1));
+		boolean hasNext = reviews.size() > size;
+		List<Review> pageReviews = hasNext ? reviews.subList(0, size) : reviews;
+
+		return new MyReviewListResponse(toReviewDetailResponses(pageReviews, memberId), hasNext);
+	}
+
 	public ReviewPresignedUrlInfoResponse generateReviewPresignedUrls(
 			Long memberId,
 			ReviewPresignedUrlRequest request) {
@@ -164,11 +191,54 @@ public class ReviewService {
 		return new ReviewCreateResponse(review.getId(), review.getCreatedAt());
 	}
 
+	@Transactional
+	public ReviewDetailResponse updateReview(Long reviewId, Long memberId, ReviewUpdateRequest request) {
+		Member member = memberReader.getMember(memberId);
+		Review review = getOwnedActiveReview(reviewId, member.getId());
+
+		BigDecimal rating = validateRating(request.rating());
+		List<TextureTag> textureTags = validateTextureTags(request.textureTags());
+		String content = normalizeContent(request.content());
+
+		review.update(
+			rating,
+			request.repurchaseIntent(),
+			request.sweetness(),
+			request.fillingAmount(),
+			textureTags,
+			content);
+
+		if (request.images() != null) {
+			replaceReviewImages(review, member.getId(), request.images());
+		}
+
+		return toReviewDetailResponses(List.of(review), member.getId()).get(0);
+	}
+
+	@Transactional
+	public void deleteReview(Long reviewId, Long memberId) {
+		Member member = memberReader.getMember(memberId);
+		Review review = getOwnedActiveReview(reviewId, member.getId());
+
+		deleteReviewImages(review);
+		reviewLikeRepository.deleteByReviewId(review.getId());
+		review.softDelete();
+	}
+
 	private List<Review> findReviews(Long menuId, ReviewSort sort, boolean photoOnly, PageRequest pageRequest) {
 		if (sort == ReviewSort.LIKED) {
 			return reviewRepository.findActiveReviewsOrderByLiked(menuId, photoOnly, pageRequest);
 		}
 		return reviewRepository.findActiveReviewsOrderByRecent(menuId, photoOnly, pageRequest);
+	}
+
+	private Review getOwnedActiveReview(Long reviewId, Long memberId) {
+		Review review = reviewRepository.findActiveByIdWithDetails(reviewId)
+			.orElseThrow(() -> new ReviewException(ReviewErrorCode.REVIEW_NOT_FOUND));
+		if (!review.getMember().getId().equals(memberId)) {
+			throw new ReviewException(ReviewErrorCode.REVIEW_ACCESS_DENIED);
+		}
+		return review;
 	}
 
 	private void validateMenuExists(Long menuId) {
@@ -205,6 +275,23 @@ public class ReviewService {
 
 		return reviews.stream()
 			.map(review -> toReviewResponse(review, photoMap, likedReviewIds, authorStatsMap))
+			.toList();
+	}
+
+	private List<ReviewDetailResponse> toReviewDetailResponses(List<Review> reviews, Long memberId) {
+		if (reviews.isEmpty()) {
+			return List.of();
+		}
+
+		List<Long> reviewIds = reviews.stream()
+			.map(Review::getId)
+			.toList();
+		Map<Long, List<ReviewPhotoResponse>> photoMap = buildPhotoMap(reviewIds);
+		Set<Long> likedReviewIds = findLikedReviewIds(memberId, reviewIds);
+		Map<Long, AuthorStats> authorStatsMap = buildAuthorStatsMap(reviews);
+
+		return reviews.stream()
+			.map(review -> toReviewDetailResponse(review, photoMap, likedReviewIds, authorStatsMap))
 			.toList();
 	}
 
@@ -264,6 +351,41 @@ public class ReviewService {
 				null),
 			photoMap.getOrDefault(review.getId(), List.of()),
 			review.getCreatedAt());
+	}
+
+	private ReviewDetailResponse toReviewDetailResponse(
+			Review review,
+			Map<Long, List<ReviewPhotoResponse>> photoMap,
+			Set<Long> likedReviewIds,
+			Map<Long, AuthorStats> authorStatsMap) {
+		Long memberId = review.getMember().getId();
+		AuthorStats authorStats = authorStatsMap.getOrDefault(memberId, AuthorStats.empty());
+
+		return new ReviewDetailResponse(
+			review.getId(),
+			review.getMenu().getId(),
+			review.getMenu().getName(),
+			review.getMenu().getStore().getId(),
+			review.getMenu().getStore().getName(),
+			review.getRating(),
+			review.getRepurchaseIntent(),
+			review.getSweetness(),
+			review.getFillingAmount(),
+			review.getTextureTags(),
+			review.getContent(),
+			review.getLikeCount(),
+			review.getCommentCount(),
+			likedReviewIds.contains(review.getId()),
+			new ReviewAuthorResponse(
+				memberId,
+				review.getMember().getNickname(),
+				authorStats.reviewCount(),
+				authorStats.averageRating(),
+				null,
+				null),
+			photoMap.getOrDefault(review.getId(), List.of()),
+			review.getCreatedAt(),
+			review.getUpdatedAt());
 	}
 
 	private BigDecimal toAverageRating(Double value) {
@@ -345,6 +467,29 @@ public class ReviewService {
 					.build();
 			})
 			.toList();
+	}
+
+	private void replaceReviewImages(Review review, Long memberId, List<ReviewImageRequest> requestImages) {
+		List<ReviewImageRequest> images = validateReviewImages(memberId, requestImages);
+		deleteReviewImages(review);
+		if (!images.isEmpty()) {
+			reviewImageFileRepository.saveAll(toImageFiles(review, images));
+		}
+	}
+
+	private void deleteReviewImages(Review review) {
+		List<ReviewImageFile> images = reviewImageFileRepository.findByReviewIdOrderByDisplayOrderAscIdAsc(
+			review.getId());
+		images.forEach(image -> safeDelete(image.getAwsKey()));
+		reviewImageFileRepository.deleteAll(images);
+	}
+
+	private void safeDelete(String awsKey) {
+		try {
+			s3Service.deleteObject(awsKey);
+		} catch (RuntimeException e) {
+			log.warn("리뷰 이미지 S3 삭제 실패 [key={}]: {}", awsKey, e.getMessage());
+		}
 	}
 
 	private record AuthorStats(Long reviewCount, BigDecimal averageRating) {

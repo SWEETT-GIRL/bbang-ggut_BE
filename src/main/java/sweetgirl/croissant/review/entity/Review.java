@@ -104,6 +104,22 @@ public class Review extends BaseTimeEntity {
 		this.likeCount = Math.max(0, this.likeCount - 1);
 	}
 
+	public void update(
+			BigDecimal rating,
+			String repurchaseIntent,
+			String sweetness,
+			String fillingAmount,
+			List<TextureTag> textureTags,
+			String content) {
+		this.rating = rating;
+		this.repurchaseIntent = repurchaseIntent;
+		this.sweetness = sweetness;
+		this.fillingAmount = fillingAmount;
+		this.textureTags.clear();
+		this.textureTags.addAll(textureTags);
+		this.content = content;
+	}
+
 	public void softDelete() {
 		this.deletedAt = LocalDateTime.now();
 	}
