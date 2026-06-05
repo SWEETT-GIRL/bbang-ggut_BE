@@ -20,14 +20,6 @@ CREATE TABLE IF NOT EXISTS moderation_action (
     )
 );
 
-ALTER TABLE user_report
-    DROP CONSTRAINT IF EXISTS ck_user_report_moderation_action;
-
-ALTER TABLE user_report
-    ADD CONSTRAINT ck_user_report_moderation_action CHECK (
-        moderation_action IN ('NONE', 'HIDE_REVIEW', 'DELETE_REVIEW', 'RESTORE_REVIEW', 'RESET_PROFILE', 'SUSPEND_MEMBER')
-    );
-
 CREATE INDEX IF NOT EXISTS idx_moderation_action_report_recent
     ON moderation_action (report_id, created_at DESC, id DESC);
 

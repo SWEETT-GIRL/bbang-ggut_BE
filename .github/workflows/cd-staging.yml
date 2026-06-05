@@ -66,6 +66,7 @@ jobs:
           spring.jpa.properties.hibernate.format_sql=false
           spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
 
+          spring.flyway.enabled=true
           spring.flyway.locations=classpath:db/migration,classpath:db/seed/staging
           
           aws.credentials.access-key=${{ secrets.STAGING_AWS_ACCESS_KEY }}
