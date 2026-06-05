@@ -32,6 +32,8 @@ Codex에게 바로 이어서 요청할 때는 아래 "복붙용 요청" 블록�
 - `POST /moderation-appeals`: 사용자 이의제기 생성
 - `GET /api/admin/moderation-appeals?status=PENDING`: 관리자 이의제기 목록 조회
 - `PATCH /api/admin/moderation-appeals/{appealId}`: 관리자 이의제기 승인/거절
+- `GET /api/admin/reports/stats`: 사용자 신고 통계 조회
+- `GET /api/admin/reports/high-priority?status=PENDING`: 자동 선조치 후보/우선 검수 큐 조회
 - `user_report` 테이블 마이그레이션
 - `review.hidden_at` 및 `moderation_action` 테이블 마이그레이션
 - `member_restriction` 테이블 마이그레이션
@@ -41,6 +43,7 @@ Codex에게 바로 이어서 요청할 때는 아래 "복붙용 요청" 블록�
 현재 관리자 승인/거절은 신고 상태를 변경하고, 승인된 리뷰 신고에는 숨김/삭제/복구 조치를 적용할 수 있다.
 프로필 초기화와 회원 제한을 적용할 수 있으며, 리뷰 생성 API는 활성 작성 제한을 검사한다.
 이의제기는 조치 후 30일 이내에 생성할 수 있고, 관리자 승인 시 리뷰 복구 또는 회원 제한 해제를 적용한다.
+자동 선조치는 실제 숨김을 수행하지 않고 통계와 후보 플래그만 제공한다.
 
 ## 1. 관리자 신고 상세 조회 ✅ 완료
 
@@ -331,7 +334,7 @@ CREATE TABLE moderation_appeal (
 Add moderation appeal API
 ```
 
-## 6. 자동 선조치/신고 통계
+## 6. 자동 선조치/신고 통계 ✅ 완료
 
 목표:
 
@@ -355,6 +358,8 @@ GET /api/admin/reports/high-priority?status=PENDING&page=0&size=20
 - 초기에는 자동 숨김을 바로 켜지 않는다.
 - 먼저 우선순위 큐와 통계만 제공한다.
 - 운영 데이터가 쌓인 뒤 자동 숨김을 별도 feature flag로 켠다.
+- 통계는 전체/상태별 신고 수, 최근 24시간 신고 수, pending 기준 후보 수를 반환한다.
+- high-priority 큐는 후보 플래그와 기준별 집계 수, 우선순위 사유를 함께 반환한다.
 
 추천 커밋:
 
