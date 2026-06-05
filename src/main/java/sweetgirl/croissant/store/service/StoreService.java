@@ -5,6 +5,7 @@ import static sweetgirl.croissant.store.code.StoreConstants.*;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Pageable;
@@ -211,7 +212,24 @@ public class StoreService {
 
 	@Transactional
 	public KakaoStoreRegisterResponse registerKakaoStore(KakaoStoreRegisterRequest request) {
-		String[] addr = AddressParser.parse(request.addressName());
+		Optional<Store> storeByKakaoPlaceId = storeRepository.findByKakaoPlaceId(request.kakaoPlaceId());
+		if (storeByKakaoPlaceId.isPresent()) {
+			return new KakaoStoreRegisterResponse(storeByKakaoPlaceId.get().getId());
+		}
+
+		Optional<Store> storeByIdentity = findActiveStoreBySameNameAndAddress(request);
+		if (storeByIdentity.isPresent()) {
+			Store store = storeByIdentity.get();
+			storeRepository.updateKakaoPlaceMetadata(
+				store.getId(),
+				request.kakaoPlaceId(),
+				request.phone(),
+				Double.parseDouble(request.x()),
+				Double.parseDouble(request.y()));
+			return new KakaoStoreRegisterResponse(store.getId());
+		}
+
+		String[] addr = AddressParser.parse(request.addressName() != null ? request.addressName() : request.address());
 		storeRepository.insertIfNotExistsByKakaoPlaceId(
 			request.name(), request.address(),
 			addr[0], addr[1], addr[2],
@@ -300,6 +318,35 @@ public class StoreService {
 			.toList();
 
 		return new SliceResponse<>(responses, !kakaoResult.isEnd());
+	}
+
+	private Optional<Store> findActiveStoreBySameNameAndAddress(KakaoStoreRegisterRequest request) {
+		String compactName = compactName(request.name());
+		String normalizedAddress = normalizeAddressForDuplicate(request.address());
+		if (compactName.isBlank() || normalizedAddress.isBlank()) {
+			return Optional.empty();
+		}
+		return storeRepository.findActiveStoresByCompactName(compactName)
+			.stream()
+			.filter(store -> normalizedAddress.equals(normalizeAddressForDuplicate(store.getAddress())))
+			.findFirst();
+	}
+
+	private String compactName(String value) {
+		if (value == null) {
+			return "";
+		}
+		return value.toLowerCase().replaceAll("\\s+", "");
+	}
+
+	private String normalizeAddressForDuplicate(String value) {
+		if (value == null) {
+			return "";
+		}
+		return value.toLowerCase()
+			.replaceAll("(?:지하)?\\d+층", "")
+			.replaceAll("\\d+호", "")
+			.replaceAll("[^0-9a-zA-Z가-힣ㄱ-ㅎㅏ-ㅣ]", "");
 	}
 
 	private Map<Long, String> getStoreThumbnails(List<Long> storeIds) {
