@@ -30,7 +30,7 @@ import sweetgirl.croissant.member.enums.MemberRestrictionType;
 import sweetgirl.croissant.member.repository.MemberRestrictionRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.report.entity.ModerationAction;
-import sweetgirl.croissant.report.enums.ReportTargetType;
+import sweetgirl.croissant.report.enums.ModerationTargetType;
 import sweetgirl.croissant.report.enums.UserReportAction;
 import sweetgirl.croissant.report.repository.ModerationActionRepository;
 
@@ -67,7 +67,7 @@ class AdminMemberServiceTest {
 		assertThat(response.nickname()).isEqualTo("빵긋 사용자");
 		assertThat(member.getNickname()).isEqualTo("빵긋 사용자");
 		verify(moderationActionRepository)
-			.save(argThat(action -> action.getTargetType() == ReportTargetType.MEMBER_PROFILE
+			.save(argThat(action -> action.getTargetType() == ModerationTargetType.MEMBER_PROFILE
 				&& action.getTargetId().equals(20L)
 				&& action.getMember() == member
 				&& action.getAction() == UserReportAction.RESET_PROFILE
@@ -85,6 +85,12 @@ class AdminMemberServiceTest {
 				ReflectionTestUtils.setField(restriction, "id", 200L);
 				return restriction;
 			});
+		given(moderationActionRepository.save(any(ModerationAction.class)))
+			.willAnswer(invocation -> {
+				ModerationAction action = invocation.getArgument(0);
+				ReflectionTestUtils.setField(action, "id", 300L);
+				return action;
+			});
 
 		LocalDateTime before = LocalDateTime.now();
 		AdminMemberRestrictionResponse response = adminMemberService.createRestriction(
@@ -93,6 +99,7 @@ class AdminMemberServiceTest {
 		LocalDateTime after = LocalDateTime.now();
 
 		assertThat(response.restrictionId()).isEqualTo(200L);
+		assertThat(response.actionId()).isEqualTo(300L);
 		assertThat(response.memberId()).isEqualTo(20L);
 		assertThat(response.type()).isEqualTo("WRITE_RESTRICTED");
 		assertThat(response.reason()).isEqualTo("반복 위반");
@@ -103,6 +110,12 @@ class AdminMemberServiceTest {
 		assertThat(saved.getRestrictionType()).isEqualTo(MemberRestrictionType.WRITE_RESTRICTED);
 		assertThat(saved.getStartsAt()).isBetween(before, after);
 		assertThat(saved.getEndsAt()).isBetween(before.plusDays(7), after.plusDays(7));
+		verify(moderationActionRepository)
+			.save(argThat(action -> action.getTargetType() == ModerationTargetType.MEMBER_RESTRICTION
+				&& action.getTargetId().equals(200L)
+				&& action.getMember() == member
+				&& action.getAction() == UserReportAction.RESTRICT_MEMBER
+				&& action.getReason().equals("반복 위반")));
 	}
 
 	@Test

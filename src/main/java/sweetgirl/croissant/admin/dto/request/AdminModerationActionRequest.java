@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import sweetgirl.croissant.report.entity.ModerationAction;
 import sweetgirl.croissant.report.entity.UserReport;
+import sweetgirl.croissant.report.enums.ModerationTargetType;
 import sweetgirl.croissant.report.enums.UserReportAction;
 
 public record AdminModerationActionRequest(
@@ -14,7 +15,7 @@ public record AdminModerationActionRequest(
 	public ModerationAction toModerationAction(UserReport report, UserReportAction parsedAction) {
 		return new ModerationAction(
 			report,
-			report.getTargetType(),
+			ModerationTargetType.fromReportTargetType(report.getTargetType()),
 			report.getTargetId(),
 			report.getReportedMember(),
 			parsedAction,

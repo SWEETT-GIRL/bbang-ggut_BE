@@ -63,4 +63,11 @@ public class MemberRestriction {
 		this.endsAt = endsAt;
 		this.createdAt = LocalDateTime.now();
 	}
+
+	public void release(LocalDateTime releasedAt) {
+		LocalDateTime now = releasedAt != null ? releasedAt : LocalDateTime.now();
+		if (endsAt == null || endsAt.isAfter(now)) {
+			this.endsAt = now;
+		}
+	}
 }

@@ -19,6 +19,7 @@ import sweetgirl.croissant.member.enums.MemberRestrictionType;
 import sweetgirl.croissant.member.repository.MemberRestrictionRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.report.entity.ModerationAction;
+import sweetgirl.croissant.report.enums.UserReportAction;
 import sweetgirl.croissant.report.repository.ModerationActionRepository;
 
 @Service
@@ -52,7 +53,13 @@ public class AdminMemberService {
 
 		MemberRestriction restriction = memberRestrictionRepository.save(
 			request.toRestriction(member, type, startsAt, endsAt));
-		return AdminMemberRestrictionResponse.from(restriction);
+		UserReportAction actionType = toMemberRestrictionAction(type);
+		if (actionType == null) {
+			return AdminMemberRestrictionResponse.from(restriction);
+		}
+		ModerationAction action = moderationActionRepository.save(
+			request.toModerationAction(member, restriction, actionType));
+		return AdminMemberRestrictionResponse.of(restriction, action);
 	}
 
 	private MemberRestrictionType toRestrictionType(String type) {
@@ -74,6 +81,14 @@ public class AdminMemberService {
 			throw new AdminException(AdminErrorCode.MEMBER_RESTRICTION_INVALID_DURATION);
 		}
 		return startsAt.plusDays(durationDays);
+	}
+
+	private UserReportAction toMemberRestrictionAction(MemberRestrictionType type) {
+		return switch (type) {
+			case WRITE_RESTRICTED, PROFILE_RESTRICTED -> UserReportAction.RESTRICT_MEMBER;
+			case SUSPENDED -> UserReportAction.SUSPEND_MEMBER;
+			case WARNING -> null;
+		};
 	}
 
 }

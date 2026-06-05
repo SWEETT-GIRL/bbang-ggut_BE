@@ -51,6 +51,7 @@ import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.report.entity.ModerationAction;
 import sweetgirl.croissant.report.entity.UserReport;
+import sweetgirl.croissant.report.enums.ModerationTargetType;
 import sweetgirl.croissant.report.enums.ReportReasonType;
 import sweetgirl.croissant.report.enums.ReportTargetType;
 import sweetgirl.croissant.report.enums.UserReportAction;
@@ -243,7 +244,7 @@ class AdminReportServiceTest {
 		verify(review).hide("욕설 포함", null);
 		verify(report).applyModerationAction(UserReportAction.HIDE_REVIEW);
 		verify(moderationActionRepository).save(argThat(action -> action.getReport() == report
-			&& action.getTargetType() == ReportTargetType.REVIEW
+			&& action.getTargetType() == ModerationTargetType.REVIEW
 			&& action.getTargetId().equals(123L)
 			&& action.getMember() == reportedMember
 			&& action.getAction() == UserReportAction.HIDE_REVIEW
