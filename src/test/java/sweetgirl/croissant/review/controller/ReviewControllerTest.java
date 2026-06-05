@@ -28,6 +28,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.exception.MemberException;
+import sweetgirl.croissant.review.code.ReviewErrorCode;
 import sweetgirl.croissant.review.dto.response.MenuReviewResponse;
 import sweetgirl.croissant.review.dto.response.MyReviewListResponse;
 import sweetgirl.croissant.review.dto.response.ReviewAuthorResponse;
@@ -39,6 +40,7 @@ import sweetgirl.croissant.review.dto.response.ReviewPresignedUrlInfo;
 import sweetgirl.croissant.review.dto.response.ReviewPresignedUrlInfoResponse;
 import sweetgirl.croissant.review.dto.response.ReviewSummaryResponse;
 import sweetgirl.croissant.review.enums.TextureTag;
+import sweetgirl.croissant.review.exception.ReviewException;
 import sweetgirl.croissant.review.service.ReviewService;
 
 @ExtendWith(MockitoExtension.class)
@@ -149,6 +151,23 @@ class ReviewControllerTest {
 	}
 
 	@Test
+	void createReview_returns400_whenContentRejected() throws Exception {
+		given(reviewService.createReview(eq(1L), isNull(), any()))
+			.willThrow(new ReviewException(ReviewErrorCode.REVIEW_CONTENT_REJECTED));
+
+		mockMvc.perform(post("/menus/1/reviews")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"rating\":4.5,\"repurchaseIntent\":\"yes\","
+				+ "\"sweetness\":\"medium\",\"fillingAmount\":\"full\","
+				+ "\"textureTags\":[\"crispy\"],\"content\":\"010-1234-5678\",\"images\":[]}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.code").value("REVIEW_CONTENT_REJECTED"))
+			.andExpect(jsonPath("$.message")
+				.value("부적절하거나 개인정보로 보이는 표현이 포함되어 있어 등록할 수 없습니다."));
+	}
+
+	@Test
 	void updateReview_returnsDetail() throws Exception {
 		given(reviewService.updateReview(eq(1L), isNull(), any()))
 			.willReturn(reviewDetail());
@@ -161,6 +180,21 @@ class ReviewControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.id").value(1))
 			.andExpect(jsonPath("$.data.content").value("맛있어요"));
+	}
+
+	@Test
+	void updateReview_returns400_whenContentRejected() throws Exception {
+		given(reviewService.updateReview(eq(1L), isNull(), any()))
+			.willThrow(new ReviewException(ReviewErrorCode.REVIEW_CONTENT_REJECTED));
+
+		mockMvc.perform(patch("/reviews/1")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"rating\":4.0,\"repurchaseIntent\":\"yes\","
+				+ "\"sweetness\":\"medium\",\"fillingAmount\":\"full\","
+				+ "\"textureTags\":[\"chewy\"],\"content\":\"owner@example.com\",\"images\":[]}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.code").value("REVIEW_CONTENT_REJECTED"));
 	}
 
 	@Test
