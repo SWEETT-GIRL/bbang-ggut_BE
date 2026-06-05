@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.mock;
@@ -86,11 +87,15 @@ class ReviewServiceTest {
 		ReviewImageFile image = image(100L, review, "reviews/members/10/images/a");
 
 		given(menuRepository.findByIdWithDetails(1L)).willReturn(Optional.of(mock(Menu.class)));
-		given(reviewRepository.findActiveReviewsOrderByLiked(eq(1L), eq(false), any(Pageable.class)))
+		given(reviewRepository.findVisibleActiveReviewsOrderByLiked(
+			eq(1L),
+			eq(false),
+			eq(99L),
+			any(Pageable.class)))
 			.willReturn(List.of(review));
-		given(reviewRepository.findActiveRatingsByMenuId(1L))
+		given(reviewRepository.findVisibleActiveRatingsByMenuId(1L, 99L))
 			.willReturn(List.of(BigDecimal.valueOf(4.0), BigDecimal.valueOf(5.0)));
-		given(reviewRepository.countActiveByMenuId(1L)).willReturn(2L);
+		given(reviewRepository.countVisibleActiveByMenuId(1L, 99L)).willReturn(2L);
 		given(reviewImageFileRepository.findByReviewIdInOrderByReviewIdAscDisplayOrderAscIdAsc(List.of(1L)))
 			.willReturn(List.of(image));
 		given(reviewLikeRepository.findLikedReviewIds(99L, List.of(1L))).willReturn(List.of(1L));
@@ -118,10 +123,15 @@ class ReviewServiceTest {
 			review(3L, author, BigDecimal.valueOf(3.0), 0, LocalDateTime.now()));
 
 		given(menuRepository.findByIdWithDetails(1L)).willReturn(Optional.of(mock(Menu.class)));
-		given(reviewRepository.findActiveReviewsOrderByRecent(eq(1L), eq(true), any(Pageable.class)))
+		given(reviewRepository.findVisibleActiveReviewsOrderByRecent(
+			eq(1L),
+			eq(true),
+			isNull(),
+			any(Pageable.class)))
 			.willReturn(reviews);
-		given(reviewRepository.findActiveRatingsByMenuId(1L)).willReturn(List.of(BigDecimal.valueOf(4.0)));
-		given(reviewRepository.countActiveByMenuId(1L)).willReturn(3L);
+		given(reviewRepository.findVisibleActiveRatingsByMenuId(1L, null))
+			.willReturn(List.of(BigDecimal.valueOf(4.0)));
+		given(reviewRepository.countVisibleActiveByMenuId(1L, null)).willReturn(3L);
 		given(reviewImageFileRepository.findByReviewIdInOrderByReviewIdAscDisplayOrderAscIdAsc(List.of(1L, 2L)))
 			.willReturn(List.of());
 		given(reviewRepository.findAuthorAggregatesByMemberIds(Set.of(10L)))
@@ -131,11 +141,22 @@ class ReviewServiceTest {
 
 		assertThat(result.content()).hasSize(2);
 		assertThat(result.hasNext()).isTrue();
-		verify(reviewRepository).findActiveReviewsOrderByRecent(
+		verify(reviewRepository).findVisibleActiveReviewsOrderByRecent(
 			eq(1L),
 			eq(true),
+			isNull(),
 			argThat(pageable -> pageable.getPageNumber() == 1 && pageable.getPageSize() == 3));
 		verify(reviewLikeRepository, never()).findLikedReviewIds(any(), any());
+	}
+
+	@Test
+	@DisplayName("getReviewDetail: 차단한 작성자의 리뷰는 REVIEW_NOT_FOUND로 응답한다")
+	void getReviewDetail_blockedAuthor_throwsReviewNotFound() {
+		given(reviewRepository.findVisibleActiveByIdWithDetails(1L, 99L)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> reviewService.getReviewDetail(1L, 99L))
+			.isInstanceOf(ReviewException.class)
+			.hasMessageContaining(ReviewErrorCode.REVIEW_NOT_FOUND.getMessage());
 	}
 
 	@Test

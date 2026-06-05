@@ -87,12 +87,12 @@ public class ReviewService {
 
 		List<Review> reviews = previewSize == 0
 			? List.of()
-			: findReviews(menuId, ReviewSort.from(sort), photoOnly, PageRequest.of(0, previewSize));
+			: findReviews(menuId, ReviewSort.from(sort), photoOnly, memberId, PageRequest.of(0, previewSize));
 
 		return new ReviewSummaryResponse(
 			menuId,
-			calculateAverageRating(menuId),
-			reviewRepository.countActiveByMenuId(menuId),
+			calculateAverageRating(menuId, memberId),
+			reviewRepository.countVisibleActiveByMenuId(menuId, memberId),
 			toReviewResponses(reviews, memberId));
 	}
 
@@ -108,20 +108,21 @@ public class ReviewService {
 		}
 		validateMenuExists(menuId);
 
-		List<Review> reviews = findReviews(menuId, ReviewSort.from(sort), photoOnly, PageRequest.of(page, size + 1));
+		List<Review> reviews = findReviews(menuId, ReviewSort.from(sort), photoOnly, memberId,
+			PageRequest.of(page, size + 1));
 		boolean hasNext = reviews.size() > size;
 		List<Review> pageReviews = hasNext ? reviews.subList(0, size) : reviews;
 
 		return new ReviewListResponse(
 			menuId,
-			calculateAverageRating(menuId),
-			reviewRepository.countActiveByMenuId(menuId),
+			calculateAverageRating(menuId, memberId),
+			reviewRepository.countVisibleActiveByMenuId(menuId, memberId),
 			toReviewResponses(pageReviews, memberId),
 			hasNext);
 	}
 
 	public ReviewDetailResponse getReviewDetail(Long reviewId, Long memberId) {
-		Review review = reviewRepository.findActiveByIdWithDetails(reviewId)
+		Review review = reviewRepository.findVisibleActiveByIdWithDetails(reviewId, memberId)
 			.orElseThrow(() -> new ReviewException(ReviewErrorCode.REVIEW_NOT_FOUND));
 
 		return toReviewDetailResponses(List.of(review), memberId).get(0);
@@ -228,11 +229,24 @@ public class ReviewService {
 		review.softDelete();
 	}
 
-	private List<Review> findReviews(Long menuId, ReviewSort sort, boolean photoOnly, PageRequest pageRequest) {
+	private List<Review> findReviews(
+			Long menuId,
+			ReviewSort sort,
+			boolean photoOnly,
+			Long viewerMemberId,
+			PageRequest pageRequest) {
 		if (sort == ReviewSort.LIKED) {
-			return reviewRepository.findActiveReviewsOrderByLiked(menuId, photoOnly, pageRequest);
+			return reviewRepository.findVisibleActiveReviewsOrderByLiked(
+				menuId,
+				photoOnly,
+				viewerMemberId,
+				pageRequest);
 		}
-		return reviewRepository.findActiveReviewsOrderByRecent(menuId, photoOnly, pageRequest);
+		return reviewRepository.findVisibleActiveReviewsOrderByRecent(
+			menuId,
+			photoOnly,
+			viewerMemberId,
+			pageRequest);
 	}
 
 	private Review getOwnedActiveReview(Long reviewId, Long memberId) {
@@ -250,8 +264,8 @@ public class ReviewService {
 		}
 	}
 
-	private BigDecimal calculateAverageRating(Long menuId) {
-		List<BigDecimal> ratings = reviewRepository.findActiveRatingsByMenuId(menuId);
+	private BigDecimal calculateAverageRating(Long menuId, Long viewerMemberId) {
+		List<BigDecimal> ratings = reviewRepository.findVisibleActiveRatingsByMenuId(menuId, viewerMemberId);
 		return calculateAverage(ratings);
 	}
 
