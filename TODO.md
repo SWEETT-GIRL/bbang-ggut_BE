@@ -223,7 +223,7 @@ CREATE TABLE member_restriction (
 Add member moderation actions
 ```
 
-## 4. 신고 결과 알림
+## 4. 신고 결과 알림 ✅ 완료
 
 목표:
 
@@ -255,6 +255,9 @@ MODERATION_ACTION
 - 기존 `ReportNotificationService`는 가게/메뉴 제보용 문구이므로 그대로 재사용하지 않는다.
 - 사용자 신고용 알림 서비스를 별도 생성하거나, 알림 도메인을 generic하게 확장한다.
 - 신고자에게는 구체적인 제재 수위나 피신고자 정보를 노출하지 않는다.
+- `USER_REPORT` report kind와 `USER_REPORT_RESULT`, `MODERATION_ACTION` 알림 action을 추가했다.
+- 신고 검토 완료 시 신고자에게 결과 알림을 보내고, 신고 기반 리뷰 숨김/삭제 조치에서 `notifyUser=true`이면 피신고자에게 조치 알림을 보낸다.
+- `moderation_action_id`를 알림에 저장해 이후 이의제기 API에서 actionId로 연결할 수 있게 했다.
 
 추천 커밋:
 

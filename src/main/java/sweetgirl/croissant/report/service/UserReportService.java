@@ -51,14 +51,7 @@ public class UserReportService {
 			throw new UserReportException(UserReportErrorCode.REPORT_ALREADY_EXISTS);
 		}
 
-		UserReport report = userReportRepository.save(UserReport.builder()
-			.reporter(reporter)
-			.targetType(request.targetType())
-			.targetId(request.targetId())
-			.reportedMember(target.reportedMember())
-			.reasonType(request.reasonType())
-			.reasonDetail(normalizeReasonDetail(request.reasonDetail()))
-			.build());
+		UserReport report = userReportRepository.save(request.toUserReport(reporter, target.reportedMember()));
 
 		return UserReportCreateResponse.from(report);
 	}
@@ -80,14 +73,6 @@ public class UserReportService {
 		Member member = memberRepository.findByIdAndDeletedAtIsNull(memberId)
 			.orElseThrow(() -> new UserReportException(UserReportErrorCode.REPORT_TARGET_NOT_FOUND));
 		return new ReportTarget(member);
-	}
-
-	private String normalizeReasonDetail(String reasonDetail) {
-		if (reasonDetail == null) {
-			return null;
-		}
-		String normalized = reasonDetail.trim();
-		return normalized.isEmpty() ? null : normalized;
 	}
 
 	private record ReportTarget(Member reportedMember) {

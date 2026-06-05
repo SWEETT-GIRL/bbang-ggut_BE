@@ -1,7 +1,5 @@
 package sweetgirl.croissant.admin.service;
 
-import java.time.DayOfWeek;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -59,7 +57,6 @@ import sweetgirl.croissant.store.dto.request.StoreAddressReportRequest;
 import sweetgirl.croissant.store.dto.request.StoreBusinessHoursReportRequest;
 import sweetgirl.croissant.store.dto.request.StoreImageReportRequest;
 import sweetgirl.croissant.store.entity.Store;
-import sweetgirl.croissant.store.entity.StoreBusinessHour;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.entity.StoreReport;
 import sweetgirl.croissant.store.entity.StoreReportImageFile;
@@ -128,18 +125,14 @@ public class AdminReportService {
 		}
 
 		UserReportAction action = toModerationAction(request.action());
-		String reason = normalizeModerationReason(request.reason());
+		String reason = request.moderationReason();
 		applyReviewModeration(report, action, reason);
 		report.applyModerationAction(action);
 
-		ModerationAction savedAction = moderationActionRepository.save(ModerationAction.builder()
-			.report(report)
-			.targetType(report.getTargetType())
-			.targetId(report.getTargetId())
-			.member(report.getReportedMember())
-			.action(action)
-			.reason(reason)
-			.build());
+		ModerationAction savedAction = moderationActionRepository.save(request.toModerationAction(report, action));
+		if (Boolean.TRUE.equals(request.notifyUser()) && shouldNotifyModeratedMember(action)) {
+			reportNotificationService.notifyModerationAction(savedAction);
+		}
 		return AdminModerationActionResponse.from(savedAction);
 	}
 
@@ -182,7 +175,7 @@ public class AdminReportService {
 				accept ? ReportNotificationAction.APPROVED : ReportNotificationAction.REJECTED,
 				subjectLabel(report.getRequestType()));
 		} else if ("USER_REPORT".equals(request.kind())) {
-			UserReport report = userReportRepository.findById(reportId)
+			UserReport report = userReportRepository.findByIdWithMembers(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
 			if (report.getStatus() != UserReportStatus.PENDING) {
 				throw new AdminException(AdminErrorCode.REPORT_ALREADY_REVIEWED);
@@ -192,6 +185,7 @@ public class AdminReportService {
 			} else {
 				report.reject();
 			}
+			reportNotificationService.notifyUserReportResult(report);
 		} else {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_KIND);
 		}
@@ -199,13 +193,7 @@ public class AdminReportService {
 
 	// MenuAddReport 승인 — 새 Menu 생성 + 첨부 이미지를 menus/{menuId}로 S3 이동 후 menu_image_file 등록
 	private void applyMenuAddReportApprove(MenuAddReport report) {
-		Menu menu = menuRepository.save(Menu.builder()
-			.store(report.getStore())
-			.menuCategory(report.getMenuCategory())
-			.name(report.getName())
-			.price(report.getPrice())
-			.description(report.getDescription())
-			.build());
+		Menu menu = menuRepository.save(report.toMenu());
 
 		List<MenuAddReportImageFile> reportImages = menuAddReportImageFileRepository
 			.findByMenuAddReportIdIn(List.of(report.getId()));
@@ -242,16 +230,7 @@ public class AdminReportService {
 		Long storeId = report.getStore().getId();
 		storeBusinessHourRepository.deleteByStoreId(storeId);
 
-		List<StoreBusinessHour> hours = payload.hours().stream()
-			.map(h -> StoreBusinessHour.builder()
-				.store(report.getStore())
-				.dayOfWeek(h.dayOfWeek())
-				.openTime(h.closed() ? null : parseTime(h.openTime()))
-				.closeTime(h.closed() ? null : parseTime(h.closeTime()))
-				.isClosed(h.closed())
-				.build())
-			.toList();
-		storeBusinessHourRepository.saveAll(hours);
+		storeBusinessHourRepository.saveAll(payload.toBusinessHours(report.getStore()));
 	}
 
 	// 주소 제보 승인 — Store 주소/위치/region 갱신
@@ -292,13 +271,7 @@ public class AdminReportService {
 				}
 				String destKey = "stores/" + storeId + "/" + filenameFromKey(src.getAwsKey());
 				s3Service.copyObject(src.getAwsKey(), destKey);
-				newImages.add(StoreImageFile.builder()
-					.store(store)
-					.name(src.getName())
-					.mimeType(src.getMimeType())
-					.awsKey(destKey)
-					.displayOrder(nextOrder++)
-					.build());
+				newImages.add(src.toStoreImage(store, destKey, nextOrder++));
 				safeDelete(src.getAwsKey());
 			}
 			storeImageFileRepository.saveAll(newImages);
@@ -341,13 +314,7 @@ public class AdminReportService {
 				}
 				String destKey = "menus/" + menu.getId() + "/" + filenameFromKey(src.getAwsKey());
 				s3Service.copyObject(src.getAwsKey(), destKey);
-				newImages.add(MenuImageFile.builder()
-					.menu(menu)
-					.name(src.getName())
-					.mimeType(src.getMimeType())
-					.awsKey(destKey)
-					.displayOrder(nextOrder++)
-					.build());
+				newImages.add(src.toMenuImage(menu, destKey, nextOrder++));
 				safeDelete(src.getAwsKey());
 			}
 			menuImageFileRepository.saveAll(newImages);
@@ -363,13 +330,7 @@ public class AdminReportService {
 		for (MenuAddReportImageFile src : sources) {
 			String destKey = "menus/" + menu.getId() + "/" + filenameFromKey(src.getAwsKey());
 			s3Service.copyObject(src.getAwsKey(), destKey);
-			dest.add(MenuImageFile.builder()
-				.menu(menu)
-				.name(src.getName())
-				.mimeType(src.getMimeType())
-				.awsKey(destKey)
-				.displayOrder(order++)
-				.build());
+			dest.add(src.toMenuImage(menu, destKey, order++));
 			safeDelete(src.getAwsKey());
 		}
 		menuImageFileRepository.saveAll(dest);
@@ -401,10 +362,6 @@ public class AdminReportService {
 	private String filenameFromKey(String awsKey) {
 		int idx = awsKey.lastIndexOf('/');
 		return idx >= 0 ? awsKey.substring(idx + 1) : awsKey;
-	}
-
-	private LocalTime parseTime(String hhmm) {
-		return hhmm != null ? LocalTime.parse(hhmm) : null;
 	}
 
 	private <T> T parseMessage(String message, Class<T> type) {
@@ -512,6 +469,11 @@ public class AdminReportService {
 			|| action == UserReportAction.RESTORE_REVIEW;
 	}
 
+	private boolean shouldNotifyModeratedMember(UserReportAction action) {
+		return action == UserReportAction.HIDE_REVIEW
+			|| action == UserReportAction.DELETE_REVIEW;
+	}
+
 	private UserReportAction toModerationAction(String action) {
 		if (action == null || action.isBlank()) {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_MODERATION_ACTION);
@@ -525,14 +487,6 @@ public class AdminReportService {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_MODERATION_ACTION);
 		}
 		throw new AdminException(AdminErrorCode.REPORT_INVALID_MODERATION_ACTION);
-	}
-
-	private String normalizeModerationReason(String reason) {
-		if (reason == null) {
-			return null;
-		}
-		String normalized = reason.trim();
-		return normalized.isEmpty() ? null : normalized;
 	}
 
 	private StoreReportStatus toStoreReportStatus(String statusStr) {

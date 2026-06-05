@@ -72,6 +72,10 @@ public class MenuAddReport extends BaseTimeEntity {
 		this.status = StoreReportStatus.PENDING;
 	}
 
+	public Menu toMenu() {
+		return new Menu(store, menuCategory, name, price, description);
+	}
+
 	public void approve() {
 		this.status = StoreReportStatus.ACCEPTED;
 		this.reviewedAt = LocalDateTime.now();
