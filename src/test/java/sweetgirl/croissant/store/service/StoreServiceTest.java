@@ -175,6 +175,7 @@ class StoreServiceTest {
 			anyDouble(),
 			anyDouble(),
 			any(),
-			anyString());
+			anyString(),
+			any());
 	}
 }
