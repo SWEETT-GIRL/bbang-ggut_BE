@@ -140,6 +140,9 @@ public class AdminReportService {
 			.action(action)
 			.reason(reason)
 			.build());
+		if (Boolean.TRUE.equals(request.notifyUser()) && shouldNotifyModeratedMember(action)) {
+			reportNotificationService.notifyModerationAction(savedAction);
+		}
 		return AdminModerationActionResponse.from(savedAction);
 	}
 
@@ -182,7 +185,7 @@ public class AdminReportService {
 				accept ? ReportNotificationAction.APPROVED : ReportNotificationAction.REJECTED,
 				subjectLabel(report.getRequestType()));
 		} else if ("USER_REPORT".equals(request.kind())) {
-			UserReport report = userReportRepository.findById(reportId)
+			UserReport report = userReportRepository.findByIdWithMembers(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
 			if (report.getStatus() != UserReportStatus.PENDING) {
 				throw new AdminException(AdminErrorCode.REPORT_ALREADY_REVIEWED);
@@ -192,6 +195,7 @@ public class AdminReportService {
 			} else {
 				report.reject();
 			}
+			reportNotificationService.notifyUserReportResult(report);
 		} else {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_KIND);
 		}
@@ -510,6 +514,11 @@ public class AdminReportService {
 		return action == UserReportAction.HIDE_REVIEW
 			|| action == UserReportAction.DELETE_REVIEW
 			|| action == UserReportAction.RESTORE_REVIEW;
+	}
+
+	private boolean shouldNotifyModeratedMember(UserReportAction action) {
+		return action == UserReportAction.HIDE_REVIEW
+			|| action == UserReportAction.DELETE_REVIEW;
 	}
 
 	private UserReportAction toModerationAction(String action) {
