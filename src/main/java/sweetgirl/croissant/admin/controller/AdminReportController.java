@@ -18,9 +18,11 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.admin.dto.request.AdminModerationActionRequest;
 import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
+import sweetgirl.croissant.admin.dto.response.AdminHighPriorityReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminModerationActionResponse;
 import sweetgirl.croissant.admin.dto.response.AdminReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminUserReportDetailResponse;
+import sweetgirl.croissant.admin.dto.response.AdminUserReportStatsResponse;
 import sweetgirl.croissant.admin.service.AdminReportService;
 import sweetgirl.croissant.global.response.ApiResponse;
 
@@ -40,6 +42,21 @@ public class AdminReportController {
 			@Parameter(description = "페이지 번호 (0부터 시작)") @RequestParam(defaultValue = "0") int page,
 			@Parameter(description = "페이지 크기") @RequestParam(defaultValue = "20") int size) {
 		return ResponseEntity.ok(ApiResponse.ok(adminReportService.getReports(kind, status, page, size)));
+	}
+
+	@Operation(summary = "사용자 신고 통계 조회")
+	@GetMapping("/stats")
+	public ResponseEntity<ApiResponse<AdminUserReportStatsResponse>> getUserReportStats() {
+		return ResponseEntity.ok(ApiResponse.ok(adminReportService.getUserReportStats()));
+	}
+
+	@Operation(summary = "사용자 신고 high-priority 큐 조회")
+	@GetMapping("/high-priority")
+	public ResponseEntity<ApiResponse<Page<AdminHighPriorityReportResponse>>> getHighPriorityReports(
+			@Parameter(description = "처리 상태") @RequestParam(defaultValue = "PENDING") String status,
+			@Parameter(description = "페이지 번호 (0부터 시작)") @RequestParam(defaultValue = "0") int page,
+			@Parameter(description = "페이지 크기") @RequestParam(defaultValue = "20") int size) {
+		return ResponseEntity.ok(ApiResponse.ok(adminReportService.getHighPriorityReports(status, page, size)));
 	}
 
 	@Operation(summary = "사용자 신고 상세 조회")
