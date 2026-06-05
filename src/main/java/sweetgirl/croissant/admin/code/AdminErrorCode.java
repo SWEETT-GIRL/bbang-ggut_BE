@@ -23,6 +23,11 @@ public enum AdminErrorCode implements BaseErrorCode {
 			BAD_REQUEST, "ADMIN400_4",
 			"moderation action은 NONE, HIDE_REVIEW, DELETE_REVIEW, RESTORE_REVIEW 중 하나여야 합니다."),
 	REPORT_TARGET_TYPE_MISMATCH(BAD_REQUEST, "ADMIN400_5", "신고 대상 타입에 적용할 수 없는 moderation action입니다."),
+	MEMBER_RESTRICTION_INVALID_TYPE(
+			BAD_REQUEST,
+			"ADMIN400_6",
+			"restriction type은 WARNING, WRITE_RESTRICTED, PROFILE_RESTRICTED, SUSPENDED 중 하나여야 합니다."),
+	MEMBER_RESTRICTION_INVALID_DURATION(BAD_REQUEST, "ADMIN400_7", "durationDays는 1 이상이어야 합니다."),
 	REPORT_TARGET_NOT_FOUND(NOT_FOUND, "ADMIN404_2", "조치 대상을 찾을 수 없습니다."),
 	REPORT_PAYLOAD_INVALID(INTERNAL_SERVER_ERROR, "ADMIN500_1", "제보 데이터 파싱에 실패했습니다.");
 
