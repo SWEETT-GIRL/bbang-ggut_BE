@@ -13,6 +13,7 @@ import sweetgirl.croissant.external.aws.exception.S3ErrorCode;
 import sweetgirl.croissant.external.aws.exception.S3StorageException;
 import sweetgirl.croissant.menu.repository.MenuAddReportImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
+import sweetgirl.croissant.review.repository.ReviewImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreReportImageFileRepository;
 
@@ -25,6 +26,7 @@ public class ImageCallbackService {
 	private final MenuImageFileRepository menuImageFileRepository;
 	private final StoreReportImageFileRepository storeReportImageFileRepository;
 	private final MenuAddReportImageFileRepository menuAddReportImageFileRepository;
+	private final ReviewImageFileRepository reviewImageFileRepository;
 
 	@Transactional
 	public void updateImageStatus(ImageStatusUpdateRequest request) {
@@ -59,6 +61,10 @@ public class ImageCallbackService {
 		}
 		if (awsKey.startsWith(S3Folder.MENU_ADD_REPORTS.prefix())) {
 			return menuAddReportImageFileRepository.findByAwsKey(awsKey)
+				.orElseThrow(() -> new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND));
+		}
+		if (awsKey.startsWith(S3Folder.REVIEWS.prefix())) {
+			return reviewImageFileRepository.findByAwsKey(awsKey)
 				.orElseThrow(() -> new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND));
 		}
 		throw new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND);
