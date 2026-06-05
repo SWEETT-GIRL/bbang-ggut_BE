@@ -167,7 +167,7 @@ POST /api/admin/members/{memberId}/profile-reset
 
 ```json
 {
-  "reason": "부적절한 닉네임"
+  "reason": "부적절한 닉네임" -> 우리는 닉네임 임의로 우리가 줘서 이부분은 고쳐야될듯. 
 }
 ```
 
