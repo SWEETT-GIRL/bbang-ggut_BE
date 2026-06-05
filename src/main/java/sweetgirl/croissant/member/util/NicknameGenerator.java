@@ -54,9 +54,20 @@ public class NicknameGenerator {
 	public String generate() {
 		String nickname = nicknameQueue.poll();
 		if (nickname == null) {
+			rebuild();
+			nickname = nicknameQueue.poll();
+		}
+		if (nickname == null) {
 			throw new NicknameException(NicknameErrorCode.NICKNAME_EXHAUSTED);
 		}
 		return nickname;
+	}
+
+	private synchronized void rebuild() {
+		if (!nicknameQueue.isEmpty()) {
+			return;
+		}
+		init();
 	}
 
 	private List<String> loadWords(String path) {

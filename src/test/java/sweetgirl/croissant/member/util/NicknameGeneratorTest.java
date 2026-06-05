@@ -17,7 +17,10 @@ import sweetgirl.croissant.member.repository.MemberRepository;
 @ExtendWith(MockitoExtension.class)
 class NicknameGeneratorTest {
 
+	// 테스트 classpath adjectives.txt(2개) × nouns.txt(2개) = 조합 4개
 	private static final int TOTAL_COMBINATIONS = 4;
+	private static final List<String> ALL_COMBINATIONS = List.of(
+		"달콤한 망고시루", "달콤한 두쫀쿠", "신난 망고시루", "신난 두쫀쿠");
 
 	@Mock
 	private MemberRepository memberRepository;
@@ -36,8 +39,10 @@ class NicknameGeneratorTest {
 	}
 
 	@Test
-	void generate_throwsNicknameException_whenQueueIsExhausted() {
-		given(memberRepository.findAllNicknames()).willReturn(List.of());
+	void generate_throwsNicknameException_whenAllCombinationsAreInUse() {
+		given(memberRepository.findAllNicknames())
+			.willReturn(List.of())
+			.willReturn(ALL_COMBINATIONS);
 		nicknameGenerator.init();
 
 		for (int i = 0; i < TOTAL_COMBINATIONS; i++) {
@@ -49,15 +54,29 @@ class NicknameGeneratorTest {
 	}
 
 	@Test
-	void init_excludesAlreadyUsedNicknames() {
-		given(memberRepository.findAllNicknames()).willReturn(List.of("달콤한 망고시루"));
+	void generate_rebuildsQueueAndSucceeds_whenFreedCombinationsExistAfterExhaustion() {
+		given(memberRepository.findAllNicknames())
+			.willReturn(List.of("달콤한 망고시루"))
+			.willReturn(List.of());
 		nicknameGenerator.init();
 
 		for (int i = 0; i < TOTAL_COMBINATIONS - 1; i++) {
 			nicknameGenerator.generate();
 		}
 
-		assertThatThrownBy(() -> nicknameGenerator.generate())
-			.isInstanceOf(NicknameException.class);
+		assertThat(nicknameGenerator.generate()).isNotNull();
+	}
+
+	@Test
+	void init_excludesAlreadyUsedNicknames() {
+		given(memberRepository.findAllNicknames()).willReturn(List.of("달콤한 망고시루"));
+		nicknameGenerator.init();
+
+		List<String> generated = List.of(
+			nicknameGenerator.generate(),
+			nicknameGenerator.generate(),
+			nicknameGenerator.generate());
+
+		assertThat(generated).doesNotContain("달콤한 망고시루");
 	}
 }
