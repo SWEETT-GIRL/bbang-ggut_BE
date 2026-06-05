@@ -1,5 +1,7 @@
 package sweetgirl.croissant.review.entity;
 
+import org.hibernate.annotations.SQLRestriction;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -15,6 +17,7 @@ import sweetgirl.croissant.common.enums.MimeType;
 
 @Entity
 @Table(name = "review_image_file")
+@SQLRestriction("processing_status = 'DONE'")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ReviewImageFile extends ImageFile {
