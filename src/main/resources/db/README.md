@@ -1,6 +1,7 @@
 # DB Migration
 
 Flyway schema migration은 모든 profile에서 같은 순서로 적용되도록 `db/migration`에 둔다.
+Migration 파일명은 timestamp 기반 컨벤션을 따른다. 자세한 규칙은 `docs/flyway-migration-naming-convention.md`를 참고한다.
 
 Profile별 초기/샘플 데이터가 필요하면 seed만 분리한다.
 

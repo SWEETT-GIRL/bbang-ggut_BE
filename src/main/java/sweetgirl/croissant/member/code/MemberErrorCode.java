@@ -18,7 +18,9 @@ public enum MemberErrorCode implements BaseErrorCode {
 	NOTIFICATION_RADIUS_ALREADY_MAX(HttpStatus.BAD_REQUEST, "RADIUS400_MAX", "이미 최대 반경입니다."),
 	NOTIFICATION_SETTING_NOT_FOUND(HttpStatus.NOT_FOUND, "MEMBER404_SETTING", "알림 설정이 존재하지 않습니다."),
 	MEMBER_ALREADY_DELETED(HttpStatus.BAD_REQUEST, "MEMBER400_DELETED", "이미 탈퇴한 회원입니다."),
-	MEMBER_WRITE_RESTRICTED(HttpStatus.FORBIDDEN, "MEMBER403_WRITE_RESTRICTED", "작성 제한 상태입니다.");
+	MEMBER_WRITE_RESTRICTED(HttpStatus.FORBIDDEN, "MEMBER403_WRITE_RESTRICTED", "작성 제한 상태입니다."),
+	MEMBER_BLOCK_SELF_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "MEMBER_BLOCK_SELF_NOT_ALLOWED", "본인은 차단할 수 없습니다."),
+	MEMBER_BLOCK_TARGET_NOT_FOUND(HttpStatus.NOT_FOUND, "MEMBER_BLOCK_TARGET_NOT_FOUND", "차단할 회원을 찾을 수 없습니다.");
 
 	private final HttpStatus httpStatus;
 	private final String code;
