@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.dto.response.ConsentResponse;
+import sweetgirl.croissant.member.dto.response.MemberProfileResponse;
 import sweetgirl.croissant.member.dto.response.MenuCategoryResponse;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.service.MemberService;
@@ -39,6 +40,29 @@ class MemberControllerTest {
 			.standaloneSetup(memberController)
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.build();
+	}
+
+	// GET /users/me
+
+	@Test
+	void getProfile_returns200WithIdAndNickname_whenMemberExists() throws Exception {
+		MemberProfileResponse response = new MemberProfileResponse(1L, "달콤한크루아상");
+		given(memberService.getProfile(any())).willReturn(response);
+
+		mockMvc.perform(get("/users/me"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true))
+			.andExpect(jsonPath("$.data.id").value(1))
+			.andExpect(jsonPath("$.data.nickname").value("달콤한크루아상"));
+	}
+
+	@Test
+	void getProfile_returns404_whenMemberNotFound() throws Exception {
+		given(memberService.getProfile(any()))
+			.willThrow(new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
+
+		mockMvc.perform(get("/users/me"))
+			.andExpect(status().isNotFound());
 	}
 
 	// ── GET /users/me/favorite-bread ─────────────────────────────────────────
