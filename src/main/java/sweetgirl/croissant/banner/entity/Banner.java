@@ -54,7 +54,7 @@ public class Banner extends BaseTimeEntity {
 	@Enumerated(EnumType.STRING)
 	@ColumnDefault("'DONE'")
 	@Column(nullable = false, length = 20)
-	private ImageStatus imageStatus;
+	private ImageStatus processingStatus;
 
 	@Builder
 	public Banner(String thumbnailName, MimeType thumbnailMimeType, String thumbnailKey,
@@ -66,7 +66,7 @@ public class Banner extends BaseTimeEntity {
 		this.detailMimeType = detailMimeType;
 		this.detailKey = detailKey;
 		this.displayOrder = displayOrder;
-		this.imageStatus = ImageStatus.PENDING;
+		this.processingStatus = ImageStatus.PENDING;
 	}
 
 	public void updateDisplayOrder(int displayOrder) {
@@ -74,10 +74,10 @@ public class Banner extends BaseTimeEntity {
 	}
 
 	public void markDone() {
-		this.imageStatus = ImageStatus.DONE;
+		this.processingStatus = ImageStatus.DONE;
 	}
 
 	public void markFailed() {
-		this.imageStatus = ImageStatus.FAILED;
+		this.processingStatus = ImageStatus.FAILED;
 	}
 }

@@ -42,7 +42,7 @@ public abstract class ImageFile {
 	@Enumerated(EnumType.STRING)
 	@ColumnDefault("'DONE'")
 	@Column(nullable = false, length = 20)
-	private ImageStatus imageStatus;
+	private ImageStatus processingStatus;
 
 	@CreatedDate
 	@Column(nullable = false, updatable = false)
@@ -52,14 +52,14 @@ public abstract class ImageFile {
 		this.name = name;
 		this.mimeType = mimeType;
 		this.awsKey = awsKey;
-		this.imageStatus = ImageStatus.PENDING;
+		this.processingStatus = ImageStatus.PENDING;
 	}
 
 	public void markDone() {
-		this.imageStatus = ImageStatus.DONE;
+		this.processingStatus = ImageStatus.DONE;
 	}
 
 	public void markFailed() {
-		this.imageStatus = ImageStatus.FAILED;
+		this.processingStatus = ImageStatus.FAILED;
 	}
 }

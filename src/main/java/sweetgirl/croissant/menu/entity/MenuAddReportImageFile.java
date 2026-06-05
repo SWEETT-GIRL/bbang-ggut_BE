@@ -16,7 +16,7 @@ import sweetgirl.croissant.common.enums.MimeType;
 
 @Entity
 @Table(name = "menu_add_report_image_file")
-@SQLRestriction("image_status = 'DONE'")
+@SQLRestriction("processing_status = 'DONE'")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MenuAddReportImageFile extends ImageFile {
