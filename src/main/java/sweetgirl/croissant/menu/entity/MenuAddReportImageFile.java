@@ -31,4 +31,8 @@ public class MenuAddReportImageFile extends ImageFile {
 		super(name, mimeType, awsKey);
 		this.menuAddReport = menuAddReport;
 	}
+
+	public MenuImageFile toMenuImage(Menu menu, String awsKey, int displayOrder) {
+		return new MenuImageFile(menu, getName(), getMimeType(), awsKey, displayOrder, null);
+	}
 }

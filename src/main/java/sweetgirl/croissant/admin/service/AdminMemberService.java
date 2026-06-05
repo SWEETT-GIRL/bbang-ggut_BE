@@ -19,8 +19,6 @@ import sweetgirl.croissant.member.enums.MemberRestrictionType;
 import sweetgirl.croissant.member.repository.MemberRestrictionRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.report.entity.ModerationAction;
-import sweetgirl.croissant.report.enums.ReportTargetType;
-import sweetgirl.croissant.report.enums.UserReportAction;
 import sweetgirl.croissant.report.repository.ModerationActionRepository;
 
 @Service
@@ -37,16 +35,9 @@ public class AdminMemberService {
 	@Transactional
 	public AdminProfileResetResponse resetProfile(Long memberId, AdminProfileResetRequest request) {
 		Member member = memberReader.getMember(memberId);
-		String reason = normalizeReason(request.reason());
 
 		member.resetNickname(DEFAULT_RESET_NICKNAME);
-		ModerationAction action = moderationActionRepository.save(ModerationAction.builder()
-			.targetType(ReportTargetType.MEMBER_PROFILE)
-			.targetId(member.getId())
-			.member(member)
-			.action(UserReportAction.RESET_PROFILE)
-			.reason(reason)
-			.build());
+		ModerationAction action = moderationActionRepository.save(request.toModerationAction(member));
 		return AdminProfileResetResponse.of(member, action);
 	}
 
@@ -56,17 +47,11 @@ public class AdminMemberService {
 			AdminMemberRestrictionRequest request) {
 		Member member = memberReader.getMember(memberId);
 		MemberRestrictionType type = toRestrictionType(request.type());
-		String reason = normalizeReason(request.reason());
 		LocalDateTime startsAt = LocalDateTime.now();
 		LocalDateTime endsAt = calculateEndsAt(startsAt, request.durationDays());
 
-		MemberRestriction restriction = memberRestrictionRepository.save(MemberRestriction.builder()
-			.member(member)
-			.restrictionType(type)
-			.reason(reason)
-			.startsAt(startsAt)
-			.endsAt(endsAt)
-			.build());
+		MemberRestriction restriction = memberRestrictionRepository.save(
+			request.toRestriction(member, type, startsAt, endsAt));
 		return AdminMemberRestrictionResponse.from(restriction);
 	}
 
@@ -91,11 +76,4 @@ public class AdminMemberService {
 		return startsAt.plusDays(durationDays);
 	}
 
-	private String normalizeReason(String reason) {
-		if (reason == null) {
-			return null;
-		}
-		String normalized = reason.trim();
-		return normalized.isEmpty() ? null : normalized;
-	}
 }

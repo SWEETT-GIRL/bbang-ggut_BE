@@ -20,6 +20,8 @@ import lombok.NoArgsConstructor;
 import sweetgirl.croissant.alarm.enums.ReportKind;
 import sweetgirl.croissant.alarm.enums.ReportNotificationAction;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.report.entity.ModerationAction;
+import sweetgirl.croissant.report.entity.UserReport;
 import sweetgirl.croissant.store.entity.Store;
 
 @Entity
@@ -78,6 +80,42 @@ public class ReportNotification {
 		this.title = title;
 		this.message = message;
 		this.sentAt = LocalDateTime.now();
+	}
+
+	public static ReportNotification ofReportResult(
+			Member member,
+			Store store,
+			Long reportId,
+			ReportKind reportKind,
+			ReportNotificationAction action,
+			String title,
+			String message) {
+		return new ReportNotification(member, store, reportId, reportKind, null, action, title, message);
+	}
+
+	public static ReportNotification ofUserReportResult(UserReport report, String title, String message) {
+		return new ReportNotification(
+			report.getReporter(),
+			null,
+			report.getId(),
+			ReportKind.USER_REPORT,
+			null,
+			ReportNotificationAction.USER_REPORT_RESULT,
+			title,
+			message);
+	}
+
+	public static ReportNotification ofModerationAction(ModerationAction moderationAction, String title,
+			String message) {
+		return new ReportNotification(
+			moderationAction.getMember(),
+			null,
+			moderationAction.getReport().getId(),
+			ReportKind.USER_REPORT,
+			moderationAction.getId(),
+			ReportNotificationAction.MODERATION_ACTION,
+			title,
+			message);
 	}
 
 	public void markAsRead() {

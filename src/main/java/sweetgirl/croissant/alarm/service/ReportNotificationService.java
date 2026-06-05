@@ -65,7 +65,9 @@ public class ReportNotificationService {
 			data.put("storeId", String.valueOf(store.getId()));
 		}
 
-		saveAndSend(member, store, reportId, null, reportKind, action, title, body, data);
+		saveAndSend(
+			ReportNotification.ofReportResult(member, store, reportId, reportKind, action, title, body),
+			data);
 	}
 
 	public void notifyUserReportResult(UserReport report) {
@@ -79,15 +81,7 @@ public class ReportNotificationService {
 		data.put("reportId", String.valueOf(report.getId()));
 		data.put("reportKind", ReportKind.USER_REPORT.name());
 
-		saveAndSend(
-			report.getReporter(),
-			null,
-			report.getId(),
-			null,
-			ReportKind.USER_REPORT,
-			ReportNotificationAction.USER_REPORT_RESULT,
-			USER_REPORT_RESULT_TITLE,
-			USER_REPORT_RESULT_MESSAGE,
+		saveAndSend(ReportNotification.ofUserReportResult(report, USER_REPORT_RESULT_TITLE, USER_REPORT_RESULT_MESSAGE),
 			data);
 	}
 
@@ -110,42 +104,18 @@ public class ReportNotificationService {
 		putIfNotNull(data, "moderationActionId", moderationAction.getId());
 
 		saveAndSend(
-			moderationAction.getMember(),
-			null,
-			reportId,
-			moderationAction.getId(),
-			ReportKind.USER_REPORT,
-			ReportNotificationAction.MODERATION_ACTION,
-			MODERATION_ACTION_TITLE,
-			MODERATION_ACTION_MESSAGE,
+			ReportNotification.ofModerationAction(moderationAction, MODERATION_ACTION_TITLE, MODERATION_ACTION_MESSAGE),
 			data);
 	}
 
-	private void saveAndSend(
-			Member member,
-			Store store,
-			Long reportId,
-			Long moderationActionId,
-			ReportKind reportKind,
-			ReportNotificationAction action,
-			String title,
-			String body,
-			Map<String, String> data) {
-		reportNotificationRepository.save(ReportNotification.builder()
-			.member(member)
-			.store(store)
-			.reportId(reportId)
-			.moderationActionId(moderationActionId)
-			.reportKind(reportKind)
-			.action(action)
-			.title(title)
-			.message(body)
-			.build());
+	private void saveAndSend(ReportNotification notification, Map<String, String> data) {
+		reportNotificationRepository.save(notification);
 
+		Member member = notification.getMember();
 		List<FcmToken> tokens = fcmTokenRepository.findByMemberAndIsActive(member, true);
 		if (tokens.isEmpty()) {
 			log.info("ReportNotification: FCM 토큰 없음 [memberId={}, reportId={}, action={}]",
-				member.getId(), reportId, action);
+				member.getId(), notification.getReportId(), notification.getAction());
 			return;
 		}
 
@@ -157,10 +127,10 @@ public class ReportNotificationService {
 
 		for (String token : uniqueTokens) {
 			try {
-				fcmService.sendPushNotification(token, title, body, data);
+				fcmService.sendPushNotification(token, notification.getTitle(), notification.getMessage(), data);
 			} catch (AlarmException e) {
 				log.warn("FCM 발송 실패 [memberId={}, reportId={}, token={}]",
-					member.getId(), reportId, token);
+					member.getId(), notification.getReportId(), token);
 			}
 		}
 	}
