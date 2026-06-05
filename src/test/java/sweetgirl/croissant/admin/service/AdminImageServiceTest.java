@@ -21,10 +21,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.ImageUploadFromUrlRequest;
 import sweetgirl.croissant.external.aws.dto.ImageUploadFromUrlResponse;
-import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.external.aws.exception.S3ErrorCode;
 import sweetgirl.croissant.external.aws.exception.S3StorageException;
 import sweetgirl.croissant.external.aws.util.ImageDownloader;
