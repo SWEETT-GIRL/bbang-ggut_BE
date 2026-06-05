@@ -128,14 +128,19 @@ S3 이상은 신고 접수 수와 무관하게 단일 신고만으로 선조치�
 6. 조치 대상자에게 사유와 이의제기 경로를 안내한다.
 7. 신고자에게는 상세 제재 내용 없이 처리 완료 여부만 안내한다.
 
-현재 구현된 관리자 API는 신고 검수, 리뷰 moderation action, 회원 프로필 초기화, 회원 제한 생성을 담당한다.
+현재 구현된 관리자 API는 신고 검수, 리뷰 moderation action, 회원 프로필 초기화, 회원 제한, 이의제기 검수,
+자동 후보 큐와 통계 조회를 담당한다.
 
 ```http
 GET /api/admin/reports?kind=USER_REPORT&status=PENDING&page=0&size=20
+GET /api/admin/reports/stats
+GET /api/admin/reports/high-priority?status=PENDING&page=0&size=20
 PATCH /api/admin/reports/{reportId}
 POST /api/admin/reports/{reportId}/moderation-actions
 POST /api/admin/members/{memberId}/profile-reset
 POST /api/admin/members/{memberId}/restrictions
+GET /api/admin/moderation-appeals?status=PENDING&page=0&size=20
+PATCH /api/admin/moderation-appeals/{appealId}
 ```
 
 ```json
@@ -231,6 +236,6 @@ POST /api/admin/members/{memberId}/restrictions
 
 ## 다음 구현 항목
 
-- 신고 결과 알림 추가: 신고자와 피신고자에게 서로 다른 수준의 알림 전송
-- 이의제기 테이블/API 추가
+- 자동 숨김 feature flag와 운영 대시보드 지표 추가
+- 허위 신고/신고 악용 감지 및 신고 기능 제한 추가
 - 차단 기능 추가: 댓글/프로필 페이지가 생기기 전까지는 보류 가능
