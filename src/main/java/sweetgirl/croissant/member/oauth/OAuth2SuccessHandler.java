@@ -75,10 +75,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 			+ "?accessToken=" + accessToken
 			+ "&refreshToken=" + refreshToken
 			+ "&isNew=" + isNew;
-		log.info("redirectUrl: " + redirectUrl);
 
 		getRedirectStrategy().sendRedirect(request, response, redirectUrl);
-		log.info("redirect 했니??");
 	}
 
 	// RefreshToken 저장: member + deviceId 조합이 이미 있으면 삭제 후 새로 저장
