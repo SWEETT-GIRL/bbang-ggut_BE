@@ -28,6 +28,7 @@ import sweetgirl.croissant.alarm.repository.ReportNotificationRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.report.entity.ModerationAction;
 import sweetgirl.croissant.report.entity.UserReport;
+import sweetgirl.croissant.report.enums.ModerationTargetType;
 import sweetgirl.croissant.report.enums.ReportReasonType;
 import sweetgirl.croissant.report.enums.ReportTargetType;
 import sweetgirl.croissant.report.enums.UserReportAction;
@@ -87,7 +88,7 @@ class ReportNotificationServiceTest {
 		UserReport report = userReport(32L, reporter, reportedMember);
 		ModerationAction action = ModerationAction.builder()
 			.report(report)
-			.targetType(ReportTargetType.REVIEW)
+			.targetType(ModerationTargetType.REVIEW)
 			.targetId(123L)
 			.member(reportedMember)
 			.action(UserReportAction.HIDE_REVIEW)

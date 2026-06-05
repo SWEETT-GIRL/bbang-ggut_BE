@@ -18,7 +18,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.member.entity.Member;
-import sweetgirl.croissant.report.enums.ReportTargetType;
+import sweetgirl.croissant.report.enums.ModerationTargetType;
 import sweetgirl.croissant.report.enums.UserReportAction;
 
 @Entity
@@ -37,7 +37,7 @@ public class ModerationAction {
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "target_type", nullable = false, length = 30)
-	private ReportTargetType targetType;
+	private ModerationTargetType targetType;
 
 	@Column(name = "target_id", nullable = false)
 	private Long targetId;
@@ -59,7 +59,7 @@ public class ModerationAction {
 	@Builder
 	public ModerationAction(
 			UserReport report,
-			ReportTargetType targetType,
+			ModerationTargetType targetType,
 			Long targetId,
 			Member member,
 			UserReportAction action,
