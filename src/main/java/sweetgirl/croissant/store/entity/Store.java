@@ -74,7 +74,7 @@ public class Store extends BaseTimeEntity {
 	// 가게를 무한 재시도하지 않도록 파킹하는 카운터. MISMATCH(후보 있음)는 증가시키지 않는다.
 	// 임계치 이상이면 enrich 큐에서 제외. retry/clear 시 0 으로 리셋되어 다시 큐 진입.
 	@Column(name = "naver_enrich_attempts", nullable = false)
-	private int naverEnrichAttempts;
+	private Integer naverEnrichAttempts;
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 50)
