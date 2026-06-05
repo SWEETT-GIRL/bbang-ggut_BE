@@ -17,6 +17,8 @@ public record MenuReviewResponse(
 		int likeCount,
 		int commentCount,
 		boolean isLiked,
+		boolean canEdit,
+		boolean canDelete,
 		ReviewAuthorResponse author,
 		List<ReviewPhotoResponse> photos,
 		LocalDateTime createdAt) {
