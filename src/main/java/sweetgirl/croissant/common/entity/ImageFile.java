@@ -1,12 +1,8 @@
 package sweetgirl.croissant.common.entity;
 
-import java.time.LocalDateTime;
-
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+import org.hibernate.annotations.ColumnDefault;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.EntityListeners;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
@@ -16,13 +12,13 @@ import jakarta.persistence.MappedSuperclass;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import sweetgirl.croissant.external.aws.enums.MimeType;
+import sweetgirl.croissant.common.enums.ImageStatus;
+import sweetgirl.croissant.common.enums.MimeType;
 
 @MappedSuperclass
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@EntityListeners(AuditingEntityListener.class)
-public abstract class ImageFile {
+public abstract class ImageFile extends BaseTimeEntity {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
@@ -37,13 +33,23 @@ public abstract class ImageFile {
 	@Column(nullable = false, length = 255)
 	private String awsKey;
 
-	@CreatedDate
-	@Column(nullable = false, updatable = false)
-	private LocalDateTime createdAt;
+	@Enumerated(EnumType.STRING)
+	@ColumnDefault("'DONE'")
+	@Column(nullable = false, length = 20)
+	private ImageStatus processingStatus;
 
 	protected ImageFile(String name, MimeType mimeType, String awsKey) {
 		this.name = name;
 		this.mimeType = mimeType;
 		this.awsKey = awsKey;
+		this.processingStatus = ImageStatus.DONE;
+	}
+
+	public void markDone() {
+		this.processingStatus = ImageStatus.DONE;
+	}
+
+	public void markFailed() {
+		this.processingStatus = ImageStatus.FAILED;
 	}
 }

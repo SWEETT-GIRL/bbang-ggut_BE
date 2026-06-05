@@ -27,12 +27,15 @@ Codex에게 바로 이어서 요청할 때는 아래 "복붙용 요청" 블록�
 - `PATCH /api/admin/reports/{reportId}` with `kind=USER_REPORT`: 신고 승인/거절
 - `GET /api/admin/reports/{reportId}?kind=USER_REPORT`: 관리자 신고 상세 조회
 - `POST /api/admin/reports/{reportId}/moderation-actions`: 리뷰 숨김/삭제/복구 moderation action
+- `POST /api/admin/members/{memberId}/profile-reset`: 회원 닉네임 초기화
+- `POST /api/admin/members/{memberId}/restrictions`: 회원 제한 생성
 - `user_report` 테이블 마이그레이션
 - `review.hidden_at` 및 `moderation_action` 테이블 마이그레이션
+- `member_restriction` 테이블 마이그레이션
 - 신고 운영 정책 문서
 
 현재 관리자 승인/거절은 신고 상태를 변경하고, 승인된 리뷰 신고에는 숨김/삭제/복구 조치를 적용할 수 있다.
-프로필 초기화와 회원 제한은 아직 구현하지 않았다.
+프로필 초기화와 회원 제한을 적용할 수 있으며, 리뷰 생성 API는 활성 작성 제한을 검사한다.
 
 ## 1. 관리자 신고 상세 조회 ✅ 완료
 
@@ -153,7 +156,7 @@ CREATE TABLE moderation_action (
 Add review moderation actions
 ```
 
-## 3. 프로필 초기화/회원 작성 제한
+## 3. 프로필 초기화/회원 작성 제한 ✅ 완료
 
 목표:
 
@@ -167,9 +170,11 @@ POST /api/admin/members/{memberId}/profile-reset
 
 ```json
 {
-  "reason": "부적절한 닉네임"
+  "reason": "부적절한 프로필"
 }
 ```
+
+닉네임은 요청으로 받지 않고 서버 정책값 `빵긋 사용자`로 초기화한다.
 
 ```http
 POST /api/admin/members/{memberId}/restrictions

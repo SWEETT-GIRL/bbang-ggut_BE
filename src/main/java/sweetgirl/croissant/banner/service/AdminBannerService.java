@@ -15,9 +15,9 @@ import sweetgirl.croissant.banner.dto.request.BannerReorderRequest;
 import sweetgirl.croissant.banner.entity.Banner;
 import sweetgirl.croissant.banner.exception.BannerException;
 import sweetgirl.croissant.banner.repository.BannerRepository;
+import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
-import sweetgirl.croissant.external.aws.enums.MimeType;
 import sweetgirl.croissant.external.aws.util.S3PathGenerator;
 
 @Service

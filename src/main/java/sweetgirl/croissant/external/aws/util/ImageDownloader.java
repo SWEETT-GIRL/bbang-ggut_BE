@@ -12,7 +12,7 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
-import sweetgirl.croissant.external.aws.enums.MimeType;
+import sweetgirl.croissant.common.enums.MimeType;
 
 @Slf4j
 @Component

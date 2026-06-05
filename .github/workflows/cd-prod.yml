@@ -79,6 +79,9 @@ jobs:
 
           # Discord 에러 알림 웹훅
           discord.webhook.url=${DISCORD_WEBHOOK_URL}
+
+          # Lambda 콜백 인증 키
+          lambda.callback.secret-key=${{secrets.LAMBDA_CALLBACK_SECRET_KEY}}
           EOF
 
       - name: Create Firebase service account file
@@ -134,6 +137,7 @@ jobs:
             echo "PROD_POSTHOG_API_KEY=${{ secrets.PROD_POSTHOG_API_KEY }}" >> .env
             echo "ENCRYPT_SECRET_KEY=${{ secrets.ENCRYPT_SECRET_KEY }}" >> .env
             echo "DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK_URL_PROD }}" >> .env
+            echo "LAMBDA_CALLBACK_SECRET_KEY=${{ secrets.LAMBDA_CALLBACK_SECRET_KEY }}" >> .env
 
             docker compose pull
             docker compose up -d

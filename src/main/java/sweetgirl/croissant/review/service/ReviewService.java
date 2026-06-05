@@ -17,12 +17,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
-import sweetgirl.croissant.external.aws.enums.MimeType;
 import sweetgirl.croissant.external.aws.util.S3PathGenerator;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.exception.MenuException;
@@ -67,6 +68,7 @@ public class ReviewService {
 
 	private final S3Service s3Service;
 	private final MemberReader memberReader;
+	private final MemberRestrictionReader memberRestrictionReader;
 	private final MenuRepository menuRepository;
 	private final ReviewRepository reviewRepository;
 	private final ReviewImageFileRepository reviewImageFileRepository;
@@ -161,6 +163,7 @@ public class ReviewService {
 	@Transactional
 	public ReviewCreateResponse createReview(Long menuId, Long memberId, ReviewCreateRequest request) {
 		Member member = memberReader.getMember(memberId);
+		memberRestrictionReader.validateCanWrite(memberId);
 		Menu menu = menuRepository.findByIdWithDetails(menuId)
 			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
 

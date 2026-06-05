@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.AdminImageResponse;
 import sweetgirl.croissant.external.aws.dto.ImageOrderUpdateRequest;
@@ -20,7 +21,6 @@ import sweetgirl.croissant.external.aws.dto.ImageUploadFromUrlRequest;
 import sweetgirl.croissant.external.aws.dto.ImageUploadFromUrlResponse;
 import sweetgirl.croissant.external.aws.dto.ImageUploadRequest;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
-import sweetgirl.croissant.external.aws.enums.MimeType;
 import sweetgirl.croissant.external.aws.exception.S3ErrorCode;
 import sweetgirl.croissant.external.aws.exception.S3StorageException;
 import sweetgirl.croissant.external.aws.util.ImageDownloader;

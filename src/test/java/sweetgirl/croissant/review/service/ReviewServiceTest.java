@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -26,11 +27,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
-import sweetgirl.croissant.external.aws.enums.MimeType;
+import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.review.code.ReviewErrorCode;
@@ -60,6 +64,8 @@ class ReviewServiceTest {
 	S3Service s3Service;
 	@Mock
 	MemberReader memberReader;
+	@Mock
+	MemberRestrictionReader memberRestrictionReader;
 	@Mock
 	MenuRepository menuRepository;
 	@Mock
@@ -171,6 +177,22 @@ class ReviewServiceTest {
 			() -> reviewService.createReview(1L, 7L, createRequest(BigDecimal.valueOf(4.5), "", List.of())))
 			.isInstanceOf(ReviewException.class)
 			.hasMessageContaining(ReviewErrorCode.REVIEW_ALREADY_EXISTS.getMessage());
+	}
+
+	@Test
+	@DisplayName("createReview: 작성 제한 상태이면 리뷰를 생성할 수 없다")
+	void createReview_writeRestrictedMember_throwsForbidden() {
+		given(memberReader.getMember(7L)).willReturn(member(7L, "슈크림"));
+		willThrow(new MemberException(MemberErrorCode.MEMBER_WRITE_RESTRICTED))
+			.given(memberRestrictionReader).validateCanWrite(7L);
+
+		assertThatThrownBy(
+			() -> reviewService.createReview(1L, 7L, createRequest(BigDecimal.valueOf(4.5), "", List.of())))
+			.isInstanceOf(MemberException.class)
+			.hasMessageContaining(MemberErrorCode.MEMBER_WRITE_RESTRICTED.getMessage());
+
+		verify(menuRepository, never()).findByIdWithDetails(any());
+		verify(reviewRepository, never()).save(any());
 	}
 
 	@Test
