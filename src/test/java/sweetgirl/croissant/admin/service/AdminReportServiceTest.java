@@ -12,6 +12,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
@@ -24,6 +25,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,8 +33,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import sweetgirl.croissant.admin.code.AdminErrorCode;
 import sweetgirl.croissant.admin.dto.request.AdminModerationActionRequest;
 import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
+import sweetgirl.croissant.admin.dto.response.AdminHighPriorityReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminModerationActionResponse;
 import sweetgirl.croissant.admin.dto.response.AdminUserReportDetailResponse;
+import sweetgirl.croissant.admin.dto.response.AdminUserReportStatsResponse;
 import sweetgirl.croissant.admin.exception.AdminException;
 import sweetgirl.croissant.alarm.enums.ReportKind;
 import sweetgirl.croissant.alarm.enums.ReportNotificationAction;
@@ -49,6 +53,8 @@ import sweetgirl.croissant.menu.repository.MenuAddReportImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuAddReportRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
+import sweetgirl.croissant.report.dto.projection.UserReportMemberCountProjection;
+import sweetgirl.croissant.report.dto.projection.UserReportTargetCountProjection;
 import sweetgirl.croissant.report.entity.ModerationAction;
 import sweetgirl.croissant.report.entity.UserReport;
 import sweetgirl.croissant.report.enums.ModerationTargetType;
@@ -215,6 +221,96 @@ class AdminReportServiceTest {
 		assertThatThrownBy(() -> adminReportService.getReportDetail(1L, "STORE_REPORT"))
 			.isInstanceOf(AdminException.class)
 			.hasMessageContaining(AdminErrorCode.REPORT_INVALID_KIND.getMessage());
+	}
+
+	@Test
+	@DisplayName("UserReport 통계: 신고 상태와 pending 기준 자동 후보 수를 반환한다")
+	void getUserReportStats_returnsCountsAndCandidateStats() {
+		given(userReportRepository.count()).willReturn(10L);
+		given(userReportRepository.countByStatus(UserReportStatus.PENDING)).willReturn(4L);
+		given(userReportRepository.countByStatus(UserReportStatus.ACCEPTED)).willReturn(3L);
+		given(userReportRepository.countByStatus(UserReportStatus.REJECTED)).willReturn(3L);
+		given(userReportRepository.countByCreatedAtGreaterThanEqual(any(LocalDateTime.class))).willReturn(5L);
+		given(userReportRepository.findTargetReporterCountsSince(
+			eq(ReportTargetType.REVIEW), any(LocalDateTime.class), eq(UserReportStatus.PENDING)))
+			.willReturn(List.of(
+				targetCount(ReportTargetType.REVIEW, 101L, 3L),
+				targetCount(ReportTargetType.REVIEW, 102L, 2L)));
+		given(userReportRepository.findSensitiveReasonReporterCounts(
+			anyList(), eq(UserReportStatus.PENDING)))
+			.willReturn(List.of(
+				targetCount(ReportTargetType.REVIEW, 101L, 2L),
+				targetCount(ReportTargetType.MEMBER_PROFILE, 20L, 1L)));
+		given(userReportRepository.findMemberReviewTargetCountsSince(
+			eq(ReportTargetType.REVIEW), any(LocalDateTime.class), eq(UserReportStatus.PENDING)))
+			.willReturn(List.of(
+				memberCount(20L, 3L),
+				memberCount(21L, 2L)));
+
+		AdminUserReportStatsResponse response = adminReportService.getUserReportStats();
+
+		assertThat(response.totalReportCount()).isEqualTo(10);
+		assertThat(response.pendingReportCount()).isEqualTo(4);
+		assertThat(response.last24HoursReportCount()).isEqualTo(5);
+		assertThat(response.pendingReviewHideCandidateCount()).isEqualTo(1);
+		assertThat(response.pendingSensitiveReasonPriorityCount()).isEqualTo(1);
+		assertThat(response.pendingMemberReviewCandidateCount()).isEqualTo(1);
+		assertThat(response.lookbackHours()).isEqualTo(24);
+		assertThat(response.sensitiveReasonTypes()).containsExactly("PRIVACY", "HATE", "SEXUAL");
+	}
+
+	@Test
+	@DisplayName("High-priority 신고 큐: 자동 후보 신고만 우선순위 순서로 반환한다")
+	void getHighPriorityReports_returnsOnlyCandidateReportsOrderedByPriority() {
+		Member reporter = member(10L);
+		Member reportedMember = member(20L);
+		UserReport sensitiveReport = userReport(
+			1L,
+			reporter,
+			reportedMember,
+			ReportTargetType.REVIEW,
+			101L,
+			ReportReasonType.PRIVACY,
+			LocalDateTime.of(2026, 6, 5, 12, 0));
+		UserReport normalReport = userReport(
+			2L,
+			reporter,
+			member(21L),
+			ReportTargetType.REVIEW,
+			102L,
+			ReportReasonType.ABUSE,
+			LocalDateTime.of(2026, 6, 5, 13, 0));
+		given(userReportRepository.findTargetReporterCountsSince(
+			eq(ReportTargetType.REVIEW), any(LocalDateTime.class), eq(UserReportStatus.PENDING)))
+			.willReturn(List.of(
+				targetCount(ReportTargetType.REVIEW, 101L, 3L),
+				targetCount(ReportTargetType.REVIEW, 102L, 1L)));
+		given(userReportRepository.findSensitiveReasonReporterCounts(
+			anyList(), eq(UserReportStatus.PENDING)))
+			.willReturn(List.of(targetCount(ReportTargetType.REVIEW, 101L, 2L)));
+		given(userReportRepository.findMemberReviewTargetCountsSince(
+			eq(ReportTargetType.REVIEW), any(LocalDateTime.class), eq(UserReportStatus.PENDING)))
+			.willReturn(List.of(memberCount(20L, 3L)));
+		given(userReportRepository.findByStatus(UserReportStatus.PENDING))
+			.willReturn(List.of(normalReport, sensitiveReport));
+
+		Page<AdminHighPriorityReportResponse> response = adminReportService.getHighPriorityReports(
+			"PENDING", 0, 20);
+
+		assertThat(response.getTotalElements()).isEqualTo(1);
+		AdminHighPriorityReportResponse report = response.getContent().get(0);
+		assertThat(report.reportId()).isEqualTo(1L);
+		assertThat(report.highPriority()).isTrue();
+		assertThat(report.temporaryHideCandidate()).isTrue();
+		assertThat(report.sensitiveReasonPriority()).isTrue();
+		assertThat(report.memberReviewCandidate()).isTrue();
+		assertThat(report.reviewReportCount24h()).isEqualTo(3);
+		assertThat(report.sensitiveReasonReportCount()).isEqualTo(2);
+		assertThat(report.memberReviewReportCount24h()).isEqualTo(3);
+		assertThat(report.priorityReasons()).containsExactly(
+			"SENSITIVE_REASON_PRIORITY",
+			"TEMPORARY_HIDE_CANDIDATE",
+			"MEMBER_REVIEW_CANDIDATE");
 	}
 
 	@Test
@@ -636,5 +732,69 @@ class AdminReportServiceTest {
 		assertThatThrownBy(() -> adminReportService.reviewReport(1L,
 			new AdminReportReviewRequest("STORE_REPORT", "MAYBE")))
 			.isInstanceOf(AdminException.class);
+	}
+
+	private Member member(Long id) {
+		Member member = mock(Member.class);
+		given(member.getId()).willReturn(id);
+		return member;
+	}
+
+	private UserReport userReport(
+			Long id,
+			Member reporter,
+			Member reportedMember,
+			ReportTargetType targetType,
+			Long targetId,
+			ReportReasonType reasonType,
+			LocalDateTime createdAt) {
+		UserReport report = mock(UserReport.class);
+		given(report.getId()).willReturn(id);
+		given(report.getReporter()).willReturn(reporter);
+		given(report.getReportedMember()).willReturn(reportedMember);
+		given(report.getTargetType()).willReturn(targetType);
+		given(report.getTargetId()).willReturn(targetId);
+		given(report.getReasonType()).willReturn(reasonType);
+		given(report.getReasonDetail()).willReturn("신고 사유");
+		given(report.getStatus()).willReturn(UserReportStatus.PENDING);
+		given(report.getModerationAction()).willReturn(UserReportAction.NONE);
+		given(report.getCreatedAt()).willReturn(createdAt);
+		return report;
+	}
+
+	private UserReportTargetCountProjection targetCount(
+			ReportTargetType targetType,
+			Long targetId,
+			Long reporterCount) {
+		return new UserReportTargetCountProjection() {
+			@Override
+			public ReportTargetType getTargetType() {
+				return targetType;
+			}
+
+			@Override
+			public Long getTargetId() {
+				return targetId;
+			}
+
+			@Override
+			public Long getReporterCount() {
+				return reporterCount;
+			}
+		};
+	}
+
+	private UserReportMemberCountProjection memberCount(Long reportedMemberId, Long reviewTargetCount) {
+		return new UserReportMemberCountProjection() {
+			@Override
+			public Long getReportedMemberId() {
+				return reportedMemberId;
+			}
+
+			@Override
+			public Long getReviewTargetCount() {
+				return reviewTargetCount;
+			}
+		};
 	}
 }
