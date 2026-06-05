@@ -33,6 +33,24 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 			JOIN FETCH r.menu m
 			JOIN FETCH m.store
 			WHERE r.id = :reviewId
+				AND r.deletedAt IS NULL
+				AND r.hiddenAt IS NULL
+				AND (:viewerMemberId IS NULL OR NOT EXISTS (
+					SELECT 1 FROM MemberBlock mb
+					WHERE mb.blocker.id = :viewerMemberId
+						AND mb.blockedMember.id = r.member.id
+				))
+			""")
+	Optional<Review> findVisibleActiveByIdWithDetails(
+			@Param("reviewId") Long reviewId,
+			@Param("viewerMemberId") Long viewerMemberId);
+
+	@Query("""
+			SELECT r FROM Review r
+			JOIN FETCH r.member
+			JOIN FETCH r.menu m
+			JOIN FETCH m.store
+			WHERE r.id = :reviewId
 			""")
 	Optional<Review> findByIdWithDetails(@Param("reviewId") Long reviewId);
 
@@ -55,16 +73,30 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 			WHERE r.menu.id = :menuId
 				AND r.deletedAt IS NULL
 				AND r.hiddenAt IS NULL
+				AND (:viewerMemberId IS NULL OR NOT EXISTS (
+					SELECT 1 FROM MemberBlock mb
+					WHERE mb.blocker.id = :viewerMemberId
+						AND mb.blockedMember.id = r.member.id
+				))
 			""")
-	long countActiveByMenuId(@Param("menuId") Long menuId);
+	long countVisibleActiveByMenuId(
+			@Param("menuId") Long menuId,
+			@Param("viewerMemberId") Long viewerMemberId);
 
 	@Query("""
 			SELECT r.rating FROM Review r
 			WHERE r.menu.id = :menuId
 				AND r.deletedAt IS NULL
 				AND r.hiddenAt IS NULL
+				AND (:viewerMemberId IS NULL OR NOT EXISTS (
+					SELECT 1 FROM MemberBlock mb
+					WHERE mb.blocker.id = :viewerMemberId
+						AND mb.blockedMember.id = r.member.id
+				))
 			""")
-	List<BigDecimal> findActiveRatingsByMenuId(@Param("menuId") Long menuId);
+	List<BigDecimal> findVisibleActiveRatingsByMenuId(
+			@Param("menuId") Long menuId,
+			@Param("viewerMemberId") Long viewerMemberId);
 
 	@Query("""
 			SELECT r FROM Review r
@@ -76,11 +108,17 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 					SELECT 1 FROM ReviewImageFile image
 					WHERE image.review = r
 				))
+				AND (:viewerMemberId IS NULL OR NOT EXISTS (
+					SELECT 1 FROM MemberBlock mb
+					WHERE mb.blocker.id = :viewerMemberId
+						AND mb.blockedMember.id = r.member.id
+				))
 			ORDER BY r.createdAt DESC, r.id DESC
 			""")
-	List<Review> findActiveReviewsOrderByRecent(
+	List<Review> findVisibleActiveReviewsOrderByRecent(
 			@Param("menuId") Long menuId,
 			@Param("photoOnly") boolean photoOnly,
+			@Param("viewerMemberId") Long viewerMemberId,
 			Pageable pageable);
 
 	@Query("""
@@ -93,11 +131,17 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 					SELECT 1 FROM ReviewImageFile image
 					WHERE image.review = r
 				))
+				AND (:viewerMemberId IS NULL OR NOT EXISTS (
+					SELECT 1 FROM MemberBlock mb
+					WHERE mb.blocker.id = :viewerMemberId
+						AND mb.blockedMember.id = r.member.id
+				))
 			ORDER BY r.likeCount DESC, r.createdAt DESC, r.id DESC
 			""")
-	List<Review> findActiveReviewsOrderByLiked(
+	List<Review> findVisibleActiveReviewsOrderByLiked(
 			@Param("menuId") Long menuId,
 			@Param("photoOnly") boolean photoOnly,
+			@Param("viewerMemberId") Long viewerMemberId,
 			Pageable pageable);
 
 	@Query("""
