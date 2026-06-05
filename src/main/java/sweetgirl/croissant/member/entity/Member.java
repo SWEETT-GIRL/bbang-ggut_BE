@@ -7,7 +7,6 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.GeneratedValue;
@@ -18,7 +17,6 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import sweetgirl.croissant.global.encrypt.EncryptedStringConverter;
 
 @Entity
 @Table(name = "member")
@@ -31,8 +29,7 @@ public class Member {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	@Convert(converter = EncryptedStringConverter.class)
-	@Column(nullable = false, length = 255)
+	@Column(nullable = false, length = 100)
 	private String nickname;
 
 	@Column
