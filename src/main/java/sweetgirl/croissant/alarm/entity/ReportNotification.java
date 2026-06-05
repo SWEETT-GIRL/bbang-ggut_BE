@@ -43,6 +43,9 @@ public class ReportNotification {
 	@Column(name = "report_id", nullable = false)
 	private Long reportId;
 
+	@Column(name = "moderation_action_id")
+	private Long moderationActionId;
+
 	@Enumerated(EnumType.STRING)
 	@Column(name = "report_kind", nullable = false, length = 30)
 	private ReportKind reportKind;
@@ -65,10 +68,11 @@ public class ReportNotification {
 
 	@Builder
 	public ReportNotification(Member member, Store store, Long reportId, ReportKind reportKind,
-			ReportNotificationAction action, String title, String message) {
+			Long moderationActionId, ReportNotificationAction action, String title, String message) {
 		this.member = member;
 		this.store = store;
 		this.reportId = reportId;
+		this.moderationActionId = moderationActionId;
 		this.reportKind = reportKind;
 		this.action = action;
 		this.title = title;

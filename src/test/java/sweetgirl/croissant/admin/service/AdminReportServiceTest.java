@@ -247,6 +247,8 @@ class AdminReportServiceTest {
 			&& action.getMember() == reportedMember
 			&& action.getAction() == UserReportAction.HIDE_REVIEW
 			&& action.getReason().equals("욕설 포함")));
+		verify(reportNotificationService).notifyModerationAction(argThat(action -> action.getReport() == report
+			&& action.getAction() == UserReportAction.HIDE_REVIEW));
 	}
 
 	@Test
@@ -274,6 +276,7 @@ class AdminReportServiceTest {
 		verify(review).softDelete();
 		verify(review, never()).hide(anyString(), any());
 		verify(report).applyModerationAction(UserReportAction.DELETE_REVIEW);
+		verify(reportNotificationService, never()).notifyModerationAction(any());
 	}
 
 	@Test
@@ -563,31 +566,33 @@ class AdminReportServiceTest {
 	}
 
 	@Test
-	@DisplayName("UserReport ACCEPT: 신고 상태만 승인 처리하고 제보 알림은 발송하지 않는다")
-	void userReport_accept_updatesStatusOnly() {
+	@DisplayName("UserReport ACCEPT: 신고 상태를 승인 처리하고 신고자에게 결과 알림을 발송한다")
+	void userReport_accept_updatesStatusAndNotifiesReporter() {
 		UserReport report = mock(UserReport.class);
 		given(report.getStatus()).willReturn(UserReportStatus.PENDING);
-		given(userReportRepository.findById(31L)).willReturn(Optional.of(report));
+		given(userReportRepository.findByIdWithMembers(31L)).willReturn(Optional.of(report));
 
 		adminReportService.reviewReport(31L, new AdminReportReviewRequest("USER_REPORT", "ACCEPT"));
 
 		verify(report).accept();
 		verify(report, never()).reject();
+		verify(reportNotificationService).notifyUserReportResult(report);
 		verify(reportNotificationService, never()).notifyReportResult(
 			any(), any(), any(), any(), any(), anyString());
 	}
 
 	@Test
-	@DisplayName("UserReport REJECT: 신고 상태만 거절 처리하고 제보 알림은 발송하지 않는다")
-	void userReport_reject_updatesStatusOnly() {
+	@DisplayName("UserReport REJECT: 신고 상태를 거절 처리하고 신고자에게 결과 알림을 발송한다")
+	void userReport_reject_updatesStatusAndNotifiesReporter() {
 		UserReport report = mock(UserReport.class);
 		given(report.getStatus()).willReturn(UserReportStatus.PENDING);
-		given(userReportRepository.findById(32L)).willReturn(Optional.of(report));
+		given(userReportRepository.findByIdWithMembers(32L)).willReturn(Optional.of(report));
 
 		adminReportService.reviewReport(32L, new AdminReportReviewRequest("USER_REPORT", "REJECT"));
 
 		verify(report).reject();
 		verify(report, never()).accept();
+		verify(reportNotificationService).notifyUserReportResult(report);
 		verify(reportNotificationService, never()).notifyReportResult(
 			any(), any(), any(), any(), any(), anyString());
 	}
