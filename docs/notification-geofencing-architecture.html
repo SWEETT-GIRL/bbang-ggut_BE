@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>빵긋 — Geofencing & PostGIS 아키텍처</title>
+<style>
+  :root {
+    --bg: #faf7f2; --card: #ffffff; --ink: #2b2520; --muted: #7a6f63;
+    --brand: #c87b3a; --brand-soft: #f4e4d4; --line: #e7ddd0; --accent: #3a7ca5;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", Segoe UI, Roboto, sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.7; -webkit-font-smoothing: antialiased;
+  }
+  .layout { display: flex; max-width: 1280px; margin: 0 auto; }
+  nav.toc {
+    position: sticky; top: 0; align-self: flex-start; width: 230px; height: 100vh;
+    overflow-y: auto; padding: 28px 18px; border-right: 1px solid var(--line); font-size: 13.5px; flex-shrink: 0;
+  }
+  nav.toc .logo { font-weight: 800; font-size: 17px; color: var(--brand); margin-bottom: 4px; }
+  nav.toc .sub { color: var(--muted); font-size: 12px; margin-bottom: 20px; }
+  nav.toc a { display: block; color: var(--muted); text-decoration: none; padding: 6px 10px; border-radius: 7px; margin-bottom: 2px; }
+  nav.toc a:hover { background: var(--brand-soft); color: var(--ink); }
+  nav.toc a.star { color: var(--brand); font-weight: 700; }
+  main { flex: 1; min-width: 0; padding: 40px 48px 120px; }
+  header.hero {
+    background: linear-gradient(135deg, #c87b3a 0%, #e0a05a 100%); color: #fff;
+    border-radius: 18px; padding: 38px 40px; margin-bottom: 36px; box-shadow: 0 10px 30px rgba(200,123,58,0.25);
+  }
+  header.hero h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: -0.5px; }
+  header.hero p { margin: 4px 0; opacity: 0.95; font-size: 14.5px; }
+  header.hero .tags { margin-top: 16px; }
+  header.hero .tags span { display: inline-block; background: rgba(255,255,255,0.22); padding: 4px 12px; border-radius: 20px; font-size: 12.5px; margin: 4px 6px 0 0; }
+  section { margin-bottom: 44px; scroll-margin-top: 20px; }
+  h2 { font-size: 22px; margin: 0 0 16px; padding-bottom: 10px; border-bottom: 2px solid var(--brand-soft); letter-spacing: -0.3px; }
+  h2 .num { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; background: var(--brand); color: #fff; border-radius: 8px; font-size: 15px; margin-right: 12px; vertical-align: middle; }
+  h3 { font-size: 16px; margin: 24px 0 10px; color: var(--brand); }
+  p, li { font-size: 14.5px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; margin: 16px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
+  .mermaid { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 24px; margin: 18px 0; text-align: center; overflow-x: auto; }
+  .callout { background: var(--brand-soft); border-left: 4px solid var(--brand); padding: 14px 18px; border-radius: 0 10px 10px 0; margin: 16px 0; font-size: 14px; }
+  .callout.blue { background: #e3eef5; border-left-color: var(--accent); }
+  .callout.warn { background: #fbe9e4; border-left-color: #d2603f; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13.5px; background: var(--card); border-radius: 10px; overflow: hidden; }
+  th { background: var(--brand-soft); text-align: left; padding: 11px 14px; font-weight: 700; }
+  td { padding: 10px 14px; border-top: 1px solid var(--line); vertical-align: top; }
+  tr:hover td { background: #fdfaf6; }
+  code { background: #f0e9df; padding: 2px 6px; border-radius: 5px; font-size: 12.5px; font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace; color: #9c5a26; }
+  pre { background: #2b2520; color: #f3ece2; border-radius: 12px; padding: 18px 20px; overflow-x: auto; font-size: 12.8px; line-height: 1.6; margin: 16px 0; }
+  pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+  pre .kw { color: #e0a05a; font-weight: 600; }
+  pre .fn { color: #7fc8e8; }
+  pre .cm { color: #8a9b7a; font-style: italic; }
+  pre .st { color: #d99a8a; }
+  ol, ul { padding-left: 22px; }
+  li { margin-bottom: 6px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+  .pt { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .pt h4 { margin: 0 0 6px; font-size: 14.5px; color: var(--brand); }
+  .pt p { margin: 0; font-size: 13px; color: var(--muted); }
+  .badge { display: inline-block; background: var(--accent); color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 6px; margin-left: 6px; }
+  .fill { border: 2px dashed var(--brand); background: #fff8f1; }
+  footer { color: var(--muted); font-size: 12.5px; text-align: center; padding-top: 30px; border-top: 1px solid var(--line); }
+  @media (max-width: 880px) { nav.toc { display: none; } main { padding: 24px 18px 80px; } }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="toc">
+    <div class="logo">🥐 빵긋</div>
+    <div class="sub">Geofencing &amp; PostGIS</div>
+    <a href="#why">1. 왜 이벤트 기반인가</a>
+    <a href="#e2e">2. 지오펜스 알림 E2E</a>
+    <a href="#postgis" class="star">3. ⭐ PostGIS 깊이 보기</a>
+    <a href="#gate">4. 검증 게이트 + Lock</a>
+    <a href="#fe">5. FE 등록 전략 (pivot)</a>
+    <a href="#dedup">6. 다단계 중복 제거</a>
+    <a href="#points">7. 설계 포인트 요약</a>
+    <a href="#files">8. 주요 파일</a>
+    <a href="#role">9. 내가 맡은 역할</a>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <h1>Geofencing &amp; PostGIS 아키텍처</h1>
+      <p>빵긋(Bbang-ggut) — "근처 빵집 알림"의 위치 기반 지오펜스 + 공간 쿼리 중심</p>
+      <div class="tags">
+        <span>PostgreSQL + PostGIS</span><span>geography(Point, 4326)</span>
+        <span>ST_DWithin / ST_Distance</span><span>Spring Boot · JTS</span>
+        <span>Expo · expo-location</span><span>OS 네이티브 지오펜스</span>
+      </div>
+    </header>
+
+    <!-- 1 -->
+    <section id="why">
+      <h2><span class="num">1</span>핵심 설계: 왜 이벤트 기반 지오펜스인가</h2>
+      <p>서버가 사용자 위치를 주기적으로 폴링하지 않는다. <b>OS 네이티브 지오펜스</b>가 "진입(enter)"을 감지하면 앱이 서버에 보고하고, 서버는 <b>PostGIS로 거리를 재검증</b>한 뒤 푸시를 보낸다.</p>
+      <div class="mermaid">
+flowchart LR
+    subgraph Device["📱 디바이스 (Expo)"]
+        OS["OS 지오펜스 매니저<br/>iOS CLRegion / Android Geofence"]
+        GT["geofenceTask (BG)"]
+        RG["refreshGeofences<br/>후보 등록·갱신"]
+    end
+    subgraph BE["☁️ 백엔드"]
+        AC["AlarmController"]
+        AS["AlarmService<br/>검증 게이트"]
+    end
+    subgraph PG["🗄️ PostgreSQL + PostGIS"]
+        STORE["store.location<br/>geography(Point, 4326)"]
+        IDX["GiST 공간 인덱스"]
+    end
+    OS -- "enter" --> GT
+    GT -- "POST /alarm/geofence/enter" --> AC
+    RG -- "GET /alarm/geofence-candidates" --> AC
+    AC --> AS
+    AS -- "ST_DWithin / ST_Distance" --> PG
+    STORE --- IDX
+    AS -- "검증 통과 시" --> FCM["🔥 FCM"]
+    FCM --> Device
+      </div>
+      <table>
+        <tr><th>비교</th><th>서버 폴링 방식</th><th>이벤트 기반 지오펜스 (채택)</th></tr>
+        <tr><td>위치 수집</td><td>앱/서버가 주기적 GPS</td><td>OS가 region 경계 감지 시에만</td></tr>
+        <tr><td>배터리</td><td>높음</td><td>낮음 (OS 최적화 위임)</td></tr>
+        <tr><td>서버 부하</td><td>상시 위치 수신</td><td>진입 시점에만 요청</td></tr>
+        <tr><td>신뢰성</td><td>클라 좌표 신뢰</td><td><b>서버가 PostGIS로 재검증</b></td></tr>
+      </table>
+    </section>
+
+    <!-- 2 -->
+    <section id="e2e">
+      <h2><span class="num">2</span>지오펜스 알림 — End-to-End</h2>
+      <div class="mermaid">
+sequenceDiagram
+    autonumber
+    participant OS as 📱 OS 지오펜스
+    participant App as geofenceTask (BG)
+    participant API as AlarmController
+    participant Svc as AlarmService
+    participant PG as PostGIS
+    participant FCM as Firebase
+    OS->>App: region enter (identifier=storeId)
+    App->>App: ① FE 60초 dedup<br/>in-memory + SecureStore
+    App->>API: POST /alarm/geofence/enter<br/>{storeId, lat, lng, occurredAt}
+    API->>Svc: handleGeofenceEnter(memberId, req)
+    Svc->>Svc: ② 알림 차단 검사<br/>전역/시간대/요일
+    Svc->>PG: ③ existsSubscribedStoreWithinRadius<br/>ST_DWithin(설정 반경)
+    Note over PG: 구독 여부 + 거리 재검증<br/>위치 위변조 방어
+    Svc->>PG: ④ pg_try_advisory_xact_lock(key)
+    Note over Svc: iOS 중복 enter 직렬화
+    Svc->>PG: ⑤ 오늘 이미 발송?<br/>일일 중복 차단
+    Svc->>FCM: ⑥ 활성 토큰 발송 + 이력 저장
+    FCM-->>App: 푸시 표시
+      </div>
+    </section>
+
+    <!-- 3 -->
+    <section id="postgis">
+      <h2><span class="num">3</span>PostGIS 깊이 보기 ⭐</h2>
+
+      <h3>3-1. 위치 컬럼 — geography(Point, 4326)</h3>
+<pre><code><span class="cm">// Store.java</span>
+<span class="kw">@Column</span>(nullable = <span class="kw">false</span>, columnDefinition = <span class="st">"geography(Point, 4326)"</span>)
+<span class="kw">private</span> Point location;   <span class="cm">// org.locationtech.jts.geom.Point (JTS)</span></code></pre>
+      <ul>
+        <li><b><code>geography</code></b> 타입: 위경도를 지구 타원체 위 좌표로 보고 <b>거리 계산이 자동으로 미터(m) 단위</b>. 지구 곡률을 반영해 정확.
+          <br/><span style="color:var(--muted);font-size:13px">↔ <code>geometry</code>는 평면 좌표라 거리가 "도(degree)" 단위 → 미터 변환 별도 필요.</span></li>
+        <li><b><code>Point</code></b>: 단일 좌표점. <b><code>4326</code></b> = WGS84(GPS 표준) SRID.</li>
+        <li>ORM: Hibernate Spatial + JTS(<code>org.locationtech.jts</code>) 매핑.</li>
+      </ul>
+
+      <h3>3-2. 쿼리 ① — 지오펜스 후보 (반경 3km 내 구독 가게, 거리순 20개)</h3>
+<pre><code><span class="kw">SELECT</span>
+  s.id   <span class="kw">AS</span> <span class="st">"storeId"</span>,
+  s.name <span class="kw">AS</span> <span class="st">"storeName"</span>,
+  <span class="fn">ST_Y</span>(s.location::geometry) <span class="kw">AS</span> <span class="st">"latitude"</span>,    <span class="cm">-- 위도 추출</span>
+  <span class="fn">ST_X</span>(s.location::geometry) <span class="kw">AS</span> <span class="st">"longitude"</span>,   <span class="cm">-- 경도 추출</span>
+  <span class="fn">ST_Distance</span>(                                  <span class="cm">-- 실제 거리(m) → 정렬용</span>
+    s.location,
+    <span class="fn">ST_SetSRID</span>(<span class="fn">ST_MakePoint</span>(:lng, :lat), <span class="st">4326</span>)::geography
+  ) <span class="kw">AS</span> <span class="st">"distanceMeters"</span>
+<span class="kw">FROM</span> subscribed_store ss
+<span class="kw">JOIN</span> store s <span class="kw">ON</span> ss.store_id = s.id
+<span class="kw">WHERE</span> ss.member_id = :memberId
+  <span class="kw">AND</span> s.status = <span class="st">'ACTIVE'</span>
+  <span class="kw">AND</span> <span class="fn">ST_DWithin</span>(                               <span class="cm">-- 반경 필터 (인덱스 사용)</span>
+        s.location,
+        <span class="fn">ST_SetSRID</span>(<span class="fn">ST_MakePoint</span>(:lng, :lat), <span class="st">4326</span>)::geography,
+        :candidateRadius                        <span class="cm">-- 3000.0 (m)</span>
+      )
+<span class="kw">ORDER BY</span> <span class="st">"distanceMeters"</span> <span class="kw">ASC</span>
+<span class="kw">LIMIT</span> <span class="st">20</span>;</code></pre>
+
+      <h3>3-3. 쿼리 ② — 진입 검증 (구독 + 반경 내인지 재검증)</h3>
+      <p>enter 보고가 오면 그 가게가 <b>내 구독 가게이고</b> 요청 좌표가 <b>설정 반경 안</b>인지 확인. 클라 좌표를 신뢰하지 않는 위변조 방어선.</p>
+<pre><code><span class="kw">SELECT EXISTS</span> (
+  <span class="kw">SELECT</span> <span class="st">1</span>
+  <span class="kw">FROM</span> subscribed_store ss
+  <span class="kw">JOIN</span> store s <span class="kw">ON</span> ss.store_id = s.id
+  <span class="kw">WHERE</span> ss.member_id = :memberId
+    <span class="kw">AND</span> s.id = :storeId
+    <span class="kw">AND</span> s.status = <span class="st">'ACTIVE'</span>
+    <span class="kw">AND</span> <span class="fn">ST_DWithin</span>(
+          s.location,
+          <span class="fn">ST_SetSRID</span>(<span class="fn">ST_MakePoint</span>(:lng, :lat), <span class="st">4326</span>)::geography,
+          :radius            <span class="cm">-- 사용자 설정 반경 (R100~R1000)</span>
+        )
+);</code></pre>
+
+      <h3>3-4. PostGIS 함수 정리 + 자주 하는 실수</h3>
+      <table>
+        <tr><th>함수</th><th>역할</th><th>주의점</th></tr>
+        <tr><td><code>ST_MakePoint(lng, lat)</code></td><td>좌표점 생성</td><td>⚠️ <b>경도(X), 위도(Y) 순서</b> — <code>lat, lng</code>로 넣으면 엉뚱한 위치</td></tr>
+        <tr><td><code>ST_SetSRID(p, 4326)</code></td><td>좌표계 지정</td><td>지정 후 <code>::geography</code> 캐스팅해야 미터 단위 연산</td></tr>
+        <tr><td><code>ST_DWithin(a, b, d)</code></td><td>a~b 거리 ≤ d ?</td><td>geography면 d는 <b>미터</b>. <b>GiST 인덱스를 타서 빠름</b></td></tr>
+        <tr><td><code>ST_Distance(a, b)</code></td><td>실제 거리(m)</td><td>필터는 <code>ST_DWithin</code>, 정렬·표시는 <code>ST_Distance</code></td></tr>
+        <tr><td><code>ST_X / ST_Y</code></td><td>경도 / 위도 추출</td><td>geography엔 직접 불가 → <code>::geometry</code> 캐스팅 후</td></tr>
+      </table>
+      <div class="callout"><b>설계 의도:</b> 필터링은 인덱스를 타는 <code>ST_DWithin</code>으로 후보를 좁히고, 좁혀진 행에만 <code>ST_Distance</code>로 실제 거리를 계산해 정렬한다. 전체 테이블에 <code>ST_Distance</code>를 돌리는 것보다 훨씬 효율적.</div>
+      <div class="mermaid">
+flowchart LR
+    A["요청 좌표<br/>(lat, lng)"] --> B["ST_MakePoint(lng, lat)"]
+    B --> C["ST_SetSRID(_, 4326)"]
+    C --> D["::geography 캐스팅"]
+    D --> E{"ST_DWithin<br/>반경 필터<br/>GiST 인덱스"}
+    E -->|후보 행| F["ST_Distance<br/>실제 거리 계산"]
+    F --> G["거리순 정렬<br/>LIMIT 20"]
+      </div>
+    </section>
+
+    <!-- 4 -->
+    <section id="gate">
+      <h2><span class="num">4</span>서버측 검증 게이트 + Advisory Lock</h2>
+      <p><code>handleGeofenceEnter</code>는 여러 관문을 통과해야만 푸시를 보낸다.</p>
+      <div class="mermaid">
+flowchart TD
+    A["POST /alarm/geofence/enter"] --> B{알림 전역 ON?}
+    B -- No --> SKIP["silent skip"]
+    B -- Yes --> C{설정 시간대 내?}
+    C -- No --> SKIP
+    C -- Yes --> D{설정 요일 포함?}
+    D -- No --> SKIP
+    D -- Yes --> E{"PostGIS ST_DWithin<br/>구독 + 반경 내?"}
+    E -- No --> ERR["GEOFENCE_NOT_SUBSCRIBED 예외"]
+    E -- Yes --> F{advisory lock<br/>획득 성공?}
+    F -- No --> SKIP
+    F -- Yes --> G{오늘 이 가게 미발송?}
+    G -- No --> SKIP
+    G -- Yes --> H["FCM 발송 + 이력 저장"]
+      </div>
+
+      <h3>Advisory Lock — 동시성 제어</h3>
+      <p>iOS region monitoring은 같은 enter를 <b>2~5회</b> 짧은 간격으로 발화한다. 동시에 서버에 도달하면 중복 푸시가 나갈 수 있어 <code>(memberId, storeId)</code> 단위로 트랜잭션 락을 건다.</p>
+<pre><code><span class="cm">// 두 ID를 64bit 키 하나로 결합</span>
+<span class="kw">long</span> lockKey = (memberId &lt;&lt; <span class="st">32</span>) | (store.getId() &amp; <span class="st">0xFFFFFFFFL</span>);
+<span class="kw">if</span> (!storeNotificationRepository.<span class="fn">tryAdvisoryXactLock</span>(lockKey)) {
+    <span class="kw">return</span>; <span class="cm">// 다른 트랜잭션이 같은 키 처리 중 → silent skip</span>
+}</code></pre>
+<pre><code><span class="kw">SELECT</span> <span class="fn">pg_try_advisory_xact_lock</span>(:key)   <span class="cm">-- non-blocking, 트랜잭션 종료 시 자동 해제</span></code></pre>
+      <ul>
+        <li><b><code>pg_try_advisory_xact_lock</code></b>: 즉시 시도(non-blocking). 이미 잠겨 있으면 <code>false</code> → 대기 없이 skip.</li>
+        <li><b><code>_xact_</code></b>: 트랜잭션 스코프 → 커밋/롤백 시 자동 해제 (명시적 unlock 불필요).</li>
+        <li>테이블 락이 아닌 <b>애플리케이션 레벨 논리 락</b>이라 가볍다.</li>
+      </ul>
+    </section>
+
+    <!-- 5 -->
+    <section id="fe">
+      <h2><span class="num">5</span>FE 지오펜스 등록 전략 (iOS 20-region 한계)</h2>
+      <div class="callout blue">iOS는 동시에 모니터링 가능한 region이 <b>하드 리밋 20개</b>. 그래서 <b>가까운 19개 가게 + pivot region 1개</b> 전략을 쓴다.</div>
+      <div class="mermaid">
+flowchart TD
+    Trigger["앱 시작 / 설정 변경 / ~500m·5분<br/>locationRefreshTask"] --> RG["refreshGeofencesFromBackground(lat, lng)"]
+    RG -->|"GET /alarm/geofence-candidates"| BE["BE: 3km 내 구독 가게<br/>거리순 + 설정 반경"]
+    BE --> Slice["가까운 19개 선택<br/>MAX_STORE_REGIONS"]
+    Slice --> Over{후보 > 19?}
+    Over -- Yes --> Pivot["pivot region 추가<br/>radius = max(최원거리×1.1, 500m)<br/>notifyOnExit=true"]
+    Over -- No --> Reg["가게 region만"]
+    Pivot --> Start["startGeofencingAsync(regions)"]
+    Reg --> Start
+    PivotExit["사용자가 pivot 밖으로 이동"] -.exit.-> Trigger
+      </div>
+      <ul>
+        <li><b>pivot region</b>: 사용자를 둘러싼 큰 원. <b>enter 알림용이 아니라 exit 트리거 전용</b> (<code>notifyOnEnter:false, notifyOnExit:true</code>). 벗어나면 새 위치 기준으로 region 목록을 다시 짠다 (Apple 공식 샘플 패턴).</li>
+        <li>pivot 반경: 가장 먼 가게까지 거리 × 1.1, 최소 500m (haversine 계산).</li>
+      </ul>
+      <div class="callout warn">
+        <b>⚠️ 트러블슈팅 — PAC trap 크래시</b><br/>
+        geofence 콜백 <b>안에서</b> <code>startGeofencingAsync()</code>를 호출하면 <code>EXTaskService</code>가 실행 중인 자기 자신을 재등록하며 <b>use-after-free → PAC trap 크래시</b> 발생.
+        <br/><b>해결:</b> region 갱신을 enter 콜백에서 분리해 별도 <code>locationRefreshTask</code>(500m/5분)에 위임. enter 콜백은 "보고"만, region 재등록은 "위치 갱신 태스크"만 담당하도록 <b>책임 분리</b>.
+      </div>
+    </section>
+
+    <!-- 6 -->
+    <section id="dedup">
+      <h2><span class="num">6</span>다단계 중복 제거 (3중 방어)</h2>
+      <div class="mermaid">
+flowchart LR
+    OS["iOS enter ×2~5"] --> L1["1차: FE 60초 dedup<br/>in-memory Map + SecureStore"]
+    L1 --> L2["2차: BE advisory lock<br/>(memberId, storeId) 직렬화"]
+    L2 --> L3["3차: 일일 중복 차단<br/>가게당 1일 1회"]
+    L3 --> Send["FCM 발송"]
+      </div>
+      <table>
+        <tr><th>층</th><th>위치</th><th>방어 대상</th></tr>
+        <tr><td>1차</td><td>FE <code>geofenceTask</code></td><td>같은 프로세스 즉시 중복 + cold-start 후 중복 (60s TTL)</td></tr>
+        <tr><td>2차</td><td>BE advisory lock</td><td>서버에 <b>동시 도달</b>하는 요청(경쟁 조건) 직렬화</td></tr>
+        <tr><td>3차</td><td>BE 일일 중복</td><td>시간차 재진입 시 같은 가게 하루 1회로 제한</td></tr>
+      </table>
+      <div class="callout">SecureStore 실패 등으로 FE dedup이 새도 BE 2·3차가 받쳐준다 (방어선 다중화).</div>
+    </section>
+
+    <!-- 7 -->
+    <section id="points">
+      <h2><span class="num">7</span>핵심 설계 포인트 요약</h2>
+      <div class="grid">
+        <div class="pt"><h4>① geography(Point,4326)</h4><p>위경도 → 미터 단위 거리. 지구 곡률 반영.</p></div>
+        <div class="pt"><h4>② ST_DWithin + ST_Distance 분리</h4><p>인덱스 타는 반경 필터로 좁히고, 좁혀진 행만 거리 정렬.</p></div>
+        <div class="pt"><h4>③ 위치 위변조 방어</h4><p>클라 좌표 불신 — 서버가 ST_DWithin으로 반경 재검증.</p></div>
+        <div class="pt"><h4>④ advisory xact lock</h4><p>iOS 중복 enter를 (member,store) 단위로 직렬화.</p></div>
+        <div class="pt"><h4>⑤ pivot region</h4><p>iOS 20-region 한계를 exit 트리거로 우회.</p></div>
+        <div class="pt"><h4>⑥ PAC trap 회피</h4><p>콜백 내 재등록 금지 — 책임 분리로 크래시 해결.</p></div>
+      </div>
+      <h3>마인드맵</h3>
+      <div class="mermaid">
+mindmap
+  root((Geofence + PostGIS))
+    PostGIS
+      geography Point 4326 미터단위
+      ST_DWithin 인덱스 반경필터
+      ST_Distance 거리정렬
+      ST_MakePoint lng lat 순서주의
+      geometry geography 캐스팅
+    위치 신뢰성
+      서버측 ST_DWithin 재검증
+      클라 좌표 위변조 방어
+    동시성 중복
+      FE 60초 dedup
+      BE advisory xact lock
+      일일 중복 차단
+    FE 전략
+      iOS 20 region 한계
+      pivot region exit 트리거
+      PAC trap 회피 책임분리
+    성능 배터리
+      이벤트 기반 서버폴링X
+      OS 네이티브 지오펜스
+      deferred 위치 업데이트
+      </div>
+    </section>
+
+    <!-- 8 -->
+    <section id="files">
+      <h2><span class="num">8</span>주요 파일 레퍼런스</h2>
+      <h3>백엔드 <span class="badge">bbang-ggut_BE</span></h3>
+      <table>
+        <tr><th>파일</th><th>핵심</th></tr>
+        <tr><td><code>store/entity/Store.java</code></td><td><code>geography(Point, 4326)</code> location 컬럼 (JTS Point)</td></tr>
+        <tr><td><code>store/repository/SubscribedStoreRepository.java</code></td><td><b><code>findGeofenceCandidates</code></b>(ST_DWithin/ST_Distance), <b><code>existsSubscribedStoreWithinRadius</code></b></td></tr>
+        <tr><td><code>alarm/service/AlarmService.java</code></td><td><code>handleGeofenceEnter</code>(검증 게이트), <code>getGeofenceCandidates</code>, advisory lock</td></tr>
+        <tr><td><code>alarm/repository/StoreNotificationRepository.java</code></td><td><code>tryAdvisoryXactLock</code>, 일일 중복 체크</td></tr>
+        <tr><td><code>member/enums/NotificationRadius.java</code></td><td>R100~R1000 반경 단계</td></tr>
+      </table>
+      <h3>프론트엔드 <span class="badge">bbang-ggut_FE/bbanggut</span></h3>
+      <table>
+        <tr><th>파일</th><th>핵심</th></tr>
+        <tr><td><code>src/tasks/geofenceTask.ts</code></td><td>OS enter 핸들러 + 60초 dedup, PAC trap 회피</td></tr>
+        <tr><td><code>src/tasks/refreshGeofences.ts</code></td><td>후보 fetch + region 등록, <b>pivot region 로직(haversine)</b></td></tr>
+        <tr><td><code>src/tasks/locationRefreshTask.ts</code></td><td>저전력 위치 폴링 → region 갱신 트리거</td></tr>
+        <tr><td><code>src/utils/alarmSetup.ts</code></td><td>지오펜싱 시작/중지, 권한, 백그라운드 위치</td></tr>
+      </table>
+    </section>
+
+    <!-- 9 -->
+    <section id="role">
+      <h2><span class="num">9</span>내가 맡은 역할 <span style="font-size:13px;color:var(--muted)">(발표용 — 직접 채우기)</span></h2>
+      <div class="card fill">
+        <p><b>담당 영역:</b> (예: 백엔드 지오펜스 + PostGIS 공간 쿼리 설계)</p>
+        <p><b>설계 기여:</b></p>
+        <ul>
+          <li>PostGIS <code>geography(Point,4326)</code> 기반 반경 검색 — <code>ST_DWithin</code>(인덱스 필터) + <code>ST_Distance</code>(정렬) 분리로 성능 확보</li>
+          <li>클라 좌표 위변조 방어용 서버측 거리 재검증 게이트</li>
+          <li><code>pg_try_advisory_xact_lock</code>으로 iOS 중복 enter 동시성 제어</li>
+        </ul>
+        <p><b>트러블슈팅:</b></p>
+        <ul>
+          <li>iOS enter 2~5회 중복 → FE 60초 dedup + BE advisory lock + 일일 중복 3중 방어</li>
+          <li>(FE) geofence 콜백 내 재등록 → PAC trap 크래시 → 책임 분리로 해결</li>
+        </ul>
+        <p><b>결과:</b> 서버 폴링 없이 이벤트 기반 동작, 인덱스 기반 공간 쿼리로 빠른 반경 검색</p>
+      </div>
+    </section>
+
+    <footer>빵긋(Bbang-ggut) · Geofencing &amp; PostGIS 아키텍처 · 코드 분석 기반 자동 생성</footer>
+  </main>
+</div>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: "base",
+    themeVariables: {
+      primaryColor: "#f4e4d4", primaryTextColor: "#2b2520", primaryBorderColor: "#c87b3a",
+      lineColor: "#a8927c", secondaryColor: "#e3eef5", tertiaryColor: "#fbf7f1",
+      fontFamily: "-apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif", fontSize: "14px"
+    },
+    flowchart: { curve: "basis", htmlLabels: true },
+    sequence: { useMaxWidth: true }
+  });
+</script>
+</body>
+</html>

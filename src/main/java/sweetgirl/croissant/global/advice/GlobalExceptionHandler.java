@@ -5,8 +5,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import jakarta.persistence.EntityNotFoundException;
@@ -44,6 +46,14 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(HttpMessageNotReadableException.class)
 	public ResponseEntity<ApiResponse<?>> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex) {
 		log.warn("[HttpMessageNotReadableException] {}", ex.getMessage());
+		return ResponseEntity
+			.status(HttpStatus.BAD_REQUEST)
+			.body(ApiResponse.fail(GeneralErrorCode._BAD_REQUEST));
+	}
+
+	@ExceptionHandler({ServletRequestBindingException.class, MethodArgumentTypeMismatchException.class})
+	public ResponseEntity<ApiResponse<?>> handleRequestBindingException(Exception ex) {
+		log.warn("[RequestBindingException] {}", ex.getMessage());
 		return ResponseEntity
 			.status(HttpStatus.BAD_REQUEST)
 			.body(ApiResponse.fail(GeneralErrorCode._BAD_REQUEST));

@@ -1,7 +1,6 @@
 package sweetgirl.croissant.external.aws.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -19,6 +18,6 @@ public class ImageSaveRequest {
 	@NotBlank(message = "MIME 타입은 필수입니다.")
 	private String mimeType;
 
-	@NotNull(message = "순서는 필수입니다.")
+	// null 이면 백엔드가 (기존 최대값 + 1) 부터 자동 부여. 명시적 순서 지정이 필요한 어드민 UI 는 값을 전달.
 	private Integer displayOrder;
 }

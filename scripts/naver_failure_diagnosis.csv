@@ -1,0 +1,8 @@
+﻿store_id,store_name,store_address,bucket,reason,num_candidates,top_cand_name,top_score,name_kind,distance_m,road_match
+2573,하얀오골계 베이커리카페,강원특별자치도 원주시 판부면 내남송길 98-11,WOULD_MATCH,"좌표+이름 확정 매칭 (이름 일치+동 일치, 거리 통과 (84m))",1,하얀오골계 베이커리 카페,55,exact,84.41630106951102,False
+2638,오라플레르,경북 포항시 북구 양학로 72-12,SEARCH_EMPTY,후보 없음,0,,,,,
+2642,카페이레오라,제주특별자치도 제주시 오라로 114,SEARCH_EMPTY,후보 없음,0,,,,,
+2644,오라24시카페&스낵,경기 부천시 원미구 부일로 222,SEARCH_EMPTY,후보 없음,0,,,,,
+2645,오라양말샵,경기 하남시 대청로 33,SEARCH_EMPTY,후보 없음,0,,,,,
+2655,오누이 중원도서관점,경기 성남시 중원구 원터로17번길 46,SEARCH_EMPTY,후보 없음,0,,,,,
+2630,오라,경기 고양시 덕양구 오부자로 14,GATE_REJECT,점수 미달 (35 < 60),18,케이크오라,35,none,8.084836118846521,False
