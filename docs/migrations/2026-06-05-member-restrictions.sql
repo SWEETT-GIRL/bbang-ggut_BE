@@ -1,5 +1,14 @@
--- 회원 프로필 초기화 및 작성 제한 저장 구조 추가
--- 기존 DB에는 Flyway baseline 이후 자동 적용되고, 이미 수동 적용된 DB에서도 재실행 가능하도록 IF NOT EXISTS를 유지한다.
+-- 2026-06-05 — 회원 프로필 초기화 및 작성 제한 저장 구조 추가
+-- 적용 대상: dev DB (soboro @ 3.27.115.144)
+--
+-- 사용처:
+--   - POST /api/admin/members/{memberId}/profile-reset
+--   - POST /api/admin/members/{memberId}/restrictions
+--   - POST /menus/{menuId}/reviews
+--
+-- 적용 방법:
+--   psql -h 3.27.115.144 -U sweetgirl -d soboro -f docs/migrations/2026-06-05-member-restrictions.sql
+--   또는 DBeaver에서 아래 SQL을 직접 실행한다.
 
 CREATE TABLE IF NOT EXISTS member_restriction (
     id BIGSERIAL PRIMARY KEY,
