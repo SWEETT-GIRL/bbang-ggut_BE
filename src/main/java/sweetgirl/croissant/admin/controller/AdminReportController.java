@@ -5,6 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -15,7 +16,9 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.admin.dto.request.AdminModerationActionRequest;
 import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
+import sweetgirl.croissant.admin.dto.response.AdminModerationActionResponse;
 import sweetgirl.croissant.admin.dto.response.AdminReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminUserReportDetailResponse;
 import sweetgirl.croissant.admin.service.AdminReportService;
@@ -45,6 +48,14 @@ public class AdminReportController {
 			@Parameter(description = "제보 ID") @PathVariable Long reportId,
 			@Parameter(description = "제보 종류") @RequestParam String kind) {
 		return ResponseEntity.ok(ApiResponse.ok(adminReportService.getReportDetail(reportId, kind)));
+	}
+
+	@Operation(summary = "사용자 신고 moderation action 적용")
+	@PostMapping("/{reportId}/moderation-actions")
+	public ResponseEntity<ApiResponse<AdminModerationActionResponse>> applyModerationAction(
+			@Parameter(description = "제보 ID") @PathVariable Long reportId,
+			@Valid @RequestBody AdminModerationActionRequest request) {
+		return ResponseEntity.ok(ApiResponse.ok(adminReportService.applyModerationAction(reportId, request)));
 	}
 
 	@Operation(summary = "제보 승인/거절", description = "제보를 승인(ACCEPT) 또는 거절(REJECT)합니다. "

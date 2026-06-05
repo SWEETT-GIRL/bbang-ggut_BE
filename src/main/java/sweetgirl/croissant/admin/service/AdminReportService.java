@@ -4,6 +4,7 @@ import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -23,7 +24,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.admin.code.AdminErrorCode;
+import sweetgirl.croissant.admin.dto.request.AdminModerationActionRequest;
 import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
+import sweetgirl.croissant.admin.dto.response.AdminModerationActionResponse;
 import sweetgirl.croissant.admin.dto.response.AdminReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminUserReportDetailResponse;
 import sweetgirl.croissant.admin.exception.AdminException;
@@ -39,9 +42,12 @@ import sweetgirl.croissant.menu.repository.MenuAddReportImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuAddReportRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
+import sweetgirl.croissant.report.entity.ModerationAction;
 import sweetgirl.croissant.report.entity.UserReport;
 import sweetgirl.croissant.report.enums.ReportTargetType;
+import sweetgirl.croissant.report.enums.UserReportAction;
 import sweetgirl.croissant.report.enums.UserReportStatus;
+import sweetgirl.croissant.report.repository.ModerationActionRepository;
 import sweetgirl.croissant.report.repository.UserReportRepository;
 import sweetgirl.croissant.review.entity.Review;
 import sweetgirl.croissant.review.entity.ReviewImageFile;
@@ -75,6 +81,7 @@ public class AdminReportService {
 	private final StoreReportRepository storeReportRepository;
 	private final MenuAddReportRepository menuAddReportRepository;
 	private final UserReportRepository userReportRepository;
+	private final ModerationActionRepository moderationActionRepository;
 	private final StoreReportImageFileRepository storeReportImageFileRepository;
 	private final MenuAddReportImageFileRepository menuAddReportImageFileRepository;
 	private final StoreImageFileRepository storeImageFileRepository;
@@ -108,6 +115,32 @@ public class AdminReportService {
 		UserReport report = userReportRepository.findByIdWithMembers(reportId)
 			.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
 		return AdminUserReportDetailResponse.of(report, toUserReportTarget(report));
+	}
+
+	@Transactional
+	public AdminModerationActionResponse applyModerationAction(
+			Long reportId,
+			AdminModerationActionRequest request) {
+		UserReport report = userReportRepository.findByIdWithMembers(reportId)
+			.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
+		if (report.getStatus() != UserReportStatus.ACCEPTED) {
+			throw new AdminException(AdminErrorCode.REPORT_MODERATION_NOT_ALLOWED);
+		}
+
+		UserReportAction action = toModerationAction(request.action());
+		String reason = normalizeModerationReason(request.reason());
+		applyReviewModeration(report, action, reason);
+		report.applyModerationAction(action);
+
+		ModerationAction savedAction = moderationActionRepository.save(ModerationAction.builder()
+			.report(report)
+			.targetType(report.getTargetType())
+			.targetId(report.getTargetId())
+			.member(report.getReportedMember())
+			.action(action)
+			.reason(reason)
+			.build());
+		return AdminModerationActionResponse.from(savedAction);
 	}
 
 	@Transactional
@@ -439,6 +472,67 @@ public class AdminReportService {
 			return AdminUserReportDetailResponse.ReviewTarget.of(review, images);
 		}
 		return AdminUserReportDetailResponse.MemberProfileTarget.from(report.getReportedMember());
+	}
+
+	private void applyReviewModeration(UserReport report, UserReportAction action, String reason) {
+		if (action == UserReportAction.NONE) {
+			return;
+		}
+		if (!isReviewModerationAction(action)) {
+			throw new AdminException(AdminErrorCode.REPORT_INVALID_MODERATION_ACTION);
+		}
+		if (report.getTargetType() != ReportTargetType.REVIEW) {
+			throw new AdminException(AdminErrorCode.REPORT_TARGET_TYPE_MISMATCH);
+		}
+
+		Review review = reviewRepository.findByIdWithDetails(report.getTargetId())
+			.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_TARGET_NOT_FOUND));
+		switch (action) {
+			case HIDE_REVIEW -> {
+				if (review.getDeletedAt() != null) {
+					throw new AdminException(AdminErrorCode.REPORT_TARGET_NOT_FOUND);
+				}
+				review.hide(reason, null);
+			}
+			case DELETE_REVIEW -> review.softDelete();
+			case RESTORE_REVIEW -> {
+				if (report.getModerationAction() == UserReportAction.DELETE_REVIEW) {
+					review.restoreModeration();
+				} else {
+					review.restoreHidden();
+				}
+			}
+			default -> throw new AdminException(AdminErrorCode.REPORT_INVALID_MODERATION_ACTION);
+		}
+	}
+
+	private boolean isReviewModerationAction(UserReportAction action) {
+		return action == UserReportAction.HIDE_REVIEW
+			|| action == UserReportAction.DELETE_REVIEW
+			|| action == UserReportAction.RESTORE_REVIEW;
+	}
+
+	private UserReportAction toModerationAction(String action) {
+		if (action == null || action.isBlank()) {
+			throw new AdminException(AdminErrorCode.REPORT_INVALID_MODERATION_ACTION);
+		}
+		try {
+			UserReportAction parsed = UserReportAction.valueOf(action.trim().toUpperCase(Locale.ROOT));
+			if (parsed == UserReportAction.NONE || isReviewModerationAction(parsed)) {
+				return parsed;
+			}
+		} catch (IllegalArgumentException e) {
+			throw new AdminException(AdminErrorCode.REPORT_INVALID_MODERATION_ACTION);
+		}
+		throw new AdminException(AdminErrorCode.REPORT_INVALID_MODERATION_ACTION);
+	}
+
+	private String normalizeModerationReason(String reason) {
+		if (reason == null) {
+			return null;
+		}
+		String normalized = reason.trim();
+		return normalized.isEmpty() ? null : normalized;
 	}
 
 	private StoreReportStatus toStoreReportStatus(String statusStr) {

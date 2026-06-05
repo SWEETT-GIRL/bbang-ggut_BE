@@ -5,11 +5,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.time.LocalTime;
@@ -28,7 +28,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import sweetgirl.croissant.admin.code.AdminErrorCode;
+import sweetgirl.croissant.admin.dto.request.AdminModerationActionRequest;
 import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
+import sweetgirl.croissant.admin.dto.response.AdminModerationActionResponse;
 import sweetgirl.croissant.admin.dto.response.AdminUserReportDetailResponse;
 import sweetgirl.croissant.admin.exception.AdminException;
 import sweetgirl.croissant.alarm.enums.ReportKind;
@@ -46,11 +48,13 @@ import sweetgirl.croissant.menu.repository.MenuAddReportImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuAddReportRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
+import sweetgirl.croissant.report.entity.ModerationAction;
 import sweetgirl.croissant.report.entity.UserReport;
 import sweetgirl.croissant.report.enums.ReportReasonType;
 import sweetgirl.croissant.report.enums.ReportTargetType;
 import sweetgirl.croissant.report.enums.UserReportAction;
 import sweetgirl.croissant.report.enums.UserReportStatus;
+import sweetgirl.croissant.report.repository.ModerationActionRepository;
 import sweetgirl.croissant.report.repository.UserReportRepository;
 import sweetgirl.croissant.review.entity.Review;
 import sweetgirl.croissant.review.entity.ReviewImageFile;
@@ -77,6 +81,8 @@ class AdminReportServiceTest {
 	MenuAddReportRepository menuAddReportRepository;
 	@Mock
 	UserReportRepository userReportRepository;
+	@Mock
+	ModerationActionRepository moderationActionRepository;
 	@Mock
 	StoreReportImageFileRepository storeReportImageFileRepository;
 	@Mock
@@ -106,6 +112,7 @@ class AdminReportServiceTest {
 			storeReportRepository,
 			menuAddReportRepository,
 			userReportRepository,
+			moderationActionRepository,
 			storeReportImageFileRepository,
 			menuAddReportImageFileRepository,
 			storeImageFileRepository,
@@ -206,6 +213,127 @@ class AdminReportServiceTest {
 		assertThatThrownBy(() -> adminReportService.getReportDetail(1L, "STORE_REPORT"))
 			.isInstanceOf(AdminException.class)
 			.hasMessageContaining(AdminErrorCode.REPORT_INVALID_KIND.getMessage());
+	}
+
+	@Test
+	@DisplayName("ModerationAction HIDE_REVIEW: 승인된 리뷰 신고이면 리뷰를 숨기고 이력을 저장한다")
+	void applyModerationAction_hideReview_hidesReviewAndRecordsAction() {
+		Member reportedMember = mock(Member.class);
+		given(reportedMember.getId()).willReturn(20L);
+		UserReport report = mock(UserReport.class);
+		given(report.getId()).willReturn(31L);
+		given(report.getStatus()).willReturn(UserReportStatus.ACCEPTED);
+		given(report.getTargetType()).willReturn(ReportTargetType.REVIEW);
+		given(report.getTargetId()).willReturn(123L);
+		given(report.getReportedMember()).willReturn(reportedMember);
+		given(userReportRepository.findByIdWithMembers(31L)).willReturn(Optional.of(report));
+
+		Review review = mock(Review.class);
+		given(reviewRepository.findByIdWithDetails(123L)).willReturn(Optional.of(review));
+		given(moderationActionRepository.save(any(ModerationAction.class)))
+			.willAnswer(invocation -> invocation.getArgument(0));
+
+		AdminModerationActionResponse response = adminReportService.applyModerationAction(
+			31L,
+			new AdminModerationActionRequest("HIDE_REVIEW", " 욕설 포함 ", true));
+
+		assertThat(response.action()).isEqualTo("HIDE_REVIEW");
+		assertThat(response.reason()).isEqualTo("욕설 포함");
+		verify(review).hide("욕설 포함", null);
+		verify(report).applyModerationAction(UserReportAction.HIDE_REVIEW);
+		verify(moderationActionRepository).save(argThat(action -> action.getReport() == report
+			&& action.getTargetType() == ReportTargetType.REVIEW
+			&& action.getTargetId().equals(123L)
+			&& action.getMember() == reportedMember
+			&& action.getAction() == UserReportAction.HIDE_REVIEW
+			&& action.getReason().equals("욕설 포함")));
+	}
+
+	@Test
+	@DisplayName("ModerationAction DELETE_REVIEW: 리뷰 soft delete를 재사용한다")
+	void applyModerationAction_deleteReview_softDeletesReview() {
+		Member reportedMember = mock(Member.class);
+		given(reportedMember.getId()).willReturn(20L);
+		UserReport report = mock(UserReport.class);
+		given(report.getId()).willReturn(32L);
+		given(report.getStatus()).willReturn(UserReportStatus.ACCEPTED);
+		given(report.getTargetType()).willReturn(ReportTargetType.REVIEW);
+		given(report.getTargetId()).willReturn(124L);
+		given(report.getReportedMember()).willReturn(reportedMember);
+		given(userReportRepository.findByIdWithMembers(32L)).willReturn(Optional.of(report));
+
+		Review review = mock(Review.class);
+		given(reviewRepository.findByIdWithDetails(124L)).willReturn(Optional.of(review));
+		given(moderationActionRepository.save(any(ModerationAction.class)))
+			.willAnswer(invocation -> invocation.getArgument(0));
+
+		adminReportService.applyModerationAction(
+			32L,
+			new AdminModerationActionRequest("DELETE_REVIEW", "반복 욕설", false));
+
+		verify(review).softDelete();
+		verify(review, never()).hide(anyString(), any());
+		verify(report).applyModerationAction(UserReportAction.DELETE_REVIEW);
+	}
+
+	@Test
+	@DisplayName("ModerationAction RESTORE_REVIEW: 직전 조치가 삭제이면 삭제와 숨김 상태를 복구한다")
+	void applyModerationAction_restoreReview_restoresDeletedReview() {
+		Member reportedMember = mock(Member.class);
+		given(reportedMember.getId()).willReturn(20L);
+		UserReport report = mock(UserReport.class);
+		given(report.getId()).willReturn(33L);
+		given(report.getStatus()).willReturn(UserReportStatus.ACCEPTED);
+		given(report.getTargetType()).willReturn(ReportTargetType.REVIEW);
+		given(report.getTargetId()).willReturn(125L);
+		given(report.getReportedMember()).willReturn(reportedMember);
+		given(report.getModerationAction()).willReturn(UserReportAction.DELETE_REVIEW);
+		given(userReportRepository.findByIdWithMembers(33L)).willReturn(Optional.of(report));
+
+		Review review = mock(Review.class);
+		given(reviewRepository.findByIdWithDetails(125L)).willReturn(Optional.of(review));
+		given(moderationActionRepository.save(any(ModerationAction.class)))
+			.willAnswer(invocation -> invocation.getArgument(0));
+
+		adminReportService.applyModerationAction(
+			33L,
+			new AdminModerationActionRequest("RESTORE_REVIEW", "오조치 복구", false));
+
+		verify(review).restoreModeration();
+		verify(report).applyModerationAction(UserReportAction.RESTORE_REVIEW);
+	}
+
+	@Test
+	@DisplayName("ModerationAction: 승인되지 않은 사용자 신고에는 조치할 수 없다")
+	void applyModerationAction_pendingReport_throws() {
+		UserReport report = mock(UserReport.class);
+		given(report.getStatus()).willReturn(UserReportStatus.PENDING);
+		given(userReportRepository.findByIdWithMembers(34L)).willReturn(Optional.of(report));
+
+		assertThatThrownBy(() -> adminReportService.applyModerationAction(
+			34L,
+			new AdminModerationActionRequest("HIDE_REVIEW", "사유", false)))
+			.isInstanceOf(AdminException.class)
+			.hasMessageContaining(AdminErrorCode.REPORT_MODERATION_NOT_ALLOWED.getMessage());
+
+		verify(moderationActionRepository, never()).save(any());
+	}
+
+	@Test
+	@DisplayName("ModerationAction: 프로필 신고에는 리뷰 조치를 적용할 수 없다")
+	void applyModerationAction_memberProfileReport_throws() {
+		UserReport report = mock(UserReport.class);
+		given(report.getStatus()).willReturn(UserReportStatus.ACCEPTED);
+		given(report.getTargetType()).willReturn(ReportTargetType.MEMBER_PROFILE);
+		given(userReportRepository.findByIdWithMembers(35L)).willReturn(Optional.of(report));
+
+		assertThatThrownBy(() -> adminReportService.applyModerationAction(
+			35L,
+			new AdminModerationActionRequest("HIDE_REVIEW", "사유", false)))
+			.isInstanceOf(AdminException.class)
+			.hasMessageContaining(AdminErrorCode.REPORT_TARGET_TYPE_MISMATCH.getMessage());
+
+		verify(moderationActionRepository, never()).save(any());
 	}
 
 	@Test
