@@ -208,6 +208,33 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 
 	Optional<Store> findByKakaoPlaceId(String kakaoPlaceId);
 
+	@Query(value = """
+			SELECT * FROM store
+			WHERE status = 'ACTIVE'
+			AND REPLACE(LOWER(name), ' ', '') = :compactName
+			ORDER BY id ASC
+			""", nativeQuery = true)
+	List<Store> findActiveStoresByCompactName(@Param("compactName") String compactName);
+
+	@Modifying(flushAutomatically = true, clearAutomatically = true)
+	@Query(value = """
+			UPDATE store
+			SET kakao_place_id = :kakaoPlaceId,
+				phone = CASE
+					WHEN :phone IS NULL OR :phone = '' THEN phone
+					ELSE :phone
+				END,
+				location = ST_SetSRID(ST_MakePoint(:x, :y), 4326)::geography,
+				updated_at = NOW()
+			WHERE id = :id
+			""", nativeQuery = true)
+	void updateKakaoPlaceMetadata(
+			@Param("id") Long id,
+			@Param("kakaoPlaceId") String kakaoPlaceId,
+			@Param("phone") String phone,
+			@Param("x") double longitude,
+			@Param("y") double latitude);
+
 	@Modifying
 	@Query("UPDATE Store s SET s.region1st = :r1, s.region2nd = :r2, s.region3rd = :r3 WHERE s.id = :id")
 	void updateRegionById(@Param("id") Long id,
