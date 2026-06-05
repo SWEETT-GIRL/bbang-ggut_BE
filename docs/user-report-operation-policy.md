@@ -128,11 +128,14 @@ S3 이상은 신고 접수 수와 무관하게 단일 신고만으로 선조치�
 6. 조치 대상자에게 사유와 이의제기 경로를 안내한다.
 7. 신고자에게는 상세 제재 내용 없이 처리 완료 여부만 안내한다.
 
-현재 구현된 관리자 API는 신고 상태 처리까지만 담당한다.
+현재 구현된 관리자 API는 신고 검수, 리뷰 moderation action, 회원 프로필 초기화, 회원 제한 생성을 담당한다.
 
 ```http
 GET /api/admin/reports?kind=USER_REPORT&status=PENDING&page=0&size=20
 PATCH /api/admin/reports/{reportId}
+POST /api/admin/reports/{reportId}/moderation-actions
+POST /api/admin/members/{memberId}/profile-reset
+POST /api/admin/members/{memberId}/restrictions
 ```
 
 ```json
@@ -142,7 +145,7 @@ PATCH /api/admin/reports/{reportId}
 }
 ```
 
-콘텐츠 삭제, 프로필 초기화, 계정 제한은 다음 단계에서 별도 moderation action API로 구현한다.
+콘텐츠 삭제, 프로필 초기화, 작성 제한은 별도 moderation API로 처리한다.
 
 ## 이의제기
 
@@ -228,9 +231,6 @@ PATCH /api/admin/reports/{reportId}
 
 ## 다음 구현 항목
 
-- `moderation_action` 적용 API 추가: `HIDE_REVIEW`, `DELETE_REVIEW`, `RESET_PROFILE`, `SUSPEND_MEMBER`
-- 리뷰 숨김 상태 컬럼 추가: 삭제와 임시 숨김을 분리
-- 회원 작성 제한 상태 추가: 제한 대상 기능과 만료 시각 저장
 - 신고 결과 알림 추가: 신고자와 피신고자에게 서로 다른 수준의 알림 전송
 - 이의제기 테이블/API 추가
 - 차단 기능 추가: 댓글/프로필 페이지가 생기기 전까지는 보류 가능
