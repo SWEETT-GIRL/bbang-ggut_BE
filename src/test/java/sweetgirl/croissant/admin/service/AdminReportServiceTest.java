@@ -24,6 +24,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -346,25 +347,27 @@ class AdminReportServiceTest {
 		Member reporter = mock(Member.class);
 		MenuCategory category = mock(MenuCategory.class);
 
-		MenuAddReport report = mock(MenuAddReport.class);
-		given(report.getId()).willReturn(11L);
-		given(report.getStatus()).willReturn(StoreReportStatus.PENDING);
-		given(report.getStore()).willReturn(store);
-		given(report.getMember()).willReturn(reporter);
-		given(report.getMenuCategory()).willReturn(category);
-		given(report.getName()).willReturn("크림빵");
-		given(report.getPrice()).willReturn(3500);
-		given(report.getDescription()).willReturn("부드러운 크림빵");
+		MenuAddReport report = MenuAddReport.builder()
+			.store(store)
+			.member(reporter)
+			.menuCategory(category)
+			.name("크림빵")
+			.price(3500)
+			.description("부드러운 크림빵")
+			.build();
+		ReflectionTestUtils.setField(report, "id", 11L);
 		given(menuAddReportRepository.findById(11L)).willReturn(Optional.of(report));
 
 		Menu newMenu = mock(Menu.class);
 		given(newMenu.getId()).willReturn(99L);
 		given(menuRepository.save(any(Menu.class))).willReturn(newMenu);
 
-		MenuAddReportImageFile img = mock(MenuAddReportImageFile.class);
-		given(img.getAwsKey()).willReturn("menu-add-reports/temp/abc/uuid-file");
-		given(img.getName()).willReturn("file.jpg");
-		given(img.getMimeType()).willReturn(MimeType.IMAGE_JPEG);
+		MenuAddReportImageFile img = MenuAddReportImageFile.builder()
+			.menuAddReport(report)
+			.name("file.jpg")
+			.mimeType(MimeType.IMAGE_JPEG)
+			.awsKey("menu-add-reports/temp/abc/uuid-file")
+			.build();
 		given(menuAddReportImageFileRepository.findByMenuAddReportIdIn(List.of(11L)))
 			.willReturn(List.of(img));
 
@@ -374,7 +377,7 @@ class AdminReportServiceTest {
 		verify(s3Service).copyObject("menu-add-reports/temp/abc/uuid-file", "menus/99/uuid-file");
 		verify(s3Service).deleteObject("menu-add-reports/temp/abc/uuid-file");
 		verify(menuImageFileRepository).saveAll(anyList());
-		verify(report).approve();
+		assertThat(report.getStatus()).isEqualTo(StoreReportStatus.ACCEPTED);
 		verify(reportNotificationService).notifyReportResult(
 			eq(reporter), eq(store), eq(11L), eq(ReportKind.MENU_ADD_REPORT),
 			eq(ReportNotificationAction.APPROVED), anyString());
@@ -503,10 +506,12 @@ class AdminReportServiceTest {
 		given(storeImageFileRepository.findByStoreIdOrderByDisplayOrderAscIdAsc(5L))
 			.willReturn(List.of());
 
-		StoreReportImageFile src = mock(StoreReportImageFile.class);
-		given(src.getAwsKey()).willReturn("reports/stores/5/members/9/images/key-a");
-		given(src.getName()).willReturn("a.jpg");
-		given(src.getMimeType()).willReturn(MimeType.IMAGE_JPEG);
+		StoreReportImageFile src = StoreReportImageFile.builder()
+			.storeReport(report)
+			.name("a.jpg")
+			.mimeType(MimeType.IMAGE_JPEG)
+			.awsKey("reports/stores/5/members/9/images/key-a")
+			.build();
 		given(storeReportImageFileRepository.findByStoreReportIdIn(List.of(70L)))
 			.willReturn(List.of(src));
 
@@ -549,10 +554,12 @@ class AdminReportServiceTest {
 			.willReturn(List.of(existing));
 		given(menuImageFileRepository.findImagesByMenuId(200L)).willReturn(List.of());
 
-		StoreReportImageFile src = mock(StoreReportImageFile.class);
-		given(src.getAwsKey()).willReturn("reports/stores/6/menus/200/members/9/key-m");
-		given(src.getName()).willReturn("m.jpg");
-		given(src.getMimeType()).willReturn(MimeType.IMAGE_JPEG);
+		StoreReportImageFile src = StoreReportImageFile.builder()
+			.storeReport(report)
+			.name("m.jpg")
+			.mimeType(MimeType.IMAGE_JPEG)
+			.awsKey("reports/stores/6/menus/200/members/9/key-m")
+			.build();
 		given(storeReportImageFileRepository.findByStoreReportIdIn(List.of(80L)))
 			.willReturn(List.of(src));
 
