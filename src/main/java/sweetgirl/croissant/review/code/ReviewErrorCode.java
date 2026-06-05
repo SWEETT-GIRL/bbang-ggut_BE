@@ -31,7 +31,10 @@ public enum ReviewErrorCode implements BaseErrorCode {
 			BAD_REQUEST,
 			"REVIEW_CONTENT_REJECTED",
 			"부적절하거나 개인정보로 보이는 표현이 포함되어 있어 등록할 수 없습니다."),
-	REVIEW_ALREADY_EXISTS(CONFLICT, "REVIEW_ALREADY_EXISTS", "이미 이 메뉴에 작성한 리뷰가 있습니다."),
+	REVIEW_EDIT_PERIOD_EXPIRED(
+			FORBIDDEN,
+			"REVIEW_EDIT_PERIOD_EXPIRED",
+			"리뷰는 작성 후 24시간 이내에만 수정할 수 있습니다."),
 	REVIEW_NOT_FOUND(NOT_FOUND, "REVIEW_NOT_FOUND", "존재하지 않는 리뷰입니다."),
 	REVIEW_ACCESS_DENIED(FORBIDDEN, "REVIEW_ACCESS_DENIED", "리뷰를 수정하거나 삭제할 권한이 없습니다.");
 
