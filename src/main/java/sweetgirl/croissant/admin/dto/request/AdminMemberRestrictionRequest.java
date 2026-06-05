@@ -8,6 +8,9 @@ import jakarta.validation.constraints.Size;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.MemberRestriction;
 import sweetgirl.croissant.member.enums.MemberRestrictionType;
+import sweetgirl.croissant.report.entity.ModerationAction;
+import sweetgirl.croissant.report.enums.ModerationTargetType;
+import sweetgirl.croissant.report.enums.UserReportAction;
 
 public record AdminMemberRestrictionRequest(
 		@NotBlank String type,
@@ -20,6 +23,19 @@ public record AdminMemberRestrictionRequest(
 			LocalDateTime startsAt,
 			LocalDateTime endsAt) {
 		return new MemberRestriction(member, restrictionType, normalizedReason(), startsAt, endsAt);
+	}
+
+	public ModerationAction toModerationAction(
+			Member member,
+			MemberRestriction restriction,
+			UserReportAction action) {
+		return new ModerationAction(
+			null,
+			ModerationTargetType.MEMBER_RESTRICTION,
+			restriction.getId(),
+			member,
+			action,
+			normalizedReason());
 	}
 
 	private String normalizedReason() {

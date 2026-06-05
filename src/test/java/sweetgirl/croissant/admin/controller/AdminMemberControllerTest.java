@@ -66,6 +66,7 @@ class AdminMemberControllerTest {
 		given(adminMemberService.createRestriction(eq(20L), any()))
 			.willReturn(new AdminMemberRestrictionResponse(
 				200L,
+				300L,
 				20L,
 				"WRITE_RESTRICTED",
 				"최근 90일 내 반복 위반",
@@ -79,6 +80,7 @@ class AdminMemberControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.restrictionId").value(200))
+			.andExpect(jsonPath("$.data.actionId").value(300))
 			.andExpect(jsonPath("$.data.type").value("WRITE_RESTRICTED"))
 			.andExpect(jsonPath("$.data.endsAt").value("2026-06-12T09:30"));
 	}
