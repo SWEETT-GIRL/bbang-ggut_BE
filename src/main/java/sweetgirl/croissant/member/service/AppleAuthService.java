@@ -22,6 +22,7 @@ import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
 import sweetgirl.croissant.member.repository.OAuthRepository;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository;
+import sweetgirl.croissant.member.util.NicknameGenerator;
 
 @Service
 @RequiredArgsConstructor
@@ -34,6 +35,7 @@ public class AppleAuthService {
 	private final NotificationSettingRepository notificationSettingRepository;
 	private final JwtProvider jwtProvider;
 	private final TokenHasher tokenHasher;
+	private final NicknameGenerator nicknameGenerator;
 
 	@Value("${jwt.refresh-token-expiry}")
 	private long refreshTokenExpiry;
@@ -57,7 +59,7 @@ public class AppleAuthService {
 		if (isDeletedMember) {
 			activeMember = memberRepository.save(
 				Member.builder()
-					.nickname("애플유저")
+					.nickname(nicknameGenerator.generate())
 					.build());
 			oAuth.updateMember(activeMember);
 		} else {
@@ -81,7 +83,7 @@ public class AppleAuthService {
 	private OAuth registerNewMember(AppleTokenClaims claims) {
 		Member member = memberRepository.save(
 			Member.builder()
-				.nickname("애플유저")
+				.nickname(nicknameGenerator.generate())
 				.build());
 
 		return oAuthRepository.save(
