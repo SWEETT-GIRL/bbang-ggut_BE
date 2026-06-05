@@ -14,8 +14,6 @@ import sweetgirl.croissant.review.entity.Review;
 
 public interface ReviewRepository extends JpaRepository<Review, Long> {
 
-	boolean existsByMemberIdAndMenuIdAndDeletedAtIsNull(Long memberId, Long menuId);
-
 	@Query("""
 			SELECT r FROM Review r
 			JOIN FETCH r.member

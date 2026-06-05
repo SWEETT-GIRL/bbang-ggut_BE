@@ -2,6 +2,7 @@ package sweetgirl.croissant.review.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -64,6 +65,7 @@ public class ReviewService {
 	private static final BigDecimal MIN_RATING = BigDecimal.valueOf(0.5);
 	private static final BigDecimal MAX_RATING = BigDecimal.valueOf(5.0);
 	private static final BigDecimal HALF_STEP_MULTIPLIER = BigDecimal.valueOf(2);
+	private static final long REVIEW_EDIT_LIMIT_DAYS = 1;
 	private static final Set<String> ALLOWED_IMAGE_MIME_TYPES = Set.of("image/jpeg", "image/png");
 
 	private final S3Service s3Service;
@@ -169,10 +171,6 @@ public class ReviewService {
 		Menu menu = menuRepository.findByIdWithDetails(menuId)
 			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
 
-		if (reviewRepository.existsByMemberIdAndMenuIdAndDeletedAtIsNull(memberId, menuId)) {
-			throw new ReviewException(ReviewErrorCode.REVIEW_ALREADY_EXISTS);
-		}
-
 		BigDecimal rating = validateRating(request.rating());
 		List<TextureTag> textureTags = validateTextureTags(request.textureTags());
 		String content = normalizeContent(request.content());
@@ -201,6 +199,7 @@ public class ReviewService {
 	public ReviewDetailResponse updateReview(Long reviewId, Long memberId, ReviewUpdateRequest request) {
 		Member member = memberReader.getMember(memberId);
 		Review review = getOwnedActiveReview(reviewId, member.getId());
+		validateReviewEditable(review);
 
 		BigDecimal rating = validateRating(request.rating());
 		List<TextureTag> textureTags = validateTextureTags(request.textureTags());
@@ -294,7 +293,7 @@ public class ReviewService {
 		Map<Long, AuthorStats> authorStatsMap = buildAuthorStatsMap(reviews);
 
 		return reviews.stream()
-			.map(review -> toReviewResponse(review, photoMap, likedReviewIds, authorStatsMap))
+			.map(review -> toReviewResponse(review, memberId, photoMap, likedReviewIds, authorStatsMap))
 			.toList();
 	}
 
@@ -311,7 +310,7 @@ public class ReviewService {
 		Map<Long, AuthorStats> authorStatsMap = buildAuthorStatsMap(reviews);
 
 		return reviews.stream()
-			.map(review -> toReviewDetailResponse(review, photoMap, likedReviewIds, authorStatsMap))
+			.map(review -> toReviewDetailResponse(review, memberId, photoMap, likedReviewIds, authorStatsMap))
 			.toList();
 	}
 
@@ -345,6 +344,7 @@ public class ReviewService {
 
 	private MenuReviewResponse toReviewResponse(
 			Review review,
+			Long viewerMemberId,
 			Map<Long, List<ReviewPhotoResponse>> photoMap,
 			Set<Long> likedReviewIds,
 			Map<Long, AuthorStats> authorStatsMap) {
@@ -362,6 +362,8 @@ public class ReviewService {
 			review.getLikeCount(),
 			review.getCommentCount(),
 			likedReviewIds.contains(review.getId()),
+			canEditReview(review, viewerMemberId),
+			canDeleteReview(review, viewerMemberId),
 			new ReviewAuthorResponse(
 				memberId,
 				review.getMember().getNickname(),
@@ -375,6 +377,7 @@ public class ReviewService {
 
 	private ReviewDetailResponse toReviewDetailResponse(
 			Review review,
+			Long viewerMemberId,
 			Map<Long, List<ReviewPhotoResponse>> photoMap,
 			Set<Long> likedReviewIds,
 			Map<Long, AuthorStats> authorStatsMap) {
@@ -396,6 +399,8 @@ public class ReviewService {
 			review.getLikeCount(),
 			review.getCommentCount(),
 			likedReviewIds.contains(review.getId()),
+			canEditReview(review, viewerMemberId),
+			canDeleteReview(review, viewerMemberId),
 			new ReviewAuthorResponse(
 				memberId,
 				review.getMember().getNickname(),
@@ -406,6 +411,25 @@ public class ReviewService {
 			photoMap.getOrDefault(review.getId(), List.of()),
 			review.getCreatedAt(),
 			review.getUpdatedAt());
+	}
+
+	private void validateReviewEditable(Review review) {
+		if (isReviewEditExpired(review)) {
+			throw new ReviewException(ReviewErrorCode.REVIEW_EDIT_PERIOD_EXPIRED);
+		}
+	}
+
+	private boolean canEditReview(Review review, Long viewerMemberId) {
+		return canDeleteReview(review, viewerMemberId) && !isReviewEditExpired(review);
+	}
+
+	private boolean canDeleteReview(Review review, Long viewerMemberId) {
+		return viewerMemberId != null && review.getMember().getId().equals(viewerMemberId);
+	}
+
+	private boolean isReviewEditExpired(Review review) {
+		LocalDateTime createdAt = review.getCreatedAt();
+		return createdAt != null && createdAt.plusDays(REVIEW_EDIT_LIMIT_DAYS).isBefore(LocalDateTime.now());
 	}
 
 	private BigDecimal toAverageRating(Double value) {

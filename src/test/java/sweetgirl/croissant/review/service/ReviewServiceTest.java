@@ -172,7 +172,6 @@ class ReviewServiceTest {
 
 		given(memberReader.getMember(7L)).willReturn(member);
 		given(menuRepository.findByIdWithDetails(1L)).willReturn(Optional.of(mock(Menu.class)));
-		given(reviewRepository.existsByMemberIdAndMenuIdAndDeletedAtIsNull(7L, 1L)).willReturn(false);
 		given(reviewRepository.save(any())).willAnswer(invocation -> {
 			Review review = invocation.getArgument(0);
 			ReflectionTestUtils.setField(review, "id", 11L);
@@ -200,7 +199,6 @@ class ReviewServiceTest {
 
 		given(memberReader.getMember(7L)).willReturn(member(7L, "슈크림"));
 		given(menuRepository.findByIdWithDetails(1L)).willReturn(Optional.of(mock(Menu.class)));
-		given(reviewRepository.existsByMemberIdAndMenuIdAndDeletedAtIsNull(7L, 1L)).willReturn(false);
 		willThrow(new ReviewException(ReviewErrorCode.REVIEW_CONTENT_REJECTED))
 			.given(objectionableContentFilter).validate("010-1234-5678");
 
@@ -210,19 +208,6 @@ class ReviewServiceTest {
 
 		verify(reviewRepository, never()).save(any());
 		verify(reviewImageFileRepository, never()).saveAll(any());
-	}
-
-	@Test
-	@DisplayName("createReview: 활성 리뷰가 이미 있으면 REVIEW_ALREADY_EXISTS를 던진다")
-	void createReview_duplicateActiveReview_throwsConflict() {
-		given(memberReader.getMember(7L)).willReturn(member(7L, "슈크림"));
-		given(menuRepository.findByIdWithDetails(1L)).willReturn(Optional.of(mock(Menu.class)));
-		given(reviewRepository.existsByMemberIdAndMenuIdAndDeletedAtIsNull(7L, 1L)).willReturn(true);
-
-		assertThatThrownBy(
-			() -> reviewService.createReview(1L, 7L, createRequest(BigDecimal.valueOf(4.5), "", List.of())))
-			.isInstanceOf(ReviewException.class)
-			.hasMessageContaining(ReviewErrorCode.REVIEW_ALREADY_EXISTS.getMessage());
 	}
 
 	@Test
@@ -292,6 +277,8 @@ class ReviewServiceTest {
 
 		assertThat(result.content()).hasSize(1);
 		assertThat(result.content().get(0).storeName()).isEqualTo("단팥당");
+		assertThat(result.content().get(0).canEdit()).isTrue();
+		assertThat(result.content().get(0).canDelete()).isTrue();
 		assertThat(result.hasNext()).isFalse();
 	}
 
@@ -319,6 +306,8 @@ class ReviewServiceTest {
 		assertThat(result.rating()).isEqualByComparingTo("3.5");
 		assertThat(result.textureTags()).containsExactly(TextureTag.CHEWY);
 		assertThat(result.content()).isEqualTo("수정했어요");
+		assertThat(result.canEdit()).isTrue();
+		assertThat(result.canDelete()).isTrue();
 		verify(objectionableContentFilter).validate("수정했어요");
 		verify(s3Service).deleteObject("reviews/members/7/images/old");
 		verify(reviewImageFileRepository).deleteAll(List.of(oldImage));
@@ -348,6 +337,26 @@ class ReviewServiceTest {
 			.hasMessageContaining(ReviewErrorCode.REVIEW_CONTENT_REJECTED.getMessage());
 
 		assertThat(review.getContent()).isEqualTo("맛있어요");
+		verify(reviewImageFileRepository, never()).findByReviewIdOrderByDisplayOrderAscIdAsc(any());
+		verify(reviewImageFileRepository, never()).saveAll(any());
+		verify(s3Service, never()).deleteObject(any());
+	}
+
+	@Test
+	@DisplayName("updateReview: 작성 후 24시간이 지난 리뷰는 수정할 수 없다")
+	void updateReview_expiredEditPeriod_throwsEditPeriodExpired() {
+		Member member = member(7L, "슈크림");
+		Review review = reviewWithMenu(1L, member, BigDecimal.valueOf(4.5), 0, LocalDateTime.now().minusDays(2));
+
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(reviewRepository.findActiveByIdWithDetails(1L)).willReturn(Optional.of(review));
+
+		assertThatThrownBy(() -> reviewService.updateReview(1L, 7L, updateRequest(List.of())))
+			.isInstanceOf(ReviewException.class)
+			.hasMessageContaining(ReviewErrorCode.REVIEW_EDIT_PERIOD_EXPIRED.getMessage());
+
+		assertThat(review.getContent()).isEqualTo("맛있어요");
+		verify(objectionableContentFilter, never()).validate(any());
 		verify(reviewImageFileRepository, never()).findByReviewIdOrderByDisplayOrderAscIdAsc(any());
 		verify(reviewImageFileRepository, never()).saveAll(any());
 		verify(s3Service, never()).deleteObject(any());

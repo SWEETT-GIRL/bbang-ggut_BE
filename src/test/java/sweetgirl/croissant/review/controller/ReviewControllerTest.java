@@ -179,7 +179,9 @@ class ReviewControllerTest {
 				+ "\"textureTags\":[\"chewy\"],\"content\":\"수정했어요\",\"images\":[]}"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.id").value(1))
-			.andExpect(jsonPath("$.data.content").value("맛있어요"));
+			.andExpect(jsonPath("$.data.content").value("맛있어요"))
+			.andExpect(jsonPath("$.data.canEdit").value(true))
+			.andExpect(jsonPath("$.data.canDelete").value(true));
 	}
 
 	@Test
@@ -195,6 +197,21 @@ class ReviewControllerTest {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.success").value(false))
 			.andExpect(jsonPath("$.code").value("REVIEW_CONTENT_REJECTED"));
+	}
+
+	@Test
+	void updateReview_returns403_whenEditPeriodExpired() throws Exception {
+		given(reviewService.updateReview(eq(1L), isNull(), any()))
+			.willThrow(new ReviewException(ReviewErrorCode.REVIEW_EDIT_PERIOD_EXPIRED));
+
+		mockMvc.perform(patch("/reviews/1")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"rating\":4.0,\"repurchaseIntent\":\"yes\","
+				+ "\"sweetness\":\"medium\",\"fillingAmount\":\"full\","
+				+ "\"textureTags\":[\"chewy\"],\"content\":\"수정했어요\",\"images\":[]}"))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.code").value("REVIEW_EDIT_PERIOD_EXPIRED"));
 	}
 
 	@Test
@@ -216,6 +233,8 @@ class ReviewControllerTest {
 			7,
 			0,
 			true,
+			false,
+			false,
 			new ReviewAuthorResponse(10L, "단팥", 3L, BigDecimal.valueOf(4.0), null, null),
 			List.of(new ReviewPhotoResponse(100L, "reviews/members/10/images/a")),
 			LocalDateTime.of(2026, 6, 4, 10, 0));
@@ -236,6 +255,8 @@ class ReviewControllerTest {
 			"맛있어요",
 			7,
 			0,
+			true,
+			true,
 			true,
 			new ReviewAuthorResponse(10L, "단팥", 3L, BigDecimal.valueOf(4.0), null, null),
 			List.of(new ReviewPhotoResponse(100L, "reviews/members/10/images/a")),
