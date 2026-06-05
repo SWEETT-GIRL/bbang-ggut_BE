@@ -93,9 +93,33 @@ public enum FranchiseName {
 	심봉사도로케,
 	따삐오,
 	마리웨일237,
-	읍천리382;
+	읍천리382,
+	커피니,
+	핫브레드,
+	경성꽈배기,
+	꽈백최선생,
+	떡보의하루,
+	요거트월드,
+	요거트아이스크림의정석,
+	쉬즈베이글커피,
+	파리바게트,
+	복호두,
+	브레댄코,
+	메고지고,
+	요거트퍼플,
+	대단한커피탕후루("대단한커피&탕후루");
+
+	private final String keyword;
+
+	FranchiseName() {
+		this.keyword = name();
+	}
+
+	FranchiseName(String keyword) {
+		this.keyword = keyword;
+	}
 
 	public static boolean matches(String placeName) {
-		return Arrays.stream(values()).anyMatch(f -> placeName.startsWith(f.name()));
+		return Arrays.stream(values()).anyMatch(f -> placeName.startsWith(f.keyword));
 	}
 }

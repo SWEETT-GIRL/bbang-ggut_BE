@@ -31,4 +31,21 @@ public interface StoreImageFileRepository extends JpaRepository<StoreImageFile, 
 
 	long countByIdInAndStoreId(List<Long> ids, Long storeId);
 
+	@Query("""
+				SELECT s.store.id AS storeId, COUNT(s) AS cnt
+				FROM StoreImageFile s
+				WHERE s.store.id IN :storeIds
+				GROUP BY s.store.id
+			""")
+	List<Object[]> countByStoreIdIn(@Param("storeIds") List<Long> storeIds);
+
+	@Query("SELECT COALESCE(MAX(s.displayOrder), 0) FROM StoreImageFile s WHERE s.store.id = :storeId")
+	int findMaxDisplayOrderByStoreId(@Param("storeId") Long storeId);
+
+	@Query("SELECT s FROM StoreImageFile s WHERE s.store.id = :storeId AND s.sourceUrl = :sourceUrl")
+	java.util.Optional<StoreImageFile> findByStoreIdAndSourceUrl(
+			@Param("storeId") Long storeId, @Param("sourceUrl") String sourceUrl);
+
+	@Query("SELECT s.awsKey FROM StoreImageFile s")
+	List<String> findAllAwsKeys();
 }

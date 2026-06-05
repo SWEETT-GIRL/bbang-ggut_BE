@@ -4,6 +4,7 @@ import java.util.List;
 
 import sweetgirl.croissant.menu.entity.MenuAddReport;
 import sweetgirl.croissant.menu.entity.MenuAddReportImageFile;
+import sweetgirl.croissant.report.entity.UserReport;
 import sweetgirl.croissant.store.entity.StoreReport;
 import sweetgirl.croissant.store.entity.StoreReportImageFile;
 
@@ -14,6 +15,11 @@ public record AdminReportResponse(
 		String storeName,
 		Long memberId,
 		String requestType,
+		String targetType,
+		Long targetId,
+		Long reportedMemberId,
+		String reasonType,
+		String reasonDetail,
 		String status,
 		String message,
 		List<String> images,
@@ -28,6 +34,11 @@ public record AdminReportResponse(
 			report.getStore().getName(),
 			report.getMember() != null ? report.getMember().getId() : null,
 			report.getRequestType().name(),
+			null,
+			null,
+			null,
+			null,
+			null,
 			report.getStatus().name(),
 			report.getMessage(),
 			images.stream().map(StoreReportImageFile::getAwsKey).toList(),
@@ -46,9 +57,34 @@ public record AdminReportResponse(
 			report.getStore().getName(),
 			report.getMember() != null ? report.getMember().getId() : null,
 			"MENU_ADD",
+			null,
+			null,
+			null,
+			null,
+			null,
 			report.getStatus().name(),
 			message,
 			images.stream().map(MenuAddReportImageFile::getAwsKey).toList(),
+			report.getReviewedAt() != null ? report.getReviewedAt().toString() : null,
+			report.getCreatedAt() != null ? report.getCreatedAt().toString() : null);
+	}
+
+	public static AdminReportResponse ofUserReport(UserReport report) {
+		return new AdminReportResponse(
+			report.getId(),
+			"USER_REPORT",
+			null,
+			null,
+			report.getReporter().getId(),
+			report.getTargetType().name(),
+			report.getTargetType().name(),
+			report.getTargetId(),
+			report.getReportedMember().getId(),
+			report.getReasonType().name(),
+			report.getReasonDetail(),
+			report.getStatus().name(),
+			report.getReasonDetail(),
+			List.of(),
 			report.getReviewedAt() != null ? report.getReviewedAt().toString() : null,
 			report.getCreatedAt() != null ? report.getCreatedAt().toString() : null);
 	}

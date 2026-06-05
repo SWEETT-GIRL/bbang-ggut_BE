@@ -5,6 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -15,8 +16,11 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.admin.dto.request.AdminModerationActionRequest;
 import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
+import sweetgirl.croissant.admin.dto.response.AdminModerationActionResponse;
 import sweetgirl.croissant.admin.dto.response.AdminReportResponse;
+import sweetgirl.croissant.admin.dto.response.AdminUserReportDetailResponse;
 import sweetgirl.croissant.admin.service.AdminReportService;
 import sweetgirl.croissant.global.response.ApiResponse;
 
@@ -28,20 +32,34 @@ public class AdminReportController {
 
 	private final AdminReportService adminReportService;
 
-	@Operation(summary = "제보 목록 조회", description = "제보 목록을 페이지네이션으로 조회합니다. "
-		+ "kind: STORE_REPORT(기본값) | MENU_ADD_REPORT, "
-		+ "status: PENDING | ACCEPTED | REJECTED (미입력 시 전체)")
+	@Operation(summary = "제보 목록 조회")
 	@GetMapping
 	public ResponseEntity<ApiResponse<Page<AdminReportResponse>>> getReports(
-			@Parameter(description = "STORE_REPORT | MENU_ADD_REPORT") @RequestParam(required = false) String kind,
-			@Parameter(description = "PENDING | ACCEPTED | REJECTED") @RequestParam(required = false) String status,
+			@Parameter(description = "제보 종류") @RequestParam(required = false) String kind,
+			@Parameter(description = "처리 상태") @RequestParam(required = false) String status,
 			@Parameter(description = "페이지 번호 (0부터 시작)") @RequestParam(defaultValue = "0") int page,
 			@Parameter(description = "페이지 크기") @RequestParam(defaultValue = "20") int size) {
 		return ResponseEntity.ok(ApiResponse.ok(adminReportService.getReports(kind, status, page, size)));
 	}
 
+	@Operation(summary = "사용자 신고 상세 조회")
+	@GetMapping("/{reportId}")
+	public ResponseEntity<ApiResponse<AdminUserReportDetailResponse>> getReportDetail(
+			@Parameter(description = "제보 ID") @PathVariable Long reportId,
+			@Parameter(description = "제보 종류") @RequestParam String kind) {
+		return ResponseEntity.ok(ApiResponse.ok(adminReportService.getReportDetail(reportId, kind)));
+	}
+
+	@Operation(summary = "사용자 신고 moderation action 적용")
+	@PostMapping("/{reportId}/moderation-actions")
+	public ResponseEntity<ApiResponse<AdminModerationActionResponse>> applyModerationAction(
+			@Parameter(description = "제보 ID") @PathVariable Long reportId,
+			@Valid @RequestBody AdminModerationActionRequest request) {
+		return ResponseEntity.ok(ApiResponse.ok(adminReportService.applyModerationAction(reportId, request)));
+	}
+
 	@Operation(summary = "제보 승인/거절", description = "제보를 승인(ACCEPT) 또는 거절(REJECT)합니다. "
-		+ "kind: STORE_REPORT | MENU_ADD_REPORT, action: ACCEPT | REJECT")
+		+ "kind: STORE_REPORT | MENU_ADD_REPORT | USER_REPORT, action: ACCEPT | REJECT")
 	@PatchMapping("/{reportId}")
 	public ResponseEntity<ApiResponse<Void>> reviewReport(
 			@Parameter(description = "제보 ID") @PathVariable Long reportId,

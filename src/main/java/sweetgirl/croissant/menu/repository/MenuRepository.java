@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -48,4 +49,21 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
 			ORDER BY m.createdAt DESC
 			""")
 	List<Menu> findByStoreIdIncludingDeleted(@Param("storeId") Long storeId);
+
+	@Query("""
+			SELECT m.store.id AS storeId, COUNT(m) AS cnt
+			FROM Menu m
+			WHERE m.store.id IN :storeIds AND m.deletedAt IS NULL
+			GROUP BY m.store.id
+			""")
+	List<Object[]> countActiveMenusByStoreIds(@Param("storeIds") List<Long> storeIds);
+
+	// '메뉴까지 갈아엎기' — store 의 모든 활성 메뉴를 soft-delete (deletedAt 설정).
+	@Modifying
+	@Query("UPDATE Menu m SET m.deletedAt = CURRENT_TIMESTAMP "
+		+ "WHERE m.store.id = :storeId AND m.deletedAt IS NULL")
+	int softDeleteByStoreId(@Param("storeId") Long storeId);
+
+	@Query("SELECT m FROM Menu m WHERE m.store.id = :storeId AND m.deletedAt IS NULL")
+	List<Menu> findActiveByStoreId(@Param("storeId") Long storeId);
 }

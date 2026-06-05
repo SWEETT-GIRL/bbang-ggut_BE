@@ -1,0 +1,1568 @@
+{
+  "run": "20260602T094447Z",
+  "snapshot_at": "20260602T092738Z",
+  "store_count": 6,
+  "total_posts": 53,
+  "ad_excluded": 0,
+  "categories": {
+    "SALT_BREAD": [
+      {
+        "store_id": 627,
+        "name": "밀로밀",
+        "address": "서울 마포구 희우정로10길 9",
+        "final_score": 29.158,
+        "normalized": 100.0,
+        "mention_count": 7,
+        "recent_count": 0,
+        "review_count": 843
+      },
+      {
+        "store_id": 1,
+        "name": "후와후와",
+        "address": "서울 마포구 월드컵로13길 79",
+        "final_score": 23.648,
+        "normalized": 68.4,
+        "mention_count": 5,
+        "recent_count": 5,
+        "review_count": 1121
+      },
+      {
+        "store_id": 458,
+        "name": "투떰즈업",
+        "address": "서울 마포구 희우정로16길 53 1층",
+        "final_score": 19.267,
+        "normalized": 43.3,
+        "mention_count": 4,
+        "recent_count": 4,
+        "review_count": 1471
+      },
+      {
+        "store_id": 1108,
+        "name": "잼인브레드",
+        "address": "서울 마포구 월드컵로17길 36",
+        "final_score": 12.833,
+        "normalized": 6.4,
+        "mention_count": 1,
+        "recent_count": 0,
+        "review_count": null
+      },
+      {
+        "store_id": 2,
+        "name": "후와후와 모치점",
+        "address": "서울 마포구 희우정로16길 44",
+        "final_score": 12.458,
+        "normalized": 4.3,
+        "mention_count": 3,
+        "recent_count": 1,
+        "review_count": 139
+      },
+      {
+        "store_id": 450,
+        "name": "브릭베이글",
+        "address": "서울 마포구 동교로 43-1",
+        "final_score": 11.71,
+        "normalized": 0.0,
+        "mention_count": 3,
+        "recent_count": 3,
+        "review_count": 882
+      }
+    ],
+    "CROISSANT": [
+      {
+        "store_id": 627,
+        "name": "밀로밀",
+        "address": "서울 마포구 희우정로10길 9",
+        "final_score": 7.174,
+        "normalized": 100.0,
+        "mention_count": 4,
+        "recent_count": 0,
+        "review_count": 843
+      },
+      {
+        "store_id": 2,
+        "name": "후와후와 모치점",
+        "address": "서울 마포구 희우정로16길 44",
+        "final_score": 6.05,
+        "normalized": 52.2,
+        "mention_count": 2,
+        "recent_count": 2,
+        "review_count": 139
+      },
+      {
+        "store_id": 1,
+        "name": "후와후와",
+        "address": "서울 마포구 월드컵로13길 79",
+        "final_score": 4.822,
+        "normalized": 0.0,
+        "mention_count": 1,
+        "recent_count": 1,
+        "review_count": 1121
+      }
+    ],
+    "HARD_BREAD": [
+      {
+        "store_id": 627,
+        "name": "밀로밀",
+        "address": "서울 마포구 희우정로10길 9",
+        "final_score": 18.228,
+        "normalized": 100.0,
+        "mention_count": 6,
+        "recent_count": 0,
+        "review_count": 843
+      },
+      {
+        "store_id": 2,
+        "name": "후와후와 모치점",
+        "address": "서울 마포구 희우정로16길 44",
+        "final_score": 13.438,
+        "normalized": 47.6,
+        "mention_count": 5,
+        "recent_count": 4,
+        "review_count": 139
+      },
+      {
+        "store_id": 458,
+        "name": "투떰즈업",
+        "address": "서울 마포구 희우정로16길 53 1층",
+        "final_score": 9.812,
+        "normalized": 8.0,
+        "mention_count": 2,
+        "recent_count": 2,
+        "review_count": 1471
+      },
+      {
+        "store_id": 1,
+        "name": "후와후와",
+        "address": "서울 마포구 월드컵로13길 79",
+        "final_score": 9.238,
+        "normalized": 1.7,
+        "mention_count": 3,
+        "recent_count": 3,
+        "review_count": 1121
+      },
+      {
+        "store_id": 450,
+        "name": "브릭베이글",
+        "address": "서울 마포구 동교로 43-1",
+        "final_score": 9.078,
+        "normalized": 0.0,
+        "mention_count": 1,
+        "recent_count": 1,
+        "review_count": 882
+      }
+    ],
+    "BAGEL": [
+      {
+        "store_id": 450,
+        "name": "브릭베이글",
+        "address": "서울 마포구 동교로 43-1",
+        "final_score": 47.23,
+        "normalized": 100.0,
+        "mention_count": 10,
+        "recent_count": 10,
+        "review_count": 882
+      },
+      {
+        "store_id": 2,
+        "name": "후와후와 모치점",
+        "address": "서울 마포구 희우정로16길 44",
+        "final_score": 40.432,
+        "normalized": 76.1,
+        "mention_count": 9,
+        "recent_count": 8,
+        "review_count": 139
+      },
+      {
+        "store_id": 458,
+        "name": "투떰즈업",
+        "address": "서울 마포구 희우정로16길 53 1층",
+        "final_score": 36.352,
+        "normalized": 61.8,
+        "mention_count": 6,
+        "recent_count": 6,
+        "review_count": 1471
+      },
+      {
+        "store_id": 1,
+        "name": "후와후와",
+        "address": "서울 마포구 월드컵로13길 79",
+        "final_score": 29.874,
+        "normalized": 39.1,
+        "mention_count": 6,
+        "recent_count": 6,
+        "review_count": 1121
+      },
+      {
+        "store_id": 627,
+        "name": "밀로밀",
+        "address": "서울 마포구 희우정로10길 9",
+        "final_score": 18.742,
+        "normalized": 0.0,
+        "mention_count": 3,
+        "recent_count": 0,
+        "review_count": 843
+      }
+    ],
+    "SAVORY": [
+      {
+        "store_id": 458,
+        "name": "투떰즈업",
+        "address": "서울 마포구 희우정로16길 53 1층",
+        "final_score": 43.484,
+        "normalized": 100.0,
+        "mention_count": 8,
+        "recent_count": 8,
+        "review_count": 1471
+      },
+      {
+        "store_id": 2,
+        "name": "후와후와 모치점",
+        "address": "서울 마포구 희우정로16길 44",
+        "final_score": 40.044,
+        "normalized": 85.9,
+        "mention_count": 10,
+        "recent_count": 8,
+        "review_count": 139
+      },
+      {
+        "store_id": 450,
+        "name": "브릭베이글",
+        "address": "서울 마포구 동교로 43-1",
+        "final_score": 35.992,
+        "normalized": 69.3,
+        "mention_count": 10,
+        "recent_count": 10,
+        "review_count": 882
+      },
+      {
+        "store_id": 1,
+        "name": "후와후와",
+        "address": "서울 마포구 월드컵로13길 79",
+        "final_score": 29.964,
+        "normalized": 44.7,
+        "mention_count": 7,
+        "recent_count": 7,
+        "review_count": 1121
+      },
+      {
+        "store_id": 1108,
+        "name": "잼인브레드",
+        "address": "서울 마포구 월드컵로17길 36",
+        "final_score": 20.834,
+        "normalized": 7.3,
+        "mention_count": 9,
+        "recent_count": 0,
+        "review_count": null
+      },
+      {
+        "store_id": 627,
+        "name": "밀로밀",
+        "address": "서울 마포구 희우정로10길 9",
+        "final_score": 19.047,
+        "normalized": 0.0,
+        "mention_count": 3,
+        "recent_count": 0,
+        "review_count": 843
+      }
+    ],
+    "CAKE": [
+      {
+        "store_id": 2,
+        "name": "후와후와 모치점",
+        "address": "서울 마포구 희우정로16길 44",
+        "final_score": 11.691,
+        "normalized": 100.0,
+        "mention_count": 5,
+        "recent_count": 4,
+        "review_count": 139
+      },
+      {
+        "store_id": 450,
+        "name": "브릭베이글",
+        "address": "서울 마포구 동교로 43-1",
+        "final_score": 11.592,
+        "normalized": 98.4,
+        "mention_count": 5,
+        "recent_count": 5,
+        "review_count": 882
+      },
+      {
+        "store_id": 1,
+        "name": "후와후와",
+        "address": "서울 마포구 월드컵로13길 79",
+        "final_score": 7.998,
+        "normalized": 41.2,
+        "mention_count": 2,
+        "recent_count": 2,
+        "review_count": 1121
+      },
+      {
+        "store_id": 458,
+        "name": "투떰즈업",
+        "address": "서울 마포구 희우정로16길 53 1층",
+        "final_score": 6.176,
+        "normalized": 12.2,
+        "mention_count": 2,
+        "recent_count": 2,
+        "review_count": 1471
+      },
+      {
+        "store_id": 627,
+        "name": "밀로밀",
+        "address": "서울 마포구 희우정로10길 9",
+        "final_score": 5.731,
+        "normalized": 5.1,
+        "mention_count": 1,
+        "recent_count": 0,
+        "review_count": 843
+      },
+      {
+        "store_id": 1108,
+        "name": "잼인브레드",
+        "address": "서울 마포구 월드컵로17길 36",
+        "final_score": 5.408,
+        "normalized": 0.0,
+        "mention_count": 2,
+        "recent_count": 0,
+        "review_count": null
+      }
+    ],
+    "TART": [
+      {
+        "store_id": 627,
+        "name": "밀로밀",
+        "address": "서울 마포구 희우정로10길 9",
+        "final_score": 9.032,
+        "normalized": 100.0,
+        "mention_count": 4,
+        "recent_count": 0,
+        "review_count": 843
+      },
+      {
+        "store_id": 458,
+        "name": "투떰즈업",
+        "address": "서울 마포구 희우정로16길 53 1층",
+        "final_score": 4.719,
+        "normalized": 18.6,
+        "mention_count": 1,
+        "recent_count": 1,
+        "review_count": 1471
+      },
+      {
+        "store_id": 1,
+        "name": "후와후와",
+        "address": "서울 마포구 월드컵로13길 79",
+        "final_score": 4.351,
+        "normalized": 11.6,
+        "mention_count": 1,
+        "recent_count": 1,
+        "review_count": 1121
+      },
+      {
+        "store_id": 450,
+        "name": "브릭베이글",
+        "address": "서울 마포구 동교로 43-1",
+        "final_score": 3.977,
+        "normalized": 4.6,
+        "mention_count": 1,
+        "recent_count": 1,
+        "review_count": 882
+      },
+      {
+        "store_id": 2,
+        "name": "후와후와 모치점",
+        "address": "서울 마포구 희우정로16길 44",
+        "final_score": 3.736,
+        "normalized": 0.0,
+        "mention_count": 1,
+        "recent_count": 1,
+        "review_count": 139
+      }
+    ],
+    "BAKED_SWEET": [
+      {
+        "store_id": 627,
+        "name": "밀로밀",
+        "address": "서울 마포구 희우정로10길 9",
+        "final_score": 12.915,
+        "normalized": 100.0,
+        "mention_count": 7,
+        "recent_count": 0,
+        "review_count": 843
+      },
+      {
+        "store_id": 2,
+        "name": "후와후와 모치점",
+        "address": "서울 마포구 희우정로16길 44",
+        "final_score": 12.304,
+        "normalized": 86.8,
+        "mention_count": 4,
+        "recent_count": 4,
+        "review_count": 139
+      },
+      {
+        "store_id": 458,
+        "name": "투떰즈업",
+        "address": "서울 마포구 희우정로16길 53 1층",
+        "final_score": 9.304,
+        "normalized": 22.0,
+        "mention_count": 2,
+        "recent_count": 2,
+        "review_count": 1471
+      },
+      {
+        "store_id": 1,
+        "name": "후와후와",
+        "address": "서울 마포구 월드컵로13길 79",
+        "final_score": 8.736,
+        "normalized": 9.7,
+        "mention_count": 2,
+        "recent_count": 2,
+        "review_count": 1121
+      },
+      {
+        "store_id": 450,
+        "name": "브릭베이글",
+        "address": "서울 마포구 동교로 43-1",
+        "final_score": 8.288,
+        "normalized": 0.0,
+        "mention_count": 2,
+        "recent_count": 2,
+        "review_count": 882
+      }
+    ],
+    "DONUT": [
+      {
+        "store_id": 2,
+        "name": "후와후와 모치점",
+        "address": "서울 마포구 희우정로16길 44",
+        "final_score": 19.338,
+        "normalized": 100.0,
+        "mention_count": 7,
+        "recent_count": 5,
+        "review_count": 139
+      },
+      {
+        "store_id": 627,
+        "name": "밀로밀",
+        "address": "서울 마포구 희우정로10길 9",
+        "final_score": 12.648,
+        "normalized": 41.6,
+        "mention_count": 4,
+        "recent_count": 0,
+        "review_count": 843
+      },
+      {
+        "store_id": 1108,
+        "name": "잼인브레드",
+        "address": "서울 마포구 월드컵로17길 36",
+        "final_score": 11.21,
+        "normalized": 29.1,
+        "mention_count": 8,
+        "recent_count": 0,
+        "review_count": null
+      },
+      {
+        "store_id": 458,
+        "name": "투떰즈업",
+        "address": "서울 마포구 희우정로16길 53 1층",
+        "final_score": 10.29,
+        "normalized": 21.1,
+        "mention_count": 3,
+        "recent_count": 3,
+        "review_count": 1471
+      },
+      {
+        "store_id": 1,
+        "name": "후와후와",
+        "address": "서울 마포구 월드컵로13길 79",
+        "final_score": 10.006,
+        "normalized": 18.6,
+        "mention_count": 3,
+        "recent_count": 3,
+        "review_count": 1121
+      },
+      {
+        "store_id": 450,
+        "name": "브릭베이글",
+        "address": "서울 마포구 동교로 43-1",
+        "final_score": 7.872,
+        "normalized": 0.0,
+        "mention_count": 4,
+        "recent_count": 4,
+        "review_count": 882
+      }
+    ],
+    "ETC": [
+      {
+        "store_id": 2,
+        "name": "후와후와 모치점",
+        "address": "서울 마포구 희우정로16길 44",
+        "final_score": 23.578,
+        "normalized": 100.0,
+        "mention_count": 6,
+        "recent_count": 5,
+        "review_count": 139
+      },
+      {
+        "store_id": 1,
+        "name": "후와후와",
+        "address": "서울 마포구 월드컵로13길 79",
+        "final_score": 17.736,
+        "normalized": 46.1,
+        "mention_count": 6,
+        "recent_count": 6,
+        "review_count": 1121
+      },
+      {
+        "store_id": 627,
+        "name": "밀로밀",
+        "address": "서울 마포구 희우정로10길 9",
+        "final_score": 16.821,
+        "normalized": 37.6,
+        "mention_count": 6,
+        "recent_count": 0,
+        "review_count": 843
+      },
+      {
+        "store_id": 450,
+        "name": "브릭베이글",
+        "address": "서울 마포구 동교로 43-1",
+        "final_score": 12.744,
+        "normalized": 0.0,
+        "mention_count": 3,
+        "recent_count": 3,
+        "review_count": 882
+      }
+    ]
+  },
+  "posts_by_store": {
+    "1": [
+      {
+        "url": "https://blog.naver.com/soaql1219/224275341389",
+        "blog_id": "soaql1219",
+        "log_no": "224275341389",
+        "title": "후와후와인천 롯데백화점 팝업망원동인기 빵집 웨이팅",
+        "date": "2026-03-19",
+        "snippet": "빵소담; 소담 소담 빵소담 - 동네빵집 즐기는 사람들 2주 전 망원동 후와후와 com/thebbangs/112174 본문 글양식은 삭제하지말고 게시글에 남겨둠 * 후기 매장명: 망원동 후와후와 어글리베이커리 가다 우연히 보게되었어요. 이웃집 통통이 옆에 잇었는데 사람이 많더라구요. 급하기 서칭해보고 웨이팅 걸어놨었어요. 토요일 낮 12시 30분쯤 웨이팅 2",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "NEU",
+        "senti_mult": 1.0,
+        "cats": {
+          "SALT_BREAD": 10,
+          "BAGEL": 1,
+          "SAVORY": 5,
+          "ETC": 4
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/lizdoll/224221648756",
+        "blog_id": "lizdoll",
+        "log_no": "224221648756",
+        "title": "망원동샌드베이글 맛집을 찾아서:하프베이글, 브릭베이글, 투떰즈업,후와후와",
+        "date": "2026-03-19",
+        "snippet": "빵소담; 소담 소담 빵소담 - 동네빵집 즐기는 사람들 2주 전 망원동 후와후와 com/thebbangs/112174 본문 글양식은 삭제하지말고 게시글에 남겨둠 * 후기 매장명: 망원동 후와후와 어글리베이커리 가다 우연히 보게되었어요. 이웃집 통통이 옆에 잇었는데 사람이 많더라구요. 급하기 서칭해보고 웨이팅 걸어놨었어요. 토요일 낮 12시 30분쯤 웨이팅 2",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "BAGEL": 30,
+          "SAVORY": 18,
+          "ETC": 1
+        },
+        "focus": 0.321
+      },
+      {
+        "url": "https://blog.naver.com/afewtraiiin_/224128382594",
+        "blog_id": "afewtraiiin_",
+        "log_no": "224128382594",
+        "title": "망원동빵지순례후와후와모치점 방문후기",
+        "date": "2026-03-19",
+        "snippet": "빵소담; 소담 소담 빵소담 - 동네빵집 즐기는 사람들 2주 전 망원동 후와후와 com/thebbangs/112174 본문 글양식은 삭제하지말고 게시글에 남겨둠 * 후기 매장명: 망원동 후와후와 어글리베이커리 가다 우연히 보게되었어요. 이웃집 통통이 옆에 잇었는데 사람이 많더라구요. 급하기 서칭해보고 웨이팅 걸어놨었어요. 토요일 낮 12시 30분쯤 웨이팅 2",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SALT_BREAD": 2,
+          "HARD_BREAD": 1,
+          "BAGEL": 15,
+          "SAVORY": 9,
+          "CAKE": 4,
+          "TART": 1,
+          "BAKED_SWEET": 3,
+          "DONUT": 1,
+          "ETC": 2
+        },
+        "focus": 0.929
+      },
+      {
+        "url": "https://blog.naver.com/zoosoo4/224164106338",
+        "blog_id": "zoosoo4",
+        "log_no": "224164106338",
+        "title": "망원동빵지순례 어글리베이커리 /후와후와빵집 웨이팅",
+        "date": "2026-03-19",
+        "snippet": "빵소담; 소담 소담 빵소담 - 동네빵집 즐기는 사람들 2주 전 망원동 후와후와 com/thebbangs/112174 본문 글양식은 삭제하지말고 게시글에 남겨둠 * 후기 매장명: 망원동 후와후와 어글리베이커리 가다 우연히 보게되었어요. 이웃집 통통이 옆에 잇었는데 사람이 많더라구요. 급하기 서칭해보고 웨이팅 걸어놨었어요. 토요일 낮 12시 30분쯤 웨이팅 2",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "NEG",
+        "senti_mult": 0.5,
+        "cats": {
+          "HARD_BREAD": 2,
+          "SAVORY": 3,
+          "DONUT": 4,
+          "ETC": 3
+        },
+        "focus": 0.867
+      },
+      {
+        "url": "https://blog.naver.com/luna_26_/224291032817",
+        "blog_id": "luna_26_",
+        "log_no": "224291032817",
+        "title": "망원동빵지순례후와후와모치점 주말 웨이팅 오픈런 입장 후기",
+        "date": "2026-03-19",
+        "snippet": "빵소담; 소담 소담 빵소담 - 동네빵집 즐기는 사람들 2주 전 망원동 후와후와 com/thebbangs/112174 본문 글양식은 삭제하지말고 게시글에 남겨둠 * 후기 매장명: 망원동 후와후와 어글리베이커리 가다 우연히 보게되었어요. 이웃집 통통이 옆에 잇었는데 사람이 많더라구요. 급하기 서칭해보고 웨이팅 걸어놨었어요. 토요일 낮 12시 30분쯤 웨이팅 2",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "NEU",
+        "senti_mult": 1.0,
+        "cats": {
+          "SALT_BREAD": 4,
+          "CROISSANT": 1,
+          "HARD_BREAD": 2,
+          "BAGEL": 9,
+          "SAVORY": 4,
+          "BAKED_SWEET": 1,
+          "DONUT": 4,
+          "ETC": 1
+        },
+        "focus": 0.909
+      },
+      {
+        "url": "https://blog.naver.com/tpwls78941/224129564561",
+        "blog_id": "tpwls78941",
+        "log_no": "224129564561",
+        "title": "박대리blog.naver.com›tpwls78941",
+        "date": "2026-03-19",
+        "snippet": "검색옵션 닫기 정렬 관련도순 최신순 기간 전체 1시간 1일 1주 1개월 3개월 6개월 1년 직접입력 옵션 펼치기 접기 기간 설정시작 ~ 기간 설정끝 년(Year) 월(Month) 일(Day) 적용 옵션 초기화 검색옵션 가이드 플레이스 MY 위치 정보 없음 변경 내위치 로딩중 관련도순 거리순 후와후와 베이커리 오늘 휴무 매주 화요일 휴무 현재 위치에서 6.5",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SALT_BREAD": 18,
+          "BAGEL": 10,
+          "SAVORY": 13,
+          "CAKE": 1
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/supermoooon/224112311087",
+        "blog_id": "supermoooon",
+        "log_no": "224112311087",
+        "title": "문보통blog.naver.com›supermoooon",
+        "date": "2026-03-19",
+        "snippet": "검색옵션 닫기 정렬 관련도순 최신순 기간 전체 1시간 1일 1주 1개월 3개월 6개월 1년 직접입력 옵션 펼치기 접기 기간 설정시작 ~ 기간 설정끝 년(Year) 월(Month) 일(Day) 적용 옵션 초기화 검색옵션 가이드 플레이스 MY 위치 정보 없음 변경 내위치 로딩중 관련도순 거리순 후와후와 베이커리 오늘 휴무 매주 화요일 휴무 현재 위치에서 6.5",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SALT_BREAD": 8,
+          "BAGEL": 1,
+          "SAVORY": 1,
+          "ETC": 3
+        },
+        "focus": 1.0
+      }
+    ],
+    "2": [
+      {
+        "url": "https://blog.naver.com/luna_26_/224291032817",
+        "blog_id": "luna_26_",
+        "log_no": "224291032817",
+        "title": "망원동빵지순례후와후와 모치점주말 웨이팅 오픈런 입장 후기",
+        "date": "2026-05-29",
+        "snippet": "나의 20대 기록장 4일 전 망원동 빵지순례 후와후와 모치점 주말 웨이팅 오픈런 입장 후기 망원동 빵지순례의 대표 후와후와 본점이랑 모치점 중 어디로 갈까 고민하다가 모치점 에도 원하는 라인업이 다 있고 본점보다 웨이팅이 적다고 해서 ' 후와후와 모치점 '으로 다녀와봤습니다 영업일 및 영업시간 : 수~일 12:00~20:00 *정기휴무 '매주 월, 화' 전",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "NEU",
+        "senti_mult": 1.0,
+        "cats": {
+          "SALT_BREAD": 4,
+          "CROISSANT": 1,
+          "HARD_BREAD": 2,
+          "BAGEL": 9,
+          "SAVORY": 4,
+          "BAKED_SWEET": 1,
+          "DONUT": 4,
+          "ETC": 1
+        },
+        "focus": 0.909
+      },
+      {
+        "url": "https://blog.naver.com/fdamin/224301655091",
+        "blog_id": "fdamin",
+        "log_no": "224301655091",
+        "title": "냠냠쩝쩝(내돈내산)_[후와후와 모치점]망원빵지순례 1등 베이커리 맛집 완전 정복 웨이팅 꿀팁 ....",
+        "date": "2026-05-31",
+        "snippet": "쩝쩝석사의 일상 2일 전 냠냠쩝쩝(내돈내산)_[ 후와후와 모치점 ] 망원 빵지순례 1등 베이커리 맛집 완전 정복 웨이팅 꿀팁 .... 직접 # 망원 빵집웨이팅 #내돈내산 빵순이 출동 후와후와 모치점 서울 마포구 희우정로16길 44 망원 역 2번 출구 도보 약 10분 #망리단길 빵집 # 후와후와 1호점 도보2분 거리... 자리한 # 망원동후와후와 망원 빵지순",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "HARD_BREAD": 7,
+          "BAGEL": 23,
+          "SAVORY": 11,
+          "CAKE": 1,
+          "BAKED_SWEET": 1,
+          "DONUT": 5,
+          "ETC": 8
+        },
+        "focus": 0.81
+      },
+      {
+        "url": "https://blog.naver.com/z__sun/224303235462",
+        "blog_id": "z__sun",
+        "log_no": "224303235462",
+        "title": "망원동빵지순례후와후와 모치점| 주말웨이팅| 타로소라빠앙 타로쫀득빵 | 까망쑥떡샌드베이글 | ....",
+        "date": "2026-06-01",
+        "snippet": "'◡'✿ 1일 전 망원동 빵지순례 후와후와 모치점 | 주말웨이팅| 타로소라빠앙 타로쫀득빵 | 까망쑥떡샌드베이글 | .... 후와후와 빵택배만 해봤는데 이번에 서울갈일이 자주생겨 두번이나 방문해본 후와후와 모치점 후기입니다 ! \"\" 영업일 및... ㅋㅋㅋ 망원동 에서 길빵하는 내가 너무 웃기구 *까망쑥떡 베이글샌드 크림이 너무 사기라서 크림만 퍼묵퍼묵 하고 ",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "BAGEL": 10,
+          "SAVORY": 7,
+          "CAKE": 1,
+          "BAKED_SWEET": 1,
+          "DONUT": 1,
+          "ETC": 10
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/llkn/224300139514",
+        "blog_id": "llkn",
+        "log_no": "224300139514",
+        "title": "망원동빵투어 02 [후와후와 모치점] 주말 웨이팅 및 캐치테이블하는 방법",
+        "date": "2026-06-01",
+        "snippet": "먹고 놀러 다니는 소소한 식탐일기 1일 전 망원동 빵투어 02 [ 후와후와 모치점 ] 주말 웨이팅 및 캐치테이블하는 방법 빵집인 # 후와후와 에 다녀왔습니다 1탄 후기는 여기 https://blog.naver.com/llkn/224300105813 여기는 11시 30분부터 원격으로 #캐치테이블 예약이 되어서 예약을 걸었습니다 # 망원동 빵투어 # 망원동 맛",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "NEG",
+        "senti_mult": 0.5,
+        "cats": {
+          "HARD_BREAD": 1,
+          "BAGEL": 2,
+          "SAVORY": 8,
+          "CAKE": 1,
+          "TART": 1
+        },
+        "focus": 0.667
+      },
+      {
+        "url": "https://blog.naver.com/cocho1346/224302864560",
+        "blog_id": "cocho1346",
+        "log_no": "224302864560",
+        "title": "망원동빵지순례 (후와후와본점&모치점, 투떰즈업, 어글리베이커리, 이웃집통통이) 5곳 후기",
+        "date": "2026-06-01",
+        "snippet": "동구라미의 추억들❤️ 1일 전 망원동 빵지순례 ( 후와후와 본점& 모치점 , 투떰즈업, 어글리베이커리, 이웃집통통이) 5곳 후기 그리고 저는 후와후와 에서 보냉백 사고 싶었는데 본점/ 모치점 둘다 품절이슈로 못사고 가장 마지막에 간 투떰즈업에서 샀답니다 그럼 저는 뿅 #서로이웃 #서이추 #서로이웃추가 #서로이웃환영 #서이추 #서이추환영 #댓글 #공감 #좋아",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "NEU",
+        "senti_mult": 1.0,
+        "cats": {
+          "BAGEL": 7,
+          "SAVORY": 3,
+          "DONUT": 1,
+          "ETC": 2
+        },
+        "focus": 0.65
+      },
+      {
+        "url": "https://blog.naver.com/wlsgml9812/224274680764",
+        "blog_id": "wlsgml9812",
+        "log_no": "224274680764",
+        "title": "달콤찌니blog.naver.com›wlsgml9812",
+        "date": "2025-07-17",
+        "snippet": "빵시녕 YouTube 2025.07.17. 망원동 빵맛집 8곳 모음집..!! ( 후와후와 ,투떰즈업,어글리베이커리,동명양과자점,브릭베이글,해브.... 30:45 먹고 놀러 다니는 소소한 식탐일기 1일 전 망원동 빵투어 02 [ 후와후와 모치점 ] 주말 웨이팅 및 캐치테이블하는 방법 빵집인 # 후와후와 에 다녀왔습니다 1탄 후기는 여기 https://blog",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SALT_BREAD": 2,
+          "SAVORY": 1,
+          "DONUT": 1
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/say0y/224265994559",
+        "blog_id": "say0y",
+        "log_no": "224265994559",
+        "title": "momoblog.naver.com›say0y",
+        "date": "2025-07-17",
+        "snippet": "빵시녕 YouTube 2025.07.17. 망원동 빵맛집 8곳 모음집..!! ( 후와후와 ,투떰즈업,어글리베이커리,동명양과자점,브릭베이글,해브.... 30:45 먹고 놀러 다니는 소소한 식탐일기 1일 전 망원동 빵투어 02 [ 후와후와 모치점 ] 주말 웨이팅 및 캐치테이블하는 방법 빵집인 # 후와후와 에 다녀왔습니다 1탄 후기는 여기 https://blog",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SALT_BREAD": 20,
+          "HARD_BREAD": 6,
+          "BAGEL": 4,
+          "SAVORY": 6,
+          "CAKE": 3,
+          "DONUT": 5,
+          "ETC": 7
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/yoloholo_again/224299102351",
+        "blog_id": "yoloholo_again",
+        "log_no": "224299102351",
+        "title": "망원한강공원피크닉_망원동빵집 글쎄? 내돈내산 솔직후기 [후와후와 모치점]",
+        "date": "2026-05-28",
+        "snippet": "yolo & holo 5일 전 망원 한강공원피크닉_ 망원동 빵집 글쎄? 내돈내산 솔직후기 [ 후와후와 모치점 ] 달달하니 맛나더라구요 오히려 샌드보다 만족스러웠던 소라빠앙 인기있는 샌드류를 겟하지 못할것 같으면 굳이 웨이팅 하지 않는것도 괜찮을 것 같아요 ㅋㅋㅋ 남은 빵들 중에서 고르자니 웨이팅한 거에 비해서 약간 아쉬웠습니다! # 후와후와 # 후와후와모치",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "CROISSANT": 1,
+          "BAGEL": 2,
+          "SAVORY": 13,
+          "CAKE": 1,
+          "BAKED_SWEET": 1,
+          "DONUT": 1,
+          "ETC": 2
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/drda83/224294710331",
+        "blog_id": "drda83",
+        "log_no": "224294710331",
+        "title": "[망원역] 빵지순례후와후와본점,모치점주말 웨이팅 내돈내산 방문 후기",
+        "date": "2026-05-27",
+        "snippet": "히유 기록실 6일 전 [ 망원 역] 빵지순례 후와후와 본점, 모치점 주말 웨이팅 내돈내산 방문 후기 망원동 에 유명한 빵집이 많은데 그 중에서 이번엔 후와후와 를 다녀오기로 했음 후와후와 는 본점과 모치점 이 가까운 곳에 있는데 주말에 둘 다 한번에 다녀온 후기를 간단히 작성해보려함 빵 종류가 워낙 많아서 자세한 후기는 못 쓸 듯 영업시간 수 ~ 일 12:",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "BAGEL": 2,
+          "SAVORY": 1
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/munz2/224296103686",
+        "blog_id": "munz2",
+        "log_no": "224296103686",
+        "title": "망원동 후와후와 모치점일요일 방문 후기",
+        "date": "2026-05-19",
+        "snippet": "내가 우주 속의 먼지일지언정 2주 전 망원동 후와후와 모치점 일요일 방문 후기 어느 날 내 인스타를 점령해 버린 베이글 샌드 망원동 이 빵이 유명한 건 알았는데 후와후와 인스타 피드 보니까 참을 수가 없어서 주말에 가보기로 결심함 후와후와 모치점 은 본점하고 도보 2-3분 거리쯤?에 위치해 있다 인스타 보면 그날그날 라인업이 다른 거 같은데 매일 뜨는 건 ",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "NEU",
+        "senti_mult": 1.0,
+        "cats": {
+          "HARD_BREAD": 1,
+          "BAGEL": 8,
+          "SAVORY": 4
+        },
+        "focus": 1.0
+      }
+    ],
+    "450": [
+      {
+        "url": "https://blog.naver.com/alsrudch/224297297910",
+        "blog_id": "alsrudch",
+        "log_no": "224297297910",
+        "title": "망원동빵지순례 순서 금요일 천하제빵 어글리베이커리 투떰즈업브릭베이글",
+        "date": "2026-05-26",
+        "snippet": "빵냄새나는별이네 1주 전 망원동 빵지순례 순서 금요일 천하제빵 어글리베이커리 투떰즈업 브릭베이글 향했어요 브릭 베이글 은 망원 시장에서 거리가 좀 있었고 웨이팅 시스템은 없었어요 망원동 빵지순례 가기 전에 후기를 보고 브릭 베이글 에 체리 피스타치오 베이글 에 꽂혀서 들렸는데요 남편이 저만 내려주고 주차 공간이 없기 때문에 돌고 있는 사이에 구입을 했는데요",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "BAGEL": 16,
+          "SAVORY": 8,
+          "CAKE": 1,
+          "DONUT": 1
+        },
+        "focus": 0.258
+      },
+      {
+        "url": "https://blog.naver.com/alsrudch/224298090243",
+        "blog_id": "alsrudch",
+        "log_no": "224298090243",
+        "title": "망원동빵지순례 맛집 천하제빵 어글리베이커리 투떰즈업브릭베이글추천제품 시식후기 보관방....",
+        "date": "2026-05-26",
+        "snippet": "빵냄새나는별이네 1주 전 망원동 빵지순례 순서 금요일 천하제빵 어글리베이커리 투떰즈업 브릭베이글 향했어요 브릭 베이글 은 망원 시장에서 거리가 좀 있었고 웨이팅 시스템은 없었어요 망원동 빵지순례 가기 전에 후기를 보고 브릭 베이글 에 체리 피스타치오 베이글 에 꽂혀서 들렸는데요 남편이 저만 내려주고 주차 공간이 없기 때문에 돌고 있는 사이에 구입을 했는데요",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "BAGEL": 12,
+          "SAVORY": 8,
+          "DONUT": 1,
+          "ETC": 2
+        },
+        "focus": 0.389
+      },
+      {
+        "url": "https://blog.naver.com/llkn/224300105813",
+        "blog_id": "llkn",
+        "log_no": "224300105813",
+        "title": "망원동빵투어 01[브릭베이글] 박명수, 지수가 극찬한 과일샌드 맛집",
+        "date": "2026-05-31",
+        "snippet": "먹고 놀러 다니는 소소한 식탐일기 2일 전 망원동 빵투어 01[ 브릭베이글 ] 박명수, 지수가 극찬한 과일샌드 맛집 기대 이상으로 맛있어서 아직도 생각나네요 다음에는 다른 율무 샌드도 도전해보고 싶고 아니면 그냥 같은 메뉴를 또 사 먹을 수도 있을 것 같아요 망원동 빵투어 코스를 고민하신다면 왕 추천드립니다요! 따봉! 저는 재방문 의사 100%인 곳이었어요",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "HARD_BREAD": 1,
+          "BAGEL": 6,
+          "SAVORY": 6
+        },
+        "focus": 0.667
+      },
+      {
+        "url": "https://blog.naver.com/ninosukiyo/224300809187",
+        "blog_id": "ninosukiyo",
+        "log_no": "224300809187",
+        "title": "빕스 합정점,망원동빵집투어브릭베이글, 구미가당, 메이크베러띵스, 도파민,망원동카페망원....",
+        "date": "2026-05-30",
+        "snippet": "BOLBOLY-끄적끄적 기록하기 3일 전 빕스 합정점, 망원동 빵집투어 브릭베이글 , 구미가당, 메이크베러띵스, 도파민, 망원동 카페 망원 .... 빕스 합정 브릭베이글 구미가당 메이크베러띵스 도파민 망원 지튼 2026/04/25/토 4월에 빕스를 두번이나 갔다 KT 할인 덕분에 남편이랑 대방점 방문하고 베뷔짱이랑 합정점 댕겨왔다... 먹고 망원동 빵집투어",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SALT_BREAD": 2,
+          "BAGEL": 9,
+          "SAVORY": 2,
+          "TART": 12,
+          "BAKED_SWEET": 6,
+          "DONUT": 1
+        },
+        "focus": 0.19
+      },
+      {
+        "url": "https://blog.naver.com/bloggerda/224297560105",
+        "blog_id": "bloggerda",
+        "log_no": "224297560105",
+        "title": "[마포/망원]브릭베이글내돈내산 리뷰, 샌드베이글맛집 추천 메뉴",
+        "date": "2026-05-27",
+        "snippet": "FOODIE x MOODIE 6일 전 [마포/ 망원 ] 브릭베이글 내돈내산 리뷰, 샌드 베이글 맛집 추천 메뉴 별로였다^-^ 너무 무겁고 살짝 물리고 진짜 피스타치오에 아래 치즈케이크 같은 느낌도 있어서 꾸덕이 아닌 뭔가 꾸덕쿰척하는 기분.. 그래도 와중에 딸기는 즙 많고 맛있었다 다시 가면 망고랑 후르츠 먹어야지... 망원 한강공원 브릭 베이글 이 후와후",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "NEG",
+        "senti_mult": 0.5,
+        "cats": {
+          "BAGEL": 17,
+          "SAVORY": 5,
+          "CAKE": 2,
+          "ETC": 1
+        },
+        "focus": 0.714
+      },
+      {
+        "url": "https://blog.naver.com/mantecare0708/224280653189",
+        "blog_id": "mantecare0708",
+        "log_no": "224280653189",
+        "title": "망원동빵지순례 3대 샌드베이글‘브릭베이글‘ 솔직후기ㅣ투떰즈업, 후와후와 비교",
+        "date": "2026-05-05",
+        "snippet": "빵만 먹고 살래 4주 전 망원동 빵지순례 3대 샌드 베이글 ‘ 브릭베이글 ‘ 솔직후기ㅣ투떰즈업, 후와후와 비교 망원동 ‘ 브릭베이글 ’ 망원동 3대 샌드 베이글 ‘ 브릭베이글 ‘ 솔직후기ㅣ 투떰즈업, 후와후와 비교 서울 마포구 동교로 43-1 주차 불가 매일 12:00 - 20:00 화,수,목요일 휴무 안녕하세요 빵티시에입니다. 오늘은 망원동 빵지순례 때 ",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "BAGEL": 35,
+          "SAVORY": 9,
+          "CAKE": 2
+        },
+        "focus": 0.368
+      },
+      {
+        "url": "https://blog.naver.com/didvkfld0124/224275577324",
+        "blog_id": "didvkfld0124",
+        "log_no": "224275577324",
+        "title": "망원동베이글맛집브릭베이글샌드베이글웨이팅 후기",
+        "date": "2026-05-05",
+        "snippet": "효박커플의 일상이야기 4주 전 망원동 베이글 맛집 브릭베이글 샌드 베이글 웨이팅 후기 매장 내부도 협소한 편이라 입장 인원이 제한되어 있으니 방문하실 때 참고하시면 좋을 것 같아요 망원동 브릭베이글 에서 판매하는 베이글 종류에요! 가장 인기 많은 피스타치오 범벅, 두바이초코, 블루베리 요거트는 이미 품절이라 아쉬웠어요. 저랑 친구는 처음 먹어보는 거라 신중",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "BAGEL": 31,
+          "SAVORY": 6
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/beauty_edit/224276108660",
+        "blog_id": "beauty_edit",
+        "log_no": "224276108660",
+        "title": "망원동빵지순례브릭베이글웨이팅 택배 (망고, 황치즈, 완두)",
+        "date": "2026-05-05",
+        "snippet": "맛있는 장소와 예쁜 루틴, 그 사이 4주 전 망원동 빵지순례 브릭베이글 웨이팅 택배 (망고, 황치즈, 완두) 망원 브릭베이글 망원동 빵지순례 3탄 투떰즈업과 후와후와를 거쳐 드디어 ㅎ ㅎ 브릭베이글 (BRICK BAGEL) 이곳까지 왔습니다 망원동 에는 워낙 개성 넘치는 빵집이 많지만 이곳은 이름처럼 벽돌을 닮은 독특한 사각 베이글 하나로 빵순이들 사이에서",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SALT_BREAD": 2,
+          "BAGEL": 35,
+          "SAVORY": 6,
+          "ETC": 4
+        },
+        "focus": 0.724
+      },
+      {
+        "url": "https://blog.naver.com/gywls9702/224275335328",
+        "blog_id": "gywls9702",
+        "log_no": "224275335328",
+        "title": "망원브릭베이글다녀온 후기",
+        "date": "2026-05-05",
+        "snippet": "찌니Daily__❥ 4주 전 망원 브릭베이글 다녀온 후기 안녕하세요 찌니입니다◡̈ 오늘 소개해 드릴 곳은 브릭베이글 입니다 망원동 에 요즘 뜨고 있는 브릭베이글 다녀왔어요 베이글 샌드 맛집으로 sns계속 올라와서 참을 수가 없었어요 브릭베이글 서울특별시 마포구 동교로 43-1 ⏰영업 시간 12:00-20:00 매주 휴무 화요일, 수요일, 목요일 ️주차불가 ",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "BAGEL": 11,
+          "SAVORY": 3,
+          "CAKE": 8,
+          "BAKED_SWEET": 1
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/arom282/224292128956",
+        "blog_id": "arom282",
+        "log_no": "224292128956",
+        "title": "망원동빵집 후와후와/브릭베이글디저트 핫플",
+        "date": "2026-05-19",
+        "snippet": "오늘을 성실하게 2주 전 망원동 빵집 후와후와/ 브릭베이글 디저트 핫플 이래서 살쪘다 망원동 간김에 카페 / 빵집 투어 3탄 어거스트 카페 갔을때 후와후와 캐치테이블 걸었는데 미친 121번째 ㅋㅋㅋㅋ 도랐ㄴ ㅏ ㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋ # 브릭베이글 먼저갔음 요즘 약간 과일 산도랑 같이 유행인 스탈이랄까. 베이글 사이에 크림인지 크림치즈인지 한가득~~~~~~",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "NEU",
+        "senti_mult": 1.0,
+        "cats": {
+          "SALT_BREAD": 4,
+          "BAGEL": 9,
+          "SAVORY": 2,
+          "CAKE": 2,
+          "DONUT": 1
+        },
+        "focus": 0.385
+      }
+    ],
+    "458": [
+      {
+        "url": "https://blog.naver.com/specialad/224274279780",
+        "blog_id": "specialad",
+        "log_no": "224274279780",
+        "title": "망원동빵집투떰즈업오랜만",
+        "date": "2026-05-05",
+        "snippet": "쵸 4주 전 망원동 빵집 투떰즈업 오랜만 오랜만에 투떰즈업 에 가서 달달한 빵들로 주말을 시작하니 참 좋았지. 이렇게 종종 웨이팅 심하지 않은날 도전해서 이것저것 맛봐야겠다. 동네 주민인데도 1년에 한두번 갈 수 있으니 약간은 슬프지만, 폐업이 자주 있는 이 동네에서 오랫동안 사랑 받는 곳이라 꾸준히 갈 수 있어 좋은 것 같기도 하다. # 투떰즈업 # 망원",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SALT_BREAD": 6,
+          "HARD_BREAD": 1,
+          "BAGEL": 6,
+          "SAVORY": 13
+        },
+        "focus": 0.917
+      },
+      {
+        "url": "https://blog.naver.com/alsrudch/224297297910",
+        "blog_id": "alsrudch",
+        "log_no": "224297297910",
+        "title": "망원동빵지순례 순서 금요일 천하제빵 어글리베이커리투떰즈업브릭베이글",
+        "date": "2026-05-26",
+        "snippet": "빵냄새나는별이네 1주 전 망원동 빵지순례 순서 금요일 천하제빵 어글리베이커리 투떰즈업 브릭베이글 망원동 빵지순례 코스 정리 순서를 정리하자면 망원 1,2주차장에 주차 후 후아후아 웨이팅 걸어두고 어글리 베이커리 현장 대기 현황 확인하고 투떰즈업 웨이팅 걸고 망원 시장으로 이동 요기하고 12시 오픈 시간 맞춰 어글리 베이커리 현장대기후 10분 정도 기다리다 ",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "BAGEL": 16,
+          "SAVORY": 8,
+          "CAKE": 1,
+          "DONUT": 1
+        },
+        "focus": 0.581
+      },
+      {
+        "url": "https://blog.naver.com/summerin2/224214889368",
+        "blog_id": "summerin2",
+        "log_no": "224214889368",
+        "title": "망원동빵집투어 추천 리스트, 후와후와투떰즈업스콘 빵집 탐방",
+        "date": "2026-03-13",
+        "snippet": "김응삼 2026.03.13. 망원동 빵집투어 추천 리스트, 후와후와 투떰즈업 스콘 빵집 탐방 물론 에프에 돌려도 되고요~ㅎㅎ 투떰즈업 캬 그리고 정말 제가 애정하는 웨이팅 장난아닌 투떰즈업 ! 망원동 빵집투어 추천 리스트에서 빠질 수 없는 곳이죠~ 제가 몇년전에 인터넷 배달로 겨우 맘모스빵을 주문해서 맛있게 먹은적이 있는데 거기 매장이 바로 여기 있더라고요",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SAVORY": 3,
+          "CAKE": 3,
+          "BAKED_SWEET": 15
+        },
+        "focus": 0.294
+      },
+      {
+        "url": "https://blog.naver.com/basyong93/224298437984",
+        "blog_id": "basyong93",
+        "log_no": "224298437984",
+        "title": "망원동빵집투떰즈업평일 오픈런 웨이팅 꿀팁, 후기 (메뉴 추천)",
+        "date": "2026-05-27",
+        "snippet": "소유의 소소한 일상기록 6일 전 망원동 빵집 투떰즈업 평일 오픈런 웨이팅 꿀팁, 후기 (메뉴 추천) 망원동 빵지 순례 2편 - 투떰즈업 서울 빵지 순례 망원동 빵집 투어하면 꼭 가야하는 빵집인 투떰즈업 맘모스, 샌드베이글, 소금빵으로 유명한 빵집이에요 ㅎㅎ 주소 : 서울... 투떰즈업 위치는 망원 역 2번출구에서 도보 10분거리에 있어요. 주변에 후와후와 ",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SALT_BREAD": 8,
+          "BAGEL": 23,
+          "SAVORY": 15
+        },
+        "focus": 0.875
+      },
+      {
+        "url": "https://blog.naver.com/jihyang-joychoi/224298455360",
+        "blog_id": "jihyang-joychoi",
+        "log_no": "224298455360",
+        "title": "[서울/마포]망원동 투떰즈업주말 웨이팅/평일 웨이팅 후기, 메뉴추천 (현장구매) |망원동빵지순....",
+        "date": "2026-05-28",
+        "snippet": "Joy_맛집 카페 여행 일상✧٩(•́⌄•́๑)و ✧ 5일 전 [서울/마포] 망원동 투떰즈업 주말 웨이팅/평일 웨이팅 후기, 메뉴추천 (현장구매) | 망원동 빵지순.... 투떰즈업 ⏰ 영업시간 12:30~18:00 ⭐️ 웨이팅 오픈 시간 11:00 정기휴무 월/화/일요일 매장 위치 : 서울 마포구 희우정로16길 53 1층 ️ 주차 불가 지난번에 망원동 빵지순",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SAVORY": 4,
+          "TART": 1,
+          "BAKED_SWEET": 2,
+          "DONUT": 1
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/jms5932/224274164585",
+        "blog_id": "jms5932",
+        "log_no": "224274164585",
+        "title": "망원동빵집 금요일 캐치테이블 웨이팅 후기 샌드베이글 맛집투떰즈업",
+        "date": "2026-05-05",
+        "snippet": "구름이 몽실몽실·ᴗ· 4주 전 망원동 빵집 금요일 캐치테이블 웨이팅 후기 샌드베이글 맛집 투떰즈업 망원 , 합정쪽에 갈일이 생겼고~? 이건 빵투어를 하라는 신의 계시다 싶어 보냉팩을 챙겨 냅다 뛰어갔답니다 말 너무 많다 신나서 그럽니다 망원동 빵집 투떰즈업 은 오전 10시 30분에 현장 캐치테이블을 오픈하고? (11시라는 얘기도 있는데,, 사실 모르것어요)",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "NEG",
+        "senti_mult": 0.5,
+        "cats": {
+          "SALT_BREAD": 6,
+          "BAGEL": 33,
+          "SAVORY": 16,
+          "DONUT": 1
+        },
+        "focus": 0.889
+      },
+      {
+        "url": "https://blog.naver.com/05merci/224297248162",
+        "blog_id": "05merci",
+        "log_no": "224297248162",
+        "title": "망원동 투떰즈업카페떰비 │ 과일산도 맛집 빵지순례 솔직후기",
+        "date": "2026-05-26",
+        "snippet": "공간과 오늘을 담는 공오 1주 전 망원동 투떰즈업 카페떰비 │ 과일산도 맛집 빵지순례 솔직후기 망원동 투떰즈업 카페떰비 과일산도 솔직후기 안녕하세요 :) 오늘은 망원 빵지순례 코스로 빼놓을 수 없는 투떰즈업 에서 새롭게 오픈한 카페떰비에 다녀왔습니다. 떰비는 투떰즈업 과 같은 건물 2층에 위치해있습니다. 당연히 카페만 이용도 가능한데, 투쩜즈업에서 빵 구입",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "HARD_BREAD": 3
+        },
+        "focus": 0.571
+      },
+      {
+        "url": "https://blog.naver.com/so6438/224260723463",
+        "blog_id": "so6438",
+        "log_no": "224260723463",
+        "title": "망원빵지순례투떰즈업주말 웨이팅 팁 , 메뉴 추천",
+        "date": "2026-04-22",
+        "snippet": "Jung daily log 2026.04.22. 망원 빵지순례 투떰즈업 주말 웨이팅 팁 , 메뉴 추천 망원동 빵지순례 투떰즈업 서울 마포구 희우정로16길 53 1층 망원 역 2번 출구 538m 안녕하세요 :) 주말에 망원동 빵지순례 다녀와써용! 망원동 은 평일에 가야 한적한데 친구가 주말밖에 시간이 안된다고 해서 주말에 다녀왔는데 날도 좋고 주말이라 그런지",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "BAGEL": 1,
+          "SAVORY": 5
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/rady1267/224289005795",
+        "blog_id": "rady1267",
+        "log_no": "224289005795",
+        "title": "[망원동빵지순례]망원동빵지순례 코스 (어글리베이커리,투떰즈업, 후와후와)망원동샌드베이....",
+        "date": "2026-05-12",
+        "snippet": "예림이그패봐봐 3주 전 [ 망원동 빵지순례] 망원동 빵지순례 코스 (어글리베이커리, 투떰즈업 , 후와후와) 망원동 샌드베이.... 집에서 출발 전 투떰즈업 예약했고 12시 35분에 망원동 도착하자마자 후와후와 웨이팅걸었어요! 후와후와 매장 앞에 있는 캐치테이블 기기로 현장 예약 걸면 됩니다. 3.... 평일 망원 빵지순례 코스 정리 어글리베이커리 > 투떰즈",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SALT_BREAD": 4,
+          "BAGEL": 27,
+          "SAVORY": 19
+        },
+        "focus": 0.545
+      }
+    ],
+    "627": [
+      {
+        "url": "https://blog.naver.com/oyssoa/224088055585",
+        "blog_id": "oyssoa",
+        "log_no": "224088055585",
+        "title": "서울 소금빵 맛집 추천망원동 밀로밀소금빵 평일 웨이팅 후기",
+        "date": "2025-11-25",
+        "snippet": "빵소담; 소담 소담 빵소담 - 동네빵집 즐기는 사람들 5일 전 망원동 밀로밀 구미가당 버터크림팩토리 매장명: 밀로밀 , 구미가당, 버터크림팩토리 부모님 친구가 한국 오셔서 엄마까지 다같이 서울 호텔에 계실때 빵순이 엄마를 위해 당일에 먹어야 맛있는 제가 좋아하는 빵으로 사다드렸어요 ㅋㅋ 전 개인적으로 빵 냉동하면 안먹고 웬만하면 당일에 먹는것만 좋아해요 이",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SALT_BREAD": 32,
+          "HARD_BREAD": 8,
+          "TART": 4,
+          "BAKED_SWEET": 1,
+          "DONUT": 16,
+          "ETC": 9
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/iruka235/224076624251",
+        "blog_id": "iruka235",
+        "log_no": "224076624251",
+        "title": "망원동 밀로밀소금빵 맛집 메뉴 추천 주말 웨이팅 오픈런 캐치테이블 후기",
+        "date": "2025-11-25",
+        "snippet": "빵소담; 소담 소담 빵소담 - 동네빵집 즐기는 사람들 5일 전 망원동 밀로밀 구미가당 버터크림팩토리 매장명: 밀로밀 , 구미가당, 버터크림팩토리 부모님 친구가 한국 오셔서 엄마까지 다같이 서울 호텔에 계실때 빵순이 엄마를 위해 당일에 먹어야 맛있는 제가 좋아하는 빵으로 사다드렸어요 ㅋㅋ 전 개인적으로 빵 냉동하면 안먹고 웬만하면 당일에 먹는것만 좋아해요 이",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SALT_BREAD": 42,
+          "CROISSANT": 2,
+          "HARD_BREAD": 12,
+          "TART": 3,
+          "BAKED_SWEET": 3,
+          "DONUT": 1,
+          "ETC": 2
+        },
+        "focus": 0.767
+      },
+      {
+        "url": "https://blog.naver.com/iruka235/224045766229",
+        "blog_id": "iruka235",
+        "log_no": "224045766229",
+        "title": "망원동빵지순례,밀로밀부터 후와후와까지 빵집 오픈런 주말 나들이 코스",
+        "date": "2025-11-25",
+        "snippet": "빵소담; 소담 소담 빵소담 - 동네빵집 즐기는 사람들 5일 전 망원동 밀로밀 구미가당 버터크림팩토리 매장명: 밀로밀 , 구미가당, 버터크림팩토리 부모님 친구가 한국 오셔서 엄마까지 다같이 서울 호텔에 계실때 빵순이 엄마를 위해 당일에 먹어야 맛있는 제가 좋아하는 빵으로 사다드렸어요 ㅋㅋ 전 개인적으로 빵 냉동하면 안먹고 웬만하면 당일에 먹는것만 좋아해요 이",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SALT_BREAD": 12,
+          "CROISSANT": 1,
+          "HARD_BREAD": 6,
+          "BAGEL": 2,
+          "SAVORY": 3,
+          "CAKE": 1,
+          "BAKED_SWEET": 2
+        },
+        "focus": 0.283
+      },
+      {
+        "url": "https://blog.naver.com/rkarbfl/224253205257",
+        "blog_id": "rkarbfl",
+        "log_no": "224253205257",
+        "title": "생활의달인 ‘마포 원 톱 소금빵’으로 소개된망원동 밀로밀",
+        "date": "2025-11-25",
+        "snippet": "빵소담; 소담 소담 빵소담 - 동네빵집 즐기는 사람들 5일 전 망원동 밀로밀 구미가당 버터크림팩토리 매장명: 밀로밀 , 구미가당, 버터크림팩토리 부모님 친구가 한국 오셔서 엄마까지 다같이 서울 호텔에 계실때 빵순이 엄마를 위해 당일에 먹어야 맛있는 제가 좋아하는 빵으로 사다드렸어요 ㅋㅋ 전 개인적으로 빵 냉동하면 안먹고 웬만하면 당일에 먹는것만 좋아해요 이",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SALT_BREAD": 50,
+          "CROISSANT": 4,
+          "HARD_BREAD": 6,
+          "BAGEL": 1,
+          "SAVORY": 2,
+          "BAKED_SWEET": 1,
+          "ETC": 2
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/tenderrain/223997655189",
+        "blog_id": "tenderrain",
+        "log_no": "223997655189",
+        "title": "망원동빵집, 소금빵 맛집밀로밀",
+        "date": "2025-11-25",
+        "snippet": "빵소담; 소담 소담 빵소담 - 동네빵집 즐기는 사람들 5일 전 망원동 밀로밀 구미가당 버터크림팩토리 매장명: 밀로밀 , 구미가당, 버터크림팩토리 부모님 친구가 한국 오셔서 엄마까지 다같이 서울 호텔에 계실때 빵순이 엄마를 위해 당일에 먹어야 맛있는 제가 좋아하는 빵으로 사다드렸어요 ㅋㅋ 전 개인적으로 빵 냉동하면 안먹고 웬만하면 당일에 먹는것만 좋아해요 이",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SALT_BREAD": 20,
+          "HARD_BREAD": 6,
+          "TART": 3,
+          "BAKED_SWEET": 1,
+          "DONUT": 5,
+          "ETC": 1
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/hthdus22/224150792893",
+        "blog_id": "hthdus22",
+        "log_no": "224150792893",
+        "title": "망원동인생 소금빵 찾은밀로밀후기 (평일웨이팅, 캐치테이블 예약)",
+        "date": "2025-11-25",
+        "snippet": "빵소담; 소담 소담 빵소담 - 동네빵집 즐기는 사람들 5일 전 망원동 밀로밀 구미가당 버터크림팩토리 매장명: 밀로밀 , 구미가당, 버터크림팩토리 부모님 친구가 한국 오셔서 엄마까지 다같이 서울 호텔에 계실때 빵순이 엄마를 위해 당일에 먹어야 맛있는 제가 좋아하는 빵으로 사다드렸어요 ㅋㅋ 전 개인적으로 빵 냉동하면 안먹고 웬만하면 당일에 먹는것만 좋아해요 이",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SALT_BREAD": 54,
+          "HARD_BREAD": 13,
+          "SAVORY": 6,
+          "TART": 3,
+          "BAKED_SWEET": 2,
+          "DONUT": 2,
+          "ETC": 2
+        },
+        "focus": 0.929
+      },
+      {
+        "url": "https://blog.naver.com/youmal801/224100721004",
+        "blog_id": "youmal801",
+        "log_no": "224100721004",
+        "title": "망원동태국음식 ' 코랏 ' 및망원동빵지순례 '밀로밀' 초코소보루 빵추천",
+        "date": "2025-11-25",
+        "snippet": "빵소담; 소담 소담 빵소담 - 동네빵집 즐기는 사람들 5일 전 망원동 밀로밀 구미가당 버터크림팩토리 매장명: 밀로밀 , 구미가당, 버터크림팩토리 부모님 친구가 한국 오셔서 엄마까지 다같이 서울 호텔에 계실때 빵순이 엄마를 위해 당일에 먹어야 맛있는 제가 좋아하는 빵으로 사다드렸어요 ㅋㅋ 전 개인적으로 빵 냉동하면 안먹고 웬만하면 당일에 먹는것만 좋아해요 이",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SALT_BREAD": 30,
+          "CROISSANT": 3,
+          "BAGEL": 1,
+          "BAKED_SWEET": 1,
+          "ETC": 4
+        },
+        "focus": 0.583
+      }
+    ],
+    "1108": [
+      {
+        "url": "https://blog.naver.com/rhwltjd77/224001322709",
+        "blog_id": "rhwltjd77",
+        "log_no": "224001322709",
+        "title": "망원동맛집망원동빵투어 크림덕후 추천 모닝빵 전문점잼인브레드품절주의",
+        "date": "2025-09-09",
+        "snippet": "꾸야네 2025.09.09. 망원동 맛집 망원동 빵투어 크림덕후 추천 모닝빵 전문점 잼인브레드 품절주의 말차랑도 넘 잘 어울려요 이건 딸기 맘모스 딸기향 스멀스멀 나는데 먹어보면 은근 딸기향이 세요 시그니처 맘모스 와 동일하게 안에는 수제 딸기잼 크림 양 실화....? ㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋ 아무리 먹어도 크림이 넘쳐나길래 기본 모닝빵 사온거에 발라먹었어요 (",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SAVORY": 4,
+          "DONUT": 1
+        },
+        "focus": 0.875
+      },
+      {
+        "url": "https://blog.naver.com/dltn1759/224034678252",
+        "blog_id": "dltn1759",
+        "log_no": "224034678252",
+        "title": "망원빵집망원동빵지순례 신상망원핫플잼인브레드",
+        "date": "2025-10-08",
+        "snippet": "수달잉 2025.10.08. 망원 빵집 망원동 빵지순례 신상 망원 핫플 잼인브레드 촉촉 쫠깃해서 부담없이 먹기 좋은 모닝빵 크림 잔뜩 올라간 모닝빵이 부담스럽다면 기본 모닝빵도 맛있으니 추천! 평소에 건포도 들어간 빵 싫어하는디 블루베리는 비슷하면서 색다른 느낌 상콤달달한게 잼 살짝 발라먹는 느낌이기도 하고 솔드아웃 크림 모닝빵 전문 망원 빵집 망원 핫플 ",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "CAKE": 3
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/yeepi01/224014586201",
+        "blog_id": "yeepi01",
+        "log_no": "224014586201",
+        "title": "망원빵집잼인브레드망원카페망원동핫플 신상 모닝빵 맘모스 빵집 후기",
+        "date": "2025-09-19",
+        "snippet": "업힐왔서녕 2025.09.19. 망원 빵집 잼인브레드 망원 카페 망원동 핫플 신상 모닝빵 맘모스 빵집 후기 특히 모닝빵은 선물용으로도 손색없을 만큼 비주얼도 좋고 맛도 훌륭했어요. 크림빵 좋아하시는 분들, 모닝빵 좋아하시는 분들 모두 만족할 만한 곳이라 앞으로 자주 찾게 될 것 같아요. # 망원 빵집 # 망원 카페 # 망원 핫플 # 잼인브레드 # 망원동 맛",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SAVORY": 17,
+          "CAKE": 1,
+          "DONUT": 1
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/swkang331/224054680593",
+        "blog_id": "swkang331",
+        "log_no": "224054680593",
+        "title": "망원핫플,망원빵집잼인브레드에서 수제 모닝빵 & 수제 딸기잼",
+        "date": "2025-10-26",
+        "snippet": "S2Lover 2025.10.26. 망원 핫플, 망원 빵집 잼인브레드 에서 수제 모닝빵 & 수제 딸기잼 ㅎㅎㅎ 잼인브레드 안에 간단하게 먹고 갈 수 있는 장소도 있는 잼인브레드 는 망원 역 2번 출구에서 좀만 올라오면 나타나는 빵집합소 전에 골목으로 들어가서 찾을 수 있는... 베이커리, 잼인브레드 는 서울 망원동 에서 매일 아침 직접 반죽해 구워낸 모닝버",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SALT_BREAD": 2,
+          "SAVORY": 13,
+          "DONUT": 1
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/jshim84/223973058357",
+        "blog_id": "jshim84",
+        "log_no": "223973058357",
+        "title": "Filter Coffeeblog.naver.com›jshim84",
+        "date": "2025-08-17",
+        "snippet": "Filter Coffee blog.naver.com › jshim84 [ 망원동 카페] 잼인브레드 , 모닝롤의 기분좋은 변신을 다양하게 즐길 수 있는 베이커리 2025.08.17. 골목길 코너를 끼고 자리잡은 망원동 카페 잼인브레드 (Jam In Bread). 외벽의 큼직한 'J'가 쉽게 눈에 띈다. 오픈 시간을 미리 보지 않고 애매하게 빨리 도착했는데 열",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SAVORY": 7
+        },
+        "focus": 0.8
+      },
+      {
+        "url": "https://blog.naver.com/rlarudgus0123/224114425276",
+        "blog_id": "rlarudgus0123",
+        "log_no": "224114425276",
+        "title": "망원동숨은 빵 맛집,잼인브레드! 모닝빵과 맘모스빵으로 시작하는 달콤한 하루!",
+        "date": "2025-12-18",
+        "snippet": "먹고, 쓰고, 다녀본 기록 2025.12.18. 망원동 숨은 빵 맛집, 잼인브레드 ! 모닝빵과 맘모스빵으로 시작하는 달콤한 하루! 이렇게 잼인브레드 는 다양한 빵과 함께 아늑한 공간을 자랑하며, 망원동 에서 돌고 돌아도 놓칠 수 없는 장소입니다. 망원동 카페와 빵집을 찾는다면, 잼인브레드 망원 점을 추천합니다. 맛과 분위기 모두를 겸비한 이곳에서 특별한 시",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SAVORY": 6,
+          "DONUT": 3
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/calldeaf/224115609656",
+        "blog_id": "calldeaf",
+        "log_no": "224115609656",
+        "title": "망원동빵집,잼인브레드모닝빵!",
+        "date": "2025-12-19",
+        "snippet": "코르디의 블로그 2025.12.19. 망원동 빵집, 잼인브레드 모닝빵! 망원동 의 숨겨진 보석, 잼인브레드 망원 점을 소개합니다. 이곳은 아기자기한 분위기 속에서 고소한 빵 내음이 가득한 곳으로, 빵 덕후라면 놓칠 수 없는 매력이 가득합니다. 주소는 망원동 57-53에 위치해 있으며, 방문하시면 다양한 종류의 빵을 만나실 수 있습니다. 특히 모닝빵과 맘모스",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SAVORY": 4,
+          "DONUT": 2
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/kiraaaa8/224115461141",
+        "blog_id": "kiraaaa8",
+        "log_no": "224115461141",
+        "title": "망원동 잼인브레드, 모닝빵 맛집!",
+        "date": "2025-12-19",
+        "snippet": "kiraaaa8님의 블로그 2025.12.19. 망원동 잼인브레드 , 모닝빵 맛집! 서울 망원동 에 위치한 ' 잼인브레드 망원 점'은 맛있는 빵과 편안한 분위기로 사랑받는 곳입니다. 망원동 카페로서 방문객들에게 정성 가득한 빵을 제공합니다. 이곳은 특히 아침을 여는 모닝빵과 다양한 종류의 빵을 맛볼 수 있는 매력적인 빵집입니다. 매장에서 가장 인기 있는 메",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SAVORY": 4,
+          "DONUT": 1
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/fffansy/224113159259",
+        "blog_id": "fffansy",
+        "log_no": "224113159259",
+        "title": "망원동빵집,잼인브레드망원점 방문기!",
+        "date": "2025-12-17",
+        "snippet": "아론이네 2025.12.17. 망원동 빵집, 잼인브레드 망원 점 방문기! 망원동 에 위치한 \" 잼인브레드 망원 점\"은 특별한 베이커리를 찾는 이들에게 안성맞춤인 곳입니다. 이곳은 맛있는 빵과 함께 따뜻한 커피를 즐기기에 최적의 장소로 손꼽히며, 독특한 빵으로 망원동 카페 중에서도 손님들의 발길을 끌고 있습니다. 고소한 모닝빵과 다양한 종류의 빵이 준비되어 ",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SAVORY": 4,
+          "DONUT": 2
+        },
+        "focus": 1.0
+      },
+      {
+        "url": "https://blog.naver.com/kikiaaa42/224115674172",
+        "blog_id": "kikiaaa42",
+        "log_no": "224115674172",
+        "title": "망원동숨은 빵맛집,잼인브레드!",
+        "date": "2025-12-19",
+        "snippet": "에코님의 블로그 2025.12.19. 망원동 숨은 빵맛집, 잼인브레드 ! 망원동 에 위치한 잼인브레드 망원 점은 빵과 커피를 사랑하는 분들에게 완벽한 장소입니다. 이곳은 다양한 빵과 함께 여유로운 시간을 보낼 수 있는 망원동 의 핫플레이스입니다. 아침에 방문하면 신선한 모닝빵을 즐기실 수 있으며, 특히 생크림빵은 부드럽고 맛있기로 유명합니다. 가게 내부는 ",
+        "is_ad": false,
+        "ad_reason": "",
+        "sentiment": "POS",
+        "senti_mult": 1.5,
+        "cats": {
+          "SAVORY": 4,
+          "DONUT": 2
+        },
+        "focus": 1.0
+      }
+    ]
+  }
+}

@@ -29,6 +29,7 @@ public class IndividualStoreSaver {
 			Double.parseDouble(place.x()),
 			Double.parseDouble(place.y()),
 			place.phone(),
-			place.id());
+			place.id(),
+			null);
 	}
 }

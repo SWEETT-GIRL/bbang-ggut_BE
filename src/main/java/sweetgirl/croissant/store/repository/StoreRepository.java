@@ -1,5 +1,6 @@
 package sweetgirl.croissant.store.repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -142,10 +143,11 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 	@Query(value = """
 			INSERT INTO store (
 					name, address, region_1st, region_2nd, region_3rd,
-					location, phone, kakao_place_id, source, status, created_at, updated_at)
+					location, phone, kakao_place_id, source, status, category,
+					created_at, updated_at)
 			VALUES (:name, :address, :region1st, :region2nd, :region3rd,
 					ST_SetSRID(ST_MakePoint(:x, :y), 4326)::geography, :phone, :kakaoPlaceId,
-					'KAKAO_IMPORTED', 'ACTIVE', NOW(), NOW())
+					'KAKAO_IMPORTED', 'ACTIVE', :category, NOW(), NOW())
 			ON CONFLICT (kakao_place_id) DO NOTHING
 			""", nativeQuery = true)
 	void insertIfNotExistsByKakaoPlaceId(
@@ -157,7 +159,8 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 			@Param("x") double longitude,
 			@Param("y") double latitude,
 			@Param("phone") String phone,
-			@Param("kakaoPlaceId") String kakaoPlaceId);
+			@Param("kakaoPlaceId") String kakaoPlaceId,
+			@Param("category") String category);
 
 	@Query(value = """
 			SELECT * FROM store
@@ -212,4 +215,148 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 	@Query("UPDATE Store s SET s.region1st = :r1, s.region2nd = :r2, s.region3rd = :r3 WHERE s.id = :id")
 	void updateRegionById(@Param("id") Long id,
 			@Param("r1") String r1, @Param("r2") String r2, @Param("r3") String r3);
+
+	// ── Naver enrich 큐 ─────────────────────────────────────────────────────
+	// 아직 네이버 플레이스 ID 가 매칭되지 않은 ACTIVE Store.
+	//   - 미시도 (naverMatchedAt IS NULL) — 큐 진입
+	//   - 매칭 실패 후 retryThreshold 시점 경과 — 재시도 큐 진입
+	// 메뉴 유무는 큐 조건에서 제외. naverPlaceId 가 없으면 메뉴가 이미 있어도 ID 만 채우러 들어옴.
+	// 매칭 성공 시 markNaverMatched 가 naverPlaceId 와 naverMatchedAt 을 모두 set 해서 자동 제외됨.
+	// 파킹: naverEnrichAttempts >= maxAttempts 면 '진짜 못 찾는 가게'로 보고 큐에서 제외(무한 재시도 방지).
+	@Query("""
+				SELECT s FROM Store s
+				WHERE s.status = sweetgirl.croissant.store.enums.StoreStatus.ACTIVE
+				AND s.naverPlaceId IS NULL
+				AND s.naverEnrichAttempts < :maxAttempts
+				AND (s.naverMatchedAt IS NULL OR s.naverMatchedAt < :retryThreshold)
+				AND (
+					:partition IS NULL
+					OR (:partition = 'P1' AND MOD(s.id, 3) = 0)
+					OR (:partition = 'P2' AND MOD(s.id, 3) = 1)
+					OR (:partition = 'P3' AND MOD(s.id, 3) = 2)
+				)
+				ORDER BY s.id ASC
+			""")
+	Page<Store> findNaverEnrichQueue(
+			@Param("retryThreshold") Instant retryThreshold,
+			@Param("maxAttempts") int maxAttempts,
+			@Param("partition") String partition,
+			Pageable pageable);
+
+	// 매칭은 됐지만 가게 사진이 0장인 가게 — 사진 보충 일괄 크롤 대상.
+	// 이미지 테이블을 left join 해서 NULL/empty 만 필터.
+	@Query("""
+				SELECT s FROM Store s
+				WHERE s.status = sweetgirl.croissant.store.enums.StoreStatus.ACTIVE
+				AND s.naverPlaceId IS NOT NULL
+				AND NOT EXISTS (
+					SELECT 1 FROM StoreImageFile i WHERE i.store.id = s.id
+				)
+				AND (
+					:partition IS NULL
+					OR (:partition = 'P1' AND MOD(s.id, 3) = 0)
+					OR (:partition = 'P2' AND MOD(s.id, 3) = 1)
+					OR (:partition = 'P3' AND MOD(s.id, 3) = 2)
+				)
+				ORDER BY s.id ASC
+			""")
+	Page<Store> findMatchedWithoutPhotos(@Param("partition") String partition, Pageable pageable);
+
+	@Query("""
+				SELECT COUNT(s) FROM Store s
+				WHERE s.status = sweetgirl.croissant.store.enums.StoreStatus.ACTIVE
+				AND s.naverPlaceId IS NOT NULL
+				AND NOT EXISTS (
+					SELECT 1 FROM StoreImageFile i WHERE i.store.id = s.id
+				)
+				AND (
+					:partition IS NULL
+					OR (:partition = 'P1' AND MOD(s.id, 3) = 0)
+					OR (:partition = 'P2' AND MOD(s.id, 3) = 1)
+					OR (:partition = 'P3' AND MOD(s.id, 3) = 2)
+				)
+			""")
+	long countMatchedWithoutPhotos(@Param("partition") String partition);
+
+	// 매칭됐지만(naverPlaceId 있음) 활성 메뉴 또는 사진이 비어 enrich 가 안 끝난 가게 — 풀 enrich 백필 대상.
+	// 수동/후보 매칭으로 placeId 만 채워진 가게(메뉴·사진 0)가 자동으로 여기 들어온다. (사진만 보충하는
+	// findMatchedWithoutPhotos 와 달리 메뉴 누락도 잡고, 크롤러가 메뉴+사진 둘 다 채운다.)
+	@Query("""
+				SELECT s FROM Store s
+				WHERE s.status = sweetgirl.croissant.store.enums.StoreStatus.ACTIVE
+				AND s.naverPlaceId IS NOT NULL
+				AND (
+					NOT EXISTS (SELECT 1 FROM Menu m WHERE m.store.id = s.id AND m.deletedAt IS NULL)
+					OR NOT EXISTS (SELECT 1 FROM StoreImageFile i WHERE i.store.id = s.id)
+				)
+				AND (
+					:partition IS NULL
+					OR (:partition = 'P1' AND MOD(s.id, 3) = 0)
+					OR (:partition = 'P2' AND MOD(s.id, 3) = 1)
+					OR (:partition = 'P3' AND MOD(s.id, 3) = 2)
+				)
+				ORDER BY s.id ASC
+			""")
+	Page<Store> findMatchedNeedingEnrich(@Param("partition") String partition, Pageable pageable);
+
+	@Query("""
+				SELECT COUNT(s) FROM Store s
+				WHERE s.status = sweetgirl.croissant.store.enums.StoreStatus.ACTIVE
+				AND s.naverPlaceId IS NOT NULL
+				AND (
+					NOT EXISTS (SELECT 1 FROM Menu m WHERE m.store.id = s.id AND m.deletedAt IS NULL)
+					OR NOT EXISTS (SELECT 1 FROM StoreImageFile i WHERE i.store.id = s.id)
+				)
+				AND (
+					:partition IS NULL
+					OR (:partition = 'P1' AND MOD(s.id, 3) = 0)
+					OR (:partition = 'P2' AND MOD(s.id, 3) = 1)
+					OR (:partition = 'P3' AND MOD(s.id, 3) = 2)
+				)
+			""")
+	long countMatchedNeedingEnrich(@Param("partition") String partition);
+
+	Optional<Store> findByNaverPlaceId(String naverPlaceId);
+
+	// ── Naver enrich stats ──────────────────────────────────────────────────
+	@Query("""
+				SELECT COUNT(s) FROM Store s
+				WHERE s.status = sweetgirl.croissant.store.enums.StoreStatus.ACTIVE
+				AND s.naverPlaceId IS NOT NULL
+			""")
+	long countNaverMatched();
+
+	@Query("""
+				SELECT COUNT(s) FROM Store s
+				WHERE s.status = sweetgirl.croissant.store.enums.StoreStatus.ACTIVE
+				AND s.naverPlaceId IS NULL
+				AND s.naverMatchedAt IS NULL
+			""")
+	long countNaverPending();
+
+	@Query("""
+				SELECT COUNT(s) FROM Store s
+				WHERE s.status = sweetgirl.croissant.store.enums.StoreStatus.ACTIVE
+				AND s.naverPlaceId IS NULL
+				AND s.naverMatchedAt IS NOT NULL
+			""")
+	long countNaverFailed();
+
+	@Query("""
+				SELECT COUNT(s) FROM Store s
+				WHERE s.status = sweetgirl.croissant.store.enums.StoreStatus.ACTIVE
+			""")
+	long countActiveTotal();
+
+	// 매칭 실패 후 7일 throttle 진행 중인 가게 — 어드민에서 "왜 실패했나" 보거나 즉시 재시도 트리거.
+	// 큐(findNaverEnrichQueue)는 throttle 만료된 것만 보여주므로 분리.
+	@Query("""
+				SELECT s FROM Store s
+				WHERE s.status = sweetgirl.croissant.store.enums.StoreStatus.ACTIVE
+				AND s.naverPlaceId IS NULL
+				AND s.naverMatchedAt IS NOT NULL
+				AND s.naverMatchedAt >= :throttleAliveSince
+				ORDER BY s.naverMatchedAt DESC
+			""")
+	Page<Store> findNaverThrottled(@Param("throttleAliveSince") Instant throttleAliveSince, Pageable pageable);
 }

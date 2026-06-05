@@ -113,6 +113,10 @@ public class Member {
 		this.deletedAt = LocalDateTime.now();
 	}
 
+	public void resetNickname(String nickname) {
+		this.nickname = nickname;
+	}
+
 	public boolean isDeleted() {
 		return this.deletedAt != null;
 	}
