@@ -75,6 +75,8 @@ class ReviewServiceTest {
 	ReviewImageFileRepository reviewImageFileRepository;
 	@Mock
 	ReviewLikeRepository reviewLikeRepository;
+	@Mock
+	ObjectionableContentFilter objectionableContentFilter;
 
 	@InjectMocks
 	ReviewService reviewService;
@@ -181,10 +183,33 @@ class ReviewServiceTest {
 		ReviewCreateResponse result = reviewService.createReview(1L, 7L, request);
 
 		assertThat(result.reviewId()).isEqualTo(11L);
+		verify(objectionableContentFilter).validate("다시 살래요");
 		verify(reviewImageFileRepository).saveAll(argThat(images -> {
 			List<ReviewImageFile> imageList = StreamSupport.stream(images.spliterator(), false).toList();
 			return imageList.size() == 1 && imageList.get(0).getDisplayOrder() == 0;
 		}));
+	}
+
+	@Test
+	@DisplayName("createReview: 부적절하거나 개인정보로 보이는 내용이면 저장하지 않는다")
+	void createReview_rejectedContent_doesNotSaveReview() {
+		ReviewCreateRequest request = createRequest(
+			BigDecimal.valueOf(4.5),
+			"010-1234-5678",
+			List.of(new ReviewImageRequest("a.jpg", "image/jpeg", "reviews/members/7/images/a")));
+
+		given(memberReader.getMember(7L)).willReturn(member(7L, "슈크림"));
+		given(menuRepository.findByIdWithDetails(1L)).willReturn(Optional.of(mock(Menu.class)));
+		given(reviewRepository.existsByMemberIdAndMenuIdAndDeletedAtIsNull(7L, 1L)).willReturn(false);
+		willThrow(new ReviewException(ReviewErrorCode.REVIEW_CONTENT_REJECTED))
+			.given(objectionableContentFilter).validate("010-1234-5678");
+
+		assertThatThrownBy(() -> reviewService.createReview(1L, 7L, request))
+			.isInstanceOf(ReviewException.class)
+			.hasMessageContaining(ReviewErrorCode.REVIEW_CONTENT_REJECTED.getMessage());
+
+		verify(reviewRepository, never()).save(any());
+		verify(reviewImageFileRepository, never()).saveAll(any());
 	}
 
 	@Test
@@ -294,6 +319,7 @@ class ReviewServiceTest {
 		assertThat(result.rating()).isEqualByComparingTo("3.5");
 		assertThat(result.textureTags()).containsExactly(TextureTag.CHEWY);
 		assertThat(result.content()).isEqualTo("수정했어요");
+		verify(objectionableContentFilter).validate("수정했어요");
 		verify(s3Service).deleteObject("reviews/members/7/images/old");
 		verify(reviewImageFileRepository).deleteAll(List.of(oldImage));
 		verify(reviewImageFileRepository).saveAll(argThat(images -> {
@@ -301,6 +327,30 @@ class ReviewServiceTest {
 			return imageList.size() == 1
 				&& imageList.get(0).getAwsKey().equals("reviews/members/7/images/new");
 		}));
+	}
+
+	@Test
+	@DisplayName("updateReview: 부적절하거나 개인정보로 보이는 내용이면 리뷰와 이미지를 변경하지 않는다")
+	void updateReview_rejectedContent_doesNotUpdateReview() {
+		Member member = member(7L, "슈크림");
+		Review review = reviewWithMenu(1L, member, BigDecimal.valueOf(4.5), 0, LocalDateTime.now());
+		ReviewUpdateRequest request = updateRequest(
+			"owner@example.com",
+			List.of(new ReviewImageRequest("new.jpg", "image/jpeg", "reviews/members/7/images/new")));
+
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(reviewRepository.findActiveByIdWithDetails(1L)).willReturn(Optional.of(review));
+		willThrow(new ReviewException(ReviewErrorCode.REVIEW_CONTENT_REJECTED))
+			.given(objectionableContentFilter).validate("owner@example.com");
+
+		assertThatThrownBy(() -> reviewService.updateReview(1L, 7L, request))
+			.isInstanceOf(ReviewException.class)
+			.hasMessageContaining(ReviewErrorCode.REVIEW_CONTENT_REJECTED.getMessage());
+
+		assertThat(review.getContent()).isEqualTo("맛있어요");
+		verify(reviewImageFileRepository, never()).findByReviewIdOrderByDisplayOrderAscIdAsc(any());
+		verify(reviewImageFileRepository, never()).saveAll(any());
+		verify(s3Service, never()).deleteObject(any());
 	}
 
 	@Test
@@ -349,13 +399,17 @@ class ReviewServiceTest {
 	}
 
 	private ReviewUpdateRequest updateRequest(List<ReviewImageRequest> images) {
+		return updateRequest("수정했어요", images);
+	}
+
+	private ReviewUpdateRequest updateRequest(String content, List<ReviewImageRequest> images) {
 		return new ReviewUpdateRequest(
 			BigDecimal.valueOf(3.5),
 			"yes",
 			"medium",
 			"full",
 			List.of(TextureTag.CHEWY),
-			"수정했어요",
+			content,
 			images);
 	}
 

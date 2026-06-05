@@ -73,6 +73,7 @@ public class ReviewService {
 	private final ReviewRepository reviewRepository;
 	private final ReviewImageFileRepository reviewImageFileRepository;
 	private final ReviewLikeRepository reviewLikeRepository;
+	private final ObjectionableContentFilter objectionableContentFilter;
 
 	public ReviewSummaryResponse getReviewSummary(
 			Long menuId,
@@ -175,6 +176,7 @@ public class ReviewService {
 		BigDecimal rating = validateRating(request.rating());
 		List<TextureTag> textureTags = validateTextureTags(request.textureTags());
 		String content = normalizeContent(request.content());
+		objectionableContentFilter.validate(content);
 		List<ReviewImageRequest> images = validateReviewImages(memberId, request.images());
 
 		Review review = reviewRepository.save(Review.builder()
@@ -203,6 +205,7 @@ public class ReviewService {
 		BigDecimal rating = validateRating(request.rating());
 		List<TextureTag> textureTags = validateTextureTags(request.textureTags());
 		String content = normalizeContent(request.content());
+		objectionableContentFilter.validate(content);
 
 		review.update(
 			rating,
