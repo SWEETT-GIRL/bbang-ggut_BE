@@ -16,6 +16,7 @@ import sweetgirl.croissant.member.dto.request.NotificationRadiusRequest;
 import sweetgirl.croissant.member.dto.request.NotificationTimeRequest;
 import sweetgirl.croissant.member.dto.response.ConsentResponse;
 import sweetgirl.croissant.member.dto.response.DayOfWeekResponse;
+import sweetgirl.croissant.member.dto.response.MemberProfileResponse;
 import sweetgirl.croissant.member.dto.response.MenuCategoryResponse;
 import sweetgirl.croissant.member.dto.response.NotificationRadiusResponse;
 import sweetgirl.croissant.member.dto.response.NotificationTimeResponse;
@@ -48,6 +49,11 @@ public class MemberService {
 	private final MemberReader memberReader;
 	private final RefreshTokenRepository refreshTokenRepository; // 탈퇴 시 해당 회원의 모든 RefreshToken을 revoke하기 위해 주입
 	private final FcmTokenRepository fcmTokenRepository; // 탈퇴 시 해당 회원의 모든 FCM 토큰을 삭제하기 위해 주입
+
+	@Transactional(readOnly = true)
+	public MemberProfileResponse getProfile(Long memberId) {
+		return MemberProfileResponse.from(memberReader.getMember(memberId));
+	}
 
 	@Transactional(readOnly = true)
 	public long getSubscribedStoreCount(Long memberId) {

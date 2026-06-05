@@ -24,6 +24,7 @@ import sweetgirl.croissant.member.dto.request.NotificationRadiusRequest;
 import sweetgirl.croissant.member.dto.request.NotificationTimeRequest;
 import sweetgirl.croissant.member.dto.response.ConsentResponse;
 import sweetgirl.croissant.member.dto.response.DayOfWeekResponse;
+import sweetgirl.croissant.member.dto.response.MemberProfileResponse;
 import sweetgirl.croissant.member.dto.response.MenuCategoryResponse;
 import sweetgirl.croissant.member.dto.response.NotificationRadiusResponse;
 import sweetgirl.croissant.member.dto.response.NotificationTimeResponse;
@@ -38,10 +39,10 @@ public class MemberController {
 
 	private final MemberService memberService;
 
-	@Operation(summary = "내 memberId 조회", description = "로그인한 사용자의 memberId를 반환합니다.")
+	@Operation(summary = "내 프로필 조회", description = "로그인한 사용자의 memberId와 닉네임을 반환합니다.")
 	@GetMapping("/me")
-	public ApiResponse<Long> getMyId(@AuthenticationPrincipal Long memberId) {
-		return ApiResponse.ok(memberId);
+	public ApiResponse<MemberProfileResponse> getProfile(@AuthenticationPrincipal Long memberId) {
+		return ApiResponse.ok(memberService.getProfile(memberId));
 	}
 
 	@Operation(summary = "구독 빵집 수 조회", description = "로그인한 사용자가 알림 구독 중인 빵집의 총 개수를 반환합니다.")
