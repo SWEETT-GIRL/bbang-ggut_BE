@@ -713,6 +713,9 @@ EXACT_DONG_RADIUS_M = 80
 EXACT_DONG_JIBUN_RADIUS_M = 110
 CHAIN_EXACT_DONG_RADIUS_M = 90
 LARGE_FACILITY_EXACT_ROAD_RADIUS_M = 600
+# 카카오/네이버 좌표는 같은 건물·상가 안에서도 출입구/건물 중심/지오코딩 기준점 차이로
+# 100m 이상 흔들릴 수 있다. 도로명+건물번호가 같고 이름도 관련 있으면 주소 증거를 더 신뢰한다.
+SAME_ADDRESS_RELATED_RADIUS_M = 300
 
 _LARGE_FACILITY_HINTS = (
 	"롯데백화점", "현대백화점", "신세계백화점", "갤러리아백화점", "백화점",
@@ -790,13 +793,19 @@ def _gate_pass(kakao: dict, naver: dict, score: dict) -> tuple[bool, str]:
 		and dist_m <= 30
 		and names_related_for_same_address(k_name, n_name)
 	)
+	same_road_related = (
+		bk["road"] > 0
+		and dist_m is not None
+		and dist_m <= SAME_ADDRESS_RELATED_RADIUS_M
+		and names_related_for_same_address(k_name, n_name)
+	)
 
 	# 지점명 충돌 — 양쪽 다 분점 토큰이 있고 다르면 다른 지점이므로 거부 (체인·비체인 공통).
 	# 예: '씨엘비 광주2호점' ↔ '씨엘비 광주점'. 한쪽만 있으면(지점명 생략) 통과.
 	# 단, 도로명+건물번호와 좌표가 같은 건물 수준으로 일치하면 지점명 표기차로 본다.
 	# '의정부점'↔'의정부1호점', '성산직영점'↔'성산 직영점' 같은 케이스 구제.
 	if branch_conflict(k_name, n_name) and not (
-			same_road_near and not _hard_numbered_branch_conflict(k_name, n_name)):
+			same_road_related and not _hard_numbered_branch_conflict(k_name, n_name)):
 		return False, "지점명 충돌"
 	if headquarters_conflict(k_name, n_name):
 		return False, "본사 후보 수동 확인 필요"
@@ -807,7 +816,7 @@ def _gate_pass(kakao: dict, naver: dict, score: dict) -> tuple[bool, str]:
 	if kind == "mid" and not (
 			names_same_ignoring_generic(k_name, n_name)
 			or (dist_m is not None and dist_m <= 30 and names_related_for_near_match(k_name, n_name))
-			or same_road_near):
+			or same_road_related):
 		return False, "이름 부분일치(머리 다름)"
 
 	if chain:
@@ -821,7 +830,7 @@ def _gate_pass(kakao: dict, naver: dict, score: dict) -> tuple[bool, str]:
 			return False, f"체인 거리 미달 (dist={dist_m})"
 		if kind == "exact" and bk["road"] > 0 and dist_m <= 80:
 			return True, f"체인 도로명+거리 통과 ({dist_m:.0f}m)"
-		if bk["road"] > 0 and dist_m <= 150 and names_related_for_same_address(k_name, n_name):
+		if same_road_related:
 			return True, f"체인 도로명+이름+거리 통과 ({dist_m:.0f}m)"
 		if (
 				kind == "exact"
@@ -844,6 +853,8 @@ def _gate_pass(kakao: dict, naver: dict, score: dict) -> tuple[bool, str]:
 		#   · 도로명 불일치: 다른 지점일 수 있으므로 같은 건물 수준(≤ 20m)일 때만 허용.
 		if bk["road"] > 0 and dist_m <= 80:
 			return True, f"도로명+거리 통과 ({dist_m:.0f}m)"
+		if same_road_related:
+			return True, f"도로명+이름+거리 통과 ({dist_m:.0f}m)"
 		# 이름 exact + 행정동/리 일치면 같은 가게라는 강한 증거 — 단, 양쪽 도로명+번지가 모두
 		# 있는데 서로 다를 때(테헤란로 vs 봉은사로)는 옆지점 충돌이므로 제외. 한쪽이 지번이라
 		# 비교 불가하거나(코티지송송·하얀오골계) 도로명이 일치하면 좌표 오차를 흡수.
@@ -885,11 +896,18 @@ def select_match(
 	kind = top_score["name_kind"]
 	bk = top_score["breakdown"]
 
+	def _gap_margin() -> Optional[int]:
+		# 박빙 후보 2개면 모호 → 거부(동점 오매칭 차단).
+		# 단, 2등이 게이트 자체를 통과 못 하는 입구/주차장/무관 후보면 모호 후보로 보지 않는다.
+		for cand, cand_score in scored[1:]:
+			ok, _ = _gate_pass(kakao, cand, cand_score)
+			if ok:
+				return top_score["total"] - cand_score["total"]
+		return None
+
 	def _gap_ok() -> bool:
-		# 박빙 후보 2개면 모호 → 거부(동점 오매칭 차단). 후보 1개면 항상 OK.
-		if len(scored) < 2:
-			return True
-		return (top_score["total"] - scored[1][1]["total"]) >= MIN_SCORE_GAP_AUTO_SELECT
+		gap = _gap_margin()
+		return gap is None or gap >= MIN_SCORE_GAP_AUTO_SELECT
 
 	# 확정 매칭 — 점수컷 면제(이름 표기차로 점수 낮은 '같은 가게' 구제). 단 격차 컷은 유지.
 	#  · 주소 확정: 도로명+번지 일치 + ≤30m. 이름이 전혀 달라도 동일 장소 확신(예: '카페폴리'↔'폴리 합정').
@@ -903,7 +921,7 @@ def select_match(
 	same_address_related = (
 		bk["road"] > 0
 		and dist_m is not None
-		and dist_m <= 150
+		and dist_m <= SAME_ADDRESS_RELATED_RADIUS_M
 		and names_related_for_same_address(kakao.get("name", ""), top_cand.get("name", ""))
 	)
 	facility_exact_same_address = (
@@ -938,7 +956,7 @@ def select_match(
 			addr_confirmed or prox_confirmed or chain_prox_confirmed or exact_dong_confirmed
 			or same_address_related or facility_exact_same_address):
 		if not strong_same_address and not _gap_ok():
-			gap = top_score["total"] - scored[1][1]["total"]
+			gap = _gap_margin()
 			return None, scored, f"top1-top2 격차 부족 ({gap} < {MIN_SCORE_GAP_AUTO_SELECT})"
 		label = "주소 확정 매칭" if (addr_confirmed or same_address_related) else "좌표+이름 확정 매칭"
 		return top_cand, scored, f"{label} ({why})"
@@ -947,7 +965,7 @@ def select_match(
 		return None, scored, f"점수 미달 ({top_score['total']} < {MIN_SCORE_AUTO_SELECT})"
 
 	if not _gap_ok():
-		gap = top_score["total"] - scored[1][1]["total"]
+		gap = _gap_margin()
 		return None, scored, f"top1-top2 격차 부족 ({gap} < {MIN_SCORE_GAP_AUTO_SELECT})"
 
 	return top_cand, scored, why
