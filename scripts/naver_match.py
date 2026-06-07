@@ -255,6 +255,30 @@ def _naver_district_tokens(naver: dict) -> set[str]:
 	return tokens
 
 
+_REGION_HEAD_SUFFIX_RE = re.compile(r"(?:특별자치도|특별자치시|특별시|광역시|자치도|도|시)$")
+
+
+def _region_head(address: Optional[str]) -> str:
+	if not address:
+		return ""
+	tokens = re.split(r"\s+", address.strip())
+	if not tokens:
+		return ""
+	return _REGION_HEAD_SUFFIX_RE.sub("", tokens[0])
+
+
+def _naver_region_heads(naver: dict) -> set[str]:
+	return {head for addr in _naver_address_values(naver) if (head := _region_head(addr))}
+
+
+def _same_region_head(kakao: dict, naver: dict) -> bool:
+	k_head = _region_head(kakao.get("address"))
+	n_heads = _naver_region_heads(naver)
+	if not k_head or not n_heads:
+		return True
+	return k_head in n_heads
+
+
 # ─── 메뉴 카테고리 ────────────────────────────────────────────────────────────
 
 def is_drink(name: str) -> bool:
@@ -871,6 +895,56 @@ def _gate_pass(kakao: dict, naver: dict, score: dict) -> tuple[bool, str]:
 	return False, "좌표 없음 + 도로명번호 불일치"
 
 
+def _strong_address_evidence(kakao: dict, naver: dict, score: dict) -> Optional[str]:
+	if score["closed"] or score["breakdown"]["road"] <= 0:
+		return None
+	if not _same_region_head(kakao, naver):
+		return None
+	dist_m = score["distance_m"]
+	k_name = kakao.get("name", "")
+	n_name = naver.get("name", "")
+	if dist_m is not None and dist_m <= 30:
+		return f"도로명+근접 ({dist_m:.0f}m)"
+	if (
+			dist_m is not None
+			and dist_m <= SAME_ADDRESS_RELATED_RADIUS_M
+			and names_related_for_same_address(k_name, n_name)):
+		return f"도로명+이름 ({dist_m:.0f}m)"
+	if (
+			dist_m is not None
+			and dist_m <= LARGE_FACILITY_EXACT_ROAD_RADIUS_M
+			and score["name_kind"] == "exact"
+			and _has_large_facility_hint(k_name, n_name)):
+		return f"대형시설 도로명+이름 ({dist_m:.0f}m)"
+	if dist_m is None and names_related_for_same_address(k_name, n_name):
+		return "도로명+이름 (좌표 없음)"
+	return None
+
+
+def _select_strong_address_candidate(
+		kakao: dict,
+		scored: list[tuple[dict, dict]]) -> Optional[tuple[dict, dict, str]]:
+	"""점수 1등보다 도로명+번지가 확실한 후보를 우선한다.
+
+	네이버 검색 결과는 가까운 다른 도로/지점 후보가 점수 1등으로 올라오고, 정작 같은 주소
+	후보가 2~3등으로 밀리는 경우가 있다. 저장 후보 수동확정 사례 기준으로, 같은 지역의
+	도로명+건물번호가 일치하고 게이트도 통과하는 후보는 전역 점수 순위보다 주소 증거를 우선한다.
+	"""
+	strong: list[tuple[dict, dict, str, str]] = []
+	for cand, score in scored:
+		evidence = _strong_address_evidence(kakao, cand, score)
+		if not evidence:
+			continue
+		ok, why = _gate_pass(kakao, cand, score)
+		if ok:
+			strong.append((cand, score, why, evidence))
+	if not strong:
+		return None
+	strong.sort(key=lambda cs: cs[1]["total"], reverse=True)
+	cand, score, why, evidence = strong[0]
+	return cand, score, f"{why}; 주소후보 우선({evidence})"
+
+
 def select_match(
 	kakao: dict,
 	candidates: list[dict],
@@ -886,6 +960,11 @@ def select_match(
 
 	scored: list[tuple[dict, dict]] = [(c, score_candidate(kakao, c)) for c in candidates]
 	scored.sort(key=lambda cs: cs[1]["total"], reverse=True)
+
+	strong_choice = _select_strong_address_candidate(kakao, scored)
+	if strong_choice is not None:
+		chosen, _, why = strong_choice
+		return chosen, scored, f"주소 확정 매칭 ({why})"
 
 	top_cand, top_score = scored[0]
 	ok, why = _gate_pass(kakao, top_cand, top_score)

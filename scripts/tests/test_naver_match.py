@@ -392,6 +392,36 @@ class TestSelectMatch:
 		assert chosen is None
 		assert "지점" in why or "이름" in why
 
+	def test_same_road_candidate_beats_near_wrong_road_candidate(self):
+		# 자동확정 회귀: 가까운 다른 도로 후보가 점수상 앞서도, 같은 도로명+번지 후보가 있으면
+		# 주소 증거를 우선한다. 예: '두낫띵' ↔ 'DO NOTHING' 같은 영문 등록명 케이스.
+		k = _kakao(name="두낫띵", address="울산 북구 송정로 10")
+		wrong = _naver(
+			name="두낫띵학원",
+			y=37.50001,
+			address="울산 북구 다른로 1",
+		)
+		good = _naver(
+			name="DO NOTHING",
+			y=37.50002,
+			address="울산광역시 북구 송정로 10 1층",
+		)
+		chosen, _, why = select_match(k, [wrong, good])
+		assert chosen is good, why
+		assert "주소후보 우선" in why
+
+	def test_same_road_candidate_requires_same_region_head(self):
+		# 같은 도로명+번지라도 시/도가 다르면 주소 우선 후보로 고르지 않는다.
+		k = _kakao(name="카페하루", address="울산 북구 중앙로 10")
+		wrong_region = _naver(
+			name="카페하루",
+			y=37.5030,
+			address="대구광역시 북구 중앙로 10",
+		)
+		chosen, _, why = select_match(k, [wrong_region])
+		assert chosen is None
+		assert "도로명" in why or "거리" in why
+
 	def test_non_chain_60m_road_mismatch_rejected(self):
 		# 60m + 도로명 다름 → 옆 지점(브랜드)일 수 있어 거부(브랜드 지점 오매칭 방지).
 		n = _naver(y=37.50054, address="서울 강남구 봉은사로 50")
