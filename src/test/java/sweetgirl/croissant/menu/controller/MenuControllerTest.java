@@ -42,47 +42,47 @@ class MenuControllerTest {
 	}
 
 	@Test
-	void recommendMenu_returns200() throws Exception {
-		mockMvc.perform(post("/menus/1/recommend"))
+	void likeMenu_returns200() throws Exception {
+		mockMvc.perform(post("/menus/1/like"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true));
 	}
 
 	@Test
-	void recommendMenu_returns404_whenMenuNotFound() throws Exception {
+	void likeMenu_returns404_whenMenuNotFound() throws Exception {
 		willThrow(new MenuException(MenuErrorCode.MENU_NOT_FOUND))
-			.given(menuService).recommendMenu(eq(99L), isNull());
+			.given(menuService).likeMenu(eq(99L), isNull());
 
-		mockMvc.perform(post("/menus/99/recommend"))
+		mockMvc.perform(post("/menus/99/like"))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.success").value(false))
 			.andExpect(jsonPath("$.code").value("MENU404"));
 	}
 
 	@Test
-	void recommendMenu_returns409_whenAlreadyRecommended() throws Exception {
-		willThrow(new MenuException(MenuErrorCode.ALREADY_RECOMMENDED))
-			.given(menuService).recommendMenu(eq(1L), isNull());
+	void likeMenu_returns409_whenAlreadyLiked() throws Exception {
+		willThrow(new MenuException(MenuErrorCode.ALREADY_LIKED))
+			.given(menuService).likeMenu(eq(1L), isNull());
 
-		mockMvc.perform(post("/menus/1/recommend"))
+		mockMvc.perform(post("/menus/1/like"))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.success").value(false))
 			.andExpect(jsonPath("$.code").value("MENU409"));
 	}
 
 	@Test
-	void cancelMenuRecommend_returns200() throws Exception {
-		mockMvc.perform(delete("/menus/1/recommend"))
+	void cancelMenuLike_returns200() throws Exception {
+		mockMvc.perform(delete("/menus/1/like"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true));
 	}
 
 	@Test
-	void cancelMenuRecommend_returns404_whenNotRecommended() throws Exception {
-		willThrow(new MenuException(MenuErrorCode.NOT_RECOMMENDED))
-			.given(menuService).cancelMenuRecommend(eq(1L), isNull());
+	void cancelMenuLike_returns404_whenNotLiked() throws Exception {
+		willThrow(new MenuException(MenuErrorCode.NOT_LIKED))
+			.given(menuService).cancelMenuLike(eq(1L), isNull());
 
-		mockMvc.perform(delete("/menus/1/recommend"))
+		mockMvc.perform(delete("/menus/1/like"))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.success").value(false))
 			.andExpect(jsonPath("$.code").value("MENU4042"));

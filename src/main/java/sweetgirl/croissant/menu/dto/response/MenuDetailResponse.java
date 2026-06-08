@@ -14,7 +14,7 @@ public record MenuDetailResponse(
 		List<ImageResponse> images,
 		Integer price,
 		String description,
-		int recommendCount) {
+		int likeCount) {
 
 	public static MenuDetailResponse of(Menu menu, List<ImageResponse> images) {
 		return new MenuDetailResponse(
@@ -26,6 +26,6 @@ public record MenuDetailResponse(
 			images,
 			menu.getPrice(),
 			menu.getDescription(),
-			menu.getRecommendCount());
+			menu.getLikeCount());
 	}
 }
