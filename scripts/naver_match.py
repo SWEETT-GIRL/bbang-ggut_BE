@@ -537,8 +537,9 @@ def headquarters_conflict(a: str, b: str) -> bool:
 _GENERIC_NAME_WORDS = (
 	"주문제작", "레터링", "베이킹", "로스터스", "로스터리", "플래그쉽", "플래그십",
 	"베이커리", "제과점", "제과", "카페", "커피", "케이크", "디저트",
+	"요거트아이스크림", "아이스크림", "베이크샵", "베이크",
 	"베이글", "브레드", "도넛", "분식", "스토어", "스튜디오", "전문점", "비건",
-	"찹쌀",
+	"찹쌀", "식빵", "빵집",
 	"쿠킹클래스", "글루텐프리", "케이크샵", "에그타르트", "생과일",
 	"24시", "무인", "샵",
 	"롯데백화점", "현대백화점", "신세계백화점", "백화점", "더현대",
@@ -573,7 +574,13 @@ def names_same_ignoring_generic(a: str, b: str) -> bool:
 
 _NAME_ALIASES = {
 	"atto": "아토",
+	"acu": "아커",
+	"donothing": "두낫띵",
 	"hideout": "하이드아웃",
+	"poulsbo": "폴스보",
+	"tea": "티",
+	"쁘송": "쁘숑",
+	"브래드": "브레드",
 	"핫쵸메": "핫초메",
 }
 
@@ -811,6 +818,7 @@ def _gate_pass(kakao: dict, naver: dict, score: dict) -> tuple[bool, str]:
 
 	k_name = kakao.get("name", "")
 	n_name = naver.get("name", "")
+	related_name = kind != "none" or names_related_for_near_match(k_name, n_name)
 	same_road_near = (
 		bk["road"] > 0
 		and dist_m is not None
@@ -847,7 +855,6 @@ def _gate_pass(kakao: dict, naver: dict, score: dict) -> tuple[bool, str]:
 		# A: 체인성 — 기본은 거리 ≤ 30m AND (도로명번호 일치 OR 이름 exact).
 		# 단, 백화점/아울렛/대형몰 입점 매장은 카카오/네이버 좌표가 건물 양끝으로 50~80m
 		# 흔들리는 경우가 많다. 이름 exact + 도로명번호 일치면 같은 입점 매장으로 보고 80m 까지 허용.
-		related_name = kind != "none" or names_related_for_near_match(k_name, n_name)
 		if dist_m is None:
 			if bk["road"] > 0:
 				return True, "체인 좌표 없음, 도로명번호 일치"
@@ -866,8 +873,8 @@ def _gate_pass(kakao: dict, naver: dict, score: dict) -> tuple[bool, str]:
 			return True, f"체인 이름 일치+동 일치, 거리 통과 ({dist_m:.0f}m)"
 		if dist_m > 30:
 			return False, f"체인 거리 미달 (dist={dist_m})"
-		if not (bk["road"] > 0 or related_name):
-			return False, "체인 도로명번호 불일치 + 이름 무관"
+		if not related_name:
+			return False, "체인 근접하지만 이름 무관"
 		return True, "체인 게이트 통과"
 
 	if dist_m is not None:
@@ -875,8 +882,6 @@ def _gate_pass(kakao: dict, naver: dict, score: dict) -> tuple[bool, str]:
 		# 같은 브랜드 근접 지점을 옆 지점 placeId 에 잘못 매칭하던 문제 방지 —
 		#   · 도로명+번지 일치: 같은 주소 확정 → 거리 ≤ 80m 까지 허용(좌표 오차 흡수).
 		#   · 도로명 불일치: 다른 지점일 수 있으므로 같은 건물 수준(≤ 20m)일 때만 허용.
-		if bk["road"] > 0 and dist_m <= 80:
-			return True, f"도로명+거리 통과 ({dist_m:.0f}m)"
 		if same_road_related:
 			return True, f"도로명+이름+거리 통과 ({dist_m:.0f}m)"
 		# 이름 exact + 행정동/리 일치면 같은 가게라는 강한 증거 — 단, 양쪽 도로명+번지가 모두
@@ -885,8 +890,10 @@ def _gate_pass(kakao: dict, naver: dict, score: dict) -> tuple[bool, str]:
 		# 비-exact 는 아래 30m 컷 유지 → 브랜드 옆지점 오매칭 방지는 그대로.
 		if _exact_dong_confirm(kakao, naver, score):
 			return True, f"이름 일치+동 일치, 거리 통과 ({dist_m:.0f}m)"
-		if dist_m <= 30:
+		if dist_m <= 30 and related_name:
 			return True, f"근접 통과 ({dist_m:.0f}m)"
+		if bk["road"] > 0:
+			return False, "도로명번호 일치하지만 이름 무관"
 		return False, f"도로명 불일치 + 거리 미달 ({dist_m:.0f}m)"
 
 	# C: 좌표 없음 — 도로명+건물번호 필수
@@ -903,7 +910,10 @@ def _strong_address_evidence(kakao: dict, naver: dict, score: dict) -> Optional[
 	dist_m = score["distance_m"]
 	k_name = kakao.get("name", "")
 	n_name = naver.get("name", "")
-	if dist_m is not None and dist_m <= 30:
+	if (
+			dist_m is not None
+			and dist_m <= 30
+			and names_related_for_same_address(k_name, n_name)):
 		return f"도로명+근접 ({dist_m:.0f}m)"
 	if (
 			dist_m is not None

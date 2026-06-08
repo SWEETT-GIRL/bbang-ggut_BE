@@ -171,67 +171,72 @@ def main() -> None:
 		"update_failed": 0,
 	}
 
-	with sync_playwright() as p:
-		browser = p.chromium.launch(
-			headless=True,
-			args=["--disable-blink-features=AutomationControlled"],
-		)
-		context = browser.new_context(user_agent=NAVER_UA, viewport={"width": 1280, "height": 800})
-		context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-		page = context.new_page()
+	def run(page=None) -> None:
+		for idx, item in enumerate(items, 1):
+			store_id = int(item["id"])
+			store = fetch_single_store(args.server, store_id)
+			if not store:
+				total["fetch_failed"] += 1
+				print(f"[{idx}/{len(items)}] FETCH_FAIL id={store_id}", flush=True)
+				continue
+			if store.get("naverPlaceId"):
+				total["skipped"] += 1
+				print(f"[{idx}/{len(items)}] SKIP_MATCHED id={store_id} {store.get('name')}", flush=True)
+				continue
+			try:
+				candidates = fetch_candidates(args.server, store_id)
+			except Exception as e:
+				total["candidate_failed"] += 1
+				print(f"[{idx}/{len(items)}] CAND_FAIL id={store_id}: {e}", flush=True)
+				continue
+			chosen, why = choose_candidate(store, candidates)
+			if not chosen:
+				total["skipped"] += 1
+				print(f"[{idx}/{len(items)}] SKIP id={store_id} {store.get('name')} reason={why}", flush=True)
+				continue
 
-		try:
-			for idx, item in enumerate(items, 1):
-				store_id = int(item["id"])
-				store = fetch_single_store(args.server, store_id)
-				if not store:
-					total["fetch_failed"] += 1
-					print(f"[{idx}/{len(items)}] FETCH_FAIL id={store_id}")
-					continue
-				if store.get("naverPlaceId"):
-					total["skipped"] += 1
-					print(f"[{idx}/{len(items)}] SKIP_MATCHED id={store_id} {store.get('name')}")
-					continue
-				try:
-					candidates = fetch_candidates(args.server, store_id)
-				except Exception as e:
-					total["candidate_failed"] += 1
-					print(f"[{idx}/{len(items)}] CAND_FAIL id={store_id}: {e}")
-					continue
-				chosen, why = choose_candidate(store, candidates)
-				if not chosen:
-					total["skipped"] += 1
-					print(f"[{idx}/{len(items)}] SKIP id={store_id} {store.get('name')} reason={why}")
-					continue
-
-				print(
-					f"[{idx}/{len(items)}] APPLY id={store_id} {store.get('name')} -> "
-					f"{chosen.get('id')} {chosen.get('name')} ({why})",
-					flush=True,
-				)
-				if args.dry_run:
-					total["applied"] += 1
-					continue
-				ok, status = update_naver_place_id(args.server, store_id, chosen)
-				if not ok:
-					if status == "DUPLICATE":
-						total["duplicate"] += 1
-					else:
-						total["update_failed"] += 1
-					print(f"  UPDATE_FAIL {status}")
-					continue
-
+			print(
+				f"[{idx}/{len(items)}] APPLY id={store_id} {store.get('name')} -> "
+				f"{chosen.get('id')} {chosen.get('name')} ({why})",
+				flush=True,
+			)
+			if args.dry_run:
 				total["applied"] += 1
-				if args.no_enrich:
-					continue
-				store_after = fetch_single_store(args.server, store_id)
-				if store_after:
-					with redirected_stdout(log_path):
-						process_store(page, store_after, args.server, False, False, crawl_menus=True)
-					total["enriched"] += 1
-				time.sleep(INTER_STORE_DELAY_SEC)
-		finally:
-			browser.close()
+				continue
+			ok, status = update_naver_place_id(args.server, store_id, chosen)
+			if not ok:
+				if status == "DUPLICATE":
+					total["duplicate"] += 1
+				else:
+					total["update_failed"] += 1
+				print(f"  UPDATE_FAIL {status}", flush=True)
+				continue
+
+			total["applied"] += 1
+			if args.no_enrich:
+				continue
+			store_after = fetch_single_store(args.server, store_id)
+			if store_after and page is not None:
+				with redirected_stdout(log_path):
+					process_store(page, store_after, args.server, False, False, crawl_menus=True)
+				total["enriched"] += 1
+			time.sleep(INTER_STORE_DELAY_SEC)
+
+	if args.dry_run or args.no_enrich:
+		run()
+	else:
+		with sync_playwright() as p:
+			browser = p.chromium.launch(
+				headless=True,
+				args=["--disable-blink-features=AutomationControlled"],
+			)
+			context = browser.new_context(user_agent=NAVER_UA, viewport={"width": 1280, "height": 800})
+			context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+			page = context.new_page()
+			try:
+				run(page)
+			finally:
+				browser.close()
 
 	print(json.dumps(total, ensure_ascii=False, indent=2))
 

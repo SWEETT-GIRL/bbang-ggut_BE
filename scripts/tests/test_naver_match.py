@@ -435,20 +435,20 @@ class TestSelectMatch:
 		chosen, _, why = select_match(_kakao(address="서울 강남구 테헤란로 100"), [n])
 		assert chosen is not None, why
 
-	def test_address_confirmed_name_mismatch_accepted(self):
-		# 이름이 전혀 달라도(예: '카페폴리' ↔ '폴리 합정') 도로명+번지 일치 + 같은 자리(≤30m)면
-		# 동일 장소로 확신 매칭 — 점수 미달이어도 통과.
+	def test_address_confirmed_name_mismatch_rejected(self):
+		# 도로명+번지와 좌표가 같아도 이름 관련성이 약하면 자동 매칭하지 않는다.
+		# 같은 주소의 리브랜딩일 수는 있지만, 롤백 비용이 커서 수동 확인 대상으로 둔다.
 		k = _kakao(name="카페폴리", address="서울 강남구 테헤란로 100")
 		n = _naver(name="폴리 합정", y=37.50010, address="서울 강남구 테헤란로 100")
 		chosen, _, why = select_match(k, [n])
-		assert chosen is not None, why
-		assert "주소 확정" in why
+		assert chosen is None
+		assert "이름 무관" in why
 
 	def test_non_chain_same_road_beyond_same_address_radius_rejected(self):
 		n = _naver(y=37.5030)
 		chosen, _, why = select_match(_kakao(), [n])
 		assert chosen is None
-		assert "거리" in why
+		assert "이름" in why or "거리" in why
 
 	def test_exact_name_jibun_district_within_80m_accepted(self):
 		# 코티지송송 회귀: 카카오 지번(도로명 없음) + 이름 exact + 같은 면/리 → 42m 통과.
