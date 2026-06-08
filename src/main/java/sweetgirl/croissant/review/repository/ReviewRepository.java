@@ -7,6 +7,7 @@ import java.util.Set;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -162,6 +163,18 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 			@Param("photoOnly") boolean photoOnly,
 			@Param("viewerMemberId") Long viewerMemberId,
 			Pageable pageable);
+
+	@Modifying
+	@Query("UPDATE Review r SET r.likeCount = r.likeCount + 1 WHERE r.id = :reviewId")
+	void incrementLikeCount(@Param("reviewId") Long reviewId);
+
+	@Modifying
+	@Query("""
+			UPDATE Review r
+			SET r.likeCount = CASE WHEN r.likeCount > 0 THEN r.likeCount - 1 ELSE 0 END
+			WHERE r.id = :reviewId
+			""")
+	void decrementLikeCount(@Param("reviewId") Long reviewId);
 
 	@Query("""
 			SELECT r.member.id AS memberId,

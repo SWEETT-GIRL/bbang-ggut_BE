@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -232,6 +233,53 @@ class ReviewControllerTest {
 		mockMvc.perform(delete("/reviews/1"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true));
+	}
+
+	@Test
+	void likeReview_returns200() throws Exception {
+		mockMvc.perform(post("/reviews/1/like"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
+	}
+
+	@Test
+	void likeReview_returns404_whenReviewNotFound() throws Exception {
+		willThrow(new ReviewException(ReviewErrorCode.REVIEW_NOT_FOUND))
+			.given(reviewService).likeReview(eq(99L), isNull());
+
+		mockMvc.perform(post("/reviews/99/like"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.code").value("REVIEW_NOT_FOUND"));
+	}
+
+	@Test
+	void likeReview_returns409_whenAlreadyLiked() throws Exception {
+		willThrow(new ReviewException(ReviewErrorCode.ALREADY_LIKED))
+			.given(reviewService).likeReview(eq(1L), isNull());
+
+		mockMvc.perform(post("/reviews/1/like"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.code").value("REVIEW_ALREADY_LIKED"));
+	}
+
+	@Test
+	void cancelReviewLike_returns200() throws Exception {
+		mockMvc.perform(delete("/reviews/1/like"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
+	}
+
+	@Test
+	void cancelReviewLike_returns404_whenNotLiked() throws Exception {
+		willThrow(new ReviewException(ReviewErrorCode.NOT_LIKED))
+			.given(reviewService).cancelReviewLike(eq(1L), isNull());
+
+		mockMvc.perform(delete("/reviews/1/like"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.code").value("REVIEW_NOT_LIKED"));
 	}
 
 	private MenuReviewResponse review() {

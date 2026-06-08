@@ -51,6 +51,7 @@ import sweetgirl.croissant.review.dto.response.ReviewPresignedUrlInfoResponse;
 import sweetgirl.croissant.review.dto.response.ReviewSummaryResponse;
 import sweetgirl.croissant.review.entity.Review;
 import sweetgirl.croissant.review.entity.ReviewImageFile;
+import sweetgirl.croissant.review.entity.ReviewLike;
 import sweetgirl.croissant.review.enums.TextureTag;
 import sweetgirl.croissant.review.exception.ReviewException;
 import sweetgirl.croissant.review.repository.ReviewImageFileRepository;
@@ -438,6 +439,95 @@ class ReviewServiceTest {
 		verify(s3Service).deleteObject("reviews/members/7/images/a");
 		verify(reviewImageFileRepository).deleteAll(List.of(image));
 		verify(reviewLikeRepository).deleteByReviewId(1L);
+	}
+
+	@Test
+	@DisplayName("likeReview: 정상 요청이면 ReviewLike를 저장하고 likeCount를 1 올린다")
+	void likeReview_validRequest_savesReviewLikeAndIncrementsCount() {
+		Member member = member(99L, "슈크림");
+		Review review = review(1L, member(10L, "단팥"), BigDecimal.valueOf(4.5), 3, LocalDateTime.now());
+
+		given(reviewRepository.findActiveByIdWithDetails(1L)).willReturn(Optional.of(review));
+		given(reviewLikeRepository.existsByMemberIdAndReviewId(99L, 1L)).willReturn(false);
+		given(memberReader.getMember(99L)).willReturn(member);
+
+		reviewService.likeReview(1L, 99L);
+
+		verify(reviewLikeRepository)
+			.save(argThat(like -> like.getReview().equals(review) && like.getMember().equals(member)));
+		verify(reviewRepository).incrementLikeCount(1L);
+	}
+
+	@Test
+	@DisplayName("likeReview: 이미 좋아요한 리뷰이면 ALREADY_LIKED를 던지고 likeCount를 변경하지 않는다")
+	void likeReview_alreadyLiked_throwsAlreadyLiked() {
+		Review review = review(1L, member(10L, "단팥"), BigDecimal.valueOf(4.5), 3, LocalDateTime.now());
+
+		given(reviewRepository.findActiveByIdWithDetails(1L)).willReturn(Optional.of(review));
+		given(reviewLikeRepository.existsByMemberIdAndReviewId(99L, 1L)).willReturn(true);
+
+		assertThatThrownBy(() -> reviewService.likeReview(1L, 99L))
+			.isInstanceOf(ReviewException.class)
+			.hasMessageContaining(ReviewErrorCode.ALREADY_LIKED.getMessage());
+
+		verify(reviewLikeRepository, never()).save(any());
+		verify(reviewRepository, never()).incrementLikeCount(any());
+	}
+
+	@Test
+	@DisplayName("likeReview: 존재하지 않는 리뷰이면 REVIEW_NOT_FOUND를 던진다")
+	void likeReview_reviewNotFound_throwsReviewNotFound() {
+		given(reviewRepository.findActiveByIdWithDetails(99L)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> reviewService.likeReview(99L, 1L))
+			.isInstanceOf(ReviewException.class)
+			.hasMessageContaining(ReviewErrorCode.REVIEW_NOT_FOUND.getMessage());
+
+		verify(reviewLikeRepository, never()).save(any());
+	}
+
+	@Test
+	@DisplayName("cancelReviewLike: 정상 요청이면 ReviewLike를 삭제하고 likeCount를 1 내린다")
+	void cancelReviewLike_validRequest_deletesReviewLikeAndDecrementsCount() {
+		Member member = member(99L, "슈크림");
+		Review review = review(1L, member(10L, "단팥"), BigDecimal.valueOf(4.5), 3, LocalDateTime.now());
+		ReviewLike reviewLike = ReviewLike.builder().review(review).member(member).build();
+
+		given(reviewRepository.findActiveByIdWithDetails(1L)).willReturn(Optional.of(review));
+		given(reviewLikeRepository.findByMemberIdAndReviewId(99L, 1L)).willReturn(Optional.of(reviewLike));
+
+		reviewService.cancelReviewLike(1L, 99L);
+
+		verify(reviewLikeRepository).delete(reviewLike);
+		verify(reviewRepository).decrementLikeCount(1L);
+	}
+
+	@Test
+	@DisplayName("cancelReviewLike: 좋아요하지 않은 리뷰이면 NOT_LIKED를 던지고 likeCount를 변경하지 않는다")
+	void cancelReviewLike_notLiked_throwsNotLiked() {
+		Review review = review(1L, member(10L, "단팥"), BigDecimal.valueOf(4.5), 3, LocalDateTime.now());
+
+		given(reviewRepository.findActiveByIdWithDetails(1L)).willReturn(Optional.of(review));
+		given(reviewLikeRepository.findByMemberIdAndReviewId(99L, 1L)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> reviewService.cancelReviewLike(1L, 99L))
+			.isInstanceOf(ReviewException.class)
+			.hasMessageContaining(ReviewErrorCode.NOT_LIKED.getMessage());
+
+		verify(reviewLikeRepository, never()).delete(any());
+		verify(reviewRepository, never()).decrementLikeCount(any());
+	}
+
+	@Test
+	@DisplayName("cancelReviewLike: 존재하지 않는 리뷰이면 REVIEW_NOT_FOUND를 던진다")
+	void cancelReviewLike_reviewNotFound_throwsReviewNotFound() {
+		given(reviewRepository.findActiveByIdWithDetails(99L)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> reviewService.cancelReviewLike(99L, 1L))
+			.isInstanceOf(ReviewException.class)
+			.hasMessageContaining(ReviewErrorCode.REVIEW_NOT_FOUND.getMessage());
+
+		verify(reviewLikeRepository, never()).delete(any());
 	}
 
 	private ReviewCreateRequest createRequest(BigDecimal rating, String content, List<ReviewImageRequest> images) {

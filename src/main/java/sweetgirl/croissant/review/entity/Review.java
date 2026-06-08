@@ -106,14 +106,6 @@ public class Review extends BaseTimeEntity {
 		this.commentCount = 0;
 	}
 
-	public void incrementLikeCount() {
-		this.likeCount++;
-	}
-
-	public void decrementLikeCount() {
-		this.likeCount = Math.max(0, this.likeCount - 1);
-	}
-
 	public void update(
 			BigDecimal rating,
 			String repurchaseIntent,

@@ -47,6 +47,7 @@ import sweetgirl.croissant.review.dto.response.ReviewPresignedUrlInfoResponse;
 import sweetgirl.croissant.review.dto.response.ReviewSummaryResponse;
 import sweetgirl.croissant.review.entity.Review;
 import sweetgirl.croissant.review.entity.ReviewImageFile;
+import sweetgirl.croissant.review.entity.ReviewLike;
 import sweetgirl.croissant.review.enums.ReviewSort;
 import sweetgirl.croissant.review.enums.TextureTag;
 import sweetgirl.croissant.review.exception.ReviewException;
@@ -235,6 +236,34 @@ public class ReviewService {
 		}
 
 		return toReviewDetailResponses(List.of(review), member.getId()).get(0);
+	}
+
+	@Transactional
+	public void likeReview(Long reviewId, Long memberId) {
+		Review review = reviewRepository.findActiveByIdWithDetails(reviewId)
+			.orElseThrow(() -> new ReviewException(ReviewErrorCode.REVIEW_NOT_FOUND));
+
+		if (reviewLikeRepository.existsByMemberIdAndReviewId(memberId, reviewId)) {
+			throw new ReviewException(ReviewErrorCode.ALREADY_LIKED);
+		}
+
+		reviewLikeRepository.save(ReviewLike.builder()
+			.review(review)
+			.member(memberReader.getMember(memberId))
+			.build());
+		reviewRepository.incrementLikeCount(reviewId);
+	}
+
+	@Transactional
+	public void cancelReviewLike(Long reviewId, Long memberId) {
+		Review review = reviewRepository.findActiveByIdWithDetails(reviewId)
+			.orElseThrow(() -> new ReviewException(ReviewErrorCode.REVIEW_NOT_FOUND));
+
+		ReviewLike reviewLike = reviewLikeRepository.findByMemberIdAndReviewId(memberId, reviewId)
+			.orElseThrow(() -> new ReviewException(ReviewErrorCode.NOT_LIKED));
+
+		reviewLikeRepository.delete(reviewLike);
+		reviewRepository.decrementLikeCount(reviewId);
 	}
 
 	@Transactional

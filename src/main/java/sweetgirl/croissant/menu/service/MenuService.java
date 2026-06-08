@@ -98,7 +98,7 @@ public class MenuService {
 			.member(memberRepository.getReferenceById(memberId))
 			.menu(menu)
 			.build());
-		menu.incrementRecommendCount();
+		menuRepository.incrementRecommendCount(menuId);
 	}
 
 	@Transactional
@@ -110,7 +110,7 @@ public class MenuService {
 			.orElseThrow(() -> new MenuException(MenuErrorCode.NOT_RECOMMENDED));
 
 		recommendMenuRepository.delete(recommendMenu);
-		menu.decrementRecommendCount();
+		menuRepository.decrementRecommendCount(menuId);
 	}
 
 	private Map<Long, ImageResponse> buildMenuImageMap(List<Menu> menus) {

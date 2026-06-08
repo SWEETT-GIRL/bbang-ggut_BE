@@ -36,7 +36,9 @@ public enum ReviewErrorCode implements BaseErrorCode {
 			"REVIEW_EDIT_PERIOD_EXPIRED",
 			"리뷰는 작성 후 24시간 이내에만 수정할 수 있습니다."),
 	REVIEW_NOT_FOUND(NOT_FOUND, "REVIEW_NOT_FOUND", "존재하지 않는 리뷰입니다."),
-	REVIEW_ACCESS_DENIED(FORBIDDEN, "REVIEW_ACCESS_DENIED", "리뷰를 수정하거나 삭제할 권한이 없습니다.");
+	REVIEW_ACCESS_DENIED(FORBIDDEN, "REVIEW_ACCESS_DENIED", "리뷰를 수정하거나 삭제할 권한이 없습니다."),
+	ALREADY_LIKED(CONFLICT, "REVIEW_ALREADY_LIKED", "이미 좋아요한 리뷰입니다."),
+	NOT_LIKED(NOT_FOUND, "REVIEW_NOT_LIKED", "좋아요하지 않은 리뷰입니다.");
 
 	private final HttpStatus httpStatus;
 	private final String code;

@@ -58,6 +58,18 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
 			""")
 	List<Object[]> countActiveMenusByStoreIds(@Param("storeIds") List<Long> storeIds);
 
+	@Modifying
+	@Query("UPDATE Menu m SET m.recommendCount = m.recommendCount + 1 WHERE m.id = :menuId")
+	void incrementRecommendCount(@Param("menuId") Long menuId);
+
+	@Modifying
+	@Query("""
+			UPDATE Menu m
+			SET m.recommendCount = CASE WHEN m.recommendCount > 0 THEN m.recommendCount - 1 ELSE 0 END
+			WHERE m.id = :menuId
+			""")
+	void decrementRecommendCount(@Param("menuId") Long menuId);
+
 	// '메뉴까지 갈아엎기' — store 의 모든 활성 메뉴를 soft-delete (deletedAt 설정).
 	@Modifying
 	@Query("UPDATE Menu m SET m.deletedAt = CURRENT_TIMESTAMP "
