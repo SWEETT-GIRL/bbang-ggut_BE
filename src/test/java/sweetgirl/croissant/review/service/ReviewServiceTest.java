@@ -51,11 +51,11 @@ import sweetgirl.croissant.review.dto.response.ReviewPresignedUrlInfoResponse;
 import sweetgirl.croissant.review.dto.response.ReviewSummaryResponse;
 import sweetgirl.croissant.review.entity.Review;
 import sweetgirl.croissant.review.entity.ReviewImageFile;
-import sweetgirl.croissant.review.entity.ReviewLike;
+import sweetgirl.croissant.review.entity.ReviewRecommend;
 import sweetgirl.croissant.review.enums.TextureTag;
 import sweetgirl.croissant.review.exception.ReviewException;
 import sweetgirl.croissant.review.repository.ReviewImageFileRepository;
-import sweetgirl.croissant.review.repository.ReviewLikeRepository;
+import sweetgirl.croissant.review.repository.ReviewRecommendRepository;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 import sweetgirl.croissant.store.entity.Store;
 
@@ -75,7 +75,7 @@ class ReviewServiceTest {
 	@Mock
 	ReviewImageFileRepository reviewImageFileRepository;
 	@Mock
-	ReviewLikeRepository reviewLikeRepository;
+	ReviewRecommendRepository reviewRecommendRepository;
 	@Mock
 	ObjectionableContentFilter objectionableContentFilter;
 
@@ -83,14 +83,14 @@ class ReviewServiceTest {
 	ReviewService reviewService;
 
 	@Test
-	@DisplayName("getReviewSummary: liked 정렬 기본 조회와 로그인 사용자의 isLiked를 반영한다")
-	void getReviewSummary_likedSort_returnsPreviewWithLikedState() {
+	@DisplayName("getReviewSummary: recommended 정렬 기본 조회와 로그인 사용자의 isRecommended를 반영한다")
+	void getReviewSummary_recommendedSort_returnsPreviewWithRecommendedState() {
 		Member author = member(10L, "단팥");
 		Review review = review(1L, author, BigDecimal.valueOf(4.5), 7, LocalDateTime.of(2026, 6, 4, 10, 0));
 		ReviewImageFile image = image(100L, review, "reviews/members/10/images/a");
 
 		given(menuRepository.findByIdWithDetails(1L)).willReturn(Optional.of(mock(Menu.class)));
-		given(reviewRepository.findVisibleActiveReviewsOrderByLiked(
+		given(reviewRepository.findVisibleActiveReviewsOrderByRecommended(
 			eq(1L),
 			eq(false),
 			eq(99L),
@@ -101,16 +101,16 @@ class ReviewServiceTest {
 		given(reviewRepository.countVisibleActiveByMenuId(1L, 99L)).willReturn(2L);
 		given(reviewImageFileRepository.findByReviewIdInOrderByReviewIdAscDisplayOrderAscIdAsc(List.of(1L)))
 			.willReturn(List.of(image));
-		given(reviewLikeRepository.findLikedReviewIds(99L, List.of(1L))).willReturn(List.of(1L));
+		given(reviewRecommendRepository.findRecommendedReviewIds(99L, List.of(1L))).willReturn(List.of(1L));
 		given(reviewRepository.findAuthorAggregatesByMemberIds(Set.of(10L)))
 			.willReturn(List.of(authorAggregate(10L, 3L, 4.0)));
 
-		ReviewSummaryResponse result = reviewService.getReviewSummary(1L, "liked", false, 2, 99L);
+		ReviewSummaryResponse result = reviewService.getReviewSummary(1L, "recommended", false, 2, 99L);
 
 		assertThat(result.averageRating()).isEqualByComparingTo("4.5");
 		assertThat(result.reviewCount()).isEqualTo(2L);
 		assertThat(result.previewReviews()).hasSize(1);
-		assertThat(result.previewReviews().get(0).isLiked()).isTrue();
+		assertThat(result.previewReviews().get(0).isRecommended()).isTrue();
 		assertThat(result.previewReviews().get(0).photos().get(0).awsKey())
 			.isEqualTo("reviews/members/10/images/a");
 		assertThat(result.previewReviews().get(0).author().reviewCount()).isEqualTo(3L);
@@ -149,7 +149,7 @@ class ReviewServiceTest {
 			eq(true),
 			isNull(),
 			argThat(pageable -> pageable.getPageNumber() == 1 && pageable.getPageSize() == 3));
-		verify(reviewLikeRepository, never()).findLikedReviewIds(any(), any());
+		verify(reviewRecommendRepository, never()).findRecommendedReviewIds(any(), any());
 	}
 
 	@Test
@@ -270,7 +270,7 @@ class ReviewServiceTest {
 			.willReturn(List.of(review));
 		given(reviewImageFileRepository.findByReviewIdInOrderByReviewIdAscDisplayOrderAscIdAsc(List.of(1L)))
 			.willReturn(List.of());
-		given(reviewLikeRepository.findLikedReviewIds(7L, List.of(1L))).willReturn(List.of());
+		given(reviewRecommendRepository.findRecommendedReviewIds(7L, List.of(1L))).willReturn(List.of());
 		given(reviewRepository.findAuthorAggregatesByMemberIds(Set.of(7L)))
 			.willReturn(List.of(authorAggregate(7L, 1L, 4.5)));
 
@@ -296,14 +296,14 @@ class ReviewServiceTest {
 			.willReturn(List.of(review));
 		given(reviewImageFileRepository.findByReviewIdInOrderByReviewIdAscDisplayOrderAscIdAsc(List.of(1L)))
 			.willReturn(List.of(image));
-		given(reviewLikeRepository.findLikedReviewIds(99L, List.of(1L))).willReturn(List.of(1L));
+		given(reviewRecommendRepository.findRecommendedReviewIds(99L, List.of(1L))).willReturn(List.of(1L));
 		given(reviewRepository.findAuthorAggregatesByMemberIds(Set.of(10L)))
 			.willReturn(List.of(authorAggregate(10L, 3L, 4.0)));
 
 		var result = reviewService.getMemberReviews(10L, 99L, 0, 20);
 
 		assertThat(result.content()).hasSize(1);
-		assertThat(result.content().get(0).isLiked()).isTrue();
+		assertThat(result.content().get(0).isRecommended()).isTrue();
 		assertThat(result.content().get(0).canEdit()).isFalse();
 		assertThat(result.content().get(0).canDelete()).isFalse();
 		assertThat(result.content().get(0).photos().get(0).awsKey())
@@ -342,7 +342,7 @@ class ReviewServiceTest {
 			.willReturn(List.of(oldImage));
 		given(reviewImageFileRepository.findByReviewIdInOrderByReviewIdAscDisplayOrderAscIdAsc(List.of(1L)))
 			.willReturn(List.of());
-		given(reviewLikeRepository.findLikedReviewIds(7L, List.of(1L))).willReturn(List.of());
+		given(reviewRecommendRepository.findRecommendedReviewIds(7L, List.of(1L))).willReturn(List.of());
 		given(reviewRepository.findAuthorAggregatesByMemberIds(Set.of(7L)))
 			.willReturn(List.of(authorAggregate(7L, 1L, 3.5)));
 
@@ -438,96 +438,96 @@ class ReviewServiceTest {
 		assertThat(review.getDeletedAt()).isNotNull();
 		verify(s3Service).deleteObject("reviews/members/7/images/a");
 		verify(reviewImageFileRepository).deleteAll(List.of(image));
-		verify(reviewLikeRepository).deleteByReviewId(1L);
+		verify(reviewRecommendRepository).deleteByReviewId(1L);
 	}
 
 	@Test
-	@DisplayName("likeReview: 정상 요청이면 ReviewLike를 저장하고 likeCount를 1 올린다")
-	void likeReview_validRequest_savesReviewLikeAndIncrementsCount() {
+	@DisplayName("recommendReview: 정상 요청이면 ReviewRecommend를 저장하고 recommendCount를 1 올린다")
+	void recommendReview_validRequest_savesReviewRecommendAndIncrementsCount() {
 		Member member = member(99L, "슈크림");
 		Review review = review(1L, member(10L, "단팥"), BigDecimal.valueOf(4.5), 3, LocalDateTime.now());
 
 		given(reviewRepository.findActiveByIdWithDetails(1L)).willReturn(Optional.of(review));
-		given(reviewLikeRepository.existsByMemberIdAndReviewId(99L, 1L)).willReturn(false);
+		given(reviewRecommendRepository.existsByMemberIdAndReviewId(99L, 1L)).willReturn(false);
 		given(memberReader.getMember(99L)).willReturn(member);
 
-		reviewService.likeReview(1L, 99L);
+		reviewService.recommendReview(1L, 99L);
 
-		verify(reviewLikeRepository)
-			.save(argThat(like -> like.getReview().equals(review) && like.getMember().equals(member)));
-		verify(reviewRepository).incrementLikeCount(1L);
+		verify(reviewRecommendRepository)
+			.save(argThat(rec -> rec.getReview().equals(review) && rec.getMember().equals(member)));
+		verify(reviewRepository).incrementRecommendCount(1L);
 	}
 
 	@Test
-	@DisplayName("likeReview: 이미 좋아요한 리뷰이면 ALREADY_LIKED를 던지고 likeCount를 변경하지 않는다")
-	void likeReview_alreadyLiked_throwsAlreadyLiked() {
+	@DisplayName("recommendReview: 이미 추천한 리뷰이면 ALREADY_RECOMMENDED를 던지고 recommendCount를 변경하지 않는다")
+	void recommendReview_alreadyRecommended_throwsAlreadyRecommended() {
 		Review review = review(1L, member(10L, "단팥"), BigDecimal.valueOf(4.5), 3, LocalDateTime.now());
 
 		given(reviewRepository.findActiveByIdWithDetails(1L)).willReturn(Optional.of(review));
-		given(reviewLikeRepository.existsByMemberIdAndReviewId(99L, 1L)).willReturn(true);
+		given(reviewRecommendRepository.existsByMemberIdAndReviewId(99L, 1L)).willReturn(true);
 
-		assertThatThrownBy(() -> reviewService.likeReview(1L, 99L))
+		assertThatThrownBy(() -> reviewService.recommendReview(1L, 99L))
 			.isInstanceOf(ReviewException.class)
-			.hasMessageContaining(ReviewErrorCode.ALREADY_LIKED.getMessage());
+			.hasMessageContaining(ReviewErrorCode.ALREADY_RECOMMENDED.getMessage());
 
-		verify(reviewLikeRepository, never()).save(any());
-		verify(reviewRepository, never()).incrementLikeCount(any());
+		verify(reviewRecommendRepository, never()).save(any());
+		verify(reviewRepository, never()).incrementRecommendCount(any());
 	}
 
 	@Test
-	@DisplayName("likeReview: 존재하지 않는 리뷰이면 REVIEW_NOT_FOUND를 던진다")
-	void likeReview_reviewNotFound_throwsReviewNotFound() {
+	@DisplayName("recommendReview: 존재하지 않는 리뷰이면 REVIEW_NOT_FOUND를 던진다")
+	void recommendReview_reviewNotFound_throwsReviewNotFound() {
 		given(reviewRepository.findActiveByIdWithDetails(99L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> reviewService.likeReview(99L, 1L))
+		assertThatThrownBy(() -> reviewService.recommendReview(99L, 1L))
 			.isInstanceOf(ReviewException.class)
 			.hasMessageContaining(ReviewErrorCode.REVIEW_NOT_FOUND.getMessage());
 
-		verify(reviewLikeRepository, never()).save(any());
+		verify(reviewRecommendRepository, never()).save(any());
 	}
 
 	@Test
-	@DisplayName("cancelReviewLike: 정상 요청이면 ReviewLike를 삭제하고 likeCount를 1 내린다")
-	void cancelReviewLike_validRequest_deletesReviewLikeAndDecrementsCount() {
+	@DisplayName("cancelReviewRecommend: 정상 요청이면 ReviewRecommend를 삭제하고 recommendCount를 1 내린다")
+	void cancelReviewRecommend_validRequest_deletesReviewRecommendAndDecrementsCount() {
 		Member member = member(99L, "슈크림");
 		Review review = review(1L, member(10L, "단팥"), BigDecimal.valueOf(4.5), 3, LocalDateTime.now());
-		ReviewLike reviewLike = ReviewLike.builder().review(review).member(member).build();
+		ReviewRecommend reviewRecommend = ReviewRecommend.builder().review(review).member(member).build();
 
 		given(reviewRepository.findActiveByIdWithDetails(1L)).willReturn(Optional.of(review));
-		given(reviewLikeRepository.findByMemberIdAndReviewId(99L, 1L)).willReturn(Optional.of(reviewLike));
+		given(reviewRecommendRepository.findByMemberIdAndReviewId(99L, 1L)).willReturn(Optional.of(reviewRecommend));
 
-		reviewService.cancelReviewLike(1L, 99L);
+		reviewService.cancelReviewRecommend(1L, 99L);
 
-		verify(reviewLikeRepository).delete(reviewLike);
-		verify(reviewRepository).decrementLikeCount(1L);
+		verify(reviewRecommendRepository).delete(reviewRecommend);
+		verify(reviewRepository).decrementRecommendCount(1L);
 	}
 
 	@Test
-	@DisplayName("cancelReviewLike: 좋아요하지 않은 리뷰이면 NOT_LIKED를 던지고 likeCount를 변경하지 않는다")
-	void cancelReviewLike_notLiked_throwsNotLiked() {
+	@DisplayName("cancelReviewRecommend: 추천하지 않은 리뷰이면 NOT_RECOMMENDED를 던지고 recommendCount를 변경하지 않는다")
+	void cancelReviewRecommend_notRecommended_throwsNotRecommended() {
 		Review review = review(1L, member(10L, "단팥"), BigDecimal.valueOf(4.5), 3, LocalDateTime.now());
 
 		given(reviewRepository.findActiveByIdWithDetails(1L)).willReturn(Optional.of(review));
-		given(reviewLikeRepository.findByMemberIdAndReviewId(99L, 1L)).willReturn(Optional.empty());
+		given(reviewRecommendRepository.findByMemberIdAndReviewId(99L, 1L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> reviewService.cancelReviewLike(1L, 99L))
+		assertThatThrownBy(() -> reviewService.cancelReviewRecommend(1L, 99L))
 			.isInstanceOf(ReviewException.class)
-			.hasMessageContaining(ReviewErrorCode.NOT_LIKED.getMessage());
+			.hasMessageContaining(ReviewErrorCode.NOT_RECOMMENDED.getMessage());
 
-		verify(reviewLikeRepository, never()).delete(any());
-		verify(reviewRepository, never()).decrementLikeCount(any());
+		verify(reviewRecommendRepository, never()).delete(any());
+		verify(reviewRepository, never()).decrementRecommendCount(any());
 	}
 
 	@Test
-	@DisplayName("cancelReviewLike: 존재하지 않는 리뷰이면 REVIEW_NOT_FOUND를 던진다")
-	void cancelReviewLike_reviewNotFound_throwsReviewNotFound() {
+	@DisplayName("cancelReviewRecommend: 존재하지 않는 리뷰이면 REVIEW_NOT_FOUND를 던진다")
+	void cancelReviewRecommend_reviewNotFound_throwsReviewNotFound() {
 		given(reviewRepository.findActiveByIdWithDetails(99L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> reviewService.cancelReviewLike(99L, 1L))
+		assertThatThrownBy(() -> reviewService.cancelReviewRecommend(99L, 1L))
 			.isInstanceOf(ReviewException.class)
 			.hasMessageContaining(ReviewErrorCode.REVIEW_NOT_FOUND.getMessage());
 
-		verify(reviewLikeRepository, never()).delete(any());
+		verify(reviewRecommendRepository, never()).delete(any());
 	}
 
 	private ReviewCreateRequest createRequest(BigDecimal rating, String content, List<ReviewImageRequest> images) {
@@ -564,7 +564,7 @@ class ReviewServiceTest {
 		return member;
 	}
 
-	private Review review(Long id, Member member, BigDecimal rating, int likeCount, LocalDateTime createdAt) {
+	private Review review(Long id, Member member, BigDecimal rating, int recommendCount, LocalDateTime createdAt) {
 		Review review = Review.builder()
 			.menu(mock(Menu.class))
 			.member(member)
@@ -576,13 +576,14 @@ class ReviewServiceTest {
 			.content("맛있어요")
 			.build();
 		ReflectionTestUtils.setField(review, "id", id);
-		ReflectionTestUtils.setField(review, "likeCount", likeCount);
+		ReflectionTestUtils.setField(review, "recommendCount", recommendCount);
 		ReflectionTestUtils.setField(review, "createdAt", createdAt);
 		return review;
 	}
 
-	private Review reviewWithMenu(Long id, Member member, BigDecimal rating, int likeCount, LocalDateTime createdAt) {
-		Review review = review(id, member, rating, likeCount, createdAt);
+	private Review reviewWithMenu(Long id, Member member, BigDecimal rating, int recommendCount,
+			LocalDateTime createdAt) {
+		Review review = review(id, member, rating, recommendCount, createdAt);
 		ReflectionTestUtils.setField(review, "menu", menu());
 		return review;
 	}

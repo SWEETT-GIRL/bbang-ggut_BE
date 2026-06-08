@@ -156,25 +156,25 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 					WHERE mb.blocker.id = :viewerMemberId
 						AND mb.blockedMember.id = r.member.id
 				))
-			ORDER BY r.likeCount DESC, r.createdAt DESC, r.id DESC
+			ORDER BY r.recommendCount DESC, r.createdAt DESC, r.id DESC
 			""")
-	List<Review> findVisibleActiveReviewsOrderByLiked(
+	List<Review> findVisibleActiveReviewsOrderByRecommended(
 			@Param("menuId") Long menuId,
 			@Param("photoOnly") boolean photoOnly,
 			@Param("viewerMemberId") Long viewerMemberId,
 			Pageable pageable);
 
 	@Modifying
-	@Query("UPDATE Review r SET r.likeCount = r.likeCount + 1 WHERE r.id = :reviewId")
-	void incrementLikeCount(@Param("reviewId") Long reviewId);
+	@Query("UPDATE Review r SET r.recommendCount = r.recommendCount + 1 WHERE r.id = :reviewId")
+	void incrementRecommendCount(@Param("reviewId") Long reviewId);
 
 	@Modifying
 	@Query("""
 			UPDATE Review r
-			SET r.likeCount = CASE WHEN r.likeCount > 0 THEN r.likeCount - 1 ELSE 0 END
+			SET r.recommendCount = CASE WHEN r.recommendCount > 0 THEN r.recommendCount - 1 ELSE 0 END
 			WHERE r.id = :reviewId
 			""")
-	void decrementLikeCount(@Param("reviewId") Long reviewId);
+	void decrementRecommendCount(@Param("reviewId") Long reviewId);
 
 	@Query("""
 			SELECT r.member.id AS memberId,

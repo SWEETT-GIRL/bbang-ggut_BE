@@ -17,11 +17,11 @@ import sweetgirl.croissant.common.entity.BaseTimeEntity;
 import sweetgirl.croissant.member.entity.Member;
 
 @Entity
-@Table(name = "review_like", uniqueConstraints = @UniqueConstraint(name = "uk_review_like_member", columnNames = {
+@Table(name = "review_recommend", uniqueConstraints = @UniqueConstraint(name = "uk_review_recommend", columnNames = {
 	"review_id", "member_id"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ReviewLike extends BaseTimeEntity {
+public class ReviewRecommend extends BaseTimeEntity {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -36,7 +36,7 @@ public class ReviewLike extends BaseTimeEntity {
 	private Member member;
 
 	@Builder
-	public ReviewLike(Review review, Member member) {
+	public ReviewRecommend(Review review, Member member) {
 		this.review = review;
 		this.member = member;
 	}

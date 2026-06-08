@@ -236,50 +236,50 @@ class ReviewControllerTest {
 	}
 
 	@Test
-	void likeReview_returns200() throws Exception {
-		mockMvc.perform(post("/reviews/1/like"))
+	void recommendReview_returns200() throws Exception {
+		mockMvc.perform(post("/reviews/1/recommend"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true));
 	}
 
 	@Test
-	void likeReview_returns404_whenReviewNotFound() throws Exception {
+	void recommendReview_returns404_whenReviewNotFound() throws Exception {
 		willThrow(new ReviewException(ReviewErrorCode.REVIEW_NOT_FOUND))
-			.given(reviewService).likeReview(eq(99L), isNull());
+			.given(reviewService).recommendReview(eq(99L), isNull());
 
-		mockMvc.perform(post("/reviews/99/like"))
+		mockMvc.perform(post("/reviews/99/recommend"))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.success").value(false))
 			.andExpect(jsonPath("$.code").value("REVIEW_NOT_FOUND"));
 	}
 
 	@Test
-	void likeReview_returns409_whenAlreadyLiked() throws Exception {
-		willThrow(new ReviewException(ReviewErrorCode.ALREADY_LIKED))
-			.given(reviewService).likeReview(eq(1L), isNull());
+	void recommendReview_returns409_whenAlreadyRecommended() throws Exception {
+		willThrow(new ReviewException(ReviewErrorCode.ALREADY_RECOMMENDED))
+			.given(reviewService).recommendReview(eq(1L), isNull());
 
-		mockMvc.perform(post("/reviews/1/like"))
+		mockMvc.perform(post("/reviews/1/recommend"))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.success").value(false))
-			.andExpect(jsonPath("$.code").value("REVIEW_ALREADY_LIKED"));
+			.andExpect(jsonPath("$.code").value("REVIEW_ALREADY_RECOMMENDED"));
 	}
 
 	@Test
-	void cancelReviewLike_returns200() throws Exception {
-		mockMvc.perform(delete("/reviews/1/like"))
+	void cancelReviewRecommend_returns200() throws Exception {
+		mockMvc.perform(delete("/reviews/1/recommend"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true));
 	}
 
 	@Test
-	void cancelReviewLike_returns404_whenNotLiked() throws Exception {
-		willThrow(new ReviewException(ReviewErrorCode.NOT_LIKED))
-			.given(reviewService).cancelReviewLike(eq(1L), isNull());
+	void cancelReviewRecommend_returns404_whenNotRecommended() throws Exception {
+		willThrow(new ReviewException(ReviewErrorCode.NOT_RECOMMENDED))
+			.given(reviewService).cancelReviewRecommend(eq(1L), isNull());
 
-		mockMvc.perform(delete("/reviews/1/like"))
+		mockMvc.perform(delete("/reviews/1/recommend"))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.success").value(false))
-			.andExpect(jsonPath("$.code").value("REVIEW_NOT_LIKED"));
+			.andExpect(jsonPath("$.code").value("REVIEW_NOT_RECOMMENDED"));
 	}
 
 	private MenuReviewResponse review() {

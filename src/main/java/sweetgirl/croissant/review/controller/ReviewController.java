@@ -39,7 +39,7 @@ public class ReviewController {
 	@GetMapping("/menus/{menuId}/reviews/summary")
 	public ResponseEntity<ApiResponse<ReviewSummaryResponse>> getReviewSummary(
 			@PathVariable Long menuId,
-			@RequestParam(defaultValue = "liked") String sort,
+			@RequestParam(defaultValue = "recommended") String sort,
 			@RequestParam(defaultValue = "false") boolean photoOnly,
 			@RequestParam(defaultValue = "2") int previewSize,
 			@AuthenticationPrincipal Long memberId) {
@@ -125,21 +125,21 @@ public class ReviewController {
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
-	@Operation(summary = "리뷰 좋아요", description = "로그인한 사용자가 리뷰에 좋아요를 추가합니다.")
-	@PostMapping("/reviews/{reviewId}/like")
-	public ResponseEntity<ApiResponse<Void>> likeReview(
+	@Operation(summary = "리뷰 추천", description = "로그인한 사용자가 리뷰를 추천합니다. 이미 추천한 경우 409를 반환합니다.")
+	@PostMapping("/reviews/{reviewId}/recommend")
+	public ResponseEntity<ApiResponse<Void>> recommendReview(
 			@PathVariable Long reviewId,
 			@AuthenticationPrincipal Long memberId) {
-		reviewService.likeReview(reviewId, memberId);
+		reviewService.recommendReview(reviewId, memberId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
-	@Operation(summary = "리뷰 좋아요 취소", description = "로그인한 사용자의 리뷰 좋아요를 취소합니다.")
-	@DeleteMapping("/reviews/{reviewId}/like")
-	public ResponseEntity<ApiResponse<Void>> cancelReviewLike(
+	@Operation(summary = "리뷰 추천 취소", description = "로그인한 사용자의 리뷰 추천을 취소합니다. 추천하지 않은 리뷰에 요청 시 404를 반환합니다.")
+	@DeleteMapping("/reviews/{reviewId}/recommend")
+	public ResponseEntity<ApiResponse<Void>> cancelReviewRecommend(
 			@PathVariable Long reviewId,
 			@AuthenticationPrincipal Long memberId) {
-		reviewService.cancelReviewLike(reviewId, memberId);
+		reviewService.cancelReviewRecommend(reviewId, memberId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 }

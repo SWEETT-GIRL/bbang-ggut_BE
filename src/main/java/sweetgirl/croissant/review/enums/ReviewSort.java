@@ -11,7 +11,7 @@ import sweetgirl.croissant.review.exception.ReviewException;
 @RequiredArgsConstructor
 public enum ReviewSort {
 	RECENT("recent"),
-	LIKED("liked");
+	RECOMMENDED("recommended");
 
 	private final String value;
 
