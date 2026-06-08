@@ -124,4 +124,22 @@ public class ReviewController {
 		reviewService.deleteReview(reviewId, memberId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
+
+	@Operation(summary = "리뷰 좋아요", description = "로그인한 사용자가 리뷰에 좋아요를 추가합니다.")
+	@PostMapping("/reviews/{reviewId}/like")
+	public ResponseEntity<ApiResponse<Void>> likeReview(
+			@PathVariable Long reviewId,
+			@AuthenticationPrincipal Long memberId) {
+		reviewService.likeReview(reviewId, memberId);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "리뷰 좋아요 취소", description = "로그인한 사용자의 리뷰 좋아요를 취소합니다.")
+	@DeleteMapping("/reviews/{reviewId}/like")
+	public ResponseEntity<ApiResponse<Void>> cancelReviewLike(
+			@PathVariable Long reviewId,
+			@AuthenticationPrincipal Long memberId) {
+		reviewService.cancelReviewLike(reviewId, memberId);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
 }
