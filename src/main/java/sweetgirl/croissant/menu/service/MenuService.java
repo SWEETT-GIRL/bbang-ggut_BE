@@ -74,7 +74,7 @@ public class MenuService {
 			.toList();
 	}
 
-	public MenuDetailResponse getMenuDetail(Long menuId) {
+	public MenuDetailResponse getMenuDetail(Long menuId, Long memberId) {
 		Menu menu = menuRepository.findByIdWithDetails(menuId)
 			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
 
@@ -82,7 +82,9 @@ public class MenuService {
 			.map(img -> new ImageResponse(img.getId(), img.getAwsKey()))
 			.toList();
 
-		return MenuDetailResponse.of(menu, images);
+		boolean isLiked = memberId != null && menuLikeRepository.existsByMemberIdAndMenuId(memberId, menuId);
+
+		return MenuDetailResponse.of(menu, images, isLiked);
 	}
 
 	@Transactional

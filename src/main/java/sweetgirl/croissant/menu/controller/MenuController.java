@@ -40,10 +40,12 @@ public class MenuController {
 		return ResponseEntity.ok(ApiResponse.ok(menuService.getStoreMenus(storeId, memberId)));
 	}
 
-	@Operation(summary = "메뉴 상세 조회", description = "menuId로 메뉴 상세 정보(이름·가격·사진·카테고리·추천 수)를 반환합니다.")
+	@Operation(summary = "메뉴 상세 조회", description = "menuId로 메뉴 상세 정보(이름·가격·사진·카테고리·좋아요 수)를 반환합니다.")
 	@GetMapping("/menus/{menuId}")
-	public ResponseEntity<ApiResponse<MenuDetailResponse>> getMenuDetail(@PathVariable Long menuId) {
-		return ResponseEntity.ok(ApiResponse.ok(menuService.getMenuDetail(menuId)));
+	public ResponseEntity<ApiResponse<MenuDetailResponse>> getMenuDetail(
+			@PathVariable Long menuId,
+			@AuthenticationPrincipal Long memberId) {
+		return ResponseEntity.ok(ApiResponse.ok(menuService.getMenuDetail(menuId, memberId)));
 	}
 
 	@Operation(summary = "메뉴 좋아요", description = "로그인한 사용자가 메뉴에 좋아요를 누릅니다. 이미 좋아요한 경우 409를 반환합니다.")
