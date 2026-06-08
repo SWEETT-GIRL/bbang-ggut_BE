@@ -77,6 +77,18 @@ public class ReviewController {
 		return ResponseEntity.ok(ApiResponse.ok(reviewService.getMyReviews(memberId, page, size)));
 	}
 
+	@Operation(summary = "사용자가 쓴 리뷰 목록 조회", description = "공개 프로필에서 특정 사용자가 작성한 리뷰 목록을 "
+		+ "최신순으로 조회합니다.")
+	@GetMapping("/users/{memberId}/reviews")
+	public ResponseEntity<ApiResponse<MyReviewListResponse>> getMemberReviews(
+			@PathVariable Long memberId,
+			@AuthenticationPrincipal Long viewerMemberId,
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "20") int size) {
+		return ResponseEntity.ok(ApiResponse.ok(
+			reviewService.getMemberReviews(memberId, viewerMemberId, page, size)));
+	}
+
 	@Operation(summary = "리뷰 이미지 Presigned URL 발급", description = "mimeTypes 배열 크기만큼 리뷰 이미지 업로드 URL을 반환합니다.")
 	@PostMapping("/reviews/images/presigned-urls")
 	public ResponseEntity<ApiResponse<ReviewPresignedUrlInfoResponse>> getReviewPresignedUrls(

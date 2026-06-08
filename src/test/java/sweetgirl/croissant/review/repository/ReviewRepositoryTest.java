@@ -230,6 +230,47 @@ class ReviewRepositoryTest {
 			.containsExactly("숨겨질 리뷰");
 	}
 
+	@Test
+	@DisplayName("공개 프로필 리뷰 목록은 대상 회원의 활성 리뷰를 최신순으로 반환한다")
+	void findVisibleActiveByMemberIdOrderByRecent_returnsTargetReviewsRecentFirst() {
+		saveMember(1L, "조회자");
+		saveMember(2L, "작성자");
+		saveMenu();
+		saveReview(1L, 1L, 2L, BigDecimal.valueOf(4.0), "이전 리뷰", "2026-06-05 09:00:00");
+		saveReview(2L, 1L, 2L, BigDecimal.valueOf(5.0), "최신 리뷰", "2026-06-05 10:00:00");
+		entityManager.flush();
+		entityManager.clear();
+
+		List<Review> result = reviewRepository.findVisibleActiveByMemberIdOrderByRecent(
+			2L,
+			null,
+			PageRequest.of(0, 10));
+
+		assertThat(result)
+			.extracting(Review::getContent)
+			.containsExactly("최신 리뷰", "이전 리뷰");
+	}
+
+	@Test
+	@DisplayName("공개 프로필 리뷰 목록은 조회자가 차단한 작성자이면 빈 목록을 반환한다")
+	void findVisibleActiveByMemberIdOrderByRecent_blockedAuthorReturnsEmpty() {
+		Fixture fixture = fixtureWithBlockedAuthorReview();
+
+		List<Review> blockedResult = reviewRepository.findVisibleActiveByMemberIdOrderByRecent(
+			fixture.blockedAuthorId(),
+			fixture.viewerId(),
+			PageRequest.of(0, 10));
+		List<Review> guestResult = reviewRepository.findVisibleActiveByMemberIdOrderByRecent(
+			fixture.blockedAuthorId(),
+			null,
+			PageRequest.of(0, 10));
+
+		assertThat(blockedResult).isEmpty();
+		assertThat(guestResult)
+			.extracting(Review::getContent)
+			.containsExactly("숨겨질 리뷰");
+	}
+
 	private Fixture fixtureWithBlockedAuthorReview() {
 		saveMember(1L, "조회자");
 		saveMember(2L, "보이는 작성자");

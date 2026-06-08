@@ -111,6 +111,19 @@ class ReviewControllerTest {
 	}
 
 	@Test
+	void getMemberReviews_returnsContentAndHasNext() throws Exception {
+		given(reviewService.getMemberReviews(eq(10L), isNull(), eq(0), eq(20)))
+			.willReturn(new MyReviewListResponse(List.of(reviewDetail()), false));
+
+		mockMvc.perform(get("/users/10/reviews"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true))
+			.andExpect(jsonPath("$.data.content[0].id").value(1))
+			.andExpect(jsonPath("$.data.content[0].author.id").value(10))
+			.andExpect(jsonPath("$.data.hasNext").value(false));
+	}
+
+	@Test
 	void getReviewPresignedUrls_returns401_whenMemberIdIsNull() throws Exception {
 		given(reviewService.generateReviewPresignedUrls(isNull(), any()))
 			.willThrow(new MemberException(MemberErrorCode.UNAUTHORIZED));

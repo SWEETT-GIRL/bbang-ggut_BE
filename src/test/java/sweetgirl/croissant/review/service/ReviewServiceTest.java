@@ -283,6 +283,50 @@ class ReviewServiceTest {
 	}
 
 	@Test
+	@DisplayName("getMemberReviews: 공개 프로필 리뷰를 최신순 slice로 반환하고 "
+		+ "viewer 상태를 반영한다")
+	void getMemberReviews_returnsPublicReviewsWithViewerState() {
+		Member author = member(10L, "단팥");
+		Review review = reviewWithMenu(1L, author, BigDecimal.valueOf(4.5), 7, LocalDateTime.now());
+		ReviewImageFile image = image(100L, review, "reviews/members/10/images/a");
+
+		given(memberReader.getMember(10L)).willReturn(author);
+		given(reviewRepository.findVisibleActiveByMemberIdOrderByRecent(eq(10L), eq(99L), any(Pageable.class)))
+			.willReturn(List.of(review));
+		given(reviewImageFileRepository.findByReviewIdInOrderByReviewIdAscDisplayOrderAscIdAsc(List.of(1L)))
+			.willReturn(List.of(image));
+		given(reviewLikeRepository.findLikedReviewIds(99L, List.of(1L))).willReturn(List.of(1L));
+		given(reviewRepository.findAuthorAggregatesByMemberIds(Set.of(10L)))
+			.willReturn(List.of(authorAggregate(10L, 3L, 4.0)));
+
+		var result = reviewService.getMemberReviews(10L, 99L, 0, 20);
+
+		assertThat(result.content()).hasSize(1);
+		assertThat(result.content().get(0).isLiked()).isTrue();
+		assertThat(result.content().get(0).canEdit()).isFalse();
+		assertThat(result.content().get(0).canDelete()).isFalse();
+		assertThat(result.content().get(0).photos().get(0).awsKey())
+			.isEqualTo("reviews/members/10/images/a");
+		assertThat(result.hasNext()).isFalse();
+		verify(reviewRepository).findVisibleActiveByMemberIdOrderByRecent(
+			eq(10L),
+			eq(99L),
+			argThat(pageable -> pageable.getPageNumber() == 0 && pageable.getPageSize() == 21));
+	}
+
+	@Test
+	@DisplayName("getMemberReviews: 존재하지 않는 회원이면 MEMBER_NOT_FOUND를 던진다")
+	void getMemberReviews_missingMember_throwsNotFound() {
+		given(memberReader.getMember(404L)).willThrow(new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
+
+		assertThatThrownBy(() -> reviewService.getMemberReviews(404L, 99L, 0, 20))
+			.isInstanceOf(MemberException.class)
+			.hasMessageContaining(MemberErrorCode.MEMBER_NOT_FOUND.getMessage());
+
+		verify(reviewRepository, never()).findVisibleActiveByMemberIdOrderByRecent(any(), any(), any());
+	}
+
+	@Test
 	@DisplayName("updateReview: 작성자 본인만 리뷰와 이미지를 교체할 수 있다")
 	void updateReview_owner_replacesReviewAndImages() {
 		Member member = member(7L, "슈크림");

@@ -68,6 +68,26 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 			Pageable pageable);
 
 	@Query("""
+			SELECT r FROM Review r
+			JOIN FETCH r.member
+			JOIN FETCH r.menu m
+			JOIN FETCH m.store
+			WHERE r.member.id = :memberId
+				AND r.deletedAt IS NULL
+				AND r.hiddenAt IS NULL
+				AND (:viewerMemberId IS NULL OR NOT EXISTS (
+					SELECT 1 FROM MemberBlock mb
+					WHERE mb.blocker.id = :viewerMemberId
+						AND mb.blockedMember.id = r.member.id
+				))
+			ORDER BY r.createdAt DESC, r.id DESC
+			""")
+	List<Review> findVisibleActiveByMemberIdOrderByRecent(
+			@Param("memberId") Long memberId,
+			@Param("viewerMemberId") Long viewerMemberId,
+			Pageable pageable);
+
+	@Query("""
 			SELECT COUNT(r) FROM Review r
 			WHERE r.menu.id = :menuId
 				AND r.deletedAt IS NULL
