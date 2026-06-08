@@ -33,9 +33,6 @@ out/
 /nbdist/
 /.nb-gradle/
 
-### macOS ###
-.DS_Store
-
 ### VS Code ###
 .vscode/
 
@@ -64,8 +61,6 @@ ny_plan.md
 __pycache__/
 *.py[cod]
 *.pyo
-.venv/
-venv/
 
 ### Claude Code ###
 .claude/scheduled_tasks.lock

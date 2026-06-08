@@ -1,11 +1,13 @@
 package sweetgirl.croissant.member.service;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -14,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import sweetgirl.croissant.alarm.entity.FcmToken;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
+import sweetgirl.croissant.global.encrypt.TokenHasher;
 import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.member.entity.RefreshToken;
 import sweetgirl.croissant.member.jwt.JwtProvider;
@@ -31,10 +34,18 @@ class AuthServiceTest {
 	@Mock
 	private FcmTokenRepository fcmTokenRepository;
 
+	@Mock
+	private TokenHasher tokenHasher;
+
 	@InjectMocks
 	private AuthService authService;
 
 	private static final String REFRESH_TOKEN = "valid.refresh.token";
+
+	@BeforeEach
+	void setUp() {
+		given(tokenHasher.hash(any())).willAnswer(inv -> inv.getArgument(0));
+	}
 
 	// ── refresh ──────────────────────────────────────────────────────────
 

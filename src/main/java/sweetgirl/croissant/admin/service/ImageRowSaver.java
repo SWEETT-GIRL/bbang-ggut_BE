@@ -5,7 +5,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
-import sweetgirl.croissant.external.aws.enums.MimeType;
+import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.entity.MenuImageFile;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
