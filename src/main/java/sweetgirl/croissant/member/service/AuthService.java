@@ -1,6 +1,7 @@
 package sweetgirl.croissant.member.service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,8 +39,11 @@ public class AuthService {
 		}
 
 		// DB에는 SHA-256 해시가 저장되어 있으므로, 조회 전에 동일하게 해시 변환
-		RefreshToken savedToken = refreshTokenRepository.findByToken(tokenHasher.hash(refreshToken))
-			.orElseThrow(() -> new CustomException(GeneralErrorCode._UNAUTHORIZED));
+		List<RefreshToken> tokens = refreshTokenRepository.findAllByToken(tokenHasher.hash(refreshToken));
+		if (tokens.isEmpty()) {
+			throw new CustomException(GeneralErrorCode._UNAUTHORIZED);
+		}
+		RefreshToken savedToken = tokens.get(0);
 
 		// revokedAt이 설정된 경우 — 로그아웃 또는 탈퇴로 무효화된 토큰
 		if (savedToken.getRevokedAt() != null) {
@@ -63,13 +67,13 @@ public class AuthService {
 	public void logout(String refreshToken, String fcmToken) {
 
 		// DB에는 SHA-256 해시가 저장되어 있으므로, 조회 전에 동일하게 해시 변환
-		refreshTokenRepository.findByToken(tokenHasher.hash(refreshToken))
-			.ifPresent(RefreshToken::revoke); // revokedAt = now() 설정 (dirty checking으로 자동 반영)
+		refreshTokenRepository.findAllByToken(tokenHasher.hash(refreshToken))
+			.forEach(RefreshToken::revoke); // revokedAt = now() 설정 (dirty checking으로 자동 반영)
 
 		// fcmToken이 같이 왔으면 비활성화 (FCM 토큰 없는 사용자도 있을 수 있어 optional)
 		if (StringUtils.hasText(fcmToken)) {
-			fcmTokenRepository.findByToken(fcmToken)
-				.ifPresent(token -> token.deactivate());
+			fcmTokenRepository.findAllByToken(fcmToken)
+				.forEach(token -> token.deactivate());
 		}
 	}
 }
