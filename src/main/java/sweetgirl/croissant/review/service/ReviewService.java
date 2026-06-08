@@ -251,7 +251,7 @@ public class ReviewService {
 			.review(review)
 			.member(memberReader.getMember(memberId))
 			.build());
-		review.incrementLikeCount();
+		reviewRepository.incrementLikeCount(reviewId);
 	}
 
 	@Transactional
@@ -263,7 +263,7 @@ public class ReviewService {
 			.orElseThrow(() -> new ReviewException(ReviewErrorCode.NOT_LIKED));
 
 		reviewLikeRepository.delete(reviewLike);
-		review.decrementLikeCount();
+		reviewRepository.decrementLikeCount(reviewId);
 	}
 
 	@Transactional

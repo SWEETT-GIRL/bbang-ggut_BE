@@ -453,9 +453,9 @@ class ReviewServiceTest {
 
 		reviewService.likeReview(1L, 99L);
 
-		assertThat(review.getLikeCount()).isEqualTo(4);
 		verify(reviewLikeRepository)
 			.save(argThat(like -> like.getReview().equals(review) && like.getMember().equals(member)));
+		verify(reviewRepository).incrementLikeCount(1L);
 	}
 
 	@Test
@@ -470,8 +470,8 @@ class ReviewServiceTest {
 			.isInstanceOf(ReviewException.class)
 			.hasMessageContaining(ReviewErrorCode.ALREADY_LIKED.getMessage());
 
-		assertThat(review.getLikeCount()).isEqualTo(3);
 		verify(reviewLikeRepository, never()).save(any());
+		verify(reviewRepository, never()).incrementLikeCount(any());
 	}
 
 	@Test
@@ -498,8 +498,8 @@ class ReviewServiceTest {
 
 		reviewService.cancelReviewLike(1L, 99L);
 
-		assertThat(review.getLikeCount()).isEqualTo(2);
 		verify(reviewLikeRepository).delete(reviewLike);
+		verify(reviewRepository).decrementLikeCount(1L);
 	}
 
 	@Test
@@ -514,8 +514,8 @@ class ReviewServiceTest {
 			.isInstanceOf(ReviewException.class)
 			.hasMessageContaining(ReviewErrorCode.NOT_LIKED.getMessage());
 
-		assertThat(review.getLikeCount()).isEqualTo(3);
 		verify(reviewLikeRepository, never()).delete(any());
+		verify(reviewRepository, never()).decrementLikeCount(any());
 	}
 
 	@Test
