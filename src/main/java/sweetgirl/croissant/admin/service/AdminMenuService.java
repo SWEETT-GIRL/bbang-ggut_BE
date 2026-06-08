@@ -15,6 +15,7 @@ import sweetgirl.croissant.admin.dto.request.AdminMenuCreateRequest;
 import sweetgirl.croissant.admin.dto.request.AdminMenuReorderRequest;
 import sweetgirl.croissant.admin.dto.request.AdminMenuUpdateRequest;
 import sweetgirl.croissant.admin.dto.response.AdminMenuResponse;
+import sweetgirl.croissant.common.entity.ImageFile;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
 import sweetgirl.croissant.menu.dto.projection.MenuImageThumbnailProjection;
 import sweetgirl.croissant.menu.entity.Menu;
@@ -136,7 +137,7 @@ public class AdminMenuService {
 		Menu menu = menuRepository.findById(menuId)
 			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
 		List<String> photos = menuImageFileRepository.findImagesByMenuId(menuId).stream()
-			.map(img -> img.getAwsKey())
+			.map(ImageFile::getAwsKey)
 			.toList();
 		return AdminMenuResponse.of(menu, photos);
 	}

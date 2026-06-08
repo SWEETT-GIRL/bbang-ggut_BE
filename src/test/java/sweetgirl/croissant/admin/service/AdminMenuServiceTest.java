@@ -63,7 +63,7 @@ class AdminMenuServiceTest {
 		given(saved.getName()).willReturn("소금빵");
 		given(saved.getPrice()).willReturn(3000);
 		given(saved.getDescription()).willReturn(null);
-		given(saved.getRecommendCount()).willReturn(0);
+		given(saved.getLikeCount()).willReturn(0);
 		given(saved.getDeletedAt()).willReturn(null);
 		given(saved.getStore()).willReturn(store);
 		given(saved.getMenuCategory()).willReturn(category);
@@ -95,7 +95,7 @@ class AdminMenuServiceTest {
 		given(existing.getName()).willReturn("소금 빵");
 		given(existing.getPrice()).willReturn(3000);
 		given(existing.getDescription()).willReturn(null);
-		given(existing.getRecommendCount()).willReturn(0);
+		given(existing.getLikeCount()).willReturn(0);
 		given(existing.getDeletedAt()).willReturn(null);
 		given(existing.getStore()).willReturn(store);
 		given(existing.getMenuCategory()).willReturn(category);
@@ -129,7 +129,7 @@ class AdminMenuServiceTest {
 		given(existing.getName()).willReturn("플레인 소금빵");
 		given(existing.getPrice()).willReturn(null);
 		given(existing.getDescription()).willReturn(null);
-		given(existing.getRecommendCount()).willReturn(0);
+		given(existing.getLikeCount()).willReturn(0);
 		given(existing.getDeletedAt()).willReturn(null);
 		given(existing.getStore()).willReturn(store);
 		given(existing.getMenuCategory()).willReturn(category);
@@ -167,7 +167,7 @@ class AdminMenuServiceTest {
 		given(saved.getName()).willReturn("소금빵");
 		given(saved.getPrice()).willReturn(3000);
 		given(saved.getDescription()).willReturn(null);
-		given(saved.getRecommendCount()).willReturn(0);
+		given(saved.getLikeCount()).willReturn(0);
 		given(saved.getDeletedAt()).willReturn(null);
 		given(saved.getStore()).willReturn(store);
 		given(saved.getMenuCategory()).willReturn(category);
@@ -212,7 +212,7 @@ class AdminMenuServiceTest {
 		given(activeMenu.getName()).willReturn("소금빵");
 		given(activeMenu.getPrice()).willReturn(3000);
 		given(activeMenu.getDescription()).willReturn(null);
-		given(activeMenu.getRecommendCount()).willReturn(0);
+		given(activeMenu.getLikeCount()).willReturn(0);
 		given(activeMenu.getDeletedAt()).willReturn(null);
 		given(activeMenu.getStore()).willReturn(store);
 		given(activeMenu.getMenuCategory()).willReturn(category);
@@ -223,7 +223,7 @@ class AdminMenuServiceTest {
 		given(deletedMenu.getName()).willReturn("삭제된빵");
 		given(deletedMenu.getPrice()).willReturn(2000);
 		given(deletedMenu.getDescription()).willReturn(null);
-		given(deletedMenu.getRecommendCount()).willReturn(0);
+		given(deletedMenu.getLikeCount()).willReturn(0);
 		given(deletedMenu.getDeletedAt()).willReturn(LocalDateTime.now());
 		given(deletedMenu.getStore()).willReturn(store);
 		given(deletedMenu.getMenuCategory()).willReturn(category);

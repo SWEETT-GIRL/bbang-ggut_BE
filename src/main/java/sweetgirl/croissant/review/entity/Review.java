@@ -66,7 +66,7 @@ public class Review extends BaseTimeEntity {
 	private String content;
 
 	@Column(nullable = false)
-	private int likeCount;
+	private int recommendCount;
 
 	@Column(nullable = false)
 	private int commentCount;
@@ -102,7 +102,7 @@ public class Review extends BaseTimeEntity {
 		this.fillingAmount = fillingAmount;
 		this.textureTags = textureTags == null ? new ArrayList<>() : new ArrayList<>(textureTags);
 		this.content = content;
-		this.likeCount = 0;
+		this.recommendCount = 0;
 		this.commentCount = 0;
 	}
 

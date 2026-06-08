@@ -23,12 +23,12 @@ import lombok.NoArgsConstructor;
 import sweetgirl.croissant.member.entity.Member;
 
 @Entity
-@Table(name = "recommend_menu", uniqueConstraints = @UniqueConstraint(name = "uq_recommend_menu", columnNames = {
+@Table(name = "menu_like", uniqueConstraints = @UniqueConstraint(name = "uq_menu_like", columnNames = {
 	"member_id", "menu_id"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
-public class RecommendMenu {
+public class MenuLike {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -47,7 +47,7 @@ public class RecommendMenu {
 	private LocalDateTime createdAt;
 
 	@Builder
-	public RecommendMenu(Member member, Menu menu) {
+	public MenuLike(Member member, Menu menu) {
 		this.member = member;
 		this.menu = menu;
 	}

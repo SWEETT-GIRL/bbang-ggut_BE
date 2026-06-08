@@ -47,12 +47,12 @@ import sweetgirl.croissant.review.dto.response.ReviewPresignedUrlInfoResponse;
 import sweetgirl.croissant.review.dto.response.ReviewSummaryResponse;
 import sweetgirl.croissant.review.entity.Review;
 import sweetgirl.croissant.review.entity.ReviewImageFile;
-import sweetgirl.croissant.review.entity.ReviewLike;
+import sweetgirl.croissant.review.entity.ReviewRecommend;
 import sweetgirl.croissant.review.enums.ReviewSort;
 import sweetgirl.croissant.review.enums.TextureTag;
 import sweetgirl.croissant.review.exception.ReviewException;
 import sweetgirl.croissant.review.repository.ReviewImageFileRepository;
-import sweetgirl.croissant.review.repository.ReviewLikeRepository;
+import sweetgirl.croissant.review.repository.ReviewRecommendRepository;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 
 @Service
@@ -75,7 +75,7 @@ public class ReviewService {
 	private final MenuRepository menuRepository;
 	private final ReviewRepository reviewRepository;
 	private final ReviewImageFileRepository reviewImageFileRepository;
-	private final ReviewLikeRepository reviewLikeRepository;
+	private final ReviewRecommendRepository reviewRecommendRepository;
 	private final ObjectionableContentFilter objectionableContentFilter;
 
 	public ReviewSummaryResponse getReviewSummary(
@@ -239,31 +239,31 @@ public class ReviewService {
 	}
 
 	@Transactional
-	public void likeReview(Long reviewId, Long memberId) {
+	public void recommendReview(Long reviewId, Long memberId) {
 		Review review = reviewRepository.findActiveByIdWithDetails(reviewId)
 			.orElseThrow(() -> new ReviewException(ReviewErrorCode.REVIEW_NOT_FOUND));
 
-		if (reviewLikeRepository.existsByMemberIdAndReviewId(memberId, reviewId)) {
-			throw new ReviewException(ReviewErrorCode.ALREADY_LIKED);
+		if (reviewRecommendRepository.existsByMemberIdAndReviewId(memberId, reviewId)) {
+			throw new ReviewException(ReviewErrorCode.ALREADY_RECOMMENDED);
 		}
 
-		reviewLikeRepository.save(ReviewLike.builder()
+		reviewRecommendRepository.save(ReviewRecommend.builder()
 			.review(review)
 			.member(memberReader.getMember(memberId))
 			.build());
-		reviewRepository.incrementLikeCount(reviewId);
+		reviewRepository.incrementRecommendCount(reviewId);
 	}
 
 	@Transactional
-	public void cancelReviewLike(Long reviewId, Long memberId) {
+	public void cancelReviewRecommend(Long reviewId, Long memberId) {
 		Review review = reviewRepository.findActiveByIdWithDetails(reviewId)
 			.orElseThrow(() -> new ReviewException(ReviewErrorCode.REVIEW_NOT_FOUND));
 
-		ReviewLike reviewLike = reviewLikeRepository.findByMemberIdAndReviewId(memberId, reviewId)
-			.orElseThrow(() -> new ReviewException(ReviewErrorCode.NOT_LIKED));
+		ReviewRecommend reviewRecommend = reviewRecommendRepository.findByMemberIdAndReviewId(memberId, reviewId)
+			.orElseThrow(() -> new ReviewException(ReviewErrorCode.NOT_RECOMMENDED));
 
-		reviewLikeRepository.delete(reviewLike);
-		reviewRepository.decrementLikeCount(reviewId);
+		reviewRecommendRepository.delete(reviewRecommend);
+		reviewRepository.decrementRecommendCount(reviewId);
 	}
 
 	@Transactional
@@ -272,7 +272,7 @@ public class ReviewService {
 		Review review = getOwnedActiveReview(reviewId, member.getId());
 
 		deleteReviewImages(review);
-		reviewLikeRepository.deleteByReviewId(review.getId());
+		reviewRecommendRepository.deleteByReviewId(review.getId());
 		review.softDelete();
 	}
 
@@ -282,8 +282,8 @@ public class ReviewService {
 			boolean photoOnly,
 			Long viewerMemberId,
 			PageRequest pageRequest) {
-		if (sort == ReviewSort.LIKED) {
-			return reviewRepository.findVisibleActiveReviewsOrderByLiked(
+		if (sort == ReviewSort.RECOMMENDED) {
+			return reviewRepository.findVisibleActiveReviewsOrderByRecommended(
 				menuId,
 				photoOnly,
 				viewerMemberId,
@@ -334,11 +334,11 @@ public class ReviewService {
 			.map(Review::getId)
 			.toList();
 		Map<Long, List<ReviewPhotoResponse>> photoMap = buildPhotoMap(reviewIds);
-		Set<Long> likedReviewIds = findLikedReviewIds(memberId, reviewIds);
+		Set<Long> recommendedReviewIds = findRecommendedReviewIds(memberId, reviewIds);
 		Map<Long, AuthorStats> authorStatsMap = buildAuthorStatsMap(reviews);
 
 		return reviews.stream()
-			.map(review -> toReviewResponse(review, memberId, photoMap, likedReviewIds, authorStatsMap))
+			.map(review -> toReviewResponse(review, memberId, photoMap, recommendedReviewIds, authorStatsMap))
 			.toList();
 	}
 
@@ -351,11 +351,11 @@ public class ReviewService {
 			.map(Review::getId)
 			.toList();
 		Map<Long, List<ReviewPhotoResponse>> photoMap = buildPhotoMap(reviewIds);
-		Set<Long> likedReviewIds = findLikedReviewIds(memberId, reviewIds);
+		Set<Long> recommendedReviewIds = findRecommendedReviewIds(memberId, reviewIds);
 		Map<Long, AuthorStats> authorStatsMap = buildAuthorStatsMap(reviews);
 
 		return reviews.stream()
-			.map(review -> toReviewDetailResponse(review, memberId, photoMap, likedReviewIds, authorStatsMap))
+			.map(review -> toReviewDetailResponse(review, memberId, photoMap, recommendedReviewIds, authorStatsMap))
 			.toList();
 	}
 
@@ -368,11 +368,11 @@ public class ReviewService {
 					Collectors.toList())));
 	}
 
-	private Set<Long> findLikedReviewIds(Long memberId, List<Long> reviewIds) {
+	private Set<Long> findRecommendedReviewIds(Long memberId, List<Long> reviewIds) {
 		if (memberId == null) {
 			return Collections.emptySet();
 		}
-		return new HashSet<>(reviewLikeRepository.findLikedReviewIds(memberId, reviewIds));
+		return new HashSet<>(reviewRecommendRepository.findRecommendedReviewIds(memberId, reviewIds));
 	}
 
 	private Map<Long, AuthorStats> buildAuthorStatsMap(List<Review> reviews) {
@@ -391,7 +391,7 @@ public class ReviewService {
 			Review review,
 			Long viewerMemberId,
 			Map<Long, List<ReviewPhotoResponse>> photoMap,
-			Set<Long> likedReviewIds,
+			Set<Long> recommendedReviewIds,
 			Map<Long, AuthorStats> authorStatsMap) {
 		Long memberId = review.getMember().getId();
 		AuthorStats authorStats = authorStatsMap.getOrDefault(memberId, AuthorStats.empty());
@@ -404,9 +404,9 @@ public class ReviewService {
 			review.getFillingAmount(),
 			review.getTextureTags(),
 			review.getContent(),
-			review.getLikeCount(),
+			review.getRecommendCount(),
 			review.getCommentCount(),
-			likedReviewIds.contains(review.getId()),
+			recommendedReviewIds.contains(review.getId()),
 			canEditReview(review, viewerMemberId),
 			canDeleteReview(review, viewerMemberId),
 			new ReviewAuthorResponse(
@@ -424,7 +424,7 @@ public class ReviewService {
 			Review review,
 			Long viewerMemberId,
 			Map<Long, List<ReviewPhotoResponse>> photoMap,
-			Set<Long> likedReviewIds,
+			Set<Long> recommendedReviewIds,
 			Map<Long, AuthorStats> authorStatsMap) {
 		Long memberId = review.getMember().getId();
 		AuthorStats authorStats = authorStatsMap.getOrDefault(memberId, AuthorStats.empty());
@@ -441,9 +441,9 @@ public class ReviewService {
 			review.getFillingAmount(),
 			review.getTextureTags(),
 			review.getContent(),
-			review.getLikeCount(),
+			review.getRecommendCount(),
 			review.getCommentCount(),
-			likedReviewIds.contains(review.getId()),
+			recommendedReviewIds.contains(review.getId()),
 			canEditReview(review, viewerMemberId),
 			canDeleteReview(review, viewerMemberId),
 			new ReviewAuthorResponse(

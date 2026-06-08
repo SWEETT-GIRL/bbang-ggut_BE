@@ -18,12 +18,12 @@ import sweetgirl.croissant.menu.dto.response.MenuCategoryResponse;
 import sweetgirl.croissant.menu.dto.response.MenuDetailResponse;
 import sweetgirl.croissant.menu.dto.response.StoreMenuResponse;
 import sweetgirl.croissant.menu.entity.Menu;
-import sweetgirl.croissant.menu.entity.RecommendMenu;
+import sweetgirl.croissant.menu.entity.MenuLike;
 import sweetgirl.croissant.menu.exception.MenuException;
 import sweetgirl.croissant.menu.repository.MenuCategoryRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
+import sweetgirl.croissant.menu.repository.MenuLikeRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
-import sweetgirl.croissant.menu.repository.RecommendMenuRepository;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.StoreRepository;
@@ -35,7 +35,7 @@ public class MenuService {
 
 	private final MenuRepository menuRepository;
 	private final MenuImageFileRepository menuImageFileRepository;
-	private final RecommendMenuRepository recommendMenuRepository;
+	private final MenuLikeRepository menuLikeRepository;
 	private final MemberRepository memberRepository;
 	private final StoreRepository storeRepository;
 	private final MenuCategoryRepository menuCategoryRepository;
@@ -51,30 +51,30 @@ public class MenuService {
 			throw new StoreException(StoreErrorCode.STORE_NOT_FOUND);
 		}
 
-		List<Menu> menus = menuRepository.findByStoreIdOrderByRecommendCountDesc(storeId);
+		List<Menu> menus = menuRepository.findByStoreIdOrderByLikeCountDesc(storeId);
 		if (menus.isEmpty()) {
 			return Collections.emptyList();
 		}
 		Map<Long, ImageResponse> imageMap = buildMenuImageMap(menus);
 
-		Set<Long> recommendedMenuIds = Collections.emptySet();
+		Set<Long> likedMenuIds = Collections.emptySet();
 		if (memberId != null) {
 			List<Long> menuIds = menus.stream().map(Menu::getId).toList();
-			recommendedMenuIds = recommendMenuRepository.findByMemberIdAndMenuIdIn(memberId, menuIds).stream()
-				.map(rm -> rm.getMenu().getId())
+			likedMenuIds = menuLikeRepository.findByMemberIdAndMenuIdIn(memberId, menuIds).stream()
+				.map(ml -> ml.getMenu().getId())
 				.collect(Collectors.toSet());
 		}
 
-		Set<Long> finalRecommendedMenuIds = recommendedMenuIds;
+		Set<Long> finalLikedMenuIds = likedMenuIds;
 		return menus.stream()
 			.map(menu -> StoreMenuResponse.of(
 				menu,
 				imageMap.get(menu.getId()),
-				finalRecommendedMenuIds.contains(menu.getId())))
+				finalLikedMenuIds.contains(menu.getId())))
 			.toList();
 	}
 
-	public MenuDetailResponse getMenuDetail(Long menuId) {
+	public MenuDetailResponse getMenuDetail(Long menuId, Long memberId) {
 		Menu menu = menuRepository.findByIdWithDetails(menuId)
 			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
 
@@ -82,35 +82,37 @@ public class MenuService {
 			.map(img -> new ImageResponse(img.getId(), img.getAwsKey()))
 			.toList();
 
-		return MenuDetailResponse.of(menu, images);
+		boolean isLiked = memberId != null && menuLikeRepository.existsByMemberIdAndMenuId(memberId, menuId);
+
+		return MenuDetailResponse.of(menu, images, isLiked);
 	}
 
 	@Transactional
-	public void recommendMenu(Long menuId, Long memberId) {
+	public void likeMenu(Long menuId, Long memberId) {
 		Menu menu = menuRepository.findById(menuId)
 			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
 
-		if (recommendMenuRepository.existsByMemberIdAndMenuId(memberId, menuId)) {
-			throw new MenuException(MenuErrorCode.ALREADY_RECOMMENDED);
+		if (menuLikeRepository.existsByMemberIdAndMenuId(memberId, menuId)) {
+			throw new MenuException(MenuErrorCode.ALREADY_LIKED);
 		}
 
-		recommendMenuRepository.save(RecommendMenu.builder()
+		menuLikeRepository.save(MenuLike.builder()
 			.member(memberRepository.getReferenceById(memberId))
 			.menu(menu)
 			.build());
-		menuRepository.incrementRecommendCount(menuId);
+		menuRepository.incrementLikeCount(menuId);
 	}
 
 	@Transactional
-	public void cancelMenuRecommend(Long menuId, Long memberId) {
+	public void cancelMenuLike(Long menuId, Long memberId) {
 		Menu menu = menuRepository.findById(menuId)
 			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
 
-		RecommendMenu recommendMenu = recommendMenuRepository.findByMemberIdAndMenuId(memberId, menuId)
-			.orElseThrow(() -> new MenuException(MenuErrorCode.NOT_RECOMMENDED));
+		MenuLike menuLike = menuLikeRepository.findByMemberIdAndMenuId(memberId, menuId)
+			.orElseThrow(() -> new MenuException(MenuErrorCode.NOT_LIKED));
 
-		recommendMenuRepository.delete(recommendMenu);
-		menuRepository.decrementRecommendCount(menuId);
+		menuLikeRepository.delete(menuLike);
+		menuRepository.decrementLikeCount(menuId);
 	}
 
 	private Map<Long, ImageResponse> buildMenuImageMap(List<Menu> menus) {

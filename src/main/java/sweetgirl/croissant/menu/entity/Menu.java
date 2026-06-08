@@ -43,7 +43,7 @@ public class Menu extends BaseTimeEntity {
 	private Integer price;
 
 	@Column(nullable = false)
-	private int recommendCount;
+	private int likeCount;
 
 	@Column
 	private LocalDateTime deletedAt;
@@ -61,7 +61,7 @@ public class Menu extends BaseTimeEntity {
 		this.name = name;
 		this.price = price;
 		this.description = description;
-		this.recommendCount = 0;
+		this.likeCount = 0;
 	}
 
 	public void update(String name, Integer price, String description, MenuCategory menuCategory) {

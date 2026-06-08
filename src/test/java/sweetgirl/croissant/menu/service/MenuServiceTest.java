@@ -22,12 +22,12 @@ import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.entity.MenuCategory;
-import sweetgirl.croissant.menu.entity.RecommendMenu;
+import sweetgirl.croissant.menu.entity.MenuLike;
 import sweetgirl.croissant.menu.exception.MenuException;
 import sweetgirl.croissant.menu.repository.MenuCategoryRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
+import sweetgirl.croissant.menu.repository.MenuLikeRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
-import sweetgirl.croissant.menu.repository.RecommendMenuRepository;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
@@ -39,7 +39,7 @@ class MenuServiceTest {
 	@Mock
 	MenuImageFileRepository menuImageFileRepository;
 	@Mock
-	RecommendMenuRepository recommendMenuRepository;
+	MenuLikeRepository menuLikeRepository;
 	@Mock
 	MemberRepository memberRepository;
 	@Mock
@@ -51,88 +51,88 @@ class MenuServiceTest {
 	MenuService menuService;
 
 	@Test
-	@DisplayName("recommendMenu: 정상 요청이면 RecommendMenu를 저장하고 recommendCount를 1 올린다")
-	void recommendMenu_validRequest_savesRecommendMenuAndIncrementsCount() {
+	@DisplayName("likeMenu: 정상 요청이면 MenuLike를 저장하고 likeCount를 1 올린다")
+	void likeMenu_validRequest_savesMenuLikeAndIncrementsCount() {
 		Menu menu = menu(1L);
 		Member memberRef = member(99L);
 
 		given(menuRepository.findById(1L)).willReturn(Optional.of(menu));
-		given(recommendMenuRepository.existsByMemberIdAndMenuId(99L, 1L)).willReturn(false);
+		given(menuLikeRepository.existsByMemberIdAndMenuId(99L, 1L)).willReturn(false);
 		given(memberRepository.getReferenceById(99L)).willReturn(memberRef);
 
-		menuService.recommendMenu(1L, 99L);
+		menuService.likeMenu(1L, 99L);
 
-		verify(recommendMenuRepository).save(any(RecommendMenu.class));
-		verify(menuRepository).incrementRecommendCount(1L);
+		verify(menuLikeRepository).save(any(MenuLike.class));
+		verify(menuRepository).incrementLikeCount(1L);
 	}
 
 	@Test
-	@DisplayName("recommendMenu: 이미 추천한 메뉴이면 ALREADY_RECOMMENDED를 던지고 저장하지 않는다")
-	void recommendMenu_alreadyRecommended_throwsAlreadyRecommended() {
+	@DisplayName("likeMenu: 이미 좋아요한 메뉴이면 ALREADY_LIKED를 던지고 저장하지 않는다")
+	void likeMenu_alreadyLiked_throwsAlreadyLiked() {
 		given(menuRepository.findById(1L)).willReturn(Optional.of(menu(1L)));
-		given(recommendMenuRepository.existsByMemberIdAndMenuId(99L, 1L)).willReturn(true);
+		given(menuLikeRepository.existsByMemberIdAndMenuId(99L, 1L)).willReturn(true);
 
-		assertThatThrownBy(() -> menuService.recommendMenu(1L, 99L))
+		assertThatThrownBy(() -> menuService.likeMenu(1L, 99L))
 			.isInstanceOf(MenuException.class)
-			.hasMessageContaining(MenuErrorCode.ALREADY_RECOMMENDED.getMessage());
+			.hasMessageContaining(MenuErrorCode.ALREADY_LIKED.getMessage());
 
-		verify(recommendMenuRepository, never()).save(any());
-		verify(menuRepository, never()).incrementRecommendCount(any());
+		verify(menuLikeRepository, never()).save(any());
+		verify(menuRepository, never()).incrementLikeCount(any());
 	}
 
 	@Test
-	@DisplayName("recommendMenu: 존재하지 않는 메뉴이면 MENU_NOT_FOUND를 던진다")
-	void recommendMenu_menuNotFound_throwsMenuNotFound() {
+	@DisplayName("likeMenu: 존재하지 않는 메뉴이면 MENU_NOT_FOUND를 던진다")
+	void likeMenu_menuNotFound_throwsMenuNotFound() {
 		given(menuRepository.findById(99L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> menuService.recommendMenu(99L, 1L))
+		assertThatThrownBy(() -> menuService.likeMenu(99L, 1L))
 			.isInstanceOf(MenuException.class)
 			.hasMessageContaining(MenuErrorCode.MENU_NOT_FOUND.getMessage());
 
-		verify(recommendMenuRepository, never()).save(any());
-		verify(menuRepository, never()).incrementRecommendCount(any());
+		verify(menuLikeRepository, never()).save(any());
+		verify(menuRepository, never()).incrementLikeCount(any());
 	}
 
 	@Test
-	@DisplayName("cancelMenuRecommend: 정상 요청이면 RecommendMenu를 삭제하고 recommendCount를 1 내린다")
-	void cancelMenuRecommend_validRequest_deletesRecommendMenuAndDecrementsCount() {
+	@DisplayName("cancelMenuLike: 정상 요청이면 MenuLike를 삭제하고 likeCount를 1 내린다")
+	void cancelMenuLike_validRequest_deletesMenuLikeAndDecrementsCount() {
 		Menu menu = menu(1L);
-		RecommendMenu recommendMenu = RecommendMenu.builder().menu(menu).member(member(99L)).build();
+		MenuLike menuLike = MenuLike.builder().menu(menu).member(member(99L)).build();
 
 		given(menuRepository.findById(1L)).willReturn(Optional.of(menu));
-		given(recommendMenuRepository.findByMemberIdAndMenuId(99L, 1L)).willReturn(Optional.of(recommendMenu));
+		given(menuLikeRepository.findByMemberIdAndMenuId(99L, 1L)).willReturn(Optional.of(menuLike));
 
-		menuService.cancelMenuRecommend(1L, 99L);
+		menuService.cancelMenuLike(1L, 99L);
 
-		verify(recommendMenuRepository).delete(recommendMenu);
-		verify(menuRepository).decrementRecommendCount(1L);
+		verify(menuLikeRepository).delete(menuLike);
+		verify(menuRepository).decrementLikeCount(1L);
 	}
 
 	@Test
-	@DisplayName("cancelMenuRecommend: 추천하지 않은 메뉴이면 NOT_RECOMMENDED를 던지고 삭제하지 않는다")
-	void cancelMenuRecommend_notRecommended_throwsNotRecommended() {
+	@DisplayName("cancelMenuLike: 좋아요하지 않은 메뉴이면 NOT_LIKED를 던지고 삭제하지 않는다")
+	void cancelMenuLike_notLiked_throwsNotLiked() {
 		given(menuRepository.findById(1L)).willReturn(Optional.of(menu(1L)));
-		given(recommendMenuRepository.findByMemberIdAndMenuId(99L, 1L)).willReturn(Optional.empty());
+		given(menuLikeRepository.findByMemberIdAndMenuId(99L, 1L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> menuService.cancelMenuRecommend(1L, 99L))
+		assertThatThrownBy(() -> menuService.cancelMenuLike(1L, 99L))
 			.isInstanceOf(MenuException.class)
-			.hasMessageContaining(MenuErrorCode.NOT_RECOMMENDED.getMessage());
+			.hasMessageContaining(MenuErrorCode.NOT_LIKED.getMessage());
 
-		verify(recommendMenuRepository, never()).delete(any());
-		verify(menuRepository, never()).decrementRecommendCount(any());
+		verify(menuLikeRepository, never()).delete(any());
+		verify(menuRepository, never()).decrementLikeCount(any());
 	}
 
 	@Test
-	@DisplayName("cancelMenuRecommend: 존재하지 않는 메뉴이면 MENU_NOT_FOUND를 던진다")
-	void cancelMenuRecommend_menuNotFound_throwsMenuNotFound() {
+	@DisplayName("cancelMenuLike: 존재하지 않는 메뉴이면 MENU_NOT_FOUND를 던진다")
+	void cancelMenuLike_menuNotFound_throwsMenuNotFound() {
 		given(menuRepository.findById(99L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> menuService.cancelMenuRecommend(99L, 1L))
+		assertThatThrownBy(() -> menuService.cancelMenuLike(99L, 1L))
 			.isInstanceOf(MenuException.class)
 			.hasMessageContaining(MenuErrorCode.MENU_NOT_FOUND.getMessage());
 
-		verify(recommendMenuRepository, never()).delete(any());
-		verify(menuRepository, never()).decrementRecommendCount(any());
+		verify(menuLikeRepository, never()).delete(any());
+		verify(menuRepository, never()).decrementLikeCount(any());
 	}
 
 	private Menu menu(Long id) {

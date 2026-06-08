@@ -40,27 +40,29 @@ public class MenuController {
 		return ResponseEntity.ok(ApiResponse.ok(menuService.getStoreMenus(storeId, memberId)));
 	}
 
-	@Operation(summary = "메뉴 상세 조회", description = "menuId로 메뉴 상세 정보(이름·가격·사진·카테고리·추천 수)를 반환합니다.")
+	@Operation(summary = "메뉴 상세 조회", description = "menuId로 메뉴 상세 정보(이름·가격·사진·카테고리·좋아요 수)를 반환합니다.")
 	@GetMapping("/menus/{menuId}")
-	public ResponseEntity<ApiResponse<MenuDetailResponse>> getMenuDetail(@PathVariable Long menuId) {
-		return ResponseEntity.ok(ApiResponse.ok(menuService.getMenuDetail(menuId)));
-	}
-
-	@Operation(summary = "메뉴 추천", description = "로그인한 사용자가 메뉴를 추천합니다. 이미 추천한 경우 409를 반환합니다.")
-	@PostMapping("/menus/{menuId}/recommend")
-	public ResponseEntity<ApiResponse<Void>> recommendMenu(
+	public ResponseEntity<ApiResponse<MenuDetailResponse>> getMenuDetail(
 			@PathVariable Long menuId,
 			@AuthenticationPrincipal Long memberId) {
-		menuService.recommendMenu(menuId, memberId);
+		return ResponseEntity.ok(ApiResponse.ok(menuService.getMenuDetail(menuId, memberId)));
+	}
+
+	@Operation(summary = "메뉴 좋아요", description = "로그인한 사용자가 메뉴에 좋아요를 누릅니다. 이미 좋아요한 경우 409를 반환합니다.")
+	@PostMapping("/menus/{menuId}/like")
+	public ResponseEntity<ApiResponse<Void>> likeMenu(
+			@PathVariable Long menuId,
+			@AuthenticationPrincipal Long memberId) {
+		menuService.likeMenu(menuId, memberId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
-	@Operation(summary = "메뉴 추천 취소", description = "로그인한 사용자의 메뉴 추천을 취소합니다. 추천하지 않은 메뉴에 요청 시 400을 반환합니다.")
-	@DeleteMapping("/menus/{menuId}/recommend")
-	public ResponseEntity<ApiResponse<Void>> cancelMenuRecommend(
+	@Operation(summary = "메뉴 좋아요 취소", description = "로그인한 사용자의 메뉴 좋아요를 취소합니다. 좋아요하지 않은 메뉴에 요청 시 400을 반환합니다.")
+	@DeleteMapping("/menus/{menuId}/like")
+	public ResponseEntity<ApiResponse<Void>> cancelMenuLike(
 			@PathVariable Long menuId,
 			@AuthenticationPrincipal Long memberId) {
-		menuService.cancelMenuRecommend(menuId, memberId);
+		menuService.cancelMenuLike(menuId, memberId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
