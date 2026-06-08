@@ -2,11 +2,15 @@ package sweetgirl.croissant.menu.controller;
 
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,6 +23,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
+import sweetgirl.croissant.menu.dto.response.StoreMenuResponse;
 import sweetgirl.croissant.menu.exception.MenuException;
 import sweetgirl.croissant.menu.service.MenuService;
 
@@ -39,6 +44,22 @@ class MenuControllerTest {
 			.standaloneSetup(menuController)
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.build();
+	}
+
+	@Test
+	void getStoreMenus_returnsReviewCount() throws Exception {
+		given(menuService.getStoreMenus(eq(1L), isNull()))
+			.willReturn(List.of(
+				new StoreMenuResponse(1L, "소금빵", "빵", null, 3500, 12, false, 8L),
+				new StoreMenuResponse(2L, "식빵", "빵", null, 5000, 3, false, 0L)));
+
+		mockMvc.perform(get("/stores/1/menus"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true))
+			.andExpect(jsonPath("$.data[0].menuId").value(1))
+			.andExpect(jsonPath("$.data[0].reviewCount").value(8))
+			.andExpect(jsonPath("$.data[1].menuId").value(2))
+			.andExpect(jsonPath("$.data[1].reviewCount").value(0));
 	}
 
 	@Test

@@ -24,6 +24,8 @@ import sweetgirl.croissant.menu.repository.MenuCategoryRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuLikeRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
+import sweetgirl.croissant.review.dto.projection.MenuReviewCountProjection;
+import sweetgirl.croissant.review.repository.ReviewRepository;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.StoreRepository;
@@ -39,6 +41,7 @@ public class MenuService {
 	private final MemberRepository memberRepository;
 	private final StoreRepository storeRepository;
 	private final MenuCategoryRepository menuCategoryRepository;
+	private final ReviewRepository reviewRepository;
 
 	public List<MenuCategoryResponse> getCategories() {
 		return menuCategoryRepository.findAll().stream()
@@ -56,6 +59,7 @@ public class MenuService {
 			return Collections.emptyList();
 		}
 		Map<Long, ImageResponse> imageMap = buildMenuImageMap(menus);
+		Map<Long, Long> reviewCountMap = buildReviewCountMap(menus, memberId);
 
 		Set<Long> likedMenuIds = Collections.emptySet();
 		if (memberId != null) {
@@ -70,7 +74,8 @@ public class MenuService {
 			.map(menu -> StoreMenuResponse.of(
 				menu,
 				imageMap.get(menu.getId()),
-				finalLikedMenuIds.contains(menu.getId())))
+				finalLikedMenuIds.contains(menu.getId()),
+				reviewCountMap.getOrDefault(menu.getId(), 0L)))
 			.toList();
 	}
 
@@ -122,5 +127,13 @@ public class MenuService {
 				MenuImageThumbnailProjection::getMenuId,
 				p -> new ImageResponse(p.getImageId(), p.getAwsKey()),
 				(first, second) -> first));
+	}
+
+	private Map<Long, Long> buildReviewCountMap(List<Menu> menus, Long memberId) {
+		List<Long> menuIds = menus.stream().map(Menu::getId).toList();
+		return reviewRepository.countVisibleActiveByMenuIds(menuIds, memberId).stream()
+			.collect(Collectors.toMap(
+				MenuReviewCountProjection::getMenuId,
+				MenuReviewCountProjection::getReviewCount));
 	}
 }

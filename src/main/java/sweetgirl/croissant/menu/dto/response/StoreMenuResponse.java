@@ -10,9 +10,10 @@ public record StoreMenuResponse(
 		ImageResponse image,
 		Integer price,
 		int likeCount,
-		boolean isLiked) {
+		boolean isLiked,
+		long reviewCount) {
 
-	public static StoreMenuResponse of(Menu menu, ImageResponse image, boolean isLiked) {
+	public static StoreMenuResponse of(Menu menu, ImageResponse image, boolean isLiked, long reviewCount) {
 		return new StoreMenuResponse(
 			menu.getId(),
 			menu.getName(),
@@ -20,6 +21,7 @@ public record StoreMenuResponse(
 			image,
 			menu.getPrice(),
 			menu.getLikeCount(),
-			isLiked);
+			isLiked,
+			reviewCount);
 	}
 }

@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import sweetgirl.croissant.review.dto.projection.MenuReviewCountProjection;
 import sweetgirl.croissant.review.dto.projection.ReviewAuthorAggregateProjection;
 import sweetgirl.croissant.review.entity.Review;
 
@@ -101,6 +102,24 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 			""")
 	long countVisibleActiveByMenuId(
 			@Param("menuId") Long menuId,
+			@Param("viewerMemberId") Long viewerMemberId);
+
+	@Query("""
+			SELECT r.menu.id AS menuId,
+				COUNT(r) AS reviewCount
+			FROM Review r
+			WHERE r.menu.id IN :menuIds
+				AND r.deletedAt IS NULL
+				AND r.hiddenAt IS NULL
+				AND (:viewerMemberId IS NULL OR NOT EXISTS (
+					SELECT 1 FROM MemberBlock mb
+					WHERE mb.blocker.id = :viewerMemberId
+						AND mb.blockedMember.id = r.member.id
+				))
+			GROUP BY r.menu.id
+			""")
+	List<MenuReviewCountProjection> countVisibleActiveByMenuIds(
+			@Param("menuIds") List<Long> menuIds,
 			@Param("viewerMemberId") Long viewerMemberId);
 
 	@Query("""
