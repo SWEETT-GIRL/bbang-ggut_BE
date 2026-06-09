@@ -110,7 +110,7 @@ public class TrendService {
 			// H타입 먼저 시도, enum 매핑 실패 시 B타입으로 fallback
 			// (예: 불로봉무동(H) → enum 없음 → 봉무동/불로동(B) → enum 성공)
 			if (regionResponse != null && !regionResponse.documents().isEmpty() && region2nd != null) {
-				for (String typePreference : List.of("H", "B")) {
+				for (String typePreference : List.of("B", "H")) {
 					String region3rd = regionResponse.documents().stream()
 						.filter(d -> typePreference.equals(d.regionType()))
 						.map(d -> normalizeRegion3rd(d.region3depthName()))
