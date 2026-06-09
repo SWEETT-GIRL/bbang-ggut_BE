@@ -63,6 +63,7 @@ class MenuServiceTest {
 	void getStoreMenus_returnsReviewCountWithoutNPlusOne() {
 		Menu menuWithReviews = menu(1L, "소금빵", 3500, 12);
 		Menu menuWithoutReviews = menu(2L, "식빵", 5000, 3);
+		ReflectionTestUtils.setField(menuWithReviews, "description", "짭짤한 버터 풍미");
 		List<Long> menuIds = List.of(1L, 2L);
 
 		given(storeRepository.existsById(10L)).willReturn(true);
@@ -77,8 +78,10 @@ class MenuServiceTest {
 
 		assertThat(result).hasSize(2);
 		assertThat(result.get(0).menuId()).isEqualTo(1L);
+		assertThat(result.get(0).description()).isEqualTo("짭짤한 버터 풍미");
 		assertThat(result.get(0).reviewCount()).isEqualTo(8L);
 		assertThat(result.get(1).menuId()).isEqualTo(2L);
+		assertThat(result.get(1).description()).isNull();
 		assertThat(result.get(1).reviewCount()).isZero();
 		verify(reviewRepository).countVisibleActiveByMenuIds(eq(menuIds), eq(99L));
 		verify(reviewRepository, never()).countVisibleActiveByMenuId(1L, 99L);

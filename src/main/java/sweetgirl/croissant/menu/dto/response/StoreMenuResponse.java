@@ -6,6 +6,7 @@ import sweetgirl.croissant.menu.entity.Menu;
 public record StoreMenuResponse(
 		Long menuId,
 		String name,
+		String description,
 		String category,
 		ImageResponse image,
 		Integer price,
@@ -17,6 +18,7 @@ public record StoreMenuResponse(
 		return new StoreMenuResponse(
 			menu.getId(),
 			menu.getName(),
+			menu.getDescription(),
 			menu.getMenuCategory().getName().name(),
 			image,
 			menu.getPrice(),
