@@ -8,5 +8,8 @@ public record AdminS3ReconcileResponse(
 		int dbKeyCount,
 		int orphanCount,
 		int deletedCount,
-		List<String> orphanKeys) {
+		List<String> orphanKeys,
+		int missingCount,
+		int failedMarkedCount,
+		List<String> missingKeys) {
 }

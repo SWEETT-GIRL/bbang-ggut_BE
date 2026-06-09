@@ -36,6 +36,9 @@ import sweetgirl.croissant.global.response.ApiResponse;
 @RequestMapping("/admin/images")
 public class AdminImageController {
 
+	private static final String RECONCILE_DESCRIPTION = "DB awsKey 에 없는 S3 객체와 S3 에 없는 DB DONE 이미지를 식별합니다. "
+		+ "dryRun=false 면 orphan S3 객체는 삭제하고 missing DB 이미지는 FAILED 로 숨깁니다.";
+
 	private final AdminImageService adminImageService;
 	private final AdminS3ReconcileService adminS3ReconcileService;
 
@@ -114,7 +117,7 @@ public class AdminImageController {
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
-	@Operation(summary = "S3 ↔ DB 정합성 검사 및 orphan 정리", description = "DB awsKey 에 없는 S3 객체 식별, dryRun=false 면 삭제.")
+	@Operation(summary = "S3 ↔ DB 정합성 검사 및 orphan/missing 정리", description = RECONCILE_DESCRIPTION)
 	@PostMapping("/reconcile")
 	public ResponseEntity<ApiResponse<AdminS3ReconcileResponse>> reconcileS3(
 			@RequestParam(name = "dryRun", defaultValue = "true") boolean dryRun) {

@@ -4,9 +4,11 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import sweetgirl.croissant.common.enums.ImageStatus;
 import sweetgirl.croissant.menu.dto.projection.MenuImageThumbnailProjection;
 import sweetgirl.croissant.menu.entity.MenuImageFile;
 
@@ -45,4 +47,16 @@ public interface MenuImageFileRepository extends JpaRepository<MenuImageFile, Lo
 
 	@Query("SELECT m.awsKey FROM MenuImageFile m")
 	List<String> findAllAwsKeys();
+
+	@Modifying(clearAutomatically = true, flushAutomatically = true)
+	@Query("""
+			UPDATE MenuImageFile m
+			SET m.processingStatus = :failed
+			WHERE m.awsKey IN :awsKeys
+			AND m.processingStatus = :current
+			""")
+	int updateStatusByAwsKeyInAndStatus(
+			@Param("awsKeys") List<String> awsKeys,
+			@Param("current") ImageStatus current,
+			@Param("failed") ImageStatus failed);
 }
