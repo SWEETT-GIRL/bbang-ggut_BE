@@ -3,6 +3,8 @@ package sweetgirl.croissant.admin.service;
 import java.io.File;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -34,6 +36,8 @@ public class NaverEnrichOrchestrator {
 	private volatile String runningPartition;
 	private volatile Instant startedAt;
 	private volatile long startedQueueCount;
+	private final Set<Long> photoBackfillAttemptedStoreIds = ConcurrentHashMap.newKeySet();
+	private final Set<Long> enrichBackfillAttemptedStoreIds = ConcurrentHashMap.newKeySet();
 
 	@Value("${naver.crawler.python:python3}")
 	private String pythonBinary;
@@ -65,6 +69,24 @@ public class NaverEnrichOrchestrator {
 
 	public long getStartedQueueCount() {
 		return running.get() ? startedQueueCount : 0L;
+	}
+
+	public Set<Long> getPhotoBackfillAttemptedStoreIds() {
+		return Set.copyOf(photoBackfillAttemptedStoreIds);
+	}
+
+	public Set<Long> getEnrichBackfillAttemptedStoreIds() {
+		return Set.copyOf(enrichBackfillAttemptedStoreIds);
+	}
+
+	public void markBackfillAttempted(String mode, long storeId) {
+		if (Mode.PHOTOS_BACKFILL.label.equals(mode)) {
+			photoBackfillAttemptedStoreIds.add(storeId);
+			return;
+		}
+		if (Mode.ENRICH_BACKFILL.label.equals(mode)) {
+			enrichBackfillAttemptedStoreIds.add(storeId);
+		}
 	}
 
 	/**

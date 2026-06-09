@@ -37,6 +37,7 @@ public class ImageRowSaver {
 			.displayOrder(displayOrder)
 			.sourceUrl(sourceUrl)
 			.build();
+		imageFile.markDone();
 		return storeImageFileRepository.save(imageFile).getId();
 	}
 
@@ -52,6 +53,7 @@ public class ImageRowSaver {
 			.displayOrder(displayOrder)
 			.sourceUrl(sourceUrl)
 			.build();
+		imageFile.markDone();
 		return menuImageFileRepository.save(imageFile).getId();
 	}
 }

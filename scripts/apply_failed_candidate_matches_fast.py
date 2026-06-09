@@ -1,35 +1,34 @@
 #!/usr/bin/env python3
-"""Fast review/apply for throttled Naver candidates.
+"""Apply confident stored Naver candidates for throttled stores.
 
-Reads stores and saved candidates directly from the local DB config, evaluates them
-with the same matcher used by the crawler, and optionally applies selected matches
-through the backend API.
+This is a faster variant of apply_failed_candidate_matches.py:
+- reads throttled stores and saved candidates in one DB query
+- reuses the same candidate selection rules
+- writes changes only through the existing admin API
 """
 
 import argparse
-import csv
 import json
-from collections import Counter, defaultdict
+import re
+import time
+from collections import OrderedDict
 from pathlib import Path
-from typing import Optional
+from urllib.parse import urlparse
 
 import psycopg2
 import requests
 
-from apply_failed_candidate_matches import confident_same_address
-from naver_match import select_match
+from apply_failed_candidate_matches import choose_candidate, update_naver_place_id
 from naver_menu_scraper import DEFAULT_SERVER
 
 
-ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CONFIG = ROOT / "src/main/resources/application-local.properties"
-DEFAULT_CSV = ROOT / "scripts/failed_candidate_fast_review.csv"
+DEFAULT_DB_PROPS = Path("src/main/resources/application-local.properties")
 
 
-def load_props(path: Path) -> dict[str, str]:
+def read_props(path: Path) -> dict[str, str]:
 	props: dict[str, str] = {}
-	for raw in path.read_text(encoding="utf-8").splitlines():
-		line = raw.strip()
+	for line in path.read_text(encoding="utf-8").splitlines():
+		line = line.strip()
 		if not line or line.startswith("#") or "=" not in line:
 			continue
 		key, value = line.split("=", 1)
@@ -37,210 +36,205 @@ def load_props(path: Path) -> dict[str, str]:
 	return props
 
 
-def db_connect(config_path: Path):
-	props = load_props(config_path)
-	url = props["spring.datasource.url"]
-	rest = url.split("//", 1)[1]
-	host_port, db_name = rest.split("/", 1)
-	if "?" in db_name:
-		db_name = db_name.split("?", 1)[0]
-	if ":" in host_port:
-		host, port = host_port.split(":", 1)
-	else:
-		host, port = host_port, "5432"
-	return psycopg2.connect(
-		host=host,
-		port=int(port),
-		dbname=db_name,
-		user=props["spring.datasource.username"],
-		password=props["spring.datasource.password"],
-		connect_timeout=10,
-	)
-
-
-def fetch_rows(conn) -> tuple[list[dict], dict[int, list[dict]]]:
-	with conn.cursor() as cur:
-		cur.execute(
-			"""
-			SELECT
-				id,
-				name,
-				address,
-				ST_Y(location::geometry) AS lat,
-				ST_X(location::geometry) AS lng
-			FROM store
-			WHERE status = 'ACTIVE'
-			  AND naver_place_id IS NULL
-			  AND naver_matched_at IS NOT NULL
-			  AND naver_matched_at >= now() - interval '7 days'
-			ORDER BY naver_matched_at DESC
-			"""
-		)
-		stores = [
-			{"id": row[0], "name": row[1], "address": row[2], "lat": row[3], "lng": row[4]}
-			for row in cur.fetchall()
-		]
-		if not stores:
-			return [], {}
-		store_ids = [s["id"] for s in stores]
-		cur.execute(
-			"""
-			SELECT store_id, naver_place_id, name, address, lat, lng, display_order
-			FROM naver_enrich_candidate
-			WHERE store_id = ANY(%s)
-			ORDER BY store_id, display_order
-			""",
-			(store_ids,),
-		)
-		candidates: dict[int, list[dict]] = defaultdict(list)
-		for row in cur.fetchall():
-			candidates[row[0]].append(
-				{
-					"naverPlaceId": row[1],
-					"name": row[2],
-					"address": row[3],
-					"lat": row[4],
-					"lng": row[5],
-					"displayOrder": row[6],
-				}
-			)
-		return stores, candidates
-
-
-def to_naver(raw: dict) -> dict:
+def parse_jdbc_url(url: str) -> dict[str, object]:
+	if not url.startswith("jdbc:postgresql://"):
+		raise ValueError(f"unsupported datasource url: {url}")
+	parsed = urlparse(url.replace("jdbc:", "", 1))
 	return {
-		"id": str(raw.get("naverPlaceId") or ""),
-		"name": raw.get("name") or "",
-		"address": raw.get("address") or "",
-		"roadAddress": raw.get("address") or "",
-		"y": raw.get("lat"),
-		"x": raw.get("lng"),
-		"displayOrder": raw.get("displayOrder"),
+		"host": parsed.hostname,
+		"port": parsed.port or 5432,
+		"dbname": parsed.path.lstrip("/"),
 	}
 
 
-def choose(store: dict, raw_candidates: list[dict]) -> tuple[Optional[dict], str, str]:
-	naver_candidates = [to_naver(c) for c in raw_candidates]
-	chosen, _, reason = select_match(store, naver_candidates)
-	if chosen is not None:
-		return chosen, "select_match", reason
-	for cand in sorted(naver_candidates, key=lambda c: c.get("displayOrder") or 0):
-		ok, why = confident_same_address(store, cand)
-		if ok:
-			return cand, "fallback_same_address", why
-	return None, "skip", reason
+def db_config(props_path: Path) -> dict[str, object]:
+	props = read_props(props_path)
+	cfg = parse_jdbc_url(props["spring.datasource.url"])
+	cfg["user"] = props["spring.datasource.username"]
+	cfg["password"] = props["spring.datasource.password"]
+	return cfg
 
 
-def apply_match(server: str, store_id: int, chosen: dict) -> tuple[bool, str]:
-	payload = {
-		"naverPlaceId": str(chosen["id"]),
-		"replaceMenus": False,
-		"address": chosen.get("address"),
-	}
-	if chosen.get("y") is not None and chosen.get("x") is not None:
-		payload["coord"] = {"latitude": chosen["y"], "longitude": chosen["x"]}
-	resp = requests.put(
-		f"{server}/api/admin/stores/{store_id}/naver-place-id",
-		json=payload,
-		timeout=20,
-	)
-	if resp.status_code == 409:
-		return False, "duplicate"
-	if not resp.ok:
-		return False, f"http_{resp.status_code}"
-	return True, "ok"
+def fetch_candidate_groups(conn, limit: int) -> list[dict]:
+	limit_sql = "LIMIT %s" if limit else ""
+	params = [limit] if limit else []
+	sql = f"""
+		WITH throttled AS (
+			SELECT
+				s.id,
+				s.name,
+				s.address,
+				CASE WHEN s.location IS NULL THEN NULL ELSE ST_Y(s.location::geometry) END AS lat,
+				CASE WHEN s.location IS NULL THEN NULL ELSE ST_X(s.location::geometry) END AS lng,
+				s.naver_matched_at
+			FROM store s
+			WHERE s.status = 'ACTIVE'
+				AND s.naver_place_id IS NULL
+				AND s.naver_matched_at IS NOT NULL
+				AND s.naver_matched_at >= NOW() - INTERVAL '7 days'
+				AND EXISTS (
+					SELECT 1
+					FROM naver_enrich_candidate c
+					WHERE c.store_id = s.id
+				)
+			ORDER BY s.naver_matched_at DESC
+			{limit_sql}
+		)
+		SELECT
+			t.id AS store_id,
+			t.name AS store_name,
+			t.address AS store_address,
+			t.lat AS store_lat,
+			t.lng AS store_lng,
+			c.naver_place_id,
+			c.name AS candidate_name,
+			c.address AS candidate_address,
+			c.lat AS candidate_lat,
+			c.lng AS candidate_lng,
+			c.display_order
+		FROM throttled t
+		JOIN naver_enrich_candidate c ON c.store_id = t.id
+		ORDER BY t.naver_matched_at DESC, t.id DESC, c.display_order ASC
+	"""
+	with conn.cursor() as cur:
+		cur.execute(sql, params)
+		rows = cur.fetchall()
+
+	groups: OrderedDict[int, dict] = OrderedDict()
+	for row in rows:
+		(
+			store_id,
+			store_name,
+			store_address,
+			store_lat,
+			store_lng,
+			naver_place_id,
+			candidate_name,
+			candidate_address,
+			candidate_lat,
+			candidate_lng,
+			display_order,
+		) = row
+		store = groups.setdefault(
+			int(store_id),
+			{
+				"id": int(store_id),
+				"name": store_name,
+				"address": store_address,
+				"lat": float(store_lat) if store_lat is not None else None,
+				"lng": float(store_lng) if store_lng is not None else None,
+				"candidates": [],
+			},
+		)
+		store["candidates"].append(
+			{
+				"naverPlaceId": str(naver_place_id),
+				"name": candidate_name,
+				"address": candidate_address,
+				"lat": float(candidate_lat) if candidate_lat is not None else None,
+				"lng": float(candidate_lng) if candidate_lng is not None else None,
+				"displayOrder": int(display_order),
+			}
+		)
+	return list(groups.values())
+
+
+def sanitize_reason(reason: str) -> str:
+	return re.sub(r"\s+", " ", reason or "").strip()
 
 
 def main() -> None:
-	parser = argparse.ArgumentParser(description="Fast throttled candidate review/apply")
-	parser.add_argument("--config", default=str(DEFAULT_CONFIG))
+	parser = argparse.ArgumentParser(description="Fast apply of confident failed Naver candidates")
 	parser.add_argument("--server", default=DEFAULT_SERVER)
-	parser.add_argument("--limit", type=int, default=0)
-	parser.add_argument("--apply", action="store_true")
-	parser.add_argument("--include-fallback", action="store_true")
-	parser.add_argument("--csv", default=str(DEFAULT_CSV))
+	parser.add_argument("--db-props", type=Path, default=DEFAULT_DB_PROPS)
+	parser.add_argument("--limit", type=int, default=0, help="candidate-bearing throttled stores to scan")
+	parser.add_argument("--dry-run", action="store_true")
+	parser.add_argument("--sleep", type=float, default=0.0, help="seconds between successful updates")
+	parser.add_argument("--progress-every", type=int, default=50)
+	parser.add_argument("--decision-log", default="/tmp/naver-apply-failed-candidates-fast.jsonl")
 	args = parser.parse_args()
 
-	conn = db_connect(Path(args.config))
-	try:
-		stores, candidates_by_store = fetch_rows(conn)
-	finally:
-		conn.close()
-	if args.limit:
-		stores = stores[:args.limit]
+	log_path = Path(args.decision_log)
+	log_path.parent.mkdir(parents=True, exist_ok=True)
+	log_path.write_text("", encoding="utf-8")
 
-	rows: list[dict] = []
-	counts = Counter()
-	for idx, store in enumerate(stores, 1):
-		chosen, source, reason = choose(store, candidates_by_store.get(store["id"], []))
-		if chosen is None:
-			counts["skipped"] += 1
-			row = {
+	with psycopg2.connect(**db_config(args.db_props)) as conn:
+		stores = fetch_candidate_groups(conn, args.limit)
+
+	print(f"server={args.server}")
+	print(f"candidate-bearing throttled stores={len(stores)}")
+	print(f"decision_log={log_path}")
+
+	total = {
+		"applied": 0,
+		"dry_run_applied": 0,
+		"skipped": 0,
+		"duplicate": 0,
+		"update_failed": 0,
+	}
+
+	session = requests.Session()
+	with log_path.open("a", encoding="utf-8") as log:
+		for idx, store in enumerate(stores, 1):
+			chosen, reason = choose_candidate(store, store["candidates"])
+			record = {
 				"idx": idx,
+				"total": len(stores),
 				"store_id": store["id"],
 				"store_name": store["name"],
-				"store_address": store.get("address") or "",
+				"store_address": store["address"],
 				"decision": "skip",
-				"source": source,
-				"reason": reason,
-				"naver_place_id": "",
-				"candidate_name": "",
-				"candidate_address": "",
-				"apply_status": "",
+				"reason": sanitize_reason(reason),
 			}
-			rows.append(row)
-			continue
-		if source == "fallback_same_address" and not args.include_fallback:
-			counts["fallback_review"] += 1
-			decision = "review"
-		else:
-			counts["selected"] += 1
-			decision = "apply" if args.apply else "dry_apply"
-		row = {
-			"idx": idx,
-			"store_id": store["id"],
-			"store_name": store["name"],
-			"store_address": store.get("address") or "",
-			"decision": decision,
-			"source": source,
-			"reason": reason,
-			"naver_place_id": chosen.get("id") or "",
-			"candidate_name": chosen.get("name") or "",
-			"candidate_address": chosen.get("address") or "",
-			"apply_status": "",
-		}
-		if args.apply and decision == "apply":
-			ok, status = apply_match(args.server, int(store["id"]), chosen)
-			row["apply_status"] = status
-			counts["applied" if ok else f"apply_{status}"] += 1
-		rows.append(row)
-		if idx % 100 == 0:
-			print(f"processed={idx}/{len(stores)} counts={dict(counts)}", flush=True)
+			if not chosen:
+				total["skipped"] += 1
+				log.write(json.dumps(record, ensure_ascii=False) + "\n")
+				if args.progress_every and idx % args.progress_every == 0:
+					print(f"[{idx}/{len(stores)}] applied={total['applied']} skipped={total['skipped']}")
+				continue
 
-	csv_path = Path(args.csv)
-	with csv_path.open("w", encoding="utf-8-sig", newline="") as f:
-		fields = [
-			"idx",
-			"store_id",
-			"store_name",
-			"store_address",
-			"decision",
-			"source",
-			"reason",
-			"naver_place_id",
-			"candidate_name",
-			"candidate_address",
-			"apply_status",
-		]
-		writer = csv.DictWriter(f, fieldnames=fields)
-		writer.writeheader()
-		writer.writerows(rows)
+			record.update(
+				{
+					"decision": "apply",
+					"naver_place_id": chosen.get("id"),
+					"candidate_name": chosen.get("name"),
+					"candidate_address": chosen.get("address"),
+				}
+			)
+			if args.dry_run:
+				total["dry_run_applied"] += 1
+				log.write(json.dumps(record, ensure_ascii=False) + "\n")
+				if args.progress_every and idx % args.progress_every == 0:
+					print(
+						f"[{idx}/{len(stores)}] dry_apply={total['dry_run_applied']} "
+						f"skipped={total['skipped']}"
+					)
+				continue
 
-	print(json.dumps({
-		"total": len(stores),
-		"counts": dict(counts),
-		"csv": str(csv_path),
-	}, ensure_ascii=False, indent=2))
+			ok, status = update_naver_place_id(args.server, store["id"], chosen)
+			if ok:
+				total["applied"] += 1
+				record["update_status"] = "OK"
+				if args.sleep:
+					time.sleep(args.sleep)
+			elif status == "DUPLICATE":
+				total["duplicate"] += 1
+				record["decision"] = "duplicate"
+				record["update_status"] = status
+			else:
+				total["update_failed"] += 1
+				record["decision"] = "update_failed"
+				record["update_status"] = status
+
+			log.write(json.dumps(record, ensure_ascii=False) + "\n")
+			if args.progress_every and idx % args.progress_every == 0:
+				print(
+					f"[{idx}/{len(stores)}] applied={total['applied']} "
+					f"skipped={total['skipped']} duplicate={total['duplicate']} "
+					f"update_failed={total['update_failed']}"
+				)
+
+	print(json.dumps(total, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

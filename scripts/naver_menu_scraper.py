@@ -80,6 +80,11 @@ INTER_BATCH_DELAY_SEC = 8.0
 # 네이버 차단 의심 — 큐 모드에서 N건 연속 검색 결과 0이면 abort (대량 false-fail 방지).
 # 정상 baseline 누락률은 낮으므로 5건 연속은 차단 시그널로 충분.
 NO_CANDIDATE_ABORT_THRESHOLD = 5
+NAVER_RESTRICTED_TEXTS = (
+	"서비스 이용이 제한되었습니다",
+	"과도한 접근 요청",
+	"잠시 후 다시 시도",
+)
 
 NAVER_UA = (
 	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -91,6 +96,10 @@ _SEARCH_FACILITY_SUFFIX_RE = re.compile(
 	r"\s+(?:롯데백화점|현대백화점|신세계백화점|갤러리아백화점|백화점|더현대|스타필드"
 	r"|타임스퀘어|월드몰|아울렛|몰|마트)$"
 )
+
+
+class NaverAccessRestricted(RuntimeError):
+	pass
 
 
 def canonicalize_pstatic(src: str) -> str:
@@ -118,6 +127,20 @@ def canonicalize_pstatic(src: str) -> str:
 		return src
 	except Exception:
 		return src
+
+
+def _has_naver_restriction_text(scope) -> bool:
+	try:
+		text = scope.evaluate("document.body ? document.body.innerText : ''")
+	except Exception:
+		return False
+	return any(marker in (text or "") for marker in NAVER_RESTRICTED_TEXTS)
+
+
+def _raise_if_naver_restricted(scope, where: str) -> None:
+	if _has_naver_restriction_text(scope):
+		print(f"  [diag] 네이버 접근 제한 감지 — {where}")
+		raise NaverAccessRestricted(where)
 
 
 def _wait_entry_frame(page, timeout_ms: int = 8000):
@@ -201,6 +224,20 @@ def mark_failed(server: str, store_id: int, no_candidates: bool = False) -> None
 		requests.post(url, params={"noCandidates": str(no_candidates).lower()}, timeout=10)
 	except Exception as e:
 		print(f"  [실패 마킹 실패] store_id={store_id}: {e}")
+
+
+def mark_backfill_attempted(server: str, store_id: int, mode: str) -> None:
+	"""백필 큐 재진입 방지용 시도 마킹.
+
+	메뉴/사진이 네이버에 없으면 DB 데이터가 변하지 않아 같은 store 가 page=0 큐에 계속 남는다.
+	현재 백필 실행의 처리 완료 id 를 백엔드 메모리에 기록해 큐에서 제외한다.
+	"""
+	url = f"{server}/api/admin/stores/{store_id}/naver-backfill-attempted"
+	try:
+		resp = requests.post(url, params={"mode": mode}, timeout=10)
+		resp.raise_for_status()
+	except Exception as e:
+		print(f"  [백필 시도 마킹 실패] store_id={store_id}: {e}")
 
 
 def save_candidates(server: str, store_id: int, candidates: list[dict]) -> None:
@@ -305,6 +342,7 @@ def _naver_search_once(page: Page, query: str) -> tuple[list[dict], bool]:
 	statuses: list[tuple[int, str]] = []  # (status, content-type) — allSearch 응답만
 	parse_errors: list[str] = []
 	allsearch_seen = False
+	blocked = False
 
 	def handle_response(response):
 		nonlocal allsearch_seen
@@ -332,11 +370,13 @@ def _naver_search_once(page: Page, query: str) -> tuple[list[dict], bool]:
 			f"https://map.naver.com/p/search/{urllib.parse.quote(query)}",
 			wait_until="domcontentloaded", timeout=15000)
 		page.wait_for_timeout(3000)
+		if _has_naver_restriction_text(page):
+			print("  [diag] 네이버 접근 제한 페이지 감지")
+			blocked = True
 	except Exception as e:
 		print(f"  [페이지 로드 실패] {query}: {e}")
 	page.remove_listener("response", handle_response)
 
-	blocked = False
 	if not captured:
 		non_200 = [(s, c) for s, c in statuses if s != 200]
 		if not allsearch_seen:
@@ -552,18 +592,22 @@ def fetch_menu_data(page: Page, naver_place_id: str) -> dict[str, dict]:
 		page.goto(
 			f"https://map.naver.com/p/entry/place/{naver_place_id}",
 			wait_until="domcontentloaded", timeout=15000)
+		_raise_if_naver_restricted(page, "entry")
 		frame = _wait_entry_frame(page)
 		if not frame:
 			return {}
+		_raise_if_naver_restricted(frame, "entryIframe")
 		m = re.search(r"pcmap\.place\.naver\.com/(\w+)/\d+", frame.url)
 		place_type = m.group(1) if m else "restaurant"
 		frame.goto(
 			f"https://pcmap.place.naver.com/{place_type}/{naver_place_id}/menu/list",
 			wait_until="domcontentloaded", timeout=10000)
+		_raise_if_naver_restricted(frame, "menu/list")
 		try:
 			frame.wait_for_selector("li", timeout=5000)
 		except Exception:
 			pass
+		_raise_if_naver_restricted(frame, "menu/list")
 		# lazy-load 메뉴까지 스크롤로 모두 로드 (안 하면 하단 메뉴 누락). li 가 더 안 늘면 종료.
 		# 주의: '더보기' 텍스트 클릭은 금지 — 메뉴 페이지의 사진 '더보기' 앵커를 눌러 photo 로
 		# 이탈하는 사례가 있어 스크롤만 사용한다.
@@ -616,6 +660,8 @@ def fetch_menu_data(page: Page, naver_place_id: str) -> dict[str, dict]:
 				"price": parsed["price"],
 			}
 		return menu_map
+	except NaverAccessRestricted:
+		raise
 	except Exception:
 		return {}
 
@@ -632,15 +678,18 @@ def fetch_store_photos(page: Page, naver_place_id: str, limit: int = 5) -> list[
 		page.goto(
 			f"https://map.naver.com/p/entry/place/{naver_place_id}",
 			wait_until="domcontentloaded", timeout=15000)
+		_raise_if_naver_restricted(page, "entry")
 		frame = _wait_entry_frame(page)
 		if not frame:
 			return []
+		_raise_if_naver_restricted(frame, "entryIframe")
 		m = re.search(r"pcmap\.place\.naver\.com/(\w+)/\d+", frame.url)
 		place_type = m.group(1) if m else "restaurant"
 		# filterType=업체 쿼리로 직접 진입 — DOM 클릭보다 안정적. 업체 사진 없는 가게는 빈 그리드.
 		frame.goto(
 			f"https://pcmap.place.naver.com/{place_type}/{naver_place_id}/photo?filterType=%EC%97%85%EC%B2%B4",
 			wait_until="domcontentloaded", timeout=10000)
+		_raise_if_naver_restricted(frame, "photo")
 
 		# carryover 방지: 직전 가게 iframe 이 갈아끼워지지 않아 옆 가게 사진을 읽는 것 차단.
 		if str(naver_place_id) not in frame.url:
@@ -707,6 +756,8 @@ def fetch_store_photos(page: Page, naver_place_id: str, limit: int = 5) -> list[
 			return out.slice(0, limit);
 		}""", limit)
 		return urls or []
+	except NaverAccessRestricted:
+		raise
 	except Exception:
 		return []
 
@@ -857,11 +908,17 @@ def _enrich_with_place_id(
 	if not crawl_menus:
 		stats["skipped_menu_crawl"] = 1
 	else:
-		# 메뉴 탭 DOM (수동 매칭 → 1차 소스, 검색 매칭 → 이미지/설명/fallback 가격)
-		place_menu_map = fetch_menu_data(page, naver_place_id) if naver_place_id else {}
-		# iframe 로드 타이밍 flakiness 로 비어 나오는 경우 1회 재시도 (메뉴 있는데 0개로 누락 방지).
-		if not place_menu_map and naver_place_id:
-			place_menu_map = fetch_menu_data(page, naver_place_id)
+		try:
+			# 메뉴 탭 DOM (수동 매칭 → 1차 소스, 검색 매칭 → 이미지/설명/fallback 가격)
+			place_menu_map = fetch_menu_data(page, naver_place_id) if naver_place_id else {}
+			# iframe 로드 타이밍 flakiness 로 비어 나오는 경우 1회 재시도 (메뉴 있는데 0개로 누락 방지).
+			if not place_menu_map and naver_place_id:
+				place_menu_map = fetch_menu_data(page, naver_place_id)
+		except NaverAccessRestricted:
+			print("  → 네이버 접근 제한 감지 — 백필 완료 마킹 없이 중단")
+			stats["failed"] = 1
+			stats["blocked"] = True
+			return stats
 		if menu_info_str:
 			primary_menus = parse_menu_info(menu_info_str)
 		else:
@@ -914,10 +971,16 @@ def _enrich_with_place_id(
 		print(f"  → 가게 사진 {existing_photo_count}장 보유 — 사진 크롤링 생략")
 		stats["skipped_photo_crawl"] = 1
 	else:
-		photo_urls = fetch_store_photos(page, naver_place_id, limit=STORE_PHOTO_LIMIT) if naver_place_id else []
-		# iframe 로드 flakiness 로 비어 나오면 1회 재시도 (사진 있는데 0장으로 누락 방지).
-		if not photo_urls and naver_place_id:
-			photo_urls = fetch_store_photos(page, naver_place_id, limit=STORE_PHOTO_LIMIT)
+		try:
+			photo_urls = fetch_store_photos(page, naver_place_id, limit=STORE_PHOTO_LIMIT) if naver_place_id else []
+			# iframe 로드 flakiness 로 비어 나오면 1회 재시도 (사진 있는데 0장으로 누락 방지).
+			if not photo_urls and naver_place_id:
+				photo_urls = fetch_store_photos(page, naver_place_id, limit=STORE_PHOTO_LIMIT)
+		except NaverAccessRestricted:
+			print("  → 네이버 접근 제한 감지 — 백필 완료 마킹 없이 중단")
+			stats["failed"] = 1
+			stats["blocked"] = True
+			return stats
 		if not photo_urls:
 			print("  → 네이버 사진 탭에서 이미지 못 찾음")
 		else:
@@ -992,6 +1055,8 @@ def main() -> None:
 				sys.exit(2)
 			result = process_store(page, store, args.server, args.dry_run, args.verbose,
 				crawl_menus=crawl_menus)
+			if mode in ("photos-backfill", "enrich-backfill") and not args.dry_run and not result.get("blocked"):
+				mark_backfill_attempted(args.server, store["id"], "photos" if mode == "photos-backfill" else mode)
 			for k in ("matched", "menus_created", "images_uploaded", "skipped_menu_crawl",
 					"photos_uploaded", "skipped_photo_crawl", "failed"):
 				total[k] += result.get(k, 0)
@@ -1016,6 +1081,8 @@ def main() -> None:
 				for store in queue:
 					result = process_store(page, store, args.server, args.dry_run, args.verbose,
 						crawl_menus=crawl_menus)
+					if mode in ("photos-backfill", "enrich-backfill") and not args.dry_run and not result.get("blocked"):
+						mark_backfill_attempted(args.server, store["id"], "photos" if mode == "photos-backfill" else mode)
 					for k in ("matched", "menus_created", "images_uploaded", "skipped_menu_crawl",
 							"photos_uploaded", "skipped_photo_crawl", "failed"):
 						total[k] += result.get(k, 0)

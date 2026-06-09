@@ -50,15 +50,17 @@ class MenuControllerTest {
 	void getStoreMenus_returnsReviewCount() throws Exception {
 		given(menuService.getStoreMenus(eq(1L), isNull()))
 			.willReturn(List.of(
-				new StoreMenuResponse(1L, "소금빵", "빵", null, 3500, 12, false, 8L),
-				new StoreMenuResponse(2L, "식빵", "빵", null, 5000, 3, false, 0L)));
+				new StoreMenuResponse(1L, "소금빵", "짭짤한 버터 풍미", "빵", null, 3500, 12, false, 8L),
+				new StoreMenuResponse(2L, "식빵", null, "빵", null, 5000, 3, false, 0L)));
 
 		mockMvc.perform(get("/stores/1/menus"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data[0].menuId").value(1))
+			.andExpect(jsonPath("$.data[0].description").value("짭짤한 버터 풍미"))
 			.andExpect(jsonPath("$.data[0].reviewCount").value(8))
 			.andExpect(jsonPath("$.data[1].menuId").value(2))
+			.andExpect(jsonPath("$.data[1].description").doesNotExist())
 			.andExpect(jsonPath("$.data[1].reviewCount").value(0));
 	}
 
