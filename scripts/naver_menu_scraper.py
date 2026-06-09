@@ -588,6 +588,41 @@ def fetch_menu_data(page: Page, naver_place_id: str) -> dict[str, dict]:
 	JS 는 li 별 raw 텍스트 list 만 뽑아 반환. 라벨(대표/BEST/소/L 등)·가격·시가/문의 분류는
 	Python 의 classify_menu_texts 가 담당 (tests/test_naver_match.py 가 검증).
 	"""
+	def menu_item_count() -> int:
+		try:
+			return int(frame.evaluate("""() => {
+				const itemLinks = document.querySelectorAll('a.xPf1B').length;
+				return itemLinks || document.querySelectorAll('li').length;
+			}"""))
+		except Exception:
+			return 0
+
+	def click_menu_expand() -> bool:
+		"""메뉴 리스트 전용 '펼쳐서 더보기'만 클릭한다.
+
+		상단 사진 영역에도 '더보기'가 있어 generic 텍스트 클릭은 photo 탭으로 이탈한다.
+		따라서 정확히 '펼쳐서 더보기' 텍스트인 interactive element 만 허용한다.
+		"""
+		try:
+			return bool(frame.evaluate("""() => {
+				function norm(text) {
+					return (text || '').replace(/\\s+/g, ' ').trim();
+				}
+				const candidates = Array.from(document.querySelectorAll('a, button, [role="button"]'));
+				const button = candidates.find(el => {
+					if (norm(el.textContent) !== '펼쳐서 더보기') return false;
+					const href = el.getAttribute('href') || '';
+					const klass = typeof el.className === 'string' ? el.className : '';
+					return !/photo|place_thumb|QX0J7/.test(`${href} ${klass}`);
+				});
+				if (!button) return false;
+				button.scrollIntoView({block: 'center', inline: 'center'});
+				button.click();
+				return true;
+			}"""))
+		except Exception:
+			return False
+
 	try:
 		page.goto(
 			f"https://map.naver.com/p/entry/place/{naver_place_id}",
@@ -608,17 +643,29 @@ def fetch_menu_data(page: Page, naver_place_id: str) -> dict[str, dict]:
 		except Exception:
 			pass
 		_raise_if_naver_restricted(frame, "menu/list")
-		# lazy-load 메뉴까지 스크롤로 모두 로드 (안 하면 하단 메뉴 누락). li 가 더 안 늘면 종료.
-		# 주의: '더보기' 텍스트 클릭은 금지 — 메뉴 페이지의 사진 '더보기' 앵커를 눌러 photo 로
-		# 이탈하는 사례가 있어 스크롤만 사용한다.
+		# lazy-load 메뉴까지 스크롤로 모두 로드. 메뉴 리스트 전용 '펼쳐서 더보기'는 반복 클릭하되,
+		# 상단 사진 '더보기'는 절대 클릭하지 않는다.
+		initial_count = menu_item_count()
 		prev = -1
-		for _ in range(8):
-			count = frame.evaluate("document.querySelectorAll('li').length")
-			if count == prev:
+		stale_rounds = 0
+		for _ in range(12):
+			before = menu_item_count()
+			expanded = click_menu_expand()
+			if expanded:
+				page.wait_for_timeout(800)
+			frame.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+			page.wait_for_timeout(700)
+			count = menu_item_count()
+			if count <= before and count == prev and not expanded:
+				stale_rounds += 1
+			else:
+				stale_rounds = 0
+			if stale_rounds >= 2:
 				break
 			prev = count
-			frame.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-			page.wait_for_timeout(600)
+		final_count = menu_item_count()
+		if final_count > initial_count:
+			print(f"  [diag] 메뉴 더보기 확장(id={naver_place_id}) — {initial_count}→{final_count}")
 		# 두 가지 차단:
 		#  (1) 메뉴 탭 없는 가게: goto 가 SPA fallback(/home 등) 되어 리뷰 위젯의 프사·리뷰사진이
 		#      메뉴로 잘못 들어가는 사례.
@@ -940,6 +987,19 @@ def _enrich_with_place_id(
 					(v for k, v in place_menu_map.items()
 					 if re.sub(r"\(.*?\)", "", k).replace(" ", "") == n_norm),
 					{},
+				)
+
+			dom_img_count = sum(1 for data in place_menu_map.values() if data.get("src"))
+			matched_img_count = sum(
+				1 for menu in primary_menus
+				if match_menu_extra(menu["name"]).get("src")
+			)
+			if menu_info_str and (len(place_menu_map) < len(primary_menus)
+					or matched_img_count < len(primary_menus)):
+				print(
+					"  [diag] 메뉴 DOM 매칭 — "
+					f"search={len(primary_menus)}, dom={len(place_menu_map)}, "
+					f"dom_img={dom_img_count}, matched_img={matched_img_count}"
 				)
 
 			for menu in primary_menus:
