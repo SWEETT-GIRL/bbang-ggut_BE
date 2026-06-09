@@ -42,7 +42,7 @@ public abstract class ImageFile extends BaseTimeEntity {
 		this.name = name;
 		this.mimeType = mimeType;
 		this.awsKey = awsKey;
-		this.processingStatus = ImageStatus.PENDING;
+		this.processingStatus = ImageStatus.DONE;
 	}
 
 	public void markDone() {
