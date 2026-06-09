@@ -39,7 +39,7 @@ public class ReviewController {
 	@GetMapping("/menus/{menuId}/reviews/summary")
 	public ResponseEntity<ApiResponse<ReviewSummaryResponse>> getReviewSummary(
 			@PathVariable Long menuId,
-			@RequestParam(defaultValue = "liked") String sort,
+			@RequestParam(defaultValue = "recommended") String sort,
 			@RequestParam(defaultValue = "false") boolean photoOnly,
 			@RequestParam(defaultValue = "2") int previewSize,
 			@AuthenticationPrincipal Long memberId) {
@@ -77,6 +77,18 @@ public class ReviewController {
 		return ResponseEntity.ok(ApiResponse.ok(reviewService.getMyReviews(memberId, page, size)));
 	}
 
+	@Operation(summary = "사용자가 쓴 리뷰 목록 조회", description = "공개 프로필에서 특정 사용자가 작성한 리뷰 목록을 "
+		+ "최신순으로 조회합니다.")
+	@GetMapping("/users/{memberId}/reviews")
+	public ResponseEntity<ApiResponse<MyReviewListResponse>> getMemberReviews(
+			@PathVariable Long memberId,
+			@AuthenticationPrincipal Long viewerMemberId,
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "20") int size) {
+		return ResponseEntity.ok(ApiResponse.ok(
+			reviewService.getMemberReviews(memberId, viewerMemberId, page, size)));
+	}
+
 	@Operation(summary = "리뷰 이미지 Presigned URL 발급", description = "mimeTypes 배열 크기만큼 리뷰 이미지 업로드 URL을 반환합니다.")
 	@PostMapping("/reviews/images/presigned-urls")
 	public ResponseEntity<ApiResponse<ReviewPresignedUrlInfoResponse>> getReviewPresignedUrls(
@@ -110,6 +122,24 @@ public class ReviewController {
 			@PathVariable Long reviewId,
 			@AuthenticationPrincipal Long memberId) {
 		reviewService.deleteReview(reviewId, memberId);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "리뷰 추천", description = "로그인한 사용자가 리뷰를 추천합니다. 이미 추천한 경우 409를 반환합니다.")
+	@PostMapping("/reviews/{reviewId}/recommend")
+	public ResponseEntity<ApiResponse<Void>> recommendReview(
+			@PathVariable Long reviewId,
+			@AuthenticationPrincipal Long memberId) {
+		reviewService.recommendReview(reviewId, memberId);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "리뷰 추천 취소", description = "로그인한 사용자의 리뷰 추천을 취소합니다. 추천하지 않은 리뷰에 요청 시 404를 반환합니다.")
+	@DeleteMapping("/reviews/{reviewId}/recommend")
+	public ResponseEntity<ApiResponse<Void>> cancelReviewRecommend(
+			@PathVariable Long reviewId,
+			@AuthenticationPrincipal Long memberId) {
+		reviewService.cancelReviewRecommend(reviewId, memberId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 }

@@ -962,12 +962,11 @@ def main() -> None:
 	if args.store_id:
 		print(f"단일 가게 모드: store_id={args.store_id}")
 	else:
-		if not args.partition:
-			print("[오류] 큐 모드는 --partition P1|P2|P3 중 하나가 필요합니다. 전체 큐 실행은 중복 위험 때문에 막혀 있습니다.")
-			sys.exit(2)
 		print(f"큐 모드 [{mode}] — 배치 크기: {args.batch}, loop={args.loop}, dry-run={args.dry_run}")
 		if args.partition:
 			print(f"작업 파티션: {args.partition}")
+		else:
+			print("작업 파티션: 전체")
 
 	total = {"matched": 0, "menus_created": 0, "images_uploaded": 0, "skipped_menu_crawl": 0,
 			"photos_uploaded": 0, "skipped_photo_crawl": 0, "failed": 0,

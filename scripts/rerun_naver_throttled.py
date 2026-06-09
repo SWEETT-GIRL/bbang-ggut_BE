@@ -175,21 +175,30 @@ def main() -> None:
 				store_id = int(item["id"])
 				name = item.get("name") or ""
 
-				if not args.dry_run and not args.no_reset_throttle:
-					try:
-						retry_store(args.server, store_id)
-					except Exception as e:
-						total["retry_failed"] += 1
-						total["failed"] += 1
-						print(f"[{idx:3d}/{len(items)}] RETRY_FAIL id={store_id} {name}: {e}")
-						continue
-
 				store = fetch_single_store(args.server, store_id)
 				if not store:
 					total["fetch_failed"] += 1
 					total["failed"] += 1
 					print(f"[{idx:3d}/{len(items)}] FETCH_FAIL id={store_id} {name}")
 					continue
+
+				if not args.dry_run and not args.no_reset_throttle:
+					if store.get("naverPlaceId"):
+						print(f"[{idx:3d}/{len(items)}] ALREADY_MATCHED id={store_id} {name} — retry 생략")
+					else:
+						try:
+							retry_store(args.server, store_id)
+						except Exception as e:
+							total["retry_failed"] += 1
+							total["failed"] += 1
+							print(f"[{idx:3d}/{len(items)}] RETRY_FAIL id={store_id} {name}: {e}")
+							continue
+						store = fetch_single_store(args.server, store_id)
+						if not store:
+							total["fetch_failed"] += 1
+							total["failed"] += 1
+							print(f"[{idx:3d}/{len(items)}] FETCH_FAIL id={store_id} {name}")
+							continue
 
 				with log_path.open("a", encoding="utf-8") as log:
 					log.write(f"\n\n=== [{idx}/{len(items)}] store_id={store_id} {name} ===\n")

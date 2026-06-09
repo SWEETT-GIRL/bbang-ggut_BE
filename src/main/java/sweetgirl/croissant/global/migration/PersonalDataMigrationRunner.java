@@ -16,7 +16,6 @@ import sweetgirl.croissant.global.encrypt.TokenHasher;
 
 /**
  * 개인정보 암호화 도입 이전에 평문으로 저장된 기존 데이터를 일괄 변환하는 일회성 마이그레이션.
- * - member.nickname    : AES-256-GCM 암호화
  * - oauth.email        : AES-256-GCM 암호화
  * - oauth.provider_id  : SHA-256 해시
  * - refresh_token.token: SHA-256 해시
@@ -45,34 +44,12 @@ public class PersonalDataMigrationRunner implements ApplicationRunner {
 	public void run(ApplicationArguments args) {
 		log.info("[Migration] 개인정보 암호화 마이그레이션 시작");
 		try {
-			migrateMemberNicknames();
 			migrateOAuthData();
 			migrateRefreshTokens();
 			log.info("[Migration] 개인정보 암호화 마이그레이션 완료");
 		} catch (Exception e) {
 			log.error("[Migration] 마이그레이션 중 오류 발생 — 앱은 계속 기동됩니다", e);
 		}
-	}
-
-	private void migrateMemberNicknames() {
-		List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-			"SELECT id, nickname FROM member");
-
-		int count = 0;
-		for (Map<String, Object> row : rows) {
-			Long id = ((Number)row.get("id")).longValue();
-			String nickname = (String)row.get("nickname");
-
-			if (nickname == null || isAlreadyEncrypted(nickname)) {
-				continue;
-			}
-
-			jdbcTemplate.update(
-				"UPDATE member SET nickname = ? WHERE id = ?",
-				aesEncryptor.encrypt(nickname), id);
-			count++;
-		}
-		log.info("[Migration] member.nickname {}건 변환 완료", count);
 	}
 
 	private void migrateOAuthData() {

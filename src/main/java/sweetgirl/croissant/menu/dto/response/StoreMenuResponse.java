@@ -9,17 +9,19 @@ public record StoreMenuResponse(
 		String category,
 		ImageResponse image,
 		Integer price,
-		int recommendCount,
-		boolean isRecommended) {
+		int likeCount,
+		boolean isLiked,
+		long reviewCount) {
 
-	public static StoreMenuResponse of(Menu menu, ImageResponse image, boolean isRecommended) {
+	public static StoreMenuResponse of(Menu menu, ImageResponse image, boolean isLiked, long reviewCount) {
 		return new StoreMenuResponse(
 			menu.getId(),
 			menu.getName(),
 			menu.getMenuCategory().getName().name(),
 			image,
 			menu.getPrice(),
-			menu.getRecommendCount(),
-			isRecommended);
+			menu.getLikeCount(),
+			isLiked,
+			reviewCount);
 	}
 }

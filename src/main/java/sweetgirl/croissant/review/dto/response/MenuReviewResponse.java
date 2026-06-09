@@ -14,9 +14,11 @@ public record MenuReviewResponse(
 		String fillingAmount,
 		List<TextureTag> textureTags,
 		String content,
-		int likeCount,
+		int recommendCount,
 		int commentCount,
-		boolean isLiked,
+		boolean isRecommended,
+		boolean canEdit,
+		boolean canDelete,
 		ReviewAuthorResponse author,
 		List<ReviewPhotoResponse> photos,
 		LocalDateTime createdAt) {

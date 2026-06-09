@@ -249,8 +249,8 @@ class TestSelectMatch:
 
 	def test_chain_beyond_150m_rejected(self):
 		k = _kakao(name="스타벅스 강남점")
-		# 170m 이상 떨어짐 — exact + road match 여도 체인 좌표 오차 허용 범위 밖.
-		n = _naver(name="스타벅스 강남점", y=37.5016)
+		# 300m 이상 떨어짐 — exact + road match 여도 같은 주소 좌표 오차 허용 범위 밖.
+		n = _naver(name="스타벅스 강남점", y=37.5030)
 		chosen, _, why = select_match(k, [n])
 		assert chosen is None
 		assert "체인" in why
@@ -335,6 +335,93 @@ class TestSelectMatch:
 		chosen, _, why = select_match(_kakao(address="서울 강남구 테헤란로 100"), [n])
 		assert chosen is not None, why
 
+	def test_same_road_related_name_large_coordinate_drift_accepted(self):
+		# 실제 실패 회귀: 도로명+건물번호와 이름은 같은데 카카오/네이버 좌표가 100m+ 흔들림.
+		# 상가/아파트/대형 시설 기준점 차이로 발생하므로 주소 증거를 우선한다.
+		k = _kakao(name="베이킹박(Park)", address="대구 달성군 화원읍 비슬로 2545")
+		n = _naver(
+			name="베이킹박",
+			y=37.50127,
+			address="대구광역시 달성군 화원읍 비슬로 2545 상가 110동 210호 베이킹박",
+		)
+		chosen, _, why = select_match(k, [n])
+		assert chosen is not None, why
+
+	def test_same_road_exact_name_very_large_coordinate_drift_accepted(self):
+		# 실제 실패 회귀: exact 이름 + 같은 도로명+번지인데 좌표가 260m 이상 어긋난 케이스.
+		k = _kakao(name="비스타블루", address="인천 연수구 컨벤시아대로391번길 20")
+		n = _naver(
+			name="비스타블루",
+			y=37.5024,
+			address="인천광역시 연수구 컨벤시아대로391번길 20",
+		)
+		chosen, _, why = select_match(k, [n])
+		assert chosen is not None, why
+
+	def test_same_road_related_branch_variant_accepted(self):
+		# 실제 실패 회귀: 같은 건물의 같은 브랜드인데 지점 표기가 '동대구역점' ↔ '동대구역사점'처럼 다름.
+		k = _kakao(name="위니비니 동대구역점", address="대구 동구 동대구로 550")
+		n = _naver(
+			name="위니비니 동대구역사점",
+			y=37.50101,
+			address="대구광역시 동구 동대구로 550 동대구역 1층",
+		)
+		chosen, _, why = select_match(k, [n])
+		assert chosen is not None, why
+
+	def test_same_road_mid_name_related_accepted(self):
+		# 실제 실패 회귀: 지역 prefix 가 붙은 카카오명과 네이버 등록명이 같은 주소에서 부분일치.
+		k = _kakao(name="가창 카페목하", address="대구 달성군 가창면 가창로10길 56")
+		n = _naver(
+			name="카페목하",
+			y=37.50041,
+			address="대구광역시 달성군 가창면 가창로10길 56 가창카페 목하",
+		)
+		chosen, _, why = select_match(k, [n])
+		assert chosen is not None, why
+
+	def test_same_road_unrelated_name_still_rejected(self):
+		# 같은 주소여도 이름이 무관하면 남의 매장/동일 건물 입점 매장일 수 있어 자동 매칭하지 않는다.
+		k = _kakao(name="컵넛 월성점", address="대구 달서구 상원로 179-9")
+		n = _naver(
+			name="넛티 신월성 본점",
+			y=37.50001,
+			address="대구광역시 달서구 상원로 179-9 1층, 2층",
+		)
+		chosen, _, why = select_match(k, [n])
+		assert chosen is None
+		assert "지점" in why or "이름" in why
+
+	def test_same_road_candidate_beats_near_wrong_road_candidate(self):
+		# 자동확정 회귀: 가까운 다른 도로 후보가 점수상 앞서도, 같은 도로명+번지 후보가 있으면
+		# 주소 증거를 우선한다. 예: '두낫띵' ↔ 'DO NOTHING' 같은 영문 등록명 케이스.
+		k = _kakao(name="두낫띵", address="울산 북구 송정로 10")
+		wrong = _naver(
+			name="두낫띵학원",
+			y=37.50001,
+			address="울산 북구 다른로 1",
+		)
+		good = _naver(
+			name="DO NOTHING",
+			y=37.50002,
+			address="울산광역시 북구 송정로 10 1층",
+		)
+		chosen, _, why = select_match(k, [wrong, good])
+		assert chosen is good, why
+		assert "주소후보 우선" in why
+
+	def test_same_road_candidate_requires_same_region_head(self):
+		# 같은 도로명+번지라도 시/도가 다르면 주소 우선 후보로 고르지 않는다.
+		k = _kakao(name="카페하루", address="울산 북구 중앙로 10")
+		wrong_region = _naver(
+			name="카페하루",
+			y=37.5030,
+			address="대구광역시 북구 중앙로 10",
+		)
+		chosen, _, why = select_match(k, [wrong_region])
+		assert chosen is None
+		assert "도로명" in why or "거리" in why
+
 	def test_non_chain_60m_road_mismatch_rejected(self):
 		# 60m + 도로명 다름 → 옆 지점(브랜드)일 수 있어 거부(브랜드 지점 오매칭 방지).
 		n = _naver(y=37.50054, address="서울 강남구 봉은사로 50")
@@ -348,20 +435,20 @@ class TestSelectMatch:
 		chosen, _, why = select_match(_kakao(address="서울 강남구 테헤란로 100"), [n])
 		assert chosen is not None, why
 
-	def test_address_confirmed_name_mismatch_accepted(self):
-		# 이름이 전혀 달라도(예: '카페폴리' ↔ '폴리 합정') 도로명+번지 일치 + 같은 자리(≤30m)면
-		# 동일 장소로 확신 매칭 — 점수 미달이어도 통과.
+	def test_address_confirmed_name_mismatch_rejected(self):
+		# 도로명+번지와 좌표가 같아도 이름 관련성이 약하면 자동 매칭하지 않는다.
+		# 같은 주소의 리브랜딩일 수는 있지만, 롤백 비용이 커서 수동 확인 대상으로 둔다.
 		k = _kakao(name="카페폴리", address="서울 강남구 테헤란로 100")
 		n = _naver(name="폴리 합정", y=37.50010, address="서울 강남구 테헤란로 100")
 		chosen, _, why = select_match(k, [n])
-		assert chosen is not None, why
-		assert "주소 확정" in why
+		assert chosen is None
+		assert "이름 무관" in why
 
-	def test_non_chain_120m_rejected(self):
-		n = _naver(y=37.50108)
+	def test_non_chain_same_road_beyond_same_address_radius_rejected(self):
+		n = _naver(y=37.5030)
 		chosen, _, why = select_match(_kakao(), [n])
 		assert chosen is None
-		assert "거리" in why
+		assert "이름" in why or "거리" in why
 
 	def test_exact_name_jibun_district_within_80m_accepted(self):
 		# 코티지송송 회귀: 카카오 지번(도로명 없음) + 이름 exact + 같은 면/리 → 42m 통과.
@@ -507,6 +594,26 @@ class TestSelectMatch:
 		n2 = _naver(name="메리고라운드카페", y=37.5001, address="서울 강남구 봉은사로 52")
 		chosen, _, _ = select_match(k, [n1, n2])
 		assert chosen is None
+
+	def test_gap_ignores_candidate_that_fails_gate(self):
+		# 실제 실패 회귀: 정상 후보와 '입구' 후보가 함께 떠서 점수 격차가 15 미만이어도,
+		# 입구 후보는 게이트를 통과하지 못하므로 모호 후보로 보지 않는다.
+		k = _kakao(
+			name="오디와이 커피",
+			address="인천 계양구 선주지동 125-1",
+		)
+		good = _naver(
+			name="오디와이 커피로스터스",
+			y=37.50013,
+			address="인천 계양구 선주지동 125-1",
+		)
+		entrance = _naver(
+			name="오디와이 커피로스터스입구",
+			y=37.50054,
+			address="인천 계양구 선주지동 125-1",
+		)
+		chosen, _, why = select_match(k, [good, entrance])
+		assert chosen is good, why
 
 	def test_no_coords_road_match_accepted(self):
 		k = _kakao(lat=None, lng=None)

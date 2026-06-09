@@ -21,6 +21,7 @@ import sweetgirl.croissant.member.enums.OAuthProvider;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
 import sweetgirl.croissant.member.repository.OAuthRepository;
+import sweetgirl.croissant.member.util.NicknameGenerator;
 
 @Service
 @RequiredArgsConstructor
@@ -29,8 +30,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 	private final MemberRepository memberRepository;
 	private final NotificationSettingRepository notificationSettingRepository;
 	private final OAuthRepository oAuthRepository;
-	// providerId를 DB 저장/조회 전 SHA-256 해시로 변환하기 위해 주입
 	private final TokenHasher tokenHasher;
+	private final NicknameGenerator nicknameGenerator;
 
 	// Spring Security가 카카오 사용자 정보를 받아온 직후 자동으로 호출하는 메서드
 	// 여기서 DB upsert(신규 가입 or 기존 유저 조회)를 처리하고 인증된 유저 정보를 반환
@@ -68,7 +69,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 		if (isDeletedMember) {
 			activeMember = memberRepository.save(
 				Member.builder()
-					.nickname(userInfo.getNickname())
+					.nickname(nicknameGenerator.generate())
 					.build());
 			oAuth.updateMember(activeMember);
 		} else {
@@ -86,23 +87,17 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 		return new CustomOAuth2User(oAuth2User, activeMember.getId(), isNewMember);
 	}
 
-	// 신규 가입 처리: Member 생성 → OAuth 생성 → 저장
 	private OAuth registerNewMember(KakaoOAuth2UserInfo userInfo) {
-
-		// 카카오 닉네임으로 Member 생성 및 저장
 		Member member = memberRepository.save(
 			Member.builder()
-				.nickname(userInfo.getNickname())
+				.nickname(nicknameGenerator.generate())
 				.build());
 
-		// Member와 카카오 정보를 연결하는 OAuth 레코드 생성 및 저장
 		OAuth oAuth = oAuthRepository.save(
 			OAuth.builder()
 				.member(member)
-				.provider(OAuthProvider.KAKAO) // 소셜 로그인 제공자 (KAKAO)
-				// providerId는 SHA-256 해시로 저장 (이후 조회 시에도 동일하게 해시 변환해서 조회)
+				.provider(OAuthProvider.KAKAO)
 				.providerId(tokenHasher.hash(userInfo.getProviderId()))
-				// email은 EncryptedStringConverter가 자동으로 AES-256 암호화 처리
 				.email(userInfo.getEmail())
 				.build());
 		return oAuth;

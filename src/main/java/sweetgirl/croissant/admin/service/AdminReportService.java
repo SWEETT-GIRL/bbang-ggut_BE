@@ -1,8 +1,9 @@
 package sweetgirl.croissant.admin.service;
 
-import java.time.DayOfWeek;
-import java.time.LocalTime;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -15,6 +16,7 @@ import org.locationtech.jts.geom.PrecisionModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,9 +28,11 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.admin.code.AdminErrorCode;
 import sweetgirl.croissant.admin.dto.request.AdminModerationActionRequest;
 import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
+import sweetgirl.croissant.admin.dto.response.AdminHighPriorityReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminModerationActionResponse;
 import sweetgirl.croissant.admin.dto.response.AdminReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminUserReportDetailResponse;
+import sweetgirl.croissant.admin.dto.response.AdminUserReportStatsResponse;
 import sweetgirl.croissant.admin.exception.AdminException;
 import sweetgirl.croissant.alarm.enums.ReportKind;
 import sweetgirl.croissant.alarm.enums.ReportNotificationAction;
@@ -42,8 +46,10 @@ import sweetgirl.croissant.menu.repository.MenuAddReportImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuAddReportRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
+import sweetgirl.croissant.report.dto.projection.UserReportTargetCountProjection;
 import sweetgirl.croissant.report.entity.ModerationAction;
 import sweetgirl.croissant.report.entity.UserReport;
+import sweetgirl.croissant.report.enums.ReportReasonType;
 import sweetgirl.croissant.report.enums.ReportTargetType;
 import sweetgirl.croissant.report.enums.UserReportAction;
 import sweetgirl.croissant.report.enums.UserReportStatus;
@@ -59,7 +65,6 @@ import sweetgirl.croissant.store.dto.request.StoreAddressReportRequest;
 import sweetgirl.croissant.store.dto.request.StoreBusinessHoursReportRequest;
 import sweetgirl.croissant.store.dto.request.StoreImageReportRequest;
 import sweetgirl.croissant.store.entity.Store;
-import sweetgirl.croissant.store.entity.StoreBusinessHour;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.entity.StoreReport;
 import sweetgirl.croissant.store.entity.StoreReportImageFile;
@@ -77,6 +82,24 @@ public class AdminReportService {
 
 	private static final Logger log = LoggerFactory.getLogger(AdminReportService.class);
 	private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory(new PrecisionModel(), 4326);
+	private static final int PRIORITY_LOOKBACK_HOURS = 24;
+	private static final int REVIEW_HIDE_CANDIDATE_REPORTER_THRESHOLD = 3;
+	private static final int SENSITIVE_REASON_PRIORITY_REPORTER_THRESHOLD = 2;
+	private static final int MEMBER_REVIEW_CANDIDATE_TARGET_THRESHOLD = 3;
+	private static final List<ReportReasonType> SENSITIVE_REASON_TYPES = List.of(
+		ReportReasonType.PRIVACY,
+		ReportReasonType.HATE,
+		ReportReasonType.SEXUAL);
+	private static final Comparator<AdminHighPriorityReportResponse> HIGH_PRIORITY_COMPARATOR = Comparator
+		.comparingInt(AdminHighPriorityReportResponse::priorityScore).reversed()
+		.thenComparing(Comparator.comparingLong(
+			AdminHighPriorityReportResponse::sensitiveReasonReportCount).reversed())
+		.thenComparing(Comparator.comparingLong(
+			AdminHighPriorityReportResponse::reviewReportCount24h).reversed())
+		.thenComparing(Comparator.comparingLong(
+			AdminHighPriorityReportResponse::memberReviewReportCount24h).reversed())
+		.thenComparing(AdminHighPriorityReportResponse::createdAt, Comparator.nullsLast(Comparator.reverseOrder()))
+		.thenComparing(AdminHighPriorityReportResponse::reportId, Comparator.reverseOrder());
 
 	private final StoreReportRepository storeReportRepository;
 	private final MenuAddReportRepository menuAddReportRepository;
@@ -117,6 +140,51 @@ public class AdminReportService {
 		return AdminUserReportDetailResponse.of(report, toUserReportTarget(report));
 	}
 
+	public AdminUserReportStatsResponse getUserReportStats() {
+		LocalDateTime since = LocalDateTime.now().minusHours(PRIORITY_LOOKBACK_HOURS);
+		PriorityAggregation aggregation = aggregatePriorityMetrics(since, UserReportStatus.PENDING);
+
+		return new AdminUserReportStatsResponse(
+			userReportRepository.count(),
+			userReportRepository.countByStatus(UserReportStatus.PENDING),
+			userReportRepository.countByStatus(UserReportStatus.ACCEPTED),
+			userReportRepository.countByStatus(UserReportStatus.REJECTED),
+			userReportRepository.countByCreatedAtGreaterThanEqual(since),
+			aggregation.reviewHideCandidateCount(),
+			aggregation.sensitiveReasonPriorityCount(),
+			aggregation.memberReviewCandidateCount(),
+			PRIORITY_LOOKBACK_HOURS,
+			REVIEW_HIDE_CANDIDATE_REPORTER_THRESHOLD,
+			SENSITIVE_REASON_PRIORITY_REPORTER_THRESHOLD,
+			MEMBER_REVIEW_CANDIDATE_TARGET_THRESHOLD,
+			SENSITIVE_REASON_TYPES.stream()
+				.map(Enum::name)
+				.toList());
+	}
+
+	public Page<AdminHighPriorityReportResponse> getHighPriorityReports(String statusStr, int page, int size) {
+		UserReportStatus status = toUserReportStatus(statusStr);
+		LocalDateTime since = LocalDateTime.now().minusHours(PRIORITY_LOOKBACK_HOURS);
+		PriorityAggregation aggregation = aggregatePriorityMetrics(since, status);
+		List<UserReport> reports = status != null
+			? userReportRepository.findByStatus(status)
+			: userReportRepository.findAllWithMembers();
+
+		List<AdminHighPriorityReportResponse> highPriorityReports = reports.stream()
+			.map(report -> toHighPriorityReportResponse(report, aggregation))
+			.filter(AdminHighPriorityReportResponse::highPriority)
+			.sorted(HIGH_PRIORITY_COMPARATOR)
+			.toList();
+
+		PageRequest pageRequest = PageRequest.of(page, size);
+		int start = Math.toIntExact(pageRequest.getOffset());
+		if (start >= highPriorityReports.size()) {
+			return new PageImpl<>(List.of(), pageRequest, highPriorityReports.size());
+		}
+		int end = Math.min(start + pageRequest.getPageSize(), highPriorityReports.size());
+		return new PageImpl<>(highPriorityReports.subList(start, end), pageRequest, highPriorityReports.size());
+	}
+
 	@Transactional
 	public AdminModerationActionResponse applyModerationAction(
 			Long reportId,
@@ -128,18 +196,14 @@ public class AdminReportService {
 		}
 
 		UserReportAction action = toModerationAction(request.action());
-		String reason = normalizeModerationReason(request.reason());
+		String reason = request.moderationReason();
 		applyReviewModeration(report, action, reason);
 		report.applyModerationAction(action);
 
-		ModerationAction savedAction = moderationActionRepository.save(ModerationAction.builder()
-			.report(report)
-			.targetType(report.getTargetType())
-			.targetId(report.getTargetId())
-			.member(report.getReportedMember())
-			.action(action)
-			.reason(reason)
-			.build());
+		ModerationAction savedAction = moderationActionRepository.save(request.toModerationAction(report, action));
+		if (Boolean.TRUE.equals(request.notifyUser()) && shouldNotifyModeratedMember(action)) {
+			reportNotificationService.notifyModerationAction(savedAction);
+		}
 		return AdminModerationActionResponse.from(savedAction);
 	}
 
@@ -182,7 +246,7 @@ public class AdminReportService {
 				accept ? ReportNotificationAction.APPROVED : ReportNotificationAction.REJECTED,
 				subjectLabel(report.getRequestType()));
 		} else if ("USER_REPORT".equals(request.kind())) {
-			UserReport report = userReportRepository.findById(reportId)
+			UserReport report = userReportRepository.findByIdWithMembers(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
 			if (report.getStatus() != UserReportStatus.PENDING) {
 				throw new AdminException(AdminErrorCode.REPORT_ALREADY_REVIEWED);
@@ -192,6 +256,7 @@ public class AdminReportService {
 			} else {
 				report.reject();
 			}
+			reportNotificationService.notifyUserReportResult(report);
 		} else {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_KIND);
 		}
@@ -199,13 +264,7 @@ public class AdminReportService {
 
 	// MenuAddReport 승인 — 새 Menu 생성 + 첨부 이미지를 menus/{menuId}로 S3 이동 후 menu_image_file 등록
 	private void applyMenuAddReportApprove(MenuAddReport report) {
-		Menu menu = menuRepository.save(Menu.builder()
-			.store(report.getStore())
-			.menuCategory(report.getMenuCategory())
-			.name(report.getName())
-			.price(report.getPrice())
-			.description(report.getDescription())
-			.build());
+		Menu menu = menuRepository.save(report.toMenu());
 
 		List<MenuAddReportImageFile> reportImages = menuAddReportImageFileRepository
 			.findByMenuAddReportIdIn(List.of(report.getId()));
@@ -242,16 +301,7 @@ public class AdminReportService {
 		Long storeId = report.getStore().getId();
 		storeBusinessHourRepository.deleteByStoreId(storeId);
 
-		List<StoreBusinessHour> hours = payload.hours().stream()
-			.map(h -> StoreBusinessHour.builder()
-				.store(report.getStore())
-				.dayOfWeek(h.dayOfWeek())
-				.openTime(h.closed() ? null : parseTime(h.openTime()))
-				.closeTime(h.closed() ? null : parseTime(h.closeTime()))
-				.isClosed(h.closed())
-				.build())
-			.toList();
-		storeBusinessHourRepository.saveAll(hours);
+		storeBusinessHourRepository.saveAll(payload.toBusinessHours(report.getStore()));
 	}
 
 	// 주소 제보 승인 — Store 주소/위치/region 갱신
@@ -292,13 +342,7 @@ public class AdminReportService {
 				}
 				String destKey = "stores/" + storeId + "/" + filenameFromKey(src.getAwsKey());
 				s3Service.copyObject(src.getAwsKey(), destKey);
-				newImages.add(StoreImageFile.builder()
-					.store(store)
-					.name(src.getName())
-					.mimeType(src.getMimeType())
-					.awsKey(destKey)
-					.displayOrder(nextOrder++)
-					.build());
+				newImages.add(src.toStoreImage(store, destKey, nextOrder++));
 				safeDelete(src.getAwsKey());
 			}
 			storeImageFileRepository.saveAll(newImages);
@@ -341,13 +385,7 @@ public class AdminReportService {
 				}
 				String destKey = "menus/" + menu.getId() + "/" + filenameFromKey(src.getAwsKey());
 				s3Service.copyObject(src.getAwsKey(), destKey);
-				newImages.add(MenuImageFile.builder()
-					.menu(menu)
-					.name(src.getName())
-					.mimeType(src.getMimeType())
-					.awsKey(destKey)
-					.displayOrder(nextOrder++)
-					.build());
+				newImages.add(src.toMenuImage(menu, destKey, nextOrder++));
 				safeDelete(src.getAwsKey());
 			}
 			menuImageFileRepository.saveAll(newImages);
@@ -363,13 +401,7 @@ public class AdminReportService {
 		for (MenuAddReportImageFile src : sources) {
 			String destKey = "menus/" + menu.getId() + "/" + filenameFromKey(src.getAwsKey());
 			s3Service.copyObject(src.getAwsKey(), destKey);
-			dest.add(MenuImageFile.builder()
-				.menu(menu)
-				.name(src.getName())
-				.mimeType(src.getMimeType())
-				.awsKey(destKey)
-				.displayOrder(order++)
-				.build());
+			dest.add(src.toMenuImage(menu, destKey, order++));
 			safeDelete(src.getAwsKey());
 		}
 		menuImageFileRepository.saveAll(dest);
@@ -401,10 +433,6 @@ public class AdminReportService {
 	private String filenameFromKey(String awsKey) {
 		int idx = awsKey.lastIndexOf('/');
 		return idx >= 0 ? awsKey.substring(idx + 1) : awsKey;
-	}
-
-	private LocalTime parseTime(String hhmm) {
-		return hhmm != null ? LocalTime.parse(hhmm) : null;
 	}
 
 	private <T> T parseMessage(String message, Class<T> type) {
@@ -474,6 +502,99 @@ public class AdminReportService {
 		return AdminUserReportDetailResponse.MemberProfileTarget.from(report.getReportedMember());
 	}
 
+	private PriorityAggregation aggregatePriorityMetrics(LocalDateTime since, UserReportStatus status) {
+		Map<TargetKey, Long> reviewReportCounts24h = toTargetCountMap(
+			userReportRepository.findTargetReporterCountsSince(ReportTargetType.REVIEW, since, status));
+		Map<TargetKey, Long> sensitiveReasonReportCounts = toTargetCountMap(
+			userReportRepository.findSensitiveReasonReporterCounts(SENSITIVE_REASON_TYPES, status));
+		Map<Long, Long> memberReviewCounts24h = userReportRepository
+			.findMemberReviewTargetCountsSince(ReportTargetType.REVIEW, since, status).stream()
+			.collect(Collectors.toMap(
+				projection -> projection.getReportedMemberId(),
+				projection -> nullToZero(projection.getReviewTargetCount())));
+
+		return new PriorityAggregation(
+			reviewReportCounts24h,
+			sensitiveReasonReportCounts,
+			memberReviewCounts24h);
+	}
+
+	private Map<TargetKey, Long> toTargetCountMap(
+			List<? extends UserReportTargetCountProjection> counts) {
+		Map<TargetKey, Long> result = new HashMap<>();
+		for (var count : counts) {
+			result.put(new TargetKey(count.getTargetType(), count.getTargetId()), nullToZero(count.getReporterCount()));
+		}
+		return result;
+	}
+
+	private AdminHighPriorityReportResponse toHighPriorityReportResponse(
+			UserReport report,
+			PriorityAggregation aggregation) {
+		TargetKey targetKey = new TargetKey(report.getTargetType(), report.getTargetId());
+		long reviewReportCount24h = aggregation.reviewReportCounts24h().getOrDefault(targetKey, 0L);
+		long sensitiveReasonReportCount = aggregation.sensitiveReasonReportCounts().getOrDefault(targetKey, 0L);
+		long memberReviewReportCount24h = aggregation.memberReviewCounts24h()
+			.getOrDefault(report.getReportedMember().getId(), 0L);
+		boolean temporaryHideCandidate = report.getTargetType() == ReportTargetType.REVIEW
+			&& reviewReportCount24h >= REVIEW_HIDE_CANDIDATE_REPORTER_THRESHOLD;
+		boolean sensitiveReasonPriority = sensitiveReasonReportCount >= SENSITIVE_REASON_PRIORITY_REPORTER_THRESHOLD;
+		boolean memberReviewCandidate = memberReviewReportCount24h >= MEMBER_REVIEW_CANDIDATE_TARGET_THRESHOLD;
+		List<String> priorityReasons = priorityReasons(
+			temporaryHideCandidate,
+			sensitiveReasonPriority,
+			memberReviewCandidate);
+
+		return AdminHighPriorityReportResponse.of(
+			report,
+			reviewReportCount24h,
+			sensitiveReasonReportCount,
+			memberReviewReportCount24h,
+			temporaryHideCandidate,
+			sensitiveReasonPriority,
+			memberReviewCandidate,
+			priorityScore(temporaryHideCandidate, sensitiveReasonPriority, memberReviewCandidate),
+			priorityReasons);
+	}
+
+	private List<String> priorityReasons(
+			boolean temporaryHideCandidate,
+			boolean sensitiveReasonPriority,
+			boolean memberReviewCandidate) {
+		List<String> reasons = new ArrayList<>();
+		if (sensitiveReasonPriority) {
+			reasons.add("SENSITIVE_REASON_PRIORITY");
+		}
+		if (temporaryHideCandidate) {
+			reasons.add("TEMPORARY_HIDE_CANDIDATE");
+		}
+		if (memberReviewCandidate) {
+			reasons.add("MEMBER_REVIEW_CANDIDATE");
+		}
+		return reasons;
+	}
+
+	private int priorityScore(
+			boolean temporaryHideCandidate,
+			boolean sensitiveReasonPriority,
+			boolean memberReviewCandidate) {
+		int score = 0;
+		if (sensitiveReasonPriority) {
+			score += 100;
+		}
+		if (temporaryHideCandidate) {
+			score += 50;
+		}
+		if (memberReviewCandidate) {
+			score += 25;
+		}
+		return score;
+	}
+
+	private long nullToZero(Long value) {
+		return value == null ? 0L : value;
+	}
+
 	private void applyReviewModeration(UserReport report, UserReportAction action, String reason) {
 		if (action == UserReportAction.NONE) {
 			return;
@@ -512,6 +633,11 @@ public class AdminReportService {
 			|| action == UserReportAction.RESTORE_REVIEW;
 	}
 
+	private boolean shouldNotifyModeratedMember(UserReportAction action) {
+		return action == UserReportAction.HIDE_REVIEW
+			|| action == UserReportAction.DELETE_REVIEW;
+	}
+
 	private UserReportAction toModerationAction(String action) {
 		if (action == null || action.isBlank()) {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_MODERATION_ACTION);
@@ -525,14 +651,6 @@ public class AdminReportService {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_MODERATION_ACTION);
 		}
 		throw new AdminException(AdminErrorCode.REPORT_INVALID_MODERATION_ACTION);
-	}
-
-	private String normalizeModerationReason(String reason) {
-		if (reason == null) {
-			return null;
-		}
-		String normalized = reason.trim();
-		return normalized.isEmpty() ? null : normalized;
 	}
 
 	private StoreReportStatus toStoreReportStatus(String statusStr) {
@@ -575,5 +693,32 @@ public class AdminReportService {
 			List<Long> deleteImageIds,
 			List<ReportImageRequest> addImages,
 			String reason) {
+	}
+
+	private record TargetKey(ReportTargetType targetType, Long targetId) {
+	}
+
+	private record PriorityAggregation(
+			Map<TargetKey, Long> reviewReportCounts24h,
+			Map<TargetKey, Long> sensitiveReasonReportCounts,
+			Map<Long, Long> memberReviewCounts24h) {
+
+		long reviewHideCandidateCount() {
+			return reviewReportCounts24h.values().stream()
+				.filter(count -> count >= REVIEW_HIDE_CANDIDATE_REPORTER_THRESHOLD)
+				.count();
+		}
+
+		long sensitiveReasonPriorityCount() {
+			return sensitiveReasonReportCounts.values().stream()
+				.filter(count -> count >= SENSITIVE_REASON_PRIORITY_REPORTER_THRESHOLD)
+				.count();
+		}
+
+		long memberReviewCandidateCount() {
+			return memberReviewCounts24h.values().stream()
+				.filter(count -> count >= MEMBER_REVIEW_CANDIDATE_TARGET_THRESHOLD)
+				.count();
+		}
 	}
 }

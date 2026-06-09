@@ -27,9 +27,18 @@ public enum ReviewErrorCode implements BaseErrorCode {
 			BAD_REQUEST, "REVIEW_INVALID_IMAGE_KEY", "유효하지 않은 리뷰 이미지 키입니다."),
 	REVIEW_CONTENT_TOO_LONG(
 			BAD_REQUEST, "REVIEW_CONTENT_TOO_LONG", "리뷰 내용은 최대 1000자까지 입력할 수 있습니다."),
-	REVIEW_ALREADY_EXISTS(CONFLICT, "REVIEW_ALREADY_EXISTS", "이미 이 메뉴에 작성한 리뷰가 있습니다."),
+	REVIEW_CONTENT_REJECTED(
+			BAD_REQUEST,
+			"REVIEW_CONTENT_REJECTED",
+			"부적절하거나 개인정보로 보이는 표현이 포함되어 있어 등록할 수 없습니다."),
+	REVIEW_EDIT_PERIOD_EXPIRED(
+			FORBIDDEN,
+			"REVIEW_EDIT_PERIOD_EXPIRED",
+			"리뷰는 작성 후 24시간 이내에만 수정할 수 있습니다."),
 	REVIEW_NOT_FOUND(NOT_FOUND, "REVIEW_NOT_FOUND", "존재하지 않는 리뷰입니다."),
-	REVIEW_ACCESS_DENIED(FORBIDDEN, "REVIEW_ACCESS_DENIED", "리뷰를 수정하거나 삭제할 권한이 없습니다.");
+	REVIEW_ACCESS_DENIED(FORBIDDEN, "REVIEW_ACCESS_DENIED", "리뷰를 수정하거나 삭제할 권한이 없습니다."),
+	ALREADY_RECOMMENDED(CONFLICT, "REVIEW_ALREADY_RECOMMENDED", "이미 추천한 리뷰입니다."),
+	NOT_RECOMMENDED(NOT_FOUND, "REVIEW_NOT_RECOMMENDED", "추천하지 않은 리뷰입니다.");
 
 	private final HttpStatus httpStatus;
 	private final String code;

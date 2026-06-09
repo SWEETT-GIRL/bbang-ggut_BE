@@ -2,6 +2,7 @@ package sweetgirl.croissant.review.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -46,11 +47,12 @@ import sweetgirl.croissant.review.dto.response.ReviewPresignedUrlInfoResponse;
 import sweetgirl.croissant.review.dto.response.ReviewSummaryResponse;
 import sweetgirl.croissant.review.entity.Review;
 import sweetgirl.croissant.review.entity.ReviewImageFile;
+import sweetgirl.croissant.review.entity.ReviewRecommend;
 import sweetgirl.croissant.review.enums.ReviewSort;
 import sweetgirl.croissant.review.enums.TextureTag;
 import sweetgirl.croissant.review.exception.ReviewException;
 import sweetgirl.croissant.review.repository.ReviewImageFileRepository;
-import sweetgirl.croissant.review.repository.ReviewLikeRepository;
+import sweetgirl.croissant.review.repository.ReviewRecommendRepository;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 
 @Service
@@ -64,6 +66,7 @@ public class ReviewService {
 	private static final BigDecimal MIN_RATING = BigDecimal.valueOf(0.5);
 	private static final BigDecimal MAX_RATING = BigDecimal.valueOf(5.0);
 	private static final BigDecimal HALF_STEP_MULTIPLIER = BigDecimal.valueOf(2);
+	private static final long REVIEW_EDIT_LIMIT_DAYS = 1;
 	private static final Set<String> ALLOWED_IMAGE_MIME_TYPES = Set.of("image/jpeg", "image/png");
 
 	private final S3Service s3Service;
@@ -72,7 +75,8 @@ public class ReviewService {
 	private final MenuRepository menuRepository;
 	private final ReviewRepository reviewRepository;
 	private final ReviewImageFileRepository reviewImageFileRepository;
-	private final ReviewLikeRepository reviewLikeRepository;
+	private final ReviewRecommendRepository reviewRecommendRepository;
+	private final ObjectionableContentFilter objectionableContentFilter;
 
 	public ReviewSummaryResponse getReviewSummary(
 			Long menuId,
@@ -87,12 +91,12 @@ public class ReviewService {
 
 		List<Review> reviews = previewSize == 0
 			? List.of()
-			: findReviews(menuId, ReviewSort.from(sort), photoOnly, PageRequest.of(0, previewSize));
+			: findReviews(menuId, ReviewSort.from(sort), photoOnly, memberId, PageRequest.of(0, previewSize));
 
 		return new ReviewSummaryResponse(
 			menuId,
-			calculateAverageRating(menuId),
-			reviewRepository.countActiveByMenuId(menuId),
+			calculateAverageRating(menuId, memberId),
+			reviewRepository.countVisibleActiveByMenuId(menuId, memberId),
 			toReviewResponses(reviews, memberId));
 	}
 
@@ -108,20 +112,21 @@ public class ReviewService {
 		}
 		validateMenuExists(menuId);
 
-		List<Review> reviews = findReviews(menuId, ReviewSort.from(sort), photoOnly, PageRequest.of(page, size + 1));
+		List<Review> reviews = findReviews(menuId, ReviewSort.from(sort), photoOnly, memberId,
+			PageRequest.of(page, size + 1));
 		boolean hasNext = reviews.size() > size;
 		List<Review> pageReviews = hasNext ? reviews.subList(0, size) : reviews;
 
 		return new ReviewListResponse(
 			menuId,
-			calculateAverageRating(menuId),
-			reviewRepository.countActiveByMenuId(menuId),
+			calculateAverageRating(menuId, memberId),
+			reviewRepository.countVisibleActiveByMenuId(menuId, memberId),
 			toReviewResponses(pageReviews, memberId),
 			hasNext);
 	}
 
 	public ReviewDetailResponse getReviewDetail(Long reviewId, Long memberId) {
-		Review review = reviewRepository.findActiveByIdWithDetails(reviewId)
+		Review review = reviewRepository.findVisibleActiveByIdWithDetails(reviewId, memberId)
 			.orElseThrow(() -> new ReviewException(ReviewErrorCode.REVIEW_NOT_FOUND));
 
 		return toReviewDetailResponses(List.of(review), memberId).get(0);
@@ -140,6 +145,22 @@ public class ReviewService {
 		List<Review> pageReviews = hasNext ? reviews.subList(0, size) : reviews;
 
 		return new MyReviewListResponse(toReviewDetailResponses(pageReviews, memberId), hasNext);
+	}
+
+	public MyReviewListResponse getMemberReviews(Long memberId, Long viewerMemberId, int page, int size) {
+		if (page < 0 || size < 1) {
+			throw new IllegalArgumentException("page and size must be valid");
+		}
+		memberReader.getMember(memberId);
+
+		List<Review> reviews = reviewRepository.findVisibleActiveByMemberIdOrderByRecent(
+			memberId,
+			viewerMemberId,
+			PageRequest.of(page, size + 1));
+		boolean hasNext = reviews.size() > size;
+		List<Review> pageReviews = hasNext ? reviews.subList(0, size) : reviews;
+
+		return new MyReviewListResponse(toReviewDetailResponses(pageReviews, viewerMemberId), hasNext);
 	}
 
 	public ReviewPresignedUrlInfoResponse generateReviewPresignedUrls(
@@ -167,13 +188,10 @@ public class ReviewService {
 		Menu menu = menuRepository.findByIdWithDetails(menuId)
 			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
 
-		if (reviewRepository.existsByMemberIdAndMenuIdAndDeletedAtIsNull(memberId, menuId)) {
-			throw new ReviewException(ReviewErrorCode.REVIEW_ALREADY_EXISTS);
-		}
-
 		BigDecimal rating = validateRating(request.rating());
 		List<TextureTag> textureTags = validateTextureTags(request.textureTags());
 		String content = normalizeContent(request.content());
+		objectionableContentFilter.validate(content);
 		List<ReviewImageRequest> images = validateReviewImages(memberId, request.images());
 
 		Review review = reviewRepository.save(Review.builder()
@@ -198,10 +216,12 @@ public class ReviewService {
 	public ReviewDetailResponse updateReview(Long reviewId, Long memberId, ReviewUpdateRequest request) {
 		Member member = memberReader.getMember(memberId);
 		Review review = getOwnedActiveReview(reviewId, member.getId());
+		validateReviewEditable(review);
 
 		BigDecimal rating = validateRating(request.rating());
 		List<TextureTag> textureTags = validateTextureTags(request.textureTags());
 		String content = normalizeContent(request.content());
+		objectionableContentFilter.validate(content);
 
 		review.update(
 			rating,
@@ -219,20 +239,61 @@ public class ReviewService {
 	}
 
 	@Transactional
+	public void recommendReview(Long reviewId, Long memberId) {
+		Review review = reviewRepository.findActiveByIdWithDetails(reviewId)
+			.orElseThrow(() -> new ReviewException(ReviewErrorCode.REVIEW_NOT_FOUND));
+
+		if (reviewRecommendRepository.existsByMemberIdAndReviewId(memberId, reviewId)) {
+			throw new ReviewException(ReviewErrorCode.ALREADY_RECOMMENDED);
+		}
+
+		reviewRecommendRepository.save(ReviewRecommend.builder()
+			.review(review)
+			.member(memberReader.getMember(memberId))
+			.build());
+		reviewRepository.incrementRecommendCount(reviewId);
+	}
+
+	@Transactional
+	public void cancelReviewRecommend(Long reviewId, Long memberId) {
+		Review review = reviewRepository.findActiveByIdWithDetails(reviewId)
+			.orElseThrow(() -> new ReviewException(ReviewErrorCode.REVIEW_NOT_FOUND));
+
+		ReviewRecommend reviewRecommend = reviewRecommendRepository.findByMemberIdAndReviewId(memberId, reviewId)
+			.orElseThrow(() -> new ReviewException(ReviewErrorCode.NOT_RECOMMENDED));
+
+		reviewRecommendRepository.delete(reviewRecommend);
+		reviewRepository.decrementRecommendCount(reviewId);
+	}
+
+	@Transactional
 	public void deleteReview(Long reviewId, Long memberId) {
 		Member member = memberReader.getMember(memberId);
 		Review review = getOwnedActiveReview(reviewId, member.getId());
 
 		deleteReviewImages(review);
-		reviewLikeRepository.deleteByReviewId(review.getId());
+		reviewRecommendRepository.deleteByReviewId(review.getId());
 		review.softDelete();
 	}
 
-	private List<Review> findReviews(Long menuId, ReviewSort sort, boolean photoOnly, PageRequest pageRequest) {
-		if (sort == ReviewSort.LIKED) {
-			return reviewRepository.findActiveReviewsOrderByLiked(menuId, photoOnly, pageRequest);
+	private List<Review> findReviews(
+			Long menuId,
+			ReviewSort sort,
+			boolean photoOnly,
+			Long viewerMemberId,
+			PageRequest pageRequest) {
+		if (sort == ReviewSort.RECOMMENDED) {
+			return reviewRepository.findVisibleActiveReviewsOrderByRecommended(
+				menuId,
+				photoOnly,
+				viewerMemberId,
+				pageRequest);
 		}
-		return reviewRepository.findActiveReviewsOrderByRecent(menuId, photoOnly, pageRequest);
+		return reviewRepository.findVisibleActiveReviewsOrderByRecent(
+			menuId,
+			photoOnly,
+			viewerMemberId,
+			pageRequest);
 	}
 
 	private Review getOwnedActiveReview(Long reviewId, Long memberId) {
@@ -250,8 +311,8 @@ public class ReviewService {
 		}
 	}
 
-	private BigDecimal calculateAverageRating(Long menuId) {
-		List<BigDecimal> ratings = reviewRepository.findActiveRatingsByMenuId(menuId);
+	private BigDecimal calculateAverageRating(Long menuId, Long viewerMemberId) {
+		List<BigDecimal> ratings = reviewRepository.findVisibleActiveRatingsByMenuId(menuId, viewerMemberId);
 		return calculateAverage(ratings);
 	}
 
@@ -273,11 +334,11 @@ public class ReviewService {
 			.map(Review::getId)
 			.toList();
 		Map<Long, List<ReviewPhotoResponse>> photoMap = buildPhotoMap(reviewIds);
-		Set<Long> likedReviewIds = findLikedReviewIds(memberId, reviewIds);
+		Set<Long> recommendedReviewIds = findRecommendedReviewIds(memberId, reviewIds);
 		Map<Long, AuthorStats> authorStatsMap = buildAuthorStatsMap(reviews);
 
 		return reviews.stream()
-			.map(review -> toReviewResponse(review, photoMap, likedReviewIds, authorStatsMap))
+			.map(review -> toReviewResponse(review, memberId, photoMap, recommendedReviewIds, authorStatsMap))
 			.toList();
 	}
 
@@ -290,11 +351,11 @@ public class ReviewService {
 			.map(Review::getId)
 			.toList();
 		Map<Long, List<ReviewPhotoResponse>> photoMap = buildPhotoMap(reviewIds);
-		Set<Long> likedReviewIds = findLikedReviewIds(memberId, reviewIds);
+		Set<Long> recommendedReviewIds = findRecommendedReviewIds(memberId, reviewIds);
 		Map<Long, AuthorStats> authorStatsMap = buildAuthorStatsMap(reviews);
 
 		return reviews.stream()
-			.map(review -> toReviewDetailResponse(review, photoMap, likedReviewIds, authorStatsMap))
+			.map(review -> toReviewDetailResponse(review, memberId, photoMap, recommendedReviewIds, authorStatsMap))
 			.toList();
 	}
 
@@ -307,11 +368,11 @@ public class ReviewService {
 					Collectors.toList())));
 	}
 
-	private Set<Long> findLikedReviewIds(Long memberId, List<Long> reviewIds) {
+	private Set<Long> findRecommendedReviewIds(Long memberId, List<Long> reviewIds) {
 		if (memberId == null) {
 			return Collections.emptySet();
 		}
-		return new HashSet<>(reviewLikeRepository.findLikedReviewIds(memberId, reviewIds));
+		return new HashSet<>(reviewRecommendRepository.findRecommendedReviewIds(memberId, reviewIds));
 	}
 
 	private Map<Long, AuthorStats> buildAuthorStatsMap(List<Review> reviews) {
@@ -328,8 +389,9 @@ public class ReviewService {
 
 	private MenuReviewResponse toReviewResponse(
 			Review review,
+			Long viewerMemberId,
 			Map<Long, List<ReviewPhotoResponse>> photoMap,
-			Set<Long> likedReviewIds,
+			Set<Long> recommendedReviewIds,
 			Map<Long, AuthorStats> authorStatsMap) {
 		Long memberId = review.getMember().getId();
 		AuthorStats authorStats = authorStatsMap.getOrDefault(memberId, AuthorStats.empty());
@@ -342,9 +404,11 @@ public class ReviewService {
 			review.getFillingAmount(),
 			review.getTextureTags(),
 			review.getContent(),
-			review.getLikeCount(),
+			review.getRecommendCount(),
 			review.getCommentCount(),
-			likedReviewIds.contains(review.getId()),
+			recommendedReviewIds.contains(review.getId()),
+			canEditReview(review, viewerMemberId),
+			canDeleteReview(review, viewerMemberId),
 			new ReviewAuthorResponse(
 				memberId,
 				review.getMember().getNickname(),
@@ -358,8 +422,9 @@ public class ReviewService {
 
 	private ReviewDetailResponse toReviewDetailResponse(
 			Review review,
+			Long viewerMemberId,
 			Map<Long, List<ReviewPhotoResponse>> photoMap,
-			Set<Long> likedReviewIds,
+			Set<Long> recommendedReviewIds,
 			Map<Long, AuthorStats> authorStatsMap) {
 		Long memberId = review.getMember().getId();
 		AuthorStats authorStats = authorStatsMap.getOrDefault(memberId, AuthorStats.empty());
@@ -376,9 +441,11 @@ public class ReviewService {
 			review.getFillingAmount(),
 			review.getTextureTags(),
 			review.getContent(),
-			review.getLikeCount(),
+			review.getRecommendCount(),
 			review.getCommentCount(),
-			likedReviewIds.contains(review.getId()),
+			recommendedReviewIds.contains(review.getId()),
+			canEditReview(review, viewerMemberId),
+			canDeleteReview(review, viewerMemberId),
 			new ReviewAuthorResponse(
 				memberId,
 				review.getMember().getNickname(),
@@ -389,6 +456,25 @@ public class ReviewService {
 			photoMap.getOrDefault(review.getId(), List.of()),
 			review.getCreatedAt(),
 			review.getUpdatedAt());
+	}
+
+	private void validateReviewEditable(Review review) {
+		if (isReviewEditExpired(review)) {
+			throw new ReviewException(ReviewErrorCode.REVIEW_EDIT_PERIOD_EXPIRED);
+		}
+	}
+
+	private boolean canEditReview(Review review, Long viewerMemberId) {
+		return canDeleteReview(review, viewerMemberId) && !isReviewEditExpired(review);
+	}
+
+	private boolean canDeleteReview(Review review, Long viewerMemberId) {
+		return viewerMemberId != null && review.getMember().getId().equals(viewerMemberId);
+	}
+
+	private boolean isReviewEditExpired(Review review) {
+		LocalDateTime createdAt = review.getCreatedAt();
+		return createdAt != null && createdAt.plusDays(REVIEW_EDIT_LIMIT_DAYS).isBefore(LocalDateTime.now());
 	}
 
 	private BigDecimal toAverageRating(Double value) {

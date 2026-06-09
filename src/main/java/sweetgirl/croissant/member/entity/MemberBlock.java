@@ -1,5 +1,8 @@
-package sweetgirl.croissant.review.entity;
+package sweetgirl.croissant.member.entity;
 
+import java.time.LocalDateTime;
+
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -8,36 +11,36 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import sweetgirl.croissant.common.entity.BaseTimeEntity;
-import sweetgirl.croissant.member.entity.Member;
 
 @Entity
-@Table(name = "review_like", uniqueConstraints = @UniqueConstraint(name = "uk_review_like_member", columnNames = {
-	"review_id", "member_id"}))
+@Table(name = "member_block")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ReviewLike extends BaseTimeEntity {
+public class MemberBlock {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
 	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "review_id", nullable = false)
-	private Review review;
+	@JoinColumn(name = "blocker_id", nullable = false)
+	private Member blocker;
 
 	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "member_id", nullable = false)
-	private Member member;
+	@JoinColumn(name = "blocked_member_id", nullable = false)
+	private Member blockedMember;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private LocalDateTime createdAt;
 
 	@Builder
-	public ReviewLike(Review review, Member member) {
-		this.review = review;
-		this.member = member;
+	public MemberBlock(Member blocker, Member blockedMember) {
+		this.blocker = blocker;
+		this.blockedMember = blockedMember;
+		this.createdAt = LocalDateTime.now();
 	}
 }

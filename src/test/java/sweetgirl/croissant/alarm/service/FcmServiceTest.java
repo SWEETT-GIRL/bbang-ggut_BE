@@ -198,7 +198,7 @@ class FcmServiceTest {
 			.token("some-token")
 			.build();
 
-		given(fcmTokenRepository.findByToken("some-token")).willReturn(Optional.of(fcmToken));
+		given(fcmTokenRepository.findAllByToken("some-token")).willReturn(List.of(fcmToken));
 
 		fcmService.deactivateFcmToken("some-token");
 
@@ -206,9 +206,34 @@ class FcmServiceTest {
 	}
 
 	@Test
+	@DisplayName("deactivateFcmToken: 동일 토큰이 여러 row에 있으면 모두 비활성화한다")
+	void deactivateFcmToken_deactivatesAllTokens_whenTokenDuplicated() {
+		Member member = mock(Member.class);
+		FcmToken firstToken = FcmToken.builder()
+			.member(member)
+			.deviceId("device-001")
+			.deviceOs(DeviceOs.IOS)
+			.token("some-token")
+			.build();
+		FcmToken secondToken = FcmToken.builder()
+			.member(member)
+			.deviceId("device-002")
+			.deviceOs(DeviceOs.ANDROID)
+			.token("some-token")
+			.build();
+
+		given(fcmTokenRepository.findAllByToken("some-token")).willReturn(List.of(firstToken, secondToken));
+
+		fcmService.deactivateFcmToken("some-token");
+
+		assertThat(firstToken.isActive()).isFalse();
+		assertThat(secondToken.isActive()).isFalse();
+	}
+
+	@Test
 	@DisplayName("deactivateFcmToken: 토큰이 없으면 FCM_TOKEN_NOT_FOUND 예외를 던진다")
 	void deactivateFcmToken_throwsException_whenTokenNotFound() {
-		given(fcmTokenRepository.findByToken("invalid-token")).willReturn(Optional.empty());
+		given(fcmTokenRepository.findAllByToken("invalid-token")).willReturn(List.of());
 
 		assertThatThrownBy(() -> fcmService.deactivateFcmToken("invalid-token"))
 			.isInstanceOf(CustomException.class)
@@ -227,7 +252,7 @@ class FcmServiceTest {
 
 			fcmService.sendPushNotification("some-token", "제목", "내용", Map.of());
 
-			verify(fcmTokenRepository, never()).findByToken(any());
+			verify(fcmTokenRepository, never()).findAllByToken(any());
 		}
 	}
 
@@ -250,7 +275,7 @@ class FcmServiceTest {
 		try (MockedStatic<FirebaseMessaging> staticMock = mockStatic(FirebaseMessaging.class)) {
 			staticMock.when(FirebaseMessaging::getInstance).thenReturn(mockFirebaseMessaging);
 			given(mockFirebaseMessaging.send(any())).willThrow(exception);
-			given(fcmTokenRepository.findByToken("some-token")).willReturn(Optional.of(fcmToken));
+			given(fcmTokenRepository.findAllByToken("some-token")).willReturn(List.of(fcmToken));
 
 			fcmService.sendPushNotification("some-token", "제목", "내용", Map.of());
 
@@ -277,7 +302,7 @@ class FcmServiceTest {
 		try (MockedStatic<FirebaseMessaging> staticMock = mockStatic(FirebaseMessaging.class)) {
 			staticMock.when(FirebaseMessaging::getInstance).thenReturn(mockFirebaseMessaging);
 			given(mockFirebaseMessaging.send(any())).willThrow(exception);
-			given(fcmTokenRepository.findByToken("bad-token")).willReturn(Optional.of(fcmToken));
+			given(fcmTokenRepository.findAllByToken("bad-token")).willReturn(List.of(fcmToken));
 
 			fcmService.sendPushNotification("bad-token", "제목", "내용", Map.of());
 
@@ -300,7 +325,7 @@ class FcmServiceTest {
 			assertThatThrownBy(() -> fcmService.sendPushNotification("some-token", "제목", "내용", Map.of()))
 				.isInstanceOf(AlarmException.class);
 
-			verify(fcmTokenRepository, never()).findByToken(any());
+			verify(fcmTokenRepository, never()).findAllByToken(any());
 		}
 	}
 }

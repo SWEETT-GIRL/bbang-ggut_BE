@@ -7,6 +7,7 @@ import sweetgirl.croissant.alarm.entity.ReportNotification;
 public record ReportNotificationResponse(
 		Long id,
 		Long reportId,
+		Long moderationActionId,
 		String reportKind,
 		String action,
 		Long storeId,
@@ -21,6 +22,7 @@ public record ReportNotificationResponse(
 		return new ReportNotificationResponse(
 			notification.getId(),
 			notification.getReportId(),
+			notification.getModerationActionId(),
 			notification.getReportKind().name(),
 			notification.getAction().name(),
 			notification.getStore() != null ? notification.getStore().getId() : null,

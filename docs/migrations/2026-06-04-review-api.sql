@@ -55,12 +55,6 @@ CREATE TABLE IF NOT EXISTS review_like (
     CONSTRAINT uk_review_like_member UNIQUE (review_id, member_id)
 );
 
--- 한 회원은 같은 메뉴에 활성 리뷰를 하나만 작성할 수 있다.
--- soft delete 된 리뷰는 제외해 재작성 가능하게 둔다.
-CREATE UNIQUE INDEX IF NOT EXISTS uq_review_member_menu_active
-    ON review (member_id, menu_id)
-    WHERE deleted_at IS NULL;
-
 CREATE INDEX IF NOT EXISTS idx_review_menu_active_recent
     ON review (menu_id, created_at DESC, id DESC)
     WHERE deleted_at IS NULL;

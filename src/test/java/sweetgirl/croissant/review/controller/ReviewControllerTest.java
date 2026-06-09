@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -28,6 +29,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.exception.MemberException;
+import sweetgirl.croissant.review.code.ReviewErrorCode;
 import sweetgirl.croissant.review.dto.response.MenuReviewResponse;
 import sweetgirl.croissant.review.dto.response.MyReviewListResponse;
 import sweetgirl.croissant.review.dto.response.ReviewAuthorResponse;
@@ -39,6 +41,7 @@ import sweetgirl.croissant.review.dto.response.ReviewPresignedUrlInfo;
 import sweetgirl.croissant.review.dto.response.ReviewPresignedUrlInfoResponse;
 import sweetgirl.croissant.review.dto.response.ReviewSummaryResponse;
 import sweetgirl.croissant.review.enums.TextureTag;
+import sweetgirl.croissant.review.exception.ReviewException;
 import sweetgirl.croissant.review.service.ReviewService;
 
 @ExtendWith(MockitoExtension.class)
@@ -109,6 +112,19 @@ class ReviewControllerTest {
 	}
 
 	@Test
+	void getMemberReviews_returnsContentAndHasNext() throws Exception {
+		given(reviewService.getMemberReviews(eq(10L), isNull(), eq(0), eq(20)))
+			.willReturn(new MyReviewListResponse(List.of(reviewDetail()), false));
+
+		mockMvc.perform(get("/users/10/reviews"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true))
+			.andExpect(jsonPath("$.data.content[0].id").value(1))
+			.andExpect(jsonPath("$.data.content[0].author.id").value(10))
+			.andExpect(jsonPath("$.data.hasNext").value(false));
+	}
+
+	@Test
 	void getReviewPresignedUrls_returns401_whenMemberIdIsNull() throws Exception {
 		given(reviewService.generateReviewPresignedUrls(isNull(), any()))
 			.willThrow(new MemberException(MemberErrorCode.UNAUTHORIZED));
@@ -149,6 +165,23 @@ class ReviewControllerTest {
 	}
 
 	@Test
+	void createReview_returns400_whenContentRejected() throws Exception {
+		given(reviewService.createReview(eq(1L), isNull(), any()))
+			.willThrow(new ReviewException(ReviewErrorCode.REVIEW_CONTENT_REJECTED));
+
+		mockMvc.perform(post("/menus/1/reviews")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"rating\":4.5,\"repurchaseIntent\":\"yes\","
+				+ "\"sweetness\":\"medium\",\"fillingAmount\":\"full\","
+				+ "\"textureTags\":[\"crispy\"],\"content\":\"010-1234-5678\",\"images\":[]}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.code").value("REVIEW_CONTENT_REJECTED"))
+			.andExpect(jsonPath("$.message")
+				.value("부적절하거나 개인정보로 보이는 표현이 포함되어 있어 등록할 수 없습니다."));
+	}
+
+	@Test
 	void updateReview_returnsDetail() throws Exception {
 		given(reviewService.updateReview(eq(1L), isNull(), any()))
 			.willReturn(reviewDetail());
@@ -160,7 +193,39 @@ class ReviewControllerTest {
 				+ "\"textureTags\":[\"chewy\"],\"content\":\"수정했어요\",\"images\":[]}"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.id").value(1))
-			.andExpect(jsonPath("$.data.content").value("맛있어요"));
+			.andExpect(jsonPath("$.data.content").value("맛있어요"))
+			.andExpect(jsonPath("$.data.canEdit").value(true))
+			.andExpect(jsonPath("$.data.canDelete").value(true));
+	}
+
+	@Test
+	void updateReview_returns400_whenContentRejected() throws Exception {
+		given(reviewService.updateReview(eq(1L), isNull(), any()))
+			.willThrow(new ReviewException(ReviewErrorCode.REVIEW_CONTENT_REJECTED));
+
+		mockMvc.perform(patch("/reviews/1")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"rating\":4.0,\"repurchaseIntent\":\"yes\","
+				+ "\"sweetness\":\"medium\",\"fillingAmount\":\"full\","
+				+ "\"textureTags\":[\"chewy\"],\"content\":\"owner@example.com\",\"images\":[]}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.code").value("REVIEW_CONTENT_REJECTED"));
+	}
+
+	@Test
+	void updateReview_returns403_whenEditPeriodExpired() throws Exception {
+		given(reviewService.updateReview(eq(1L), isNull(), any()))
+			.willThrow(new ReviewException(ReviewErrorCode.REVIEW_EDIT_PERIOD_EXPIRED));
+
+		mockMvc.perform(patch("/reviews/1")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"rating\":4.0,\"repurchaseIntent\":\"yes\","
+				+ "\"sweetness\":\"medium\",\"fillingAmount\":\"full\","
+				+ "\"textureTags\":[\"chewy\"],\"content\":\"수정했어요\",\"images\":[]}"))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.code").value("REVIEW_EDIT_PERIOD_EXPIRED"));
 	}
 
 	@Test
@@ -168,6 +233,53 @@ class ReviewControllerTest {
 		mockMvc.perform(delete("/reviews/1"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true));
+	}
+
+	@Test
+	void recommendReview_returns200() throws Exception {
+		mockMvc.perform(post("/reviews/1/recommend"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
+	}
+
+	@Test
+	void recommendReview_returns404_whenReviewNotFound() throws Exception {
+		willThrow(new ReviewException(ReviewErrorCode.REVIEW_NOT_FOUND))
+			.given(reviewService).recommendReview(eq(99L), isNull());
+
+		mockMvc.perform(post("/reviews/99/recommend"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.code").value("REVIEW_NOT_FOUND"));
+	}
+
+	@Test
+	void recommendReview_returns409_whenAlreadyRecommended() throws Exception {
+		willThrow(new ReviewException(ReviewErrorCode.ALREADY_RECOMMENDED))
+			.given(reviewService).recommendReview(eq(1L), isNull());
+
+		mockMvc.perform(post("/reviews/1/recommend"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.code").value("REVIEW_ALREADY_RECOMMENDED"));
+	}
+
+	@Test
+	void cancelReviewRecommend_returns200() throws Exception {
+		mockMvc.perform(delete("/reviews/1/recommend"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
+	}
+
+	@Test
+	void cancelReviewRecommend_returns404_whenNotRecommended() throws Exception {
+		willThrow(new ReviewException(ReviewErrorCode.NOT_RECOMMENDED))
+			.given(reviewService).cancelReviewRecommend(eq(1L), isNull());
+
+		mockMvc.perform(delete("/reviews/1/recommend"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.code").value("REVIEW_NOT_RECOMMENDED"));
 	}
 
 	private MenuReviewResponse review() {
@@ -182,6 +294,8 @@ class ReviewControllerTest {
 			7,
 			0,
 			true,
+			false,
+			false,
 			new ReviewAuthorResponse(10L, "단팥", 3L, BigDecimal.valueOf(4.0), null, null),
 			List.of(new ReviewPhotoResponse(100L, "reviews/members/10/images/a")),
 			LocalDateTime.of(2026, 6, 4, 10, 0));
@@ -202,6 +316,8 @@ class ReviewControllerTest {
 			"맛있어요",
 			7,
 			0,
+			true,
+			true,
 			true,
 			new ReviewAuthorResponse(10L, "단팥", 3L, BigDecimal.valueOf(4.0), null, null),
 			List.of(new ReviewPhotoResponse(100L, "reviews/members/10/images/a")),

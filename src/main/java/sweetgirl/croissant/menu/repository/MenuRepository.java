@@ -18,7 +18,7 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
 	@Query("""
 			SELECT m.store.id AS storeId, m.id AS menuId, m.name AS name, m.price AS price
 			FROM Menu m WHERE m.store.id IN :storeIds AND m.deletedAt IS NULL
-			ORDER BY m.store.id ASC, m.recommendCount DESC
+			ORDER BY m.store.id ASC, m.likeCount DESC
 			""")
 	List<StoreMenuProjection> findTopRecommendedMenusByStoreIds(@Param("storeIds") List<Long> storeIds);
 
@@ -34,9 +34,9 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
 			SELECT m FROM Menu m
 			JOIN FETCH m.menuCategory
 			WHERE m.store.id = :storeId AND m.deletedAt IS NULL
-			ORDER BY m.recommendCount DESC
+			ORDER BY m.likeCount DESC
 			""")
-	List<Menu> findByStoreIdOrderByRecommendCountDesc(@Param("storeId") Long storeId);
+	List<Menu> findByStoreIdOrderByLikeCountDesc(@Param("storeId") Long storeId);
 
 	@Query(value = "SELECT m FROM Menu m JOIN FETCH m.menuCategory JOIN FETCH m.store "
 		+ "ORDER BY m.store.id ASC, m.createdAt DESC", countQuery = "SELECT COUNT(m) FROM Menu m")
@@ -57,6 +57,18 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
 			GROUP BY m.store.id
 			""")
 	List<Object[]> countActiveMenusByStoreIds(@Param("storeIds") List<Long> storeIds);
+
+	@Modifying
+	@Query("UPDATE Menu m SET m.likeCount = m.likeCount + 1 WHERE m.id = :menuId")
+	void incrementLikeCount(@Param("menuId") Long menuId);
+
+	@Modifying
+	@Query("""
+			UPDATE Menu m
+			SET m.likeCount = CASE WHEN m.likeCount > 0 THEN m.likeCount - 1 ELSE 0 END
+			WHERE m.id = :menuId
+			""")
+	void decrementLikeCount(@Param("menuId") Long menuId);
 
 	// '메뉴까지 갈아엎기' — store 의 모든 활성 메뉴를 soft-delete (deletedAt 설정).
 	@Modifying

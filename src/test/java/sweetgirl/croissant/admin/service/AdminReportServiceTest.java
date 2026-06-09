@@ -12,6 +12,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
@@ -24,14 +25,18 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import sweetgirl.croissant.admin.code.AdminErrorCode;
 import sweetgirl.croissant.admin.dto.request.AdminModerationActionRequest;
 import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
+import sweetgirl.croissant.admin.dto.response.AdminHighPriorityReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminModerationActionResponse;
 import sweetgirl.croissant.admin.dto.response.AdminUserReportDetailResponse;
+import sweetgirl.croissant.admin.dto.response.AdminUserReportStatsResponse;
 import sweetgirl.croissant.admin.exception.AdminException;
 import sweetgirl.croissant.alarm.enums.ReportKind;
 import sweetgirl.croissant.alarm.enums.ReportNotificationAction;
@@ -48,8 +53,11 @@ import sweetgirl.croissant.menu.repository.MenuAddReportImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuAddReportRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
+import sweetgirl.croissant.report.dto.projection.UserReportMemberCountProjection;
+import sweetgirl.croissant.report.dto.projection.UserReportTargetCountProjection;
 import sweetgirl.croissant.report.entity.ModerationAction;
 import sweetgirl.croissant.report.entity.UserReport;
+import sweetgirl.croissant.report.enums.ModerationTargetType;
 import sweetgirl.croissant.report.enums.ReportReasonType;
 import sweetgirl.croissant.report.enums.ReportTargetType;
 import sweetgirl.croissant.report.enums.UserReportAction;
@@ -216,6 +224,96 @@ class AdminReportServiceTest {
 	}
 
 	@Test
+	@DisplayName("UserReport 통계: 신고 상태와 pending 기준 자동 후보 수를 반환한다")
+	void getUserReportStats_returnsCountsAndCandidateStats() {
+		given(userReportRepository.count()).willReturn(10L);
+		given(userReportRepository.countByStatus(UserReportStatus.PENDING)).willReturn(4L);
+		given(userReportRepository.countByStatus(UserReportStatus.ACCEPTED)).willReturn(3L);
+		given(userReportRepository.countByStatus(UserReportStatus.REJECTED)).willReturn(3L);
+		given(userReportRepository.countByCreatedAtGreaterThanEqual(any(LocalDateTime.class))).willReturn(5L);
+		given(userReportRepository.findTargetReporterCountsSince(
+			eq(ReportTargetType.REVIEW), any(LocalDateTime.class), eq(UserReportStatus.PENDING)))
+			.willReturn(List.of(
+				targetCount(ReportTargetType.REVIEW, 101L, 3L),
+				targetCount(ReportTargetType.REVIEW, 102L, 2L)));
+		given(userReportRepository.findSensitiveReasonReporterCounts(
+			anyList(), eq(UserReportStatus.PENDING)))
+			.willReturn(List.of(
+				targetCount(ReportTargetType.REVIEW, 101L, 2L),
+				targetCount(ReportTargetType.MEMBER_PROFILE, 20L, 1L)));
+		given(userReportRepository.findMemberReviewTargetCountsSince(
+			eq(ReportTargetType.REVIEW), any(LocalDateTime.class), eq(UserReportStatus.PENDING)))
+			.willReturn(List.of(
+				memberCount(20L, 3L),
+				memberCount(21L, 2L)));
+
+		AdminUserReportStatsResponse response = adminReportService.getUserReportStats();
+
+		assertThat(response.totalReportCount()).isEqualTo(10);
+		assertThat(response.pendingReportCount()).isEqualTo(4);
+		assertThat(response.last24HoursReportCount()).isEqualTo(5);
+		assertThat(response.pendingReviewHideCandidateCount()).isEqualTo(1);
+		assertThat(response.pendingSensitiveReasonPriorityCount()).isEqualTo(1);
+		assertThat(response.pendingMemberReviewCandidateCount()).isEqualTo(1);
+		assertThat(response.lookbackHours()).isEqualTo(24);
+		assertThat(response.sensitiveReasonTypes()).containsExactly("PRIVACY", "HATE", "SEXUAL");
+	}
+
+	@Test
+	@DisplayName("High-priority 신고 큐: 자동 후보 신고만 우선순위 순서로 반환한다")
+	void getHighPriorityReports_returnsOnlyCandidateReportsOrderedByPriority() {
+		Member reporter = member(10L);
+		Member reportedMember = member(20L);
+		UserReport sensitiveReport = userReport(
+			1L,
+			reporter,
+			reportedMember,
+			ReportTargetType.REVIEW,
+			101L,
+			ReportReasonType.PRIVACY,
+			LocalDateTime.of(2026, 6, 5, 12, 0));
+		UserReport normalReport = userReport(
+			2L,
+			reporter,
+			member(21L),
+			ReportTargetType.REVIEW,
+			102L,
+			ReportReasonType.ABUSE,
+			LocalDateTime.of(2026, 6, 5, 13, 0));
+		given(userReportRepository.findTargetReporterCountsSince(
+			eq(ReportTargetType.REVIEW), any(LocalDateTime.class), eq(UserReportStatus.PENDING)))
+			.willReturn(List.of(
+				targetCount(ReportTargetType.REVIEW, 101L, 3L),
+				targetCount(ReportTargetType.REVIEW, 102L, 1L)));
+		given(userReportRepository.findSensitiveReasonReporterCounts(
+			anyList(), eq(UserReportStatus.PENDING)))
+			.willReturn(List.of(targetCount(ReportTargetType.REVIEW, 101L, 2L)));
+		given(userReportRepository.findMemberReviewTargetCountsSince(
+			eq(ReportTargetType.REVIEW), any(LocalDateTime.class), eq(UserReportStatus.PENDING)))
+			.willReturn(List.of(memberCount(20L, 3L)));
+		given(userReportRepository.findByStatus(UserReportStatus.PENDING))
+			.willReturn(List.of(normalReport, sensitiveReport));
+
+		Page<AdminHighPriorityReportResponse> response = adminReportService.getHighPriorityReports(
+			"PENDING", 0, 20);
+
+		assertThat(response.getTotalElements()).isEqualTo(1);
+		AdminHighPriorityReportResponse report = response.getContent().get(0);
+		assertThat(report.reportId()).isEqualTo(1L);
+		assertThat(report.highPriority()).isTrue();
+		assertThat(report.temporaryHideCandidate()).isTrue();
+		assertThat(report.sensitiveReasonPriority()).isTrue();
+		assertThat(report.memberReviewCandidate()).isTrue();
+		assertThat(report.reviewReportCount24h()).isEqualTo(3);
+		assertThat(report.sensitiveReasonReportCount()).isEqualTo(2);
+		assertThat(report.memberReviewReportCount24h()).isEqualTo(3);
+		assertThat(report.priorityReasons()).containsExactly(
+			"SENSITIVE_REASON_PRIORITY",
+			"TEMPORARY_HIDE_CANDIDATE",
+			"MEMBER_REVIEW_CANDIDATE");
+	}
+
+	@Test
 	@DisplayName("ModerationAction HIDE_REVIEW: 승인된 리뷰 신고이면 리뷰를 숨기고 이력을 저장한다")
 	void applyModerationAction_hideReview_hidesReviewAndRecordsAction() {
 		Member reportedMember = mock(Member.class);
@@ -242,11 +340,13 @@ class AdminReportServiceTest {
 		verify(review).hide("욕설 포함", null);
 		verify(report).applyModerationAction(UserReportAction.HIDE_REVIEW);
 		verify(moderationActionRepository).save(argThat(action -> action.getReport() == report
-			&& action.getTargetType() == ReportTargetType.REVIEW
+			&& action.getTargetType() == ModerationTargetType.REVIEW
 			&& action.getTargetId().equals(123L)
 			&& action.getMember() == reportedMember
 			&& action.getAction() == UserReportAction.HIDE_REVIEW
 			&& action.getReason().equals("욕설 포함")));
+		verify(reportNotificationService).notifyModerationAction(argThat(action -> action.getReport() == report
+			&& action.getAction() == UserReportAction.HIDE_REVIEW));
 	}
 
 	@Test
@@ -274,6 +374,7 @@ class AdminReportServiceTest {
 		verify(review).softDelete();
 		verify(review, never()).hide(anyString(), any());
 		verify(report).applyModerationAction(UserReportAction.DELETE_REVIEW);
+		verify(reportNotificationService, never()).notifyModerationAction(any());
 	}
 
 	@Test
@@ -343,25 +444,27 @@ class AdminReportServiceTest {
 		Member reporter = mock(Member.class);
 		MenuCategory category = mock(MenuCategory.class);
 
-		MenuAddReport report = mock(MenuAddReport.class);
-		given(report.getId()).willReturn(11L);
-		given(report.getStatus()).willReturn(StoreReportStatus.PENDING);
-		given(report.getStore()).willReturn(store);
-		given(report.getMember()).willReturn(reporter);
-		given(report.getMenuCategory()).willReturn(category);
-		given(report.getName()).willReturn("크림빵");
-		given(report.getPrice()).willReturn(3500);
-		given(report.getDescription()).willReturn("부드러운 크림빵");
+		MenuAddReport report = MenuAddReport.builder()
+			.store(store)
+			.member(reporter)
+			.menuCategory(category)
+			.name("크림빵")
+			.price(3500)
+			.description("부드러운 크림빵")
+			.build();
+		ReflectionTestUtils.setField(report, "id", 11L);
 		given(menuAddReportRepository.findById(11L)).willReturn(Optional.of(report));
 
 		Menu newMenu = mock(Menu.class);
 		given(newMenu.getId()).willReturn(99L);
 		given(menuRepository.save(any(Menu.class))).willReturn(newMenu);
 
-		MenuAddReportImageFile img = mock(MenuAddReportImageFile.class);
-		given(img.getAwsKey()).willReturn("menu-add-reports/temp/abc/uuid-file");
-		given(img.getName()).willReturn("file.jpg");
-		given(img.getMimeType()).willReturn(MimeType.IMAGE_JPEG);
+		MenuAddReportImageFile img = MenuAddReportImageFile.builder()
+			.menuAddReport(report)
+			.name("file.jpg")
+			.mimeType(MimeType.IMAGE_JPEG)
+			.awsKey("menu-add-reports/temp/abc/uuid-file")
+			.build();
 		given(menuAddReportImageFileRepository.findByMenuAddReportIdIn(List.of(11L)))
 			.willReturn(List.of(img));
 
@@ -371,7 +474,7 @@ class AdminReportServiceTest {
 		verify(s3Service).copyObject("menu-add-reports/temp/abc/uuid-file", "menus/99/uuid-file");
 		verify(s3Service).deleteObject("menu-add-reports/temp/abc/uuid-file");
 		verify(menuImageFileRepository).saveAll(anyList());
-		verify(report).approve();
+		assertThat(report.getStatus()).isEqualTo(StoreReportStatus.ACCEPTED);
 		verify(reportNotificationService).notifyReportResult(
 			eq(reporter), eq(store), eq(11L), eq(ReportKind.MENU_ADD_REPORT),
 			eq(ReportNotificationAction.APPROVED), anyString());
@@ -500,10 +603,12 @@ class AdminReportServiceTest {
 		given(storeImageFileRepository.findByStoreIdOrderByDisplayOrderAscIdAsc(5L))
 			.willReturn(List.of());
 
-		StoreReportImageFile src = mock(StoreReportImageFile.class);
-		given(src.getAwsKey()).willReturn("reports/stores/5/members/9/images/key-a");
-		given(src.getName()).willReturn("a.jpg");
-		given(src.getMimeType()).willReturn(MimeType.IMAGE_JPEG);
+		StoreReportImageFile src = StoreReportImageFile.builder()
+			.storeReport(report)
+			.name("a.jpg")
+			.mimeType(MimeType.IMAGE_JPEG)
+			.awsKey("reports/stores/5/members/9/images/key-a")
+			.build();
 		given(storeReportImageFileRepository.findByStoreReportIdIn(List.of(70L)))
 			.willReturn(List.of(src));
 
@@ -546,10 +651,12 @@ class AdminReportServiceTest {
 			.willReturn(List.of(existing));
 		given(menuImageFileRepository.findImagesByMenuId(200L)).willReturn(List.of());
 
-		StoreReportImageFile src = mock(StoreReportImageFile.class);
-		given(src.getAwsKey()).willReturn("reports/stores/6/menus/200/members/9/key-m");
-		given(src.getName()).willReturn("m.jpg");
-		given(src.getMimeType()).willReturn(MimeType.IMAGE_JPEG);
+		StoreReportImageFile src = StoreReportImageFile.builder()
+			.storeReport(report)
+			.name("m.jpg")
+			.mimeType(MimeType.IMAGE_JPEG)
+			.awsKey("reports/stores/6/menus/200/members/9/key-m")
+			.build();
 		given(storeReportImageFileRepository.findByStoreReportIdIn(List.of(80L)))
 			.willReturn(List.of(src));
 
@@ -563,31 +670,33 @@ class AdminReportServiceTest {
 	}
 
 	@Test
-	@DisplayName("UserReport ACCEPT: 신고 상태만 승인 처리하고 제보 알림은 발송하지 않는다")
-	void userReport_accept_updatesStatusOnly() {
+	@DisplayName("UserReport ACCEPT: 신고 상태를 승인 처리하고 신고자에게 결과 알림을 발송한다")
+	void userReport_accept_updatesStatusAndNotifiesReporter() {
 		UserReport report = mock(UserReport.class);
 		given(report.getStatus()).willReturn(UserReportStatus.PENDING);
-		given(userReportRepository.findById(31L)).willReturn(Optional.of(report));
+		given(userReportRepository.findByIdWithMembers(31L)).willReturn(Optional.of(report));
 
 		adminReportService.reviewReport(31L, new AdminReportReviewRequest("USER_REPORT", "ACCEPT"));
 
 		verify(report).accept();
 		verify(report, never()).reject();
+		verify(reportNotificationService).notifyUserReportResult(report);
 		verify(reportNotificationService, never()).notifyReportResult(
 			any(), any(), any(), any(), any(), anyString());
 	}
 
 	@Test
-	@DisplayName("UserReport REJECT: 신고 상태만 거절 처리하고 제보 알림은 발송하지 않는다")
-	void userReport_reject_updatesStatusOnly() {
+	@DisplayName("UserReport REJECT: 신고 상태를 거절 처리하고 신고자에게 결과 알림을 발송한다")
+	void userReport_reject_updatesStatusAndNotifiesReporter() {
 		UserReport report = mock(UserReport.class);
 		given(report.getStatus()).willReturn(UserReportStatus.PENDING);
-		given(userReportRepository.findById(32L)).willReturn(Optional.of(report));
+		given(userReportRepository.findByIdWithMembers(32L)).willReturn(Optional.of(report));
 
 		adminReportService.reviewReport(32L, new AdminReportReviewRequest("USER_REPORT", "REJECT"));
 
 		verify(report).reject();
 		verify(report, never()).accept();
+		verify(reportNotificationService).notifyUserReportResult(report);
 		verify(reportNotificationService, never()).notifyReportResult(
 			any(), any(), any(), any(), any(), anyString());
 	}
@@ -623,5 +732,69 @@ class AdminReportServiceTest {
 		assertThatThrownBy(() -> adminReportService.reviewReport(1L,
 			new AdminReportReviewRequest("STORE_REPORT", "MAYBE")))
 			.isInstanceOf(AdminException.class);
+	}
+
+	private Member member(Long id) {
+		Member member = mock(Member.class);
+		given(member.getId()).willReturn(id);
+		return member;
+	}
+
+	private UserReport userReport(
+			Long id,
+			Member reporter,
+			Member reportedMember,
+			ReportTargetType targetType,
+			Long targetId,
+			ReportReasonType reasonType,
+			LocalDateTime createdAt) {
+		UserReport report = mock(UserReport.class);
+		given(report.getId()).willReturn(id);
+		given(report.getReporter()).willReturn(reporter);
+		given(report.getReportedMember()).willReturn(reportedMember);
+		given(report.getTargetType()).willReturn(targetType);
+		given(report.getTargetId()).willReturn(targetId);
+		given(report.getReasonType()).willReturn(reasonType);
+		given(report.getReasonDetail()).willReturn("신고 사유");
+		given(report.getStatus()).willReturn(UserReportStatus.PENDING);
+		given(report.getModerationAction()).willReturn(UserReportAction.NONE);
+		given(report.getCreatedAt()).willReturn(createdAt);
+		return report;
+	}
+
+	private UserReportTargetCountProjection targetCount(
+			ReportTargetType targetType,
+			Long targetId,
+			Long reporterCount) {
+		return new UserReportTargetCountProjection() {
+			@Override
+			public ReportTargetType getTargetType() {
+				return targetType;
+			}
+
+			@Override
+			public Long getTargetId() {
+				return targetId;
+			}
+
+			@Override
+			public Long getReporterCount() {
+				return reporterCount;
+			}
+		};
+	}
+
+	private UserReportMemberCountProjection memberCount(Long reportedMemberId, Long reviewTargetCount) {
+		return new UserReportMemberCountProjection() {
+			@Override
+			public Long getReportedMemberId() {
+				return reportedMemberId;
+			}
+
+			@Override
+			public Long getReviewTargetCount() {
+				return reviewTargetCount;
+			}
+		};
 	}
 }

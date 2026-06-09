@@ -27,6 +27,30 @@
 - 재검토 가능성: 콘텐츠 삭제, 프로필 초기화, 계정 제한 이상의 조치는 사용자가 이의제기할 수 있어야 한다.
 - 악용 방지: 허위 신고를 반복하는 회원은 신고 기능 제한 또는 계정 제재 대상이 된다.
 
+## 사용자 차단
+
+사용자는 리뷰 작성자 또는 공개 프로필 작성자를 직접 차단할 수 있다. 차단은 신고/제재와 별개의 개인화 안전 기능이며,
+운영팀 검토 없이 즉시 본인 화면에만 적용된다.
+
+현재 구현된 차단 API:
+
+```http
+POST /blocks
+DELETE /blocks/{blockedMemberId}
+GET /blocks?page=0&size=20
+```
+
+운영 정책:
+
+- 자기 자신은 차단할 수 없다.
+- 이미 차단한 사용자를 다시 차단하면 기존 차단 정보를 반환한다.
+- 차단 해제는 대상 차단 row가 없어도 성공 처리한다.
+- 차단한 작성자의 리뷰는 내 리뷰 요약 preview, 리뷰 목록, 리뷰 상세에서 숨긴다.
+- 차단한 작성자의 리뷰는 내 화면의 평균 평점과 리뷰 수 계산에서 제외한다.
+- 비로그인 사용자의 리뷰 조회 결과는 차단 관계와 무관하게 유지한다.
+- 내가 쓴 리뷰 목록은 차단 상태와 무관하게 유지한다.
+- 프로필 상세 화면이 공개되면 차단한 사용자의 프로필도 내 화면에서 숨긴다.
+
 ## 신고 대상
 
 현재 API에서 허용하는 대상:
@@ -128,14 +152,19 @@ S3 이상은 신고 접수 수와 무관하게 단일 신고만으로 선조치�
 6. 조치 대상자에게 사유와 이의제기 경로를 안내한다.
 7. 신고자에게는 상세 제재 내용 없이 처리 완료 여부만 안내한다.
 
-현재 구현된 관리자 API는 신고 검수, 리뷰 moderation action, 회원 프로필 초기화, 회원 제한 생성을 담당한다.
+현재 구현된 관리자 API는 신고 검수, 리뷰 moderation action, 회원 프로필 초기화, 회원 제한, 이의제기 검수,
+자동 후보 큐와 통계 조회를 담당한다.
 
 ```http
 GET /api/admin/reports?kind=USER_REPORT&status=PENDING&page=0&size=20
+GET /api/admin/reports/stats
+GET /api/admin/reports/high-priority?status=PENDING&page=0&size=20
 PATCH /api/admin/reports/{reportId}
 POST /api/admin/reports/{reportId}/moderation-actions
 POST /api/admin/members/{memberId}/profile-reset
 POST /api/admin/members/{memberId}/restrictions
+GET /api/admin/moderation-appeals?status=PENDING&page=0&size=20
+PATCH /api/admin/moderation-appeals/{appealId}
 ```
 
 ```json
@@ -229,8 +258,12 @@ POST /api/admin/members/{memberId}/restrictions
 결정에 동의하지 않는 경우 30일 이내에 이의제기를 요청할 수 있습니다.
 ```
 
+## 리뷰 수정 정책
+
+리뷰는 작성 후 24시간 이내에만 수정할 수 있다. 24시간이 지난 리뷰는 수정 요청을 거부하고,
+프론트는 `canEdit=false`, `canDelete=true` 상태를 기준으로 삭제 액션만 노출한다.
+
 ## 다음 구현 항목
 
-- 신고 결과 알림 추가: 신고자와 피신고자에게 서로 다른 수준의 알림 전송
-- 이의제기 테이블/API 추가
-- 차단 기능 추가: 댓글/프로필 페이지가 생기기 전까지는 보류 가능
+- 자동 숨김 feature flag와 운영 대시보드 지표 추가
+- 허위 신고/신고 악용 감지 및 신고 기능 제한 추가

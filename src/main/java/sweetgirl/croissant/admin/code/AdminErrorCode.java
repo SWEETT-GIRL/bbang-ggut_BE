@@ -28,7 +28,11 @@ public enum AdminErrorCode implements BaseErrorCode {
 			"ADMIN400_6",
 			"restriction type은 WARNING, WRITE_RESTRICTED, PROFILE_RESTRICTED, SUSPENDED 중 하나여야 합니다."),
 	MEMBER_RESTRICTION_INVALID_DURATION(BAD_REQUEST, "ADMIN400_7", "durationDays는 1 이상이어야 합니다."),
+	APPEAL_INVALID_ACTION(BAD_REQUEST, "ADMIN400_8", "action은 ACCEPT 또는 REJECT여야 합니다."),
+	APPEAL_INVALID_STATUS(BAD_REQUEST, "ADMIN400_9", "올바른 이의제기 상태가 아닙니다."),
 	REPORT_TARGET_NOT_FOUND(NOT_FOUND, "ADMIN404_2", "조치 대상을 찾을 수 없습니다."),
+	APPEAL_NOT_FOUND(NOT_FOUND, "ADMIN404_3", "이의제기를 찾을 수 없습니다."),
+	APPEAL_ALREADY_REVIEWED(CONFLICT, "ADMIN409_3", "이미 처리된 이의제기입니다."),
 	REPORT_PAYLOAD_INVALID(INTERNAL_SERVER_ERROR, "ADMIN500_1", "제보 데이터 파싱에 실패했습니다.");
 
 	private final HttpStatus httpStatus;
