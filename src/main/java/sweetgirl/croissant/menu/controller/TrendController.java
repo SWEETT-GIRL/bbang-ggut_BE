@@ -28,4 +28,11 @@ public class TrendController {
 			@RequestParam double lng) {
 		return ResponseEntity.ok(ApiResponse.ok(trendService.getTrend(lat, lng)));
 	}
+
+	@Operation(summary = "지역 선택 기반 유명 메뉴 & 핫 빵집 조회")
+	@GetMapping("/select")
+	public ResponseEntity<ApiResponse<RegionTrendResponse>> getSelectedTrend(
+			@RequestParam String region) {
+		return ResponseEntity.ok(ApiResponse.ok(trendService.getTrendByRegion(region)));
+	}
 }

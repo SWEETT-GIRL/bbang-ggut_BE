@@ -12,8 +12,10 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.external.kakao.client.KakaoGeoClient;
 import sweetgirl.croissant.external.kakao.dto.KakaoCoordToAddressResponse;
 import sweetgirl.croissant.external.kakao.dto.KakaoCoordToRegionResponse;
+import sweetgirl.croissant.menu.code.MenuErrorCode;
 import sweetgirl.croissant.menu.dto.response.RegionTrendResponse;
 import sweetgirl.croissant.menu.entity.FamousMenuByRegion;
+import sweetgirl.croissant.menu.exception.MenuException;
 import sweetgirl.croissant.menu.repository.FamousMenuByRegionRepository;
 import sweetgirl.croissant.store.entity.HotStoreRanking;
 import sweetgirl.croissant.store.entity.StoreImageFile;
@@ -44,6 +46,20 @@ public class TrendService {
 			return new RegionTrendResponse(null, List.of());
 		}
 
+		return buildTrendResponse(region3rd);
+	}
+
+	public RegionTrendResponse getTrendByRegion(String region) {
+		Region3rd region3rd;
+		try {
+			region3rd = Region3rd.valueOf(region);
+		} catch (IllegalArgumentException e) {
+			throw new MenuException(MenuErrorCode.INVALID_REGION);
+		}
+		return buildTrendResponse(region3rd);
+	}
+
+	private RegionTrendResponse buildTrendResponse(Region3rd region3rd) {
 		List<FamousMenuByRegion> famousMenus = famousMenuByRegionRepository.findByRegion3rd(region3rd);
 		if (famousMenus.isEmpty()) {
 			return new RegionTrendResponse(region3rd.name(), List.of());
