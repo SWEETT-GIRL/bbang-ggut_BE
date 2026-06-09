@@ -138,6 +138,16 @@ public class AdminStoreController {
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
+	@Operation(summary = "네이버 백필 시도 마킹", description = "placeId 는 있지만 메뉴/사진이 비어있는 가게를 백필 크롤러가 "
+		+ "처리한 뒤 호출합니다. 크롤 결과가 없어도 최근 시도 항목을 백필 큐에서 잠시 제외해 무한 재처리를 막습니다.")
+	@PostMapping("/{storeId}/naver-backfill-attempted")
+	public ResponseEntity<ApiResponse<Void>> markNaverBackfillAttempted(
+			@Parameter(description = "가게 ID") @PathVariable Long storeId,
+			@Parameter(description = "백필 모드(photos | enrich-backfill)") @RequestParam String mode) {
+		adminStoreService.markNaverBackfillAttempted(storeId, mode);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
 	@Operation(summary = "네이버 매칭 후보 저장", description = "Python 크롤러가 매칭 실패 시 검색된 후보들을 저장. "
 		+ "기존 후보는 전부 삭제되고 새로 교체. 어드민이 '후보 보기' UI 에서 선택해 수동 매칭 가능.")
 	@PostMapping("/{storeId}/naver-enrich-candidates")

@@ -7,6 +7,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.locationtech.jts.geom.Coordinate;
@@ -192,8 +193,12 @@ public class AdminStoreService {
 
 	public Page<AdminNaverEnrichQueueItem> getPhotoBackfillQueue(
 			Pageable pageable, NaverEnrichPartition partition) {
+		Set<Long> excludedIds = naverEnrichOrchestrator.getPhotoBackfillAttemptedStoreIds();
 		Page<Store> stores = storeRepository.findMatchedWithoutPhotos(
-			NaverEnrichPartition.valueOfNullable(partition), pageable);
+			queryExcludedIds(excludedIds),
+			excludedIds.isEmpty(),
+			NaverEnrichPartition.valueOfNullable(partition),
+			pageable);
 		List<Long> storeIds = stores.getContent().stream().map(Store::getId).toList();
 		Map<Long, Long> menuCountMap = getMenuCountMap(storeIds);
 		return stores.map(s -> AdminNaverEnrichQueueItem.from(
@@ -207,7 +212,11 @@ public class AdminStoreService {
 	}
 
 	public long countPhotoBackfillQueue(NaverEnrichPartition partition) {
-		return storeRepository.countMatchedWithoutPhotos(NaverEnrichPartition.valueOfNullable(partition));
+		Set<Long> excludedIds = naverEnrichOrchestrator.getPhotoBackfillAttemptedStoreIds();
+		return storeRepository.countMatchedWithoutPhotos(
+			queryExcludedIds(excludedIds),
+			excludedIds.isEmpty(),
+			NaverEnrichPartition.valueOfNullable(partition));
 	}
 
 	// placeId 는 있으나 메뉴 또는 사진이 비어 enrich 가 안 끝난 가게 — 메뉴+사진 풀 enrich 백필 큐.
@@ -218,8 +227,12 @@ public class AdminStoreService {
 
 	public Page<AdminNaverEnrichQueueItem> getEnrichBackfillQueue(
 			Pageable pageable, NaverEnrichPartition partition) {
+		Set<Long> excludedIds = naverEnrichOrchestrator.getEnrichBackfillAttemptedStoreIds();
 		Page<Store> stores = storeRepository.findMatchedNeedingEnrich(
-			NaverEnrichPartition.valueOfNullable(partition), pageable);
+			queryExcludedIds(excludedIds),
+			excludedIds.isEmpty(),
+			NaverEnrichPartition.valueOfNullable(partition),
+			pageable);
 		List<Long> storeIds = stores.getContent().stream().map(Store::getId).toList();
 		Map<Long, Long> menuCountMap = getMenuCountMap(storeIds);
 		Map<Long, Long> photoCountMap = getPhotoCountMap(storeIds);
@@ -234,7 +247,15 @@ public class AdminStoreService {
 	}
 
 	public long countEnrichBackfillQueue(NaverEnrichPartition partition) {
-		return storeRepository.countMatchedNeedingEnrich(NaverEnrichPartition.valueOfNullable(partition));
+		Set<Long> excludedIds = naverEnrichOrchestrator.getEnrichBackfillAttemptedStoreIds();
+		return storeRepository.countMatchedNeedingEnrich(
+			queryExcludedIds(excludedIds),
+			excludedIds.isEmpty(),
+			NaverEnrichPartition.valueOfNullable(partition));
+	}
+
+	private Set<Long> queryExcludedIds(Set<Long> excludedIds) {
+		return excludedIds.isEmpty() ? Set.of(-1L) : excludedIds;
 	}
 
 	public AdminNaverEnrichQueueItem getNaverEnrichItem(Long storeId) {
@@ -337,6 +358,14 @@ public class AdminStoreService {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 		store.markNaverEnrichFailed(noCandidates);
+	}
+
+	@Transactional
+	public void markNaverBackfillAttempted(Long storeId, String mode) {
+		if (!storeRepository.existsById(storeId)) {
+			throw new StoreException(StoreErrorCode.STORE_NOT_FOUND);
+		}
+		naverEnrichOrchestrator.markBackfillAttempted(mode, storeId);
 	}
 
 	public AdminNaverEnrichStatsResponse getNaverEnrichStats() {
