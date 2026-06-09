@@ -77,9 +77,9 @@ STORE_PHOTO_LIMIT = 5
 INTER_STORE_DELAY_SEC = 1.5
 INTER_STORE_JITTER_SEC = 1.5  # 0~이 값 사이 랜덤 추가 → 실제 1.5~3.0s
 INTER_BATCH_DELAY_SEC = 8.0
-# 네이버 차단 의심 — 큐 모드에서 N건 연속 검색 결과 0이면 abort (대량 false-fail 방지).
-# 정상 baseline 누락률은 낮으므로 5건 연속은 차단 시그널로 충분.
-NO_CANDIDATE_ABORT_THRESHOLD = 5
+# 네이버 차단 의심 — 한 건이라도 감지되면 즉시 abort.
+# 차단 상태로 계속 돌리면 대량 false-fail/백필 누락을 만들 수 있다.
+BLOCKED_ABORT_EXIT_CODE = 3
 NAVER_RESTRICTED_TEXTS = (
 	"서비스 이용이 제한되었습니다",
 	"과도한 접근 요청",
@@ -870,9 +870,10 @@ def process_store(page: Page, store: dict, server: str, dry_run: bool, verbose: 
 	if not candidates:
 		blocked = search_diag.get("blocked", False)
 		print("  → 네이버 검색 결과 없음" + ("  (차단 의심)" if blocked else "  (진짜 무결과)"))
-		if not dry_run:
-			# 차단 의심이면 파킹 카운트 제외(우리 쪽 문제) — 진짜 무결과만 +1.
-			mark_failed(server, store_id, no_candidates=not blocked)
+		if not dry_run and not blocked:
+			mark_failed(server, store_id, no_candidates=True)
+		elif blocked:
+			print("  → 차단 의심 — 실패 마킹 생략")
 		stats["failed"] = 1
 		stats["no_candidates"] = True
 		stats["blocked"] = blocked
@@ -1095,6 +1096,8 @@ def main() -> None:
 			"photos_uploaded": 0, "skipped_photo_crawl": 0, "failed": 0,
 			"no_candidates": 0, "mismatch": 0, "closed_suspects": 0, "blocked": 0}
 
+	abort_exit_code = 0
+
 	with sync_playwright() as p:
 		browser = p.chromium.launch(
 			headless=args.headless,
@@ -1128,10 +1131,13 @@ def main() -> None:
 				total["mismatch"] += 1
 			if result.get("blocked"):
 				total["blocked"] += 1
+				print("\n[ABORT] 차단 신호 감지 — 네이버 차단 의심.")
+				print("        위의 [diag] 로그 확인. IP/UA/요청간격 점검 후 재시도하세요.")
+				print("        차단 감지 건은 백필 완료 마킹/실패 마킹을 생략합니다.")
+				abort_exit_code = BLOCKED_ABORT_EXIT_CODE
 		else:
 			# 큐 모드 (Option B 또는 운영자 CLI)
 			batches_done = 0
-			blocked_streak = 0
 			while True:
 				queue = fetch_queue(args.server, args.batch, path=queue_path, partition=args.partition)
 				if not queue:
@@ -1154,20 +1160,14 @@ def main() -> None:
 						total["mismatch"] += 1
 					if result.get("blocked"):
 						total["blocked"] += 1
-					# 네이버 차단 의심 — '차단 신호(allSearch 미발사/non-200)' 검색이 N건 연속이면
-					# abort. 200 빈응답(진짜 없는 가게)은 abort 안 함 — 못 찾는 가게가 큐에 몰려도
-					# 배치 전체를 죽이지 않고 mark_failed 후 계속 진행(대량 false-abort 방지).
-					if result.get("blocked"):
-						blocked_streak += 1
-						if blocked_streak >= NO_CANDIDATE_ABORT_THRESHOLD:
-							print(f"\n[ABORT] 차단 신호 {blocked_streak}건 연속 — 네이버 차단 의심.")
-							print(f"        위의 [diag] 로그 확인. IP/UA/요청간격 점검 후 재시도하세요.")
-							print(f"        실패 마킹된 가게는 /naver-enrich-retry 로 throttle 해제 가능.")
-							browser.close()
-							sys.exit(3)
-					else:
-						blocked_streak = 0
+						print("\n[ABORT] 차단 신호 감지 — 네이버 차단 의심.")
+						print("        위의 [diag] 로그 확인. IP/UA/요청간격 점검 후 재시도하세요.")
+						print("        차단 감지 건은 백필 완료 마킹/실패 마킹을 생략합니다.")
+						abort_exit_code = BLOCKED_ABORT_EXIT_CODE
+						break
 					time.sleep(INTER_STORE_DELAY_SEC + random.uniform(0, INTER_STORE_JITTER_SEC))
+				if abort_exit_code:
+					break
 				batches_done += 1
 				if not args.loop:
 					break
@@ -1181,6 +1181,8 @@ def main() -> None:
 
 	print(f"\n{'=' * 60}")
 	print(json.dumps(total, ensure_ascii=False, indent=2))
+	if abort_exit_code:
+		sys.exit(abort_exit_code)
 
 
 if __name__ == "__main__":
