@@ -1,4 +1,5 @@
 -- 사용자 신고 API 저장 구조 추가
+-- 기존 DB에는 Flyway baseline 이후 자동 적용되고, 이미 수동 적용된 DB에서도 재실행 가능하도록 IF NOT EXISTS를 유지한다.
 
 CREATE TABLE IF NOT EXISTS user_report (
     id BIGSERIAL PRIMARY KEY,
