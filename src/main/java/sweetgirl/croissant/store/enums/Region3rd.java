@@ -1,6 +1,7 @@
 package sweetgirl.croissant.store.enums;
 
 public enum Region3rd {
+	전국_전국,
 	가평군_전체,
 	가평군_가평읍,
 	가평군_북면,
