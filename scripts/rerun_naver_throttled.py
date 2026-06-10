@@ -20,11 +20,11 @@ import requests
 from playwright.sync_api import sync_playwright
 
 from naver_menu_scraper import (
+	BLOCKED_ABORT_EXIT_CODE,
 	DEFAULT_SERVER,
 	INTER_STORE_DELAY_SEC,
 	INTER_STORE_JITTER_SEC,
 	NAVER_UA,
-	NO_CANDIDATE_ABORT_THRESHOLD,
 	fetch_single_store,
 	process_store,
 )
@@ -169,7 +169,7 @@ def main() -> None:
 		)
 		page = context.new_page()
 
-		blocked_streak = 0
+		abort_exit_code = 0
 		try:
 			for idx, item in enumerate(items, 1):
 				store_id = int(item["id"])
@@ -223,9 +223,6 @@ def main() -> None:
 					total["mismatch"] += 1
 				if result.get("blocked"):
 					total["blocked"] += 1
-					blocked_streak += 1
-				else:
-					blocked_streak = 0
 
 				if result.get("matched"):
 					status = "MATCH"
@@ -253,8 +250,9 @@ def main() -> None:
 					flush=True,
 				)
 
-				if blocked_streak >= NO_CANDIDATE_ABORT_THRESHOLD:
-					print(f"[ABORT] 차단 신호 {blocked_streak}건 연속 — 상세 로그 확인: {log_path}")
+				if result.get("blocked"):
+					print(f"[ABORT] 차단 신호 감지 — 상세 로그 확인: {log_path}")
+					abort_exit_code = BLOCKED_ABORT_EXIT_CODE
 					break
 
 				time.sleep(INTER_STORE_DELAY_SEC + random.uniform(0, INTER_STORE_JITTER_SEC))
@@ -263,6 +261,8 @@ def main() -> None:
 
 	print("\n" + "=" * 60)
 	print(json.dumps(total, ensure_ascii=False, indent=2))
+	if abort_exit_code:
+		sys.exit(abort_exit_code)
 
 
 if __name__ == "__main__":

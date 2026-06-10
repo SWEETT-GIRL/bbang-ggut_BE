@@ -4,9 +4,11 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import sweetgirl.croissant.common.enums.ImageStatus;
 import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 
@@ -48,4 +50,16 @@ public interface StoreImageFileRepository extends JpaRepository<StoreImageFile, 
 
 	@Query("SELECT s.awsKey FROM StoreImageFile s")
 	List<String> findAllAwsKeys();
+
+	@Modifying(clearAutomatically = true, flushAutomatically = true)
+	@Query("""
+			UPDATE StoreImageFile s
+			SET s.processingStatus = :failed
+			WHERE s.awsKey IN :awsKeys
+			AND s.processingStatus = :current
+			""")
+	int updateStatusByAwsKeyInAndStatus(
+			@Param("awsKeys") List<String> awsKeys,
+			@Param("current") ImageStatus current,
+			@Param("failed") ImageStatus failed);
 }
