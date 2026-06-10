@@ -15,9 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
-import sweetgirl.croissant.external.kakao.client.KakaoLocalClient;
-import sweetgirl.croissant.external.kakao.dto.KakaoPlace;
-import sweetgirl.croissant.external.kakao.dto.KakaoSearchResult;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
@@ -40,7 +37,6 @@ import sweetgirl.croissant.store.dto.response.NearbyStoreResponse;
 import sweetgirl.croissant.store.dto.response.RegionByDistanceResponse;
 import sweetgirl.croissant.store.dto.response.RegionBySubscribeResponse;
 import sweetgirl.croissant.store.dto.response.StoreDetailResponse;
-import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
 import sweetgirl.croissant.store.dto.response.SubscribedStoreResponse;
 import sweetgirl.croissant.store.dto.response.TopSubscribedStoreResponse;
 import sweetgirl.croissant.store.entity.Store;
@@ -62,7 +58,6 @@ public class StoreService {
 	private final StoreBusinessHourRepository storeBusinessHourRepository;
 	private final StoreImageFileRepository storeImageFileRepository;
 	private final SubscribedStoreRepository subscribedStoreRepository;
-	private final KakaoLocalClient kakaoLocalClient;
 	private final StoreAsyncService storeAsyncService;
 	private final MemberReader memberReader;
 	private final MenuImageFileRepository menuImageFileRepository;
@@ -89,14 +84,6 @@ public class StoreService {
 			return SubscribedStoreResponse.from(subscribedStore, imageUrl);
 		});
 		return SliceResponse.from(responsSlice);
-	}
-
-	public SliceResponse<StoreSearchResponse> searchStores(String keyword, Pageable pageable) {
-		Slice<Store> dbSlice = storeRepository.findActiveWesternStoresByKeyword(keyword, pageable);
-		if (dbSlice.hasContent()) {
-			return buildResponseFromDb(dbSlice);
-		}
-		return searchFromKakao(keyword, pageable);
 	}
 
 	public SliceResponse<RegionByDistanceResponse> getStoresByDistrictOrderByDistance(
@@ -263,61 +250,6 @@ public class StoreService {
 		SubscribedStore subscribedStore = subscribedStoreRepository.findByMemberIdAndStoreId(memberId, storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.NOT_SUBSCRIBED));
 		subscribedStoreRepository.delete(subscribedStore);
-	}
-
-	private SliceResponse<StoreSearchResponse> buildResponseFromDb(Slice<Store> dbSlice) {
-		List<Long> storeIds = dbSlice.getContent().stream().map(Store::getId).toList();
-		Map<Long, String> storeThumbnailMap = getStoreThumbnails(storeIds);
-		Map<Long, List<StoreMenuProjection>> topMenusByStore = getTopMenusByStore(storeIds);
-		Map<Long, String> menuThumbnailMap = getMenuThumbnails(topMenusByStore);
-
-		List<StoreSearchResponse> responses = dbSlice.getContent().stream()
-			.map(store -> {
-				List<MenuSummaryDto> topMenus = topMenusByStore
-					.getOrDefault(store.getId(), Collections.emptyList())
-					.stream()
-					.map(menu -> MenuSummaryDto.of(menu, menuThumbnailMap.get(menu.getMenuId())))
-					.toList();
-				return StoreSearchResponse.ofDb(store, storeThumbnailMap.get(store.getId()), topMenus);
-			})
-			.toList();
-
-		return new SliceResponse<>(responses, dbSlice.hasNext());
-	}
-
-	private SliceResponse<StoreSearchResponse> searchFromKakao(String keyword, Pageable pageable) {
-		KakaoSearchResult kakaoResult = kakaoLocalClient.searchByKeyword(keyword, pageable.getPageNumber() + 1);
-		List<KakaoPlace> places = kakaoResult.places();
-
-		List<String> kakaoPlaceIds = places.stream().map(KakaoPlace::id).toList();
-		Map<String, Store> dbStoreByKakaoPlaceId = storeRepository.findByKakaoPlaceIdIn(kakaoPlaceIds)
-			.stream()
-			.collect(Collectors.toMap(Store::getKakaoPlaceId, store -> store));
-
-		List<Long> matchedStoreIds = dbStoreByKakaoPlaceId.values().stream().map(Store::getId).toList();
-		Map<Long, String> storeThumbnailMap = matchedStoreIds.isEmpty()
-			? Collections.emptyMap() : getStoreThumbnails(matchedStoreIds);
-		Map<Long, List<StoreMenuProjection>> topMenusByStore = matchedStoreIds.isEmpty()
-			? Collections.emptyMap() : getTopMenusByStore(matchedStoreIds);
-		Map<Long, String> menuThumbnailMap = getMenuThumbnails(topMenusByStore);
-
-		List<StoreSearchResponse> responses = places.stream()
-			.map(place -> {
-				Store dbStore = dbStoreByKakaoPlaceId.get(place.id());
-				if (dbStore != null) {
-					String thumbnailUrl = storeThumbnailMap.get(dbStore.getId());
-					List<MenuSummaryDto> topMenus = topMenusByStore
-						.getOrDefault(dbStore.getId(), Collections.emptyList())
-						.stream()
-						.map(menu -> MenuSummaryDto.of(menu, menuThumbnailMap.get(menu.getMenuId())))
-						.toList();
-					return StoreSearchResponse.ofKakao(place, dbStore.getId(), thumbnailUrl, topMenus);
-				}
-				return StoreSearchResponse.ofKakao(place, null, null, Collections.emptyList());
-			})
-			.toList();
-
-		return new SliceResponse<>(responses, !kakaoResult.isEnd());
 	}
 
 	private Optional<Store> findActiveStoreBySameNameAndAddress(KakaoStoreRegisterRequest request) {
