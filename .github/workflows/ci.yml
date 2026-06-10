@@ -21,7 +21,9 @@ jobs:
       - name: Cache Gradle packages
         uses: actions/cache@v4
         with:
-          path: ~/.gradle/caches
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
           restore-keys: ${{ runner.os }}-gradle-
 
@@ -29,7 +31,14 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build with Gradle
-        run: ./gradlew build -x test --no-daemon
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            ./gradlew build -x test --no-daemon && exit 0
+            sleep $((attempt * 10))
+          done
+
+          exit 1
 
       # DB 연동 테스트가 필요하다면 testcontainers 설정 후 아래 주석 해제
       # - name: Run tests
