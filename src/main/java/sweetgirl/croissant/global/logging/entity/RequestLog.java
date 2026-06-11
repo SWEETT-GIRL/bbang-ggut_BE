@@ -8,6 +8,8 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -16,6 +18,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import sweetgirl.croissant.global.logging.LogEventType;
 
 @Entity
 @Table(name = "request_log")
@@ -58,8 +61,9 @@ public class RequestLog {
 	@Column
 	private Long storeId;
 
+	@Enumerated(EnumType.STRING)
 	@Column(length = 50)
-	private String eventType;
+	private LogEventType eventType;
 
 	@Column(length = 50)
 	private String errorCode;
@@ -74,7 +78,7 @@ public class RequestLog {
 	@Builder
 	public RequestLog(Long memberId, String httpMethod, String endpoint, String queryParams,
 			String requestBody, Integer responseStatus, Integer responseTimeMs,
-			String ipAddress, String userAgent, Long storeId, String eventType,
+			String ipAddress, String userAgent, Long storeId, LogEventType eventType,
 			String errorCode, String errorMessage) {
 		this.memberId = memberId;
 		this.httpMethod = httpMethod;

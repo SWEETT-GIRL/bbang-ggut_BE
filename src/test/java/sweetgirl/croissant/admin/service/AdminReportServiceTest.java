@@ -25,6 +25,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -43,6 +44,8 @@ import sweetgirl.croissant.alarm.enums.ReportNotificationAction;
 import sweetgirl.croissant.alarm.service.ReportNotificationService;
 import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.external.aws.S3Service;
+import sweetgirl.croissant.external.opensearch.event.StoreAddressChangedEvent;
+import sweetgirl.croissant.external.opensearch.event.StoreMenusChangedEvent;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.entity.MenuAddReport;
@@ -111,6 +114,8 @@ class AdminReportServiceTest {
 	S3Service s3Service;
 	@Mock
 	ReportNotificationService reportNotificationService;
+	@Mock
+	ApplicationEventPublisher eventPublisher;
 
 	AdminReportService adminReportService;
 
@@ -131,7 +136,8 @@ class AdminReportServiceTest {
 			reviewImageFileRepository,
 			s3Service,
 			new ObjectMapper(),
-			reportNotificationService);
+			reportNotificationService,
+			eventPublisher);
 	}
 
 	@Test
@@ -457,6 +463,7 @@ class AdminReportServiceTest {
 
 		Menu newMenu = mock(Menu.class);
 		given(newMenu.getId()).willReturn(99L);
+		given(newMenu.getStore()).willReturn(store);
 		given(menuRepository.save(any(Menu.class))).willReturn(newMenu);
 
 		MenuAddReportImageFile img = MenuAddReportImageFile.builder()
@@ -716,6 +723,63 @@ class AdminReportServiceTest {
 		verify(report, never()).approve();
 		verify(reportNotificationService, never()).notifyReportResult(
 			any(), any(), any(), any(), any(), anyString());
+	}
+
+	@Test
+	@DisplayName("StoreReport MOD_BAKERY_ADDRESS ACCEPT: StoreAddressChangedEvent가 해당 storeId로 발행된다")
+	void storeReport_modBakeryAddress_accept_publishesAddressEvent() {
+		Store store = mock(Store.class);
+		given(store.getId()).willReturn(7L);
+		Member reporter = mock(Member.class);
+		StoreReport report = mock(StoreReport.class);
+		given(report.getId()).willReturn(61L);
+		given(report.getStatus()).willReturn(StoreReportStatus.PENDING);
+		given(report.getRequestType()).willReturn(StoreReportType.MOD_BAKERY_ADDRESS);
+		given(report.getStore()).willReturn(store);
+		given(report.getMember()).willReturn(reporter);
+		given(report.getMessage()).willReturn(
+			"{\"address\":\"서울 마포구 와우산로 1\","
+				+ "\"roadAddress\":\"서울 마포구 와우산로 1\","
+				+ "\"placeName\":\"빵집\","
+				+ "\"latitude\":37.55,\"longitude\":126.93,\"reason\":null}");
+		given(storeReportRepository.findById(61L)).willReturn(Optional.of(report));
+
+		adminReportService.reviewReport(61L, new AdminReportReviewRequest("STORE_REPORT", "ACCEPT"));
+
+		ArgumentCaptor<StoreAddressChangedEvent> captor = ArgumentCaptor.forClass(StoreAddressChangedEvent.class);
+		verify(eventPublisher).publishEvent(captor.capture());
+		assertThat(captor.getValue().storeId()).isEqualTo(7L);
+	}
+
+	@Test
+	@DisplayName("MenuAddReport ACCEPT: StoreMenusChangedEvent가 해당 storeId로 발행된다")
+	void menuAddReport_accept_publishesMenusEvent() {
+		Store store = mock(Store.class);
+		given(store.getId()).willReturn(8L);
+		Member reporter = mock(Member.class);
+		MenuCategory category = mock(MenuCategory.class);
+
+		MenuAddReport report = MenuAddReport.builder()
+			.store(store)
+			.member(reporter)
+			.menuCategory(category)
+			.name("팥빵")
+			.price(2000)
+			.description("달콤한 팥빵")
+			.build();
+		ReflectionTestUtils.setField(report, "id", 13L);
+		given(menuAddReportRepository.findById(13L)).willReturn(Optional.of(report));
+
+		Menu newMenu = mock(Menu.class);
+		given(newMenu.getStore()).willReturn(store);
+		given(menuRepository.save(any(Menu.class))).willReturn(newMenu);
+		given(menuAddReportImageFileRepository.findByMenuAddReportIdIn(List.of(13L))).willReturn(List.of());
+
+		adminReportService.reviewReport(13L, new AdminReportReviewRequest("MENU_ADD_REPORT", "ACCEPT"));
+
+		ArgumentCaptor<StoreMenusChangedEvent> captor = ArgumentCaptor.forClass(StoreMenusChangedEvent.class);
+		verify(eventPublisher).publishEvent(captor.capture());
+		assertThat(captor.getValue().storeId()).isEqualTo(8L);
 	}
 
 	@Test

@@ -1,10 +1,13 @@
 package sweetgirl.croissant.member.service;
 
+import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,9 +19,11 @@ import sweetgirl.croissant.member.dto.dto.KakaoOAuth2UserInfo;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
 import sweetgirl.croissant.member.entity.OAuth;
+import sweetgirl.croissant.member.enums.MemberRestrictionType;
 import sweetgirl.croissant.member.enums.NotificationRadius;
 import sweetgirl.croissant.member.enums.OAuthProvider;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.repository.MemberRestrictionRepository;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
 import sweetgirl.croissant.member.repository.OAuthRepository;
 import sweetgirl.croissant.member.util.NicknameGenerator;
@@ -30,6 +35,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 	private final MemberRepository memberRepository;
 	private final NotificationSettingRepository notificationSettingRepository;
 	private final OAuthRepository oAuthRepository;
+	private final MemberRestrictionRepository memberRestrictionRepository;
 	private final TokenHasher tokenHasher;
 	private final NicknameGenerator nicknameGenerator;
 
@@ -63,7 +69,18 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 			.orElseGet(() -> registerNewMember(userInfo)); // 없으면 신규 가입 처리
 
 		Member member = oAuth.getMember();
-		//
+
+		// 강퇴(BANNED) 회원인지 확인
+		boolean isBanned = !memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(
+			member.getId(),
+			List.of(MemberRestrictionType.BANNED),
+			LocalDateTime.now()).isEmpty();
+		if (isBanned) {
+			throw new OAuth2AuthenticationException(
+				new OAuth2Error("MEMBER_BANNED", "강퇴된 회원입니다.", null));
+		}
+
+		// 탈퇴(soft-delete) 회원이면 새 member로 재가입 처리
 		boolean isDeletedMember = member.isDeleted();
 		Member activeMember;
 		if (isDeletedMember) {
@@ -75,6 +92,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 		} else {
 			activeMember = member;
 		}
+
 		// 신규 가입이거나 탈퇴 후 재가입이면 isNew = true
 		Boolean isNewMember = !existsOAuth || isDeletedMember;
 

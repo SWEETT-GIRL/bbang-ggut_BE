@@ -1,9 +1,11 @@
 package sweetgirl.croissant.member.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.OAuth;
 import sweetgirl.croissant.member.enums.OAuthProvider;
 
@@ -15,4 +17,6 @@ public interface OAuthRepository extends JpaRepository<OAuth, Long> {
 	Optional<OAuth> findByProviderAndProviderId(OAuthProvider provider, String providerId);
 
 	boolean existsByProviderAndProviderId(OAuthProvider provider, String providerId);
+
+	List<OAuth> findAllByMember(Member member);
 }
