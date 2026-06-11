@@ -2,6 +2,7 @@ package sweetgirl.croissant.member.service;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -9,16 +10,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.encrypt.TokenHasher;
+import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.dto.dto.AppleTokenClaims;
 import sweetgirl.croissant.member.dto.response.AppleLoginResponse;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
 import sweetgirl.croissant.member.entity.OAuth;
 import sweetgirl.croissant.member.entity.RefreshToken;
+import sweetgirl.croissant.member.enums.MemberRestrictionType;
 import sweetgirl.croissant.member.enums.NotificationRadius;
 import sweetgirl.croissant.member.enums.OAuthProvider;
+import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.jwt.JwtProvider;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.repository.MemberRestrictionRepository;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
 import sweetgirl.croissant.member.repository.OAuthRepository;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository;
@@ -31,6 +36,7 @@ public class AppleAuthService {
 	private final AppleTokenVerifier appleTokenVerifier;
 	private final OAuthRepository oAuthRepository;
 	private final MemberRepository memberRepository;
+	private final MemberRestrictionRepository memberRestrictionRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
 	private final NotificationSettingRepository notificationSettingRepository;
 	private final JwtProvider jwtProvider;
@@ -54,6 +60,13 @@ public class AppleAuthService {
 			.orElseGet(() -> registerNewMember(claims));
 
 		Member member = oAuth.getMember();
+
+		boolean isBanned = !memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(
+			member.getId(), List.of(MemberRestrictionType.BANNED), LocalDateTime.now()).isEmpty();
+		if (isBanned) {
+			throw new MemberException(MemberErrorCode.MEMBER_BANNED);
+		}
+
 		boolean isDeletedMember = member.isDeleted();
 		Member activeMember;
 		if (isDeletedMember) {

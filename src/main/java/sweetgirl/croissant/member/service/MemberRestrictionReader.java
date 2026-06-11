@@ -17,7 +17,8 @@ public class MemberRestrictionReader {
 
 	private static final List<MemberRestrictionType> WRITE_BLOCKING_TYPES = List.of(
 		MemberRestrictionType.WRITE_RESTRICTED,
-		MemberRestrictionType.SUSPENDED);
+		MemberRestrictionType.SUSPENDED,
+		MemberRestrictionType.BANNED);
 
 	private final MemberRestrictionRepository memberRestrictionRepository;
 

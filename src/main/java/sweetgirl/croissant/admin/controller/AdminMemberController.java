@@ -12,8 +12,10 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.admin.dto.request.AdminMemberBanRequest;
 import sweetgirl.croissant.admin.dto.request.AdminMemberRestrictionRequest;
 import sweetgirl.croissant.admin.dto.request.AdminProfileResetRequest;
+import sweetgirl.croissant.admin.dto.response.AdminMemberBanResponse;
 import sweetgirl.croissant.admin.dto.response.AdminMemberRestrictionResponse;
 import sweetgirl.croissant.admin.dto.response.AdminProfileResetResponse;
 import sweetgirl.croissant.admin.service.AdminMemberService;
@@ -41,5 +43,13 @@ public class AdminMemberController {
 			@Parameter(description = "회원 ID") @PathVariable Long memberId,
 			@Valid @RequestBody AdminMemberRestrictionRequest request) {
 		return ResponseEntity.ok(ApiResponse.ok(adminMemberService.createRestriction(memberId, request)));
+	}
+
+	@Operation(summary = "회원 강퇴", description = "회원을 영구 강퇴합니다. 강퇴된 회원은 동일 계정으로 재가입이 불가합니다.")
+	@PostMapping("/{memberId}/ban")
+	public ResponseEntity<ApiResponse<AdminMemberBanResponse>> banMember(
+			@Parameter(description = "회원 ID") @PathVariable Long memberId,
+			@Valid @RequestBody AdminMemberBanRequest request) {
+		return ResponseEntity.ok(ApiResponse.ok(adminMemberService.banMember(memberId, request)));
 	}
 }
