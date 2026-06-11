@@ -15,6 +15,7 @@ import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.PrecisionModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -38,6 +39,8 @@ import sweetgirl.croissant.alarm.enums.ReportKind;
 import sweetgirl.croissant.alarm.enums.ReportNotificationAction;
 import sweetgirl.croissant.alarm.service.ReportNotificationService;
 import sweetgirl.croissant.external.aws.S3Service;
+import sweetgirl.croissant.external.opensearch.event.StoreAddressChangedEvent;
+import sweetgirl.croissant.external.opensearch.event.StoreMenusChangedEvent;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.entity.MenuAddReport;
 import sweetgirl.croissant.menu.entity.MenuAddReportImageFile;
@@ -116,6 +119,7 @@ public class AdminReportService {
 	private final S3Service s3Service;
 	private final ObjectMapper objectMapper;
 	private final ReportNotificationService reportNotificationService;
+	private final ApplicationEventPublisher eventPublisher;
 
 	public Page<AdminReportResponse> getReports(String kind, String statusStr, int page, int size) {
 		if ("MENU_ADD_REPORT".equals(kind)) {
@@ -269,6 +273,7 @@ public class AdminReportService {
 		List<MenuAddReportImageFile> reportImages = menuAddReportImageFileRepository
 			.findByMenuAddReportIdIn(List.of(report.getId()));
 		moveImagesToMenu(menu, reportImages);
+		eventPublisher.publishEvent(new StoreMenusChangedEvent(menu.getStore().getId()));
 	}
 
 	// MenuAddReport 거절 — temp S3 객체 정리 (DB 행은 이력 보관 위해 유지)
@@ -311,6 +316,7 @@ public class AdminReportService {
 		Point location = GEOMETRY_FACTORY.createPoint(new Coordinate(payload.longitude(), payload.latitude()));
 		report.getStore().update(null, payload.address(), location, addr[0], addr[1], addr[2],
 			null, null, null);
+		eventPublisher.publishEvent(new StoreAddressChangedEvent(report.getStore().getId()));
 	}
 
 	// 가게 이미지 제보 승인 — deleteImageIds로 store_image_file·S3 삭제 + addImages는 stores/{storeId}로 이동 후 신규 등록

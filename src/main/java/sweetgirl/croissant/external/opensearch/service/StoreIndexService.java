@@ -1,7 +1,9 @@
 package sweetgirl.croissant.external.opensearch.service;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch.core.BulkResponse;
@@ -23,9 +25,12 @@ import sweetgirl.croissant.global.logging.LogEventType;
 import sweetgirl.croissant.global.logging.repository.RequestLogRepository;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.repository.MenuRepository;
+import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.NationwideHotStoreRanking;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.NationwideHotStoreRankingRepository;
+import sweetgirl.croissant.store.repository.StoreRepository;
 import sweetgirl.croissant.store.repository.StoreSearchRegionRepository;
 import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
 
@@ -37,6 +42,7 @@ public class StoreIndexService {
 
 	private final OpenSearchClient openSearchClient;
 	private final OpenSearchProperties openSearchProperties;
+	private final StoreRepository storeRepository;
 	private final MenuRepository menuRepository;
 	private final SubscribedStoreRepository subscribedStoreRepository;
 	private final NationwideHotStoreRankingRepository nationwideRankingRepository;
@@ -60,10 +66,105 @@ public class StoreIndexService {
 		}
 	}
 
+	@Transactional(readOnly = true)
+	public void bulkUpdateScores(List<Store> stores) {
+		List<BulkOperation> operations = stores.stream()
+			.map(store -> {
+				double score = calculatePopularityScore(store);
+				Map<String, Object> scoreDoc = Map.of("popularityScore", score);
+				return BulkOperation.of(op -> op
+					.update(u -> u
+						.index(openSearchProperties.getStoresIndex())
+						.id(store.getId().toString())
+						.document(scoreDoc)));
+			})
+			.toList();
+		try {
+			openSearchClient.bulk(r -> r.operations(operations));
+		} catch (IOException e) {
+			log.error("OpenSearch popularityScore 벌크 업데이트 실패", e);
+			throw new OpenSearchException(OpenSearchErrorCode.BULK_INDEX_FAILED, e);
+		}
+	}
+
+	@Transactional(readOnly = true)
+	public void updateStoreAddress(Long storeId) {
+		Store store = storeRepository.findById(storeId)
+			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
+
+		Map<String, Object> partial = new HashMap<>();
+		partial.put("address", store.getAddress());
+		partial.put("location", new GeoPointDto(store.getLocation().getY(), store.getLocation().getX()));
+		partial.put("searchRegions", buildSearchRegions(storeId));
+		partial.put("searchRegionAliases",
+			storeSearchRegionRepository.findSearchRegionAliasesForIndexingByStoreId(storeId));
+
+		try {
+			openSearchClient.update(u -> u
+				.index(openSearchProperties.getStoresIndex())
+				.id(storeId.toString())
+				.doc(partial), StoreDocument.class);
+		} catch (IOException e) {
+			log.error("OpenSearch 주소 업데이트 실패 storeId={}", storeId, e);
+			throw new OpenSearchException(OpenSearchErrorCode.BULK_INDEX_FAILED, e);
+		}
+	}
+
+	@Transactional(readOnly = true)
+	public void updateStoreMenus(Long storeId) {
+		List<Menu> menus = menuRepository.findByStoreIdOrderByLikeCountDesc(storeId);
+
+		List<StoreMenuDto> menuEntries = menus.stream()
+			.map(m -> new StoreMenuDto(m.getId(), m.getName(), m.getMenuCategory().getName().name()))
+			.toList();
+		List<String> breadTypes = menus.stream()
+			.map(m -> m.getMenuCategory().getName().name())
+			.distinct()
+			.toList();
+
+		Map<String, Object> partial = new HashMap<>();
+		partial.put("menus", menuEntries);
+		partial.put("breadTypes", breadTypes);
+
+		try {
+			openSearchClient.update(u -> u
+				.index(openSearchProperties.getStoresIndex())
+				.id(storeId.toString())
+				.doc(partial), StoreDocument.class);
+		} catch (IOException e) {
+			log.error("OpenSearch 메뉴 업데이트 실패 storeId={}", storeId, e);
+			throw new OpenSearchException(OpenSearchErrorCode.BULK_INDEX_FAILED, e);
+		}
+	}
+
+	@Transactional(readOnly = true)
+	public void updateStoreName(Long storeId) {
+		Store store = storeRepository.findById(storeId)
+			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
+		try {
+			openSearchClient.update(u -> u
+				.index(openSearchProperties.getStoresIndex())
+				.id(storeId.toString())
+				.doc(Map.of("name", store.getName())), StoreDocument.class);
+		} catch (IOException e) {
+			log.error("OpenSearch 가게 이름 업데이트 실패 storeId={}", storeId, e);
+			throw new OpenSearchException(OpenSearchErrorCode.BULK_INDEX_FAILED, e);
+		}
+	}
+
+	public void deleteStoreDocument(Long storeId) {
+		try {
+			openSearchClient.delete(d -> d
+				.index(openSearchProperties.getStoresIndex())
+				.id(storeId.toString()));
+		} catch (IOException e) {
+			log.error("OpenSearch 가게 document 삭제 실패 storeId={}", storeId, e);
+			throw new OpenSearchException(OpenSearchErrorCode.BULK_INDEX_FAILED, e);
+		}
+	}
+
 	private StoreDocument buildDocument(Store store) {
 		List<Menu> menus = menuRepository.findByStoreIdOrderByLikeCountDesc(store.getId());
-		long subscribeCount = subscribedStoreRepository.countByStoreId(store.getId());
-		List<NationwideHotStoreRanking> rankings = nationwideRankingRepository.findByStoreId(store.getId());
 
 		List<String> breadTypes = menus.stream()
 			.map(m -> m.getMenuCategory().getName().name())
@@ -81,18 +182,31 @@ public class StoreIndexService {
 			store.getLocation().getY(),
 			store.getLocation().getX());
 
+		return new StoreDocument(
+			store.getId(),
+			store.getName(),
+			store.getAddress(),
+			geoPoint,
+			buildSearchRegions(store.getId()),
+			storeSearchRegionRepository.findSearchRegionAliasesForIndexingByStoreId(store.getId()),
+			breadTypes,
+			menuEntries,
+			calculatePopularityScore(store));
+	}
+
+	private double calculatePopularityScore(Store store) {
+		long subscribeCount = subscribedStoreRepository.countByStoreId(store.getId());
+		List<NationwideHotStoreRanking> rankings = nationwideRankingRepository.findByStoreId(store.getId());
 		double nationwideScore = rankings.stream()
 			.mapToDouble(r -> Math.max(0, 11 - r.getRank()))
 			.sum();
-
-		long storeViewCount = requestLogRepository.countByStoreIdAndEventType(
-			store.getId(), LogEventType.STORE_VIEW);
-
+		long storeViewCount = requestLogRepository.countByStoreIdAndEventType(store.getId(), LogEventType.STORE_VIEW);
 		// TODO: 가중치 계수(W1~W3) 확정 후 고도화
-		double popularityScore = subscribeCount + nationwideScore + storeViewCount;
+		return subscribeCount + nationwideScore + storeViewCount;
+	}
 
-		List<SearchRegionDto> searchRegions = storeSearchRegionRepository
-			.findSearchRegionsForIndexingByStoreId(store.getId())
+	private List<SearchRegionDto> buildSearchRegions(Long storeId) {
+		return storeSearchRegionRepository.findSearchRegionsForIndexingByStoreId(storeId)
 			.stream()
 			.map(r -> new SearchRegionDto(
 				r.getRegionId(),
@@ -100,19 +214,5 @@ public class StoreIndexService {
 				r.getRegionType().name(),
 				r.getWeight().doubleValue()))
 			.toList();
-
-		List<String> searchRegionAliases = storeSearchRegionRepository
-			.findSearchRegionAliasesForIndexingByStoreId(store.getId());
-
-		return new StoreDocument(
-			store.getId(),
-			store.getName(),
-			store.getAddress(),
-			geoPoint,
-			searchRegions,
-			searchRegionAliases,
-			breadTypes,
-			menuEntries,
-			popularityScore);
 	}
 }
