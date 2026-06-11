@@ -1,0 +1,1994 @@
+서버: http://localhost:8080
+throttled 재실행 대상: 6870건
+이전 로그 제외: 1건 (/tmp/naver-rerun-failed-smoke.log)
+상세 로그: /tmp/naver-rerun-failed-20260607.log
+[  1/6870] CLOSED   id=135231 샹끄발레르 matched=0 failed=1 menus=0 photos=0
+[  2/6870] CLOSED   id=135222 밀덴브레드 matched=0 failed=2 menus=0 photos=0
+[  3/6870] CLOSED   id=135216 몽슈슈 현대프리미엄아울렛송도점 matched=0 failed=3 menus=0 photos=0
+[  4/6870] CLOSED   id=135198 밀크팜 matched=0 failed=4 menus=0 photos=0
+[  5/6870] CLOSED   id=135180 이코복스커피 송도점 matched=0 failed=5 menus=0 photos=0
+[  6/6870] CLOSED   id=142550 네스티타르트 matched=0 failed=6 menus=0 photos=0
+[  7/6870] CLOSED   id=142547 프랑세즈과자점 matched=0 failed=7 menus=0 photos=0
+[  8/6870] CLOSED   id=135150 너구리베이크샵 matched=0 failed=8 menus=0 photos=0
+[  9/6870] MISMATCH id=135144 앤티앤스프레즐 스퀘어원점 matched=0 failed=9 menus=0 photos=0
+[ 10/6870] CLOSED   id=142541 하띠앤케이크 matched=0 failed=10 menus=0 photos=0
+[ 11/6870] CLOSED   id=135141 토모루과자점 송도점 matched=0 failed=11 menus=0 photos=0
+[ 12/6870] CLOSED   id=142538 경기미당 청라점 matched=0 failed=12 menus=0 photos=0
+[ 13/6870] CLOSED   id=135135 대가네 두바이 쫀득쿠키 matched=0 failed=13 menus=0 photos=0
+[ 14/6870] CLOSED   id=135126 엘케이크 matched=0 failed=14 menus=0 photos=0
+[ 15/6870] CLOSED   id=134874 헤니케이크 matched=0 failed=15 menus=0 photos=0
+[ 16/6870] CLOSED   id=134868 떼구루 연수점 matched=0 failed=16 menus=0 photos=0
+[ 17/6870] MISMATCH id=134841 해피니스베이커리 matched=0 failed=17 menus=0 photos=0
+[ 18/6870] MISMATCH id=134829 빵굽는 마을 matched=0 failed=18 menus=0 photos=0
+[ 19/6870] CLOSED   id=142514 오브니끄 matched=0 failed=19 menus=0 photos=0
+[ 20/6870] CLOSED   id=134679 가비안 matched=0 failed=20 menus=0 photos=0
+[ 21/6870] CLOSED   id=134673 늘솜당 matched=0 failed=21 menus=0 photos=0
+[ 22/6870] CLOSED   id=134571 카롱케익 matched=0 failed=22 menus=0 photos=0
+[ 23/6870] CLOSED   id=134568 브레드하우스 matched=0 failed=23 menus=0 photos=0
+[ 24/6870] CLOSED   id=142505 디저트하다 matched=0 failed=24 menus=0 photos=0
+[ 25/6870] MISMATCH id=142502 비콘 matched=0 failed=25 menus=0 photos=0
+[ 26/6870] CLOSED   id=142499 진심카스테라 청라점 matched=0 failed=26 menus=0 photos=0
+[ 27/6870] CLOSED   id=142493 성수동꿀꽈배기 청라점 matched=0 failed=27 menus=0 photos=0
+[ 28/6870] CLOSED   id=142490 소금빵곳간 matched=0 failed=28 menus=0 photos=0
+[ 29/6870] MISMATCH id=142487 주원 matched=0 failed=29 menus=0 photos=0
+[ 30/6870] MISMATCH id=134553 아커 matched=0 failed=30 menus=0 photos=0
+[ 31/6870] CLOSED   id=134544 봉블레 matched=0 failed=31 menus=0 photos=0
+[ 32/6870] MISMATCH id=134532 동춘빵집 matched=0 failed=32 menus=0 photos=0
+[ 33/6870] CLOSED   id=134529 경성찹쌀꽈배기 인천옥련점 matched=0 failed=33 menus=0 photos=0
+[ 34/6870] CLOSED   id=142466 오와케이크 인천청라직영점 matched=0 failed=34 menus=0 photos=0
+[ 35/6870] MISMATCH id=134523 늘채 matched=0 failed=35 menus=0 photos=0
+[ 36/6870] CLOSED   id=134508 수앤화 앙금플라워 떡케이크 matched=0 failed=36 menus=0 photos=0
+[ 37/6870] CLOSED   id=134496 렌토 matched=0 failed=37 menus=0 photos=0
+[ 38/6870] NO_CAND  id=134466 몽베베디저트샵 matched=0 failed=38 menus=0 photos=0
+서버: http://localhost:8080
+throttled 재실행 대상: 6860건
+이전 로그 제외: 40건 (/tmp/naver-rerun-failed-smoke.log, /tmp/naver-rerun-failed-20260607.log)
+상세 로그: /tmp/naver-rerun-failed-20260607-pass2.log
+[  1/6860] CLOSED   id=142874 빵실빵실 matched=0 failed=1 menus=0 photos=0
+[  2/6860] CLOSED   id=135438 베이커리 팥샘 matched=0 failed=2 menus=0 photos=0
+[  3/6860] CLOSED   id=135423 호야네케이크 matched=0 failed=3 menus=0 photos=0
+[  4/6860] CLOSED   id=142862 찰스네베이글 matched=0 failed=4 menus=0 photos=0
+[  5/6860] CLOSED   id=135411 솔트앤멜로우 송도직영점 matched=0 failed=5 menus=0 photos=0
+[  6/6860] CLOSED   id=135408 팡실 matched=0 failed=6 menus=0 photos=0
+[  7/6860] CLOSED   id=135402 카페혜윰 matched=0 failed=7 menus=0 photos=0
+[  8/6860] CLOSED   id=135399 스테이그린 송도점 matched=0 failed=8 menus=0 photos=0
+[  9/6860] NO_CAND  id=135393 라니와 디저트공장 matched=0 failed=9 menus=0 photos=0
+[ 10/6860] MISMATCH id=135390 카페샌드 matched=0 failed=10 menus=0 photos=0
+[ 11/6860] CLOSED   id=135375 써머그린 matched=0 failed=11 menus=0 photos=0
+[ 12/6860] NO_CAND  id=135372 앙금나연 matched=0 failed=12 menus=0 photos=0
+[ 13/6860] MISMATCH id=135369 브브스 matched=0 failed=13 menus=0 photos=0
+[ 14/6860] CLOSED   id=135366 상시루 matched=0 failed=14 menus=0 photos=0
+[ 15/6860] CLOSED   id=142610 인썸니악커피바 matched=0 failed=15 menus=0 photos=0
+[ 16/6860] CLOSED   id=142607 킴앤콩쓰 matched=0 failed=16 menus=0 photos=0
+[ 17/6860] CLOSED   id=142604 삼송빵집 인천청라점 matched=0 failed=17 menus=0 photos=0
+[ 18/6860] MISMATCH id=135360 오뜨 파티세리 matched=0 failed=18 menus=0 photos=0
+[ 19/6860] NO_CAND  id=142595 비니베리케이크 matched=0 failed=19 menus=0 photos=0
+[ 20/6860] CLOSED   id=135354 미소랑 쌀디저트 (떡, 화과자) matched=0 failed=20 menus=0 photos=0
+[ 21/6860] CLOSED   id=142592 디저트다다익선 자이더테라스점 matched=0 failed=21 menus=0 photos=0
+[ 22/6860] CLOSED   id=135351 도너츠팔레스 matched=0 failed=22 menus=0 photos=0
+[ 23/6860] CLOSED   id=135348 도넛클랜 matched=0 failed=23 menus=0 photos=0
+[ 24/6860] CLOSED   id=142571 더믹솔로지 matched=0 failed=24 menus=0 photos=0
+[ 25/6860] CLOSED   id=135258 비비딩 matched=0 failed=25 menus=0 photos=0
+[ 26/6860] CLOSED   id=142565 알벤토 matched=0 failed=26 menus=0 photos=0
+[ 27/6860] CLOSED   id=135252 파티세리키세츠 matched=0 failed=27 menus=0 photos=0
+[ 28/6860] MISMATCH id=142562 뉴. matched=0 failed=28 menus=0 photos=0
+[ 29/6860] CLOSED   id=142559 커스텀커피 청라호수공원점 matched=0 failed=29 menus=0 photos=0
+[ 30/6860] CLOSED   id=142451 디저트참잘하는집 matched=0 failed=30 menus=0 photos=0
+[ 31/6860] CLOSED   id=134331 코믹스테이지 matched=0 failed=31 menus=0 photos=0
+[ 32/6860] CLOSED   id=134325 헤이미쉬카페 matched=0 failed=32 menus=0 photos=0
+[ 33/6860] CLOSED   id=134319 터틀힙 롯데백화점인천점 matched=0 failed=33 menus=0 photos=0
+[ 34/6860] CLOSED   id=134310 메종원스이어 롯데백화점인천점 matched=0 failed=34 menus=0 photos=0
+[ 35/6860] CLOSED   id=142433 포시즌앙금케이크 matched=0 failed=35 menus=0 photos=0
+[ 36/6860] CLOSED   id=134295 배경제과 matched=0 failed=36 menus=0 photos=0
+[ 37/6860] CLOSED   id=134262 달콤왕가탕후루 인천구월로데오점 matched=0 failed=37 menus=0 photos=0
+[ 38/6860] CLOSED   id=142421 죤더프 matched=0 failed=38 menus=0 photos=0
+[ 39/6860] CLOSED   id=142418 디저트샵아띠랑스 matched=0 failed=39 menus=0 photos=0
+[ 40/6860] CLOSED   id=142412 블라써니앙금플라워케이크 matched=0 failed=40 menus=0 photos=0
+[ 41/6860] CLOSED   id=134202 더베란다 matched=0 failed=41 menus=0 photos=0
+[ 42/6860] CLOSED   id=134139 나인문 matched=0 failed=42 menus=0 photos=0
+[ 43/6860] CLOSED   id=134106 너랑케익 matched=0 failed=43 menus=0 photos=0
+[ 44/6860] CLOSED   id=134097 우아한커피 matched=0 failed=44 menus=0 photos=0
+[ 45/6860] CLOSED   id=142202 사과당 검단아라점 matched=0 failed=45 menus=0 photos=0
+[ 46/6860] CLOSED   id=142199 보드레케이크 matched=0 failed=46 menus=0 photos=0
+[ 47/6860] CLOSED   id=133932 더콤마라운지 주안점 matched=0 failed=47 menus=0 photos=0
+[ 48/6860] CLOSED   id=142193 명장시대 인천점 matched=0 failed=48 menus=0 photos=0
+[ 49/6860] MATCH    id=142184 오디와이 커피 matched=1 failed=48 menus=11 photos=5
+[ 50/6860] CLOSED   id=133629 안스베이커리 구월점 matched=1 failed=49 menus=11 photos=5
+[ 51/6860] CLOSED   id=133590 쏘이크 matched=1 failed=50 menus=11 photos=5
+[ 52/6860] CLOSED   id=133539 따뜻한공방 온 matched=1 failed=51 menus=11 photos=5
+[ 53/6860] MATCH    id=133536 달롱도르요거트아이스크림 인하대점 matched=2 failed=51 menus=12 photos=10
+[ 54/6860] MISMATCH id=133374 수제꽈배기 matched=2 failed=52 menus=12 photos=10
+[ 55/6860] CLOSED   id=133281 럼피베이크 matched=2 failed=53 menus=12 photos=10
+[ 56/6860] CLOSED   id=133254 안녕,쿠잉 matched=2 failed=54 menus=12 photos=10
+[ 57/6860] NO_CAND  id=133215 1리터셀앤디저트와플 인천점 matched=2 failed=55 menus=12 photos=10
+[ 58/6860] MISMATCH id=133146 빵떡대장 떡보의하루 미추홀점 matched=2 failed=56 menus=12 photos=10
+[ 59/6860] MISMATCH id=133134 빵이가득한집 matched=2 failed=57 menus=12 photos=10
+[ 60/6860] CLOSED   id=133128 참호도과자 matched=2 failed=58 menus=12 photos=10
+[ 61/6860] CLOSED   id=133092 수봉마을기업 호호팩토리 matched=2 failed=59 menus=12 photos=10
+[ 62/6860] CLOSED   id=141575 봄봄애케이크 matched=2 failed=60 menus=12 photos=10
+[ 63/6860] CLOSED   id=133047 스톤앤버터 matched=2 failed=61 menus=12 photos=10
+[ 64/6860] CLOSED   id=141554 아모르카페 계양산성박물관점 matched=2 failed=62 menus=12 photos=10
+[ 65/6860] CLOSED   id=133020 밋모닝 matched=2 failed=63 menus=12 photos=10
+[ 66/6860] CLOSED   id=133008 안스베이커리 연수점 matched=2 failed=64 menus=12 photos=10
+[ 67/6860] CLOSED   id=141512 몽뻬르과자점 matched=2 failed=65 menus=12 photos=10
+[ 68/6860] CLOSED   id=132948 픽베이크 롯데백화점인천점 matched=2 failed=66 menus=12 photos=10
+[ 69/6860] MISMATCH id=132918 라르고 matched=2 failed=67 menus=12 photos=10
+[ 70/6860] NO_CAND  id=141332 쥬쥬비트리 matched=2 failed=68 menus=12 photos=10
+[ 71/6860] NO_CAND  id=141317 투달러베이커리커피 matched=2 failed=69 menus=12 photos=10
+[ 72/6860] NO_CAND  id=132654 꾸러기크레페 matched=2 failed=70 menus=12 photos=10
+[ 73/6860] NO_CAND  id=132606 허니홈비인천점 matched=2 failed=71 menus=12 photos=10
+[ 74/6860] MISMATCH id=140915 카페아루 송내점 matched=2 failed=72 menus=12 photos=10
+[ 75/6860] MISMATCH id=132534 디저트카페D matched=2 failed=73 menus=12 photos=10
+[ 76/6860] CLOSED   id=140624 온율 matched=2 failed=74 menus=12 photos=10
+[ 77/6860] NO_CAND  id=132522 코라손 카페&베이커리 matched=2 failed=75 menus=12 photos=10
+[ 78/6860] NO_CAND  id=132489 와플뱅 인하본점 matched=2 failed=76 menus=12 photos=10
+[ 79/6860] CLOSED   id=132483 비브라운 matched=2 failed=77 menus=12 photos=10
+[ 80/6860] CLOSED   id=140498 봄날같은하루 matched=2 failed=78 menus=12 photos=10
+[ 81/6860] CLOSED   id=132441 베러먼데이커피 인천숭의용마루점 matched=2 failed=79 menus=12 photos=10
+[ 82/6860] CLOSED   id=132429 고커피 matched=2 failed=80 menus=12 photos=10
+[ 83/6860] NO_CAND  id=132426 안씨꽈배기 용현동본사 matched=2 failed=81 menus=12 photos=10
+[ 84/6860] CLOSED   id=140492 따뜻한선물 matched=2 failed=82 menus=12 photos=10
+[ 85/6860] MISMATCH id=140456 바로 빵 matched=2 failed=83 menus=12 photos=10
+[ 86/6860] MISMATCH id=140447 오즈의마카롱 송내점 matched=2 failed=84 menus=12 photos=10
+[ 87/6860] CLOSED   id=140435 케익은 matched=2 failed=85 menus=12 photos=10
+[ 88/6860] MISMATCH id=140426 마중 matched=2 failed=86 menus=12 photos=10
+[ 89/6860] NO_CAND  id=140375 HS마카롱 matched=2 failed=87 menus=12 photos=10
+[ 90/6860] CLOSED   id=132093 플로렛케이크 matched=2 failed=88 menus=12 photos=10
+[ 91/6860] CLOSED   id=131865 누리프렌즈카페 matched=2 failed=89 menus=12 photos=10
+[ 92/6860] CLOSED   id=131778 안스베이커리 인천앨리웨이점 matched=2 failed=90 menus=12 photos=10
+[ 93/6860] CLOSED   id=131499 하나개카페솔양 matched=2 failed=91 menus=12 photos=10
+[ 94/6860] CLOSED   id=131496 아워당&인더박스 인천공항제2여객터미널점 matched=2 failed=92 menus=12 photos=10
+[ 95/6860] NO_CAND  id=131493 퀵바이츠8 인스파이어 엔터테인먼트 리조트 matched=2 failed=93 menus=12 photos=10
+[ 96/6860] NO_CAND  id=131490 퀵바이츠7 인스파이어 엔터테인먼트 리조트 matched=2 failed=94 menus=12 photos=10
+[ 97/6860] MISMATCH id=140255 베이킹살롱 matched=2 failed=95 menus=12 photos=10
+[ 98/6860] CLOSED   id=131487 더멍스 matched=2 failed=96 menus=12 photos=10
+[ 99/6860] CLOSED   id=131484 마시랑카페 matched=2 failed=97 menus=12 photos=10
+[100/6860] NO_CAND  id=140165 연희양과점 현대백화점 중동점 EAST matched=2 failed=98 menus=12 photos=10
+[101/6860] NO_CAND  id=140126 백미당 현대백화점 중동점 WEST matched=2 failed=99 menus=12 photos=10
+[102/6860] MISMATCH id=131451 맘스케익 영종도운서점 matched=2 failed=100 menus=12 photos=10
+[103/6860] NO_CAND  id=140084 베즐리 현대백화점 중동점 EAST matched=2 failed=101 menus=12 photos=10
+[104/6860] CLOSED   id=131442 위쿠키유 하늘도시직영점 matched=2 failed=102 menus=12 photos=10
+[105/6860] MISMATCH id=139583 오드리케이크 matched=2 failed=103 menus=12 photos=10
+[106/6860] MISMATCH id=139496 빵위에치즈 계양점 matched=2 failed=104 menus=12 photos=10
+[107/6860] NO_CAND  id=139049 타니스커피&베이커리 matched=2 failed=105 menus=12 photos=10
+[108/6860] MISMATCH id=138818 빨콩커피 부평본점 matched=2 failed=106 menus=12 photos=10
+[109/6860] CLOSED   id=130662 호앤화도너츠 matched=2 failed=107 menus=12 photos=10
+[110/6860] CLOSED   id=130659 시나루 matched=2 failed=108 menus=12 photos=10
+[111/6860] CLOSED   id=138707 제이브라우니 matched=2 failed=109 menus=12 photos=10
+[112/6860] CLOSED   id=138683 인생와플 matched=2 failed=110 menus=12 photos=10
+[113/6860] MISMATCH id=130653 진주도너츠 matched=2 failed=111 menus=12 photos=10
+[114/6860] MISMATCH id=130650 울진대게빵 차이나타운점 matched=2 failed=112 menus=12 photos=10
+[115/6860] CLOSED   id=138638 아해 matched=2 failed=113 menus=12 photos=10
+[116/6860] CLOSED   id=130647 찰찰보리식빵 용현점 matched=2 failed=114 menus=12 photos=10
+[117/6860] CLOSED   id=130635 해운대달맞이빵 인천차이나타운점 matched=2 failed=115 menus=12 photos=10
+[118/6860] NO_CAND  id=138602 색조화 아지트 부평점 matched=2 failed=116 menus=12 photos=10
+[119/6860] CLOSED   id=138587 피트로커피 matched=2 failed=117 menus=12 photos=10
+[120/6860] MISMATCH id=130617 꼬알라파이 matched=2 failed=118 menus=12 photos=10
+[121/6860] NO_CAND  id=130614 신포고꽈 matched=2 failed=119 menus=12 photos=10
+[122/6860] CLOSED   id=130608 아르토스희망파티 matched=2 failed=120 menus=12 photos=10
+[123/6860] CLOSED   id=138566 몬스터커피 부평시장점 matched=2 failed=121 menus=12 photos=10
+[124/6860] CLOSED   id=130599 카페 보물350 matched=2 failed=122 menus=12 photos=10
+[125/6860] CLOSED   id=130593 유가제빵소 구지점 matched=2 failed=123 menus=12 photos=10
+[126/6860] NO_CAND  id=130566 카페그리나 유가st295 matched=2 failed=124 menus=12 photos=10
+[127/6860] CLOSED   id=130557 포레밀 matched=2 failed=125 menus=12 photos=10
+[128/6860] CLOSED   id=138515 벨플라워케이크 matched=2 failed=126 menus=12 photos=10
+[129/6860] MISMATCH id=138512 르호베 matched=2 failed=127 menus=12 photos=10
+[130/6860] CLOSED   id=138455 토스트랑 matched=2 failed=128 menus=12 photos=10
+[131/6860] CLOSED   id=138443 쉐라메르과자점 matched=2 failed=129 menus=12 photos=10
+[132/6860] CLOSED   id=130539 화이트리에 테크노폴리스점 matched=2 failed=130 menus=12 photos=10
+[133/6860] CLOSED   id=138140 티아라케이크&카페 matched=2 failed=131 menus=12 photos=10
+[134/6860] CLOSED   id=138122 메이드윤 matched=2 failed=132 menus=12 photos=10
+[135/6860] NO_CAND  id=138119 마이클스키친 matched=2 failed=133 menus=12 photos=10
+[136/6860] CLOSED   id=130524 한빵울 현풍점 matched=2 failed=134 menus=12 photos=10
+[137/6860] CLOSED   id=130509 카프리쵸사 matched=2 failed=135 menus=12 photos=10
+[138/6860] MISMATCH id=130506 햅쿠 matched=2 failed=136 menus=12 photos=10
+[139/6860] CLOSED   id=130503 커피내리는부부 matched=2 failed=137 menus=12 photos=10
+[140/6860] CLOSED   id=130488 마시그래이 옥포점 matched=2 failed=138 menus=12 photos=10
+[141/6860] CLOSED   id=130401 투썸 플레이스 대구대실역점 matched=2 failed=139 menus=12 photos=10
+[142/6860] MISMATCH id=130398 헐타동네점빵 다사역힐스테이트점 matched=2 failed=140 menus=12 photos=10
+[143/6860] CLOSED   id=130395 몬스터커피 대구대실역점 matched=2 failed=141 menus=12 photos=10
+[144/6860] CLOSED   id=138071 어바웃타임 부평점 matched=2 failed=142 menus=12 photos=10
+[145/6860] CLOSED   id=138068 카페스츄리 matched=2 failed=143 menus=12 photos=10
+[146/6860] CLOSED   id=138062 에키노마에 matched=2 failed=144 menus=12 photos=10
+[147/6860] CLOSED   id=130371 슈슈네쌀쿠키 matched=2 failed=145 menus=12 photos=10
+[148/6860] MISMATCH id=130326 (주)태광웰푸드 matched=2 failed=146 menus=12 photos=10
+[149/6860] NO_CAND  id=130287 가비당1274 matched=2 failed=147 menus=12 photos=10
+[150/6860] CLOSED   id=138002 대왕꽈배기호떡 matched=2 failed=148 menus=12 photos=10
+[151/6860] MISMATCH id=137996 하이디아웃 matched=2 failed=149 menus=12 photos=10
+[152/6860] CLOSED   id=130275 베이킹박(Park) matched=2 failed=150 menus=12 photos=10
+[153/6860] CLOSED   id=130266 당신이찾는케이크 matched=2 failed=151 menus=12 photos=10
+[154/6860] CLOSED   id=137990 신사와꽈배기 부평직영점 matched=2 failed=152 menus=12 photos=10
+[155/6860] MISMATCH id=129864 천냥빵떡대장 matched=2 failed=153 menus=12 photos=10
+[156/6860] CLOSED   id=129381 과일나라앨리스 본점 matched=2 failed=154 menus=12 photos=10
+[157/6860] MISMATCH id=129366 오월의아침 matched=2 failed=155 menus=12 photos=10
+[158/6860] CLOSED   id=137882 글로어도넛 인천논현점 matched=2 failed=156 menus=12 photos=10
+[159/6860] NO_CAND  id=137852 에르 베이크샵 matched=2 failed=157 menus=12 photos=10
+[160/6860] CLOSED   id=137849 카페올랑 matched=2 failed=158 menus=12 photos=10
+[161/6860] MISMATCH id=129312 몬스터커피 대구도원점 matched=2 failed=159 menus=12 photos=10
+[162/6860] CLOSED   id=137714 황태자베이커리 matched=2 failed=160 menus=12 photos=10
+[163/6860] CLOSED   id=137222 김쉐프제빵소 matched=2 failed=161 menus=12 photos=10
+[164/6860] CLOSED   id=129195 브리즈 브레드 matched=2 failed=162 menus=12 photos=10
+[165/6860] CLOSED   id=129192 소리미아 matched=2 failed=163 menus=12 photos=10
+[166/6860] MISMATCH id=137063 195우리밀베이커리 인천만수점 matched=2 failed=164 menus=12 photos=10
+[167/6860] CLOSED   id=129156 대한민국떡방 matched=2 failed=165 menus=12 photos=10
+[168/6860] MISMATCH id=137045 오늘의하루 matched=2 failed=166 menus=12 photos=10
+[169/6860] MISMATCH id=136958 행운담 matched=2 failed=167 menus=12 photos=10
+[170/6860] CLOSED   id=128961 마마스유 matched=2 failed=168 menus=12 photos=10
+[171/6860] NO_CAND  id=136862 예태경행복뜨레 matched=2 failed=169 menus=12 photos=10
+[172/6860] CLOSED   id=128928 만개 matched=2 failed=170 menus=12 photos=10
+[173/6860] MISMATCH id=136637 케익이벤트 matched=2 failed=171 menus=12 photos=10
+[174/6860] NO_CAND  id=128919 삼송빵집망티커피 대구상인점 matched=2 failed=172 menus=12 photos=10
+[175/6860] MISMATCH id=136592 다온베이커리 matched=2 failed=173 menus=12 photos=10
+[176/6860] CLOSED   id=128916 성신옥의설 대구본점 matched=2 failed=174 menus=12 photos=10
+[177/6860] CLOSED   id=128913 한나식빵 월배점 matched=2 failed=175 menus=12 photos=10
+[178/6860] NO_CAND  id=136529 빵케잌이벤트 matched=2 failed=176 menus=12 photos=10
+[179/6860] CLOSED   id=128886 르안데르센베이커리 본점 matched=2 failed=177 menus=12 photos=10
+[180/6860] NO_CAND  id=136445 달달베이킹&커피 matched=2 failed=178 menus=12 photos=10
+[181/6860] CLOSED   id=136214 빨콩커피 간석올리브점 matched=2 failed=179 menus=12 photos=10
+[182/6860] MISMATCH id=128862 베리베어 matched=2 failed=180 menus=12 photos=10
+[183/6860] NO_CAND  id=128856 영빈케익하우스 matched=2 failed=181 menus=12 photos=10
+[184/6860] CLOSED   id=136157 퐁듀베이커리 간석점 matched=2 failed=182 menus=12 photos=10
+[185/6860] CLOSED   id=128847 파트슈크레 matched=2 failed=183 menus=12 photos=10
+[186/6860] CLOSED   id=128685 몬스터커피 대구계명대점 matched=2 failed=184 menus=12 photos=10
+[187/6860] NO_CAND  id=136049 무지개붕어빵 matched=2 failed=185 menus=12 photos=10
+[188/6860] CLOSED   id=128646 동심커피 matched=2 failed=186 menus=12 photos=10
+[189/6860] NO_CAND  id=128640 와플앤피플 matched=2 failed=187 menus=12 photos=10
+[190/6860] MISMATCH id=136031 퍼스트커피 랩 인천만수역점 matched=2 failed=188 menus=12 photos=10
+[191/6860] CLOSED   id=128616 몬스터커피 대구호산점 matched=2 failed=189 menus=12 photos=10
+[192/6860] CLOSED   id=128574 베이커리몽마 matched=2 failed=190 menus=12 photos=10
+[193/6860] NO_CAND  id=128508 미네랄커피 본사직영1호점 matched=2 failed=191 menus=12 photos=10
+[194/6860] NO_CAND  id=135923 뮤제크로플 matched=2 failed=192 menus=12 photos=10
+[195/6860] CLOSED   id=135767 앤티앤스프레즐 현대아울렛송도점 matched=2 failed=193 menus=12 photos=10
+[196/6860] MISMATCH id=128250 스마일명품찹쌀꽈배기 matched=2 failed=194 menus=12 photos=10
+[197/6860] MISMATCH id=128202 카페051 대구신월성점 matched=2 failed=195 menus=12 photos=10
+[단일 가게 fetch 실패] id=128193: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/128193/naver-enrich-item
+[198/6860] FETCH_FAIL id=128193 하이오커피 달서SK뷰점
+[199/6860] MISMATCH id=128175 85커피 대구용산점 matched=2 failed=197 menus=12 photos=10
+[200/6860] CLOSED   id=128166 굿팡 matched=2 failed=198 menus=12 photos=10
+[201/6860] NO_CAND  id=128142 은리베플라워카페 matched=2 failed=199 menus=12 photos=10
+[202/6860] MISMATCH id=127902 르네뜨르(Renaitre) matched=2 failed=200 menus=12 photos=10
+[203/6860] NO_CAND  id=135467 스이또스이또 matched=2 failed=201 menus=12 photos=10
+[204/6860] CLOSED   id=135452 솔트스테인 matched=2 failed=202 menus=12 photos=10
+[205/6860] NO_CAND  id=135428 가드너스테이블 matched=2 failed=203 menus=12 photos=10
+[206/6860] CLOSED   id=135416 커스텀커피 송도랜드마크시티점 matched=2 failed=204 menus=12 photos=10
+[207/6860] MATCH    id=135413 비스타블루 matched=3 failed=204 menus=26 photos=15
+[208/6860] MISMATCH id=135410 늘솜스콘 matched=3 failed=205 menus=26 photos=15
+[209/6860] MISMATCH id=127170 메리골드상점 matched=3 failed=206 menus=26 photos=15
+[210/6860] MISMATCH id=127164 제이즈디저트샵 matched=3 failed=207 menus=26 photos=15
+[211/6860] MISMATCH id=127158 이플 matched=3 failed=208 menus=26 photos=15
+[212/6860] CLOSED   id=127155 라비토 시지점 matched=3 failed=209 menus=26 photos=15
+[213/6860] MISMATCH id=127143 앤즈오븐 matched=3 failed=210 menus=26 photos=15
+[214/6860] CLOSED   id=135377 솔트스테인 2호점 matched=3 failed=211 menus=26 photos=15
+[215/6860] MISMATCH id=127116 빠띠쉐리베이케리 matched=3 failed=212 menus=26 photos=15
+[216/6860] CLOSED   id=135350 카페드모임 matched=3 failed=213 menus=26 photos=15
+[217/6860] NO_CAND  id=127104 스마일명품찹쌀꽈배기 시지수성1호점 matched=3 failed=214 menus=26 photos=15
+[218/6860] NO_CAND  id=127089 병아리소풍 시지점 matched=3 failed=215 menus=26 photos=15
+[219/6860] CLOSED   id=126852 이현베이커리 matched=3 failed=216 menus=26 photos=15
+[220/6860] MISMATCH id=126789 예쁜하루디저트카페 matched=3 failed=217 menus=26 photos=15
+[221/6860] MISMATCH id=126726 한올식품 matched=3 failed=218 menus=26 photos=15
+[222/6860] NO_CAND  id=135170 쉐어가든 플라워&베이커리 matched=3 failed=219 menus=26 photos=15
+[223/6860] MISMATCH id=126507 카페100 matched=3 failed=220 menus=26 photos=15
+[224/6860] NO_CAND  id=135116 쎄콩데라이브 송도 matched=3 failed=221 menus=26 photos=15
+[225/6860] MISMATCH id=126459 론다베이크샵 matched=3 failed=222 menus=26 photos=15
+[226/6860] MISMATCH id=134894 뉴욕쟁이디저트 인천연수점 matched=3 failed=223 menus=26 photos=15
+[227/6860] NO_CAND  id=134888 OK찹쌀꽈배기콩다방 연수점 matched=3 failed=224 menus=26 photos=15
+[228/6860] MISMATCH id=126072 라플레케 matched=3 failed=225 menus=26 photos=15
+[229/6860] NO_CAND  id=126033 해피원베이커리 matched=3 failed=226 menus=26 photos=15
+[230/6860] NO_CAND  id=134555 모멘토커피하우스 matched=3 failed=227 menus=26 photos=15
+[231/6860] MISMATCH id=134534 카페나비잠 matched=3 failed=228 menus=26 photos=15
+[232/6860] NO_CAND  id=125802 오늘도머핀 matched=3 failed=229 menus=26 photos=15
+[233/6860] CLOSED   id=134498 샹끄발레르 matched=3 failed=230 menus=26 photos=15
+[234/6860] NO_CAND  id=134492 케잌하우스 파티쉐 matched=3 failed=231 menus=26 photos=15
+[235/6860] MATCH    id=134489 마리나 matched=4 failed=231 menus=26 photos=20
+[236/6860] MISMATCH id=134303 잣품은그집호두과자 롯데백화점 인천터미널점 matched=4 failed=232 menus=26 photos=20
+[237/6860] MISMATCH id=134294 레이오 matched=4 failed=233 menus=26 photos=20
+[238/6860] CLOSED   id=134288 빨콩커피 구월로데오점 matched=4 failed=234 menus=26 photos=20
+[239/6860] NO_CAND  id=124116 미키마카롱 matched=4 failed=235 menus=26 photos=20
+[240/6860] MISMATCH id=123948 온담 범어점 matched=4 failed=236 menus=26 photos=20
+[241/6860] MISMATCH id=134252 라뚜셩트 롯데백화점인천점 matched=4 failed=237 menus=26 photos=20
+[242/6860] MATCH    id=123792 무너빵 matched=5 failed=237 menus=48 photos=25
+[243/6860] MATCH    id=134234 대한매점 matched=6 failed=237 menus=57 photos=30
+[244/6860] NO_CAND  id=123756 달롱가 matched=6 failed=238 menus=57 photos=30
+[245/6860] CLOSED   id=123735 베르테메종 matched=6 failed=239 menus=57 photos=30
+[246/6860] MISMATCH id=123690 팡드팡 황금점 matched=6 failed=240 menus=57 photos=30
+[247/6860] CLOSED   id=133793 삼정떡집 matched=6 failed=241 menus=57 photos=30
+[248/6860] MISMATCH id=133664 메가 엠지씨커피 석바위힐스테이트점 matched=6 failed=242 menus=57 photos=30
+[249/6860] CLOSED   id=123135 소지숍 matched=6 failed=243 menus=57 photos=30
+[250/6860] MISMATCH id=133268 인천제과점협동조합 matched=6 failed=244 menus=57 photos=30
+[251/6860] CLOSED   id=133244 꾸움과자점 matched=6 failed=245 menus=57 photos=30
+[252/6860] MISMATCH id=133190 다인케이크 matched=6 failed=246 menus=57 photos=30
+[253/6860] MISMATCH id=123021 판다 탕후루 matched=6 failed=247 menus=57 photos=30
+[254/6860] CLOSED   id=133106 듀팡 matched=6 failed=248 menus=57 photos=30
+[255/6860] NO_CAND  id=133079 달콤한꽃송이 matched=6 failed=249 menus=57 photos=30
+[256/6860] MISMATCH id=133061 쉐프윤찹쌀꽈배기고로케 matched=6 failed=250 menus=57 photos=30
+[257/6860] MISMATCH id=133016 한양떡집 matched=6 failed=251 menus=57 photos=30
+[258/6860] MISMATCH id=132989 건강식품발아통밀빵 matched=6 failed=252 menus=57 photos=30
+[259/6860] NO_CAND  id=122811 썸머인스윗 matched=6 failed=253 menus=57 photos=30
+[260/6860] MATCH    id=122757 와플칸 칠곡점 matched=7 failed=253 menus=66 photos=35
+[261/6860] NO_CAND  id=122754 과일창고앤디저트커피 matched=7 failed=254 menus=66 photos=35
+[262/6860] MISMATCH id=132617 콩꼬물꽈배기 용남시장점 matched=7 failed=255 menus=66 photos=35
+[263/6860] MISMATCH id=122679 다온 검단점 matched=7 failed=256 menus=66 photos=35
+[264/6860] NO_CAND  id=121548 블루힐즈카페 matched=7 failed=257 menus=66 photos=35
+[265/6860] MISMATCH id=132440 자미당 용현점 matched=7 failed=258 menus=66 photos=35
+[266/6860] MISMATCH id=121209 올랑올랑 matched=7 failed=259 menus=66 photos=35
+[267/6860] NO_CAND  id=132398 쿠키지 matched=7 failed=260 menus=66 photos=35
+[268/6860] CLOSED   id=132182 카페온기 matched=7 failed=261 menus=66 photos=35
+[269/6860] MATCH    id=120966 빙동댕 대구점 matched=8 failed=261 menus=120 photos=40
+[270/6860] NO_CAND  id=131699 101퍼센트베이커리 matched=8 failed=262 menus=120 photos=40
+[271/6860] NO_CAND  id=131495 퀵바이츠2 인스파이어 엔터테인먼트 리조트 matched=8 failed=263 menus=120 photos=40
+[272/6860] MISMATCH id=131492 시루케이크 matched=8 failed=264 menus=120 photos=40
+[273/6860] NO_CAND  id=131489 퀵바이츠4 인스파이어 엔터테인먼트 리조트 matched=8 failed=265 menus=120 photos=40
+[274/6860] NO_CAND  id=131486 퀵바이츠6 인스파이어엔터테인먼트리조트 matched=8 failed=266 menus=120 photos=40
+[275/6860] MISMATCH id=120546 케잌ㅋ matched=8 failed=267 menus=120 photos=40
+[276/6860] NO_CAND  id=120480 옐로우베이크 matched=8 failed=268 menus=120 photos=40
+[277/6860] NO_CAND  id=131477 카페떼무리 matched=8 failed=269 menus=120 photos=40
+[278/6860] MISMATCH id=131462 스토리오브라망 인천공항T1점 matched=8 failed=270 menus=120 photos=40
+[279/6860] NO_CAND  id=131453 퀵바이츠3 인스파이어 엔터테인먼트 리조트 matched=8 failed=271 menus=120 photos=40
+[280/6860] MISMATCH id=119793 계영제과 matched=8 failed=272 menus=120 photos=40
+[281/6860] MATCH    id=119403 어라운드 matched=9 failed=272 menus=120 photos=45
+[282/6860] CLOSED   id=131429 밀크컨셉 운서넙디점 matched=9 failed=273 menus=120 photos=45
+[283/6860] MISMATCH id=131423 덕뒤레 matched=9 failed=274 menus=120 photos=45
+[284/6860] MISMATCH id=131411 꾸르꾸르 matched=9 failed=275 menus=120 photos=45
+[285/6860] MISMATCH id=131405 빙글빙글 운서점 matched=9 failed=276 menus=120 photos=45
+[286/6860] CLOSED   id=118623 마리아쥬커피 matched=9 failed=277 menus=120 photos=45
+[287/6860] CLOSED   id=118443 정도너츠 대구수성점 matched=9 failed=278 menus=120 photos=45
+[288/6860] MATCH    id=131384 북해도 스위트 운서점 matched=10 failed=278 menus=121 photos=50
+[289/6860] CLOSED   id=131381 경주십원빵 예단포점 matched=10 failed=279 menus=121 photos=50
+[290/6860] MISMATCH id=131228 조이블룸 matched=10 failed=280 menus=121 photos=50
+[291/6860] MISMATCH id=130964 딜라잇 matched=10 failed=281 menus=121 photos=50
+[292/6860] MATCH    id=130778 아네모오네 matched=11 failed=281 menus=133 photos=55
+[293/6860] CLOSED   id=130748 메이드인버터 matched=11 failed=282 menus=133 photos=55
+[294/6860] MISMATCH id=118080 르네뜨르 matched=11 failed=283 menus=133 photos=55
+[295/6860] MATCH    id=130736 오카드코히 matched=12 failed=283 menus=140 photos=60
+[296/6860] MISMATCH id=118038 왕찹쌀꽈배기 matched=12 failed=284 menus=140 photos=60
+[297/6860] CLOSED   id=130712 이그니토 커피컴퍼니 matched=12 failed=285 menus=140 photos=60
+[298/6860] CLOSED   id=130703 마티네케이크 matched=12 failed=286 menus=140 photos=60
+[299/6860] CLOSED   id=130673 루데이지 matched=12 failed=287 menus=140 photos=60
+[300/6860] NO_CAND  id=117720 올라파티&케이크 matched=12 failed=288 menus=140 photos=60
+[301/6860] NO_CAND  id=130661 베이커리카페더꿈&스페이스더꿈 matched=12 failed=289 menus=140 photos=60
+[302/6860] MISMATCH id=130658 쿠키랑빵이랑 matched=12 failed=290 menus=140 photos=60
+[303/6860] CLOSED   id=116463 밤비크 matched=12 failed=291 menus=140 photos=60
+[304/6860] NO_CAND  id=130649 보리당 신포시장본점 matched=12 failed=292 menus=140 photos=60
+[305/6860] MATCH    id=130646 빈스맨 matched=13 failed=292 menus=154 photos=65
+[306/6860] MISMATCH id=115971 언니쿠키 matched=13 failed=293 menus=154 photos=65
+[307/6860] MATCH    id=130643 카페미투 matched=14 failed=293 menus=172 photos=70
+[308/6860] NO_CAND  id=130637 도마구락부 matched=14 failed=294 menus=172 photos=70
+[309/6860] CLOSED   id=115923 인생찹쌀꽈배기 matched=14 failed=295 menus=172 photos=70
+[310/6860] CLOSED   id=130616 신포육포 matched=14 failed=296 menus=172 photos=70
+[311/6860] CLOSED   id=130604 베이글곰빵 matched=14 failed=297 menus=172 photos=70
+[312/6860] MATCH    id=115842 굿모닝베이글 matched=15 failed=297 menus=172 photos=75
+[313/6860] MISMATCH id=130580 블라썸 matched=15 failed=298 menus=172 photos=75
+[314/6860] MISMATCH id=130541 슈가봉봉 matched=15 failed=299 menus=172 photos=75
+[315/6860] MISMATCH id=130538 도토리케이크 matched=15 failed=300 menus=172 photos=75
+[316/6860] NO_CAND  id=130535 잼이과자점 matched=15 failed=301 menus=172 photos=75
+[317/6860] CLOSED   id=115731 제이델링 달서구점 matched=15 failed=302 menus=172 photos=75
+[318/6860] MATCH    id=115707 릴플레이트 matched=16 failed=302 menus=189 photos=80
+[319/6860] CLOSED   id=130529 케이찹사라다 현풍점 matched=16 failed=303 menus=189 photos=80
+[320/6860] CLOSED   id=130523 설롱커피 matched=16 failed=304 menus=189 photos=80
+[321/6860] NO_CAND  id=130520 승리다과 matched=16 failed=305 menus=189 photos=80
+[322/6860] CLOSED   id=115461 세담찹쌀꽈배기 내당점 matched=16 failed=306 menus=189 photos=80
+[323/6860] MISMATCH id=130511 앤티앤스프레즐 국립대구과학관점 matched=16 failed=307 menus=189 photos=80
+[324/6860] CLOSED   id=115422 포프 matched=16 failed=308 menus=189 photos=80
+[325/6860] CLOSED   id=115410 미야까페 matched=16 failed=309 menus=189 photos=80
+[326/6860] MISMATCH id=115407 앤티앤스프레즐 이월드대구점 matched=16 failed=310 menus=189 photos=80
+[327/6860] MATCH    id=130469 가창 카페목하 matched=17 failed=310 menus=198 photos=85
+[328/6860] CLOSED   id=130466 오마모리 가창 matched=17 failed=311 menus=198 photos=85
+[329/6860] NO_CAND  id=115380 복또빵디저트샵 matched=17 failed=312 menus=198 photos=85
+[330/6860] MISMATCH id=115353 사실빙 이월드점 matched=17 failed=313 menus=198 photos=85
+[331/6860] MATCH    id=130403 오서하 디저트샵 matched=18 failed=313 menus=198 photos=86
+[332/6860] MATCH    id=130388 풍경 matched=19 failed=313 menus=206 photos=91
+[333/6860] NO_CAND  id=130370 소문난김가네 웰빙왕호떡 matched=19 failed=314 menus=206 photos=91
+[334/6860] MISMATCH id=130364 스마일명품찹쌀꽈배기 matched=19 failed=315 menus=206 photos=91
+[335/6860] CLOSED   id=130355 히키케키 matched=19 failed=316 menus=206 photos=91
+[336/6860] CLOSED   id=130352 솔레일드서재 matched=19 failed=317 menus=206 photos=91
+[337/6860] MATCH    id=130340 르당 matched=20 failed=317 menus=213 photos=96
+[338/6860] NO_CAND  id=130283 행복울타리해피베이커리 matched=20 failed=318 menus=213 photos=96
+[339/6860] CLOSED   id=115170 찹쌀꽈배기왕국 matched=20 failed=319 menus=213 photos=96
+[340/6860] MISMATCH id=130277 그라운드커피 대구점 matched=20 failed=320 menus=213 photos=96
+[341/6860] CLOSED   id=115167 덴스크 matched=20 failed=321 menus=213 photos=96
+[342/6860] MISMATCH id=115155 커피르플랑 동호점 matched=20 failed=322 menus=213 photos=96
+[343/6860] CLOSED   id=130259 자연충만 matched=20 failed=323 menus=213 photos=96
+[344/6860] CLOSED   id=130244 바람이불어오는곳 matched=20 failed=324 menus=213 photos=96
+[345/6860] CLOSED   id=129707 카페 산아래 matched=20 failed=325 menus=213 photos=96
+[346/6860] MATCH    id=129704 달다구니 도원점 matched=21 failed=325 menus=220 photos=101
+[347/6860] MATCH    id=129560 바토플루이르 도원수변 matched=22 failed=325 menus=226 photos=106
+[348/6860] CLOSED   id=129386 호두베리케이크 matched=22 failed=326 menus=226 photos=106
+[349/6860] NO_CAND  id=115128 출장스낵카1994 matched=22 failed=327 menus=226 photos=106
+[350/6860] MISMATCH id=129365 모리베이커리 matched=22 failed=328 menus=226 photos=106
+[351/6860] CLOSED   id=129308 에프닷커피 matched=22 failed=329 menus=226 photos=106
+[352/6860] MATCH    id=129302 아미앙베이커리 matched=23 failed=329 menus=226 photos=108
+[353/6860] CLOSED   id=115071 달롱도르요거트아이스크림 반야월점 matched=23 failed=330 menus=226 photos=108
+[354/6860] MISMATCH id=129248 스마일찰진꽈배기 matched=23 failed=331 menus=226 photos=108
+[355/6860] MATCH    id=115005 소금빵앗간 matched=24 failed=331 menus=230 photos=113
+[356/6860] MISMATCH id=114924 빵집오빠 방촌점 matched=24 failed=332 menus=230 photos=113
+[357/6860] CLOSED   id=128975 미미당 matched=24 failed=333 menus=230 photos=113
+[358/6860] MATCH    id=114699 와쿠디저트 matched=25 failed=333 menus=251 photos=118
+[359/6860] CLOSED   id=128963 케이크한스푼 matched=25 failed=334 menus=251 photos=118
+[360/6860] MATCH    id=128960 쏭쏭계란빵 matched=26 failed=334 menus=265 photos=123
+[361/6860] MISMATCH id=114666 마켓베이커리 matched=26 failed=335 menus=265 photos=123
+[362/6860] MATCH    id=114654 생츄어리 matched=27 failed=335 menus=265 photos=128
+[363/6860] CLOSED   id=114651 퍼즈X멜트베이커리 matched=27 failed=336 menus=265 photos=128
+[364/6860] MISMATCH id=128945 꿈꾸는솜사탕 matched=27 failed=337 menus=265 photos=128
+[365/6860] CLOSED   id=128933 사실빙 월배점 matched=27 failed=338 menus=265 photos=128
+[366/6860] CLOSED   id=128927 달롱도르요거트아이스크림 달서점 matched=27 failed=339 menus=265 photos=128
+[367/6860] CLOSED   id=114405 핸즈커피 동촌유원지점 matched=27 failed=340 menus=265 photos=128
+[368/6860] MISMATCH id=128897 몽블랑드파리 롯데백화점상인점 matched=27 failed=341 menus=265 photos=128
+[369/6860] MISMATCH id=128894 몽글케이크 matched=27 failed=342 menus=265 photos=128
+[370/6860] CLOSED   id=128891 카페19일 matched=27 failed=343 menus=265 photos=128
+[371/6860] MATCH    id=128885 오터래빗하우스 matched=28 failed=343 menus=275 photos=133
+[372/6860] CLOSED   id=114327 쏭빵 matched=28 failed=344 menus=275 photos=133
+[373/6860] CLOSED   id=114249 아이엠에이투지 matched=28 failed=345 menus=275 photos=133
+[374/6860] MISMATCH id=114210 올인베이커리 수성만촌점 matched=28 failed=346 menus=275 photos=133
+[375/6860] MISMATCH id=128864 빵아빵아 월배점 matched=28 failed=347 menus=275 photos=133
+[376/6860] CLOSED   id=114150 애트케이크 matched=28 failed=348 menus=275 photos=133
+[377/6860] MATCH    id=128852 온더온 matched=29 failed=348 menus=288 photos=138
+[378/6860] MISMATCH id=128843 카카오츄로 신월성CGV점 matched=29 failed=349 menus=288 photos=138
+[379/6860] CLOSED   id=128840 케이크린 matched=29 failed=350 menus=288 photos=138
+[380/6860] MATCH    id=128825 러드 matched=30 failed=350 menus=301 photos=143
+[381/6860] CLOSED   id=128684 노다웃 matched=30 failed=351 menus=301 photos=143
+[382/6860] NO_CAND  id=128660 뉴포트비치커피 matched=30 failed=352 menus=301 photos=143
+[383/6860] CLOSED   id=128642 옹떡옹떡케이크 matched=30 failed=353 menus=301 photos=143
+[384/6860] CLOSED   id=128621 슬로우터틀 성서계대점 matched=30 failed=354 menus=301 photos=143
+[385/6860] CLOSED   id=113388 유니크플레이스 matched=30 failed=355 menus=301 photos=143
+[386/6860] CLOSED   id=128540 크리밍(creaming) matched=30 failed=356 menus=301 photos=143
+[387/6860] NO_CAND  id=113184 나비다드48 1-1 만촌본점 matched=30 failed=357 menus=301 photos=143
+[388/6860] CLOSED   id=128525 몬스터커피 대구이곡점 matched=30 failed=358 menus=301 photos=143
+[389/6860] CLOSED   id=128513 오마이데이즈 matched=30 failed=359 menus=301 photos=143
+[390/6860] CLOSED   id=128495 미니블루 구슬아이스크림 matched=30 failed=360 menus=301 photos=143
+[391/6860] MATCH    id=128477 핸즈커피 이곡점 matched=31 failed=360 menus=316 photos=148
+[392/6860] CLOSED   id=128456 블루쇼콜라 matched=31 failed=361 menus=316 photos=148
+[393/6860] NO_CAND  id=113013 또르또르 matched=31 failed=362 menus=316 photos=148
+[394/6860] MATCH    id=113007 베르 matched=32 failed=362 menus=328 photos=153
+[395/6860] NO_CAND  id=128291 빵굽는마을끄레용 matched=32 failed=363 menus=328 photos=153
+[396/6860] CLOSED   id=112983 소금무늬 matched=32 failed=364 menus=328 photos=153
+[397/6860] CLOSED   id=128210 빵드밀 matched=32 failed=365 menus=328 photos=153
+[398/6860] MISMATCH id=128189 컵넛 월성점 matched=32 failed=366 menus=328 photos=153
+[399/6860] NO_CAND  id=128150 민트글러브 matched=32 failed=367 menus=328 photos=153
+[400/6860] CLOSED   id=128144 카페정&베이킹스튜디오 matched=32 failed=368 menus=328 photos=153
+[401/6860] MATCH    id=127973 코셔 matched=33 failed=368 menus=333 photos=158
+[402/6860] CLOSED   id=127940 베리데이 matched=33 failed=369 menus=333 photos=158
+[403/6860] CLOSED   id=127547 허니무드 matched=33 failed=370 menus=333 photos=158
+[404/6860] CLOSED   id=127538 케이찹사라다 죽전본리점 matched=33 failed=371 menus=333 photos=158
+[405/6860] NO_CAND  id=112644 핑크크로플 matched=33 failed=372 menus=333 photos=158
+[406/6860] CLOSED   id=127364 홀리몰리케이크 matched=33 failed=373 menus=333 photos=158
+[407/6860] CLOSED   id=127292 코지케이크샵 matched=33 failed=374 menus=333 photos=158
+[408/6860] MATCH    id=127241 핸즈커피 대구미술관점 matched=34 failed=374 menus=350 photos=163
+[409/6860] MATCH    id=127220 핸즈커피 시지점 matched=35 failed=374 menus=365 photos=168
+[410/6860] CLOSED   id=127166 모마커피 matched=35 failed=375 menus=365 photos=168
+[411/6860] CLOSED   id=127145 시오다과 matched=35 failed=376 menus=365 photos=168
+[412/6860] NO_CAND  id=127139 도리도리떡도리 매호본점 matched=35 failed=377 menus=365 photos=168
+[413/6860] CLOSED   id=127130 하티베이크 (HEARTI BAKE) matched=35 failed=378 menus=365 photos=168
+[414/6860] MATCH    id=127127 매스커피 신매역점 matched=36 failed=378 menus=373 photos=173
+[415/6860] CLOSED   id=112638 모고케이크 matched=36 failed=379 menus=373 photos=173
+[416/6860] MATCH    id=112620 더스키브라운 matched=37 failed=379 menus=386 photos=178
+[417/6860] MATCH    id=112611 스탠다드커피하우스 matched=38 failed=379 menus=395 photos=183
+[418/6860] MATCH    id=112599 베지로운 matched=39 failed=379 menus=408 photos=188
+[419/6860] MATCH    id=127100 디디얌 matched=40 failed=379 menus=409 photos=193
+[420/6860] CLOSED   id=112587 쌀루당 matched=40 failed=380 menus=409 photos=193
+[421/6860] MISMATCH id=112584 해피스마일베이커리 matched=40 failed=381 menus=409 photos=193
+[422/6860] CLOSED   id=112575 모찌나가 matched=40 failed=382 menus=409 photos=193
+[423/6860] CLOSED   id=112572 햇살상점 matched=40 failed=383 menus=409 photos=193
+[424/6860] NO_CAND  id=112551 인스퍼레이션디 동촌유원지점 matched=40 failed=384 menus=409 photos=193
+[425/6860] MATCH    id=112536 몬스터커피 경북대남문점 matched=41 failed=384 menus=422 photos=197
+[426/6860] MISMATCH id=126944 대구수성지역자활센터 청년자립도전사업단 matched=41 failed=385 menus=422 photos=197
+[427/6860] CLOSED   id=112533 초코멜라 matched=41 failed=386 menus=422 photos=197
+[428/6860] MISMATCH id=126926 덕천418 matched=41 failed=387 menus=422 photos=197
+[429/6860] CLOSED   id=112518 위니비니 동대구역점 matched=41 failed=388 menus=422 photos=197
+[430/6860] NO_CAND  id=126740 앤티앤스프레즐 동아백화점 수성점 matched=41 failed=389 menus=422 photos=197
+[431/6860] CLOSED   id=112515 어펙션 matched=41 failed=390 menus=422 photos=197
+[432/6860] MATCH    id=112509 백금당 동대구점2호점 matched=42 failed=390 menus=442 photos=202
+[433/6860] CLOSED   id=112503 프로방스 P matched=42 failed=391 menus=442 photos=202
+[434/6860] CLOSED   id=112464 빈플래닛 matched=42 failed=392 menus=442 photos=202
+[435/6860] CLOSED   id=112329 빛날규 matched=42 failed=393 menus=442 photos=202
+[436/6860] MISMATCH id=126542 에렌델 matched=42 failed=394 menus=442 photos=202
+[437/6860] CLOSED   id=126527 뽄떼베이커리 파동점 matched=42 failed=395 menus=442 photos=202
+[438/6860] CLOSED   id=126518 카페더린 matched=42 failed=396 menus=442 photos=202
+[439/6860] MATCH    id=112188 파노라마 포레스트180 matched=43 failed=396 menus=447 photos=207
+[440/6860] CLOSED   id=112164 비바베이커리 matched=43 failed=397 menus=447 photos=207
+[441/6860] MISMATCH id=112116 대봉55 matched=43 failed=398 menus=447 photos=207
+[442/6860] MATCH    id=126506 스마일명품찹쌀꽈배기 지산범물점 matched=44 failed=398 menus=459 photos=212
+[443/6860] CLOSED   id=126479 대구커피나무학교 matched=44 failed=399 menus=459 photos=212
+[444/6860] CLOSED   id=112095 멜로우즈 matched=44 failed=400 menus=459 photos=212
+[445/6860] CLOSED   id=126470 몬스터커피 지산목련점 matched=44 failed=401 menus=459 photos=212
+[446/6860] MISMATCH id=126458 모하커피 matched=44 failed=402 menus=459 photos=212
+[447/6860] MATCH    id=126443 다홍연화 matched=45 failed=402 menus=481 photos=217
+[448/6860] CLOSED   id=112053 빨라쪼델프레도 대백프라자점 matched=45 failed=403 menus=481 photos=217
+[449/6860] MATCH    id=111723 과일곳간 matched=46 failed=403 menus=482 photos=222
+[450/6860] NO_CAND  id=111528 침니브레드 matched=46 failed=404 menus=482 photos=222
+[451/6860] MATCH    id=126413 핸즈커피 들안길점 matched=47 failed=404 menus=482 photos=226
+[452/6860] MISMATCH id=111210 남산동 matched=47 failed=405 menus=482 photos=226
+[453/6860] MISMATCH id=126407 삼송1957 matched=47 failed=406 menus=482 photos=226
+[454/6860] MATCH    id=111198 와플칸 남산점 matched=48 failed=406 menus=512 photos=230
+[455/6860] CLOSED   id=126404 예가체프&빙 matched=48 failed=407 menus=512 photos=230
+[456/6860] CLOSED   id=126389 그라운드플로어 matched=48 failed=408 menus=512 photos=230
+[457/6860] MATCH    id=126374 카페올브 matched=49 failed=408 menus=515 photos=235
+[458/6860] CLOSED   id=126350 크럼블리 matched=49 failed=409 menus=515 photos=235
+[459/6860] MATCH    id=126341 에어커피 아르떼수성랜드점 matched=50 failed=409 menus=533 photos=240
+[460/6860] MATCH    id=111162 큐케이 명덕 matched=51 failed=409 menus=560 photos=245
+[461/6860] MISMATCH id=111135 대봉정 matched=51 failed=410 menus=560 photos=245
+[462/6860] MATCH    id=126023 사이커피 수성못점 matched=52 failed=410 menus=582 photos=250
+[463/6860] MATCH    id=111024 카페드림스컴트루 matched=53 failed=410 menus=589 photos=255
+[464/6860] MISMATCH id=126017 시즐링커피 matched=53 failed=411 menus=589 photos=255
+[465/6860] MISMATCH id=125993 위클리베이글 대구두산점 matched=53 failed=412 menus=589 photos=255
+[466/6860] MISMATCH id=125960 이루다케이크 matched=53 failed=413 menus=589 photos=255
+[467/6860] MISMATCH id=125939 앤티앤스프레즐 홈플러스 대구수성점 matched=53 failed=414 menus=589 photos=255
+[468/6860] MISMATCH id=125933 크래키 matched=53 failed=415 menus=589 photos=255
+[469/6860] CLOSED   id=110982 도키메키 matched=53 failed=416 menus=589 photos=255
+[470/6860] MISMATCH id=125918 오후의베이커리 matched=53 failed=417 menus=589 photos=255
+[471/6860] MISMATCH id=125912 코올드커피 matched=53 failed=418 menus=589 photos=255
+[472/6860] CLOSED   id=125903 미닝케이크 matched=53 failed=419 menus=589 photos=255
+[473/6860] MATCH    id=125894 데미토 matched=54 failed=419 menus=591 photos=260
+[474/6860] MATCH    id=125852 타샤커피 matched=55 failed=419 menus=596 photos=265
+[475/6860] MISMATCH id=125846 달고나디저트 matched=55 failed=420 menus=596 photos=265
+[476/6860] CLOSED   id=110907 별빛시루 matched=55 failed=421 menus=596 photos=265
+[477/6860] NO_CAND  id=110883 씨티씨커피로스터스 남산본점 matched=55 failed=422 menus=596 photos=265
+[478/6860] CLOSED   id=110871 화이트리에 청라언덕점 matched=55 failed=423 menus=596 photos=265
+[479/6860] NO_CAND  id=110862 후-앙 matched=55 failed=424 menus=596 photos=265
+[480/6860] CLOSED   id=125786 플레빈케이크 matched=55 failed=425 menus=596 photos=265
+[481/6860] CLOSED   id=110841 카페점보 matched=55 failed=426 menus=596 photos=265
+[482/6860] CLOSED   id=110832 스트로우베이지 matched=55 failed=427 menus=596 photos=265
+[483/6860] CLOSED   id=125279 사실빙 대구만촌점 matched=55 failed=428 menus=596 photos=265
+[484/6860] CLOSED   id=125087 온니두 박물관점 matched=55 failed=429 menus=596 photos=265
+[485/6860] MATCH    id=124673 에이치아워 matched=56 failed=429 menus=605 photos=270
+[486/6860] MISMATCH id=124628 춤추는찹쌀꽈배기 담티점 matched=56 failed=430 menus=605 photos=270
+[487/6860] MATCH    id=110796 퀸즈크라운 베이커리카페 matched=57 failed=430 menus=620 photos=275
+[488/6860] MATCH    id=110772 몬스터커피 대구서문시장점 matched=58 failed=430 menus=633 photos=278
+[489/6860] CLOSED   id=124493 화이트리에 만촌점 matched=58 failed=431 menus=633 photos=278
+[490/6860] CLOSED   id=110748 커피앤번 서문시장점 matched=58 failed=432 menus=633 photos=278
+[491/6860] CLOSED   id=110691 몬스터커피 대구역오페라점 matched=58 failed=433 menus=633 photos=278
+[492/6860] CLOSED   id=110664 레터링케이크 미뇽케이크 matched=58 failed=434 menus=633 photos=278
+[493/6860] CLOSED   id=110628 매스커피 침산점 matched=58 failed=435 menus=633 photos=278
+[494/6860] CLOSED   id=124430 꽁테드빌레 matched=58 failed=436 menus=633 photos=278
+[495/6860] CLOSED   id=110625 핸즈커피 서문시장점 matched=58 failed=437 menus=633 photos=278
+[496/6860] CLOSED   id=124397 프레요 matched=58 failed=438 menus=633 photos=278
+[497/6860] NO_CAND  id=110502 서문원조땅콩빵 matched=58 failed=439 menus=633 photos=278
+[498/6860] MISMATCH id=124367 마들렌 matched=58 failed=440 menus=633 photos=278
+[499/6860] CLOSED   id=124334 쿠키피움 matched=58 failed=441 menus=633 photos=278
+[500/6860] MATCH    id=124223 컨트롤커피로스터스 matched=59 failed=441 menus=633 photos=283
+[501/6860] MATCH    id=123923 로고메드파리16 범어 matched=60 failed=441 menus=652 photos=288
+[502/6860] CLOSED   id=123884 몬스터커피 대구KBS점 matched=60 failed=442 menus=652 photos=288
+[단일 가게 fetch 실패] id=110475: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/110475/naver-enrich-item
+[503/6860] FETCH_FAIL id=110475 하이오커피 대구비산점
+[504/6860] CLOSED   id=110418 이지쿠키클럽 matched=60 failed=444 menus=652 photos=288
+[505/6860] CLOSED   id=110397 피에스베이커리 더현대대구 matched=60 failed=445 menus=652 photos=288
+[506/6860] NO_CAND  id=123782 타이니캐슬 matched=60 failed=446 menus=652 photos=288
+[507/6860] CLOSED   id=110379 리프온립 matched=60 failed=447 menus=652 photos=288
+[508/6860] MISMATCH id=110373 크로하우스 대구점 matched=60 failed=448 menus=652 photos=288
+[509/6860] MATCH    id=123779 버터베이크 범어점 matched=61 failed=448 menus=684 photos=293
+[510/6860] MATCH    id=123761 몬스터커피 대구 범어서한포레스트점 matched=62 failed=448 menus=697 photos=298
+[511/6860] MISMATCH id=110370 맨션5 matched=62 failed=449 menus=697 photos=298
+[512/6860] CLOSED   id=110364 아호페케이크 matched=62 failed=450 menus=697 photos=298
+[513/6860] MATCH    id=110346 로스팅로보 matched=63 failed=450 menus=698 photos=303
+[514/6860] MATCH    id=110304 더 남산 커피 앤 디저트 matched=64 failed=450 menus=708 photos=308
+[515/6860] CLOSED   id=110301 퐁드깜빠뉴 matched=64 failed=451 menus=708 photos=308
+[516/6860] CLOSED   id=110292 래빗당 matched=64 failed=452 menus=708 photos=308
+[517/6860] CLOSED   id=123704 심교수제빵연구소 matched=64 failed=453 menus=708 photos=308
+[518/6860] CLOSED   id=110289 마이페이보릿커피 matched=64 failed=454 menus=708 photos=308
+[519/6860] CLOSED   id=123701 몬스터커피 대구황금점 matched=64 failed=455 menus=708 photos=308
+[520/6860] CLOSED   id=110256 넌테이블 본점 matched=64 failed=456 menus=708 photos=308
+[521/6860] CLOSED   id=123695 몬스터커피 대구범어그랜드점 matched=64 failed=457 menus=708 photos=308
+[522/6860] CLOSED   id=110238 모리커피 반월당효성해링턴점 matched=64 failed=458 menus=708 photos=308
+[523/6860] MATCH    id=110190 오루프 matched=65 failed=458 menus=709 photos=313
+[524/6860] CLOSED   id=110184 디카프리 M1955 matched=65 failed=459 menus=709 photos=313
+[525/6860] NO_CAND  id=110178 모마케이크샵 matched=65 failed=460 menus=709 photos=313
+[526/6860] CLOSED   id=123680 달달한앙금 matched=65 failed=461 menus=709 photos=313
+[527/6860] MATCH    id=123674 사실빙 범어점 matched=66 failed=461 menus=710 photos=318
+[528/6860] MISMATCH id=110169 슬로우터틀 약전골목점 matched=66 failed=462 menus=710 photos=318
+[529/6860] MISMATCH id=110139 오드 matched=66 failed=463 menus=710 photos=318
+[530/6860] MATCH    id=110136 카페플로리안 matched=67 failed=463 menus=726 photos=323
+[531/6860] MATCH    id=110130 코타커피 matched=68 failed=463 menus=744 photos=328
+[532/6860] CLOSED   id=110118 핸즈커피 동성로데오점 matched=68 failed=464 menus=744 photos=328
+[533/6860] CLOSED   id=123620 켄디 matched=68 failed=465 menus=744 photos=328
+[534/6860] NO_CAND  id=110115 쿠킹바이투엘브 matched=68 failed=466 menus=744 photos=328
+[535/6860] CLOSED   id=123605 디얼마이럽 matched=68 failed=467 menus=744 photos=328
+[536/6860] CLOSED   id=123602 베이글작업실 수성점 matched=68 failed=468 menus=744 photos=328
+[537/6860] MATCH    id=110103 영커피 대구반월당점 matched=69 failed=468 menus=770 photos=333
+[538/6860] CLOSED   id=110094 동아제빵소 matched=69 failed=469 menus=770 photos=333
+[539/6860] CLOSED   id=110088 단석가 찰보리빵 동성로점 matched=69 failed=470 menus=770 photos=333
+[540/6860] MATCH    id=110085 포도 커피 matched=70 failed=470 menus=771 photos=338
+[541/6860] CLOSED   id=110058 빵집오빠&다방오빠 대구대봉점 matched=70 failed=471 menus=771 photos=338
+[542/6860] CLOSED   id=123521 디브몽트 matched=70 failed=472 menus=771 photos=338
+[543/6860] MISMATCH id=123197 써드스페이스커피 matched=70 failed=473 menus=771 photos=338
+[544/6860] CLOSED   id=123167 빙수당 대구칠곡점 matched=70 failed=474 menus=771 photos=338
+[545/6860] MISMATCH id=110052 공주당 matched=70 failed=475 menus=771 photos=338
+[546/6860] MISMATCH id=110049 동그라미 쿠키 matched=70 failed=476 menus=771 photos=338
+[547/6860] CLOSED   id=110046 교토푸딩 matched=70 failed=477 menus=771 photos=338
+[548/6860] NO_CAND  id=110043 갯깍디토르테 matched=70 failed=478 menus=771 photos=338
+[549/6860] MATCH    id=110037 컴피룸커피 matched=71 failed=478 menus=779 photos=343
+[550/6860] MISMATCH id=110028 디저트 편집샵 롯데백화점대구점 matched=71 failed=479 menus=779 photos=343
+[단일 가게 fetch 실패] id=123131: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/123131/naver-enrich-item
+[551/6860] FETCH_FAIL id=123131 단케이크
+[552/6860] MATCH    id=110025 피틀리 침산점 matched=72 failed=480 menus=809 photos=348
+[553/6860] MATCH    id=110022 접속 matched=73 failed=480 menus=818 photos=353
+[554/6860] CLOSED   id=123077 세컨더리 matched=73 failed=481 menus=818 photos=353
+[555/6860] MISMATCH id=123068 카페뜰 matched=73 failed=482 menus=818 photos=353
+[556/6860] MATCH    id=110016 내가만든미케익 동성로점 matched=74 failed=482 menus=819 photos=358
+[557/6860] MATCH    id=109998 로젤 matched=75 failed=482 menus=833 photos=363
+[558/6860] CLOSED   id=109995 마들렌베이커리 침산점 matched=75 failed=483 menus=833 photos=363
+[559/6860] CLOSED   id=109986 슬로우터틀 동성로점 matched=75 failed=484 menus=833 photos=363
+[560/6860] CLOSED   id=109980 힙스 matched=75 failed=485 menus=833 photos=363
+[561/6860] MATCH    id=109959 하우피 matched=76 failed=485 menus=838 photos=368
+[562/6860] MATCH    id=109950 노팅힐커피하우스 matched=77 failed=485 menus=856 photos=373
+[563/6860] CLOSED   id=109941 파유케이크샵 matched=77 failed=486 menus=856 photos=373
+[564/6860] MATCH    id=123041 콘티 matched=78 failed=486 menus=867 photos=378
+[565/6860] MATCH    id=109923 커피홀 대구무침회거리점 matched=79 failed=486 menus=874 photos=383
+[566/6860] CLOSED   id=109920 앙금피다 matched=79 failed=487 menus=874 photos=383
+[567/6860] MATCH    id=109911 아르티커피 matched=80 failed=487 menus=879 photos=388
+[568/6860] CLOSED   id=122888 삼송빵집 칠곡3지구점 matched=80 failed=488 menus=879 photos=388
+[569/6860] CLOSED   id=109890 영원아카이브 matched=80 failed=489 menus=879 photos=388
+[570/6860] CLOSED   id=109782 난초네츠보 matched=80 failed=490 menus=879 photos=388
+[571/6860] CLOSED   id=122882 아침을기다리는빵 matched=80 failed=491 menus=879 photos=388
+[572/6860] MISMATCH id=122879 카페스토리 matched=80 failed=492 menus=879 photos=388
+[573/6860] CLOSED   id=109761 웰크레페 동성로점 matched=80 failed=493 menus=879 photos=388
+[574/6860] MATCH    id=109758 스펠링하우스 matched=81 failed=493 menus=892 photos=393
+[575/6860] CLOSED   id=122876 디어버베나 matched=81 failed=494 menus=892 photos=393
+[576/6860] MATCH    id=122864 픽베이크 대구동천점 matched=82 failed=494 menus=906 photos=398
+[577/6860] CLOSED   id=122858 해피띵스 matched=82 failed=495 menus=906 photos=398
+[578/6860] CLOSED   id=109713 더쉐프베이커리 matched=82 failed=496 menus=906 photos=398
+[579/6860] NO_CAND  id=122855 헬로파이 (휴업중) matched=82 failed=497 menus=906 photos=398
+[580/6860] CLOSED   id=109710 호화당 matched=82 failed=498 menus=906 photos=398
+[581/6860] NO_CAND  id=122852 카페빨간비디오 matched=82 failed=499 menus=906 photos=398
+[582/6860] CLOSED   id=122849 화이트리에 칠곡점 matched=82 failed=500 menus=906 photos=398
+[583/6860] MATCH    id=109659 스밀 matched=83 failed=500 menus=915 photos=403
+[584/6860] NO_CAND  id=109656 대구남산복지재단 카페앤베이커리 소담 matched=83 failed=501 menus=915 photos=403
+[585/6860] CLOSED   id=122843 어랏투고 대구동천점 matched=83 failed=502 menus=915 photos=403
+[586/6860] CLOSED   id=109653 베이킹히어 matched=83 failed=503 menus=915 photos=403
+[587/6860] CLOSED   id=122840 떡공방소온 matched=83 failed=504 menus=915 photos=403
+[588/6860] CLOSED   id=109650 바람불어오는곳 matched=83 failed=505 menus=915 photos=403
+[589/6860] MISMATCH id=109647 마들렌 matched=83 failed=506 menus=915 photos=403
+[590/6860] NO_CAND  id=109644 내집처럼(담소) 경대병원점 matched=83 failed=507 menus=915 photos=403
+[591/6860] CLOSED   id=122831 핑퐁커피 칠곡점 matched=83 failed=508 menus=915 photos=403
+[592/6860] MISMATCH id=122825 달곰 matched=83 failed=509 menus=915 photos=403
+[593/6860] MATCH    id=122813 토카커피 matched=84 failed=509 menus=950 photos=408
+[594/6860] CLOSED   id=109641 도헤과자점 matched=84 failed=510 menus=950 photos=408
+[595/6860] CLOSED   id=122807 핸즈커피 운암역점 matched=84 failed=511 menus=950 photos=408
+[596/6860] NO_CAND  id=109638 퍼머넌트커피 matched=84 failed=512 menus=950 photos=408
+[597/6860] MISMATCH id=109632 르고메드파리 16 matched=84 failed=513 menus=950 photos=408
+[598/6860] MATCH    id=109629 피틀리 matched=85 failed=513 menus=952 photos=413
+[599/6860] CLOSED   id=109626 델야 matched=85 failed=514 menus=952 photos=413
+[600/6860] CLOSED   id=109623 콘크리트플라워 matched=85 failed=515 menus=952 photos=413
+[601/6860] CLOSED   id=122798 해피라이스데이 matched=85 failed=516 menus=952 photos=413
+[602/6860] MISMATCH id=109620 커스텀커피 대구범어점 matched=85 failed=517 menus=952 photos=413
+[603/6860] MISMATCH id=122795 커피향을담다 matched=85 failed=518 menus=952 photos=413
+[604/6860] CLOSED   id=109617 아워케키 matched=85 failed=519 menus=952 photos=413
+[605/6860] MISMATCH id=122783 와플마켓 matched=85 failed=520 menus=952 photos=413
+[606/6860] CLOSED   id=109614 메리포핀스 matched=85 failed=521 menus=952 photos=413
+[607/6860] CLOSED   id=122780 몬스터커피 대구매천한신점 matched=85 failed=522 menus=952 photos=413
+[608/6860] MATCH    id=109611 틸베이글 matched=86 failed=522 menus=952 photos=418
+[609/6860] MISMATCH id=122774 혜민커피 matched=86 failed=523 menus=952 photos=418
+[610/6860] CLOSED   id=122768 아뜰리에 려 matched=86 failed=524 menus=952 photos=418
+[611/6860] MISMATCH id=109602 피끄 matched=86 failed=525 menus=952 photos=418
+[612/6860] CLOSED   id=109599 딥딥딥 수성점 matched=86 failed=526 menus=952 photos=418
+[613/6860] MISMATCH id=122762 데이세븐 matched=86 failed=527 menus=952 photos=418
+[614/6860] CLOSED   id=122744 몬스터커피 대구서변점 matched=86 failed=528 menus=952 photos=418
+[615/6860] CLOSED   id=109590 라데 matched=86 failed=529 menus=952 photos=418
+[616/6860] MATCH    id=122729 카페파이퍼 matched=87 failed=529 menus=976 photos=423
+[617/6860] CLOSED   id=122714 프랑슈 서변점 matched=87 failed=530 menus=976 photos=423
+[618/6860] MATCH    id=109581 덕크로싱도넛 matched=88 failed=530 menus=993 photos=428
+[619/6860] MATCH    id=122660 별꽃자리 matched=89 failed=530 menus=999 photos=433
+[620/6860] CLOSED   id=122081 과일싸롱 경북대점 matched=89 failed=531 menus=999 photos=433
+[621/6860] CLOSED   id=121541 티나플라워케이크 matched=89 failed=532 menus=999 photos=433
+[622/6860] CLOSED   id=109572 나따오비까 롯데백화점대구점 matched=89 failed=533 menus=999 photos=433
+[623/6860] CLOSED   id=109569 안녕하시오 matched=89 failed=534 menus=999 photos=433
+[624/6860] CLOSED   id=109566 스커트케이크샵 matched=89 failed=535 menus=999 photos=433
+[625/6860] MATCH    id=109563 카페동성 matched=90 failed=535 menus=1004 photos=438
+[626/6860] CLOSED   id=121502 카페플랜 경북대점 matched=90 failed=536 menus=1004 photos=438
+[627/6860] MATCH    id=109560 카페달달 동성로본점 matched=91 failed=536 menus=1010 photos=443
+[628/6860] MATCH    id=121499 루빙 matched=92 failed=536 menus=1011 photos=448
+[629/6860] MATCH    id=109557 머뭇 matched=93 failed=536 menus=1017 photos=453
+[630/6860] CLOSED   id=109554 사오 대구동성로점 matched=93 failed=537 menus=1017 photos=453
+[단일 가게 fetch 실패] id=121070: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/121070/naver-enrich-item
+[631/6860] FETCH_FAIL id=121070 하이오커피 대구침산점
+[632/6860] MATCH    id=109545 삼덕동베이커리 matched=94 failed=538 menus=1018 photos=458
+[633/6860] CLOSED   id=120998 복연당 matched=94 failed=539 menus=1018 photos=458
+[634/6860] MATCH    id=120950 카머 matched=95 failed=539 menus=1022 photos=463
+[635/6860] CLOSED   id=120869 카페루미잠봉 matched=95 failed=540 menus=1022 photos=463
+[636/6860] CLOSED   id=109539 쉬크레 matched=95 failed=541 menus=1022 photos=463
+[637/6860] CLOSED   id=120836 캐틀앤비 롯데백화점 대구점 matched=95 failed=542 menus=1022 photos=463
+[638/6860] CLOSED   id=120773 몬스터커피 대구역점 matched=95 failed=543 menus=1022 photos=463
+[639/6860] CLOSED   id=109533 루밀레(LUMILE) matched=95 failed=544 menus=1022 photos=463
+[640/6860] CLOSED   id=109530 마이커피컬로맨스 matched=95 failed=545 menus=1022 photos=463
+[641/6860] MATCH    id=109527 래디시 matched=96 failed=545 menus=1036 photos=468
+[642/6860] MISMATCH id=109524 삼덕회관 matched=96 failed=546 menus=1036 photos=468
+[643/6860] CLOSED   id=120428 딜리셔스디저트 matched=96 failed=547 menus=1036 photos=468
+[644/6860] CLOSED   id=109521 나라케이크 matched=96 failed=548 menus=1036 photos=468
+[645/6860] MATCH    id=120380 정평당 matched=97 failed=548 menus=1037 photos=473
+[646/6860] CLOSED   id=119969 대구떡케이크날 matched=97 failed=549 menus=1037 photos=473
+[647/6860] MATCH    id=109509 스누즈 matched=98 failed=549 menus=1045 photos=478
+[648/6860] CLOSED   id=109506 놀스 matched=98 failed=550 menus=1045 photos=478
+[649/6860] MATCH    id=119906 카페 오슬링 matched=99 failed=550 menus=1051 photos=483
+[650/6860] CLOSED   id=109500 노티드 대구신세계백화점 matched=99 failed=551 menus=1051 photos=483
+[단일 가게 fetch 실패] id=109494: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/109494/naver-enrich-item
+[651/6860] FETCH_FAIL id=109494 모닝케이크
+[652/6860] MISMATCH id=109491 ECC커피 matched=99 failed=553 menus=1051 photos=483
+[653/6860] CLOSED   id=109488 도우맨도넛 matched=99 failed=554 menus=1051 photos=483
+[654/6860] MISMATCH id=109482 동성로왕찹쌀꽈배기 본점 matched=99 failed=555 menus=1051 photos=483
+[655/6860] CLOSED   id=109479 보드라봉 matched=99 failed=556 menus=1051 photos=483
+[656/6860] CLOSED   id=119837 하루B matched=99 failed=557 menus=1051 photos=483
+[657/6860] MATCH    id=109473 밀커피스탠드 matched=100 failed=557 menus=1061 photos=488
+[658/6860] MATCH    id=109470 미엘레종 matched=101 failed=557 menus=1066 photos=493
+[659/6860] CLOSED   id=119807 구스또미오 matched=101 failed=558 menus=1066 photos=493
+[660/6860] CLOSED   id=109464 비마이문 matched=101 failed=559 menus=1066 photos=493
+[661/6860] MISMATCH id=109461 공주당 matched=101 failed=560 menus=1066 photos=493
+[662/6860] CLOSED   id=109458 바크 matched=101 failed=561 menus=1066 photos=493
+[663/6860] MISMATCH id=109455 카페앙코르 matched=101 failed=562 menus=1066 photos=493
+[664/6860] MISMATCH id=118955 인카페 matched=101 failed=563 menus=1066 photos=493
+[665/6860] NO_CAND  id=118799 앨리롤하우스 matched=101 failed=564 menus=1066 photos=493
+[666/6860] CLOSED   id=109449 파인드아웃커피 matched=101 failed=565 menus=1066 photos=493
+[667/6860] CLOSED   id=109446 시카보쿠죠 matched=101 failed=566 menus=1066 photos=493
+[668/6860] CLOSED   id=109440 유아이유 시청점 matched=101 failed=567 menus=1066 photos=493
+[669/6860] CLOSED   id=118793 김호두 가톨릭병원대로점 matched=101 failed=568 menus=1066 photos=493
+[670/6860] CLOSED   id=109434 베즐리 더현대 대구점 matched=101 failed=569 menus=1066 photos=493
+[671/6860] CLOSED   id=109431 오버더클라우드 matched=101 failed=570 menus=1066 photos=493
+[672/6860] MATCH    id=118760 카페더선셋 matched=102 failed=570 menus=1081 photos=498
+[673/6860] MATCH    id=109428 브라운피크닉 matched=103 failed=570 menus=1093 photos=503
+[674/6860] NO_CAND  id=109422 피기스도넛 부산기장DT점 matched=103 failed=571 menus=1093 photos=503
+[단일 가게 fetch 실패] id=109398: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/109398/naver-enrich-item
+[675/6860] FETCH_FAIL id=109398 하이오커피 일광해송점
+[676/6860] CLOSED   id=109389 블루샥 일광역점 matched=103 failed=573 menus=1093 photos=503
+[677/6860] MISMATCH id=109386 행복한찹쌀꽈배기 일광점 matched=103 failed=574 menus=1093 photos=503
+[678/6860] CLOSED   id=109383 우리동네호두과자 기장일광점 matched=103 failed=575 menus=1093 photos=503
+[679/6860] MATCH    id=118733 카펠라 matched=104 failed=575 menus=1110 photos=508
+[680/6860] CLOSED   id=118712 별빛담아 matched=104 failed=576 menus=1110 photos=508
+[681/6860] CLOSED   id=109368 케이찹사라다 일광점 matched=104 failed=577 menus=1110 photos=508
+[682/6860] MISMATCH id=118697 마실 matched=104 failed=578 menus=1110 photos=508
+[683/6860] CLOSED   id=109362 버터풀앤크리멀러스 하이리페움점 matched=104 failed=579 menus=1110 photos=508
+[단일 가게 fetch 실패] id=109356: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/109356/naver-enrich-item
+[684/6860] FETCH_FAIL id=109356 하이오커피 일광신도시점
+[685/6860] CLOSED   id=118679 몬스터커피 대구안지랑점 matched=104 failed=581 menus=1110 photos=508
+[686/6860] CLOSED   id=109350 테인566 matched=104 failed=582 menus=1110 photos=508
+[687/6860] MATCH    id=118667 카페유로 본점 matched=105 failed=582 menus=1111 photos=513
+[688/6860] NO_CAND  id=109347 썸오브셋커피 matched=105 failed=583 menus=1111 photos=513
+[689/6860] CLOSED   id=109344 블루마운틴 matched=105 failed=584 menus=1111 photos=513
+[690/6860] MATCH    id=109341 밀크베이커리 matched=106 failed=584 menus=1115 photos=518
+[691/6860] CLOSED   id=109338 라이스베이커리 matched=106 failed=585 menus=1115 photos=518
+[692/6860] MATCH    id=118640 성당못 빌 matched=107 failed=585 menus=1129 photos=523
+[693/6860] CLOSED   id=109335 케이찹사라다 정관점 matched=107 failed=586 menus=1129 photos=523
+[694/6860] MISMATCH id=118637 황제찹쌀꽈배기 matched=107 failed=587 menus=1129 photos=523
+[695/6860] MATCH    id=109332 탄티 matched=108 failed=587 menus=1135 photos=528
+[단일 가게 fetch 실패] id=109326: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/109326/naver-enrich-item
+[696/6860] FETCH_FAIL id=109326 미트케이크
+[697/6860] CLOSED   id=109323 티라이스 순쌀빵 matched=108 failed=589 menus=1135 photos=528
+[698/6860] MATCH    id=109320 아워숲 matched=109 failed=589 menus=1164 photos=533
+[699/6860] MATCH    id=109317 두루미베이커리카페 matched=110 failed=589 menus=1187 photos=538
+[700/6860] CLOSED   id=118619 떡공방 서온 matched=110 failed=590 menus=1187 photos=538
+[단일 가게 fetch 실패] id=109311: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/109311/naver-enrich-item
+[701/6860] FETCH_FAIL id=109311 피움케이크
+[702/6860] CLOSED   id=118598 리을커피 로스터리 카페 앞산 matched=110 failed=592 menus=1187 photos=538
+[703/6860] CLOSED   id=109305 이끌림 matched=110 failed=593 menus=1187 photos=538
+[704/6860] CLOSED   id=109299 정재석과자점 matched=110 failed=594 menus=1187 photos=538
+[705/6860] MISMATCH id=118421 미담 matched=110 failed=595 menus=1187 photos=538
+[706/6860] MISMATCH id=109296 카우키 matched=110 failed=596 menus=1187 photos=538
+[707/6860] CLOSED   id=118334 플로떼 파티스리 matched=110 failed=597 menus=1187 photos=538
+[708/6860] CLOSED   id=109293 황제찹쌀꽈배기 matched=110 failed=598 menus=1187 photos=538
+[709/6860] MATCH    id=118298 큐케이 수성 matched=111 failed=598 menus=1212 photos=543
+[710/6860] MISMATCH id=109287 카페임랑 matched=111 failed=599 menus=1212 photos=543
+[711/6860] CLOSED   id=118280 소설오일장 대구 matched=111 failed=600 menus=1212 photos=543
+[712/6860] MISMATCH id=109284 유르트 matched=111 failed=601 menus=1212 photos=543
+[713/6860] CLOSED   id=118274 이승훈의좋은아침 matched=111 failed=602 menus=1212 photos=543
+[714/6860] CLOSED   id=118244 모찌모찌 matched=111 failed=603 menus=1212 photos=543
+[715/6860] CLOSED   id=109278 미친베이글 기장점 matched=111 failed=604 menus=1212 photos=543
+[716/6860] CLOSED   id=118238 매스커피 황금점 matched=111 failed=605 menus=1212 photos=543
+[717/6860] MATCH    id=109275 공심카페 matched=112 failed=605 menus=1219 photos=548
+[718/6860] MISMATCH id=118208 손수담음 matched=112 failed=606 menus=1219 photos=548
+[719/6860] MATCH    id=109272 웨스 matched=113 failed=606 menus=1224 photos=553
+[720/6860] CLOSED   id=109269 정훈희김태화 꽃밭에서 matched=113 failed=607 menus=1224 photos=553
+[721/6860] CLOSED   id=109254 오브커피 matched=113 failed=608 menus=1224 photos=553
+[722/6860] CLOSED   id=109251 딜리슈케이크 matched=113 failed=609 menus=1224 photos=553
+[723/6860] MISMATCH id=109248 제니아 matched=113 failed=610 menus=1224 photos=553
+[724/6860] CLOSED   id=109242 부산 기장 해동용궁사 도깨비 방앗간 한옥카페 matched=113 failed=611 menus=1224 photos=553
+[725/6860] MATCH    id=109239 팜트리 matched=114 failed=611 menus=1232 photos=558
+[726/6860] CLOSED   id=109236 유니앤 matched=114 failed=612 menus=1232 photos=558
+[727/6860] CLOSED   id=118118 교동도나스1979 수성희망로점 matched=114 failed=613 menus=1232 photos=558
+[728/6860] CLOSED   id=118070 찰스베이커리 앞산홈스파점 matched=114 failed=614 menus=1232 photos=558
+[729/6860] MISMATCH id=109224 행복한찹쌀꽈배기 matched=114 failed=615 menus=1232 photos=558
+[730/6860] MATCH    id=118064 앙호두 대구봉덕점 matched=115 failed=615 menus=1259 photos=563
+[731/6860] MISMATCH id=109215 캐비네 드 쁘아쏭 matched=115 failed=616 menus=1259 photos=563
+[732/6860] CLOSED   id=118058 하상효베이커리 matched=115 failed=617 menus=1259 photos=563
+[733/6860] CLOSED   id=109212 스트릿1988 일광점 matched=115 failed=618 menus=1259 photos=563
+[단일 가게 fetch 실패] id=118055: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/118055/naver-enrich-item
+[734/6860] FETCH_FAIL id=118055 해피모먼트케이크
+[735/6860] MISMATCH id=118049 황제찹쌀꽈배기 matched=115 failed=620 menus=1259 photos=563
+[736/6860] CLOSED   id=109206 퓨리티카페 matched=115 failed=621 menus=1259 photos=563
+[737/6860] MATCH    id=108981 댄싱컵 동서대점 matched=116 failed=621 menus=1260 photos=568
+[738/6860] CLOSED   id=108852 카페란 matched=116 failed=622 menus=1260 photos=568
+[739/6860] CLOSED   id=108834 몰리노커피 matched=116 failed=623 menus=1260 photos=568
+[740/6860] MATCH    id=108825 가배원 주례점 matched=117 failed=623 menus=1265 photos=573
+[741/6860] CLOSED   id=108801 오르디 matched=117 failed=624 menus=1265 photos=573
+[742/6860] MATCH    id=118013 애하인앞산 matched=118 failed=624 menus=1275 photos=578
+[743/6860] MATCH    id=108750 올차 부산점 matched=119 failed=624 menus=1276 photos=583
+[744/6860] CLOSED   id=108312 케이찹사라다 사상점 matched=119 failed=625 menus=1276 photos=583
+[745/6860] MISMATCH id=108303 유가네제과 matched=119 failed=626 menus=1276 photos=583
+[746/6860] MATCH    id=117956 카페 새소리 matched=120 failed=626 menus=1285 photos=588
+[747/6860] NO_CAND  id=108291 브레드올린 matched=120 failed=627 menus=1285 photos=588
+[748/6860] CLOSED   id=117908 아틀리에 악토버 matched=120 failed=628 menus=1285 photos=588
+[749/6860] CLOSED   id=108282 앤티앤스프레즐 부산서부버스터미널점 matched=120 failed=629 menus=1285 photos=588
+[750/6860] CLOSED   id=117893 몽땅디저트&눈꽃빙수시대 matched=120 failed=630 menus=1285 photos=588
+[751/6860] CLOSED   id=117878 카페 아르토 matched=120 failed=631 menus=1285 photos=588
+[단일 가게 fetch 실패] id=108270: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/108270/naver-enrich-item
+[752/6860] FETCH_FAIL id=108270 머거떡케이크
+[753/6860] CLOSED   id=117695 몬스터커피 대구침산점 matched=120 failed=633 menus=1285 photos=588
+[754/6860] NO_CAND  id=117677 소담by빵장수단팥빵카페 matched=120 failed=634 menus=1285 photos=588
+[755/6860] CLOSED   id=108222 차하나 matched=120 failed=635 menus=1285 photos=588
+[756/6860] MATCH    id=117629 플랜 칠성점 matched=121 failed=635 menus=1286 photos=593
+[757/6860] NO_CAND  id=108207 커피꽃제작소326 matched=121 failed=636 menus=1286 photos=593
+[758/6860] CLOSED   id=117617 탕후루후루 matched=121 failed=637 menus=1286 photos=593
+[759/6860] CLOSED   id=116417 우즈베이커리 침산점 matched=121 failed=638 menus=1286 photos=593
+[760/6860] MATCH    id=108204 시즌즈 광안점 matched=122 failed=638 menus=1293 photos=598
+[761/6860] CLOSED   id=108156 밀락당 밀락더마켓 matched=122 failed=639 menus=1293 photos=598
+[762/6860] CLOSED   id=108144 티티티 matched=122 failed=640 menus=1293 photos=598
+[763/6860] MATCH    id=108129 히스피 광안해변로점 matched=123 failed=640 menus=1339 photos=603
+[764/6860] CLOSED   id=115961 설기로운 matched=123 failed=641 menus=1339 photos=603
+[765/6860] CLOSED   id=115958 세담찹쌀꽈배기 matched=123 failed=642 menus=1339 photos=603
+[766/6860] CLOSED   id=107370 크림어스 matched=123 failed=643 menus=1339 photos=603
+[767/6860] CLOSED   id=115949 파이썬 matched=123 failed=644 menus=1339 photos=603
+[768/6860] MISMATCH id=107361 치플레 matched=123 failed=645 menus=1339 photos=603
+[769/6860] MATCH    id=115931 꾸떼 베이커리카페 matched=124 failed=645 menus=1341 photos=608
+[770/6860] MATCH    id=115928 리시트 matched=125 failed=645 menus=1350 photos=613
+[771/6860] MATCH    id=115925 달롱도르요거트아이스크림 서대구점 matched=126 failed=645 menus=1351 photos=618
+[772/6860] CLOSED   id=115907 핸즈커피 팔달시장점 matched=126 failed=646 menus=1351 photos=618
+[773/6860] CLOSED   id=107301 페이머스베니 광안리점 matched=126 failed=647 menus=1351 photos=618
+[774/6860] CLOSED   id=107118 카페라씨 matched=126 failed=648 menus=1351 photos=618
+[775/6860] MATCH    id=107091 코피코페 matched=127 failed=648 menus=1358 photos=623
+[776/6860] MISMATCH id=107085 뜨라레2 matched=127 failed=649 menus=1358 photos=623
+[777/6860] MISMATCH id=115871 오로시커피 matched=127 failed=650 menus=1358 photos=623
+[단일 가게 fetch 실패] id=107040: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/107040/naver-enrich-item
+[778/6860] FETCH_FAIL id=107040 웨이크베이크케이크
+[779/6860] CLOSED   id=115868 크럼키 matched=127 failed=652 menus=1358 photos=623
+[780/6860] CLOSED   id=107007 몽셰빵 matched=127 failed=653 menus=1358 photos=623
+[781/6860] CLOSED   id=106989 머핀스 matched=127 failed=654 menus=1358 photos=623
+[782/6860] MATCH    id=106983 알더 matched=128 failed=654 menus=1364 photos=628
+[783/6860] CLOSED   id=106935 범람 matched=128 failed=655 menus=1364 photos=628
+[784/6860] CLOSED   id=106926 커피스토어 부산광안홈플러스점 matched=128 failed=656 menus=1364 photos=628
+[785/6860] CLOSED   id=106908 우사기 matched=128 failed=657 menus=1364 photos=628
+[786/6860] MATCH    id=106902 콩셉트 matched=129 failed=657 menus=1385 photos=633
+[787/6860] CLOSED   id=106899 베이크드투데이 matched=129 failed=658 menus=1385 photos=633
+[788/6860] NO_CAND  id=106893 청민 777지점 matched=129 failed=659 menus=1385 photos=633
+[789/6860] CLOSED   id=106881 소트 matched=129 failed=660 menus=1385 photos=633
+[790/6860] MISMATCH id=106851 공원 matched=129 failed=661 menus=1385 photos=633
+[791/6860] MISMATCH id=106530 네잎클로버 matched=129 failed=662 menus=1385 photos=633
+[단일 가게 fetch 실패] id=115745: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/115745/naver-enrich-item
+[792/6860] FETCH_FAIL id=115745 빌리케이크
+[793/6860] CLOSED   id=106293 어거스타 matched=129 failed=664 menus=1385 photos=633
+[794/6860] MATCH    id=115697 고더커피 대구장기점 matched=130 failed=664 menus=1405 photos=638
+[795/6860] MATCH    id=106287 노든 matched=131 failed=664 menus=1414 photos=643
+[단일 가게 fetch 실패] id=106284: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/106284/naver-enrich-item
+[796/6860] FETCH_FAIL id=106284 리코케이크
+[797/6860] CLOSED   id=106266 라이스퐁당 matched=131 failed=666 menus=1414 photos=643
+[798/6860] CLOSED   id=106248 모어허그 matched=131 failed=667 menus=1414 photos=643
+[799/6860] CLOSED   id=106242 토라당 matched=131 failed=668 menus=1414 photos=643
+[800/6860] CLOSED   id=115667 피쉐프코리아 빵장수쉐프 장기점 matched=131 failed=669 menus=1414 photos=643
+[801/6860] CLOSED   id=106230 낙타베이커리 matched=131 failed=670 menus=1414 photos=643
+[802/6860] CLOSED   id=106206 슬링샷 matched=131 failed=671 menus=1414 photos=643
+[803/6860] CLOSED   id=115580 몬스터커피 대구비산점 matched=131 failed=672 menus=1414 photos=643
+[804/6860] CLOSED   id=115532 카페빌라주 matched=131 failed=673 menus=1414 photos=643
+[단일 가게 fetch 실패] id=106194: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/106194/naver-enrich-item
+[805/6860] FETCH_FAIL id=106194 하이오커피 수영팔도시장점
+[806/6860] CLOSED   id=115460 포밍케이크 matched=131 failed=675 menus=1414 photos=643
+[807/6860] CLOSED   id=106146 화이트아일랜드 matched=131 failed=676 menus=1414 photos=643
+[808/6860] MATCH    id=106134 인디샷 matched=132 failed=676 menus=1436 photos=648
+[809/6860] MATCH    id=106119 지요커피 matched=133 failed=676 menus=1445 photos=653
+[단일 가게 fetch 실패] id=115436: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/115436/naver-enrich-item
+[810/6860] FETCH_FAIL id=115436 땡스케이크
+[811/6860] CLOSED   id=106107 노씨커피 matched=133 failed=678 menus=1445 photos=653
+[812/6860] MATCH    id=115433 삼송빵집 서대구점 matched=134 failed=678 menus=1458 photos=658
+[813/6860] CLOSED   id=106104 시나모네뜨 matched=134 failed=679 menus=1458 photos=658
+[814/6860] CLOSED   id=106098 코코모 matched=134 failed=680 menus=1458 photos=658
+[815/6860] CLOSED   id=115430 한나식빵 감삼점 matched=134 failed=681 menus=1458 photos=658
+[816/6860] CLOSED   id=106095 엠플로르 matched=134 failed=682 menus=1458 photos=658
+[817/6860] CLOSED   id=106080 몬트리올베이글 matched=134 failed=683 menus=1458 photos=658
+[818/6860] MATCH    id=106020 센터 matched=135 failed=683 menus=1463 photos=663
+[819/6860] CLOSED   id=106014 시스터즈 캐릭터김밥앤쿠키 matched=135 failed=684 menus=1463 photos=663
+[820/6860] NO_CAND  id=105990 호텔1 별침대 matched=135 failed=685 menus=1463 photos=663
+[821/6860] MATCH    id=105918 차선책 카페 matched=136 failed=685 menus=1469 photos=668
+[822/6860] CLOSED   id=105876 폰드X홍미당 matched=136 failed=686 menus=1469 photos=668
+[823/6860] CLOSED   id=105858 베러먼데이커피 광안점 matched=136 failed=687 menus=1469 photos=668
+[824/6860] CLOSED   id=105828 오션사이드베이커리 matched=136 failed=688 menus=1469 photos=668
+[825/6860] MISMATCH id=105807 젤라떼리아 사우스브룩 matched=136 failed=689 menus=1469 photos=668
+[단일 가게 fetch 실패] id=105774: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/105774/naver-enrich-item
+[826/6860] FETCH_FAIL id=105774 하이오커피 남천점
+[827/6860] CLOSED   id=105765 피코스텐 matched=136 failed=691 menus=1469 photos=668
+[828/6860] MATCH    id=115385 감미정 matched=137 failed=691 menus=1499 photos=673
+[829/6860] CLOSED   id=105744 모치플레지르 matched=137 failed=692 menus=1499 photos=673
+[830/6860] CLOSED   id=105720 홍옥당 matched=137 failed=693 menus=1499 photos=673
+[831/6860] MATCH    id=105714 아키와와 matched=138 failed=693 menus=1500 photos=678
+[832/6860] MATCH    id=105708 레인스트릿커피 matched=139 failed=693 menus=1503 photos=683
+[833/6860] MATCH    id=115367 동성로왕찹쌀꽈배기 matched=140 failed=693 menus=1514 photos=688
+[834/6860] CLOSED   id=105696 영커피 삼익비치점 matched=140 failed=694 menus=1514 photos=688
+[835/6860] MATCH    id=105657 팝퍼블 부산점 matched=141 failed=694 menus=1515 photos=693
+[836/6860] MATCH    id=105654 카페피크닉 matched=142 failed=694 menus=1518 photos=698
+[837/6860] CLOSED   id=105648 언더커피 matched=142 failed=695 menus=1518 photos=698
+[단일 가게 fetch 실패] id=105642: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/105642/naver-enrich-item
+[838/6860] FETCH_FAIL id=105642 루나레브케이크샵
+[839/6860] CLOSED   id=115325 홀리앤졸리 대구죽전점 matched=142 failed=697 menus=1518 photos=698
+[840/6860] CLOSED   id=104511 지상의주민들 matched=142 failed=698 menus=1518 photos=698
+[841/6860] CLOSED   id=115319 카페051 대구서부정류장점 matched=142 failed=699 menus=1518 photos=698
+[842/6860] MISMATCH id=115307 헐타동네점빵 연경점 matched=142 failed=700 menus=1518 photos=698
+[843/6860] CLOSED   id=115301 떡부심 matched=142 failed=701 menus=1518 photos=698
+[844/6860] MISMATCH id=115298 커피팩토리 matched=142 failed=702 menus=1518 photos=698
+[845/6860] CLOSED   id=104445 와플칸 망미점 matched=142 failed=703 menus=1518 photos=698
+[846/6860] CLOSED   id=104421 칠월칠석 matched=142 failed=704 menus=1518 photos=698
+[847/6860] MISMATCH id=115289 초아카페 matched=142 failed=705 menus=1518 photos=698
+[848/6860] CLOSED   id=115280 마들렌팔공 matched=142 failed=706 menus=1518 photos=698
+[849/6860] MISMATCH id=115187 더스콘 matched=142 failed=707 menus=1518 photos=698
+[850/6860] CLOSED   id=104409 우마이크레페 망미점 matched=142 failed=708 menus=1518 photos=698
+[단일 가게 fetch 실패] id=104394: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/104394/naver-enrich-item
+[851/6860] FETCH_FAIL id=104394 어모케이크
+[852/6860] CLOSED   id=104361 쿨아이스크림할인점 묘봉산로 matched=142 failed=710 menus=1518 photos=698
+[853/6860] CLOSED   id=104349 달로 matched=142 failed=711 menus=1518 photos=698
+[854/6860] CLOSED   id=104334 빚는소리 matched=142 failed=712 menus=1518 photos=698
+[855/6860] CLOSED   id=104325 빙수의여신 부산직영점 matched=142 failed=713 menus=1518 photos=698
+[856/6860] MISMATCH id=104310 원더풀꽈배기 matched=142 failed=714 menus=1518 photos=698
+[단일 가게 fetch 실패] id=103878: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/103878/naver-enrich-item
+[857/6860] FETCH_FAIL id=103878 하이오커피 연산한창타워점
+[858/6860] CLOSED   id=103167 네상떼과자점 matched=142 failed=716 menus=1518 photos=698
+[859/6860] MISMATCH id=103122 지앤지 matched=142 failed=717 menus=1518 photos=698
+[860/6860] MISMATCH id=103113 거제 레이카운티1호점 matched=142 failed=718 menus=1518 photos=698
+[단일 가게 fetch 실패] id=103083: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/103083/naver-enrich-item
+[861/6860] FETCH_FAIL id=103083 하이오커피 부산법원점
+[862/6860] MATCH    id=102975 더포트카페 matched=143 failed=719 menus=1519 photos=703
+[863/6860] NO_CAND  id=102972 썬앤문풀빌라 카페테리아 matched=143 failed=720 menus=1519 photos=703
+[864/6860] CLOSED   id=102966 카페 이서 matched=143 failed=721 menus=1519 photos=703
+[865/6860] MATCH    id=102963 록산 matched=144 failed=721 menus=1543 photos=708
+[866/6860] CLOSED   id=102960 이프리오 matched=144 failed=722 menus=1543 photos=708
+[867/6860] CLOSED   id=115160 삼월당 matched=144 failed=723 menus=1543 photos=708
+[868/6860] MISMATCH id=102951 카페나루 matched=144 failed=724 menus=1543 photos=708
+[869/6860] CLOSED   id=102945 페로어페로 부산명지점 matched=144 failed=725 menus=1543 photos=708
+[870/6860] CLOSED   id=115151 더무드 matched=144 failed=726 menus=1543 photos=708
+[871/6860] CLOSED   id=102942 카페051 명지중흥부영점 matched=144 failed=727 menus=1543 photos=708
+[872/6860] CLOSED   id=102939 파티시에 장 matched=144 failed=728 menus=1543 photos=708
+[873/6860] NO_CAND  id=102936 J원수제도나츠&꽈배기 matched=144 failed=729 menus=1543 photos=708
+[874/6860] CLOSED   id=102933 카페051 명지금강펜테리움점 matched=144 failed=730 menus=1543 photos=708
+[875/6860] NO_CAND  id=102930 웨스트사이드 명지점 matched=144 failed=731 menus=1543 photos=708
+[876/6860] CLOSED   id=115139 트롤리케이크 matched=144 failed=732 menus=1543 photos=708
+[877/6860] CLOSED   id=102927 그레이핍플 명지국제신도시점 matched=144 failed=733 menus=1543 photos=708
+[878/6860] MATCH    id=115127 보정당 반야월점 matched=145 failed=733 menus=1545 photos=713
+[879/6860] CLOSED   id=102924 레듀꼬미 matched=145 failed=734 menus=1545 photos=713
+[880/6860] MATCH    id=115121 참토스트 대구동호점 matched=146 failed=734 menus=1619 photos=718
+[881/6860] CLOSED   id=115112 아라비카 스튜디오 로스터즈 matched=146 failed=735 menus=1619 photos=718
+[882/6860] MATCH    id=115094 엘오이 matched=147 failed=735 menus=1621 photos=723
+[883/6860] CLOSED   id=115073 카페모미 matched=147 failed=736 menus=1621 photos=723
+[884/6860] CLOSED   id=102915 래미베이커리 matched=147 failed=737 menus=1621 photos=723
+[885/6860] CLOSED   id=102912 카페051 명지대방디엠시티점 matched=147 failed=738 menus=1621 photos=723
+[886/6860] CLOSED   id=102909 사실빙 명지국제신도시점 matched=147 failed=739 menus=1621 photos=723
+[887/6860] CLOSED   id=115055 율하양과점 matched=147 failed=740 menus=1621 photos=723
+[888/6860] CLOSED   id=115028 호두수피아 matched=147 failed=741 menus=1621 photos=723
+[889/6860] CLOSED   id=114974 위드윗 matched=147 failed=742 menus=1621 photos=723
+[890/6860] MISMATCH id=114947 수제도너츠 matched=147 failed=743 menus=1621 photos=723
+[891/6860] MATCH    id=114869 몬스터커피 대구방촌점 matched=148 failed=743 menus=1634 photos=728
+[892/6860] MATCH    id=102900 비스타말 matched=149 failed=743 menus=1639 photos=733
+[893/6860] MISMATCH id=114740 몬스터커피 대구복현아이파크점 matched=149 failed=744 menus=1639 photos=733
+[894/6860] CLOSED   id=114731 월파 클래스 matched=149 failed=745 menus=1639 photos=733
+[895/6860] MISMATCH id=114692 애리스커피 펙스코점 matched=149 failed=746 menus=1639 photos=733
+[896/6860] CLOSED   id=102888 앤티앤스프레즐 명지대방디엠시티점 matched=149 failed=747 menus=1639 photos=733
+[단일 가게 fetch 실패] id=102885: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/102885/naver-enrich-item
+[897/6860] FETCH_FAIL id=102885 하이오커피 명지휴포레점
+[898/6860] CLOSED   id=114680 커피와만남 matched=149 failed=749 menus=1639 photos=733
+[899/6860] MISMATCH id=102882 부산단팥빵 matched=149 failed=750 menus=1639 photos=733
+[900/6860] CLOSED   id=114671 앤티앤스프레즐 롯데아울렛이시아폴리스점 matched=149 failed=751 menus=1639 photos=733
+[901/6860] CLOSED   id=102879 블루아이리스 matched=149 failed=752 menus=1639 photos=733
+[902/6860] CLOSED   id=114662 얌디 matched=149 failed=753 menus=1639 photos=733
+[903/6860] CLOSED   id=102870 히스피 명지점 matched=149 failed=754 menus=1639 photos=733
+[904/6860] CLOSED   id=102867 손수케이크 러비더비 matched=149 failed=755 menus=1639 photos=733
+[905/6860] MISMATCH id=102861 쏠베이커리 명지국제점 matched=149 failed=756 menus=1639 photos=733
+[906/6860] CLOSED   id=102849 꿈꾸는요리사 국제신도시점 matched=149 failed=757 menus=1639 photos=733
+[907/6860] CLOSED   id=102846 폴인커피강 matched=149 failed=758 menus=1639 photos=733
+[908/6860] CLOSED   id=102843 찌뇨베이커리 matched=149 failed=759 menus=1639 photos=733
+[909/6860] NO_CAND  id=114656 잣품은그집호두과자 롯데아울렛 이시아폴리스점 matched=149 failed=760 menus=1639 photos=733
+[910/6860] CLOSED   id=114653 올바른밀창고 matched=149 failed=761 menus=1639 photos=733
+[911/6860] MATCH    id=102831 앤티앤스프레즐 이마트사상점 matched=150 failed=761 menus=1656 photos=736
+[912/6860] MATCH    id=114650 김형목베이커리 matched=151 failed=761 menus=1656 photos=737
+[913/6860] CLOSED   id=102822 모리커피 부산사상센트럴스타힐스점 matched=151 failed=762 menus=1656 photos=737
+[914/6860] CLOSED   id=114647 딥딥딥 matched=151 failed=763 menus=1656 photos=737
+[915/6860] NO_CAND  id=114455 이왕당과자점 matched=151 failed=764 menus=1656 photos=737
+[916/6860] MATCH    id=114437 바파바로 matched=152 failed=764 menus=1664 photos=742
+[917/6860] CLOSED   id=114425 대인베짱 matched=152 failed=765 menus=1664 photos=742
+[918/6860] CLOSED   id=114389 카페꽃이피다 만촌점 matched=152 failed=766 menus=1664 photos=742
+[919/6860] CLOSED   id=114386 갸또빌라쥬 matched=152 failed=767 menus=1664 photos=742
+[920/6860] MATCH    id=114317 바게리 matched=153 failed=767 menus=1672 photos=747
+[921/6860] MATCH    id=114314 해피플러피 matched=154 failed=767 menus=1689 photos=750
+[922/6860] CLOSED   id=102810 떡공방형제 matched=154 failed=768 menus=1689 photos=750
+[923/6860] MATCH    id=114293 매스커피 수성구청점 matched=155 failed=768 menus=1690 photos=755
+[단일 가게 fetch 실패] id=102786: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/102786/naver-enrich-item
+[924/6860] FETCH_FAIL id=102786 하이오커피 서부산유통단지점
+[925/6860] MATCH    id=102783 찐심버블티 matched=156 failed=769 menus=1695 photos=760
+[926/6860] MATCH    id=114242 스미스케이크스튜디오 matched=157 failed=769 menus=1698 photos=765
+[927/6860] MATCH    id=114182 유정아수제도너츠 matched=158 failed=769 menus=1708 photos=768
+[928/6860] CLOSED   id=114158 시공커피 matched=158 failed=770 menus=1708 photos=768
+[929/6860] MISMATCH id=114146 블랑제리 만촌점 matched=158 failed=771 menus=1708 photos=768
+[930/6860] CLOSED   id=102765 이자벨 matched=158 failed=772 menus=1708 photos=768
+[931/6860] CLOSED   id=102759 앤티앤스프레즐 김해공항국내선점 matched=158 failed=773 menus=1708 photos=768
+[932/6860] MATCH    id=102756 슈브제빵소 matched=159 failed=773 menus=1719 photos=773
+[933/6860] CLOSED   id=102282 브레드빈 matched=159 failed=774 menus=1719 photos=773
+[934/6860] CLOSED   id=114092 포브(FOV) matched=159 failed=775 menus=1719 photos=773
+[935/6860] MATCH    id=102273 오디오그라피 matched=160 failed=775 menus=1724 photos=778
+[936/6860] MISMATCH id=102270 류빈 matched=160 failed=776 menus=1724 photos=778
+[937/6860] CLOSED   id=102267 카페로더 matched=160 failed=777 menus=1724 photos=778
+[938/6860] MATCH    id=114065 스완네 matched=161 failed=777 menus=1737 photos=783
+[939/6860] CLOSED   id=102261 슈가파티케익 matched=161 failed=778 menus=1737 photos=783
+[940/6860] CLOSED   id=113972 치즌 matched=161 failed=779 menus=1737 photos=783
+[941/6860] MATCH    id=102258 라끄베이커리카페 matched=162 failed=779 menus=1737 photos=788
+[단일 가게 fetch 실패] id=113837: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/113837/naver-enrich-item
+[942/6860] FETCH_FAIL id=113837 쏠케이크
+[943/6860] CLOSED   id=113801 핖 matched=162 failed=781 menus=1737 photos=788
+[944/6860] MISMATCH id=102243 숲 matched=162 failed=782 menus=1737 photos=788
+[945/6860] CLOSED   id=113795 하벨 matched=162 failed=783 menus=1737 photos=788
+[946/6860] MATCH    id=113759 스마일꽈배기 범어점 matched=163 failed=783 menus=1742 photos=791
+[947/6860] CLOSED   id=102240 이대명과 구서점 matched=163 failed=784 menus=1742 photos=791
+[948/6860] MATCH    id=113699 카페와 matched=164 failed=784 menus=1752 photos=796
+[949/6860] CLOSED   id=102237 찹찹떡떡 본점 matched=164 failed=785 menus=1752 photos=796
+[950/6860] MISMATCH id=113651 프로방스베이커리 matched=164 failed=786 menus=1752 photos=796
+[951/6860] CLOSED   id=102234 제빵소작 matched=164 failed=787 menus=1752 photos=796
+[952/6860] CLOSED   id=102231 브리첼과자점 matched=164 failed=788 menus=1752 photos=796
+[953/6860] CLOSED   id=102228 플라로드카페 matched=164 failed=789 menus=1752 photos=796
+[954/6860] MATCH    id=113567 해월당 동촌유원지점 matched=165 failed=789 menus=1754 photos=801
+[955/6860] MATCH    id=102225 느티나무의사랑카페 matched=166 failed=789 menus=1757 photos=803
+[956/6860] CLOSED   id=102222 콩방 matched=166 failed=790 menus=1757 photos=803
+[957/6860] CLOSED   id=113480 몬스터커피 대구공항점 matched=166 failed=791 menus=1757 photos=803
+[958/6860] MATCH    id=113477 빵마을사람들 matched=167 failed=791 menus=1757 photos=805
+[959/6860] MISMATCH id=113444 련 matched=167 failed=792 menus=1757 photos=805
+[960/6860] CLOSED   id=113426 다온디저트공방 matched=167 failed=793 menus=1757 photos=805
+[961/6860] CLOSED   id=113348 파센드 matched=167 failed=794 menus=1757 photos=805
+[단일 가게 fetch 실패] id=113342: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/113342/naver-enrich-item
+[962/6860] FETCH_FAIL id=113342 더플레르케이크
+[963/6860] CLOSED   id=101484 라뽀아르 matched=167 failed=796 menus=1757 photos=805
+[964/6860] MISMATCH id=113312 유영 matched=167 failed=797 menus=1757 photos=805
+[965/6860] MATCH    id=113249 라브디저트공방 matched=168 failed=797 menus=1758 photos=810
+[966/6860] MISMATCH id=113195 파티세리선물 matched=168 failed=798 menus=1758 photos=810
+[967/6860] CLOSED   id=101436 또이따 matched=168 failed=799 menus=1758 photos=810
+[968/6860] CLOSED   id=113189 다즐링 matched=168 failed=800 menus=1758 photos=810
+[969/6860] CLOSED   id=101433 커피스토어 부산대북문점 matched=168 failed=801 menus=1758 photos=810
+[970/6860] CLOSED   id=113144 부창제과 2호점 matched=168 failed=802 menus=1758 photos=810
+[971/6860] MISMATCH id=101388 카페051 남산역점 matched=168 failed=803 menus=1758 photos=810
+[972/6860] CLOSED   id=113138 세비지커피 matched=168 failed=804 menus=1758 photos=810
+[973/6860] CLOSED   id=101379 옵스 구서점 matched=168 failed=805 menus=1758 photos=810
+[974/6860] CLOSED   id=113117 마듀 신세계백화점대구점 matched=168 failed=806 menus=1758 photos=810
+[975/6860] MATCH    id=101301 더다락 matched=169 failed=806 menus=1766 photos=815
+[976/6860] MISMATCH id=113093 떡공방형제 신세계백화점 대구점 matched=169 failed=807 menus=1766 photos=815
+[977/6860] MATCH    id=101214 더기베이글 matched=170 failed=807 menus=1779 photos=820
+[978/6860] CLOSED   id=101124 영커피 금정구청점 matched=170 failed=808 menus=1779 photos=820
+[단일 가게 fetch 실패] id=101112: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/101112/naver-enrich-item
+[979/6860] FETCH_FAIL id=101112 베리베리케이크
+[980/6860] CLOSED   id=113078 마망갸또 신세계 대구점 matched=170 failed=810 menus=1779 photos=820
+[981/6860] MATCH    id=101079 카페051 두실점 matched=171 failed=810 menus=1780 photos=825
+[982/6860] MATCH    id=113060 블룸앤시루 matched=172 failed=810 menus=1781 photos=830
+[983/6860] CLOSED   id=101076 카페 모먼트리 matched=172 failed=811 menus=1781 photos=830
+[984/6860] CLOSED   id=113006 시즈니크 신세계백화점 대구점 matched=172 failed=812 menus=1781 photos=830
+[985/6860] BLOCKED  id=101073 티라이스베이커리 부산대하우스 matched=172 failed=813 menus=1781 photos=830
+[986/6860] MATCH    id=112991 유즈케이크 matched=173 failed=813 menus=1786 photos=835
+[987/6860] CLOSED   id=101055 카페아담 matched=173 failed=814 menus=1786 photos=835
+[988/6860] MATCH    id=112985 산미 matched=174 failed=814 menus=1795 photos=840
+[989/6860] MATCH    id=112979 어디 matched=175 failed=814 menus=1796 photos=845
+[단일 가게 fetch 실패] id=101052: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/101052/naver-enrich-item
+[990/6860] FETCH_FAIL id=101052 하이오커피 장전역점
+[991/6860] CLOSED   id=112940 카페루앤비 대구신천역점 matched=175 failed=816 menus=1796 photos=845
+[992/6860] CLOSED   id=112901 신라당베이커리 matched=175 failed=817 menus=1796 photos=845
+[993/6860] NO_CAND  id=112817 베리데이지 멜팅트롤리 matched=175 failed=818 menus=1796 photos=845
+[994/6860] MATCH    id=101022 원더풀명품찹쌀꽈배기 matched=176 failed=818 menus=1809 photos=850
+[995/6860] CLOSED   id=101019 콘드168 matched=176 failed=819 menus=1809 photos=850
+[996/6860] MATCH    id=112697 구수 matched=177 failed=819 menus=1823 photos=855
+[997/6860] MATCH    id=101013 구디너프 아넥스 matched=178 failed=819 menus=1846 photos=859
+[998/6860] NO_CAND  id=112691 포포케익&와플 matched=178 failed=820 menus=1846 photos=859
+[999/6860] CLOSED   id=100986 블루샥 부산금정구청점 matched=178 failed=821 menus=1846 photos=859
+[1000/6860] CLOSED   id=100977 컵넛 matched=178 failed=822 menus=1846 photos=859
+[1001/6860] CLOSED   id=112679 르배 본점 matched=178 failed=823 menus=1846 photos=859
+[1002/6860] CLOSED   id=100965 셰프윤찹쌀꽈배기 부곡점 matched=178 failed=824 menus=1846 photos=859
+[1003/6860] MISMATCH id=112676 아양로호두과자 matched=178 failed=825 menus=1846 photos=859
+[1004/6860] CLOSED   id=100950 더마스터커피 금정점 matched=178 failed=826 menus=1846 photos=859
+[1005/6860] MATCH    id=112667 모모스윗 matched=179 failed=826 menus=1858 photos=864
+[1006/6860] CLOSED   id=100938 아름드리떡집 matched=179 failed=827 menus=1858 photos=864
+[1007/6860] MATCH    id=100935 하루밀 matched=180 failed=827 menus=1875 photos=869
+[1008/6860] MATCH    id=112658 롤리데이 matched=181 failed=827 menus=1883 photos=874
+[1009/6860] CLOSED   id=100929 빵들리에 matched=181 failed=828 menus=1883 photos=874
+[1010/6860] CLOSED   id=112649 브릭레드 신암 matched=181 failed=829 menus=1883 photos=874
+[1011/6860] MATCH    id=100890 록록빵가게 matched=182 failed=829 menus=1884 photos=879
+[단일 가게 fetch 실패] id=100869: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/100869/naver-enrich-item
+[1012/6860] FETCH_FAIL id=100869 하이오커피 부산부곡점
+[1013/6860] CLOSED   id=100848 정태수베이커리 matched=182 failed=831 menus=1884 photos=879
+[1014/6860] CLOSED   id=112640 오마이럽데이 matched=182 failed=832 menus=1884 photos=879
+[1015/6860] CLOSED   id=100446 달콤상점 matched=182 failed=833 menus=1884 photos=879
+[1016/6860] MATCH    id=100428 오네쉬요거트&그래놀라 부산대점 matched=183 failed=833 menus=1890 photos=884
+[1017/6860] CLOSED   id=100425 베러먼데이커피 부곡시장점 matched=183 failed=834 menus=1890 photos=884
+[1018/6860] MISMATCH id=100395 카페부곡 matched=183 failed=835 menus=1890 photos=884
+[단일 가게 fetch 실패] id=112625: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/112625/naver-enrich-item
+[1019/6860] FETCH_FAIL id=112625 모래케이크
+[1020/6860] MATCH    id=100386 커피노래 matched=184 failed=836 menus=1896 photos=889
+[1021/6860] CLOSED   id=112622 마티네 matched=184 failed=837 menus=1896 photos=889
+[1022/6860] CLOSED   id=100350 블루그로토 matched=184 failed=838 menus=1896 photos=889
+[1023/6860] CLOSED   id=100320 알바카페 matched=184 failed=839 menus=1896 photos=889
+[1024/6860] MATCH    id=100305 해피뜨루랜드 matched=185 failed=839 menus=1897 photos=893
+[1025/6860] CLOSED   id=100302 보리종파티세리 본점 matched=185 failed=840 menus=1897 photos=893
+[1026/6860] CLOSED   id=100299 쏠트바 matched=185 failed=841 menus=1897 photos=893
+[1027/6860] CLOSED   id=100281 버터레코드 matched=185 failed=842 menus=1897 photos=893
+[1028/6860] MATCH    id=112592 빵끗 matched=186 failed=842 menus=1909 photos=898
+[1029/6860] MISMATCH id=99906 디저트투고 matched=186 failed=843 menus=1909 photos=898
+[1030/6860] MATCH    id=99885 블루샥 부산다대포점 matched=187 failed=843 menus=1909 photos=903
+[1031/6860] MATCH    id=99783 미닛뜨제과점 matched=188 failed=843 menus=1912 photos=908
+[1032/6860] CLOSED   id=99765 빵천동만나찹쌀꽈배기 matched=188 failed=844 menus=1912 photos=908
+[1033/6860] MATCH    id=112571 몬스터커피 대구해링턴경대점 matched=189 failed=844 menus=1925 photos=913
+[1034/6860] MATCH    id=99756 사하단팥빵 matched=190 failed=844 menus=1928 photos=918
+[1035/6860] CLOSED   id=112568 피에르마르콜리니 신세계백화점 대구점 matched=190 failed=845 menus=1928 photos=918
+[1036/6860] CLOSED   id=99744 맏물소담 matched=190 failed=846 menus=1928 photos=918
+[1037/6860] MISMATCH id=112556 황남빵 matched=190 failed=847 menus=1928 photos=918
+[1038/6860] MATCH    id=112541 매스커피 경북대점 matched=191 failed=847 menus=1930 photos=923
+[1039/6860] CLOSED   id=99720 몽블레 matched=191 failed=848 menus=1930 photos=923
+[1040/6860] CLOSED   id=99714 이나커피 matched=191 failed=849 menus=1930 photos=923
+[단일 가게 fetch 실패] id=99609: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/99609/naver-enrich-item
+[1041/6860] FETCH_FAIL id=99609 하이오커피 신평펜타플렉스점
+[1042/6860] CLOSED   id=99588 아비앙또과자점 장림점 matched=191 failed=851 menus=1930 photos=923
+[단일 가게 fetch 실패] id=99558: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/99558/naver-enrich-item
+[1043/6860] FETCH_FAIL id=99558 하이오커피 부산장림점
+[1044/6860] CLOSED   id=99429 방울아이증편전문점 matched=191 failed=853 menus=1930 photos=923
+[1045/6860] CLOSED   id=99423 빙수당 하단점 matched=191 failed=854 menus=1930 photos=923
+[1046/6860] CLOSED   id=99405 디저트카페퓨어 matched=191 failed=855 menus=1930 photos=923
+[1047/6860] MATCH    id=99396 룩쿠키 matched=192 failed=855 menus=1930 photos=924
+[1048/6860] MATCH    id=112526 목로카페 matched=193 failed=855 menus=1930 photos=929
+[1049/6860] MATCH    id=112523 주비 두루향기롭다 matched=194 failed=855 menus=1931 photos=934
+[1050/6860] MATCH    id=112517 파파쉐프커피 matched=195 failed=855 menus=1935 photos=939
+[1051/6860] CLOSED   id=99387 카페진목 matched=195 failed=856 menus=1935 photos=939
+[1052/6860] CLOSED   id=99384 하라케이크 부산점 matched=195 failed=857 menus=1935 photos=939
+[1053/6860] CLOSED   id=112511 겐츠베이커리 신세계대구점 matched=195 failed=858 menus=1935 photos=939
+[1054/6860] CLOSED   id=99372 캔디블라썸 matched=195 failed=859 menus=1935 photos=939
+[1055/6860] CLOSED   id=99360 디베르소에스프레소바 matched=195 failed=860 menus=1935 photos=939
+[1056/6860] CLOSED   id=99348 앤티앤스프레즐 아트몰링부산점 matched=195 failed=861 menus=1935 photos=939
+[1057/6860] CLOSED   id=112382 카페생명나무 matched=195 failed=862 menus=1935 photos=939
+[1058/6860] CLOSED   id=99312 꿈카페 하단지점 matched=195 failed=863 menus=1935 photos=939
+[1059/6860] CLOSED   id=112379 무헤이 matched=195 failed=864 menus=1935 photos=939
+[1060/6860] MATCH    id=99243 황제찹쌀꽈배기 matched=196 failed=864 menus=1936 photos=944
+[1061/6860] CLOSED   id=112262 루엘비베이커리카페 matched=196 failed=865 menus=1936 photos=944
+[1062/6860] CLOSED   id=99195 카페051 가락 2,3단지점 matched=196 failed=866 menus=1936 photos=944
+[1063/6860] CLOSED   id=112208 이에커피공간 matched=196 failed=867 menus=1936 photos=944
+[1064/6860] MATCH    id=99159 슈가미뇽 matched=197 failed=867 menus=1941 photos=949
+[단일 가게 fetch 실패] id=112190: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/112190/naver-enrich-item
+[1065/6860] FETCH_FAIL id=112190 yininkeik 이닌케이크
+[1066/6860] MATCH    id=99147 카페 일일공일 matched=198 failed=868 menus=1941 photos=953
+[1067/6860] CLOSED   id=112187 오가닉모가 matched=198 failed=869 menus=1941 photos=953
+[단일 가게 fetch 실패] id=99144: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/99144/naver-enrich-item
+[1068/6860] FETCH_FAIL id=99144 마리스케이크
+[1069/6860] MATCH    id=112163 캣냅 matched=199 failed=870 menus=1949 photos=958
+[단일 가게 fetch 실패] id=99141: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/99141/naver-enrich-item
+[1070/6860] FETCH_FAIL id=99141 피어나케이크
+[1071/6860] CLOSED   id=112151 장가손떡 matched=199 failed=872 menus=1949 photos=958
+[1072/6860] CLOSED   id=98889 블루베어커피 matched=199 failed=873 menus=1949 photos=958
+[1073/6860] MATCH    id=112139 노팅힐 matched=200 failed=873 menus=1952 photos=963
+[1074/6860] MISMATCH id=98886 설화 matched=200 failed=874 menus=1952 photos=963
+[1075/6860] MATCH    id=98883 앨리스프리미엄플러스커피 matched=201 failed=874 menus=1952 photos=968
+[1076/6860] CLOSED   id=112019 빵장수쉐프 대구백화점 프라자점 matched=201 failed=875 menus=1952 photos=968
+[1077/6860] CLOSED   id=111992 장수민과자점 matched=201 failed=876 menus=1952 photos=968
+[1078/6860] MISMATCH id=98877 원더랜드 matched=201 failed=877 menus=1952 photos=968
+[1079/6860] CLOSED   id=98874 춘배점빵 matched=201 failed=878 menus=1952 photos=968
+[1080/6860] MATCH    id=111902 공공산책 matched=202 failed=878 menus=1952 photos=973
+[1081/6860] CLOSED   id=98865 이티135 matched=202 failed=879 menus=1952 photos=973
+[1082/6860] MATCH    id=111818 일화가 matched=203 failed=879 menus=1961 photos=978
+[단일 가게 fetch 실패] id=98859: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/98859/naver-enrich-item
+[1083/6860] FETCH_FAIL id=98859 하이오커피 괴정역점
+[1084/6860] CLOSED   id=98853 어오케이커피 장림역점 matched=203 failed=881 menus=1961 photos=978
+[1085/6860] MATCH    id=98844 원더풀명품찹쌀꽈배기 matched=204 failed=881 menus=1974 photos=981
+[1086/6860] MISMATCH id=111686 레프트뱅크 matched=204 failed=882 menus=1974 photos=981
+[1087/6860] CLOSED   id=98838 리크커피 matched=204 failed=883 menus=1974 photos=981
+[1088/6860] CLOSED   id=111620 옐로우덕커피 matched=204 failed=884 menus=1974 photos=981
+[단일 가게 fetch 실패] id=111206: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/111206/naver-enrich-item
+[1089/6860] FETCH_FAIL id=111206 스플쌤 스윗플라워떡케이크
+[1090/6860] CLOSED   id=111170 오마이버디즈 matched=204 failed=886 menus=1974 photos=981
+[1091/6860] MATCH    id=111161 갠소커피로스터즈 matched=205 failed=886 menus=1976 photos=986
+[1092/6860] MATCH    id=111152 도로라커피 matched=206 failed=886 menus=1981 photos=991
+[1093/6860] MATCH    id=98826 원더풀명품찹쌀꽈배기 matched=207 failed=886 menus=2011 photos=996
+[1094/6860] MATCH    id=111143 필인커피 matched=208 failed=886 menus=2023 photos=1001
+[1095/6860] CLOSED   id=98823 쁘띠롱 matched=208 failed=887 menus=2023 photos=1001
+[1096/6860] CLOSED   id=98817 윤연당 부산사하점 matched=208 failed=888 menus=2023 photos=1001
+[1097/6860] CLOSED   id=98814 사랑해베이글 하단점 matched=208 failed=889 menus=2023 photos=1001
+[1098/6860] MATCH    id=98811 미야콩 matched=209 failed=889 menus=2026 photos=1006
+[1099/6860] MATCH    id=98808 블루샥 부산괴정점 matched=210 failed=889 menus=2027 photos=1011
+[1100/6860] CLOSED   id=98802 박배철과자점 아트몰링 부산본점 matched=210 failed=890 menus=2027 photos=1011
+[1101/6860] MISMATCH id=98796 카페051 사하구청점 matched=210 failed=891 menus=2027 photos=1011
+[1102/6860] CLOSED   id=98649 베이킹테라스 matched=210 failed=892 menus=2027 photos=1011
+[1103/6860] CLOSED   id=98646 두아르 matched=210 failed=893 menus=2027 photos=1011
+[1104/6860] MISMATCH id=111089 숲속호두 대구반월당점 matched=210 failed=894 menus=2027 photos=1011
+[1105/6860] CLOSED   id=98643 파슈어커피로스터스 matched=210 failed=895 menus=2027 photos=1011
+[1106/6860] CLOSED   id=111086 몬스터커피 교대점 matched=210 failed=896 menus=2027 photos=1011
+[1107/6860] MATCH    id=111062 브루피스 matched=211 failed=896 menus=2027 photos=1016
+[1108/6860] MATCH    id=111008 잔결 matched=212 failed=896 menus=2033 photos=1021
+[1109/6860] CLOSED   id=110999 스노우엔요거트 matched=212 failed=897 menus=2033 photos=1021
+[1110/6860] MATCH    id=98592 럭키베이커리 matched=213 failed=897 menus=2037 photos=1026
+[1111/6860] CLOSED   id=110960 몬스터커피 남산점 matched=213 failed=898 menus=2037 photos=1026
+[1112/6860] MATCH    id=110948 까레몽 평리점 matched=214 failed=898 menus=2040 photos=1031
+[1113/6860] CLOSED   id=110936 버터브롯 matched=214 failed=899 menus=2040 photos=1031
+[1114/6860] MATCH    id=110924 반죽하우스 matched=215 failed=899 menus=2061 photos=1036
+[1115/6860] MATCH    id=110909 더캄 matched=216 failed=899 menus=2073 photos=1041
+[1116/6860] MATCH    id=98331 빵나오다 matched=217 failed=899 menus=2099 photos=1046
+[1117/6860] MISMATCH id=98250 하동당 센텀점 matched=217 failed=900 menus=2099 photos=1046
+[1118/6860] MATCH    id=110900 스몰굿커피 굿모닝병원점 matched=218 failed=900 menus=2105 photos=1051
+[1119/6860] MATCH    id=110894 미힐 matched=219 failed=900 menus=2118 photos=1056
+[1120/6860] MATCH    id=98235 보라찐빵 matched=220 failed=900 menus=2120 photos=1060
+[1121/6860] MISMATCH id=110885 수녹 matched=220 failed=901 menus=2120 photos=1060
+[1122/6860] CLOSED   id=98232 카페051 영산대점 matched=220 failed=902 menus=2120 photos=1060
+[1123/6860] CLOSED   id=110867 백배집 matched=220 failed=903 menus=2120 photos=1060
+[1124/6860] CLOSED   id=98223 이그나잇 커피로스터스 matched=220 failed=904 menus=2120 photos=1060
+[1125/6860] MATCH    id=98196 카페가까 matched=221 failed=904 menus=2125 photos=1065
+[1126/6860] CLOSED   id=110849 구민회의 좋은아침 matched=221 failed=905 menus=2125 photos=1065
+[1127/6860] CLOSED   id=110846 달을품은설기 matched=221 failed=906 menus=2125 photos=1065
+[1128/6860] CLOSED   id=110837 요거피플 반월당점 matched=221 failed=907 menus=2125 photos=1065
+[단일 가게 fetch 실패] id=98154: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/98154/naver-enrich-item
+[1129/6860] FETCH_FAIL id=98154 비비케이크
+[1130/6860] CLOSED   id=98130 이루데이 matched=221 failed=909 menus=2125 photos=1065
+[1131/6860] CLOSED   id=110831 케키얌 matched=221 failed=910 menus=2125 photos=1065
+[1132/6860] MATCH    id=110828 쿠키에진심 matched=222 failed=910 menus=2141 photos=1070
+[1133/6860] MISMATCH id=98124 스토리오브라망 matched=222 failed=911 menus=2141 photos=1070
+[1134/6860] CLOSED   id=98115 겐츠베이커리 동부산점 matched=222 failed=912 menus=2141 photos=1070
+[1135/6860] CLOSED   id=110822 베이커리 쇼콜라 matched=222 failed=913 menus=2141 photos=1070
+[1136/6860] MISMATCH id=98112 계란빵바나나빵 matched=222 failed=914 menus=2141 photos=1070
+[1137/6860] MATCH    id=110819 엔앨리 matched=223 failed=914 menus=2148 photos=1075
+[1138/6860] MISMATCH id=110792 크래프터 고성점 matched=223 failed=915 menus=2148 photos=1075
+[1139/6860] CLOSED   id=98091 벨라비 matched=223 failed=916 menus=2148 photos=1075
+[1140/6860] MISMATCH id=98079 대보름 matched=223 failed=917 menus=2148 photos=1075
+[1141/6860] CLOSED   id=98064 벨라루나 matched=223 failed=918 menus=2148 photos=1075
+[1142/6860] MISMATCH id=98058 앨리스도넛 기장점 matched=223 failed=919 menus=2148 photos=1075
+[1143/6860] CLOSED   id=98052 폴인크림 matched=223 failed=920 menus=2148 photos=1075
+[1144/6860] NO_CAND  id=97602 꽃시루수제떡전문점 matched=223 failed=921 menus=2148 photos=1075
+[1145/6860] MATCH    id=97542 모찌의하루 해운대점 matched=224 failed=921 menus=2154 photos=1080
+[1146/6860] MATCH    id=110726 도아베이커리 matched=225 failed=921 menus=2168 photos=1085
+[1147/6860] CLOSED   id=97521 더레스트마린 matched=225 failed=922 menus=2168 photos=1085
+[1148/6860] MISMATCH id=97515 파머스시드 matched=225 failed=923 menus=2168 photos=1085
+[1149/6860] CLOSED   id=97494 사실빙 해운대장산점 matched=225 failed=924 menus=2168 photos=1085
+[1150/6860] CLOSED   id=110699 구움공간 matched=225 failed=925 menus=2168 photos=1085
+[1151/6860] CLOSED   id=110678 로프 브레드 matched=225 failed=926 menus=2168 photos=1085
+[1152/6860] CLOSED   id=110642 트란퀼로 matched=225 failed=927 menus=2168 photos=1085
+[1153/6860] NO_CAND  id=110627 B2카페공방 matched=225 failed=928 menus=2168 photos=1085
+[1154/6860] CLOSED   id=97476 문래빗 matched=225 failed=929 menus=2168 photos=1085
+[1155/6860] CLOSED   id=110576 적두병 matched=225 failed=930 menus=2168 photos=1085
+[단일 가게 fetch 실패] id=97473: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/97473/naver-enrich-item
+[1156/6860] FETCH_FAIL id=97473 끌레르영케이크
+[1157/6860] CLOSED   id=110507 홀란드뮤지엄 matched=225 failed=932 menus=2168 photos=1085
+[1158/6860] CLOSED   id=97389 마이니치 matched=225 failed=933 menus=2168 photos=1085
+[1159/6860] MISMATCH id=110501 코끼리 수창지점 matched=225 failed=934 menus=2168 photos=1085
+[1160/6860] CLOSED   id=110456 코그커피 matched=225 failed=935 menus=2168 photos=1085
+[1161/6860] BLOCKED  id=97299 도나스다방 matched=225 failed=936 menus=2168 photos=1085
+[1162/6860] CLOSED   id=110405 백금당 종로점 matched=225 failed=937 menus=2168 photos=1085
+[1163/6860] CLOSED   id=110396 우드리버브 matched=225 failed=938 menus=2168 photos=1085
+[1164/6860] MATCH    id=97326 카페길 달맞이점 matched=226 failed=938 menus=2172 photos=1090
+[1165/6860] CLOSED   id=97308 운타르트 matched=226 failed=939 menus=2172 photos=1090
+[1166/6860] CLOSED   id=110384 포실 matched=226 failed=940 menus=2172 photos=1090
+[1167/6860] MATCH    id=97287 부다파이 matched=227 failed=940 menus=2177 photos=1095
+[1168/6860] MISMATCH id=110372 현대떡집 matched=227 failed=941 menus=2177 photos=1095
+[1169/6860] MATCH    id=110369 바나타이거 대구북성로점 matched=228 failed=941 menus=2241 photos=1100
+[1170/6860] CLOSED   id=97281 공미당 matched=228 failed=942 menus=2241 photos=1100
+[1171/6860] CLOSED   id=97278 하르당 장산역점 matched=228 failed=943 menus=2241 photos=1100
+[1172/6860] CLOSED   id=110336 로하이 약전골목점 matched=228 failed=944 menus=2241 photos=1100
+[1173/6860] MISMATCH id=97260 카페로코 matched=228 failed=945 menus=2241 photos=1100
+[1174/6860] CLOSED   id=97251 보다설기 matched=228 failed=946 menus=2241 photos=1100
+[단일 가게 fetch 실패] id=110306: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/110306/naver-enrich-item
+[1175/6860] FETCH_FAIL id=110306 시스터케이크
+[1176/6860] CLOSED   id=97242 빠흐 matched=228 failed=948 menus=2241 photos=1100
+[1177/6860] MISMATCH id=110303 수평적관계 서문점 matched=228 failed=949 menus=2241 photos=1100
+[1178/6860] MATCH    id=97236 카페나눔 matched=229 failed=949 menus=2245 photos=1105
+[1179/6860] MATCH    id=110273 온니케키 matched=230 failed=949 menus=2254 photos=1110
+[1180/6860] MATCH    id=97224 커피153 matched=231 failed=949 menus=2265 photos=1115
+[1181/6860] CLOSED   id=110255 살롱슈크레 더현대대구 matched=231 failed=950 menus=2265 photos=1115
+[1182/6860] MISMATCH id=97203 카페미뇽 matched=231 failed=951 menus=2265 photos=1115
+[1183/6860] MATCH    id=110234 진커피&도넛 matched=232 failed=951 menus=2276 photos=1120
+[1184/6860] CLOSED   id=110213 딥커피로스터스 향촌 matched=232 failed=952 menus=2276 photos=1120
+[1185/6860] MISMATCH id=97149 오브원 matched=232 failed=953 menus=2276 photos=1120
+[1186/6860] MATCH    id=110204 버터파우더 matched=233 failed=953 menus=2285 photos=1125
+[1187/6860] MISMATCH id=97143 청사포역 matched=233 failed=954 menus=2285 photos=1125
+[1188/6860] CLOSED   id=110192 몬스터커피 대구메트로점 matched=233 failed=955 menus=2285 photos=1125
+[1189/6860] CLOSED   id=97131 하츠나츠 matched=233 failed=956 menus=2285 photos=1125
+[1190/6860] CLOSED   id=110183 대구근대골목단팥빵 동성로본점 matched=233 failed=957 menus=2285 photos=1125
+[1191/6860] MATCH    id=97071 한잔의풀내음 matched=234 failed=957 menus=2294 photos=1130
+[1192/6860] CLOSED   id=110165 노블리비아커피 matched=234 failed=958 menus=2294 photos=1130
+[1193/6860] MATCH    id=96942 베이커리비채 matched=235 failed=958 menus=2308 photos=1135
+[1194/6860] CLOSED   id=110144 그래인스쿠키 더현대대구 matched=235 failed=959 menus=2308 photos=1135
+[단일 가게 fetch 실패] id=96903: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/96903/naver-enrich-item
+[1195/6860] FETCH_FAIL id=96903 하이오커피 해운대우동점
+[1196/6860] MATCH    id=110141 케이크오예 matched=236 failed=960 menus=2317 photos=1140
+[1197/6860] CLOSED   id=96891 아리랑고로케 신세계백화점 센텀시티점 matched=236 failed=961 menus=2317 photos=1140
+[1198/6860] CLOSED   id=110135 메종원스이어 롯데백화점대구점 matched=236 failed=962 menus=2317 photos=1140
+[1199/6860] CLOSED   id=96882 블루샥 부산민락동방오거리점 matched=236 failed=963 menus=2317 photos=1140
+[1200/6860] CLOSED   id=110126 코러스커피 matched=236 failed=964 menus=2317 photos=1140
+[1201/6860] CLOSED   id=96747 상수동카스티야 신세계백화점 센텀시티점 matched=236 failed=965 menus=2317 photos=1140
+[1202/6860] MATCH    id=96732 블루샥 수영역점 matched=237 failed=965 menus=2318 photos=1145
+[1203/6860] MATCH    id=110120 매스커피 중앙로점 matched=238 failed=965 menus=2319 photos=1150
+[1204/6860] CLOSED   id=96699 타카카 matched=238 failed=966 menus=2319 photos=1150
+[1205/6860] MATCH    id=110117 카페오하이오 matched=239 failed=966 menus=2339 photos=1155
+[1206/6860] CLOSED   id=96696 보리에베이커리앤델리 matched=239 failed=967 menus=2339 photos=1155
+[1207/6860] NO_CAND  id=110102 리꼬비베이커리 matched=239 failed=968 menus=2339 photos=1155
+[1208/6860] CLOSED   id=96693 모루비 과자점 matched=239 failed=969 menus=2339 photos=1155
+[1209/6860] CLOSED   id=96690 김정욱쌀빵 matched=239 failed=970 menus=2339 photos=1155
+[1210/6860] MATCH    id=110099 공간학 대구점 matched=240 failed=970 menus=2343 photos=1160
+[1211/6860] MATCH    id=96687 꼬띠 matched=241 failed=970 menus=2361 photos=1165
+[1212/6860] CLOSED   id=110093 달콤한메론빵 matched=241 failed=971 menus=2361 photos=1165
+[1213/6860] MATCH    id=96684 아월스커피 matched=242 failed=971 menus=2376 photos=1170
+[1214/6860] MATCH    id=110090 잔상화 matched=243 failed=971 menus=2380 photos=1175
+[1215/6860] CLOSED   id=96678 도현당 matched=243 failed=972 menus=2380 photos=1175
+[1216/6860] CLOSED   id=110078 쏘쏘사라다 더현대대구 matched=243 failed=973 menus=2380 photos=1175
+[1217/6860] CLOSED   id=96675 돼지팥빙수 키노앙 해운대엘시티점 matched=243 failed=974 menus=2380 photos=1175
+[1218/6860] MATCH    id=110075 따끈따끈베이커리 matched=244 failed=974 menus=2405 photos=1180
+[1219/6860] MISMATCH id=110072 앤티앤스프레즐 대현프리몰대구점 matched=244 failed=975 menus=2405 photos=1180
+[1220/6860] CLOSED   id=96672 야미빈 좌동점 matched=244 failed=976 menus=2405 photos=1180
+[1221/6860] CLOSED   id=110069 앤티앤스프레즐 롯데백화점대구점 matched=244 failed=977 menus=2405 photos=1180
+[1222/6860] CLOSED   id=96666 이지에디 matched=244 failed=978 menus=2405 photos=1180
+[1223/6860] MISMATCH id=110066 코즈 matched=244 failed=979 menus=2405 photos=1180
+[1224/6860] CLOSED   id=96663 카페051 오렌지프라자점 matched=244 failed=980 menus=2405 photos=1180
+[1225/6860] CLOSED   id=110063 모누케이크 matched=244 failed=981 menus=2405 photos=1180
+[1226/6860] CLOSED   id=96657 하브커피 matched=244 failed=982 menus=2405 photos=1180
+[1227/6860] CLOSED   id=96654 이누이 matched=244 failed=983 menus=2405 photos=1180
+[1228/6860] CLOSED   id=96651 옹기종기땅콩빵 해운대점 matched=244 failed=984 menus=2405 photos=1180
+[1229/6860] CLOSED   id=96648 브로쓰마카롱 해운대해리단길점 matched=244 failed=985 menus=2405 photos=1180
+[1230/6860] CLOSED   id=110054 앤티앤스프레즐 동성로점 matched=244 failed=986 menus=2405 photos=1180
+[1231/6860] CLOSED   id=96645 드비앙베이커리 matched=244 failed=987 menus=2405 photos=1180
+[1232/6860] CLOSED   id=96642 로라스베이글 matched=244 failed=988 menus=2405 photos=1180
+[1233/6860] MISMATCH id=110045 디디디 matched=244 failed=989 menus=2405 photos=1180
+[1234/6860] CLOSED   id=96639 달콤부엌 matched=244 failed=990 menus=2405 photos=1180
+[1235/6860] MISMATCH id=110042 카페숲 matched=244 failed=991 menus=2405 photos=1180
+[1236/6860] MISMATCH id=96636 부산샌드 matched=244 failed=992 menus=2405 photos=1180
+[1237/6860] CLOSED   id=110021 브릭62 matched=244 failed=993 menus=2405 photos=1180
+[1238/6860] CLOSED   id=96633 이대명과 해운대점 matched=244 failed=994 menus=2405 photos=1180
+[1239/6860] CLOSED   id=110006 레브슈크레 matched=244 failed=995 menus=2405 photos=1180
+[1240/6860] CLOSED   id=110000 포티에 matched=244 failed=996 menus=2405 photos=1180
+[1241/6860] CLOSED   id=109997 한나식빵 침산점 matched=244 failed=997 menus=2405 photos=1180
+[1242/6860] CLOSED   id=96627 옵스 해운대점 matched=244 failed=998 menus=2405 photos=1180
+[단일 가게 fetch 실패] id=96624: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/96624/naver-enrich-item
+[1243/6860] FETCH_FAIL id=96624 하이오커피 마리나점
+[1244/6860] CLOSED   id=96621 블루샥 부산해운대중동점 matched=244 failed=1000 menus=2405 photos=1180
+[1245/6860] CLOSED   id=109979 서문카스테라 반월당점 matched=244 failed=1001 menus=2405 photos=1180
+[1246/6860] CLOSED   id=96618 블루샥 부산센텀스타점 matched=244 failed=1002 menus=2405 photos=1180
+[1247/6860] NO_CAND  id=109976 카페노르망디 matched=244 failed=1003 menus=2405 photos=1180
+[1248/6860] CLOSED   id=96615 베러먼데이커피 해운대센트럴호텔점 matched=244 failed=1004 menus=2405 photos=1180
+[1249/6860] CLOSED   id=96603 마더린러베이글 해운대점 matched=244 failed=1005 menus=2405 photos=1180
+[1250/6860] MISMATCH id=109961 티클래스 matched=244 failed=1006 menus=2405 photos=1180
+[1251/6860] CLOSED   id=96600 제이델링 해운대구점 matched=244 failed=1007 menus=2405 photos=1180
+[1252/6860] MATCH    id=96588 블루샥 팔레드시즈점 matched=245 failed=1007 menus=2405 photos=1185
+[1253/6860] MATCH    id=109955 유어박스 동성로점 matched=246 failed=1007 menus=2420 photos=1190
+[1254/6860] CLOSED   id=96585 오크레페 해운대점 matched=246 failed=1008 menus=2420 photos=1190
+[1255/6860] CLOSED   id=96597 캐버린하우스 matched=246 failed=1009 menus=2420 photos=1190
+[1256/6860] MATCH    id=109943 두커피 matched=247 failed=1009 menus=2421 photos=1195
+[1257/6860] CLOSED   id=96594 야미빈 matched=247 failed=1010 menus=2421 photos=1195
+[1258/6860] CLOSED   id=96582 옵스 마린시티점 matched=247 failed=1011 menus=2421 photos=1195
+[1259/6860] CLOSED   id=109940 리꼬비 교동점 matched=247 failed=1012 menus=2421 photos=1195
+[1260/6860] CLOSED   id=96591 모모스커피 마린시티점 matched=247 failed=1013 menus=2421 photos=1195
+[1261/6860] CLOSED   id=96579 루시앙베이커리 해운대구청점 matched=247 failed=1014 menus=2421 photos=1195
+[1262/6860] CLOSED   id=109934 마들렌베이커리 오페라점 matched=247 failed=1015 menus=2421 photos=1195
+[1263/6860] CLOSED   id=96576 베이커리토끼굴 센텀점 matched=247 failed=1016 menus=2421 photos=1195
+[1264/6860] MATCH    id=109925 새벽을굽다 matched=248 failed=1016 menus=2426 photos=1200
+[1265/6860] CLOSED   id=96573 오이라 matched=248 failed=1017 menus=2426 photos=1200
+[1266/6860] CLOSED   id=96570 헬로키티애플카페 센텀시티점 matched=248 failed=1018 menus=2426 photos=1200
+[1267/6860] CLOSED   id=109913 진골목길12로스터스 matched=248 failed=1019 menus=2426 photos=1200
+[1268/6860] CLOSED   id=96567 동백당 matched=248 failed=1020 menus=2426 photos=1200
+[단일 가게 fetch 실패] id=96564: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/96564/naver-enrich-item
+[1269/6860] FETCH_FAIL id=96564 졸리케이크
+[1270/6860] MATCH    id=96561 인트로케이크 matched=249 failed=1021 menus=2441 photos=1205
+[1271/6860] MISMATCH id=96558 옹드 matched=249 failed=1022 menus=2441 photos=1205
+[1272/6860] CLOSED   id=109898 프랭크프랭크 동성로점 matched=249 failed=1023 menus=2441 photos=1205
+[1273/6860] MATCH    id=96555 앞치마 입은 언니 matched=250 failed=1023 menus=2452 photos=1210
+[1274/6860] CLOSED   id=109895 카페파노플리 matched=250 failed=1024 menus=2452 photos=1210
+[1275/6860] NO_CAND  id=96552 카페 나리슬 matched=250 failed=1025 menus=2452 photos=1210
+[1276/6860] NO_CAND  id=96549 프롬티 티앤허벌아카데미 matched=250 failed=1026 menus=2452 photos=1210
+[1277/6860] CLOSED   id=109850 매스커피 동성로테라스점 matched=250 failed=1027 menus=2452 photos=1210
+[1278/6860] MISMATCH id=109832 핸즈커피 경대병원점 matched=250 failed=1028 menus=2452 photos=1210
+[1279/6860] CLOSED   id=96543 고메빵집 matched=250 failed=1029 menus=2452 photos=1210
+[1280/6860] CLOSED   id=96540 아르켓 카페 신세계 센텀시티점 matched=250 failed=1030 menus=2452 photos=1210
+[1281/6860] MATCH    id=96534 모스과자점 matched=251 failed=1030 menus=2452 photos=1215
+[1282/6860] MISMATCH id=96531 비커피 matched=251 failed=1031 menus=2452 photos=1215
+[1283/6860] MISMATCH id=96528 듀플릿 matched=251 failed=1032 menus=2452 photos=1215
+[1284/6860] CLOSED   id=96522 스몰굿커피 마린시티점 matched=251 failed=1033 menus=2452 photos=1215
+[1285/6860] MISMATCH id=109760 무화과 matched=251 failed=1034 menus=2452 photos=1215
+[1286/6860] MATCH    id=96519 사르딘 matched=252 failed=1034 menus=2476 photos=1220
+[1287/6860] MISMATCH id=109745 마들렌 본점 matched=252 failed=1035 menus=2476 photos=1220
+[1288/6860] CLOSED   id=96516 로키로라하우스 matched=252 failed=1036 menus=2476 photos=1220
+[1289/6860] MATCH    id=96513 고더커피 센텀점 matched=253 failed=1036 menus=2478 photos=1225
+[1290/6860] MATCH    id=109724 브마롱 matched=254 failed=1036 menus=2496 photos=1230
+[1291/6860] CLOSED   id=109679 몰러 matched=254 failed=1037 menus=2496 photos=1230
+[1292/6860] MATCH    id=96510 브레드빌라 matched=255 failed=1037 menus=2508 photos=1235
+[1293/6860] MATCH    id=109658 벨케이커리하우스 matched=256 failed=1037 menus=2517 photos=1240
+[1294/6860] CLOSED   id=109655 자이언트트리 matched=256 failed=1038 menus=2517 photos=1240
+[1295/6860] MATCH    id=96507 오브너스 matched=257 failed=1038 menus=2518 photos=1245
+[1296/6860] CLOSED   id=109652 달베이커리카페 matched=257 failed=1039 menus=2518 photos=1245
+[1297/6860] CLOSED   id=96504 소맥베이커리 부산센텀점 matched=257 failed=1040 menus=2518 photos=1245
+[1298/6860] CLOSED   id=109649 미드웨이 matched=257 failed=1041 menus=2518 photos=1245
+[1299/6860] MISMATCH id=96501 치즈케이크팩토리 1호점 matched=257 failed=1042 menus=2518 photos=1245
+[1300/6860] CLOSED   id=96495 베이크 센텀시티점 matched=257 failed=1043 menus=2518 photos=1245
+[1301/6860] MISMATCH id=109646 크로키 matched=257 failed=1044 menus=2518 photos=1245
+[1302/6860] CLOSED   id=96492 카페051 오션테라스수변공원점 matched=257 failed=1045 menus=2518 photos=1245
+[1303/6860] CLOSED   id=109643 마들렌베이커리 수성교점 matched=257 failed=1046 menus=2518 photos=1245
+[1304/6860] NO_CAND  id=96489 엘리스도넛 센텀본점 matched=257 failed=1047 menus=2518 photos=1245
+[1305/6860] MISMATCH id=109640 나랑노랑 matched=257 failed=1048 menus=2518 photos=1245
+[1306/6860] CLOSED   id=109637 아프레베이크샵 matched=257 failed=1049 menus=2518 photos=1245
+[1307/6860] NO_CAND  id=96486 비오비 아티성블렁제리 빵빵빵 matched=257 failed=1050 menus=2518 photos=1245
+[1308/6860] MISMATCH id=109634 나이스라이스 matched=257 failed=1051 menus=2518 photos=1245
+[1309/6860] CLOSED   id=96222 크로앙쥬 부산만덕점 matched=257 failed=1052 menus=2518 photos=1245
+[1310/6860] CLOSED   id=109631 토들 대구점 matched=257 failed=1053 menus=2518 photos=1245
+[단일 가게 fetch 실패] id=96219: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/96219/naver-enrich-item
+[1311/6860] FETCH_FAIL id=96219 하이오커피 부산만덕점
+[단일 가게 fetch 실패] id=109625: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/109625/naver-enrich-item
+[1312/6860] FETCH_FAIL id=109625 삡 케이크하우스
+[1313/6860] NO_CAND  id=109622 바파바로 대구백화점 프라자점 matched=257 failed=1056 menus=2518 photos=1245
+[1314/6860] MATCH    id=96165 이오스커피 matched=258 failed=1056 menus=2520 photos=1250
+[1315/6860] CLOSED   id=96048 온리비커피 만덕점 matched=258 failed=1057 menus=2520 photos=1250
+[1316/6860] CLOSED   id=95913 규문당과자점 matched=258 failed=1058 menus=2520 photos=1250
+[1317/6860] CLOSED   id=109619 카페오디너리하우스 청라제과점 matched=258 failed=1059 menus=2520 photos=1250
+[1318/6860] MATCH    id=95829 온도3731 matched=259 failed=1059 menus=2521 photos=1255
+[1319/6860] MATCH    id=109616 쉐르구 matched=260 failed=1059 menus=2571 photos=1260
+[1320/6860] NO_CAND  id=109613 쿰라우데베이커리 matched=260 failed=1060 menus=2571 photos=1260
+[1321/6860] MATCH    id=95547 커피홀 부산금곡점 matched=261 failed=1060 menus=2572 photos=1265
+[1322/6860] MATCH    id=109610 우아미 matched=262 failed=1060 menus=2584 photos=1270
+[1323/6860] MATCH    id=95544 고로케102호 matched=263 failed=1060 menus=2584 photos=1274
+[단일 가게 fetch 실패] id=109607: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/109607/naver-enrich-item
+[1324/6860] FETCH_FAIL id=109607 오초초케이크
+[1325/6860] MATCH    id=95538 빙수당 화명점 matched=264 failed=1061 menus=2585 photos=1279
+[1326/6860] MISMATCH id=109604 케이찹사라다 대구본점 matched=264 failed=1062 menus=2585 photos=1279
+[1327/6860] MATCH    id=95532 화이트리에 화명점 matched=265 failed=1062 menus=2591 photos=1284
+[1328/6860] MATCH    id=109601 버터베이크 본점 matched=266 failed=1062 menus=2630 photos=1289
+[1329/6860] CLOSED   id=109598 샌디레이크 대구점 matched=266 failed=1063 menus=2630 photos=1289
+[1330/6860] MATCH    id=109595 패뷸러스 matched=267 failed=1063 menus=2645 photos=1294
+[단일 가게 fetch 실패] id=109592: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/109592/naver-enrich-item
+[1331/6860] FETCH_FAIL id=109592 라누베케이크
+[1332/6860] MATCH    id=109589 두아몽떼 matched=268 failed=1064 menus=2646 photos=1299
+[1333/6860] MATCH    id=95526 여긴가배 matched=269 failed=1064 menus=2650 photos=1304
+[1334/6860] CLOSED   id=109586 빵장수쉐프 롯데백화점 대구점 matched=269 failed=1065 menus=2650 photos=1304
+[1335/6860] CLOSED   id=95517 영커피 화명점 matched=269 failed=1066 menus=2650 photos=1304
+[1336/6860] CLOSED   id=109583 무화커피 matched=269 failed=1067 menus=2650 photos=1304
+[1337/6860] NO_CAND  id=95514 앤포에트 matched=269 failed=1068 menus=2650 photos=1304
+[1338/6860] CLOSED   id=109580 최가네케익 matched=269 failed=1069 menus=2650 photos=1304
+[1339/6860] CLOSED   id=109577 테카 matched=269 failed=1070 menus=2650 photos=1304
+[단일 가게 fetch 실패] id=95511: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/95511/naver-enrich-item
+[1340/6860] FETCH_FAIL id=95511 하이오커피 화명동원로얄듀크점
+[1341/6860] CLOSED   id=109574 희운제과 matched=269 failed=1072 menus=2650 photos=1304
+[1342/6860] CLOSED   id=95508 드래곤제과 matched=269 failed=1073 menus=2650 photos=1304
+[1343/6860] MATCH    id=109571 호작질 산책점 matched=270 failed=1073 menus=2655 photos=1309
+[1344/6860] MISMATCH id=95505 쿼드커피&아이엠도넛 부산화명점 matched=270 failed=1074 menus=2655 photos=1309
+[1345/6860] MATCH    id=109568 에그앤코 matched=271 failed=1074 menus=2655 photos=1314
+[1346/6860] MATCH    id=95502 영예당 matched=272 failed=1074 menus=2662 photos=1315
+[1347/6860] MISMATCH id=95499 베이글스 matched=272 failed=1075 menus=2662 photos=1315
+[1348/6860] CLOSED   id=95496 블루샥 부산화명점 matched=272 failed=1076 menus=2662 photos=1315
+[1349/6860] MISMATCH id=95493 브레드파파 matched=272 failed=1077 menus=2662 photos=1315
+[1350/6860] CLOSED   id=109559 춤추는꽈배기&스마일수제왕만두 신암점 matched=272 failed=1078 menus=2662 photos=1315
+[1351/6860] CLOSED   id=109556 매스커피 중구청점 matched=272 failed=1079 menus=2662 photos=1315
+[1352/6860] MATCH    id=109553 서로의달 matched=273 failed=1079 menus=2668 photos=1320
+[1353/6860] CLOSED   id=109550 감성마카롱 matched=273 failed=1080 menus=2668 photos=1320
+[1354/6860] CLOSED   id=109547 큐케이 중앙로 matched=273 failed=1081 menus=2668 photos=1320
+[1355/6860] MISMATCH id=95331 오늘도빵 matched=273 failed=1082 menus=2668 photos=1320
+[1356/6860] CLOSED   id=109541 썬빌로우 matched=273 failed=1083 menus=2668 photos=1320
+[1357/6860] CLOSED   id=109538 이얼즈킷사 matched=273 failed=1084 menus=2668 photos=1320
+[1358/6860] MISMATCH id=95304 떡케익만드는집 matched=273 failed=1085 menus=2668 photos=1320
+[1359/6860] CLOSED   id=109535 잇베이키 matched=273 failed=1086 menus=2668 photos=1320
+[1360/6860] CLOSED   id=95301 마비스커피 matched=273 failed=1087 menus=2668 photos=1320
+[1361/6860] MATCH    id=109532 슈텐 matched=274 failed=1087 menus=2703 photos=1325
+[단일 가게 fetch 실패] id=95298: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/95298/naver-enrich-item
+[1362/6860] FETCH_FAIL id=95298 하이오커피 모라역점
+[1363/6860] MATCH    id=109526 카페코튼 베이커리카페 matched=275 failed=1088 menus=2718 photos=1330
+[1364/6860] CLOSED   id=109523 채터커피 matched=275 failed=1089 menus=2718 photos=1330
+[1365/6860] CLOSED   id=95292 서무결베이커리 matched=275 failed=1090 menus=2718 photos=1330
+[1366/6860] MISMATCH id=109520 살구 matched=275 failed=1091 menus=2718 photos=1330
+[1367/6860] CLOSED   id=109517 레프트뱅크 봉덕점 matched=275 failed=1092 menus=2718 photos=1330
+[1368/6860] CLOSED   id=109514 삼송빵집 본점 matched=275 failed=1093 menus=2718 photos=1330
+[1369/6860] CLOSED   id=95283 꽃같은너에게 matched=275 failed=1094 menus=2718 photos=1330
+[단일 가게 fetch 실패] id=95280: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/95280/naver-enrich-item
+[1370/6860] FETCH_FAIL id=95280 해피멜로우케이크
+[1371/6860] CLOSED   id=95277 달리화 matched=275 failed=1096 menus=2718 photos=1330
+[1372/6860] CLOSED   id=95274 카페티히 matched=275 failed=1097 menus=2718 photos=1330
+[1373/6860] CLOSED   id=109505 구스노츠 matched=275 failed=1098 menus=2718 photos=1330
+[1374/6860] MATCH    id=109502 스위트팩토리 수성범어점 matched=276 failed=1098 menus=2734 photos=1335
+[1375/6860] CLOSED   id=109499 밀밭베이커리 미인점 matched=276 failed=1099 menus=2734 photos=1335
+[1376/6860] MATCH    id=95268 아눌레과자점 matched=277 failed=1099 menus=2741 photos=1340
+[1377/6860] CLOSED   id=109496 매스커피 삼덕청아람점 matched=277 failed=1100 menus=2741 photos=1340
+[1378/6860] MISMATCH id=95265 우리동네 호두과자 matched=277 failed=1101 menus=2741 photos=1340
+[1379/6860] CLOSED   id=109493 커피와빵 matched=277 failed=1102 menus=2741 photos=1340
+[1380/6860] CLOSED   id=109490 파운드마켓 교동점 matched=277 failed=1103 menus=2741 photos=1340
+[1381/6860] CLOSED   id=95259 데일리팡 구포점 matched=277 failed=1104 menus=2741 photos=1340
+[단일 가게 fetch 실패] id=109487: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/109487/naver-enrich-item
+[1382/6860] FETCH_FAIL id=109487 오드케이크
+[1383/6860] CLOSED   id=95256 카페어디 matched=277 failed=1106 menus=2741 photos=1340
+[1384/6860] MATCH    id=109484 케이쿠에오 matched=278 failed=1106 menus=2744 photos=1345
+[단일 가게 fetch 실패] id=95253: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/95253/naver-enrich-item
+[1385/6860] FETCH_FAIL id=95253 하이오커피 부산구포점
+[1386/6860] CLOSED   id=109481 빵관심 matched=278 failed=1108 menus=2744 photos=1345
+[1387/6860] MISMATCH id=95250 달샘 matched=278 failed=1109 menus=2744 photos=1345
+[1388/6860] MISMATCH id=109478 케잌131 matched=278 failed=1110 menus=2744 photos=1345
+[1389/6860] CLOSED   id=109475 로맨틱포레스트 matched=278 failed=1111 menus=2744 photos=1345
+[단일 가게 fetch 실패] id=95244: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/95244/naver-enrich-item
+[1390/6860] FETCH_FAIL id=95244 하이오커피 구포GS더프레시점
+[1391/6860] CLOSED   id=109472 책빵고스란히 matched=278 failed=1113 menus=2744 photos=1345
+[1392/6860] CLOSED   id=95241 다요크로와상 matched=278 failed=1114 menus=2744 photos=1345
+[1393/6860] CLOSED   id=109469 미뉴트빠삐용 신세계백화점대구점 matched=278 failed=1115 menus=2744 photos=1345
+[1394/6860] CLOSED   id=95238 블랑85 matched=278 failed=1116 menus=2744 photos=1345
+[1395/6860] CLOSED   id=109466 라푀유크로와상 더현대 대구 matched=278 failed=1117 menus=2744 photos=1345
+[1396/6860] CLOSED   id=109463 라운더리 matched=278 failed=1118 menus=2744 photos=1345
+[1397/6860] CLOSED   id=109460 피와이지 matched=278 failed=1119 menus=2744 photos=1345
+[1398/6860] MATCH    id=109457 쿠븐 matched=279 failed=1119 menus=2768 photos=1350
+[1399/6860] MATCH    id=95232 디어디저트 matched=280 failed=1119 menus=2768 photos=1355
+[단일 가게 fetch 실패] id=109454: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/109454/naver-enrich-item
+[1400/6860] FETCH_FAIL id=109454 모모케이크
+[1401/6860] CLOSED   id=95229 드래곤베이커리 matched=280 failed=1121 menus=2768 photos=1355
+[1402/6860] MATCH    id=109451 홀브라운 대구 matched=281 failed=1121 menus=2792 photos=1360
+[1403/6860] CLOSED   id=95223 루리베이커리 matched=281 failed=1122 menus=2792 photos=1360
+[1404/6860] MISMATCH id=109448 커피 matched=281 failed=1123 menus=2792 photos=1360
+[1405/6860] CLOSED   id=95220 쌀앓이 matched=281 failed=1124 menus=2792 photos=1360
+[1406/6860] MATCH    id=95214 제과점빵 matched=282 failed=1124 menus=2830 photos=1365
+[1407/6860] CLOSED   id=109445 론다베이크샵 신세계백화점 대구점 matched=282 failed=1125 menus=2830 photos=1365
+[1408/6860] CLOSED   id=109442 반짝반짝빛나는 본점 matched=282 failed=1126 menus=2830 photos=1365
+[1409/6860] CLOSED   id=94602 쿼키 matched=282 failed=1127 menus=2830 photos=1365
+[1410/6860] CLOSED   id=109439 동성로딸기모찌 matched=282 failed=1128 menus=2830 photos=1365
+[1411/6860] MISMATCH id=94557 스마일리 matched=282 failed=1129 menus=2830 photos=1365
+[1412/6860] CLOSED   id=109436 베이크 신세계백화점 대구점 matched=282 failed=1130 menus=2830 photos=1365
+[1413/6860] MATCH    id=94185 카페포트 matched=283 failed=1130 menus=2830 photos=1370
+[1414/6860] CLOSED   id=109433 벵봉 matched=283 failed=1131 menus=2830 photos=1370
+[1415/6860] CLOSED   id=109430 프론트카페 디저트스토어 matched=283 failed=1132 menus=2830 photos=1370
+[1416/6860] CLOSED   id=93633 겐츠베이커리 오륙도점 matched=283 failed=1133 menus=2830 photos=1370
+[1417/6860] MATCH    id=93612 디블레스 matched=284 failed=1133 menus=2851 photos=1375
+[1418/6860] NO_CAND  id=93591 카페 청정구역 핸드드립&에스프레소 용호골목시장점 matched=284 failed=1134 menus=2851 photos=1375
+[1419/6860] CLOSED   id=109412 우즈베이커리 matched=284 failed=1135 menus=2851 photos=1375
+[1420/6860] MISMATCH id=109403 베이커리와이 일광점 matched=284 failed=1136 menus=2851 photos=1375
+[1421/6860] CLOSED   id=93558 화이트리에 용호점 matched=284 failed=1137 menus=2851 photos=1375
+[1422/6860] CLOSED   id=93543 제이엠커피 용호점 matched=284 failed=1138 menus=2851 photos=1375
+[1423/6860] CLOSED   id=93513 옹기종기땅콩빵 용호점 matched=284 failed=1139 menus=2851 photos=1375
+[1424/6860] MATCH    id=93510 카페오륙도 matched=285 failed=1139 menus=2859 photos=1380
+[1425/6860] CLOSED   id=109385 아데초이 matched=285 failed=1140 menus=2859 photos=1380
+[1426/6860] MISMATCH id=93417 오로라 matched=285 failed=1141 menus=2859 photos=1380
+[1427/6860] MATCH    id=109382 옹드테이블 matched=286 failed=1141 menus=2865 photos=1385
+[1428/6860] CLOSED   id=109370 디원베이커리카페 matched=286 failed=1142 menus=2865 photos=1385
+[1429/6860] MATCH    id=92988 카페051 용호성모병원점 matched=287 failed=1142 menus=2865 photos=1388
+[1430/6860] CLOSED   id=92898 미니베이글하우스 matched=287 failed=1143 menus=2865 photos=1388
+[1431/6860] MATCH    id=92889 옵서예 matched=288 failed=1143 menus=2872 photos=1393
+[1432/6860] BLOCKED  id=92886 버터앤무드베이크샵 matched=288 failed=1144 menus=2872 photos=1393
+[1433/6860] CLOSED   id=92835 구상 matched=288 failed=1145 menus=2872 photos=1393
+[1434/6860] CLOSED   id=92832 카페블르와 matched=288 failed=1146 menus=2872 photos=1393
+[1435/6860] MATCH    id=92796 쑥당 matched=289 failed=1146 menus=2876 photos=1398
+[1436/6860] MISMATCH id=109358 카페051 일광신도시점 matched=289 failed=1147 menus=2876 photos=1398
+[1437/6860] CLOSED   id=107083 유어타입 광안본점 matched=289 failed=1148 menus=2876 photos=1398
+[1438/6860] CLOSED   id=92784 베이크웤스 matched=289 failed=1149 menus=2876 photos=1398
+[1439/6860] CLOSED   id=107074 도두당 matched=289 failed=1150 menus=2876 photos=1398
+[1440/6860] CLOSED   id=92778 블랙베어도넛 부산광안점 matched=289 failed=1151 menus=2876 photos=1398
+[1441/6860] CLOSED   id=109352 블루샥 부산일광점 matched=289 failed=1152 menus=2876 photos=1398
+[1442/6860] CLOSED   id=107062 참새떡방 matched=289 failed=1153 menus=2876 photos=1398
+[1443/6860] CLOSED   id=109346 손손도너츠 matched=289 failed=1154 menus=2876 photos=1398
+[1444/6860] CLOSED   id=92772 동양사라다 남천본점 matched=289 failed=1155 menus=2876 photos=1398
+[1445/6860] CLOSED   id=107056 치이 matched=289 failed=1156 menus=2876 photos=1398
+[단일 가게 fetch 실패] id=92760: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/92760/naver-enrich-item
+[1446/6860] FETCH_FAIL id=92760 하우스케이크
+[1447/6860] CLOSED   id=109343 화이트리에 정관점 matched=289 failed=1158 menus=2876 photos=1398
+[1448/6860] CLOSED   id=92757 카페051 광안역점 matched=289 failed=1159 menus=2876 photos=1398
+[1449/6860] CLOSED   id=92727 하우스오브브레드BB matched=289 failed=1160 menus=2876 photos=1398
+[1450/6860] CLOSED   id=92715 지유파티쓰리 matched=289 failed=1161 menus=2876 photos=1398
+[1451/6860] MISMATCH id=92694 미미브레드 matched=289 failed=1162 menus=2876 photos=1398
+[단일 가게 fetch 실패] id=92673: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/92673/naver-enrich-item
+[1452/6860] FETCH_FAIL id=92673 유닝케이크
+[1453/6860] CLOSED   id=92670 카페051 남천해변시장점 matched=289 failed=1164 menus=2876 photos=1398
+[1454/6860] CLOSED   id=106978 고래당 matched=289 failed=1165 menus=2876 photos=1398
+[1455/6860] CLOSED   id=106945 소프티케이크하우스 matched=289 failed=1166 menus=2876 photos=1398
+[1456/6860] CLOSED   id=92667 옵스 남천본점 matched=289 failed=1167 menus=2876 photos=1398
+[1457/6860] MATCH    id=109334 달콤한오븐이야기 matched=290 failed=1167 menus=2881 photos=1403
+[1458/6860] NO_CAND  id=106912 수향떡방 쌀디저트카페 matched=290 failed=1168 menus=2881 photos=1403
+[1459/6860] CLOSED   id=92664 그린클라우드 대연점 matched=290 failed=1169 menus=2881 photos=1403
+[1460/6860] MATCH    id=109331 설기엔베이킹스튜디오 matched=291 failed=1169 menus=2882 photos=1408
+[1461/6860] CLOSED   id=106906 일리카이트 matched=291 failed=1170 menus=2882 photos=1408
+[1462/6860] CLOSED   id=92661 토곡팡 남천직영점 matched=291 failed=1171 menus=2882 photos=1408
+[1463/6860] MISMATCH id=106864 미르 matched=291 failed=1172 menus=2882 photos=1408
+[1464/6860] MATCH    id=109328 은아케이크 matched=292 failed=1172 menus=2889 photos=1413
+[1465/6860] MISMATCH id=92658 문지윤식품연구소 올가문 matched=292 failed=1173 menus=2889 photos=1413
+[1466/6860] CLOSED   id=92655 옵스 LG메트로시티점 matched=292 failed=1174 menus=2889 photos=1413
+[1467/6860] MATCH    id=109325 떡사랑 matched=293 failed=1174 menus=2894 photos=1418
+[1468/6860] CLOSED   id=92649 롤뺑드빠리 matched=293 failed=1175 menus=2894 photos=1418
+[1469/6860] CLOSED   id=109322 카페051 정관용수점 matched=293 failed=1176 menus=2894 photos=1418
+[1470/6860] MISMATCH id=92646 카페휘낭시에 matched=293 failed=1177 menus=2894 photos=1418
+[1471/6860] MATCH    id=92643 소묘 양과자점 matched=294 failed=1177 menus=2904 photos=1423
+[1472/6860] MISMATCH id=92640 거인 matched=294 failed=1178 menus=2904 photos=1423
+[1473/6860] CLOSED   id=106291 카페롤미 matched=294 failed=1179 menus=2904 photos=1423
+[1474/6860] MATCH    id=92637 진주떡집 matched=295 failed=1179 menus=2904 photos=1426
+[1475/6860] CLOSED   id=92634 와커피 감만점 matched=295 failed=1180 menus=2904 photos=1426
+[1476/6860] CLOSED   id=92631 소담곳 브런치전문점 matched=295 failed=1181 menus=2904 photos=1426
+[1477/6860] MISMATCH id=106213 제로커피로스터리 matched=295 failed=1182 menus=2904 photos=1426
+[1478/6860] CLOSED   id=109316 서울떡집 matched=295 failed=1183 menus=2904 photos=1426
+[1479/6860] CLOSED   id=92622 W옵스 드마히니 matched=295 failed=1184 menus=2904 photos=1426
+[단일 가게 fetch 실패] id=106198: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/106198/naver-enrich-item
+[1480/6860] FETCH_FAIL id=106198 하이오커피 수영광안점
+[1481/6860] CLOSED   id=109313 온정제과 matched=295 failed=1186 menus=2904 photos=1426
+[단일 가게 fetch 실패] id=92619: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/92619/naver-enrich-item
+[1482/6860] FETCH_FAIL id=92619 리브잇투미케이크
+[1483/6860] MISMATCH id=106180 메인디저트 광안점 matched=295 failed=1188 menus=2904 photos=1426
+[1484/6860] CLOSED   id=92616 블루샥 더비치푸르지오점 matched=295 failed=1189 menus=2904 photos=1426
+[1485/6860] MISMATCH id=109310 카페051 정관점 matched=295 failed=1190 menus=2904 photos=1426
+[1486/6860] CLOSED   id=92613 리틀베어베이크샵 matched=295 failed=1191 menus=2904 photos=1426
+[1487/6860] MISMATCH id=109307 4스텝스커피 matched=295 failed=1192 menus=2904 photos=1426
+[1488/6860] CLOSED   id=106174 스미스엣홈 matched=295 failed=1193 menus=2904 photos=1426
+[1489/6860] CLOSED   id=92610 그레이핍플 남천힐스테이트점 matched=295 failed=1194 menus=2904 photos=1426
+[단일 가게 fetch 실패] id=106147: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/106147/naver-enrich-item
+[1490/6860] FETCH_FAIL id=106147 공드린케이크
+[1491/6860] MISMATCH id=109304 비채스튜디오 matched=295 failed=1196 menus=2904 photos=1426
+[단일 가게 fetch 실패] id=109301: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/109301/naver-enrich-item
+[1492/6860] FETCH_FAIL id=109301 슈가몽마카롱&케이크
+[1493/6860] CLOSED   id=106123 하미의카페 matched=295 failed=1198 menus=2904 photos=1426
+[1494/6860] CLOSED   id=109298 카페051 정관달산점 matched=295 failed=1199 menus=2904 photos=1426
+[1495/6860] CLOSED   id=109295 모리커피 부산정관점 matched=295 failed=1200 menus=2904 photos=1426
+[1496/6860] MATCH    id=106003 슈와게뜨 matched=296 failed=1200 menus=2908 photos=1431
+[1497/6860] CLOSED   id=109292 빙수당 부산정관점 matched=296 failed=1201 menus=2908 photos=1431
+[1498/6860] CLOSED   id=109289 장안숲 므로 matched=296 failed=1202 menus=2908 photos=1431
+[1499/6860] CLOSED   id=92604 고더커피 용호점 matched=296 failed=1203 menus=2908 photos=1431
+[1500/6860] CLOSED   id=109286 퐁드르 matched=296 failed=1204 menus=2908 photos=1431
+[1501/6860] MATCH    id=92601 빵천동만나꽈배기 matched=297 failed=1204 menus=2910 photos=1435
+[1502/6860] CLOSED   id=92598 앤티앤스프레즐 경성대부경대역점 matched=297 failed=1205 menus=2910 photos=1435
+[1503/6860] MISMATCH id=92595 92커피 matched=297 failed=1206 menus=2910 photos=1435
+[1504/6860] CLOSED   id=109280 매치포인트 matched=297 failed=1207 menus=2910 photos=1435
+[1505/6860] NO_CAND  id=92583 CAFEIN 설탕숲 matched=297 failed=1208 menus=2910 photos=1435
+[1506/6860] MISMATCH id=109277 카페808 matched=297 failed=1209 menus=2910 photos=1435
+[1507/6860] CLOSED   id=105871 달콤왕가탕후루 광안리점 matched=297 failed=1210 menus=2910 photos=1435
+[1508/6860] CLOSED   id=92580 듀스포레 matched=297 failed=1211 menus=2910 photos=1435
+[1509/6860] CLOSED   id=105856 콜렛츠 커피 matched=297 failed=1212 menus=2910 photos=1435
+[1510/6860] MISMATCH id=109274 앤티앤스프레즐 부산프리미엄아울렛점 matched=297 failed=1213 menus=2910 photos=1435
+[1511/6860] CLOSED   id=92577 밀로제과 matched=297 failed=1214 menus=2910 photos=1435
+[1512/6860] CLOSED   id=105841 신기커피 matched=297 failed=1215 menus=2910 photos=1435
+[1513/6860] MISMATCH id=109271 웨이브온커피 matched=297 failed=1216 menus=2910 photos=1435
+[1514/6860] CLOSED   id=92574 블루샥 경성대점 matched=297 failed=1217 menus=2910 photos=1435
+[1515/6860] MATCH    id=105829 아워우스 광안리점 matched=298 failed=1217 menus=2926 photos=1440
+[1516/6860] MATCH    id=109268 루아 브런치카페 matched=299 failed=1217 menus=2941 photos=1445
+[1517/6860] CLOSED   id=92571 히스피 대연점 matched=299 failed=1218 menus=2941 photos=1445
+[단일 가게 fetch 실패] id=109265: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/109265/naver-enrich-item
+[1518/6860] FETCH_FAIL id=109265 에밀리케이크
+[단일 가게 fetch 실패] id=92568: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/92568/naver-enrich-item
+[1519/6860] FETCH_FAIL id=92568 모먼트케이크
+[1520/6860] CLOSED   id=92565 더베러마카롱 matched=299 failed=1221 menus=2941 photos=1445
+[1521/6860] MISMATCH id=92562 카페051 대연혁신점 matched=299 failed=1222 menus=2941 photos=1445
+[1522/6860] MATCH    id=109256 주노 바게트 matched=300 failed=1222 menus=2971 photos=1449
+[1523/6860] MATCH    id=92556 스마일찹쌀꽈배기 matched=301 failed=1222 menus=2974 photos=1452
+[1524/6860] CLOSED   id=92553 랜디스도넛 광안리점 matched=301 failed=1223 menus=2974 photos=1452
+[1525/6860] CLOSED   id=109253 케이디저트 matched=301 failed=1224 menus=2974 photos=1452
+[단일 가게 fetch 실패] id=109250: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/109250/naver-enrich-item
+[1526/6860] FETCH_FAIL id=109250 하이오커피 기장시장점
+[1527/6860] MATCH    id=109244 베러먼데이커피 기장동부점 matched=302 failed=1225 menus=2977 photos=1455
+[1528/6860] MATCH    id=109238 달달한우리 matched=303 failed=1225 menus=2979 photos=1460
+[1529/6860] CLOSED   id=92544 올드페리도넛 부산남천점 matched=303 failed=1226 menus=2979 photos=1460
+[1530/6860] CLOSED   id=109235 원플러스원 기장교리점 matched=303 failed=1227 menus=2979 photos=1460
+[1531/6860] MISMATCH id=92541 카페051 남천점 matched=303 failed=1228 menus=2979 photos=1460
+[1532/6860] CLOSED   id=109232 카페051 기장연화리점 matched=303 failed=1229 menus=2979 photos=1460
+[1533/6860] NO_CAND  id=92535 고조미대만카스테라 인생찹쌀꽈배기&쌀핫도그 용호점 matched=303 failed=1230 menus=2979 photos=1460
+[1534/6860] CLOSED   id=109226 빵떡마켓 matched=303 failed=1231 menus=2979 photos=1460
+[1535/6860] CLOSED   id=109220 라마레 베이커리&피자 matched=303 failed=1232 menus=2979 photos=1460
+[1536/6860] CLOSED   id=109217 연화점빵 matched=303 failed=1233 menus=2979 photos=1460
+[1537/6860] CLOSED   id=92532 푸르티아 대연본점 matched=303 failed=1234 menus=2979 photos=1460
+[1538/6860] CLOSED   id=92529 구디 matched=303 failed=1235 menus=2979 photos=1460
+[1539/6860] CLOSED   id=92526 블루샥 부산부경대점 matched=303 failed=1236 menus=2979 photos=1460
+[1540/6860] CLOSED   id=92520 블루샥 용호메트로점 matched=303 failed=1237 menus=2979 photos=1460
+[1541/6860] CLOSED   id=109211 작고소중한공간 matched=303 failed=1238 menus=2979 photos=1460
+[1542/6860] CLOSED   id=92517 달곰하다 matched=303 failed=1239 menus=2979 photos=1460
+[1543/6860] CLOSED   id=109208 어거스트원카페 matched=303 failed=1240 menus=2979 photos=1460
+[1544/6860] CLOSED   id=92511 플로르채 matched=303 failed=1241 menus=2979 photos=1460
+[1545/6860] CLOSED   id=109205 더프트 matched=303 failed=1242 menus=2979 photos=1460
+[1546/6860] CLOSED   id=92508 베이크시즌 matched=303 failed=1243 menus=2979 photos=1460
+[1547/6860] CLOSED   id=109190 오뚜기제과 matched=303 failed=1244 menus=2979 photos=1460
+[1548/6860] MISMATCH id=92505 카페051 수영구청점 matched=303 failed=1245 menus=2979 photos=1460
+[1549/6860] CLOSED   id=108833 카이화 matched=303 failed=1246 menus=2979 photos=1460
+[1550/6860] CLOSED   id=92502 퀴크 matched=303 failed=1247 menus=2979 photos=1460
+[1551/6860] CLOSED   id=108824 클래식캠퍼 matched=303 failed=1248 menus=2979 photos=1460
+[1552/6860] MATCH    id=92496 위즈더미 matched=304 failed=1248 menus=2984 photos=1465
+[1553/6860] CLOSED   id=108776 파밀리아제과점 matched=304 failed=1249 menus=2984 photos=1465
+[1554/6860] CLOSED   id=108578 아덴블랑제리 주례롯데점 matched=304 failed=1250 menus=2984 photos=1465
+[1555/6860] CLOSED   id=92490 버터북 부산점 matched=304 failed=1251 menus=2984 photos=1465
+[1556/6860] MATCH    id=108533 베러먼데이커피 사상산업단지점 matched=305 failed=1251 menus=2987 photos=1468
+[1557/6860] NO_CAND  id=92487 토리나무구움과자전문점 matched=305 failed=1252 menus=2987 photos=1468
+[1558/6860] CLOSED   id=108527 샵1604 matched=305 failed=1253 menus=2987 photos=1468
+[1559/6860] CLOSED   id=108521 히스피 사상점 matched=305 failed=1254 menus=2987 photos=1468
+[1560/6860] MATCH    id=92484 구월의마카롱 matched=306 failed=1254 menus=2988 photos=1473
+[1561/6860] CLOSED   id=92250 커피스토어 서동점 matched=306 failed=1255 menus=2988 photos=1473
+[1562/6860] MATCH    id=92226 러브잇 matched=307 failed=1255 menus=2989 photos=1476
+[1563/6860] MISMATCH id=108410 명품원더풀꽈배기 모라점 matched=307 failed=1256 menus=2989 photos=1476
+[단일 가게 fetch 실패] id=108332: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/108332/naver-enrich-item
+[1564/6860] FETCH_FAIL id=108332 하이오커피 신모라점
+[1565/6860] MATCH    id=108308 커피볶는시골커피 모덕산업단지점 matched=308 failed=1257 menus=2989 photos=1481
+[1566/6860] CLOSED   id=108305 잣품은그집호두과자 애플아울렛사상점 matched=308 failed=1258 menus=2989 photos=1481
+[1567/6860] CLOSED   id=92043 아리스타커피 부산반여점 matched=308 failed=1259 menus=2989 photos=1481
+[1568/6860] CLOSED   id=108293 와플칸 사상점 matched=308 failed=1260 menus=2989 photos=1481
+[1569/6860] CLOSED   id=91989 오안락 matched=308 failed=1261 menus=2989 photos=1481
+[1570/6860] CLOSED   id=108281 달콤부부 matched=308 failed=1262 menus=2989 photos=1481
+[1571/6860] MATCH    id=91974 연제단팥빵 matched=309 failed=1262 menus=2989 photos=1486
+[1572/6860] MATCH    id=108278 153베이크하우스 matched=310 failed=1262 menus=2992 photos=1491
+[단일 가게 fetch 실패] id=91971: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/91971/naver-enrich-item
+[1573/6860] FETCH_FAIL id=91971 라움케이크
+[단일 가게 fetch 실패] id=108263: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/108263/naver-enrich-item
+[1574/6860] FETCH_FAIL id=108263 하이오커피 부산덕포점
+[1575/6860] MISMATCH id=91965 카페051 반여점 matched=310 failed=1265 menus=2992 photos=1491
+[1576/6860] CLOSED   id=108254 블루샥 사상점 matched=310 failed=1266 menus=2992 photos=1491
+[1577/6860] CLOSED   id=91962 아틀리에 스미다 matched=310 failed=1267 menus=2992 photos=1491
+[1578/6860] CLOSED   id=91953 해피메리데이 matched=310 failed=1268 menus=2992 photos=1491
+[1579/6860] CLOSED   id=91950 카페051 센텀파크점 matched=310 failed=1269 menus=2992 photos=1491
+[1580/6860] CLOSED   id=91920 릴리브 matched=310 failed=1270 menus=2992 photos=1491
+[1581/6860] CLOSED   id=108161 스트로베리마마 matched=310 failed=1271 menus=2992 photos=1491
+[1582/6860] MISMATCH id=91902 꽁띠꽁띠뉴 matched=310 failed=1272 menus=2992 photos=1491
+[1583/6860] CLOSED   id=108131 수채화사랑 matched=310 failed=1273 menus=2992 photos=1491
+[1584/6860] CLOSED   id=91893 떡담 동래점 matched=310 failed=1274 menus=2992 photos=1491
+[1585/6860] NO_CAND  id=108113 라이크어플레임(LAF) matched=310 failed=1275 menus=2992 photos=1491
+[1586/6860] CLOSED   id=91887 다과온당 matched=310 failed=1276 menus=2992 photos=1491
+[1587/6860] CLOSED   id=91878 폴커피바 matched=310 failed=1277 menus=2992 photos=1491
+[1588/6860] CLOSED   id=108098 요크요크 matched=310 failed=1278 menus=2992 photos=1491
+[1589/6860] MATCH    id=91863 카페051 재송반산점 matched=311 failed=1278 menus=2993 photos=1496
+[1590/6860] CLOSED   id=108071 레드베릴즈 matched=311 failed=1279 menus=2993 photos=1496
+[1591/6860] CLOSED   id=108059 파인딩해피니스 matched=311 failed=1280 menus=2993 photos=1496
+[1592/6860] MATCH    id=107330 시드니요거랩 matched=312 failed=1280 menus=2998 photos=1501
+[1593/6860] CLOSED   id=91830 슈슈디저트카페 matched=312 failed=1281 menus=2998 photos=1501
+[1594/6860] NO_CAND  id=91827 요리공방도토리 matched=312 failed=1282 menus=2998 photos=1501
+[1595/6860] CLOSED   id=91821 쿠키올리비에 matched=312 failed=1283 menus=2998 photos=1501
+[1596/6860] CLOSED   id=107231 라푀유 광안비치점 matched=312 failed=1284 menus=2998 photos=1501
+[1597/6860] MISMATCH id=107204 하람 matched=312 failed=1285 menus=2998 photos=1501
+[1598/6860] NO_CAND  id=107201 악토버포 matched=312 failed=1286 menus=2998 photos=1501
+[1599/6860] CLOSED   id=107102 레이크커피바 matched=312 failed=1287 menus=2998 photos=1501
+[1600/6860] CLOSED   id=91812 토고래디저트샵 matched=312 failed=1288 menus=2998 photos=1501
+[1601/6860] MISMATCH id=91794 케익앤팜 matched=312 failed=1289 menus=2998 photos=1501
+[1602/6860] MATCH    id=91791 스콘포레스트 matched=313 failed=1289 menus=2998 photos=1504
+[1603/6860] CLOSED   id=107048 바닐라모먼트 matched=313 failed=1290 menus=2998 photos=1504
+[1604/6860] MATCH    id=91638 메종드푸 matched=314 failed=1290 menus=3008 photos=1509
+[1605/6860] MATCH    id=107012 녹록 matched=315 failed=1290 menus=3008 photos=1511
+[1606/6860] MISMATCH id=91401 다정 matched=315 failed=1291 menus=3008 photos=1511
+[1607/6860] CLOSED   id=91386 떡마루 matched=315 failed=1292 menus=3008 photos=1511
+[1608/6860] MISMATCH id=91380 카페051 만덕역점 matched=315 failed=1293 menus=3008 photos=1511
+[1609/6860] MATCH    id=106994 옥토가 matched=316 failed=1293 menus=3015 photos=1516
+[1610/6860] CLOSED   id=91341 시나본 홈플러스아시아드점 matched=316 failed=1294 menus=3015 photos=1516
+[1611/6860] CLOSED   id=106940 달콤한스푼 matched=316 failed=1295 menus=3015 photos=1516
+[1612/6860] MISMATCH id=106919 이에이 matched=316 failed=1296 menus=3015 photos=1516
+[단일 가게 fetch 실패] id=91329: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/91329/naver-enrich-item
+[1613/6860] FETCH_FAIL id=91329 해늘케이크
+[단일 가게 fetch 실패] id=106892: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/106892/naver-enrich-item
+[1614/6860] FETCH_FAIL id=106892 드렁큰케이크
+[1615/6860] MATCH    id=106886 동네커피 광안리점 matched=317 failed=1298 menus=3016 photos=1521
+[1616/6860] CLOSED   id=106856 골든킴하우스 matched=317 failed=1299 menus=3016 photos=1521
+[1617/6860] CLOSED   id=106463 덕미아틀리에 matched=317 failed=1300 menus=3016 photos=1521
+[1618/6860] MISMATCH id=106298 구자윤과자점 matched=317 failed=1301 menus=3016 photos=1521
+[1619/6860] CLOSED   id=106295 율방카페 matched=317 failed=1302 menus=3016 photos=1521
+[1620/6860] MISMATCH id=91299 카페051 신만덕점 matched=317 failed=1303 menus=3016 photos=1521
+[1621/6860] MATCH    id=106268 스마일 제과 matched=318 failed=1303 menus=3016 photos=1524
+[1622/6860] CLOSED   id=106262 딥슬로우커피바 matched=318 failed=1304 menus=3016 photos=1524
+[1623/6860] MATCH    id=106259 어우르 커피 matched=319 failed=1304 menus=3018 photos=1529
+[1624/6860] CLOSED   id=106247 하르당 수영역점 matched=319 failed=1305 menus=3018 photos=1529
+[1625/6860] MISMATCH id=91254 삼정유통 하늘채점 matched=319 failed=1306 menus=3018 photos=1529
+[1626/6860] MISMATCH id=106214 달콤한호두 matched=319 failed=1307 menus=3018 photos=1529
+[1627/6860] CLOSED   id=91203 케익디바 matched=319 failed=1308 menus=3018 photos=1529
+[1628/6860] MATCH    id=91197 카페히타로 matched=320 failed=1308 menus=3029 photos=1534
+[1629/6860] MATCH    id=91092 피아노라떼 matched=321 failed=1308 menus=3045 photos=1539
+[1630/6860] MATCH    id=91062 베이커리팩토리 matched=322 failed=1308 menus=3045 photos=1543
+[1631/6860] CLOSED   id=91044 달롱도르요거트아이스크림 동래점 matched=322 failed=1309 menus=3045 photos=1543
+[1632/6860] CLOSED   id=106172 요거투유 matched=322 failed=1310 menus=3045 photos=1543
+[1633/6860] MISMATCH id=106166 호두마당 부산수영점 matched=322 failed=1311 menus=3045 photos=1543
+[1634/6860] MATCH    id=90933 우드로 matched=323 failed=1311 menus=3046 photos=1548
+[1635/6860] CLOSED   id=106115 페팽과자점 matched=323 failed=1312 menus=3046 photos=1548
+[1636/6860] CLOSED   id=90900 블루샥 부산대역점 matched=323 failed=1313 menus=3046 photos=1548
+[1637/6860] CLOSED   id=90897 카페테제 matched=323 failed=1314 menus=3046 photos=1548
+[1638/6860] CLOSED   id=106091 더케이크샵 matched=323 failed=1315 menus=3046 photos=1548
+[1639/6860] MATCH    id=90891 솦크렘샵 matched=324 failed=1315 menus=3047 photos=1553
+[1640/6860] CLOSED   id=105890 컴앤씨미 matched=324 failed=1316 menus=3047 photos=1553
+[1641/6860] CLOSED   id=105821 밀톨 matched=324 failed=1317 menus=3047 photos=1553
+[1642/6860] CLOSED   id=105770 블랑제리라센 matched=324 failed=1318 menus=3047 photos=1553
+[1643/6860] CLOSED   id=90840 모모후 matched=324 failed=1319 menus=3047 photos=1553
+[1644/6860] MISMATCH id=90834 수수케키 matched=324 failed=1320 menus=3047 photos=1553
+[1645/6860] CLOSED   id=105743 케이크온에어 matched=324 failed=1321 menus=3047 photos=1553
+[1646/6860] CLOSED   id=105701 올선데이 남천점 matched=324 failed=1322 menus=3047 photos=1553
+[1647/6860] CLOSED   id=105677 그랜드파더 케이크하우스 matched=324 failed=1323 menus=3047 photos=1553
+[1648/6860] CLOSED   id=105650 데일리럭키 matched=324 failed=1324 menus=3047 photos=1553
+[1649/6860] MISMATCH id=105647 카페꼬레 matched=324 failed=1325 menus=3047 photos=1553
+[1650/6860] CLOSED   id=104507 아덴블랑제리 연산배산점 matched=324 failed=1326 menus=3047 photos=1553
+[1651/6860] CLOSED   id=104504 고래커피로스터스 망미점 matched=324 failed=1327 menus=3047 photos=1553
+[1652/6860] MATCH    id=104483 베이커리한밀 matched=325 failed=1327 menus=3058 photos=1558
+[1653/6860] MATCH    id=90789 쌀빵맨 matched=326 failed=1327 menus=3072 photos=1563
+[1654/6860] MATCH    id=104444 해피해피 matched=327 failed=1327 menus=3072 photos=1568
+[단일 가게 fetch 실패] id=90783: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/90783/naver-enrich-item
+[1655/6860] FETCH_FAIL id=90783 르봉케이크부티크
+[1656/6860] CLOSED   id=90774 정항우케익 부산대점 matched=327 failed=1329 menus=3072 photos=1568
+[단일 가게 fetch 실패] id=104402: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/104402/naver-enrich-item
+[1657/6860] FETCH_FAIL id=104402 드미룬케이크
+[1658/6860] MISMATCH id=90765 먹을래싸갈래 matched=327 failed=1331 menus=3072 photos=1568
+[1659/6860] CLOSED   id=90735 로띠포레스트 matched=327 failed=1332 menus=3072 photos=1568
+[1660/6860] CLOSED   id=104396 헬로커피하이허니 matched=327 failed=1333 menus=3072 photos=1568
+[1661/6860] MATCH    id=104393 공물소 matched=328 failed=1333 menus=3073 photos=1573
+[단일 가게 fetch 실패] id=90717: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/90717/naver-enrich-item
+[1662/6860] FETCH_FAIL id=90717 언니케이크
+[1663/6860] CLOSED   id=104387 미니니 matched=328 failed=1335 menus=3073 photos=1573
+[1664/6860] MATCH    id=104366 황금찹쌀꽈배기 matched=329 failed=1335 menus=3073 photos=1576
+[1665/6860] CLOSED   id=90714 스콘마마 matched=329 failed=1336 menus=3073 photos=1576
+[1666/6860] MISMATCH id=104357 수빈베이커리 matched=329 failed=1337 menus=3073 photos=1576
+[1667/6860] CLOSED   id=90711 몽눅 matched=329 failed=1338 menus=3073 photos=1576
+[단일 가게 fetch 실패] id=104345: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/104345/naver-enrich-item
+[1668/6860] FETCH_FAIL id=104345 달앙케이크
+[1669/6860] CLOSED   id=104312 퍼스커피 matched=329 failed=1340 menus=3073 photos=1576
+[1670/6860] MISMATCH id=90690 원더풀명품찹쌀꽈배기 롯데백화점점 matched=329 failed=1341 menus=3073 photos=1576
+[1671/6860] MATCH    id=104276 우당탕커피스토리 matched=330 failed=1341 menus=3076 photos=1581
+[1672/6860] MATCH    id=104258 자미당 수영점 matched=331 failed=1341 menus=3081 photos=1586
+[1673/6860] MATCH    id=90681 호자베이커리 matched=332 failed=1341 menus=3104 photos=1591
+[1674/6860] CLOSED   id=104186 헤이블룸 matched=332 failed=1342 menus=3104 photos=1591
+[1675/6860] CLOSED   id=90663 바우버터아틀리에 matched=332 failed=1343 menus=3104 photos=1591
+[1676/6860] MISMATCH id=90624 카페라보엠 matched=332 failed=1344 menus=3104 photos=1591
+[1677/6860] CLOSED   id=103976 원더풀명품찹쌀꽈배기명품핫도그 연일시장점 matched=332 failed=1345 menus=3104 photos=1591
+[1678/6860] CLOSED   id=103391 달롱도르요거트아이스크림 부산시청점 matched=332 failed=1346 menus=3104 photos=1591
+[1679/6860] MATCH    id=90609 써니페스트리 matched=333 failed=1346 menus=3124 photos=1596
+[1680/6860] CLOSED   id=90600 백팥집 matched=333 failed=1347 menus=3124 photos=1596
+[1681/6860] CLOSED   id=103163 엘스그라운드 matched=333 failed=1348 menus=3124 photos=1596
+[1682/6860] CLOSED   id=90594 다운타운C27 동래점 matched=333 failed=1349 menus=3124 photos=1596
+[1683/6860] MATCH    id=103055 스마일명품찹쌀꽈배기 matched=334 failed=1349 menus=3131 photos=1601
+[1684/6860] CLOSED   id=103046 쉽커피 연산점 matched=334 failed=1350 menus=3131 photos=1601
+[1685/6860] CLOSED   id=103010 니어브레드 matched=334 failed=1351 menus=3131 photos=1601
+[1686/6860] MISMATCH id=90567 아덴블랑제리 온천래미안점 matched=334 failed=1352 menus=3131 photos=1601
+[1687/6860] CLOSED   id=90561 호두파야 동래역사점 matched=334 failed=1353 menus=3131 photos=1601
+[1688/6860] MATCH    id=102974 브리타니 matched=335 failed=1353 menus=3149 photos=1606
+[1689/6860] CLOSED   id=90552 히스피 동래구청점 matched=335 failed=1354 menus=3149 photos=1606
+[단일 가게 fetch 실패] id=102971: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/102971/naver-enrich-item
+[1690/6860] FETCH_FAIL id=102971 하이오커피 녹산점
+[1691/6860] CLOSED   id=102965 블루샥 지사점 matched=335 failed=1356 menus=3149 photos=1606
+[1692/6860] CLOSED   id=90534 유일무이카페 matched=335 failed=1357 menus=3149 photos=1606
+[1693/6860] CLOSED   id=102953 포레스트3002 matched=335 failed=1358 menus=3149 photos=1606
+[1694/6860] CLOSED   id=90531 카페051 동래3차SK뷰점 matched=335 failed=1359 menus=3149 photos=1606
+[1695/6860] MATCH    id=102950 진선진미베이커리 matched=336 failed=1359 menus=3150 photos=1611
+[1696/6860] NO_CAND  id=102944 원더풀명품찹쌀꽈배기 명지점 matched=336 failed=1360 menus=3150 photos=1611
+[1697/6860] CLOSED   id=90528 카페051 명륜아이파크2차점 matched=336 failed=1361 menus=3150 photos=1611
+[1698/6860] CLOSED   id=90525 구자윤과자점 온천점 matched=336 failed=1362 menus=3150 photos=1611
+[1699/6860] CLOSED   id=102941 모도 명지점 matched=336 failed=1363 menus=3150 photos=1611
+[1700/6860] MATCH    id=90522 위위케이크스튜디오 matched=337 failed=1363 menus=3212 photos=1616
+[1701/6860] CLOSED   id=102935 화이트리에 명지국제점 matched=337 failed=1364 menus=3212 photos=1616
+[1702/6860] CLOSED   id=90519 그레이핍플 명륜역점 matched=337 failed=1365 menus=3212 photos=1616
+[1703/6860] MATCH    id=102932 아프레미디 matched=338 failed=1365 menus=3219 photos=1621
+[1704/6860] CLOSED   id=90516 몽레브베이커리 matched=338 failed=1366 menus=3219 photos=1621
+[1705/6860] MATCH    id=102929 아브레베이글 matched=339 failed=1366 menus=3220 photos=1626
+[1706/6860] CLOSED   id=90510 블루샥 온천래미안점 matched=339 failed=1367 menus=3220 photos=1626
+[1707/6860] CLOSED   id=90504 할리데이온시티 matched=339 failed=1368 menus=3220 photos=1626
+[1708/6860] CLOSED   id=102923 짱스마카롱 matched=339 failed=1369 menus=3220 photos=1626
+[1709/6860] CLOSED   id=90501 블루샥 동래내성점 matched=339 failed=1370 menus=3220 photos=1626
+[1710/6860] CLOSED   id=102917 파파스찹쌀꽈배기 matched=339 failed=1371 menus=3220 photos=1626
+[1711/6860] CLOSED   id=90492 블루샥 명륜점 matched=339 failed=1372 menus=3220 photos=1626
+[1712/6860] CLOSED   id=102908 삼송빵집 스타필드시티명지점 matched=339 failed=1373 menus=3220 photos=1626
+[단일 가게 fetch 실패] id=102902: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/102902/naver-enrich-item
+[1713/6860] FETCH_FAIL id=102902 세자매케이크
+[1714/6860] CLOSED   id=102896 별난찹쌀꽈배기 matched=339 failed=1375 menus=3220 photos=1626
+[단일 가게 fetch 실패] id=102893: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/102893/naver-enrich-item
+[1715/6860] FETCH_FAIL id=102893 하이오커피 명지더샵점
+[1716/6860] NO_CAND  id=102890 사랑해베이글 부산명지점 matched=339 failed=1377 menus=3220 photos=1626
+[1717/6860] MATCH    id=90459 들꽃부엌 matched=340 failed=1377 menus=3220 photos=1631
+[1718/6860] CLOSED   id=102887 카페쿠지 matched=340 failed=1378 menus=3220 photos=1631
+[1719/6860] MISMATCH id=102884 유포리아 matched=340 failed=1379 menus=3220 photos=1631
+[1720/6860] MATCH    id=102881 앤티앤스프레즐 명지플러스시네마점 matched=341 failed=1379 menus=3237 photos=1636
+[1721/6860] CLOSED   id=90447 어벤더치커피 새동래점 matched=341 failed=1380 menus=3237 photos=1636
+[1722/6860] MATCH    id=90441 멜버른 matched=342 failed=1380 menus=3255 photos=1641
+[1723/6860] MATCH    id=102875 키노앙 명지점 matched=343 failed=1380 menus=3262 photos=1646
+[1724/6860] CLOSED   id=102869 빙수당 명지국제점 matched=343 failed=1381 menus=3262 photos=1646
+[단일 가게 fetch 실패] id=102866: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/102866/naver-enrich-item
+[1725/6860] FETCH_FAIL id=102866 소앤화케이크
+[1726/6860] CLOSED   id=90432 구본 matched=343 failed=1383 menus=3262 photos=1646
+[1727/6860] MATCH    id=90426 윤이빵 matched=344 failed=1383 menus=3278 photos=1651
+[1728/6860] CLOSED   id=90423 보헤미아 matched=344 failed=1384 menus=3278 photos=1651
+[1729/6860] CLOSED   id=90420 카페로온 matched=344 failed=1385 menus=3278 photos=1651
+[1730/6860] NO_CAND  id=102854 13월베이커리카페 matched=344 failed=1386 menus=3278 photos=1651
+[1731/6860] CLOSED   id=102848 명지 뚠뚜당 matched=344 failed=1387 menus=3278 photos=1651
+[단일 가게 fetch 실패] id=102845: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/102845/naver-enrich-item
+[1732/6860] FETCH_FAIL id=102845 하이오커피 명지에코델타시티점
+[1733/6860] MATCH    id=102842 이너플레이스 matched=345 failed=1388 menus=3289 photos=1656
+[1734/6860] CLOSED   id=90414 씨트론과자점 본점 matched=345 failed=1389 menus=3289 photos=1656
+[1735/6860] CLOSED   id=102839 비엔또 matched=345 failed=1390 menus=3289 photos=1656
+[1736/6860] CLOSED   id=90408 카페미지수 matched=345 failed=1391 menus=3289 photos=1656
+[1737/6860] MISMATCH id=90402 용덕제과 matched=345 failed=1392 menus=3289 photos=1656
+[1738/6860] CLOSED   id=90399 레이지모먼트커피스탠드 matched=345 failed=1393 menus=3289 photos=1656
+[1739/6860] CLOSED   id=90396 빵점빵 matched=345 failed=1394 menus=3289 photos=1656
+[단일 가게 fetch 실패] id=90393: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/90393/naver-enrich-item
+[1740/6860] FETCH_FAIL id=90393 희락케이크
+[1741/6860] CLOSED   id=102821 마블스퀘어 사상 matched=345 failed=1396 menus=3289 photos=1656
+[1742/6860] CLOSED   id=102818 카페051 사상중흥S클래스점 matched=345 failed=1397 menus=3289 photos=1656
+[1743/6860] CLOSED   id=90387 카페소요 안락점 matched=345 failed=1398 menus=3289 photos=1656
+[1744/6860] MISMATCH id=102806 다인명가 김해국제공항점 matched=345 failed=1399 menus=3289 photos=1656
+[1745/6860] CLOSED   id=102800 파란풍차제과점 matched=345 failed=1400 menus=3289 photos=1656
+[1746/6860] MISMATCH id=90378 르쎄 matched=345 failed=1401 menus=3289 photos=1656
+[1747/6860] CLOSED   id=102788 블루샥 덕포점 matched=345 failed=1402 menus=3289 photos=1656
+[1748/6860] CLOSED   id=90375 폴링스노우 matched=345 failed=1403 menus=3289 photos=1656
+[1749/6860] CLOSED   id=102785 달콤한상상 matched=345 failed=1404 menus=3289 photos=1656
+[1750/6860] CLOSED   id=90372 부산떡케이크 해온케이크 matched=345 failed=1405 menus=3289 photos=1656
+[1751/6860] CLOSED   id=102782 브라이트베이커리 matched=345 failed=1406 menus=3289 photos=1656
+[1752/6860] CLOSED   id=90369 고더커피 동래구청점 matched=345 failed=1407 menus=3289 photos=1656
+[1753/6860] CLOSED   id=102761 최고다강냉이찹쌀꽈배기 공항점 matched=345 failed=1408 menus=3289 photos=1656
+[1754/6860] MISMATCH id=90366 가빈카페 matched=345 failed=1409 menus=3289 photos=1656
+[1755/6860] NO_CAND  id=102743 주네빵집 matched=345 failed=1410 menus=3289 photos=1656
+[1756/6860] CLOSED   id=90360 다담블랑제리 matched=345 failed=1411 menus=3289 photos=1656
+[단일 가게 fetch 실패] id=90357: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/90357/naver-enrich-item
+[1757/6860] FETCH_FAIL id=90357 하이오커피 낙민점
+[1758/6860] CLOSED   id=90354 베이커리온 matched=345 failed=1413 menus=3289 photos=1656
+[1759/6860] CLOSED   id=90351 부오노 온천천카페거리점 matched=345 failed=1414 menus=3289 photos=1656
+[1760/6860] CLOSED   id=90348 조쿠롱 matched=345 failed=1415 menus=3289 photos=1656
+[1761/6860] CLOSED   id=102362 마씨모 matched=345 failed=1416 menus=3289 photos=1656
+[1762/6860] MISMATCH id=102290 누룩꽃이 핀다 matched=345 failed=1417 menus=3289 photos=1656
+[1763/6860] CLOSED   id=102275 행복한찹쌀꽈배기 matched=345 failed=1418 menus=3289 photos=1656
+[1764/6860] CLOSED   id=90330 루블리 matched=345 failed=1419 menus=3289 photos=1656
+[1765/6860] MATCH    id=90327 시오제과 matched=346 failed=1419 menus=3290 photos=1661
+[1766/6860] CLOSED   id=90324 카페051 안락세웅병원점 matched=346 failed=1420 menus=3290 photos=1661
+[1767/6860] MATCH    id=102260 민속떡방 matched=347 failed=1420 menus=3290 photos=1666
+[1768/6860] CLOSED   id=102257 카페마일로 구서롯데캐슬점 matched=347 failed=1421 menus=3290 photos=1666
+[1769/6860] NO_CAND  id=102251 미스터 빵빵 matched=347 failed=1422 menus=3290 photos=1666
+[1770/6860] MATCH    id=90306 몽듀로투스 matched=348 failed=1422 menus=3309 photos=1671
+[1771/6860] CLOSED   id=90300 카페051 동래구청점 matched=348 failed=1423 menus=3309 photos=1671
+[1772/6860] CLOSED   id=90297 블루샥 연산연동점 matched=348 failed=1424 menus=3309 photos=1671
+[1773/6860] CLOSED   id=90291 디브라운커피 matched=348 failed=1425 menus=3309 photos=1671
+[1774/6860] CLOSED   id=90288 블루샥 부산법원점 matched=348 failed=1426 menus=3309 photos=1671
+[1775/6860] CLOSED   id=90282 온리베이커리 matched=348 failed=1427 menus=3309 photos=1671
+[1776/6860] CLOSED   id=90279 레이호앤까사버나뎃 matched=348 failed=1428 menus=3309 photos=1671
+[1777/6860] MISMATCH id=102245 카페우니스 matched=348 failed=1429 menus=3309 photos=1671
+[1778/6860] MISMATCH id=89871 J&H아뜰리에 matched=348 failed=1430 menus=3309 photos=1671
+[1779/6860] MATCH    id=89661 굿투시유 matched=349 failed=1430 menus=3309 photos=1672
+[1780/6860] MATCH    id=102230 이내무목 matched=350 failed=1430 menus=3329 photos=1677
+[단일 가게 fetch 실패] id=89625: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/89625/naver-enrich-item
+[1781/6860] FETCH_FAIL id=89625 지니플라워케이크
+[1782/6860] MISMATCH id=89619 카페찰칵 matched=350 failed=1432 menus=3329 photos=1677
+[1783/6860] CLOSED   id=102224 나비다 matched=350 failed=1433 menus=3329 photos=1677
+[1784/6860] CLOSED   id=101489 앤티앤스프레즐 이마트금정점 matched=350 failed=1434 menus=3329 photos=1677
+[1785/6860] CLOSED   id=89559 파이올린 matched=350 failed=1435 menus=3329 photos=1677
+[1786/6860] CLOSED   id=101258 빵집오빠 부산대NC점 matched=350 failed=1436 menus=3329 photos=1677
+[1787/6860] CLOSED   id=89298 월든 matched=350 failed=1437 menus=3329 photos=1677
+[1788/6860] CLOSED   id=89292 베러먼데이커피 개금점 matched=350 failed=1438 menus=3329 photos=1677
+[1789/6860] CLOSED   id=88842 카페051 신모라점 matched=350 failed=1439 menus=3329 photos=1677
+[단일 가게 fetch 실패] id=88818: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/88818/naver-enrich-item
+[1790/6860] FETCH_FAIL id=88818 델라케이크
+[1791/6860] CLOSED   id=88815 해피샌데이 matched=350 failed=1441 menus=3329 photos=1677
+[1792/6860] MATCH    id=88782 떡빚는봉이 matched=351 failed=1441 menus=3347 photos=1682
+[1793/6860] MATCH    id=88764 봄꽃설기 matched=352 failed=1441 menus=3367 photos=1687
+[1794/6860] CLOSED   id=88737 슈가몽 matched=352 failed=1442 menus=3367 photos=1687
+[1795/6860] CLOSED   id=101078 아띠몽 부산대점 matched=352 failed=1443 menus=3367 photos=1687
+[1796/6860] MATCH    id=88728 하르당 주례역점 matched=353 failed=1443 menus=3379 photos=1692
+[1797/6860] CLOSED   id=88668 빙수당 가야점 matched=353 failed=1444 menus=3379 photos=1692
+[1798/6860] MATCH    id=88515 미마잇 matched=354 failed=1444 menus=3389 photos=1697
+[1799/6860] CLOSED   id=88509 도란 matched=354 failed=1445 menus=3389 photos=1697
+[1800/6860] CLOSED   id=101066 카페린 matched=354 failed=1446 menus=3389 photos=1697
+[1801/6860] CLOSED   id=88461 당감우체국카페 matched=354 failed=1447 menus=3389 photos=1697
+[1802/6860] CLOSED   id=88434 카페재재 matched=354 failed=1448 menus=3389 photos=1697
+[1803/6860] CLOSED   id=101048 카페도디 matched=354 failed=1449 menus=3389 photos=1697
+[1804/6860] NO_CAND  id=88143 썬더후르츠클럽 matched=354 failed=1450 menus=3389 photos=1697
+[1805/6860] MISMATCH id=88137 모모후 matched=354 failed=1451 menus=3389 photos=1697
+[1806/6860] MATCH    id=88077 포모이 matched=355 failed=1451 menus=3393 photos=1702
+[1807/6860] CLOSED   id=88032 바게뜨양 부산본점 matched=355 failed=1452 menus=3393 photos=1702
+[1808/6860] CLOSED   id=88029 아르베 matched=355 failed=1453 menus=3393 photos=1702
+[단일 가게 fetch 실패] id=88026: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/88026/naver-enrich-item
+[1809/6860] FETCH_FAIL id=88026 온잇케이크
+[1810/6860] MATCH    id=88017 언덕과물결 matched=356 failed=1454 menus=3404 photos=1707
+[1811/6860] MATCH    id=88002 윔시 matched=357 failed=1454 menus=3408 photos=1712
+[1812/6860] CLOSED   id=87996 카페밴이글 matched=357 failed=1455 menus=3408 photos=1712
+[1813/6860] CLOSED   id=101018 이흥용과자점 두실점 matched=357 failed=1456 menus=3408 photos=1712
+[1814/6860] CLOSED   id=87984 트와엣모아 matched=357 failed=1457 menus=3408 photos=1712
+[1815/6860] CLOSED   id=100997 르팡드윤 matched=357 failed=1458 menus=3408 photos=1712
+[1816/6860] MATCH    id=100955 퓌어밀쉬 matched=358 failed=1458 menus=3415 photos=1717
+[1817/6860] CLOSED   id=100952 카페051 구서롯데캐슬골드점 matched=358 failed=1459 menus=3415 photos=1717
+[단일 가게 fetch 실패] id=100934: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/100934/naver-enrich-item
+[1818/6860] FETCH_FAIL id=100934 하이오커피 구서점
+[1819/6860] CLOSED   id=87969 페이버커피 matched=358 failed=1461 menus=3415 photos=1717
+[1820/6860] CLOSED   id=87954 스펠 matched=358 failed=1462 menus=3415 photos=1717
+[1821/6860] CLOSED   id=87951 크렘다망드 matched=358 failed=1463 menus=3415 photos=1717
+[1822/6860] MATCH    id=100448 힌터그룬트 부산대 matched=359 failed=1463 menus=3416 photos=1722
+[1823/6860] CLOSED   id=87942 두잇커피 서면본점 matched=359 failed=1464 menus=3416 photos=1722
+[1824/6860] CLOSED   id=100436 떡당 matched=359 failed=1465 menus=3416 photos=1722
+[1825/6860] CLOSED   id=100388 카페 봄 matched=359 failed=1466 menus=3416 photos=1722
+[1826/6860] MISMATCH id=87921 얼룩 matched=359 failed=1467 menus=3416 photos=1722
+[1827/6860] CLOSED   id=100385 이스탄불 matched=359 failed=1468 menus=3416 photos=1722
+[1828/6860] MISMATCH id=87903 에임 matched=359 failed=1469 menus=3416 photos=1722
+[1829/6860] CLOSED   id=87894 히떼로스터리 matched=359 failed=1470 menus=3416 photos=1722
+[1830/6860] CLOSED   id=100280 유실물보관소 matched=359 failed=1471 menus=3416 photos=1722
+[1831/6860] CLOSED   id=87891 베러먼데이커피 경남공고점 matched=359 failed=1472 menus=3416 photos=1722
+[1832/6860] MATCH    id=99890 아미산전망대 카페드림 matched=360 failed=1472 menus=3416 photos=1727
+[1833/6860] MATCH    id=87885 달달한놀이터 전포점 matched=361 failed=1472 menus=3439 photos=1732
+[1834/6860] MATCH    id=99782 부네치아 디저트 matched=362 failed=1472 menus=3439 photos=1734
+[단일 가게 fetch 실패] id=87846: 404 Client Error:  for url: http://localhost:8080/api/admin/stores/87846/naver-enrich-item
+[1835/6860] FETCH_FAIL id=87846 몬몬케이크
+[1836/6860] CLOSED   id=87810 피보 matched=362 failed=1474 menus=3439 photos=1734
+[1837/6860] MATCH    id=87801 루네아 matched=363 failed=1474 menus=3449 photos=1739
+[1838/6860] CLOSED   id=87798 어도먼트 matched=363 failed=1475 menus=3449 photos=1739
+[1839/6860] MATCH    id=87795 잇인올투고 matched=364 failed=1475 menus=3470 photos=1744
+[1840/6860] CLOSED   id=99773 이글쿠키즈 matched=364 failed=1476 menus=3470 photos=1744
+[1841/6860] BLOCKED  id=87786 카페한디 matched=364 failed=1477 menus=3470 photos=1744
+[1842/6860] BLOCKED  id=99764 카페051 몰운대롯데캐슬점 matched=364 failed=1478 menus=3470 photos=1744
+[1843/6860] BLOCKED  id=87756 카페051 배산역점 matched=364 failed=1479 menus=3470 photos=1744
+[1844/6860] BLOCKED  id=99761 갓식빵 낫개점 matched=364 failed=1480 menus=3470 photos=1744
+[1845/6860] BLOCKED  id=99758 마레과자점 matched=364 failed=1481 menus=3470 photos=1744
+[ABORT] 차단 신호 5건 연속 — 상세 로그 확인: /tmp/naver-rerun-failed-20260607-pass2.log
+
+============================================================
+{
+  "matched": 364,
+  "menus_created": 3470,
+  "images_uploaded": 1758,
+  "skipped_menu_crawl": 0,
+  "photos_uploaded": 1744,
+  "skipped_photo_crawl": 0,
+  "failed": 1481,
+  "no_candidates": 139,
+  "mismatch": 291,
+  "closed_suspects": 968,
+  "closed_deleted": 0,
+  "blocked": 8,
+  "fetch_failed": 83,
+  "retry_failed": 0,
+  "closed_delete_failed": 0
+}
