@@ -16,6 +16,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.global.logging.LogEventType;
 import sweetgirl.croissant.global.logging.entity.RequestLog;
 import sweetgirl.croissant.global.logging.service.RequestLogService;
 
@@ -108,14 +109,14 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 	}
 
 	// 요청의 목적을 분류 — 가게 인기도 집계에 사용
-	private String resolveEventType(String method, String uri) {
+	private LogEventType resolveEventType(String method, String uri) {
 		if ("POST".equals(method) && STORE_SUBSCRIBE_PATTERN.matcher(uri).matches()) {
-			return "ALARM_CLICK"; // 빵알람 구독 = 사용자가 알람 버튼을 눌렀다는 신호
+			return LogEventType.ALARM_CLICK;
 		}
 		if ("GET".equals(method) && STORE_ID_PATTERN.matcher(uri).find()) {
-			return "STORE_VIEW"; // 특정 가게 상세 조회
+			return LogEventType.STORE_VIEW;
 		}
-		return null; // 그 외 요청은 event_type 없음
+		return null;
 	}
 
 	// POST/PUT/PATCH body만 저장 (GET은 body 없음)
