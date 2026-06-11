@@ -75,6 +75,7 @@ import sweetgirl.croissant.store.entity.StoreReport;
 import sweetgirl.croissant.store.entity.StoreReportImageFile;
 import sweetgirl.croissant.store.enums.StoreReportStatus;
 import sweetgirl.croissant.store.enums.StoreReportType;
+import sweetgirl.croissant.store.repository.StoreAddReportRepository;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreReportImageFileRepository;
@@ -85,6 +86,8 @@ class AdminReportServiceTest {
 
 	@Mock
 	StoreReportRepository storeReportRepository;
+	@Mock
+	StoreAddReportRepository storeAddReportRepository;
 	@Mock
 	MenuAddReportRepository menuAddReportRepository;
 	@Mock
@@ -118,6 +121,7 @@ class AdminReportServiceTest {
 	void setUp() {
 		adminReportService = new AdminReportService(
 			storeReportRepository,
+			storeAddReportRepository,
 			menuAddReportRepository,
 			userReportRepository,
 			moderationActionRepository,

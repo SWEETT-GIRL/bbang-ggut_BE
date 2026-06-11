@@ -65,11 +65,13 @@ import sweetgirl.croissant.store.dto.request.StoreAddressReportRequest;
 import sweetgirl.croissant.store.dto.request.StoreBusinessHoursReportRequest;
 import sweetgirl.croissant.store.dto.request.StoreImageReportRequest;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.entity.StoreAddReport;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.entity.StoreReport;
 import sweetgirl.croissant.store.entity.StoreReportImageFile;
 import sweetgirl.croissant.store.enums.StoreReportStatus;
 import sweetgirl.croissant.store.enums.StoreReportType;
+import sweetgirl.croissant.store.repository.StoreAddReportRepository;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreReportImageFileRepository;
@@ -102,6 +104,7 @@ public class AdminReportService {
 		.thenComparing(AdminHighPriorityReportResponse::reportId, Comparator.reverseOrder());
 
 	private final StoreReportRepository storeReportRepository;
+	private final StoreAddReportRepository storeAddReportRepository;
 	private final MenuAddReportRepository menuAddReportRepository;
 	private final UserReportRepository userReportRepository;
 	private final ModerationActionRepository moderationActionRepository;
@@ -118,6 +121,9 @@ public class AdminReportService {
 	private final ReportNotificationService reportNotificationService;
 
 	public Page<AdminReportResponse> getReports(String kind, String statusStr, int page, int size) {
+		if ("STORE_ADD_REPORT".equals(kind)) {
+			return getStoreAddReports(toStoreReportStatus(statusStr), page, size);
+		}
 		if ("MENU_ADD_REPORT".equals(kind)) {
 			return getMenuAddReports(toStoreReportStatus(statusStr), page, size);
 		}
@@ -465,6 +471,14 @@ public class AdminReportService {
 
 		return reports.map(r -> AdminReportResponse.ofStoreReport(r,
 			imageMap.getOrDefault(r.getId(), List.of())));
+	}
+
+	private Page<AdminReportResponse> getStoreAddReports(StoreReportStatus status, int page, int size) {
+		Page<StoreAddReport> reports = status != null
+			? storeAddReportRepository.findByStatusWithDetails(status, PageRequest.of(page, size))
+			: storeAddReportRepository.findAllWithDetails(PageRequest.of(page, size));
+
+		return reports.map(AdminReportResponse::ofStoreAddReport);
 	}
 
 	private Page<AdminReportResponse> getMenuAddReports(StoreReportStatus status, int page, int size) {
