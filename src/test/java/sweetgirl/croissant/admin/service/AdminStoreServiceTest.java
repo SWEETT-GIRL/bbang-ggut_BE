@@ -32,7 +32,9 @@ import sweetgirl.croissant.admin.dto.request.AdminStoreCreateRequest;
 import sweetgirl.croissant.admin.dto.request.AdminStoreUpdateRequest;
 import sweetgirl.croissant.admin.dto.request.BusinessHourRequest;
 import sweetgirl.croissant.admin.dto.response.AdminStoreResponse;
+import sweetgirl.croissant.external.opensearch.event.StoreAddressChangedEvent;
 import sweetgirl.croissant.external.opensearch.event.StoreDeletedEvent;
+import sweetgirl.croissant.external.opensearch.event.StoreNameChangedEvent;
 import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
@@ -163,6 +165,68 @@ class AdminStoreServiceTest {
 
 		verify(store).update(null, null, null, null, null, null, null, StoreStatus.DELETED, null);
 		verify(candidateRepository).deleteByStoreId(1L);
+	}
+
+	@Test
+	@DisplayName("updateStore: 주소가 변경되면 StoreAddressChangedEvent가 발행된다")
+	void updateStore_addressChanged_publishesAddressEvent() {
+		Store store = mock(Store.class);
+		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
+
+		AdminStoreUpdateRequest request = new AdminStoreUpdateRequest(
+			null, "서울시 마포구 홍익로 1", null, null, null, null, null, null);
+
+		adminStoreService.updateStore(1L, request);
+
+		ArgumentCaptor<StoreAddressChangedEvent> captor = ArgumentCaptor.forClass(StoreAddressChangedEvent.class);
+		verify(eventPublisher).publishEvent(captor.capture());
+		assertThat(captor.getValue().storeId()).isEqualTo(1L);
+	}
+
+	@Test
+	@DisplayName("updateStore: 이름이 변경되면 StoreNameChangedEvent가 발행된다")
+	void updateStore_nameChanged_publishesNameEvent() {
+		Store store = mock(Store.class);
+		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
+
+		AdminStoreUpdateRequest request = new AdminStoreUpdateRequest(
+			"새이름", null, null, null, null, null, null, null);
+
+		adminStoreService.updateStore(1L, request);
+
+		ArgumentCaptor<StoreNameChangedEvent> captor = ArgumentCaptor.forClass(StoreNameChangedEvent.class);
+		verify(eventPublisher).publishEvent(captor.capture());
+		assertThat(captor.getValue().storeId()).isEqualTo(1L);
+	}
+
+	@Test
+	@DisplayName("updateStore: 이름과 주소가 동시에 변경되면 두 이벤트가 모두 발행된다")
+	void updateStore_nameAndAddressChanged_publishesBothEvents() {
+		Store store = mock(Store.class);
+		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
+
+		AdminStoreUpdateRequest request = new AdminStoreUpdateRequest(
+			"새이름", "서울시 마포구 홍익로 1", null, null, null, null, null, null);
+
+		adminStoreService.updateStore(1L, request);
+
+		verify(eventPublisher).publishEvent(any(StoreAddressChangedEvent.class));
+		verify(eventPublisher).publishEvent(any(StoreNameChangedEvent.class));
+	}
+
+	@Test
+	@DisplayName("updateStore: 영업시간만 변경되면 이벤트를 발행하지 않는다")
+	void updateStore_hoursOnlyChanged_noEventPublished() {
+		Store store = mock(Store.class);
+		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
+
+		AdminStoreUpdateRequest request = new AdminStoreUpdateRequest(
+			null, null, null, null, null, null, null,
+			Map.of("mon", new BusinessHourRequest(10, 0, 20, 0, false)));
+
+		adminStoreService.updateStore(1L, request);
+
+		verify(eventPublisher, org.mockito.Mockito.never()).publishEvent(any());
 	}
 
 	@Test

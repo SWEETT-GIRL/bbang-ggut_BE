@@ -41,6 +41,16 @@ class StoreIndexEventListenerTest {
 	}
 
 	@Test
+	@DisplayName("onStoreNameChanged: StoreNameChangedEvent 수신 시 storeIndexService.updateStoreName을 호출한다")
+	void onStoreNameChanged_callsUpdateStoreName() {
+		StoreNameChangedEvent event = new StoreNameChangedEvent(55L);
+
+		storeIndexEventListener.onStoreNameChanged(event);
+
+		verify(storeIndexService).updateStoreName(55L);
+	}
+
+	@Test
 	@DisplayName("onStoreDeleted: StoreDeletedEvent 수신 시 storeIndexService.deleteStoreDocument를 호출한다")
 	void onStoreDeleted_callsDeleteStoreDocument() {
 		StoreDeletedEvent event = new StoreDeletedEvent(7L);
