@@ -1,0 +1,246 @@
+{
+  "settings": {
+    "index": {
+      "max_ngram_diff": 18,
+      "analysis": {
+        "char_filter": {
+          "remove_whitespace": {
+            "type": "pattern_replace",
+            "pattern": "\\s+",
+            "replacement": ""
+          },
+          "remove_special_chars": {
+            "type": "pattern_replace",
+            "pattern": "[^a-zA-Z0-9가-힣]",
+            "replacement": ""
+          }
+        },
+        "tokenizer": {
+          "nori_user_dict_tokenizer": {
+            "type": "nori_tokenizer",
+            "decompound_mode": "mixed"
+          }
+        },
+        "filter": {
+          "custom_edge_ngram_filter": {
+            "type": "edge_ngram",
+            "min_gram": 1,
+            "max_gram": 10,
+            "preserve_original": true
+          },
+          "custom_ngram_filter": {
+            "type": "ngram",
+            "min_gram": 2,
+            "max_gram": 20,
+            "preserve_original": true
+          }
+        },
+        "analyzer": {
+          "nori_analyzer": {
+            "type": "custom",
+            "tokenizer": "nori_user_dict_tokenizer",
+            "filter": [
+              "lowercase",
+              "nori_part_of_speech"
+            ]
+          },
+          "query_normalized_analyzer": {
+            "type": "custom",
+            "char_filter": [
+              "icu_normalizer",
+              "remove_whitespace",
+              "remove_special_chars"
+            ],
+            "tokenizer": "keyword",
+            "filter": [
+              "lowercase"
+            ]
+          },
+          "edge_ngram_analyzer": {
+            "type": "custom",
+            "char_filter": [
+              "icu_normalizer",
+              "remove_whitespace",
+              "remove_special_chars"
+            ],
+            "tokenizer": "keyword",
+            "filter": [
+              "lowercase",
+              "custom_edge_ngram_filter"
+            ]
+          },
+          "normalized_ngram_analyzer": {
+            "type": "custom",
+            "char_filter": [
+              "icu_normalizer",
+              "remove_whitespace",
+              "remove_special_chars"
+            ],
+            "tokenizer": "keyword",
+            "filter": [
+              "lowercase",
+              "custom_ngram_filter"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "storeId": {
+        "type": "long"
+      },
+      "storeName": {
+        "type": "text",
+        "analyzer": "nori_analyzer",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          },
+          "edge": {
+            "type": "text",
+            "analyzer": "edge_ngram_analyzer",
+            "search_analyzer": "query_normalized_analyzer"
+          },
+          "ngram": {
+            "type": "text",
+            "analyzer": "normalized_ngram_analyzer",
+            "search_analyzer": "query_normalized_analyzer"
+          }
+        }
+      },
+      "address": {
+        "type": "text",
+        "analyzer": "nori_analyzer",
+        "fields": {
+          "ngram": {
+            "type": "text",
+            "analyzer": "normalized_ngram_analyzer",
+            "search_analyzer": "query_normalized_analyzer"
+          }
+        }
+      },
+      "location": {
+        "type": "geo_point"
+      },
+      "searchRegions": {
+        "type": "nested",
+        "properties": {
+          "id": {
+            "type": "long"
+          },
+          "name": {
+            "type": "keyword",
+            "fields": {
+              "nori": {
+                "type": "text",
+                "analyzer": "nori_analyzer"
+              },
+              "edge": {
+                "type": "text",
+                "analyzer": "edge_ngram_analyzer",
+                "search_analyzer": "query_normalized_analyzer"
+              },
+              "ngram": {
+                "type": "text",
+                "analyzer": "normalized_ngram_analyzer",
+                "search_analyzer": "query_normalized_analyzer"
+              }
+            }
+          },
+          "type": {
+            "type": "keyword"
+          },
+          "weight": {
+            "type": "float"
+          }
+        }
+      },
+      "searchRegionAliases": {
+        "type": "keyword",
+        "fields": {
+          "nori": {
+            "type": "text",
+            "analyzer": "nori_analyzer"
+          },
+          "edge": {
+            "type": "text",
+            "analyzer": "edge_ngram_analyzer",
+            "search_analyzer": "query_normalized_analyzer"
+          },
+          "ngram": {
+            "type": "text",
+            "analyzer": "normalized_ngram_analyzer",
+            "search_analyzer": "query_normalized_analyzer"
+          }
+        }
+      },
+      "breadTypes": {
+        "type": "keyword",
+        "fields": {
+          "nori": {
+            "type": "text",
+            "analyzer": "nori_analyzer"
+          },
+          "edge": {
+            "type": "text",
+            "analyzer": "edge_ngram_analyzer",
+            "search_analyzer": "query_normalized_analyzer"
+          },
+          "ngram": {
+            "type": "text",
+            "analyzer": "normalized_ngram_analyzer",
+            "search_analyzer": "query_normalized_analyzer"
+          }
+        }
+      },
+      "menus": {
+        "type": "nested",
+        "properties": {
+          "id": {
+            "type": "long"
+          },
+          "name": {
+            "type": "text",
+            "analyzer": "nori_analyzer",
+            "fields": {
+              "edge": {
+                "type": "text",
+                "analyzer": "edge_ngram_analyzer",
+                "search_analyzer": "query_normalized_analyzer"
+              },
+              "ngram": {
+                "type": "text",
+                "analyzer": "normalized_ngram_analyzer",
+                "search_analyzer": "query_normalized_analyzer"
+              }
+            }
+          },
+          "menuCategory": {
+            "type": "keyword",
+            "fields": {
+              "nori": {
+                "type": "text",
+                "analyzer": "nori_analyzer"
+              },
+              "edge": {
+                "type": "text",
+                "analyzer": "edge_ngram_analyzer",
+                "search_analyzer": "query_normalized_analyzer"
+              },
+              "ngram": {
+                "type": "text",
+                "analyzer": "normalized_ngram_analyzer",
+                "search_analyzer": "query_normalized_analyzer"
+              }
+            }
+          }
+        }
+      },
+      "popularityScore": {
+        "type": "float"
+      }
+    }
+  }
+}

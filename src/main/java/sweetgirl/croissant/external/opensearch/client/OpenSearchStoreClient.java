@@ -1,0 +1,125 @@
+package sweetgirl.croissant.external.opensearch.client;
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import sweetgirl.croissant.external.opensearch.config.OpenSearchProperties;
+import sweetgirl.croissant.external.opensearch.dto.OpenSearchStoreHit;
+import sweetgirl.croissant.external.opensearch.dto.OpenSearchStoreSearchResult;
+import sweetgirl.croissant.external.opensearch.query.StoreSearchQueryBuilder;
+import sweetgirl.croissant.store.service.search.SearchIntent;
+
+@Component
+public class OpenSearchStoreClient {
+
+	private static final String SEARCH_PATH_FORMAT = "/%s/_search";
+
+	private final RestClient openSearchRestClient;
+	private final OpenSearchProperties openSearchProperties;
+	private final ObjectMapper objectMapper;
+	private final StoreSearchQueryBuilder storeSearchQueryBuilder;
+
+	public OpenSearchStoreClient(@Qualifier("openSearchRestClient") RestClient openSearchRestClient,
+			OpenSearchProperties openSearchProperties, ObjectMapper objectMapper,
+			StoreSearchQueryBuilder storeSearchQueryBuilder) {
+		this.openSearchRestClient = openSearchRestClient;
+		this.openSearchProperties = openSearchProperties;
+		this.objectMapper = objectMapper;
+		this.storeSearchQueryBuilder = storeSearchQueryBuilder;
+	}
+
+	public OpenSearchStoreSearchResult searchStores(SearchIntent intent, Pageable pageable,
+			Double latitude, Double longitude) {
+		Map<String, Object> request = storeSearchQueryBuilder.build(intent, pageable, latitude, longitude, false);
+		JsonNode response;
+		try {
+			response = openSearchRestClient.post()
+				.uri(SEARCH_PATH_FORMAT.formatted(openSearchProperties.getStoresIndex()))
+				.body(request)
+				.retrieve()
+				.body(JsonNode.class);
+		} catch (RestClientException e) {
+			return OpenSearchStoreSearchResult.empty();
+		}
+		return parseResponse(response, pageable);
+	}
+
+	private OpenSearchStoreSearchResult parseResponse(JsonNode response, Pageable pageable) {
+		JsonNode hitsNode = response == null ? null : response.path("hits").path("hits");
+		if (hitsNode == null || !hitsNode.isArray()) {
+			return OpenSearchStoreSearchResult.empty();
+		}
+
+		List<OpenSearchStoreHit> hits = new ArrayList<>();
+		for (JsonNode hitNode : hitsNode) {
+			Long storeId = nullableLong(hitNode.path("_source").path("storeId"));
+			if (storeId == null) {
+				continue;
+			}
+			hits.add(new OpenSearchStoreHit(
+				storeId,
+				nullableDouble(hitNode.path("_score")),
+				parseDistance(hitNode),
+				parseMatchedMenuIds(hitNode)));
+		}
+		return new OpenSearchStoreSearchResult(hits, hits.size() == pageable.getPageSize());
+	}
+
+	private List<Long> parseMatchedMenuIds(JsonNode hitNode) {
+		JsonNode innerHitsNode = hitNode.path("inner_hits");
+		if (!innerHitsNode.isObject()) {
+			return List.of();
+		}
+		List<Long> menuIds = new ArrayList<>();
+		Iterator<String> names = innerHitsNode.fieldNames();
+		while (names.hasNext()) {
+			JsonNode innerHits = innerHitsNode.path(names.next()).path("hits").path("hits");
+			if (!innerHits.isArray()) {
+				continue;
+			}
+			for (JsonNode innerHit : innerHits) {
+				Long menuId = nullableLong(innerHit.path("_source").path("id"));
+				if (menuId == null) {
+					menuId = nullableLong(innerHit.path("_source").path("menus").path("id"));
+				}
+				if (menuId != null && !menuIds.contains(menuId)) {
+					menuIds.add(menuId);
+				}
+			}
+		}
+		return menuIds;
+	}
+
+	private Double parseDistance(JsonNode hitNode) {
+		JsonNode sort = hitNode.path("sort");
+		if (sort.isArray() && sort.size() > 1) {
+			return nullableDouble(sort.get(1));
+		}
+		return null;
+	}
+
+	private Long nullableLong(JsonNode node) {
+		if (node == null || node.isMissingNode() || node.isNull()) {
+			return null;
+		}
+		return objectMapper.convertValue(node, Long.class);
+	}
+
+	private Double nullableDouble(JsonNode node) {
+		if (node == null || node.isMissingNode() || node.isNull()) {
+			return null;
+		}
+		return objectMapper.convertValue(node, Double.class);
+	}
+}
