@@ -30,7 +30,9 @@ import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichQueueItem;
 import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichStatsResponse;
 import sweetgirl.croissant.admin.dto.response.AdminNaverThrottledItem;
 import sweetgirl.croissant.admin.dto.response.AdminStoreResponse;
+import sweetgirl.croissant.external.opensearch.event.StoreAddressChangedEvent;
 import sweetgirl.croissant.external.opensearch.event.StoreDeletedEvent;
+import sweetgirl.croissant.external.opensearch.event.StoreNameChangedEvent;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.AddressParser;
 import sweetgirl.croissant.store.code.StoreErrorCode;
@@ -143,6 +145,12 @@ public class AdminStoreService {
 		if (request.hours() != null) {
 			storeBusinessHourRepository.deleteByStoreId(storeId);
 			saveBusinessHours(store, request.hours());
+		}
+		if (request.address() != null || request.coord() != null) {
+			eventPublisher.publishEvent(new StoreAddressChangedEvent(storeId));
+		}
+		if (request.name() != null) {
+			eventPublisher.publishEvent(new StoreNameChangedEvent(storeId));
 		}
 	}
 

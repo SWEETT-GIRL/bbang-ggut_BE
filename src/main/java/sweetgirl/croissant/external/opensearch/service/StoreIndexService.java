@@ -137,6 +137,21 @@ public class StoreIndexService {
 		}
 	}
 
+	@Transactional(readOnly = true)
+	public void updateStoreName(Long storeId) {
+		Store store = storeRepository.findById(storeId)
+			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
+		try {
+			openSearchClient.update(u -> u
+				.index(openSearchProperties.getStoresIndex())
+				.id(storeId.toString())
+				.doc(Map.of("name", store.getName())), StoreDocument.class);
+		} catch (IOException e) {
+			log.error("OpenSearch 가게 이름 업데이트 실패 storeId={}", storeId, e);
+			throw new OpenSearchException(OpenSearchErrorCode.BULK_INDEX_FAILED, e);
+		}
+	}
+
 	public void deleteStoreDocument(Long storeId) {
 		try {
 			openSearchClient.delete(d -> d

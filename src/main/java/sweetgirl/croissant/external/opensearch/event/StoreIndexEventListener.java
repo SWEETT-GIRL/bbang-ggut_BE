@@ -30,6 +30,12 @@ public class StoreIndexEventListener {
 
 	@Async
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+	public void onStoreNameChanged(StoreNameChangedEvent event) {
+		storeIndexService.updateStoreName(event.storeId());
+	}
+
+	@Async
+	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	public void onStoreDeleted(StoreDeletedEvent event) {
 		storeIndexService.deleteStoreDocument(event.storeId());
 	}
