@@ -482,6 +482,29 @@ class AdminReportServiceTest {
 	}
 
 	@Test
+	@DisplayName("StoreAddReport REJECT: Store 생성 없이 거절 알림 발송")
+	void storeAddReport_reject_skipsStoreCreationAndSendsNotification() {
+		Member reporter = mock(Member.class);
+		StoreAddReport report = StoreAddReport.builder()
+			.member(reporter)
+			.naverPlaceId("123456")
+			.name("새빵집")
+			.address("서울 마포구 월드컵로 1")
+			.location(mock(Point.class))
+			.build();
+		ReflectionTestUtils.setField(report, "id", 14L);
+		given(storeAddReportRepository.findById(14L)).willReturn(Optional.of(report));
+
+		adminReportService.reviewReport(14L, new AdminReportReviewRequest("STORE_ADD_REPORT", "REJECT"));
+
+		verify(storeRepository, never()).save(any(Store.class));
+		assertThat(report.getStatus()).isEqualTo(StoreReportStatus.REJECTED);
+		verify(reportNotificationService).notifyReportResult(
+			eq(reporter), eq(null), eq("새빵집"), eq(14L), eq(ReportKind.STORE_ADD_REPORT),
+			eq(ReportNotificationAction.REJECTED), anyString());
+	}
+
+	@Test
 	@DisplayName("MenuAddReport ACCEPT: Menu 신규 생성 + 이미지 S3 이동 + MenuImageFile 저장 + 알림 발송")
 	void menuAddReport_accept_createsMenuAndMovesImages() {
 		Store store = mock(Store.class);
