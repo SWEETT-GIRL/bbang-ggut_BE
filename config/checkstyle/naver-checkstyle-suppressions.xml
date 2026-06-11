@@ -6,4 +6,6 @@
 <suppressions>
     <!-- spotless formats empty methods as `{}` which conflicts with RightCurly(alone) rule -->
     <suppress files=".*Tests?\.java" checks="RightCurly"/>
+    <!-- spotless collapses empty interface body to `{}` which conflicts with WhitespaceAround rule -->
+    <suppress files=".*RequestLogRepository\.java" checks="WhitespaceAround"/>
 </suppressions>

@@ -1,7 +1,9 @@
 package sweetgirl.croissant.config.async;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
 import org.springframework.scheduling.annotation.EnableAsync;
@@ -19,8 +21,21 @@ public class AsyncConfig implements AsyncConfigurer {
 		executor.setQueueCapacity(30);
 		executor.setThreadNamePrefix("async-store-");
 
-		executor.setRejectedExecutionHandler(new java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy());
+		executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
 
+		executor.initialize();
+		return executor;
+	}
+
+	// 로그 적재를 위한 가상풀 만들기
+	@Bean("logExecutor")
+	public Executor logExecutor() {
+		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+		executor.setCorePoolSize(2);
+		executor.setMaxPoolSize(5);
+		executor.setQueueCapacity(500);
+		executor.setThreadNamePrefix("log-async-");
+		executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy());
 		executor.initialize();
 		return executor;
 	}
