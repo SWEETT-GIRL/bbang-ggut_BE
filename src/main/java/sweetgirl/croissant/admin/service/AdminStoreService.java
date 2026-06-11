@@ -14,6 +14,7 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.PrecisionModel;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichQueueItem;
 import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichStatsResponse;
 import sweetgirl.croissant.admin.dto.response.AdminNaverThrottledItem;
 import sweetgirl.croissant.admin.dto.response.AdminStoreResponse;
+import sweetgirl.croissant.external.opensearch.event.StoreDeletedEvent;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.AddressParser;
 import sweetgirl.croissant.store.code.StoreErrorCode;
@@ -68,6 +70,7 @@ public class AdminStoreService {
 	private final MenuRepository menuRepository;
 	private final NaverEnrichOrchestrator naverEnrichOrchestrator;
 	private final NaverEnrichCandidateRepository candidateRepository;
+	private final ApplicationEventPublisher eventPublisher;
 
 	@Transactional
 	public AdminStoreResponse createStore(AdminStoreCreateRequest request) {
@@ -149,6 +152,7 @@ public class AdminStoreService {
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 		store.update(null, null, null, null, null, null, null, StoreStatus.DELETED, null);
 		candidateRepository.deleteByStoreId(storeId);
+		eventPublisher.publishEvent(new StoreDeletedEvent(storeId));
 	}
 
 	@Transactional
