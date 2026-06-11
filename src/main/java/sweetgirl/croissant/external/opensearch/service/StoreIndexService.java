@@ -137,6 +137,17 @@ public class StoreIndexService {
 		}
 	}
 
+	public void deleteStoreDocument(Long storeId) {
+		try {
+			openSearchClient.delete(d -> d
+				.index(openSearchProperties.getStoresIndex())
+				.id(storeId.toString()));
+		} catch (IOException e) {
+			log.error("OpenSearch 가게 document 삭제 실패 storeId={}", storeId, e);
+			throw new OpenSearchException(OpenSearchErrorCode.BULK_INDEX_FAILED, e);
+		}
+	}
+
 	private StoreDocument buildDocument(Store store) {
 		List<Menu> menus = menuRepository.findByStoreIdOrderByLikeCountDesc(store.getId());
 

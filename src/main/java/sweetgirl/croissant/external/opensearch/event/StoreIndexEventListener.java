@@ -27,4 +27,10 @@ public class StoreIndexEventListener {
 	public void onMenusChanged(StoreMenusChangedEvent event) {
 		storeIndexService.updateStoreMenus(event.storeId());
 	}
+
+	@Async
+	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+	public void onStoreDeleted(StoreDeletedEvent event) {
+		storeIndexService.deleteStoreDocument(event.storeId());
+	}
 }
