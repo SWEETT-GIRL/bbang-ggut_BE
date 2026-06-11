@@ -127,6 +127,7 @@ public class AdminMenuService {
 		Menu menu = menuRepository.findById(menuId)
 			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
 		menu.softDelete();
+		eventPublisher.publishEvent(new StoreMenusChangedEvent(menu.getStore().getId()));
 	}
 
 	public Page<AdminMenuResponse> getAllMenus(int page, int size) {

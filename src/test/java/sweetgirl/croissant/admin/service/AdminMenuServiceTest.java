@@ -259,6 +259,22 @@ class AdminMenuServiceTest {
 	}
 
 	@Test
+	@DisplayName("deleteMenu: 메뉴 삭제 시 StoreMenusChangedEvent가 해당 storeId로 발행된다")
+	void deleteMenu_publishesStoreMenusChangedEvent() {
+		Store store = mock(Store.class);
+		given(store.getId()).willReturn(9L);
+		Menu menu = mock(Menu.class);
+		given(menu.getStore()).willReturn(store);
+		given(menuRepository.findById(30L)).willReturn(Optional.of(menu));
+
+		adminMenuService.deleteMenu(30L);
+
+		ArgumentCaptor<StoreMenusChangedEvent> captor = ArgumentCaptor.forClass(StoreMenusChangedEvent.class);
+		verify(eventPublisher).publishEvent(captor.capture());
+		assertThat(captor.getValue().storeId()).isEqualTo(9L);
+	}
+
+	@Test
 	@DisplayName("updateMenu: 없는 메뉴는 예외를 던진다")
 	void updateMenu_notFound_throwsException() {
 		given(menuRepository.findById(999L)).willReturn(Optional.empty());
