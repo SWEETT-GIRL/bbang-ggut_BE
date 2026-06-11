@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.locationtech.jts.geom.Point;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -69,6 +70,7 @@ import sweetgirl.croissant.review.entity.ReviewImageFile;
 import sweetgirl.croissant.review.repository.ReviewImageFileRepository;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.entity.StoreAddReport;
 import sweetgirl.croissant.store.entity.StoreBusinessHour;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.entity.StoreReport;
@@ -445,6 +447,38 @@ class AdminReportServiceTest {
 			.hasMessageContaining(AdminErrorCode.REPORT_TARGET_TYPE_MISMATCH.getMessage());
 
 		verify(moderationActionRepository, never()).save(any());
+	}
+
+	@Test
+	@DisplayName("StoreAddReport ACCEPT: Store 생성 + 승인 알림 발송")
+	void storeAddReport_accept_createsStoreAndSendsNotification() {
+		Member reporter = mock(Member.class);
+		Point location = mock(Point.class);
+		StoreAddReport report = StoreAddReport.builder()
+			.member(reporter)
+			.naverPlaceId("123456")
+			.name("새빵집")
+			.address("서울 마포구 월드컵로 1")
+			.roadAddress("서울 마포구 월드컵로 1")
+			.phone("02-123-4567")
+			.location(location)
+			.reason("추가해주세요")
+			.build();
+		ReflectionTestUtils.setField(report, "id", 13L);
+		given(storeAddReportRepository.findById(13L)).willReturn(Optional.of(report));
+		given(storeRepository.findByNaverPlaceId("123456")).willReturn(Optional.empty());
+		given(storeRepository.findActiveStoresByCompactName("새빵집")).willReturn(List.of());
+
+		Store savedStore = mock(Store.class);
+		given(storeRepository.save(any(Store.class))).willReturn(savedStore);
+
+		adminReportService.reviewReport(13L, new AdminReportReviewRequest("STORE_ADD_REPORT", "ACCEPT"));
+
+		verify(storeRepository).save(any(Store.class));
+		assertThat(report.getStatus()).isEqualTo(StoreReportStatus.ACCEPTED);
+		verify(reportNotificationService).notifyReportResult(
+			eq(reporter), eq(savedStore), eq(13L), eq(ReportKind.STORE_ADD_REPORT),
+			eq(ReportNotificationAction.APPROVED), anyString());
 	}
 
 	@Test
