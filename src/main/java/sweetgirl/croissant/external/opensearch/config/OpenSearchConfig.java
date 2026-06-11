@@ -23,7 +23,7 @@ public class OpenSearchConfig {
 	@Value("${opensearch.endpoint}")
 	private String endpoint;
 
-	@Value("${aws.region}")
+	@Value("${opensearch.region:${aws.region}}")
 	private String region;
 
 	@Value("${aws.credentials.access-key}")
