@@ -80,6 +80,7 @@ import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreReportImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreReportRepository;
+import sweetgirl.croissant.store.repository.StoreRepository;
 
 @ExtendWith(MockitoExtension.class)
 class AdminReportServiceTest {
@@ -88,6 +89,8 @@ class AdminReportServiceTest {
 	StoreReportRepository storeReportRepository;
 	@Mock
 	StoreAddReportRepository storeAddReportRepository;
+	@Mock
+	StoreRepository storeRepository;
 	@Mock
 	MenuAddReportRepository menuAddReportRepository;
 	@Mock
@@ -122,6 +125,7 @@ class AdminReportServiceTest {
 		adminReportService = new AdminReportService(
 			storeReportRepository,
 			storeAddReportRepository,
+			storeRepository,
 			menuAddReportRepository,
 			userReportRepository,
 			moderationActionRepository,

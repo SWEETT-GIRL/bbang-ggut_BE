@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.locationtech.jts.geom.Coordinate;
@@ -69,13 +70,16 @@ import sweetgirl.croissant.store.entity.StoreAddReport;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.entity.StoreReport;
 import sweetgirl.croissant.store.entity.StoreReportImageFile;
+import sweetgirl.croissant.store.enums.StoreCategory;
 import sweetgirl.croissant.store.enums.StoreReportStatus;
 import sweetgirl.croissant.store.enums.StoreReportType;
+import sweetgirl.croissant.store.enums.StoreSource;
 import sweetgirl.croissant.store.repository.StoreAddReportRepository;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreReportImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreReportRepository;
+import sweetgirl.croissant.store.repository.StoreRepository;
 
 @Service
 @RequiredArgsConstructor
@@ -105,6 +109,7 @@ public class AdminReportService {
 
 	private final StoreReportRepository storeReportRepository;
 	private final StoreAddReportRepository storeAddReportRepository;
+	private final StoreRepository storeRepository;
 	private final MenuAddReportRepository menuAddReportRepository;
 	private final UserReportRepository userReportRepository;
 	private final ModerationActionRepository moderationActionRepository;
@@ -234,6 +239,23 @@ public class AdminReportService {
 				report.getMember(), report.getStore(), report.getId(), ReportKind.MENU_ADD_REPORT,
 				accept ? ReportNotificationAction.APPROVED : ReportNotificationAction.REJECTED,
 				"메뉴 추가");
+		} else if ("STORE_ADD_REPORT".equals(request.kind())) {
+			StoreAddReport report = storeAddReportRepository.findById(reportId)
+				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
+			if (report.getStatus() != StoreReportStatus.PENDING) {
+				throw new AdminException(AdminErrorCode.REPORT_ALREADY_REVIEWED);
+			}
+			Store store = null;
+			if (accept) {
+				store = applyStoreAddReportApprove(report);
+				report.approve();
+			} else {
+				report.reject();
+			}
+			reportNotificationService.notifyReportResult(
+				report.getMember(), store, report.getId(), ReportKind.STORE_ADD_REPORT,
+				accept ? ReportNotificationAction.APPROVED : ReportNotificationAction.REJECTED,
+				"가게 추가");
 		} else if ("STORE_REPORT".equals(request.kind())) {
 			StoreReport report = storeReportRepository.findById(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
@@ -281,6 +303,73 @@ public class AdminReportService {
 	private void cleanupMenuAddReportImages(MenuAddReport report) {
 		menuAddReportImageFileRepository.findByMenuAddReportIdIn(List.of(report.getId()))
 			.forEach(img -> safeDelete(img.getAwsKey()));
+	}
+
+	private Store applyStoreAddReportApprove(StoreAddReport report) {
+		if (report.getNaverPlaceId() != null && !report.getNaverPlaceId().isBlank()) {
+			return storeRepository.findByNaverPlaceId(report.getNaverPlaceId())
+				.orElseGet(() -> findOrCreateStoreFromAddReport(report));
+		}
+		return findOrCreateStoreFromAddReport(report);
+	}
+
+	private Store findOrCreateStoreFromAddReport(StoreAddReport report) {
+		return findActiveStoreBySameNameAndAddress(report)
+			.map(store -> {
+				if (report.getNaverPlaceId() != null && !report.getNaverPlaceId().isBlank()
+					&& store.getNaverPlaceId() == null) {
+					store.markNaverMatched(report.getNaverPlaceId());
+				}
+				return store;
+			})
+			.orElseGet(() -> createStoreFromAddReport(report));
+	}
+
+	private Store createStoreFromAddReport(StoreAddReport report) {
+		String[] addr = AddressParser.parse(report.getAddress());
+		Store store = Store.builder()
+			.name(report.getName())
+			.address(report.getAddress())
+			.region1st(addr[0])
+			.region2nd(addr[1])
+			.region3rd(addr[2])
+			.location(report.getLocation())
+			.phone(report.getPhone())
+			.naverPlaceId(report.getNaverPlaceId())
+			.source(StoreSource.ADMIN_REGISTERED)
+			.category(StoreCategory.WESTERN)
+			.build();
+		return storeRepository.save(store);
+	}
+
+	private Optional<Store> findActiveStoreBySameNameAndAddress(StoreAddReport report) {
+		String compactName = compactName(report.getName());
+		String normalizedAddress = normalizeAddressForDuplicate(report.getAddress());
+		if (compactName.isBlank() || normalizedAddress.isBlank()) {
+			return Optional.empty();
+		}
+		return storeRepository.findActiveStoresByCompactName(compactName)
+			.stream()
+			.filter(store -> normalizedAddress.equals(normalizeAddressForDuplicate(store.getAddress())))
+			.findFirst();
+	}
+
+	private String compactName(String value) {
+		if (value == null) {
+			return "";
+		}
+		return value.toLowerCase().replaceAll("\\s+", "");
+	}
+
+	private String normalizeAddressForDuplicate(String value) {
+		if (value == null) {
+			return "";
+		}
+		return value.toLowerCase()
+			.replaceAll("(?:지하)?\\d+층", "")
+			.replaceAll("\\d+호", "")
+			.replaceAll("\\s+", "")
+			.trim();
 	}
 
 	private void applyStoreReportApprove(StoreReport report) {
