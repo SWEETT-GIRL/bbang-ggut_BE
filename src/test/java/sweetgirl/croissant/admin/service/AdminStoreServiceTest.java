@@ -19,9 +19,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.locationtech.jts.geom.Point;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -30,6 +32,7 @@ import sweetgirl.croissant.admin.dto.request.AdminStoreCreateRequest;
 import sweetgirl.croissant.admin.dto.request.AdminStoreUpdateRequest;
 import sweetgirl.croissant.admin.dto.request.BusinessHourRequest;
 import sweetgirl.croissant.admin.dto.response.AdminStoreResponse;
+import sweetgirl.croissant.external.opensearch.event.StoreDeletedEvent;
 import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
@@ -54,6 +57,8 @@ class AdminStoreServiceTest {
 	SubscribedStoreRepository subscribedStoreRepository;
 	@Mock
 	NaverEnrichCandidateRepository candidateRepository;
+	@Mock
+	ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
 	AdminStoreService adminStoreService;
@@ -158,6 +163,32 @@ class AdminStoreServiceTest {
 
 		verify(store).update(null, null, null, null, null, null, null, StoreStatus.DELETED, null);
 		verify(candidateRepository).deleteByStoreId(1L);
+	}
+
+	@Test
+	@DisplayName("deleteStore: 삭제 시 StoreDeletedEvent가 해당 storeId로 발행된다")
+	void deleteStore_publishesStoreDeletedEvent() {
+		Store store = mock(Store.class);
+		given(storeRepository.findById(7L)).willReturn(Optional.of(store));
+
+		adminStoreService.deleteStore(7L);
+
+		ArgumentCaptor<StoreDeletedEvent> captor = ArgumentCaptor.forClass(StoreDeletedEvent.class);
+		verify(eventPublisher).publishEvent(captor.capture());
+		assertThat(captor.getValue().storeId()).isEqualTo(7L);
+	}
+
+	@Test
+	@DisplayName("deleteNaverClosedSuspect: 삭제 시 StoreDeletedEvent가 해당 storeId로 발행된다")
+	void deleteNaverClosedSuspect_publishesStoreDeletedEvent() {
+		Store store = mock(Store.class);
+		given(storeRepository.findById(8L)).willReturn(Optional.of(store));
+
+		adminStoreService.deleteNaverClosedSuspect(8L);
+
+		ArgumentCaptor<StoreDeletedEvent> captor = ArgumentCaptor.forClass(StoreDeletedEvent.class);
+		verify(eventPublisher).publishEvent(captor.capture());
+		assertThat(captor.getValue().storeId()).isEqualTo(8L);
 	}
 
 	@Test
