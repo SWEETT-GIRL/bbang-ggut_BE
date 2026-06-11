@@ -21,7 +21,6 @@ import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
 import sweetgirl.croissant.admin.dto.response.AdminHighPriorityReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminModerationActionResponse;
 import sweetgirl.croissant.admin.dto.response.AdminReportResponse;
-import sweetgirl.croissant.admin.dto.response.AdminUserReportDetailResponse;
 import sweetgirl.croissant.admin.dto.response.AdminUserReportStatsResponse;
 import sweetgirl.croissant.admin.service.AdminReportService;
 import sweetgirl.croissant.global.response.ApiResponse;
@@ -61,7 +60,7 @@ public class AdminReportController {
 
 	@Operation(summary = "사용자 신고 상세 조회")
 	@GetMapping("/{reportId}")
-	public ResponseEntity<ApiResponse<AdminUserReportDetailResponse>> getReportDetail(
+	public ResponseEntity<ApiResponse<Object>> getReportDetail(
 			@Parameter(description = "제보 ID") @PathVariable Long reportId,
 			@Parameter(description = "제보 종류") @RequestParam String kind) {
 		return ResponseEntity.ok(ApiResponse.ok(adminReportService.getReportDetail(reportId, kind)));

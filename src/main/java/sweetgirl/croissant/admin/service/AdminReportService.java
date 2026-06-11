@@ -141,7 +141,25 @@ public class AdminReportService {
 		return getStoreReports(toStoreReportStatus(statusStr), page, size);
 	}
 
-	public AdminUserReportDetailResponse getReportDetail(Long reportId, String kind) {
+	public Object getReportDetail(Long reportId, String kind) {
+		if ("STORE_ADD_REPORT".equals(kind)) {
+			StoreAddReport report = storeAddReportRepository.findById(reportId)
+				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
+			return AdminReportResponse.ofStoreAddReport(report);
+		}
+		if ("STORE_REPORT".equals(kind)) {
+			StoreReport report = storeReportRepository.findById(reportId)
+				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
+			List<StoreReportImageFile> images = storeReportImageFileRepository.findByStoreReportIdIn(List.of(reportId));
+			return AdminReportResponse.ofStoreReport(report, images);
+		}
+		if ("MENU_ADD_REPORT".equals(kind)) {
+			MenuAddReport report = menuAddReportRepository.findById(reportId)
+				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
+			List<MenuAddReportImageFile> images = menuAddReportImageFileRepository
+				.findByMenuAddReportIdIn(List.of(reportId));
+			return AdminReportResponse.ofMenuAddReport(report, images);
+		}
 		if (!"USER_REPORT".equals(kind)) {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_KIND);
 		}

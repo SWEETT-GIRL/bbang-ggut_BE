@@ -180,7 +180,8 @@ class AdminReportServiceTest {
 		given(reviewImageFileRepository.findByReviewIdOrderByDisplayOrderAscIdAsc(123L))
 			.willReturn(List.of(image));
 
-		AdminUserReportDetailResponse response = adminReportService.getReportDetail(1L, "USER_REPORT");
+		AdminUserReportDetailResponse response = (AdminUserReportDetailResponse)adminReportService.getReportDetail(1L,
+			"USER_REPORT");
 
 		assertThat(response.reportId()).isEqualTo(1L);
 		assertThat(response.targetType()).isEqualTo("REVIEW");
@@ -214,7 +215,8 @@ class AdminReportServiceTest {
 		given(report.getReportedMember()).willReturn(reportedMember);
 		given(userReportRepository.findByIdWithMembers(2L)).willReturn(Optional.of(report));
 
-		AdminUserReportDetailResponse response = adminReportService.getReportDetail(2L, "USER_REPORT");
+		AdminUserReportDetailResponse response = (AdminUserReportDetailResponse)adminReportService.getReportDetail(2L,
+			"USER_REPORT");
 
 		assertThat(response.targetType()).isEqualTo("MEMBER_PROFILE");
 		assertThat(response.target()).isInstanceOf(AdminUserReportDetailResponse.MemberProfileTarget.class);
@@ -224,9 +226,9 @@ class AdminReportServiceTest {
 	}
 
 	@Test
-	@DisplayName("UserReport 상세 조회: USER_REPORT 외 kind는 예외를 던진다")
+	@DisplayName("제보 상세 조회: 지원하지 않는 kind는 예외를 던진다")
 	void getReportDetail_invalidKind_throws() {
-		assertThatThrownBy(() -> adminReportService.getReportDetail(1L, "STORE_REPORT"))
+		assertThatThrownBy(() -> adminReportService.getReportDetail(1L, "UNKNOWN_REPORT"))
 			.isInstanceOf(AdminException.class)
 			.hasMessageContaining(AdminErrorCode.REPORT_INVALID_KIND.getMessage());
 	}
