@@ -380,6 +380,29 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 
 	Optional<Store> findByNaverPlaceId(String naverPlaceId);
 
+	@Modifying(flushAutomatically = true, clearAutomatically = true)
+	@Query(value = """
+			INSERT INTO store (
+					name, address, region_1st, region_2nd, region_3rd,
+					location, phone, naver_place_id, naver_matched_at, naver_enrich_attempts,
+					source, status, category, created_at, updated_at)
+			VALUES (:name, :address, :region1st, :region2nd, :region3rd,
+					ST_SetSRID(ST_MakePoint(:x, :y), 4326)::geography, :phone, :naverPlaceId,
+					NOW(), 0, 'ADMIN_REGISTERED', 'ACTIVE', :category, NOW(), NOW())
+			ON CONFLICT (naver_place_id) DO NOTHING
+			""", nativeQuery = true)
+	void insertIfNotExistsByNaverPlaceId(
+			@Param("name") String name,
+			@Param("address") String address,
+			@Param("region1st") String region1st,
+			@Param("region2nd") String region2nd,
+			@Param("region3rd") String region3rd,
+			@Param("x") double longitude,
+			@Param("y") double latitude,
+			@Param("phone") String phone,
+			@Param("naverPlaceId") String naverPlaceId,
+			@Param("category") String category);
+
 	// ── Naver enrich stats ──────────────────────────────────────────────────
 	@Query("""
 				SELECT COUNT(s) FROM Store s

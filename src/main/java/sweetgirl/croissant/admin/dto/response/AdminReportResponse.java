@@ -5,6 +5,7 @@ import java.util.List;
 import sweetgirl.croissant.menu.entity.MenuAddReport;
 import sweetgirl.croissant.menu.entity.MenuAddReportImageFile;
 import sweetgirl.croissant.report.entity.UserReport;
+import sweetgirl.croissant.store.entity.StoreAddReport;
 import sweetgirl.croissant.store.entity.StoreReport;
 import sweetgirl.croissant.store.entity.StoreReportImageFile;
 
@@ -65,6 +66,29 @@ public record AdminReportResponse(
 			report.getStatus().name(),
 			message,
 			images.stream().map(MenuAddReportImageFile::getAwsKey).toList(),
+			report.getReviewedAt() != null ? report.getReviewedAt().toString() : null,
+			report.getCreatedAt() != null ? report.getCreatedAt().toString() : null);
+	}
+
+	public static AdminReportResponse ofStoreAddReport(StoreAddReport report) {
+		String message = report.getName()
+			+ " / " + report.getAddress()
+			+ (report.getReason() != null && !report.getReason().isBlank() ? " / " + report.getReason() : "");
+		return new AdminReportResponse(
+			report.getId(),
+			"STORE_ADD_REPORT",
+			null,
+			report.getName(),
+			report.getMember() != null ? report.getMember().getId() : null,
+			"STORE_ADD",
+			null,
+			null,
+			null,
+			null,
+			null,
+			report.getStatus().name(),
+			message,
+			List.of(),
 			report.getReviewedAt() != null ? report.getReviewedAt().toString() : null,
 			report.getCreatedAt() != null ? report.getCreatedAt().toString() : null);
 	}
