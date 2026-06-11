@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ import sweetgirl.croissant.admin.dto.request.AdminMenuReorderRequest;
 import sweetgirl.croissant.admin.dto.request.AdminMenuUpdateRequest;
 import sweetgirl.croissant.admin.dto.response.AdminMenuResponse;
 import sweetgirl.croissant.common.entity.ImageFile;
+import sweetgirl.croissant.external.opensearch.event.StoreMenusChangedEvent;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
 import sweetgirl.croissant.menu.dto.projection.MenuImageThumbnailProjection;
 import sweetgirl.croissant.menu.entity.Menu;
@@ -40,6 +42,7 @@ public class AdminMenuService {
 	private final MenuCategoryRepository menuCategoryRepository;
 	private final MenuImageFileRepository menuImageFileRepository;
 	private final StoreRepository storeRepository;
+	private final ApplicationEventPublisher eventPublisher;
 
 	@Transactional
 	public AdminMenuResponse createMenu(Long storeId, AdminMenuCreateRequest request) {
@@ -78,6 +81,7 @@ public class AdminMenuService {
 		List<String> photoUrls = menuImageFileRepository.findImagesByMenuId(menu.getId()).stream()
 			.map(img -> img.getAwsKey())
 			.toList();
+		eventPublisher.publishEvent(new StoreMenusChangedEvent(storeId));
 		return AdminMenuResponse.of(menu, photoUrls);
 	}
 
@@ -110,12 +114,12 @@ public class AdminMenuService {
 
 		if ("inactive".equals(request.status())) {
 			menu.softDelete();
-			return;
+		} else {
+			MenuCategory newCategory = request.category() != null ? resolveCategory(request.category()) : null;
+			Integer newPrice = parsePrice(request.price());
+			menu.update(request.name(), newPrice, request.desc(), newCategory);
 		}
-
-		MenuCategory newCategory = request.category() != null ? resolveCategory(request.category()) : null;
-		Integer newPrice = parsePrice(request.price());
-		menu.update(request.name(), newPrice, request.desc(), newCategory);
+		eventPublisher.publishEvent(new StoreMenusChangedEvent(menu.getStore().getId()));
 	}
 
 	@Transactional
