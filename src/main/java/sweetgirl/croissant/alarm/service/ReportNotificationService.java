@@ -43,6 +43,11 @@ public class ReportNotificationService {
 	// member 가 null 인 경우(익명 메뉴 추가 제보 등) 알림을 보낼 대상이 없으므로 silent skip
 	public void notifyReportResult(Member member, Store store, Long reportId, ReportKind reportKind,
 			ReportNotificationAction action, String subjectLabel) {
+		notifyReportResult(member, store, null, reportId, reportKind, action, subjectLabel);
+	}
+
+	public void notifyReportResult(Member member, Store store, String fallbackStoreName, Long reportId,
+			ReportKind reportKind, ReportNotificationAction action, String subjectLabel) {
 		if (member == null) {
 			log.info("notifyReportResult: 제보자 없음 [reportId={}, kind={}]", reportId, reportKind);
 			return;
@@ -51,7 +56,7 @@ public class ReportNotificationService {
 		String title = action == ReportNotificationAction.APPROVED
 			? "제보가 반영되었어요"
 			: "제보가 반려되었어요";
-		String storeName = store != null ? store.getName() : "가게";
+		String storeName = store != null ? store.getName() : fallbackStoreName(fallbackStoreName);
 		String body = action == ReportNotificationAction.APPROVED
 			? String.format("%s의 %s 제보가 승인되었어요 🎉", storeName, subjectLabel)
 			: String.format("%s의 %s 제보가 반려되었어요", storeName, subjectLabel);
@@ -68,6 +73,10 @@ public class ReportNotificationService {
 		saveAndSend(
 			ReportNotification.ofReportResult(member, store, reportId, reportKind, action, title, body),
 			data);
+	}
+
+	private String fallbackStoreName(String fallbackStoreName) {
+		return fallbackStoreName != null && !fallbackStoreName.isBlank() ? fallbackStoreName : "가게";
 	}
 
 	public void notifyUserReportResult(UserReport report) {

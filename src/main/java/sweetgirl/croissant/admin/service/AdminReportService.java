@@ -271,7 +271,7 @@ public class AdminReportService {
 				report.reject();
 			}
 			reportNotificationService.notifyReportResult(
-				report.getMember(), store, report.getId(), ReportKind.STORE_ADD_REPORT,
+				report.getMember(), store, report.getName(), report.getId(), ReportKind.STORE_ADD_REPORT,
 				accept ? ReportNotificationAction.APPROVED : ReportNotificationAction.REJECTED,
 				"가게 추가");
 		} else if ("STORE_REPORT".equals(request.kind())) {

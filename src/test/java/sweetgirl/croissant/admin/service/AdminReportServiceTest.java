@@ -477,7 +477,7 @@ class AdminReportServiceTest {
 		verify(storeRepository).save(any(Store.class));
 		assertThat(report.getStatus()).isEqualTo(StoreReportStatus.ACCEPTED);
 		verify(reportNotificationService).notifyReportResult(
-			eq(reporter), eq(savedStore), eq(13L), eq(ReportKind.STORE_ADD_REPORT),
+			eq(reporter), eq(savedStore), eq("새빵집"), eq(13L), eq(ReportKind.STORE_ADD_REPORT),
 			eq(ReportNotificationAction.APPROVED), anyString());
 	}
 
