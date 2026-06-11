@@ -3,6 +3,7 @@ package sweetgirl.croissant.config.security;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -50,6 +51,7 @@ public class SecurityConfig {
 			.requestMatchers("/auth/**").permitAll() // controller 호출
 			.requestMatchers("/terms").permitAll()
 			.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+			.requestMatchers(HttpMethod.POST, "/api/admin/members/*/ban").permitAll() // 회원 강퇴 API 임시 허용
 			.anyRequest().authenticated());
 
 		// OAuth2 로그인 설정
