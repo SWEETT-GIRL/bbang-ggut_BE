@@ -1,5 +1,7 @@
 package sweetgirl.croissant.external.opensearch.config;
 
+import java.time.Duration;
+
 import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.transport.aws.AwsSdk2Transport;
 import org.opensearch.client.transport.aws.AwsSdk2TransportOptions;
@@ -35,7 +37,10 @@ public class OpenSearchConfig {
 	@Bean
 	public OpenSearchClient openSearchClient() {
 		AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKey, secretKey);
-		SdkHttpClient httpClient = ApacheHttpClient.builder().build();
+		SdkHttpClient httpClient = ApacheHttpClient.builder()
+			.socketTimeout(Duration.ofSeconds(60))
+			.connectionTimeout(Duration.ofSeconds(5))
+			.build();
 
 		return new OpenSearchClient(
 			new AwsSdk2Transport(
