@@ -40,10 +40,10 @@ class StoreSearchServiceTest {
 			List.of("성수"), List.of("에그타르트"), List.of("에그타르트"));
 		PageRequest pageable = PageRequest.of(0, 15);
 		given(storeSearchQueryParser.parse("성수 에그타르트")).willReturn(intent);
-		given(openSearchStoreClient.searchStores(intent, pageable, null, null))
+		given(openSearchStoreClient.searchStores(intent, pageable, null, null, SearchSort.DISTANCE))
 			.willReturn(OpenSearchStoreSearchResult.empty());
 
-		var result = service.searchStores("성수 에그타르트", pageable);
+		var result = service.searchStores("성수 에그타르트", null, null, SearchSort.DISTANCE, pageable);
 
 		assertThat(result.content()).isEmpty();
 		assertThat(result.hasNext()).isFalse();
@@ -57,15 +57,16 @@ class StoreSearchServiceTest {
 		SearchIntent intent = new SearchIntent("소금빵", List.of("소금빵"), List.of(), List.of("소금빵"),
 			List.of("소금빵"));
 		PageRequest pageable = PageRequest.of(0, 15);
-		List<OpenSearchStoreHit> hits = List.of(new OpenSearchStoreHit(1L, 1.0, null, List.of()));
+		List<OpenSearchStoreHit> hits = List.of(new OpenSearchStoreHit(1L, 1.0, null, List.of(), List.of()));
 		given(storeSearchQueryParser.parse("소금빵")).willReturn(intent);
-		given(openSearchStoreClient.searchStores(intent, pageable, null, null))
+		given(openSearchStoreClient.searchStores(intent, pageable, null, null, SearchSort.RELEVANCE))
 			.willReturn(new OpenSearchStoreSearchResult(hits, true));
 		given(storeSearchAssembler.assemble(hits)).willReturn(List.of());
 
-		var result = service.searchStores("소금빵", pageable);
+		var result = service.searchStores("소금빵", null, null, SearchSort.RELEVANCE, pageable);
 
 		assertThat(result.hasNext()).isTrue();
-		verify(openSearchStoreClient).searchStores(eq(intent), eq(pageable), isNull(), isNull());
+		verify(openSearchStoreClient).searchStores(eq(intent), eq(pageable), isNull(), isNull(),
+			eq(SearchSort.RELEVANCE));
 	}
 }

@@ -2,9 +2,11 @@ package sweetgirl.croissant.external.opensearch.client;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch._types.OpenSearchException;
@@ -18,52 +20,47 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import sweetgirl.croissant.external.opensearch.config.OpenSearchProperties;
+import sweetgirl.croissant.external.opensearch.dto.MatchedField;
 import sweetgirl.croissant.external.opensearch.dto.OpenSearchStoreHit;
 import sweetgirl.croissant.external.opensearch.dto.OpenSearchStoreSearchResult;
 import sweetgirl.croissant.external.opensearch.query.StoreSearchQueryBuilder;
 import sweetgirl.croissant.store.service.search.SearchIntent;
+import sweetgirl.croissant.store.service.search.SearchSort;
 
 @Component
 public class OpenSearchStoreClient {
 
 	private static final String SEARCH_PATH_FORMAT = "/%s/_search";
+	private static final ObjectMapper MAPPER = new ObjectMapper();
 
 	private final ObjectProvider<OpenSearchClient> openSearchClientProvider;
 	private final OpenSearchProperties openSearchProperties;
-	private final ObjectMapper objectMapper;
 	private final StoreSearchQueryBuilder storeSearchQueryBuilder;
 
-	public OpenSearchStoreClient(ObjectProvider<OpenSearchClient> openSearchClientProvider,
-			OpenSearchProperties openSearchProperties, ObjectMapper objectMapper,
+	public OpenSearchStoreClient(@Qualifier("openSearchRestClient") RestClient openSearchRestClient,
+			OpenSearchProperties openSearchProperties,
 			StoreSearchQueryBuilder storeSearchQueryBuilder) {
 		this.openSearchClientProvider = openSearchClientProvider;
 		this.openSearchProperties = openSearchProperties;
-		this.objectMapper = objectMapper;
 		this.storeSearchQueryBuilder = storeSearchQueryBuilder;
 	}
 
 	public OpenSearchStoreSearchResult searchStores(SearchIntent intent, Pageable pageable,
-			Double latitude, Double longitude) {
-		OpenSearchClient openSearchClient = openSearchClientProvider.getIfAvailable();
-		if (openSearchClient == null) {
-			return OpenSearchStoreSearchResult.empty();
-		}
-
-		Map<String, Object> request = storeSearchQueryBuilder.build(intent, pageable, latitude, longitude, false);
+			Double latitude, Double longitude, SearchSort sort) {
+		Map<String, Object> request = storeSearchQueryBuilder.build(intent, pageable, latitude, longitude,
+			sort);
 		JsonNode response;
 		try {
-			try (Response genericResponse = openSearchClient.generic()
-				.execute(Requests.builder()
-					.method("POST")
-					.endpoint(SEARCH_PATH_FORMAT.formatted(openSearchProperties.getStoresIndex()))
-					.json(objectMapper.writeValueAsString(request))
-					.build())) {
-				if (genericResponse.getStatus() >= 400 || genericResponse.getBody().isEmpty()) {
-					return OpenSearchStoreSearchResult.empty();
-				}
-				response = objectMapper.readTree(genericResponse.getBody().get().body());
+			String body = openSearchRestClient.post()
+				.uri(SEARCH_PATH_FORMAT.formatted(openSearchProperties.getStoresIndex()))
+				.body(request)
+				.retrieve()
+				.body(String.class);
+			if (body == null) {
+				return OpenSearchStoreSearchResult.empty();
 			}
-		} catch (IOException | OpenSearchException e) {
+			response = MAPPER.readTree(body);
+		} catch (Exception e) {
 			return OpenSearchStoreSearchResult.empty();
 		}
 		return parseResponse(response, pageable);
@@ -81,13 +78,37 @@ public class OpenSearchStoreClient {
 			if (storeId == null) {
 				continue;
 			}
+			List<Long> matchedMenuIds = parseMatchedMenuIds(hitNode);
 			hits.add(new OpenSearchStoreHit(
 				storeId,
 				nullableDouble(hitNode.path("_score")),
 				parseDistance(hitNode),
-				parseMatchedMenuIds(hitNode)));
+				matchedMenuIds,
+				parseMatchedFields(hitNode, matchedMenuIds)));
 		}
 		return new OpenSearchStoreSearchResult(hits, hits.size() == pageable.getPageSize());
+	}
+
+	private List<MatchedField> parseMatchedFields(JsonNode hitNode, List<Long> matchedMenuIds) {
+		Set<MatchedField> fields = EnumSet.noneOf(MatchedField.class);
+		JsonNode highlight = hitNode.path("highlight");
+		if (highlight.isObject()) {
+			Iterator<String> fieldNames = highlight.fieldNames();
+			while (fieldNames.hasNext()) {
+				String field = fieldNames.next();
+				if (field.startsWith("storeName")) {
+					fields.add(MatchedField.STORE_NAME);
+				} else if (field.startsWith("searchRegionAliases")) {
+					fields.add(MatchedField.REGION);
+				} else if (field.startsWith("breadTypes")) {
+					fields.add(MatchedField.BREAD_TYPE);
+				}
+			}
+		}
+		if (!matchedMenuIds.isEmpty()) {
+			fields.add(MatchedField.MENU);
+		}
+		return List.copyOf(fields);
 	}
 
 	private List<Long> parseMatchedMenuIds(JsonNode hitNode) {
@@ -127,13 +148,21 @@ public class OpenSearchStoreClient {
 		if (node == null || node.isMissingNode() || node.isNull()) {
 			return null;
 		}
-		return objectMapper.convertValue(node, Long.class);
+		try {
+			return MAPPER.convertValue(node, Long.class);
+		} catch (Exception e) {
+			return null;
+		}
 	}
 
 	private Double nullableDouble(JsonNode node) {
 		if (node == null || node.isMissingNode() || node.isNull()) {
 			return null;
 		}
-		return objectMapper.convertValue(node, Double.class);
+		try {
+			return MAPPER.convertValue(node, Double.class);
+		} catch (Exception e) {
+			return null;
+		}
 	}
 }

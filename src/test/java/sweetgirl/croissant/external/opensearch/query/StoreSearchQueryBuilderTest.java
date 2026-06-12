@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageRequest;
 
 import sweetgirl.croissant.store.service.search.SearchIntent;
+import sweetgirl.croissant.store.service.search.SearchSort;
 
 class StoreSearchQueryBuilderTest {
 
@@ -18,7 +19,7 @@ class StoreSearchQueryBuilderTest {
 	void build_usesRegionAndBreadAsMustWhenBothExist() {
 		SearchIntent intent = intent("성수 에그타르트", List.of("성수"), List.of("에그타르트"));
 
-		Map<String, Object> query = builder.build(intent, PageRequest.of(0, 15), null, null, false);
+		Map<String, Object> query = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
 
 		Map<String, Object> bool = boolQuery(query);
 		List<Object> must = list(bool.get("must"));
@@ -38,7 +39,7 @@ class StoreSearchQueryBuilderTest {
 	void build_usesRawQueryForStoreNameAndMenuName() {
 		SearchIntent intent = intent("뺑스톡", List.of(), List.of());
 
-		Map<String, Object> query = builder.build(intent, PageRequest.of(1, 10), null, null, false);
+		Map<String, Object> query = builder.build(intent, PageRequest.of(1, 10), null, null, SearchSort.RELEVANCE);
 
 		Map<String, Object> bool = boolQuery(query);
 		assertThat(query.get("from")).isEqualTo(10L);
@@ -72,7 +73,7 @@ class StoreSearchQueryBuilderTest {
 	void build_reflectsPopularityScoreWithFunctionScore() {
 		SearchIntent intent = intent("소금빵", List.of(), List.of("소금빵"));
 
-		Map<String, Object> query = builder.build(intent, PageRequest.of(0, 15), null, null, false);
+		Map<String, Object> query = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
 
 		Map<String, Object> functionScore = map(map(query.get("query")).get("function_score"));
 		assertThat(functionScore.get("boost_mode")).isEqualTo("sum");
@@ -84,10 +85,10 @@ class StoreSearchQueryBuilderTest {
 	}
 
 	@Test
-	void build_addsDistanceFunctionAndSortWhenLocationExistsAndDistanceSortRequested() {
+	void build_addsDistanceFunctionAndSortWhenDistanceSortRequested() {
 		SearchIntent intent = intent("한남 소금빵", List.of("한남"), List.of("소금빵"));
 
-		Map<String, Object> query = builder.build(intent, PageRequest.of(0, 15), 37.5, 127.0, true);
+		Map<String, Object> query = builder.build(intent, PageRequest.of(0, 15), 37.5, 127.0, SearchSort.DISTANCE);
 
 		Map<String, Object> functionScore = map(map(query.get("query")).get("function_score"));
 		assertThat(functionScore.toString()).contains(
@@ -99,6 +100,29 @@ class StoreSearchQueryBuilderTest {
 			"_geo_distance",
 			"order=asc",
 			"unit=m");
+	}
+
+	@Test
+	void build_addsPopularitySortWhenPopularitySortRequested() {
+		SearchIntent intent = intent("에그타르트", List.of(), List.of("에그타르트"));
+
+		Map<String, Object> query = builder.build(intent, PageRequest.of(0, 15), 37.5, 127.0,
+			SearchSort.POPULARITY);
+
+		assertThat(list(query.get("sort")).toString()).contains(
+			"popularityScore",
+			"order=desc",
+			"_score");
+	}
+
+	@Test
+	void build_omitsExplicitSortWhenRelevanceSortRequested() {
+		SearchIntent intent = intent("뺑스톡", List.of(), List.of());
+
+		Map<String, Object> query = builder.build(intent, PageRequest.of(0, 15), 37.5, 127.0,
+			SearchSort.RELEVANCE);
+
+		assertThat(query).doesNotContainKey("sort");
 	}
 
 	private SearchIntent intent(String rawQuery, List<String> regionTokens, List<String> breadTokens) {
