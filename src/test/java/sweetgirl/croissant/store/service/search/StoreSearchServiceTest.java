@@ -43,7 +43,7 @@ class StoreSearchServiceTest {
 		given(openSearchStoreClient.searchStores(intent, pageable, null, null))
 			.willReturn(OpenSearchStoreSearchResult.empty());
 
-		var result = service.searchStores("성수 에그타르트", pageable);
+		var result = service.searchStores("성수 에그타르트", null, null, pageable);
 
 		assertThat(result.content()).isEmpty();
 		assertThat(result.hasNext()).isFalse();
@@ -63,7 +63,7 @@ class StoreSearchServiceTest {
 			.willReturn(new OpenSearchStoreSearchResult(hits, true));
 		given(storeSearchAssembler.assemble(hits)).willReturn(List.of());
 
-		var result = service.searchStores("소금빵", pageable);
+		var result = service.searchStores("소금빵", null, null, pageable);
 
 		assertThat(result.hasNext()).isTrue();
 		verify(openSearchStoreClient).searchStores(eq(intent), eq(pageable), isNull(), isNull());

@@ -1,6 +1,7 @@
 package sweetgirl.croissant.store.controller;
 
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -46,11 +47,11 @@ class StoreControllerTest {
 	void searchStores_returnsOpenSearchResults() throws Exception {
 		StoreSearchResponse response = new StoreSearchResponse(
 			102L, "성수 베이크", "서울 성동구 성수동", null, "kakao-102", "02-0000", "127.0", "37.5", List.of());
-		given(storeSearchService.searchStores(eq("성수 에그타르트"), eq(PageRequest.of(0, 15))))
+		given(storeSearchService.searchStores(eq("성수 에그타르트"), isNull(), isNull(), eq(PageRequest.of(0, 15))))
 			.willReturn(new SliceResponse<>(List.of(response), false));
 
 		mockMvc.perform(get("/stores/search")
-			.param("keyword", "성수 에그타르트"))
+			.param("query", "성수 에그타르트"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.content[0].id").value(102))

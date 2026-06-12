@@ -15,6 +15,28 @@ public class StoreSearchQueryBuilder {
 
 	private static final int INNER_HITS_SIZE = 5;
 
+	/*
+	 * 케이스별 쿼리 전략:
+	 *
+	 * [케이스 1] 지역 + 빵 키워드 둘 다 있을 때 — "한남 에그타르트"
+	 *   must: [지역 매칭, 빵 매칭]  → 둘 다 만족하는 가게만 결과에 포함
+	 *   should: [원문 매칭]         → 가게명/메뉴명이 원문과 유사하면 점수 보너스
+	 *
+	 * [케이스 2] 지역 키워드만 있을 때 — "한남"
+	 *   must: []
+	 *   should: [지역 매칭, 원문 매칭]  → minimum_should_match=1, 지역 근처 가게 노출
+	 *
+	 * [케이스 3] 빵 키워드만 있을 때 — "에그타르트"
+	 *   must: [빵 매칭]             → 에그타르트 있는 가게만 결과에 포함
+	 *   should: [원문 매칭]         → 가게명/메뉴명 유사도로 점수 보정
+	 *   → 지역어가 없으므로 sortByDistance=true면 거리순 정렬로 사용자 주변 가게 우선 노출
+	 *
+	 * [케이스 4] 아무 토큰도 없을 때 — (파싱 실패 또는 짧은 단어)
+	 *   must: []
+	 *   should: [원문 매칭]         → minimum_should_match=1, 원문으로 가게명/메뉴 전체 검색
+	 *
+	 * 공통: function_score로 인기도(popularityScore) + 거리 감쇠(gauss) 점수 추가
+	 */
 	public Map<String, Object> build(SearchIntent intent, Pageable pageable,
 			Double latitude, Double longitude, boolean sortByDistance) {
 		List<Object> must = new ArrayList<>();
@@ -25,22 +47,27 @@ public class StoreSearchQueryBuilder {
 		if (hasRegionTokens) {
 			Map<String, Object> regionMatch = boolShould(regionQueries(intent.regionTokens()));
 			if (hasBreadTokens) {
+				// 케이스 1: 지역 + 빵 → 지역도 must (둘 다 필수 조건)
 				must.add(regionMatch);
 			} else {
+				// 케이스 2: 지역만 → should (지역 매칭될수록 점수 높음)
 				should.add(regionMatch);
 			}
 		}
 
 		if (hasBreadTokens) {
+			// 케이스 1, 3: 빵 키워드는 항상 must (에그타르트 없는 가게는 제외)
 			must.add(boolShould(breadQueries(intent.breadTokens())));
 		}
 
+		// 원문 전체를 가게명/메뉴명에 매칭 — must와 무관하게 항상 should에 포함
 		should.add(rawQuery(intent.rawQuery()));
 
 		Map<String, Object> bool = new LinkedHashMap<>();
 		bool.put("must", must);
 		bool.put("should", should);
 		if (must.isEmpty()) {
+			// 케이스 2, 4: must가 비어있으면 should 중 최소 1개는 매칭돼야 결과에 포함
 			bool.put("minimum_should_match", 1);
 		}
 
@@ -49,6 +76,7 @@ public class StoreSearchQueryBuilder {
 		request.put("size", pageable.getPageSize());
 		request.put("query", functionScore(bool, latitude, longitude));
 		if (sortByDistance && latitude != null && longitude != null) {
+			// 케이스 3, 4: 지역어 없을 때 거리순 정렬로 사용자 주변 가게 우선
 			request.put("sort", distanceSort(latitude, longitude));
 		}
 		return request;

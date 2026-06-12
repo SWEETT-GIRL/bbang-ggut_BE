@@ -76,10 +76,13 @@ public class StoreController {
 	@Operation(summary = "빵집 검색", description = "OpenSearch 기반으로 빵집을 검색합니다.")
 	@GetMapping("/search")
 	public ResponseEntity<ApiResponse<SliceResponse<StoreSearchResponse>>> searchStores(
-			@Parameter(description = "검색어") @RequestParam String keyword,
+			@Parameter(description = "검색어") @RequestParam String query,
+			@Parameter(description = "현재 위치 위도 (지역어 없는 검색 시 거리순 정렬에 사용)") @RequestParam(required = false) Double lat,
+			@Parameter(description = "현재 위치 경도 (지역어 없는 검색 시 거리순 정렬에 사용)") @RequestParam(required = false) Double lon,
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "15") int size) {
-		return ResponseEntity.ok(ApiResponse.ok(storeSearchService.searchStores(keyword, PageRequest.of(page, size))));
+		return ResponseEntity.ok(
+			ApiResponse.ok(storeSearchService.searchStores(query, lat, lon, PageRequest.of(page, size))));
 	}
 
 	@Operation(summary = "근처 빵집 목록 조회", description = "위도(lat)·경도(lng) 기준 반경 내 빵집을 거리 오름차순으로 반환합니다.")
