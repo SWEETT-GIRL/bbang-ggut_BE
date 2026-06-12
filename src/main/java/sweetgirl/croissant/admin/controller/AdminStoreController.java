@@ -34,9 +34,11 @@ import sweetgirl.croissant.admin.service.AdminStoreService;
 import sweetgirl.croissant.admin.service.NaverEnrichOrchestrator;
 import sweetgirl.croissant.admin.service.NaverEnrichPartition;
 import sweetgirl.croissant.admin.service.NaverEnrichRunner;
+import sweetgirl.croissant.external.naver.client.NaverLocalSearchClient;
 import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.store.code.StoreErrorCode;
+import sweetgirl.croissant.store.dto.response.NaverPlaceSearchResult;
 
 @Tag(name = "Admin Store", description = "어드민 가게 관리 API")
 @RestController
@@ -47,6 +49,7 @@ public class AdminStoreController {
 	private final AdminStoreService adminStoreService;
 	private final NaverEnrichRunner naverEnrichRunner;
 	private final NaverEnrichOrchestrator naverEnrichOrchestrator;
+	private final NaverLocalSearchClient naverLocalSearchClient;
 
 	@Operation(summary = "가게 등록", description = "어드민에서 네이버 검색 결과 기반으로 새 가게를 등록합니다. "
 		+ "naverPlaceId와 coord(lat/lng)로 가게를 생성하며, hours는 mon~sun 키로 영업시간을 설정합니다.")
@@ -54,6 +57,13 @@ public class AdminStoreController {
 	public ResponseEntity<ApiResponse<AdminStoreResponse>> createStore(
 			@Valid @RequestBody AdminStoreCreateRequest request) {
 		return ResponseEntity.ok(ApiResponse.ok(adminStoreService.createStore(request)));
+	}
+
+	@Operation(summary = "가게 등록용 네이버 장소 검색", description = "어드민 가게 등록 화면에서 네이버 장소 검색 결과를 조회합니다.")
+	@GetMapping("/naver/search")
+	public ResponseEntity<ApiResponse<List<NaverPlaceSearchResult>>> searchNaverPlaces(
+			@Parameter(description = "검색어") @RequestParam String keyword) {
+		return ResponseEntity.ok(ApiResponse.ok(naverLocalSearchClient.search(keyword)));
 	}
 
 	@Operation(summary = "네이버 enrich 큐 조회", description = "naverPlaceId 가 아직 매칭되지 않은 가게 목록을 페이지네이션으로 반환합니다. "
