@@ -1,5 +1,6 @@
 package sweetgirl.croissant.external.opensearch.client;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.Iterator;
@@ -7,11 +8,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.springframework.beans.factory.annotation.Qualifier;
+import org.opensearch.client.opensearch.OpenSearchClient;
+import org.opensearch.client.opensearch._types.OpenSearchException;
+import org.opensearch.client.opensearch.generic.Requests;
+import org.opensearch.client.opensearch.generic.Response;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,14 +33,14 @@ public class OpenSearchStoreClient {
 	private static final String SEARCH_PATH_FORMAT = "/%s/_search";
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
-	private final RestClient openSearchRestClient;
+	private final ObjectProvider<OpenSearchClient> openSearchClientProvider;
 	private final OpenSearchProperties openSearchProperties;
 	private final StoreSearchQueryBuilder storeSearchQueryBuilder;
 
 	public OpenSearchStoreClient(@Qualifier("openSearchRestClient") RestClient openSearchRestClient,
 			OpenSearchProperties openSearchProperties,
 			StoreSearchQueryBuilder storeSearchQueryBuilder) {
-		this.openSearchRestClient = openSearchRestClient;
+		this.openSearchClientProvider = openSearchClientProvider;
 		this.openSearchProperties = openSearchProperties;
 		this.storeSearchQueryBuilder = storeSearchQueryBuilder;
 	}

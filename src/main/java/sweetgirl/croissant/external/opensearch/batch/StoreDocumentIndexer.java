@@ -4,11 +4,11 @@ import org.opensearch.client.opensearch.core.BulkResponse;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import sweetgirl.croissant.external.opensearch.dto.ReindexResultDto;
 import sweetgirl.croissant.external.opensearch.service.StoreIndexService;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.enums.StoreStatus;
@@ -25,7 +25,8 @@ public class StoreDocumentIndexer {
 	private final StoreRepository storeRepository;
 	private final StoreIndexService storeIndexService;
 
-	public ReindexResultDto reindexAllStores() {
+	@Async("reindexExecutor")
+	public void reindexAllStores() {
 		long success = 0;
 		long failed = 0;
 		int page = 0;
@@ -64,6 +65,5 @@ public class StoreDocumentIndexer {
 		}
 
 		log.info("reindexAllStores 완료 success={} failed={}", success, failed);
-		return new ReindexResultDto(success, failed);
 	}
 }

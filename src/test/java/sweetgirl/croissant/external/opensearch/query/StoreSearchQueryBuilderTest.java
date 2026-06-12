@@ -52,6 +52,24 @@ class StoreSearchQueryBuilderTest {
 	}
 
 	@Test
+	void build_doesNotRequireBreadMatchWhenRegionIsAbsent() {
+		SearchIntent intent = intent("자연도", List.of(), List.of("자연도"));
+
+		Map<String, Object> query = builder.build(intent, PageRequest.of(0, 15), null, null, false);
+
+		Map<String, Object> bool = boolQuery(query);
+		List<Object> must = list(bool.get("must"));
+		List<Object> should = list(bool.get("should"));
+		assertThat(must).isEmpty();
+		assertThat(should).hasSize(2);
+		assertThat(bool.get("minimum_should_match")).isEqualTo(1);
+		assertThat(query.toString()).contains(
+			"storeName",
+			"breadTypes",
+			"menus.name");
+	}
+
+	@Test
 	void build_reflectsPopularityScoreWithFunctionScore() {
 		SearchIntent intent = intent("소금빵", List.of(), List.of("소금빵"));
 

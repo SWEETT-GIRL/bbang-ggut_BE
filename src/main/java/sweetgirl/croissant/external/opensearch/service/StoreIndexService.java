@@ -250,7 +250,7 @@ public class StoreIndexService {
 		long subscribeCount = subscribedStoreRepository.countByStoreId(store.getId());
 		List<NationwideHotStoreRanking> rankings = nationwideRankingRepository.findByStoreId(store.getId());
 		double nationwideScore = rankings.stream()
-			.mapToDouble(r -> Math.max(0, 11 - r.getRank()))
+			.mapToDouble(r -> Math.max(0, 51 - r.getRank()))
 			.sum();
 		long storeViewCount = requestLogRepository.countByStoreIdAndEventType(store.getId(), LogEventType.STORE_VIEW);
 		// TODO: 가중치 계수(W1~W3) 확정 후 고도화
@@ -267,7 +267,7 @@ public class StoreIndexService {
 		double nationwideScore = rankingsByStoreId
 			.getOrDefault(store.getId(), List.of())
 			.stream()
-			.mapToDouble(r -> Math.max(0, 11 - r.getRank()))
+			.mapToDouble(r -> Math.max(0, 51 - r.getRank()))
 			.sum();
 		long storeViewCount = viewCountsByStoreId.getOrDefault(store.getId(), 0L);
 		// TODO: 가중치 계수(W1~W3) 확정 후 고도화
