@@ -36,6 +36,7 @@ import sweetgirl.croissant.external.opensearch.event.StoreNameChangedEvent;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.AddressParser;
 import sweetgirl.croissant.store.code.StoreErrorCode;
+import sweetgirl.croissant.store.dto.projection.StoreIdCountProjection;
 import sweetgirl.croissant.store.entity.NaverEnrichCandidate;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreBusinessHour;
@@ -455,9 +456,7 @@ public class AdminStoreService {
 			return Collections.emptyMap();
 		}
 		return subscribedStoreRepository.countByStoreIdIn(storeIds).stream()
-			.collect(Collectors.toMap(
-				row -> (Long)row[0],
-				row -> (Long)row[1]));
+			.collect(Collectors.toMap(StoreIdCountProjection::getStoreId, StoreIdCountProjection::getCount));
 	}
 
 	private Map<Long, List<StoreImageFile>> getPhotoMap(List<Long> storeIds) {
