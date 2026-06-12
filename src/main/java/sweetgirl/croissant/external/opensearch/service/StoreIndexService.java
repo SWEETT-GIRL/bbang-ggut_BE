@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch.core.BulkResponse;
@@ -26,6 +27,9 @@ import sweetgirl.croissant.global.logging.repository.RequestLogRepository;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.code.StoreErrorCode;
+import sweetgirl.croissant.store.dto.projection.StoreIdCountProjection;
+import sweetgirl.croissant.store.dto.projection.StoreSearchRegionAliasProjection;
+import sweetgirl.croissant.store.dto.projection.StoreSearchRegionIndexProjection;
 import sweetgirl.croissant.store.entity.NationwideHotStoreRanking;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.exception.StoreException;
@@ -51,12 +55,47 @@ public class StoreIndexService {
 
 	@Transactional(readOnly = true)
 	public BulkResponse bulkIndexStores(List<Store> stores) {
+		List<Long> storeIds = stores.stream().map(Store::getId).toList();
+
+		Map<Long, List<Menu>> menusByStoreId = menuRepository
+			.findByStoreIdInOrderByLikeCountDesc(storeIds)
+			.stream()
+			.collect(Collectors.groupingBy(m -> m.getStore().getId()));
+
+		Map<Long, Long> subscribeCountsByStoreId = subscribedStoreRepository
+			.countByStoreIdIn(storeIds)
+			.stream()
+			.collect(Collectors.toMap(StoreIdCountProjection::getStoreId, StoreIdCountProjection::getCount));
+
+		Map<Long, List<NationwideHotStoreRanking>> rankingsByStoreId = nationwideRankingRepository
+			.findByStoreIdIn(storeIds)
+			.stream()
+			.collect(Collectors.groupingBy(r -> r.getStore().getId()));
+
+		Map<Long, List<StoreSearchRegionIndexProjection>> searchRegionsByStoreId = storeSearchRegionRepository
+			.findSearchRegionsForIndexingByStoreIds(storeIds)
+			.stream()
+			.collect(Collectors.groupingBy(StoreSearchRegionIndexProjection::getStoreId));
+
+		Map<Long, List<String>> aliasesByStoreId = storeSearchRegionRepository
+			.findSearchRegionAliasesForIndexingByStoreIds(storeIds)
+			.stream()
+			.collect(Collectors.groupingBy(
+				StoreSearchRegionAliasProjection::getStoreId,
+				Collectors.mapping(StoreSearchRegionAliasProjection::getAlias, Collectors.toList())));
+
+		Map<Long, Long> viewCountsByStoreId = requestLogRepository
+			.countByStoreIdInAndEventType(storeIds, LogEventType.STORE_VIEW)
+			.stream()
+			.collect(Collectors.toMap(StoreIdCountProjection::getStoreId, StoreIdCountProjection::getCount));
+
 		List<BulkOperation> operations = stores.stream()
 			.map(store -> BulkOperation.of(op -> op
 				.index(idx -> idx
 					.index(openSearchProperties.getStoresIndex())
 					.id(store.getId().toString())
-					.document(buildDocument(store)))))
+					.document(buildDocument(store, menusByStoreId, subscribeCountsByStoreId,
+						rankingsByStoreId, searchRegionsByStoreId, aliasesByStoreId, viewCountsByStoreId)))))
 			.toList();
 		try {
 			return openSearchClient.bulk(r -> r.operations(operations));
@@ -163,8 +202,17 @@ public class StoreIndexService {
 		}
 	}
 
-	private StoreDocument buildDocument(Store store) {
-		List<Menu> menus = menuRepository.findByStoreIdOrderByLikeCountDesc(store.getId());
+	private StoreDocument buildDocument(
+			Store store,
+			Map<Long, List<Menu>> menusByStoreId,
+			Map<Long, Long> subscribeCountsByStoreId,
+			Map<Long, List<NationwideHotStoreRanking>> rankingsByStoreId,
+			Map<Long, List<StoreSearchRegionIndexProjection>> searchRegionsByStoreId,
+			Map<Long, List<String>> aliasesByStoreId,
+			Map<Long, Long> viewCountsByStoreId) {
+
+		Long storeId = store.getId();
+		List<Menu> menus = menusByStoreId.getOrDefault(storeId, List.of());
 
 		List<String> breadTypes = menus.stream()
 			.map(m -> m.getMenuCategory().getName().name())
@@ -172,26 +220,30 @@ public class StoreIndexService {
 			.toList();
 
 		List<StoreMenuDto> menuEntries = menus.stream()
-			.map(m -> new StoreMenuDto(
-				m.getId(),
-				m.getName(),
-				m.getMenuCategory().getName().name()))
+			.map(m -> new StoreMenuDto(m.getId(), m.getName(), m.getMenuCategory().getName().name()))
 			.toList();
 
 		GeoPointDto geoPoint = new GeoPointDto(
 			store.getLocation().getY(),
 			store.getLocation().getX());
 
+		List<SearchRegionDto> searchRegions = searchRegionsByStoreId
+			.getOrDefault(storeId, List.of())
+			.stream()
+			.map(r -> new SearchRegionDto(r.getRegionId(), r.getRegionName(),
+				r.getRegionType().name(), r.getWeight().doubleValue()))
+			.toList();
+
 		return new StoreDocument(
-			store.getId(),
+			storeId,
 			store.getName(),
 			store.getAddress(),
 			geoPoint,
-			buildSearchRegions(store.getId()),
-			storeSearchRegionRepository.findSearchRegionAliasesForIndexingByStoreId(store.getId()),
+			searchRegions,
+			aliasesByStoreId.getOrDefault(storeId, List.of()),
 			breadTypes,
 			menuEntries,
-			calculatePopularityScore(store));
+			calculatePopularityScoreFromMaps(store, subscribeCountsByStoreId, rankingsByStoreId, viewCountsByStoreId));
 	}
 
 	private double calculatePopularityScore(Store store) {
@@ -201,6 +253,23 @@ public class StoreIndexService {
 			.mapToDouble(r -> Math.max(0, 11 - r.getRank()))
 			.sum();
 		long storeViewCount = requestLogRepository.countByStoreIdAndEventType(store.getId(), LogEventType.STORE_VIEW);
+		// TODO: 가중치 계수(W1~W3) 확정 후 고도화
+		return subscribeCount + nationwideScore + storeViewCount;
+	}
+
+	private double calculatePopularityScoreFromMaps(
+			Store store,
+			Map<Long, Long> subscribeCountsByStoreId,
+			Map<Long, List<NationwideHotStoreRanking>> rankingsByStoreId,
+			Map<Long, Long> viewCountsByStoreId) {
+
+		long subscribeCount = subscribeCountsByStoreId.getOrDefault(store.getId(), 0L);
+		double nationwideScore = rankingsByStoreId
+			.getOrDefault(store.getId(), List.of())
+			.stream()
+			.mapToDouble(r -> Math.max(0, 11 - r.getRank()))
+			.sum();
+		long storeViewCount = viewCountsByStoreId.getOrDefault(store.getId(), 0L);
 		// TODO: 가중치 계수(W1~W3) 확정 후 고도화
 		return subscribeCount + nationwideScore + storeViewCount;
 	}
