@@ -16,9 +16,9 @@ public class AsyncConfig implements AsyncConfigurer {
 	@Override
 	public Executor getAsyncExecutor() {
 		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-		executor.setCorePoolSize(1);
-		executor.setMaxPoolSize(3);
-		executor.setQueueCapacity(30);
+		executor.setCorePoolSize(2);
+		executor.setMaxPoolSize(5);
+		executor.setQueueCapacity(50);
 		executor.setThreadNamePrefix("async-store-");
 
 		executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
