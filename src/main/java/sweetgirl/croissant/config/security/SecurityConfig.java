@@ -51,7 +51,7 @@ public class SecurityConfig {
 			.requestMatchers("/auth/**").permitAll() // controller 호출
 			.requestMatchers("/terms").permitAll()
 			.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
-			.requestMatchers(HttpMethod.GET, "/trend/**").permitAll() 
+			.requestMatchers(HttpMethod.GET, "/trend/**").permitAll()
 			// 홈화면 근처/인기 빵집·검색 비로그인 허용
 			.requestMatchers(HttpMethod.GET, "/stores/nearby", "/stores/popular", "/stores/search").permitAll()
 			.requestMatchers("/admin/**", "/api/admin/**").permitAll()
