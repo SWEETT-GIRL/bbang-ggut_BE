@@ -1,6 +1,6 @@
 package sweetgirl.croissant.admin.dto.response;
 
-import sweetgirl.croissant.report.entity.UserReport;
+import sweetgirl.croissant.abuse.entity.AbuseReport;
 
 public record AdminReportDetailResponse(
 		Long reportId,
@@ -18,10 +18,10 @@ public record AdminReportDetailResponse(
 		String reviewedAt,
 		Object target) {
 
-	public static AdminReportDetailResponse ofUserReport(UserReport report, Object target) {
+	public static AdminReportDetailResponse ofAbuseReport(AbuseReport report, Object target) {
 		return new AdminReportDetailResponse(
 			report.getId(),
-			"USER_REPORT",
+			"ABUSE_REPORT",
 			report.getTargetType().name(),
 			report.getTargetType().name(),
 			report.getTargetId(),

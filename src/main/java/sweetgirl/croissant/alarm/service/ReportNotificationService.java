@@ -10,18 +10,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.abuse.entity.AbuseReport;
+import sweetgirl.croissant.abuse.entity.ModerationAction;
 import sweetgirl.croissant.alarm.code.AlarmErrorCode;
 import sweetgirl.croissant.alarm.dto.response.ReportNotificationResponse;
 import sweetgirl.croissant.alarm.entity.FcmToken;
 import sweetgirl.croissant.alarm.entity.ReportNotification;
-import sweetgirl.croissant.alarm.enums.ReportKind;
 import sweetgirl.croissant.alarm.enums.ReportNotificationAction;
 import sweetgirl.croissant.alarm.exception.AlarmException;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
 import sweetgirl.croissant.alarm.repository.ReportNotificationRepository;
+import sweetgirl.croissant.common.enums.ReportKind;
 import sweetgirl.croissant.member.entity.Member;
-import sweetgirl.croissant.report.entity.ModerationAction;
-import sweetgirl.croissant.report.entity.UserReport;
 import sweetgirl.croissant.store.entity.Store;
 
 @Service
@@ -30,8 +30,8 @@ import sweetgirl.croissant.store.entity.Store;
 public class ReportNotificationService {
 
 	private static final Logger log = LoggerFactory.getLogger(ReportNotificationService.class);
-	private static final String USER_REPORT_RESULT_TITLE = "신고 검토가 완료되었습니다.";
-	private static final String USER_REPORT_RESULT_MESSAGE = "운영 정책에 따라 필요한 조치를 진행했습니다.";
+	private static final String ABUSE_REPORT_RESULT_TITLE = "신고 검토가 완료되었습니다.";
+	private static final String ABUSE_REPORT_RESULT_MESSAGE = "운영 정책에 따라 필요한 조치를 진행했습니다.";
 	private static final String MODERATION_ACTION_TITLE = "운영 정책 위반으로 콘텐츠가 제한되었습니다.";
 	private static final String MODERATION_ACTION_MESSAGE = "결정에 동의하지 않는 경우 30일 이내에 이의제기를 요청할 수 있습니다.";
 
@@ -48,6 +48,12 @@ public class ReportNotificationService {
 
 	public void notifyReportResult(Member member, Store store, String fallbackStoreName, Long reportId,
 			ReportKind reportKind, ReportNotificationAction action, String subjectLabel) {
+		notifyContributionReportResult(member, store, fallbackStoreName, reportId, null, reportKind, action,
+			subjectLabel);
+	}
+
+	public void notifyContributionReportResult(Member member, Store store, String fallbackStoreName, Long reportId,
+			Long contributionReportId, ReportKind reportKind, ReportNotificationAction action, String subjectLabel) {
 		if (member == null) {
 			log.info("notifyReportResult: 제보자 없음 [reportId={}, kind={}]", reportId, reportKind);
 			return;
@@ -65,13 +71,15 @@ public class ReportNotificationService {
 		data.put("type", "REPORT_RESULT");
 		data.put("reportId", String.valueOf(reportId));
 		data.put("reportKind", reportKind.name());
+		putIfNotNull(data, "contributionReportId", contributionReportId);
 		data.put("action", action.name());
 		if (store != null) {
 			data.put("storeId", String.valueOf(store.getId()));
 		}
 
 		saveAndSend(
-			ReportNotification.ofReportResult(member, store, reportId, reportKind, action, title, body),
+			ReportNotification.ofContributionReportResult(member, store, reportId, contributionReportId, reportKind,
+				action, title, body),
 			data);
 	}
 
@@ -79,18 +87,20 @@ public class ReportNotificationService {
 		return fallbackStoreName != null && !fallbackStoreName.isBlank() ? fallbackStoreName : "가게";
 	}
 
-	public void notifyUserReportResult(UserReport report) {
+	public void notifyAbuseReportResult(AbuseReport report) {
 		if (report == null || report.getReporter() == null) {
-			log.info("notifyUserReportResult: 신고자 없음");
+			log.info("notifyAbuseReportResult: 신고자 없음");
 			return;
 		}
 
 		Map<String, String> data = new HashMap<>();
-		data.put("type", ReportNotificationAction.USER_REPORT_RESULT.name());
+		data.put("type", ReportNotificationAction.ABUSE_REPORT_RESULT.name());
 		data.put("reportId", String.valueOf(report.getId()));
-		data.put("reportKind", ReportKind.USER_REPORT.name());
+		data.put("abuseReportId", String.valueOf(report.getId()));
+		data.put("reportKind", ReportKind.ABUSE_REPORT.name());
 
-		saveAndSend(ReportNotification.ofUserReportResult(report, USER_REPORT_RESULT_TITLE, USER_REPORT_RESULT_MESSAGE),
+		saveAndSend(
+			ReportNotification.ofAbuseReportResult(report, ABUSE_REPORT_RESULT_TITLE, ABUSE_REPORT_RESULT_MESSAGE),
 			data);
 	}
 
@@ -109,7 +119,8 @@ public class ReportNotificationService {
 		Map<String, String> data = new HashMap<>();
 		data.put("type", ReportNotificationAction.MODERATION_ACTION.name());
 		data.put("reportId", String.valueOf(reportId));
-		data.put("reportKind", ReportKind.USER_REPORT.name());
+		data.put("abuseReportId", String.valueOf(reportId));
+		data.put("reportKind", ReportKind.ABUSE_REPORT.name());
 		putIfNotNull(data, "moderationActionId", moderationAction.getId());
 
 		saveAndSend(

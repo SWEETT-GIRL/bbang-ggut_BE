@@ -1,7 +1,7 @@
 package sweetgirl.croissant.admin.dto.response;
 
-import sweetgirl.croissant.report.entity.ModerationAction;
-import sweetgirl.croissant.report.entity.ModerationAppeal;
+import sweetgirl.croissant.abuse.entity.ModerationAction;
+import sweetgirl.croissant.abuse.entity.ModerationAppeal;
 
 public record AdminModerationAppealResponse(
 		Long appealId,

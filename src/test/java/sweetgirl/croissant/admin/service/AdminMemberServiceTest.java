@@ -18,6 +18,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import sweetgirl.croissant.abuse.entity.ModerationAction;
+import sweetgirl.croissant.abuse.enums.AbuseReportAction;
+import sweetgirl.croissant.abuse.enums.ModerationTargetType;
+import sweetgirl.croissant.abuse.repository.ModerationActionRepository;
 import sweetgirl.croissant.admin.code.AdminErrorCode;
 import sweetgirl.croissant.admin.dto.request.AdminMemberRestrictionRequest;
 import sweetgirl.croissant.admin.dto.request.AdminProfileResetRequest;
@@ -29,10 +33,6 @@ import sweetgirl.croissant.member.entity.MemberRestriction;
 import sweetgirl.croissant.member.enums.MemberRestrictionType;
 import sweetgirl.croissant.member.repository.MemberRestrictionRepository;
 import sweetgirl.croissant.member.service.MemberReader;
-import sweetgirl.croissant.report.entity.ModerationAction;
-import sweetgirl.croissant.report.enums.ModerationTargetType;
-import sweetgirl.croissant.report.enums.UserReportAction;
-import sweetgirl.croissant.report.repository.ModerationActionRepository;
 
 @ExtendWith(MockitoExtension.class)
 class AdminMemberServiceTest {
@@ -70,7 +70,7 @@ class AdminMemberServiceTest {
 			.save(argThat(action -> action.getTargetType() == ModerationTargetType.MEMBER_PROFILE
 				&& action.getTargetId().equals(20L)
 				&& action.getMember() == member
-				&& action.getAction() == UserReportAction.RESET_PROFILE
+				&& action.getAction() == AbuseReportAction.RESET_PROFILE
 				&& action.getReason().equals("부적절한 닉네임")));
 	}
 
@@ -114,7 +114,7 @@ class AdminMemberServiceTest {
 			.save(argThat(action -> action.getTargetType() == ModerationTargetType.MEMBER_RESTRICTION
 				&& action.getTargetId().equals(200L)
 				&& action.getMember() == member
-				&& action.getAction() == UserReportAction.RESTRICT_MEMBER
+				&& action.getAction() == AbuseReportAction.RESTRICT_MEMBER
 				&& action.getReason().equals("반복 위반")));
 	}
 

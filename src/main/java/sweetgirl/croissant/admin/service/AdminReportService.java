@@ -27,19 +27,37 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.abuse.dto.projection.AbuseReportTargetCountProjection;
+import sweetgirl.croissant.abuse.entity.AbuseReport;
+import sweetgirl.croissant.abuse.entity.ModerationAction;
+import sweetgirl.croissant.abuse.enums.AbuseReportAction;
+import sweetgirl.croissant.abuse.enums.AbuseReportReasonType;
+import sweetgirl.croissant.abuse.enums.AbuseReportStatus;
+import sweetgirl.croissant.abuse.enums.AbuseReportTargetType;
+import sweetgirl.croissant.abuse.repository.AbuseReportRepository;
+import sweetgirl.croissant.abuse.repository.ModerationActionRepository;
 import sweetgirl.croissant.admin.code.AdminErrorCode;
 import sweetgirl.croissant.admin.dto.request.AdminModerationActionRequest;
 import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
+import sweetgirl.croissant.admin.dto.response.AdminAbuseReportDetailResponse;
+import sweetgirl.croissant.admin.dto.response.AdminAbuseReportStatsResponse;
 import sweetgirl.croissant.admin.dto.response.AdminHighPriorityReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminModerationActionResponse;
 import sweetgirl.croissant.admin.dto.response.AdminReportDetailResponse;
 import sweetgirl.croissant.admin.dto.response.AdminReportResponse;
-import sweetgirl.croissant.admin.dto.response.AdminUserReportDetailResponse;
-import sweetgirl.croissant.admin.dto.response.AdminUserReportStatsResponse;
 import sweetgirl.croissant.admin.exception.AdminException;
-import sweetgirl.croissant.alarm.enums.ReportKind;
 import sweetgirl.croissant.alarm.enums.ReportNotificationAction;
 import sweetgirl.croissant.alarm.service.ReportNotificationService;
+import sweetgirl.croissant.common.enums.ReportKind;
+import sweetgirl.croissant.contribution.entity.ContributionReport;
+import sweetgirl.croissant.contribution.entity.MenuContributionReport;
+import sweetgirl.croissant.contribution.entity.StoreContributionReport;
+import sweetgirl.croissant.contribution.enums.ContributionReportStatus;
+import sweetgirl.croissant.contribution.enums.ContributionReportType;
+import sweetgirl.croissant.contribution.enums.ContributionTargetType;
+import sweetgirl.croissant.contribution.repository.ContributionReportRepository;
+import sweetgirl.croissant.contribution.repository.MenuContributionReportRepository;
+import sweetgirl.croissant.contribution.repository.StoreContributionReportRepository;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.opensearch.event.StoreAddressChangedEvent;
 import sweetgirl.croissant.external.opensearch.event.StoreMenusChangedEvent;
@@ -51,15 +69,6 @@ import sweetgirl.croissant.menu.repository.MenuAddReportImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuAddReportRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
-import sweetgirl.croissant.report.dto.projection.UserReportTargetCountProjection;
-import sweetgirl.croissant.report.entity.ModerationAction;
-import sweetgirl.croissant.report.entity.UserReport;
-import sweetgirl.croissant.report.enums.ReportReasonType;
-import sweetgirl.croissant.report.enums.ReportTargetType;
-import sweetgirl.croissant.report.enums.UserReportAction;
-import sweetgirl.croissant.report.enums.UserReportStatus;
-import sweetgirl.croissant.report.repository.ModerationActionRepository;
-import sweetgirl.croissant.report.repository.UserReportRepository;
 import sweetgirl.croissant.review.entity.Review;
 import sweetgirl.croissant.review.entity.ReviewImageFile;
 import sweetgirl.croissant.review.repository.ReviewImageFileRepository;
@@ -96,10 +105,10 @@ public class AdminReportService {
 	private static final int REVIEW_HIDE_CANDIDATE_REPORTER_THRESHOLD = 3;
 	private static final int SENSITIVE_REASON_PRIORITY_REPORTER_THRESHOLD = 2;
 	private static final int MEMBER_REVIEW_CANDIDATE_TARGET_THRESHOLD = 3;
-	private static final List<ReportReasonType> SENSITIVE_REASON_TYPES = List.of(
-		ReportReasonType.PRIVACY,
-		ReportReasonType.HATE,
-		ReportReasonType.SEXUAL);
+	private static final List<AbuseReportReasonType> SENSITIVE_REASON_TYPES = List.of(
+		AbuseReportReasonType.PRIVACY,
+		AbuseReportReasonType.HATE,
+		AbuseReportReasonType.SEXUAL);
 	private static final Comparator<AdminHighPriorityReportResponse> HIGH_PRIORITY_COMPARATOR = Comparator
 		.comparingInt(AdminHighPriorityReportResponse::priorityScore).reversed()
 		.thenComparing(Comparator.comparingLong(
@@ -115,7 +124,10 @@ public class AdminReportService {
 	private final StoreAddReportRepository storeAddReportRepository;
 	private final StoreRepository storeRepository;
 	private final MenuAddReportRepository menuAddReportRepository;
-	private final UserReportRepository userReportRepository;
+	private final ContributionReportRepository contributionReportRepository;
+	private final StoreContributionReportRepository storeContributionReportRepository;
+	private final MenuContributionReportRepository menuContributionReportRepository;
+	private final AbuseReportRepository abuseReportRepository;
 	private final ModerationActionRepository moderationActionRepository;
 	private final StoreReportImageFileRepository storeReportImageFileRepository;
 	private final MenuAddReportImageFileRepository menuAddReportImageFileRepository;
@@ -132,58 +144,82 @@ public class AdminReportService {
 
 	public Page<AdminReportResponse> getReports(String kind, String statusStr, int page, int size) {
 		if ("STORE_ADD_REPORT".equals(kind)) {
-			return getStoreAddReports(toStoreReportStatus(statusStr), page, size);
+			return getStoreContributionReports(ContributionReportType.ADD, toContributionReportStatus(statusStr),
+				page, size);
 		}
 		if ("MENU_ADD_REPORT".equals(kind)) {
-			return getMenuAddReports(toStoreReportStatus(statusStr), page, size);
+			return getMenuContributionReports(ContributionReportType.ADD, toContributionReportStatus(statusStr),
+				page, size);
 		}
-		if ("USER_REPORT".equals(kind)) {
-			return getUserReports(toUserReportStatus(statusStr), page, size);
+		if ("MENU_REPORT".equals(kind)) {
+			return getMenuContributionReports(ContributionReportType.UPDATE, toContributionReportStatus(statusStr),
+				page, size);
+		}
+		if ("ABUSE_REPORT".equals(kind)) {
+			return getAbuseReports(toAbuseReportStatus(statusStr), page, size);
 		}
 		if (kind != null && !"STORE_REPORT".equals(kind)) {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_KIND);
 		}
-		return getStoreReports(toStoreReportStatus(statusStr), page, size);
+		return getStoreContributionReports(ContributionReportType.UPDATE, toContributionReportStatus(statusStr),
+			page, size);
 	}
 
 	public AdminReportDetailResponse getReportDetail(Long reportId, String kind) {
 		if ("STORE_ADD_REPORT".equals(kind)) {
-			StoreAddReport report = storeAddReportRepository.findById(reportId)
+			StoreContributionReport contribution = storeContributionReportRepository
+				.findByContributionReportId(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
-			return AdminReportDetailResponse.ofReport(AdminReportResponse.ofStoreAddReport(report));
+			return AdminReportDetailResponse.ofReport(AdminReportResponse.ofStoreAddReport(
+				contribution.getContributionReport(), contribution.getStoreAddReport()));
 		}
 		if ("STORE_REPORT".equals(kind)) {
-			StoreReport report = storeReportRepository.findById(reportId)
+			StoreContributionReport contribution = storeContributionReportRepository
+				.findByContributionReportId(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
-			List<StoreReportImageFile> images = storeReportImageFileRepository.findByStoreReportIdIn(List.of(reportId));
-			return AdminReportDetailResponse.ofReport(AdminReportResponse.ofStoreReport(report, images));
+			StoreReport report = contribution.getStoreReport();
+			List<StoreReportImageFile> images = storeReportImageFileRepository
+				.findByStoreReportIdIn(List.of(report.getId()));
+			return AdminReportDetailResponse.ofReport(AdminReportResponse.ofStoreReport(
+				contribution.getContributionReport(), report, images));
 		}
 		if ("MENU_ADD_REPORT".equals(kind)) {
-			MenuAddReport report = menuAddReportRepository.findById(reportId)
+			MenuContributionReport contribution = menuContributionReportRepository.findByContributionReportId(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
+			MenuAddReport report = contribution.getMenuAddReport();
 			List<MenuAddReportImageFile> images = menuAddReportImageFileRepository
-				.findByMenuAddReportIdIn(List.of(reportId));
-			return AdminReportDetailResponse.ofReport(AdminReportResponse.ofMenuAddReport(report, images));
+				.findByMenuAddReportIdIn(List.of(report.getId()));
+			return AdminReportDetailResponse.ofReport(AdminReportResponse.ofMenuAddReport(
+				contribution.getContributionReport(), report, images));
 		}
-		if (!"USER_REPORT".equals(kind)) {
+		if ("MENU_REPORT".equals(kind)) {
+			MenuContributionReport contribution = menuContributionReportRepository.findByContributionReportId(reportId)
+				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
+			StoreReport report = contribution.getStoreReport();
+			List<StoreReportImageFile> images = storeReportImageFileRepository
+				.findByStoreReportIdIn(List.of(report.getId()));
+			return AdminReportDetailResponse.ofReport(AdminReportResponse.ofStoreReport(
+				contribution.getContributionReport(), report, images));
+		}
+		if (!"ABUSE_REPORT".equals(kind)) {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_KIND);
 		}
 
-		UserReport report = userReportRepository.findByIdWithMembers(reportId)
+		AbuseReport report = abuseReportRepository.findByIdWithMembers(reportId)
 			.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
-		return AdminReportDetailResponse.ofUserReport(report, toUserReportTarget(report));
+		return AdminReportDetailResponse.ofAbuseReport(report, toAbuseReportTarget(report));
 	}
 
-	public AdminUserReportStatsResponse getUserReportStats() {
+	public AdminAbuseReportStatsResponse getAbuseReportStats() {
 		LocalDateTime since = LocalDateTime.now().minusHours(PRIORITY_LOOKBACK_HOURS);
-		PriorityAggregation aggregation = aggregatePriorityMetrics(since, UserReportStatus.PENDING);
+		PriorityAggregation aggregation = aggregatePriorityMetrics(since, AbuseReportStatus.PENDING);
 
-		return new AdminUserReportStatsResponse(
-			userReportRepository.count(),
-			userReportRepository.countByStatus(UserReportStatus.PENDING),
-			userReportRepository.countByStatus(UserReportStatus.ACCEPTED),
-			userReportRepository.countByStatus(UserReportStatus.REJECTED),
-			userReportRepository.countByCreatedAtGreaterThanEqual(since),
+		return new AdminAbuseReportStatsResponse(
+			abuseReportRepository.count(),
+			abuseReportRepository.countByStatus(AbuseReportStatus.PENDING),
+			abuseReportRepository.countByStatus(AbuseReportStatus.ACCEPTED),
+			abuseReportRepository.countByStatus(AbuseReportStatus.REJECTED),
+			abuseReportRepository.countByCreatedAtGreaterThanEqual(since),
 			aggregation.reviewHideCandidateCount(),
 			aggregation.sensitiveReasonPriorityCount(),
 			aggregation.memberReviewCandidateCount(),
@@ -197,12 +233,12 @@ public class AdminReportService {
 	}
 
 	public Page<AdminHighPriorityReportResponse> getHighPriorityReports(String statusStr, int page, int size) {
-		UserReportStatus status = toUserReportStatus(statusStr);
+		AbuseReportStatus status = toAbuseReportStatus(statusStr);
 		LocalDateTime since = LocalDateTime.now().minusHours(PRIORITY_LOOKBACK_HOURS);
 		PriorityAggregation aggregation = aggregatePriorityMetrics(since, status);
-		List<UserReport> reports = status != null
-			? userReportRepository.findByStatus(status)
-			: userReportRepository.findAllWithMembers();
+		List<AbuseReport> reports = status != null
+			? abuseReportRepository.findByStatus(status)
+			: abuseReportRepository.findAllWithMembers();
 
 		List<AdminHighPriorityReportResponse> highPriorityReports = reports.stream()
 			.map(report -> toHighPriorityReportResponse(report, aggregation))
@@ -223,13 +259,13 @@ public class AdminReportService {
 	public AdminModerationActionResponse applyModerationAction(
 			Long reportId,
 			AdminModerationActionRequest request) {
-		UserReport report = userReportRepository.findByIdWithMembers(reportId)
+		AbuseReport report = abuseReportRepository.findByIdWithMembers(reportId)
 			.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
-		if (report.getStatus() != UserReportStatus.ACCEPTED) {
+		if (report.getStatus() != AbuseReportStatus.ACCEPTED) {
 			throw new AdminException(AdminErrorCode.REPORT_MODERATION_NOT_ALLOWED);
 		}
 
-		UserReportAction action = toModerationAction(request.action());
+		AbuseReportAction action = toModerationAction(request.action());
 		String reason = request.moderationReason();
 		applyReviewModeration(report, action, reason);
 		report.applyModerationAction(action);
@@ -246,25 +282,34 @@ public class AdminReportService {
 		boolean accept = toAction(request.action());
 
 		if ("MENU_ADD_REPORT".equals(request.kind())) {
-			MenuAddReport report = menuAddReportRepository.findById(reportId)
+			MenuContributionReport contribution = menuContributionReportRepository.findByContributionReportId(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
+			MenuAddReport report = contribution.getMenuAddReport();
+			assertContributionPending(contribution.getContributionReport(), report.getStatus());
 			if (report.getStatus() != StoreReportStatus.PENDING) {
 				throw new AdminException(AdminErrorCode.REPORT_ALREADY_REVIEWED);
 			}
 			if (accept) {
 				applyMenuAddReportApprove(report);
 				report.approve();
+				contribution.getContributionReport().approve();
 			} else {
 				cleanupMenuAddReportImages(report);
 				report.reject();
+				contribution.getContributionReport().reject();
 			}
-			reportNotificationService.notifyReportResult(
-				report.getMember(), report.getStore(), report.getId(), ReportKind.MENU_ADD_REPORT,
+			reportNotificationService.notifyContributionReportResult(
+				report.getMember(), report.getStore(), null, report.getId(),
+				contribution.getContributionReport().getId(),
+				ReportKind.MENU_ADD_REPORT,
 				accept ? ReportNotificationAction.APPROVED : ReportNotificationAction.REJECTED,
 				"메뉴 추가");
 		} else if ("STORE_ADD_REPORT".equals(request.kind())) {
-			StoreAddReport report = storeAddReportRepository.findById(reportId)
+			StoreContributionReport contribution = storeContributionReportRepository
+				.findByContributionReportId(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
+			StoreAddReport report = contribution.getStoreAddReport();
+			assertContributionPending(contribution.getContributionReport(), report.getStatus());
 			if (report.getStatus() != StoreReportStatus.PENDING) {
 				throw new AdminException(AdminErrorCode.REPORT_ALREADY_REVIEWED);
 			}
@@ -272,34 +317,68 @@ public class AdminReportService {
 			if (accept) {
 				store = applyStoreAddReportApprove(report);
 				report.approve();
+				contribution.getContributionReport().approve();
 			} else {
 				report.reject();
+				contribution.getContributionReport().reject();
 			}
-			reportNotificationService.notifyReportResult(
-				report.getMember(), store, report.getName(), report.getId(), ReportKind.STORE_ADD_REPORT,
+			reportNotificationService.notifyContributionReportResult(
+				report.getMember(), store, report.getName(), report.getId(),
+				contribution.getContributionReport().getId(),
+				ReportKind.STORE_ADD_REPORT,
 				accept ? ReportNotificationAction.APPROVED : ReportNotificationAction.REJECTED,
 				"가게 추가");
 		} else if ("STORE_REPORT".equals(request.kind())) {
-			StoreReport report = storeReportRepository.findById(reportId)
+			StoreContributionReport contribution = storeContributionReportRepository
+				.findByContributionReportId(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
+			StoreReport report = contribution.getStoreReport();
+			assertContributionPending(contribution.getContributionReport(), report.getStatus());
 			if (report.getStatus() != StoreReportStatus.PENDING) {
 				throw new AdminException(AdminErrorCode.REPORT_ALREADY_REVIEWED);
 			}
 			if (accept) {
 				applyStoreReportApprove(report);
 				report.approve();
+				contribution.getContributionReport().approve();
 			} else {
 				cleanupStoreReportImages(report);
 				report.reject();
+				contribution.getContributionReport().reject();
 			}
-			reportNotificationService.notifyReportResult(
-				report.getMember(), report.getStore(), report.getId(), ReportKind.STORE_REPORT,
+			reportNotificationService.notifyContributionReportResult(
+				report.getMember(), report.getStore(), null, report.getId(),
+				contribution.getContributionReport().getId(),
+				ReportKind.STORE_REPORT,
 				accept ? ReportNotificationAction.APPROVED : ReportNotificationAction.REJECTED,
 				subjectLabel(report.getRequestType()));
-		} else if ("USER_REPORT".equals(request.kind())) {
-			UserReport report = userReportRepository.findByIdWithMembers(reportId)
+		} else if ("MENU_REPORT".equals(request.kind())) {
+			MenuContributionReport contribution = menuContributionReportRepository.findByContributionReportId(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
-			if (report.getStatus() != UserReportStatus.PENDING) {
+			StoreReport report = contribution.getStoreReport();
+			assertContributionPending(contribution.getContributionReport(), report.getStatus());
+			if (report.getStatus() != StoreReportStatus.PENDING) {
+				throw new AdminException(AdminErrorCode.REPORT_ALREADY_REVIEWED);
+			}
+			if (accept) {
+				applyStoreReportApprove(report);
+				report.approve();
+				contribution.getContributionReport().approve();
+			} else {
+				cleanupStoreReportImages(report);
+				report.reject();
+				contribution.getContributionReport().reject();
+			}
+			reportNotificationService.notifyContributionReportResult(
+				report.getMember(), report.getStore(), null, report.getId(),
+				contribution.getContributionReport().getId(),
+				ReportKind.STORE_REPORT,
+				accept ? ReportNotificationAction.APPROVED : ReportNotificationAction.REJECTED,
+				subjectLabel(report.getRequestType()));
+		} else if ("ABUSE_REPORT".equals(request.kind())) {
+			AbuseReport report = abuseReportRepository.findByIdWithMembers(reportId)
+				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
+			if (report.getStatus() != AbuseReportStatus.PENDING) {
 				throw new AdminException(AdminErrorCode.REPORT_ALREADY_REVIEWED);
 			}
 			if (accept) {
@@ -307,7 +386,7 @@ public class AdminReportService {
 			} else {
 				report.reject();
 			}
-			reportNotificationService.notifyUserReportResult(report);
+			reportNotificationService.notifyAbuseReportResult(report);
 		} else {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_KIND);
 		}
@@ -573,70 +652,123 @@ public class AdminReportService {
 		};
 	}
 
-	private Page<AdminReportResponse> getStoreReports(StoreReportStatus status, int page, int size) {
-		Page<StoreReport> reports = status != null
-			? storeReportRepository.findByStatusWithDetails(status, PageRequest.of(page, size))
-			: storeReportRepository.findAllWithDetails(PageRequest.of(page, size));
-
-		List<Long> reportIds = reports.getContent().stream().map(StoreReport::getId).toList();
+	private Page<AdminReportResponse> getStoreContributionReports(
+			ContributionReportType reportType,
+			ContributionReportStatus status,
+			int page,
+			int size) {
+		Page<ContributionReport> reports = getContributionReports(
+			ContributionTargetType.STORE, reportType, status, page, size);
+		List<Long> contributionReportIds = reports.getContent().stream().map(ContributionReport::getId).toList();
+		Map<Long, StoreContributionReport> contributionMap = storeContributionReportRepository
+			.findByContributionReportIdIn(contributionReportIds).stream()
+			.collect(Collectors.toMap(
+				contribution -> contribution.getContributionReport().getId(),
+				contribution -> contribution));
+		List<Long> storeReportIds = contributionMap.values().stream()
+			.map(StoreContributionReport::getStoreReport)
+			.filter(report -> report != null)
+			.map(StoreReport::getId)
+			.toList();
 		Map<Long, List<StoreReportImageFile>> imageMap = storeReportImageFileRepository
-			.findByStoreReportIdIn(reportIds).stream()
+			.findByStoreReportIdIn(storeReportIds).stream()
 			.collect(Collectors.groupingBy(img -> img.getStoreReport().getId()));
 
-		return reports.map(r -> AdminReportResponse.ofStoreReport(r,
-			imageMap.getOrDefault(r.getId(), List.of())));
+		return reports.map(report -> {
+			StoreContributionReport contribution = contributionMap.get(report.getId());
+			if (contribution == null) {
+				throw new AdminException(AdminErrorCode.REPORT_NOT_FOUND);
+			}
+			if (reportType == ContributionReportType.ADD) {
+				return AdminReportResponse.ofStoreAddReport(report, contribution.getStoreAddReport());
+			}
+			StoreReport storeReport = contribution.getStoreReport();
+			return AdminReportResponse.ofStoreReport(report, storeReport,
+				imageMap.getOrDefault(storeReport.getId(), List.of()));
+		});
 	}
 
-	private Page<AdminReportResponse> getStoreAddReports(StoreReportStatus status, int page, int size) {
-		Page<StoreAddReport> reports = status != null
-			? storeAddReportRepository.findByStatusWithDetails(status, PageRequest.of(page, size))
-			: storeAddReportRepository.findAllWithDetails(PageRequest.of(page, size));
-
-		return reports.map(AdminReportResponse::ofStoreAddReport);
-	}
-
-	private Page<AdminReportResponse> getMenuAddReports(StoreReportStatus status, int page, int size) {
-		Page<MenuAddReport> reports = status != null
-			? menuAddReportRepository.findByStatusWithDetails(status, PageRequest.of(page, size))
-			: menuAddReportRepository.findAllWithDetails(PageRequest.of(page, size));
-
-		List<Long> reportIds = reports.getContent().stream().map(MenuAddReport::getId).toList();
+	private Page<AdminReportResponse> getMenuContributionReports(
+			ContributionReportType reportType,
+			ContributionReportStatus status,
+			int page,
+			int size) {
+		Page<ContributionReport> reports = getContributionReports(
+			ContributionTargetType.MENU, reportType, status, page, size);
+		List<Long> contributionReportIds = reports.getContent().stream().map(ContributionReport::getId).toList();
+		Map<Long, MenuContributionReport> contributionMap = menuContributionReportRepository
+			.findByContributionReportIdIn(contributionReportIds).stream()
+			.collect(Collectors.toMap(
+				contribution -> contribution.getContributionReport().getId(),
+				contribution -> contribution));
+		List<Long> menuAddReportIds = contributionMap.values().stream()
+			.map(MenuContributionReport::getMenuAddReport)
+			.filter(report -> report != null)
+			.map(MenuAddReport::getId)
+			.toList();
 		Map<Long, List<MenuAddReportImageFile>> imageMap = menuAddReportImageFileRepository
-			.findByMenuAddReportIdIn(reportIds).stream()
+			.findByMenuAddReportIdIn(menuAddReportIds).stream()
 			.collect(Collectors.groupingBy(img -> img.getMenuAddReport().getId()));
 
-		return reports.map(r -> AdminReportResponse.ofMenuAddReport(r,
-			imageMap.getOrDefault(r.getId(), List.of())));
+		return reports.map(report -> {
+			MenuContributionReport contribution = contributionMap.get(report.getId());
+			if (contribution == null) {
+				throw new AdminException(AdminErrorCode.REPORT_NOT_FOUND);
+			}
+			if (reportType == ContributionReportType.ADD) {
+				MenuAddReport menuAddReport = contribution.getMenuAddReport();
+				return AdminReportResponse.ofMenuAddReport(report, menuAddReport,
+					imageMap.getOrDefault(menuAddReport.getId(), List.of()));
+			}
+			StoreReport storeReport = contribution.getStoreReport();
+			List<StoreReportImageFile> images = storeReportImageFileRepository
+				.findByStoreReportIdIn(List.of(storeReport.getId()));
+			return AdminReportResponse.ofStoreReport(report, storeReport, images);
+		});
 	}
 
-	private Page<AdminReportResponse> getUserReports(UserReportStatus status, int page, int size) {
-		Page<UserReport> reports = status != null
-			? userReportRepository.findByStatus(status, PageRequest.of(page, size))
-			: userReportRepository.findAll(PageRequest.of(page, size));
-
-		return reports.map(AdminReportResponse::ofUserReport);
+	private Page<ContributionReport> getContributionReports(
+			ContributionTargetType targetType,
+			ContributionReportType reportType,
+			ContributionReportStatus status,
+			int page,
+			int size) {
+		PageRequest pageRequest = PageRequest.of(page, size);
+		if (status != null) {
+			return contributionReportRepository.findByTargetTypeAndReportTypeAndStatus(
+				targetType, reportType, status, pageRequest);
+		}
+		return contributionReportRepository.findByTargetTypeAndReportType(targetType, reportType, pageRequest);
 	}
 
-	private Object toUserReportTarget(UserReport report) {
-		if (report.getTargetType() == ReportTargetType.REVIEW) {
+	private Page<AdminReportResponse> getAbuseReports(AbuseReportStatus status, int page, int size) {
+		Page<AbuseReport> reports = status != null
+			? abuseReportRepository.findByStatus(status, PageRequest.of(page, size))
+			: abuseReportRepository.findAll(PageRequest.of(page, size));
+
+		return reports.map(AdminReportResponse::ofAbuseReport);
+	}
+
+	private Object toAbuseReportTarget(AbuseReport report) {
+		if (report.getTargetType() == AbuseReportTargetType.REVIEW) {
 			Review review = reviewRepository.findByIdWithDetails(report.getTargetId())
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
 			List<String> images = reviewImageFileRepository.findByReviewIdOrderByDisplayOrderAscIdAsc(review.getId())
 				.stream()
 				.map(ReviewImageFile::getAwsKey)
 				.toList();
-			return AdminUserReportDetailResponse.ReviewTarget.of(review, images);
+			return AdminAbuseReportDetailResponse.ReviewTarget.of(review, images);
 		}
-		return AdminUserReportDetailResponse.MemberProfileTarget.from(report.getReportedMember());
+		return AdminAbuseReportDetailResponse.MemberProfileTarget.from(report.getReportedMember());
 	}
 
-	private PriorityAggregation aggregatePriorityMetrics(LocalDateTime since, UserReportStatus status) {
+	private PriorityAggregation aggregatePriorityMetrics(LocalDateTime since, AbuseReportStatus status) {
 		Map<TargetKey, Long> reviewReportCounts24h = toTargetCountMap(
-			userReportRepository.findTargetReporterCountsSince(ReportTargetType.REVIEW, since, status));
+			abuseReportRepository.findTargetReporterCountsSince(AbuseReportTargetType.REVIEW, since, status));
 		Map<TargetKey, Long> sensitiveReasonReportCounts = toTargetCountMap(
-			userReportRepository.findSensitiveReasonReporterCounts(SENSITIVE_REASON_TYPES, status));
-		Map<Long, Long> memberReviewCounts24h = userReportRepository
-			.findMemberReviewTargetCountsSince(ReportTargetType.REVIEW, since, status).stream()
+			abuseReportRepository.findSensitiveReasonReporterCounts(SENSITIVE_REASON_TYPES, status));
+		Map<Long, Long> memberReviewCounts24h = abuseReportRepository
+			.findMemberReviewTargetCountsSince(AbuseReportTargetType.REVIEW, since, status).stream()
 			.collect(Collectors.toMap(
 				projection -> projection.getReportedMemberId(),
 				projection -> nullToZero(projection.getReviewTargetCount())));
@@ -648,7 +780,7 @@ public class AdminReportService {
 	}
 
 	private Map<TargetKey, Long> toTargetCountMap(
-			List<? extends UserReportTargetCountProjection> counts) {
+			List<? extends AbuseReportTargetCountProjection> counts) {
 		Map<TargetKey, Long> result = new HashMap<>();
 		for (var count : counts) {
 			result.put(new TargetKey(count.getTargetType(), count.getTargetId()), nullToZero(count.getReporterCount()));
@@ -657,14 +789,14 @@ public class AdminReportService {
 	}
 
 	private AdminHighPriorityReportResponse toHighPriorityReportResponse(
-			UserReport report,
+			AbuseReport report,
 			PriorityAggregation aggregation) {
 		TargetKey targetKey = new TargetKey(report.getTargetType(), report.getTargetId());
 		long reviewReportCount24h = aggregation.reviewReportCounts24h().getOrDefault(targetKey, 0L);
 		long sensitiveReasonReportCount = aggregation.sensitiveReasonReportCounts().getOrDefault(targetKey, 0L);
 		long memberReviewReportCount24h = aggregation.memberReviewCounts24h()
 			.getOrDefault(report.getReportedMember().getId(), 0L);
-		boolean temporaryHideCandidate = report.getTargetType() == ReportTargetType.REVIEW
+		boolean temporaryHideCandidate = report.getTargetType() == AbuseReportTargetType.REVIEW
 			&& reviewReportCount24h >= REVIEW_HIDE_CANDIDATE_REPORTER_THRESHOLD;
 		boolean sensitiveReasonPriority = sensitiveReasonReportCount >= SENSITIVE_REASON_PRIORITY_REPORTER_THRESHOLD;
 		boolean memberReviewCandidate = memberReviewReportCount24h >= MEMBER_REVIEW_CANDIDATE_TARGET_THRESHOLD;
@@ -723,14 +855,14 @@ public class AdminReportService {
 		return value == null ? 0L : value;
 	}
 
-	private void applyReviewModeration(UserReport report, UserReportAction action, String reason) {
-		if (action == UserReportAction.NONE) {
+	private void applyReviewModeration(AbuseReport report, AbuseReportAction action, String reason) {
+		if (action == AbuseReportAction.NONE) {
 			return;
 		}
 		if (!isReviewModerationAction(action)) {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_MODERATION_ACTION);
 		}
-		if (report.getTargetType() != ReportTargetType.REVIEW) {
+		if (report.getTargetType() != AbuseReportTargetType.REVIEW) {
 			throw new AdminException(AdminErrorCode.REPORT_TARGET_TYPE_MISMATCH);
 		}
 
@@ -745,7 +877,7 @@ public class AdminReportService {
 			}
 			case DELETE_REVIEW -> review.softDelete();
 			case RESTORE_REVIEW -> {
-				if (report.getModerationAction() == UserReportAction.DELETE_REVIEW) {
+				if (report.getModerationAction() == AbuseReportAction.DELETE_REVIEW) {
 					review.restoreModeration();
 				} else {
 					review.restoreHidden();
@@ -755,24 +887,31 @@ public class AdminReportService {
 		}
 	}
 
-	private boolean isReviewModerationAction(UserReportAction action) {
-		return action == UserReportAction.HIDE_REVIEW
-			|| action == UserReportAction.DELETE_REVIEW
-			|| action == UserReportAction.RESTORE_REVIEW;
+	private boolean isReviewModerationAction(AbuseReportAction action) {
+		return action == AbuseReportAction.HIDE_REVIEW
+			|| action == AbuseReportAction.DELETE_REVIEW
+			|| action == AbuseReportAction.RESTORE_REVIEW;
 	}
 
-	private boolean shouldNotifyModeratedMember(UserReportAction action) {
-		return action == UserReportAction.HIDE_REVIEW
-			|| action == UserReportAction.DELETE_REVIEW;
+	private boolean shouldNotifyModeratedMember(AbuseReportAction action) {
+		return action == AbuseReportAction.HIDE_REVIEW
+			|| action == AbuseReportAction.DELETE_REVIEW;
 	}
 
-	private UserReportAction toModerationAction(String action) {
+	private void assertContributionPending(ContributionReport contributionReport, StoreReportStatus sourceStatus) {
+		if (contributionReport.getStatus() != ContributionReportStatus.PENDING
+			|| sourceStatus != StoreReportStatus.PENDING) {
+			throw new AdminException(AdminErrorCode.REPORT_ALREADY_REVIEWED);
+		}
+	}
+
+	private AbuseReportAction toModerationAction(String action) {
 		if (action == null || action.isBlank()) {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_MODERATION_ACTION);
 		}
 		try {
-			UserReportAction parsed = UserReportAction.valueOf(action.trim().toUpperCase(Locale.ROOT));
-			if (parsed == UserReportAction.NONE || isReviewModerationAction(parsed)) {
+			AbuseReportAction parsed = AbuseReportAction.valueOf(action.trim().toUpperCase(Locale.ROOT));
+			if (parsed == AbuseReportAction.NONE || isReviewModerationAction(parsed)) {
 				return parsed;
 			}
 		} catch (IllegalArgumentException e) {
@@ -792,12 +931,23 @@ public class AdminReportService {
 		}
 	}
 
-	private UserReportStatus toUserReportStatus(String statusStr) {
+	private ContributionReportStatus toContributionReportStatus(String statusStr) {
 		if (statusStr == null) {
 			return null;
 		}
 		try {
-			return UserReportStatus.valueOf(statusStr.toUpperCase());
+			return ContributionReportStatus.valueOf(statusStr.toUpperCase());
+		} catch (IllegalArgumentException e) {
+			throw new AdminException(AdminErrorCode.REPORT_INVALID_ACTION);
+		}
+	}
+
+	private AbuseReportStatus toAbuseReportStatus(String statusStr) {
+		if (statusStr == null) {
+			return null;
+		}
+		try {
+			return AbuseReportStatus.valueOf(statusStr.toUpperCase());
 		} catch (IllegalArgumentException e) {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_ACTION);
 		}
@@ -823,7 +973,7 @@ public class AdminReportService {
 			String reason) {
 	}
 
-	private record TargetKey(ReportTargetType targetType, Long targetId) {
+	private record TargetKey(AbuseReportTargetType targetType, Long targetId) {
 	}
 
 	private record PriorityAggregation(

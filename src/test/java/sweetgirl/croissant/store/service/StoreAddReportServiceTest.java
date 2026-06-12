@@ -16,6 +16,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import sweetgirl.croissant.contribution.repository.ContributionReportRepository;
+import sweetgirl.croissant.contribution.repository.StoreContributionReportRepository;
 import sweetgirl.croissant.external.naver.client.NaverLocalSearchClient;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
@@ -38,6 +40,10 @@ class StoreAddReportServiceTest {
 	StoreRepository storeRepository;
 	@Mock
 	StoreAddReportRepository storeAddReportRepository;
+	@Mock
+	ContributionReportRepository contributionReportRepository;
+	@Mock
+	StoreContributionReportRepository storeContributionReportRepository;
 	@InjectMocks
 	StoreAddReportService storeAddReportService;
 
@@ -68,6 +74,8 @@ class StoreAddReportServiceTest {
 		assertThat(captor.getValue().getNaverPlaceId()).isEqualTo("123456");
 		assertThat(captor.getValue().getName()).isEqualTo("새빵집");
 		assertThat(captor.getValue().getAddress()).isEqualTo("서울 마포구 월드컵로 1");
+		verify(storeContributionReportRepository).save(org.mockito.ArgumentMatchers.argThat(
+			r -> r.getStoreAddReport() == captor.getValue()));
 	}
 
 	@Test

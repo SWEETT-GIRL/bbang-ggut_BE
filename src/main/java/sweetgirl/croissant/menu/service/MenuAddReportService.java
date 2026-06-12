@@ -7,6 +7,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.common.enums.MimeType;
+import sweetgirl.croissant.contribution.entity.ContributionReport;
+import sweetgirl.croissant.contribution.entity.MenuContributionReport;
+import sweetgirl.croissant.contribution.enums.ContributionReportType;
+import sweetgirl.croissant.contribution.enums.ContributionTargetType;
+import sweetgirl.croissant.contribution.repository.ContributionReportRepository;
+import sweetgirl.croissant.contribution.repository.MenuContributionReportRepository;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.external.aws.util.S3PathGenerator;
@@ -37,6 +43,8 @@ public class MenuAddReportService {
 	private final MenuCategoryRepository menuCategoryRepository;
 	private final MemberRepository memberRepository;
 	private final S3Service s3Service;
+	private final ContributionReportRepository contributionReportRepository;
+	private final MenuContributionReportRepository menuContributionReportRepository;
 
 	public PresignedUrlResponse getPresignedUrl(String mimeType) {
 		String path = S3PathGenerator.getMenuAddReportTempPath();
@@ -63,6 +71,7 @@ public class MenuAddReportService {
 			.build();
 
 		menuAddReportRepository.save(menuAddReport);
+		saveMenuContributionReport(member, menuAddReport);
 
 		List<MenuAddReportImageFile> imageFiles = request.getImages().stream()
 			.map(img -> MenuAddReportImageFile.builder()
@@ -73,5 +82,18 @@ public class MenuAddReportService {
 				.build())
 			.toList();
 		menuAddReportImageFileRepository.saveAll(imageFiles);
+	}
+
+	private void saveMenuContributionReport(Member member, MenuAddReport menuAddReport) {
+		ContributionReport contributionReport = contributionReportRepository.save(ContributionReport.builder()
+			.member(member)
+			.targetType(ContributionTargetType.MENU)
+			.reportType(ContributionReportType.ADD)
+			.build());
+
+		menuContributionReportRepository.save(MenuContributionReport.builder()
+			.contributionReport(contributionReport)
+			.menuAddReport(menuAddReport)
+			.build());
 	}
 }

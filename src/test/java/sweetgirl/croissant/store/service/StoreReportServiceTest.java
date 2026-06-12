@@ -24,6 +24,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import sweetgirl.croissant.contribution.entity.StoreContributionReport;
+import sweetgirl.croissant.contribution.repository.ContributionReportRepository;
+import sweetgirl.croissant.contribution.repository.MenuContributionReportRepository;
+import sweetgirl.croissant.contribution.repository.StoreContributionReportRepository;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
@@ -72,6 +76,12 @@ class StoreReportServiceTest {
 	StoreReportRepository storeReportRepository;
 	@Mock
 	StoreReportImageFileRepository storeReportImageFileRepository;
+	@Mock
+	ContributionReportRepository contributionReportRepository;
+	@Mock
+	StoreContributionReportRepository storeContributionReportRepository;
+	@Mock
+	MenuContributionReportRepository menuContributionReportRepository;
 
 	@InjectMocks
 	StoreReportService storeReportService;
@@ -134,6 +144,7 @@ class StoreReportServiceTest {
 		assertThat(result.reportId()).isEqualTo(10L);
 		assertThat(result.status()).isEqualTo(StoreReportStatus.PENDING);
 		verify(storeReportImageFileRepository, never()).saveAll(anyList());
+		verify(storeContributionReportRepository).save(argThat(r -> r.getStoreReport() == savedReport));
 	}
 
 	@Test
@@ -226,6 +237,7 @@ class StoreReportServiceTest {
 
 		assertThat(result.reportId()).isEqualTo(10L);
 		assertThat(result.status()).isEqualTo(StoreReportStatus.PENDING);
+		verify(storeContributionReportRepository).save(any(StoreContributionReport.class));
 	}
 
 	@Test
@@ -276,6 +288,7 @@ class StoreReportServiceTest {
 
 		assertThat(result.reportId()).isEqualTo(10L);
 		assertThat(result.status()).isEqualTo(StoreReportStatus.PENDING);
+		verify(storeContributionReportRepository).save(any(StoreContributionReport.class));
 	}
 
 	// ───────────────────────── createMenuEditReport ─────────────────────────
@@ -375,6 +388,7 @@ class StoreReportServiceTest {
 		assertThat(result.reportId()).isEqualTo(4L);
 		assertThat(result.status()).isEqualTo(StoreReportStatus.PENDING);
 		verify(storeReportImageFileRepository, never()).saveAll(anyList());
+		verify(menuContributionReportRepository).save(argThat(r -> r.getStoreReport() == savedReport));
 	}
 
 	@Test

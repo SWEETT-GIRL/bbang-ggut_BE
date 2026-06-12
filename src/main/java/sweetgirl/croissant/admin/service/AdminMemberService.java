@@ -8,6 +8,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.abuse.entity.ModerationAction;
+import sweetgirl.croissant.abuse.enums.AbuseReportAction;
+import sweetgirl.croissant.abuse.enums.ModerationTargetType;
+import sweetgirl.croissant.abuse.repository.ModerationActionRepository;
 import sweetgirl.croissant.admin.code.AdminErrorCode;
 import sweetgirl.croissant.admin.dto.request.AdminMemberBanRequest;
 import sweetgirl.croissant.admin.dto.request.AdminMemberRestrictionRequest;
@@ -24,10 +28,6 @@ import sweetgirl.croissant.member.enums.MemberRestrictionType;
 import sweetgirl.croissant.member.repository.MemberRestrictionRepository;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository;
 import sweetgirl.croissant.member.service.MemberReader;
-import sweetgirl.croissant.report.entity.ModerationAction;
-import sweetgirl.croissant.report.enums.ModerationTargetType;
-import sweetgirl.croissant.report.enums.UserReportAction;
-import sweetgirl.croissant.report.repository.ModerationActionRepository;
 
 @Service
 @RequiredArgsConstructor
@@ -74,7 +74,7 @@ public class AdminMemberService {
 				ModerationTargetType.MEMBER_RESTRICTION,
 				restriction.getId(),
 				member,
-				UserReportAction.BAN_MEMBER,
+				AbuseReportAction.BAN_MEMBER,
 				request.normalizedReason()));
 
 		return AdminMemberBanResponse.of(member, restriction, action);
@@ -100,7 +100,7 @@ public class AdminMemberService {
 
 		MemberRestriction restriction = memberRestrictionRepository.save(
 			request.toRestriction(member, type, startsAt, endsAt));
-		UserReportAction actionType = toMemberRestrictionAction(type);
+		AbuseReportAction actionType = toMemberRestrictionAction(type);
 		if (actionType == null) {
 			return AdminMemberRestrictionResponse.from(restriction);
 		}
@@ -134,11 +134,11 @@ public class AdminMemberService {
 		return startsAt.plusDays(durationDays);
 	}
 
-	private UserReportAction toMemberRestrictionAction(MemberRestrictionType type) {
+	private AbuseReportAction toMemberRestrictionAction(MemberRestrictionType type) {
 		return switch (type) {
-			case WRITE_RESTRICTED, PROFILE_RESTRICTED -> UserReportAction.RESTRICT_MEMBER;
-			case SUSPENDED -> UserReportAction.SUSPEND_MEMBER;
-			case BANNED -> UserReportAction.BAN_MEMBER;
+			case WRITE_RESTRICTED, PROFILE_RESTRICTED -> AbuseReportAction.RESTRICT_MEMBER;
+			case SUSPENDED -> AbuseReportAction.SUSPEND_MEMBER;
+			case BANNED -> AbuseReportAction.BAN_MEMBER;
 			case WARNING -> null;
 		};
 	}

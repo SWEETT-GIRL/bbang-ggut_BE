@@ -1,10 +1,10 @@
 package sweetgirl.croissant.admin.dto.request;
 
 import jakarta.validation.constraints.Size;
+import sweetgirl.croissant.abuse.entity.ModerationAction;
+import sweetgirl.croissant.abuse.enums.AbuseReportAction;
+import sweetgirl.croissant.abuse.enums.ModerationTargetType;
 import sweetgirl.croissant.member.entity.Member;
-import sweetgirl.croissant.report.entity.ModerationAction;
-import sweetgirl.croissant.report.enums.ModerationTargetType;
-import sweetgirl.croissant.report.enums.UserReportAction;
 
 public record AdminProfileResetRequest(
 		@Size(max = 500) String reason) {
@@ -15,7 +15,7 @@ public record AdminProfileResetRequest(
 			ModerationTargetType.MEMBER_PROFILE,
 			member.getId(),
 			member,
-			UserReportAction.RESET_PROFILE,
+			AbuseReportAction.RESET_PROFILE,
 			normalizedReason());
 	}
 
