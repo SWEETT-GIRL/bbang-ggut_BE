@@ -19,18 +19,18 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import sweetgirl.croissant.contribution.entity.ContributionReport;
+import sweetgirl.croissant.contribution.entity.MenuContributionReport;
 import sweetgirl.croissant.contribution.repository.ContributionReportRepository;
+import sweetgirl.croissant.contribution.repository.MenuContributionReportImageFileRepository;
 import sweetgirl.croissant.contribution.repository.MenuContributionReportRepository;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.ImageSaveRequest;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.menu.dto.request.MenuAddReportRequest;
-import sweetgirl.croissant.menu.entity.MenuAddReport;
 import sweetgirl.croissant.menu.entity.MenuCategory;
 import sweetgirl.croissant.menu.exception.MenuException;
-import sweetgirl.croissant.menu.repository.MenuAddReportImageFileRepository;
-import sweetgirl.croissant.menu.repository.MenuAddReportRepository;
 import sweetgirl.croissant.menu.repository.MenuCategoryRepository;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.exception.StoreException;
@@ -39,10 +39,6 @@ import sweetgirl.croissant.store.repository.StoreRepository;
 @ExtendWith(MockitoExtension.class)
 class MenuAddReportServiceTest {
 
-	@Mock
-	MenuAddReportRepository menuAddReportRepository;
-	@Mock
-	MenuAddReportImageFileRepository menuAddReportImageFileRepository;
 	@Mock
 	StoreRepository storeRepository;
 	@Mock
@@ -55,6 +51,8 @@ class MenuAddReportServiceTest {
 	ContributionReportRepository contributionReportRepository;
 	@Mock
 	MenuContributionReportRepository menuContributionReportRepository;
+	@Mock
+	MenuContributionReportImageFileRepository menuContributionReportImageFileRepository;
 	@InjectMocks
 	MenuAddReportService menuAddReportService;
 
@@ -64,20 +62,21 @@ class MenuAddReportServiceTest {
 		Store store = mock(Store.class);
 		MenuCategory menuCategory = mock(MenuCategory.class);
 		Member member = mock(Member.class);
+		ContributionReport contributionReport = mock(ContributionReport.class);
 		MenuAddReportRequest request = request();
 
 		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
 		given(menuCategoryRepository.findById(2L)).willReturn(Optional.of(menuCategory));
 		given(memberRepository.getReferenceById(3L)).willReturn(member);
-		given(menuAddReportRepository.save(any(MenuAddReport.class)))
+		given(contributionReportRepository.save(any(ContributionReport.class))).willReturn(contributionReport);
+		given(menuContributionReportRepository.save(any(MenuContributionReport.class)))
 			.willAnswer(invocation -> invocation.getArgument(0));
 
 		menuAddReportService.createMenuAddReport(1L, 3L, request);
 
-		ArgumentCaptor<MenuAddReport> reportCaptor = ArgumentCaptor.forClass(MenuAddReport.class);
-		verify(menuAddReportRepository).save(reportCaptor.capture());
-		verify(menuContributionReportRepository).save(argThat(r -> r.getMenuAddReport() == reportCaptor.getValue()));
-		verify(menuAddReportImageFileRepository).saveAll(argThat(images -> images.iterator().hasNext()));
+		ArgumentCaptor<MenuContributionReport> reportCaptor = ArgumentCaptor.forClass(MenuContributionReport.class);
+		verify(menuContributionReportRepository).save(reportCaptor.capture());
+		verify(menuContributionReportImageFileRepository).saveAll(argThat(images -> images.iterator().hasNext()));
 	}
 
 	@Test

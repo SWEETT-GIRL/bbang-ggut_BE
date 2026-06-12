@@ -51,22 +51,22 @@ import sweetgirl.croissant.alarm.service.ReportNotificationService;
 import sweetgirl.croissant.common.enums.ReportKind;
 import sweetgirl.croissant.contribution.entity.ContributionReport;
 import sweetgirl.croissant.contribution.entity.MenuContributionReport;
+import sweetgirl.croissant.contribution.entity.MenuContributionReportImageFile;
 import sweetgirl.croissant.contribution.entity.StoreContributionReport;
+import sweetgirl.croissant.contribution.entity.StoreContributionReportImageFile;
 import sweetgirl.croissant.contribution.enums.ContributionReportStatus;
 import sweetgirl.croissant.contribution.enums.ContributionReportType;
 import sweetgirl.croissant.contribution.enums.ContributionTargetType;
 import sweetgirl.croissant.contribution.repository.ContributionReportRepository;
+import sweetgirl.croissant.contribution.repository.MenuContributionReportImageFileRepository;
 import sweetgirl.croissant.contribution.repository.MenuContributionReportRepository;
+import sweetgirl.croissant.contribution.repository.StoreContributionReportImageFileRepository;
 import sweetgirl.croissant.contribution.repository.StoreContributionReportRepository;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.opensearch.event.StoreAddressChangedEvent;
 import sweetgirl.croissant.external.opensearch.event.StoreMenusChangedEvent;
 import sweetgirl.croissant.menu.entity.Menu;
-import sweetgirl.croissant.menu.entity.MenuAddReport;
-import sweetgirl.croissant.menu.entity.MenuAddReportImageFile;
 import sweetgirl.croissant.menu.entity.MenuImageFile;
-import sweetgirl.croissant.menu.repository.MenuAddReportImageFileRepository;
-import sweetgirl.croissant.menu.repository.MenuAddReportRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.review.entity.Review;
@@ -79,19 +79,13 @@ import sweetgirl.croissant.store.dto.request.StoreAddressReportRequest;
 import sweetgirl.croissant.store.dto.request.StoreBusinessHoursReportRequest;
 import sweetgirl.croissant.store.dto.request.StoreImageReportRequest;
 import sweetgirl.croissant.store.entity.Store;
-import sweetgirl.croissant.store.entity.StoreAddReport;
 import sweetgirl.croissant.store.entity.StoreImageFile;
-import sweetgirl.croissant.store.entity.StoreReport;
-import sweetgirl.croissant.store.entity.StoreReportImageFile;
 import sweetgirl.croissant.store.enums.StoreCategory;
 import sweetgirl.croissant.store.enums.StoreReportStatus;
 import sweetgirl.croissant.store.enums.StoreReportType;
 import sweetgirl.croissant.store.enums.StoreSource;
-import sweetgirl.croissant.store.repository.StoreAddReportRepository;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
-import sweetgirl.croissant.store.repository.StoreReportImageFileRepository;
-import sweetgirl.croissant.store.repository.StoreReportRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
 @Service
@@ -120,17 +114,14 @@ public class AdminReportService {
 		.thenComparing(AdminHighPriorityReportResponse::createdAt, Comparator.nullsLast(Comparator.reverseOrder()))
 		.thenComparing(AdminHighPriorityReportResponse::reportId, Comparator.reverseOrder());
 
-	private final StoreReportRepository storeReportRepository;
-	private final StoreAddReportRepository storeAddReportRepository;
 	private final StoreRepository storeRepository;
-	private final MenuAddReportRepository menuAddReportRepository;
 	private final ContributionReportRepository contributionReportRepository;
 	private final StoreContributionReportRepository storeContributionReportRepository;
 	private final MenuContributionReportRepository menuContributionReportRepository;
 	private final AbuseReportRepository abuseReportRepository;
 	private final ModerationActionRepository moderationActionRepository;
-	private final StoreReportImageFileRepository storeReportImageFileRepository;
-	private final MenuAddReportImageFileRepository menuAddReportImageFileRepository;
+	private final StoreContributionReportImageFileRepository storeContributionReportImageFileRepository;
+	private final MenuContributionReportImageFileRepository menuContributionReportImageFileRepository;
 	private final StoreImageFileRepository storeImageFileRepository;
 	private final StoreBusinessHourRepository storeBusinessHourRepository;
 	private final MenuRepository menuRepository;
@@ -170,36 +161,33 @@ public class AdminReportService {
 			StoreContributionReport contribution = storeContributionReportRepository
 				.findByContributionReportId(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
-			return AdminReportDetailResponse.ofReport(AdminReportResponse.ofStoreAddReport(
-				contribution.getContributionReport(), contribution.getStoreAddReport()));
+			return AdminReportDetailResponse.ofReport(AdminReportResponse.ofStoreContributionReport(
+				contribution.getContributionReport(), contribution, List.of()));
 		}
 		if ("STORE_REPORT".equals(kind)) {
 			StoreContributionReport contribution = storeContributionReportRepository
 				.findByContributionReportId(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
-			StoreReport report = contribution.getStoreReport();
-			List<StoreReportImageFile> images = storeReportImageFileRepository
-				.findByStoreReportIdIn(List.of(report.getId()));
-			return AdminReportDetailResponse.ofReport(AdminReportResponse.ofStoreReport(
-				contribution.getContributionReport(), report, images));
+			List<StoreContributionReportImageFile> images = storeContributionReportImageFileRepository
+				.findByStoreContributionReportIdIn(List.of(contribution.getId()));
+			return AdminReportDetailResponse.ofReport(AdminReportResponse.ofStoreContributionReport(
+				contribution.getContributionReport(), contribution, images));
 		}
 		if ("MENU_ADD_REPORT".equals(kind)) {
 			MenuContributionReport contribution = menuContributionReportRepository.findByContributionReportId(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
-			MenuAddReport report = contribution.getMenuAddReport();
-			List<MenuAddReportImageFile> images = menuAddReportImageFileRepository
-				.findByMenuAddReportIdIn(List.of(report.getId()));
-			return AdminReportDetailResponse.ofReport(AdminReportResponse.ofMenuAddReport(
-				contribution.getContributionReport(), report, images));
+			List<MenuContributionReportImageFile> images = menuContributionReportImageFileRepository
+				.findByMenuContributionReportIdIn(List.of(contribution.getId()));
+			return AdminReportDetailResponse.ofReport(AdminReportResponse.ofMenuContributionReport(
+				contribution.getContributionReport(), contribution, images));
 		}
 		if ("MENU_REPORT".equals(kind)) {
 			MenuContributionReport contribution = menuContributionReportRepository.findByContributionReportId(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
-			StoreReport report = contribution.getStoreReport();
-			List<StoreReportImageFile> images = storeReportImageFileRepository
-				.findByStoreReportIdIn(List.of(report.getId()));
-			return AdminReportDetailResponse.ofReport(AdminReportResponse.ofStoreReport(
-				contribution.getContributionReport(), report, images));
+			List<MenuContributionReportImageFile> images = menuContributionReportImageFileRepository
+				.findByMenuContributionReportIdIn(List.of(contribution.getId()));
+			return AdminReportDetailResponse.ofReport(AdminReportResponse.ofMenuContributionReport(
+				contribution.getContributionReport(), contribution, images));
 		}
 		if (!"ABUSE_REPORT".equals(kind)) {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_KIND);
@@ -284,22 +272,18 @@ public class AdminReportService {
 		if ("MENU_ADD_REPORT".equals(request.kind())) {
 			MenuContributionReport contribution = menuContributionReportRepository.findByContributionReportId(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
-			MenuAddReport report = contribution.getMenuAddReport();
-			assertContributionPending(contribution.getContributionReport(), report.getStatus());
-			if (report.getStatus() != StoreReportStatus.PENDING) {
-				throw new AdminException(AdminErrorCode.REPORT_ALREADY_REVIEWED);
-			}
+			assertContributionPending(contribution.getContributionReport(), contribution.getStatus());
 			if (accept) {
-				applyMenuAddReportApprove(report);
-				report.approve();
+				applyMenuAddReportApprove(contribution);
+				contribution.approve();
 				contribution.getContributionReport().approve();
 			} else {
-				cleanupMenuAddReportImages(report);
-				report.reject();
+				cleanupMenuAddReportImages(contribution);
+				contribution.reject();
 				contribution.getContributionReport().reject();
 			}
 			reportNotificationService.notifyContributionReportResult(
-				report.getMember(), report.getStore(), null, report.getId(),
+				contribution.getMember(), contribution.getStore(), null, contribution.getContributionReport().getId(),
 				contribution.getContributionReport().getId(),
 				ReportKind.MENU_ADD_REPORT,
 				accept ? ReportNotificationAction.APPROVED : ReportNotificationAction.REJECTED,
@@ -308,22 +292,18 @@ public class AdminReportService {
 			StoreContributionReport contribution = storeContributionReportRepository
 				.findByContributionReportId(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
-			StoreAddReport report = contribution.getStoreAddReport();
-			assertContributionPending(contribution.getContributionReport(), report.getStatus());
-			if (report.getStatus() != StoreReportStatus.PENDING) {
-				throw new AdminException(AdminErrorCode.REPORT_ALREADY_REVIEWED);
-			}
+			assertContributionPending(contribution.getContributionReport(), contribution.getStatus());
 			Store store = null;
 			if (accept) {
-				store = applyStoreAddReportApprove(report);
-				report.approve();
+				store = applyStoreAddReportApprove(contribution);
+				contribution.approve();
 				contribution.getContributionReport().approve();
 			} else {
-				report.reject();
+				contribution.reject();
 				contribution.getContributionReport().reject();
 			}
 			reportNotificationService.notifyContributionReportResult(
-				report.getMember(), store, report.getName(), report.getId(),
+				contribution.getMember(), store, contribution.getName(), contribution.getContributionReport().getId(),
 				contribution.getContributionReport().getId(),
 				ReportKind.STORE_ADD_REPORT,
 				accept ? ReportNotificationAction.APPROVED : ReportNotificationAction.REJECTED,
@@ -332,49 +312,41 @@ public class AdminReportService {
 			StoreContributionReport contribution = storeContributionReportRepository
 				.findByContributionReportId(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
-			StoreReport report = contribution.getStoreReport();
-			assertContributionPending(contribution.getContributionReport(), report.getStatus());
-			if (report.getStatus() != StoreReportStatus.PENDING) {
-				throw new AdminException(AdminErrorCode.REPORT_ALREADY_REVIEWED);
-			}
+			assertContributionPending(contribution.getContributionReport(), contribution.getStatus());
 			if (accept) {
-				applyStoreReportApprove(report);
-				report.approve();
+				applyStoreReportApprove(contribution);
+				contribution.approve();
 				contribution.getContributionReport().approve();
 			} else {
-				cleanupStoreReportImages(report);
-				report.reject();
+				cleanupStoreReportImages(contribution);
+				contribution.reject();
 				contribution.getContributionReport().reject();
 			}
 			reportNotificationService.notifyContributionReportResult(
-				report.getMember(), report.getStore(), null, report.getId(),
+				contribution.getMember(), contribution.getStore(), null, contribution.getContributionReport().getId(),
 				contribution.getContributionReport().getId(),
 				ReportKind.STORE_REPORT,
 				accept ? ReportNotificationAction.APPROVED : ReportNotificationAction.REJECTED,
-				subjectLabel(report.getRequestType()));
+				subjectLabel(toStoreReportType(contribution.getRequestType())));
 		} else if ("MENU_REPORT".equals(request.kind())) {
 			MenuContributionReport contribution = menuContributionReportRepository.findByContributionReportId(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
-			StoreReport report = contribution.getStoreReport();
-			assertContributionPending(contribution.getContributionReport(), report.getStatus());
-			if (report.getStatus() != StoreReportStatus.PENDING) {
-				throw new AdminException(AdminErrorCode.REPORT_ALREADY_REVIEWED);
-			}
+			assertContributionPending(contribution.getContributionReport(), contribution.getStatus());
 			if (accept) {
-				applyStoreReportApprove(report);
-				report.approve();
+				applyMenuReportApprove(contribution);
+				contribution.approve();
 				contribution.getContributionReport().approve();
 			} else {
-				cleanupStoreReportImages(report);
-				report.reject();
+				cleanupMenuContributionImages(contribution);
+				contribution.reject();
 				contribution.getContributionReport().reject();
 			}
 			reportNotificationService.notifyContributionReportResult(
-				report.getMember(), report.getStore(), null, report.getId(),
+				contribution.getMember(), contribution.getStore(), null, contribution.getContributionReport().getId(),
 				contribution.getContributionReport().getId(),
 				ReportKind.STORE_REPORT,
 				accept ? ReportNotificationAction.APPROVED : ReportNotificationAction.REJECTED,
-				subjectLabel(report.getRequestType()));
+				subjectLabel(toStoreReportType(contribution.getRequestType())));
 		} else if ("ABUSE_REPORT".equals(request.kind())) {
 			AbuseReport report = abuseReportRepository.findByIdWithMembers(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
@@ -392,23 +364,23 @@ public class AdminReportService {
 		}
 	}
 
-	// MenuAddReport 승인 — 새 Menu 생성 + 첨부 이미지를 menus/{menuId}로 S3 이동 후 menu_image_file 등록
-	private void applyMenuAddReportApprove(MenuAddReport report) {
+	// 메뉴 추가 승인 — 새 Menu 생성 + 첨부 이미지를 menus/{menuId}로 S3 이동 후 menu_image_file 등록
+	private void applyMenuAddReportApprove(MenuContributionReport report) {
 		Menu menu = menuRepository.save(report.toMenu());
 
-		List<MenuAddReportImageFile> reportImages = menuAddReportImageFileRepository
-			.findByMenuAddReportIdIn(List.of(report.getId()));
+		List<MenuContributionReportImageFile> reportImages = menuContributionReportImageFileRepository
+			.findByMenuContributionReportIdIn(List.of(report.getId()));
 		moveImagesToMenu(menu, reportImages);
 		eventPublisher.publishEvent(new StoreMenusChangedEvent(menu.getStore().getId()));
 	}
 
-	// MenuAddReport 거절 — temp S3 객체 정리 (DB 행은 이력 보관 위해 유지)
-	private void cleanupMenuAddReportImages(MenuAddReport report) {
-		menuAddReportImageFileRepository.findByMenuAddReportIdIn(List.of(report.getId()))
+	// 메뉴 추가 거절 — temp S3 객체 정리 (DB 행은 이력 보관 위해 유지)
+	private void cleanupMenuAddReportImages(MenuContributionReport report) {
+		menuContributionReportImageFileRepository.findByMenuContributionReportIdIn(List.of(report.getId()))
 			.forEach(img -> safeDelete(img.getAwsKey()));
 	}
 
-	private Store applyStoreAddReportApprove(StoreAddReport report) {
+	private Store applyStoreAddReportApprove(StoreContributionReport report) {
 		if (report.getNaverPlaceId() != null && !report.getNaverPlaceId().isBlank()) {
 			return storeRepository.findByNaverPlaceId(report.getNaverPlaceId())
 				.orElseGet(() -> findOrCreateStoreFromAddReport(report));
@@ -416,7 +388,7 @@ public class AdminReportService {
 		return findOrCreateStoreFromAddReport(report);
 	}
 
-	private Store findOrCreateStoreFromAddReport(StoreAddReport report) {
+	private Store findOrCreateStoreFromAddReport(StoreContributionReport report) {
 		return findActiveStoreBySameNameAndAddress(report)
 			.map(store -> {
 				if (report.getNaverPlaceId() != null && !report.getNaverPlaceId().isBlank()
@@ -428,7 +400,7 @@ public class AdminReportService {
 			.orElseGet(() -> createStoreFromAddReport(report));
 	}
 
-	private Store createStoreFromAddReport(StoreAddReport report) {
+	private Store createStoreFromAddReport(StoreContributionReport report) {
 		String[] addr = AddressParser.parse(report.getAddress());
 		Store store = Store.builder()
 			.name(report.getName())
@@ -445,7 +417,7 @@ public class AdminReportService {
 		return storeRepository.save(store);
 	}
 
-	private Optional<Store> findActiveStoreBySameNameAndAddress(StoreAddReport report) {
+	private Optional<Store> findActiveStoreBySameNameAndAddress(StoreContributionReport report) {
 		String compactName = compactName(report.getName());
 		String normalizedAddress = normalizeAddressForDuplicate(report.getAddress());
 		if (compactName.isBlank() || normalizedAddress.isBlank()) {
@@ -475,25 +447,25 @@ public class AdminReportService {
 			.trim();
 	}
 
-	private void applyStoreReportApprove(StoreReport report) {
-		StoreReportType type = report.getRequestType();
+	private void applyStoreReportApprove(StoreContributionReport report) {
+		StoreReportType type = toStoreReportType(report.getRequestType());
 		switch (type) {
 			case MOD_BAKERY_TIME -> applyBusinessHoursUpdate(report);
 			case MOD_BAKERY_ADDRESS -> applyAddressUpdate(report);
 			case MOD_BAKERY_IMG -> applyStoreImageChange(report);
-			case MOD_BREAD -> applyMenuEdit(report);
+			case MOD_BREAD -> throw new AdminException(AdminErrorCode.REPORT_INVALID_KIND);
 			default -> throw new AdminException(AdminErrorCode.REPORT_INVALID_KIND);
 		}
 	}
 
-	// StoreReport 거절 — 첨부 이미지 reports/ 객체 정리 (DB 행은 이력 유지)
-	private void cleanupStoreReportImages(StoreReport report) {
-		storeReportImageFileRepository.findByStoreReportIdIn(List.of(report.getId()))
+	// 가게 수정 거절 — 첨부 이미지 reports/ 객체 정리 (DB 행은 이력 유지)
+	private void cleanupStoreReportImages(StoreContributionReport report) {
+		storeContributionReportImageFileRepository.findByStoreContributionReportIdIn(List.of(report.getId()))
 			.forEach(img -> safeDelete(img.getAwsKey()));
 	}
 
 	// 영업시간 제보 승인 — 기존 영업시간 전체 삭제 후 제보 내용으로 재삽입
-	private void applyBusinessHoursUpdate(StoreReport report) {
+	private void applyBusinessHoursUpdate(StoreContributionReport report) {
 		StoreBusinessHoursReportRequest payload = parseMessage(report.getMessage(),
 			StoreBusinessHoursReportRequest.class);
 		Long storeId = report.getStore().getId();
@@ -503,7 +475,7 @@ public class AdminReportService {
 	}
 
 	// 주소 제보 승인 — Store 주소/위치/region 갱신
-	private void applyAddressUpdate(StoreReport report) {
+	private void applyAddressUpdate(StoreContributionReport report) {
 		StoreAddressReportRequest payload = parseMessage(report.getMessage(), StoreAddressReportRequest.class);
 		String[] addr = AddressParser.parse(payload.address());
 		Point location = GEOMETRY_FACTORY.createPoint(new Coordinate(payload.longitude(), payload.latitude()));
@@ -513,7 +485,7 @@ public class AdminReportService {
 	}
 
 	// 가게 이미지 제보 승인 — deleteImageIds로 store_image_file·S3 삭제 + addImages는 stores/{storeId}로 이동 후 신규 등록
-	private void applyStoreImageChange(StoreReport report) {
+	private void applyStoreImageChange(StoreContributionReport report) {
 		StoreImageReportRequest payload = parseMessage(report.getMessage(), StoreImageReportRequest.class);
 		Store store = report.getStore();
 		Long storeId = store.getId();
@@ -526,14 +498,14 @@ public class AdminReportService {
 		}
 
 		if (payload.addImages() != null && !payload.addImages().isEmpty()) {
-			Map<String, StoreReportImageFile> sourceByKey = storeReportImageFileRepository
-				.findByStoreReportIdIn(List.of(report.getId())).stream()
-				.collect(Collectors.toMap(StoreReportImageFile::getAwsKey, img -> img, (a, b) -> a));
+			Map<String, StoreContributionReportImageFile> sourceByKey = storeContributionReportImageFileRepository
+				.findByStoreContributionReportIdIn(List.of(report.getId())).stream()
+				.collect(Collectors.toMap(StoreContributionReportImageFile::getAwsKey, img -> img, (a, b) -> a));
 
 			int nextOrder = currentMaxStoreImageOrder(storeId) + 1;
 			List<StoreImageFile> newImages = new ArrayList<>();
 			for (ReportImageRequest req : payload.addImages()) {
-				StoreReportImageFile src = sourceByKey.get(req.awsKey());
+				StoreContributionReportImageFile src = sourceByKey.get(req.awsKey());
 				if (src == null) {
 					log.warn("applyStoreImageChange: 대응 reports 이미지 없음 [reportId={}, key={}]",
 						report.getId(), req.awsKey());
@@ -549,7 +521,7 @@ public class AdminReportService {
 	}
 
 	// 메뉴 수정 제보 승인 — menu.price 갱신 + 이미지 add/delete 적용
-	private void applyMenuEdit(StoreReport report) {
+	private void applyMenuReportApprove(MenuContributionReport report) {
 		Menu menu = report.getMenu();
 		if (menu == null) {
 			log.warn("applyMenuEdit: 메뉴 참조 없음 [reportId={}]", report.getId());
@@ -569,14 +541,14 @@ public class AdminReportService {
 		}
 
 		if (payload.addImages() != null && !payload.addImages().isEmpty()) {
-			Map<String, StoreReportImageFile> sourceByKey = storeReportImageFileRepository
-				.findByStoreReportIdIn(List.of(report.getId())).stream()
-				.collect(Collectors.toMap(StoreReportImageFile::getAwsKey, img -> img, (a, b) -> a));
+			Map<String, MenuContributionReportImageFile> sourceByKey = menuContributionReportImageFileRepository
+				.findByMenuContributionReportIdIn(List.of(report.getId())).stream()
+				.collect(Collectors.toMap(MenuContributionReportImageFile::getAwsKey, img -> img, (a, b) -> a));
 
 			int nextOrder = currentMaxMenuImageOrder(menu.getId()) + 1;
 			List<MenuImageFile> newImages = new ArrayList<>();
 			for (ReportImageRequest req : payload.addImages()) {
-				StoreReportImageFile src = sourceByKey.get(req.awsKey());
+				MenuContributionReportImageFile src = sourceByKey.get(req.awsKey());
 				if (src == null) {
 					log.warn("applyMenuEdit: 대응 reports 이미지 없음 [reportId={}, key={}]",
 						report.getId(), req.awsKey());
@@ -589,15 +561,21 @@ public class AdminReportService {
 			}
 			menuImageFileRepository.saveAll(newImages);
 		}
+		eventPublisher.publishEvent(new StoreMenusChangedEvent(menu.getStore().getId()));
 	}
 
-	private void moveImagesToMenu(Menu menu, List<MenuAddReportImageFile> sources) {
+	private void cleanupMenuContributionImages(MenuContributionReport report) {
+		menuContributionReportImageFileRepository.findByMenuContributionReportIdIn(List.of(report.getId()))
+			.forEach(img -> safeDelete(img.getAwsKey()));
+	}
+
+	private void moveImagesToMenu(Menu menu, List<MenuContributionReportImageFile> sources) {
 		if (sources.isEmpty()) {
 			return;
 		}
 		int order = 0;
 		List<MenuImageFile> dest = new ArrayList<>();
-		for (MenuAddReportImageFile src : sources) {
+		for (MenuContributionReportImageFile src : sources) {
 			String destKey = "menus/" + menu.getId() + "/" + filenameFromKey(src.getAwsKey());
 			s3Service.copyObject(src.getAwsKey(), destKey);
 			dest.add(src.toMenuImage(menu, destKey, order++));
@@ -652,6 +630,14 @@ public class AdminReportService {
 		};
 	}
 
+	private StoreReportType toStoreReportType(String requestType) {
+		try {
+			return StoreReportType.valueOf(requestType);
+		} catch (IllegalArgumentException | NullPointerException e) {
+			throw new AdminException(AdminErrorCode.REPORT_INVALID_KIND);
+		}
+	}
+
 	private Page<AdminReportResponse> getStoreContributionReports(
 			ContributionReportType reportType,
 			ContributionReportStatus status,
@@ -665,26 +651,20 @@ public class AdminReportService {
 			.collect(Collectors.toMap(
 				contribution -> contribution.getContributionReport().getId(),
 				contribution -> contribution));
-		List<Long> storeReportIds = contributionMap.values().stream()
-			.map(StoreContributionReport::getStoreReport)
-			.filter(report -> report != null)
-			.map(StoreReport::getId)
+		List<Long> storeContributionReportIds = contributionMap.values().stream()
+			.map(StoreContributionReport::getId)
 			.toList();
-		Map<Long, List<StoreReportImageFile>> imageMap = storeReportImageFileRepository
-			.findByStoreReportIdIn(storeReportIds).stream()
-			.collect(Collectors.groupingBy(img -> img.getStoreReport().getId()));
+		Map<Long, List<StoreContributionReportImageFile>> imageMap = storeContributionReportImageFileRepository
+			.findByStoreContributionReportIdIn(storeContributionReportIds).stream()
+			.collect(Collectors.groupingBy(img -> img.getStoreContributionReport().getId()));
 
 		return reports.map(report -> {
 			StoreContributionReport contribution = contributionMap.get(report.getId());
 			if (contribution == null) {
 				throw new AdminException(AdminErrorCode.REPORT_NOT_FOUND);
 			}
-			if (reportType == ContributionReportType.ADD) {
-				return AdminReportResponse.ofStoreAddReport(report, contribution.getStoreAddReport());
-			}
-			StoreReport storeReport = contribution.getStoreReport();
-			return AdminReportResponse.ofStoreReport(report, storeReport,
-				imageMap.getOrDefault(storeReport.getId(), List.of()));
+			return AdminReportResponse.ofStoreContributionReport(report, contribution,
+				imageMap.getOrDefault(contribution.getId(), List.of()));
 		});
 	}
 
@@ -701,29 +681,20 @@ public class AdminReportService {
 			.collect(Collectors.toMap(
 				contribution -> contribution.getContributionReport().getId(),
 				contribution -> contribution));
-		List<Long> menuAddReportIds = contributionMap.values().stream()
-			.map(MenuContributionReport::getMenuAddReport)
-			.filter(report -> report != null)
-			.map(MenuAddReport::getId)
+		List<Long> menuContributionReportIds = contributionMap.values().stream()
+			.map(MenuContributionReport::getId)
 			.toList();
-		Map<Long, List<MenuAddReportImageFile>> imageMap = menuAddReportImageFileRepository
-			.findByMenuAddReportIdIn(menuAddReportIds).stream()
-			.collect(Collectors.groupingBy(img -> img.getMenuAddReport().getId()));
+		Map<Long, List<MenuContributionReportImageFile>> imageMap = menuContributionReportImageFileRepository
+			.findByMenuContributionReportIdIn(menuContributionReportIds).stream()
+			.collect(Collectors.groupingBy(img -> img.getMenuContributionReport().getId()));
 
 		return reports.map(report -> {
 			MenuContributionReport contribution = contributionMap.get(report.getId());
 			if (contribution == null) {
 				throw new AdminException(AdminErrorCode.REPORT_NOT_FOUND);
 			}
-			if (reportType == ContributionReportType.ADD) {
-				MenuAddReport menuAddReport = contribution.getMenuAddReport();
-				return AdminReportResponse.ofMenuAddReport(report, menuAddReport,
-					imageMap.getOrDefault(menuAddReport.getId(), List.of()));
-			}
-			StoreReport storeReport = contribution.getStoreReport();
-			List<StoreReportImageFile> images = storeReportImageFileRepository
-				.findByStoreReportIdIn(List.of(storeReport.getId()));
-			return AdminReportResponse.ofStoreReport(report, storeReport, images);
+			return AdminReportResponse.ofMenuContributionReport(report, contribution,
+				imageMap.getOrDefault(contribution.getId(), List.of()));
 		});
 	}
 
@@ -918,17 +889,6 @@ public class AdminReportService {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_MODERATION_ACTION);
 		}
 		throw new AdminException(AdminErrorCode.REPORT_INVALID_MODERATION_ACTION);
-	}
-
-	private StoreReportStatus toStoreReportStatus(String statusStr) {
-		if (statusStr == null) {
-			return null;
-		}
-		try {
-			return StoreReportStatus.valueOf(statusStr.toUpperCase());
-		} catch (IllegalArgumentException e) {
-			throw new AdminException(AdminErrorCode.REPORT_INVALID_ACTION);
-		}
 	}
 
 	private ContributionReportStatus toContributionReportStatus(String statusStr) {
