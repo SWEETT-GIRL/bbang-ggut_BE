@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS user_report (
     ),
     CONSTRAINT ck_user_report_status CHECK (status IN ('PENDING', 'ACCEPTED', 'REJECTED')),
     CONSTRAINT ck_user_report_moderation_action CHECK (
-        moderation_action IN ('NONE', 'HIDE_REVIEW', 'DELETE_REVIEW', 'RESTORE_REVIEW', 'RESET_PROFILE', 'SUSPEND_MEMBER')
+        moderation_action IN ('NONE', 'HIDE_REVIEW', 'DELETE_REVIEW', 'RESET_PROFILE', 'SUSPEND_MEMBER')
     )
 );
 

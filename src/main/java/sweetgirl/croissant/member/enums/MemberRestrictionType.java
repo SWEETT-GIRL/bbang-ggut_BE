@@ -4,5 +4,6 @@ public enum MemberRestrictionType {
 	WARNING,
 	WRITE_RESTRICTED,
 	PROFILE_RESTRICTED,
-	SUSPENDED
+	SUSPENDED,
+	BANNED
 }
