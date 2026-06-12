@@ -3,7 +3,9 @@ package sweetgirl.croissant.admin.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -26,6 +28,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import sweetgirl.croissant.admin.dto.response.AdminHighPriorityReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminModerationActionResponse;
 import sweetgirl.croissant.admin.dto.response.AdminReportDetailResponse;
+import sweetgirl.croissant.admin.dto.response.AdminReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminUserReportDetailResponse;
 import sweetgirl.croissant.admin.dto.response.AdminUserReportStatsResponse;
 import sweetgirl.croissant.admin.service.AdminReportService;
@@ -48,6 +51,44 @@ class AdminReportControllerTest {
 			.standaloneSetup(adminReportController)
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.build();
+	}
+
+	@Test
+	void getReports_keepsLegacyContributionListShape() throws Exception {
+		AdminReportResponse report = new AdminReportResponse(
+			11L,
+			"STORE_REPORT",
+			101L,
+			"소금빵집",
+			201L,
+			"ADDRESS",
+			null,
+			null,
+			null,
+			null,
+			null,
+			"PENDING",
+			"주소 수정 요청",
+			List.of("reports/stores/101/images/a.jpg"),
+			null,
+			"2026-06-12T09:30");
+		given(adminReportService.getReports("STORE_REPORT", "PENDING", 0, 20))
+			.willReturn(new PageImpl<>(List.of(report), PageRequest.of(0, 20), 1));
+
+		mockMvc.perform(get("/api/admin/reports")
+			.param("kind", "STORE_REPORT")
+			.param("status", "PENDING"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true))
+			.andExpect(jsonPath("$.data.content[0].id").value(11))
+			.andExpect(jsonPath("$.data.content[0].kind").value("STORE_REPORT"))
+			.andExpect(jsonPath("$.data.content[0].storeId").value(101))
+			.andExpect(jsonPath("$.data.content[0].storeName").value("소금빵집"))
+			.andExpect(jsonPath("$.data.content[0].memberId").value(201))
+			.andExpect(jsonPath("$.data.content[0].requestType").value("ADDRESS"))
+			.andExpect(jsonPath("$.data.content[0].status").value("PENDING"))
+			.andExpect(jsonPath("$.data.content[0].message").value("주소 수정 요청"))
+			.andExpect(jsonPath("$.data.content[0].images[0]").value("reports/stores/101/images/a.jpg"));
 	}
 
 	@Test
@@ -115,6 +156,42 @@ class AdminReportControllerTest {
 	}
 
 	@Test
+	void getReportDetail_keepsLegacyContributionDetailShape() throws Exception {
+		AdminReportResponse report = new AdminReportResponse(
+			12L,
+			"MENU_ADD_REPORT",
+			101L,
+			"소금빵집",
+			202L,
+			"MENU_ADD",
+			null,
+			null,
+			null,
+			null,
+			null,
+			"PENDING",
+			"앙버터 / 4500원",
+			List.of("reports/menus/12/images/a.jpg"),
+			null,
+			"2026-06-12T10:00");
+		given(adminReportService.getReportDetail(eq(12L), eq("MENU_ADD_REPORT")))
+			.willReturn(AdminReportDetailResponse.ofReport(report));
+
+		mockMvc.perform(get("/api/admin/reports/12")
+			.param("kind", "MENU_ADD_REPORT"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true))
+			.andExpect(jsonPath("$.data.reportId").value(12))
+			.andExpect(jsonPath("$.data.kind").value("MENU_ADD_REPORT"))
+			.andExpect(jsonPath("$.data.requestType").value("MENU_ADD"))
+			.andExpect(jsonPath("$.data.status").value("PENDING"))
+			.andExpect(jsonPath("$.data.reporterId").value(202))
+			.andExpect(jsonPath("$.data.target.id").value(12))
+			.andExpect(jsonPath("$.data.target.kind").value("MENU_ADD_REPORT"))
+			.andExpect(jsonPath("$.data.target.images[0]").value("reports/menus/12/images/a.jpg"));
+	}
+
+	@Test
 	void getReportDetail_returnsUserReportDetail() throws Exception {
 		AdminUserReportDetailResponse.ReviewTarget target = new AdminUserReportDetailResponse.ReviewTarget(
 			123L,
@@ -156,6 +233,17 @@ class AdminReportControllerTest {
 			.andExpect(jsonPath("$.data.target.reviewId").value(123))
 			.andExpect(jsonPath("$.data.target.menuName").value("소금빵"))
 			.andExpect(jsonPath("$.data.target.images[0]").value("reviews/members/20/images/a.jpg"));
+	}
+
+	@Test
+	void reviewReport_keepsLegacyReviewEndpoint() throws Exception {
+		mockMvc.perform(patch("/api/admin/reports/12")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"kind\":\"STORE_REPORT\",\"action\":\"ACCEPT\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
+
+		verify(adminReportService).reviewReport(eq(12L), any());
 	}
 
 	@Test
