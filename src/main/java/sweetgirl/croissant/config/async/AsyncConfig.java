@@ -27,6 +27,18 @@ public class AsyncConfig implements AsyncConfigurer {
 		return executor;
 	}
 
+	@Bean("reindexExecutor")
+	public Executor reindexExecutor() {
+		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+		executor.setCorePoolSize(1);
+		executor.setMaxPoolSize(1);
+		executor.setQueueCapacity(1);
+		executor.setThreadNamePrefix("reindex-");
+		executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
+		executor.initialize();
+		return executor;
+	}
+
 	// 로그 적재를 위한 가상풀 만들기
 	@Bean("logExecutor")
 	public Executor logExecutor() {
