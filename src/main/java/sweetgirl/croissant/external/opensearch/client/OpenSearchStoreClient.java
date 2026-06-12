@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.opensearch.client.opensearch.OpenSearchClient;
+import org.opensearch.client.opensearch._types.OpenSearchException;
 import org.opensearch.client.opensearch.generic.Requests;
 import org.opensearch.client.opensearch.generic.Response;
 import org.springframework.beans.factory.ObjectProvider;
@@ -62,7 +63,7 @@ public class OpenSearchStoreClient {
 				}
 				response = objectMapper.readTree(genericResponse.getBody().get().body());
 			}
-		} catch (IOException e) {
+		} catch (IOException | OpenSearchException e) {
 			return OpenSearchStoreSearchResult.empty();
 		}
 		return parseResponse(response, pageable);
