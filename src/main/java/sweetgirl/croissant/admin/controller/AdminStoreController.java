@@ -48,8 +48,8 @@ public class AdminStoreController {
 	private final NaverEnrichRunner naverEnrichRunner;
 	private final NaverEnrichOrchestrator naverEnrichOrchestrator;
 
-	@Operation(summary = "가게 등록", description = "어드민에서 새 가게를 등록합니다. "
-		+ "coord(lat/lng)로 PostGIS Point를 생성하며, hours는 mon~sun 키로 영업시간을 설정합니다.")
+	@Operation(summary = "가게 등록", description = "어드민에서 네이버 검색 결과 기반으로 새 가게를 등록합니다. "
+		+ "naverPlaceId와 coord(lat/lng)로 가게를 생성하며, hours는 mon~sun 키로 영업시간을 설정합니다.")
 	@PostMapping
 	public ResponseEntity<ApiResponse<AdminStoreResponse>> createStore(
 			@Valid @RequestBody AdminStoreCreateRequest request) {

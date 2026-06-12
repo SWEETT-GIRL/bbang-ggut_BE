@@ -82,6 +82,7 @@ public class AdminStoreService {
 			.region3rd(addr[2])
 			.location(location)
 			.phone(request.phone())
+			.naverPlaceId(request.naverPlaceId())
 			.kakaoPlaceId(request.kakaoPlaceId())
 			.source(StoreSource.ADMIN_REGISTERED)
 			.category(request.category())
