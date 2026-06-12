@@ -38,14 +38,14 @@
 
 ## Phase 1. ContributionReport 뼈대 추가
 
-- [ ] 상위 테이블 `contribution_report` 추가
-- [ ] `ContributionReport` 엔티티 추가
-- [ ] `ContributionTargetType` enum 추가 (`STORE`, `MENU`)
-- [ ] `ContributionReportType` enum 추가 (`ADD`, `UPDATE`)
-- [ ] `ContributionReportStatus` enum 추가 (`PENDING`, `ACCEPTED`, `REJECTED`)
-- [ ] 기존 테이블은 그대로 두고 신규 테이블만 추가
-- [ ] Flyway 마이그레이션 작성
-- [ ] `ContributionReport` 생성/조회 repository 테스트 추가
+- [x] 상위 테이블 `contribution_report` 추가
+- [x] `ContributionReport` 엔티티 추가
+- [x] `ContributionTargetType` enum 추가 (`STORE`, `MENU`)
+- [x] `ContributionReportType` enum 추가 (`ADD`, `UPDATE`)
+- [x] `ContributionReportStatus` enum 추가 (`PENDING`, `ACCEPTED`, `REJECTED`)
+- [x] 기존 테이블은 그대로 두고 신규 테이블만 추가
+- [x] Flyway 마이그레이션 작성
+- [x] `ContributionReport` 생성/조회 repository 테스트 추가
 
 ## Phase 2. 가게 제보 상세 분리
 
