@@ -2,7 +2,7 @@ package sweetgirl.croissant.admin.dto.response;
 
 import java.util.List;
 
-import sweetgirl.croissant.report.entity.UserReport;
+import sweetgirl.croissant.abuse.entity.AbuseReport;
 
 public record AdminHighPriorityReportResponse(
 		Long reportId,
@@ -28,7 +28,7 @@ public record AdminHighPriorityReportResponse(
 		String reviewedAt) {
 
 	public static AdminHighPriorityReportResponse of(
-			UserReport report,
+			AbuseReport report,
 			long reviewReportCount24h,
 			long sensitiveReasonReportCount,
 			long memberReviewReportCount24h,
@@ -39,7 +39,7 @@ public record AdminHighPriorityReportResponse(
 			List<String> priorityReasons) {
 		return new AdminHighPriorityReportResponse(
 			report.getId(),
-			"USER_REPORT",
+			"ABUSE_REPORT",
 			report.getTargetType().name(),
 			report.getTargetId(),
 			report.getReporter().getId(),

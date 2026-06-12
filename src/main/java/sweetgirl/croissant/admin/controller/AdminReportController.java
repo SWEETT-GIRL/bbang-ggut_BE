@@ -18,11 +18,11 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.admin.dto.request.AdminModerationActionRequest;
 import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
+import sweetgirl.croissant.admin.dto.response.AdminAbuseReportStatsResponse;
 import sweetgirl.croissant.admin.dto.response.AdminHighPriorityReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminModerationActionResponse;
+import sweetgirl.croissant.admin.dto.response.AdminReportDetailResponse;
 import sweetgirl.croissant.admin.dto.response.AdminReportResponse;
-import sweetgirl.croissant.admin.dto.response.AdminUserReportDetailResponse;
-import sweetgirl.croissant.admin.dto.response.AdminUserReportStatsResponse;
 import sweetgirl.croissant.admin.service.AdminReportService;
 import sweetgirl.croissant.global.response.ApiResponse;
 
@@ -46,8 +46,8 @@ public class AdminReportController {
 
 	@Operation(summary = "사용자 신고 통계 조회")
 	@GetMapping("/stats")
-	public ResponseEntity<ApiResponse<AdminUserReportStatsResponse>> getUserReportStats() {
-		return ResponseEntity.ok(ApiResponse.ok(adminReportService.getUserReportStats()));
+	public ResponseEntity<ApiResponse<AdminAbuseReportStatsResponse>> getAbuseReportStats() {
+		return ResponseEntity.ok(ApiResponse.ok(adminReportService.getAbuseReportStats()));
 	}
 
 	@Operation(summary = "사용자 신고 high-priority 큐 조회")
@@ -59,9 +59,9 @@ public class AdminReportController {
 		return ResponseEntity.ok(ApiResponse.ok(adminReportService.getHighPriorityReports(status, page, size)));
 	}
 
-	@Operation(summary = "사용자 신고 상세 조회")
+	@Operation(summary = "제보 상세 조회")
 	@GetMapping("/{reportId}")
-	public ResponseEntity<ApiResponse<AdminUserReportDetailResponse>> getReportDetail(
+	public ResponseEntity<ApiResponse<AdminReportDetailResponse>> getReportDetail(
 			@Parameter(description = "제보 ID") @PathVariable Long reportId,
 			@Parameter(description = "제보 종류") @RequestParam String kind) {
 		return ResponseEntity.ok(ApiResponse.ok(adminReportService.getReportDetail(reportId, kind)));
@@ -76,7 +76,7 @@ public class AdminReportController {
 	}
 
 	@Operation(summary = "제보 승인/거절", description = "제보를 승인(ACCEPT) 또는 거절(REJECT)합니다. "
-		+ "kind: STORE_REPORT | MENU_ADD_REPORT | USER_REPORT, action: ACCEPT | REJECT")
+		+ "kind: STORE_REPORT | MENU_ADD_REPORT | ABUSE_REPORT, action: ACCEPT | REJECT")
 	@PatchMapping("/{reportId}")
 	public ResponseEntity<ApiResponse<Void>> reviewReport(
 			@Parameter(description = "제보 ID") @PathVariable Long reportId,

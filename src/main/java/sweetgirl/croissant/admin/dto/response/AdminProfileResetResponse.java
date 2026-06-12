@@ -1,7 +1,7 @@
 package sweetgirl.croissant.admin.dto.response;
 
+import sweetgirl.croissant.abuse.entity.ModerationAction;
 import sweetgirl.croissant.member.entity.Member;
-import sweetgirl.croissant.report.entity.ModerationAction;
 
 public record AdminProfileResetResponse(
 		Long memberId,

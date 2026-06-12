@@ -9,18 +9,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.abuse.entity.ModerationAction;
+import sweetgirl.croissant.abuse.entity.ModerationAppeal;
+import sweetgirl.croissant.abuse.enums.AbuseReportAction;
+import sweetgirl.croissant.abuse.enums.ModerationAppealStatus;
+import sweetgirl.croissant.abuse.enums.ModerationTargetType;
+import sweetgirl.croissant.abuse.repository.ModerationAppealRepository;
 import sweetgirl.croissant.admin.code.AdminErrorCode;
 import sweetgirl.croissant.admin.dto.request.AdminModerationAppealReviewRequest;
 import sweetgirl.croissant.admin.dto.response.AdminModerationAppealResponse;
 import sweetgirl.croissant.admin.exception.AdminException;
 import sweetgirl.croissant.member.entity.MemberRestriction;
 import sweetgirl.croissant.member.repository.MemberRestrictionRepository;
-import sweetgirl.croissant.report.entity.ModerationAction;
-import sweetgirl.croissant.report.entity.ModerationAppeal;
-import sweetgirl.croissant.report.enums.ModerationAppealStatus;
-import sweetgirl.croissant.report.enums.ModerationTargetType;
-import sweetgirl.croissant.report.enums.UserReportAction;
-import sweetgirl.croissant.report.repository.ModerationAppealRepository;
 import sweetgirl.croissant.review.entity.Review;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 
@@ -62,7 +62,7 @@ public class AdminModerationAppealService {
 	}
 
 	private void applyAcceptedAppeal(ModerationAction action) {
-		UserReportAction moderationAction = action.getAction();
+		AbuseReportAction moderationAction = action.getAction();
 		switch (moderationAction) {
 			case HIDE_REVIEW -> restoreHiddenReview(action);
 			case DELETE_REVIEW -> restoreDeletedReview(action);
