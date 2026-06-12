@@ -38,7 +38,7 @@ public class OpenSearchConfig {
 	public OpenSearchClient openSearchClient() {
 		AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKey, secretKey);
 		SdkHttpClient httpClient = ApacheHttpClient.builder()
-			.socketTimeout(Duration.ofSeconds(60))
+			.socketTimeout(Duration.ofSeconds(120))
 			.connectionTimeout(Duration.ofSeconds(5))
 			.build();
 
