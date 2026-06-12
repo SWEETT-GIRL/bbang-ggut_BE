@@ -11,6 +11,7 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.RegexRequestMatcher;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.member.jwt.JwtAuthenticationFilter;
@@ -54,6 +55,12 @@ public class SecurityConfig {
 			.requestMatchers(HttpMethod.GET, "/trend/**").permitAll()
 			// 홈화면 근처/인기 빵집·검색 비로그인 허용
 			.requestMatchers(HttpMethod.GET, "/stores/nearby", "/stores/popular", "/stores/search").permitAll()
+			// 숫자 ID 기반 빵집 상세/메뉴 조회 비로그인 허용
+			.requestMatchers(
+				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/stores/\\d+(\\?.*)?$"),
+				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/stores/\\d+/menus(\\?.*)?$"),
+				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/menus/\\d+(\\?.*)?$"))
+			.permitAll()
 			.requestMatchers("/admin/**", "/api/admin/**").permitAll()
 			.requestMatchers(HttpMethod.POST, "/api/admin/members/*/ban").permitAll() // 회원 강퇴 API 임시 허용
 			.anyRequest().authenticated());
