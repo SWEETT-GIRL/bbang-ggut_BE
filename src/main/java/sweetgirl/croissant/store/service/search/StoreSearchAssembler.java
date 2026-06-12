@@ -75,7 +75,8 @@ public class StoreSearchAssembler {
 				storeThumbnailMap.get(store.getId()),
 				orderMenus(topMenusByStore.getOrDefault(store.getId(), Collections.emptyList()),
 					hitByStoreId.get(store.getId()).matchedMenuIds(),
-					menuThumbnailMap)))
+					menuThumbnailMap),
+				hitByStoreId.get(store.getId()).matchedFields()))
 			.toList();
 	}
 

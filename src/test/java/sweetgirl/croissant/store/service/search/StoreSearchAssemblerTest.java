@@ -50,8 +50,8 @@ class StoreSearchAssemblerTest {
 		given(menuImageFileRepository.findThumbnailsByMenuIdIn(List.of(1L, 2L))).willReturn(List.of());
 
 		var result = assembler.assemble(List.of(
-			new OpenSearchStoreHit(102L, 9.0, null, List.of(2L)),
-			new OpenSearchStoreHit(105L, 8.0, null, List.of())));
+			new OpenSearchStoreHit(102L, 9.0, null, List.of(2L), List.of()),
+			new OpenSearchStoreHit(105L, 8.0, null, List.of(), List.of())));
 
 		assertThat(result).hasSize(2);
 		assertThat(result.get(0).id()).isEqualTo(102L);

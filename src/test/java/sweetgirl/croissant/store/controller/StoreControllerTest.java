@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
 import sweetgirl.croissant.store.service.StoreService;
+import sweetgirl.croissant.store.service.search.SearchSort;
 import sweetgirl.croissant.store.service.search.StoreSearchService;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,8 +47,9 @@ class StoreControllerTest {
 	@Test
 	void searchStores_returnsOpenSearchResults() throws Exception {
 		StoreSearchResponse response = new StoreSearchResponse(
-			102L, "성수 베이크", "서울 성동구 성수동", null, "kakao-102", "02-0000", "127.0", "37.5", List.of());
-		given(storeSearchService.searchStores(eq("성수 에그타르트"), isNull(), isNull(), eq(PageRequest.of(0, 15))))
+			102L, "성수 베이크", "서울 성동구 성수동", null, "kakao-102", "02-0000", "127.0", "37.5", List.of(), List.of());
+		given(storeSearchService.searchStores(eq("성수 에그타르트"), isNull(), isNull(), eq(SearchSort.DISTANCE),
+			eq(PageRequest.of(0, 15))))
 			.willReturn(new SliceResponse<>(List.of(response), false));
 
 		mockMvc.perform(get("/stores/search")
@@ -57,5 +59,18 @@ class StoreControllerTest {
 			.andExpect(jsonPath("$.data.content[0].id").value(102))
 			.andExpect(jsonPath("$.data.content[0].name").value("성수 베이크"))
 			.andExpect(jsonPath("$.data.hasNext").value(false));
+	}
+
+	@Test
+	void searchStores_acceptsPopularitySort() throws Exception {
+		given(storeSearchService.searchStores(eq("에그타르트"), isNull(), isNull(), eq(SearchSort.POPULARITY),
+			eq(PageRequest.of(0, 15))))
+			.willReturn(new SliceResponse<>(List.of(), false));
+
+		mockMvc.perform(get("/stores/search")
+			.param("query", "에그타르트")
+			.param("sort", "popularity"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
 	}
 }

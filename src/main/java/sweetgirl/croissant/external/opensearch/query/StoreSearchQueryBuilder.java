@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import sweetgirl.croissant.store.service.search.SearchIntent;
+import sweetgirl.croissant.store.service.search.SearchSort;
 
 @Component
 public class StoreSearchQueryBuilder {
@@ -38,7 +39,7 @@ public class StoreSearchQueryBuilder {
 	 * 공통: function_score로 인기도(popularityScore) + 거리 감쇠(gauss) 점수 추가
 	 */
 	public Map<String, Object> build(SearchIntent intent, Pageable pageable,
-			Double latitude, Double longitude, boolean sortByDistance) {
+			Double latitude, Double longitude, SearchSort sort) {
 		List<Object> must = new ArrayList<>();
 		List<Object> should = new ArrayList<>();
 		boolean hasRegionTokens = !intent.regionTokens().isEmpty();
@@ -75,9 +76,11 @@ public class StoreSearchQueryBuilder {
 		request.put("from", pageable.getOffset());
 		request.put("size", pageable.getPageSize());
 		request.put("query", functionScore(bool, latitude, longitude));
-		if (sortByDistance && latitude != null && longitude != null) {
-			// 케이스 3, 4: 지역어 없을 때 거리순 정렬로 사용자 주변 가게 우선
+		request.put("highlight", highlight());
+		if (sort == SearchSort.DISTANCE && latitude != null && longitude != null) {
 			request.put("sort", distanceSort(latitude, longitude));
+		} else if (sort == SearchSort.POPULARITY) {
+			request.put("sort", popularitySort());
 		}
 		return request;
 	}
@@ -200,12 +203,30 @@ public class StoreSearchQueryBuilder {
 			"minimum_should_match", 1));
 	}
 
+	private Map<String, Object> highlight() {
+		Map<String, Object> fields = new LinkedHashMap<>();
+		fields.put("storeName", Map.of());
+		fields.put("storeName.edge", Map.of());
+		fields.put("storeName.ngram", Map.of());
+		fields.put("searchRegionAliases", Map.of());
+		fields.put("searchRegionAliases.edge", Map.of());
+		fields.put("breadTypes", Map.of());
+		fields.put("breadTypes.edge", Map.of());
+		return Map.of("fields", fields);
+	}
+
 	private List<Object> distanceSort(Double latitude, Double longitude) {
 		return List.of(
 			Map.of("_geo_distance", Map.of(
 				"location", Map.of("lat", latitude, "lon", longitude),
 				"order", "asc",
 				"unit", "m")),
+			Map.of("_score", Map.of("order", "desc")));
+	}
+
+	private List<Object> popularitySort() {
+		return List.of(
+			Map.of("popularityScore", Map.of("order", "desc", "missing", "_last")),
 			Map.of("_score", Map.of("order", "desc")));
 	}
 }

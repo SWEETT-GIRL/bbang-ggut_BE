@@ -22,9 +22,10 @@ public class StoreSearchService {
 	private final StoreSearchAssembler storeSearchAssembler;
 
 	public SliceResponse<StoreSearchResponse> searchStores(String keyword, Double latitude, Double longitude,
-			Pageable pageable) {
+			SearchSort sort, Pageable pageable) {
 		SearchIntent intent = storeSearchQueryParser.parse(keyword);
-		OpenSearchStoreSearchResult result = openSearchStoreClient.searchStores(intent, pageable, latitude, longitude);
+		OpenSearchStoreSearchResult result = openSearchStoreClient.searchStores(intent, pageable, latitude, longitude,
+			sort);
 		if (result.hits().isEmpty()) {
 			return new SliceResponse<>(List.of(), false);
 		}
