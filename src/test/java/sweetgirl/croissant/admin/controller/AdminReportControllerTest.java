@@ -25,6 +25,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import sweetgirl.croissant.admin.dto.response.AdminHighPriorityReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminModerationActionResponse;
+import sweetgirl.croissant.admin.dto.response.AdminReportDetailResponse;
 import sweetgirl.croissant.admin.dto.response.AdminUserReportDetailResponse;
 import sweetgirl.croissant.admin.dto.response.AdminUserReportStatsResponse;
 import sweetgirl.croissant.admin.service.AdminReportService;
@@ -130,9 +131,10 @@ class AdminReportControllerTest {
 			null,
 			null);
 		given(adminReportService.getReportDetail(eq(1L), eq("USER_REPORT")))
-			.willReturn(new AdminUserReportDetailResponse(
+			.willReturn(new AdminReportDetailResponse(
 				1L,
 				"USER_REPORT",
+				"REVIEW",
 				"REVIEW",
 				123L,
 				"ABUSE",

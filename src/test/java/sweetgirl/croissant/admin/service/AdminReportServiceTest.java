@@ -36,6 +36,7 @@ import sweetgirl.croissant.admin.dto.request.AdminModerationActionRequest;
 import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
 import sweetgirl.croissant.admin.dto.response.AdminHighPriorityReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminModerationActionResponse;
+import sweetgirl.croissant.admin.dto.response.AdminReportDetailResponse;
 import sweetgirl.croissant.admin.dto.response.AdminUserReportDetailResponse;
 import sweetgirl.croissant.admin.dto.response.AdminUserReportStatsResponse;
 import sweetgirl.croissant.admin.exception.AdminException;
@@ -182,8 +183,7 @@ class AdminReportServiceTest {
 		given(reviewImageFileRepository.findByReviewIdOrderByDisplayOrderAscIdAsc(123L))
 			.willReturn(List.of(image));
 
-		AdminUserReportDetailResponse response = (AdminUserReportDetailResponse)adminReportService.getReportDetail(1L,
-			"USER_REPORT");
+		AdminReportDetailResponse response = adminReportService.getReportDetail(1L, "USER_REPORT");
 
 		assertThat(response.reportId()).isEqualTo(1L);
 		assertThat(response.targetType()).isEqualTo("REVIEW");
@@ -217,8 +217,7 @@ class AdminReportServiceTest {
 		given(report.getReportedMember()).willReturn(reportedMember);
 		given(userReportRepository.findByIdWithMembers(2L)).willReturn(Optional.of(report));
 
-		AdminUserReportDetailResponse response = (AdminUserReportDetailResponse)adminReportService.getReportDetail(2L,
-			"USER_REPORT");
+		AdminReportDetailResponse response = adminReportService.getReportDetail(2L, "USER_REPORT");
 
 		assertThat(response.targetType()).isEqualTo("MEMBER_PROFILE");
 		assertThat(response.target()).isInstanceOf(AdminUserReportDetailResponse.MemberProfileTarget.class);

@@ -31,6 +31,7 @@ import sweetgirl.croissant.admin.dto.request.AdminModerationActionRequest;
 import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
 import sweetgirl.croissant.admin.dto.response.AdminHighPriorityReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminModerationActionResponse;
+import sweetgirl.croissant.admin.dto.response.AdminReportDetailResponse;
 import sweetgirl.croissant.admin.dto.response.AdminReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminUserReportDetailResponse;
 import sweetgirl.croissant.admin.dto.response.AdminUserReportStatsResponse;
@@ -141,24 +142,24 @@ public class AdminReportService {
 		return getStoreReports(toStoreReportStatus(statusStr), page, size);
 	}
 
-	public Object getReportDetail(Long reportId, String kind) {
+	public AdminReportDetailResponse getReportDetail(Long reportId, String kind) {
 		if ("STORE_ADD_REPORT".equals(kind)) {
 			StoreAddReport report = storeAddReportRepository.findById(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
-			return AdminReportResponse.ofStoreAddReport(report);
+			return AdminReportDetailResponse.ofReport(AdminReportResponse.ofStoreAddReport(report));
 		}
 		if ("STORE_REPORT".equals(kind)) {
 			StoreReport report = storeReportRepository.findById(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
 			List<StoreReportImageFile> images = storeReportImageFileRepository.findByStoreReportIdIn(List.of(reportId));
-			return AdminReportResponse.ofStoreReport(report, images);
+			return AdminReportDetailResponse.ofReport(AdminReportResponse.ofStoreReport(report, images));
 		}
 		if ("MENU_ADD_REPORT".equals(kind)) {
 			MenuAddReport report = menuAddReportRepository.findById(reportId)
 				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
 			List<MenuAddReportImageFile> images = menuAddReportImageFileRepository
 				.findByMenuAddReportIdIn(List.of(reportId));
-			return AdminReportResponse.ofMenuAddReport(report, images);
+			return AdminReportDetailResponse.ofReport(AdminReportResponse.ofMenuAddReport(report, images));
 		}
 		if (!"USER_REPORT".equals(kind)) {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_KIND);
@@ -166,7 +167,7 @@ public class AdminReportService {
 
 		UserReport report = userReportRepository.findByIdWithMembers(reportId)
 			.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
-		return AdminUserReportDetailResponse.of(report, toUserReportTarget(report));
+		return AdminReportDetailResponse.ofUserReport(report, toUserReportTarget(report));
 	}
 
 	public AdminUserReportStatsResponse getUserReportStats() {
