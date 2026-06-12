@@ -1,4 +1,4 @@
-package sweetgirl.croissant.store.entity;
+package sweetgirl.croissant.contribution.entity;
 
 import org.hibernate.annotations.SQLRestriction;
 
@@ -17,24 +17,21 @@ import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.entity.MenuImageFile;
 
 @Entity
-@Table(name = "store_report_image_file")
+@Table(name = "menu_contribution_report_image_file")
 @SQLRestriction("processing_status = 'DONE'")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class StoreReportImageFile extends ImageFile {
+public class MenuContributionReportImageFile extends ImageFile {
 
 	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "request_id", nullable = false)
-	private StoreReport storeReport;
+	@JoinColumn(name = "menu_contribution_report_id", nullable = false)
+	private MenuContributionReport menuContributionReport;
 
 	@Builder
-	public StoreReportImageFile(StoreReport storeReport, String name, MimeType mimeType, String awsKey) {
+	public MenuContributionReportImageFile(MenuContributionReport menuContributionReport, String name,
+			MimeType mimeType, String awsKey) {
 		super(name, mimeType, awsKey);
-		this.storeReport = storeReport;
-	}
-
-	public StoreImageFile toStoreImage(Store store, String awsKey, int displayOrder) {
-		return new StoreImageFile(store, getName(), getMimeType(), awsKey, displayOrder, null);
+		this.menuContributionReport = menuContributionReport;
 	}
 
 	public MenuImageFile toMenuImage(Menu menu, String awsKey, int displayOrder) {

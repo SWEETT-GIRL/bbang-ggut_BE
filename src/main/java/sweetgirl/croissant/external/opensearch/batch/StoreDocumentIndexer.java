@@ -19,7 +19,7 @@ import sweetgirl.croissant.store.repository.StoreRepository;
 @ConditionalOnProperty(name = "opensearch.endpoint")
 @RequiredArgsConstructor
 public class StoreDocumentIndexer {
-	private static final int BATCH_SIZE = 500;
+	private static final int BATCH_SIZE = 100;
 
 	private final StoreRepository storeRepository;
 	private final StoreIndexService storeIndexService;

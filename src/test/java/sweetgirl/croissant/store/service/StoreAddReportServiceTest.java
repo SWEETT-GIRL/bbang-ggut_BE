@@ -16,6 +16,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import sweetgirl.croissant.contribution.entity.ContributionReport;
+import sweetgirl.croissant.contribution.entity.StoreContributionReport;
 import sweetgirl.croissant.contribution.repository.ContributionReportRepository;
 import sweetgirl.croissant.contribution.repository.StoreContributionReportRepository;
 import sweetgirl.croissant.external.naver.client.NaverLocalSearchClient;
@@ -23,10 +25,8 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.store.dto.request.StoreAddReportRequest;
 import sweetgirl.croissant.store.dto.response.StoreAddReportResponse;
-import sweetgirl.croissant.store.entity.StoreAddReport;
 import sweetgirl.croissant.store.enums.StoreReportStatus;
 import sweetgirl.croissant.store.exception.StoreReportException;
-import sweetgirl.croissant.store.repository.StoreAddReportRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,8 +39,6 @@ class StoreAddReportServiceTest {
 	@Mock
 	StoreRepository storeRepository;
 	@Mock
-	StoreAddReportRepository storeAddReportRepository;
-	@Mock
 	ContributionReportRepository contributionReportRepository;
 	@Mock
 	StoreContributionReportRepository storeContributionReportRepository;
@@ -51,38 +49,36 @@ class StoreAddReportServiceTest {
 	@DisplayName("createReport: 네이버 검색 결과 기반 가게 추가 제보를 저장한다")
 	void createReport_savesStoreAddReport() {
 		Member member = mock(Member.class);
+		ContributionReport contributionReport = mock(ContributionReport.class);
 		given(memberReader.getMember(1L)).willReturn(member);
 		given(storeRepository.findByNaverPlaceId("123456")).willReturn(Optional.empty());
-		given(storeAddReportRepository.existsByNaverPlaceIdAndStatus("123456", StoreReportStatus.PENDING))
+		given(storeContributionReportRepository.existsByNaverPlaceIdAndStatus("123456", StoreReportStatus.PENDING))
 			.willReturn(false);
-		given(storeAddReportRepository.existsPendingByNameAndAddress(
+		given(storeContributionReportRepository.existsPendingByNameAndAddress(
 			"새빵집", "서울 마포구 월드컵로 1", StoreReportStatus.PENDING))
 			.willReturn(false);
-		given(storeAddReportRepository.save(org.mockito.ArgumentMatchers.any(StoreAddReport.class)))
-			.willAnswer(invocation -> {
-				StoreAddReport report = invocation.getArgument(0);
-				org.springframework.test.util.ReflectionTestUtils.setField(report, "id", 10L);
-				return report;
-			});
+		given(contributionReport.getId()).willReturn(10L);
+		given(contributionReportRepository.save(org.mockito.ArgumentMatchers.any(ContributionReport.class)))
+			.willReturn(contributionReport);
+		given(storeContributionReportRepository.save(org.mockito.ArgumentMatchers.any(StoreContributionReport.class)))
+			.willAnswer(invocation -> invocation.getArgument(0));
 
 		StoreAddReportResponse response = storeAddReportService.createReport(1L, request());
 
 		assertThat(response.reportId()).isEqualTo(10L);
 		assertThat(response.status()).isEqualTo(StoreReportStatus.PENDING);
-		ArgumentCaptor<StoreAddReport> captor = ArgumentCaptor.forClass(StoreAddReport.class);
-		verify(storeAddReportRepository).save(captor.capture());
+		ArgumentCaptor<StoreContributionReport> captor = ArgumentCaptor.forClass(StoreContributionReport.class);
+		verify(storeContributionReportRepository).save(captor.capture());
 		assertThat(captor.getValue().getNaverPlaceId()).isEqualTo("123456");
 		assertThat(captor.getValue().getName()).isEqualTo("새빵집");
 		assertThat(captor.getValue().getAddress()).isEqualTo("서울 마포구 월드컵로 1");
-		verify(storeContributionReportRepository).save(org.mockito.ArgumentMatchers.argThat(
-			r -> r.getStoreAddReport() == captor.getValue()));
 	}
 
 	@Test
 	@DisplayName("createReport: 같은 네이버 placeId의 pending 제보가 있으면 예외를 던진다")
 	void createReport_duplicateNaverPlaceId_throws() {
 		given(storeRepository.findByNaverPlaceId("123456")).willReturn(Optional.empty());
-		given(storeAddReportRepository.existsByNaverPlaceIdAndStatus("123456", StoreReportStatus.PENDING))
+		given(storeContributionReportRepository.existsByNaverPlaceIdAndStatus("123456", StoreReportStatus.PENDING))
 			.willReturn(true);
 
 		assertThatThrownBy(() -> storeAddReportService.createReport(null, request()))

@@ -115,35 +115,35 @@
 
 ## Phase 8. Legacy 상세 테이블 제거
 
-- [ ] `store_contribution_report`를 가게 추가/수정 상세 테이블로 확장
-  - [ ] `store_id`, `request_type`, `naver_place_id`, `name`, `address`, `road_address`, `phone`, `location`, `message`, `reason` 컬럼 추가
-  - [ ] 기존 `store_report`, `store_add_report` 데이터가 있으면 상세 컬럼으로 backfill
-  - [ ] `store_report_id`, `store_add_report_id` bridge 컬럼 제거 계획 수립
-- [ ] `menu_contribution_report`를 메뉴 추가/수정 상세 테이블로 확장
-  - [ ] `store_id`, `menu_id`, `menu_category_id`, `request_type`, `name`, `price`, `description`, `message` 컬럼 추가
-  - [ ] 기존 `menu_add_report`, 메뉴 수정용 `store_report` 데이터가 있으면 상세 컬럼으로 backfill
-  - [ ] `menu_add_report_id`, `store_report_id` bridge 컬럼 제거 계획 수립
-- [ ] 이미지 테이블을 contribution 기준으로 교체
-  - [ ] `store_contribution_report_image_file` 생성
-  - [ ] `menu_contribution_report_image_file` 생성
-  - [ ] 기존 이미지 데이터가 있으면 새 이미지 테이블로 backfill
-- [ ] 사용자 제보 생성 로직에서 legacy 상세 테이블 쓰기 중단
-  - [ ] `StoreReportService`가 `store_report` 없이 `store_contribution_report`에 직접 저장
-  - [ ] `StoreAddReportService`가 `store_add_report` 없이 `store_contribution_report`에 직접 저장
-  - [ ] `MenuAddReportService`가 `menu_add_report` 없이 `menu_contribution_report`에 직접 저장
-- [ ] 관리자 조회/상세/승인/거절 로직에서 legacy 엔티티 제거
-  - [ ] `AdminReportService`가 `StoreReport`, `StoreAddReport`, `MenuAddReport`를 직접 읽지 않도록 변경
-  - [ ] 승인/거절 시 `contribution_report.status`와 contribution 상세 상태만 갱신
-  - [ ] S3 이미지 이동/삭제가 신규 contribution image 테이블 기준으로 동작
-- [ ] legacy repository/service/entity 제거
-  - [ ] `StoreReportRepository`, `StoreAddReportRepository`, `MenuAddReportRepository` 제거
-  - [ ] `StoreReportImageFileRepository`, `MenuAddReportImageFileRepository` 제거
-  - [ ] `StoreReport`, `StoreAddReport`, `MenuAddReport` 엔티티 제거
-  - [ ] legacy 이미지 엔티티 제거
-- [ ] legacy DROP migration 작성
-  - [ ] `store_report_image_file` DROP
-  - [ ] `menu_add_report_image_file` DROP
-  - [ ] `store_report` DROP
-  - [ ] `store_add_report` DROP
-  - [ ] `menu_add_report` DROP
+- [x] `store_contribution_report`를 가게 추가/수정 상세 테이블로 확장
+  - [x] `store_id`, `request_type`, `naver_place_id`, `name`, `address`, `road_address`, `phone`, `location`, `message`, `reason` 컬럼 추가
+  - [x] 기존 `store_report`, `store_add_report` 데이터가 있으면 상세 컬럼으로 backfill
+  - [x] `store_report_id`, `store_add_report_id` bridge 컬럼 제거 계획 수립
+- [x] `menu_contribution_report`를 메뉴 추가/수정 상세 테이블로 확장
+  - [x] `store_id`, `menu_id`, `menu_category_id`, `request_type`, `name`, `price`, `description`, `message` 컬럼 추가
+  - [x] 기존 `menu_add_report`, 메뉴 수정용 `store_report` 데이터가 있으면 상세 컬럼으로 backfill
+  - [x] `menu_add_report_id`, `store_report_id` bridge 컬럼 제거 계획 수립
+- [x] 이미지 테이블을 contribution 기준으로 교체
+  - [x] `store_contribution_report_image_file` 생성
+  - [x] `menu_contribution_report_image_file` 생성
+  - [x] 기존 이미지 데이터가 있으면 새 이미지 테이블로 backfill
+- [x] 사용자 제보 생성 로직에서 legacy 상세 테이블 쓰기 중단
+  - [x] `StoreReportService`가 `store_report` 없이 `store_contribution_report`에 직접 저장
+  - [x] `StoreAddReportService`가 `store_add_report` 없이 `store_contribution_report`에 직접 저장
+  - [x] `MenuAddReportService`가 `menu_add_report` 없이 `menu_contribution_report`에 직접 저장
+- [x] 관리자 조회/상세/승인/거절 로직에서 legacy 엔티티 제거
+  - [x] `AdminReportService`가 `StoreReport`, `StoreAddReport`, `MenuAddReport`를 직접 읽지 않도록 변경
+  - [x] 승인/거절 시 `contribution_report.status`와 contribution 상세 상태만 갱신
+  - [x] S3 이미지 이동/삭제가 신규 contribution image 테이블 기준으로 동작
+- [x] legacy repository/service/entity 제거
+  - [x] `StoreReportRepository`, `StoreAddReportRepository`, `MenuAddReportRepository` 제거
+  - [x] `StoreReportImageFileRepository`, `MenuAddReportImageFileRepository` 제거
+  - [x] `StoreReport`, `StoreAddReport`, `MenuAddReport` 엔티티 제거
+  - [x] legacy 이미지 엔티티 제거
+- [x] legacy DROP migration 작성
+  - [x] `store_report_image_file` DROP
+  - [x] `menu_add_report_image_file` DROP
+  - [x] `store_report` DROP
+  - [x] `store_add_report` DROP
+  - [x] `menu_add_report` DROP
 - [ ] 전체 테스트 통과 후 dev 배포
