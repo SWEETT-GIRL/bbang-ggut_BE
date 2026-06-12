@@ -41,7 +41,9 @@ public class OpenSearchStoreClient {
 
 	public OpenSearchStoreSearchResult searchStores(SearchIntent intent, Pageable pageable,
 			Double latitude, Double longitude) {
-		Map<String, Object> request = storeSearchQueryBuilder.build(intent, pageable, latitude, longitude, false);
+		boolean sortByDistance = intent.regionTokens().isEmpty() && latitude != null && longitude != null;
+		Map<String, Object> request = storeSearchQueryBuilder.build(intent, pageable, latitude, longitude,
+			sortByDistance);
 		JsonNode response;
 		try {
 			response = openSearchRestClient.post()
