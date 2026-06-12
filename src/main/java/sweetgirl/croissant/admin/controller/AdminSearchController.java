@@ -32,6 +32,6 @@ public class AdminSearchController {
 		} catch (RejectedExecutionException e) {
 			throw new OpenSearchException(OpenSearchErrorCode.REINDEX_ALREADY_IN_PROGRESS);
 		}
-		return ApiResponse.ok("재색인 작업이 시작되었습니다.");
+		return ApiResponse.ok(null);
 	}
 }
