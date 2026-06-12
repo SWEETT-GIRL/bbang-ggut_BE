@@ -83,6 +83,7 @@ class AdminStoreServiceTest {
 			"서울시 강남구 테헤란로 1",
 			new AdminStoreCreateRequest.CoordRequest(37.5, 127.0),
 			"02-1234-5678",
+			"123456",
 			null,
 			"active",
 			null,
