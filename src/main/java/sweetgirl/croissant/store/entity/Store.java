@@ -86,7 +86,8 @@ public class Store extends BaseTimeEntity {
 
 	@Builder
 	public Store(String name, String address, String region1st, String region2nd, String region3rd,
-			Point location, String phone, String kakaoPlaceId, StoreSource source, StoreCategory category) {
+			Point location, String phone, String kakaoPlaceId, String naverPlaceId, StoreSource source,
+			StoreCategory category) {
 		this.name = name;
 		this.address = address;
 		this.region1st = region1st;
@@ -95,6 +96,9 @@ public class Store extends BaseTimeEntity {
 		this.location = location;
 		this.phone = phone;
 		this.kakaoPlaceId = kakaoPlaceId;
+		this.naverPlaceId = naverPlaceId;
+		this.naverMatchedAt = naverPlaceId != null && !naverPlaceId.isBlank() ? Instant.now() : null;
+		this.naverEnrichAttempts = 0;
 		this.source = source != null ? source : StoreSource.ADMIN_REGISTERED;
 		this.status = StoreStatus.ACTIVE;
 		this.category = category;

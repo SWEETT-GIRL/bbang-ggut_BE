@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.locationtech.jts.geom.Point;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -36,6 +37,7 @@ import sweetgirl.croissant.admin.dto.request.AdminModerationActionRequest;
 import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
 import sweetgirl.croissant.admin.dto.response.AdminHighPriorityReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminModerationActionResponse;
+import sweetgirl.croissant.admin.dto.response.AdminReportDetailResponse;
 import sweetgirl.croissant.admin.dto.response.AdminUserReportDetailResponse;
 import sweetgirl.croissant.admin.dto.response.AdminUserReportStatsResponse;
 import sweetgirl.croissant.admin.exception.AdminException;
@@ -72,22 +74,29 @@ import sweetgirl.croissant.review.entity.ReviewImageFile;
 import sweetgirl.croissant.review.repository.ReviewImageFileRepository;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.entity.StoreAddReport;
 import sweetgirl.croissant.store.entity.StoreBusinessHour;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.entity.StoreReport;
 import sweetgirl.croissant.store.entity.StoreReportImageFile;
 import sweetgirl.croissant.store.enums.StoreReportStatus;
 import sweetgirl.croissant.store.enums.StoreReportType;
+import sweetgirl.croissant.store.repository.StoreAddReportRepository;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreReportImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreReportRepository;
+import sweetgirl.croissant.store.repository.StoreRepository;
 
 @ExtendWith(MockitoExtension.class)
 class AdminReportServiceTest {
 
 	@Mock
 	StoreReportRepository storeReportRepository;
+	@Mock
+	StoreAddReportRepository storeAddReportRepository;
+	@Mock
+	StoreRepository storeRepository;
 	@Mock
 	MenuAddReportRepository menuAddReportRepository;
 	@Mock
@@ -123,6 +132,8 @@ class AdminReportServiceTest {
 	void setUp() {
 		adminReportService = new AdminReportService(
 			storeReportRepository,
+			storeAddReportRepository,
+			storeRepository,
 			menuAddReportRepository,
 			userReportRepository,
 			moderationActionRepository,
@@ -178,7 +189,7 @@ class AdminReportServiceTest {
 		given(reviewImageFileRepository.findByReviewIdOrderByDisplayOrderAscIdAsc(123L))
 			.willReturn(List.of(image));
 
-		AdminUserReportDetailResponse response = adminReportService.getReportDetail(1L, "USER_REPORT");
+		AdminReportDetailResponse response = adminReportService.getReportDetail(1L, "USER_REPORT");
 
 		assertThat(response.reportId()).isEqualTo(1L);
 		assertThat(response.targetType()).isEqualTo("REVIEW");
@@ -212,7 +223,7 @@ class AdminReportServiceTest {
 		given(report.getReportedMember()).willReturn(reportedMember);
 		given(userReportRepository.findByIdWithMembers(2L)).willReturn(Optional.of(report));
 
-		AdminUserReportDetailResponse response = adminReportService.getReportDetail(2L, "USER_REPORT");
+		AdminReportDetailResponse response = adminReportService.getReportDetail(2L, "USER_REPORT");
 
 		assertThat(response.targetType()).isEqualTo("MEMBER_PROFILE");
 		assertThat(response.target()).isInstanceOf(AdminUserReportDetailResponse.MemberProfileTarget.class);
@@ -222,9 +233,9 @@ class AdminReportServiceTest {
 	}
 
 	@Test
-	@DisplayName("UserReport 상세 조회: USER_REPORT 외 kind는 예외를 던진다")
+	@DisplayName("제보 상세 조회: 지원하지 않는 kind는 예외를 던진다")
 	void getReportDetail_invalidKind_throws() {
-		assertThatThrownBy(() -> adminReportService.getReportDetail(1L, "STORE_REPORT"))
+		assertThatThrownBy(() -> adminReportService.getReportDetail(1L, "UNKNOWN_REPORT"))
 			.isInstanceOf(AdminException.class)
 			.hasMessageContaining(AdminErrorCode.REPORT_INVALID_KIND.getMessage());
 	}
@@ -441,6 +452,61 @@ class AdminReportServiceTest {
 			.hasMessageContaining(AdminErrorCode.REPORT_TARGET_TYPE_MISMATCH.getMessage());
 
 		verify(moderationActionRepository, never()).save(any());
+	}
+
+	@Test
+	@DisplayName("StoreAddReport ACCEPT: Store 생성 + 승인 알림 발송")
+	void storeAddReport_accept_createsStoreAndSendsNotification() {
+		Member reporter = mock(Member.class);
+		Point location = mock(Point.class);
+		StoreAddReport report = StoreAddReport.builder()
+			.member(reporter)
+			.naverPlaceId("123456")
+			.name("새빵집")
+			.address("서울 마포구 월드컵로 1")
+			.roadAddress("서울 마포구 월드컵로 1")
+			.phone("02-123-4567")
+			.location(location)
+			.reason("추가해주세요")
+			.build();
+		ReflectionTestUtils.setField(report, "id", 13L);
+		given(storeAddReportRepository.findById(13L)).willReturn(Optional.of(report));
+		given(storeRepository.findByNaverPlaceId("123456")).willReturn(Optional.empty());
+		given(storeRepository.findActiveStoresByCompactName("새빵집")).willReturn(List.of());
+
+		Store savedStore = mock(Store.class);
+		given(storeRepository.save(any(Store.class))).willReturn(savedStore);
+
+		adminReportService.reviewReport(13L, new AdminReportReviewRequest("STORE_ADD_REPORT", "ACCEPT"));
+
+		verify(storeRepository).save(any(Store.class));
+		assertThat(report.getStatus()).isEqualTo(StoreReportStatus.ACCEPTED);
+		verify(reportNotificationService).notifyReportResult(
+			eq(reporter), eq(savedStore), eq("새빵집"), eq(13L), eq(ReportKind.STORE_ADD_REPORT),
+			eq(ReportNotificationAction.APPROVED), anyString());
+	}
+
+	@Test
+	@DisplayName("StoreAddReport REJECT: Store 생성 없이 거절 알림 발송")
+	void storeAddReport_reject_skipsStoreCreationAndSendsNotification() {
+		Member reporter = mock(Member.class);
+		StoreAddReport report = StoreAddReport.builder()
+			.member(reporter)
+			.naverPlaceId("123456")
+			.name("새빵집")
+			.address("서울 마포구 월드컵로 1")
+			.location(mock(Point.class))
+			.build();
+		ReflectionTestUtils.setField(report, "id", 14L);
+		given(storeAddReportRepository.findById(14L)).willReturn(Optional.of(report));
+
+		adminReportService.reviewReport(14L, new AdminReportReviewRequest("STORE_ADD_REPORT", "REJECT"));
+
+		verify(storeRepository, never()).save(any(Store.class));
+		assertThat(report.getStatus()).isEqualTo(StoreReportStatus.REJECTED);
+		verify(reportNotificationService).notifyReportResult(
+			eq(reporter), eq(null), eq("새빵집"), eq(14L), eq(ReportKind.STORE_ADD_REPORT),
+			eq(ReportNotificationAction.REJECTED), anyString());
 	}
 
 	@Test
