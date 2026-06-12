@@ -19,7 +19,8 @@ import sweetgirl.croissant.store.repository.StoreRepository;
 @ConditionalOnProperty(name = "opensearch.endpoint")
 @RequiredArgsConstructor
 public class StoreDocumentIndexer {
-	private static final int BATCH_SIZE = 100;
+	private static final int BATCH_SIZE = 50;
+	private static final long BATCH_DELAY_MS = 1500;
 
 	private final StoreRepository storeRepository;
 	private final StoreIndexService storeIndexService;
@@ -54,6 +55,12 @@ public class StoreDocumentIndexer {
 				break;
 			}
 			page++;
+			try {
+				Thread.sleep(BATCH_DELAY_MS);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				break;
+			}
 		}
 
 		log.info("reindexAllStores 완료 success={} failed={}", success, failed);
