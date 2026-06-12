@@ -45,8 +45,7 @@ public class SecurityConfig {
 			.requestMatchers("/auth/**").permitAll() // controller 호출
 			.requestMatchers("/terms").permitAll()
 			.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
-			.anyRequest().authenticated());
-
+			.requestMatchers("/admin/**", "/api/admin/**").permitAll().anyRequest().authenticated());
 		// OAuth2 로그인 설정
 		http.oauth2Login(oauth2 -> oauth2
 			// deviceId 쿠키 저장을 위한 커스텀 리졸버 등록
