@@ -6,6 +6,7 @@ import java.util.List;
 import org.locationtech.jts.geom.Point;
 
 import sweetgirl.croissant.external.kakao.dto.KakaoPlace;
+import sweetgirl.croissant.external.opensearch.dto.MatchedField;
 import sweetgirl.croissant.menu.dto.dto.MenuSummaryDto;
 import sweetgirl.croissant.store.entity.Store;
 
@@ -18,7 +19,8 @@ public record StoreSearchResponse(
 		String phone,
 		String x,
 		String y,
-		List<MenuSummaryDto> topMenus) {
+		List<MenuSummaryDto> topMenus,
+		List<MatchedField> matchedFields) {
 
 	public static StoreSearchResponse ofKakao(KakaoPlace place, Long storeId, String thumbnailUrl,
 			List<MenuSummaryDto> topMenus) {
@@ -34,10 +36,12 @@ public record StoreSearchResponse(
 			place.phone(),
 			place.x(),
 			place.y(),
-			topMenus != null ? topMenus : Collections.emptyList());
+			topMenus != null ? topMenus : Collections.emptyList(),
+			Collections.emptyList());
 	}
 
-	public static StoreSearchResponse ofDb(Store store, String thumbnailUrl, List<MenuSummaryDto> topMenus) {
+	public static StoreSearchResponse ofDb(Store store, String thumbnailUrl, List<MenuSummaryDto> topMenus,
+			List<MatchedField> matchedFields) {
 		Point location = store.getLocation();
 		String longitude = location != null ? String.valueOf(location.getX()) : null;
 		String latitude = location != null ? String.valueOf(location.getY()) : null;
@@ -50,6 +54,7 @@ public record StoreSearchResponse(
 			store.getPhone(),
 			longitude,
 			latitude,
-			topMenus != null ? topMenus : Collections.emptyList());
+			topMenus != null ? topMenus : Collections.emptyList(),
+			matchedFields != null ? matchedFields : Collections.emptyList());
 	}
 }

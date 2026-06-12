@@ -1,57 +1,62 @@
 package sweetgirl.croissant.external.opensearch.client;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import sweetgirl.croissant.external.opensearch.config.OpenSearchProperties;
+import sweetgirl.croissant.external.opensearch.dto.MatchedField;
 import sweetgirl.croissant.external.opensearch.dto.OpenSearchStoreHit;
 import sweetgirl.croissant.external.opensearch.dto.OpenSearchStoreSearchResult;
 import sweetgirl.croissant.external.opensearch.query.StoreSearchQueryBuilder;
 import sweetgirl.croissant.store.service.search.SearchIntent;
+import sweetgirl.croissant.store.service.search.SearchSort;
 
 @Component
 public class OpenSearchStoreClient {
 
 	private static final String SEARCH_PATH_FORMAT = "/%s/_search";
+	private static final ObjectMapper MAPPER = new ObjectMapper();
 
 	private final RestClient openSearchRestClient;
 	private final OpenSearchProperties openSearchProperties;
-	private final ObjectMapper objectMapper;
 	private final StoreSearchQueryBuilder storeSearchQueryBuilder;
 
 	public OpenSearchStoreClient(@Qualifier("openSearchRestClient") RestClient openSearchRestClient,
-			OpenSearchProperties openSearchProperties, ObjectMapper objectMapper,
+			OpenSearchProperties openSearchProperties,
 			StoreSearchQueryBuilder storeSearchQueryBuilder) {
 		this.openSearchRestClient = openSearchRestClient;
 		this.openSearchProperties = openSearchProperties;
-		this.objectMapper = objectMapper;
 		this.storeSearchQueryBuilder = storeSearchQueryBuilder;
 	}
 
 	public OpenSearchStoreSearchResult searchStores(SearchIntent intent, Pageable pageable,
-			Double latitude, Double longitude) {
-		boolean sortByDistance = intent.regionTokens().isEmpty() && latitude != null && longitude != null;
+			Double latitude, Double longitude, SearchSort sort) {
 		Map<String, Object> request = storeSearchQueryBuilder.build(intent, pageable, latitude, longitude,
-			sortByDistance);
+			sort);
 		JsonNode response;
 		try {
-			response = openSearchRestClient.post()
+			String body = openSearchRestClient.post()
 				.uri(SEARCH_PATH_FORMAT.formatted(openSearchProperties.getStoresIndex()))
 				.body(request)
 				.retrieve()
-				.body(JsonNode.class);
-		} catch (RestClientException e) {
+				.body(String.class);
+			if (body == null) {
+				return OpenSearchStoreSearchResult.empty();
+			}
+			response = MAPPER.readTree(body);
+		} catch (Exception e) {
 			return OpenSearchStoreSearchResult.empty();
 		}
 		return parseResponse(response, pageable);
@@ -69,13 +74,37 @@ public class OpenSearchStoreClient {
 			if (storeId == null) {
 				continue;
 			}
+			List<Long> matchedMenuIds = parseMatchedMenuIds(hitNode);
 			hits.add(new OpenSearchStoreHit(
 				storeId,
 				nullableDouble(hitNode.path("_score")),
 				parseDistance(hitNode),
-				parseMatchedMenuIds(hitNode)));
+				matchedMenuIds,
+				parseMatchedFields(hitNode, matchedMenuIds)));
 		}
 		return new OpenSearchStoreSearchResult(hits, hits.size() == pageable.getPageSize());
+	}
+
+	private List<MatchedField> parseMatchedFields(JsonNode hitNode, List<Long> matchedMenuIds) {
+		Set<MatchedField> fields = EnumSet.noneOf(MatchedField.class);
+		JsonNode highlight = hitNode.path("highlight");
+		if (highlight.isObject()) {
+			Iterator<String> fieldNames = highlight.fieldNames();
+			while (fieldNames.hasNext()) {
+				String field = fieldNames.next();
+				if (field.startsWith("storeName")) {
+					fields.add(MatchedField.STORE_NAME);
+				} else if (field.startsWith("searchRegionAliases")) {
+					fields.add(MatchedField.REGION);
+				} else if (field.startsWith("breadTypes")) {
+					fields.add(MatchedField.BREAD_TYPE);
+				}
+			}
+		}
+		if (!matchedMenuIds.isEmpty()) {
+			fields.add(MatchedField.MENU);
+		}
+		return List.copyOf(fields);
 	}
 
 	private List<Long> parseMatchedMenuIds(JsonNode hitNode) {
@@ -115,13 +144,21 @@ public class OpenSearchStoreClient {
 		if (node == null || node.isMissingNode() || node.isNull()) {
 			return null;
 		}
-		return objectMapper.convertValue(node, Long.class);
+		try {
+			return MAPPER.convertValue(node, Long.class);
+		} catch (Exception e) {
+			return null;
+		}
 	}
 
 	private Double nullableDouble(JsonNode node) {
 		if (node == null || node.isMissingNode() || node.isNull()) {
 			return null;
 		}
-		return objectMapper.convertValue(node, Double.class);
+		try {
+			return MAPPER.convertValue(node, Double.class);
+		} catch (Exception e) {
+			return null;
+		}
 	}
 }

@@ -1,5 +1,7 @@
 package sweetgirl.croissant.admin.controller;
 
+import java.util.concurrent.RejectedExecutionException;
+
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -9,7 +11,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.external.opensearch.batch.StoreDocumentIndexer;
-import sweetgirl.croissant.external.opensearch.dto.ReindexResultDto;
+import sweetgirl.croissant.external.opensearch.exception.OpenSearchErrorCode;
+import sweetgirl.croissant.external.opensearch.exception.OpenSearchException;
 import sweetgirl.croissant.global.response.ApiResponse;
 
 @RestController
@@ -23,7 +26,12 @@ public class AdminSearchController {
 
 	@PostMapping("/reindex/stores")
 	@Operation(summary = "가게 전체 재색인")
-	public ApiResponse<ReindexResultDto> reindexStores() {
-		return ApiResponse.ok(storeDocumentIndexer.reindexAllStores());
+	public ApiResponse<String> reindexStores() {
+		try {
+			storeDocumentIndexer.reindexAllStores();
+		} catch (RejectedExecutionException e) {
+			throw new OpenSearchException(OpenSearchErrorCode.REINDEX_ALREADY_IN_PROGRESS);
+		}
+		return ApiResponse.ok(null);
 	}
 }

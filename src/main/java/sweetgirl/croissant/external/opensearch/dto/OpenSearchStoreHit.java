@@ -6,5 +6,6 @@ public record OpenSearchStoreHit(
 		Long storeId,
 		Double score,
 		Double distanceMeters,
-		List<Long> matchedMenuIds) {
+		List<Long> matchedMenuIds,
+		List<MatchedField> matchedFields) {
 }
