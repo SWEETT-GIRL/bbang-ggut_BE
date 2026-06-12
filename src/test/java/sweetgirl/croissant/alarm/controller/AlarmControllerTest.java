@@ -56,8 +56,10 @@ class AlarmControllerTest {
 		ReportNotificationResponse notification = new ReportNotificationResponse(
 			1L,
 			12L,
+			100L,
+			null,
 			77L,
-			"USER_REPORT",
+			"ABUSE_REPORT",
 			"MODERATION_ACTION",
 			null,
 			null,
@@ -74,8 +76,10 @@ class AlarmControllerTest {
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data[0].id").value(1))
 			.andExpect(jsonPath("$.data[0].reportId").value(12))
+			.andExpect(jsonPath("$.data[0].contributionReportId").value(100))
+			.andExpect(jsonPath("$.data[0].abuseReportId").doesNotExist())
 			.andExpect(jsonPath("$.data[0].moderationActionId").value(77))
-			.andExpect(jsonPath("$.data[0].reportKind").value("USER_REPORT"))
+			.andExpect(jsonPath("$.data[0].reportKind").value("ABUSE_REPORT"))
 			.andExpect(jsonPath("$.data[0].action").value("MODERATION_ACTION"))
 			.andExpect(jsonPath("$.data[0].title").value("운영 정책 위반으로 콘텐츠가 제한되었습니다."))
 			.andExpect(jsonPath("$.data[0].read").value(false))

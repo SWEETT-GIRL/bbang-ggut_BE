@@ -11,6 +11,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.common.enums.MimeType;
+import sweetgirl.croissant.contribution.entity.ContributionReport;
+import sweetgirl.croissant.contribution.entity.MenuContributionReport;
+import sweetgirl.croissant.contribution.entity.StoreContributionReport;
+import sweetgirl.croissant.contribution.enums.ContributionReportType;
+import sweetgirl.croissant.contribution.enums.ContributionTargetType;
+import sweetgirl.croissant.contribution.repository.ContributionReportRepository;
+import sweetgirl.croissant.contribution.repository.MenuContributionReportRepository;
+import sweetgirl.croissant.contribution.repository.StoreContributionReportRepository;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.external.aws.util.S3PathGenerator;
@@ -59,6 +67,9 @@ public class StoreReportService {
 	private final StoreImageFileRepository storeImageFileRepository;
 	private final StoreReportRepository storeReportRepository;
 	private final StoreReportImageFileRepository storeReportImageFileRepository;
+	private final ContributionReportRepository contributionReportRepository;
+	private final StoreContributionReportRepository storeContributionReportRepository;
+	private final MenuContributionReportRepository menuContributionReportRepository;
 
 	public List<AddressSearchResult> searchAddress(String searchKeyword) {
 		return kakaoLocalClient.searchByKeywordForAddress(searchKeyword).stream()
@@ -147,6 +158,7 @@ public class StoreReportService {
 			.requestType(StoreReportType.MOD_BAKERY_IMG)
 			.message(serializeMessage(request))
 			.build());
+		saveStoreContributionReport(member, report);
 
 		if (hasAdd) {
 			List<StoreReportImageFile> imageFiles = request.addImages().stream()
@@ -189,6 +201,7 @@ public class StoreReportService {
 			.requestType(StoreReportType.MOD_BAKERY_TIME)
 			.message(serializeMessage(request))
 			.build());
+		saveStoreContributionReport(member, report);
 
 		return new StoreReportResponse(report.getId(), report.getStatus());
 	}
@@ -207,6 +220,7 @@ public class StoreReportService {
 			.requestType(StoreReportType.MOD_BAKERY_ADDRESS)
 			.message(serializeMessage(request))
 			.build());
+		saveStoreContributionReport(member, report);
 
 		return new StoreReportResponse(report.getId(), report.getStatus());
 	}
@@ -251,6 +265,7 @@ public class StoreReportService {
 			.requestType(StoreReportType.MOD_BREAD)
 			.message(serializeMessage(request))
 			.build());
+		saveMenuContributionReport(member, report);
 
 		if (hasAdd) {
 			List<StoreReportImageFile> imageFiles = request.addImages().stream()
@@ -273,6 +288,32 @@ public class StoreReportService {
 		} catch (JsonProcessingException e) {
 			throw new RuntimeException(e);
 		}
+	}
+
+	private void saveStoreContributionReport(Member member, StoreReport storeReport) {
+		ContributionReport contributionReport = contributionReportRepository.save(ContributionReport.builder()
+			.member(member)
+			.targetType(ContributionTargetType.STORE)
+			.reportType(ContributionReportType.UPDATE)
+			.build());
+
+		storeContributionReportRepository.save(StoreContributionReport.builder()
+			.contributionReport(contributionReport)
+			.storeReport(storeReport)
+			.build());
+	}
+
+	private void saveMenuContributionReport(Member member, StoreReport storeReport) {
+		ContributionReport contributionReport = contributionReportRepository.save(ContributionReport.builder()
+			.member(member)
+			.targetType(ContributionTargetType.MENU)
+			.reportType(ContributionReportType.UPDATE)
+			.build());
+
+		menuContributionReportRepository.save(MenuContributionReport.builder()
+			.contributionReport(contributionReport)
+			.storeReport(storeReport)
+			.build());
 	}
 
 }

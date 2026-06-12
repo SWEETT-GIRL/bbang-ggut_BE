@@ -25,12 +25,12 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import sweetgirl.croissant.admin.dto.response.AdminAbuseReportDetailResponse;
+import sweetgirl.croissant.admin.dto.response.AdminAbuseReportStatsResponse;
 import sweetgirl.croissant.admin.dto.response.AdminHighPriorityReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminModerationActionResponse;
 import sweetgirl.croissant.admin.dto.response.AdminReportDetailResponse;
 import sweetgirl.croissant.admin.dto.response.AdminReportResponse;
-import sweetgirl.croissant.admin.dto.response.AdminUserReportDetailResponse;
-import sweetgirl.croissant.admin.dto.response.AdminUserReportStatsResponse;
 import sweetgirl.croissant.admin.service.AdminReportService;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 
@@ -92,9 +92,9 @@ class AdminReportControllerTest {
 	}
 
 	@Test
-	void getUserReportStats_returnsStats() throws Exception {
-		given(adminReportService.getUserReportStats())
-			.willReturn(new AdminUserReportStatsResponse(
+	void getAbuseReportStats_returnsStats() throws Exception {
+		given(adminReportService.getAbuseReportStats())
+			.willReturn(new AdminAbuseReportStatsResponse(
 				10,
 				4,
 				3,
@@ -122,7 +122,7 @@ class AdminReportControllerTest {
 	void getHighPriorityReports_returnsCandidates() throws Exception {
 		AdminHighPriorityReportResponse report = new AdminHighPriorityReportResponse(
 			1L,
-			"USER_REPORT",
+			"ABUSE_REPORT",
 			"REVIEW",
 			101L,
 			10L,
@@ -192,8 +192,8 @@ class AdminReportControllerTest {
 	}
 
 	@Test
-	void getReportDetail_returnsUserReportDetail() throws Exception {
-		AdminUserReportDetailResponse.ReviewTarget target = new AdminUserReportDetailResponse.ReviewTarget(
+	void getReportDetail_returnsAbuseReportDetail() throws Exception {
+		AdminAbuseReportDetailResponse.ReviewTarget target = new AdminAbuseReportDetailResponse.ReviewTarget(
 			123L,
 			3L,
 			"소금빵",
@@ -207,10 +207,10 @@ class AdminReportControllerTest {
 			null,
 			null,
 			null);
-		given(adminReportService.getReportDetail(eq(1L), eq("USER_REPORT")))
+		given(adminReportService.getReportDetail(eq(1L), eq("ABUSE_REPORT")))
 			.willReturn(new AdminReportDetailResponse(
 				1L,
-				"USER_REPORT",
+				"ABUSE_REPORT",
 				"REVIEW",
 				"REVIEW",
 				123L,
@@ -225,7 +225,7 @@ class AdminReportControllerTest {
 				target));
 
 		mockMvc.perform(get("/api/admin/reports/1")
-			.param("kind", "USER_REPORT"))
+			.param("kind", "ABUSE_REPORT"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.reportId").value(1))

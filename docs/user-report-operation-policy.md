@@ -156,7 +156,7 @@ S3 이상은 신고 접수 수와 무관하게 단일 신고만으로 선조치�
 자동 후보 큐와 통계 조회를 담당한다.
 
 ```http
-GET /api/admin/reports?kind=USER_REPORT&status=PENDING&page=0&size=20
+GET /api/admin/reports?kind=ABUSE_REPORT&status=PENDING&page=0&size=20
 GET /api/admin/reports/stats
 GET /api/admin/reports/high-priority?status=PENDING&page=0&size=20
 PATCH /api/admin/reports/{reportId}
@@ -169,7 +169,7 @@ PATCH /api/admin/moderation-appeals/{appealId}
 
 ```json
 {
-  "kind": "USER_REPORT",
+  "kind": "ABUSE_REPORT",
   "action": "ACCEPT"
 }
 ```

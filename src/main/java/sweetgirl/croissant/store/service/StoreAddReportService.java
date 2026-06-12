@@ -10,6 +10,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.contribution.entity.ContributionReport;
+import sweetgirl.croissant.contribution.entity.StoreContributionReport;
+import sweetgirl.croissant.contribution.enums.ContributionReportType;
+import sweetgirl.croissant.contribution.enums.ContributionTargetType;
+import sweetgirl.croissant.contribution.repository.ContributionReportRepository;
+import sweetgirl.croissant.contribution.repository.StoreContributionReportRepository;
 import sweetgirl.croissant.external.naver.client.NaverLocalSearchClient;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
@@ -33,6 +39,8 @@ public class StoreAddReportService {
 	private final MemberReader memberReader;
 	private final StoreRepository storeRepository;
 	private final StoreAddReportRepository storeAddReportRepository;
+	private final ContributionReportRepository contributionReportRepository;
+	private final StoreContributionReportRepository storeContributionReportRepository;
 
 	public List<NaverPlaceSearchResult> searchNaverPlaces(String keyword) {
 		return naverLocalSearchClient.search(keyword);
@@ -66,6 +74,7 @@ public class StoreAddReportService {
 			.location(toPoint(request.latitude(), request.longitude()))
 			.reason(request.reason())
 			.build());
+		saveStoreContributionReport(member, report);
 
 		return new StoreAddReportResponse(report.getId(), report.getStatus());
 	}
@@ -76,5 +85,18 @@ public class StoreAddReportService {
 
 	private String blankToNull(String value) {
 		return value == null || value.isBlank() ? null : value;
+	}
+
+	private void saveStoreContributionReport(Member member, StoreAddReport storeAddReport) {
+		ContributionReport contributionReport = contributionReportRepository.save(ContributionReport.builder()
+			.member(member)
+			.targetType(ContributionTargetType.STORE)
+			.reportType(ContributionReportType.ADD)
+			.build());
+
+		storeContributionReportRepository.save(StoreContributionReport.builder()
+			.contributionReport(contributionReport)
+			.storeAddReport(storeAddReport)
+			.build());
 	}
 }
