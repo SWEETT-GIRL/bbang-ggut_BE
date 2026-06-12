@@ -19,7 +19,8 @@ import sweetgirl.croissant.store.repository.StoreRepository;
 @RequiredArgsConstructor
 public class StoreIndexScheduler {
 
-	private static final int BATCH_SIZE = 500;
+	private static final int BATCH_SIZE = 100;
+	private static final long BATCH_DELAY_MS = 1000;
 
 	private final StoreRepository storeRepository;
 	private final StoreIndexService storeIndexService;
@@ -41,6 +42,12 @@ public class StoreIndexScheduler {
 				break;
 			}
 			page++;
+			try {
+				Thread.sleep(BATCH_DELAY_MS);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				break;
+			}
 		}
 
 		log.info("[OpenSearch] 주간 popularityScore 배치 완료 updated={}", updated);
