@@ -55,7 +55,7 @@ class StoreSearchQueryBuilderTest {
 	void build_doesNotRequireBreadMatchWhenRegionIsAbsent() {
 		SearchIntent intent = intent("자연도", List.of(), List.of("자연도"));
 
-		Map<String, Object> query = builder.build(intent, PageRequest.of(0, 15), null, null, false);
+		Map<String, Object> query = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
 
 		Map<String, Object> bool = boolQuery(query);
 		List<Object> must = list(bool.get("must"));
