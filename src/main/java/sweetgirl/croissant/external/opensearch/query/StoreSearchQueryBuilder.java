@@ -32,7 +32,12 @@ public class StoreSearchQueryBuilder {
 		}
 
 		if (hasBreadTokens) {
-			must.add(boolShould(breadQueries(intent.breadTokens())));
+			Map<String, Object> breadMatch = boolShould(breadQueries(intent.breadTokens()));
+			if (hasRegionTokens) {
+				must.add(breadMatch);
+			} else {
+				should.add(breadMatch);
+			}
 		}
 
 		should.add(rawQuery(intent.rawQuery()));
