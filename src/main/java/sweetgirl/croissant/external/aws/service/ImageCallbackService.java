@@ -7,15 +7,15 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.common.entity.ImageFile;
 import sweetgirl.croissant.common.enums.ImageStatus;
+import sweetgirl.croissant.contribution.repository.MenuContributionReportImageFileRepository;
+import sweetgirl.croissant.contribution.repository.StoreContributionReportImageFileRepository;
 import sweetgirl.croissant.external.aws.dto.ImageStatusUpdateRequest;
 import sweetgirl.croissant.external.aws.enums.S3Folder;
 import sweetgirl.croissant.external.aws.exception.S3ErrorCode;
 import sweetgirl.croissant.external.aws.exception.S3StorageException;
-import sweetgirl.croissant.menu.repository.MenuAddReportImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.review.repository.ReviewImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
-import sweetgirl.croissant.store.repository.StoreReportImageFileRepository;
 
 @Slf4j
 @Service
@@ -24,8 +24,8 @@ public class ImageCallbackService {
 
 	private final StoreImageFileRepository storeImageFileRepository;
 	private final MenuImageFileRepository menuImageFileRepository;
-	private final StoreReportImageFileRepository storeReportImageFileRepository;
-	private final MenuAddReportImageFileRepository menuAddReportImageFileRepository;
+	private final StoreContributionReportImageFileRepository storeContributionReportImageFileRepository;
+	private final MenuContributionReportImageFileRepository menuContributionReportImageFileRepository;
 	private final ReviewImageFileRepository reviewImageFileRepository;
 
 	@Transactional
@@ -56,11 +56,11 @@ public class ImageCallbackService {
 				.orElseThrow(() -> new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND));
 		}
 		if (awsKey.startsWith(S3Folder.REPORTS.prefix())) {
-			return storeReportImageFileRepository.findByAwsKey(awsKey)
-				.orElseThrow(() -> new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND));
-		}
-		if (awsKey.startsWith(S3Folder.MENU_ADD_REPORTS.prefix())) {
-			return menuAddReportImageFileRepository.findByAwsKey(awsKey)
+			var storeReportImage = storeContributionReportImageFileRepository.findByAwsKey(awsKey);
+			if (storeReportImage.isPresent()) {
+				return storeReportImage.get();
+			}
+			return menuContributionReportImageFileRepository.findByAwsKey(awsKey)
 				.orElseThrow(() -> new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND));
 		}
 		if (awsKey.startsWith(S3Folder.REVIEWS.prefix())) {

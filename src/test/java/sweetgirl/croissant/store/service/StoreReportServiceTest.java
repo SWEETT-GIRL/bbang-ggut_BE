@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -14,6 +15,7 @@ import java.time.DayOfWeek;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,9 +26,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import sweetgirl.croissant.contribution.entity.ContributionReport;
+import sweetgirl.croissant.contribution.entity.MenuContributionReport;
 import sweetgirl.croissant.contribution.entity.StoreContributionReport;
 import sweetgirl.croissant.contribution.repository.ContributionReportRepository;
+import sweetgirl.croissant.contribution.repository.MenuContributionReportImageFileRepository;
 import sweetgirl.croissant.contribution.repository.MenuContributionReportRepository;
+import sweetgirl.croissant.contribution.repository.StoreContributionReportImageFileRepository;
 import sweetgirl.croissant.contribution.repository.StoreContributionReportRepository;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.member.entity.Member;
@@ -46,13 +52,10 @@ import sweetgirl.croissant.store.dto.request.StoreBusinessHoursReportRequest.Bus
 import sweetgirl.croissant.store.dto.request.StoreImageReportRequest;
 import sweetgirl.croissant.store.dto.response.StoreReportResponse;
 import sweetgirl.croissant.store.entity.Store;
-import sweetgirl.croissant.store.entity.StoreReport;
 import sweetgirl.croissant.store.enums.StoreReportStatus;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.exception.StoreReportException;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
-import sweetgirl.croissant.store.repository.StoreReportImageFileRepository;
-import sweetgirl.croissant.store.repository.StoreReportRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -73,18 +76,26 @@ class StoreReportServiceTest {
 	@Mock
 	StoreImageFileRepository storeImageFileRepository;
 	@Mock
-	StoreReportRepository storeReportRepository;
-	@Mock
-	StoreReportImageFileRepository storeReportImageFileRepository;
-	@Mock
 	ContributionReportRepository contributionReportRepository;
 	@Mock
 	StoreContributionReportRepository storeContributionReportRepository;
 	@Mock
 	MenuContributionReportRepository menuContributionReportRepository;
+	@Mock
+	StoreContributionReportImageFileRepository storeContributionReportImageFileRepository;
+	@Mock
+	MenuContributionReportImageFileRepository menuContributionReportImageFileRepository;
 
 	@InjectMocks
 	StoreReportService storeReportService;
+
+	@BeforeEach
+	void setUp() {
+		lenient().when(storeContributionReportRepository.save(any(StoreContributionReport.class)))
+			.thenAnswer(invocation -> invocation.getArgument(0));
+		lenient().when(menuContributionReportRepository.save(any(MenuContributionReport.class)))
+			.thenAnswer(invocation -> invocation.getArgument(0));
+	}
 
 	// ───────────────────────── createImageReport ─────────────────────────
 
@@ -131,20 +142,20 @@ class StoreReportServiceTest {
 	@DisplayName("createImageReport: 삭제만 있는 정상 요청이면 StoreReport를 저장하고 imageFile은 저장하지 않는다")
 	void createImageReport_deleteOnly_success() throws JsonProcessingException {
 		StoreImageReportRequest request = new StoreImageReportRequest(List.of(1L), List.of(), "사진 잘못됨");
-		StoreReport savedReport = savedReportMock(10L);
+		ContributionReport savedContribution = savedContributionMock(10L);
 
 		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
 		given(storeImageFileRepository.countByIdInAndStoreId(List.of(1L), 1L)).willReturn(1L);
 		given(storeRepository.findById(1L)).willReturn(Optional.of(mock(Store.class)));
 		given(objectMapper.writeValueAsString(request)).willReturn("{}");
-		given(storeReportRepository.save(any())).willReturn(savedReport);
+		given(contributionReportRepository.save(any())).willReturn(savedContribution);
 
 		StoreReportResponse result = storeReportService.createImageReport(1L, 1L, request);
 
 		assertThat(result.reportId()).isEqualTo(10L);
 		assertThat(result.status()).isEqualTo(StoreReportStatus.PENDING);
-		verify(storeReportImageFileRepository, never()).saveAll(anyList());
-		verify(storeContributionReportRepository).save(argThat(r -> r.getStoreReport() == savedReport));
+		verify(storeContributionReportImageFileRepository, never()).saveAll(anyList());
+		verify(storeContributionReportRepository).save(argThat(r -> r.getContributionReport() == savedContribution));
 	}
 
 	@Test
@@ -153,17 +164,17 @@ class StoreReportServiceTest {
 		ReportImageRequest img = new ReportImageRequest("test.jpg", "image/jpeg",
 			"reports/stores/1/members/1/images/uuid.jpg");
 		StoreImageReportRequest request = new StoreImageReportRequest(List.of(), List.of(img), null);
-		StoreReport savedReport = savedReportMock(10L);
+		ContributionReport savedContribution = savedContributionMock(10L);
 
 		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
 		given(storeRepository.findById(1L)).willReturn(Optional.of(mock(Store.class)));
 		given(objectMapper.writeValueAsString(request)).willReturn("{}");
-		given(storeReportRepository.save(any())).willReturn(savedReport);
+		given(contributionReportRepository.save(any())).willReturn(savedContribution);
 
 		StoreReportResponse result = storeReportService.createImageReport(1L, 1L, request);
 
 		assertThat(result.reportId()).isEqualTo(10L);
-		verify(storeReportImageFileRepository).saveAll(anyList());
+		verify(storeContributionReportImageFileRepository).saveAll(anyList());
 	}
 
 	@Test
@@ -226,12 +237,12 @@ class StoreReportServiceTest {
 	void createBusinessHoursReport_closedDay_skipsTimeValidation() throws JsonProcessingException {
 		var request = new StoreBusinessHoursReportRequest(
 			List.of(new BusinessHourEntry(DayOfWeek.SUNDAY, true, null, null)), null);
-		StoreReport savedReport = savedReportMock(10L);
+		ContributionReport savedContribution = savedContributionMock(10L);
 
 		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
 		given(storeRepository.findById(1L)).willReturn(Optional.of(mock(Store.class)));
 		given(objectMapper.writeValueAsString(request)).willReturn("{}");
-		given(storeReportRepository.save(any())).willReturn(savedReport);
+		given(contributionReportRepository.save(any())).willReturn(savedContribution);
 
 		StoreReportResponse result = storeReportService.createBusinessHoursReport(1L, 1L, request);
 
@@ -245,12 +256,12 @@ class StoreReportServiceTest {
 	void createBusinessHoursReport_validRequest_success() throws JsonProcessingException {
 		var request = new StoreBusinessHoursReportRequest(
 			List.of(new BusinessHourEntry(DayOfWeek.MONDAY, false, "09:00", "18:00")), "수정 요청");
-		StoreReport savedReport = savedReportMock(10L);
+		ContributionReport savedContribution = savedContributionMock(10L);
 
 		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
 		given(storeRepository.findById(1L)).willReturn(Optional.of(mock(Store.class)));
 		given(objectMapper.writeValueAsString(request)).willReturn("{}");
-		given(storeReportRepository.save(any())).willReturn(savedReport);
+		given(contributionReportRepository.save(any())).willReturn(savedContribution);
 
 		StoreReportResponse result = storeReportService.createBusinessHoursReport(1L, 1L, request);
 
@@ -277,12 +288,12 @@ class StoreReportServiceTest {
 	@DisplayName("createAddressReport: 정상 요청이면 StoreReport를 저장하고 응답을 반환한다")
 	void createAddressReport_validRequest_success() throws JsonProcessingException {
 		var request = new StoreAddressReportRequest("서울시 강남구", "강남대로 1", "뚜레쥬르", 37.5, 127.0, "주소 변경");
-		StoreReport savedReport = savedReportMock(10L);
+		ContributionReport savedContribution = savedContributionMock(10L);
 
 		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
 		given(storeRepository.findById(1L)).willReturn(Optional.of(mock(Store.class)));
 		given(objectMapper.writeValueAsString(request)).willReturn("{}");
-		given(storeReportRepository.save(any())).willReturn(savedReport);
+		given(contributionReportRepository.save(any())).willReturn(savedContribution);
 
 		StoreReportResponse result = storeReportService.createAddressReport(1L, 1L, request);
 
@@ -373,7 +384,7 @@ class StoreReportServiceTest {
 	@DisplayName("createMenuEditReport: 정상 요청이면 StoreReport를 저장하고 PENDING 상태를 반환한다")
 	void createMenuEditReport_validRequest_returnsPendingStatus() throws JsonProcessingException {
 		MenuEditReportRequest request = new MenuEditReportRequest(6500, null, null, "가격 변경");
-		StoreReport savedReport = savedReportMock(4L);
+		ContributionReport savedContribution = savedContributionMock(4L);
 		Menu menu = mock(Menu.class);
 		Store store = mock(Store.class);
 		given(menu.getStore()).willReturn(store);
@@ -381,14 +392,14 @@ class StoreReportServiceTest {
 		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
 		given(menuRepository.findById(1L)).willReturn(Optional.of(menu));
 		given(objectMapper.writeValueAsString(request)).willReturn("{}");
-		given(storeReportRepository.save(any())).willReturn(savedReport);
+		given(contributionReportRepository.save(any())).willReturn(savedContribution);
 
 		StoreReportResponse result = storeReportService.createMenuEditReport(1L, 1L, request);
 
 		assertThat(result.reportId()).isEqualTo(4L);
 		assertThat(result.status()).isEqualTo(StoreReportStatus.PENDING);
-		verify(storeReportImageFileRepository, never()).saveAll(anyList());
-		verify(menuContributionReportRepository).save(argThat(r -> r.getStoreReport() == savedReport));
+		verify(menuContributionReportImageFileRepository, never()).saveAll(anyList());
+		verify(menuContributionReportRepository).save(argThat(r -> r.getContributionReport() == savedContribution));
 	}
 
 	@Test
@@ -397,7 +408,7 @@ class StoreReportServiceTest {
 		ReportImageRequest img = new ReportImageRequest("menu.jpg", "image/jpeg",
 			"reports/stores/7/menus/1/uuid");
 		MenuEditReportRequest request = new MenuEditReportRequest(null, null, List.of(img), null);
-		StoreReport savedReport = savedReportMock(4L);
+		ContributionReport savedContribution = savedContributionMock(4L);
 		Menu menu = mock(Menu.class);
 		Store store = mock(Store.class);
 		given(store.getId()).willReturn(7L);
@@ -406,12 +417,12 @@ class StoreReportServiceTest {
 		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
 		given(menuRepository.findById(1L)).willReturn(Optional.of(menu));
 		given(objectMapper.writeValueAsString(request)).willReturn("{}");
-		given(storeReportRepository.save(any())).willReturn(savedReport);
+		given(contributionReportRepository.save(any())).willReturn(savedContribution);
 
 		StoreReportResponse result = storeReportService.createMenuEditReport(1L, 1L, request);
 
 		assertThat(result.reportId()).isEqualTo(4L);
-		verify(storeReportImageFileRepository).saveAll(anyList());
+		verify(menuContributionReportImageFileRepository).saveAll(anyList());
 	}
 
 	@Test
@@ -419,7 +430,7 @@ class StoreReportServiceTest {
 	void createMenuEditReport_validRequest_memberSaved() throws JsonProcessingException {
 		MenuEditReportRequest request = new MenuEditReportRequest(6500, null, null, null);
 		Member member = mock(Member.class);
-		StoreReport savedReport = savedReportMock(4L);
+		ContributionReport savedContribution = savedContributionMock(4L);
 		Menu menu = mock(Menu.class);
 		Store store = mock(Store.class);
 		given(menu.getStore()).willReturn(store);
@@ -427,17 +438,16 @@ class StoreReportServiceTest {
 		given(memberReader.getMember(1L)).willReturn(member);
 		given(menuRepository.findById(1L)).willReturn(Optional.of(menu));
 		given(objectMapper.writeValueAsString(request)).willReturn("{}");
-		given(storeReportRepository.save(any())).willReturn(savedReport);
+		given(contributionReportRepository.save(any())).willReturn(savedContribution);
 
 		storeReportService.createMenuEditReport(1L, 1L, request);
 
-		verify(storeReportRepository).save(argThat(r -> r.getMember() == member));
+		verify(contributionReportRepository).save(argThat(r -> r.getMember() == member));
 	}
 
-	private StoreReport savedReportMock(Long id) {
-		StoreReport report = mock(StoreReport.class);
+	private ContributionReport savedContributionMock(Long id) {
+		ContributionReport report = mock(ContributionReport.class);
 		given(report.getId()).willReturn(id);
-		given(report.getStatus()).willReturn(StoreReportStatus.PENDING);
 		return report;
 	}
 

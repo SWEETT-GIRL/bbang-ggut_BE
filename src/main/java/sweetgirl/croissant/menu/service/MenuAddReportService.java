@@ -9,9 +9,11 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.contribution.entity.ContributionReport;
 import sweetgirl.croissant.contribution.entity.MenuContributionReport;
+import sweetgirl.croissant.contribution.entity.MenuContributionReportImageFile;
 import sweetgirl.croissant.contribution.enums.ContributionReportType;
 import sweetgirl.croissant.contribution.enums.ContributionTargetType;
 import sweetgirl.croissant.contribution.repository.ContributionReportRepository;
+import sweetgirl.croissant.contribution.repository.MenuContributionReportImageFileRepository;
 import sweetgirl.croissant.contribution.repository.MenuContributionReportRepository;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
@@ -20,12 +22,8 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
 import sweetgirl.croissant.menu.dto.request.MenuAddReportRequest;
-import sweetgirl.croissant.menu.entity.MenuAddReport;
-import sweetgirl.croissant.menu.entity.MenuAddReportImageFile;
 import sweetgirl.croissant.menu.entity.MenuCategory;
 import sweetgirl.croissant.menu.exception.MenuException;
-import sweetgirl.croissant.menu.repository.MenuAddReportImageFileRepository;
-import sweetgirl.croissant.menu.repository.MenuAddReportRepository;
 import sweetgirl.croissant.menu.repository.MenuCategoryRepository;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
@@ -37,14 +35,13 @@ import sweetgirl.croissant.store.repository.StoreRepository;
 @Transactional(readOnly = true)
 public class MenuAddReportService {
 
-	private final MenuAddReportRepository menuAddReportRepository;
-	private final MenuAddReportImageFileRepository menuAddReportImageFileRepository;
 	private final StoreRepository storeRepository;
 	private final MenuCategoryRepository menuCategoryRepository;
 	private final MemberRepository memberRepository;
 	private final S3Service s3Service;
 	private final ContributionReportRepository contributionReportRepository;
 	private final MenuContributionReportRepository menuContributionReportRepository;
+	private final MenuContributionReportImageFileRepository menuContributionReportImageFileRepository;
 
 	public PresignedUrlResponse getPresignedUrl(String mimeType) {
 		String path = S3PathGenerator.getMenuAddReportTempPath();
@@ -61,39 +58,30 @@ public class MenuAddReportService {
 
 		Member member = (memberId != null) ? memberRepository.getReferenceById(memberId) : null;
 
-		MenuAddReport menuAddReport = MenuAddReport.builder()
-			.store(store)
-			.member(member)
-			.menuCategory(menuCategory)
-			.name(request.getName())
-			.price(request.getPrice())
-			.description(request.getDescription())
-			.build();
-
-		menuAddReportRepository.save(menuAddReport);
-		saveMenuContributionReport(member, menuAddReport);
-
-		List<MenuAddReportImageFile> imageFiles = request.getImages().stream()
-			.map(img -> MenuAddReportImageFile.builder()
-				.menuAddReport(menuAddReport)
-				.name(img.getFileName())
-				.mimeType(MimeType.fromString(img.getMimeType()))
-				.awsKey(img.getAwsKey())
-				.build())
-			.toList();
-		menuAddReportImageFileRepository.saveAll(imageFiles);
-	}
-
-	private void saveMenuContributionReport(Member member, MenuAddReport menuAddReport) {
 		ContributionReport contributionReport = contributionReportRepository.save(ContributionReport.builder()
 			.member(member)
 			.targetType(ContributionTargetType.MENU)
 			.reportType(ContributionReportType.ADD)
 			.build());
+		MenuContributionReport menuContributionReport = menuContributionReportRepository.save(
+			MenuContributionReport.builder()
+				.contributionReport(contributionReport)
+				.store(store)
+				.menuCategory(menuCategory)
+				.requestType("MENU_ADD")
+				.name(request.getName())
+				.price(request.getPrice())
+				.description(request.getDescription())
+				.build());
 
-		menuContributionReportRepository.save(MenuContributionReport.builder()
-			.contributionReport(contributionReport)
-			.menuAddReport(menuAddReport)
-			.build());
+		List<MenuContributionReportImageFile> imageFiles = request.getImages().stream()
+			.map(img -> MenuContributionReportImageFile.builder()
+				.menuContributionReport(menuContributionReport)
+				.name(img.getFileName())
+				.mimeType(MimeType.fromString(img.getMimeType()))
+				.awsKey(img.getAwsKey())
+				.build())
+			.toList();
+		menuContributionReportImageFileRepository.saveAll(imageFiles);
 	}
 }

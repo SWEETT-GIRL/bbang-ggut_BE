@@ -23,10 +23,8 @@ import sweetgirl.croissant.store.code.StoreReportErrorCode;
 import sweetgirl.croissant.store.dto.request.StoreAddReportRequest;
 import sweetgirl.croissant.store.dto.response.NaverPlaceSearchResult;
 import sweetgirl.croissant.store.dto.response.StoreAddReportResponse;
-import sweetgirl.croissant.store.entity.StoreAddReport;
 import sweetgirl.croissant.store.enums.StoreReportStatus;
 import sweetgirl.croissant.store.exception.StoreReportException;
-import sweetgirl.croissant.store.repository.StoreAddReportRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
 @Service
@@ -38,7 +36,6 @@ public class StoreAddReportService {
 	private final NaverLocalSearchClient naverLocalSearchClient;
 	private final MemberReader memberReader;
 	private final StoreRepository storeRepository;
-	private final StoreAddReportRepository storeAddReportRepository;
 	private final ContributionReportRepository contributionReportRepository;
 	private final StoreContributionReportRepository storeContributionReportRepository;
 
@@ -54,18 +51,24 @@ public class StoreAddReportService {
 			if (storeRepository.findByNaverPlaceId(request.naverPlaceId()).isPresent()) {
 				throw new StoreReportException(StoreReportErrorCode.REPORT_STORE_ALREADY_EXISTS);
 			}
-			if (storeAddReportRepository.existsByNaverPlaceIdAndStatus(
+			if (storeContributionReportRepository.existsByNaverPlaceIdAndStatus(
 				request.naverPlaceId(), StoreReportStatus.PENDING)) {
 				throw new StoreReportException(StoreReportErrorCode.REPORT_DUPLICATED);
 			}
 		}
-		if (storeAddReportRepository.existsPendingByNameAndAddress(
+		if (storeContributionReportRepository.existsPendingByNameAndAddress(
 			request.name(), request.address(), StoreReportStatus.PENDING)) {
 			throw new StoreReportException(StoreReportErrorCode.REPORT_DUPLICATED);
 		}
 
-		StoreAddReport report = storeAddReportRepository.save(StoreAddReport.builder()
+		ContributionReport contributionReport = contributionReportRepository.save(ContributionReport.builder()
 			.member(member)
+			.targetType(ContributionTargetType.STORE)
+			.reportType(ContributionReportType.ADD)
+			.build());
+		StoreContributionReport report = storeContributionReportRepository.save(StoreContributionReport.builder()
+			.contributionReport(contributionReport)
+			.requestType("STORE_ADD")
 			.naverPlaceId(blankToNull(request.naverPlaceId()))
 			.name(request.name())
 			.address(request.address())
@@ -74,9 +77,8 @@ public class StoreAddReportService {
 			.location(toPoint(request.latitude(), request.longitude()))
 			.reason(request.reason())
 			.build());
-		saveStoreContributionReport(member, report);
 
-		return new StoreAddReportResponse(report.getId(), report.getStatus());
+		return new StoreAddReportResponse(contributionReport.getId(), report.getStatus());
 	}
 
 	private Point toPoint(double latitude, double longitude) {
@@ -87,16 +89,4 @@ public class StoreAddReportService {
 		return value == null || value.isBlank() ? null : value;
 	}
 
-	private void saveStoreContributionReport(Member member, StoreAddReport storeAddReport) {
-		ContributionReport contributionReport = contributionReportRepository.save(ContributionReport.builder()
-			.member(member)
-			.targetType(ContributionTargetType.STORE)
-			.reportType(ContributionReportType.ADD)
-			.build());
-
-		storeContributionReportRepository.save(StoreContributionReport.builder()
-			.contributionReport(contributionReport)
-			.storeAddReport(storeAddReport)
-			.build());
-	}
 }
