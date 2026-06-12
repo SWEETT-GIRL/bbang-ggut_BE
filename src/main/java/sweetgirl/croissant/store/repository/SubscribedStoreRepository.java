@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.store.dto.projection.GeofenceCandidateProjection;
+import sweetgirl.croissant.store.dto.projection.StoreIdCountProjection;
 import sweetgirl.croissant.store.entity.SubscribedStore;
 
 public interface SubscribedStoreRepository extends JpaRepository<SubscribedStore, Long> {
@@ -19,9 +20,9 @@ public interface SubscribedStoreRepository extends JpaRepository<SubscribedStore
 
 	long countByStoreId(Long storeId);
 
-	@Query("SELECT ss.store.id, COUNT(ss) FROM SubscribedStore ss "
+	@Query("SELECT ss.store.id AS storeId, COUNT(ss) AS count FROM SubscribedStore ss "
 		+ "WHERE ss.store.id IN :storeIds GROUP BY ss.store.id")
-	List<Object[]> countByStoreIdIn(@Param("storeIds") List<Long> storeIds);
+	List<StoreIdCountProjection> countByStoreIdIn(@Param("storeIds") List<Long> storeIds);
 
 	Slice<SubscribedStore> findAllByMemberOrderByCreatedAtDesc(Member member, Pageable pageable);
 

@@ -38,6 +38,15 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
 			""")
 	List<Menu> findByStoreIdOrderByLikeCountDesc(@Param("storeId") Long storeId);
 
+	@Query("""
+			SELECT m FROM Menu m
+			JOIN FETCH m.menuCategory
+			JOIN FETCH m.store
+			WHERE m.store.id IN :storeIds AND m.deletedAt IS NULL
+			ORDER BY m.store.id ASC, m.likeCount DESC
+			""")
+	List<Menu> findByStoreIdInOrderByLikeCountDesc(@Param("storeIds") List<Long> storeIds);
+
 	@Query(value = "SELECT m FROM Menu m JOIN FETCH m.menuCategory JOIN FETCH m.store "
 		+ "ORDER BY m.store.id ASC, m.createdAt DESC", countQuery = "SELECT COUNT(m) FROM Menu m")
 	Page<Menu> findAllMenusWithDetails(Pageable pageable);

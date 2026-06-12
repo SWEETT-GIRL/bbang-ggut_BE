@@ -37,6 +37,7 @@ import sweetgirl.croissant.external.opensearch.event.StoreDeletedEvent;
 import sweetgirl.croissant.external.opensearch.event.StoreNameChangedEvent;
 import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.store.code.StoreErrorCode;
+import sweetgirl.croissant.store.dto.projection.StoreIdCountProjection;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.enums.StoreStatus;
 import sweetgirl.croissant.store.exception.StoreException;
@@ -107,9 +108,10 @@ class AdminStoreServiceTest {
 		PageRequest pageable = PageRequest.of(0, 20);
 		given(storeRepository.findAll(pageable))
 			.willReturn(new PageImpl<>(List.of(store), pageable, 1));
-		List<Object[]> alarmCounts = new java.util.ArrayList<>();
-		alarmCounts.add(new Object[] {1L, 5L});
-		given(subscribedStoreRepository.countByStoreIdIn(List.of(1L))).willReturn(alarmCounts);
+		StoreIdCountProjection alarmCount = mock(StoreIdCountProjection.class);
+		given(alarmCount.getStoreId()).willReturn(1L);
+		given(alarmCount.getCount()).willReturn(5L);
+		given(subscribedStoreRepository.countByStoreIdIn(List.of(1L))).willReturn(List.of(alarmCount));
 		given(storeImageFileRepository.findByStoreIdIn(List.of(1L))).willReturn(Collections.emptyList());
 		given(storeBusinessHourRepository.findByStoreIdOrderByDayOfWeekAsc(1L)).willReturn(Collections.emptyList());
 

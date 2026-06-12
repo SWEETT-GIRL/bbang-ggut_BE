@@ -6,6 +6,8 @@ import sweetgirl.croissant.store.enums.SearchRegionType;
 
 public interface StoreSearchRegionIndexProjection {
 
+	Long getStoreId();
+
 	Long getRegionId();
 
 	String getRegionName();
