@@ -2,31 +2,39 @@ package sweetgirl.croissant.external.opensearch.query;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.StringWriter;
 import java.util.List;
-import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.opensearch.client.json.jackson.JacksonJsonpMapper;
+import org.opensearch.client.opensearch._types.query_dsl.BoolQuery;
+import org.opensearch.client.opensearch._types.query_dsl.FunctionBoostMode;
+import org.opensearch.client.opensearch._types.query_dsl.FunctionScoreMode;
+import org.opensearch.client.opensearch._types.query_dsl.FunctionScoreQuery;
+import org.opensearch.client.opensearch.core.SearchRequest;
 import org.springframework.data.domain.PageRequest;
 
+import jakarta.json.stream.JsonGenerator;
+import sweetgirl.croissant.external.opensearch.config.OpenSearchProperties;
 import sweetgirl.croissant.store.service.search.SearchIntent;
 import sweetgirl.croissant.store.service.search.SearchSort;
 
 class StoreSearchQueryBuilderTest {
 
-	private final StoreSearchQueryBuilder builder = new StoreSearchQueryBuilder();
+	private static final JacksonJsonpMapper MAPPER = new JacksonJsonpMapper();
+
+	private final StoreSearchQueryBuilder builder = new StoreSearchQueryBuilder(new OpenSearchProperties());
 
 	@Test
 	void build_usesRegionAndBreadAsMustWhenBothExist() {
 		SearchIntent intent = intent("성수 에그타르트", List.of("성수"), List.of("에그타르트"));
 
-		Map<String, Object> query = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
+		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
 
-		Map<String, Object> bool = boolQuery(query);
-		List<Object> must = list(bool.get("must"));
-		List<Object> should = list(bool.get("should"));
-		assertThat(must).hasSize(2);
-		assertThat(should).hasSize(1);
-		assertThat(query.toString()).contains(
+		BoolQuery bool = boolQuery(request);
+		assertThat(bool.must()).hasSize(2);
+		assertThat(bool.should()).hasSize(1);
+		assertThat(toJson(request)).contains(
 			"searchRegions.name",
 			"searchRegionAliases",
 			"breadTypes",
@@ -39,31 +47,29 @@ class StoreSearchQueryBuilderTest {
 	void build_usesRawQueryForStoreNameAndMenuName() {
 		SearchIntent intent = intent("뺑스톡", List.of(), List.of());
 
-		Map<String, Object> query = builder.build(intent, PageRequest.of(1, 10), null, null, SearchSort.RELEVANCE);
+		SearchRequest request = builder.build(intent, PageRequest.of(1, 10), null, null, SearchSort.RELEVANCE);
 
-		Map<String, Object> bool = boolQuery(query);
-		assertThat(query.get("from")).isEqualTo(10L);
-		assertThat(query.get("size")).isEqualTo(10);
-		assertThat(bool.get("minimum_should_match")).isEqualTo(1);
-		assertThat(query.toString()).contains(
+		assertThat(request.from()).isEqualTo(10);
+		assertThat(request.size()).isEqualTo(10);
+		assertThat(boolQuery(request).minimumShouldMatch()).isEqualTo("1");
+		assertThat(toJson(request)).contains(
 			"storeName",
 			"menus.name",
 			"rawMatchedMenus");
 	}
 
 	@Test
-	void build_doesNotRequireBreadMatchWhenRegionIsAbsent() {
+	void build_requiresBreadMatchAndKeepsRawAsShouldWhenBreadOnly() {
 		SearchIntent intent = intent("자연도", List.of(), List.of("자연도"));
 
-		Map<String, Object> query = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
+		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
 
-		Map<String, Object> bool = boolQuery(query);
-		List<Object> must = list(bool.get("must"));
-		List<Object> should = list(bool.get("should"));
-		assertThat(must).isEmpty();
-		assertThat(should).hasSize(2);
-		assertThat(bool.get("minimum_should_match")).isEqualTo(1);
-		assertThat(query.toString()).contains(
+		// 케이스 3: 빵 키워드만 있어도 빵 매칭은 must(필수), 원문 매칭만 should로 점수 보정
+		BoolQuery bool = boolQuery(request);
+		assertThat(bool.must()).hasSize(1);
+		assertThat(bool.should()).hasSize(1);
+		assertThat(bool.minimumShouldMatch()).isNull();
+		assertThat(toJson(request)).contains(
 			"storeName",
 			"breadTypes",
 			"menus.name");
@@ -73,12 +79,12 @@ class StoreSearchQueryBuilderTest {
 	void build_reflectsPopularityScoreWithFunctionScore() {
 		SearchIntent intent = intent("소금빵", List.of(), List.of("소금빵"));
 
-		Map<String, Object> query = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
+		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
 
-		Map<String, Object> functionScore = map(map(query.get("query")).get("function_score"));
-		assertThat(functionScore.get("boost_mode")).isEqualTo("sum");
-		assertThat(functionScore.get("score_mode")).isEqualTo("sum");
-		assertThat(functionScore.toString()).contains(
+		FunctionScoreQuery functionScore = request.query().functionScore();
+		assertThat(functionScore.boostMode()).isEqualTo(FunctionBoostMode.Sum);
+		assertThat(functionScore.scoreMode()).isEqualTo(FunctionScoreMode.Sum);
+		assertThat(toJson(request)).contains(
 			"field_value_factor",
 			"popularityScore",
 			"sqrt");
@@ -88,59 +94,51 @@ class StoreSearchQueryBuilderTest {
 	void build_addsDistanceFunctionAndSortWhenDistanceSortRequested() {
 		SearchIntent intent = intent("한남 소금빵", List.of("한남"), List.of("소금빵"));
 
-		Map<String, Object> query = builder.build(intent, PageRequest.of(0, 15), 37.5, 127.0, SearchSort.DISTANCE);
+		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), 37.5, 127.0, SearchSort.DISTANCE);
 
-		Map<String, Object> functionScore = map(map(query.get("query")).get("function_score"));
-		assertThat(functionScore.toString()).contains(
+		assertThat(toJson(request)).contains(
 			"gauss",
 			"location",
 			"37.5",
-			"127.0");
-		assertThat(list(query.get("sort")).toString()).contains(
-			"_geo_distance",
-			"order=asc",
-			"unit=m");
+			"127.0",
+			"_geo_distance");
+		assertThat(request.sort()).hasSize(2);
+		assertThat(request.sort().get(0).isGeoDistance()).isTrue();
 	}
 
 	@Test
 	void build_addsPopularitySortWhenPopularitySortRequested() {
 		SearchIntent intent = intent("에그타르트", List.of(), List.of("에그타르트"));
 
-		Map<String, Object> query = builder.build(intent, PageRequest.of(0, 15), 37.5, 127.0,
-			SearchSort.POPULARITY);
+		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), 37.5, 127.0, SearchSort.POPULARITY);
 
-		assertThat(list(query.get("sort")).toString()).contains(
-			"popularityScore",
-			"order=desc",
-			"_score");
+		assertThat(request.sort()).hasSize(2);
+		assertThat(request.sort().get(0).field().field()).isEqualTo("popularityScore");
+		assertThat(toJson(request)).contains("popularityScore", "_score");
 	}
 
 	@Test
 	void build_omitsExplicitSortWhenRelevanceSortRequested() {
 		SearchIntent intent = intent("뺑스톡", List.of(), List.of());
 
-		Map<String, Object> query = builder.build(intent, PageRequest.of(0, 15), 37.5, 127.0,
-			SearchSort.RELEVANCE);
+		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), 37.5, 127.0, SearchSort.RELEVANCE);
 
-		assertThat(query).doesNotContainKey("sort");
+		assertThat(request.sort()).isEmpty();
 	}
 
 	private SearchIntent intent(String rawQuery, List<String> regionTokens, List<String> breadTokens) {
 		return new SearchIntent(rawQuery, List.of(rawQuery.split(" ")), regionTokens, breadTokens, breadTokens);
 	}
 
-	private Map<String, Object> boolQuery(Map<String, Object> query) {
-		Map<String, Object> functionScore = map(map(query.get("query")).get("function_score"));
-		return map(map(functionScore.get("query")).get("bool"));
+	private BoolQuery boolQuery(SearchRequest request) {
+		return request.query().functionScore().query().bool();
 	}
 
-	@SuppressWarnings("unchecked")
-	private Map<String, Object> map(Object value) {
-		return (Map<String, Object>)value;
-	}
-
-	@SuppressWarnings("unchecked")
-	private List<Object> list(Object value) {
-		return (List<Object>)value;
+	private String toJson(SearchRequest request) {
+		StringWriter writer = new StringWriter();
+		try (JsonGenerator generator = MAPPER.jsonProvider().createGenerator(writer)) {
+			request.serialize(generator, MAPPER);
+		}
+		return writer.toString();
 	}
 }
