@@ -8,6 +8,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -114,6 +115,11 @@ public class GlobalExceptionHandler {
 		return ResponseEntity
 			.status(HttpStatus.METHOD_NOT_ALLOWED)
 			.body(ApiResponse.fail(GeneralErrorCode._METHOD_NOT_ALLOWED));
+	}
+
+	@ExceptionHandler(AsyncRequestNotUsableException.class)
+	public void handleAsyncRequestNotUsableException(AsyncRequestNotUsableException ex) {
+		log.debug("[ClientAbort] {}", ex.getMessage());
 	}
 
 	@ExceptionHandler(Exception.class)

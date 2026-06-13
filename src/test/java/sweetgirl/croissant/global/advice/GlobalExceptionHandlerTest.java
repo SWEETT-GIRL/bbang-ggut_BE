@@ -10,6 +10,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 
 class GlobalExceptionHandlerTest {
 
@@ -37,6 +38,14 @@ class GlobalExceptionHandlerTest {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.success").value(false))
 			.andExpect(jsonPath("$.code").value("COMMON400"));
+	}
+
+	@Test
+	void asyncRequestNotUsableException_returnsNoErrorResponse() {
+		GlobalExceptionHandler handler = new GlobalExceptionHandler();
+
+		handler.handleAsyncRequestNotUsableException(new AsyncRequestNotUsableException(
+			"ServletResponse failed to flushBuffer: java.io.IOException: Broken pipe"));
 	}
 
 	@RestController
