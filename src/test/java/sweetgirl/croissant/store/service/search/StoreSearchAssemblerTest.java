@@ -57,6 +57,8 @@ class StoreSearchAssemblerTest {
 		assertThat(result.get(0).id()).isEqualTo(102L);
 		assertThat(result.get(1).id()).isEqualTo(105L);
 		assertThat(result.get(0).topMenus()).extracting("menuId").containsExactly(2L, 1L);
+		// 검색어에 매칭된 메뉴(2L)만 matched=true, 인기메뉴 채움용(1L)은 false
+		assertThat(result.get(0).topMenus()).extracting("matched").containsExactly(true, false);
 	}
 
 	private Store store(Long id, String name) {
