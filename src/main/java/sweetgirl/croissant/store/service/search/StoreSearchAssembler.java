@@ -96,7 +96,8 @@ public class StoreSearchAssembler {
 		return menus.stream()
 			.sorted(Comparator.comparingInt(menu -> matchedOrder.getOrDefault(menu.getMenuId(), Integer.MAX_VALUE)))
 			.limit(TOP_MENU_LIMIT)
-			.map(menu -> MenuSummaryDto.of(menu, menuThumbnailMap.get(menu.getMenuId())))
+			.map(menu -> MenuSummaryDto.of(menu, menuThumbnailMap.get(menu.getMenuId()),
+				matchedOrder.containsKey(menu.getMenuId())))
 			.toList();
 	}
 

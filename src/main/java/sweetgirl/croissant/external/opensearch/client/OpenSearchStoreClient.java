@@ -1,104 +1,131 @@
 package sweetgirl.croissant.external.opensearch.client;
 
+import java.io.IOException;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
-import org.springframework.beans.factory.annotation.Qualifier;
+import org.opensearch.client.json.JsonData;
+import org.opensearch.client.json.JsonpMapper;
+import org.opensearch.client.json.JsonpSerializable;
+import org.opensearch.client.opensearch.OpenSearchClient;
+import org.opensearch.client.opensearch._types.ErrorCause;
+import org.opensearch.client.opensearch._types.FieldValue;
+import org.opensearch.client.opensearch._types.OpenSearchException;
+import org.opensearch.client.opensearch.core.SearchRequest;
+import org.opensearch.client.opensearch.core.SearchResponse;
+import org.opensearch.client.opensearch.core.search.Hit;
+import org.opensearch.client.opensearch.core.search.InnerHitsResult;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import sweetgirl.croissant.external.opensearch.config.OpenSearchProperties;
+import jakarta.json.stream.JsonGenerator;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.external.opensearch.document.StoreDocument;
 import sweetgirl.croissant.external.opensearch.dto.MatchedField;
+import sweetgirl.croissant.external.opensearch.dto.MenuInnerHit;
 import sweetgirl.croissant.external.opensearch.dto.OpenSearchStoreHit;
 import sweetgirl.croissant.external.opensearch.dto.OpenSearchStoreSearchResult;
 import sweetgirl.croissant.external.opensearch.query.StoreSearchQueryBuilder;
 import sweetgirl.croissant.store.service.search.SearchIntent;
 import sweetgirl.croissant.store.service.search.SearchSort;
 
+@Slf4j
 @Component
+@RequiredArgsConstructor
 public class OpenSearchStoreClient {
 
-	private static final String SEARCH_PATH_FORMAT = "/%s/_search";
-	private static final ObjectMapper MAPPER = new ObjectMapper();
-
-	private final RestClient openSearchRestClient;
-	private final OpenSearchProperties openSearchProperties;
+	private final ObjectProvider<OpenSearchClient> openSearchClientProvider;
 	private final StoreSearchQueryBuilder storeSearchQueryBuilder;
-
-	public OpenSearchStoreClient(@Qualifier("openSearchRestClient") RestClient openSearchRestClient,
-			OpenSearchProperties openSearchProperties,
-			StoreSearchQueryBuilder storeSearchQueryBuilder) {
-		this.openSearchRestClient = openSearchRestClient;
-		this.openSearchProperties = openSearchProperties;
-		this.storeSearchQueryBuilder = storeSearchQueryBuilder;
-	}
 
 	public OpenSearchStoreSearchResult searchStores(SearchIntent intent, Pageable pageable,
 			Double latitude, Double longitude, SearchSort sort) {
-		Map<String, Object> request = storeSearchQueryBuilder.build(intent, pageable, latitude, longitude,
-			sort);
-		JsonNode response;
-		try {
-			String body = openSearchRestClient.post()
-				.uri(SEARCH_PATH_FORMAT.formatted(openSearchProperties.getStoresIndex()))
-				.body(request)
-				.retrieve()
-				.body(String.class);
-			if (body == null) {
-				return OpenSearchStoreSearchResult.empty();
-			}
-			response = MAPPER.readTree(body);
-		} catch (Exception e) {
+		OpenSearchClient client = openSearchClientProvider.getIfAvailable();
+		if (client == null) {
 			return OpenSearchStoreSearchResult.empty();
 		}
-		return parseResponse(response, pageable);
+
+		JsonpMapper mapper = client._transport().jsonpMapper();
+		SearchRequest request = storeSearchQueryBuilder.build(intent, pageable, latitude, longitude, sort);
+		if (log.isDebugEnabled()) {
+			log.debug("OpenSearch 검색 요청 JSON: {}", toJson(request, mapper));
+		}
+		try {
+			SearchResponse<StoreDocument> response = client.search(request, StoreDocument.class);
+			if (log.isDebugEnabled()) {
+				log.debug("OpenSearch 검색 응답 JSON: {}", toJson(response, mapper));
+			}
+			return parseResponse(response, pageable, sort, mapper);
+		} catch (OpenSearchException e) {
+			ErrorCause error = e.error();
+			log.warn("OpenSearch 가게 검색 실패 — 빈 결과로 대체합니다. status={}, type={}, reason={}, causes={}",
+				e.status(),
+				error != null ? error.type() : null,
+				error != null ? error.reason() : null,
+				describeCauses(error), e);
+			return OpenSearchStoreSearchResult.empty();
+		} catch (IOException | RuntimeException e) {
+			log.warn("OpenSearch 가게 검색 실패 — 빈 결과로 대체합니다.", e);
+			return OpenSearchStoreSearchResult.empty();
+		}
 	}
 
-	private OpenSearchStoreSearchResult parseResponse(JsonNode response, Pageable pageable) {
-		JsonNode hitsNode = response == null ? null : response.path("hits").path("hits");
-		if (hitsNode == null || !hitsNode.isArray()) {
-			return OpenSearchStoreSearchResult.empty();
+	// search_phase_execution_exception(all shards failed) 등 상위 메시지에 가려진 샤드 단위 실제 원인을 펼쳐 로깅한다.
+	private String describeCauses(ErrorCause error) {
+		if (error == null) {
+			return "";
 		}
+		StringBuilder sb = new StringBuilder();
+		for (ErrorCause root : error.rootCause()) {
+			sb.append("[rootCause type=").append(root.type())
+				.append(", reason=").append(root.reason()).append("] ");
+		}
+		for (ErrorCause caused = error.causedBy(); caused != null; caused = caused.causedBy()) {
+			sb.append("[causedBy type=").append(caused.type())
+				.append(", reason=").append(caused.reason()).append("] ");
+		}
+		return sb.toString();
+	}
 
+	private OpenSearchStoreSearchResult parseResponse(SearchResponse<StoreDocument> response, Pageable pageable,
+			SearchSort sort, JsonpMapper mapper) {
 		List<OpenSearchStoreHit> hits = new ArrayList<>();
-		for (JsonNode hitNode : hitsNode) {
-			Long storeId = nullableLong(hitNode.path("_source").path("storeId"));
-			if (storeId == null) {
+		for (Hit<StoreDocument> hit : response.hits().hits()) {
+			StoreDocument source = hit.source();
+			if (source == null || source.storeId() == null) {
 				continue;
 			}
-			List<Long> matchedMenuIds = parseMatchedMenuIds(hitNode);
+			List<Long> matchedMenuIds = parseMatchedMenuIds(hit, mapper);
+			List<MatchedField> matchedFields = parseMatchedFields(hit, matchedMenuIds);
+			if (log.isDebugEnabled()) {
+				log.debug("OpenSearch hit 파싱 결과 storeId={}, score={}, matchedFields={}, "
+					+ "matchedMenuIds={}, highlightKeys={}, innerHitNames={}",
+					source.storeId(), hit.score(), matchedFields, matchedMenuIds,
+					hit.highlight().keySet(), hit.innerHits().keySet());
+			}
 			hits.add(new OpenSearchStoreHit(
-				storeId,
-				nullableDouble(hitNode.path("_score")),
-				parseDistance(hitNode),
+				source.storeId(),
+				hit.score(),
+				parseDistance(hit, sort),
 				matchedMenuIds,
-				parseMatchedFields(hitNode, matchedMenuIds)));
+				matchedFields));
 		}
 		return new OpenSearchStoreSearchResult(hits, hits.size() == pageable.getPageSize());
 	}
 
-	private List<MatchedField> parseMatchedFields(JsonNode hitNode, List<Long> matchedMenuIds) {
+	private List<MatchedField> parseMatchedFields(Hit<StoreDocument> hit, List<Long> matchedMenuIds) {
 		Set<MatchedField> fields = EnumSet.noneOf(MatchedField.class);
-		JsonNode highlight = hitNode.path("highlight");
-		if (highlight.isObject()) {
-			Iterator<String> fieldNames = highlight.fieldNames();
-			while (fieldNames.hasNext()) {
-				String field = fieldNames.next();
-				if (field.startsWith("storeName")) {
-					fields.add(MatchedField.STORE_NAME);
-				} else if (field.startsWith("searchRegionAliases")) {
-					fields.add(MatchedField.REGION);
-				} else if (field.startsWith("breadTypes")) {
-					fields.add(MatchedField.BREAD_TYPE);
-				}
+		for (String field : hit.highlight().keySet()) {
+			if (field.startsWith("storeName")) {
+				fields.add(MatchedField.STORE_NAME);
+			} else if (field.startsWith("searchRegionAliases")) {
+				fields.add(MatchedField.REGION);
+			} else if (field.startsWith("breadTypes")) {
+				fields.add(MatchedField.BREAD_TYPE);
 			}
 		}
 		if (!matchedMenuIds.isEmpty()) {
@@ -107,58 +134,43 @@ public class OpenSearchStoreClient {
 		return List.copyOf(fields);
 	}
 
-	private List<Long> parseMatchedMenuIds(JsonNode hitNode) {
-		JsonNode innerHitsNode = hitNode.path("inner_hits");
-		if (!innerHitsNode.isObject()) {
-			return List.of();
-		}
+	private List<Long> parseMatchedMenuIds(Hit<StoreDocument> hit, JsonpMapper mapper) {
 		List<Long> menuIds = new ArrayList<>();
-		Iterator<String> names = innerHitsNode.fieldNames();
-		while (names.hasNext()) {
-			JsonNode innerHits = innerHitsNode.path(names.next()).path("hits").path("hits");
-			if (!innerHits.isArray()) {
-				continue;
-			}
-			for (JsonNode innerHit : innerHits) {
-				Long menuId = nullableLong(innerHit.path("_source").path("id"));
-				if (menuId == null) {
-					menuId = nullableLong(innerHit.path("_source").path("menus").path("id"));
+		for (InnerHitsResult innerHits : hit.innerHits().values()) {
+			for (Hit<JsonData> innerHit : innerHits.hits().hits()) {
+				JsonData innerSource = innerHit.source();
+				if (innerSource == null) {
+					continue;
 				}
-				if (menuId != null && !menuIds.contains(menuId)) {
-					menuIds.add(menuId);
+				MenuInnerHit menu = innerSource.to(MenuInnerHit.class, mapper);
+				if (menu.id() != null && !menuIds.contains(menu.id())) {
+					menuIds.add(menu.id());
 				}
 			}
 		}
 		return menuIds;
 	}
 
-	private Double parseDistance(JsonNode hitNode) {
-		JsonNode sort = hitNode.path("sort");
-		if (sort.isArray() && sort.size() > 1) {
-			return nullableDouble(sort.get(1));
+	private Double parseDistance(Hit<StoreDocument> hit, SearchSort sort) {
+		if (sort != SearchSort.DISTANCE) {
+			return null;
 		}
-		return null;
-	}
-
-	private Long nullableLong(JsonNode node) {
-		if (node == null || node.isMissingNode() || node.isNull()) {
+		List<FieldValue> sortValues = hit.sort();
+		if (sortValues.isEmpty()) {
 			return null;
 		}
 		try {
-			return MAPPER.convertValue(node, Long.class);
-		} catch (Exception e) {
+			return sortValues.get(0).doubleValue();
+		} catch (RuntimeException e) {
 			return null;
 		}
 	}
 
-	private Double nullableDouble(JsonNode node) {
-		if (node == null || node.isMissingNode() || node.isNull()) {
-			return null;
+	private String toJson(JsonpSerializable value, JsonpMapper mapper) {
+		StringWriter writer = new StringWriter();
+		try (JsonGenerator generator = mapper.jsonProvider().createGenerator(writer)) {
+			value.serialize(generator, mapper);
 		}
-		try {
-			return MAPPER.convertValue(node, Double.class);
-		} catch (Exception e) {
-			return null;
-		}
+		return writer.toString();
 	}
 }

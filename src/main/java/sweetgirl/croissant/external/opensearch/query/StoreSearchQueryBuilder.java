@@ -5,16 +5,41 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.opensearch.client.json.JsonData;
+import org.opensearch.client.opensearch._types.DistanceUnit;
+import org.opensearch.client.opensearch._types.FieldSort;
+import org.opensearch.client.opensearch._types.FieldValue;
+import org.opensearch.client.opensearch._types.GeoDistanceSort;
+import org.opensearch.client.opensearch._types.GeoLocation;
+import org.opensearch.client.opensearch._types.ScoreSort;
+import org.opensearch.client.opensearch._types.SortOptions;
+import org.opensearch.client.opensearch._types.SortOrder;
+import org.opensearch.client.opensearch._types.query_dsl.FieldValueFactorModifier;
+import org.opensearch.client.opensearch._types.query_dsl.FunctionBoostMode;
+import org.opensearch.client.opensearch._types.query_dsl.FunctionScore;
+import org.opensearch.client.opensearch._types.query_dsl.FunctionScoreMode;
+import org.opensearch.client.opensearch._types.query_dsl.Operator;
+import org.opensearch.client.opensearch._types.query_dsl.Query;
+import org.opensearch.client.opensearch._types.query_dsl.TextQueryType;
+import org.opensearch.client.opensearch.core.SearchRequest;
+import org.opensearch.client.opensearch.core.search.Highlight;
+import org.opensearch.client.opensearch.core.search.HighlightField;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
+import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.external.opensearch.config.OpenSearchProperties;
 import sweetgirl.croissant.store.service.search.SearchIntent;
 import sweetgirl.croissant.store.service.search.SearchSort;
 
 @Component
+@RequiredArgsConstructor
 public class StoreSearchQueryBuilder {
 
 	private static final int INNER_HITS_SIZE = 5;
+	private static final String MINIMUM_SHOULD_MATCH = "1";
+
+	private final OpenSearchProperties openSearchProperties;
 
 	/*
 	 * 케이스별 쿼리 전략:
@@ -38,15 +63,15 @@ public class StoreSearchQueryBuilder {
 	 *
 	 * 공통: function_score로 인기도(popularityScore) + 거리 감쇠(gauss) 점수 추가
 	 */
-	public Map<String, Object> build(SearchIntent intent, Pageable pageable,
+	public SearchRequest build(SearchIntent intent, Pageable pageable,
 			Double latitude, Double longitude, SearchSort sort) {
-		List<Object> must = new ArrayList<>();
-		List<Object> should = new ArrayList<>();
+		List<Query> must = new ArrayList<>();
+		List<Query> should = new ArrayList<>();
 		boolean hasRegionTokens = !intent.regionTokens().isEmpty();
 		boolean hasBreadTokens = !intent.breadTokens().isEmpty();
 
 		if (hasRegionTokens) {
-			Map<String, Object> regionMatch = boolShould(regionQueries(intent.regionTokens()));
+			Query regionMatch = boolShould(regionQueries(intent.regionTokens()));
 			if (hasBreadTokens) {
 				// 케이스 1: 지역 + 빵 → 지역도 must (둘 다 필수 조건)
 				must.add(regionMatch);
@@ -64,86 +89,90 @@ public class StoreSearchQueryBuilder {
 		// 원문 전체를 가게명/메뉴명에 매칭 — must와 무관하게 항상 should에 포함
 		should.add(rawQuery(intent.rawQuery()));
 
-		Map<String, Object> bool = new LinkedHashMap<>();
-		bool.put("must", must);
-		bool.put("should", should);
-		if (must.isEmpty()) {
-			// 케이스 2, 4: must가 비어있으면 should 중 최소 1개는 매칭돼야 결과에 포함
-			bool.put("minimum_should_match", 1);
-		}
+		Query bool = Query.of(q -> q.bool(b -> {
+			b.must(must).should(should);
+			if (must.isEmpty()) {
+				// 케이스 2, 4: must가 비어있으면 should 중 최소 1개는 매칭돼야 결과에 포함
+				b.minimumShouldMatch(MINIMUM_SHOULD_MATCH);
+			}
+			return b;
+		}));
 
-		Map<String, Object> request = new LinkedHashMap<>();
-		request.put("from", pageable.getOffset());
-		request.put("size", pageable.getPageSize());
-		request.put("query", functionScore(bool, latitude, longitude));
-		request.put("highlight", highlight());
-		if (sort == SearchSort.DISTANCE && latitude != null && longitude != null) {
-			request.put("sort", distanceSort(latitude, longitude));
-		} else if (sort == SearchSort.POPULARITY) {
-			request.put("sort", popularitySort());
+		SearchRequest.Builder request = new SearchRequest.Builder()
+			.index(openSearchProperties.getStoresIndex())
+			.from((int)pageable.getOffset())
+			.size(pageable.getPageSize())
+			.query(functionScore(bool, latitude, longitude))
+			.highlight(highlight());
+
+		List<SortOptions> sortOptions = sortOptions(sort, latitude, longitude);
+		if (!sortOptions.isEmpty()) {
+			request.sort(sortOptions);
 		}
-		return request;
+		return request.build();
 	}
 
-	private List<Object> regionQueries(List<String> regionTokens) {
-		List<Object> queries = new ArrayList<>();
+	private List<Query> regionQueries(List<String> regionTokens) {
+		List<Query> queries = new ArrayList<>();
 		for (String regionToken : regionTokens) {
 			queries.add(regionQuery(regionToken));
 		}
 		return queries;
 	}
 
-	private List<Object> breadQueries(List<String> breadTokens) {
-		List<Object> queries = new ArrayList<>();
+	private List<Query> breadQueries(List<String> breadTokens) {
+		List<Query> queries = new ArrayList<>();
 		for (int i = 0; i < breadTokens.size(); i++) {
 			queries.add(breadQuery(breadTokens.get(i), "matchedMenus" + i));
 		}
 		return queries;
 	}
 
-	private Map<String, Object> functionScore(Map<String, Object> bool, Double latitude, Double longitude) {
-		List<Object> functions = new ArrayList<>();
-		functions.add(Map.of(
-			"field_value_factor", Map.of(
-				"field", "popularityScore",
-				"factor", 0.2,
-				"modifier", "sqrt",
-				"missing", 0)));
+	private Query functionScore(Query bool, Double latitude, Double longitude) {
+		List<FunctionScore> functions = new ArrayList<>();
+		functions.add(FunctionScore.of(fn -> fn.fieldValueFactor(f -> f
+			.field("popularityScore")
+			.factor(0.2f)
+			.modifier(FieldValueFactorModifier.Sqrt)
+			.missing(0.0))));
 		if (latitude != null && longitude != null) {
-			functions.add(Map.of(
-				"gauss", Map.of(
-					"location", Map.of(
-						"origin", Map.of("lat", latitude, "lon", longitude),
-						"scale", "3km",
-						"offset", "500m",
-						"decay", 0.5))));
+			Map<String, Object> origin = Map.of("lat", latitude, "lon", longitude);
+			functions.add(FunctionScore.of(fn -> fn.gauss(d -> d
+				.field("location")
+				.placement(p -> p
+					.origin(JsonData.of(origin))
+					.scale(JsonData.of("3km"))
+					.offset(JsonData.of("500m"))
+					.decay(0.5)))));
 		}
-		return Map.of(
-			"function_score", Map.of(
-				"query", Map.of("bool", bool),
-				"functions", functions,
-				"boost_mode", "sum",
-				"score_mode", "sum"));
+		return Query.of(q -> q.functionScore(fs -> fs
+			.query(bool)
+			.functions(functions)
+			.boostMode(FunctionBoostMode.Sum)
+			.scoreMode(FunctionScoreMode.Sum)));
 	}
 
-	private Map<String, Object> rawQuery(String query) {
+	private Query rawQuery(String query) {
 		return boolShould(List.of(
 			multiMatch(query, List.of(
 				"storeName^3",
 				"storeName.edge^2",
 				"storeName.ngram")),
-			rawMenuQuery(query, "rawMatchedMenus")));
+			menuNested(query, "rawMatchedMenus", List.of(
+				"menus.name^3",
+				"menus.name.edge^2",
+				"menus.name.ngram"))));
 	}
 
-	private Map<String, Object> regionQuery(String query) {
+	private Query regionQuery(String query) {
 		return boolShould(List.of(
-			Map.of("nested", Map.of(
-				"path", "searchRegions",
-				"query", multiMatch(query, List.of(
+			Query.of(q -> q.nested(n -> n
+				.path("searchRegions")
+				.query(multiMatch(query, List.of(
 					"searchRegions.name^4",
 					"searchRegions.name.nori^3",
 					"searchRegions.name.edge^2",
-					"searchRegions.name.ngram^2")))),
+					"searchRegions.name.ngram^2"))))),
 			multiMatch(query, List.of(
 				"searchRegionAliases^4",
 				"searchRegionAliases.nori^3",
@@ -151,82 +180,79 @@ public class StoreSearchQueryBuilder {
 				"searchRegionAliases.ngram^2"))));
 	}
 
-	private Map<String, Object> breadQuery(String query, String innerHitsName) {
+	private Query breadQuery(String query, String innerHitsName) {
 		return boolShould(List.of(
 			multiMatch(query, List.of(
 				"breadTypes^4",
 				"breadTypes.nori^3",
 				"breadTypes.edge^2",
 				"breadTypes.ngram^2")),
-			menuNestedQuery(query, innerHitsName)));
+			menuNested(query, innerHitsName, List.of(
+				"menus.name^4",
+				"menus.name.edge^3",
+				"menus.name.ngram^2",
+				"menus.menuCategory^2",
+				"menus.menuCategory.nori",
+				"menus.menuCategory.edge",
+				"menus.menuCategory.ngram"))));
 	}
 
-	private Map<String, Object> rawMenuQuery(String query, String innerHitsName) {
-		return menuNested(query, innerHitsName, List.of(
-			"menus.name^3",
-			"menus.name.edge^2",
-			"menus.name.ngram"));
+	private Query menuNested(String query, String innerHitsName, List<String> fields) {
+		return Query.of(q -> q.nested(n -> n
+			.path("menus")
+			.query(multiMatch(query, fields))
+			.innerHits(ih -> ih
+				.name(innerHitsName)
+				.size(INNER_HITS_SIZE)
+				.source(sc -> sc.filter(f -> f.includes("menus.id", "menus.name"))))));
 	}
 
-	private Map<String, Object> menuNestedQuery(String query, String innerHitsName) {
-		return menuNested(query, innerHitsName, List.of(
-			"menus.name^4",
-			"menus.name.edge^3",
-			"menus.name.ngram^2",
-			"menus.menuCategory^2",
-			"menus.menuCategory.nori",
-			"menus.menuCategory.edge",
-			"menus.menuCategory.ngram"));
+	private Query multiMatch(String query, List<String> fields) {
+		return Query.of(q -> q.multiMatch(m -> m
+			.query(query)
+			.fields(fields)
+			.type(TextQueryType.BestFields)
+			.operator(Operator.And)));
 	}
 
-	private Map<String, Object> menuNested(String query, String innerHitsName, List<String> fields) {
-		return Map.of("nested", Map.of(
-			"path", "menus",
-			"query", multiMatch(query, fields),
-			"inner_hits", Map.of(
-				"name", innerHitsName,
-				"size", INNER_HITS_SIZE,
-				"_source", List.of("menus.id", "menus.name"))));
+	private Query boolShould(List<Query> should) {
+		return Query.of(q -> q.bool(b -> b
+			.should(should)
+			.minimumShouldMatch(MINIMUM_SHOULD_MATCH)));
 	}
 
-	private Map<String, Object> multiMatch(String query, List<String> fields) {
-		return Map.of("multi_match", Map.of(
-			"query", query,
-			"fields", fields,
-			"type", "best_fields",
-			"operator", "and"));
+	private Highlight highlight() {
+		Map<String, HighlightField> fields = new LinkedHashMap<>();
+		HighlightField empty = HighlightField.of(f -> f);
+		fields.put("storeName", empty);
+		fields.put("storeName.edge", empty);
+		fields.put("storeName.ngram", empty);
+		fields.put("searchRegionAliases", empty);
+		fields.put("searchRegionAliases.edge", empty);
+		fields.put("breadTypes", empty);
+		fields.put("breadTypes.edge", empty);
+		return Highlight.of(h -> h.fields(fields));
 	}
 
-	private Map<String, Object> boolShould(List<Object> should) {
-		return Map.of("bool", Map.of(
-			"should", should,
-			"minimum_should_match", 1));
-	}
-
-	private Map<String, Object> highlight() {
-		Map<String, Object> fields = new LinkedHashMap<>();
-		fields.put("storeName", Map.of());
-		fields.put("storeName.edge", Map.of());
-		fields.put("storeName.ngram", Map.of());
-		fields.put("searchRegionAliases", Map.of());
-		fields.put("searchRegionAliases.edge", Map.of());
-		fields.put("breadTypes", Map.of());
-		fields.put("breadTypes.edge", Map.of());
-		return Map.of("fields", fields);
-	}
-
-	private List<Object> distanceSort(Double latitude, Double longitude) {
-		return List.of(
-			Map.of("_geo_distance", Map.of(
-				"location", Map.of("lat", latitude, "lon", longitude),
-				"order", "asc",
-				"unit", "m")),
-			Map.of("_score", Map.of("order", "desc")));
-	}
-
-	private List<Object> popularitySort() {
-		return List.of(
-			Map.of("popularityScore", Map.of("order", "desc", "missing", "_last")),
-			Map.of("_score", Map.of("order", "desc")));
+	private List<SortOptions> sortOptions(SearchSort sort, Double latitude, Double longitude) {
+		if (sort == SearchSort.DISTANCE && latitude != null && longitude != null) {
+			// sort[0] = 거리(_geo_distance), sort[1] = 점수 — 응답 파싱 시 거리 추출의 기준이 된다
+			return List.of(
+				SortOptions.of(s -> s.geoDistance(GeoDistanceSort.of(g -> g
+					.field("location")
+					.location(GeoLocation.of(l -> l.latlon(ll -> ll.lat(latitude).lon(longitude))))
+					.order(SortOrder.Asc)
+					.unit(DistanceUnit.Meters)))),
+				SortOptions.of(s -> s.score(ScoreSort.of(sc -> sc.order(SortOrder.Desc)))));
+		}
+		if (sort == SearchSort.POPULARITY) {
+			return List.of(
+				SortOptions.of(s -> s.field(FieldSort.of(f -> f
+					.field("popularityScore")
+					.order(SortOrder.Desc)
+					.missing(FieldValue.of("_last"))))),
+				SortOptions.of(s -> s.score(ScoreSort.of(sc -> sc.order(SortOrder.Desc)))));
+		}
+		return List.of();
 	}
 }
