@@ -11,7 +11,9 @@ import org.opensearch.client.json.JsonData;
 import org.opensearch.client.json.JsonpMapper;
 import org.opensearch.client.json.JsonpSerializable;
 import org.opensearch.client.opensearch.OpenSearchClient;
+import org.opensearch.client.opensearch._types.ErrorCause;
 import org.opensearch.client.opensearch._types.FieldValue;
+import org.opensearch.client.opensearch._types.OpenSearchException;
 import org.opensearch.client.opensearch.core.SearchRequest;
 import org.opensearch.client.opensearch.core.SearchResponse;
 import org.opensearch.client.opensearch.core.search.Hit;
@@ -58,10 +60,35 @@ public class OpenSearchStoreClient {
 				log.debug("OpenSearch 검색 응답 JSON: {}", toJson(response, mapper));
 			}
 			return parseResponse(response, pageable, sort, mapper);
+		} catch (OpenSearchException e) {
+			ErrorCause error = e.error();
+			log.warn("OpenSearch 가게 검색 실패 — 빈 결과로 대체합니다. status={}, type={}, reason={}, causes={}",
+				e.status(),
+				error != null ? error.type() : null,
+				error != null ? error.reason() : null,
+				describeCauses(error), e);
+			return OpenSearchStoreSearchResult.empty();
 		} catch (IOException | RuntimeException e) {
 			log.warn("OpenSearch 가게 검색 실패 — 빈 결과로 대체합니다.", e);
 			return OpenSearchStoreSearchResult.empty();
 		}
+	}
+
+	// search_phase_execution_exception(all shards failed) 등 상위 메시지에 가려진 샤드 단위 실제 원인을 펼쳐 로깅한다.
+	private String describeCauses(ErrorCause error) {
+		if (error == null) {
+			return "";
+		}
+		StringBuilder sb = new StringBuilder();
+		for (ErrorCause root : error.rootCause()) {
+			sb.append("[rootCause type=").append(root.type())
+				.append(", reason=").append(root.reason()).append("] ");
+		}
+		for (ErrorCause caused = error.causedBy(); caused != null; caused = caused.causedBy()) {
+			sb.append("[causedBy type=").append(caused.type())
+				.append(", reason=").append(caused.reason()).append("] ");
+		}
+		return sb.toString();
 	}
 
 	private OpenSearchStoreSearchResult parseResponse(SearchResponse<StoreDocument> response, Pageable pageable,
