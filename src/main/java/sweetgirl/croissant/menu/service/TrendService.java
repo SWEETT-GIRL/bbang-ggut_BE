@@ -17,8 +17,8 @@ import sweetgirl.croissant.menu.dto.response.RegionTrendResponse;
 import sweetgirl.croissant.menu.entity.FamousMenuByRegion;
 import sweetgirl.croissant.menu.exception.MenuException;
 import sweetgirl.croissant.menu.repository.FamousMenuByRegionRepository;
-import sweetgirl.croissant.store.entity.HotStoreRanking;
-import sweetgirl.croissant.store.entity.StoreImageFile;
+import sweetgirl.croissant.store.dto.projection.HotStoreRankingTrendProjection;
+import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
 import sweetgirl.croissant.store.enums.Region3rd;
 import sweetgirl.croissant.store.repository.HotStoreRankingRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
@@ -66,17 +66,18 @@ public class TrendService {
 		}
 
 		List<Long> famousMenuIds = famousMenus.stream().map(FamousMenuByRegion::getId).toList();
-		List<HotStoreRanking> rankings = hotStoreRankingRepository.findByFamousMenuByRegionIdInWithStore(famousMenuIds);
+		List<HotStoreRankingTrendProjection> rankings = hotStoreRankingRepository.findTrendByFamousMenuByRegionIdIn(
+			famousMenuIds);
 
-		List<Long> storeIds = rankings.stream().map(r -> r.getStore().getId()).distinct().toList();
-		Map<Long, List<String>> imagesByStoreId = storeImageFileRepository.findByStoreIdIn(storeIds)
+		List<Long> storeIds = rankings.stream().map(HotStoreRankingTrendProjection::getStoreId).distinct().toList();
+		Map<Long, List<String>> imagesByStoreId = storeImageFileRepository.findThumbnailsByStoreIdIn(storeIds)
 			.stream()
 			.collect(Collectors.groupingBy(
-				img -> img.getStore().getId(),
-				Collectors.mapping(StoreImageFile::getAwsKey, Collectors.toList())));
+				StoreImageThumbnailProjection::getStoreId,
+				Collectors.mapping(StoreImageThumbnailProjection::getAwsKey, Collectors.toList())));
 
-		Map<Long, List<HotStoreRanking>> rankingsByFamousMenuId = rankings.stream()
-			.collect(Collectors.groupingBy(r -> r.getFamousMenuByRegion().getId()));
+		Map<Long, List<HotStoreRankingTrendProjection>> rankingsByFamousMenuId = rankings.stream()
+			.collect(Collectors.groupingBy(HotStoreRankingTrendProjection::getFamousMenuByRegionId));
 
 		List<RegionTrendResponse.CategoryTrend> categories = famousMenus.stream()
 			.map(fmr -> {
@@ -84,11 +85,11 @@ public class TrendService {
 					.getOrDefault(fmr.getId(), List.of())
 					.stream()
 					.map(r -> new RegionTrendResponse.HotStore(
-						r.getStore().getId(),
-						r.getStore().getName(),
-						r.getStore().getAddress(),
+						r.getStoreId(),
+						r.getStoreName(),
+						r.getStoreAddress(),
 						r.getRank(),
-						imagesByStoreId.getOrDefault(r.getStore().getId(), List.of())))
+						imagesByStoreId.getOrDefault(r.getStoreId(), List.of())))
 					.toList();
 				return new RegionTrendResponse.CategoryTrend(fmr.getMenuCategory().name(), stores);
 			})
@@ -123,8 +124,7 @@ public class TrendService {
 				}
 			}
 
-			// H타입 먼저 시도, enum 매핑 실패 시 B타입으로 fallback
-			// (예: 불로봉무동(H) → enum 없음 → 봉무동/불로동(B) → enum 성공)
+			// B타입(법정동) 먼저 시도, enum 매핑 실패 시 H타입(행정동)으로 fallback
 			if (regionResponse != null && !regionResponse.documents().isEmpty() && region2nd != null) {
 				for (String typePreference : List.of("B", "H")) {
 					String region3rd = regionResponse.documents().stream()
