@@ -65,7 +65,7 @@ class ReviewControllerTest {
 
 	@Test
 	void getReviewSummary_returnsPreviewReviews() throws Exception {
-		given(reviewService.getReviewSummary(eq(1L), eq("liked"), eq(false), eq(2), isNull()))
+		given(reviewService.getReviewSummary(eq(1L), eq("recommended"), eq(false), eq(2), isNull()))
 			.willReturn(new ReviewSummaryResponse(1L, BigDecimal.valueOf(4.5), 3L, List.of(review())));
 
 		mockMvc.perform(get("/menus/1/reviews/summary"))

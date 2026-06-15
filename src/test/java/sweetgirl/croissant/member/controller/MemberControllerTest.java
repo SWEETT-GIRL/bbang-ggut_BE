@@ -52,7 +52,7 @@ class MemberControllerTest {
 		mockMvc.perform(get("/users/me"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true))
-			.andExpect(jsonPath("$.data.id").value(1))
+			.andExpect(jsonPath("$.data.memberId").value(1))
 			.andExpect(jsonPath("$.data.nickname").value("달콤한크루아상"));
 	}
 
@@ -143,6 +143,7 @@ class MemberControllerTest {
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"termsAgreed\":true,\"privacyAgreed\":true,\"ageOver14Agreed\":true,"
 				+ "\"marketingAgreed\":false,\"nightMarketingAgreed\":false,"
+				+ "\"locationAgreed\":false,"
 				+ "\"termsVersion\":\"2026-05-12\",\"privacyVersion\":\"2026-05-12\","
 				+ "\"agreedAt\":\"2026-05-13T10:00:00\"}"))
 			.andExpect(status().isOk())

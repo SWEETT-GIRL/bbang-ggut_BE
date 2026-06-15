@@ -1,8 +1,10 @@
 package sweetgirl.croissant.admin.bulkimport.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -42,7 +44,7 @@ class DongImporterTest {
 		KakaoPlace placeB = place("kakao-2", "B빵집");
 		KakaoPlace duplicateA = place("kakao-1", "A빵집");
 
-		given(kakaoLocalClient.searchByKeyword(anyString(), anyInt()))
+		given(kakaoLocalClient.searchByKeyword(anyString(), anyInt(), anyBoolean()))
 			.willReturn(new KakaoSearchResult(List.of(placeA, placeB), true))
 			.willReturn(new KakaoSearchResult(List.of(duplicateA), true))
 			.willReturn(new KakaoSearchResult(List.of(), true));
@@ -51,7 +53,7 @@ class DongImporterTest {
 			"서울특별시", "강남구", "역삼동");
 
 		int keywordCount = BulkSearchKeyword.values().length;
-		verify(kakaoLocalClient, times(keywordCount)).searchByKeyword(anyString(), anyInt());
+		verify(kakaoLocalClient, times(keywordCount)).searchByKeyword(anyString(), anyInt(), anyBoolean());
 		verify(rateLimiter, times(keywordCount)).acquire();
 		verify(storeSaver).save(placeA);
 		verify(storeSaver).save(placeB);
@@ -63,16 +65,16 @@ class DongImporterTest {
 	@DisplayName("isEnd=false면 다음 페이지까지 호출한다 (MAX_PAGES 상한)")
 	void importDong_pagesUntilIsEnd() throws Exception {
 		KakaoPlace placeA = place("kakao-A", "A");
-		given(kakaoLocalClient.searchByKeyword(anyString(), org.mockito.ArgumentMatchers.eq(1)))
+		given(kakaoLocalClient.searchByKeyword(anyString(), eq(1), anyBoolean()))
 			.willReturn(new KakaoSearchResult(List.of(placeA), false));
-		given(kakaoLocalClient.searchByKeyword(anyString(), org.mockito.ArgumentMatchers.eq(2)))
+		given(kakaoLocalClient.searchByKeyword(anyString(), eq(2), anyBoolean()))
 			.willReturn(new KakaoSearchResult(List.of(), true));
 
 		dongImporter.importDong("서울특별시", "강남구", "역삼동");
 
 		int keywordCount = BulkSearchKeyword.values().length;
-		verify(kakaoLocalClient, times(keywordCount)).searchByKeyword(anyString(), org.mockito.ArgumentMatchers.eq(1));
-		verify(kakaoLocalClient, times(keywordCount)).searchByKeyword(anyString(), org.mockito.ArgumentMatchers.eq(2));
+		verify(kakaoLocalClient, times(keywordCount)).searchByKeyword(anyString(), eq(1), anyBoolean());
+		verify(kakaoLocalClient, times(keywordCount)).searchByKeyword(anyString(), eq(2), anyBoolean());
 	}
 
 	private KakaoPlace place(String id, String name) {
