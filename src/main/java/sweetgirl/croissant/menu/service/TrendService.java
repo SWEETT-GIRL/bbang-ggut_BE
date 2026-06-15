@@ -148,15 +148,13 @@ public class TrendService {
 			// ignored
 		}
 
-		// 최종 Fallback: 같은 region_2nd 내 가장 가까운 동
-		if (region2nd != null) {
-			List<Object[]> sameRegion = storeRepository.findNearestRegionInSame(longitude, latitude, region2nd);
-			if (sameRegion != null && !sameRegion.isEmpty()) {
-				try {
-					return Region3rd.valueOf(sameRegion.get(0)[0] + "_" + sameRegion.get(0)[1]);
-				} catch (IllegalArgumentException ignored) {
-					// ignored
-				}
+		// 최종 Fallback: 가장 가까운 빵집의 동으로 매핑
+		List<Object[]> nearest = storeRepository.findNearestRegion(longitude, latitude);
+		if (nearest != null && !nearest.isEmpty()) {
+			try {
+				return Region3rd.valueOf(nearest.get(0)[0] + "_" + nearest.get(0)[1]);
+			} catch (IllegalArgumentException ignored) {
+				// ignored
 			}
 		}
 
