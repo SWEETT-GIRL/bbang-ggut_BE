@@ -126,6 +126,20 @@ class StoreSearchQueryBuilderTest {
 		assertThat(request.sort()).isEmpty();
 	}
 
+	@Test
+	void buildAutocomplete_usesAutocompleteFieldsAndPopularityScore() {
+		SearchRequest request = builder.buildAutocomplete("소금", 10);
+
+		assertThat(request.size()).isEqualTo(10);
+		assertThat(toJson(request)).contains(
+			"storeName.edge",
+			"breadTypes.edge",
+			"menus.name.edge",
+			"searchRegionAliases.edge",
+			"searchRegions.name.edge",
+			"popularityScore");
+	}
+
 	private SearchIntent intent(String rawQuery, List<String> regionTokens, List<String> breadTokens) {
 		return new SearchIntent(rawQuery, List.of(rawQuery.split(" ")), regionTokens, breadTokens, breadTokens);
 	}
