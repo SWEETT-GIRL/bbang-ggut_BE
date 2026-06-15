@@ -32,6 +32,7 @@ import sweetgirl.croissant.menu.dto.request.MenuAddReportRequest;
 import sweetgirl.croissant.menu.entity.MenuCategory;
 import sweetgirl.croissant.menu.exception.MenuException;
 import sweetgirl.croissant.menu.repository.MenuCategoryRepository;
+import sweetgirl.croissant.notification.service.AdminReportNotificationPublisher;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.StoreRepository;
@@ -53,6 +54,8 @@ class MenuAddReportServiceTest {
 	MenuContributionReportRepository menuContributionReportRepository;
 	@Mock
 	MenuContributionReportImageFileRepository menuContributionReportImageFileRepository;
+	@Mock
+	AdminReportNotificationPublisher adminReportNotificationPublisher;
 	@InjectMocks
 	MenuAddReportService menuAddReportService;
 
@@ -77,6 +80,7 @@ class MenuAddReportServiceTest {
 		ArgumentCaptor<MenuContributionReport> reportCaptor = ArgumentCaptor.forClass(MenuContributionReport.class);
 		verify(menuContributionReportRepository).save(reportCaptor.capture());
 		verify(menuContributionReportImageFileRepository).saveAll(argThat(images -> images.iterator().hasNext()));
+		verify(adminReportNotificationPublisher).publishMenuContributionReportCreated(reportCaptor.getValue());
 	}
 
 	@Test
