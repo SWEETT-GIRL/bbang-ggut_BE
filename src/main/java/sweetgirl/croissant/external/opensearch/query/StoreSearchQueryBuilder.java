@@ -183,10 +183,10 @@ public class StoreSearchQueryBuilder {
 
 	private Query rawQuery(String query) {
 		return boolShould(List.of(
-			Query.of(q -> q.matchPhrase(m -> m
-				.field("storeName")
-				.query(query)
-				.boost(10.0f))),
+			Query.of(q -> q.term(t -> t
+				.field("storeName.keyword")
+				.value(v -> v.stringValue(query))
+				.boost(20.0f))),
 			multiMatch(query, List.of(
 				"storeName^3",
 				"storeName.edge^2",
