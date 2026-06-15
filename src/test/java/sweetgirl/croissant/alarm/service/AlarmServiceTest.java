@@ -25,6 +25,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.posthog.server.PostHogInterface;
+
 import sweetgirl.croissant.alarm.code.AlarmErrorCode;
 import sweetgirl.croissant.alarm.dto.request.GeofenceEnterRequest;
 import sweetgirl.croissant.alarm.dto.response.GeofenceCandidatesResponse;
@@ -63,6 +65,8 @@ class AlarmServiceTest {
 	MemberReader memberReader;
 	@Mock
 	StoreRepository storeRepository;
+	@Mock
+	PostHogInterface postHog;
 
 	@InjectMocks
 	AlarmService alarmService;
@@ -241,6 +245,7 @@ class AlarmServiceTest {
 		Long memberId = 1L;
 		Member member = mock(Member.class);
 		Store store = mock(Store.class);
+		given(store.getId()).willReturn(1L);
 		NotificationSetting setting = mock(NotificationSetting.class);
 		GeofenceEnterRequest request = mock(GeofenceEnterRequest.class);
 
@@ -257,6 +262,7 @@ class AlarmServiceTest {
 		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
 		given(subscribedStoreRepository.existsSubscribedStoreWithinRadius(memberId, 1L, 37.5, 127.0, 300))
 			.willReturn(true);
+		given(storeNotificationRepository.tryAdvisoryXactLock(4294967297L)).willReturn(true);
 		given(storeNotificationRepository.existsByMemberAndStoreAndSentAtAfter(eq(member), eq(store), any()))
 			.willReturn(true);
 
@@ -293,6 +299,7 @@ class AlarmServiceTest {
 		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
 		given(subscribedStoreRepository.existsSubscribedStoreWithinRadius(memberId, 1L, 37.5, 127.0, 300))
 			.willReturn(true);
+		given(storeNotificationRepository.tryAdvisoryXactLock(4294967297L)).willReturn(true);
 		given(storeNotificationRepository.existsByMemberAndStoreAndSentAtAfter(eq(member), eq(store), any()))
 			.willReturn(false);
 		given(fcmTokenRepository.findByMemberAndIsActive(member, true)).willReturn(List.of(token));
@@ -332,6 +339,7 @@ class AlarmServiceTest {
 		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
 		given(subscribedStoreRepository.existsSubscribedStoreWithinRadius(memberId, 1L, 37.5, 127.0, 300))
 			.willReturn(true);
+		given(storeNotificationRepository.tryAdvisoryXactLock(4294967297L)).willReturn(true);
 		given(storeNotificationRepository.existsByMemberAndStoreAndSentAtAfter(eq(member), eq(store), any()))
 			.willReturn(false);
 		given(fcmTokenRepository.findByMemberAndIsActive(member, true)).willReturn(List.of(tokenRow1, tokenRow2));
@@ -370,6 +378,7 @@ class AlarmServiceTest {
 		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
 		given(subscribedStoreRepository.existsSubscribedStoreWithinRadius(memberId, 1L, 37.5, 127.0, 300))
 			.willReturn(true);
+		given(storeNotificationRepository.tryAdvisoryXactLock(4294967297L)).willReturn(true);
 		given(storeNotificationRepository.existsByMemberAndStoreAndSentAtAfter(eq(member), eq(store), any()))
 			.willReturn(false);
 		given(fcmTokenRepository.findByMemberAndIsActive(member, true)).willReturn(List.of(tokenA, tokenB));

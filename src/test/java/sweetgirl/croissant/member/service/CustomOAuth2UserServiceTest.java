@@ -3,6 +3,7 @@ package sweetgirl.croissant.member.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -20,6 +21,7 @@ import sweetgirl.croissant.member.entity.NotificationSetting;
 import sweetgirl.croissant.member.entity.OAuth;
 import sweetgirl.croissant.member.enums.OAuthProvider;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.repository.MemberRestrictionRepository;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
 import sweetgirl.croissant.member.repository.OAuthRepository;
 import sweetgirl.croissant.member.util.NicknameGenerator;
@@ -33,6 +35,8 @@ class CustomOAuth2UserServiceTest {
 	private NotificationSettingRepository notificationSettingRepository;
 	@Mock
 	private OAuthRepository oAuthRepository;
+	@Mock
+	private MemberRestrictionRepository memberRestrictionRepository;
 	@Mock
 	private TokenHasher tokenHasher;
 	@Mock
@@ -61,6 +65,8 @@ class CustomOAuth2UserServiceTest {
 
 		OAuth savedOAuth = oauthWith(savedMember);
 		given(oAuthRepository.save(any(OAuth.class))).willReturn(savedOAuth);
+		given(memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(eq(1L), any(), any()))
+			.willReturn(List.of());
 		given(notificationSettingRepository.findByMemberId(1L)).willReturn(
 			Optional.of(mock(NotificationSetting.class)));
 
@@ -83,6 +89,8 @@ class CustomOAuth2UserServiceTest {
 		OAuth existingOAuth = oauthWith(existingMember);
 		given(oAuthRepository.findByProviderAndProviderId(OAuthProvider.KAKAO, HASHED_ID)).willReturn(
 			Optional.of(existingOAuth));
+		given(memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(eq(2L), any(), any()))
+			.willReturn(List.of());
 		given(notificationSettingRepository.findByMemberId(2L)).willReturn(
 			Optional.of(mock(NotificationSetting.class)));
 
@@ -108,6 +116,9 @@ class CustomOAuth2UserServiceTest {
 		given(existingOAuth.getMember()).willReturn(deletedMember);
 		given(oAuthRepository.findByProviderAndProviderId(OAuthProvider.KAKAO, HASHED_ID)).willReturn(
 			Optional.of(existingOAuth));
+		given(deletedMember.getId()).willReturn(3L);
+		given(memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(eq(3L), any(), any()))
+			.willReturn(List.of());
 
 		Member newMember = memberOf(3L);
 		given(memberRepository.save(any(Member.class))).willReturn(newMember);
