@@ -43,6 +43,7 @@ import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.exception.MenuException;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
+import sweetgirl.croissant.notification.service.AdminReportNotificationPublisher;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.code.StoreReportErrorCode;
 import sweetgirl.croissant.store.dto.request.ReportImageRequest;
@@ -85,6 +86,8 @@ class StoreReportServiceTest {
 	StoreContributionReportImageFileRepository storeContributionReportImageFileRepository;
 	@Mock
 	MenuContributionReportImageFileRepository menuContributionReportImageFileRepository;
+	@Mock
+	AdminReportNotificationPublisher adminReportNotificationPublisher;
 
 	@InjectMocks
 	StoreReportService storeReportService;
@@ -156,6 +159,8 @@ class StoreReportServiceTest {
 		assertThat(result.status()).isEqualTo(StoreReportStatus.PENDING);
 		verify(storeContributionReportImageFileRepository, never()).saveAll(anyList());
 		verify(storeContributionReportRepository).save(argThat(r -> r.getContributionReport() == savedContribution));
+		verify(adminReportNotificationPublisher).publishStoreContributionReportCreated(
+			any(StoreContributionReport.class));
 	}
 
 	@Test
@@ -175,6 +180,8 @@ class StoreReportServiceTest {
 
 		assertThat(result.reportId()).isEqualTo(10L);
 		verify(storeContributionReportImageFileRepository).saveAll(anyList());
+		verify(adminReportNotificationPublisher).publishStoreContributionReportCreated(
+			any(StoreContributionReport.class));
 	}
 
 	@Test
@@ -249,6 +256,8 @@ class StoreReportServiceTest {
 		assertThat(result.reportId()).isEqualTo(10L);
 		assertThat(result.status()).isEqualTo(StoreReportStatus.PENDING);
 		verify(storeContributionReportRepository).save(any(StoreContributionReport.class));
+		verify(adminReportNotificationPublisher).publishStoreContributionReportCreated(
+			any(StoreContributionReport.class));
 	}
 
 	@Test
@@ -267,6 +276,8 @@ class StoreReportServiceTest {
 
 		assertThat(result.reportId()).isEqualTo(10L);
 		assertThat(result.status()).isEqualTo(StoreReportStatus.PENDING);
+		verify(adminReportNotificationPublisher).publishStoreContributionReportCreated(
+			any(StoreContributionReport.class));
 	}
 
 	// ───────────────────────── createAddressReport ─────────────────────────
@@ -300,6 +311,8 @@ class StoreReportServiceTest {
 		assertThat(result.reportId()).isEqualTo(10L);
 		assertThat(result.status()).isEqualTo(StoreReportStatus.PENDING);
 		verify(storeContributionReportRepository).save(any(StoreContributionReport.class));
+		verify(adminReportNotificationPublisher).publishStoreContributionReportCreated(
+			any(StoreContributionReport.class));
 	}
 
 	// ───────────────────────── createMenuEditReport ─────────────────────────
@@ -400,6 +413,8 @@ class StoreReportServiceTest {
 		assertThat(result.status()).isEqualTo(StoreReportStatus.PENDING);
 		verify(menuContributionReportImageFileRepository, never()).saveAll(anyList());
 		verify(menuContributionReportRepository).save(argThat(r -> r.getContributionReport() == savedContribution));
+		verify(adminReportNotificationPublisher).publishMenuContributionReportCreated(
+			any(MenuContributionReport.class));
 	}
 
 	@Test
@@ -423,6 +438,8 @@ class StoreReportServiceTest {
 
 		assertThat(result.reportId()).isEqualTo(4L);
 		verify(menuContributionReportImageFileRepository).saveAll(anyList());
+		verify(adminReportNotificationPublisher).publishMenuContributionReportCreated(
+			any(MenuContributionReport.class));
 	}
 
 	@Test

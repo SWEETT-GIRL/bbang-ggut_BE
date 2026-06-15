@@ -17,6 +17,7 @@ import sweetgirl.croissant.abuse.repository.AbuseReportRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.notification.service.AdminReportNotificationPublisher;
 import sweetgirl.croissant.review.entity.Review;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 
@@ -33,6 +34,7 @@ public class AbuseReportService {
 	private final MemberRepository memberRepository;
 	private final ReviewRepository reviewRepository;
 	private final AbuseReportRepository abuseReportRepository;
+	private final AdminReportNotificationPublisher adminReportNotificationPublisher;
 
 	@Transactional
 	public AbuseReportCreateResponse createReport(Long memberId, AbuseReportCreateRequest request) {
@@ -53,6 +55,7 @@ public class AbuseReportService {
 
 		AbuseReport report = abuseReportRepository.save(request.toAbuseReport(reporter, target.reportedMember()));
 
+		adminReportNotificationPublisher.publishAbuseReportCreated(report);
 		return AbuseReportCreateResponse.from(report);
 	}
 

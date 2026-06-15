@@ -23,6 +23,7 @@ import sweetgirl.croissant.contribution.repository.StoreContributionReportReposi
 import sweetgirl.croissant.external.naver.client.NaverLocalSearchClient;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.notification.service.AdminReportNotificationPublisher;
 import sweetgirl.croissant.store.dto.request.StoreAddReportRequest;
 import sweetgirl.croissant.store.dto.response.StoreAddReportResponse;
 import sweetgirl.croissant.store.enums.StoreReportStatus;
@@ -42,6 +43,8 @@ class StoreAddReportServiceTest {
 	ContributionReportRepository contributionReportRepository;
 	@Mock
 	StoreContributionReportRepository storeContributionReportRepository;
+	@Mock
+	AdminReportNotificationPublisher adminReportNotificationPublisher;
 	@InjectMocks
 	StoreAddReportService storeAddReportService;
 
@@ -72,6 +75,7 @@ class StoreAddReportServiceTest {
 		assertThat(captor.getValue().getNaverPlaceId()).isEqualTo("123456");
 		assertThat(captor.getValue().getName()).isEqualTo("새빵집");
 		assertThat(captor.getValue().getAddress()).isEqualTo("서울 마포구 월드컵로 1");
+		verify(adminReportNotificationPublisher).publishStoreContributionReportCreated(captor.getValue());
 	}
 
 	@Test

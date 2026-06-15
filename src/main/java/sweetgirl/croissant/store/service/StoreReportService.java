@@ -35,6 +35,7 @@ import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.exception.MenuException;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
+import sweetgirl.croissant.notification.service.AdminReportNotificationPublisher;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.code.StoreReportErrorCode;
 import sweetgirl.croissant.store.dto.request.ReportImageRequest;
@@ -70,6 +71,7 @@ public class StoreReportService {
 	private final MenuContributionReportRepository menuContributionReportRepository;
 	private final StoreContributionReportImageFileRepository storeContributionReportImageFileRepository;
 	private final MenuContributionReportImageFileRepository menuContributionReportImageFileRepository;
+	private final AdminReportNotificationPublisher adminReportNotificationPublisher;
 
 	public List<AddressSearchResult> searchAddress(String searchKeyword) {
 		return kakaoLocalClient.searchByKeywordForAddress(searchKeyword).stream()
@@ -174,6 +176,7 @@ public class StoreReportService {
 			storeContributionReportImageFileRepository.saveAll(imageFiles);
 		}
 
+		adminReportNotificationPublisher.publishStoreContributionReportCreated(report);
 		return new StoreReportResponse(contributionReport.getId(), report.getStatus());
 	}
 
@@ -207,6 +210,7 @@ public class StoreReportService {
 			.reason(request.reason())
 			.build());
 
+		adminReportNotificationPublisher.publishStoreContributionReportCreated(report);
 		return new StoreReportResponse(contributionReport.getId(), report.getStatus());
 	}
 
@@ -231,6 +235,7 @@ public class StoreReportService {
 			.reason(request.reason())
 			.build());
 
+		adminReportNotificationPublisher.publishStoreContributionReportCreated(report);
 		return new StoreReportResponse(contributionReport.getId(), report.getStatus());
 	}
 
@@ -290,6 +295,7 @@ public class StoreReportService {
 			menuContributionReportImageFileRepository.saveAll(imageFiles);
 		}
 
+		adminReportNotificationPublisher.publishMenuContributionReportCreated(report);
 		return new StoreReportResponse(contributionReport.getId(), report.getStatus());
 	}
 
