@@ -41,4 +41,23 @@ class FcmTokenRequestTest {
 
 		assertThat(request.getToken()).hasSize(300);
 	}
+
+	@Test
+	@DisplayName("FCM 토큰 요청은 앱 빌드 메타데이터를 역직렬화한다")
+	void deserialize_acceptsClientBuildMetadata() throws Exception {
+		String json = "{"
+			+ "\"deviceId\":\"device-001\","
+			+ "\"deviceOs\":\"IOS\","
+			+ "\"token\":\"fcm-token\","
+			+ "\"appVersion\":\"2.0.0\","
+			+ "\"buildVersion\":\"42\","
+			+ "\"bundleId\":\"com.bbanggut.app\""
+			+ "}";
+
+		FcmTokenRequest request = objectMapper.readValue(json, FcmTokenRequest.class);
+
+		assertThat(request.getAppVersion()).isEqualTo("2.0.0");
+		assertThat(request.getBuildVersion()).isEqualTo("42");
+		assertThat(request.getBundleId()).isEqualTo("com.bbanggut.app");
+	}
 }

@@ -63,6 +63,9 @@ class FcmServiceTest {
 		given(request.getDeviceId()).willReturn("device-001");
 		given(request.getDeviceOs()).willReturn(DeviceOs.IOS);
 		given(request.getToken()).willReturn("new-token");
+		given(request.getAppVersion()).willReturn("2.0.0");
+		given(request.getBuildVersion()).willReturn("42");
+		given(request.getBundleId()).willReturn("com.bbanggut.app");
 
 		given(memberReader.getMember(1L)).willReturn(member);
 		given(fcmTokenRepository.findByMemberAndDeviceId(member, "device-001"))
@@ -71,6 +74,9 @@ class FcmServiceTest {
 		fcmService.saveOrUpdateFcmToken(1L, request);
 
 		assertThat(existingToken.getToken()).isEqualTo("new-token");
+		assertThat(existingToken.getAppVersion()).isEqualTo("2.0.0");
+		assertThat(existingToken.getBuildVersion()).isEqualTo("42");
+		assertThat(existingToken.getBundleId()).isEqualTo("com.bbanggut.app");
 		verify(fcmTokenRepository, never()).save(any());
 	}
 
@@ -82,6 +88,9 @@ class FcmServiceTest {
 		given(request.getDeviceId()).willReturn("device-001");
 		given(request.getDeviceOs()).willReturn(DeviceOs.ANDROID);
 		given(request.getToken()).willReturn("new-token");
+		given(request.getAppVersion()).willReturn("2.0.0");
+		given(request.getBuildVersion()).willReturn("43");
+		given(request.getBundleId()).willReturn("com.bbanggut.app");
 
 		given(memberReader.getMember(1L)).willReturn(member);
 		given(fcmTokenRepository.findByMemberAndDeviceId(member, "device-001"))
@@ -93,6 +102,9 @@ class FcmServiceTest {
 		verify(fcmTokenRepository).save(captor.capture());
 		assertThat(captor.getValue().getToken()).isEqualTo("new-token");
 		assertThat(captor.getValue().getDeviceId()).isEqualTo("device-001");
+		assertThat(captor.getValue().getAppVersion()).isEqualTo("2.0.0");
+		assertThat(captor.getValue().getBuildVersion()).isEqualTo("43");
+		assertThat(captor.getValue().getBundleId()).isEqualTo("com.bbanggut.app");
 	}
 
 	@Test
@@ -307,6 +319,25 @@ class FcmServiceTest {
 			fcmService.sendPushNotification("bad-token", "제목", "내용", Map.of());
 
 			assertThat(fcmToken.isActive()).isFalse();
+		}
+	}
+
+	@Test
+	@DisplayName("sendPushNotification: THIRD_PARTY_AUTH_ERROR 에러 시 토큰을 비활성화하지 않는다")
+	void sendPushNotification_doesNotDeactivate_whenThirdPartyAuthError() throws FirebaseMessagingException {
+		FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
+		given(exception.getMessagingErrorCode()).willReturn(MessagingErrorCode.THIRD_PARTY_AUTH_ERROR);
+
+		FirebaseMessaging mockFirebaseMessaging = mock(FirebaseMessaging.class);
+
+		try (MockedStatic<FirebaseMessaging> staticMock = mockStatic(FirebaseMessaging.class)) {
+			staticMock.when(FirebaseMessaging::getInstance).thenReturn(mockFirebaseMessaging);
+			given(mockFirebaseMessaging.send(any())).willThrow(exception);
+
+			assertThatThrownBy(() -> fcmService.sendPushNotification("some-token", "제목", "내용", Map.of()))
+				.isInstanceOf(AlarmException.class);
+
+			verify(fcmTokenRepository, never()).findAllByToken(any());
 		}
 	}
 

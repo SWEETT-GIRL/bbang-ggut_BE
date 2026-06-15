@@ -182,7 +182,7 @@ public class AlarmService {
 						.build());
 			} catch (AlarmException e) {
 				log.warn("FCM 발송 실패 [memberId={}, storeId={}, token={}]",
-					member.getId(), store.getId(), token);
+					member.getId(), store.getId(), maskToken(token));
 			}
 		}
 		// 알림 발송 이력 저장
@@ -190,6 +190,13 @@ public class AlarmService {
 			storeNotificationRepository.save(StoreNotification.of(member, store, body));
 		}
 
+	}
+
+	private String maskToken(String token) {
+		if (token == null || token.length() <= 12) {
+			return "***";
+		}
+		return token.substring(0, 6) + "..." + token.substring(token.length() - 6);
 	}
 
 	// Geofence에 등록할 구독 가게 후보 조회
