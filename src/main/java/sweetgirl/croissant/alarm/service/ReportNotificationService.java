@@ -150,9 +150,16 @@ public class ReportNotificationService {
 				fcmService.sendPushNotification(token, notification.getTitle(), notification.getMessage(), data);
 			} catch (AlarmException e) {
 				log.warn("FCM 발송 실패 [memberId={}, reportId={}, token={}]",
-					member.getId(), notification.getReportId(), token);
+					member.getId(), notification.getReportId(), maskToken(token));
 			}
 		}
+	}
+
+	private String maskToken(String token) {
+		if (token == null || token.length() <= 12) {
+			return "***";
+		}
+		return token.substring(0, 6) + "..." + token.substring(token.length() - 6);
 	}
 
 	private void putIfNotNull(Map<String, String> data, String key, Long value) {

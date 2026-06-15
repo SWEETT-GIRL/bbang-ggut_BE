@@ -1,8 +1,12 @@
 package sweetgirl.croissant.global.advice;
 
+import java.io.IOException;
+import java.util.Locale;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.http.converter.HttpMessageNotWritableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.ServletRequestBindingException;
@@ -24,6 +28,11 @@ import sweetgirl.croissant.global.response.ValidationErrorResponse;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+	private static final String CLIENT_ABORT_EXCEPTION_CLASS_NAME = "ClientAbortException";
+	private static final String BROKEN_PIPE_MESSAGE = "broken pipe";
+	private static final String CONNECTION_RESET_MESSAGE = "connection reset";
+	private static final String STREAM_CLOSED_MESSAGE = "stream closed";
 
 	@ExceptionHandler(CustomException.class)
 	public ResponseEntity<ApiResponse<?>> handleCustomException(CustomException ex, HttpServletRequest request) {
@@ -61,6 +70,16 @@ public class GlobalExceptionHandler {
 		return ResponseEntity
 			.status(HttpStatus.BAD_REQUEST)
 			.body(ApiResponse.fail(GeneralErrorCode._BAD_REQUEST));
+	}
+
+	@ExceptionHandler(HttpMessageNotWritableException.class)
+	public ResponseEntity<ApiResponse<?>> handleHttpMessageNotWritableException(HttpMessageNotWritableException ex,
+			HttpServletRequest request) {
+		if (isClientAbortException(ex)) {
+			log.debug("[ClientAbort] {}", ex.getMessage());
+			return null;
+		}
+		return handleGenericException(ex, request);
 	}
 
 	@ExceptionHandler({ServletRequestBindingException.class, MethodArgumentTypeMismatchException.class})
@@ -124,11 +143,45 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(Exception.class)
 	public ResponseEntity<ApiResponse<?>> handleGenericException(Exception ex, HttpServletRequest request) {
+		if (isClientAbortException(ex)) {
+			log.debug("[ClientAbort] {}", ex.getMessage());
+			return null;
+		}
 		log.error("[UnhandledException] {}", ex.getMessage(), ex);
 		request.setAttribute(RequestLoggingFilter.ATTR_ERROR_CODE, "INTERNAL_SERVER_ERROR");
 		request.setAttribute(RequestLoggingFilter.ATTR_ERROR_MESSAGE, ex.getMessage());
 		return ResponseEntity
 			.status(HttpStatus.INTERNAL_SERVER_ERROR)
 			.body(ApiResponse.fail(GeneralErrorCode._INTERNAL_SERVER_ERROR));
+	}
+
+	private boolean isClientAbortException(Throwable ex) {
+		Throwable current = ex;
+		while (current != null) {
+			if (isClientAbortClass(current) || isClientAbortIoException(current) || hasClientAbortMessage(current)) {
+				return true;
+			}
+			current = current.getCause();
+		}
+		return false;
+	}
+
+	private boolean isClientAbortClass(Throwable ex) {
+		return ex.getClass().getSimpleName().contains(CLIENT_ABORT_EXCEPTION_CLASS_NAME);
+	}
+
+	private boolean isClientAbortIoException(Throwable ex) {
+		return ex instanceof IOException && hasClientAbortMessage(ex);
+	}
+
+	private boolean hasClientAbortMessage(Throwable ex) {
+		String message = ex.getMessage();
+		if (message == null) {
+			return false;
+		}
+		String lowerCaseMessage = message.toLowerCase(Locale.ROOT);
+		return lowerCaseMessage.contains(BROKEN_PIPE_MESSAGE)
+			|| lowerCaseMessage.contains(CONNECTION_RESET_MESSAGE)
+			|| lowerCaseMessage.contains(STREAM_CLOSED_MESSAGE);
 	}
 }
