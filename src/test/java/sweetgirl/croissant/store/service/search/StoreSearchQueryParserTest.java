@@ -97,39 +97,50 @@ class StoreSearchQueryParserTest {
 	}
 
 	@Test
-	void parse_extractsContainedBreadTokenFromCompoundToken() {
+	void parse_keepsCompoundTokenWholeByDefaultButDecomposesBreadOnFallback() {
 		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
 		given(searchRegionAliasRepository.findByNormalizedAlias("초코소금빵")).willReturn(Optional.empty());
 		given(searchRegionAliasRepository.findAll()).willReturn(List.of());
 
-		SearchIntent result = parser.parse("초코소금빵");
+		// 기본(가게명 우선): 지역어 없이 빵만 박힌 붙어쓴 토큰은 분해하지 않고 통째로 둔다
+		SearchIntent primary = parser.parse("초코소금빵");
+		assertThat(primary.breadTokens()).isEmpty();
+		assertThat(primary.remainingTokens()).containsExactly("초코소금빵");
 
-		assertThat(result.breadTokens()).containsExactly("소금빵");
-		assertThat(result.remainingTokens()).containsExactly("초코");
+		// 폴백: "소금빵"을 빵 must로 분해하고 남은 "초코"는 remaining으로 둔다
+		SearchIntent fallback = parser.parseWithBreadFallback("초코소금빵");
+		assertThat(fallback.breadTokens()).containsExactly("소금빵");
+		assertThat(fallback.remainingTokens()).containsExactly("초코");
 	}
 
 	@Test
-	void parse_extractsContainedBreadTokenFromMenuNameLikeToken() {
+	void parse_keepsMenuNameLikeTokenWholeByDefaultButDecomposesBreadOnFallback() {
 		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
 		given(searchRegionAliasRepository.findByNormalizedAlias("바닐라에그타르트")).willReturn(Optional.empty());
 		given(searchRegionAliasRepository.findAll()).willReturn(List.of());
 
-		SearchIntent result = parser.parse("바닐라에그타르트");
+		SearchIntent primary = parser.parse("바닐라에그타르트");
+		assertThat(primary.breadTokens()).isEmpty();
+		assertThat(primary.remainingTokens()).containsExactly("바닐라에그타르트");
 
-		assertThat(result.breadTokens()).containsExactly("에그타르트");
-		assertThat(result.remainingTokens()).containsExactly("바닐라");
+		SearchIntent fallback = parser.parseWithBreadFallback("바닐라에그타르트");
+		assertThat(fallback.breadTokens()).containsExactly("에그타르트");
+		assertThat(fallback.remainingTokens()).containsExactly("바닐라");
 	}
 
 	@Test
-	void parse_extractsContainedBreadSynonymAsCanonicalToken() {
+	void parse_keepsSynonymCompoundWholeByDefaultButDecomposesToCanonicalOnFallback() {
 		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
 		given(searchRegionAliasRepository.findByNormalizedAlias("크로와상맛집")).willReturn(Optional.empty());
 		given(searchRegionAliasRepository.findAll()).willReturn(List.of());
 
-		SearchIntent result = parser.parse("크로와상맛집");
+		SearchIntent primary = parser.parse("크로와상맛집");
+		assertThat(primary.breadTokens()).isEmpty();
+		assertThat(primary.remainingTokens()).containsExactly("크로와상맛집");
 
-		assertThat(result.breadTokens()).containsExactly("크루아상");
-		assertThat(result.remainingTokens()).containsExactly("맛집");
+		SearchIntent fallback = parser.parseWithBreadFallback("크로와상맛집");
+		assertThat(fallback.breadTokens()).containsExactly("크루아상");
+		assertThat(fallback.remainingTokens()).containsExactly("맛집");
 	}
 
 	@Test

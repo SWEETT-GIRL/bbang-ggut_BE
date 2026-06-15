@@ -85,6 +85,12 @@ public class StoreSearchQueryBuilder {
 		if (hasBreadTokens) {
 			// 케이스 1, 3: 빵 키워드는 항상 must (에그타르트 없는 가게는 제외)
 			must.add(boolShould(breadQueries(intent.breadTokens())));
+			// 빵 must로 좁혀진 결과 안에서, 남은 토큰(예: "초코소금빵"의 "초코")을
+			// 가게명/메뉴 should 보너스로 활용해 의도에 더 맞는 가게를 위로 올린다.
+			List<String> remainingTokens = intent.remainingTokens();
+			for (int i = 0; i < remainingTokens.size(); i++) {
+				should.add(remainingQuery(remainingTokens.get(i), "remainingMatchedMenus" + i));
+			}
 		}
 
 		// 불용어 제거된 쿼리를 가게명/메뉴명에 매칭 — must와 무관하게 항상 should에 포함
@@ -209,6 +215,17 @@ public class StoreSearchQueryBuilder {
 				"storeName.edge^2",
 				"storeName.ngram")),
 			menuNested(query, "rawMatchedMenus", List.of(
+				"menus.name.edge^2",
+				"menus.name.ngram"))));
+	}
+
+	private Query remainingQuery(String query, String innerHitsName) {
+		// 잔여 토큰은 soft 보너스 — 조사 제거 없는 edge/ngram으로 가게명/메뉴명에 부분 매칭만.
+		return boolShould(List.of(
+			multiMatch(query, List.of(
+				"storeName.edge^2",
+				"storeName.ngram")),
+			menuNested(query, innerHitsName, List.of(
 				"menus.name.edge^2",
 				"menus.name.ngram"))));
 	}
