@@ -45,20 +45,40 @@ public class FcmToken extends BaseTimeEntity {
 	@Column(nullable = false, length = 4096)
 	private String token;
 
+	@Column(length = 100)
+	private String appVersion;
+
+	@Column(length = 100)
+	private String buildVersion;
+
+	@Column(length = 200)
+	private String bundleId;
+
 	@Column(nullable = false)
 	private boolean isActive = true;
 
 	@Builder
-	public FcmToken(Member member, String deviceId, DeviceOs deviceOs, String token) {
+	public FcmToken(Member member, String deviceId, DeviceOs deviceOs, String token, String appVersion,
+			String buildVersion, String bundleId) {
 		this.member = member;
 		this.deviceId = deviceId;
 		this.deviceOs = deviceOs;
 		this.token = token;
+		this.appVersion = appVersion;
+		this.buildVersion = buildVersion;
+		this.bundleId = bundleId;
 		this.isActive = true;
 	}
 
 	public void updateToken(String token) {
+		updateToken(token, appVersion, buildVersion, bundleId);
+	}
+
+	public void updateToken(String token, String appVersion, String buildVersion, String bundleId) {
 		this.token = token;
+		this.appVersion = appVersion;
+		this.buildVersion = buildVersion;
+		this.bundleId = bundleId;
 		this.isActive = true;
 	}
 

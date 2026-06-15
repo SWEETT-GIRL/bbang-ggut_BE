@@ -22,4 +22,13 @@ public class FcmTokenRequest {
 	@Size(max = 4096)
 	String token;
 
+	@Size(max = 100)
+	String appVersion;
+
+	@Size(max = 100)
+	String buildVersion;
+
+	@Size(max = 200)
+	String bundleId;
+
 }
