@@ -86,8 +86,8 @@ public class StoreSearchQueryBuilder {
 			must.add(boolShould(breadQueries(intent.breadTokens())));
 		}
 
-		// 원문 전체를 가게명/메뉴명에 매칭 — must와 무관하게 항상 should에 포함
-		should.add(rawQuery(intent.rawQuery()));
+		// 불용어 제거된 쿼리를 가게명/메뉴명에 매칭 — must와 무관하게 항상 should에 포함
+		should.add(rawQuery(intent.cleanQuery()));
 
 		Query bool = Query.of(q -> q.bool(b -> {
 			b.must(must).should(should);
@@ -154,6 +154,10 @@ public class StoreSearchQueryBuilder {
 
 	private Query rawQuery(String query) {
 		return boolShould(List.of(
+			Query.of(q -> q.matchPhrase(m -> m
+				.field("storeName")
+				.query(query)
+				.boost(10.0f))),
 			multiMatch(query, List.of(
 				"storeName^3",
 				"storeName.edge^2",
