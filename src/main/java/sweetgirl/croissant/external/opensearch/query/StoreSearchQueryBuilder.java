@@ -86,8 +86,8 @@ public class StoreSearchQueryBuilder {
 			must.add(boolShould(breadQueries(intent.breadTokens())));
 		}
 
-		// 원문 전체를 가게명/메뉴명에 매칭 — must와 무관하게 항상 should에 포함
-		should.add(rawQuery(intent.rawQuery()));
+		// 불용어 제거된 쿼리를 가게명/메뉴명에 매칭 — must와 무관하게 항상 should에 포함
+		should.add(rawQuery(intent.cleanQuery()));
 
 		Query bool = Query.of(q -> q.bool(b -> {
 			b.must(must).should(should);
@@ -110,6 +110,35 @@ public class StoreSearchQueryBuilder {
 			request.sort(sortOptions);
 		}
 		return request.build();
+	}
+
+	public SearchRequest buildAutocomplete(String query, int size) {
+		Query autocompleteQuery = boolShould(List.of(
+			multiMatch(query, List.of(
+				"storeName.edge^5",
+				"storeName.ngram^2",
+				"breadTypes.edge^4",
+				"breadTypes.ngram^2",
+				"searchRegionAliases.edge^2",
+				"searchRegionAliases.ngram")),
+			Query.of(q -> q.nested(n -> n
+				.path("menus")
+				.query(multiMatch(query, List.of(
+					"menus.name.edge^4",
+					"menus.name.ngram^2",
+					"menus.menuCategory.edge^2",
+					"menus.menuCategory.ngram"))))),
+			Query.of(q -> q.nested(n -> n
+				.path("searchRegions")
+				.query(multiMatch(query, List.of(
+					"searchRegions.name.edge^2",
+					"searchRegions.name.ngram")))))));
+
+		return new SearchRequest.Builder()
+			.index(openSearchProperties.getStoresIndex())
+			.size(size)
+			.query(functionScore(autocompleteQuery, null, null))
+			.build();
 	}
 
 	private List<Query> regionQueries(List<String> regionTokens) {
@@ -154,6 +183,10 @@ public class StoreSearchQueryBuilder {
 
 	private Query rawQuery(String query) {
 		return boolShould(List.of(
+			Query.of(q -> q.matchPhrase(m -> m
+				.field("storeName")
+				.query(query)
+				.boost(10.0f))),
 			multiMatch(query, List.of(
 				"storeName^3",
 				"storeName.edge^2",

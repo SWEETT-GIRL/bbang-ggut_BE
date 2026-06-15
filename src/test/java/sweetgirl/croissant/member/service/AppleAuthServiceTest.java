@@ -3,6 +3,7 @@ package sweetgirl.croissant.member.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,7 @@ import sweetgirl.croissant.member.entity.OAuth;
 import sweetgirl.croissant.member.enums.OAuthProvider;
 import sweetgirl.croissant.member.jwt.JwtProvider;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.repository.MemberRestrictionRepository;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
 import sweetgirl.croissant.member.repository.OAuthRepository;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository;
@@ -34,6 +36,8 @@ class AppleAuthServiceTest {
 	private OAuthRepository oAuthRepository;
 	@Mock
 	private MemberRepository memberRepository;
+	@Mock
+	private MemberRestrictionRepository memberRestrictionRepository;
 	@Mock
 	private RefreshTokenRepository refreshTokenRepository;
 	@Mock
@@ -72,6 +76,8 @@ class AppleAuthServiceTest {
 
 		OAuth savedOAuth = oauthWith(savedMember);
 		given(oAuthRepository.save(any(OAuth.class))).willReturn(savedOAuth);
+		given(memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(eq(1L), any(), any()))
+			.willReturn(List.of());
 		given(notificationSettingRepository.findByMemberId(1L)).willReturn(
 			Optional.of(mock(NotificationSetting.class)));
 		given(jwtProvider.generateAccessToken(1L)).willReturn("access-token");
@@ -98,6 +104,8 @@ class AppleAuthServiceTest {
 		OAuth existingOAuth = oauthWith(existingMember);
 		given(oAuthRepository.findByProviderAndProviderId(OAuthProvider.APPLE, HASHED_SUB)).willReturn(
 			Optional.of(existingOAuth));
+		given(memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(eq(2L), any(), any()))
+			.willReturn(List.of());
 		given(memberRepository.getReferenceById(2L)).willReturn(existingMember);
 		given(notificationSettingRepository.findByMemberId(2L)).willReturn(
 			Optional.of(mock(NotificationSetting.class)));
@@ -128,6 +136,9 @@ class AppleAuthServiceTest {
 		given(existingOAuth.getMember()).willReturn(deletedMember);
 		given(oAuthRepository.findByProviderAndProviderId(OAuthProvider.APPLE, HASHED_SUB)).willReturn(
 			Optional.of(existingOAuth));
+		given(deletedMember.getId()).willReturn(3L);
+		given(memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(eq(3L), any(), any()))
+			.willReturn(List.of());
 
 		Member newMember = memberOf(3L);
 		given(memberRepository.save(any(Member.class))).willReturn(newMember);

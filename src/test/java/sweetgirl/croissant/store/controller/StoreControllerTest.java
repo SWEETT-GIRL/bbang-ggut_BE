@@ -20,7 +20,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import sweetgirl.croissant.global.response.SliceResponse;
+import sweetgirl.croissant.store.dto.response.StoreAutocompleteResponse;
 import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
+import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
 import sweetgirl.croissant.store.service.StoreService;
 import sweetgirl.croissant.store.service.search.SearchSort;
 import sweetgirl.croissant.store.service.search.StoreSearchService;
@@ -72,5 +74,18 @@ class StoreControllerTest {
 			.param("sort", "popularity"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true));
+	}
+
+	@Test
+	void autocompleteStores_returnsSuggestions() throws Exception {
+		given(storeSearchService.autocompleteStores("소금", 10))
+			.willReturn(List.of(new StoreAutocompleteResponse("소금빵", AutocompleteSuggestionType.BREAD_TYPE, null)));
+
+		mockMvc.perform(get("/stores/autocomplete")
+			.param("query", "소금"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true))
+			.andExpect(jsonPath("$.data[0].keyword").value("소금빵"))
+			.andExpect(jsonPath("$.data[0].type").value("BREAD_TYPE"));
 	}
 }

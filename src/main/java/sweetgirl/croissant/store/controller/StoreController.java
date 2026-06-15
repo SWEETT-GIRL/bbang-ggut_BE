@@ -23,6 +23,7 @@ import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.store.dto.request.KakaoStoreRegisterRequest;
 import sweetgirl.croissant.store.dto.response.KakaoStoreRegisterResponse;
 import sweetgirl.croissant.store.dto.response.NearbyStoreResponse;
+import sweetgirl.croissant.store.dto.response.StoreAutocompleteResponse;
 import sweetgirl.croissant.store.dto.response.StoreDetailResponse;
 import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
 import sweetgirl.croissant.store.dto.response.SubscribedStoreResponse;
@@ -86,6 +87,14 @@ public class StoreController {
 		return ResponseEntity.ok(
 			ApiResponse.ok(storeSearchService.searchStores(query, lat, lon, SearchSort.from(sort),
 				PageRequest.of(page, size))));
+	}
+
+	@Operation(summary = "빵집 검색어 자동완성", description = "입력 중인 검색어를 기준으로 빵집·메뉴·빵 종류·지역 추천어를 조회합니다.")
+	@GetMapping("/autocomplete")
+	public ResponseEntity<ApiResponse<List<StoreAutocompleteResponse>>> autocompleteStores(
+			@Parameter(description = "입력 중인 검색어") @RequestParam String query,
+			@RequestParam(defaultValue = "10") int size) {
+		return ResponseEntity.ok(ApiResponse.ok(storeSearchService.autocompleteStores(query, size)));
 	}
 
 	@Operation(summary = "근처 빵집 목록 조회", description = "위도(lat)·경도(lng) 기준 반경 내 빵집을 거리 오름차순으로 반환합니다.")

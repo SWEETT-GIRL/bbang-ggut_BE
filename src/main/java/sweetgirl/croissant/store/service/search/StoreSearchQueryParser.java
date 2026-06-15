@@ -25,6 +25,7 @@ public class StoreSearchQueryParser {
 
 	private static final String BREAD_TYPES_FILE = "bread-types.txt";
 	private static final String BREAD_SYNONYMS_FILE = "bread-synonyms.txt";
+	private static final String STOP_WORDS_FILE = "stop-words.txt";
 	private static final int MIN_CONTAINED_BREAD_TOKEN_LENGTH = 2;
 	private static final Set<String> REGION_SUFFIXES = Set.of(
 		"시", "군", "구", "동", "읍", "면", "리", "로", "길");
@@ -33,24 +34,27 @@ public class StoreSearchQueryParser {
 
 	private Set<String> breadTypes;
 	private Map<String, String> breadSynonyms;
+	private Set<String> stopWords;
 
 	public SearchIntent parse(String rawQuery) {
 		String normalized = rawQuery == null ? "" : rawQuery.trim().replaceAll("\\s+", " ");
 		if (normalized.isBlank()) {
-			return new SearchIntent("", List.of(), List.of(), List.of(), List.of());
+			return new SearchIntent("", "", List.of(), List.of(), List.of(), List.of());
 		}
 
-		List<String> rawTokens = List.of(normalized.split(" "));
+		Set<String> stopWordSet = getStopWords();
+		List<String> rawTokens = List.of(normalized.split(" ")); //공백 단위로 쪼개기
 		List<String> regionTokens = new ArrayList<>();
 		Set<String> breadTokens = new LinkedHashSet<>();
 		List<String> remainingTokens = new ArrayList<>();
+
 		for (String token : rawTokens) {
 			String exactBreadCanonical = toExactBreadCanonical(token);
-			if (isRegionToken(token)) {
+			if (isRegionToken(token)) { //지역토큰 먼저
 				regionTokens.add(token);
-			} else if (exactBreadCanonical != null) {
+			} else if (exactBreadCanonical != null) { //빵토큰 두번째
 				breadTokens.add(exactBreadCanonical);
-			} else {
+			} else { //띄어쓰기 무시하고 다 붙어진 단어에서 찾기
 				ParsedToken parsedToken = parseContainedTokens(token);
 				regionTokens.addAll(parsedToken.regionTokens());
 				breadTokens.addAll(parsedToken.breadTokens());
@@ -58,8 +62,14 @@ public class StoreSearchQueryParser {
 			}
 		}
 
+		List<String> filteredTokens = rawTokens.stream()
+			.filter(t -> !stopWordSet.contains(t.toLowerCase()))
+			.toList(); //띄어쓰기 기준으로 불용어 거르기
+		String cleanQuery = filteredTokens.isEmpty() ? normalized : String.join(" ", filteredTokens);
+
 		return new SearchIntent(
 			normalized,
+			cleanQuery,
 			rawTokens,
 			List.copyOf(regionTokens),
 			List.copyOf(breadTokens),
@@ -204,6 +214,27 @@ public class StoreSearchQueryParser {
 			// 파일 로드 실패 시 빈 맵으로 동작
 		}
 		return breadSynonyms;
+	}
+
+	private Set<String> getStopWords() {
+		if (stopWords != null) {
+			return stopWords;
+		}
+		stopWords = new java.util.HashSet<>();
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+			new ClassPathResource(STOP_WORDS_FILE).getInputStream(), StandardCharsets.UTF_8))) {
+			String line;
+			while ((line = reader.readLine()) != null) {
+				line = line.strip();
+				if (line.isBlank() || line.startsWith("#") || line.contains(" ")) {
+					continue;
+				}
+				stopWords.add(line.toLowerCase());
+			}
+		} catch (IOException e) {
+			// 파일 로드 실패 시 빈 셋으로 동작
+		}
+		return stopWords;
 	}
 
 	private String normalize(String token) {

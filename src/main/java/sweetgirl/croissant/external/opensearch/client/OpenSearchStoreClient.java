@@ -5,7 +5,9 @@ import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import org.opensearch.client.json.JsonData;
 import org.opensearch.client.json.JsonpMapper;
@@ -25,12 +27,16 @@ import org.springframework.stereotype.Component;
 import jakarta.json.stream.JsonGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.external.opensearch.document.SearchRegionDto;
 import sweetgirl.croissant.external.opensearch.document.StoreDocument;
+import sweetgirl.croissant.external.opensearch.document.StoreMenuDto;
 import sweetgirl.croissant.external.opensearch.dto.MatchedField;
 import sweetgirl.croissant.external.opensearch.dto.MenuInnerHit;
+import sweetgirl.croissant.external.opensearch.dto.OpenSearchAutocompleteSuggestion;
 import sweetgirl.croissant.external.opensearch.dto.OpenSearchStoreHit;
 import sweetgirl.croissant.external.opensearch.dto.OpenSearchStoreSearchResult;
 import sweetgirl.croissant.external.opensearch.query.StoreSearchQueryBuilder;
+import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
 import sweetgirl.croissant.store.service.search.SearchIntent;
 import sweetgirl.croissant.store.service.search.SearchSort;
 
@@ -38,6 +44,10 @@ import sweetgirl.croissant.store.service.search.SearchSort;
 @Component
 @RequiredArgsConstructor
 public class OpenSearchStoreClient {
+
+	private static final int AUTOCOMPLETE_FETCH_MULTIPLIER = 3;
+	private static final int AUTOCOMPLETE_MAX_FETCH_SIZE = 50;
+	private static final Pattern AUTOCOMPLETE_NORMALIZE_PATTERN = Pattern.compile("[^a-zA-Z0-9가-힣]");
 
 	private final ObjectProvider<OpenSearchClient> openSearchClientProvider;
 	private final StoreSearchQueryBuilder storeSearchQueryBuilder;
@@ -71,6 +81,43 @@ public class OpenSearchStoreClient {
 		} catch (IOException | RuntimeException e) {
 			log.warn("OpenSearch 가게 검색 실패 — 빈 결과로 대체합니다.", e);
 			return OpenSearchStoreSearchResult.empty();
+		}
+	}
+
+	public List<OpenSearchAutocompleteSuggestion> autocompleteStores(String query, int size) {
+		OpenSearchClient client = openSearchClientProvider.getIfAvailable();
+		if (client == null) {
+			return List.of();
+		}
+
+		String normalizedQuery = normalizeAutocompleteText(query);
+		if (normalizedQuery.isBlank()) {
+			return List.of();
+		}
+
+		JsonpMapper mapper = client._transport().jsonpMapper();
+		SearchRequest request = storeSearchQueryBuilder.buildAutocomplete(query,
+			Math.min(size * AUTOCOMPLETE_FETCH_MULTIPLIER, AUTOCOMPLETE_MAX_FETCH_SIZE));
+		if (log.isDebugEnabled()) {
+			log.debug("OpenSearch 자동완성 요청 JSON: {}", toJson(request, mapper));
+		}
+		try {
+			SearchResponse<StoreDocument> response = client.search(request, StoreDocument.class);
+			if (log.isDebugEnabled()) {
+				log.debug("OpenSearch 자동완성 응답 JSON: {}", toJson(response, mapper));
+			}
+			return parseAutocompleteResponse(response, normalizedQuery);
+		} catch (OpenSearchException e) {
+			ErrorCause error = e.error();
+			log.warn("OpenSearch 자동완성 실패 — 빈 결과로 대체합니다. status={}, type={}, reason={}, causes={}",
+				e.status(),
+				error != null ? error.type() : null,
+				error != null ? error.reason() : null,
+				describeCauses(error), e);
+			return List.of();
+		} catch (IOException | RuntimeException e) {
+			log.warn("OpenSearch 자동완성 실패 — 빈 결과로 대체합니다.", e);
+			return List.of();
 		}
 	}
 
@@ -115,6 +162,61 @@ public class OpenSearchStoreClient {
 				matchedFields));
 		}
 		return new OpenSearchStoreSearchResult(hits, hits.size() == pageable.getPageSize());
+	}
+
+	private List<OpenSearchAutocompleteSuggestion> parseAutocompleteResponse(
+			SearchResponse<StoreDocument> response, String normalizedQuery) {
+		List<OpenSearchAutocompleteSuggestion> suggestions = new ArrayList<>();
+		for (Hit<StoreDocument> hit : response.hits().hits()) {
+			StoreDocument source = hit.source();
+			if (source == null) {
+				continue;
+			}
+			addAutocompleteSuggestion(suggestions, source.storeName(), AutocompleteSuggestionType.STORE,
+				source.storeId(), normalizedQuery);
+			for (String breadType : nullSafeList(source.breadTypes())) {
+				addAutocompleteSuggestion(suggestions, breadType, AutocompleteSuggestionType.BREAD_TYPE,
+					null, normalizedQuery);
+			}
+			for (StoreMenuDto menu : nullSafeList(source.menus())) {
+				if (menu != null) {
+					addAutocompleteSuggestion(suggestions, menu.name(), AutocompleteSuggestionType.MENU,
+						null, normalizedQuery);
+				}
+			}
+			for (String alias : nullSafeList(source.searchRegionAliases())) {
+				addAutocompleteSuggestion(suggestions, alias, AutocompleteSuggestionType.REGION,
+					null, normalizedQuery);
+			}
+			for (SearchRegionDto region : nullSafeList(source.searchRegions())) {
+				if (region != null) {
+					addAutocompleteSuggestion(suggestions, region.name(), AutocompleteSuggestionType.REGION,
+						null, normalizedQuery);
+				}
+			}
+		}
+		return suggestions;
+	}
+
+	private void addAutocompleteSuggestion(List<OpenSearchAutocompleteSuggestion> suggestions,
+			String keyword, AutocompleteSuggestionType type, Long storeId, String normalizedQuery) {
+		if (keyword == null || !normalizeAutocompleteText(keyword).contains(normalizedQuery)) {
+			return;
+		}
+		suggestions.add(new OpenSearchAutocompleteSuggestion(keyword, type, storeId));
+	}
+
+	private <T> List<T> nullSafeList(List<T> values) {
+		return values != null ? values : List.of();
+	}
+
+	private String normalizeAutocompleteText(String text) {
+		if (text == null) {
+			return "";
+		}
+		return AUTOCOMPLETE_NORMALIZE_PATTERN.matcher(text)
+			.replaceAll("")
+			.toLowerCase(Locale.ROOT);
 	}
 
 	private List<MatchedField> parseMatchedFields(Hit<StoreDocument> hit, List<Long> matchedMenuIds) {
