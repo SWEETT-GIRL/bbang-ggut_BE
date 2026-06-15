@@ -201,14 +201,13 @@ public class StoreSearchQueryBuilder {
 				.field("storeName.ngram")
 				.value(v -> v.stringValue(normalizeForExactMatch(query)))
 				.boost(60.0f))),
+			// nori 필드(storeName, menus.name)는 제외: nori_part_of_speech가 조사를 제거해
+			// "후와후와" → "후"로 뭉개지면 가게명/메뉴명에 "후"만 들어가도 매칭된다.
+			// query_normalized_analyzer(keyword 토크나이저) 기반 edge/ngram은 원문을 통째로
+			// 유지하므로, 가게명/메뉴명이 검색어를 실제로 포함할 때만 매칭된다.
 			multiMatch(query, List.of(
-				"storeName^3",
 				"storeName.edge^2",
 				"storeName.ngram")),
-			// menus.name의 nori 필드는 제외: nori_part_of_speech가 조사를 제거해
-			// "후와후와" → "후"로 뭉개지면 "후"가 든 메뉴를 가진 무관한 가게가 매칭된다.
-			// query_normalized_analyzer(keyword 토크나이저) 기반 edge/ngram은 원문을 통째로
-			// 유지하므로, 메뉴명이 "후와후와"를 실제로 포함할 때만 매칭된다.
 			menuNested(query, "rawMatchedMenus", List.of(
 				"menus.name.edge^2",
 				"menus.name.ngram"))));
