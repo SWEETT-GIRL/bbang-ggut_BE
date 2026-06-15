@@ -205,8 +205,11 @@ public class StoreSearchQueryBuilder {
 				"storeName^3",
 				"storeName.edge^2",
 				"storeName.ngram")),
+			// menus.name의 nori 필드는 제외: nori_part_of_speech가 조사를 제거해
+			// "후와후와" → "후"로 뭉개지면 "후"가 든 메뉴를 가진 무관한 가게가 매칭된다.
+			// query_normalized_analyzer(keyword 토크나이저) 기반 edge/ngram은 원문을 통째로
+			// 유지하므로, 메뉴명이 "후와후와"를 실제로 포함할 때만 매칭된다.
 			menuNested(query, "rawMatchedMenus", List.of(
-				"menus.name^3",
 				"menus.name.edge^2",
 				"menus.name.ngram"))));
 	}
