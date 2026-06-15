@@ -55,7 +55,9 @@ public class SecurityConfig {
 			.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
 			.requestMatchers(HttpMethod.GET, "/trend/**").permitAll()
 			// 홈화면 근처/인기 빵집·검색 비로그인 허용
-			.requestMatchers(HttpMethod.GET, "/stores/nearby", "/stores/popular", "/stores/search").permitAll()
+			.requestMatchers(HttpMethod.GET, "/stores/nearby", "/stores/popular", "/stores/search",
+				"/stores/autocomplete")
+			.permitAll()
 			// 숫자 ID 기반 빵집 상세/메뉴/리뷰 조회 비로그인 허용
 			.requestMatchers(
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/stores/\\d+(\\?.*)?$"),

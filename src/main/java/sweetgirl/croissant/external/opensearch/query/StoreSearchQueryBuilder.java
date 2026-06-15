@@ -112,6 +112,35 @@ public class StoreSearchQueryBuilder {
 		return request.build();
 	}
 
+	public SearchRequest buildAutocomplete(String query, int size) {
+		Query autocompleteQuery = boolShould(List.of(
+			multiMatch(query, List.of(
+				"storeName.edge^5",
+				"storeName.ngram^2",
+				"breadTypes.edge^4",
+				"breadTypes.ngram^2",
+				"searchRegionAliases.edge^2",
+				"searchRegionAliases.ngram")),
+			Query.of(q -> q.nested(n -> n
+				.path("menus")
+				.query(multiMatch(query, List.of(
+					"menus.name.edge^4",
+					"menus.name.ngram^2",
+					"menus.menuCategory.edge^2",
+					"menus.menuCategory.ngram"))))),
+			Query.of(q -> q.nested(n -> n
+				.path("searchRegions")
+				.query(multiMatch(query, List.of(
+					"searchRegions.name.edge^2",
+					"searchRegions.name.ngram")))))));
+
+		return new SearchRequest.Builder()
+			.index(openSearchProperties.getStoresIndex())
+			.size(size)
+			.query(functionScore(autocompleteQuery, null, null))
+			.build();
+	}
+
 	private List<Query> regionQueries(List<String> regionTokens) {
 		List<Query> queries = new ArrayList<>();
 		for (String regionToken : regionTokens) {
