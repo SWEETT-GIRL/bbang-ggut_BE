@@ -79,6 +79,19 @@ class StoreSearchQueryBuilderTest {
 	}
 
 	@Test
+	void build_addsRemainingTokenAsShouldBoostWhenBreadPresent() {
+		// 폴백 시나리오: "초코소금빵" → bread "소금빵"(must) + remaining "초코"(should 보너스)
+		SearchIntent intent = intent("초코소금빵", List.of(), List.of("소금빵"), List.of("초코"));
+
+		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
+
+		BoolQuery bool = boolQuery(request);
+		assertThat(bool.must()).hasSize(1);
+		assertThat(bool.should()).hasSize(2); // rawQuery(원문) + remaining("초코")
+		assertThat(toJson(request)).contains("remainingMatchedMenus0");
+	}
+
+	@Test
 	void build_reflectsPopularityScoreWithFunctionScore() {
 		SearchIntent intent = intent("소금빵", List.of(), List.of("소금빵"));
 
@@ -144,8 +157,13 @@ class StoreSearchQueryBuilderTest {
 	}
 
 	private SearchIntent intent(String rawQuery, List<String> regionTokens, List<String> breadTokens) {
+		return intent(rawQuery, regionTokens, breadTokens, List.of());
+	}
+
+	private SearchIntent intent(String rawQuery, List<String> regionTokens, List<String> breadTokens,
+			List<String> remainingTokens) {
 		return new SearchIntent(rawQuery, rawQuery, List.of(rawQuery.split(" ")), regionTokens, breadTokens,
-			breadTokens);
+			remainingTokens);
 	}
 
 	private BoolQuery boolQuery(SearchRequest request) {

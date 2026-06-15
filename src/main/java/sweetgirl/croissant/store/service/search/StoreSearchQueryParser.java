@@ -36,7 +36,18 @@ public class StoreSearchQueryParser {
 	private Map<String, String> breadSynonyms;
 	private Set<String> stopWords;
 
+	// 기본: 가게명 우선 — 붙어쓴 토큰 속 빵 단어는 must 필터로 분해하지 않는다.
 	public SearchIntent parse(String rawQuery) {
+		return parse(rawQuery, false);
+	}
+
+	// 폴백: 1차(가게명/메뉴 직접 매칭)가 0건일 때, 붙어쓴 토큰 속 빵 단어("초코소금빵"→"소금빵")를
+	// must 필터로 분해해 해당 메뉴를 가진 가게를 노출한다.
+	public SearchIntent parseWithBreadFallback(String rawQuery) {
+		return parse(rawQuery, true);
+	}
+
+	private SearchIntent parse(String rawQuery, boolean decomposeGluedBread) {
 		String normalized = rawQuery == null ? "" : rawQuery.trim().replaceAll("\\s+", " ");
 		if (normalized.isBlank()) {
 			return new SearchIntent("", "", List.of(), List.of(), List.of(), List.of());
@@ -55,7 +66,7 @@ public class StoreSearchQueryParser {
 			} else if (exactBreadCanonical != null) { //빵토큰 두번째
 				breadTokens.add(exactBreadCanonical);
 			} else { //띄어쓰기 무시하고 다 붙어진 단어에서 찾기
-				ParsedToken parsedToken = parseContainedTokens(token);
+				ParsedToken parsedToken = parseContainedTokens(token, decomposeGluedBread);
 				regionTokens.addAll(parsedToken.regionTokens());
 				breadTokens.addAll(parsedToken.breadTokens());
 				remainingTokens.addAll(parsedToken.remainingTokens());
@@ -98,7 +109,7 @@ public class StoreSearchQueryParser {
 		return null;
 	}
 
-	private ParsedToken parseContainedTokens(String token) {
+	private ParsedToken parseContainedTokens(String token, boolean decomposeGluedBread) {
 		String normalizedToken = normalize(token);
 		List<MatchedTerm> matches = containedRegionCandidates(normalizedToken).stream()
 			.map(candidate -> new MatchedTerm(candidate.term(), candidate.value(), TermType.REGION,
@@ -125,6 +136,14 @@ public class StoreSearchQueryParser {
 			});
 
 		if (selected.isEmpty()) {
+			return new ParsedToken(List.of(), List.of(), List.of(token));
+		}
+
+		boolean hasRegionMatch = selected.stream().anyMatch(match -> match.type() == TermType.REGION);
+		if (!decomposeGluedBread && !hasRegionMatch) {
+			// 가게명 우선(1차) 모드: 지역어 없이 빵 단어만 붙어쓴 토큰에 박혀 있으면(예: "브릭베이글",
+			// "초코소금빵") 빵 must 필터로 오인하지 않고 원문 토큰을 그대로 가게명/메뉴 검색(rawQuery)에 넘긴다.
+			// "한남에그타르트"처럼 지역어가 함께 있을 때만 1차에서도 지역+빵으로 분해한다.
 			return new ParsedToken(List.of(), List.of(), List.of(token));
 		}
 
