@@ -30,6 +30,7 @@ import sweetgirl.croissant.abuse.repository.AbuseReportRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.notification.service.AdminReportNotificationPublisher;
 import sweetgirl.croissant.review.entity.Review;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 
@@ -44,6 +45,8 @@ class AbuseReportServiceTest {
 	ReviewRepository reviewRepository;
 	@Mock
 	AbuseReportRepository abuseReportRepository;
+	@Mock
+	AdminReportNotificationPublisher adminReportNotificationPublisher;
 
 	AbuseReportService abuseReportService;
 
@@ -53,7 +56,8 @@ class AbuseReportServiceTest {
 			memberReader,
 			memberRepository,
 			reviewRepository,
-			abuseReportRepository);
+			abuseReportRepository,
+			adminReportNotificationPublisher);
 	}
 
 	@Test
@@ -80,6 +84,7 @@ class AbuseReportServiceTest {
 		verify(abuseReportRepository).save(captor.capture());
 		assertThat(captor.getValue().getReasonDetail()).isEqualTo("욕설");
 		assertThat(captor.getValue().getReportedMember()).isEqualTo(author);
+		verify(adminReportNotificationPublisher).publishAbuseReportCreated(captor.getValue());
 	}
 
 	@Test

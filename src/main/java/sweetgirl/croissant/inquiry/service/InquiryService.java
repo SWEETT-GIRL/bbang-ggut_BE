@@ -10,6 +10,7 @@ import sweetgirl.croissant.inquiry.entity.Inquiry;
 import sweetgirl.croissant.inquiry.repository.InquiryRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.notification.service.AdminReportNotificationPublisher;
 
 @Service
 @Transactional
@@ -18,6 +19,7 @@ public class InquiryService {
 
 	private final InquiryRepository inquiryRepository;
 	private final MemberReader memberReader;
+	private final AdminReportNotificationPublisher adminReportNotificationPublisher;
 
 	public InquiryCreateResponse createInquiry(Long memberId, InquiryCreateRequest request) {
 		Member member = memberReader.getMember(memberId);
@@ -28,6 +30,7 @@ public class InquiryService {
 			.content(request.content())
 			.build());
 
+		adminReportNotificationPublisher.publishInquiryCreated(inquiry);
 		return InquiryCreateResponse.from(inquiry);
 	}
 }

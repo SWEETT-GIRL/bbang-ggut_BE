@@ -25,6 +25,7 @@ import sweetgirl.croissant.menu.dto.request.MenuAddReportRequest;
 import sweetgirl.croissant.menu.entity.MenuCategory;
 import sweetgirl.croissant.menu.exception.MenuException;
 import sweetgirl.croissant.menu.repository.MenuCategoryRepository;
+import sweetgirl.croissant.notification.service.AdminReportNotificationPublisher;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.exception.StoreException;
@@ -42,6 +43,7 @@ public class MenuAddReportService {
 	private final ContributionReportRepository contributionReportRepository;
 	private final MenuContributionReportRepository menuContributionReportRepository;
 	private final MenuContributionReportImageFileRepository menuContributionReportImageFileRepository;
+	private final AdminReportNotificationPublisher adminReportNotificationPublisher;
 
 	public PresignedUrlResponse getPresignedUrl(String mimeType) {
 		String path = S3PathGenerator.getMenuAddReportTempPath();
@@ -83,5 +85,7 @@ public class MenuAddReportService {
 				.build())
 			.toList();
 		menuContributionReportImageFileRepository.saveAll(imageFiles);
+
+		adminReportNotificationPublisher.publishMenuContributionReportCreated(menuContributionReport);
 	}
 }

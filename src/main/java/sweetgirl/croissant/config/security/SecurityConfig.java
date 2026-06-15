@@ -28,6 +28,7 @@ public class SecurityConfig {
 	private final CustomOAuth2UserService customOAuth2UserService;
 	private final OAuth2SuccessHandler oAuth2SuccessHandler;
 	private final JwtProvider jwtProvider;
+	private final ApiAuthenticationEntryPoint apiAuthenticationEntryPoint;
 
 	// ClientRegistrationRepository: Spring이 application.properties의 OAuth2 설정을 읽어 자동 생성
 	// CustomAuthorizationRequestResolver 생성 시 주입해서 카카오 등록 정보를 참조하게 함
@@ -61,7 +62,8 @@ public class SecurityConfig {
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/stores/\\d+/menus(\\?.*)?$"),
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/menus/\\d+(\\?.*)?$"),
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/menus/\\d+/reviews(\\?.*)?$"),
-				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/menus/\\d+/reviews/summary(\\?.*)?$"))
+				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/menus/\\d+/reviews/summary(\\?.*)?$"),
+				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/users/\\d+/reviews(\\?.*)?$"))
 			.permitAll()
 			.requestMatchers("/admin/**", "/api/admin/**").permitAll()
 			.requestMatchers(HttpMethod.POST, "/api/admin/members/*/ban").permitAll() // 회원 강퇴 API 임시 허용
@@ -88,6 +90,8 @@ public class SecurityConfig {
 				}
 				response.sendRedirect(frontRedirectUri + "?error=" + errorCode);
 			}));
+
+		http.exceptionHandling(exception -> exception.authenticationEntryPoint(apiAuthenticationEntryPoint));
 
 		// JwtAuthenticationFilter를 UsernamePasswordAuthenticationFilter 앞에 등록
 		http.addFilterBefore(

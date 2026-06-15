@@ -19,6 +19,7 @@ import sweetgirl.croissant.contribution.repository.StoreContributionReportReposi
 import sweetgirl.croissant.external.naver.client.NaverLocalSearchClient;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.notification.service.AdminReportNotificationPublisher;
 import sweetgirl.croissant.store.code.StoreReportErrorCode;
 import sweetgirl.croissant.store.dto.request.StoreAddReportRequest;
 import sweetgirl.croissant.store.dto.response.NaverPlaceSearchResult;
@@ -38,6 +39,7 @@ public class StoreAddReportService {
 	private final StoreRepository storeRepository;
 	private final ContributionReportRepository contributionReportRepository;
 	private final StoreContributionReportRepository storeContributionReportRepository;
+	private final AdminReportNotificationPublisher adminReportNotificationPublisher;
 
 	public List<NaverPlaceSearchResult> searchNaverPlaces(String keyword) {
 		return naverLocalSearchClient.search(keyword);
@@ -78,6 +80,7 @@ public class StoreAddReportService {
 			.reason(request.reason())
 			.build());
 
+		adminReportNotificationPublisher.publishStoreContributionReportCreated(report);
 		return new StoreAddReportResponse(contributionReport.getId(), report.getStatus());
 	}
 
