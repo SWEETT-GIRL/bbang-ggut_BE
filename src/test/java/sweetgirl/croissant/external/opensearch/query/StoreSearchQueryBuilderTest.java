@@ -141,7 +141,8 @@ class StoreSearchQueryBuilderTest {
 	}
 
 	private SearchIntent intent(String rawQuery, List<String> regionTokens, List<String> breadTokens) {
-		return new SearchIntent(rawQuery, List.of(rawQuery.split(" ")), regionTokens, breadTokens, breadTokens);
+		return new SearchIntent(rawQuery, rawQuery, List.of(rawQuery.split(" ")), regionTokens, breadTokens,
+			breadTokens);
 	}
 
 	private BoolQuery boolQuery(SearchRequest request) {

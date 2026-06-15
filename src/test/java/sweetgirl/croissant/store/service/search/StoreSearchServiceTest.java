@@ -39,7 +39,7 @@ class StoreSearchServiceTest {
 	void searchStores_returnsEmptyWithoutFallbackWhenOpenSearchHasNoResult() {
 		StoreSearchService service = new StoreSearchService(
 			storeSearchQueryParser, openSearchStoreClient, storeSearchAssembler);
-		SearchIntent intent = new SearchIntent("성수 에그타르트", List.of("성수", "에그타르트"),
+		SearchIntent intent = new SearchIntent("성수 에그타르트", "성수 에그타르트", List.of("성수", "에그타르트"),
 			List.of("성수"), List.of("에그타르트"), List.of("에그타르트"));
 		PageRequest pageable = PageRequest.of(0, 15);
 		given(storeSearchQueryParser.parse("성수 에그타르트")).willReturn(intent);
@@ -57,7 +57,7 @@ class StoreSearchServiceTest {
 	void searchStores_assemblesOpenSearchHits() {
 		StoreSearchService service = new StoreSearchService(
 			storeSearchQueryParser, openSearchStoreClient, storeSearchAssembler);
-		SearchIntent intent = new SearchIntent("소금빵", List.of("소금빵"), List.of(), List.of("소금빵"),
+		SearchIntent intent = new SearchIntent("소금빵", "소금빵", List.of("소금빵"), List.of(), List.of("소금빵"),
 			List.of("소금빵"));
 		PageRequest pageable = PageRequest.of(0, 15);
 		List<OpenSearchStoreHit> hits = List.of(new OpenSearchStoreHit(1L, 1.0, null, List.of(), List.of()));
