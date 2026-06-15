@@ -449,14 +449,12 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 				SELECT s.region_2nd, s.region_3rd,
 					ST_Distance(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS distance_meters
 				FROM store s
-				WHERE s.region_2nd = :region2nd
-				AND s.region_3rd IS NOT NULL
+				WHERE s.region_3rd IS NOT NULL
 				AND s.status = 'ACTIVE'
 				ORDER BY distance_meters ASC
 				LIMIT 1
 			""", nativeQuery = true)
-	List<Object[]> findNearestRegionInSame(
+	List<Object[]> findNearestRegion(
 			@Param("lng") double longitude,
-			@Param("lat") double latitude,
-			@Param("region2nd") String region2nd);
+			@Param("lat") double latitude);
 }
