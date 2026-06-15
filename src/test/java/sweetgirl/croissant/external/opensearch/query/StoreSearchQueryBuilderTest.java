@@ -53,6 +53,9 @@ class StoreSearchQueryBuilderTest {
 		assertThat(request.size()).isEqualTo(10);
 		assertThat(boolQuery(request).minimumShouldMatch()).isEqualTo("1");
 		assertThat(toJson(request)).contains(
+			"storeName.keyword",
+			"storeName.edge",
+			"storeName.ngram",
 			"storeName",
 			"menus.name",
 			"rawMatchedMenus");
@@ -82,12 +85,26 @@ class StoreSearchQueryBuilderTest {
 		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
 
 		FunctionScoreQuery functionScore = request.query().functionScore();
-		assertThat(functionScore.boostMode()).isEqualTo(FunctionBoostMode.Sum);
+		assertThat(functionScore.boostMode()).isEqualTo(FunctionBoostMode.Multiply);
 		assertThat(functionScore.scoreMode()).isEqualTo(FunctionScoreMode.Sum);
 		assertThat(toJson(request)).contains(
 			"field_value_factor",
 			"popularityScore",
-			"sqrt");
+			"log1p");
+	}
+
+	@Test
+	void build_boostsNormalizedWholeStoreNameAbovePartialNoriMatches() {
+		SearchIntent intent = intent("후와 후와", List.of(), List.of());
+
+		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
+
+		assertThat(toJson(request)).contains(
+			"storeName.edge",
+			"storeName.ngram",
+			"후와후와",
+			"80.0",
+			"60.0");
 	}
 
 	@Test

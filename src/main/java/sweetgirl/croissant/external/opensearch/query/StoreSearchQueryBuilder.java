@@ -3,6 +3,7 @@ package sweetgirl.croissant.external.opensearch.query;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import org.opensearch.client.json.JsonData;
@@ -130,10 +131,13 @@ public class StoreSearchQueryBuilder {
 
 	private Query functionScore(Query bool, Double latitude, Double longitude) {
 		List<FunctionScore> functions = new ArrayList<>();
+		// baseline 1.0 — 곱셈(Multiply) 시 인기도/거리 점수가 0이어도 텍스트 점수가 사라지지 않도록 보장
+		functions.add(FunctionScore.of(fn -> fn.weight(1.0f)));
+		// 인기도는 텍스트 점수를 "덮어쓰지" 않고 완만하게 증폭만 — Log1p로 조회수 폭주 가게의 과도한 보정 방지
 		functions.add(FunctionScore.of(fn -> fn.fieldValueFactor(f -> f
 			.field("popularityScore")
-			.factor(0.2f)
-			.modifier(FieldValueFactorModifier.Sqrt)
+			.factor(0.3f)
+			.modifier(FieldValueFactorModifier.Log1p)
 			.missing(0.0))));
 		if (latitude != null && longitude != null) {
 			Map<String, Object> origin = Map.of("lat", latitude, "lon", longitude);
@@ -145,10 +149,12 @@ public class StoreSearchQueryBuilder {
 					.offset(JsonData.of("500m"))
 					.decay(0.5)))));
 		}
+		// Multiply: 최종점수 = 텍스트매칭점수 × (1 + 인기도보정 + 거리보정)
+		// → 관련 없는 인기 가게가 텍스트 점수를 추월하지 못하고, 정확 매칭 가게가 항상 상위에 노출
 		return Query.of(q -> q.functionScore(fs -> fs
 			.query(bool)
 			.functions(functions)
-			.boostMode(FunctionBoostMode.Sum)
+			.boostMode(FunctionBoostMode.Multiply)
 			.scoreMode(FunctionScoreMode.Sum)));
 	}
 
@@ -158,6 +164,14 @@ public class StoreSearchQueryBuilder {
 				.field("storeName.keyword")
 				.value(v -> v.stringValue(query))
 				.boost(20.0f))),
+			Query.of(q -> q.term(t -> t
+				.field("storeName.edge")
+				.value(v -> v.stringValue(normalizeForExactMatch(query)))
+				.boost(80.0f))),
+			Query.of(q -> q.term(t -> t
+				.field("storeName.ngram")
+				.value(v -> v.stringValue(normalizeForExactMatch(query)))
+				.boost(60.0f))),
 			multiMatch(query, List.of(
 				"storeName^3",
 				"storeName.edge^2",
@@ -217,6 +231,10 @@ public class StoreSearchQueryBuilder {
 			.fields(fields)
 			.type(TextQueryType.BestFields)
 			.operator(Operator.And)));
+	}
+
+	private String normalizeForExactMatch(String query) {
+		return query.toLowerCase(Locale.ROOT).replaceAll("[^0-9a-zA-Z가-힣]", "");
 	}
 
 	private Query boolShould(List<Query> should) {
