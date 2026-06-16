@@ -145,7 +145,7 @@
 
 		.kpis {
 			display: grid;
-			grid-template-columns: repeat(4, 1fr);
+			grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
 			gap: 10px;
 		}
 
@@ -197,6 +197,26 @@
 			font-size: 13px;
 		}
 
+		.numeric {
+			text-align: right;
+			white-space: nowrap;
+		}
+
+		.overhead-ok {
+			color: var(--good);
+			font-weight: 800;
+		}
+
+		.overhead-warn {
+			color: var(--warn);
+			font-weight: 800;
+		}
+
+		.overhead-bad {
+			color: var(--bad);
+			font-weight: 800;
+		}
+
 		.table-wrap {
 			max-height: calc(100vh - 208px);
 			overflow: auto;
@@ -205,6 +225,10 @@
 		.logs-wrap {
 			max-height: 520px;
 			overflow: auto;
+		}
+
+		.endpoint-summary-wrap {
+			max-height: 660px;
 		}
 
 		.server-section .logs-wrap + .logs-wrap {
@@ -258,6 +282,16 @@
 		.path {
 			font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 			overflow-wrap: anywhere;
+		}
+
+		.endpoint-name {
+			display: inline-block;
+			margin-left: 8px;
+			color: var(--muted);
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+			font-size: 12px;
+			font-weight: 750;
+			white-space: nowrap;
 		}
 
 		.muted {
@@ -403,8 +437,10 @@
 				<div class="kpis">
 					<div class="kpi"><span>요청 수</span><strong id="kpiCount">0</strong></div>
 					<div class="kpi"><span>성공</span><strong id="kpiSuccess">0</strong></div>
-					<div class="kpi"><span>평균 ms</span><strong id="kpiAvg">0</strong></div>
-					<div class="kpi"><span>최대 ms</span><strong id="kpiMax">0</strong></div>
+					<div class="kpi"><span>브라우저 평균</span><strong id="kpiAvg">0</strong></div>
+					<div class="kpi"><span>브라우저 최대</span><strong id="kpiMax">0</strong></div>
+					<div class="kpi"><span>서버 평균</span><strong id="kpiServerAvg">-</strong></div>
+					<div class="kpi"><span>추정 오버헤드</span><strong id="kpiOverhead">-</strong></div>
 				</div>
 			</div>
 		</section>
@@ -420,8 +456,10 @@
 						<tr>
 							<th>API</th>
 							<th>Status</th>
-							<th>ms</th>
-							<th>건수</th>
+							<th class="numeric">브라우저 ms</th>
+							<th class="numeric">서버 평균</th>
+							<th class="numeric">오버헤드</th>
+							<th class="numeric">건수</th>
 							<th>비고</th>
 						</tr>
 					</thead>
@@ -443,7 +481,7 @@
 					<div class="kpi"><span>최대 ms</span><strong id="logMax">0</strong></div>
 				</div>
 			</div>
-			<div class="logs-wrap">
+			<div class="logs-wrap endpoint-summary-wrap">
 				<table>
 					<thead>
 						<tr>
@@ -497,6 +535,8 @@
 		const $ = (id) => document.getElementById(id);
 		const state = {
 			rows: [],
+			latestServerAvgMs: null,
+			serverStatsByEndpoint: new Map(),
 			ids: {
 				storeId: null,
 				menuId: null,
@@ -700,16 +740,34 @@
 			return "status-bad";
 		}
 
+		function overheadClass(value) {
+			if (value === null) {
+				return "";
+			}
+			if (value <= 50) {
+				return "overhead-ok";
+			}
+			if (value <= 200) {
+				return "overhead-warn";
+			}
+			return "overhead-bad";
+		}
+
 		function renderResults() {
 			const tbody = $("results");
 			tbody.innerHTML = "";
 			for (const row of state.rows) {
+				const serverStats = state.serverStatsByEndpoint.get(row.path);
+				const serverAvgMs = serverStats?.avgMs ?? null;
+				const overheadMs = serverAvgMs === null ? null : Math.max(0, row.durationMs - serverAvgMs);
 				const tr = document.createElement("tr");
 				tr.innerHTML = `
 					<td><div class="method">GET</div><div>${row.name}</div><div class="path muted">${row.path}</div></td>
 					<td class="${statusClass(row.status)}">${row.status || "ERR"}</td>
-					<td>${row.durationMs}</td>
-					<td>${row.count}</td>
+					<td class="numeric">${row.durationMs}</td>
+					<td class="numeric">${serverAvgMs === null ? "-" : serverAvgMs}</td>
+					<td class="numeric ${overheadClass(overheadMs)}">${overheadMs === null ? "-" : overheadMs}</td>
+					<td class="numeric">${row.count}</td>
 					<td>${row.note || row.metricUri || ""}</td>
 				`;
 				tr.addEventListener("click", () => showPreview(row));
@@ -724,6 +782,19 @@
 			$("kpiSuccess").textContent = success;
 			$("kpiAvg").textContent = total ? Math.round(sum / total) : 0;
 			$("kpiMax").textContent = max;
+			renderLatencyComparison();
+		}
+
+		function renderLatencyComparison() {
+			const total = state.rows.length;
+			const browserAvgMs = total
+				? Math.round(state.rows.reduce((acc, row) => acc + row.durationMs, 0) / total)
+				: null;
+			const serverAvgMs = state.latestServerAvgMs;
+			$("kpiServerAvg").textContent = serverAvgMs === null ? "-" : serverAvgMs;
+			$("kpiOverhead").textContent = browserAvgMs === null || serverAvgMs === null
+				? "-"
+				: Math.max(0, browserAvgMs - serverAvgMs);
 		}
 
 		function showPreview(row) {
@@ -756,8 +827,45 @@
 				.replaceAll("'", "&#039;");
 		}
 
+		function endpointLabel(endpoint) {
+			const measured = state.rows.find((row) => row.path === endpoint);
+			if (measured) {
+				return measured.name;
+			}
+			const labels = new Map([
+				["/actuator/health", "헬스 체크"],
+				["/stores/search", "빵집 검색"],
+				["/stores/autocomplete", "검색어 자동완성"],
+				["/stores/nearby", "근처 빵집"],
+				["/stores/popular", "인기 빵집"],
+				["/stores/district", "지역 빵집"],
+				["/trend/nearby", "근처 트렌드"],
+				["/trend/select", "지역 트렌드"],
+				["/trend/nationwide", "전국 트렌드"],
+				["/terms", "약관"],
+				["/menu-categories", "메뉴 카테고리"],
+				["/banners", "배너"]
+			]);
+			if (labels.has(endpoint)) {
+				return labels.get(endpoint);
+			}
+			const patterns = [
+				[/^\/stores\/\d+$/, "빵집 상세"],
+				[/^\/stores\/\d+\/menus$/, "빵집 메뉴"],
+				[/^\/menus\/\d+$/, "메뉴 상세"],
+				[/^\/menus\/\d+\/reviews$/, "리뷰 목록"],
+				[/^\/menus\/\d+\/reviews\/summary$/, "리뷰 요약"],
+				[/^\/reviews\/\d+$/, "리뷰 상세"],
+				[/^\/users\/\d+\/reviews$/, "사용자 리뷰"],
+				[/^\/banners\/\d+$/, "배너 상세"]
+			];
+			return patterns.find(([pattern]) => pattern.test(endpoint))?.[1] || "";
+		}
+
 		async function run() {
 			state.rows = [];
+			state.latestServerAvgMs = null;
+			state.serverStatsByEndpoint = new Map();
 			state.ids = {storeId: null, menuId: null, reviewId: null, memberId: null, bannerId: null};
 			renderResults();
 			$("previewOutput").textContent = "조회 중...";
@@ -827,12 +935,18 @@
 					errorRate: `${((errors / items.length) * 100).toFixed(1)}%`
 				};
 			}).sort((a, b) => b.p95Ms - a.p95Ms || b.maxMs - a.maxMs);
+			state.serverStatsByEndpoint = new Map(rows.map((row) => [row.endpoint, row]));
+			renderResults();
 			const tbody = $("endpointSummaryResults");
 			tbody.innerHTML = "";
 			for (const row of rows) {
 				const tr = document.createElement("tr");
+				const label = endpointLabel(row.endpoint);
 				tr.innerHTML = `
-					<td class="path">${escapeHtml(row.endpoint)}</td>
+					<td>
+						<span class="path">${escapeHtml(row.endpoint)}</span>
+						${label ? `<span class="endpoint-name">${escapeHtml(label)}</span>` : ""}
+					</td>
 					<td>${row.count}</td>
 					<td>${row.avgMs}</td>
 					<td>${row.p50Ms}</td>
@@ -869,6 +983,8 @@
 			$("logSuccess").textContent = data?.successCount ?? logs.filter((log) => log.status >= 200 && log.status < 400).length;
 			$("logAvg").textContent = data?.avgDurationMs ?? average(logs.map((log) => Number(log.durationMs || 0)));
 			$("logMax").textContent = data?.maxDurationMs ?? Math.max(0, ...logs.map((log) => Number(log.durationMs || 0)));
+			state.latestServerAvgMs = data?.avgDurationMs ?? average(logs.map((log) => Number(log.durationMs || 0)));
+			renderLatencyComparison();
 			$("logsSummary").textContent = `${logs.length}개 로드됨 · ${new Date().toLocaleTimeString()}`;
 			renderLogAggregates(logs);
 		}
