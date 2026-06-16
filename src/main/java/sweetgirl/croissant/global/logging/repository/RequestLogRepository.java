@@ -3,6 +3,7 @@ package sweetgirl.croissant.global.logging.repository;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -23,4 +24,26 @@ public interface RequestLogRepository extends JpaRepository<RequestLog, Long> {
 	List<StoreIdCountProjection> countByStoreIdInAndEventType(
 			@Param("storeIds") List<Long> storeIds,
 			@Param("eventType") LogEventType eventType);
+
+	@Query("""
+			SELECT r FROM RequestLog r
+			WHERE r.createdAt >= :createdAtAfter
+				AND (:endpoint IS NULL OR r.endpoint = :endpoint)
+			ORDER BY r.responseTimeMs DESC, r.createdAt DESC
+			""")
+	List<RequestLog> findSlowLogs(
+			@Param("createdAtAfter") LocalDateTime createdAtAfter,
+			@Param("endpoint") String endpoint,
+			Pageable pageable);
+
+	@Query("""
+			SELECT r FROM RequestLog r
+			WHERE r.createdAt >= :createdAtAfter
+				AND (:endpoint IS NULL OR r.endpoint = :endpoint)
+			ORDER BY r.createdAt DESC
+			""")
+	List<RequestLog> findRecentLogs(
+			@Param("createdAtAfter") LocalDateTime createdAtAfter,
+			@Param("endpoint") String endpoint,
+			Pageable pageable);
 }
