@@ -26,10 +26,12 @@
 
 | 단계 | 설명 |
 |------|------|
-| 1. Spec | 요구사항 명세. 모호한 점 질문 후 `.claude/planning/{브랜치명}.md` 생성 |
-| 2. Plan | 구현 계획 수립. **사용자 승인 대기** |
+| 0. Brainstorm | (복잡 작업 시) 설계 접근법 2~3개 비교 후 **방향 합의**. `brainstorm` 스킬 |
+| 1. Spec | 요구사항 명세. 모호한 점 질문 후 `.claude/planning/{브랜치명}.md` 생성. `spec` 스킬 |
+| 2. Plan | 구현 계획 수립. **사용자 승인 대기**. `make-plan` 스킬 |
 | 3. 구현 | 승인 후 plan 순서대로 (Service → 테스트 → Controller → 테스트) |
 | 4. 리뷰 | `/code-review`로 변경사항 점검 |
+| 5. 마감 | `/finish-branch`로 검증(build/test)·체크리스트·PR 초안·worktree 정리 |
 
 **팁:** 코드리뷰는 구현한 세션과 다른 새 세션에서 하면 더 객관적.
 
@@ -43,8 +45,10 @@
 |------|---------------|
 | `code-convention` | Entity/Service/Controller/DTO/예외 작성 시 |
 | `test-guide` | 테스트 코드 작성 시 |
+| `brainstorm` | 복잡 작업의 설계 방향 탐색 시 (spec 앞단계) |
 | `spec` | 새 기능 요구사항 명세 시 |
-| `plan` | 구현 계획 수립 시 |
+| `make-plan` | 구현 계획 수립 시 (빌트인 `/plan`과 이름 충돌 회피) |
+| `finish-branch` | 브랜치 마감 시 — 수동 호출 전용(`/finish-branch`) |
 | `git-workflow` | 커밋·브랜치·Worktree 관리 시 |
 
 ---
