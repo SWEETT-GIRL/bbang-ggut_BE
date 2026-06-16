@@ -11,4 +11,8 @@ public interface HotStoreRankingTrendProjection {
 	String getStoreName();
 
 	String getStoreAddress();
+
+	String getStoreRegion1st();
+
+	String getStoreRegion2nd();
 }

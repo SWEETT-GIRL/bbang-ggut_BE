@@ -42,6 +42,7 @@ public class TrendService {
 	private final StoreImageFileRepository storeImageFileRepository;
 
 	private static final List<String> DONG_SUFFIXES = Arrays.asList("읍", "면", "동", "구");
+	private static final int MAX_STORES_PER_CATEGORY = 30;
 
 	public RegionTrendResponse getTrend(double latitude, double longitude) {
 		Region3rd region3rd;
@@ -86,10 +87,13 @@ public class TrendService {
 				menu.getMenuCategory().name(),
 				rankingsByFamousMenuId.getOrDefault(menu.getId(), List.of())
 					.stream()
+					.limit(MAX_STORES_PER_CATEGORY)
 					.map(r -> new StoreRow(
 						r.getStore().getId(),
 						r.getStore().getName(),
 						r.getStore().getAddress(),
+						r.getStore().getRegion1st(),
+						r.getStore().getRegion2nd(),
 						r.getRank()))
 					.toList()))
 			.toList();
@@ -115,10 +119,13 @@ public class TrendService {
 				fmr.getMenuCategory().name(),
 				rankingsByFamousMenuId.getOrDefault(fmr.getId(), List.of())
 					.stream()
+					.limit(MAX_STORES_PER_CATEGORY)
 					.map(r -> new StoreRow(
 						r.getStoreId(),
 						r.getStoreName(),
 						r.getStoreAddress(),
+						r.getStoreRegion1st(),
+						r.getStoreRegion2nd(),
 						r.getRank()))
 					.toList()))
 			.toList();
@@ -160,6 +167,8 @@ public class TrendService {
 						s.storeId(),
 						s.storeName(),
 						s.storeAddress(),
+						s.storeRegion1st(),
+						s.storeRegion2nd(),
 						s.rank(),
 						imagesByStoreId.getOrDefault(s.storeId(), List.of())))
 					.toList()))
@@ -172,7 +181,9 @@ public class TrendService {
 	private record CategoryStores(String menuCategory, List<StoreRow> stores) {
 	}
 
-	private record StoreRow(Long storeId, String storeName, String storeAddress, int rank) {
+	private record StoreRow(
+			Long storeId, String storeName, String storeAddress, String storeRegion1st, String storeRegion2nd,
+			int rank) {
 	}
 
 	private Region3rd resolveRegion3rd(double latitude, double longitude) {
