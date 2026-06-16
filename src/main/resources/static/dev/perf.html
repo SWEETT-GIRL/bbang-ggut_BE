@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="ko">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>API Performance</title>
+	<style>
+		:root {
+			color-scheme: light;
+			--bg: #f6f7f9;
+			--panel: #ffffff;
+			--line: #d9dee7;
+			--text: #20242b;
+			--muted: #687383;
+			--good: #16794f;
+			--warn: #9a5b00;
+			--bad: #b42318;
+			--accent: #246bfe;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			margin: 0;
+			background: var(--bg);
+			color: var(--text);
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+			font-size: 14px;
+		}
+
+		header {
+			display: flex;
+			gap: 12px;
+			align-items: center;
+			justify-content: space-between;
+			padding: 16px 20px;
+			background: var(--panel);
+			border-bottom: 1px solid var(--line);
+		}
+
+		h1 {
+			margin: 0;
+			font-size: 18px;
+			font-weight: 700;
+			letter-spacing: 0;
+		}
+
+		main {
+			display: grid;
+			grid-template-columns: 360px minmax(0, 1fr);
+			gap: 16px;
+			padding: 16px;
+		}
+
+		section {
+			background: var(--panel);
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			overflow: hidden;
+		}
+
+		.section-head {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 12px;
+			padding: 12px 14px;
+			border-bottom: 1px solid var(--line);
+		}
+
+		h2 {
+			margin: 0;
+			font-size: 14px;
+			font-weight: 700;
+			letter-spacing: 0;
+		}
+
+		.controls,
+		.summary,
+		.preview {
+			padding: 14px;
+		}
+
+		label {
+			display: block;
+			margin: 0 0 10px;
+			color: var(--muted);
+			font-size: 12px;
+			font-weight: 600;
+		}
+
+		input,
+		select {
+			width: 100%;
+			height: 36px;
+			margin-top: 5px;
+			padding: 7px 9px;
+			border: 1px solid var(--line);
+			border-radius: 6px;
+			background: #fff;
+			color: var(--text);
+			font: inherit;
+		}
+
+		.row {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 10px;
+		}
+
+		.actions {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 8px;
+			margin-top: 12px;
+		}
+
+		button {
+			height: 36px;
+			border: 1px solid var(--line);
+			border-radius: 6px;
+			background: #fff;
+			color: var(--text);
+			font: inherit;
+			font-weight: 650;
+			cursor: pointer;
+		}
+
+		button.primary {
+			border-color: var(--accent);
+			background: var(--accent);
+			color: #fff;
+		}
+
+		button:disabled {
+			cursor: wait;
+			opacity: .58;
+		}
+
+		.kpis {
+			display: grid;
+			grid-template-columns: repeat(4, 1fr);
+			gap: 10px;
+		}
+
+		.kpi {
+			padding: 10px;
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			background: #fbfcfe;
+		}
+
+		.kpi span {
+			display: block;
+			color: var(--muted);
+			font-size: 11px;
+			font-weight: 650;
+		}
+
+		.kpi strong {
+			display: block;
+			margin-top: 5px;
+			font-size: 18px;
+			letter-spacing: 0;
+		}
+
+		table {
+			width: 100%;
+			border-collapse: collapse;
+		}
+
+		th,
+		td {
+			padding: 9px 10px;
+			border-bottom: 1px solid var(--line);
+			text-align: left;
+			vertical-align: top;
+		}
+
+		th {
+			position: sticky;
+			top: 0;
+			background: #f8fafc;
+			color: var(--muted);
+			font-size: 11px;
+			font-weight: 750;
+			z-index: 1;
+		}
+
+		td {
+			font-size: 13px;
+		}
+
+		.table-wrap {
+			max-height: calc(100vh - 208px);
+			overflow: auto;
+		}
+
+		.method {
+			font-weight: 800;
+			color: var(--accent);
+		}
+
+		.status-ok {
+			color: var(--good);
+			font-weight: 800;
+		}
+
+		.status-warn {
+			color: var(--warn);
+			font-weight: 800;
+		}
+
+		.status-bad {
+			color: var(--bad);
+			font-weight: 800;
+		}
+
+		.path {
+			font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+			overflow-wrap: anywhere;
+		}
+
+		.muted {
+			color: var(--muted);
+		}
+
+		pre {
+			max-height: 280px;
+			margin: 0;
+			padding: 12px;
+			overflow: auto;
+			border-top: 1px solid var(--line);
+			background: #0e1116;
+			color: #d6deeb;
+			font-size: 12px;
+			line-height: 1.45;
+		}
+
+		.badge {
+			display: inline-block;
+			padding: 2px 7px;
+			border-radius: 999px;
+			background: #eef2ff;
+			color: #2744a0;
+			font-size: 11px;
+			font-weight: 750;
+		}
+
+		@media (max-width: 920px) {
+			header {
+				align-items: flex-start;
+				flex-direction: column;
+			}
+
+			main {
+				grid-template-columns: 1fr;
+			}
+
+			.kpis {
+				grid-template-columns: repeat(2, 1fr);
+			}
+
+			.table-wrap {
+				max-height: none;
+			}
+		}
+	</style>
+</head>
+<body>
+	<header>
+		<h1>API Performance</h1>
+		<div class="muted" id="runState">idle</div>
+	</header>
+
+	<main>
+		<section>
+			<div class="section-head">
+				<h2>Run</h2>
+				<span class="badge" id="originBadge"></span>
+			</div>
+			<div class="controls">
+				<label>
+					Base URL
+					<input id="baseUrl" value="">
+				</label>
+				<div class="row">
+					<label>
+						Query
+						<input id="query" value="소금빵">
+					</label>
+					<label>
+						Region
+						<input id="region" value="망원">
+					</label>
+				</div>
+				<div class="row">
+					<label>
+						Latitude
+						<input id="lat" value="37.5665">
+					</label>
+					<label>
+						Longitude
+						<input id="lng" value="126.9780">
+					</label>
+				</div>
+				<div class="row">
+					<label>
+						Page size
+						<input id="size" type="number" min="1" max="50" value="5">
+					</label>
+					<label>
+						Repeat
+						<input id="repeat" type="number" min="1" max="50" value="1">
+					</label>
+				</div>
+				<label>
+					Request set
+					<select id="requestSet">
+						<option value="public">Public read APIs</option>
+						<option value="flow">Public read APIs + discovered detail APIs</option>
+						<option value="search">Search only</option>
+						<option value="trend">Trend only</option>
+					</select>
+				</label>
+				<div class="actions">
+					<button class="primary" id="runButton">Run</button>
+					<button id="metricsButton">Refresh metrics</button>
+				</div>
+			</div>
+			<div class="summary">
+				<div class="kpis">
+					<div class="kpi"><span>Requests</span><strong id="kpiCount">0</strong></div>
+					<div class="kpi"><span>Success</span><strong id="kpiSuccess">0</strong></div>
+					<div class="kpi"><span>Avg ms</span><strong id="kpiAvg">0</strong></div>
+					<div class="kpi"><span>Max ms</span><strong id="kpiMax">0</strong></div>
+				</div>
+			</div>
+		</section>
+
+		<section>
+			<div class="section-head">
+				<h2>Results</h2>
+				<span class="muted" id="lastRun"></span>
+			</div>
+			<div class="table-wrap">
+				<table>
+					<thead>
+						<tr>
+							<th>API</th>
+							<th>Status</th>
+							<th>ms</th>
+							<th>Rows</th>
+							<th>Notes</th>
+						</tr>
+					</thead>
+					<tbody id="results"></tbody>
+				</table>
+			</div>
+		</section>
+
+		<section>
+			<div class="section-head">
+				<h2>Metrics</h2>
+				<span class="muted">http.server.requests</span>
+			</div>
+			<pre id="metricsOutput">No metrics loaded.</pre>
+		</section>
+
+		<section>
+			<div class="section-head">
+				<h2>Response Preview</h2>
+				<span class="muted" id="previewTitle"></span>
+			</div>
+			<pre id="previewOutput">Run a request.</pre>
+		</section>
+	</main>
+
+	<script>
+		const $ = (id) => document.getElementById(id);
+		const state = {
+			rows: [],
+			ids: {
+				storeId: null,
+				menuId: null,
+				reviewId: null,
+				memberId: null,
+				bannerId: null
+			}
+		};
+
+		const defaultBaseUrl = window.location.origin && window.location.origin !== "null"
+			? window.location.origin
+			: "https://bbang-ggut.site";
+
+		$("baseUrl").value = defaultBaseUrl;
+		$("originBadge").textContent = defaultBaseUrl.replace(/^https?:\/\//, "");
+
+		function inputNumber(id) {
+			return Number($(id).value);
+		}
+
+		function buildUrl(path, params = {}) {
+			const base = $("baseUrl").value.replace(/\/$/, "");
+			const url = new URL(base + path);
+			for (const [key, value] of Object.entries(params)) {
+				if (value !== null && value !== undefined && value !== "") {
+					url.searchParams.set(key, value);
+				}
+			}
+			return url;
+		}
+
+		function publicRequests() {
+			const query = $("query").value;
+			const region = $("region").value;
+			const lat = $("lat").value;
+			const lng = $("lng").value;
+			const size = $("size").value;
+			return [
+				{name: "Health", path: "/actuator/health", metricUri: "UNKNOWN", params: {}},
+				{name: "Search", path: "/stores/search", metricUri: "/stores/search", params: {query, lat, lon: lng, page: 0, size}},
+				{name: "Autocomplete", path: "/stores/autocomplete", metricUri: "/stores/autocomplete", params: {query, size: 10}},
+				{name: "Nearby stores", path: "/stores/nearby", metricUri: "/stores/nearby", params: {lat, lng, page: 0, size}},
+				{name: "Popular stores", path: "/stores/popular", metricUri: "/stores/popular", params: {lat, lng}},
+				{name: "District distance", path: "/stores/district", metricUri: "/stores/district", params: {keyword: region, lat, lng, page: 0, size, sort: "distance"}},
+				{name: "District subscribe", path: "/stores/district", metricUri: "/stores/district", params: {keyword: region, page: 0, size, sort: "subscribe"}},
+				{name: "Trend nearby", path: "/trend/nearby", metricUri: "/trend/nearby", params: {lat, lng}},
+				{name: "Trend select", path: "/trend/select", metricUri: "/trend/select", params: {region}},
+				{name: "Trend nationwide", path: "/trend/nationwide", metricUri: "/trend/nationwide", params: {}},
+				{name: "Terms", path: "/terms", metricUri: "/terms", params: {}},
+				{name: "Menu categories", path: "/menu-categories", metricUri: "/menu-categories", params: {}},
+				{name: "Banners", path: "/banners", metricUri: "/banners", params: {}}
+			];
+		}
+
+		function selectedRequests() {
+			const set = $("requestSet").value;
+			if (set === "search") {
+				return publicRequests().filter((req) => ["Search", "Autocomplete"].includes(req.name));
+			}
+			if (set === "trend") {
+				return publicRequests().filter((req) => req.name.startsWith("Trend"));
+			}
+			return publicRequests();
+		}
+
+		function detailRequests() {
+			const requests = [];
+			if (state.ids.storeId) {
+				requests.push({name: "Store detail", path: `/stores/${state.ids.storeId}`, metricUri: "/stores/{storeId}", params: {}});
+				requests.push({name: "Store menus", path: `/stores/${state.ids.storeId}/menus`, metricUri: "/stores/{storeId}/menus", params: {}});
+			}
+			if (state.ids.menuId) {
+				requests.push({name: "Menu detail", path: `/menus/${state.ids.menuId}`, metricUri: "/menus/{menuId}", params: {}});
+				requests.push({name: "Reviews", path: `/menus/${state.ids.menuId}/reviews`, metricUri: "/menus/{menuId}/reviews", params: {page: 0, size: $("size").value}});
+				requests.push({name: "Review summary", path: `/menus/${state.ids.menuId}/reviews/summary`, metricUri: "/menus/{menuId}/reviews/summary", params: {}});
+			}
+			if (state.ids.reviewId) {
+				requests.push({name: "Review detail", path: `/reviews/${state.ids.reviewId}`, metricUri: "/reviews/{reviewId}", params: {}});
+			}
+			if (state.ids.memberId) {
+				requests.push({name: "Member reviews", path: `/users/${state.ids.memberId}/reviews`, metricUri: "/users/{memberId}/reviews", params: {page: 0, size: $("size").value}});
+			}
+			if (state.ids.bannerId) {
+				requests.push({name: "Banner detail", path: `/banners/${state.ids.bannerId}`, metricUri: "/banners/{bannerId}", params: {}});
+			}
+			return requests;
+		}
+
+		function firstArray(value) {
+			if (Array.isArray(value)) {
+				return value;
+			}
+			if (!value || typeof value !== "object") {
+				return [];
+			}
+			const keys = ["content", "items", "stores", "menus", "reviews", "banners", "data"];
+			for (const key of keys) {
+				const nested = firstArray(value[key]);
+				if (nested.length) {
+					return nested;
+				}
+			}
+			for (const nested of Object.values(value)) {
+				const arr = firstArray(nested);
+				if (arr.length) {
+					return arr;
+				}
+			}
+			return [];
+		}
+
+		function countRows(body) {
+			return firstArray(body && body.data !== undefined ? body.data : body).length;
+		}
+
+		function rememberIds(body) {
+			const source = body && body.data !== undefined ? body.data : body;
+			const arrays = [];
+			const visit = (value) => {
+				if (Array.isArray(value)) {
+					arrays.push(value);
+					value.forEach(visit);
+					return;
+				}
+				if (value && typeof value === "object") {
+					for (const nested of Object.values(value)) {
+						visit(nested);
+					}
+				}
+			};
+			visit(source);
+			for (const item of arrays.flat()) {
+				if (!item || typeof item !== "object") {
+					continue;
+				}
+				const storeId = item.storeId || (item.id && item.address ? item.id : null);
+				const menuId = item.menuId || (item.id && item.price !== undefined ? item.id : null);
+				const reviewId = item.reviewId || (item.id && item.rating !== undefined ? item.id : null);
+				const bannerId = item.bannerId || (item.id && (item.imageUrl || item.thumbnailUrl) ? item.id : null);
+				state.ids.storeId ||= storeId;
+				state.ids.menuId ||= menuId;
+				state.ids.reviewId ||= reviewId;
+				state.ids.memberId ||= item.memberId || item.authorId || null;
+				state.ids.bannerId ||= bannerId;
+			}
+		}
+
+		async function callApi(req) {
+			const url = buildUrl(req.path, req.params);
+			const started = performance.now();
+			let status = 0;
+			let body = null;
+			let text = "";
+			let note = "";
+			try {
+				const response = await fetch(url, {headers: {Accept: "application/json"}});
+				status = response.status;
+				text = await response.text();
+				try {
+					body = text ? JSON.parse(text) : null;
+				} catch (error) {
+					note = "non-json";
+				}
+			} catch (error) {
+				note = error.message;
+			}
+			const durationMs = Math.round(performance.now() - started);
+			if (body) {
+				rememberIds(body);
+			}
+			const row = {
+				...req,
+				url: url.toString(),
+				status,
+				durationMs,
+				count: body ? countRows(body) : 0,
+				note,
+				body: body || text
+			};
+			state.rows.push(row);
+			renderResults();
+			return row;
+		}
+
+		function statusClass(status) {
+			if (status >= 200 && status < 300) {
+				return "status-ok";
+			}
+			if (status >= 300 && status < 500) {
+				return "status-warn";
+			}
+			return "status-bad";
+		}
+
+		function renderResults() {
+			const tbody = $("results");
+			tbody.innerHTML = "";
+			for (const row of state.rows) {
+				const tr = document.createElement("tr");
+				tr.innerHTML = `
+					<td><div class="method">GET</div><div>${row.name}</div><div class="path muted">${row.path}</div></td>
+					<td class="${statusClass(row.status)}">${row.status || "ERR"}</td>
+					<td>${row.durationMs}</td>
+					<td>${row.count}</td>
+					<td>${row.note || row.metricUri || ""}</td>
+				`;
+				tr.addEventListener("click", () => showPreview(row));
+				tbody.appendChild(tr);
+			}
+
+			const total = state.rows.length;
+			const success = state.rows.filter((row) => row.status >= 200 && row.status < 300).length;
+			const sum = state.rows.reduce((acc, row) => acc + row.durationMs, 0);
+			const max = state.rows.reduce((acc, row) => Math.max(acc, row.durationMs), 0);
+			$("kpiCount").textContent = total;
+			$("kpiSuccess").textContent = success;
+			$("kpiAvg").textContent = total ? Math.round(sum / total) : 0;
+			$("kpiMax").textContent = max;
+		}
+
+		function showPreview(row) {
+			$("previewTitle").textContent = `${row.status || "ERR"} ${row.durationMs}ms`;
+			$("previewOutput").textContent = JSON.stringify(row.body, null, 2).slice(0, 12000);
+		}
+
+		async function run() {
+			state.rows = [];
+			state.ids = {storeId: null, menuId: null, reviewId: null, memberId: null, bannerId: null};
+			renderResults();
+			$("previewOutput").textContent = "Running...";
+			$("runState").textContent = "running";
+			$("runButton").disabled = true;
+			$("metricsButton").disabled = true;
+			const repeat = Math.max(1, inputNumber("repeat"));
+			try {
+				for (let round = 0; round < repeat; round += 1) {
+					for (const req of selectedRequests()) {
+						await callApi(req);
+					}
+					if ($("requestSet").value === "flow") {
+						for (const req of detailRequests()) {
+							await callApi(req);
+						}
+					}
+				}
+				$("lastRun").textContent = new Date().toLocaleTimeString();
+				await refreshMetrics();
+				if (state.rows.length) {
+					showPreview(state.rows[state.rows.length - 1]);
+				}
+			} finally {
+				$("runState").textContent = "idle";
+				$("runButton").disabled = false;
+				$("metricsButton").disabled = false;
+			}
+		}
+
+		async function refreshMetrics() {
+			const targets = [...new Set(state.rows.map((row) => row.metricUri).filter(Boolean))];
+			const output = {};
+			for (const uri of targets) {
+				const url = buildUrl("/actuator/metrics/http.server.requests", uri === "UNKNOWN" ? {} : {tag: `uri:${uri}`});
+				try {
+					const response = await fetch(url, {headers: {Accept: "application/json"}});
+					output[uri] = await response.json();
+				} catch (error) {
+					output[uri] = {error: error.message};
+				}
+			}
+			$("metricsOutput").textContent = JSON.stringify(output, null, 2);
+		}
+
+		$("runButton").addEventListener("click", run);
+		$("metricsButton").addEventListener("click", refreshMetrics);
+		$("baseUrl").addEventListener("input", () => {
+			$("originBadge").textContent = $("baseUrl").value.replace(/^https?:\/\//, "").replace(/\/$/, "");
+		});
+	</script>
+</body>
+</html>
