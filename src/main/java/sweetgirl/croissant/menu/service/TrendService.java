@@ -92,6 +92,8 @@ public class TrendService {
 						r.getStore().getId(),
 						r.getStore().getName(),
 						r.getStore().getAddress(),
+						r.getStore().getRegion1st(),
+						r.getStore().getRegion2nd(),
 						r.getRank()))
 					.toList()))
 			.toList();
@@ -122,6 +124,8 @@ public class TrendService {
 						r.getStoreId(),
 						r.getStoreName(),
 						r.getStoreAddress(),
+						r.getStoreRegion1st(),
+						r.getStoreRegion2nd(),
 						r.getRank()))
 					.toList()))
 			.toList();
@@ -163,6 +167,8 @@ public class TrendService {
 						s.storeId(),
 						s.storeName(),
 						s.storeAddress(),
+						s.storeRegion1st(),
+						s.storeRegion2nd(),
 						s.rank(),
 						imagesByStoreId.getOrDefault(s.storeId(), List.of())))
 					.toList()))
@@ -175,7 +181,9 @@ public class TrendService {
 	private record CategoryStores(String menuCategory, List<StoreRow> stores) {
 	}
 
-	private record StoreRow(Long storeId, String storeName, String storeAddress, int rank) {
+	private record StoreRow(
+			Long storeId, String storeName, String storeAddress, String storeRegion1st, String storeRegion2nd,
+			int rank) {
 	}
 
 	private Region3rd resolveRegion3rd(double latitude, double longitude) {
