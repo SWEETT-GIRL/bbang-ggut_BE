@@ -54,6 +54,10 @@
 			padding: 16px;
 		}
 
+		.wide {
+			grid-column: 1 / -1;
+		}
+
 		section {
 			background: var(--panel);
 			border: 1px solid var(--line);
@@ -92,8 +96,7 @@
 		}
 
 		input,
-		select,
-		textarea {
+		select {
 			width: 100%;
 			margin-top: 5px;
 			padding: 7px 9px;
@@ -102,19 +105,7 @@
 			background: #fff;
 			color: var(--text);
 			font: inherit;
-		}
-
-		input,
-		select {
 			height: 36px;
-		}
-
-		textarea {
-			min-height: 150px;
-			resize: vertical;
-			font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-			font-size: 12px;
-			line-height: 1.45;
 		}
 
 		.row {
@@ -212,8 +203,36 @@
 		}
 
 		.logs-wrap {
-			max-height: 360px;
+			max-height: 520px;
 			overflow: auto;
+		}
+
+		.server-section .logs-wrap + .logs-wrap {
+			max-height: 420px;
+			border-top: 1px solid var(--line);
+		}
+
+		.server-section th:first-child,
+		.server-section td:first-child {
+			min-width: 180px;
+		}
+
+		.server-section th:nth-child(2),
+		.server-section td:nth-child(2),
+		.server-section th:nth-child(3),
+		.server-section td:nth-child(3),
+		.server-section th:nth-child(4),
+		.server-section td:nth-child(4),
+		.server-section th:nth-child(5),
+		.server-section td:nth-child(5),
+		.server-section th:nth-child(6),
+		.server-section td:nth-child(6),
+		.server-section th:nth-child(7),
+		.server-section td:nth-child(7),
+		.server-section th:nth-child(8),
+		.server-section td:nth-child(8) {
+			width: 86px;
+			white-space: nowrap;
 		}
 
 		.method {
@@ -411,42 +430,7 @@
 			</div>
 		</section>
 
-		<section>
-			<div class="section-head">
-				<h2>액추에이터 메트릭</h2>
-				<span class="muted">http.server.requests</span>
-			</div>
-			<pre id="metricsOutput">메트릭을 아직 불러오지 않았습니다.</pre>
-		</section>
-
-		<section>
-			<div class="section-head">
-				<h2>k6 요약</h2>
-				<span class="muted">--summary-export JSON</span>
-			</div>
-			<div class="controls">
-				<label>
-					k6 JSON
-					<textarea id="k6Input" placeholder="k6 summary JSON 붙여넣기"></textarea>
-				</label>
-				<div class="actions">
-					<button class="primary" id="k6ParseButton">k6 결과 보기</button>
-					<input id="k6File" type="file" accept="application/json,.json">
-					<button id="k6ClearButton">초기화</button>
-				</div>
-			</div>
-			<div class="summary">
-				<div class="kpis">
-					<div class="kpi"><span>요청 수</span><strong id="k6Reqs">0</strong></div>
-					<div class="kpi"><span>실패율</span><strong id="k6FailRate">0%</strong></div>
-					<div class="kpi"><span>평균 ms</span><strong id="k6Avg">0</strong></div>
-					<div class="kpi"><span>p95 ms</span><strong id="k6P95">0</strong></div>
-				</div>
-			</div>
-			<pre id="k6Output">k6 결과를 아직 불러오지 않았습니다.</pre>
-		</section>
-
-		<section>
+		<section class="wide server-section">
 			<div class="section-head">
 				<h2>서버 처리시간</h2>
 				<span class="muted" id="logsSummary">로그를 아직 불러오지 않았습니다.</span>
@@ -492,12 +476,20 @@
 			</div>
 		</section>
 
-		<section>
+		<section class="wide">
 			<div class="section-head">
 				<h2>응답 상세</h2>
 				<span class="muted" id="previewTitle"></span>
 			</div>
 			<pre id="previewOutput">요청을 실행하면 상세가 표시됩니다.</pre>
+		</section>
+
+		<section class="wide">
+			<div class="section-head">
+				<h2>액추에이터 메트릭</h2>
+				<span class="muted">http.server.requests</span>
+			</div>
+			<pre id="metricsOutput">메트릭을 아직 불러오지 않았습니다.</pre>
 		</section>
 	</main>
 
@@ -812,60 +804,6 @@
 			$("metricsOutput").textContent = JSON.stringify(output, null, 2);
 		}
 
-		function metricValue(metrics, name, path) {
-			const metric = metrics[name];
-			if (!metric) {
-				return 0;
-			}
-			let value = metric.values && metric.values[path];
-			if (value === undefined && metric.value !== undefined) {
-				value = metric.value;
-			}
-			return Number(value || 0);
-		}
-
-		function parseK6Summary() {
-			const raw = $("k6Input").value.trim();
-			if (!raw) {
-				return;
-			}
-			let summary;
-			try {
-				summary = JSON.parse(raw);
-			} catch (error) {
-				$("k6Output").textContent = `Invalid JSON: ${error.message}`;
-				return;
-			}
-			const metrics = summary.metrics || {};
-			const reqs = metricValue(metrics, "http_reqs", "count");
-			const failedRate = metricValue(metrics, "http_req_failed", "rate");
-			const duration = metrics.http_req_duration || {};
-			const avg = metricValue(metrics, "http_req_duration", "avg");
-			const p50 = metricValue(metrics, "http_req_duration", "p(50)");
-			const p95 = metricValue(metrics, "http_req_duration", "p(95)");
-			const p99 = metricValue(metrics, "http_req_duration", "p(99)");
-			const max = metricValue(metrics, "http_req_duration", "max");
-			const rps = reqs && summary.state?.testRunDurationMs
-				? reqs / (summary.state.testRunDurationMs / 1000)
-				: 0;
-
-			$("k6Reqs").textContent = Math.round(reqs);
-			$("k6FailRate").textContent = `${(failedRate * 100).toFixed(2)}%`;
-			$("k6Avg").textContent = Math.round(avg);
-			$("k6P95").textContent = Math.round(p95);
-			$("k6Output").textContent = JSON.stringify({
-				requests: Math.round(reqs),
-				failRate: `${(failedRate * 100).toFixed(2)}%`,
-				rps: Number(rps.toFixed(2)),
-				avgMs: Math.round(avg),
-				p50Ms: Math.round(p50),
-				p95Ms: Math.round(p95),
-				p99Ms: Math.round(p99),
-				maxMs: Math.round(max),
-				rawDurationMetric: duration.values || duration
-			}, null, 2);
-		}
-
 		function renderLogAggregates(logs) {
 			const groups = new Map();
 			for (const log of logs) {
@@ -960,23 +898,6 @@
 		$("runButton").addEventListener("click", run);
 		$("metricsButton").addEventListener("click", refreshMetrics);
 		$("logsButton").addEventListener("click", refreshLogs);
-		$("k6ParseButton").addEventListener("click", parseK6Summary);
-			$("k6ClearButton").addEventListener("click", () => {
-			$("k6Input").value = "";
-			$("k6Reqs").textContent = "0";
-			$("k6FailRate").textContent = "0%";
-			$("k6Avg").textContent = "0";
-			$("k6P95").textContent = "0";
-			$("k6Output").textContent = "k6 결과를 아직 불러오지 않았습니다.";
-		});
-		$("k6File").addEventListener("change", async (event) => {
-			const file = event.target.files && event.target.files[0];
-			if (!file) {
-				return;
-			}
-			$("k6Input").value = await file.text();
-			parseK6Summary();
-		});
 		$("baseUrl").addEventListener("input", () => {
 			$("originBadge").textContent = $("baseUrl").value.replace(/^https?:\/\//, "").replace(/\/$/, "");
 		});
