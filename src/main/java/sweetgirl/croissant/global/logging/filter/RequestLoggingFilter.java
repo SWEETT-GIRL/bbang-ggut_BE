@@ -16,10 +16,12 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.global.logging.LogEventType;
 import sweetgirl.croissant.global.logging.entity.RequestLog;
 import sweetgirl.croissant.global.logging.service.RequestLogService;
 
+@Slf4j
 @RequiredArgsConstructor
 public class RequestLoggingFilter extends OncePerRequestFilter {
 
@@ -73,24 +75,37 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 	private void saveLog(ContentCachingRequestWrapper request, HttpServletResponse response, long startTime) {
 		String uri = request.getRequestURI();
 		String method = request.getMethod();
+		int durationMs = (int)(System.currentTimeMillis() - startTime);
+		String queryString = request.getQueryString();
+		String clientIp = resolveClientIp(request);
+		String userAgent = request.getHeader("User-Agent");
 
-		RequestLog log = RequestLog.builder()
+		RequestLog requestLog = RequestLog.builder()
 			.memberId(resolveMemberId()) // JWT 필터가 SecurityContext에 넣어준 memberId
 			.httpMethod(method) // GET, POST 등
 			.endpoint(uri) // /api/v1/stores/123
-			.queryParams(request.getQueryString()) // ?lat=37.5&lng=127.0
+			.queryParams(queryString) // ?lat=37.5&lng=127.0
 			.requestBody(resolveBody(request)) // POST/PUT/PATCH body (PII 마스킹 후)
 			.responseStatus(response.getStatus()) // 200, 400, 500 등 HTTP 상태코드
-			.responseTimeMs((int)(System.currentTimeMillis() - startTime)) // 응답 소요 시간(ms)
-			.ipAddress(resolveClientIp(request)) // 클라이언트 IP (프록시 헤더 우선)
-			.userAgent(request.getHeader("User-Agent")) // 기기/OS/앱 정보
+			.responseTimeMs(durationMs) // 응답 소요 시간(ms)
+			.ipAddress(clientIp) // 클라이언트 IP (프록시 헤더 우선)
+			.userAgent(userAgent) // 기기/OS/앱 정보
 			.storeId(extractStoreId(uri)) // URL에서 추출한 store_id (없으면 null)
 			.eventType(resolveEventType(method, uri)) // STORE_VIEW / ALARM_CLICK / null
 			.errorCode((String)request.getAttribute(ATTR_ERROR_CODE)) // 예외 발생 시 GlobalExceptionHandler가 채워줌
 			.errorMessage((String)request.getAttribute(ATTR_ERROR_MESSAGE))
 			.build();
 
-		requestLogService.save(log); // @Async("logExecutor") — 별도 스레드에서 저장 (응답 지연 없음)
+		log.info("API_PERF method={} uri={} query=\"{}\" status={} durationMs={} clientIp={} userAgent=\"{}\"",
+			method,
+			uri,
+			normalizeLogValue(queryString, 500),
+			response.getStatus(),
+			durationMs,
+			clientIp,
+			normalizeLogValue(userAgent, 300));
+
+		requestLogService.save(requestLog); // @Async("logExecutor") — 별도 스레드에서 저장 (응답 지연 없음)
 	}
 
 	// SecurityContextHolder에서 memberId 꺼내기 — JwtAuthenticationFilter가 Long으로 저장함
@@ -149,5 +164,16 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 			return ip.split(",")[0].trim(); // 여러 IP가 콤마로 이어진 경우 첫 번째가 원본 클라이언트
 		}
 		return request.getRemoteAddr(); // 직접 연결일 때
+	}
+
+	private String normalizeLogValue(String value, int maxLength) {
+		if (!StringUtils.hasText(value)) {
+			return "";
+		}
+		String normalized = value.replaceAll("[\\r\\n\\t]+", " ");
+		if (normalized.length() <= maxLength) {
+			return normalized;
+		}
+		return normalized.substring(0, maxLength) + "...";
 	}
 }

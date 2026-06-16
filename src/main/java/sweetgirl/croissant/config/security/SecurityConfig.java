@@ -52,10 +52,12 @@ public class SecurityConfig {
 			.requestMatchers("/api/v1/oauth2/**").permitAll() // 인가 : /api/v1/oauth2/kakao
 			.requestMatchers("/auth/**").permitAll() // controller 호출
 			.requestMatchers("/terms").permitAll()
+			.requestMatchers(HttpMethod.GET, "/dev/**").permitAll()
+			.requestMatchers("/actuator/health", "/actuator/metrics", "/actuator/metrics/**").permitAll()
 			.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
-			.requestMatchers(HttpMethod.GET, "/trend/**").permitAll()
+			.requestMatchers(HttpMethod.GET, "/trend/**", "/menu-categories", "/banners", "/banners/**").permitAll()
 			// 홈화면 근처/인기 빵집·검색 비로그인 허용
-			.requestMatchers(HttpMethod.GET, "/stores/nearby", "/stores/popular", "/stores/search",
+			.requestMatchers(HttpMethod.GET, "/stores/district", "/stores/nearby", "/stores/popular", "/stores/search",
 				"/stores/autocomplete")
 			.permitAll()
 			// 숫자 ID 기반 빵집 상세/메뉴/리뷰 조회 비로그인 허용

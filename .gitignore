@@ -74,3 +74,6 @@ scripts/blog_score/snapshots/
 .DS_Store
 logs/
 scripts/.venv/
+
+### Local Codex workspace artifacts ###
+.agents/
