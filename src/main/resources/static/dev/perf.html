@@ -882,7 +882,7 @@
 			});
 			$("logsButton").disabled = true;
 			try {
-				const response = await fetch(url, {headers: {Accept: "application/json"}});
+				const response = await fetch(url, {headers: perfHeaders()});
 				const payload = await response.json();
 				renderLogs(payload);
 			} catch (error) {
