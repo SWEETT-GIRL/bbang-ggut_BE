@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>API Performance</title>
+	<title>조회 API 성능 측정</title>
 	<style>
 		:root {
 			color-scheme: light;
@@ -54,6 +54,10 @@
 			padding: 16px;
 		}
 
+		.wide {
+			grid-column: 1 / -1;
+		}
+
 		section {
 			background: var(--panel);
 			border: 1px solid var(--line);
@@ -94,7 +98,6 @@
 		input,
 		select {
 			width: 100%;
-			height: 36px;
 			margin-top: 5px;
 			padding: 7px 9px;
 			border: 1px solid var(--line);
@@ -102,6 +105,7 @@
 			background: #fff;
 			color: var(--text);
 			font: inherit;
+			height: 36px;
 		}
 
 		.row {
@@ -112,7 +116,7 @@
 
 		.actions {
 			display: grid;
-			grid-template-columns: 1fr 1fr;
+			grid-template-columns: repeat(3, 1fr);
 			gap: 8px;
 			margin-top: 12px;
 		}
@@ -198,6 +202,39 @@
 			overflow: auto;
 		}
 
+		.logs-wrap {
+			max-height: 520px;
+			overflow: auto;
+		}
+
+		.server-section .logs-wrap + .logs-wrap {
+			max-height: 420px;
+			border-top: 1px solid var(--line);
+		}
+
+		.server-section th:first-child,
+		.server-section td:first-child {
+			min-width: 180px;
+		}
+
+		.server-section th:nth-child(2),
+		.server-section td:nth-child(2),
+		.server-section th:nth-child(3),
+		.server-section td:nth-child(3),
+		.server-section th:nth-child(4),
+		.server-section td:nth-child(4),
+		.server-section th:nth-child(5),
+		.server-section td:nth-child(5),
+		.server-section th:nth-child(6),
+		.server-section td:nth-child(6),
+		.server-section th:nth-child(7),
+		.server-section td:nth-child(7),
+		.server-section th:nth-child(8),
+		.server-section td:nth-child(8) {
+			width: 86px;
+			white-space: nowrap;
+		}
+
 		.method {
 			font-weight: 800;
 			color: var(--accent);
@@ -266,83 +303,115 @@
 			.table-wrap {
 				max-height: none;
 			}
+
+			.actions {
+				grid-template-columns: 1fr;
+			}
 		}
 	</style>
 </head>
 <body>
 	<header>
-		<h1>API Performance</h1>
-		<div class="muted" id="runState">idle</div>
+		<h1>조회 API 성능 측정</h1>
+		<div class="muted" id="runState">대기 중</div>
 	</header>
 
 	<main>
 		<section>
 			<div class="section-head">
-				<h2>Run</h2>
+				<h2>측정 설정</h2>
 				<span class="badge" id="originBadge"></span>
 			</div>
 			<div class="controls">
 				<label>
-					Base URL
+					서버 URL
 					<input id="baseUrl" value="">
 				</label>
 				<div class="row">
 					<label>
-						Query
+						검색어
 						<input id="query" value="소금빵">
 					</label>
 					<label>
-						Region
+						지역
 						<input id="region" value="망원">
 					</label>
 				</div>
 				<div class="row">
 					<label>
-						Latitude
+						위도
 						<input id="lat" value="37.5665">
 					</label>
 					<label>
-						Longitude
+						경도
 						<input id="lng" value="126.9780">
 					</label>
 				</div>
 				<div class="row">
 					<label>
-						Page size
+						조회 개수
 						<input id="size" type="number" min="1" max="50" value="5">
 					</label>
 					<label>
-						Repeat
+						반복 횟수
 						<input id="repeat" type="number" min="1" max="50" value="1">
 					</label>
 				</div>
 				<label>
-					Request set
+					조회 범위
 					<select id="requestSet">
-						<option value="public">Public read APIs</option>
-						<option value="flow">Public read APIs + discovered detail APIs</option>
-						<option value="search">Search only</option>
-						<option value="trend">Trend only</option>
+						<option value="public">공개 조회 API</option>
+						<option value="flow">공개 조회 API + 상세 조회</option>
+						<option value="search">검색 API만</option>
+						<option value="trend">트렌드 API만</option>
 					</select>
 				</label>
+				<div class="row">
+					<label>
+						로그 조회 기간(분)
+						<input id="logSinceMinutes" type="number" min="1" max="1440" value="10">
+					</label>
+					<label>
+						로그 개수
+						<input id="logSize" type="number" min="1" max="200" value="50">
+					</label>
+				</div>
+				<div class="row">
+					<label>
+						로그 정렬
+						<select id="logSort">
+							<option value="slow">느린 요청순</option>
+							<option value="recent">최신순</option>
+						</select>
+					</label>
+					<label>
+						엔드포인트 필터
+						<input id="logEndpoint" placeholder="/stores/search">
+					</label>
+				</div>
+				<label>
+					성능 로그 키
+					<input id="perfAccessKey" type="password" placeholder="prod 로그 조회 시 입력">
+				</label>
 				<div class="actions">
-					<button class="primary" id="runButton">Run</button>
-					<button id="metricsButton">Refresh metrics</button>
+					<button class="primary" id="runButton">조회 실행</button>
+					<button id="logsButton">서버 로그 갱신</button>
+					<button id="metricsButton">액추에이터 갱신</button>
 				</div>
 			</div>
 			<div class="summary">
 				<div class="kpis">
-					<div class="kpi"><span>Requests</span><strong id="kpiCount">0</strong></div>
-					<div class="kpi"><span>Success</span><strong id="kpiSuccess">0</strong></div>
-					<div class="kpi"><span>Avg ms</span><strong id="kpiAvg">0</strong></div>
-					<div class="kpi"><span>Max ms</span><strong id="kpiMax">0</strong></div>
+					<div class="kpi"><span>요청 수</span><strong id="kpiCount">0</strong></div>
+					<div class="kpi"><span>성공</span><strong id="kpiSuccess">0</strong></div>
+					<div class="kpi"><span>평균 ms</span><strong id="kpiAvg">0</strong></div>
+					<div class="kpi"><span>최대 ms</span><strong id="kpiMax">0</strong></div>
 				</div>
 			</div>
 		</section>
 
 		<section>
 			<div class="section-head">
-				<h2>Results</h2>
+				<h2>브라우저 측정 결과</h2>
 				<span class="muted" id="lastRun"></span>
 			</div>
 			<div class="table-wrap">
@@ -352,8 +421,8 @@
 							<th>API</th>
 							<th>Status</th>
 							<th>ms</th>
-							<th>Rows</th>
-							<th>Notes</th>
+							<th>건수</th>
+							<th>비고</th>
 						</tr>
 					</thead>
 					<tbody id="results"></tbody>
@@ -361,20 +430,66 @@
 			</div>
 		</section>
 
-		<section>
+		<section class="wide server-section">
 			<div class="section-head">
-				<h2>Metrics</h2>
-				<span class="muted">http.server.requests</span>
+				<h2>서버 처리시간</h2>
+				<span class="muted" id="logsSummary">로그를 아직 불러오지 않았습니다.</span>
 			</div>
-			<pre id="metricsOutput">No metrics loaded.</pre>
+			<div class="summary">
+				<div class="kpis">
+					<div class="kpi"><span>로그 수</span><strong id="logCount">0</strong></div>
+					<div class="kpi"><span>성공</span><strong id="logSuccess">0</strong></div>
+					<div class="kpi"><span>평균 ms</span><strong id="logAvg">0</strong></div>
+					<div class="kpi"><span>최대 ms</span><strong id="logMax">0</strong></div>
+				</div>
+			</div>
+			<div class="logs-wrap">
+				<table>
+					<thead>
+						<tr>
+							<th>API</th>
+							<th>요청</th>
+							<th>평균</th>
+							<th>p50</th>
+							<th>p95</th>
+							<th>p99</th>
+							<th>최대</th>
+							<th>오류</th>
+						</tr>
+					</thead>
+					<tbody id="endpointSummaryResults"></tbody>
+				</table>
+			</div>
+			<div class="logs-wrap">
+				<table>
+					<thead>
+						<tr>
+							<th>시간</th>
+							<th>API</th>
+							<th>Status</th>
+							<th>ms</th>
+							<th>Query</th>
+						</tr>
+					</thead>
+					<tbody id="logResults"></tbody>
+				</table>
+			</div>
 		</section>
 
-		<section>
+		<section class="wide">
 			<div class="section-head">
-				<h2>Response Preview</h2>
+				<h2>응답 상세</h2>
 				<span class="muted" id="previewTitle"></span>
 			</div>
-			<pre id="previewOutput">Run a request.</pre>
+			<pre id="previewOutput">요청을 실행하면 상세가 표시됩니다.</pre>
+		</section>
+
+		<section class="wide">
+			<div class="section-head">
+				<h2>액추에이터 메트릭</h2>
+				<span class="muted">http.server.requests</span>
+			</div>
+			<pre id="metricsOutput">메트릭을 아직 불러오지 않았습니다.</pre>
 		</section>
 	</main>
 
@@ -413,6 +528,15 @@
 			return url;
 		}
 
+		function perfHeaders() {
+			const accessKey = $("perfAccessKey").value.trim();
+			const headers = {Accept: "application/json"};
+			if (accessKey) {
+				headers["X-Perf-Dashboard-Key"] = accessKey;
+			}
+			return headers;
+		}
+
 		function publicRequests() {
 			const query = $("query").value;
 			const region = $("region").value;
@@ -420,29 +544,29 @@
 			const lng = $("lng").value;
 			const size = $("size").value;
 			return [
-				{name: "Health", path: "/actuator/health", metricUri: "UNKNOWN", params: {}},
-				{name: "Search", path: "/stores/search", metricUri: "/stores/search", params: {query, lat, lon: lng, page: 0, size}},
-				{name: "Autocomplete", path: "/stores/autocomplete", metricUri: "/stores/autocomplete", params: {query, size: 10}},
-				{name: "Nearby stores", path: "/stores/nearby", metricUri: "/stores/nearby", params: {lat, lng, page: 0, size}},
-				{name: "Popular stores", path: "/stores/popular", metricUri: "/stores/popular", params: {lat, lng}},
-				{name: "District distance", path: "/stores/district", metricUri: "/stores/district", params: {keyword: region, lat, lng, page: 0, size, sort: "distance"}},
-				{name: "District subscribe", path: "/stores/district", metricUri: "/stores/district", params: {keyword: region, page: 0, size, sort: "subscribe"}},
-				{name: "Trend nearby", path: "/trend/nearby", metricUri: "/trend/nearby", params: {lat, lng}},
-				{name: "Trend select", path: "/trend/select", metricUri: "/trend/select", params: {region}},
-				{name: "Trend nationwide", path: "/trend/nationwide", metricUri: "/trend/nationwide", params: {}},
-				{name: "Terms", path: "/terms", metricUri: "/terms", params: {}},
-				{name: "Menu categories", path: "/menu-categories", metricUri: "/menu-categories", params: {}},
-				{name: "Banners", path: "/banners", metricUri: "/banners", params: {}}
+				{name: "헬스 체크", path: "/actuator/health", metricUri: "UNKNOWN", params: {}},
+				{name: "빵집 검색", path: "/stores/search", metricUri: "/stores/search", params: {query, lat, lon: lng, page: 0, size}},
+				{name: "검색어 자동완성", path: "/stores/autocomplete", metricUri: "/stores/autocomplete", params: {query, size: 10}},
+				{name: "근처 빵집", path: "/stores/nearby", metricUri: "/stores/nearby", params: {lat, lng, page: 0, size}},
+				{name: "인기 빵집", path: "/stores/popular", metricUri: "/stores/popular", params: {lat, lng}},
+				{name: "지역 빵집 거리순", path: "/stores/district", metricUri: "/stores/district", params: {keyword: region, lat, lng, page: 0, size, sort: "distance"}},
+				{name: "지역 빵집 구독순", path: "/stores/district", metricUri: "/stores/district", params: {keyword: region, page: 0, size, sort: "subscribe"}},
+				{name: "근처 트렌드", path: "/trend/nearby", metricUri: "/trend/nearby", params: {lat, lng}},
+				{name: "지역 트렌드", path: "/trend/select", metricUri: "/trend/select", params: {region}},
+				{name: "전국 트렌드", path: "/trend/nationwide", metricUri: "/trend/nationwide", params: {}},
+				{name: "약관", path: "/terms", metricUri: "/terms", params: {}},
+				{name: "메뉴 카테고리", path: "/menu-categories", metricUri: "/menu-categories", params: {}},
+				{name: "배너", path: "/banners", metricUri: "/banners", params: {}}
 			];
 		}
 
 		function selectedRequests() {
 			const set = $("requestSet").value;
 			if (set === "search") {
-				return publicRequests().filter((req) => ["Search", "Autocomplete"].includes(req.name));
+				return publicRequests().filter((req) => ["빵집 검색", "검색어 자동완성"].includes(req.name));
 			}
 			if (set === "trend") {
-				return publicRequests().filter((req) => req.name.startsWith("Trend"));
+				return publicRequests().filter((req) => req.name.endsWith("트렌드"));
 			}
 			return publicRequests();
 		}
@@ -450,22 +574,22 @@
 		function detailRequests() {
 			const requests = [];
 			if (state.ids.storeId) {
-				requests.push({name: "Store detail", path: `/stores/${state.ids.storeId}`, metricUri: "/stores/{storeId}", params: {}});
-				requests.push({name: "Store menus", path: `/stores/${state.ids.storeId}/menus`, metricUri: "/stores/{storeId}/menus", params: {}});
+				requests.push({name: "빵집 상세", path: `/stores/${state.ids.storeId}`, metricUri: "/stores/{storeId}", params: {}});
+				requests.push({name: "빵집 메뉴", path: `/stores/${state.ids.storeId}/menus`, metricUri: "/stores/{storeId}/menus", params: {}});
 			}
 			if (state.ids.menuId) {
-				requests.push({name: "Menu detail", path: `/menus/${state.ids.menuId}`, metricUri: "/menus/{menuId}", params: {}});
-				requests.push({name: "Reviews", path: `/menus/${state.ids.menuId}/reviews`, metricUri: "/menus/{menuId}/reviews", params: {page: 0, size: $("size").value}});
-				requests.push({name: "Review summary", path: `/menus/${state.ids.menuId}/reviews/summary`, metricUri: "/menus/{menuId}/reviews/summary", params: {}});
+				requests.push({name: "메뉴 상세", path: `/menus/${state.ids.menuId}`, metricUri: "/menus/{menuId}", params: {}});
+				requests.push({name: "리뷰 목록", path: `/menus/${state.ids.menuId}/reviews`, metricUri: "/menus/{menuId}/reviews", params: {page: 0, size: $("size").value}});
+				requests.push({name: "리뷰 요약", path: `/menus/${state.ids.menuId}/reviews/summary`, metricUri: "/menus/{menuId}/reviews/summary", params: {}});
 			}
 			if (state.ids.reviewId) {
-				requests.push({name: "Review detail", path: `/reviews/${state.ids.reviewId}`, metricUri: "/reviews/{reviewId}", params: {}});
+				requests.push({name: "리뷰 상세", path: `/reviews/${state.ids.reviewId}`, metricUri: "/reviews/{reviewId}", params: {}});
 			}
 			if (state.ids.memberId) {
-				requests.push({name: "Member reviews", path: `/users/${state.ids.memberId}/reviews`, metricUri: "/users/{memberId}/reviews", params: {page: 0, size: $("size").value}});
+				requests.push({name: "사용자 리뷰", path: `/users/${state.ids.memberId}/reviews`, metricUri: "/users/{memberId}/reviews", params: {page: 0, size: $("size").value}});
 			}
 			if (state.ids.bannerId) {
-				requests.push({name: "Banner detail", path: `/banners/${state.ids.bannerId}`, metricUri: "/banners/{bannerId}", params: {}});
+				requests.push({name: "배너 상세", path: `/banners/${state.ids.bannerId}`, metricUri: "/banners/{bannerId}", params: {}});
 			}
 			return requests;
 		}
@@ -537,7 +661,7 @@
 			let text = "";
 			let note = "";
 			try {
-				const response = await fetch(url, {headers: {Accept: "application/json"}});
+				const response = await fetch(url, {headers: perfHeaders()});
 				status = response.status;
 				text = await response.text();
 				try {
@@ -607,12 +731,37 @@
 			$("previewOutput").textContent = JSON.stringify(row.body, null, 2).slice(0, 12000);
 		}
 
+		function percentile(values, ratio) {
+			if (!values.length) {
+				return 0;
+			}
+			const sorted = [...values].sort((a, b) => a - b);
+			const index = Math.ceil(sorted.length * ratio) - 1;
+			return sorted[Math.max(0, Math.min(index, sorted.length - 1))];
+		}
+
+		function average(values) {
+			if (!values.length) {
+				return 0;
+			}
+			return Math.round(values.reduce((acc, value) => acc + value, 0) / values.length);
+		}
+
+		function escapeHtml(value) {
+			return String(value ?? "")
+				.replaceAll("&", "&amp;")
+				.replaceAll("<", "&lt;")
+				.replaceAll(">", "&gt;")
+				.replaceAll("\"", "&quot;")
+				.replaceAll("'", "&#039;");
+		}
+
 		async function run() {
 			state.rows = [];
 			state.ids = {storeId: null, menuId: null, reviewId: null, memberId: null, bannerId: null};
 			renderResults();
-			$("previewOutput").textContent = "Running...";
-			$("runState").textContent = "running";
+			$("previewOutput").textContent = "조회 중...";
+			$("runState").textContent = "조회 중";
 			$("runButton").disabled = true;
 			$("metricsButton").disabled = true;
 			const repeat = Math.max(1, inputNumber("repeat"));
@@ -629,11 +778,12 @@
 				}
 				$("lastRun").textContent = new Date().toLocaleTimeString();
 				await refreshMetrics();
+				await refreshLogs();
 				if (state.rows.length) {
 					showPreview(state.rows[state.rows.length - 1]);
 				}
 			} finally {
-				$("runState").textContent = "idle";
+				$("runState").textContent = "대기 중";
 				$("runButton").disabled = false;
 				$("metricsButton").disabled = false;
 			}
@@ -654,8 +804,100 @@
 			$("metricsOutput").textContent = JSON.stringify(output, null, 2);
 		}
 
+		function renderLogAggregates(logs) {
+			const groups = new Map();
+			for (const log of logs) {
+				const endpoint = log.endpoint || "UNKNOWN";
+				if (!groups.has(endpoint)) {
+					groups.set(endpoint, []);
+				}
+				groups.get(endpoint).push(log);
+			}
+			const rows = [...groups.entries()].map(([endpoint, items]) => {
+				const durations = items.map((item) => Number(item.durationMs || 0));
+				const errors = items.filter((item) => Number(item.status || 0) >= 400).length;
+				return {
+					endpoint,
+					count: items.length,
+					avgMs: average(durations),
+					p50Ms: percentile(durations, .50),
+					p95Ms: percentile(durations, .95),
+					p99Ms: percentile(durations, .99),
+					maxMs: Math.max(0, ...durations),
+					errorRate: `${((errors / items.length) * 100).toFixed(1)}%`
+				};
+			}).sort((a, b) => b.p95Ms - a.p95Ms || b.maxMs - a.maxMs);
+			const tbody = $("endpointSummaryResults");
+			tbody.innerHTML = "";
+			for (const row of rows) {
+				const tr = document.createElement("tr");
+				tr.innerHTML = `
+					<td class="path">${escapeHtml(row.endpoint)}</td>
+					<td>${row.count}</td>
+					<td>${row.avgMs}</td>
+					<td>${row.p50Ms}</td>
+					<td>${row.p95Ms}</td>
+					<td>${row.p99Ms}</td>
+					<td>${row.maxMs}</td>
+					<td>${row.errorRate}</td>
+				`;
+				tbody.appendChild(tr);
+			}
+		}
+
+		function renderLogs(payload) {
+			const data = payload && payload.data ? payload.data : payload;
+			const logs = data?.logs || [];
+			const tbody = $("logResults");
+			tbody.innerHTML = "";
+			for (const log of logs) {
+				const tr = document.createElement("tr");
+				tr.innerHTML = `
+					<td>${escapeHtml(log.createdAt || "")}</td>
+					<td><div class="method">${escapeHtml(log.method || "GET")}</div><div class="path">${escapeHtml(log.endpoint || "")}</div></td>
+					<td class="${statusClass(Number(log.status || 0))}">${escapeHtml(log.status || "")}</td>
+					<td>${escapeHtml(log.durationMs || 0)}</td>
+					<td class="path">${escapeHtml(log.queryParams || "")}</td>
+				`;
+				tr.addEventListener("click", () => {
+					$("previewTitle").textContent = `${log.status || ""} ${log.durationMs || 0}ms`;
+					$("previewOutput").textContent = JSON.stringify(log, null, 2);
+				});
+				tbody.appendChild(tr);
+			}
+			$("logCount").textContent = data?.count ?? logs.length;
+			$("logSuccess").textContent = data?.successCount ?? logs.filter((log) => log.status >= 200 && log.status < 400).length;
+			$("logAvg").textContent = data?.avgDurationMs ?? average(logs.map((log) => Number(log.durationMs || 0)));
+			$("logMax").textContent = data?.maxDurationMs ?? Math.max(0, ...logs.map((log) => Number(log.durationMs || 0)));
+			$("logsSummary").textContent = `${logs.length}개 로드됨 · ${new Date().toLocaleTimeString()}`;
+			renderLogAggregates(logs);
+		}
+
+		async function refreshLogs() {
+			const url = buildUrl("/dev/perf/request-logs", {
+				sinceMinutes: inputNumber("logSinceMinutes"),
+				size: inputNumber("logSize"),
+				sort: $("logSort").value,
+				endpoint: $("logEndpoint").value
+			});
+			$("logsButton").disabled = true;
+			try {
+				const response = await fetch(url, {headers: {Accept: "application/json"}});
+				const payload = await response.json();
+				renderLogs(payload);
+			} catch (error) {
+				$("logsSummary").textContent = error.message;
+				$("endpointSummaryResults").innerHTML = `
+					<tr><td colspan="8">${escapeHtml(error.message)}</td></tr>
+				`;
+			} finally {
+				$("logsButton").disabled = false;
+			}
+		}
+
 		$("runButton").addEventListener("click", run);
 		$("metricsButton").addEventListener("click", refreshMetrics);
+		$("logsButton").addEventListener("click", refreshLogs);
 		$("baseUrl").addEventListener("input", () => {
 			$("originBadge").textContent = $("baseUrl").value.replace(/^https?:\/\//, "").replace(/\/$/, "");
 		});
