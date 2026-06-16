@@ -14,7 +14,7 @@ import sweetgirl.croissant.dev.dto.response.DevRequestLogResponse;
 import sweetgirl.croissant.global.logging.entity.RequestLog;
 import sweetgirl.croissant.global.logging.repository.RequestLogRepository;
 
-@Profile({"local", "staging"})
+@Profile({"local", "staging", "prod"})
 @Service
 @RequiredArgsConstructor
 public class DevPerfService {

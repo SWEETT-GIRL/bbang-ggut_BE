@@ -370,6 +370,10 @@
 						<input id="logEndpoint" placeholder="/stores/search">
 					</label>
 				</div>
+				<label>
+					성능 로그 키
+					<input id="perfAccessKey" type="password" placeholder="prod 로그 조회 시 입력">
+				</label>
 				<div class="actions">
 					<button class="primary" id="runButton">조회 실행</button>
 					<button id="logsButton">서버 로그 갱신</button>
@@ -532,6 +536,15 @@
 			return url;
 		}
 
+		function perfHeaders() {
+			const accessKey = $("perfAccessKey").value.trim();
+			const headers = {Accept: "application/json"};
+			if (accessKey) {
+				headers["X-Perf-Dashboard-Key"] = accessKey;
+			}
+			return headers;
+		}
+
 		function publicRequests() {
 			const query = $("query").value;
 			const region = $("region").value;
@@ -656,7 +669,7 @@
 			let text = "";
 			let note = "";
 			try {
-				const response = await fetch(url, {headers: {Accept: "application/json"}});
+				const response = await fetch(url, {headers: perfHeaders()});
 				status = response.status;
 				text = await response.text();
 				try {
