@@ -35,4 +35,10 @@ public class TrendController {
 			@RequestParam String region) {
 		return ResponseEntity.ok(ApiResponse.ok(trendService.getTrendByRegion(region)));
 	}
+
+	@Operation(summary = "전국 유명 메뉴 & 핫 빵집 조회", description = "전국 단위의 유명 디저트 카테고리와 핫 빵집 목록을 반환합니다.")
+	@GetMapping("/nationwide")
+	public ResponseEntity<ApiResponse<RegionTrendResponse>> getNationwideTrend() {
+		return ResponseEntity.ok(ApiResponse.ok(trendService.getNationwideTrend()));
+	}
 }

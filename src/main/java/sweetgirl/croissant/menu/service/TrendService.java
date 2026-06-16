@@ -15,12 +15,16 @@ import sweetgirl.croissant.external.kakao.dto.KakaoCoordToRegionResponse;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
 import sweetgirl.croissant.menu.dto.response.RegionTrendResponse;
 import sweetgirl.croissant.menu.entity.FamousMenuByRegion;
+import sweetgirl.croissant.menu.entity.NationwideFamousMenu;
 import sweetgirl.croissant.menu.exception.MenuException;
 import sweetgirl.croissant.menu.repository.FamousMenuByRegionRepository;
+import sweetgirl.croissant.menu.repository.NationwideFamousMenuRepository;
 import sweetgirl.croissant.store.dto.projection.HotStoreRankingTrendProjection;
 import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
+import sweetgirl.croissant.store.entity.NationwideHotStoreRanking;
 import sweetgirl.croissant.store.enums.Region3rd;
 import sweetgirl.croissant.store.repository.HotStoreRankingRepository;
+import sweetgirl.croissant.store.repository.NationwideHotStoreRankingRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
@@ -33,6 +37,8 @@ public class TrendService {
 	private final StoreRepository storeRepository;
 	private final FamousMenuByRegionRepository famousMenuByRegionRepository;
 	private final HotStoreRankingRepository hotStoreRankingRepository;
+	private final NationwideFamousMenuRepository nationwideFamousMenuRepository;
+	private final NationwideHotStoreRankingRepository nationwideHotStoreRankingRepository;
 	private final StoreImageFileRepository storeImageFileRepository;
 
 	private static final List<String> DONG_SUFFIXES = Arrays.asList("읍", "면", "동", "구");
@@ -59,6 +65,39 @@ public class TrendService {
 		return buildTrendResponse(region3rd);
 	}
 
+	// 전국 단위 유명 메뉴 & 핫 빵집 랭킹 조회 (지역과 달리 위치/지역 입력 없이 전국 전용 테이블에서 조회)
+	public RegionTrendResponse getNationwideTrend() {
+		// 전국 유명 메뉴(카테고리) 전체 조회 — 비어 있으면 빈 응답 반환
+		List<NationwideFamousMenu> famousMenus = nationwideFamousMenuRepository.findAll();
+		if (famousMenus.isEmpty()) {
+			return new RegionTrendResponse("전국", List.of());
+		}
+
+		// 유명 메뉴 ID들로 핫 빵집 랭킹을 한 번에 조회한 뒤, 메뉴 ID 기준으로 그룹화
+		List<Long> famousMenuIds = famousMenus.stream().map(NationwideFamousMenu::getId).toList();
+		Map<Long, List<NationwideHotStoreRanking>> rankingsByFamousMenuId = nationwideHotStoreRankingRepository
+			.findByNationwideFamousMenuIdInWithStore(famousMenuIds)
+			.stream()
+			.collect(Collectors.groupingBy(r -> r.getNationwideFamousMenu().getId()));
+
+		// 카테고리 순서를 유지하며 각 카테고리에 속한 랭킹 빵집들을 공통 조립용 구조(CategoryStores)로 변환
+		List<CategoryStores> categories = famousMenus.stream()
+			.map(menu -> new CategoryStores(
+				menu.getMenuCategory().name(),
+				rankingsByFamousMenuId.getOrDefault(menu.getId(), List.of())
+					.stream()
+					.map(r -> new StoreRow(
+						r.getStore().getId(),
+						r.getStore().getName(),
+						r.getStore().getAddress(),
+						r.getRank()))
+					.toList()))
+			.toList();
+
+		// 지역 트렌드와 동일한 조립 로직 재사용 (지역명 자리에는 "전국")
+		return buildResponse("전국", categories);
+	}
+
 	private RegionTrendResponse buildTrendResponse(Region3rd region3rd) {
 		List<FamousMenuByRegion> famousMenus = famousMenuByRegionRepository.findByRegion3rd(region3rd);
 		if (famousMenus.isEmpty()) {
@@ -66,34 +105,22 @@ public class TrendService {
 		}
 
 		List<Long> famousMenuIds = famousMenus.stream().map(FamousMenuByRegion::getId).toList();
-		List<HotStoreRankingTrendProjection> rankings = hotStoreRankingRepository.findTrendByFamousMenuByRegionIdIn(
-			famousMenuIds);
-
-		List<Long> storeIds = rankings.stream().map(HotStoreRankingTrendProjection::getStoreId).distinct().toList();
-		Map<Long, List<String>> imagesByStoreId = storeImageFileRepository.findThumbnailsByStoreIdIn(storeIds)
+		Map<Long, List<HotStoreRankingTrendProjection>> rankingsByFamousMenuId = hotStoreRankingRepository
+			.findTrendByFamousMenuByRegionIdIn(famousMenuIds)
 			.stream()
-			.collect(Collectors.groupingBy(
-				StoreImageThumbnailProjection::getStoreId,
-				Collectors.mapping(StoreImageThumbnailProjection::getAwsKey, Collectors.toList())));
-
-		Map<Long, List<HotStoreRankingTrendProjection>> rankingsByFamousMenuId = rankings.stream()
 			.collect(Collectors.groupingBy(HotStoreRankingTrendProjection::getFamousMenuByRegionId));
 
-		List<RegionTrendResponse.CategoryTrend> categories = famousMenus.stream()
-			.map(fmr -> {
-				List<RegionTrendResponse.HotStore> stores = rankingsByFamousMenuId
-					.getOrDefault(fmr.getId(), List.of())
+		List<CategoryStores> categories = famousMenus.stream()
+			.map(fmr -> new CategoryStores(
+				fmr.getMenuCategory().name(),
+				rankingsByFamousMenuId.getOrDefault(fmr.getId(), List.of())
 					.stream()
-					.map(r -> new RegionTrendResponse.HotStore(
+					.map(r -> new StoreRow(
 						r.getStoreId(),
 						r.getStoreName(),
 						r.getStoreAddress(),
-						r.getRank(),
-						imagesByStoreId.getOrDefault(r.getStoreId(), List.of())))
-					.toList();
-				return new RegionTrendResponse.CategoryTrend(fmr.getMenuCategory().name(), stores);
-			})
-			.filter(ct -> !ct.stores().isEmpty())
+						r.getRank()))
+					.toList()))
 			.toList();
 
 		String rawName = region3rd.name().split("_")[1];
@@ -103,7 +130,49 @@ public class TrendService {
 			.map(suffix -> rawName.substring(0, rawName.length() - suffix.length()))
 			.orElse(rawName);
 
-		return new RegionTrendResponse(name, categories);
+		return buildResponse(name, categories);
+	}
+
+	// 지역/전국 공통 응답 조립 헬퍼: 카테고리별 빵집 목록에 썸네일을 붙여 RegionTrendResponse로 변환
+	private RegionTrendResponse buildResponse(String regionName, List<CategoryStores> categories) {
+		// 모든 카테고리의 빵집 ID를 평탄화·중복 제거하여 썸네일을 한 번에 조회 (N+1 방지)
+		List<Long> storeIds = categories.stream()
+			.flatMap(c -> c.stores().stream())
+			.map(StoreRow::storeId)
+			.distinct()
+			.toList();
+
+		// storeId → 썸네일 이미지 키 목록 매핑 (빵집이 하나도 없으면 조회 생략)
+		Map<Long, List<String>> imagesByStoreId = storeIds.isEmpty()
+			? Map.of()
+			: storeImageFileRepository.findThumbnailsByStoreIdIn(storeIds)
+				.stream()
+				.collect(Collectors.groupingBy(
+					StoreImageThumbnailProjection::getStoreId,
+					Collectors.mapping(StoreImageThumbnailProjection::getAwsKey, Collectors.toList())));
+
+		// 카테고리별로 응답 DTO 조립 + 각 빵집에 썸네일 주입, 빵집 없는 카테고리는 제외
+		List<RegionTrendResponse.CategoryTrend> categoryTrends = categories.stream()
+			.map(c -> new RegionTrendResponse.CategoryTrend(
+				c.menuCategory(),
+				c.stores().stream()
+					.map(s -> new RegionTrendResponse.HotStore(
+						s.storeId(),
+						s.storeName(),
+						s.storeAddress(),
+						s.rank(),
+						imagesByStoreId.getOrDefault(s.storeId(), List.of())))
+					.toList()))
+			.filter(ct -> !ct.stores().isEmpty())
+			.toList();
+
+		return new RegionTrendResponse(regionName, categoryTrends);
+	}
+
+	private record CategoryStores(String menuCategory, List<StoreRow> stores) {
+	}
+
+	private record StoreRow(Long storeId, String storeName, String storeAddress, int rank) {
 	}
 
 	private Region3rd resolveRegion3rd(double latitude, double longitude) {
