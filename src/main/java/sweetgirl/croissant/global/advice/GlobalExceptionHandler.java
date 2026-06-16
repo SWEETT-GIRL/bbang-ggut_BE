@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import jakarta.persistence.EntityNotFoundException;
@@ -136,6 +137,19 @@ public class GlobalExceptionHandler {
 			.body(ApiResponse.fail(GeneralErrorCode._METHOD_NOT_ALLOWED));
 	}
 
+	@ExceptionHandler(ResponseStatusException.class)
+	public ResponseEntity<ApiResponse<?>> handleResponseStatusException(ResponseStatusException ex,
+			HttpServletRequest request) {
+		GeneralErrorCode errorCode = resolveGeneralErrorCode(ex);
+		String message = ex.getReason() != null ? ex.getReason() : errorCode.getMessage();
+		log.warn("[ResponseStatusException] status={}, reason={}", ex.getStatusCode(), message);
+		request.setAttribute(RequestLoggingFilter.ATTR_ERROR_CODE, errorCode.getCode());
+		request.setAttribute(RequestLoggingFilter.ATTR_ERROR_MESSAGE, message);
+		return ResponseEntity
+			.status(ex.getStatusCode())
+			.body(ApiResponse.fail(errorCode, message));
+	}
+
 	@ExceptionHandler(AsyncRequestNotUsableException.class)
 	public void handleAsyncRequestNotUsableException(AsyncRequestNotUsableException ex) {
 		log.debug("[ClientAbort] {}", ex.getMessage());
@@ -183,5 +197,24 @@ public class GlobalExceptionHandler {
 		return lowerCaseMessage.contains(BROKEN_PIPE_MESSAGE)
 			|| lowerCaseMessage.contains(CONNECTION_RESET_MESSAGE)
 			|| lowerCaseMessage.contains(STREAM_CLOSED_MESSAGE);
+	}
+
+	private GeneralErrorCode resolveGeneralErrorCode(ResponseStatusException ex) {
+		if (ex.getStatusCode().isSameCodeAs(HttpStatus.BAD_REQUEST)) {
+			return GeneralErrorCode._BAD_REQUEST;
+		}
+		if (ex.getStatusCode().isSameCodeAs(HttpStatus.UNAUTHORIZED)) {
+			return GeneralErrorCode._UNAUTHORIZED;
+		}
+		if (ex.getStatusCode().isSameCodeAs(HttpStatus.FORBIDDEN)) {
+			return GeneralErrorCode._FORBIDDEN;
+		}
+		if (ex.getStatusCode().isSameCodeAs(HttpStatus.NOT_FOUND)) {
+			return GeneralErrorCode._NOT_FOUND;
+		}
+		if (ex.getStatusCode().isSameCodeAs(HttpStatus.METHOD_NOT_ALLOWED)) {
+			return GeneralErrorCode._METHOD_NOT_ALLOWED;
+		}
+		return GeneralErrorCode._INTERNAL_SERVER_ERROR;
 	}
 }
