@@ -1,6 +1,6 @@
 ---
-name: plan
-description: 구현 계획 수립. spec 작성 후 구현 전 단계
+name: make-plan
+description: 구현 계획 수립. spec 작성 후 구현 전 단계 (빌트인 /plan과 구분되는 커스텀 스킬)
 ---
 
 # Plan (구현 계획)
