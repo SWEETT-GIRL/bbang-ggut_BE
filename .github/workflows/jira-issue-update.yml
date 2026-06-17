@@ -41,7 +41,8 @@ jobs:
           elif [[ "$ILABELS_LOWER" == *"refactor"* ]]; then GH_LABEL="refactor"; TITLE_PREFIX="♻️ refactor: ";
           elif [[ "$ILABELS_LOWER" == *"documentation"* ]]; then GH_LABEL="documentation"; TITLE_PREFIX="📝 docs: ";
           elif [[ "$ILABELS_LOWER" == *"test"* ]]; then GH_LABEL="test"; TITLE_PREFIX="✅ test: ";
-          elif [[ "$ILABELS_LOWER" == *"ci/cd"* ]]; then GH_LABEL="ci/cd"; TITLE_PREFIX="💚 ci/cd: "; fi
+          elif [[ "$ILABELS_LOWER" == *"ci/cd"* ]]; then GH_LABEL="ci/cd"; TITLE_PREFIX="💚 ci/cd: ";
+          elif [[ "$ILABELS_LOWER" == *"improvement"* ]]; then GH_LABEL="enhancement"; TITLE_PREFIX="🔨 improve: "; fi
           echo "GH_LABEL=$GH_LABEL" >> $GITHUB_ENV
 
           TRIMMED_BODY=$(echo "$IBODY" \
