@@ -92,6 +92,21 @@ class StoreSearchQueryBuilderTest {
 	}
 
 	@Test
+	void build_addsRemainingTokenAsShouldEvenWithoutBreadToken() {
+		// "망원 브릭베" → region("망원") + remaining("브릭베"), breadToken 없음
+		// remaining이 should에 포함돼야 "브릭베이글" 가게명을 edge/ngram으로 잡을 수 있다
+		SearchIntent intent = intent("망원 브릭베", List.of("망원"), List.of(), List.of("브릭베"));
+
+		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
+
+		BoolQuery bool = boolQuery(request);
+		assertThat(bool.must()).isEmpty();
+		assertThat(bool.should()).hasSize(3); // regionQuery + remainingQuery("브릭베") + rawQuery
+		assertThat(bool.minimumShouldMatch()).isEqualTo("1");
+		assertThat(toJson(request)).contains("remainingMatchedMenus0");
+	}
+
+	@Test
 	void build_reflectsPopularityScoreWithFunctionScore() {
 		SearchIntent intent = intent("소금빵", List.of(), List.of("소금빵"));
 

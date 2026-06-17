@@ -49,6 +49,20 @@ class StoreSearchQueryParserTest {
 	}
 
 	@Test
+	void parse_doesNotTreatFruitWordAsRegionEvenWhenSuffixMatches() {
+		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
+		// "블루베리"는 "리"로 끝나지만 비지역 예외어 → 지역 아님, "타르트"는 빵
+		given(searchRegionAliasRepository.findByNormalizedAlias("블루베리")).willReturn(Optional.empty());
+		given(searchRegionAliasRepository.findByNormalizedAlias("타르트")).willReturn(Optional.empty());
+
+		SearchIntent result = parser.parse("블루베리 타르트");
+
+		assertThat(result.regionTokens()).isEmpty();
+		assertThat(result.breadTokens()).containsExactly("타르트");
+		assertThat(result.remainingTokens()).containsExactly("블루베리");
+	}
+
+	@Test
 	void parse_convertsBreadSynonymsToCanonicalToken() {
 		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
 		given(searchRegionAliasRepository.findByNormalizedAlias("크로와상")).willReturn(Optional.empty());
