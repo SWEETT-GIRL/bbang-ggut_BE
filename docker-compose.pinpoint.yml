@@ -28,7 +28,9 @@ services:
     container_name: pinpoint-hbase
     restart: always
     depends_on:
-      - pinpoint-zookeeper
+      - zoo1
+      - zoo2
+      - zoo3
     environment:
       AGENTINFO_TTL: ${PINPOINT_AGENTINFO_TTL:-31536000}
       AGENTSTATV2_TTL: ${PINPOINT_AGENTSTATV2_TTL:-5184000}
@@ -81,13 +83,13 @@ services:
     depends_on:
       - pinpoint-hbase
       - pinpoint-mysql
-      - pinpoint-zookeeper
+      - zoo1
       - pinpoint-redis
     ports:
       - "${PINPOINT_WEB_PORT:-18080}:8080"
     environment:
       SPRING_PROFILES_ACTIVE: ${PINPOINT_PROFILES_ACTIVE:-release}
-      PINPOINT_ZOOKEEPER_ADDRESS: pinpoint-zookeeper
+      PINPOINT_ZOOKEEPER_ADDRESS: zoo1
       CLUSTER_ENABLE: ${PINPOINT_CLUSTER_ENABLE:-true}
       ADMIN_PASSWORD: ${PINPOINT_ADMIN_PASSWORD:-admin}
       CONFIG_SENDUSAGE: ${PINPOINT_CONFIG_SENDUSAGE:-false}
@@ -118,11 +120,11 @@ services:
     restart: always
     depends_on:
       - pinpoint-hbase
-      - pinpoint-zookeeper
+      - zoo1
       - pinpoint-redis
     environment:
       SPRING_PROFILES_ACTIVE: ${PINPOINT_PROFILES_ACTIVE:-release}
-      PINPOINT_ZOOKEEPER_ADDRESS: pinpoint-zookeeper
+      PINPOINT_ZOOKEEPER_ADDRESS: zoo1
       CLUSTER_ENABLE: ${PINPOINT_CLUSTER_ENABLE:-true}
       LOGGING_LEVEL_ROOT: ${PINPOINT_COLLECTOR_LOGGING_LEVEL_ROOT:-INFO}
       FLINK_CLUSTER_ENABLE: ${PINPOINT_FLINK_CLUSTER_ENABLE:-false}
@@ -161,14 +163,32 @@ services:
     volumes:
       - pinpoint-agent-data:/pinpoint-agent
 
-  pinpoint-zookeeper:
+  zoo1:
     image: zookeeper:3.4.13
-    container_name: pinpoint-zookeeper
-    hostname: pinpoint-zookeeper
+    container_name: zoo1
+    hostname: zoo1
     restart: always
     environment:
       ZOO_MY_ID: 1
-      ZOO_SERVERS: server.1=0.0.0.0:2888:3888
+      ZOO_SERVERS: server.1=0.0.0.0:2888:3888 server.2=zoo2:2888:3888 server.3=zoo3:2888:3888
+
+  zoo2:
+    image: zookeeper:3.4.13
+    container_name: zoo2
+    hostname: zoo2
+    restart: always
+    environment:
+      ZOO_MY_ID: 2
+      ZOO_SERVERS: server.1=zoo1:2888:3888 server.2=0.0.0.0:2888:3888 server.3=zoo3:2888:3888
+
+  zoo3:
+    image: zookeeper:3.4.13
+    container_name: zoo3
+    hostname: zoo3
+    restart: always
+    environment:
+      ZOO_MY_ID: 3
+      ZOO_SERVERS: server.1=zoo1:2888:3888 server.2=zoo2:2888:3888 server.3=0.0.0.0:2888:3888
 
 volumes:
   pinpoint-agent-data:
