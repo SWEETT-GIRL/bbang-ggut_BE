@@ -26,6 +26,7 @@ public class StoreSearchQueryParser {
 	private static final String BREAD_TYPES_FILE = "bread-types.txt";
 	private static final String BREAD_SYNONYMS_FILE = "bread-synonyms.txt";
 	private static final String STOP_WORDS_FILE = "stop-words.txt";
+	private static final String NON_REGION_WORDS_FILE = "non-region-words.txt";
 	private static final int MIN_CONTAINED_BREAD_TOKEN_LENGTH = 2;
 	private static final Set<String> REGION_SUFFIXES = Set.of(
 		"시", "군", "구", "동", "읍", "면", "리", "로", "길");
@@ -35,6 +36,7 @@ public class StoreSearchQueryParser {
 	private Set<String> breadTypes;
 	private Map<String, String> breadSynonyms;
 	private Set<String> stopWords;
+	private Set<String> nonRegionWords;
 
 	// 기본: 가게명 우선 — 붙어쓴 토큰 속 빵 단어는 must 필터로 분해하지 않는다.
 	public SearchIntent parse(String rawQuery) {
@@ -91,8 +93,13 @@ public class StoreSearchQueryParser {
 		if (token.length() < 2) {
 			return false;
 		}
+		// DB alias 매칭은 최우선 — 실제 등록된 지역이면 빵/예외 여부와 무관하게 지역으로 인정
 		if (searchRegionAliasRepository.findByNormalizedAlias(normalize(token)).isPresent()) {
 			return true;
+		}
+		// 빵 단어("타르트")나 비지역 예외어("블루베리")는 접미사가 지역처럼 끝나도 지역으로 보지 않는다
+		if (toExactBreadCanonical(token) != null || getNonRegionWords().contains(token)) {
+			return false;
 		}
 		return REGION_SUFFIXES.stream().anyMatch(token::endsWith);
 	}
@@ -254,6 +261,26 @@ public class StoreSearchQueryParser {
 			// 파일 로드 실패 시 빈 셋으로 동작
 		}
 		return stopWords;
+	}
+
+	private Set<String> getNonRegionWords() {
+		if (nonRegionWords != null) {
+			return nonRegionWords;
+		}
+		nonRegionWords = new java.util.HashSet<>();
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+			new ClassPathResource(NON_REGION_WORDS_FILE).getInputStream(), StandardCharsets.UTF_8))) {
+			String line;
+			while ((line = reader.readLine()) != null) {
+				line = line.strip();
+				if (!line.isBlank() && !line.startsWith("#")) {
+					nonRegionWords.add(line);
+				}
+			}
+		} catch (IOException e) {
+			// 파일 로드 실패 시 빈 셋으로 동작
+		}
+		return nonRegionWords;
 	}
 
 	private String normalize(String token) {
