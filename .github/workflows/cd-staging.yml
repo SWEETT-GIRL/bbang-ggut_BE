@@ -126,7 +126,7 @@ jobs:
           host: ${{ secrets.STAGING_EC2_HOST }}
           username: ${{ secrets.STAGING_EC2_USER }}
           key: ${{ secrets.STAGING_EC2_KEY }}
-          source: docker-compose.yml
+          source: docker-compose.yml,docker-compose.pinpoint.yml
           target: ~/app
 
       - name: Deploy to Staging EC2
@@ -163,9 +163,16 @@ jobs:
             echo "LAMBDA_CALLBACK_SECRET_KEY=${{ secrets.LAMBDA_CALLBACK_SECRET_KEY }}" >> .env
             echo "PERF_DASHBOARD_ENABLED=true" >> .env
             echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env
+            echo "PINPOINT_VERSION=3.1.0" >> .env
+            echo "PINPOINT_GITHUB_REF=v3.1.0" >> .env
+            echo "PINPOINT_WEB_PORT=18080" >> .env
+            echo "PINPOINT_APP_NAME=bbang-ggut-be-staging" >> .env
+            echo "PINPOINT_AGENT_ID=bbang-staging" >> .env
+            echo "PINPOINT_PROFILES_ACTIVE=release" >> .env
+            echo "PINPOINT_SAMPLING_RATE=1" >> .env
 
-            docker compose pull
-            docker compose up -d
+            docker compose -f docker-compose.yml -f docker-compose.pinpoint.yml pull
+            docker compose -f docker-compose.yml -f docker-compose.pinpoint.yml up -d
             docker image prune -a -f
 
       - name: Get PR title
