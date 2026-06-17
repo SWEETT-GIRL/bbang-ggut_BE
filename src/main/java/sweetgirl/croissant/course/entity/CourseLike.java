@@ -23,7 +23,7 @@ import lombok.NoArgsConstructor;
 import sweetgirl.croissant.member.entity.Member;
 
 @Entity
-@Table(name = "course_like", uniqueConstraints = @UniqueConstraint(name = "uq_course_like", columnNames = {
+@Table(name = "course_likes", uniqueConstraints = @UniqueConstraint(name = "uq_course_like", columnNames = {
 	"member_id", "course_id"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

@@ -15,7 +15,7 @@ import sweetgirl.croissant.common.entity.ImageFile;
 import sweetgirl.croissant.common.enums.MimeType;
 
 @Entity
-@Table(name = "course_image_file")
+@Table(name = "course_image_files")
 @SQLRestriction("processing_status = 'DONE'")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
