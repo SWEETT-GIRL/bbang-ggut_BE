@@ -50,6 +50,10 @@ jobs:
             TYPE_SHORT="cicd"
             GH_LABEL="ci/cd"
             TITLE_PREFIX="💚 ci/cd: "
+          elif [[ "$ILABELS_LOWER" == *"improvement"* ]]; then
+            TYPE_SHORT="feat"
+            GH_LABEL="enhancement"
+            TITLE_PREFIX="🔨 improve: "
           fi
 
           CLEAN_SUMMARY=$(echo "$ISUMMARY" | tr ' ' '-' | tr -d '/:?*[\\^~@{}()!#%&<>|"'"'"'')
