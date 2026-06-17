@@ -70,7 +70,7 @@ by 빵순이  |  가게 5개
 | 항목 | 내용 |
 |------|------|
 | 제공 주체 | 운영팀 (관리자 등록) |
-| 구성 요소 | 코스 제목, 설명, 대표 이미지, 빵집 목록(순서 있음), 예상 소요시간 |
+| 구성 요소 | 코스 제목, 설명, 대표 이미지, 빵집 목록(순서 있음) |
 | 사용자 액션 | 코스 상세 보기 → **저장** → 저장한 코스 탭에 추가 |
 | 노출 위치 | 코스 탭 > 코스 탐색 서브탭 |
 
@@ -233,9 +233,7 @@ Course
   - id
   - type: CURATED | CUSTOM
   - title
-  - description (nullable)
-  - createdBy: memberId (CUSTOM일 때)
-  - estimatedMinutes (nullable, CURATED용)
+  - member: memberId (CUSTOM일 때, CURATED면 null)
   - isPublic: boolean
   - deletedAt (soft delete)
 
