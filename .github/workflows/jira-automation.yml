@@ -15,14 +15,15 @@ jobs:
 
       - name: Formulate Branch Name and Find Template
         id: setup
+        env:
+          IKEY: ${{ github.event.client_payload.jira_key }}
+          ITYPE: ${{ github.event.client_payload.kind }}
+          ILABELS: ${{ github.event.client_payload.jira_labels }}
+          ISUMMARY: ${{ github.event.client_payload.jira_title }}
+          IASSIGNEE_EMAIL: ${{ github.event.client_payload.jira_assignee_email }}
+          IJIRAURL: ${{ github.event.client_payload.jira_url }}
+          IDESCRIPTION: ${{ github.event.client_payload.jira_description }}
         run: |
-          IKEY="${{ github.event.client_payload.jira_key }}"
-          ITYPE="${{ github.event.client_payload.kind }}"
-          ILABELS="${{ github.event.client_payload.jira_labels }}"
-          ISUMMARY="${{ github.event.client_payload.jira_title }}"
-          IASSIGNEE_EMAIL="${{ github.event.client_payload.jira_assignee_email }}"
-          IJIRAURL="${{ github.event.client_payload.jira_url }}"
-
           ITYPE_LOWER=$(echo "$ITYPE" | tr '[:upper:]' '[:lower:]')
           ILABELS_LOWER=$(echo "$ILABELS" | tr '[:upper:]' '[:lower:]')
 
@@ -72,7 +73,6 @@ jobs:
           TITLE="${TITLE_PREFIX}${ISUMMARY}"
           echo "ISSUE_TITLE=$TITLE" >> $GITHUB_ENV
 
-          IDESCRIPTION=$(jq -r '.client_payload.jira_description // empty' "$GITHUB_EVENT_PATH")
           TRIMMED_DESC=$(echo "$IDESCRIPTION" \
             | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
             | sed 's/^h1\. /# /; s/^h2\. /## /; s/^h3\. /### /; s/^h4\. /#### /; s/^h5\. /##### /; s/^h6\. /###### /')
