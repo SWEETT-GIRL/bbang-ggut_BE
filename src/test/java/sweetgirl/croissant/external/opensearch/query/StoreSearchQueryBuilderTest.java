@@ -92,18 +92,31 @@ class StoreSearchQueryBuilderTest {
 	}
 
 	@Test
-	void build_addsRemainingTokenAsShouldEvenWithoutBreadToken() {
-		// "망원 브릭베" → region("망원") + remaining("브릭베"), breadToken 없음
-		// remaining이 should에 포함돼야 "브릭베이글" 가게명을 edge/ngram으로 잡을 수 있다
+	void build_usesRegionAsMustWhenRegionAndRemainingExist() {
+		// "망원 브릭베" → region("망원")은 must로 강제(그 지역으로 좁힘),
+		// remaining("브릭베")은 should로 "브릭베이글" 가게명을 edge/ngram 매칭
 		SearchIntent intent = intent("망원 브릭베", List.of("망원"), List.of(), List.of("브릭베"));
 
 		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
 
 		BoolQuery bool = boolQuery(request);
+		assertThat(bool.must()).hasSize(1); // region("망원")
+		assertThat(bool.should()).hasSize(2); // remainingQuery("브릭베") + rawQuery
+		assertThat(bool.minimumShouldMatch()).isNull();
+		assertThat(toJson(request)).contains("remainingMatchedMenus0", "searchRegions.name", "searchRegionAliases");
+	}
+
+	@Test
+	void build_usesRegionAsShouldWhenRegionOnly() {
+		// 지역 단독("한남") → 거리 감쇠로 주변까지 포함하도록 should 유지
+		SearchIntent intent = intent("한남", List.of("한남"), List.of());
+
+		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
+
+		BoolQuery bool = boolQuery(request);
 		assertThat(bool.must()).isEmpty();
-		assertThat(bool.should()).hasSize(3); // regionQuery + remainingQuery("브릭베") + rawQuery
+		assertThat(bool.should()).hasSize(2); // regionQuery("한남") + rawQuery
 		assertThat(bool.minimumShouldMatch()).isEqualTo("1");
-		assertThat(toJson(request)).contains("remainingMatchedMenus0");
 	}
 
 	@Test

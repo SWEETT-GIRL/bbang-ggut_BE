@@ -53,6 +53,10 @@ public class StoreSearchQueryBuilder {
 	 *   must: []
 	 *   should: [지역 매칭, 원문 매칭]  → minimum_should_match=1, 지역 근처 가게 노출
 	 *
+	 * [케이스 2-1] 지역 + 가게명/잔여 키워드 — "성수 초코소금빵", "망원 브릭베"
+	 *   must: [지역 매칭]           → 그 지역 가게로 강제로 좁힘
+	 *   should: [잔여/원문 매칭]     → 좁혀진 지역 안에서 "초코소금빵"·"브릭베" 매칭이 점수 보너스
+	 *
 	 * [케이스 3] 빵 키워드만 있을 때 — "에그타르트"
 	 *   must: [빵 매칭]             → 에그타르트 있는 가게만 결과에 포함
 	 *   should: [원문 매칭]         → 가게명/메뉴명 유사도로 점수 보정
@@ -70,14 +74,15 @@ public class StoreSearchQueryBuilder {
 		List<Query> should = new ArrayList<>();
 		boolean hasRegionTokens = !intent.regionTokens().isEmpty();
 		boolean hasBreadTokens = !intent.breadTokens().isEmpty();
+		boolean hasRemainingTokens = !intent.remainingTokens().isEmpty();
 
 		if (hasRegionTokens) {
 			Query regionMatch = boolShould(regionQueries(intent.regionTokens()));
-			if (hasBreadTokens) {
-				// 케이스 1: 지역 + 빵 → 지역도 must (둘 다 필수 조건)
+			if (hasBreadTokens || hasRemainingTokens) {
+				// 케이스 1, 2-1: 지역 + 다른 검색어(빵/가게명) → 지역을 must로 강제해 "그 지역의 ~"로 좁힘
 				must.add(regionMatch);
 			} else {
-				// 케이스 2: 지역만 → should (지역 매칭될수록 점수 높음)
+				// 케이스 2: 지역만 → should (거리 감쇠로 주변까지 포함)
 				should.add(regionMatch);
 			}
 		}
