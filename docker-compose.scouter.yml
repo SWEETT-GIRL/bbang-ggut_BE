@@ -1,0 +1,46 @@
+services:
+  app:
+    depends_on:
+      - scouter-agent
+    entrypoint:
+      - sh
+      - -c
+      - |
+        until [ -f /scouter/scouter.agent.jar ]; do
+          echo "Waiting for Scouter agent..."
+          sleep 1
+        done
+        exec java -jar app.jar
+    environment:
+      JAVA_TOOL_OPTIONS: >-
+        -Duser.timezone=Asia/Seoul
+        -javaagent:/scouter/scouter.agent.jar
+        -Dobj_name=${SCOUTER_OBJ_NAME:-bbang-staging}
+        -Dnet_collector_ip=${SCOUTER_COLLECTOR_IP:-172.31.24.193}
+        -Dnet_collector_udp_port=6100
+        -Dnet_collector_tcp_port=6100
+    volumes:
+      - scouter-agent-data:/scouter:ro
+
+  scouter-agent:
+    image: alpine:3.19
+    container_name: scouter-agent
+    restart: unless-stopped
+    entrypoint:
+      - sh
+      - -c
+      - |
+        if [ ! -f /scouter/scouter.agent.jar ]; then
+          apk add --no-cache curl tar
+          curl -fSL https://github.com/scouter-project/scouter/releases/download/v2.20.0/scouter.agent.tar.gz \
+            -o /tmp/scouter-agent.tar.gz
+          tar -xzf /tmp/scouter-agent.tar.gz -C /tmp/
+          cp /tmp/agent.java/scouter.agent.jar /scouter/
+          rm -rf /tmp/scouter-agent.tar.gz /tmp/agent.java
+        fi
+        exec tail -f /dev/null
+    volumes:
+      - scouter-agent-data:/scouter
+
+volumes:
+  scouter-agent-data:
