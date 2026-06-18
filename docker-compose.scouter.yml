@@ -32,11 +32,11 @@ services:
       - |
         if [ ! -f /scouter/scouter.agent.jar ]; then
           apk add --no-cache curl tar
-          curl -fSL https://github.com/scouter-project/scouter/releases/download/v2.20.0/scouter.agent.tar.gz \
+          curl -fSL https://github.com/scouter-project/scouter/releases/download/v2.21.3/scouter-all-2.21.3.tar.gz \
             -o /tmp/scouter-agent.tar.gz
           tar -xzf /tmp/scouter-agent.tar.gz -C /tmp/
-          cp /tmp/agent.java/scouter.agent.jar /scouter/
-          rm -rf /tmp/scouter-agent.tar.gz /tmp/agent.java
+          cp /tmp/scouter/agent.java/scouter.agent.jar /scouter/
+          rm -rf /tmp/scouter-agent.tar.gz /tmp/scouter
         fi
         exec tail -f /dev/null
     volumes:
