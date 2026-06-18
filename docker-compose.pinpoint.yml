@@ -22,6 +22,7 @@ services:
         -Dpinpoint.modules.uid.version=v3
     volumes:
       - pinpoint-agent-data:/pinpoint-agent:ro
+      - pinpoint-logs:/pinpoint-agent/logs
 
   pinpoint-hbase:
     image: pinpointdocker/pinpoint-hbase:${PINPOINT_VERSION:-3.1.0}
@@ -192,6 +193,7 @@ services:
 
 volumes:
   pinpoint-agent-data:
+  pinpoint-logs:
   pinpoint-hbase-data:
   pinpoint-hbase-zookeeper-data:
   pinpoint-mysql-data:
