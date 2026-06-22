@@ -23,6 +23,13 @@ import lombok.extern.slf4j.Slf4j;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 	private static final Pattern MEMBER_REVIEWS_PATH = Pattern.compile("^/users/\\d+/reviews$");
+	private static final List<Pattern> OPTIONAL_AUTH_GET_PATHS = List.of(
+		Pattern.compile("^/stores/\\d+$"),
+		Pattern.compile("^/stores/\\d+/menus$"),
+		Pattern.compile("^/menus/\\d+$"),
+		Pattern.compile("^/menus/\\d+/reviews$"),
+		Pattern.compile("^/menus/\\d+/reviews/summary$"),
+		MEMBER_REVIEWS_PATH);
 
 	private final JwtProvider jwtProvider;
 
@@ -45,6 +52,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 				log.warn("Profile reviews JWT authentication failed. path={}, reason=invalid_token",
 					request.getRequestURI());
 			}
+
+			if (isOptionalAuthGetRequest(request)) {
+				SecurityContextHolder.clearContext();
+				filterChain.doFilter(request, response);
+				return;
+			}
+
 			response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 			response.setContentType("application/json;charset=UTF-8");
 			response.getWriter().write("""
@@ -97,5 +111,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	private boolean isMemberReviewsRequest(HttpServletRequest request) {
 		return "GET".equals(request.getMethod())
 			&& MEMBER_REVIEWS_PATH.matcher(request.getRequestURI()).matches();
+	}
+
+	private boolean isOptionalAuthGetRequest(HttpServletRequest request) {
+		if (!"GET".equals(request.getMethod())) {
+			return false;
+		}
+
+		String path = request.getRequestURI();
+		return OPTIONAL_AUTH_GET_PATHS.stream().anyMatch(pattern -> pattern.matcher(path).matches());
 	}
 }
