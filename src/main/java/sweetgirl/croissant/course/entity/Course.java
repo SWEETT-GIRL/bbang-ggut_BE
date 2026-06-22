@@ -38,6 +38,12 @@ public class Course extends BaseTimeEntity {
 	@Column(nullable = false, length = 100)
 	private String title;
 
+	@Column(nullable = false)
+	private int likeCount;
+
+	@Column(length = 30)
+	private String badge;
+
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "member_id")
 	private Member member;
@@ -52,34 +58,59 @@ public class Course extends BaseTimeEntity {
 			CourseType type,
 			String title,
 			Member member,
-			boolean isPublic) {
+			boolean isPublic,
+			String badge) {
 		this.type = type;
 		this.title = title;
 		this.member = member;
 		this.isPublic = isPublic;
+		this.badge = badge;
+		this.likeCount = 0;
 	}
 
 	public static Course createCustom(
 			String title,
-			Member member) {
+			Member member,
+			boolean isPublic) {
 		return Course.builder()
 			.type(CourseType.CUSTOM)
 			.title(title)
 			.member(member)
-			.isPublic(false)
+			.isPublic(isPublic)
 			.build();
 	}
 
-	public static Course createCurated(String title) {
+	public static Course createCurated(
+			String title,
+			String badge) {
 		return Course.builder()
 			.type(CourseType.CURATED)
 			.title(title)
 			.isPublic(true)
+			.badge(badge)
 			.build();
 	}
 
 	public void updateTitle(String title) {
 		this.title = title;
+	}
+
+	public void updatePublic(boolean isPublic) {
+		this.isPublic = isPublic;
+	}
+
+	public void updateBadge(String badge) {
+		this.badge = badge;
+	}
+
+	public void increaseLikeCount() {
+		this.likeCount++;
+	}
+
+	public void decreaseLikeCount() {
+		if (this.likeCount > 0) {
+			this.likeCount--;
+		}
 	}
 
 	public void softDelete() {

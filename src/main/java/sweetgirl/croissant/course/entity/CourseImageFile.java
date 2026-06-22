@@ -2,6 +2,7 @@ package sweetgirl.croissant.course.entity;
 
 import org.hibernate.annotations.SQLRestriction;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
@@ -25,13 +26,22 @@ public class CourseImageFile extends ImageFile {
 	@JoinColumn(name = "course_id", nullable = false)
 	private Course course;
 
+	@Column(nullable = false)
+	private int displayOrder;
+
 	@Builder
 	public CourseImageFile(
 			Course course,
 			String name,
 			MimeType mimeType,
-			String awsKey) {
+			String awsKey,
+			int displayOrder) {
 		super(name, mimeType, awsKey);
 		this.course = course;
+		this.displayOrder = displayOrder;
+	}
+
+	public void updateDisplayOrder(int displayOrder) {
+		this.displayOrder = displayOrder;
 	}
 }
