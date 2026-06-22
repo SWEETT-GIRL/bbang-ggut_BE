@@ -14,11 +14,29 @@ import org.springframework.mock.web.MockHttpServletResponse;
 class JwtAuthenticationFilterTest {
 
 	@Test
-	void doFilterInternal_returns401JsonWhenBearerTokenIsInvalid() throws Exception {
+	void doFilterInternal_continuesAsAnonymousOnOptionalAuthGetRequestWhenBearerTokenIsInvalid() throws Exception {
 		JwtProvider jwtProvider = mock(JwtProvider.class);
 		given(jwtProvider.validateToken("invalid-token")).willReturn(false);
 		JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider);
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/users/1/reviews");
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain filterChain = mock(MockFilterChain.class);
+		request.addHeader("Authorization", "Bearer invalid-token");
+
+		filter.doFilterInternal(request, response, filterChain);
+
+		assertThat(response.getStatus()).isEqualTo(200);
+		assertThat(response.getHeader("Location")).isNull();
+		assertThat(response.getContentAsString()).isEmpty();
+		verify(filterChain).doFilter(request, response);
+	}
+
+	@Test
+	void doFilterInternal_returns401JsonOnProtectedRequestWhenBearerTokenIsInvalid() throws Exception {
+		JwtProvider jwtProvider = mock(JwtProvider.class);
+		given(jwtProvider.validateToken("invalid-token")).willReturn(false);
+		JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider);
+		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/users/me/reviews");
 		MockHttpServletResponse response = new MockHttpServletResponse();
 		MockFilterChain filterChain = mock(MockFilterChain.class);
 		request.addHeader("Authorization", "Bearer invalid-token");
