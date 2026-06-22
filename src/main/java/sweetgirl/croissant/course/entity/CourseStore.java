@@ -1,6 +1,7 @@
 package sweetgirl.croissant.course.entity;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -20,13 +21,13 @@ import sweetgirl.croissant.common.entity.BaseTimeEntity;
 import sweetgirl.croissant.store.entity.Store;
 
 @Entity
-@Table(name = "course_stops", uniqueConstraints = {
+@Table(name = "course_stores", uniqueConstraints = {
 	@UniqueConstraint(columnNames = {"course_id", "visit_order"}),
 	@UniqueConstraint(columnNames = {"course_id", "store_id"})
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class CourseStop extends BaseTimeEntity {
+public class CourseStore extends BaseTimeEntity {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -46,41 +47,48 @@ public class CourseStop extends BaseTimeEntity {
 	@Column(columnDefinition = "TEXT")
 	private String memo;
 
+	@Column(name = "visit_time")
+	private LocalTime visitTime;
+
 	private LocalDateTime deletedAt;
 
 	@Builder(access = AccessLevel.PRIVATE)
-	private CourseStop(
+	private CourseStore(
 			Course course,
 			Store store,
 			Integer visitOrder,
-			String memo) {
+			String memo,
+			LocalTime visitTime) {
 		this.course = course;
 		this.store = store;
 		this.visitOrder = visitOrder;
 		this.memo = memo;
+		this.visitTime = visitTime;
 	}
 
-	public static CourseStop create(
+	public static CourseStore create(
 			Course course,
 			Store store,
 			Integer visitOrder) {
-		return CourseStop.builder()
+		return CourseStore.builder()
 			.course(course)
 			.store(store)
 			.visitOrder(visitOrder)
 			.build();
 	}
 
-	public static CourseStop createWithMemo(
+	public static CourseStore createWithDetails(
 			Course course,
 			Store store,
 			Integer visitOrder,
-			String memo) {
-		return CourseStop.builder()
+			String memo,
+			LocalTime visitTime) {
+		return CourseStore.builder()
 			.course(course)
 			.store(store)
 			.visitOrder(visitOrder)
 			.memo(memo)
+			.visitTime(visitTime)
 			.build();
 	}
 
@@ -90,6 +98,10 @@ public class CourseStop extends BaseTimeEntity {
 
 	public void updateMemo(String memo) {
 		this.memo = memo;
+	}
+
+	public void updateVisitTime(LocalTime visitTime) {
+		this.visitTime = visitTime;
 	}
 
 	public void softDelete() {

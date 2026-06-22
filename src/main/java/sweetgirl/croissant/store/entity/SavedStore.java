@@ -17,12 +17,12 @@ import sweetgirl.croissant.common.entity.BaseTimeEntity;
 import sweetgirl.croissant.member.entity.Member;
 
 @Entity
-@Table(name = "wished_stores", uniqueConstraints = {
+@Table(name = "saved_stores", uniqueConstraints = {
 	@UniqueConstraint(columnNames = {"member_id", "store_id"})
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class WishedStore extends BaseTimeEntity {
+public class SavedStore extends BaseTimeEntity {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -37,17 +37,17 @@ public class WishedStore extends BaseTimeEntity {
 	private Store store;
 
 	@Builder(access = AccessLevel.PRIVATE)
-	private WishedStore(
+	private SavedStore(
 			Member member,
 			Store store) {
 		this.member = member;
 		this.store = store;
 	}
 
-	public static WishedStore create(
+	public static SavedStore create(
 			Member member,
 			Store store) {
-		return WishedStore.builder()
+		return SavedStore.builder()
 			.member(member)
 			.store(store)
 			.build();
