@@ -8,8 +8,6 @@ public record AdminImageResponse(
 		String mimeType,
 		int displayOrder,
 		LocalDateTime createdAt,
-		String resizedKey320,
-		String resizedKey640,
-		String resizedKey1024) {
+		String previewImageKey) {
 
 }

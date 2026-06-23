@@ -12,6 +12,7 @@ import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
 import sweetgirl.croissant.course.entity.Course;
+import sweetgirl.croissant.course.entity.CourseImageFile;
 import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.exception.CourseException;
@@ -70,23 +71,19 @@ public class CourseQueryService {
 			.map(CourseStoreResponse::from)
 			.toList();
 
-		String coverImageKey = courseImageFileRepository.findByCourseId(courseId)
-			.map(imageFile -> imageFile.getAwsKey())
-			.orElse(null);
+		CourseImageFile coverImage = courseImageFileRepository.findByCourseId(courseId).orElse(null);
 
 		boolean isSaved = memberId != null && savedCourseRepository.existsByMemberIdAndCourseId(memberId, courseId);
 		long savedCount = savedCourseRepository.countByCourseId(courseId);
 
-		return CourseDetailResponse.of(course, coverImageKey, isSaved, savedCount, courseStoreResponses);
+		return CourseDetailResponse.of(course, coverImage, isSaved, savedCount, courseStoreResponses);
 	}
 
 	private CourseSummaryResponse buildSummaryResponse(Course course) {
 		List<CourseStore> courseStores = courseStoreRepository
 			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(course.getId());
 
-		String coverImageKey = courseImageFileRepository.findByCourseId(course.getId())
-			.map(imageFile -> imageFile.getAwsKey())
-			.orElse(null);
+		CourseImageFile coverImage = courseImageFileRepository.findByCourseId(course.getId()).orElse(null);
 
 		List<String> regions = courseStores.stream()
 			.map(courseStore -> courseStore.getStore().getRegion2nd())
@@ -94,6 +91,6 @@ public class CourseQueryService {
 			.distinct()
 			.toList();
 
-		return CourseSummaryResponse.of(course, coverImageKey, courseStores.size(), regions);
+		return CourseSummaryResponse.of(course, coverImage, courseStores.size(), regions);
 	}
 }

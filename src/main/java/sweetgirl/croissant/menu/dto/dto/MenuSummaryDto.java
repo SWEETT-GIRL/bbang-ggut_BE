@@ -5,18 +5,18 @@ import sweetgirl.croissant.menu.dto.projection.StoreMenuProjection;
 public record MenuSummaryDto(
 		Long menuId,
 		String name,
-		String imageUrl,
+		String thumbnailImageKey,
 		boolean matched) {
 
-	public static MenuSummaryDto of(StoreMenuProjection projection, String imageUrl) {
-		return of(projection, imageUrl, false);
+	public static MenuSummaryDto of(StoreMenuProjection projection, String thumbnailImageKey) {
+		return of(projection, thumbnailImageKey, false);
 	}
 
 	/**
 	 * @param matched 검색어에 직접 매칭된 메뉴인지 여부(OpenSearch {@code matchedMenuIds} 기준).
 	 *                검색이 아닌 일반 조회에서는 {@code false}.
 	 */
-	public static MenuSummaryDto of(StoreMenuProjection projection, String imageUrl, boolean matched) {
-		return new MenuSummaryDto(projection.getMenuId(), projection.getName(), imageUrl, matched);
+	public static MenuSummaryDto of(StoreMenuProjection projection, String thumbnailImageKey, boolean matched) {
+		return new MenuSummaryDto(projection.getMenuId(), projection.getName(), thumbnailImageKey, matched);
 	}
 }

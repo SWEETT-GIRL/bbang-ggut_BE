@@ -84,8 +84,8 @@ public class StoreService {
 		Slice<SubscribedStoreResponse> responsSlice = slice.map(subscribedStore -> {
 			List<StoreImageFile> images = storeImageFileRepository
 				.findByStoreIdOrderByDisplayOrderAscIdAsc(subscribedStore.getStore().getId());
-			String imageUrl = images.isEmpty() ? null : images.get(0).getAwsKey();
-			return SubscribedStoreResponse.from(subscribedStore, imageUrl);
+			String thumbnailImageKey = images.isEmpty() ? null : images.get(0).getResizedKey320();
+			return SubscribedStoreResponse.from(subscribedStore, thumbnailImageKey);
 		});
 		return SliceResponse.from(responsSlice);
 	}
@@ -289,7 +289,7 @@ public class StoreService {
 		return storeImageFileRepository.findThumbnailsByStoreIdIn(storeIds).stream()
 			.collect(Collectors.toMap(
 				StoreImageThumbnailProjection::getStoreId,
-				StoreImageThumbnailProjection::getAwsKey,
+				StoreImageThumbnailProjection::getResizedKey320,
 				(first, second) -> first));
 	}
 
@@ -315,7 +315,7 @@ public class StoreService {
 		return menuImageFileRepository.findThumbnailsByMenuIdIn(menuIds).stream()
 			.collect(Collectors.toMap(
 				MenuImageThumbnailProjection::getMenuId,
-				MenuImageThumbnailProjection::getAwsKey,
+				MenuImageThumbnailProjection::getResizedKey320,
 				(first, second) -> first));
 	}
 }

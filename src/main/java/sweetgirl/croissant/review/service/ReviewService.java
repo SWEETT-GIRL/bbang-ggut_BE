@@ -364,7 +364,7 @@ public class ReviewService {
 			.collect(Collectors.groupingBy(
 				image -> image.getReview().getId(),
 				Collectors.mapping(
-					image -> new ReviewPhotoResponse(image.getId(), image.getAwsKey()),
+					image -> new ReviewPhotoResponse(image.getId(), image.getAwsKey(), image.getResizedKey640()),
 					Collectors.toList())));
 	}
 

@@ -4,4 +4,6 @@ public interface StoreImageThumbnailProjection {
 	Long getStoreId();
 
 	String getAwsKey();
+
+	String getResizedKey320();
 }

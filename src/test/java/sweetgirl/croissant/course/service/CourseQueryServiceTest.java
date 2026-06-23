@@ -144,7 +144,7 @@ class CourseQueryServiceTest {
 		assertThat(result.id()).isEqualTo(1L);
 		assertThat(result.isSaved()).isFalse();
 		assertThat(result.savedCount()).isEqualTo(5L);
-		assertThat(result.coverImageKey()).isEqualTo("courses/1/cover.jpg");
+		assertThat(result.imageKey()).isEqualTo("courses/1/cover.jpg");
 		assertThat(result.courseStores()).hasSize(1);
 		assertThat(result.regions()).containsExactly("종로구");
 	}
