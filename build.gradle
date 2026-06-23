@@ -67,6 +67,9 @@ dependencies {
     //AWS S3
     implementation 'software.amazon.awssdk:s3:2.42.41'
 
+    // AWS Bedrock
+    implementation 'software.amazon.awssdk:bedrockruntime:2.42.41'
+
     // AWS OpenSearch
     implementation 'org.opensearch.client:opensearch-java:3.8.0'
     implementation 'software.amazon.awssdk:apache-client:2.46.5'
