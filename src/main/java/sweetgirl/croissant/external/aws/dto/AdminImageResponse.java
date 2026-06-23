@@ -7,6 +7,9 @@ public record AdminImageResponse(
 		String awsKey,
 		String mimeType,
 		int displayOrder,
-		LocalDateTime createdAt) {
+		LocalDateTime createdAt,
+		String resizedKey320,
+		String resizedKey640,
+		String resizedKey1024) {
 
 }

@@ -44,7 +44,10 @@ public record StoreDetailResponse(
 					bh.isClosed()))
 				.toList(),
 			store.getPhone(),
-			images.stream().map(img -> new ImageResponse(img.getId(), img.getAwsKey())).toList(),
+			images.stream()
+				.map(img -> new ImageResponse(img.getId(), img.getAwsKey(),
+					img.getResizedKey320(), img.getResizedKey640(), img.getResizedKey1024()))
+				.toList(),
 			menuImages.stream().map(mi -> new MenuImageResponse(mi.getMenu().getId(), mi.getId(), mi.getAwsKey()))
 				.toList(),
 			isSubscribed,

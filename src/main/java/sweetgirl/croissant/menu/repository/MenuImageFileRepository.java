@@ -22,7 +22,9 @@ public interface MenuImageFileRepository extends JpaRepository<MenuImageFile, Lo
 	Optional<MenuImageFile> findByAwsKey(@Param("awsKey") String awsKey);
 
 	@Query("""
-			SELECT m.id AS imageId, m.menu.id AS menuId, m.awsKey AS awsKey
+			SELECT m.id AS imageId, m.menu.id AS menuId, m.awsKey AS awsKey,
+			m.resizedKey320 AS resizedKey320, m.resizedKey640 AS resizedKey640,
+			m.resizedKey1024 AS resizedKey1024
 			FROM MenuImageFile m WHERE m.menu.id IN :menuIds
 			ORDER BY m.displayOrder ASC, m.id ASC
 			""")
