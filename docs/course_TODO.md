@@ -353,6 +353,38 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
 
 ---
 
+## FE 작업 사항 (BE 완료 후 전달)
+
+### 지도 표시
+- 코스 편집·상세 화면에서 `courseStores`의 `latitude`, `longitude`로 가게 핀 렌더링
+- `visitOrder` 순서대로 핀 사이 polyline 연결
+- 가게 추가·제거·reorder 시 핀·선 실시간 업데이트
+
+### 도보 시간 계산 (FE 담당)
+BE는 `walkingMinutesToNext` 값을 저장만 함. FE가 계산해서 전송.
+
+- **가게 추가 시** (`POST /courses/{id}/stores`)  
+  직전 가게 → 새 가게 도보 시간 계산 → `walkingMinutesToNext` 포함해서 전송
+
+- **순서 변경 시** (`PATCH /courses/{id}/stores/reorder`)  
+  새 순서 확정 후 인접 가게 간 도보 시간 전부 재계산 → `CourseStoreOrderItem`마다 `walkingMinutesToNext` 포함해서 전송
+
+- **가게 제거 시** (`DELETE /courses/{id}/stores/{storeId}`)  
+  앞뒤 가게가 이어지면 도보 시간 재계산 필요 → `PATCH /courses/{id}/stores/reorder`로 후처리
+
+- 마지막 가게의 `walkingMinutesToNext`는 null
+
+### 커버 이미지 (FAB 탭)
+- 코스 생성 폼에서 이미지 선택(선택 사항)
+- `POST /courses` → courseId 반환 후, 이미지 있으면:
+  `POST /courses/{id}/images/presigned-url` → S3 업로드 → `POST /courses/{id}/images`
+
+### FORKED 코스 저장 버튼
+- 포크 후 편집 화면에서 원본 대비 변경 사항 없으면 저장 버튼 비활성화
+- BE도 동일 상태면 `400 COURSE_FORK_NOT_MODIFIED` 반환 (2차 안전망)
+
+---
+
 ## Phase 7 — 최종 점검
 
 ```bash
