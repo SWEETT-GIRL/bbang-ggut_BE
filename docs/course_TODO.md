@@ -96,7 +96,7 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
 
 | 메서드·경로 | 인증 | 주요 조건·동작 | 응답 `data` | 에러 |
 |------------|:----:|--------------|------------|------|
-| `GET /courses` | - | CURATED + deletedAt IS NULL | `List<CourseSummaryResponse>` | |
+| `GET /courses` | - | isPublic=true + deletedAt IS NULL | `List<CourseSummaryResponse>` | |
 | `GET /courses/my` | ✓ | 내 CUSTOM+FORKED, deletedAt IS NULL | `List<CourseSummaryResponse>` | |
 | `GET /courses/saved` | ✓ | 내가 찜한 코스, deletedAt IS NULL | `List<CourseSummaryResponse>` | |
 | `GET /courses/{courseId}` | 선택 | 비공개+타인 → 403, 삭제 → 404 | `CourseDetailResponse` | 403, 404 |

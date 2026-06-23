@@ -10,7 +10,7 @@ import sweetgirl.croissant.course.enums.CourseType;
 
 public interface CourseRepository extends JpaRepository<Course, Long> {
 
-	List<Course> findAllByTypeAndDeletedAtIsNull(CourseType type);
+	List<Course> findAllByIsPublicTrueAndDeletedAtIsNull();
 
 	List<Course> findAllByMemberIdAndTypeInAndDeletedAtIsNull(Long memberId, List<CourseType> types);
 
