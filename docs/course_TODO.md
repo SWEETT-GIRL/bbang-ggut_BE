@@ -140,29 +140,29 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
 
 ## Phase 1 — 기반 코드
 
-- [ ] Flyway: `course` 테이블에 `source_course_id` 컬럼 추가
+- [x] Flyway: `course` 테이블에 `source_course_id` 컬럼 추가
   - `source_course_id BIGINT NULL REFERENCES course(id)`
   - CUSTOM/CURATED는 NULL, FORKED만 값 있음
   - 커밋: `✨ feat: course 테이블에 source_course_id 컬럼 추가`
 
-- [ ] Flyway: `course_store` 테이블에 `walking_minutes_to_next` 컬럼 추가
+- [x] Flyway: `course_store` 테이블에 `walking_minutes_to_next` 컬럼 추가
   - `walking_minutes_to_next INTEGER NULL` — 다음 가게까지 도보 시간(분), FE가 계산해서 전송, 마지막 가게는 null
   - 커밋: `✨ feat: course_store 테이블에 walking_minutes_to_next 컬럼 추가`
 
-- [ ] `CourseErrorCode.java` + `CourseException.java`
+- [x] `CourseErrorCode.java` + `CourseException.java`
   - 커밋: `✨ feat: 코스 에러 코드 및 예외 추가`
   - 에러 코드: COURSE_NOT_FOUND, COURSE_STORE_NOT_FOUND, COURSE_IMAGE_NOT_FOUND, COURSE_FORBIDDEN, COURSE_STORE_ALREADY_EXISTS, COURSE_SAVED_ALREADY, COURSE_SAVED_NOT_FOUND, COURSE_FORK_NOT_CURATED, COURSE_FORK_NOT_MODIFIED
 
-- [ ] `CourseRepository.java`
+- [x] `CourseRepository.java`
   - 커밋: `✨ feat: Course 저장소 추가`
 
-- [ ] `CourseStoreRepository.java`
+- [x] `CourseStoreRepository.java`
   - 커밋: `✨ feat: CourseStore 저장소 추가`
 
-- [ ] `SavedCourseRepository.java`
+- [x] `SavedCourseRepository.java`
   - 커밋: `✨ feat: SavedCourse 저장소 추가`
 
-- [ ] `CourseImageFileRepository.java`
+- [x] `CourseImageFileRepository.java`
   - 커밋: `✨ feat: CourseImageFile 저장소 추가`
 
 ---
