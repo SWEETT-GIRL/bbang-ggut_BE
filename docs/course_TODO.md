@@ -401,15 +401,32 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
 
 ### 공통 사항
 
-- 모든 응답은 `{ success, code, message, data }` 형태
-- 인증(✓) 엔드포인트는 `Authorization: Bearer {accessToken}` 헤더 필수
-- 에러 응답: `success: false`, `code`로 종류 구분
+- 모든 응답 래퍼: `{ "success": true, "code": "SUCCESS", "message": "...", "data": ... }`
+- 인증 필요(✓) 엔드포인트: `Authorization: Bearer {accessToken}` 헤더 필수
+- 에러 시: `{ "success": false, "code": "...", "message": "..." }` — `code` 값으로 케이스 분기
+- `Content-Type: application/json` (body 있는 요청)
+
+#### 에러 코드 목록
+
+| code | HTTP | 의미 |
+|------|------|------|
+| `COURSE404_1` | 404 | 코스 없음(삭제됨 포함) |
+| `COURSE404_2` | 404 | 코스 가게 없음 |
+| `COURSE404_3` | 404 | 코스 이미지 없음 |
+| `COURSE404_4` | 404 | 찜한 코스 기록 없음 |
+| `COURSE403_1` | 403 | 코스 권한 없음 (타인 코스, CURATED 수정 시도) |
+| `COURSE400_1` | 400 | 이미 코스에 추가된 가게 |
+| `COURSE400_2` | 400 | 이미 찜한 코스 |
+| `COURSE400_3` | 400 | 비공개 코스는 포크 불가 |
+| `COURSE400_4` | 400 | FORKED 코스인데 원본과 동일 (저장 불가) |
+| `SAVED_STORE400_1` | 400 | 이미 찜한 가게 |
+| `SAVED_STORE404_1` | 404 | 찜한 가게 기록 없음 |
 
 ---
 
-### 코스 목록·상세 조회
+### 1. 코스 목록 조회
 
-#### `GET /courses` — 공개 코스(큐레이션) 목록
+#### `GET /courses` — 큐레이션 코스 목록 (홈 화면)
 - 인증: 불필요
 - Response `data`: `CourseSummaryResponse[]`
 
@@ -418,192 +435,220 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
   {
     "id": 1,
     "title": "망원동 소금빵 투어",
-    "coverImageKey": "courses/1/cover.jpg",  // null 가능
+    "coverImageKey": "courses/1/abc.jpg",  // null이면 기본 이미지
     "storeCount": 3,
-    "regions": ["마포구"],
-    "courseType": "CURATED",   // CURATED | CUSTOM | FORKED
-    "authorName": "어드민",     // null 가능
-    "badge": null              // 현재 미사용
+    "regions": ["마포구"],                  // courseStores의 region2nd 중복 제거
+    "courseType": "CURATED",              // "CURATED" | "CUSTOM" | "FORKED"
+    "authorName": "빵긋어드민",             // CURATED면 관리자명, 그 외 닉네임
+    "badge": null                         // 현재 항상 null
   }
 ]
 ```
 
 #### `GET /courses/my` — 내 코스 목록 (CUSTOM + FORKED)
 - 인증: ✓
-- Response: 위 `CourseSummaryResponse[]`와 동일
+- Response: 위 `CourseSummaryResponse[]`와 동일 구조
 
 #### `GET /courses/saved` — 내가 찜한 코스 목록
 - 인증: ✓
-- Response: 위 `CourseSummaryResponse[]`와 동일
+- Response: 위 `CourseSummaryResponse[]`와 동일 구조
+
+---
+
+### 2. 코스 상세 조회
 
 #### `GET /courses/{courseId}` — 코스 상세
-- 인증: 선택 (로그인 시 `isSaved` 정확히 반환)
-- Response `data`: `CourseDetailResponse`
+- 인증: 선택 (비로그인도 공개 코스 조회 가능, `isSaved`는 항상 `false`)
+- Response `data`:
 
 ```json
 {
   "id": 1,
   "title": "망원동 소금빵 투어",
-  "coverImageKey": "courses/1/cover.jpg",
+  "coverImageKey": "courses/1/abc.jpg",  // null 가능
   "storeCount": 3,
   "regions": ["마포구"],
   "courseType": "CURATED",
-  "authorName": "어드민",
+  "authorName": "빵긋어드민",
   "badge": null,
-  "isSaved": false,
-  "savedCount": 12,
+  "isSaved": false,      // 로그인 + 찜 시 true
+  "savedCount": 12,      // 전체 찜 수 (비로그인도 표시)
   "courseStores": [
     {
+      "courseStoreId": 55,          // ⚠️ reorder 호출 시 이 ID를 사용
       "visitOrder": 1,
       "storeId": 10,
       "storeName": "소금빵 본점",
       "latitude": 37.5547,
       "longitude": 126.9236,
       "region": "마포구",
-      "memo": "아침 일찍 가야 소금빵 있음",
-      "visitTime": "09:30:00",            // null 가능
-      "walkingMinutesToNext": 5           // null 가능 (마지막 가게는 null)
+      "memo": "아침에 가야 소금빵 있음",  // null 가능
+      "visitTime": "09:30:00",          // null 가능, HH:mm:ss
+      "walkingMinutesToNext": 5         // null 가능, 마지막 가게는 항상 null
     }
   ]
 }
 ```
 
-- 에러: `403 COURSE403_1` — 비공개 타인 코스 접근 / `404 COURSE404_1` — 삭제된 코스
+- 에러:
+  - `403 COURSE403_1`: 비공개 코스를 타인이 조회
+  - `404 COURSE404_1`: 코스 없음 또는 삭제됨
 
 ---
 
-### 코스 생성·수정·삭제
+### 3. 코스 생성·수정·삭제
 
 #### `POST /courses` — 코스 생성
 - 인증: ✓
-- Request Body:
 
 ```json
+// Request
 { "title": "나의 빵지순례", "isPublic": false }
+
+// Response data
+{ "courseId": 5 }
 ```
 
-- Response `data`: `{ "courseId": 5 }`
-- 생성 후 코스 편집 화면으로 이동 (courseId 사용)
+- 생성 직후 코스 편집 화면으로 이동, 이후 가게 추가 등은 모두 `courseId`로 호출
 
-#### `PATCH /courses/{courseId}` — 코스 수정
+#### `PATCH /courses/{courseId}` — 코스 제목·공개여부 수정
 - 인증: ✓
-- Request Body (모든 필드 optional):
+- 모든 필드 optional (바뀐 것만 보내도 됨)
 
 ```json
-{ "title": "새 제목", "isPublic": true }
+// Request (예: 제목만 변경)
+{ "title": "새 제목" }
+
+// Request (예: 공개로 변경)
+{ "isPublic": true }
+
+// Response data: null
 ```
 
-- Response `data`: null
 - 에러:
-  - `403 COURSE403_1` — 타인 코스 또는 CURATED 타입
-  - `400 COURSE400_4` — FORKED 코스인데 원본과 동일
+  - `403 COURSE403_1`: 타인 코스 또는 CURATED 코스 수정 시도
+  - `400 COURSE400_4`: FORKED 코스인데 원본과 완전히 동일한 상태
 
-#### `DELETE /courses/{courseId}` — 코스 삭제 (soft delete)
+#### `DELETE /courses/{courseId}` — 코스 삭제
 - 인증: ✓
 - Response `data`: null
-- 에러: `403 COURSE403_1` — 타인 코스
+- 에러: `403 COURSE403_1`
 
 ---
 
-### 코스 커버 이미지
+### 4. 코스 커버 이미지
 
-#### `POST /courses/{courseId}/images/presigned-url` — presigned URL 발급
-- 인증: ✓
-- Request Body:
+S3 직접 업로드 방식. 3단계로 진행.
 
-```json
-{ "mimeType": "image/jpeg" }
+```
+① POST /courses/{id}/images/presigned-url   →  uploadUrl, awsKey 받음
+② PUT {uploadUrl}  (S3 직접)               →  이미지 파일 업로드
+③ POST /courses/{id}/images                →  BE에 awsKey 등록
 ```
 
-- Response `data`:
+#### `POST /courses/{courseId}/images/presigned-url`
+- 인증: ✓
 
 ```json
+// Request
+{ "mimeType": "image/jpeg" }
+
+// Response data
 {
-  "fileName": "cover.jpg",
+  "fileName": "abc123.jpg",
   "contentType": "image/jpeg",
-  "uploadUrl": "https://s3.amazonaws.com/...",
-  "awsKey": "courses/5/xxxxxxxx.jpg"
+  "uploadUrl": "https://s3.amazonaws.com/bucket/courses/5/abc123.jpg?X-Amz-...",
+  "awsKey": "courses/5/abc123.jpg"
 }
 ```
 
-- 흐름: `uploadUrl`로 S3에 직접 PUT 업로드 → 완료 후 아래 등록 API 호출
-
-#### `POST /courses/{courseId}/images` — 이미지 등록
+#### `POST /courses/{courseId}/images`
 - 인증: ✓
-- Request Body:
 
 ```json
-{ "awsKey": "courses/5/xxxxxxxx.jpg", "mimeType": "image/jpeg", "name": "cover.jpg" }
+// Request
+{ "awsKey": "courses/5/abc123.jpg", "mimeType": "image/jpeg", "name": "abc123.jpg" }
+
+// Response data: null
 ```
 
-- Response `data`: null
-- 주의: 코스당 1개만 허용, 기존 이미지가 있으면 덮어씀
+- 코스당 1개. 이미 있으면 덮어씀 (기존 S3 파일 삭제 후 새 파일로 교체)
 
-#### `DELETE /courses/{courseId}/images` — 이미지 삭제
+#### `DELETE /courses/{courseId}/images`
 - 인증: ✓
 - Response `data`: null
-- 에러: `404 COURSE404_3` — 등록된 이미지 없음
+- 에러: `404 COURSE404_3` — 이미지가 원래 없을 때
 
 ---
 
-### 코스 가게 관리
+### 5. 코스 가게 관리
 
 #### `POST /courses/{courseId}/stores` — 가게 추가
 - 인증: ✓
-- Request Body:
 
 ```json
+// Request
 {
   "storeId": 10,
-  "memo": "아침 일찍 가야 함",        // null 가능
-  "visitTime": "09:30:00",           // null 가능 (HH:mm:ss)
-  "walkingMinutesToNext": 5          // null 가능, FE가 계산해서 전송
+  "memo": "아침에 가야 소금빵 있음",  // 생략 가능
+  "visitTime": "09:30:00",           // 생략 가능, HH:mm:ss
+  "walkingMinutesToNext": 5          // 생략 가능, FE가 계산해서 전송 (직전 가게→이 가게)
+}
+
+// Response data: CourseStoreResponse (위 2번 courseStores 항목과 동일 구조)
+{
+  "courseStoreId": 55,   // ← reorder에서 쓸 ID
+  "visitOrder": 3,
+  "storeId": 10,
+  ...
 }
 ```
 
-- Response `data`: `CourseStoreResponse` (위 상세 응답의 courseStores 항목과 동일)
-- 에러: `400 COURSE400_1` — 이미 추가된 가게
+- 에러: `400 COURSE400_1` — 이미 코스에 있는 가게
 
-#### `PATCH /courses/{courseId}/stores/{storeId}` — 가게 메모·방문시간 수정
+#### `PATCH /courses/{courseId}/stores/{storeId}` — 메모·방문시간 수정
 - 인증: ✓
-- Request Body (모든 필드 optional):
+- `{storeId}`: `CourseStoreResponse.storeId` (가게 ID)
 
 ```json
+// Request (모든 필드 optional)
 { "memo": "수정된 메모", "visitTime": "10:00:00" }
-```
 
-- Response `data`: null
+// Response data: null
+```
 
 #### `DELETE /courses/{courseId}/stores/{storeId}` — 가게 제거
 - 인증: ✓
+- `{storeId}`: `CourseStoreResponse.storeId` (가게 ID)
 - Response `data`: null
-- 제거 후 앞뒤 가게 도보 시간 재계산 필요 → `PATCH /courses/{courseId}/stores/reorder`로 후처리 권장
+- **제거 후 후처리 필요**: 남은 가게들의 도보 시간 재계산 → `PATCH .../stores/reorder` 호출
 
 #### `PATCH /courses/{courseId}/stores/reorder` — 순서 변경
 - 인증: ✓
-- Request Body: 새 순서 배열. 배열 인덱스 = visitOrder (1부터)
+- 배열 순서 = 새 visitOrder (첫 번째 항목이 visitOrder 1)
+- `courseStoreId`: **`CourseStoreResponse.courseStoreId`** 사용 (storeId 아님!)
 
 ```json
+// Request
 {
   "courseStoreOrders": [
-    { "courseStoreId": 3, "walkingMinutesToNext": 7 },
-    { "courseStoreId": 1, "walkingMinutesToNext": 5 },
-    { "courseStoreId": 2, "walkingMinutesToNext": null }  // 마지막 가게
+    { "courseStoreId": 55, "walkingMinutesToNext": 8 },
+    { "courseStoreId": 42, "walkingMinutesToNext": 5 },
+    { "courseStoreId": 61, "walkingMinutesToNext": null }  // 마지막 가게는 null
   ]
 }
-```
 
-- Response `data`: null
-- 주의: `courseStoreId`는 가게 ID가 아닌 CourseStore 레코드의 ID (`CourseStoreResponse.visitOrder` 기준으로 관리 필요)
+// Response data: null
+```
 
 ---
 
-### 코스 찜
+### 6. 코스 찜
 
 #### `POST /courses/{courseId}/save` — 찜 추가
 - 인증: ✓
 - Response `data`: null
-- 에러: `400 COURSE400_2` — 이미 찜한 코스
+- 에러: `400 COURSE400_2` — 이미 찜
 
 #### `DELETE /courses/{courseId}/save` — 찜 해제
 - 인증: ✓
@@ -612,24 +657,34 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
 
 ---
 
-### 코스 포크
+### 7. 코스 포크
 
 #### `POST /courses/{courseId}/fork` — 포크
 - 인증: ✓
-- Response `data`: `{ "courseId": 7 }` — 새로 생성된 코스 ID
-- 새 코스: `title = "copy of {원본제목}"`, `isPublic = false`, `type = FORKED`
-- CourseStore 전부 복사 (memo·visitTime·visitOrder 유지), 커버 이미지는 복사 안 함
-- 에러: `400 COURSE400_3` — 비공개 코스 포크 시도
+
+```json
+// Response data
+{ "courseId": 7 }   // 새로 만들어진 FORKED 코스 ID
+```
+
+- 새 코스 초기값:
+  - `title`: `"copy of {원본제목}"`
+  - `isPublic`: `false`
+  - `courseType`: `"FORKED"`
+  - `sourceCode courseId`: 원본 courseId (내부 저장, FE에 노출 안 됨)
+  - CourseStore: 원본 전부 복사 (visitOrder·memo·visitTime 유지)
+  - 커버 이미지: **복사 안 함** (포크 코스는 이미지 없는 상태로 시작)
+- 에러: `400 COURSE400_3` — 비공개 코스는 포크 불가
 
 ---
 
-### 찜한가게
+### 8. 찜한가게
 
-#### `GET /stores/saved` — 찜한가게 목록
+#### `GET /stores/saved` — 찜한가게 목록 (코스 편집 "가게 추가 → 찜한가게 탭")
 - 인증: ✓
-- Response `data`: `SavedStoreResponse[]`
 
 ```json
+// Response data
 [
   {
     "storeId": 10,
@@ -641,7 +696,7 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
 ]
 ```
 
-#### `POST /stores/{storeId}/save` — 가게 찜 추가
+#### `POST /stores/{storeId}/save` — 가게 찜 추가 (빵집 상세 찜하기 버튼)
 - 인증: ✓
 - Response `data`: null
 - 에러: `400 SAVED_STORE400_1` — 이미 찜한 가게
@@ -651,55 +706,72 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
 - Response `data`: null
 - 에러: `404 SAVED_STORE404_1` — 찜 기록 없음
 
-#### `GET /{storeId}` 빵집 상세 — `isSaved` 필드 추가
-- 기존 `StoreDetailResponse`에 `isSaved: boolean` 필드 추가됨
-- 비로그인 시 `false`, 로그인 시 찜 여부 반영
+#### 빵집 상세 `GET /stores/{storeId}` — `isSaved` 필드 신규 추가
+- 기존 응답에 `"isSaved": boolean` 필드 추가됨
+- 비로그인 시 `false`, 로그인 시 실제 찜 여부 반영
 
 ---
 
-### 지도 표시 (코스 편집·상세 화면)
+### 플로우별 상세
 
-- `courseStores`의 `latitude`, `longitude`로 가게 핀 렌더링
+#### 코스 생성 플로우 (FAB 탭)
+
+```
+① POST /courses  →  courseId
+② (이미지 선택한 경우)
+   POST /courses/{id}/images/presigned-url  →  uploadUrl, awsKey
+   PUT {uploadUrl} (S3)
+   POST /courses/{id}/images               (awsKey 등록)
+③ 코스 편집 화면 진입 (auto-save 시작)
+```
+
+#### 코스 편집 auto-save 순서
+
+```
+가게 추가          → POST   /courses/{id}/stores
+  └ 도보 시간 계산 후 walkingMinutesToNext 포함해서 전송
+가게 메모/시간 수정 → PATCH  /courses/{id}/stores/{storeId}
+가게 제거          → DELETE /courses/{id}/stores/{storeId}
+  └ 제거 후 PATCH .../stores/reorder 로 남은 가게 재정렬
+순서 변경(드롭)    → PATCH  /courses/{id}/stores/reorder
+  └ 새 순서 + 재계산한 walkingMinutesToNext 포함
+제목/공개여부 변경 → PATCH  /courses/{id}
+커버 이미지 교체   → presigned-url → S3 PUT → images 등록
+```
+
+#### 포크 후 편집 플로우
+
+```
+POST /courses/{id}/fork  →  새 courseId
+→ 코스 편집 화면 (FORKED 타입)
+→ 변경 없으면 저장 버튼 비활성화 (FE 1차 방어)
+   비교 기준: title("copy of " 제외), stores(storeId·visitOrder·memo·visitTime)
+→ PATCH /courses/{newCourseId}  →  400 COURSE400_4 이면 저장 버튼 비활성화 유지
+```
+
+---
+
+### 지도 렌더링
+
+- `courseStores`의 `latitude`, `longitude`로 핀 렌더링
 - `visitOrder` 오름차순으로 핀 사이 polyline 연결
-- 가게 추가·제거·reorder 시 핀·선 실시간 업데이트
-- 핀 탭 시 `storeName`, `region`, `memo`, `visitTime` 표시
+- 가게 추가: 서버 응답 `CourseStoreResponse` 받은 후 핀 추가
+- 가게 제거: 클라이언트에서 즉시 핀 제거, DELETE 호출
+- reorder: 드래그 완료 시 polyline 업데이트 + PATCH 호출
 
 ---
 
 ### 도보 시간 계산 (FE 담당)
 
-BE는 `walkingMinutesToNext` 값을 저장만 함. FE가 계산해서 전송.
+BE는 저장·반환만 함. 계산은 FE 책임.
 
-- **가게 추가** (`POST /courses/{id}/stores`):  
-  직전 마지막 가게 → 새 가게 도보 시간 계산 → `walkingMinutesToNext` 포함해서 전송
+| 액션 | 계산 대상 | API |
+|------|----------|-----|
+| 가게 추가 | 마지막 가게 → 새 가게 | `POST .../stores` (`walkingMinutesToNext`) |
+| 순서 변경 | 인접 가게 쌍 전부 재계산 | `PATCH .../stores/reorder` (각 항목의 `walkingMinutesToNext`) |
+| 가게 제거 | 앞뒤 가게 연결 재계산 | `PATCH .../stores/reorder` (남은 가게 전체) |
 
-- **순서 변경** (`PATCH /courses/{id}/stores/reorder`):  
-  드래그 완료 후 새 순서 확정 → 인접 가게 간 도보 시간 전부 재계산 → `CourseStoreOrderItem`마다 `walkingMinutesToNext` 포함해서 전송
-
-- **가게 제거** (`DELETE /courses/{id}/stores/{storeId}`):  
-  제거 완료 후 남은 가게의 순서·도보 시간 재계산 → `PATCH /courses/{id}/stores/reorder`로 후처리
-
-- 마지막 가게의 `walkingMinutesToNext`는 항상 null
-
----
-
-### 커버 이미지 (FAB 탭 코스 생성 플로우)
-
-1. `POST /courses` → `courseId` 반환
-2. 이미지 선택 시:  
-   `POST /courses/{id}/images/presigned-url` (mimeType 전달) → `uploadUrl`, `awsKey` 반환  
-   → `uploadUrl`로 S3 직접 PUT 업로드  
-   → `POST /courses/{id}/images` (awsKey, mimeType, name 전달)
-3. 이미지 변경 시 동일 흐름 반복 (덮어씀)
-4. 이미지 삭제: `DELETE /courses/{id}/images`
-
----
-
-### FORKED 코스 저장 버튼
-
-- 포크 직후 편집 화면: 원본 대비 변경 없으면 저장 버튼 비활성화 (FE 1차 방어)
-- 비교 기준: title (copy of 접두어 제외), stores (storeId·visitOrder·memo·visitTime)
-- BE도 동일 상태면 `400 COURSE400_4 COURSE_FORK_NOT_MODIFIED` 반환 (2차 안전망)
+- 마지막 가게의 `walkingMinutesToNext`는 항상 `null`
 
 ---
 
