@@ -29,12 +29,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
+import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.service.CourseCommandService;
 import sweetgirl.croissant.course.service.CourseQueryService;
 import sweetgirl.croissant.course.service.SavedCourseCommandService;
+import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 
 @ExtendWith(MockitoExtension.class)
@@ -184,7 +186,7 @@ class CourseControllerTest {
 	@Test
 	void getPresignedUrl_returns200() throws Exception {
 		given(courseCommandService.getPresignedUrl(isNull(), anyLong(), any()))
-			.willReturn(new sweetgirl.croissant.external.aws.dto.PresignedUrlResponse(
+			.willReturn(new PresignedUrlResponse(
 				"cover.jpg", "image/jpeg", "https://s3.example.com/upload", "courses/1/cover.jpg"));
 
 		mockMvc.perform(post("/courses/1/images/presigned-url")
@@ -223,5 +225,64 @@ class CourseControllerTest {
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.success").value(false))
 			.andExpect(jsonPath("$.code").value("COURSE404_3"));
+	}
+
+	@Test
+	void addStore_returns200() throws Exception {
+		CourseStoreResponse storeResponse = new CourseStoreResponse(
+			1, 10L, "소금빵집", 37.5, 126.9, "마포구", null, null, null);
+		given(courseCommandService.addStore(isNull(), anyLong(), any())).willReturn(storeResponse);
+
+		mockMvc.perform(post("/courses/1/stores")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"storeId\":10}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true))
+			.andExpect(jsonPath("$.data.storeId").value(10))
+			.andExpect(jsonPath("$.data.visitOrder").value(1));
+	}
+
+	@Test
+	void addStore_duplicate_returns400() throws Exception {
+		willThrow(new CourseException(CourseErrorCode.COURSE_STORE_ALREADY_EXISTS))
+			.given(courseCommandService).addStore(isNull(), anyLong(), any());
+
+		mockMvc.perform(post("/courses/1/stores")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"storeId\":10}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.code").value("COURSE400_1"));
+	}
+
+	@Test
+	void updateStore_returns200() throws Exception {
+		willDoNothing().given(courseCommandService).updateStore(isNull(), anyLong(), anyLong(), any());
+
+		mockMvc.perform(patch("/courses/1/stores/10")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"memo\":\"맛있어요\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
+	}
+
+	@Test
+	void removeStore_returns200() throws Exception {
+		willDoNothing().given(courseCommandService).removeStore(isNull(), anyLong(), anyLong());
+
+		mockMvc.perform(delete("/courses/1/stores/10"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
+	}
+
+	@Test
+	void reorderStores_returns200() throws Exception {
+		willDoNothing().given(courseCommandService).reorderStores(isNull(), anyLong(), any());
+
+		mockMvc.perform(patch("/courses/1/stores/reorder")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"courseStoreOrders\":[{\"courseStoreId\":1},{\"courseStoreId\":2}]}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
 	}
 }
