@@ -44,6 +44,7 @@ import sweetgirl.croissant.store.entity.StoreBusinessHour;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.entity.SubscribedStore;
 import sweetgirl.croissant.store.exception.StoreException;
+import sweetgirl.croissant.store.repository.SavedStoreRepository;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
@@ -58,6 +59,7 @@ public class StoreService {
 	private final StoreBusinessHourRepository storeBusinessHourRepository;
 	private final StoreImageFileRepository storeImageFileRepository;
 	private final SubscribedStoreRepository subscribedStoreRepository;
+	private final SavedStoreRepository savedStoreRepository;
 	private final StoreAsyncService storeAsyncService;
 	private final MemberReader memberReader;
 	private final MenuImageFileRepository menuImageFileRepository;
@@ -71,7 +73,9 @@ public class StoreService {
 		List<MenuImageFile> menuImages = menuImageFileRepository.findByMenuStoreIdOrderByDisplayOrderAscIdAsc(storeId);
 		boolean isSubscribed = memberId != null
 			&& subscribedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId);
-		return StoreDetailResponse.of(store, businessHours, images, menuImages, isSubscribed);
+		boolean isSaved = memberId != null
+			&& savedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId);
+		return StoreDetailResponse.of(store, businessHours, images, menuImages, isSubscribed, isSaved);
 	}
 
 	public SliceResponse<SubscribedStoreResponse> getSubscribedStores(Long memberId, Pageable pageable) {

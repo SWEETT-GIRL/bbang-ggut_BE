@@ -25,13 +25,16 @@ import org.springframework.data.domain.SliceImpl;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.store.dto.request.KakaoStoreRegisterRequest;
 import sweetgirl.croissant.store.dto.response.KakaoStoreRegisterResponse;
+import sweetgirl.croissant.store.dto.response.StoreDetailResponse;
 import sweetgirl.croissant.store.dto.response.SubscribedStoreResponse;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.entity.SubscribedStore;
 import sweetgirl.croissant.store.enums.StoreStatus;
+import sweetgirl.croissant.store.repository.SavedStoreRepository;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
@@ -47,10 +50,16 @@ class StoreServiceTest {
 	StoreBusinessHourRepository storeBusinessHourRepository;
 
 	@Mock
+	MenuImageFileRepository menuImageFileRepository;
+
+	@Mock
 	StoreImageFileRepository storeImageFileRepository;
 
 	@Mock
 	SubscribedStoreRepository subscribedStoreRepository;
+
+	@Mock
+	SavedStoreRepository savedStoreRepository;
 
 	@Mock
 	MemberReader memberReader;
@@ -177,5 +186,45 @@ class StoreServiceTest {
 			any(),
 			anyString(),
 			any());
+	}
+
+	// ───────────────────────── getStoreDetail isSaved ─────────────────────────
+
+	@Test
+	@DisplayName("getStoreDetail: 찜한 가게 조회 → isSaved=true")
+	void getStoreDetail_savedStore_returnsIsSavedTrue() {
+		Long memberId = 1L;
+		Long storeId = 10L;
+
+		Store store = mock(Store.class);
+		given(storeRepository.findById(storeId)).willReturn(Optional.of(store));
+		given(storeBusinessHourRepository.findByStoreIdOrderByDayOfWeekAsc(storeId)).willReturn(List.of());
+		given(storeImageFileRepository.findByStoreIdOrderByDisplayOrderAscIdAsc(storeId)).willReturn(List.of());
+		given(menuImageFileRepository.findByMenuStoreIdOrderByDisplayOrderAscIdAsc(storeId)).willReturn(List.of());
+		given(subscribedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId)).willReturn(false);
+		given(savedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId)).willReturn(true);
+
+		StoreDetailResponse result = storeService.getStoreDetail(memberId, storeId);
+
+		assertThat(result.isSaved()).isTrue();
+	}
+
+	@Test
+	@DisplayName("getStoreDetail: 찜 안 한 가게 조회 → isSaved=false")
+	void getStoreDetail_notSavedStore_returnsIsSavedFalse() {
+		Long memberId = 1L;
+		Long storeId = 10L;
+
+		Store store = mock(Store.class);
+		given(storeRepository.findById(storeId)).willReturn(Optional.of(store));
+		given(storeBusinessHourRepository.findByStoreIdOrderByDayOfWeekAsc(storeId)).willReturn(List.of());
+		given(storeImageFileRepository.findByStoreIdOrderByDisplayOrderAscIdAsc(storeId)).willReturn(List.of());
+		given(menuImageFileRepository.findByMenuStoreIdOrderByDisplayOrderAscIdAsc(storeId)).willReturn(List.of());
+		given(subscribedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId)).willReturn(false);
+		given(savedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId)).willReturn(false);
+
+		StoreDetailResponse result = storeService.getStoreDetail(memberId, storeId);
+
+		assertThat(result.isSaved()).isFalse();
 	}
 }
