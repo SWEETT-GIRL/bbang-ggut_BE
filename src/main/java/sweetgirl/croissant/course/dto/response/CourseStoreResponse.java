@@ -8,6 +8,7 @@ import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.store.entity.Store;
 
 public record CourseStoreResponse(
+		Long courseStoreId,
 		int visitOrder,
 		Long storeId,
 		String storeName,
@@ -22,6 +23,7 @@ public record CourseStoreResponse(
 		Store store = courseStore.getStore();
 		Point location = store.getLocation();
 		return new CourseStoreResponse(
+			courseStore.getId(),
 			courseStore.getVisitOrder(),
 			store.getId(),
 			store.getName(),
