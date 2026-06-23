@@ -198,19 +198,19 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
 
 ## Phase 3 — 코스 CRUD 서비스
 
-- [ ] 요청 DTO 추가
+- [x] 요청 DTO 추가
   - `CourseCreateRequest.java` — title, isPublic (가게는 생성 후 개별 추가)
   - `CourseUpdateRequest.java` — title?, isPublic?
   - `CourseImageRegisterRequest.java` — awsKey, mimeType, name
   - 커밋: `✨ feat: 코스 생성·수정 요청 DTO 추가`
 
-- [ ] `CourseCommandService.java` — 코스 생성·수정·삭제
+- [x] `CourseCommandService.java` — 코스 생성·수정·삭제
   - `createCourse(memberId, request)`
   - `updateCourse(memberId, courseId, request)` — 소유자 검증
   - `deleteCourse(memberId, courseId)` — soft delete, 소유자 검증
   - 커밋: `✨ feat: 코스 생성·수정·삭제 서비스 추가`
 
-- [ ] 코스 CRUD 테스트
+- [x] 코스 CRUD 테스트
   - 코스 생성 성공
   - 코스 수정 — 소유자 성공
   - 코스 수정 — 타인 → COURSE_FORBIDDEN
@@ -218,21 +218,21 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
   - 코스 삭제 — soft delete 확인
   - 커밋: `✅ test: 코스 생성·수정·삭제 서비스 테스트 추가`
 
-- [ ] 가게 관리 요청 DTO
+- [x] 가게 관리 요청 DTO
   - `CourseStoreAddRequest.java` — storeId, memo?(nullable), visitTime?(nullable), walkingMinutesToNext?(nullable)
   - `CourseStoreUpdateRequest.java` — memo?, visitTime?
   - `CourseStoreReorderRequest.java` — `List<CourseStoreOrderItem>` (courseStoreId, walkingMinutesToNext?)
     - 배열 순서 = 새 visitOrder, FE가 reorder 후 계산한 도보 시간 함께 전송
   - 커밋: `✨ feat: 코스 가게 요청 DTO 추가`
 
-- [ ] `CourseCommandService.java` — 가게 추가·수정·제거·순서변경 (위 클래스에 추가)
+- [x] `CourseCommandService.java` — 가게 추가·수정·제거·순서변경 (위 클래스에 추가)
   - `addStore(memberId, courseId, request)` — 중복 검증, visitOrder 현재 최대값+1 자동 부여, memo/visitTime/walkingMinutesToNext nullable
   - `updateStore(memberId, courseId, storeId, request)` — memo, visitTime 수정 (즉시 반영)
   - `removeStore(memberId, courseId, storeId)` — soft delete (즉시 반영)
   - `reorderStores(memberId, courseId, request)` — 드롭 완료 시 전체 순서 + 도보 시간 일괄 갱신 (BannerReorderRequest 패턴 참고)
   - 커밋: `✨ feat: 코스 가게 추가·수정·제거·순서변경 서비스 추가`
 
-- [ ] 가게 관리 테스트
+- [x] 가게 관리 테스트
   - 가게 추가 성공
   - 가게 추가 — 중복 → COURSE_STORE_ALREADY_EXISTS
   - 가게 수정 성공
@@ -240,23 +240,24 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
   - 순서 변경 성공
   - 커밋: `✅ test: 코스 가게 서비스 테스트 추가`
 
-- [ ] `CourseCommandService.java` — 이미지 업로드·삭제 (위 클래스에 추가)
+- [x] `CourseCommandService.java` — 이미지 업로드·삭제 (위 클래스에 추가)
   - `getPresignedUrl(memberId, courseId, mimeType)` — S3Service 활용
   - `registerImage(memberId, courseId, request)` — CourseImageFile 저장 (코스당 1개)
   - `deleteImage(memberId, courseId)` — CourseImageFile 삭제, 없으면 404
   - 커밋: `✨ feat: 코스 이미지 업로드·삭제 서비스 추가`
 
-- [ ] 이미지 테스트
+- [x] 이미지 테스트
   - presigned URL 발급 성공
   - 이미지 등록 성공
   - 이미지 삭제 성공
+  - 이미지 없는 경우 → COURSE_IMAGE_NOT_FOUND
   - 커밋: `✅ test: 코스 이미지 서비스 테스트 추가`
 
-- [ ] `CourseCommandService.java` — 포크 (위 클래스에 추가)
+- [x] `CourseCommandService.java` — 포크 (위 클래스에 추가)
   - `forkCourse(memberId, courseId)` — CURATED 검증, CourseStore 전부 복사, 이미지는 복사 안 함
   - 커밋: `✨ feat: 코스 포크 서비스 추가`
 
-- [ ] 포크 테스트
+- [x] 포크 테스트
   - CURATED → FORKED 포크 성공 (title = "copy of {원본제목}", member = 현재 사용자, isPublic = false)
   - CUSTOM/FORKED 포크 시도 → COURSE_FORK_NOT_CURATED
   - 커밋: `✅ test: 코스 포크 서비스 테스트 추가`
