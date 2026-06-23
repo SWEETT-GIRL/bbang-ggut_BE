@@ -39,4 +39,8 @@ public class S3PathGenerator {
 	public static String getBannerPath() {
 		return String.format("%s/%s", S3Folder.BANNERS.getValue(), UUID.randomUUID());
 	}
+
+	public static String getCoursePath(Long courseId) {
+		return String.format("%s/%d", S3Folder.COURSES.getValue(), courseId);
+	}
 }
