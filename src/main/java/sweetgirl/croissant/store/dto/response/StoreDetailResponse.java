@@ -27,7 +27,11 @@ public record StoreDetailResponse(
 			boolean isClosed) {
 	}
 
-	public record MenuImageResponse(Long menuId, Long id, String awsKey) {
+	public record MenuImageResponse(
+			Long menuId,
+			Long id,
+			String awsKey,
+			String previewImageKey) {
 	}
 
 	public static StoreDetailResponse of(Store store, List<StoreBusinessHour> businessHours,
@@ -45,10 +49,11 @@ public record StoreDetailResponse(
 				.toList(),
 			store.getPhone(),
 			images.stream()
-				.map(img -> new ImageResponse(img.getId(), img.getAwsKey(),
-					img.getResizedKey320(), img.getResizedKey640(), img.getResizedKey1024()))
+				.map(img -> new ImageResponse(img.getId(), img.getAwsKey(), img.getResizedKey640()))
 				.toList(),
-			menuImages.stream().map(mi -> new MenuImageResponse(mi.getMenu().getId(), mi.getId(), mi.getAwsKey()))
+			menuImages.stream()
+				.map(mi -> new MenuImageResponse(mi.getMenu().getId(), mi.getId(), mi.getAwsKey(),
+					mi.getResizedKey640()))
 				.toList(),
 			isSubscribed,
 			isSaved);

@@ -66,7 +66,7 @@ class CourseControllerTest {
 	@Test
 	void getCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
-			1L, "소금빵 투어", null, 2, List.of("마포구"), CourseType.CURATED, "어드민", null);
+			1L, "소금빵 투어", null, null, 2, List.of("마포구"), CourseType.CURATED, "어드민", null);
 		given(courseQueryService.getCurationCourses()).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses"))
@@ -80,7 +80,7 @@ class CourseControllerTest {
 	@Test
 	void getMyCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
-			2L, "나의 코스", null, 1, List.of("서대문구"), CourseType.CUSTOM, "user1", null);
+			2L, "나의 코스", null, null, 1, List.of("서대문구"), CourseType.CUSTOM, "user1", null);
 		given(courseQueryService.getMyCourses(isNull())).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses/my"))
@@ -93,7 +93,7 @@ class CourseControllerTest {
 	@Test
 	void getSavedCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
-			3L, "찜한 코스", null, 3, List.of("강남구"), CourseType.CURATED, "어드민", null);
+			3L, "찜한 코스", null, null, 3, List.of("강남구"), CourseType.CURATED, "어드민", null);
 		given(courseQueryService.getSavedCourses(isNull())).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses/saved"))
@@ -105,7 +105,7 @@ class CourseControllerTest {
 	@Test
 	void getCourseDetail_returns200() throws Exception {
 		CourseDetailResponse response = new CourseDetailResponse(
-			1L, "소금빵 투어", null, 2, List.of("마포구"), CourseType.CURATED, "어드민", null, false, 5L, List.of());
+			1L, "소금빵 투어", null, null, 2, List.of("마포구"), CourseType.CURATED, "어드민", null, false, 5L, List.of());
 		given(courseQueryService.getCourseDetail(anyLong(), isNull())).willReturn(response);
 
 		mockMvc.perform(get("/courses/1"))

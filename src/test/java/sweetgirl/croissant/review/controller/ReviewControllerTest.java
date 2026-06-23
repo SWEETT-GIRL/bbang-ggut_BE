@@ -297,7 +297,8 @@ class ReviewControllerTest {
 			false,
 			false,
 			new ReviewAuthorResponse(10L, "단팥", 3L, BigDecimal.valueOf(4.0), null, null),
-			List.of(new ReviewPhotoResponse(100L, "reviews/members/10/images/a")),
+			List.of(new ReviewPhotoResponse(100L, "reviews/members/10/images/a",
+				"resized/640/reviews/members/10/images/a")),
 			LocalDateTime.of(2026, 6, 4, 10, 0));
 	}
 
@@ -320,7 +321,8 @@ class ReviewControllerTest {
 			true,
 			true,
 			new ReviewAuthorResponse(10L, "단팥", 3L, BigDecimal.valueOf(4.0), null, null),
-			List.of(new ReviewPhotoResponse(100L, "reviews/members/10/images/a")),
+			List.of(new ReviewPhotoResponse(100L, "reviews/members/10/images/a",
+				"resized/640/reviews/members/10/images/a")),
 			LocalDateTime.of(2026, 6, 4, 10, 0),
 			null);
 	}

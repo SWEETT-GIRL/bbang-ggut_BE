@@ -289,7 +289,7 @@ public class StoreService {
 		return storeImageFileRepository.findThumbnailsByStoreIdIn(storeIds).stream()
 			.collect(Collectors.toMap(
 				StoreImageThumbnailProjection::getStoreId,
-				StoreImageThumbnailProjection::getAwsKey,
+				StoreImageThumbnailProjection::getResizedKey320,
 				(first, second) -> first));
 	}
 
@@ -315,7 +315,7 @@ public class StoreService {
 		return menuImageFileRepository.findThumbnailsByMenuIdIn(menuIds).stream()
 			.collect(Collectors.toMap(
 				MenuImageThumbnailProjection::getMenuId,
-				MenuImageThumbnailProjection::getAwsKey,
+				MenuImageThumbnailProjection::getResizedKey320,
 				(first, second) -> first));
 	}
 }

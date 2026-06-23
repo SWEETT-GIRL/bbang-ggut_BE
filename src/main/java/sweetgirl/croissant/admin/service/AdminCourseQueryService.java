@@ -11,6 +11,7 @@ import sweetgirl.croissant.course.dto.response.AdminCourseDetailResponse;
 import sweetgirl.croissant.course.dto.response.AdminCourseResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.entity.Course;
+import sweetgirl.croissant.course.entity.CourseImageFile;
 import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.exception.CourseException;
@@ -45,21 +46,17 @@ public class AdminCourseQueryService {
 			.map(CourseStoreResponse::from)
 			.toList();
 
-		String coverImageKey = courseImageFileRepository.findByCourseId(courseId)
-			.map(imageFile -> imageFile.getAwsKey())
-			.orElse(null);
+		CourseImageFile coverImage = courseImageFileRepository.findByCourseId(courseId).orElse(null);
 		long savedCount = savedCourseRepository.countByCourseId(courseId);
 
-		return AdminCourseDetailResponse.of(course, coverImageKey, savedCount, courseStoreResponses);
+		return AdminCourseDetailResponse.of(course, coverImage, savedCount, courseStoreResponses);
 	}
 
 	private AdminCourseResponse buildAdminCourseResponse(Course course) {
 		int storeCount = courseStoreRepository
 			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(course.getId()).size();
-		String coverImageKey = courseImageFileRepository.findByCourseId(course.getId())
-			.map(imageFile -> imageFile.getAwsKey())
-			.orElse(null);
+		CourseImageFile coverImage = courseImageFileRepository.findByCourseId(course.getId()).orElse(null);
 		long savedCount = savedCourseRepository.countByCourseId(course.getId());
-		return AdminCourseResponse.of(course, coverImageKey, storeCount, savedCount);
+		return AdminCourseResponse.of(course, coverImage, storeCount, savedCount);
 	}
 }

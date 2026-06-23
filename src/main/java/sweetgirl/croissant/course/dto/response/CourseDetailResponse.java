@@ -3,12 +3,14 @@ package sweetgirl.croissant.course.dto.response;
 import java.util.List;
 
 import sweetgirl.croissant.course.entity.Course;
+import sweetgirl.croissant.course.entity.CourseImageFile;
 import sweetgirl.croissant.course.enums.CourseType;
 
 public record CourseDetailResponse(
 		Long id,
 		String title,
-		String coverImageKey,
+		String imageKey,
+		String previewImageKey,
 		int storeCount,
 		List<String> regions,
 		CourseType courseType,
@@ -20,7 +22,7 @@ public record CourseDetailResponse(
 
 	public static CourseDetailResponse of(
 			Course course,
-			String coverImageKey,
+			CourseImageFile coverImage,
 			boolean isSaved,
 			long savedCount,
 			List<CourseStoreResponse> courseStores) {
@@ -33,7 +35,8 @@ public record CourseDetailResponse(
 		return new CourseDetailResponse(
 			course.getId(),
 			course.getTitle(),
-			coverImageKey,
+			coverImage != null ? coverImage.getAwsKey() : null,
+			coverImage != null ? coverImage.getResizedKey640() : null,
 			courseStores.size(),
 			regions,
 			course.getType(),
