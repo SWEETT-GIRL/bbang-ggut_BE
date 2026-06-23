@@ -169,7 +169,7 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
 
 ## Phase 2 — 조회 서비스
 
-- [ ] 응답 DTO 추가
+- [x] 응답 DTO 추가
   - `CourseSummaryResponse.java` — id, title, coverImageKey, storeCount, regions, courseType, authorName, badge(nullable, TBD)
   - `CourseStoreResponse.java` — visitOrder, storeId, storeName, latitude, longitude, region, memo(nullable), visitTime(nullable), walkingMinutesToNext(nullable)
     - `region` = `Store.region2nd` (구 단위)
@@ -177,14 +177,14 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
   - `CourseDetailResponse.java` — 위 + courseStores(List<CourseStoreResponse>), isSaved, savedCount, authorName, courseType, badge(nullable, TBD)
   - 커밋: `✨ feat: 코스 조회 응답 DTO 추가`
 
-- [ ] `CourseQueryService.java`
+- [x] `CourseQueryService.java`
   - `getCurationCourses()` — 큐레이션 코스 목록
   - `getMyCourses(memberId)` — 내 커스텀 코스 목록
   - `getSavedCourses(memberId)` — 내가 찜한 코스 목록
   - `getCourseDetail(courseId, memberId?)` — 공개/비공개 접근 제어, isSaved + savedCount 포함
   - 커밋: `✨ feat: 코스 조회 서비스 추가`
 
-- [ ] `CourseQueryServiceTest.java`
+- [x] `CourseQueryServiceTest.java`
   - 큐레이션 코스 목록 조회 성공
   - 내 코스 목록 조회 성공 (CUSTOM + FORKED 포함)
   - 내가 찜한 코스 목록 조회 성공
