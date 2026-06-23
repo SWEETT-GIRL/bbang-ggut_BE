@@ -285,4 +285,65 @@ class CourseControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true));
 	}
+
+	@Test
+	void saveCourse_returns200() throws Exception {
+		willDoNothing().given(savedCourseCommandService).saveCourse(isNull(), anyLong());
+
+		mockMvc.perform(post("/courses/1/save"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
+	}
+
+	@Test
+	void saveCourse_duplicate_returns400() throws Exception {
+		willThrow(new CourseException(CourseErrorCode.COURSE_SAVED_ALREADY))
+			.given(savedCourseCommandService).saveCourse(isNull(), anyLong());
+
+		mockMvc.perform(post("/courses/1/save"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.code").value("COURSE400_2"));
+	}
+
+	@Test
+	void unsaveCourse_returns200() throws Exception {
+		willDoNothing().given(savedCourseCommandService).unsaveCourse(isNull(), anyLong());
+
+		mockMvc.perform(delete("/courses/1/save"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
+	}
+
+	@Test
+	void unsaveCourse_notFound_returns404() throws Exception {
+		willThrow(new CourseException(CourseErrorCode.COURSE_SAVED_NOT_FOUND))
+			.given(savedCourseCommandService).unsaveCourse(isNull(), anyLong());
+
+		mockMvc.perform(delete("/courses/1/save"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.code").value("COURSE404_4"));
+	}
+
+	@Test
+	void forkCourse_returns201() throws Exception {
+		given(courseCommandService.forkCourse(isNull(), anyLong())).willReturn(20L);
+
+		mockMvc.perform(post("/courses/1/fork"))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.success").value(true))
+			.andExpect(jsonPath("$.data.courseId").value(20));
+	}
+
+	@Test
+	void forkCourse_notPublic_returns400() throws Exception {
+		willThrow(new CourseException(CourseErrorCode.COURSE_FORK_NOT_PUBLIC))
+			.given(courseCommandService).forkCourse(isNull(), anyLong());
+
+		mockMvc.perform(post("/courses/1/fork"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.code").value("COURSE400_3"));
+	}
 }
