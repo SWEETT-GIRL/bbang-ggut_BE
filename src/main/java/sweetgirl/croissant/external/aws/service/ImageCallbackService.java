@@ -9,6 +9,7 @@ import sweetgirl.croissant.common.entity.ImageFile;
 import sweetgirl.croissant.common.enums.ImageStatus;
 import sweetgirl.croissant.contribution.repository.MenuContributionReportImageFileRepository;
 import sweetgirl.croissant.contribution.repository.StoreContributionReportImageFileRepository;
+import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.external.aws.dto.ImageStatusUpdateRequest;
 import sweetgirl.croissant.external.aws.enums.S3Folder;
 import sweetgirl.croissant.external.aws.exception.S3ErrorCode;
@@ -27,6 +28,7 @@ public class ImageCallbackService {
 	private final StoreContributionReportImageFileRepository storeContributionReportImageFileRepository;
 	private final MenuContributionReportImageFileRepository menuContributionReportImageFileRepository;
 	private final ReviewImageFileRepository reviewImageFileRepository;
+	private final CourseImageFileRepository courseImageFileRepository;
 
 	@Transactional
 	public void updateImageStatus(ImageStatusUpdateRequest request) {
@@ -40,6 +42,7 @@ public class ImageCallbackService {
 		ImageFile image = findByAwsKey(awsKey);
 		if (status == ImageStatus.DONE) {
 			image.markDone();
+			image.updateResizedKeys(awsKey);
 		} else {
 			log.warn("이미지 lambda 처리 실패 [awsKey: {}] 사유: {}", request.getAwsKey(), request.getFailReason());
 			image.markFailed();
@@ -65,6 +68,14 @@ public class ImageCallbackService {
 		}
 		if (awsKey.startsWith(S3Folder.REVIEWS.prefix())) {
 			return reviewImageFileRepository.findByAwsKey(awsKey)
+				.orElseThrow(() -> new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND));
+		}
+		if (awsKey.startsWith(S3Folder.COURSES.prefix())) {
+			return courseImageFileRepository.findByAwsKey(awsKey)
+				.orElseThrow(() -> new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND));
+		}
+		if (awsKey.startsWith(S3Folder.MENU_ADD_REPORTS.prefix())) {
+			return menuContributionReportImageFileRepository.findByAwsKey(awsKey)
 				.orElseThrow(() -> new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND));
 		}
 		throw new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND);
