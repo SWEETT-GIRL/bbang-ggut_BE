@@ -163,10 +163,10 @@
 ./gradlew test --tests "sweetgirl.croissant.admin.*Course*"
 ```
 
-- [ ] 새로 만든 모든 Service에 테스트 파일이 있는가?
-- [ ] 새로 만든 모든 Controller에 테스트 파일이 있는가?
-- [ ] 추가한 모든 public 메서드에 테스트 케이스가 있는가?
-- [ ] 예외 케이스(Exception)에 대한 테스트가 있는가?
-- [ ] `spotlessApply` 통과하는가?
-- [ ] `build` (checkstyle 포함) 통과하는가?
+- [x] 새로 만든 모든 Service에 테스트 파일이 있는가? (AdminCourseQueryServiceTest 4개, AdminCourseCommandServiceTest 20개)
+- [x] 새로 만든 모든 Controller에 테스트 파일이 있는가? (AdminCourseControllerTest 16개)
+- [x] 추가한 모든 public 메서드에 테스트 케이스가 있는가?
+- [x] 예외 케이스(Exception)에 대한 테스트가 있는가?
+- [x] `spotlessApply` 통과하는가?
+- [x] `build` (checkstyle 포함) 통과하는가?
 - 커밋: `📝 docs: 어드민 코스 TODO 최종 완료 갱신`
