@@ -50,6 +50,9 @@ public class CourseStore extends BaseTimeEntity {
 	@Column(name = "visit_time")
 	private LocalTime visitTime;
 
+	@Column(name = "walking_minutes_to_next")
+	private Integer walkingMinutesToNext;
+
 	private LocalDateTime deletedAt;
 
 	@Builder(access = AccessLevel.PRIVATE)
@@ -58,12 +61,14 @@ public class CourseStore extends BaseTimeEntity {
 			Store store,
 			Integer visitOrder,
 			String memo,
-			LocalTime visitTime) {
+			LocalTime visitTime,
+			Integer walkingMinutesToNext) {
 		this.course = course;
 		this.store = store;
 		this.visitOrder = visitOrder;
 		this.memo = memo;
 		this.visitTime = visitTime;
+		this.walkingMinutesToNext = walkingMinutesToNext;
 	}
 
 	public static CourseStore create(
@@ -82,13 +87,15 @@ public class CourseStore extends BaseTimeEntity {
 			Store store,
 			Integer visitOrder,
 			String memo,
-			LocalTime visitTime) {
+			LocalTime visitTime,
+			Integer walkingMinutesToNext) {
 		return CourseStore.builder()
 			.course(course)
 			.store(store)
 			.visitOrder(visitOrder)
 			.memo(memo)
 			.visitTime(visitTime)
+			.walkingMinutesToNext(walkingMinutesToNext)
 			.build();
 	}
 
@@ -102,6 +109,10 @@ public class CourseStore extends BaseTimeEntity {
 
 	public void updateVisitTime(LocalTime visitTime) {
 		this.visitTime = visitTime;
+	}
+
+	public void updateWalkingMinutesToNext(Integer walkingMinutesToNext) {
+		this.walkingMinutesToNext = walkingMinutesToNext;
 	}
 
 	public void softDelete() {
