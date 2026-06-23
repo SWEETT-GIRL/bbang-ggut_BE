@@ -283,53 +283,53 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
 
 ## Phase 5 — 컨트롤러
 
-- [ ] `CourseController.java` — 조회 엔드포인트
+- [x] `CourseController.java` — 조회 엔드포인트
   - `GET /courses`, `GET /courses/my`, `GET /courses/saved`, `GET /courses/{courseId}`
   - 커밋: `✨ feat: 코스 조회 컨트롤러 추가`
 
-- [ ] `CourseControllerTest.java` — 조회
+- [x] `CourseControllerTest.java` — 조회
   - `GET /courses` 200
   - `GET /courses/my` 200
   - `GET /courses/saved` 200
   - `GET /courses/{courseId}` 200 / 403 / 404
   - 커밋: `✅ test: 코스 조회 컨트롤러 테스트 추가`
 
-- [ ] `CourseController.java` — 코스 생성·수정·삭제 (위 클래스에 추가)
+- [x] `CourseController.java` — 코스 생성·수정·삭제 (위 클래스에 추가)
   - `POST /courses`, `PATCH /courses/{courseId}`, `DELETE /courses/{courseId}`
   - 커밋: `✨ feat: 코스 생성·수정·삭제 컨트롤러 추가`
 
-- [ ] `CourseControllerTest.java` — 코스 생성·수정·삭제
+- [x] `CourseControllerTest.java` — 코스 생성·수정·삭제
   - `POST /courses` 201
   - `PATCH /courses/{courseId}` 200 / 403
   - `DELETE /courses/{courseId}` 200
   - 커밋: `✅ test: 코스 생성·수정·삭제 컨트롤러 테스트 추가`
 
-- [ ] `CourseController.java` — 이미지 관리 (위 클래스에 추가)
+- [x] `CourseController.java` — 이미지 관리 (위 클래스에 추가)
   - `POST /courses/{courseId}/images/presigned-url`, `POST /courses/{courseId}/images`, `DELETE /courses/{courseId}/images`
   - 커밋: `✨ feat: 코스 이미지 컨트롤러 추가`
 
-- [ ] `CourseControllerTest.java` — 이미지
+- [x] `CourseControllerTest.java` — 이미지
   - `POST /courses/{courseId}/images/presigned-url` 200
   - `POST /courses/{courseId}/images` 200
   - `DELETE /courses/{courseId}/images` 200 / 404
   - 커밋: `✅ test: 코스 이미지 컨트롤러 테스트 추가`
 
-- [ ] `CourseController.java` — 가게 관리 (위 클래스에 추가)
+- [x] `CourseController.java` — 가게 관리 (위 클래스에 추가)
   - `POST /courses/{courseId}/stores`, `PATCH /courses/{courseId}/stores/{storeId}`, `DELETE /courses/{courseId}/stores/{storeId}`, `PATCH /courses/{courseId}/stores/reorder`
   - 커밋: `✨ feat: 코스 가게 관리 컨트롤러 추가`
 
-- [ ] `CourseControllerTest.java` — 가게 관리
+- [x] `CourseControllerTest.java` — 가게 관리
   - `POST /courses/{courseId}/stores` 200 / 400
   - `PATCH /courses/{courseId}/stores/{storeId}` 200
   - `DELETE /courses/{courseId}/stores/{storeId}` 200
   - `PATCH /courses/{courseId}/stores/reorder` 200
   - 커밋: `✅ test: 코스 가게 관리 컨트롤러 테스트 추가`
 
-- [ ] `CourseController.java` — 찜·포크 (위 클래스에 추가)
+- [x] `CourseController.java` — 찜·포크 (위 클래스에 추가)
   - `POST /courses/{courseId}/save`, `DELETE /courses/{courseId}/save`, `POST /courses/{courseId}/fork`
   - 커밋: `✨ feat: 코스 찜·포크 컨트롤러 추가`
 
-- [ ] `CourseControllerTest.java` — 찜·포크
+- [x] `CourseControllerTest.java` — 찜·포크
   - `POST /courses/{courseId}/save` 200 / 400
   - `DELETE /courses/{courseId}/save` 200 / 404
   - `POST /courses/{courseId}/fork` 201 / 400(비공개)
