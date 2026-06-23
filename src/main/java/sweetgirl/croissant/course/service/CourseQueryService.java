@@ -1,5 +1,6 @@
 package sweetgirl.croissant.course.service;
 
+import java.util.Comparator;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -31,6 +32,9 @@ public class CourseQueryService {
 
 	public List<CourseSummaryResponse> getCurationCourses() {
 		return courseRepository.findAllByIsPublicTrueAndDeletedAtIsNull().stream()
+			.sorted(Comparator
+				.<Course>comparingInt(c -> c.getPinOrder() != null ? c.getPinOrder() : Integer.MAX_VALUE)
+				.thenComparingLong(c -> -savedCourseRepository.countByCourseId(c.getId())))
 			.map(this::buildSummaryResponse)
 			.toList();
 	}

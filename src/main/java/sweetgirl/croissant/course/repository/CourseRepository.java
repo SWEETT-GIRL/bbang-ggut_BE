@@ -15,4 +15,10 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 	List<Course> findAllByMemberIdAndTypeInAndDeletedAtIsNull(Long memberId, List<CourseType> types);
 
 	Optional<Course> findByIdAndDeletedAtIsNull(Long id);
+
+	List<Course> findAllByTypeAndDeletedAtIsNullOrderByCreatedAtDesc(CourseType type);
+
+	long countByPinOrderIsNotNullAndDeletedAtIsNull();
+
+	Optional<Course> findByPinOrderAndDeletedAtIsNull(Integer pinOrder);
 }

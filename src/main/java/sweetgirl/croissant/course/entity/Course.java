@@ -54,6 +54,9 @@ public class Course extends BaseTimeEntity {
 	@Column(name = "source_course_id")
 	private Long sourceCourseId;
 
+	@Column(name = "pin_order")
+	private Integer pinOrder;
+
 	private LocalDateTime deletedAt;
 
 	@Builder(access = AccessLevel.PRIVATE)
@@ -133,6 +136,18 @@ public class Course extends BaseTimeEntity {
 
 	public void softDelete() {
 		this.deletedAt = LocalDateTime.now();
+	}
+
+	public void pin(int pinOrder) {
+		this.pinOrder = pinOrder;
+	}
+
+	public void unpin() {
+		this.pinOrder = null;
+	}
+
+	public boolean isPinned() {
+		return this.pinOrder != null;
 	}
 
 	public boolean isDeleted() {
