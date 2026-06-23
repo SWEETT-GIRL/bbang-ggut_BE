@@ -81,7 +81,7 @@ class StoreServiceTest {
 		given(store.getStatus()).willReturn(StoreStatus.ACTIVE);
 
 		StoreImageFile image = mock(StoreImageFile.class);
-		given(image.getAwsKey()).willReturn("stores/1/thumbnail.jpg");
+		given(image.getResizedKey320()).willReturn("resized/320/stores/1/thumbnail.jpg");
 
 		SubscribedStore subscribedStore = mock(SubscribedStore.class);
 		given(subscribedStore.getStore()).willReturn(store);
@@ -99,7 +99,7 @@ class StoreServiceTest {
 		assertThat(result.content().get(0).storeName()).isEqualTo("뚜레쥬르");
 		assertThat(result.content().get(0).address()).isEqualTo("서울시 강남구 테헤란로 1");
 		assertThat(result.content().get(0).status()).isEqualTo(StoreStatus.ACTIVE);
-		assertThat(result.content().get(0).imageUrl()).isEqualTo("stores/1/thumbnail.jpg");
+		assertThat(result.content().get(0).thumbnailImageKey()).isEqualTo("resized/320/stores/1/thumbnail.jpg");
 	}
 
 	@Test
@@ -126,7 +126,7 @@ class StoreServiceTest {
 		SliceResponse<SubscribedStoreResponse> result = storeService.getSubscribedStores(memberId, pageable);
 
 		assertThat(result.content()).hasSize(1);
-		assertThat(result.content().get(0).imageUrl()).isNull();
+		assertThat(result.content().get(0).thumbnailImageKey()).isNull();
 	}
 
 	@Test

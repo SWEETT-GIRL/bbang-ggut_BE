@@ -14,7 +14,7 @@ public record StoreSearchResponse(
 		Long id,
 		String name,
 		String address,
-		String thumbnailUrl,
+		String thumbnailImageKey,
 		String kakaoPlaceId,
 		String phone,
 		String x,
@@ -22,7 +22,7 @@ public record StoreSearchResponse(
 		List<MenuSummaryDto> topMenus,
 		List<MatchedField> matchedFields) {
 
-	public static StoreSearchResponse ofKakao(KakaoPlace place, Long storeId, String thumbnailUrl,
+	public static StoreSearchResponse ofKakao(KakaoPlace place, Long storeId, String thumbnailImageKey,
 			List<MenuSummaryDto> topMenus) {
 		String address = place.roadAddressName() != null && !place.roadAddressName().isBlank()
 			? place.roadAddressName()
@@ -31,7 +31,7 @@ public record StoreSearchResponse(
 			storeId,
 			place.placeName(),
 			address,
-			thumbnailUrl,
+			thumbnailImageKey,
 			place.id(),
 			place.phone(),
 			place.x(),
@@ -40,7 +40,7 @@ public record StoreSearchResponse(
 			Collections.emptyList());
 	}
 
-	public static StoreSearchResponse ofDb(Store store, String thumbnailUrl, List<MenuSummaryDto> topMenus,
+	public static StoreSearchResponse ofDb(Store store, String thumbnailImageKey, List<MenuSummaryDto> topMenus,
 			List<MatchedField> matchedFields) {
 		Point location = store.getLocation();
 		String longitude = location != null ? String.valueOf(location.getX()) : null;
@@ -49,7 +49,7 @@ public record StoreSearchResponse(
 			store.getId(),
 			store.getName(),
 			store.getAddress(),
-			thumbnailUrl,
+			thumbnailImageKey,
 			store.getKakaoPlaceId(),
 			store.getPhone(),
 			longitude,

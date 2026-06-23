@@ -6,16 +6,16 @@ public record TopSubscribedStoreResponse(
 		Long id,
 		String name,
 		String region,
-		String storeThumbnailUrl,
+		String thumbnailImageKey,
 		Long distanceMeters,
 		long subscribeCount) {
-	public static TopSubscribedStoreResponse of(TopSubscribedStoreProjection projection, String storeThumbnailUrl,
+	public static TopSubscribedStoreResponse of(TopSubscribedStoreProjection projection, String thumbnailImageKey,
 			Long distanceMeters) {
 		return new TopSubscribedStoreResponse(
 			projection.getId(),
 			projection.getName(),
 			joinRegion(projection.getRegion1st(), projection.getRegion2nd()),
-			storeThumbnailUrl,
+			thumbnailImageKey,
 			distanceMeters,
 			projection.getSubscribeCount());
 	}

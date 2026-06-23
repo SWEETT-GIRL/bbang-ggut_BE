@@ -84,8 +84,8 @@ public class StoreService {
 		Slice<SubscribedStoreResponse> responsSlice = slice.map(subscribedStore -> {
 			List<StoreImageFile> images = storeImageFileRepository
 				.findByStoreIdOrderByDisplayOrderAscIdAsc(subscribedStore.getStore().getId());
-			String imageUrl = images.isEmpty() ? null : images.get(0).getAwsKey();
-			return SubscribedStoreResponse.from(subscribedStore, imageUrl);
+			String thumbnailImageKey = images.isEmpty() ? null : images.get(0).getResizedKey320();
+			return SubscribedStoreResponse.from(subscribedStore, thumbnailImageKey);
 		});
 		return SliceResponse.from(responsSlice);
 	}
