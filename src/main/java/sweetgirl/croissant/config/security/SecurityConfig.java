@@ -60,14 +60,17 @@ public class SecurityConfig {
 			.requestMatchers(HttpMethod.GET, "/stores/district", "/stores/nearby", "/stores/popular", "/stores/search",
 				"/stores/autocomplete")
 			.permitAll()
-			// 숫자 ID 기반 빵집 상세/메뉴/리뷰 조회 비로그인 허용
+			// 공개 코스 목록 비로그인 허용
+			.requestMatchers(HttpMethod.GET, "/courses").permitAll()
+			// 숫자 ID 기반 빵집 상세/메뉴/리뷰·코스 상세 조회 비로그인 허용
 			.requestMatchers(
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/stores/\\d+(\\?.*)?$"),
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/stores/\\d+/menus(\\?.*)?$"),
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/menus/\\d+(\\?.*)?$"),
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/menus/\\d+/reviews(\\?.*)?$"),
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/menus/\\d+/reviews/summary(\\?.*)?$"),
-				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/users/\\d+/reviews(\\?.*)?$"))
+				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/users/\\d+/reviews(\\?.*)?$"),
+				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/courses/\\d+(\\?.*)?$"))
 			.permitAll()
 			.requestMatchers("/admin/**", "/api/admin/**").permitAll()
 			.requestMatchers(HttpMethod.POST, "/api/admin/members/*/ban").permitAll() // 회원 강퇴 API 임시 허용
