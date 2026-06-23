@@ -11,7 +11,8 @@ public enum S3Folder {
 	REVIEWS("reviews"),
 	REPORTS("reports"),
 	MENU_ADD_REPORTS("menu-add-reports"),
-	BANNERS("banners");
+	BANNERS("banners"),
+	COURSES("courses");
 
 	private final String value;
 
