@@ -59,8 +59,7 @@ public class CourseCommandService {
 		Member member = memberRepository.findByIdAndDeletedAtIsNull(memberId)
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 		Course course = Course.createCustom(request.getTitle(), member, request.isPublic());
-		courseRepository.save(course);
-		return course.getId();
+		return courseRepository.save(course).getId();
 	}
 
 	public void updateCourse(Long memberId, Long courseId, CourseUpdateRequest request) {
@@ -214,14 +213,14 @@ public class CourseCommandService {
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 
 		String forkedTitle = "copy of " + sourceCourse.getTitle();
-		Course forkedCourse = Course.createForked(forkedTitle, member, sourceCourse.getId());
-		courseRepository.save(forkedCourse);
+		Course savedForkedCourse = courseRepository.save(
+			Course.createForked(forkedTitle, member, sourceCourse.getId()));
 
 		List<CourseStore> sourceStores = courseStoreRepository
 			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId);
 		List<CourseStore> copiedStores = sourceStores.stream()
 			.map(source -> CourseStore.createWithDetails(
-				forkedCourse,
+				savedForkedCourse,
 				source.getStore(),
 				source.getVisitOrder(),
 				source.getMemo(),
@@ -230,7 +229,7 @@ public class CourseCommandService {
 			.toList();
 		courseStoreRepository.saveAll(copiedStores);
 
-		return forkedCourse.getId();
+		return savedForkedCourse.getId();
 	}
 
 	private void validateOwner(Course course, Long memberId) {
