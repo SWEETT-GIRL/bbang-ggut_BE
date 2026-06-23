@@ -112,7 +112,7 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
 | `PATCH /courses/{courseId}/stores/reorder` | ✓ | courseStoreIds 순서 = 새 visitOrder | 없음 | 403, 404(id 없음) |
 | `POST /courses/{courseId}/save` | ✓ | 찜 추가 | 없음 | 400(중복) |
 | `DELETE /courses/{courseId}/save` | ✓ | 찜 해제 | 없음 | 404 |
-| `POST /courses/{courseId}/fork` | ✓ | CURATED만 가능, FORKED 신규 생성 | `{ courseId }` | 400(CURATED아님) |
+| `POST /courses/{courseId}/fork` | ✓ | 공개 코스만 포크 가능, FORKED 신규 생성 | `{ courseId }` | 400(비공개) |
 | `GET /stores/saved` | ✓ | 내 찜한가게 목록 | `List<SavedStoreResponse>` | |
 | `POST /stores/{storeId}/save` | ✓ | 가게 찜, 중복 불가 | 없음 | 400(중복) |
 | `DELETE /stores/{storeId}/save` | ✓ | 가게 찜 해제 | 없음 | 404 |
@@ -133,6 +133,7 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
   FE 1차 방어(저장 버튼 비활성화) + BE 2차 안전망
 
 **`POST /courses/{courseId}/fork`**
+- 비공개 코스 포크 시도 → 400 COURSE_FORK_NOT_PUBLIC
 - 새 코스: type=FORKED, title="copy of {원본제목}", isPublic=false, sourceCourseId=source.id
 - CourseStore 전부 복사 (memo·visitTime·visitOrder 유지), CourseImageFile 복사 안 함
 
@@ -254,24 +255,24 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
   - 커밋: `✅ test: 코스 이미지 서비스 테스트 추가`
 
 - [x] `CourseCommandService.java` — 포크 (위 클래스에 추가)
-  - `forkCourse(memberId, courseId)` — CURATED 검증, CourseStore 전부 복사, 이미지는 복사 안 함
+  - `forkCourse(memberId, courseId)` — isPublic 검증, CourseStore 전부 복사, 이미지는 복사 안 함
   - 커밋: `✨ feat: 코스 포크 서비스 추가`
 
 - [x] 포크 테스트
-  - CURATED → FORKED 포크 성공 (title = "copy of {원본제목}", member = 현재 사용자, isPublic = false)
-  - CUSTOM/FORKED 포크 시도 → COURSE_FORK_NOT_CURATED
+  - 공개 코스(CUSTOM) → FORKED 포크 성공 (title = "copy of {원본제목}", member = 현재 사용자, isPublic = false)
+  - 비공개 코스 포크 시도 → COURSE_FORK_NOT_PUBLIC
   - 커밋: `✅ test: 코스 포크 서비스 테스트 추가`
 
 ---
 
 ## Phase 4 — 코스 찜 서비스
 
-- [ ] `SavedCourseCommandService.java`
+- [x] `SavedCourseCommandService.java`
   - `saveCourse(memberId, courseId)` — 중복 검증
   - `unsaveCourse(memberId, courseId)` — 없으면 COURSE_SAVED_NOT_FOUND
   - 커밋: `✨ feat: 코스 찜 서비스 추가`
 
-- [ ] `SavedCourseCommandServiceTest.java`
+- [x] `SavedCourseCommandServiceTest.java`
   - 찜 추가 성공
   - 찜 추가 — 중복 → COURSE_SAVED_ALREADY
   - 찜 해제 성공
@@ -331,7 +332,7 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
 - [ ] `CourseControllerTest.java` — 찜·포크
   - `POST /courses/{courseId}/save` 200 / 400
   - `DELETE /courses/{courseId}/save` 200 / 404
-  - `POST /courses/{courseId}/fork` 201 / 400
+  - `POST /courses/{courseId}/fork` 201 / 400(비공개)
   - 커밋: `✅ test: 코스 찜·포크 컨트롤러 테스트 추가`
 
 ---

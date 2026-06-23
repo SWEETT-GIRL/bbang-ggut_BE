@@ -205,8 +205,8 @@ public class CourseCommandService {
 		Course sourceCourse = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 
-		if (sourceCourse.getType() != CourseType.CURATED) {
-			throw new CourseException(CourseErrorCode.COURSE_FORK_NOT_CURATED);
+		if (!sourceCourse.isPublic()) {
+			throw new CourseException(CourseErrorCode.COURSE_FORK_NOT_PUBLIC);
 		}
 
 		Member member = memberRepository.findByIdAndDeletedAtIsNull(memberId)

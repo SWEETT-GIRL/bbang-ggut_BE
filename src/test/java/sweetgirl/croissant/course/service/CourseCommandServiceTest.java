@@ -396,12 +396,13 @@ class CourseCommandServiceTest {
 	// ───────────────────────── forkCourse ─────────────────────────
 
 	@Test
-	@DisplayName("forkCourse: CURATED 코스를 FORKED로 포크하면 새 코스 ID를 반환한다")
-	void forkCourse_curated_success() {
+	@DisplayName("forkCourse: 공개 코스를 포크하면 새 코스 ID를 반환한다")
+	void forkCourse_publicCourse_success() {
 		Long memberId = 1L;
 		Long sourceId = 5L;
 
-		Course sourceCourse = mockCourse(sourceId, "큐레이션 코스", CourseType.CURATED, null, null);
+		Course sourceCourse = mockCourse(sourceId, "공개 커스텀 코스", CourseType.CUSTOM, null, null);
+		given(sourceCourse.isPublic()).willReturn(true);
 		Member member = mockMember(memberId);
 		CourseStore sourceStore = mockCourseStore(1, mockStore(100L));
 
@@ -421,31 +422,31 @@ class CourseCommandServiceTest {
 	}
 
 	@Test
-	@DisplayName("forkCourse: CUSTOM 코스 포크 시도 시 COURSE_FORK_NOT_CURATED를 던진다")
-	void forkCourse_custom_throwsForkNotCurated() {
+	@DisplayName("forkCourse: 비공개 코스 포크 시도 시 COURSE_FORK_NOT_PUBLIC을 던진다")
+	void forkCourse_privateCourse_throwsForkNotPublic() {
 		Long memberId = 1L;
 		Long courseId = 10L;
-		Course course = mockCourse(courseId, "커스텀 코스", CourseType.CUSTOM, memberId, null);
+		Course course = mockCourse(courseId, "비공개 커스텀 코스", CourseType.CUSTOM, memberId, null);
 
 		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 
 		assertThatThrownBy(() -> courseCommandService.forkCourse(memberId, courseId))
 			.isInstanceOf(CourseException.class)
-			.hasMessageContaining(CourseErrorCode.COURSE_FORK_NOT_CURATED.getMessage());
+			.hasMessageContaining(CourseErrorCode.COURSE_FORK_NOT_PUBLIC.getMessage());
 	}
 
 	@Test
-	@DisplayName("forkCourse: FORKED 코스 포크 시도 시 COURSE_FORK_NOT_CURATED를 던진다")
-	void forkCourse_forked_throwsForkNotCurated() {
+	@DisplayName("forkCourse: 비공개 FORKED 코스 포크 시도 시 COURSE_FORK_NOT_PUBLIC을 던진다")
+	void forkCourse_privateForkedCourse_throwsForkNotPublic() {
 		Long memberId = 1L;
 		Long courseId = 10L;
-		Course course = mockCourse(courseId, "포크 코스", CourseType.FORKED, memberId, 5L);
+		Course course = mockCourse(courseId, "비공개 포크 코스", CourseType.FORKED, memberId, 5L);
 
 		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 
 		assertThatThrownBy(() -> courseCommandService.forkCourse(memberId, courseId))
 			.isInstanceOf(CourseException.class)
-			.hasMessageContaining(CourseErrorCode.COURSE_FORK_NOT_CURATED.getMessage());
+			.hasMessageContaining(CourseErrorCode.COURSE_FORK_NOT_PUBLIC.getMessage());
 	}
 
 	// ───────────────────────── helpers ─────────────────────────
