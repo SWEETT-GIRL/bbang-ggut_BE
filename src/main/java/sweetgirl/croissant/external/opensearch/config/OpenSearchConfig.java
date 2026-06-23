@@ -11,8 +11,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
 import lombok.RequiredArgsConstructor;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.regions.Region;
@@ -29,9 +28,6 @@ public class OpenSearchConfig {
 
 	@Bean
 	public OpenSearchClient openSearchClient() {
-		AwsBasicCredentials credentials = AwsBasicCredentials.create(
-			awsProperties.getCredentials().getAccessKey(),
-			awsProperties.getCredentials().getSecretKey());
 		SdkHttpClient httpClient = ApacheHttpClient.builder()
 			.socketTimeout(Duration.ofSeconds(120))
 			.connectionTimeout(Duration.ofSeconds(5))
@@ -44,7 +40,7 @@ public class OpenSearchConfig {
 				"es",
 				Region.of(resolveRegion()),
 				AwsSdk2TransportOptions.builder()
-					.setCredentials(StaticCredentialsProvider.create(credentials))
+					.setCredentials(DefaultCredentialsProvider.create())
 					.build()));
 	}
 
