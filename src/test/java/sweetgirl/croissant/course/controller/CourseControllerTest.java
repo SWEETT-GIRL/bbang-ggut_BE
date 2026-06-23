@@ -180,4 +180,48 @@ class CourseControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true));
 	}
+
+	@Test
+	void getPresignedUrl_returns200() throws Exception {
+		given(courseCommandService.getPresignedUrl(isNull(), anyLong(), any()))
+			.willReturn(new sweetgirl.croissant.external.aws.dto.PresignedUrlResponse(
+				"cover.jpg", "image/jpeg", "https://s3.example.com/upload", "courses/1/cover.jpg"));
+
+		mockMvc.perform(post("/courses/1/images/presigned-url")
+			.param("mimeType", "image/jpeg"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true))
+			.andExpect(jsonPath("$.data.awsKey").value("courses/1/cover.jpg"));
+	}
+
+	@Test
+	void registerImage_returns200() throws Exception {
+		willDoNothing().given(courseCommandService).registerImage(isNull(), anyLong(), any());
+
+		mockMvc.perform(post("/courses/1/images")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"awsKey\":\"courses/1/cover.jpg\",\"mimeType\":\"image/jpeg\",\"name\":\"cover.jpg\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
+	}
+
+	@Test
+	void deleteImage_returns200() throws Exception {
+		willDoNothing().given(courseCommandService).deleteImage(isNull(), anyLong());
+
+		mockMvc.perform(delete("/courses/1/images"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
+	}
+
+	@Test
+	void deleteImage_notFound_returns404() throws Exception {
+		willThrow(new CourseException(CourseErrorCode.COURSE_IMAGE_NOT_FOUND))
+			.given(courseCommandService).deleteImage(isNull(), anyLong());
+
+		mockMvc.perform(delete("/courses/1/images"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.code").value("COURSE404_3"));
+	}
 }
