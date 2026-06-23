@@ -1,9 +1,15 @@
 package sweetgirl.croissant.course.controller;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willDoNothing;
+import static org.mockito.BDDMockito.willThrow;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -15,8 +21,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
@@ -32,6 +41,7 @@ import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 class CourseControllerTest {
 
 	private MockMvc mockMvc;
+	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	@Mock
 	private CourseQueryService courseQueryService;
@@ -124,5 +134,50 @@ class CourseControllerTest {
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.success").value(false))
 			.andExpect(jsonPath("$.code").value("COURSE404_1"));
+	}
+
+	@Test
+	void createCourse_returns201() throws Exception {
+		given(courseCommandService.createCourse(isNull(), any())).willReturn(10L);
+
+		mockMvc.perform(post("/courses")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"title\":\"소금빵 투어\",\"isPublic\":true}"))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.success").value(true))
+			.andExpect(jsonPath("$.data.courseId").value(10));
+	}
+
+	@Test
+	void updateCourse_returns200() throws Exception {
+		willDoNothing().given(courseCommandService).updateCourse(isNull(), anyLong(), any());
+
+		mockMvc.perform(patch("/courses/1")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"title\":\"수정된 코스\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
+	}
+
+	@Test
+	void updateCourse_forbidden_returns403() throws Exception {
+		willThrow(new CourseException(CourseErrorCode.COURSE_FORBIDDEN))
+			.given(courseCommandService).updateCourse(isNull(), anyLong(), any());
+
+		mockMvc.perform(patch("/courses/1")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"title\":\"수정된 코스\"}"))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.code").value("COURSE403_1"));
+	}
+
+	@Test
+	void deleteCourse_returns200() throws Exception {
+		willDoNothing().given(courseCommandService).deleteCourse(isNull(), anyLong());
+
+		mockMvc.perform(delete("/courses/1"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
 	}
 }
