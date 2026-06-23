@@ -126,7 +126,8 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
 - savedCount: 전체 찜 수 (비로그인도 표시)
 
 **`PATCH /courses/{courseId}`**
-- CURATED 수정 시도 → 403 / CUSTOM·FORKED는 소유자면 수정 가능
+- 앱 유저가 CURATED 수정 시도 → 403 (CURATED는 어드민 전용 엔드포인트로만 수정)
+- CUSTOM·FORKED는 소유자면 수정 가능
 - FORKED이고 원본과 동일하면 → 400 COURSE_FORK_NOT_MODIFIED  
   비교 기준: title(prefix 제외), stores(storeId·visitOrder·memo·visitTime)  
   FE 1차 방어(저장 버튼 비활성화) + BE 2차 안전망
@@ -150,7 +151,7 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
 
 - [ ] `CourseErrorCode.java` + `CourseException.java`
   - 커밋: `✨ feat: 코스 에러 코드 및 예외 추가`
-  - 에러 코드: COURSE_NOT_FOUND, COURSE_STORE_NOT_FOUND, COURSE_FORBIDDEN, COURSE_STORE_ALREADY_EXISTS, COURSE_SAVED_ALREADY, COURSE_SAVED_NOT_FOUND, COURSE_FORK_NOT_CURATED, COURSE_FORK_NOT_MODIFIED
+  - 에러 코드: COURSE_NOT_FOUND, COURSE_STORE_NOT_FOUND, COURSE_IMAGE_NOT_FOUND, COURSE_FORBIDDEN, COURSE_STORE_ALREADY_EXISTS, COURSE_SAVED_ALREADY, COURSE_SAVED_NOT_FOUND, COURSE_FORK_NOT_CURATED, COURSE_FORK_NOT_MODIFIED
 
 - [ ] `CourseRepository.java`
   - 커밋: `✨ feat: Course 저장소 추가`
@@ -213,6 +214,7 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
   - 코스 생성 성공
   - 코스 수정 — 소유자 성공
   - 코스 수정 — 타인 → COURSE_FORBIDDEN
+  - 코스 수정 — FORKED이고 원본과 동일 → COURSE_FORK_NOT_MODIFIED
   - 코스 삭제 — soft delete 확인
   - 커밋: `✅ test: 코스 생성·수정·삭제 서비스 테스트 추가`
 
@@ -279,27 +281,57 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
 
 ## Phase 5 — 컨트롤러
 
-- [ ] `CourseController.java` — 전체 16개 엔드포인트
-  - 커밋: `✨ feat: 코스 컨트롤러 추가`
+- [ ] `CourseController.java` — 조회 엔드포인트
+  - `GET /courses`, `GET /courses/my`, `GET /courses/saved`, `GET /courses/{courseId}`
+  - 커밋: `✨ feat: 코스 조회 컨트롤러 추가`
 
-- [ ] `CourseControllerTest.java` (standaloneSetup + MockMvc)
+- [ ] `CourseControllerTest.java` — 조회
   - `GET /courses` 200
   - `GET /courses/my` 200
   - `GET /courses/saved` 200
   - `GET /courses/{courseId}` 200 / 403 / 404
+  - 커밋: `✅ test: 코스 조회 컨트롤러 테스트 추가`
+
+- [ ] `CourseController.java` — 코스 생성·수정·삭제 (위 클래스에 추가)
+  - `POST /courses`, `PATCH /courses/{courseId}`, `DELETE /courses/{courseId}`
+  - 커밋: `✨ feat: 코스 생성·수정·삭제 컨트롤러 추가`
+
+- [ ] `CourseControllerTest.java` — 코스 생성·수정·삭제
   - `POST /courses` 201
   - `PATCH /courses/{courseId}` 200 / 403
   - `DELETE /courses/{courseId}` 200
+  - 커밋: `✅ test: 코스 생성·수정·삭제 컨트롤러 테스트 추가`
+
+- [ ] `CourseController.java` — 이미지 관리 (위 클래스에 추가)
+  - `POST /courses/{courseId}/images/presigned-url`, `POST /courses/{courseId}/images`, `DELETE /courses/{courseId}/images`
+  - 커밋: `✨ feat: 코스 이미지 컨트롤러 추가`
+
+- [ ] `CourseControllerTest.java` — 이미지
   - `POST /courses/{courseId}/images/presigned-url` 200
   - `POST /courses/{courseId}/images` 200
+  - `DELETE /courses/{courseId}/images` 200 / 404
+  - 커밋: `✅ test: 코스 이미지 컨트롤러 테스트 추가`
+
+- [ ] `CourseController.java` — 가게 관리 (위 클래스에 추가)
+  - `POST /courses/{courseId}/stores`, `PATCH /courses/{courseId}/stores/{storeId}`, `DELETE /courses/{courseId}/stores/{storeId}`, `PATCH /courses/{courseId}/stores/reorder`
+  - 커밋: `✨ feat: 코스 가게 관리 컨트롤러 추가`
+
+- [ ] `CourseControllerTest.java` — 가게 관리
   - `POST /courses/{courseId}/stores` 200 / 400
   - `PATCH /courses/{courseId}/stores/{storeId}` 200
   - `DELETE /courses/{courseId}/stores/{storeId}` 200
   - `PATCH /courses/{courseId}/stores/reorder` 200
+  - 커밋: `✅ test: 코스 가게 관리 컨트롤러 테스트 추가`
+
+- [ ] `CourseController.java` — 찜·포크 (위 클래스에 추가)
+  - `POST /courses/{courseId}/save`, `DELETE /courses/{courseId}/save`, `POST /courses/{courseId}/fork`
+  - 커밋: `✨ feat: 코스 찜·포크 컨트롤러 추가`
+
+- [ ] `CourseControllerTest.java` — 찜·포크
   - `POST /courses/{courseId}/save` 200 / 400
   - `DELETE /courses/{courseId}/save` 200 / 404
   - `POST /courses/{courseId}/fork` 201 / 400
-  - 커밋: `✅ test: 코스 컨트롤러 테스트 추가`
+  - 커밋: `✅ test: 코스 찜·포크 컨트롤러 테스트 추가`
 
 ---
 
@@ -337,6 +369,12 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
 - [ ] `SavedStoreQueryServiceTest.java`
   - 찜한가게 목록 조회 성공
   - 커밋: `✅ test: 찜한가게 조회 서비스 테스트 추가`
+
+- [ ] `StoreDetailResponse`에 `isSaved` 필드 추가
+  - `isSubscribed`와 동일한 방식으로 `getStoreDetail(memberId, storeId)`에서 `SavedStore` 존재 여부 조회 후 채움
+  - 비로그인(`memberId == null`) 시 `false`
+  - `StoreServiceTest`에 isSaved 케이스 추가: 찜한 가게 조회 → isSaved=true / 찜 안 한 가게 조회 → isSaved=false
+  - 커밋: `✨ feat: 빵집 상세 응답에 isSaved 필드 추가`
 
 - [ ] `SavedStoreResponse.java` — storeId, storeName, region, latitude, longitude
   - 커밋: `✨ feat: 찜한가게 응답 DTO 추가`
@@ -384,6 +422,15 @@ BE는 `walkingMinutesToNext` 값을 저장만 함. FE가 계산해서 전송.
 ### FORKED 코스 저장 버튼
 - 포크 후 편집 화면에서 원본 대비 변경 사항 없으면 저장 버튼 비활성화
 - BE도 동일 상태면 `400 COURSE_FORK_NOT_MODIFIED` 반환 (2차 안전망)
+
+---
+
+## 어드민 코스 CRUD — 별도 작업 (이 브랜치 완료 후 진행)
+
+상세 TODO: `docs/admin_course_TODO.md`  
+엔드포인트 prefix: `/api/admin/courses`
+
+CURATED 코스 생성·수정·삭제·이미지·가게 관리 전용. 별도 브랜치에서 진행.
 
 ---
 
