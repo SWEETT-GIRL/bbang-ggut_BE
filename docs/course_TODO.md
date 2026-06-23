@@ -341,53 +341,53 @@ FAB 탭 → 제목·공개여부 입력 + 커버 이미지(선택) → POST /cou
 
 가게 찜 추가/해제 + 목록 조회. 코스 편집 화면 "가게 추가 → 찜한가게 탭"과 빵집 상세 "찜하기 버튼"에서 사용.
 
-- [ ] `SavedStoreRepository.java`
+- [x] `SavedStoreRepository.java`
   - `findAllByMemberId(Long memberId)`
   - `existsByMemberIdAndStoreId(Long memberId, Long storeId)`
   - `deleteByMemberIdAndStoreId(Long memberId, Long storeId)`
   - 커밋: `✨ feat: SavedStore 저장소 추가`
 
-- [ ] `SavedStoreErrorCode.java` + `SavedStoreException.java`
+- [x] `SavedStoreErrorCode.java` + `SavedStoreException.java`
   - `SAVED_STORE_ALREADY(BAD_REQUEST, "SAVED_STORE400_1", "이미 찜한 가게입니다.")`
   - `SAVED_STORE_NOT_FOUND(NOT_FOUND, "SAVED_STORE404_1", "찜한 가게를 찾을 수 없습니다.")`
   - 커밋: `✨ feat: 찜한가게 에러 코드 및 예외 추가`
 
-- [ ] `SavedStoreCommandService.java` — 찜 추가/해제
+- [x] `SavedStoreCommandService.java` — 찜 추가/해제
   - `saveStore(memberId, storeId)` — 중복 검증
   - `unsaveStore(memberId, storeId)` — 없으면 SAVED_STORE_NOT_FOUND
   - 커밋: `✨ feat: 가게 찜 추가·해제 서비스 추가`
 
-- [ ] `SavedStoreCommandServiceTest.java`
+- [x] `SavedStoreCommandServiceTest.java`
   - 찜 추가 성공
   - 찜 추가 — 중복 → SAVED_STORE_ALREADY
   - 찜 해제 성공
   - 찜 해제 — 없는 찜 → SAVED_STORE_NOT_FOUND
   - 커밋: `✅ test: 가게 찜 서비스 테스트 추가`
 
-- [ ] `SavedStoreQueryService.java` — 목록 조회
+- [x] `SavedStoreQueryService.java` — 목록 조회
   - `getSavedStores(memberId)` (@Transactional readOnly)
   - 커밋: `✨ feat: 찜한가게 조회 서비스 추가`
 
-- [ ] `SavedStoreQueryServiceTest.java`
+- [x] `SavedStoreQueryServiceTest.java`
   - 찜한가게 목록 조회 성공
   - 커밋: `✅ test: 찜한가게 조회 서비스 테스트 추가`
 
-- [ ] `StoreDetailResponse`에 `isSaved` 필드 추가
+- [x] `StoreDetailResponse`에 `isSaved` 필드 추가
   - `isSubscribed`와 동일한 방식으로 `getStoreDetail(memberId, storeId)`에서 `SavedStore` 존재 여부 조회 후 채움
   - 비로그인(`memberId == null`) 시 `false`
   - `StoreServiceTest`에 isSaved 케이스 추가: 찜한 가게 조회 → isSaved=true / 찜 안 한 가게 조회 → isSaved=false
   - 커밋: `✨ feat: 빵집 상세 응답에 isSaved 필드 추가`
 
-- [ ] `SavedStoreResponse.java` — storeId, storeName, region, latitude, longitude
+- [x] `SavedStoreResponse.java` — storeId, storeName, region, latitude, longitude
   - 커밋: `✨ feat: 찜한가게 응답 DTO 추가`
 
-- [ ] `SavedStoreController.java` — `/stores`
+- [x] `SavedStoreController.java` — `/stores`
   - `GET /stores/saved` — 내 찜한가게 목록
   - `POST /stores/{storeId}/save` — 가게 찜
   - `DELETE /stores/{storeId}/save` — 가게 찜 해제
   - 커밋: `✨ feat: 찜한가게 컨트롤러 추가`
 
-- [ ] `SavedStoreControllerTest.java`
+- [x] `SavedStoreControllerTest.java`
   - `GET /stores/saved` 200
   - `POST /stores/{storeId}/save` 200 / 400(중복)
   - `DELETE /stores/{storeId}/save` 200 / 404
@@ -445,10 +445,10 @@ CURATED 코스 생성·수정·삭제·이미지·가게 관리 전용. 별도 �
 ./gradlew test --tests "sweetgirl.croissant.store.*SavedStore*"
 ```
 
-- [ ] 새로 만든 모든 Service에 테스트 파일이 있는가?
-- [ ] 새로 만든 모든 Controller에 테스트 파일이 있는가?
-- [ ] 추가한 모든 public 메서드에 테스트 케이스가 있는가?
-- [ ] 예외 케이스(Exception)에 대한 테스트가 있는가?
-- [ ] `spotlessApply` 통과하는가?
-- [ ] `build` (checkstyle 포함) 통과하는가?
+- [x] 새로 만든 모든 Service에 테스트 파일이 있는가?
+- [x] 새로 만든 모든 Controller에 테스트 파일이 있는가?
+- [x] 추가한 모든 public 메서드에 테스트 케이스가 있는가?
+- [x] 예외 케이스(Exception)에 대한 테스트가 있는가?
+- [x] `spotlessApply` 통과하는가?
+- [x] `build` (checkstyle 포함) 통과하는가?
 - 커밋: `📝 docs: 코스 TODO 최종 완료 갱신`
