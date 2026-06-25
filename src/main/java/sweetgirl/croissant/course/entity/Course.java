@@ -51,6 +51,12 @@ public class Course extends BaseTimeEntity {
 	@Column(nullable = false)
 	private boolean isPublic;
 
+	@Column(name = "source_course_id")
+	private Long sourceCourseId;
+
+	@Column(name = "pin_order")
+	private Integer pinOrder;
+
 	private LocalDateTime deletedAt;
 
 	@Builder(access = AccessLevel.PRIVATE)
@@ -59,12 +65,14 @@ public class Course extends BaseTimeEntity {
 			String title,
 			Member member,
 			boolean isPublic,
-			String badge) {
+			String badge,
+			Long sourceCourseId) {
 		this.type = type;
 		this.title = title;
 		this.member = member;
 		this.isPublic = isPublic;
 		this.badge = badge;
+		this.sourceCourseId = sourceCourseId;
 		this.likeCount = 0;
 	}
 
@@ -88,6 +96,19 @@ public class Course extends BaseTimeEntity {
 			.title(title)
 			.isPublic(true)
 			.badge(badge)
+			.build();
+	}
+
+	public static Course createForked(
+			String title,
+			Member member,
+			Long sourceCourseId) {
+		return Course.builder()
+			.type(CourseType.FORKED)
+			.title(title)
+			.member(member)
+			.isPublic(false)
+			.sourceCourseId(sourceCourseId)
 			.build();
 	}
 
@@ -115,6 +136,18 @@ public class Course extends BaseTimeEntity {
 
 	public void softDelete() {
 		this.deletedAt = LocalDateTime.now();
+	}
+
+	public void pin(int pinOrder) {
+		this.pinOrder = pinOrder;
+	}
+
+	public void unpin() {
+		this.pinOrder = null;
+	}
+
+	public boolean isPinned() {
+		return this.pinOrder != null;
 	}
 
 	public boolean isDeleted() {

@@ -29,6 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		Pattern.compile("^/menus/\\d+$"),
 		Pattern.compile("^/menus/\\d+/reviews$"),
 		Pattern.compile("^/menus/\\d+/reviews/summary$"),
+		Pattern.compile("^/courses/\\d+$"),
 		MEMBER_REVIEWS_PATH);
 
 	private final JwtProvider jwtProvider;

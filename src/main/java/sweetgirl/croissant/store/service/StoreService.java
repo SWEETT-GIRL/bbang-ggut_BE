@@ -44,6 +44,7 @@ import sweetgirl.croissant.store.entity.StoreBusinessHour;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.entity.SubscribedStore;
 import sweetgirl.croissant.store.exception.StoreException;
+import sweetgirl.croissant.store.repository.SavedStoreRepository;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
@@ -58,6 +59,7 @@ public class StoreService {
 	private final StoreBusinessHourRepository storeBusinessHourRepository;
 	private final StoreImageFileRepository storeImageFileRepository;
 	private final SubscribedStoreRepository subscribedStoreRepository;
+	private final SavedStoreRepository savedStoreRepository;
 	private final StoreAsyncService storeAsyncService;
 	private final MemberReader memberReader;
 	private final MenuImageFileRepository menuImageFileRepository;
@@ -71,7 +73,9 @@ public class StoreService {
 		List<MenuImageFile> menuImages = menuImageFileRepository.findByMenuStoreIdOrderByDisplayOrderAscIdAsc(storeId);
 		boolean isSubscribed = memberId != null
 			&& subscribedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId);
-		return StoreDetailResponse.of(store, businessHours, images, menuImages, isSubscribed);
+		boolean isSaved = memberId != null
+			&& savedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId);
+		return StoreDetailResponse.of(store, businessHours, images, menuImages, isSubscribed, isSaved);
 	}
 
 	public SliceResponse<SubscribedStoreResponse> getSubscribedStores(Long memberId, Pageable pageable) {
@@ -80,8 +84,8 @@ public class StoreService {
 		Slice<SubscribedStoreResponse> responsSlice = slice.map(subscribedStore -> {
 			List<StoreImageFile> images = storeImageFileRepository
 				.findByStoreIdOrderByDisplayOrderAscIdAsc(subscribedStore.getStore().getId());
-			String imageUrl = images.isEmpty() ? null : images.get(0).getAwsKey();
-			return SubscribedStoreResponse.from(subscribedStore, imageUrl);
+			String thumbnailImageKey = images.isEmpty() ? null : images.get(0).getResizedKey320();
+			return SubscribedStoreResponse.from(subscribedStore, thumbnailImageKey);
 		});
 		return SliceResponse.from(responsSlice);
 	}
@@ -285,7 +289,7 @@ public class StoreService {
 		return storeImageFileRepository.findThumbnailsByStoreIdIn(storeIds).stream()
 			.collect(Collectors.toMap(
 				StoreImageThumbnailProjection::getStoreId,
-				StoreImageThumbnailProjection::getAwsKey,
+				StoreImageThumbnailProjection::getResizedKey320,
 				(first, second) -> first));
 	}
 
@@ -311,7 +315,7 @@ public class StoreService {
 		return menuImageFileRepository.findThumbnailsByMenuIdIn(menuIds).stream()
 			.collect(Collectors.toMap(
 				MenuImageThumbnailProjection::getMenuId,
-				MenuImageThumbnailProjection::getAwsKey,
+				MenuImageThumbnailProjection::getResizedKey320,
 				(first, second) -> first));
 	}
 }

@@ -6,7 +6,12 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "mcp__claude_ai_Notion__notion-search",
-      "mcp__claude_ai_Notion__notion-fetch"
+      "mcp__claude_ai_Notion__notion-fetch",
+      "Bash(./gradlew compileJava)",
+      "Bash(./gradlew spotlessApply)",
+      "Bash(./gradlew test *)",
+      "Bash(./gradlew build *)",
+      "Bash(./gradlew spotlessApply -q)"
     ]
   }
 }

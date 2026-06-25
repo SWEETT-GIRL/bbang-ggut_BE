@@ -74,7 +74,7 @@ public class AdminImageService {
 		}
 		return storeImageFileRepository.findByStoreIdOrderByDisplayOrderAscIdAsc(storeId).stream()
 			.map(img -> new AdminImageResponse(img.getId(), img.getAwsKey(), img.getMimeType().getValue(),
-				img.getDisplayOrder(), img.getCreatedAt()))
+				img.getDisplayOrder(), img.getCreatedAt(), img.getResizedKey640()))
 			.collect(Collectors.toList());
 	}
 
@@ -84,7 +84,7 @@ public class AdminImageService {
 		}
 		return menuImageFileRepository.findImagesByMenuId(menuId).stream()
 			.map(img -> new AdminImageResponse(img.getId(), img.getAwsKey(), img.getMimeType().getValue(),
-				img.getDisplayOrder(), img.getCreatedAt()))
+				img.getDisplayOrder(), img.getCreatedAt(), img.getResizedKey640()))
 			.collect(Collectors.toList());
 	}
 

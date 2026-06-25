@@ -73,8 +73,6 @@ jobs:
           spring.flyway.baseline-description=Existing schema before nationwide ranking tables
           spring.flyway.out-of-order=true
           
-          aws.credentials.access-key=${{ secrets.STAGING_AWS_ACCESS_KEY }}
-          aws.credentials.secret-key=${{ secrets.STAGING_AWS_SECRET_KEY }}
           aws.region=ap-northeast-2
           aws.s3.bucket=${{ secrets.STAGING_AWS_S3_BUCKET }}
           opensearch.endpoint=${{ secrets.STAGING_OPENSEARCH_ENDPOINT }}
@@ -128,6 +126,9 @@ jobs:
           key: ${{ secrets.STAGING_EC2_KEY }}
           source: docker-compose.yml,docker-compose.scouter.yml
           target: ~/app
+          proxy_host: ${{ secrets.STAGING_BASTION_HOST }}
+          proxy_username: ${{ secrets.STAGING_BASTION_USER }}
+          proxy_key: ${{ secrets.STAGING_BASTION_KEY }}
 
       - name: Deploy to Staging EC2
         uses: appleboy/ssh-action@v1
@@ -135,6 +136,9 @@ jobs:
           host: ${{ secrets.STAGING_EC2_HOST }}
           username: ${{ secrets.STAGING_EC2_USER }}
           key: ${{ secrets.STAGING_EC2_KEY }}
+          proxy_host: ${{ secrets.STAGING_BASTION_HOST }}
+          proxy_username: ${{ secrets.STAGING_BASTION_USER }}
+          proxy_key: ${{ secrets.STAGING_BASTION_KEY }}
           script: |
             cd ~/app
 
@@ -151,8 +155,6 @@ jobs:
             echo "NAVER_CLIENT_ID=${{ secrets.NAVER_CLIENT_ID }}" >> .env
             echo "NAVER_CLIENT_SECRET=${{ secrets.NAVER_CLIENT_SECRET }}" >> .env
             echo "GOOGLE_PLACES_API_KEY=${{ secrets.GOOGLE_PLACES_API_KEY }}" >> .env
-            echo "AWS_ACCESS_KEY=${{ secrets.STAGING_AWS_ACCESS_KEY }}" >> .env
-            echo "AWS_SECRET_KEY=${{ secrets.STAGING_AWS_SECRET_KEY }}" >> .env
             echo "AWS_REGION=ap-northeast-2" >> .env
             echo "AWS_S3_BUCKET=${{ secrets.STAGING_AWS_S3_BUCKET }}" >> .env
             echo "STAGING_POSTHOG_API_KEY=${{ secrets.STAGING_POSTHOG_API_KEY }}" >> .env

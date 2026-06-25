@@ -84,7 +84,7 @@ public class MenuService {
 			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
 
 		List<ImageResponse> images = menuImageFileRepository.findImagesByMenuId(menuId).stream()
-			.map(img -> new ImageResponse(img.getId(), img.getAwsKey()))
+			.map(img -> new ImageResponse(img.getId(), img.getAwsKey(), img.getResizedKey640()))
 			.toList();
 
 		boolean isLiked = memberId != null && menuLikeRepository.existsByMemberIdAndMenuId(memberId, menuId);
@@ -125,7 +125,7 @@ public class MenuService {
 		return menuImageFileRepository.findThumbnailsByMenuIdIn(menuIds).stream()
 			.collect(Collectors.toMap(
 				MenuImageThumbnailProjection::getMenuId,
-				p -> new ImageResponse(p.getImageId(), p.getAwsKey()),
+				p -> new ImageResponse(p.getImageId(), p.getAwsKey(), p.getResizedKey640()),
 				(first, second) -> first));
 	}
 

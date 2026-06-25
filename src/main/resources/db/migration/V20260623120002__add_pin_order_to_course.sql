@@ -1,0 +1,1 @@
+ALTER TABLE courses ADD COLUMN pin_order INTEGER;

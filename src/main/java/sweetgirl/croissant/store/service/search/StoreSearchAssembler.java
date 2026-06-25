@@ -101,12 +101,12 @@ public class StoreSearchAssembler {
 			.toList();
 	}
 
-	// 가게 ID → 썸네일 awsKey 맵 (한 가게에 썸네일이 여럿이면 첫 번째만 사용)
+	// 가게 ID → 리사이즈 썸네일 키 맵 (한 가게에 썸네일이 여럿이면 첫 번째만 사용)
 	private Map<Long, String> getStoreThumbnails(List<Long> storeIds) {
 		return storeImageFileRepository.findThumbnailsByStoreIdIn(storeIds).stream()
 			.collect(Collectors.toMap(
 				StoreImageThumbnailProjection::getStoreId,
-				StoreImageThumbnailProjection::getAwsKey,
+				StoreImageThumbnailProjection::getResizedKey320,
 				(first, second) -> first));
 	}
 
@@ -120,7 +120,7 @@ public class StoreSearchAssembler {
 					List::copyOf)));
 	}
 
-	// 위에서 모은 대표 메뉴들의 ID를 평탄화해 메뉴 썸네일을 한 번에 조회 (메뉴 ID → awsKey)
+	// 위에서 모은 대표 메뉴들의 ID를 평탄화해 메뉴 썸네일을 한 번에 조회 (메뉴 ID → resizedKey320)
 	private Map<Long, String> getMenuThumbnails(Map<Long, List<StoreMenuProjection>> menusByStore) {
 		List<Long> menuIds = menusByStore.values().stream()
 			.flatMap(List::stream)
@@ -134,7 +134,7 @@ public class StoreSearchAssembler {
 		return menuImageFileRepository.findThumbnailsByMenuIdIn(menuIds).stream()
 			.collect(Collectors.toMap(
 				MenuImageThumbnailProjection::getMenuId,
-				MenuImageThumbnailProjection::getAwsKey,
+				MenuImageThumbnailProjection::getResizedKey320,
 				(first, second) -> first));
 	}
 }
