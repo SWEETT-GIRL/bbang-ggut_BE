@@ -84,7 +84,9 @@ public class StoreService {
 		Slice<SubscribedStoreResponse> responsSlice = slice.map(subscribedStore -> {
 			List<StoreImageFile> images = storeImageFileRepository
 				.findByStoreIdOrderByDisplayOrderAscIdAsc(subscribedStore.getStore().getId());
-			String thumbnailImageKey = images.isEmpty() ? null : images.get(0).getResizedKey320();
+			StoreImageFile thumb = images.isEmpty() ? null : images.get(0);
+			String thumbnailImageKey = thumb == null ? null
+				: thumb.getResizedKey320() != null ? thumb.getResizedKey320() : thumb.getAwsKey();
 			return SubscribedStoreResponse.from(subscribedStore, thumbnailImageKey);
 		});
 		return SliceResponse.from(responsSlice);
@@ -287,9 +289,10 @@ public class StoreService {
 
 	private Map<Long, String> getStoreThumbnails(List<Long> storeIds) {
 		return storeImageFileRepository.findThumbnailsByStoreIdIn(storeIds).stream()
+			.filter(p -> p.getResizedKey320() != null || p.getAwsKey() != null)
 			.collect(Collectors.toMap(
 				StoreImageThumbnailProjection::getStoreId,
-				StoreImageThumbnailProjection::getResizedKey320,
+				p -> p.getResizedKey320() != null ? p.getResizedKey320() : p.getAwsKey(),
 				(first, second) -> first));
 	}
 
@@ -315,7 +318,7 @@ public class StoreService {
 		return menuImageFileRepository.findThumbnailsByMenuIdIn(menuIds).stream()
 			.collect(Collectors.toMap(
 				MenuImageThumbnailProjection::getMenuId,
-				MenuImageThumbnailProjection::getResizedKey320,
+				p -> p.getResizedKey320() != null ? p.getResizedKey320() : p.getAwsKey(),
 				(first, second) -> first));
 	}
 }

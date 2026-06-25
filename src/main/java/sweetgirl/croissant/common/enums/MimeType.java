@@ -12,7 +12,8 @@ public enum MimeType {
 	IMAGE_PNG("image/png"),
 	IMAGE_WEBP("image/webp"),
 	IMAGE_HEIC("image/heic"),
-	IMAGE_AVIF("image/avif");
+	IMAGE_AVIF("image/avif"),
+	IMAGE_GIF("image/gif");
 
 	private final String value;
 

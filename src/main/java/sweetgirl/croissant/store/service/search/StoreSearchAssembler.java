@@ -106,7 +106,7 @@ public class StoreSearchAssembler {
 		return storeImageFileRepository.findThumbnailsByStoreIdIn(storeIds).stream()
 			.collect(Collectors.toMap(
 				StoreImageThumbnailProjection::getStoreId,
-				StoreImageThumbnailProjection::getResizedKey320,
+				p -> p.getResizedKey320() != null ? p.getResizedKey320() : p.getAwsKey(),
 				(first, second) -> first));
 	}
 
@@ -134,7 +134,7 @@ public class StoreSearchAssembler {
 		return menuImageFileRepository.findThumbnailsByMenuIdIn(menuIds).stream()
 			.collect(Collectors.toMap(
 				MenuImageThumbnailProjection::getMenuId,
-				MenuImageThumbnailProjection::getResizedKey320,
+				p -> p.getResizedKey320() != null ? p.getResizedKey320() : p.getAwsKey(),
 				(first, second) -> first));
 	}
 }
