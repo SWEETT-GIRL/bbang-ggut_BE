@@ -35,6 +35,17 @@ public class ReviewController {
 
 	private final ReviewService reviewService;
 
+	@Operation(summary = "가게 리뷰 목록 조회", description = "해당 가게의 모든 메뉴 리뷰를 최신순으로 반환합니다.")
+	@GetMapping("/stores/{storeId}/reviews")
+	public ResponseEntity<ApiResponse<MyReviewListResponse>> getStoreReviews(
+			@PathVariable Long storeId,
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "20") int size,
+			@AuthenticationPrincipal Long memberId) {
+		return ResponseEntity.ok(ApiResponse.ok(
+			reviewService.getStoreReviews(storeId, memberId, page, size)));
+	}
+
 	@Operation(summary = "메뉴 리뷰 요약 조회", description = "평균 별점, 리뷰 수, 미리보기 리뷰를 반환합니다.")
 	@GetMapping("/menus/{menuId}/reviews/summary")
 	public ResponseEntity<ApiResponse<ReviewSummaryResponse>> getReviewSummary(
