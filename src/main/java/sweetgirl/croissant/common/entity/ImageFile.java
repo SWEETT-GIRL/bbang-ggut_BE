@@ -39,13 +39,13 @@ public abstract class ImageFile extends BaseTimeEntity {
 	@Column(nullable = false, length = 20)
 	private ImageStatus processingStatus;
 
-	@Column(length = 255)
+	@Column(name = "resized_key_320", length = 255)
 	private String resizedKey320;
 
-	@Column(length = 255)
+	@Column(name = "resized_key_640", length = 255)
 	private String resizedKey640;
 
-	@Column(length = 255)
+	@Column(name = "resized_key_1024", length = 255)
 	private String resizedKey1024;
 
 	protected ImageFile(String name, MimeType mimeType, String awsKey) {
