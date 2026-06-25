@@ -29,7 +29,7 @@ import sweetgirl.croissant.external.aws.exception.S3ErrorCode;
 import sweetgirl.croissant.external.aws.exception.S3StorageException;
 
 @Service
-@Profile({"staging", "prod"})
+@Profile({"local", "staging", "prod"})
 @RequiredArgsConstructor
 public class S3Service {
 

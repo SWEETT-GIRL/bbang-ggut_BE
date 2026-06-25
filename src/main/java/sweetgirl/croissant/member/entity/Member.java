@@ -65,6 +65,9 @@ public class Member {
 	@Column
 	private LocalDateTime marketingAgreedAt;
 
+	@Column(nullable = false, length = 20, columnDefinition = "VARCHAR DEFAULT 'USER'")
+	private String memberType = "USER";
+
 	@CreatedDate
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
