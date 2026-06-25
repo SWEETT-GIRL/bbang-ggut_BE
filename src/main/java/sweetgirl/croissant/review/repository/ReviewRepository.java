@@ -196,6 +196,26 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 	void decrementRecommendCount(@Param("reviewId") Long reviewId);
 
 	@Query("""
+			SELECT r FROM Review r
+			JOIN FETCH r.member
+			JOIN FETCH r.menu m
+			JOIN FETCH m.store
+			WHERE m.store.id = :storeId
+				AND r.deletedAt IS NULL
+				AND r.hiddenAt IS NULL
+				AND (:viewerMemberId IS NULL OR NOT EXISTS (
+					SELECT 1 FROM MemberBlock mb
+					WHERE mb.blocker.id = :viewerMemberId
+						AND mb.blockedMember.id = r.member.id
+				))
+			ORDER BY r.createdAt DESC, r.id DESC
+			""")
+	List<Review> findVisibleActiveByStoreIdOrderByRecent(
+			@Param("storeId") Long storeId,
+			@Param("viewerMemberId") Long viewerMemberId,
+			Pageable pageable);
+
+	@Query("""
 			SELECT r.member.id AS memberId,
 				COUNT(r) AS reviewCount,
 				AVG(r.rating) AS averageRating

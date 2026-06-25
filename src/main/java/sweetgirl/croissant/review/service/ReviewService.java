@@ -147,6 +147,21 @@ public class ReviewService {
 		return new MyReviewListResponse(toReviewDetailResponses(pageReviews, memberId), hasNext);
 	}
 
+	public MyReviewListResponse getStoreReviews(Long storeId, Long viewerMemberId, int page, int size) {
+		if (page < 0 || size < 1) {
+			throw new IllegalArgumentException("page and size must be valid");
+		}
+
+		List<Review> reviews = reviewRepository.findVisibleActiveByStoreIdOrderByRecent(
+			storeId,
+			viewerMemberId,
+			PageRequest.of(page, size + 1));
+		boolean hasNext = reviews.size() > size;
+		List<Review> pageReviews = hasNext ? reviews.subList(0, size) : reviews;
+
+		return new MyReviewListResponse(toReviewDetailResponses(pageReviews, viewerMemberId), hasNext);
+	}
+
 	public MyReviewListResponse getMemberReviews(Long memberId, Long viewerMemberId, int page, int size) {
 		if (page < 0 || size < 1) {
 			throw new IllegalArgumentException("page and size must be valid");
