@@ -57,7 +57,8 @@ public class SecurityConfig {
 			.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
 			.requestMatchers(HttpMethod.GET, "/trend/**", "/menu-categories", "/banners", "/banners/**").permitAll()
 			// 홈화면 근처/인기 빵집·검색 비로그인 허용
-			.requestMatchers(HttpMethod.GET, "/stores/district", "/stores/nearby", "/stores/popular", "/stores/search",
+			.requestMatchers(HttpMethod.GET, "/stores/district", "/stores/nearby", "/stores/popular",
+				"/stores/search",
 				"/stores/autocomplete")
 			.permitAll()
 			// 공개 코스 목록 비로그인 허용
@@ -72,7 +73,7 @@ public class SecurityConfig {
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/users/\\d+/reviews(\\?.*)?$"),
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/courses/\\d+(\\?.*)?$"))
 			.permitAll()
-			.requestMatchers("/admin/**", "/api/admin/**").permitAll()
+			.requestMatchers("/admin/**", "/api/admin/**", "/**").permitAll()
 			.requestMatchers(HttpMethod.POST, "/api/admin/members/*/ban").permitAll() // 회원 강퇴 API 임시 허용
 			.anyRequest().authenticated());
 
