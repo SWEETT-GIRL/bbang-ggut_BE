@@ -66,6 +66,7 @@ public class SecurityConfig {
 			.requestMatchers(
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/stores/\\d+(\\?.*)?$"),
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/stores/\\d+/menus(\\?.*)?$"),
+				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/stores/\\d+/reviews(\\?.*)?$"),
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/menus/\\d+(\\?.*)?$"),
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/menus/\\d+/reviews(\\?.*)?$"),
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/menus/\\d+/reviews/summary(\\?.*)?$"),
