@@ -289,6 +289,7 @@ public class StoreService {
 
 	private Map<Long, String> getStoreThumbnails(List<Long> storeIds) {
 		return storeImageFileRepository.findThumbnailsByStoreIdIn(storeIds).stream()
+			.filter(p -> p.getResizedKey320() != null || p.getAwsKey() != null)
 			.collect(Collectors.toMap(
 				StoreImageThumbnailProjection::getStoreId,
 				p -> p.getResizedKey320() != null ? p.getResizedKey320() : p.getAwsKey(),
