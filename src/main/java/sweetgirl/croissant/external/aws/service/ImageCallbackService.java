@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.common.entity.ImageFile;
 import sweetgirl.croissant.common.enums.ImageStatus;
+import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.contribution.repository.MenuContributionReportImageFileRepository;
 import sweetgirl.croissant.contribution.repository.StoreContributionReportImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
@@ -42,7 +43,9 @@ public class ImageCallbackService {
 		ImageFile image = findByAwsKey(awsKey);
 		if (status == ImageStatus.DONE) {
 			image.markDone();
-			image.updateResizedKeys(awsKey);
+			if (image.getMimeType() != MimeType.IMAGE_GIF) {
+				image.updateResizedKeys(awsKey);
+			}
 		} else {
 			log.warn("이미지 lambda 처리 실패 [awsKey: {}] 사유: {}", request.getAwsKey(), request.getFailReason());
 			image.markFailed();

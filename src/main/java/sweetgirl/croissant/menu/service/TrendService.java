@@ -156,7 +156,8 @@ public class TrendService {
 				.stream()
 				.collect(Collectors.groupingBy(
 					StoreImageThumbnailProjection::getStoreId,
-					Collectors.mapping(StoreImageThumbnailProjection::getResizedKey320, Collectors.toList())));
+					Collectors.mapping(p -> p.getResizedKey320() != null ? p.getResizedKey320() : p.getAwsKey(),
+						Collectors.toList())));
 
 		// 카테고리별로 응답 DTO 조립 + 각 빵집에 썸네일 주입, 빵집 없는 카테고리는 제외
 		List<RegionTrendResponse.CategoryTrend> categoryTrends = categories.stream()
