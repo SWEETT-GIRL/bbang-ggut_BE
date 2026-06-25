@@ -1,7 +1,13 @@
-language: "ko"
-
 reviews:
   profile: "chill"
+  language: "ko"
+
+  request_review_on_non_default_branch: true
+
+  auto_review:
+    base_branches:
+      - "dev"
+      - "main"
 
   path_filters:
     - "!**/docs/**"
