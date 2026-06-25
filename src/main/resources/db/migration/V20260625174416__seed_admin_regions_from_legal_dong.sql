@@ -1,6 +1,6 @@
 -- 전국 행정구역(CITY/GU) 검색 지역 시드
--- 소스: docs/search_region_data/korean-legal-dong-list.json (법정동 마스터)
--- 생성: docs/search_region_data/generate_region_seed.py (DISTINCT 시도단축형/구·시·군)
+-- 소스: docs/searchregiondata/korean-legal-dong-list.json (법정동 마스터)
+-- 생성: docs/searchregiondata/generate_region_seed.py (DISTINCT 시도단축형/구·시·군)
 -- 특례시 구 드롭, 세종 GU 생략. 시도는 store.region_1st 컨벤션(단축형)으로 정규화.
 
 -- 1) normalized_alias 전역 UNIQUE 완화 — 동음이의 GU(중구/동구 등) 허용
@@ -35,9 +35,10 @@ WHERE NOT EXISTS (
 );
 
 -- 3) GU 시드 (시/군/구, parent=CITY). 동음이의는 parent로 구분.
-INSERT INTO search_region (name, type, level, parent_region_id, display_order, is_active)
-SELECT v.gu, 'DISTRICT', 'GU', city.id, 0, TRUE
-FROM (VALUES
+--    초기 시드(V20260610110000)의 용산구/성동구는 parent_region_id=NULL 상태라
+--    먼저 parent를 백필한 뒤 삽입해야 중복 생성을 막는다.
+CREATE TEMP TABLE _gu_seed (city_name TEXT, gu TEXT) ON COMMIT DROP;
+INSERT INTO _gu_seed (city_name, gu) VALUES
         ('서울', '강남구'),
         ('서울', '강동구'),
         ('서울', '강북구'),
@@ -265,12 +266,23 @@ FROM (VALUES
         ('경남', '함양군'),
         ('경남', '합천군'),
         ('제주', '서귀포시'),
-        ('제주', '제주시')
-    ) AS v(city_name, gu)
-JOIN search_region city ON city.name = v.city_name AND city.level = 'CITY'
+        ('제주', '제주시');
+
+-- 3-a) 기존 NULL-parent GU의 parent 백필
+UPDATE search_region g
+SET parent_region_id = c.id, updated_at = NOW()
+FROM _gu_seed s
+JOIN search_region c ON c.name = s.city_name AND c.level = 'CITY'
+WHERE g.level = 'GU' AND g.name = s.gu AND g.parent_region_id IS NULL;
+
+-- 3-b) GU 삽입 (백필로 기존행은 parent 매칭되어 스킵)
+INSERT INTO search_region (name, type, level, parent_region_id, display_order, is_active)
+SELECT s.gu, 'DISTRICT', 'GU', c.id, 0, TRUE
+FROM _gu_seed s
+JOIN search_region c ON c.name = s.city_name AND c.level = 'CITY'
 WHERE NOT EXISTS (
     SELECT 1 FROM search_region r
-    WHERE r.name = v.gu AND r.level = 'GU' AND r.parent_region_id = city.id
+    WHERE r.name = s.gu AND r.level = 'GU' AND r.parent_region_id = c.id
 );
 
 -- 4) CITY alias — 단축형(대표) + 풀네임/이형
