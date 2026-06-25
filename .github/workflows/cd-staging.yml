@@ -76,7 +76,6 @@ jobs:
           aws.region=ap-northeast-2
           aws.s3.bucket=${{ secrets.STAGING_AWS_S3_BUCKET }}
           opensearch.endpoint=${{ secrets.STAGING_OPENSEARCH_ENDPOINT }}
-          opensearch.region=ap-southeast-2
 
           posthog.api-key=${{secrets.STAGING_POSTHOG_API_KEY}}
           posthog.host=https://us.i.posthog.com
