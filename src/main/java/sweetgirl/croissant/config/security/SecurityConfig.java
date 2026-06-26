@@ -73,7 +73,7 @@ public class SecurityConfig {
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/users/\\d+/reviews(\\?.*)?$"),
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/courses/\\d+(\\?.*)?$"))
 			.permitAll()
-			.requestMatchers("/admin/**", "/api/admin/**", "/**").permitAll()
+			.requestMatchers("/admin/**", "/api/admin/**").permitAll()
 			.requestMatchers(HttpMethod.POST, "/api/admin/members/*/ban").permitAll() // 회원 강퇴 API 임시 허용
 			.anyRequest().authenticated());
 
