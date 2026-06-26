@@ -10,9 +10,10 @@ public record SavedStoreResponse(
 		String storeName,
 		String region,
 		double latitude,
-		double longitude) {
+		double longitude,
+		String thumbnailImageKey) {
 
-	public static SavedStoreResponse from(SavedStore savedStore) {
+	public static SavedStoreResponse from(SavedStore savedStore, String thumbnailImageKey) {
 		Store store = savedStore.getStore();
 		Point location = store.getLocation();
 		return new SavedStoreResponse(
@@ -20,6 +21,7 @@ public record SavedStoreResponse(
 			store.getName(),
 			store.getRegion2nd(),
 			location.getY(),
-			location.getX());
+			location.getX(),
+			thumbnailImageKey);
 	}
 }
