@@ -94,7 +94,7 @@ public class StoreSearchQueryParser {
 			return false;
 		}
 		// DB alias 매칭은 최우선 — 실제 등록된 지역이면 빵/예외 여부와 무관하게 지역으로 인정
-		if (searchRegionAliasRepository.findByNormalizedAlias(normalize(token)).isPresent()) {
+		if (!searchRegionAliasRepository.findByNormalizedAlias(normalize(token)).isEmpty()) {
 			return true;
 		}
 		// 빵 단어("타르트")나 비지역 예외어("블루베리")는 접미사가 지역처럼 끝나도 지역으로 보지 않는다
