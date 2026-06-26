@@ -52,7 +52,8 @@ class SavedStoreControllerTest {
 
 	@Test
 	void getSavedStores_returns200() throws Exception {
-		SavedStoreResponse response = new SavedStoreResponse(10L, "소금빵 가게", "마포구", 37.55, 126.92);
+		SavedStoreResponse response = new SavedStoreResponse(10L, "소금빵 가게", "마포구", 37.55, 126.92,
+			"resized/320/store10.jpg");
 		given(savedStoreQueryService.getSavedStores(isNull())).willReturn(List.of(response));
 
 		mockMvc.perform(get("/stores/saved"))
@@ -60,7 +61,8 @@ class SavedStoreControllerTest {
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data[0].storeId").value(10))
 			.andExpect(jsonPath("$.data[0].storeName").value("소금빵 가게"))
-			.andExpect(jsonPath("$.data[0].region").value("마포구"));
+			.andExpect(jsonPath("$.data[0].region").value("마포구"))
+			.andExpect(jsonPath("$.data[0].thumbnailImageKey").value("resized/320/store10.jpg"));
 	}
 
 	@Test
