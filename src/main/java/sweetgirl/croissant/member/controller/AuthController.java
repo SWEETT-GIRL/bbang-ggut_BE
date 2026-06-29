@@ -12,12 +12,15 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.member.dto.request.AppleLoginRequest;
+import sweetgirl.croissant.member.dto.request.KakaoLoginRequest;
 import sweetgirl.croissant.member.dto.request.LogoutRequest;
 import sweetgirl.croissant.member.dto.request.RefreshRequest;
 import sweetgirl.croissant.member.dto.response.AppleLoginResponse;
+import sweetgirl.croissant.member.dto.response.KakaoLoginResponse;
 import sweetgirl.croissant.member.dto.response.RefreshResponse;
 import sweetgirl.croissant.member.service.AppleAuthService;
 import sweetgirl.croissant.member.service.AuthService;
+import sweetgirl.croissant.member.service.KakaoAuthService;
 
 @RestController
 @RequestMapping("/auth")
@@ -25,8 +28,14 @@ import sweetgirl.croissant.member.service.AuthService;
 public class AuthController {
 
 	private final AuthService authService;
-
 	private final AppleAuthService appleAuthService;
+	private final KakaoAuthService kakaoAuthService;
+
+	@PostMapping("/kakao")
+	public ResponseEntity<?> kakaoLogin(@RequestBody KakaoLoginRequest req) {
+		KakaoLoginResponse response = kakaoAuthService.login(req.accessToken(), req.deviceId());
+		return ResponseEntity.ok(Map.of("data", response));
+	}
 
 	@PostMapping("/apple")
 	public ResponseEntity<?> appleLogin(@RequestBody AppleLoginRequest req) {
