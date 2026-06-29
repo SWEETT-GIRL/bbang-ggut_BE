@@ -1,0 +1,150 @@
+package sweetgirl.croissant.member.service;
+
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
+
+import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.global.encrypt.TokenHasher;
+import sweetgirl.croissant.member.code.MemberErrorCode;
+import sweetgirl.croissant.member.dto.response.KakaoLoginResponse;
+import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.entity.NotificationSetting;
+import sweetgirl.croissant.member.entity.OAuth;
+import sweetgirl.croissant.member.entity.RefreshToken;
+import sweetgirl.croissant.member.enums.MemberRestrictionType;
+import sweetgirl.croissant.member.enums.NotificationRadius;
+import sweetgirl.croissant.member.enums.OAuthProvider;
+import sweetgirl.croissant.member.exception.MemberException;
+import sweetgirl.croissant.member.jwt.JwtProvider;
+import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.repository.MemberRestrictionRepository;
+import sweetgirl.croissant.member.repository.NotificationSettingRepository;
+import sweetgirl.croissant.member.repository.OAuthRepository;
+import sweetgirl.croissant.member.repository.RefreshTokenRepository;
+import sweetgirl.croissant.member.util.NicknameGenerator;
+
+@Service
+@RequiredArgsConstructor
+public class KakaoAuthService {
+
+	private final OAuthRepository oAuthRepository;
+	private final MemberRepository memberRepository;
+	private final MemberRestrictionRepository memberRestrictionRepository;
+	private final RefreshTokenRepository refreshTokenRepository;
+	private final NotificationSettingRepository notificationSettingRepository;
+	private final JwtProvider jwtProvider;
+	private final TokenHasher tokenHasher;
+	private final NicknameGenerator nicknameGenerator;
+
+	@Value("${jwt.refresh-token-expiry}")
+	private long refreshTokenExpiry;
+
+	private final RestTemplate restTemplate = new RestTemplate();
+
+	@Transactional
+	public KakaoLoginResponse login(String kakaoAccessToken, String deviceId) {
+		KakaoUserInfo userInfo = fetchUserInfo(kakaoAccessToken);
+
+		// 기존 web OAuth(CustomOAuth2UserService)와 동일한 방식: String.valueOf(id) 후 SHA-256 해시
+		String hashedProviderId = tokenHasher.hash(userInfo.providerId());
+
+		boolean existsOAuth = oAuthRepository.existsByProviderAndProviderId(OAuthProvider.KAKAO, hashedProviderId);
+
+		OAuth oAuth = oAuthRepository
+			.findByProviderAndProviderId(OAuthProvider.KAKAO, hashedProviderId)
+			.orElseGet(() -> registerNewMember(userInfo, hashedProviderId));
+
+		Member member = oAuth.getMember();
+
+		boolean isBanned = !memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(
+			member.getId(), List.of(MemberRestrictionType.BANNED), LocalDateTime.now()).isEmpty();
+		if (isBanned) {
+			throw new MemberException(MemberErrorCode.MEMBER_BANNED);
+		}
+
+		boolean isDeletedMember = member.isDeleted();
+		Member activeMember;
+		if (isDeletedMember) {
+			activeMember = memberRepository.save(Member.builder().nickname(nicknameGenerator.generate()).build());
+			oAuth.updateMember(activeMember);
+		} else {
+			activeMember = member;
+		}
+		boolean isNew = !existsOAuth || isDeletedMember;
+
+		notificationSettingRepository.findByMemberId(activeMember.getId())
+			.orElseGet(() -> createDefaultNotificationSetting(activeMember));
+
+		Long memberId = activeMember.getId();
+		String accessToken = jwtProvider.generateAccessToken(memberId);
+		String refreshToken = jwtProvider.generateRefreshToken(memberId);
+		saveRefreshToken(memberId, deviceId, refreshToken);
+
+		return new KakaoLoginResponse(accessToken, refreshToken, isNew);
+	}
+
+	@SuppressWarnings("unchecked")
+	private KakaoUserInfo fetchUserInfo(String kakaoAccessToken) {
+		HttpHeaders headers = new HttpHeaders();
+		headers.setBearerAuth(kakaoAccessToken);
+		Map<String, Object> body = restTemplate.exchange(
+			"https://kapi.kakao.com/v2/user/me",
+			HttpMethod.GET,
+			new HttpEntity<>(headers),
+			Map.class).getBody();
+
+		String providerId = String.valueOf(body.get("id"));
+		String email = null;
+		Map<String, Object> kakaoAccount = (Map<String, Object>)body.get("kakao_account");
+		if (kakaoAccount != null) {
+			email = (String)kakaoAccount.get("email");
+		}
+		return new KakaoUserInfo(providerId, email);
+	}
+
+	private record KakaoUserInfo(String providerId, String email) {
+	}
+
+	private OAuth registerNewMember(KakaoUserInfo userInfo, String hashedProviderId) {
+		Member member = memberRepository.save(Member.builder().nickname(nicknameGenerator.generate()).build());
+		return oAuthRepository.save(OAuth.builder()
+			.member(member)
+			.provider(OAuthProvider.KAKAO)
+			.providerId(hashedProviderId)
+			.email(userInfo.email())
+			.build());
+	}
+
+	private NotificationSetting createDefaultNotificationSetting(Member member) {
+		return notificationSettingRepository.save(NotificationSetting.builder()
+			.member(member)
+			.startTime(LocalTime.of(8, 0))
+			.endTime(LocalTime.of(21, 0))
+			.daysOfWeek("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY")
+			.notificationRadius(NotificationRadius.R500)
+			.isMarketingEnabled(false)
+			.isNotificationEnabled(true)
+			.build());
+	}
+
+	private void saveRefreshToken(Long memberId, String deviceId, String refreshToken) {
+		Member memberRef = memberRepository.getReferenceById(memberId);
+		refreshTokenRepository.findByMemberAndDeviceId(memberRef, deviceId).ifPresent(refreshTokenRepository::delete);
+		refreshTokenRepository.save(RefreshToken.builder()
+			.member(memberRef)
+			.deviceId(deviceId)
+			.token(tokenHasher.hash(refreshToken))
+			.expiredAt(LocalDateTime.now().plusSeconds(refreshTokenExpiry / 1000))
+			.build());
+	}
+}
