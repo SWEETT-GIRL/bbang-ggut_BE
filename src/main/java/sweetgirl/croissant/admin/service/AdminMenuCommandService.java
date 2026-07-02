@@ -1,13 +1,10 @@
 package sweetgirl.croissant.admin.service;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,10 +13,8 @@ import sweetgirl.croissant.admin.dto.request.AdminMenuCreateRequest;
 import sweetgirl.croissant.admin.dto.request.AdminMenuReorderRequest;
 import sweetgirl.croissant.admin.dto.request.AdminMenuUpdateRequest;
 import sweetgirl.croissant.admin.dto.response.AdminMenuResponse;
-import sweetgirl.croissant.common.entity.ImageFile;
 import sweetgirl.croissant.external.opensearch.event.StoreMenusChangedEvent;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
-import sweetgirl.croissant.menu.dto.projection.MenuImageThumbnailProjection;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.entity.MenuCategory;
 import sweetgirl.croissant.menu.enums.MenuKind;
@@ -35,8 +30,8 @@ import sweetgirl.croissant.store.repository.StoreRepository;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
-public class AdminMenuService {
+@Transactional
+public class AdminMenuCommandService {
 
 	private final MenuRepository menuRepository;
 	private final MenuCategoryRepository menuCategoryRepository;
@@ -44,7 +39,6 @@ public class AdminMenuService {
 	private final StoreRepository storeRepository;
 	private final ApplicationEventPublisher eventPublisher;
 
-	@Transactional
 	public AdminMenuResponse createMenu(Long storeId, AdminMenuCreateRequest request) {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
@@ -85,29 +79,6 @@ public class AdminMenuService {
 		return AdminMenuResponse.of(menu, photoUrls);
 	}
 
-	public List<AdminMenuResponse> getStoreMenus(Long storeId) {
-		if (!storeRepository.existsById(storeId)) {
-			throw new StoreException(StoreErrorCode.STORE_NOT_FOUND);
-		}
-		List<Menu> menus = menuRepository.findByStoreIdIncludingDeleted(storeId);
-		if (menus.isEmpty()) {
-			return Collections.emptyList();
-		}
-
-		List<Long> menuIds = menus.stream().map(Menu::getId).toList();
-		Map<Long, List<String>> photoMap = menuImageFileRepository.findThumbnailsByMenuIdIn(menuIds).stream()
-			.collect(Collectors.groupingBy(
-				MenuImageThumbnailProjection::getMenuId,
-				Collectors.mapping(MenuImageThumbnailProjection::getAwsKey, Collectors.toList())));
-
-		return menus.stream()
-			.map(menu -> AdminMenuResponse.of(
-				menu,
-				photoMap.getOrDefault(menu.getId(), Collections.emptyList())))
-			.toList();
-	}
-
-	@Transactional
 	public void updateMenu(Long menuId, AdminMenuUpdateRequest request) {
 		Menu menu = menuRepository.findById(menuId)
 			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
@@ -122,7 +93,6 @@ public class AdminMenuService {
 		eventPublisher.publishEvent(new StoreMenusChangedEvent(menu.getStore().getId()));
 	}
 
-	@Transactional
 	public void deleteMenu(Long menuId) {
 		Menu menu = menuRepository.findById(menuId)
 			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
@@ -130,24 +100,6 @@ public class AdminMenuService {
 		eventPublisher.publishEvent(new StoreMenusChangedEvent(menu.getStore().getId()));
 	}
 
-	public Page<AdminMenuResponse> getAllMenus(int page, int size) {
-		Page<Menu> menus = menuRepository.findAllMenusWithDetails(PageRequest.of(page, size));
-		List<Long> menuIds = menus.getContent().stream().map(Menu::getId).toList();
-		Map<Long, List<String>> photoMap = buildPhotoMap(menuIds);
-		return menus
-			.map(menu -> AdminMenuResponse.of(menu, photoMap.getOrDefault(menu.getId(), Collections.emptyList())));
-	}
-
-	public AdminMenuResponse getMenuDetail(Long menuId) {
-		Menu menu = menuRepository.findById(menuId)
-			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
-		List<String> photos = menuImageFileRepository.findImagesByMenuId(menuId).stream()
-			.map(ImageFile::getAwsKey)
-			.toList();
-		return AdminMenuResponse.of(menu, photos);
-	}
-
-	@Transactional
 	public void reorderMenus(Long storeId, AdminMenuReorderRequest request) {
 		if (!storeRepository.existsById(storeId)) {
 			throw new StoreException(StoreErrorCode.STORE_NOT_FOUND);
@@ -161,16 +113,6 @@ public class AdminMenuService {
 				AdminMenuReorderRequest.MenuOrder::menuId,
 				AdminMenuReorderRequest.MenuOrder::order));
 		menus.forEach(menu -> menu.updateOrder(orderMap.get(menu.getId())));
-	}
-
-	private Map<Long, List<String>> buildPhotoMap(List<Long> menuIds) {
-		if (menuIds.isEmpty()) {
-			return Collections.emptyMap();
-		}
-		return menuImageFileRepository.findThumbnailsByMenuIdIn(menuIds).stream()
-			.collect(Collectors.groupingBy(
-				MenuImageThumbnailProjection::getMenuId,
-				Collectors.mapping(MenuImageThumbnailProjection::getAwsKey, Collectors.toList())));
 	}
 
 	private MenuCategory resolveCategory(String categoryName) {

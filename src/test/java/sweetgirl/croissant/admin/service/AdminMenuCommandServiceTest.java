@@ -7,7 +7,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -36,7 +35,7 @@ import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
 @ExtendWith(MockitoExtension.class)
-class AdminMenuServiceTest {
+class AdminMenuCommandServiceTest {
 
 	@Mock
 	MenuRepository menuRepository;
@@ -50,7 +49,7 @@ class AdminMenuServiceTest {
 	ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
-	AdminMenuService adminMenuService;
+	AdminMenuCommandService adminMenuCommandService;
 
 	@Test
 	@DisplayName("createMenu: 가격을 Integer로 파싱해 메뉴를 저장한다")
@@ -79,7 +78,7 @@ class AdminMenuServiceTest {
 		AdminMenuCreateRequest request = new AdminMenuCreateRequest(
 			1L, "소금빵", "3000원", null, "소금빵", "active");
 
-		AdminMenuResponse response = adminMenuService.createMenu(1L, request);
+		AdminMenuResponse response = adminMenuCommandService.createMenu(1L, request);
 
 		assertThat(response.price()).isEqualTo("3000원");
 		assertThat(response.bakeryId()).isEqualTo(1L);
@@ -112,7 +111,7 @@ class AdminMenuServiceTest {
 		AdminMenuCreateRequest request = new AdminMenuCreateRequest(
 			1L, "소금빵", "3000원", null, "소금빵", "active");
 
-		AdminMenuResponse response = adminMenuService.createMenu(1L, request);
+		AdminMenuResponse response = adminMenuCommandService.createMenu(1L, request);
 
 		assertThat(response.id()).isEqualTo(99L);
 		verify(menuRepository, org.mockito.Mockito.never()).save(any(Menu.class));
@@ -146,7 +145,7 @@ class AdminMenuServiceTest {
 		AdminMenuCreateRequest request = new AdminMenuCreateRequest(
 			1L, "플레인소금빵", "3000원", "기본에 충실한 담백함과 바삭한 식감", "소금빵", "active");
 
-		adminMenuService.createMenu(1L, request);
+		adminMenuCommandService.createMenu(1L, request);
 
 		// 새로 만들지 않고(중복 방지) 기존 메뉴에 빠진 가격·설명만 채운다.
 		verify(menuRepository, org.mockito.Mockito.never()).save(any(Menu.class));
@@ -183,7 +182,7 @@ class AdminMenuServiceTest {
 		AdminMenuCreateRequest request = new AdminMenuCreateRequest(
 			1L, "소금빵", "3000원", null, "소금빵", "active");
 
-		AdminMenuResponse response = adminMenuService.createMenu(1L, request);
+		AdminMenuResponse response = adminMenuCommandService.createMenu(1L, request);
 
 		assertThat(response.id()).isEqualTo(11L);
 		verify(menuRepository).save(any(Menu.class));
@@ -198,50 +197,8 @@ class AdminMenuServiceTest {
 		AdminMenuCreateRequest request = new AdminMenuCreateRequest(
 			1L, "테스트빵", "1000원", null, "존재하지않는카테고리", "active");
 
-		assertThatThrownBy(() -> adminMenuService.createMenu(1L, request))
+		assertThatThrownBy(() -> adminMenuCommandService.createMenu(1L, request))
 			.isInstanceOf(CustomException.class);
-	}
-
-	@Test
-	@DisplayName("getStoreMenus: soft-delete 된 메뉴도 포함해 반환한다")
-	void getStoreMenus_includesDeletedMenus() {
-		Store store = mock(Store.class);
-		given(store.getId()).willReturn(1L);
-		given(storeRepository.existsById(1L)).willReturn(true);
-
-		MenuCategory category = mock(MenuCategory.class);
-		given(category.getName()).willReturn(MenuKind.소금빵);
-
-		Menu activeMenu = mock(Menu.class);
-		given(activeMenu.getId()).willReturn(1L);
-		given(activeMenu.getName()).willReturn("소금빵");
-		given(activeMenu.getPrice()).willReturn(3000);
-		given(activeMenu.getDescription()).willReturn(null);
-		given(activeMenu.getLikeCount()).willReturn(0);
-		given(activeMenu.getDeletedAt()).willReturn(null);
-		given(activeMenu.getStore()).willReturn(store);
-		given(activeMenu.getMenuCategory()).willReturn(category);
-		given(activeMenu.getCreatedAt()).willReturn(null);
-
-		Menu deletedMenu = mock(Menu.class);
-		given(deletedMenu.getId()).willReturn(2L);
-		given(deletedMenu.getName()).willReturn("삭제된빵");
-		given(deletedMenu.getPrice()).willReturn(2000);
-		given(deletedMenu.getDescription()).willReturn(null);
-		given(deletedMenu.getLikeCount()).willReturn(0);
-		given(deletedMenu.getDeletedAt()).willReturn(LocalDateTime.now());
-		given(deletedMenu.getStore()).willReturn(store);
-		given(deletedMenu.getMenuCategory()).willReturn(category);
-		given(deletedMenu.getCreatedAt()).willReturn(null);
-
-		given(menuRepository.findByStoreIdIncludingDeleted(1L)).willReturn(List.of(activeMenu, deletedMenu));
-		given(menuImageFileRepository.findThumbnailsByMenuIdIn(List.of(1L, 2L))).willReturn(Collections.emptyList());
-
-		List<AdminMenuResponse> result = adminMenuService.getStoreMenus(1L);
-
-		assertThat(result).hasSize(2);
-		assertThat(result.get(0).status()).isEqualTo("active");
-		assertThat(result.get(1).status()).isEqualTo("inactive");
 	}
 
 	@Test
@@ -253,7 +210,7 @@ class AdminMenuServiceTest {
 		given(menu.getStore()).willReturn(store);
 		given(menuRepository.findById(1L)).willReturn(Optional.of(menu));
 
-		adminMenuService.updateMenu(1L, new AdminMenuUpdateRequest(null, null, null, null, "inactive"));
+		adminMenuCommandService.updateMenu(1L, new AdminMenuUpdateRequest(null, null, null, null, "inactive"));
 
 		verify(menu).softDelete();
 	}
@@ -267,7 +224,7 @@ class AdminMenuServiceTest {
 		given(menu.getStore()).willReturn(store);
 		given(menuRepository.findById(30L)).willReturn(Optional.of(menu));
 
-		adminMenuService.deleteMenu(30L);
+		adminMenuCommandService.deleteMenu(30L);
 
 		ArgumentCaptor<StoreMenusChangedEvent> captor = ArgumentCaptor.forClass(StoreMenusChangedEvent.class);
 		verify(eventPublisher).publishEvent(captor.capture());
@@ -279,7 +236,7 @@ class AdminMenuServiceTest {
 	void updateMenu_notFound_throwsException() {
 		given(menuRepository.findById(999L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> adminMenuService.updateMenu(999L,
+		assertThatThrownBy(() -> adminMenuCommandService.updateMenu(999L,
 			new AdminMenuUpdateRequest("이름", null, null, null, "active")))
 			.isInstanceOf(CustomException.class);
 	}
@@ -309,7 +266,7 @@ class AdminMenuServiceTest {
 		given(menuRepository.save(any(Menu.class))).willReturn(saved);
 		given(menuImageFileRepository.findImagesByMenuId(10L)).willReturn(Collections.emptyList());
 
-		adminMenuService.createMenu(1L, new AdminMenuCreateRequest(1L, "소금빵", "3000원", null, "소금빵", "active"));
+		adminMenuCommandService.createMenu(1L, new AdminMenuCreateRequest(1L, "소금빵", "3000원", null, "소금빵", "active"));
 
 		ArgumentCaptor<StoreMenusChangedEvent> captor = ArgumentCaptor.forClass(StoreMenusChangedEvent.class);
 		verify(eventPublisher).publishEvent(captor.capture());
@@ -339,7 +296,7 @@ class AdminMenuServiceTest {
 		given(menuRepository.findActiveByStoreId(1L)).willReturn(List.of(existing));
 		given(menuImageFileRepository.findImagesByMenuId(99L)).willReturn(Collections.emptyList());
 
-		adminMenuService.createMenu(1L, new AdminMenuCreateRequest(1L, "소금빵", "3000원", null, "소금빵", "active"));
+		adminMenuCommandService.createMenu(1L, new AdminMenuCreateRequest(1L, "소금빵", "3000원", null, "소금빵", "active"));
 
 		verify(eventPublisher, org.mockito.Mockito.never()).publishEvent(any());
 	}
@@ -353,7 +310,7 @@ class AdminMenuServiceTest {
 		given(menu.getStore()).willReturn(store);
 		given(menuRepository.findById(10L)).willReturn(Optional.of(menu));
 
-		adminMenuService.updateMenu(10L, new AdminMenuUpdateRequest(null, null, null, null, "inactive"));
+		adminMenuCommandService.updateMenu(10L, new AdminMenuUpdateRequest(null, null, null, null, "inactive"));
 
 		ArgumentCaptor<StoreMenusChangedEvent> captor = ArgumentCaptor.forClass(StoreMenusChangedEvent.class);
 		verify(eventPublisher).publishEvent(captor.capture());
@@ -372,7 +329,7 @@ class AdminMenuServiceTest {
 		MenuCategory category = mock(MenuCategory.class);
 		given(menuCategoryRepository.findByName(MenuKind.소금빵)).willReturn(Optional.of(category));
 
-		adminMenuService.updateMenu(20L, new AdminMenuUpdateRequest("소금빵 스페셜", null, null, "소금빵", "active"));
+		adminMenuCommandService.updateMenu(20L, new AdminMenuUpdateRequest("소금빵 스페셜", null, null, "소금빵", "active"));
 
 		ArgumentCaptor<StoreMenusChangedEvent> captor = ArgumentCaptor.forClass(StoreMenusChangedEvent.class);
 		verify(eventPublisher).publishEvent(captor.capture());
