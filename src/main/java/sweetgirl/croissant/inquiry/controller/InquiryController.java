@@ -15,7 +15,7 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.inquiry.dto.request.InquiryCreateRequest;
 import sweetgirl.croissant.inquiry.dto.response.InquiryCreateResponse;
-import sweetgirl.croissant.inquiry.service.InquiryService;
+import sweetgirl.croissant.inquiry.service.InquiryCommandService;
 
 @Tag(name = "Inquiry", description = "문의 API")
 @RestController
@@ -23,7 +23,7 @@ import sweetgirl.croissant.inquiry.service.InquiryService;
 @RequiredArgsConstructor
 public class InquiryController {
 
-	private final InquiryService inquiryService;
+	private final InquiryCommandService inquiryCommandService;
 
 	@Operation(summary = "문의 등록", description = "사용자 문의를 등록합니다. category: STORE, ACCOUNT, BUG, ETC")
 	@PostMapping
@@ -31,6 +31,6 @@ public class InquiryController {
 			@AuthenticationPrincipal Long memberId,
 			@RequestBody @Valid InquiryCreateRequest request) {
 		return ResponseEntity.status(HttpStatus.CREATED)
-			.body(ApiResponse.created(inquiryService.createInquiry(memberId, request)));
+			.body(ApiResponse.created(inquiryCommandService.createInquiry(memberId, request)));
 	}
 }

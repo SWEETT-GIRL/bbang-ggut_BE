@@ -91,6 +91,8 @@ jobs:
 
           lambda.callback.secret-key=${{ secrets.LAMBDA_CALLBACK_SECRET_KEY }}
 
+          logging.level.sweetgirl.croissant.external.opensearch=${OPENSEARCH_DEBUG_LOGGING:INFO}
+
           perf.dashboard.enabled=${PERF_DASHBOARD_ENABLED:false}
           perf.dashboard.access-key=${PERF_DASHBOARD_ACCESS_KEY:}
           EOF

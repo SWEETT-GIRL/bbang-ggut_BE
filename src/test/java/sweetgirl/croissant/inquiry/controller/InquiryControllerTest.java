@@ -19,7 +19,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.inquiry.dto.response.InquiryCreateResponse;
-import sweetgirl.croissant.inquiry.service.InquiryService;
+import sweetgirl.croissant.inquiry.service.InquiryCommandService;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.exception.MemberException;
 
@@ -29,7 +29,7 @@ class InquiryControllerTest {
 	private MockMvc mockMvc;
 
 	@Mock
-	private InquiryService inquiryService;
+	private InquiryCommandService inquiryCommandService;
 
 	@InjectMocks
 	private InquiryController inquiryController;
@@ -46,7 +46,7 @@ class InquiryControllerTest {
 
 	@Test
 	void createInquiry_returns201_whenValidRequest() throws Exception {
-		given(inquiryService.createInquiry(any(), any()))
+		given(inquiryCommandService.createInquiry(any(), any()))
 			.willReturn(new InquiryCreateResponse(1L, LocalDateTime.now()));
 
 		mockMvc.perform(post("/inquiries")
@@ -75,7 +75,7 @@ class InquiryControllerTest {
 
 	@Test
 	void createInquiry_returns404_whenMemberNotFound() throws Exception {
-		given(inquiryService.createInquiry(any(), any()))
+		given(inquiryCommandService.createInquiry(any(), any()))
 			.willThrow(new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 
 		mockMvc.perform(post("/inquiries")

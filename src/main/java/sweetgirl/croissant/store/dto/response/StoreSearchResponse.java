@@ -6,6 +6,7 @@ import java.util.List;
 import org.locationtech.jts.geom.Point;
 
 import sweetgirl.croissant.external.kakao.dto.KakaoPlace;
+import sweetgirl.croissant.external.opensearch.dto.MatchedField;
 import sweetgirl.croissant.menu.dto.dto.MenuSummaryDto;
 import sweetgirl.croissant.store.entity.Store;
 
@@ -13,14 +14,15 @@ public record StoreSearchResponse(
 		Long id,
 		String name,
 		String address,
-		String thumbnailUrl,
+		String thumbnailImageKey,
 		String kakaoPlaceId,
 		String phone,
 		String x,
 		String y,
-		List<MenuSummaryDto> topMenus) {
+		List<MenuSummaryDto> topMenus,
+		List<MatchedField> matchedFields) {
 
-	public static StoreSearchResponse ofKakao(KakaoPlace place, Long storeId, String thumbnailUrl,
+	public static StoreSearchResponse ofKakao(KakaoPlace place, Long storeId, String thumbnailImageKey,
 			List<MenuSummaryDto> topMenus) {
 		String address = place.roadAddressName() != null && !place.roadAddressName().isBlank()
 			? place.roadAddressName()
@@ -29,15 +31,17 @@ public record StoreSearchResponse(
 			storeId,
 			place.placeName(),
 			address,
-			thumbnailUrl,
+			thumbnailImageKey,
 			place.id(),
 			place.phone(),
 			place.x(),
 			place.y(),
-			topMenus != null ? topMenus : Collections.emptyList());
+			topMenus != null ? topMenus : Collections.emptyList(),
+			Collections.emptyList());
 	}
 
-	public static StoreSearchResponse ofDb(Store store, String thumbnailUrl, List<MenuSummaryDto> topMenus) {
+	public static StoreSearchResponse ofDb(Store store, String thumbnailImageKey, List<MenuSummaryDto> topMenus,
+			List<MatchedField> matchedFields) {
 		Point location = store.getLocation();
 		String longitude = location != null ? String.valueOf(location.getX()) : null;
 		String latitude = location != null ? String.valueOf(location.getY()) : null;
@@ -45,11 +49,12 @@ public record StoreSearchResponse(
 			store.getId(),
 			store.getName(),
 			store.getAddress(),
-			thumbnailUrl,
+			thumbnailImageKey,
 			store.getKakaoPlaceId(),
 			store.getPhone(),
 			longitude,
 			latitude,
-			topMenus != null ? topMenus : Collections.emptyList());
+			topMenus != null ? topMenus : Collections.emptyList(),
+			matchedFields != null ? matchedFields : Collections.emptyList());
 	}
 }

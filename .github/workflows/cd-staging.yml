@@ -54,8 +54,8 @@ jobs:
           google.places.api-key=${GOOGLE_PLACES_API_KEY}
 
           jwt.secret=${JWT_SECRET}
-          jwt.access-token-expiry=3600000
-          jwt.refresh-token-expiry=1209600000
+          jwt.access-token-expiry=1800000
+          jwt.refresh-token-expiry=5184000000
 
           firebase.config.path=firebase/firebase-service-account.json
 
@@ -73,10 +73,9 @@ jobs:
           spring.flyway.baseline-description=Existing schema before nationwide ranking tables
           spring.flyway.out-of-order=true
           
-          aws.credentials.access-key=${{ secrets.STAGING_AWS_ACCESS_KEY }}
-          aws.credentials.secret-key=${{ secrets.STAGING_AWS_SECRET_KEY }}
           aws.region=ap-northeast-2
           aws.s3.bucket=${{ secrets.STAGING_AWS_S3_BUCKET }}
+          opensearch.endpoint=${{ secrets.STAGING_OPENSEARCH_ENDPOINT }}
 
           posthog.api-key=${{secrets.STAGING_POSTHOG_API_KEY}}
           posthog.host=https://us.i.posthog.com
@@ -91,9 +90,15 @@ jobs:
 
           # Discord 에러 알림 웹훅
           discord.webhook.url=${DISCORD_WEBHOOK_URL}
+          discord.notification.report-webhook-url=${DISCORD_REPORT_WEBHOOK_URL}
+          discord.notification.abuse-webhook-url=${DISCORD_ABUSE_WEBHOOK_URL}
 
           # Lambda 콜백 인증 키
           lambda.callback.secret-key=${{secrets.LAMBDA_CALLBACK_SECRET_KEY}}
+
+          # 성능 측정 대시보드
+          perf.dashboard.enabled=${PERF_DASHBOARD_ENABLED:false}
+          perf.dashboard.access-key=${PERF_DASHBOARD_ACCESS_KEY:}
           EOF
 
       - name: Create Firebase service account file
@@ -118,8 +123,11 @@ jobs:
           host: ${{ secrets.STAGING_EC2_HOST }}
           username: ${{ secrets.STAGING_EC2_USER }}
           key: ${{ secrets.STAGING_EC2_KEY }}
-          source: docker-compose.yml
+          source: docker-compose.yml,docker-compose.scouter.yml
           target: ~/app
+          proxy_host: ${{ secrets.STAGING_BASTION_HOST }}
+          proxy_username: ${{ secrets.STAGING_BASTION_USER }}
+          proxy_key: ${{ secrets.STAGING_BASTION_KEY }}
 
       - name: Deploy to Staging EC2
         uses: appleboy/ssh-action@v1
@@ -127,6 +135,9 @@ jobs:
           host: ${{ secrets.STAGING_EC2_HOST }}
           username: ${{ secrets.STAGING_EC2_USER }}
           key: ${{ secrets.STAGING_EC2_KEY }}
+          proxy_host: ${{ secrets.STAGING_BASTION_HOST }}
+          proxy_username: ${{ secrets.STAGING_BASTION_USER }}
+          proxy_key: ${{ secrets.STAGING_BASTION_KEY }}
           script: |
             cd ~/app
 
@@ -140,18 +151,26 @@ jobs:
             echo "KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}" >> .env
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
             echo "KAKAO_API_KEY=${{ secrets.KAKAO_API_KEY }}" >> .env
+            echo "NAVER_CLIENT_ID=${{ secrets.NAVER_CLIENT_ID }}" >> .env
+            echo "NAVER_CLIENT_SECRET=${{ secrets.NAVER_CLIENT_SECRET }}" >> .env
             echo "GOOGLE_PLACES_API_KEY=${{ secrets.GOOGLE_PLACES_API_KEY }}" >> .env
-            echo "AWS_ACCESS_KEY=${{ secrets.STAGING_AWS_ACCESS_KEY }}" >> .env
-            echo "AWS_SECRET_KEY=${{ secrets.STAGING_AWS_SECRET_KEY }}" >> .env
             echo "AWS_REGION=ap-northeast-2" >> .env
             echo "AWS_S3_BUCKET=${{ secrets.STAGING_AWS_S3_BUCKET }}" >> .env
+            echo "OPENSEARCH_REGION=ap-northeast-2" >> .env
             echo "STAGING_POSTHOG_API_KEY=${{ secrets.STAGING_POSTHOG_API_KEY }}" >> .env
             echo "ENCRYPT_SECRET_KEY=${{ secrets.ENCRYPT_SECRET_KEY }}" >> .env
             echo "DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK_URL_STAGING }}" >> .env
+            echo "DISCORD_REPORT_WEBHOOK_URL=${{ secrets.DISCORD_REPORT_WEBHOOK_URL }}" >> .env
+            echo "DISCORD_ABUSE_WEBHOOK_URL=${{ secrets.DISCORD_ABUSE_WEBHOOK_URL }}" >> .env
             echo "LAMBDA_CALLBACK_SECRET_KEY=${{ secrets.LAMBDA_CALLBACK_SECRET_KEY }}" >> .env
+            echo "PERF_DASHBOARD_ENABLED=true" >> .env
+            echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env
+            echo "SCOUTER_OBJ_NAME=bbang-staging" >> .env
+            echo "SCOUTER_SERVER_PORT=6100" >> .env
+            echo "SCOUTER_WEB_PORT=6188" >> .env
 
-            docker compose pull
-            docker compose up -d
+            docker compose -f docker-compose.yml -f docker-compose.scouter.yml pull
+            docker compose -f docker-compose.yml -f docker-compose.scouter.yml up -d
             docker image prune -a -f
 
       - name: Get PR title

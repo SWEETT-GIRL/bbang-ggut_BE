@@ -6,15 +6,15 @@ public record NearbyStoreResponse(
 		Long id,
 		String name,
 		String region,
-		String storeThumbnailUrl,
+		String thumbnailImageKey,
 		int distanceMeters) {
-	public static NearbyStoreResponse of(NearbyStoreProjection projection, String storeThumbnailUrl,
+	public static NearbyStoreResponse of(NearbyStoreProjection projection, String thumbnailImageKey,
 			int distanceMeters) {
 		return new NearbyStoreResponse(
 			projection.getId(),
 			projection.getName(),
 			joinRegion(projection.getRegion1st(), projection.getRegion2nd()),
-			storeThumbnailUrl,
+			thumbnailImageKey,
 			distanceMeters);
 	}
 

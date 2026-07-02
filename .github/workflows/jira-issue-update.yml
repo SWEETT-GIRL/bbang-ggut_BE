@@ -16,17 +16,17 @@ jobs:
 
       - name: Formulate Updated Content
         id: parse
+        env:
+          ISSUE_NUM: ${{ github.event.client_payload.jira_issue_number }}
+          IKEY: ${{ github.event.client_payload.jira_key }}
+          IJIRAURL: ${{ github.event.client_payload.jira_url }}
+          ISUMMARY: ${{ github.event.client_payload.jira_title }}
+          IBODY: ${{ github.event.client_payload.jira_description }}
+          ICHECKLIST: ${{ github.event.client_payload.jira_checklist }}
+          ITYPE: ${{ github.event.client_payload.kind }}
+          IASSIGNEE_EMAIL: ${{ github.event.client_payload.jira_assignee_email }}
+          ILABELS: ${{ github.event.client_payload.jira_labels }}
         run: |
-          ISSUE_NUM="${{ github.event.client_payload.jira_issue_number }}"
-          IKEY="${{ github.event.client_payload.jira_key }}"
-          IJIRAURL="${{ github.event.client_payload.jira_url }}"
-          ISUMMARY="${{ github.event.client_payload.jira_title }}"
-          IBODY="${{ github.event.client_payload.jira_description }}"
-          ICHECKLIST="${{ github.event.client_payload.jira_checklist }}"
-          ITYPE="${{ github.event.client_payload.kind }}"
-          IASSIGNEE_EMAIL="${{ github.event.client_payload.jira_assignee_email }}"
-          ILABELS="${{ github.event.client_payload.jira_labels }}"
-
           GH_USER=""
           if [ -n "$IASSIGNEE_EMAIL" ] && [ "$IASSIGNEE_EMAIL" != "null" ]; then
             GH_USER=$(jq -r --arg email "$IASSIGNEE_EMAIL" '.[$email] // empty' .github/jira-git-user-mapping.json)
@@ -41,7 +41,8 @@ jobs:
           elif [[ "$ILABELS_LOWER" == *"refactor"* ]]; then GH_LABEL="refactor"; TITLE_PREFIX="♻️ refactor: ";
           elif [[ "$ILABELS_LOWER" == *"documentation"* ]]; then GH_LABEL="documentation"; TITLE_PREFIX="📝 docs: ";
           elif [[ "$ILABELS_LOWER" == *"test"* ]]; then GH_LABEL="test"; TITLE_PREFIX="✅ test: ";
-          elif [[ "$ILABELS_LOWER" == *"ci/cd"* ]]; then GH_LABEL="ci/cd"; TITLE_PREFIX="💚 ci/cd: "; fi
+          elif [[ "$ILABELS_LOWER" == *"ci/cd"* ]]; then GH_LABEL="ci/cd"; TITLE_PREFIX="💚 ci/cd: ";
+          elif [[ "$ILABELS_LOWER" == *"improvement"* ]]; then GH_LABEL="enhancement"; TITLE_PREFIX="🔨 improve: "; fi
           echo "GH_LABEL=$GH_LABEL" >> $GITHUB_ENV
 
           TRIMMED_BODY=$(echo "$IBODY" \

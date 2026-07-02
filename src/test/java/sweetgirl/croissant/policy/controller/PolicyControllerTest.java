@@ -18,7 +18,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.policy.dto.response.TermsResponse;
 import sweetgirl.croissant.policy.enums.TermsType;
-import sweetgirl.croissant.policy.service.TermsService;
+import sweetgirl.croissant.policy.service.TermsQueryService;
 
 @ExtendWith(MockitoExtension.class)
 class PolicyControllerTest {
@@ -26,7 +26,7 @@ class PolicyControllerTest {
 	private MockMvc mockMvc;
 
 	@Mock
-	private TermsService termsService;
+	private TermsQueryService termsQueryService;
 
 	@InjectMocks
 	private TermsController termsController;
@@ -41,7 +41,7 @@ class PolicyControllerTest {
 
 	@Test
 	void getAllTerms_returns200WithThreeTerms() throws Exception {
-		given(termsService.getTerms()).willReturn(List.of(
+		given(termsQueryService.getTerms()).willReturn(List.of(
 			new TermsResponse(TermsType.SERVICE, "서비스 이용약관", true, "제1조..."),
 			new TermsResponse(TermsType.PRIVACY, "개인정보처리방침", true, "제1조..."),
 			new TermsResponse(TermsType.MARKETING, "마케팅 정보 수신 동의", false, "마케팅...")));

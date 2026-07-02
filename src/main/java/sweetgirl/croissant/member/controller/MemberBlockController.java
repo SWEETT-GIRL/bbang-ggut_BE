@@ -20,7 +20,8 @@ import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.member.dto.request.BlockCreateRequest;
 import sweetgirl.croissant.member.dto.response.BlockListResponse;
 import sweetgirl.croissant.member.dto.response.BlockResponse;
-import sweetgirl.croissant.member.service.MemberBlockService;
+import sweetgirl.croissant.member.service.MemberBlockCommandService;
+import sweetgirl.croissant.member.service.MemberBlockQueryService;
 
 @Tag(name = "Block", description = "사용자 차단 API")
 @RestController
@@ -28,7 +29,8 @@ import sweetgirl.croissant.member.service.MemberBlockService;
 @RequiredArgsConstructor
 public class MemberBlockController {
 
-	private final MemberBlockService memberBlockService;
+	private final MemberBlockQueryService memberBlockQueryService;
+	private final MemberBlockCommandService memberBlockCommandService;
 
 	@Operation(summary = "작성자 차단", description = "로그인 사용자가 특정 회원을 차단합니다.")
 	@PostMapping
@@ -36,7 +38,7 @@ public class MemberBlockController {
 			@AuthenticationPrincipal Long memberId,
 			@RequestBody @Valid BlockCreateRequest request) {
 		return ResponseEntity.status(HttpStatus.CREATED)
-			.body(ApiResponse.created(memberBlockService.blockMember(memberId, request)));
+			.body(ApiResponse.created(memberBlockCommandService.blockMember(memberId, request)));
 	}
 
 	@Operation(summary = "작성자 차단 해제", description = "로그인 사용자가 특정 회원 차단을 해제합니다.")
@@ -44,7 +46,7 @@ public class MemberBlockController {
 	public ResponseEntity<ApiResponse<Void>> unblockMember(
 			@AuthenticationPrincipal Long memberId,
 			@PathVariable Long blockedMemberId) {
-		memberBlockService.unblockMember(memberId, blockedMemberId);
+		memberBlockCommandService.unblockMember(memberId, blockedMemberId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -54,6 +56,6 @@ public class MemberBlockController {
 			@AuthenticationPrincipal Long memberId,
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "20") int size) {
-		return ResponseEntity.ok(ApiResponse.ok(memberBlockService.getBlocks(memberId, page, size)));
+		return ResponseEntity.ok(ApiResponse.ok(memberBlockQueryService.getBlocks(memberId, page, size)));
 	}
 }

@@ -1,0 +1,1022 @@
+<!doctype html>
+<html lang="ko">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>조회 API 성능 측정</title>
+	<style>
+		:root {
+			color-scheme: light;
+			--bg: #f6f7f9;
+			--panel: #ffffff;
+			--line: #d9dee7;
+			--text: #20242b;
+			--muted: #687383;
+			--good: #16794f;
+			--warn: #9a5b00;
+			--bad: #b42318;
+			--accent: #246bfe;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			margin: 0;
+			background: var(--bg);
+			color: var(--text);
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+			font-size: 14px;
+		}
+
+		header {
+			display: flex;
+			gap: 12px;
+			align-items: center;
+			justify-content: space-between;
+			padding: 16px 20px;
+			background: var(--panel);
+			border-bottom: 1px solid var(--line);
+		}
+
+		h1 {
+			margin: 0;
+			font-size: 18px;
+			font-weight: 700;
+			letter-spacing: 0;
+		}
+
+		main {
+			display: grid;
+			grid-template-columns: 360px minmax(0, 1fr);
+			gap: 16px;
+			padding: 16px;
+		}
+
+		.wide {
+			grid-column: 1 / -1;
+		}
+
+		section {
+			background: var(--panel);
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			overflow: hidden;
+		}
+
+		.section-head {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 12px;
+			padding: 12px 14px;
+			border-bottom: 1px solid var(--line);
+		}
+
+		h2 {
+			margin: 0;
+			font-size: 14px;
+			font-weight: 700;
+			letter-spacing: 0;
+		}
+
+		.controls,
+		.summary,
+		.preview {
+			padding: 14px;
+		}
+
+		label {
+			display: block;
+			margin: 0 0 10px;
+			color: var(--muted);
+			font-size: 12px;
+			font-weight: 600;
+		}
+
+		input,
+		select {
+			width: 100%;
+			margin-top: 5px;
+			padding: 7px 9px;
+			border: 1px solid var(--line);
+			border-radius: 6px;
+			background: #fff;
+			color: var(--text);
+			font: inherit;
+			height: 36px;
+		}
+
+		.row {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 10px;
+		}
+
+		.actions {
+			display: grid;
+			grid-template-columns: repeat(3, 1fr);
+			gap: 8px;
+			margin-top: 12px;
+		}
+
+		button {
+			height: 36px;
+			border: 1px solid var(--line);
+			border-radius: 6px;
+			background: #fff;
+			color: var(--text);
+			font: inherit;
+			font-weight: 650;
+			cursor: pointer;
+		}
+
+		button.primary {
+			border-color: var(--accent);
+			background: var(--accent);
+			color: #fff;
+		}
+
+		button:disabled {
+			cursor: wait;
+			opacity: .58;
+		}
+
+		.kpis {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+			gap: 10px;
+		}
+
+		.kpi {
+			padding: 10px;
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			background: #fbfcfe;
+		}
+
+		.kpi span {
+			display: block;
+			color: var(--muted);
+			font-size: 11px;
+			font-weight: 650;
+		}
+
+		.kpi strong {
+			display: block;
+			margin-top: 5px;
+			font-size: 18px;
+			letter-spacing: 0;
+		}
+
+		table {
+			width: 100%;
+			border-collapse: collapse;
+		}
+
+		th,
+		td {
+			padding: 9px 10px;
+			border-bottom: 1px solid var(--line);
+			text-align: left;
+			vertical-align: top;
+		}
+
+		th {
+			position: sticky;
+			top: 0;
+			background: #f8fafc;
+			color: var(--muted);
+			font-size: 11px;
+			font-weight: 750;
+			z-index: 1;
+		}
+
+		td {
+			font-size: 13px;
+		}
+
+		.numeric {
+			text-align: right;
+			white-space: nowrap;
+		}
+
+		.overhead-ok {
+			color: var(--good);
+			font-weight: 800;
+		}
+
+		.overhead-warn {
+			color: var(--warn);
+			font-weight: 800;
+		}
+
+		.overhead-bad {
+			color: var(--bad);
+			font-weight: 800;
+		}
+
+		.table-wrap {
+			max-height: calc(100vh - 208px);
+			overflow: auto;
+		}
+
+		.logs-wrap {
+			max-height: 520px;
+			overflow: auto;
+		}
+
+		.endpoint-summary-wrap {
+			max-height: 660px;
+		}
+
+		.server-section .logs-wrap + .logs-wrap {
+			max-height: 420px;
+			border-top: 1px solid var(--line);
+		}
+
+		.server-section th:first-child,
+		.server-section td:first-child {
+			min-width: 180px;
+		}
+
+		.server-section th:nth-child(2),
+		.server-section td:nth-child(2),
+		.server-section th:nth-child(3),
+		.server-section td:nth-child(3),
+		.server-section th:nth-child(4),
+		.server-section td:nth-child(4),
+		.server-section th:nth-child(5),
+		.server-section td:nth-child(5),
+		.server-section th:nth-child(6),
+		.server-section td:nth-child(6),
+		.server-section th:nth-child(7),
+		.server-section td:nth-child(7),
+		.server-section th:nth-child(8),
+		.server-section td:nth-child(8) {
+			width: 86px;
+			white-space: nowrap;
+		}
+
+		.method {
+			font-weight: 800;
+			color: var(--accent);
+		}
+
+		.status-ok {
+			color: var(--good);
+			font-weight: 800;
+		}
+
+		.status-warn {
+			color: var(--warn);
+			font-weight: 800;
+		}
+
+		.status-bad {
+			color: var(--bad);
+			font-weight: 800;
+		}
+
+		.path {
+			font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+			overflow-wrap: anywhere;
+		}
+
+		.endpoint-name {
+			display: inline-block;
+			margin-left: 8px;
+			color: var(--muted);
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+			font-size: 12px;
+			font-weight: 750;
+			white-space: nowrap;
+		}
+
+		.muted {
+			color: var(--muted);
+		}
+
+		pre {
+			max-height: 280px;
+			margin: 0;
+			padding: 12px;
+			overflow: auto;
+			border-top: 1px solid var(--line);
+			background: #0e1116;
+			color: #d6deeb;
+			font-size: 12px;
+			line-height: 1.45;
+		}
+
+		.badge {
+			display: inline-block;
+			padding: 2px 7px;
+			border-radius: 999px;
+			background: #eef2ff;
+			color: #2744a0;
+			font-size: 11px;
+			font-weight: 750;
+		}
+
+		@media (max-width: 920px) {
+			header {
+				align-items: flex-start;
+				flex-direction: column;
+			}
+
+			main {
+				grid-template-columns: 1fr;
+			}
+
+			.kpis {
+				grid-template-columns: repeat(2, 1fr);
+			}
+
+			.table-wrap {
+				max-height: none;
+			}
+
+			.actions {
+				grid-template-columns: 1fr;
+			}
+		}
+	</style>
+</head>
+<body>
+	<header>
+		<h1>조회 API 성능 측정</h1>
+		<div class="muted" id="runState">대기 중</div>
+	</header>
+
+	<main>
+		<section>
+			<div class="section-head">
+				<h2>측정 설정</h2>
+				<span class="badge" id="originBadge"></span>
+			</div>
+			<div class="controls">
+				<label>
+					서버 URL
+					<input id="baseUrl" value="">
+				</label>
+				<div class="row">
+					<label>
+						검색어
+						<input id="query" value="소금빵">
+					</label>
+					<label>
+						지역
+						<input id="region" value="망원">
+					</label>
+				</div>
+				<div class="row">
+					<label>
+						위도
+						<input id="lat" value="37.5665">
+					</label>
+					<label>
+						경도
+						<input id="lng" value="126.9780">
+					</label>
+				</div>
+				<div class="row">
+					<label>
+						조회 개수
+						<input id="size" type="number" min="1" max="50" value="5">
+					</label>
+					<label>
+						반복 횟수
+						<input id="repeat" type="number" min="1" max="50" value="1">
+					</label>
+				</div>
+				<label>
+					조회 범위
+					<select id="requestSet">
+						<option value="public">공개 조회 API</option>
+						<option value="flow">공개 조회 API + 상세 조회</option>
+						<option value="search">검색 API만</option>
+						<option value="trend">트렌드 API만</option>
+					</select>
+				</label>
+				<div class="row">
+					<label>
+						로그 조회 기간(분)
+						<input id="logSinceMinutes" type="number" min="1" max="1440" value="10">
+					</label>
+					<label>
+						로그 개수
+						<input id="logSize" type="number" min="1" max="200" value="50">
+					</label>
+				</div>
+				<div class="row">
+					<label>
+						로그 정렬
+						<select id="logSort">
+							<option value="slow">느린 요청순</option>
+							<option value="recent">최신순</option>
+						</select>
+					</label>
+					<label>
+						엔드포인트 필터
+						<input id="logEndpoint" placeholder="/stores/search">
+					</label>
+				</div>
+				<label>
+					성능 로그 키
+					<input id="perfAccessKey" type="password" placeholder="prod 로그 조회 시 입력">
+				</label>
+				<div class="actions">
+					<button class="primary" id="runButton">조회 실행</button>
+					<button id="logsButton">서버 로그 갱신</button>
+					<button id="metricsButton">액추에이터 갱신</button>
+				</div>
+			</div>
+			<div class="summary">
+				<div class="kpis">
+					<div class="kpi"><span>요청 수</span><strong id="kpiCount">0</strong></div>
+					<div class="kpi"><span>성공</span><strong id="kpiSuccess">0</strong></div>
+					<div class="kpi"><span>브라우저 평균</span><strong id="kpiAvg">0</strong></div>
+					<div class="kpi"><span>브라우저 최대</span><strong id="kpiMax">0</strong></div>
+					<div class="kpi"><span>서버 평균</span><strong id="kpiServerAvg">-</strong></div>
+					<div class="kpi"><span>추정 오버헤드</span><strong id="kpiOverhead">-</strong></div>
+				</div>
+			</div>
+		</section>
+
+		<section>
+			<div class="section-head">
+				<h2>브라우저 측정 결과</h2>
+				<span class="muted" id="lastRun"></span>
+			</div>
+			<div class="table-wrap">
+				<table>
+					<thead>
+						<tr>
+							<th>API</th>
+							<th>Status</th>
+							<th class="numeric">브라우저 ms</th>
+							<th class="numeric">서버 평균</th>
+							<th class="numeric">오버헤드</th>
+							<th class="numeric">건수</th>
+							<th>비고</th>
+						</tr>
+					</thead>
+					<tbody id="results"></tbody>
+				</table>
+			</div>
+		</section>
+
+		<section class="wide server-section">
+			<div class="section-head">
+				<h2>서버 처리시간</h2>
+				<span class="muted" id="logsSummary">로그를 아직 불러오지 않았습니다.</span>
+			</div>
+			<div class="summary">
+				<div class="kpis">
+					<div class="kpi"><span>로그 수</span><strong id="logCount">0</strong></div>
+					<div class="kpi"><span>성공</span><strong id="logSuccess">0</strong></div>
+					<div class="kpi"><span>평균 ms</span><strong id="logAvg">0</strong></div>
+					<div class="kpi"><span>최대 ms</span><strong id="logMax">0</strong></div>
+				</div>
+			</div>
+			<div class="logs-wrap endpoint-summary-wrap">
+				<table>
+					<thead>
+						<tr>
+							<th>API</th>
+							<th>요청</th>
+							<th>평균</th>
+							<th>p50</th>
+							<th>p95</th>
+							<th>p99</th>
+							<th>최대</th>
+							<th>오류</th>
+						</tr>
+					</thead>
+					<tbody id="endpointSummaryResults"></tbody>
+				</table>
+			</div>
+			<div class="logs-wrap">
+				<table>
+					<thead>
+						<tr>
+							<th>시간</th>
+							<th>API</th>
+							<th>Status</th>
+							<th>ms</th>
+							<th>Query</th>
+						</tr>
+					</thead>
+					<tbody id="logResults"></tbody>
+				</table>
+			</div>
+		</section>
+
+		<section class="wide">
+			<div class="section-head">
+				<h2>응답 상세</h2>
+				<span class="muted" id="previewTitle"></span>
+			</div>
+			<pre id="previewOutput">요청을 실행하면 상세가 표시됩니다.</pre>
+		</section>
+
+		<section class="wide">
+			<div class="section-head">
+				<h2>액추에이터 메트릭</h2>
+				<span class="muted">http.server.requests</span>
+			</div>
+			<pre id="metricsOutput">메트릭을 아직 불러오지 않았습니다.</pre>
+		</section>
+	</main>
+
+	<script>
+		const $ = (id) => document.getElementById(id);
+		const state = {
+			rows: [],
+			latestServerAvgMs: null,
+			serverStatsByEndpoint: new Map(),
+			ids: {
+				storeId: null,
+				menuId: null,
+				reviewId: null,
+				memberId: null,
+				bannerId: null
+			}
+		};
+
+		const defaultBaseUrl = window.location.origin && window.location.origin !== "null"
+			? window.location.origin
+			: "https://bbang-ggut.site";
+
+		$("baseUrl").value = defaultBaseUrl;
+		$("originBadge").textContent = defaultBaseUrl.replace(/^https?:\/\//, "");
+
+		function inputNumber(id) {
+			return Number($(id).value);
+		}
+
+		function buildUrl(path, params = {}) {
+			const base = $("baseUrl").value.replace(/\/$/, "");
+			const url = new URL(base + path);
+			for (const [key, value] of Object.entries(params)) {
+				if (value !== null && value !== undefined && value !== "") {
+					url.searchParams.set(key, value);
+				}
+			}
+			return url;
+		}
+
+		function perfHeaders() {
+			const accessKey = $("perfAccessKey").value.trim();
+			const headers = {Accept: "application/json"};
+			if (accessKey) {
+				headers["X-Perf-Dashboard-Key"] = accessKey;
+			}
+			return headers;
+		}
+
+		function publicRequests() {
+			const query = $("query").value;
+			const region = $("region").value;
+			const lat = $("lat").value;
+			const lng = $("lng").value;
+			const size = $("size").value;
+			return [
+				{name: "헬스 체크", path: "/actuator/health", metricUri: "UNKNOWN", params: {}},
+				{name: "빵집 검색", path: "/stores/search", metricUri: "/stores/search", params: {query, lat, lon: lng, page: 0, size}},
+				{name: "검색어 자동완성", path: "/stores/autocomplete", metricUri: "/stores/autocomplete", params: {query, size: 10}},
+				{name: "근처 빵집", path: "/stores/nearby", metricUri: "/stores/nearby", params: {lat, lng, page: 0, size}},
+				{name: "인기 빵집", path: "/stores/popular", metricUri: "/stores/popular", params: {lat, lng}},
+				{name: "지역 빵집 거리순", path: "/stores/district", metricUri: "/stores/district", params: {keyword: region, lat, lng, page: 0, size, sort: "distance"}},
+				{name: "지역 빵집 구독순", path: "/stores/district", metricUri: "/stores/district", params: {keyword: region, page: 0, size, sort: "subscribe"}},
+				{name: "근처 트렌드", path: "/trend/nearby", metricUri: "/trend/nearby", params: {lat, lng}},
+				{name: "지역 트렌드", path: "/trend/select", metricUri: "/trend/select", params: {region}},
+				{name: "전국 트렌드", path: "/trend/nationwide", metricUri: "/trend/nationwide", params: {}},
+				{name: "약관", path: "/terms", metricUri: "/terms", params: {}},
+				{name: "메뉴 카테고리", path: "/menu-categories", metricUri: "/menu-categories", params: {}},
+				{name: "배너", path: "/banners", metricUri: "/banners", params: {}}
+			];
+		}
+
+		function selectedRequests() {
+			const set = $("requestSet").value;
+			if (set === "search") {
+				return publicRequests().filter((req) => ["빵집 검색", "검색어 자동완성"].includes(req.name));
+			}
+			if (set === "trend") {
+				return publicRequests().filter((req) => req.name.endsWith("트렌드"));
+			}
+			return publicRequests();
+		}
+
+		function detailRequests() {
+			const requests = [];
+			if (state.ids.storeId) {
+				requests.push({name: "빵집 상세", path: `/stores/${state.ids.storeId}`, metricUri: "/stores/{storeId}", params: {}});
+				requests.push({name: "빵집 메뉴", path: `/stores/${state.ids.storeId}/menus`, metricUri: "/stores/{storeId}/menus", params: {}});
+			}
+			if (state.ids.menuId) {
+				requests.push({name: "메뉴 상세", path: `/menus/${state.ids.menuId}`, metricUri: "/menus/{menuId}", params: {}});
+				requests.push({name: "리뷰 목록", path: `/menus/${state.ids.menuId}/reviews`, metricUri: "/menus/{menuId}/reviews", params: {page: 0, size: $("size").value}});
+				requests.push({name: "리뷰 요약", path: `/menus/${state.ids.menuId}/reviews/summary`, metricUri: "/menus/{menuId}/reviews/summary", params: {}});
+			}
+			if (state.ids.reviewId) {
+				requests.push({name: "리뷰 상세", path: `/reviews/${state.ids.reviewId}`, metricUri: "/reviews/{reviewId}", params: {}});
+			}
+			if (state.ids.memberId) {
+				requests.push({name: "사용자 리뷰", path: `/users/${state.ids.memberId}/reviews`, metricUri: "/users/{memberId}/reviews", params: {page: 0, size: $("size").value}});
+			}
+			if (state.ids.bannerId) {
+				requests.push({name: "배너 상세", path: `/banners/${state.ids.bannerId}`, metricUri: "/banners/{bannerId}", params: {}});
+			}
+			return requests;
+		}
+
+		function firstArray(value) {
+			if (Array.isArray(value)) {
+				return value;
+			}
+			if (!value || typeof value !== "object") {
+				return [];
+			}
+			const keys = ["content", "items", "stores", "menus", "reviews", "banners", "data"];
+			for (const key of keys) {
+				const nested = firstArray(value[key]);
+				if (nested.length) {
+					return nested;
+				}
+			}
+			for (const nested of Object.values(value)) {
+				const arr = firstArray(nested);
+				if (arr.length) {
+					return arr;
+				}
+			}
+			return [];
+		}
+
+		function countRows(body) {
+			return firstArray(body && body.data !== undefined ? body.data : body).length;
+		}
+
+		function rememberIds(body) {
+			const source = body && body.data !== undefined ? body.data : body;
+			const arrays = [];
+			const visit = (value) => {
+				if (Array.isArray(value)) {
+					arrays.push(value);
+					value.forEach(visit);
+					return;
+				}
+				if (value && typeof value === "object") {
+					for (const nested of Object.values(value)) {
+						visit(nested);
+					}
+				}
+			};
+			visit(source);
+			for (const item of arrays.flat()) {
+				if (!item || typeof item !== "object") {
+					continue;
+				}
+				const storeId = item.storeId || (item.id && item.address ? item.id : null);
+				const menuId = item.menuId || (item.id && item.price !== undefined ? item.id : null);
+				const reviewId = item.reviewId || (item.id && item.rating !== undefined ? item.id : null);
+				const bannerId = item.bannerId || (item.id && (item.imageUrl || item.thumbnailUrl) ? item.id : null);
+				state.ids.storeId ||= storeId;
+				state.ids.menuId ||= menuId;
+				state.ids.reviewId ||= reviewId;
+				state.ids.memberId ||= item.memberId || item.authorId || null;
+				state.ids.bannerId ||= bannerId;
+			}
+		}
+
+		async function callApi(req) {
+			const url = buildUrl(req.path, req.params);
+			const started = performance.now();
+			let status = 0;
+			let body = null;
+			let text = "";
+			let note = "";
+			try {
+				const response = await fetch(url, {headers: perfHeaders()});
+				status = response.status;
+				text = await response.text();
+				try {
+					body = text ? JSON.parse(text) : null;
+				} catch (error) {
+					note = "non-json";
+				}
+			} catch (error) {
+				note = error.message;
+			}
+			const durationMs = Math.round(performance.now() - started);
+			if (body) {
+				rememberIds(body);
+			}
+			const row = {
+				...req,
+				url: url.toString(),
+				status,
+				durationMs,
+				count: body ? countRows(body) : 0,
+				note,
+				body: body || text
+			};
+			state.rows.push(row);
+			renderResults();
+			return row;
+		}
+
+		function statusClass(status) {
+			if (status >= 200 && status < 300) {
+				return "status-ok";
+			}
+			if (status >= 300 && status < 500) {
+				return "status-warn";
+			}
+			return "status-bad";
+		}
+
+		function overheadClass(value) {
+			if (value === null) {
+				return "";
+			}
+			if (value <= 50) {
+				return "overhead-ok";
+			}
+			if (value <= 200) {
+				return "overhead-warn";
+			}
+			return "overhead-bad";
+		}
+
+		function renderResults() {
+			const tbody = $("results");
+			tbody.innerHTML = "";
+			for (const row of state.rows) {
+				const serverStats = state.serverStatsByEndpoint.get(row.path);
+				const serverAvgMs = serverStats?.avgMs ?? null;
+				const overheadMs = serverAvgMs === null ? null : Math.max(0, row.durationMs - serverAvgMs);
+				const tr = document.createElement("tr");
+				tr.innerHTML = `
+					<td><div class="method">GET</div><div>${row.name}</div><div class="path muted">${row.path}</div></td>
+					<td class="${statusClass(row.status)}">${row.status || "ERR"}</td>
+					<td class="numeric">${row.durationMs}</td>
+					<td class="numeric">${serverAvgMs === null ? "-" : serverAvgMs}</td>
+					<td class="numeric ${overheadClass(overheadMs)}">${overheadMs === null ? "-" : overheadMs}</td>
+					<td class="numeric">${row.count}</td>
+					<td>${row.note || row.metricUri || ""}</td>
+				`;
+				tr.addEventListener("click", () => showPreview(row));
+				tbody.appendChild(tr);
+			}
+
+			const total = state.rows.length;
+			const success = state.rows.filter((row) => row.status >= 200 && row.status < 300).length;
+			const sum = state.rows.reduce((acc, row) => acc + row.durationMs, 0);
+			const max = state.rows.reduce((acc, row) => Math.max(acc, row.durationMs), 0);
+			$("kpiCount").textContent = total;
+			$("kpiSuccess").textContent = success;
+			$("kpiAvg").textContent = total ? Math.round(sum / total) : 0;
+			$("kpiMax").textContent = max;
+			renderLatencyComparison();
+		}
+
+		function renderLatencyComparison() {
+			const total = state.rows.length;
+			const browserAvgMs = total
+				? Math.round(state.rows.reduce((acc, row) => acc + row.durationMs, 0) / total)
+				: null;
+			const serverAvgMs = state.latestServerAvgMs;
+			$("kpiServerAvg").textContent = serverAvgMs === null ? "-" : serverAvgMs;
+			$("kpiOverhead").textContent = browserAvgMs === null || serverAvgMs === null
+				? "-"
+				: Math.max(0, browserAvgMs - serverAvgMs);
+		}
+
+		function showPreview(row) {
+			$("previewTitle").textContent = `${row.status || "ERR"} ${row.durationMs}ms`;
+			$("previewOutput").textContent = JSON.stringify(row.body, null, 2).slice(0, 12000);
+		}
+
+		function percentile(values, ratio) {
+			if (!values.length) {
+				return 0;
+			}
+			const sorted = [...values].sort((a, b) => a - b);
+			const index = Math.ceil(sorted.length * ratio) - 1;
+			return sorted[Math.max(0, Math.min(index, sorted.length - 1))];
+		}
+
+		function average(values) {
+			if (!values.length) {
+				return 0;
+			}
+			return Math.round(values.reduce((acc, value) => acc + value, 0) / values.length);
+		}
+
+		function escapeHtml(value) {
+			return String(value ?? "")
+				.replaceAll("&", "&amp;")
+				.replaceAll("<", "&lt;")
+				.replaceAll(">", "&gt;")
+				.replaceAll("\"", "&quot;")
+				.replaceAll("'", "&#039;");
+		}
+
+		function endpointLabel(endpoint) {
+			const measured = state.rows.find((row) => row.path === endpoint);
+			if (measured) {
+				return measured.name;
+			}
+			const labels = new Map([
+				["/actuator/health", "헬스 체크"],
+				["/stores/search", "빵집 검색"],
+				["/stores/autocomplete", "검색어 자동완성"],
+				["/stores/nearby", "근처 빵집"],
+				["/stores/popular", "인기 빵집"],
+				["/stores/district", "지역 빵집"],
+				["/trend/nearby", "근처 트렌드"],
+				["/trend/select", "지역 트렌드"],
+				["/trend/nationwide", "전국 트렌드"],
+				["/terms", "약관"],
+				["/menu-categories", "메뉴 카테고리"],
+				["/banners", "배너"]
+			]);
+			if (labels.has(endpoint)) {
+				return labels.get(endpoint);
+			}
+			const patterns = [
+				[/^\/stores\/\d+$/, "빵집 상세"],
+				[/^\/stores\/\d+\/menus$/, "빵집 메뉴"],
+				[/^\/menus\/\d+$/, "메뉴 상세"],
+				[/^\/menus\/\d+\/reviews$/, "리뷰 목록"],
+				[/^\/menus\/\d+\/reviews\/summary$/, "리뷰 요약"],
+				[/^\/reviews\/\d+$/, "리뷰 상세"],
+				[/^\/users\/\d+\/reviews$/, "사용자 리뷰"],
+				[/^\/banners\/\d+$/, "배너 상세"]
+			];
+			return patterns.find(([pattern]) => pattern.test(endpoint))?.[1] || "";
+		}
+
+		async function run() {
+			state.rows = [];
+			state.latestServerAvgMs = null;
+			state.serverStatsByEndpoint = new Map();
+			state.ids = {storeId: null, menuId: null, reviewId: null, memberId: null, bannerId: null};
+			renderResults();
+			$("previewOutput").textContent = "조회 중...";
+			$("runState").textContent = "조회 중";
+			$("runButton").disabled = true;
+			$("metricsButton").disabled = true;
+			const repeat = Math.max(1, inputNumber("repeat"));
+			try {
+				for (let round = 0; round < repeat; round += 1) {
+					for (const req of selectedRequests()) {
+						await callApi(req);
+					}
+					if ($("requestSet").value === "flow") {
+						for (const req of detailRequests()) {
+							await callApi(req);
+						}
+					}
+				}
+				$("lastRun").textContent = new Date().toLocaleTimeString();
+				await refreshMetrics();
+				await refreshLogs();
+				if (state.rows.length) {
+					showPreview(state.rows[state.rows.length - 1]);
+				}
+			} finally {
+				$("runState").textContent = "대기 중";
+				$("runButton").disabled = false;
+				$("metricsButton").disabled = false;
+			}
+		}
+
+		async function refreshMetrics() {
+			const targets = [...new Set(state.rows.map((row) => row.metricUri).filter(Boolean))];
+			const output = {};
+			for (const uri of targets) {
+				const url = buildUrl("/actuator/metrics/http.server.requests", uri === "UNKNOWN" ? {} : {tag: `uri:${uri}`});
+				try {
+					const response = await fetch(url, {headers: {Accept: "application/json"}});
+					output[uri] = await response.json();
+				} catch (error) {
+					output[uri] = {error: error.message};
+				}
+			}
+			$("metricsOutput").textContent = JSON.stringify(output, null, 2);
+		}
+
+		function renderLogAggregates(logs) {
+			const groups = new Map();
+			for (const log of logs) {
+				const endpoint = log.endpoint || "UNKNOWN";
+				if (!groups.has(endpoint)) {
+					groups.set(endpoint, []);
+				}
+				groups.get(endpoint).push(log);
+			}
+			const rows = [...groups.entries()].map(([endpoint, items]) => {
+				const durations = items.map((item) => Number(item.durationMs || 0));
+				const errors = items.filter((item) => Number(item.status || 0) >= 400).length;
+				return {
+					endpoint,
+					count: items.length,
+					avgMs: average(durations),
+					p50Ms: percentile(durations, .50),
+					p95Ms: percentile(durations, .95),
+					p99Ms: percentile(durations, .99),
+					maxMs: Math.max(0, ...durations),
+					errorRate: `${((errors / items.length) * 100).toFixed(1)}%`
+				};
+			}).sort((a, b) => b.p95Ms - a.p95Ms || b.maxMs - a.maxMs);
+			state.serverStatsByEndpoint = new Map(rows.map((row) => [row.endpoint, row]));
+			renderResults();
+			const tbody = $("endpointSummaryResults");
+			tbody.innerHTML = "";
+			for (const row of rows) {
+				const tr = document.createElement("tr");
+				const label = endpointLabel(row.endpoint);
+				tr.innerHTML = `
+					<td>
+						<span class="path">${escapeHtml(row.endpoint)}</span>
+						${label ? `<span class="endpoint-name">${escapeHtml(label)}</span>` : ""}
+					</td>
+					<td>${row.count}</td>
+					<td>${row.avgMs}</td>
+					<td>${row.p50Ms}</td>
+					<td>${row.p95Ms}</td>
+					<td>${row.p99Ms}</td>
+					<td>${row.maxMs}</td>
+					<td>${row.errorRate}</td>
+				`;
+				tbody.appendChild(tr);
+			}
+		}
+
+		function renderLogs(payload) {
+			const data = payload && payload.data ? payload.data : payload;
+			const logs = data?.logs || [];
+			const tbody = $("logResults");
+			tbody.innerHTML = "";
+			for (const log of logs) {
+				const tr = document.createElement("tr");
+				tr.innerHTML = `
+					<td>${escapeHtml(log.createdAt || "")}</td>
+					<td><div class="method">${escapeHtml(log.method || "GET")}</div><div class="path">${escapeHtml(log.endpoint || "")}</div></td>
+					<td class="${statusClass(Number(log.status || 0))}">${escapeHtml(log.status || "")}</td>
+					<td>${escapeHtml(log.durationMs || 0)}</td>
+					<td class="path">${escapeHtml(log.queryParams || "")}</td>
+				`;
+				tr.addEventListener("click", () => {
+					$("previewTitle").textContent = `${log.status || ""} ${log.durationMs || 0}ms`;
+					$("previewOutput").textContent = JSON.stringify(log, null, 2);
+				});
+				tbody.appendChild(tr);
+			}
+			$("logCount").textContent = data?.count ?? logs.length;
+			$("logSuccess").textContent = data?.successCount ?? logs.filter((log) => log.status >= 200 && log.status < 400).length;
+			$("logAvg").textContent = data?.avgDurationMs ?? average(logs.map((log) => Number(log.durationMs || 0)));
+			$("logMax").textContent = data?.maxDurationMs ?? Math.max(0, ...logs.map((log) => Number(log.durationMs || 0)));
+			state.latestServerAvgMs = data?.avgDurationMs ?? average(logs.map((log) => Number(log.durationMs || 0)));
+			renderLatencyComparison();
+			$("logsSummary").textContent = `${logs.length}개 로드됨 · ${new Date().toLocaleTimeString()}`;
+			renderLogAggregates(logs);
+		}
+
+		async function refreshLogs() {
+			const url = buildUrl("/dev/perf/request-logs", {
+				sinceMinutes: inputNumber("logSinceMinutes"),
+				size: inputNumber("logSize"),
+				sort: $("logSort").value,
+				endpoint: $("logEndpoint").value
+			});
+			$("logsButton").disabled = true;
+			try {
+				const response = await fetch(url, {headers: perfHeaders()});
+				const payload = await response.json();
+				renderLogs(payload);
+			} catch (error) {
+				$("logsSummary").textContent = error.message;
+				$("endpointSummaryResults").innerHTML = `
+					<tr><td colspan="8">${escapeHtml(error.message)}</td></tr>
+				`;
+			} finally {
+				$("logsButton").disabled = false;
+			}
+		}
+
+		$("runButton").addEventListener("click", run);
+		$("metricsButton").addEventListener("click", refreshMetrics);
+		$("logsButton").addEventListener("click", refreshLogs);
+		$("baseUrl").addEventListener("input", () => {
+			$("originBadge").textContent = $("baseUrl").value.replace(/^https?:\/\//, "").replace(/\/$/, "");
+		});
+	</script>
+</body>
+</html>

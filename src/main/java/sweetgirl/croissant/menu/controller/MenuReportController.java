@@ -18,7 +18,7 @@ import sweetgirl.croissant.menu.dto.request.MenuEditReportRequest;
 import sweetgirl.croissant.store.dto.request.ReportPresignedUrlRequest;
 import sweetgirl.croissant.store.dto.response.PresignedUrlInfoResponse;
 import sweetgirl.croissant.store.dto.response.StoreReportResponse;
-import sweetgirl.croissant.store.service.StoreReportService;
+import sweetgirl.croissant.store.service.StoreReportCommandService;
 
 @Tag(name = "Menu Report", description = "메뉴 정보 수정 제보 API")
 @RequestMapping("/menus")
@@ -26,7 +26,7 @@ import sweetgirl.croissant.store.service.StoreReportService;
 @RequiredArgsConstructor
 public class MenuReportController {
 
-	private final StoreReportService storeReportService;
+	private final StoreReportCommandService storeReportCommandService;
 
 	@Operation(summary = "메뉴 수정 제보 이미지 Presigned URL 발급", description = "mimeTypes 배열 크기만큼 URL을 반환합니다.")
 	@PostMapping("/{menuId}/reports/images/presigned-urls")
@@ -35,7 +35,7 @@ public class MenuReportController {
 			@PathVariable Long menuId,
 			@Valid @RequestBody ReportPresignedUrlRequest request) {
 		return ResponseEntity
-			.ok(ApiResponse.ok(storeReportService.generateMenuReportPresignedUrls(memberId, menuId, request)));
+			.ok(ApiResponse.ok(storeReportCommandService.generateMenuReportPresignedUrls(memberId, menuId, request)));
 	}
 
 	@Operation(summary = "메뉴 수정 제보 - 가격·사진 변경 요청", description = "메뉴 가격 또는 사진 변경 제보를 등록합니다."
@@ -46,6 +46,6 @@ public class MenuReportController {
 			@PathVariable Long menuId,
 			@Valid @RequestBody MenuEditReportRequest request) {
 		return ResponseEntity.status(HttpStatus.CREATED)
-			.body(ApiResponse.created(storeReportService.createMenuEditReport(memberId, menuId, request)));
+			.body(ApiResponse.created(storeReportCommandService.createMenuEditReport(memberId, menuId, request)));
 	}
 }

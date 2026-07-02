@@ -1,16 +1,10 @@
 package sweetgirl.croissant.global.encrypt;
 
-import org.springframework.beans.factory.annotation.Autowired;
-
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 
 @Converter
 public class EncryptedStringConverter implements AttributeConverter<String, String> {
-
-	// Hibernate가 이 컨버터를 인스턴스화할 때 Spring이 AesEncryptor를 주입
-	@Autowired
-	private AesEncryptor aesEncryptor;
 
 	/**
 	 * 엔티티 → DB: 평문을 암호화해서 저장.
@@ -20,7 +14,7 @@ public class EncryptedStringConverter implements AttributeConverter<String, Stri
 		if (attribute == null) {
 			return null;
 		}
-		return aesEncryptor.encrypt(attribute);
+		return EncryptorHolder.getEncryptor().encrypt(attribute);
 	}
 
 	/**
@@ -31,6 +25,6 @@ public class EncryptedStringConverter implements AttributeConverter<String, Stri
 		if (dbData == null) {
 			return null;
 		}
-		return aesEncryptor.decrypt(dbData);
+		return EncryptorHolder.getEncryptor().decrypt(dbData);
 	}
 }

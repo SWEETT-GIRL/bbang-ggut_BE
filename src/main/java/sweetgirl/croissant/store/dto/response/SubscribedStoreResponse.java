@@ -8,14 +8,14 @@ public record SubscribedStoreResponse(
 		String storeName,
 		String address,
 		StoreStatus status,
-		String imageUrl) {
+		String thumbnailImageKey) {
 
-	public static SubscribedStoreResponse from(SubscribedStore subscribedStore, String imageUrl) {
+	public static SubscribedStoreResponse from(SubscribedStore subscribedStore, String thumbnailImageKey) {
 		return new SubscribedStoreResponse(
 			subscribedStore.getStore().getId(),
 			subscribedStore.getStore().getName(),
 			subscribedStore.getStore().getAddress(),
 			subscribedStore.getStore().getStatus(),
-			imageUrl);
+			thumbnailImageKey);
 	}
 }

@@ -1,0 +1,199 @@
+services:
+  app:
+    depends_on:
+      - pinpoint-agent
+      - pinpoint-collector
+    entrypoint:
+      - sh
+      - -c
+      - |
+        until [ -f /pinpoint-agent/pinpoint-bootstrap.jar ]; do
+          echo "Waiting for Pinpoint agent..."
+          sleep 1
+        done
+        exec java -jar app.jar
+    environment:
+      JAVA_TOOL_OPTIONS: >-
+        -Duser.timezone=Asia/Seoul
+        -javaagent:/pinpoint-agent/pinpoint-bootstrap.jar
+        -Dpinpoint.agentId=${PINPOINT_AGENT_ID:-bbang-staging}
+        -Dpinpoint.applicationName=${PINPOINT_APP_NAME:-bbang-ggut-be}
+        -Dpinpoint.profiler.profiles.active=${PINPOINT_PROFILES_ACTIVE:-release}
+        -Dpinpoint.modules.uid.version=v3
+    volumes:
+      - pinpoint-agent-data:/pinpoint-agent:ro
+      - pinpoint-logs:/pinpoint-agent/logs
+
+  pinpoint-hbase:
+    image: pinpointdocker/pinpoint-hbase:${PINPOINT_VERSION:-3.1.0}
+    container_name: pinpoint-hbase
+    restart: always
+    depends_on:
+      - zoo1
+      - zoo2
+      - zoo3
+    environment:
+      AGENTINFO_TTL: ${PINPOINT_AGENTINFO_TTL:-31536000}
+      AGENTSTATV2_TTL: ${PINPOINT_AGENTSTATV2_TTL:-5184000}
+      APPSTATAGGRE_TTL: ${PINPOINT_APPSTATAGGRE_TTL:-5184000}
+      APPINDEX_TTL: ${PINPOINT_APPINDEX_TTL:-31536000}
+      AGENTLIFECYCLE_TTL: ${PINPOINT_AGENTLIFECYCLE_TTL:-5184000}
+      AGENTEVENT_TTL: ${PINPOINT_AGENTEVENT_TTL:-5184000}
+      STRINGMETADATA_TTL: ${PINPOINT_STRINGMETADATA_TTL:-15552000}
+      APIMETADATA_TTL: ${PINPOINT_APIMETADATA_TTL:-31536000}
+      SQLMETADATA_TTL: ${PINPOINT_SQLMETADATA_TTL:-15552000}
+      TRACEV2_TTL: ${PINPOINT_TRACEV2_TTL:-5184000}
+      APPTRACEINDEX_TTL: ${PINPOINT_APPTRACEINDEX_TTL:-5184000}
+      APPMAPSTATCALLERV2_TTL: ${PINPOINT_APPMAPSTATCALLERV2_TTL:-5184000}
+      APPMAPSTATCALLEV2_TTL: ${PINPOINT_APPMAPSTATCALLEV2_TTL:-5184000}
+      APPMAPSTATSELFV2_TTL: ${PINPOINT_APPMAPSTATSELFV2_TTL:-5184000}
+      HOSTAPPMAPV2_TTL: ${PINPOINT_HOSTAPPMAPV2_TTL:-5184000}
+    volumes:
+      - pinpoint-hbase-data:/home/pinpoint/hbase
+      - pinpoint-hbase-zookeeper-data:/home/pinpoint/zookeeper
+
+  pinpoint-mysql:
+    image: mysql:8.0
+    container_name: pinpoint-mysql
+    restart: always
+    entrypoint: >
+      sh -c "
+      curl -fSL https://raw.githubusercontent.com/pinpoint-apm/pinpoint/${PINPOINT_GITHUB_REF:-v3.1.0}/web/src/main/resources/sql/CreateTableStatement-mysql.sql -o /docker-entrypoint-initdb.d/CreateTableStatement-mysql.sql &&
+      curl -fSL https://raw.githubusercontent.com/pinpoint-apm/pinpoint/${PINPOINT_GITHUB_REF:-v3.1.0}/web/src/main/resources/sql/SpringBatchJobRepositorySchema-mysql.sql -o /docker-entrypoint-initdb.d/SpringBatchJobRepositorySchema-mysql.sql &&
+      sed -i '/^--/d' /docker-entrypoint-initdb.d/CreateTableStatement-mysql.sql &&
+      sed -i '/^--/d' /docker-entrypoint-initdb.d/SpringBatchJobRepositorySchema-mysql.sql &&
+      docker-entrypoint.sh mysqld
+      "
+    environment:
+      MYSQL_ROOT_PASSWORD: ${PINPOINT_MYSQL_ROOT_PASSWORD:-root123}
+      MYSQL_USER: ${PINPOINT_MYSQL_USER:-admin}
+      MYSQL_PASSWORD: ${PINPOINT_MYSQL_PASSWORD:-admin}
+      MYSQL_DATABASE: ${PINPOINT_MYSQL_DATABASE:-pinpoint}
+    volumes:
+      - pinpoint-mysql-data:/var/lib/mysql
+
+  pinpoint-redis:
+    image: redis:7.0.14
+    container_name: pinpoint-redis
+    restart: always
+
+  pinpoint-web:
+    image: pinpointdocker/pinpoint-web:${PINPOINT_VERSION:-3.1.0}
+    container_name: pinpoint-web
+    restart: always
+    depends_on:
+      - pinpoint-hbase
+      - pinpoint-mysql
+      - zoo1
+      - pinpoint-redis
+    ports:
+      - "${PINPOINT_WEB_PORT:-18080}:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${PINPOINT_PROFILES_ACTIVE:-release}
+      PINPOINT_ZOOKEEPER_ADDRESS: zoo1
+      CLUSTER_ENABLE: ${PINPOINT_CLUSTER_ENABLE:-true}
+      ADMIN_PASSWORD: ${PINPOINT_ADMIN_PASSWORD:-admin}
+      CONFIG_SENDUSAGE: ${PINPOINT_CONFIG_SENDUSAGE:-false}
+      CONFIG_SHOW_APPLICATIONSTAT: ${PINPOINT_CONFIG_SHOW_APPLICATIONSTAT:-true}
+      LOGGING_LEVEL_ROOT: ${PINPOINT_WEB_LOGGING_LEVEL_ROOT:-INFO}
+      JDBC_DRIVERCLASSNAME: com.mysql.cj.jdbc.Driver
+      JDBC_URL: jdbc:mysql://pinpoint-mysql:3306/${PINPOINT_MYSQL_DATABASE:-pinpoint}?characterEncoding=UTF-8
+      JDBC_USERNAME: ${PINPOINT_MYSQL_USER:-admin}
+      JDBC_PASSWORD: ${PINPOINT_MYSQL_PASSWORD:-admin}
+      SPRING_DATASOURCE_HIKARI_JDBCURL: jdbc:mysql://pinpoint-mysql:3306/${PINPOINT_MYSQL_DATABASE:-pinpoint}?characterEncoding=UTF-8
+      SPRING_DATASOURCE_HIKARI_USERNAME: ${PINPOINT_MYSQL_USER:-admin}
+      SPRING_DATASOURCE_HIKARI_PASSWORD: ${PINPOINT_MYSQL_PASSWORD:-admin}
+      SPRING_METADATASOURCE_HIKARI_JDBCURL: jdbc:mysql://pinpoint-mysql:3306/${PINPOINT_MYSQL_DATABASE:-pinpoint}?characterEncoding=UTF-8
+      SPRING_METADATASOURCE_HIKARI_USERNAME: ${PINPOINT_MYSQL_USER:-admin}
+      SPRING_METADATASOURCE_HIKARI_PASSWORD: ${PINPOINT_MYSQL_PASSWORD:-admin}
+      SPRING_DATA_REDIS_HOST: pinpoint-redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_USERNAME: default
+      SPRING_DATA_REDIS_PASSWORD: ""
+      PINPOINT_MODULES_WEB_LOGIN: ""
+      WEB_SECURITY_AUTH_USER: ${PINPOINT_WEB_SECURITY_AUTH_USER:-alice:foo,bob:bar}
+      WEB_SECURITY_AUTH_ADMIN: ${PINPOINT_WEB_SECURITY_AUTH_ADMIN:-eve:baz}
+      WEB_SECURITY_AUTH_JWT_SECRETKEY: ${PINPOINT_WEB_SECURITY_AUTH_JWT_SECRETKEY:-change-this-dev-pinpoint-jwt-secret}
+
+  pinpoint-collector:
+    image: pinpointdocker/pinpoint-collector:${PINPOINT_VERSION:-3.1.0}
+    container_name: pinpoint-collector
+    restart: always
+    depends_on:
+      - pinpoint-hbase
+      - zoo1
+      - pinpoint-redis
+    environment:
+      SPRING_PROFILES_ACTIVE: ${PINPOINT_PROFILES_ACTIVE:-release}
+      PINPOINT_ZOOKEEPER_ADDRESS: zoo1
+      CLUSTER_ENABLE: ${PINPOINT_CLUSTER_ENABLE:-true}
+      LOGGING_LEVEL_ROOT: ${PINPOINT_COLLECTOR_LOGGING_LEVEL_ROOT:-INFO}
+      FLINK_CLUSTER_ENABLE: ${PINPOINT_FLINK_CLUSTER_ENABLE:-false}
+      SPRING_DATA_REDIS_HOST: pinpoint-redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_USERNAME: default
+      SPRING_DATA_REDIS_PASSWORD: ""
+    expose:
+      - "9991"
+      - "9992"
+      - "9993"
+      - "9994"
+      - "9995"
+      - "9996"
+
+  pinpoint-agent:
+    image: pinpointdocker/pinpoint-agent:${PINPOINT_VERSION:-3.1.0}
+    container_name: pinpoint-agent
+    restart: unless-stopped
+    depends_on:
+      - pinpoint-collector
+    environment:
+      SPRING_PROFILES: ${PINPOINT_PROFILES_ACTIVE:-release}
+      COLLECTOR_IP: pinpoint-collector
+      PROFILER_TRANSPORT_MODULE: GRPC
+      PROFILER_TRANSPORT_AGENT_COLLECTOR_PORT: 9991
+      PROFILER_TRANSPORT_METADATA_COLLECTOR_PORT: 9991
+      PROFILER_TRANSPORT_STAT_COLLECTOR_PORT: 9992
+      PROFILER_TRANSPORT_SPAN_COLLECTOR_PORT: 9993
+      PROFILER_SAMPLING_TYPE: COUNTING
+      PROFILER_SAMPLING_COUNTING_SAMPLING_RATE: ${PINPOINT_SAMPLING_RATE:-1}
+      PROFILER_SAMPLING_PERCENT_SAMPLING_RATE: 100
+      PROFILER_SAMPLING_NEW_THROUGHPUT: 0
+      PROFILER_SAMPLING_CONTINUE_THROUGHPUT: 0
+      DEBUG_LEVEL: ${PINPOINT_AGENT_DEBUG_LEVEL:-INFO}
+    volumes:
+      - pinpoint-agent-data:/pinpoint-agent
+
+  zoo1:
+    image: zookeeper:3.4.13
+    container_name: zoo1
+    hostname: zoo1
+    restart: always
+    environment:
+      ZOO_MY_ID: 1
+      ZOO_SERVERS: server.1=0.0.0.0:2888:3888 server.2=zoo2:2888:3888 server.3=zoo3:2888:3888
+
+  zoo2:
+    image: zookeeper:3.4.13
+    container_name: zoo2
+    hostname: zoo2
+    restart: always
+    environment:
+      ZOO_MY_ID: 2
+      ZOO_SERVERS: server.1=zoo1:2888:3888 server.2=0.0.0.0:2888:3888 server.3=zoo3:2888:3888
+
+  zoo3:
+    image: zookeeper:3.4.13
+    container_name: zoo3
+    hostname: zoo3
+    restart: always
+    environment:
+      ZOO_MY_ID: 3
+      ZOO_SERVERS: server.1=zoo1:2888:3888 server.2=zoo2:2888:3888 server.3=0.0.0.0:2888:3888
+
+volumes:
+  pinpoint-agent-data:
+  pinpoint-logs:
+  pinpoint-hbase-data:
+  pinpoint-hbase-zookeeper-data:
+  pinpoint-mysql-data:

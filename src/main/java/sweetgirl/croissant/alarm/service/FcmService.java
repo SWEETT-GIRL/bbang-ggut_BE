@@ -49,6 +49,9 @@ public class FcmService {
 		String deviceId = fcmTokenRequest.getDeviceId();
 		DeviceOs deviceOs = fcmTokenRequest.getDeviceOs();
 		String token = fcmTokenRequest.getToken();
+		String appVersion = fcmTokenRequest.getAppVersion();
+		String buildVersion = fcmTokenRequest.getBuildVersion();
+		String bundleId = fcmTokenRequest.getBundleId();
 
 		// 동일 token을 가진 다른 row를 모두 비활성화 — (memberId, deviceId)가 정확히 일치하는 row만 활성으로 유지
 		// 다른 member든 같은 member의 다른 deviceId든, 잔재된 활성 row가 중복 발송을 일으키지 않도록 정리
@@ -60,16 +63,19 @@ public class FcmService {
 		try {
 			fcmTokenRepository.findByMemberAndDeviceId(member, deviceId)
 				.ifPresentOrElse(
-					fcmToken -> fcmToken.updateToken(token),
+					fcmToken -> fcmToken.updateToken(token, appVersion, buildVersion, bundleId),
 					() -> fcmTokenRepository.save(FcmToken.builder()
 						.member(member)
 						.deviceId(deviceId)
 						.deviceOs(deviceOs)
 						.token(token)
+						.appVersion(appVersion)
+						.buildVersion(buildVersion)
+						.bundleId(bundleId)
 						.build()));
 		} catch (DataIntegrityViolationException e) {
 			fcmTokenRepository.findByMemberAndDeviceId(member, deviceId)
-				.ifPresent(fcmToken -> fcmToken.updateToken(token));
+				.ifPresent(fcmToken -> fcmToken.updateToken(token, appVersion, buildVersion, bundleId));
 		}
 	}
 
@@ -81,6 +87,7 @@ public class FcmService {
 		}
 
 		tokens.forEach(FcmToken::deactivate);
+		fcmTokenRepository.saveAll(tokens);
 	}
 
 	// FCM 메시지 TTL — 1시간. OS 가 throttle 해서 묵힌 알림이 한꺼번에 쏟아지는 현상 방지.
@@ -126,14 +133,29 @@ public class FcmService {
 			FirebaseMessaging.getInstance().send(message);
 		} catch (FirebaseMessagingException e) {
 			MessagingErrorCode errorCode = e.getMessagingErrorCode();
-			if (errorCode == MessagingErrorCode.UNREGISTERED
-				|| errorCode == MessagingErrorCode.INVALID_ARGUMENT) {
+			if (isInvalidTokenError(errorCode)) {
+				log.warn("FCM 토큰 비활성화 [token={}, errorCode={}]", maskToken(fcmToken), errorCode);
 				deactivateFcmToken(fcmToken);
+			} else if (errorCode == MessagingErrorCode.THIRD_PARTY_AUTH_ERROR) {
+				log.error("FCM APNs 인증/환경 오류 [token={}, errorCode={}]", maskToken(fcmToken), errorCode, e);
+				throw new AlarmException(AlarmErrorCode.FCM_SEND_FAILED);
 			} else {
-				log.error("FCM 발송 실패 [token={}, errorCode={}]", fcmToken, errorCode, e);
+				log.error("FCM 발송 실패 [token={}, errorCode={}]", maskToken(fcmToken), errorCode, e);
 				throw new AlarmException(AlarmErrorCode.FCM_SEND_FAILED);
 			}
 		}
+	}
+
+	private boolean isInvalidTokenError(MessagingErrorCode errorCode) {
+		return errorCode == MessagingErrorCode.UNREGISTERED
+			|| errorCode == MessagingErrorCode.INVALID_ARGUMENT;
+	}
+
+	private String maskToken(String token) {
+		if (token == null || token.length() <= 12) {
+			return "***";
+		}
+		return token.substring(0, 6) + "..." + token.substring(token.length() - 6);
 	}
 
 }

@@ -69,3 +69,11 @@ __pycache__/
 scripts/blog_score/.secrets.json
 scripts/blog_score/cache/
 scripts/blog_score/snapshots/
+
+### macOS / local junk ###
+.DS_Store
+logs/
+scripts/.venv/
+
+### Local Codex workspace artifacts ###
+.agents/

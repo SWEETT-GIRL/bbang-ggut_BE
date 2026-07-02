@@ -1,0 +1,6 @@
+ALTER TABLE menu
+	ADD COLUMN IF NOT EXISTS like_count INTEGER DEFAULT 0 NOT NULL;
+
+UPDATE menu
+SET like_count = 0
+WHERE like_count IS NULL;

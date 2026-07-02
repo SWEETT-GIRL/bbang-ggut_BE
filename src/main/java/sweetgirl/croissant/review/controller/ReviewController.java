@@ -26,14 +26,27 @@ import sweetgirl.croissant.review.dto.response.ReviewDetailResponse;
 import sweetgirl.croissant.review.dto.response.ReviewListResponse;
 import sweetgirl.croissant.review.dto.response.ReviewPresignedUrlInfoResponse;
 import sweetgirl.croissant.review.dto.response.ReviewSummaryResponse;
-import sweetgirl.croissant.review.service.ReviewService;
+import sweetgirl.croissant.review.service.ReviewCommandService;
+import sweetgirl.croissant.review.service.ReviewQueryService;
 
 @Tag(name = "Review", description = "리뷰 API")
 @RestController
 @RequiredArgsConstructor
 public class ReviewController {
 
-	private final ReviewService reviewService;
+	private final ReviewQueryService reviewQueryService;
+	private final ReviewCommandService reviewCommandService;
+
+	@Operation(summary = "가게 리뷰 목록 조회", description = "해당 가게의 모든 메뉴 리뷰를 최신순으로 반환합니다.")
+	@GetMapping("/stores/{storeId}/reviews")
+	public ResponseEntity<ApiResponse<MyReviewListResponse>> getStoreReviews(
+			@PathVariable Long storeId,
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "20") int size,
+			@AuthenticationPrincipal Long memberId) {
+		return ResponseEntity.ok(ApiResponse.ok(
+			reviewQueryService.getStoreReviews(storeId, memberId, page, size)));
+	}
 
 	@Operation(summary = "메뉴 리뷰 요약 조회", description = "평균 별점, 리뷰 수, 미리보기 리뷰를 반환합니다.")
 	@GetMapping("/menus/{menuId}/reviews/summary")
@@ -44,7 +57,7 @@ public class ReviewController {
 			@RequestParam(defaultValue = "2") int previewSize,
 			@AuthenticationPrincipal Long memberId) {
 		return ResponseEntity.ok(ApiResponse.ok(
-			reviewService.getReviewSummary(menuId, sort, photoOnly, previewSize, memberId)));
+			reviewQueryService.getReviewSummary(menuId, sort, photoOnly, previewSize, memberId)));
 	}
 
 	@Operation(summary = "메뉴 리뷰 목록 조회", description = "정렬·사진 필터·페이지 조건에 맞는 리뷰 목록을 반환합니다.")
@@ -57,7 +70,7 @@ public class ReviewController {
 			@RequestParam(defaultValue = "20") int size,
 			@AuthenticationPrincipal Long memberId) {
 		return ResponseEntity.ok(ApiResponse.ok(
-			reviewService.getReviews(menuId, sort, photoOnly, page, size, memberId)));
+			reviewQueryService.getReviews(menuId, sort, photoOnly, page, size, memberId)));
 	}
 
 	@Operation(summary = "리뷰 상세 조회", description = "리뷰 ID로 리뷰 상세 정보를 조회합니다.")
@@ -65,7 +78,7 @@ public class ReviewController {
 	public ResponseEntity<ApiResponse<ReviewDetailResponse>> getReviewDetail(
 			@PathVariable Long reviewId,
 			@AuthenticationPrincipal Long memberId) {
-		return ResponseEntity.ok(ApiResponse.ok(reviewService.getReviewDetail(reviewId, memberId)));
+		return ResponseEntity.ok(ApiResponse.ok(reviewQueryService.getReviewDetail(reviewId, memberId)));
 	}
 
 	@Operation(summary = "내가 쓴 리뷰 목록 조회", description = "로그인 사용자가 작성한 리뷰 목록을 최신순으로 조회합니다.")
@@ -74,7 +87,7 @@ public class ReviewController {
 			@AuthenticationPrincipal Long memberId,
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "20") int size) {
-		return ResponseEntity.ok(ApiResponse.ok(reviewService.getMyReviews(memberId, page, size)));
+		return ResponseEntity.ok(ApiResponse.ok(reviewQueryService.getMyReviews(memberId, page, size)));
 	}
 
 	@Operation(summary = "사용자가 쓴 리뷰 목록 조회", description = "공개 프로필에서 특정 사용자가 작성한 리뷰 목록을 "
@@ -86,7 +99,7 @@ public class ReviewController {
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "20") int size) {
 		return ResponseEntity.ok(ApiResponse.ok(
-			reviewService.getMemberReviews(memberId, viewerMemberId, page, size)));
+			reviewQueryService.getMemberReviews(memberId, viewerMemberId, page, size)));
 	}
 
 	@Operation(summary = "리뷰 이미지 Presigned URL 발급", description = "mimeTypes 배열 크기만큼 리뷰 이미지 업로드 URL을 반환합니다.")
@@ -94,7 +107,7 @@ public class ReviewController {
 	public ResponseEntity<ApiResponse<ReviewPresignedUrlInfoResponse>> getReviewPresignedUrls(
 			@AuthenticationPrincipal Long memberId,
 			@Valid @RequestBody ReviewPresignedUrlRequest request) {
-		return ResponseEntity.ok(ApiResponse.ok(reviewService.generateReviewPresignedUrls(memberId, request)));
+		return ResponseEntity.ok(ApiResponse.ok(reviewCommandService.generateReviewPresignedUrls(memberId, request)));
 	}
 
 	@Operation(summary = "메뉴 리뷰 생성", description = "로그인 사용자가 메뉴에 리뷰를 작성합니다.")
@@ -104,7 +117,7 @@ public class ReviewController {
 			@AuthenticationPrincipal Long memberId,
 			@Valid @RequestBody ReviewCreateRequest request) {
 		return ResponseEntity.status(HttpStatus.CREATED)
-			.body(ApiResponse.created(reviewService.createReview(menuId, memberId, request)));
+			.body(ApiResponse.created(reviewCommandService.createReview(menuId, memberId, request)));
 	}
 
 	@Operation(summary = "작성한 리뷰 수정", description = "로그인 사용자가 본인이 작성한 리뷰를 수정합니다.")
@@ -113,7 +126,7 @@ public class ReviewController {
 			@PathVariable Long reviewId,
 			@AuthenticationPrincipal Long memberId,
 			@Valid @RequestBody ReviewUpdateRequest request) {
-		return ResponseEntity.ok(ApiResponse.ok(reviewService.updateReview(reviewId, memberId, request)));
+		return ResponseEntity.ok(ApiResponse.ok(reviewCommandService.updateReview(reviewId, memberId, request)));
 	}
 
 	@Operation(summary = "작성한 리뷰 삭제", description = "로그인 사용자가 본인이 작성한 리뷰를 삭제합니다.")
@@ -121,7 +134,7 @@ public class ReviewController {
 	public ResponseEntity<ApiResponse<Void>> deleteReview(
 			@PathVariable Long reviewId,
 			@AuthenticationPrincipal Long memberId) {
-		reviewService.deleteReview(reviewId, memberId);
+		reviewCommandService.deleteReview(reviewId, memberId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -130,7 +143,7 @@ public class ReviewController {
 	public ResponseEntity<ApiResponse<Void>> recommendReview(
 			@PathVariable Long reviewId,
 			@AuthenticationPrincipal Long memberId) {
-		reviewService.recommendReview(reviewId, memberId);
+		reviewCommandService.recommendReview(reviewId, memberId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -139,7 +152,7 @@ public class ReviewController {
 	public ResponseEntity<ApiResponse<Void>> cancelReviewRecommend(
 			@PathVariable Long reviewId,
 			@AuthenticationPrincipal Long memberId) {
-		reviewService.cancelReviewRecommend(reviewId, memberId);
+		reviewCommandService.cancelReviewRecommend(reviewId, memberId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 }

@@ -61,6 +61,7 @@ class ReviewRepositoryTest {
 					privacy_version VARCHAR(20),
 					terms_agreed_at TIMESTAMP,
 					marketing_agreed_at TIMESTAMP,
+					member_type VARCHAR(20) NOT NULL DEFAULT 'USER',
 					created_at TIMESTAMP NOT NULL,
 					updated_at TIMESTAMP
 				)
@@ -100,6 +101,7 @@ class ReviewRepositoryTest {
 					name VARCHAR(100) NOT NULL,
 					price INTEGER,
 					recommend_count INTEGER NOT NULL DEFAULT 0,
+					like_count INTEGER NOT NULL DEFAULT 0,
 					deleted_at TIMESTAMP,
 					description VARCHAR(255),
 					display_order INTEGER,
@@ -118,6 +120,7 @@ class ReviewRepositoryTest {
 					filling_amount VARCHAR(50) NOT NULL,
 					content VARCHAR(1000) NOT NULL,
 					like_count INTEGER NOT NULL DEFAULT 0,
+					recommend_count INTEGER NOT NULL DEFAULT 0,
 					comment_count INTEGER NOT NULL DEFAULT 0,
 					deleted_at TIMESTAMP,
 					hidden_at TIMESTAMP,

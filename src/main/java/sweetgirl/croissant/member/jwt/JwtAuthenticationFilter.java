@@ -2,6 +2,7 @@ package sweetgirl.croissant.member.jwt;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -14,10 +15,22 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 // OncePerRequestFilter: 한 번의 HTTP 요청에 딱 한 번만 실행되도록 보장하는 필터
+@Slf4j
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+	private static final Pattern MEMBER_REVIEWS_PATH = Pattern.compile("^/users/\\d+/reviews$");
+	private static final List<Pattern> OPTIONAL_AUTH_GET_PATHS = List.of(
+		Pattern.compile("^/stores/\\d+$"),
+		Pattern.compile("^/stores/\\d+/menus$"),
+		Pattern.compile("^/menus/\\d+$"),
+		Pattern.compile("^/menus/\\d+/reviews$"),
+		Pattern.compile("^/menus/\\d+/reviews/summary$"),
+		Pattern.compile("^/courses/\\d+$"),
+		MEMBER_REVIEWS_PATH);
 
 	private final JwtProvider jwtProvider;
 
@@ -27,10 +40,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			HttpServletResponse response,
 			FilterChain filterChain) throws ServletException, IOException {
 
+		boolean shouldLogMemberReviewsAuth = isMemberReviewsRequest(request);
+
 		// 요청 헤더에서 JWT 추출
 		String token = resolveToken(request);
+		if (shouldLogMemberReviewsAuth && token == null) {
+			log.info("Profile reviews request has no bearer token. path={}", request.getRequestURI());
+		}
 
 		if (token != null && !jwtProvider.validateToken(token)) {
+			if (shouldLogMemberReviewsAuth) {
+				log.warn("Profile reviews JWT authentication failed. path={}, reason=invalid_token",
+					request.getRequestURI());
+			}
+
+			if (isOptionalAuthGetRequest(request)) {
+				SecurityContextHolder.clearContext();
+				filterChain.doFilter(request, response);
+				return;
+			}
+
 			response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 			response.setContentType("application/json;charset=UTF-8");
 			response.getWriter().write("""
@@ -43,6 +72,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 			// 토큰에서 memberId 파싱
 			Long memberId = jwtProvider.getMemberId(token);
+			if (shouldLogMemberReviewsAuth) {
+				log.info("Profile reviews JWT authenticated. path={}, memberId={}",
+					request.getRequestURI(), memberId);
+			}
 
 			// Spring Security 인증 객체 생성
 			// principal: memberId (이후 컨트롤러에서 @AuthenticationPrincipal Long memberId 로 꺼낼 수 있음)
@@ -74,5 +107,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		}
 
 		return null;
+	}
+
+	private boolean isMemberReviewsRequest(HttpServletRequest request) {
+		return "GET".equals(request.getMethod())
+			&& MEMBER_REVIEWS_PATH.matcher(request.getRequestURI()).matches();
+	}
+
+	private boolean isOptionalAuthGetRequest(HttpServletRequest request) {
+		if (!"GET".equals(request.getMethod())) {
+			return false;
+		}
+
+		String path = request.getRequestURI();
+		return OPTIONAL_AUTH_GET_PATHS.stream().anyMatch(pattern -> pattern.matcher(path).matches());
 	}
 }

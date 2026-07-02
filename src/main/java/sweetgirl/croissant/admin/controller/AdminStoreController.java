@@ -30,13 +30,16 @@ import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichRunResponse;
 import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichStatsResponse;
 import sweetgirl.croissant.admin.dto.response.AdminNaverThrottledItem;
 import sweetgirl.croissant.admin.dto.response.AdminStoreResponse;
-import sweetgirl.croissant.admin.service.AdminStoreService;
+import sweetgirl.croissant.admin.service.AdminStoreCommandService;
+import sweetgirl.croissant.admin.service.AdminStoreQueryService;
 import sweetgirl.croissant.admin.service.NaverEnrichOrchestrator;
 import sweetgirl.croissant.admin.service.NaverEnrichPartition;
 import sweetgirl.croissant.admin.service.NaverEnrichRunner;
+import sweetgirl.croissant.external.naver.client.NaverLocalSearchClient;
 import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.store.code.StoreErrorCode;
+import sweetgirl.croissant.store.dto.response.NaverPlaceSearchResult;
 
 @Tag(name = "Admin Store", description = "어드민 가게 관리 API")
 @RestController
@@ -44,16 +47,25 @@ import sweetgirl.croissant.store.code.StoreErrorCode;
 @RequiredArgsConstructor
 public class AdminStoreController {
 
-	private final AdminStoreService adminStoreService;
+	private final AdminStoreQueryService adminStoreQueryService;
+	private final AdminStoreCommandService adminStoreCommandService;
 	private final NaverEnrichRunner naverEnrichRunner;
 	private final NaverEnrichOrchestrator naverEnrichOrchestrator;
+	private final NaverLocalSearchClient naverLocalSearchClient;
 
-	@Operation(summary = "가게 등록", description = "어드민에서 새 가게를 등록합니다. "
-		+ "coord(lat/lng)로 PostGIS Point를 생성하며, hours는 mon~sun 키로 영업시간을 설정합니다.")
+	@Operation(summary = "가게 등록", description = "어드민에서 네이버 검색 결과 기반으로 새 가게를 등록합니다. "
+		+ "naverPlaceId와 coord(lat/lng)로 가게를 생성하며, hours는 mon~sun 키로 영업시간을 설정합니다.")
 	@PostMapping
 	public ResponseEntity<ApiResponse<AdminStoreResponse>> createStore(
 			@Valid @RequestBody AdminStoreCreateRequest request) {
-		return ResponseEntity.ok(ApiResponse.ok(adminStoreService.createStore(request)));
+		return ResponseEntity.ok(ApiResponse.ok(adminStoreCommandService.createStore(request)));
+	}
+
+	@Operation(summary = "가게 등록용 네이버 장소 검색", description = "어드민 가게 등록 화면에서 네이버 장소 검색 결과를 조회합니다.")
+	@GetMapping("/naver/search")
+	public ResponseEntity<ApiResponse<List<NaverPlaceSearchResult>>> searchNaverPlaces(
+			@Parameter(description = "검색어") @RequestParam String keyword) {
+		return ResponseEntity.ok(ApiResponse.ok(naverLocalSearchClient.search(keyword)));
 	}
 
 	@Operation(summary = "네이버 enrich 큐 조회", description = "naverPlaceId 가 아직 매칭되지 않은 가게 목록을 페이지네이션으로 반환합니다. "
@@ -66,7 +78,7 @@ public class AdminStoreController {
 			@Parameter(description = "작업 파티션(P1/P2/P3)") @RequestParam(required = false) String partition) {
 		NaverEnrichPartition parsedPartition = NaverEnrichPartition.fromNullable(partition);
 		return ResponseEntity.ok(
-			ApiResponse.ok(adminStoreService.getNaverEnrichQueue(PageRequest.of(page, size), parsedPartition)));
+			ApiResponse.ok(adminStoreQueryService.getNaverEnrichQueue(PageRequest.of(page, size), parsedPartition)));
 	}
 
 	@Operation(summary = "사진 보충 큐 조회", description = "매칭은 됐지만 가게 사진이 0장인 가게 목록. Python 크롤러가 이 큐를 폴링하면 "
@@ -78,7 +90,7 @@ public class AdminStoreController {
 			@Parameter(description = "작업 파티션(P1/P2/P3)") @RequestParam(required = false) String partition) {
 		NaverEnrichPartition parsedPartition = NaverEnrichPartition.fromNullable(partition);
 		return ResponseEntity.ok(
-			ApiResponse.ok(adminStoreService.getPhotoBackfillQueue(PageRequest.of(page, size), parsedPartition)));
+			ApiResponse.ok(adminStoreQueryService.getPhotoBackfillQueue(PageRequest.of(page, size), parsedPartition)));
 	}
 
 	@Operation(summary = "사진 보충 큐 카운트", description = "사진 보충 대상 가게 수만 반환 — 어드민 진행상황 표시용.")
@@ -86,7 +98,7 @@ public class AdminStoreController {
 	public ResponseEntity<ApiResponse<Long>> getPhotoBackfillCount(
 			@Parameter(description = "작업 파티션(P1/P2/P3)") @RequestParam(required = false) String partition) {
 		NaverEnrichPartition parsedPartition = NaverEnrichPartition.fromNullable(partition);
-		return ResponseEntity.ok(ApiResponse.ok(adminStoreService.countPhotoBackfillQueue(parsedPartition)));
+		return ResponseEntity.ok(ApiResponse.ok(adminStoreQueryService.countPhotoBackfillQueue(parsedPartition)));
 	}
 
 	@Operation(summary = "풀 enrich 백필 큐 조회", description = "placeId 는 있으나 메뉴 또는 사진이 비어 enrich 가 안 끝난 가게 목록. "
@@ -98,7 +110,7 @@ public class AdminStoreController {
 			@Parameter(description = "작업 파티션(P1/P2/P3)") @RequestParam(required = false) String partition) {
 		NaverEnrichPartition parsedPartition = NaverEnrichPartition.fromNullable(partition);
 		return ResponseEntity.ok(
-			ApiResponse.ok(adminStoreService.getEnrichBackfillQueue(PageRequest.of(page, size), parsedPartition)));
+			ApiResponse.ok(adminStoreQueryService.getEnrichBackfillQueue(PageRequest.of(page, size), parsedPartition)));
 	}
 
 	@Operation(summary = "풀 enrich 백필 큐 카운트", description = "풀 enrich 백필 대상 가게 수만 반환 — 어드민 진행상황 표시용.")
@@ -106,7 +118,7 @@ public class AdminStoreController {
 	public ResponseEntity<ApiResponse<Long>> getEnrichBackfillCount(
 			@Parameter(description = "작업 파티션(P1/P2/P3)") @RequestParam(required = false) String partition) {
 		NaverEnrichPartition parsedPartition = NaverEnrichPartition.fromNullable(partition);
-		return ResponseEntity.ok(ApiResponse.ok(adminStoreService.countEnrichBackfillQueue(parsedPartition)));
+		return ResponseEntity.ok(ApiResponse.ok(adminStoreQueryService.countEnrichBackfillQueue(parsedPartition)));
 	}
 
 	@Operation(summary = "네이버 플레이스 ID 저장", description = "Python 크롤러 또는 어드민이 호출. "
@@ -117,7 +129,7 @@ public class AdminStoreController {
 			@Parameter(description = "가게 ID") @PathVariable Long storeId,
 			@Valid @RequestBody AdminNaverPlaceIdUpdateRequest request) {
 		boolean replaceMenus = Boolean.TRUE.equals(request.replaceMenus());
-		adminStoreService.updateNaverPlaceId(
+		adminStoreCommandService.updateNaverPlaceId(
 			storeId,
 			request.naverPlaceId(),
 			replaceMenus,
@@ -134,7 +146,7 @@ public class AdminStoreController {
 	public ResponseEntity<ApiResponse<Void>> markNaverEnrichFailed(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId,
 			@Parameter(description = "검색 후보 0건 여부(파킹 대상)") @RequestParam(defaultValue = "false") boolean noCandidates) {
-		adminStoreService.markNaverEnrichFailed(storeId, noCandidates);
+		adminStoreCommandService.markNaverEnrichFailed(storeId, noCandidates);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -144,7 +156,7 @@ public class AdminStoreController {
 	public ResponseEntity<ApiResponse<Void>> markNaverBackfillAttempted(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId,
 			@Parameter(description = "백필 모드(photos | enrich-backfill)") @RequestParam String mode) {
-		adminStoreService.markNaverBackfillAttempted(storeId, mode);
+		adminStoreCommandService.markNaverBackfillAttempted(storeId, mode);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -154,7 +166,7 @@ public class AdminStoreController {
 	public ResponseEntity<ApiResponse<Void>> saveNaverEnrichCandidates(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId,
 			@Valid @RequestBody List<AdminNaverEnrichCandidateRequest> candidates) {
-		adminStoreService.replaceCandidates(storeId, candidates);
+		adminStoreCommandService.replaceCandidates(storeId, candidates);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -163,13 +175,13 @@ public class AdminStoreController {
 	@GetMapping("/{storeId}/naver-enrich-candidates")
 	public ResponseEntity<ApiResponse<List<AdminNaverEnrichCandidateResponse>>> getNaverEnrichCandidates(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId) {
-		return ResponseEntity.ok(ApiResponse.ok(adminStoreService.getCandidates(storeId)));
+		return ResponseEntity.ok(ApiResponse.ok(adminStoreQueryService.getCandidates(storeId)));
 	}
 
 	@Operation(summary = "네이버 enrich 통계", description = "ACTIVE store 기준 매칭/대기/실패/전체 카운트. 대시보드용.")
 	@GetMapping("/naver-enrich-stats")
 	public ResponseEntity<ApiResponse<AdminNaverEnrichStatsResponse>> getNaverEnrichStats() {
-		return ResponseEntity.ok(ApiResponse.ok(adminStoreService.getNaverEnrichStats()));
+		return ResponseEntity.ok(ApiResponse.ok(adminStoreQueryService.getNaverEnrichStats()));
 	}
 
 	@Operation(summary = "네이버 매칭 실패 throttle 목록", description = "naverPlaceId NULL + naverMatchedAt 있는 가게 — "
@@ -179,7 +191,7 @@ public class AdminStoreController {
 			@Parameter(description = "페이지 번호 (0부터 시작)") @RequestParam(defaultValue = "0") int page,
 			@Parameter(description = "페이지 크기") @RequestParam(defaultValue = "100") int size) {
 		return ResponseEntity.ok(
-			ApiResponse.ok(adminStoreService.getNaverThrottledList(PageRequest.of(page, size))));
+			ApiResponse.ok(adminStoreQueryService.getNaverThrottledList(PageRequest.of(page, size))));
 	}
 
 	@Operation(summary = "네이버 플레이스 ID 초기화", description = "잘못 매칭된 ID 를 비웁니다. "
@@ -187,7 +199,7 @@ public class AdminStoreController {
 	@DeleteMapping("/{storeId}/naver-place-id")
 	public ResponseEntity<ApiResponse<Void>> clearNaverPlaceId(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId) {
-		adminStoreService.clearNaverPlaceId(storeId);
+		adminStoreCommandService.clearNaverPlaceId(storeId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -197,7 +209,7 @@ public class AdminStoreController {
 	@PostMapping("/{storeId}/naver-enrich-retry")
 	public ResponseEntity<ApiResponse<Void>> retryNaverEnrich(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId) {
-		adminStoreService.retryNaverEnrich(storeId);
+		adminStoreCommandService.retryNaverEnrich(storeId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -206,7 +218,7 @@ public class AdminStoreController {
 	@GetMapping("/{storeId}/naver-enrich-item")
 	public ResponseEntity<ApiResponse<AdminNaverEnrichQueueItem>> getNaverEnrichItem(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId) {
-		return ResponseEntity.ok(ApiResponse.ok(adminStoreService.getNaverEnrichItem(storeId)));
+		return ResponseEntity.ok(ApiResponse.ok(adminStoreQueryService.getNaverEnrichItem(storeId)));
 	}
 
 	@Operation(summary = "네이버 폐업 의심 가게 삭제", description = "네이버 후보가 폐업으로 확인된 가게를 soft-delete합니다 "
@@ -214,7 +226,7 @@ public class AdminStoreController {
 	@DeleteMapping("/{storeId}/naver-closed-suspect")
 	public ResponseEntity<ApiResponse<Void>> deleteNaverClosedSuspect(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId) {
-		adminStoreService.deleteNaverClosedSuspect(storeId);
+		adminStoreCommandService.deleteNaverClosedSuspect(storeId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -233,7 +245,7 @@ public class AdminStoreController {
 			@Parameter(description = "작업 파티션(필수, P1/P2/P3)") @RequestParam(required = false) String partition) {
 		NaverEnrichPartition parsedPartition = NaverEnrichPartition.fromRequired(partition);
 		// 진행률 % 계산을 위해 시작 시점의 큐 크기 (= pending 가게 수) 측정
-		long initialCount = adminStoreService.getNaverEnrichQueue(
+		long initialCount = adminStoreQueryService.getNaverEnrichQueue(
 			PageRequest.of(0, 1), parsedPartition).getTotalElements();
 		if (!naverEnrichOrchestrator.tryStart(
 			NaverEnrichOrchestrator.Mode.ENRICH, initialCount, parsedPartition)) {
@@ -248,7 +260,7 @@ public class AdminStoreController {
 	public ResponseEntity<ApiResponse<Void>> startPhotoBackfill(
 			@Parameter(description = "작업 파티션(P1/P2/P3)") @RequestParam(required = false) String partition) {
 		NaverEnrichPartition parsedPartition = NaverEnrichPartition.fromNullable(partition);
-		long initialCount = adminStoreService.countPhotoBackfillQueue(parsedPartition);
+		long initialCount = adminStoreQueryService.countPhotoBackfillQueue(parsedPartition);
 		if (!naverEnrichOrchestrator.tryStart(
 			NaverEnrichOrchestrator.Mode.PHOTOS_BACKFILL, initialCount, parsedPartition)) {
 			throw new CustomException(StoreErrorCode.NAVER_ENRICH_ALREADY_RUNNING);
@@ -263,7 +275,7 @@ public class AdminStoreController {
 	public ResponseEntity<ApiResponse<Void>> startEnrichBackfill(
 			@Parameter(description = "작업 파티션(P1/P2/P3)") @RequestParam(required = false) String partition) {
 		NaverEnrichPartition parsedPartition = NaverEnrichPartition.fromNullable(partition);
-		long initialCount = adminStoreService.countEnrichBackfillQueue(parsedPartition);
+		long initialCount = adminStoreQueryService.countEnrichBackfillQueue(parsedPartition);
 		if (!naverEnrichOrchestrator.tryStart(
 			NaverEnrichOrchestrator.Mode.ENRICH_BACKFILL, initialCount, parsedPartition)) {
 			throw new CustomException(StoreErrorCode.NAVER_ENRICH_ALREADY_RUNNING);
@@ -287,14 +299,14 @@ public class AdminStoreController {
 			@Parameter(description = "페이지 번호 (0부터 시작)") @RequestParam(defaultValue = "0") int page,
 			@Parameter(description = "페이지 크기") @RequestParam(defaultValue = "20") int size) {
 		return ResponseEntity.ok(
-			ApiResponse.ok(adminStoreService.getStores(keyword, status, PageRequest.of(page, size))));
+			ApiResponse.ok(adminStoreQueryService.getStores(keyword, status, PageRequest.of(page, size))));
 	}
 
 	@Operation(summary = "가게 상세 조회", description = "가게 ID로 상세 정보를 조회합니다. 영업시간, 대표 사진, 구독 수(alarmCount)를 포함합니다.")
 	@GetMapping("/{storeId}")
 	public ResponseEntity<ApiResponse<AdminStoreResponse>> getStoreDetail(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId) {
-		return ResponseEntity.ok(ApiResponse.ok(adminStoreService.getStoreDetail(storeId)));
+		return ResponseEntity.ok(ApiResponse.ok(adminStoreQueryService.getStoreDetail(storeId)));
 	}
 
 	@Operation(summary = "가게 수정", description = "가게 정보를 수정합니다. 모든 필드는 선택적이며, "
@@ -303,7 +315,7 @@ public class AdminStoreController {
 	public ResponseEntity<ApiResponse<Void>> updateStore(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId,
 			@RequestBody AdminStoreUpdateRequest request) {
-		adminStoreService.updateStore(storeId, request);
+		adminStoreCommandService.updateStore(storeId, request);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -311,7 +323,7 @@ public class AdminStoreController {
 	@DeleteMapping("/{storeId}")
 	public ResponseEntity<ApiResponse<Void>> deleteStore(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId) {
-		adminStoreService.deleteStore(storeId);
+		adminStoreCommandService.deleteStore(storeId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 }

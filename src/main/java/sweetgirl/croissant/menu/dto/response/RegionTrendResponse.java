@@ -14,7 +14,9 @@ public record RegionTrendResponse(
 			Long storeId,
 			String name,
 			String address,
+			String region1st,
+			String region2nd,
 			int rank,
-			List<String> imageKeys) {
+			List<String> thumbnailImageKeys) {
 	}
 }

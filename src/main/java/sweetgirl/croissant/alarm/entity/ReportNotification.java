@@ -17,11 +17,11 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import sweetgirl.croissant.alarm.enums.ReportKind;
+import sweetgirl.croissant.abuse.entity.AbuseReport;
+import sweetgirl.croissant.abuse.entity.ModerationAction;
 import sweetgirl.croissant.alarm.enums.ReportNotificationAction;
+import sweetgirl.croissant.common.enums.ReportKind;
 import sweetgirl.croissant.member.entity.Member;
-import sweetgirl.croissant.report.entity.ModerationAction;
-import sweetgirl.croissant.report.entity.UserReport;
 import sweetgirl.croissant.store.entity.Store;
 
 @Entity
@@ -44,6 +44,12 @@ public class ReportNotification {
 
 	@Column(name = "report_id", nullable = false)
 	private Long reportId;
+
+	@Column(name = "contribution_report_id")
+	private Long contributionReportId;
+
+	@Column(name = "abuse_report_id")
+	private Long abuseReportId;
 
 	@Column(name = "moderation_action_id")
 	private Long moderationActionId;
@@ -69,11 +75,14 @@ public class ReportNotification {
 	private LocalDateTime sentAt;
 
 	@Builder
-	public ReportNotification(Member member, Store store, Long reportId, ReportKind reportKind,
-			Long moderationActionId, ReportNotificationAction action, String title, String message) {
+	public ReportNotification(Member member, Store store, Long reportId, Long contributionReportId,
+			Long abuseReportId, ReportKind reportKind, Long moderationActionId, ReportNotificationAction action,
+			String title, String message) {
 		this.member = member;
 		this.store = store;
 		this.reportId = reportId;
+		this.contributionReportId = contributionReportId;
+		this.abuseReportId = abuseReportId;
 		this.moderationActionId = moderationActionId;
 		this.reportKind = reportKind;
 		this.action = action;
@@ -90,17 +99,41 @@ public class ReportNotification {
 			ReportNotificationAction action,
 			String title,
 			String message) {
-		return new ReportNotification(member, store, reportId, reportKind, null, action, title, message);
+		return ofContributionReportResult(member, store, reportId, null, reportKind, action, title, message);
 	}
 
-	public static ReportNotification ofUserReportResult(UserReport report, String title, String message) {
+	public static ReportNotification ofContributionReportResult(
+			Member member,
+			Store store,
+			Long reportId,
+			Long contributionReportId,
+			ReportKind reportKind,
+			ReportNotificationAction action,
+			String title,
+			String message) {
+		return new ReportNotification(
+			member,
+			store,
+			reportId,
+			contributionReportId,
+			null,
+			reportKind,
+			null,
+			action,
+			title,
+			message);
+	}
+
+	public static ReportNotification ofAbuseReportResult(AbuseReport report, String title, String message) {
 		return new ReportNotification(
 			report.getReporter(),
 			null,
 			report.getId(),
-			ReportKind.USER_REPORT,
 			null,
-			ReportNotificationAction.USER_REPORT_RESULT,
+			report.getId(),
+			ReportKind.ABUSE_REPORT,
+			null,
+			ReportNotificationAction.ABUSE_REPORT_RESULT,
 			title,
 			message);
 	}
@@ -111,7 +144,9 @@ public class ReportNotification {
 			moderationAction.getMember(),
 			null,
 			moderationAction.getReport().getId(),
-			ReportKind.USER_REPORT,
+			null,
+			moderationAction.getReport().getId(),
+			ReportKind.ABUSE_REPORT,
 			moderationAction.getId(),
 			ReportNotificationAction.MODERATION_ACTION,
 			title,

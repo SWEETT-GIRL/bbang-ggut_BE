@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import sweetgirl.croissant.alarm.entity.FcmToken;
@@ -44,7 +45,7 @@ class AuthServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		given(tokenHasher.hash(any())).willAnswer(inv -> inv.getArgument(0));
+		Mockito.lenient().when(tokenHasher.hash(any())).thenAnswer(inv -> inv.getArgument(0));
 	}
 
 	// ── refresh ──────────────────────────────────────────────────────────

@@ -6,4 +6,10 @@ public interface MenuImageThumbnailProjection {
 	Long getMenuId();
 
 	String getAwsKey();
+
+	String getResizedKey320();
+
+	String getResizedKey640();
+
+	String getResizedKey1024();
 }

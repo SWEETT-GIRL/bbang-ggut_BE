@@ -1,13 +1,17 @@
 package sweetgirl.croissant.config.security;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.RegexRequestMatcher;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.member.jwt.JwtAuthenticationFilter;
@@ -24,10 +28,14 @@ public class SecurityConfig {
 	private final CustomOAuth2UserService customOAuth2UserService;
 	private final OAuth2SuccessHandler oAuth2SuccessHandler;
 	private final JwtProvider jwtProvider;
+	private final ApiAuthenticationEntryPoint apiAuthenticationEntryPoint;
 
 	// ClientRegistrationRepository: Spring이 application.properties의 OAuth2 설정을 읽어 자동 생성
 	// CustomAuthorizationRequestResolver 생성 시 주입해서 카카오 등록 정보를 참조하게 함
 	private final ClientRegistrationRepository clientRegistrationRepository;
+
+	@Value("${oauth2.front-redirect-uri}")
+	private String frontRedirectUri;
 
 	@Bean
 	public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -44,8 +52,30 @@ public class SecurityConfig {
 			.requestMatchers("/api/v1/oauth2/**").permitAll() // 인가 : /api/v1/oauth2/kakao
 			.requestMatchers("/auth/**").permitAll() // controller 호출
 			.requestMatchers("/terms").permitAll()
+			.requestMatchers(HttpMethod.GET, "/dev/**").permitAll()
+			.requestMatchers("/actuator/health", "/actuator/metrics", "/actuator/metrics/**").permitAll()
 			.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
-			.requestMatchers("/**").permitAll()
+			.requestMatchers(HttpMethod.GET, "/trend/**", "/menu-categories", "/banners", "/banners/**").permitAll()
+			// 홈화면 근처/인기 빵집·검색 비로그인 허용
+			.requestMatchers(HttpMethod.GET, "/stores/district", "/stores/nearby", "/stores/popular",
+				"/stores/search",
+				"/stores/autocomplete")
+			.permitAll()
+			// 공개 코스 목록 비로그인 허용
+			.requestMatchers(HttpMethod.GET, "/courses").permitAll()
+			// 숫자 ID 기반 빵집 상세/메뉴/리뷰·코스 상세 조회 비로그인 허용
+			.requestMatchers(
+				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/stores/\\d+(\\?.*)?$"),
+				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/stores/\\d+/menus(\\?.*)?$"),
+				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/stores/\\d+/reviews(\\?.*)?$"),
+				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/menus/\\d+(\\?.*)?$"),
+				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/menus/\\d+/reviews(\\?.*)?$"),
+				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/menus/\\d+/reviews/summary(\\?.*)?$"),
+				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/users/\\d+/reviews(\\?.*)?$"),
+				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/courses/\\d+(\\?.*)?$"))
+			.permitAll()
+			.requestMatchers("/admin/**", "/api/admin/**").permitAll()
+			.requestMatchers(HttpMethod.POST, "/api/admin/members/*/ban").permitAll() // 회원 강퇴 API 임시 허용
 			.anyRequest().authenticated());
 
 		// OAuth2 로그인 설정
@@ -59,7 +89,18 @@ public class SecurityConfig {
 			// 카카오 사용자 정보 수신 후 CustomOAuth2UserService 호출 (Member + OAuth upsert)
 			.userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
 			// 로그인 성공 시 OAuth2SuccessHandler 호출 (JWT 발급 + 딥링크 redirect)
-			.successHandler(oAuth2SuccessHandler));
+			.successHandler(oAuth2SuccessHandler)
+			// 로그인 실패 시 에러코드를 딥링크로 전달
+			.failureHandler((request, response, exception) -> {
+				String errorCode = "LOGIN_FAILED";
+				if (exception instanceof OAuth2AuthenticationException oae
+					&& "MEMBER_BANNED".equals(oae.getError().getErrorCode())) {
+					errorCode = "MEMBER_BANNED";
+				}
+				response.sendRedirect(frontRedirectUri + "?error=" + errorCode);
+			}));
+
+		http.exceptionHandling(exception -> exception.authenticationEntryPoint(apiAuthenticationEntryPoint));
 
 		// JwtAuthenticationFilter를 UsernamePasswordAuthenticationFilter 앞에 등록
 		http.addFilterBefore(

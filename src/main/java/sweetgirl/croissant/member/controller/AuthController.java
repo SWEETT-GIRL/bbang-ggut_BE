@@ -1,8 +1,5 @@
 package sweetgirl.croissant.member.controller;
 
-import java.util.Map;
-
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -12,12 +9,15 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.member.dto.request.AppleLoginRequest;
+import sweetgirl.croissant.member.dto.request.KakaoLoginRequest;
 import sweetgirl.croissant.member.dto.request.LogoutRequest;
 import sweetgirl.croissant.member.dto.request.RefreshRequest;
 import sweetgirl.croissant.member.dto.response.AppleLoginResponse;
+import sweetgirl.croissant.member.dto.response.KakaoLoginResponse;
 import sweetgirl.croissant.member.dto.response.RefreshResponse;
 import sweetgirl.croissant.member.service.AppleAuthService;
 import sweetgirl.croissant.member.service.AuthService;
+import sweetgirl.croissant.member.service.KakaoAuthService;
 
 @RestController
 @RequestMapping("/auth")
@@ -25,13 +25,19 @@ import sweetgirl.croissant.member.service.AuthService;
 public class AuthController {
 
 	private final AuthService authService;
-
 	private final AppleAuthService appleAuthService;
+	private final KakaoAuthService kakaoAuthService;
+
+	@PostMapping("/kakao")
+	public ApiResponse<KakaoLoginResponse> kakaoLogin(@RequestBody KakaoLoginRequest request) {
+		KakaoLoginResponse response = kakaoAuthService.login(request.accessToken(), request.deviceId());
+		return ApiResponse.ok(response);
+	}
 
 	@PostMapping("/apple")
-	public ResponseEntity<?> appleLogin(@RequestBody AppleLoginRequest req) {
-		AppleLoginResponse response = appleAuthService.login(req.identityToken(), req.deviceId());
-		return ResponseEntity.ok(Map.of("data", response));
+	public ApiResponse<AppleLoginResponse> appleLogin(@RequestBody AppleLoginRequest request) {
+		AppleLoginResponse response = appleAuthService.login(request.identityToken(), request.deviceId());
+		return ApiResponse.ok(response);
 	}
 
 	// Access Token 재발급

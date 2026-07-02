@@ -20,7 +20,8 @@ public enum MemberErrorCode implements BaseErrorCode {
 	MEMBER_ALREADY_DELETED(HttpStatus.BAD_REQUEST, "MEMBER400_DELETED", "이미 탈퇴한 회원입니다."),
 	MEMBER_WRITE_RESTRICTED(HttpStatus.FORBIDDEN, "MEMBER403_WRITE_RESTRICTED", "작성 제한 상태입니다."),
 	MEMBER_BLOCK_SELF_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "MEMBER_BLOCK_SELF_NOT_ALLOWED", "본인은 차단할 수 없습니다."),
-	MEMBER_BLOCK_TARGET_NOT_FOUND(HttpStatus.NOT_FOUND, "MEMBER_BLOCK_TARGET_NOT_FOUND", "차단할 회원을 찾을 수 없습니다.");
+	MEMBER_BLOCK_TARGET_NOT_FOUND(HttpStatus.NOT_FOUND, "MEMBER_BLOCK_TARGET_NOT_FOUND", "차단할 회원을 찾을 수 없습니다."),
+	MEMBER_BANNED(HttpStatus.FORBIDDEN, "MEMBER403_BANNED", "강퇴된 회원입니다.");
 
 	private final HttpStatus httpStatus;
 	private final String code;

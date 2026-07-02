@@ -19,7 +19,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import sweetgirl.croissant.admin.dto.response.AdminMemberRestrictionResponse;
 import sweetgirl.croissant.admin.dto.response.AdminProfileResetResponse;
-import sweetgirl.croissant.admin.service.AdminMemberService;
+import sweetgirl.croissant.admin.service.AdminMemberCommandService;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,7 +28,7 @@ class AdminMemberControllerTest {
 	private MockMvc mockMvc;
 
 	@Mock
-	private AdminMemberService adminMemberService;
+	private AdminMemberCommandService adminMemberCommandService;
 
 	@InjectMocks
 	private AdminMemberController adminMemberController;
@@ -43,7 +43,7 @@ class AdminMemberControllerTest {
 
 	@Test
 	void resetProfile_returnsResetResult() throws Exception {
-		given(adminMemberService.resetProfile(eq(20L), any()))
+		given(adminMemberCommandService.resetProfile(eq(20L), any()))
 			.willReturn(new AdminProfileResetResponse(
 				20L,
 				"빵긋 사용자",
@@ -63,7 +63,7 @@ class AdminMemberControllerTest {
 
 	@Test
 	void createRestriction_returnsRestrictionResult() throws Exception {
-		given(adminMemberService.createRestriction(eq(20L), any()))
+		given(adminMemberCommandService.createRestriction(eq(20L), any()))
 			.willReturn(new AdminMemberRestrictionResponse(
 				200L,
 				300L,

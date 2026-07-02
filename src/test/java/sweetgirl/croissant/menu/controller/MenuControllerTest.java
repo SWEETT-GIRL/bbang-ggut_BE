@@ -25,7 +25,8 @@ import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
 import sweetgirl.croissant.menu.dto.response.StoreMenuResponse;
 import sweetgirl.croissant.menu.exception.MenuException;
-import sweetgirl.croissant.menu.service.MenuService;
+import sweetgirl.croissant.menu.service.MenuCommandService;
+import sweetgirl.croissant.menu.service.MenuQueryService;
 
 @ExtendWith(MockitoExtension.class)
 class MenuControllerTest {
@@ -33,7 +34,10 @@ class MenuControllerTest {
 	private MockMvc mockMvc;
 
 	@Mock
-	private MenuService menuService;
+	private MenuQueryService menuQueryService;
+
+	@Mock
+	private MenuCommandService menuCommandService;
 
 	@InjectMocks
 	private MenuController menuController;
@@ -48,7 +52,7 @@ class MenuControllerTest {
 
 	@Test
 	void getStoreMenus_returnsReviewCount() throws Exception {
-		given(menuService.getStoreMenus(eq(1L), isNull()))
+		given(menuQueryService.getStoreMenus(eq(1L), isNull()))
 			.willReturn(List.of(
 				new StoreMenuResponse(1L, "소금빵", "짭짤한 버터 풍미", "빵", null, 3500, 12, false, 8L),
 				new StoreMenuResponse(2L, "식빵", null, "빵", null, 5000, 3, false, 0L)));
@@ -74,7 +78,7 @@ class MenuControllerTest {
 	@Test
 	void likeMenu_returns404_whenMenuNotFound() throws Exception {
 		willThrow(new MenuException(MenuErrorCode.MENU_NOT_FOUND))
-			.given(menuService).likeMenu(eq(99L), isNull());
+			.given(menuCommandService).likeMenu(eq(99L), isNull());
 
 		mockMvc.perform(post("/menus/99/like"))
 			.andExpect(status().isNotFound())
@@ -85,7 +89,7 @@ class MenuControllerTest {
 	@Test
 	void likeMenu_returns409_whenAlreadyLiked() throws Exception {
 		willThrow(new MenuException(MenuErrorCode.ALREADY_LIKED))
-			.given(menuService).likeMenu(eq(1L), isNull());
+			.given(menuCommandService).likeMenu(eq(1L), isNull());
 
 		mockMvc.perform(post("/menus/1/like"))
 			.andExpect(status().isConflict())
@@ -103,7 +107,7 @@ class MenuControllerTest {
 	@Test
 	void cancelMenuLike_returns404_whenNotLiked() throws Exception {
 		willThrow(new MenuException(MenuErrorCode.NOT_LIKED))
-			.given(menuService).cancelMenuLike(eq(1L), isNull());
+			.given(menuCommandService).cancelMenuLike(eq(1L), isNull());
 
 		mockMvc.perform(delete("/menus/1/like"))
 			.andExpect(status().isNotFound())

@@ -15,4 +15,10 @@ public interface NationwideHotStoreRankingRepository extends JpaRepository<Natio
 		+ "ORDER BY n.nationwideFamousMenu.id, n.rank")
 	List<NationwideHotStoreRanking> findByNationwideFamousMenuIdInWithStore(
 			@Param("nationwideMenuIds") List<Long> nationwideMenuIds);
+
+	@Query("SELECT n FROM NationwideHotStoreRanking n WHERE n.store.id = :storeId")
+	List<NationwideHotStoreRanking> findByStoreId(@Param("storeId") Long storeId);
+
+	@Query("SELECT n FROM NationwideHotStoreRanking n JOIN FETCH n.store WHERE n.store.id IN :storeIds")
+	List<NationwideHotStoreRanking> findByStoreIdIn(@Param("storeIds") List<Long> storeIds);
 }

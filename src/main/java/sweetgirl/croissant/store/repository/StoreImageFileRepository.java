@@ -24,7 +24,7 @@ public interface StoreImageFileRepository extends JpaRepository<StoreImageFile, 
 	Optional<StoreImageFile> findByAwsKey(@Param("awsKey") String awsKey);
 
 	@Query("""
-			SELECT s.store.id AS storeId, s.awsKey AS awsKey
+			SELECT s.store.id AS storeId, s.awsKey AS awsKey, s.resizedKey320 AS resizedKey320
 			FROM StoreImageFile s
 			WHERE s.store.id IN :storeIds
 			ORDER BY s.displayOrder ASC, s.id ASC

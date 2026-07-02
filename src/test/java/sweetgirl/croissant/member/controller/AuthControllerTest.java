@@ -17,7 +17,11 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.global.code.GeneralErrorCode;
 import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.member.dto.response.AppleLoginResponse;
+import sweetgirl.croissant.member.dto.response.KakaoLoginResponse;
+import sweetgirl.croissant.member.service.AppleAuthService;
 import sweetgirl.croissant.member.service.AuthService;
+import sweetgirl.croissant.member.service.KakaoAuthService;
 
 @ExtendWith(MockitoExtension.class)
 class AuthControllerTest {
@@ -26,6 +30,12 @@ class AuthControllerTest {
 
 	@Mock
 	private AuthService authService;
+
+	@Mock
+	private KakaoAuthService kakaoAuthService;
+
+	@Mock
+	private AppleAuthService appleAuthService;
 
 	@InjectMocks
 	private AuthController authController;
@@ -36,6 +46,44 @@ class AuthControllerTest {
 			.standaloneSetup(authController)
 			.setControllerAdvice(new GlobalExceptionHandler()) // CustomException → 401, Validation → 400
 			.build();
+	}
+
+	// ── POST /auth/kakao ──────────────────────────────────────────────────
+
+	@Test
+	void kakaoLogin_returns200WithApiResponseStructure_whenRequestIsValid() throws Exception {
+		given(kakaoAuthService.login("kakao.access.token", "device-1"))
+			.willReturn(new KakaoLoginResponse("new.access", "new.refresh", true));
+
+		mockMvc.perform(post("/auth/kakao")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"accessToken\":\"kakao.access.token\",\"deviceId\":\"device-1\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true))
+			.andExpect(jsonPath("$.code").exists())
+			.andExpect(jsonPath("$.message").exists())
+			.andExpect(jsonPath("$.data.accessToken").value("new.access"))
+			.andExpect(jsonPath("$.data.refreshToken").value("new.refresh"))
+			.andExpect(jsonPath("$.data.isNew").value(true));
+	}
+
+	// ── POST /auth/apple ──────────────────────────────────────────────────
+
+	@Test
+	void appleLogin_returns200WithApiResponseStructure_whenRequestIsValid() throws Exception {
+		given(appleAuthService.login("apple.identity.token", "device-2"))
+			.willReturn(new AppleLoginResponse("new.access", "new.refresh", false));
+
+		mockMvc.perform(post("/auth/apple")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"identityToken\":\"apple.identity.token\",\"deviceId\":\"device-2\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true))
+			.andExpect(jsonPath("$.code").exists())
+			.andExpect(jsonPath("$.message").exists())
+			.andExpect(jsonPath("$.data.accessToken").value("new.access"))
+			.andExpect(jsonPath("$.data.refreshToken").value("new.refresh"))
+			.andExpect(jsonPath("$.data.isNew").value(false));
 	}
 
 	// ── POST /api/v1/auth/refresh ─────────────────────────────────────────

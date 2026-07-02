@@ -380,6 +380,29 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 
 	Optional<Store> findByNaverPlaceId(String naverPlaceId);
 
+	@Modifying(flushAutomatically = true, clearAutomatically = true)
+	@Query(value = """
+			INSERT INTO store (
+					name, address, region_1st, region_2nd, region_3rd,
+					location, phone, naver_place_id, naver_matched_at, naver_enrich_attempts,
+					source, status, category, created_at, updated_at)
+			VALUES (:name, :address, :region1st, :region2nd, :region3rd,
+					ST_SetSRID(ST_MakePoint(:x, :y), 4326)::geography, :phone, :naverPlaceId,
+					NOW(), 0, 'ADMIN_REGISTERED', 'ACTIVE', :category, NOW(), NOW())
+			ON CONFLICT (naver_place_id) DO NOTHING
+			""", nativeQuery = true)
+	void insertIfNotExistsByNaverPlaceId(
+			@Param("name") String name,
+			@Param("address") String address,
+			@Param("region1st") String region1st,
+			@Param("region2nd") String region2nd,
+			@Param("region3rd") String region3rd,
+			@Param("x") double longitude,
+			@Param("y") double latitude,
+			@Param("phone") String phone,
+			@Param("naverPlaceId") String naverPlaceId,
+			@Param("category") String category);
+
 	// ── Naver enrich stats ──────────────────────────────────────────────────
 	@Query("""
 				SELECT COUNT(s) FROM Store s
@@ -426,14 +449,12 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 				SELECT s.region_2nd, s.region_3rd,
 					ST_Distance(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS distance_meters
 				FROM store s
-				WHERE s.region_2nd = :region2nd
-				AND s.region_3rd IS NOT NULL
+				WHERE s.region_3rd IS NOT NULL
 				AND s.status = 'ACTIVE'
 				ORDER BY distance_meters ASC
 				LIMIT 1
 			""", nativeQuery = true)
-	List<Object[]> findNearestRegionInSame(
+	List<Object[]> findNearestRegion(
 			@Param("lng") double longitude,
-			@Param("lat") double latitude,
-			@Param("region2nd") String region2nd);
+			@Param("lat") double latitude);
 }

@@ -9,17 +9,17 @@ public record RegionBySubscribeResponse(
 		Long id,
 		String name,
 		String address,
-		String thumbnailUrl,
+		String thumbnailImageKey,
 		List<MenuSummaryDto> topMenus,
 		long subscribeCount) {
 
-	public static RegionBySubscribeResponse of(RegionBySubscribeProjection projection, String thumbnailUrl,
+	public static RegionBySubscribeResponse of(RegionBySubscribeProjection projection, String thumbnailImageKey,
 			List<MenuSummaryDto> topMenus) {
 		return new RegionBySubscribeResponse(
 			projection.getId(),
 			projection.getName(),
 			projection.getAddress(),
-			thumbnailUrl,
+			thumbnailImageKey,
 			topMenus,
 			projection.getSubscribeCount());
 	}

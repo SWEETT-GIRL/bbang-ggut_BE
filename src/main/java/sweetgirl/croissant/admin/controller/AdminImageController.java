@@ -19,7 +19,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.admin.dto.response.AdminS3ReconcileResponse;
-import sweetgirl.croissant.admin.service.AdminImageService;
+import sweetgirl.croissant.admin.service.AdminImageCommandService;
+import sweetgirl.croissant.admin.service.AdminImageQueryService;
 import sweetgirl.croissant.admin.service.AdminS3ReconcileService;
 import sweetgirl.croissant.external.aws.dto.AdminImageResponse;
 import sweetgirl.croissant.external.aws.dto.ImageOrderUpdateRequest;
@@ -39,21 +40,22 @@ public class AdminImageController {
 	private static final String RECONCILE_DESCRIPTION = "DB awsKey 에 없는 S3 객체와 S3 에 없는 DB DONE 이미지를 식별합니다. "
 		+ "dryRun=false 면 orphan S3 객체는 삭제하고 missing DB 이미지는 FAILED 로 숨깁니다.";
 
-	private final AdminImageService adminImageService;
+	private final AdminImageQueryService adminImageQueryService;
+	private final AdminImageCommandService adminImageCommandService;
 	private final AdminS3ReconcileService adminS3ReconcileService;
 
 	@Operation(summary = "Presigned URL 발급", description = "S3 업로드용 Presigned URL을 발급합니다.")
 	@PostMapping("/presigned-url")
 	public ResponseEntity<PresignedUrlResponse> getPresignedUrl(
 			@RequestBody @Valid ImageUploadRequest request) {
-		return ResponseEntity.ok(adminImageService.getPresignedUrl(request));
+		return ResponseEntity.ok(adminImageCommandService.getPresignedUrl(request));
 	}
 
 	@Operation(summary = "가게 이미지 목록 조회", description = "가게에 등록된 이미지 목록을 반환합니다.")
 	@GetMapping("/stores/{storeId}")
 	public ResponseEntity<ApiResponse<List<AdminImageResponse>>> getStoreImages(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId) {
-		return ResponseEntity.ok(ApiResponse.ok(adminImageService.getStoreImages(storeId)));
+		return ResponseEntity.ok(ApiResponse.ok(adminImageQueryService.getStoreImages(storeId)));
 	}
 
 	@Operation(summary = "가게 이미지 DB 저장", description = "S3 업로드 완료 후 이미지 정보를 DB에 저장합니다. 여러 장 한 번에 가능합니다.")
@@ -61,7 +63,7 @@ public class AdminImageController {
 	public ResponseEntity<Void> saveStoreImages(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId,
 			@RequestBody List<ImageSaveRequest> requests) {
-		adminImageService.saveStoreImages(storeId, requests);
+		adminImageCommandService.saveStoreImages(storeId, requests);
 		return ResponseEntity.ok().build();
 	}
 
@@ -70,7 +72,7 @@ public class AdminImageController {
 	public ResponseEntity<ApiResponse<Void>> reorderStoreImages(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId,
 			@RequestBody @Valid ImageOrderUpdateRequest request) {
-		adminImageService.reorderStoreImages(storeId, request);
+		adminImageCommandService.reorderStoreImages(storeId, request);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -79,7 +81,7 @@ public class AdminImageController {
 	public ResponseEntity<ApiResponse<Void>> deleteStoreImage(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId,
 			@Parameter(description = "이미지 ID") @PathVariable Long imageId) {
-		adminImageService.deleteStoreImage(storeId, imageId);
+		adminImageCommandService.deleteStoreImage(storeId, imageId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -87,7 +89,7 @@ public class AdminImageController {
 	@GetMapping("/menus/{menuId}")
 	public ResponseEntity<ApiResponse<List<AdminImageResponse>>> getMenuImages(
 			@Parameter(description = "메뉴 ID") @PathVariable Long menuId) {
-		return ResponseEntity.ok(ApiResponse.ok(adminImageService.getMenuImages(menuId)));
+		return ResponseEntity.ok(ApiResponse.ok(adminImageQueryService.getMenuImages(menuId)));
 	}
 
 	@Operation(summary = "메뉴 이미지 DB 저장", description = "S3 업로드 완료 후 이미지 정보를 DB에 저장합니다. 여러 장 한 번에 가능합니다.")
@@ -95,7 +97,7 @@ public class AdminImageController {
 	public ResponseEntity<Void> saveMenuImages(
 			@Parameter(description = "메뉴 ID") @PathVariable Long menuId,
 			@RequestBody List<ImageSaveRequest> requests) {
-		adminImageService.saveMenuImages(menuId, requests);
+		adminImageCommandService.saveMenuImages(menuId, requests);
 		return ResponseEntity.ok().build();
 	}
 
@@ -104,7 +106,7 @@ public class AdminImageController {
 	public ResponseEntity<ApiResponse<Void>> reorderMenuImages(
 			@Parameter(description = "메뉴 ID") @PathVariable Long menuId,
 			@RequestBody @Valid ImageOrderUpdateRequest request) {
-		adminImageService.reorderMenuImages(menuId, request);
+		adminImageCommandService.reorderMenuImages(menuId, request);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -113,7 +115,7 @@ public class AdminImageController {
 	public ResponseEntity<ApiResponse<Void>> deleteMenuImage(
 			@Parameter(description = "메뉴 ID") @PathVariable Long menuId,
 			@Parameter(description = "이미지 ID") @PathVariable Long imageId) {
-		adminImageService.deleteMenuImage(menuId, imageId);
+		adminImageCommandService.deleteMenuImage(menuId, imageId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -132,6 +134,6 @@ public class AdminImageController {
 			@Parameter(description = "가게 또는 메뉴 ID") @PathVariable Long targetId,
 			@RequestBody @Valid List<ImageUploadFromUrlRequest> requests) {
 		return ResponseEntity.ok(
-			ApiResponse.ok(adminImageService.uploadImagesFromUrls(domain, targetId, requests)));
+			ApiResponse.ok(adminImageCommandService.uploadImagesFromUrls(domain, targetId, requests)));
 	}
 }

@@ -9,17 +9,17 @@ public record RegionByDistanceResponse(
 		Long id,
 		String name,
 		String address,
-		String thumbnailUrl,
+		String thumbnailImageKey,
 		List<MenuSummaryDto> topMenus,
 		int distanceMeters) {
 
-	public static RegionByDistanceResponse of(RegionByDistanceProjection projection, String thumbnailUrl,
+	public static RegionByDistanceResponse of(RegionByDistanceProjection projection, String thumbnailImageKey,
 			List<MenuSummaryDto> topMenus) {
 		return new RegionByDistanceResponse(
 			projection.getId(),
 			projection.getName(),
 			projection.getAddress(),
-			thumbnailUrl,
+			thumbnailImageKey,
 			topMenus,
 			(int)Math.round(projection.getDistanceMeters()));
 	}

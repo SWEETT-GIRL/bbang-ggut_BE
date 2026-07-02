@@ -11,7 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.menu.dto.response.RegionTrendResponse;
-import sweetgirl.croissant.menu.service.TrendService;
+import sweetgirl.croissant.menu.service.TrendQueryService;
 
 @Tag(name = "Trend", description = "지역 트렌드 API")
 @RestController
@@ -19,20 +19,26 @@ import sweetgirl.croissant.menu.service.TrendService;
 @RequiredArgsConstructor
 public class TrendController {
 
-	private final TrendService trendService;
+	private final TrendQueryService trendQueryService;
 
 	@Operation(summary = "내 위치 기반 유명 메뉴 & 핫 빵집 조회", description = "위/경도를 받아 해당 지역의 유명 디저트 카테고리와 핫 빵집 목록을 반환합니다.")
 	@GetMapping("/nearby")
 	public ResponseEntity<ApiResponse<RegionTrendResponse>> getNearbyTrend(
 			@RequestParam double lat,
 			@RequestParam double lng) {
-		return ResponseEntity.ok(ApiResponse.ok(trendService.getTrend(lat, lng)));
+		return ResponseEntity.ok(ApiResponse.ok(trendQueryService.getTrend(lat, lng)));
 	}
 
 	@Operation(summary = "지역 선택 기반 유명 메뉴 & 핫 빵집 조회")
 	@GetMapping("/select")
 	public ResponseEntity<ApiResponse<RegionTrendResponse>> getSelectedTrend(
 			@RequestParam String region) {
-		return ResponseEntity.ok(ApiResponse.ok(trendService.getTrendByRegion(region)));
+		return ResponseEntity.ok(ApiResponse.ok(trendQueryService.getTrendByRegion(region)));
+	}
+
+	@Operation(summary = "전국 유명 메뉴 & 핫 빵집 조회", description = "전국 단위의 유명 디저트 카테고리와 핫 빵집 목록을 반환합니다.")
+	@GetMapping("/nationwide")
+	public ResponseEntity<ApiResponse<RegionTrendResponse>> getNationwideTrend() {
+		return ResponseEntity.ok(ApiResponse.ok(trendQueryService.getNationwideTrend()));
 	}
 }
