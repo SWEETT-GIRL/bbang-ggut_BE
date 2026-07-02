@@ -38,7 +38,7 @@ import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
 @ExtendWith(MockitoExtension.class)
-class MenuAddReportServiceTest {
+class MenuAddReportCommandServiceTest {
 
 	@Mock
 	StoreRepository storeRepository;
@@ -57,7 +57,7 @@ class MenuAddReportServiceTest {
 	@Mock
 	AdminReportNotificationPublisher adminReportNotificationPublisher;
 	@InjectMocks
-	MenuAddReportService menuAddReportService;
+	MenuAddReportCommandService menuAddReportCommandService;
 
 	@Test
 	@DisplayName("createMenuAddReport: 메뉴 추가 제보와 ContributionReport 상세를 함께 저장한다")
@@ -75,7 +75,7 @@ class MenuAddReportServiceTest {
 		given(menuContributionReportRepository.save(any(MenuContributionReport.class)))
 			.willAnswer(invocation -> invocation.getArgument(0));
 
-		menuAddReportService.createMenuAddReport(1L, 3L, request);
+		menuAddReportCommandService.createMenuAddReport(1L, 3L, request);
 
 		ArgumentCaptor<MenuContributionReport> reportCaptor = ArgumentCaptor.forClass(MenuContributionReport.class);
 		verify(menuContributionReportRepository).save(reportCaptor.capture());
@@ -88,7 +88,7 @@ class MenuAddReportServiceTest {
 	void createMenuAddReport_storeNotFound_throwsException() {
 		given(storeRepository.findById(1L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> menuAddReportService.createMenuAddReport(1L, 3L, request()))
+		assertThatThrownBy(() -> menuAddReportCommandService.createMenuAddReport(1L, 3L, request()))
 			.isInstanceOf(StoreException.class);
 	}
 
@@ -98,7 +98,7 @@ class MenuAddReportServiceTest {
 		given(storeRepository.findById(1L)).willReturn(Optional.of(mock(Store.class)));
 		given(menuCategoryRepository.findById(2L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> menuAddReportService.createMenuAddReport(1L, 3L, request()))
+		assertThatThrownBy(() -> menuAddReportCommandService.createMenuAddReport(1L, 3L, request()))
 			.isInstanceOf(MenuException.class);
 	}
 

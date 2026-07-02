@@ -33,8 +33,8 @@ import sweetgirl.croissant.store.repository.StoreRepository;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
-public class MenuAddReportService {
+@Transactional
+public class MenuAddReportCommandService {
 
 	private final StoreRepository storeRepository;
 	private final MenuCategoryRepository menuCategoryRepository;
@@ -50,7 +50,6 @@ public class MenuAddReportService {
 		return s3Service.generatePresignedUrl(path, mimeType);
 	}
 
-	@Transactional
 	public void createMenuAddReport(Long storeId, Long memberId, MenuAddReportRequest request) {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
