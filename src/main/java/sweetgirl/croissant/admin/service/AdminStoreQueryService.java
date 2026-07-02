@@ -1,8 +1,6 @@
 package sweetgirl.croissant.admin.service;
 
-import java.time.DayOfWeek;
 import java.time.Instant;
-import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
@@ -10,38 +8,23 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.geom.Point;
-import org.locationtech.jts.geom.PrecisionModel;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
-import sweetgirl.croissant.admin.dto.request.AdminNaverEnrichCandidateRequest;
-import sweetgirl.croissant.admin.dto.request.AdminStoreCreateRequest;
-import sweetgirl.croissant.admin.dto.request.AdminStoreUpdateRequest;
-import sweetgirl.croissant.admin.dto.request.BusinessHourRequest;
 import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichCandidateResponse;
 import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichQueueItem;
 import sweetgirl.croissant.admin.dto.response.AdminNaverEnrichStatsResponse;
 import sweetgirl.croissant.admin.dto.response.AdminNaverThrottledItem;
 import sweetgirl.croissant.admin.dto.response.AdminStoreResponse;
-import sweetgirl.croissant.external.opensearch.event.StoreAddressChangedEvent;
-import sweetgirl.croissant.external.opensearch.event.StoreDeletedEvent;
-import sweetgirl.croissant.external.opensearch.event.StoreNameChangedEvent;
 import sweetgirl.croissant.menu.repository.MenuRepository;
-import sweetgirl.croissant.store.AddressParser;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.dto.projection.StoreIdCountProjection;
-import sweetgirl.croissant.store.entity.NaverEnrichCandidate;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreBusinessHour;
 import sweetgirl.croissant.store.entity.StoreImageFile;
-import sweetgirl.croissant.store.enums.StoreSource;
 import sweetgirl.croissant.store.enums.StoreStatus;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.NaverEnrichCandidateRepository;
@@ -53,18 +36,13 @@ import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class AdminStoreService {
+public class AdminStoreQueryService {
 
-	private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory(new PrecisionModel(), 4326);
-
-	private static final Map<String, DayOfWeek> KEY_TO_DAY = Map.of(
-		"mon", DayOfWeek.MONDAY,
-		"tue", DayOfWeek.TUESDAY,
-		"wed", DayOfWeek.WEDNESDAY,
-		"thu", DayOfWeek.THURSDAY,
-		"fri", DayOfWeek.FRIDAY,
-		"sat", DayOfWeek.SATURDAY,
-		"sun", DayOfWeek.SUNDAY);
+	// 실패 후 재시도 가능 시점 — 매칭 실패한 가게는 7일 후부터 다시 큐에 노출.
+	private static final long NAVER_RETRY_AFTER_DAYS = 7;
+	// '진짜 무결과(후보 0건)' 가 이 횟수 이상 누적되면 큐에서 파킹(제외). 폐업/오등록/빵집 아님 등
+	// 영영 못 찾는 가게의 무한 재시도를 막는다. 어드민 retry / placeId 초기화로 0 리셋되어 재진입.
+	private static final int NAVER_MAX_ENRICH_ATTEMPTS = 3;
 
 	private final StoreRepository storeRepository;
 	private final StoreBusinessHourRepository storeBusinessHourRepository;
@@ -73,31 +51,6 @@ public class AdminStoreService {
 	private final MenuRepository menuRepository;
 	private final NaverEnrichOrchestrator naverEnrichOrchestrator;
 	private final NaverEnrichCandidateRepository candidateRepository;
-	private final ApplicationEventPublisher eventPublisher;
-
-	@Transactional
-	public AdminStoreResponse createStore(AdminStoreCreateRequest request) {
-		Point location = toPoint(request.coord().latitude(), request.coord().longitude());
-		String[] addr = AddressParser.parse(request.address());
-
-		Store store = Store.builder()
-			.name(request.name())
-			.address(request.address())
-			.region1st(addr[0])
-			.region2nd(addr[1])
-			.region3rd(addr[2])
-			.location(location)
-			.phone(request.phone())
-			.naverPlaceId(request.naverPlaceId())
-			.kakaoPlaceId(request.kakaoPlaceId())
-			.source(StoreSource.ADMIN_REGISTERED)
-			.category(request.category())
-			.build();
-		store = storeRepository.save(store);
-
-		saveBusinessHours(store, request.hours());
-		return buildResponse(store);
-	}
 
 	public Page<AdminStoreResponse> getStores(String keyword, String statusStr, Pageable pageable) {
 		StoreStatus status = statusStr != null ? toStoreStatus(statusStr) : null;
@@ -131,52 +84,7 @@ public class AdminStoreService {
 		return buildResponse(store);
 	}
 
-	@Transactional
-	public void updateStore(Long storeId, AdminStoreUpdateRequest request) {
-		Store store = storeRepository.findById(storeId)
-			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
-
-		Point newLocation = request.coord() != null
-			? toPoint(request.coord().latitude(), request.coord().longitude()) : null;
-		String[] addr = request.address() != null ? AddressParser.parse(request.address()) : new String[3];
-		StoreStatus newStatus = resolveStatus(request);
-
-		store.update(request.name(), request.address(), newLocation, addr[0], addr[1], addr[2],
-			request.phone(), newStatus, request.category());
-
-		if (request.hours() != null) {
-			storeBusinessHourRepository.deleteByStoreId(storeId);
-			saveBusinessHours(store, request.hours());
-		}
-		if (request.address() != null || request.coord() != null) {
-			eventPublisher.publishEvent(new StoreAddressChangedEvent(storeId));
-		}
-		if (request.name() != null) {
-			eventPublisher.publishEvent(new StoreNameChangedEvent(storeId));
-		}
-	}
-
-	@Transactional
-	public void deleteStore(Long storeId) {
-		Store store = storeRepository.findById(storeId)
-			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
-		store.update(null, null, null, null, null, null, null, StoreStatus.DELETED, null);
-		candidateRepository.deleteByStoreId(storeId);
-		eventPublisher.publishEvent(new StoreDeletedEvent(storeId));
-	}
-
-	@Transactional
-	public void deleteNaverClosedSuspect(Long storeId) {
-		deleteStore(storeId);
-	}
-
 	// ── Naver enrich 큐 ─────────────────────────────────────────────────────
-
-	// 실패 후 재시도 가능 시점 — 매칭 실패한 가게는 7일 후부터 다시 큐에 노출.
-	private static final long NAVER_RETRY_AFTER_DAYS = 7;
-	// '진짜 무결과(후보 0건)' 가 이 횟수 이상 누적되면 큐에서 파킹(제외). 폐업/오등록/빵집 아님 등
-	// 영영 못 찾는 가게의 무한 재시도를 막는다. 어드민 retry / placeId 초기화로 0 리셋되어 재진입.
-	private static final int NAVER_MAX_ENRICH_ATTEMPTS = 3;
 
 	public Page<AdminNaverEnrichQueueItem> getNaverEnrichQueue(Pageable pageable) {
 		return getNaverEnrichQueue(pageable, null);
@@ -309,77 +217,10 @@ public class AdminStoreService {
 				row -> (Long)row[1]));
 	}
 
-	@Transactional
-	public void updateNaverPlaceId(Long storeId, String naverPlaceId, boolean replaceMenus) {
-		updateNaverPlaceId(storeId, naverPlaceId, replaceMenus, null, null, null);
-	}
-
-	@Transactional
-	public void updateNaverPlaceId(
-			Long storeId,
-			String naverPlaceId,
-			boolean replaceMenus,
-			String address,
-			Double latitude,
-			Double longitude) {
-		Store store = storeRepository.findById(storeId)
-			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
-		// DB 의 unique 제약이 막아주지만, 사전 검사로 명시적 409 를 돌려줘서 운영자가 원인을 바로 본다.
-		storeRepository.findByNaverPlaceId(naverPlaceId).ifPresent(owner -> {
-			if (!owner.getId().equals(storeId)) {
-				throw new StoreException(StoreErrorCode.NAVER_PLACE_ID_DUPLICATE);
-			}
-		});
-		if (replaceMenus) {
-			menuRepository.softDeleteByStoreId(storeId);
-		}
-		Point newLocation = latitude != null && longitude != null ? toPoint(latitude, longitude) : null;
-		String[] addr = address != null ? AddressParser.parse(address) : new String[3];
-		store.update(null, address, newLocation, addr[0], addr[1], addr[2], null, null, null);
-		store.markNaverMatched(naverPlaceId);
-		// 매칭 확정됐으니 보관 중이던 후보 목록 정리
-		candidateRepository.deleteByStoreId(storeId);
-	}
-
-	@Transactional
-	public void replaceCandidates(Long storeId, List<AdminNaverEnrichCandidateRequest> requests) {
-		if (!storeRepository.existsById(storeId)) {
-			throw new StoreException(StoreErrorCode.STORE_NOT_FOUND);
-		}
-		candidateRepository.deleteByStoreId(storeId);
-		int order = 0;
-		for (AdminNaverEnrichCandidateRequest candidateRequest : requests) {
-			candidateRepository.save(NaverEnrichCandidate.builder()
-				.storeId(storeId)
-				.naverPlaceId(candidateRequest.naverPlaceId())
-				.name(candidateRequest.name())
-				.address(candidateRequest.address())
-				.lat(candidateRequest.lat())
-				.lng(candidateRequest.lng())
-				.displayOrder(order++)
-				.build());
-		}
-	}
-
 	public List<AdminNaverEnrichCandidateResponse> getCandidates(Long storeId) {
 		return candidateRepository.findByStoreIdOrderByDisplayOrderAsc(storeId).stream()
 			.map(AdminNaverEnrichCandidateResponse::from)
 			.toList();
-	}
-
-	@Transactional
-	public void markNaverEnrichFailed(Long storeId, boolean noCandidates) {
-		Store store = storeRepository.findById(storeId)
-			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
-		store.markNaverEnrichFailed(noCandidates);
-	}
-
-	@Transactional
-	public void markNaverBackfillAttempted(Long storeId, String mode) {
-		if (!storeRepository.existsById(storeId)) {
-			throw new StoreException(StoreErrorCode.STORE_NOT_FOUND);
-		}
-		naverEnrichOrchestrator.markBackfillAttempted(mode, storeId);
 	}
 
 	public AdminNaverEnrichStatsResponse getNaverEnrichStats() {
@@ -396,59 +237,11 @@ public class AdminStoreService {
 			naverEnrichOrchestrator.getStartedQueueCount());
 	}
 
-	@Transactional
-	public void clearNaverPlaceId(Long storeId) {
-		Store store = storeRepository.findById(storeId)
-			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
-		store.clearNaverMatch();
-	}
-
-	@Transactional
-	public void retryNaverEnrich(Long storeId) {
-		Store store = storeRepository.findById(storeId)
-			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
-		store.resetNaverEnrichThrottle();
-	}
-
 	private AdminStoreResponse buildResponse(Store store) {
 		List<StoreBusinessHour> hours = storeBusinessHourRepository.findByStoreIdOrderByDayOfWeekAsc(store.getId());
 		List<StoreImageFile> photos = storeImageFileRepository.findByStoreIdOrderByDisplayOrderAscIdAsc(store.getId());
 		long alarmCount = subscribedStoreRepository.countByStoreId(store.getId());
 		return AdminStoreResponse.of(store, hours, photos, alarmCount);
-	}
-
-	private void saveBusinessHours(Store store, Map<String, BusinessHourRequest> hours) {
-		if (hours == null || hours.isEmpty()) {
-			return;
-		}
-		List<StoreBusinessHour> entities = hours.entrySet().stream()
-			.filter(e -> KEY_TO_DAY.containsKey(e.getKey()))
-			.map(e -> {
-				BusinessHourRequest bh = e.getValue();
-				DayOfWeek day = KEY_TO_DAY.get(e.getKey());
-				return StoreBusinessHour.builder()
-					.store(store)
-					.dayOfWeek(day)
-					.openTime(bh.closed() ? null : LocalTime.of(bh.openHour(), bh.openMin()))
-					.closeTime(bh.closed() ? null : LocalTime.of(bh.closeHour(), bh.closeMin()))
-					.isClosed(bh.closed())
-					.build();
-			})
-			.toList();
-		storeBusinessHourRepository.saveAll(entities);
-	}
-
-	private StoreStatus resolveStatus(AdminStoreUpdateRequest request) {
-		if ("active".equals(request.status())) {
-			return StoreStatus.ACTIVE;
-		}
-		if ("inactive".equals(request.status())) {
-			return StoreStatus.DELETED;
-		}
-		if (request.archivedAt() != null && !request.archivedAt().isBlank()) {
-			return StoreStatus.DELETED;
-		}
-		return null;
 	}
 
 	private Map<Long, Long> getAlarmCountMap(List<Long> storeIds) {
@@ -472,10 +265,6 @@ public class AdminStoreService {
 			.collect(Collectors.toMap(
 				id -> id,
 				id -> storeBusinessHourRepository.findByStoreIdOrderByDayOfWeekAsc(id)));
-	}
-
-	private Point toPoint(double latitude, double longitude) {
-		return GEOMETRY_FACTORY.createPoint(new Coordinate(longitude, latitude));
 	}
 
 	private StoreStatus toStoreStatus(String statusStr) {

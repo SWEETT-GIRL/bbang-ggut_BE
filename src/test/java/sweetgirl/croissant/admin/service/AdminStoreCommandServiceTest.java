@@ -11,7 +11,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -24,9 +23,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 
 import sweetgirl.croissant.admin.dto.request.AdminStoreCreateRequest;
 import sweetgirl.croissant.admin.dto.request.AdminStoreUpdateRequest;
@@ -35,9 +31,8 @@ import sweetgirl.croissant.admin.dto.response.AdminStoreResponse;
 import sweetgirl.croissant.external.opensearch.event.StoreAddressChangedEvent;
 import sweetgirl.croissant.external.opensearch.event.StoreDeletedEvent;
 import sweetgirl.croissant.external.opensearch.event.StoreNameChangedEvent;
-import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.code.StoreErrorCode;
-import sweetgirl.croissant.store.dto.projection.StoreIdCountProjection;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.enums.StoreStatus;
 import sweetgirl.croissant.store.exception.StoreException;
@@ -48,7 +43,7 @@ import sweetgirl.croissant.store.repository.StoreRepository;
 import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
 
 @ExtendWith(MockitoExtension.class)
-class AdminStoreServiceTest {
+class AdminStoreCommandServiceTest {
 
 	@Mock
 	StoreRepository storeRepository;
@@ -59,12 +54,16 @@ class AdminStoreServiceTest {
 	@Mock
 	SubscribedStoreRepository subscribedStoreRepository;
 	@Mock
+	MenuRepository menuRepository;
+	@Mock
+	NaverEnrichOrchestrator naverEnrichOrchestrator;
+	@Mock
 	NaverEnrichCandidateRepository candidateRepository;
 	@Mock
 	ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
-	AdminStoreService adminStoreService;
+	AdminStoreCommandService adminStoreCommandService;
 
 	@Test
 	@DisplayName("createStore: 가게를 저장하고 영업시간을 저장한다")
@@ -90,44 +89,12 @@ class AdminStoreServiceTest {
 			null,
 			Map.of("mon", new BusinessHourRequest(9, 0, 21, 0, false)));
 
-		AdminStoreResponse response = adminStoreService.createStore(request);
+		AdminStoreResponse response = adminStoreCommandService.createStore(request);
 
 		verify(storeRepository).save(any(Store.class));
 		verify(storeBusinessHourRepository).saveAll(anyList());
 		assertThat(response.name()).isEqualTo("소금빵집");
 		assertThat(response.status()).isEqualTo("active");
-	}
-
-	@Test
-	@DisplayName("getStores: keyword 없이 전체 목록을 페이지로 반환한다")
-	void getStores_noFilters_returnsPage() {
-		Store store = mock(Store.class);
-		given(store.getId()).willReturn(1L);
-		given(store.getStatus()).willReturn(StoreStatus.ACTIVE);
-
-		PageRequest pageable = PageRequest.of(0, 20);
-		given(storeRepository.findAll(pageable))
-			.willReturn(new PageImpl<>(List.of(store), pageable, 1));
-		StoreIdCountProjection alarmCount = mock(StoreIdCountProjection.class);
-		given(alarmCount.getStoreId()).willReturn(1L);
-		given(alarmCount.getCount()).willReturn(5L);
-		given(subscribedStoreRepository.countByStoreIdIn(List.of(1L))).willReturn(List.of(alarmCount));
-		given(storeImageFileRepository.findByStoreIdIn(List.of(1L))).willReturn(Collections.emptyList());
-		given(storeBusinessHourRepository.findByStoreIdOrderByDayOfWeekAsc(1L)).willReturn(Collections.emptyList());
-
-		Page<AdminStoreResponse> result = adminStoreService.getStores(null, null, pageable);
-
-		assertThat(result.getContent()).hasSize(1);
-		assertThat(result.getContent().get(0).alarmCount()).isEqualTo(5L);
-	}
-
-	@Test
-	@DisplayName("getStoreDetail: 없는 가게는 예외를 던진다")
-	void getStoreDetail_notFound_throwsException() {
-		given(storeRepository.findById(999L)).willReturn(Optional.empty());
-
-		assertThatThrownBy(() -> adminStoreService.getStoreDetail(999L))
-			.isInstanceOf(CustomException.class);
 	}
 
 	@Test
@@ -140,7 +107,7 @@ class AdminStoreServiceTest {
 			"새이름", null, null, null, "active", null, null,
 			Map.of("mon", new BusinessHourRequest(9, 0, 21, 0, false)));
 
-		adminStoreService.updateStore(1L, request);
+		adminStoreCommandService.updateStore(1L, request);
 
 		verify(storeBusinessHourRepository).deleteByStoreId(1L);
 		verify(storeBusinessHourRepository).saveAll(anyList());
@@ -152,7 +119,7 @@ class AdminStoreServiceTest {
 		Store store = mock(Store.class);
 		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
 
-		adminStoreService.deleteStore(1L);
+		adminStoreCommandService.deleteStore(1L);
 
 		verify(store).update(null, null, null, null, null, null, null, StoreStatus.DELETED, null);
 		verify(candidateRepository).deleteByStoreId(1L);
@@ -164,7 +131,7 @@ class AdminStoreServiceTest {
 		Store store = mock(Store.class);
 		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
 
-		adminStoreService.deleteNaverClosedSuspect(1L);
+		adminStoreCommandService.deleteNaverClosedSuspect(1L);
 
 		verify(store).update(null, null, null, null, null, null, null, StoreStatus.DELETED, null);
 		verify(candidateRepository).deleteByStoreId(1L);
@@ -179,7 +146,7 @@ class AdminStoreServiceTest {
 		AdminStoreUpdateRequest request = new AdminStoreUpdateRequest(
 			null, "서울시 마포구 홍익로 1", null, null, null, null, null, null);
 
-		adminStoreService.updateStore(1L, request);
+		adminStoreCommandService.updateStore(1L, request);
 
 		ArgumentCaptor<StoreAddressChangedEvent> captor = ArgumentCaptor.forClass(StoreAddressChangedEvent.class);
 		verify(eventPublisher).publishEvent(captor.capture());
@@ -195,7 +162,7 @@ class AdminStoreServiceTest {
 		AdminStoreUpdateRequest request = new AdminStoreUpdateRequest(
 			"새이름", null, null, null, null, null, null, null);
 
-		adminStoreService.updateStore(1L, request);
+		adminStoreCommandService.updateStore(1L, request);
 
 		ArgumentCaptor<StoreNameChangedEvent> captor = ArgumentCaptor.forClass(StoreNameChangedEvent.class);
 		verify(eventPublisher).publishEvent(captor.capture());
@@ -211,7 +178,7 @@ class AdminStoreServiceTest {
 		AdminStoreUpdateRequest request = new AdminStoreUpdateRequest(
 			"새이름", "서울시 마포구 홍익로 1", null, null, null, null, null, null);
 
-		adminStoreService.updateStore(1L, request);
+		adminStoreCommandService.updateStore(1L, request);
 
 		verify(eventPublisher).publishEvent(any(StoreAddressChangedEvent.class));
 		verify(eventPublisher).publishEvent(any(StoreNameChangedEvent.class));
@@ -227,7 +194,7 @@ class AdminStoreServiceTest {
 			null, null, null, null, null, null, null,
 			Map.of("mon", new BusinessHourRequest(10, 0, 20, 0, false)));
 
-		adminStoreService.updateStore(1L, request);
+		adminStoreCommandService.updateStore(1L, request);
 
 		verify(eventPublisher, org.mockito.Mockito.never()).publishEvent(any());
 	}
@@ -238,7 +205,7 @@ class AdminStoreServiceTest {
 		Store store = mock(Store.class);
 		given(storeRepository.findById(7L)).willReturn(Optional.of(store));
 
-		adminStoreService.deleteStore(7L);
+		adminStoreCommandService.deleteStore(7L);
 
 		ArgumentCaptor<StoreDeletedEvent> captor = ArgumentCaptor.forClass(StoreDeletedEvent.class);
 		verify(eventPublisher).publishEvent(captor.capture());
@@ -251,7 +218,7 @@ class AdminStoreServiceTest {
 		Store store = mock(Store.class);
 		given(storeRepository.findById(8L)).willReturn(Optional.of(store));
 
-		adminStoreService.deleteNaverClosedSuspect(8L);
+		adminStoreCommandService.deleteNaverClosedSuspect(8L);
 
 		ArgumentCaptor<StoreDeletedEvent> captor = ArgumentCaptor.forClass(StoreDeletedEvent.class);
 		verify(eventPublisher).publishEvent(captor.capture());
@@ -267,7 +234,7 @@ class AdminStoreServiceTest {
 		given(storeRepository.findById(1L)).willReturn(Optional.of(target));
 		given(storeRepository.findByNaverPlaceId("place-abc")).willReturn(Optional.of(other));
 
-		assertThatThrownBy(() -> adminStoreService.updateNaverPlaceId(1L, "place-abc", false))
+		assertThatThrownBy(() -> adminStoreCommandService.updateNaverPlaceId(1L, "place-abc", false))
 			.isInstanceOf(StoreException.class)
 			.hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.NAVER_PLACE_ID_DUPLICATE);
 
@@ -282,7 +249,7 @@ class AdminStoreServiceTest {
 		given(storeRepository.findById(1L)).willReturn(Optional.of(target));
 		given(storeRepository.findByNaverPlaceId("place-abc")).willReturn(Optional.of(target));
 
-		adminStoreService.updateNaverPlaceId(1L, "place-abc", false);
+		adminStoreCommandService.updateNaverPlaceId(1L, "place-abc", false);
 
 		verify(target).markNaverMatched("place-abc");
 		verify(candidateRepository).deleteByStoreId(1L);
@@ -295,7 +262,7 @@ class AdminStoreServiceTest {
 		given(storeRepository.findById(1L)).willReturn(Optional.of(target));
 		given(storeRepository.findByNaverPlaceId("place-abc")).willReturn(Optional.empty());
 
-		adminStoreService.updateNaverPlaceId(1L, "place-abc", false);
+		adminStoreCommandService.updateNaverPlaceId(1L, "place-abc", false);
 
 		verify(target).markNaverMatched("place-abc");
 		verify(candidateRepository).deleteByStoreId(1L);
@@ -309,7 +276,7 @@ class AdminStoreServiceTest {
 		given(storeRepository.findById(1L)).willReturn(Optional.of(target));
 		given(storeRepository.findByNaverPlaceId("1009971635")).willReturn(Optional.empty());
 
-		adminStoreService.updateNaverPlaceId(1L, "1009971635", false, address, 37.539, 127.214);
+		adminStoreCommandService.updateNaverPlaceId(1L, "1009971635", false, address, 37.539, 127.214);
 
 		verify(target).update(
 			isNull(),
