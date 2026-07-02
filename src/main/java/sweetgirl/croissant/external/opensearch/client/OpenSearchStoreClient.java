@@ -27,6 +27,7 @@ import org.springframework.stereotype.Component;
 import jakarta.json.stream.JsonGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.external.opensearch.config.OpenSearchProperties;
 import sweetgirl.croissant.external.opensearch.document.SearchRegionDto;
 import sweetgirl.croissant.external.opensearch.document.StoreDocument;
 import sweetgirl.croissant.external.opensearch.document.StoreMenuDto;
@@ -51,6 +52,7 @@ public class OpenSearchStoreClient {
 
 	private final ObjectProvider<OpenSearchClient> openSearchClientProvider;
 	private final StoreSearchQueryBuilder storeSearchQueryBuilder;
+	private final OpenSearchProperties openSearchProperties;
 
 	public OpenSearchStoreSearchResult searchStores(SearchIntent intent, Pageable pageable,
 			Double latitude, Double longitude, SearchSort sort) {
@@ -60,8 +62,9 @@ public class OpenSearchStoreClient {
 		}
 
 		JsonpMapper mapper = client._transport().jsonpMapper();
-		// DEBUG 로깅이 켜진 경우에만 explain을 요청 — 운영 기본(INFO)에서는 explain 미포함
-		boolean explain = log.isDebugEnabled();
+		// explain은 전용 프로퍼티로만 켠다(디버그 전용). 운영 기본은 false, 로컬에서만 true.
+		// 로그 레벨(관측)과 분리해 DEBUG 로깅을 켜도 explain 스코어링 비용이 붙지 않도록 한다.
+		boolean explain = openSearchProperties.isExplainEnabled();
 		SearchRequest request = storeSearchQueryBuilder.build(intent, pageable, latitude, longitude, sort, explain);
 		if (log.isDebugEnabled()) {
 			log.debug("OpenSearch 검색 요청 JSON: {}", toJson(request, mapper));
