@@ -185,6 +185,25 @@ class StoreSearchQueryBuilderTest {
 	}
 
 	@Test
+	void build_doesNotRequestExplainByDefault() {
+		SearchIntent intent = intent("뺑스톡", List.of(), List.of());
+
+		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
+
+		assertThat(request.explain()).isNotEqualTo(Boolean.TRUE);
+	}
+
+	@Test
+	void build_requestsExplainWhenExplainFlagTrue() {
+		SearchIntent intent = intent("뺑스톡", List.of(), List.of());
+
+		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE, true);
+
+		assertThat(request.explain()).isTrue();
+		assertThat(toJson(request)).contains("\"explain\":true");
+	}
+
+	@Test
 	void buildAutocomplete_usesAutocompleteFieldsAndPopularityScore() {
 		SearchRequest request = builder.buildAutocomplete("소금", 10);
 
