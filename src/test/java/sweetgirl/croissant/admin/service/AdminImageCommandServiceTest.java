@@ -35,7 +35,7 @@ import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
 @ExtendWith(MockitoExtension.class)
-class AdminImageServiceTest {
+class AdminImageCommandServiceTest {
 
 	@Mock
 	S3Service s3Service;
@@ -53,7 +53,7 @@ class AdminImageServiceTest {
 	ImageRowSaver imageRowSaver;
 
 	@InjectMocks
-	AdminImageService adminImageService;
+	AdminImageCommandService adminImageCommandService;
 
 	private ImageUploadFromUrlRequest req(String url) {
 		ImageUploadFromUrlRequest request = new ImageUploadFromUrlRequest();
@@ -77,7 +77,7 @@ class AdminImageServiceTest {
 		given(imageRowSaver.saveStoreImage(eq(1L), anyString(), anyString(), any(), anyInt(), anyString()))
 			.willReturn(101L, 102L);
 
-		ImageUploadFromUrlResponse response = adminImageService.uploadImagesFromUrls(
+		ImageUploadFromUrlResponse response = adminImageCommandService.uploadImagesFromUrls(
 			"stores", 1L, List.of(req("https://a.com/1.jpg"), req("https://a.com/2.jpg")));
 
 		assertThat(response.successCount()).isEqualTo(2);
@@ -98,7 +98,7 @@ class AdminImageServiceTest {
 		given(imageRowSaver.saveStoreImage(eq(1L), anyString(), anyString(), any(), anyInt(), anyString()))
 			.willReturn(101L);
 
-		ImageUploadFromUrlResponse response = adminImageService.uploadImagesFromUrls(
+		ImageUploadFromUrlResponse response = adminImageCommandService.uploadImagesFromUrls(
 			"stores", 1L, List.of(req("https://a.com/ok.jpg"), req("https://a.com/bad.jpg")));
 
 		assertThat(response.successCount()).isEqualTo(1);
@@ -118,7 +118,7 @@ class AdminImageServiceTest {
 		willThrow(new RuntimeException("constraint violation"))
 			.given(imageRowSaver).saveStoreImage(eq(1L), anyString(), anyString(), any(), anyInt(), anyString());
 
-		ImageUploadFromUrlResponse response = adminImageService.uploadImagesFromUrls(
+		ImageUploadFromUrlResponse response = adminImageCommandService.uploadImagesFromUrls(
 			"stores", 1L, List.of(req("https://a.com/x.jpg")));
 
 		assertThat(response.failureCount()).isEqualTo(1);
@@ -136,7 +136,7 @@ class AdminImageServiceTest {
 		willThrow(new S3StorageException(S3ErrorCode.UPLOAD_FAILED, "s3 5xx"))
 			.given(s3Service).putObject(anyString(), any(), any());
 
-		ImageUploadFromUrlResponse response = adminImageService.uploadImagesFromUrls(
+		ImageUploadFromUrlResponse response = adminImageCommandService.uploadImagesFromUrls(
 			"stores", 1L, List.of(req("https://a.com/x.jpg")));
 
 		assertThat(response.failureCount()).isEqualTo(1);
@@ -150,7 +150,7 @@ class AdminImageServiceTest {
 	void uploadImagesFromUrls_storeNotFound() {
 		given(storeRepository.existsById(999L)).willReturn(false);
 
-		assertThatThrownBy(() -> adminImageService.uploadImagesFromUrls(
+		assertThatThrownBy(() -> adminImageCommandService.uploadImagesFromUrls(
 			"stores", 999L, List.of(req("https://a.com/1.jpg"))))
 			.isInstanceOf(StoreException.class);
 	}
@@ -158,7 +158,7 @@ class AdminImageServiceTest {
 	@Test
 	@DisplayName("uploadImagesFromUrls: 잘못된 domain 은 IllegalArgumentException")
 	void uploadImagesFromUrls_invalidDomain() {
-		assertThatThrownBy(() -> adminImageService.uploadImagesFromUrls(
+		assertThatThrownBy(() -> adminImageCommandService.uploadImagesFromUrls(
 			"banners", 1L, List.of(req("https://a.com/1.jpg"))))
 			.isInstanceOf(IllegalArgumentException.class);
 	}
@@ -169,7 +169,7 @@ class AdminImageServiceTest {
 		given(menuRepository.existsById(1L)).willReturn(true);
 		given(menuImageFileRepository.findMaxDisplayOrderByMenuId(1L)).willReturn(0);
 
-		ImageUploadFromUrlResponse response = adminImageService.uploadImagesFromUrls(
+		ImageUploadFromUrlResponse response = adminImageCommandService.uploadImagesFromUrls(
 			"menus", 1L, List.of(req("")));
 
 		assertThat(response.results().get(0).status()).isEqualTo(ImageUploadFromUrlResponse.Status.INVALID_URL);
@@ -185,7 +185,7 @@ class AdminImageServiceTest {
 		given(imageRowSaver.saveStoreImage(eq(1L), anyString(), anyString(), any(), anyInt(), anyString()))
 			.willReturn(1L, 2L);
 
-		adminImageService.uploadImagesFromUrls(
+		adminImageCommandService.uploadImagesFromUrls(
 			"stores", 1L, List.of(req("https://a.com/1.jpg"), req("https://a.com/2.jpg")));
 
 		verify(imageRowSaver).saveStoreImage(eq(1L), anyString(), anyString(), any(), eq(6), anyString());
@@ -205,7 +205,7 @@ class AdminImageServiceTest {
 		given(storeImageFileRepository.findByStoreIdAndSourceUrl(1L, "https://a.com/dup.jpg"))
 			.willReturn(java.util.Optional.of(existing));
 
-		ImageUploadFromUrlResponse response = adminImageService.uploadImagesFromUrls(
+		ImageUploadFromUrlResponse response = adminImageCommandService.uploadImagesFromUrls(
 			"stores", 1L, List.of(req("https://a.com/dup.jpg")));
 
 		assertThat(response.successCount()).isEqualTo(1);

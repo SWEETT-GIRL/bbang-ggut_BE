@@ -14,7 +14,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.external.aws.S3Service;
-import sweetgirl.croissant.external.aws.dto.AdminImageResponse;
 import sweetgirl.croissant.external.aws.dto.ImageOrderUpdateRequest;
 import sweetgirl.croissant.external.aws.dto.ImageSaveRequest;
 import sweetgirl.croissant.external.aws.dto.ImageUploadFromUrlRequest;
@@ -41,8 +40,8 @@ import sweetgirl.croissant.store.repository.StoreRepository;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
-public class AdminImageService {
+@Transactional
+public class AdminImageCommandService {
 
 	private static final String DOMAIN_STORES = "stores";
 	private static final String DOMAIN_MENUS = "menus";
@@ -68,27 +67,6 @@ public class AdminImageService {
 		return s3Service.generatePresignedUrl(path, request.getMimeType());
 	}
 
-	public List<AdminImageResponse> getStoreImages(Long storeId) {
-		if (!storeRepository.existsById(storeId)) {
-			throw new StoreException(StoreErrorCode.STORE_NOT_FOUND);
-		}
-		return storeImageFileRepository.findByStoreIdOrderByDisplayOrderAscIdAsc(storeId).stream()
-			.map(img -> new AdminImageResponse(img.getId(), img.getAwsKey(), img.getMimeType().getValue(),
-				img.getDisplayOrder(), img.getCreatedAt(), img.getResizedKey640()))
-			.collect(Collectors.toList());
-	}
-
-	public List<AdminImageResponse> getMenuImages(Long menuId) {
-		if (!menuRepository.existsById(menuId)) {
-			throw new MenuException(MenuErrorCode.MENU_NOT_FOUND);
-		}
-		return menuImageFileRepository.findImagesByMenuId(menuId).stream()
-			.map(img -> new AdminImageResponse(img.getId(), img.getAwsKey(), img.getMimeType().getValue(),
-				img.getDisplayOrder(), img.getCreatedAt(), img.getResizedKey640()))
-			.collect(Collectors.toList());
-	}
-
-	@Transactional
 	public void saveStoreImages(Long storeId, List<ImageSaveRequest> requests) {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
@@ -109,7 +87,6 @@ public class AdminImageService {
 		storeImageFileRepository.saveAll(imageFiles);
 	}
 
-	@Transactional
 	public void saveMenuImages(Long menuId, List<ImageSaveRequest> requests) {
 		Menu menu = menuRepository.findById(menuId)
 			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
@@ -129,7 +106,6 @@ public class AdminImageService {
 		menuImageFileRepository.saveAll(imageFiles);
 	}
 
-	@Transactional
 	public void reorderStoreImages(Long storeId, ImageOrderUpdateRequest request) {
 		if (!storeRepository.existsById(storeId)) {
 			throw new StoreException(StoreErrorCode.STORE_NOT_FOUND);
@@ -148,7 +124,6 @@ public class AdminImageService {
 			.forEach(img -> img.updateDisplayOrder(orderMap.get(img.getId())));
 	}
 
-	@Transactional
 	public void reorderMenuImages(Long menuId, ImageOrderUpdateRequest request) {
 		if (!menuRepository.existsById(menuId)) {
 			throw new MenuException(MenuErrorCode.MENU_NOT_FOUND);
@@ -167,7 +142,6 @@ public class AdminImageService {
 			.forEach(img -> img.updateDisplayOrder(orderMap.get(img.getId())));
 	}
 
-	@Transactional
 	public void deleteStoreImage(Long storeId, Long imageId) {
 		StoreImageFile image = storeImageFileRepository.findById(imageId)
 			.filter(img -> img.getStore().getId().equals(storeId))
@@ -177,7 +151,6 @@ public class AdminImageService {
 		storeImageFileRepository.delete(image);
 	}
 
-	@Transactional
 	public void deleteMenuImage(Long menuId, Long imageId) {
 		MenuImageFile image = menuImageFileRepository.findById(imageId)
 			.filter(img -> img.getMenu().getId().equals(menuId))
