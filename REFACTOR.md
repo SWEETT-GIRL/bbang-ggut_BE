@@ -160,8 +160,18 @@
   - **결과**: `StoreService` → `StoreQueryService`(조회 6종, readOnly) / `StoreCommandService`(registerKakaoStore·subscribe·unsubscribe). 미사용 주입 필드 `storeAsyncService`는 이관하지 않음(dead dependency 제거). `StoreReportService` → `StoreReportQueryService`(searchAddress) / `StoreReportCommandService`(presigned 2종+create 4종). presigned는 T1 course 선례대로 CommandService 배치(클래스 `@Transactional`, create 메서드 애노테이션 제거). `StoreController`·`StoreReportController`·`MenuReportController` 주입 교체. `StoreServiceTest`·`StoreReportServiceTest` 재배치 + `StoreReportQueryServiceTest`(searchAddress) 신규.
 - [x] **P3-T10 · review**: `review/service/ReviewService.java`(604줄) 분리. (Phase 4-대형분해와 병행)
   - **결과**: 조회 6종 → `ReviewQueryService`(readOnly), 쓰기 6종(presigned 포함, T1 선례) → `ReviewCommandService`. 조회/쓰기(updateReview)가 공유하던 응답 조립 로직(`toReviewResponses`/`toReviewDetailResponses`/사진·추천·작성자 집계·canEdit 판정)을 `ReviewResponseAssembler` 컴포넌트로 추출(대형분해 겸함). `ReviewController` 두 서비스 주입, `ReviewServiceTest` → `ReviewQueryServiceTest`/`ReviewCommandServiceTest` 재배치(실제 assembler + mock 레포 수동 조립). `ReviewControllerTest` mock 분리.
-- [ ] **P3-T11 · admin/***: `admin/service/AdminStoreService.java`(484줄), `AdminMenuService.java`, `AdminMemberService.java`, `AdminImageService.java`, `AdminModerationAppealService.java` 등 분리. `AdminReportService`(962줄)는 Phase 4-대형분해와 결합.
-- [ ] **P3-T12 · 잔여 스윕**: `contribution`(service 없음)·`dev`(개발용) 등 CQRS 불필요 도메인은 "제외" 판정 기록. 나머지 서비스 중 누락 없는지 `grep -rL "CommandService\|QueryService" $(grep -rl "@Service" src/main/java)` 로 확인.
+- [x] **P3-T11 · admin/***: `admin/service/AdminStoreService.java`(484줄), `AdminMenuService.java`, `AdminMemberService.java`, `AdminImageService.java`, `AdminModerationAppealService.java` 등 분리. `AdminReportService`(962줄)는 Phase 4-대형분해와 결합.
+  - **결과**: 서비스별 커밋. `AdminMemberService`(전부 쓰기)→`AdminMemberCommandService` 리네임. 나머지 4개는 `@Transactional` 유무로 Query/Command 분리(presigned·bulk URL 업로드는 Command): `AdminModerationAppeal`(getAppeals/reviewAppeal), `AdminMenu`(조회 3/쓰기 4), `AdminImage`(조회 2/쓰기 8, uploadImagesFromUrls는 ImageRowSaver REQUIRES_NEW 위임 쓰기라 Command), `AdminStore`(조회 다수+Naver 큐/쓰기 다수, 공유 헬퍼 `buildResponse` 양쪽 복제). 컨트롤러 주입 교체, 서비스/컨트롤러 테스트 재배치. AdminImageQueryService 조회 테스트 신규(원본 없었음). `AdminReportService`는 제외(Phase 4). 병렬 서브에이전트로 4개 분리 후 통합 빌드·검증.
+- [x] **P3-T12 · 잔여 스윕**: `contribution`(service 없음)·`dev`(개발용) 등 CQRS 불필요 도메인은 "제외" 판정 기록. 나머지 서비스 중 누락 없는지 `grep -rL "CommandService\|QueryService" $(grep -rl "@Service" src/main/java)` 로 확인.
+  - **결과 (2026-07-02)**: 전수 스윕에서 T2~T11에 누락된 혼재 CRUD 서비스 3건 추가 분리 — `MemberBlockService`→Query(getBlocks)/Command(block·unblock), `StoreAddReportService`→Query(searchNaverPlaces)/Command(createReport), `MenuAddReportService`(쓰기 전용)→`MenuAddReportCommandService` 리네임(presigned·create 모두 Command). 각 서비스별 커밋.
+  - **제외 판정 (CQRS 불필요)**:
+    - `AdminReportService`(962줄) — **Phase 4** 대형분해와 결합(제외).
+    - `ReportNotificationService` — 주 책임이 `notify*` 부수효과 발행(쓰기)이고 조회는 `getMyReportNotifications` 1건뿐. 분리 시 Phase 4 대상 `AdminReportService`(notify* 호출)까지 수정 필요 → 실익 대비 blast radius 커 **보류/제외**.
+    - 외부 클라이언트·인프라: `S3Service`, `FcmService`, `StoreDocumentIndexer`, `StoreIndexService`, `StoreSearchService`(읽기 전용 검색, 이미 readOnly).
+    - 배치·오케스트레이션: `BulkImportOrchestrator`, `BulkImportProgressService`, `DongImporter`, `NaverEnrichOrchestrator`, `NaverEnrichRunner`, `StoreBusinessHourSyncService`, `AdminS3ReconcileService`, `StoreAsyncService`.
+    - 인증 플로우(member): `AuthService`, `AppleAuthService`, `KakaoAuthService`, `CustomOAuth2UserService`.
+    - 단일 책임 콜백/로깅: `ImageCallbackService`, `RequestLogService`, `DevPerfService`(dev).
+    - 헬퍼 컴포넌트(이미 분리 산출물): `MemberReader`, `MemberRestrictionReader`, `NotificationSettingProvider`, `ReviewResponseAssembler`, `IndividualStoreSaver`, `ImageRowSaver` 등.
 
 **PR (도메인별)**: `[REFACTOR] {domain} 서비스 CQRS 분리`
 
@@ -257,7 +267,7 @@
 | P0 사전 준비 | ✅ | — | 기존 실패 테스트 6건 보정 후 기준선 green |
 | P1 응답 규약 | ✅ | — | AuthController kakao/apple 표준화(FE 하위호환 확인). admin image/banner presigned-url·save는 어드민 웹 계약상 정당한 예외로 보류 |
 | P2 컨벤션 정리 | ✅ | — | 약어/무의미 변수명 정리, EncryptedStringConverter @Autowired 제거(static holder), 길이 상한 초과 부록 A-2 기록 |
-| P3 CQRS(전 도메인) | 🚧 | — | T1~T5 완료(policy·banner·inquiry·member). T6~T12 남음. 현재 브랜치에 소단위 커밋 진행 |
+| P3 CQRS(전 도메인) | ✅ | — | T1~T12 완료. policy·banner·inquiry·member·alarm·abuse·menu·store·review·admin(member·moderation-appeal·menu·image·store)·잔여(member-block·store-add-report·menu-add-report) 분리. AdminReportService·ReportNotificationService는 제외(Phase 4/부수효과 발행). 서비스별 소단위 커밋 |
 | P4 대형 분해 | ⬜ | — | P3와 연속 |
 | P5 null 정리 | ⬜ | — | 새 구조 위 |
 | P6 마무리 | ⬜ | — | |
