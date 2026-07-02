@@ -36,9 +36,26 @@ class StoreSearchQueryParserTest {
 	}
 
 	@Test
-	void parse_treatsSuffixTokenAsRegionWhenAliasDoesNotExist() {
+	void parse_doesNotTreatSuffixTokenAsRegionWhenAliasMissing() {
 		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
+		// 접미사 fallback 폐기: alias에 없으면 '동'으로 끝나도 지역으로 보지 않는다
 		given(searchRegionAliasRepository.findByNormalizedAlias("한남동")).willReturn(List.of());
+		given(searchRegionAliasRepository.findByNormalizedAlias("소금빵")).willReturn(List.of());
+		given(searchRegionAliasRepository.findAll()).willReturn(List.of());
+
+		SearchIntent result = parser.parse("한남동 소금빵");
+
+		assertThat(result.regionTokens()).isEmpty();
+		assertThat(result.breadTokens()).containsExactly("소금빵");
+		assertThat(result.remainingTokens()).containsExactly("한남동");
+	}
+
+	@Test
+	void parse_treatsSuffixTokenAsRegionWhenAliasExists() {
+		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
+		// region_3rd 흡수: "한남동"이 alias로 등록돼 있으면 지역으로 인정
+		given(searchRegionAliasRepository.findByNormalizedAlias("한남동"))
+			.willReturn(List.of(SearchRegionAlias.builder().alias("한남동").normalizedAlias("한남동").build()));
 		given(searchRegionAliasRepository.findByNormalizedAlias("소금빵")).willReturn(List.of());
 
 		SearchIntent result = parser.parse("한남동 소금빵");
@@ -48,17 +65,16 @@ class StoreSearchQueryParserTest {
 	}
 
 	@Test
-	void parse_doesNotTreatFruitWordAsRegionEvenWhenSuffixMatches() {
+	void parse_doesNotTreatBakeryWordAsRegionEvenWhenSuffixMatches() {
 		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
-		// "블루베리"는 "리"로 끝나지만 비지역 예외어 → 지역 아님, "타르트"는 빵
-		given(searchRegionAliasRepository.findByNormalizedAlias("블루베리")).willReturn(List.of());
-		given(searchRegionAliasRepository.findByNormalizedAlias("타르트")).willReturn(List.of());
+		// "갤러리"는 "리"로 끝나지만 alias에 없으므로 지역 아님(접미사 추측 폐기 회귀 방지)
+		given(searchRegionAliasRepository.findByNormalizedAlias("갤러리")).willReturn(List.of());
+		given(searchRegionAliasRepository.findAll()).willReturn(List.of());
 
-		SearchIntent result = parser.parse("블루베리 타르트");
+		SearchIntent result = parser.parse("갤러리");
 
 		assertThat(result.regionTokens()).isEmpty();
-		assertThat(result.breadTokens()).containsExactly("타르트");
-		assertThat(result.remainingTokens()).containsExactly("블루베리");
+		assertThat(result.remainingTokens()).containsExactly("갤러리");
 	}
 
 	@Test
