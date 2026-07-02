@@ -21,8 +21,8 @@ import sweetgirl.croissant.member.service.MemberReader;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
-public class ModerationAppealService {
+@Transactional
+public class ModerationAppealCommandService {
 
 	private static final long APPEAL_PERIOD_DAYS = 30L;
 	private static final Set<AbuseReportAction> APPEALABLE_ACTIONS = Set.of(
@@ -36,7 +36,6 @@ public class ModerationAppealService {
 	private final ModerationActionRepository moderationActionRepository;
 	private final ModerationAppealRepository moderationAppealRepository;
 
-	@Transactional
 	public ModerationAppealCreateResponse createAppeal(
 			Long memberId,
 			ModerationAppealCreateRequest request) {

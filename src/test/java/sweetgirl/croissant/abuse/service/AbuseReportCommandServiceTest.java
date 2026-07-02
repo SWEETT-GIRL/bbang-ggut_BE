@@ -35,7 +35,7 @@ import sweetgirl.croissant.review.entity.Review;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 
 @ExtendWith(MockitoExtension.class)
-class AbuseReportServiceTest {
+class AbuseReportCommandServiceTest {
 
 	@Mock
 	MemberReader memberReader;
@@ -48,11 +48,11 @@ class AbuseReportServiceTest {
 	@Mock
 	AdminReportNotificationPublisher adminReportNotificationPublisher;
 
-	AbuseReportService abuseReportService;
+	AbuseReportCommandService abuseReportCommandService;
 
 	@BeforeEach
 	void setUp() {
-		abuseReportService = new AbuseReportService(
+		abuseReportCommandService = new AbuseReportCommandService(
 			memberReader,
 			memberRepository,
 			reviewRepository,
@@ -75,7 +75,7 @@ class AbuseReportServiceTest {
 			return report;
 		});
 
-		AbuseReportCreateResponse response = abuseReportService.createReport(1L,
+		AbuseReportCreateResponse response = abuseReportCommandService.createReport(1L,
 			new AbuseReportCreateRequest(AbuseReportTargetType.REVIEW, 10L, AbuseReportReasonType.ABUSE, "  욕설  "));
 
 		assertThat(response.reportId()).isEqualTo(100L);
@@ -95,7 +95,7 @@ class AbuseReportServiceTest {
 		given(memberReader.getMember(1L)).willReturn(reporter);
 		given(reviewRepository.findActiveByIdWithDetails(10L)).willReturn(Optional.of(review));
 
-		assertThatThrownBy(() -> abuseReportService.createReport(1L,
+		assertThatThrownBy(() -> abuseReportCommandService.createReport(1L,
 			new AbuseReportCreateRequest(AbuseReportTargetType.REVIEW, 10L, AbuseReportReasonType.ABUSE, null)))
 			.isInstanceOf(AbuseReportException.class)
 			.hasMessageContaining(AbuseReportErrorCode.REPORT_SELF_TARGET_NOT_ALLOWED.getMessage());
@@ -114,7 +114,7 @@ class AbuseReportServiceTest {
 		given(abuseReportRepository.existsByReporterIdAndTargetTypeAndTargetIdAndStatusIn(
 			any(), any(), any(), any())).willReturn(true);
 
-		assertThatThrownBy(() -> abuseReportService.createReport(1L,
+		assertThatThrownBy(() -> abuseReportCommandService.createReport(1L,
 			new AbuseReportCreateRequest(AbuseReportTargetType.REVIEW, 10L, AbuseReportReasonType.ABUSE, null)))
 			.isInstanceOf(AbuseReportException.class)
 			.hasMessageContaining(AbuseReportErrorCode.REPORT_ALREADY_EXISTS.getMessage());

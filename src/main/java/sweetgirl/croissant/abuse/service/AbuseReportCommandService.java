@@ -23,8 +23,8 @@ import sweetgirl.croissant.review.repository.ReviewRepository;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
-public class AbuseReportService {
+@Transactional
+public class AbuseReportCommandService {
 
 	private static final List<AbuseReportStatus> DUPLICATE_BLOCKING_STATUSES = List.of(
 		AbuseReportStatus.PENDING,
@@ -36,7 +36,6 @@ public class AbuseReportService {
 	private final AbuseReportRepository abuseReportRepository;
 	private final AdminReportNotificationPublisher adminReportNotificationPublisher;
 
-	@Transactional
 	public AbuseReportCreateResponse createReport(Long memberId, AbuseReportCreateRequest request) {
 		Member reporter = memberReader.getMember(memberId);
 		ReportTarget target = resolveTarget(request.targetType(), request.targetId());

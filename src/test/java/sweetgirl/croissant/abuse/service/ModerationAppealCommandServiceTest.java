@@ -33,7 +33,7 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 
 @ExtendWith(MockitoExtension.class)
-class ModerationAppealServiceTest {
+class ModerationAppealCommandServiceTest {
 
 	@Mock
 	MemberReader memberReader;
@@ -43,7 +43,7 @@ class ModerationAppealServiceTest {
 	ModerationAppealRepository moderationAppealRepository;
 
 	@InjectMocks
-	ModerationAppealService moderationAppealService;
+	ModerationAppealCommandService moderationAppealCommandService;
 
 	@Test
 	void createAppeal_savesAppeal() {
@@ -60,7 +60,7 @@ class ModerationAppealServiceTest {
 			return appeal;
 		});
 
-		ModerationAppealCreateResponse response = moderationAppealService.createAppeal(
+		ModerationAppealCreateResponse response = moderationAppealCommandService.createAppeal(
 			20L,
 			new ModerationAppealCreateRequest(55L, " 해당 리뷰는 욕설이 아닙니다. "));
 
@@ -83,7 +83,7 @@ class ModerationAppealServiceTest {
 		given(memberReader.getMember(20L)).willReturn(member);
 		given(moderationActionRepository.findByIdWithMemberAndReport(55L)).willReturn(Optional.of(action));
 
-		assertThatThrownBy(() -> moderationAppealService.createAppeal(
+		assertThatThrownBy(() -> moderationAppealCommandService.createAppeal(
 			20L,
 			new ModerationAppealCreateRequest(55L, "이의제기합니다.")))
 			.isInstanceOf(AbuseReportException.class)
@@ -100,7 +100,7 @@ class ModerationAppealServiceTest {
 		given(memberReader.getMember(20L)).willReturn(member);
 		given(moderationActionRepository.findByIdWithMemberAndReport(55L)).willReturn(Optional.of(action));
 
-		assertThatThrownBy(() -> moderationAppealService.createAppeal(
+		assertThatThrownBy(() -> moderationAppealCommandService.createAppeal(
 			20L,
 			new ModerationAppealCreateRequest(55L, "이의제기합니다.")))
 			.isInstanceOf(AbuseReportException.class)
@@ -118,7 +118,7 @@ class ModerationAppealServiceTest {
 		given(moderationActionRepository.findByIdWithMemberAndReport(55L)).willReturn(Optional.of(action));
 		given(moderationAppealRepository.existsByModerationActionIdAndMemberId(55L, 20L)).willReturn(true);
 
-		assertThatThrownBy(() -> moderationAppealService.createAppeal(
+		assertThatThrownBy(() -> moderationAppealCommandService.createAppeal(
 			20L,
 			new ModerationAppealCreateRequest(55L, "이의제기합니다.")))
 			.isInstanceOf(AbuseReportException.class)
