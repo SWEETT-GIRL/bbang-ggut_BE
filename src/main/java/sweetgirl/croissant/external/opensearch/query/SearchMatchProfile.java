@@ -11,7 +11,7 @@ import java.util.Map;
  *
  * <p>랭킹 튜닝의 단위는 "필드"보다 "매칭 상황"이므로(예: 지역 매칭 전체 부스트 조정), 부스트를 여기 한 곳에 모은다.
  * {@code StoreSearchQueryBuilder}는 이 데이터를 읽어 nested/flat 쿼리를 조립만 한다.
- * 가게명 정확(term) 부스트와 function_score 파라미터는 {@link RankingWeights} 참조.
+ * 가게명 정확(term) 부스트와 function_score 파라미터는 {`@link` sweetgirl.croissant.external.opensearch.code.SearchRankingConstants} 참조.
  */
 public enum SearchMatchProfile {
 
