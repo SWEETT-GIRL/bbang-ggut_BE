@@ -159,6 +159,7 @@ jobs:
             echo "LAMBDA_CALLBACK_SECRET_KEY=${{ secrets.LAMBDA_CALLBACK_SECRET_KEY }}" >> .env
             echo "PERF_DASHBOARD_ENABLED=${{ secrets.PERF_DASHBOARD_ENABLED }}" >> .env
             echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env
+            echo "OPENSEARCH_DEBUG_LOGGING=${{ secrets.OPENSEARCH_DEBUG_LOGGING }}" >> .env
 
             docker compose pull
             docker compose up -d
