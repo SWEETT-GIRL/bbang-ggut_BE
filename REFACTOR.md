@@ -83,15 +83,24 @@
 
 > ⚠️ **동작 변경 주의**: `Map.of("data", response)` → `ApiResponse.ok(response)`는 **JSON 응답 구조가 바뀐다**. FE(카카오/애플 로그인) 계약 확인 필수. FE가 이미 `ApiResponse` 형태를 기대하는지 먼저 확인하고, 아니면 FE 수정과 동기화하거나 보류 태그.
 
-- [ ] **P1-T1**: `member/controller/AuthController.java`의 `kakaoLogin`(35), `appleLogin`(41)을 `ApiResponse.ok(response)`로 통일 (같은 파일 49·57행 패턴과 일치).
+- [x] **P1-T1**: `member/controller/AuthController.java`의 `kakaoLogin`(35), `appleLogin`(41)을 `ApiResponse.ok(response)`로 통일 (같은 파일 49·57행 패턴과 일치).
   - before: `return ResponseEntity.ok(Map.of("data", response));`
-  - after: `return ResponseEntity.ok(ApiResponse.ok(response));`
+  - after: `return ApiResponse.ok(response);` (반환 타입도 `ApiResponse<T>`로 정리, 미사용 import 제거)
   - DoD: 4개 엔드포인트 응답 구조 동일. FE 계약 확인 메모.
-  - 검증: `./gradlew test --tests "*AuthController*"` (없으면 `@WebMvcTest` 신규)
-- [ ] **P1-T2**: 전 컨트롤러 비표준 응답 스윕.
-  - 조사: `grep -rn "Map.of(\"data\"\|ResponseEntity<?>\|ResponseEntity<Map" src/main/java --include=*.java`
-  - DoD: 조사 결과 목록 + 각 항목 표준화 or "정당한 예외" 사유 기록.
-- [ ] **P1-T3**: 변경 컨트롤러 `@WebMvcTest` 응답 구조 검증 추가/보강.
+  - **FE 계약 확인 (2026-07-02)**: `authService.ts`가 kakao/apple을 `res.data.data`로 파싱 → ApiResponse의 `data` 필드 그대로 읽어 **하위 호환**(추가된 `success/code/message`는 무시). 같은 파일 `/auth/refresh`가 이미 ApiResponse를 반환하고 FE가 동일 방식으로 파싱 중인 것이 결정적 근거. apiClient 성공 인터셉터는 `success` 필드를 검증하지 않음(`client.ts`).
+  - **결과**: 커밋 `♻️ 33463fa`. 테스트 통과.
+- [x] **P1-T2**: 전 컨트롤러 비표준 응답 스윕.
+  - 조사: `grep -rn 'Map.of("data"|ResponseEntity<?>|ResponseEntity<Map' src/main/java` + `ResponseEntity.ok(...)` 중 ApiResponse 미포함 전수 확인.
+  - **조사 결과 (2026-07-02)**:
+    - `AuthController` kakao/apple — 유일한 `Map.of("data",...)` → **P1-T1에서 표준화 완료**.
+    - 그 외 대부분 컨트롤러는 `ResponseEntity<ApiResponse<T>>` 패턴(HTTP 상태 제어 + ApiResponse 바디)으로 이미 표준 준수.
+    - **정당한 예외 (변경 보류 — 어드민 웹 계약)**: 아래 4개는 ApiResponse 미래핑으로 raw DTO/빈 바디 반환. 어드민 웹이 이 형식을 **의도적으로 문서화·의존** 중(`admin_web/.../banner.http.ts:55`, `image.http.ts:41` — "presigned-url은 ApiResponse 래핑 없이 바로 반환"). 동작 보존 우선 → 어드민 웹 동기화 없이 변경 금지.
+      - `admin/controller/AdminImageController.getPresignedUrl`(49) — `ResponseEntity<PresignedUrlResponse>`
+      - `admin/controller/AdminImageController.saveStoreImages`(65)·`saveMenuImages`(99) — `ResponseEntity<Void>` (`ok().build()`, 빈 바디)
+      - `banner/controller/AdminBannerController.getPresignedUrl`(36) — `ResponseEntity<PresignedUrlResponse>`
+  - DoD: 조사 결과 목록 + 각 항목 표준화 or "정당한 예외" 사유 기록. ✅
+- [x] **P1-T3**: 변경 컨트롤러 `@WebMvcTest` 응답 구조 검증 추가/보강.
+  - `AuthControllerTest`에 kakao/apple 케이스 추가 — ApiResponse 표준 구조(`success/code/message/data`) + `data` 내부 필드 검증. 커밋 `🧪 32af093`.
 
 **PR**: `[REFACTOR] 컨트롤러 응답 규약 ApiResponse 통일`
 
@@ -201,7 +210,7 @@
 | Phase | 상태 | PR | 비고 |
 |-------|------|----|----|
 | P0 사전 준비 | ✅ | — | 기존 실패 테스트 6건 보정 후 기준선 green |
-| P1 응답 규약 | ⬜ | — | FE 응답계약 확인 필요 |
+| P1 응답 규약 | ✅ | — | AuthController kakao/apple 표준화(FE 하위호환 확인). admin image/banner presigned-url·save는 어드민 웹 계약상 정당한 예외로 보류 |
 | P2 컨벤션 정리 | ⬜ | — | |
 | P3 CQRS(전 도메인) | ⬜ | — | 도메인당 1 PR |
 | P4 대형 분해 | ⬜ | — | P3와 연속 |
