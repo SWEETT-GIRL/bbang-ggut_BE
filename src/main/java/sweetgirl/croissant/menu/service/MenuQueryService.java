@@ -11,14 +11,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.dto.ImageResponse;
-import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
 import sweetgirl.croissant.menu.dto.projection.MenuImageThumbnailProjection;
 import sweetgirl.croissant.menu.dto.response.MenuCategoryResponse;
 import sweetgirl.croissant.menu.dto.response.MenuDetailResponse;
 import sweetgirl.croissant.menu.dto.response.StoreMenuResponse;
 import sweetgirl.croissant.menu.entity.Menu;
-import sweetgirl.croissant.menu.entity.MenuLike;
 import sweetgirl.croissant.menu.exception.MenuException;
 import sweetgirl.croissant.menu.repository.MenuCategoryRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
@@ -33,12 +31,11 @@ import sweetgirl.croissant.store.repository.StoreRepository;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class MenuService {
+public class MenuQueryService {
 
 	private final MenuRepository menuRepository;
 	private final MenuImageFileRepository menuImageFileRepository;
 	private final MenuLikeRepository menuLikeRepository;
-	private final MemberRepository memberRepository;
 	private final StoreRepository storeRepository;
 	private final MenuCategoryRepository menuCategoryRepository;
 	private final ReviewRepository reviewRepository;
@@ -90,34 +87,6 @@ public class MenuService {
 		boolean isLiked = memberId != null && menuLikeRepository.existsByMemberIdAndMenuId(memberId, menuId);
 
 		return MenuDetailResponse.of(menu, images, isLiked);
-	}
-
-	@Transactional
-	public void likeMenu(Long menuId, Long memberId) {
-		Menu menu = menuRepository.findById(menuId)
-			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
-
-		if (menuLikeRepository.existsByMemberIdAndMenuId(memberId, menuId)) {
-			throw new MenuException(MenuErrorCode.ALREADY_LIKED);
-		}
-
-		menuLikeRepository.save(MenuLike.builder()
-			.member(memberRepository.getReferenceById(memberId))
-			.menu(menu)
-			.build());
-		menuRepository.incrementLikeCount(menuId);
-	}
-
-	@Transactional
-	public void cancelMenuLike(Long menuId, Long memberId) {
-		Menu menu = menuRepository.findById(menuId)
-			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
-
-		MenuLike menuLike = menuLikeRepository.findByMemberIdAndMenuId(memberId, menuId)
-			.orElseThrow(() -> new MenuException(MenuErrorCode.NOT_LIKED));
-
-		menuLikeRepository.delete(menuLike);
-		menuRepository.decrementLikeCount(menuId);
 	}
 
 	private Map<Long, ImageResponse> buildMenuImageMap(List<Menu> menus) {

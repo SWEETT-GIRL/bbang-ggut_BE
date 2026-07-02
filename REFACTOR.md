@@ -152,8 +152,10 @@
   - **결과**: 조회 7종 → `MemberQueryService`(readOnly), 쓰기 7종 → `MemberCommandService`. 컨트롤러 두 서비스 주입, `MemberControllerTest` 목 2개로 분리. (pre-commit `git add -u`로 리팩토링+테스트가 한 커밋에 병합됨) 커밋 `♻️ refactor: member 서비스 CQRS 분리`. member 서비스 단위 테스트는 기존에 없었음(Phase 6에서 보강 대상).
 - [x] **P3-T6 · alarm**: `alarm/service/AlarmService.java`(289줄) 분리.
   - **결과**: 조회 4종 → `AlarmQueryService`(readOnly), 쓰기 4종 → `AlarmCommandService`. 조회/쓰기 공유 get-or-create 헬퍼(`getNotificationSetting`)는 `NotificationSettingProvider` 컴포넌트로 추출(member `MemberReader` 선례). 컨트롤러 두 서비스 주입, `AlarmServiceTest` → `AlarmQueryServiceTest`/`AlarmCommandServiceTest` 재배치(provider 모킹 전환). 커밋 `♻️ refactor` + `🧪 test`.
-- [ ] **P3-T7 · abuse**: `abuse/service/*` 분리(현 분리 여부 확인 후).
-- [ ] **P3-T8 · menu**: `menu/service/MenuService.java`, `menu/service/TrendService.java` 분리.
+- [x] **P3-T7 · abuse**: `abuse/service/*` 분리(현 분리 여부 확인 후).
+  - **결과**: 두 서비스 모두 단일 `create*` 커맨드만 가진 쓰기 전용(클래스 readOnly는 무의미) → `AbuseReportService`→`AbuseReportCommandService`, `ModerationAppealService`→`ModerationAppealCommandService` 리네임(클래스 `@Transactional`, 중복 메서드 애노테이션 제거). 컨트롤러·테스트 참조 갱신. rename 기반이라 T4 선례대로 단일 커밋.
+- [x] **P3-T8 · menu**: `menu/service/MenuService.java`, `menu/service/TrendService.java` 분리.
+  - **결과**: `TrendService`는 전부 조회 → `TrendQueryService` 리네임. `MenuService`는 조회 3종(getCategories/getStoreMenus/getMenuDetail) → `MenuQueryService`(readOnly), 쓰기 2종(likeMenu/cancelMenuLike) → `MenuCommandService`. 컨트롤러 주입 교체, `MenuServiceTest` → `MenuQueryServiceTest`/`MenuCommandServiceTest` 재배치. 훅 `git add -u` 제약상 rename+split 단일 커밋.
 - [ ] **P3-T9 · store**: `store/service/StoreService.java`(조회+`registerKakaoStore`(207)/`subscribeStore`(239)/`unsubscribeStore`(252) 혼재), `StoreReportService.java`(327줄) 분리. (saved 계열은 이미 분리됨 — 나머지 정리)
 - [ ] **P3-T10 · review**: `review/service/ReviewService.java`(604줄) 분리. (Phase 4-대형분해와 병행)
 - [ ] **P3-T11 · admin/***: `admin/service/AdminStoreService.java`(484줄), `AdminMenuService.java`, `AdminMemberService.java`, `AdminImageService.java`, `AdminModerationAppealService.java` 등 분리. `AdminReportService`(962줄)는 Phase 4-대형분해와 결합.

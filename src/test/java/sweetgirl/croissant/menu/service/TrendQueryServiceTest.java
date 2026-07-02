@@ -25,7 +25,7 @@ import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
 @ExtendWith(MockitoExtension.class)
-class TrendServiceTest {
+class TrendQueryServiceTest {
 
 	@Mock
 	private KakaoGeoClient kakaoGeoClient;
@@ -39,7 +39,7 @@ class TrendServiceTest {
 	private StoreImageFileRepository storeImageFileRepository;
 
 	@InjectMocks
-	private TrendService trendService;
+	private TrendQueryService trendQueryService;
 
 	private static final double LAT = 37.5779093;
 	private static final double LNG = 126.9862841;
@@ -53,7 +53,7 @@ class TrendServiceTest {
 		given(famousMenuByRegionRepository.findByRegion3rd(Region3rd.종로구_가회동)).willReturn(List.of());
 
 		// when
-		RegionTrendResponse response = trendService.getTrend(LAT, LNG);
+		RegionTrendResponse response = trendQueryService.getTrend(LAT, LNG);
 
 		// then
 		assertThat(response.region3rd()).isEqualTo(Region3rd.종로구_가회동.name());
@@ -69,7 +69,7 @@ class TrendServiceTest {
 		given(famousMenuByRegionRepository.findByRegion3rd(Region3rd.종로구_가회동)).willReturn(List.of());
 
 		// when
-		RegionTrendResponse response = trendService.getTrend(LAT, LNG);
+		RegionTrendResponse response = trendQueryService.getTrend(LAT, LNG);
 
 		// then
 		assertThat(response.region3rd()).isEqualTo(Region3rd.종로구_가회동.name());
@@ -87,7 +87,7 @@ class TrendServiceTest {
 		given(famousMenuByRegionRepository.findByRegion3rd(Region3rd.종로구_가회동)).willReturn(List.of());
 
 		// when
-		RegionTrendResponse response = trendService.getTrend(LAT, LNG);
+		RegionTrendResponse response = trendQueryService.getTrend(LAT, LNG);
 
 		// then
 		assertThat(response.region3rd()).isEqualTo(Region3rd.종로구_가회동.name());
@@ -105,7 +105,7 @@ class TrendServiceTest {
 		given(famousMenuByRegionRepository.findByRegion3rd(Region3rd.종로구_가회동)).willReturn(List.of());
 
 		// when
-		RegionTrendResponse response = trendService.getTrend(LAT, LNG);
+		RegionTrendResponse response = trendQueryService.getTrend(LAT, LNG);
 
 		// then
 		assertThat(response.region3rd()).isEqualTo(Region3rd.종로구_가회동.name());
@@ -121,7 +121,7 @@ class TrendServiceTest {
 		given(storeRepository.findNearestRegion(LNG, LAT)).willReturn(List.of());
 
 		// when
-		RegionTrendResponse response = trendService.getTrend(LAT, LNG);
+		RegionTrendResponse response = trendQueryService.getTrend(LAT, LNG);
 
 		// then
 		assertThat(response.region3rd()).isNull();

@@ -31,7 +31,7 @@ import sweetgirl.croissant.store.repository.StoreRepository;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class TrendService {
+public class TrendQueryService {
 
 	private final KakaoGeoClient kakaoGeoClient;
 	private final StoreRepository storeRepository;
