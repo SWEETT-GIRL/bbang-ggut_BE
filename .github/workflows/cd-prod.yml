@@ -89,7 +89,7 @@ jobs:
           discord.notification.report-webhook-url=${DISCORD_REPORT_WEBHOOK_URL}
           discord.notification.abuse-webhook-url=${DISCORD_ABUSE_WEBHOOK_URL}
 
-          lambda.callback.secret-key=${{ secrets.LAMBDA_CALLBACK_SECRET_KEY }}
+          lambda.callback.secret-key=${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}
 
           logging.level.sweetgirl.croissant.external.opensearch=${OPENSEARCH_DEBUG_LOGGING:INFO}
 
