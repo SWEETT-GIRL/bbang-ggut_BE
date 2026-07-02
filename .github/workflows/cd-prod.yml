@@ -97,8 +97,8 @@ jobs:
           perf.dashboard.access-key=${PERF_DASHBOARD_ACCESS_KEY:}
           
           # OpenSearch 디버그 로그 활성화 (추가된 부분)
-          logging.level.sweetgirl.croissant.external.opensearch=DEBUG
-          logging.level.org.opensearch.client=DEBUG
+          logging.level.org.opensearch.client=${OPENSEARCH_DEBUG_LOGGING:INFO}
+          logging.level.sweetgirl.croissant.external.opensearch=${OPENSEARCH_DEBUG_LOGGING:INFO}
           EOF
 
       - name: Create Firebase service account file
@@ -159,6 +159,7 @@ jobs:
             echo "LAMBDA_CALLBACK_SECRET_KEY=${{ secrets.LAMBDA_CALLBACK_SECRET_KEY }}" >> .env
             echo "PERF_DASHBOARD_ENABLED=${{ secrets.PERF_DASHBOARD_ENABLED }}" >> .env
             echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env
+            echo "OPENSEARCH_DEBUG_LOGGING=${{ secrets.OPENSEARCH_DEBUG_LOGGING }}" >> .env
 
             docker compose pull
             docker compose up -d
