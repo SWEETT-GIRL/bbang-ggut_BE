@@ -1,11 +1,9 @@
 package sweetgirl.croissant.store.controller;
 
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.BDDMockito.given;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.BDDMockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import java.util.List;
 
@@ -50,7 +48,7 @@ class StoreControllerTest {
 	void searchStores_returnsOpenSearchResults() throws Exception {
 		StoreSearchResponse response = new StoreSearchResponse(
 			102L, "성수 베이크", "서울 성동구 성수동", null, "kakao-102", "02-0000", "127.0", "37.5", List.of(), List.of());
-		given(storeSearchService.searchStores(eq("성수 에그타르트"), isNull(), isNull(), eq(SearchSort.DISTANCE),
+		given(storeSearchService.searchStores(eq("성수 에그타르트"), isNull(), isNull(), eq(SearchSort.RELEVANCE),
 			eq(PageRequest.of(0, 15))))
 			.willReturn(new SliceResponse<>(List.of(response), false));
 

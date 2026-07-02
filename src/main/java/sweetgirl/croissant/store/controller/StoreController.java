@@ -79,11 +79,11 @@ public class StoreController {
 	@GetMapping("/search")
 	public ResponseEntity<ApiResponse<SliceResponse<StoreSearchResponse>>> searchStores(
 			@Parameter(description = "검색어") @RequestParam String query,
-			@Parameter(description = "현재 위치 위도 (지역어 없는 검색 시 거리순 정렬에 사용)") @RequestParam(required = false) Double lat,
-			@Parameter(description = "현재 위치 경도 (지역어 없는 검색 시 거리순 정렬에 사용)") @RequestParam(required = false) Double lon,
+			@Parameter(description = "현재 위치 위도 — 정확도순은 거리 가중에, 거리순은 정렬에 사용") @RequestParam(required = false) Double lat,
+			@Parameter(description = "현재 위치 경도 — 정확도순은 거리 가중에, 거리순은 정렬에 사용") @RequestParam(required = false) Double lon,
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "15") int size,
-			@Parameter(description = "정렬 기준") @RequestParam(defaultValue = "distance") String sort) {
+			@Parameter(description = "정렬 (기본 정확도순)") @RequestParam(defaultValue = "relevance") String sort) {
 		return ResponseEntity.ok(
 			ApiResponse.ok(storeSearchService.searchStores(query, lat, lon, SearchSort.from(sort),
 				PageRequest.of(page, size))));
