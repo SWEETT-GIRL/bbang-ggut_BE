@@ -26,7 +26,7 @@ import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.notification.service.AdminReportNotificationPublisher;
 
 @ExtendWith(MockitoExtension.class)
-class InquiryServiceTest {
+class InquiryCommandServiceTest {
 
 	@Mock
 	InquiryRepository inquiryRepository;
@@ -35,7 +35,7 @@ class InquiryServiceTest {
 	@Mock
 	AdminReportNotificationPublisher adminReportNotificationPublisher;
 	@InjectMocks
-	InquiryService inquiryService;
+	InquiryCommandService inquiryCommandService;
 
 	@Test
 	void createInquiry_savesInquiryAndPublishesNotification() {
@@ -49,7 +49,7 @@ class InquiryServiceTest {
 			return inquiry;
 		});
 
-		InquiryCreateResponse response = inquiryService.createInquiry(1L, request);
+		InquiryCreateResponse response = inquiryCommandService.createInquiry(1L, request);
 
 		assertThat(response.inquiryId()).isEqualTo(10L);
 		ArgumentCaptor<Inquiry> captor = ArgumentCaptor.forClass(Inquiry.class);

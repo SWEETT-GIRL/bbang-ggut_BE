@@ -15,7 +15,7 @@ import sweetgirl.croissant.notification.service.AdminReportNotificationPublisher
 @Service
 @Transactional
 @RequiredArgsConstructor
-public class InquiryService {
+public class InquiryCommandService {
 
 	private final InquiryRepository inquiryRepository;
 	private final MemberReader memberReader;
