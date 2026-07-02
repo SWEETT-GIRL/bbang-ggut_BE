@@ -1,10 +1,7 @@
 package sweetgirl.croissant.admin.service;
 
 import java.time.LocalDateTime;
-import java.util.Locale;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.abuse.entity.ModerationAction;
 import sweetgirl.croissant.abuse.entity.ModerationAppeal;
 import sweetgirl.croissant.abuse.enums.AbuseReportAction;
-import sweetgirl.croissant.abuse.enums.ModerationAppealStatus;
 import sweetgirl.croissant.abuse.enums.ModerationTargetType;
 import sweetgirl.croissant.abuse.repository.ModerationAppealRepository;
 import sweetgirl.croissant.admin.code.AdminErrorCode;
@@ -26,23 +22,13 @@ import sweetgirl.croissant.review.repository.ReviewRepository;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
-public class AdminModerationAppealService {
+@Transactional
+public class AdminModerationAppealCommandService {
 
 	private final ModerationAppealRepository moderationAppealRepository;
 	private final ReviewRepository reviewRepository;
 	private final MemberRestrictionRepository memberRestrictionRepository;
 
-	public Page<AdminModerationAppealResponse> getAppeals(String status, int page, int size) {
-		ModerationAppealStatus parsedStatus = toAppealStatus(status);
-		PageRequest pageRequest = PageRequest.of(page, size);
-		Page<ModerationAppeal> appeals = parsedStatus != null
-			? moderationAppealRepository.findByStatus(parsedStatus, pageRequest)
-			: moderationAppealRepository.findAllBy(pageRequest);
-		return appeals.map(AdminModerationAppealResponse::from);
-	}
-
-	@Transactional
 	public AdminModerationAppealResponse reviewAppeal(
 			Long appealId,
 			AdminModerationAppealReviewRequest request) {
@@ -99,17 +85,6 @@ public class AdminModerationAppealService {
 		MemberRestriction restriction = memberRestrictionRepository.findById(action.getTargetId())
 			.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_TARGET_NOT_FOUND));
 		restriction.release(LocalDateTime.now());
-	}
-
-	private ModerationAppealStatus toAppealStatus(String status) {
-		if (status == null) {
-			return null;
-		}
-		try {
-			return ModerationAppealStatus.valueOf(status.trim().toUpperCase(Locale.ROOT));
-		} catch (IllegalArgumentException e) {
-			throw new AdminException(AdminErrorCode.APPEAL_INVALID_STATUS);
-		}
 	}
 
 	private boolean toReviewAction(String action) {

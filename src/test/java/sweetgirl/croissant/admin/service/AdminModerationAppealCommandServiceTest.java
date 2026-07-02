@@ -7,7 +7,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -15,9 +14,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.abuse.entity.ModerationAction;
@@ -38,7 +34,7 @@ import sweetgirl.croissant.review.entity.Review;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 
 @ExtendWith(MockitoExtension.class)
-class AdminModerationAppealServiceTest {
+class AdminModerationAppealCommandServiceTest {
 
 	@Mock
 	ModerationAppealRepository moderationAppealRepository;
@@ -48,26 +44,7 @@ class AdminModerationAppealServiceTest {
 	MemberRestrictionRepository memberRestrictionRepository;
 
 	@InjectMocks
-	AdminModerationAppealService adminModerationAppealService;
-
-	@Test
-	void getAppeals_filtersByStatus() {
-		ModerationAppeal appeal = appeal(1L,
-			moderationAction(55L, member(20L), ModerationTargetType.REVIEW, 123L, AbuseReportAction.HIDE_REVIEW));
-		given(moderationAppealRepository.findByStatus(
-			ModerationAppealStatus.PENDING,
-			PageRequest.of(0, 20)))
-			.willReturn(new PageImpl<>(List.of(appeal)));
-
-		Page<AdminModerationAppealResponse> response = adminModerationAppealService.getAppeals(
-			"PENDING",
-			0,
-			20);
-
-		assertThat(response.getContent()).hasSize(1);
-		assertThat(response.getContent().get(0).appealId()).isEqualTo(1L);
-		assertThat(response.getContent().get(0).status()).isEqualTo("PENDING");
-	}
+	AdminModerationAppealCommandService adminModerationAppealCommandService;
 
 	@Test
 	void reviewAppeal_acceptDeleteReview_restoresReview() {
@@ -79,7 +56,7 @@ class AdminModerationAppealServiceTest {
 		given(moderationAppealRepository.findWithDetailsById(1L)).willReturn(Optional.of(appeal));
 		given(reviewRepository.findByIdWithDetails(123L)).willReturn(Optional.of(review));
 
-		AdminModerationAppealResponse response = adminModerationAppealService.reviewAppeal(
+		AdminModerationAppealResponse response = adminModerationAppealCommandService.reviewAppeal(
 			1L,
 			new AdminModerationAppealReviewRequest("ACCEPT", " 복구 처리 "));
 
@@ -105,7 +82,7 @@ class AdminModerationAppealServiceTest {
 		given(moderationAppealRepository.findWithDetailsById(1L)).willReturn(Optional.of(appeal));
 		given(memberRestrictionRepository.findById(200L)).willReturn(Optional.of(restriction));
 
-		AdminModerationAppealResponse response = adminModerationAppealService.reviewAppeal(
+		AdminModerationAppealResponse response = adminModerationAppealCommandService.reviewAppeal(
 			1L,
 			new AdminModerationAppealReviewRequest("ACCEPT", "제한 해제"));
 
@@ -120,7 +97,7 @@ class AdminModerationAppealServiceTest {
 		appeal.reject("이미 반려");
 		given(moderationAppealRepository.findWithDetailsById(1L)).willReturn(Optional.of(appeal));
 
-		assertThatThrownBy(() -> adminModerationAppealService.reviewAppeal(
+		assertThatThrownBy(() -> adminModerationAppealCommandService.reviewAppeal(
 			1L,
 			new AdminModerationAppealReviewRequest("ACCEPT", "복구")))
 			.isInstanceOf(AdminException.class)
