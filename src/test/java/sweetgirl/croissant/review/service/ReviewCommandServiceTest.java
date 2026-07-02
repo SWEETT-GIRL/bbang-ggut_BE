@@ -4,8 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.mock;
@@ -19,13 +17,12 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.StreamSupport;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.common.enums.MimeType;
@@ -46,9 +43,7 @@ import sweetgirl.croissant.review.dto.request.ReviewPresignedUrlRequest;
 import sweetgirl.croissant.review.dto.request.ReviewUpdateRequest;
 import sweetgirl.croissant.review.dto.response.ReviewCreateResponse;
 import sweetgirl.croissant.review.dto.response.ReviewDetailResponse;
-import sweetgirl.croissant.review.dto.response.ReviewListResponse;
 import sweetgirl.croissant.review.dto.response.ReviewPresignedUrlInfoResponse;
-import sweetgirl.croissant.review.dto.response.ReviewSummaryResponse;
 import sweetgirl.croissant.review.entity.Review;
 import sweetgirl.croissant.review.entity.ReviewImageFile;
 import sweetgirl.croissant.review.entity.ReviewRecommend;
@@ -60,7 +55,7 @@ import sweetgirl.croissant.review.repository.ReviewRepository;
 import sweetgirl.croissant.store.entity.Store;
 
 @ExtendWith(MockitoExtension.class)
-class ReviewServiceTest {
+class ReviewCommandServiceTest {
 
 	@Mock
 	S3Service s3Service;
@@ -79,87 +74,24 @@ class ReviewServiceTest {
 	@Mock
 	ObjectionableContentFilter objectionableContentFilter;
 
-	@InjectMocks
-	ReviewService reviewService;
+	ReviewCommandService reviewCommandService;
 
-	@Test
-	@DisplayName("getReviewSummary: recommended 정렬 기본 조회와 로그인 사용자의 isRecommended를 반영한다")
-	void getReviewSummary_recommendedSort_returnsPreviewWithRecommendedState() {
-		Member author = member(10L, "단팥");
-		Review review = review(1L, author, BigDecimal.valueOf(4.5), 7, LocalDateTime.of(2026, 6, 4, 10, 0));
-		ReviewImageFile image = image(100L, review, "reviews/members/10/images/a");
-
-		given(menuRepository.findByIdWithDetails(1L)).willReturn(Optional.of(mock(Menu.class)));
-		given(reviewRepository.findVisibleActiveReviewsOrderByRecommended(
-			eq(1L),
-			eq(false),
-			eq(99L),
-			any(Pageable.class)))
-			.willReturn(List.of(review));
-		given(reviewRepository.findVisibleActiveRatingsByMenuId(1L, 99L))
-			.willReturn(List.of(BigDecimal.valueOf(4.0), BigDecimal.valueOf(5.0)));
-		given(reviewRepository.countVisibleActiveByMenuId(1L, 99L)).willReturn(2L);
-		given(reviewImageFileRepository.findByReviewIdInOrderByReviewIdAscDisplayOrderAscIdAsc(List.of(1L)))
-			.willReturn(List.of(image));
-		given(reviewRecommendRepository.findRecommendedReviewIds(99L, List.of(1L))).willReturn(List.of(1L));
-		given(reviewRepository.findAuthorAggregatesByMemberIds(Set.of(10L)))
-			.willReturn(List.of(authorAggregate(10L, 3L, 4.0)));
-
-		ReviewSummaryResponse result = reviewService.getReviewSummary(1L, "recommended", false, 2, 99L);
-
-		assertThat(result.averageRating()).isEqualByComparingTo("4.5");
-		assertThat(result.reviewCount()).isEqualTo(2L);
-		assertThat(result.previewReviews()).hasSize(1);
-		assertThat(result.previewReviews().get(0).isRecommended()).isTrue();
-		assertThat(result.previewReviews().get(0).photos().get(0).awsKey())
-			.isEqualTo("reviews/members/10/images/a");
-		assertThat(result.previewReviews().get(0).author().reviewCount()).isEqualTo(3L);
-	}
-
-	@Test
-	@DisplayName("getReviews: recent 정렬은 size+1 조회로 hasNext를 계산한다")
-	void getReviews_recentSort_usesSizePlusOneAndHasNext() {
-		Member author = member(10L, "단팥");
-		List<Review> reviews = List.of(
-			review(1L, author, BigDecimal.valueOf(5.0), 0, LocalDateTime.now()),
-			review(2L, author, BigDecimal.valueOf(4.0), 0, LocalDateTime.now()),
-			review(3L, author, BigDecimal.valueOf(3.0), 0, LocalDateTime.now()));
-
-		given(menuRepository.findByIdWithDetails(1L)).willReturn(Optional.of(mock(Menu.class)));
-		given(reviewRepository.findVisibleActiveReviewsOrderByRecent(
-			eq(1L),
-			eq(true),
-			isNull(),
-			any(Pageable.class)))
-			.willReturn(reviews);
-		given(reviewRepository.findVisibleActiveRatingsByMenuId(1L, null))
-			.willReturn(List.of(BigDecimal.valueOf(4.0)));
-		given(reviewRepository.countVisibleActiveByMenuId(1L, null)).willReturn(3L);
-		given(reviewImageFileRepository.findByReviewIdInOrderByReviewIdAscDisplayOrderAscIdAsc(List.of(1L, 2L)))
-			.willReturn(List.of());
-		given(reviewRepository.findAuthorAggregatesByMemberIds(Set.of(10L)))
-			.willReturn(List.of(authorAggregate(10L, 3L, 4.0)));
-
-		ReviewListResponse result = reviewService.getReviews(1L, "recent", true, 1, 2, null);
-
-		assertThat(result.content()).hasSize(2);
-		assertThat(result.hasNext()).isTrue();
-		verify(reviewRepository).findVisibleActiveReviewsOrderByRecent(
-			eq(1L),
-			eq(true),
-			isNull(),
-			argThat(pageable -> pageable.getPageNumber() == 1 && pageable.getPageSize() == 3));
-		verify(reviewRecommendRepository, never()).findRecommendedReviewIds(any(), any());
-	}
-
-	@Test
-	@DisplayName("getReviewDetail: 차단한 작성자의 리뷰는 REVIEW_NOT_FOUND로 응답한다")
-	void getReviewDetail_blockedAuthor_throwsReviewNotFound() {
-		given(reviewRepository.findVisibleActiveByIdWithDetails(1L, 99L)).willReturn(Optional.empty());
-
-		assertThatThrownBy(() -> reviewService.getReviewDetail(1L, 99L))
-			.isInstanceOf(ReviewException.class)
-			.hasMessageContaining(ReviewErrorCode.REVIEW_NOT_FOUND.getMessage());
+	@BeforeEach
+	void setUp() {
+		ReviewResponseAssembler reviewResponseAssembler = new ReviewResponseAssembler(
+			reviewRepository,
+			reviewImageFileRepository,
+			reviewRecommendRepository);
+		reviewCommandService = new ReviewCommandService(
+			s3Service,
+			memberReader,
+			memberRestrictionReader,
+			menuRepository,
+			reviewRepository,
+			reviewImageFileRepository,
+			reviewRecommendRepository,
+			objectionableContentFilter,
+			reviewResponseAssembler);
 	}
 
 	@Test
@@ -180,7 +112,7 @@ class ReviewServiceTest {
 			return review;
 		});
 
-		ReviewCreateResponse result = reviewService.createReview(1L, 7L, request);
+		ReviewCreateResponse result = reviewCommandService.createReview(1L, 7L, request);
 
 		assertThat(result.reviewId()).isEqualTo(11L);
 		verify(objectionableContentFilter).validate("다시 살래요");
@@ -203,7 +135,7 @@ class ReviewServiceTest {
 		willThrow(new ReviewException(ReviewErrorCode.REVIEW_CONTENT_REJECTED))
 			.given(objectionableContentFilter).validate("010-1234-5678");
 
-		assertThatThrownBy(() -> reviewService.createReview(1L, 7L, request))
+		assertThatThrownBy(() -> reviewCommandService.createReview(1L, 7L, request))
 			.isInstanceOf(ReviewException.class)
 			.hasMessageContaining(ReviewErrorCode.REVIEW_CONTENT_REJECTED.getMessage());
 
@@ -219,7 +151,7 @@ class ReviewServiceTest {
 			.given(memberRestrictionReader).validateCanWrite(7L);
 
 		assertThatThrownBy(
-			() -> reviewService.createReview(1L, 7L, createRequest(BigDecimal.valueOf(4.5), "", List.of())))
+			() -> reviewCommandService.createReview(1L, 7L, createRequest(BigDecimal.valueOf(4.5), "", List.of())))
 			.isInstanceOf(MemberException.class)
 			.hasMessageContaining(MemberErrorCode.MEMBER_WRITE_RESTRICTED.getMessage());
 
@@ -234,7 +166,7 @@ class ReviewServiceTest {
 		given(menuRepository.findByIdWithDetails(1L)).willReturn(Optional.of(mock(Menu.class)));
 
 		assertThatThrownBy(
-			() -> reviewService.createReview(1L, 7L, createRequest(BigDecimal.valueOf(4.3), "", List.of())))
+			() -> reviewCommandService.createReview(1L, 7L, createRequest(BigDecimal.valueOf(4.3), "", List.of())))
 			.isInstanceOf(ReviewException.class)
 			.hasMessageContaining(ReviewErrorCode.INVALID_RATING.getMessage());
 	}
@@ -246,7 +178,7 @@ class ReviewServiceTest {
 		given(s3Service.generatePresignedUrl("reviews/members/7/images", "image/jpeg"))
 			.willReturn(new PresignedUrlResponse("a", "image/jpeg", "https://upload", "reviews/members/7/images/a"));
 
-		ReviewPresignedUrlInfoResponse result = reviewService.generateReviewPresignedUrls(
+		ReviewPresignedUrlInfoResponse result = reviewCommandService.generateReviewPresignedUrls(
 			7L,
 			new ReviewPresignedUrlRequest(List.of("image/jpeg")));
 
@@ -254,77 +186,10 @@ class ReviewServiceTest {
 		assertThat(result.presignedUrls().get(0).awsKey()).isEqualTo("reviews/members/7/images/a");
 
 		assertThatThrownBy(
-			() -> reviewService.generateReviewPresignedUrls(7L, new ReviewPresignedUrlRequest(List.of("image/webp"))))
+			() -> reviewCommandService.generateReviewPresignedUrls(7L,
+				new ReviewPresignedUrlRequest(List.of("image/webp"))))
 			.isInstanceOf(ReviewException.class)
 			.hasMessageContaining(ReviewErrorCode.INVALID_REVIEW_IMAGE_MIME_TYPE.getMessage());
-	}
-
-	@Test
-	@DisplayName("getMyReviews: 내 활성 리뷰를 최신순 slice로 반환한다")
-	void getMyReviews_returnsMyActiveReviews() {
-		Member member = member(7L, "슈크림");
-		Review review = reviewWithMenu(1L, member, BigDecimal.valueOf(4.5), 0, LocalDateTime.now());
-
-		given(memberReader.getMember(7L)).willReturn(member);
-		given(reviewRepository.findActiveByMemberIdOrderByRecent(eq(7L), any(Pageable.class)))
-			.willReturn(List.of(review));
-		given(reviewImageFileRepository.findByReviewIdInOrderByReviewIdAscDisplayOrderAscIdAsc(List.of(1L)))
-			.willReturn(List.of());
-		given(reviewRecommendRepository.findRecommendedReviewIds(7L, List.of(1L))).willReturn(List.of());
-		given(reviewRepository.findAuthorAggregatesByMemberIds(Set.of(7L)))
-			.willReturn(List.of(authorAggregate(7L, 1L, 4.5)));
-
-		var result = reviewService.getMyReviews(7L, 0, 20);
-
-		assertThat(result.content()).hasSize(1);
-		assertThat(result.content().get(0).storeName()).isEqualTo("단팥당");
-		assertThat(result.content().get(0).canEdit()).isTrue();
-		assertThat(result.content().get(0).canDelete()).isTrue();
-		assertThat(result.hasNext()).isFalse();
-	}
-
-	@Test
-	@DisplayName("getMemberReviews: 공개 프로필 리뷰를 최신순 slice로 반환하고 "
-		+ "viewer 상태를 반영한다")
-	void getMemberReviews_returnsPublicReviewsWithViewerState() {
-		Member author = member(10L, "단팥");
-		Review review = reviewWithMenu(1L, author, BigDecimal.valueOf(4.5), 7, LocalDateTime.now());
-		ReviewImageFile image = image(100L, review, "reviews/members/10/images/a");
-
-		given(memberReader.getMember(10L)).willReturn(author);
-		given(reviewRepository.findVisibleActiveByMemberIdOrderByRecent(eq(10L), eq(99L), any(Pageable.class)))
-			.willReturn(List.of(review));
-		given(reviewImageFileRepository.findByReviewIdInOrderByReviewIdAscDisplayOrderAscIdAsc(List.of(1L)))
-			.willReturn(List.of(image));
-		given(reviewRecommendRepository.findRecommendedReviewIds(99L, List.of(1L))).willReturn(List.of(1L));
-		given(reviewRepository.findAuthorAggregatesByMemberIds(Set.of(10L)))
-			.willReturn(List.of(authorAggregate(10L, 3L, 4.0)));
-
-		var result = reviewService.getMemberReviews(10L, 99L, 0, 20);
-
-		assertThat(result.content()).hasSize(1);
-		assertThat(result.content().get(0).isRecommended()).isTrue();
-		assertThat(result.content().get(0).canEdit()).isFalse();
-		assertThat(result.content().get(0).canDelete()).isFalse();
-		assertThat(result.content().get(0).photos().get(0).awsKey())
-			.isEqualTo("reviews/members/10/images/a");
-		assertThat(result.hasNext()).isFalse();
-		verify(reviewRepository).findVisibleActiveByMemberIdOrderByRecent(
-			eq(10L),
-			eq(99L),
-			argThat(pageable -> pageable.getPageNumber() == 0 && pageable.getPageSize() == 21));
-	}
-
-	@Test
-	@DisplayName("getMemberReviews: 존재하지 않는 회원이면 MEMBER_NOT_FOUND를 던진다")
-	void getMemberReviews_missingMember_throwsNotFound() {
-		given(memberReader.getMember(404L)).willThrow(new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
-
-		assertThatThrownBy(() -> reviewService.getMemberReviews(404L, 99L, 0, 20))
-			.isInstanceOf(MemberException.class)
-			.hasMessageContaining(MemberErrorCode.MEMBER_NOT_FOUND.getMessage());
-
-		verify(reviewRepository, never()).findVisibleActiveByMemberIdOrderByRecent(any(), any(), any());
 	}
 
 	@Test
@@ -346,7 +211,7 @@ class ReviewServiceTest {
 		given(reviewRepository.findAuthorAggregatesByMemberIds(Set.of(7L)))
 			.willReturn(List.of(authorAggregate(7L, 1L, 3.5)));
 
-		ReviewDetailResponse result = reviewService.updateReview(1L, 7L, request);
+		ReviewDetailResponse result = reviewCommandService.updateReview(1L, 7L, request);
 
 		assertThat(result.rating()).isEqualByComparingTo("3.5");
 		assertThat(result.textureTags()).containsExactly(TextureTag.CHEWY);
@@ -377,7 +242,7 @@ class ReviewServiceTest {
 		willThrow(new ReviewException(ReviewErrorCode.REVIEW_CONTENT_REJECTED))
 			.given(objectionableContentFilter).validate("owner@example.com");
 
-		assertThatThrownBy(() -> reviewService.updateReview(1L, 7L, request))
+		assertThatThrownBy(() -> reviewCommandService.updateReview(1L, 7L, request))
 			.isInstanceOf(ReviewException.class)
 			.hasMessageContaining(ReviewErrorCode.REVIEW_CONTENT_REJECTED.getMessage());
 
@@ -396,7 +261,7 @@ class ReviewServiceTest {
 		given(memberReader.getMember(7L)).willReturn(member);
 		given(reviewRepository.findActiveByIdWithDetails(1L)).willReturn(Optional.of(review));
 
-		assertThatThrownBy(() -> reviewService.updateReview(1L, 7L, updateRequest(List.of())))
+		assertThatThrownBy(() -> reviewCommandService.updateReview(1L, 7L, updateRequest(List.of())))
 			.isInstanceOf(ReviewException.class)
 			.hasMessageContaining(ReviewErrorCode.REVIEW_EDIT_PERIOD_EXPIRED.getMessage());
 
@@ -416,7 +281,7 @@ class ReviewServiceTest {
 		given(memberReader.getMember(7L)).willReturn(member(7L, "슈크림"));
 		given(reviewRepository.findActiveByIdWithDetails(1L)).willReturn(Optional.of(review));
 
-		assertThatThrownBy(() -> reviewService.updateReview(1L, 7L, updateRequest(List.of())))
+		assertThatThrownBy(() -> reviewCommandService.updateReview(1L, 7L, updateRequest(List.of())))
 			.isInstanceOf(ReviewException.class)
 			.hasMessageContaining(ReviewErrorCode.REVIEW_ACCESS_DENIED.getMessage());
 	}
@@ -433,7 +298,7 @@ class ReviewServiceTest {
 		given(reviewImageFileRepository.findByReviewIdOrderByDisplayOrderAscIdAsc(1L))
 			.willReturn(List.of(image));
 
-		reviewService.deleteReview(1L, 7L);
+		reviewCommandService.deleteReview(1L, 7L);
 
 		assertThat(review.getDeletedAt()).isNotNull();
 		verify(s3Service).deleteObject("reviews/members/7/images/a");
@@ -451,7 +316,7 @@ class ReviewServiceTest {
 		given(reviewRecommendRepository.existsByMemberIdAndReviewId(99L, 1L)).willReturn(false);
 		given(memberReader.getMember(99L)).willReturn(member);
 
-		reviewService.recommendReview(1L, 99L);
+		reviewCommandService.recommendReview(1L, 99L);
 
 		verify(reviewRecommendRepository)
 			.save(argThat(rec -> rec.getReview().equals(review) && rec.getMember().equals(member)));
@@ -466,7 +331,7 @@ class ReviewServiceTest {
 		given(reviewRepository.findActiveByIdWithDetails(1L)).willReturn(Optional.of(review));
 		given(reviewRecommendRepository.existsByMemberIdAndReviewId(99L, 1L)).willReturn(true);
 
-		assertThatThrownBy(() -> reviewService.recommendReview(1L, 99L))
+		assertThatThrownBy(() -> reviewCommandService.recommendReview(1L, 99L))
 			.isInstanceOf(ReviewException.class)
 			.hasMessageContaining(ReviewErrorCode.ALREADY_RECOMMENDED.getMessage());
 
@@ -479,7 +344,7 @@ class ReviewServiceTest {
 	void recommendReview_reviewNotFound_throwsReviewNotFound() {
 		given(reviewRepository.findActiveByIdWithDetails(99L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> reviewService.recommendReview(99L, 1L))
+		assertThatThrownBy(() -> reviewCommandService.recommendReview(99L, 1L))
 			.isInstanceOf(ReviewException.class)
 			.hasMessageContaining(ReviewErrorCode.REVIEW_NOT_FOUND.getMessage());
 
@@ -496,7 +361,7 @@ class ReviewServiceTest {
 		given(reviewRepository.findActiveByIdWithDetails(1L)).willReturn(Optional.of(review));
 		given(reviewRecommendRepository.findByMemberIdAndReviewId(99L, 1L)).willReturn(Optional.of(reviewRecommend));
 
-		reviewService.cancelReviewRecommend(1L, 99L);
+		reviewCommandService.cancelReviewRecommend(1L, 99L);
 
 		verify(reviewRecommendRepository).delete(reviewRecommend);
 		verify(reviewRepository).decrementRecommendCount(1L);
@@ -510,7 +375,7 @@ class ReviewServiceTest {
 		given(reviewRepository.findActiveByIdWithDetails(1L)).willReturn(Optional.of(review));
 		given(reviewRecommendRepository.findByMemberIdAndReviewId(99L, 1L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> reviewService.cancelReviewRecommend(1L, 99L))
+		assertThatThrownBy(() -> reviewCommandService.cancelReviewRecommend(1L, 99L))
 			.isInstanceOf(ReviewException.class)
 			.hasMessageContaining(ReviewErrorCode.NOT_RECOMMENDED.getMessage());
 
@@ -523,7 +388,7 @@ class ReviewServiceTest {
 	void cancelReviewRecommend_reviewNotFound_throwsReviewNotFound() {
 		given(reviewRepository.findActiveByIdWithDetails(99L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> reviewService.cancelReviewRecommend(99L, 1L))
+		assertThatThrownBy(() -> reviewCommandService.cancelReviewRecommend(99L, 1L))
 			.isInstanceOf(ReviewException.class)
 			.hasMessageContaining(ReviewErrorCode.REVIEW_NOT_FOUND.getMessage());
 
