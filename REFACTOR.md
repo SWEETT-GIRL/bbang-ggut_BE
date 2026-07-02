@@ -181,9 +181,15 @@
 
 **목적**: `code-convention` 파일 상한(800줄) 초과 서비스를 책임 단위로 분해. Phase 3의 CQRS 분리와 결합해 진행.
 
-- [ ] **P4-T1**: `admin/service/AdminReportService.java`(962줄) 분해 — Phase 3-T11의 CQRS 분리 위에서 신고 처리/조회/통계 등 책임 경계로 추가 분리.
-- [ ] **P4-T2**: `review/service/ReviewService.java`(604줄) 분해 (Phase 3-T10 결합).
-- [ ] **P4-T3**: 800줄 근접 서비스(`AdminStoreService` 484줄 등) 재점검 — 함수 50줄 상한 위반 메서드 우선 추출.
+- [x] **P4-T1**: `admin/service/AdminReportService.java`(962줄) 분해 — Phase 3-T11에서 제외됐던 CQRS 분리와 책임 분해를 동시 수행.
+  - **결과 (2026-07-02)**: 962줄 단일 서비스를 책임 경계로 **4개 클래스**로 분해(모두 400줄 미만).
+    - `AdminReportQueryService`(246줄, readOnly) — 제보 목록/상세 조회 + 상태 컨버터.
+    - `AbuseReportPriorityAnalyzer`(215줄, @Component) — 신고 우선순위 큐·통계 집계(집계 로직·비교자·`TargetKey`/`PriorityAggregation` 레코드·임계값 상수).
+    - `AdminReportCommandService`(278줄, @Transactional) — 승인/거절 디스패치 + 모더레이션. **`reviewReport` 97줄 → 종류별 private 메서드(최대 21줄)로 분해**(부록 A-2 함수 상한 위반 해소).
+    - `ContributionReportProcessor`(337줄, @Component) — 승인/거절 부수효과(Store 생성·영업시간·주소·이미지 S3 이동/정리·`parseMessage`).
+  - 컨트롤러 주입을 Query/Command 두 서비스로 교체, 원본 삭제. 기존 `AdminReportServiceTest`(reviewReport 검증) → `AdminReportCommandServiceTest`로 재배치(실제 `ContributionReportProcessor` + 목 레포, P3-T10 assembler 선례). 컨트롤러 테스트 목 2개 분리. `AbuseReportPriorityAnalyzerTest` 신규(우선순위 분류·통계 집계). 동작 보존, 전체 테스트 green. 커밋 `♻️ refactor`(ecfd82a) + `🧪 test`(9be768c).
+- [x] **P4-T2**: `review/service/ReviewService.java`(604줄) 분해 — **P3-T10에서 이미 완료**(Command 286·Query 178·`ReviewResponseAssembler` 196), 모두 400줄 미만·함수 최대 36줄. 추가 분해 불필요, 검증만 수행.
+- [x] **P4-T3**: 800줄 근접 서비스 재점검 — `AdminStoreService`는 **P3-T11에서 이미 Command(243)/Query(273)로 분리**, 모두 400줄 미만·함수 최대 24줄(50줄 상한 준수). 부록 A-2 함수 위반 목록 중 admin/store 계열 잔여 없음. 추가 분해 불필요, 검증만 수행.
 
 각 DoD: 분해 후 기존 테스트 통과 + 신규 클래스 테스트 추가. 순환 의존 없음.
 
@@ -237,16 +243,16 @@
 | 파일 | 줄수 | 판정 |
 |------|------|------|
 | `store/enums/Region3rd.java` | 2693 | **예외** — 행정구역 enum 상수 나열(데이터성). 분해 대상 아님 |
-| `admin/service/AdminReportService.java` | 962 | 최대(800) 초과 → **P4-T1** 분해 |
-| `review/service/ReviewService.java` | 604 | 최대 미만이나 권장 초과 → **P4-T2** 분해 |
-| `admin/service/AdminStoreService.java` | 484 | 권장 초과 → **P4-T3** 재점검 |
+| ~~`admin/service/AdminReportService.java`~~ | ~~962~~ | **P4-T1 완료** — Query/PriorityAnalyzer/Command/Processor 4클래스로 분해(모두 400줄 미만) |
+| ~~`review/service/ReviewService.java`~~ | ~~604~~ | **P3-T10/P4-T2 완료** — Command/Query/Assembler로 분해(모두 400줄 미만) |
+| ~~`admin/service/AdminStoreService.java`~~ | ~~484~~ | **P3-T11/P4-T3 완료** — Command(243)/Query(273)로 분리 |
 | `store/repository/StoreRepository.java` | 460 | Repository(쿼리 선언 집합) → 분해 우선순위 낮음, 관찰 대상 |
 
 ### 함수 길이 (50줄 초과 · 11건)
 
 | 메서드 | 줄수 | 위치 |
 |--------|------|------|
-| `AdminReportService.reviewReport()` | 97 | `admin/service/AdminReportService.java:269` |
+| ~~`AdminReportService.reviewReport()`~~ | ~~97~~ | **P4-T1 해소** — `AdminReportCommandService`에서 종류별 메서드로 분해(최대 21줄) |
 | `NaverEnrichRunner.runForStore()` | 77 | `admin/service/NaverEnrichRunner.java:57` |
 | `SecurityConfig.filterChain()` | 71 | `config/security/SecurityConfig.java:41` |
 | `JwtAuthenticationFilter.doFilterInternal()` | 60 | `member/jwt/JwtAuthenticationFilter.java:38` |
@@ -268,6 +274,6 @@
 | P1 응답 규약 | ✅ | — | AuthController kakao/apple 표준화(FE 하위호환 확인). admin image/banner presigned-url·save는 어드민 웹 계약상 정당한 예외로 보류 |
 | P2 컨벤션 정리 | ✅ | — | 약어/무의미 변수명 정리, EncryptedStringConverter @Autowired 제거(static holder), 길이 상한 초과 부록 A-2 기록 |
 | P3 CQRS(전 도메인) | ✅ | — | T1~T12 완료. policy·banner·inquiry·member·alarm·abuse·menu·store·review·admin(member·moderation-appeal·menu·image·store)·잔여(member-block·store-add-report·menu-add-report) 분리. AdminReportService·ReportNotificationService는 제외(Phase 4/부수효과 발행). 서비스별 소단위 커밋 |
-| P4 대형 분해 | ⬜ | — | P3와 연속 |
+| P4 대형 분해 | ✅ | — | T1: AdminReportService 962줄→4클래스(Query/PriorityAnalyzer/Command/Processor, 모두 400줄 미만, reviewReport 97줄 해소). T2·T3: Review·AdminStore는 P3에서 이미 상한 준수, 검증만 |
 | P5 null 정리 | ⬜ | — | 새 구조 위 |
 | P6 마무리 | ⬜ | — | |
