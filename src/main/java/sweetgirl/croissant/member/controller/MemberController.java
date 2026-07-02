@@ -109,7 +109,6 @@ public class MemberController {
 	@GetMapping("/me/notification-radius")
 	public ApiResponse<NotificationRadiusResponse> getNotificationRadius(
 			@AuthenticationPrincipal Long memberId) {
-		System.out.println("ㅇㅇㅇㅇ");
 		return ApiResponse.ok(memberService.getNotificationRadius(memberId));
 	}
 
