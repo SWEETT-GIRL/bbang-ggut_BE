@@ -31,7 +31,8 @@ import sweetgirl.croissant.admin.dto.response.AdminHighPriorityReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminModerationActionResponse;
 import sweetgirl.croissant.admin.dto.response.AdminReportDetailResponse;
 import sweetgirl.croissant.admin.dto.response.AdminReportResponse;
-import sweetgirl.croissant.admin.service.AdminReportService;
+import sweetgirl.croissant.admin.service.AdminReportCommandService;
+import sweetgirl.croissant.admin.service.AdminReportQueryService;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,7 +41,10 @@ class AdminReportControllerTest {
 	private MockMvc mockMvc;
 
 	@Mock
-	private AdminReportService adminReportService;
+	private AdminReportQueryService adminReportQueryService;
+
+	@Mock
+	private AdminReportCommandService adminReportCommandService;
 
 	@InjectMocks
 	private AdminReportController adminReportController;
@@ -72,7 +76,7 @@ class AdminReportControllerTest {
 			List.of("reports/stores/101/images/a.jpg"),
 			null,
 			"2026-06-12T09:30");
-		given(adminReportService.getReports("STORE_REPORT", "PENDING", 0, 20))
+		given(adminReportQueryService.getReports("STORE_REPORT", "PENDING", 0, 20))
 			.willReturn(new PageImpl<>(List.of(report), PageRequest.of(0, 20), 1));
 
 		mockMvc.perform(get("/api/admin/reports")
@@ -93,7 +97,7 @@ class AdminReportControllerTest {
 
 	@Test
 	void getAbuseReportStats_returnsStats() throws Exception {
-		given(adminReportService.getAbuseReportStats())
+		given(adminReportQueryService.getAbuseReportStats())
 			.willReturn(new AdminAbuseReportStatsResponse(
 				10,
 				4,
@@ -142,7 +146,7 @@ class AdminReportControllerTest {
 			List.of("SENSITIVE_REASON_PRIORITY", "TEMPORARY_HIDE_CANDIDATE", "MEMBER_REVIEW_CANDIDATE"),
 			"2026-06-05T12:00",
 			null);
-		given(adminReportService.getHighPriorityReports("PENDING", 0, 20))
+		given(adminReportQueryService.getHighPriorityReports("PENDING", 0, 20))
 			.willReturn(new PageImpl<>(List.of(report), PageRequest.of(0, 20), 1));
 
 		mockMvc.perform(get("/api/admin/reports/high-priority")
@@ -174,7 +178,7 @@ class AdminReportControllerTest {
 			List.of("reports/menus/12/images/a.jpg"),
 			null,
 			"2026-06-12T10:00");
-		given(adminReportService.getReportDetail(eq(12L), eq("MENU_ADD_REPORT")))
+		given(adminReportQueryService.getReportDetail(eq(12L), eq("MENU_ADD_REPORT")))
 			.willReturn(AdminReportDetailResponse.ofReport(report));
 
 		mockMvc.perform(get("/api/admin/reports/12")
@@ -207,7 +211,7 @@ class AdminReportControllerTest {
 			null,
 			null,
 			null);
-		given(adminReportService.getReportDetail(eq(1L), eq("ABUSE_REPORT")))
+		given(adminReportQueryService.getReportDetail(eq(1L), eq("ABUSE_REPORT")))
 			.willReturn(new AdminReportDetailResponse(
 				1L,
 				"ABUSE_REPORT",
@@ -243,12 +247,12 @@ class AdminReportControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true));
 
-		verify(adminReportService).reviewReport(eq(12L), any());
+		verify(adminReportCommandService).reviewReport(eq(12L), any());
 	}
 
 	@Test
 	void applyModerationAction_returnsActionResult() throws Exception {
-		given(adminReportService.applyModerationAction(eq(1L), any()))
+		given(adminReportCommandService.applyModerationAction(eq(1L), any()))
 			.willReturn(new AdminModerationActionResponse(
 				10L,
 				1L,

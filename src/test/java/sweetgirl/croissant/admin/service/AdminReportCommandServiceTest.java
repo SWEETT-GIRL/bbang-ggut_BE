@@ -48,7 +48,6 @@ import sweetgirl.croissant.contribution.entity.StoreContributionReportImageFile;
 import sweetgirl.croissant.contribution.enums.ContributionReportStatus;
 import sweetgirl.croissant.contribution.enums.ContributionReportType;
 import sweetgirl.croissant.contribution.enums.ContributionTargetType;
-import sweetgirl.croissant.contribution.repository.ContributionReportRepository;
 import sweetgirl.croissant.contribution.repository.MenuContributionReportImageFileRepository;
 import sweetgirl.croissant.contribution.repository.MenuContributionReportRepository;
 import sweetgirl.croissant.contribution.repository.StoreContributionReportImageFileRepository;
@@ -62,7 +61,6 @@ import sweetgirl.croissant.menu.entity.MenuCategory;
 import sweetgirl.croissant.menu.entity.MenuImageFile;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
-import sweetgirl.croissant.review.repository.ReviewImageFileRepository;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreBusinessHour;
@@ -76,12 +74,10 @@ import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
 @ExtendWith(MockitoExtension.class)
-class AdminReportServiceTest {
+class AdminReportCommandServiceTest {
 
 	@Mock
 	StoreRepository storeRepository;
-	@Mock
-	ContributionReportRepository contributionReportRepository;
 	@Mock
 	StoreContributionReportRepository storeContributionReportRepository;
 	@Mock
@@ -105,37 +101,35 @@ class AdminReportServiceTest {
 	@Mock
 	ReviewRepository reviewRepository;
 	@Mock
-	ReviewImageFileRepository reviewImageFileRepository;
-	@Mock
 	S3Service s3Service;
 	@Mock
 	ReportNotificationService reportNotificationService;
 	@Mock
 	ApplicationEventPublisher eventPublisher;
 
-	AdminReportService adminReportService;
+	AdminReportCommandService adminReportCommandService;
 
 	@BeforeEach
 	void setUp() {
-		adminReportService = new AdminReportService(
+		ContributionReportProcessor contributionReportProcessor = new ContributionReportProcessor(
 			storeRepository,
-			contributionReportRepository,
-			storeContributionReportRepository,
-			menuContributionReportRepository,
-			abuseReportRepository,
-			moderationActionRepository,
 			storeContributionReportImageFileRepository,
-			menuContributionReportImageFileRepository,
 			storeImageFileRepository,
 			storeBusinessHourRepository,
 			menuRepository,
 			menuImageFileRepository,
-			reviewRepository,
-			reviewImageFileRepository,
+			menuContributionReportImageFileRepository,
 			s3Service,
 			new ObjectMapper(),
-			reportNotificationService,
 			eventPublisher);
+		adminReportCommandService = new AdminReportCommandService(
+			storeContributionReportRepository,
+			menuContributionReportRepository,
+			abuseReportRepository,
+			moderationActionRepository,
+			reviewRepository,
+			reportNotificationService,
+			contributionReportProcessor);
 	}
 
 	@Test
@@ -151,7 +145,7 @@ class AdminReportServiceTest {
 		Store savedStore = store("새빵집", 100L);
 		given(storeRepository.save(any(Store.class))).willReturn(savedStore);
 
-		adminReportService.reviewReport(13L, new AdminReportReviewRequest("STORE_ADD_REPORT", "ACCEPT"));
+		adminReportCommandService.reviewReport(13L, new AdminReportReviewRequest("STORE_ADD_REPORT", "ACCEPT"));
 
 		verify(storeRepository).save(any(Store.class));
 		assertThat(report.getStatus()).isEqualTo(StoreReportStatus.ACCEPTED);
@@ -169,7 +163,7 @@ class AdminReportServiceTest {
 			14L, reporter, "123456", "새빵집", "서울 마포구 월드컵로 1", mock(Point.class));
 		given(storeContributionReportRepository.findByContributionReportId(14L)).willReturn(Optional.of(report));
 
-		adminReportService.reviewReport(14L, new AdminReportReviewRequest("STORE_ADD_REPORT", "REJECT"));
+		adminReportCommandService.reviewReport(14L, new AdminReportReviewRequest("STORE_ADD_REPORT", "REJECT"));
 
 		verify(storeRepository, never()).save(any(Store.class));
 		assertThat(report.getStatus()).isEqualTo(StoreReportStatus.REJECTED);
@@ -201,7 +195,7 @@ class AdminReportServiceTest {
 		given(menuContributionReportImageFileRepository.findByMenuContributionReportIdIn(List.of(11L)))
 			.willReturn(List.of(img));
 
-		adminReportService.reviewReport(11L, new AdminReportReviewRequest("MENU_ADD_REPORT", "ACCEPT"));
+		adminReportCommandService.reviewReport(11L, new AdminReportReviewRequest("MENU_ADD_REPORT", "ACCEPT"));
 
 		verify(menuRepository).save(any(Menu.class));
 		verify(s3Service).copyObject("menu-add-reports/temp/abc/uuid-file", "menus/99/uuid-file");
@@ -229,7 +223,7 @@ class AdminReportServiceTest {
 				+ "],\"reason\":\"확인\"}");
 		given(storeContributionReportRepository.findByContributionReportId(50L)).willReturn(Optional.of(report));
 
-		adminReportService.reviewReport(50L, new AdminReportReviewRequest("STORE_REPORT", "ACCEPT"));
+		adminReportCommandService.reviewReport(50L, new AdminReportReviewRequest("STORE_REPORT", "ACCEPT"));
 
 		verify(storeBusinessHourRepository).deleteByStoreId(3L);
 		ArgumentCaptor<List<StoreBusinessHour>> captor = ArgumentCaptor.forClass(List.class);
@@ -261,7 +255,7 @@ class AdminReportServiceTest {
 				+ "\"latitude\":37.55,\"longitude\":126.93,\"reason\":null}");
 		given(storeContributionReportRepository.findByContributionReportId(61L)).willReturn(Optional.of(report));
 
-		adminReportService.reviewReport(61L, new AdminReportReviewRequest("STORE_REPORT", "ACCEPT"));
+		adminReportCommandService.reviewReport(61L, new AdminReportReviewRequest("STORE_REPORT", "ACCEPT"));
 
 		verify(store).update(
 			eq(null),
@@ -311,7 +305,7 @@ class AdminReportServiceTest {
 		given(storeContributionReportImageFileRepository.findByStoreContributionReportIdIn(List.of(70L)))
 			.willReturn(List.of(src));
 
-		adminReportService.reviewReport(70L, new AdminReportReviewRequest("STORE_REPORT", "ACCEPT"));
+		adminReportCommandService.reviewReport(70L, new AdminReportReviewRequest("STORE_REPORT", "ACCEPT"));
 
 		verify(s3Service).deleteObject("stores/5/old1");
 		verify(s3Service).deleteObject("stores/5/old2");
@@ -354,7 +348,7 @@ class AdminReportServiceTest {
 		given(menuContributionReportImageFileRepository.findByMenuContributionReportIdIn(List.of(80L)))
 			.willReturn(List.of(src));
 
-		adminReportService.reviewReport(80L, new AdminReportReviewRequest("MENU_REPORT", "ACCEPT"));
+		adminReportCommandService.reviewReport(80L, new AdminReportReviewRequest("MENU_REPORT", "ACCEPT"));
 
 		verify(menu).update(null, 4500, null, null);
 		verify(s3Service).deleteObject("menus/200/oldmenu");
@@ -372,7 +366,7 @@ class AdminReportServiceTest {
 		given(report.getStatus()).willReturn(AbuseReportStatus.PENDING);
 		given(abuseReportRepository.findByIdWithMembers(31L)).willReturn(Optional.of(report));
 
-		adminReportService.reviewReport(31L, new AdminReportReviewRequest("ABUSE_REPORT", "ACCEPT"));
+		adminReportCommandService.reviewReport(31L, new AdminReportReviewRequest("ABUSE_REPORT", "ACCEPT"));
 
 		verify(report).accept();
 		verify(report, never()).reject();
@@ -387,7 +381,7 @@ class AdminReportServiceTest {
 		report.approve();
 		given(storeContributionReportRepository.findByContributionReportId(99L)).willReturn(Optional.of(report));
 
-		assertThatThrownBy(() -> adminReportService.reviewReport(
+		assertThatThrownBy(() -> adminReportCommandService.reviewReport(
 			99L, new AdminReportReviewRequest("STORE_REPORT", "ACCEPT")))
 			.isInstanceOf(AdminException.class)
 			.hasMessageContaining(AdminErrorCode.REPORT_ALREADY_REVIEWED.getMessage());
@@ -399,7 +393,7 @@ class AdminReportServiceTest {
 	@Test
 	@DisplayName("kind가 잘못되면 예외를 던진다")
 	void reviewReport_invalidKind_throws() {
-		assertThatThrownBy(() -> adminReportService.reviewReport(
+		assertThatThrownBy(() -> adminReportCommandService.reviewReport(
 			1L, new AdminReportReviewRequest("UNKNOWN", "ACCEPT")))
 			.isInstanceOf(AdminException.class);
 	}
