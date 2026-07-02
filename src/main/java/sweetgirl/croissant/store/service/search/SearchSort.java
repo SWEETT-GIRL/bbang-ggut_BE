@@ -9,7 +9,7 @@ public enum SearchSort {
 
 	public static SearchSort from(String value) {
 		if (value == null || value.isBlank()) {
-			return DISTANCE;
+			return RELEVANCE;
 		}
 		return Arrays.stream(values())
 			.filter(sort -> sort.name().equalsIgnoreCase(value))
