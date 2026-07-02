@@ -14,7 +14,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.abuse.dto.request.AbuseReportCreateRequest;
 import sweetgirl.croissant.abuse.dto.response.AbuseReportCreateResponse;
-import sweetgirl.croissant.abuse.service.AbuseReportService;
+import sweetgirl.croissant.abuse.service.AbuseReportCommandService;
 import sweetgirl.croissant.global.response.ApiResponse;
 
 @Tag(name = "Report", description = "신고 API")
@@ -23,7 +23,7 @@ import sweetgirl.croissant.global.response.ApiResponse;
 @RequiredArgsConstructor
 public class AbuseReportController {
 
-	private final AbuseReportService abuseReportService;
+	private final AbuseReportCommandService abuseReportCommandService;
 
 	@Operation(summary = "사용자 신고 등록", description = "targetType: REVIEW | MEMBER_PROFILE")
 	@PostMapping
@@ -31,6 +31,6 @@ public class AbuseReportController {
 			@AuthenticationPrincipal Long memberId,
 			@RequestBody @Valid AbuseReportCreateRequest request) {
 		return ResponseEntity.status(HttpStatus.CREATED)
-			.body(ApiResponse.created(abuseReportService.createReport(memberId, request)));
+			.body(ApiResponse.created(abuseReportCommandService.createReport(memberId, request)));
 	}
 }

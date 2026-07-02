@@ -28,7 +28,8 @@ import sweetgirl.croissant.store.dto.response.StoreDetailResponse;
 import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
 import sweetgirl.croissant.store.dto.response.SubscribedStoreResponse;
 import sweetgirl.croissant.store.dto.response.TopSubscribedStoreResponse;
-import sweetgirl.croissant.store.service.StoreService;
+import sweetgirl.croissant.store.service.StoreCommandService;
+import sweetgirl.croissant.store.service.StoreQueryService;
 import sweetgirl.croissant.store.service.search.SearchSort;
 import sweetgirl.croissant.store.service.search.StoreSearchService;
 
@@ -38,14 +39,15 @@ import sweetgirl.croissant.store.service.search.StoreSearchService;
 @RequiredArgsConstructor
 public class StoreController {
 
-	private final StoreService storeService;
+	private final StoreQueryService storeQueryService;
+	private final StoreCommandService storeCommandService;
 	private final StoreSearchService storeSearchService;
 
 	@Operation(summary = "빵집 상세 조회", description = "빵집 ID로 상세 정보를 조회합니다.")
 	@GetMapping("/{storeId}")
 	public ResponseEntity<ApiResponse<StoreDetailResponse>> getStoreDetail(@AuthenticationPrincipal Long memberId,
 			@PathVariable Long storeId) {
-		return ResponseEntity.ok(ApiResponse.ok(storeService.getStoreDetail(memberId, storeId)));
+		return ResponseEntity.ok(ApiResponse.ok(storeQueryService.getStoreDetail(memberId, storeId)));
 	}
 
 	@Operation(summary = "알림받는 빵집 목록 조회", description = "사용자 ID로 알림받는 빵집 목록을 조회합니다.")
@@ -55,7 +57,7 @@ public class StoreController {
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "10") int size) {
 		return ResponseEntity
-			.ok(ApiResponse.ok(storeService.getSubscribedStores(memberId, PageRequest.of(page, size))));
+			.ok(ApiResponse.ok(storeQueryService.getSubscribedStores(memberId, PageRequest.of(page, size))));
 	}
 
 	@Operation(summary = "지역별 빵집 조회", description = "지역 키워드로 빵집 목록을 조회합니다. 거리순 정렬 시 현재 위치(lat, lng)가 필요합니다.")
@@ -69,10 +71,10 @@ public class StoreController {
 			@RequestParam(defaultValue = "distance") String sort) {
 		if ("subscribe".equals(sort)) {
 			return ResponseEntity.ok(ApiResponse.ok(
-				storeService.getStoresByDistrictOrderBySubscribe(keyword, PageRequest.of(page, size))));
+				storeQueryService.getStoresByDistrictOrderBySubscribe(keyword, PageRequest.of(page, size))));
 		}
 		return ResponseEntity.ok(ApiResponse.ok(
-			storeService.getStoresByDistrictOrderByDistance(keyword, lat, lng, PageRequest.of(page, size))));
+			storeQueryService.getStoresByDistrictOrderByDistance(keyword, lat, lng, PageRequest.of(page, size))));
 	}
 
 	@Operation(summary = "빵집 검색", description = "OpenSearch 기반으로 빵집을 검색합니다.")
@@ -104,21 +106,21 @@ public class StoreController {
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "10") int size) {
 		return ResponseEntity.ok(
-			ApiResponse.ok(storeService.getNearbyStores(lng, lat, PageRequest.of(page, size))));
+			ApiResponse.ok(storeQueryService.getNearbyStores(lng, lat, PageRequest.of(page, size))));
 	}
 
 	@Operation(summary = "인기 빵집 목록 조회", description = "구독 수 내림차순으로 상위 빵집 목록을 조회합니다.")
 	@GetMapping("/popular")
 	public ResponseEntity<ApiResponse<List<TopSubscribedStoreResponse>>> getTopSubscribedStores(
 			@RequestParam double lat, @RequestParam double lng) {
-		return ResponseEntity.ok(ApiResponse.ok(storeService.getTopSubscribedStores(lng, lat)));
+		return ResponseEntity.ok(ApiResponse.ok(storeQueryService.getTopSubscribedStores(lng, lat)));
 	}
 
 	@Operation(summary = "카카오 검색 결과 빵집 등록", description = "카카오 검색 결과에서 클릭한 빵집을 DB에 저장하고 storeId를 반환")
 	@PostMapping("/kakao")
 	public ResponseEntity<ApiResponse<KakaoStoreRegisterResponse>> registerKakaoStore(
 			@RequestBody KakaoStoreRegisterRequest request) {
-		return ResponseEntity.ok(ApiResponse.ok(storeService.registerKakaoStore(request)));
+		return ResponseEntity.ok(ApiResponse.ok(storeCommandService.registerKakaoStore(request)));
 	}
 
 	@Operation(summary = "빵집 구독 (빵알람 등록)", description = "빵집을 구독합니다. 이미 구독 중이면 409를 반환합니다.")
@@ -126,7 +128,7 @@ public class StoreController {
 	public ResponseEntity<ApiResponse<Void>> subscribeStore(
 			@PathVariable Long storeId,
 			@AuthenticationPrincipal Long memberId) {
-		storeService.subscribeStore(storeId, memberId);
+		storeCommandService.subscribeStore(storeId, memberId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -135,7 +137,7 @@ public class StoreController {
 	public ResponseEntity<ApiResponse<Void>> unsubscribeStore(
 			@PathVariable Long storeId,
 			@AuthenticationPrincipal Long memberId) {
-		storeService.unsubscribeStore(storeId, memberId);
+		storeCommandService.unsubscribeStore(storeId, memberId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 }

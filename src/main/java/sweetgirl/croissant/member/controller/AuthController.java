@@ -1,8 +1,5 @@
 package sweetgirl.croissant.member.controller;
 
-import java.util.Map;
-
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,15 +29,15 @@ public class AuthController {
 	private final KakaoAuthService kakaoAuthService;
 
 	@PostMapping("/kakao")
-	public ResponseEntity<?> kakaoLogin(@RequestBody KakaoLoginRequest req) {
-		KakaoLoginResponse response = kakaoAuthService.login(req.accessToken(), req.deviceId());
-		return ResponseEntity.ok(Map.of("data", response));
+	public ApiResponse<KakaoLoginResponse> kakaoLogin(@RequestBody KakaoLoginRequest request) {
+		KakaoLoginResponse response = kakaoAuthService.login(request.accessToken(), request.deviceId());
+		return ApiResponse.ok(response);
 	}
 
 	@PostMapping("/apple")
-	public ResponseEntity<?> appleLogin(@RequestBody AppleLoginRequest req) {
-		AppleLoginResponse response = appleAuthService.login(req.identityToken(), req.deviceId());
-		return ResponseEntity.ok(Map.of("data", response));
+	public ApiResponse<AppleLoginResponse> appleLogin(@RequestBody AppleLoginRequest request) {
+		AppleLoginResponse response = appleAuthService.login(request.identityToken(), request.deviceId());
+		return ApiResponse.ok(response);
 	}
 
 	// Access Token 재발급

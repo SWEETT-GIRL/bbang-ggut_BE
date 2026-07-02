@@ -14,7 +14,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.abuse.dto.request.ModerationAppealCreateRequest;
 import sweetgirl.croissant.abuse.dto.response.ModerationAppealCreateResponse;
-import sweetgirl.croissant.abuse.service.ModerationAppealService;
+import sweetgirl.croissant.abuse.service.ModerationAppealCommandService;
 import sweetgirl.croissant.global.response.ApiResponse;
 
 @Tag(name = "Moderation Appeal", description = "이의제기 API")
@@ -23,7 +23,7 @@ import sweetgirl.croissant.global.response.ApiResponse;
 @RequiredArgsConstructor
 public class ModerationAppealController {
 
-	private final ModerationAppealService moderationAppealService;
+	private final ModerationAppealCommandService moderationAppealCommandService;
 
 	@Operation(summary = "이의제기 등록", description = "조치 후 30일 이내에 본인에게 적용된 moderation action에 이의제기합니다.")
 	@PostMapping
@@ -31,6 +31,6 @@ public class ModerationAppealController {
 			@AuthenticationPrincipal Long memberId,
 			@RequestBody @Valid ModerationAppealCreateRequest request) {
 		return ResponseEntity.status(HttpStatus.CREATED)
-			.body(ApiResponse.created(moderationAppealService.createAppeal(memberId, request)));
+			.body(ApiResponse.created(moderationAppealCommandService.createAppeal(memberId, request)));
 	}
 }

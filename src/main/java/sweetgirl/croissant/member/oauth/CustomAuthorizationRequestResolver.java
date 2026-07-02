@@ -24,9 +24,10 @@ public class CustomAuthorizationRequestResolver implements OAuth2AuthorizationRe
 	private static final String DEVICE_ID_COOKIE = "deviceId"; // 임시 저장할 쿠키 이름
 	private static final int COOKIE_MAX_AGE = 300; // 쿠키 유효 시간: 5분 (카카오 로그인 완료까지 충분)
 
-	public CustomAuthorizationRequestResolver(ClientRegistrationRepository repo) {
+	public CustomAuthorizationRequestResolver(ClientRegistrationRepository clientRegistrationRepository) {
 		// "/oauth2/authorization" 경로에서 동작하도록 기본 리졸버 초기화
-		this.defaultResolver = new DefaultOAuth2AuthorizationRequestResolver(repo, "/oauth2/authorization");
+		this.defaultResolver = new DefaultOAuth2AuthorizationRequestResolver(
+			clientRegistrationRepository, "/oauth2/authorization");
 	}
 
 	// GET /oauth2/authorization/kakao?deviceId=폰고유ID 요청 시 호출

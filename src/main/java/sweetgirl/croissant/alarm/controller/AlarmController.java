@@ -26,7 +26,8 @@ import sweetgirl.croissant.alarm.dto.response.MarketingEnabledResponse;
 import sweetgirl.croissant.alarm.dto.response.NotificationEnabledResponse;
 import sweetgirl.croissant.alarm.dto.response.ReportNotificationResponse;
 import sweetgirl.croissant.alarm.dto.response.StoreNotificationResponse;
-import sweetgirl.croissant.alarm.service.AlarmService;
+import sweetgirl.croissant.alarm.service.AlarmCommandService;
+import sweetgirl.croissant.alarm.service.AlarmQueryService;
 import sweetgirl.croissant.alarm.service.FcmService;
 import sweetgirl.croissant.alarm.service.ReportNotificationService;
 import sweetgirl.croissant.global.response.ApiResponse;
@@ -38,7 +39,8 @@ import sweetgirl.croissant.global.response.ApiResponse;
 public class AlarmController {
 
 	private final FcmService fcmService;
-	private final AlarmService alarmService;
+	private final AlarmQueryService alarmQueryService;
+	private final AlarmCommandService alarmCommandService;
 	private final ReportNotificationService reportNotificationService;
 
 	@Operation(summary = "FCM 토큰 등록/갱신", description = "디바이스의 FCM 푸시 토큰을 등록하거나 갱신합니다. 동일 deviceId가 존재하면 토큰을 업데이트합니다.")
@@ -60,7 +62,7 @@ public class AlarmController {
 	@Operation(summary = "알림 히스토리 조회", description = "로그인한 사용자에게 발송된 빵집 알림 목록을 최신순으로 반환합니다.")
 	@GetMapping("/history")
 	public ApiResponse<List<StoreNotificationResponse>> getNotificationHistory(@AuthenticationPrincipal Long memberId) {
-		List<StoreNotificationResponse> history = alarmService.getStoreNotificationHistory(memberId);
+		List<StoreNotificationResponse> history = alarmQueryService.getStoreNotificationHistory(memberId);
 		return ApiResponse.ok(history);
 	}
 
@@ -68,32 +70,32 @@ public class AlarmController {
 	@PostMapping("/{id}")
 	public ApiResponse<Void> readNotification(@AuthenticationPrincipal Long memberId,
 			@Parameter(description = "읽음 처리할 알림 ID") @PathVariable Long id) {
-		alarmService.markAsRead(memberId, id);
+		alarmCommandService.markAsRead(memberId, id);
 		return ApiResponse.ok(null);
 	}
 
 	@Operation(summary = "빵알람 수신 여부 조회", description = "현재 빵알람 수신 여부를 반환합니다.")
 	@GetMapping("/settings/notification") // GET /alarm/settings/notification
 	public ApiResponse<NotificationEnabledResponse> getNotificationEnabled(@AuthenticationPrincipal Long memberId) {
-		return ApiResponse.ok(alarmService.getNotificationEnabled(memberId)); // 서비스에서 현재 상태 조회 후 응답
+		return ApiResponse.ok(alarmQueryService.getNotificationEnabled(memberId)); // 서비스에서 현재 상태 조회 후 응답
 	}
 
 	@Operation(summary = "빵알람 수신 여부 토글", description = "빵알람 수신 여부를 반전시키고 변경된 상태를 반환합니다.")
 	@PatchMapping("/settings/notification") // PATCH /alarm/settings/notification — request body 없이 호출
 	public ApiResponse<NotificationEnabledResponse> toggleNotificationEnabled(@AuthenticationPrincipal Long memberId) {
-		return ApiResponse.ok(alarmService.toggleNotificationEnabled(memberId)); // 토글 후 변경된 상태 응답
+		return ApiResponse.ok(alarmCommandService.toggleNotificationEnabled(memberId)); // 토글 후 변경된 상태 응답
 	}
 
 	@Operation(summary = "마케팅 알람 수신 여부 조회", description = "현재 마케팅 알람 수신 여부를 반환합니다.")
 	@GetMapping("/settings/marketing") // GET /alarm/settings/marketing
 	public ApiResponse<MarketingEnabledResponse> getMarketingEnabled(@AuthenticationPrincipal Long memberId) {
-		return ApiResponse.ok(alarmService.getMarketingEnabled(memberId)); // 서비스에서 현재 상태 조회 후 응답
+		return ApiResponse.ok(alarmQueryService.getMarketingEnabled(memberId)); // 서비스에서 현재 상태 조회 후 응답
 	}
 
 	@Operation(summary = "마케팅 알람 수신 여부 토글", description = "마케팅 알람 수신 여부를 반전시키고 변경된 상태를 반환합니다.")
 	@PatchMapping("/settings/marketing") // PATCH /alarm/settings/marketing — request body 없이 호출
 	public ApiResponse<MarketingEnabledResponse> toggleMarketingEnabled(@AuthenticationPrincipal Long memberId) {
-		return ApiResponse.ok(alarmService.toggleMarketingEnabled(memberId)); // 토글 후 변경된 상태 응답
+		return ApiResponse.ok(alarmCommandService.toggleMarketingEnabled(memberId)); // 토글 후 변경된 상태 응답
 	}
 
 	@Operation(summary = "내 제보 알림 목록 조회", description = "사용자가 제출한 제보의 승인/거절 알림 목록을 최신순으로 반환합니다.")
@@ -116,7 +118,7 @@ public class AlarmController {
 	public ApiResponse<GeofenceCandidatesResponse> getGeofenceCandidates(@AuthenticationPrincipal Long memberId,
 			@Parameter(description = "현재 위치 위도") @RequestParam double lat,
 			@Parameter(description = "현재 위치 경도") @RequestParam double lng) {
-		GeofenceCandidatesResponse geofenceCandidates = alarmService.getGeofenceCandidates(memberId, lat, lng);
+		GeofenceCandidatesResponse geofenceCandidates = alarmQueryService.getGeofenceCandidates(memberId, lat, lng);
 		return ApiResponse.ok(geofenceCandidates);
 	}
 
@@ -124,7 +126,7 @@ public class AlarmController {
 	@PostMapping("/geofence/enter")
 	public ApiResponse<Void> handleGeofenceEnter(@AuthenticationPrincipal Long memberId,
 			@RequestBody @Valid GeofenceEnterRequest request) {
-		alarmService.handleGeofenceEnter(memberId, request);
+		alarmCommandService.handleGeofenceEnter(memberId, request);
 		return ApiResponse.ok(null);
 	}
 

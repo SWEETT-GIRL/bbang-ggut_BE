@@ -27,7 +27,8 @@ import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.dto.response.BlockListResponse;
 import sweetgirl.croissant.member.dto.response.BlockResponse;
 import sweetgirl.croissant.member.exception.MemberException;
-import sweetgirl.croissant.member.service.MemberBlockService;
+import sweetgirl.croissant.member.service.MemberBlockCommandService;
+import sweetgirl.croissant.member.service.MemberBlockQueryService;
 
 @ExtendWith(MockitoExtension.class)
 class MemberBlockControllerTest {
@@ -35,7 +36,9 @@ class MemberBlockControllerTest {
 	private MockMvc mockMvc;
 
 	@Mock
-	private MemberBlockService memberBlockService;
+	private MemberBlockQueryService memberBlockQueryService;
+	@Mock
+	private MemberBlockCommandService memberBlockCommandService;
 
 	@InjectMocks
 	private MemberBlockController memberBlockController;
@@ -50,7 +53,7 @@ class MemberBlockControllerTest {
 
 	@Test
 	void blockMember_returns201WithBlockedMember() throws Exception {
-		given(memberBlockService.blockMember(any(), any()))
+		given(memberBlockCommandService.blockMember(any(), any()))
 			.willReturn(new BlockResponse(2L, "대상자", LocalDateTime.of(2026, 6, 5, 10, 0)));
 
 		mockMvc.perform(post("/blocks")
@@ -64,7 +67,7 @@ class MemberBlockControllerTest {
 
 	@Test
 	void blockMember_returns400WhenSelfTarget() throws Exception {
-		given(memberBlockService.blockMember(any(), any()))
+		given(memberBlockCommandService.blockMember(any(), any()))
 			.willThrow(new MemberException(MemberErrorCode.MEMBER_BLOCK_SELF_NOT_ALLOWED));
 
 		mockMvc.perform(post("/blocks")
@@ -76,7 +79,7 @@ class MemberBlockControllerTest {
 
 	@Test
 	void unblockMember_returns200() throws Exception {
-		willDoNothing().given(memberBlockService).unblockMember(any(), any());
+		willDoNothing().given(memberBlockCommandService).unblockMember(any(), any());
 
 		mockMvc.perform(delete("/blocks/2"))
 			.andExpect(status().isOk())
@@ -85,7 +88,7 @@ class MemberBlockControllerTest {
 
 	@Test
 	void getBlocks_returns200WithBlockList() throws Exception {
-		given(memberBlockService.getBlocks(any(), any(Integer.class), any(Integer.class)))
+		given(memberBlockQueryService.getBlocks(any(), any(Integer.class), any(Integer.class)))
 			.willReturn(new BlockListResponse(
 				List.of(new BlockResponse(2L, "대상자", LocalDateTime.of(2026, 6, 5, 10, 0))),
 				false));
