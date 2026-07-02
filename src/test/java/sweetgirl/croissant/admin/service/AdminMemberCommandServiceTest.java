@@ -35,7 +35,7 @@ import sweetgirl.croissant.member.repository.MemberRestrictionRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 
 @ExtendWith(MockitoExtension.class)
-class AdminMemberServiceTest {
+class AdminMemberCommandServiceTest {
 
 	@Mock
 	MemberReader memberReader;
@@ -45,7 +45,7 @@ class AdminMemberServiceTest {
 	ModerationActionRepository moderationActionRepository;
 
 	@InjectMocks
-	AdminMemberService adminMemberService;
+	AdminMemberCommandService adminMemberCommandService;
 
 	@Test
 	@DisplayName("resetProfile: 회원 닉네임을 기본값으로 초기화하고 이력을 저장한다")
@@ -59,7 +59,7 @@ class AdminMemberServiceTest {
 				return action;
 			});
 
-		AdminProfileResetResponse response = adminMemberService.resetProfile(
+		AdminProfileResetResponse response = adminMemberCommandService.resetProfile(
 			20L,
 			new AdminProfileResetRequest(" 부적절한 닉네임 "));
 
@@ -93,7 +93,7 @@ class AdminMemberServiceTest {
 			});
 
 		LocalDateTime before = LocalDateTime.now();
-		AdminMemberRestrictionResponse response = adminMemberService.createRestriction(
+		AdminMemberRestrictionResponse response = adminMemberCommandService.createRestriction(
 			20L,
 			new AdminMemberRestrictionRequest("WRITE_RESTRICTED", 7, " 반복 위반 "));
 		LocalDateTime after = LocalDateTime.now();
@@ -123,7 +123,7 @@ class AdminMemberServiceTest {
 	void createRestriction_invalidType_throws() {
 		given(memberReader.getMember(20L)).willReturn(member(20L, "사용자"));
 
-		assertThatThrownBy(() -> adminMemberService.createRestriction(
+		assertThatThrownBy(() -> adminMemberCommandService.createRestriction(
 			20L,
 			new AdminMemberRestrictionRequest("UNKNOWN", 7, "사유")))
 			.isInstanceOf(AdminException.class)

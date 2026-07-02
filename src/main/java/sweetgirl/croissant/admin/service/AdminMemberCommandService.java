@@ -31,8 +31,8 @@ import sweetgirl.croissant.member.service.MemberReader;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
-public class AdminMemberService {
+@Transactional
+public class AdminMemberCommandService {
 	private static final String DEFAULT_RESET_NICKNAME = "빵긋 사용자";
 
 	private final MemberReader memberReader;
@@ -41,7 +41,6 @@ public class AdminMemberService {
 	private final RefreshTokenRepository refreshTokenRepository;
 	private final FcmTokenRepository fcmTokenRepository;
 
-	@Transactional
 	public AdminMemberBanResponse banMember(Long memberId, AdminMemberBanRequest request) {
 
 		Member member = memberReader.getMember(memberId);
@@ -80,7 +79,6 @@ public class AdminMemberService {
 		return AdminMemberBanResponse.of(member, restriction, action);
 	}
 
-	@Transactional
 	public AdminProfileResetResponse resetProfile(Long memberId, AdminProfileResetRequest request) {
 		Member member = memberReader.getMember(memberId);
 
@@ -89,7 +87,6 @@ public class AdminMemberService {
 		return AdminProfileResetResponse.of(member, action);
 	}
 
-	@Transactional
 	public AdminMemberRestrictionResponse createRestriction(
 			Long memberId,
 			AdminMemberRestrictionRequest request) {
