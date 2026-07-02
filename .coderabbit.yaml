@@ -1,13 +1,13 @@
 reviews:
-  profile: "chill"
-  language: "ko"
+  profile: chill
+  language: ko
 
   request_review_on_non_default_branch: true
 
   auto_review:
     base_branches:
-      - "dev"
-      - "main"
+      - dev
+      - main
 
   path_filters:
     - "!**/docs/**"
