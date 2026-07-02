@@ -21,7 +21,8 @@ import sweetgirl.croissant.member.dto.response.ConsentResponse;
 import sweetgirl.croissant.member.dto.response.MemberProfileResponse;
 import sweetgirl.croissant.member.dto.response.MenuCategoryResponse;
 import sweetgirl.croissant.member.exception.MemberException;
-import sweetgirl.croissant.member.service.MemberService;
+import sweetgirl.croissant.member.service.MemberCommandService;
+import sweetgirl.croissant.member.service.MemberQueryService;
 
 @ExtendWith(MockitoExtension.class)
 class MemberControllerTest {
@@ -29,7 +30,9 @@ class MemberControllerTest {
 	private MockMvc mockMvc;
 
 	@Mock
-	private MemberService memberService;
+	private MemberQueryService memberQueryService;
+	@Mock
+	private MemberCommandService memberCommandService;
 
 	@InjectMocks
 	private MemberController memberController;
@@ -47,7 +50,7 @@ class MemberControllerTest {
 	@Test
 	void getProfile_returns200WithIdAndNickname_whenMemberExists() throws Exception {
 		MemberProfileResponse response = new MemberProfileResponse(1L, "달콤한크루아상");
-		given(memberService.getProfile(any())).willReturn(response);
+		given(memberQueryService.getProfile(any())).willReturn(response);
 
 		mockMvc.perform(get("/users/me"))
 			.andExpect(status().isOk())
@@ -58,7 +61,7 @@ class MemberControllerTest {
 
 	@Test
 	void getProfile_returns404_whenMemberNotFound() throws Exception {
-		given(memberService.getProfile(any()))
+		given(memberQueryService.getProfile(any()))
 			.willThrow(new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 
 		mockMvc.perform(get("/users/me"))
@@ -70,7 +73,7 @@ class MemberControllerTest {
 	@Test
 	void getFavoriteBread_returns200WithBreadList_whenMemberExists() throws Exception {
 		MenuCategoryResponse response = new MenuCategoryResponse(new String[] {"소금빵", "크루아상"});
-		given(memberService.getLikedMenu(any())).willReturn(response);
+		given(memberQueryService.getLikedMenu(any())).willReturn(response);
 
 		mockMvc.perform(get("/users/me/favorite-bread"))
 			.andExpect(status().isOk())
@@ -81,7 +84,7 @@ class MemberControllerTest {
 
 	@Test
 	void getFavoriteBread_returns200WithEmptyList_whenNoFavoritesRegistered() throws Exception {
-		given(memberService.getLikedMenu(any())).willReturn(new MenuCategoryResponse(new String[] {}));
+		given(memberQueryService.getLikedMenu(any())).willReturn(new MenuCategoryResponse(new String[] {}));
 
 		mockMvc.perform(get("/users/me/favorite-bread"))
 			.andExpect(status().isOk())
@@ -91,7 +94,7 @@ class MemberControllerTest {
 
 	@Test
 	void getFavoriteBread_returns404_whenMemberNotFound() throws Exception {
-		given(memberService.getLikedMenu(any()))
+		given(memberQueryService.getLikedMenu(any()))
 			.willThrow(new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 
 		mockMvc.perform(get("/users/me/favorite-bread"))
@@ -102,7 +105,7 @@ class MemberControllerTest {
 
 	@Test
 	void enrollFavoriteBread_returns200_whenValidBreadList() throws Exception {
-		willDoNothing().given(memberService).updateLikeMenuCategory(any(), any());
+		willDoNothing().given(memberCommandService).updateLikeMenuCategory(any(), any());
 
 		mockMvc.perform(post("/users/me/favorite-bread")
 			.contentType(MediaType.APPLICATION_JSON)
@@ -114,7 +117,7 @@ class MemberControllerTest {
 	@Test
 	void enrollFavoriteBread_returns404_whenMemberNotFound() throws Exception {
 		willThrow(new MemberException(MemberErrorCode.MEMBER_NOT_FOUND))
-			.given(memberService).updateLikeMenuCategory(any(), any());
+			.given(memberCommandService).updateLikeMenuCategory(any(), any());
 
 		mockMvc.perform(post("/users/me/favorite-bread")
 			.contentType(MediaType.APPLICATION_JSON)
@@ -125,7 +128,7 @@ class MemberControllerTest {
 	@Test
 	void enrollFavoriteBread_returns404_whenMenuNotFound() throws Exception {
 		willThrow(new MemberException(MemberErrorCode.MENU_NOT_FOUND))
-			.given(memberService).updateLikeMenuCategory(any(), any());
+			.given(memberCommandService).updateLikeMenuCategory(any(), any());
 
 		mockMvc.perform(post("/users/me/favorite-bread")
 			.contentType(MediaType.APPLICATION_JSON)
@@ -137,7 +140,7 @@ class MemberControllerTest {
 
 	@Test
 	void createConsent_returns200_whenAllFieldsProvided() throws Exception {
-		willDoNothing().given(memberService).createConsent(any(), any());
+		willDoNothing().given(memberCommandService).createConsent(any(), any());
 
 		mockMvc.perform(post("/users/me/consent")
 			.contentType(MediaType.APPLICATION_JSON)
@@ -165,7 +168,7 @@ class MemberControllerTest {
 	@Test
 	void getConsent_returns200WithConsentStatus_whenMemberExists() throws Exception {
 		ConsentResponse response = new ConsentResponse(true, false, false, false, null, null);
-		given(memberService.getConsent(any())).willReturn(response);
+		given(memberQueryService.getConsent(any())).willReturn(response);
 
 		mockMvc.perform(get("/users/me/consent"))
 			.andExpect(status().isOk())
@@ -177,7 +180,7 @@ class MemberControllerTest {
 
 	@Test
 	void getConsent_returns404_whenMemberNotFound() throws Exception {
-		given(memberService.getConsent(any()))
+		given(memberQueryService.getConsent(any()))
 			.willThrow(new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 
 		mockMvc.perform(get("/users/me/consent"))
@@ -189,7 +192,7 @@ class MemberControllerTest {
 	@Test
 	void updateConsent_returns200_whenOnlyAgreeToMarketingProvided() throws Exception {
 		ConsentResponse response = new ConsentResponse(true, true, false, false, null, null);
-		given(memberService.updateConsent(any(), any())).willReturn(response);
+		given(memberCommandService.updateConsent(any(), any())).willReturn(response);
 
 		mockMvc.perform(patch("/users/me/consent")
 			.contentType(MediaType.APPLICATION_JSON)
@@ -201,7 +204,7 @@ class MemberControllerTest {
 	@Test
 	void updateConsent_returns200_whenOnlyAgreeToNightMarketingProvided() throws Exception {
 		ConsentResponse response = new ConsentResponse(true, false, true, false, null, null);
-		given(memberService.updateConsent(any(), any())).willReturn(response);
+		given(memberCommandService.updateConsent(any(), any())).willReturn(response);
 
 		mockMvc.perform(patch("/users/me/consent")
 			.contentType(MediaType.APPLICATION_JSON)
@@ -213,7 +216,7 @@ class MemberControllerTest {
 	@Test
 	void updateConsent_returns200_whenBothFieldsProvided() throws Exception {
 		ConsentResponse response = new ConsentResponse(true, true, true, false, null, null);
-		given(memberService.updateConsent(any(), any())).willReturn(response);
+		given(memberCommandService.updateConsent(any(), any())).willReturn(response);
 
 		mockMvc.perform(patch("/users/me/consent")
 			.contentType(MediaType.APPLICATION_JSON)

@@ -15,9 +15,6 @@ import sweetgirl.croissant.member.dto.request.ConsentUpdateRequest;
 import sweetgirl.croissant.member.dto.request.NotificationRadiusRequest;
 import sweetgirl.croissant.member.dto.request.NotificationTimeRequest;
 import sweetgirl.croissant.member.dto.response.ConsentResponse;
-import sweetgirl.croissant.member.dto.response.DayOfWeekResponse;
-import sweetgirl.croissant.member.dto.response.MemberProfileResponse;
-import sweetgirl.croissant.member.dto.response.MenuCategoryResponse;
 import sweetgirl.croissant.member.dto.response.NotificationRadiusResponse;
 import sweetgirl.croissant.member.dto.response.NotificationTimeResponse;
 import sweetgirl.croissant.member.entity.LikedMenuCategory;
@@ -34,32 +31,19 @@ import sweetgirl.croissant.member.repository.RefreshTokenRepository; // 탈퇴 �
 import sweetgirl.croissant.menu.entity.MenuCategory;
 import sweetgirl.croissant.menu.enums.MenuKind;
 import sweetgirl.croissant.menu.repository.MenuCategoryRepository;
-import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
 
 @Service
 @Transactional
 @RequiredArgsConstructor
-public class MemberService {
+public class MemberCommandService {
 
 	private final MemberRepository memberRepository;
-	private final SubscribedStoreRepository subscribedStoreRepository;
 	private final MenuCategoryRepository menuCategoryRepository;
 	private final LikedMenuCategoryRepository likedMenuCategoryRepository;
 	private final NotificationSettingRepository notificationSettingRepository;
 	private final MemberReader memberReader;
 	private final RefreshTokenRepository refreshTokenRepository; // 탈퇴 시 해당 회원의 모든 RefreshToken을 revoke하기 위해 주입
 	private final FcmTokenRepository fcmTokenRepository; // 탈퇴 시 해당 회원의 모든 FCM 토큰을 삭제하기 위해 주입
-
-	@Transactional(readOnly = true)
-	public MemberProfileResponse getProfile(Long memberId) {
-		return MemberProfileResponse.from(memberReader.getMember(memberId));
-	}
-
-	@Transactional(readOnly = true)
-	public long getSubscribedStoreCount(Long memberId) {
-		Member member = memberReader.getMember(memberId);
-		return subscribedStoreRepository.countByMember(member);
-	}
 
 	public void createConsent(Long memberId, ConsentCreateRequest request) {
 		Member member = memberReader.getMember(memberId);
@@ -74,11 +58,6 @@ public class MemberService {
 			request.privacyVersion());
 	}
 
-	@Transactional(readOnly = true)
-	public ConsentResponse getConsent(Long memberId) {
-		return ConsentResponse.from(memberReader.getMember(memberId));
-	}
-
 	public ConsentResponse updateConsent(Long memberId, ConsentUpdateRequest request) {
 		Member member = memberReader.getMember(memberId);
 		if (request.agreeToMarketing() != null) {
@@ -91,7 +70,6 @@ public class MemberService {
 	}
 
 	//유저가 좋아한다고 한 빵종류 업데이트
-	@Transactional
 	public void updateLikeMenuCategory(Long memberId, String[] likedList) {
 		Member member = memberReader.getMember(memberId);
 
@@ -105,33 +83,6 @@ public class MemberService {
 			likedMenuCategoryRepository
 				.save(LikedMenuCategory.builder().member(member).menuCategory(menuCategory).build());
 		}
-	}
-
-	//유저가 좋아한다고 한 빵 종류 조회
-	public MenuCategoryResponse getLikedMenu(Long memberId) {
-		List<MenuCategory> likedMenuCategories = likedMenuCategoryRepository.findMenuCategoriesByMemberId(memberId);
-		String[] breadKinds = likedMenuCategories.stream()
-			.map(menuCategory -> menuCategory.getName().name())
-			.toArray(String[]::new);
-		return new MenuCategoryResponse(breadKinds);
-	}
-
-	//유저 알람 가능 요일 조회
-	public DayOfWeekResponse getNotificationDays(Long memberId) {
-		NotificationSetting notificationSetting = notificationSettingRepository.findByMemberId(memberId)
-			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
-
-		String result = notificationSetting.getDaysOfWeek();
-		DayOfWeekResponse dayList = new DayOfWeekResponse();
-
-		if (result == null || result.isEmpty()) {
-			return new DayOfWeekResponse();
-		}
-
-		dayList = new DayOfWeekResponse(result.split(","));
-
-		return dayList;
-
 	}
 
 	//유저 알람 가능 요일 수정 ( 가입한 모든 유저에 한해서 가입시에는 NotificationSetting 테이블에 한 행씩 디폴트 값으로 생성 )
@@ -167,17 +118,6 @@ public class MemberService {
 		setting.setDaysOfWeekList(cleanedDayList);
 	}
 
-	// 유저의 현재 알림 반경 조회
-	@Transactional(readOnly = true)
-	public NotificationRadiusResponse getNotificationRadius(Long memberId) {
-		NotificationSetting setting = notificationSettingRepository.findByMemberId(memberId)
-			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
-
-		// DB 저장값 → enum 변환 후 응답 반환
-		NotificationRadius current = setting.getNotificationRadius();
-		return NotificationRadiusResponse.of(current);
-	}
-
 	// 유저의 알림 반경을 한 단계 UP 또는 DOWN으로 변경 후 변경된 반경 반환
 	public NotificationRadiusResponse updateNotificationRadius(Long memberId, NotificationRadiusRequest request) {
 		NotificationSetting setting = notificationSettingRepository.findByMemberId(memberId)
@@ -200,15 +140,6 @@ public class MemberService {
 		// 변경된 반경 저장 (dirty checking으로 자동 반영)
 		setting.updateRadius(next);
 		return NotificationRadiusResponse.of(next);
-	}
-
-	// 유저의 현재 알림 시간대 조회
-	@Transactional(readOnly = true)
-	public NotificationTimeResponse getNotificationTime(Long memberId) {
-		NotificationSetting setting = notificationSettingRepository.findByMemberId(memberId)
-			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
-
-		return NotificationTimeResponse.of(setting);
 	}
 
 	// 유저의 알림 시간대 수정 후 변경된 시간대 반환
