@@ -61,6 +61,7 @@ class ReviewRepositoryTest {
 					privacy_version VARCHAR(20),
 					terms_agreed_at TIMESTAMP,
 					marketing_agreed_at TIMESTAMP,
+					member_type VARCHAR(20) NOT NULL DEFAULT 'USER',
 					created_at TIMESTAMP NOT NULL,
 					updated_at TIMESTAMP
 				)

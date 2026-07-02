@@ -23,7 +23,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import sweetgirl.croissant.admin.dto.response.AdminModerationAppealResponse;
-import sweetgirl.croissant.admin.service.AdminModerationAppealService;
+import sweetgirl.croissant.admin.service.AdminModerationAppealCommandService;
+import sweetgirl.croissant.admin.service.AdminModerationAppealQueryService;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 
 @ExtendWith(MockitoExtension.class)
@@ -32,7 +33,9 @@ class AdminModerationAppealControllerTest {
 	private MockMvc mockMvc;
 
 	@Mock
-	private AdminModerationAppealService adminModerationAppealService;
+	private AdminModerationAppealQueryService adminModerationAppealQueryService;
+	@Mock
+	private AdminModerationAppealCommandService adminModerationAppealCommandService;
 
 	@InjectMocks
 	private AdminModerationAppealController adminModerationAppealController;
@@ -47,7 +50,7 @@ class AdminModerationAppealControllerTest {
 
 	@Test
 	void getAppeals_returnsAppealPage() throws Exception {
-		given(adminModerationAppealService.getAppeals(eq("PENDING"), eq(0), eq(20)))
+		given(adminModerationAppealQueryService.getAppeals(eq("PENDING"), eq(0), eq(20)))
 			.willReturn(new PageImpl<>(List.of(response("PENDING", null)), PageRequest.of(0, 20), 1));
 
 		mockMvc.perform(get("/api/admin/moderation-appeals")
@@ -60,7 +63,7 @@ class AdminModerationAppealControllerTest {
 
 	@Test
 	void reviewAppeal_returnsReviewResult() throws Exception {
-		given(adminModerationAppealService.reviewAppeal(eq(1L), any()))
+		given(adminModerationAppealCommandService.reviewAppeal(eq(1L), any()))
 			.willReturn(response("ACCEPTED", "복구 처리"));
 
 		mockMvc.perform(patch("/api/admin/moderation-appeals/1")

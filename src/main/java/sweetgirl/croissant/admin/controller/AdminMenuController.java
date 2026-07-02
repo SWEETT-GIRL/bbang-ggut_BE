@@ -24,7 +24,8 @@ import sweetgirl.croissant.admin.dto.request.AdminMenuCreateRequest;
 import sweetgirl.croissant.admin.dto.request.AdminMenuReorderRequest;
 import sweetgirl.croissant.admin.dto.request.AdminMenuUpdateRequest;
 import sweetgirl.croissant.admin.dto.response.AdminMenuResponse;
-import sweetgirl.croissant.admin.service.AdminMenuService;
+import sweetgirl.croissant.admin.service.AdminMenuCommandService;
+import sweetgirl.croissant.admin.service.AdminMenuQueryService;
 import sweetgirl.croissant.global.response.ApiResponse;
 
 @Tag(name = "Admin Menu", description = "어드민 메뉴 관리 API")
@@ -33,7 +34,8 @@ import sweetgirl.croissant.global.response.ApiResponse;
 @RequiredArgsConstructor
 public class AdminMenuController {
 
-	private final AdminMenuService adminMenuService;
+	private final AdminMenuQueryService adminMenuQueryService;
+	private final AdminMenuCommandService adminMenuCommandService;
 
 	@Operation(summary = "메뉴 등록", description = "가게에 새 메뉴를 등록합니다. "
 		+ "price는 '3000원' 형식, category는 MenuKind 코드명(예: BREAD, CAKE)을 사용합니다.")
@@ -41,14 +43,14 @@ public class AdminMenuController {
 	public ResponseEntity<ApiResponse<AdminMenuResponse>> createMenu(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId,
 			@Valid @RequestBody AdminMenuCreateRequest request) {
-		return ResponseEntity.ok(ApiResponse.ok(adminMenuService.createMenu(storeId, request)));
+		return ResponseEntity.ok(ApiResponse.ok(adminMenuCommandService.createMenu(storeId, request)));
 	}
 
 	@Operation(summary = "가게별 메뉴 목록 조회", description = "가게에 등록된 전체 메뉴를 조회합니다. soft-delete된 메뉴도 포함합니다.")
 	@GetMapping("/stores/{storeId}/menus")
 	public ResponseEntity<ApiResponse<List<AdminMenuResponse>>> getStoreMenus(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId) {
-		return ResponseEntity.ok(ApiResponse.ok(adminMenuService.getStoreMenus(storeId)));
+		return ResponseEntity.ok(ApiResponse.ok(adminMenuQueryService.getStoreMenus(storeId)));
 	}
 
 	@Operation(summary = "메뉴 순서 변경", description = "가게 내 메뉴들의 displayOrder를 일괄 변경합니다.")
@@ -56,7 +58,7 @@ public class AdminMenuController {
 	public ResponseEntity<ApiResponse<Void>> reorderMenus(
 			@Parameter(description = "가게 ID") @PathVariable Long storeId,
 			@Valid @RequestBody AdminMenuReorderRequest request) {
-		adminMenuService.reorderMenus(storeId, request);
+		adminMenuCommandService.reorderMenus(storeId, request);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -65,14 +67,14 @@ public class AdminMenuController {
 	public ResponseEntity<ApiResponse<Page<AdminMenuResponse>>> getAllMenus(
 			@Parameter(description = "페이지 번호 (0부터 시작)") @RequestParam(defaultValue = "0") int page,
 			@Parameter(description = "페이지 크기") @RequestParam(defaultValue = "20") int size) {
-		return ResponseEntity.ok(ApiResponse.ok(adminMenuService.getAllMenus(page, size)));
+		return ResponseEntity.ok(ApiResponse.ok(adminMenuQueryService.getAllMenus(page, size)));
 	}
 
 	@Operation(summary = "메뉴 상세 조회", description = "메뉴 ID로 상세 정보를 조회합니다.")
 	@GetMapping("/menus/{menuId}")
 	public ResponseEntity<ApiResponse<AdminMenuResponse>> getMenuDetail(
 			@Parameter(description = "메뉴 ID") @PathVariable Long menuId) {
-		return ResponseEntity.ok(ApiResponse.ok(adminMenuService.getMenuDetail(menuId)));
+		return ResponseEntity.ok(ApiResponse.ok(adminMenuQueryService.getMenuDetail(menuId)));
 	}
 
 	@Operation(summary = "메뉴 수정", description = "메뉴 정보를 수정합니다. "
@@ -81,7 +83,7 @@ public class AdminMenuController {
 	public ResponseEntity<ApiResponse<Void>> updateMenu(
 			@Parameter(description = "메뉴 ID") @PathVariable Long menuId,
 			@RequestBody AdminMenuUpdateRequest request) {
-		adminMenuService.updateMenu(menuId, request);
+		adminMenuCommandService.updateMenu(menuId, request);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -89,7 +91,7 @@ public class AdminMenuController {
 	@DeleteMapping("/menus/{menuId}")
 	public ResponseEntity<ApiResponse<Void>> deleteMenu(
 			@Parameter(description = "메뉴 ID") @PathVariable Long menuId) {
-		adminMenuService.deleteMenu(menuId);
+		adminMenuCommandService.deleteMenu(menuId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 

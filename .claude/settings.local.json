@@ -11,7 +11,9 @@
       "Bash(./gradlew spotlessApply)",
       "Bash(./gradlew test *)",
       "Bash(./gradlew build *)",
-      "Bash(./gradlew spotlessApply -q)"
+      "Bash(./gradlew spotlessApply -q)",
+      "Bash(./gradlew compileJava compileTestJava -q)",
+      "Bash(git commit -q -m ' *)"
     ]
   }
 }

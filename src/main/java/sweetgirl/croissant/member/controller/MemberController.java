@@ -28,7 +28,8 @@ import sweetgirl.croissant.member.dto.response.MemberProfileResponse;
 import sweetgirl.croissant.member.dto.response.MenuCategoryResponse;
 import sweetgirl.croissant.member.dto.response.NotificationRadiusResponse;
 import sweetgirl.croissant.member.dto.response.NotificationTimeResponse;
-import sweetgirl.croissant.member.service.MemberService;
+import sweetgirl.croissant.member.service.MemberCommandService;
+import sweetgirl.croissant.member.service.MemberQueryService;
 import sweetgirl.croissant.menu.entity.MenuCategory;
 
 @Tag(name = "Member", description = "사용자 API")
@@ -37,18 +38,19 @@ import sweetgirl.croissant.menu.entity.MenuCategory;
 @RequiredArgsConstructor
 public class MemberController {
 
-	private final MemberService memberService;
+	private final MemberQueryService memberQueryService;
+	private final MemberCommandService memberCommandService;
 
 	@Operation(summary = "내 프로필 조회", description = "로그인한 사용자의 memberId와 닉네임을 반환합니다.")
 	@GetMapping("/me")
 	public ApiResponse<MemberProfileResponse> getProfile(@AuthenticationPrincipal Long memberId) {
-		return ApiResponse.ok(memberService.getProfile(memberId));
+		return ApiResponse.ok(memberQueryService.getProfile(memberId));
 	}
 
 	@Operation(summary = "구독 빵집 수 조회", description = "로그인한 사용자가 알림 구독 중인 빵집의 총 개수를 반환합니다.")
 	@GetMapping("/me/store-count")
 	public ApiResponse<Long> getStoreCount(@AuthenticationPrincipal Long memberId) {
-		long count = memberService.getSubscribedStoreCount(memberId);
+		long count = memberQueryService.getSubscribedStoreCount(memberId);
 		return ApiResponse.ok(count);
 	}
 
@@ -57,14 +59,14 @@ public class MemberController {
 	public ApiResponse<Void> createConsent(
 			@AuthenticationPrincipal Long memberId,
 			@RequestBody @Valid ConsentCreateRequest request) {
-		memberService.createConsent(memberId, request);
+		memberCommandService.createConsent(memberId, request);
 		return ApiResponse.ok(null);
 	}
 
 	@Operation(summary = "개인정보 동의 상태 조회", description = "로그인한 사용자의 필수 약관 및 마케팅 수신 동의 상태를 반환합니다.")
 	@GetMapping("/me/consent")
 	public ApiResponse<ConsentResponse> getConsent(@AuthenticationPrincipal Long memberId) {
-		return ApiResponse.ok(memberService.getConsent(memberId));
+		return ApiResponse.ok(memberQueryService.getConsent(memberId));
 	}
 
 	@Operation(summary = "개인정보/마케팅 동의 상태 갱신", description = "선택 동의인 마케팅 수신 동의 상태를 변경합니다.")
@@ -72,13 +74,13 @@ public class MemberController {
 	public ApiResponse<ConsentResponse> updateConsent(
 			@AuthenticationPrincipal Long memberId,
 			@RequestBody @Valid ConsentUpdateRequest request) {
-		return ApiResponse.ok(memberService.updateConsent(memberId, request));
+		return ApiResponse.ok(memberCommandService.updateConsent(memberId, request));
 	}
 
 	@Operation(summary = "좋아하는 빵 종류 조회", description = "로그인한 유저의 즐겨찾는 빵 카테고리 목록을 반환합니다.")
 	@GetMapping("/me/favorite-bread")
 	public ApiResponse<MenuCategoryResponse> getLikeMenuCategory(@AuthenticationPrincipal Long memberId) {
-		return ApiResponse.ok(memberService.getLikedMenu(memberId));
+		return ApiResponse.ok(memberQueryService.getLikedMenu(memberId));
 	}
 
 	@Operation(summary = "좋아하는 빵 종류 등록", description = "로그인한 유저의 즐겨찾는 빵 카테고리 목록을 업데이트합니다."
@@ -86,14 +88,14 @@ public class MemberController {
 	@PostMapping("/me/favorite-bread")
 	public ApiResponse<Void> enrollLikeMenuCategory(@AuthenticationPrincipal Long memberId,
 			@RequestBody String[] bread) {
-		memberService.updateLikeMenuCategory(memberId, bread);
+		memberCommandService.updateLikeMenuCategory(memberId, bread);
 		return ApiResponse.ok(null);
 	}
 
 	@Operation(summary = "알림 요일 조회", description = "현재 설정된 알림 수신 요일 목록을 반환합니다.")
 	@GetMapping("/me/notification-days")
 	public ApiResponse<DayOfWeekResponse> getNotificationDays(@AuthenticationPrincipal Long memberId) {
-		DayOfWeekResponse result = memberService.getNotificationDays(memberId);
+		DayOfWeekResponse result = memberQueryService.getNotificationDays(memberId);
 		return ApiResponse.ok(result);
 	}
 
@@ -101,7 +103,7 @@ public class MemberController {
 	@PostMapping("/me/notification-days")
 	public ApiResponse<Void> enrollNotificationDays(@AuthenticationPrincipal Long memberId,
 			@RequestBody String dayList) {
-		memberService.updateNotificationDays(memberId, dayList);
+		memberCommandService.updateNotificationDays(memberId, dayList);
 		return ApiResponse.ok(null);
 	}
 
@@ -109,7 +111,7 @@ public class MemberController {
 	@GetMapping("/me/notification-radius")
 	public ApiResponse<NotificationRadiusResponse> getNotificationRadius(
 			@AuthenticationPrincipal Long memberId) {
-		return ApiResponse.ok(memberService.getNotificationRadius(memberId));
+		return ApiResponse.ok(memberQueryService.getNotificationRadius(memberId));
 	}
 
 	@Operation(summary = "알림 반경 변경", description = "반경을 한 단계 증가하거나 감소합니다. 단계: 100 → 300 → 500 → 700 → 1000 (m)\n\n"
@@ -123,14 +125,14 @@ public class MemberController {
 	public ApiResponse<NotificationRadiusResponse> updateNotificationRadius(
 			@AuthenticationPrincipal Long memberId,
 			@RequestBody @Valid NotificationRadiusRequest request) {
-		return ApiResponse.ok(memberService.updateNotificationRadius(memberId, request));
+		return ApiResponse.ok(memberCommandService.updateNotificationRadius(memberId, request));
 	}
 
 	@Operation(summary = "알림 시간대 조회", description = "현재 설정된 알림 시작/종료 시간을 반환합니다. (HH:mm 형식)")
 	@GetMapping("/me/notification-time")
 	public ApiResponse<NotificationTimeResponse> getNotificationTime(
 			@AuthenticationPrincipal Long memberId) {
-		return ApiResponse.ok(memberService.getNotificationTime(memberId));
+		return ApiResponse.ok(memberQueryService.getNotificationTime(memberId));
 	}
 
 	@Operation(summary = "알림 시간대 수정", description = "알림 시작/종료 시간을 수정합니다. (HH:mm 형식, 시작 시간은 종료 시간보다 이전이어야 합니다.)")
@@ -138,14 +140,14 @@ public class MemberController {
 	public ApiResponse<NotificationTimeResponse> updateNotificationTime(
 			@AuthenticationPrincipal Long memberId,
 			@RequestBody @Valid NotificationTimeRequest request) {
-		return ApiResponse.ok(memberService.updateNotificationTime(memberId, request));
+		return ApiResponse.ok(memberCommandService.updateNotificationTime(memberId, request));
 	}
 
 	@Operation(summary = "회원 탈퇴", description = "로그인한 사용자의 계정을 탈퇴 처리합니다. 탈퇴 시 모든 RefreshToken이 revoke되고 FCM 토큰이 삭제됩니다.")
 	// TODO: 인증 완료 후 SecurityContext에서 memberId 주입
 	@DeleteMapping("/me")
 	public ApiResponse<Void> deleteMember(@AuthenticationPrincipal Long memberId) {
-		memberService.deleteMember(memberId); // soft delete 수행
+		memberCommandService.deleteMember(memberId); // soft delete 수행
 		return ApiResponse.ok(null); // 응답 바디 없이 200 반환
 	}
 

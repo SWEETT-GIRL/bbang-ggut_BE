@@ -23,7 +23,7 @@ import sweetgirl.croissant.abuse.code.AbuseReportErrorCode;
 import sweetgirl.croissant.abuse.dto.response.AbuseReportCreateResponse;
 import sweetgirl.croissant.abuse.enums.AbuseReportStatus;
 import sweetgirl.croissant.abuse.exception.AbuseReportException;
-import sweetgirl.croissant.abuse.service.AbuseReportService;
+import sweetgirl.croissant.abuse.service.AbuseReportCommandService;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 
 @ExtendWith(MockitoExtension.class)
@@ -32,7 +32,7 @@ class AbuseReportControllerTest {
 	private MockMvc mockMvc;
 
 	@Mock
-	private AbuseReportService abuseReportService;
+	private AbuseReportCommandService abuseReportCommandService;
 
 	@InjectMocks
 	private AbuseReportController abuseReportController;
@@ -47,7 +47,7 @@ class AbuseReportControllerTest {
 
 	@Test
 	void createReport_returns201() throws Exception {
-		given(abuseReportService.createReport(isNull(), any()))
+		given(abuseReportCommandService.createReport(isNull(), any()))
 			.willReturn(new AbuseReportCreateResponse(
 				11L,
 				AbuseReportStatus.PENDING,
@@ -73,7 +73,7 @@ class AbuseReportControllerTest {
 
 	@Test
 	void createReport_returns409_whenAlreadyReported() throws Exception {
-		given(abuseReportService.createReport(isNull(), any()))
+		given(abuseReportCommandService.createReport(isNull(), any()))
 			.willThrow(new AbuseReportException(AbuseReportErrorCode.REPORT_ALREADY_EXISTS));
 
 		mockMvc.perform(post("/abuse-reports")

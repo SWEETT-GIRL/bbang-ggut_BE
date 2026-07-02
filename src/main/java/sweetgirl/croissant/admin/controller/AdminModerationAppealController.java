@@ -17,7 +17,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.admin.dto.request.AdminModerationAppealReviewRequest;
 import sweetgirl.croissant.admin.dto.response.AdminModerationAppealResponse;
-import sweetgirl.croissant.admin.service.AdminModerationAppealService;
+import sweetgirl.croissant.admin.service.AdminModerationAppealCommandService;
+import sweetgirl.croissant.admin.service.AdminModerationAppealQueryService;
 import sweetgirl.croissant.global.response.ApiResponse;
 
 @Tag(name = "Admin Moderation Appeal", description = "어드민 이의제기 관리 API")
@@ -26,7 +27,8 @@ import sweetgirl.croissant.global.response.ApiResponse;
 @RequiredArgsConstructor
 public class AdminModerationAppealController {
 
-	private final AdminModerationAppealService adminModerationAppealService;
+	private final AdminModerationAppealQueryService adminModerationAppealQueryService;
+	private final AdminModerationAppealCommandService adminModerationAppealCommandService;
 
 	@Operation(summary = "이의제기 목록 조회")
 	@GetMapping
@@ -34,7 +36,7 @@ public class AdminModerationAppealController {
 			@Parameter(description = "처리 상태") @RequestParam(required = false) String status,
 			@Parameter(description = "페이지 번호 (0부터 시작)") @RequestParam(defaultValue = "0") int page,
 			@Parameter(description = "페이지 크기") @RequestParam(defaultValue = "20") int size) {
-		return ResponseEntity.ok(ApiResponse.ok(adminModerationAppealService.getAppeals(status, page, size)));
+		return ResponseEntity.ok(ApiResponse.ok(adminModerationAppealQueryService.getAppeals(status, page, size)));
 	}
 
 	@Operation(summary = "이의제기 승인/거절")
@@ -42,6 +44,6 @@ public class AdminModerationAppealController {
 	public ResponseEntity<ApiResponse<AdminModerationAppealResponse>> reviewAppeal(
 			@Parameter(description = "이의제기 ID") @PathVariable Long appealId,
 			@Valid @RequestBody AdminModerationAppealReviewRequest request) {
-		return ResponseEntity.ok(ApiResponse.ok(adminModerationAppealService.reviewAppeal(appealId, request)));
+		return ResponseEntity.ok(ApiResponse.ok(adminModerationAppealCommandService.reviewAppeal(appealId, request)));
 	}
 }

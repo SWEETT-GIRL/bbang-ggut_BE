@@ -14,7 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.banner.dto.response.BannerDetailResponse;
 import sweetgirl.croissant.banner.dto.response.BannerSummaryResponse;
-import sweetgirl.croissant.banner.service.BannerService;
+import sweetgirl.croissant.banner.service.BannerQueryService;
 import sweetgirl.croissant.global.response.ApiResponse;
 
 @Tag(name = "Banner", description = "배너 조회 API")
@@ -23,18 +23,18 @@ import sweetgirl.croissant.global.response.ApiResponse;
 @RequestMapping("/banners")
 public class BannerController {
 
-	private final BannerService bannerService;
+	private final BannerQueryService bannerQueryService;
 
 	@Operation(summary = "배너 목록 조회", description = "노출 순서대로 배너 목록을 반환합니다.")
 	@GetMapping
 	public ResponseEntity<ApiResponse<List<BannerSummaryResponse>>> getBanners() {
-		return ResponseEntity.ok(ApiResponse.ok(bannerService.getBanners()));
+		return ResponseEntity.ok(ApiResponse.ok(bannerQueryService.getBanners()));
 	}
 
 	@Operation(summary = "배너 상세 조회", description = "배너 클릭 시 보여줄 상세 이미지를 반환합니다.")
 	@GetMapping("/{bannerId}")
 	public ResponseEntity<ApiResponse<BannerDetailResponse>> getBannerDetail(
 			@Parameter(description = "배너 ID") @PathVariable Long bannerId) {
-		return ResponseEntity.ok(ApiResponse.ok(bannerService.getBannerDetail(bannerId)));
+		return ResponseEntity.ok(ApiResponse.ok(bannerQueryService.getBannerDetail(bannerId)));
 	}
 }

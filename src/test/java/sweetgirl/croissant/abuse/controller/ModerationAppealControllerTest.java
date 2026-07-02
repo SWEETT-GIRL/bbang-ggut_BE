@@ -23,7 +23,7 @@ import sweetgirl.croissant.abuse.code.AbuseReportErrorCode;
 import sweetgirl.croissant.abuse.dto.response.ModerationAppealCreateResponse;
 import sweetgirl.croissant.abuse.enums.ModerationAppealStatus;
 import sweetgirl.croissant.abuse.exception.AbuseReportException;
-import sweetgirl.croissant.abuse.service.ModerationAppealService;
+import sweetgirl.croissant.abuse.service.ModerationAppealCommandService;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 
 @ExtendWith(MockitoExtension.class)
@@ -32,7 +32,7 @@ class ModerationAppealControllerTest {
 	private MockMvc mockMvc;
 
 	@Mock
-	private ModerationAppealService moderationAppealService;
+	private ModerationAppealCommandService moderationAppealCommandService;
 
 	@InjectMocks
 	private ModerationAppealController moderationAppealController;
@@ -47,7 +47,7 @@ class ModerationAppealControllerTest {
 
 	@Test
 	void createAppeal_returns201() throws Exception {
-		given(moderationAppealService.createAppeal(isNull(), any()))
+		given(moderationAppealCommandService.createAppeal(isNull(), any()))
 			.willReturn(new ModerationAppealCreateResponse(
 				100L,
 				55L,
@@ -74,7 +74,7 @@ class ModerationAppealControllerTest {
 
 	@Test
 	void createAppeal_returns409_whenAlreadyAppealed() throws Exception {
-		given(moderationAppealService.createAppeal(isNull(), any()))
+		given(moderationAppealCommandService.createAppeal(isNull(), any()))
 			.willThrow(new AbuseReportException(AbuseReportErrorCode.APPEAL_ALREADY_EXISTS));
 
 		mockMvc.perform(post("/moderation-appeals")

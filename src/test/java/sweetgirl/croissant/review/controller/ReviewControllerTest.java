@@ -42,7 +42,8 @@ import sweetgirl.croissant.review.dto.response.ReviewPresignedUrlInfoResponse;
 import sweetgirl.croissant.review.dto.response.ReviewSummaryResponse;
 import sweetgirl.croissant.review.enums.TextureTag;
 import sweetgirl.croissant.review.exception.ReviewException;
-import sweetgirl.croissant.review.service.ReviewService;
+import sweetgirl.croissant.review.service.ReviewCommandService;
+import sweetgirl.croissant.review.service.ReviewQueryService;
 
 @ExtendWith(MockitoExtension.class)
 class ReviewControllerTest {
@@ -50,7 +51,10 @@ class ReviewControllerTest {
 	private MockMvc mockMvc;
 
 	@Mock
-	private ReviewService reviewService;
+	private ReviewQueryService reviewQueryService;
+
+	@Mock
+	private ReviewCommandService reviewCommandService;
 
 	@InjectMocks
 	private ReviewController reviewController;
@@ -65,7 +69,7 @@ class ReviewControllerTest {
 
 	@Test
 	void getReviewSummary_returnsPreviewReviews() throws Exception {
-		given(reviewService.getReviewSummary(eq(1L), eq("recommended"), eq(false), eq(2), isNull()))
+		given(reviewQueryService.getReviewSummary(eq(1L), eq("recommended"), eq(false), eq(2), isNull()))
 			.willReturn(new ReviewSummaryResponse(1L, BigDecimal.valueOf(4.5), 3L, List.of(review())));
 
 		mockMvc.perform(get("/menus/1/reviews/summary"))
@@ -79,7 +83,7 @@ class ReviewControllerTest {
 
 	@Test
 	void getReviews_returnsContentAndHasNext() throws Exception {
-		given(reviewService.getReviews(eq(1L), eq("recent"), eq(false), eq(0), eq(20), isNull()))
+		given(reviewQueryService.getReviews(eq(1L), eq("recent"), eq(false), eq(0), eq(20), isNull()))
 			.willReturn(new ReviewListResponse(1L, BigDecimal.valueOf(4.0), 1L, List.of(review()), false));
 
 		mockMvc.perform(get("/menus/1/reviews"))
@@ -90,7 +94,7 @@ class ReviewControllerTest {
 
 	@Test
 	void getReviewDetail_returnsDetail() throws Exception {
-		given(reviewService.getReviewDetail(eq(1L), isNull()))
+		given(reviewQueryService.getReviewDetail(eq(1L), isNull()))
 			.willReturn(reviewDetail());
 
 		mockMvc.perform(get("/reviews/1"))
@@ -102,7 +106,7 @@ class ReviewControllerTest {
 
 	@Test
 	void getMyReviews_returnsContentAndHasNext() throws Exception {
-		given(reviewService.getMyReviews(isNull(), eq(0), eq(20)))
+		given(reviewQueryService.getMyReviews(isNull(), eq(0), eq(20)))
 			.willReturn(new MyReviewListResponse(List.of(reviewDetail()), false));
 
 		mockMvc.perform(get("/users/me/reviews"))
@@ -113,7 +117,7 @@ class ReviewControllerTest {
 
 	@Test
 	void getMemberReviews_returnsContentAndHasNext() throws Exception {
-		given(reviewService.getMemberReviews(eq(10L), isNull(), eq(0), eq(20)))
+		given(reviewQueryService.getMemberReviews(eq(10L), isNull(), eq(0), eq(20)))
 			.willReturn(new MyReviewListResponse(List.of(reviewDetail()), false));
 
 		mockMvc.perform(get("/users/10/reviews"))
@@ -126,7 +130,7 @@ class ReviewControllerTest {
 
 	@Test
 	void getReviewPresignedUrls_returns401_whenMemberIdIsNull() throws Exception {
-		given(reviewService.generateReviewPresignedUrls(isNull(), any()))
+		given(reviewCommandService.generateReviewPresignedUrls(isNull(), any()))
 			.willThrow(new MemberException(MemberErrorCode.UNAUTHORIZED));
 
 		mockMvc.perform(post("/reviews/images/presigned-urls")
@@ -138,7 +142,7 @@ class ReviewControllerTest {
 
 	@Test
 	void getReviewPresignedUrls_returnsUrls() throws Exception {
-		given(reviewService.generateReviewPresignedUrls(isNull(), any()))
+		given(reviewCommandService.generateReviewPresignedUrls(isNull(), any()))
 			.willReturn(new ReviewPresignedUrlInfoResponse(List.of(
 				new ReviewPresignedUrlInfo("https://upload", "reviews/members/7/images/a"))));
 
@@ -151,7 +155,7 @@ class ReviewControllerTest {
 
 	@Test
 	void createReview_returns201() throws Exception {
-		given(reviewService.createReview(eq(1L), isNull(), any()))
+		given(reviewCommandService.createReview(eq(1L), isNull(), any()))
 			.willReturn(new ReviewCreateResponse(11L, LocalDateTime.of(2026, 6, 4, 11, 0)));
 
 		mockMvc.perform(post("/menus/1/reviews")
@@ -166,7 +170,7 @@ class ReviewControllerTest {
 
 	@Test
 	void createReview_returns400_whenContentRejected() throws Exception {
-		given(reviewService.createReview(eq(1L), isNull(), any()))
+		given(reviewCommandService.createReview(eq(1L), isNull(), any()))
 			.willThrow(new ReviewException(ReviewErrorCode.REVIEW_CONTENT_REJECTED));
 
 		mockMvc.perform(post("/menus/1/reviews")
@@ -183,7 +187,7 @@ class ReviewControllerTest {
 
 	@Test
 	void updateReview_returnsDetail() throws Exception {
-		given(reviewService.updateReview(eq(1L), isNull(), any()))
+		given(reviewCommandService.updateReview(eq(1L), isNull(), any()))
 			.willReturn(reviewDetail());
 
 		mockMvc.perform(patch("/reviews/1")
@@ -200,7 +204,7 @@ class ReviewControllerTest {
 
 	@Test
 	void updateReview_returns400_whenContentRejected() throws Exception {
-		given(reviewService.updateReview(eq(1L), isNull(), any()))
+		given(reviewCommandService.updateReview(eq(1L), isNull(), any()))
 			.willThrow(new ReviewException(ReviewErrorCode.REVIEW_CONTENT_REJECTED));
 
 		mockMvc.perform(patch("/reviews/1")
@@ -215,7 +219,7 @@ class ReviewControllerTest {
 
 	@Test
 	void updateReview_returns403_whenEditPeriodExpired() throws Exception {
-		given(reviewService.updateReview(eq(1L), isNull(), any()))
+		given(reviewCommandService.updateReview(eq(1L), isNull(), any()))
 			.willThrow(new ReviewException(ReviewErrorCode.REVIEW_EDIT_PERIOD_EXPIRED));
 
 		mockMvc.perform(patch("/reviews/1")
@@ -245,7 +249,7 @@ class ReviewControllerTest {
 	@Test
 	void recommendReview_returns404_whenReviewNotFound() throws Exception {
 		willThrow(new ReviewException(ReviewErrorCode.REVIEW_NOT_FOUND))
-			.given(reviewService).recommendReview(eq(99L), isNull());
+			.given(reviewCommandService).recommendReview(eq(99L), isNull());
 
 		mockMvc.perform(post("/reviews/99/recommend"))
 			.andExpect(status().isNotFound())
@@ -256,7 +260,7 @@ class ReviewControllerTest {
 	@Test
 	void recommendReview_returns409_whenAlreadyRecommended() throws Exception {
 		willThrow(new ReviewException(ReviewErrorCode.ALREADY_RECOMMENDED))
-			.given(reviewService).recommendReview(eq(1L), isNull());
+			.given(reviewCommandService).recommendReview(eq(1L), isNull());
 
 		mockMvc.perform(post("/reviews/1/recommend"))
 			.andExpect(status().isConflict())
@@ -274,7 +278,7 @@ class ReviewControllerTest {
 	@Test
 	void cancelReviewRecommend_returns404_whenNotRecommended() throws Exception {
 		willThrow(new ReviewException(ReviewErrorCode.NOT_RECOMMENDED))
-			.given(reviewService).cancelReviewRecommend(eq(1L), isNull());
+			.given(reviewCommandService).cancelReviewRecommend(eq(1L), isNull());
 
 		mockMvc.perform(delete("/reviews/1/recommend"))
 			.andExpect(status().isNotFound())

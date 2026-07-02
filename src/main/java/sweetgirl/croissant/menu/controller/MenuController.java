@@ -17,19 +17,21 @@ import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.menu.dto.response.MenuCategoryResponse;
 import sweetgirl.croissant.menu.dto.response.MenuDetailResponse;
 import sweetgirl.croissant.menu.dto.response.StoreMenuResponse;
-import sweetgirl.croissant.menu.service.MenuService;
+import sweetgirl.croissant.menu.service.MenuCommandService;
+import sweetgirl.croissant.menu.service.MenuQueryService;
 
 @Tag(name = "Menu", description = "메뉴 API")
 @RestController
 @RequiredArgsConstructor
 public class MenuController {
 
-	private final MenuService menuService;
+	private final MenuQueryService menuQueryService;
+	private final MenuCommandService menuCommandService;
 
 	@Operation(summary = "메뉴 카테고리 목록 조회", description = "등록된 모든 메뉴 카테고리(id, name)를 반환합니다.")
 	@GetMapping("/menu-categories")
 	public ResponseEntity<ApiResponse<List<MenuCategoryResponse>>> getCategories() {
-		return ResponseEntity.ok(ApiResponse.ok(menuService.getCategories()));
+		return ResponseEntity.ok(ApiResponse.ok(menuQueryService.getCategories()));
 	}
 
 	@Operation(summary = "가게 메뉴 목록 조회", description = "추천수 내림차순 전체 반환. 인기메뉴(top5) / 카테고리 필터는 클라이언트에서 처리.")
@@ -37,7 +39,7 @@ public class MenuController {
 	public ResponseEntity<ApiResponse<List<StoreMenuResponse>>> getStoreMenus(
 			@PathVariable Long storeId,
 			@AuthenticationPrincipal Long memberId) {
-		return ResponseEntity.ok(ApiResponse.ok(menuService.getStoreMenus(storeId, memberId)));
+		return ResponseEntity.ok(ApiResponse.ok(menuQueryService.getStoreMenus(storeId, memberId)));
 	}
 
 	@Operation(summary = "메뉴 상세 조회", description = "menuId로 메뉴 상세 정보(이름·가격·사진·카테고리·좋아요 수)를 반환합니다.")
@@ -45,7 +47,7 @@ public class MenuController {
 	public ResponseEntity<ApiResponse<MenuDetailResponse>> getMenuDetail(
 			@PathVariable Long menuId,
 			@AuthenticationPrincipal Long memberId) {
-		return ResponseEntity.ok(ApiResponse.ok(menuService.getMenuDetail(menuId, memberId)));
+		return ResponseEntity.ok(ApiResponse.ok(menuQueryService.getMenuDetail(menuId, memberId)));
 	}
 
 	@Operation(summary = "메뉴 좋아요", description = "로그인한 사용자가 메뉴에 좋아요를 누릅니다. 이미 좋아요한 경우 409를 반환합니다.")
@@ -53,7 +55,7 @@ public class MenuController {
 	public ResponseEntity<ApiResponse<Void>> likeMenu(
 			@PathVariable Long menuId,
 			@AuthenticationPrincipal Long memberId) {
-		menuService.likeMenu(menuId, memberId);
+		menuCommandService.likeMenu(menuId, memberId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
@@ -62,7 +64,7 @@ public class MenuController {
 	public ResponseEntity<ApiResponse<Void>> cancelMenuLike(
 			@PathVariable Long menuId,
 			@AuthenticationPrincipal Long memberId) {
-		menuService.cancelMenuLike(menuId, memberId);
+		menuCommandService.cancelMenuLike(menuId, memberId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 

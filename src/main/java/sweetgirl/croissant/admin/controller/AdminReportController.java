@@ -23,7 +23,8 @@ import sweetgirl.croissant.admin.dto.response.AdminHighPriorityReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminModerationActionResponse;
 import sweetgirl.croissant.admin.dto.response.AdminReportDetailResponse;
 import sweetgirl.croissant.admin.dto.response.AdminReportResponse;
-import sweetgirl.croissant.admin.service.AdminReportService;
+import sweetgirl.croissant.admin.service.AdminReportCommandService;
+import sweetgirl.croissant.admin.service.AdminReportQueryService;
 import sweetgirl.croissant.global.response.ApiResponse;
 
 @Tag(name = "Admin Report", description = "어드민 제보 관리 API")
@@ -32,7 +33,8 @@ import sweetgirl.croissant.global.response.ApiResponse;
 @RequiredArgsConstructor
 public class AdminReportController {
 
-	private final AdminReportService adminReportService;
+	private final AdminReportQueryService adminReportQueryService;
+	private final AdminReportCommandService adminReportCommandService;
 
 	@Operation(summary = "제보 목록 조회")
 	@GetMapping
@@ -41,13 +43,13 @@ public class AdminReportController {
 			@Parameter(description = "처리 상태") @RequestParam(required = false) String status,
 			@Parameter(description = "페이지 번호 (0부터 시작)") @RequestParam(defaultValue = "0") int page,
 			@Parameter(description = "페이지 크기") @RequestParam(defaultValue = "20") int size) {
-		return ResponseEntity.ok(ApiResponse.ok(adminReportService.getReports(kind, status, page, size)));
+		return ResponseEntity.ok(ApiResponse.ok(adminReportQueryService.getReports(kind, status, page, size)));
 	}
 
 	@Operation(summary = "사용자 신고 통계 조회")
 	@GetMapping("/stats")
 	public ResponseEntity<ApiResponse<AdminAbuseReportStatsResponse>> getAbuseReportStats() {
-		return ResponseEntity.ok(ApiResponse.ok(adminReportService.getAbuseReportStats()));
+		return ResponseEntity.ok(ApiResponse.ok(adminReportQueryService.getAbuseReportStats()));
 	}
 
 	@Operation(summary = "사용자 신고 high-priority 큐 조회")
@@ -56,7 +58,7 @@ public class AdminReportController {
 			@Parameter(description = "처리 상태") @RequestParam(defaultValue = "PENDING") String status,
 			@Parameter(description = "페이지 번호 (0부터 시작)") @RequestParam(defaultValue = "0") int page,
 			@Parameter(description = "페이지 크기") @RequestParam(defaultValue = "20") int size) {
-		return ResponseEntity.ok(ApiResponse.ok(adminReportService.getHighPriorityReports(status, page, size)));
+		return ResponseEntity.ok(ApiResponse.ok(adminReportQueryService.getHighPriorityReports(status, page, size)));
 	}
 
 	@Operation(summary = "제보 상세 조회")
@@ -64,7 +66,7 @@ public class AdminReportController {
 	public ResponseEntity<ApiResponse<AdminReportDetailResponse>> getReportDetail(
 			@Parameter(description = "제보 ID") @PathVariable Long reportId,
 			@Parameter(description = "제보 종류") @RequestParam String kind) {
-		return ResponseEntity.ok(ApiResponse.ok(adminReportService.getReportDetail(reportId, kind)));
+		return ResponseEntity.ok(ApiResponse.ok(adminReportQueryService.getReportDetail(reportId, kind)));
 	}
 
 	@Operation(summary = "사용자 신고 moderation action 적용")
@@ -72,7 +74,7 @@ public class AdminReportController {
 	public ResponseEntity<ApiResponse<AdminModerationActionResponse>> applyModerationAction(
 			@Parameter(description = "제보 ID") @PathVariable Long reportId,
 			@Valid @RequestBody AdminModerationActionRequest request) {
-		return ResponseEntity.ok(ApiResponse.ok(adminReportService.applyModerationAction(reportId, request)));
+		return ResponseEntity.ok(ApiResponse.ok(adminReportCommandService.applyModerationAction(reportId, request)));
 	}
 
 	@Operation(summary = "제보 승인/거절", description = "제보를 승인(ACCEPT) 또는 거절(REJECT)합니다. "
@@ -81,7 +83,7 @@ public class AdminReportController {
 	public ResponseEntity<ApiResponse<Void>> reviewReport(
 			@Parameter(description = "제보 ID") @PathVariable Long reportId,
 			@Valid @RequestBody AdminReportReviewRequest request) {
-		adminReportService.reviewReport(reportId, request);
+		adminReportCommandService.reviewReport(reportId, request);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 }

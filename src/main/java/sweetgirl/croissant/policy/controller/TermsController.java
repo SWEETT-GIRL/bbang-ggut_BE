@@ -11,7 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.policy.dto.response.TermsResponse;
-import sweetgirl.croissant.policy.service.TermsService;
+import sweetgirl.croissant.policy.service.TermsQueryService;
 
 @Tag(name = "Terms", description = "약관/정책 API")
 @RestController
@@ -19,11 +19,11 @@ import sweetgirl.croissant.policy.service.TermsService;
 @RequiredArgsConstructor
 public class TermsController {
 
-	private final TermsService termsService;
+	private final TermsQueryService termsQueryService;
 
 	@Operation(summary = "약관/정책 목록 조회", description = "회원가입 및 심사용 약관/정책 목록을 반환합니다.")
 	@GetMapping
 	public ApiResponse<List<TermsResponse>> getTerms() {
-		return ApiResponse.ok(termsService.getTerms());
+		return ApiResponse.ok(termsQueryService.getTerms());
 	}
 }
