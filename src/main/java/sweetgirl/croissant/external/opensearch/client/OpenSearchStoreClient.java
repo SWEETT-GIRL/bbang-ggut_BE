@@ -60,7 +60,9 @@ public class OpenSearchStoreClient {
 		}
 
 		JsonpMapper mapper = client._transport().jsonpMapper();
-		SearchRequest request = storeSearchQueryBuilder.build(intent, pageable, latitude, longitude, sort);
+		// DEBUG 로깅이 켜진 경우에만 explain을 요청 — 운영 기본(INFO)에서는 explain 미포함
+		boolean explain = log.isDebugEnabled();
+		SearchRequest request = storeSearchQueryBuilder.build(intent, pageable, latitude, longitude, sort, explain);
 		if (log.isDebugEnabled()) {
 			log.debug("OpenSearch 검색 요청 JSON: {}", toJson(request, mapper));
 		}
@@ -153,6 +155,10 @@ public class OpenSearchStoreClient {
 					+ "matchedMenuIds={}, highlightKeys={}, innerHitNames={}",
 					source.storeId(), hit.score(), matchedFields, matchedMenuIds,
 					hit.highlight().keySet(), hit.innerHits().keySet());
+				if (hit.explanation() != null) {
+					log.debug("OpenSearch 점수 산출 내역 storeId={}, score={}: {}",
+						source.storeId(), hit.score(), toJson(hit.explanation(), mapper));
+				}
 			}
 			hits.add(new OpenSearchStoreHit(
 				source.storeId(),
