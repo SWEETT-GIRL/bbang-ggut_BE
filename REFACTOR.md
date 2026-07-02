@@ -237,13 +237,23 @@
 
 ## Phase 6 — 마무리
 
-- [ ] **P6-T1**: 전체 diff `/code-review` 실행, CRITICAL/WARNING 처리.
-- [ ] **P6-T2**: 최종 체크리스트:
-  - [ ] 새로 만든 모든 Service에 테스트 존재
-  - [ ] 새로 만든 모든 Controller에 테스트 존재
-  - [ ] 추가한 모든 public 메서드에 테스트 존재
-  - [ ] 예외 케이스 테스트 존재
-- [ ] **P6-T3**: `REFACTOR.md` 진행 현황 최종 갱신.
+- [x] **P6-T1**: 전체 diff `/code-review` 실행, CRITICAL/WARNING 처리.
+  - **결과 (2026-07-02)**: 리팩토링 범위(`8640092..HEAD`, 116파일)를 3개 병렬 리뷰 에이전트로 원본 커밋과 대조 검증(트랜잭션 정확성·순수이동 충실성·최대분해 AdminReport 4클래스). **CRITICAL 0 / 수정 필요 WARNING 0 → 승인.**
+    - 트랜잭션: readOnly 오적용·원자성 손실·지연로딩 이탈·`@Transactional` 누락 전부 없음. `AlarmQueryService`→`NotificationSettingProvider` get-or-create는 기존에도 readOnly에서 하던 동작의 순수 이동. 모든 컨트롤러가 엔드포인트당 서비스 1개만 호출(원자성 유지), `ContributionReportProcessor`는 Command 트랜잭션 내부 실행(REQUIRED).
+    - 순수이동: `storeAsyncService`는 진짜 dead dependency(원본서 미호출·제거 안전), admin store `buildResponse` 복제본 바이트 동일, 도메인 이벤트(Store/Menu Changed 등) 전부 보존.
+    - AdminReport 분해: reviewReport 5종 분기·부수효과·우선순위 집계(임계값/비교자)·S3 이미지 처리 모두 보존, 원본 특이점(기존 버그)까지 충실히 유지.
+    - **유일 발견(정보성, 무해)**: `AdminReportCommandService.reviewStoreReport`에서 `toStoreReportType()` 호출을 분기 이전으로 hoisting. 손상된 requestType(영속 enum이라 실질 도달 불가)일 때만 S3 정리 순서가 달라지며, 신규가 오히려 더 안전(롤백될 트랜잭션에서 S3 삭제 안 함). 수정 불필요.
+- [x] **P6-T2**: 최종 체크리스트:
+  - [x] 새로 만든 모든 Service에 테스트 존재 — 커버리지 점검 후 공백 4건 보강(아래 참조)
+  - [x] 새로 만든 모든 Controller에 테스트 존재 — **신규 컨트롤러 없음**(CQRS는 주입만 교체), 기존 `@WebMvcTest`가 그대로 커버(주입 mock을 두 서비스로 분리)
+  - [x] 추가한 모든 public 메서드에 테스트 존재
+  - [x] 예외 케이스 테스트 존재
+  - **커버리지 점검 결과 (2026-07-02)**: 신규 서비스 중 `ContributionReportProcessor`·`ReviewResponseAssembler`는 소비자 테스트에서 **실제 인스턴스로 실행**되어 간접 커버(허용). 실질 공백 4건은 단위 테스트 신규 작성:
+    - `MemberQueryService`(로드맵이 P6 보강 대상으로 명시) — 조회 7종 + 실패(설정 없음 → MemberException) 케이스
+    - `AdminReportQueryService` — 목록/상세 조회 + 위임(통계·우선순위), 예외(REPORT_NOT_FOUND·REPORT_INVALID_KIND)
+    - `StoreAddReportQueryService` — 네이버 검색 위임(정상·빈 결과)
+    - `NotificationSettingProvider` — get-or-create(기존 반환·기본값 생성·null memberId 예외)
+- [x] **P6-T3**: `REFACTOR.md` 진행 현황 최종 갱신.
 
 ---
 
@@ -296,4 +306,4 @@
 | P3 CQRS(전 도메인) | ✅ | — | T1~T12 완료. policy·banner·inquiry·member·alarm·abuse·menu·store·review·admin(member·moderation-appeal·menu·image·store)·잔여(member-block·store-add-report·menu-add-report) 분리. AdminReportService·ReportNotificationService는 제외(Phase 4/부수효과 발행). 서비스별 소단위 커밋 |
 | P4 대형 분해 | ✅ | — | T1: AdminReportService 962줄→4클래스(Query/PriorityAnalyzer/Command/Processor, 모두 400줄 미만, reviewReport 97줄 해소). T2·T3: Review·AdminStore는 P3에서 이미 상한 준수, 검증만 |
 | P5 null 정리 | ✅ | — | T1·T2 판정 완료. 진짜 조회실패 null은 P3/4에서 이미 `.orElseThrow()`로 흡수됨. 남은 서비스·필터·외부클라 `return null`은 전부 정상 흐름(필터·no-op 부분수정·nullable 필드·no-filter·ClientAbort 등)으로 판명 → 동작 보존 위해 **유지 + 사유 기록**. 코드 변경 없음 |
-| P6 마무리 | ⬜ | — | |
+| P6 마무리 | ✅ | — | T1: 리팩토링 116파일 3에이전트 병렬 코드리뷰(트랜잭션·순수이동·AdminReport분해) → CRITICAL 0·회귀 없음(무해 정보성 1건). T2: 커버리지 점검 후 테스트 공백 4건(MemberQuery·AdminReportQuery·StoreAddReportQuery·NotificationSettingProvider) 단위 테스트 보강, 신규 컨트롤러 없음. main rebase(34커밋 재적용, 충돌 없음) 후 전체 green |
