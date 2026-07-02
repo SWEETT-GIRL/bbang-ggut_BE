@@ -2,6 +2,8 @@ package sweetgirl.croissant.store.service.search;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import java.util.List;
 
@@ -212,5 +214,19 @@ class StoreSearchQueryParserTest {
 
 		assertThat(result.regionTokens()).containsExactly("중구");
 		assertThat(result.remainingTokens()).isEmpty();
+	}
+
+	@Test
+	void parse_treatsSingleCharacterTokenAsNonRegionWithoutRepositoryLookup() {
+		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
+		// 길이 1 토큰은 alias 조회 없이 바로 비지역으로 처리된다 (isRegionToken의 길이 가드)
+		given(searchRegionAliasRepository.findByNormalizedAlias("소금빵")).willReturn(List.of());
+
+		SearchIntent result = parser.parse("동 소금빵");
+
+		assertThat(result.regionTokens()).isEmpty();
+		assertThat(result.breadTokens()).containsExactly("소금빵");
+		assertThat(result.remainingTokens()).containsExactly("동");
+		verify(searchRegionAliasRepository, never()).findByNormalizedAlias("동");
 	}
 }

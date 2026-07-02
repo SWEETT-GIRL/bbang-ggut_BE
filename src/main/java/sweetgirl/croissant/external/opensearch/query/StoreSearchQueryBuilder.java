@@ -1,5 +1,7 @@
 package sweetgirl.croissant.external.opensearch.query;
 
+import static sweetgirl.croissant.external.opensearch.document.StoreDocumentConstants.*;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,6 +31,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.external.opensearch.code.SearchRankingConstants;
 import sweetgirl.croissant.external.opensearch.config.OpenSearchProperties;
 import sweetgirl.croissant.store.service.search.SearchIntent;
 import sweetgirl.croissant.store.service.search.SearchSort;
@@ -67,6 +70,8 @@ public class StoreSearchQueryBuilder {
 	 *   should: [원문 매칭]         → minimum_should_match=1, 원문으로 가게명/메뉴 전체 검색
 	 *
 	 * 공통: function_score로 인기도(popularityScore) + 거리 감쇠(gauss) 점수 추가
+	 *
+	 * 필드×부스트는 SearchMatchProfile(매칭 프로파일)·RankingWeights(term/스코어링)에서 데이터로 관리한다.
 	 */
 	public SearchRequest build(SearchIntent intent, Pageable pageable,
 			Double latitude, Double longitude, SearchSort sort) {
@@ -134,26 +139,7 @@ public class StoreSearchQueryBuilder {
 	}
 
 	public SearchRequest buildAutocomplete(String query, int size) {
-		Query autocompleteQuery = boolShould(List.of(
-			multiMatch(query, List.of(
-				"storeName.edge^5",
-				"storeName.ngram^2",
-				"breadTypes.edge^4",
-				"breadTypes.ngram^2",
-				"searchRegionAliases.edge^2",
-				"searchRegionAliases.ngram")),
-			Query.of(q -> q.nested(n -> n
-				.path("menus")
-				.query(multiMatch(query, List.of(
-					"menus.name.edge^4",
-					"menus.name.ngram^2",
-					"menus.menuCategory.edge^2",
-					"menus.menuCategory.ngram"))))),
-			Query.of(q -> q.nested(n -> n
-				.path("searchRegions")
-				.query(multiMatch(query, List.of(
-					"searchRegions.name.edge^2",
-					"searchRegions.name.ngram")))))));
+		Query autocompleteQuery = profileQuery(SearchMatchProfile.AUTOCOMPLETE, query, null);
 
 		return new SearchRequest.Builder()
 			.index(openSearchProperties.getStoresIndex())
@@ -163,40 +149,38 @@ public class StoreSearchQueryBuilder {
 	}
 
 	private List<Query> regionQueries(List<String> regionTokens) {
-		List<Query> queries = new ArrayList<>();
-		for (String regionToken : regionTokens) {
-			queries.add(regionQuery(regionToken));
-		}
-		return queries;
+		return regionTokens.stream()
+			.map(token -> profileQuery(SearchMatchProfile.REGION, token, null))
+			.toList();
 	}
 
 	private List<Query> breadQueries(List<String> breadTokens) {
 		List<Query> queries = new ArrayList<>();
 		for (int i = 0; i < breadTokens.size(); i++) {
-			queries.add(breadQuery(breadTokens.get(i), "matchedMenus" + i));
+			queries.add(profileQuery(SearchMatchProfile.BREAD, breadTokens.get(i), "matchedMenus" + i));
 		}
 		return queries;
 	}
 
 	private Query functionScore(Query bool, Double latitude, Double longitude) {
 		List<FunctionScore> functions = new ArrayList<>();
-		// baseline 1.0 — 곱셈(Multiply) 시 인기도/거리 점수가 0이어도 텍스트 점수가 사라지지 않도록 보장
-		functions.add(FunctionScore.of(fn -> fn.weight(1.0f)));
+		// baseline — 곱셈(Multiply) 시 인기도/거리 점수가 0이어도 텍스트 점수가 사라지지 않도록 보장
+		functions.add(FunctionScore.of(fn -> fn.weight(SearchRankingConstants.BASELINE_WEIGHT)));
 		// 인기도는 텍스트 점수를 "덮어쓰지" 않고 완만하게 증폭만 — Log1p로 조회수 폭주 가게의 과도한 보정 방지
 		functions.add(FunctionScore.of(fn -> fn.fieldValueFactor(f -> f
-			.field("popularityScore")
-			.factor(0.3f)
+			.field(POPULARITY_SCORE)
+			.factor(SearchRankingConstants.POPULARITY_FACTOR)
 			.modifier(FieldValueFactorModifier.Log1p)
-			.missing(0.0))));
+			.missing(SearchRankingConstants.POPULARITY_MISSING))));
 		if (latitude != null && longitude != null) {
 			Map<String, Object> origin = Map.of("lat", latitude, "lon", longitude);
 			functions.add(FunctionScore.of(fn -> fn.gauss(d -> d
-				.field("location")
+				.field(LOCATION)
 				.placement(p -> p
 					.origin(JsonData.of(origin))
-					.scale(JsonData.of("3km"))
-					.offset(JsonData.of("500m"))
-					.decay(0.5)))));
+					.scale(JsonData.of(SearchRankingConstants.GAUSS_SCALE))
+					.offset(JsonData.of(SearchRankingConstants.GAUSS_OFFSET))
+					.decay(SearchRankingConstants.GAUSS_DECAY)))));
 		}
 		// Multiply: 최종점수 = 텍스트매칭점수 × (1 + 인기도보정 + 거리보정)
 		// → 관련 없는 인기 가게가 텍스트 점수를 추월하지 못하고, 정확 매칭 가게가 항상 상위에 노출
@@ -208,78 +192,74 @@ public class StoreSearchQueryBuilder {
 	}
 
 	private Query rawQuery(String query) {
-		return boolShould(List.of(
-			Query.of(q -> q.term(t -> t
-				.field("storeName.keyword")
-				.value(v -> v.stringValue(query))
-				.boost(20.0f))),
-			Query.of(q -> q.term(t -> t
-				.field("storeName.edge")
-				.value(v -> v.stringValue(normalizeForExactMatch(query)))
-				.boost(80.0f))),
-			Query.of(q -> q.term(t -> t
-				.field("storeName.ngram")
-				.value(v -> v.stringValue(normalizeForExactMatch(query)))
-				.boost(60.0f))),
-			// nori 필드(storeName, menus.name)는 제외: nori_part_of_speech가 조사를 제거해
-			// "후와후와" → "후"로 뭉개지면 가게명/메뉴명에 "후"만 들어가도 매칭된다.
-			// query_normalized_analyzer(keyword 토크나이저) 기반 edge/ngram은 원문을 통째로
-			// 유지하므로, 가게명/메뉴명이 검색어를 실제로 포함할 때만 매칭된다.
-			multiMatch(query, List.of(
-				"storeName.edge^2",
-				"storeName.ngram")),
-			menuNested(query, "rawMatchedMenus", List.of(
-				"menus.name.edge^2",
-				"menus.name.ngram"))));
+		// 가게명 정확/정규화 일치(term)를 부분 매칭 위로 끌어올린 뒤, 부분 매칭(NAME_MENU_PARTIAL)을 더한다.
+		// nori 필드는 제외: nori_part_of_speech가 "후와후와"→"후"로 뭉개 오매칭하므로, keyword 토크나이저
+		// 기반 edge/ngram(원문 유지)으로만 부분 매칭한다.
+		List<Query> clauses = new ArrayList<>();
+		clauses.add(termBoost(SearchSubField.KEYWORD.field(STORE_NAME), query,
+			SearchRankingConstants.STORE_NAME_KEYWORD_BOOST));
+		clauses.add(termBoost(SearchSubField.EDGE.field(STORE_NAME), normalizeForExactMatch(query),
+			SearchRankingConstants.STORE_NAME_EDGE_BOOST));
+		clauses.add(termBoost(SearchSubField.NGRAM.field(STORE_NAME), normalizeForExactMatch(query),
+			SearchRankingConstants.STORE_NAME_NGRAM_BOOST));
+		clauses.addAll(profileClauses(SearchMatchProfile.NAME_MENU_PARTIAL, query, "rawMatchedMenus"));
+		return boolShould(clauses);
 	}
 
 	private Query remainingQuery(String query, String innerHitsName) {
 		// 잔여 토큰은 soft 보너스 — 조사 제거 없는 edge/ngram으로 가게명/메뉴명에 부분 매칭만.
-		return boolShould(List.of(
-			multiMatch(query, List.of(
-				"storeName.edge^2",
-				"storeName.ngram")),
-			menuNested(query, innerHitsName, List.of(
-				"menus.name.edge^2",
-				"menus.name.ngram"))));
+		return profileQuery(SearchMatchProfile.NAME_MENU_PARTIAL, query, innerHitsName);
 	}
 
-	private Query regionQuery(String query) {
-		return boolShould(List.of(
-			Query.of(q -> q.nested(n -> n
-				.path("searchRegions")
-				.query(multiMatch(query, List.of(
-					"searchRegions.name^4",
-					"searchRegions.name.nori^3",
-					"searchRegions.name.edge^2",
-					"searchRegions.name.ngram^2"))))),
-			multiMatch(query, List.of(
-				"searchRegionAliases^4",
-				"searchRegionAliases.nori^3",
-				"searchRegionAliases.edge^2",
-				"searchRegionAliases.ngram^2"))));
+	// 매칭 프로파일 → OpenSearch 쿼리. flat 필드는 하나의 multi_match로, nested 필드는 path별 nested 쿼리로 묶는다.
+	private Query profileQuery(SearchMatchProfile profile, String query, String innerHitsName) {
+		return boolShould(profileClauses(profile, query, innerHitsName));
 	}
 
-	private Query breadQuery(String query, String innerHitsName) {
-		return boolShould(List.of(
-			multiMatch(query, List.of(
-				"breadTypes^4",
-				"breadTypes.nori^3",
-				"breadTypes.edge^2",
-				"breadTypes.ngram^2")),
-			menuNested(query, innerHitsName, List.of(
-				"menus.name^4",
-				"menus.name.edge^3",
-				"menus.name.ngram^2",
-				"menus.menuCategory^2",
-				"menus.menuCategory.nori",
-				"menus.menuCategory.edge",
-				"menus.menuCategory.ngram"))));
+	private List<Query> profileClauses(SearchMatchProfile profile, String query, String innerHitsName) {
+		List<Query> clauses = new ArrayList<>();
+
+		List<String> flatFields = profile.fields().stream()
+			.filter(field -> !field.isNested())
+			.flatMap(field -> field.boostedFields().stream())
+			.toList();
+		if (!flatFields.isEmpty()) {
+			clauses.add(multiMatch(query, flatFields));
+		}
+
+		Map<String, List<String>> nestedFieldsByPath = new LinkedHashMap<>();
+		for (FieldBoost field : profile.fields()) {
+			if (field.isNested()) {
+				nestedFieldsByPath.computeIfAbsent(field.nestedPath(), key -> new ArrayList<>())
+					.addAll(field.boostedFields());
+			}
+		}
+		nestedFieldsByPath.forEach((path, fields) -> {
+			if (MENUS.equals(path) && innerHitsName != null) {
+				clauses.add(menuNested(query, innerHitsName, fields));
+			} else {
+				clauses.add(plainNested(path, query, fields));
+			}
+		});
+		return clauses;
+	}
+
+	private Query termBoost(String field, String value, float boost) {
+		return Query.of(q -> q.term(t -> t
+			.field(field)
+			.value(v -> v.stringValue(value))
+			.boost(boost)));
+	}
+
+	private Query plainNested(String path, String query, List<String> fields) {
+		return Query.of(q -> q.nested(n -> n
+			.path(path)
+			.query(multiMatch(query, fields))));
 	}
 
 	private Query menuNested(String query, String innerHitsName, List<String> fields) {
 		return Query.of(q -> q.nested(n -> n
-			.path("menus")
+			.path(MENUS)
 			.query(multiMatch(query, fields))
 			.innerHits(ih -> ih
 				.name(innerHitsName)
@@ -323,7 +303,7 @@ public class StoreSearchQueryBuilder {
 			// sort[0] = 거리(_geo_distance), sort[1] = 점수 — 응답 파싱 시 거리 추출의 기준이 된다
 			return List.of(
 				SortOptions.of(s -> s.geoDistance(GeoDistanceSort.of(g -> g
-					.field("location")
+					.field(LOCATION)
 					.location(GeoLocation.of(l -> l.latlon(ll -> ll.lat(latitude).lon(longitude))))
 					.order(SortOrder.Asc)
 					.unit(DistanceUnit.Meters)))),
@@ -332,7 +312,7 @@ public class StoreSearchQueryBuilder {
 		if (sort == SearchSort.POPULARITY) {
 			return List.of(
 				SortOptions.of(s -> s.field(FieldSort.of(f -> f
-					.field("popularityScore")
+					.field(POPULARITY_SCORE)
 					.order(SortOrder.Desc)
 					.missing(FieldValue.of("_last"))))),
 				SortOptions.of(s -> s.score(ScoreSort.of(sc -> sc.order(SortOrder.Desc)))));
