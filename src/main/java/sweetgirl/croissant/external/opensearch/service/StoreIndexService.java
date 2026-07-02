@@ -1,5 +1,7 @@
 package sweetgirl.croissant.external.opensearch.service;
 
+import static sweetgirl.croissant.external.opensearch.document.StoreDocumentConstants.*;
+
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
@@ -95,7 +97,8 @@ public class StoreIndexService {
 					.index(openSearchProperties.getStoresIndex())
 					.id(store.getId().toString())
 					.document(buildDocument(store, menusByStoreId, subscribeCountsByStoreId,
-						rankingsByStoreId, searchRegionsByStoreId, aliasesByStoreId, viewCountsByStoreId)))))
+						rankingsByStoreId, searchRegionsByStoreId, aliasesByStoreId,
+						viewCountsByStoreId)))))
 			.toList();
 		try {
 			return openSearchClient.bulk(r -> r.operations(operations));
@@ -110,7 +113,7 @@ public class StoreIndexService {
 		List<BulkOperation> operations = stores.stream()
 			.map(store -> {
 				double score = calculatePopularityScore(store);
-				Map<String, Object> scoreDoc = Map.of("popularityScore", score);
+				Map<String, Object> scoreDoc = Map.of(POPULARITY_SCORE, score);
 				return BulkOperation.of(op -> op
 					.update(u -> u
 						.index(openSearchProperties.getStoresIndex())
@@ -132,10 +135,10 @@ public class StoreIndexService {
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 
 		Map<String, Object> partial = new HashMap<>();
-		partial.put("address", store.getAddress());
-		partial.put("location", new GeoPointDto(store.getLocation().getY(), store.getLocation().getX()));
-		partial.put("searchRegions", buildSearchRegions(storeId));
-		partial.put("searchRegionAliases",
+		partial.put(ADDRESS, store.getAddress());
+		partial.put(LOCATION, new GeoPointDto(store.getLocation().getY(), store.getLocation().getX()));
+		partial.put(SEARCH_REGIONS, buildSearchRegions(storeId));
+		partial.put(SEARCH_REGION_ALIASES,
 			storeSearchRegionRepository.findSearchRegionAliasesForIndexingByStoreId(storeId));
 
 		try {
@@ -162,8 +165,8 @@ public class StoreIndexService {
 			.toList();
 
 		Map<String, Object> partial = new HashMap<>();
-		partial.put("menus", menuEntries);
-		partial.put("breadTypes", breadTypes);
+		partial.put(MENUS, menuEntries);
+		partial.put(BREAD_TYPES, breadTypes);
 
 		try {
 			openSearchClient.update(u -> u
@@ -184,7 +187,7 @@ public class StoreIndexService {
 			openSearchClient.update(u -> u
 				.index(openSearchProperties.getStoresIndex())
 				.id(storeId.toString())
-				.doc(Map.of("storeName", store.getName())), StoreDocument.class);
+				.doc(Map.of(STORE_NAME, store.getName())), StoreDocument.class);
 		} catch (IOException e) {
 			log.error("OpenSearch 가게 이름 업데이트 실패 storeId={}", storeId, e);
 			throw new OpenSearchException(OpenSearchErrorCode.BULK_INDEX_FAILED, e);
@@ -243,7 +246,8 @@ public class StoreIndexService {
 			aliasesByStoreId.getOrDefault(storeId, List.of()),
 			breadTypes,
 			menuEntries,
-			calculatePopularityScoreFromMaps(store, subscribeCountsByStoreId, rankingsByStoreId, viewCountsByStoreId));
+			calculatePopularityScoreFromMaps(store, subscribeCountsByStoreId, rankingsByStoreId,
+				viewCountsByStoreId));
 	}
 
 	private double calculatePopularityScore(Store store) {
