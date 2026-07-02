@@ -70,6 +70,13 @@ public class StoreSearchQueryBuilder {
 	 */
 	public SearchRequest build(SearchIntent intent, Pageable pageable,
 			Double latitude, Double longitude, SearchSort sort) {
+		return build(intent, pageable, latitude, longitude, sort, false);
+	}
+
+	// explain=true면 OpenSearch가 hit별 점수 산출 내역(_explanation)을 응답에 포함
+	// 디버그 전용 — 응답 payload가 커지고 스코어링 오버헤드가 있으므로 DEBUG 로깅이 켜진 경우에만 호출
+	public SearchRequest build(SearchIntent intent, Pageable pageable,
+			Double latitude, Double longitude, SearchSort sort, boolean explain) {
 		List<Query> must = new ArrayList<>();
 		List<Query> should = new ArrayList<>();
 		boolean hasRegionTokens = !intent.regionTokens().isEmpty();
@@ -115,6 +122,7 @@ public class StoreSearchQueryBuilder {
 			.index(openSearchProperties.getStoresIndex())
 			.from((int)pageable.getOffset())
 			.size(pageable.getPageSize())
+			.explain(explain)
 			.query(functionScore(bool, latitude, longitude))
 			.highlight(highlight());
 

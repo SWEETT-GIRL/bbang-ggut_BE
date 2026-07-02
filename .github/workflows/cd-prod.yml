@@ -96,8 +96,7 @@ jobs:
           perf.dashboard.enabled=${PERF_DASHBOARD_ENABLED:false}
           perf.dashboard.access-key=${PERF_DASHBOARD_ACCESS_KEY:}
           
-          # OpenSearch 디버그 로그 활성화 (추가된 부분)
-          logging.level.org.opensearch.client=${OPENSEARCH_DEBUG_LOGGING:INFO}
+          # OpenSearch 디버그 로그 활성화
           logging.level.sweetgirl.croissant.external.opensearch=${OPENSEARCH_DEBUG_LOGGING:INFO}
           EOF
 
