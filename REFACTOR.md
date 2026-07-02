@@ -69,9 +69,11 @@
 
 ## Phase 0 — 사전 준비 (안전망)
 
-- [ ] **P0-T1**: 기준선 확보. `./gradlew spotlessApply && ./gradlew build && ./gradlew test`가 **깨끗하게 통과**하는지 확인, 실패 테스트가 있으면 목록화. (통과 상태여야 리팩토링 회귀 판별 가능)
+- [x] **P0-T1**: 기준선 확보. `./gradlew spotlessApply && ./gradlew build && ./gradlew test`가 **깨끗하게 통과**하는지 확인, 실패 테스트가 있으면 목록화. (통과 상태여야 리팩토링 회귀 판별 가능)
   - DoD: 3개 명령 모두 green, 또는 기존 실패 테스트가 문서에 기록됨.
-- [ ] **P0-T2**: 브랜치/PR 규칙(§3) 합의. `refactor/*` prefix 사용.
+  - **결과 (2026-07-02)**: 최초 실행 시 `ReviewRepositoryTest` 6건 실패 — `Member`에 `member_type` 컬럼 추가(e876e10) 후 테스트 수기 H2 DDL 미반영이 원인. DDL에 컬럼 추가로 보정(커밋 b038850) 후 **3개 명령 모두 green** (501 tests passed).
+- [x] **P0-T2**: 브랜치/PR 규칙(§3) 합의. `refactor/*` prefix 사용.
+  - **결과**: §3 규칙대로 진행 확정. 현재 브랜치 `refactor/493-backend-refactoring-roadmap`도 prefix 준수.
 
 ---
 
@@ -198,7 +200,7 @@
 
 | Phase | 상태 | PR | 비고 |
 |-------|------|----|----|
-| P0 사전 준비 | ⬜ | — | |
+| P0 사전 준비 | ✅ | — | 기존 실패 테스트 6건 보정 후 기준선 green |
 | P1 응답 규약 | ⬜ | — | FE 응답계약 확인 필요 |
 | P2 컨벤션 정리 | ⬜ | — | |
 | P3 CQRS(전 도메인) | ⬜ | — | 도메인당 1 PR |
