@@ -108,15 +108,18 @@
 
 ## Phase 2 — 컨벤션 정리 (저위험 · 동작 불변)
 
-- [ ] **P2-T1**: 약어 파라미터/변수명 `req` → `request` 일괄 정리.
+- [x] **P2-T1**: 약어 파라미터/변수명 `req` → `request` 일괄 정리.
   - 대상(확인): `member/controller/AuthController.java`, `admin/service/AdminImageService.java`(100,103-105,120,123-125,203-204), `admin/service/AdminReportService.java`(507-511,550-554), `admin/service/AdminStoreService.java`(354-355)
   - 잔여 조사: `grep -rn "\breq\b\|\bres\b\|\bsvc\b\|\brepo\b" src/main/java --include=*.java` (정식 단어 오탐 제외)
   - DoD: 약어 파라미터명 제거. 무의미 변수명(`data`,`temp`,`obj`,`item`)도 점검.
   - 검증: `./gradlew spotlessApply checkstyleMain checkstyleTest`
-- [ ] **P2-T2**: `global/encrypt/EncryptedStringConverter.java:12-13` `@Autowired` 필드 주입 제거.
+  - **결과 (2026-07-02)**: `AuthController`는 P1에서 이미 `request`로 정리됨. `AdminReportService`(`req`→`imageRequest`, `src`→`sourceImage`), `AdminStoreService`(`req`→`candidateRequest`), `AdminImageService`(`req`→`saveRequest`/`urlRequest`, `item`→`uploadResult`) 정리. 잔여 조사 중 `CustomAuthorizationRequestResolver`(`repo`→`clientRegistrationRepository`), `S3Service` 람다(`obj`→`s3Object`)도 정리. `temp`는 실제 S3 폴더명·주석이라 유지. 커밋 `♻️ refactor: 약어 파라미터·변수명 정리`.
+- [x] **P2-T2**: `global/encrypt/EncryptedStringConverter.java:12-13` `@Autowired` 필드 주입 제거.
   - JPA `AttributeConverter`는 스프링 빈이 아님 → **static holder** 또는 `@Configurable` 중 택1. 암복호화 왕복 테스트로 회귀 검증.
   - DoD: 필드 `@Autowired` 제거, `AesEncryptor` 주입 경로 명확화, 라운드트립 테스트 통과.
-- [ ] **P2-T3**: 파일/함수 길이 상한 초과 지점 목록화(실제 분해는 Phase 4). 부록 A에 기록만.
+  - **결과 (2026-07-02)**: `@Configurable`(AspectJ 위빙 미설정)보다 **static holder** 채택. `EncryptorHolder` 컴포넌트 신설(생성자 주입 → static 보관), 컨버터는 `EncryptorHolder.getEncryptor()`로 조회. 라운드트립/null/랜덤IV 테스트 3건 추가·통과. 커밋 `♻️ refactor: 필드 @Autowired 제거` + `🧪 test: 라운드트립 테스트 추가`.
+- [x] **P2-T3**: 파일/함수 길이 상한 초과 지점 목록화(실제 분해는 Phase 4). 부록 A에 기록만.
+  - **결과 (2026-07-02)**: 부록 A-2에 파일 5건(1건 예외)·함수 11건 기록. Phase 4 분해 대상 연결.
 
 **PR**: `[REFACTOR] 네이밍·주입 방식 컨벤션 정리`
 
@@ -205,13 +208,45 @@
 - 정상 흐름 null 반환(필터/DTO 팩토리) — Phase 5에서 개별 판정.
 - `contribution`(service 없음)·`dev`(개발용) — CQRS 제외.
 
+## 부록 A-2. 길이 상한 초과 목록 (P2-T3 조사 결과 · Phase 4 분해 대상)
+
+> 조사일 2026-07-02. 상한: 파일 권장 200~400줄·최대 800줄, 함수 권장 20~30줄·최대 50줄. **여기서는 기록만** 하고, 실제 분해는 Phase 4/Phase 3에서 수행.
+
+### 파일 길이 (400줄 초과)
+
+| 파일 | 줄수 | 판정 |
+|------|------|------|
+| `store/enums/Region3rd.java` | 2693 | **예외** — 행정구역 enum 상수 나열(데이터성). 분해 대상 아님 |
+| `admin/service/AdminReportService.java` | 962 | 최대(800) 초과 → **P4-T1** 분해 |
+| `review/service/ReviewService.java` | 604 | 최대 미만이나 권장 초과 → **P4-T2** 분해 |
+| `admin/service/AdminStoreService.java` | 484 | 권장 초과 → **P4-T3** 재점검 |
+| `store/repository/StoreRepository.java` | 460 | Repository(쿼리 선언 집합) → 분해 우선순위 낮음, 관찰 대상 |
+
+### 함수 길이 (50줄 초과 · 11건)
+
+| 메서드 | 줄수 | 위치 |
+|--------|------|------|
+| `AdminReportService.reviewReport()` | 97 | `admin/service/AdminReportService.java:269` |
+| `NaverEnrichRunner.runForStore()` | 77 | `admin/service/NaverEnrichRunner.java:57` |
+| `SecurityConfig.filterChain()` | 71 | `config/security/SecurityConfig.java:41` |
+| `JwtAuthenticationFilter.doFilterInternal()` | 60 | `member/jwt/JwtAuthenticationFilter.java:38` |
+| `AdminImageService.uploadOne()` | 59 | `admin/service/AdminImageService.java:218` |
+| `StoreReportService.createMenuEditReport()` | 57 | `store/service/StoreReportService.java:244` |
+| `StoreSearchQueryBuilder.build()` | 57 | `external/opensearch/query/StoreSearchQueryBuilder.java:78` |
+| `StoreSearchQueryParser.parseContainedTokens()` | 55 | `store/service/search/StoreSearchQueryParser.java:110` |
+| `TrendService.resolveRegion3rd()` | 54 | `menu/service/TrendService.java:190` |
+| `StoreReportService.createImageReport()` | 53 | `store/service/StoreReportService.java:129` |
+| `CustomOAuth2UserService.processOAuth2User()` | 52 | `member/service/CustomOAuth2UserService.java:55` |
+
+> `SecurityConfig.filterChain()`는 스프링 설정 DSL 특성상 길어지기 쉬움(추출 시 가독성 저하 우려) — Phase 4에서 실익 판단 후 결정.
+
 ## 부록 B. 진행 요약 (수시 갱신)
 
 | Phase | 상태 | PR | 비고 |
 |-------|------|----|----|
 | P0 사전 준비 | ✅ | — | 기존 실패 테스트 6건 보정 후 기준선 green |
 | P1 응답 규약 | ✅ | — | AuthController kakao/apple 표준화(FE 하위호환 확인). admin image/banner presigned-url·save는 어드민 웹 계약상 정당한 예외로 보류 |
-| P2 컨벤션 정리 | ⬜ | — | |
+| P2 컨벤션 정리 | ✅ | — | 약어/무의미 변수명 정리, EncryptedStringConverter @Autowired 제거(static holder), 길이 상한 초과 부록 A-2 기록 |
 | P3 CQRS(전 도메인) | ⬜ | — | 도메인당 1 PR |
 | P4 대형 분해 | ⬜ | — | P3와 연속 |
 | P5 null 정리 | ⬜ | — | 새 구조 위 |
