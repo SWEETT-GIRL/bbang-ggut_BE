@@ -20,7 +20,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import sweetgirl.croissant.alarm.dto.response.ReportNotificationResponse;
-import sweetgirl.croissant.alarm.service.AlarmService;
+import sweetgirl.croissant.alarm.service.AlarmCommandService;
+import sweetgirl.croissant.alarm.service.AlarmQueryService;
 import sweetgirl.croissant.alarm.service.FcmService;
 import sweetgirl.croissant.alarm.service.ReportNotificationService;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
@@ -34,7 +35,10 @@ class AlarmControllerTest {
 	private FcmService fcmService;
 
 	@Mock
-	private AlarmService alarmService;
+	private AlarmQueryService alarmQueryService;
+
+	@Mock
+	private AlarmCommandService alarmCommandService;
 
 	@Mock
 	private ReportNotificationService reportNotificationService;
