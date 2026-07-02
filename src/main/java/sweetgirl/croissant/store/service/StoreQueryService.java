@@ -5,7 +5,6 @@ import static sweetgirl.croissant.store.code.StoreConstants.*;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Pageable;
@@ -31,8 +30,6 @@ import sweetgirl.croissant.store.dto.projection.RegionByDistanceProjection;
 import sweetgirl.croissant.store.dto.projection.RegionBySubscribeProjection;
 import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
 import sweetgirl.croissant.store.dto.projection.TopSubscribedStoreProjection;
-import sweetgirl.croissant.store.dto.request.KakaoStoreRegisterRequest;
-import sweetgirl.croissant.store.dto.response.KakaoStoreRegisterResponse;
 import sweetgirl.croissant.store.dto.response.NearbyStoreResponse;
 import sweetgirl.croissant.store.dto.response.RegionByDistanceResponse;
 import sweetgirl.croissant.store.dto.response.RegionBySubscribeResponse;
@@ -53,14 +50,13 @@ import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class StoreService {
+public class StoreQueryService {
 
 	private final StoreRepository storeRepository;
 	private final StoreBusinessHourRepository storeBusinessHourRepository;
 	private final StoreImageFileRepository storeImageFileRepository;
 	private final SubscribedStoreRepository subscribedStoreRepository;
 	private final SavedStoreRepository savedStoreRepository;
-	private final StoreAsyncService storeAsyncService;
 	private final MemberReader memberReader;
 	private final MenuImageFileRepository menuImageFileRepository;
 	private final MenuRepository menuRepository;
@@ -201,90 +197,6 @@ public class StoreService {
 			.map(store -> TopSubscribedStoreResponse.of(store, storeThumbnailMap.get(store.getId()),
 				Math.round(store.getDistanceMeters())))
 			.toList();
-	}
-
-	@Transactional
-	public KakaoStoreRegisterResponse registerKakaoStore(KakaoStoreRegisterRequest request) {
-		Optional<Store> storeByKakaoPlaceId = storeRepository.findByKakaoPlaceId(request.kakaoPlaceId());
-		if (storeByKakaoPlaceId.isPresent()) {
-			return new KakaoStoreRegisterResponse(storeByKakaoPlaceId.get().getId());
-		}
-
-		Optional<Store> storeByIdentity = findActiveStoreBySameNameAndAddress(request);
-		if (storeByIdentity.isPresent()) {
-			Store store = storeByIdentity.get();
-			storeRepository.updateKakaoPlaceMetadata(
-				store.getId(),
-				request.kakaoPlaceId(),
-				request.phone(),
-				Double.parseDouble(request.x()),
-				Double.parseDouble(request.y()));
-			return new KakaoStoreRegisterResponse(store.getId());
-		}
-
-		String[] addr = AddressParser.parse(request.addressName() != null ? request.addressName() : request.address());
-		storeRepository.insertIfNotExistsByKakaoPlaceId(
-			request.name(), request.address(),
-			addr[0], addr[1], addr[2],
-			Double.parseDouble(request.x()), Double.parseDouble(request.y()),
-			request.phone(), request.kakaoPlaceId(),
-			null);
-		Long storeId = storeRepository.findByKakaoPlaceId(request.kakaoPlaceId())
-			.map(Store::getId)
-			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
-		return new KakaoStoreRegisterResponse(storeId);
-	}
-
-	@Transactional
-	public void subscribeStore(Long storeId, Long memberId) {
-		Store store = storeRepository.findById(storeId)
-			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
-		if (subscribedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId)) {
-			throw new StoreException(StoreErrorCode.ALREADY_SUBSCRIBED);
-		}
-		subscribedStoreRepository.save(SubscribedStore.builder()
-			.member(memberReader.getMember(memberId))
-			.store(store)
-			.build());
-	}
-
-	@Transactional
-	public void unsubscribeStore(Long storeId, Long memberId) {
-		if (!storeRepository.existsById(storeId)) {
-			throw new StoreException(StoreErrorCode.STORE_NOT_FOUND);
-		}
-		SubscribedStore subscribedStore = subscribedStoreRepository.findByMemberIdAndStoreId(memberId, storeId)
-			.orElseThrow(() -> new StoreException(StoreErrorCode.NOT_SUBSCRIBED));
-		subscribedStoreRepository.delete(subscribedStore);
-	}
-
-	private Optional<Store> findActiveStoreBySameNameAndAddress(KakaoStoreRegisterRequest request) {
-		String compactName = compactName(request.name());
-		String normalizedAddress = normalizeAddressForDuplicate(request.address());
-		if (compactName.isBlank() || normalizedAddress.isBlank()) {
-			return Optional.empty();
-		}
-		return storeRepository.findActiveStoresByCompactName(compactName)
-			.stream()
-			.filter(store -> normalizedAddress.equals(normalizeAddressForDuplicate(store.getAddress())))
-			.findFirst();
-	}
-
-	private String compactName(String value) {
-		if (value == null) {
-			return "";
-		}
-		return value.toLowerCase().replaceAll("\\s+", "");
-	}
-
-	private String normalizeAddressForDuplicate(String value) {
-		if (value == null) {
-			return "";
-		}
-		return value.toLowerCase()
-			.replaceAll("(?:지하)?\\d+층", "")
-			.replaceAll("\\d+호", "")
-			.replaceAll("[^0-9a-zA-Z가-힣ㄱ-ㅎㅏ-ㅣ]", "");
 	}
 
 	private Map<Long, String> getStoreThumbnails(List<Long> storeIds) {

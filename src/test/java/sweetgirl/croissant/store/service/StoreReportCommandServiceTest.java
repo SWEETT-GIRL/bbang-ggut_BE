@@ -60,7 +60,7 @@ import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
 @ExtendWith(MockitoExtension.class)
-class StoreReportServiceTest {
+class StoreReportCommandServiceTest {
 
 	@Mock
 	S3Service s3Service;
@@ -90,7 +90,7 @@ class StoreReportServiceTest {
 	AdminReportNotificationPublisher adminReportNotificationPublisher;
 
 	@InjectMocks
-	StoreReportService storeReportService;
+	StoreReportCommandService storeReportCommandService;
 
 	@BeforeEach
 	void setUp() {
@@ -109,7 +109,7 @@ class StoreReportServiceTest {
 
 		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
 
-		assertThatThrownBy(() -> storeReportService.createImageReport(1L, 1L, request))
+		assertThatThrownBy(() -> storeReportCommandService.createImageReport(1L, 1L, request))
 			.isInstanceOf(StoreReportException.class)
 			.hasMessageContaining(StoreReportErrorCode.REPORT_CONTENT_EMPTY.getMessage());
 	}
@@ -122,7 +122,7 @@ class StoreReportServiceTest {
 		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
 		given(storeImageFileRepository.countByIdInAndStoreId(List.of(1L, 2L), 1L)).willReturn(1L);
 
-		assertThatThrownBy(() -> storeReportService.createImageReport(1L, 1L, request))
+		assertThatThrownBy(() -> storeReportCommandService.createImageReport(1L, 1L, request))
 			.isInstanceOf(StoreReportException.class)
 			.hasMessageContaining(StoreReportErrorCode.REPORT_IMAGE_NOT_OWNED.getMessage());
 	}
@@ -136,7 +136,7 @@ class StoreReportServiceTest {
 		given(storeImageFileRepository.countByIdInAndStoreId(List.of(1L), 1L)).willReturn(1L);
 		given(storeRepository.findById(1L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> storeReportService.createImageReport(1L, 1L, request))
+		assertThatThrownBy(() -> storeReportCommandService.createImageReport(1L, 1L, request))
 			.isInstanceOf(StoreException.class)
 			.hasMessageContaining(StoreErrorCode.STORE_NOT_FOUND.getMessage());
 	}
@@ -153,7 +153,7 @@ class StoreReportServiceTest {
 		given(objectMapper.writeValueAsString(request)).willReturn("{}");
 		given(contributionReportRepository.save(any())).willReturn(savedContribution);
 
-		StoreReportResponse result = storeReportService.createImageReport(1L, 1L, request);
+		StoreReportResponse result = storeReportCommandService.createImageReport(1L, 1L, request);
 
 		assertThat(result.reportId()).isEqualTo(10L);
 		assertThat(result.status()).isEqualTo(StoreReportStatus.PENDING);
@@ -176,7 +176,7 @@ class StoreReportServiceTest {
 		given(objectMapper.writeValueAsString(request)).willReturn("{}");
 		given(contributionReportRepository.save(any())).willReturn(savedContribution);
 
-		StoreReportResponse result = storeReportService.createImageReport(1L, 1L, request);
+		StoreReportResponse result = storeReportCommandService.createImageReport(1L, 1L, request);
 
 		assertThat(result.reportId()).isEqualTo(10L);
 		verify(storeContributionReportImageFileRepository).saveAll(anyList());
@@ -193,7 +193,7 @@ class StoreReportServiceTest {
 
 		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
 
-		assertThatThrownBy(() -> storeReportService.createImageReport(1L, 1L, request))
+		assertThatThrownBy(() -> storeReportCommandService.createImageReport(1L, 1L, request))
 			.isInstanceOf(StoreReportException.class)
 			.hasMessageContaining(StoreReportErrorCode.REPORT_INVALID_AWS_KEY.getMessage());
 	}
@@ -208,7 +208,7 @@ class StoreReportServiceTest {
 
 		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
 
-		assertThatThrownBy(() -> storeReportService.createBusinessHoursReport(1L, 1L, request))
+		assertThatThrownBy(() -> storeReportCommandService.createBusinessHoursReport(1L, 1L, request))
 			.isInstanceOf(StoreReportException.class)
 			.hasMessageContaining(StoreReportErrorCode.REPORT_TIME_REQUIRED.getMessage());
 	}
@@ -221,7 +221,7 @@ class StoreReportServiceTest {
 
 		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
 
-		assertThatThrownBy(() -> storeReportService.createBusinessHoursReport(1L, 1L, request))
+		assertThatThrownBy(() -> storeReportCommandService.createBusinessHoursReport(1L, 1L, request))
 			.isInstanceOf(StoreReportException.class)
 			.hasMessageContaining(StoreReportErrorCode.REPORT_TIME_REQUIRED.getMessage());
 	}
@@ -234,7 +234,7 @@ class StoreReportServiceTest {
 
 		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
 
-		assertThatThrownBy(() -> storeReportService.createBusinessHoursReport(1L, 1L, request))
+		assertThatThrownBy(() -> storeReportCommandService.createBusinessHoursReport(1L, 1L, request))
 			.isInstanceOf(StoreReportException.class)
 			.hasMessageContaining(StoreReportErrorCode.REPORT_INVALID_TIME_RANGE.getMessage());
 	}
@@ -251,7 +251,7 @@ class StoreReportServiceTest {
 		given(objectMapper.writeValueAsString(request)).willReturn("{}");
 		given(contributionReportRepository.save(any())).willReturn(savedContribution);
 
-		StoreReportResponse result = storeReportService.createBusinessHoursReport(1L, 1L, request);
+		StoreReportResponse result = storeReportCommandService.createBusinessHoursReport(1L, 1L, request);
 
 		assertThat(result.reportId()).isEqualTo(10L);
 		assertThat(result.status()).isEqualTo(StoreReportStatus.PENDING);
@@ -272,7 +272,7 @@ class StoreReportServiceTest {
 		given(objectMapper.writeValueAsString(request)).willReturn("{}");
 		given(contributionReportRepository.save(any())).willReturn(savedContribution);
 
-		StoreReportResponse result = storeReportService.createBusinessHoursReport(1L, 1L, request);
+		StoreReportResponse result = storeReportCommandService.createBusinessHoursReport(1L, 1L, request);
 
 		assertThat(result.reportId()).isEqualTo(10L);
 		assertThat(result.status()).isEqualTo(StoreReportStatus.PENDING);
@@ -290,7 +290,7 @@ class StoreReportServiceTest {
 		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
 		given(storeRepository.findById(1L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> storeReportService.createAddressReport(1L, 1L, request))
+		assertThatThrownBy(() -> storeReportCommandService.createAddressReport(1L, 1L, request))
 			.isInstanceOf(StoreException.class)
 			.hasMessageContaining(StoreErrorCode.STORE_NOT_FOUND.getMessage());
 	}
@@ -306,7 +306,7 @@ class StoreReportServiceTest {
 		given(objectMapper.writeValueAsString(request)).willReturn("{}");
 		given(contributionReportRepository.save(any())).willReturn(savedContribution);
 
-		StoreReportResponse result = storeReportService.createAddressReport(1L, 1L, request);
+		StoreReportResponse result = storeReportCommandService.createAddressReport(1L, 1L, request);
 
 		assertThat(result.reportId()).isEqualTo(10L);
 		assertThat(result.status()).isEqualTo(StoreReportStatus.PENDING);
@@ -325,7 +325,7 @@ class StoreReportServiceTest {
 		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
 		given(menuRepository.findById(1L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> storeReportService.createMenuEditReport(1L, 1L, request))
+		assertThatThrownBy(() -> storeReportCommandService.createMenuEditReport(1L, 1L, request))
 			.isInstanceOf(MenuException.class)
 			.hasMessageContaining(MenuErrorCode.MENU_NOT_FOUND.getMessage());
 	}
@@ -338,7 +338,7 @@ class StoreReportServiceTest {
 		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
 		given(menuRepository.findById(1L)).willReturn(Optional.of(mock(Menu.class)));
 
-		assertThatThrownBy(() -> storeReportService.createMenuEditReport(1L, 1L, request))
+		assertThatThrownBy(() -> storeReportCommandService.createMenuEditReport(1L, 1L, request))
 			.isInstanceOf(StoreReportException.class)
 			.hasMessageContaining(StoreReportErrorCode.REPORT_EDIT_CONTENT_EMPTY.getMessage());
 	}
@@ -352,7 +352,7 @@ class StoreReportServiceTest {
 		given(menuRepository.findById(1L)).willReturn(Optional.of(mock(Menu.class)));
 		given(menuImageFileRepository.countByIdInAndMenuId(List.of(1L, 2L), 1L)).willReturn(1L);
 
-		assertThatThrownBy(() -> storeReportService.createMenuEditReport(1L, 1L, request))
+		assertThatThrownBy(() -> storeReportCommandService.createMenuEditReport(1L, 1L, request))
 			.isInstanceOf(StoreReportException.class)
 			.hasMessageContaining(StoreReportErrorCode.REPORT_MENU_IMAGE_NOT_OWNED.getMessage());
 	}
@@ -370,7 +370,7 @@ class StoreReportServiceTest {
 		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
 		given(menuRepository.findById(1L)).willReturn(Optional.of(menu));
 
-		assertThatThrownBy(() -> storeReportService.createMenuEditReport(1L, 1L, request))
+		assertThatThrownBy(() -> storeReportCommandService.createMenuEditReport(1L, 1L, request))
 			.isInstanceOf(StoreReportException.class)
 			.hasMessageContaining(StoreReportErrorCode.REPORT_INVALID_AWS_KEY.getMessage());
 	}
@@ -389,7 +389,7 @@ class StoreReportServiceTest {
 		given(memberReader.getMember(1L)).willReturn(mock(Member.class));
 		given(menuRepository.findById(1L)).willReturn(Optional.of(menu));
 
-		assertThatThrownBy(() -> storeReportService.createMenuEditReport(1L, 1L, request))
+		assertThatThrownBy(() -> storeReportCommandService.createMenuEditReport(1L, 1L, request))
 			.isInstanceOf(RuntimeException.class);
 	}
 
@@ -407,7 +407,7 @@ class StoreReportServiceTest {
 		given(objectMapper.writeValueAsString(request)).willReturn("{}");
 		given(contributionReportRepository.save(any())).willReturn(savedContribution);
 
-		StoreReportResponse result = storeReportService.createMenuEditReport(1L, 1L, request);
+		StoreReportResponse result = storeReportCommandService.createMenuEditReport(1L, 1L, request);
 
 		assertThat(result.reportId()).isEqualTo(4L);
 		assertThat(result.status()).isEqualTo(StoreReportStatus.PENDING);
@@ -434,7 +434,7 @@ class StoreReportServiceTest {
 		given(objectMapper.writeValueAsString(request)).willReturn("{}");
 		given(contributionReportRepository.save(any())).willReturn(savedContribution);
 
-		StoreReportResponse result = storeReportService.createMenuEditReport(1L, 1L, request);
+		StoreReportResponse result = storeReportCommandService.createMenuEditReport(1L, 1L, request);
 
 		assertThat(result.reportId()).isEqualTo(4L);
 		verify(menuContributionReportImageFileRepository).saveAll(anyList());
@@ -457,7 +457,7 @@ class StoreReportServiceTest {
 		given(objectMapper.writeValueAsString(request)).willReturn("{}");
 		given(contributionReportRepository.save(any())).willReturn(savedContribution);
 
-		storeReportService.createMenuEditReport(1L, 1L, request);
+		storeReportCommandService.createMenuEditReport(1L, 1L, request);
 
 		verify(contributionReportRepository).save(argThat(r -> r.getMember() == member));
 	}

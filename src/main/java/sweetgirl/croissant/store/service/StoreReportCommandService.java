@@ -26,7 +26,6 @@ import sweetgirl.croissant.contribution.repository.StoreContributionReportReposi
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.external.aws.util.S3PathGenerator;
-import sweetgirl.croissant.external.kakao.client.KakaoLocalClient;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
@@ -43,7 +42,6 @@ import sweetgirl.croissant.store.dto.request.ReportPresignedUrlRequest;
 import sweetgirl.croissant.store.dto.request.StoreAddressReportRequest;
 import sweetgirl.croissant.store.dto.request.StoreBusinessHoursReportRequest;
 import sweetgirl.croissant.store.dto.request.StoreImageReportRequest;
-import sweetgirl.croissant.store.dto.response.AddressSearchResult;
 import sweetgirl.croissant.store.dto.response.PresignedUrlInfo;
 import sweetgirl.croissant.store.dto.response.PresignedUrlInfoResponse;
 import sweetgirl.croissant.store.dto.response.StoreReportResponse;
@@ -56,9 +54,9 @@ import sweetgirl.croissant.store.repository.StoreRepository;
 
 @Service
 @RequiredArgsConstructor
-public class StoreReportService {
+@Transactional
+public class StoreReportCommandService {
 
-	private final KakaoLocalClient kakaoLocalClient;
 	private final S3Service s3Service;
 	private final ObjectMapper objectMapper;
 	private final MemberReader memberReader;
@@ -72,12 +70,6 @@ public class StoreReportService {
 	private final StoreContributionReportImageFileRepository storeContributionReportImageFileRepository;
 	private final MenuContributionReportImageFileRepository menuContributionReportImageFileRepository;
 	private final AdminReportNotificationPublisher adminReportNotificationPublisher;
-
-	public List<AddressSearchResult> searchAddress(String searchKeyword) {
-		return kakaoLocalClient.searchByKeywordForAddress(searchKeyword).stream()
-			.map(AddressSearchResult::from)
-			.toList();
-	}
 
 	// STORE - mimeType 개수만큼 S3에 PresignedUrl 발급 요청
 	public PresignedUrlInfoResponse generateStoreReportPresignedUrls(Long memberId, Long storeId,
@@ -125,7 +117,6 @@ public class StoreReportService {
 	}
 
 	// 가게 이미지 추가/삭제 제보 — 삭제·추가 대상 검증 후 StoreReport 및 이미지 파일 저장
-	@Transactional
 	public StoreReportResponse createImageReport(Long memberId, Long storeId, StoreImageReportRequest request) {
 		Member member = memberReader.getMember(memberId);
 
@@ -181,7 +172,6 @@ public class StoreReportService {
 	}
 
 	// 가게 영업시간 수정 제보 — 오픈·마감 시간 유효성 검증 후 StoreReport 저장
-	@Transactional
 	public StoreReportResponse createBusinessHoursReport(Long memberId, Long storeId,
 			StoreBusinessHoursReportRequest request) {
 		Member member = memberReader.getMember(memberId);
@@ -215,7 +205,6 @@ public class StoreReportService {
 	}
 
 	// 가게 주소 수정 제보 — StoreReport 저장
-	@Transactional
 	public StoreReportResponse createAddressReport(Long memberId, Long storeId, StoreAddressReportRequest request) {
 		Member member = memberReader.getMember(memberId);
 
@@ -240,7 +229,6 @@ public class StoreReportService {
 	}
 
 	// 메뉴 수정 제보 — 가격·이미지 삭제·이미지 추가를 하나의 제보로 접수
-	@Transactional
 	public StoreReportResponse createMenuEditReport(Long memberId, Long menuId, MenuEditReportRequest request) {
 		Member member = memberReader.getMember(memberId);
 

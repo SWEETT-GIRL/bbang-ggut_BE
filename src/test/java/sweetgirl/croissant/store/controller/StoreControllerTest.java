@@ -21,7 +21,8 @@ import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.store.dto.response.StoreAutocompleteResponse;
 import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
 import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
-import sweetgirl.croissant.store.service.StoreService;
+import sweetgirl.croissant.store.service.StoreCommandService;
+import sweetgirl.croissant.store.service.StoreQueryService;
 import sweetgirl.croissant.store.service.search.SearchSort;
 import sweetgirl.croissant.store.service.search.StoreSearchService;
 
@@ -31,7 +32,10 @@ class StoreControllerTest {
 	private MockMvc mockMvc;
 
 	@Mock
-	private StoreService storeService;
+	private StoreQueryService storeQueryService;
+
+	@Mock
+	private StoreCommandService storeCommandService;
 
 	@Mock
 	private StoreSearchService storeSearchService;
