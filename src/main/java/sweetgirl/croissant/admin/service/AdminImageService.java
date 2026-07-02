@@ -96,13 +96,13 @@ public class AdminImageService {
 		// displayOrder 가 null 인 경우 (자동 크롤러 등) 기존 최대값 + 1 부터 순차 부여.
 		int nextOrder = storeImageFileRepository.findMaxDisplayOrderByStoreId(storeId) + 1;
 		List<StoreImageFile> imageFiles = new ArrayList<>();
-		for (ImageSaveRequest req : requests) {
-			int order = req.getDisplayOrder() != null ? req.getDisplayOrder() : nextOrder++;
+		for (ImageSaveRequest saveRequest : requests) {
+			int order = saveRequest.getDisplayOrder() != null ? saveRequest.getDisplayOrder() : nextOrder++;
 			imageFiles.add(StoreImageFile.builder()
 				.store(store)
-				.name(req.getFileName())
-				.mimeType(MimeType.fromString(req.getMimeType()))
-				.awsKey(req.getAwsKey())
+				.name(saveRequest.getFileName())
+				.mimeType(MimeType.fromString(saveRequest.getMimeType()))
+				.awsKey(saveRequest.getAwsKey())
 				.displayOrder(order)
 				.build());
 		}
@@ -116,13 +116,13 @@ public class AdminImageService {
 
 		int nextOrder = menuImageFileRepository.findMaxDisplayOrderByMenuId(menuId) + 1;
 		List<MenuImageFile> imageFiles = new ArrayList<>();
-		for (ImageSaveRequest req : requests) {
-			int order = req.getDisplayOrder() != null ? req.getDisplayOrder() : nextOrder++;
+		for (ImageSaveRequest saveRequest : requests) {
+			int order = saveRequest.getDisplayOrder() != null ? saveRequest.getDisplayOrder() : nextOrder++;
 			imageFiles.add(MenuImageFile.builder()
 				.menu(menu)
-				.name(req.getFileName())
-				.mimeType(MimeType.fromString(req.getMimeType()))
-				.awsKey(req.getAwsKey())
+				.name(saveRequest.getFileName())
+				.mimeType(MimeType.fromString(saveRequest.getMimeType()))
+				.awsKey(saveRequest.getAwsKey())
 				.displayOrder(order)
 				.build());
 		}
@@ -199,11 +199,12 @@ public class AdminImageService {
 		int successCount = 0;
 		int failureCount = 0;
 
-		for (ImageUploadFromUrlRequest req : requests) {
-			int displayOrder = req.getDisplayOrder() != null ? req.getDisplayOrder() : nextOrder++;
-			ImageUploadFromUrlResponse.Item item = uploadOne(domain, targetId, path, req.getUrl(), displayOrder);
-			results.add(item);
-			ImageUploadFromUrlResponse.Status status = item.status();
+		for (ImageUploadFromUrlRequest urlRequest : requests) {
+			int displayOrder = urlRequest.getDisplayOrder() != null ? urlRequest.getDisplayOrder() : nextOrder++;
+			ImageUploadFromUrlResponse.Item uploadResult = uploadOne(domain, targetId, path, urlRequest.getUrl(),
+				displayOrder);
+			results.add(uploadResult);
+			ImageUploadFromUrlResponse.Status status = uploadResult.status();
 			if (status == ImageUploadFromUrlResponse.Status.SUCCESS
 				|| status == ImageUploadFromUrlResponse.Status.SKIPPED) {
 				successCount++;

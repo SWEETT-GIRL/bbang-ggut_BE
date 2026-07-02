@@ -348,14 +348,14 @@ public class AdminStoreService {
 		}
 		candidateRepository.deleteByStoreId(storeId);
 		int order = 0;
-		for (AdminNaverEnrichCandidateRequest req : requests) {
+		for (AdminNaverEnrichCandidateRequest candidateRequest : requests) {
 			candidateRepository.save(NaverEnrichCandidate.builder()
 				.storeId(storeId)
-				.naverPlaceId(req.naverPlaceId())
-				.name(req.name())
-				.address(req.address())
-				.lat(req.lat())
-				.lng(req.lng())
+				.naverPlaceId(candidateRequest.naverPlaceId())
+				.name(candidateRequest.name())
+				.address(candidateRequest.address())
+				.lat(candidateRequest.lat())
+				.lng(candidateRequest.lng())
 				.displayOrder(order++)
 				.build());
 		}

@@ -102,7 +102,7 @@ public class S3Service {
 					requestBuilder.continuationToken(continuationToken);
 				}
 				ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
-				response.contents().forEach(obj -> keys.add(obj.key()));
+				response.contents().forEach(s3Object -> keys.add(s3Object.key()));
 				continuationToken = Boolean.TRUE.equals(response.isTruncated()) ? response.nextContinuationToken()
 					: null;
 			} while (continuationToken != null);

@@ -504,17 +504,17 @@ public class AdminReportService {
 
 			int nextOrder = currentMaxStoreImageOrder(storeId) + 1;
 			List<StoreImageFile> newImages = new ArrayList<>();
-			for (ReportImageRequest req : payload.addImages()) {
-				StoreContributionReportImageFile src = sourceByKey.get(req.awsKey());
-				if (src == null) {
+			for (ReportImageRequest imageRequest : payload.addImages()) {
+				StoreContributionReportImageFile sourceImage = sourceByKey.get(imageRequest.awsKey());
+				if (sourceImage == null) {
 					log.warn("applyStoreImageChange: 대응 reports 이미지 없음 [reportId={}, key={}]",
-						report.getId(), req.awsKey());
+						report.getId(), imageRequest.awsKey());
 					continue;
 				}
-				String destKey = "stores/" + storeId + "/" + filenameFromKey(src.getAwsKey());
-				s3Service.copyObject(src.getAwsKey(), destKey);
-				newImages.add(src.toStoreImage(store, destKey, nextOrder++));
-				safeDelete(src.getAwsKey());
+				String destKey = "stores/" + storeId + "/" + filenameFromKey(sourceImage.getAwsKey());
+				s3Service.copyObject(sourceImage.getAwsKey(), destKey);
+				newImages.add(sourceImage.toStoreImage(store, destKey, nextOrder++));
+				safeDelete(sourceImage.getAwsKey());
 			}
 			storeImageFileRepository.saveAll(newImages);
 		}
@@ -547,17 +547,17 @@ public class AdminReportService {
 
 			int nextOrder = currentMaxMenuImageOrder(menu.getId()) + 1;
 			List<MenuImageFile> newImages = new ArrayList<>();
-			for (ReportImageRequest req : payload.addImages()) {
-				MenuContributionReportImageFile src = sourceByKey.get(req.awsKey());
-				if (src == null) {
+			for (ReportImageRequest imageRequest : payload.addImages()) {
+				MenuContributionReportImageFile sourceImage = sourceByKey.get(imageRequest.awsKey());
+				if (sourceImage == null) {
 					log.warn("applyMenuEdit: 대응 reports 이미지 없음 [reportId={}, key={}]",
-						report.getId(), req.awsKey());
+						report.getId(), imageRequest.awsKey());
 					continue;
 				}
-				String destKey = "menus/" + menu.getId() + "/" + filenameFromKey(src.getAwsKey());
-				s3Service.copyObject(src.getAwsKey(), destKey);
-				newImages.add(src.toMenuImage(menu, destKey, nextOrder++));
-				safeDelete(src.getAwsKey());
+				String destKey = "menus/" + menu.getId() + "/" + filenameFromKey(sourceImage.getAwsKey());
+				s3Service.copyObject(sourceImage.getAwsKey(), destKey);
+				newImages.add(sourceImage.toMenuImage(menu, destKey, nextOrder++));
+				safeDelete(sourceImage.getAwsKey());
 			}
 			menuImageFileRepository.saveAll(newImages);
 		}
