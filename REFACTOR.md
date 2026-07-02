@@ -1,0 +1,207 @@
+# REFACTOR.md — 빵긋 BE 전체 리팩토링 로드맵
+
+> ## ⚠️ 커밋 규칙 (필수 · 최우선)
+> **Phase 단위로 몰아서 커밋하지 말고, 최대한 작은 단위로 쪼개 커밋한다.**
+> - 작업(`P{n}-T{m}`) 하나도 여러 커밋으로 나눈다. 예(P3 도메인 CQRS 분리):
+>   `QueryService 분리` / `CommandService 분리` / `컨트롤러 주입 교체` / `테스트 재배치`를 **각각 별도 커밋**.
+> - "리팩토링 커밋"과 "테스트 커밋"을 분리한다.
+> - 한 커밋은 하나의 논리적 변경만 담고, 그 자체로 빌드/테스트가 통과해야 한다.
+> - 커밋 메시지: **한글 + 유니코드 이모지 + 타입 접두어** (기존 커밋 형식 준수)
+>   - `♻️ refactor: {내용}` · `🧪 test: {내용}` · `🔥 chore: {내용}` · `📝 docs: {내용}`
+>   - 예: `♻️ refactor: MemberService 조회 로직 MemberQueryService로 분리`
+> - 관련 이슈: **#493**
+
+> 이 문서는 **Claude Code 에이전트가 작업 블록 단위로 실행**하기 위한 명세다.
+> 각 작업(`P{n}-T{m}`)은 자체 완결적이어서, 해당 블록만 프롬프트로 넘겨도 실행 가능하도록 작성됐다.
+> 진행 상황은 체크박스(`- [ ]` → `- [x]`)로 추적한다.
+
+## 0. 이 문서 사용법 (에이전트 지침)
+
+1. 작업은 **Phase 순서대로** 진행한다. Phase 내 작업은 ID 오름차순.
+2. 각 작업 시작 시 **`in_progress`로 TaskUpdate**, 완료 시 체크박스 갱신 + 커밋.
+3. **동작 보존(behavior-preserving)이 최우선.** 리팩토링은 외부 동작을 바꾸지 않는다. 동작 변경이 필요하면 "동작 변경 주의" 항목을 따르고 실패 재현 테스트를 먼저 작성한다.
+4. 각 작업의 **DoD(완료 조건)와 검증 명령**을 반드시 통과시킨다.
+5. 커밋 메시지는 한글 + 이모지 접두어(주로 `♻️ refactor:`, 테스트는 `🧪 test:`).
+6. 모호하면 추측하지 말고 질문한다 (CLAUDE.md 최우선 지침).
+
+## 1. 리팩토링 원칙
+
+- **컨벤션 근거**: `.claude/skills/code-convention.md` (네이밍/Entity/Enum/Exception/Service(CQRS)/Controller/DTO/DB/Query)
+- **테스트 근거**: `.claude/skills/test-guide.md` (Service=단위, Controller=`@WebMvcTest`, Repository=`@DataJpaTest`)
+- **동작 보존 우선** — 리팩토링과 기능 변경을 한 커밋에 섞지 않는다.
+- **작은 PR** — Phase(또는 도메인) 단위로 브랜치를 나눠 리뷰 가능하게 유지.
+- **파일/함수 상한**: 파일 권장 200~400줄·최대 800줄, 함수 권장 20~30줄·최대 50줄, 중첩 최대 4단계.
+
+## 2. 공통 검증 게이트
+
+모든 작업 완료 후, 커밋 전 실행:
+
+```bash
+./gradlew spotlessApply
+./gradlew build          # checkstyle 포함
+./gradlew test
+```
+
+- 단일 테스트: `./gradlew test --tests "sweetgirl.croissant.<패키지>.<클래스>"`
+- 실패 시 즉시 중단하고 원인 조사 (`systematic-debugging` 원칙).
+
+## 3. 브랜치 / PR 전략
+
+- 브랜치: `refactor/{phase}-{slug}` (예: `refactor/p1-response-format`, `refactor/p3-store-cqrs`)
+- PR 제목: `[REFACTOR] {내용}` / 본문 한글 / 대상 Phase·작업 ID 명시
+- 1 Phase = 1 PR 원칙, 단 **Phase 3(CQRS)은 도메인당 1 PR**로 세분화.
+
+## 4. 현황 스냅샷 (탐색 근거)
+
+| 항목 | 상태 | 근거 |
+|------|------|------|
+| CQRS 분리 | `course`, `store`(saved), `admin/course`만 적용. 나머지 혼재 | Phase 3 대상표 |
+| 응답 규약 | `AuthController`에서 `Map.of("data",...)` ↔ `ApiResponse` 혼재 | `member/controller/AuthController.java:35,41,49,57` |
+| 필드 주입 | `EncryptedStringConverter` `@Autowired` 필드 | `global/encrypt/EncryptedStringConverter.java:12-13` |
+| 약어 파라미터 | `req` 다수 | `AuthController`, `admin/service/*` |
+| `return null` | 서비스·필터·외부클라 다수 | Phase 5 대상표 |
+| `@Enumerated` | 전부 STRING ✅ 변경 불필요 | — |
+| 엔티티 `@Setter` | 없음 ✅ (config properties만 허용 패턴) | — |
+| Controller Entity 반환 | 없음 ✅ | — |
+| `printStackTrace()` | 0건 ✅ | — |
+
+---
+
+## Phase 0 — 사전 준비 (안전망)
+
+- [ ] **P0-T1**: 기준선 확보. `./gradlew spotlessApply && ./gradlew build && ./gradlew test`가 **깨끗하게 통과**하는지 확인, 실패 테스트가 있으면 목록화. (통과 상태여야 리팩토링 회귀 판별 가능)
+  - DoD: 3개 명령 모두 green, 또는 기존 실패 테스트가 문서에 기록됨.
+- [ ] **P0-T2**: 브랜치/PR 규칙(§3) 합의. `refactor/*` prefix 사용.
+
+---
+
+## Phase 1 — 응답 규약 통일 (저위험 · 응답 구조 변경 가능)
+
+**목적**: 모든 컨트롤러 응답을 표준 `ApiResponse<T>`(`{success, code, message, data}`)로 통일.
+
+> ⚠️ **동작 변경 주의**: `Map.of("data", response)` → `ApiResponse.ok(response)`는 **JSON 응답 구조가 바뀐다**. FE(카카오/애플 로그인) 계약 확인 필수. FE가 이미 `ApiResponse` 형태를 기대하는지 먼저 확인하고, 아니면 FE 수정과 동기화하거나 보류 태그.
+
+- [ ] **P1-T1**: `member/controller/AuthController.java`의 `kakaoLogin`(35), `appleLogin`(41)을 `ApiResponse.ok(response)`로 통일 (같은 파일 49·57행 패턴과 일치).
+  - before: `return ResponseEntity.ok(Map.of("data", response));`
+  - after: `return ResponseEntity.ok(ApiResponse.ok(response));`
+  - DoD: 4개 엔드포인트 응답 구조 동일. FE 계약 확인 메모.
+  - 검증: `./gradlew test --tests "*AuthController*"` (없으면 `@WebMvcTest` 신규)
+- [ ] **P1-T2**: 전 컨트롤러 비표준 응답 스윕.
+  - 조사: `grep -rn "Map.of(\"data\"\|ResponseEntity<?>\|ResponseEntity<Map" src/main/java --include=*.java`
+  - DoD: 조사 결과 목록 + 각 항목 표준화 or "정당한 예외" 사유 기록.
+- [ ] **P1-T3**: 변경 컨트롤러 `@WebMvcTest` 응답 구조 검증 추가/보강.
+
+**PR**: `[REFACTOR] 컨트롤러 응답 규약 ApiResponse 통일`
+
+---
+
+## Phase 2 — 컨벤션 정리 (저위험 · 동작 불변)
+
+- [ ] **P2-T1**: 약어 파라미터/변수명 `req` → `request` 일괄 정리.
+  - 대상(확인): `member/controller/AuthController.java`, `admin/service/AdminImageService.java`(100,103-105,120,123-125,203-204), `admin/service/AdminReportService.java`(507-511,550-554), `admin/service/AdminStoreService.java`(354-355)
+  - 잔여 조사: `grep -rn "\breq\b\|\bres\b\|\bsvc\b\|\brepo\b" src/main/java --include=*.java` (정식 단어 오탐 제외)
+  - DoD: 약어 파라미터명 제거. 무의미 변수명(`data`,`temp`,`obj`,`item`)도 점검.
+  - 검증: `./gradlew spotlessApply checkstyleMain checkstyleTest`
+- [ ] **P2-T2**: `global/encrypt/EncryptedStringConverter.java:12-13` `@Autowired` 필드 주입 제거.
+  - JPA `AttributeConverter`는 스프링 빈이 아님 → **static holder** 또는 `@Configurable` 중 택1. 암복호화 왕복 테스트로 회귀 검증.
+  - DoD: 필드 `@Autowired` 제거, `AesEncryptor` 주입 경로 명확화, 라운드트립 테스트 통과.
+- [ ] **P2-T3**: 파일/함수 길이 상한 초과 지점 목록화(실제 분해는 Phase 4). 부록 A에 기록만.
+
+**PR**: `[REFACTOR] 네이밍·주입 방식 컨벤션 정리`
+
+---
+
+## Phase 3 — CQRS 분리 확산 (전 도메인 · 고위험 · 도메인당 1 PR)
+
+**목적**: 모든 도메인의 단일 서비스를 `{Domain}CommandService`(`@Transactional`) / `{Domain}QueryService`(`@Transactional(readOnly = true)`)로 분리. **이번 리팩토링에서 전 도메인 실행.**
+
+**표준 절차 (도메인마다 반복)**:
+1. 기존 서비스 메서드를 읽기(R)/쓰기(CUD)로 분류.
+2. `QueryService`(readOnly) · `CommandService`(쓰기) 2개 클래스 생성, 로직 이동. (조회 전용 도메인은 QueryService만)
+3. 컨트롤러 주입부를 두 서비스로 교체.
+4. 기존 서비스 테스트를 두 테스트로 재배치, 통과 확인.
+5. 도메인별 커밋 + PR.
+
+**공통 DoD**: Command/Query 분리, 컨트롤러 주입 교체, 테스트 재배치·통과, `readOnly` 트랜잭션 정확성, 순환 의존 없음.
+
+**실행 순서** (규모 작은 것 → 큰 것, 참고 패턴 먼저 익히고 대형으로):
+
+- [ ] **P3-T1 · (참고 학습)**: 이미 분리된 `course`, `store`의 saved 계열, `admin/course` 구조를 읽고 팀 표준 패턴 확정. 이후 도메인에 동일 패턴 적용.
+- [ ] **P3-T2 · policy**: `policy/service/*` — 정적 약관 조회 전용이면 `QueryService`만. (가장 단순, 워밍업)
+- [ ] **P3-T3 · banner**: `banner/service/BannerService.java` 분리.
+- [ ] **P3-T4 · inquiry**: `inquiry/service/InquiryService.java` 분리.
+- [ ] **P3-T5 · member**: `member/service/MemberService.java`(243줄) 분리.
+- [ ] **P3-T6 · alarm**: `alarm/service/AlarmService.java`(289줄) 분리.
+- [ ] **P3-T7 · abuse**: `abuse/service/*` 분리(현 분리 여부 확인 후).
+- [ ] **P3-T8 · menu**: `menu/service/MenuService.java`, `menu/service/TrendService.java` 분리.
+- [ ] **P3-T9 · store**: `store/service/StoreService.java`(조회+`registerKakaoStore`(207)/`subscribeStore`(239)/`unsubscribeStore`(252) 혼재), `StoreReportService.java`(327줄) 분리. (saved 계열은 이미 분리됨 — 나머지 정리)
+- [ ] **P3-T10 · review**: `review/service/ReviewService.java`(604줄) 분리. (Phase 4-대형분해와 병행)
+- [ ] **P3-T11 · admin/***: `admin/service/AdminStoreService.java`(484줄), `AdminMenuService.java`, `AdminMemberService.java`, `AdminImageService.java`, `AdminModerationAppealService.java` 등 분리. `AdminReportService`(962줄)는 Phase 4-대형분해와 결합.
+- [ ] **P3-T12 · 잔여 스윕**: `contribution`(service 없음)·`dev`(개발용) 등 CQRS 불필요 도메인은 "제외" 판정 기록. 나머지 서비스 중 누락 없는지 `grep -rL "CommandService\|QueryService" $(grep -rl "@Service" src/main/java)` 로 확인.
+
+**PR (도메인별)**: `[REFACTOR] {domain} 서비스 CQRS 분리`
+
+---
+
+## Phase 4 — 대형 서비스 분해 (고위험 · Phase 3와 연속)
+
+**목적**: `code-convention` 파일 상한(800줄) 초과 서비스를 책임 단위로 분해. Phase 3의 CQRS 분리와 결합해 진행.
+
+- [ ] **P4-T1**: `admin/service/AdminReportService.java`(962줄) 분해 — Phase 3-T11의 CQRS 분리 위에서 신고 처리/조회/통계 등 책임 경계로 추가 분리.
+- [ ] **P4-T2**: `review/service/ReviewService.java`(604줄) 분해 (Phase 3-T10 결합).
+- [ ] **P4-T3**: 800줄 근접 서비스(`AdminStoreService` 484줄 등) 재점검 — 함수 50줄 상한 위반 메서드 우선 추출.
+
+각 DoD: 분해 후 기존 테스트 통과 + 신규 클래스 테스트 추가. 순환 의존 없음.
+
+**PR**: `[REFACTOR] 대형 서비스 책임 분해`
+
+---
+
+## Phase 5 — `return null` → Optional/예외 (중위험 · 새 구조 위에서)
+
+**목적**: 서비스 레이어의 `return null`을 `.orElseThrow(커스텀예외)` 또는 `Optional`로 전환. **CQRS·분해 완료 후** 안정된 구조 위에서 수행(같은 대형 파일 재작업 방지).
+
+> ⚠️ 필터/핸들러/DTO 컨버터/외부클라의 null은 정상 흐름일 수 있어 옥석 구분 필수.
+
+- [ ] **P5-T1**: 서비스 레이어 null 전환(도메인 예외).
+  - 대상: `admin/service/AdminReportService`(896,907)→분해 후 위치, `AdminStoreService`(451), `AdminMemberService`(129), `AdminMenuService`(178,191,197), `AdminModerationAppealService`(106), `menu/service/TrendService`(252)
+  - 패턴: 조회 실패 → `.orElseThrow(() -> new {Domain}Exception.NotFound(...))`. 예외 없으면 `CustomException` 상속 static class 추가.
+  - DoD: 대상 메서드 null 제거, 각 메서드 실패(예외) 테스트 1개 이상.
+- [ ] **P5-T2**: 필터/외부클라 null 검토(전환 아닐 수 있음).
+  - 대상: `member/jwt/JwtAuthenticationFilter`(109), `member/oauth/OAuth2SuccessHandler`(104), `global/advice/GlobalExceptionHandler`(81,162), `global/logging/filter/RequestLoggingFilter`(117,134,141,145), `external/opensearch/client/OpenSearchStoreClient`(258,262,267), `external/aws/util/ImageDownloader`(120,127,131)
+  - DoD: 각 지점 "전환 or 유지" 판정 + 사유 기록.
+
+**PR**: `[REFACTOR] 서비스 null 반환 → 예외/Optional 전환`
+
+---
+
+## Phase 6 — 마무리
+
+- [ ] **P6-T1**: 전체 diff `/code-review` 실행, CRITICAL/WARNING 처리.
+- [ ] **P6-T2**: 최종 체크리스트:
+  - [ ] 새로 만든 모든 Service에 테스트 존재
+  - [ ] 새로 만든 모든 Controller에 테스트 존재
+  - [ ] 추가한 모든 public 메서드에 테스트 존재
+  - [ ] 예외 케이스 테스트 존재
+- [ ] **P6-T3**: `REFACTOR.md` 진행 현황 최종 갱신.
+
+---
+
+## 부록 A. 변경하지 않는 것 (합의된 예외)
+
+- `@ConfigurationProperties` 클래스의 `@Setter` (`AwsProperties` 등) — 허용 패턴, 유지.
+- `member/entity/NotificationSetting.java`의 `setDaysOfWeekList` — String↔List 변환 헬퍼, 유지.
+- 정상 흐름 null 반환(필터/DTO 팩토리) — Phase 5에서 개별 판정.
+- `contribution`(service 없음)·`dev`(개발용) — CQRS 제외.
+
+## 부록 B. 진행 요약 (수시 갱신)
+
+| Phase | 상태 | PR | 비고 |
+|-------|------|----|----|
+| P0 사전 준비 | ⬜ | — | |
+| P1 응답 규약 | ⬜ | — | FE 응답계약 확인 필요 |
+| P2 컨벤션 정리 | ⬜ | — | |
+| P3 CQRS(전 도메인) | ⬜ | — | 도메인당 1 PR |
+| P4 대형 분해 | ⬜ | — | P3와 연속 |
+| P5 null 정리 | ⬜ | — | 새 구조 위 |
+| P6 마무리 | ⬜ | — | |
