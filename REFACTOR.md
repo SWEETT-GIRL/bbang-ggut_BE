@@ -140,11 +140,16 @@
 
 **실행 순서** (규모 작은 것 → 큰 것, 참고 패턴 먼저 익히고 대형으로):
 
-- [ ] **P3-T1 · (참고 학습)**: 이미 분리된 `course`, `store`의 saved 계열, `admin/course` 구조를 읽고 팀 표준 패턴 확정. 이후 도메인에 동일 패턴 적용.
-- [ ] **P3-T2 · policy**: `policy/service/*` — 정적 약관 조회 전용이면 `QueryService`만. (가장 단순, 워밍업)
-- [ ] **P3-T3 · banner**: `banner/service/BannerService.java` 분리.
-- [ ] **P3-T4 · inquiry**: `inquiry/service/InquiryService.java` 분리.
-- [ ] **P3-T5 · member**: `member/service/MemberService.java`(243줄) 분리.
+- [x] **P3-T1 · (참고 학습)**: 이미 분리된 `course`, `store`의 saved 계열, `admin/course` 구조를 읽고 팀 표준 패턴 확정. 이후 도메인에 동일 패턴 적용.
+  - **표준 (2026-07-02)**: `{Domain}QueryService`(`@Service @RequiredArgsConstructor @Transactional(readOnly = true)`, 조회 메서드), `{Domain}CommandService`(`@Transactional`, 쓰기 메서드). 컨트롤러가 두 서비스 주입. 조회 전용 도메인은 QueryService만, 쓰기 전용 도메인은 CommandService만. presigned-url 발급은 course 선례상 CommandService에 배치. 서비스 이동은 순수 move(네이밍은 P2에서 완료했으므로 람다 변수 등 유지).
+- [x] **P3-T2 · policy**: `policy/service/*` — 정적 약관 조회 전용이면 `QueryService`만. (가장 단순, 워밍업)
+  - **결과**: 조회 전용이라 `TermsService` → `TermsQueryService`(readOnly)로 리네임. 컨트롤러·테스트 참조 갱신. 커밋 `♻️ refactor: policy 서비스 CQRS 분리`.
+- [x] **P3-T3 · banner**: `banner/service/BannerService.java` 분리.
+  - **결과**: `BannerService` → `BannerQueryService`(readOnly, 사용자 조회), `AdminBannerService` → `AdminBannerCommandService`(쓰기 전용, create/delete/reorder/presigned-url). 어드민에 순수 조회 메서드가 없어 QueryService 미생성. 커밋 `♻️ refactor: banner 서비스 CQRS 분리`. (기존 banner 테스트 없음)
+- [x] **P3-T4 · inquiry**: `inquiry/service/InquiryService.java` 분리.
+  - **결과**: 쓰기 전용이라 `InquiryService` → `InquiryCommandService`로 리네임. 컨트롤러·서비스테스트(`InquiryCommandServiceTest`)·컨트롤러테스트 참조 갱신. 커밋 `♻️ refactor: inquiry 서비스 CQRS 분리`.
+- [x] **P3-T5 · member**: `member/service/MemberService.java`(243줄) 분리.
+  - **결과**: 조회 7종 → `MemberQueryService`(readOnly), 쓰기 7종 → `MemberCommandService`. 컨트롤러 두 서비스 주입, `MemberControllerTest` 목 2개로 분리. (pre-commit `git add -u`로 리팩토링+테스트가 한 커밋에 병합됨) 커밋 `♻️ refactor: member 서비스 CQRS 분리`. member 서비스 단위 테스트는 기존에 없었음(Phase 6에서 보강 대상).
 - [ ] **P3-T6 · alarm**: `alarm/service/AlarmService.java`(289줄) 분리.
 - [ ] **P3-T7 · abuse**: `abuse/service/*` 분리(현 분리 여부 확인 후).
 - [ ] **P3-T8 · menu**: `menu/service/MenuService.java`, `menu/service/TrendService.java` 분리.
@@ -247,7 +252,7 @@
 | P0 사전 준비 | ✅ | — | 기존 실패 테스트 6건 보정 후 기준선 green |
 | P1 응답 규약 | ✅ | — | AuthController kakao/apple 표준화(FE 하위호환 확인). admin image/banner presigned-url·save는 어드민 웹 계약상 정당한 예외로 보류 |
 | P2 컨벤션 정리 | ✅ | — | 약어/무의미 변수명 정리, EncryptedStringConverter @Autowired 제거(static holder), 길이 상한 초과 부록 A-2 기록 |
-| P3 CQRS(전 도메인) | ⬜ | — | 도메인당 1 PR |
+| P3 CQRS(전 도메인) | 🚧 | — | T1~T5 완료(policy·banner·inquiry·member). T6~T12 남음. 현재 브랜치에 소단위 커밋 진행 |
 | P4 대형 분해 | ⬜ | — | P3와 연속 |
 | P5 null 정리 | ⬜ | — | 새 구조 위 |
 | P6 마무리 | ⬜ | — | |
