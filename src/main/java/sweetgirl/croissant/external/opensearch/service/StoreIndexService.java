@@ -184,7 +184,7 @@ public class StoreIndexService {
 			openSearchClient.update(u -> u
 				.index(openSearchProperties.getStoresIndex())
 				.id(storeId.toString())
-				.doc(Map.of("name", store.getName())), StoreDocument.class);
+				.doc(Map.of("storeName", store.getName())), StoreDocument.class);
 		} catch (IOException e) {
 			log.error("OpenSearch 가게 이름 업데이트 실패 storeId={}", storeId, e);
 			throw new OpenSearchException(OpenSearchErrorCode.BULK_INDEX_FAILED, e);
