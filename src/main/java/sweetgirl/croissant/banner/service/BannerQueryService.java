@@ -15,7 +15,7 @@ import sweetgirl.croissant.banner.repository.BannerRepository;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class BannerService {
+public class BannerQueryService {
 
 	private final BannerRepository bannerRepository;
 

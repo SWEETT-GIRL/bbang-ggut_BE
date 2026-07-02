@@ -22,8 +22,8 @@ import sweetgirl.croissant.external.aws.util.S3PathGenerator;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
-public class AdminBannerService {
+@Transactional
+public class AdminBannerCommandService {
 
 	private final BannerRepository bannerRepository;
 	private final S3Service s3Service;
@@ -32,7 +32,6 @@ public class AdminBannerService {
 		return s3Service.generatePresignedUrl(S3PathGenerator.getBannerPath(), mimeType);
 	}
 
-	@Transactional
 	public void createBanner(BannerCreateRequest request) {
 		int nextOrder = (int)bannerRepository.count();
 		Banner banner = Banner.builder()
@@ -47,7 +46,6 @@ public class AdminBannerService {
 		bannerRepository.save(banner);
 	}
 
-	@Transactional
 	public void deleteBanner(Long bannerId) {
 		Banner banner = bannerRepository.findById(bannerId)
 			.orElseThrow(() -> new BannerException(BannerErrorCode.BANNER_NOT_FOUND));
@@ -56,7 +54,6 @@ public class AdminBannerService {
 		bannerRepository.delete(banner);
 	}
 
-	@Transactional
 	public void reorderBanners(BannerReorderRequest request) {
 		List<Long> bannerIds = request.getBannerIds();
 		Map<Long, Banner> bannerMap = bannerRepository.findAllById(bannerIds).stream()
