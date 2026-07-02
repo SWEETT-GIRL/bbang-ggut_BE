@@ -59,7 +59,7 @@
 | 응답 규약 | `AuthController`에서 `Map.of("data",...)` ↔ `ApiResponse` 혼재 | `member/controller/AuthController.java:35,41,49,57` |
 | 필드 주입 | `EncryptedStringConverter` `@Autowired` 필드 | `global/encrypt/EncryptedStringConverter.java:12-13` |
 | 약어 파라미터 | `req` 다수 | `AuthController`, `admin/service/*` |
-| `return null` | 서비스·필터·외부클라 다수 | Phase 5 대상표 |
+| `return null` | 서비스 조회실패 null은 P3/4에서 `.orElseThrow()`로 흡수. 남은 건 정상 흐름(P5 유지 판정) | Phase 5 판정표 |
 | `@Enumerated` | 전부 STRING ✅ 변경 불필요 | — |
 | 엔티티 `@Setter` | 없음 ✅ (config properties만 허용 패턴) | — |
 | Controller Entity 반환 | 없음 ✅ | — |
@@ -203,13 +203,33 @@
 
 > ⚠️ 필터/핸들러/DTO 컨버터/외부클라의 null은 정상 흐름일 수 있어 옥석 구분 필수.
 
-- [ ] **P5-T1**: 서비스 레이어 null 전환(도메인 예외).
+- [x] **P5-T1**: 서비스 레이어 null 전환(도메인 예외).
   - 대상: `admin/service/AdminReportService`(896,907)→분해 후 위치, `AdminStoreService`(451), `AdminMemberService`(129), `AdminMenuService`(178,191,197), `AdminModerationAppealService`(106), `menu/service/TrendService`(252)
   - 패턴: 조회 실패 → `.orElseThrow(() -> new {Domain}Exception.NotFound(...))`. 예외 없으면 `CustomException` 상속 static class 추가.
   - DoD: 대상 메서드 null 제거, 각 메서드 실패(예외) 테스트 1개 이상.
-- [ ] **P5-T2**: 필터/외부클라 null 검토(전환 아닐 수 있음).
+  - **판정 결과 (2026-07-02)**: **원래 라인은 planning 시점의 기계적 `return null` grep 결과**였고, **진짜 "조회 실패 → null"은 Phase 3/4 CQRS·분해 과정에서 이미 `.orElseThrow(...)`로 전환 완료**(현 코드 전역 `findById().orElseThrow()`). 이동 후 현재 위치를 재추적해 각 지점을 읽은 결과, 남은 서비스 `return null`은 전부 **정상 흐름 신호**로 판명 → ⚠️ 경고("옥석 구분 필수")대로 **유지 + 사유 기록**(예외 전환 시 정상 입력에 throw로 동작 파손, Optional 전환 시 nullable 필드/파라미터 흐름에 `.orElse(null)` 세리머니만 증가). `@Enumerated`/엔티티 `@Setter`처럼 "이미 준수 완료"로 판명된 항목과 동일 성격.
+
+    | 현재 위치 | 메서드 | null 의미 | 판정 |
+    |------|------|------|------|
+    | `AdminReportQueryService`(227,238) | `toContributionReportStatus`·`toAbuseReportStatus` | 상태 필터 없음 → `status != null ? findByStatus : findAll` (여러 private 파라미터로 관통) | **유지** |
+    | `AdminModerationAppealQueryService`(36) | `toAppealStatus` | 상태 필터 없음(위와 동일 패턴) | **유지** |
+    | `AdminStoreCommandService`(237) | `resolveStatus` | 상태 변경 없음 → `Store.update`가 null=no-op(부분 수정)로 처리 | **유지** |
+    | `AdminMenuCommandService`(120,133,139) | `resolveCategory`·`parsePrice` | 카테고리/가격 없음 → nullable 엔티티 필드로 저장 | **유지** |
+    | `AdminMemberCommandService`(126) | `calculateEndsAt` | 무기한 제재(종료일 없음) | **유지** |
+    | `TrendQueryService`(252) | `normalizeRegion3rd` | null-safe 문자열 헬퍼(스트림 뒤 `filter(name -> name != null ...)`가 흡수) | **유지** |
+- [x] **P5-T2**: 필터/외부클라 null 검토(전환 아닐 수 있음).
   - 대상: `member/jwt/JwtAuthenticationFilter`(109), `member/oauth/OAuth2SuccessHandler`(104), `global/advice/GlobalExceptionHandler`(81,162), `global/logging/filter/RequestLoggingFilter`(117,134,141,145), `external/opensearch/client/OpenSearchStoreClient`(258,262,267), `external/aws/util/ImageDownloader`(120,127,131)
   - DoD: 각 지점 "전환 or 유지" 판정 + 사유 기록.
+  - **판정 결과 (2026-07-02)**: 6개 지점(현 8개 라인) **전부 유지**. 필터·핸들러·외부클라의 idiomatic 정상 흐름 null이며, 특히 `GlobalExceptionHandler`는 **Spring MVC 계약상 null이 "응답 쓰지 않음"을 의미**해 전환하면 동작이 깨진다.
+
+    | 현재 위치 | 메서드 | null 의미 | 판정 |
+    |------|------|------|------|
+    | `JwtAuthenticationFilter`(109) | `resolveToken` | Bearer 헤더 없음/형식 불일치(익명 요청) — Spring Security 표준 | **유지** |
+    | `OAuth2SuccessHandler`(104,110) | `extractCookieValue` | 쿠키 없음/미존재 | **유지** |
+    | `GlobalExceptionHandler`(81,162) | `handleHttpMessageNotWritable`·`handleGenericException` | **클라이언트 연결 끊김(ClientAbort) → 쓸 응답 없음.** null은 Spring MVC의 "no response body" 신호 → **전환 금지** | **유지(필수)** |
+    | `RequestLoggingFilter`(117,134,141,145) | `resolveMemberId`·`resolveEventType`·`resolveBody` | 익명 요청/미분류/body 없는 요청 — 전부 nullable 로그 컬럼 | **유지** |
+    | `OpenSearchStoreClient`(264,268,273) | `parseDistance` | 거리순 정렬 아님/sort값 없음/파싱 실패 → 거리 메타데이터 없음(optional) | **유지** |
+    | `ImageDownloader`(120,127,131) | `innerSrcParam` | `src=` 파라미터 없음/쿼리 없음/malformed URI → caller가 `inner != null ? inner : uri.getPath()`로 처리 | **유지** |
 
 **PR**: `[REFACTOR] 서비스 null 반환 → 예외/Optional 전환`
 
@@ -275,5 +295,5 @@
 | P2 컨벤션 정리 | ✅ | — | 약어/무의미 변수명 정리, EncryptedStringConverter @Autowired 제거(static holder), 길이 상한 초과 부록 A-2 기록 |
 | P3 CQRS(전 도메인) | ✅ | — | T1~T12 완료. policy·banner·inquiry·member·alarm·abuse·menu·store·review·admin(member·moderation-appeal·menu·image·store)·잔여(member-block·store-add-report·menu-add-report) 분리. AdminReportService·ReportNotificationService는 제외(Phase 4/부수효과 발행). 서비스별 소단위 커밋 |
 | P4 대형 분해 | ✅ | — | T1: AdminReportService 962줄→4클래스(Query/PriorityAnalyzer/Command/Processor, 모두 400줄 미만, reviewReport 97줄 해소). T2·T3: Review·AdminStore는 P3에서 이미 상한 준수, 검증만 |
-| P5 null 정리 | ⬜ | — | 새 구조 위 |
+| P5 null 정리 | ✅ | — | T1·T2 판정 완료. 진짜 조회실패 null은 P3/4에서 이미 `.orElseThrow()`로 흡수됨. 남은 서비스·필터·외부클라 `return null`은 전부 정상 흐름(필터·no-op 부분수정·nullable 필드·no-filter·ClientAbort 등)으로 판명 → 동작 보존 위해 **유지 + 사유 기록**. 코드 변경 없음 |
 | P6 마무리 | ⬜ | — | |
