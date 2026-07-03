@@ -26,6 +26,7 @@ import sweetgirl.croissant.contribution.repository.MenuContributionReportImageFi
 import sweetgirl.croissant.contribution.repository.MenuContributionReportRepository;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.ImageSaveRequest;
+import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.menu.dto.request.MenuAddReportRequest;
@@ -56,6 +57,8 @@ class MenuAddReportCommandServiceTest {
 	MenuContributionReportImageFileRepository menuContributionReportImageFileRepository;
 	@Mock
 	AdminReportNotificationPublisher adminReportNotificationPublisher;
+	@Mock
+	ImageProcessingCallbackService imageProcessingCallbackService;
 	@InjectMocks
 	MenuAddReportCommandService menuAddReportCommandService;
 

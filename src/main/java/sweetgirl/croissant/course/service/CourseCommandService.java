@@ -32,6 +32,7 @@ import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
+import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
 import sweetgirl.croissant.external.aws.util.S3PathGenerator;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
@@ -54,6 +55,7 @@ public class CourseCommandService {
 	private final MemberRepository memberRepository;
 	private final StoreRepository storeRepository;
 	private final S3Service s3Service;
+	private final ImageProcessingCallbackService imageProcessingCallbackService;
 
 	public Long createCourse(Long memberId, CourseCreateRequest request) {
 		Member member = memberRepository.findByIdAndDeletedAtIsNull(memberId)
@@ -186,7 +188,7 @@ public class CourseCommandService {
 			.awsKey(request.getAwsKey())
 			.displayOrder(1)
 			.build();
-		courseImageFileRepository.save(imageFile);
+		imageProcessingCallbackService.applyPendingCallback(courseImageFileRepository.save(imageFile));
 	}
 
 	public void deleteImage(Long memberId, Long courseId) {

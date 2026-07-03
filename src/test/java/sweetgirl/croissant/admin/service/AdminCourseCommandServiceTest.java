@@ -37,6 +37,7 @@ import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
+import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
@@ -53,6 +54,8 @@ class AdminCourseCommandServiceTest {
 	StoreRepository storeRepository;
 	@Mock
 	S3Service s3Service;
+	@Mock
+	ImageProcessingCallbackService imageProcessingCallbackService;
 
 	@InjectMocks
 	AdminCourseCommandService adminCourseCommandService;

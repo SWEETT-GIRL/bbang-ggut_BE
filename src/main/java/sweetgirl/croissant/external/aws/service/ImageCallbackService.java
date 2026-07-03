@@ -1,5 +1,7 @@
 package sweetgirl.croissant.external.aws.service;
 
+import java.util.Optional;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -7,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.common.entity.ImageFile;
 import sweetgirl.croissant.common.enums.ImageStatus;
-import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.contribution.repository.MenuContributionReportImageFileRepository;
 import sweetgirl.croissant.contribution.repository.StoreContributionReportImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
@@ -30,6 +31,7 @@ public class ImageCallbackService {
 	private final MenuContributionReportImageFileRepository menuContributionReportImageFileRepository;
 	private final ReviewImageFileRepository reviewImageFileRepository;
 	private final CourseImageFileRepository courseImageFileRepository;
+	private final ImageProcessingCallbackService imageProcessingCallbackService;
 
 	@Transactional
 	public void updateImageStatus(ImageStatusUpdateRequest request) {
@@ -40,46 +42,44 @@ public class ImageCallbackService {
 			throw new S3StorageException(S3ErrorCode.INVALID_STATUS_VALUE);
 		}
 
-		ImageFile image = findByAwsKey(awsKey);
-		if (status == ImageStatus.DONE) {
-			image.markDone();
-			if (image.getMimeType() != MimeType.IMAGE_GIF) {
-				image.updateResizedKeys(awsKey);
-			}
-		} else {
-			log.warn("이미지 lambda 처리 실패 [awsKey: {}] 사유: {}", request.getAwsKey(), request.getFailReason());
-			image.markFailed();
+		Optional<ImageFile> image = findByAwsKey(awsKey);
+		if (image.isPresent()) {
+			imageProcessingCallbackService.applyStatus(image.get(), status, request.getFailReason());
+			return;
 		}
+
+		log.info("이미지 row 생성 전 lambda 콜백 수신 [awsKey: {}, status: {}]", awsKey, status);
+		imageProcessingCallbackService.savePendingCallback(awsKey, status, request.getFailReason());
 	}
 
-	private ImageFile findByAwsKey(String awsKey) {
+	private Optional<ImageFile> findByAwsKey(String awsKey) {
 		if (awsKey.startsWith(S3Folder.STORES.prefix())) {
 			return storeImageFileRepository.findByAwsKey(awsKey)
-				.orElseThrow(() -> new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND));
+				.map(ImageFile.class::cast);
 		}
 		if (awsKey.startsWith(S3Folder.MENUS.prefix())) {
 			return menuImageFileRepository.findByAwsKey(awsKey)
-				.orElseThrow(() -> new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND));
+				.map(ImageFile.class::cast);
 		}
 		if (awsKey.startsWith(S3Folder.REPORTS.prefix())) {
 			var storeReportImage = storeContributionReportImageFileRepository.findByAwsKey(awsKey);
 			if (storeReportImage.isPresent()) {
-				return storeReportImage.get();
+				return storeReportImage.map(ImageFile.class::cast);
 			}
 			return menuContributionReportImageFileRepository.findByAwsKey(awsKey)
-				.orElseThrow(() -> new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND));
+				.map(ImageFile.class::cast);
 		}
 		if (awsKey.startsWith(S3Folder.REVIEWS.prefix())) {
 			return reviewImageFileRepository.findByAwsKey(awsKey)
-				.orElseThrow(() -> new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND));
+				.map(ImageFile.class::cast);
 		}
 		if (awsKey.startsWith(S3Folder.COURSES.prefix())) {
 			return courseImageFileRepository.findByAwsKey(awsKey)
-				.orElseThrow(() -> new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND));
+				.map(ImageFile.class::cast);
 		}
 		if (awsKey.startsWith(S3Folder.MENU_ADD_REPORTS.prefix())) {
 			return menuContributionReportImageFileRepository.findByAwsKey(awsKey)
-				.orElseThrow(() -> new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND));
+				.map(ImageFile.class::cast);
 		}
 		throw new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND);
 	}

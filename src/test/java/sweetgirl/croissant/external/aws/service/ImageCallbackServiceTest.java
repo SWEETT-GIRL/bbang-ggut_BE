@@ -1,9 +1,9 @@
 package sweetgirl.croissant.external.aws.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import java.util.Optional;
 
@@ -42,6 +42,8 @@ class ImageCallbackServiceTest {
 	ReviewImageFileRepository reviewImageFileRepository;
 	@Mock
 	CourseImageFileRepository courseImageFileRepository;
+	@Mock
+	ImageProcessingCallbackService imageProcessingCallbackService;
 
 	@InjectMocks
 	ImageCallbackService imageCallbackService;
@@ -65,9 +67,7 @@ class ImageCallbackServiceTest {
 
 		imageCallbackService.updateImageStatus(request);
 
-		assertThat(image.getResizedKey320()).isEqualTo("resized/320/" + awsKey);
-		assertThat(image.getResizedKey640()).isEqualTo("resized/640/" + awsKey);
-		assertThat(image.getResizedKey1024()).isEqualTo("resized/1024/" + awsKey);
+		verify(imageProcessingCallbackService).applyStatus(image, ImageStatus.DONE, null);
 	}
 
 	@Test
@@ -89,9 +89,22 @@ class ImageCallbackServiceTest {
 
 		imageCallbackService.updateImageStatus(request);
 
-		assertThat(image.getResizedKey320()).isNull();
-		assertThat(image.getResizedKey640()).isNull();
-		assertThat(image.getResizedKey1024()).isNull();
+		verify(imageProcessingCallbackService).applyStatus(image, ImageStatus.FAILED, null);
+	}
+
+	@Test
+	@DisplayName("지원 prefix의 row가 아직 없으면 콜백을 보류 저장한다")
+	void updateImageStatus_knownPrefixWithoutImage_savesPendingCallback() {
+		String awsKey = "stores/1/image.jpg";
+
+		ImageStatusUpdateRequest request = mock(ImageStatusUpdateRequest.class);
+		given(request.getAwsKey()).willReturn(awsKey);
+		given(request.getStatus()).willReturn(ImageStatus.DONE);
+		given(storeImageFileRepository.findByAwsKey(awsKey)).willReturn(Optional.empty());
+
+		imageCallbackService.updateImageStatus(request);
+
+		verify(imageProcessingCallbackService).savePendingCallback(awsKey, ImageStatus.DONE, null);
 	}
 
 	@Test

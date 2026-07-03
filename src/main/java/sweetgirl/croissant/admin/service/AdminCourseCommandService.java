@@ -29,6 +29,7 @@ import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
+import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
 import sweetgirl.croissant.external.aws.util.S3PathGenerator;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
@@ -45,6 +46,7 @@ public class AdminCourseCommandService {
 	private final CourseImageFileRepository courseImageFileRepository;
 	private final StoreRepository storeRepository;
 	private final S3Service s3Service;
+	private final ImageProcessingCallbackService imageProcessingCallbackService;
 
 	// ───────────────────────── 코스 CRUD ─────────────────────────
 
@@ -88,7 +90,7 @@ public class AdminCourseCommandService {
 			.awsKey(request.getAwsKey())
 			.displayOrder(1)
 			.build();
-		courseImageFileRepository.save(imageFile);
+		imageProcessingCallbackService.applyPendingCallback(courseImageFileRepository.save(imageFile));
 	}
 
 	public void deleteImage(Long courseId) {

@@ -89,6 +89,7 @@ jobs:
           discord.notification.report-webhook-url=${DISCORD_REPORT_WEBHOOK_URL}
           discord.notification.abuse-webhook-url=${DISCORD_ABUSE_WEBHOOK_URL}
 
+          # Lambda 콜백 인증 키
           lambda.callback.secret-key=${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}
 
           logging.level.sweetgirl.croissant.external.opensearch=${OPENSEARCH_DEBUG_LOGGING:INFO}
@@ -163,6 +164,7 @@ jobs:
             echo "DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK_URL_PROD }}" >> .env
             echo "DISCORD_REPORT_WEBHOOK_URL=${{ secrets.DISCORD_REPORT_WEBHOOK_URL }}" >> .env
             echo "DISCORD_ABUSE_WEBHOOK_URL=${{ secrets.DISCORD_ABUSE_WEBHOOK_URL }}" >> .env
+            echo "LAMBDA_CALLBACK_SECRET_KEY=${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}" >> .env
             echo "PERF_DASHBOARD_ENABLED=${{ secrets.PERF_DASHBOARD_ENABLED }}" >> .env
             echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env
 

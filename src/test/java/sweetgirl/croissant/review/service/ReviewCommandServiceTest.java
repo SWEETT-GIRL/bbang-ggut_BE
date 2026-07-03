@@ -28,6 +28,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
+import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.exception.MemberException;
@@ -73,6 +74,8 @@ class ReviewCommandServiceTest {
 	ReviewRecommendRepository reviewRecommendRepository;
 	@Mock
 	ObjectionableContentFilter objectionableContentFilter;
+	@Mock
+	ImageProcessingCallbackService imageProcessingCallbackService;
 
 	ReviewCommandService reviewCommandService;
 
@@ -91,7 +94,8 @@ class ReviewCommandServiceTest {
 			reviewImageFileRepository,
 			reviewRecommendRepository,
 			objectionableContentFilter,
-			reviewResponseAssembler);
+			reviewResponseAssembler,
+			imageProcessingCallbackService);
 	}
 
 	@Test
