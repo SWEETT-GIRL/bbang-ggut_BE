@@ -79,31 +79,75 @@ class StoreSearchQueryBuilderTest {
 	}
 
 	@Test
-	void build_addsRemainingTokenAsShouldBoostWhenBreadPresent() {
-		// 폴백 시나리오: "초코소금빵" → bread "소금빵"(must) + remaining "초코"(should 보너스)
+	void build_addsRemainingTokenAsMustWhenBreadPresent() {
+		// 폴백 시나리오: "초코소금빵" → bread "소금빵"(must) + remaining "초코"(must, 가게명/메뉴 매칭)
 		SearchIntent intent = intent("초코소금빵", List.of(), List.of("소금빵"), List.of("초코"));
 
 		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
 
 		BoolQuery bool = boolQuery(request);
-		assertThat(bool.must()).hasSize(1);
-		assertThat(bool.should()).hasSize(2); // rawQuery(원문) + remaining("초코")
+		assertThat(bool.must()).hasSize(2); // bread("소금빵") + remaining("초코")
+		assertThat(bool.should()).hasSize(1); // rawQuery(원문)
+		assertThat(bool.minimumShouldMatch()).isNull();
 		assertThat(toJson(request)).contains("remainingMatchedMenus0");
 	}
 
 	@Test
-	void build_usesRegionAsMustWhenRegionAndRemainingExist() {
-		// "망원 브릭베" → region("망원")은 must로 강제(그 지역으로 좁힘),
-		// remaining("브릭베")은 should로 "브릭베이글" 가게명을 edge/ngram 매칭
+	void build_usesRegionAndRemainingAsMustWhenBothExist() {
+		// "망원 브릭베" → region("망원")과 remaining("브릭베") 모두 must.
+		// "브릭베"가 가게명/메뉴에 매칭되는 망원 가게만 노출(망원 전체 flood 제거).
 		SearchIntent intent = intent("망원 브릭베", List.of("망원"), List.of(), List.of("브릭베"));
 
 		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
 
 		BoolQuery bool = boolQuery(request);
-		assertThat(bool.must()).hasSize(1); // region("망원")
-		assertThat(bool.should()).hasSize(2); // remainingQuery("브릭베") + rawQuery
+		assertThat(bool.must()).hasSize(2); // region("망원") + remaining("브릭베")
+		assertThat(bool.should()).hasSize(1); // rawQuery
 		assertThat(bool.minimumShouldMatch()).isNull();
 		assertThat(toJson(request)).contains("remainingMatchedMenus0", "searchRegions.name", "searchRegionAliases");
+	}
+
+	@Test
+	void build_usesRemainingAsMustWhenRemainingOnly() {
+		// 지역 없는 가게명 지목 "테디뵈르하우스" → 잔여를 must로 걸어 전국에서 그 이름/메뉴 가진 가게만
+		SearchIntent intent = intent("테디뵈르하우스", List.of(), List.of(), List.of("테디뵈르하우스"));
+
+		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
+
+		BoolQuery bool = boolQuery(request);
+		assertThat(bool.must()).hasSize(1); // remaining("테디뵈르하우스")
+		assertThat(bool.should()).hasSize(1); // rawQuery
+		assertThat(bool.minimumShouldMatch()).isNull();
+		assertThat(toJson(request)).contains("remainingMatchedMenus0");
+	}
+
+	@Test
+	void build_keepsUsableRemainingButDropsShortNoiseInMust() {
+		// "하츠베이커리 성수점" → region "성수", remaining ["하츠베이커리"(유효), "점"(길이1 노이즈)].
+		// "하츠베이커리"만 must에 남고 "점"은 제외 → 성수의 하츠베이커리만.
+		SearchIntent intent = intent("하츠베이커리 성수점", List.of("성수"), List.of(),
+			List.of("하츠베이커리", "점"));
+
+		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
+
+		BoolQuery bool = boolQuery(request);
+		assertThat(bool.must()).hasSize(2); // region("성수") + remaining("하츠베이커리")
+		assertThat(bool.should()).hasSize(1); // rawQuery
+		assertThat(toJson(request)).contains("remainingMatchedMenus0");
+	}
+
+	@Test
+	void build_treatsRegionAsShouldWhenOnlyRemainingIsShortNoise() {
+		// "성수점" → region "성수" + remaining "점"(길이1 노이즈). 유효 잔여가 없어 지역 단독처럼 처리.
+		SearchIntent intent = intent("성수점", List.of("성수"), List.of(), List.of("점"));
+
+		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
+
+		BoolQuery bool = boolQuery(request);
+		assertThat(bool.must()).isEmpty();
+		assertThat(bool.should()).hasSize(2); // region("성수") + rawQuery
+		assertThat(bool.minimumShouldMatch()).isEqualTo("1");
+		assertThat(toJson(request)).doesNotContain("remainingMatchedMenus");
 	}
 
 	@Test

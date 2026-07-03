@@ -42,6 +42,8 @@ public class StoreSearchQueryBuilder {
 
 	private static final int INNER_HITS_SIZE = 5;
 	private static final String MINIMUM_SHOULD_MATCH = "1";
+	// 잔여 토큰(가게명/메뉴 성분)을 가게명 must 필터로 쓸 최소 길이. "성수점"→"점" 같은 분해 노이즈 배제.
+	private static final int MIN_REMAINING_MUST_LENGTH = 2;
 
 	private final OpenSearchProperties openSearchProperties;
 
@@ -56,9 +58,11 @@ public class StoreSearchQueryBuilder {
 	 *   must: []
 	 *   should: [지역 매칭, 원문 매칭]  → minimum_should_match=1, 지역 근처 가게 노출
 	 *
-	 * [케이스 2-1] 지역 + 가게명/잔여 키워드 — "성수 초코소금빵", "망원 브릭베"
-	 *   must: [지역 매칭]           → 그 지역 가게로 강제로 좁힘
-	 *   should: [잔여/원문 매칭]     → 좁혀진 지역 안에서 "초코소금빵"·"브릭베" 매칭이 점수 보너스
+	 * [케이스 2-1] 지역 + 가게명/잔여 키워드 — "서울 테디뵈르하우스", "망원 브릭베"
+	 *   must: [지역 매칭, 잔여 매칭(storeName OR menus.name)]  → 그 지역에서 그 이름/메뉴 가진 가게만
+	 *   should: [원문 매칭]         → 정확 가게명 등 점수 보너스
+	 *   → 잔여를 must로 걸어 "서울 전체"가 아니라 "서울의 테디뵈르하우스"만 남긴다(flood 제거)
+	 *   → 길이<2 잔여("성수점"→"점")는 분해 노이즈이므로 must에서 제외
 	 *
 	 * [케이스 3] 빵 키워드만 있을 때 — "에그타르트"
 	 *   must: [빵 매칭]             → 에그타르트 있는 가게만 결과에 포함
@@ -86,7 +90,11 @@ public class StoreSearchQueryBuilder {
 		List<Query> should = new ArrayList<>();
 		boolean hasRegionTokens = !intent.regionTokens().isEmpty();
 		boolean hasBreadTokens = !intent.breadTokens().isEmpty();
-		boolean hasRemainingTokens = !intent.remainingTokens().isEmpty();
+		// 길이<2 잔여("성수점"→"점" 등 분해 노이즈)는 가게명 must 필터로 쓰면 오작동하므로 제외한다.
+		List<String> filterableRemainingTokens = intent.remainingTokens().stream()
+			.filter(token -> token.length() >= MIN_REMAINING_MUST_LENGTH)
+			.toList();
+		boolean hasRemainingTokens = !filterableRemainingTokens.isEmpty();
 
 		if (hasRegionTokens) {
 			Query regionMatch = boolShould(regionQueries(intent.regionTokens()));
@@ -104,11 +112,11 @@ public class StoreSearchQueryBuilder {
 			must.add(boolShould(breadQueries(intent.breadTokens())));
 		}
 
-		// 잔여 토큰은 breadToken 유무와 무관하게 항상 should 보너스로 추가
-		// — "망원 브릭베"처럼 지역+부분 가게명 조합에서도 "브릭베"가 가게명에 매칭되도록
-		List<String> remainingTokens = intent.remainingTokens();
-		for (int i = 0; i < remainingTokens.size(); i++) {
-			should.add(remainingQuery(remainingTokens.get(i), "remainingMatchedMenus" + i));
+		// 잔여 토큰(지역·빵이 아닌 = 가게명/메뉴 성분)은 must — 그 이름/메뉴를 실제 가진 가게만 노출(flood 제거).
+		// remainingQuery = (storeName OR menus.name) 부분매칭(msm=1)이라 가게명·메뉴 어느 쪽이든 매칭되면 통과.
+		// 여러 토큰이면 각 토큰을 AND로 요구한다("우드 앤 브릭" → 세 토큰 모두 매칭).
+		for (int i = 0; i < filterableRemainingTokens.size(); i++) {
+			must.add(remainingQuery(filterableRemainingTokens.get(i), "remainingMatchedMenus" + i));
 		}
 
 		// 불용어 제거된 쿼리를 가게명/메뉴명에 매칭 — must와 무관하게 항상 should에 포함
