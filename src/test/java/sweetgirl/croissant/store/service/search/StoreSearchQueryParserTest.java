@@ -2,10 +2,8 @@ package sweetgirl.croissant.store.service.search;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 
-import java.util.List;
+import java.util.Arrays;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,12 +19,19 @@ class StoreSearchQueryParserTest {
 	@Mock
 	private SearchRegionAliasRepository searchRegionAliasRepository;
 
+	// 지역 alias는 부팅 시 findAll()로 1회 캐싱된다. 테스트는 캐시에 담길 alias만 stub하고,
+	// 첫 parse() 호출 시 지연 적재된다(단위 테스트에는 ApplicationReadyEvent가 발생하지 않으므로).
+	private StoreSearchQueryParser parserWithRegionAliases(String... normalizedAliases) {
+		given(searchRegionAliasRepository.findAll()).willReturn(
+			Arrays.stream(normalizedAliases)
+				.map(alias -> SearchRegionAlias.builder().alias(alias).normalizedAlias(alias).build())
+				.toList());
+		return new StoreSearchQueryParser(searchRegionAliasRepository);
+	}
+
 	@Test
 	void parse_splitsRegionAndBreadTokens() {
-		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
-		given(searchRegionAliasRepository.findByNormalizedAlias("성수"))
-			.willReturn(List.of(SearchRegionAlias.builder().alias("성수").normalizedAlias("성수").build()));
-		given(searchRegionAliasRepository.findByNormalizedAlias("에그타르트")).willReturn(List.of());
+		StoreSearchQueryParser parser = parserWithRegionAliases("성수");
 
 		SearchIntent result = parser.parse(" 성수   에그타르트 ");
 
@@ -39,11 +44,8 @@ class StoreSearchQueryParserTest {
 
 	@Test
 	void parse_doesNotTreatSuffixTokenAsRegionWhenAliasMissing() {
-		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
 		// 접미사 fallback 폐기: alias에 없으면 '동'으로 끝나도 지역으로 보지 않는다
-		given(searchRegionAliasRepository.findByNormalizedAlias("한남동")).willReturn(List.of());
-		given(searchRegionAliasRepository.findByNormalizedAlias("소금빵")).willReturn(List.of());
-		given(searchRegionAliasRepository.findAll()).willReturn(List.of());
+		StoreSearchQueryParser parser = parserWithRegionAliases();
 
 		SearchIntent result = parser.parse("한남동 소금빵");
 
@@ -54,11 +56,8 @@ class StoreSearchQueryParserTest {
 
 	@Test
 	void parse_treatsSuffixTokenAsRegionWhenAliasExists() {
-		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
 		// region_3rd 흡수: "한남동"이 alias로 등록돼 있으면 지역으로 인정
-		given(searchRegionAliasRepository.findByNormalizedAlias("한남동"))
-			.willReturn(List.of(SearchRegionAlias.builder().alias("한남동").normalizedAlias("한남동").build()));
-		given(searchRegionAliasRepository.findByNormalizedAlias("소금빵")).willReturn(List.of());
+		StoreSearchQueryParser parser = parserWithRegionAliases("한남동");
 
 		SearchIntent result = parser.parse("한남동 소금빵");
 
@@ -68,10 +67,8 @@ class StoreSearchQueryParserTest {
 
 	@Test
 	void parse_doesNotTreatBakeryWordAsRegionEvenWhenSuffixMatches() {
-		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
 		// "갤러리"는 "리"로 끝나지만 alias에 없으므로 지역 아님(접미사 추측 폐기 회귀 방지)
-		given(searchRegionAliasRepository.findByNormalizedAlias("갤러리")).willReturn(List.of());
-		given(searchRegionAliasRepository.findAll()).willReturn(List.of());
+		StoreSearchQueryParser parser = parserWithRegionAliases();
 
 		SearchIntent result = parser.parse("갤러리");
 
@@ -81,9 +78,7 @@ class StoreSearchQueryParserTest {
 
 	@Test
 	void parse_convertsBreadSynonymsToCanonicalToken() {
-		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
-		given(searchRegionAliasRepository.findByNormalizedAlias("크로와상")).willReturn(List.of());
-		given(searchRegionAliasRepository.findByNormalizedAlias("시오빵")).willReturn(List.of());
+		StoreSearchQueryParser parser = parserWithRegionAliases();
 
 		SearchIntent result = parser.parse("크로와상 시오빵");
 
@@ -93,8 +88,7 @@ class StoreSearchQueryParserTest {
 
 	@Test
 	void parse_keepsExactBreadTypeBeforeSynonymCanonicalization() {
-		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
-		given(searchRegionAliasRepository.findByNormalizedAlias("샌드베이글")).willReturn(List.of());
+		StoreSearchQueryParser parser = parserWithRegionAliases();
 
 		SearchIntent result = parser.parse("샌드베이글");
 
@@ -104,9 +98,7 @@ class StoreSearchQueryParserTest {
 
 	@Test
 	void parse_keepsUnclassifiedTokensAsRemaining() {
-		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
-		given(searchRegionAliasRepository.findByNormalizedAlias("양쯔간루")).willReturn(List.of());
-		given(searchRegionAliasRepository.findByNormalizedAlias("쫀득빵")).willReturn(List.of());
+		StoreSearchQueryParser parser = parserWithRegionAliases();
 
 		SearchIntent result = parser.parse("양쯔간루 쫀득빵");
 
@@ -117,9 +109,7 @@ class StoreSearchQueryParserTest {
 
 	@Test
 	void parse_keepsRemainingAndExactBreadType() {
-		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
-		given(searchRegionAliasRepository.findByNormalizedAlias("양쯔간루")).willReturn(List.of());
-		given(searchRegionAliasRepository.findByNormalizedAlias("샌드베이글")).willReturn(List.of());
+		StoreSearchQueryParser parser = parserWithRegionAliases();
 
 		SearchIntent result = parser.parse("양쯔간루 샌드베이글");
 
@@ -129,9 +119,7 @@ class StoreSearchQueryParserTest {
 
 	@Test
 	void parse_keepsCompoundTokenWholeByDefaultButDecomposesBreadOnFallback() {
-		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
-		given(searchRegionAliasRepository.findByNormalizedAlias("초코소금빵")).willReturn(List.of());
-		given(searchRegionAliasRepository.findAll()).willReturn(List.of());
+		StoreSearchQueryParser parser = parserWithRegionAliases();
 
 		// 기본(가게명 우선): 지역어 없이 빵만 박힌 붙어쓴 토큰은 분해하지 않고 통째로 둔다
 		SearchIntent primary = parser.parse("초코소금빵");
@@ -146,9 +134,7 @@ class StoreSearchQueryParserTest {
 
 	@Test
 	void parse_keepsMenuNameLikeTokenWholeByDefaultButDecomposesBreadOnFallback() {
-		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
-		given(searchRegionAliasRepository.findByNormalizedAlias("바닐라에그타르트")).willReturn(List.of());
-		given(searchRegionAliasRepository.findAll()).willReturn(List.of());
+		StoreSearchQueryParser parser = parserWithRegionAliases();
 
 		SearchIntent primary = parser.parse("바닐라에그타르트");
 		assertThat(primary.breadTokens()).isEmpty();
@@ -161,9 +147,7 @@ class StoreSearchQueryParserTest {
 
 	@Test
 	void parse_keepsSynonymCompoundWholeByDefaultButDecomposesToCanonicalOnFallback() {
-		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
-		given(searchRegionAliasRepository.findByNormalizedAlias("크로와상맛집")).willReturn(List.of());
-		given(searchRegionAliasRepository.findAll()).willReturn(List.of());
+		StoreSearchQueryParser parser = parserWithRegionAliases();
 
 		SearchIntent primary = parser.parse("크로와상맛집");
 		assertThat(primary.breadTokens()).isEmpty();
@@ -176,10 +160,7 @@ class StoreSearchQueryParserTest {
 
 	@Test
 	void parse_extractsContainedRegionBreadAndRemainingTokens() {
-		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
-		given(searchRegionAliasRepository.findByNormalizedAlias("성수초코소금빵")).willReturn(List.of());
-		given(searchRegionAliasRepository.findAll()).willReturn(List.of(
-			SearchRegionAlias.builder().alias("성수").normalizedAlias("성수").build()));
+		StoreSearchQueryParser parser = parserWithRegionAliases("성수");
 
 		SearchIntent result = parser.parse("성수초코소금빵");
 
@@ -190,11 +171,7 @@ class StoreSearchQueryParserTest {
 
 	@Test
 	void parse_extractsMultipleRegionTokensFromAliases() {
-		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
-		given(searchRegionAliasRepository.findByNormalizedAlias("서울시"))
-			.willReturn(List.of(SearchRegionAlias.builder().alias("서울시").normalizedAlias("서울시").build()));
-		given(searchRegionAliasRepository.findByNormalizedAlias("성수"))
-			.willReturn(List.of(SearchRegionAlias.builder().alias("성수").normalizedAlias("성수").build()));
+		StoreSearchQueryParser parser = parserWithRegionAliases("서울시", "성수");
 
 		SearchIntent result = parser.parse("서울시 성수");
 
@@ -205,10 +182,7 @@ class StoreSearchQueryParserTest {
 
 	@Test
 	void parse_treatsAliasTokenAsRegionWhenMultipleRegionsMatch() {
-		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
-		given(searchRegionAliasRepository.findByNormalizedAlias("중구")).willReturn(List.of(
-			SearchRegionAlias.builder().alias("중구").normalizedAlias("중구").build(),
-			SearchRegionAlias.builder().alias("중구").normalizedAlias("중구").build()));
+		StoreSearchQueryParser parser = parserWithRegionAliases("중구");
 
 		SearchIntent result = parser.parse("중구");
 
@@ -217,16 +191,14 @@ class StoreSearchQueryParserTest {
 	}
 
 	@Test
-	void parse_treatsSingleCharacterTokenAsNonRegionWithoutRepositoryLookup() {
-		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
-		// 길이 1 토큰은 alias 조회 없이 바로 비지역으로 처리된다 (isRegionToken의 길이 가드)
-		given(searchRegionAliasRepository.findByNormalizedAlias("소금빵")).willReturn(List.of());
+	void parse_treatsSingleCharacterTokenAsNonRegion() {
+		// 길이 1 토큰은 지역 판정(길이 가드)에서 바로 비지역 처리된다
+		StoreSearchQueryParser parser = parserWithRegionAliases();
 
 		SearchIntent result = parser.parse("동 소금빵");
 
 		assertThat(result.regionTokens()).isEmpty();
 		assertThat(result.breadTokens()).containsExactly("소금빵");
 		assertThat(result.remainingTokens()).containsExactly("동");
-		verify(searchRegionAliasRepository, never()).findByNormalizedAlias("동");
 	}
 }

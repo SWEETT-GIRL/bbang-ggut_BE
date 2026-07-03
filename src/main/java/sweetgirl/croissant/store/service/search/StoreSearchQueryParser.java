@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
@@ -33,6 +35,7 @@ public class StoreSearchQueryParser {
 	private Set<String> breadTypes;
 	private Map<String, String> breadSynonyms;
 	private Set<String> stopWords;
+	private volatile Set<String> regionAliases;
 
 	// 기본: 가게명 우선 — 붙어쓴 토큰 속 빵 단어는 must 필터로 분해하지 않는다.
 	public SearchIntent parse(String rawQuery) {
@@ -92,7 +95,28 @@ public class StoreSearchQueryParser {
 		// 지역 판정은 search_region_alias 조회로 일원화한다.
 		// 접미사(시·구·동·리…) 기반 추측은 오탐("갤러리"→'리')을 유발하고 진실원천이 이원화되므로 폐기.
 		// 실제 등록된 지역 표기(store.region_3rd 흡수 포함)만 지역으로 인정한다.
-		return !searchRegionAliasRepository.findByNormalizedAlias(normalize(token)).isEmpty();
+		return getRegionAliases().contains(normalize(token));
+	}
+
+	// 부팅 완료 후 지역 alias(normalized) 전체를 메모리에 1회 적재한다.
+	// alias는 Flyway 마이그레이션으로만 변경되는 닫힌 집합(런타임 write 없음)이라 무효화가 필요 없고,
+	// 검색마다 findAll()로 테이블을 로드하던 비용(요청 폭주 시 GC 압력)을 제거한다.
+	@EventListener(ApplicationReadyEvent.class)
+	public void loadRegionAliases() {
+		this.regionAliases = searchRegionAliasRepository.findAll().stream()
+			.map(SearchRegionAlias::getNormalizedAlias)
+			.filter(alias -> alias != null && !alias.isBlank())
+			.collect(java.util.stream.Collectors.toUnmodifiableSet());
+	}
+
+	// 부팅 이벤트 이전 접근(단위 테스트 등)에 대한 안전망 — 최초 접근 시 지연 적재한다.
+	private Set<String> getRegionAliases() {
+		Set<String> cached = regionAliases;
+		if (cached == null) {
+			loadRegionAliases();
+			cached = regionAliases;
+		}
+		return cached;
 	}
 
 	// 동의어면 대표어로, 대표어면 그대로, 빵 단어 아니면 null
@@ -170,9 +194,8 @@ public class StoreSearchQueryParser {
 	}
 
 	private List<RegionTermCandidate> containedRegionCandidates(String normalizedToken) {
-		return searchRegionAliasRepository.findAll().stream()
-			.map(SearchRegionAlias::getNormalizedAlias)
-			.filter(alias -> alias != null && alias.length() >= 2)
+		return getRegionAliases().stream()
+			.filter(alias -> alias.length() >= 2)
 			.filter(normalizedToken::contains)
 			.map(alias -> new RegionTermCandidate(alias, alias))
 			.toList();
