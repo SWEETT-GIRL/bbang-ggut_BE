@@ -5,8 +5,10 @@ on:
     branches: [ main ]
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.tag.outputs.IMAGE_TAG }}
 
     steps:
       - name: Checkout
@@ -72,32 +74,28 @@ jobs:
           spring.flyway.baseline-version=20260609000000
           spring.flyway.baseline-description=Existing schema before nationwide ranking tables
           spring.flyway.out-of-order=true
-          
+
           aws.region=ap-northeast-2
           aws.s3.bucket=${{ secrets.PROD_AWS_S3_BUCKET }}
           opensearch.endpoint=${{ secrets.PROD_OPENSEARCH_ENDPOINT }}
-          opensearch.region=ap-southeast-2
+          opensearch.region=ap-northeast-2
 
-          posthog.api-key=${{secrets.PROD_POSTHOG_API_KEY}}
+          posthog.api-key=${{ secrets.PROD_POSTHOG_API_KEY }}
           posthog.host=https://us.i.posthog.com
 
-          # AES-256 암호화 키
           encrypt.secret-key=${ENCRYPT_SECRET_KEY}
 
-          # Discord 에러 알림 웹훅
           discord.webhook.url=${DISCORD_WEBHOOK_URL}
           discord.notification.report-webhook-url=${DISCORD_REPORT_WEBHOOK_URL}
           discord.notification.abuse-webhook-url=${DISCORD_ABUSE_WEBHOOK_URL}
 
           # Lambda 콜백 인증 키
-          lambda.callback.secret-key=${{secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY}}
+          lambda.callback.secret-key=${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}
 
-          # 성능 측정 대시보드
+          logging.level.sweetgirl.croissant.external.opensearch=${OPENSEARCH_DEBUG_LOGGING:INFO}
+
           perf.dashboard.enabled=${PERF_DASHBOARD_ENABLED:false}
           perf.dashboard.access-key=${PERF_DASHBOARD_ACCESS_KEY:}
-          
-          # OpenSearch 디버그 로그 활성화
-          logging.level.sweetgirl.croissant.external.opensearch=${OPENSEARCH_DEBUG_LOGGING:INFO}
           EOF
 
       - name: Create Firebase service account file
@@ -116,26 +114,40 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/bbang-ggut-be:${{ steps.tag.outputs.IMAGE_TAG }}
             ${{ secrets.DOCKERHUB_USERNAME }}/bbang-ggut-be:latest
 
-      - name: Upload docker-compose to Production EC2
+  deploy-server1:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload docker-compose to server1
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.PROD_EC2_HOST }}
-          username: ${{ secrets.PROD_EC2_USER }}
-          key: ${{ secrets.PROD_EC2_KEY }}
+          host: ${{ secrets.PROD_WAS_HOST_1 }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          proxy_host: ${{ secrets.PROD_BASTION_HOST }}
+          proxy_username: ${{ secrets.PROD_SSH_USER }}
+          proxy_key: ${{ secrets.PROD_SSH_KEY }}
           source: docker-compose.yml
           target: ~/app
 
-      - name: Deploy to Production EC2
+      - name: Deploy to server1
         uses: appleboy/ssh-action@v1
         with:
-          host: ${{ secrets.PROD_EC2_HOST }}
-          username: ${{ secrets.PROD_EC2_USER }}
-          key: ${{ secrets.PROD_EC2_KEY }}
+          host: ${{ secrets.PROD_WAS_HOST_1 }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          proxy_host: ${{ secrets.PROD_BASTION_HOST }}
+          proxy_username: ${{ secrets.PROD_SSH_USER }}
+          proxy_key: ${{ secrets.PROD_SSH_KEY }}
           script: |
             cd ~/app
 
             echo "DOCKER_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}" > .env
-            echo "IMAGE_TAG=${{ steps.tag.outputs.IMAGE_TAG }}" >> .env
+            echo "IMAGE_TAG=${{ needs.build.outputs.image_tag }}" >> .env
             echo "SPRING_PROFILE=prod" >> .env
             echo "DB_URL=${{ secrets.PROD_DB_URL }}" >> .env
             echo "DB_USERNAME=${{ secrets.PROD_DB_USERNAME }}" >> .env
@@ -143,10 +155,7 @@ jobs:
             echo "KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}" >> .env
             echo "KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}" >> .env
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
-            echo "PROD_SERVER_IP=${{ secrets.PROD_SERVER_IP }}" >> .env
             echo "KAKAO_API_KEY=${{ secrets.KAKAO_API_KEY }}" >> .env
-            echo "NAVER_CLIENT_ID=${{ secrets.NAVER_CLIENT_ID }}" >> .env
-            echo "NAVER_CLIENT_SECRET=${{ secrets.NAVER_CLIENT_SECRET }}" >> .env
             echo "GOOGLE_PLACES_API_KEY=${{ secrets.GOOGLE_PLACES_API_KEY }}" >> .env
             echo "AWS_REGION=ap-northeast-2" >> .env
             echo "AWS_S3_BUCKET=${{ secrets.PROD_AWS_S3_BUCKET }}" >> .env
@@ -158,12 +167,118 @@ jobs:
             echo "LAMBDA_CALLBACK_SECRET_KEY=${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}" >> .env
             echo "PERF_DASHBOARD_ENABLED=${{ secrets.PERF_DASHBOARD_ENABLED }}" >> .env
             echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env
-            echo "OPENSEARCH_DEBUG_LOGGING=${{ secrets.OPENSEARCH_DEBUG_LOGGING }}" >> .env
 
             docker compose pull
             docker compose up -d
             docker image prune -a -f
 
+      - name: Health check server1
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PROD_WAS_HOST_1 }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          proxy_host: ${{ secrets.PROD_BASTION_HOST }}
+          proxy_username: ${{ secrets.PROD_SSH_USER }}
+          proxy_key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            echo "⏳ server1 헬스체크 시작..."
+            for i in $(seq 1 12); do
+              if curl -sf http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
+                echo "✅ server1 정상 기동 확인"
+                exit 0
+              fi
+              echo "대기 중... ($i/12)"
+              sleep 10
+            done
+            echo "❌ server1 헬스체크 실패 — server2 배포 중단"
+            exit 1
+
+  deploy-server2:
+    runs-on: ubuntu-latest
+    needs: [build, deploy-server1]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload docker-compose to server2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.PROD_WAS_HOST_2 }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          proxy_host: ${{ secrets.PROD_BASTION_HOST }}
+          proxy_username: ${{ secrets.PROD_SSH_USER }}
+          proxy_key: ${{ secrets.PROD_SSH_KEY }}
+          source: docker-compose.yml
+          target: ~/app
+
+      - name: Deploy to server2
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PROD_WAS_HOST_2 }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          proxy_host: ${{ secrets.PROD_BASTION_HOST }}
+          proxy_username: ${{ secrets.PROD_SSH_USER }}
+          proxy_key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            cd ~/app
+
+            echo "DOCKER_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}" > .env
+            echo "IMAGE_TAG=${{ needs.build.outputs.image_tag }}" >> .env
+            echo "SPRING_PROFILE=prod" >> .env
+            echo "DB_URL=${{ secrets.PROD_DB_URL }}" >> .env
+            echo "DB_USERNAME=${{ secrets.PROD_DB_USERNAME }}" >> .env
+            echo "DB_PASSWORD=${{ secrets.PROD_DB_PASSWORD }}" >> .env
+            echo "KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}" >> .env
+            echo "KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}" >> .env
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+            echo "KAKAO_API_KEY=${{ secrets.KAKAO_API_KEY }}" >> .env
+            echo "GOOGLE_PLACES_API_KEY=${{ secrets.GOOGLE_PLACES_API_KEY }}" >> .env
+            echo "AWS_REGION=ap-northeast-2" >> .env
+            echo "AWS_S3_BUCKET=${{ secrets.PROD_AWS_S3_BUCKET }}" >> .env
+            echo "PROD_POSTHOG_API_KEY=${{ secrets.PROD_POSTHOG_API_KEY }}" >> .env
+            echo "ENCRYPT_SECRET_KEY=${{ secrets.ENCRYPT_SECRET_KEY }}" >> .env
+            echo "DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK_URL_PROD }}" >> .env
+            echo "DISCORD_REPORT_WEBHOOK_URL=${{ secrets.DISCORD_REPORT_WEBHOOK_URL }}" >> .env
+            echo "DISCORD_ABUSE_WEBHOOK_URL=${{ secrets.DISCORD_ABUSE_WEBHOOK_URL }}" >> .env
+            echo "PERF_DASHBOARD_ENABLED=${{ secrets.PERF_DASHBOARD_ENABLED }}" >> .env
+            echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env
+
+            docker compose pull
+            docker compose up -d
+            docker image prune -a -f
+
+      - name: Health check server2
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PROD_WAS_HOST_2 }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          proxy_host: ${{ secrets.PROD_BASTION_HOST }}
+          proxy_username: ${{ secrets.PROD_SSH_USER }}
+          proxy_key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            echo "⏳ server2 헬스체크 시작..."
+            for i in $(seq 1 12); do
+              if curl -sf http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
+                echo "✅ server2 정상 기동 확인"
+                exit 0
+              fi
+              echo "대기 중... ($i/12)"
+              sleep 10
+            done
+            echo "❌ server2 헬스체크 실패"
+            exit 1
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [build, deploy-server1, deploy-server2]
+    if: always()
+
+    steps:
       - name: Get PR title
         id: pr_info
         run: |
@@ -176,19 +291,38 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Notify Discord
-        if: success()
+      - name: Notify Discord (성공)
+        if: needs.deploy-server2.result == 'success'
         run: |
           jq -n \
             --arg pr "${{ steps.pr_info.outputs.title }}" \
-            --arg tag "${{ steps.tag.outputs.IMAGE_TAG }}" \
+            --arg tag "${{ needs.build.outputs.image_tag }}" \
             '{embeds: [{
               "title": "🚀 배포 완료 [PROD]",
               "color": 3066993,
               "fields": [
                 {"name": "PR", "value": $pr, "inline": false},
                 {"name": "Image Tag", "value": $tag, "inline": true},
-                {"name": "Branch", "value": "main", "inline": true}
+                {"name": "Branch", "value": "main", "inline": true},
+                {"name": "서버", "value": "server1 + server2", "inline": true}
+              ]
+            }]}' | \
+          curl -s -X POST "${{ secrets.DISCORD_DEPLOY_WEBHOOK_URL_PROD }}" \
+            -H "Content-Type: application/json" \
+            -d @-
+
+      - name: Notify Discord (실패)
+        if: needs.deploy-server1.result == 'failure' || needs.deploy-server2.result == 'failure'
+        run: |
+          jq -n \
+            --arg pr "${{ steps.pr_info.outputs.title }}" \
+            --arg tag "${{ needs.build.outputs.image_tag }}" \
+            '{embeds: [{
+              "title": "❌ 배포 실패 [PROD]",
+              "color": 15158332,
+              "fields": [
+                {"name": "PR", "value": $pr, "inline": false},
+                {"name": "Image Tag", "value": $tag, "inline": true}
               ]
             }]}' | \
           curl -s -X POST "${{ secrets.DISCORD_DEPLOY_WEBHOOK_URL_PROD }}" \

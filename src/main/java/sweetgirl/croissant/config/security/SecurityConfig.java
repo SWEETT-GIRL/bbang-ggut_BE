@@ -14,12 +14,14 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.security.web.util.matcher.RegexRequestMatcher;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.member.jwt.JwtAuthenticationFilter;
 import sweetgirl.croissant.member.jwt.JwtProvider;
 import sweetgirl.croissant.member.oauth.CustomAuthorizationRequestResolver;
 import sweetgirl.croissant.member.oauth.OAuth2SuccessHandler;
 import sweetgirl.croissant.member.service.CustomOAuth2UserService;
 
+@Slf4j
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -93,6 +95,7 @@ public class SecurityConfig {
 			.successHandler(oAuth2SuccessHandler)
 			// 로그인 실패 시 에러코드를 딥링크로 전달
 			.failureHandler((request, response, exception) -> {
+				log.error("OAuth2 로그인 실패 - 원인 확인용 임시 로그", exception);
 				String errorCode = "LOGIN_FAILED";
 				if (exception instanceof OAuth2AuthenticationException oae
 					&& "MEMBER_BANNED".equals(oae.getError().getErrorCode())) {

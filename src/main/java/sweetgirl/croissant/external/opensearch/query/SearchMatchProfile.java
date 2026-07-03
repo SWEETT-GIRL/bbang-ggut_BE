@@ -31,6 +31,10 @@ public enum SearchMatchProfile {
 		FieldBoost.flat(STORE_NAME, Map.of(EDGE, 2f, NGRAM, 1f)),
 		FieldBoost.nested(MENUS, MENU_NAME, Map.of(EDGE, 2f, NGRAM, 1f)))),
 
+	/** 가게명 부분 매칭 — 빵 단어가 가게명에 포함된 경우("에그타르트당") 인정용. edge/ngram만. */
+	STORE_NAME_PARTIAL(List.of(
+		FieldBoost.flat(STORE_NAME, Map.of(EDGE, 2f, NGRAM, 1f)))),
+
 	/** 자동완성 — 가게명/빵/지역/메뉴 edge·ngram. */
 	AUTOCOMPLETE(List.of(
 		FieldBoost.flat(STORE_NAME, Map.of(EDGE, 5f, NGRAM, 2f)),

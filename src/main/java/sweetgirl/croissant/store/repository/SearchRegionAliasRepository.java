@@ -8,7 +8,5 @@ import sweetgirl.croissant.store.entity.SearchRegionAlias;
 
 public interface SearchRegionAliasRepository extends JpaRepository<SearchRegionAlias, Long> {
 
-	List<SearchRegionAlias> findByNormalizedAlias(String normalizedAlias);
-
 	List<SearchRegionAlias> findByRegionId(Long regionId);
 }
