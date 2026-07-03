@@ -53,6 +53,7 @@ import sweetgirl.croissant.contribution.repository.MenuContributionReportReposit
 import sweetgirl.croissant.contribution.repository.StoreContributionReportImageFileRepository;
 import sweetgirl.croissant.contribution.repository.StoreContributionReportRepository;
 import sweetgirl.croissant.external.aws.S3Service;
+import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
 import sweetgirl.croissant.external.opensearch.event.StoreAddressChangedEvent;
 import sweetgirl.croissant.external.opensearch.event.StoreMenusChangedEvent;
 import sweetgirl.croissant.member.entity.Member;
@@ -103,6 +104,8 @@ class AdminReportCommandServiceTest {
 	@Mock
 	S3Service s3Service;
 	@Mock
+	ImageProcessingCallbackService imageProcessingCallbackService;
+	@Mock
 	ReportNotificationService reportNotificationService;
 	@Mock
 	ApplicationEventPublisher eventPublisher;
@@ -121,7 +124,8 @@ class AdminReportCommandServiceTest {
 			menuContributionReportImageFileRepository,
 			s3Service,
 			new ObjectMapper(),
-			eventPublisher);
+			eventPublisher,
+			imageProcessingCallbackService);
 		adminReportCommandService = new AdminReportCommandService(
 			storeContributionReportRepository,
 			menuContributionReportRepository,

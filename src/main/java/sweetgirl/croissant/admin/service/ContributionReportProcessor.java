@@ -28,6 +28,7 @@ import sweetgirl.croissant.contribution.entity.StoreContributionReportImageFile;
 import sweetgirl.croissant.contribution.repository.MenuContributionReportImageFileRepository;
 import sweetgirl.croissant.contribution.repository.StoreContributionReportImageFileRepository;
 import sweetgirl.croissant.external.aws.S3Service;
+import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
 import sweetgirl.croissant.external.opensearch.event.StoreAddressChangedEvent;
 import sweetgirl.croissant.external.opensearch.event.StoreMenusChangedEvent;
 import sweetgirl.croissant.menu.entity.Menu;
@@ -67,6 +68,7 @@ public class ContributionReportProcessor {
 	private final S3Service s3Service;
 	private final ObjectMapper objectMapper;
 	private final ApplicationEventPublisher eventPublisher;
+	private final ImageProcessingCallbackService imageProcessingCallbackService;
 
 	// 메뉴 추가 승인 — 새 Menu 생성 + 첨부 이미지를 menus/{menuId}로 S3 이동 후 menu_image_file 등록
 	public void applyMenuAddReportApprove(MenuContributionReport report) {
@@ -148,7 +150,7 @@ public class ContributionReportProcessor {
 				newImages.add(sourceImage.toMenuImage(menu, destKey, nextOrder++));
 				safeDelete(sourceImage.getAwsKey());
 			}
-			menuImageFileRepository.saveAll(newImages);
+			imageProcessingCallbackService.applyPendingCallbacks(menuImageFileRepository.saveAll(newImages));
 		}
 		eventPublisher.publishEvent(new StoreMenusChangedEvent(menu.getStore().getId()));
 	}
@@ -269,7 +271,7 @@ public class ContributionReportProcessor {
 				newImages.add(sourceImage.toStoreImage(store, destKey, nextOrder++));
 				safeDelete(sourceImage.getAwsKey());
 			}
-			storeImageFileRepository.saveAll(newImages);
+			imageProcessingCallbackService.applyPendingCallbacks(storeImageFileRepository.saveAll(newImages));
 		}
 	}
 
@@ -285,7 +287,7 @@ public class ContributionReportProcessor {
 			dest.add(src.toMenuImage(menu, destKey, order++));
 			safeDelete(src.getAwsKey());
 		}
-		menuImageFileRepository.saveAll(dest);
+		imageProcessingCallbackService.applyPendingCallbacks(menuImageFileRepository.saveAll(dest));
 	}
 
 	private int currentMaxStoreImageOrder(Long storeId) {

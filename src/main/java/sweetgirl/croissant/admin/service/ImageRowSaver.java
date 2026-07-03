@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.common.enums.MimeType;
+import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.entity.MenuImageFile;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
@@ -23,6 +24,7 @@ public class ImageRowSaver {
 	private final MenuRepository menuRepository;
 	private final StoreImageFileRepository storeImageFileRepository;
 	private final MenuImageFileRepository menuImageFileRepository;
+	private final ImageProcessingCallbackService imageProcessingCallbackService;
 
 	// REQUIRES_NEW 로 분리 — bulk 흐름에서 한 건이 실패해도 나머지 커밋은 유지.
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -37,8 +39,9 @@ public class ImageRowSaver {
 			.displayOrder(displayOrder)
 			.sourceUrl(sourceUrl)
 			.build();
-		imageFile.markDone();
-		return storeImageFileRepository.save(imageFile).getId();
+		StoreImageFile savedImage = storeImageFileRepository.save(imageFile);
+		imageProcessingCallbackService.applyPendingCallback(savedImage);
+		return savedImage.getId();
 	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -53,7 +56,8 @@ public class ImageRowSaver {
 			.displayOrder(displayOrder)
 			.sourceUrl(sourceUrl)
 			.build();
-		imageFile.markDone();
-		return menuImageFileRepository.save(imageFile).getId();
+		MenuImageFile savedImage = menuImageFileRepository.save(imageFile);
+		imageProcessingCallbackService.applyPendingCallback(savedImage);
+		return savedImage.getId();
 	}
 }

@@ -22,6 +22,7 @@ import sweetgirl.croissant.external.aws.dto.ImageUploadRequest;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.external.aws.exception.S3ErrorCode;
 import sweetgirl.croissant.external.aws.exception.S3StorageException;
+import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
 import sweetgirl.croissant.external.aws.util.ImageDownloader;
 import sweetgirl.croissant.external.aws.util.S3PathGenerator;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
@@ -53,6 +54,7 @@ public class AdminImageCommandService {
 	private final MenuImageFileRepository menuImageFileRepository;
 	private final ImageDownloader imageDownloader;
 	private final ImageRowSaver imageRowSaver;
+	private final ImageProcessingCallbackService imageProcessingCallbackService;
 
 	public PresignedUrlResponse getPresignedUrl(ImageUploadRequest request) {
 		String path;
@@ -84,7 +86,7 @@ public class AdminImageCommandService {
 				.displayOrder(order)
 				.build());
 		}
-		storeImageFileRepository.saveAll(imageFiles);
+		imageProcessingCallbackService.applyPendingCallbacks(storeImageFileRepository.saveAll(imageFiles));
 	}
 
 	public void saveMenuImages(Long menuId, List<ImageSaveRequest> requests) {
@@ -103,7 +105,7 @@ public class AdminImageCommandService {
 				.displayOrder(order)
 				.build());
 		}
-		menuImageFileRepository.saveAll(imageFiles);
+		imageProcessingCallbackService.applyPendingCallbacks(menuImageFileRepository.saveAll(imageFiles));
 	}
 
 	public void reorderStoreImages(Long storeId, ImageOrderUpdateRequest request) {

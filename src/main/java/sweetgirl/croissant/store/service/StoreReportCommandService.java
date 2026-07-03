@@ -25,6 +25,7 @@ import sweetgirl.croissant.contribution.repository.StoreContributionReportImageF
 import sweetgirl.croissant.contribution.repository.StoreContributionReportRepository;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
+import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
 import sweetgirl.croissant.external.aws.util.S3PathGenerator;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
@@ -70,6 +71,7 @@ public class StoreReportCommandService {
 	private final StoreContributionReportImageFileRepository storeContributionReportImageFileRepository;
 	private final MenuContributionReportImageFileRepository menuContributionReportImageFileRepository;
 	private final AdminReportNotificationPublisher adminReportNotificationPublisher;
+	private final ImageProcessingCallbackService imageProcessingCallbackService;
 
 	// STORE - mimeType 개수만큼 S3에 PresignedUrl 발급 요청
 	public PresignedUrlInfoResponse generateStoreReportPresignedUrls(Long memberId, Long storeId,
@@ -164,7 +166,8 @@ public class StoreReportCommandService {
 					.awsKey(img.awsKey())
 					.build())
 				.toList();
-			storeContributionReportImageFileRepository.saveAll(imageFiles);
+			imageProcessingCallbackService.applyPendingCallbacks(
+				storeContributionReportImageFileRepository.saveAll(imageFiles));
 		}
 
 		adminReportNotificationPublisher.publishStoreContributionReportCreated(report);
@@ -280,7 +283,8 @@ public class StoreReportCommandService {
 					.awsKey(img.awsKey())
 					.build())
 				.toList();
-			menuContributionReportImageFileRepository.saveAll(imageFiles);
+			imageProcessingCallbackService.applyPendingCallbacks(
+				menuContributionReportImageFileRepository.saveAll(imageFiles));
 		}
 
 		adminReportNotificationPublisher.publishMenuContributionReportCreated(report);
