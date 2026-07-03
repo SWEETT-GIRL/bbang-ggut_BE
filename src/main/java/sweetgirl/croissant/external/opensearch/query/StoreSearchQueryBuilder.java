@@ -108,8 +108,11 @@ public class StoreSearchQueryBuilder {
 		}
 
 		if (hasBreadTokens) {
-			// 케이스 1, 3: 빵 키워드는 항상 must (에그타르트 없는 가게는 제외)
-			must.add(boolShould(breadQueries(intent.breadTokens())));
+			// 케이스 1, 3: 빵 키워드는 must. 단 "빵 카테고리/메뉴명"뿐 아니라 "가게명에 빵단어 포함"도 인정한다
+			// → (빵 프로파일 OR storeName⊃빵단어). "에그타르트 파는 가게"에 더해 "이름에 에그타르트가 든 가게"도 노출.
+			must.add(boolShould(breadOrNameQueries(intent.breadTokens())));
+			// 랭킹: 가게명이 빵단어와 정확/부분 일치하면 큰 boost로 상단 노출(동명 가게 top)
+			should.addAll(breadStoreNameBoosts(intent.breadTokens()));
 		}
 
 		// 잔여 토큰(지역·빵이 아닌 = 가게명/메뉴 성분)은 must — 그 이름/메뉴를 실제 가진 가게만 노출(flood 제거).
@@ -162,12 +165,24 @@ public class StoreSearchQueryBuilder {
 			.toList();
 	}
 
-	private List<Query> breadQueries(List<String> breadTokens) {
+	// 각 빵 토큰을 "빵 프로파일 OR 가게명 부분매칭"으로 — 카테고리/메뉴명뿐 아니라 가게명에 든 빵단어도 인정.
+	private List<Query> breadOrNameQueries(List<String> breadTokens) {
 		List<Query> queries = new ArrayList<>();
 		for (int i = 0; i < breadTokens.size(); i++) {
-			queries.add(profileQuery(SearchMatchProfile.BREAD, breadTokens.get(i), "matchedMenus" + i));
+			String breadToken = breadTokens.get(i);
+			List<Query> clauses = new ArrayList<>(
+				profileClauses(SearchMatchProfile.BREAD, breadToken, "matchedMenus" + i));
+			clauses.addAll(profileClauses(SearchMatchProfile.STORE_NAME_PARTIAL, breadToken, null));
+			queries.add(boolShould(clauses));
 		}
 		return queries;
+	}
+
+	// 가게명이 빵단어와 정확/부분 일치하면 큰 boost(should) — 동명 가게("에그타르트")를 브라우징 결과 최상단으로.
+	private List<Query> breadStoreNameBoosts(List<String> breadTokens) {
+		return breadTokens.stream()
+			.map(breadToken -> boolShould(storeNameTermBoosts(breadToken)))
+			.toList();
 	}
 
 	private Query functionScore(Query bool, Double latitude, Double longitude) {
@@ -201,17 +216,22 @@ public class StoreSearchQueryBuilder {
 
 	private Query rawQuery(String query) {
 		// 가게명 정확/정규화 일치(term)를 부분 매칭 위로 끌어올린 뒤, 부분 매칭(NAME_MENU_PARTIAL)을 더한다.
-		// nori 필드는 제외: nori_part_of_speech가 "후와후와"→"후"로 뭉개 오매칭하므로, keyword 토크나이저
-		// 기반 edge/ngram(원문 유지)으로만 부분 매칭한다.
-		List<Query> clauses = new ArrayList<>();
-		clauses.add(termBoost(SearchSubField.KEYWORD.field(STORE_NAME), query,
-			SearchRankingConstants.STORE_NAME_KEYWORD_BOOST));
-		clauses.add(termBoost(SearchSubField.EDGE.field(STORE_NAME), normalizeForExactMatch(query),
-			SearchRankingConstants.STORE_NAME_EDGE_BOOST));
-		clauses.add(termBoost(SearchSubField.NGRAM.field(STORE_NAME), normalizeForExactMatch(query),
-			SearchRankingConstants.STORE_NAME_NGRAM_BOOST));
+		List<Query> clauses = new ArrayList<>(storeNameTermBoosts(query));
 		clauses.addAll(profileClauses(SearchMatchProfile.NAME_MENU_PARTIAL, query, "rawMatchedMenus"));
 		return boolShould(clauses);
+	}
+
+	// 가게명 정확/정규화 일치(term) 부스트 3종(keyword/edge/ngram) — 정확·부분 일치를 상단으로 끌어올린다.
+	// nori 필드는 제외: nori_part_of_speech가 "후와후와"→"후"로 뭉개 오매칭하므로, keyword 토크나이저
+	// 기반 edge/ngram(원문 유지)으로만 매칭한다.
+	private List<Query> storeNameTermBoosts(String query) {
+		return List.of(
+			termBoost(SearchSubField.KEYWORD.field(STORE_NAME), query,
+				SearchRankingConstants.STORE_NAME_KEYWORD_BOOST),
+			termBoost(SearchSubField.EDGE.field(STORE_NAME), normalizeForExactMatch(query),
+				SearchRankingConstants.STORE_NAME_EDGE_BOOST),
+			termBoost(SearchSubField.NGRAM.field(STORE_NAME), normalizeForExactMatch(query),
+				SearchRankingConstants.STORE_NAME_NGRAM_BOOST));
 	}
 
 	private Query remainingQuery(String query, String innerHitsName) {

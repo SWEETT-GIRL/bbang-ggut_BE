@@ -33,13 +33,14 @@ class StoreSearchQueryBuilderTest {
 
 		BoolQuery bool = boolQuery(request);
 		assertThat(bool.must()).hasSize(2);
-		assertThat(bool.should()).hasSize(1);
+		assertThat(bool.should()).hasSize(2); // 빵 가게명 boost + rawQuery
 		assertThat(toJson(request)).contains(
 			"searchRegions.name",
 			"searchRegionAliases",
 			"breadTypes",
 			"menus.menuCategory",
 			"menus.name",
+			"storeName",
 			"matchedMenus0");
 	}
 
@@ -67,15 +68,32 @@ class StoreSearchQueryBuilderTest {
 
 		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
 
-		// 케이스 3: 빵 키워드만 있어도 빵 매칭은 must(필수), 원문 매칭만 should로 점수 보정
+		// 케이스 3: 빵 키워드만 있어도 빵 매칭은 must(필수), should는 빵 가게명 boost + 원문 매칭
 		BoolQuery bool = boolQuery(request);
 		assertThat(bool.must()).hasSize(1);
-		assertThat(bool.should()).hasSize(1);
+		assertThat(bool.should()).hasSize(2); // 빵 가게명 boost + rawQuery
 		assertThat(bool.minimumShouldMatch()).isNull();
 		assertThat(toJson(request)).contains(
 			"storeName",
 			"breadTypes",
 			"menus.name");
+	}
+
+	@Test
+	void build_includesStoreNameInBreadMustSoNameMatchingStoresAppear() {
+		// 결정1: "에그타르트"는 빵 카테고리이지만, 이름에 "에그타르트"가 든 가게도 포함돼야 한다
+		// → 빵 must가 (빵 OR storeName⊃빵)이고, storeName 부스트로 동명 가게를 상단 노출.
+		SearchIntent intent = intent("에그타르트", List.of(), List.of("에그타르트"));
+
+		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
+
+		BoolQuery bool = boolQuery(request);
+		assertThat(bool.must()).hasSize(1); // (빵 OR 가게명) 한 묶음
+		assertThat(bool.should()).hasSize(2); // 빵 가게명 boost + rawQuery
+		assertThat(toJson(request)).contains(
+			"breadTypes",
+			"storeName.edge",
+			"storeName.ngram");
 	}
 
 	@Test
@@ -87,7 +105,7 @@ class StoreSearchQueryBuilderTest {
 
 		BoolQuery bool = boolQuery(request);
 		assertThat(bool.must()).hasSize(2); // bread("소금빵") + remaining("초코")
-		assertThat(bool.should()).hasSize(1); // rawQuery(원문)
+		assertThat(bool.should()).hasSize(2); // 빵 가게명 boost + rawQuery(원문)
 		assertThat(bool.minimumShouldMatch()).isNull();
 		assertThat(toJson(request)).contains("remainingMatchedMenus0");
 	}
