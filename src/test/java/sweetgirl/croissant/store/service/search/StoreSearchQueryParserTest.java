@@ -201,4 +201,17 @@ class StoreSearchQueryParserTest {
 		assertThat(result.breadTokens()).containsExactly("소금빵");
 		assertThat(result.remainingTokens()).containsExactly("동");
 	}
+
+	@Test
+	void parse_survivesRegionAliasLoadFailure() {
+		// 지역 alias 로드가 실패해도 검색이 죽지 않고, 지역 판정만 건너뛴다(NPE 없이, 다음 호출서 재시도).
+		given(searchRegionAliasRepository.findAll()).willThrow(new RuntimeException("db down"));
+		StoreSearchQueryParser parser = new StoreSearchQueryParser(searchRegionAliasRepository);
+
+		SearchIntent result = parser.parse("성수 소금빵");
+
+		assertThat(result.regionTokens()).isEmpty();
+		assertThat(result.breadTokens()).containsExactly("소금빵");
+		assertThat(result.remainingTokens()).containsExactly("성수");
+	}
 }

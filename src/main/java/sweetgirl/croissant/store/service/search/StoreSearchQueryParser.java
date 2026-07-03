@@ -18,9 +18,11 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.store.entity.SearchRegionAlias;
 import sweetgirl.croissant.store.repository.SearchRegionAliasRepository;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class StoreSearchQueryParser {
@@ -103,20 +105,36 @@ public class StoreSearchQueryParser {
 	// 검색마다 findAll()로 테이블을 로드하던 비용(요청 폭주 시 GC 압력)을 제거한다.
 	@EventListener(ApplicationReadyEvent.class)
 	public void loadRegionAliases() {
-		this.regionAliases = searchRegionAliasRepository.findAll().stream()
-			.map(SearchRegionAlias::getNormalizedAlias)
-			.filter(alias -> alias != null && !alias.isBlank())
-			.collect(java.util.stream.Collectors.toUnmodifiableSet());
+		reloadRegionAliasesIfAbsent();
 	}
 
-	// 부팅 이벤트 이전 접근(단위 테스트 등)에 대한 안전망 — 최초 접근 시 지연 적재한다.
+	// 실제 적재 로직. 여러 스레드가 동시에 findAll을 호출하지 않도록 동기화(이중 검사)한다.
+	// 프리로드가 DB 문제로 실패해도 부팅을 막지 않는다: 예외를 로깅만 하고 캐시를 null로 남겨
+	// getRegionAliases()의 지연 로드로 이후 재시도되게 한다.
+	private synchronized void reloadRegionAliasesIfAbsent() {
+		if (regionAliases != null) {
+			return;
+		}
+		try {
+			this.regionAliases = searchRegionAliasRepository.findAll().stream()
+				.map(SearchRegionAlias::getNormalizedAlias)
+				.filter(alias -> alias != null && !alias.isBlank())
+				.collect(java.util.stream.Collectors.toUnmodifiableSet());
+		} catch (RuntimeException e) {
+			log.warn("지역 alias 프리로드 실패 — 최초 검색 시 지연 로드로 재시도합니다.", e);
+		}
+	}
+
+	// 부팅 이벤트 이전 접근(단위 테스트 등)·프리로드 실패에 대한 지연 로드 안전망.
+	// 적재 전까지는 빈 집합을 반환해 NPE 없이 지역 판정만 건너뛴다(다음 호출에서 재시도).
 	private Set<String> getRegionAliases() {
 		Set<String> cached = regionAliases;
-		if (cached == null) {
-			loadRegionAliases();
-			cached = regionAliases;
+		if (cached != null) {
+			return cached;
 		}
-		return cached;
+		reloadRegionAliasesIfAbsent();
+		Set<String> loaded = regionAliases;
+		return loaded != null ? loaded : Set.of();
 	}
 
 	// 동의어면 대표어로, 대표어면 그대로, 빵 단어 아니면 null
