@@ -27,6 +27,7 @@ import sweetgirl.croissant.external.aws.dto.ImageUploadFromUrlRequest;
 import sweetgirl.croissant.external.aws.dto.ImageUploadFromUrlResponse;
 import sweetgirl.croissant.external.aws.exception.S3ErrorCode;
 import sweetgirl.croissant.external.aws.exception.S3StorageException;
+import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
 import sweetgirl.croissant.external.aws.util.ImageDownloader;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
@@ -51,6 +52,8 @@ class AdminImageCommandServiceTest {
 	ImageDownloader imageDownloader;
 	@Mock
 	ImageRowSaver imageRowSaver;
+	@Mock
+	ImageProcessingCallbackService imageProcessingCallbackService;
 
 	@InjectMocks
 	AdminImageCommandService adminImageCommandService;

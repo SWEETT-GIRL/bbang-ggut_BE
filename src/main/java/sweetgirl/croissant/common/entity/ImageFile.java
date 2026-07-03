@@ -35,7 +35,7 @@ public abstract class ImageFile extends BaseTimeEntity {
 	private String awsKey;
 
 	@Enumerated(EnumType.STRING)
-	@ColumnDefault("'DONE'")
+	@ColumnDefault("'PENDING'")
 	@Column(nullable = false, length = 20)
 	private ImageStatus processingStatus;
 
@@ -52,7 +52,7 @@ public abstract class ImageFile extends BaseTimeEntity {
 		this.name = name;
 		this.mimeType = mimeType;
 		this.awsKey = awsKey;
-		this.processingStatus = ImageStatus.DONE;
+		this.processingStatus = ImageStatus.PENDING;
 	}
 
 	public void markDone() {
@@ -61,6 +61,12 @@ public abstract class ImageFile extends BaseTimeEntity {
 
 	public void markFailed() {
 		this.processingStatus = ImageStatus.FAILED;
+	}
+
+	public void clearResizedKeys() {
+		this.resizedKey320 = null;
+		this.resizedKey640 = null;
+		this.resizedKey1024 = null;
 	}
 
 	public void updateResizedKeys(String awsKey) {

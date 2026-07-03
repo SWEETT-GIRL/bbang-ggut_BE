@@ -52,6 +52,7 @@ public class SecurityConfig {
 			.requestMatchers("/api/v1/oauth2/**").permitAll() // 인가 : /api/v1/oauth2/kakao
 			.requestMatchers("/auth/**").permitAll() // controller 호출
 			.requestMatchers("/terms").permitAll()
+			.requestMatchers(HttpMethod.PATCH, "/callback/images/status").permitAll()
 			.requestMatchers(HttpMethod.GET, "/dev/**").permitAll()
 			.requestMatchers("/actuator/health", "/actuator/metrics", "/actuator/metrics/**").permitAll()
 			.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()

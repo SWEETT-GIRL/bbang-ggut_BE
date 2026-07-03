@@ -90,7 +90,7 @@ jobs:
           discord.notification.abuse-webhook-url=${DISCORD_ABUSE_WEBHOOK_URL}
 
           # Lambda 콜백 인증 키
-          lambda.callback.secret-key=${{secrets.LAMBDA_CALLBACK_SECRET_KEY}}
+          lambda.callback.secret-key=${{secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY}}
 
           # 성능 측정 대시보드
           perf.dashboard.enabled=${PERF_DASHBOARD_ENABLED:false}
@@ -155,7 +155,7 @@ jobs:
             echo "DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK_URL_PROD }}" >> .env
             echo "DISCORD_REPORT_WEBHOOK_URL=${{ secrets.DISCORD_REPORT_WEBHOOK_URL }}" >> .env
             echo "DISCORD_ABUSE_WEBHOOK_URL=${{ secrets.DISCORD_ABUSE_WEBHOOK_URL }}" >> .env
-            echo "LAMBDA_CALLBACK_SECRET_KEY=${{ secrets.LAMBDA_CALLBACK_SECRET_KEY }}" >> .env
+            echo "LAMBDA_CALLBACK_SECRET_KEY=${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}" >> .env
             echo "PERF_DASHBOARD_ENABLED=${{ secrets.PERF_DASHBOARD_ENABLED }}" >> .env
             echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env
             echo "OPENSEARCH_DEBUG_LOGGING=${{ secrets.OPENSEARCH_DEBUG_LOGGING }}" >> .env

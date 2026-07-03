@@ -17,6 +17,7 @@ import sweetgirl.croissant.contribution.repository.MenuContributionReportImageFi
 import sweetgirl.croissant.contribution.repository.MenuContributionReportRepository;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
+import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
 import sweetgirl.croissant.external.aws.util.S3PathGenerator;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
@@ -44,6 +45,7 @@ public class MenuAddReportCommandService {
 	private final MenuContributionReportRepository menuContributionReportRepository;
 	private final MenuContributionReportImageFileRepository menuContributionReportImageFileRepository;
 	private final AdminReportNotificationPublisher adminReportNotificationPublisher;
+	private final ImageProcessingCallbackService imageProcessingCallbackService;
 
 	public PresignedUrlResponse getPresignedUrl(String mimeType) {
 		String path = S3PathGenerator.getMenuAddReportTempPath();
@@ -83,7 +85,8 @@ public class MenuAddReportCommandService {
 				.awsKey(img.getAwsKey())
 				.build())
 			.toList();
-		menuContributionReportImageFileRepository.saveAll(imageFiles);
+		imageProcessingCallbackService.applyPendingCallbacks(
+			menuContributionReportImageFileRepository.saveAll(imageFiles));
 
 		adminReportNotificationPublisher.publishMenuContributionReportCreated(menuContributionReport);
 	}

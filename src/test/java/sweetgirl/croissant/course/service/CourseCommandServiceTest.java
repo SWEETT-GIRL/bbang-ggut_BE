@@ -39,6 +39,7 @@ import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.external.aws.S3Service;
+import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.store.entity.Store;
@@ -61,6 +62,8 @@ class CourseCommandServiceTest {
 	StoreRepository storeRepository;
 	@Mock
 	S3Service s3Service;
+	@Mock
+	ImageProcessingCallbackService imageProcessingCallbackService;
 
 	@InjectMocks
 	CourseCommandService courseCommandService;

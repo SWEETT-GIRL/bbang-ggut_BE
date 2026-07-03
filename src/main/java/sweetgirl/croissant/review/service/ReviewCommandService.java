@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
+import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
 import sweetgirl.croissant.external.aws.util.S3PathGenerator;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
@@ -63,6 +64,7 @@ public class ReviewCommandService {
 	private final ReviewRecommendRepository reviewRecommendRepository;
 	private final ObjectionableContentFilter objectionableContentFilter;
 	private final ReviewResponseAssembler reviewResponseAssembler;
+	private final ImageProcessingCallbackService imageProcessingCallbackService;
 
 	public ReviewPresignedUrlInfoResponse generateReviewPresignedUrls(
 			Long memberId,
@@ -106,7 +108,7 @@ public class ReviewCommandService {
 			.build());
 
 		if (!images.isEmpty()) {
-			reviewImageFileRepository.saveAll(toImageFiles(review, images));
+			saveReviewImages(toImageFiles(review, images));
 		}
 
 		return new ReviewCreateResponse(review.getId(), review.getCreatedAt());
@@ -265,8 +267,12 @@ public class ReviewCommandService {
 		List<ReviewImageRequest> images = validateReviewImages(memberId, requestImages);
 		deleteReviewImages(review);
 		if (!images.isEmpty()) {
-			reviewImageFileRepository.saveAll(toImageFiles(review, images));
+			saveReviewImages(toImageFiles(review, images));
 		}
+	}
+
+	private void saveReviewImages(List<ReviewImageFile> imageFiles) {
+		imageProcessingCallbackService.applyPendingCallbacks(reviewImageFileRepository.saveAll(imageFiles));
 	}
 
 	private void deleteReviewImages(Review review) {
