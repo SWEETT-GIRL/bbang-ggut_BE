@@ -10,6 +10,10 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.Point;
+import org.locationtech.jts.geom.PrecisionModel;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -151,6 +155,9 @@ class StoreQueryServiceTest {
 		Long storeId = 10L;
 
 		Store store = mock(Store.class);
+		Point location = new GeometryFactory(new PrecisionModel(), 4326)
+			.createPoint(new Coordinate(126.9780, 37.5665));
+		given(store.getLocation()).willReturn(location);
 		given(storeRepository.findById(storeId)).willReturn(Optional.of(store));
 		given(storeBusinessHourRepository.findByStoreIdOrderByDayOfWeekAsc(storeId)).willReturn(List.of());
 		given(storeImageFileRepository.findByStoreIdOrderByDisplayOrderAscIdAsc(storeId)).willReturn(List.of());
@@ -161,6 +168,8 @@ class StoreQueryServiceTest {
 		StoreDetailResponse result = storeQueryService.getStoreDetail(memberId, storeId);
 
 		assertThat(result.isSaved()).isTrue();
+		assertThat(result.latitude()).isEqualTo(37.5665);
+		assertThat(result.longitude()).isEqualTo(126.9780);
 	}
 
 	@Test
@@ -170,6 +179,9 @@ class StoreQueryServiceTest {
 		Long storeId = 10L;
 
 		Store store = mock(Store.class);
+		Point location = new GeometryFactory(new PrecisionModel(), 4326)
+			.createPoint(new Coordinate(126.9780, 37.5665));
+		given(store.getLocation()).willReturn(location);
 		given(storeRepository.findById(storeId)).willReturn(Optional.of(store));
 		given(storeBusinessHourRepository.findByStoreIdOrderByDayOfWeekAsc(storeId)).willReturn(List.of());
 		given(storeImageFileRepository.findByStoreIdOrderByDisplayOrderAscIdAsc(storeId)).willReturn(List.of());
