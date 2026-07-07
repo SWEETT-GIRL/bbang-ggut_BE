@@ -157,6 +157,8 @@ jobs:
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
             echo "KAKAO_API_KEY=${{ secrets.KAKAO_API_KEY }}" >> .env
             echo "GOOGLE_PLACES_API_KEY=${{ secrets.GOOGLE_PLACES_API_KEY }}" >> .env
+            echo "NAVER_CLIENT_ID=${{ secrets.NAVER_CLIENT_ID }}" >> .env
+            echo "NAVER_CLIENT_SECRET=${{ secrets.NAVER_CLIENT_SECRET }}" >> .env
             echo "AWS_REGION=ap-northeast-2" >> .env
             echo "AWS_S3_BUCKET=${{ secrets.PROD_AWS_S3_BUCKET }}" >> .env
             echo "PROD_POSTHOG_API_KEY=${{ secrets.PROD_POSTHOG_API_KEY }}" >> .env
@@ -237,6 +239,8 @@ jobs:
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
             echo "KAKAO_API_KEY=${{ secrets.KAKAO_API_KEY }}" >> .env
             echo "GOOGLE_PLACES_API_KEY=${{ secrets.GOOGLE_PLACES_API_KEY }}" >> .env
+            echo "NAVER_CLIENT_ID=${{ secrets.NAVER_CLIENT_ID }}" >> .env
+            echo "NAVER_CLIENT_SECRET=${{ secrets.NAVER_CLIENT_SECRET }}" >> .env
             echo "AWS_REGION=ap-northeast-2" >> .env
             echo "AWS_S3_BUCKET=${{ secrets.PROD_AWS_S3_BUCKET }}" >> .env
             echo "PROD_POSTHOG_API_KEY=${{ secrets.PROD_POSTHOG_API_KEY }}" >> .env
