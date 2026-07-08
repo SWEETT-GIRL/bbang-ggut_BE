@@ -21,20 +21,6 @@ public enum NotificationRadius {
 	private static final NotificationRadius[] VALUES = values();
 
 	/**
-	 * DB에 저장된 float 반경 값을 enum으로 변환
-	 * DB에는 항상 enum 단계 값만 저장되므로 정확히 일치하는 값이 없으면 예외
-	 */
-	public static NotificationRadius from(float value) {
-		int intValue = Math.round(value); // float → int 변환
-		for (NotificationRadius r : VALUES) {
-			if (r.value == intValue) { // 정확히 일치하는 단계 반환
-				return r;
-			}
-		}
-		throw new IllegalStateException("유효하지 않은 알림 반경 값: " + value);
-	}
-
-	/**
 	 * 현재 단계에서 한 단계 위 반환
 	 * 이미 최대 단계(R1000)이면 null 반환
 	 */

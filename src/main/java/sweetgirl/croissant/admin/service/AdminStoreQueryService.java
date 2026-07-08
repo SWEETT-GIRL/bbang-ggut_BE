@@ -86,10 +86,6 @@ public class AdminStoreQueryService {
 
 	// ── Naver enrich 큐 ─────────────────────────────────────────────────────
 
-	public Page<AdminNaverEnrichQueueItem> getNaverEnrichQueue(Pageable pageable) {
-		return getNaverEnrichQueue(pageable, null);
-	}
-
 	public Page<AdminNaverEnrichQueueItem> getNaverEnrichQueue(
 			Pageable pageable, NaverEnrichPartition partition) {
 		Instant retryThreshold = Instant.now().minus(NAVER_RETRY_AFTER_DAYS, ChronoUnit.DAYS);
@@ -109,10 +105,6 @@ public class AdminStoreQueryService {
 
 	// 매칭은 됐지만 사진이 0장인 가게 — 사진 보충 일괄 크롤 큐.
 	// Python 스크래퍼는 store.naverPlaceId 가 들어있으면 검색을 스킵하고 바로 사진만 가져옴.
-	public Page<AdminNaverEnrichQueueItem> getPhotoBackfillQueue(Pageable pageable) {
-		return getPhotoBackfillQueue(pageable, null);
-	}
-
 	public Page<AdminNaverEnrichQueueItem> getPhotoBackfillQueue(
 			Pageable pageable, NaverEnrichPartition partition) {
 		Set<Long> excludedIds = naverEnrichOrchestrator.getPhotoBackfillAttemptedStoreIds();
@@ -129,10 +121,6 @@ public class AdminStoreQueryService {
 			0L));
 	}
 
-	public long countPhotoBackfillQueue() {
-		return countPhotoBackfillQueue(null);
-	}
-
 	public long countPhotoBackfillQueue(NaverEnrichPartition partition) {
 		Set<Long> excludedIds = naverEnrichOrchestrator.getPhotoBackfillAttemptedStoreIds();
 		return storeRepository.countMatchedWithoutPhotos(
@@ -143,10 +131,6 @@ public class AdminStoreQueryService {
 
 	// placeId 는 있으나 메뉴 또는 사진이 비어 enrich 가 안 끝난 가게 — 메뉴+사진 풀 enrich 백필 큐.
 	// 수동/후보 매칭(updateNaverPlaceId)으로 placeId 만 채워진 가게가 자동으로 여기 들어와 크롤된다.
-	public Page<AdminNaverEnrichQueueItem> getEnrichBackfillQueue(Pageable pageable) {
-		return getEnrichBackfillQueue(pageable, null);
-	}
-
 	public Page<AdminNaverEnrichQueueItem> getEnrichBackfillQueue(
 			Pageable pageable, NaverEnrichPartition partition) {
 		Set<Long> excludedIds = naverEnrichOrchestrator.getEnrichBackfillAttemptedStoreIds();
@@ -162,10 +146,6 @@ public class AdminStoreQueryService {
 			s,
 			menuCountMap.getOrDefault(s.getId(), 0L),
 			photoCountMap.getOrDefault(s.getId(), 0L)));
-	}
-
-	public long countEnrichBackfillQueue() {
-		return countEnrichBackfillQueue(null);
 	}
 
 	public long countEnrichBackfillQueue(NaverEnrichPartition partition) {

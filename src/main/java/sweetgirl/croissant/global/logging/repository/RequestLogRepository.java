@@ -14,9 +14,6 @@ import sweetgirl.croissant.store.dto.projection.StoreIdCountProjection;
 
 public interface RequestLogRepository extends JpaRepository<RequestLog, Long> {
 
-	List<RequestLog> findByStoreIdAndEventTypeAndCreatedAtAfter(Long storeId, LogEventType eventType,
-			LocalDateTime after);
-
 	long countByStoreIdAndEventType(Long storeId, LogEventType eventType);
 
 	@Query("SELECT r.storeId AS storeId, COUNT(r) AS count FROM RequestLog r "
