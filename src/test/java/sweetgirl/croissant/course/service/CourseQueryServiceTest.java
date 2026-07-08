@@ -142,6 +142,7 @@ class CourseQueryServiceTest {
 		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, null);
 
 		assertThat(result.id()).isEqualTo(1L);
+		assertThat(result.isPublic()).isTrue();
 		assertThat(result.isSaved()).isFalse();
 		assertThat(result.savedCount()).isEqualTo(5L);
 		assertThat(result.imageKey()).isEqualTo("courses/1/cover.jpg");
@@ -165,6 +166,7 @@ class CourseQueryServiceTest {
 		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, memberId);
 
 		assertThat(result.id()).isEqualTo(1L);
+		assertThat(result.isPublic()).isFalse();
 	}
 
 	@Test

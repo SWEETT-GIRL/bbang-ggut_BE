@@ -105,13 +105,15 @@ class CourseControllerTest {
 	@Test
 	void getCourseDetail_returns200() throws Exception {
 		CourseDetailResponse response = new CourseDetailResponse(
-			1L, "소금빵 투어", null, null, 2, List.of("마포구"), CourseType.CURATED, "어드민", null, false, 5L, List.of());
+			1L, "소금빵 투어", null, null, 2, List.of("마포구"), CourseType.CURATED, "어드민", null, true, false, 5L,
+			List.of());
 		given(courseQueryService.getCourseDetail(anyLong(), isNull())).willReturn(response);
 
 		mockMvc.perform(get("/courses/1"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.id").value(1))
+			.andExpect(jsonPath("$.data.isPublic").value(true))
 			.andExpect(jsonPath("$.data.savedCount").value(5))
 			.andExpect(jsonPath("$.data.isSaved").value(false));
 	}
