@@ -32,6 +32,12 @@ public class SavedCourseCommandService {
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
+		if (course.getMember() != null && course.getMember().getId().equals(memberId)) {
+			throw new CourseException(CourseErrorCode.COURSE_SAVE_SELF);
+		}
+		if (!course.isPublic()) {
+			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
+		}
 		savedCourseRepository.save(SavedCourse.create(member, course));
 	}
 

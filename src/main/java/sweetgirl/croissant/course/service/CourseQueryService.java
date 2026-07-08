@@ -50,7 +50,7 @@ public class CourseQueryService {
 
 	public List<CourseSummaryResponse> getSavedCourses(Long memberId) {
 		return savedCourseRepository.findAllByMemberId(memberId).stream()
-			.filter(savedCourse -> !savedCourse.getCourse().isDeleted())
+			.filter(savedCourse -> !savedCourse.getCourse().isDeleted() && savedCourse.getCourse().isPublic())
 			.map(savedCourse -> buildSummaryResponse(savedCourse.getCourse()))
 			.toList();
 	}

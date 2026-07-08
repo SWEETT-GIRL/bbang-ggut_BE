@@ -123,6 +123,31 @@ class CourseQueryServiceTest {
 		assertThat(result.get(0).id()).isEqualTo(1L);
 	}
 
+	@Test
+	@DisplayName("getSavedCourses: 비공개로 전환된 코스는 목록에서 제외한다")
+	void getSavedCourses_excludesPrivateCourse() {
+		Long memberId = 10L;
+		Course publicCourse = mockCourse(1L, "공개 코스", true, CourseType.CURATED, null);
+		// 필터로 걸러지는 코스는 isPublic만 조회됨 — 나머지 스텁은 strict stubbing에 걸리므로 최소 mock 사용
+		Course privateCourse = mock(Course.class);
+		given(privateCourse.isPublic()).willReturn(false);
+
+		SavedCourse saved1 = mock(SavedCourse.class);
+		given(saved1.getCourse()).willReturn(publicCourse);
+		SavedCourse saved2 = mock(SavedCourse.class);
+		given(saved2.getCourse()).willReturn(privateCourse);
+
+		given(savedCourseRepository.findAllByMemberId(memberId)).willReturn(List.of(saved1, saved2));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(1L))
+			.willReturn(List.of());
+		given(courseImageFileRepository.findByCourseId(1L)).willReturn(Optional.empty());
+
+		List<CourseSummaryResponse> result = courseQueryService.getSavedCourses(memberId);
+
+		assertThat(result).hasSize(1);
+		assertThat(result.get(0).id()).isEqualTo(1L);
+	}
+
 	// ───────────────────────── getCourseDetail ─────────────────────────
 
 	@Test
