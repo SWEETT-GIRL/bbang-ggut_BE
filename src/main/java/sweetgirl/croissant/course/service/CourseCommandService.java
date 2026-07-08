@@ -219,7 +219,10 @@ public class CourseCommandService {
 		Course sourceCourse = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 
-		if (!sourceCourse.isPublic()) {
+		// 공개 코스는 누구나, 비공개 코스는 본인 것만 복제(fork) 가능.
+		boolean isOwner = sourceCourse.getMember() != null
+			&& sourceCourse.getMember().getId().equals(memberId);
+		if (!sourceCourse.isPublic() && !isOwner) {
 			throw new CourseException(CourseErrorCode.COURSE_FORK_NOT_PUBLIC);
 		}
 
