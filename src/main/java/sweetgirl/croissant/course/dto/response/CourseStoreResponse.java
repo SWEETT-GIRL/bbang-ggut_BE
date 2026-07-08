@@ -16,8 +16,7 @@ public record CourseStoreResponse(
 		double longitude,
 		String region,
 		String memo,
-		LocalTime visitTime,
-		Integer walkingMinutesToNext) {
+		LocalTime visitTime) {
 
 	public static CourseStoreResponse from(CourseStore courseStore) {
 		Store store = courseStore.getStore();
@@ -31,7 +30,6 @@ public record CourseStoreResponse(
 			location.getX(),
 			store.getRegion2nd(),
 			courseStore.getMemo(),
-			courseStore.getVisitTime(),
-			courseStore.getWalkingMinutesToNext());
+			courseStore.getVisitTime());
 	}
 }
