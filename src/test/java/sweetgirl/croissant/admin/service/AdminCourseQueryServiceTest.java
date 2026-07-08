@@ -132,7 +132,6 @@ class AdminCourseQueryServiceTest {
 		given(courseStore.getStore()).willReturn(store);
 		lenient().when(courseStore.getMemo()).thenReturn(null);
 		lenient().when(courseStore.getVisitTime()).thenReturn(null);
-		lenient().when(courseStore.getWalkingMinutesToNext()).thenReturn(null);
 		given(store.getId()).willReturn(1L);
 		given(store.getName()).willReturn(storeName);
 		given(store.getRegion2nd()).willReturn(region2nd);

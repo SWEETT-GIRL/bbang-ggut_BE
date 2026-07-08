@@ -113,7 +113,7 @@ public class AdminCourseCommandService {
 		int nextOrder = courseStoreRepository.findMaxVisitOrderByCourseId(courseId) + 1;
 		CourseStore courseStore = CourseStore.createWithDetails(
 			course, store, nextOrder,
-			request.getMemo(), request.getVisitTime(), request.getWalkingMinutesToNext());
+			request.getMemo(), request.getVisitTime());
 		courseStoreRepository.save(courseStore);
 		return CourseStoreResponse.from(courseStore);
 	}
@@ -148,7 +148,6 @@ public class AdminCourseCommandService {
 				throw new CourseException(CourseErrorCode.COURSE_STORE_NOT_FOUND);
 			}
 			courseStore.updateOrder(i + 1);
-			courseStore.updateWalkingMinutesToNext(item.getWalkingMinutesToNext());
 		});
 	}
 

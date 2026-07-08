@@ -16,6 +16,4 @@ public class CourseStoreAddRequest {
 	private String memo;
 
 	private LocalTime visitTime;
-
-	private Integer walkingMinutesToNext;
 }

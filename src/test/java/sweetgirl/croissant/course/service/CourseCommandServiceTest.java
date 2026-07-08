@@ -199,7 +199,6 @@ class CourseCommandServiceTest {
 		given(request.getStoreId()).willReturn(storeId);
 		given(request.getMemo()).willReturn("메모");
 		given(request.getVisitTime()).willReturn(LocalTime.of(10, 0));
-		given(request.getWalkingMinutesToNext()).willReturn(5);
 
 		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.existsByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId)).willReturn(false);
@@ -283,7 +282,7 @@ class CourseCommandServiceTest {
 	// ───────────────────────── reorderStores ─────────────────────────
 
 	@Test
-	@DisplayName("reorderStores: 가게 순서와 도보 시간을 일괄 갱신한다")
+	@DisplayName("reorderStores: 가게 순서를 일괄 갱신한다")
 	void reorderStores_success() {
 		Long memberId = 1L;
 		Long courseId = 10L;
@@ -295,12 +294,10 @@ class CourseCommandServiceTest {
 		CourseStoreReorderRequest.CourseStoreOrderItem item1 = mock(
 			CourseStoreReorderRequest.CourseStoreOrderItem.class);
 		given(item1.getCourseStoreId()).willReturn(courseStoreId1);
-		given(item1.getWalkingMinutesToNext()).willReturn(10);
 
 		CourseStoreReorderRequest.CourseStoreOrderItem item2 = mock(
 			CourseStoreReorderRequest.CourseStoreOrderItem.class);
 		given(item2.getCourseStoreId()).willReturn(courseStoreId2);
-		given(item2.getWalkingMinutesToNext()).willReturn(null);
 
 		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
 		given(request.getCourseStoreOrders()).willReturn(List.of(item1, item2));
@@ -317,9 +314,7 @@ class CourseCommandServiceTest {
 		courseCommandService.reorderStores(memberId, courseId, request);
 
 		then(courseStore1).should().updateOrder(1);
-		then(courseStore1).should().updateWalkingMinutesToNext(10);
 		then(courseStore2).should().updateOrder(2);
-		then(courseStore2).should().updateWalkingMinutesToNext(null);
 	}
 
 	// ───────────────────────── image ─────────────────────────
@@ -493,7 +488,6 @@ class CourseCommandServiceTest {
 		lenient().when(courseStore.getVisitOrder()).thenReturn(visitOrder);
 		lenient().when(courseStore.getMemo()).thenReturn(null);
 		lenient().when(courseStore.getVisitTime()).thenReturn(null);
-		lenient().when(courseStore.getWalkingMinutesToNext()).thenReturn(null);
 		return courseStore;
 	}
 }

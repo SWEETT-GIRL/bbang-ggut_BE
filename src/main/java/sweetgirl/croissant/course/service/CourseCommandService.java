@@ -111,7 +111,7 @@ public class CourseCommandService {
 		int nextOrder = courseStoreRepository.findMaxVisitOrderByCourseId(courseId) + 1;
 		CourseStore courseStore = CourseStore.createWithDetails(
 			course, store, nextOrder,
-			request.getMemo(), request.getVisitTime(), request.getWalkingMinutesToNext());
+			request.getMemo(), request.getVisitTime());
 		courseStoreRepository.save(courseStore);
 
 		return CourseStoreResponse.from(courseStore);
@@ -160,7 +160,6 @@ public class CourseCommandService {
 				throw new CourseException(CourseErrorCode.COURSE_STORE_NOT_FOUND);
 			}
 			courseStore.updateOrder(i + 1);
-			courseStore.updateWalkingMinutesToNext(item.getWalkingMinutesToNext());
 		});
 	}
 
@@ -226,8 +225,7 @@ public class CourseCommandService {
 				source.getStore(),
 				source.getVisitOrder(),
 				source.getMemo(),
-				source.getVisitTime(),
-				source.getWalkingMinutesToNext()))
+				source.getVisitTime()))
 			.toList();
 		courseStoreRepository.saveAll(copiedStores);
 

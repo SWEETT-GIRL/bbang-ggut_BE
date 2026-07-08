@@ -211,7 +211,6 @@ class AdminCourseCommandServiceTest {
 		given(request.getStoreId()).willReturn(10L);
 		lenient().when(request.getMemo()).thenReturn(null);
 		lenient().when(request.getVisitTime()).thenReturn(null);
-		lenient().when(request.getWalkingMinutesToNext()).thenReturn(null);
 
 		CourseStoreResponse result = adminCourseCommandService.addStore(1L, request);
 
@@ -284,9 +283,7 @@ class AdminCourseCommandServiceTest {
 		CourseStoreReorderRequest.CourseStoreOrderItem item2 = mock(
 			CourseStoreReorderRequest.CourseStoreOrderItem.class);
 		given(item1.getCourseStoreId()).willReturn(10L);
-		given(item1.getWalkingMinutesToNext()).willReturn(5);
 		given(item2.getCourseStoreId()).willReturn(20L);
-		given(item2.getWalkingMinutesToNext()).willReturn(null);
 
 		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
 		given(request.getCourseStoreOrders()).willReturn(List.of(item1, item2));
