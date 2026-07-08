@@ -13,6 +13,8 @@ public interface CourseStoreRepository extends JpaRepository<CourseStore, Long> 
 
 	List<CourseStore> findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(Long courseId);
 
+	List<CourseStore> findAllByCourseIdInAndDeletedAtIsNullOrderByVisitOrderAsc(List<Long> courseIds);
+
 	Optional<CourseStore> findByCourseIdAndStoreIdAndDeletedAtIsNull(Long courseId, Long storeId);
 
 	boolean existsByCourseIdAndStoreIdAndDeletedAtIsNull(Long courseId, Long storeId);
