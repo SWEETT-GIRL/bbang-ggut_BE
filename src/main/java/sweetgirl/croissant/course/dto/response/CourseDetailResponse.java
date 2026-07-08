@@ -17,6 +17,7 @@ public record CourseDetailResponse(
 		String authorName,
 		String badge,
 		boolean isPublic,
+		boolean isMine,
 		boolean isSaved,
 		long savedCount,
 		List<CourseStoreResponse> courseStores) {
@@ -24,6 +25,7 @@ public record CourseDetailResponse(
 	public static CourseDetailResponse of(
 			Course course,
 			CourseImageFile coverImage,
+			boolean isMine,
 			boolean isSaved,
 			long savedCount,
 			List<CourseStoreResponse> courseStores) {
@@ -44,6 +46,7 @@ public record CourseDetailResponse(
 			authorName,
 			course.getBadge(),
 			course.isPublic(),
+			isMine,
 			isSaved,
 			savedCount,
 			courseStores);
