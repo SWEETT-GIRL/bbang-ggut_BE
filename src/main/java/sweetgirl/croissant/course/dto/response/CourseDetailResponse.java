@@ -16,6 +16,7 @@ public record CourseDetailResponse(
 		CourseType courseType,
 		String authorName,
 		String badge,
+		boolean isPublic,
 		boolean isSaved,
 		long savedCount,
 		List<CourseStoreResponse> courseStores) {
@@ -42,6 +43,7 @@ public record CourseDetailResponse(
 			course.getType(),
 			authorName,
 			course.getBadge(),
+			course.isPublic(),
 			isSaved,
 			savedCount,
 			courseStores);

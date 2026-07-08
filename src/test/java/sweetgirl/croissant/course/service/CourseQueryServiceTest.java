@@ -55,11 +55,11 @@ class CourseQueryServiceTest {
 	void getCurationCourses_success() {
 		Course course = mockCourse(1L, "망원동 빵지순례", true, CourseType.CURATED, null);
 		CourseStore courseStore = mockCourseStore(1, "빵집A", "마포구");
+		given(courseStore.getCourse()).willReturn(course);
 
 		given(courseRepository.findAllByIsPublicTrueAndDeletedAtIsNull()).willReturn(List.of(course));
-		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(1L))
+		given(courseStoreRepository.findAllByCourseIdInAndDeletedAtIsNullOrderByVisitOrderAsc(List.of(1L)))
 			.willReturn(List.of(courseStore));
-		given(courseImageFileRepository.findByCourseId(1L)).willReturn(Optional.empty());
 
 		List<CourseSummaryResponse> result = courseQueryService.getCurationCourses();
 
@@ -68,6 +68,24 @@ class CourseQueryServiceTest {
 		assertThat(result.get(0).title()).isEqualTo("망원동 빵지순례");
 		assertThat(result.get(0).storeCount()).isEqualTo(1);
 		assertThat(result.get(0).regions()).containsExactly("마포구");
+	}
+
+	@Test
+	@DisplayName("getCurationCourses: 핀 우선, 그 외에는 찜 수 내림차순으로 정렬한다")
+	void getCurationCourses_sortsByPinThenSavedCount() {
+		Course lessSaved = mockCourse(1L, "찜 적은 코스", true, CourseType.CUSTOM, 10L);
+		Course mostSaved = mockCourse(2L, "찜 많은 코스", true, CourseType.CUSTOM, 20L);
+		Course pinned = mockCourse(3L, "핀 코스", true, CourseType.CURATED, null);
+		given(pinned.getPinOrder()).willReturn(1);
+
+		given(courseRepository.findAllByIsPublicTrueAndDeletedAtIsNull())
+			.willReturn(List.of(lessSaved, mostSaved, pinned));
+		given(savedCourseRepository.countGroupedByCourseIdIn(List.of(1L, 2L, 3L)))
+			.willReturn(List.of(new Object[] {1L, 1L}, new Object[] {2L, 5L}));
+
+		List<CourseSummaryResponse> result = courseQueryService.getCurationCourses();
+
+		assertThat(result).extracting(CourseSummaryResponse::id).containsExactly(3L, 2L, 1L);
 	}
 
 	// ───────────────────────── getMyCourses ─────────────────────────
@@ -82,12 +100,6 @@ class CourseQueryServiceTest {
 		given(courseRepository.findAllByMemberIdAndTypeInAndDeletedAtIsNull(
 			memberId, List.of(CourseType.CUSTOM, CourseType.FORKED)))
 			.willReturn(List.of(custom, forked));
-		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(1L))
-			.willReturn(List.of());
-		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(2L))
-			.willReturn(List.of());
-		given(courseImageFileRepository.findByCourseId(1L)).willReturn(Optional.empty());
-		given(courseImageFileRepository.findByCourseId(2L)).willReturn(Optional.empty());
 
 		List<CourseSummaryResponse> result = courseQueryService.getMyCourses(memberId);
 
@@ -113,9 +125,28 @@ class CourseQueryServiceTest {
 		given(saved2.getCourse()).willReturn(deletedCourse);
 
 		given(savedCourseRepository.findAllByMemberId(memberId)).willReturn(List.of(saved1, saved2));
-		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(1L))
-			.willReturn(List.of());
-		given(courseImageFileRepository.findByCourseId(1L)).willReturn(Optional.empty());
+
+		List<CourseSummaryResponse> result = courseQueryService.getSavedCourses(memberId);
+
+		assertThat(result).hasSize(1);
+		assertThat(result.get(0).id()).isEqualTo(1L);
+	}
+
+	@Test
+	@DisplayName("getSavedCourses: 비공개로 전환된 코스는 목록에서 제외한다")
+	void getSavedCourses_excludesPrivateCourse() {
+		Long memberId = 10L;
+		Course publicCourse = mockCourse(1L, "공개 코스", true, CourseType.CURATED, null);
+		// 필터로 걸러지는 코스는 isPublic만 조회됨 — 나머지 스텁은 strict stubbing에 걸리므로 최소 mock 사용
+		Course privateCourse = mock(Course.class);
+		given(privateCourse.isPublic()).willReturn(false);
+
+		SavedCourse saved1 = mock(SavedCourse.class);
+		given(saved1.getCourse()).willReturn(publicCourse);
+		SavedCourse saved2 = mock(SavedCourse.class);
+		given(saved2.getCourse()).willReturn(privateCourse);
+
+		given(savedCourseRepository.findAllByMemberId(memberId)).willReturn(List.of(saved1, saved2));
 
 		List<CourseSummaryResponse> result = courseQueryService.getSavedCourses(memberId);
 
@@ -142,6 +173,7 @@ class CourseQueryServiceTest {
 		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, null);
 
 		assertThat(result.id()).isEqualTo(1L);
+		assertThat(result.isPublic()).isTrue();
 		assertThat(result.isSaved()).isFalse();
 		assertThat(result.savedCount()).isEqualTo(5L);
 		assertThat(result.imageKey()).isEqualTo("courses/1/cover.jpg");
@@ -165,6 +197,7 @@ class CourseQueryServiceTest {
 		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, memberId);
 
 		assertThat(result.id()).isEqualTo(1L);
+		assertThat(result.isPublic()).isFalse();
 	}
 
 	@Test
@@ -181,6 +214,19 @@ class CourseQueryServiceTest {
 		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
 
 		assertThatThrownBy(() -> courseQueryService.getCourseDetail(1L, otherId))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+	}
+
+	@Test
+	@DisplayName("getCourseDetail: 소유자가 없는 비공개 코스는 로그인해도 COURSE_FORBIDDEN을 던진다")
+	void getCourseDetail_privateCourseWithoutOwner_throwsForbidden() {
+		Course course = mock(Course.class);
+		given(course.isPublic()).willReturn(false);
+		given(course.getMember()).willReturn(null);
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+
+		assertThatThrownBy(() -> courseQueryService.getCourseDetail(1L, 10L))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
 	}
@@ -203,6 +249,8 @@ class CourseQueryServiceTest {
 		given(course.getTitle()).willReturn(title);
 		// getCourseDetail에서만 호출됨 — 다른 테스트에서 호출 안 될 수 있으므로 lenient
 		lenient().when(course.isPublic()).thenReturn(isPublic);
+		// Mockito는 Integer 반환 미스텁 메서드에 null이 아닌 0을 돌려주므로, 실제 미핀 상태(null)를 명시 스텁
+		lenient().when(course.getPinOrder()).thenReturn(null);
 		given(course.getType()).willReturn(type);
 		given(course.getBadge()).willReturn(null);
 		if (memberId != null) {
@@ -225,7 +273,6 @@ class CourseQueryServiceTest {
 		given(courseStore.getStore()).willReturn(store);
 		lenient().when(courseStore.getMemo()).thenReturn(null);
 		lenient().when(courseStore.getVisitTime()).thenReturn(null);
-		lenient().when(courseStore.getWalkingMinutesToNext()).thenReturn(null);
 		lenient().when(store.getId()).thenReturn(1L);
 		lenient().when(store.getName()).thenReturn(storeName);
 		given(store.getRegion2nd()).willReturn(region2nd);
