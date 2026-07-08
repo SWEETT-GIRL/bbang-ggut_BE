@@ -304,8 +304,10 @@ class CourseCommandServiceTest {
 
 		CourseStore courseStore1 = mock(CourseStore.class);
 		given(courseStore1.getId()).willReturn(courseStoreId1);
+		given(courseStore1.getCourse()).willReturn(course);
 		CourseStore courseStore2 = mock(CourseStore.class);
 		given(courseStore2.getId()).willReturn(courseStoreId2);
+		given(courseStore2.getCourse()).willReturn(course);
 
 		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.findAllById(List.of(courseStoreId1, courseStoreId2)))
@@ -313,8 +315,41 @@ class CourseCommandServiceTest {
 
 		courseCommandService.reorderStores(memberId, courseId, request);
 
+		// 유니크 제약 충돌 방지를 위한 임시 음수 순서 → 최종 순서 2단계 갱신
+		then(courseStore1).should().updateOrder(-1);
 		then(courseStore1).should().updateOrder(1);
+		then(courseStore2).should().updateOrder(-2);
 		then(courseStore2).should().updateOrder(2);
+		then(courseStoreRepository).should().flush();
+	}
+
+	@Test
+	@DisplayName("reorderStores: 다른 코스의 가게가 섞여 있으면 COURSE_STORE_NOT_FOUND를 던진다")
+	void reorderStores_otherCourseStore_throwsNotFound() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Long otherCourseStoreId = 77L;
+
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		Course otherCourse = mockCourse(99L, "남의 코스", CourseType.CUSTOM, 2L, null);
+
+		CourseStoreReorderRequest.CourseStoreOrderItem item = mock(
+			CourseStoreReorderRequest.CourseStoreOrderItem.class);
+		given(item.getCourseStoreId()).willReturn(otherCourseStoreId);
+		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
+		given(request.getCourseStoreOrders()).willReturn(List.of(item));
+
+		CourseStore otherCourseStore = mock(CourseStore.class);
+		given(otherCourseStore.getId()).willReturn(otherCourseStoreId);
+		given(otherCourseStore.getCourse()).willReturn(otherCourse);
+
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseStoreRepository.findAllById(List.of(otherCourseStoreId)))
+			.willReturn(List.of(otherCourseStore));
+
+		assertThatThrownBy(() -> courseCommandService.reorderStores(memberId, courseId, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_STORE_NOT_FOUND.getMessage());
 	}
 
 	// ───────────────────────── image ─────────────────────────

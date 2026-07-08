@@ -141,14 +141,22 @@ public class AdminCourseCommandService {
 			.toList();
 		Map<Long, CourseStore> courseStoreMap = courseStoreRepository.findAllById(courseStoreIds).stream()
 			.collect(Collectors.toMap(CourseStore::getId, cs -> cs));
-		IntStream.range(0, orderItems.size()).forEach(i -> {
-			CourseStoreOrderItem item = orderItems.get(i);
-			CourseStore courseStore = courseStoreMap.get(item.getCourseStoreId());
-			if (courseStore == null) {
-				throw new CourseException(CourseErrorCode.COURSE_STORE_NOT_FOUND);
-			}
-			courseStore.updateOrder(i + 1);
-		});
+		List<CourseStore> orderedCourseStores = orderItems.stream()
+			.map(item -> {
+				CourseStore courseStore = courseStoreMap.get(item.getCourseStoreId());
+				if (courseStore == null || courseStore.isDeleted()
+					|| !courseStore.getCourse().getId().equals(courseId)) {
+					throw new CourseException(CourseErrorCode.COURSE_STORE_NOT_FOUND);
+				}
+				return courseStore;
+			})
+			.toList();
+		// (course_id, visit_order) 유니크 제약과의 스왑 충돌을 피하기 위해 임시 음수 순서로 옮긴 뒤 최종 순서 부여
+		IntStream.range(0, orderedCourseStores.size())
+			.forEach(i -> orderedCourseStores.get(i).updateOrder(-(i + 1)));
+		courseStoreRepository.flush();
+		IntStream.range(0, orderedCourseStores.size())
+			.forEach(i -> orderedCourseStores.get(i).updateOrder(i + 1));
 	}
 
 	// ───────────────────────── 핀 관리 ─────────────────────────
