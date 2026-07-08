@@ -15,13 +15,15 @@ public record CourseSummaryResponse(
 		List<String> regions,
 		CourseType courseType,
 		String authorName,
-		String badge) {
+		String badge,
+		long savedCount) {
 
 	public static CourseSummaryResponse of(
 			Course course,
 			CourseImageFile coverImage,
 			int storeCount,
-			List<String> regions) {
+			List<String> regions,
+			long savedCount) {
 		String authorName = course.getMember() != null ? course.getMember().getNickname() : null;
 		return new CourseSummaryResponse(
 			course.getId(),
@@ -32,6 +34,7 @@ public record CourseSummaryResponse(
 			regions,
 			course.getType(),
 			authorName,
-			course.getBadge());
+			course.getBadge(),
+			savedCount);
 	}
 }

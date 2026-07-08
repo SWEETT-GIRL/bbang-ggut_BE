@@ -91,6 +91,8 @@ public class CourseQueryService {
 			.distinct()
 			.toList();
 
-		return CourseSummaryResponse.of(course, coverImage, courseStores.size(), regions);
+		long savedCount = savedCourseRepository.countByCourseId(course.getId());
+
+		return CourseSummaryResponse.of(course, coverImage, courseStores.size(), regions, savedCount);
 	}
 }
