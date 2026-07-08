@@ -100,6 +100,8 @@ public class CourseQueryService {
 				imageFile -> imageFile,
 				(first, second) -> first));
 
+		Map<Long, Long> savedCountByCourseId = findSavedCountByCourseId(courses);
+
 		return courses.stream()
 			.map(course -> {
 				List<CourseStore> courseStores = courseStoresByCourseId.getOrDefault(course.getId(), List.of());
@@ -109,7 +111,11 @@ public class CourseQueryService {
 					.distinct()
 					.toList();
 				return CourseSummaryResponse.of(
-					course, coverImageByCourseId.get(course.getId()), courseStores.size(), regions);
+					course,
+					coverImageByCourseId.get(course.getId()),
+					courseStores.size(),
+					regions,
+					savedCountByCourseId.getOrDefault(course.getId(), 0L));
 			})
 			.toList();
 	}
