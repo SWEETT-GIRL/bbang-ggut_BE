@@ -91,17 +91,6 @@ public class ReportNotification {
 		this.sentAt = LocalDateTime.now();
 	}
 
-	public static ReportNotification ofReportResult(
-			Member member,
-			Store store,
-			Long reportId,
-			ReportKind reportKind,
-			ReportNotificationAction action,
-			String title,
-			String message) {
-		return ofContributionReportResult(member, store, reportId, null, reportKind, action, title, message);
-	}
-
 	public static ReportNotification ofContributionReportResult(
 			Member member,
 			Store store,

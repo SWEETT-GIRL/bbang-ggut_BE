@@ -72,12 +72,4 @@ public class Banner extends BaseTimeEntity {
 	public void updateDisplayOrder(int displayOrder) {
 		this.displayOrder = displayOrder;
 	}
-
-	public void markDone() {
-		this.processingStatus = ImageStatus.DONE;
-	}
-
-	public void markFailed() {
-		this.processingStatus = ImageStatus.FAILED;
-	}
 }

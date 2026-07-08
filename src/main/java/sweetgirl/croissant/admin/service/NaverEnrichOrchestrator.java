@@ -112,14 +112,6 @@ public class NaverEnrichOrchestrator {
 	/**
 	 * @param mode 실행 모드 — 어느 큐를 어떤 깊이로 처리할지 결정.
 	 * @param initialQueueCount 시작 시점의 큐 크기 — 진행률 % 계산용. 0 이면 진행률 표시 안 됨.
-	 */
-	public boolean tryStart(Mode mode, long initialQueueCount) {
-		return tryStart(mode, initialQueueCount, null);
-	}
-
-	/**
-	 * @param mode 실행 모드 — 어느 큐를 어떤 깊이로 처리할지 결정.
-	 * @param initialQueueCount 시작 시점의 큐 크기 — 진행률 % 계산용. 0 이면 진행률 표시 안 됨.
 	 * @param partition 작업 파티션. null 이면 전체 큐.
 	 */
 	public boolean tryStart(Mode mode, long initialQueueCount, NaverEnrichPartition partition) {
