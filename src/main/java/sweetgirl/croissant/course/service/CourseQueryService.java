@@ -75,10 +75,12 @@ public class CourseQueryService {
 
 		CourseImageFile coverImage = courseImageFileRepository.findByCourseId(courseId).orElse(null);
 
+		boolean isMine = memberId != null && course.getMember() != null
+			&& course.getMember().getId().equals(memberId);
 		boolean isSaved = memberId != null && savedCourseRepository.existsByMemberIdAndCourseId(memberId, courseId);
 		long savedCount = savedCourseRepository.countByCourseId(courseId);
 
-		return CourseDetailResponse.of(course, coverImage, isSaved, savedCount, courseStoreResponses);
+		return CourseDetailResponse.of(course, coverImage, isMine, isSaved, savedCount, courseStoreResponses);
 	}
 
 	/** 코스별 가게·커버 이미지를 일괄 조회해 코스 수와 무관하게 고정된 쿼리 수로 summary를 만든다 */

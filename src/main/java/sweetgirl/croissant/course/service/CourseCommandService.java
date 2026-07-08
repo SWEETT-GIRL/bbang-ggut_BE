@@ -74,10 +74,14 @@ public class CourseCommandService {
 
 		validateOwner(course, memberId);
 
+		// FORKED 코스는 원본과 동일한 채로 '공개'만 막는다. 비공개 복제는 동일해도 허용.
 		if (course.getType() == CourseType.FORKED) {
-			String effectiveTitle = request.getTitle() != null ? request.getTitle() : course.getTitle();
-			if (isSameAsSource(course, effectiveTitle)) {
-				throw new CourseException(CourseErrorCode.COURSE_FORK_NOT_MODIFIED);
+			boolean willBePublic = request.getIsPublic() != null ? request.getIsPublic() : course.isPublic();
+			if (willBePublic) {
+				String effectiveTitle = request.getTitle() != null ? request.getTitle() : course.getTitle();
+				if (isSameAsSource(course, effectiveTitle)) {
+					throw new CourseException(CourseErrorCode.COURSE_FORK_NOT_MODIFIED);
+				}
 			}
 		}
 
@@ -215,7 +219,10 @@ public class CourseCommandService {
 		Course sourceCourse = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 
-		if (!sourceCourse.isPublic()) {
+		// 공개 코스는 누구나, 비공개 코스는 본인 것만 복제(fork) 가능.
+		boolean isOwner = sourceCourse.getMember() != null
+			&& sourceCourse.getMember().getId().equals(memberId);
+		if (!sourceCourse.isPublic() && !isOwner) {
 			throw new CourseException(CourseErrorCode.COURSE_FORK_NOT_PUBLIC);
 		}
 
