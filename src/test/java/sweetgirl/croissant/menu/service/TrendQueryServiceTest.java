@@ -17,8 +17,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import sweetgirl.croissant.external.kakao.client.KakaoGeoClient;
 import sweetgirl.croissant.external.kakao.dto.KakaoCoordToAddressResponse;
 import sweetgirl.croissant.external.kakao.dto.KakaoCoordToRegionResponse;
+import sweetgirl.croissant.menu.dto.projection.MenuImageByStoreProjection;
 import sweetgirl.croissant.menu.dto.response.RegionTrendResponse;
+import sweetgirl.croissant.menu.entity.FamousMenuByRegion;
+import sweetgirl.croissant.menu.enums.MenuCategory;
+import sweetgirl.croissant.menu.enums.MenuKind;
 import sweetgirl.croissant.menu.repository.FamousMenuByRegionRepository;
+import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
+import sweetgirl.croissant.store.dto.projection.HotStoreRankingTrendProjection;
+import sweetgirl.croissant.store.dto.projection.StoreDistanceProjection;
+import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
 import sweetgirl.croissant.store.enums.Region3rd;
 import sweetgirl.croissant.store.repository.HotStoreRankingRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
@@ -37,6 +45,8 @@ class TrendQueryServiceTest {
 	private HotStoreRankingRepository hotStoreRankingRepository;
 	@Mock
 	private StoreImageFileRepository storeImageFileRepository;
+	@Mock
+	private MenuImageFileRepository menuImageFileRepository;
 
 	@InjectMocks
 	private TrendQueryService trendQueryService;
@@ -126,6 +136,106 @@ class TrendQueryServiceTest {
 		// then
 		assertThat(response.region3rd()).isNull();
 		assertThat(response.categories()).isEmpty();
+	}
+
+	@Test
+	@DisplayName("트렌드 썸네일 폴백 체인: 카테고리 메뉴 사진 → 아무 메뉴 사진 → 가게 사진 → 없음")
+	void getTrendByRegion_resolvesThumbnailFallbackChain() {
+		// given: 케이크 카테고리 랭킹에 4개 빵집
+		FamousMenuByRegion famousMenu = mock(FamousMenuByRegion.class);
+		given(famousMenu.getId()).willReturn(1L);
+		given(famousMenu.getMenuCategory()).willReturn(MenuCategory.케이크);
+
+		// 행 mock들을 먼저 만들어 두고(중첩 스터빙 방지) 리포지토리를 스터빙한다
+		HotStoreRankingTrendProjection rank1 = rankingRow(10L, 1); // 케이크 메뉴 사진 보유 → 카테고리 일치 사진
+		HotStoreRankingTrendProjection rank2 = rankingRow(20L, 2); // 식빵 메뉴 사진만 보유 → 아무 메뉴 사진
+		HotStoreRankingTrendProjection rank3 = rankingRow(30L, 3); // 메뉴 사진 없음, 가게 사진 보유 → 가게 사진
+		HotStoreRankingTrendProjection rank4 = rankingRow(40L, 4); // 아무 사진도 없음 → 빈 목록
+		// 10번 가게는 식빵 사진이 먼저 오지만 카테고리(케이크) 일치 사진이 우선돼야 한다
+		MenuImageByStoreProjection bread10 = menuImageRow(10L, MenuKind.식빵, "menu-bread-10");
+		MenuImageByStoreProjection cake10 = menuImageRow(10L, MenuKind.케이크, "menu-cake-10");
+		MenuImageByStoreProjection bread20 = menuImageRow(20L, MenuKind.식빵, "menu-bread-20");
+		StoreImageThumbnailProjection store30 = storeImageRow(30L, "store-30");
+
+		given(famousMenuByRegionRepository.findByRegion3rd(Region3rd.종로구_가회동))
+			.willReturn(List.of(famousMenu));
+		given(hotStoreRankingRepository.findTrendByFamousMenuByRegionIdIn(List.of(1L)))
+			.willReturn(List.of(rank1, rank2, rank3, rank4));
+		given(menuImageFileRepository.findMenuImagesByStoreIdIn(anyList()))
+			.willReturn(List.of(bread10, cake10, bread20));
+		given(storeImageFileRepository.findThumbnailsByStoreIdIn(anyList()))
+			.willReturn(List.of(store30));
+
+		// when: 좌표 없이 조회 — 거리는 null이어야 한다
+		RegionTrendResponse response = trendQueryService.getTrendByRegion(Region3rd.종로구_가회동.name(), null, null);
+
+		// then
+		List<RegionTrendResponse.HotStore> stores = response.categories().get(0).stores();
+		assertThat(stores.get(0).thumbnailImageKeys()).containsExactly("menu-cake-10");
+		assertThat(stores.get(1).thumbnailImageKeys()).containsExactly("menu-bread-20");
+		assertThat(stores.get(2).thumbnailImageKeys()).containsExactly("store-30");
+		assertThat(stores.get(3).thumbnailImageKeys()).isEmpty();
+		assertThat(stores).allSatisfy(s -> assertThat(s.distanceMeter()).isNull());
+		verify(storeRepository, never()).findDistancesByStoreIdIn(anyList(), anyDouble(), anyDouble());
+	}
+
+	@Test
+	@DisplayName("좌표를 주면 가게별 거리(distanceMeter)를 포함해 반환")
+	void getTrendByRegion_includesDistances_whenCoordsProvided() {
+		// given
+		FamousMenuByRegion famousMenu = mock(FamousMenuByRegion.class);
+		given(famousMenu.getId()).willReturn(1L);
+		given(famousMenu.getMenuCategory()).willReturn(MenuCategory.케이크);
+		HotStoreRankingTrendProjection rank1 = rankingRow(10L, 1);
+		HotStoreRankingTrendProjection rank2 = rankingRow(20L, 2);
+		StoreDistanceProjection dist10 = distanceRow(10L, 152.3);
+
+		given(famousMenuByRegionRepository.findByRegion3rd(Region3rd.종로구_가회동))
+			.willReturn(List.of(famousMenu));
+		given(hotStoreRankingRepository.findTrendByFamousMenuByRegionIdIn(List.of(1L)))
+			.willReturn(List.of(rank1, rank2));
+		given(menuImageFileRepository.findMenuImagesByStoreIdIn(anyList())).willReturn(List.of());
+		given(storeImageFileRepository.findThumbnailsByStoreIdIn(anyList())).willReturn(List.of());
+		given(storeRepository.findDistancesByStoreIdIn(anyList(), eq(LNG), eq(LAT)))
+			.willReturn(List.of(dist10));
+
+		// when
+		RegionTrendResponse response = trendQueryService.getTrendByRegion(Region3rd.종로구_가회동.name(), LAT, LNG);
+
+		// then: 거리 조회 결과에 있는 가게만 값, 없으면 null
+		List<RegionTrendResponse.HotStore> stores = response.categories().get(0).stores();
+		assertThat(stores.get(0).distanceMeter()).isEqualTo(152.3);
+		assertThat(stores.get(1).distanceMeter()).isNull();
+	}
+
+	private StoreDistanceProjection distanceRow(Long storeId, double meters) {
+		StoreDistanceProjection row = mock(StoreDistanceProjection.class);
+		given(row.getId()).willReturn(storeId);
+		given(row.getDistanceMeters()).willReturn(meters);
+		return row;
+	}
+
+	private HotStoreRankingTrendProjection rankingRow(Long storeId, int rank) {
+		HotStoreRankingTrendProjection row = mock(HotStoreRankingTrendProjection.class);
+		given(row.getFamousMenuByRegionId()).willReturn(1L);
+		given(row.getStoreId()).willReturn(storeId);
+		given(row.getRank()).willReturn(rank);
+		return row;
+	}
+
+	private MenuImageByStoreProjection menuImageRow(Long storeId, MenuKind kind, String key) {
+		MenuImageByStoreProjection row = mock(MenuImageByStoreProjection.class);
+		given(row.getStoreId()).willReturn(storeId);
+		lenient().when(row.getMenuKind()).thenReturn(kind);
+		lenient().when(row.getResizedKey320()).thenReturn(key);
+		return row;
+	}
+
+	private StoreImageThumbnailProjection storeImageRow(Long storeId, String key) {
+		StoreImageThumbnailProjection row = mock(StoreImageThumbnailProjection.class);
+		given(row.getStoreId()).willReturn(storeId);
+		given(row.getResizedKey320()).willReturn(key);
+		return row;
 	}
 
 	private KakaoCoordToAddressResponse addressResponse(String addressName) {

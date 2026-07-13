@@ -13,13 +13,17 @@ import sweetgirl.croissant.external.kakao.client.KakaoGeoClient;
 import sweetgirl.croissant.external.kakao.dto.KakaoCoordToAddressResponse;
 import sweetgirl.croissant.external.kakao.dto.KakaoCoordToRegionResponse;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
+import sweetgirl.croissant.menu.dto.projection.MenuImageByStoreProjection;
 import sweetgirl.croissant.menu.dto.response.RegionTrendResponse;
 import sweetgirl.croissant.menu.entity.FamousMenuByRegion;
 import sweetgirl.croissant.menu.entity.NationwideFamousMenu;
+import sweetgirl.croissant.menu.enums.MenuCategory;
 import sweetgirl.croissant.menu.exception.MenuException;
 import sweetgirl.croissant.menu.repository.FamousMenuByRegionRepository;
+import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.NationwideFamousMenuRepository;
 import sweetgirl.croissant.store.dto.projection.HotStoreRankingTrendProjection;
+import sweetgirl.croissant.store.dto.projection.StoreDistanceProjection;
 import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
 import sweetgirl.croissant.store.entity.NationwideHotStoreRanking;
 import sweetgirl.croissant.store.enums.Region3rd;
@@ -40,6 +44,7 @@ public class TrendQueryService {
 	private final NationwideFamousMenuRepository nationwideFamousMenuRepository;
 	private final NationwideHotStoreRankingRepository nationwideHotStoreRankingRepository;
 	private final StoreImageFileRepository storeImageFileRepository;
+	private final MenuImageFileRepository menuImageFileRepository;
 
 	private static final List<String> DONG_SUFFIXES = Arrays.asList("읍", "면", "동", "구");
 	private static final int MAX_STORES_PER_CATEGORY = 30;
@@ -53,17 +58,18 @@ public class TrendQueryService {
 			return new RegionTrendResponse(null, List.of());
 		}
 
-		return buildTrendResponse(region3rd);
+		return buildTrendResponse(region3rd, latitude, longitude);
 	}
 
-	public RegionTrendResponse getTrendByRegion(String region) {
+	// lat/lng는 선택 — 있으면 각 빵집까지의 거리를 응답에 포함한다
+	public RegionTrendResponse getTrendByRegion(String region, Double latitude, Double longitude) {
 		Region3rd region3rd;
 		try {
 			region3rd = Region3rd.valueOf(region);
 		} catch (IllegalArgumentException e) {
 			throw new MenuException(MenuErrorCode.INVALID_REGION);
 		}
-		return buildTrendResponse(region3rd);
+		return buildTrendResponse(region3rd, latitude, longitude);
 	}
 
 	// 전국 단위 유명 메뉴 & 핫 빵집 랭킹 조회 (지역과 달리 위치/지역 입력 없이 전국 전용 테이블에서 조회)
@@ -98,11 +104,11 @@ public class TrendQueryService {
 					.toList()))
 			.toList();
 
-		// 지역 트렌드와 동일한 조립 로직 재사용 (지역명 자리에는 "전국")
-		return buildResponse("전국", categories);
+		// 지역 트렌드와 동일한 조립 로직 재사용 (지역명 자리에는 "전국", 거리 없음)
+		return buildResponse("전국", categories, null, null);
 	}
 
-	private RegionTrendResponse buildTrendResponse(Region3rd region3rd) {
+	private RegionTrendResponse buildTrendResponse(Region3rd region3rd, Double latitude, Double longitude) {
 		List<FamousMenuByRegion> famousMenus = famousMenuByRegionRepository.findByRegion3rd(region3rd);
 		if (famousMenus.isEmpty()) {
 			return new RegionTrendResponse(region3rd.name(), List.of());
@@ -137,11 +143,14 @@ public class TrendQueryService {
 			.map(suffix -> rawName.substring(0, rawName.length() - suffix.length()))
 			.orElse(rawName);
 
-		return buildResponse(name, categories);
+		return buildResponse(name, categories, latitude, longitude);
 	}
 
-	// 지역/전국 공통 응답 조립 헬퍼: 카테고리별 빵집 목록에 썸네일을 붙여 RegionTrendResponse로 변환
-	private RegionTrendResponse buildResponse(String regionName, List<CategoryStores> categories) {
+	// 지역/전국 공통 응답 조립 헬퍼: 카테고리별 빵집 목록에 썸네일·거리를 붙여 RegionTrendResponse로 변환
+	// 썸네일은 폴백 체인으로 결정: 해당 카테고리 메뉴 사진 → 아무 메뉴 사진 → 가게 사진 → 없음(앱이 placeholder 표시)
+	// 거리는 좌표(lat/lng)가 주어졌을 때만 계산해 포함한다
+	private RegionTrendResponse buildResponse(
+			String regionName, List<CategoryStores> categories, Double latitude, Double longitude) {
 		// 모든 카테고리의 빵집 ID를 평탄화·중복 제거하여 썸네일을 한 번에 조회 (N+1 방지)
 		List<Long> storeIds = categories.stream()
 			.flatMap(c -> c.stores().stream())
@@ -149,8 +158,15 @@ public class TrendQueryService {
 			.distinct()
 			.toList();
 
-		// storeId → 썸네일 이미지 키 목록 매핑 (빵집이 하나도 없으면 조회 생략)
-		Map<Long, List<String>> imagesByStoreId = storeIds.isEmpty()
+		// storeId → 메뉴 이미지 목록 (세분류 포함, displayOrder 순) — 폴백 체인 1·2단계용
+		Map<Long, List<MenuImageByStoreProjection>> menuImagesByStoreId = storeIds.isEmpty()
+			? Map.of()
+			: menuImageFileRepository.findMenuImagesByStoreIdIn(storeIds)
+				.stream()
+				.collect(Collectors.groupingBy(MenuImageByStoreProjection::getStoreId));
+
+		// storeId → 가게 이미지 키 목록 — 폴백 체인 3단계용
+		Map<Long, List<String>> storeImagesByStoreId = storeIds.isEmpty()
 			? Map.of()
 			: storeImageFileRepository.findThumbnailsByStoreIdIn(storeIds)
 				.stream()
@@ -159,24 +175,73 @@ public class TrendQueryService {
 					Collectors.mapping(p -> p.getResizedKey320() != null ? p.getResizedKey320() : p.getAwsKey(),
 						Collectors.toList())));
 
+		// storeId → 사용자 위치 기준 거리(m) — 좌표가 주어졌을 때만 일괄 계산
+		Map<Long, Double> distanceByStoreId = (latitude == null || longitude == null || storeIds.isEmpty())
+			? Map.of()
+			: storeRepository.findDistancesByStoreIdIn(storeIds, longitude, latitude)
+				.stream()
+				.collect(Collectors.toMap(
+					StoreDistanceProjection::getId,
+					StoreDistanceProjection::getDistanceMeters));
+
 		// 카테고리별로 응답 DTO 조립 + 각 빵집에 썸네일 주입, 빵집 없는 카테고리는 제외
 		List<RegionTrendResponse.CategoryTrend> categoryTrends = categories.stream()
-			.map(c -> new RegionTrendResponse.CategoryTrend(
-				c.menuCategory(),
-				c.stores().stream()
-					.map(s -> new RegionTrendResponse.HotStore(
-						s.storeId(),
-						s.storeName(),
-						s.storeAddress(),
-						s.storeRegion1st(),
-						s.storeRegion2nd(),
-						s.rank(),
-						imagesByStoreId.getOrDefault(s.storeId(), List.of())))
-					.toList()))
+			.map(c -> {
+				MenuCategory category = parseCategory(c.menuCategory());
+				return new RegionTrendResponse.CategoryTrend(
+					c.menuCategory(),
+					c.stores().stream()
+						.map(s -> new RegionTrendResponse.HotStore(
+							s.storeId(),
+							s.storeName(),
+							s.storeAddress(),
+							s.storeRegion1st(),
+							s.storeRegion2nd(),
+							s.rank(),
+							resolveThumbnailKeys(category, s.storeId(), menuImagesByStoreId, storeImagesByStoreId),
+							distanceByStoreId.get(s.storeId())))
+						.toList());
+			})
 			.filter(ct -> !ct.stores().isEmpty())
 			.toList();
 
 		return new RegionTrendResponse(regionName, categoryTrends);
+	}
+
+	// 랭킹 카테고리명(enum name) → MenuCategory. 알 수 없는 값이면 null (카테고리 매칭 단계만 건너뜀)
+	private MenuCategory parseCategory(String menuCategoryName) {
+		try {
+			return MenuCategory.valueOf(menuCategoryName);
+		} catch (IllegalArgumentException e) {
+			return null;
+		}
+	}
+
+	// 썸네일 폴백 체인: ① 해당 카테고리 메뉴 사진 → ② 아무 메뉴 사진 → ③ 가게 사진 → ④ 없음
+	private List<String> resolveThumbnailKeys(
+			MenuCategory category,
+			Long storeId,
+			Map<Long, List<MenuImageByStoreProjection>> menuImagesByStoreId,
+			Map<Long, List<String>> storeImagesByStoreId) {
+		List<MenuImageByStoreProjection> menuImages = menuImagesByStoreId.getOrDefault(storeId, List.of());
+
+		if (category != null) {
+			for (MenuImageByStoreProjection image : menuImages) {
+				if (category.matches(image.getMenuKind())) {
+					return List.of(imageKey(image));
+				}
+			}
+		}
+		if (!menuImages.isEmpty()) {
+			return List.of(imageKey(menuImages.get(0)));
+		}
+
+		List<String> storeImages = storeImagesByStoreId.getOrDefault(storeId, List.of());
+		return storeImages.isEmpty() ? List.of() : List.of(storeImages.get(0));
+	}
+
+	private String imageKey(MenuImageByStoreProjection image) {
+		return image.getResizedKey320() != null ? image.getResizedKey320() : image.getAwsKey();
 	}
 
 	private record CategoryStores(String menuCategory, List<StoreRow> stores) {

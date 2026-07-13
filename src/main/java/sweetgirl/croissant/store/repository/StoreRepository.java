@@ -16,11 +16,25 @@ import org.springframework.data.repository.query.Param;
 import sweetgirl.croissant.store.dto.projection.NearbyStoreProjection;
 import sweetgirl.croissant.store.dto.projection.RegionByDistanceProjection;
 import sweetgirl.croissant.store.dto.projection.RegionBySubscribeProjection;
+import sweetgirl.croissant.store.dto.projection.StoreDistanceProjection;
 import sweetgirl.croissant.store.dto.projection.TopSubscribedStoreProjection;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.enums.StoreStatus;
 
 public interface StoreRepository extends JpaRepository<Store, Long> {
+
+	// 트렌드 홈 거리 표시용 — 가게들의 사용자 위치 기준 거리를 일괄 조회 (N+1 방지)
+	@Query(value = """
+				SELECT
+					s.id,
+					ST_Distance(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS distance_meters
+				FROM store s
+				WHERE s.id IN (:storeIds)
+			""", nativeQuery = true)
+	List<StoreDistanceProjection> findDistancesByStoreIdIn(
+			@Param("storeIds") List<Long> storeIds,
+			@Param("lng") double longitude,
+			@Param("lat") double latitude);
 
 	Slice<Store> findByNameContainingAndStatus(String name, StoreStatus status, Pageable pageable);
 
