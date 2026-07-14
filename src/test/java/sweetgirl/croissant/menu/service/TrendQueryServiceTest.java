@@ -17,8 +17,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import sweetgirl.croissant.external.kakao.client.KakaoGeoClient;
 import sweetgirl.croissant.external.kakao.dto.KakaoCoordToAddressResponse;
 import sweetgirl.croissant.external.kakao.dto.KakaoCoordToRegionResponse;
+import sweetgirl.croissant.menu.dto.projection.StoreMenuThumbnailProjection;
 import sweetgirl.croissant.menu.dto.response.RegionTrendResponse;
+import sweetgirl.croissant.menu.entity.FamousMenuByRegion;
+import sweetgirl.croissant.menu.enums.MenuCategory;
+import sweetgirl.croissant.menu.enums.MenuKind;
 import sweetgirl.croissant.menu.repository.FamousMenuByRegionRepository;
+import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
+import sweetgirl.croissant.store.dto.projection.HotStoreRankingTrendProjection;
+import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
 import sweetgirl.croissant.store.enums.Region3rd;
 import sweetgirl.croissant.store.repository.HotStoreRankingRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
@@ -37,6 +44,8 @@ class TrendQueryServiceTest {
 	private HotStoreRankingRepository hotStoreRankingRepository;
 	@Mock
 	private StoreImageFileRepository storeImageFileRepository;
+	@Mock
+	private MenuImageFileRepository menuImageFileRepository;
 
 	@InjectMocks
 	private TrendQueryService trendQueryService;
@@ -126,6 +135,102 @@ class TrendQueryServiceTest {
 		// then
 		assertThat(response.region3rd()).isNull();
 		assertThat(response.categories()).isEmpty();
+	}
+
+	@Test
+	@DisplayName("랭킹 카테고리에 해당하는 메뉴가 있으면 그 메뉴 사진을 반환")
+	void getTrendByRegion_returnsMatchingMenuImages() {
+		// given: 소금빵 랭킹, 가게10은 크루아상·소금빵 메뉴 보유
+		givenSaltCategoryRankingWithStore(10L);
+		StoreMenuThumbnailProjection croissant = menuImage(10L, 200L, MenuKind.크루아상, "croissant.jpg");
+		StoreMenuThumbnailProjection salt = menuImage(10L, 100L, MenuKind.소금빵, "salt.jpg");
+		given(menuImageFileRepository.findStoreMenuThumbnailsByStoreIdIn(anyList()))
+			.willReturn(List.of(croissant, salt));
+
+		// when
+		RegionTrendResponse response = trendQueryService.getTrendByRegion("종로구_가회동");
+
+		// then: 소금빵 카테고리 → 소금빵 메뉴 사진 우선, 메뉴 사진 있으므로 가게 사진은 조회하지 않음
+		assertThat(firstStoreKeys(response)).containsExactly("salt.jpg");
+		verify(storeImageFileRepository, never()).findThumbnailsByStoreIdIn(anyList());
+	}
+
+	@Test
+	@DisplayName("카테고리에 해당하는 메뉴가 없으면 다른(대표) 메뉴 사진을 반환")
+	void getTrendByRegion_fallsBackToAnyMenuImages() {
+		// given: 소금빵 랭킹이지만 가게10은 소금빵 메뉴가 없음(크루아상·베이글)
+		givenSaltCategoryRankingWithStore(10L);
+		StoreMenuThumbnailProjection croissant = menuImage(10L, 200L, MenuKind.크루아상, "croissant.jpg");
+		StoreMenuThumbnailProjection bagel = menuImage(10L, 300L, MenuKind.베이글, "bagel.jpg");
+		given(menuImageFileRepository.findStoreMenuThumbnailsByStoreIdIn(anyList()))
+			.willReturn(List.of(croissant, bagel));
+
+		// when
+		RegionTrendResponse response = trendQueryService.getTrendByRegion("종로구_가회동");
+
+		// then: 매칭 메뉴 없음 → 대표(첫) 메뉴 사진, 메뉴 사진 있으므로 가게 사진은 조회하지 않음
+		assertThat(firstStoreKeys(response)).containsExactly("croissant.jpg");
+		verify(storeImageFileRepository, never()).findThumbnailsByStoreIdIn(anyList());
+	}
+
+	@Test
+	@DisplayName("메뉴 사진이 하나도 없으면 가게 사진을 반환")
+	void getTrendByRegion_fallsBackToStoreImages() {
+		// given: 소금빵 랭킹, 가게10은 메뉴 사진 없음
+		givenSaltCategoryRankingWithStore(10L);
+		StoreImageThumbnailProjection storeImage = storeImage(10L, "store.jpg");
+		given(storeImageFileRepository.findThumbnailsByStoreIdIn(anyList())).willReturn(List.of(storeImage));
+		given(menuImageFileRepository.findStoreMenuThumbnailsByStoreIdIn(anyList())).willReturn(List.of());
+
+		// when
+		RegionTrendResponse response = trendQueryService.getTrendByRegion("종로구_가회동");
+
+		// then: 메뉴 사진 없음 → 가게 사진 fallback
+		assertThat(firstStoreKeys(response)).containsExactly("store.jpg");
+	}
+
+	// 소금빵 카테고리 랭킹 + 지정 가게 1곳을 stubbing (지역=종로구_가회동)
+	private void givenSaltCategoryRankingWithStore(Long storeId) {
+		FamousMenuByRegion famousMenu = mock(FamousMenuByRegion.class);
+		given(famousMenu.getId()).willReturn(1L);
+		given(famousMenu.getMenuCategory()).willReturn(MenuCategory.소금빵);
+		HotStoreRankingTrendProjection rankingRow = ranking(1L, storeId, 1);
+		given(famousMenuByRegionRepository.findByRegion3rd(Region3rd.종로구_가회동))
+			.willReturn(List.of(famousMenu));
+		given(hotStoreRankingRepository.findTrendByFamousMenuByRegionIdIn(List.of(1L)))
+			.willReturn(List.of(rankingRow));
+	}
+
+	private List<String> firstStoreKeys(RegionTrendResponse response) {
+		return response.categories().get(0).stores().get(0).thumbnailImageKeys();
+	}
+
+	private HotStoreRankingTrendProjection ranking(Long famousMenuId, Long storeId, int rank) {
+		HotStoreRankingTrendProjection projection = mock(HotStoreRankingTrendProjection.class);
+		given(projection.getFamousMenuByRegionId()).willReturn(famousMenuId);
+		given(projection.getStoreId()).willReturn(storeId);
+		given(projection.getRank()).willReturn(rank);
+		given(projection.getStoreName()).willReturn("가게" + storeId);
+		given(projection.getStoreAddress()).willReturn("서울 종로구 가회동");
+		given(projection.getStoreRegion1st()).willReturn("서울특별시");
+		given(projection.getStoreRegion2nd()).willReturn("종로구");
+		return projection;
+	}
+
+	private StoreMenuThumbnailProjection menuImage(Long storeId, Long menuId, MenuKind menuKind, String key) {
+		StoreMenuThumbnailProjection projection = mock(StoreMenuThumbnailProjection.class);
+		given(projection.getStoreId()).willReturn(storeId);
+		given(projection.getMenuId()).willReturn(menuId);
+		given(projection.getMenuKind()).willReturn(menuKind);
+		given(projection.getResizedKey320()).willReturn(key);
+		return projection;
+	}
+
+	private StoreImageThumbnailProjection storeImage(Long storeId, String key) {
+		StoreImageThumbnailProjection projection = mock(StoreImageThumbnailProjection.class);
+		given(projection.getStoreId()).willReturn(storeId);
+		given(projection.getResizedKey320()).willReturn(key);
+		return projection;
 	}
 
 	private KakaoCoordToAddressResponse addressResponse(String addressName) {

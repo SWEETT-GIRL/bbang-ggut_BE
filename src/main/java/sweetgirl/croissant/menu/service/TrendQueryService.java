@@ -1,8 +1,11 @@
 package sweetgirl.croissant.menu.service;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -13,11 +16,15 @@ import sweetgirl.croissant.external.kakao.client.KakaoGeoClient;
 import sweetgirl.croissant.external.kakao.dto.KakaoCoordToAddressResponse;
 import sweetgirl.croissant.external.kakao.dto.KakaoCoordToRegionResponse;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
+import sweetgirl.croissant.menu.dto.projection.StoreMenuThumbnailProjection;
 import sweetgirl.croissant.menu.dto.response.RegionTrendResponse;
 import sweetgirl.croissant.menu.entity.FamousMenuByRegion;
 import sweetgirl.croissant.menu.entity.NationwideFamousMenu;
+import sweetgirl.croissant.menu.enums.MenuCategory;
+import sweetgirl.croissant.menu.enums.MenuKind;
 import sweetgirl.croissant.menu.exception.MenuException;
 import sweetgirl.croissant.menu.repository.FamousMenuByRegionRepository;
+import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.NationwideFamousMenuRepository;
 import sweetgirl.croissant.store.dto.projection.HotStoreRankingTrendProjection;
 import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
@@ -40,6 +47,7 @@ public class TrendQueryService {
 	private final NationwideFamousMenuRepository nationwideFamousMenuRepository;
 	private final NationwideHotStoreRankingRepository nationwideHotStoreRankingRepository;
 	private final StoreImageFileRepository storeImageFileRepository;
+	private final MenuImageFileRepository menuImageFileRepository;
 
 	private static final List<String> DONG_SUFFIXES = Arrays.asList("읍", "면", "동", "구");
 	private static final int MAX_STORES_PER_CATEGORY = 30;
@@ -149,10 +157,17 @@ public class TrendQueryService {
 			.distinct()
 			.toList();
 
-		// storeId → 썸네일 이미지 키 목록 매핑 (빵집이 하나도 없으면 조회 생략)
-		Map<Long, List<String>> imagesByStoreId = storeIds.isEmpty()
+		// storeId → 메뉴별(대표 순서 유지) 이미지 목록 매핑 (메뉴 사진 우선용)
+		Map<Long, List<MenuImages>> menusByStoreId = buildMenusByStoreId(storeIds);
+
+		// 메뉴 사진이 하나도 없는 빵집만 골라 가게 사진을 조회 (최종 fallback 전용, 불필요한 조회 최소화)
+		List<Long> storeIdsWithoutMenuImage = storeIds.stream()
+			.filter(storeId -> !menusByStoreId.containsKey(storeId))
+			.toList();
+
+		Map<Long, List<String>> storeImagesByStoreId = storeIdsWithoutMenuImage.isEmpty()
 			? Map.of()
-			: storeImageFileRepository.findThumbnailsByStoreIdIn(storeIds)
+			: storeImageFileRepository.findThumbnailsByStoreIdIn(storeIdsWithoutMenuImage)
 				.stream()
 				.collect(Collectors.groupingBy(
 					StoreImageThumbnailProjection::getStoreId,
@@ -171,12 +186,60 @@ public class TrendQueryService {
 						s.storeRegion1st(),
 						s.storeRegion2nd(),
 						s.rank(),
-						imagesByStoreId.getOrDefault(s.storeId(), List.of())))
+						selectThumbnailKeys(c.menuCategory(), s.storeId(), menusByStoreId, storeImagesByStoreId)))
 					.toList()))
 			.filter(ct -> !ct.stores().isEmpty())
 			.toList();
 
 		return new RegionTrendResponse(regionName, categoryTrends);
+	}
+
+	// storeId별로 (메뉴 - 메뉴이미지) 조회 결과를 대표 메뉴 순서를 유지한 구조로 변환.
+	// 쿼리가 이미 메뉴 displayOrder → 이미지 displayOrder 순으로 정렬되어 오므로 등장 순서를 그대로 보존한다.
+	private Map<Long, List<MenuImages>> buildMenusByStoreId(List<Long> storeIds) {
+		if (storeIds.isEmpty()) {
+			return Map.of();
+		}
+
+		Map<Long, List<MenuImages>> menusByStoreId = new LinkedHashMap<>();
+		Map<Long, MenuImages> menuById = new LinkedHashMap<>();
+		for (StoreMenuThumbnailProjection row : menuImageFileRepository.findStoreMenuThumbnailsByStoreIdIn(storeIds)) {
+			MenuImages menu = menuById.computeIfAbsent(row.getMenuId(), menuId -> {
+				MenuImages created = new MenuImages(row.getMenuKind(), new ArrayList<>());
+				menusByStoreId.computeIfAbsent(row.getStoreId(), storeId -> new ArrayList<>()).add(created);
+				return created;
+			});
+			menu.imageKeys().add(row.getResizedKey320() != null ? row.getResizedKey320() : row.getAwsKey());
+		}
+		return menusByStoreId;
+	}
+
+	// 빵집 썸네일 선택: ① 랭킹 카테고리에 해당하는 메뉴 사진 → ② 아무 메뉴 사진 → ③ 가게 사진 순으로 fallback.
+	private List<String> selectThumbnailKeys(String categoryName, Long storeId,
+			Map<Long, List<MenuImages>> menusByStoreId, Map<Long, List<String>> storeImagesByStoreId) {
+		List<MenuImages> menus = menusByStoreId.getOrDefault(storeId, List.of());
+		if (!menus.isEmpty()) {
+			Set<MenuKind> categoryKinds = resolveCategoryKinds(categoryName);
+			for (MenuImages menu : menus) {
+				if (categoryKinds.contains(menu.menuKind())) {
+					return menu.imageKeys();
+				}
+			}
+			return menus.get(0).imageKeys();
+		}
+		return storeImagesByStoreId.getOrDefault(storeId, List.of());
+	}
+
+	// 랭킹 카테고리명(MenuCategory enum name) → 포함 MenuKind 집합. 알 수 없는 값이면 빈 집합.
+	private Set<MenuKind> resolveCategoryKinds(String categoryName) {
+		try {
+			return MenuCategory.valueOf(categoryName).getMenuKinds();
+		} catch (IllegalArgumentException e) {
+			return Set.of();
+		}
+	}
+
+	private record MenuImages(MenuKind menuKind, List<String> imageKeys) {
 	}
 
 	private record CategoryStores(String menuCategory, List<StoreRow> stores) {
