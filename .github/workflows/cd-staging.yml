@@ -88,10 +88,10 @@ jobs:
           # AES-256 암호화 키
           encrypt.secret-key=${ENCRYPT_SECRET_KEY}
 
-          # Discord 에러 알림 웹훅
-          discord.webhook.url=${DISCORD_WEBHOOK_URL}
-          discord.notification.report-webhook-url=${DISCORD_REPORT_WEBHOOK_URL}
-          discord.notification.abuse-webhook-url=${DISCORD_ABUSE_WEBHOOK_URL}
+          # Slack 웹훅
+          slack.webhook.url=${SLACK_ERROR_WEBHOOK_URL}
+          slack.notification.report-webhook-url=${SLACK_REPORT_WEBHOOK_URL}
+          slack.notification.abuse-webhook-url=${SLACK_ABUSE_WEBHOOK_URL}
 
           # Lambda 콜백 인증 키
           lambda.callback.secret-key=${{secrets.LAMBDA_CALLBACK_SECRET_KEY}}
@@ -159,9 +159,9 @@ jobs:
             echo "OPENSEARCH_REGION=ap-northeast-2" >> .env
             echo "STAGING_POSTHOG_API_KEY=${{ secrets.STAGING_POSTHOG_API_KEY }}" >> .env
             echo "ENCRYPT_SECRET_KEY=${{ secrets.ENCRYPT_SECRET_KEY }}" >> .env
-            echo "DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK_URL_STAGING }}" >> .env
-            echo "DISCORD_REPORT_WEBHOOK_URL=${{ secrets.DISCORD_REPORT_WEBHOOK_URL }}" >> .env
-            echo "DISCORD_ABUSE_WEBHOOK_URL=${{ secrets.DISCORD_ABUSE_WEBHOOK_URL }}" >> .env
+            echo "SLACK_ERROR_WEBHOOK_URL=${{ secrets.SLACK_ERROR_WEBHOOK_URL_DEV }}" >> .env
+            echo "SLACK_REPORT_WEBHOOK_URL=${{ secrets.SLACK_REPORT_WEBHOOK_URL_DEV }}" >> .env
+            echo "SLACK_ABUSE_WEBHOOK_URL=${{ secrets.SLACK_ABUSE_WEBHOOK_URL_DEV }}" >> .env
             echo "LAMBDA_CALLBACK_SECRET_KEY=${{ secrets.LAMBDA_CALLBACK_SECRET_KEY }}" >> .env
             echo "PERF_DASHBOARD_ENABLED=true" >> .env
             echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env
@@ -185,21 +185,23 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Notify Discord
+      - name: Notify Slack
         if: success()
         run: |
           jq -n \
             --arg pr "${{ steps.pr_info.outputs.title }}" \
             --arg tag "${{ steps.tag.outputs.IMAGE_TAG }}" \
-            '{embeds: [{
-              "title": "🚀 배포 완료 [STAGING]",
-              "color": 5814783,
-              "fields": [
-                {"name": "PR", "value": $pr, "inline": false},
-                {"name": "Image Tag", "value": $tag, "inline": true},
-                {"name": "Branch", "value": "dev", "inline": true}
+            '{attachments: [{
+              "color": "#58B9FF",
+              "blocks": [
+                {"type": "header", "text": {"type": "plain_text", "text": "🚀 배포 완료 [STAGING]", "emoji": true}},
+                {"type": "section", "fields": [
+                  {"type": "mrkdwn", "text": "*PR*\n\($pr)"},
+                  {"type": "mrkdwn", "text": "*Image Tag*\n\($tag)"},
+                  {"type": "mrkdwn", "text": "*Branch*\ndev"}
+                ]}
               ]
             }]}' | \
-          curl -s -X POST "${{ secrets.DISCORD_DEPLOY_WEBHOOK_URL_STAGING }}" \
+          curl -s -X POST "${{ secrets.SLACK_DEPLOY_WEBHOOK_URL_DEV }}" \
             -H "Content-Type: application/json" \
             -d @-

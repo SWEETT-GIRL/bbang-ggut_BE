@@ -85,9 +85,9 @@ jobs:
 
           encrypt.secret-key=${ENCRYPT_SECRET_KEY}
 
-          discord.webhook.url=${DISCORD_WEBHOOK_URL}
-          discord.notification.report-webhook-url=${DISCORD_REPORT_WEBHOOK_URL}
-          discord.notification.abuse-webhook-url=${DISCORD_ABUSE_WEBHOOK_URL}
+          slack.webhook.url=${SLACK_ERROR_WEBHOOK_URL}
+          slack.notification.report-webhook-url=${SLACK_REPORT_WEBHOOK_URL}
+          slack.notification.abuse-webhook-url=${SLACK_ABUSE_WEBHOOK_URL}
 
           # Lambda 콜백 인증 키
           lambda.callback.secret-key=${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}
@@ -163,9 +163,9 @@ jobs:
             echo "AWS_S3_BUCKET=${{ secrets.PROD_AWS_S3_BUCKET }}" >> .env
             echo "PROD_POSTHOG_API_KEY=${{ secrets.PROD_POSTHOG_API_KEY }}" >> .env
             echo "ENCRYPT_SECRET_KEY=${{ secrets.ENCRYPT_SECRET_KEY }}" >> .env
-            echo "DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK_URL_PROD }}" >> .env
-            echo "DISCORD_REPORT_WEBHOOK_URL=${{ secrets.DISCORD_REPORT_WEBHOOK_URL }}" >> .env
-            echo "DISCORD_ABUSE_WEBHOOK_URL=${{ secrets.DISCORD_ABUSE_WEBHOOK_URL }}" >> .env
+            echo "SLACK_ERROR_WEBHOOK_URL=${{ secrets.SLACK_ERROR_WEBHOOK_URL_PROD }}" >> .env
+            echo "SLACK_REPORT_WEBHOOK_URL=${{ secrets.SLACK_REPORT_WEBHOOK_URL_PROD }}" >> .env
+            echo "SLACK_ABUSE_WEBHOOK_URL=${{ secrets.SLACK_ABUSE_WEBHOOK_URL_PROD }}" >> .env
             echo "LAMBDA_CALLBACK_SECRET_KEY=${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}" >> .env
             echo "PERF_DASHBOARD_ENABLED=${{ secrets.PERF_DASHBOARD_ENABLED }}" >> .env
             echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env
@@ -245,9 +245,9 @@ jobs:
             echo "AWS_S3_BUCKET=${{ secrets.PROD_AWS_S3_BUCKET }}" >> .env
             echo "PROD_POSTHOG_API_KEY=${{ secrets.PROD_POSTHOG_API_KEY }}" >> .env
             echo "ENCRYPT_SECRET_KEY=${{ secrets.ENCRYPT_SECRET_KEY }}" >> .env
-            echo "DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK_URL_PROD }}" >> .env
-            echo "DISCORD_REPORT_WEBHOOK_URL=${{ secrets.DISCORD_REPORT_WEBHOOK_URL }}" >> .env
-            echo "DISCORD_ABUSE_WEBHOOK_URL=${{ secrets.DISCORD_ABUSE_WEBHOOK_URL }}" >> .env
+            echo "SLACK_ERROR_WEBHOOK_URL=${{ secrets.SLACK_ERROR_WEBHOOK_URL_PROD }}" >> .env
+            echo "SLACK_REPORT_WEBHOOK_URL=${{ secrets.SLACK_REPORT_WEBHOOK_URL_PROD }}" >> .env
+            echo "SLACK_ABUSE_WEBHOOK_URL=${{ secrets.SLACK_ABUSE_WEBHOOK_URL_PROD }}" >> .env
             echo "PERF_DASHBOARD_ENABLED=${{ secrets.PERF_DASHBOARD_ENABLED }}" >> .env
             echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env
 
@@ -295,40 +295,44 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Notify Discord (성공)
+      - name: Notify Slack (성공)
         if: needs.deploy-server2.result == 'success'
         run: |
           jq -n \
             --arg pr "${{ steps.pr_info.outputs.title }}" \
             --arg tag "${{ needs.build.outputs.image_tag }}" \
-            '{embeds: [{
-              "title": "🚀 배포 완료 [PROD]",
-              "color": 3066993,
-              "fields": [
-                {"name": "PR", "value": $pr, "inline": false},
-                {"name": "Image Tag", "value": $tag, "inline": true},
-                {"name": "Branch", "value": "main", "inline": true},
-                {"name": "서버", "value": "server1 + server2", "inline": true}
+            '{attachments: [{
+              "color": "#2ECC71",
+              "blocks": [
+                {"type": "header", "text": {"type": "plain_text", "text": "🚀 배포 완료 [PROD]", "emoji": true}},
+                {"type": "section", "fields": [
+                  {"type": "mrkdwn", "text": "*PR*\n\($pr)"},
+                  {"type": "mrkdwn", "text": "*Image Tag*\n\($tag)"},
+                  {"type": "mrkdwn", "text": "*Branch*\nmain"},
+                  {"type": "mrkdwn", "text": "*서버*\nserver1 + server2"}
+                ]}
               ]
             }]}' | \
-          curl -s -X POST "${{ secrets.DISCORD_DEPLOY_WEBHOOK_URL_PROD }}" \
+          curl -s -X POST "${{ secrets.SLACK_DEPLOY_WEBHOOK_URL_PROD }}" \
             -H "Content-Type: application/json" \
             -d @-
 
-      - name: Notify Discord (실패)
+      - name: Notify Slack (실패)
         if: needs.deploy-server1.result == 'failure' || needs.deploy-server2.result == 'failure'
         run: |
           jq -n \
             --arg pr "${{ steps.pr_info.outputs.title }}" \
             --arg tag "${{ needs.build.outputs.image_tag }}" \
-            '{embeds: [{
-              "title": "❌ 배포 실패 [PROD]",
-              "color": 15158332,
-              "fields": [
-                {"name": "PR", "value": $pr, "inline": false},
-                {"name": "Image Tag", "value": $tag, "inline": true}
+            '{attachments: [{
+              "color": "#E74C3C",
+              "blocks": [
+                {"type": "header", "text": {"type": "plain_text", "text": "❌ 배포 실패 [PROD]", "emoji": true}},
+                {"type": "section", "fields": [
+                  {"type": "mrkdwn", "text": "*PR*\n\($pr)"},
+                  {"type": "mrkdwn", "text": "*Image Tag*\n\($tag)"}
+                ]}
               ]
             }]}' | \
-          curl -s -X POST "${{ secrets.DISCORD_DEPLOY_WEBHOOK_URL_PROD }}" \
+          curl -s -X POST "${{ secrets.SLACK_DEPLOY_WEBHOOK_URL_PROD }}" \
             -H "Content-Type: application/json" \
             -d @-
