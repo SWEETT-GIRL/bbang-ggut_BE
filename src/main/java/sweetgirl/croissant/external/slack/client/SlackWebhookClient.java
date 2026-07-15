@@ -1,11 +1,11 @@
 package sweetgirl.croissant.external.slack.client;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.external.slack.dto.SlackMessage;
 
@@ -17,10 +17,13 @@ import sweetgirl.croissant.external.slack.dto.SlackMessage;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class SlackWebhookClient {
 
 	private final RestClient slackRestClient;
+
+	public SlackWebhookClient(@Qualifier("slackRestClient") RestClient slackRestClient) {
+		this.slackRestClient = slackRestClient;
+	}
 
 	public void send(String webhookUrl, SlackMessage message) {
 		if (webhookUrl == null || webhookUrl.isBlank()) {

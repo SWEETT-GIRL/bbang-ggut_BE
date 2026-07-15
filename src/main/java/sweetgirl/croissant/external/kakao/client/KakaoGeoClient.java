@@ -1,20 +1,23 @@
 package sweetgirl.croissant.external.kakao.client;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
-import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.external.kakao.dto.KakaoCoordToAddressResponse;
 import sweetgirl.croissant.external.kakao.dto.KakaoCoordToRegionResponse;
 
 @Component
-@RequiredArgsConstructor
 public class KakaoGeoClient {
 
 	private static final String COORD_TO_ADDRESS_PATH = "/v2/local/geo/coord2address.json";
 	private static final String COORD_TO_REGION_PATH = "/v2/local/geo/coord2regioncode.json";
 
 	private final RestClient kakaoRestClient;
+
+	public KakaoGeoClient(@Qualifier("kakaoRestClient") RestClient kakaoRestClient) {
+		this.kakaoRestClient = kakaoRestClient;
+	}
 
 	// 지번 주소 → region_2depth_name(구/시) 파싱용
 	public KakaoCoordToAddressResponse coordToAddress(double longitude, double latitude) {

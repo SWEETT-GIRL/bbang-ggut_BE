@@ -3,11 +3,11 @@ package sweetgirl.croissant.external.kakao.client;
 import java.util.List;
 import java.util.stream.Stream;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.external.kakao.dto.KakaoPlace;
 import sweetgirl.croissant.external.kakao.dto.KakaoSearchResponse;
 import sweetgirl.croissant.external.kakao.dto.KakaoSearchResult;
@@ -20,13 +20,16 @@ import sweetgirl.croissant.external.kakao.exception.KakaoErrorCode;
 import sweetgirl.croissant.external.kakao.exception.KakaoLocalApiException;
 
 @Component
-@RequiredArgsConstructor
 public class KakaoLocalClient {
 
 	private static final String KEYWORD_SEARCH_PATH = "/v2/local/search/keyword.json";
 	private static final int MAX_SIZE = 15;
 
 	private final RestClient kakaoRestClient;
+
+	public KakaoLocalClient(@Qualifier("kakaoRestClient") RestClient kakaoRestClient) {
+		this.kakaoRestClient = kakaoRestClient;
+	}
 
 	public KakaoSearchResult searchByKeyword(String query, int page) {
 		return searchByKeyword(query, page, false);
