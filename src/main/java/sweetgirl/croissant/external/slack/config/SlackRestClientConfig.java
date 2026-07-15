@@ -5,10 +5,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
 
 @Configuration
-public class SlackConfig {
+public class SlackRestClientConfig {
 
 	@Bean
-	public RestClient slackRestClient() {
-		return RestClient.builder().build();
+	public RestClient slackRestClient(RestClient.Builder builder) {
+		return builder.build();
 	}
 }
