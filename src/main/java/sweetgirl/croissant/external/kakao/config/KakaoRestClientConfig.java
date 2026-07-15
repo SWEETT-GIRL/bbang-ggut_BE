@@ -2,16 +2,14 @@ package sweetgirl.croissant.external.kakao.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
 import org.springframework.web.client.RestClient;
 
 @Configuration
-public class RestClientConfig {
+public class KakaoRestClientConfig {
 
 	@Bean
-	@Primary
-	public RestClient kakaoRestClient(KakaoProperties kakaoProperties) {
-		return RestClient.builder()
+	public RestClient kakaoRestClient(RestClient.Builder builder, KakaoProperties kakaoProperties) {
+		return builder
 			.baseUrl(kakaoProperties.getBaseUrl())
 			.defaultHeader("Authorization", "KakaoAK " + kakaoProperties.getKey())
 			.build();
