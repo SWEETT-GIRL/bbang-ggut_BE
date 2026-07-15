@@ -3,11 +3,11 @@ package sweetgirl.croissant.external.kakao.client;
 import java.util.List;
 import java.util.stream.Stream;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.external.kakao.dto.KakaoPlace;
 import sweetgirl.croissant.external.kakao.dto.KakaoSearchResponse;
 import sweetgirl.croissant.external.kakao.dto.KakaoSearchResult;
@@ -20,13 +20,16 @@ import sweetgirl.croissant.external.kakao.exception.KakaoErrorCode;
 import sweetgirl.croissant.external.kakao.exception.KakaoLocalApiException;
 
 @Component
-@RequiredArgsConstructor
 public class KakaoLocalClient {
 
 	private static final String KEYWORD_SEARCH_PATH = "/v2/local/search/keyword.json";
 	private static final int MAX_SIZE = 15;
 
 	private final RestClient kakaoRestClient;
+
+	public KakaoLocalClient(@Qualifier("kakaoRestClient") RestClient kakaoRestClient) {
+		this.kakaoRestClient = kakaoRestClient;
+	}
 
 	// trustedKeyword=true 일 때는 categoryName 화이트리스트(제과/베이커리/카페 등) 검사를 우회하고
 	// CE7/FD6 그룹코드 + Exclude 블랙리스트만 적용. specific 한 검색 키워드(브런치/샌드위치 등)는
