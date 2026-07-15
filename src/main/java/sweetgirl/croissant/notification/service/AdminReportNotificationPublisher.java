@@ -8,12 +8,15 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.abuse.entity.AbuseReport;
+import sweetgirl.croissant.abuse.enums.AbuseReportTargetType;
 import sweetgirl.croissant.contribution.entity.ContributionReport;
 import sweetgirl.croissant.contribution.entity.MenuContributionReport;
 import sweetgirl.croissant.contribution.entity.StoreContributionReport;
+import sweetgirl.croissant.contribution.enums.ContributionReportType;
 import sweetgirl.croissant.inquiry.entity.Inquiry;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.menu.entity.Menu;
+import sweetgirl.croissant.notification.code.AdminNotificationMessage;
 import sweetgirl.croissant.notification.event.OperationalNotificationEvent;
 import sweetgirl.croissant.notification.event.OperationalNotificationEvent.Channel;
 import sweetgirl.croissant.store.entity.Store;
@@ -22,9 +25,6 @@ import sweetgirl.croissant.store.entity.Store;
 @RequiredArgsConstructor
 public class AdminReportNotificationPublisher {
 
-	private static final int REPORT_COLOR = 5763719;
-	private static final int ABUSE_COLOR = 15158332;
-	private static final int INQUIRY_COLOR = 3447003;
 	private static final int DETAIL_PREVIEW_LENGTH = 500;
 
 	private final ApplicationEventPublisher eventPublisher;
@@ -42,11 +42,15 @@ public class AdminReportNotificationPublisher {
 		addField(fields, "주소", firstNotBlank(report.getRoadAddress(), report.getAddress()), false);
 		addField(fields, "사유", report.getReason(), false);
 
+		boolean isAdd = contributionReport.getReportType() == ContributionReportType.ADD;
+		String subject = isAdd
+			? AdminNotificationMessage.STORE_ADD_SUBJECT
+			: AdminNotificationMessage.STORE_UPDATE_SUBJECT;
 		publish(
 			Channel.REPORT,
-			"새 가게 제보 접수",
-			"Admin Web에서 확인이 필요한 가게 제보가 접수되었습니다.",
-			REPORT_COLOR,
+			AdminNotificationMessage.title(AdminNotificationMessage.STORE_EMOJI, subject),
+			AdminNotificationMessage.description(subject),
+			AdminNotificationMessage.REPORT_COLOR,
 			fields);
 	}
 
@@ -64,11 +68,15 @@ public class AdminReportNotificationPublisher {
 		addField(fields, "가격", report.getPrice() != null ? report.getPrice() + "원" : null, true);
 		addField(fields, "내용", firstNotBlank(report.getDescription(), report.getMessage()), false);
 
+		boolean isAdd = contributionReport.getReportType() == ContributionReportType.ADD;
+		String subject = isAdd
+			? AdminNotificationMessage.MENU_ADD_SUBJECT
+			: AdminNotificationMessage.MENU_UPDATE_SUBJECT;
 		publish(
 			Channel.REPORT,
-			"새 메뉴 제보 접수",
-			"Admin Web에서 확인이 필요한 메뉴 제보가 접수되었습니다.",
-			REPORT_COLOR,
+			AdminNotificationMessage.title(AdminNotificationMessage.MENU_EMOJI, subject),
+			AdminNotificationMessage.description(subject),
+			AdminNotificationMessage.REPORT_COLOR,
 			fields);
 	}
 
@@ -81,11 +89,15 @@ public class AdminReportNotificationPublisher {
 		addField(fields, "피신고자 ID", memberId(report.getReportedMember()), true);
 		addField(fields, "상세", report.getReasonDetail(), false);
 
+		boolean isReview = report.getTargetType() == AbuseReportTargetType.REVIEW;
+		String subject = isReview
+			? AdminNotificationMessage.REVIEW_ABUSE_SUBJECT
+			: AdminNotificationMessage.PROFILE_ABUSE_SUBJECT;
 		publish(
 			Channel.ABUSE,
-			"새 사용자 신고 접수",
-			"Admin Web에서 확인이 필요한 사용자 신고가 접수되었습니다.",
-			ABUSE_COLOR,
+			AdminNotificationMessage.title(AdminNotificationMessage.ABUSE_EMOJI, subject),
+			AdminNotificationMessage.description(subject),
+			AdminNotificationMessage.ABUSE_COLOR,
 			fields);
 	}
 
@@ -97,11 +109,12 @@ public class AdminReportNotificationPublisher {
 		addField(fields, "제목", inquiry.getTitle(), false);
 		addField(fields, "내용", inquiry.getContent(), false);
 
+		String subject = AdminNotificationMessage.INQUIRY_SUBJECT;
 		publish(
 			Channel.REPORT,
-			"새 문의 접수",
-			"Admin Web에서 확인이 필요한 문의가 접수되었습니다.",
-			INQUIRY_COLOR,
+			AdminNotificationMessage.title(AdminNotificationMessage.INQUIRY_EMOJI, subject),
+			AdminNotificationMessage.description(subject),
+			AdminNotificationMessage.INQUIRY_COLOR,
 			fields);
 	}
 
