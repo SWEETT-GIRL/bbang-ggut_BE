@@ -31,6 +31,10 @@ public class KakaoLocalClient {
 		this.kakaoRestClient = kakaoRestClient;
 	}
 
+	public KakaoSearchResult searchByKeyword(String query, int page) {
+		return searchByKeyword(query, page, false);
+	}
+
 	// trustedKeyword=true 일 때는 categoryName 화이트리스트(제과/베이커리/카페 등) 검사를 우회하고
 	// CE7/FD6 그룹코드 + Exclude 블랙리스트만 적용. specific 한 검색 키워드(브런치/샌드위치 등)는
 	// Kakao search relevance 자체를 신뢰해 "음식점 > 양식" 으로 등록된 브런치 카페(예: 테니) 도 수집.
