@@ -17,6 +17,7 @@ public record RegionTrendResponse(
 			String region1st,
 			String region2nd,
 			int rank,
-			List<String> thumbnailImageKeys) {
+			List<String> thumbnailImageKeys,
+			String distance) {
 	}
 }

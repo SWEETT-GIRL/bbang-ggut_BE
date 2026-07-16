@@ -29,11 +29,13 @@ public class TrendController {
 		return ResponseEntity.ok(ApiResponse.ok(trendQueryService.getTrend(lat, lng)));
 	}
 
-	@Operation(summary = "지역 선택 기반 유명 메뉴 & 핫 빵집 조회")
+	@Operation(summary = "지역 선택 기반 유명 메뉴 & 핫 빵집 조회", description = "lat, lng를 넘기면 빵집까지 거리 표시 (없으면 null)")
 	@GetMapping("/select")
 	public ResponseEntity<ApiResponse<RegionTrendResponse>> getSelectedTrend(
-			@RequestParam String region) {
-		return ResponseEntity.ok(ApiResponse.ok(trendQueryService.getTrendByRegion(region)));
+			@RequestParam String region,
+			@RequestParam(required = false) Double lat,
+			@RequestParam(required = false) Double lng) {
+		return ResponseEntity.ok(ApiResponse.ok(trendQueryService.getTrendByRegion(region, lat, lng)));
 	}
 
 	@Operation(summary = "전국 유명 메뉴 & 핫 빵집 조회", description = "전국 단위의 유명 디저트 카테고리와 핫 빵집 목록을 반환합니다.")

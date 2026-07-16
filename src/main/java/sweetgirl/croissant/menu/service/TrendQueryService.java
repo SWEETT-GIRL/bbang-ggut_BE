@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -27,6 +28,7 @@ import sweetgirl.croissant.menu.repository.FamousMenuByRegionRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.NationwideFamousMenuRepository;
 import sweetgirl.croissant.store.dto.projection.HotStoreRankingTrendProjection;
+import sweetgirl.croissant.store.dto.projection.StoreDistanceProjection;
 import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
 import sweetgirl.croissant.store.entity.NationwideHotStoreRanking;
 import sweetgirl.croissant.store.enums.Region3rd;
@@ -61,17 +63,18 @@ public class TrendQueryService {
 			return new RegionTrendResponse(null, List.of());
 		}
 
-		return buildTrendResponse(region3rd);
+		return buildTrendResponse(region3rd, latitude, longitude);
 	}
 
-	public RegionTrendResponse getTrendByRegion(String region) {
+	// 지역 선택 기반. latitude/longitude는 선택값(null 허용) — 있으면 현재 위치 대비 거리를 함께 반환한다.
+	public RegionTrendResponse getTrendByRegion(String region, Double latitude, Double longitude) {
 		Region3rd region3rd;
 		try {
 			region3rd = Region3rd.valueOf(region);
 		} catch (IllegalArgumentException e) {
 			throw new MenuException(MenuErrorCode.INVALID_REGION);
 		}
-		return buildTrendResponse(region3rd);
+		return buildTrendResponse(region3rd, latitude, longitude);
 	}
 
 	// 전국 단위 유명 메뉴 & 핫 빵집 랭킹 조회 (지역과 달리 위치/지역 입력 없이 전국 전용 테이블에서 조회)
@@ -106,11 +109,11 @@ public class TrendQueryService {
 					.toList()))
 			.toList();
 
-		// 지역 트렌드와 동일한 조립 로직 재사용 (지역명 자리에는 "전국")
-		return buildResponse("전국", categories);
+		// 지역 트렌드와 동일한 조립 로직 재사용 (전국은 특정 위치 기준이 아니므로 거리 없음)
+		return buildResponse("전국", categories, null, null);
 	}
 
-	private RegionTrendResponse buildTrendResponse(Region3rd region3rd) {
+	private RegionTrendResponse buildTrendResponse(Region3rd region3rd, Double latitude, Double longitude) {
 		List<FamousMenuByRegion> famousMenus = famousMenuByRegionRepository.findByRegion3rd(region3rd);
 		if (famousMenus.isEmpty()) {
 			return new RegionTrendResponse(region3rd.name(), List.of());
@@ -145,17 +148,27 @@ public class TrendQueryService {
 			.map(suffix -> rawName.substring(0, rawName.length() - suffix.length()))
 			.orElse(rawName);
 
-		return buildResponse(name, categories);
+		return buildResponse(name, categories, latitude, longitude);
 	}
 
-	// 지역/전국 공통 응답 조립 헬퍼: 카테고리별 빵집 목록에 썸네일을 붙여 RegionTrendResponse로 변환
-	private RegionTrendResponse buildResponse(String regionName, List<CategoryStores> categories) {
+	// 지역/전국 공통 응답 조립 헬퍼: 카테고리별 빵집 목록에 썸네일·거리를 붙여 RegionTrendResponse로 변환.
+	// latitude/longitude가 모두 있으면 각 빵집까지의 거리를 계산해 문자열로 채우고, 없으면 거리는 null.
+	private RegionTrendResponse buildResponse(
+			String regionName, List<CategoryStores> categories, Double latitude, Double longitude) {
 		// 모든 카테고리의 빵집 ID를 평탄화·중복 제거하여 썸네일을 한 번에 조회 (N+1 방지)
 		List<Long> storeIds = categories.stream()
 			.flatMap(c -> c.stores().stream())
 			.map(StoreRow::storeId)
 			.distinct()
 			.toList();
+
+		// storeId → 현재 위치 대비 거리(미터) 매핑 (위치가 있을 때만 한 번에 조회, N+1 방지)
+		Map<Long, Double> distanceByStoreId = (latitude == null || longitude == null || storeIds.isEmpty())
+			? Map.of()
+			: storeRepository.findDistanceMetersByIdIn(storeIds, longitude, latitude)
+				.stream()
+				.collect(Collectors.toMap(
+					StoreDistanceProjection::getStoreId, StoreDistanceProjection::getDistanceMeters));
 
 		// storeId → 메뉴별(대표 순서 유지) 이미지 목록 매핑 (메뉴 사진 우선용)
 		Map<Long, List<MenuImages>> menusByStoreId = buildMenusByStoreId(storeIds);
@@ -186,7 +199,8 @@ public class TrendQueryService {
 						s.storeRegion1st(),
 						s.storeRegion2nd(),
 						s.rank(),
-						selectThumbnailKeys(c.menuCategory(), s.storeId(), menusByStoreId, storeImagesByStoreId)))
+						selectThumbnailKeys(c.menuCategory(), s.storeId(), menusByStoreId, storeImagesByStoreId),
+						formatDistance(distanceByStoreId.get(s.storeId()))))
 					.toList()))
 			.filter(ct -> !ct.stores().isEmpty())
 			.toList();
@@ -228,6 +242,18 @@ public class TrendQueryService {
 			return menus.get(0).imageKeys();
 		}
 		return storeImagesByStoreId.getOrDefault(storeId, List.of());
+	}
+
+	// 거리(미터) → 표시용 문자열. 1km 미만은 "320m", 이상은 "1.2km". 위치가 없어 거리가 null이면 null 반환.
+	private String formatDistance(Double distanceMeters) {
+		if (distanceMeters == null) {
+			return null;
+		}
+		long meters = Math.round(distanceMeters);
+		if (meters < 1000) {
+			return meters + "m";
+		}
+		return String.format(Locale.US, "%.1fkm", meters / 1000.0);
 	}
 
 	// 랭킹 카테고리명(MenuCategory enum name) → 포함 MenuKind 집합. 알 수 없는 값이면 빈 집합.

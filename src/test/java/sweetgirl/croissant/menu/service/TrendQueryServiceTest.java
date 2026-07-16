@@ -25,6 +25,7 @@ import sweetgirl.croissant.menu.enums.MenuKind;
 import sweetgirl.croissant.menu.repository.FamousMenuByRegionRepository;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.store.dto.projection.HotStoreRankingTrendProjection;
+import sweetgirl.croissant.store.dto.projection.StoreDistanceProjection;
 import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
 import sweetgirl.croissant.store.enums.Region3rd;
 import sweetgirl.croissant.store.repository.HotStoreRankingRepository;
@@ -148,7 +149,7 @@ class TrendQueryServiceTest {
 			.willReturn(List.of(croissant, salt));
 
 		// when
-		RegionTrendResponse response = trendQueryService.getTrendByRegion("종로구_가회동");
+		RegionTrendResponse response = trendQueryService.getTrendByRegion("종로구_가회동", null, null);
 
 		// then: 소금빵 카테고리 → 소금빵 메뉴 사진 우선, 메뉴 사진 있으므로 가게 사진은 조회하지 않음
 		assertThat(firstStoreKeys(response)).containsExactly("salt.jpg");
@@ -166,7 +167,7 @@ class TrendQueryServiceTest {
 			.willReturn(List.of(croissant, bagel));
 
 		// when
-		RegionTrendResponse response = trendQueryService.getTrendByRegion("종로구_가회동");
+		RegionTrendResponse response = trendQueryService.getTrendByRegion("종로구_가회동", null, null);
 
 		// then: 매칭 메뉴 없음 → 대표(첫) 메뉴 사진, 메뉴 사진 있으므로 가게 사진은 조회하지 않음
 		assertThat(firstStoreKeys(response)).containsExactly("croissant.jpg");
@@ -183,10 +184,67 @@ class TrendQueryServiceTest {
 		given(menuImageFileRepository.findStoreMenuThumbnailsByStoreIdIn(anyList())).willReturn(List.of());
 
 		// when
-		RegionTrendResponse response = trendQueryService.getTrendByRegion("종로구_가회동");
+		RegionTrendResponse response = trendQueryService.getTrendByRegion("종로구_가회동", null, null);
 
 		// then: 메뉴 사진 없음 → 가게 사진 fallback
 		assertThat(firstStoreKeys(response)).containsExactly("store.jpg");
+	}
+
+	@Test
+	@DisplayName("위/경도가 있으면 각 빵집까지의 거리를 문자열로 반환한다 (1km 미만은 m)")
+	void getTrendByRegion_returnsDistanceInMeters() {
+		// given
+		givenSaltCategoryRankingWithStore(10L);
+		StoreDistanceProjection distance = distanceProjection(10L, 320.4);
+		given(storeRepository.findDistanceMetersByIdIn(anyList(), anyDouble(), anyDouble()))
+			.willReturn(List.of(distance));
+
+		// when
+		RegionTrendResponse response = trendQueryService.getTrendByRegion("종로구_가회동", 37.5, 127.0);
+
+		// then: 320.4m → 반올림 320m
+		assertThat(firstStore(response).distance()).isEqualTo("320m");
+	}
+
+	@Test
+	@DisplayName("거리가 1km 이상이면 km 단위로 반환한다")
+	void getTrendByRegion_returnsDistanceInKilometers() {
+		// given
+		givenSaltCategoryRankingWithStore(10L);
+		StoreDistanceProjection distance = distanceProjection(10L, 1540.0);
+		given(storeRepository.findDistanceMetersByIdIn(anyList(), anyDouble(), anyDouble()))
+			.willReturn(List.of(distance));
+
+		// when
+		RegionTrendResponse response = trendQueryService.getTrendByRegion("종로구_가회동", 37.5, 127.0);
+
+		// then: 1540m → 1.5km
+		assertThat(firstStore(response).distance()).isEqualTo("1.5km");
+	}
+
+	@Test
+	@DisplayName("위/경도가 없으면 거리는 null이고 거리 조회를 하지 않는다")
+	void getTrendByRegion_returnsNullDistance_whenNoLocation() {
+		// given
+		givenSaltCategoryRankingWithStore(10L);
+
+		// when
+		RegionTrendResponse response = trendQueryService.getTrendByRegion("종로구_가회동", null, null);
+
+		// then
+		assertThat(firstStore(response).distance()).isNull();
+		verify(storeRepository, never()).findDistanceMetersByIdIn(anyList(), anyDouble(), anyDouble());
+	}
+
+	private RegionTrendResponse.HotStore firstStore(RegionTrendResponse response) {
+		return response.categories().get(0).stores().get(0);
+	}
+
+	private StoreDistanceProjection distanceProjection(Long storeId, double meters) {
+		StoreDistanceProjection projection = mock(StoreDistanceProjection.class);
+		given(projection.getStoreId()).willReturn(storeId);
+		given(projection.getDistanceMeters()).willReturn(meters);
+		return projection;
 	}
 
 	// 소금빵 카테고리 랭킹 + 지정 가게 1곳을 stubbing (지역=종로구_가회동)

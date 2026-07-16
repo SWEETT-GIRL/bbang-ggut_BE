@@ -16,6 +16,7 @@ import org.springframework.data.repository.query.Param;
 import sweetgirl.croissant.store.dto.projection.NearbyStoreProjection;
 import sweetgirl.croissant.store.dto.projection.RegionByDistanceProjection;
 import sweetgirl.croissant.store.dto.projection.RegionBySubscribeProjection;
+import sweetgirl.croissant.store.dto.projection.StoreDistanceProjection;
 import sweetgirl.croissant.store.dto.projection.TopSubscribedStoreProjection;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.enums.StoreStatus;
@@ -23,6 +24,19 @@ import sweetgirl.croissant.store.enums.StoreStatus;
 public interface StoreRepository extends JpaRepository<Store, Long> {
 
 	Slice<Store> findByNameContainingAndStatus(String name, StoreStatus status, Pageable pageable);
+
+	// 주어진 좌표 기준으로 여러 가게까지의 거리(미터)를 한 번에 조회 (트렌드 랭킹 거리 표시용, N+1 방지)
+	@Query(value = """
+				SELECT
+					s.id AS store_id,
+					ST_Distance(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS distance_meters
+				FROM store s
+				WHERE s.id IN :storeIds
+			""", nativeQuery = true)
+	List<StoreDistanceProjection> findDistanceMetersByIdIn(
+			@Param("storeIds") List<Long> storeIds,
+			@Param("lng") double longitude,
+			@Param("lat") double latitude);
 
 	Page<Store> findByNameContainingIgnoreCase(String name, Pageable pageable);
 
