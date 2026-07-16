@@ -74,10 +74,14 @@ public class CourseCommandService {
 
 		validateOwner(course, memberId);
 
+		// FORKED 코스는 원본과 동일한 채로 '공개'만 막는다. 비공개 복제는 동일해도 허용.
 		if (course.getType() == CourseType.FORKED) {
-			String effectiveTitle = request.getTitle() != null ? request.getTitle() : course.getTitle();
-			if (isSameAsSource(course, effectiveTitle)) {
-				throw new CourseException(CourseErrorCode.COURSE_FORK_NOT_MODIFIED);
+			boolean willBePublic = request.getIsPublic() != null ? request.getIsPublic() : course.isPublic();
+			if (willBePublic) {
+				String effectiveTitle = request.getTitle() != null ? request.getTitle() : course.getTitle();
+				if (isSameAsSource(course, effectiveTitle)) {
+					throw new CourseException(CourseErrorCode.COURSE_FORK_NOT_MODIFIED);
+				}
 			}
 		}
 
@@ -111,7 +115,7 @@ public class CourseCommandService {
 		int nextOrder = courseStoreRepository.findMaxVisitOrderByCourseId(courseId) + 1;
 		CourseStore courseStore = CourseStore.createWithDetails(
 			course, store, nextOrder,
-			request.getMemo(), request.getVisitTime(), request.getWalkingMinutesToNext());
+			request.getMemo(), request.getVisitTime());
 		courseStoreRepository.save(courseStore);
 
 		return CourseStoreResponse.from(courseStore);
@@ -153,15 +157,23 @@ public class CourseCommandService {
 		Map<Long, CourseStore> courseStoreMap = courseStoreRepository.findAllById(courseStoreIds).stream()
 			.collect(Collectors.toMap(CourseStore::getId, cs -> cs));
 
-		IntStream.range(0, orderItems.size()).forEach(i -> {
-			CourseStoreOrderItem item = orderItems.get(i);
-			CourseStore courseStore = courseStoreMap.get(item.getCourseStoreId());
-			if (courseStore == null) {
-				throw new CourseException(CourseErrorCode.COURSE_STORE_NOT_FOUND);
-			}
-			courseStore.updateOrder(i + 1);
-			courseStore.updateWalkingMinutesToNext(item.getWalkingMinutesToNext());
-		});
+		List<CourseStore> orderedCourseStores = orderItems.stream()
+			.map(item -> {
+				CourseStore courseStore = courseStoreMap.get(item.getCourseStoreId());
+				if (courseStore == null || courseStore.isDeleted()
+					|| !courseStore.getCourse().getId().equals(courseId)) {
+					throw new CourseException(CourseErrorCode.COURSE_STORE_NOT_FOUND);
+				}
+				return courseStore;
+			})
+			.toList();
+
+		// (course_id, visit_order) 유니크 제약과의 스왑 충돌을 피하기 위해 임시 음수 순서로 옮긴 뒤 최종 순서 부여
+		IntStream.range(0, orderedCourseStores.size())
+			.forEach(i -> orderedCourseStores.get(i).updateOrder(-(i + 1)));
+		courseStoreRepository.flush();
+		IntStream.range(0, orderedCourseStores.size())
+			.forEach(i -> orderedCourseStores.get(i).updateOrder(i + 1));
 	}
 
 	public PresignedUrlResponse getPresignedUrl(Long memberId, Long courseId, String mimeType) {
@@ -207,7 +219,10 @@ public class CourseCommandService {
 		Course sourceCourse = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 
-		if (!sourceCourse.isPublic()) {
+		// 공개 코스는 누구나, 비공개 코스는 본인 것만 복제(fork) 가능.
+		boolean isOwner = sourceCourse.getMember() != null
+			&& sourceCourse.getMember().getId().equals(memberId);
+		if (!sourceCourse.isPublic() && !isOwner) {
 			throw new CourseException(CourseErrorCode.COURSE_FORK_NOT_PUBLIC);
 		}
 
@@ -226,8 +241,7 @@ public class CourseCommandService {
 				source.getStore(),
 				source.getVisitOrder(),
 				source.getMemo(),
-				source.getVisitTime(),
-				source.getWalkingMinutesToNext()))
+				source.getVisitTime()))
 			.toList();
 		courseStoreRepository.saveAll(copiedStores);
 

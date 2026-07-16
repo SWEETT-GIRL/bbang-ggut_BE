@@ -38,9 +38,6 @@ public class Course extends BaseTimeEntity {
 	@Column(nullable = false, length = 100)
 	private String title;
 
-	@Column(nullable = false)
-	private int likeCount;
-
 	@Column(length = 30)
 	private String badge;
 
@@ -73,7 +70,6 @@ public class Course extends BaseTimeEntity {
 		this.isPublic = isPublic;
 		this.badge = badge;
 		this.sourceCourseId = sourceCourseId;
-		this.likeCount = 0;
 	}
 
 	public static Course createCustom(
@@ -122,16 +118,6 @@ public class Course extends BaseTimeEntity {
 
 	public void updateBadge(String badge) {
 		this.badge = badge;
-	}
-
-	public void increaseLikeCount() {
-		this.likeCount++;
-	}
-
-	public void decreaseLikeCount() {
-		if (this.likeCount > 0) {
-			this.likeCount--;
-		}
 	}
 
 	public void softDelete() {

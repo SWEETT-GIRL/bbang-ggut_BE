@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
 import java.util.Optional;
@@ -44,10 +45,11 @@ class SavedCourseCommandServiceTest {
 	void saveCourse_success() {
 		Long memberId = 1L;
 		Long courseId = 10L;
+		Course course = mockPublicCourse(99L);
 
 		given(savedCourseRepository.existsByMemberIdAndCourseId(memberId, courseId)).willReturn(false);
 		given(memberRepository.findByIdAndDeletedAtIsNull(memberId)).willReturn(Optional.of(mock(Member.class)));
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(mock(Course.class)));
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 
 		savedCourseCommandService.saveCourse(memberId, courseId);
 
@@ -65,6 +67,49 @@ class SavedCourseCommandServiceTest {
 		assertThatThrownBy(() -> savedCourseCommandService.saveCourse(memberId, courseId))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_SAVED_ALREADY.getMessage());
+	}
+
+	@Test
+	@DisplayName("saveCourse: 자신의 코스 → COURSE_SAVE_SELF")
+	void saveCourse_ownCourse_throwsSaveSelf() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockPublicCourse(memberId);
+
+		given(savedCourseRepository.existsByMemberIdAndCourseId(memberId, courseId)).willReturn(false);
+		given(memberRepository.findByIdAndDeletedAtIsNull(memberId)).willReturn(Optional.of(mock(Member.class)));
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+
+		assertThatThrownBy(() -> savedCourseCommandService.saveCourse(memberId, courseId))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_SAVE_SELF.getMessage());
+	}
+
+	@Test
+	@DisplayName("saveCourse: 비공개 코스 → COURSE_FORBIDDEN")
+	void saveCourse_privateCourse_throwsForbidden() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockPublicCourse(99L);
+		given(course.isPublic()).willReturn(false);
+
+		given(savedCourseRepository.existsByMemberIdAndCourseId(memberId, courseId)).willReturn(false);
+		given(memberRepository.findByIdAndDeletedAtIsNull(memberId)).willReturn(Optional.of(mock(Member.class)));
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+
+		assertThatThrownBy(() -> savedCourseCommandService.saveCourse(memberId, courseId))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+	}
+
+	/** 소유자 id가 ownerId인 공개 코스 mock (isPublic 미스텁 시 mock 기본값 false에 걸리므로 명시 스텁) */
+	private Course mockPublicCourse(Long ownerId) {
+		Course course = mock(Course.class);
+		Member owner = mock(Member.class);
+		lenient().when(owner.getId()).thenReturn(ownerId);
+		lenient().when(course.getMember()).thenReturn(owner);
+		lenient().when(course.isPublic()).thenReturn(true);
+		return course;
 	}
 
 	// ───────────────────────── unsaveCourse ─────────────────────────

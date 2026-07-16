@@ -66,7 +66,7 @@ class CourseControllerTest {
 	@Test
 	void getCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
-			1L, "소금빵 투어", null, null, 2, List.of("마포구"), CourseType.CURATED, "어드민", null);
+			1L, "소금빵 투어", null, null, 2, List.of("마포구"), CourseType.CURATED, "어드민", null, 0L);
 		given(courseQueryService.getCurationCourses()).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses"))
@@ -80,7 +80,7 @@ class CourseControllerTest {
 	@Test
 	void getMyCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
-			2L, "나의 코스", null, null, 1, List.of("서대문구"), CourseType.CUSTOM, "user1", null);
+			2L, "나의 코스", null, null, 1, List.of("서대문구"), CourseType.CUSTOM, "user1", null, 0L);
 		given(courseQueryService.getMyCourses(isNull())).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses/my"))
@@ -93,7 +93,7 @@ class CourseControllerTest {
 	@Test
 	void getSavedCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
-			3L, "찜한 코스", null, null, 3, List.of("강남구"), CourseType.CURATED, "어드민", null);
+			3L, "찜한 코스", null, null, 3, List.of("강남구"), CourseType.CURATED, "어드민", null, 0L);
 		given(courseQueryService.getSavedCourses(isNull())).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses/saved"))
@@ -105,13 +105,15 @@ class CourseControllerTest {
 	@Test
 	void getCourseDetail_returns200() throws Exception {
 		CourseDetailResponse response = new CourseDetailResponse(
-			1L, "소금빵 투어", null, null, 2, List.of("마포구"), CourseType.CURATED, "어드민", null, false, 5L, List.of());
+			1L, "소금빵 투어", null, null, 2, List.of("마포구"), CourseType.CURATED, "어드민", null, true, false, false, 5L,
+			List.of());
 		given(courseQueryService.getCourseDetail(anyLong(), isNull())).willReturn(response);
 
 		mockMvc.perform(get("/courses/1"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.id").value(1))
+			.andExpect(jsonPath("$.data.isPublic").value(true))
 			.andExpect(jsonPath("$.data.savedCount").value(5))
 			.andExpect(jsonPath("$.data.isSaved").value(false));
 	}
@@ -230,7 +232,7 @@ class CourseControllerTest {
 	@Test
 	void addStore_returns200() throws Exception {
 		CourseStoreResponse storeResponse = new CourseStoreResponse(
-			100L, 1, 10L, "소금빵집", 37.5, 126.9, "마포구", null, null, null);
+			100L, 1, 10L, "소금빵집", 37.5, 126.9, "마포구", null, null);
 		given(courseCommandService.addStore(isNull(), anyLong(), any())).willReturn(storeResponse);
 
 		mockMvc.perform(post("/courses/1/stores")

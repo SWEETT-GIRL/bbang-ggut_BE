@@ -2,6 +2,8 @@ package sweetgirl.croissant.course.service;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,27 +34,27 @@ public class CourseQueryService {
 	private final CourseImageFileRepository courseImageFileRepository;
 
 	public List<CourseSummaryResponse> getCurationCourses() {
-		return courseRepository.findAllByIsPublicTrueAndDeletedAtIsNull().stream()
+		List<Course> courses = courseRepository.findAllByIsPublicTrueAndDeletedAtIsNull();
+		Map<Long, Long> savedCountByCourseId = findSavedCountByCourseId(courses);
+		List<Course> sortedCourses = courses.stream()
 			.sorted(Comparator
-				.<Course>comparingInt(c -> c.getPinOrder() != null ? c.getPinOrder() : Integer.MAX_VALUE)
-				.thenComparingLong(c -> -savedCourseRepository.countByCourseId(c.getId())))
-			.map(this::buildSummaryResponse)
+				.<Course>comparingInt(course -> course.getPinOrder() != null ? course.getPinOrder() : Integer.MAX_VALUE)
+				.thenComparingLong(course -> -savedCountByCourseId.getOrDefault(course.getId(), 0L)))
 			.toList();
+		return buildSummaryResponses(sortedCourses);
 	}
 
 	public List<CourseSummaryResponse> getMyCourses(Long memberId) {
-		return courseRepository
-			.findAllByMemberIdAndTypeInAndDeletedAtIsNull(memberId, List.of(CourseType.CUSTOM, CourseType.FORKED))
-			.stream()
-			.map(this::buildSummaryResponse)
-			.toList();
+		return buildSummaryResponses(courseRepository
+			.findAllByMemberIdAndTypeInAndDeletedAtIsNull(memberId, List.of(CourseType.CUSTOM, CourseType.FORKED)));
 	}
 
 	public List<CourseSummaryResponse> getSavedCourses(Long memberId) {
-		return savedCourseRepository.findAllByMemberId(memberId).stream()
-			.filter(savedCourse -> !savedCourse.getCourse().isDeleted())
-			.map(savedCourse -> buildSummaryResponse(savedCourse.getCourse()))
+		List<Course> savedCourses = savedCourseRepository.findAllByMemberId(memberId).stream()
+			.map(savedCourse -> savedCourse.getCourse())
+			.filter(course -> !course.isDeleted() && course.isPublic())
 			.toList();
+		return buildSummaryResponses(savedCourses);
 	}
 
 	public CourseDetailResponse getCourseDetail(Long courseId, Long memberId) {
@@ -60,7 +62,7 @@ public class CourseQueryService {
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 
 		if (!course.isPublic()) {
-			if (memberId == null || !course.getMember().getId().equals(memberId)) {
+			if (memberId == null || course.getMember() == null || !course.getMember().getId().equals(memberId)) {
 				throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
 			}
 		}
@@ -73,24 +75,61 @@ public class CourseQueryService {
 
 		CourseImageFile coverImage = courseImageFileRepository.findByCourseId(courseId).orElse(null);
 
+		boolean isMine = memberId != null && course.getMember() != null
+			&& course.getMember().getId().equals(memberId);
 		boolean isSaved = memberId != null && savedCourseRepository.existsByMemberIdAndCourseId(memberId, courseId);
 		long savedCount = savedCourseRepository.countByCourseId(courseId);
 
-		return CourseDetailResponse.of(course, coverImage, isSaved, savedCount, courseStoreResponses);
+		return CourseDetailResponse.of(course, coverImage, isMine, isSaved, savedCount, courseStoreResponses);
 	}
 
-	private CourseSummaryResponse buildSummaryResponse(Course course) {
-		List<CourseStore> courseStores = courseStoreRepository
-			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(course.getId());
+	/** 코스별 가게·커버 이미지를 일괄 조회해 코스 수와 무관하게 고정된 쿼리 수로 summary를 만든다 */
+	private List<CourseSummaryResponse> buildSummaryResponses(List<Course> courses) {
+		if (courses.isEmpty()) {
+			return List.of();
+		}
+		List<Long> courseIds = courses.stream().map(Course::getId).toList();
 
-		CourseImageFile coverImage = courseImageFileRepository.findByCourseId(course.getId()).orElse(null);
+		Map<Long, List<CourseStore>> courseStoresByCourseId = courseStoreRepository
+			.findAllByCourseIdInAndDeletedAtIsNullOrderByVisitOrderAsc(courseIds)
+			.stream()
+			.collect(Collectors.groupingBy(courseStore -> courseStore.getCourse().getId()));
 
-		List<String> regions = courseStores.stream()
-			.map(courseStore -> courseStore.getStore().getRegion2nd())
-			.filter(region -> region != null)
-			.distinct()
+		Map<Long, CourseImageFile> coverImageByCourseId = courseImageFileRepository.findAllByCourseIdIn(courseIds)
+			.stream()
+			.collect(Collectors.toMap(
+				imageFile -> imageFile.getCourse().getId(),
+				imageFile -> imageFile,
+				(first, second) -> first));
+
+		Map<Long, Long> savedCountByCourseId = findSavedCountByCourseId(courses);
+
+		return courses.stream()
+			.map(course -> {
+				List<CourseStore> courseStores = courseStoresByCourseId.getOrDefault(course.getId(), List.of());
+				List<String> regions = courseStores.stream()
+					.map(courseStore -> courseStore.getStore().getRegion2nd())
+					.filter(region -> region != null)
+					.distinct()
+					.toList();
+				return CourseSummaryResponse.of(
+					course,
+					coverImageByCourseId.get(course.getId()),
+					courseStores.size(),
+					regions,
+					savedCountByCourseId.getOrDefault(course.getId(), 0L));
+			})
 			.toList();
+	}
 
-		return CourseSummaryResponse.of(course, coverImage, courseStores.size(), regions);
+	private Map<Long, Long> findSavedCountByCourseId(List<Course> courses) {
+		if (courses.isEmpty()) {
+			return Map.of();
+		}
+		List<Long> courseIds = courses.stream().map(Course::getId).toList();
+		return savedCourseRepository.countGroupedByCourseIdIn(courseIds).stream()
+			.collect(Collectors.toMap(
+				courseIdAndCount -> (Long)courseIdAndCount[0],
+				courseIdAndCount -> (Long)courseIdAndCount[1]));
 	}
 }

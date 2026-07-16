@@ -211,7 +211,6 @@ class AdminCourseCommandServiceTest {
 		given(request.getStoreId()).willReturn(10L);
 		lenient().when(request.getMemo()).thenReturn(null);
 		lenient().when(request.getVisitTime()).thenReturn(null);
-		lenient().when(request.getWalkingMinutesToNext()).thenReturn(null);
 
 		CourseStoreResponse result = adminCourseCommandService.addStore(1L, request);
 
@@ -271,12 +270,15 @@ class AdminCourseCommandServiceTest {
 	@DisplayName("reorderStores: courseStoreIds 순서로 visitOrder를 재배치한다")
 	void reorderStores_success() {
 		Course course = mock(Course.class);
+		given(course.getId()).willReturn(1L);
 		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
 
 		CourseStore cs1 = mock(CourseStore.class);
 		CourseStore cs2 = mock(CourseStore.class);
 		given(cs1.getId()).willReturn(10L);
+		given(cs1.getCourse()).willReturn(course);
 		given(cs2.getId()).willReturn(20L);
+		given(cs2.getCourse()).willReturn(course);
 		given(courseStoreRepository.findAllById(List.of(10L, 20L))).willReturn(List.of(cs1, cs2));
 
 		CourseStoreReorderRequest.CourseStoreOrderItem item1 = mock(
@@ -284,17 +286,43 @@ class AdminCourseCommandServiceTest {
 		CourseStoreReorderRequest.CourseStoreOrderItem item2 = mock(
 			CourseStoreReorderRequest.CourseStoreOrderItem.class);
 		given(item1.getCourseStoreId()).willReturn(10L);
-		given(item1.getWalkingMinutesToNext()).willReturn(5);
 		given(item2.getCourseStoreId()).willReturn(20L);
-		given(item2.getWalkingMinutesToNext()).willReturn(null);
 
 		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
 		given(request.getCourseStoreOrders()).willReturn(List.of(item1, item2));
 
 		adminCourseCommandService.reorderStores(1L, request);
 
+		// 유니크 제약 충돌 방지를 위한 임시 음수 순서 → 최종 순서 2단계 갱신
+		then(cs1).should().updateOrder(-1);
 		then(cs1).should().updateOrder(1);
+		then(cs2).should().updateOrder(-2);
 		then(cs2).should().updateOrder(2);
+		then(courseStoreRepository).should().flush();
+	}
+
+	@Test
+	@DisplayName("reorderStores: 다른 코스의 가게가 섞여 있으면 COURSE_STORE_NOT_FOUND를 던진다")
+	void reorderStores_otherCourseStore_throwsNotFound() {
+		Course course = mock(Course.class);
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+
+		Course otherCourse = mock(Course.class);
+		given(otherCourse.getId()).willReturn(99L);
+		CourseStore otherCourseStore = mock(CourseStore.class);
+		given(otherCourseStore.getId()).willReturn(77L);
+		given(otherCourseStore.getCourse()).willReturn(otherCourse);
+		given(courseStoreRepository.findAllById(List.of(77L))).willReturn(List.of(otherCourseStore));
+
+		CourseStoreReorderRequest.CourseStoreOrderItem item = mock(
+			CourseStoreReorderRequest.CourseStoreOrderItem.class);
+		given(item.getCourseStoreId()).willReturn(77L);
+		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
+		given(request.getCourseStoreOrders()).willReturn(List.of(item));
+
+		assertThatThrownBy(() -> adminCourseCommandService.reorderStores(1L, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_STORE_NOT_FOUND.getMessage());
 	}
 
 	// ───────────────────────── 핀 관리 ─────────────────────────

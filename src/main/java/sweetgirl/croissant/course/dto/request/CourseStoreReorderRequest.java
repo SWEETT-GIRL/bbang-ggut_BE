@@ -18,7 +18,5 @@ public class CourseStoreReorderRequest {
 	public static class CourseStoreOrderItem {
 
 		private Long courseStoreId;
-
-		private Integer walkingMinutesToNext;
 	}
 }

@@ -3,6 +3,8 @@ package sweetgirl.croissant.store.dto.response;
 import java.time.LocalTime;
 import java.util.List;
 
+import org.locationtech.jts.geom.Point;
+
 import sweetgirl.croissant.global.dto.ImageResponse;
 import sweetgirl.croissant.menu.entity.MenuImageFile;
 import sweetgirl.croissant.store.entity.Store;
@@ -13,6 +15,8 @@ public record StoreDetailResponse(
 		Long id,
 		String name,
 		String address,
+		double latitude,
+		double longitude,
 		List<BusinessHourResponse> businessHours,
 		String phone,
 		List<ImageResponse> images,
@@ -36,10 +40,13 @@ public record StoreDetailResponse(
 
 	public static StoreDetailResponse of(Store store, List<StoreBusinessHour> businessHours,
 			List<StoreImageFile> images, List<MenuImageFile> menuImages, boolean isSubscribed, boolean isSaved) {
+		Point location = store.getLocation();
 		return new StoreDetailResponse(
 			store.getId(),
 			store.getName(),
 			store.getAddress(),
+			location.getY(),
+			location.getX(),
 			businessHours.stream()
 				.map(bh -> new BusinessHourResponse(
 					bh.getDayOfWeek().name(),

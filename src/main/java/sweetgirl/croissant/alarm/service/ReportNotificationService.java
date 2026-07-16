@@ -41,17 +41,6 @@ public class ReportNotificationService {
 
 	// 제보 승인/거절 결과를 사용자에게 알림 — DB 히스토리 저장 + FCM 발송
 	// member 가 null 인 경우(익명 메뉴 추가 제보 등) 알림을 보낼 대상이 없으므로 silent skip
-	public void notifyReportResult(Member member, Store store, Long reportId, ReportKind reportKind,
-			ReportNotificationAction action, String subjectLabel) {
-		notifyReportResult(member, store, null, reportId, reportKind, action, subjectLabel);
-	}
-
-	public void notifyReportResult(Member member, Store store, String fallbackStoreName, Long reportId,
-			ReportKind reportKind, ReportNotificationAction action, String subjectLabel) {
-		notifyContributionReportResult(member, store, fallbackStoreName, reportId, null, reportKind, action,
-			subjectLabel);
-	}
-
 	public void notifyContributionReportResult(Member member, Store store, String fallbackStoreName, Long reportId,
 			Long contributionReportId, ReportKind reportKind, ReportNotificationAction action, String subjectLabel) {
 		if (member == null) {

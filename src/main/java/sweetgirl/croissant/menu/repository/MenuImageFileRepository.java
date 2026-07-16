@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import sweetgirl.croissant.common.enums.ImageStatus;
+import sweetgirl.croissant.menu.dto.projection.MenuImageByStoreProjection;
 import sweetgirl.croissant.menu.dto.projection.MenuImageThumbnailProjection;
 import sweetgirl.croissant.menu.entity.MenuImageFile;
 
@@ -36,9 +37,19 @@ public interface MenuImageFileRepository extends JpaRepository<MenuImageFile, Lo
 			""")
 	List<MenuImageFile> findImagesByMenuId(@Param("menuId") Long menuId);
 
-	List<MenuImageFile> findByMenuStoreIdOrderByDisplayOrderAscIdAsc(Long storeId);
+	// 트렌드 썸네일용 — 가게들의 메뉴 이미지를 세분류(MenuKind)와 함께 일괄 조회 (N+1 방지)
+	@Query("""
+			SELECT mn.store.id AS storeId, mc.name AS menuKind,
+			m.resizedKey320 AS resizedKey320, m.awsKey AS awsKey
+			FROM MenuImageFile m
+			JOIN m.menu mn
+			JOIN mn.menuCategory mc
+			WHERE mn.store.id IN :storeIds AND mn.deletedAt IS NULL
+			ORDER BY m.displayOrder ASC, m.id ASC
+			""")
+	List<MenuImageByStoreProjection> findMenuImagesByStoreIdIn(@Param("storeIds") List<Long> storeIds);
 
-	List<MenuImageFile> findByMenuStoreId(Long storeId);
+	List<MenuImageFile> findByMenuStoreIdOrderByDisplayOrderAscIdAsc(Long storeId);
 
 	@Query("SELECT COALESCE(MAX(m.displayOrder), 0) FROM MenuImageFile m WHERE m.menu.id = :menuId")
 	int findMaxDisplayOrderByMenuId(@Param("menuId") Long menuId);

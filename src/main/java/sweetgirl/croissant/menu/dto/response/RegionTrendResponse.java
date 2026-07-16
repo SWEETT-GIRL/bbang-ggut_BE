@@ -17,6 +17,7 @@ public record RegionTrendResponse(
 			String region1st,
 			String region2nd,
 			int rank,
-			List<String> thumbnailImageKeys) {
+			List<String> thumbnailImageKeys,
+			Double distanceMeter) { // 사용자 위치 기준 거리(m) — 좌표 미제공 시 null
 	}
 }
