@@ -9,14 +9,17 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.member.dto.request.AppleLoginRequest;
+import sweetgirl.croissant.member.dto.request.GuestLoginRequest;
 import sweetgirl.croissant.member.dto.request.KakaoLoginRequest;
 import sweetgirl.croissant.member.dto.request.LogoutRequest;
 import sweetgirl.croissant.member.dto.request.RefreshRequest;
 import sweetgirl.croissant.member.dto.response.AppleLoginResponse;
+import sweetgirl.croissant.member.dto.response.GuestLoginResponse;
 import sweetgirl.croissant.member.dto.response.KakaoLoginResponse;
 import sweetgirl.croissant.member.dto.response.RefreshResponse;
 import sweetgirl.croissant.member.service.AppleAuthService;
 import sweetgirl.croissant.member.service.AuthService;
+import sweetgirl.croissant.member.service.GuestAuthService;
 import sweetgirl.croissant.member.service.KakaoAuthService;
 
 @RestController
@@ -27,6 +30,13 @@ public class AuthController {
 	private final AuthService authService;
 	private final AppleAuthService appleAuthService;
 	private final KakaoAuthService kakaoAuthService;
+	private final GuestAuthService guestAuthService;
+
+	@PostMapping("/guest")
+	public ApiResponse<GuestLoginResponse> guestLogin(@RequestBody GuestLoginRequest request) {
+		GuestLoginResponse response = guestAuthService.login(request.deviceId());
+		return ApiResponse.ok(response);
+	}
 
 	@PostMapping("/kakao")
 	public ApiResponse<KakaoLoginResponse> kakaoLogin(@RequestBody KakaoLoginRequest request) {
