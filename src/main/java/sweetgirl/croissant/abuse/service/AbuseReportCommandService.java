@@ -14,6 +14,8 @@ import sweetgirl.croissant.abuse.enums.AbuseReportStatus;
 import sweetgirl.croissant.abuse.enums.AbuseReportTargetType;
 import sweetgirl.croissant.abuse.exception.AbuseReportException;
 import sweetgirl.croissant.abuse.repository.AbuseReportRepository;
+import sweetgirl.croissant.course.entity.Course;
+import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
@@ -33,6 +35,7 @@ public class AbuseReportCommandService {
 	private final MemberReader memberReader;
 	private final MemberRepository memberRepository;
 	private final ReviewRepository reviewRepository;
+	private final CourseRepository courseRepository;
 	private final AbuseReportRepository abuseReportRepository;
 	private final AdminReportNotificationPublisher adminReportNotificationPublisher;
 
@@ -62,7 +65,18 @@ public class AbuseReportCommandService {
 		return switch (targetType) {
 			case REVIEW -> resolveReviewTarget(targetId);
 			case MEMBER_PROFILE -> resolveMemberProfileTarget(targetId);
+			case COURSE -> resolveCourseTarget(targetId);
 		};
+	}
+
+	private ReportTarget resolveCourseTarget(Long courseId) {
+		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
+			.orElseThrow(() -> new AbuseReportException(AbuseReportErrorCode.REPORT_TARGET_NOT_FOUND));
+		if (course.getMember() == null) {
+			// 작성자가 없는 큐레이션 코스는 신고 대상이 아니다
+			throw new AbuseReportException(AbuseReportErrorCode.REPORT_TARGET_NOT_FOUND);
+		}
+		return new ReportTarget(course.getMember());
 	}
 
 	private ReportTarget resolveReviewTarget(Long reviewId) {

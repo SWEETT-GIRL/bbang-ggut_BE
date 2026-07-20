@@ -27,6 +27,7 @@ import sweetgirl.croissant.abuse.enums.AbuseReportReasonType;
 import sweetgirl.croissant.abuse.enums.AbuseReportTargetType;
 import sweetgirl.croissant.abuse.exception.AbuseReportException;
 import sweetgirl.croissant.abuse.repository.AbuseReportRepository;
+import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
@@ -44,6 +45,8 @@ class AbuseReportCommandServiceTest {
 	@Mock
 	ReviewRepository reviewRepository;
 	@Mock
+	CourseRepository courseRepository;
+	@Mock
 	AbuseReportRepository abuseReportRepository;
 	@Mock
 	AdminReportNotificationPublisher adminReportNotificationPublisher;
@@ -56,6 +59,7 @@ class AbuseReportCommandServiceTest {
 			memberReader,
 			memberRepository,
 			reviewRepository,
+			courseRepository,
 			abuseReportRepository,
 			adminReportNotificationPublisher);
 	}
