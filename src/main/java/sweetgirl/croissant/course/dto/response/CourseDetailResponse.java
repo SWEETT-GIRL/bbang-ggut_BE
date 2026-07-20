@@ -15,6 +15,7 @@ public record CourseDetailResponse(
 		List<String> regions,
 		CourseType courseType,
 		String authorName,
+		Long authorId,
 		String badge,
 		boolean isPublic,
 		boolean isMine,
@@ -35,6 +36,7 @@ public record CourseDetailResponse(
 			.distinct()
 			.toList();
 		String authorName = course.getMember() != null ? course.getMember().getNickname() : null;
+		Long authorId = course.getMember() != null ? course.getMember().getId() : null;
 		return new CourseDetailResponse(
 			course.getId(),
 			course.getTitle(),
@@ -44,6 +46,7 @@ public record CourseDetailResponse(
 			regions,
 			course.getType(),
 			authorName,
+			authorId,
 			course.getBadge(),
 			course.isPublic(),
 			isMine,
