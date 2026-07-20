@@ -117,6 +117,10 @@ public class Member {
 		this.nickname = nickname;
 	}
 
+	public void markAsGuest() {
+		this.memberType = "GUEST";
+	}
+
 	public boolean isDeleted() {
 		return this.deletedAt != null;
 	}
