@@ -2,6 +2,7 @@ package sweetgirl.croissant.member.service;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -42,19 +43,34 @@ public class GuestAuthService {
 
 	@Transactional
 	public GuestLoginResponse login(String deviceId) {
-		Member member = Member.builder().nickname(nicknameGenerator.generate()).build();
-		member.markAsGuest();
-		Member savedMember = memberRepository.save(member);
-		Long memberId = savedMember.getId();
+		// 같은 기기(deviceId)의 기존 게스트가 있으면 재사용, 없으면 새로 생성.
+		// 앱 재설치/토큰 만료 뒤에도 신원(=코스 소유권)이 유지된다.
+		Member member = findExistingGuest(deviceId).orElseGet(this::createGuest);
+		Long memberId = member.getId();
 
 		notificationSettingRepository.findByMemberId(memberId)
-			.orElseGet(() -> createDefaultNotificationSetting(savedMember));
+			.orElseGet(() -> createDefaultNotificationSetting(member));
 
 		String accessToken = jwtProvider.generateAccessToken(memberId);
 		String refreshToken = jwtProvider.generateRefreshToken(memberId);
 		saveRefreshToken(memberId, deviceId, refreshToken);
 
-		return new GuestLoginResponse(accessToken, refreshToken, memberId, savedMember.getNickname());
+		return new GuestLoginResponse(accessToken, refreshToken, memberId, member.getNickname());
+	}
+
+	private Optional<Member> findExistingGuest(String deviceId) {
+		if (deviceId == null || deviceId.isBlank()) {
+			return Optional.empty();
+		}
+		return refreshTokenRepository.findGuestTokensByDeviceId(deviceId).stream()
+			.map(RefreshToken::getMember)
+			.findFirst();
+	}
+
+	private Member createGuest() {
+		Member member = Member.builder().nickname(nicknameGenerator.generate()).build();
+		member.markAsGuest();
+		return memberRepository.save(member);
 	}
 
 	private NotificationSetting createDefaultNotificationSetting(Member member) {
