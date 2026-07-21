@@ -29,12 +29,8 @@ public record CourseDetailResponse(
 			boolean isMine,
 			boolean isSaved,
 			long savedCount,
+			List<String> regions,
 			List<CourseStoreResponse> courseStores) {
-		List<String> regions = courseStores.stream()
-			.map(CourseStoreResponse::region)
-			.filter(region -> region != null)
-			.distinct()
-			.toList();
 		String authorName = course.getMember() != null ? course.getMember().getNickname() : null;
 		Long authorId = course.getMember() != null ? course.getMember().getId() : null;
 		return new CourseDetailResponse(

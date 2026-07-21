@@ -22,6 +22,7 @@ import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
+import sweetgirl.croissant.store.RegionFormatter;
 
 @Service
 @RequiredArgsConstructor
@@ -80,7 +81,9 @@ public class CourseQueryService {
 		boolean isSaved = memberId != null && savedCourseRepository.existsByMemberIdAndCourseId(memberId, courseId);
 		long savedCount = savedCourseRepository.countByCourseId(courseId);
 
-		return CourseDetailResponse.of(course, coverImage, isMine, isSaved, savedCount, courseStoreResponses);
+		List<String> regions = regionsOf(courseStores);
+
+		return CourseDetailResponse.of(course, coverImage, isMine, isSaved, savedCount, regions, courseStoreResponses);
 	}
 
 	/** 코스별 가게·커버 이미지를 일괄 조회해 코스 수와 무관하게 고정된 쿼리 수로 summary를 만든다 */
@@ -107,11 +110,7 @@ public class CourseQueryService {
 		return courses.stream()
 			.map(course -> {
 				List<CourseStore> courseStores = courseStoresByCourseId.getOrDefault(course.getId(), List.of());
-				List<String> regions = courseStores.stream()
-					.map(courseStore -> courseStore.getStore().getRegion2nd())
-					.filter(region -> region != null)
-					.distinct()
-					.toList();
+				List<String> regions = regionsOf(courseStores);
 				return CourseSummaryResponse.of(
 					course,
 					coverImageByCourseId.get(course.getId()),
@@ -119,6 +118,17 @@ public class CourseQueryService {
 					regions,
 					savedCountByCourseId.getOrDefault(course.getId(), 0L));
 			})
+			.toList();
+	}
+
+	/** 코스 가게들의 지역을 "시(축약) 구"(예: "대전 중구") 목록으로. 순서 유지·중복 제거. */
+	private List<String> regionsOf(List<CourseStore> courseStores) {
+		return courseStores.stream()
+			.map(courseStore -> RegionFormatter.cityDistrict(
+				courseStore.getStore().getRegion1st(),
+				courseStore.getStore().getRegion2nd()))
+			.filter(region -> region != null)
+			.distinct()
 			.toList();
 	}
 
