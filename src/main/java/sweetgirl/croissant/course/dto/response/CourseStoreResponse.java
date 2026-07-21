@@ -5,6 +5,7 @@ import java.time.LocalTime;
 import org.locationtech.jts.geom.Point;
 
 import sweetgirl.croissant.course.entity.CourseStore;
+import sweetgirl.croissant.store.RegionFormatter;
 import sweetgirl.croissant.store.entity.Store;
 
 public record CourseStoreResponse(
@@ -28,7 +29,7 @@ public record CourseStoreResponse(
 			store.getName(),
 			location.getY(),
 			location.getX(),
-			store.getRegion2nd(),
+			RegionFormatter.full(store.getRegion1st(), store.getRegion2nd(), store.getRegion3rd()),
 			courseStore.getMemo(),
 			courseStore.getVisitTime());
 	}
