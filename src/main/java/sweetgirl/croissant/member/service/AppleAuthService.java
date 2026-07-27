@@ -36,6 +36,7 @@ public class AppleAuthService {
 	private final AppleTokenVerifier appleTokenVerifier;
 	private final OAuthRepository oAuthRepository;
 	private final MemberRepository memberRepository;
+	private final GuestPromotionService guestPromotionService;
 	private final MemberRestrictionRepository memberRestrictionRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
 	private final NotificationSettingRepository notificationSettingRepository;
@@ -57,7 +58,7 @@ public class AppleAuthService {
 
 		OAuth oAuth = oAuthRepository
 			.findByProviderAndProviderId(OAuthProvider.APPLE, hashedProviderId)
-			.orElseGet(() -> registerNewMember(claims));
+			.orElseGet(() -> registerNewMember(claims, deviceId));
 
 		Member member = oAuth.getMember();
 
@@ -93,11 +94,9 @@ public class AppleAuthService {
 		return new AppleLoginResponse(accessToken, refreshToken, isNew);
 	}
 
-	private OAuth registerNewMember(AppleTokenClaims claims) {
-		Member member = memberRepository.save(
-			Member.builder()
-				.nickname(nicknameGenerator.generate())
-				.build());
+	private OAuth registerNewMember(AppleTokenClaims claims, String deviceId) {
+		// 같은 기기의 게스트 계정이 있으면 새로 만들지 않고 그 계정을 승격한다(코스 소유권 유지).
+		Member member = guestPromotionService.resolveMemberForNewOAuth(deviceId);
 
 		return oAuthRepository.save(
 			OAuth.builder()

@@ -1,5 +1,6 @@
 package sweetgirl.croissant.course.dto.response;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import sweetgirl.croissant.course.entity.Course;
@@ -21,6 +22,7 @@ public record CourseDetailResponse(
 		boolean isMine,
 		boolean isSaved,
 		long savedCount,
+		LocalDateTime createdAt,
 		List<CourseStoreResponse> courseStores) {
 
 	public static CourseDetailResponse of(
@@ -48,6 +50,7 @@ public record CourseDetailResponse(
 			isMine,
 			isSaved,
 			savedCount,
+			course.getCreatedAt(),
 			courseStores);
 	}
 }
