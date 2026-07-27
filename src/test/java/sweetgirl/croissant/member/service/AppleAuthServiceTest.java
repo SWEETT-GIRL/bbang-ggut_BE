@@ -37,6 +37,8 @@ class AppleAuthServiceTest {
 	@Mock
 	private MemberRepository memberRepository;
 	@Mock
+	private GuestPromotionService guestPromotionService;
+	@Mock
 	private MemberRestrictionRepository memberRestrictionRepository;
 	@Mock
 	private RefreshTokenRepository refreshTokenRepository;
@@ -58,23 +60,22 @@ class AppleAuthServiceTest {
 	private static final String DEVICE_ID = "device-001";
 	private static final String GENERATED_NICKNAME = "신난 두쫀쿠";
 
-	// 신규 가입
+	// 신규 가입 — 붙일 Member는 GuestPromotionService가 정한다(게스트 승격 또는 신규 생성)
 	@Test
-	void login_createsNewMemberWithGeneratedNickname_whenNotRegistered() {
+	void login_attachesOAuthToResolvedMember_whenNotRegistered() {
 		given(appleTokenVerifier.verify(IDENTITY_TOKEN)).willReturn(new AppleTokenClaims(SUB, "test@apple.com"));
 		given(tokenHasher.hash(anyString())).willReturn("some-hash");
 		given(tokenHasher.hash(SUB)).willReturn(HASHED_SUB);
 		given(oAuthRepository.existsByProviderAndProviderId(OAuthProvider.APPLE, HASHED_SUB)).willReturn(false);
 		given(oAuthRepository.findByProviderAndProviderId(OAuthProvider.APPLE, HASHED_SUB)).willReturn(
 			Optional.empty());
-		given(nicknameGenerator.generate()).willReturn(GENERATED_NICKNAME);
 
-		Member savedMember = memberOf(1L);
-		given(savedMember.isDeleted()).willReturn(false);
-		given(memberRepository.save(any(Member.class))).willReturn(savedMember);
-		given(memberRepository.getReferenceById(1L)).willReturn(savedMember);
+		Member resolvedMember = memberOf(1L);
+		given(resolvedMember.isDeleted()).willReturn(false);
+		given(guestPromotionService.resolveMemberForNewOAuth(DEVICE_ID)).willReturn(resolvedMember);
+		given(memberRepository.getReferenceById(1L)).willReturn(resolvedMember);
 
-		OAuth savedOAuth = oauthWith(savedMember);
+		OAuth savedOAuth = oauthWith(resolvedMember);
 		given(oAuthRepository.save(any(OAuth.class))).willReturn(savedOAuth);
 		given(memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(eq(1L), any(), any()))
 			.willReturn(List.of());
@@ -88,7 +89,9 @@ class AppleAuthServiceTest {
 
 		assertThat(response.accessToken()).isEqualTo("access-token");
 		assertThat(response.isNew()).isTrue();
-		then(nicknameGenerator).should().generate();
+		then(guestPromotionService).should().resolveMemberForNewOAuth(DEVICE_ID);
+		// 신규 Member 생성 책임은 GuestPromotionService로 옮겨졌다
+		then(memberRepository).should(never()).save(any(Member.class));
 	}
 
 	// 기존 유저
