@@ -39,6 +39,7 @@ public class KakaoAuthService {
 
 	private final OAuthRepository oAuthRepository;
 	private final MemberRepository memberRepository;
+	private final GuestPromotionService guestPromotionService;
 	private final MemberRestrictionRepository memberRestrictionRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
 	private final NotificationSettingRepository notificationSettingRepository;
@@ -62,7 +63,7 @@ public class KakaoAuthService {
 
 		OAuth oAuth = oAuthRepository
 			.findByProviderAndProviderId(OAuthProvider.KAKAO, hashedProviderId)
-			.orElseGet(() -> registerNewMember(userInfo, hashedProviderId));
+			.orElseGet(() -> registerNewMember(userInfo, hashedProviderId, deviceId));
 
 		Member member = oAuth.getMember();
 
@@ -115,8 +116,9 @@ public class KakaoAuthService {
 	private record KakaoUserInfo(String providerId, String email) {
 	}
 
-	private OAuth registerNewMember(KakaoUserInfo userInfo, String hashedProviderId) {
-		Member member = memberRepository.save(Member.builder().nickname(nicknameGenerator.generate()).build());
+	private OAuth registerNewMember(KakaoUserInfo userInfo, String hashedProviderId, String deviceId) {
+		// 같은 기기의 게스트 계정이 있으면 새로 만들지 않고 그 계정을 승격한다(코스 소유권 유지).
+		Member member = guestPromotionService.resolveMemberForNewOAuth(deviceId);
 		return oAuthRepository.save(OAuth.builder()
 			.member(member)
 			.provider(OAuthProvider.KAKAO)

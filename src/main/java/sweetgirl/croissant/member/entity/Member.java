@@ -121,6 +121,11 @@ public class Member {
 		this.memberType = "GUEST";
 	}
 
+	// 게스트로 쓰던 계정이 소셜 로그인으로 승격될 때. id를 유지하므로 코스/찜 소유권이 그대로 따라간다.
+	public void promoteToUser() {
+		this.memberType = "USER";
+	}
+
 	public boolean isDeleted() {
 		return this.deletedAt != null;
 	}

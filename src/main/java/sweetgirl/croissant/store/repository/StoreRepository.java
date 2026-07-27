@@ -154,6 +154,15 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 
 	// ─────────────────────────────────────────────────────────────────────────
 
+	// 카카오로 들어와 있던 가게에 네이버 장소만 이어 붙인다(이미 있으면 그대로 둔다).
+	@Modifying(flushAutomatically = true, clearAutomatically = true)
+	@Query(value = """
+			UPDATE store
+			SET naver_place_id = :naverPlaceId, updated_at = NOW()
+			WHERE id = :storeId AND naver_place_id IS NULL
+			""", nativeQuery = true)
+	void attachNaverPlaceId(@Param("storeId") Long storeId, @Param("naverPlaceId") String naverPlaceId);
+
 	@Modifying(flushAutomatically = true, clearAutomatically = true)
 	@Query(value = """
 			INSERT INTO store (
