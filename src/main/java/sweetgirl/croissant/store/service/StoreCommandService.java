@@ -10,7 +10,9 @@ import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.store.AddressParser;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.dto.request.KakaoStoreRegisterRequest;
+import sweetgirl.croissant.store.dto.request.NaverStoreRegisterRequest;
 import sweetgirl.croissant.store.dto.response.KakaoStoreRegisterResponse;
+import sweetgirl.croissant.store.dto.response.NaverStoreRegisterResponse;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.SubscribedStore;
 import sweetgirl.croissant.store.exception.StoreException;
@@ -57,6 +59,43 @@ public class StoreCommandService {
 		return new KakaoStoreRegisterResponse(storeId);
 	}
 
+	/**
+	 * 네이버 검색 결과에서 고른 가게를 바로 등록한다. 제보(승인 대기)와 달리 즉시 storeId를
+	 * 돌려주므로 사용자는 그 자리에서 코스에 담을 수 있다.
+	 * 이미 있는 가게면(같은 네이버 장소이거나 이름·주소가 같으면) 새로 만들지 않고 그것을 쓴다.
+	 */
+	public NaverStoreRegisterResponse registerNaverStore(NaverStoreRegisterRequest request) {
+		if (request.naverPlaceId() != null && !request.naverPlaceId().isBlank()) {
+			Optional<Store> byNaverPlaceId = storeRepository.findByNaverPlaceId(request.naverPlaceId());
+			if (byNaverPlaceId.isPresent()) {
+				return new NaverStoreRegisterResponse(byNaverPlaceId.get().getId());
+			}
+		}
+
+		Optional<Store> storeByIdentity = findActiveStoreBySameNameAndAddress(request.name(), request.address());
+		if (storeByIdentity.isPresent()) {
+			Store store = storeByIdentity.get();
+			// 카카오로 들어와 있던 가게라면 네이버 장소만 이어 붙인다(이미 있으면 건드리지 않음).
+			if (request.naverPlaceId() != null && !request.naverPlaceId().isBlank()) {
+				storeRepository.attachNaverPlaceId(store.getId(), request.naverPlaceId());
+			}
+			return new NaverStoreRegisterResponse(store.getId());
+		}
+
+		String[] addr = AddressParser.parse(request.address());
+		storeRepository.insertIfNotExistsByNaverPlaceId(
+			request.name(), request.address(),
+			addr[0], addr[1], addr[2],
+			request.longitude(), request.latitude(),
+			request.phone(), request.naverPlaceId(),
+			null);
+
+		Long storeId = storeRepository.findByNaverPlaceId(request.naverPlaceId())
+			.map(Store::getId)
+			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
+		return new NaverStoreRegisterResponse(storeId);
+	}
+
 	public void subscribeStore(Long storeId, Long memberId) {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
@@ -79,8 +118,12 @@ public class StoreCommandService {
 	}
 
 	private Optional<Store> findActiveStoreBySameNameAndAddress(KakaoStoreRegisterRequest request) {
-		String compactName = compactName(request.name());
-		String normalizedAddress = normalizeAddressForDuplicate(request.address());
+		return findActiveStoreBySameNameAndAddress(request.name(), request.address());
+	}
+
+	private Optional<Store> findActiveStoreBySameNameAndAddress(String name, String address) {
+		String compactName = compactName(name);
+		String normalizedAddress = normalizeAddressForDuplicate(address);
 		if (compactName.isBlank() || normalizedAddress.isBlank()) {
 			return Optional.empty();
 		}

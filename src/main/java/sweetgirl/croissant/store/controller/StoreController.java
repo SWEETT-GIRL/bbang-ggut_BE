@@ -21,7 +21,9 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.store.dto.request.KakaoStoreRegisterRequest;
+import sweetgirl.croissant.store.dto.request.NaverStoreRegisterRequest;
 import sweetgirl.croissant.store.dto.response.KakaoStoreRegisterResponse;
+import sweetgirl.croissant.store.dto.response.NaverStoreRegisterResponse;
 import sweetgirl.croissant.store.dto.response.NearbyStoreResponse;
 import sweetgirl.croissant.store.dto.response.StoreAutocompleteResponse;
 import sweetgirl.croissant.store.dto.response.StoreDetailResponse;
@@ -121,6 +123,13 @@ public class StoreController {
 	public ResponseEntity<ApiResponse<KakaoStoreRegisterResponse>> registerKakaoStore(
 			@RequestBody KakaoStoreRegisterRequest request) {
 		return ResponseEntity.ok(ApiResponse.ok(storeCommandService.registerKakaoStore(request)));
+	}
+
+	@Operation(summary = "네이버 검색 결과 빵집 등록", description = "승인 없이 바로 저장하고 storeId를 반환")
+	@PostMapping("/naver")
+	public ResponseEntity<ApiResponse<NaverStoreRegisterResponse>> registerNaverStore(
+			@RequestBody NaverStoreRegisterRequest request) {
+		return ResponseEntity.ok(ApiResponse.ok(storeCommandService.registerNaverStore(request)));
 	}
 
 	@Operation(summary = "빵집 구독 (빵알람 등록)", description = "빵집을 구독합니다. 이미 구독 중이면 409를 반환합니다.")
