@@ -117,8 +117,12 @@ public class Member {
 		this.nickname = nickname;
 	}
 
+	// 게스트는 약관 동의 절차를 거치지 않는다. 생성자가 기본으로 넣는 동의 표시를
+	// 지워 기록이 사실과 어긋나지 않게 한다(동의는 앱에서 받은 뒤 applyInitialConsent로 채운다).
 	public void markAsGuest() {
 		this.memberType = "GUEST";
+		this.agreeToTerms = false;
+		this.termsAgreedAt = null;
 	}
 
 	// 게스트로 쓰던 계정이 소셜 로그인으로 승격될 때. id를 유지하므로 코스/찜 소유권이 그대로 따라간다.
