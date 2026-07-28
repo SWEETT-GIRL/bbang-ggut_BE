@@ -21,6 +21,7 @@
 """
 
 import argparse
+import re
 import json
 from collections import defaultdict
 from pathlib import Path
@@ -56,14 +57,22 @@ def db_config() -> dict:
     }
 
 
+# 상수 선언 줄만 고른다. 파일에는 LEGACY.put("중구_전체", 서울_중구_전체); 처럼
+# 밑줄이 들어간 코드 줄도 있어서 "_ 포함" 조건만으로는 걸러지지 않는다.
+ENUM_CONSTANT = re.compile(r"^[가-힣A-Za-z0-9]+(?:_[가-힣A-Za-z0-9]+)+[,;]?$")
+
+
 def load_valid_enum_keys() -> set[str]:
-    """Region3rd enum에서 유효한 키 집합 반환. 예: {'마포구_공덕동', ...}"""
+    """Region3rd enum에서 유효한 키 집합 반환.
+
+    형식이 두 가지다 — 이름이 겹치는 구는 "시도_구_동"(서울_중구_명동), 나머지는
+    "구_동"(마포구_공덕동). 둘 다 그대로 담는다.
+    """
     valid = set()
     for line in ENUM_FILE.read_text(encoding="utf-8").splitlines():
-        line = line.strip().rstrip(",")
-        if "_" in line and not line.startswith("//") and not line.startswith("package") \
-                and not line.startswith("public"):
-            valid.add(line)
+        line = line.strip()
+        if ENUM_CONSTANT.match(line):
+            valid.add(line.rstrip(",;"))
     return valid
 
 
@@ -94,11 +103,14 @@ def main() -> None:
     tree: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
     skipped = 0
     for region1st, region2nd, region3rd in rows:
-        enum_key = f"{region2nd}_{region3rd}"
-        if enum_key not in valid_keys:
+        # 이름이 겹치는 구(중구 등)는 enum이 "시도_구_동", 나머지는 "구_동"이다.
+        # 시도 붙인 쪽을 먼저 보고 없으면 짧은 쪽을 본다 — Region3rd.of()와 같은 규칙.
+        if f"{region1st}_{region2nd}_{region3rd}" in valid_keys:
+            tree[region1st][region2nd].append(region3rd)
+        elif f"{region2nd}_{region3rd}" in valid_keys:
+            tree[region1st][region2nd].append(region3rd)
+        else:
             skipped += 1
-            continue
-        tree[region1st][region2nd].append(region3rd)
 
     print(f"enum 미매칭으로 제외: {skipped}건")
 
