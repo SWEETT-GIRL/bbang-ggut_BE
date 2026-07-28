@@ -62,7 +62,7 @@ public class StoreController {
 			.ok(ApiResponse.ok(storeQueryService.getSubscribedStores(memberId, PageRequest.of(page, size))));
 	}
 
-	@Operation(summary = "지역별 빵집 조회", description = "지역 키워드로 빵집 목록을 조회합니다. 거리순 정렬 시 현재 위치(lat, lng)가 필요합니다.")
+	@Operation(summary = "지역별 빵집 조회", description = "지역 키워드로 빵집 목록을 조회합니다. 거리순은 현재 위치(lat, lng)가 필요하고, 없으면 구독수순입니다.")
 	@GetMapping("/district")
 	public ResponseEntity<ApiResponse<SliceResponse<?>>> getStoresByDistrict(
 			@Parameter(description = "지역 키워드 (예: 연남, 강남구, 부산)") @RequestParam String keyword,
@@ -71,7 +71,10 @@ public class StoreController {
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "15") int size,
 			@RequestParam(defaultValue = "distance") String sort) {
-		if ("subscribe".equals(sort)) {
+		// 좌표가 없으면 거리순 자체가 성립하지 않는다. lat/lng는 선택 파라미터인데
+		// 거리순 서비스는 primitive double을 받아, 그대로 넘기면 언박싱 NPE로 500이 난다.
+		// (위치 권한을 거부했거나 GPS를 아직 못 받은 클라이언트가 이 경로로 들어온다.)
+		if ("subscribe".equals(sort) || lat == null || lng == null) {
 			return ResponseEntity.ok(ApiResponse.ok(
 				storeQueryService.getStoresByDistrictOrderBySubscribe(keyword, PageRequest.of(page, size))));
 		}
