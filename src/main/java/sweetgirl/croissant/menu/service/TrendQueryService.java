@@ -63,10 +63,9 @@ public class TrendQueryService {
 
 	// lat/lng는 선택 — 있으면 각 빵집까지의 거리를 응답에 포함한다
 	public RegionTrendResponse getTrendByRegion(String region, Double latitude, Double longitude) {
-		Region3rd region3rd;
-		try {
-			region3rd = Region3rd.valueOf(region);
-		} catch (IllegalArgumentException e) {
+		// 구버전 앱은 시도 없는 옛 이름("중구_전체")을 보낸다 — fromRequest가 흡수한다.
+		Region3rd region3rd = Region3rd.fromRequest(region);
+		if (region3rd == null) {
 			throw new MenuException(MenuErrorCode.INVALID_REGION);
 		}
 		return buildTrendResponse(region3rd, latitude, longitude);
@@ -136,7 +135,8 @@ public class TrendQueryService {
 					.toList()))
 			.toList();
 
-		String rawName = region3rd.name().split("_")[1];
+		// 형식이 "구_동"과 "시도_구_동" 두 가지라 인덱스로 자르면 안 된다.
+		String rawName = region3rd.leafName();
 		String name = DONG_SUFFIXES.stream()
 			.filter(rawName::endsWith)
 			.findFirst()
@@ -253,6 +253,7 @@ public class TrendQueryService {
 	}
 
 	private Region3rd resolveRegion3rd(double latitude, double longitude) {
+		String region1st = null;
 		String region2nd = null;
 
 		try {
@@ -265,6 +266,7 @@ public class TrendQueryService {
 				if (addrDoc.address() != null) {
 					String[] parts = addrDoc.address().addressName().split(" ");
 					if (parts.length >= 2) {
+						region1st = parts[0];
 						region2nd = parts[1];
 					}
 				}
@@ -281,12 +283,12 @@ public class TrendQueryService {
 						.orElse(null);
 
 					if (region3rd != null) {
-						String enumKey = region2nd.trim() + "_" + region3rd.trim();
-						try {
-							return Region3rd.valueOf(enumKey);
-						} catch (IllegalArgumentException ignored) {
-							// 이 타입으로 enum 매핑 실패 → 다음 타입 시도
+						// 이름이 겹치는 구(중구 등)는 시도까지 있어야 가려진다.
+						Region3rd matched = Region3rd.of(region1st, region2nd, region3rd);
+						if (matched != null) {
+							return matched;
 						}
+						// 이 타입으로 매핑 실패 → 다음 타입 시도
 					}
 				}
 			}
@@ -297,10 +299,13 @@ public class TrendQueryService {
 		// 최종 Fallback: 가장 가까운 빵집의 동으로 매핑
 		List<Object[]> nearest = storeRepository.findNearestRegion(longitude, latitude);
 		if (nearest != null && !nearest.isEmpty()) {
-			try {
-				return Region3rd.valueOf(nearest.get(0)[0] + "_" + nearest.get(0)[1]);
-			} catch (IllegalArgumentException ignored) {
-				// ignored
+			Object[] row = nearest.get(0);
+			Region3rd matched = Region3rd.of(
+				row[0] == null ? null : row[0].toString(),
+				row[1] == null ? null : row[1].toString(),
+				row[2] == null ? null : row[2].toString());
+			if (matched != null) {
+				return matched;
 			}
 		}
 
