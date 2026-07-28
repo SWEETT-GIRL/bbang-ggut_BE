@@ -469,7 +469,7 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 	Page<Store> findNaverThrottled(@Param("throttleAliveSince") Instant throttleAliveSince, Pageable pageable);
 
 	@Query(value = """
-				SELECT s.region_2nd, s.region_3rd,
+				SELECT s.region_1st, s.region_2nd, s.region_3rd,
 					ST_Distance(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS distance_meters
 				FROM store s
 				WHERE s.region_3rd IS NOT NULL
