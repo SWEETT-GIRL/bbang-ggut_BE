@@ -83,6 +83,9 @@ public class KakaoAuthService {
 		}
 		boolean isNew = !existsOAuth || isDeletedMember;
 
+		// 승격으로 흡수되지 않은 게스트(재로그인·탈퇴 후 재가입)가 있으면 데이터만 옮겨 붙인다.
+		guestPromotionService.mergeGuestDataInto(activeMember, deviceId);
+
 		notificationSettingRepository.findByMemberId(activeMember.getId())
 			.orElseGet(() -> createDefaultNotificationSetting(activeMember));
 
