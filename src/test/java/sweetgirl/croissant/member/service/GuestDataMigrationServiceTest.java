@@ -1,0 +1,106 @@
+package sweetgirl.croissant.member.service;
+
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.BDDMockito.*;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import sweetgirl.croissant.course.repository.CourseRepository;
+import sweetgirl.croissant.course.repository.SavedCourseRepository;
+import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.repository.LikedMenuCategoryRepository;
+import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.repository.RefreshTokenRepository;
+import sweetgirl.croissant.menu.repository.MenuLikeRepository;
+import sweetgirl.croissant.review.repository.ReviewRepository;
+import sweetgirl.croissant.store.repository.SavedStoreRepository;
+import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
+
+@ExtendWith(MockitoExtension.class)
+class GuestDataMigrationServiceTest {
+
+	@Mock
+	private CourseRepository courseRepository;
+	@Mock
+	private SavedCourseRepository savedCourseRepository;
+	@Mock
+	private SavedStoreRepository savedStoreRepository;
+	@Mock
+	private SubscribedStoreRepository subscribedStoreRepository;
+	@Mock
+	private MenuLikeRepository menuLikeRepository;
+	@Mock
+	private LikedMenuCategoryRepository likedMenuCategoryRepository;
+	@Mock
+	private ReviewRepository reviewRepository;
+	@Mock
+	private MemberRepository memberRepository;
+	@Mock
+	private RefreshTokenRepository refreshTokenRepository;
+
+	@InjectMocks
+	private GuestDataMigrationService guestDataMigrationService;
+
+	private static final Long GUEST_ID = 10L;
+	private static final Long TARGET_ID = 20L;
+
+	// 게스트가 만든 것들이 전부 회원에게 넘어가야 한다 — 유니크 걸린 건 중복 제거가 선행되어야 한다
+	@Test
+	void movesEveryGuestOwnedRow_andRemovesDuplicatesFirst() {
+		Member guest = mock(Member.class);
+		given(courseRepository.moveOwner(GUEST_ID, TARGET_ID)).willReturn(3);
+		given(memberRepository.getReferenceById(GUEST_ID)).willReturn(guest);
+		given(refreshTokenRepository.findAllByMember(guest)).willReturn(List.of());
+		given(memberRepository.findById(GUEST_ID)).willReturn(Optional.of(guest));
+
+		int moved = guestDataMigrationService.migrate(GUEST_ID, TARGET_ID);
+
+		assertThat(moved).isEqualTo(3);
+
+		var order = inOrder(savedCourseRepository, savedStoreRepository, subscribedStoreRepository,
+			menuLikeRepository, likedMenuCategoryRepository);
+		order.verify(savedCourseRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
+		order.verify(savedCourseRepository).moveOwner(GUEST_ID, TARGET_ID);
+		order.verify(savedStoreRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
+		order.verify(savedStoreRepository).moveOwner(GUEST_ID, TARGET_ID);
+		order.verify(subscribedStoreRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
+		order.verify(subscribedStoreRepository).moveOwner(GUEST_ID, TARGET_ID);
+		order.verify(menuLikeRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
+		order.verify(menuLikeRepository).moveOwner(GUEST_ID, TARGET_ID);
+		order.verify(likedMenuCategoryRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
+		order.verify(likedMenuCategoryRepository).moveOwner(GUEST_ID, TARGET_ID);
+
+		then(reviewRepository).should().moveOwner(GUEST_ID, TARGET_ID);
+	}
+
+	// 빈 껍데기 게스트가 남아 다음 로그인에서 다시 이관 대상이 되면 안 된다
+	@Test
+	void closesGuestAccount_afterMigration() {
+		Member guest = mock(Member.class);
+		given(memberRepository.getReferenceById(GUEST_ID)).willReturn(guest);
+		given(refreshTokenRepository.findAllByMember(guest)).willReturn(List.of());
+		given(memberRepository.findById(GUEST_ID)).willReturn(Optional.of(guest));
+
+		guestDataMigrationService.migrate(GUEST_ID, TARGET_ID);
+
+		then(guest).should().softDelete();
+	}
+
+	// 승격으로 이미 같은 계정이 된 경우 — 자기 자신에게 옮기면 데이터가 지워질 수 있어 반드시 막아야 한다
+	@Test
+	void doesNothing_whenGuestAndTargetAreSame() {
+		int moved = guestDataMigrationService.migrate(GUEST_ID, GUEST_ID);
+
+		assertThat(moved).isZero();
+		then(courseRepository).shouldHaveNoInteractions();
+		then(savedStoreRepository).shouldHaveNoInteractions();
+		then(memberRepository).shouldHaveNoInteractions();
+	}
+}

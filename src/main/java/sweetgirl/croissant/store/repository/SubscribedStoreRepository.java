@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -70,4 +71,15 @@ public interface SubscribedStoreRepository extends JpaRepository<SubscribedStore
 			@Param("lat") double lat,
 			@Param("lng") double lng,
 			@Param("radius") double radius);
+
+	// ── 게스트 → 회원 데이터 이관 ─────────────────────────────
+	@Modifying(clearAutomatically = true)
+	@Query("DELETE FROM SubscribedStore s WHERE s.member.id = :guestId AND EXISTS "
+		+ "(SELECT 1 FROM SubscribedStore t WHERE t.member.id = :targetId AND t.store.id = s.store.id)")
+	int deleteGuestDuplicates(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
+
+	@Modifying(clearAutomatically = true)
+	@Query("UPDATE SubscribedStore s SET s.member.id = :targetId WHERE s.member.id = :guestId")
+	int moveOwner(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
+
 }

@@ -26,6 +26,8 @@ class GuestPromotionServiceTest {
 	private MemberRepository memberRepository;
 	@Mock
 	private NicknameGenerator nicknameGenerator;
+	@Mock
+	private GuestDataMigrationService guestDataMigrationService;
 
 	@InjectMocks
 	private GuestPromotionService guestPromotionService;
@@ -73,5 +75,47 @@ class GuestPromotionServiceTest {
 
 		assertThat(resolved).isSameAs(created);
 		then(refreshTokenRepository).shouldHaveNoInteractions();
+	}
+
+	// 이미 회원인 사람이 게스트로 쓰다 로그인하면 승격이 불가능하다 — 데이터만 옮겨 붙여야 한다
+	@Test
+	void migratesGuestData_whenLoggedInMemberDiffersFromGuest() {
+		Member guest = mock(Member.class);
+		given(guest.getId()).willReturn(10L);
+		RefreshToken guestToken = mock(RefreshToken.class);
+		given(guestToken.getMember()).willReturn(guest);
+		given(refreshTokenRepository.findGuestTokensByDeviceId(DEVICE_ID)).willReturn(List.of(guestToken));
+
+		Member loggedIn = mock(Member.class);
+		given(loggedIn.getId()).willReturn(20L);
+
+		guestPromotionService.mergeGuestDataInto(loggedIn, DEVICE_ID);
+
+		then(guestDataMigrationService).should().migrate(10L, 20L);
+	}
+
+	// 승격으로 게스트가 곧 로그인 계정이 된 경우엔 옮길 대상이 없다
+	@Test
+	void doesNotMigrate_whenGuestIsAlreadyTheLoggedInMember() {
+		Member same = mock(Member.class);
+		given(same.getId()).willReturn(10L);
+		RefreshToken guestToken = mock(RefreshToken.class);
+		given(guestToken.getMember()).willReturn(same);
+		given(refreshTokenRepository.findGuestTokensByDeviceId(DEVICE_ID)).willReturn(List.of(guestToken));
+
+		guestPromotionService.mergeGuestDataInto(same, DEVICE_ID);
+
+		then(guestDataMigrationService).shouldHaveNoInteractions();
+	}
+
+	// 게스트 이력이 없으면(첫 설치에 바로 로그인) 조회만 하고 끝난다
+	@Test
+	void doesNotMigrate_whenNoGuestSessionForDevice() {
+		given(refreshTokenRepository.findGuestTokensByDeviceId(DEVICE_ID)).willReturn(List.of());
+		Member loggedIn = mock(Member.class);
+
+		guestPromotionService.mergeGuestDataInto(loggedIn, DEVICE_ID);
+
+		then(guestDataMigrationService).shouldHaveNoInteractions();
 	}
 }

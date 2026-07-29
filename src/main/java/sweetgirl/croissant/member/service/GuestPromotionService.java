@@ -27,6 +27,7 @@ public class GuestPromotionService {
 	private final RefreshTokenRepository refreshTokenRepository;
 	private final MemberRepository memberRepository;
 	private final NicknameGenerator nicknameGenerator;
+	private final GuestDataMigrationService guestDataMigrationService;
 
 	@Transactional
 	public Member resolveMemberForNewOAuth(String deviceId) {
@@ -37,6 +38,18 @@ public class GuestPromotionService {
 			})
 			.orElseGet(() -> memberRepository.save(
 				Member.builder().nickname(nicknameGenerator.generate()).build()));
+	}
+
+	/**
+	 * 승격이 불가능한 로그인(이미 이 소셜로 가입한 계정 / 탈퇴 후 재가입으로 새로 만든 계정)에서,
+	 * 같은 기기의 게스트가 쌓아둔 데이터를 로그인한 회원에게 옮긴다.
+	 * 승격으로 이미 같은 Member가 된 경우엔 게스트 조회 자체가 비므로 아무 일도 하지 않는다.
+	 */
+	@Transactional
+	public void mergeGuestDataInto(Member target, String deviceId) {
+		findReusableGuest(deviceId)
+			.filter(guest -> !guest.getId().equals(target.getId()))
+			.ifPresent(guest -> guestDataMigrationService.migrate(guest.getId(), target.getId()));
 	}
 
 	// memberType='GUEST' + 미탈퇴 조건은 findGuestTokensByDeviceId 쿼리가 이미 걸고 있다.

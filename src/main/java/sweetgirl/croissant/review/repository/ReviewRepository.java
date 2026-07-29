@@ -226,4 +226,11 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 			GROUP BY r.member.id
 			""")
 	List<ReviewAuthorAggregateProjection> findAuthorAggregatesByMemberIds(@Param("memberIds") Set<Long> memberIds);
+
+	// ── 게스트 → 회원 데이터 이관 ─────────────────────────────
+	// 리뷰는 유니크 제약이 없어 그대로 주인만 바꾼다.
+	@Modifying(clearAutomatically = true)
+	@Query("UPDATE Review r SET r.member.id = :targetId WHERE r.member.id = :guestId")
+	int moveOwner(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
+
 }
