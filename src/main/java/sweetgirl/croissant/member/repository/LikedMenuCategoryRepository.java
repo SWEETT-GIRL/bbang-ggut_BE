@@ -21,4 +21,16 @@ public interface LikedMenuCategoryRepository extends JpaRepository<LikedMenuCate
 	@Modifying
 	@Query("DELETE FROM LikedMenuCategory lm WHERE lm.member.id = :memberId")
 	void deleteByMemberId(@Param("memberId") Long memberId);
+
+	// ── 게스트 → 회원 데이터 이관 ─────────────────────────────
+	@Modifying(clearAutomatically = true)
+	@Query("DELETE FROM LikedMenuCategory l WHERE l.member.id = :guestId AND EXISTS "
+		+ "(SELECT 1 FROM LikedMenuCategory t WHERE t.member.id = :targetId "
+		+ "AND t.menuCategory.id = l.menuCategory.id)")
+	int deleteGuestDuplicates(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
+
+	@Modifying(clearAutomatically = true)
+	@Query("UPDATE LikedMenuCategory l SET l.member.id = :targetId WHERE l.member.id = :guestId")
+	int moveOwner(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
+
 }
