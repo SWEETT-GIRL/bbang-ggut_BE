@@ -24,6 +24,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
+import io.micrometer.core.annotation.Timed;
 import jakarta.json.stream.JsonGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +45,8 @@ import sweetgirl.croissant.store.service.search.SearchSort;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+// 빵집 검색/자동완성의 핵심 경로. 검색 API 지연의 원인이 OpenSearch인지 구분하기 위해 계측한다.
+@Timed(value = "opensearch.query", histogram = true)
 public class OpenSearchStoreClient {
 
 	private static final int AUTOCOMPLETE_FETCH_MULTIPLIER = 3;
