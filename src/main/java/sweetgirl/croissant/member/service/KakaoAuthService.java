@@ -11,6 +11,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import lombok.RequiredArgsConstructor;
@@ -101,11 +102,19 @@ public class KakaoAuthService {
 	private KakaoUserInfo fetchUserInfo(String kakaoAccessToken) {
 		HttpHeaders headers = new HttpHeaders();
 		headers.setBearerAuth(kakaoAccessToken);
-		Map<String, Object> body = restTemplate.exchange(
-			"https://kapi.kakao.com/v2/user/me",
-			HttpMethod.GET,
-			new HttpEntity<>(headers),
-			Map.class).getBody();
+		Map<String, Object> body;
+		try {
+			body = restTemplate.exchange(
+				"https://kapi.kakao.com/v2/user/me",
+				HttpMethod.GET,
+				new HttpEntity<>(headers),
+				Map.class).getBody();
+		} catch (HttpClientErrorException ex) {
+			throw new MemberException(MemberErrorCode.SOCIAL_TOKEN_INVALID);
+		}
+		if (body == null || body.get("id") == null) {
+			throw new MemberException(MemberErrorCode.SOCIAL_TOKEN_INVALID);
+		}
 
 		String providerId = String.valueOf(body.get("id"));
 		String email = null;
