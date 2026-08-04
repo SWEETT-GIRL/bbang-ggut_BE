@@ -16,7 +16,8 @@ public record CourseSummaryResponse(
 		CourseType courseType,
 		String authorName,
 		String badge,
-		long savedCount) {
+		long savedCount,
+		Integer pinOrder) {
 
 	public static CourseSummaryResponse of(
 			Course course,
@@ -35,6 +36,7 @@ public record CourseSummaryResponse(
 			course.getType(),
 			authorName,
 			course.getBadge(),
-			savedCount);
+			savedCount,
+			course.getPinOrder());
 	}
 }

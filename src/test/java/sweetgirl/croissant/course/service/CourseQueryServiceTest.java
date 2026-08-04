@@ -75,17 +75,22 @@ class CourseQueryServiceTest {
 	void getCurationCourses_sortsByPinThenSavedCount() {
 		Course lessSaved = mockCourse(1L, "찜 적은 코스", true, CourseType.CUSTOM, 10L);
 		Course mostSaved = mockCourse(2L, "찜 많은 코스", true, CourseType.CUSTOM, 20L);
-		Course pinned = mockCourse(3L, "핀 코스", true, CourseType.CURATED, null);
-		given(pinned.getPinOrder()).willReturn(1);
+		Course pinnedThird = mockCourse(3L, "세 번째 핀 코스", true, CourseType.CURATED, null);
+		Course pinnedFirst = mockCourse(4L, "첫 번째 핀 코스", true, CourseType.CURATED, null);
+		Course pinnedSecond = mockCourse(5L, "두 번째 핀 코스", true, CourseType.CURATED, null);
+		given(pinnedThird.getPinOrder()).willReturn(3);
+		given(pinnedFirst.getPinOrder()).willReturn(1);
+		given(pinnedSecond.getPinOrder()).willReturn(2);
 
 		given(courseRepository.findAllByIsPublicTrueAndDeletedAtIsNull())
-			.willReturn(List.of(lessSaved, mostSaved, pinned));
-		given(savedCourseRepository.countGroupedByCourseIdIn(List.of(1L, 2L, 3L)))
+			.willReturn(List.of(lessSaved, pinnedThird, mostSaved, pinnedFirst, pinnedSecond));
+		given(savedCourseRepository.countGroupedByCourseIdIn(List.of(1L, 3L, 2L, 4L, 5L)))
 			.willReturn(List.of(new Object[] {1L, 1L}, new Object[] {2L, 5L}));
 
 		List<CourseSummaryResponse> result = courseQueryService.getCurationCourses();
 
-		assertThat(result).extracting(CourseSummaryResponse::id).containsExactly(3L, 2L, 1L);
+		assertThat(result).extracting(CourseSummaryResponse::id).containsExactly(4L, 5L, 3L, 2L, 1L);
+		assertThat(result).extracting(CourseSummaryResponse::pinOrder).containsExactly(1, 2, 3, null, null);
 	}
 
 	// ───────────────────────── getMyCourses ─────────────────────────
