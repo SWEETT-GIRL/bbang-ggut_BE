@@ -312,6 +312,7 @@ class CourseCommandServiceTest {
 		given(courseStore2.getCourse()).willReturn(course);
 
 		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
 		given(courseStoreRepository.findAllById(List.of(courseStoreId1, courseStoreId2)))
 			.willReturn(List.of(courseStore1, courseStore2));
 
@@ -323,6 +324,25 @@ class CourseCommandServiceTest {
 		then(courseStore2).should().updateOrder(-2);
 		then(courseStore2).should().updateOrder(2);
 		then(courseStoreRepository).should().flush();
+	}
+
+	@Test
+	@DisplayName("reorderStores: 중복된 가게 ID가 있으면 COURSE_STORE_ORDER_INVALID를 던진다")
+	void reorderStores_duplicateCourseStore_throwsInvalidOrder() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		CourseStoreReorderRequest.CourseStoreOrderItem item = mock(
+			CourseStoreReorderRequest.CourseStoreOrderItem.class);
+		given(item.getCourseStoreId()).willReturn(1L);
+		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
+		given(request.getCourseStoreOrders()).willReturn(List.of(item, item));
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
+
+		assertThatThrownBy(() -> courseCommandService.reorderStores(memberId, courseId, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_STORE_ORDER_INVALID.getMessage());
 	}
 
 	@Test
@@ -346,6 +366,7 @@ class CourseCommandServiceTest {
 		given(otherCourseStore.getCourse()).willReturn(otherCourse);
 
 		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(1L);
 		given(courseStoreRepository.findAllById(List.of(otherCourseStoreId)))
 			.willReturn(List.of(otherCourseStore));
 
