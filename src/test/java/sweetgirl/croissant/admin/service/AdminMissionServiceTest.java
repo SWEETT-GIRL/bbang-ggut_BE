@@ -71,4 +71,17 @@ class AdminMissionServiceTest {
 
 		assertThat(mission.getBadgeCode()).isNull();
 	}
+
+	@Test
+	void update_rejectsThresholdOnStarterAll() {
+		Mission mission = Mission.create(
+			"starter-all", "시작 완료", ConditionType.STARTER_ALL, null,
+			"daedongbbangmap://bbanglog", null, 1);
+		given(missionRepository.findById(1L)).willReturn(Optional.of(mission));
+
+		assertThatThrownBy(() -> adminMissionService.update(1L, new AdminMissionUpdateRequest(
+			null, null, 1, null, null, null, null)))
+			.isInstanceOf(MissionException.class)
+			.hasMessage("미션 조건과 threshold가 올바르지 않습니다.");
+	}
 }

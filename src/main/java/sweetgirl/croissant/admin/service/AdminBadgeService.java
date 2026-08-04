@@ -71,6 +71,9 @@ public class AdminBadgeService {
 			ConditionType conditionType,
 			AdminBadgeUpdateRequest request) {
 		if (conditionType == ConditionType.STARTER_ALL) {
+			if (request.threshold() != null) {
+				throw new BadgeException(BadgeErrorCode.INVALID_BADGE_CONDITION);
+			}
 			return null;
 		}
 		return request.threshold() == null ? badge.getThreshold() : request.threshold();

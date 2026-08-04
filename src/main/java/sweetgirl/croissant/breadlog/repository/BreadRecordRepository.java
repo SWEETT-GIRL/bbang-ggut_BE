@@ -30,7 +30,7 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 				AND deleted_at IS NULL
 				GROUP BY CASE
 					WHEN store_id IS NOT NULL THEN 'id:' || CAST(store_id AS VARCHAR)
-					ELSE 'name:' || LOWER(REGEXP_REPLACE(store_name, '[[:space:]]+', '', 'g'))
+					ELSE 'name:' || store_name
 				END
 			) store_visits
 			""", nativeQuery = true)

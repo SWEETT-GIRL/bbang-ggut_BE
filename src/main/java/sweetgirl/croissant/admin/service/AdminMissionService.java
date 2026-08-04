@@ -77,6 +77,9 @@ public class AdminMissionService {
 			ConditionType conditionType,
 			AdminMissionUpdateRequest request) {
 		if (conditionType == ConditionType.STARTER_ALL) {
+			if (request.threshold() != null) {
+				throw new MissionException(MissionErrorCode.INVALID_MISSION_CONDITION);
+			}
 			return null;
 		}
 		return request.threshold() == null ? mission.getThreshold() : request.threshold();

@@ -60,7 +60,10 @@ class MemberConditionEvaluatorTest {
 
 	@Test
 	void countConditions_shareTheSameSnapshot() {
-		assertThat(evaluator.evaluate(ConditionType.RECORD_COUNT, 10, snapshot).done()).isTrue();
+		ConditionProgress recordProgress = evaluator.evaluate(ConditionType.RECORD_COUNT, 10, snapshot);
+
+		assertThat(recordProgress.current()).isEqualTo(12);
+		assertThat(recordProgress.done()).isTrue();
 		assertThat(evaluator.evaluate(ConditionType.TOUR_FINISH_COUNT, 5, snapshot).done()).isFalse();
 		assertThat(evaluator.evaluate(ConditionType.STORE_REVISIT, 3, snapshot).done()).isTrue();
 	}

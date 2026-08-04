@@ -47,7 +47,7 @@ public class MemberConditionEvaluator {
 			case TOUR_FINISH_COUNT -> snapshot.tourFinishCount();
 			case STORE_REVISIT -> snapshot.maxStoreVisitCount();
 		};
-		return new ConditionProgress(Math.min(current, target), target);
+		return new ConditionProgress(current, target);
 	}
 
 	private long starterProgress(MemberConditionSnapshot snapshot) {

@@ -68,6 +68,17 @@ class AdminBadgeServiceTest {
 	}
 
 	@Test
+	void update_rejectsThresholdOnStarterAll() {
+		Badge badge = Badge.create("welcome", null, "웰컴", "시작하기", ConditionType.STARTER_ALL, null, 1);
+		given(badgeRepository.findById(1L)).willReturn(Optional.of(badge));
+
+		assertThatThrownBy(() -> adminBadgeService.update(1L, new AdminBadgeUpdateRequest(
+			null, null, null, null, 1, null, null)))
+			.isInstanceOf(BadgeException.class)
+			.hasMessage("뱃지 조건과 threshold가 올바르지 않습니다.");
+	}
+
+	@Test
 	void deactivate_preservesCatalogRow() {
 		Badge badge = Badge.create("regular", null, "단골", "세 번 방문", ConditionType.STORE_REVISIT, 3, 1);
 		given(badgeRepository.findById(1L)).willReturn(Optional.of(badge));
