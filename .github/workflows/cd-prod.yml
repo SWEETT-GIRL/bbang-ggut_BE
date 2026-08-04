@@ -190,7 +190,7 @@ jobs:
           script: |
             echo "⏳ server1 헬스체크 시작..."
             for i in $(seq 1 12); do
-              if curl -sf http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
+              if curl -sf http://localhost:8081/actuator/health | grep -q '"status":"UP"'; then
                 echo "✅ server1 정상 기동 확인"
                 exit 0
               fi
@@ -271,7 +271,7 @@ jobs:
           script: |
             echo "⏳ server2 헬스체크 시작..."
             for i in $(seq 1 12); do
-              if curl -sf http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
+              if curl -sf http://localhost:8081/actuator/health | grep -q '"status":"UP"'; then
                 echo "✅ server2 정상 기동 확인"
                 exit 0
               fi

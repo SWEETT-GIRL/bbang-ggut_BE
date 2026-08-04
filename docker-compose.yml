@@ -31,7 +31,11 @@ services:
       OPENSEARCH_DEBUG_LOGGING: ${OPENSEARCH_DEBUG_LOGGING:-INFO}
       PERF_DASHBOARD_ENABLED: ${PERF_DASHBOARD_ENABLED:-false}
       PERF_DASHBOARD_ACCESS_KEY: ${PERF_DASHBOARD_ACCESS_KEY:-}
+      MANAGEMENT_PORT: ${MANAGEMENT_PORT:-8081}
 
     ports:
       - "8080:8080"
       - "6100:6100"
+      # actuator 관리 포트 — 같은 VPC의 Prometheus 스크랩 전용.
+      # 인증이 없으므로 반드시 보안그룹 인바운드를 Prometheus 인스턴스 SG로 제한한다.
+      - "${MANAGEMENT_PORT:-8081}:${MANAGEMENT_PORT:-8081}"
