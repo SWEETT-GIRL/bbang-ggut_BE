@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -16,6 +17,10 @@ import sweetgirl.croissant.breadlog.entity.BreadRecord;
 public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long>, JpaSpecificationExecutor<BreadRecord> {
 
 	Optional<BreadRecord> findByIdAndDeletedAtIsNull(Long id);
+
+	@Modifying(clearAutomatically = true)
+	@Query("UPDATE BreadRecord record SET record.member.id = :targetId WHERE record.member.id = :guestId")
+	int moveOwner(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
 
 	@Query(value = """
 			SELECT

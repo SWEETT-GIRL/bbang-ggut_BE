@@ -89,4 +89,8 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
 	List<Menu> findActiveByStoreId(@Param("storeId") Long storeId);
 
 	Optional<Menu> findByStoreIdAndNormalizedNameAndDeletedAtIsNull(Long storeId, String normalizedName);
+
+	@Modifying(clearAutomatically = true)
+	@Query("UPDATE Menu menu SET menu.createdByMember.id = :targetId WHERE menu.createdByMember.id = :guestId")
+	int moveCreator(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
 }

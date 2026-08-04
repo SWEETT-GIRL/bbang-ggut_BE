@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -74,4 +75,41 @@ public interface CourseProgressRepository extends JpaRepository<CourseProgress, 
 	List<Object[]> countCompletedGroupedByCourseIdIn(@Param("courseIds") Collection<Long> courseIds);
 
 	long countByCourseIdAndCompletedAtIsNotNull(Long courseId);
+
+	@Modifying(clearAutomatically = true)
+	@Query(value = """
+			UPDATE course_progress target
+			SET started_at = LEAST(target.started_at, guest.started_at),
+				completed_at = CASE
+					WHEN target.completed_at IS NULL THEN guest.completed_at
+					WHEN guest.completed_at IS NULL THEN target.completed_at
+					ELSE LEAST(target.completed_at, guest.completed_at)
+				END,
+				stopped_at = CASE
+					WHEN target.stopped_at IS NULL OR guest.stopped_at IS NULL THEN NULL
+					ELSE GREATEST(target.stopped_at, guest.stopped_at)
+				END,
+				updated_at = CURRENT_TIMESTAMP
+			FROM course_progress guest
+			WHERE target.member_id = :targetId
+			AND guest.member_id = :guestId
+			AND target.course_id = guest.course_id
+			""", nativeQuery = true)
+	int mergeGuestDuplicates(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
+
+	@Modifying(clearAutomatically = true)
+	@Query(value = """
+			DELETE FROM course_progress guest
+			WHERE guest.member_id = :guestId
+			AND EXISTS (
+				SELECT 1 FROM course_progress target
+				WHERE target.member_id = :targetId
+				AND target.course_id = guest.course_id
+			)
+			""", nativeQuery = true)
+	int deleteGuestDuplicates(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
+
+	@Modifying(clearAutomatically = true)
+	@Query(value = "UPDATE course_progress SET member_id = :targetId WHERE member_id = :guestId", nativeQuery = true)
+	int moveOwner(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
 }
