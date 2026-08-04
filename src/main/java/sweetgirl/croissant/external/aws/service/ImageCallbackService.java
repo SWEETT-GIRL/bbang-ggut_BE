@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.breadlog.repository.BreadRecordPhotoRepository;
 import sweetgirl.croissant.common.entity.ImageFile;
 import sweetgirl.croissant.common.enums.ImageStatus;
 import sweetgirl.croissant.contribution.repository.MenuContributionReportImageFileRepository;
@@ -31,6 +32,7 @@ public class ImageCallbackService {
 	private final MenuContributionReportImageFileRepository menuContributionReportImageFileRepository;
 	private final ReviewImageFileRepository reviewImageFileRepository;
 	private final CourseImageFileRepository courseImageFileRepository;
+	private final BreadRecordPhotoRepository breadRecordPhotoRepository;
 	private final ImageProcessingCallbackService imageProcessingCallbackService;
 
 	@Transactional
@@ -75,6 +77,10 @@ public class ImageCallbackService {
 		}
 		if (awsKey.startsWith(S3Folder.COURSES.prefix())) {
 			return courseImageFileRepository.findByAwsKey(awsKey)
+				.map(ImageFile.class::cast);
+		}
+		if (awsKey.startsWith(S3Folder.BREAD_RECORDS.prefix())) {
+			return breadRecordPhotoRepository.findByAwsKey(awsKey)
 				.map(ImageFile.class::cast);
 		}
 		if (awsKey.startsWith(S3Folder.MENU_ADD_REPORTS.prefix())) {
