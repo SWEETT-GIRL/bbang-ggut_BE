@@ -19,6 +19,8 @@ public interface CourseStoreRepository extends JpaRepository<CourseStore, Long> 
 
 	boolean existsByCourseIdAndStoreIdAndDeletedAtIsNull(Long courseId, Long storeId);
 
+	long countByCourseIdAndDeletedAtIsNull(Long courseId);
+
 	@Query("SELECT COALESCE(MAX(cs.visitOrder), 0) FROM CourseStore cs"
 		+ " WHERE cs.course.id = :courseId AND cs.deletedAt IS NULL")
 	int findMaxVisitOrderByCourseId(@Param("courseId") Long courseId);

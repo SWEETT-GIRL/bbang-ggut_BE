@@ -279,6 +279,7 @@ class AdminCourseCommandServiceTest {
 		given(cs1.getCourse()).willReturn(course);
 		given(cs2.getId()).willReturn(20L);
 		given(cs2.getCourse()).willReturn(course);
+		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(1L)).willReturn(2L);
 		given(courseStoreRepository.findAllById(List.of(10L, 20L))).willReturn(List.of(cs1, cs2));
 
 		CourseStoreReorderRequest.CourseStoreOrderItem item1 = mock(
@@ -302,6 +303,23 @@ class AdminCourseCommandServiceTest {
 	}
 
 	@Test
+	@DisplayName("reorderStores: 일부 가게만 전달하면 COURSE_STORE_ORDER_INVALID를 던진다")
+	void reorderStores_incompleteCourseStores_throwsInvalidOrder() {
+		Course course = mock(Course.class);
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+		CourseStoreReorderRequest.CourseStoreOrderItem item = mock(
+			CourseStoreReorderRequest.CourseStoreOrderItem.class);
+		given(item.getCourseStoreId()).willReturn(10L);
+		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
+		given(request.getCourseStoreOrders()).willReturn(List.of(item));
+		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(1L)).willReturn(2L);
+
+		assertThatThrownBy(() -> adminCourseCommandService.reorderStores(1L, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_STORE_ORDER_INVALID.getMessage());
+	}
+
+	@Test
 	@DisplayName("reorderStores: 다른 코스의 가게가 섞여 있으면 COURSE_STORE_NOT_FOUND를 던진다")
 	void reorderStores_otherCourseStore_throwsNotFound() {
 		Course course = mock(Course.class);
@@ -312,6 +330,7 @@ class AdminCourseCommandServiceTest {
 		CourseStore otherCourseStore = mock(CourseStore.class);
 		given(otherCourseStore.getId()).willReturn(77L);
 		given(otherCourseStore.getCourse()).willReturn(otherCourse);
+		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(1L)).willReturn(1L);
 		given(courseStoreRepository.findAllById(List.of(77L))).willReturn(List.of(otherCourseStore));
 
 		CourseStoreReorderRequest.CourseStoreOrderItem item = mock(

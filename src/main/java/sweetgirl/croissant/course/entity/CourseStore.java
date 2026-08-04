@@ -12,7 +12,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -21,10 +20,7 @@ import sweetgirl.croissant.common.entity.BaseTimeEntity;
 import sweetgirl.croissant.store.entity.Store;
 
 @Entity
-@Table(name = "course_stores", uniqueConstraints = {
-	@UniqueConstraint(columnNames = {"course_id", "visit_order"}),
-	@UniqueConstraint(columnNames = {"course_id", "store_id"})
-})
+@Table(name = "course_stores")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CourseStore extends BaseTimeEntity {
