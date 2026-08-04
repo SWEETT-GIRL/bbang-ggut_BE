@@ -2,14 +2,17 @@ package sweetgirl.croissant.external.aws.service;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -71,7 +74,8 @@ class ImageCallbackServiceTest {
 
 		imageCallbackService.updateImageStatus(request);
 
-		verify(imageProcessingCallbackService).applyStatus(image, ImageStatus.DONE, null);
+		verify(imageProcessingCallbackService).savePendingCallback(awsKey, ImageStatus.DONE, null);
+		verify(imageProcessingCallbackService).applyPendingCallback(image);
 	}
 
 	@Test
@@ -93,7 +97,8 @@ class ImageCallbackServiceTest {
 
 		imageCallbackService.updateImageStatus(request);
 
-		verify(imageProcessingCallbackService).applyStatus(image, ImageStatus.FAILED, null);
+		verify(imageProcessingCallbackService).savePendingCallback(awsKey, ImageStatus.FAILED, null);
+		verify(imageProcessingCallbackService).applyPendingCallback(image);
 	}
 
 	@Test
@@ -119,11 +124,31 @@ class ImageCallbackServiceTest {
 		ImageStatusUpdateRequest request = mock(ImageStatusUpdateRequest.class);
 		given(request.getAwsKey()).willReturn(awsKey);
 		given(request.getStatus()).willReturn(ImageStatus.DONE);
-		given(breadRecordPhotoRepository.findByAwsKey(awsKey)).willReturn(Optional.of(photo));
+		given(breadRecordPhotoRepository.findAllByAwsKey(awsKey)).willReturn(List.of(photo));
 
 		imageCallbackService.updateImageStatus(request);
 
-		verify(imageProcessingCallbackService).applyStatus(photo, ImageStatus.DONE, null);
+		InOrder callbackOrder = inOrder(imageProcessingCallbackService, breadRecordPhotoRepository);
+		callbackOrder.verify(imageProcessingCallbackService)
+			.savePendingCallback(awsKey, ImageStatus.DONE, null);
+		callbackOrder.verify(breadRecordPhotoRepository).findAllByAwsKey(awsKey);
+		callbackOrder.verify(imageProcessingCallbackService).applySameKeyPendingCallback(List.of(photo));
+	}
+
+	@Test
+	@DisplayName("같은 awsKey의 빵 기록 사진이 여러 장이어도 예외 없이 모두 반영한다")
+	void updateImageStatus_duplicateBreadRecordPhotos_appliesToAll() {
+		String awsKey = "bread-records/members/7/images/dup";
+		BreadRecordPhoto first = mock(BreadRecordPhoto.class);
+		BreadRecordPhoto second = mock(BreadRecordPhoto.class);
+		ImageStatusUpdateRequest request = mock(ImageStatusUpdateRequest.class);
+		given(request.getAwsKey()).willReturn(awsKey);
+		given(request.getStatus()).willReturn(ImageStatus.DONE);
+		given(breadRecordPhotoRepository.findAllByAwsKey(awsKey)).willReturn(List.of(first, second));
+
+		imageCallbackService.updateImageStatus(request);
+
+		verify(imageProcessingCallbackService).applySameKeyPendingCallback(List.of(first, second));
 	}
 
 	@Test
