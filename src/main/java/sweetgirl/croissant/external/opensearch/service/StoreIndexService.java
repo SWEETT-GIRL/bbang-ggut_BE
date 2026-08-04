@@ -157,10 +157,11 @@ public class StoreIndexService {
 		List<Menu> menus = menuRepository.findByStoreIdOrderByLikeCountDesc(storeId);
 
 		List<StoreMenuDto> menuEntries = menus.stream()
-			.map(m -> new StoreMenuDto(m.getId(), m.getName(), m.getMenuCategory().getName().name()))
+			.map(m -> new StoreMenuDto(m.getId(), m.getName(), categoryNameOf(m)))
 			.toList();
 		List<String> breadTypes = menus.stream()
-			.map(m -> m.getMenuCategory().getName().name())
+			.map(this::categoryNameOf)
+			.filter(category -> category != null)
 			.distinct()
 			.toList();
 
@@ -218,12 +219,13 @@ public class StoreIndexService {
 		List<Menu> menus = menusByStoreId.getOrDefault(storeId, List.of());
 
 		List<String> breadTypes = menus.stream()
-			.map(m -> m.getMenuCategory().getName().name())
+			.map(this::categoryNameOf)
+			.filter(category -> category != null)
 			.distinct()
 			.toList();
 
 		List<StoreMenuDto> menuEntries = menus.stream()
-			.map(m -> new StoreMenuDto(m.getId(), m.getName(), m.getMenuCategory().getName().name()))
+			.map(m -> new StoreMenuDto(m.getId(), m.getName(), categoryNameOf(m)))
 			.toList();
 
 		GeoPointDto geoPoint = new GeoPointDto(
@@ -259,6 +261,10 @@ public class StoreIndexService {
 		long storeViewCount = requestLogRepository.countByStoreIdAndEventType(store.getId(), LogEventType.STORE_VIEW);
 		// TODO: 가중치 계수(W1~W3) 확정 후 고도화
 		return subscribeCount + nationwideScore + storeViewCount;
+	}
+
+	private String categoryNameOf(Menu menu) {
+		return menu.getMenuCategory() != null ? menu.getMenuCategory().getName().name() : null;
 	}
 
 	private double calculatePopularityScoreFromMaps(

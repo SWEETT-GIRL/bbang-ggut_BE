@@ -19,7 +19,7 @@ public record StoreMenuResponse(
 			menu.getId(),
 			menu.getName(),
 			menu.getDescription(),
-			menu.getMenuCategory().getName().name(),
+			menu.getMenuCategory() != null ? menu.getMenuCategory().getName().name() : null,
 			image,
 			menu.getPrice(),
 			menu.getLikeCount(),

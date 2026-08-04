@@ -9,10 +9,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import jakarta.persistence.LockModeType;
 import sweetgirl.croissant.store.dto.projection.NearbyStoreProjection;
 import sweetgirl.croissant.store.dto.projection.RegionByDistanceProjection;
 import sweetgirl.croissant.store.dto.projection.RegionBySubscribeProjection;
@@ -22,6 +24,10 @@ import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.enums.StoreStatus;
 
 public interface StoreRepository extends JpaRepository<Store, Long> {
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("SELECT store FROM Store store WHERE store.id = :storeId")
+	Optional<Store> findByIdForUpdate(@Param("storeId") Long storeId);
 
 	// 트렌드 홈 거리 표시용 — 가게들의 사용자 위치 기준 거리를 일괄 조회 (N+1 방지)
 	@Query(value = """

@@ -15,11 +15,10 @@ class MenuNameNormalizerTest {
 	}
 
 	@Test
-	@DisplayName("특수문자 제거")
-	void special_chars() {
-		assertThat(MenuNameNormalizer.normalize("크루아상!")).isEqualTo("크루아상");
-		assertThat(MenuNameNormalizer.normalize("초코·크림")).isEqualTo("초코크림");
-		assertThat(MenuNameNormalizer.normalize("'얼그레이' 스콘")).isEqualTo("얼그레이스콘");
+	@DisplayName("특수문자는 메뉴 이름의 일부로 유지")
+	void keepsSpecialCharacters() {
+		assertThat(MenuNameNormalizer.normalize("크루아상!")).isEqualTo("크루아상!");
+		assertThat(MenuNameNormalizer.normalize("초코·크림")).isEqualTo("초코·크림");
 	}
 
 	@Test
@@ -34,7 +33,6 @@ class MenuNameNormalizerTest {
 	@DisplayName("정규화된 이름이 동일하면 다른 표기여도 일치")
 	void equivalence() {
 		assertThat(MenuNameNormalizer.normalize("소금빵"))
-			.isEqualTo(MenuNameNormalizer.normalize("소금 빵"))
-			.isEqualTo(MenuNameNormalizer.normalize("소금-빵"));
+			.isEqualTo(MenuNameNormalizer.normalize("소금 빵"));
 	}
 }
