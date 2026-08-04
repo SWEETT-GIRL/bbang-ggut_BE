@@ -27,9 +27,11 @@ import sweetgirl.croissant.course.dto.request.CourseStoreReorderRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreUpdateRequest;
 import sweetgirl.croissant.course.dto.request.CourseUpdateRequest;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
+import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
 import sweetgirl.croissant.course.service.CourseCommandService;
+import sweetgirl.croissant.course.service.CourseProgressService;
 import sweetgirl.croissant.course.service.CourseQueryService;
 import sweetgirl.croissant.course.service.SavedCourseCommandService;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
@@ -44,6 +46,7 @@ public class CourseController {
 	private final CourseQueryService courseQueryService;
 	private final CourseCommandService courseCommandService;
 	private final SavedCourseCommandService savedCourseCommandService;
+	private final CourseProgressService courseProgressService;
 
 	@Operation(summary = "공개 코스 목록 조회")
 	@GetMapping
@@ -63,6 +66,13 @@ public class CourseController {
 	public ResponseEntity<ApiResponse<List<CourseSummaryResponse>>> getSavedCourses(
 			@AuthenticationPrincipal Long memberId) {
 		return ResponseEntity.ok(ApiResponse.ok(courseQueryService.getSavedCourses(memberId)));
+	}
+
+	@Operation(summary = "진행 중인 코스 목록 조회")
+	@GetMapping("/progress")
+	public ResponseEntity<ApiResponse<List<CourseProgressResponse>>> getCourseProgresses(
+			@AuthenticationPrincipal Long memberId) {
+		return ResponseEntity.ok(ApiResponse.ok(courseProgressService.getOngoing(memberId)));
 	}
 
 	@Operation(summary = "코스 상세 조회")
@@ -184,6 +194,24 @@ public class CourseController {
 			@AuthenticationPrincipal Long memberId,
 			@PathVariable Long courseId) {
 		savedCourseCommandService.unsaveCourse(memberId, courseId);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "코스 따라가기 시작")
+	@PostMapping("/{courseId}/progress")
+	public ResponseEntity<ApiResponse<Void>> startCourseProgress(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable Long courseId) {
+		courseProgressService.start(memberId, courseId);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "코스 따라가기 중단")
+	@DeleteMapping("/{courseId}/progress")
+	public ResponseEntity<ApiResponse<Void>> stopCourseProgress(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable Long courseId) {
+		courseProgressService.stop(memberId, courseId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 

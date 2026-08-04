@@ -30,11 +30,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
+import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.service.CourseCommandService;
+import sweetgirl.croissant.course.service.CourseProgressService;
 import sweetgirl.croissant.course.service.CourseQueryService;
 import sweetgirl.croissant.course.service.SavedCourseCommandService;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
@@ -52,6 +54,8 @@ class CourseControllerTest {
 	private CourseCommandService courseCommandService;
 	@Mock
 	private SavedCourseCommandService savedCourseCommandService;
+	@Mock
+	private CourseProgressService courseProgressService;
 
 	@InjectMocks
 	private CourseController courseController;
@@ -102,6 +106,34 @@ class CourseControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data[0].id").value(3));
+	}
+
+	@Test
+	void getCourseProgresses_returns200() throws Exception {
+		CourseProgressResponse response = new CourseProgressResponse(
+			1L, "소금빵 투어", null, null, 4, 2, 50,
+			LocalDateTime.of(2026, 8, 1, 10, 0), LocalDateTime.of(2026, 8, 3, 10, 0));
+		given(courseProgressService.getOngoing(isNull())).willReturn(List.of(response));
+
+		mockMvc.perform(get("/courses/progress"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data[0].courseId").value(1))
+			.andExpect(jsonPath("$.data[0].visitedStoreCount").value(2))
+			.andExpect(jsonPath("$.data[0].progressPercent").value(50));
+	}
+
+	@Test
+	void startCourseProgress_returns200() throws Exception {
+		mockMvc.perform(post("/courses/1/progress"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
+	}
+
+	@Test
+	void stopCourseProgress_returns200() throws Exception {
+		mockMvc.perform(delete("/courses/1/progress"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
 	}
 
 	@Test
