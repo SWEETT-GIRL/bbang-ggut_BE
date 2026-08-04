@@ -27,7 +27,7 @@ public record AdminMenuResponse(
 			priceStr,
 			menu.getDescription(),
 			menu.getLikeCount(),
-			menu.getMenuCategory().getName().name(),
+			menu.getMenuCategory() != null ? menu.getMenuCategory().getName().name() : null,
 			photoUrls,
 			menu.getDisplayOrder(),
 			statusStr,

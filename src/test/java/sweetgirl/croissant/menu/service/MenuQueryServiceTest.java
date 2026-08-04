@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,6 +48,24 @@ class MenuQueryServiceTest {
 
 	@InjectMocks
 	MenuQueryService menuQueryService;
+
+	@Test
+	@DisplayName("getStoreMenu: 카테고리와 사진이 없는 단일 메뉴를 응답한다")
+	void getStoreMenu_withoutCategoryAndImage() {
+		Menu menu = menu(3L, "흑임자 소금빵", null, 0);
+		ReflectionTestUtils.setField(menu, "menuCategory", null);
+		given(menuRepository.findByIdWithDetails(3L)).willReturn(Optional.of(menu));
+		given(menuImageFileRepository.findThumbnailsByMenuIdIn(List.of(3L))).willReturn(List.of());
+		given(reviewRepository.countVisibleActiveByMenuIds(List.of(3L), 99L)).willReturn(List.of());
+		given(menuLikeRepository.existsByMemberIdAndMenuId(99L, 3L)).willReturn(false);
+
+		StoreMenuResponse result = menuQueryService.getStoreMenu(3L, 99L);
+
+		assertThat(result.menuId()).isEqualTo(3L);
+		assertThat(result.category()).isNull();
+		assertThat(result.image()).isNull();
+		assertThat(result.reviewCount()).isZero();
+	}
 
 	@Test
 	@DisplayName("getStoreMenus: 메뉴별 visible active 리뷰 수를 한 번에 집계하고 없는 메뉴는 0으로 반환한다")

@@ -16,6 +16,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
+import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.menu.util.MenuNameNormalizer;
 import sweetgirl.croissant.store.entity.Store;
 
 @Entity
@@ -33,11 +35,18 @@ public class Menu extends BaseTimeEntity {
 	private Store store;
 
 	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "menu_category_id", nullable = false)
+	@JoinColumn(name = "menu_category_id")
 	private MenuCategory menuCategory;
 
 	@Column(nullable = false, length = 100)
 	private String name;
+
+	@Column(nullable = false, length = 100)
+	private String normalizedName;
+
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "created_by_member_id")
+	private Member createdByMember;
 
 	@Column
 	private Integer price;
@@ -55,18 +64,27 @@ public class Menu extends BaseTimeEntity {
 	private Integer displayOrder;
 
 	@Builder
-	public Menu(Store store, MenuCategory menuCategory, String name, Integer price, String description) {
+	public Menu(
+			Store store,
+			MenuCategory menuCategory,
+			String name,
+			Integer price,
+			String description,
+			Member createdByMember) {
 		this.store = store;
 		this.menuCategory = menuCategory;
 		this.name = name;
+		this.normalizedName = MenuNameNormalizer.normalize(name);
 		this.price = price;
 		this.description = description;
+		this.createdByMember = createdByMember;
 		this.likeCount = 0;
 	}
 
 	public void update(String name, Integer price, String description, MenuCategory menuCategory) {
 		if (name != null) {
 			this.name = name;
+			this.normalizedName = MenuNameNormalizer.normalize(name);
 		}
 		this.price = price;
 		if (description != null) {

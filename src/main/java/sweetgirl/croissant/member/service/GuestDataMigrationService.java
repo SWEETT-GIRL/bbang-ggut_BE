@@ -5,13 +5,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
+import sweetgirl.croissant.breadlog.repository.StorePlanRepository;
+import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
+import sweetgirl.croissant.course.service.CourseProgressService;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.LikedMenuCategoryRepository;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository;
 import sweetgirl.croissant.menu.repository.MenuLikeRepository;
+import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 import sweetgirl.croissant.store.repository.SavedStoreRepository;
 import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
@@ -39,6 +44,11 @@ public class GuestDataMigrationService {
 	private final MenuLikeRepository menuLikeRepository;
 	private final LikedMenuCategoryRepository likedMenuCategoryRepository;
 	private final ReviewRepository reviewRepository;
+	private final BreadRecordRepository breadRecordRepository;
+	private final StorePlanRepository storePlanRepository;
+	private final CourseProgressRepository courseProgressRepository;
+	private final MenuRepository menuRepository;
+	private final CourseProgressService courseProgressService;
 	private final MemberRepository memberRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
 
@@ -71,6 +81,17 @@ public class GuestDataMigrationService {
 		likedMenuCategoryRepository.moveOwner(guestId, targetId);
 
 		reviewRepository.moveOwner(guestId, targetId);
+		breadRecordRepository.moveOwner(guestId, targetId);
+
+		storePlanRepository.deleteGuestDuplicates(guestId, targetId);
+		storePlanRepository.moveOwner(guestId, targetId);
+
+		courseProgressRepository.mergeGuestDuplicates(guestId, targetId);
+		courseProgressRepository.deleteGuestDuplicates(guestId, targetId);
+		courseProgressRepository.moveOwner(guestId, targetId);
+
+		menuRepository.moveCreator(guestId, targetId);
+		courseProgressService.refreshForMember(targetId);
 
 		closeGuest(guestId);
 

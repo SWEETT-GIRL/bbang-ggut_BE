@@ -23,7 +23,7 @@ public record MenuDetailResponse(
 			menu.getStore().getName(),
 			menu.getId(),
 			menu.getName(),
-			menu.getMenuCategory().getName().name(),
+			menu.getMenuCategory() != null ? menu.getMenuCategory().getName().name() : null,
 			images,
 			menu.getPrice(),
 			menu.getDescription(),

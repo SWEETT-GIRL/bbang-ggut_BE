@@ -14,6 +14,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import sweetgirl.croissant.breadlog.entity.BreadRecordPhoto;
+import sweetgirl.croissant.breadlog.repository.BreadRecordPhotoRepository;
 import sweetgirl.croissant.common.enums.ImageStatus;
 import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.contribution.repository.MenuContributionReportImageFileRepository;
@@ -42,6 +44,8 @@ class ImageCallbackServiceTest {
 	ReviewImageFileRepository reviewImageFileRepository;
 	@Mock
 	CourseImageFileRepository courseImageFileRepository;
+	@Mock
+	BreadRecordPhotoRepository breadRecordPhotoRepository;
 	@Mock
 	ImageProcessingCallbackService imageProcessingCallbackService;
 
@@ -105,6 +109,21 @@ class ImageCallbackServiceTest {
 		imageCallbackService.updateImageStatus(request);
 
 		verify(imageProcessingCallbackService).savePendingCallback(awsKey, ImageStatus.DONE, null);
+	}
+
+	@Test
+	@DisplayName("빵 기록 이미지 prefix 콜백을 빵 기록 사진에 반영한다")
+	void updateImageStatus_breadRecordImage_updatesPhoto() {
+		String awsKey = "bread-records/members/7/images/a";
+		BreadRecordPhoto photo = mock(BreadRecordPhoto.class);
+		ImageStatusUpdateRequest request = mock(ImageStatusUpdateRequest.class);
+		given(request.getAwsKey()).willReturn(awsKey);
+		given(request.getStatus()).willReturn(ImageStatus.DONE);
+		given(breadRecordPhotoRepository.findByAwsKey(awsKey)).willReturn(Optional.of(photo));
+
+		imageCallbackService.updateImageStatus(request);
+
+		verify(imageProcessingCallbackService).applyStatus(photo, ImageStatus.DONE, null);
 	}
 
 	@Test
