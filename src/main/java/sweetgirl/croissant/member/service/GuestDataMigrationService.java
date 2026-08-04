@@ -18,6 +18,7 @@ import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository;
 import sweetgirl.croissant.menu.repository.MenuLikeRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
+import sweetgirl.croissant.mission.repository.MemberMissionRepository;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 import sweetgirl.croissant.store.repository.SavedStoreRepository;
 import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
@@ -49,6 +50,7 @@ public class GuestDataMigrationService {
 	private final StorePlanRepository storePlanRepository;
 	private final CourseProgressRepository courseProgressRepository;
 	private final MemberBadgeRepository memberBadgeRepository;
+	private final MemberMissionRepository memberMissionRepository;
 	private final MenuRepository menuRepository;
 	private final CourseProgressService courseProgressService;
 	private final MemberRepository memberRepository;
@@ -95,6 +97,10 @@ public class GuestDataMigrationService {
 		memberBadgeRepository.mergeGuestDuplicates(guestId, targetId);
 		memberBadgeRepository.deleteGuestDuplicates(guestId, targetId);
 		memberBadgeRepository.moveOwner(guestId, targetId);
+
+		memberMissionRepository.mergeGuestDuplicates(guestId, targetId);
+		memberMissionRepository.deleteGuestDuplicates(guestId, targetId);
+		memberMissionRepository.moveOwner(guestId, targetId);
 
 		menuRepository.moveCreator(guestId, targetId);
 		courseProgressService.refreshForMember(targetId);
