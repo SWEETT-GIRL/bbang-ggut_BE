@@ -1,5 +1,6 @@
 package sweetgirl.croissant.course.service;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -156,6 +157,7 @@ public class CourseCommandService {
 		List<Long> courseStoreIds = orderItems.stream()
 			.map(CourseStoreOrderItem::getCourseStoreId)
 			.toList();
+		validateCompleteOrder(courseId, courseStoreIds);
 
 		Map<Long, CourseStore> courseStoreMap = courseStoreRepository.findAllById(courseStoreIds).stream()
 			.collect(Collectors.toMap(CourseStore::getId, cs -> cs));
@@ -177,6 +179,15 @@ public class CourseCommandService {
 		courseStoreRepository.flush();
 		IntStream.range(0, orderedCourseStores.size())
 			.forEach(i -> orderedCourseStores.get(i).updateOrder(i + 1));
+	}
+
+	private void validateCompleteOrder(Long courseId, List<Long> courseStoreIds) {
+		long activeStoreCount = courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId);
+		if (courseStoreIds.contains(null)
+			|| courseStoreIds.size() != activeStoreCount
+			|| new HashSet<>(courseStoreIds).size() != courseStoreIds.size()) {
+			throw new CourseException(CourseErrorCode.COURSE_STORE_ORDER_INVALID);
+		}
 	}
 
 	public PresignedUrlResponse getPresignedUrl(Long memberId, Long courseId, String mimeType) {

@@ -24,9 +24,9 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			FROM BreadRecord record
 			WHERE record.member.id = :memberId
 			AND record.deletedAt IS NULL
-			AND (:from IS NULL OR record.eatenAt >= :from)
-			AND (:to IS NULL OR record.eatenAt < :to)
-			AND (:storeId IS NULL OR record.store.id = :storeId)
+			AND (CAST(:from AS LocalDateTime) IS NULL OR record.eatenAt >= :from)
+			AND (CAST(:to AS LocalDateTime) IS NULL OR record.eatenAt < :to)
+			AND (CAST(:storeId AS Long) IS NULL OR record.store.id = :storeId)
 			""")
 	Slice<BreadRecord> findRecords(
 			@Param("memberId") Long memberId,
