@@ -1,5 +1,6 @@
 package sweetgirl.croissant.external.aws.service;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -7,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.breadlog.entity.BreadRecordPhoto;
 import sweetgirl.croissant.breadlog.repository.BreadRecordPhotoRepository;
 import sweetgirl.croissant.common.entity.ImageFile;
 import sweetgirl.croissant.common.enums.ImageStatus;
@@ -43,15 +45,41 @@ public class ImageCallbackService {
 		if (status != ImageStatus.DONE && status != ImageStatus.FAILED) {
 			throw new S3StorageException(S3ErrorCode.INVALID_STATUS_VALUE);
 		}
+		validateSupportedPrefix(awsKey);
 
-		Optional<ImageFile> image = findByAwsKey(awsKey);
-		if (image.isPresent()) {
-			imageProcessingCallbackService.applyStatus(image.get(), status, request.getFailReason());
-			return;
+		// 콜백을 먼저 저장해야 이미지 row 생성 트랜잭션과 동시에 실행돼도 상태가 유실되지 않는다.
+		imageProcessingCallbackService.savePendingCallback(awsKey, status, request.getFailReason());
+
+		// 빵 기록 사진만 같은 키가 여러 row일 수 있다(전체 교체가 같은 키를 다시 싣는다).
+		// 단건 조회는 2건을 만나는 순간 예외로 죽어 콜백 전체가 유실되므로 있는 만큼 모두 반영한다.
+		if (awsKey.startsWith(S3Folder.BREAD_RECORDS.prefix())) {
+			List<BreadRecordPhoto> photos = breadRecordPhotoRepository.findAllByAwsKey(awsKey);
+			if (!photos.isEmpty()) {
+				imageProcessingCallbackService.applySameKeyPendingCallback(photos);
+				return;
+			}
+		} else {
+			Optional<ImageFile> image = findByAwsKey(awsKey);
+			if (image.isPresent()) {
+				imageProcessingCallbackService.applyPendingCallback(image.get());
+				return;
+			}
 		}
 
 		log.info("이미지 row 생성 전 lambda 콜백 수신 [awsKey: {}, status: {}]", awsKey, status);
-		imageProcessingCallbackService.savePendingCallback(awsKey, status, request.getFailReason());
+	}
+
+	private void validateSupportedPrefix(String awsKey) {
+		boolean supported = awsKey.startsWith(S3Folder.STORES.prefix())
+			|| awsKey.startsWith(S3Folder.MENUS.prefix())
+			|| awsKey.startsWith(S3Folder.REPORTS.prefix())
+			|| awsKey.startsWith(S3Folder.REVIEWS.prefix())
+			|| awsKey.startsWith(S3Folder.COURSES.prefix())
+			|| awsKey.startsWith(S3Folder.BREAD_RECORDS.prefix())
+			|| awsKey.startsWith(S3Folder.MENU_ADD_REPORTS.prefix());
+		if (!supported) {
+			throw new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND);
+		}
 	}
 
 	private Optional<ImageFile> findByAwsKey(String awsKey) {
@@ -79,14 +107,10 @@ public class ImageCallbackService {
 			return courseImageFileRepository.findByAwsKey(awsKey)
 				.map(ImageFile.class::cast);
 		}
-		if (awsKey.startsWith(S3Folder.BREAD_RECORDS.prefix())) {
-			return breadRecordPhotoRepository.findByAwsKey(awsKey)
-				.map(ImageFile.class::cast);
-		}
 		if (awsKey.startsWith(S3Folder.MENU_ADD_REPORTS.prefix())) {
 			return menuContributionReportImageFileRepository.findByAwsKey(awsKey)
 				.map(ImageFile.class::cast);
 		}
-		throw new S3StorageException(S3ErrorCode.IMAGE_NOT_FOUND);
+		return Optional.empty();
 	}
 }
