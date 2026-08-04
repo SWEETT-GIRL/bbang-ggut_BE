@@ -1,5 +1,6 @@
 package sweetgirl.croissant.menu.controller;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
@@ -23,6 +24,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
+import sweetgirl.croissant.menu.dto.request.MenuCreateRequest;
+import sweetgirl.croissant.menu.dto.response.MenuRegistrationResult;
 import sweetgirl.croissant.menu.dto.response.StoreMenuResponse;
 import sweetgirl.croissant.menu.exception.MenuException;
 import sweetgirl.croissant.menu.service.MenuCommandService;
@@ -66,6 +69,38 @@ class MenuControllerTest {
 			.andExpect(jsonPath("$.data[1].menuId").value(2))
 			.andExpect(jsonPath("$.data[1].description").doesNotExist())
 			.andExpect(jsonPath("$.data[1].reviewCount").value(0));
+	}
+
+	@Test
+	void createStoreMenu_returns201ForNewMenu() throws Exception {
+		StoreMenuResponse response = new StoreMenuResponse(
+			3L, "흑임자 소금빵", null, null, null, null, 0, false, 0L);
+		given(menuCommandService.registerMenu(eq(1L), isNull(), any(MenuCreateRequest.class)))
+			.willReturn(new MenuRegistrationResult(3L, true));
+		given(menuQueryService.getStoreMenu(3L, null)).willReturn(response);
+
+		mockMvc.perform(post("/stores/1/menus")
+			.contentType("application/json")
+			.content("{\"name\":\"흑임자 소금빵\"}"))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.data.menuId").value(3))
+			.andExpect(jsonPath("$.data.name").value("흑임자 소금빵"))
+			.andExpect(jsonPath("$.data.category").doesNotExist());
+	}
+
+	@Test
+	void createStoreMenu_returns200ForDuplicateMenu() throws Exception {
+		StoreMenuResponse response = new StoreMenuResponse(
+			3L, "흑임자소금빵", null, "빵", null, null, 0, false, 0L);
+		given(menuCommandService.registerMenu(eq(1L), isNull(), any(MenuCreateRequest.class)))
+			.willReturn(new MenuRegistrationResult(3L, false));
+		given(menuQueryService.getStoreMenu(3L, null)).willReturn(response);
+
+		mockMvc.perform(post("/stores/1/menus")
+			.contentType("application/json")
+			.content("{\"name\":\"흑임자 소금빵\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.menuId").value(3));
 	}
 
 	@Test
