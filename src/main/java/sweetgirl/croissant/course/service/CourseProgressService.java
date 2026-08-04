@@ -20,6 +20,7 @@ import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseImageFile;
 import sweetgirl.croissant.course.entity.CourseProgress;
+import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
@@ -59,12 +60,29 @@ public class CourseProgressService {
 	public List<CourseProgressResponse> getOngoing(Long memberId) {
 		memberReader.getMember(memberId);
 		List<CourseProgress> progresses = refresh(memberId);
+		return buildResponses(memberId, progresses, CourseProgressStatus.IN_PROGRESS);
+	}
+
+	public List<CourseProgressResponse> getByStatus(Long memberId, CourseProgressStatus status) {
+		memberReader.getMember(memberId);
+		List<CourseProgress> progresses = status == CourseProgressStatus.IN_PROGRESS
+			? refresh(memberId)
+			: courseProgressRepository.findAllByMemberIdAndStatus(memberId, status);
+		return buildResponses(memberId, progresses, status);
+	}
+
+	private List<CourseProgressResponse> buildResponses(
+			Long memberId,
+			List<CourseProgress> progresses,
+			CourseProgressStatus status) {
+		progresses = progresses.stream()
+			.filter(progress -> progress.getStatus() == status)
+			.toList();
 		if (progresses.isEmpty()) {
 			return List.of();
 		}
 
 		Set<Long> ongoingCourseIds = progresses.stream()
-			.filter(progress -> progress.getStoppedAt() == null && progress.getCompletedAt() == null)
 			.map(progress -> progress.getCourse().getId())
 			.collect(Collectors.toCollection(LinkedHashSet::new));
 		if (ongoingCourseIds.isEmpty()) {
@@ -94,7 +112,8 @@ public class CourseProgressService {
 	}
 
 	public void refreshForCourse(Long courseId) {
-		List<CourseProgress> progresses = courseProgressRepository.findAllByCourseId(courseId);
+		List<CourseProgress> progresses = courseProgressRepository.findAllByCourseIdAndStatus(
+			courseId, CourseProgressStatus.IN_PROGRESS);
 		if (progresses.isEmpty()) {
 			return;
 		}
@@ -114,7 +133,8 @@ public class CourseProgressService {
 	}
 
 	private List<CourseProgress> refresh(Long memberId) {
-		List<CourseProgress> progresses = courseProgressRepository.findAllByMemberId(memberId);
+		List<CourseProgress> progresses = courseProgressRepository.findAllByMemberIdAndStatus(
+			memberId, CourseProgressStatus.IN_PROGRESS);
 		if (progresses.isEmpty()) {
 			return progresses;
 		}
@@ -138,9 +158,7 @@ public class CourseProgressService {
 			long visitedStoreCount,
 			LocalDateTime completedAt) {
 		if (storeCount > 0 && visitedStoreCount >= storeCount) {
-			progress.markCompleted(completedAt);
-		} else {
-			progress.markIncomplete();
+			progress.markFinished(completedAt);
 		}
 	}
 

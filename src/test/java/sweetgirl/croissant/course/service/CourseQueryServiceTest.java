@@ -24,6 +24,7 @@ import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseImageFile;
 import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.entity.SavedCourse;
+import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
@@ -177,7 +178,7 @@ class CourseQueryServiceTest {
 			.willReturn(List.of(courseStore));
 		given(courseImageFileRepository.findByCourseId(1L)).willReturn(Optional.of(imageFile));
 		given(savedCourseRepository.countByCourseId(1L)).willReturn(5L);
-		given(courseProgressRepository.countByCourseIdAndCompletedAtIsNotNull(1L)).willReturn(37L);
+		given(courseProgressRepository.countByCourseIdAndStatus(1L, CourseProgressStatus.FINISHED)).willReturn(37L);
 
 		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, null);
 
