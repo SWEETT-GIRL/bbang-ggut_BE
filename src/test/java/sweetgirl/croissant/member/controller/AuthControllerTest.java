@@ -17,8 +17,10 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.global.code.GeneralErrorCode;
 import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.dto.response.AppleLoginResponse;
 import sweetgirl.croissant.member.dto.response.KakaoLoginResponse;
+import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.service.AppleAuthService;
 import sweetgirl.croissant.member.service.AuthService;
 import sweetgirl.croissant.member.service.KakaoAuthService;
@@ -67,6 +69,19 @@ class AuthControllerTest {
 			.andExpect(jsonPath("$.data.isNew").value(true));
 	}
 
+	@Test
+	void kakaoLogin_returns401_whenSocialTokenIsInvalid() throws Exception {
+		given(kakaoAuthService.login("invalid-token", "device-1"))
+			.willThrow(new MemberException(MemberErrorCode.SOCIAL_TOKEN_INVALID));
+
+		mockMvc.perform(post("/auth/kakao")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"accessToken\":\"invalid-token\",\"deviceId\":\"device-1\"}"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.code").value("MEMBER401_SOCIAL_TOKEN_INVALID"))
+			.andExpect(jsonPath("$.message").value("소셜 로그인 토큰이 유효하지 않습니다."));
+	}
+
 	// ── POST /auth/apple ──────────────────────────────────────────────────
 
 	@Test
@@ -84,6 +99,19 @@ class AuthControllerTest {
 			.andExpect(jsonPath("$.data.accessToken").value("new.access"))
 			.andExpect(jsonPath("$.data.refreshToken").value("new.refresh"))
 			.andExpect(jsonPath("$.data.isNew").value(false));
+	}
+
+	@Test
+	void appleLogin_returns401_whenSocialTokenIsInvalid() throws Exception {
+		given(appleAuthService.login("invalid-token", "device-2"))
+			.willThrow(new MemberException(MemberErrorCode.SOCIAL_TOKEN_INVALID));
+
+		mockMvc.perform(post("/auth/apple")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"identityToken\":\"invalid-token\",\"deviceId\":\"device-2\"}"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.code").value("MEMBER401_SOCIAL_TOKEN_INVALID"))
+			.andExpect(jsonPath("$.message").value("소셜 로그인 토큰이 유효하지 않습니다."));
 	}
 
 	// ── POST /api/v1/auth/refresh ─────────────────────────────────────────

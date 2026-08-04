@@ -70,7 +70,7 @@ public class BreadRecordSummaryService {
 			if (sido == null && region.getRegionKey() != null) {
 				sido = region.getRegionKey().split("_", 2)[0];
 			}
-			if (VALID_SIDOS.contains(sido)) {
+			if (sido != null && VALID_SIDOS.contains(sido)) {
 				visited.add(sido);
 			}
 		}
