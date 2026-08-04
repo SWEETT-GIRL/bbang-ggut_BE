@@ -36,6 +36,7 @@ import sweetgirl.croissant.breadlog.service.BreadRecordCommandService;
 import sweetgirl.croissant.breadlog.service.BreadRecordQueryService;
 import sweetgirl.croissant.breadlog.service.BreadRecordSummaryService;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
+import sweetgirl.croissant.global.response.SliceResponse;
 
 @ExtendWith(MockitoExtension.class)
 class BreadRecordControllerTest {
@@ -86,15 +87,17 @@ class BreadRecordControllerTest {
 			11L, 10L, "밀도 성수", "서울_성동구_성수동", null, null,
 			LocalDateTime.of(2026, 8, 2, 14, 21), LocalDateTime.of(2026, 8, 4, 12, 0), null,
 			List.of(), List.of());
-		given(queryService.getRecords(isNull(), any(), any(), eq(10L))).willReturn(List.of(response));
+		given(queryService.getRecords(isNull(), any(), any(), eq(10L), eq(0), eq(30)))
+			.willReturn(new SliceResponse<>(List.of(response), false));
 
 		mockMvc.perform(get("/bread-records")
 			.param("from", "2026-08-01T00:00:00")
 			.param("to", "2026-09-01T00:00:00")
 			.param("storeId", "10"))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.data[0].id").value(11))
-			.andExpect(jsonPath("$.data[0].storeName").value("밀도 성수"));
+			.andExpect(jsonPath("$.data.content[0].id").value(11))
+			.andExpect(jsonPath("$.data.content[0].storeName").value("밀도 성수"))
+			.andExpect(jsonPath("$.data.hasNext").value(false));
 	}
 
 	@Test

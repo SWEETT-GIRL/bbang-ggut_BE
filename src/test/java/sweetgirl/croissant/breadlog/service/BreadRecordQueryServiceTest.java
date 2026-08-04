@@ -16,7 +16,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -30,6 +31,7 @@ import sweetgirl.croissant.breadlog.repository.BreadRecordPhotoRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
 import sweetgirl.croissant.common.enums.MimeType;
+import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 
@@ -71,21 +73,22 @@ class BreadRecordQueryServiceTest {
 			.positionY(0.42)
 			.build();
 		ReflectionTestUtils.setField(tag, "id", 31L);
-		given(breadRecordRepository.findAll(any(Specification.class), any(Sort.class)))
-			.willReturn(List.of(record));
+		given(breadRecordRepository.findAll(any(Specification.class), any(PageRequest.class)))
+			.willReturn(new PageImpl<>(List.of(record), PageRequest.of(0, 30), 1));
 		given(photoRepository.findByRecordIdInOrderByRecordIdAscSortOrderAscIdAsc(List.of(11L)))
 			.willReturn(List.of(photo));
 		given(tagRepository.findByRecordIdInWithPhoto(List.of(11L))).willReturn(List.of(tag));
 
-		List<BreadRecordResponse> result = queryService.getRecords(7L, null, null, null);
+		SliceResponse<BreadRecordResponse> result = queryService.getRecords(7L, null, null, null, 0, 30);
 
-		assertThat(result).hasSize(1);
-		assertThat(result.get(0).photos()).hasSize(1);
-		assertThat(result.get(0).photos().get(0).fileName()).isEqualTo("a.jpg");
-		assertThat(result.get(0).photos().get(0).contentType()).isEqualTo("image/jpeg");
-		assertThat(result.get(0).tags()).hasSize(1);
-		assertThat(result.get(0).tags().get(0).positionX()).isEqualTo(0.31);
-		assertThat(result.get(0).tags().get(0).breadCategory()).isEqualTo("식빵");
+		assertThat(result.content()).hasSize(1);
+		assertThat(result.hasNext()).isFalse();
+		assertThat(result.content().get(0).photos()).hasSize(1);
+		assertThat(result.content().get(0).photos().get(0).fileName()).isEqualTo("a.jpg");
+		assertThat(result.content().get(0).photos().get(0).contentType()).isEqualTo("image/jpeg");
+		assertThat(result.content().get(0).tags()).hasSize(1);
+		assertThat(result.content().get(0).tags().get(0).positionX()).isEqualTo(0.31);
+		assertThat(result.content().get(0).tags().get(0).breadCategory()).isEqualTo("식빵");
 		verify(photoRepository).findByRecordIdInOrderByRecordIdAscSortOrderAscIdAsc(eq(List.of(11L)));
 		verify(tagRepository).findByRecordIdInWithPhoto(eq(List.of(11L)));
 	}
@@ -96,9 +99,17 @@ class BreadRecordQueryServiceTest {
 		LocalDateTime from = LocalDateTime.of(2026, 8, 3, 0, 0);
 		LocalDateTime to = LocalDateTime.of(2026, 8, 3, 0, 0);
 
-		assertThatThrownBy(() -> queryService.getRecords(7L, from, to, null))
+		assertThatThrownBy(() -> queryService.getRecords(7L, from, to, null, 0, 30))
 			.isInstanceOf(BreadLogException.class)
 			.hasMessageContaining(BreadLogErrorCode.INVALID_DATE_RANGE.getMessage());
+	}
+
+	@Test
+	@DisplayName("getRecords: 페이지 크기가 100을 넘으면 거부한다")
+	void getRecords_oversizedPage_throwsException() {
+		assertThatThrownBy(() -> queryService.getRecords(7L, null, null, null, 0, 101))
+			.isInstanceOf(BreadLogException.class)
+			.hasMessageContaining(BreadLogErrorCode.INVALID_PAGE_REQUEST.getMessage());
 	}
 
 	private BreadRecord record(Long id) {

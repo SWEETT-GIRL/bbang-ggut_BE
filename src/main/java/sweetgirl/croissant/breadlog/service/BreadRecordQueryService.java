@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -20,6 +22,7 @@ import sweetgirl.croissant.breadlog.exception.BreadLogException;
 import sweetgirl.croissant.breadlog.repository.BreadRecordPhotoRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
+import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.service.MemberReader;
 
 @Service
@@ -37,13 +40,16 @@ public class BreadRecordQueryService {
 	private final BreadRecordPhotoRepository photoRepository;
 	private final BreadRecordTagRepository tagRepository;
 
-	public List<BreadRecordResponse> getRecords(
+	public SliceResponse<BreadRecordResponse> getRecords(
 			Long memberId,
 			LocalDateTime from,
 			LocalDateTime to,
-			Long storeId) {
+			Long storeId,
+			int page,
+			int size) {
 		memberReader.getMember(memberId);
 		validateDateRange(from, to);
+		validatePageRequest(page, size);
 		Specification<BreadRecord> specification = Specification
 			.where(ownedBy(memberId))
 			.and(notDeleted());
@@ -56,7 +62,10 @@ public class BreadRecordQueryService {
 		if (storeId != null) {
 			specification = specification.and(atStore(storeId));
 		}
-		return buildResponses(breadRecordRepository.findAll(specification, RECORD_SORT));
+		Page<BreadRecord> recordPage = breadRecordRepository.findAll(
+			specification,
+			PageRequest.of(page, size, RECORD_SORT));
+		return new SliceResponse<>(buildResponses(recordPage.getContent()), recordPage.hasNext());
 	}
 
 	private List<BreadRecordResponse> buildResponses(List<BreadRecord> records) {
@@ -88,6 +97,12 @@ public class BreadRecordQueryService {
 	private void validateDateRange(LocalDateTime from, LocalDateTime to) {
 		if (from != null && to != null && !from.isBefore(to)) {
 			throw new BreadLogException(BreadLogErrorCode.INVALID_DATE_RANGE);
+		}
+	}
+
+	private void validatePageRequest(int page, int size) {
+		if (page < 0 || size < 1 || size > 100) {
+			throw new BreadLogException(BreadLogErrorCode.INVALID_PAGE_REQUEST);
 		}
 	}
 
