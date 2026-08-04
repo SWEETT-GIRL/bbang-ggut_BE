@@ -5,6 +5,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.badge.repository.MemberBadgeRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.StorePlanRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
@@ -47,6 +48,7 @@ public class GuestDataMigrationService {
 	private final BreadRecordRepository breadRecordRepository;
 	private final StorePlanRepository storePlanRepository;
 	private final CourseProgressRepository courseProgressRepository;
+	private final MemberBadgeRepository memberBadgeRepository;
 	private final MenuRepository menuRepository;
 	private final CourseProgressService courseProgressService;
 	private final MemberRepository memberRepository;
@@ -89,6 +91,10 @@ public class GuestDataMigrationService {
 		courseProgressRepository.mergeGuestDuplicates(guestId, targetId);
 		courseProgressRepository.deleteGuestDuplicates(guestId, targetId);
 		courseProgressRepository.moveOwner(guestId, targetId);
+
+		memberBadgeRepository.mergeGuestDuplicates(guestId, targetId);
+		memberBadgeRepository.deleteGuestDuplicates(guestId, targetId);
+		memberBadgeRepository.moveOwner(guestId, targetId);
 
 		menuRepository.moveCreator(guestId, targetId);
 		courseProgressService.refreshForMember(targetId);

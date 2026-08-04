@@ -13,6 +13,8 @@ public interface SavedStoreRepository extends JpaRepository<SavedStore, Long> {
 
 	List<SavedStore> findAllByMemberId(Long memberId);
 
+	long countByMemberId(Long memberId);
+
 	boolean existsByMemberIdAndStoreId(Long memberId, Long storeId);
 
 	void deleteByMemberIdAndStoreId(Long memberId, Long storeId);

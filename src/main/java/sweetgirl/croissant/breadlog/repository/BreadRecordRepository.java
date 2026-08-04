@@ -19,6 +19,23 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 
 	Optional<BreadRecord> findByIdAndDeletedAtIsNull(Long id);
 
+	long countByMemberIdAndDeletedAtIsNull(Long memberId);
+
+	@Query(value = """
+			SELECT COALESCE(MAX(visits), 0)
+			FROM (
+				SELECT COUNT(*) AS visits
+				FROM bread_record
+				WHERE member_id = :memberId
+				AND deleted_at IS NULL
+				GROUP BY CASE
+					WHEN store_id IS NOT NULL THEN 'id:' || CAST(store_id AS VARCHAR)
+					ELSE 'name:' || LOWER(REGEXP_REPLACE(store_name, '[[:space:]]+', '', 'g'))
+				END
+			) store_visits
+			""", nativeQuery = true)
+	long findMaxStoreVisitCount(@Param("memberId") Long memberId);
+
 	@Query("""
 			SELECT record
 			FROM BreadRecord record
