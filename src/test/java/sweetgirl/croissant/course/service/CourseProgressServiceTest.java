@@ -94,7 +94,7 @@ class CourseProgressServiceTest {
 
 		List<CourseProgressResponse> result = courseProgressService.getOngoing(7L);
 
-		assertThat(result).extracting(CourseProgressResponse::courseId).containsExactly(11L, 10L);
+		assertThat(result).extracting(CourseProgressResponse::id).containsExactly(11L, 10L);
 	}
 
 	@Test

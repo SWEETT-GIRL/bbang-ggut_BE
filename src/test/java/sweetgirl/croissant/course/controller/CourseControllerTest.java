@@ -118,7 +118,7 @@ class CourseControllerTest {
 
 		mockMvc.perform(get("/courses/progress"))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.data[0].courseId").value(1))
+			.andExpect(jsonPath("$.data[0].id").value(1))
 			.andExpect(jsonPath("$.data[0].visitedStoreCount").value(2))
 			.andExpect(jsonPath("$.data[0].progressPercent").value(50));
 	}

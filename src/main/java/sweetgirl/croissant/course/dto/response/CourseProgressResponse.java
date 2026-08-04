@@ -6,7 +6,7 @@ import sweetgirl.croissant.course.entity.CourseImageFile;
 import sweetgirl.croissant.course.entity.CourseProgress;
 
 public record CourseProgressResponse(
-		Long courseId,
+		Long id,
 		String title,
 		String imageKey,
 		String thumbnailImageKey,
