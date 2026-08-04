@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
@@ -16,9 +17,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.breadlog.code.BreadLogErrorCode;
@@ -73,8 +74,8 @@ class BreadRecordQueryServiceTest {
 			.positionY(0.42)
 			.build();
 		ReflectionTestUtils.setField(tag, "id", 31L);
-		given(breadRecordRepository.findAll(any(Specification.class), any(PageRequest.class)))
-			.willReturn(new PageImpl<>(List.of(record), PageRequest.of(0, 30), 1));
+		given(breadRecordRepository.findRecords(eq(7L), isNull(), isNull(), isNull(), any(Pageable.class)))
+			.willReturn(new SliceImpl<>(List.of(record), PageRequest.of(0, 30), false));
 		given(photoRepository.findByRecordIdInOrderByRecordIdAscSortOrderAscIdAsc(List.of(11L)))
 			.willReturn(List.of(photo));
 		given(tagRepository.findByRecordIdInWithPhoto(List.of(11L))).willReturn(List.of(tag));

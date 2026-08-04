@@ -5,10 +5,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,22 +49,13 @@ public class BreadRecordQueryService {
 		memberReader.getMember(memberId);
 		validateDateRange(from, to);
 		validatePageRequest(page, size);
-		Specification<BreadRecord> specification = Specification
-			.where(ownedBy(memberId))
-			.and(notDeleted());
-		if (from != null) {
-			specification = specification.and(eatenAtOrAfter(from));
-		}
-		if (to != null) {
-			specification = specification.and(eatenBefore(to));
-		}
-		if (storeId != null) {
-			specification = specification.and(atStore(storeId));
-		}
-		Page<BreadRecord> recordPage = breadRecordRepository.findAll(
-			specification,
+		Slice<BreadRecord> recordSlice = breadRecordRepository.findRecords(
+			memberId,
+			from,
+			to,
+			storeId,
 			PageRequest.of(page, size, RECORD_SORT));
-		return new SliceResponse<>(buildResponses(recordPage.getContent()), recordPage.hasNext());
+		return new SliceResponse<>(buildResponses(recordSlice.getContent()), recordSlice.hasNext());
 	}
 
 	private List<BreadRecordResponse> buildResponses(List<BreadRecord> records) {
@@ -106,23 +96,4 @@ public class BreadRecordQueryService {
 		}
 	}
 
-	private Specification<BreadRecord> ownedBy(Long memberId) {
-		return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("member").get("id"), memberId);
-	}
-
-	private Specification<BreadRecord> notDeleted() {
-		return (root, query, criteriaBuilder) -> criteriaBuilder.isNull(root.get("deletedAt"));
-	}
-
-	private Specification<BreadRecord> eatenAtOrAfter(LocalDateTime from) {
-		return (root, query, criteriaBuilder) -> criteriaBuilder.greaterThanOrEqualTo(root.get("eatenAt"), from);
-	}
-
-	private Specification<BreadRecord> eatenBefore(LocalDateTime to) {
-		return (root, query, criteriaBuilder) -> criteriaBuilder.lessThan(root.get("eatenAt"), to);
-	}
-
-	private Specification<BreadRecord> atStore(Long storeId) {
-		return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("store").get("id"), storeId);
-	}
 }
