@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import sweetgirl.croissant.course.dto.projection.CourseProgressAggregateProjection;
+import sweetgirl.croissant.course.dto.projection.CourseProgressMemberAggregateProjection;
 import sweetgirl.croissant.course.entity.CourseProgress;
 import sweetgirl.croissant.course.entity.CourseProgressId;
 
@@ -20,6 +21,8 @@ public interface CourseProgressRepository extends JpaRepository<CourseProgress, 
 
 	@EntityGraph(attributePaths = "course")
 	Optional<CourseProgress> findByMemberIdAndCourseId(Long memberId, Long courseId);
+
+	List<CourseProgress> findAllByCourseId(Long courseId);
 
 	@Query(value = """
 			SELECT
@@ -42,6 +45,24 @@ public interface CourseProgressRepository extends JpaRepository<CourseProgress, 
 	List<CourseProgressAggregateProjection> findAggregates(
 			@Param("memberId") Long memberId,
 			@Param("courseIds") Collection<Long> courseIds);
+
+	@Query(value = """
+			SELECT
+				progress.member_id AS memberId,
+				COUNT(DISTINCT course_store.store_id) AS storeCount,
+				COUNT(DISTINCT record.store_id) AS visitedStoreCount
+			FROM course_progress progress
+			LEFT JOIN course_stores course_store
+				ON course_store.course_id = progress.course_id
+				AND course_store.deleted_at IS NULL
+			LEFT JOIN bread_record record
+				ON record.member_id = progress.member_id
+				AND record.store_id = course_store.store_id
+				AND record.deleted_at IS NULL
+			WHERE progress.course_id = :courseId
+			GROUP BY progress.member_id
+			""", nativeQuery = true)
+	List<CourseProgressMemberAggregateProjection> findMemberAggregates(@Param("courseId") Long courseId);
 
 	@Query("""
 			SELECT cp.course.id, COUNT(cp)

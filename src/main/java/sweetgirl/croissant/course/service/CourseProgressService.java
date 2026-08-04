@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.projection.CourseProgressAggregateProjection;
+import sweetgirl.croissant.course.dto.projection.CourseProgressMemberAggregateProjection;
 import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseImageFile;
@@ -92,6 +93,26 @@ public class CourseProgressService {
 		refresh(memberId);
 	}
 
+	public void refreshForCourse(Long courseId) {
+		List<CourseProgress> progresses = courseProgressRepository.findAllByCourseId(courseId);
+		if (progresses.isEmpty()) {
+			return;
+		}
+		Map<Long, CourseProgressMemberAggregateProjection> aggregateByMemberId = courseProgressRepository
+			.findMemberAggregates(courseId)
+			.stream()
+			.collect(Collectors.toMap(CourseProgressMemberAggregateProjection::getMemberId, Function.identity()));
+		LocalDateTime completedAt = LocalDateTime.now();
+		progresses.forEach(progress -> {
+			CourseProgressMemberAggregateProjection aggregate = aggregateByMemberId.get(progress.getMember().getId());
+			updateCompletion(
+				progress,
+				aggregate == null ? 0 : aggregate.getStoreCount(),
+				aggregate == null ? 0 : aggregate.getVisitedStoreCount(),
+				completedAt);
+		});
+	}
+
 	private List<CourseProgress> refresh(Long memberId) {
 		List<CourseProgress> progresses = courseProgressRepository.findAllByMemberId(memberId);
 		if (progresses.isEmpty()) {
@@ -102,16 +123,25 @@ public class CourseProgressService {
 		LocalDateTime completedAt = LocalDateTime.now();
 		progresses.forEach(progress -> {
 			CourseProgressAggregateProjection aggregate = aggregateByCourseId.get(progress.getCourse().getId());
-			boolean completed = aggregate != null
-				&& aggregate.getStoreCount() > 0
-				&& aggregate.getVisitedStoreCount() >= aggregate.getStoreCount();
-			if (completed) {
-				progress.markCompleted(completedAt);
-			} else {
-				progress.markIncomplete();
-			}
+			updateCompletion(
+				progress,
+				aggregate == null ? 0 : aggregate.getStoreCount(),
+				aggregate == null ? 0 : aggregate.getVisitedStoreCount(),
+				completedAt);
 		});
 		return progresses;
+	}
+
+	private void updateCompletion(
+			CourseProgress progress,
+			long storeCount,
+			long visitedStoreCount,
+			LocalDateTime completedAt) {
+		if (storeCount > 0 && visitedStoreCount >= storeCount) {
+			progress.markCompleted(completedAt);
+		} else {
+			progress.markIncomplete();
+		}
 	}
 
 	private Map<Long, CourseProgressAggregateProjection> findAggregates(Long memberId, List<Long> courseIds) {

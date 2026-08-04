@@ -56,6 +56,7 @@ public class CourseCommandService {
 	private final StoreRepository storeRepository;
 	private final S3Service s3Service;
 	private final ImageProcessingCallbackService imageProcessingCallbackService;
+	private final CourseProgressService courseProgressService;
 
 	public Long createCourse(Long memberId, CourseCreateRequest request) {
 		Member member = memberRepository.findByIdAndDeletedAtIsNull(memberId)
@@ -117,6 +118,7 @@ public class CourseCommandService {
 			course, store, nextOrder,
 			request.getMemo(), request.getVisitTime());
 		courseStoreRepository.save(courseStore);
+		courseProgressService.refreshForCourse(courseId);
 
 		return CourseStoreResponse.from(courseStore);
 	}
@@ -142,6 +144,7 @@ public class CourseCommandService {
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_STORE_NOT_FOUND));
 
 		courseStore.softDelete();
+		courseProgressService.refreshForCourse(courseId);
 	}
 
 	public void reorderStores(Long memberId, Long courseId, CourseStoreReorderRequest request) {

@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.course.dto.projection.CourseProgressAggregateProjection;
+import sweetgirl.croissant.course.dto.projection.CourseProgressMemberAggregateProjection;
 import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseProgress;
@@ -96,6 +97,26 @@ class CourseProgressServiceTest {
 		assertThat(result).extracting(CourseProgressResponse::courseId).containsExactly(11L, 10L);
 	}
 
+	@Test
+	@DisplayName("코스 가게가 변경되면 모든 참여자의 완료 상태를 다시 계산한다")
+	void refreshForCourse_updatesEveryParticipant() {
+		Member completedMember = member(7L);
+		Member incompleteMember = member(8L);
+		Course course = course(10L);
+		CourseProgress completed = CourseProgress.start(completedMember, course, LocalDateTime.now());
+		CourseProgress incomplete = CourseProgress.start(incompleteMember, course, LocalDateTime.now());
+		completed.markCompleted(LocalDateTime.now());
+		incomplete.markCompleted(LocalDateTime.now());
+		given(courseProgressRepository.findAllByCourseId(10L)).willReturn(List.of(completed, incomplete));
+		given(courseProgressRepository.findMemberAggregates(10L))
+			.willReturn(List.of(memberAggregate(7L, 3, 3), memberAggregate(8L, 3, 2)));
+
+		courseProgressService.refreshForCourse(10L);
+
+		assertThat(completed.getCompletedAt()).isNotNull();
+		assertThat(incomplete.getCompletedAt()).isNull();
+	}
+
 	private Member member(Long id) {
 		Member member = Member.builder().nickname("테스터").build();
 		ReflectionTestUtils.setField(member, "id", id);
@@ -132,6 +153,28 @@ class CourseProgressServiceTest {
 			@Override
 			public LocalDateTime getLastTouchedAt() {
 				return lastTouchedAt;
+			}
+		};
+	}
+
+	private CourseProgressMemberAggregateProjection memberAggregate(
+			Long memberId,
+			long storeCount,
+			long visitedStoreCount) {
+		return new CourseProgressMemberAggregateProjection() {
+			@Override
+			public Long getMemberId() {
+				return memberId;
+			}
+
+			@Override
+			public long getStoreCount() {
+				return storeCount;
+			}
+
+			@Override
+			public long getVisitedStoreCount() {
+				return visitedStoreCount;
 			}
 		};
 	}

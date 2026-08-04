@@ -64,6 +64,8 @@ class CourseCommandServiceTest {
 	S3Service s3Service;
 	@Mock
 	ImageProcessingCallbackService imageProcessingCallbackService;
+	@Mock
+	CourseProgressService courseProgressService;
 
 	@InjectMocks
 	CourseCommandService courseCommandService;
