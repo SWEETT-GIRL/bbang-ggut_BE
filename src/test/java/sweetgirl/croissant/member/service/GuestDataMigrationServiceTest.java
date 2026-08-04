@@ -25,6 +25,7 @@ import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository;
 import sweetgirl.croissant.menu.repository.MenuLikeRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
+import sweetgirl.croissant.mission.repository.MemberMissionRepository;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 import sweetgirl.croissant.store.repository.SavedStoreRepository;
 import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
@@ -54,6 +55,8 @@ class GuestDataMigrationServiceTest {
 	private CourseProgressRepository courseProgressRepository;
 	@Mock
 	private MemberBadgeRepository memberBadgeRepository;
+	@Mock
+	private MemberMissionRepository memberMissionRepository;
 	@Mock
 	private MenuRepository menuRepository;
 	@Mock
