@@ -27,6 +27,7 @@ import sweetgirl.croissant.course.entity.SavedCourse;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
+import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
@@ -44,6 +45,8 @@ class CourseQueryServiceTest {
 	SavedCourseRepository savedCourseRepository;
 	@Mock
 	CourseImageFileRepository courseImageFileRepository;
+	@Mock
+	CourseProgressRepository courseProgressRepository;
 
 	@InjectMocks
 	CourseQueryService courseQueryService;
@@ -174,6 +177,7 @@ class CourseQueryServiceTest {
 			.willReturn(List.of(courseStore));
 		given(courseImageFileRepository.findByCourseId(1L)).willReturn(Optional.of(imageFile));
 		given(savedCourseRepository.countByCourseId(1L)).willReturn(5L);
+		given(courseProgressRepository.countByCourseIdAndCompletedAtIsNotNull(1L)).willReturn(37L);
 
 		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, null);
 
@@ -181,6 +185,7 @@ class CourseQueryServiceTest {
 		assertThat(result.isPublic()).isTrue();
 		assertThat(result.isSaved()).isFalse();
 		assertThat(result.savedCount()).isEqualTo(5L);
+		assertThat(result.finisherCount()).isEqualTo(37L);
 		assertThat(result.imageKey()).isEqualTo("courses/1/cover.jpg");
 		assertThat(result.courseStores()).hasSize(1);
 		assertThat(result.regions()).containsExactly("종로구");

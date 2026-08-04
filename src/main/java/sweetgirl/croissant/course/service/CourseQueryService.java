@@ -19,6 +19,7 @@ import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
+import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
@@ -33,6 +34,7 @@ public class CourseQueryService {
 	private final CourseStoreRepository courseStoreRepository;
 	private final SavedCourseRepository savedCourseRepository;
 	private final CourseImageFileRepository courseImageFileRepository;
+	private final CourseProgressRepository courseProgressRepository;
 
 	public List<CourseSummaryResponse> getCurationCourses() {
 		List<Course> courses = courseRepository.findAllByIsPublicTrueAndDeletedAtIsNull();
@@ -80,10 +82,19 @@ public class CourseQueryService {
 			&& course.getMember().getId().equals(memberId);
 		boolean isSaved = memberId != null && savedCourseRepository.existsByMemberIdAndCourseId(memberId, courseId);
 		long savedCount = savedCourseRepository.countByCourseId(courseId);
+		long finisherCount = courseProgressRepository.countByCourseIdAndCompletedAtIsNotNull(courseId);
 
 		List<String> regions = regionsOf(courseStores);
 
-		return CourseDetailResponse.of(course, coverImage, isMine, isSaved, savedCount, regions, courseStoreResponses);
+		return CourseDetailResponse.of(
+			course,
+			coverImage,
+			isMine,
+			isSaved,
+			savedCount,
+			finisherCount,
+			regions,
+			courseStoreResponses);
 	}
 
 	/** 코스별 가게·커버 이미지를 일괄 조회해 코스 수와 무관하게 고정된 쿼리 수로 summary를 만든다 */
@@ -106,6 +117,7 @@ public class CourseQueryService {
 				(first, second) -> first));
 
 		Map<Long, Long> savedCountByCourseId = findSavedCountByCourseId(courses);
+		Map<Long, Long> finisherCountByCourseId = findFinisherCountByCourseId(courseIds);
 
 		return courses.stream()
 			.map(course -> {
@@ -116,9 +128,17 @@ public class CourseQueryService {
 					coverImageByCourseId.get(course.getId()),
 					courseStores.size(),
 					regions,
-					savedCountByCourseId.getOrDefault(course.getId(), 0L));
+					savedCountByCourseId.getOrDefault(course.getId(), 0L),
+					finisherCountByCourseId.getOrDefault(course.getId(), 0L));
 			})
 			.toList();
+	}
+
+	private Map<Long, Long> findFinisherCountByCourseId(List<Long> courseIds) {
+		return courseProgressRepository.countCompletedGroupedByCourseIdIn(courseIds).stream()
+			.collect(Collectors.toMap(
+				courseIdAndCount -> (Long)courseIdAndCount[0],
+				courseIdAndCount -> (Long)courseIdAndCount[1]));
 	}
 
 	/** 코스 가게들의 지역을 "시(축약) 구"(예: "대전 중구") 목록으로. 순서 유지·중복 제거. */

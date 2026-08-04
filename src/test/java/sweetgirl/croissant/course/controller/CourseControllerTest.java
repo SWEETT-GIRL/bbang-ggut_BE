@@ -71,7 +71,7 @@ class CourseControllerTest {
 	@Test
 	void getCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
-			1L, "소금빵 투어", null, null, 2, List.of("마포구"), CourseType.CURATED, "어드민", null, 0L, 1);
+			1L, "소금빵 투어", null, null, 2, List.of("마포구"), CourseType.CURATED, "어드민", null, 0L, 1, 37L);
 		given(courseQueryService.getCurationCourses()).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses"))
@@ -80,13 +80,14 @@ class CourseControllerTest {
 			.andExpect(jsonPath("$.data[0].id").value(1))
 			.andExpect(jsonPath("$.data[0].title").value("소금빵 투어"))
 			.andExpect(jsonPath("$.data[0].courseType").value("CURATED"))
-			.andExpect(jsonPath("$.data[0].pinOrder").value(1));
+			.andExpect(jsonPath("$.data[0].pinOrder").value(1))
+			.andExpect(jsonPath("$.data[0].finisherCount").value(37));
 	}
 
 	@Test
 	void getMyCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
-			2L, "나의 코스", null, null, 1, List.of("서대문구"), CourseType.CUSTOM, "user1", null, 0L, null);
+			2L, "나의 코스", null, null, 1, List.of("서대문구"), CourseType.CUSTOM, "user1", null, 0L, null, 0L);
 		given(courseQueryService.getMyCourses(isNull())).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses/my"))
@@ -99,7 +100,7 @@ class CourseControllerTest {
 	@Test
 	void getSavedCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
-			3L, "찜한 코스", null, null, 3, List.of("강남구"), CourseType.CURATED, "어드민", null, 0L, null);
+			3L, "찜한 코스", null, null, 3, List.of("강남구"), CourseType.CURATED, "어드민", null, 0L, null, 0L);
 		given(courseQueryService.getSavedCourses(isNull())).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses/saved"))
@@ -140,7 +141,7 @@ class CourseControllerTest {
 	void getCourseDetail_returns200() throws Exception {
 		CourseDetailResponse response = new CourseDetailResponse(
 			1L, "소금빵 투어", null, null, 2, List.of("마포구"), CourseType.CURATED, "어드민", null, null, true, false, false,
-			5L, LocalDateTime.of(2026, 1, 1, 0, 0), List.of());
+			5L, 37L, LocalDateTime.of(2026, 1, 1, 0, 0), List.of());
 		given(courseQueryService.getCourseDetail(anyLong(), isNull())).willReturn(response);
 
 		mockMvc.perform(get("/courses/1"))
@@ -149,6 +150,7 @@ class CourseControllerTest {
 			.andExpect(jsonPath("$.data.id").value(1))
 			.andExpect(jsonPath("$.data.isPublic").value(true))
 			.andExpect(jsonPath("$.data.savedCount").value(5))
+			.andExpect(jsonPath("$.data.finisherCount").value(37))
 			.andExpect(jsonPath("$.data.isSaved").value(false));
 	}
 
