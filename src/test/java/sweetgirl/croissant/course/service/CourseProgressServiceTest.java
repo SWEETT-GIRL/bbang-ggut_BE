@@ -22,6 +22,7 @@ import sweetgirl.croissant.course.dto.projection.CourseProgressMemberAggregatePr
 import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseProgress;
+import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
@@ -54,7 +55,8 @@ class CourseProgressServiceTest {
 		given(memberReader.getMember(7L)).willReturn(member);
 		given(courseRepository.findByIdAndDeletedAtIsNull(10L)).willReturn(Optional.of(course));
 		given(courseProgressRepository.findByMemberIdAndCourseId(7L, 10L)).willReturn(Optional.empty());
-		given(courseProgressRepository.findAllByMemberId(7L)).willReturn(List.of());
+		given(courseProgressRepository.findAllByMemberIdAndStatus(7L, CourseProgressStatus.IN_PROGRESS))
+			.willReturn(List.of());
 
 		courseProgressService.start(7L, 10L);
 
@@ -68,14 +70,16 @@ class CourseProgressServiceTest {
 		Course course = course(10L);
 		CourseProgress progress = CourseProgress.start(member, course, LocalDateTime.of(2026, 8, 1, 10, 0));
 		given(memberReader.getMember(7L)).willReturn(member);
-		given(courseProgressRepository.findAllByMemberId(7L)).willReturn(List.of(progress));
+		given(courseProgressRepository.findAllByMemberIdAndStatus(7L, CourseProgressStatus.IN_PROGRESS))
+			.willReturn(List.of(progress));
 		given(courseProgressRepository.findAggregates(7L, List.of(10L)))
 			.willReturn(List.of(aggregate(10L, 3, 3, LocalDateTime.of(2026, 8, 3, 10, 0))));
 
 		List<CourseProgressResponse> result = courseProgressService.getOngoing(7L);
 
 		assertThat(result).isEmpty();
-		assertThat(progress.getCompletedAt()).isNotNull();
+		assertThat(progress.getStatus()).isEqualTo(CourseProgressStatus.FINISHED);
+		assertThat(progress.getFinishedAt()).isNotNull();
 	}
 
 	@Test
@@ -87,7 +91,8 @@ class CourseProgressServiceTest {
 		CourseProgress older = CourseProgress.start(member, olderCourse, LocalDateTime.of(2026, 8, 1, 10, 0));
 		CourseProgress newer = CourseProgress.start(member, newerCourse, LocalDateTime.of(2026, 8, 2, 10, 0));
 		given(memberReader.getMember(7L)).willReturn(member);
-		given(courseProgressRepository.findAllByMemberId(7L)).willReturn(List.of(older, newer));
+		given(courseProgressRepository.findAllByMemberIdAndStatus(7L, CourseProgressStatus.IN_PROGRESS))
+			.willReturn(List.of(older, newer));
 		given(courseProgressRepository.findAggregates(7L, List.of(10L, 11L)))
 			.willReturn(List.of(aggregate(10L, 3, 0, null), aggregate(11L, 3, 0, null)));
 		given(courseImageFileRepository.findAllByCourseIdIn(any())).willReturn(List.of());
@@ -105,16 +110,15 @@ class CourseProgressServiceTest {
 		Course course = course(10L);
 		CourseProgress completed = CourseProgress.start(completedMember, course, LocalDateTime.now());
 		CourseProgress incomplete = CourseProgress.start(incompleteMember, course, LocalDateTime.now());
-		completed.markCompleted(LocalDateTime.now());
-		incomplete.markCompleted(LocalDateTime.now());
-		given(courseProgressRepository.findAllByCourseId(10L)).willReturn(List.of(completed, incomplete));
+		given(courseProgressRepository.findAllByCourseIdAndStatus(10L, CourseProgressStatus.IN_PROGRESS))
+			.willReturn(List.of(completed, incomplete));
 		given(courseProgressRepository.findMemberAggregates(10L))
 			.willReturn(List.of(memberAggregate(7L, 3, 3), memberAggregate(8L, 3, 2)));
 
 		courseProgressService.refreshForCourse(10L);
 
-		assertThat(completed.getCompletedAt()).isNotNull();
-		assertThat(incomplete.getCompletedAt()).isNull();
+		assertThat(completed.getStatus()).isEqualTo(CourseProgressStatus.FINISHED);
+		assertThat(incomplete.getStatus()).isEqualTo(CourseProgressStatus.IN_PROGRESS);
 	}
 
 	private Member member(Long id) {

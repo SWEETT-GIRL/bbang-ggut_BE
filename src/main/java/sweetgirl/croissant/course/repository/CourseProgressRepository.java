@@ -14,6 +14,7 @@ import sweetgirl.croissant.course.dto.projection.CourseProgressAggregateProjecti
 import sweetgirl.croissant.course.dto.projection.CourseProgressMemberAggregateProjection;
 import sweetgirl.croissant.course.entity.CourseProgress;
 import sweetgirl.croissant.course.entity.CourseProgressId;
+import sweetgirl.croissant.course.enums.CourseProgressStatus;
 
 public interface CourseProgressRepository extends JpaRepository<CourseProgress, CourseProgressId> {
 
@@ -21,9 +22,12 @@ public interface CourseProgressRepository extends JpaRepository<CourseProgress, 
 	List<CourseProgress> findAllByMemberId(Long memberId);
 
 	@EntityGraph(attributePaths = "course")
+	List<CourseProgress> findAllByMemberIdAndStatus(Long memberId, CourseProgressStatus status);
+
+	@EntityGraph(attributePaths = "course")
 	Optional<CourseProgress> findByMemberIdAndCourseId(Long memberId, Long courseId);
 
-	List<CourseProgress> findAllByCourseId(Long courseId);
+	List<CourseProgress> findAllByCourseIdAndStatus(Long courseId, CourseProgressStatus status);
 
 	@Query(value = """
 			SELECT
@@ -69,24 +73,39 @@ public interface CourseProgressRepository extends JpaRepository<CourseProgress, 
 			SELECT cp.course.id, COUNT(cp)
 			FROM CourseProgress cp
 			WHERE cp.course.id IN :courseIds
-			AND cp.completedAt IS NOT NULL
+			AND cp.status = sweetgirl.croissant.course.enums.CourseProgressStatus.FINISHED
 			GROUP BY cp.course.id
 			""")
 	List<Object[]> countCompletedGroupedByCourseIdIn(@Param("courseIds") Collection<Long> courseIds);
 
-	long countByCourseIdAndCompletedAtIsNotNull(Long courseId);
+	long countByCourseIdAndStatus(Long courseId, CourseProgressStatus status);
+
+	long countByMemberIdAndStatus(Long memberId, CourseProgressStatus status);
 
 	@Modifying(clearAutomatically = true)
 	@Query(value = """
 			UPDATE course_progress target
 			SET started_at = LEAST(target.started_at, guest.started_at),
+				status = CASE
+					WHEN target.status = 'FINISHED' OR guest.status = 'FINISHED' THEN 'FINISHED'
+					WHEN target.status = 'IN_PROGRESS' OR guest.status = 'IN_PROGRESS' THEN 'IN_PROGRESS'
+					ELSE 'STOPPED'
+				END,
+				finished_at = CASE
+					WHEN target.finished_at IS NULL THEN guest.finished_at
+					WHEN guest.finished_at IS NULL THEN target.finished_at
+					ELSE LEAST(target.finished_at, guest.finished_at)
+				END,
 				completed_at = CASE
 					WHEN target.completed_at IS NULL THEN guest.completed_at
 					WHEN guest.completed_at IS NULL THEN target.completed_at
 					ELSE LEAST(target.completed_at, guest.completed_at)
 				END,
 				stopped_at = CASE
-					WHEN target.stopped_at IS NULL OR guest.stopped_at IS NULL THEN NULL
+					WHEN target.status = 'FINISHED' OR guest.status = 'FINISHED' THEN NULL
+					WHEN target.status = 'IN_PROGRESS' OR guest.status = 'IN_PROGRESS' THEN NULL
+					WHEN target.stopped_at IS NULL THEN guest.stopped_at
+					WHEN guest.stopped_at IS NULL THEN target.stopped_at
 					ELSE GREATEST(target.stopped_at, guest.stopped_at)
 				END,
 				updated_at = CURRENT_TIMESTAMP

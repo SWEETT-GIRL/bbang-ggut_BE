@@ -33,6 +33,7 @@ import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
 import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
+import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.service.CourseCommandService;
@@ -113,7 +114,8 @@ class CourseControllerTest {
 	void getCourseProgresses_returns200() throws Exception {
 		CourseProgressResponse response = new CourseProgressResponse(
 			1L, "소금빵 투어", null, null, 4, 2, 50,
-			LocalDateTime.of(2026, 8, 1, 10, 0), LocalDateTime.of(2026, 8, 3, 10, 0));
+			LocalDateTime.of(2026, 8, 1, 10, 0), LocalDateTime.of(2026, 8, 3, 10, 0),
+			CourseProgressStatus.IN_PROGRESS, null);
 		given(courseProgressService.getOngoing(isNull())).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses/progress"))
