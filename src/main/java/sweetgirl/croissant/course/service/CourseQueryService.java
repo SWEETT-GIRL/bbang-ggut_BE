@@ -1,6 +1,5 @@
 package sweetgirl.croissant.course.service;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -37,14 +36,7 @@ public class CourseQueryService {
 	private final CourseProgressRepository courseProgressRepository;
 
 	public List<CourseSummaryResponse> getCurationCourses() {
-		List<Course> courses = courseRepository.findAllByIsPublicTrueAndDeletedAtIsNull();
-		Map<Long, Long> savedCountByCourseId = findSavedCountByCourseId(courses);
-		List<Course> sortedCourses = courses.stream()
-			.sorted(Comparator
-				.<Course>comparingInt(course -> course.getPinOrder() != null ? course.getPinOrder() : Integer.MAX_VALUE)
-				.thenComparingLong(course -> -savedCountByCourseId.getOrDefault(course.getId(), 0L)))
-			.toList();
-		return buildSummaryResponses(sortedCourses);
+		return buildSummaryResponses(courseRepository.findAllPublicOrderedByPinAndSavedCount());
 	}
 
 	public List<CourseSummaryResponse> getMyCourses(Long memberId) {

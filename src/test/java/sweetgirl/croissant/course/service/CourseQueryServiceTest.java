@@ -60,7 +60,7 @@ class CourseQueryServiceTest {
 		CourseStore courseStore = mockCourseStore(1, "빵집A", "마포구");
 		given(courseStore.getCourse()).willReturn(course);
 
-		given(courseRepository.findAllByIsPublicTrueAndDeletedAtIsNull()).willReturn(List.of(course));
+		given(courseRepository.findAllPublicOrderedByPinAndSavedCount()).willReturn(List.of(course));
 		given(courseStoreRepository.findAllByCourseIdInAndDeletedAtIsNullOrderByVisitOrderAsc(List.of(1L)))
 			.willReturn(List.of(courseStore));
 
@@ -85,9 +85,9 @@ class CourseQueryServiceTest {
 		given(pinnedFirst.getPinOrder()).willReturn(1);
 		given(pinnedSecond.getPinOrder()).willReturn(2);
 
-		given(courseRepository.findAllByIsPublicTrueAndDeletedAtIsNull())
-			.willReturn(List.of(lessSaved, pinnedThird, mostSaved, pinnedFirst, pinnedSecond));
-		given(savedCourseRepository.countGroupedByCourseIdIn(List.of(1L, 3L, 2L, 4L, 5L)))
+		given(courseRepository.findAllPublicOrderedByPinAndSavedCount())
+			.willReturn(List.of(pinnedFirst, pinnedSecond, pinnedThird, mostSaved, lessSaved));
+		given(savedCourseRepository.countGroupedByCourseIdIn(List.of(4L, 5L, 3L, 2L, 1L)))
 			.willReturn(List.of(new Object[] {1L, 1L}, new Object[] {2L, 5L}));
 
 		List<CourseSummaryResponse> result = courseQueryService.getCurationCourses();
