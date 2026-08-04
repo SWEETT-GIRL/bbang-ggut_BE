@@ -22,6 +22,7 @@ public record CourseDetailResponse(
 		boolean isMine,
 		boolean isSaved,
 		long savedCount,
+		long finisherCount,
 		LocalDateTime createdAt,
 		List<CourseStoreResponse> courseStores) {
 
@@ -31,6 +32,7 @@ public record CourseDetailResponse(
 			boolean isMine,
 			boolean isSaved,
 			long savedCount,
+			long finisherCount,
 			List<String> regions,
 			List<CourseStoreResponse> courseStores) {
 		String authorName = course.getMember() != null ? course.getMember().getNickname() : null;
@@ -50,6 +52,7 @@ public record CourseDetailResponse(
 			isMine,
 			isSaved,
 			savedCount,
+			finisherCount,
 			course.getCreatedAt(),
 			courseStores);
 	}

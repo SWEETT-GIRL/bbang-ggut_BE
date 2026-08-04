@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
+import io.micrometer.core.annotation.Timed;
 import lombok.RequiredArgsConstructor;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -31,6 +32,8 @@ import sweetgirl.croissant.external.aws.exception.S3StorageException;
 @Service
 @Profile({"local", "staging", "prod"})
 @RequiredArgsConstructor
+// 이미지 업로드(presigned URL 발급 등)가 사용자 요청 경로에 있어 S3 지연을 별도로 본다.
+@Timed(value = "aws.s3", histogram = true)
 public class S3Service {
 
 	private final S3Presigner s3Presigner;

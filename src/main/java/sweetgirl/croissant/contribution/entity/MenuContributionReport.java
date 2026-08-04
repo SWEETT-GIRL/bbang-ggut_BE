@@ -101,7 +101,7 @@ public class MenuContributionReport extends BaseTimeEntity {
 	}
 
 	public Menu toMenu() {
-		return new Menu(store, menuCategory, name, price, description);
+		return new Menu(store, menuCategory, name, price, description, getMember());
 	}
 
 	public void approve() {

@@ -12,13 +12,18 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
+import sweetgirl.croissant.breadlog.repository.StorePlanRepository;
+import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
+import sweetgirl.croissant.course.service.CourseProgressService;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.LikedMenuCategoryRepository;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository;
 import sweetgirl.croissant.menu.repository.MenuLikeRepository;
+import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 import sweetgirl.croissant.store.repository.SavedStoreRepository;
 import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
@@ -40,6 +45,16 @@ class GuestDataMigrationServiceTest {
 	private LikedMenuCategoryRepository likedMenuCategoryRepository;
 	@Mock
 	private ReviewRepository reviewRepository;
+	@Mock
+	private BreadRecordRepository breadRecordRepository;
+	@Mock
+	private StorePlanRepository storePlanRepository;
+	@Mock
+	private CourseProgressRepository courseProgressRepository;
+	@Mock
+	private MenuRepository menuRepository;
+	@Mock
+	private CourseProgressService courseProgressService;
 	@Mock
 	private MemberRepository memberRepository;
 	@Mock
@@ -78,6 +93,15 @@ class GuestDataMigrationServiceTest {
 		order.verify(likedMenuCategoryRepository).moveOwner(GUEST_ID, TARGET_ID);
 
 		then(reviewRepository).should().moveOwner(GUEST_ID, TARGET_ID);
+		then(breadRecordRepository).should().moveOwner(GUEST_ID, TARGET_ID);
+		var breadLogOrder = inOrder(storePlanRepository, courseProgressRepository);
+		breadLogOrder.verify(storePlanRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
+		breadLogOrder.verify(storePlanRepository).moveOwner(GUEST_ID, TARGET_ID);
+		breadLogOrder.verify(courseProgressRepository).mergeGuestDuplicates(GUEST_ID, TARGET_ID);
+		breadLogOrder.verify(courseProgressRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
+		breadLogOrder.verify(courseProgressRepository).moveOwner(GUEST_ID, TARGET_ID);
+		then(menuRepository).should().moveCreator(GUEST_ID, TARGET_ID);
+		then(courseProgressService).should().refreshForMember(TARGET_ID);
 	}
 
 	// 빈 껍데기 게스트가 남아 다음 로그인에서 다시 이관 대상이 되면 안 된다

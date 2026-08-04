@@ -13,7 +13,20 @@ import sweetgirl.croissant.course.enums.CourseType;
 
 public interface CourseRepository extends JpaRepository<Course, Long> {
 
-	List<Course> findAllByIsPublicTrueAndDeletedAtIsNull();
+	@Query("""
+			SELECT course
+			FROM Course course
+			LEFT JOIN SavedCourse savedCourse ON savedCourse.course = course
+			WHERE course.isPublic = true
+			AND course.deletedAt IS NULL
+			GROUP BY course
+			ORDER BY
+				CASE WHEN course.pinOrder IS NULL THEN 1 ELSE 0 END ASC,
+				course.pinOrder ASC,
+				COUNT(savedCourse.id) DESC,
+				course.id DESC
+			""")
+	List<Course> findAllPublicOrderedByPinAndSavedCount();
 
 	List<Course> findAllByMemberIdAndTypeInAndDeletedAtIsNull(Long memberId, List<CourseType> types);
 

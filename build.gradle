@@ -29,7 +29,12 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-restclient'
+    // @Timed 등 애노테이션 기반 계측용 (Boot 4부터 starter-aop → starter-aspectj)
+    implementation 'org.springframework.boot:spring-boot-starter-aspectj'
     implementation 'com.nimbusds:nimbus-jose-jwt:9.37.3'
+
+    // Metrics & Monitoring
+    implementation 'io.micrometer:micrometer-registry-prometheus'
 
     // Database & Persistence
     implementation 'org.hibernate.orm:hibernate-spatial'

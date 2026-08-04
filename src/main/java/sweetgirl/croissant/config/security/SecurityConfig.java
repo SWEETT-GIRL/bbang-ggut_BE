@@ -56,7 +56,11 @@ public class SecurityConfig {
 			.requestMatchers("/terms").permitAll()
 			.requestMatchers(HttpMethod.PATCH, "/callback/images/status").permitAll()
 			.requestMatchers(HttpMethod.GET, "/dev/**").permitAll()
-			.requestMatchers("/actuator/health", "/actuator/metrics", "/actuator/metrics/**").permitAll()
+			// actuator는 management.server.port(8081)로 분리되어 있으나 요청은 이 필터체인을 거친다.
+			// prometheus는 스크랩 주체가 인증 정보를 붙이지 않으므로 인증을 면제한다.
+			.requestMatchers("/actuator/health", "/actuator/metrics", "/actuator/metrics/**",
+				"/actuator/prometheus")
+			.permitAll()
 			.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
 			.requestMatchers(HttpMethod.GET, "/trend/**", "/menu-categories", "/banners", "/banners/**").permitAll()
 			// 홈화면 근처/인기 빵집·검색 비로그인 허용

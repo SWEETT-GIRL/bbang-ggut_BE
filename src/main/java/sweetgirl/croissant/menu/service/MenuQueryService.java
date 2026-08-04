@@ -76,6 +76,24 @@ public class MenuQueryService {
 			.toList();
 	}
 
+	public StoreMenuResponse getStoreMenu(Long menuId, Long memberId) {
+		Menu menu = menuRepository.findByIdWithDetails(menuId)
+			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
+		ImageResponse image = menuImageFileRepository.findThumbnailsByMenuIdIn(List.of(menuId)).stream()
+			.findFirst()
+			.map(projection -> new ImageResponse(
+				projection.getImageId(),
+				projection.getAwsKey(),
+				projection.getResizedKey640()))
+			.orElse(null);
+		long reviewCount = reviewRepository.countVisibleActiveByMenuIds(List.of(menuId), memberId).stream()
+			.findFirst()
+			.map(MenuReviewCountProjection::getReviewCount)
+			.orElse(0L);
+		boolean isLiked = memberId != null && menuLikeRepository.existsByMemberIdAndMenuId(memberId, menuId);
+		return StoreMenuResponse.of(menu, image, isLiked, reviewCount);
+	}
+
 	public MenuDetailResponse getMenuDetail(Long menuId, Long memberId) {
 		Menu menu = menuRepository.findByIdWithDetails(menuId)
 			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));

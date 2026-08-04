@@ -30,11 +30,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
+import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.service.CourseCommandService;
+import sweetgirl.croissant.course.service.CourseProgressService;
 import sweetgirl.croissant.course.service.CourseQueryService;
 import sweetgirl.croissant.course.service.SavedCourseCommandService;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
@@ -52,6 +54,8 @@ class CourseControllerTest {
 	private CourseCommandService courseCommandService;
 	@Mock
 	private SavedCourseCommandService savedCourseCommandService;
+	@Mock
+	private CourseProgressService courseProgressService;
 
 	@InjectMocks
 	private CourseController courseController;
@@ -67,7 +71,7 @@ class CourseControllerTest {
 	@Test
 	void getCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
-			1L, "소금빵 투어", null, null, 2, List.of("마포구"), CourseType.CURATED, "어드민", null, 0L);
+			1L, "소금빵 투어", null, null, 2, List.of("마포구"), CourseType.CURATED, "어드민", null, 0L, 1, 37L);
 		given(courseQueryService.getCurationCourses()).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses"))
@@ -75,13 +79,15 @@ class CourseControllerTest {
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data[0].id").value(1))
 			.andExpect(jsonPath("$.data[0].title").value("소금빵 투어"))
-			.andExpect(jsonPath("$.data[0].courseType").value("CURATED"));
+			.andExpect(jsonPath("$.data[0].courseType").value("CURATED"))
+			.andExpect(jsonPath("$.data[0].pinOrder").value(1))
+			.andExpect(jsonPath("$.data[0].finisherCount").value(37));
 	}
 
 	@Test
 	void getMyCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
-			2L, "나의 코스", null, null, 1, List.of("서대문구"), CourseType.CUSTOM, "user1", null, 0L);
+			2L, "나의 코스", null, null, 1, List.of("서대문구"), CourseType.CUSTOM, "user1", null, 0L, null, 0L);
 		given(courseQueryService.getMyCourses(isNull())).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses/my"))
@@ -94,7 +100,7 @@ class CourseControllerTest {
 	@Test
 	void getSavedCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
-			3L, "찜한 코스", null, null, 3, List.of("강남구"), CourseType.CURATED, "어드민", null, 0L);
+			3L, "찜한 코스", null, null, 3, List.of("강남구"), CourseType.CURATED, "어드민", null, 0L, null, 0L);
 		given(courseQueryService.getSavedCourses(isNull())).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses/saved"))
@@ -104,10 +110,38 @@ class CourseControllerTest {
 	}
 
 	@Test
+	void getCourseProgresses_returns200() throws Exception {
+		CourseProgressResponse response = new CourseProgressResponse(
+			1L, "소금빵 투어", null, null, 4, 2, 50,
+			LocalDateTime.of(2026, 8, 1, 10, 0), LocalDateTime.of(2026, 8, 3, 10, 0));
+		given(courseProgressService.getOngoing(isNull())).willReturn(List.of(response));
+
+		mockMvc.perform(get("/courses/progress"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data[0].id").value(1))
+			.andExpect(jsonPath("$.data[0].visitedStoreCount").value(2))
+			.andExpect(jsonPath("$.data[0].progressPercent").value(50));
+	}
+
+	@Test
+	void startCourseProgress_returns200() throws Exception {
+		mockMvc.perform(post("/courses/1/progress"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
+	}
+
+	@Test
+	void stopCourseProgress_returns200() throws Exception {
+		mockMvc.perform(delete("/courses/1/progress"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
+	}
+
+	@Test
 	void getCourseDetail_returns200() throws Exception {
 		CourseDetailResponse response = new CourseDetailResponse(
 			1L, "소금빵 투어", null, null, 2, List.of("마포구"), CourseType.CURATED, "어드민", null, null, true, false, false,
-			5L, LocalDateTime.of(2026, 1, 1, 0, 0), List.of());
+			5L, 37L, LocalDateTime.of(2026, 1, 1, 0, 0), List.of());
 		given(courseQueryService.getCourseDetail(anyLong(), isNull())).willReturn(response);
 
 		mockMvc.perform(get("/courses/1"))
@@ -116,6 +150,7 @@ class CourseControllerTest {
 			.andExpect(jsonPath("$.data.id").value(1))
 			.andExpect(jsonPath("$.data.isPublic").value(true))
 			.andExpect(jsonPath("$.data.savedCount").value(5))
+			.andExpect(jsonPath("$.data.finisherCount").value(37))
 			.andExpect(jsonPath("$.data.isSaved").value(false));
 	}
 

@@ -16,14 +16,17 @@ public record CourseSummaryResponse(
 		CourseType courseType,
 		String authorName,
 		String badge,
-		long savedCount) {
+		long savedCount,
+		Integer pinOrder,
+		long finisherCount) {
 
 	public static CourseSummaryResponse of(
 			Course course,
 			CourseImageFile coverImage,
 			int storeCount,
 			List<String> regions,
-			long savedCount) {
+			long savedCount,
+			long finisherCount) {
 		String authorName = course.getMember() != null ? course.getMember().getNickname() : null;
 		return new CourseSummaryResponse(
 			course.getId(),
@@ -35,6 +38,8 @@ public record CourseSummaryResponse(
 			course.getType(),
 			authorName,
 			course.getBadge(),
-			savedCount);
+			savedCount,
+			course.getPinOrder(),
+			finisherCount);
 	}
 }
