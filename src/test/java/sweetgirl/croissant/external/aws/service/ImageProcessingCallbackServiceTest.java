@@ -5,6 +5,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
@@ -29,6 +30,15 @@ class ImageProcessingCallbackServiceTest {
 
 	@InjectMocks
 	ImageProcessingCallbackService imageProcessingCallbackService;
+
+	@Test
+	@DisplayName("savePendingCallback: 동일 awsKey 콜백을 원자적으로 upsert한다")
+	void savePendingCallback_upsertsAtomically() {
+		imageProcessingCallbackService.savePendingCallback("bread-records/members/7/images/a", ImageStatus.DONE, null);
+
+		verify(imageProcessingCallbackRepository)
+			.upsert("bread-records/members/7/images/a", "DONE", null);
+	}
 
 	@Test
 	@DisplayName("applyStatus: DONE이면 상태와 resized key 3개를 저장한다")
@@ -72,6 +82,35 @@ class ImageProcessingCallbackServiceTest {
 		assertThat(image.getProcessingStatus()).isEqualTo(ImageStatus.DONE);
 		assertThat(image.getResizedKey640()).isEqualTo("resized/640/" + awsKey);
 		verify(imageProcessingCallbackRepository).delete(callback);
+	}
+
+	@Test
+	@DisplayName("applySameKeyPendingCallback: 같은 키의 이미지 전부에 적용한 뒤에 콜백을 지운다")
+	void applySameKeyPendingCallback_appliesToAllThenDeletesOnce() {
+		String awsKey = "bread-records/members/7/images/dup";
+		StoreImageFile first = image(awsKey);
+		StoreImageFile second = image(awsKey);
+		ImageProcessingCallback callback = new ImageProcessingCallback(awsKey, ImageStatus.DONE, null);
+		given(imageProcessingCallbackRepository.findByAwsKey(awsKey)).willReturn(Optional.of(callback));
+
+		imageProcessingCallbackService.applySameKeyPendingCallback(List.of(first, second));
+
+		// 한 장씩 처리하면 첫 장이 콜백을 지워 둘째 장이 PENDING으로 남는다 — 둘 다 DONE이어야 한다.
+		assertThat(first.getProcessingStatus()).isEqualTo(ImageStatus.DONE);
+		assertThat(second.getProcessingStatus()).isEqualTo(ImageStatus.DONE);
+		verify(imageProcessingCallbackRepository).delete(callback);
+	}
+
+	@Test
+	@DisplayName("applySameKeyPendingCallback: 보류 콜백이 없으면 아무것도 하지 않는다")
+	void applySameKeyPendingCallback_withoutPendingCallback_doesNothing() {
+		String awsKey = "bread-records/members/7/images/none";
+		StoreImageFile image = image(awsKey);
+		given(imageProcessingCallbackRepository.findByAwsKey(awsKey)).willReturn(Optional.empty());
+
+		imageProcessingCallbackService.applySameKeyPendingCallback(List.of(image));
+
+		assertThat(image.getProcessingStatus()).isEqualTo(ImageStatus.PENDING);
 	}
 
 	private StoreImageFile image(String awsKey) {

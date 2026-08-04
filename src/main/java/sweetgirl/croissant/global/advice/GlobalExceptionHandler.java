@@ -161,7 +161,8 @@ public class GlobalExceptionHandler {
 			log.debug("[ClientAbort] {}", ex.getMessage());
 			return null;
 		}
-		log.error("[UnhandledException] {}", ex.getMessage(), ex);
+		log.error("[UnhandledException] method={}, uri={}, message={}",
+			request.getMethod(), request.getRequestURI(), ex.getMessage(), ex);
 		request.setAttribute(RequestLoggingFilter.ATTR_ERROR_CODE, "INTERNAL_SERVER_ERROR");
 		request.setAttribute(RequestLoggingFilter.ATTR_ERROR_MESSAGE, ex.getMessage());
 		return ResponseEntity

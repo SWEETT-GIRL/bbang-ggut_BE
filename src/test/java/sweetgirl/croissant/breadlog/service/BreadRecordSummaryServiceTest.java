@@ -60,6 +60,22 @@ class BreadRecordSummaryServiceTest {
 		assertThat(result.revisitRate()).isEqualTo(67);
 	}
 
+	@Test
+	@DisplayName("지역 정보가 없는 기록은 시도 집계에서 제외한다")
+	void getSummary_ignoresRecordsWithoutRegion() {
+		LocalDateTime from = LocalDateTime.of(2026, 1, 1, 0, 0);
+		LocalDateTime to = LocalDateTime.of(2027, 1, 1, 0, 0);
+		given(breadRecordRepository.findStoreVisits(7L, from, to)).willReturn(List.of());
+		given(breadRecordRepository.findVisitedRegions(7L, from, to)).willReturn(List.of(
+			region(null, null),
+			region(null, "대전_유성구_궁동")));
+		given(tagRepository.findBreadCategories(7L, from, to)).willReturn(List.of());
+
+		BreadRecordSummaryResponse result = summaryService.getSummary(7L, from, to);
+
+		assertThat(result.sidos()).containsExactly("대전");
+	}
+
 	private BreadRecordStoreVisitProjection storeVisit(Long storeId, String name, Long visits) {
 		return new BreadRecordStoreVisitProjection() {
 			@Override
