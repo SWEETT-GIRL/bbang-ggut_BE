@@ -31,8 +31,10 @@ import sweetgirl.croissant.breadlog.dto.response.BreadRecordCreateResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlInfo;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordResponse;
+import sweetgirl.croissant.breadlog.dto.response.BreadRecordSummaryResponse;
 import sweetgirl.croissant.breadlog.service.BreadRecordCommandService;
 import sweetgirl.croissant.breadlog.service.BreadRecordQueryService;
+import sweetgirl.croissant.breadlog.service.BreadRecordSummaryService;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 
 @ExtendWith(MockitoExtension.class)
@@ -65,6 +67,8 @@ class BreadRecordControllerTest {
 	BreadRecordQueryService queryService;
 	@Mock
 	BreadRecordCommandService commandService;
+	@Mock
+	BreadRecordSummaryService summaryService;
 
 	@InjectMocks
 	BreadRecordController controller;
@@ -103,6 +107,20 @@ class BreadRecordControllerTest {
 			.content(VALID_REQUEST))
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.data.recordId").value(11));
+	}
+
+	@Test
+	void getSummary_returns200() throws Exception {
+		BreadRecordSummaryResponse response = new BreadRecordSummaryResponse(
+			6L, 2L, List.of("서울"), List.of("식빵"), List.of(), 50);
+		given(summaryService.getSummary(isNull(), any(), any())).willReturn(response);
+
+		mockMvc.perform(get("/bread-records/summary")
+			.param("from", "2026-01-01T00:00:00")
+			.param("to", "2027-01-01T00:00:00"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.totalBreads").value(6))
+			.andExpect(jsonPath("$.data.revisitRate").value(50));
 	}
 
 	@Test

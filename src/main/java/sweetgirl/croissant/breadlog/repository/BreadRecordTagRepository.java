@@ -1,5 +1,6 @@
 package sweetgirl.croissant.breadlog.repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -20,4 +21,31 @@ public interface BreadRecordTagRepository extends JpaRepository<BreadRecordTag, 
 	List<BreadRecordTag> findByRecordIdInWithPhoto(@Param("recordIds") List<Long> recordIds);
 
 	void deleteAllByRecordId(Long recordId);
+
+	@Query("""
+			SELECT COUNT(tag.id)
+			FROM BreadRecordTag tag
+			WHERE tag.record.member.id = :memberId
+			AND tag.record.deletedAt IS NULL
+			AND tag.record.eatenAt >= :from
+			AND tag.record.eatenAt < :to
+			""")
+	long countBreads(
+			@Param("memberId") Long memberId,
+			@Param("from") LocalDateTime from,
+			@Param("to") LocalDateTime to);
+
+	@Query("""
+			SELECT DISTINCT tag.breadCategory
+			FROM BreadRecordTag tag
+			WHERE tag.record.member.id = :memberId
+			AND tag.record.deletedAt IS NULL
+			AND tag.record.eatenAt >= :from
+			AND tag.record.eatenAt < :to
+			ORDER BY tag.breadCategory
+			""")
+	List<String> findBreadCategories(
+			@Param("memberId") Long memberId,
+			@Param("from") LocalDateTime from,
+			@Param("to") LocalDateTime to);
 }

@@ -27,8 +27,10 @@ import sweetgirl.croissant.breadlog.dto.response.BreadRecordCreateResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlInfo;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordResponse;
+import sweetgirl.croissant.breadlog.dto.response.BreadRecordSummaryResponse;
 import sweetgirl.croissant.breadlog.service.BreadRecordCommandService;
 import sweetgirl.croissant.breadlog.service.BreadRecordQueryService;
+import sweetgirl.croissant.breadlog.service.BreadRecordSummaryService;
 import sweetgirl.croissant.global.response.ApiResponse;
 
 @Tag(name = "BreadLog", description = "빵 기록 API")
@@ -39,6 +41,7 @@ public class BreadRecordController {
 
 	private final BreadRecordQueryService queryService;
 	private final BreadRecordCommandService commandService;
+	private final BreadRecordSummaryService summaryService;
 
 	@Operation(summary = "내 빵 기록 목록 조회", description = "기간은 eatenAt 기준이며 from 이상, to 미만으로 조회합니다.")
 	@GetMapping
@@ -48,6 +51,15 @@ public class BreadRecordController {
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
 			@RequestParam(required = false) Long storeId) {
 		return ResponseEntity.ok(ApiResponse.ok(queryService.getRecords(memberId, from, to, storeId)));
+	}
+
+	@Operation(summary = "내 빵 기록 집계 조회", description = "기간은 eatenAt 기준이며 from 이상, to 미만으로 집계합니다.")
+	@GetMapping("/summary")
+	public ResponseEntity<ApiResponse<BreadRecordSummaryResponse>> getSummary(
+			@AuthenticationPrincipal Long memberId,
+			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
+		return ResponseEntity.ok(ApiResponse.ok(summaryService.getSummary(memberId, from, to)));
 	}
 
 	@Operation(summary = "빵 기록 생성")
