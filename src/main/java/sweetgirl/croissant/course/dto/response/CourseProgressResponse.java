@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 import sweetgirl.croissant.course.entity.CourseImageFile;
 import sweetgirl.croissant.course.entity.CourseProgress;
+import sweetgirl.croissant.course.enums.CourseProgressStatus;
 
 public record CourseProgressResponse(
 		Long id,
@@ -14,7 +15,9 @@ public record CourseProgressResponse(
 		int visitedStoreCount,
 		int progressPercent,
 		LocalDateTime startedAt,
-		LocalDateTime lastTouchedAt) {
+		LocalDateTime lastTouchedAt,
+		CourseProgressStatus status,
+		LocalDateTime finishedAt) {
 
 	public static CourseProgressResponse of(
 			CourseProgress progress,
@@ -32,6 +35,8 @@ public record CourseProgressResponse(
 			visitedStoreCount,
 			progressPercent,
 			progress.getStartedAt(),
-			lastTouchedAt);
+			lastTouchedAt,
+			progress.getStatus(),
+			progress.getFinishedAt());
 	}
 }

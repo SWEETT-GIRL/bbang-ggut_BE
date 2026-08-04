@@ -15,6 +15,7 @@ import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseImageFile;
 import sweetgirl.croissant.course.entity.CourseStore;
+import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
@@ -74,7 +75,8 @@ public class CourseQueryService {
 			&& course.getMember().getId().equals(memberId);
 		boolean isSaved = memberId != null && savedCourseRepository.existsByMemberIdAndCourseId(memberId, courseId);
 		long savedCount = savedCourseRepository.countByCourseId(courseId);
-		long finisherCount = courseProgressRepository.countByCourseIdAndCompletedAtIsNotNull(courseId);
+		long finisherCount = courseProgressRepository.countByCourseIdAndStatus(
+			courseId, CourseProgressStatus.FINISHED);
 
 		List<String> regions = regionsOf(courseStores);
 

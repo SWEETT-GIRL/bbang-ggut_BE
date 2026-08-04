@@ -12,6 +12,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import sweetgirl.croissant.badge.repository.MemberBadgeRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.StorePlanRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
@@ -51,6 +52,8 @@ class GuestDataMigrationServiceTest {
 	private StorePlanRepository storePlanRepository;
 	@Mock
 	private CourseProgressRepository courseProgressRepository;
+	@Mock
+	private MemberBadgeRepository memberBadgeRepository;
 	@Mock
 	private MenuRepository menuRepository;
 	@Mock
@@ -100,6 +103,10 @@ class GuestDataMigrationServiceTest {
 		breadLogOrder.verify(courseProgressRepository).mergeGuestDuplicates(GUEST_ID, TARGET_ID);
 		breadLogOrder.verify(courseProgressRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
 		breadLogOrder.verify(courseProgressRepository).moveOwner(GUEST_ID, TARGET_ID);
+		var badgeOrder = inOrder(memberBadgeRepository);
+		badgeOrder.verify(memberBadgeRepository).mergeGuestDuplicates(GUEST_ID, TARGET_ID);
+		badgeOrder.verify(memberBadgeRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
+		badgeOrder.verify(memberBadgeRepository).moveOwner(GUEST_ID, TARGET_ID);
 		then(menuRepository).should().moveCreator(GUEST_ID, TARGET_ID);
 		then(courseProgressService).should().refreshForMember(TARGET_ID);
 	}

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.member.entity.Member;
 
 class CourseProgressTest {
@@ -27,21 +28,24 @@ class CourseProgressTest {
 
 		assertThat(progress.getId()).isEqualTo(new CourseProgressId(7L, 10L));
 		assertThat(progress.getStartedAt()).isEqualTo(startedAt);
-		assertThat(progress.getStoppedAt()).isNull();
+		assertThat(progress.getStatus()).isEqualTo(CourseProgressStatus.IN_PROGRESS);
 	}
 
 	@Test
-	@DisplayName("완료 조건을 잃으면 완료 시각을 해제한다")
-	void markIncomplete_clearsCompletedAt() {
+	@DisplayName("완료한 코스는 다시 시작하거나 중단해도 완료 이력을 유지한다")
+	void finishedProgress_isIrreversible() {
 		Member member = Member.builder().nickname("테스터").build();
 		Course course = Course.createCurated("성수 빵지순례", null);
 		ReflectionTestUtils.setField(member, "id", 7L);
 		ReflectionTestUtils.setField(course, "id", 10L);
 		CourseProgress progress = CourseProgress.start(member, course, LocalDateTime.now());
 
-		progress.markCompleted(LocalDateTime.now());
-		progress.markIncomplete();
+		LocalDateTime finishedAt = LocalDateTime.now();
+		progress.markFinished(finishedAt);
+		progress.stop(LocalDateTime.now());
+		progress.resume();
 
-		assertThat(progress.getCompletedAt()).isNull();
+		assertThat(progress.getStatus()).isEqualTo(CourseProgressStatus.FINISHED);
+		assertThat(progress.getFinishedAt()).isEqualTo(finishedAt);
 	}
 }
