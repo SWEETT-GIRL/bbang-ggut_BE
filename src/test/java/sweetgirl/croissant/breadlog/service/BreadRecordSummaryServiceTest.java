@@ -47,7 +47,7 @@ class BreadRecordSummaryServiceTest {
 			region("서울특별시", "서울_성동구_성수동"),
 			region(null, "대전_유성구_궁동")));
 		given(tagRepository.countBreads(7L, from, to)).willReturn(6L);
-		given(tagRepository.findBreadCategories(7L, from, to)).willReturn(List.of("소금빵", "식빵"));
+		given(tagRepository.findBreadCategories(7L, from, to)).willReturn(List.of("소금빵", "식빵", "기타"));
 
 		BreadRecordSummaryResponse result = summaryService.getSummary(7L, from, to);
 

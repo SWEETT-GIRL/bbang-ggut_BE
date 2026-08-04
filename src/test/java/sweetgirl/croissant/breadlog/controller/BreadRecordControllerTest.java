@@ -110,6 +110,14 @@ class BreadRecordControllerTest {
 	}
 
 	@Test
+	void create_withoutPhoto_returns400() throws Exception {
+		mockMvc.perform(post("/bread-records")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"storeName\":\"밀도 성수\",\"eatenAt\":\"2026-08-02T14:21:07\",\"photos\":[],\"tags\":[]}"))
+			.andExpect(status().isBadRequest());
+	}
+
+	@Test
 	void getSummary_returns200() throws Exception {
 		BreadRecordSummaryResponse response = new BreadRecordSummaryResponse(
 			6L, 2L, List.of("서울"), List.of("식빵"), List.of(), 50);

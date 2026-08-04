@@ -30,6 +30,7 @@ public class BreadRecordSummaryService {
 		"서울", "경기", "인천", "강원", "충북", "충남", "세종", "대전", "경북",
 		"경남", "대구", "울산", "부산", "전북", "전남", "광주", "제주");
 	private static final Set<String> VALID_SIDOS = Set.copyOf(SIDO_ORDER);
+	private static final String UNCATEGORIZED_BREAD = "기타";
 
 	private final MemberReader memberReader;
 	private final BreadRecordRepository breadRecordRepository;
@@ -55,7 +56,9 @@ public class BreadRecordSummaryService {
 			tagRepository.countBreads(memberId, rangeStart, rangeEnd),
 			storeVisits.size(),
 			sidos,
-			tagRepository.findBreadCategories(memberId, rangeStart, rangeEnd),
+			tagRepository.findBreadCategories(memberId, rangeStart, rangeEnd).stream()
+				.filter(category -> !UNCATEGORIZED_BREAD.equals(category))
+				.toList(),
 			topStores,
 			calculateRevisitRate(storeVisits));
 	}

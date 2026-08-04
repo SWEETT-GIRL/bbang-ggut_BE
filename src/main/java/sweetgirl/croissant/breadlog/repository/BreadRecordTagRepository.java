@@ -42,6 +42,7 @@ public interface BreadRecordTagRepository extends JpaRepository<BreadRecordTag, 
 			AND tag.record.deletedAt IS NULL
 			AND tag.record.eatenAt >= :from
 			AND tag.record.eatenAt < :to
+			AND tag.breadCategory <> '기타'
 			ORDER BY tag.breadCategory
 			""")
 	List<String> findBreadCategories(

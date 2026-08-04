@@ -15,6 +15,6 @@ public record BreadRecordUpsertRequest(
 		@Size(max = 500) String memo,
 		@Size(max = 100) String lovedBread,
 		@NotNull LocalDateTime eatenAt,
-		@NotNull @Size(max = 10) List<@Valid BreadRecordPhotoRequest> photos,
+		@NotNull @Size(min = 1, max = 10) List<@Valid BreadRecordPhotoRequest> photos,
 		@NotNull List<@Valid BreadRecordTagRequest> tags) {
 }
