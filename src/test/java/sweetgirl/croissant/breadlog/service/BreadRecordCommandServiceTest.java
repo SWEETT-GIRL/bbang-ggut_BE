@@ -37,6 +37,7 @@ import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
 import sweetgirl.croissant.common.enums.ImageStatus;
 import sweetgirl.croissant.common.enums.MimeType;
+import sweetgirl.croissant.course.service.CourseProgressService;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
@@ -69,6 +70,8 @@ class BreadRecordCommandServiceTest {
 	BreadRecordRegionResolver regionResolver;
 	@Mock
 	ImageProcessingCallbackService imageProcessingCallbackService;
+	@Mock
+	CourseProgressService courseProgressService;
 
 	@InjectMocks
 	BreadRecordCommandService commandService;
@@ -104,6 +107,7 @@ class BreadRecordCommandServiceTest {
 				&& tagList.get(0).getPositionX() == 0.31
 				&& tagList.get(0).getPositionY() == 0.42;
 		}));
+		verify(courseProgressService).refreshForMember(7L);
 	}
 
 	@Test
@@ -152,6 +156,7 @@ class BreadRecordCommandServiceTest {
 				&& photoList.get(0).getProcessingStatus() == ImageStatus.DONE
 				&& photoList.get(0).getResizedKey320().equals("resized/320/" + awsKey);
 		}));
+		verify(courseProgressService).refreshForMember(7L);
 	}
 
 	@Test

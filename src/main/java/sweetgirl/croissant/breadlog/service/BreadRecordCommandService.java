@@ -29,6 +29,7 @@ import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
 import sweetgirl.croissant.common.enums.ImageStatus;
 import sweetgirl.croissant.common.enums.MimeType;
+import sweetgirl.croissant.course.service.CourseProgressService;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.external.aws.exception.S3StorageException;
@@ -58,6 +59,7 @@ public class BreadRecordCommandService {
 	private final BreadCategoryClassifier categoryClassifier;
 	private final BreadRecordRegionResolver regionResolver;
 	private final ImageProcessingCallbackService imageProcessingCallbackService;
+	private final CourseProgressService courseProgressService;
 
 	public BreadRecordPresignedUrlResponse generatePresignedUrls(
 			Long memberId,
@@ -83,6 +85,7 @@ public class BreadRecordCommandService {
 			.eatenAt(request.eatenAt())
 			.build());
 		savePhotosAndTags(record, request, data.photoBySortOrder(), Map.of());
+		courseProgressService.refreshForMember(memberId);
 		return new BreadRecordCreateResponse(record.getId(), record.getCreatedAt());
 	}
 
@@ -107,6 +110,7 @@ public class BreadRecordCommandService {
 		photoRepository.flush();
 		savePhotosAndTags(record, request, data.photoBySortOrder(), oldPhotoByKey);
 		deleteRemovedImages(oldPhotos, request.photos());
+		courseProgressService.refreshForMember(memberId);
 	}
 
 	public void delete(Long recordId, Long memberId) {
@@ -117,6 +121,7 @@ public class BreadRecordCommandService {
 		photoRepository.deleteAllIncludingPendingByRecordId(recordId);
 		photos.forEach(photo -> safeDelete(photo.getAwsKey()));
 		record.softDelete();
+		courseProgressService.refreshForMember(memberId);
 	}
 
 	private BreadRecordPresignedUrlInfo generatePresignedUrl(Long memberId, String mimeType) {
