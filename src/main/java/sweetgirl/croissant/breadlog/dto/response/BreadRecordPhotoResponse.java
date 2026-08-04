@@ -4,6 +4,8 @@ import sweetgirl.croissant.breadlog.entity.BreadRecordPhoto;
 
 public record BreadRecordPhotoResponse(
 		Long id,
+		String fileName,
+		String contentType,
 		String awsKey,
 		String resizedKey320,
 		String resizedKey640,
@@ -13,6 +15,8 @@ public record BreadRecordPhotoResponse(
 	public static BreadRecordPhotoResponse from(BreadRecordPhoto photo) {
 		return new BreadRecordPhotoResponse(
 			photo.getId(),
+			photo.getName(),
+			photo.getMimeType().getValue(),
 			photo.getAwsKey(),
 			photo.getResizedKey320(),
 			photo.getResizedKey640(),

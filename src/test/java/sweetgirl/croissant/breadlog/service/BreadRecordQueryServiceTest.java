@@ -81,6 +81,8 @@ class BreadRecordQueryServiceTest {
 
 		assertThat(result).hasSize(1);
 		assertThat(result.get(0).photos()).hasSize(1);
+		assertThat(result.get(0).photos().get(0).fileName()).isEqualTo("a.jpg");
+		assertThat(result.get(0).photos().get(0).contentType()).isEqualTo("image/jpeg");
 		assertThat(result.get(0).tags()).hasSize(1);
 		assertThat(result.get(0).tags().get(0).positionX()).isEqualTo(0.31);
 		assertThat(result.get(0).tags().get(0).breadCategory()).isEqualTo("식빵");
