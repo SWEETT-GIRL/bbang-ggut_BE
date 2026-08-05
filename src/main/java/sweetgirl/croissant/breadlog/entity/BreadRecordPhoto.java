@@ -1,7 +1,5 @@
 package sweetgirl.croissant.breadlog.entity;
 
-import org.hibernate.annotations.SQLRestriction;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -17,7 +15,9 @@ import sweetgirl.croissant.common.enums.MimeType;
 
 @Entity
 @Table(name = "bread_record_photo")
-@SQLRestriction("processing_status = 'DONE'")
+// 다른 이미지와 달리 처리 상태로 거르지 않는다 — 내 기록 사진은 리사이즈가 늦거나
+// 실패해도 원본(awsKey)으로나마 보여야 한다. 숨기면 유저에겐 기록이 사라진 것처럼
+// 보인다. 리사이즈 키가 없으면 클라이언트가 원본으로 폴백한다.
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class BreadRecordPhoto extends ImageFile {
