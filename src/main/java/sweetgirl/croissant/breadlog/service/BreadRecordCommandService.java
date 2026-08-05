@@ -41,7 +41,6 @@ import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.exception.StoreException;
-import sweetgirl.croissant.store.repository.SavedStoreRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
 @Slf4j
@@ -54,7 +53,6 @@ public class BreadRecordCommandService {
 	private final MemberReader memberReader;
 	private final MemberRestrictionReader memberRestrictionReader;
 	private final StoreRepository storeRepository;
-	private final SavedStoreRepository savedStoreRepository;
 	private final BreadRecordRepository breadRecordRepository;
 	private final BreadRecordPhotoRepository photoRepository;
 	private final BreadRecordTagRepository tagRepository;
@@ -87,11 +85,8 @@ public class BreadRecordCommandService {
 			.eatenAt(request.eatenAt())
 			.build());
 		savePhotosAndTags(record, request, data.photoBySortOrder(), Map.of());
-		// '가고 싶은 빵집' = 아직 안 가본 찜. 기록이 생기면 찜의 역할이 끝나므로
-		// 여기서 함께 걷는다 — 목록·가게 상세가 어떤 클라 버전이든 같은 상태를 본다.
-		if (data.store() != null) {
-			savedStoreRepository.deleteByMemberIdAndStoreId(memberId, data.store().getId());
-		}
+		// 찜은 사용자가 직접 풀 때까지 남긴다 — 기록이 생겨도 "또 가고 싶은 가게"일 수 있다.
+		// (기록 시 자동 해제는 정책 변경으로 제거)
 		courseProgressService.refreshForMember(memberId);
 		return new BreadRecordCreateResponse(record.getId(), record.getCreatedAt());
 	}
