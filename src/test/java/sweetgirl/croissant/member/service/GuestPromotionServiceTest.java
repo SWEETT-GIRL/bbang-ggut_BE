@@ -43,7 +43,7 @@ class GuestPromotionServiceTest {
 		given(guestToken.getMember()).willReturn(guest);
 		given(refreshTokenRepository.findGuestTokensByDeviceId(DEVICE_ID)).willReturn(List.of(guestToken));
 
-		Member resolved = guestPromotionService.resolveMemberForNewOAuth(DEVICE_ID);
+		Member resolved = guestPromotionService.resolveMemberForNewOAuth(DEVICE_ID, null);
 
 		assertThat(resolved).isSameAs(guest);
 		then(guest).should().promoteToUser();
@@ -58,7 +58,7 @@ class GuestPromotionServiceTest {
 		Member created = mock(Member.class);
 		given(memberRepository.save(any(Member.class))).willReturn(created);
 
-		Member resolved = guestPromotionService.resolveMemberForNewOAuth(DEVICE_ID);
+		Member resolved = guestPromotionService.resolveMemberForNewOAuth(DEVICE_ID, null);
 
 		assertThat(resolved).isSameAs(created);
 		then(nicknameGenerator).should().generate();
@@ -71,7 +71,7 @@ class GuestPromotionServiceTest {
 		Member created = mock(Member.class);
 		given(memberRepository.save(any(Member.class))).willReturn(created);
 
-		Member resolved = guestPromotionService.resolveMemberForNewOAuth("  ");
+		Member resolved = guestPromotionService.resolveMemberForNewOAuth("  ", null);
 
 		assertThat(resolved).isSameAs(created);
 		then(refreshTokenRepository).shouldHaveNoInteractions();
@@ -89,7 +89,7 @@ class GuestPromotionServiceTest {
 		Member loggedIn = mock(Member.class);
 		given(loggedIn.getId()).willReturn(20L);
 
-		guestPromotionService.mergeGuestDataInto(loggedIn, DEVICE_ID);
+		guestPromotionService.mergeGuestDataInto(loggedIn, DEVICE_ID, null);
 
 		then(guestDataMigrationService).should().migrate(10L, 20L);
 	}
@@ -103,7 +103,7 @@ class GuestPromotionServiceTest {
 		given(guestToken.getMember()).willReturn(same);
 		given(refreshTokenRepository.findGuestTokensByDeviceId(DEVICE_ID)).willReturn(List.of(guestToken));
 
-		guestPromotionService.mergeGuestDataInto(same, DEVICE_ID);
+		guestPromotionService.mergeGuestDataInto(same, DEVICE_ID, null);
 
 		then(guestDataMigrationService).shouldHaveNoInteractions();
 	}
@@ -114,7 +114,7 @@ class GuestPromotionServiceTest {
 		given(refreshTokenRepository.findGuestTokensByDeviceId(DEVICE_ID)).willReturn(List.of());
 		Member loggedIn = mock(Member.class);
 
-		guestPromotionService.mergeGuestDataInto(loggedIn, DEVICE_ID);
+		guestPromotionService.mergeGuestDataInto(loggedIn, DEVICE_ID, null);
 
 		then(guestDataMigrationService).shouldHaveNoInteractions();
 	}

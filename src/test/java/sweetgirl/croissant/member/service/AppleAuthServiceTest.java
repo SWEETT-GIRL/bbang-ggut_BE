@@ -72,7 +72,7 @@ class AppleAuthServiceTest {
 
 		Member resolvedMember = memberOf(1L);
 		given(resolvedMember.isDeleted()).willReturn(false);
-		given(guestPromotionService.resolveMemberForNewOAuth(DEVICE_ID)).willReturn(resolvedMember);
+		given(guestPromotionService.resolveMemberForNewOAuth(DEVICE_ID, null)).willReturn(resolvedMember);
 		given(memberRepository.getReferenceById(1L)).willReturn(resolvedMember);
 
 		OAuth savedOAuth = oauthWith(resolvedMember);
@@ -85,11 +85,11 @@ class AppleAuthServiceTest {
 		given(jwtProvider.generateRefreshToken(1L)).willReturn("refresh-token");
 		given(refreshTokenRepository.findByMemberAndDeviceId(any(), any())).willReturn(Optional.empty());
 
-		AppleLoginResponse response = appleAuthService.login(IDENTITY_TOKEN, DEVICE_ID);
+		AppleLoginResponse response = appleAuthService.login(IDENTITY_TOKEN, DEVICE_ID, null);
 
 		assertThat(response.accessToken()).isEqualTo("access-token");
 		assertThat(response.isNew()).isTrue();
-		then(guestPromotionService).should().resolveMemberForNewOAuth(DEVICE_ID);
+		then(guestPromotionService).should().resolveMemberForNewOAuth(DEVICE_ID, null);
 		// 신규 Member 생성 책임은 GuestPromotionService로 옮겨졌다
 		then(memberRepository).should(never()).save(any(Member.class));
 	}
@@ -116,7 +116,7 @@ class AppleAuthServiceTest {
 		given(jwtProvider.generateRefreshToken(2L)).willReturn("refresh-token");
 		given(refreshTokenRepository.findByMemberAndDeviceId(any(), any())).willReturn(Optional.empty());
 
-		AppleLoginResponse response = appleAuthService.login(IDENTITY_TOKEN, DEVICE_ID);
+		AppleLoginResponse response = appleAuthService.login(IDENTITY_TOKEN, DEVICE_ID, null);
 
 		assertThat(response.accessToken()).isEqualTo("access-token");
 		assertThat(response.isNew()).isFalse();
@@ -152,7 +152,7 @@ class AppleAuthServiceTest {
 		given(jwtProvider.generateRefreshToken(3L)).willReturn("refresh-token");
 		given(refreshTokenRepository.findByMemberAndDeviceId(any(), any())).willReturn(Optional.empty());
 
-		AppleLoginResponse response = appleAuthService.login(IDENTITY_TOKEN, DEVICE_ID);
+		AppleLoginResponse response = appleAuthService.login(IDENTITY_TOKEN, DEVICE_ID, null);
 
 		assertThat(response.isNew()).isTrue();
 		then(nicknameGenerator).should().generate();
