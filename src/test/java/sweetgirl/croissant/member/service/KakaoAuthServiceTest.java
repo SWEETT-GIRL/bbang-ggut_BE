@@ -57,7 +57,7 @@ class KakaoAuthServiceTest {
 		server.expect(requestTo("https://kapi.kakao.com/v2/user/me"))
 			.andRespond(withStatus(HttpStatus.UNAUTHORIZED));
 
-		assertThatThrownBy(() -> kakaoAuthService.login("invalid-token", "device-1"))
+		assertThatThrownBy(() -> kakaoAuthService.login("invalid-token", "device-1", null))
 			.isInstanceOfSatisfying(MemberException.class,
 				ex -> org.assertj.core.api.Assertions.assertThat(ex.getErrorCode())
 					.isEqualTo(MemberErrorCode.SOCIAL_TOKEN_INVALID));
