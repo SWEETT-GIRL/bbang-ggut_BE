@@ -54,7 +54,7 @@ class AuthControllerTest {
 
 	@Test
 	void kakaoLogin_returns200WithApiResponseStructure_whenRequestIsValid() throws Exception {
-		given(kakaoAuthService.login("kakao.access.token", "device-1"))
+		given(kakaoAuthService.login(eq("kakao.access.token"), eq("device-1"), isNull()))
 			.willReturn(new KakaoLoginResponse("new.access", "new.refresh", true));
 
 		mockMvc.perform(post("/auth/kakao")
@@ -71,7 +71,7 @@ class AuthControllerTest {
 
 	@Test
 	void kakaoLogin_returns401_whenSocialTokenIsInvalid() throws Exception {
-		given(kakaoAuthService.login("invalid-token", "device-1"))
+		given(kakaoAuthService.login(eq("invalid-token"), eq("device-1"), isNull()))
 			.willThrow(new MemberException(MemberErrorCode.SOCIAL_TOKEN_INVALID));
 
 		mockMvc.perform(post("/auth/kakao")
@@ -86,7 +86,7 @@ class AuthControllerTest {
 
 	@Test
 	void appleLogin_returns200WithApiResponseStructure_whenRequestIsValid() throws Exception {
-		given(appleAuthService.login("apple.identity.token", "device-2"))
+		given(appleAuthService.login(eq("apple.identity.token"), eq("device-2"), isNull()))
 			.willReturn(new AppleLoginResponse("new.access", "new.refresh", false));
 
 		mockMvc.perform(post("/auth/apple")
@@ -103,7 +103,7 @@ class AuthControllerTest {
 
 	@Test
 	void appleLogin_returns401_whenSocialTokenIsInvalid() throws Exception {
-		given(appleAuthService.login("invalid-token", "device-2"))
+		given(appleAuthService.login(eq("invalid-token"), eq("device-2"), isNull()))
 			.willThrow(new MemberException(MemberErrorCode.SOCIAL_TOKEN_INVALID));
 
 		mockMvc.perform(post("/auth/apple")

@@ -54,7 +54,8 @@ public class KakaoAuthService {
 	private final RestTemplate restTemplate = new RestTemplate();
 
 	@Transactional
-	public KakaoLoginResponse login(String kakaoAccessToken, String deviceId) {
+	public KakaoLoginResponse login(String kakaoAccessToken, String deviceId, String authorizationHeader) {
+		Long callerGuestId = resolveCallerMemberId(authorizationHeader);
 		KakaoUserInfo userInfo = fetchUserInfo(kakaoAccessToken);
 
 		// 기존 web OAuth(CustomOAuth2UserService)와 동일한 방식: String.valueOf(id) 후 SHA-256 해시
@@ -64,7 +65,7 @@ public class KakaoAuthService {
 
 		OAuth oAuth = oAuthRepository
 			.findByProviderAndProviderId(OAuthProvider.KAKAO, hashedProviderId)
-			.orElseGet(() -> registerNewMember(userInfo, hashedProviderId, deviceId));
+			.orElseGet(() -> registerNewMember(userInfo, hashedProviderId, deviceId, callerGuestId));
 
 		Member member = oAuth.getMember();
 
@@ -85,7 +86,7 @@ public class KakaoAuthService {
 		boolean isNew = !existsOAuth || isDeletedMember;
 
 		// 승격으로 흡수되지 않은 게스트(재로그인·탈퇴 후 재가입)가 있으면 데이터만 옮겨 붙인다.
-		guestPromotionService.mergeGuestDataInto(activeMember, deviceId);
+		guestPromotionService.mergeGuestDataInto(activeMember, deviceId, callerGuestId);
 
 		notificationSettingRepository.findByMemberId(activeMember.getId())
 			.orElseGet(() -> createDefaultNotificationSetting(activeMember));
@@ -128,9 +129,26 @@ public class KakaoAuthService {
 	private record KakaoUserInfo(String providerId, String email) {
 	}
 
-	private OAuth registerNewMember(KakaoUserInfo userInfo, String hashedProviderId, String deviceId) {
+	/** 로그인 요청에 실려 온 (게스트) 액세스 토큰의 주인. 없거나 못 믿을 토큰이면 null. */
+	private Long resolveCallerMemberId(String authorizationHeader) {
+		if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+			return null;
+		}
+		String token = authorizationHeader.substring(7);
+		if (!jwtProvider.validateToken(token)) {
+			return null;
+		}
+		try {
+			return jwtProvider.getMemberId(token);
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
+	private OAuth registerNewMember(KakaoUserInfo userInfo, String hashedProviderId, String deviceId,
+			Long callerGuestId) {
 		// 같은 기기의 게스트 계정이 있으면 새로 만들지 않고 그 계정을 승격한다(코스 소유권 유지).
-		Member member = guestPromotionService.resolveMemberForNewOAuth(deviceId);
+		Member member = guestPromotionService.resolveMemberForNewOAuth(deviceId, callerGuestId);
 		return oAuthRepository.save(OAuth.builder()
 			.member(member)
 			.provider(OAuthProvider.KAKAO)

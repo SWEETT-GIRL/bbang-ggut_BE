@@ -1,7 +1,9 @@
 package sweetgirl.croissant.member.controller;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -39,14 +41,19 @@ public class AuthController {
 	}
 
 	@PostMapping("/kakao")
-	public ApiResponse<KakaoLoginResponse> kakaoLogin(@RequestBody KakaoLoginRequest request) {
-		KakaoLoginResponse response = kakaoAuthService.login(request.accessToken(), request.deviceId());
+	public ApiResponse<KakaoLoginResponse> kakaoLogin(
+			@RequestBody KakaoLoginRequest request,
+			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+		KakaoLoginResponse response = kakaoAuthService.login(request.accessToken(), request.deviceId(), authorization);
 		return ApiResponse.ok(response);
 	}
 
 	@PostMapping("/apple")
-	public ApiResponse<AppleLoginResponse> appleLogin(@RequestBody AppleLoginRequest request) {
-		AppleLoginResponse response = appleAuthService.login(request.identityToken(), request.deviceId());
+	public ApiResponse<AppleLoginResponse> appleLogin(
+			@RequestBody AppleLoginRequest request,
+			@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+		AppleLoginResponse response = appleAuthService.login(request.identityToken(), request.deviceId(),
+			authorization);
 		return ApiResponse.ok(response);
 	}
 

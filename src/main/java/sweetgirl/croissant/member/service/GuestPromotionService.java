@@ -30,8 +30,9 @@ public class GuestPromotionService {
 	private final GuestDataMigrationService guestDataMigrationService;
 
 	@Transactional
-	public Member resolveMemberForNewOAuth(String deviceId) {
-		return findReusableGuest(deviceId)
+	public Member resolveMemberForNewOAuth(String deviceId, Long callerGuestId) {
+		return resolveCallerGuest(callerGuestId)
+			.or(() -> findReusableGuest(deviceId))
 			.map(guest -> {
 				guest.promoteToUser();
 				return guest;
@@ -42,14 +43,30 @@ public class GuestPromotionService {
 
 	/**
 	 * 승격이 불가능한 로그인(이미 이 소셜로 가입한 계정 / 탈퇴 후 재가입으로 새로 만든 계정)에서,
-	 * 같은 기기의 게스트가 쌓아둔 데이터를 로그인한 회원에게 옮긴다.
+	 * 게스트가 쌓아둔 데이터를 로그인한 회원에게 옮긴다.
 	 * 승격으로 이미 같은 Member가 된 경우엔 게스트 조회 자체가 비므로 아무 일도 하지 않는다.
 	 */
 	@Transactional
-	public void mergeGuestDataInto(Member target, String deviceId) {
-		findReusableGuest(deviceId)
+	public void mergeGuestDataInto(Member target, String deviceId, Long callerGuestId) {
+		resolveCallerGuest(callerGuestId)
+			.or(() -> findReusableGuest(deviceId))
 			.filter(guest -> !guest.getId().equals(target.getId()))
 			.ifPresent(guest -> guestDataMigrationService.migrate(guest.getId(), target.getId()));
+	}
+
+	/**
+	 * 로그인 요청의 Authorization에 실려 온 게스트 토큰의 주인.
+	 *
+	 * deviceId 매칭은 재설치·키체인 초기화로 값이 바뀌면 영영 못 찾는다 —
+	 * 지금 이 요청을 보낸 게스트가 누구인지는 토큰이 직접 말하므로 이쪽을 먼저 믿는다.
+	 */
+	private Optional<Member> resolveCallerGuest(Long callerGuestId) {
+		if (callerGuestId == null) {
+			return Optional.empty();
+		}
+		return memberRepository.findById(callerGuestId)
+			.filter(member -> "GUEST".equals(member.getMemberType()))
+			.filter(member -> !member.isDeleted());
 	}
 
 	// memberType='GUEST' + 미탈퇴 조건은 findGuestTokensByDeviceId 쿼리가 이미 걸고 있다.
