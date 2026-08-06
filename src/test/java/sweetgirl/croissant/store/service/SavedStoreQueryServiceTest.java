@@ -39,6 +39,7 @@ class SavedStoreQueryServiceTest {
 		Point point = mock(Point.class);
 		given(store.getId()).willReturn(storeId);
 		given(store.getName()).willReturn("소금빵 가게");
+		given(store.getRegion1st()).willReturn("서울");
 		given(store.getRegion2nd()).willReturn("마포구");
 		given(store.getLocation()).willReturn(point);
 		given(point.getY()).willReturn(37.55);
@@ -73,7 +74,7 @@ class SavedStoreQueryServiceTest {
 		assertThat(result).hasSize(1);
 		assertThat(result.get(0).storeId()).isEqualTo(10L);
 		assertThat(result.get(0).storeName()).isEqualTo("소금빵 가게");
-		assertThat(result.get(0).region()).isEqualTo("마포구");
+		assertThat(result.get(0).region()).isEqualTo("서울 마포구");
 		assertThat(result.get(0).latitude()).isEqualTo(37.55);
 		assertThat(result.get(0).longitude()).isEqualTo(126.92);
 		assertThat(result.get(0).thumbnailImageKey()).isEqualTo("resized/320/store10.jpg");
