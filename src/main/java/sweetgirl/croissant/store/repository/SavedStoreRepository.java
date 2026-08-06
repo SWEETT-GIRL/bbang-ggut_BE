@@ -11,7 +11,8 @@ import sweetgirl.croissant.store.entity.SavedStore;
 
 public interface SavedStoreRepository extends JpaRepository<SavedStore, Long> {
 
-	List<SavedStore> findAllByMemberId(Long memberId);
+	// 담은 순서의 유일한 근거가 PK다 — 최근 담은 것부터 내려줘야 홈·목록이 최신순이 된다.
+	List<SavedStore> findAllByMemberIdOrderByIdDesc(Long memberId);
 
 	long countByMemberId(Long memberId);
 
