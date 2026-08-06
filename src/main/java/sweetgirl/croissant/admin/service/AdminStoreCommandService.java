@@ -20,6 +20,7 @@ import sweetgirl.croissant.admin.dto.request.AdminStoreUpdateRequest;
 import sweetgirl.croissant.admin.dto.request.BusinessHourRequest;
 import sweetgirl.croissant.admin.dto.response.AdminStoreResponse;
 import sweetgirl.croissant.external.opensearch.event.StoreAddressChangedEvent;
+import sweetgirl.croissant.external.opensearch.event.StoreCreatedEvent;
 import sweetgirl.croissant.external.opensearch.event.StoreDeletedEvent;
 import sweetgirl.croissant.external.opensearch.event.StoreNameChangedEvent;
 import sweetgirl.croissant.menu.repository.MenuRepository;
@@ -81,6 +82,7 @@ public class AdminStoreCommandService {
 			.category(request.category())
 			.build();
 		store = storeRepository.save(store);
+		eventPublisher.publishEvent(new StoreCreatedEvent(store.getId()));
 
 		saveBusinessHours(store, request.hours());
 		return buildResponse(store);

@@ -55,6 +55,15 @@ public class StoreIndexService {
 	private final StoreSearchRegionRepository storeSearchRegionRepository;
 	private final RequestLogRepository requestLogRepository;
 
+	// 신규 가게는 문서 전체를 만들어 넣는다 — 생성 색인이 없으면 다음 전체 재색인까지
+	// 검색에서 안 잡혀, 인기 목록(DB 직조회)에는 뜨는 가게가 검색은 0건이 된다.
+	@Transactional(readOnly = true)
+	public void indexStore(Long storeId) {
+		Store store = storeRepository.findById(storeId)
+			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
+		bulkIndexStores(List.of(store));
+	}
+
 	@Transactional(readOnly = true)
 	public BulkResponse bulkIndexStores(List<Store> stores) {
 		List<Long> storeIds = stores.stream().map(Store::getId).toList();
