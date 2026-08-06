@@ -30,6 +30,7 @@ import sweetgirl.croissant.contribution.repository.StoreContributionReportImageF
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
 import sweetgirl.croissant.external.opensearch.event.StoreAddressChangedEvent;
+import sweetgirl.croissant.external.opensearch.event.StoreCreatedEvent;
 import sweetgirl.croissant.external.opensearch.event.StoreMenusChangedEvent;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.entity.MenuImageFile;
@@ -186,7 +187,9 @@ public class ContributionReportProcessor {
 			.source(StoreSource.ADMIN_REGISTERED)
 			.category(StoreCategory.WESTERN)
 			.build();
-		return storeRepository.save(store);
+		Store saved = storeRepository.save(store);
+		eventPublisher.publishEvent(new StoreCreatedEvent(saved.getId()));
+		return saved;
 	}
 
 	private Optional<Store> findActiveStoreBySameNameAndAddress(StoreContributionReport report) {

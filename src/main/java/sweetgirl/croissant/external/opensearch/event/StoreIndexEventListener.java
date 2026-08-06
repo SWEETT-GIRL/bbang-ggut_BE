@@ -18,6 +18,12 @@ public class StoreIndexEventListener {
 
 	@Async
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+	public void onStoreCreated(StoreCreatedEvent event) {
+		storeIndexService.indexStore(event.storeId());
+	}
+
+	@Async
+	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	public void onAddressChanged(StoreAddressChangedEvent event) {
 		storeIndexService.updateStoreAddress(event.storeId());
 	}
