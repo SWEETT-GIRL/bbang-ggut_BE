@@ -23,7 +23,7 @@ public class SavedStoreQueryService {
 	private final StoreImageFileRepository storeImageFileRepository;
 
 	public List<SavedStoreResponse> getSavedStores(Long memberId) {
-		List<SavedStore> savedStores = savedStoreRepository.findAllByMemberId(memberId);
+		List<SavedStore> savedStores = savedStoreRepository.findAllByMemberIdOrderByIdDesc(memberId);
 
 		List<Long> storeIds = savedStores.stream()
 			.map(savedStore -> savedStore.getStore().getId())

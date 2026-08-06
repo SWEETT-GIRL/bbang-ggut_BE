@@ -64,7 +64,7 @@ class SavedStoreQueryServiceTest {
 		SavedStore savedStore = mockSavedStore(10L);
 
 		StoreImageThumbnailProjection thumbnail = mockThumbnail(10L, "resized/320/store10.jpg", "origin/store10.jpg");
-		given(savedStoreRepository.findAllByMemberId(memberId)).willReturn(List.of(savedStore));
+		given(savedStoreRepository.findAllByMemberIdOrderByIdDesc(memberId)).willReturn(List.of(savedStore));
 		given(storeImageFileRepository.findThumbnailsByStoreIdIn(List.of(10L)))
 			.willReturn(List.of(thumbnail));
 
@@ -86,7 +86,7 @@ class SavedStoreQueryServiceTest {
 		SavedStore savedStore = mockSavedStore(10L);
 
 		StoreImageThumbnailProjection thumbnail = mockThumbnail(10L, null, "origin/store10.jpg");
-		given(savedStoreRepository.findAllByMemberId(memberId)).willReturn(List.of(savedStore));
+		given(savedStoreRepository.findAllByMemberIdOrderByIdDesc(memberId)).willReturn(List.of(savedStore));
 		given(storeImageFileRepository.findThumbnailsByStoreIdIn(List.of(10L)))
 			.willReturn(List.of(thumbnail));
 
@@ -102,7 +102,7 @@ class SavedStoreQueryServiceTest {
 		Long memberId = 1L;
 		SavedStore savedStore = mockSavedStore(10L);
 
-		given(savedStoreRepository.findAllByMemberId(memberId)).willReturn(List.of(savedStore));
+		given(savedStoreRepository.findAllByMemberIdOrderByIdDesc(memberId)).willReturn(List.of(savedStore));
 		given(storeImageFileRepository.findThumbnailsByStoreIdIn(List.of(10L))).willReturn(List.of());
 
 		List<SavedStoreResponse> result = savedStoreQueryService.getSavedStores(memberId);
@@ -115,7 +115,7 @@ class SavedStoreQueryServiceTest {
 	@DisplayName("getSavedStores: 찜한 가게가 없으면 빈 목록 반환")
 	void getSavedStores_empty() {
 		Long memberId = 1L;
-		given(savedStoreRepository.findAllByMemberId(memberId)).willReturn(List.of());
+		given(savedStoreRepository.findAllByMemberIdOrderByIdDesc(memberId)).willReturn(List.of());
 
 		List<SavedStoreResponse> result = savedStoreQueryService.getSavedStores(memberId);
 
