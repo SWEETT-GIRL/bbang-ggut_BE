@@ -4,6 +4,8 @@ services:
     image: ${DOCKER_USERNAME}/bbang-ggut-be:${IMAGE_TAG:-latest}
     container_name: bbang-ggut-be
     restart: always
+    # graceful shutdown(20s) 이 끝나기 전에 SIGKILL이 날아가지 않도록 여유를 둔다.
+    stop_grace_period: 30s
     environment:
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Seoul"

@@ -176,7 +176,9 @@ jobs:
 
             docker compose pull
             docker compose up -d
-            docker image prune -a -f
+            # 직전 버전 이미지는 남긴다 — 신규 컨테이너가 기동에 실패했을 때
+            # IMAGE_TAG만 되돌려 즉시 롤백할 수 있어야 한다.
+            docker image prune -f --filter "until=168h"
 
       - name: Health check server1
         uses: appleboy/ssh-action@v1
@@ -190,7 +192,7 @@ jobs:
           script: |
             echo "⏳ server1 헬스체크 시작..."
             for i in $(seq 1 12); do
-              if curl -sf http://localhost:8081/actuator/health | grep -q '"status":"UP"'; then
+              if curl -sf http://localhost:8081/actuator/health/readiness | grep -q '"status":"UP"'; then
                 echo "✅ server1 정상 기동 확인"
                 exit 0
               fi
@@ -199,6 +201,18 @@ jobs:
             done
             echo "❌ server1 헬스체크 실패 — server2 배포 중단"
             exit 1
+
+      # 위 헬스체크는 server1 안에서 자기 자신을 본 것일 뿐,
+      # ALB가 server1을 다시 트래픽 대상으로 넣었는지는 알려주지 않는다.
+      # 이 대기가 없으면 server1이 아직 타겟 풀 밖인 상태로 server2가 내려가
+      # 정상 타겟이 0개가 되고 ALB가 503(no healthy targets)을 반환한다.
+      # 대기 시간 근거: 타겟그룹 healthy threshold 2회 × interval 10초 = 20초 + 여유.
+      # 타겟그룹 설정을 바꾸면 이 값도 같이 바꿔야 한다.
+      - name: Wait for ALB to re-register server1
+        run: |
+          echo "⏳ ALB 재등록 대기 (40초)..."
+          sleep 40
+          echo "✅ 대기 완료 — server2 배포 진행"
 
   deploy-server2:
     runs-on: ubuntu-latest
@@ -257,7 +271,9 @@ jobs:
 
             docker compose pull
             docker compose up -d
-            docker image prune -a -f
+            # 직전 버전 이미지는 남긴다 — 신규 컨테이너가 기동에 실패했을 때
+            # IMAGE_TAG만 되돌려 즉시 롤백할 수 있어야 한다.
+            docker image prune -f --filter "until=168h"
 
       - name: Health check server2
         uses: appleboy/ssh-action@v1
@@ -271,7 +287,7 @@ jobs:
           script: |
             echo "⏳ server2 헬스체크 시작..."
             for i in $(seq 1 12); do
-              if curl -sf http://localhost:8081/actuator/health | grep -q '"status":"UP"'; then
+              if curl -sf http://localhost:8081/actuator/health/readiness | grep -q '"status":"UP"'; then
                 echo "✅ server2 정상 기동 확인"
                 exit 0
               fi

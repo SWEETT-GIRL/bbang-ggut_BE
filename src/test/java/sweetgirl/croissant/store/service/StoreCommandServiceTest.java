@@ -39,6 +39,9 @@ class StoreCommandServiceTest {
 	@Mock
 	MemberReader memberReader;
 
+	@Mock
+	org.springframework.context.ApplicationEventPublisher eventPublisher;
+
 	@InjectMocks
 	StoreCommandService storeCommandService;
 

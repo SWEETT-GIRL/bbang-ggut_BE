@@ -175,7 +175,8 @@ jobs:
 
             docker compose -f docker-compose.yml -f docker-compose.scouter.yml pull
             docker compose -f docker-compose.yml -f docker-compose.scouter.yml up -d
-            docker image prune -a -f
+            # 직전 버전 이미지는 남긴다 — 롤백 시 IMAGE_TAG만 되돌리면 되도록.
+            docker image prune -f --filter "until=168h"
 
       - name: Get PR title
         id: pr_info
