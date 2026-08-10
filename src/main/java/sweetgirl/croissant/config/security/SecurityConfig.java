@@ -58,8 +58,10 @@ public class SecurityConfig {
 			.requestMatchers(HttpMethod.GET, "/dev/**").permitAll()
 			// actuator는 management.server.port(8081)로 분리되어 있으나 요청은 이 필터체인을 거친다.
 			// prometheus는 스크랩 주체가 인증 정보를 붙이지 않으므로 인증을 면제한다.
-			.requestMatchers("/actuator/health", "/actuator/metrics", "/actuator/metrics/**",
-				"/actuator/prometheus")
+			// health 하위 그룹(readiness/liveness)도 열어둔다 — 배포 파이프라인과 ALB가
+			// /actuator/health/readiness로 트래픽 투입 시점을 판단한다.
+			.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/metrics",
+				"/actuator/metrics/**", "/actuator/prometheus")
 			.permitAll()
 			.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
 			.requestMatchers(HttpMethod.GET, "/trend/**", "/menu-categories", "/banners", "/banners/**").permitAll()
