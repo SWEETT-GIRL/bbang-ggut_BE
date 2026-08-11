@@ -43,6 +43,8 @@ public class GuestAuthService {
 
 	@Transactional
 	public GuestLoginResponse login(String deviceId) {
+		lockDevice(deviceId);
+
 		// 같은 기기(deviceId)의 기존 게스트가 있으면 재사용, 없으면 새로 생성.
 		// 앱 재설치/토큰 만료 뒤에도 신원(=코스 소유권)이 유지된다.
 		Member member = findExistingGuest(deviceId).orElseGet(this::createGuest);
@@ -56,6 +58,18 @@ public class GuestAuthService {
 		saveRefreshToken(memberId, deviceId, refreshToken);
 
 		return new GuestLoginResponse(accessToken, refreshToken, memberId, member.getNickname());
+	}
+
+	/**
+	 * 같은 기기의 발급 요청이 겹치면 둘 다 "기존 게스트 없음"을 보고 각자 게스트를 만든다 —
+	 * prod에 0.04초 차 쌍둥이 게스트가 실제로 남았다(기기 4대). 조회~생성 구간을 기기 단위로
+	 * 직렬화해 막는다. deviceId를 특정할 수 없으면 재사용 대상 자체가 없어 잠글 것도 없다.
+	 */
+	private void lockDevice(String deviceId) {
+		if (deviceId == null || deviceId.isBlank()) {
+			return;
+		}
+		refreshTokenRepository.lockGuestDevice(deviceId.hashCode());
 	}
 
 	private Optional<Member> findExistingGuest(String deviceId) {
@@ -87,7 +101,7 @@ public class GuestAuthService {
 
 	private void saveRefreshToken(Long memberId, String deviceId, String refreshToken) {
 		Member memberRef = memberRepository.getReferenceById(memberId);
-		refreshTokenRepository.findByMemberAndDeviceId(memberRef, deviceId).ifPresent(refreshTokenRepository::delete);
+		refreshTokenRepository.deleteByMemberIdAndDeviceId(memberId, deviceId);
 		refreshTokenRepository.save(RefreshToken.builder()
 			.member(memberRef)
 			.deviceId(deviceId)
