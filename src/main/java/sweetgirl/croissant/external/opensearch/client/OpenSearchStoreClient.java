@@ -40,6 +40,7 @@ import sweetgirl.croissant.external.opensearch.dto.OpenSearchStoreSearchResult;
 import sweetgirl.croissant.external.opensearch.query.StoreSearchQueryBuilder;
 import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
 import sweetgirl.croissant.store.service.search.SearchIntent;
+import sweetgirl.croissant.store.service.search.SearchQueryCoverage;
 import sweetgirl.croissant.store.service.search.SearchSort;
 
 @Slf4j
@@ -56,6 +57,7 @@ public class OpenSearchStoreClient {
 	private final ObjectProvider<OpenSearchClient> openSearchClientProvider;
 	private final StoreSearchQueryBuilder storeSearchQueryBuilder;
 	private final OpenSearchProperties openSearchProperties;
+	private final SearchQueryCoverage searchQueryCoverage;
 
 	public OpenSearchStoreSearchResult searchStores(SearchIntent intent, Pageable pageable,
 			Double latitude, Double longitude, SearchSort sort) {
@@ -77,7 +79,7 @@ public class OpenSearchStoreClient {
 			if (log.isDebugEnabled()) {
 				log.debug("OpenSearch 검색 응답 JSON: {}", toJson(response, mapper));
 			}
-			return parseResponse(response, pageable, sort, mapper);
+			return parseResponse(response, pageable, sort, mapper, intent);
 		} catch (OpenSearchException e) {
 			ErrorCause error = e.error();
 			log.warn("OpenSearch 가게 검색 실패 — 빈 결과로 대체합니다. status={}, type={}, reason={}, causes={}",
@@ -147,13 +149,16 @@ public class OpenSearchStoreClient {
 	}
 
 	private OpenSearchStoreSearchResult parseResponse(SearchResponse<StoreDocument> response, Pageable pageable,
-			SearchSort sort, JsonpMapper mapper) {
+			SearchSort sort, JsonpMapper mapper, SearchIntent intent) {
 		List<OpenSearchStoreHit> hits = new ArrayList<>();
+		// 검색 품질 지표용 사후 검증. 결과를 걸러내지는 않고 "입력한 말이 결과에 있었는지"만 기록한다.
+		boolean queryCovered = false;
 		for (Hit<StoreDocument> hit : response.hits().hits()) {
 			StoreDocument source = hit.source();
 			if (source == null || source.storeId() == null) {
 				continue;
 			}
+			queryCovered = queryCovered || searchQueryCoverage.covers(intent, source);
 			List<Long> matchedMenuIds = parseMatchedMenuIds(hit, mapper);
 			List<MatchedField> matchedFields = parseMatchedFields(hit, matchedMenuIds);
 			if (log.isDebugEnabled()) {
@@ -173,7 +178,7 @@ public class OpenSearchStoreClient {
 				matchedMenuIds,
 				matchedFields));
 		}
-		return new OpenSearchStoreSearchResult(hits, hits.size() == pageable.getPageSize());
+		return new OpenSearchStoreSearchResult(hits, hits.size() == pageable.getPageSize(), queryCovered);
 	}
 
 	private List<OpenSearchAutocompleteSuggestion> parseAutocompleteResponse(
