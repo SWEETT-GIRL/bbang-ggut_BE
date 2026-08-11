@@ -1,10 +1,12 @@
 package sweetgirl.croissant.store.service.search;
 
+import java.time.LocalDateTime;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,7 @@ import sweetgirl.croissant.external.opensearch.client.OpenSearchStoreClient;
 import sweetgirl.croissant.external.opensearch.dto.OpenSearchAutocompleteSuggestion;
 import sweetgirl.croissant.external.opensearch.dto.OpenSearchStoreSearchResult;
 import sweetgirl.croissant.global.response.SliceResponse;
+import sweetgirl.croissant.search.event.SearchMissEvent;
 import sweetgirl.croissant.store.dto.response.StoreAutocompleteResponse;
 import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
 import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
@@ -40,6 +43,7 @@ public class StoreSearchService {
 	private final StoreSearchAssembler storeSearchAssembler;
 	private final SearchQueryCoverage searchQueryCoverage;
 	private final MeterRegistry meterRegistry;
+	private final ApplicationEventPublisher eventPublisher;
 
 	private final Map<SearchOutcome, Counter> searchCounters = new EnumMap<>(SearchOutcome.class);
 	private final Map<SearchOutcome, Counter> autocompleteCounters = new EnumMap<>(SearchOutcome.class);
@@ -99,10 +103,13 @@ public class StoreSearchService {
 
 	private void recordSearchOutcome(SearchOutcome outcome, String keyword) {
 		searchCounter(outcome).increment();
-		if (outcome != SearchOutcome.HIT) {
-			// 검색어는 카디널리티가 무한해 지표 태그로 쓸 수 없다. 원문은 로그로만 남긴다.
-			log.info("[검색] 입력한 말이 결과에 없음 outcome={} keyword={}", outcome.tagValue(), keyword);
+		if (outcome == SearchOutcome.HIT) {
+			return;
 		}
+		// 검색어는 카디널리티가 무한해 지표 태그로 쓸 수 없다. 원문은 로그와 search_misses에 남긴다.
+		log.info("[검색] 입력한 말이 결과에 없음 outcome={} keyword={}", outcome.tagValue(), keyword);
+		// 검색은 사용자 요청 경로다. 적재 지연이 응답에 얹히지 않도록 이벤트로 넘겨 비동기로 처리한다.
+		eventPublisher.publishEvent(new SearchMissEvent(keyword, outcome, LocalDateTime.now()));
 	}
 
 	private Counter searchCounter(SearchOutcome outcome) {
