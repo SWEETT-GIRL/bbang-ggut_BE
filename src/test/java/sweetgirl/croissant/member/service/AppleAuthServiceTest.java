@@ -83,7 +83,6 @@ class AppleAuthServiceTest {
 			Optional.of(mock(NotificationSetting.class)));
 		given(jwtProvider.generateAccessToken(1L)).willReturn("access-token");
 		given(jwtProvider.generateRefreshToken(1L)).willReturn("refresh-token");
-		given(refreshTokenRepository.findByMemberAndDeviceId(any(), any())).willReturn(Optional.empty());
 
 		AppleLoginResponse response = appleAuthService.login(IDENTITY_TOKEN, DEVICE_ID, null);
 
@@ -114,7 +113,6 @@ class AppleAuthServiceTest {
 			Optional.of(mock(NotificationSetting.class)));
 		given(jwtProvider.generateAccessToken(2L)).willReturn("access-token");
 		given(jwtProvider.generateRefreshToken(2L)).willReturn("refresh-token");
-		given(refreshTokenRepository.findByMemberAndDeviceId(any(), any())).willReturn(Optional.empty());
 
 		AppleLoginResponse response = appleAuthService.login(IDENTITY_TOKEN, DEVICE_ID, null);
 
@@ -150,7 +148,6 @@ class AppleAuthServiceTest {
 			Optional.of(mock(NotificationSetting.class)));
 		given(jwtProvider.generateAccessToken(3L)).willReturn("access-token");
 		given(jwtProvider.generateRefreshToken(3L)).willReturn("refresh-token");
-		given(refreshTokenRepository.findByMemberAndDeviceId(any(), any())).willReturn(Optional.empty());
 
 		AppleLoginResponse response = appleAuthService.login(IDENTITY_TOKEN, DEVICE_ID, null);
 
