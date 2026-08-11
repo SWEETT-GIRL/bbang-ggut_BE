@@ -1,4 +1,4 @@
-package sweetgirl.croissant.search.entity;
+package sweetgirl.croissant.searchmiss.entity;
 
 import java.time.LocalDateTime;
 
@@ -15,7 +15,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
-import sweetgirl.croissant.search.enums.SearchMissStatus;
+import sweetgirl.croissant.searchmiss.enums.SearchMissStatus;
 import sweetgirl.croissant.store.service.search.SearchOutcome;
 
 /**

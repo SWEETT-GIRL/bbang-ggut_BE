@@ -21,7 +21,7 @@ import sweetgirl.croissant.external.opensearch.client.OpenSearchStoreClient;
 import sweetgirl.croissant.external.opensearch.dto.OpenSearchAutocompleteSuggestion;
 import sweetgirl.croissant.external.opensearch.dto.OpenSearchStoreSearchResult;
 import sweetgirl.croissant.global.response.SliceResponse;
-import sweetgirl.croissant.search.event.SearchMissEvent;
+import sweetgirl.croissant.searchmiss.event.SearchMissEvent;
 import sweetgirl.croissant.store.dto.response.StoreAutocompleteResponse;
 import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
 import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;

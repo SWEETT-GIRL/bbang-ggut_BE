@@ -1,4 +1,4 @@
-package sweetgirl.croissant.search.service;
+package sweetgirl.croissant.searchmiss.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -19,9 +19,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import sweetgirl.croissant.search.entity.SearchMiss;
-import sweetgirl.croissant.search.enums.SearchMissStatus;
-import sweetgirl.croissant.search.repository.SearchMissRepository;
+import sweetgirl.croissant.searchmiss.entity.SearchMiss;
+import sweetgirl.croissant.searchmiss.enums.SearchMissStatus;
+import sweetgirl.croissant.searchmiss.repository.SearchMissRepository;
 import sweetgirl.croissant.store.service.search.SearchOutcome;
 
 @ExtendWith(MockitoExtension.class)

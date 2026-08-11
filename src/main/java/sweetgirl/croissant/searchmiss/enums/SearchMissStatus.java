@@ -1,4 +1,4 @@
-package sweetgirl.croissant.search.enums;
+package sweetgirl.croissant.searchmiss.enums;
 
 /**
  * 결과를 못 낸 검색어의 처리 상태.

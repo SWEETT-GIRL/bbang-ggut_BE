@@ -1,4 +1,4 @@
-package sweetgirl.croissant.search.event;
+package sweetgirl.croissant.searchmiss.event;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
@@ -17,7 +17,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 
-import sweetgirl.croissant.search.service.SearchMissCommandService;
+import sweetgirl.croissant.searchmiss.service.SearchMissCommandService;
 import sweetgirl.croissant.store.service.search.SearchOutcome;
 
 @ExtendWith(MockitoExtension.class)

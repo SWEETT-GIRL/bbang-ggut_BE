@@ -1,4 +1,4 @@
-package sweetgirl.croissant.search.event;
+package sweetgirl.croissant.searchmiss.event;
 
 import java.time.LocalDateTime;
 

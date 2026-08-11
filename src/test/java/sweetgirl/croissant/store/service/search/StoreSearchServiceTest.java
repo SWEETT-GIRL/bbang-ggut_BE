@@ -28,7 +28,7 @@ import sweetgirl.croissant.external.opensearch.client.OpenSearchStoreClient;
 import sweetgirl.croissant.external.opensearch.dto.OpenSearchAutocompleteSuggestion;
 import sweetgirl.croissant.external.opensearch.dto.OpenSearchStoreHit;
 import sweetgirl.croissant.external.opensearch.dto.OpenSearchStoreSearchResult;
-import sweetgirl.croissant.search.event.SearchMissEvent;
+import sweetgirl.croissant.searchmiss.event.SearchMissEvent;
 import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
 
 @ExtendWith(MockitoExtension.class)

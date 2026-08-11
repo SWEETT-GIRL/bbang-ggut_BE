@@ -1,4 +1,4 @@
-package sweetgirl.croissant.search.service;
+package sweetgirl.croissant.searchmiss.service;
 
 import java.time.LocalDateTime;
 import java.util.Locale;
@@ -8,8 +8,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
-import sweetgirl.croissant.search.entity.SearchMiss;
-import sweetgirl.croissant.search.repository.SearchMissRepository;
+import sweetgirl.croissant.searchmiss.entity.SearchMiss;
+import sweetgirl.croissant.searchmiss.repository.SearchMissRepository;
 import sweetgirl.croissant.store.service.search.SearchOutcome;
 
 /**

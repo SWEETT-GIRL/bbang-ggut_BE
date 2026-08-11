@@ -1,4 +1,4 @@
-package sweetgirl.croissant.search.repository;
+package sweetgirl.croissant.searchmiss.repository;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -10,8 +10,8 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import sweetgirl.croissant.search.entity.SearchMiss;
-import sweetgirl.croissant.search.enums.SearchMissStatus;
+import sweetgirl.croissant.searchmiss.entity.SearchMiss;
+import sweetgirl.croissant.searchmiss.enums.SearchMissStatus;
 import sweetgirl.croissant.store.service.search.SearchOutcome;
 
 public interface SearchMissRepository extends JpaRepository<SearchMiss, Long> {

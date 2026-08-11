@@ -1,4 +1,4 @@
-package sweetgirl.croissant.search.repository;
+package sweetgirl.croissant.searchmiss.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -17,8 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityManager;
 import sweetgirl.croissant.external.aws.S3Service;
-import sweetgirl.croissant.search.entity.SearchMiss;
-import sweetgirl.croissant.search.enums.SearchMissStatus;
+import sweetgirl.croissant.searchmiss.entity.SearchMiss;
+import sweetgirl.croissant.searchmiss.enums.SearchMissStatus;
 import sweetgirl.croissant.store.service.search.SearchOutcome;
 
 @SpringBootTest(properties = {

@@ -1,4 +1,4 @@
-package sweetgirl.croissant.search.event;
+package sweetgirl.croissant.searchmiss.event;
 
 import org.springframework.context.event.EventListener;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import sweetgirl.croissant.search.service.SearchMissCommandService;
+import sweetgirl.croissant.searchmiss.service.SearchMissCommandService;
 
 /**
  * 실패한 검색어를 비동기로 적재한다.
