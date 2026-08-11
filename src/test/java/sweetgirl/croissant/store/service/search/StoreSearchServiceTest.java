@@ -16,8 +16,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 
 import io.micrometer.core.instrument.Counter;
@@ -26,6 +28,7 @@ import sweetgirl.croissant.external.opensearch.client.OpenSearchStoreClient;
 import sweetgirl.croissant.external.opensearch.dto.OpenSearchAutocompleteSuggestion;
 import sweetgirl.croissant.external.opensearch.dto.OpenSearchStoreHit;
 import sweetgirl.croissant.external.opensearch.dto.OpenSearchStoreSearchResult;
+import sweetgirl.croissant.searchmiss.event.SearchMissEvent;
 import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,6 +43,9 @@ class StoreSearchServiceTest {
 	@Mock
 	private StoreSearchAssembler storeSearchAssembler;
 
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
+
 	private SimpleMeterRegistry meterRegistry;
 	private StoreSearchService service;
 
@@ -48,7 +54,7 @@ class StoreSearchServiceTest {
 		meterRegistry = new SimpleMeterRegistry();
 		// 판정 규칙은 순수 로직이라 목킹하지 않고 실제 구현을 쓴다.
 		service = new StoreSearchService(storeSearchQueryParser, openSearchStoreClient, storeSearchAssembler,
-			new SearchQueryCoverage(), meterRegistry);
+			new SearchQueryCoverage(), meterRegistry, eventPublisher);
 		// 운영에서는 @PostConstruct로 실행되는 시계열 사전 등록을 동일하게 태운다.
 		service.registerSearchOutcomeCounters();
 	}
@@ -222,6 +228,44 @@ class StoreSearchServiceTest {
 
 		assertThat(outcomeCount("search", SearchOutcome.MISMATCH_LOOSE)).isEqualTo(1.0);
 		assertThat(outcomeCount("search", SearchOutcome.MISMATCH)).isZero();
+	}
+
+	@Test
+	@DisplayName("적재 — 실패한 검색어는 원문과 outcome을 담아 이벤트로 발행한다")
+	void searchStores_publishesSearchMissEventOnFailure() {
+		SearchIntent intent = new SearchIntent("맘모스 베이커리", "맘모스 베이커리", List.of("맘모스", "베이커리"),
+			List.of(), List.of("맘모스"), List.of("베이커리"));
+		PageRequest pageable = PageRequest.of(0, 15);
+		List<OpenSearchStoreHit> hits = List.of(hit());
+		given(storeSearchQueryParser.parse("맘모스 베이커리")).willReturn(intent);
+		given(openSearchStoreClient.searchStores(intent, pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(new OpenSearchStoreSearchResult(hits, false, false));
+		given(storeSearchAssembler.assemble(hits)).willReturn(List.of());
+
+		service.searchStores("맘모스 베이커리", null, null, SearchSort.RELEVANCE, pageable);
+
+		ArgumentCaptor<SearchMissEvent> captor = ArgumentCaptor.forClass(SearchMissEvent.class);
+		verify(eventPublisher).publishEvent(captor.capture());
+		assertThat(captor.getValue().keyword()).isEqualTo("맘모스 베이커리");
+		assertThat(captor.getValue().outcome()).isEqualTo(SearchOutcome.MISMATCH_LOOSE);
+		assertThat(captor.getValue().occurredAt()).isNotNull();
+	}
+
+	@Test
+	@DisplayName("적재 — 성공한 검색은 이벤트를 발행하지 않는다")
+	void searchStores_doesNotPublishEventOnHit() {
+		SearchIntent intent = new SearchIntent("성수동 소금빵", "성수동 소금빵", List.of("성수동", "소금빵"),
+			List.of("성수동"), List.of("소금빵"), List.of());
+		PageRequest pageable = PageRequest.of(0, 15);
+		List<OpenSearchStoreHit> hits = List.of(hit());
+		given(storeSearchQueryParser.parse("성수동 소금빵")).willReturn(intent);
+		given(openSearchStoreClient.searchStores(intent, pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(new OpenSearchStoreSearchResult(hits, false, true));
+		given(storeSearchAssembler.assemble(hits)).willReturn(List.of());
+
+		service.searchStores("성수동 소금빵", null, null, SearchSort.RELEVANCE, pageable);
+
+		verify(eventPublisher, never()).publishEvent(any(SearchMissEvent.class));
 	}
 
 	@Test
