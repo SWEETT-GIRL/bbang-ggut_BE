@@ -171,7 +171,7 @@ public class KakaoAuthService {
 
 	private void saveRefreshToken(Long memberId, String deviceId, String refreshToken) {
 		Member memberRef = memberRepository.getReferenceById(memberId);
-		refreshTokenRepository.findByMemberAndDeviceId(memberRef, deviceId).ifPresent(refreshTokenRepository::delete);
+		refreshTokenRepository.deleteByMemberIdAndDeviceId(memberId, deviceId);
 		refreshTokenRepository.save(RefreshToken.builder()
 			.member(memberRef)
 			.deviceId(deviceId)

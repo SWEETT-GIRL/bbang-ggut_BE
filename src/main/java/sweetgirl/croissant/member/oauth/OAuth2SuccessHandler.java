@@ -85,8 +85,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 		Member memberRef = memberRepository.getReferenceById(memberId);
 
 		// 같은 기기로 재로그인 시 기존 토큰 삭제
-		refreshTokenRepository.findByMemberAndDeviceId(memberRef, deviceId)
-			.ifPresent(refreshTokenRepository::delete);
+		refreshTokenRepository.deleteByMemberIdAndDeviceId(memberId, deviceId);
 
 		// 새 RefreshToken 저장 — 원본 JWT 대신 SHA-256 해시값으로 저장
 		refreshTokenRepository.save(
