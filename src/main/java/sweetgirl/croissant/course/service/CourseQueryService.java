@@ -121,6 +121,7 @@ public class CourseQueryService {
 					course,
 					coverImageByCourseId.get(course.getId()),
 					courseStores.size(),
+					storeIdsOf(courseStores),
 					regions,
 					savedCountByCourseId.getOrDefault(course.getId(), 0L),
 					finisherCountByCourseId.getOrDefault(course.getId(), 0L));
@@ -133,6 +134,18 @@ public class CourseQueryService {
 			.collect(Collectors.toMap(
 				courseIdAndCount -> (Long)courseIdAndCount[0],
 				courseIdAndCount -> (Long)courseIdAndCount[1]));
+	}
+
+	/**
+	 * 코스에 담긴 가게 ID 목록. 방문 순서를 그대로 따른다.
+	 *
+	 * 이미 담긴 코스를 클라이언트가 알아야 하는데(가게 상세의 '빵투어에 담기'), 이게 없으면
+	 * 코스마다 상세를 한 번씩 부르게 된다. 여기선 courseStores를 이미 일괄 조회해 둔 터라 공짜다.
+	 */
+	private List<Long> storeIdsOf(List<CourseStore> courseStores) {
+		return courseStores.stream()
+			.map(courseStore -> courseStore.getStore().getId())
+			.toList();
 	}
 
 	/** 코스 가게들의 지역을 "시(축약) 구"(예: "대전 중구") 목록으로. 순서 유지·중복 제거. */

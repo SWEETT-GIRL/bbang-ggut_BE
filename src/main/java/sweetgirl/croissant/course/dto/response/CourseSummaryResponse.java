@@ -12,6 +12,7 @@ public record CourseSummaryResponse(
 		String imageKey,
 		String thumbnailImageKey,
 		int storeCount,
+		List<Long> storeIds,
 		List<String> regions,
 		CourseType courseType,
 		String authorName,
@@ -24,6 +25,7 @@ public record CourseSummaryResponse(
 			Course course,
 			CourseImageFile coverImage,
 			int storeCount,
+			List<Long> storeIds,
 			List<String> regions,
 			long savedCount,
 			long finisherCount) {
@@ -34,6 +36,7 @@ public record CourseSummaryResponse(
 			coverImage != null ? coverImage.getAwsKey() : null,
 			coverImage != null ? coverImage.getResizedKey320() : null,
 			storeCount,
+			storeIds,
 			regions,
 			course.getType(),
 			authorName,
