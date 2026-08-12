@@ -72,7 +72,8 @@ class CourseControllerTest {
 	@Test
 	void getCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
-			1L, "소금빵 투어", null, null, 2, List.of("마포구"), CourseType.CURATED, "어드민", null, 0L, 1, 37L);
+			1L, "소금빵 투어", null, null, 2, List.of(11L, 12L), List.of("마포구"), CourseType.CURATED, "어드민", null, 0L, 1,
+			37L);
 		given(courseQueryService.getCurationCourses()).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses"))
@@ -88,20 +89,23 @@ class CourseControllerTest {
 	@Test
 	void getMyCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
-			2L, "나의 코스", null, null, 1, List.of("서대문구"), CourseType.CUSTOM, "user1", null, 0L, null, 0L);
+			2L, "나의 코스", null, null, 1, List.of(21L), List.of("서대문구"), CourseType.CUSTOM, "user1", null, 0L, null, 0L);
 		given(courseQueryService.getMyCourses(isNull())).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses/my"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data[0].id").value(2))
-			.andExpect(jsonPath("$.data[0].courseType").value("CUSTOM"));
+			.andExpect(jsonPath("$.data[0].courseType").value("CUSTOM"))
+			// 가게 상세의 '빵투어에 담기'가 이미 담긴 코스를 이 필드로 가려낸다
+			.andExpect(jsonPath("$.data[0].storeIds[0]").value(21));
 	}
 
 	@Test
 	void getSavedCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
-			3L, "찜한 코스", null, null, 3, List.of("강남구"), CourseType.CURATED, "어드민", null, 0L, null, 0L);
+			3L, "찜한 코스", null, null, 3, List.of(31L, 32L, 33L), List.of("강남구"), CourseType.CURATED, "어드민", null, 0L,
+			null, 0L);
 		given(courseQueryService.getSavedCourses(isNull())).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses/saved"))
