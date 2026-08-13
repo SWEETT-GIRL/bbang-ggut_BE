@@ -191,6 +191,11 @@ public class OpenSearchStoreClient {
 			}
 			addAutocompleteSuggestion(suggestions, source.storeName(), AutocompleteSuggestionType.STORE,
 				source.storeId(), normalizedQuery);
+			// 구명(개명 전 이름)도 가게 제안으로 — 구명을 타이핑한 사용자가 그 가게로 진입할 수 있게 한다
+			for (String nameAlias : nullSafeList(source.storeNameAliases())) {
+				addAutocompleteSuggestion(suggestions, nameAlias, AutocompleteSuggestionType.STORE,
+					source.storeId(), normalizedQuery);
+			}
 			for (String breadType : nullSafeList(source.breadTypes())) {
 				addAutocompleteSuggestion(suggestions, breadType, AutocompleteSuggestionType.BREAD_TYPE,
 					null, normalizedQuery);
