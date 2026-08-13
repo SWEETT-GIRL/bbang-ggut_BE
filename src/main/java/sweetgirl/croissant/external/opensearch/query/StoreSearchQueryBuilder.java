@@ -221,17 +221,26 @@ public class StoreSearchQueryBuilder {
 		return boolShould(clauses);
 	}
 
-	// 가게명 정확/정규화 일치(term) 부스트 3종(keyword/edge/ngram) — 정확·부분 일치를 상단으로 끌어올린다.
+	// 가게명 정확/정규화 일치(term) 부스트 — 정확·부분 일치를 상단으로 끌어올린다. 구명(alias)도 같은
+	// 3종을 한 단계 낮은 부스트로 건다(개명 가게를 구명으로 검색해도 상단, 단 현명 가게가 항상 위).
 	// nori 필드는 제외: nori_part_of_speech가 "후와후와"→"후"로 뭉개 오매칭하므로, keyword 토크나이저
 	// 기반 edge/ngram(원문 유지)으로만 매칭한다.
 	private List<Query> storeNameTermBoosts(String query) {
+		String normalized = normalizeForExactMatch(query);
 		return List.of(
 			termBoost(SearchSubField.KEYWORD.field(STORE_NAME), query,
 				SearchRankingConstants.STORE_NAME_KEYWORD_BOOST),
-			termBoost(SearchSubField.EDGE.field(STORE_NAME), normalizeForExactMatch(query),
+			termBoost(SearchSubField.EDGE.field(STORE_NAME), normalized,
 				SearchRankingConstants.STORE_NAME_EDGE_BOOST),
-			termBoost(SearchSubField.NGRAM.field(STORE_NAME), normalizeForExactMatch(query),
-				SearchRankingConstants.STORE_NAME_NGRAM_BOOST));
+			termBoost(SearchSubField.NGRAM.field(STORE_NAME), normalized,
+				SearchRankingConstants.STORE_NAME_NGRAM_BOOST),
+			// alias 는 BASE 자체가 keyword 타입(searchRegionAliases 와 동일) — .keyword 서브필드가 없다
+			termBoost(SearchSubField.BASE.field(STORE_NAME_ALIASES), query,
+				SearchRankingConstants.STORE_NAME_ALIAS_KEYWORD_BOOST),
+			termBoost(SearchSubField.EDGE.field(STORE_NAME_ALIASES), normalized,
+				SearchRankingConstants.STORE_NAME_ALIAS_EDGE_BOOST),
+			termBoost(SearchSubField.NGRAM.field(STORE_NAME_ALIASES), normalized,
+				SearchRankingConstants.STORE_NAME_ALIAS_NGRAM_BOOST));
 	}
 
 	private Query remainingQuery(String query, String innerHitsName) {
@@ -319,6 +328,9 @@ public class StoreSearchQueryBuilder {
 		fields.put("storeName", empty);
 		fields.put("storeName.edge", empty);
 		fields.put("storeName.ngram", empty);
+		// 구명 매칭도 하이라이트 — 클라이언트 파싱은 startsWith("storeName")이라 STORE_NAME 으로 분류된다
+		fields.put("storeNameAliases", empty);
+		fields.put("storeNameAliases.edge", empty);
 		fields.put("searchRegionAliases", empty);
 		fields.put("searchRegionAliases.edge", empty);
 		fields.put("breadTypes", empty);

@@ -63,6 +63,35 @@ class StoreSearchQueryBuilderTest {
 	}
 
 	@Test
+	void build_matchesStoreNameAliasesSoRenamedStoresAreFoundByOldName() {
+		// 개명 가게를 구명으로 검색("헤이도우"→HEY DOUGH) — 원문 매칭과 term 부스트 모두 구명을 본다.
+		// 부스트는 현명(20/80/60)보다 한 단계 낮게(15/60/45) — 같은 말이 현명인 가게가 항상 위.
+		SearchIntent intent = intent("헤이도우", List.of(), List.of());
+
+		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
+
+		assertThat(toJson(request)).contains(
+			"storeNameAliases",
+			"storeNameAliases.edge",
+			"storeNameAliases.ngram",
+			"15.0",
+			"45.0");
+	}
+
+	@Test
+	void build_includesAliasesInRemainingMustSoOldNamePlusRegionStillMatches() {
+		// "망원 + 구명" 검색 — 잔여 토큰 must(NAME_MENU_PARTIAL)가 alias 를 안 보면 0건이 된다.
+		SearchIntent intent = intent("망원 헤이도우", List.of("망원"), List.of(), List.of("헤이도우"));
+
+		SearchRequest request = builder.build(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
+
+		BoolQuery bool = boolQuery(request);
+		assertThat(bool.must()).hasSize(2); // region("망원") + remaining("헤이도우")
+		String mustJson = toJson(request);
+		assertThat(mustJson).contains("storeNameAliases.edge", "storeNameAliases.ngram");
+	}
+
+	@Test
 	void build_requiresBreadMatchAndKeepsRawAsShouldWhenBreadOnly() {
 		SearchIntent intent = intent("자연도", List.of(), List.of("자연도"));
 
@@ -272,6 +301,7 @@ class StoreSearchQueryBuilderTest {
 		assertThat(request.size()).isEqualTo(10);
 		assertThat(toJson(request)).contains(
 			"storeName.edge",
+			"storeNameAliases.edge",
 			"breadTypes.edge",
 			"menus.name.edge",
 			"searchRegionAliases.edge",

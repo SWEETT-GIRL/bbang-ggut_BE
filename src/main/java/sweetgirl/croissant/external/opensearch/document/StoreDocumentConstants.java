@@ -14,6 +14,7 @@ public class StoreDocumentConstants {
 
 	public static final String STORE_ID = "storeId";
 	public static final String STORE_NAME = "storeName";
+	public static final String STORE_NAME_ALIASES = "storeNameAliases";
 	public static final String ADDRESS = "address";
 	public static final String LOCATION = "location";
 	public static final String SEARCH_REGIONS = "searchRegions";

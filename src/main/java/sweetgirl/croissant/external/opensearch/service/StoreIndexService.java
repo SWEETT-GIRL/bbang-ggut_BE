@@ -30,12 +30,14 @@ import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.dto.projection.StoreIdCountProjection;
+import sweetgirl.croissant.store.dto.projection.StoreNameAliasProjection;
 import sweetgirl.croissant.store.dto.projection.StoreSearchRegionAliasProjection;
 import sweetgirl.croissant.store.dto.projection.StoreSearchRegionIndexProjection;
 import sweetgirl.croissant.store.entity.NationwideHotStoreRanking;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.NationwideHotStoreRankingRepository;
+import sweetgirl.croissant.store.repository.StoreNameAliasRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
 import sweetgirl.croissant.store.repository.StoreSearchRegionRepository;
 import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
@@ -53,6 +55,7 @@ public class StoreIndexService {
 	private final SubscribedStoreRepository subscribedStoreRepository;
 	private final NationwideHotStoreRankingRepository nationwideRankingRepository;
 	private final StoreSearchRegionRepository storeSearchRegionRepository;
+	private final StoreNameAliasRepository storeNameAliasRepository;
 	private final RequestLogRepository requestLogRepository;
 
 	// 신규 가게는 문서 전체를 만들어 넣는다 — 생성 색인이 없으면 다음 전체 재색인까지
@@ -95,6 +98,13 @@ public class StoreIndexService {
 				StoreSearchRegionAliasProjection::getStoreId,
 				Collectors.mapping(StoreSearchRegionAliasProjection::getAlias, Collectors.toList())));
 
+		Map<Long, List<String>> nameAliasesByStoreId = storeNameAliasRepository
+			.findAliasesForIndexingByStoreIds(storeIds)
+			.stream()
+			.collect(Collectors.groupingBy(
+				StoreNameAliasProjection::getStoreId,
+				Collectors.mapping(StoreNameAliasProjection::getAlias, Collectors.toList())));
+
 		Map<Long, Long> viewCountsByStoreId = requestLogRepository
 			.countByStoreIdInAndEventType(storeIds, LogEventType.STORE_VIEW)
 			.stream()
@@ -107,7 +117,7 @@ public class StoreIndexService {
 					.id(store.getId().toString())
 					.document(buildDocument(store, menusByStoreId, subscribeCountsByStoreId,
 						rankingsByStoreId, searchRegionsByStoreId, aliasesByStoreId,
-						viewCountsByStoreId)))))
+						nameAliasesByStoreId, viewCountsByStoreId)))))
 			.toList();
 		try {
 			return openSearchClient.bulk(r -> r.operations(operations));
@@ -194,10 +204,14 @@ public class StoreIndexService {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 		try {
+			// 이름이 바뀌는 순간이 곧 구명 alias 가 생기는 순간 — 이름과 alias 를 함께 갱신한다
 			openSearchClient.update(u -> u
 				.index(openSearchProperties.getStoresIndex())
 				.id(storeId.toString())
-				.doc(Map.of(STORE_NAME, store.getName())), StoreDocument.class);
+				.doc(Map.of(
+					STORE_NAME, store.getName(),
+					STORE_NAME_ALIASES, storeNameAliasRepository.findAliasesForIndexingByStoreId(storeId))),
+				StoreDocument.class);
 		} catch (IOException e) {
 			log.error("OpenSearch 가게 이름 업데이트 실패 storeId={}", storeId, e);
 			throw new OpenSearchException(OpenSearchErrorCode.BULK_INDEX_FAILED, e);
@@ -222,6 +236,7 @@ public class StoreIndexService {
 			Map<Long, List<NationwideHotStoreRanking>> rankingsByStoreId,
 			Map<Long, List<StoreSearchRegionIndexProjection>> searchRegionsByStoreId,
 			Map<Long, List<String>> aliasesByStoreId,
+			Map<Long, List<String>> nameAliasesByStoreId,
 			Map<Long, Long> viewCountsByStoreId) {
 
 		Long storeId = store.getId();
@@ -251,6 +266,7 @@ public class StoreIndexService {
 		return new StoreDocument(
 			storeId,
 			store.getName(),
+			nameAliasesByStoreId.getOrDefault(storeId, List.of()),
 			store.getAddress(),
 			geoPoint,
 			searchRegions,

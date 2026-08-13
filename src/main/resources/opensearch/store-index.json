@@ -110,6 +110,25 @@
           }
         }
       },
+      "storeNameAliases": {
+        "type": "keyword",
+        "fields": {
+          "nori": {
+            "type": "text",
+            "analyzer": "nori_analyzer"
+          },
+          "edge": {
+            "type": "text",
+            "analyzer": "edge_ngram_analyzer",
+            "search_analyzer": "query_normalized_analyzer"
+          },
+          "ngram": {
+            "type": "text",
+            "analyzer": "normalized_ngram_analyzer",
+            "search_analyzer": "query_normalized_analyzer"
+          }
+        }
+      },
       "address": {
         "type": "text",
         "analyzer": "nori_analyzer",

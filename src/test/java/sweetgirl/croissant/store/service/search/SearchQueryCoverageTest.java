@@ -23,9 +23,15 @@ class SearchQueryCoverageTest {
 
 	private StoreDocument document(String storeName, List<String> breadTypes, List<String> menuNames,
 			List<String> regionAliases) {
+		return document(storeName, List.of(), breadTypes, menuNames, regionAliases);
+	}
+
+	private StoreDocument document(String storeName, List<String> storeNameAliases, List<String> breadTypes,
+			List<String> menuNames, List<String> regionAliases) {
 		return new StoreDocument(
 			1L,
 			storeName,
+			storeNameAliases,
 			"서울 성동구 성수동2가 1-1",
 			null,
 			regionAliases.stream().map(name -> new SearchRegionDto(1L, name, "DONG", 1.0)).toList(),
@@ -96,6 +102,19 @@ class SearchQueryCoverageTest {
 		SearchIntent intent = intent("성수동 빵집", "성수동", List.of("성수동", "빵집"),
 			List.of("성수동"), List.of(), List.of("빵집"));
 		StoreDocument document = document("어글리 베이커리", List.of("소금빵"), List.of("소금빵"), List.of("성수동"));
+
+		assertThat(searchQueryCoverage.covers(intent, document)).isTrue();
+	}
+
+	@Test
+	@DisplayName("구명 검색 — 검색어 전체가 storeNameAliases에 있으면 커버로 본다")
+	void covers_wholeQueryMatchedByStoreNameAlias() {
+		// 개명 가게("HEY DOUGH")를 구명("헤이도우")으로 검색 — alias 가 커버를 인정해야
+		// 검색 품질 지표가 개명 가게 검색을 실패로 오집계하지 않는다.
+		SearchIntent intent = intent("헤이도우", "헤이도우", List.of("헤이도우"),
+			List.of(), List.of(), List.of("헤이도우"));
+		StoreDocument document = document("HEY DOUGH", List.of("헤이도우"),
+			List.of("소금빵"), List.of("소금빵"), List.of("성수동"));
 
 		assertThat(searchQueryCoverage.covers(intent, document)).isTrue();
 	}
