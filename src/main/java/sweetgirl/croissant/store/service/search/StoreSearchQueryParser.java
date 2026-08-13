@@ -39,18 +39,18 @@ public class StoreSearchQueryParser {
 	private Set<String> stopWords;
 	private volatile Set<String> regionAliases;
 
-	// 기본: 가게명 우선 — 붙어쓴 토큰 속 빵 단어는 must 필터로 분해하지 않는다.
+	// 기본: 가게명 우선 — 붙어쓴 토큰은 지역어든 빵 단어든 분해하지 않고 통째로 검색한다.
 	public SearchIntent parse(String rawQuery) {
 		return parse(rawQuery, false);
 	}
 
-	// 폴백: 1차(가게명/메뉴 직접 매칭)가 0건일 때, 붙어쓴 토큰 속 빵 단어("초코소금빵"→"소금빵")를
-	// must 필터로 분해해 해당 메뉴를 가진 가게를 노출한다.
-	public SearchIntent parseWithBreadFallback(String rawQuery) {
+	// 폴백: 1차(가게명/메뉴 직접 매칭)가 0건일 때만 붙어쓴 토큰을 분해한다.
+	// "초코소금빵"→빵 "소금빵", "한남에그타르트"→지역 "한남" + 빵 "에그타르트".
+	public SearchIntent parseWithGluedTokenFallback(String rawQuery) {
 		return parse(rawQuery, true);
 	}
 
-	private SearchIntent parse(String rawQuery, boolean decomposeGluedBread) {
+	private SearchIntent parse(String rawQuery, boolean decomposeGluedTokens) {
 		String normalized = rawQuery == null ? "" : rawQuery.trim().replaceAll("\\s+", " ");
 		if (normalized.isBlank()) {
 			return new SearchIntent("", "", List.of(), List.of(), List.of(), List.of());
@@ -69,7 +69,7 @@ public class StoreSearchQueryParser {
 			} else if (exactBreadCanonical != null) { //빵토큰 두번째
 				breadTokens.add(exactBreadCanonical);
 			} else { //띄어쓰기 무시하고 다 붙어진 단어에서 찾기
-				ParsedToken parsedToken = parseContainedTokens(token, decomposeGluedBread);
+				ParsedToken parsedToken = parseContainedTokens(token, decomposeGluedTokens);
 				regionTokens.addAll(parsedToken.regionTokens());
 				breadTokens.addAll(parsedToken.breadTokens());
 				remainingTokens.addAll(parsedToken.remainingTokens());
@@ -149,7 +149,7 @@ public class StoreSearchQueryParser {
 		return null;
 	}
 
-	private ParsedToken parseContainedTokens(String token, boolean decomposeGluedBread) {
+	private ParsedToken parseContainedTokens(String token, boolean decomposeGluedTokens) {
 		String normalizedToken = normalize(token);
 		List<MatchedTerm> matches = containedRegionCandidates(normalizedToken).stream()
 			.map(candidate -> new MatchedTerm(candidate.term(), candidate.value(), TermType.REGION,
@@ -179,11 +179,15 @@ public class StoreSearchQueryParser {
 			return new ParsedToken(List.of(), List.of(), List.of(token));
 		}
 
-		boolean hasRegionMatch = selected.stream().anyMatch(match -> match.type() == TermType.REGION);
-		if (!decomposeGluedBread && !hasRegionMatch) {
-			// 가게명 우선(1차) 모드: 지역어 없이 빵 단어만 붙어쓴 토큰에 박혀 있으면(예: "브릭베이글",
-			// "초코소금빵") 빵 must 필터로 오인하지 않고 원문 토큰을 그대로 가게명/메뉴 검색(rawQuery)에 넘긴다.
-			// "한남에그타르트"처럼 지역어가 함께 있을 때만 1차에서도 지역+빵으로 분해한다.
+		if (!decomposeGluedTokens) {
+			// 가게명 우선(1차) 모드: 붙어쓴 토큰은 지역어가 박혀 있어도 분해하지 않고 원문 그대로
+			// 가게명/메뉴 검색(rawQuery)에 넘긴다.
+			//
+			// 분해하면 그 지역·빵의 가게가 통째로 결과셋에 들어와 정작 찾던 가게가 묻힌다.
+			// "소금도화"(가게명)에서 "도화"를 지역으로 분해해 도화동 가게들에 밀린 사례가 있었고,
+			// "브릭베이글"에서 "베이글"을 분해했을 때와 같은 증상이다.
+			//
+			// 1차가 0건일 때만 폴백에서 분해한다("한남에그타르트" → 한남 + 에그타르트).
 			return new ParsedToken(List.of(), List.of(), List.of(token));
 		}
 

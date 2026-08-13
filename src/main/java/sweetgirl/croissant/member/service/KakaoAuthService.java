@@ -51,7 +51,8 @@ public class KakaoAuthService {
 	@Value("${jwt.refresh-token-expiry}")
 	private long refreshTokenExpiry;
 
-	private final RestTemplate restTemplate = new RestTemplate();
+	// 직접 생성하면 공통 HTTP 설정(타임아웃)이 적용되지 않아 빈으로 주입받는다. KakaoRestClientConfig 참고.
+	private final RestTemplate restTemplate;
 
 	@Transactional
 	public KakaoLoginResponse login(String kakaoAccessToken, String deviceId, String authorizationHeader) {

@@ -32,6 +32,8 @@ import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
 @Transactional(readOnly = true)
 public class StoreSearchService {
 
+	// 지표·적재는 첫 페이지에서만 센다. 2페이지 이후는 새 검색이 아니라 같은 검색의 스크롤이다.
+	private static final int FIRST_PAGE = 0;
 	private static final int DEFAULT_AUTOCOMPLETE_SIZE = 10;
 	private static final int MAX_AUTOCOMPLETE_SIZE = 20;
 	private static final String SEARCH_QUERY_METRIC = "search.query";
@@ -62,25 +64,43 @@ public class StoreSearchService {
 
 	public SliceResponse<StoreSearchResponse> searchStores(String keyword, Double latitude, Double longitude,
 			SearchSort sort, Pageable pageable) {
-		// 1차: 가게명 우선 — "브릭베이글"처럼 붙여쓴 토큰은 통째로 가게명/메뉴 검색
+		// 1차: 가게명 우선 — "브릭베이글"·"소금도화"처럼 붙여쓴 토큰은 통째로 가게명/메뉴 검색
 		SearchIntent intent = storeSearchQueryParser.parse(keyword);
 		OpenSearchStoreSearchResult result = openSearchStoreClient.searchStores(intent, pageable, latitude, longitude,
 			sort);
-		// 폴백: 1차가 0건이고, 붙어쓴 토큰 속 빵 단어를 분해할 수 있으면("초코소금빵"→"소금빵" 메뉴 필터)
-		// 해당 메뉴를 가진 가게를 다시 검색한다. 빵 분해 결과가 1차와 같으면(분해할 빵이 없으면) 재검색하지 않는다.
+		// 폴백: 1차가 0건일 때만 붙어쓴 토큰을 분해해 다시 검색한다
+		// ("초코소금빵"→빵 "소금빵", "한남에그타르트"→지역 "한남" + 빵 "에그타르트").
+		// 지역·빵 어느 쪽도 새로 분해되지 않으면 같은 쿼리가 되므로 재검색하지 않는다.
 		boolean fallbackApplied = false;
 		if (result.hits().isEmpty()) {
-			SearchIntent fallbackIntent = storeSearchQueryParser.parseWithBreadFallback(keyword);
-			if (!fallbackIntent.breadTokens().equals(intent.breadTokens())) {
+			SearchIntent fallbackIntent = storeSearchQueryParser.parseWithGluedTokenFallback(keyword);
+			if (isDecomposed(fallbackIntent, intent)) {
 				result = openSearchStoreClient.searchStores(fallbackIntent, pageable, latitude, longitude, sort);
 				fallbackApplied = !result.hits().isEmpty();
 			}
 		}
-		recordSearchOutcome(resolveSearchOutcome(result, intent, fallbackApplied), keyword);
+		// 2페이지 이후는 같은 검색의 연속이므로 세지 않는다. 무한스크롤이 검색 API를 페이지마다
+		// 호출하는데, 이걸 다 세면 "많이 스크롤한 검색어"가 "여러 사람이 찾은 검색어"보다 위로 올라와
+		// 실패 목록의 우선순위가 뒤집힌다. 실제로 "천안시 서북구"가 검색 5회 + 스크롤 6페이지로
+		// 11회가 되어, 2회인 다른 검색어보다 높게 잡혔다.
+		if (pageable.getPageNumber() == FIRST_PAGE) {
+			recordSearchOutcome(resolveSearchOutcome(result, intent, fallbackApplied), keyword);
+		}
 		if (result.hits().isEmpty()) {
 			return new SliceResponse<>(List.of(), false);
 		}
 		return new SliceResponse<>(storeSearchAssembler.assemble(result.hits()), result.hasNext());
+	}
+
+	/**
+	 * 폴백 파싱이 1차보다 실제로 더 분해했는지.
+	 *
+	 * <p>빵만 보면 "소금도화"처럼 지역어만 박힌 검색어에서 재검색이 걸리지 않는다.
+	 * 1차에서 붙어쓴 토큰을 통째로 두게 되면서 지역 분해도 폴백으로 넘어왔으므로 함께 본다.
+	 */
+	private boolean isDecomposed(SearchIntent fallbackIntent, SearchIntent intent) {
+		return !fallbackIntent.breadTokens().equals(intent.breadTokens())
+			|| !fallbackIntent.regionTokens().equals(intent.regionTokens());
 	}
 
 	private SearchOutcome resolveSearchOutcome(OpenSearchStoreSearchResult result, SearchIntent intent,
