@@ -80,7 +80,7 @@ class StoreSearchServiceTest {
 			List.of("성수"), List.of("에그타르트"), List.of("에그타르트"));
 		PageRequest pageable = PageRequest.of(0, 15);
 		given(storeSearchQueryParser.parse("성수 에그타르트")).willReturn(intent);
-		given(storeSearchQueryParser.parseWithBreadFallback("성수 에그타르트")).willReturn(fallbackIntent);
+		given(storeSearchQueryParser.parseWithGluedTokenFallback("성수 에그타르트")).willReturn(fallbackIntent);
 		given(openSearchStoreClient.searchStores(intent, pageable, null, null, SearchSort.DISTANCE))
 			.willReturn(OpenSearchStoreSearchResult.empty());
 
@@ -106,7 +106,7 @@ class StoreSearchServiceTest {
 		given(storeSearchQueryParser.parse("초코소금빵")).willReturn(primary);
 		given(openSearchStoreClient.searchStores(primary, pageable, null, null, SearchSort.DISTANCE))
 			.willReturn(OpenSearchStoreSearchResult.empty());
-		given(storeSearchQueryParser.parseWithBreadFallback("초코소금빵")).willReturn(fallback);
+		given(storeSearchQueryParser.parseWithGluedTokenFallback("초코소금빵")).willReturn(fallback);
 		given(openSearchStoreClient.searchStores(fallback, pageable, null, null, SearchSort.DISTANCE))
 			.willReturn(new OpenSearchStoreSearchResult(hits, false, false));
 		given(storeSearchAssembler.assemble(hits)).willReturn(List.of());
@@ -116,6 +116,49 @@ class StoreSearchServiceTest {
 		// 1차가 0건이라 폴백 인텐트로 재검색하고, 그 결과를 조립한다
 		verify(openSearchStoreClient).searchStores(fallback, pageable, null, null, SearchSort.DISTANCE);
 		verify(storeSearchAssembler).assemble(hits);
+	}
+
+	@Test
+	@DisplayName("폴백 — 지역 토큰만 새로 분해돼도 재검색한다")
+	void searchStores_runsFallbackWhenOnlyRegionDecomposed() {
+		// "도화베이커리" 같은 검색어는 1차에서 통째로 두므로 0건일 수 있다.
+		// 빵 토큰만 비교하면 재검색이 걸리지 않아 그대로 0건으로 끝난다.
+		SearchIntent primary = new SearchIntent("도화베이커리", "도화베이커리", List.of("도화베이커리"),
+			List.of(), List.of(), List.of("도화베이커리"));
+		SearchIntent fallback = new SearchIntent("도화베이커리", "도화베이커리", List.of("도화베이커리"),
+			List.of("도화"), List.of(), List.of("베이커리"));
+		PageRequest pageable = PageRequest.of(0, 15);
+		List<OpenSearchStoreHit> hits = List.of(hit());
+		given(storeSearchQueryParser.parse("도화베이커리")).willReturn(primary);
+		given(storeSearchQueryParser.parseWithGluedTokenFallback("도화베이커리")).willReturn(fallback);
+		given(openSearchStoreClient.searchStores(primary, pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(OpenSearchStoreSearchResult.empty());
+		given(openSearchStoreClient.searchStores(fallback, pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(new OpenSearchStoreSearchResult(hits, false, false));
+		given(storeSearchAssembler.assemble(hits)).willReturn(List.of());
+
+		service.searchStores("도화베이커리", null, null, SearchSort.RELEVANCE, pageable);
+
+		verify(openSearchStoreClient).searchStores(fallback, pageable, null, null, SearchSort.RELEVANCE);
+		assertThat(outcomeCount("search", SearchOutcome.FALLBACK)).isEqualTo(1.0);
+	}
+
+	@Test
+	@DisplayName("폴백 — 지역·빵 어느 쪽도 분해되지 않으면 재검색하지 않는다")
+	void searchStores_skipsFallbackWhenNothingDecomposed() {
+		SearchIntent intent = new SearchIntent("대쟌", "대쟌", List.of("대쟌"),
+			List.of(), List.of(), List.of("대쟌"));
+		PageRequest pageable = PageRequest.of(0, 15);
+		given(storeSearchQueryParser.parse("대쟌")).willReturn(intent);
+		given(storeSearchQueryParser.parseWithGluedTokenFallback("대쟌")).willReturn(intent);
+		given(openSearchStoreClient.searchStores(intent, pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(OpenSearchStoreSearchResult.empty());
+
+		service.searchStores("대쟌", null, null, SearchSort.RELEVANCE, pageable);
+
+		// 같은 인텐트로 두 번 부르는 낭비를 막는다
+		verify(openSearchStoreClient, times(1)).searchStores(any(), any(), isNull(), isNull(), any());
+		assertThat(outcomeCount("search", SearchOutcome.EMPTY)).isEqualTo(1.0);
 	}
 
 	@Test
@@ -143,7 +186,7 @@ class StoreSearchServiceTest {
 			List.of(), List.of(), List.of("없는빵"));
 		PageRequest pageable = PageRequest.of(0, 15);
 		given(storeSearchQueryParser.parse("없는빵")).willReturn(intent);
-		given(storeSearchQueryParser.parseWithBreadFallback("없는빵")).willReturn(intent);
+		given(storeSearchQueryParser.parseWithGluedTokenFallback("없는빵")).willReturn(intent);
 		given(openSearchStoreClient.searchStores(intent, pageable, null, null, SearchSort.RELEVANCE))
 			.willReturn(OpenSearchStoreSearchResult.empty());
 
@@ -163,7 +206,7 @@ class StoreSearchServiceTest {
 		PageRequest pageable = PageRequest.of(0, 15);
 		List<OpenSearchStoreHit> hits = List.of(hit());
 		given(storeSearchQueryParser.parse("초코소금빵")).willReturn(primary);
-		given(storeSearchQueryParser.parseWithBreadFallback("초코소금빵")).willReturn(fallback);
+		given(storeSearchQueryParser.parseWithGluedTokenFallback("초코소금빵")).willReturn(fallback);
 		given(openSearchStoreClient.searchStores(primary, pageable, null, null, SearchSort.RELEVANCE))
 			.willReturn(OpenSearchStoreSearchResult.empty());
 		given(openSearchStoreClient.searchStores(fallback, pageable, null, null, SearchSort.RELEVANCE))

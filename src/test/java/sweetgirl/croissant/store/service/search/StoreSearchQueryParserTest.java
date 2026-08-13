@@ -5,6 +5,7 @@ import static org.mockito.BDDMockito.*;
 
 import java.util.Arrays;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -127,7 +128,7 @@ class StoreSearchQueryParserTest {
 		assertThat(primary.remainingTokens()).containsExactly("초코소금빵");
 
 		// 폴백: "소금빵"을 빵 must로 분해하고 남은 "초코"는 remaining으로 둔다
-		SearchIntent fallback = parser.parseWithBreadFallback("초코소금빵");
+		SearchIntent fallback = parser.parseWithGluedTokenFallback("초코소금빵");
 		assertThat(fallback.breadTokens()).containsExactly("소금빵");
 		assertThat(fallback.remainingTokens()).containsExactly("초코");
 	}
@@ -140,7 +141,7 @@ class StoreSearchQueryParserTest {
 		assertThat(primary.breadTokens()).isEmpty();
 		assertThat(primary.remainingTokens()).containsExactly("바닐라에그타르트");
 
-		SearchIntent fallback = parser.parseWithBreadFallback("바닐라에그타르트");
+		SearchIntent fallback = parser.parseWithGluedTokenFallback("바닐라에그타르트");
 		assertThat(fallback.breadTokens()).containsExactly("에그타르트");
 		assertThat(fallback.remainingTokens()).containsExactly("바닐라");
 	}
@@ -153,20 +154,61 @@ class StoreSearchQueryParserTest {
 		assertThat(primary.breadTokens()).isEmpty();
 		assertThat(primary.remainingTokens()).containsExactly("크로와상맛집");
 
-		SearchIntent fallback = parser.parseWithBreadFallback("크로와상맛집");
+		SearchIntent fallback = parser.parseWithGluedTokenFallback("크로와상맛집");
 		assertThat(fallback.breadTokens()).containsExactly("크루아상");
 		assertThat(fallback.remainingTokens()).containsExactly("맛집");
 	}
 
 	@Test
-	void parse_extractsContainedRegionBreadAndRemainingTokens() {
+	@DisplayName("지역+빵이 붙어쓴 토큰도 1차에서는 통째로 두고 폴백에서만 분해한다")
+	void parse_keepsRegionBreadCompoundWholeByDefaultButDecomposesOnFallback() {
 		StoreSearchQueryParser parser = parserWithRegionAliases("성수");
 
-		SearchIntent result = parser.parse("성수초코소금빵");
+		SearchIntent primary = parser.parse("성수초코소금빵");
+		assertThat(primary.regionTokens()).isEmpty();
+		assertThat(primary.breadTokens()).isEmpty();
+		assertThat(primary.remainingTokens()).containsExactly("성수초코소금빵");
 
-		assertThat(result.regionTokens()).containsExactly("성수");
-		assertThat(result.breadTokens()).containsExactly("소금빵");
-		assertThat(result.remainingTokens()).containsExactly("초코");
+		SearchIntent fallback = parser.parseWithGluedTokenFallback("성수초코소금빵");
+		assertThat(fallback.regionTokens()).containsExactly("성수");
+		assertThat(fallback.breadTokens()).containsExactly("소금빵");
+		assertThat(fallback.remainingTokens()).containsExactly("초코");
+	}
+
+	@Test
+	@DisplayName("가게명에 지역어가 박혀 있어도 1차에서 분해하지 않는다 — 소금도화가 도화동 가게들에 묻히던 문제")
+	void parse_doesNotDecomposeRegionInsideStoreName() {
+		StoreSearchQueryParser parser = parserWithRegionAliases("도화");
+
+		SearchIntent primary = parser.parse("소금도화");
+
+		// 분해하면 "도화" 지역 가게가 통째로 결과셋에 들어와 정작 "소금도화"가 밀린다
+		assertThat(primary.regionTokens()).isEmpty();
+		assertThat(primary.remainingTokens()).containsExactly("소금도화");
+	}
+
+	@Test
+	@DisplayName("지역어만 박힌 붙어쓴 토큰도 폴백에서는 분해된다")
+	void parse_decomposesRegionOnlyCompoundOnFallback() {
+		StoreSearchQueryParser parser = parserWithRegionAliases("도화");
+
+		SearchIntent fallback = parser.parseWithGluedTokenFallback("도화베이커리");
+
+		assertThat(fallback.regionTokens()).containsExactly("도화");
+		assertThat(fallback.remainingTokens()).containsExactly("베이커리");
+	}
+
+	@Test
+	@DisplayName("공백으로 띄어쓴 지역어는 1차에서도 그대로 지역 토큰이다")
+	void parse_keepsSpacedRegionTokenInPrimary() {
+		StoreSearchQueryParser parser = parserWithRegionAliases("성수동");
+
+		SearchIntent primary = parser.parse("성수동 소금빵");
+
+		// 붙어쓴 토큰만 통째로 두는 것이지, 정확 일치 경로는 영향받지 않는다
+		assertThat(primary.regionTokens()).containsExactly("성수동");
+		assertThat(primary.breadTokens()).containsExactly("소금빵");
+		assertThat(primary.remainingTokens()).isEmpty();
 	}
 
 	@Test

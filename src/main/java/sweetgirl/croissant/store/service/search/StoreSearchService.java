@@ -62,16 +62,17 @@ public class StoreSearchService {
 
 	public SliceResponse<StoreSearchResponse> searchStores(String keyword, Double latitude, Double longitude,
 			SearchSort sort, Pageable pageable) {
-		// 1차: 가게명 우선 — "브릭베이글"처럼 붙여쓴 토큰은 통째로 가게명/메뉴 검색
+		// 1차: 가게명 우선 — "브릭베이글"·"소금도화"처럼 붙여쓴 토큰은 통째로 가게명/메뉴 검색
 		SearchIntent intent = storeSearchQueryParser.parse(keyword);
 		OpenSearchStoreSearchResult result = openSearchStoreClient.searchStores(intent, pageable, latitude, longitude,
 			sort);
-		// 폴백: 1차가 0건이고, 붙어쓴 토큰 속 빵 단어를 분해할 수 있으면("초코소금빵"→"소금빵" 메뉴 필터)
-		// 해당 메뉴를 가진 가게를 다시 검색한다. 빵 분해 결과가 1차와 같으면(분해할 빵이 없으면) 재검색하지 않는다.
+		// 폴백: 1차가 0건일 때만 붙어쓴 토큰을 분해해 다시 검색한다
+		// ("초코소금빵"→빵 "소금빵", "한남에그타르트"→지역 "한남" + 빵 "에그타르트").
+		// 지역·빵 어느 쪽도 새로 분해되지 않으면 같은 쿼리가 되므로 재검색하지 않는다.
 		boolean fallbackApplied = false;
 		if (result.hits().isEmpty()) {
-			SearchIntent fallbackIntent = storeSearchQueryParser.parseWithBreadFallback(keyword);
-			if (!fallbackIntent.breadTokens().equals(intent.breadTokens())) {
+			SearchIntent fallbackIntent = storeSearchQueryParser.parseWithGluedTokenFallback(keyword);
+			if (isDecomposed(fallbackIntent, intent)) {
 				result = openSearchStoreClient.searchStores(fallbackIntent, pageable, latitude, longitude, sort);
 				fallbackApplied = !result.hits().isEmpty();
 			}
@@ -81,6 +82,17 @@ public class StoreSearchService {
 			return new SliceResponse<>(List.of(), false);
 		}
 		return new SliceResponse<>(storeSearchAssembler.assemble(result.hits()), result.hasNext());
+	}
+
+	/**
+	 * 폴백 파싱이 1차보다 실제로 더 분해했는지.
+	 *
+	 * <p>빵만 보면 "소금도화"처럼 지역어만 박힌 검색어에서 재검색이 걸리지 않는다.
+	 * 1차에서 붙어쓴 토큰을 통째로 두게 되면서 지역 분해도 폴백으로 넘어왔으므로 함께 본다.
+	 */
+	private boolean isDecomposed(SearchIntent fallbackIntent, SearchIntent intent) {
+		return !fallbackIntent.breadTokens().equals(intent.breadTokens())
+			|| !fallbackIntent.regionTokens().equals(intent.regionTokens());
 	}
 
 	private SearchOutcome resolveSearchOutcome(OpenSearchStoreSearchResult result, SearchIntent intent,
