@@ -2,9 +2,11 @@ package sweetgirl.croissant.store.service.search;
 
 import java.time.LocalDateTime;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
@@ -149,16 +151,31 @@ public class StoreSearchService {
 	}
 
 	public List<StoreAutocompleteResponse> autocompleteStores(String query, int size) {
+		return autocompleteStores(query, size, null);
+	}
+
+	public List<StoreAutocompleteResponse> autocompleteStores(String query, int size,
+			List<AutocompleteSuggestionType> types) {
 		if (!StringUtils.hasText(query)) {
 			return List.of();
 		}
 
+		boolean filtered = types != null && !types.isEmpty();
+		Set<AutocompleteSuggestionType> allowedTypes = filtered
+			? EnumSet.copyOf(types)
+			: EnumSet.allOf(AutocompleteSuggestionType.class);
+
 		int normalizedSize = normalizeAutocompleteSize(size);
+		// 타입을 거르면 남는 후보가 줄어드니, 걸러낼 때는 항상 최대치로 가져와 자른다.
+		int fetchSize = filtered ? MAX_AUTOCOMPLETE_SIZE : normalizedSize;
 		List<OpenSearchAutocompleteSuggestion> suggestions = openSearchStoreClient.autocompleteStores(query,
-			normalizedSize);
+			fetchSize);
 		Map<String, StoreAutocompleteResponse> uniqueSuggestions = new LinkedHashMap<>();
 		for (OpenSearchAutocompleteSuggestion suggestion : suggestions) {
 			StoreAutocompleteResponse response = StoreAutocompleteResponse.from(suggestion);
+			if (!allowedTypes.contains(response.type())) {
+				continue;
+			}
 			uniqueSuggestions.putIfAbsent(response.type() + ":" + response.keyword(), response);
 		}
 		List<StoreAutocompleteResponse> responses = uniqueSuggestions.values().stream()
