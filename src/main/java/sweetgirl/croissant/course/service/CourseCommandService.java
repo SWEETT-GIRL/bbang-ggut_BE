@@ -114,11 +114,42 @@ public class CourseCommandService {
 		Store store = storeRepository.findById(request.getStoreId())
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 
-		int nextOrder = courseStoreRepository.findMaxVisitOrderByCourseId(courseId) + 1;
-		CourseStore courseStore = CourseStore.createWithDetails(
-			course, store, nextOrder,
-			request.getMemo(), request.getVisitTime());
-		courseStoreRepository.save(courseStore);
+		List<CourseStore> activeStores = courseStoreRepository
+			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId);
+		int maxDay = activeStores.stream().mapToInt(CourseStore::getDay).max().orElse(0);
+		int day = request.getDay() != null ? request.getDay() : Math.max(maxDay, 1);
+		if (day < 1 || day > maxDay + 1) {
+			throw new CourseException(CourseErrorCode.COURSE_STORE_DAY_INVALID);
+		}
+
+		// 삽입 위치: 해당 일차의 마지막 가게 뒤
+		int insertIndex = 0;
+		for (int i = 0; i < activeStores.size(); i++) {
+			if (activeStores.get(i).getDay() <= day) {
+				insertIndex = i + 1;
+			}
+		}
+
+		CourseStore courseStore;
+		if (insertIndex == activeStores.size()) {
+			int nextOrder = courseStoreRepository.findMaxVisitOrderByCourseId(courseId) + 1;
+			courseStore = CourseStore.createWithDetails(
+				course, store, nextOrder, day,
+				request.getMemo(), request.getVisitTime());
+			courseStoreRepository.save(courseStore);
+		} else {
+			// 중간 삽입: 유니크 제약 충돌을 피하기 위해 기존 가게를 임시 음수 순서로 옮긴 뒤 끼워 넣고 재부여
+			IntStream.range(0, activeStores.size())
+				.forEach(i -> activeStores.get(i).updateOrder(-(i + 1)));
+			courseStoreRepository.flush();
+			courseStore = CourseStore.createWithDetails(
+				course, store, insertIndex + 1, day,
+				request.getMemo(), request.getVisitTime());
+			courseStoreRepository.save(courseStore);
+			int finalInsertIndex = insertIndex;
+			IntStream.range(0, activeStores.size())
+				.forEach(i -> activeStores.get(i).updateOrder(i < finalInsertIndex ? i + 1 : i + 2));
+		}
 		courseProgressService.refreshForCourse(courseId);
 
 		return CourseStoreResponse.from(courseStore);
@@ -173,12 +204,22 @@ public class CourseCommandService {
 			})
 			.toList();
 
+		boolean hasDayInfo = orderItems.stream().anyMatch(item -> item.getDay() != null);
+		if (hasDayInfo) {
+			validateDaySequence(orderItems);
+		}
+
 		// (course_id, visit_order) 유니크 제약과의 스왑 충돌을 피하기 위해 임시 음수 순서로 옮긴 뒤 최종 순서 부여
 		IntStream.range(0, orderedCourseStores.size())
 			.forEach(i -> orderedCourseStores.get(i).updateOrder(-(i + 1)));
 		courseStoreRepository.flush();
 		IntStream.range(0, orderedCourseStores.size())
-			.forEach(i -> orderedCourseStores.get(i).updateOrder(i + 1));
+			.forEach(i -> {
+				orderedCourseStores.get(i).updateOrder(i + 1);
+				if (hasDayInfo) {
+					orderedCourseStores.get(i).updateDay(orderItems.get(i).getDay());
+				}
+			});
 	}
 
 	private void validateCompleteOrder(Long courseId, List<Long> courseStoreIds) {
@@ -187,6 +228,18 @@ public class CourseCommandService {
 			|| courseStoreIds.size() != activeStoreCount
 			|| new HashSet<>(courseStoreIds).size() != courseStoreIds.size()) {
 			throw new CourseException(CourseErrorCode.COURSE_STORE_ORDER_INVALID);
+		}
+	}
+
+	// 일차는 1부터 시작해 빠짐없이 이어져야 한다 (1,1,2,2,3 ✓ / 1,3 ✗ / 2,1 ✗)
+	private void validateDaySequence(List<CourseStoreOrderItem> orderItems) {
+		int prev = 0;
+		for (CourseStoreOrderItem item : orderItems) {
+			Integer day = item.getDay();
+			if (day == null || day < 1 || day < prev || day > prev + 1) {
+				throw new CourseException(CourseErrorCode.COURSE_STORE_DAY_INVALID);
+			}
+			prev = day;
 		}
 	}
 
@@ -254,6 +307,7 @@ public class CourseCommandService {
 				savedForkedCourse,
 				source.getStore(),
 				source.getVisitOrder(),
+				source.getDay(),
 				source.getMemo(),
 				source.getVisitTime()))
 			.toList();
@@ -294,6 +348,9 @@ public class CourseCommandService {
 				return false;
 			}
 			if (!current.getVisitOrder().equals(source.getVisitOrder())) {
+				return false;
+			}
+			if (!Objects.equals(current.getDay(), source.getDay())) {
 				return false;
 			}
 			if (!Objects.equals(current.getMemo(), source.getMemo())) {

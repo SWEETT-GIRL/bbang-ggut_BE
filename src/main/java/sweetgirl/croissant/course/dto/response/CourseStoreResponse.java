@@ -11,6 +11,7 @@ import sweetgirl.croissant.store.entity.Store;
 public record CourseStoreResponse(
 		Long courseStoreId,
 		int visitOrder,
+		int day,
 		Long storeId,
 		String storeName,
 		double latitude,
@@ -25,6 +26,7 @@ public record CourseStoreResponse(
 		return new CourseStoreResponse(
 			courseStore.getId(),
 			courseStore.getVisitOrder(),
+			courseStore.getDay(),
 			store.getId(),
 			store.getName(),
 			location.getY(),

@@ -13,6 +13,9 @@ public class CourseStoreAddRequest {
 	@NotNull(message = "가게 ID는 필수입니다.")
 	private Long storeId;
 
+	// 담을 일차. 없으면 마지막 일차에 담는다.
+	private Integer day;
+
 	private String memo;
 
 	private LocalTime visitTime;
