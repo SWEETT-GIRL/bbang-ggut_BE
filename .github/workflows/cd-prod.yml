@@ -4,6 +4,11 @@ on:
   push:
     branches: [ main ]
 
+# 배포 알림의 PR 타이틀 조회(gh api …/pulls)에 필요 — 없으면 403으로 에러 본문이 제목에 섞인다
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -305,22 +310,36 @@ jobs:
     steps:
       - name: Get PR title
         id: pr_info
-        run: |
-          PR_TITLE=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
-            --jq '.[0].title // ""' 2>/dev/null || echo "")
-          if [ -z "$PR_TITLE" ]; then
-            PR_TITLE="${{ github.event.head_commit.message }}"
-          fi
-          echo "title=$PR_TITLE" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          # 실패(권한 403 등) 시 에러 본문이 제목에 섞이지 않도록 성공했을 때만 채택한다
+          if ! PR_TITLE=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+            --jq '.[0].title // ""' 2>/dev/null); then
+            PR_TITLE=""
+          fi
+          if [ -z "$PR_TITLE" ]; then
+            # 머지 커밋 메시지는 여러 줄 — 첫 줄만 제목으로 쓴다 (GITHUB_OUTPUT 형식 보호)
+            PR_TITLE=$(printf '%s' "$HEAD_COMMIT_MESSAGE" | head -n 1)
+          fi
+          {
+            echo "title<<PR_TITLE_EOF"
+            printf '%s\n' "$PR_TITLE"
+            echo "PR_TITLE_EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Notify Slack (성공)
         if: needs.deploy-server2.result == 'success'
+        env:
+          # 쉘 인라인(${{ }}) 주입 금지 — 제목의 따옴표·특수문자가 jq 명령을 깨뜨린다 (env 경유가 안전)
+          PR_TITLE: ${{ steps.pr_info.outputs.title }}
+          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+          WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL_PROD }}
         run: |
-          jq -n \
-            --arg pr "${{ steps.pr_info.outputs.title }}" \
-            --arg tag "${{ needs.build.outputs.image_tag }}" \
+          RESPONSE=$(jq -n \
+            --arg pr "$PR_TITLE" \
+            --arg tag "$IMAGE_TAG" \
             '{attachments: [{
               "color": "#2ECC71",
               "blocks": [
@@ -333,16 +352,24 @@ jobs:
                 ]}
               ]
             }]}' | \
-          curl -s -X POST "${{ secrets.SLACK_DEPLOY_WEBHOOK_URL_PROD }}" \
+          curl -s -X POST "$WEBHOOK_URL" \
             -H "Content-Type: application/json" \
-            -d @-
+            -d @-)
+          # 웹훅 정상 응답은 "ok" — 아니면 로그에 경고를 남긴다 (배포는 이미 성공이므로 잡은 실패시키지 않음)
+          if [ "$RESPONSE" != "ok" ]; then
+            echo "::warning::Slack 배포 알림 실패: $RESPONSE"
+          fi
 
       - name: Notify Slack (실패)
         if: needs.deploy-server1.result == 'failure' || needs.deploy-server2.result == 'failure'
+        env:
+          PR_TITLE: ${{ steps.pr_info.outputs.title }}
+          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+          WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL_PROD }}
         run: |
-          jq -n \
-            --arg pr "${{ steps.pr_info.outputs.title }}" \
-            --arg tag "${{ needs.build.outputs.image_tag }}" \
+          RESPONSE=$(jq -n \
+            --arg pr "$PR_TITLE" \
+            --arg tag "$IMAGE_TAG" \
             '{attachments: [{
               "color": "#E74C3C",
               "blocks": [
@@ -353,6 +380,9 @@ jobs:
                 ]}
               ]
             }]}' | \
-          curl -s -X POST "${{ secrets.SLACK_DEPLOY_WEBHOOK_URL_PROD }}" \
+          curl -s -X POST "$WEBHOOK_URL" \
             -H "Content-Type: application/json" \
-            -d @-
+            -d @-)
+          if [ "$RESPONSE" != "ok" ]; then
+            echo "::warning::Slack 배포 알림 실패: $RESPONSE"
+          fi
