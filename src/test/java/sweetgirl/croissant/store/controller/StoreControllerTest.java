@@ -80,7 +80,7 @@ class StoreControllerTest {
 
 	@Test
 	void autocompleteStores_returnsSuggestions() throws Exception {
-		given(storeSearchService.autocompleteStores("소금", 10))
+		given(storeSearchService.autocompleteStores("소금", 10, null))
 			.willReturn(List.of(new StoreAutocompleteResponse("소금빵", AutocompleteSuggestionType.BREAD_TYPE, null)));
 
 		mockMvc.perform(get("/stores/autocomplete")
@@ -89,5 +89,19 @@ class StoreControllerTest {
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data[0].keyword").value("소금빵"))
 			.andExpect(jsonPath("$.data[0].type").value("BREAD_TYPE"));
+	}
+
+	@Test
+	void autocompleteStores_passesTypesFilterToService() throws Exception {
+		given(storeSearchService.autocompleteStores("소금", 10,
+			List.of(AutocompleteSuggestionType.STORE, AutocompleteSuggestionType.REGION)))
+			.willReturn(List.of(new StoreAutocompleteResponse("소금집델리", AutocompleteSuggestionType.STORE, 1L)));
+
+		mockMvc.perform(get("/stores/autocomplete")
+			.param("query", "소금")
+			.param("types", "STORE,REGION"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data[0].keyword").value("소금집델리"))
+			.andExpect(jsonPath("$.data[0].type").value("STORE"));
 	}
 }

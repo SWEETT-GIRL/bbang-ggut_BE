@@ -399,6 +399,25 @@ class StoreSearchServiceTest {
 	}
 
 	@Test
+	@DisplayName("types를 주면 그 타입만 남기고, 후보는 최대치(20)로 가져온다")
+	void autocompleteStores_filtersByRequestedTypes() {
+		given(openSearchStoreClient.autocompleteStores("어글리", 20)).willReturn(List.of(
+			new OpenSearchAutocompleteSuggestion("어글리 크림빵", AutocompleteSuggestionType.MENU, null),
+			new OpenSearchAutocompleteSuggestion("어글리쿠키", AutocompleteSuggestionType.MENU, null),
+			new OpenSearchAutocompleteSuggestion("어글리베이커리", AutocompleteSuggestionType.STORE, 7L),
+			new OpenSearchAutocompleteSuggestion("망원", AutocompleteSuggestionType.REGION, null)));
+
+		var result = service.autocompleteStores("어글리", 3,
+			List.of(AutocompleteSuggestionType.STORE, AutocompleteSuggestionType.REGION));
+
+		assertThat(result).hasSize(2);
+		assertThat(result.get(0).keyword()).isEqualTo("망원");
+		assertThat(result.get(0).type()).isEqualTo(AutocompleteSuggestionType.REGION);
+		assertThat(result.get(1).keyword()).isEqualTo("어글리베이커리");
+		assertThat(result.get(1).type()).isEqualTo(AutocompleteSuggestionType.STORE);
+	}
+
+	@Test
 	@DisplayName("지표 — 자동완성 결과가 0건이면 empty로 집계한다")
 	void autocompleteStores_recordsEmptyOutcome() {
 		given(openSearchStoreClient.autocompleteStores("ㅁㄴㅇㄹ", 10)).willReturn(List.of());
