@@ -30,6 +30,7 @@ import sweetgirl.croissant.store.dto.response.StoreDetailResponse;
 import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
 import sweetgirl.croissant.store.dto.response.SubscribedStoreResponse;
 import sweetgirl.croissant.store.dto.response.TopSubscribedStoreResponse;
+import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
 import sweetgirl.croissant.store.service.StoreCommandService;
 import sweetgirl.croissant.store.service.StoreQueryService;
 import sweetgirl.croissant.store.service.search.SearchSort;
@@ -100,8 +101,9 @@ public class StoreController {
 	@GetMapping("/autocomplete")
 	public ResponseEntity<ApiResponse<List<StoreAutocompleteResponse>>> autocompleteStores(
 			@Parameter(description = "입력 중인 검색어") @RequestParam String query,
-			@RequestParam(defaultValue = "10") int size) {
-		return ResponseEntity.ok(ApiResponse.ok(storeSearchService.autocompleteStores(query, size)));
+			@RequestParam(defaultValue = "10") int size,
+			@Parameter(description = "타입 필터") @RequestParam(required = false) List<AutocompleteSuggestionType> types) {
+		return ResponseEntity.ok(ApiResponse.ok(storeSearchService.autocompleteStores(query, size, types)));
 	}
 
 	@Operation(summary = "근처 빵집 목록 조회", description = "위도(lat)·경도(lng) 기준 반경 내 빵집을 거리 오름차순으로 반환합니다.")
