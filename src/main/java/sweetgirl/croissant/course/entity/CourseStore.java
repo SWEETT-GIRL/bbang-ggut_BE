@@ -40,6 +40,9 @@ public class CourseStore extends BaseTimeEntity {
 	@Column(name = "visit_order", nullable = false)
 	private Integer visitOrder;
 
+	@Column(name = "day", nullable = false)
+	private Integer day;
+
 	@Column(columnDefinition = "TEXT")
 	private String memo;
 
@@ -53,11 +56,13 @@ public class CourseStore extends BaseTimeEntity {
 			Course course,
 			Store store,
 			Integer visitOrder,
+			Integer day,
 			String memo,
 			LocalTime visitTime) {
 		this.course = course;
 		this.store = store;
 		this.visitOrder = visitOrder;
+		this.day = day;
 		this.memo = memo;
 		this.visitTime = visitTime;
 	}
@@ -70,6 +75,7 @@ public class CourseStore extends BaseTimeEntity {
 			.course(course)
 			.store(store)
 			.visitOrder(visitOrder)
+			.day(1)
 			.build();
 	}
 
@@ -77,12 +83,14 @@ public class CourseStore extends BaseTimeEntity {
 			Course course,
 			Store store,
 			Integer visitOrder,
+			Integer day,
 			String memo,
 			LocalTime visitTime) {
 		return CourseStore.builder()
 			.course(course)
 			.store(store)
 			.visitOrder(visitOrder)
+			.day(day)
 			.memo(memo)
 			.visitTime(visitTime)
 			.build();
@@ -90,6 +98,10 @@ public class CourseStore extends BaseTimeEntity {
 
 	public void updateOrder(Integer visitOrder) {
 		this.visitOrder = visitOrder;
+	}
+
+	public void updateDay(Integer day) {
+		this.day = day;
 	}
 
 	public void updateMemo(String memo) {

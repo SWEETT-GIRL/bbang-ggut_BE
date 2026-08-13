@@ -199,6 +199,8 @@ class CourseCommandServiceTest {
 		Store store = mockStore(storeId);
 		CourseStoreAddRequest request = mock(CourseStoreAddRequest.class);
 		given(request.getStoreId()).willReturn(storeId);
+		// Mockito는 Integer 미스텁 메서드에 0을 돌려주므로, day 미전송 상태를 명시 스텁
+		given(request.getDay()).willReturn(null);
 		given(request.getMemo()).willReturn("메모");
 		given(request.getVisitTime()).willReturn(LocalTime.of(10, 0));
 
@@ -233,6 +235,66 @@ class CourseCommandServiceTest {
 		assertThatThrownBy(() -> courseCommandService.addStore(memberId, courseId, request))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_STORE_ALREADY_EXISTS.getMessage());
+	}
+
+	@Test
+	@DisplayName("addStore: 일차를 지정하면 해당 일차의 마지막 위치에 끼워 넣고 뒷 가게 순서를 민다")
+	void addStore_withDay_insertsAfterRequestedDay() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Long storeId = 100L;
+
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		Store store = mockStore(storeId);
+		CourseStoreAddRequest request = mock(CourseStoreAddRequest.class);
+		given(request.getStoreId()).willReturn(storeId);
+		given(request.getDay()).willReturn(1);
+
+		CourseStore day1Store = mockCourseStore(1, 1, mockStore(101L));
+		CourseStore day2Store = mockCourseStore(2, 2, mockStore(102L));
+
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseStoreRepository.existsByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId)).willReturn(false);
+		given(storeRepository.findById(storeId)).willReturn(Optional.of(store));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
+			.willReturn(List.of(day1Store, day2Store));
+
+		CourseStoreResponse result = courseCommandService.addStore(memberId, courseId, request);
+
+		assertThat(result.visitOrder()).isEqualTo(2);
+		assertThat(result.day()).isEqualTo(1);
+		// 1일차 마지막 뒤에 끼우고, 2일차 가게는 한 칸 밀린다
+		then(day1Store).should().updateOrder(-1);
+		then(day1Store).should().updateOrder(1);
+		then(day2Store).should().updateOrder(-2);
+		then(day2Store).should().updateOrder(3);
+		then(courseStoreRepository).should().flush();
+	}
+
+	@Test
+	@DisplayName("addStore: 존재하는 일차 범위를 벗어나면 COURSE_STORE_DAY_INVALID를 던진다")
+	void addStore_dayOutOfRange_throwsDayInvalid() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Long storeId = 100L;
+
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		Store store = mockStore(storeId);
+		CourseStoreAddRequest request = mock(CourseStoreAddRequest.class);
+		given(request.getStoreId()).willReturn(storeId);
+		given(request.getDay()).willReturn(3);
+
+		CourseStore day1Store = mockCourseStore(1, 1, mockStore(101L));
+
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseStoreRepository.existsByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId)).willReturn(false);
+		given(storeRepository.findById(storeId)).willReturn(Optional.of(store));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
+			.willReturn(List.of(day1Store));
+
+		assertThatThrownBy(() -> courseCommandService.addStore(memberId, courseId, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_STORE_DAY_INVALID.getMessage());
 	}
 
 	// ───────────────────────── updateStore ─────────────────────────
@@ -296,10 +358,13 @@ class CourseCommandServiceTest {
 		CourseStoreReorderRequest.CourseStoreOrderItem item1 = mock(
 			CourseStoreReorderRequest.CourseStoreOrderItem.class);
 		given(item1.getCourseStoreId()).willReturn(courseStoreId1);
+		// Mockito는 Integer 미스텁 메서드에 0을 돌려주므로, day 미전송(구버전 앱) 상태를 명시 스텁
+		given(item1.getDay()).willReturn(null);
 
 		CourseStoreReorderRequest.CourseStoreOrderItem item2 = mock(
 			CourseStoreReorderRequest.CourseStoreOrderItem.class);
 		given(item2.getCourseStoreId()).willReturn(courseStoreId2);
+		given(item2.getDay()).willReturn(null);
 
 		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
 		given(request.getCourseStoreOrders()).willReturn(List.of(item1, item2));
@@ -324,6 +389,86 @@ class CourseCommandServiceTest {
 		then(courseStore2).should().updateOrder(-2);
 		then(courseStore2).should().updateOrder(2);
 		then(courseStoreRepository).should().flush();
+		// day 미전송이면 기존 일차 유지
+		then(courseStore1).should(never()).updateDay(any());
+		then(courseStore2).should(never()).updateDay(any());
+	}
+
+	@Test
+	@DisplayName("reorderStores: 일차 정보가 있으면 순서와 함께 일차도 갱신한다")
+	void reorderStores_withDays_updatesDays() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+
+		CourseStoreReorderRequest.CourseStoreOrderItem item1 = mock(
+			CourseStoreReorderRequest.CourseStoreOrderItem.class);
+		given(item1.getCourseStoreId()).willReturn(1L);
+		given(item1.getDay()).willReturn(1);
+		CourseStoreReorderRequest.CourseStoreOrderItem item2 = mock(
+			CourseStoreReorderRequest.CourseStoreOrderItem.class);
+		given(item2.getCourseStoreId()).willReturn(2L);
+		given(item2.getDay()).willReturn(2);
+
+		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
+		given(request.getCourseStoreOrders()).willReturn(List.of(item1, item2));
+
+		CourseStore courseStore1 = mock(CourseStore.class);
+		given(courseStore1.getId()).willReturn(1L);
+		given(courseStore1.getCourse()).willReturn(course);
+		CourseStore courseStore2 = mock(CourseStore.class);
+		given(courseStore2.getId()).willReturn(2L);
+		given(courseStore2.getCourse()).willReturn(course);
+
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
+		given(courseStoreRepository.findAllById(List.of(1L, 2L)))
+			.willReturn(List.of(courseStore1, courseStore2));
+
+		courseCommandService.reorderStores(memberId, courseId, request);
+
+		then(courseStore1).should().updateOrder(1);
+		then(courseStore1).should().updateDay(1);
+		then(courseStore2).should().updateOrder(2);
+		then(courseStore2).should().updateDay(2);
+	}
+
+	@Test
+	@DisplayName("reorderStores: 일차가 1부터 이어지지 않으면 COURSE_STORE_DAY_INVALID를 던진다")
+	void reorderStores_dayGap_throwsDayInvalid() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+
+		CourseStoreReorderRequest.CourseStoreOrderItem item1 = mock(
+			CourseStoreReorderRequest.CourseStoreOrderItem.class);
+		given(item1.getCourseStoreId()).willReturn(1L);
+		given(item1.getDay()).willReturn(1);
+		CourseStoreReorderRequest.CourseStoreOrderItem item2 = mock(
+			CourseStoreReorderRequest.CourseStoreOrderItem.class);
+		given(item2.getCourseStoreId()).willReturn(2L);
+		given(item2.getDay()).willReturn(3);
+
+		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
+		given(request.getCourseStoreOrders()).willReturn(List.of(item1, item2));
+
+		CourseStore courseStore1 = mock(CourseStore.class);
+		given(courseStore1.getId()).willReturn(1L);
+		given(courseStore1.getCourse()).willReturn(course);
+		CourseStore courseStore2 = mock(CourseStore.class);
+		given(courseStore2.getId()).willReturn(2L);
+		given(courseStore2.getCourse()).willReturn(course);
+
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
+		given(courseStoreRepository.findAllById(List.of(1L, 2L)))
+			.willReturn(List.of(courseStore1, courseStore2));
+
+		assertThatThrownBy(() -> courseCommandService.reorderStores(memberId, courseId, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_STORE_DAY_INVALID.getMessage());
 	}
 
 	@Test
@@ -541,9 +686,14 @@ class CourseCommandServiceTest {
 	}
 
 	private CourseStore mockCourseStore(int visitOrder, Store store) {
+		return mockCourseStore(visitOrder, 1, store);
+	}
+
+	private CourseStore mockCourseStore(int visitOrder, int day, Store store) {
 		CourseStore courseStore = mock(CourseStore.class);
 		lenient().when(courseStore.getStore()).thenReturn(store);
 		lenient().when(courseStore.getVisitOrder()).thenReturn(visitOrder);
+		lenient().when(courseStore.getDay()).thenReturn(day);
 		lenient().when(courseStore.getMemo()).thenReturn(null);
 		lenient().when(courseStore.getVisitTime()).thenReturn(null);
 		return courseStore;
