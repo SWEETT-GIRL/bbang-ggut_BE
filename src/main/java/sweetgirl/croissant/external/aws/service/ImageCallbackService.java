@@ -19,6 +19,7 @@ import sweetgirl.croissant.external.aws.dto.ImageStatusUpdateRequest;
 import sweetgirl.croissant.external.aws.enums.S3Folder;
 import sweetgirl.croissant.external.aws.exception.S3ErrorCode;
 import sweetgirl.croissant.external.aws.exception.S3StorageException;
+import sweetgirl.croissant.external.aws.metrics.ImagePipelineMetrics;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.review.repository.ReviewImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
@@ -36,6 +37,7 @@ public class ImageCallbackService {
 	private final CourseImageFileRepository courseImageFileRepository;
 	private final BreadRecordPhotoRepository breadRecordPhotoRepository;
 	private final ImageProcessingCallbackService imageProcessingCallbackService;
+	private final ImagePipelineMetrics imagePipelineMetrics;
 
 	@Transactional
 	public void updateImageStatus(ImageStatusUpdateRequest request) {
@@ -56,16 +58,22 @@ public class ImageCallbackService {
 			List<BreadRecordPhoto> photos = breadRecordPhotoRepository.findAllByAwsKey(awsKey);
 			if (!photos.isEmpty()) {
 				imageProcessingCallbackService.applySameKeyPendingCallback(photos);
+				imagePipelineMetrics.recordCallback(status, photos.get(0).getMimeType());
 				return;
 			}
 		} else {
 			Optional<ImageFile> image = findByAwsKey(awsKey);
 			if (image.isPresent()) {
 				imageProcessingCallbackService.applyPendingCallback(image.get());
+				imagePipelineMetrics.recordCallback(status, image.get().getMimeType());
 				return;
 			}
 		}
 
+		// 반영할 행이 없어 보류 테이블에만 남은 경우. 유실되지는 않지만 급증하면 등록 API 실패를 의심한다.
+		// MIME은 행에만 있으므로 이 경로에서는 알 수 없다.
+		imagePipelineMetrics.recordOrphanCallback();
+		imagePipelineMetrics.recordCallback(status, null);
 		log.info("이미지 row 생성 전 lambda 콜백 수신 [awsKey: {}, status: {}]", awsKey, status);
 	}
 
