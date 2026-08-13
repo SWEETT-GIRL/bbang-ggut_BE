@@ -32,6 +32,8 @@ import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
 @Transactional(readOnly = true)
 public class StoreSearchService {
 
+	// 지표·적재는 첫 페이지에서만 센다. 2페이지 이후는 새 검색이 아니라 같은 검색의 스크롤이다.
+	private static final int FIRST_PAGE = 0;
 	private static final int DEFAULT_AUTOCOMPLETE_SIZE = 10;
 	private static final int MAX_AUTOCOMPLETE_SIZE = 20;
 	private static final String SEARCH_QUERY_METRIC = "search.query";
@@ -77,7 +79,13 @@ public class StoreSearchService {
 				fallbackApplied = !result.hits().isEmpty();
 			}
 		}
-		recordSearchOutcome(resolveSearchOutcome(result, intent, fallbackApplied), keyword);
+		// 2페이지 이후는 같은 검색의 연속이므로 세지 않는다. 무한스크롤이 검색 API를 페이지마다
+		// 호출하는데, 이걸 다 세면 "많이 스크롤한 검색어"가 "여러 사람이 찾은 검색어"보다 위로 올라와
+		// 실패 목록의 우선순위가 뒤집힌다. 실제로 "천안시 서북구"가 검색 5회 + 스크롤 6페이지로
+		// 11회가 되어, 2회인 다른 검색어보다 높게 잡혔다.
+		if (pageable.getPageNumber() == FIRST_PAGE) {
+			recordSearchOutcome(resolveSearchOutcome(result, intent, fallbackApplied), keyword);
+		}
 		if (result.hits().isEmpty()) {
 			return new SliceResponse<>(List.of(), false);
 		}

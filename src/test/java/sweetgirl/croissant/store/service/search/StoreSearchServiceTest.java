@@ -180,6 +180,46 @@ class StoreSearchServiceTest {
 	}
 
 	@Test
+	@DisplayName("지표 — 2페이지 이후는 스크롤이므로 집계하지 않는다")
+	void searchStores_doesNotRecordOnLaterPages() {
+		// 무한스크롤이 페이지마다 검색 API를 부른다. 이걸 다 세면 "많이 스크롤한 검색어"가
+		// "여러 사람이 찾은 검색어"보다 위로 올라와 실패 목록의 우선순위가 뒤집힌다.
+		SearchIntent intent = new SearchIntent("천안시 서북구", "천안시 서북구", List.of("천안시", "서북구"),
+			List.of("천안시"), List.of(), List.of("서북구"));
+		PageRequest secondPage = PageRequest.of(1, 15);
+		List<OpenSearchStoreHit> hits = List.of(hit());
+		given(storeSearchQueryParser.parse("천안시 서북구")).willReturn(intent);
+		given(openSearchStoreClient.searchStores(intent, secondPage, null, null, SearchSort.RELEVANCE))
+			.willReturn(new OpenSearchStoreSearchResult(hits, false, false));
+		given(storeSearchAssembler.assemble(hits)).willReturn(List.of());
+
+		service.searchStores("천안시 서북구", null, null, SearchSort.RELEVANCE, secondPage);
+
+		for (SearchOutcome outcome : SearchOutcome.values()) {
+			assertThat(outcomeCount("search", outcome)).isZero();
+		}
+		verify(eventPublisher, never()).publishEvent(any(SearchMissEvent.class));
+	}
+
+	@Test
+	@DisplayName("지표 — 첫 페이지 검색은 정상적으로 집계한다")
+	void searchStores_recordsOnFirstPage() {
+		SearchIntent intent = new SearchIntent("천안시 서북구", "천안시 서북구", List.of("천안시", "서북구"),
+			List.of("천안시"), List.of(), List.of("서북구"));
+		PageRequest firstPage = PageRequest.of(0, 15);
+		List<OpenSearchStoreHit> hits = List.of(hit());
+		given(storeSearchQueryParser.parse("천안시 서북구")).willReturn(intent);
+		given(openSearchStoreClient.searchStores(intent, firstPage, null, null, SearchSort.RELEVANCE))
+			.willReturn(new OpenSearchStoreSearchResult(hits, false, false));
+		given(storeSearchAssembler.assemble(hits)).willReturn(List.of());
+
+		service.searchStores("천안시 서북구", null, null, SearchSort.RELEVANCE, firstPage);
+
+		assertThat(outcomeCount("search", SearchOutcome.MISMATCH_LOOSE)).isEqualTo(1.0);
+		verify(eventPublisher).publishEvent(any(SearchMissEvent.class));
+	}
+
+	@Test
 	@DisplayName("지표 — 폴백까지 돌려도 0건이면 empty로 집계한다")
 	void searchStores_recordsEmptyOutcome() {
 		SearchIntent intent = new SearchIntent("없는빵", "없는빵", List.of("없는빵"),
