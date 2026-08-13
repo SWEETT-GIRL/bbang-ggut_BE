@@ -5,6 +5,7 @@ import java.util.List;
 public record StoreDocument(
 		Long storeId,
 		String storeName,
+		List<String> storeNameAliases,
 		String address,
 		GeoPointDto location,
 		List<SearchRegionDto> searchRegions,

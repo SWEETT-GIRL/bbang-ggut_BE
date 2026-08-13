@@ -17,6 +17,12 @@ public class SearchRankingConstants {
 	public static final float STORE_NAME_EDGE_BOOST = 80f;
 	public static final float STORE_NAME_NGRAM_BOOST = 60f;
 
+	// 구명(storeNameAliases) 정확 매칭 — 현재 이름보다 한 단계 낮게. 구명 검색도 상단에 오르되,
+	// 같은 말이 현명인 가게가 구명인 가게보다 항상 위에 있도록 유지한다.
+	public static final float STORE_NAME_ALIAS_KEYWORD_BOOST = 15f;
+	public static final float STORE_NAME_ALIAS_EDGE_BOOST = 60f;
+	public static final float STORE_NAME_ALIAS_NGRAM_BOOST = 45f;
+
 	// function_score — 텍스트 점수에 곱해지는 보정.
 	public static final float BASELINE_WEIGHT = 1.0f;
 	public static final float POPULARITY_FACTOR = 0.3f;

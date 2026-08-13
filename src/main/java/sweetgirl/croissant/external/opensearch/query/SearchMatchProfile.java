@@ -26,18 +26,25 @@ public enum SearchMatchProfile {
 		FieldBoost.nested(MENUS, MENU_NAME, Map.of(BASE, 4f, EDGE, 3f, NGRAM, 2f)),
 		FieldBoost.nested(MENUS, MENU_CATEGORY, Map.of(BASE, 2f, NORI, 1f, EDGE, 1f, NGRAM, 1f)))),
 
-	/** 가게명·메뉴 부분 매칭 — 조사 제거 없는 edge/ngram만(원문/잔여 토큰 soft 보너스). */
+	/**
+	 * 가게명·메뉴 부분 매칭 — 조사 제거 없는 edge/ngram만(원문/잔여 토큰 soft 보너스).
+	 * 구명(storeNameAliases)도 포함 — 이 프로파일은 잔여 토큰 must 필터로도 쓰이므로,
+	 * 빠뜨리면 "지역 + 구명" 검색이 0건이 된다.
+	 */
 	NAME_MENU_PARTIAL(List.of(
 		FieldBoost.flat(STORE_NAME, Map.of(EDGE, 2f, NGRAM, 1f)),
+		FieldBoost.flat(STORE_NAME_ALIASES, Map.of(EDGE, 2f, NGRAM, 1f)),
 		FieldBoost.nested(MENUS, MENU_NAME, Map.of(EDGE, 2f, NGRAM, 1f)))),
 
-	/** 가게명 부분 매칭 — 빵 단어가 가게명에 포함된 경우("에그타르트당") 인정용. edge/ngram만. */
+	/** 가게명 부분 매칭 — 빵 단어가 가게명(현명·구명)에 포함된 경우("에그타르트당") 인정용. edge/ngram만. */
 	STORE_NAME_PARTIAL(List.of(
-		FieldBoost.flat(STORE_NAME, Map.of(EDGE, 2f, NGRAM, 1f)))),
+		FieldBoost.flat(STORE_NAME, Map.of(EDGE, 2f, NGRAM, 1f)),
+		FieldBoost.flat(STORE_NAME_ALIASES, Map.of(EDGE, 2f, NGRAM, 1f)))),
 
-	/** 자동완성 — 가게명/빵/지역/메뉴 edge·ngram. */
+	/** 자동완성 — 가게명(현명·구명)/빵/지역/메뉴 edge·ngram. */
 	AUTOCOMPLETE(List.of(
 		FieldBoost.flat(STORE_NAME, Map.of(EDGE, 5f, NGRAM, 2f)),
+		FieldBoost.flat(STORE_NAME_ALIASES, Map.of(EDGE, 4f, NGRAM, 2f)),
 		FieldBoost.flat(BREAD_TYPES, Map.of(EDGE, 4f, NGRAM, 2f)),
 		FieldBoost.flat(SEARCH_REGION_ALIASES, Map.of(EDGE, 2f, NGRAM, 1f)),
 		FieldBoost.nested(MENUS, MENU_NAME, Map.of(EDGE, 4f, NGRAM, 2f)),

@@ -99,6 +99,9 @@ public class SearchQueryCoverage {
 		}
 		List<String> texts = new ArrayList<>();
 		addNormalized(texts, document.storeName());
+		for (String nameAlias : nullSafeList(document.storeNameAliases())) {
+			addNormalized(texts, nameAlias); // 구명 검색도 커버로 인정
+		}
 		texts.addAll(normalizedBreadTexts(document));
 		texts.addAll(normalizedAliasTexts(document));
 		return texts.stream().anyMatch(text -> text.contains(normalizedQuery));
