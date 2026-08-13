@@ -209,6 +209,8 @@ class AdminCourseCommandServiceTest {
 
 		CourseStoreAddRequest request = mock(CourseStoreAddRequest.class);
 		given(request.getStoreId()).willReturn(10L);
+		// Mockito는 Integer 미스텁 메서드에 0을 돌려주므로, day 미전송 상태를 명시 스텁
+		given(request.getDay()).willReturn(null);
 		lenient().when(request.getMemo()).thenReturn(null);
 		lenient().when(request.getVisitTime()).thenReturn(null);
 
@@ -216,6 +218,37 @@ class AdminCourseCommandServiceTest {
 
 		assertThat(result).isNotNull();
 		assertThat(result.visitOrder()).isEqualTo(1);
+	}
+
+	@Test
+	@DisplayName("addStore: 일차를 지정하면 해당 일차의 마지막 위치에 끼워 넣고 뒷 가게 순서를 민다")
+	void addStore_withDay_insertsAfterRequestedDay() {
+		Course course = mock(Course.class);
+		Store store = mockStore(10L);
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+		given(courseStoreRepository.existsByCourseIdAndStoreIdAndDeletedAtIsNull(1L, 10L)).willReturn(false);
+		given(storeRepository.findById(10L)).willReturn(Optional.of(store));
+
+		CourseStore day1Store = mock(CourseStore.class);
+		lenient().when(day1Store.getVisitOrder()).thenReturn(1);
+		lenient().when(day1Store.getDay()).thenReturn(1);
+		CourseStore day2Store = mock(CourseStore.class);
+		lenient().when(day2Store.getVisitOrder()).thenReturn(2);
+		lenient().when(day2Store.getDay()).thenReturn(2);
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(1L))
+			.willReturn(List.of(day1Store, day2Store));
+
+		CourseStoreAddRequest request = mock(CourseStoreAddRequest.class);
+		given(request.getStoreId()).willReturn(10L);
+		given(request.getDay()).willReturn(1);
+
+		CourseStoreResponse result = adminCourseCommandService.addStore(1L, request);
+
+		assertThat(result.visitOrder()).isEqualTo(2);
+		assertThat(result.day()).isEqualTo(1);
+		// 1일차 마지막 뒤에 끼우고, 2일차 가게는 한 칸 밀린다
+		then(day2Store).should().updateOrder(3);
+		then(courseStoreRepository).should().flush();
 	}
 
 	@Test
@@ -288,6 +321,9 @@ class AdminCourseCommandServiceTest {
 			CourseStoreReorderRequest.CourseStoreOrderItem.class);
 		given(item1.getCourseStoreId()).willReturn(10L);
 		given(item2.getCourseStoreId()).willReturn(20L);
+		// Mockito는 Integer 미스텁 메서드에 0을 돌려주므로, day 미전송(구버전 앱) 상태를 명시 스텁
+		given(item1.getDay()).willReturn(null);
+		given(item2.getDay()).willReturn(null);
 
 		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
 		given(request.getCourseStoreOrders()).willReturn(List.of(item1, item2));

@@ -274,7 +274,7 @@ class CourseControllerTest {
 	@Test
 	void addStore_returns200() throws Exception {
 		CourseStoreResponse storeResponse = new CourseStoreResponse(
-			100L, 1, 10L, "소금빵집", 37.5, 126.9, "마포구", null, null);
+			100L, 1, 1, 10L, "소금빵집", 37.5, 126.9, "마포구", null, null);
 		given(courseCommandService.addStore(isNull(), anyLong(), any())).willReturn(storeResponse);
 
 		mockMvc.perform(post("/courses/1/stores")
