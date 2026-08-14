@@ -87,7 +87,11 @@ public class KakaoAuthService {
 		boolean isNew = !existsOAuth || isDeletedMember;
 
 		// 승격으로 흡수되지 않은 게스트(재로그인·탈퇴 후 재가입)가 있으면 데이터만 옮겨 붙인다.
-		guestPromotionService.mergeGuestDataInto(activeMember, deviceId, callerGuestId);
+		// 단, 아직 약관 동의 전(가입 미확정)이면 미룬다 — 동의 취소 시 게스트로 돌아가는
+		// 길이 살아 있어야 한다. 미룬 이관은 최초 동의 저장(createConsent) 시점에 한다.
+		if (activeMember.isAgreeToTerms()) {
+			guestPromotionService.mergeGuestDataInto(activeMember, deviceId, callerGuestId);
+		}
 
 		notificationSettingRepository.findByMemberId(activeMember.getId())
 			.orElseGet(() -> createDefaultNotificationSetting(activeMember));

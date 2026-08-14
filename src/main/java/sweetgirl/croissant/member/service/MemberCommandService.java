@@ -44,6 +44,7 @@ public class MemberCommandService {
 	private final MemberReader memberReader;
 	private final RefreshTokenRepository refreshTokenRepository; // 탈퇴 시 해당 회원의 모든 RefreshToken을 revoke하기 위해 주입
 	private final FcmTokenRepository fcmTokenRepository; // 탈퇴 시 해당 회원의 모든 FCM 토큰을 삭제하기 위해 주입
+	private final GuestPromotionService guestPromotionService; // 동의 시점으로 미뤄둔 게스트 이관을 위해 주입
 
 	public void createConsent(Long memberId, ConsentCreateRequest request) {
 		Member member = memberReader.getMember(memberId);
@@ -56,6 +57,14 @@ public class MemberCommandService {
 			request.locationAgreed(),
 			request.termsVersion(),
 			request.privacyVersion());
+
+		// 소셜 로그인 시점에 미뤄둔 게스트 이관 — 동의로 가입이 확정된 지금 한다.
+		// (동의 전에 이관하면, 동의 취소로 게스트로 돌아온 사용자의 세션이 이미 닫혀 410을 맞는다)
+		// 어느 기기의 게스트였는지는 로그인이 남긴 이 회원의 세션(refresh token) deviceId가 말해준다.
+		refreshTokenRepository.findAllByMember(member).stream()
+			.map(RefreshToken::getDeviceId)
+			.distinct()
+			.forEach(deviceId -> guestPromotionService.mergeGuestDataInto(member, deviceId, null));
 	}
 
 	public ConsentResponse updateConsent(Long memberId, ConsentUpdateRequest request) {

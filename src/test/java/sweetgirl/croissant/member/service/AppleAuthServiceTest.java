@@ -154,6 +154,36 @@ class AppleAuthServiceTest {
 		assertThat(response.isNew()).isTrue();
 		then(nicknameGenerator).should().generate();
 		then(existingOAuth).should().updateMember(newMember);
+		// 아직 동의 전이므로 게스트 이관은 미뤄진다 — 여기서 이관하면 동의 취소 시
+		// 게스트 세션이 이미 닫혀 410으로 온보딩에 튕긴다.
+		then(guestPromotionService).should(never()).mergeGuestDataInto(any(), any(), any());
+	}
+
+	// 이미 동의를 마친 기존 회원의 재로그인 — 게스트 데이터는 로그인 즉시 이관한다
+	@Test
+	void login_mergesGuestData_whenAlreadyConsented() {
+		given(appleTokenVerifier.verify(IDENTITY_TOKEN)).willReturn(new AppleTokenClaims(SUB, "test@apple.com"));
+		given(tokenHasher.hash(anyString())).willReturn("some-hash");
+		given(tokenHasher.hash(SUB)).willReturn(HASHED_SUB);
+		given(oAuthRepository.existsByProviderAndProviderId(OAuthProvider.APPLE, HASHED_SUB)).willReturn(true);
+
+		Member existingMember = memberOf(2L);
+		given(existingMember.isDeleted()).willReturn(false);
+		given(existingMember.isAgreeToTerms()).willReturn(true);
+		OAuth existingOAuth = oauthWith(existingMember);
+		given(oAuthRepository.findByProviderAndProviderId(OAuthProvider.APPLE, HASHED_SUB)).willReturn(
+			Optional.of(existingOAuth));
+		given(memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(eq(2L), any(), any()))
+			.willReturn(List.of());
+		given(memberRepository.getReferenceById(2L)).willReturn(existingMember);
+		given(notificationSettingRepository.findByMemberId(2L)).willReturn(
+			Optional.of(mock(NotificationSetting.class)));
+		given(jwtProvider.generateAccessToken(2L)).willReturn("access-token");
+		given(jwtProvider.generateRefreshToken(2L)).willReturn("refresh-token");
+
+		appleAuthService.login(IDENTITY_TOKEN, DEVICE_ID, null);
+
+		then(guestPromotionService).should().mergeGuestDataInto(existingMember, DEVICE_ID, null);
 	}
 
 	private Member memberOf(Long id) {
