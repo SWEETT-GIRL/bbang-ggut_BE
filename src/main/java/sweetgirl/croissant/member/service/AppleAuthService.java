@@ -84,7 +84,12 @@ public class AppleAuthService {
 		boolean isNew = !existsOAuth || isDeletedMember;
 
 		// 승격으로 흡수되지 않은 게스트(재로그인·탈퇴 후 재가입)가 있으면 데이터만 옮겨 붙인다.
-		guestPromotionService.mergeGuestDataInto(activeMember, deviceId, callerGuestId);
+		// 단, 아직 약관 동의 전(가입 미확정)이면 미룬다 — 여기서 게스트를 닫아버리면 동의
+		// 단계에서 취소한 사용자가 죽은 게스트 세션으로 돌아가 410을 맞고 온보딩으로 튕긴다.
+		// 미룬 이관은 최초 동의 저장(createConsent) 시점에 세션의 deviceId로 다시 찾는다.
+		if (activeMember.isAgreeToTerms()) {
+			guestPromotionService.mergeGuestDataInto(activeMember, deviceId, callerGuestId);
+		}
 
 		notificationSettingRepository.findByMemberId(activeMember.getId())
 			.orElseGet(() -> createDefaultNotificationSetting(activeMember));
