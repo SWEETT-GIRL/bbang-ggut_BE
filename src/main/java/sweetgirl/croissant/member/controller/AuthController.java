@@ -61,8 +61,7 @@ public class AuthController {
 	// 클라이언트가 refreshToken을 바디로 보내면 새 accessToken을 발급해서 반환
 	@PostMapping("/refresh")
 	public ApiResponse<RefreshResponse> refresh(@Valid @RequestBody RefreshRequest request) {
-		String newAccessToken = authService.refresh(request.getRefreshToken());
-		return ApiResponse.ok(new RefreshResponse(newAccessToken));
+		return ApiResponse.ok(authService.refresh(request.getRefreshToken()));
 	}
 
 	// 로그아웃
