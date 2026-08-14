@@ -3,6 +3,7 @@ package sweetgirl.croissant.member.service;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -12,6 +13,7 @@ import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
 import sweetgirl.croissant.global.code.GeneralErrorCode;
 import sweetgirl.croissant.global.encrypt.TokenHasher;
 import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.member.dto.response.RefreshResponse;
 import sweetgirl.croissant.member.entity.RefreshToken;
 import sweetgirl.croissant.member.jwt.JwtProvider;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository;
@@ -25,13 +27,16 @@ public class AuthService {
 	private final FcmTokenRepository fcmTokenRepository;
 	private final TokenHasher tokenHasher;
 
+	@Value("${jwt.refresh-token-expiry}")
+	private long refreshTokenExpiry;
+
 	// Access Token 재발급
 	// 1. JWT 유효성 검증 (만료/위변조)
 	// 2. DB에 존재하는지 확인 (탈취된 토큰 차단)
 	// 3. 만료 시각 확인
-	// 4. 새 Access Token 발급
-	@Transactional(readOnly = true)
-	public String refresh(String refreshToken) {
+	// 4. 새 Access Token 발급 (+ 남은 수명이 절반 아래면 Refresh Token 회전)
+	@Transactional
+	public RefreshResponse refresh(String refreshToken) {
 
 		//  리프레시 토큰 서명/만료 검증
 		if (!jwtProvider.validateToken(refreshToken)) {
@@ -57,7 +62,25 @@ public class AuthService {
 
 		// 토큰에서 memberId 파싱 후 새 Access Token 발급
 		Long memberId = jwtProvider.getMemberId(refreshToken);
-		return jwtProvider.generateAccessToken(memberId);
+		String newAccessToken = jwtProvider.generateAccessToken(memberId);
+
+		// 슬라이딩 연장 — refresh 토큰은 발급 후 고정 수명이라, 매일 쓰는 유저도 14일째에
+		// 세션이 통째로 죽고 게스트는 데이터 접근을 잃었다. 남은 수명이 절반 아래로 내려오면
+		// 새 refresh 토큰을 만들어 함께 내려준다(회전). 옛 토큰 행은 그대로 둔다 —
+		// 새 토큰을 저장하지 않는 구버전 앱이 자연 만료까지 계속 써야 한다.
+		String rotatedRefreshToken = null;
+		LocalDateTime rotateBefore = LocalDateTime.now().plusSeconds(refreshTokenExpiry / 2000);
+		if (savedToken.getExpiredAt().isBefore(rotateBefore)) {
+			rotatedRefreshToken = jwtProvider.generateRefreshToken(memberId);
+			refreshTokenRepository.save(
+				RefreshToken.builder()
+					.member(savedToken.getMember())
+					.deviceId(savedToken.getDeviceId())
+					.token(tokenHasher.hash(rotatedRefreshToken))
+					.expiredAt(LocalDateTime.now().plusSeconds(refreshTokenExpiry / 1000))
+					.build());
+		}
+		return new RefreshResponse(newAccessToken, rotatedRefreshToken);
 	}
 
 	// 로그아웃: RefreshToken의 revokedAt을 현재 시각으로 설정

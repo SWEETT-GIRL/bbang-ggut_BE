@@ -20,6 +20,7 @@ import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.dto.response.AppleLoginResponse;
 import sweetgirl.croissant.member.dto.response.KakaoLoginResponse;
+import sweetgirl.croissant.member.dto.response.RefreshResponse;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.service.AppleAuthService;
 import sweetgirl.croissant.member.service.AuthService;
@@ -118,7 +119,8 @@ class AuthControllerTest {
 
 	@Test
 	void refresh_returns200WithAccessToken_whenRequestIsValid() throws Exception {
-		given(authService.refresh("valid.token")).willReturn("new.access.token");
+		given(authService.refresh("valid.token"))
+			.willReturn(new RefreshResponse("new.access.token", null));
 
 		mockMvc.perform(post("/auth/refresh")
 			.contentType(MediaType.APPLICATION_JSON)
@@ -126,6 +128,20 @@ class AuthControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.accessToken").value("new.access.token"));
+	}
+
+	// 회전이 일어나면 새 refresh 토큰이 응답에 함께 실린다
+	@Test
+	void refresh_returns200WithRotatedRefreshToken_whenRotated() throws Exception {
+		given(authService.refresh("old.token"))
+			.willReturn(new RefreshResponse("new.access.token", "rotated.refresh.token"));
+
+		mockMvc.perform(post("/auth/refresh")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"refreshToken\":\"old.token\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.accessToken").value("new.access.token"))
+			.andExpect(jsonPath("$.data.refreshToken").value("rotated.refresh.token"));
 	}
 
 	@Test
