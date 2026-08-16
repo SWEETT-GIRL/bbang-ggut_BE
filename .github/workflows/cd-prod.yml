@@ -178,6 +178,7 @@ jobs:
             echo "LAMBDA_CALLBACK_SECRET_KEY=${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}" >> .env
             echo "PERF_DASHBOARD_ENABLED=${{ secrets.PERF_DASHBOARD_ENABLED }}" >> .env
             echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env
+            echo "REDIS_HOST=${{ secrets.PROD_REDIS_HOST }}" >> .env
 
             docker compose pull
             docker compose up -d
@@ -273,6 +274,7 @@ jobs:
             echo "SLACK_ABUSE_WEBHOOK_URL=${{ secrets.SLACK_ABUSE_WEBHOOK_URL_PROD }}" >> .env
             echo "PERF_DASHBOARD_ENABLED=${{ secrets.PERF_DASHBOARD_ENABLED }}" >> .env
             echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env
+            echo "REDIS_HOST=${{ secrets.PROD_REDIS_HOST }}" >> .env
 
             docker compose pull
             docker compose up -d

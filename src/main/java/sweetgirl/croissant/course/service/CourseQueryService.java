@@ -4,10 +4,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.course.code.CourseCacheNames;
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
@@ -36,6 +38,11 @@ public class CourseQueryService {
 	private final CourseImageFileRepository courseImageFileRepository;
 	private final CourseProgressRepository courseProgressRepository;
 
+	/**
+	 * 공개 코스 목록. 홈 첫 화면에서 앱을 열 때마다 호출되는데 유저별 필드가 없어 한 벌만 캐시한다.
+	 * 무효화 규칙은 {@link sweetgirl.croissant.config.cache.CacheConfig} 참고.
+	 */
+	@Cacheable(cacheNames = CourseCacheNames.PUBLIC_LIST, key = "'all'")
 	public List<CourseSummaryResponse> getCurationCourses() {
 		return buildSummaryResponses(courseRepository.findAllPublicOrderedByPinAndSavedCount());
 	}

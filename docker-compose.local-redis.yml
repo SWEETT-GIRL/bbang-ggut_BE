@@ -1,0 +1,9 @@
+# 로컬 개발용 Redis. 공개 코스 목록 캐시(GET /courses) 확인용.
+#   docker compose -f docker-compose.local-redis.yml up -d
+# 없어도 앱은 뜬다(캐시 fail-open) — 캐시 히트/무효화를 눈으로 볼 때만 띄운다.
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: bbang-ggut-redis
+    ports:
+      - "6379:6379"

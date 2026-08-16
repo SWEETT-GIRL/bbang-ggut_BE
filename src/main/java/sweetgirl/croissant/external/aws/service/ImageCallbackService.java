@@ -3,6 +3,7 @@ package sweetgirl.croissant.external.aws.service;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +15,7 @@ import sweetgirl.croissant.common.entity.ImageFile;
 import sweetgirl.croissant.common.enums.ImageStatus;
 import sweetgirl.croissant.contribution.repository.MenuContributionReportImageFileRepository;
 import sweetgirl.croissant.contribution.repository.StoreContributionReportImageFileRepository;
+import sweetgirl.croissant.course.code.CourseCacheNames;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.external.aws.dto.ImageStatusUpdateRequest;
 import sweetgirl.croissant.external.aws.enums.S3Folder;
@@ -39,6 +41,15 @@ public class ImageCallbackService {
 	private final ImageProcessingCallbackService imageProcessingCallbackService;
 	private final ImagePipelineMetrics imagePipelineMetrics;
 
+	/** 코스 커버 이미지 콜백인지 — S3 키 접두사(courses/)로 판별한다. */
+	private static final String IS_COURSE_COVER_CALLBACK = "#request.awsKey.startsWith("
+		+ "T(sweetgirl.croissant.external.aws.enums.S3Folder).COURSES.prefix())";
+
+	/**
+	 * 코스 커버 이미지는 처리 완료(DONE) 전까지 조회에서 빠지므로(@SQLRestriction), 콜백으로 상태가 바뀌면
+	 * 공개 코스 목록 캐시를 비운다. 다른 이미지(가게·메뉴·빵 기록)의 콜백은 목록과 무관하므로 건드리지 않는다.
+	 */
+	@CacheEvict(cacheNames = CourseCacheNames.PUBLIC_LIST, allEntries = true, condition = IS_COURSE_COVER_CALLBACK)
 	@Transactional
 	public void updateImageStatus(ImageStatusUpdateRequest request) {
 		String awsKey = request.getAwsKey();

@@ -34,6 +34,9 @@ services:
       PERF_DASHBOARD_ENABLED: ${PERF_DASHBOARD_ENABLED:-false}
       PERF_DASHBOARD_ACCESS_KEY: ${PERF_DASHBOARD_ACCESS_KEY:-}
       MANAGEMENT_PORT: ${MANAGEMENT_PORT:-8081}
+      # 공개 코스 목록 캐시(ElastiCache). 비어 있으면 localhost로 붙다 실패하고 DB로 fail-open 한다.
+      REDIS_HOST: ${REDIS_HOST:-localhost}
+      REDIS_PORT: ${REDIS_PORT:-6379}
 
     ports:
       - "8080:8080"

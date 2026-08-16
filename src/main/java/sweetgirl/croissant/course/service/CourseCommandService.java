@@ -7,11 +7,13 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.common.enums.MimeType;
+import sweetgirl.croissant.course.code.CourseCacheNames;
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.request.CourseCreateRequest;
 import sweetgirl.croissant.course.dto.request.CourseImageRegisterRequest;
@@ -47,6 +49,8 @@ import sweetgirl.croissant.store.repository.StoreRepository;
 @Service
 @RequiredArgsConstructor
 @Transactional
+// 유저 코스의 모든 명령은 공개 목록(생성·공개 전환·삭제·가게 구성)을 바꿀 수 있으므로 커밋 후 목록 캐시를 비운다.
+@CacheEvict(cacheNames = CourseCacheNames.PUBLIC_LIST, allEntries = true)
 public class CourseCommandService {
 
 	private final CourseRepository courseRepository;

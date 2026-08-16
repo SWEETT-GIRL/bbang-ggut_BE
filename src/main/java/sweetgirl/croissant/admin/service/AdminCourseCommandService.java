@@ -6,11 +6,13 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.common.enums.MimeType;
+import sweetgirl.croissant.course.code.CourseCacheNames;
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.request.AdminCourseCreateRequest;
 import sweetgirl.croissant.course.dto.request.AdminCoursePinRequest;
@@ -40,6 +42,8 @@ import sweetgirl.croissant.store.repository.StoreRepository;
 @Service
 @RequiredArgsConstructor
 @Transactional
+// 큐레이션 코스 편집(제목·뱃지·가게·순서·고정·이미지)은 곧바로 홈 목록에 보여야 하므로 커밋 후 목록 캐시를 비운다.
+@CacheEvict(cacheNames = CourseCacheNames.PUBLIC_LIST, allEntries = true)
 public class AdminCourseCommandService {
 
 	private final CourseRepository courseRepository;
