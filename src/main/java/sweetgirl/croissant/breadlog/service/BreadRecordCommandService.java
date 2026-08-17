@@ -247,6 +247,8 @@ public class BreadRecordCommandService {
 			.mimeType(toMimeType(request.contentType()))
 			.awsKey(request.awsKey())
 			.sortOrder(request.sortOrder())
+			.width(request.width())
+			.height(request.height())
 			.build();
 		if (oldPhoto != null && oldPhoto.getProcessingStatus() == ImageStatus.DONE) {
 			photo.markDone();

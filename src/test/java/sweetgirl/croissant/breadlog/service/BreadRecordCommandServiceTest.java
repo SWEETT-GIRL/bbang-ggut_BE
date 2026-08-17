@@ -118,7 +118,8 @@ class BreadRecordCommandServiceTest {
 		BreadRecordUpsertRequest request = new BreadRecordUpsertRequest(
 			10L, "클라이언트 가게명", "client_region", null, "무시되는 단일값", List.of("소금빵", " 우유식빵 ", "소금빵"),
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
-			List.of(new BreadRecordPhotoRequest("a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0)),
+			List.of(
+				new BreadRecordPhotoRequest("a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
 			List.of(
 				new BreadRecordTagRequest(0, "우유식빵", 0.31, 0.42),
 				new BreadRecordTagRequest(0, "소금빵", 0.5, 0.5)));
@@ -146,7 +147,8 @@ class BreadRecordCommandServiceTest {
 		BreadRecordUpsertRequest request = new BreadRecordUpsertRequest(
 			10L, "클라이언트 가게명", "client_region", null, null, List.of("우유식빵", "크루아상"),
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
-			List.of(new BreadRecordPhotoRequest("a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0)),
+			List.of(
+				new BreadRecordPhotoRequest("a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
 			List.of(new BreadRecordTagRequest(0, "우유식빵", 0.31, 0.42)));
 		given(memberReader.getMember(7L)).willReturn(member(7L));
 		given(storeRepository.findById(10L)).willReturn(Optional.of(store(10L)));
@@ -231,7 +233,7 @@ class BreadRecordCommandServiceTest {
 			"우유식빵",
 			null,
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
-			List.of(new BreadRecordPhotoRequest("a.jpg", "image/jpeg", awsKey, 0)),
+			List.of(new BreadRecordPhotoRequest("a.jpg", "image/jpeg", awsKey, 0, null, null)),
 			List.of(new BreadRecordTagRequest(tagPhotoSortOrder, "우유식빵", 0.31, 0.42)));
 	}
 
