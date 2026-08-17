@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -73,7 +74,7 @@ class CourseControllerTest {
 	void getCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
 			1L, "소금빵 투어", null, null, 2, List.of(11L, 12L), List.of("마포구"), CourseType.CURATED, "어드민", null, 0L, 1,
-			37L);
+			37L, null, null, null);
 		given(courseQueryService.getCurationCourses()).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses"))
@@ -89,7 +90,8 @@ class CourseControllerTest {
 	@Test
 	void getMyCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
-			2L, "나의 코스", null, null, 1, List.of(21L), List.of("서대문구"), CourseType.CUSTOM, "user1", null, 0L, null, 0L);
+			2L, "나의 코스", null, null, 1, List.of(21L), List.of("서대문구"), CourseType.CUSTOM, "user1", null, 0L, null, 0L,
+			null, null, null);
 		given(courseQueryService.getMyCourses(isNull())).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses/my"))
@@ -105,7 +107,7 @@ class CourseControllerTest {
 	void getSavedCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
 			3L, "찜한 코스", null, null, 3, List.of(31L, 32L, 33L), List.of("강남구"), CourseType.CURATED, "어드민", null, 0L,
-			null, 0L);
+			null, 0L, null, null, null);
 		given(courseQueryService.getSavedCourses(isNull())).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses/saved"))
@@ -147,7 +149,8 @@ class CourseControllerTest {
 	void getCourseDetail_returns200() throws Exception {
 		CourseDetailResponse response = new CourseDetailResponse(
 			1L, "소금빵 투어", null, null, 2, List.of("마포구"), CourseType.CURATED, "어드민", null, null, true, false, false,
-			5L, 37L, LocalDateTime.of(2026, 1, 1, 0, 0), List.of());
+			5L, 37L, LocalDateTime.of(2026, 1, 1, 0, 0), "서울", LocalDate.of(2026, 8, 20), LocalDate.of(2026, 8, 21),
+			List.of());
 		given(courseQueryService.getCourseDetail(anyLong(), isNull())).willReturn(response);
 
 		mockMvc.perform(get("/courses/1"))
@@ -157,6 +160,9 @@ class CourseControllerTest {
 			.andExpect(jsonPath("$.data.isPublic").value(true))
 			.andExpect(jsonPath("$.data.savedCount").value(5))
 			.andExpect(jsonPath("$.data.finisherCount").value(37))
+			.andExpect(jsonPath("$.data.region").value("서울"))
+			.andExpect(jsonPath("$.data.startDate").value("2026-08-20"))
+			.andExpect(jsonPath("$.data.endDate").value("2026-08-21"))
 			.andExpect(jsonPath("$.data.isSaved").value(false));
 	}
 
@@ -192,6 +198,18 @@ class CourseControllerTest {
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.courseId").value(10));
+	}
+
+	@Test
+	void createCourse_withPlan_returns201() throws Exception {
+		given(courseCommandService.createCourse(isNull(), any())).willReturn(11L);
+
+		mockMvc.perform(post("/courses")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"title\":\"부산 빵투어\",\"isPublic\":true,\"region\":\"부산\","
+				+ "\"startDate\":\"2026-08-20\",\"endDate\":\"2026-08-21\"}"))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.data.courseId").value(11));
 	}
 
 	@Test

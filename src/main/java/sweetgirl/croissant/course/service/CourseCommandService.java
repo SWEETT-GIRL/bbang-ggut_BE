@@ -1,5 +1,6 @@
 package sweetgirl.croissant.course.service;
 
+import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -62,8 +63,25 @@ public class CourseCommandService {
 	public Long createCourse(Long memberId, CourseCreateRequest request) {
 		Member member = memberRepository.findByIdAndDeletedAtIsNull(memberId)
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
-		Course course = Course.createCustom(request.getTitle(), member, request.isPublic());
+		validateDates(request.getStartDate(), request.getEndDate());
+		Course course = Course.createCustom(
+			request.getTitle(),
+			member,
+			request.isPublic(),
+			request.getRegion(),
+			request.getStartDate(),
+			request.getEndDate());
 		return courseRepository.save(course).getId();
+	}
+
+	/** 시작·종료일은 한 쌍이다 — 하나만 오거나 순서가 뒤집히면 계획으로 쓸 수 없다. */
+	private void validateDates(LocalDate startDate, LocalDate endDate) {
+		if ((startDate == null) != (endDate == null)) {
+			throw new CourseException(CourseErrorCode.COURSE_DATES_INVALID);
+		}
+		if (startDate != null && startDate.isAfter(endDate)) {
+			throw new CourseException(CourseErrorCode.COURSE_DATES_INVALID);
+		}
 	}
 
 	public void updateCourse(Long memberId, Long courseId, CourseUpdateRequest request) {
@@ -92,6 +110,13 @@ public class CourseCommandService {
 		}
 		if (request.getIsPublic() != null) {
 			course.updatePublic(request.getIsPublic());
+		}
+		if (request.getRegion() != null) {
+			course.updateRegion(request.getRegion());
+		}
+		if (request.getStartDate() != null || request.getEndDate() != null) {
+			validateDates(request.getStartDate(), request.getEndDate());
+			course.updateDates(request.getStartDate(), request.getEndDate());
 		}
 	}
 
@@ -299,6 +324,8 @@ public class CourseCommandService {
 		String forkedTitle = "copy of " + sourceCourse.getTitle();
 		Course savedForkedCourse = courseRepository.save(
 			Course.createForked(forkedTitle, member, sourceCourse.getId()));
+		// 지역은 코스의 성격이라 따라오고, 날짜는 복제한 사람의 계획이라 비워 둔다.
+		savedForkedCourse.updateRegion(sourceCourse.getRegion());
 
 		List<CourseStore> sourceStores = courseStoreRepository
 			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId);

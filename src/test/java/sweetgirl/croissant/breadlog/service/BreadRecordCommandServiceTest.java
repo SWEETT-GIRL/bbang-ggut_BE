@@ -111,6 +111,56 @@ class BreadRecordCommandServiceTest {
 	}
 
 	@Test
+	@DisplayName("create: 최고였던 빵을 여러 개 저장하고 첫 값은 구버전 컬럼에도 비춘다")
+	void create_multipleLovedBreads_saved() {
+		Member member = member(7L);
+		Store store = store(10L);
+		BreadRecordUpsertRequest request = new BreadRecordUpsertRequest(
+			10L, "클라이언트 가게명", "client_region", null, "무시되는 단일값", List.of("소금빵", " 우유식빵 ", "소금빵"),
+			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
+			List.of(
+				new BreadRecordPhotoRequest("a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
+			List.of(
+				new BreadRecordTagRequest(0, "우유식빵", 0.31, 0.42),
+				new BreadRecordTagRequest(0, "소금빵", 0.5, 0.5)));
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(storeRepository.findById(10L)).willReturn(Optional.of(store));
+		given(regionResolver.resolve(store, "client_region")).willReturn("서울_성동구_성수동");
+		given(categoryClassifier.classify(any())).willReturn("기타");
+		given(breadRecordRepository.save(any())).willAnswer(invocation -> {
+			BreadRecord record = invocation.getArgument(0);
+			ReflectionTestUtils.setField(record, "id", 11L);
+			ReflectionTestUtils.setField(record, "createdAt", LocalDateTime.of(2026, 8, 4, 12, 0));
+			return record;
+		});
+		given(photoRepository.saveAll(any())).willAnswer(invocation -> invocation.getArgument(0));
+
+		commandService.create(7L, request);
+
+		verify(breadRecordRepository).save(argThat(record -> record.getLovedBreads().equals(List.of("소금빵", "우유식빵"))
+			&& "소금빵".equals(record.getLovedBread())));
+	}
+
+	@Test
+	@DisplayName("create: 최고였던 빵 중 태그에 없는 이름이 있으면 거절한다")
+	void create_lovedBreadNotTagged_throwsException() {
+		BreadRecordUpsertRequest request = new BreadRecordUpsertRequest(
+			10L, "클라이언트 가게명", "client_region", null, null, List.of("우유식빵", "크루아상"),
+			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
+			List.of(
+				new BreadRecordPhotoRequest("a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
+			List.of(new BreadRecordTagRequest(0, "우유식빵", 0.31, 0.42)));
+		given(memberReader.getMember(7L)).willReturn(member(7L));
+		given(storeRepository.findById(10L)).willReturn(Optional.of(store(10L)));
+
+		assertThatThrownBy(() -> commandService.create(7L, request))
+			.isInstanceOf(BreadLogException.class)
+			.hasMessageContaining(BreadLogErrorCode.INVALID_LOVED_BREAD.getMessage());
+
+		verify(breadRecordRepository, never()).save(any());
+	}
+
+	@Test
 	@DisplayName("create: 태그가 요청 사진 순서를 가리키지 않으면 저장하지 않는다")
 	void create_unknownTagPhoto_throwsException() {
 		BreadRecordUpsertRequest request = request("bread-records/members/7/images/a", 1);
@@ -181,8 +231,9 @@ class BreadRecordCommandServiceTest {
 			"client_region",
 			"맛있었다",
 			"우유식빵",
+			null,
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
-			List.of(new BreadRecordPhotoRequest("a.jpg", "image/jpeg", awsKey, 0)),
+			List.of(new BreadRecordPhotoRequest("a.jpg", "image/jpeg", awsKey, 0, null, null)),
 			List.of(new BreadRecordTagRequest(tagPhotoSortOrder, "우유식빵", 0.31, 0.42)));
 	}
 
