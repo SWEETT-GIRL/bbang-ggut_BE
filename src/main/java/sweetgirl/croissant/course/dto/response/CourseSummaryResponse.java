@@ -1,5 +1,6 @@
 package sweetgirl.croissant.course.dto.response;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import sweetgirl.croissant.course.entity.Course;
@@ -19,7 +20,10 @@ public record CourseSummaryResponse(
 		String badge,
 		long savedCount,
 		Integer pinOrder,
-		long finisherCount) {
+		long finisherCount,
+		String region,
+		LocalDate startDate,
+		LocalDate endDate) {
 
 	public static CourseSummaryResponse of(
 			Course course,
@@ -43,6 +47,9 @@ public record CourseSummaryResponse(
 			course.getBadge(),
 			savedCount,
 			course.getPinOrder(),
-			finisherCount);
+			finisherCount,
+			course.getRegion(),
+			course.getStartDate(),
+			course.getEndDate());
 	}
 }

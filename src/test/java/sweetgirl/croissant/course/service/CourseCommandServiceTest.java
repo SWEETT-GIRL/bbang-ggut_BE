@@ -10,6 +10,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.locationtech.jts.geom.Point;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -90,6 +92,60 @@ class CourseCommandServiceTest {
 
 		assertThat(courseId).isEqualTo(10L);
 		then(courseRepository).should().save(any(Course.class));
+	}
+
+	@Test
+	@DisplayName("createCourse: 지역·여행 날짜를 함께 저장한다")
+	void createCourse_withPlan_success() {
+		Long memberId = 1L;
+		Member member = mockMember(memberId);
+		CourseCreateRequest request = mock(CourseCreateRequest.class);
+		given(request.getTitle()).willReturn("부산 빵투어");
+		given(request.getRegion()).willReturn("부산");
+		given(request.getStartDate()).willReturn(LocalDate.of(2026, 8, 20));
+		given(request.getEndDate()).willReturn(LocalDate.of(2026, 8, 21));
+
+		given(memberRepository.findByIdAndDeletedAtIsNull(memberId)).willReturn(Optional.of(member));
+		given(courseRepository.save(any(Course.class))).willAnswer(inv -> inv.getArgument(0));
+
+		courseCommandService.createCourse(memberId, request);
+
+		ArgumentCaptor<Course> captor = ArgumentCaptor.forClass(Course.class);
+		then(courseRepository).should().save(captor.capture());
+		Course saved = captor.getValue();
+		assertThat(saved.getRegion()).isEqualTo("부산");
+		assertThat(saved.getStartDate()).isEqualTo(LocalDate.of(2026, 8, 20));
+		assertThat(saved.getEndDate()).isEqualTo(LocalDate.of(2026, 8, 21));
+	}
+
+	@Test
+	@DisplayName("createCourse: 종료일이 시작일보다 앞서면 COURSE400_12")
+	void createCourse_endBeforeStart_throws() {
+		Long memberId = 1L;
+		Member member = mockMember(memberId);
+		CourseCreateRequest request = mock(CourseCreateRequest.class);
+		given(request.getStartDate()).willReturn(LocalDate.of(2026, 8, 21));
+		given(request.getEndDate()).willReturn(LocalDate.of(2026, 8, 20));
+		given(memberRepository.findByIdAndDeletedAtIsNull(memberId)).willReturn(Optional.of(member));
+
+		assertThatThrownBy(() -> courseCommandService.createCourse(memberId, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_DATES_INVALID.getMessage());
+		then(courseRepository).should(never()).save(any());
+	}
+
+	@Test
+	@DisplayName("createCourse: 시작일만 오면 COURSE400_12")
+	void createCourse_startOnly_throws() {
+		Long memberId = 1L;
+		Member member = mockMember(memberId);
+		CourseCreateRequest request = mock(CourseCreateRequest.class);
+		given(request.getStartDate()).willReturn(LocalDate.of(2026, 8, 21));
+		given(memberRepository.findByIdAndDeletedAtIsNull(memberId)).willReturn(Optional.of(member));
+
+		assertThatThrownBy(() -> courseCommandService.createCourse(memberId, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_DATES_INVALID.getMessage());
 	}
 
 	// ───────────────────────── updateCourse ─────────────────────────
