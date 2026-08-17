@@ -5,7 +5,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -81,7 +83,7 @@ public class BreadRecordCommandService {
 			.storeName(data.storeName())
 			.regionKey(data.regionKey())
 			.memo(normalizeNullable(request.memo()))
-			.lovedBread(normalizeNullable(request.lovedBread()))
+			.lovedBreads(data.lovedBreads())
 			.eatenAt(request.eatenAt())
 			.build());
 		savePhotosAndTags(record, request, data.photoBySortOrder(), Map.of());
@@ -105,7 +107,7 @@ public class BreadRecordCommandService {
 			data.storeName(),
 			data.regionKey(),
 			normalizeNullable(request.memo()),
-			normalizeNullable(request.lovedBread()),
+			data.lovedBreads(),
 			request.eatenAt());
 		tagRepository.deleteAllByRecordId(recordId);
 		photoRepository.deleteAllIncludingPendingByRecordId(recordId);
@@ -143,13 +145,27 @@ public class BreadRecordCommandService {
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 		Map<Integer, BreadRecordPhotoRequest> photoBySortOrder = validatePhotos(memberId, request.photos());
 		validateTags(request.tags(), photoBySortOrder.keySet());
-		validateLovedBread(request.lovedBread(), request.tags());
+		List<String> lovedBreads = resolveLovedBreads(request);
+		validateLovedBreads(lovedBreads, request.tags());
 		String storeName = store != null ? store.getName() : request.storeName().strip();
 		return new ValidatedRecordData(
 			store,
 			storeName,
 			regionResolver.resolve(store, request.regionKey()),
-			photoBySortOrder);
+			photoBySortOrder,
+			lovedBreads);
+	}
+
+	/** 새 앱은 lovedBreads(복수), 구버전 앱은 lovedBread(단일)를 보낸다. 빈 값은 버리고 중복은 한 번만 센다. */
+	private List<String> resolveLovedBreads(BreadRecordUpsertRequest request) {
+		List<String> raw = request.lovedBreads() != null
+			? request.lovedBreads()
+			: request.lovedBread() != null ? List.of(request.lovedBread()) : List.of();
+		return raw.stream()
+			.map(this::normalizeNullable)
+			.filter(Objects::nonNull)
+			.distinct()
+			.toList();
 	}
 
 	private Map<Integer, BreadRecordPhotoRequest> validatePhotos(
@@ -182,16 +198,15 @@ public class BreadRecordCommandService {
 		}
 	}
 
-	private void validateLovedBread(String lovedBread, List<BreadRecordTagRequest> tags) {
-		String normalizedLovedBread = normalizeNullable(lovedBread);
-		if (normalizedLovedBread == null) {
+	private void validateLovedBreads(List<String> lovedBreads, List<BreadRecordTagRequest> tags) {
+		if (lovedBreads.isEmpty()) {
 			return;
 		}
-		boolean tagged = tags.stream()
+		Set<String> taggedNames = tags.stream()
 			.map(BreadRecordTagRequest::name)
 			.map(String::strip)
-			.anyMatch(normalizedLovedBread::equals);
-		if (!tagged) {
+			.collect(Collectors.toSet());
+		if (!taggedNames.containsAll(lovedBreads)) {
 			throw new BreadLogException(BreadLogErrorCode.INVALID_LOVED_BREAD);
 		}
 	}
@@ -232,6 +247,8 @@ public class BreadRecordCommandService {
 			.mimeType(toMimeType(request.contentType()))
 			.awsKey(request.awsKey())
 			.sortOrder(request.sortOrder())
+			.width(request.width())
+			.height(request.height())
 			.build();
 		if (oldPhoto != null && oldPhoto.getProcessingStatus() == ImageStatus.DONE) {
 			photo.markDone();
@@ -294,6 +311,7 @@ public class BreadRecordCommandService {
 			Store store,
 			String storeName,
 			String regionKey,
-			Map<Integer, BreadRecordPhotoRequest> photoBySortOrder) {
+			Map<Integer, BreadRecordPhotoRequest> photoBySortOrder,
+			List<String> lovedBreads) {
 	}
 }

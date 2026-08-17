@@ -29,15 +29,24 @@ public class BreadRecordPhoto extends ImageFile {
 	@Column(nullable = false)
 	private int sortOrder;
 
+	/** 원본 픽셀 크기 — 화면이 사진을 제 비율로 그리는 데 쓴다. 구버전 앱이 올린 사진은 null. */
+	private Integer width;
+
+	private Integer height;
+
 	@Builder
 	public BreadRecordPhoto(
 			BreadRecord record,
 			String name,
 			MimeType mimeType,
 			String awsKey,
-			int sortOrder) {
+			int sortOrder,
+			Integer width,
+			Integer height) {
 		super(name, mimeType, awsKey);
 		this.record = record;
 		this.sortOrder = sortOrder;
+		this.width = width;
+		this.height = height;
 	}
 }
