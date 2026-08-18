@@ -123,7 +123,13 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/bbang-ggut-be:${{ steps.tag.outputs.IMAGE_TAG }}
             ${{ secrets.DOCKERHUB_USERNAME }}/bbang-ggut-be:latest
 
-  deploy-server1:
+  # 단일 WAS 안에서 blue-green으로 교체한다.
+  #   1) 현재 활성 색을 bastion의 Nginx upstream에서 읽는다 (단일 진실 공급원)
+  #   2) 반대 색 컨테이너를 WAS에 띄우고 헬스체크
+  #   3) bastion Nginx upstream을 새 색으로 전환
+  #   4) 도메인으로 실제 응답 확인 후 구 색 정리
+  # 어느 단계에서 실패하든 구 색 스택은 살아있으므로 upstream만 되돌리면 복구된다.
+  deploy:
     runs-on: ubuntu-latest
     needs: build
 
@@ -131,188 +137,219 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Upload docker-compose to server1
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.PROD_WAS_HOST_1 }}
-          username: ${{ secrets.PROD_SSH_USER }}
-          key: ${{ secrets.PROD_SSH_KEY }}
-          proxy_host: ${{ secrets.PROD_BASTION_HOST }}
-          proxy_username: ${{ secrets.PROD_SSH_USER }}
-          proxy_key: ${{ secrets.PROD_SSH_KEY }}
-          source: docker-compose.yml
-          target: ~/app
-
-      - name: Deploy to server1
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.PROD_WAS_HOST_1 }}
-          username: ${{ secrets.PROD_SSH_USER }}
-          key: ${{ secrets.PROD_SSH_KEY }}
-          proxy_host: ${{ secrets.PROD_BASTION_HOST }}
-          proxy_username: ${{ secrets.PROD_SSH_USER }}
-          proxy_key: ${{ secrets.PROD_SSH_KEY }}
-          script: |
-            # pull/up 실패가 조용히 넘어가면(디스크 풀 등) 옛 컨테이너가 그대로 돌면서 워크플로만 초록이 된다.
-            set -e
-            cd ~/app
-
-            echo "DOCKER_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}" > .env
-            echo "IMAGE_TAG=${{ needs.build.outputs.image_tag }}" >> .env
-            echo "SPRING_PROFILE=prod" >> .env
-            echo "DB_URL=${{ secrets.PROD_DB_URL }}" >> .env
-            echo "DB_USERNAME=${{ secrets.PROD_DB_USERNAME }}" >> .env
-            echo "DB_PASSWORD=${{ secrets.PROD_DB_PASSWORD }}" >> .env
-            echo "KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}" >> .env
-            echo "KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}" >> .env
-            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
-            echo "KAKAO_API_KEY=${{ secrets.KAKAO_API_KEY }}" >> .env
-            echo "GOOGLE_PLACES_API_KEY=${{ secrets.GOOGLE_PLACES_API_KEY }}" >> .env
-            echo "NAVER_CLIENT_ID=${{ secrets.NAVER_CLIENT_ID }}" >> .env
-            echo "NAVER_CLIENT_SECRET=${{ secrets.NAVER_CLIENT_SECRET }}" >> .env
-            echo "AWS_REGION=ap-northeast-2" >> .env
-            echo "AWS_S3_BUCKET=${{ secrets.PROD_AWS_S3_BUCKET }}" >> .env
-            echo "PROD_POSTHOG_API_KEY=${{ secrets.PROD_POSTHOG_API_KEY }}" >> .env
-            echo "ENCRYPT_SECRET_KEY=${{ secrets.ENCRYPT_SECRET_KEY }}" >> .env
-            echo "SLACK_ERROR_WEBHOOK_URL=${{ secrets.SLACK_ERROR_WEBHOOK_URL_PROD }}" >> .env
-            echo "SLACK_REPORT_WEBHOOK_URL=${{ secrets.SLACK_REPORT_WEBHOOK_URL_PROD }}" >> .env
-            echo "SLACK_ABUSE_WEBHOOK_URL=${{ secrets.SLACK_ABUSE_WEBHOOK_URL_PROD }}" >> .env
-            echo "LAMBDA_CALLBACK_SECRET_KEY=${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}" >> .env
-            echo "PERF_DASHBOARD_ENABLED=${{ secrets.PERF_DASHBOARD_ENABLED }}" >> .env
-            echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env
-
-            docker compose pull
-            docker compose up -d
-            # 직전 버전 이미지는 남긴다 — 신규 컨테이너가 기동에 실패했을 때
-            # IMAGE_TAG만 되돌려 즉시 롤백할 수 있어야 한다.
-            # -a: 태그가 붙어 있어도 안 쓰는 이미지는 지운다 — 배포마다 태그가 새로 붙어 dangling이 아니라
-            # 종전 prune으로는 하나도 안 지워졌고, 스테이징 디스크(6.7G)가 11개 이미지로 꽉 차 pull이 실패했다(2026-08-17).
-            docker image prune -af --filter "until=72h"
-
-      - name: Health check server1
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.PROD_WAS_HOST_1 }}
-          username: ${{ secrets.PROD_SSH_USER }}
-          key: ${{ secrets.PROD_SSH_KEY }}
-          proxy_host: ${{ secrets.PROD_BASTION_HOST }}
-          proxy_username: ${{ secrets.PROD_SSH_USER }}
-          proxy_key: ${{ secrets.PROD_SSH_KEY }}
-          script: |
-            echo "⏳ server1 헬스체크 시작..."
-            for i in $(seq 1 12); do
-              if curl -sf http://localhost:8081/actuator/health/readiness | grep -q '"status":"UP"'; then
-                echo "✅ server1 정상 기동 확인"
-                exit 0
-              fi
-              echo "대기 중... ($i/12)"
-              sleep 10
-            done
-            echo "❌ server1 헬스체크 실패 — server2 배포 중단"
-            exit 1
-
-      # 위 헬스체크는 server1 안에서 자기 자신을 본 것일 뿐,
-      # ALB가 server1을 다시 트래픽 대상으로 넣었는지는 알려주지 않는다.
-      # 이 대기가 없으면 server1이 아직 타겟 풀 밖인 상태로 server2가 내려가
-      # 정상 타겟이 0개가 되고 ALB가 503(no healthy targets)을 반환한다.
-      # 대기 시간 근거: 타겟그룹 healthy threshold 2회 × interval 10초 = 20초 + 여유.
-      # 타겟그룹 설정을 바꾸면 이 값도 같이 바꿔야 한다.
-      - name: Wait for ALB to re-register server1
+      # bastion과 WAS를 오가며 값을 주고받아야 해서 액션 대신 ssh를 직접 쓴다.
+      # WAS는 프라이빗 서브넷에 있으므로 ProxyJump로 bastion을 경유한다.
+      - name: SSH 설정
+        env:
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          BASTION_HOST: ${{ secrets.PROD_BASTION_HOST }}
+          WAS_HOST: ${{ secrets.PROD_WAS_HOST_1 }}
+          SSH_USER: ${{ secrets.PROD_SSH_USER }}
         run: |
-          echo "⏳ ALB 재등록 대기 (40초)..."
-          sleep 40
-          echo "✅ 대기 완료 — server2 배포 진행"
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          cat > ~/.ssh/config <<EOF
+          Host bastion
+            HostName ${BASTION_HOST}
+            User ${SSH_USER}
+            IdentityFile ~/.ssh/id_deploy
+            StrictHostKeyChecking accept-new
+            ConnectTimeout 10
+          Host was
+            HostName ${WAS_HOST}
+            User ${SSH_USER}
+            IdentityFile ~/.ssh/id_deploy
+            ProxyJump bastion
+            StrictHostKeyChecking accept-new
+            ConnectTimeout 10
+          EOF
+          chmod 600 ~/.ssh/config
 
-  deploy-server2:
-    runs-on: ubuntu-latest
-    needs: [build, deploy-server1]
+      # 활성 색은 bastion의 upstream 설정에만 기록된다.
+      # WAS에 떠 있는 컨테이너로 판단하지 않는 이유: 배포가 중간에 실패하면
+      # 두 색이 모두 떠 있을 수 있어 "실제로 트래픽을 받는 쪽"과 어긋나기 때문이다.
+      - name: 배포 대상 색 결정
+        id: color
+        run: |
+          ACTIVE=$(ssh bastion \
+            "grep -oE 'ACTIVE_COLOR=[a-z]+' /etc/nginx/conf.d/bbang-upstream.conf | cut -d= -f2" \
+            2>/dev/null || true)
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+          if [ "$ACTIVE" != "blue" ] && [ "$ACTIVE" != "green" ]; then
+            echo "❌ bastion에서 활성 색을 읽지 못했다 (읽은 값: '${ACTIVE}')." >&2
+            echo "   deploy/bastion/setup-nginx.sh 를 먼저 1회 실행했는지 확인할 것." >&2
+            exit 1
+          fi
 
-      - name: Upload docker-compose to server2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.PROD_WAS_HOST_2 }}
-          username: ${{ secrets.PROD_SSH_USER }}
-          key: ${{ secrets.PROD_SSH_KEY }}
-          proxy_host: ${{ secrets.PROD_BASTION_HOST }}
-          proxy_username: ${{ secrets.PROD_SSH_USER }}
-          proxy_key: ${{ secrets.PROD_SSH_KEY }}
-          source: docker-compose.yml
-          target: ~/app
+          if [ "$ACTIVE" = "blue" ]; then
+            NEW=green; NEW_APP=8082; NEW_MGMT=8083
+          else
+            NEW=blue;  NEW_APP=8080; NEW_MGMT=8081
+          fi
 
-      - name: Deploy to server2
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.PROD_WAS_HOST_2 }}
-          username: ${{ secrets.PROD_SSH_USER }}
-          key: ${{ secrets.PROD_SSH_KEY }}
-          proxy_host: ${{ secrets.PROD_BASTION_HOST }}
-          proxy_username: ${{ secrets.PROD_SSH_USER }}
-          proxy_key: ${{ secrets.PROD_SSH_KEY }}
-          script: |
-            # pull/up 실패가 조용히 넘어가면(디스크 풀 등) 옛 컨테이너가 그대로 돌면서 워크플로만 초록이 된다.
-            set -e
-            cd ~/app
+          echo "현재 활성: ${ACTIVE} → 배포 대상: ${NEW}"
+          {
+            echo "old=${ACTIVE}"
+            echo "new=${NEW}"
+            echo "new_app_port=${NEW_APP}"
+            echo "new_mgmt_port=${NEW_MGMT}"
+          } >> "$GITHUB_OUTPUT"
 
-            echo "DOCKER_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}" > .env
-            echo "IMAGE_TAG=${{ needs.build.outputs.image_tag }}" >> .env
-            echo "SPRING_PROFILE=prod" >> .env
-            echo "DB_URL=${{ secrets.PROD_DB_URL }}" >> .env
-            echo "DB_USERNAME=${{ secrets.PROD_DB_USERNAME }}" >> .env
-            echo "DB_PASSWORD=${{ secrets.PROD_DB_PASSWORD }}" >> .env
-            echo "KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}" >> .env
-            echo "KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}" >> .env
-            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
-            echo "KAKAO_API_KEY=${{ secrets.KAKAO_API_KEY }}" >> .env
-            echo "GOOGLE_PLACES_API_KEY=${{ secrets.GOOGLE_PLACES_API_KEY }}" >> .env
-            echo "NAVER_CLIENT_ID=${{ secrets.NAVER_CLIENT_ID }}" >> .env
-            echo "NAVER_CLIENT_SECRET=${{ secrets.NAVER_CLIENT_SECRET }}" >> .env
-            echo "AWS_REGION=ap-northeast-2" >> .env
-            echo "AWS_S3_BUCKET=${{ secrets.PROD_AWS_S3_BUCKET }}" >> .env
-            echo "PROD_POSTHOG_API_KEY=${{ secrets.PROD_POSTHOG_API_KEY }}" >> .env
-            echo "ENCRYPT_SECRET_KEY=${{ secrets.ENCRYPT_SECRET_KEY }}" >> .env
-            echo "SLACK_ERROR_WEBHOOK_URL=${{ secrets.SLACK_ERROR_WEBHOOK_URL_PROD }}" >> .env
-            echo "SLACK_REPORT_WEBHOOK_URL=${{ secrets.SLACK_REPORT_WEBHOOK_URL_PROD }}" >> .env
-            echo "SLACK_ABUSE_WEBHOOK_URL=${{ secrets.SLACK_ABUSE_WEBHOOK_URL_PROD }}" >> .env
-            echo "PERF_DASHBOARD_ENABLED=${{ secrets.PERF_DASHBOARD_ENABLED }}" >> .env
-            echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env
+      # 시크릿을 러너에서 파일로 만든 뒤 전송한다.
+      # 원격 셸에 echo로 한 줄씩 밀어넣으면 값에 든 따옴표·백틱이 셸에서 해석된다.
+      - name: 환경 파일 생성 및 업로드
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+          COLOR: ${{ steps.color.outputs.new }}
+          APP_HOST_PORT: ${{ steps.color.outputs.new_app_port }}
+          MGMT_HOST_PORT: ${{ steps.color.outputs.new_mgmt_port }}
+          DB_URL: ${{ secrets.PROD_DB_URL }}
+          DB_USERNAME: ${{ secrets.PROD_DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
+          KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
+          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          KAKAO_API_KEY: ${{ secrets.KAKAO_API_KEY }}
+          GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          AWS_S3_BUCKET: ${{ secrets.PROD_AWS_S3_BUCKET }}
+          PROD_POSTHOG_API_KEY: ${{ secrets.PROD_POSTHOG_API_KEY }}
+          ENCRYPT_SECRET_KEY: ${{ secrets.ENCRYPT_SECRET_KEY }}
+          SLACK_ERROR_WEBHOOK_URL: ${{ secrets.SLACK_ERROR_WEBHOOK_URL_PROD }}
+          SLACK_REPORT_WEBHOOK_URL: ${{ secrets.SLACK_REPORT_WEBHOOK_URL_PROD }}
+          SLACK_ABUSE_WEBHOOK_URL: ${{ secrets.SLACK_ABUSE_WEBHOOK_URL_PROD }}
+          LAMBDA_CALLBACK_SECRET_KEY: ${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}
+          PERF_DASHBOARD_ENABLED: ${{ secrets.PERF_DASHBOARD_ENABLED }}
+          PERF_DASHBOARD_ACCESS_KEY: ${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}
+        run: |
+          umask 077
+          {
+            echo "DOCKER_USERNAME=${DOCKERHUB_USERNAME}"
+            echo "IMAGE_TAG=${IMAGE_TAG}"
+            echo "SPRING_PROFILE=prod"
+            echo "COLOR=${COLOR}"
+            echo "APP_HOST_PORT=${APP_HOST_PORT}"
+            echo "MGMT_HOST_PORT=${MGMT_HOST_PORT}"
+            echo "DB_URL=${DB_URL}"
+            echo "DB_USERNAME=${DB_USERNAME}"
+            echo "DB_PASSWORD=${DB_PASSWORD}"
+            echo "KAKAO_CLIENT_ID=${KAKAO_CLIENT_ID}"
+            echo "KAKAO_CLIENT_SECRET=${KAKAO_CLIENT_SECRET}"
+            echo "JWT_SECRET=${JWT_SECRET}"
+            echo "KAKAO_API_KEY=${KAKAO_API_KEY}"
+            echo "GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY}"
+            echo "NAVER_CLIENT_ID=${NAVER_CLIENT_ID}"
+            echo "NAVER_CLIENT_SECRET=${NAVER_CLIENT_SECRET}"
+            echo "AWS_REGION=ap-northeast-2"
+            echo "OPENSEARCH_REGION=ap-northeast-2"
+            echo "AWS_S3_BUCKET=${AWS_S3_BUCKET}"
+            echo "PROD_POSTHOG_API_KEY=${PROD_POSTHOG_API_KEY}"
+            echo "ENCRYPT_SECRET_KEY=${ENCRYPT_SECRET_KEY}"
+            echo "SLACK_ERROR_WEBHOOK_URL=${SLACK_ERROR_WEBHOOK_URL}"
+            echo "SLACK_REPORT_WEBHOOK_URL=${SLACK_REPORT_WEBHOOK_URL}"
+            echo "SLACK_ABUSE_WEBHOOK_URL=${SLACK_ABUSE_WEBHOOK_URL}"
+            echo "LAMBDA_CALLBACK_SECRET_KEY=${LAMBDA_CALLBACK_SECRET_KEY}"
+            echo "PERF_DASHBOARD_ENABLED=${PERF_DASHBOARD_ENABLED:-false}"
+            echo "PERF_DASHBOARD_ACCESS_KEY=${PERF_DASHBOARD_ACCESS_KEY}"
+          } > env.prod
 
-            docker compose pull
-            docker compose up -d
-            # 직전 버전 이미지는 남긴다 — 신규 컨테이너가 기동에 실패했을 때
-            # IMAGE_TAG만 되돌려 즉시 롤백할 수 있어야 한다.
-            # -a: 태그가 붙어 있어도 안 쓰는 이미지는 지운다 — 배포마다 태그가 새로 붙어 dangling이 아니라
-            # 종전 prune으로는 하나도 안 지워졌고, 스테이징 디스크(6.7G)가 11개 이미지로 꽉 차 pull이 실패했다(2026-08-17).
-            docker image prune -af --filter "until=72h"
+          ssh was 'mkdir -p ~/app'
+          scp docker-compose.prod.yml was:~/app/docker-compose.prod.yml
+          scp env.prod was:~/app/.env
+          rm -f env.prod
 
-      - name: Health check server2
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.PROD_WAS_HOST_2 }}
-          username: ${{ secrets.PROD_SSH_USER }}
-          key: ${{ secrets.PROD_SSH_KEY }}
-          proxy_host: ${{ secrets.PROD_BASTION_HOST }}
-          proxy_username: ${{ secrets.PROD_SSH_USER }}
-          proxy_key: ${{ secrets.PROD_SSH_KEY }}
-          script: |
-            echo "⏳ server2 헬스체크 시작..."
-            for i in $(seq 1 12); do
-              if curl -sf http://localhost:8081/actuator/health/readiness | grep -q '"status":"UP"'; then
-                echo "✅ server2 정상 기동 확인"
+      - name: 신규 색 컨테이너 기동
+        env:
+          NEW: ${{ steps.color.outputs.new }}
+        run: |
+          ssh was "cd ~/app \
+            && docker compose -p bbang-${NEW} -f docker-compose.prod.yml pull \
+            && docker compose -p bbang-${NEW} -f docker-compose.prod.yml up -d"
+
+      - name: 신규 색 헬스체크
+        env:
+          NEW: ${{ steps.color.outputs.new }}
+          MGMT: ${{ steps.color.outputs.new_mgmt_port }}
+        run: |
+          echo "⏳ ${NEW} 헬스체크 시작 (최대 180초)..."
+          ssh was "
+            for i in \$(seq 1 18); do
+              if curl -sf http://localhost:${MGMT}/actuator/health/readiness \
+                   | grep -q '\"status\":\"UP\"'; then
+                echo '✅ ${NEW} 정상 기동 확인'
                 exit 0
               fi
-              echo "대기 중... ($i/12)"
+              echo \"대기 중... (\$i/18)\"
               sleep 10
             done
-            echo "❌ server2 헬스체크 실패"
+            echo '❌ ${NEW} 헬스체크 실패'
+            docker compose -p bbang-${NEW} -f ~/app/docker-compose.prod.yml logs --tail 100
             exit 1
+          "
+
+      # 여기서부터 트래픽이 신규 색으로 넘어간다. 구 색은 아직 살려둔다.
+      - name: Nginx upstream 전환
+        env:
+          NEW: ${{ steps.color.outputs.new }}
+          WAS_HOST: ${{ secrets.PROD_WAS_HOST_1 }}
+        run: |
+          ssh bastion "sudo /opt/bbang/switch-upstream.sh ${NEW} ${WAS_HOST}"
+
+      # 서버 안에서 자기 자신을 본 헬스체크는 Nginx 경로가 정상인지 알려주지 않는다.
+      # 도메인으로 실제 한 바퀴 돌려 확인한 뒤에야 구 색을 내린다.
+      - name: 도메인 스모크 테스트
+        run: |
+          echo "⏳ https://bbang-ggut.cloud 응답 확인..."
+          for i in $(seq 1 10); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+              https://bbang-ggut.cloud/menu-categories || echo "000")
+            if [ "$CODE" = "200" ]; then
+              echo "✅ 도메인 응답 정상 (200)"
+              exit 0
+            fi
+            echo "대기 중... ($i/10) 응답 코드: ${CODE}"
+            sleep 5
+          done
+          echo "❌ 도메인 스모크 테스트 실패"
+          exit 1
+
+      - name: 구 색 정리
+        env:
+          OLD: ${{ steps.color.outputs.old }}
+        run: |
+          ssh was "cd ~/app \
+            && docker compose -p bbang-${OLD} -f docker-compose.prod.yml down --remove-orphans"
+
+          # 단일 서버 전환 이전의 배포가 남긴 구 방식 스택(compose 프로젝트 'app')을
+          # 함께 정리한다. 그 컨테이너가 8080을 점유한 채로 남으면 다음 blue 배포가
+          # 포트 충돌로 실패한다. 트래픽은 이미 신규 색으로 넘어간 뒤라 영향이 없다.
+          # 전환 후 첫 배포에서 한 번만 지워지고, 이후에는 대상이 없어 조용히 넘어간다.
+          ssh was "cd ~/app \
+            && docker compose -f docker-compose.yml down --remove-orphans 2>/dev/null || true"
+          # 직전 버전 이미지는 남긴다 — 신규 컨테이너가 기동에 실패했을 때
+          # IMAGE_TAG만 되돌려 즉시 롤백할 수 있어야 한다.
+          ssh was "docker image prune -f --filter 'until=168h'"
+
+      # 어느 단계에서 실패했든 구 색 스택은 아직 살아있다. upstream만 되돌리면 복구된다.
+      - name: 실패 시 롤백
+        if: failure() && steps.color.outputs.old != ''
+        env:
+          OLD: ${{ steps.color.outputs.old }}
+          NEW: ${{ steps.color.outputs.new }}
+          WAS_HOST: ${{ secrets.PROD_WAS_HOST_1 }}
+        run: |
+          echo "⚠️ 배포 실패 — upstream을 ${OLD}로 되돌린다"
+          ssh bastion "sudo /opt/bbang/switch-upstream.sh ${OLD} ${WAS_HOST}" || true
+          ssh was "cd ~/app \
+            && docker compose -p bbang-${NEW} -f docker-compose.prod.yml down" || true
+          echo "롤백 완료 — 활성 색: ${OLD}"
 
   notify:
     runs-on: ubuntu-latest
-    needs: [build, deploy-server1, deploy-server2]
+    needs: [build, deploy]
     if: always()
 
     steps:
@@ -338,7 +375,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Notify Slack (성공)
-        if: needs.deploy-server2.result == 'success'
+        if: needs.deploy.result == 'success'
         env:
           # 쉘 인라인(${{ }}) 주입 금지 — 제목의 따옴표·특수문자가 jq 명령을 깨뜨린다 (env 경유가 안전)
           PR_TITLE: ${{ steps.pr_info.outputs.title }}
@@ -356,20 +393,20 @@ jobs:
                   {"type": "mrkdwn", "text": "*PR*\n\($pr)"},
                   {"type": "mrkdwn", "text": "*Image Tag*\n\($tag)"},
                   {"type": "mrkdwn", "text": "*Branch*\nmain"},
-                  {"type": "mrkdwn", "text": "*서버*\nserver1 + server2"}
+                  {"type": "mrkdwn", "text": "*배포 방식*\nblue-green (단일 WAS)"}
                 ]}
               ]
             }]}' | \
           curl -s -X POST "$WEBHOOK_URL" \
             -H "Content-Type: application/json" \
             -d @-)
-          # 웹훅 정상 응답은 "ok" — 아니면 로그에 경고를 남긴다 (배포는 이미 성공이므로 잡은 실패시키지 않음)
+          # 웹훅 정상 응답은 "ok" — 아니면 로그에 경고를 남긴다 (배포는 이미 성공이므로 잡을 실패시키지 않음)
           if [ "$RESPONSE" != "ok" ]; then
             echo "::warning::Slack 배포 알림 실패: $RESPONSE"
           fi
 
       - name: Notify Slack (실패)
-        if: needs.deploy-server1.result == 'failure' || needs.deploy-server2.result == 'failure'
+        if: needs.deploy.result == 'failure'
         env:
           PR_TITLE: ${{ steps.pr_info.outputs.title }}
           IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
@@ -384,7 +421,8 @@ jobs:
                 {"type": "header", "text": {"type": "plain_text", "text": "❌ 배포 실패 [PROD]", "emoji": true}},
                 {"type": "section", "fields": [
                   {"type": "mrkdwn", "text": "*PR*\n\($pr)"},
-                  {"type": "mrkdwn", "text": "*Image Tag*\n\($tag)"}
+                  {"type": "mrkdwn", "text": "*Image Tag*\n\($tag)"},
+                  {"type": "mrkdwn", "text": "*상태*\n이전 색으로 자동 롤백됨"}
                 ]}
               ]
             }]}' | \
