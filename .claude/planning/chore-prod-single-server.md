@@ -134,26 +134,54 @@ aws route53 change-resource-record-sets --hosted-zone-id Z0439460BK9FWESJV0HD \
 트래픽이 매우 적은 서비스이므로 전환 리스크는 애초에 낮았다.
 다만 이 트래픽 규모에 RDS $590/월·OpenSearch $284/월은 과다해 보인다 (Phase 5 별건).
 
-### Phase 3 — 구 컨테이너 정리 (1회, 필수)
-전환 직후 was-1에는 **구 방식 컨테이너**(`docker-compose.yml`, 이름 `bbang-ggut-be`)가
-8080을 잡은 채 돈다. upstream이 8080을 보므로 트래픽은 정상이다.
-**3-1.** main 머지 → 첫 blue-green 배포 (green:8082로 뜨고 upstream 전환)
-**3-2.** 성공 확인 후 구 컨테이너 제거
-```bash
-cd ~/app && docker compose -f docker-compose.yml down
-```
-> 이걸 빠뜨리면 8080이 계속 점유돼 **다음 blue 배포가 실패**한다.
+### Phase 3 — 구 컨테이너 정리 ✅ 워크플로우로 자동화 (수동 작업 없음)
 
-### Phase 4 — 정리 (되돌리기 어려움 · 각 단계 승인)
-**4-1.** was-2 **중지**(종료 아님) → 1~2일 관찰
-**4-2.** ALB 삭제 → 타겟그룹 삭제 → ALB SG `sg-0a1b5098fa0b57e9e` 삭제
-**4-3.** WAS SG에서 ALB SG 참조 인바운드 규칙 제거 (8080·8081)
-**4-4.** ALB에 붙어있던 EIP 2개 **회수(release)** — 안 하면 유휴 요금이 계속 나간다
-  - `eipalloc-007c937c97b28ba10` (54.180.214.27)
-  - `eipalloc-043348e54d55be563` (54.116.112.230)
-**4-5.** was-2 종료 + EBS 스냅샷 보관 여부 결정
-**4-6.** 서울 ACM 인증서 삭제 여부 결정 (CloudFront는 us-east-1 별도 인증서라 무관)
-**4-7.** GitHub Secrets `PROD_WAS_HOST_2` 삭제
+전환 직후 was-1에는 구 방식 컨테이너(compose 프로젝트 `app`, 이름 `bbang-ggut-be`)가
+8080을 잡은 채 남는다. 새 워크플로우는 `bbang-blue`/`bbang-green` 프로젝트만 알기 때문에
+이를 자기 것으로 인식하지 못하고, 그대로 두면 **2차 배포가 8080 충돌로 실패**한다.
+
+`구 색 정리` 스텝에 아래를 추가해 첫 배포가 자동으로 치우게 했다 (커밋 `1b23e6f`):
+```bash
+ssh was "cd ~/app && docker compose -f docker-compose.yml down --remove-orphans 2>/dev/null || true"
+```
+트래픽이 신규 색으로 넘어간 **뒤에** 실행되므로 다운타임이 없고,
+2차 배포부터는 대상이 없어 조용히 넘어간다.
+
+### Phase 4 — 정리 (진행 중)
+
+**4-1. was-2 타겟 등록 해제 ✅** (2026-08-18 17:1x KST)
+- `deregistration_delay` 30초, draining 완료 후 타겟그룹에 was-1만 healthy
+- 해제 후에도 ALB 직접 호출 200 정상 (was-1이 받음)
+
+**4-2. was-2 중지 ✅** — `i-082ac4c4189166145` stopping
+
+**4-3. ⏳ ALB 트래픽 드레인 관찰 (대기 중)**
+
+> ⚠️ **정정**: 컷오버 직후에도 ALB로 실사용자 트래픽이 계속 들어왔다.
+> 최근 30분 `HTTPCode_Target_2XX_Count` 50건, 최근 15분 기준 bastion 52 / ALB 35로 갈렸다.
+> 원인은 클라이언트 DNS 캐시 — bastion 로그에 `okhttp`(안드로이드 앱)가 찍혔고,
+> JVM/안드로이드는 성공한 조회를 오래 캐시한다.
+> 그래서 was-2를 바로 중지하지 않고 **타겟 해제 → ALB는 was-1로 계속 서비스** 순서를 택했다.
+
+**판단 기준**: `HTTPCode_Target_2XX_Count`가 0으로 수렴하면 삭제 가능.
+`HTTPCode_ELB_4XX_Count`는 ALB IP를 직접 긁는 스캐너라 0이 되지 않을 수 있으니 기준으로 쓰지 않는다.
+
+확인 명령:
+```bash
+aws cloudwatch get-metric-statistics --namespace AWS/ApplicationELB \
+  --metric-name HTTPCode_Target_2XX_Count \
+  --dimensions Name=LoadBalancer,Value=app/alb-sweetgirl-prod/880088370e56cfc4 \
+  --start-time $(date -u -v-1H '+%Y-%m-%dT%H:%M:%SZ') --end-time $(date -u '+%Y-%m-%dT%H:%M:%SZ') \
+  --period 300 --statistics Sum --query 'sort_by(Datapoints,&Timestamp)[].[Timestamp,Sum]' --output text
+```
+
+**남은 단계 (2xx 수렴 후)**
+- ALB 삭제 → 타겟그룹 삭제 → ALB SG `sg-0a1b5098fa0b57e9e` 삭제
+- WAS SG에서 ALB SG 참조 인바운드 제거 (8080·8081)
+- ALB EIP 2개 회수 — `eipalloc-007c937c97b28ba10`, `eipalloc-043348e54d55be563`
+- was-2 종료 + EBS 스냅샷 여부 결정
+- 서울 ACM 인증서 삭제 여부 결정
+- GitHub Secrets `PROD_WAS_HOST_2` 삭제
 
 ### Phase 5 — 후속
 **5-1.** Prometheus 스크랩 타겟을 `10.7.27.165:8081`·`:8083` 두 개로 (한쪽 down 허용)
@@ -163,6 +191,8 @@ cd ~/app && docker compose -f docker-compose.yml down
 **5-5.** `server.forward-headers-strategy=framework` 추가 검토
 **5-6.** HSTS 주석 해제 (안정화 후)
 **5-7.** 인증서 갱신 실패 Slack 알림
+**5-8.** was-1 디스크 정리 — 6.7G 중 1.6G 여유(77% 사용). 이미지·로그 정리 필요
+**5-9.** ALB 액세스 로그가 꺼져 있어 트래픽 출처 추적이 불가했다. 필요 시 활성화 검토
 
 ## 위험 요소
 
