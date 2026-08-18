@@ -81,7 +81,7 @@ class CourseCommandServiceTest {
 		Member member = mockMember(memberId);
 		CourseCreateRequest request = mock(CourseCreateRequest.class);
 		lenient().when(request.getTitle()).thenReturn("나의 빵지순례");
-		lenient().when(request.isPublic()).thenReturn(false);
+		lenient().when(request.getIsPublic()).thenReturn(false);
 
 		given(memberRepository.findByIdAndDeletedAtIsNull(memberId)).willReturn(Optional.of(member));
 		Course savedCourse = mock(Course.class);
