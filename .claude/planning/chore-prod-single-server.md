@@ -155,32 +155,45 @@ ssh was "cd ~/app && docker compose -f docker-compose.yml down --remove-orphans 
 
 **4-2. was-2 중지 ✅** — `i-082ac4c4189166145` stopping
 
-**4-3. ⏳ ALB 트래픽 드레인 관찰 (대기 중)**
+**4-3. ALB 트래픽 드레인 ✅**
 
-> ⚠️ **정정**: 컷오버 직후에도 ALB로 실사용자 트래픽이 계속 들어왔다.
-> 최근 30분 `HTTPCode_Target_2XX_Count` 50건, 최근 15분 기준 bastion 52 / ALB 35로 갈렸다.
-> 원인은 클라이언트 DNS 캐시 — bastion 로그에 `okhttp`(안드로이드 앱)가 찍혔고,
-> JVM/안드로이드는 성공한 조회를 오래 캐시한다.
+> ⚠️ **정정**: 컷오버 직후에도 ALB로 실사용자 트래픽이 들어왔다. 최근 30분 `Target_2XX` 50건,
+> bastion 52 / ALB 35로 갈렸다. 원인은 클라이언트 keep-alive 연결과 DNS 캐시.
 > 그래서 was-2를 바로 중지하지 않고 **타겟 해제 → ALB는 was-1로 계속 서비스** 순서를 택했다.
+> 실제 드레인은 예상보다 빨라 컷오버 20분 뒤 `Target_2XX`가 0으로 수렴했다.
+> (잔존 `RequestCount`는 ALB IP를 직접 긁는 스캐너의 4xx였다.)
 
-**판단 기준**: `HTTPCode_Target_2XX_Count`가 0으로 수렴하면 삭제 가능.
-`HTTPCode_ELB_4XX_Count`는 ALB IP를 직접 긁는 스캐너라 0이 되지 않을 수 있으니 기준으로 쓰지 않는다.
+**삭제 전 점검 — 전부 통과**
 
-확인 명령:
-```bash
-aws cloudwatch get-metric-statistics --namespace AWS/ApplicationELB \
-  --metric-name HTTPCode_Target_2XX_Count \
-  --dimensions Name=LoadBalancer,Value=app/alb-sweetgirl-prod/880088370e56cfc4 \
-  --start-time $(date -u -v-1H '+%Y-%m-%dT%H:%M:%SZ') --end-time $(date -u '+%Y-%m-%dT%H:%M:%SZ') \
-  --period 300 --statistics Sum --query 'sort_by(Datapoints,&Timestamp)[].[Timestamp,Sum]' --output text
+| 항목 | 결과 |
+|---|---|
+| 실사용자 2xx | 0으로 수렴 |
+| WebSocket·SSE·멀티파트 | 없음 — nginx keepalive 설정이 깨뜨릴 것 없음 |
+| **Lambda 콜백 URL** | `https://bbang-ggut.cloud/callback/images/status` — 도메인 사용, ALB 주소 아님 |
+| 레포 내 ALB DNS 하드코딩 | 없음 |
+
+**4-4. ALB·타겟그룹 삭제 ✅** (사용자가 직접 수행)
+
+**4-5. ALB EIP 회수 ✅** — ALB 삭제와 함께 정리됨 (목록에서 사라짐)
+
+**4-6. WAS SG에서 ALB 참조 제거 ✅** — `sgr-05968fc2d193e20a5`(8081), `sgr-0a4fcf23d398a569a`(8080)
+> 순서 주의: SG를 참조하는 규칙을 **먼저** 지워야 SG가 삭제된다 (아니면 `DependencyViolation`).
+> bastion 경로는 별도 규칙(`10.7.9.128/32`)이라 영향 없음을 확인한 뒤 제거했다.
+
+**4-7. ALB 보안그룹 삭제 ✅** — `sg-0a1b5098fa0b57e9e`
+
+**최종 WAS SG 인바운드** (필요한 것만 남음)
+```
+  22   ← 10.7.9.128/32          bastion SSH
+  8080 ← 10.7.9.128/32          bastion nginx → blue
+  8082 ← 10.7.9.128/32          bastion nginx → green
+  8081 ← sg-063f83377c212084a   Prometheus → blue actuator
+  8083 ← sg-063f83377c212084a   Prometheus → green actuator
 ```
 
-**남은 단계 (2xx 수렴 후)**
-- ALB 삭제 → 타겟그룹 삭제 → ALB SG `sg-0a1b5098fa0b57e9e` 삭제
-- WAS SG에서 ALB SG 참조 인바운드 제거 (8080·8081)
-- ALB EIP 2개 회수 — `eipalloc-007c937c97b28ba10`, `eipalloc-043348e54d55be563`
-- was-2 종료 + EBS 스냅샷 여부 결정
-- 서울 ACM 인증서 삭제 여부 결정
+**남은 것**
+- was-2 종료 — 현재 `stopped`(EBS 요금만). 종료는 되돌릴 수 없으므로 스냅샷 여부 결정 후
+- 서울 ACM 인증서 삭제 여부 (ALB가 사라져 미사용 상태)
 - GitHub Secrets `PROD_WAS_HOST_2` 삭제
 
 ### Phase 5 — 후속
