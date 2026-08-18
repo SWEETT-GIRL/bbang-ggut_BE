@@ -140,7 +140,7 @@ aws route53 change-resource-record-sets --hosted-zone-id Z0439460BK9FWESJV0HD \
 8080을 잡은 채 남는다. 새 워크플로우는 `bbang-blue`/`bbang-green` 프로젝트만 알기 때문에
 이를 자기 것으로 인식하지 못하고, 그대로 두면 **2차 배포가 8080 충돌로 실패**한다.
 
-`구 색 정리` 스텝에 아래를 추가해 첫 배포가 자동으로 치우게 했다 (커밋 `1b23e6f`):
+`구 색 정리` 스텝에 아래를 추가해 첫 배포가 자동으로 치우게 했다 (커밋 `417ba648`):
 ```bash
 ssh was "cd ~/app && docker compose -f docker-compose.yml down --remove-orphans 2>/dev/null || true"
 ```
