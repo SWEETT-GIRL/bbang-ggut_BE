@@ -67,7 +67,7 @@ public class CourseCommandService {
 		Course course = Course.createCustom(
 			request.getTitle(),
 			member,
-			request.isPublic(),
+			Boolean.TRUE.equals(request.getIsPublic()),
 			request.getRegion(),
 			request.getStartDate(),
 			request.getEndDate());
