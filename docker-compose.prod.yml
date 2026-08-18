@@ -1,0 +1,61 @@
+# prod 전용 compose. staging은 계속 docker-compose.yml을 쓴다.
+#
+# 한 서버에서 blue/green 두 스택을 동시에 띄우기 위해 compose 프로젝트 이름으로 격리한다.
+#   docker compose -p bbang-blue  -f docker-compose.prod.yml up -d
+#   docker compose -p bbang-green -f docker-compose.prod.yml up -d
+#
+# container_name을 두지 않는 이유: 두 색이 같은 이름을 쓸 수 없기 때문이다.
+# 컨테이너 이름은 compose가 프로젝트명 기준으로 짓는다 (bbang-blue-app-1 형태).
+#
+# 포트는 색깔별로 .env에서 주입한다.
+#   blue  → APP_HOST_PORT=8080  MGMT_HOST_PORT=8081
+#   green → APP_HOST_PORT=8082  MGMT_HOST_PORT=8083
+#
+# 컨테이너 '내부' 포트는 색과 무관하게 8080(앱) / 8081(actuator) 고정이다.
+# 앱 안에서 도는 네이버 크롤러 서브프로세스가 localhost:8080으로 콜백하기 때문에
+# 내부 포트를 색깔별로 바꾸면 그 경로가 깨진다.
+services:
+  app:
+    image: ${DOCKER_USERNAME}/bbang-ggut-be:${IMAGE_TAG:-latest}
+    restart: always
+    # graceful shutdown(20s)이 끝나기 전에 SIGKILL이 날아가지 않도록 여유를 둔다.
+    stop_grace_period: 30s
+    labels:
+      com.bbang.color: ${COLOR}
+    environment:
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Seoul"
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILE}
+      # 컨테이너 내부 관리 포트 — 호스트 매핑만 색깔별로 다르다.
+      MANAGEMENT_PORT: 8081
+      DB_URL: ${DB_URL}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      KAKAO_CLIENT_ID: ${KAKAO_CLIENT_ID}
+      KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET}
+      JWT_SECRET: ${JWT_SECRET}
+      PROD_SERVER_IP: "https://bbang-ggut.cloud"
+      STAGING_SERVER_IP: "https://bbang-ggut.site"
+      KAKAO_API_KEY: ${KAKAO_API_KEY}
+      ENCRYPT_SECRET_KEY: ${ENCRYPT_SECRET_KEY}
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY}
+      NAVER_CLIENT_ID: ${NAVER_CLIENT_ID}
+      NAVER_CLIENT_SECRET: ${NAVER_CLIENT_SECRET}
+      SLACK_ERROR_WEBHOOK_URL: ${SLACK_ERROR_WEBHOOK_URL}
+      SLACK_REPORT_WEBHOOK_URL: ${SLACK_REPORT_WEBHOOK_URL}
+      SLACK_ABUSE_WEBHOOK_URL: ${SLACK_ABUSE_WEBHOOK_URL}
+      LAMBDA_CALLBACK_SECRET_KEY: ${LAMBDA_CALLBACK_SECRET_KEY}
+      AWS_REGION: ${AWS_REGION}
+      OPENSEARCH_REGION: ${OPENSEARCH_REGION:-ap-northeast-2}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      POSTHOG_API_KEY: ${PROD_POSTHOG_API_KEY}
+      OPENSEARCH_DEBUG_LOGGING: ${OPENSEARCH_DEBUG_LOGGING:-INFO}
+      PERF_DASHBOARD_ENABLED: ${PERF_DASHBOARD_ENABLED:-false}
+      PERF_DASHBOARD_ACCESS_KEY: ${PERF_DASHBOARD_ACCESS_KEY:-}
+
+    ports:
+      # 앞단 Nginx가 bastion(다른 호스트)에 있으므로 127.0.0.1 바인딩은 쓸 수 없다.
+      # 대신 WAS 보안그룹 인바운드를 bastion 보안그룹으로만 제한한다.
+      - "${APP_HOST_PORT}:8080"
+      # actuator 관리 포트 — 인증이 없으므로 인바운드를 Prometheus 인스턴스 SG로 제한한다.
+      - "${MGMT_HOST_PORT}:8081"
