@@ -10,7 +10,9 @@ public record BreadRecordPhotoResponse(
 		String resizedKey320,
 		String resizedKey640,
 		String resizedKey1024,
-		int sortOrder) {
+		int sortOrder,
+		Integer width,
+		Integer height) {
 
 	public static BreadRecordPhotoResponse from(BreadRecordPhoto photo) {
 		return new BreadRecordPhotoResponse(
@@ -21,6 +23,8 @@ public record BreadRecordPhotoResponse(
 			photo.getResizedKey320(),
 			photo.getResizedKey640(),
 			photo.getResizedKey1024(),
-			photo.getSortOrder());
+			photo.getSortOrder(),
+			photo.getWidth(),
+			photo.getHeight());
 	}
 }

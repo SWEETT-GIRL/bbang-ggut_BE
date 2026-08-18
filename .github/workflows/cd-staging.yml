@@ -148,6 +148,8 @@ jobs:
           proxy_username: ${{ secrets.STAGING_BASTION_USER }}
           proxy_key: ${{ secrets.STAGING_BASTION_KEY }}
           script: |
+            # pull/up 실패가 조용히 넘어가면(디스크 풀 등) 옛 컨테이너가 그대로 돌면서 워크플로만 초록이 된다.
+            set -e
             cd ~/app
 
             echo "DOCKER_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}" > .env
@@ -181,7 +183,9 @@ jobs:
             docker compose -f docker-compose.yml -f docker-compose.scouter.yml pull
             docker compose -f docker-compose.yml -f docker-compose.scouter.yml up -d
             # 직전 버전 이미지는 남긴다 — 롤백 시 IMAGE_TAG만 되돌리면 되도록.
-            docker image prune -f --filter "until=168h"
+            # -a: 태그가 붙어 있어도 안 쓰는 이미지는 지운다 — 배포마다 태그가 새로 붙어 dangling이 아니라
+            # 종전 prune으로는 하나도 안 지워졌고, 스테이징 디스크(6.7G)가 11개 이미지로 꽉 차 pull이 실패했다(2026-08-17).
+            docker image prune -af --filter "until=72h"
 
       - name: Get PR title
         id: pr_info

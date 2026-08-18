@@ -84,7 +84,7 @@ class BreadRecordControllerTest {
 	@Test
 	void getRecords_returns200() throws Exception {
 		BreadRecordResponse response = new BreadRecordResponse(
-			11L, 10L, "밀도 성수", "서울_성동구_성수동", null, null,
+			11L, 10L, "밀도 성수", "서울_성동구_성수동", null, null, List.of(),
 			LocalDateTime.of(2026, 8, 2, 14, 21), LocalDateTime.of(2026, 8, 4, 12, 0), null,
 			List.of(), List.of());
 		given(queryService.getRecords(isNull(), any(), any(), eq(10L), eq(0), eq(30)))

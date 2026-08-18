@@ -1,5 +1,6 @@
 package sweetgirl.croissant.course.entity;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
@@ -54,6 +55,16 @@ public class Course extends BaseTimeEntity {
 	@Column(name = "pin_order")
 	private Integer pinOrder;
 
+	/** 여행 계획 — 어느 지역(시·도)을 언제 가는지. 실제 방문(빵로그)과 대조하려고 만들 때 받는다. 구버전 앱은 null. */
+	@Column(length = 20)
+	private String region;
+
+	@Column(name = "start_date")
+	private LocalDate startDate;
+
+	@Column(name = "end_date")
+	private LocalDate endDate;
+
 	private LocalDateTime deletedAt;
 
 	@Builder(access = AccessLevel.PRIVATE)
@@ -63,24 +74,43 @@ public class Course extends BaseTimeEntity {
 			Member member,
 			boolean isPublic,
 			String badge,
-			Long sourceCourseId) {
+			Long sourceCourseId,
+			String region,
+			LocalDate startDate,
+			LocalDate endDate) {
 		this.type = type;
 		this.title = title;
 		this.member = member;
 		this.isPublic = isPublic;
 		this.badge = badge;
 		this.sourceCourseId = sourceCourseId;
+		this.region = region;
+		this.startDate = startDate;
+		this.endDate = endDate;
 	}
 
 	public static Course createCustom(
 			String title,
 			Member member,
 			boolean isPublic) {
+		return createCustom(title, member, isPublic, null, null, null);
+	}
+
+	public static Course createCustom(
+			String title,
+			Member member,
+			boolean isPublic,
+			String region,
+			LocalDate startDate,
+			LocalDate endDate) {
 		return Course.builder()
 			.type(CourseType.CUSTOM)
 			.title(title)
 			.member(member)
 			.isPublic(isPublic)
+			.region(region)
+			.startDate(startDate)
+			.endDate(endDate)
 			.build();
 	}
 
@@ -118,6 +148,15 @@ public class Course extends BaseTimeEntity {
 
 	public void updateBadge(String badge) {
 		this.badge = badge;
+	}
+
+	public void updateRegion(String region) {
+		this.region = region;
+	}
+
+	public void updateDates(LocalDate startDate, LocalDate endDate) {
+		this.startDate = startDate;
+		this.endDate = endDate;
 	}
 
 	public void softDelete() {

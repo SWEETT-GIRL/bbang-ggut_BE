@@ -1,5 +1,6 @@
 package sweetgirl.croissant.course.dto.response;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -24,6 +25,9 @@ public record CourseDetailResponse(
 		long savedCount,
 		long finisherCount,
 		LocalDateTime createdAt,
+		String region,
+		LocalDate startDate,
+		LocalDate endDate,
 		List<CourseStoreResponse> courseStores) {
 
 	public static CourseDetailResponse of(
@@ -54,6 +58,9 @@ public record CourseDetailResponse(
 			savedCount,
 			finisherCount,
 			course.getCreatedAt(),
+			course.getRegion(),
+			course.getStartDate(),
+			course.getEndDate(),
 			courseStores);
 	}
 }
