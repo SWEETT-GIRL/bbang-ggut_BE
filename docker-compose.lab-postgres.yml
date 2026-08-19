@@ -1,0 +1,30 @@
+# 로컬 랩용 PostgreSQL(18 + PostGIS 3.6 + pg_bigm).
+# 운영 RDS 덤프(scripts/lab/dump-prod.sh)를 scripts/lab/restore-lab.sh 로 복원해 검색 실험·측정에 쓴다.
+# 운영 터널(localhost:15432)과 겹치지 않도록 5432 포트를 쓴다.
+services:
+  postgres-lab:
+    build:
+      context: docker
+      dockerfile: postgres-lab.Dockerfile
+    container_name: postgres-lab
+    environment:
+      POSTGRES_USER: sweetgirl
+      POSTGRES_PASSWORD: soboro-lab
+      POSTGRES_DB: soboro
+    ports:
+      - "5432:5432"
+    # shared_buffers 는 운영 RDS(약 900MB)와 비슷하게 맞춰 캐시 조건을 유사하게 둔다.
+    command: postgres -c shared_buffers=1GB -c work_mem=8MB -c max_connections=100
+    volumes:
+      # postgres:18 계열 이미지는 PGDATA 가 /var/lib/postgresql/18/docker 로 바뀌었다 — 상위 디렉터리를 볼륨으로 잡는다.
+      - postgres-lab-data:/var/lib/postgresql
+      # 덤프 파일은 저장소 밖(~/bbanggut-lab/dumps)에 둔다 — 운영 데이터가 git에 들어가지 않게.
+      - ${LAB_DUMP_DIR:-~/bbanggut-lab/dumps}:/dump:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sweetgirl -d soboro"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  postgres-lab-data:
