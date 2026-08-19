@@ -9,6 +9,8 @@ public record SavedStoreResponse(
 		Long storeId,
 		String storeName,
 		String region,
+		/** 전체 주소 — 목록에서 "여기가 맞나?"를 가르는 줄. region(시·도 구)만으론 부족했다 */
+		String address,
 		double latitude,
 		double longitude,
 		String thumbnailImageKey) {
@@ -20,6 +22,7 @@ public record SavedStoreResponse(
 			store.getId(),
 			store.getName(),
 			regionOf(store),
+			store.getAddress(),
 			location.getY(),
 			location.getX(),
 			thumbnailImageKey);

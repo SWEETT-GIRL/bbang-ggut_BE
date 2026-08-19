@@ -221,6 +221,7 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 					s.name,
 					s.region_1st AS region1st,
 					s.region_2nd AS region2nd,
+					s.address,
 					COUNT(ss.id) AS subscribe_count,
 					ST_Distance(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS distance_meters
 				FROM store s
