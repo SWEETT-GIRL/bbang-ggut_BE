@@ -131,7 +131,7 @@ CREATE INDEX idx_search_region_alias_normalized_prefix ON search_region_alias (n
 
 ### 4.6 운영 전환 절차 (완전 제거본 기준)
 
-1. PR 머지·배포 — 배포 부팅 시 Flyway 가 `V20260818170000` 적용(랩 2.35초; `CREATE EXTENSION pg_bigm` 은 RDS 마스터 계정 권한 필요). **배포 즉시 검색이 PostgreSQL 로 간다** (OS 코드가 없으므로 단계적 전환 없음)
+1. PR 머지·배포 — 배포 부팅 시 Flyway 가 `V20260818170000` 적용(랩 2.35초; `CREATE EXTENSION pg_bigm` 은 RDS 마스터 계정 권한 필요). **배포 즉시 검색이 PostgreSQL 로 간다** (OS 코드가 없으므로 단계적 전환 없음). **롤백 = 이전 이미지 태그 재배포. 이전 이미지는 `opensearch.endpoint` 가 없으면 검색 빈이 빠져 검색만 빈 결과가 되므로(부팅은 됨), 관찰 기간(1~2주) 동안 GitHub secrets·`.env` 의 OpenSearch 값과 도메인은 지우지 않는다.**
 2. (선택) 운영에서 `POST /admin/search/popularity/refresh` 1회 — 백필은 마이그레이션이 하므로 필수 아님
 3. 1~2주 request_log p50/p95(기준선: 검색 125/392ms, 자동완성 28/166ms)·`search_misses`·`search.query{outcome}`·`[검색추적]` 로그 관찰. 회귀 시 롤백 = 이전 이미지 태그 재배포(마이그레이션은 추가 컬럼·인덱스뿐이라 되돌려도 무해)
 4. 이상 없으면 OpenSearch 도메인 삭제 → 월 $130~140 → 0. GitHub secrets `PROD_OPENSEARCH_ENDPOINT`/`STAGING_OPENSEARCH_ENDPOINT` 정리
@@ -143,3 +143,53 @@ CREATE INDEX idx_search_region_alias_normalized_prefix ON search_region_alias (n
 - Docker Desktop 4.87 (arm64). `docker-compose.local-opensearch.yml`(OS 3.5.0 + nori/icu, :9200, Dashboards :5601), `docker-compose.lab-postgres.yml`(PG 18.6 + PostGIS 3.6.1 + pg_bigm 1.2 + pg_trgm 1.6, :5432, `sweetgirl`/`soboro-lab`)
 - 운영 덤프 `~/bbanggut-lab/dumps/soboro-20260818-1622.dump`(80MB, request_log 제외) 복원 완료 — store 45,444 · menu 440,579 · alias 1,661 · region alias 10,228 · store_search_region 225,147
 - `stores` 인덱스는 `store-index.json`으로 생성됨(문서 0 → 재색인 예정)
+
+
+## 6. 코드 리뷰 결과 (2026-08-19, `/code-review`, 정적 분석)
+
+기준 `origin/dev...HEAD` 커밋 6개 / 97개 파일. **판정: 경고** — CRITICAL 0 · WARNING 6 · SUGGESTION 8. 반영 상태는 각 항목 앞 체크박스로 관리한다.
+
+확인해서 문제 없음: 사용자 입력은 전부 바인드 파라미터 + `SearchTextNormalizer`가 `%`·`_`·`\` 제거 → SQL/LIKE 인젝션 없음 · 검색 경로에 외부 API 호출 없음 · `Store` 엔티티에 `popularity_score` 미매핑이라 더티체킹이 배치 값을 덮어쓰지 않음 · `location` NOT NULL geography라 거리 NULL 없음 · 어드민 웹에 삭제된 reindex 엔드포인트 호출부 없음 · FE 타입 호환.
+
+### 6.1 WARNING (머지 전 반영 권장 — 특히 ①②③)
+
+- [x] **① 주소 폴백이 0페이지에서만 동작** — `StoreSearchEngine.java:53` `if (!result.hits().isEmpty() || pageable.getPageNumber() > 0) return result;` → **반영**: 페이지 가드 제거, 테스트 `searchStores_fallsBackToAddressOnLaterPagesToo`로 반전
+  1차(지역·이름) 후보가 0건이라 주소 폴백으로만 결과가 나오는 검색어("천안시 서북구")는 0페이지에서 `hasNext=true`를 주고도 1페이지에서 1차가 비어 있고 page>0 가드에 걸려 **빈 페이지**를 반환한다. 서비스의 붙어쓴 토큰 폴백도 같은 엔진을 타서 구제되지 않는다. `StoreSearchEngineTest.searchStores_doesNotFallBackOnLaterPages`가 이 동작을 고정 중.
+  → 가드 제거(`if (!result.hits().isEmpty()) return result;`). `hasNext`가 +1 페치로 정확하므로 클라이언트가 N페이지를 요청했다면 1차가 N페이지에 결과를 갖거나(그럼 폴백 안 탐) 처음부터 폴백 결과였거나 둘 중 하나라 결과셋이 섞이지 않는다. 테스트를 "2페이지에서도 1차가 비면 주소 폴백으로 이어진다"로 뒤집기.
+
+- [x] **② 후보 규칙 ≠ 판정 규칙(주소로 잡힌 지역 후보)** — `StoreSearchSqlBuilder.java:71-72, 129-138`, `StoreSearchEngine.java:128-140` → **반영**: `region_score = greatest(매핑 weight×40, 주소 매칭 20)`(`REGION_ADDRESS`), 빌더·랩 테스트로 `matchedByRegion()` 확인
+  후보는 지역 토큰을 `store_search_region` 매핑 ∪ `address_normalized LIKE`로 잡지만 `region_score`는 매핑(`rg.region_weight`)에서만 나온다. 주소로만 잡힌 가게는 `region_score=0` → `matchedByRegion()=false` → REGION_AND_NAME 검색에서 `covers()` false. 랩 케이스 "양산 트리마제"(정답 1건)가 `MISMATCH_LOOSE`로 집계돼 `search.query{outcome}`·`search_misses`·"입력한 말이 결과에 없음" 로그에 오탐으로 쌓이고 `matchedFields`에 REGION이 빠진다.
+  → 내부 SELECT에 `CASE WHEN s.address_normalized LIKE '%'||:region0||'%' [OR …] THEN 1 ELSE 0 END AS address_region_hit`을 뽑아 `region_score`에 낮은 계단(예: 20)으로 합치거나 `StoreSearchRow.matchedByRegion()`이 함께 보게 한다.
+
+- [x] **③ `alias_normalized varchar(100)` vs 원본 `alias VARCHAR(255)`** — `V20260818170000__…sql:20` → **반영**: 운영 미적용이라 마이그레이션 파일을 `varchar(255)`로 수정(랩 DB는 ALTER)
+  정규화 후 100자 초과 alias가 들어오면 생성 컬럼에서 `value too long`으로 INSERT/UPDATE 실패(앱에서 못 잡음).
+  → 운영 미적용이면 `varchar(255)`(또는 `text`)로 수정. 이미 적용된 환경은 새 마이그레이션 `ALTER TABLE store_name_alias ALTER COLUMN alias_normalized TYPE varchar(255)`.
+
+- [x] **④ 인기도 갱신 엔드포인트가 비인증 + 무거움 + 동시성 가드 없음** — `AdminStorePopularityController.java:23`, `SecurityConfig.java:86`(`/admin/**` permitAll, 기존 정책) → **부분 반영**: `pg_try_advisory_xact_lock`으로 동시 실행 1개 제한 + 409(`STORE409_5`), 배치·다중 인스턴스도 같은 락. **인증은 미반영** — `/admin/**` permitAll 은 기존 전역 정책이라 이 PR 범위 밖(별도 논의)
+  `POST /admin/search/popularity/refresh`가 인증 없이 45k행 전량 UPDATE(+`request_log` 400MB GROUP BY)를 동기 실행. 반복 호출 시 `store` 행 락 수 초·DB CPU 점유. 삭제된 `AdminSearchController`는 단일 스레드 executor로 동시 실행을 막았지만 새 것은 없음.
+  → 어드민 인증이 네트워크 계층에서 보장되지 않으면 인증/키 검사. 최소한 `pg_try_advisory_xact_lock`(또는 `AtomicBoolean`/`tryLock`)으로 동시 실행 1개 제한 + 실행 중 409. advisory lock을 SQL 앞에 두면 다중 인스턴스 `@Scheduled` 중복도 같이 해결.
+
+- [x] **⑤ `/stores/search` 입력 상한/범위 검증 없음(부하가 이제 운영 RDS 프라이머리에 직접 실림)** — `StoreController.java:92` → **반영**: `size` 50 클램프(`MAX_SEARCH_PAGE_SIZE`), `lat/lon` 범위·짝 검증 → 400(`IllegalArgumentException` 기존 핸들러), 테스트 3
+  비로그인 허용 엔드포인트에서 `size=100000`이면 "서울" 후보 1.5만 건 전부 정렬·반환 + `StoreSearchAssembler`가 1.5만 가게 메뉴·이미지 하이드레이션. `lat=1000`이면 `ST_MakePoint(...)::geography`가 "Coordinate values are out of range"로 500.
+  → `size` 상한(예: 50) 클램프, `lat∈[-90,90]`·`lon∈[-180,180]` 검증 → 400. 자동완성은 이미 `MAX_AUTOCOMPLETE_SIZE=20`.
+
+- [x] **⑥ 운영 덤프 도구가 개인정보 테이블을 마스킹 없이 로컬로 복제** — `scripts/lab/dump-prod.sh:33` → **반영**: 회원·인증·알림·신고·리뷰·기록 등 34개 테이블 데이터 기본 제외(스키마만), `FULL_DUMP=1`로만 전체, 보관·삭제 원칙 머리말에 명시
+  검색 실험에는 `store`·`store_name_alias`·`search_region*`·`menu`면 충분한데 `member`·알림 토큰·리뷰 등이 로컬 Docker(`soboro-lab`, 5432 노출)에 그대로 올라감.
+  → `pg_dump --table` 화이트리스트(또는 개인정보 테이블 `--exclude-table-data`)를 기본으로, 전체 덤프는 명시 플래그로만. 스크립트 머리말에 보관·삭제 규칙.
+
+### 6.2 SUGGESTION
+
+- [x] 접두 인덱스 3개(`idx_*_normalized_prefix`, 마이그레이션 :28-30)는 어떤 쿼리도 안 탄다 — 자동완성 WHERE도 `'%'||:q||'%'`(bigm)이고 `:q||'%'`는 CASE(tier)에만 있음. 자동완성 WHERE를 접두로 바꾸든지 인덱스를 빼든지 하나로. → **반영**: 마이그레이션에서 제거(자동완성은 bigm 인덱스로 0.14ms 확인)
+- [x] `StoreSearchJdbcRepository.java:12`가 `service.search.StoreSearchSqlBuilder.SqlQuery`를 import — 의존 역전. `SqlQuery`를 `store.repository.search`로 옮기거나 빌더를 repository 패키지로. → **반영**: `SearchSqlQuery`를 `store.repository.search`로 이동
+- [x] `SearchQueryCoverageTest` 삭제로 `isFullyClassified`의 "불용어만 잔여('성수동 빵집')" 분기 테스트가 사라졌고 새 `classifyIntent`(4분기) 테스트 없음 — `StoreSearchService.java:119, 173` package-private static이라 단위 테스트 4~5개면 됨. → **반영**: `classifyIntent` 4분기·`isFullyClassified` 3케이스 테스트 추가
+- [x] `StorePopularityRepository.java:19` — 값이 같아도 45k행 전부 UPDATE. `AND s.popularity_score IS DISTINCT FROM (계산식)`으로 실제 변경분만. → **반영**: `IS DISTINCT FROM`으로 변경분만 UPDATE
+- [x] 롤백 경로: 새 CD 워크플로우가 `.env`에 `opensearch.endpoint`를 안 쓰는데 이전 이미지 `OpenSearchConfig`는 `@ConditionalOnProperty("opensearch.endpoint")`라 그 값 없이는 **이전 이미지가 부팅 실패**. 관찰 기간(1~2주) 동안 시크릿·env 삭제를 미루고 롤백 시 복원 절차를 4.6에 추가. → **반영**: 4.6 에 "관찰 기간 동안 secrets/env·도메인 유지" 명시
+- [x] `docker/postgres-lab.Dockerfile:10` — `git clone --depth 1` master 빌드라 재현성 없음. RDS와 같은 1.2 태그 고정. → **반영**: `v1.2-20250903` 태그 고정
+- [x] `docs/search-engine-migration-notion.md:147,170` — `scripts/lab/SearchEngineAbRunner.java`는 미커밋, `docker-compose.local-opensearch.yml`은 이 브랜치에서 삭제됨. 러너를 커밋하거나 문서에서 빼고 리포트 재현 절차 맞추기. → **반영**: 러너·삭제된 compose 참조 제거, 완전 제거·롤백 절차로 갱신
+- [x] 미커밋 변경(`.gitignore`, `docs/s3-resized/`, `reprocess-done-prod-notdone.txt.bak` S3 키 26,809줄)은 이미지 리사이즈 작업 산출물 — 이 PR에 섞이지 않게 정리. `.gitignore`가 `.bak`은 안 막음. → **부분 반영**: `.gitignore`에 `reprocess-done-*.txt.bak` 추가. `docs/s3-resized/`·`.bak` 파일은 이 PR과 무관해 그대로 미추적
+
+### 6.3 배포 시 유의 (이슈 아님)
+
+- `CREATE EXTENSION pg_bigm`은 rds_superuser 권한 필요(4.6 기록됨).
+- `ALTER TABLE store ADD COLUMN … GENERATED STORED`는 테이블 재작성 → Flyway 동안 `store`에 ACCESS EXCLUSIVE 락(랩 2.35초). 롤링 배포 중 구 인스턴스 store 조회가 그만큼 대기.
+- 테스트 체크리스트: 새 Service·Controller·Scheduler·Engine·SqlBuilder 모두 테스트 파일 있음, 성공/실패 케이스 각각 존재. SQL 실행은 `@Tag("lab")` 통합 테스트로 분리(CI 제외) — 적절.

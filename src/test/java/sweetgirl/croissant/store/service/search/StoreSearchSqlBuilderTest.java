@@ -6,7 +6,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-import sweetgirl.croissant.store.service.search.StoreSearchSqlBuilder.SqlQuery;
+import sweetgirl.croissant.store.repository.search.SearchSqlQuery;
 
 class StoreSearchSqlBuilderTest {
 
@@ -28,7 +28,7 @@ class StoreSearchSqlBuilderTest {
 
 	@Test
 	void regionAndName_intersectsRegionCandidatesWithEachNameToken() {
-		SqlQuery query = builder.buildSearch(plan(List.of("망원"), List.of("브릭", "베이글"), "망원브릭베이글"),
+		SearchSqlQuery query = builder.buildSearch(plan(List.of("망원"), List.of("브릭", "베이글"), "망원브릭베이글"),
 			16, 0, null, null, SearchSort.RELEVANCE);
 
 		assertThat(query.sql()).contains("store_search_region", "search_region_alias");
@@ -45,11 +45,16 @@ class StoreSearchSqlBuilderTest {
 		assertThat(count(query.sql(), "s.name_normalized = :whole")).isEqualTo(1);
 		assertThat(query.sql()).contains("s.name_normalized = :name0", "s.name_normalized = :name1");
 		assertThat(query.sql()).contains("region_weight");
+		// 지역 점수 = 매핑 weight×40 과 주소 매칭 20 중 큰 것 — 후보 규칙(매핑 ∪ 주소)과 판정 규칙을 일치시킨다
+		assertThat(query.sql()).contains("greatest(COALESCE(rg.region_weight, 0) * :regionBase");
+		assertThat(query.sql())
+			.contains("CASE WHEN s.address_normalized LIKE '%' || :region0 || '%' THEN :regionAddress ELSE 0 END");
+		assertThat(query.params().getValue("regionAddress")).isEqualTo(StoreSearchSqlBuilder.REGION_ADDRESS);
 	}
 
 	@Test
 	void regionOnly_unionsRegionCandidatesWithWholeQueryNameMatch() {
-		SqlQuery query = builder.buildSearch(plan(List.of("성수동"), List.of(), "성수동"),
+		SearchSqlQuery query = builder.buildSearch(plan(List.of("성수동"), List.of(), "성수동"),
 			16, 0, null, null, SearchSort.RELEVANCE);
 
 		assertThat(query.sql()).contains("UNION (SELECT s.id FROM store s");
@@ -60,7 +65,7 @@ class StoreSearchSqlBuilderTest {
 
 	@Test
 	void nameOnly_intersectsEachTokenAcrossNameAndAlias() {
-		SqlQuery query = builder.buildSearch(plan(List.of(), List.of("우드", "브릭"), "우드앤브릭"),
+		SearchSqlQuery query = builder.buildSearch(plan(List.of(), List.of("우드", "브릭"), "우드앤브릭"),
 			16, 0, null, null, SearchSort.RELEVANCE);
 
 		assertThat(count(query.sql(), "INTERSECT")).isEqualTo(1);
@@ -72,7 +77,7 @@ class StoreSearchSqlBuilderTest {
 	@Test
 	void wholeQueryOnly_matchesNameOrAliasWithWholeQuery() {
 		// 모든 토큰이 1글자("빵")라 이름 토큰이 없을 때
-		SqlQuery query = builder.buildSearch(plan(List.of(), List.of(), "빵"),
+		SearchSqlQuery query = builder.buildSearch(plan(List.of(), List.of(), "빵"),
 			16, 0, null, null, SearchSort.RELEVANCE);
 
 		assertThat(query.sql()).contains("WITH cand AS (SELECT s.id FROM store s WHERE s.status = 'ACTIVE'"
@@ -83,7 +88,7 @@ class StoreSearchSqlBuilderTest {
 
 	@Test
 	void addressFallback_usesAddressOnlyAndFixedScore() {
-		SqlQuery query = builder.buildSearch(new StoreSearchPlan(List.of("천안시"), List.of("서북구"), "천안시서북구", true),
+		SearchSqlQuery query = builder.buildSearch(new StoreSearchPlan(List.of("천안시"), List.of("서북구"), "천안시서북구", true),
 			16, 0, null, null, SearchSort.RELEVANCE);
 
 		assertThat(query.sql()).contains("s.address_normalized LIKE '%' || :whole || '%'");
@@ -95,7 +100,7 @@ class StoreSearchSqlBuilderTest {
 
 	@Test
 	void coordinates_addDistanceAndClampedGaussDecay() {
-		SqlQuery query = builder.buildSearch(plan(List.of(), List.of("성심당"), "성심당"),
+		SearchSqlQuery query = builder.buildSearch(plan(List.of(), List.of("성심당"), "성심당"),
 			16, 0, 37.5, 127.0, SearchSort.RELEVANCE);
 
 		assertThat(query.sql())
@@ -110,7 +115,7 @@ class StoreSearchSqlBuilderTest {
 
 	@Test
 	void noCoordinates_nullDistanceAndNoDecay() {
-		SqlQuery query = builder.buildSearch(plan(List.of(), List.of("성심당"), "성심당"),
+		SearchSqlQuery query = builder.buildSearch(plan(List.of(), List.of("성심당"), "성심당"),
 			16, 0, null, null, SearchSort.DISTANCE);
 
 		assertThat(query.sql()).contains("CAST(NULL AS double precision) AS distance_m");
@@ -121,9 +126,9 @@ class StoreSearchSqlBuilderTest {
 
 	@Test
 	void sortVariants_orderByDistanceOrPopularityFirst() {
-		SqlQuery distance = builder.buildSearch(plan(List.of(), List.of("성심당"), "성심당"),
+		SearchSqlQuery distance = builder.buildSearch(plan(List.of(), List.of("성심당"), "성심당"),
 			16, 0, 37.5, 127.0, SearchSort.DISTANCE);
-		SqlQuery popularity = builder.buildSearch(plan(List.of(), List.of("성심당"), "성심당"),
+		SearchSqlQuery popularity = builder.buildSearch(plan(List.of(), List.of("성심당"), "성심당"),
 			16, 32, null, null, SearchSort.POPULARITY);
 
 		assertThat(distance.sql()).contains("ORDER BY t.distance_m ASC NULLS LAST, score DESC, t.id ASC");
@@ -134,7 +139,7 @@ class StoreSearchSqlBuilderTest {
 
 	@Test
 	void autocomplete_unionsStoreNameAliasAndRegionSources() {
-		SqlQuery query = builder.buildAutocomplete("성심", 24);
+		SearchSqlQuery query = builder.buildAutocomplete("성심", 24);
 
 		assertThat(query.sql()).contains("'STORE' AS type", "'REGION' AS type", "store_name_alias a",
 			"search_region_alias ra");

@@ -1,6 +1,7 @@
 package sweetgirl.croissant.store.service.search;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -432,5 +433,76 @@ class StoreSearchServiceTest {
 		verify(searchEngine, never()).autocompleteStores(any(), anyInt());
 		// 빈 입력은 검색 시도가 아니므로 집계하지 않는다 (시계열은 사전 등록되어 있으므로 0)
 		assertThat(outcomeCount("autocomplete", SearchOutcome.EMPTY)).isZero();
+	}
+
+	// ---- 입력 검증 (부하가 운영 RDB 에 직접 실리므로 비로그인 엔드포인트의 상한·범위를 서비스에서 막는다)
+
+	@Test
+	void searchStores_clampsPageSizeToMax() {
+		SearchIntent intent = new SearchIntent("성심당", "성심당", List.of("성심당"), List.of(), List.of(), List.of("성심당"));
+		given(storeSearchQueryParser.parse("성심당")).willReturn(intent);
+		given(searchEngine.searchStores(eq(intent), any(), isNull(), isNull(), eq(SearchSort.RELEVANCE)))
+			.willReturn(new StoreSearchResult(List.of(hit()), false, true));
+		given(storeSearchAssembler.assemble(any())).willReturn(List.of());
+
+		service.searchStores("성심당", null, null, SearchSort.RELEVANCE, PageRequest.of(0, 100_000));
+
+		ArgumentCaptor<org.springframework.data.domain.Pageable> captor = ArgumentCaptor
+			.forClass(org.springframework.data.domain.Pageable.class);
+		verify(searchEngine).searchStores(eq(intent), captor.capture(), isNull(), isNull(), eq(SearchSort.RELEVANCE));
+		assertThat(captor.getValue().getPageSize()).isEqualTo(StoreSearchService.MAX_SEARCH_PAGE_SIZE);
+		assertThat(captor.getValue().getPageNumber()).isZero();
+	}
+
+	@Test
+	void searchStores_rejectsOutOfRangeCoordinates() {
+		// PostGIS 가 "Coordinate values are out of range" 로 500 을 내기 전에 400 으로 거른다
+		assertThatThrownBy(
+			() -> service.searchStores("성심당", 1000.0, 127.0, SearchSort.RELEVANCE, PageRequest.of(0, 15)))
+			.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> service.searchStores("성심당", 37.5, 181.0, SearchSort.RELEVANCE, PageRequest.of(0, 15)))
+			.isInstanceOf(IllegalArgumentException.class);
+		verify(searchEngine, never()).searchStores(any(), any(), any(), any(), any());
+	}
+
+	@Test
+	void searchStores_rejectsHalfCoordinates() {
+		assertThatThrownBy(() -> service.searchStores("성심당", 37.5, null, SearchSort.RELEVANCE, PageRequest.of(0, 15)))
+			.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	// ---- 검색어 유형 분류·판정 신뢰도
+
+	@Test
+	void classifyIntent_splitsByRegionAndNameTokens() {
+		assertThat(StoreSearchService.classifyIntent(
+			new SearchIntent("망원 브릭", "망원 브릭", List.of("망원", "브릭"), List.of("망원"), List.of(), List.of("브릭"))))
+			.isEqualTo("REGION_AND_NAME");
+		assertThat(StoreSearchService.classifyIntent(
+			new SearchIntent("성수동", "성수동", List.of("성수동"), List.of("성수동"), List.of(), List.of())))
+			.isEqualTo("REGION_ONLY");
+		assertThat(StoreSearchService.classifyIntent(
+			new SearchIntent("소금빵", "소금빵", List.of("소금빵"), List.of(), List.of("소금빵"), List.of())))
+			.isEqualTo("NAME_ONLY");
+		assertThat(StoreSearchService.classifyIntent(
+			new SearchIntent("빵", "빵", List.of("빵"), List.of(), List.of(), List.of())))
+			.isEqualTo("UNCLASSIFIED");
+	}
+
+	@Test
+	void isFullyClassified_ignoresStopWordOnlyRemainingTokens() {
+		// "성수동 빵집": 잔여 "빵집"은 불용어라 cleanQuery 에서 빠졌다 → 사전에 없는 말이 아니므로 완전 분류
+		assertThat(StoreSearchService.isFullyClassified(
+			new SearchIntent("성수동 빵집", "성수동", List.of("성수동", "빵집"), List.of("성수동"), List.of(), List.of("빵집"))))
+			.isTrue();
+		// "성수동 맘모스": 잔여 "맘모스"가 cleanQuery 에 살아 있다 → 사전 밖 말이 섞임
+		assertThat(StoreSearchService.isFullyClassified(
+			new SearchIntent("성수동 맘모스", "성수동 맘모스", List.of("성수동", "맘모스"), List.of("성수동"), List.of(),
+				List.of("맘모스"))))
+			.isFalse();
+		// 지역도 빵도 없으면 분류 자체가 안 된 것
+		assertThat(StoreSearchService.isFullyClassified(
+			new SearchIntent("빵", "빵", List.of("빵"), List.of(), List.of(), List.of())))
+			.isFalse();
 	}
 }

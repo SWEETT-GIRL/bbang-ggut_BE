@@ -9,7 +9,6 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import lombok.RequiredArgsConstructor;
-import sweetgirl.croissant.store.service.search.StoreSearchSqlBuilder.SqlQuery;
 
 /**
  * PostgreSQL 검색 SQL 실행. SQL 은 조건에 따라 모양이 바뀌므로 JPA 파생 쿼리 대신 NamedParameterJdbcTemplate 로 실행한다.
@@ -39,11 +38,11 @@ public class StoreSearchJdbcRepository {
 
 	private final NamedParameterJdbcTemplate jdbcTemplate;
 
-	public List<StoreSearchRow> search(SqlQuery query) {
+	public List<StoreSearchRow> search(SearchSqlQuery query) {
 		return jdbcTemplate.query(query.sql(), query.params(), SEARCH_ROW_MAPPER);
 	}
 
-	public List<StoreAutocompleteRow> autocomplete(SqlQuery query) {
+	public List<StoreAutocompleteRow> autocomplete(SearchSqlQuery query) {
 		return jdbcTemplate.query(query.sql(), query.params(), AUTOCOMPLETE_ROW_MAPPER);
 	}
 

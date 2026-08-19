@@ -6,6 +6,8 @@ import java.util.List;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Component;
 
+import sweetgirl.croissant.store.repository.search.SearchSqlQuery;
+
 /**
  * {@link StoreSearchPlan} → 검색/자동완성 SQL. 사용자 입력은 전부 바인드 파라미터로만 들어간다.
  *
@@ -29,6 +31,8 @@ public class StoreSearchSqlBuilder {
 	static final int ALIAS_PREFIX = 60;
 	static final int ALIAS_CONTAINS = 45;
 	static final int REGION_BASE = 40;
+	// 지역 토큰이 사전 매핑엔 없고 주소에만 있는 가게("양산 트리마제"의 양산시 가게)의 지역 점수 — 매핑(weight×40)보다 낮은 계단
+	static final int REGION_ADDRESS = 20;
 	public static final int ADDRESS_FALLBACK = 20;
 	// 인기도 보정 계수 — log1p 로 조회수 폭주 가게의 과도한 보정을 막는다
 	static final double POPULARITY_FACTOR = 0.3;
@@ -38,10 +42,7 @@ public class StoreSearchSqlBuilder {
 	// exp(-x) 의 x 상한. double 은 exp(-745) 아래에서 0 이 되는데 PostgreSQL 은 이를 underflow 오류로 취급하므로 여유 있게 자른다.
 	static final double GAUSS_MAX_EXPONENT = 700.0;
 
-	public record SqlQuery(String sql, MapSqlParameterSource params) {
-	}
-
-	public SqlQuery buildSearch(StoreSearchPlan plan, int limit, int offset,
+	public SearchSqlQuery buildSearch(StoreSearchPlan plan, int limit, int offset,
 			Double latitude, Double longitude, SearchSort sort) {
 		MapSqlParameterSource params = new MapSqlParameterSource();
 		boolean hasCoordinates = latitude != null && longitude != null;
@@ -68,8 +69,7 @@ public class StoreSearchSqlBuilder {
 		sql.append("  SELECT s.id, s.popularity_score,\n");
 		sql.append("         ").append(nameScoreExpr(plan, params)).append(" AS name_score,\n");
 		sql.append("         ").append(aliasScoreExpr(plan, params)).append(" AS alias_score,\n");
-		sql.append("         ").append(plan.hasRegionTokens() && !plan.addressFallback()
-			? "COALESCE(rg.region_weight, 0) * :regionBase" : "0").append(" AS region_score,\n");
+		sql.append("         ").append(regionScoreExpr(plan, params)).append(" AS region_score,\n");
 		sql.append("         ").append(plan.addressFallback() ? ":addressFallback" : "0")
 			.append(" AS address_score,\n");
 		if (hasCoordinates) {
@@ -90,7 +90,6 @@ public class StoreSearchSqlBuilder {
 			sql.append("             JOIN search_region_alias ra ON ra.region_id = ssr.region_id\n");
 			sql.append("             WHERE ra.normalized_alias IN (:regionTokens)\n");
 			sql.append("             GROUP BY ssr.store_id) rg ON rg.store_id = s.id\n");
-			params.addValue("regionBase", REGION_BASE);
 		}
 		if (plan.addressFallback()) {
 			params.addValue("addressFallback", ADDRESS_FALLBACK);
@@ -102,7 +101,7 @@ public class StoreSearchSqlBuilder {
 		params.addValue("popularityFactor", POPULARITY_FACTOR);
 		params.addValue("limit", limit);
 		params.addValue("offset", offset);
-		return new SqlQuery(sql.toString(), params);
+		return new SearchSqlQuery(sql.toString(), params);
 	}
 
 	// 후보 집합. 지역·이름 토큰·전체 검색어를 인덱스 친화적인 단순 SELECT 로 만들고 집합 연산으로 합친다.
@@ -160,6 +159,22 @@ public class StoreSearchSqlBuilder {
 			+ " || '%'\n"
 			+ "   UNION SELECT a.store_id AS id FROM store_name_alias a WHERE a.alias_normalized LIKE '%' || :"
 			+ paramKey + " || '%'";
+	}
+
+	// 지역 점수 = 매핑 weight × 40 과 "주소에 지역 토큰이 있음" 20 중 큰 것. 후보를 지역 매핑 ∪ 주소로 뽑았으니 판정도 같은 규칙이어야
+	// 주소로만 잡힌 가게가 REGION 매칭·커버리지에서 빠지지 않는다.
+	private String regionScoreExpr(StoreSearchPlan plan, MapSqlParameterSource params) {
+		if (!plan.hasRegionTokens() || plan.addressFallback()) {
+			return "0";
+		}
+		params.addValue("regionBase", REGION_BASE);
+		params.addValue("regionAddress", REGION_ADDRESS);
+		List<String> addressHits = new ArrayList<>();
+		for (int i = 0; i < plan.regionTokens().size(); i++) {
+			addressHits.add("s.address_normalized LIKE '%' || :region" + i + " || '%'");
+		}
+		return "greatest(COALESCE(rg.region_weight, 0) * :regionBase,\n"
+			+ "                  CASE WHEN " + String.join(" OR ", addressHits) + " THEN :regionAddress ELSE 0 END)";
 	}
 
 	// 이름 점수 = 검색어 전체와 각 이름 토큰 중 가장 높은 계단. "망원 브릭"은 전체("망원브릭")로는 0이지만 토큰 "브릭"이
@@ -229,7 +244,7 @@ public class StoreSearchSqlBuilder {
 	/**
 	 * 자동완성 후보. 가게명·구명·지역 alias 각각에서 "포함" 매칭을 접두 우선·인기도순으로 최대 limit 개씩 뽑는다.
 	 */
-	public SqlQuery buildAutocomplete(String normalizedQuery, int limitPerSource) {
+	public SearchSqlQuery buildAutocomplete(String normalizedQuery, int limitPerSource) {
 		MapSqlParameterSource params = new MapSqlParameterSource()
 			.addValue("q", normalizedQuery)
 			.addValue("limit", limitPerSource);
@@ -252,6 +267,6 @@ public class StoreSearchSqlBuilder {
 				WHERE r.is_active = TRUE AND ra.normalized_alias LIKE '%' || :q || '%'
 				ORDER BY tier, ra.is_primary DESC, r.display_order, ra.id LIMIT :limit)
 				""";
-		return new SqlQuery(sql, params);
+		return new SearchSqlQuery(sql, params);
 	}
 }

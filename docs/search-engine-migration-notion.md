@@ -1,14 +1,14 @@
 # 검색 엔진 전환: OpenSearch → PostgreSQL(pg_bigm)
 
-> 작성 2026-08-18 · 브랜치 `feat/search-postgres-bigm` · 상태: **구현·랩 실측 완료, 운영 전환 대기**
+> 작성 2026-08-18(갱신 08-19) · 브랜치 `feat/search-postgres-bigm` (PR #617 → dev) · 상태: **OpenSearch 완전 제거본, 리뷰 반영 완료**
 > 상세 아티클(차트 포함): [OpenSearch에서 pg_bigm으로](https://claude.ai/code/artifact/bb52d7ca-0cb4-4111-930a-75d4676a05f1) · 플래닝 `.claude/planning/feat-search-postgres-bigm.md`
 
 ## TL;DR
 
 - 가게 검색을 **AWS OpenSearch(t3.medium.search × 2, 월 $130~140) → PostgreSQL pg_bigm(추가 비용 0)** 으로 옮겼다. 검색 범위는 **가게명·구명·지역·주소**로 좁혔다(메뉴·카테고리 검색 제외 — 제품 결정).
 - 랩 A/B(같은 JVM, 20라운드, 실검색어 40개): **엔진 순수 시간 4.4 → 2.2ms**, 검색 e2e p50 **32.6 → 29.9ms**, 자동완성 e2e p50 **5.3 → 2.5ms**, 상위10 결과 겹침 **81%**.
-- API 계약은 그대로. `search.engine` 프로퍼티 하나로 두 엔진을 전환/롤백할 수 있고, 지금 기본값은 `opensearch`(배포 후 `postgres`로 전환 예정).
-- OpenSearch 노드는 운영 전환 후 1~2주 관찰 뒤 별도 PR에서 코드·도메인 제거.
+- API 계약은 그대로. **PR은 OpenSearch 코드를 완전히 제거한 상태**라 배포 즉시 검색이 PostgreSQL로 간다(롤백 = 이전 이미지 재배포). 두 엔진 병존 A/B 스냅샷은 로컬 브랜치 `lab/search-engine-ab`에만 남김.
+- OpenSearch 도메인은 배포 후 1~2주 관찰 뒤 삭제.
 
 ---
 
@@ -31,7 +31,7 @@
 | ① | 속도가 결정 축인가? | 운영 DB에서 인덱스 없이 `ILIKE` 풀스캔 = 가게 43ms, 메뉴 105ms | 아니다. 축은 기능 동등성·재작성 비용·운영 부담·비용 |
 | ② | tsvector로 되나? | 운영 가게명 45,339건 실측 (아래 표) | 안 된다 — 한국어는 n-gram 부분일치가 필요 |
 | ③ | pg_bigm vs pg_trgm? | 랩 PG 인덱스 변형 벤치 (아래 표) | **pg_bigm** (2글자 검색어에서 50배 차이) |
-| ④ | 어떻게 되돌리나? | — | 엔진 포트 + `search.engine` 프로퍼티 + 랩 한정 `engine=` 파라미터 |
+| ④ | 어떻게 되돌리나? | — | 측정 기간엔 엔진 포트 + `search.engine` 프로퍼티 + 랩 한정 `engine=` 파라미터로 병존. **수치 확보 후 OS 완전 제거**(롤백 = 이전 이미지) |
 | ⑤ | 실측을 어떻게 공정하게? | — | 둘 다 로컬 Docker(운영 덤프 복제본), 같은 JVM에서 A/B |
 
 ### ② tsvector 실측 — 우리 가게명에서 어떻게 깨지나
@@ -66,7 +66,7 @@
 
 | 항목 | 전 | 후 |
 |---|---|---|
-| `GET /stores/search` 파라미터/응답 | 그대로 | 그대로 (+ `engine=` 파라미터, **운영에선 무시**, 랩 A/B 전용) |
+| `GET /stores/search` 파라미터/응답 | 그대로 | 그대로. `size` 상한 50 클램프, `lat/lon` 범위 밖이면 400 |
 | 검색 대상 | 가게명·구명·지역·빵종류·메뉴명·메뉴카테고리 | **가게명·구명·지역·주소(폴백)** |
 | `matchedFields` | STORE_NAME · REGION · BREAD_TYPE · MENU | STORE_NAME · REGION 만 |
 | 자동완성 타입 | STORE · MENU · BREAD_TYPE · REGION | **STORE · REGION만 결과 생성.** 열거형은 유지 → FE가 `types=MENU`를 보내도 400 아님(빈 결과) |
@@ -142,9 +142,9 @@ sort  : relevance=점수 · distance=거리→점수 · popularity=인기도→�
 | DTO 이동 | `OpenSearchStoreHit`→`StoreSearchHit`, `OpenSearchStoreSearchResult`→`StoreSearchResult`, `OpenSearchAutocompleteSuggestion`→`StoreAutocompleteSuggestion` |
 | 인기도 | `StorePopularityRepository`(집계 UPDATE) · `StorePopularityCommandService` · `store/batch/StorePopularityScoreScheduler` · `admin/controller/AdminStorePopularityController` |
 | 마이그레이션 | `V20260818170000__add_store_search_normalized_columns_and_bigm_indexes.sql` — `pg_bigm` 확장, 생성 컬럼(`name_normalized`·`address_normalized`·`alias_normalized`), `popularity_score`, 인덱스 7개, 백필 (랩 적용 2.35초) |
-| 설정 | `application.properties`: `search.engine=opensearch`, `search.engine-override-enabled=false` · `application-lab.properties`(랩) |
+| 설정 | `application-lab.properties`(랩 프로파일 — 랩 DB·타이머 백분위) |
 | 테스트 | 단위 35 (라우터 6·컨트롤러 3·빌더 9·엔진 11·인기도 6) + 랩 통합 8 (`./gradlew test -PlabTests`, CI 제외) |
-| 랩/측정 | `docker/`, `docker-compose.lab-postgres.yml`, `docker-compose.local-opensearch.yml`, `scripts/lab/{dump-prod,restore-lab}.sh`, `scripts/lab/SearchEngineAbRunner.java` |
+| 랩/회귀 | `docker/postgres-lab.Dockerfile`, `docker-compose.lab-postgres.yml`, `scripts/lab/{dump-prod,restore-lab}.sh`, `scripts/lab/search-eval-queries.csv`(회귀 검색어 셋), `scripts/lab/search-eval-request-log.sql` |
 
 `./gradlew spotlessApply && ./gradlew build` 통과. `./gradlew test` 801건 중 실패 10건은 **main에서도 동일하게 실패하는 기존 건**(Course/KakaoAuth/Trend/ReviewRepository, 이 브랜치와 무관, CI는 `-x test`).
 
@@ -152,8 +152,8 @@ sort  : relevance=점수 · distance=거리→점수 · popularity=인기도→�
 
 ```bash
 # 1) 컨테이너 (Docker Desktop 필요)
-docker compose -f docker-compose.local-opensearch.yml up -d --build   # :9200, Dashboards :5601
 docker compose -f docker-compose.lab-postgres.yml up -d --build       # :5432 soboro / sweetgirl / soboro-lab
+# (OpenSearch 쪽 compose·A/B 러너는 이 브랜치에서 제거됨 — 두 엔진 병존 스냅샷은 로컬 브랜치 lab/search-engine-ab 에만 있음)
 
 # 2) 운영 덤프 → 랩 PG (운영 터널 localhost:15432 필요, request_log 제외, 80MB)
 scripts/lab/dump-prod.sh          # ~/bbanggut-lab/dumps/
@@ -161,24 +161,22 @@ scripts/lab/restore-lab.sh        # 복원 + pg_bigm/pg_trgm 확장
 
 # 3) 앱 — 반드시 local,lab (local 단독은 운영 RDS 터널을 바라봄!)
 ./gradlew bootRun --args='--spring.profiles.active=local,lab --management.server.port=8082'
-curl -XPUT localhost:9200/stores -H 'Content-Type: application/json' --data-binary @src/main/resources/opensearch/store-index.json
-curl -XPOST localhost:8080/admin/search/reindex/stores      # 45k건 ≈ 2분 (랩은 지연 50ms)
 
-# 4) 비교
-curl 'localhost:8080/stores/search?query=성심당&engine=postgres'
-curl 'localhost:8080/stores/search?query=성심당&engine=opensearch'
-java scripts/lab/SearchEngineAbRunner.java 20               # → docs/reports/search-engine-ab-*.md
+# 4) 확인
+curl 'localhost:8080/stores/search?query=성심당'                      # 서버 로그 [검색추적] type= hits= top= 확인
+docker exec -i postgres-lab psql -U sweetgirl -d soboro < scripts/lab/search-eval-request-log.sql   # 유형별 p50/p95
+# 회귀 검색어 셋: scripts/lab/search-eval-queries.csv (지역/가게명/혼합/폴백/자동완성, expected 가게 포함)
+# A/B 리포트(docs/reports/search-engine-ab-*.md, search-eval-*.md)는 전환 시점의 두 엔진 병존 브랜치에서 측정한 기록
 ```
 
 ## 7. 운영 전환 절차
 
 | 단계 | 내용 | 롤백 |
 |---|---|---|
-| 1 | PR 머지·배포. 기본 엔진 `opensearch` 그대로. 부팅 시 Flyway가 마이그레이션 적용(랩 2.35초). `CREATE EXTENSION pg_bigm`은 RDS 마스터 계정 권한(postgis 만든 계정) | — |
-| 2 | (선택) `POST /admin/search/popularity/refresh` 1회 | — |
-| 3 | `search.engine=postgres`로 프로퍼티 변경 후 재배포 | 프로퍼티를 `opensearch`로 되돌려 재배포 |
-| 4 | 1~2주 관찰: `request_log` p50/p95(기준선 검색 125/392, 자동완성 28/166ms) · `search_misses` · `search.query{outcome}` · `search.engine.query` 타이머 | 위와 동일 |
-| 5 | OpenSearch 제거 PR (`external/opensearch` 패키지·색인 이벤트·재색인 배치·주간 점수 배치·의존성) → 도메인 삭제 → **월 $130~140 → 0** | 이 단계 전까지는 언제든 되돌림 가능 |
+| 1 | PR #617 머지·배포. 부팅 시 Flyway가 마이그레이션 적용(랩 2.35초). `CREATE EXTENSION pg_bigm`은 RDS 마스터 계정 권한(postgis 만든 계정) — 앱 계정에 권한이 없으면 배포 전에 마스터로 한 번 실행해 두면 됨(`IF NOT EXISTS`). **배포 즉시 검색이 PostgreSQL로 감** | 이전 이미지 태그 재배포 (추가 컬럼·인덱스만 남고 무해). 단 이전 이미지는 `opensearch.endpoint`가 있어야 부팅하므로 관찰 기간 동안 secrets/env는 지우지 않는다 |
+| 2 | (선택) `POST /admin/search/popularity/refresh` 1회 — 백필은 마이그레이션이 함. 동시 실행은 409 | — |
+| 3 | 1~2주 관찰: `request_log` p50/p95(기준선 검색 125/392, 자동완성 28/166ms) · `search_misses` · `search.query{outcome}` · `[검색추적]` 로그 · `search.engine.query` 타이머 | 위와 동일 |
+| 4 | 이상 없으면 OpenSearch 도메인 삭제 → **월 $130~140 → 0**, GitHub secrets `PROD/STAGING_OPENSEARCH_ENDPOINT` 정리 | 이 단계 후엔 되돌림 불가(재색인 필요) |
 
 ## 8. 남은 리스크 · 후속 후보
 
@@ -191,7 +189,7 @@ java scripts/lab/SearchEngineAbRunner.java 20               # → docs/reports/s
 
 ## 9. FE에 알릴 것
 
-- 검색·자동완성 URL/응답 형식 변화 없음. `engine=` 파라미터는 로컬 랩 전용(운영은 무시).
+- 검색·자동완성 URL/응답 형식 변화 없음. 검색 `size`는 50 상한, `lat/lon` 범위 밖은 400.
 - 자동완성에서 `MENU`·`BREAD_TYPE` 타입 후보가 더 이상 오지 않는다(열거형은 유지). 메뉴명 검색이 0건이 되는 UX 문구/안내가 있으면 검토.
 - `matchedFields`에 `BREAD_TYPE`·`MENU`는 오지 않는다.
 

@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +40,9 @@ public class StoreSearchService {
 	private static final String TYPE_SEARCH = "search";
 	private static final String TYPE_AUTOCOMPLETE = "autocomplete";
 	private static final int SEARCH_TRACE_TOP_HITS = 10;
+	// 검색 부하는 이제 운영 RDB 에 직접 실린다. 비로그인 엔드포인트라 size 는 상한으로 자르고(자동완성 20 과 같은 취지),
+	// 좌표는 범위 밖이면 PostGIS 가 500 을 내므로 400 으로 먼저 거른다.
+	static final int MAX_SEARCH_PAGE_SIZE = 50;
 
 	private final StoreSearchQueryParser storeSearchQueryParser;
 	private final StoreSearchEngine storeSearchEngine;
@@ -62,7 +66,9 @@ public class StoreSearchService {
 	}
 
 	public SliceResponse<StoreSearchResponse> searchStores(String keyword, Double latitude, Double longitude,
-			SearchSort sort, Pageable pageable) {
+			SearchSort sort, Pageable requestedPageable) {
+		validateCoordinates(latitude, longitude);
+		Pageable pageable = clampPageSize(requestedPageable);
 		// 1차: 가게명 우선 — "브릭베이글"·"소금도화"처럼 붙여쓴 토큰은 통째로 가게명 검색
 		SearchIntent intent = storeSearchQueryParser.parse(keyword);
 		StoreSearchResult result = storeSearchEngine.searchStores(intent, pageable, latitude, longitude, sort);
@@ -135,6 +141,26 @@ public class StoreSearchService {
 		List<String> tokens = new java.util.ArrayList<>(intent.breadTokens());
 		tokens.addAll(intent.remainingTokens());
 		return tokens;
+	}
+
+	// 위도·경도는 둘 다 있거나 둘 다 없어야 하고, 있으면 WGS84 범위 안이어야 한다. 아니면 400.
+	static void validateCoordinates(Double latitude, Double longitude) {
+		if (latitude == null && longitude == null) {
+			return;
+		}
+		if (latitude == null || longitude == null) {
+			throw new IllegalArgumentException("lat 과 lon 은 함께 주어야 합니다");
+		}
+		if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+			throw new IllegalArgumentException("lat 은 -90~90, lon 은 -180~180 이어야 합니다");
+		}
+	}
+
+	static Pageable clampPageSize(Pageable pageable) {
+		if (pageable.getPageSize() <= MAX_SEARCH_PAGE_SIZE) {
+			return pageable;
+		}
+		return PageRequest.of(pageable.getPageNumber(), MAX_SEARCH_PAGE_SIZE, pageable.getSort());
 	}
 
 	/**

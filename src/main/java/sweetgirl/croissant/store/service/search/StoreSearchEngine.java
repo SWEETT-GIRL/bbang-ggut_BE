@@ -15,10 +15,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
 import sweetgirl.croissant.store.enums.MatchedField;
+import sweetgirl.croissant.store.repository.search.SearchSqlQuery;
 import sweetgirl.croissant.store.repository.search.StoreAutocompleteRow;
 import sweetgirl.croissant.store.repository.search.StoreSearchJdbcRepository;
 import sweetgirl.croissant.store.repository.search.StoreSearchRow;
-import sweetgirl.croissant.store.service.search.StoreSearchSqlBuilder.SqlQuery;
 
 /**
  * 가게 검색 엔진 — PostgreSQL(pg_bigm) 부분일치 + PostGIS 거리. 가게명·구명·지역·주소만 본다(메뉴·카테고리 검색 없음).
@@ -50,10 +50,13 @@ public class StoreSearchEngine {
 			return StoreSearchResult.empty();
 		}
 		StoreSearchResult result = execute(plan, pageable, latitude, longitude, sort);
-		if (!result.hits().isEmpty() || pageable.getPageNumber() > 0) {
+		if (!result.hits().isEmpty()) {
 			return result;
 		}
-		// 폴백: 사전에 없는 지역어("천안시 서북구")는 주소에만 남아 있다. 1차 0건일 때만 주소 부분일치로 한 번 더.
+		// 폴백: 사전에 없는 지역어("천안시 서북구")는 주소에만 남아 있다. 1차 0건일 때 주소 부분일치로 한 번 더.
+		// 페이지 번호로 가드하지 않는다 — 1차가 0건인 검색어는 모든 페이지가 폴백 결과셋이어야 2페이지 이후가 비지 않는다.
+		// hasNext 는 size+1 조회로 정확하므로 클라이언트가 N페이지를 요청했다면 1차에 N페이지가 있거나(폴백 안 탐)
+		// 처음부터 폴백 결과였거나 둘 중 하나라 결과셋이 섞이지 않는다.
 		StoreSearchPlan addressPlan = toPlan(intent, true);
 		if (addressPlan.isEmpty()) {
 			return result;
@@ -92,7 +95,8 @@ public class StoreSearchEngine {
 			Double latitude, Double longitude, SearchSort sort) {
 		int pageSize = pageable.getPageSize();
 		// 다음 페이지 유무를 정확히 알기 위해 한 건 더 읽는다(hits.size()==pageSize 추정은 마지막 페이지에서 틀린다).
-		SqlQuery query = sqlBuilder.buildSearch(plan, pageSize + 1, (int)pageable.getOffset(), latitude, longitude,
+		SearchSqlQuery query = sqlBuilder.buildSearch(plan, pageSize + 1, (int)pageable.getOffset(), latitude,
+			longitude,
 			sort);
 		List<StoreSearchRow> rows = storeSearchJdbcRepository.search(query);
 		boolean hasNext = rows.size() > pageSize;
@@ -145,7 +149,7 @@ public class StoreSearchEngine {
 		if (normalizedQuery.isBlank()) {
 			return List.of();
 		}
-		SqlQuery sqlQuery = sqlBuilder.buildAutocomplete(normalizedQuery, size);
+		SearchSqlQuery sqlQuery = sqlBuilder.buildAutocomplete(normalizedQuery, size);
 		List<StoreAutocompleteRow> rows = storeSearchJdbcRepository.autocomplete(sqlQuery);
 		return rows.stream()
 			.sorted(Comparator.comparingInt(StoreAutocompleteRow::tier)

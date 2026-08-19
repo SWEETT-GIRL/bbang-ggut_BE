@@ -21,10 +21,10 @@ import org.springframework.data.domain.PageRequest;
 
 import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
 import sweetgirl.croissant.store.enums.MatchedField;
+import sweetgirl.croissant.store.repository.search.SearchSqlQuery;
 import sweetgirl.croissant.store.repository.search.StoreAutocompleteRow;
 import sweetgirl.croissant.store.repository.search.StoreSearchJdbcRepository;
 import sweetgirl.croissant.store.repository.search.StoreSearchRow;
-import sweetgirl.croissant.store.service.search.StoreSearchSqlBuilder.SqlQuery;
 
 @ExtendWith(MockitoExtension.class)
 class StoreSearchEngineTest {
@@ -81,7 +81,7 @@ class StoreSearchEngineTest {
 
 		StoreSearchResult result = engine.searchStores(intent, PageRequest.of(0, 2), null, null, SearchSort.RELEVANCE);
 
-		ArgumentCaptor<SqlQuery> captor = ArgumentCaptor.forClass(SqlQuery.class);
+		ArgumentCaptor<SearchSqlQuery> captor = ArgumentCaptor.forClass(SearchSqlQuery.class);
 		verify(storeSearchJdbcRepository).search(captor.capture());
 		assertThat(captor.getValue().params().getValue("limit")).isEqualTo(3);
 		assertThat(result.hits()).extracting(hit -> hit.storeId()).containsExactly(1L, 2L);
@@ -124,7 +124,7 @@ class StoreSearchEngineTest {
 
 		StoreSearchResult result = engine.searchStores(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
 
-		ArgumentCaptor<SqlQuery> captor = ArgumentCaptor.forClass(SqlQuery.class);
+		ArgumentCaptor<SearchSqlQuery> captor = ArgumentCaptor.forClass(SearchSqlQuery.class);
 		verify(storeSearchJdbcRepository, times(2)).search(captor.capture());
 		assertThat(captor.getAllValues().get(1).sql()).contains("address_normalized");
 		assertThat(result.hits()).extracting(hit -> hit.storeId()).containsExactly(9L);
@@ -133,15 +133,20 @@ class StoreSearchEngineTest {
 	}
 
 	@Test
-	void searchStores_doesNotFallBackOnLaterPages() {
-		// 2페이지가 비었다고 주소 폴백을 돌리면 1페이지와 다른 결과셋이 이어 붙는다.
+	void searchStores_fallsBackToAddressOnLaterPagesToo() {
+		// 1차가 0건인 검색어는 0페이지가 폴백 결과로 hasNext=true 를 줬으므로, 2페이지도 같은 폴백 결과셋을 이어야 한다.
 		SearchIntent intent = intent("천안시 서북구", List.of("천안시"), List.of(), List.of("서북구"));
-		given(storeSearchJdbcRepository.search(any())).willReturn(List.of());
+		given(storeSearchJdbcRepository.search(any()))
+			.willReturn(List.of())
+			.willReturn(List.of(row(21, 0, 0, 0, 20)));
 
 		StoreSearchResult result = engine.searchStores(intent, PageRequest.of(1, 15), null, null, SearchSort.RELEVANCE);
 
-		assertThat(result.hits()).isEmpty();
-		verify(storeSearchJdbcRepository, times(1)).search(any());
+		ArgumentCaptor<SearchSqlQuery> captor = ArgumentCaptor.forClass(SearchSqlQuery.class);
+		verify(storeSearchJdbcRepository, times(2)).search(captor.capture());
+		assertThat(captor.getAllValues().get(1).sql()).contains("address_normalized");
+		assertThat(captor.getAllValues().get(1).params().getValue("offset")).isEqualTo(15);
+		assertThat(result.hits()).extracting(hit -> hit.storeId()).containsExactly(21L);
 	}
 
 	@Test

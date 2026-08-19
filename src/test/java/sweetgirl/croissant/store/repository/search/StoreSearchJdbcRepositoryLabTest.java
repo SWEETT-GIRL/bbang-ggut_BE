@@ -102,6 +102,8 @@ class StoreSearchJdbcRepositoryLabTest {
 
 		assertThat(rows).hasSize(1);
 		assertThat(rows.get(0).nameScore()).isEqualTo(StoreSearchSqlBuilder.NAME_CONTAINS);
+		// 주소로만 잡힌 지역이라도 REGION 매칭으로 판정돼야 커버리지·matchedFields 에서 빠지지 않는다
+		assertThat(rows.get(0).matchedByRegion()).isTrue();
 	}
 
 	@Test

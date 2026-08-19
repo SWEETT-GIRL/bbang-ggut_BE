@@ -16,18 +16,17 @@ ALTER TABLE store
     -- 인기도(구독수 + 전국 랭킹 점수 + 조회수). OpenSearch 문서의 popularityScore 를 RDB 로 옮긴 것.
     ADD COLUMN IF NOT EXISTS popularity_score double precision NOT NULL DEFAULT 0;
 
+-- 원본 alias 가 VARCHAR(255) 이므로 생성 컬럼도 같은 길이 — 더 짧게 잡으면 긴 alias INSERT 가 생성 컬럼에서 실패한다.
 ALTER TABLE store_name_alias
-    ADD COLUMN IF NOT EXISTS alias_normalized varchar(100)
+    ADD COLUMN IF NOT EXISTS alias_normalized varchar(255)
         GENERATED ALWAYS AS (regexp_replace(lower(alias), '[^0-9a-z가-힣]', '', 'g')) STORED;
 
 -- 부분일치(검색) — bigm GIN
 CREATE INDEX IF NOT EXISTS idx_store_name_normalized_bigm ON store USING gin (name_normalized gin_bigm_ops);
 CREATE INDEX IF NOT EXISTS idx_store_address_normalized_bigm ON store USING gin (address_normalized gin_bigm_ops);
 CREATE INDEX IF NOT EXISTS idx_store_name_alias_normalized_bigm ON store_name_alias USING gin (alias_normalized gin_bigm_ops);
--- 접두(자동완성) — text_pattern_ops btree. 기본 콜레이션 btree 는 LIKE 'q%' 를 못 탄다.
-CREATE INDEX IF NOT EXISTS idx_store_name_normalized_prefix ON store (name_normalized text_pattern_ops);
-CREATE INDEX IF NOT EXISTS idx_store_name_alias_normalized_prefix ON store_name_alias (alias_normalized text_pattern_ops);
-CREATE INDEX IF NOT EXISTS idx_search_region_alias_normalized_prefix ON search_region_alias (normalized_alias text_pattern_ops);
+-- 자동완성도 '%q%'(bigm) 로 후보를 뽑고 접두 여부는 정렬(tier)에만 쓰므로 별도 접두(text_pattern_ops) 인덱스는 두지 않는다.
+-- 지역 alias 는 검색 조건이 정확 일치(normalized_alias IN …)라 기존 uq/btree 로 충분하다.
 -- 지역만 검색("서울")처럼 후보가 1만 건을 넘는 경우의 인기순 정렬용
 CREATE INDEX IF NOT EXISTS idx_store_popularity_score ON store (popularity_score DESC);
 

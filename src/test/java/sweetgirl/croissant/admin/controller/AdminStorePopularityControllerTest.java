@@ -16,6 +16,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
+import sweetgirl.croissant.store.code.StoreErrorCode;
+import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.service.StorePopularityCommandService;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,6 +46,16 @@ class AdminStorePopularityControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.updatedStoreCount").value(45_339));
+	}
+
+	@Test
+	void refresh_returns409WhenAnotherRefreshIsRunning() throws Exception {
+		given(storePopularityCommandService.refreshAllPopularityScores())
+			.willThrow(new StoreException(StoreErrorCode.POPULARITY_REFRESH_ALREADY_RUNNING));
+
+		mockMvc.perform(post("/admin/search/popularity/refresh"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("STORE409_5"));
 	}
 
 	@Test
