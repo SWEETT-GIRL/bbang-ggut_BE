@@ -165,7 +165,7 @@ CREATE INDEX idx_search_region_alias_normalized_prefix ON search_region_alias (n
   정규화 후 100자 초과 alias가 들어오면 생성 컬럼에서 `value too long`으로 INSERT/UPDATE 실패(앱에서 못 잡음).
   → 운영 미적용이면 `varchar(255)`(또는 `text`)로 수정. 이미 적용된 환경은 새 마이그레이션 `ALTER TABLE store_name_alias ALTER COLUMN alias_normalized TYPE varchar(255)`.
 
-- [x] **④ 인기도 갱신 엔드포인트가 비인증 + 무거움 + 동시성 가드 없음** — `AdminStorePopularityController.java:23`, `SecurityConfig.java:86`(`/admin/**` permitAll, 기존 정책) → **부분 반영**: `pg_try_advisory_xact_lock`으로 동시 실행 1개 제한 + 409(`STORE409_5`), 배치·다중 인스턴스도 같은 락. **인증은 미반영** — `/admin/**` permitAll 은 기존 전역 정책이라 이 PR 범위 밖(별도 논의)
+- [x] **④ 인기도 갱신 엔드포인트가 비인증 + 무거움 + 동시성 가드 없음** — `AdminStorePopularityController.java:23`, `SecurityConfig.java:86`(`/admin/**` permitAll, 기존 정책) → **부분 반영**: `pg_try_advisory_xact_lock`으로 동시 실행 1개 제한 + 409(`STORE409_5`), 배치·다중 인스턴스도 같은 락. **인증은 사용자 결정으로 유지하지 않음(2026-08-19)** — `/admin/**` permitAll 은 기존 전역 정책이며 어드민 인증은 이 PR 에서 다루지 않기로 확정. 동시성 가드(advisory lock + 409)로만 보호
   `POST /admin/search/popularity/refresh`가 인증 없이 45k행 전량 UPDATE(+`request_log` 400MB GROUP BY)를 동기 실행. 반복 호출 시 `store` 행 락 수 초·DB CPU 점유. 삭제된 `AdminSearchController`는 단일 스레드 executor로 동시 실행을 막았지만 새 것은 없음.
   → 어드민 인증이 네트워크 계층에서 보장되지 않으면 인증/키 검사. 최소한 `pg_try_advisory_xact_lock`(또는 `AtomicBoolean`/`tryLock`)으로 동시 실행 1개 제한 + 실행 중 409. advisory lock을 SQL 앞에 두면 다중 인스턴스 `@Scheduled` 중복도 같이 해결.
 
