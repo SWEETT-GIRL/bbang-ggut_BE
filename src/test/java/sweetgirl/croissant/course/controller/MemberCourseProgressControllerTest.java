@@ -44,7 +44,7 @@ class MemberCourseProgressControllerTest {
 		given(
 			courseProgressService.getByStatus(isNull(), org.mockito.ArgumentMatchers.eq(CourseProgressStatus.FINISHED)))
 			.willReturn(List.of(new CourseProgressResponse(
-				1L, "망원 투어", null, null, 3, 3, 100,
+				1L, "망원 투어", null, null, List.of(), 3, 3, 100,
 				LocalDateTime.of(2026, 8, 1, 12, 0), finishedAt,
 				CourseProgressStatus.FINISHED, finishedAt)));
 

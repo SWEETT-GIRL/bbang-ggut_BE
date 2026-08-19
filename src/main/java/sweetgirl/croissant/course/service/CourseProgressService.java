@@ -20,11 +20,13 @@ import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseImageFile;
 import sweetgirl.croissant.course.entity.CourseProgress;
+import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
+import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
@@ -39,6 +41,8 @@ public class CourseProgressService {
 	private final CourseRepository courseRepository;
 	private final CourseProgressRepository courseProgressRepository;
 	private final CourseImageFileRepository courseImageFileRepository;
+	private final CourseStoreRepository courseStoreRepository;
+	private final CourseStoreThumbnailReader courseStoreThumbnailReader;
 
 	public void start(Long memberId, Long courseId) {
 		Member member = memberReader.getMember(memberId);
@@ -96,12 +100,19 @@ public class CourseProgressService {
 				image -> image.getCourse().getId(),
 				Function.identity(),
 				(first, second) -> first));
+		Map<Long, List<CourseStore>> courseStoresByCourseId = courseStoreRepository
+			.findAllByCourseIdInAndDeletedAtIsNullOrderByVisitOrderAsc(courseIds)
+			.stream()
+			.collect(Collectors.groupingBy(courseStore -> courseStore.getCourse().getId()));
+		Map<Long, List<String>> storeThumbnailsByCourseId = courseStoreThumbnailReader
+			.readByCourse(courseStoresByCourseId);
 
 		return progresses.stream()
 			.filter(progress -> ongoingCourseIds.contains(progress.getCourse().getId()))
 			.map(progress -> toResponse(
 				progress,
 				imageByCourseId.get(progress.getCourse().getId()),
+				storeThumbnailsByCourseId.getOrDefault(progress.getCourse().getId(), List.of()),
 				aggregateByCourseId.get(progress.getCourse().getId())))
 			.sorted(Comparator.comparing(this::lastActivityAt).reversed())
 			.toList();
@@ -170,12 +181,14 @@ public class CourseProgressService {
 	private CourseProgressResponse toResponse(
 			CourseProgress progress,
 			CourseImageFile image,
+			List<String> storeThumbnailKeys,
 			CourseProgressAggregateProjection aggregate) {
 		int storeCount = aggregate == null ? 0 : Math.toIntExact(aggregate.getStoreCount());
 		int visitedStoreCount = aggregate == null ? 0 : Math.toIntExact(aggregate.getVisitedStoreCount());
 		return CourseProgressResponse.of(
 			progress,
 			image,
+			storeThumbnailKeys,
 			storeCount,
 			visitedStoreCount,
 			aggregate == null ? null : aggregate.getLastTouchedAt());
