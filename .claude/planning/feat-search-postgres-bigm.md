@@ -113,7 +113,7 @@ CREATE INDEX idx_search_region_alias_normalized_prefix ON search_region_alias (n
 0. **랩 배선** ✅ — `application-lab.properties`, 재색인 지연 프로퍼티 → `local,lab`로 기동 → OS 재색인 45,339건(2분, 실패 0)
 1. **스키마 실측** ✅ — 랩 PG에 정규화 컬럼·접두 인덱스·인기도 백필 적용, 인덱스 없음/bigm/trgm 비교(`scratchpad/index-bench.txt`) → **pg_bigm 확정**. 발견: `name LIKE OR EXISTS(alias)`는 인덱스를 못 타므로 엔진 SQL은 UNION으로; '서울'급 대형 지역은 `popularity_score desc` 인덱스 후보
 2. **포트 추출** ✅ — `StoreSearchEngine`/`SearchEngineType`/`SearchProperties`/`StoreSearchEngineRouter`, DTO 이동(`StoreSearchHit`·`StoreSearchResult`·`StoreAutocompleteSuggestion`), OS 어댑터, 서비스·컨트롤러 `engine` 파라미터, 테스트(라우터 6·컨트롤러 3 추가)
-3. **인기도** ✅ — 마이그레이션 `V20260818170000`(확장·생성컬럼·인덱스 7·백필, 랩 적용 2.35초), 저장소/서비스/스케줄러/어드민 + 테스트 6
+3. **인기도** ✅ — 마이그레이션 `V20260818170000`(확장·생성컬럼·인덱스 4·백필, 랩 적용 2.35초; 안 타는 접두 인덱스 3개는 리뷰 반영으로 제거), 저장소/서비스/스케줄러/어드민 + 테스트 6
 4. **PG 엔진** ✅ — `PostgresStoreSearchEngine`(케이스 4종 + 주소 폴백 + 자동완성), 테스트 20. 랩에서 발견·수정: 원거리 `exp()` underflow → 지수 700 클램프, `ST_Distance` → geography `<->`(8배), alias 점수 LEFT JOIN → 상관 서브쿼리(28→20ms)
 5. **A/B 러너** ✅ — `scripts/lab/SearchEngineAbRunner.java` → `docs/reports/search-engine-ab-*.md` (히스토그램 차분으로 엔진 시간, e2e p50/p95, 겹침@10)
 6. **최종 점검** ✅ — `spotlessApply` + `build`(checkstyle) 통과. `test` 801건 중 실패 10건은 main 에도 동일하게 실패하는 기존 건(CourseCommandServiceTest·KakaoAuthServiceTest·TrendQueryServiceTest·ReviewRepositoryTest, 이 브랜치와 무관, CI 는 `-x test`). 랩 통합 테스트 `-PlabTests` 8/8 통과 → 커밋/PR 대기

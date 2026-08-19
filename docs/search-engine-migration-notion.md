@@ -141,7 +141,7 @@ sort  : relevance=점수 · distance=거리→점수 · popularity=인기도→�
 | OS 어댑터 | `external/opensearch/client/OpenSearchStoreClient implements StoreSearchEngine` (기존 유지) |
 | DTO 이동 | `OpenSearchStoreHit`→`StoreSearchHit`, `OpenSearchStoreSearchResult`→`StoreSearchResult`, `OpenSearchAutocompleteSuggestion`→`StoreAutocompleteSuggestion` |
 | 인기도 | `StorePopularityRepository`(집계 UPDATE) · `StorePopularityCommandService` · `store/batch/StorePopularityScoreScheduler` · `admin/controller/AdminStorePopularityController` |
-| 마이그레이션 | `V20260818170000__add_store_search_normalized_columns_and_bigm_indexes.sql` — `pg_bigm` 확장, 생성 컬럼(`name_normalized`·`address_normalized`·`alias_normalized`), `popularity_score`, 인덱스 7개, 백필 (랩 적용 2.35초) |
+| 마이그레이션 | `V20260818170000__add_store_search_normalized_columns_and_bigm_indexes.sql` — `pg_bigm` 확장, 생성 컬럼(`name_normalized`·`address_normalized`·`alias_normalized`), `popularity_score`, GIN(bigm) 3개 + 인기도 인덱스 1개, 백필 (랩 적용 2.35초) |
 | 설정 | `application-lab.properties`(랩 프로파일 — 랩 DB·타이머 백분위) |
 | 테스트 | 단위 35 (라우터 6·컨트롤러 3·빌더 9·엔진 11·인기도 6) + 랩 통합 8 (`./gradlew test -PlabTests`, CI 제외) |
 | 랩/회귀 | `docker/postgres-lab.Dockerfile`, `docker-compose.lab-postgres.yml`, `scripts/lab/{dump-prod,restore-lab}.sh`, `scripts/lab/search-eval-queries.csv`(회귀 검색어 셋), `scripts/lab/search-eval-request-log.sql` |
