@@ -35,6 +35,7 @@ public class CourseQueryService {
 	private final SavedCourseRepository savedCourseRepository;
 	private final CourseImageFileRepository courseImageFileRepository;
 	private final CourseProgressRepository courseProgressRepository;
+	private final CourseStoreThumbnailReader courseStoreThumbnailReader;
 
 	public List<CourseSummaryResponse> getCurationCourses() {
 		return buildSummaryResponses(courseRepository.findAllPublicOrderedByPinAndSavedCount());
@@ -83,6 +84,7 @@ public class CourseQueryService {
 		return CourseDetailResponse.of(
 			course,
 			coverImage,
+			courseStoreThumbnailReader.read(courseStores),
 			isMine,
 			isSaved,
 			savedCount,
@@ -112,6 +114,8 @@ public class CourseQueryService {
 
 		Map<Long, Long> savedCountByCourseId = findSavedCountByCourseId(courses);
 		Map<Long, Long> finisherCountByCourseId = findFinisherCountByCourseId(courseIds);
+		Map<Long, List<String>> storeThumbnailsByCourseId = courseStoreThumbnailReader
+			.readByCourse(courseStoresByCourseId);
 
 		return courses.stream()
 			.map(course -> {
@@ -120,6 +124,7 @@ public class CourseQueryService {
 				return CourseSummaryResponse.of(
 					course,
 					coverImageByCourseId.get(course.getId()),
+					storeThumbnailsByCourseId.getOrDefault(course.getId(), List.of()),
 					courseStores.size(),
 					storeIdsOf(courseStores),
 					regions,
