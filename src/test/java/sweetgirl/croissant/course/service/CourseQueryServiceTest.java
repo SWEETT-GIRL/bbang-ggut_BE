@@ -48,6 +48,8 @@ class CourseQueryServiceTest {
 	CourseImageFileRepository courseImageFileRepository;
 	@Mock
 	CourseProgressRepository courseProgressRepository;
+	@Mock
+	CourseStoreThumbnailReader courseStoreThumbnailReader;
 
 	@InjectMocks
 	CourseQueryService courseQueryService;

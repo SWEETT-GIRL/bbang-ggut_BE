@@ -26,6 +26,7 @@ import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
+import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
@@ -43,6 +44,10 @@ class CourseProgressServiceTest {
 	CourseProgressRepository courseProgressRepository;
 	@Mock
 	CourseImageFileRepository courseImageFileRepository;
+	@Mock
+	CourseStoreRepository courseStoreRepository;
+	@Mock
+	CourseStoreThumbnailReader courseStoreThumbnailReader;
 
 	@InjectMocks
 	CourseProgressService courseProgressService;

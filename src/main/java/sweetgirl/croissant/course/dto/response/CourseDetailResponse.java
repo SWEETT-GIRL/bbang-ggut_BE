@@ -13,6 +13,8 @@ public record CourseDetailResponse(
 		String title,
 		String imageKey,
 		String previewImageKey,
+		/** 대표사진이 없을 때 앱이 콜라주로 그릴 가게 썸네일 — 사진 있는 가게만, 방문 순서, 최대 4장 */
+		List<String> storeThumbnailKeys,
 		int storeCount,
 		List<String> regions,
 		CourseType courseType,
@@ -33,6 +35,7 @@ public record CourseDetailResponse(
 	public static CourseDetailResponse of(
 			Course course,
 			CourseImageFile coverImage,
+			List<String> storeThumbnailKeys,
 			boolean isMine,
 			boolean isSaved,
 			long savedCount,
@@ -46,6 +49,7 @@ public record CourseDetailResponse(
 			course.getTitle(),
 			coverImage != null ? coverImage.getAwsKey() : null,
 			coverImage != null ? coverImage.getResizedKey640() : null,
+			storeThumbnailKeys,
 			courseStores.size(),
 			regions,
 			course.getType(),
