@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,7 +12,6 @@ import sweetgirl.croissant.admin.dto.request.AdminMenuCreateRequest;
 import sweetgirl.croissant.admin.dto.request.AdminMenuReorderRequest;
 import sweetgirl.croissant.admin.dto.request.AdminMenuUpdateRequest;
 import sweetgirl.croissant.admin.dto.response.AdminMenuResponse;
-import sweetgirl.croissant.external.opensearch.event.StoreMenusChangedEvent;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.entity.MenuCategory;
@@ -37,7 +35,6 @@ public class AdminMenuCommandService {
 	private final MenuCategoryRepository menuCategoryRepository;
 	private final MenuImageFileRepository menuImageFileRepository;
 	private final StoreRepository storeRepository;
-	private final ApplicationEventPublisher eventPublisher;
 
 	public AdminMenuResponse createMenu(Long storeId, AdminMenuCreateRequest request) {
 		Store store = storeRepository.findById(storeId)
@@ -75,7 +72,6 @@ public class AdminMenuCommandService {
 		List<String> photoUrls = menuImageFileRepository.findImagesByMenuId(menu.getId()).stream()
 			.map(img -> img.getAwsKey())
 			.toList();
-		eventPublisher.publishEvent(new StoreMenusChangedEvent(storeId));
 		return AdminMenuResponse.of(menu, photoUrls);
 	}
 
@@ -90,14 +86,12 @@ public class AdminMenuCommandService {
 			Integer newPrice = parsePrice(request.price());
 			menu.update(request.name(), newPrice, request.desc(), newCategory);
 		}
-		eventPublisher.publishEvent(new StoreMenusChangedEvent(menu.getStore().getId()));
 	}
 
 	public void deleteMenu(Long menuId) {
 		Menu menu = menuRepository.findById(menuId)
 			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
 		menu.softDelete();
-		eventPublisher.publishEvent(new StoreMenusChangedEvent(menu.getStore().getId()));
 	}
 
 	public void reorderMenus(Long storeId, AdminMenuReorderRequest request) {

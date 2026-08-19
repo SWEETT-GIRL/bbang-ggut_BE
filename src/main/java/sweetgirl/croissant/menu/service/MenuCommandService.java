@@ -1,11 +1,9 @@
 package sweetgirl.croissant.menu.service;
 
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
-import sweetgirl.croissant.external.opensearch.event.StoreMenusChangedEvent;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
@@ -35,7 +33,6 @@ public class MenuCommandService {
 	private final MemberReader memberReader;
 	private final MemberRestrictionReader memberRestrictionReader;
 	private final StoreRepository storeRepository;
-	private final ApplicationEventPublisher eventPublisher;
 
 	public MenuRegistrationResult registerMenu(Long storeId, Long memberId, MenuCreateRequest request) {
 		Member member = memberReader.getMember(memberId);
@@ -56,7 +53,6 @@ public class MenuCommandService {
 			.name(name)
 			.createdByMember(member)
 			.build());
-		eventPublisher.publishEvent(new StoreMenusChangedEvent(store.getId()));
 		return new MenuRegistrationResult(menu.getId(), true);
 	}
 

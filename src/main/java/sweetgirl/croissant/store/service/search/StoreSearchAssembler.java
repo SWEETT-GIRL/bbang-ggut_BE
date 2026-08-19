@@ -15,7 +15,6 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
-import sweetgirl.croissant.external.opensearch.dto.OpenSearchStoreHit;
 import sweetgirl.croissant.menu.dto.dto.MenuSummaryDto;
 import sweetgirl.croissant.menu.dto.projection.MenuImageThumbnailProjection;
 import sweetgirl.croissant.menu.dto.projection.StoreMenuProjection;
@@ -28,7 +27,7 @@ import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
 /**
- * OpenSearch 검색 결과(가게 ID·점수·매칭 메뉴 ID만 담긴 hit)를 받아,
+ * 검색 엔진 결과(가게 ID·점수만 담긴 hit)를 받아,
  * 응답에 필요한 실제 데이터를 RDB에서 채워 넣어(hydration) 최종 응답 DTO로 조립한다.
  * 모든 조회는 ID 목록 기반 벌크 쿼리로 처리해 N+1을 피한다.
  */
@@ -41,20 +40,20 @@ public class StoreSearchAssembler {
 	private final MenuImageFileRepository menuImageFileRepository;
 	private final MenuRepository menuRepository;
 
-	public List<StoreSearchResponse> assemble(List<OpenSearchStoreHit> hits) {
+	public List<StoreSearchResponse> assemble(List<StoreSearchHit> hits) {
 		if (hits.isEmpty()) {
 			return List.of();
 		}
 
-		// OpenSearch 연관도 순서를 보존한 가게 ID 목록 (이후 응답 정렬의 기준이 된다)
+		// 엔진의 랭킹 순서를 보존한 가게 ID 목록 (이후 응답 정렬의 기준이 된다)
 		List<Long> orderedStoreIds = hits.stream()
-			.map(OpenSearchStoreHit::storeId)
+			.map(StoreSearchHit::storeId)
 			.distinct()
 			.toList();
 		// 가게 ID로 hit을 다시 찾기 위한 맵 (매칭된 메뉴 ID를 꺼낼 때 사용, 순서 유지를 위해 LinkedHashMap)
-		Map<Long, OpenSearchStoreHit> hitByStoreId = hits.stream()
+		Map<Long, StoreSearchHit> hitByStoreId = hits.stream()
 			.collect(Collectors.toMap(
-				OpenSearchStoreHit::storeId,
+				StoreSearchHit::storeId,
 				Function.identity(),
 				(first, second) -> first,
 				LinkedHashMap::new));
@@ -66,7 +65,7 @@ public class StoreSearchAssembler {
 		Map<Long, List<StoreMenuProjection>> topMenusByStore = getTopMenusByStore(orderedStoreIds);
 		Map<Long, String> menuThumbnailMap = getMenuThumbnails(topMenusByStore);
 
-		// OpenSearch 순서대로 응답을 조립한다. RDB에 없는 가게(색인-DB 불일치)는 걸러낸다. - 2차검증
+		// 엔진 순서대로 응답을 조립한다. 조립 중 삭제된 가게 등 RDB에 없는 가게는 걸러낸다.
 		return orderedStoreIds.stream()
 			.map(storeById::get)
 			.filter(store -> store != null)

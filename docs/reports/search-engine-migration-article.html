@@ -1,0 +1,596 @@
+<title>OpenSearch에서 pg_bigm으로</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #F5F6F8;
+    --surface: #FFFFFF;
+    --surface-2: #ECEEF2;
+    --ink: #1B1F2A;
+    --ink-2: #545B69;
+    --ink-3: #7C8493;
+    --rule: #D9DDE4;
+    --accent: #2A4D8F;
+    --accent-soft: #E3E9F5;
+    --wheat: #A67A1E;
+    --wheat-soft: #F4ECD8;
+    --series-pg: #2A4D8F;
+    --series-os: #A67A1E;
+    --series-3: #7A5090;
+    --code-bg: #EEF0F4;
+    --shadow: 0 1px 2px rgba(27,31,42,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #15181F;
+      --surface: #1D212A;
+      --surface-2: #252A35;
+      --ink: #E7E9EE;
+      --ink-2: #A2A9B6;
+      --ink-3: #7C8493;
+      --rule: #2C323D;
+      --accent: #7D9EEB;
+      --accent-soft: #232C42;
+      --wheat: #D2A24A;
+      --wheat-soft: #2E2716;
+      --series-pg: #5B84DE;
+      --series-os: #B88A2E;
+      --series-3: #A883C4;
+      --code-bg: #232833;
+      --shadow: none;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #15181F;
+    --surface: #1D212A;
+    --surface-2: #252A35;
+    --ink: #E7E9EE;
+    --ink-2: #A2A9B6;
+    --ink-3: #7C8493;
+    --rule: #2C323D;
+    --accent: #7D9EEB;
+    --accent-soft: #232C42;
+    --wheat: #D2A24A;
+    --wheat-soft: #2E2716;
+    --series-pg: #5B84DE;
+    --series-os: #B88A2E;
+    --series-3: #A883C4;
+    --code-bg: #232833;
+    --shadow: none;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+    font-size: 16.5px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-underline-offset: 3px; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px 96px; }
+  .prose { max-width: 720px; margin: 0 auto; }
+  .wide  { max-width: 960px; margin: 40px auto; }
+
+  /* ---------- top matter ---------- */
+  header.top { padding: 72px 0 40px; border-bottom: 1px solid var(--rule); }
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  h1 {
+    font-family: "Hahmlet", "Noto Serif KR", serif;
+    font-weight: 700; font-size: clamp(34px, 5vw, 52px); line-height: 1.18;
+    letter-spacing: -.01em; margin: 14px 0 18px; text-wrap: balance;
+  }
+  h1 .arrow { color: var(--wheat); font-weight: 500; }
+  .dek { font-size: 19px; line-height: 1.6; color: var(--ink-2); max-width: 640px; margin: 0 0 28px; text-wrap: pretty; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 13.5px; color: var(--ink-2); }
+  .meta b { color: var(--ink); font-weight: 600; }
+
+  /* ---------- headline numbers ---------- */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 36px auto 8px; }
+  .stat {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 18px 18px 14px;
+    box-shadow: var(--shadow);
+  }
+  .stat .k { font-size: 12.5px; color: var(--ink-3); letter-spacing: .02em; }
+  .stat .v { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 30px; font-weight: 500; line-height: 1.15; margin: 6px 0 4px; font-variant-numeric: tabular-nums; }
+  .stat .v small { font-size: 15px; color: var(--ink-2); font-weight: 400; margin-left: 2px; }
+  .stat .d { font-size: 13px; color: var(--ink-2); }
+  .stat.hi .v { color: var(--accent); }
+
+  /* ---------- sections ---------- */
+  section { margin-top: 64px; }
+  .part {
+    display: flex; align-items: baseline; gap: 14px; margin-bottom: 8px;
+  }
+  .part .no {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; letter-spacing: .12em;
+    color: var(--wheat); text-transform: uppercase;
+  }
+  h2 {
+    font-family: "Hahmlet", "Noto Serif KR", serif; font-weight: 700;
+    font-size: 28px; line-height: 1.3; margin: 0 0 18px; letter-spacing: -.005em; text-wrap: balance;
+  }
+  h3 { font-size: 17px; font-weight: 600; margin: 34px 0 10px; letter-spacing: -.005em; }
+  p { margin: 0 0 16px; text-wrap: pretty; }
+  ul, ol { margin: 0 0 16px; padding-left: 22px; }
+  li { margin: 4px 0; }
+  li::marker { color: var(--ink-3); }
+  strong { font-weight: 600; }
+  code, .mono {
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .92em;
+  }
+  p code, li code, td code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--rule); border-radius: 6px;
+    padding: 16px 18px; overflow-x: auto; font-size: 13px; line-height: 1.6; margin: 14px 0 20px;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+
+  .callout {
+    border-left: 3px solid var(--wheat); background: var(--wheat-soft);
+    padding: 14px 18px; border-radius: 0 6px 6px 0; margin: 20px 0 22px; font-size: 15.5px;
+  }
+  .callout.blue { border-left-color: var(--accent); background: var(--accent-soft); }
+  .callout p:last-child { margin-bottom: 0; }
+
+  /* ---------- tables ---------- */
+  .tablewrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); box-shadow: var(--shadow); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { padding: 9px 12px; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+  th { font-size: 12.5px; letter-spacing: .03em; color: var(--ink-2); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.n, th.n { text-align: right; font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.hi { color: var(--accent); font-weight: 600; }
+  td.lo { color: var(--ink-3); }
+  .cap { font-size: 13px; color: var(--ink-2); margin: 8px 2px 0; }
+  .figtitle { font-size: 15px; font-weight: 600; margin: 0 0 2px; }
+  .figsub { font-size: 13px; color: var(--ink-2); margin: 0 0 12px; }
+
+  /* ---------- charts ---------- */
+  .fig { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 18px 20px 14px; box-shadow: var(--shadow); }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--ink-2); margin: 0 0 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .chart { width: 100%; height: auto; display: block; }
+  .chart .grid { stroke: var(--rule); stroke-width: 1; }
+  .chart .axis { fill: var(--ink-3); font-family: "IBM Plex Mono", monospace; font-size: 11px; }
+  .chart .lab { fill: var(--ink-2); font-size: 12.5px; }
+  .chart .val { fill: var(--ink); font-family: "IBM Plex Mono", monospace; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .chart .bar { rx: 3; ry: 3; }
+  .chart .bar:hover { filter: brightness(1.12); }
+  .chart .hit { fill: transparent; cursor: default; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .tip {
+    position: fixed; pointer-events: none; z-index: 10;
+    background: var(--ink); color: var(--bg); font-size: 12.5px; padding: 6px 9px; border-radius: 4px;
+    font-family: "IBM Plex Mono", monospace; opacity: 0; transform: translate(-50%, calc(-100% - 10px)); transition: opacity .12s;
+    white-space: nowrap;
+  }
+  .tip.show { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { .tip { transition: none; } }
+
+  /* ---------- diagram ---------- */
+  .flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 10px; align-items: center; font-size: 13.5px; }
+  .box { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 12px 14px; box-shadow: var(--shadow); }
+  .box b { display: block; font-weight: 600; margin-bottom: 2px; }
+  .box small { color: var(--ink-2); }
+  .box.acc { border-color: var(--accent); }
+  .arrowc { color: var(--ink-3); font-size: 18px; text-align: center; }
+  .stack { display: grid; gap: 10px; }
+  @media (max-width: 720px) { .flow { grid-template-columns: 1fr; } .arrowc { transform: rotate(90deg); } }
+
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; font-size: 14.5px; }
+  .kv dt { color: var(--ink-2); }
+  .kv dd { margin: 0; }
+  .footnote { font-size: 13.5px; color: var(--ink-2); border-top: 1px solid var(--rule); padding-top: 18px; margin-top: 56px; }
+</style>
+
+<div class="wrap">
+  <header class="top prose">
+    <div class="eyebrow">빵긋(대동빵지도) 백엔드 · 검색 엔진 교체 기록 · 2026-08</div>
+    <h1>OpenSearch에서 <span class="arrow">→</span> pg_bigm으로</h1>
+    <p class="dek">가게 검색을 매니지드 OpenSearch에서 PostgreSQL 확장(pg_bigm)으로 옮기면서, 감이 아니라 실측으로 결정하고 검증한 기록.
+      한국어 가게명 4.5만 건, 하루 수백 건의 검색, 월 $130의 노드 두 대에서 시작한 이야기다.</p>
+    <div class="meta">
+      <span><b>스택</b> Spring Boot 4 · PostgreSQL 18 (RDS) · PostGIS · pg_bigm · OpenSearch 3.5</span>
+      <span><b>범위</b> 가게명·구명·지역·주소 검색, 자동완성</span>
+      <span><b>측정</b> 로컬 랩 A/B 20라운드 + 운영 request_log 기준선</span>
+    </div>
+  </header>
+
+  <div class="stats wide">
+    <div class="stat hi"><div class="k">검색 엔진 순수 시간 (평균)</div><div class="v">2.2<small>ms</small></div><div class="d">OpenSearch 4.4ms → PostgreSQL 2.2ms</div></div>
+    <div class="stat"><div class="k">검색 e2e p50 / p95</div><div class="v">29.9<small>/ 39.6ms</small></div><div class="d">OpenSearch 32.6 / 43.9ms (RDB 조립 포함)</div></div>
+    <div class="stat"><div class="k">상위 10건 겹침률</div><div class="v">81<small>%</small></div><div class="d">실검색어 29개, 두 엔진 결과 비교</div></div>
+    <div class="stat hi"><div class="k">검색 인프라 비용</div><div class="v">$0<small>/월</small></div><div class="d">t3.medium.search × 2 ≈ $130~140 → 0</div></div>
+  </div>
+
+  <!-- ============ 1. 문제 ============ -->
+  <section class="prose">
+    <div class="part"><span class="no">Part 1</span></div>
+    <h2>월 $130짜리 검색, 하루 300건</h2>
+    <p>빵긋의 가게 검색은 AWS OpenSearch Service 위에 있었다. <code>t3.medium.search</code> 데이터 노드 2개(2 AZ), gp3 20 GiB × 2 — 대략 월 $130~140. 개발 도메인은 이미 지웠고, 남은 운영 도메인이 인프라 비용의 큰 몫이었다.</p>
+    <p>그런데 트래픽은 작다. 운영 <code>request_log</code> 30일치를 세어 보면 검색 1,857건 + 자동완성 5,236건 = <strong>하루 300~1,000건</strong>. 데이터도 크지 않다. 가게 45,444건(20 MB), 메뉴 440,579건(190 MB), 가게 구명(alias) 1,661건, 지역 사전 10,228건.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>운영 기준선 (30일, e2e)</th><th class="n">건수</th><th class="n">p50</th><th class="n">p95</th><th class="n">p99</th></tr></thead>
+        <tbody>
+          <tr><td><code>GET /stores/search</code></td><td class="n">1,857</td><td class="n">125ms</td><td class="n">392ms</td><td class="n">949ms</td></tr>
+          <tr><td><code>GET /stores/autocomplete</code></td><td class="n">5,236</td><td class="n">28ms</td><td class="n">166ms</td><td class="n">823ms</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="cap">같은 VPC의 WAS에서 잰 값. 검색 e2e에는 OpenSearch 질의 외에 가게·썸네일·대표메뉴를 RDB에서 채우는 4개 쿼리(hydration)가 포함된다.</p>
+    <p>선택지는 둘이었다. <strong>(A)</strong> EC2에 오픈소스 OpenSearch를 직접 띄우거나, <strong>(B)</strong> 검색을 PostgreSQL로 옮기거나. 처음 계획은 "속도를 재서 결정"이었는데, 코드를 읽고 나니 속도로는 갈리지 않을 게 뻔했다 — 이 규모에선 둘 다 충분히 빠르다. 진짜 축은 <em>기능 동등성, 재작성 비용, 운영 부담, 비용</em>이었다.</p>
+    <p>결정을 가른 건 제품 판단이었다. <strong>메뉴·카테고리 검색을 빼고 가게명·지역만 남긴다.</strong> 그러면 OpenSearch가 하던 일 중 무거운 부분(nested 메뉴 44만 건, inner_hits, 빵 사전 매칭)이 통째로 사라지고, 남는 건 4.5만 행짜리 이름 부분일치와 지역 조인뿐이다. 그 정도면 RDB로 충분하다.</p>
+  </section>
+
+  <!-- ============ 2. 결정 ============ -->
+  <section class="prose">
+    <div class="part"><span class="no">Part 2</span></div>
+    <h2>tsvector가 아니라 pg_bigm인 이유 — 실측으로</h2>
+    <p>"PostgreSQL 전문검색 = tsvector"라는 통념부터 확인했다. 운영 가게명 45,339건에 <code>to_tsvector('simple', name)</code>을 걸어 보면 답이 바로 나온다.</p>
+    <pre><code>성심당 본점             → '성심당' '본점'
+쏠베이커리 양산트리마제점   → '쏠베이커리' '양산트리마제점'
+콜드버터베이크샵         → '콜드버터베이크샵'</code></pre>
+    <p>RDS에는 한국어 형태소 분석기(mecab, nori)가 없다. <code>simple</code> 파서는 공백으로만 자르고, 한국어 가게명은 붙여 쓰니 토큰 하나가 통째다. tsvector는 토큰의 정확·접두 일치만 하므로 <strong>중간 부분일치가 불가능</strong>하다. 게다가 가게명의 <strong>29%(13,229건)가 공백을 포함</strong>하는데 사용자는 "성심당본점"처럼 붙여 치거나 "브릭 베이글"처럼 띄워 친다.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>실제 검색어</th><th class="n">tsvector 정확</th><th class="n">tsvector 접두</th><th class="n">정규화 부분일치</th><th>비고</th></tr></thead>
+        <tbody>
+          <tr><td>성심당본점</td><td class="n lo">0</td><td class="n lo">0</td><td class="n hi">1</td><td>가게명은 "성심당 본점" — 띄어쓰기 차이로 실패</td></tr>
+          <tr><td>브릭 베이글</td><td class="n lo">0</td><td class="n lo">0</td><td class="n hi">1</td><td>가게명 "브릭베이글" — 반대 방향도 실패</td></tr>
+          <tr><td>트리마제</td><td class="n lo">0</td><td class="n lo">0</td><td class="n hi">1</td><td>"양산트리마제점" 토큰 안에 묻힘</td></tr>
+          <tr><td>베이커리</td><td class="n">246</td><td class="n">532</td><td class="n hi">2,714</td><td>"OO베이커리"가 한 토큰이라 대부분 놓침</td></tr>
+          <tr><td>콜드버터</td><td class="n lo">0</td><td class="n">3</td><td class="n hi">3</td><td>접두는 되지만 중간(infix)은 안 됨</td></tr>
+          <tr><td>성심당 본점</td><td class="n hi">2</td><td class="n hi">2</td><td class="n">1</td><td>단어 AND 매칭은 tsvector가 나은 유일한 케이스</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="cap">정규화 = 소문자화 + <code>[^0-9a-z가-힣]</code> 제거. 지금 OpenSearch가 한국어에서 실제로 의존하는 것도 이 정규화 + ngram이었다.</p>
+    <p>그래서 답은 "tsvector 대신 <strong>n-gram 부분일치</strong>"다. OpenSearch에 빗대면 tsvector ≈ <code>text</code> 필드(토큰 일치), pg_bigm ≈ 지금 쓰는 <code>ngram</code>(min_gram 2) 필드. pg_bigm은 문자열을 2글자 조각으로 GIN 인덱스에 넣어 <code>LIKE '%몽심%'</code>이 인덱스를 타게 하는 확장으로, RDS PostgreSQL 18에서 1.2를 제공한다.</p>
+
+    <h3>pg_bigm vs pg_trgm — 2글자 검색어가 갈랐다</h3>
+    <p>형제 확장 pg_trgm(3-gram)은 코어 contrib라 어디에나 있다는 장점이 있다. 하지만 검색 로그의 상위 검색어에는 "몽심·대구·성심·수원" 같은 2글자가 많고, trgm은 3글자 미만 패턴에 인덱스를 못 쓴다. 랩 PG(운영 덤프 복제본, 45k 가게)에서 인덱스 변형별로 재 봤다.</p>
+  </section>
+
+  <div class="wide">
+    <div class="fig">
+      <p class="figtitle">인덱스 변형별 이름 부분일치 지연 (p50, ms — 15회, 랩 PG)</p>
+      <p class="figsub">2글자 검색어에서 pg_trgm은 인덱스를 못 타 seq scan(17.9ms), pg_bigm은 0.36ms. 3글자 이상은 둘이 같다.</p>
+      <div class="legend"><span><i style="background:var(--series-3)"></i>인덱스 없음</span><span><i style="background:var(--series-pg)"></i>pg_bigm</span><span><i style="background:var(--series-os)"></i>pg_trgm</span></div>
+      <svg class="chart" id="fig-index" viewBox="0 0 640 230" role="img" aria-label="인덱스 변형별 지연: 몽심(2글자) 없음 6.66 bigm 0.36 trgm 17.87 / 성심당 6.50 0.29 0.33 / 베이커리(2,714건) 6.93 1.67 1.70 ms"></svg>
+    </div>
+    <p class="cap">인덱스 크기도 bigm 3.7 MB vs trgm 7.4 MB(가게명). 이 결과로 pg_bigm으로 확정했다. 랩 머신(M-시리즈)은 운영 RDS보다 훨씬 빨라 절대값이 아닌 상대 비교로만 봐야 한다 — 같은 seq scan이 운영에선 43ms였다.</p>
+  </div>
+
+  <section class="prose">
+    <div class="part"><span class="no">Part 2 · 보론</span></div>
+    <h2>"그래도 tsvector + pg_trgm 하이브리드면 되지 않나?"</h2>
+    <p>전환 중에 받은 반론이다. 요지는 "가게명·지역·카테고리를 <code>setweight</code>로 합친 tsvector 생성 컬럼 + GIN, 한국어 약점은 pg_trgm으로 보완, 랭킹은 <code>ts_rank</code>" — 일반론으로 대부분 맞고, 결론(n-gram 하이브리드)은 우리가 실측으로 도달한 지점과 같다. 갈리는 곳은 <em>우리 사용자가 무엇을 검색하느냐</em>에서 나온다.</p>
+
+    <h3>우리 사용자는 "아는 이름을 친다"</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>유형</th><th>예 (운영 30일 상위 검색어)</th><th>특징</th></tr></thead>
+        <tbody>
+          <tr><td>가게명 통째</td><td>브릭베이글 · 밀로밀 · 성심당 · 콜드버터베이크샵 · 파티세리소신</td><td>상위 25개의 대부분. 붙여쓰기/띄어쓰기 변이가 잦다</td></tr>
+          <tr><td>가게명 + 지점</td><td>하츠베이커리 성수점 · 성심당 본점</td><td>2토큰이지만 독립 단어의 AND가 아니라 이름 + 지점 접미</td></tr>
+          <tr><td>지역명</td><td>대전 · 대구 · 수원 · 성수동 · 천안시 서북구</td><td>사전(<code>search_region_alias</code>)에 대부분 있음</td></tr>
+          <tr><td>2글자</td><td>몽심 · 대구 · 성심</td><td>흔하다 — pg_trgm이 인덱스를 못 타는 길이</td></tr>
+          <tr><td>자동완성 접두</td><td>성 · 성심 · 카페 · 어글리 · 맘모스</td><td>1~3글자 접두</td></tr>
+          <tr><td>자연어 복합</td><td>("강남 카페" 같은 것)</td><td><b>거의 없음.</b> "연남동 빵집" 정도이고 "빵집"은 불용어</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:16px">단어를 조합해 문서를 찾는 전문검색이 아니라, 이름 사전에서 부분일치로 꺼내는 조회에 가깝다. 검색 대상은 평균 6.5자짜리 이름이다. 이 특성이 아래 판정의 기준이다.</p>
+
+    <h3>주장별 판정</h3>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>주장</th><th>판정</th><th>근거</th></tr></thead>
+        <tbody>
+          <tr><td>tsvector로 통합·복합 검색 가능</td><td>일반론 O · <b>우리 ×</b></td><td>"성심당본점" 0건, "브릭 베이글" 0건, "트리마제" 0건. tsvector가 이긴 유일한 케이스(단어 AND "성심당 본점")는 토큰 INTERSECT(부분일치 AND)가 더 넓게 처리</td></tr>
+          <tr><td>가중치 A/B/C + <code>ts_rank</code></td><td>대체 가능 · 우리 방식이 더 통제됨</td><td><code>ts_rank</code>는 단어 빈도 기반이라 1~2토큰 이름에선 의미가 없다. 정확 100/접두 80/포함 60·구명 ×0.75·지역 40×weight 계단이 사실상 A/B/C의 설명 가능한 버전</td></tr>
+          <tr><td><code>simple</code> 사전은 공백만 자른다</td><td><b>정확</b></td><td>실측으로 확인한 그 지점</td></tr>
+          <tr><td>보완은 pg_trgm으로</td><td>방향 O · <b>확장은 ×</b></td><td>2글자에서 trgm 17.9ms(seq scan) vs bigm 0.36ms, 인덱스 절반. RDS PG18에 bigm 제공</td></tr>
+          <tr><td>pgroonga / mecab-ko 설치</td><td><b>불가</b></td><td>매니지드 RDS에는 못 얹는다. 셀프호스팅 PG에서만</td></tr>
+          <tr><td>오타 교정은 OpenSearch가 강함</td><td>맞지만 잃는 게 없음</td><td>기존 OS 쿼리에도 fuzzy는 없었다. 필요하면 <code>bigm_similarity</code>로 폴백 추가 가능</td></tr>
+          <tr><td>정합성 즉시 반영은 PG의 장점</td><td><b>우리에게 특히 큼</b></td><td>OS는 색인 이벤트·재색인 배치·주간 점수 배치·"매핑을 코드가 안 만드는" 구멍이 있었다. 이 부류의 장애가 통째로 사라진다</td></tr>
+          <tr><td>카테고리도 tsvector로</td><td>범위 밖 · 되살려도 방식이 다름</td><td>빵 단어는 파서가 사전으로 대표어 매핑 중. 되살린다면 "빵 토큰 → 카테고리 → 조인"이 자연스럽다</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>결론 — 지금은 안 얹고, 다시 볼 시점은 정해 둔다</h3>
+    <p>tsvector가 더해 주는 것 — 토큰 AND(<code>&amp;</code>), 접두(<code>:*</code>), <code>ts_rank</code>, 어간 추출 — 중 앞의 둘은 이미 bigm INTERSECT와 접두 인덱스가 더 넓게 하고, 랭킹은 계단이 대체하고, 어간 추출은 한국어에 없다. 지금 얹으면 인덱스와 코드만 하나 더 는다.</p>
+    <p><strong>다시 볼 시점은 검색 대상에 긴 텍스트가 들어올 때</strong>다. 가게 소개글·리뷰 본문·코스 설명을 검색하게 되면 "단어가 있느냐"의 문제가 되고, 그때는 tsvector(혹은 다시 OpenSearch)가 제 역할을 한다.</p>
+    <div class="callout">
+      <p><strong>덤 — 로그가 알려 준 것.</strong> 자동완성 상위 입력에 <code>ㅁ</code> <code>ㅇ</code> <code>ㅅ</code> <code>ㅎ</code> 같은 자음 하나가 각 11~17회 있다. 의도한 초성 검색이라기보다 한글 IME가 글자를 조합하는 중간 상태가 그대로 날아온 것이고, 두 엔진 모두 0건이다. FE 디바운스(150~200ms)로 호출을 줄이거나, 반대로 <code>name_chosung</code> 생성 컬럼 + bigm 인덱스로 한 타 먼저 반응하게 할 수 있다 — 전환과 별개의 작은 후보.</p>
+    </div>
+  </section>
+
+  <!-- ============ 3. 설계 ============ -->
+  <section class="prose">
+    <div class="part"><span class="no">Part 3</span></div>
+    <h2>설계 — 되돌릴 수 있게, 그리고 설명할 수 있게</h2>
+    <p>전환의 첫 원칙은 <strong>언제든 되돌릴 수 있을 것</strong>. 검색 엔진을 포트(<code>StoreSearchEngine</code>)로 추출하고 OpenSearch 구현과 PostgreSQL 구현을 나란히 두었다. 어느 쪽을 쓸지는 <code>search.engine</code> 프로퍼티가 정하고, 랩에서만 요청 파라미터 <code>engine=</code>으로 요청별 오버라이드를 허용한다. 같은 JVM에서 두 엔진을 번갈아 재는 A/B의 전제이자, 운영에서 문제가 나면 프로퍼티 하나로 롤백하는 장치다.</p>
+  </section>
+  <div class="wide">
+    <div class="flow">
+      <div class="stack">
+        <div class="box"><b>StoreController</b><small>/stores/search · /autocomplete<br>engine= (랩 전용)</small></div>
+        <div class="box"><b>StoreSearchQueryParser</b><small>지역·빵·잔여 토큰 분류<br>(엔진 무관, 재사용)</small></div>
+      </div>
+      <div class="arrowc">→</div>
+      <div class="stack">
+        <div class="box acc"><b>StoreSearchEngineRouter</b><small>기본 엔진 = search.engine<br>오버라이드는 랩에서만</small></div>
+        <div class="box"><b>StoreSearchService</b><small>폴백·품질 지표(SearchOutcome)<br>· search_misses 적재</small></div>
+      </div>
+      <div class="arrowc">→</div>
+      <div class="stack">
+        <div class="box"><b>OpenSearchStoreClient</b><small>기존 구현, 어댑터로 유지</small></div>
+        <div class="box acc"><b>PostgresStoreSearchEngine</b><small>SqlBuilder → JdbcRepository<br>pg_bigm · PostGIS</small></div>
+        <div class="box"><b>StoreSearchAssembler</b><small>hit(storeId, score) → RDB 조립</small></div>
+      </div>
+    </div>
+  </div>
+  <section class="prose" style="margin-top:36px">
+    <h3>스키마 — 앱 코드가 정규화를 유지하지 않게</h3>
+    <p>정규화 문자열은 <strong>STORED 생성 컬럼</strong>으로 두었다. 가게를 저장하는 코드가 정규화를 알 필요가 없고, 규칙(<code>lower</code> + <code>[^0-9a-z가-힣]</code> 제거)이 DB·OpenSearch 분석기·Java 파서 세 곳에서 동일하다는 게 비교의 전제가 된다.</p>
+    <pre><code>CREATE EXTENSION IF NOT EXISTS pg_bigm;
+ALTER TABLE store
+  ADD COLUMN name_normalized varchar(100)
+    GENERATED ALWAYS AS (regexp_replace(lower(name), '[^0-9a-z가-힣]', '', 'g')) STORED,
+  ADD COLUMN address_normalized varchar(255) GENERATED ALWAYS AS (…) STORED,
+  ADD COLUMN popularity_score double precision NOT NULL DEFAULT 0;
+CREATE INDEX idx_store_name_normalized_bigm   ON store USING gin (name_normalized gin_bigm_ops);
+CREATE INDEX idx_store_name_normalized_prefix ON store (name_normalized text_pattern_ops);  -- 자동완성 접두
+-- + address bigm, alias bigm/prefix, region alias prefix, popularity_score desc</code></pre>
+    <p>인기도(구독수 + 전국랭킹 점수 + 조회수)는 OpenSearch 문서의 <code>popularityScore</code>를 <code>store.popularity_score</code> 컬럼으로 옮기고, 마이그레이션에서 1회 백필한 뒤 주간 배치와 어드민 수동 갱신이 <strong>집계 UPDATE 한 방</strong>으로 덮어쓴다. 랩에서 확장 생성부터 인덱스 7개·백필까지 2.35초.</p>
+
+    <h3>쿼리 — 후보 → 점수 → 정렬</h3>
+    <p>SQL은 세 단으로 짠다. 후보는 조건별로 인덱스를 탈 수 있는 단순 SELECT를 <code>UNION</code>/<code>INTERSECT</code>로 합쳐 뽑는다. <code>name LIKE … OR EXISTS(alias …)</code>처럼 한 덩어리로 쓰면 인덱스를 못 타고 14ms seq scan이 되는 걸 랩에서 확인했기 때문이다.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>케이스</th><th>예</th><th>후보 집합</th></tr></thead>
+        <tbody>
+          <tr><td>지역 + 이름</td><td>"망원 브릭", "서울 테디뵈르하우스"</td><td>지역 매핑 가게 <b>∩</b> 이름토큰마다 (name ∪ alias 부분일치)</td></tr>
+          <tr><td>지역만</td><td>"성수동", "대구"</td><td>지역 매핑 가게 <b>∪</b> 검색어 전체 이름 부분일치</td></tr>
+          <tr><td>이름만</td><td>"브릭베이글", "우드 앤 브릭"</td><td>이름토큰마다 <b>∩</b> (name ∪ alias)</td></tr>
+          <tr><td>폴백 A (기존)</td><td>"한남에그타르트"</td><td>붙여 쓴 토큰을 분해해 재파싱 후 재검색</td></tr>
+          <tr><td>폴백 B (신규)</td><td>"천안시 서북구"</td><td>사전에 없는 지역어는 1차 0건일 때 <code>address_normalized</code> 부분일치</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:16px">랭킹은 OpenSearch의 function_score(multiply·sum)와 같은 꼴을 <strong>설명 가능한 계단</strong>으로 옮겼다. 파라미터는 전부 바인드, 사용자 입력이 SQL 문자열에 들어가는 곳은 없다.</p>
+    <pre><code>score = (greatest(name_score, alias_score) + region_score + address_score)
+        × (1 + 0.3·ln(1 + popularity) + gauss(distance))
+
+name_score  = 정확 100 · 접두 80 · 포함 60      -- 검색어 전체와 각 이름 토큰 중 최고 계단
+alias_score = 같은 계단 × 0.75                  -- 구명(개명 전 이름)은 한 단계 낮게
+region      = 40 × 매핑 weight(0.3~1.0)         -- 핫플 1.0 · 동 0.9 · 역 0.8 · 구 0.5 · 시 0.3
+gauss(d)    = exp(−(max(0, d−500m))² / (2σ²)), σ: scale 3km·decay 0.5  -- OpenSearch와 동일 파라미터</code></pre>
+    <p>거리는 PostGIS <code>geography &lt;-&gt;</code>(구면 거리), 정렬은 <code>relevance</code> = 점수, <code>distance</code> = 거리 후 점수, <code>popularity</code> = 인기도 후 점수. 페이지는 size+1을 읽어 <code>hasNext</code>를 정확히 계산한다(예전 <code>hits.size()==pageSize</code> 추정은 마지막 페이지가 딱 맞아떨어질 때 빈 다음 페이지를 약속했다).</p>
+    <div class="callout">
+      <p><strong>일부러 넣지 않은 것.</strong> OpenSearch 어댑터는 외부 시스템 장애를 빈 결과로 감싸 200을 돌려준다. PostgreSQL 엔진은 DB 예외를 삼키지 않는다 — RDB 장애는 앱 전체 장애라 숨길 이유가 없고, 숨기면 원인을 늦게 안다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 4. 실측 ============ -->
+  <section class="prose">
+    <div class="part"><span class="no">Part 4</span></div>
+    <h2>같은 조건에서 재기 — 랩 A/B</h2>
+    <p>"OpenSearch만 로컬에 띄우고 PG는 운영 RDS 터널로 두면 네트워크가 동등하다"는 첫 발상은 반대였다 — 그러면 PG만 쿼리마다 왕복 10~30ms를 얹는다. 그래서 <strong>둘 다 로컬</strong>로 맞췄다. 부수 효과가 컸다. 운영 DB를 실험대로 쓰지 않아도 되니 Flyway 체크섬 사고, request_log 오염, 스케줄러 이중 실행 걱정 없이 인덱스·SQL을 마음껏 갈아 끼울 수 있었다.</p>
+    <dl class="kv">
+      <dt>OpenSearch</dt><dd>Docker, 운영과 같은 3.5.0 + <code>analysis-nori</code>·<code>analysis-icu</code>, 같은 <code>store-index.json</code>, 기존 재색인 배치로 45,339건 색인(2분, 실패 0)</dd>
+      <dt>PostgreSQL</dt><dd>Docker, 18.6 + PostGIS 3.6.1 + pg_bigm 1.2(소스 빌드), 운영 덤프 80 MB 복원(request_log 제외), Flyway로 마이그레이션 적용</dd>
+      <dt>앱</dt><dd>같은 JVM(<code>local,lab</code> 프로파일) — 두 엔진 빈이 동시에 살아 있고 <code>engine=</code>으로 고른다</dd>
+      <dt>러너</dt><dd>의존성 없는 single-file Java. 운영 로그 상위 검색어 30개 + 자동완성 접두어 10개 × 20라운드(워밍업 3회 제외), 라운드마다 엔진 순서 교대, size 15, 좌표 있음(거리 가중 켜짐)</dd>
+      <dt>측정 층</dt><dd><b>e2e</b> = HTTP 왕복(RDB 조립 포함) · <b>엔진</b> = <code>@Timed</code> 히스토그램의 러너 전후 차분(OpenSearch 왕복+파싱 / SQL 실행+매핑) · <b>품질</b> = 상위 10건 storeId 겹침률</dd>
+    </dl>
+  </section>
+
+  <div class="wide">
+    <div class="grid2">
+      <div class="fig">
+        <p class="figtitle">엔진 순수 시간 — 평균 (ms)</p>
+        <p class="figsub">@Timed 히스토그램 차분, 검색 n=690 · 자동완성 n=230 (각 엔진)</p>
+        <div class="legend"><span><i style="background:var(--series-os)"></i>OpenSearch</span><span><i style="background:var(--series-pg)"></i>PostgreSQL</span></div>
+        <svg class="chart" id="fig-engine" viewBox="0 0 460 170" role="img" aria-label="엔진 평균: 검색 OpenSearch 4.4ms PostgreSQL 2.2ms, 자동완성 OpenSearch 4.6ms PostgreSQL 1.9ms"></svg>
+      </div>
+      <div class="fig">
+        <p class="figtitle">검색 e2e — p50 · p95 (ms)</p>
+        <p class="figsub">HTTP 왕복, RDB 조립 포함, 각 600회</p>
+        <div class="legend"><span><i style="background:var(--series-os)"></i>OpenSearch</span><span><i style="background:var(--series-pg)"></i>PostgreSQL</span></div>
+        <svg class="chart" id="fig-e2e" viewBox="0 0 460 170" role="img" aria-label="검색 e2e p50 OpenSearch 32.6 PostgreSQL 29.9, p95 OpenSearch 43.9 PostgreSQL 39.6 ms"></svg>
+      </div>
+    </div>
+    <div class="tablewrap" style="margin-top:16px">
+      <table>
+        <thead><tr><th>지표 (랩, 20라운드)</th><th class="n">OpenSearch</th><th class="n">PostgreSQL</th><th>읽는 법</th></tr></thead>
+        <tbody>
+          <tr><td>검색 엔진 mean / p50 / p95</td><td class="n">4.4 / ≤5.0 / ≤7.0</td><td class="n hi">2.2 / ≤1.4 / ≤8.4</td><td>엔진 자체는 2배 빠르다</td></tr>
+          <tr><td>검색 e2e p50 / p95 / p99</td><td class="n">32.6 / 43.9 / 48.3</td><td class="n hi">29.9 / 39.6 / 50.1</td><td>e2e는 RDB 조립(~25ms)이 지배 → 차이 10%</td></tr>
+          <tr><td>자동완성 엔진 mean</td><td class="n">4.6</td><td class="n hi">1.9</td><td></td></tr>
+          <tr><td>자동완성 e2e p50 / p95</td><td class="n">5.3 / 8.0</td><td class="n hi">2.5 / 5.9</td><td>조립이 없어 엔진 차이가 그대로 보인다</td></tr>
+          <tr><td>상위 10 겹침률 (검색 29개)</td><td class="n" colspan="2">81%</td><td>불일치는 지역만 검색의 순위 차이·메뉴 매칭 제거분</td></tr>
+          <tr><td>5xx</td><td class="n">0</td><td class="n">0</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="cap">단위 ms. p50/p95는 히스토그램 버킷 상한 기준의 상한 추정치. 리포트 원본: <code>docs/reports/search-engine-ab-20260818-1733.md</code></p>
+  </div>
+
+  <section class="prose">
+    <h3>실측이 잡아 준 것들</h3>
+    <p>숫자보다 값진 건 러너가 도는 동안 튀어나온 문제들이었다. 전부 랩에서 잡혀 운영에는 가지 않는다.</p>
+    <ul>
+      <li><strong>원거리 <code>exp()</code> underflow.</strong> 망원에서 대전(150 km)의 성심당을 검색하면 거리 감쇠 <code>exp(-1700)</code>이 되는데, PostgreSQL은 이걸 0이 아니라 <em>오류</em>로 낸다. 지수를 700에서 자른다.</li>
+      <li><strong>거리 계산 8배.</strong> 후보 2,714건('베이커리')에 <code>ST_Distance</code>(회전타원체) 18ms → geography <code>&lt;-&gt;</code>(구면) 2.2ms. 오차는 원거리 0.3%로 감쇠·정렬에 무의미.</li>
+      <li><strong>구명 점수 조인.</strong> "걸린 구명을 모아 LEFT JOIN"은 행수 추정이 1로 빗나가 중첩 루프 × Materialize(2,750 × 101)로 풀렸다. 가게별 상관 서브쿼리(<code>store_id</code> 인덱스)로 바꿔 28 → 20ms.</li>
+      <li><strong>"성심당"은 지역이었다.</strong> 검색 결과에 <code>REGION</code> 매칭이 섞여 나오길래 추적하니 성심당이 랜드마크 지역으로 사전에 등록돼 있었다. 두 엔진이 같은 사전을 쓰니 결과도 같았다 — 버그가 아니라 데이터.</li>
+    </ul>
+    <div class="callout blue">
+      <p><strong>정직하게 읽으면.</strong> 엔진 시간은 절반이지만 e2e는 10%밖에 안 줄었다. 검색 응답의 대부분은 검색이 아니라 그 뒤 RDB 조립이었다. "속도로는 갈리지 않는다"는 처음 판단이 맞았고, 이 전환의 실제 가치는 <em>비용 0·인프라 한 덩어리 제거·설명 가능한 랭킹</em>이다. 남은 e2e를 줄이려면 다음 과제는 엔진이 아니라 조립 쿼리다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 5. 결과 ============ -->
+  <section class="prose">
+    <div class="part"><span class="no">Part 5</span></div>
+    <h2>결과가 갈리는 곳은 어디였나</h2>
+    <p>겹침률 81%의 나머지 19%는 세 종류다. 이건 회귀가 아니라 <em>의도한 차이</em>라 문서에 남긴다.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>검색어</th><th class="n">OS p50</th><th class="n">PG p50</th><th class="n">OS n</th><th class="n">PG n</th><th class="n">겹침@10</th><th>해석</th></tr></thead>
+        <tbody>
+          <tr><td>성심당</td><td class="n">37.0</td><td class="n">33.3</td><td class="n">10</td><td class="n">10</td><td class="n">80%</td><td>동일 집합, 지점 순서만 다름</td></tr>
+          <tr><td>망원 브릭</td><td class="n">31.5</td><td class="n">27.9</td><td class="n">1</td><td class="n">1</td><td class="n">100%</td><td>지역 ∩ 이름</td></tr>
+          <tr><td>천안시 서북구</td><td class="n">29.9</td><td class="n">27.8</td><td class="n">1</td><td class="n">1</td><td class="n">100%</td><td>주소 폴백이 OS와 같은 가게를 찾음</td></tr>
+          <tr><td>대구 / 수원 / 성수동</td><td class="n">34~37</td><td class="n">32~37</td><td class="n">10</td><td class="n">10</td><td class="n">10~20%</td><td><b>지역만 검색</b> — 후보 집합은 같고 순위가 다름 (BM25+nested 부스트 vs 지역 weight×인기도×거리)</td></tr>
+          <tr><td>브릭 베이글</td><td class="n">30.5</td><td class="n">26.3</td><td class="n">2</td><td class="n">1</td><td class="n">50%</td><td>OS는 베이글 <b>메뉴</b>까지 매칭 — 범위 축소분</td></tr>
+          <tr><td>우드 앤 브릭</td><td class="n">29.3</td><td class="n">4.1</td><td class="n">1</td><td class="n">0</td><td class="n">0%</td><td>OS의 1건은 메뉴명 매칭 — 범위 축소분</td></tr>
+          <tr><td>베이커리</td><td class="n">37.3</td><td class="n">48.1</td><td class="n">10</td><td class="n">10</td><td class="n">70%</td><td>후보 2,714건 스코어링 — PG가 유일하게 느린 검색어</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:16px">자동완성은 겹침이 24%로 낮은데, 후보의 <em>정확성</em>이 아니라 <em>우선순위</em>가 다르기 때문이다(OS는 문서 점수 → 필드 순회, PG는 접두 우선 · 인기도순). "성심"을 치면 둘 다 성심당 지점들을 내놓지만 순서가 다르다.</p>
+    <p>메뉴 매칭이 빠지는 건 결정 사항이지만, 그 수요는 계속 본다 — 0건 검색은 기존처럼 <code>search_misses</code>에 쌓이고 <code>search.query{outcome}</code> 지표로 나온다.</p>
+  </section>
+
+  <!-- ============ 6. 전환 ============ -->
+  <section class="prose">
+    <div class="part"><span class="no">Part 6</span></div>
+    <h2>운영으로 — 그리고 노드를 끄기까지</h2>
+    <ol>
+      <li><strong>PR 머지·배포</strong>, 기본 엔진은 그대로 <code>opensearch</code>. 부팅 시 Flyway가 마이그레이션(확장·생성 컬럼·인덱스·백필)을 적용한다. <code>CREATE EXTENSION pg_bigm</code>은 RDS 마스터 계정 권한 — postgis를 만든 계정이면 된다.</li>
+      <li><code>search.engine=postgres</code>로 바꿔 재배포. 파라미터 오버라이드는 운영에서 잠겨 있으므로 API 계약은 변하지 않는다.</li>
+      <li>1~2주 <code>request_log</code> p50/p95(기준선 125/392ms), <code>search_misses</code>, <code>search.query{outcome}</code> 관찰. 문제가 보이면 프로퍼티 하나로 <code>opensearch</code>로 되돌린다.</li>
+      <li>이상 없으면 OpenSearch 제거 PR — <code>external/opensearch</code> 패키지, 색인 이벤트·재색인 배치·주간 점수 배치, 의존성 — 그리고 도메인 삭제. 월 $130~140이 0이 되는 시점.</li>
+    </ol>
+    <h3>남은 리스크</h3>
+    <ul>
+      <li><strong>품질 회귀</strong> — OS의 부스트 튜닝을 그대로 옮긴 게 아니라 다시 정의한 것이다. 겹침률과 실패 로그로 감시하고, 롤백은 프로퍼티 하나.</li>
+      <li><strong>랩 ≠ 운영</strong> — 랩은 M-시리즈 맥, 운영은 소형 RDS. 절대값은 운영에서 다시 잰다. RDS 파라미터 <code>random_page_cost</code>(SSD인데 기본 4)를 1.1로 낮추면 인덱스 중첩 루프가 선택되는 것도 확인해 뒀다.</li>
+      <li><strong>테스트 인프라</strong> — pg_bigm은 공식 이미지에 없어 SQL 검증은 랩 PG를 향한 통합 테스트(<code>@Tag("lab")</code>, <code>-PlabTests</code>)로 분리했다. CI는 단위 테스트(빌더 9·엔진 11·라우터 6 등)만 돈다.</li>
+    </ul>
+    <h3>배운 것</h3>
+    <ul>
+      <li>"tsvector냐 OpenSearch냐"는 잘못된 이분법이었다. 한국어 부분일치의 실제 자리는 n-gram이고, PG 안에서는 pg_bigm이 그 자리를 채운다.</li>
+      <li>속도 비교는 결정의 근거가 아니라 <em>검증</em>이었다. 결정을 가른 건 "메뉴 검색을 뺀다"는 제품 판단이었고, 실측은 그 판단이 안전하다는 걸 보여 줬다.</li>
+      <li>랩을 운영 복제본으로 만든 덕에 실험이 자유로웠고, 러너를 돌리는 동안 나온 세 가지 버그(underflow·거리·조인)가 운영 대신 랩에서 터졌다.</li>
+    </ul>
+  </section>
+
+  <div class="prose footnote">
+    코드: <code>feat/search-postgres-bigm</code> — <code>store/service/search/postgres/</code>(엔진·SQL 빌더), <code>store/repository/search/</code>, <code>V20260818170000__add_store_search_normalized_columns_and_bigm_indexes.sql</code>, <code>scripts/lab/</code>(덤프·복원·A/B 러너), <code>docker/</code>(랩 이미지).
+    측정 원본: <code>docs/reports/search-engine-ab-20260818-1733.md</code>, 플래닝: <code>.claude/planning/feat-search-postgres-bigm.md</code>.
+  </div>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+(function () {
+  var css = getComputedStyle(document.documentElement);
+  function tok(name) { return css.getPropertyValue(name).trim(); }
+  var tip = document.getElementById('tip');
+  function showTip(evt, text) { tip.textContent = text; tip.style.left = evt.clientX + 'px'; tip.style.top = evt.clientY + 'px'; tip.classList.add('show'); }
+  function hideTip() { tip.classList.remove('show'); }
+
+  // 가로 그룹 막대. groups: [{label, values:[{series, value}]}], series: [{key, name, color}]
+  function bars(svgId, cfg) {
+    var svg = document.getElementById(svgId);
+    if (!svg) return;
+    var vb = svg.viewBox.baseVal, W = vb.width, H = vb.height;
+    var left = cfg.left || 96, right = 54, top = 10, bottom = 26;
+    var plotW = W - left - right, plotH = H - top - bottom;
+    var groups = cfg.groups, nS = cfg.series.length;
+    var gh = plotH / groups.length, barH = Math.min(18, (gh - 10) / nS), gapY = 2;
+    var max = cfg.max;
+    var ns = 'http://www.w3.org/2000/svg';
+    function el(n, a) { var e = document.createElementNS(ns, n); for (var k in a) e.setAttribute(k, a[k]); return e; }
+    // grid
+    var ticks = cfg.ticks;
+    ticks.forEach(function (t) {
+      var x = left + plotW * (t / max);
+      svg.appendChild(el('line', { x1: x, x2: x, y1: top, y2: top + plotH, 'class': 'grid' }));
+      var lab = el('text', { x: x, y: H - 8, 'class': 'axis', 'text-anchor': 'middle' }); lab.textContent = t; svg.appendChild(lab);
+    });
+    groups.forEach(function (g, gi) {
+      var y0 = top + gi * gh + (gh - (barH * nS + gapY * (nS - 1))) / 2;
+      var gl = el('text', { x: left - 10, y: y0 + (barH * nS + gapY * (nS - 1)) / 2 + 4, 'class': 'lab', 'text-anchor': 'end' });
+      gl.textContent = g.label; svg.appendChild(gl);
+      cfg.series.forEach(function (s, si) {
+        var v = g.values[si];
+        var w = Math.max(2, plotW * (v / max));
+        var y = y0 + si * (barH + gapY);
+        var r = el('rect', { x: left, y: y, width: w, height: barH, fill: tok(s.color), 'class': 'bar' });
+        svg.appendChild(r);
+        var vl = el('text', { x: left + w + 6, y: y + barH / 2 + 4, 'class': 'val' }); vl.textContent = v + (cfg.unit || ''); svg.appendChild(vl);
+        var hit = el('rect', { x: left, y: y - 1, width: plotW, height: barH + 2, 'class': 'hit' });
+        var text = g.label + ' · ' + s.name + ' · ' + v + (cfg.unit || 'ms');
+        hit.addEventListener('mousemove', function (e) { showTip(e, text); });
+        hit.addEventListener('mouseleave', hideTip);
+        var t = el('title', {}); t.textContent = text; hit.appendChild(t);
+        svg.appendChild(hit);
+      });
+    });
+    svg.appendChild(el('line', { x1: left, x2: left, y1: top, y2: top + plotH, 'class': 'grid' }));
+  }
+
+  var OS = { key: 'os', name: 'OpenSearch', color: '--series-os' };
+  var PG = { key: 'pg', name: 'PostgreSQL', color: '--series-pg' };
+  var NONE = { key: 'none', name: '인덱스 없음', color: '--series-3' };
+  var BIGM = { key: 'bigm', name: 'pg_bigm', color: '--series-pg' };
+  var TRGM = { key: 'trgm', name: 'pg_trgm', color: '--series-os' };
+
+  function draw() {
+    css = getComputedStyle(document.documentElement);
+    document.querySelectorAll('svg.chart').forEach(function (s) { while (s.firstChild) s.removeChild(s.firstChild); });
+    bars('fig-index', {
+      left: 118, max: 20, ticks: [0, 5, 10, 15, 20], unit: 'ms',
+      series: [NONE, BIGM, TRGM],
+      groups: [
+        { label: "'몽심' (2글자)", values: [6.66, 0.36, 17.87] },
+        { label: "'성심당' (3글자)", values: [6.50, 0.29, 0.33] },
+        { label: "'베이커리' (2,714건)", values: [6.93, 1.67, 1.70] }
+      ]
+    });
+    bars('fig-engine', {
+      left: 78, max: 5, ticks: [0, 1, 2, 3, 4, 5], unit: 'ms',
+      series: [OS, PG],
+      groups: [
+        { label: '검색', values: [4.4, 2.2] },
+        { label: '자동완성', values: [4.6, 1.9] }
+      ]
+    });
+    bars('fig-e2e', {
+      left: 60, max: 50, ticks: [0, 10, 20, 30, 40, 50], unit: 'ms',
+      series: [OS, PG],
+      groups: [
+        { label: 'p50', values: [32.6, 29.9] },
+        { label: 'p95', values: [43.9, 39.6] }
+      ]
+    });
+  }
+  draw();
+  // 테마가 바뀌면(토글 또는 OS 설정) 시리즈 색을 토큰에서 다시 읽어 그린다
+  new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
+  }
+})();
+</script>

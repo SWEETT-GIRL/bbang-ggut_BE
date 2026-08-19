@@ -24,7 +24,6 @@ import org.locationtech.jts.geom.Point;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -54,8 +53,6 @@ import sweetgirl.croissant.contribution.repository.StoreContributionReportImageF
 import sweetgirl.croissant.contribution.repository.StoreContributionReportRepository;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
-import sweetgirl.croissant.external.opensearch.event.StoreAddressChangedEvent;
-import sweetgirl.croissant.external.opensearch.event.StoreMenusChangedEvent;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.entity.MenuCategory;
@@ -107,8 +104,6 @@ class AdminReportCommandServiceTest {
 	ImageProcessingCallbackService imageProcessingCallbackService;
 	@Mock
 	ReportNotificationService reportNotificationService;
-	@Mock
-	ApplicationEventPublisher eventPublisher;
 
 	AdminReportCommandService adminReportCommandService;
 
@@ -124,7 +119,6 @@ class AdminReportCommandServiceTest {
 			menuContributionReportImageFileRepository,
 			s3Service,
 			new ObjectMapper(),
-			eventPublisher,
 			imageProcessingCallbackService);
 		adminReportCommandService = new AdminReportCommandService(
 			storeContributionReportRepository,
@@ -187,7 +181,6 @@ class AdminReportCommandServiceTest {
 
 		Menu newMenu = mock(Menu.class);
 		given(newMenu.getId()).willReturn(99L);
-		given(newMenu.getStore()).willReturn(store);
 		given(menuRepository.save(any(Menu.class))).willReturn(newMenu);
 
 		MenuContributionReportImageFile img = MenuContributionReportImageFile.builder()
@@ -243,10 +236,9 @@ class AdminReportCommandServiceTest {
 	}
 
 	@Test
-	@DisplayName("StoreContribution MOD_BAKERY_ADDRESS ACCEPT: Store.update 호출과 이벤트 발행")
-	void storeReport_modBakeryAddress_accept_updatesStoreAndPublishesEvent() {
+	@DisplayName("StoreContribution MOD_BAKERY_ADDRESS ACCEPT: Store.update 호출")
+	void storeReport_modBakeryAddress_accept_updatesStore() {
 		Store store = mock(Store.class);
-		given(store.getId()).willReturn(7L);
 		Member reporter = member(4L);
 		StoreContributionReport report = storeUpdateContribution(
 			61L,
@@ -271,9 +263,6 @@ class AdminReportCommandServiceTest {
 			eq(null),
 			eq(null),
 			eq(null));
-		ArgumentCaptor<StoreAddressChangedEvent> captor = ArgumentCaptor.forClass(StoreAddressChangedEvent.class);
-		verify(eventPublisher).publishEvent(captor.capture());
-		assertThat(captor.getValue().storeId()).isEqualTo(7L);
 	}
 
 	@Test
@@ -320,13 +309,12 @@ class AdminReportCommandServiceTest {
 	}
 
 	@Test
-	@DisplayName("MenuContribution MOD_BREAD ACCEPT: menu.price 갱신 + 이미지 처리 + 이벤트 발행")
+	@DisplayName("MenuContribution MOD_BREAD ACCEPT: menu.price 갱신 + 이미지 처리")
 	void menuReport_modBread_accept_updatesMenuAndImages() {
 		Store store = store("가게", 6L);
 		Member reporter = member(6L);
 		Menu menu = mock(Menu.class);
 		given(menu.getId()).willReturn(200L);
-		given(menu.getStore()).willReturn(store);
 		MenuContributionReport report = menuUpdateContribution(
 			80L,
 			reporter,
@@ -358,9 +346,6 @@ class AdminReportCommandServiceTest {
 		verify(s3Service).deleteObject("menus/200/oldmenu");
 		verify(s3Service).copyObject("reports/stores/6/menus/200/members/9/key-m", "menus/200/key-m");
 		verify(s3Service).deleteObject("reports/stores/6/menus/200/members/9/key-m");
-		ArgumentCaptor<StoreMenusChangedEvent> captor = ArgumentCaptor.forClass(StoreMenusChangedEvent.class);
-		verify(eventPublisher).publishEvent(captor.capture());
-		assertThat(captor.getValue().storeId()).isEqualTo(6L);
 	}
 
 	@Test
