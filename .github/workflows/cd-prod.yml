@@ -86,8 +86,6 @@ jobs:
 
           aws.region=ap-northeast-2
           aws.s3.bucket=${{ secrets.PROD_AWS_S3_BUCKET }}
-          opensearch.endpoint=${{ secrets.PROD_OPENSEARCH_ENDPOINT }}
-          opensearch.region=ap-northeast-2
 
           posthog.api-key=${{ secrets.PROD_POSTHOG_API_KEY }}
           posthog.host=https://us.i.posthog.com
@@ -101,7 +99,6 @@ jobs:
           # Lambda 콜백 인증 키
           lambda.callback.secret-key=${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}
 
-          logging.level.sweetgirl.croissant.external.opensearch=${OPENSEARCH_DEBUG_LOGGING:INFO}
 
           perf.dashboard.enabled=${PERF_DASHBOARD_ENABLED:false}
           perf.dashboard.access-key=${PERF_DASHBOARD_ACCESS_KEY:}
@@ -244,7 +241,6 @@ jobs:
             echo "NAVER_CLIENT_ID=${NAVER_CLIENT_ID}"
             echo "NAVER_CLIENT_SECRET=${NAVER_CLIENT_SECRET}"
             echo "AWS_REGION=ap-northeast-2"
-            echo "OPENSEARCH_REGION=ap-northeast-2"
             echo "AWS_S3_BUCKET=${AWS_S3_BUCKET}"
             echo "PROD_POSTHOG_API_KEY=${PROD_POSTHOG_API_KEY}"
             echo "ENCRYPT_SECRET_KEY=${ENCRYPT_SECRET_KEY}"
