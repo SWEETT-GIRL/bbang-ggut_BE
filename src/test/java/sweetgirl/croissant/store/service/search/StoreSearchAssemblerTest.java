@@ -11,7 +11,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import sweetgirl.croissant.external.opensearch.dto.OpenSearchStoreHit;
 import sweetgirl.croissant.menu.dto.projection.StoreMenuProjection;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
@@ -35,7 +34,7 @@ class StoreSearchAssemblerTest {
 	private MenuRepository menuRepository;
 
 	@Test
-	void assemble_keepsOpenSearchOrderAndPrioritizesMatchedMenus() {
+	void assemble_keepsEngineOrderAndPrioritizesMatchedMenus() {
 		StoreSearchAssembler assembler = new StoreSearchAssembler(
 			storeRepository, storeImageFileRepository, menuImageFileRepository, menuRepository);
 		Store store102 = store(102L, "성수 베이크");
@@ -50,8 +49,8 @@ class StoreSearchAssemblerTest {
 		given(menuImageFileRepository.findThumbnailsByMenuIdIn(List.of(1L, 2L))).willReturn(List.of());
 
 		var result = assembler.assemble(List.of(
-			new OpenSearchStoreHit(102L, 9.0, null, List.of(2L), List.of()),
-			new OpenSearchStoreHit(105L, 8.0, null, List.of(), List.of())));
+			new StoreSearchHit(102L, 9.0, null, List.of(2L), List.of()),
+			new StoreSearchHit(105L, 8.0, null, List.of(), List.of())));
 
 		assertThat(result).hasSize(2);
 		assertThat(result.get(0).id()).isEqualTo(102L);

@@ -13,14 +13,11 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import sweetgirl.croissant.external.opensearch.event.StoreMenusChangedEvent;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
@@ -53,8 +50,6 @@ class MenuCommandServiceTest {
 	MemberRestrictionReader memberRestrictionReader;
 	@Mock
 	StoreRepository storeRepository;
-	@Mock
-	ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
 	MenuCommandService menuCommandService;
@@ -82,9 +77,6 @@ class MenuCommandServiceTest {
 		verify(menuRepository).save(argThat(menu -> menu.getName().equals("흑임자 소금빵")
 			&& menu.getMenuCategory() == null
 			&& menu.getCreatedByMember() == member));
-		ArgumentCaptor<Object> eventCaptor = ArgumentCaptor.forClass(Object.class);
-		verify(eventPublisher).publishEvent(eventCaptor.capture());
-		assertThat(eventCaptor.getValue()).isEqualTo(new StoreMenusChangedEvent(10L));
 	}
 
 	@Test
@@ -103,7 +95,6 @@ class MenuCommandServiceTest {
 
 		assertThat(result).isEqualTo(new MenuRegistrationResult(3L, false));
 		verify(menuRepository, never()).save(any());
-		verify(eventPublisher, never()).publishEvent(any());
 	}
 
 	@Test

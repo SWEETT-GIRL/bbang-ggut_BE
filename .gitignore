@@ -42,6 +42,16 @@ out/
 ### Firebase credentials ###
 src/main/resources/firebase/
 
+### AWS credentials — 프로젝트 안에 두지 말 것 (~/.aws/credentials 사용) ###
+.aws/
+credentials
+*.pem
+
+### 이미지 재처리 작업 산출물 ###
+reprocess-done-*.txt
+reprocess-done-*.txt.bak
+resize_audit.csv
+
 ### Spring Boot - sensitive config ###
 application-local.properties
 application-local.yml

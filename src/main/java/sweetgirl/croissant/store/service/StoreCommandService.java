@@ -2,12 +2,10 @@ package sweetgirl.croissant.store.service;
 
 import java.util.Optional;
 
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
-import sweetgirl.croissant.external.opensearch.event.StoreCreatedEvent;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.store.AddressParser;
 import sweetgirl.croissant.store.code.StoreErrorCode;
@@ -29,7 +27,6 @@ public class StoreCommandService {
 	private final StoreRepository storeRepository;
 	private final SubscribedStoreRepository subscribedStoreRepository;
 	private final MemberReader memberReader;
-	private final ApplicationEventPublisher eventPublisher;
 
 	public KakaoStoreRegisterResponse registerKakaoStore(KakaoStoreRegisterRequest request) {
 		Optional<Store> storeByKakaoPlaceId = storeRepository.findByKakaoPlaceId(request.kakaoPlaceId());
@@ -59,8 +56,6 @@ public class StoreCommandService {
 		Long storeId = storeRepository.findByKakaoPlaceId(request.kakaoPlaceId())
 			.map(Store::getId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
-		// 검색 색인은 커밋 후 비동기 — 안 하면 다음 전체 재색인까지 검색 0건인 가게가 된다.
-		eventPublisher.publishEvent(new StoreCreatedEvent(storeId));
 		return new KakaoStoreRegisterResponse(storeId);
 	}
 
@@ -107,7 +102,6 @@ public class StoreCommandService {
 			: findActiveStoreBySameNameAndAddress(request.name(), request.address()))
 			.map(Store::getId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
-		eventPublisher.publishEvent(new StoreCreatedEvent(storeId));
 		return new NaverStoreRegisterResponse(storeId);
 	}
 

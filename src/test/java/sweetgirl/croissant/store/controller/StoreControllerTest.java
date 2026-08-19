@@ -49,7 +49,7 @@ class StoreControllerTest {
 	}
 
 	@Test
-	void searchStores_returnsOpenSearchResults() throws Exception {
+	void searchStores_returnsSearchResults() throws Exception {
 		StoreSearchResponse response = new StoreSearchResponse(
 			102L, "성수 베이크", "서울 성동구 성수동", null, "kakao-102", "02-0000", "127.0", "37.5", List.of(), List.of());
 		given(storeSearchService.searchStores(eq("성수 에그타르트"), isNull(), isNull(), eq(SearchSort.RELEVANCE),

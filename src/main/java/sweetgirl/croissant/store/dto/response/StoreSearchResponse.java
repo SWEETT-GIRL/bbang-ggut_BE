@@ -6,9 +6,9 @@ import java.util.List;
 import org.locationtech.jts.geom.Point;
 
 import sweetgirl.croissant.external.kakao.dto.KakaoPlace;
-import sweetgirl.croissant.external.opensearch.dto.MatchedField;
 import sweetgirl.croissant.menu.dto.dto.MenuSummaryDto;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.enums.MatchedField;
 
 public record StoreSearchResponse(
 		Long id,

@@ -1,0 +1,55 @@
+category,query,expected,note
+# category: REGION_ONLY | NAME_ONLY | REGION_AND_NAME | ADDRESS_FALLBACK | MENU_ONLY(메뉴 검색 제외 이후 0건이 정상인 것) | AUTOCOMPLETE
+# 회귀 확인용 검색어 셋 — 랩 서버에서 하나씩 쳐 보거나, 서버 로그 [검색추적] 으로 hits·top 을 비교한다.
+# expected: 결과에 반드시 있어야 하는 가게명 조각(부분일치, 비어 있으면 검사 안 함). 여러 개면 |로 구분.
+# 검색어는 운영 request_log 30일 상위 검색어 + 자동완성 접두어에서 뽑았고, 유형별로 몇 개를 보탰다.
+REGION_ONLY,대전,성심당,운영 검색 10회. 대전 매핑 가게가 다수
+REGION_ONLY,대구,,운영 검색 7회 (페이지 스크롤 포함 18회)
+REGION_ONLY,수원,,운영 검색 4회
+REGION_ONLY,성수동,,핫플·동 사전
+REGION_ONLY,망원,브릭베이글,핫플 사전 (weight 1.0)
+REGION_ONLY,연남동,,동 사전
+REGION_ONLY,서울,,대형 지역 — 후보 1.5만
+REGION_ONLY,합정,,핫플 사전
+NAME_ONLY,브릭베이글,브릭베이글,운영 검색 27회
+NAME_ONLY,밀로밀,밀로밀,운영 검색 27회
+NAME_ONLY,성심당,성심당,운영 검색 14회 (성심당은 지역 사전에도 있음)
+NAME_ONLY,몽심,몽심,2글자 가게명 — bigm 인덱스 검증
+NAME_ONLY,투떰즈업,투떰즈업,
+NAME_ONLY,후와후와,후와후와,nori가 뭉개던 이름
+NAME_ONLY,정동문화사,정동문화사,
+NAME_ONLY,콜드버터베이크샵,콜드버터베이크샵,
+NAME_ONLY,꾸드뱅,꾸드뱅,
+NAME_ONLY,파티세리소신,파티세리소신,
+NAME_ONLY,모도상점,모도상점,
+NAME_ONLY,콜드버터,콜드버터,접두 부분일치
+NAME_ONLY,하츠베이커리,하츠베이커리,지점 6개
+NAME_ONLY,다다제과점,다다제과점,
+NAME_ONLY,아니버,아니버,
+NAME_ONLY,성심당본점,성심당 본점,띄어쓰기 없이 — 정규화 검증
+NAME_ONLY,브릭 베이글,브릭베이글,띄어쓰기 있이 — 정규화 검증
+NAME_ONLY,베이커리,,후보 2,714건 — 스코어링 부하
+NAME_ONLY,런던베이글,런던베이글,지점 다수
+NAME_ONLY,테디뵈르하우스,테디뵈르하우스,
+REGION_AND_NAME,망원 브릭,브릭베이글,지역 ∩ 이름
+REGION_AND_NAME,성수 하츠베이커리,하츠베이커리 성수점,
+REGION_AND_NAME,서울 테디뵈르하우스,테디뵈르하우스,지역 must 로 flood 제거
+REGION_AND_NAME,대전 성심당,성심당,
+REGION_AND_NAME,하츠베이커리 성수점,하츠베이커리 성수점,운영 검색 24회 — 이름 + 지점 접미
+REGION_AND_NAME,성심당 본점,성심당 본점,운영 검색 8회
+ADDRESS_FALLBACK,천안시 서북구,천안,사전에 없는 지역어 — PG 주소 폴백
+ADDRESS_FALLBACK,양산 트리마제,트리마제,사전에 없는 지역어
+MENU_ONLY,소금빵,,빵 단어만 — OS는 메뉴 매칭·PG는 이름 포함만
+MENU_ONLY,에그타르트,,빵 단어만
+MENU_ONLY,한남 에그타르트,,지역 + 빵 — PG 0건 예상(범위 축소분)
+MENU_ONLY,우드 앤 브릭,,OS 는 메뉴명 매칭 1건
+AUTOCOMPLETE,성심,성심당,접두
+AUTOCOMPLETE,성,,1글자
+AUTOCOMPLETE,카페,,
+AUTOCOMPLETE,어글리,어글리,
+AUTOCOMPLETE,맘모스,맘모스,
+AUTOCOMPLETE,몽심,몽심,2글자
+AUTOCOMPLETE,망원,망원,지역 alias
+AUTOCOMPLETE,브릭,브릭,
+AUTOCOMPLETE,런던,런던,
+AUTOCOMPLETE,소금,,빵 단어 접두 — PG는 이름에 '소금'이 든 가게만

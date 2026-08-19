@@ -77,8 +77,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Type | Spring Boot 4.0.6 REST API |
 | Package | `sweetgirl.croissant` |
 | Language | Java 17 |
-| DB | PostgreSQL + Hibernate Spatial(PostGIS) · Flyway · (테스트 H2) |
-| 외부 연동 | Firebase FCM · AWS S3 · OpenSearch · Kakao Local · PostHog |
+| DB | PostgreSQL + Hibernate Spatial(PostGIS) · pg_bigm(가게 검색) · Flyway · (테스트 H2) |
+| 외부 연동 | Firebase FCM · AWS S3 · Kakao Local · PostHog |
 | 인증 | JWT — `JwtAuthenticationFilter`가 `Authorization: Bearer ...`를 검증, 컨트롤러에서 `@AuthenticationPrincipal Long memberId`로 사용 |
 | Test | JUnit5 + Mockito + `@WebMvcTest` / `@DataJpaTest` |
 | 스타일 | Naver Java 컨벤션 (spotless + checkstyle, pre-commit 자동) |
