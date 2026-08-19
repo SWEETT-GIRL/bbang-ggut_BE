@@ -15,7 +15,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
+import sweetgirl.croissant.alarm.event.CourseSavedEvent;
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.SavedCourse;
@@ -34,6 +36,8 @@ class SavedCourseCommandServiceTest {
 	CourseRepository courseRepository;
 	@Mock
 	MemberRepository memberRepository;
+	@Mock
+	ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
 	SavedCourseCommandService savedCourseCommandService;
@@ -54,6 +58,27 @@ class SavedCourseCommandServiceTest {
 		savedCourseCommandService.saveCourse(memberId, courseId);
 
 		then(savedCourseRepository).should().save(any(SavedCourse.class));
+		// 코스 주인에게 "누가 내 빵투어를 찜했다"가 가야 한다
+		then(eventPublisher).should().publishEvent(new CourseSavedEvent(courseId, memberId, 99L));
+	}
+
+	@Test
+	@DisplayName("saveCourse: 주인 없는 코스(큐레이션)는 알릴 사람이 없어 이벤트를 안 낸다")
+	void saveCourse_noOwner_publishesNothing() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mock(Course.class);
+		given(course.isPublic()).willReturn(true);
+		given(course.getMember()).willReturn(null);
+
+		given(savedCourseRepository.existsByMemberIdAndCourseId(memberId, courseId)).willReturn(false);
+		given(memberRepository.findByIdAndDeletedAtIsNull(memberId)).willReturn(Optional.of(mock(Member.class)));
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+
+		savedCourseCommandService.saveCourse(memberId, courseId);
+
+		then(savedCourseRepository).should().save(any(SavedCourse.class));
+		then(eventPublisher).shouldHaveNoInteractions();
 	}
 
 	@Test
