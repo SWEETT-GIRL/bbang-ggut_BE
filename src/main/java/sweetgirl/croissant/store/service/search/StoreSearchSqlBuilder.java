@@ -1,0 +1,257 @@
+package sweetgirl.croissant.store.service.search;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.stereotype.Component;
+
+/**
+ * {@link StoreSearchPlan} → 검색/자동완성 SQL. 사용자 입력은 전부 바인드 파라미터로만 들어간다.
+ *
+ * <p><b>후보(cand) → 점수 → 정렬</b> 3단 구조.
+ * <ul>
+ *   <li>후보: 조건별로 인덱스를 탈 수 있는 단순 SELECT 를 UNION/INTERSECT 로 합친다.
+ *       (`name LIKE … OR EXISTS(alias …)` 한 덩어리는 인덱스를 못 타 seq scan 이 되는 것을 랩에서 확인)</li>
+ *   <li>점수: 가게명 정확 100 / 접두 80 / 포함 60, 구명은 같은 계단 × 0.75, 지역은 40 × 매핑 weight, 주소 폴백 20.
+ *       최종 = 텍스트 × (1 + 0.3·ln(1+인기도) + 거리 gauss).</li>
+ *   <li>정렬: relevance = 점수, distance = 거리 후 점수, popularity = 인기도 후 점수.</li>
+ * </ul>
+ */
+@Component
+public class StoreSearchSqlBuilder {
+
+	// 텍스트 점수 계단 (설명 가능하게 정수로 둔다)
+	public static final int NAME_EXACT = 100;
+	public static final int NAME_PREFIX = 80;
+	public static final int NAME_CONTAINS = 60;
+	static final int ALIAS_EXACT = 75;
+	static final int ALIAS_PREFIX = 60;
+	static final int ALIAS_CONTAINS = 45;
+	static final int REGION_BASE = 40;
+	public static final int ADDRESS_FALLBACK = 20;
+	// 인기도 보정 계수 — log1p 로 조회수 폭주 가게의 과도한 보정을 막는다
+	static final double POPULARITY_FACTOR = 0.3;
+	// 거리 gauss — scale 3km, offset 500m, decay 0.5 → 2σ² = scale² / ln(1/decay)
+	static final double GAUSS_OFFSET_METERS = 500.0;
+	static final double GAUSS_TWO_SIGMA_SQUARED = 3000.0 * 3000.0 / Math.log(2.0);
+	// exp(-x) 의 x 상한. double 은 exp(-745) 아래에서 0 이 되는데 PostgreSQL 은 이를 underflow 오류로 취급하므로 여유 있게 자른다.
+	static final double GAUSS_MAX_EXPONENT = 700.0;
+
+	public record SqlQuery(String sql, MapSqlParameterSource params) {
+	}
+
+	public SqlQuery buildSearch(StoreSearchPlan plan, int limit, int offset,
+			Double latitude, Double longitude, SearchSort sort) {
+		MapSqlParameterSource params = new MapSqlParameterSource();
+		boolean hasCoordinates = latitude != null && longitude != null;
+		String candidateSql = candidateSql(plan, params);
+
+		StringBuilder sql = new StringBuilder();
+		sql.append("WITH cand AS (").append(candidateSql).append(")\n");
+		sql.append("SELECT t.id, t.popularity_score, t.name_score, t.alias_score, t.region_score, t.address_score,\n");
+		sql.append("       t.distance_m,\n");
+		sql.append("       (greatest(t.name_score, t.alias_score) + t.region_score + t.address_score)\n");
+		sql.append("       * (1 + :popularityFactor * ln(1 + t.popularity_score) + ");
+		if (hasCoordinates) {
+			// 지수는 700 에서 자른다 — 150km 밖 가게처럼 exp(-1700) 이 되면 PostgreSQL 이 underflow 오류를 낸다(0 이 아니라 에러).
+			sql.append("exp(-least(power(greatest(0, t.distance_m - :gaussOffset), 2) / :gaussTwoSigmaSquared,"
+				+ " :gaussMaxExponent))");
+			params.addValue("gaussOffset", GAUSS_OFFSET_METERS);
+			params.addValue("gaussTwoSigmaSquared", GAUSS_TWO_SIGMA_SQUARED);
+			params.addValue("gaussMaxExponent", GAUSS_MAX_EXPONENT);
+		} else {
+			sql.append("0");
+		}
+		sql.append(") AS score\n");
+		sql.append("FROM (\n");
+		sql.append("  SELECT s.id, s.popularity_score,\n");
+		sql.append("         ").append(nameScoreExpr(plan, params)).append(" AS name_score,\n");
+		sql.append("         ").append(aliasScoreExpr(plan, params)).append(" AS alias_score,\n");
+		sql.append("         ").append(plan.hasRegionTokens() && !plan.addressFallback()
+			? "COALESCE(rg.region_weight, 0) * :regionBase" : "0").append(" AS region_score,\n");
+		sql.append("         ").append(plan.addressFallback() ? ":addressFallback" : "0")
+			.append(" AS address_score,\n");
+		if (hasCoordinates) {
+			// geography <-> 는 구면 거리(m). ST_Distance(회전타원체)보다 8배쯤 싸고(2.7k 후보 2ms vs 18ms) 오차는 원거리 0.3% 수준이라
+			// 거리 감쇠·거리순 정렬에는 충분하다.
+			sql.append(
+				"         (s.location <-> ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography) AS distance_m\n");
+			params.addValue("lat", latitude);
+			params.addValue("lon", longitude);
+		} else {
+			sql.append("         CAST(NULL AS double precision) AS distance_m\n");
+		}
+		sql.append("  FROM store s\n");
+		sql.append("  JOIN cand ON cand.id = s.id\n");
+		if (plan.hasRegionTokens() && !plan.addressFallback()) {
+			sql.append("  LEFT JOIN (SELECT ssr.store_id, max(ssr.weight) AS region_weight\n");
+			sql.append("             FROM store_search_region ssr\n");
+			sql.append("             JOIN search_region_alias ra ON ra.region_id = ssr.region_id\n");
+			sql.append("             WHERE ra.normalized_alias IN (:regionTokens)\n");
+			sql.append("             GROUP BY ssr.store_id) rg ON rg.store_id = s.id\n");
+			params.addValue("regionBase", REGION_BASE);
+		}
+		if (plan.addressFallback()) {
+			params.addValue("addressFallback", ADDRESS_FALLBACK);
+		}
+		sql.append("  WHERE s.status = 'ACTIVE'\n");
+		sql.append(") t\n");
+		sql.append(orderBy(sort, hasCoordinates));
+		sql.append("LIMIT :limit OFFSET :offset");
+		params.addValue("popularityFactor", POPULARITY_FACTOR);
+		params.addValue("limit", limit);
+		params.addValue("offset", offset);
+		return new SqlQuery(sql.toString(), params);
+	}
+
+	// 후보 집합. 지역·이름 토큰·전체 검색어를 인덱스 친화적인 단순 SELECT 로 만들고 집합 연산으로 합친다.
+	private String candidateSql(StoreSearchPlan plan, MapSqlParameterSource params) {
+		if (plan.addressFallback()) {
+			params.addValue("whole", plan.wholeQuery());
+			return "SELECT s.id FROM store s WHERE s.status = 'ACTIVE'"
+				+ " AND s.address_normalized LIKE '%' || :whole || '%'";
+		}
+		if (plan.hasWholeQuery()) {
+			params.addValue("whole", plan.wholeQuery());
+		}
+		List<String> nameParts = new ArrayList<>();
+		for (int i = 0; i < plan.nameTokens().size(); i++) {
+			String key = "name" + i;
+			params.addValue(key, plan.nameTokens().get(i));
+			nameParts.add(nameOrAliasContains(key));
+		}
+		if (plan.hasRegionTokens()) {
+			params.addValue("regionTokens", plan.regionTokens());
+			// 지역 후보 = 지역 매핑 가게 ∪ 주소에 지역 토큰이 든 가게. 사전 alias 는 핫플/역 반경으로 잡혀 있어 "양산"이 양산시
+			// 전체가 아니라 양산 핫플 근처 40곳만 가리키는 식이다 — 주소 bigm 으로 그 밖의 가게를 같이 본다.
+			List<String> regionParts = new ArrayList<>();
+			regionParts.add("SELECT DISTINCT ssr.store_id AS id FROM store_search_region ssr "
+				+ "JOIN search_region_alias ra ON ra.region_id = ssr.region_id"
+				+ " WHERE ra.normalized_alias IN (:regionTokens)");
+			for (int i = 0; i < plan.regionTokens().size(); i++) {
+				String key = "region" + i;
+				params.addValue(key, plan.regionTokens().get(i));
+				regionParts
+					.add("SELECT s.id FROM store s WHERE s.status = 'ACTIVE' AND s.address_normalized LIKE '%' || :"
+						+ key + " || '%'");
+			}
+			String regionCand = String.join("\n   UNION ", regionParts);
+			if (!nameParts.isEmpty()) {
+				// 지역 + 이름: 그 지역의 가게 중 이름 토큰을 모두 가진 가게만 (flood 제거)
+				return "(" + regionCand + ")\nINTERSECT (" + String.join(")\nINTERSECT (", nameParts) + ")";
+			}
+			// 지역만: 그 지역 가게 ∪ 이름이 검색어를 담은 가게 (지역명이 든 가게명도 노출)
+			if (plan.hasWholeQuery()) {
+				return "(" + regionCand + ")\nUNION (" + nameOrAliasContains("whole") + ")";
+			}
+			return regionCand;
+		}
+		if (!nameParts.isEmpty()) {
+			// 이름만: 토큰마다 AND ("우드 앤 브릭" → 세 토큰 모두 포함)
+			return "(" + String.join(")\nINTERSECT (", nameParts) + ")";
+		}
+		// 분류된 토큰이 없으면(전부 1글자 등) 검색어 전체로 부분일치
+		return nameOrAliasContains("whole");
+	}
+
+	private String nameOrAliasContains(String paramKey) {
+		return "SELECT s.id FROM store s WHERE s.status = 'ACTIVE' AND s.name_normalized LIKE '%' || :" + paramKey
+			+ " || '%'\n"
+			+ "   UNION SELECT a.store_id AS id FROM store_name_alias a WHERE a.alias_normalized LIKE '%' || :"
+			+ paramKey + " || '%'";
+	}
+
+	// 이름 점수 = 검색어 전체와 각 이름 토큰 중 가장 높은 계단. "망원 브릭"은 전체("망원브릭")로는 0이지만 토큰 "브릭"이
+	// "브릭베이글"의 접두라 80점 — 지역+이름 검색에서 이름이 실제로 걸린 가게가 위로 온다.
+	private String nameScoreExpr(StoreSearchPlan plan, MapSqlParameterSource params) {
+		if (!plan.hasWholeQuery() || plan.addressFallback()) {
+			return "0";
+		}
+		params.addValue("nameExact", NAME_EXACT);
+		params.addValue("namePrefix", NAME_PREFIX);
+		params.addValue("nameContains", NAME_CONTAINS);
+		List<String> tiers = new ArrayList<>();
+		for (String key : scoreTermKeys(plan)) {
+			tiers.add(tierExpr("s.name_normalized", key, "nameExact", "namePrefix", "nameContains"));
+		}
+		return "greatest(" + String.join(",\n                  ", tiers) + ")";
+	}
+
+	// 구명 점수 = 그 가게의 구명 중 검색어(전체·토큰)에 걸린 것의 최고 계단. 후보 행마다 store_id 인덱스로 구명(1.7k 행)을 찾는
+	// 상관 서브쿼리가, "걸린 구명을 모아 LEFT JOIN" 보다 빨랐다(2.7k 후보: 20ms vs 28ms — 조인 쪽은 행수 추정이 1로 빗나가
+	// 중첩 루프 × Materialize 로 풀린다).
+	private String aliasScoreExpr(StoreSearchPlan plan, MapSqlParameterSource params) {
+		if (!plan.hasWholeQuery() || plan.addressFallback()) {
+			return "0";
+		}
+		params.addValue("aliasExact", ALIAS_EXACT);
+		params.addValue("aliasPrefix", ALIAS_PREFIX);
+		params.addValue("aliasContains", ALIAS_CONTAINS);
+		List<String> tiers = new ArrayList<>();
+		List<String> filters = new ArrayList<>();
+		for (String key : scoreTermKeys(plan)) {
+			tiers.add(tierExpr("a.alias_normalized", key, "aliasExact", "aliasPrefix", "aliasContains"));
+			filters.add("a.alias_normalized LIKE '%' || :" + key + " || '%'");
+		}
+		return "COALESCE((SELECT max(greatest(" + String.join(", ", tiers) + "))\n"
+			+ "                   FROM store_name_alias a WHERE a.store_id = s.id AND (" + String.join(" OR ", filters)
+			+ ")), 0)";
+	}
+
+	// 점수 계산에 쓰는 검색어 파라미터 키: 전체(whole) + 이름 토큰(name0, name1 …). 토큰 파라미터는 candidateSql 이 이미 바인딩했다.
+	private List<String> scoreTermKeys(StoreSearchPlan plan) {
+		List<String> keys = new ArrayList<>();
+		keys.add("whole");
+		for (int i = 0; i < plan.nameTokens().size(); i++) {
+			keys.add("name" + i);
+		}
+		return keys;
+	}
+
+	private String tierExpr(String column, String paramKey, String exactKey, String prefixKey, String containsKey) {
+		return "CASE WHEN " + column + " = :" + paramKey + " THEN :" + exactKey
+			+ " WHEN " + column + " LIKE :" + paramKey + " || '%' THEN :" + prefixKey
+			+ " WHEN " + column + " LIKE '%' || :" + paramKey + " || '%' THEN :" + containsKey
+			+ " ELSE 0 END";
+	}
+
+	private String orderBy(SearchSort sort, boolean hasCoordinates) {
+		if (sort == SearchSort.DISTANCE && hasCoordinates) {
+			return "ORDER BY t.distance_m ASC NULLS LAST, score DESC, t.id ASC\n";
+		}
+		if (sort == SearchSort.POPULARITY) {
+			return "ORDER BY t.popularity_score DESC, score DESC, t.id ASC\n";
+		}
+		return "ORDER BY score DESC, t.popularity_score DESC, t.id ASC\n";
+	}
+
+	/**
+	 * 자동완성 후보. 가게명·구명·지역 alias 각각에서 "포함" 매칭을 접두 우선·인기도순으로 최대 limit 개씩 뽑는다.
+	 */
+	public SqlQuery buildAutocomplete(String normalizedQuery, int limitPerSource) {
+		MapSqlParameterSource params = new MapSqlParameterSource()
+			.addValue("q", normalizedQuery)
+			.addValue("limit", limitPerSource);
+		String sql = """
+				(SELECT s.name AS keyword, 'STORE' AS type, s.id AS store_id,
+					CASE WHEN s.name_normalized LIKE :q || '%' THEN 0 ELSE 1 END AS tier, s.popularity_score AS pop
+				FROM store s
+				WHERE s.status = 'ACTIVE' AND s.name_normalized LIKE '%' || :q || '%'
+				ORDER BY tier, pop DESC, s.id LIMIT :limit)
+				UNION ALL
+				(SELECT a.alias AS keyword, 'STORE' AS type, a.store_id,
+					CASE WHEN a.alias_normalized LIKE :q || '%' THEN 0 ELSE 1 END AS tier, s.popularity_score AS pop
+				FROM store_name_alias a JOIN store s ON s.id = a.store_id
+				WHERE s.status = 'ACTIVE' AND a.alias_normalized LIKE '%' || :q || '%'
+				ORDER BY tier, pop DESC, a.id LIMIT :limit)
+				UNION ALL
+				(SELECT ra.alias AS keyword, 'REGION' AS type, CAST(NULL AS bigint) AS store_id,
+					CASE WHEN ra.normalized_alias LIKE :q || '%' THEN 0 ELSE 1 END AS tier, 0 AS pop
+				FROM search_region_alias ra JOIN search_region r ON r.id = ra.region_id
+				WHERE r.is_active = TRUE AND ra.normalized_alias LIKE '%' || :q || '%'
+				ORDER BY tier, ra.is_primary DESC, r.display_order, ra.id LIMIT :limit)
+				""";
+		return new SqlQuery(sql, params);
+	}
+}
