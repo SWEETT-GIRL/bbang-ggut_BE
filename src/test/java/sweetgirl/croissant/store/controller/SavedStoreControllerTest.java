@@ -52,7 +52,7 @@ class SavedStoreControllerTest {
 
 	@Test
 	void getSavedStores_returns200() throws Exception {
-		SavedStoreResponse response = new SavedStoreResponse(10L, "소금빵 가게", "마포구", 37.55, 126.92,
+		SavedStoreResponse response = new SavedStoreResponse(10L, "소금빵 가게", "마포구", "서울 마포구 월드컵로 1", 37.55, 126.92,
 			"resized/320/store10.jpg");
 		given(savedStoreQueryService.getSavedStores(isNull())).willReturn(List.of(response));
 

@@ -6,6 +6,8 @@ public record TopSubscribedStoreResponse(
 		Long id,
 		String name,
 		String region,
+		/** 전체 주소 — 목록에서 "여기가 맞나?"를 가르는 줄. region(시·도 구)만으론 부족했다 */
+		String address,
 		String thumbnailImageKey,
 		Long distanceMeters,
 		long subscribeCount) {
@@ -15,6 +17,7 @@ public record TopSubscribedStoreResponse(
 			projection.getId(),
 			projection.getName(),
 			joinRegion(projection.getRegion1st(), projection.getRegion2nd()),
+			projection.getAddress(),
 			thumbnailImageKey,
 			distanceMeters,
 			projection.getSubscribeCount());
