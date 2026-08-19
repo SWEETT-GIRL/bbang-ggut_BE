@@ -54,6 +54,8 @@ public class SecurityConfig {
 			.requestMatchers("/api/v1/oauth2/**").permitAll() // 인가 : /api/v1/oauth2/kakao
 			.requestMatchers("/auth/**").permitAll() // controller 호출
 			.requestMatchers("/terms").permitAll()
+			// 앱 시작 시 로그인 전에 부른다 — 구버전 차단 판단은 토큰보다 먼저여야 한다
+			.requestMatchers(HttpMethod.GET, "/app/version-policy").permitAll()
 			.requestMatchers(HttpMethod.PATCH, "/callback/images/status").permitAll()
 			.requestMatchers(HttpMethod.GET, "/dev/**").permitAll()
 			// actuator는 management.server.port(8081)로 분리되어 있으나 요청은 이 필터체인을 거친다.
