@@ -20,6 +20,12 @@ ALTER TABLE store
 ALTER TABLE store_name_alias
     ADD COLUMN IF NOT EXISTS alias_normalized varchar(255)
         GENERATED ALWAYS AS (regexp_replace(lower(alias), '[^0-9a-z가-힣]', '', 'g')) STORED;
+-- 이 마이그레이션의 초안(varchar(100)·접두 인덱스 포함)이 로컬 부팅으로 운영에 먼저 적용되고 이력만 지워진 일이 있어(2026-08-19),
+-- 이미 적용된 환경에서 다시 돌아도 같은 결과가 되도록 보정 문장을 함께 둔다. 처음 적용되는 환경에서는 no-op 이다.
+ALTER TABLE store_name_alias ALTER COLUMN alias_normalized TYPE varchar(255);
+DROP INDEX IF EXISTS idx_store_name_normalized_prefix;
+DROP INDEX IF EXISTS idx_store_name_alias_normalized_prefix;
+DROP INDEX IF EXISTS idx_search_region_alias_normalized_prefix;
 
 -- 부분일치(검색) — bigm GIN
 CREATE INDEX IF NOT EXISTS idx_store_name_normalized_bigm ON store USING gin (name_normalized gin_bigm_ops);
@@ -38,4 +44,6 @@ FROM store st
 LEFT JOIN (SELECT store_id, count(*)::float8 AS cnt FROM subscribed_store GROUP BY store_id) sub ON sub.store_id = st.id
 LEFT JOIN (SELECT store_id, sum(greatest(0, 51 - rank))::float8 AS score FROM nationwide_hot_store_ranking GROUP BY store_id) rk ON rk.store_id = st.id
 LEFT JOIN (SELECT store_id, count(*)::float8 AS cnt FROM request_log WHERE event_type = 'STORE_VIEW' AND store_id IS NOT NULL GROUP BY store_id) vw ON vw.store_id = st.id
-WHERE s.id = st.id;
+WHERE s.id = st.id
+  -- 값이 실제로 바뀌는 행만 — 재실행(운영 선적용 보정) 시 45k행 전량 재기록을 피한다
+  AND s.popularity_score IS DISTINCT FROM (COALESCE(sub.cnt, 0) + COALESCE(rk.score, 0) + COALESCE(vw.cnt, 0));

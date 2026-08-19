@@ -129,6 +129,13 @@ CREATE INDEX idx_search_region_alias_normalized_prefix ON search_region_alias (n
 | 상위10 겹침률(검색 29개) | — | 81% (불일치는 지역만 검색의 순위 차이·메뉴 매칭 제거분) |
 | 비용 | 월 $130~140 | 0 |
 
+### 4.5-1 사고 기록 — 마이그레이션이 운영에 선적용됨 (2026-08-19)
+
+- 08-19 11:36 `V20260818170000`(초안: varchar(100)·접두 인덱스 포함)이 운영 RDS 에 적용됨(installed_by=sweetgirl, 7.3초). 운영 배포는 없었고, **IntelliJ 에서 `local` 프로파일(=운영 터널 15432)로 앱을 켠 것**이 원인으로 추정. 12:56 `flyway repair` 로 이력만 삭제(type=DELETE)되고 다른 마이그레이션(`20260819120000`)이 적용됨.
+- 결과: 운영(그리고 운영 덤프로 만든 개발 DB)은 "스키마는 있고 이력은 없는" 상태 → PR 배포 시 Flyway 가 재실행한다.
+- 대응: 마이그레이션을 **재실행-안전**하게 보정 — `ALTER COLUMN alias_normalized TYPE varchar(255)`(초안이 100 으로 만든 환경 교정), `DROP INDEX IF EXISTS` 접두 3개, 백필에 `IS DISTINCT FROM` 가드. 랩에서 재실행 → 전부 no-op/보정만 확인(UPDATE 0).
+- 재발 방지: `local` 프로파일로 부팅하면 운영에 마이그레이션이 적용된다. 로컬 개발은 반드시 `local,lab`(랩 DB) — 5.항 참고. (근본 대책 후보: local 의 flyway.enabled=false 또는 datasource 를 랩으로 기본화 — 별도 논의)
+
 ### 4.6 운영 전환 절차 (완전 제거본 기준)
 
 1. PR 머지·배포 — 배포 부팅 시 Flyway 가 `V20260818170000` 적용(랩 2.35초; `CREATE EXTENSION pg_bigm` 은 RDS 마스터 계정 권한 필요). **배포 즉시 검색이 PostgreSQL 로 간다** (OS 코드가 없으므로 단계적 전환 없음). **롤백 = 이전 이미지 태그 재배포. 이전 이미지는 `opensearch.endpoint` 가 없으면 검색 빈이 빠져 검색만 빈 결과가 되므로(부팅은 됨), 관찰 기간(1~2주) 동안 GitHub secrets·`.env` 의 OpenSearch 값과 도메인은 지우지 않는다.**
