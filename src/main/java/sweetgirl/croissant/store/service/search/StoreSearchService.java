@@ -19,9 +19,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import sweetgirl.croissant.external.opensearch.client.OpenSearchStoreClient;
-import sweetgirl.croissant.external.opensearch.dto.OpenSearchAutocompleteSuggestion;
-import sweetgirl.croissant.external.opensearch.dto.OpenSearchStoreSearchResult;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.searchmiss.event.SearchMissEvent;
 import sweetgirl.croissant.store.dto.response.StoreAutocompleteResponse;
@@ -41,11 +38,11 @@ public class StoreSearchService {
 	private static final String SEARCH_QUERY_METRIC = "search.query";
 	private static final String TYPE_SEARCH = "search";
 	private static final String TYPE_AUTOCOMPLETE = "autocomplete";
+	private static final int SEARCH_TRACE_TOP_HITS = 10;
 
 	private final StoreSearchQueryParser storeSearchQueryParser;
-	private final OpenSearchStoreClient openSearchStoreClient;
+	private final StoreSearchEngine storeSearchEngine;
 	private final StoreSearchAssembler storeSearchAssembler;
-	private final SearchQueryCoverage searchQueryCoverage;
 	private final MeterRegistry meterRegistry;
 	private final ApplicationEventPublisher eventPublisher;
 
@@ -59,17 +56,16 @@ public class StoreSearchService {
 		for (SearchOutcome outcome : SearchOutcome.values()) {
 			searchCounter(outcome);
 		}
-		// 자동완성은 후보 문자열 자체를 OpenSearchStoreClient에서 이미 검증하므로 hit/empty만 발생한다.
+		// 자동완성은 후보 문자열 자체를 엔진에서 이미 검증하므로 hit/empty만 발생한다.
 		autocompleteCounter(SearchOutcome.HIT);
 		autocompleteCounter(SearchOutcome.EMPTY);
 	}
 
 	public SliceResponse<StoreSearchResponse> searchStores(String keyword, Double latitude, Double longitude,
 			SearchSort sort, Pageable pageable) {
-		// 1차: 가게명 우선 — "브릭베이글"·"소금도화"처럼 붙여쓴 토큰은 통째로 가게명/메뉴 검색
+		// 1차: 가게명 우선 — "브릭베이글"·"소금도화"처럼 붙여쓴 토큰은 통째로 가게명 검색
 		SearchIntent intent = storeSearchQueryParser.parse(keyword);
-		OpenSearchStoreSearchResult result = openSearchStoreClient.searchStores(intent, pageable, latitude, longitude,
-			sort);
+		StoreSearchResult result = storeSearchEngine.searchStores(intent, pageable, latitude, longitude, sort);
 		// 폴백: 1차가 0건일 때만 붙어쓴 토큰을 분해해 다시 검색한다
 		// ("초코소금빵"→빵 "소금빵", "한남에그타르트"→지역 "한남" + 빵 "에그타르트").
 		// 지역·빵 어느 쪽도 새로 분해되지 않으면 같은 쿼리가 되므로 재검색하지 않는다.
@@ -77,7 +73,7 @@ public class StoreSearchService {
 		if (result.hits().isEmpty()) {
 			SearchIntent fallbackIntent = storeSearchQueryParser.parseWithGluedTokenFallback(keyword);
 			if (isDecomposed(fallbackIntent, intent)) {
-				result = openSearchStoreClient.searchStores(fallbackIntent, pageable, latitude, longitude, sort);
+				result = storeSearchEngine.searchStores(fallbackIntent, pageable, latitude, longitude, sort);
 				fallbackApplied = !result.hits().isEmpty();
 			}
 		}
@@ -85,13 +81,60 @@ public class StoreSearchService {
 		// 호출하는데, 이걸 다 세면 "많이 스크롤한 검색어"가 "여러 사람이 찾은 검색어"보다 위로 올라와
 		// 실패 목록의 우선순위가 뒤집힌다. 실제로 "천안시 서북구"가 검색 5회 + 스크롤 6페이지로
 		// 11회가 되어, 2회인 다른 검색어보다 높게 잡혔다.
+		SearchOutcome outcome = resolveSearchOutcome(result, intent, fallbackApplied);
 		if (pageable.getPageNumber() == FIRST_PAGE) {
-			recordSearchOutcome(resolveSearchOutcome(result, intent, fallbackApplied), keyword);
+			recordSearchOutcome(outcome, keyword);
 		}
+		logSearchTrace(keyword, intent, result, outcome, fallbackApplied, pageable);
 		if (result.hits().isEmpty()) {
 			return new SliceResponse<>(List.of(), false);
 		}
 		return new SliceResponse<>(storeSearchAssembler.assemble(result.hits()), result.hasNext());
+	}
+
+	/**
+	 * 검색 1건의 구조화 추적 로그 — 어떤 유형(지역/가게명/혼합)의 검색어가 몇 건·어떤 순서로 나왔는지.
+	 * request_log 에는 응답시간만 남고 결과 내용이 없어, 품질 비교·회귀 확인은 이 줄로 한다.
+	 * key=value 로 grep·집계하기 쉽게 한 줄로 남긴다.
+	 */
+	private void logSearchTrace(String keyword, SearchIntent intent,
+			StoreSearchResult result, SearchOutcome outcome, boolean fallbackApplied, Pageable pageable) {
+		if (!log.isInfoEnabled()) {
+			return;
+		}
+		String topHits = result.hits().stream()
+			.limit(SEARCH_TRACE_TOP_HITS)
+			.map(hit -> hit.storeId() + ":" + hit.matchedFields().stream().map(Enum::name)
+				.map(name -> name.substring(0, 1)).reduce("", String::concat))
+			.reduce((left, right) -> left + "," + right)
+			.orElse("");
+		log.info("[검색추적] type={} q=\"{}\" regionTokens={} nameTokens={} hits={} hasNext={} outcome={} "
+			+ "fallback={} page={} top={}",
+			classifyIntent(intent), keyword, intent.regionTokens(),
+			nameTokens(intent), result.hits().size(), result.hasNext(), outcome.tagValue(),
+			fallbackApplied, pageable.getPageNumber(), topHits);
+	}
+
+	// 검색어 유형 — 지역 사전에 잡힌 토큰과 그 외(가게명·빵 단어) 토큰의 유무로 나눈다.
+	static String classifyIntent(SearchIntent intent) {
+		boolean hasRegion = !intent.regionTokens().isEmpty();
+		boolean hasName = !nameTokens(intent).isEmpty();
+		if (hasRegion && hasName) {
+			return "REGION_AND_NAME";
+		}
+		if (hasRegion) {
+			return "REGION_ONLY";
+		}
+		if (hasName) {
+			return "NAME_ONLY";
+		}
+		return "UNCLASSIFIED";
+	}
+
+	private static List<String> nameTokens(SearchIntent intent) {
+		List<String> tokens = new java.util.ArrayList<>(intent.breadTokens());
+		tokens.addAll(intent.remainingTokens());
+		return tokens;
 	}
 
 	/**
@@ -105,7 +148,7 @@ public class StoreSearchService {
 			|| !fallbackIntent.regionTokens().equals(intent.regionTokens());
 	}
 
-	private SearchOutcome resolveSearchOutcome(OpenSearchStoreSearchResult result, SearchIntent intent,
+	private SearchOutcome resolveSearchOutcome(StoreSearchResult result, SearchIntent intent,
 			boolean fallbackApplied) {
 		if (result.hits().isEmpty()) {
 			return SearchOutcome.EMPTY;
@@ -118,9 +161,25 @@ public class StoreSearchService {
 			return SearchOutcome.HIT;
 		}
 		// 사전에 있는 말들만 쓴 검색이면 대조가 정확하므로 실패도 확실하다.
-		return searchQueryCoverage.isFullyClassified(intent)
+		return isFullyClassified(intent)
 			? SearchOutcome.MISMATCH
 			: SearchOutcome.MISMATCH_LOOSE;
+	}
+
+	/**
+	 * 검색어가 전부 지역·빵 사전에 잡혔는지 — 판정 신뢰도를 가르는 기준. 불용어로 걸러진 잔여 토큰은 제외한다
+	 * ("성수동 빵집"의 "빵집"을 사전 밖 말로 보면 정상 검색이 실패로 잡힌다).
+	 */
+	static boolean isFullyClassified(SearchIntent intent) {
+		String normalizedCleanQuery = SearchTextNormalizer.normalize(intent.cleanQuery());
+		boolean hasMeaningfulRemaining = intent.remainingTokens().stream()
+			.map(SearchTextNormalizer::normalize)
+			.filter(token -> !token.isBlank())
+			.anyMatch(normalizedCleanQuery::contains);
+		if (hasMeaningfulRemaining) {
+			return false;
+		}
+		return !intent.regionTokens().isEmpty() || !intent.breadTokens().isEmpty();
 	}
 
 	private void recordSearchOutcome(SearchOutcome outcome, String keyword) {
@@ -168,10 +227,9 @@ public class StoreSearchService {
 		int normalizedSize = normalizeAutocompleteSize(size);
 		// 타입을 거르면 남는 후보가 줄어드니, 걸러낼 때는 항상 최대치로 가져와 자른다.
 		int fetchSize = filtered ? MAX_AUTOCOMPLETE_SIZE : normalizedSize;
-		List<OpenSearchAutocompleteSuggestion> suggestions = openSearchStoreClient.autocompleteStores(query,
-			fetchSize);
+		List<StoreAutocompleteSuggestion> suggestions = storeSearchEngine.autocompleteStores(query, fetchSize);
 		Map<String, StoreAutocompleteResponse> uniqueSuggestions = new LinkedHashMap<>();
-		for (OpenSearchAutocompleteSuggestion suggestion : suggestions) {
+		for (StoreAutocompleteSuggestion suggestion : suggestions) {
 			StoreAutocompleteResponse response = StoreAutocompleteResponse.from(suggestion);
 			if (!allowedTypes.contains(response.type())) {
 				continue;

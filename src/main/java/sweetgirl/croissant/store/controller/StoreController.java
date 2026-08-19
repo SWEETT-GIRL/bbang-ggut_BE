@@ -83,7 +83,7 @@ public class StoreController {
 			storeQueryService.getStoresByDistrictOrderByDistance(keyword, lat, lng, PageRequest.of(page, size))));
 	}
 
-	@Operation(summary = "빵집 검색", description = "OpenSearch 기반으로 빵집을 검색합니다.")
+	@Operation(summary = "빵집 검색", description = "가게명·지역 기준으로 빵집을 검색합니다.")
 	@GetMapping("/search")
 	public ResponseEntity<ApiResponse<SliceResponse<StoreSearchResponse>>> searchStores(
 			@Parameter(description = "검색어") @RequestParam String query,
@@ -97,7 +97,7 @@ public class StoreController {
 				PageRequest.of(page, size))));
 	}
 
-	@Operation(summary = "빵집 검색어 자동완성", description = "입력 중인 검색어를 기준으로 빵집·메뉴·빵 종류·지역 추천어를 조회합니다.")
+	@Operation(summary = "빵집 검색어 자동완성", description = "입력 중인 검색어를 기준으로 빵집·지역 추천어를 조회합니다.")
 	@GetMapping("/autocomplete")
 	public ResponseEntity<ApiResponse<List<StoreAutocompleteResponse>>> autocompleteStores(
 			@Parameter(description = "입력 중인 검색어") @RequestParam String query,

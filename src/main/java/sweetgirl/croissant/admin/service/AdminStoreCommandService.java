@@ -9,7 +9,6 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.PrecisionModel;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,10 +18,6 @@ import sweetgirl.croissant.admin.dto.request.AdminStoreCreateRequest;
 import sweetgirl.croissant.admin.dto.request.AdminStoreUpdateRequest;
 import sweetgirl.croissant.admin.dto.request.BusinessHourRequest;
 import sweetgirl.croissant.admin.dto.response.AdminStoreResponse;
-import sweetgirl.croissant.external.opensearch.event.StoreAddressChangedEvent;
-import sweetgirl.croissant.external.opensearch.event.StoreCreatedEvent;
-import sweetgirl.croissant.external.opensearch.event.StoreDeletedEvent;
-import sweetgirl.croissant.external.opensearch.event.StoreNameChangedEvent;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.AddressParser;
 import sweetgirl.croissant.store.code.StoreErrorCode;
@@ -62,7 +57,6 @@ public class AdminStoreCommandService {
 	private final MenuRepository menuRepository;
 	private final NaverEnrichOrchestrator naverEnrichOrchestrator;
 	private final NaverEnrichCandidateRepository candidateRepository;
-	private final ApplicationEventPublisher eventPublisher;
 
 	public AdminStoreResponse createStore(AdminStoreCreateRequest request) {
 		Point location = toPoint(request.coord().latitude(), request.coord().longitude());
@@ -82,7 +76,6 @@ public class AdminStoreCommandService {
 			.category(request.category())
 			.build();
 		store = storeRepository.save(store);
-		eventPublisher.publishEvent(new StoreCreatedEvent(store.getId()));
 
 		saveBusinessHours(store, request.hours());
 		return buildResponse(store);
@@ -104,12 +97,6 @@ public class AdminStoreCommandService {
 			storeBusinessHourRepository.deleteByStoreId(storeId);
 			saveBusinessHours(store, request.hours());
 		}
-		if (request.address() != null || request.coord() != null) {
-			eventPublisher.publishEvent(new StoreAddressChangedEvent(storeId));
-		}
-		if (request.name() != null) {
-			eventPublisher.publishEvent(new StoreNameChangedEvent(storeId));
-		}
 	}
 
 	public void deleteStore(Long storeId) {
@@ -117,7 +104,6 @@ public class AdminStoreCommandService {
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 		store.update(null, null, null, null, null, null, null, StoreStatus.DELETED, null);
 		candidateRepository.deleteByStoreId(storeId);
-		eventPublisher.publishEvent(new StoreDeletedEvent(storeId));
 	}
 
 	public void deleteNaverClosedSuspect(Long storeId) {

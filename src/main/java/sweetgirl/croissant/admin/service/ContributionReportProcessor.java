@@ -12,7 +12,6 @@ import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.PrecisionModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -29,9 +28,6 @@ import sweetgirl.croissant.contribution.repository.MenuContributionReportImageFi
 import sweetgirl.croissant.contribution.repository.StoreContributionReportImageFileRepository;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
-import sweetgirl.croissant.external.opensearch.event.StoreAddressChangedEvent;
-import sweetgirl.croissant.external.opensearch.event.StoreCreatedEvent;
-import sweetgirl.croissant.external.opensearch.event.StoreMenusChangedEvent;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.entity.MenuImageFile;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
@@ -68,7 +64,6 @@ public class ContributionReportProcessor {
 	private final MenuContributionReportImageFileRepository menuContributionReportImageFileRepository;
 	private final S3Service s3Service;
 	private final ObjectMapper objectMapper;
-	private final ApplicationEventPublisher eventPublisher;
 	private final ImageProcessingCallbackService imageProcessingCallbackService;
 
 	// 메뉴 추가 승인 — 새 Menu 생성 + 첨부 이미지를 menus/{menuId}로 S3 이동 후 menu_image_file 등록
@@ -78,7 +73,6 @@ public class ContributionReportProcessor {
 		List<MenuContributionReportImageFile> reportImages = menuContributionReportImageFileRepository
 			.findByMenuContributionReportIdIn(List.of(report.getId()));
 		moveImagesToMenu(menu, reportImages);
-		eventPublisher.publishEvent(new StoreMenusChangedEvent(menu.getStore().getId()));
 	}
 
 	// 메뉴 추가 거절 — temp S3 객체 정리 (DB 행은 이력 보관 위해 유지)
@@ -153,7 +147,6 @@ public class ContributionReportProcessor {
 			}
 			imageProcessingCallbackService.applyPendingCallbacks(menuImageFileRepository.saveAll(newImages));
 		}
-		eventPublisher.publishEvent(new StoreMenusChangedEvent(menu.getStore().getId()));
 	}
 
 	public void cleanupMenuContributionImages(MenuContributionReport report) {
@@ -188,7 +181,6 @@ public class ContributionReportProcessor {
 			.category(StoreCategory.WESTERN)
 			.build();
 		Store saved = storeRepository.save(store);
-		eventPublisher.publishEvent(new StoreCreatedEvent(saved.getId()));
 		return saved;
 	}
 
@@ -239,7 +231,6 @@ public class ContributionReportProcessor {
 		Point location = GEOMETRY_FACTORY.createPoint(new Coordinate(payload.longitude(), payload.latitude()));
 		report.getStore().update(null, payload.address(), location, addr[0], addr[1], addr[2],
 			null, null, null);
-		eventPublisher.publishEvent(new StoreAddressChangedEvent(report.getStore().getId()));
 	}
 
 	// 가게 이미지 제보 승인 — deleteImageIds로 store_image_file·S3 삭제 + addImages는 stores/{storeId}로 이동 후 신규 등록
