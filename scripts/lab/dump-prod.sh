@@ -4,15 +4,17 @@
 # - 접속 정보는 application-local.properties 의 spring.datasource.* (SSH 터널 localhost:15432) 를 그대로 읽는다.
 # - 결과는 저장소 밖 ~/bbanggut-lab/dumps 에 남긴다 (운영 데이터가 git 에 들어가지 않게).
 #
-# 개인정보 원칙: 검색 실험에는 가게·메뉴·지역 데이터면 충분하다. 기본은 회원·인증·알림·신고·문의 등
-# 개인정보/민감 테이블의 **데이터를 제외**하고 스키마만 가져온다(FK·마이그레이션 검증은 되고 검색 실험도 된다).
+# 개인정보 원칙: 검색 실험에는 가게·메뉴·지역 데이터면 충분하다. 기본은 인증 자격·알림·신고·문의·리뷰 등
+# 민감 테이블의 **데이터를 제외**하고 스키마만 가져온다(FK·마이그레이션 검증은 되고 검색 실험도 된다).
 # 전체 데이터가 정말 필요할 때만 FULL_DUMP=1 로 명시한다. 덤프 파일은 실험이 끝나면 지운다(~/bbanggut-lab/dumps).
 set -euo pipefail
 
 # 데이터 제외 테이블 (스키마는 포함). request_log 는 용량(400MB), 나머지는 개인정보·민감 정보.
+# member 는 포함한다 — courses.member_id·store_plan.member_id·menu.created_by_member_id 등 FK 가 걸려 있어 빼면 복원 시 FK 제약이
+# 생성되지 않는다(스키마 불일치). 대신 로그인 자격(oauth·refresh_token·fcm_token)과 회원별 민감 데이터는 뺀다.
 PII_TABLES=(
 	request_log
-	member oauth refresh_token fcm_token notification_setting member_block member_restriction
+	oauth refresh_token fcm_token notification_setting member_block member_restriction
 	member_badges member_missions marketing_notification store_notification report_notification
 	inquiry abuse_report moderation_action moderation_appeal
 	contribution_report store_contribution_report store_contribution_report_image_file
