@@ -409,6 +409,8 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 
 	Optional<Store> findByNaverPlaceId(String naverPlaceId);
 
+	// naver_matched_at은 place id가 있을 때만 찍는다 — id 없이 NOW()를 찍으면
+	// 네이버 보강 큐(id NULL & matched_at NULL 대상)에서 영영 빠져 사진이 안 채워진다.
 	@Modifying(flushAutomatically = true, clearAutomatically = true)
 	@Query(value = """
 			INSERT INTO store (
@@ -417,7 +419,8 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 					source, status, category, created_at, updated_at)
 			VALUES (:name, :address, :region1st, :region2nd, :region3rd,
 					ST_SetSRID(ST_MakePoint(:x, :y), 4326)::geography, :phone, :naverPlaceId,
-					NOW(), 0, 'ADMIN_REGISTERED', 'ACTIVE', :category, NOW(), NOW())
+					CASE WHEN CAST(:naverPlaceId AS text) IS NULL THEN NULL ELSE NOW() END,
+					0, 'ADMIN_REGISTERED', 'ACTIVE', :category, NOW(), NOW())
 			ON CONFLICT (naver_place_id) DO NOTHING
 			""", nativeQuery = true)
 	void insertIfNotExistsByNaverPlaceId(

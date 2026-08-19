@@ -70,8 +70,14 @@ public class StoreCommandService {
 	 * 이미 있는 가게면(같은 네이버 장소이거나 이름·주소가 같으면) 새로 만들지 않고 그것을 쓴다.
 	 */
 	public NaverStoreRegisterResponse registerNaverStore(NaverStoreRegisterRequest request) {
-		if (request.naverPlaceId() != null && !request.naverPlaceId().isBlank()) {
-			Optional<Store> byNaverPlaceId = storeRepository.findByNaverPlaceId(request.naverPlaceId());
+		// 네이버 지역검색은 link에 place id가 없는 가게가 많아 naverPlaceId가 자주 null이다.
+		// null을 파생 쿼리(findByNaverPlaceId)에 넣으면 IS NULL로 번역돼 place id 없는
+		// 가게 수만 건이 통째로 반환된다(IncorrectResultSizeDataAccessException) — 반드시 갈라 다룬다.
+		String naverPlaceId = request.naverPlaceId() != null && !request.naverPlaceId().isBlank()
+			? request.naverPlaceId() : null;
+
+		if (naverPlaceId != null) {
+			Optional<Store> byNaverPlaceId = storeRepository.findByNaverPlaceId(naverPlaceId);
 			if (byNaverPlaceId.isPresent()) {
 				return new NaverStoreRegisterResponse(byNaverPlaceId.get().getId());
 			}
@@ -81,8 +87,8 @@ public class StoreCommandService {
 		if (storeByIdentity.isPresent()) {
 			Store store = storeByIdentity.get();
 			// 카카오로 들어와 있던 가게라면 네이버 장소만 이어 붙인다(이미 있으면 건드리지 않음).
-			if (request.naverPlaceId() != null && !request.naverPlaceId().isBlank()) {
-				storeRepository.attachNaverPlaceId(store.getId(), request.naverPlaceId());
+			if (naverPlaceId != null) {
+				storeRepository.attachNaverPlaceId(store.getId(), naverPlaceId);
 			}
 			return new NaverStoreRegisterResponse(store.getId());
 		}
@@ -92,10 +98,13 @@ public class StoreCommandService {
 			request.name(), request.address(),
 			addr[0], addr[1], addr[2],
 			request.longitude(), request.latitude(),
-			request.phone(), request.naverPlaceId(),
+			request.phone(), naverPlaceId,
 			null);
 
-		Long storeId = storeRepository.findByNaverPlaceId(request.naverPlaceId())
+		// place id가 없으면 방금 넣은 행을 이름·주소로 되찾는다 — null로 place id 조회는 금물.
+		Long storeId = (naverPlaceId != null
+			? storeRepository.findByNaverPlaceId(naverPlaceId)
+			: findActiveStoreBySameNameAndAddress(request.name(), request.address()))
 			.map(Store::getId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 		eventPublisher.publishEvent(new StoreCreatedEvent(storeId));
