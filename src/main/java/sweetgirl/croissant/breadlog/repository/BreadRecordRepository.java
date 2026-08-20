@@ -19,6 +19,10 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 
 	Optional<BreadRecord> findByIdAndDeletedAtIsNull(Long id);
 
+	// 코스에서 "다녀왔어요"로 고를 후보 — 그 가게의 내 기록 전부, 최신순.
+	List<BreadRecord> findAllByMemberIdAndStoreIdAndDeletedAtIsNullOrderByEatenAtDesc(
+			Long memberId, Long storeId);
+
 	long countByMemberIdAndDeletedAtIsNull(Long memberId);
 
 	@Query(value = """

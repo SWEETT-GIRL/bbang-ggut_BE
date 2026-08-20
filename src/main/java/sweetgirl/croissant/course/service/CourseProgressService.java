@@ -21,12 +21,14 @@ import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseImageFile;
 import sweetgirl.croissant.course.entity.CourseProgress;
 import sweetgirl.croissant.course.entity.CourseStore;
+import sweetgirl.croissant.course.entity.CourseStoreVisit;
 import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
+import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
@@ -43,6 +45,7 @@ public class CourseProgressService {
 	private final CourseImageFileRepository courseImageFileRepository;
 	private final CourseStoreRepository courseStoreRepository;
 	private final CourseStoreThumbnailReader courseStoreThumbnailReader;
+	private final CourseStoreVisitRepository courseStoreVisitRepository;
 
 	public void start(Long memberId, Long courseId) {
 		Member member = memberReader.getMember(memberId);
@@ -120,6 +123,17 @@ public class CourseProgressService {
 
 	public void refreshForMember(Long memberId) {
 		refresh(memberId);
+	}
+
+	/**
+	 * 기록을 지우면 그 기록으로 켜둔 코스 방문 체크도 함께 끈다.
+	 *
+	 * 방문을 별도 테이블로 옮기기 전에는 방문이 기록에서 파생됐기 때문에
+	 * 기록을 지우면 체크가 저절로 풀렸다. 그 동작을 그대로 유지한다.
+	 */
+	public void detachVisitsByRecord(Long breadRecordId) {
+		courseStoreVisitRepository.findAllByBreadRecordIdAndDeletedAtIsNull(breadRecordId)
+			.forEach(CourseStoreVisit::softDelete);
 	}
 
 	public void refreshForCourse(Long courseId) {
