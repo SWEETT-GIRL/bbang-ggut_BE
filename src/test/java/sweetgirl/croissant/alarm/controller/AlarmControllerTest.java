@@ -19,9 +19,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import sweetgirl.croissant.alarm.dto.response.CourseSaveNotificationListResponse;
+import sweetgirl.croissant.alarm.dto.response.CourseSaveNotificationResponse;
 import sweetgirl.croissant.alarm.dto.response.ReportNotificationResponse;
+import sweetgirl.croissant.alarm.dto.response.UnreadCountResponse;
 import sweetgirl.croissant.alarm.service.AlarmCommandService;
 import sweetgirl.croissant.alarm.service.AlarmQueryService;
+import sweetgirl.croissant.alarm.service.CourseSaveNotificationService;
 import sweetgirl.croissant.alarm.service.FcmService;
 import sweetgirl.croissant.alarm.service.ReportNotificationService;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
@@ -42,6 +46,9 @@ class AlarmControllerTest {
 
 	@Mock
 	private ReportNotificationService reportNotificationService;
+
+	@Mock
+	private CourseSaveNotificationService courseSaveNotificationService;
 
 	@InjectMocks
 	private AlarmController alarmController;
@@ -97,5 +104,43 @@ class AlarmControllerTest {
 			.andExpect(jsonPath("$.success").value(true));
 
 		verify(reportNotificationService).markAsRead(null, 1L);
+	}
+
+	// ─────────────── 내 빵투어 찜 알림 ───────────────
+
+	@Test
+	void getMyCourseSaveNotifications_returnsListWithHasNext() throws Exception {
+		CourseSaveNotificationResponse notification = new CourseSaveNotificationResponse(
+			812L, "COURSE_SAVED", false, LocalDateTime.of(2026, 8, 19, 10, 31),
+			2437L, "포실한 까눌레", 352L, "8월 20일 부산 빵투어");
+		// standalone MockMvc엔 @AuthenticationPrincipal 리졸버가 없어 memberId는 null로 들어온다
+		// (이 파일의 다른 테스트들과 같은 전제). 여기서 보는 건 경로·기본 페이징·응답 모양이다.
+		given(courseSaveNotificationService.getMyNotifications(null, 0, 20))
+			.willReturn(new CourseSaveNotificationListResponse(List.of(notification), true));
+
+		mockMvc.perform(get("/alarm/course-notifications"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.hasNext").value(true))
+			.andExpect(jsonPath("$.data.notifications[0].notificationId").value(812))
+			.andExpect(jsonPath("$.data.notifications[0].type").value("COURSE_SAVED"))
+			.andExpect(jsonPath("$.data.notifications[0].actorNickname").value("포실한 까눌레"))
+			.andExpect(jsonPath("$.data.notifications[0].courseTitle").value("8월 20일 부산 빵투어"));
+	}
+
+	@Test
+	void getCourseSaveNotificationUnreadCount_returnsCount() throws Exception {
+		given(courseSaveNotificationService.getUnreadCount(null)).willReturn(new UnreadCountResponse(3L));
+
+		mockMvc.perform(get("/alarm/course-notifications/unread-count"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.unreadCount").value(3));
+	}
+
+	@Test
+	void readCourseSaveNotifications_withoutBody_marksAll() throws Exception {
+		mockMvc.perform(patch("/alarm/course-notifications/read"))
+			.andExpect(status().isOk());
+
+		verify(courseSaveNotificationService).markAsRead(null, null);
 	}
 }
