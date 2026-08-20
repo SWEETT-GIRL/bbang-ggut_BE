@@ -14,6 +14,8 @@ public record CourseSummaryResponse(
 		String thumbnailImageKey,
 		/** 대표사진이 없을 때 앱이 콜라주로 그릴 가게 썸네일 — 사진 있는 가게만, 방문 순서, 최대 4장 */
 		List<String> storeThumbnailKeys,
+		/** 앞에서부터 가게 이름 몇 개(방문 순서) — 목록에서 "아는 빵집이 있나"를 보여주는 데 쓴다 */
+		List<String> storeNames,
 		int storeCount,
 		List<Long> storeIds,
 		List<String> regions,
@@ -31,6 +33,7 @@ public record CourseSummaryResponse(
 			Course course,
 			CourseImageFile coverImage,
 			List<String> storeThumbnailKeys,
+			List<String> storeNames,
 			int storeCount,
 			List<Long> storeIds,
 			List<String> regions,
@@ -43,6 +46,7 @@ public record CourseSummaryResponse(
 			coverImage != null ? coverImage.getAwsKey() : null,
 			coverImage != null ? coverImage.getResizedKey320() : null,
 			storeThumbnailKeys,
+			storeNames,
 			storeCount,
 			storeIds,
 			regions,
