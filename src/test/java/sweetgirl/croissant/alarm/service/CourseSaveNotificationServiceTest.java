@@ -105,7 +105,7 @@ class CourseSaveNotificationServiceTest {
 	@Test
 	@DisplayName("getUnreadCount: 안 읽은 알림 개수를 준다")
 	void getUnreadCount_success() {
-		given(courseSaveNotificationRepository.countByOwnerIdAndReadAtIsNull(1L)).willReturn(3L);
+		given(courseSaveNotificationRepository.countUnreadByOwner(1L)).willReturn(3L);
 
 		UnreadCountResponse response = courseSaveNotificationService.getUnreadCount(1L);
 

@@ -78,7 +78,7 @@ public class CourseSaveNotificationService {
 	}
 
 	public UnreadCountResponse getUnreadCount(Long memberId) {
-		return new UnreadCountResponse(courseSaveNotificationRepository.countByOwnerIdAndReadAtIsNull(memberId));
+		return new UnreadCountResponse(courseSaveNotificationRepository.countUnreadByOwner(memberId));
 	}
 
 	/**
