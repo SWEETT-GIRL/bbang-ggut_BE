@@ -16,6 +16,8 @@ import sweetgirl.croissant.store.exception.StoreReportException;
 public class NaverLocalSearchClient {
 
 	private static final String LOCAL_SEARCH_PATH = "/v1/search/local.json";
+	/** 네이버 지역검색 display 상한 */
+	private static final int MAX_DISPLAY = 5;
 
 	private final String clientId;
 	private final String clientSecret;
@@ -41,8 +43,12 @@ public class NaverLocalSearchClient {
 				.uri(uriBuilder -> uriBuilder
 					.path(LOCAL_SEARCH_PATH)
 					.queryParam("query", query)
-					.queryParam("display", 10)
-					.queryParam("sort", "random")
+					// 네이버 지역검색은 display 최대 5다. 10을 넣으면 그대로 5가 오거나
+					// 파라미터 오류가 되므로 상한을 지킨다.
+					.queryParam("display", MAX_DISPLAY)
+					// sort 를 넣지 않으면 정확도순(기본)이다.
+					// random 은 말 그대로 무작위라, 찾는 가게가 네이버에 있어도 안 뽑힐 수 있다 —
+					// "울산 페즈"를 검색했는데 울산 페즈가 안 나온 것이 이 때문이었다.
 					.build())
 				.header("X-Naver-Client-Id", clientId)
 				.header("X-Naver-Client-Secret", clientSecret)
