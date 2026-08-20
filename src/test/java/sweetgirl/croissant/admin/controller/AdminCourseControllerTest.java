@@ -80,7 +80,7 @@ class AdminCourseControllerTest {
 	@Test
 	void getCourseDetail_returnsDetailWithCourseStores() throws Exception {
 		CourseStoreResponse storeResponse = new CourseStoreResponse(
-			10L, 1, 1, 100L, "소금빵집", 37.5, 126.9, "마포구", "꼭 먹어야 함", LocalTime.of(10, 0));
+			10L, 1, 1, 100L, "소금빵집", 37.5, 126.9, "마포구", "꼭 먹어야 함", LocalTime.of(10, 0), false, null);
 		AdminCourseDetailResponse detail = new AdminCourseDetailResponse(
 			1L, "망원 빵지순례", "HOT", "courses/1/cover.jpg", null, null, 1, 10L,
 			LocalDateTime.of(2026, 1, 1, 0, 0), List.of(storeResponse));
@@ -203,7 +203,7 @@ class AdminCourseControllerTest {
 	@Test
 	void addStore_returnsCreatedCourseStore() throws Exception {
 		CourseStoreResponse storeResponse = new CourseStoreResponse(
-			10L, 1, 1, 100L, "소금빵집", 37.5, 126.9, "마포구", null, null);
+			10L, 1, 1, 100L, "소금빵집", 37.5, 126.9, "마포구", null, null, false, null);
 		given(adminCourseCommandService.addStore(eq(1L), any())).willReturn(storeResponse);
 
 		mockMvc.perform(post("/api/admin/courses/1/stores")

@@ -26,7 +26,9 @@ public enum CourseErrorCode implements BaseErrorCode {
 	COURSE_SAVE_SELF(HttpStatus.BAD_REQUEST, "COURSE400_9", "자신의 코스는 찜할 수 없습니다."),
 	COURSE_STORE_ORDER_INVALID(HttpStatus.BAD_REQUEST, "COURSE400_10", "코스의 모든 가게를 중복 없이 전달해야 합니다."),
 	COURSE_STORE_DAY_INVALID(HttpStatus.BAD_REQUEST, "COURSE400_11", "일차 정보가 올바르지 않습니다."),
-	COURSE_DATES_INVALID(HttpStatus.BAD_REQUEST, "COURSE400_12", "여행 날짜가 올바르지 않습니다.");
+	COURSE_DATES_INVALID(HttpStatus.BAD_REQUEST, "COURSE400_12", "여행 날짜가 올바르지 않습니다."),
+	COURSE_VISIT_RECORD_MISMATCH(HttpStatus.BAD_REQUEST, "COURSE400_13", "그 가게의 기록이 아닙니다."),
+	COURSE_VISIT_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_5", "방문 표시를 찾을 수 없습니다.");
 
 	private final HttpStatus httpStatus;
 	private final String code;

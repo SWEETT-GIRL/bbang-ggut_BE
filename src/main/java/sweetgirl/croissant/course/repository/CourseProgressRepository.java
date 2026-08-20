@@ -33,16 +33,17 @@ public interface CourseProgressRepository extends JpaRepository<CourseProgress, 
 			SELECT
 				progress.course_id AS courseId,
 				COUNT(DISTINCT course_store.store_id) AS storeCount,
-				COUNT(DISTINCT record.store_id) AS visitedStoreCount,
-				MAX(record.created_at) AS lastTouchedAt
+				COUNT(DISTINCT visit.store_id) AS visitedStoreCount,
+				MAX(visit.visited_at) AS lastTouchedAt
 			FROM course_progress progress
 			LEFT JOIN course_stores course_store
 				ON course_store.course_id = progress.course_id
 				AND course_store.deleted_at IS NULL
-			LEFT JOIN bread_record record
-				ON record.member_id = progress.member_id
-				AND record.store_id = course_store.store_id
-				AND record.deleted_at IS NULL
+			LEFT JOIN course_store_visits visit
+				ON visit.member_id = progress.member_id
+				AND visit.course_id = course_store.course_id
+				AND visit.store_id = course_store.store_id
+				AND visit.deleted_at IS NULL
 			WHERE progress.member_id = :memberId
 			AND progress.course_id IN (:courseIds)
 			GROUP BY progress.course_id
@@ -55,15 +56,16 @@ public interface CourseProgressRepository extends JpaRepository<CourseProgress, 
 			SELECT
 				progress.member_id AS memberId,
 				COUNT(DISTINCT course_store.store_id) AS storeCount,
-				COUNT(DISTINCT record.store_id) AS visitedStoreCount
+				COUNT(DISTINCT visit.store_id) AS visitedStoreCount
 			FROM course_progress progress
 			LEFT JOIN course_stores course_store
 				ON course_store.course_id = progress.course_id
 				AND course_store.deleted_at IS NULL
-			LEFT JOIN bread_record record
-				ON record.member_id = progress.member_id
-				AND record.store_id = course_store.store_id
-				AND record.deleted_at IS NULL
+			LEFT JOIN course_store_visits visit
+				ON visit.member_id = progress.member_id
+				AND visit.course_id = course_store.course_id
+				AND visit.store_id = course_store.store_id
+				AND visit.deleted_at IS NULL
 			WHERE progress.course_id = :courseId
 			GROUP BY progress.member_id
 			""", nativeQuery = true)

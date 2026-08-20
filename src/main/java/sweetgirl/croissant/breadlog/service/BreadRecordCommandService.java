@@ -125,6 +125,9 @@ public class BreadRecordCommandService {
 		photoRepository.deleteAllIncludingPendingByRecordId(recordId);
 		photos.forEach(photo -> safeDelete(photo.getAwsKey()));
 		record.softDelete();
+		// 기록이 사라지면 그 기록으로 켜둔 코스 방문 체크도 풀어야 한다.
+		// 집계를 다시 돌리기 전에 끊어야 진행률에 반영된다.
+		courseProgressService.detachVisitsByRecord(recordId);
 		courseProgressService.refreshForMember(memberId);
 	}
 
