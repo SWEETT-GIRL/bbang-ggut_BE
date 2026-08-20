@@ -15,6 +15,7 @@ import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseImageFile;
 import sweetgirl.croissant.course.entity.CourseStore;
+import sweetgirl.croissant.course.entity.CourseStoreVisit;
 import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.exception.CourseException;
@@ -22,6 +23,7 @@ import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
+import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.store.RegionFormatter;
 
@@ -36,6 +38,7 @@ public class CourseQueryService {
 	private final CourseImageFileRepository courseImageFileRepository;
 	private final CourseProgressRepository courseProgressRepository;
 	private final CourseStoreThumbnailReader courseStoreThumbnailReader;
+	private final CourseStoreVisitRepository courseStoreVisitRepository;
 
 	public List<CourseSummaryResponse> getCurationCourses() {
 		return buildSummaryResponses(courseRepository.findAllPublicOrderedByPinAndSavedCount());
@@ -66,8 +69,16 @@ public class CourseQueryService {
 
 		List<CourseStore> courseStores = courseStoreRepository
 			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId);
+		// 방문 표시는 사람마다 다르다. 비로그인이면 아무것도 표시되지 않는다.
+		Map<Long, CourseStoreVisit> visitByStoreId = memberId == null
+			? Map.of()
+			: courseStoreVisitRepository
+				.findAllByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId).stream()
+				.collect(Collectors.toMap(visit -> visit.getId().getStoreId(), visit -> visit, (a, b) -> a));
+
 		List<CourseStoreResponse> courseStoreResponses = courseStores.stream()
-			.map(CourseStoreResponse::from)
+			.map(courseStore -> CourseStoreResponse.of(
+				courseStore, visitByStoreId.get(courseStore.getStore().getId())))
 			.toList();
 
 		CourseImageFile coverImage = courseImageFileRepository.findByCourseId(courseId).orElse(null);

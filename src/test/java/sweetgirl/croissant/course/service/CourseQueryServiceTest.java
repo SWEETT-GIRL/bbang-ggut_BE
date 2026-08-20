@@ -31,6 +31,7 @@ import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
+import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.store.entity.Store;
@@ -50,6 +51,8 @@ class CourseQueryServiceTest {
 	CourseProgressRepository courseProgressRepository;
 	@Mock
 	CourseStoreThumbnailReader courseStoreThumbnailReader;
+	@Mock
+	CourseStoreVisitRepository courseStoreVisitRepository;
 
 	@InjectMocks
 	CourseQueryService courseQueryService;
