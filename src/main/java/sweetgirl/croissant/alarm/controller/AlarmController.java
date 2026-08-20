@@ -18,16 +18,20 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.alarm.dto.request.CourseNotificationReadRequest;
 import sweetgirl.croissant.alarm.dto.request.FcmTokenDeleteRequest;
 import sweetgirl.croissant.alarm.dto.request.FcmTokenRequest;
 import sweetgirl.croissant.alarm.dto.request.GeofenceEnterRequest;
+import sweetgirl.croissant.alarm.dto.response.CourseSaveNotificationListResponse;
 import sweetgirl.croissant.alarm.dto.response.GeofenceCandidatesResponse;
 import sweetgirl.croissant.alarm.dto.response.MarketingEnabledResponse;
 import sweetgirl.croissant.alarm.dto.response.NotificationEnabledResponse;
 import sweetgirl.croissant.alarm.dto.response.ReportNotificationResponse;
 import sweetgirl.croissant.alarm.dto.response.StoreNotificationResponse;
+import sweetgirl.croissant.alarm.dto.response.UnreadCountResponse;
 import sweetgirl.croissant.alarm.service.AlarmCommandService;
 import sweetgirl.croissant.alarm.service.AlarmQueryService;
+import sweetgirl.croissant.alarm.service.CourseSaveNotificationService;
 import sweetgirl.croissant.alarm.service.FcmService;
 import sweetgirl.croissant.alarm.service.ReportNotificationService;
 import sweetgirl.croissant.global.response.ApiResponse;
@@ -42,6 +46,7 @@ public class AlarmController {
 	private final AlarmQueryService alarmQueryService;
 	private final AlarmCommandService alarmCommandService;
 	private final ReportNotificationService reportNotificationService;
+	private final CourseSaveNotificationService courseSaveNotificationService;
 
 	@Operation(summary = "FCM 토큰 등록/갱신", description = "디바이스의 FCM 푸시 토큰을 등록하거나 갱신합니다. 동일 deviceId가 존재하면 토큰을 업데이트합니다.")
 	@PostMapping("/fcm-token")
@@ -110,6 +115,30 @@ public class AlarmController {
 	public ApiResponse<Void> readReportNotification(@AuthenticationPrincipal Long memberId,
 			@Parameter(description = "제보 알림 ID") @PathVariable Long id) {
 		reportNotificationService.markAsRead(memberId, id);
+		return ApiResponse.ok(null);
+	}
+
+	@Operation(summary = "내 빵투어 찜 알림 목록 조회", description = "다른 사용자가 내 빵투어를 찜한 알림을 최신순으로 반환합니다.")
+	@GetMapping("/course-notifications")
+	public ApiResponse<CourseSaveNotificationListResponse> getMyCourseSaveNotifications(
+			@AuthenticationPrincipal Long memberId,
+			@Parameter(description = "0부터 시작하는 페이지 번호") @RequestParam(defaultValue = "0") int page,
+			@Parameter(description = "페이지 크기(최대 50)") @RequestParam(defaultValue = "20") int size) {
+		return ApiResponse.ok(courseSaveNotificationService.getMyNotifications(memberId, page, size));
+	}
+
+	@Operation(summary = "내 빵투어 찜 알림 미읽음 개수", description = "상단바 알림 배지 표시용. 읽지 않은 알림 개수를 반환합니다.")
+	@GetMapping("/course-notifications/unread-count")
+	public ApiResponse<UnreadCountResponse> getCourseSaveNotificationUnreadCount(
+			@AuthenticationPrincipal Long memberId) {
+		return ApiResponse.ok(courseSaveNotificationService.getUnreadCount(memberId));
+	}
+
+	@Operation(summary = "내 빵투어 찜 알림 읽음 처리", description = "notificationIds를 주면 해당 알림만, 없거나 비어 있으면 전체를 읽음 처리합니다.")
+	@PatchMapping("/course-notifications/read")
+	public ApiResponse<Void> readCourseSaveNotifications(@AuthenticationPrincipal Long memberId,
+			@RequestBody(required = false) CourseNotificationReadRequest request) {
+		courseSaveNotificationService.markAsRead(memberId, request);
 		return ApiResponse.ok(null);
 	}
 
