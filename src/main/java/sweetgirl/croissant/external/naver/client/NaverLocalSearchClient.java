@@ -41,7 +41,9 @@ public class NaverLocalSearchClient {
 				.uri(uriBuilder -> uriBuilder
 					.path(LOCAL_SEARCH_PATH)
 					.queryParam("query", query)
-					.queryParam("display", 10)
+					// 지역검색은 display 최대 5, start 최대 1이다(페이징 없음).
+					.queryParam("display", 5)
+					// random 은 무작위가 아니라 '정확도순'이다(네이버 문서). comment 는 리뷰순.
 					.queryParam("sort", "random")
 					.build())
 				.header("X-Naver-Client-Id", clientId)
