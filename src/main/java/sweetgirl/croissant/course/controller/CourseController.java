@@ -25,14 +25,17 @@ import sweetgirl.croissant.course.dto.request.CourseImageRegisterRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreAddRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreReorderRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreUpdateRequest;
+import sweetgirl.croissant.course.dto.request.CourseStoreVisitRequest;
 import sweetgirl.croissant.course.dto.request.CourseUpdateRequest;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
 import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
+import sweetgirl.croissant.course.dto.response.CourseVisitCandidateResponse;
 import sweetgirl.croissant.course.service.CourseCommandService;
 import sweetgirl.croissant.course.service.CourseProgressService;
 import sweetgirl.croissant.course.service.CourseQueryService;
+import sweetgirl.croissant.course.service.CourseStoreVisitService;
 import sweetgirl.croissant.course.service.SavedCourseCommandService;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.global.response.ApiResponse;
@@ -47,6 +50,7 @@ public class CourseController {
 	private final CourseCommandService courseCommandService;
 	private final SavedCourseCommandService savedCourseCommandService;
 	private final CourseProgressService courseProgressService;
+	private final CourseStoreVisitService courseStoreVisitService;
 
 	@Operation(summary = "공개 코스 목록 조회")
 	@GetMapping
@@ -167,6 +171,37 @@ public class CourseController {
 			@PathVariable Long storeId) {
 		courseCommandService.removeStore(memberId, courseId, storeId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "코스 가게 다녀왔어요 표시", description = "빵로그 기록 하나를 골라 이 코스의 방문으로 잇는다.")
+	@PostMapping("/{courseId}/stores/{storeId}/visit")
+	public ResponseEntity<ApiResponse<Void>> markVisited(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable Long courseId,
+			@PathVariable Long storeId,
+			@Valid @RequestBody CourseStoreVisitRequest request) {
+		courseStoreVisitService.markVisited(memberId, courseId, storeId, request.getBreadRecordId());
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "코스 가게 다녀왔어요 해제")
+	@DeleteMapping("/{courseId}/stores/{storeId}/visit")
+	public ResponseEntity<ApiResponse<Void>> unmarkVisited(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable Long courseId,
+			@PathVariable Long storeId) {
+		courseStoreVisitService.unmarkVisited(memberId, courseId, storeId);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "다녀왔어요로 고를 수 있는 내 기록 목록", description = "그 가게의 내 기록 전부를 최신순으로 준다.")
+	@GetMapping("/{courseId}/stores/{storeId}/records")
+	public ResponseEntity<ApiResponse<List<CourseVisitCandidateResponse>>> getVisitCandidates(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable Long courseId,
+			@PathVariable Long storeId) {
+		return ResponseEntity.ok(ApiResponse.ok(
+			courseStoreVisitService.getCandidates(memberId, courseId, storeId)));
 	}
 
 	@Operation(summary = "코스 가게 순서 변경")

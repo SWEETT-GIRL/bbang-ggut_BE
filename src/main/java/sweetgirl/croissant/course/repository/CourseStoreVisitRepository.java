@@ -16,6 +16,8 @@ public interface CourseStoreVisitRepository extends JpaRepository<CourseStoreVis
 
 	List<CourseStoreVisit> findAllByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(Long courseId, Long memberId);
 
+	List<CourseStoreVisit> findAllByIdMemberIdAndDeletedAtIsNull(Long memberId);
+
 	// 기록을 지우면 그 기록으로 켜둔 체크도 함께 정리한다.
 	List<CourseStoreVisit> findAllByBreadRecordIdAndDeletedAtIsNull(Long breadRecordId);
 }
