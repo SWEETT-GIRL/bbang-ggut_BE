@@ -73,7 +73,8 @@ class CourseControllerTest {
 	@Test
 	void getCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
-			1L, "소금빵 투어", null, null, List.of(), 2, List.of(11L, 12L), List.of("마포구"), CourseType.CURATED, "어드민",
+			1L, "소금빵 투어", null, null, List.of(), List.of("김진환제과점", "성심당"), 2, List.of(11L, 12L), List.of("마포구"),
+			CourseType.CURATED, "어드민",
 			null, 0L, 1, 37L, null, null, null);
 		given(courseQueryService.getCurationCourses()).willReturn(List.of(response));
 
@@ -84,13 +85,15 @@ class CourseControllerTest {
 			.andExpect(jsonPath("$.data[0].title").value("소금빵 투어"))
 			.andExpect(jsonPath("$.data[0].courseType").value("CURATED"))
 			.andExpect(jsonPath("$.data[0].pinOrder").value(1))
-			.andExpect(jsonPath("$.data[0].finisherCount").value(37));
+			.andExpect(jsonPath("$.data[0].finisherCount").value(37))
+			.andExpect(jsonPath("$.data[0].storeNames[0]").value("김진환제과점"));
 	}
 
 	@Test
 	void getMyCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
-			2L, "나의 코스", null, null, List.of(), 1, List.of(21L), List.of("서대문구"), CourseType.CUSTOM, "user1", null,
+			2L, "나의 코스", null, null, List.of(), List.of("성심당"), 1, List.of(21L), List.of("서대문구"), CourseType.CUSTOM,
+			"user1", null,
 			0L, null, 0L, null, null, null);
 		given(courseQueryService.getMyCourses(isNull())).willReturn(List.of(response));
 
@@ -106,7 +109,8 @@ class CourseControllerTest {
 	@Test
 	void getSavedCourses_returns200() throws Exception {
 		CourseSummaryResponse response = new CourseSummaryResponse(
-			3L, "찜한 코스", null, null, List.of(), 3, List.of(31L, 32L, 33L), List.of("강남구"), CourseType.CURATED, "어드민",
+			3L, "찜한 코스", null, null, List.of(), List.of("성심당"), 3, List.of(31L, 32L, 33L), List.of("강남구"),
+			CourseType.CURATED, "어드민",
 			null, 0L, null, 0L, null, null, null);
 		given(courseQueryService.getSavedCourses(isNull())).willReturn(List.of(response));
 
