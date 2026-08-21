@@ -32,6 +32,9 @@ import sweetgirl.croissant.store.RegionFormatter;
 @Transactional(readOnly = true)
 public class CourseQueryService {
 
+	/** 목록 한 줄에 들어가는 가게 이름 개수. 세 개를 넘기면 작은 기기에서 잘린다. */
+	private static final int SUMMARY_STORE_NAME_LIMIT = 3;
+
 	private final CourseRepository courseRepository;
 	private final CourseStoreRepository courseStoreRepository;
 	private final SavedCourseRepository savedCourseRepository;
@@ -136,6 +139,7 @@ public class CourseQueryService {
 					course,
 					coverImageByCourseId.get(course.getId()),
 					storeThumbnailsByCourseId.getOrDefault(course.getId(), List.of()),
+					storeNamesOf(courseStores),
 					courseStores.size(),
 					storeIdsOf(courseStores),
 					regions,
@@ -161,6 +165,20 @@ public class CourseQueryService {
 	private List<Long> storeIdsOf(List<CourseStore> courseStores) {
 		return courseStores.stream()
 			.map(courseStore -> courseStore.getStore().getId())
+			.toList();
+	}
+
+	/**
+	 * 목록에 세울 가게 이름 앞 세 개. 방문 순서를 그대로 따른다.
+	 *
+	 * 빵집 사진은 서로 비슷해서 어떤 코스인지 말해 주지 못하는데, 아는 가게 이름 하나가
+	 * 그 일을 한다. regionsOf가 이미 Store를 읽고 있어 여기서 이름을 더 읽는 건 공짜다.
+	 */
+	private List<String> storeNamesOf(List<CourseStore> courseStores) {
+		return courseStores.stream()
+			.limit(SUMMARY_STORE_NAME_LIMIT)
+			.map(courseStore -> courseStore.getStore().getName())
+			.filter(name -> name != null)
 			.toList();
 	}
 
