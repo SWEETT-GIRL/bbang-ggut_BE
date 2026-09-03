@@ -261,7 +261,7 @@ class CourseCommandServiceTest {
 		given(request.getMemo()).willReturn("메모");
 		given(request.getVisitTime()).willReturn(LocalTime.of(10, 0));
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.existsByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId)).willReturn(false);
 		given(storeRepository.findById(storeId)).willReturn(Optional.of(store));
 		given(courseStoreRepository.findMaxVisitOrderByCourseId(courseId)).willReturn(0);
@@ -286,7 +286,7 @@ class CourseCommandServiceTest {
 		CourseStoreAddRequest request = mock(CourseStoreAddRequest.class);
 		given(request.getStoreId()).willReturn(storeId);
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.existsByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId)).willReturn(true);
 
 		assertThatThrownBy(() -> courseCommandService.addStore(memberId, courseId, request))
@@ -310,7 +310,7 @@ class CourseCommandServiceTest {
 		CourseStore day1Store = mockCourseStore(1, 1, mockStore(101L));
 		CourseStore day2Store = mockCourseStore(2, 2, mockStore(102L));
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.existsByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId)).willReturn(false);
 		given(storeRepository.findById(storeId)).willReturn(Optional.of(store));
 		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
@@ -343,7 +343,7 @@ class CourseCommandServiceTest {
 
 		CourseStore day1Store = mockCourseStore(1, 1, mockStore(101L));
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.existsByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId)).willReturn(false);
 		given(storeRepository.findById(storeId)).willReturn(Optional.of(store));
 		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
@@ -391,7 +391,7 @@ class CourseCommandServiceTest {
 		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
 		CourseStore courseStore = mock(CourseStore.class);
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.findByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId))
 			.willReturn(Optional.of(courseStore));
 
@@ -433,7 +433,7 @@ class CourseCommandServiceTest {
 		given(courseStore2.getId()).willReturn(courseStoreId2);
 		given(courseStore2.getCourse()).willReturn(course);
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
 		given(courseStoreRepository.findAllById(List.of(courseStoreId1, courseStoreId2)))
 			.willReturn(List.of(courseStore1, courseStore2));
@@ -478,7 +478,7 @@ class CourseCommandServiceTest {
 		given(courseStore2.getId()).willReturn(2L);
 		given(courseStore2.getCourse()).willReturn(course);
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
 		given(courseStoreRepository.findAllById(List.of(1L, 2L)))
 			.willReturn(List.of(courseStore1, courseStore2));
@@ -518,7 +518,7 @@ class CourseCommandServiceTest {
 		given(courseStore2.getId()).willReturn(2L);
 		given(courseStore2.getCourse()).willReturn(course);
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
 		given(courseStoreRepository.findAllById(List.of(1L, 2L)))
 			.willReturn(List.of(courseStore1, courseStore2));
@@ -539,7 +539,7 @@ class CourseCommandServiceTest {
 		given(item.getCourseStoreId()).willReturn(1L);
 		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
 		given(request.getCourseStoreOrders()).willReturn(List.of(item, item));
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
 
 		assertThatThrownBy(() -> courseCommandService.reorderStores(memberId, courseId, request))
@@ -567,7 +567,7 @@ class CourseCommandServiceTest {
 		given(otherCourseStore.getId()).willReturn(otherCourseStoreId);
 		given(otherCourseStore.getCourse()).willReturn(otherCourse);
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(1L);
 		given(courseStoreRepository.findAllById(List.of(otherCourseStoreId)))
 			.willReturn(List.of(otherCourseStore));
