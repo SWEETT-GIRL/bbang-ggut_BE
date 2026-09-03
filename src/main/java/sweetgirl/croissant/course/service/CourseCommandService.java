@@ -128,7 +128,7 @@ public class CourseCommandService {
 	}
 
 	public CourseStoreResponse addStore(Long memberId, Long courseId, CourseStoreAddRequest request) {
-		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
+		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		validateOwner(course, memberId);
 
@@ -193,7 +193,7 @@ public class CourseCommandService {
 	}
 
 	public void removeStore(Long memberId, Long courseId, Long storeId) {
-		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
+		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		validateOwner(course, memberId);
 
@@ -205,7 +205,7 @@ public class CourseCommandService {
 	}
 
 	public void reorderStores(Long memberId, Long courseId, CourseStoreReorderRequest request) {
-		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
+		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		validateOwner(course, memberId);
 
