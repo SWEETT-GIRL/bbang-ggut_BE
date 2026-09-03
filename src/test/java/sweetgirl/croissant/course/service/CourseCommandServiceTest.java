@@ -212,7 +212,8 @@ class CourseCommandServiceTest {
 
 		CourseUpdateRequest request = mock(CourseUpdateRequest.class);
 		given(request.getTitle()).willReturn(sourceTitle);
-		lenient().when(request.getIsPublic()).thenReturn(null);
+		// 동일 판정은 '공개로 바꾸려 할 때'만 탄다. mockCourse 는 isPublic() 을 스텁하지 않아 false 이므로 요청으로 켠다.
+		given(request.getIsPublic()).willReturn(true);
 
 		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseRepository.findByIdAndDeletedAtIsNull(sourceCourseId)).willReturn(Optional.of(sourceCourse));
@@ -682,8 +683,9 @@ class CourseCommandServiceTest {
 	@DisplayName("forkCourse: 비공개 코스 포크 시도 시 COURSE_FORK_NOT_PUBLIC을 던진다")
 	void forkCourse_privateCourse_throwsForkNotPublic() {
 		Long memberId = 1L;
+		Long ownerId = 2L;
 		Long courseId = 10L;
-		Course course = mockCourse(courseId, "비공개 커스텀 코스", CourseType.CUSTOM, memberId, null);
+		Course course = mockCourse(courseId, "비공개 커스텀 코스", CourseType.CUSTOM, ownerId, null);
 
 		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 
@@ -696,8 +698,9 @@ class CourseCommandServiceTest {
 	@DisplayName("forkCourse: 비공개 FORKED 코스 포크 시도 시 COURSE_FORK_NOT_PUBLIC을 던진다")
 	void forkCourse_privateForkedCourse_throwsForkNotPublic() {
 		Long memberId = 1L;
+		Long ownerId = 2L;
 		Long courseId = 10L;
-		Course course = mockCourse(courseId, "비공개 포크 코스", CourseType.FORKED, memberId, 5L);
+		Course course = mockCourse(courseId, "비공개 포크 코스", CourseType.FORKED, ownerId, 5L);
 
 		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 
