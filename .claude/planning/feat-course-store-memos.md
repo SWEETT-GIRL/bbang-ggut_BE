@@ -22,20 +22,22 @@
 | 5 | 게스트 이관 | `deleteGuestDuplicates` 먼저 | PK `(course_store_id, member_id)` 충돌 방어 — `course_members` 와 같은 관례 |
 | 6 | 방장 나가기(승계) 때 메모 | 멤버와 같이 soft delete | 문서 "탈퇴한 멤버·방장도 같은 규칙" |
 | 7 | 이관 전 200자 초과 개수 | **미확인** — 운영 DB 접속 필요 | PR 전 `SELECT COUNT(*) FROM course_stores WHERE length(memo) > 200` 실행해 0 이 아니면 알린다 |
+| 8 | H2 리포지토리 테스트 | `store`·`course_stores`·`course_store_memos` 세 테이블을 테스트가 직접 만든다 | H2 에는 `Store.location`(geography) DDL 이 실패해 store 와 그것을 참조하는 테이블이 없다. Store 는 `getReference` 로 FK 만 채운다 |
+| 9 | 새 메모 행 저장 | `repository.save` — `@EmbeddedId` 라 Spring Data 가 merge 로 넣는다 | `CourseMember`·`CourseStoreVisit` 과 같은 관례. addStore 응답의 `updatedAt` 은 `now()` |
 
 ## 3. 커밋 계획
 
-- [ ] A `✨ feat` 마이그레이션 · `CourseStoreMemo(Id)` · `CourseStoreMemoRepository` · 테스트
-- [ ] B `✨ feat` 쓰기 경로(updateStore·addStore·removeStore·leave·fork·isSameAsSource·@Size) + 테스트
-- [ ] C `✨ feat` 읽기 경로(`CourseStoreResponse` memos·myMemo, `getCourseDetail` 한 방 조회) + 테스트
-- [ ] D `✨ feat` 게스트 이관 `moveOwner`
-- [ ] 최종 `./gradlew test` 실패 7개
+- [x] A `✨ feat` 마이그레이션 · `CourseStoreMemo(Id)` · `CourseStoreMemoRepository` · 테스트 (`13b2d4b0`)
+- [x] C `✨ feat` 읽기 경로(`CourseStoreResponse` memos·myMemo, `getCourseDetail` 한 방 조회) + 테스트 (`983d51cd`) — addStore 응답이 새 DTO 모양을 쓰므로 B 보다 먼저
+- [x] B `✨ feat` 쓰기 경로(updateStore·addStore·removeStore·leave·fork·isSameAsSource·@Size) + 테스트 (`74118038`)
+- [x] D `✨ feat` 게스트 이관 `deleteGuestDuplicates` + `moveOwner` (`38a66f80`)
+- [x] 최종 `./gradlew test` 880개 중 실패 7개 = baseline 과 동일(`ReviewRepositoryTest` 4 · `TrendQueryServiceTest` 2 · `KakaoAuthServiceTest` 1)
 
 ## 4. 검증 (문서 3-5)
 
-- [ ] 두 계정 각각 메모 → 서로 안 덮어씀, `memos` 2개, 각자 `myMemo` 자기 것 (단위 테스트)
-- [ ] 기존 코스 메모가 주인 메모로 보이고 `memo` 로도 내려온다 (마이그레이션 SQL)
-- [ ] 큐레이션 코스는 `course_stores.memo` 그대로
-- [ ] 가게를 빼면 정류장 메모 전원 삭제, 재추가해도 안 돌아옴
-- [ ] 포크본 메모 없음 · 동일 FORKED 공개 시 `COURSE_FORK_NOT_MODIFIED` 유지
-- [ ] 201자 메모 400
+- [x] 두 계정 각각 메모 → 서로 안 덮어씀, `memos` 2개, 각자 `myMemo` 자기 것 (`CourseQueryServiceTest` 메모 3개 · `CourseCommandServiceTest` upsert 3개)
+- [ ] 기존 코스 메모가 주인 메모로 보이고 `memo` 로도 내려온다 — 마이그레이션 SQL 은 문서 그대로, 실제 DB 로는 미검증
+- [x] 큐레이션 코스는 `course_stores.memo` 그대로 (`getCourseDetail_curated_keepsLegacyMemo`)
+- [x] 가게를 빼면 정류장 메모 전원 삭제 (`CourseStoreMemoRepositoryTest` · `removeStore_success`). 재추가 시 새 정류장 행이라 안 돌아옴
+- [x] 포크본 메모 없음 · 동일 FORKED 공개 시 `COURSE_FORK_NOT_MODIFIED` 유지
+- [x] 201자 메모 400 (`storeMemo_over200Chars_returns400`)
