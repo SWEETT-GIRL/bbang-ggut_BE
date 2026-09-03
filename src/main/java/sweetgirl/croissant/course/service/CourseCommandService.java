@@ -29,6 +29,7 @@ import sweetgirl.croissant.course.entity.SavedCourse;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
+import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
@@ -54,6 +55,7 @@ public class CourseCommandService {
 	private final CourseStoreRepository courseStoreRepository;
 	private final CourseImageFileRepository courseImageFileRepository;
 	private final SavedCourseRepository savedCourseRepository;
+	private final CourseMemberRepository courseMemberRepository;
 	private final MemberRepository memberRepository;
 	private final StoreRepository storeRepository;
 	private final S3Service s3Service;
@@ -92,7 +94,11 @@ public class CourseCommandService {
 			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
 		}
 
-		validateOwner(course, memberId);
+		validateCanEdit(course, memberId);
+		// 공개/비공개 전환은 방장 전용이다. 협업 멤버는 제목·지역·날짜만 고친다.
+		if (request.getIsPublic() != null) {
+			validateOwner(course, memberId);
+		}
 
 		// FORKED 코스는 원본과 동일한 채로 '공개'만 막는다. 비공개 복제는 동일해도 허용.
 		if (course.getType() == CourseType.FORKED) {
@@ -130,7 +136,7 @@ public class CourseCommandService {
 	public CourseStoreResponse addStore(Long memberId, Long courseId, CourseStoreAddRequest request) {
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		validateOwner(course, memberId);
+		validateCanEdit(course, memberId);
 
 		if (courseStoreRepository.existsByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, request.getStoreId())) {
 			throw new CourseException(CourseErrorCode.COURSE_STORE_ALREADY_EXISTS);
@@ -183,7 +189,7 @@ public class CourseCommandService {
 	public void updateStore(Long memberId, Long courseId, Long storeId, CourseStoreUpdateRequest request) {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		validateOwner(course, memberId);
+		validateCanEdit(course, memberId);
 
 		CourseStore courseStore = courseStoreRepository.findByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_STORE_NOT_FOUND));
@@ -195,7 +201,7 @@ public class CourseCommandService {
 	public void removeStore(Long memberId, Long courseId, Long storeId) {
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		validateOwner(course, memberId);
+		validateCanEdit(course, memberId);
 
 		CourseStore courseStore = courseStoreRepository.findByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_STORE_NOT_FOUND));
@@ -207,7 +213,7 @@ public class CourseCommandService {
 	public void reorderStores(Long memberId, Long courseId, CourseStoreReorderRequest request) {
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		validateOwner(course, memberId);
+		validateCanEdit(course, memberId);
 
 		List<CourseStoreOrderItem> orderItems = request.getCourseStoreOrders();
 		List<Long> courseStoreIds = orderItems.stream()
@@ -343,10 +349,35 @@ public class CourseCommandService {
 		return savedForkedCourse.getId();
 	}
 
+	/** 방장 전용 — 코스 삭제 · 공개/비공개 전환 · 커버 이미지. */
 	private void validateOwner(Course course, Long memberId) {
-		if (course.getMember() == null || !course.getMember().getId().equals(memberId)) {
+		if (!isOwner(course, memberId)) {
 			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
 		}
+	}
+
+	/**
+	 * 방장 또는 활성 멤버 — 가게 추가·수정·삭제·순서 변경, 제목·지역·날짜 수정.
+	 *
+	 * ⚠️ 이 CURATED 검사를 지우지 말 것.
+	 * 기존 validateOwner 는 course.getMember() == null 조건으로 큐레이션을 "우연히" 막고 있었다.
+	 * 소유자 조건을 멤버까지 넓히는 순간 그 우연한 방어가 사라진다 —
+	 * course_members 에 행 하나만 심으면 공식 추천 코스를 아무나 편집하게 된다.
+	 */
+	private void validateCanEdit(Course course, Long memberId) {
+		if (course.getType() == CourseType.CURATED) {
+			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
+		}
+		if (isOwner(course, memberId)) {
+			return;
+		}
+		if (!courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(course.getId(), memberId)) {
+			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
+		}
+	}
+
+	private boolean isOwner(Course course, Long memberId) {
+		return course.getMember() != null && course.getMember().getId().equals(memberId);
 	}
 
 	private boolean isSameAsSource(Course course, String newTitle) {

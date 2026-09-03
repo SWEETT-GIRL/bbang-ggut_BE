@@ -37,6 +37,7 @@ import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
+import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
@@ -58,6 +59,8 @@ class CourseCommandServiceTest {
 	CourseImageFileRepository courseImageFileRepository;
 	@Mock
 	SavedCourseRepository savedCourseRepository;
+	@Mock
+	CourseMemberRepository courseMemberRepository;
 	@Mock
 	MemberRepository memberRepository;
 	@Mock
@@ -709,7 +712,173 @@ class CourseCommandServiceTest {
 			.hasMessageContaining(CourseErrorCode.COURSE_FORK_NOT_PUBLIC.getMessage());
 	}
 
+	// ───────────────────────── validateCanEdit ─────────────────────────
+	// 큐레이션 코스는 member_id 가 NULL 이라 예전 validateOwner 가 우연히 막고 있었다.
+	// 소유자 조건을 멤버까지 넓힌 뒤에도 막히는지 편집 경로 5개 전부에서 못 박는다.
+	// 누가 validateCanEdit 의 CURATED 줄을 지우면 아래 5개가 동시에 빨간불이 된다.
+
+	@Test
+	@DisplayName("updateCourse: 큐레이션 코스는 course_members에 행이 있어도 편집이 막힌다")
+	void updateCourse_curatedCourse_withMemberRow_stillForbidden() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "큐레이션", CourseType.CURATED, null, null);
+		givenActiveMemberLenient(courseId, memberId);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+
+		assertThatThrownBy(() -> courseCommandService.updateCourse(memberId, courseId, mock(CourseUpdateRequest.class)))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		then(courseMemberRepository).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("addStore: 큐레이션 코스는 course_members에 행이 있어도 편집이 막힌다")
+	void addStore_curatedCourse_withMemberRow_stillForbidden() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "큐레이션", CourseType.CURATED, null, null);
+		givenActiveMemberLenient(courseId, memberId);
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+
+		assertThatThrownBy(() -> courseCommandService.addStore(memberId, courseId, mock(CourseStoreAddRequest.class)))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		then(courseMemberRepository).shouldHaveNoInteractions();
+		then(courseStoreRepository).should(never()).save(any());
+	}
+
+	@Test
+	@DisplayName("updateStore: 큐레이션 코스는 course_members에 행이 있어도 편집이 막힌다")
+	void updateStore_curatedCourse_withMemberRow_stillForbidden() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "큐레이션", CourseType.CURATED, null, null);
+		givenActiveMemberLenient(courseId, memberId);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+
+		assertThatThrownBy(() -> courseCommandService.updateStore(
+			memberId, courseId, 100L, mock(CourseStoreUpdateRequest.class)))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		then(courseMemberRepository).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("removeStore: 큐레이션 코스는 course_members에 행이 있어도 편집이 막힌다")
+	void removeStore_curatedCourse_withMemberRow_stillForbidden() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "큐레이션", CourseType.CURATED, null, null);
+		givenActiveMemberLenient(courseId, memberId);
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+
+		assertThatThrownBy(() -> courseCommandService.removeStore(memberId, courseId, 100L))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		then(courseMemberRepository).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("reorderStores: 큐레이션 코스는 course_members에 행이 있어도 편집이 막힌다")
+	void reorderStores_curatedCourse_withMemberRow_stillForbidden() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "큐레이션", CourseType.CURATED, null, null);
+		givenActiveMemberLenient(courseId, memberId);
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+
+		assertThatThrownBy(() -> courseCommandService.reorderStores(
+			memberId, courseId, mock(CourseStoreReorderRequest.class)))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		then(courseMemberRepository).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("updateStore: 방장이 아니어도 활성 멤버면 가게를 수정할 수 있다")
+	void updateStore_activeMember_success() {
+		Long ownerId = 1L;
+		Long memberId = 2L;
+		Long courseId = 10L;
+		Long storeId = 100L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, ownerId, null);
+		CourseStore courseStore = mock(CourseStore.class);
+		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		given(request.getMemo()).willReturn("멤버 메모");
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
+			.willReturn(true);
+		given(courseStoreRepository.findByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId))
+			.willReturn(Optional.of(courseStore));
+
+		courseCommandService.updateStore(memberId, courseId, storeId, request);
+
+		then(courseStore).should().updateMemo("멤버 메모");
+	}
+
+	@Test
+	@DisplayName("removeStore: 나간 멤버(비활성 행)는 가게를 지울 수 없다")
+	void removeStore_leftMember_throwsForbidden() {
+		Long ownerId = 1L;
+		Long memberId = 2L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, ownerId, null);
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
+			.willReturn(false);
+
+		assertThatThrownBy(() -> courseCommandService.removeStore(memberId, courseId, 100L))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+	}
+
+	@Test
+	@DisplayName("updateCourse: 활성 멤버는 제목을 바꿀 수 있다")
+	void updateCourse_activeMember_canEditTitle() {
+		Long ownerId = 1L;
+		Long memberId = 2L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "원래 제목", CourseType.CUSTOM, ownerId, null);
+		CourseUpdateRequest request = mock(CourseUpdateRequest.class);
+		given(request.getTitle()).willReturn("멤버가 고친 제목");
+		// Mockito 는 Boolean 미스텁에 false 를 돌려준다 — 공개 여부를 안 보낸 요청은 null 이어야 한다
+		given(request.getIsPublic()).willReturn(null);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
+			.willReturn(true);
+
+		courseCommandService.updateCourse(memberId, courseId, request);
+
+		then(course).should().updateTitle("멤버가 고친 제목");
+	}
+
+	@Test
+	@DisplayName("updateCourse: 활성 멤버라도 공개/비공개 전환은 방장 전용이라 COURSE_FORBIDDEN을 던진다")
+	void updateCourse_activeMember_cannotChangePublic() {
+		Long ownerId = 1L;
+		Long memberId = 2L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, ownerId, null);
+		CourseUpdateRequest request = mock(CourseUpdateRequest.class);
+		given(request.getIsPublic()).willReturn(true);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
+			.willReturn(true);
+
+		assertThatThrownBy(() -> courseCommandService.updateCourse(memberId, courseId, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		then(course).should(never()).updatePublic(any(Boolean.class));
+	}
+
 	// ───────────────────────── helpers ─────────────────────────
+
+	/** CURATED 검사가 멤버 조회보다 먼저라 이 스텁은 안 불려야 정상이다 — 그래서 lenient. */
+	private void givenActiveMemberLenient(Long courseId, Long memberId) {
+		lenient().when(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
+			.thenReturn(true);
+	}
 
 	private Member mockMember(Long memberId) {
 		Member member = mock(Member.class);
