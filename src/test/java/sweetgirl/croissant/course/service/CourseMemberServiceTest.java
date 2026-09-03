@@ -39,6 +39,7 @@ import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseInviteRepository;
 import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
+import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.course.util.CollabTokenGenerator;
 import sweetgirl.croissant.member.code.MemberErrorCode;
@@ -65,6 +66,8 @@ class CourseMemberServiceTest {
 	private CourseInviteRepository courseInviteRepository;
 	@Mock
 	private SavedCourseRepository savedCourseRepository;
+	@Mock
+	private CourseStoreMemoRepository courseStoreMemoRepository;
 	@Mock
 	private MemberReader memberReader;
 	@Mock
@@ -682,6 +685,8 @@ class CourseMemberServiceTest {
 			assertThat(mine.isDeleted()).isTrue();
 			then(course).should(never()).changeOwner(any());
 			then(courseRepository).should().bumpVersion(COURSE_ID);
+			// 나간 사람의 메모는 지운다(확정). 가게는 남는다
+			then(courseStoreMemoRepository).should().softDeleteAllByCourseIdAndMemberId(COURSE_ID, MEMBER_ID);
 		}
 
 		@Test
@@ -704,6 +709,7 @@ class CourseMemberServiceTest {
 			assertThat(oldest.isDeleted()).isFalse();
 			assertThat(newer.isDeleted()).isFalse();
 			then(courseRepository).should().bumpVersion(COURSE_ID);
+			then(courseStoreMemoRepository).should().softDeleteAllByCourseIdAndMemberId(COURSE_ID, OWNER_ID);
 		}
 
 		@Test
@@ -723,6 +729,7 @@ class CourseMemberServiceTest {
 			assertThat(ownerRow.isDeleted()).isFalse();
 			then(course).should(never()).changeOwner(any());
 			then(courseRepository).should(never()).bumpVersion(any());
+			then(courseStoreMemoRepository).shouldHaveNoInteractions();
 		}
 
 		@Test

@@ -23,6 +23,7 @@ import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseInviteRepository;
 import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
+import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.course.util.CollabTokenGenerator;
 import sweetgirl.croissant.member.entity.Member;
@@ -50,6 +51,7 @@ public class CourseMemberService {
 	private final CourseMemberRepository courseMemberRepository;
 	private final CourseInviteRepository courseInviteRepository;
 	private final SavedCourseRepository savedCourseRepository;
+	private final CourseStoreMemoRepository courseStoreMemoRepository;
 	private final MemberReader memberReader;
 	private final MemberRestrictionReader memberRestrictionReader;
 
@@ -198,17 +200,19 @@ public class CourseMemberService {
 			: nickname;
 	}
 
-	/** 멤버는 그냥 나간다. 방장은 승계하고 나간다. 담았던 가게는 코스에 남는다. */
+	/** 멤버는 그냥 나간다. 방장은 승계하고 나간다. 담았던 가게는 코스에 남고, 쓴 메모는 지운다. */
 	public void leave(Long memberId, Long courseId) {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		CourseMember me = getActiveMemberRow(courseId, memberId);
 		if (isOwner(course, memberId)) {
 			transferOwnership(course, memberId);
-			return;
+		} else {
+			me.leave();
+			courseRepository.bumpVersion(courseId);
 		}
-		me.leave();
-		courseRepository.bumpVersion(courseId);
+		// 나간 사람의 메모는 삭제(확정). 탈퇴한 멤버·방장도 같은 규칙이다
+		courseStoreMemoRepository.softDeleteAllByCourseIdAndMemberId(courseId, memberId);
 	}
 
 	/**

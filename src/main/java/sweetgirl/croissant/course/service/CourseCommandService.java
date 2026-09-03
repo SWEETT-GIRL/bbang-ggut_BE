@@ -1,10 +1,12 @@
 package sweetgirl.croissant.course.service;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -21,16 +23,20 @@ import sweetgirl.croissant.course.dto.request.CourseStoreReorderRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreReorderRequest.CourseStoreOrderItem;
 import sweetgirl.croissant.course.dto.request.CourseStoreUpdateRequest;
 import sweetgirl.croissant.course.dto.request.CourseUpdateRequest;
+import sweetgirl.croissant.course.dto.response.CourseStoreMemoResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseImageFile;
+import sweetgirl.croissant.course.entity.CourseMember;
 import sweetgirl.croissant.course.entity.CourseStore;
+import sweetgirl.croissant.course.entity.CourseStoreMemo;
 import sweetgirl.croissant.course.entity.SavedCourse;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
+import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.external.aws.S3Service;
@@ -56,6 +62,7 @@ public class CourseCommandService {
 	private final CourseImageFileRepository courseImageFileRepository;
 	private final SavedCourseRepository savedCourseRepository;
 	private final CourseMemberRepository courseMemberRepository;
+	private final CourseStoreMemoRepository courseStoreMemoRepository;
 	private final MemberRepository memberRepository;
 	private final StoreRepository storeRepository;
 	private final S3Service s3Service;
@@ -198,7 +205,7 @@ public class CourseCommandService {
 			int nextOrder = courseStoreRepository.findMaxVisitOrderByCourseId(courseId) + 1;
 			courseStore = CourseStore.createWithDetails(
 				course, store, nextOrder, day,
-				request.getMemo(), request.getVisitTime());
+				null, request.getVisitTime());
 			courseStoreRepository.save(courseStore);
 		} else {
 			// 중간 삽입: 유니크 제약 충돌을 피하기 위해 기존 가게를 임시 음수 순서로 옮긴 뒤 끼워 넣고 재부여
@@ -207,16 +214,59 @@ public class CourseCommandService {
 			courseStoreRepository.flush();
 			courseStore = CourseStore.createWithDetails(
 				course, store, insertIndex + 1, day,
-				request.getMemo(), request.getVisitTime());
+				null, request.getVisitTime());
 			courseStoreRepository.save(courseStore);
 			int finalInsertIndex = insertIndex;
 			IntStream.range(0, activeStores.size())
 				.forEach(i -> activeStores.get(i).updateOrder(i < finalInsertIndex ? i + 1 : i + 2));
 		}
+		// 메모는 사람별이다 — course_stores.memo 가 아니라 내 메모 행으로 들어간다
+		String myMemo = upsertMyMemo(courseStore, memberId, request.getMemo());
 		courseProgressService.refreshForCourse(courseId);
 		courseRepository.bumpVersion(courseId);
 
-		return CourseStoreResponse.from(courseStore);
+		List<CourseStoreMemoResponse> memos = myMemo == null
+			? List.of()
+			: List.of(new CourseStoreMemoResponse(
+				memberId, displayNameOf(courseId, memberId), myMemo, LocalDateTime.now(), true));
+		return CourseStoreResponse.of(courseStore, null, myMemo, myMemo, memos);
+	}
+
+	/**
+	 * 내 메모 upsert. 빈 값이면 내 메모를 지운다. 지웠던 행은 같은 PK 로 되살린다.
+	 * 큐레이션 코스는 이 경로에 못 온다(validateCanEdit) — 그쪽 메모는 course_stores.memo 그대로다.
+	 *
+	 * @return 저장된 내용. 지웠거나 없으면 null
+	 */
+	private String upsertMyMemo(CourseStore courseStore, Long memberId, String content) {
+		Optional<CourseStoreMemo> existing = courseStoreMemoRepository
+			.findByIdCourseStoreIdAndIdMemberId(courseStore.getId(), memberId);
+		if (content == null || content.isBlank()) {
+			existing.filter(memo -> !memo.isDeleted()).ifPresent(CourseStoreMemo::softDelete);
+			return null;
+		}
+		if (existing.isPresent()) {
+			CourseStoreMemo memo = existing.get();
+			if (memo.isDeleted()) {
+				memo.restore(content);
+			} else {
+				memo.updateContent(content);
+			}
+			return content;
+		}
+		Member author = memberRepository.getReferenceById(memberId);
+		courseStoreMemoRepository.save(CourseStoreMemo.of(courseStore, author, content));
+		return content;
+	}
+
+	/** 코스 안에서 쓰는 이름. 행이 없으면(협업 전 코스) 닉네임. */
+	private String displayNameOf(Long courseId, Long memberId) {
+		return courseMemberRepository.findByIdCourseIdAndIdMemberId(courseId, memberId)
+			.filter(row -> !row.isDeleted())
+			.map(CourseMember::getDisplayName)
+			.orElseGet(() -> memberRepository.findByIdAndDeletedAtIsNull(memberId)
+				.map(Member::getNickname)
+				.orElse(null));
 	}
 
 	public void updateStore(Long memberId, Long courseId, Long storeId, CourseStoreUpdateRequest request) {
@@ -227,7 +277,8 @@ public class CourseCommandService {
 		CourseStore courseStore = courseStoreRepository.findByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_STORE_NOT_FOUND));
 
-		courseStore.updateMemo(request.getMemo());
+		// memo 는 내 메모만 바꾼다(사람별). visitTime 은 공통 한 개라 정류장에 그대로.
+		upsertMyMemo(courseStore, memberId, request.getMemo());
 		courseStore.updateVisitTime(request.getVisitTime());
 		courseRepository.bumpVersion(courseId);
 	}
@@ -241,6 +292,8 @@ public class CourseCommandService {
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_STORE_NOT_FOUND));
 
 		courseStore.softDelete();
+		// 메모는 정류장 행에 묶인다 — 가게를 빼면 전원 메모가 함께 닫히고, 다시 담아도 돌아오지 않는다
+		courseStoreMemoRepository.softDeleteAllByCourseStoreId(courseStore.getId());
 		courseProgressService.refreshForCourse(courseId);
 		courseRepository.bumpVersion(courseId);
 	}
@@ -391,13 +444,14 @@ public class CourseCommandService {
 
 		List<CourseStore> sourceStores = courseStoreRepository
 			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId);
+		// 메모는 사람의 것이라 복제하지 않는다 — 가게·순서·일차·방문시간만
 		List<CourseStore> copiedStores = sourceStores.stream()
 			.map(source -> CourseStore.createWithDetails(
 				savedForkedCourse,
 				source.getStore(),
 				source.getVisitOrder(),
 				source.getDay(),
-				source.getMemo(),
+				null,
 				source.getVisitTime()))
 			.toList();
 		courseStoreRepository.saveAll(copiedStores);
@@ -467,9 +521,8 @@ public class CourseCommandService {
 			if (!Objects.equals(current.getDay(), source.getDay())) {
 				return false;
 			}
-			if (!Objects.equals(current.getMemo(), source.getMemo())) {
-				return false;
-			}
+			// memo 는 비교하지 않는다. 사용자 코스는 course_stores.memo 를 더 이상 쓰지 않아 항상 null == null 로
+			// 통과하므로, 넣어두면 판정이 조용히 느슨해진다. 가게·순서·일차·방문시간 네 가지로만 본다.
 			if (!Objects.equals(current.getVisitTime(), source.getVisitTime())) {
 				return false;
 			}

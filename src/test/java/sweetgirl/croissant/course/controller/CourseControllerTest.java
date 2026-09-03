@@ -532,4 +532,18 @@ class CourseControllerTest {
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("COURSE409_1"));
 	}
+
+	@Test
+	void storeMemo_over200Chars_returns400() throws Exception {
+		String tooLong = "가".repeat(201);
+		mockMvc.perform(patch("/courses/1/stores/10")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"memo\":\"" + tooLong + "\"}"))
+			.andExpect(status().isBadRequest());
+		mockMvc.perform(post("/courses/1/stores")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"storeId\":10,\"memo\":\"" + tooLong + "\"}"))
+			.andExpect(status().isBadRequest());
+		then(courseCommandService).shouldHaveNoInteractions();
+	}
 }

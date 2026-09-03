@@ -36,11 +36,13 @@ import sweetgirl.croissant.course.entity.CourseImageFile;
 import sweetgirl.croissant.course.entity.CourseMember;
 import sweetgirl.croissant.course.entity.CourseMemberId;
 import sweetgirl.croissant.course.entity.CourseStore;
+import sweetgirl.croissant.course.entity.CourseStoreMemo;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
+import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.external.aws.S3Service;
@@ -63,6 +65,8 @@ class CourseCommandServiceTest {
 	SavedCourseRepository savedCourseRepository;
 	@Mock
 	CourseMemberRepository courseMemberRepository;
+	@Mock
+	CourseStoreMemoRepository courseStoreMemoRepository;
 	@Mock
 	MemberRepository memberRepository;
 	@Mock
@@ -275,12 +279,20 @@ class CourseCommandServiceTest {
 
 		CourseStore savedCourseStore = mockCourseStore(1, store);
 		given(courseStoreRepository.save(any(CourseStore.class))).willReturn(savedCourseStore);
+		Member author = mockMember(memberId);
+		given(memberRepository.getReferenceById(memberId)).willReturn(author);
 
 		CourseStoreResponse result = courseCommandService.addStore(memberId, courseId, request);
 
 		assertThat(result).isNotNull();
 		then(courseStoreRepository).should().save(any(CourseStore.class));
 		then(courseRepository).should().bumpVersion(courseId);
+		// 메모는 course_stores.memo 가 아니라 내 메모 행으로 들어가고, 응답엔 myMemo·memos 로 실린다
+		then(courseStoreMemoRepository).should().save(any(CourseStoreMemo.class));
+		assertThat(result.myMemo()).isEqualTo("메모");
+		assertThat(result.memo()).isEqualTo("메모");
+		assertThat(result.memos()).hasSize(1);
+		assertThat(result.memos().get(0).isMine()).isTrue();
 	}
 
 	@Test
@@ -381,10 +393,14 @@ class CourseCommandServiceTest {
 		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.findByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId))
 			.willReturn(Optional.of(courseStore));
+		Member author = mockMember(memberId);
+		given(memberRepository.getReferenceById(memberId)).willReturn(author);
 
 		courseCommandService.updateStore(memberId, courseId, storeId, request);
 
-		then(courseStore).should().updateMemo("새 메모");
+		// memo 는 내 메모 행으로만 간다 — course_stores.memo 는 더 이상 쓰지 않는다
+		then(courseStoreMemoRepository).should().save(any(CourseStoreMemo.class));
+		then(courseStore).should(never()).updateMemo(any());
 		then(courseStore).should().updateVisitTime(LocalTime.of(14, 30));
 		then(courseRepository).should().bumpVersion(courseId);
 	}
@@ -400,6 +416,7 @@ class CourseCommandServiceTest {
 
 		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
 		CourseStore courseStore = mock(CourseStore.class);
+		given(courseStore.getId()).willReturn(501L);
 
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.findByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId))
@@ -408,6 +425,8 @@ class CourseCommandServiceTest {
 		courseCommandService.removeStore(memberId, courseId, storeId);
 
 		then(courseStore).should().softDelete();
+		// 메모는 정류장 행에 묶인다 — 가게를 빼면 전원 메모가 함께 닫힌다
+		then(courseStoreMemoRepository).should().softDeleteAllByCourseStoreId(501L);
 		then(courseRepository).should().bumpVersion(courseId);
 	}
 
@@ -690,10 +709,18 @@ class CourseCommandServiceTest {
 		given(forkedCourse.getId()).willReturn(20L);
 		given(courseRepository.save(any(Course.class))).willReturn(forkedCourse);
 
+		lenient().when(sourceStore.getMemo()).thenReturn("원본 방장 메모");
+
 		Long forkedId = courseCommandService.forkCourse(memberId, sourceId);
 
 		assertThat(forkedId).isEqualTo(20L);
-		then(courseStoreRepository).should().saveAll(any());
+		@SuppressWarnings("unchecked") ArgumentCaptor<List<CourseStore>> copiedCaptor = ArgumentCaptor
+			.forClass(List.class);
+		then(courseStoreRepository).should().saveAll(copiedCaptor.capture());
+		// 메모는 사람의 것이라 복제하지 않는다 — 가게·순서·일차·방문시간만
+		assertThat(copiedCaptor.getValue()).hasSize(1);
+		assertThat(copiedCaptor.getValue().get(0).getMemo()).isNull();
+		assertThat(copiedCaptor.getValue().get(0).getStore()).isSameAs(sourceStore.getStore());
 	}
 
 	@Test
@@ -938,6 +965,111 @@ class CourseCommandServiceTest {
 			.hasMessageContaining(CourseErrorCode.COURSE_DAY_COUNT_INVALID.getMessage());
 	}
 
+	// ───────────────────────── 사람별 메모 ─────────────────────────
+
+	private CourseStoreMemo realMemo(CourseStore courseStore, Long memberId, String content) {
+		Member author = mockMember(memberId);
+		return CourseStoreMemo.of(courseStore, author, content);
+	}
+
+	private CourseStore givenEditableStore(Long memberId, Long courseId, Long storeId) {
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		CourseStore courseStore = mock(CourseStore.class);
+		lenient().when(courseStore.getId()).thenReturn(501L);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseStoreRepository.findByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId))
+			.willReturn(Optional.of(courseStore));
+		return courseStore;
+	}
+
+	@Test
+	@DisplayName("updateStore: 내 메모가 이미 있으면 내용만 바꾼다 — 새 행을 만들지 않는다")
+	void updateStore_existingMemo_updatesContent() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Long storeId = 100L;
+		CourseStore courseStore = givenEditableStore(memberId, courseId, storeId);
+		CourseStoreMemo mine = realMemo(courseStore, memberId, "옛 메모");
+		given(courseStoreMemoRepository.findByIdCourseStoreIdAndIdMemberId(501L, memberId))
+			.willReturn(Optional.of(mine));
+		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		given(request.getMemo()).willReturn("새 메모");
+
+		courseCommandService.updateStore(memberId, courseId, storeId, request);
+
+		assertThat(mine.getContent()).isEqualTo("새 메모");
+		assertThat(mine.isDeleted()).isFalse();
+		then(courseStoreMemoRepository).should(never()).save(any());
+	}
+
+	@Test
+	@DisplayName("updateStore: 메모를 비우면 내 메모만 지운다 — 남의 메모는 건드리지 않는다")
+	void updateStore_blankMemo_softDeletesMine() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Long storeId = 100L;
+		CourseStore courseStore = givenEditableStore(memberId, courseId, storeId);
+		CourseStoreMemo mine = realMemo(courseStore, memberId, "지울 메모");
+		given(courseStoreMemoRepository.findByIdCourseStoreIdAndIdMemberId(501L, memberId))
+			.willReturn(Optional.of(mine));
+		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		given(request.getMemo()).willReturn("   ");
+
+		courseCommandService.updateStore(memberId, courseId, storeId, request);
+
+		assertThat(mine.isDeleted()).isTrue();
+		then(courseStoreMemoRepository).should(never()).save(any());
+		then(courseStoreMemoRepository).should(never()).softDeleteAllByCourseStoreId(any());
+	}
+
+	@Test
+	@DisplayName("updateStore: 지웠던 내 메모에 다시 쓰면 같은 행을 되살린다")
+	void updateStore_deletedMemo_restores() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Long storeId = 100L;
+		CourseStore courseStore = givenEditableStore(memberId, courseId, storeId);
+		CourseStoreMemo mine = realMemo(courseStore, memberId, "옛 메모");
+		mine.softDelete();
+		given(courseStoreMemoRepository.findByIdCourseStoreIdAndIdMemberId(501L, memberId))
+			.willReturn(Optional.of(mine));
+		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		given(request.getMemo()).willReturn("다시 쓴 메모");
+
+		courseCommandService.updateStore(memberId, courseId, storeId, request);
+
+		assertThat(mine.isDeleted()).isFalse();
+		assertThat(mine.getContent()).isEqualTo("다시 쓴 메모");
+		then(courseStoreMemoRepository).should(never()).save(any());
+	}
+
+	@Test
+	@DisplayName("updateCourse: FORKED 코스가 원본과 메모만 다르면 여전히 COURSE_FORK_NOT_MODIFIED — 메모는 동일 판정에서 뺀다")
+	void updateCourse_forkedSameAsSource_memoDiffers_stillNotModified() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Long sourceCourseId = 5L;
+		Course course = mockCourse(courseId, "원본 제목", CourseType.FORKED, memberId, sourceCourseId);
+		Course sourceCourse = mockCourse(sourceCourseId, "원본 제목", CourseType.CURATED, null, null);
+		Store store = mockStore(100L);
+		CourseStore current = mockCourseStore(1, 1, store);
+		lenient().when(current.getMemo()).thenReturn("내 메모");
+		CourseStore source = mockCourseStore(1, 1, store);
+		CourseUpdateRequest request = mockUpdateRequest();
+		given(request.getTitle()).willReturn("원본 제목");
+		given(request.getIsPublic()).willReturn(true);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findByIdAndDeletedAtIsNull(sourceCourseId)).willReturn(Optional.of(sourceCourse));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
+			.willReturn(List.of(current));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(sourceCourseId))
+			.willReturn(List.of(source));
+
+		assertThatThrownBy(() -> courseCommandService.updateCourse(memberId, courseId, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORK_NOT_MODIFIED.getMessage());
+	}
+
 	// ───────────────────────── validateCanEdit ─────────────────────────
 	// 큐레이션 코스는 member_id 가 NULL 이라 예전 validateOwner 가 우연히 막고 있었다.
 	// 소유자 조건을 멤버까지 넓힌 뒤에도 막히는지 편집 경로 5개 전부에서 못 박는다.
@@ -1037,10 +1169,12 @@ class CourseCommandServiceTest {
 			.willReturn(true);
 		given(courseStoreRepository.findByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId))
 			.willReturn(Optional.of(courseStore));
+		Member author = mockMember(memberId);
+		given(memberRepository.getReferenceById(memberId)).willReturn(author);
 
 		courseCommandService.updateStore(memberId, courseId, storeId, request);
 
-		then(courseStore).should().updateMemo("멤버 메모");
+		then(courseStoreMemoRepository).should().save(any(CourseStoreMemo.class));
 		then(courseRepository).should().bumpVersion(courseId);
 	}
 
