@@ -15,6 +15,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import sweetgirl.croissant.badge.repository.MemberBadgeRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.StorePlanRepository;
+import sweetgirl.croissant.course.repository.CourseInviteRepository;
+import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
@@ -35,6 +37,10 @@ class GuestDataMigrationServiceTest {
 
 	@Mock
 	private CourseRepository courseRepository;
+	@Mock
+	private CourseMemberRepository courseMemberRepository;
+	@Mock
+	private CourseInviteRepository courseInviteRepository;
 	@Mock
 	private SavedCourseRepository savedCourseRepository;
 	@Mock
@@ -112,6 +118,11 @@ class GuestDataMigrationServiceTest {
 		badgeOrder.verify(memberBadgeRepository).moveOwner(GUEST_ID, TARGET_ID);
 		then(menuRepository).should().moveCreator(GUEST_ID, TARGET_ID);
 		then(courseProgressService).should().refreshForMember(TARGET_ID);
+		// 협업 코스: 게스트가 방장으로 시작한 코스의 멤버 행·초대 토큰도 따라가야 한다
+		var collabOrder = inOrder(courseMemberRepository);
+		collabOrder.verify(courseMemberRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
+		collabOrder.verify(courseMemberRepository).moveOwner(GUEST_ID, TARGET_ID);
+		then(courseInviteRepository).should().moveOwner(GUEST_ID, TARGET_ID);
 	}
 
 	// 빈 껍데기 게스트가 남아 다음 로그인에서 다시 이관 대상이 되면 안 된다
@@ -134,6 +145,8 @@ class GuestDataMigrationServiceTest {
 
 		assertThat(moved).isZero();
 		then(courseRepository).shouldHaveNoInteractions();
+		then(courseMemberRepository).shouldHaveNoInteractions();
+		then(courseInviteRepository).shouldHaveNoInteractions();
 		then(savedStoreRepository).shouldHaveNoInteractions();
 		then(memberRepository).shouldHaveNoInteractions();
 	}

@@ -33,10 +33,13 @@ import sweetgirl.croissant.course.dto.request.CourseUpdateRequest;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseImageFile;
+import sweetgirl.croissant.course.entity.CourseMember;
+import sweetgirl.croissant.course.entity.CourseMemberId;
 import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
+import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
@@ -58,6 +61,8 @@ class CourseCommandServiceTest {
 	CourseImageFileRepository courseImageFileRepository;
 	@Mock
 	SavedCourseRepository savedCourseRepository;
+	@Mock
+	CourseMemberRepository courseMemberRepository;
 	@Mock
 	MemberRepository memberRepository;
 	@Mock
@@ -156,7 +161,7 @@ class CourseCommandServiceTest {
 		Long memberId = 1L;
 		Long courseId = 10L;
 		Course course = mockCourse(courseId, "원래 제목", CourseType.CUSTOM, memberId, null);
-		CourseUpdateRequest request = mock(CourseUpdateRequest.class);
+		CourseUpdateRequest request = mockUpdateRequest();
 		given(request.getTitle()).willReturn("수정된 제목");
 		given(request.getIsPublic()).willReturn(true);
 
@@ -166,6 +171,7 @@ class CourseCommandServiceTest {
 
 		then(course).should().updateTitle("수정된 제목");
 		then(course).should().updatePublic(true);
+		then(courseRepository).should().bumpVersion(courseId);
 	}
 
 	@Test
@@ -175,13 +181,14 @@ class CourseCommandServiceTest {
 		Long otherId = 99L;
 		Long courseId = 10L;
 		Course course = mockCourse(courseId, "제목", CourseType.CUSTOM, ownerId, null);
-		CourseUpdateRequest request = mock(CourseUpdateRequest.class);
+		CourseUpdateRequest request = mockUpdateRequest();
 
 		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 
 		assertThatThrownBy(() -> courseCommandService.updateCourse(otherId, courseId, request))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		then(courseRepository).should(never()).bumpVersion(any());
 	}
 
 	@Test
@@ -190,7 +197,7 @@ class CourseCommandServiceTest {
 		Long memberId = 1L;
 		Long courseId = 10L;
 		Course course = mockCourse(courseId, "큐레이션 코스", CourseType.CURATED, memberId, null);
-		CourseUpdateRequest request = mock(CourseUpdateRequest.class);
+		CourseUpdateRequest request = mockUpdateRequest();
 
 		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 
@@ -210,9 +217,10 @@ class CourseCommandServiceTest {
 		Course course = mockCourse(courseId, "copy of 원본 제목", CourseType.FORKED, memberId, sourceCourseId);
 		Course sourceCourse = mockCourse(sourceCourseId, sourceTitle, CourseType.CURATED, null, null);
 
-		CourseUpdateRequest request = mock(CourseUpdateRequest.class);
+		CourseUpdateRequest request = mockUpdateRequest();
 		given(request.getTitle()).willReturn(sourceTitle);
-		lenient().when(request.getIsPublic()).thenReturn(null);
+		// 동일 판정은 '공개로 바꾸려 할 때'만 탄다. mockCourse 는 isPublic() 을 스텁하지 않아 false 이므로 요청으로 켠다.
+		given(request.getIsPublic()).willReturn(true);
 
 		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseRepository.findByIdAndDeletedAtIsNull(sourceCourseId)).willReturn(Optional.of(sourceCourse));
@@ -260,7 +268,7 @@ class CourseCommandServiceTest {
 		given(request.getMemo()).willReturn("메모");
 		given(request.getVisitTime()).willReturn(LocalTime.of(10, 0));
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.existsByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId)).willReturn(false);
 		given(storeRepository.findById(storeId)).willReturn(Optional.of(store));
 		given(courseStoreRepository.findMaxVisitOrderByCourseId(courseId)).willReturn(0);
@@ -272,6 +280,7 @@ class CourseCommandServiceTest {
 
 		assertThat(result).isNotNull();
 		then(courseStoreRepository).should().save(any(CourseStore.class));
+		then(courseRepository).should().bumpVersion(courseId);
 	}
 
 	@Test
@@ -285,7 +294,7 @@ class CourseCommandServiceTest {
 		CourseStoreAddRequest request = mock(CourseStoreAddRequest.class);
 		given(request.getStoreId()).willReturn(storeId);
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.existsByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId)).willReturn(true);
 
 		assertThatThrownBy(() -> courseCommandService.addStore(memberId, courseId, request))
@@ -309,7 +318,7 @@ class CourseCommandServiceTest {
 		CourseStore day1Store = mockCourseStore(1, 1, mockStore(101L));
 		CourseStore day2Store = mockCourseStore(2, 2, mockStore(102L));
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.existsByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId)).willReturn(false);
 		given(storeRepository.findById(storeId)).willReturn(Optional.of(store));
 		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
@@ -325,6 +334,7 @@ class CourseCommandServiceTest {
 		then(day2Store).should().updateOrder(-2);
 		then(day2Store).should().updateOrder(3);
 		then(courseStoreRepository).should().flush();
+		then(course).should().ensureDayCountAtLeast(1);
 	}
 
 	@Test
@@ -342,7 +352,7 @@ class CourseCommandServiceTest {
 
 		CourseStore day1Store = mockCourseStore(1, 1, mockStore(101L));
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.existsByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId)).willReturn(false);
 		given(storeRepository.findById(storeId)).willReturn(Optional.of(store));
 		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
@@ -376,6 +386,7 @@ class CourseCommandServiceTest {
 
 		then(courseStore).should().updateMemo("새 메모");
 		then(courseStore).should().updateVisitTime(LocalTime.of(14, 30));
+		then(courseRepository).should().bumpVersion(courseId);
 	}
 
 	// ───────────────────────── removeStore ─────────────────────────
@@ -390,13 +401,14 @@ class CourseCommandServiceTest {
 		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
 		CourseStore courseStore = mock(CourseStore.class);
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.findByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId))
 			.willReturn(Optional.of(courseStore));
 
 		courseCommandService.removeStore(memberId, courseId, storeId);
 
 		then(courseStore).should().softDelete();
+		then(courseRepository).should().bumpVersion(courseId);
 	}
 
 	// ───────────────────────── reorderStores ─────────────────────────
@@ -432,7 +444,7 @@ class CourseCommandServiceTest {
 		given(courseStore2.getId()).willReturn(courseStoreId2);
 		given(courseStore2.getCourse()).willReturn(course);
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
 		given(courseStoreRepository.findAllById(List.of(courseStoreId1, courseStoreId2)))
 			.willReturn(List.of(courseStore1, courseStore2));
@@ -448,6 +460,7 @@ class CourseCommandServiceTest {
 		// day 미전송이면 기존 일차 유지
 		then(courseStore1).should(never()).updateDay(any());
 		then(courseStore2).should(never()).updateDay(any());
+		then(courseRepository).should().bumpVersion(courseId);
 	}
 
 	@Test
@@ -477,7 +490,7 @@ class CourseCommandServiceTest {
 		given(courseStore2.getId()).willReturn(2L);
 		given(courseStore2.getCourse()).willReturn(course);
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
 		given(courseStoreRepository.findAllById(List.of(1L, 2L)))
 			.willReturn(List.of(courseStore1, courseStore2));
@@ -488,6 +501,7 @@ class CourseCommandServiceTest {
 		then(courseStore1).should().updateDay(1);
 		then(courseStore2).should().updateOrder(2);
 		then(courseStore2).should().updateDay(2);
+		then(course).should().ensureDayCountAtLeast(2);
 	}
 
 	@Test
@@ -517,7 +531,7 @@ class CourseCommandServiceTest {
 		given(courseStore2.getId()).willReturn(2L);
 		given(courseStore2.getCourse()).willReturn(course);
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
 		given(courseStoreRepository.findAllById(List.of(1L, 2L)))
 			.willReturn(List.of(courseStore1, courseStore2));
@@ -538,12 +552,13 @@ class CourseCommandServiceTest {
 		given(item.getCourseStoreId()).willReturn(1L);
 		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
 		given(request.getCourseStoreOrders()).willReturn(List.of(item, item));
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
 
 		assertThatThrownBy(() -> courseCommandService.reorderStores(memberId, courseId, request))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_STORE_ORDER_INVALID.getMessage());
+		then(courseRepository).should(never()).bumpVersion(any());
 	}
 
 	@Test
@@ -566,7 +581,7 @@ class CourseCommandServiceTest {
 		given(otherCourseStore.getId()).willReturn(otherCourseStoreId);
 		given(otherCourseStore.getCourse()).willReturn(otherCourse);
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(1L);
 		given(courseStoreRepository.findAllById(List.of(otherCourseStoreId)))
 			.willReturn(List.of(otherCourseStore));
@@ -613,6 +628,7 @@ class CourseCommandServiceTest {
 		courseCommandService.registerImage(memberId, courseId, request);
 
 		then(courseImageFileRepository).should().save(any(CourseImageFile.class));
+		then(courseRepository).should().bumpVersion(courseId);
 	}
 
 	@Test
@@ -631,6 +647,7 @@ class CourseCommandServiceTest {
 
 		then(s3Service).should().deleteObject("courses/10/abc.jpg");
 		then(courseImageFileRepository).should().delete(imageFile);
+		then(courseRepository).should().bumpVersion(courseId);
 	}
 
 	@Test
@@ -648,6 +665,7 @@ class CourseCommandServiceTest {
 			.hasMessageContaining(CourseErrorCode.COURSE_IMAGE_NOT_FOUND.getMessage());
 
 		then(s3Service).should(never()).deleteObject(any());
+		then(courseRepository).should(never()).bumpVersion(any());
 	}
 
 	// ───────────────────────── forkCourse ─────────────────────────
@@ -682,8 +700,9 @@ class CourseCommandServiceTest {
 	@DisplayName("forkCourse: 비공개 코스 포크 시도 시 COURSE_FORK_NOT_PUBLIC을 던진다")
 	void forkCourse_privateCourse_throwsForkNotPublic() {
 		Long memberId = 1L;
+		Long ownerId = 2L;
 		Long courseId = 10L;
-		Course course = mockCourse(courseId, "비공개 커스텀 코스", CourseType.CUSTOM, memberId, null);
+		Course course = mockCourse(courseId, "비공개 커스텀 코스", CourseType.CUSTOM, ownerId, null);
 
 		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 
@@ -696,8 +715,9 @@ class CourseCommandServiceTest {
 	@DisplayName("forkCourse: 비공개 FORKED 코스 포크 시도 시 COURSE_FORK_NOT_PUBLIC을 던진다")
 	void forkCourse_privateForkedCourse_throwsForkNotPublic() {
 		Long memberId = 1L;
+		Long ownerId = 2L;
 		Long courseId = 10L;
-		Course course = mockCourse(courseId, "비공개 포크 코스", CourseType.FORKED, memberId, 5L);
+		Course course = mockCourse(courseId, "비공개 포크 코스", CourseType.FORKED, ownerId, 5L);
 
 		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 
@@ -706,7 +726,402 @@ class CourseCommandServiceTest {
 			.hasMessageContaining(CourseErrorCode.COURSE_FORK_NOT_PUBLIC.getMessage());
 	}
 
+	// ───────────────────────── reorderStores: 순서 CAS ─────────────────────────
+
+	/** 정류장 2개(id 1, 2)를 1→2 순으로 가진 코스에서 [2, 1] 로 바꾸는 요청. expectedOrder 만 케이스별로 다르다. */
+	private CourseStoreReorderRequest reorderRequestSwapping(Long courseId, Course course, List<Long> expectedOrder) {
+		CourseStoreReorderRequest.CourseStoreOrderItem item1 = mock(
+			CourseStoreReorderRequest.CourseStoreOrderItem.class);
+		lenient().when(item1.getCourseStoreId()).thenReturn(2L);
+		lenient().when(item1.getDay()).thenReturn(null);
+		CourseStoreReorderRequest.CourseStoreOrderItem item2 = mock(
+			CourseStoreReorderRequest.CourseStoreOrderItem.class);
+		lenient().when(item2.getCourseStoreId()).thenReturn(1L);
+		lenient().when(item2.getDay()).thenReturn(null);
+		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
+		given(request.getCourseStoreOrders()).willReturn(List.of(item1, item2));
+		lenient().when(request.getExpectedOrder()).thenReturn(expectedOrder);
+
+		CourseStore courseStore1 = mock(CourseStore.class);
+		lenient().when(courseStore1.getId()).thenReturn(1L);
+		lenient().when(courseStore1.getCourse()).thenReturn(course);
+		CourseStore courseStore2 = mock(CourseStore.class);
+		lenient().when(courseStore2.getId()).thenReturn(2L);
+		lenient().when(courseStore2.getCourse()).thenReturn(course);
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		lenient().when(courseStoreRepository.findAllById(List.of(2L, 1L)))
+			.thenReturn(List.of(courseStore2, courseStore1));
+		// 현재 DB 순서는 1 → 2
+		lenient().when(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
+			.thenReturn(List.of(courseStore1, courseStore2));
+		return request;
+	}
+
+	@Test
+	@DisplayName("reorderStores: expectedOrder 가 현재 순서와 같으면 저장한다")
+	void reorderStores_expectedOrderMatches_saves() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		CourseStoreReorderRequest request = reorderRequestSwapping(courseId, course, List.of(1L, 2L));
+		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
+
+		courseCommandService.reorderStores(memberId, courseId, request);
+
+		then(courseStoreRepository).should().flush();
+		then(courseRepository).should().bumpVersion(courseId);
+	}
+
+	@Test
+	@DisplayName("reorderStores: expectedOrder 가 현재 순서와 다르면 COURSE_STALE(409) — 일행이 먼저 옮겼다")
+	void reorderStores_expectedOrderStale_throwsStale() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		CourseStoreReorderRequest request = reorderRequestSwapping(courseId, course, List.of(2L, 1L));
+		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
+
+		assertThatThrownBy(() -> courseCommandService.reorderStores(memberId, courseId, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_STALE.getMessage());
+		then(courseStoreRepository).should(never()).flush();
+		then(courseRepository).should(never()).bumpVersion(any());
+	}
+
+	@Test
+	@DisplayName("reorderStores: expectedOrder 를 안 보내면(구버전 앱) 집합 검증만 하고 현재 순서를 읽지 않는다")
+	void reorderStores_withoutExpectedOrder_skipsCas() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		CourseStoreReorderRequest request = reorderRequestSwapping(courseId, course, null);
+		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
+
+		courseCommandService.reorderStores(memberId, courseId, request);
+
+		then(courseStoreRepository).should(never()).findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(any());
+		then(courseRepository).should().bumpVersion(courseId);
+	}
+
+	@Test
+	@DisplayName("reorderStores: 집합이 다르면 409 가 아니라 기존 COURSE_STORE_ORDER_INVALID 다 — 집합 검증이 CAS 보다 먼저")
+	void reorderStores_setMismatch_throwsOrderInvalidNotStale() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		CourseStoreReorderRequest request = reorderRequestSwapping(courseId, course, List.of(2L, 1L));
+		// DB 에는 정류장이 3개 — 요청 집합(2개)과 다르다
+		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(3L);
+
+		assertThatThrownBy(() -> courseCommandService.reorderStores(memberId, courseId, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_STORE_ORDER_INVALID.getMessage());
+		then(courseStoreRepository).should(never()).findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(any());
+	}
+
+	// ───────────────────────── updateCourse: 협업 공개 차단 · dayCount ─────────────────────────
+
+	@Test
+	@DisplayName("updateCourse: 방장 말고 활성 멤버가 있으면 공개로 바꿀 수 없다 — COURSE_COLLAB_CANNOT_BE_PUBLIC")
+	void updateCourse_collabCourse_cannotBePublic() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		CourseUpdateRequest request = mockUpdateRequest();
+		given(request.getIsPublic()).willReturn(true);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		CourseMember ownerRow = mockMemberRow(courseId, memberId);
+		CourseMember memberRow = mockMemberRow(courseId, 2L);
+		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(courseId))
+			.willReturn(List.of(ownerRow, memberRow));
+
+		assertThatThrownBy(() -> courseCommandService.updateCourse(memberId, courseId, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_COLLAB_CANNOT_BE_PUBLIC.getMessage());
+		then(course).should(never()).updatePublic(any(Boolean.class));
+		then(courseRepository).should(never()).bumpVersion(any());
+	}
+
+	@Test
+	@DisplayName("updateCourse: 방장 행만 있으면 아직 협업이 아니라 공개할 수 있다")
+	void updateCourse_onlyOwnerRow_canBePublic() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		CourseUpdateRequest request = mockUpdateRequest();
+		given(request.getIsPublic()).willReturn(true);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		CourseMember ownerRow = mockMemberRow(courseId, memberId);
+		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(courseId))
+			.willReturn(List.of(ownerRow));
+
+		courseCommandService.updateCourse(memberId, courseId, request);
+
+		then(course).should().updatePublic(true);
+	}
+
+	@Test
+	@DisplayName("updateCourse: 비공개로 바꿀 때는 협업 여부를 보지 않는다")
+	void updateCourse_toPrivate_skipsCollabCheck() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		CourseUpdateRequest request = mockUpdateRequest();
+		given(request.getIsPublic()).willReturn(false);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+
+		courseCommandService.updateCourse(memberId, courseId, request);
+
+		then(course).should().updatePublic(false);
+		then(courseMemberRepository).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("updateCourse: dayCount 는 락 안에서 현재 값·가게가 있는 마지막 일차 이상일 때 저장된다")
+	void updateCourse_dayCount_grows() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		given(course.getDayCount()).willReturn(2);
+		CourseUpdateRequest request = mockUpdateRequest();
+		given(request.getDayCount()).willReturn(3);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		CourseStore dayTwoStore = mockCourseStore(1, 2, mockStore(100L));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
+			.willReturn(List.of(dayTwoStore));
+
+		courseCommandService.updateCourse(memberId, courseId, request);
+
+		then(course).should().updateDayCount(3);
+		then(courseRepository).should().bumpVersion(courseId);
+	}
+
+	@Test
+	@DisplayName("updateCourse: dayCount 를 현재 값보다 줄이면 COURSE_DAY_COUNT_INVALID — 늘어나기만 한다")
+	void updateCourse_dayCount_belowCurrent_throws() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		given(course.getDayCount()).willReturn(3);
+		CourseUpdateRequest request = mockUpdateRequest();
+		given(request.getDayCount()).willReturn(2);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
+			.willReturn(List.of());
+
+		assertThatThrownBy(() -> courseCommandService.updateCourse(memberId, courseId, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_DAY_COUNT_INVALID.getMessage());
+		then(course).should(never()).updateDayCount(any(Integer.class));
+		then(courseRepository).should(never()).bumpVersion(any());
+	}
+
+	@Test
+	@DisplayName("updateCourse: dayCount 가 가게가 있는 마지막 일차보다 작으면 COURSE_DAY_COUNT_INVALID")
+	void updateCourse_dayCount_belowLastStoreDay_throws() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		given(course.getDayCount()).willReturn(1);
+		CourseUpdateRequest request = mockUpdateRequest();
+		given(request.getDayCount()).willReturn(2);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		CourseStore dayThreeStore = mockCourseStore(1, 3, mockStore(100L));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
+			.willReturn(List.of(dayThreeStore));
+
+		assertThatThrownBy(() -> courseCommandService.updateCourse(memberId, courseId, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_DAY_COUNT_INVALID.getMessage());
+	}
+
+	// ───────────────────────── validateCanEdit ─────────────────────────
+	// 큐레이션 코스는 member_id 가 NULL 이라 예전 validateOwner 가 우연히 막고 있었다.
+	// 소유자 조건을 멤버까지 넓힌 뒤에도 막히는지 편집 경로 5개 전부에서 못 박는다.
+	// 누가 validateCanEdit 의 CURATED 줄을 지우면 아래 5개가 동시에 빨간불이 된다.
+
+	@Test
+	@DisplayName("updateCourse: 큐레이션 코스는 course_members에 행이 있어도 편집이 막힌다")
+	void updateCourse_curatedCourse_withMemberRow_stillForbidden() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "큐레이션", CourseType.CURATED, null, null);
+		givenActiveMemberLenient(courseId, memberId);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+
+		assertThatThrownBy(() -> courseCommandService.updateCourse(memberId, courseId, mockUpdateRequest()))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		then(courseMemberRepository).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("addStore: 큐레이션 코스는 course_members에 행이 있어도 편집이 막힌다")
+	void addStore_curatedCourse_withMemberRow_stillForbidden() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "큐레이션", CourseType.CURATED, null, null);
+		givenActiveMemberLenient(courseId, memberId);
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+
+		assertThatThrownBy(() -> courseCommandService.addStore(memberId, courseId, mock(CourseStoreAddRequest.class)))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		then(courseMemberRepository).shouldHaveNoInteractions();
+		then(courseStoreRepository).should(never()).save(any());
+	}
+
+	@Test
+	@DisplayName("updateStore: 큐레이션 코스는 course_members에 행이 있어도 편집이 막힌다")
+	void updateStore_curatedCourse_withMemberRow_stillForbidden() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "큐레이션", CourseType.CURATED, null, null);
+		givenActiveMemberLenient(courseId, memberId);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+
+		assertThatThrownBy(() -> courseCommandService.updateStore(
+			memberId, courseId, 100L, mock(CourseStoreUpdateRequest.class)))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		then(courseMemberRepository).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("removeStore: 큐레이션 코스는 course_members에 행이 있어도 편집이 막힌다")
+	void removeStore_curatedCourse_withMemberRow_stillForbidden() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "큐레이션", CourseType.CURATED, null, null);
+		givenActiveMemberLenient(courseId, memberId);
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+
+		assertThatThrownBy(() -> courseCommandService.removeStore(memberId, courseId, 100L))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		then(courseMemberRepository).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("reorderStores: 큐레이션 코스는 course_members에 행이 있어도 편집이 막힌다")
+	void reorderStores_curatedCourse_withMemberRow_stillForbidden() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "큐레이션", CourseType.CURATED, null, null);
+		givenActiveMemberLenient(courseId, memberId);
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+
+		assertThatThrownBy(() -> courseCommandService.reorderStores(
+			memberId, courseId, mock(CourseStoreReorderRequest.class)))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		then(courseMemberRepository).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("updateStore: 방장이 아니어도 활성 멤버면 가게를 수정할 수 있다")
+	void updateStore_activeMember_success() {
+		Long ownerId = 1L;
+		Long memberId = 2L;
+		Long courseId = 10L;
+		Long storeId = 100L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, ownerId, null);
+		CourseStore courseStore = mock(CourseStore.class);
+		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		given(request.getMemo()).willReturn("멤버 메모");
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
+			.willReturn(true);
+		given(courseStoreRepository.findByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId))
+			.willReturn(Optional.of(courseStore));
+
+		courseCommandService.updateStore(memberId, courseId, storeId, request);
+
+		then(courseStore).should().updateMemo("멤버 메모");
+		then(courseRepository).should().bumpVersion(courseId);
+	}
+
+	@Test
+	@DisplayName("removeStore: 나간 멤버(비활성 행)는 가게를 지울 수 없다")
+	void removeStore_leftMember_throwsForbidden() {
+		Long ownerId = 1L;
+		Long memberId = 2L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, ownerId, null);
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
+			.willReturn(false);
+
+		assertThatThrownBy(() -> courseCommandService.removeStore(memberId, courseId, 100L))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		then(courseRepository).should(never()).bumpVersion(any());
+	}
+
+	@Test
+	@DisplayName("updateCourse: 활성 멤버는 제목을 바꿀 수 있다")
+	void updateCourse_activeMember_canEditTitle() {
+		Long ownerId = 1L;
+		Long memberId = 2L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "원래 제목", CourseType.CUSTOM, ownerId, null);
+		CourseUpdateRequest request = mockUpdateRequest();
+		given(request.getTitle()).willReturn("멤버가 고친 제목");
+		// Mockito 는 Boolean 미스텁에 false 를 돌려준다 — 공개 여부를 안 보낸 요청은 null 이어야 한다
+		given(request.getIsPublic()).willReturn(null);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
+			.willReturn(true);
+
+		courseCommandService.updateCourse(memberId, courseId, request);
+
+		then(course).should().updateTitle("멤버가 고친 제목");
+		then(courseRepository).should().bumpVersion(courseId);
+	}
+
+	@Test
+	@DisplayName("updateCourse: 활성 멤버라도 공개/비공개 전환은 방장 전용이라 COURSE_FORBIDDEN을 던진다")
+	void updateCourse_activeMember_cannotChangePublic() {
+		Long ownerId = 1L;
+		Long memberId = 2L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, ownerId, null);
+		CourseUpdateRequest request = mockUpdateRequest();
+		given(request.getIsPublic()).willReturn(true);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
+			.willReturn(true);
+
+		assertThatThrownBy(() -> courseCommandService.updateCourse(memberId, courseId, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		then(course).should(never()).updatePublic(any(Boolean.class));
+	}
+
 	// ───────────────────────── helpers ─────────────────────────
+
+	/** Mockito 는 Integer/Boolean 미스텁에 0/false 를 돌려준다 — "안 보낸 필드"는 null 이어야 하므로 기본 스텁을 둔다. */
+	private CourseUpdateRequest mockUpdateRequest() {
+		CourseUpdateRequest request = mock(CourseUpdateRequest.class);
+		lenient().when(request.getIsPublic()).thenReturn(null);
+		lenient().when(request.getDayCount()).thenReturn(null);
+		return request;
+	}
+
+	private CourseMember mockMemberRow(Long courseId, Long memberId) {
+		CourseMember row = mock(CourseMember.class);
+		lenient().when(row.getId()).thenReturn(new CourseMemberId(courseId, memberId));
+		return row;
+	}
+
+	/** CURATED 검사가 멤버 조회보다 먼저라 이 스텁은 안 불려야 정상이다 — 그래서 lenient. */
+	private void givenActiveMemberLenient(Long courseId, Long memberId) {
+		lenient().when(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
+			.thenReturn(true);
+	}
 
 	private Member mockMember(Long memberId) {
 		Member member = mock(Member.class);

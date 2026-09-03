@@ -20,6 +20,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
 import sweetgirl.croissant.course.enums.CourseType;
+import sweetgirl.croissant.course.enums.CourseVisibility;
 import sweetgirl.croissant.member.entity.Member;
 
 @Entity
@@ -48,6 +49,28 @@ public class Course extends BaseTimeEntity {
 
 	@Column(nullable = false)
 	private boolean isPublic;
+
+	/**
+	 * 공개 범위. 링크 공개(UNLISTED)가 열리기 전까지는 is_public 의 그림자다 — 쓰기는 같이 하고 판정엔 안 쓴다.
+	 * is_public 은 구버전 앱이 읽어 한 릴리즈 더 남긴다.
+	 */
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 16)
+	private CourseVisibility visibility;
+
+	/** 빈 일차를 포함한 일차 수. 일행이 같은 일차 수를 보게 서버가 갖는다. 늘어나기만 한다. */
+	@Column(name = "day_count", nullable = false)
+	private int dayCount = 1;
+
+	/**
+	 * 폴링 ETag. 코스·가게·메모·멤버를 바꾸는 모든 쓰기가 CourseRepository.bumpVersion 으로 +1 한다.
+	 * JPA @Version 이 아니다 — 그러면 모든 편집에 낙관적 락 충돌이 붙는다. 평범한 카운터다.
+	 * JPA 쪽에서는 읽기 전용이다(insertable/updatable=false): Hibernate 는 UPDATE 에 전 컬럼을 쓰므로
+	 * bumpVersion 뒤에 엔티티가 flush 되면 메모리의 낡은 값으로 되돌릴 수 있다. 쓰기는 bumpVersion 만 한다.
+	 * 값은 DB 가 DEFAULT 0 으로 채우고, 같은 트랜잭션 안에서 올린 값은 refresh 전엔 안 보인다.
+	 */
+	@Column(nullable = false, insertable = false, updatable = false, columnDefinition = "BIGINT NOT NULL DEFAULT 0")
+	private long version;
 
 	@Column(name = "source_course_id")
 	private Long sourceCourseId;
@@ -82,6 +105,7 @@ public class Course extends BaseTimeEntity {
 		this.title = title;
 		this.member = member;
 		this.isPublic = isPublic;
+		this.visibility = CourseVisibility.fromPublic(isPublic);
 		this.badge = badge;
 		this.sourceCourseId = sourceCourseId;
 		this.region = region;
@@ -144,6 +168,24 @@ public class Course extends BaseTimeEntity {
 
 	public void updatePublic(boolean isPublic) {
 		this.isPublic = isPublic;
+		this.visibility = CourseVisibility.fromPublic(isPublic);
+	}
+
+	/** 일차 수는 호출부가 검증한다(max(day) 이상, 현재 값 이상). 여기서는 값만 바꾼다. */
+	public void updateDayCount(int dayCount) {
+		this.dayCount = dayCount;
+	}
+
+	/** 가게가 더 뒤 일차에 놓이면 일차 수를 따라 올린다. 줄이지는 않는다. */
+	public void ensureDayCountAtLeast(int day) {
+		if (day > this.dayCount) {
+			this.dayCount = day;
+		}
+	}
+
+	/** 방장 승계 — 나가기·탈퇴 때 참여 순서가 가장 빠른 멤버에게 넘긴다. */
+	public void changeOwner(Member newOwner) {
+		this.member = newOwner;
 	}
 
 	public void updateBadge(String badge) {

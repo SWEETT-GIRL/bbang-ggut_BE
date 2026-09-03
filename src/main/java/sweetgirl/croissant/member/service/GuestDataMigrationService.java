@@ -8,6 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.badge.repository.MemberBadgeRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.StorePlanRepository;
+import sweetgirl.croissant.course.repository.CourseInviteRepository;
+import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
@@ -40,6 +42,8 @@ import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
 public class GuestDataMigrationService {
 
 	private final CourseRepository courseRepository;
+	private final CourseMemberRepository courseMemberRepository;
+	private final CourseInviteRepository courseInviteRepository;
 	private final SavedCourseRepository savedCourseRepository;
 	private final SavedStoreRepository savedStoreRepository;
 	private final SubscribedStoreRepository subscribedStoreRepository;
@@ -68,6 +72,12 @@ public class GuestDataMigrationService {
 		}
 
 		int courses = courseRepository.moveOwner(guestId, targetId);
+
+		// 협업 코스 — 게스트는 멤버가 될 수 없지만 방장은 될 수 있다. 방장 행과 만든 초대 토큰이
+		// 게스트 id 에 남으면 로그인 뒤 협업이 끊긴다. (course_id, member_id) PK 라 중복 정리가 먼저다.
+		courseMemberRepository.deleteGuestDuplicates(guestId, targetId);
+		courseMemberRepository.moveOwner(guestId, targetId);
+		courseInviteRepository.moveOwner(guestId, targetId);
 
 		savedCourseRepository.deleteGuestDuplicates(guestId, targetId);
 		savedCourseRepository.moveOwner(guestId, targetId);

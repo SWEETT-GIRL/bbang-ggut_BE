@@ -4,10 +4,12 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import jakarta.persistence.LockModeType;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.enums.CourseType;
 
@@ -47,6 +49,23 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 	long countByMemberIdAndTypeInAndDeletedAtIsNull(Long memberId, List<CourseType> types);
 
 	Optional<Course> findByIdAndDeletedAtIsNull(Long id);
+
+	/**
+	 * 코스 행에 비관적 락을 걸고 읽는다. 같은 코스에 동시에 들어오는 쓰기를 줄 세운다 —
+	 * 가게 추가·삭제·순서 변경(유니크 순서 충돌로 500), 초대 생성(활성 링크 2개), 수락(정원 9명).
+	 * 전 조회에 락을 걸면 성능이 죽으므로 위 다섯 곳만 쓴다. 일반 조회는 findByIdAndDeletedAtIsNull 그대로.
+	 */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	Optional<Course> findWithLockByIdAndDeletedAtIsNull(Long id);
+
+	/**
+	 * 폴링 ETag 올리기. 코스·가게·메모·멤버를 바꾸는 모든 쓰기가 마지막에 부른다 — 빠뜨리면 폴링이 그 변경을 영영 못 본다.
+	 * SET version = version + 1 은 행 단위로 원자적이라 락 없는 경로(제목·메모·이름 변경)에서도 증가가 유실되지 않는다.
+	 * Course.version 은 JPA 쪽에서 읽기 전용이라 네이티브로 쓴다.
+	 */
+	@Modifying(flushAutomatically = true)
+	@Query(value = "UPDATE courses SET version = version + 1 WHERE id = :courseId", nativeQuery = true)
+	int bumpVersion(@Param("courseId") Long courseId);
 
 	List<Course> findAllByTypeAndDeletedAtIsNullOrderByCreatedAtDesc(CourseType type);
 

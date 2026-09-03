@@ -22,17 +22,22 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.course.dto.request.CourseCreateRequest;
 import sweetgirl.croissant.course.dto.request.CourseImageRegisterRequest;
+import sweetgirl.croissant.course.dto.request.CourseMemberNameRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreAddRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreReorderRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreUpdateRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreVisitRequest;
 import sweetgirl.croissant.course.dto.request.CourseUpdateRequest;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
+import sweetgirl.croissant.course.dto.response.CourseInviteAcceptResponse;
+import sweetgirl.croissant.course.dto.response.CourseInvitePreviewResponse;
+import sweetgirl.croissant.course.dto.response.CourseInviteResponse;
 import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
 import sweetgirl.croissant.course.dto.response.CourseVisitCandidateResponse;
 import sweetgirl.croissant.course.service.CourseCommandService;
+import sweetgirl.croissant.course.service.CourseMemberService;
 import sweetgirl.croissant.course.service.CourseProgressService;
 import sweetgirl.croissant.course.service.CourseQueryService;
 import sweetgirl.croissant.course.service.CourseStoreVisitService;
@@ -51,6 +56,7 @@ public class CourseController {
 	private final SavedCourseCommandService savedCourseCommandService;
 	private final CourseProgressService courseProgressService;
 	private final CourseStoreVisitService courseStoreVisitService;
+	private final CourseMemberService courseMemberService;
 
 	@Operation(summary = "공개 코스 목록 조회")
 	@GetMapping
@@ -257,5 +263,52 @@ public class CourseController {
 			@PathVariable Long courseId) {
 		Long newCourseId = courseCommandService.forkCourse(memberId, courseId);
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(Map.of("courseId", newCourseId)));
+	}
+
+	// ───────────────────────── 동시편집: 초대·멤버 ─────────────────────────
+
+	@Operation(summary = "초대 링크 만들기·받기", description = "방장 또는 멤버. 하루 이상 남은 링크는 재사용(reused), 아니면 새로 발급한다.")
+	@PostMapping("/{courseId}/invites")
+	public ResponseEntity<ApiResponse<CourseInviteResponse>> createInvite(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable Long courseId) {
+		return ResponseEntity.ok(ApiResponse.ok(courseMemberService.createInvite(memberId, courseId)));
+	}
+
+	@Operation(summary = "초대 미리보기", description = "비로그인 허용. 만료·무효·정원초과·삭제도 state 로 200. viewer 는 인증 헤더가 있을 때만.")
+	@GetMapping("/invites/{token}")
+	public ResponseEntity<ApiResponse<CourseInvitePreviewResponse>> previewInvite(
+			@PathVariable String token,
+			@AuthenticationPrincipal Long memberId) {
+		return ResponseEntity.ok(ApiResponse.ok(courseMemberService.previewInvite(token, memberId)));
+	}
+
+	@Operation(summary = "초대 수락", description = "로그인 필수. 이미 멤버이거나 방장이면 아무것도 안 하고 alreadyMember 로 200.")
+	@PostMapping("/invites/{token}/accept")
+	public ResponseEntity<ApiResponse<CourseInviteAcceptResponse>> acceptInvite(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable String token,
+			@Valid @RequestBody CourseMemberNameRequest request) {
+		return ResponseEntity.ok(ApiResponse.ok(
+			courseMemberService.acceptInvite(memberId, token, request.getDisplayName())));
+	}
+
+	@Operation(summary = "빵투어 나가기", description = "방장은 참여 순서가 가장 빠른 멤버에게 넘기고 나간다. 담았던 가게는 코스에 남는다.")
+	@DeleteMapping("/{courseId}/members/me")
+	public ResponseEntity<ApiResponse<Void>> leaveCourse(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable Long courseId) {
+		courseMemberService.leave(memberId, courseId);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "코스 안에서 쓰는 내 이름 변경")
+	@PatchMapping("/{courseId}/members/me")
+	public ResponseEntity<ApiResponse<Void>> renameMember(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable Long courseId,
+			@Valid @RequestBody CourseMemberNameRequest request) {
+		courseMemberService.rename(memberId, courseId, request.getDisplayName());
+		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 }
