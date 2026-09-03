@@ -12,6 +12,7 @@ import sweetgirl.croissant.course.repository.CourseInviteRepository;
 import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
+import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.course.service.CourseProgressService;
 import sweetgirl.croissant.member.entity.Member;
@@ -44,6 +45,7 @@ public class GuestDataMigrationService {
 	private final CourseRepository courseRepository;
 	private final CourseMemberRepository courseMemberRepository;
 	private final CourseInviteRepository courseInviteRepository;
+	private final CourseStoreMemoRepository courseStoreMemoRepository;
 	private final SavedCourseRepository savedCourseRepository;
 	private final SavedStoreRepository savedStoreRepository;
 	private final SubscribedStoreRepository subscribedStoreRepository;
@@ -78,6 +80,9 @@ public class GuestDataMigrationService {
 		courseMemberRepository.deleteGuestDuplicates(guestId, targetId);
 		courseMemberRepository.moveOwner(guestId, targetId);
 		courseInviteRepository.moveOwner(guestId, targetId);
+		// 게스트가 자기 코스에 쓴 메모는 이관된 course_stores.memo 에서 온 것이라 여기 안 옮기면 로그인 뒤 사라진다
+		courseStoreMemoRepository.deleteGuestDuplicates(guestId, targetId);
+		courseStoreMemoRepository.moveOwner(guestId, targetId);
 
 		savedCourseRepository.deleteGuestDuplicates(guestId, targetId);
 		savedCourseRepository.moveOwner(guestId, targetId);
