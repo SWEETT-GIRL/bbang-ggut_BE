@@ -1,4 +1,4 @@
-> **원본은 FE 레포 `daedongbbangmap/docs/be-tasks-course-collab.md`** (2026-09-03 스냅샷 복사본). 정책·ERD가 바뀌면 원본을 먼저 고치고 여기를 따라 맞춘다. 이 레포 안의 경로 참조는 이 복사본 기준으로 읽으면 된다.
+> **원본은 FE 레포 `daedongbbangmap/docs/be-tasks-course-collab.md`** (2026-09-03 저녁 스냅샷 — version·ETag 304·순서 CAS 반영본). 정책·ERD가 바뀌면 원본을 먼저 고치고 여기를 따라 맞춘다.
 
 # 빵투어 동시편집 — BE 작업 지시서
 
@@ -106,11 +106,12 @@ ERD(총괄 문서) 그대로. 선례: 복합 PK·부분 인덱스는 `V202608041
   ```
   - "코스당 활성 링크 1개"는 DB 제약이 아니라 **락 안의 서비스 로직**(`expires_at > now()`는 부분 인덱스 조건에 못 쓴다)
   - 하드 삭제 없음. 만료는 `expires_at`으로 판정
-- [ ] `V..__add_collab_columns_to_courses.sql` — **세 컬럼을 한 파일로**(확정). 7-5·5-B가 쓰지만 미리 있어도 해가 없다
+- [ ] `V..__add_collab_columns_to_courses.sql` — **네 컬럼을 한 파일로**(확정, `version`은 9/3 저녁 추가 승인). 7-5·5-B가 쓰지만 미리 있어도 해가 없다
   ```sql
   ALTER TABLE courses ADD COLUMN day_count   INTEGER     NOT NULL DEFAULT 1;
   ALTER TABLE courses ADD COLUMN visibility  VARCHAR(16) NOT NULL DEFAULT 'PRIVATE';
   ALTER TABLE courses ADD COLUMN share_token VARCHAR(64) UNIQUE;
+  ALTER TABLE courses ADD COLUMN version     BIGINT      NOT NULL DEFAULT 0;   -- 폴링 ETag. 쓰기마다 +1
   UPDATE courses SET visibility = CASE WHEN is_public THEN 'PUBLIC' ELSE 'PRIVATE' END;
   UPDATE courses c SET day_count = GREATEST(1, COALESCE((SELECT MAX(day) FROM course_stores s WHERE s.course_id = c.id AND s.deleted_at IS NULL), 1));
   ```
@@ -145,6 +146,15 @@ ERD(총괄 문서) 그대로. 선례: 복합 PK·부분 인덱스는 `V202608041
   Optional<Course> findWithLockByIdAndDeletedAtIsNull(Long id);
   ```
   락을 타는 곳 **5개**: `addStore` · `removeStore` · `reorderStores`(동시 순서 저장 500 방지) + **`createInvite` · `acceptInvite`**(정원 8명·활성 링크 1개는 count 뒤 insert라 락 없이는 수락 둘이 동시에 오면 9명, 생성 둘이 동시에 오면 링크 2개)
+- [ ] **`version` 올리기** — `CourseRepository`에 한 줄, 모든 쓰기 경로가 부른다(2026-09-03 추가)
+  ```java
+  @Modifying @Query("UPDATE Course c SET c.version = c.version + 1 WHERE c.id = :courseId")
+  int bumpVersion(@Param("courseId") Long courseId);
+  ```
+  - PostgreSQL의 `SET version = version + 1`은 행 단위로 원자적이라 **락 없는 경로(제목·메모·방문시간·이름 변경)에서도 증가가 유실되지 않는다.** 락 경로는 락 안에서 부른다
+  - **부르는 곳 전부**: `updateCourse` · `addStore` · `updateStore`(메모·시간) · `removeStore` · `reorderStores` · 커버 3종(`registerImage`·`deleteImage`) · `acceptInvite` · `leave/transferOwnership` · `renameMember` · (Phase 3) 메모 upsert · (Phase 5-B) `updateVisibility`. **이 목록에 없는 쓰기를 새로 만들면 여기도 추가한다** — 빠뜨리면 폴링이 그 변경을 영영 못 본다
+  - 못 박는 테스트: 위 경로마다 `bumpVersion`이 정확히 1번 불리는지 `verify(courseRepository).bumpVersion(courseId)`
+  - `Course` 엔티티의 `version` 필드는 **JPA `@Version`으로 매핑하지 않는다**(전면 낙관적 락이 되어 모든 편집에 충돌 예외가 난다). 평범한 `Long` 컬럼이다
 - [ ] 토큰 생성 유틸 `course/util/CollabTokenGenerator.java` — `SecureRandom` 32B → `Base64.getUrlEncoder().withoutPadding()`. 초대 토큰과 5-B의 `share_token`이 **같은 유틸을 쓰되 컬럼은 분리**한다(유출 피해 등급이 다르다 — 초대 토큰은 편집자가 되고 share_token은 보기만)
 - [ ] **게스트 이관** — `GuestDataMigrationService`는 테이블마다 `moveOwner`를 명시적으로 부른다(리포지토리 12개). `courseMemberRepository.moveOwner`·`courseInviteRepository.moveOwner`를 **추가**하지 않으면 게스트가 방장으로 시작한 협업 코스의 멤버 행·토큰이 로그인 뒤 게스트 id에 남는다(방문 체크 때 같은 함정, `docs/course-visit-record-link.md`). 게스트는 멤버가 될 수 없지만 **방장은 될 수 있다**
 
@@ -214,6 +224,7 @@ ERD(총괄 문서) 그대로. 선례: 복합 PK·부분 인덱스는 `V202608041
 | `COURSE_MEMBER_NOT_FOUND` | 404 | `COURSE404_7` | 이 빵투어의 일행이 아니에요. |
 | `COURSE_NO_SUCCESSOR` | 400 | `COURSE400_17` | 넘겨줄 일행이 없어요. 빵투어를 삭제해주세요. |
 | `COURSE_DAY_COUNT_INVALID` | 400 | `COURSE400_18` | 일차 수는 줄일 수 없어요. (7-5) |
+| `COURSE_STALE` | 409 | `COURSE409_1` | 일행이 방금 수정했어요. 다시 불러올게요. (순서 CAS 실패) |
 
 밴 계정은 기존 `MemberRestrictionReader.validateCanWrite(memberId)`가 던지는 코드를 그대로 쓴다. 이름 길이(1~10, 공백만 거부)는 `@Size(max = 10)` + `@NotBlank` → 기존 검증 400.
 
@@ -284,6 +295,16 @@ ERD(총괄 문서) 그대로. 선례: 복합 PK·부분 인덱스는 `V202608041
 
 - 요청 `{ "displayName": "지수" }`, 검증 동일. 방장도 가능(행이 있으므로). 응답 `200`
 
+#### `PATCH /courses/{courseId}/stores/reorder` — 순서 CAS (2026-09-03 추가)
+
+순서 저장은 "내 화면 전체"를 보내는 유일한 쓰기라, 두 사람이 **같은 집합을 다른 순서로** 동시에 저장하면 기존 집합 검증(`validateCompleteOrder`)을 둘 다 통과하고 후저장이 이긴다(lost update). 이걸 잡는다.
+
+- 요청 `CourseStoreReorderRequest`에 **`expectedOrder: List<Long>`**(클라이언트가 화면에서 본 정류장 id의 현재 순서, `visitOrder` 오름차순) 추가. **optional** — 안 보내면 지금처럼 집합 검증만(구버전 앱 호환)
+- 락 안에서, 기존 집합 검증 **뒤에**: 현재 DB의 활성 정류장 id를 `visit_order` 순으로 뽑아 `expectedOrder`와 **리스트 동등 비교**. 다르면 `COURSE_STALE`(409)
+- **왜 `version` 비교가 아닌가**: version은 메모·제목 저장에도 오르므로, 친구가 메모만 써도 내 드래그가 거부되는 **가짜 충돌**이 난다. 순서 자체를 비교하면 정확히 "순서가 바뀐 경우"에만 걸린다. 스키마 변경도 없다
+- 응답은 그대로 `Void`. FE는 409를 받으면 재조회 + 안내(FE 문서 7-2)
+- 테스트: (1) `expectedOrder`가 현재 순서와 같으면 저장 (2) 다르면 409 (3) 안 보내면 집합 검증만 (4) 집합이 다르면 409가 아니라 기존 `COURSE_STORE_ORDER_INVALID`
+
 #### `PATCH /courses/{courseId}` — 기존 수정 API에 두 가지
 
 - `isPublic = true`로 바꾸려는데 **활성 멤버가 1명 이상**(방장 행 제외 — 방장 행만 있으면 협업이 아직 아니다)이면 `COURSE_COLLAB_CANNOT_BE_PUBLIC`. 5-B 뒤에는 **PUBLIC만 차단**, UNLISTED는 허용
@@ -296,6 +317,7 @@ ERD(총괄 문서) 그대로. 선례: 복합 PK·부분 인덱스는 `V202608041
 - [ ] 초대 생성 시 방장 행이 생기고 `display_name`이 닉네임. 두 번 부르면 같은 토큰(`reused: true`). 만료 하루 전 토큰은 재발급되고 이전 토큰은 soft delete
 - [ ] 수락: 만료·무효·정원초과 거부, 방장·기존 멤버는 200, 찜 해제됨, PUBLIC → PRIVATE
 - [ ] 스레드 2개로 동시 reorder에서 500 없음 · 동시 수락 8명째 둘 중 하나만 성공
+- [ ] 두 클라이언트가 같은 집합을 다른 순서로 저장 → 늦은 쪽이 409 `COURSE409_1` · 쓰기 경로마다 `courses.version`이 1씩 오름
 - [ ] 미리보기는 비로그인 curl로 200, `POST .../accept`는 비로그인 401
 - [ ] 게스트가 방장으로 초대 링크를 만든 뒤 로그인 → 이관 뒤에도 `course_members`·`course_invites`가 새 회원 id
 - [ ] 실패 목록이 baseline 7개에서 늘지 않음
@@ -499,10 +521,28 @@ ERD(총괄 문서) 그대로. 선례: 복합 PK·부분 인덱스는 `V202608041
     "myDisplayName": "다나",        // 내 course_members 행. 없으면 null
     "dayCount": 3,                  // courses.day_count (7-5)
     "visibility": "PRIVATE",        // 5-B 전엔 is_public에서 파생해 내려준다
-    "shareToken": null              // 5-B. 방장에게만, UNLISTED일 때만
+    "shareToken": null,             // 5-B. 방장에게만, UNLISTED일 때만
+    "version": 41                   // 폴링 ETag와 같은 값. FE가 If-None-Match에 되돌려 보낸다
   }
   ```
   `isMine`은 **없애지 않는다**(FE 38곳이 읽는다). `courseStores[]`는 Phase 3의 `memos`·`myMemo` 포함
+- [ ] **조건부 GET — ETag/304**(2026-09-03 추가). 8초마다 상세 전체를 내려주면 바뀐 게 없어도 매번 풀 응답이다
+  ```java
+  @GetMapping("/{courseId}")
+  public ResponseEntity<ApiResponse<CourseDetailResponse>> getCourseDetail(
+          @PathVariable Long courseId, @AuthenticationPrincipal Long memberId, WebRequest request) {
+      long version = courseQueryService.getVersion(courseId, memberId);   // 권한 검사 포함, 가벼운 조회
+      String etag = "\"" + version + "\"";
+      if (request.checkNotModified(etag)) {
+          return null;   // Spring이 304 + ETag 헤더로 응답한다
+      }
+      CourseDetailResponse body = courseQueryService.getCourseDetail(courseId, memberId);
+      return ResponseEntity.ok().eTag(etag).body(ApiResponse.success(body));
+  }
+  ```
+  - ETag는 **version만** 쓴다(본문 해시 아님). `getVersion`은 `SELECT version FROM courses WHERE id = ?` + 비공개 차단 판정 — 권한이 없는 사람에게 304로 존재를 알려주면 안 되므로 **권한 검사를 먼저** 한다
+  - `If-None-Match`가 없거나 다르면 지금과 똑같은 200. 구버전 앱은 헤더를 안 보내므로 영향 없다
+  - 사용자별로 응답이 다르지만(`isMine`·`visited`·`myMemo`) ETag는 같아도 된다 — 사용자 A의 304는 A의 이전 응답을 재사용하라는 뜻이고, 그 응답은 A의 것이다. 단 **중간 캐시가 끼면 안 되니** `Cache-Control: private, no-cache`를 함께 준다
 - [ ] `isMine` 계산(`:76`)은 소유자 그대로. `canEdit = isOwner || isMember`
 
 ### 5-2. 목록 `GET /courses/my`
@@ -520,6 +560,7 @@ ERD(총괄 문서) 그대로. 선례: 복합 PK·부분 인덱스는 `V202608041
 ### 5-4. 검증
 
 - [ ] 초대받은 계정의 `/courses/my`에 그 코스가 `isMember: true`로 한 번만 뜸(방장 계정에는 소유로 한 번만)
+- [ ] 상세 GET에 `If-None-Match: "<version>"`을 보내면 304 본문 없음 · 누가 가게를 담은 뒤엔 200 + 새 ETag · 권한 없는 계정은 304가 아니라 403
 - [ ] 비공개 협업 코스를 멤버가 상세 조회 성공, `canEdit: true`, `members` 정렬이 참여 순 · 제3자는 403
 - [ ] 큐레이션 코스는 `canEdit: false`
 
@@ -623,6 +664,8 @@ ERD(총괄 문서) 그대로. 선례: 복합 PK·부분 인덱스는 `V202608041
 | `course/repository/*` | 락 조회, 신규 리포지토리 3개, `moveOwner` 3개 |
 | `course/code/CourseErrorCode.java` | 7개 추가 |
 | `course/dto/request/CourseStoreUpdateRequest`·`CourseStoreAddRequest` | `@Size(max = 200)` |
+| `course/dto/request/CourseStoreReorderRequest` | `expectedOrder` 추가(optional) |
+| `course/repository/CourseRepository.java` | `bumpVersion`, 락 조회 |
 | `course/dto/response/CourseDetailResponse`·`CourseStoreResponse`·`CourseSummaryResponse` | 필드 추가 (기존 필드 유지) |
 | `member/service/MemberCommandService.java` | `deleteMember` 협업 정리 |
 | `member/service/GuestDataMigrationService.java` | `moveOwner` 3개 추가 |

@@ -1,4 +1,4 @@
-> **원본은 FE 레포 `daedongbbangmap/docs/course-collab-phases.md`** (2026-09-03 스냅샷 복사본). 정책·ERD가 바뀌면 원본을 먼저 고치고 여기를 따라 맞춘다. 이 레포 안의 경로 참조는 이 복사본 기준으로 읽으면 된다.
+> **원본은 FE 레포 `daedongbbangmap/docs/course-collab-phases.md`** (2026-09-03 저녁 스냅샷 — version·ETag 304·순서 CAS 반영본). 정책·ERD가 바뀌면 원본을 먼저 고치고 여기를 따라 맞춘다.
 
 # 빵투어 동시편집 V1 — 실행 계획 (phase별)
 
@@ -156,6 +156,8 @@ Phase 2 시작 전에 `CourseCommandServiceTest`의 낡은 테스트 3개를 먼
 | 미설치자 초대 | 스토어 설치 후 **링크 재탭 감수**(V1). 랜딩에 "설치 후 이 링크를 다시 눌러주세요" 문구. Airbridge deferred 딥링크는 V2(2026-09-03 결정) |
 | Phase 5-B 순서 | **Phase 5 직후.** BE를 한 번에 끝낸다(2026-09-03 결정) |
 | DB 스키마 | **ERD 검토·승인 후에만 마이그레이션 작성.** 문서에 적혀 있어도 승인이 아니다(2026-09-03 지시). 현재 ERD는 9/3 검토 완료 |
+| 폴링 비용 | `courses.version`(쓰기마다 +1) + 상세 GET에 **ETag = version, `If-None-Match` 같으면 304**. 폴링은 헤더 하나만 더 보내고 304면 아무것도 안 한다(2026-09-03 결정) |
+| 순서 충돌 | 순서 저장 요청에 **`expectedOrder`(내가 본 정류장 id 순서)** 동봉 → 서버가 락 안에서 현재 순서와 비교, 다르면 **409 `COURSE_STALE`** → FE 재조회 + 안내. version 비교가 아니라 순서 CAS인 이유: 친구가 메모만 저장해도 내 드래그가 거부되는 가짜 충돌을 피한다(2026-09-03 결정) |
 | 메모와 가게 삭제 | 메모는 **정류장 행(`course_stores.id`)에 묶인다.** 가게를 코스에서 빼면 그 가게의 메모는 **전원 것이 함께 삭제**되고, 다시 담아도 돌아오지 않는다(2026-09-03 결정). 방문 체크가 "남기되 숨김"인 것과 **다르다** |
 
 ---
@@ -167,13 +169,13 @@ Phase 2 시작 전에 `CourseCommandServiceTest`의 낡은 테스트 3개를 먼
 | 0 웹 랜딩 | policy + FE 한 줄 | `feat/course-invite-landing` | `/c/:id` 배포·실기기 카톡 검증·신규 설치 경로·공유 문자열 교체 | FE 문서 Phase 0 |
 | 1 UI 목업 | FE | `feat/course-collab-ui` | 초대 시트·수락 화면·메모 카드·참여자 칩·'함께' 배지, 계측 7종 | FE 문서 Phase 1 |
 | baseline | BE | dev | `CourseCommandServiceTest` 낡은 3개 초록으로 | BE 문서 baseline |
-| 2 멤버·초대 | BE | `feat/course-collab-members` | 테이블 3개 + `courses` 3컬럼(마이그레이션 하나), `validateCanEdit`, 락 5곳, API 5개 | BE 문서 Phase 2 |
+| 2 멤버·초대 | BE | `feat/course-collab-members` | 테이블 3개 + `courses` 4컬럼(마이그레이션 하나, `version` 포함), `validateCanEdit`, 락 5곳, 순서 CAS, API 5개 | BE 문서 Phase 2 |
 | 3 메모 | BE | `feat/course-store-memos` | `course_store_memos`, 이관, `memo`=`myMemo` 호환, 가게 빼면 메모 삭제 | BE 문서 Phase 3 |
 | 4 부수 정리 | BE | `fix/course-collab-side-effects` | 완주 부당 승격 차단, 멤버 포크·따라가기, 탈퇴 승계·정리 | BE 문서 Phase 4 |
-| 5 응답 확장 | BE | `feat/course-collab-response` | `canEdit`·`members`·`isMember`, 내 목록 union·dedup | BE 문서 Phase 5 |
+| 5 응답 확장 | BE | `feat/course-collab-response` | `canEdit`·`members`·`isMember`·`version`, 상세 GET ETag/304, 내 목록 union·dedup | BE 문서 Phase 5 |
 | 5-B 링크 공개 | BE → FE·랜딩 | `feat/course-visibility` / FE는 이어서 | `visibility` 3단계·`share_token`·`by-share`, 공유 시트 전환, noindex | BE 문서 5-B · FE 문서 5-B |
 | 6 서버 연동 | FE | `feat/course-collab-ui` | API 함수 5개, `isMine` 38곳 분류, 화면 연결 | FE 문서 Phase 6 |
-| 7 동기화 | FE | 이어서 | 8초 폴링, 실패 규칙, 충돌 6경로, 무음 실패 4곳, 빈 일차 | FE 문서 Phase 7 |
+| 7 동기화 | FE | 이어서 | 8초 폴링(If-None-Match/304), 실패 규칙, 충돌 6경로(`expectedOrder`), 무음 실패 4곳, 빈 일차 | FE 문서 Phase 7 |
 | 8 통합 검증 | 기기 2대 | | 13항목 | FE 문서 Phase 8 |
 
 **착수 순서**: 0 → 1 → baseline → 2 → 3 → 4 → 5 → 5-B → 6 → 7 → 5-B(FE) → 8. FE 브랜치는 **main에서** 판다(dev가 main보다 뒤 — FE 문서 0절).
@@ -196,13 +198,16 @@ Phase 2 시작 전에 `CourseCommandServiceTest`의 낡은 테스트 3개를 먼
 
 ## 절대 하지 말 것 (V1 범위 밖)
 
-웹소켓/SSE/실시간 인프라 · Redis · presence(접속 중 표시) · OT/CRDT·필드 병합·충돌 UI · **낙관적 락/ETag**(아래 근거) · 뷰어/에디터 역할 · 초대 승인·거절 절차 · 강퇴 · 토큰 revoke UI · 가게별 공통 메모 · 메모 답글/이모지 · 편집 변경 푸시(합류 알림 1건만) · 편집 히스토리/undo · `app/course/[id].tsx` 리팩터·파일 분할 · react-query 전면 이전 · 닉네임 변경 기능(코스 내 이름으로 대체) · Universal Link/App Link 등록(스킴 폴백 랜딩으로 충분, 2차)
+웹소켓/SSE/실시간 인프라 · Redis · presence(접속 중 표시) · OT/CRDT·필드 병합 · **모든 편집에 낙관적 락 충돌 UI를 띄우는 것(@Version 전면 도입)** · 뷰어/에디터 역할 · 초대 승인·거절 절차 · 강퇴 · 토큰 revoke UI · 가게별 공통 메모 · 메모 답글/이모지 · 편집 변경 푸시(알림 자체가 V1 밖) · 편집 히스토리/undo · `app/course/[id].tsx` 리팩터·파일 분할 · react-query 전면 이전 · 닉네임 변경 기능(코스 내 이름으로 대체) · Universal Link/App Link 등록(스킴 폴백 랜딩으로 충분, 2차)
 
-> **낙관적 락(@Version)을 왜 안 넣나** — 재논의 방지용 근거.
+> **@Version 전면 도입을 왜 안 하나** — 재논의 방지용 근거.
 > ① 대부분의 쓰기는 stale 데이터를 보내지 않는다. 가게 추가는 서버가 현재 DB 기준으로 맨 뒤에 붙이고, 삭제는 `storeId` 지정이라 멱등에 가깝다.
-> ② 유일하게 "내 화면 전체"를 보내는 reorder에는 **이미 동등한 방어가 있다** — `validateCompleteOrder`가 활성 가게 전체와의 일치를 요구하고, 개수가 우연히 같아도 삭제된 id는 `COURSE_STORE_NOT_FOUND`로 걸린다.
-> ③ 남는 LWW는 제목·날짜·방문시간 같은 단일 값뿐이고, 여기에 "다른 사람이 먼저 바꿨어요, 다시 시도하세요"를 띄우면 오히려 UX가 나빠진다. 메모는 사람별로 쪼개 충돌 자체를 없앴다.
-> 필요한 건 **비관적 락 1개(500 방지) + 충돌 안내 5경로**이고, 그건 Phase 2·7에 들어 있다.
+> ② 단일 값(제목·날짜·방문시간)에 "다른 사람이 먼저 바꿨어요, 다시 시도하세요"를 띄우면 오히려 UX가 나빠진다. 후저장 승리로 둔다. 메모는 사람별로 쪼개 충돌 자체를 없앴다.
+> ③ 유일하게 "내 화면 전체"를 보내는 순서 변경은 **집합 검증 + `expectedOrder` CAS**로 정확히 그 경우만 잡는다(2026-09-03 추가). version 비교로 하면 무관한 쓰기(메모 저장)에도 거부되는 가짜 충돌이 생긴다.
+>
+> **ETag는 쓴다** — 단, 충돌 제어가 아니라 **폴링을 싸게 만드는 용도**(304)다. 예전 문구 "낙관적 락/ETag 금지"는 충돌 UI를 말한 것이었고, 조건부 GET은 그와 무관하다(2026-09-03 정정).
+>
+> 필요한 건 **비관적 락 1개(500 방지) + 순서 CAS + 충돌 안내 6경로 + 304 폴링**이고, 전부 Phase 2·5·7에 들어 있다.
 
 ## V2로 넘어가는 신호 (참고)
 
@@ -218,7 +223,7 @@ Phase 2 시작 전에 `CourseCommandServiceTest`의 낡은 테스트 3개를 먼
 
 ---
 
-## 2026-09-03 점검 결과 — 착수 전 결정 17개와 보강 8개
+## 2026-09-03 점검 결과 — 착수 전 결정 19개와 보강 8개
 
 8/20 이후 온보딩 1.4.0·일차 자동 나누기·FE `dev` 브랜치 신설로 계획서와 코드가 어긋난 곳을 다시 쟀고(위 phase별로 반영), 계획서가 안 다루던 예외를 담당자와 결정했다.
 
@@ -243,6 +248,8 @@ Phase 2 시작 전에 `CourseCommandServiceTest`의 낡은 테스트 3개를 먼
 | 15 | 초대 무효화 (ERD 3) | **soft delete(`deleted_at`).** 만료는 `expires_at`, 하드 삭제 없음 |
 | 16 | 이름 10자 (ERD 4) | **DB `VARCHAR(10)`으로도 막는다** + DTO `@Size` |
 | 17 | `courses` 3컬럼 (ERD 5) | **마이그레이션 하나**로, Phase 2에서 |
+| 18 | 폴링 비용 | **`courses.version` + 상세 GET ETag/304.** 낙관적 락 충돌 UI와는 별개 (9/3 저녁) |
+| 19 | 순서 lost update | **`expectedOrder` CAS → 409.** version이 아니라 순서 자체를 비교해 가짜 충돌 없음 (9/3 저녁) |
 
 ### 보강 (계획서에 없던 예외, 각 phase에 반영함)
 
@@ -331,8 +338,9 @@ Phase 2 시작 전에 `CourseCommandServiceTest`의 낡은 테스트 3개를 먼
 | day_count | INT | NOT NULL DEFAULT 1 | 7-5 | 빈 일차 포함 일차 수. **늘어나기만 한다.** 이관: `GREATEST(1, max(course_stores.day))` |
 | visibility | VARCHAR(16) | NOT NULL | 5-B | `PUBLIC` / `UNLISTED` / `PRIVATE`. 이관: `is_public → PUBLIC/PRIVATE` |
 | share_token | VARCHAR(64) | UNIQUE, NULL | 5-B | UNLISTED로 처음 바꿀 때 발급. 만료 없음, 왕복해도 보존 |
+| version | BIGINT | NOT NULL DEFAULT 0 | 2 | 코스·가게·메모·멤버를 바꾸는 **모든 쓰기에서 +1**(`UPDATE ... SET version = version + 1` — 행 단위 원자적이라 락 없는 경로에서도 유실 없음). 상세 GET의 ETag. **9/3 저녁 승인** |
 
-- 세 컬럼은 **마이그레이션 하나**로 넣는다(확정). Phase 2의 마이그레이션 세트에 포함 — `day_count`·`visibility`·`share_token` 모두 기본값·NULL 허용이라 미리 있어도 해가 없다
+- 네 컬럼은 **마이그레이션 하나**로 넣는다(확정, `version`은 9/3 저녁 추가 승인). Phase 2의 마이그레이션 세트에 포함 — `day_count`·`visibility`·`share_token` 모두 기본값·NULL 허용이라 미리 있어도 해가 없다
 - `is_public`은 **한 릴리즈 동안 남긴다**(구버전 앱이 읽는다). 쓰기는 `visibility`와 동기화, 다음 릴리즈에서 drop
 - `courses.member_id`는 그대로 방장. 승계는 이 컬럼 UPDATE
 
@@ -349,6 +357,7 @@ Phase 2 시작 전에 `CourseCommandServiceTest`의 낡은 테스트 3개를 먼
 | 3 | 만료·무효 초대 행 | **soft delete(`deleted_at`).** 하드 삭제 없음 |
 | 4 | 이름 10자 | **DB `VARCHAR(10)`으로도 막는다** |
 | 5 | `courses` 3컬럼 | **마이그레이션 하나** |
+| 6 (추가) | `courses.version` | **승인.** 폴링 ETag용. 같은 마이그레이션에 |
 
 ### 참고 — 방문 체크는 가게를 빼도 남는다 (코드로 확인, 2026-09-03)
 
