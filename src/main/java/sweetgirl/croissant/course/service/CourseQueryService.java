@@ -1,7 +1,9 @@
 package sweetgirl.croissant.course.service;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -10,18 +12,23 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
+import sweetgirl.croissant.course.dto.response.CourseStoreMemoResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseImageFile;
+import sweetgirl.croissant.course.entity.CourseMember;
 import sweetgirl.croissant.course.entity.CourseStore;
+import sweetgirl.croissant.course.entity.CourseStoreMemo;
 import sweetgirl.croissant.course.entity.CourseStoreVisit;
 import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
+import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
+import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
@@ -42,6 +49,8 @@ public class CourseQueryService {
 	private final CourseProgressRepository courseProgressRepository;
 	private final CourseStoreThumbnailReader courseStoreThumbnailReader;
 	private final CourseStoreVisitRepository courseStoreVisitRepository;
+	private final CourseStoreMemoRepository courseStoreMemoRepository;
+	private final CourseMemberRepository courseMemberRepository;
 
 	public List<CourseSummaryResponse> getCurationCourses() {
 		return buildSummaryResponses(courseRepository.findAllPublicOrderedByPinAndSavedCount());
@@ -79,9 +88,21 @@ public class CourseQueryService {
 				.findAllByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId).stream()
 				.collect(Collectors.toMap(visit -> visit.getId().getStoreId(), visit -> visit, (a, b) -> a));
 
+		Map<Long, List<CourseStoreMemoResponse>> memosByCourseStoreId = memosOf(course, courseStores, memberId);
 		List<CourseStoreResponse> courseStoreResponses = courseStores.stream()
-			.map(courseStore -> CourseStoreResponse.of(
-				courseStore, visitByStoreId.get(courseStore.getStore().getId())))
+			.map(courseStore -> {
+				List<CourseStoreMemoResponse> memos = memosByCourseStoreId.getOrDefault(courseStore.getId(), List.of());
+				String myMemo = memos.stream()
+					.filter(CourseStoreMemoResponse::isMine)
+					.map(CourseStoreMemoResponse::content)
+					.findFirst()
+					.orElse(null);
+				// 구버전 앱이 읽는 memo: 큐레이션은 새 테이블에 행이 없어 course_stores.memo(코스 설명)를 그대로,
+				// 사용자 코스는 내 메모만. legacy 컬럼을 폴백으로 쓰면 멤버가 방장 메모를 자기 것처럼 본다.
+				String memo = course.getType() == CourseType.CURATED ? courseStore.getMemo() : myMemo;
+				return CourseStoreResponse.of(
+					courseStore, visitByStoreId.get(courseStore.getStore().getId()), memo, myMemo, memos);
+			})
 			.toList();
 
 		CourseImageFile coverImage = courseImageFileRepository.findByCourseId(courseId).orElse(null);
@@ -105,6 +126,47 @@ public class CourseQueryService {
 			finisherCount,
 			regions,
 			courseStoreResponses);
+	}
+
+	/**
+	 * 정류장별 사람별 메모. 메모 한 방 + 멤버 목록 한 방으로 읽는다 — 정류장마다 돌지 않는다.
+	 * 정렬은 서버가 참여 순서(course_members.joined_at)로 하고, 방장은 첫 초대 때 행이 생기므로 항상 맨 앞이다.
+	 * course_members 행이 없는 사람(이관 전 옛 데이터)은 닉네임으로 폴백하고 맨 뒤에 둔다.
+	 * 큐레이션 코스는 이 테이블을 쓰지 않으므로 읽지 않는다.
+	 */
+	private Map<Long, List<CourseStoreMemoResponse>> memosOf(Course course, List<CourseStore> courseStores,
+			Long viewerId) {
+		if (course.getType() == CourseType.CURATED || courseStores.isEmpty()) {
+			return Map.of();
+		}
+		List<Long> courseStoreIds = courseStores.stream().map(CourseStore::getId).toList();
+		List<CourseStoreMemo> memos = courseStoreMemoRepository
+			.findAllByIdCourseStoreIdInAndDeletedAtIsNull(courseStoreIds);
+		if (memos.isEmpty()) {
+			return Map.of();
+		}
+		List<CourseMember> members = courseMemberRepository
+			.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(course.getId());
+		Map<Long, Integer> joinOrderByMemberId = new java.util.HashMap<>();
+		Map<Long, String> displayNameByMemberId = new java.util.HashMap<>();
+		for (int i = 0; i < members.size(); i++) {
+			joinOrderByMemberId.put(members.get(i).getId().getMemberId(), i);
+			displayNameByMemberId.put(members.get(i).getId().getMemberId(), members.get(i).getDisplayName());
+		}
+		Comparator<CourseStoreMemo> byJoinOrder = Comparator
+			.comparing((CourseStoreMemo memo) -> joinOrderByMemberId.getOrDefault(memo.getId().getMemberId(),
+				Integer.MAX_VALUE))
+			.thenComparing(memo -> memo.getId().getMemberId());
+		return memos.stream()
+			.sorted(byJoinOrder)
+			.collect(Collectors.groupingBy(
+				memo -> memo.getId().getCourseStoreId(),
+				Collectors.mapping(memo -> new CourseStoreMemoResponse(
+					memo.getId().getMemberId(),
+					displayNameByMemberId.getOrDefault(memo.getId().getMemberId(), memo.getMember().getNickname()),
+					memo.getContent(),
+					memo.getUpdatedAt(),
+					Objects.equals(memo.getId().getMemberId(), viewerId)), Collectors.toList())));
 	}
 
 	/** 코스별 가게·커버 이미지를 일괄 조회해 코스 수와 무관하게 고정된 쿼리 수로 summary를 만든다 */

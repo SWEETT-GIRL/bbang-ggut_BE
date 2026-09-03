@@ -305,7 +305,7 @@ class CourseControllerTest {
 	@Test
 	void addStore_returns200() throws Exception {
 		CourseStoreResponse storeResponse = new CourseStoreResponse(
-			100L, 1, 1, 10L, "소금빵집", 37.5, 126.9, "마포구", null, null, false, null);
+			100L, 1, 1, 10L, "소금빵집", 37.5, 126.9, "마포구", null, null, false, null, null, List.of());
 		given(courseCommandService.addStore(isNull(), anyLong(), any())).willReturn(storeResponse);
 
 		mockMvc.perform(post("/courses/1/stores")
@@ -531,5 +531,19 @@ class CourseControllerTest {
 			.content("{\"courseStoreOrders\":[{\"courseStoreId\":2},{\"courseStoreId\":1}],\"expectedOrder\":[1,2]}"))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("COURSE409_1"));
+	}
+
+	@Test
+	void storeMemo_over200Chars_returns400() throws Exception {
+		String tooLong = "가".repeat(201);
+		mockMvc.perform(patch("/courses/1/stores/10")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"memo\":\"" + tooLong + "\"}"))
+			.andExpect(status().isBadRequest());
+		mockMvc.perform(post("/courses/1/stores")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"storeId\":10,\"memo\":\"" + tooLong + "\"}"))
+			.andExpect(status().isBadRequest());
+		then(courseCommandService).shouldHaveNoInteractions();
 	}
 }

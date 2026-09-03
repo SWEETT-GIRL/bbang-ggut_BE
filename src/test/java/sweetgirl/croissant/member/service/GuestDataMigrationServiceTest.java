@@ -19,6 +19,7 @@ import sweetgirl.croissant.course.repository.CourseInviteRepository;
 import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
+import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.course.service.CourseProgressService;
 import sweetgirl.croissant.member.entity.Member;
@@ -41,6 +42,8 @@ class GuestDataMigrationServiceTest {
 	private CourseMemberRepository courseMemberRepository;
 	@Mock
 	private CourseInviteRepository courseInviteRepository;
+	@Mock
+	private CourseStoreMemoRepository courseStoreMemoRepository;
 	@Mock
 	private SavedCourseRepository savedCourseRepository;
 	@Mock
@@ -123,6 +126,9 @@ class GuestDataMigrationServiceTest {
 		collabOrder.verify(courseMemberRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
 		collabOrder.verify(courseMemberRepository).moveOwner(GUEST_ID, TARGET_ID);
 		then(courseInviteRepository).should().moveOwner(GUEST_ID, TARGET_ID);
+		var memoOrder = inOrder(courseStoreMemoRepository);
+		memoOrder.verify(courseStoreMemoRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
+		memoOrder.verify(courseStoreMemoRepository).moveOwner(GUEST_ID, TARGET_ID);
 	}
 
 	// 빈 껍데기 게스트가 남아 다음 로그인에서 다시 이관 대상이 되면 안 된다
@@ -147,6 +153,7 @@ class GuestDataMigrationServiceTest {
 		then(courseRepository).shouldHaveNoInteractions();
 		then(courseMemberRepository).shouldHaveNoInteractions();
 		then(courseInviteRepository).shouldHaveNoInteractions();
+		then(courseStoreMemoRepository).shouldHaveNoInteractions();
 		then(savedStoreRepository).shouldHaveNoInteractions();
 		then(memberRepository).shouldHaveNoInteractions();
 	}

@@ -3,6 +3,7 @@ package sweetgirl.croissant.course.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
@@ -19,17 +20,25 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
+import sweetgirl.croissant.course.dto.response.CourseStoreMemoResponse;
+import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseImageFile;
+import sweetgirl.croissant.course.entity.CourseMember;
+import sweetgirl.croissant.course.entity.CourseMemberId;
 import sweetgirl.croissant.course.entity.CourseStore;
+import sweetgirl.croissant.course.entity.CourseStoreMemo;
+import sweetgirl.croissant.course.entity.CourseStoreMemoId;
 import sweetgirl.croissant.course.entity.SavedCourse;
 import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
+import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
+import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
@@ -53,6 +62,10 @@ class CourseQueryServiceTest {
 	CourseStoreThumbnailReader courseStoreThumbnailReader;
 	@Mock
 	CourseStoreVisitRepository courseStoreVisitRepository;
+	@Mock
+	CourseStoreMemoRepository courseStoreMemoRepository;
+	@Mock
+	CourseMemberRepository courseMemberRepository;
 
 	@InjectMocks
 	CourseQueryService courseQueryService;
@@ -258,6 +271,112 @@ class CourseQueryServiceTest {
 	}
 
 	// ───────────────────────── helpers ─────────────────────────
+
+	// ───────────────────────── getCourseDetail: 사람별 메모 ─────────────────────────
+
+	private CourseStoreMemo mockMemo(Long courseStoreId, Long memberId, String nickname, String content) {
+		CourseStoreMemo memo = mock(CourseStoreMemo.class);
+		Member author = mock(Member.class);
+		lenient().when(author.getNickname()).thenReturn(nickname);
+		lenient().when(memo.getId()).thenReturn(new CourseStoreMemoId(courseStoreId, memberId));
+		lenient().when(memo.getMember()).thenReturn(author);
+		lenient().when(memo.getContent()).thenReturn(content);
+		return memo;
+	}
+
+	private CourseMember mockMemberRow(Long courseId, Long memberId, String displayName) {
+		CourseMember row = mock(CourseMember.class);
+		lenient().when(row.getId()).thenReturn(new CourseMemberId(courseId, memberId));
+		lenient().when(row.getDisplayName()).thenReturn(displayName);
+		return row;
+	}
+
+	@Test
+	@DisplayName("getCourseDetail: 메모는 참여 순서로 정렬되고 내 메모가 myMemo·memo 로 내려온다. 행 없는 사람은 닉네임으로 맨 뒤")
+	void getCourseDetail_memos_sortedByJoinOrder_withMyMemo() {
+		Long ownerId = 10L;
+		Long memberId = 5L;
+		Long legacyId = 7L;
+		Course course = mockCourse(1L, "협업 코스", false, CourseType.CUSTOM, ownerId);
+		CourseStore courseStore = mockCourseStore(1, "빵집A", "종로구");
+		given(courseStore.getId()).willReturn(501L);
+		CourseStoreMemo ownerMemo = mockMemo(501L, ownerId, "다나닉", "소금빵 꼭 먹기");
+		CourseStoreMemo memberMemo = mockMemo(501L, memberId, "지수닉", "주차 어렵대");
+		CourseStoreMemo legacyMemo = mockMemo(501L, legacyId, "옛사람", "옛 메모");
+		CourseMember ownerRow = mockMemberRow(1L, ownerId, "다나");
+		CourseMember memberRow = mockMemberRow(1L, memberId, "지수");
+
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(1L))
+			.willReturn(List.of(courseStore));
+		given(courseImageFileRepository.findByCourseId(1L)).willReturn(Optional.empty());
+		given(savedCourseRepository.countByCourseId(1L)).willReturn(0L);
+		// 리포지토리는 정렬을 보장하지 않는다 — 서버가 참여 순서로 세운다
+		given(courseStoreMemoRepository.findAllByIdCourseStoreIdInAndDeletedAtIsNull(List.of(501L)))
+			.willReturn(List.of(legacyMemo, memberMemo, ownerMemo));
+		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(1L))
+			.willReturn(List.of(ownerRow, memberRow));
+
+		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, ownerId);
+
+		CourseStoreResponse stop = result.courseStores().get(0);
+		assertThat(stop.memos()).extracting(CourseStoreMemoResponse::displayName)
+			.containsExactly("다나", "지수", "옛사람");
+		assertThat(stop.memos()).extracting(CourseStoreMemoResponse::isMine)
+			.containsExactly(true, false, false);
+		assertThat(stop.myMemo()).isEqualTo("소금빵 꼭 먹기");
+		assertThat(stop.memo()).isEqualTo("소금빵 꼭 먹기");
+	}
+
+	@Test
+	@DisplayName("getCourseDetail: 남의 메모만 있는 정류장은 myMemo·memo 가 null 이고 memos 엔 남의 것이 있다")
+	void getCourseDetail_memos_othersOnly() {
+		Long ownerId = 10L;
+		Long viewerId = 5L;
+		Course course = mockCourse(1L, "공개 코스", true, CourseType.CUSTOM, ownerId);
+		CourseStore courseStore = mockCourseStore(1, "빵집A", "종로구");
+		given(courseStore.getId()).willReturn(501L);
+		CourseStoreMemo ownerMemo = mockMemo(501L, ownerId, "다나닉", "소금빵 꼭 먹기");
+		CourseMember ownerRow = mockMemberRow(1L, ownerId, "다나");
+
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(1L))
+			.willReturn(List.of(courseStore));
+		given(courseImageFileRepository.findByCourseId(1L)).willReturn(Optional.empty());
+		given(savedCourseRepository.countByCourseId(1L)).willReturn(0L);
+		given(courseStoreMemoRepository.findAllByIdCourseStoreIdInAndDeletedAtIsNull(List.of(501L)))
+			.willReturn(List.of(ownerMemo));
+		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(1L))
+			.willReturn(List.of(ownerRow));
+
+		CourseStoreResponse stop = courseQueryService.getCourseDetail(1L, viewerId).courseStores().get(0);
+
+		assertThat(stop.myMemo()).isNull();
+		assertThat(stop.memo()).isNull();
+		assertThat(stop.memos()).hasSize(1);
+		assertThat(stop.memos().get(0).isMine()).isFalse();
+	}
+
+	@Test
+	@DisplayName("getCourseDetail: 큐레이션 코스는 course_stores.memo 를 그대로 주고 메모 테이블을 읽지 않는다")
+	void getCourseDetail_curated_keepsLegacyMemo() {
+		Course course = mockCourse(1L, "큐레이션", true, CourseType.CURATED, null);
+		CourseStore courseStore = mockCourseStore(1, "빵집A", "종로구");
+		given(courseStore.getMemo()).willReturn("코스 설명 메모");
+
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(1L))
+			.willReturn(List.of(courseStore));
+		given(courseImageFileRepository.findByCourseId(1L)).willReturn(Optional.empty());
+		given(savedCourseRepository.countByCourseId(1L)).willReturn(0L);
+
+		CourseStoreResponse stop = courseQueryService.getCourseDetail(1L, null).courseStores().get(0);
+
+		assertThat(stop.memo()).isEqualTo("코스 설명 메모");
+		assertThat(stop.myMemo()).isNull();
+		assertThat(stop.memos()).isEmpty();
+		then(courseStoreMemoRepository).shouldHaveNoInteractions();
+	}
 
 	private Course mockCourse(Long id, String title, boolean isPublic, CourseType type, Long memberId) {
 		Course course = mock(Course.class);
