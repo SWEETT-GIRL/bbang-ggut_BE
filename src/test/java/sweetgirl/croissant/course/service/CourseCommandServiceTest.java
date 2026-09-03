@@ -722,6 +722,99 @@ class CourseCommandServiceTest {
 			.hasMessageContaining(CourseErrorCode.COURSE_FORK_NOT_PUBLIC.getMessage());
 	}
 
+	// ───────────────────────── reorderStores: 순서 CAS ─────────────────────────
+
+	/** 정류장 2개(id 1, 2)를 1→2 순으로 가진 코스에서 [2, 1] 로 바꾸는 요청. expectedOrder 만 케이스별로 다르다. */
+	private CourseStoreReorderRequest reorderRequestSwapping(Long courseId, Course course, List<Long> expectedOrder) {
+		CourseStoreReorderRequest.CourseStoreOrderItem item1 = mock(
+			CourseStoreReorderRequest.CourseStoreOrderItem.class);
+		lenient().when(item1.getCourseStoreId()).thenReturn(2L);
+		lenient().when(item1.getDay()).thenReturn(null);
+		CourseStoreReorderRequest.CourseStoreOrderItem item2 = mock(
+			CourseStoreReorderRequest.CourseStoreOrderItem.class);
+		lenient().when(item2.getCourseStoreId()).thenReturn(1L);
+		lenient().when(item2.getDay()).thenReturn(null);
+		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
+		given(request.getCourseStoreOrders()).willReturn(List.of(item1, item2));
+		lenient().when(request.getExpectedOrder()).thenReturn(expectedOrder);
+
+		CourseStore courseStore1 = mock(CourseStore.class);
+		lenient().when(courseStore1.getId()).thenReturn(1L);
+		lenient().when(courseStore1.getCourse()).thenReturn(course);
+		CourseStore courseStore2 = mock(CourseStore.class);
+		lenient().when(courseStore2.getId()).thenReturn(2L);
+		lenient().when(courseStore2.getCourse()).thenReturn(course);
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		lenient().when(courseStoreRepository.findAllById(List.of(2L, 1L)))
+			.thenReturn(List.of(courseStore2, courseStore1));
+		// 현재 DB 순서는 1 → 2
+		lenient().when(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
+			.thenReturn(List.of(courseStore1, courseStore2));
+		return request;
+	}
+
+	@Test
+	@DisplayName("reorderStores: expectedOrder 가 현재 순서와 같으면 저장한다")
+	void reorderStores_expectedOrderMatches_saves() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		CourseStoreReorderRequest request = reorderRequestSwapping(courseId, course, List.of(1L, 2L));
+		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
+
+		courseCommandService.reorderStores(memberId, courseId, request);
+
+		then(courseStoreRepository).should().flush();
+		then(courseRepository).should().bumpVersion(courseId);
+	}
+
+	@Test
+	@DisplayName("reorderStores: expectedOrder 가 현재 순서와 다르면 COURSE_STALE(409) — 일행이 먼저 옮겼다")
+	void reorderStores_expectedOrderStale_throwsStale() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		CourseStoreReorderRequest request = reorderRequestSwapping(courseId, course, List.of(2L, 1L));
+		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
+
+		assertThatThrownBy(() -> courseCommandService.reorderStores(memberId, courseId, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_STALE.getMessage());
+		then(courseStoreRepository).should(never()).flush();
+		then(courseRepository).should(never()).bumpVersion(any());
+	}
+
+	@Test
+	@DisplayName("reorderStores: expectedOrder 를 안 보내면(구버전 앱) 집합 검증만 하고 현재 순서를 읽지 않는다")
+	void reorderStores_withoutExpectedOrder_skipsCas() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		CourseStoreReorderRequest request = reorderRequestSwapping(courseId, course, null);
+		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
+
+		courseCommandService.reorderStores(memberId, courseId, request);
+
+		then(courseStoreRepository).should(never()).findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(any());
+		then(courseRepository).should().bumpVersion(courseId);
+	}
+
+	@Test
+	@DisplayName("reorderStores: 집합이 다르면 409 가 아니라 기존 COURSE_STORE_ORDER_INVALID 다 — 집합 검증이 CAS 보다 먼저")
+	void reorderStores_setMismatch_throwsOrderInvalidNotStale() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		CourseStoreReorderRequest request = reorderRequestSwapping(courseId, course, List.of(2L, 1L));
+		// DB 에는 정류장이 3개 — 요청 집합(2개)과 다르다
+		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(3L);
+
+		assertThatThrownBy(() -> courseCommandService.reorderStores(memberId, courseId, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_STORE_ORDER_INVALID.getMessage());
+		then(courseStoreRepository).should(never()).findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(any());
+	}
+
 	// ───────────────────────── validateCanEdit ─────────────────────────
 	// 큐레이션 코스는 member_id 가 NULL 이라 예전 validateOwner 가 우연히 막고 있었다.
 	// 소유자 조건을 멤버까지 넓힌 뒤에도 막히는지 편집 경로 5개 전부에서 못 박는다.

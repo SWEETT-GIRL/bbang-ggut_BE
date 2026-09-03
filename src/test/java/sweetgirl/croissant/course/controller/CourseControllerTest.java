@@ -520,4 +520,16 @@ class CourseControllerTest {
 			.andExpect(status().isOk());
 		then(courseMemberService).should().rename(null, 10L, "빵순이");
 	}
+
+	@Test
+	void reorderStores_stale_returns409() throws Exception {
+		willThrow(new CourseException(CourseErrorCode.COURSE_STALE))
+			.given(courseCommandService).reorderStores(isNull(), eq(10L), any());
+
+		mockMvc.perform(patch("/courses/10/stores/reorder")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"courseStoreOrders\":[{\"courseStoreId\":2},{\"courseStoreId\":1}],\"expectedOrder\":[1,2]}"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("COURSE409_1"));
+	}
 }

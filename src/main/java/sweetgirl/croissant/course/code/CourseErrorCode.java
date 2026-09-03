@@ -35,7 +35,8 @@ public enum CourseErrorCode implements BaseErrorCode {
 	COURSE_COLLAB_CANNOT_BE_PUBLIC(HttpStatus.BAD_REQUEST, "COURSE400_16", "같이 편집 중인 빵투어는 공개할 수 없어요."),
 	COURSE_MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_7", "이 빵투어의 일행이 아니에요."),
 	COURSE_NO_SUCCESSOR(HttpStatus.BAD_REQUEST, "COURSE400_17", "넘겨줄 일행이 없어요. 빵투어를 삭제해주세요."),
-	COURSE_DAY_COUNT_INVALID(HttpStatus.BAD_REQUEST, "COURSE400_18", "일차 수는 줄일 수 없어요.");
+	COURSE_DAY_COUNT_INVALID(HttpStatus.BAD_REQUEST, "COURSE400_18", "일차 수는 줄일 수 없어요."),
+	COURSE_STALE(HttpStatus.CONFLICT, "COURSE409_1", "일행이 방금 수정했어요. 다시 불러올게요.");
 
 	private final HttpStatus httpStatus;
 	private final String code;
