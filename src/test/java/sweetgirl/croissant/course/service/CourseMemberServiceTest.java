@@ -154,6 +154,7 @@ class CourseMemberServiceTest {
 			assertThat(response.token()).isEqualTo(issued.getToken());
 			assertThat(response.expiresAt()).isEqualTo(issued.getExpiresAt());
 			assertThat(response.reused()).isFalse();
+			then(courseRepository).should().bumpVersion(COURSE_ID);
 		}
 
 		@Test
@@ -194,6 +195,7 @@ class CourseMemberServiceTest {
 			assertThat(current.getDeletedAt()).isNull();
 			then(courseInviteRepository).should(never()).save(any());
 			then(courseMemberRepository).should(never()).save(any());
+			then(courseRepository).should(never()).bumpVersion(any());
 		}
 
 		@Test
@@ -252,6 +254,7 @@ class CourseMemberServiceTest {
 			then(courseInviteRepository).should().save(inviteCaptor.capture());
 			assertThat(inviteCaptor.getValue().getCreatedBy()).isSameAs(member);
 			then(courseMemberRepository).should(never()).save(any());
+			then(courseRepository).should(never()).bumpVersion(any());
 		}
 
 		@Test
@@ -452,6 +455,7 @@ class CourseMemberServiceTest {
 			assertThat(rowCaptor.getValue().getDisplayName()).isEqualTo("지수");
 			then(savedCourseRepository).should().delete(saved);
 			then(course).should().updatePublic(false);
+			then(courseRepository).should().bumpVersion(COURSE_ID);
 		}
 
 		@Test
@@ -496,6 +500,7 @@ class CourseMemberServiceTest {
 			assertThat(left.isDeleted()).isFalse();
 			assertThat(left.getDisplayName()).isEqualTo("새이름");
 			then(courseMemberRepository).should(never()).save(any());
+			then(courseRepository).should().bumpVersion(COURSE_ID);
 		}
 
 		@Test
@@ -520,6 +525,7 @@ class CourseMemberServiceTest {
 			assertThat(rowCaptor.getAllValues()).extracting(saved -> saved.getId().getMemberId())
 				.containsExactly(OWNER_ID, MEMBER_ID);
 			assertThat(rowCaptor.getAllValues().get(0).getDisplayName()).isEqualTo("다나");
+			then(courseRepository).should().bumpVersion(COURSE_ID);
 		}
 
 		@Test
@@ -588,6 +594,7 @@ class CourseMemberServiceTest {
 			assertThat(response.alreadyMember()).isTrue();
 			then(courseMemberRepository).should(never()).save(any());
 			then(course).should(never()).updatePublic(any(Boolean.class));
+			then(courseRepository).should(never()).bumpVersion(any());
 		}
 
 		@Test
@@ -604,6 +611,7 @@ class CourseMemberServiceTest {
 			assertThat(response.alreadyMember()).isTrue();
 			then(courseMemberRepository).should(never()).save(any());
 			then(savedCourseRepository).shouldHaveNoInteractions();
+			then(courseRepository).should(never()).bumpVersion(any());
 		}
 
 		@Test
@@ -622,6 +630,7 @@ class CourseMemberServiceTest {
 				.hasMessageContaining(CourseErrorCode.COURSE_MEMBER_LIMIT.getMessage());
 			then(courseMemberRepository).should(never()).save(any());
 			then(course).should(never()).updatePublic(any(Boolean.class));
+			then(courseRepository).should(never()).bumpVersion(any());
 		}
 
 		@Test
@@ -672,6 +681,7 @@ class CourseMemberServiceTest {
 
 			assertThat(mine.isDeleted()).isTrue();
 			then(course).should(never()).changeOwner(any());
+			then(courseRepository).should().bumpVersion(COURSE_ID);
 		}
 
 		@Test
@@ -693,6 +703,7 @@ class CourseMemberServiceTest {
 			assertThat(ownerRow.isDeleted()).isTrue();
 			assertThat(oldest.isDeleted()).isFalse();
 			assertThat(newer.isDeleted()).isFalse();
+			then(courseRepository).should().bumpVersion(COURSE_ID);
 		}
 
 		@Test
@@ -711,6 +722,7 @@ class CourseMemberServiceTest {
 				.hasMessageContaining(CourseErrorCode.COURSE_NO_SUCCESSOR.getMessage());
 			assertThat(ownerRow.isDeleted()).isFalse();
 			then(course).should(never()).changeOwner(any());
+			then(courseRepository).should(never()).bumpVersion(any());
 		}
 
 		@Test
@@ -762,6 +774,7 @@ class CourseMemberServiceTest {
 			courseMemberService.rename(OWNER_ID, COURSE_ID, "빵순이");
 
 			assertThat(mine.getDisplayName()).isEqualTo("빵순이");
+			then(courseRepository).should().bumpVersion(COURSE_ID);
 		}
 
 		@Test
@@ -778,6 +791,7 @@ class CourseMemberServiceTest {
 				.isInstanceOf(CourseException.class)
 				.hasMessageContaining(CourseErrorCode.COURSE_MEMBER_NOT_FOUND.getMessage());
 			assertThat(left.getDisplayName()).isEqualTo("지수");
+			then(courseRepository).should(never()).bumpVersion(any());
 		}
 	}
 

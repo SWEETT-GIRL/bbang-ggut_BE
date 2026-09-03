@@ -58,6 +58,15 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	Optional<Course> findWithLockByIdAndDeletedAtIsNull(Long id);
 
+	/**
+	 * 폴링 ETag 올리기. 코스·가게·메모·멤버를 바꾸는 모든 쓰기가 마지막에 부른다 — 빠뜨리면 폴링이 그 변경을 영영 못 본다.
+	 * SET version = version + 1 은 행 단위로 원자적이라 락 없는 경로(제목·메모·이름 변경)에서도 증가가 유실되지 않는다.
+	 * Course.version 은 JPA 쪽에서 읽기 전용이라 네이티브로 쓴다.
+	 */
+	@Modifying(flushAutomatically = true)
+	@Query(value = "UPDATE courses SET version = version + 1 WHERE id = :courseId", nativeQuery = true)
+	int bumpVersion(@Param("courseId") Long courseId);
+
 	List<Course> findAllByTypeAndDeletedAtIsNullOrderByCreatedAtDesc(CourseType type);
 
 	long countByPinOrderIsNotNullAndDeletedAtIsNull();

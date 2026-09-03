@@ -60,8 +60,10 @@ public class CourseMemberService {
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		validateCanEdit(course, memberId);
 
-		// 협업은 이 호출로 시작된다 — 방장도 코스 안에서 쓰는 이름을 갖는다.
-		ensureOwnerRow(course);
+		// 협업은 이 호출로 시작된다 — 방장도 코스 안에서 쓰는 이름을 갖는다. 행이 생기면 참여자 목록이 바뀐 것이다.
+		if (ensureOwnerRow(course)) {
+			courseRepository.bumpVersion(courseId);
+		}
 
 		LocalDateTime now = LocalDateTime.now();
 		Optional<CourseInvite> current = courseInviteRepository
@@ -151,6 +153,7 @@ public class CourseMemberService {
 		if (course.isPublic()) {
 			course.updatePublic(false);
 		}
+		courseRepository.bumpVersion(course.getId());
 		return new CourseInviteAcceptResponse(course.getId(), false);
 	}
 
@@ -162,20 +165,27 @@ public class CourseMemberService {
 				() -> courseMemberRepository.save(CourseMember.of(course, member, displayName)));
 	}
 
-	/** 방장 행이 없으면 만든다. 이름 기본값은 닉네임(길이 제한에 맞춰 자른다). */
-	private void ensureOwnerRow(Course course) {
+	/**
+	 * 방장 행이 없으면 만든다. 이름 기본값은 닉네임(길이 제한에 맞춰 자른다).
+	 *
+	 * @return 행을 새로 만들거나 되살렸으면 true
+	 */
+	private boolean ensureOwnerRow(Course course) {
 		Member owner = course.getMember();
 		if (owner == null) {
-			return;
+			return false;
 		}
-		courseMemberRepository.findByIdCourseIdAndIdMemberId(course.getId(), owner.getId())
-			.ifPresentOrElse(
-				row -> {
-					if (row.isDeleted()) {
-						row.rejoin(defaultDisplayName(owner));
-					}
-				},
-				() -> courseMemberRepository.save(CourseMember.of(course, owner, defaultDisplayName(owner))));
+		Optional<CourseMember> existing = courseMemberRepository
+			.findByIdCourseIdAndIdMemberId(course.getId(), owner.getId());
+		if (existing.isEmpty()) {
+			courseMemberRepository.save(CourseMember.of(course, owner, defaultDisplayName(owner)));
+			return true;
+		}
+		if (existing.get().isDeleted()) {
+			existing.get().rejoin(defaultDisplayName(owner));
+			return true;
+		}
+		return false;
 	}
 
 	static String defaultDisplayName(Member member) {
@@ -198,6 +208,7 @@ public class CourseMemberService {
 			return;
 		}
 		me.leave();
+		courseRepository.bumpVersion(courseId);
 	}
 
 	/**
@@ -216,12 +227,14 @@ public class CourseMemberService {
 			.filter(row -> row.getId().getMemberId().equals(fromMemberId))
 			.findFirst()
 			.ifPresent(CourseMember::leave);
+		courseRepository.bumpVersion(course.getId());
 	}
 
 	public void rename(Long memberId, Long courseId, String displayName) {
 		courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		getActiveMemberRow(courseId, memberId).rename(displayName);
+		courseRepository.bumpVersion(courseId);
 	}
 
 	private CourseMember getActiveMemberRow(Long courseId, Long memberId) {

@@ -124,6 +124,7 @@ public class CourseCommandService {
 			validateDates(request.getStartDate(), request.getEndDate());
 			course.updateDates(request.getStartDate(), request.getEndDate());
 		}
+		courseRepository.bumpVersion(courseId);
 	}
 
 	public void deleteCourse(Long memberId, Long courseId) {
@@ -182,6 +183,7 @@ public class CourseCommandService {
 				.forEach(i -> activeStores.get(i).updateOrder(i < finalInsertIndex ? i + 1 : i + 2));
 		}
 		courseProgressService.refreshForCourse(courseId);
+		courseRepository.bumpVersion(courseId);
 
 		return CourseStoreResponse.from(courseStore);
 	}
@@ -196,6 +198,7 @@ public class CourseCommandService {
 
 		courseStore.updateMemo(request.getMemo());
 		courseStore.updateVisitTime(request.getVisitTime());
+		courseRepository.bumpVersion(courseId);
 	}
 
 	public void removeStore(Long memberId, Long courseId, Long storeId) {
@@ -208,6 +211,7 @@ public class CourseCommandService {
 
 		courseStore.softDelete();
 		courseProgressService.refreshForCourse(courseId);
+		courseRepository.bumpVersion(courseId);
 	}
 
 	public void reorderStores(Long memberId, Long courseId, CourseStoreReorderRequest request) {
@@ -251,6 +255,7 @@ public class CourseCommandService {
 					orderedCourseStores.get(i).updateDay(orderItems.get(i).getDay());
 				}
 			});
+		courseRepository.bumpVersion(courseId);
 	}
 
 	private void validateCompleteOrder(Long courseId, List<Long> courseStoreIds) {
@@ -299,6 +304,7 @@ public class CourseCommandService {
 			.displayOrder(1)
 			.build();
 		imageProcessingCallbackService.applyPendingCallback(courseImageFileRepository.save(imageFile));
+		courseRepository.bumpVersion(courseId);
 	}
 
 	public void deleteImage(Long memberId, Long courseId) {
@@ -311,6 +317,7 @@ public class CourseCommandService {
 
 		s3Service.deleteObject(imageFile.getAwsKey());
 		courseImageFileRepository.delete(imageFile);
+		courseRepository.bumpVersion(courseId);
 	}
 
 	public Long forkCourse(Long memberId, Long courseId) {

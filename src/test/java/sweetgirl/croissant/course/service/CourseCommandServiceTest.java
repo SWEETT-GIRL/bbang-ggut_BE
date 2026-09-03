@@ -169,6 +169,7 @@ class CourseCommandServiceTest {
 
 		then(course).should().updateTitle("수정된 제목");
 		then(course).should().updatePublic(true);
+		then(courseRepository).should().bumpVersion(courseId);
 	}
 
 	@Test
@@ -185,6 +186,7 @@ class CourseCommandServiceTest {
 		assertThatThrownBy(() -> courseCommandService.updateCourse(otherId, courseId, request))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		then(courseRepository).should(never()).bumpVersion(any());
 	}
 
 	@Test
@@ -276,6 +278,7 @@ class CourseCommandServiceTest {
 
 		assertThat(result).isNotNull();
 		then(courseStoreRepository).should().save(any(CourseStore.class));
+		then(courseRepository).should().bumpVersion(courseId);
 	}
 
 	@Test
@@ -380,6 +383,7 @@ class CourseCommandServiceTest {
 
 		then(courseStore).should().updateMemo("새 메모");
 		then(courseStore).should().updateVisitTime(LocalTime.of(14, 30));
+		then(courseRepository).should().bumpVersion(courseId);
 	}
 
 	// ───────────────────────── removeStore ─────────────────────────
@@ -401,6 +405,7 @@ class CourseCommandServiceTest {
 		courseCommandService.removeStore(memberId, courseId, storeId);
 
 		then(courseStore).should().softDelete();
+		then(courseRepository).should().bumpVersion(courseId);
 	}
 
 	// ───────────────────────── reorderStores ─────────────────────────
@@ -452,6 +457,7 @@ class CourseCommandServiceTest {
 		// day 미전송이면 기존 일차 유지
 		then(courseStore1).should(never()).updateDay(any());
 		then(courseStore2).should(never()).updateDay(any());
+		then(courseRepository).should().bumpVersion(courseId);
 	}
 
 	@Test
@@ -548,6 +554,7 @@ class CourseCommandServiceTest {
 		assertThatThrownBy(() -> courseCommandService.reorderStores(memberId, courseId, request))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_STORE_ORDER_INVALID.getMessage());
+		then(courseRepository).should(never()).bumpVersion(any());
 	}
 
 	@Test
@@ -617,6 +624,7 @@ class CourseCommandServiceTest {
 		courseCommandService.registerImage(memberId, courseId, request);
 
 		then(courseImageFileRepository).should().save(any(CourseImageFile.class));
+		then(courseRepository).should().bumpVersion(courseId);
 	}
 
 	@Test
@@ -635,6 +643,7 @@ class CourseCommandServiceTest {
 
 		then(s3Service).should().deleteObject("courses/10/abc.jpg");
 		then(courseImageFileRepository).should().delete(imageFile);
+		then(courseRepository).should().bumpVersion(courseId);
 	}
 
 	@Test
@@ -652,6 +661,7 @@ class CourseCommandServiceTest {
 			.hasMessageContaining(CourseErrorCode.COURSE_IMAGE_NOT_FOUND.getMessage());
 
 		then(s3Service).should(never()).deleteObject(any());
+		then(courseRepository).should(never()).bumpVersion(any());
 	}
 
 	// ───────────────────────── forkCourse ─────────────────────────
@@ -815,6 +825,7 @@ class CourseCommandServiceTest {
 		courseCommandService.updateStore(memberId, courseId, storeId, request);
 
 		then(courseStore).should().updateMemo("멤버 메모");
+		then(courseRepository).should().bumpVersion(courseId);
 	}
 
 	@Test
@@ -831,6 +842,7 @@ class CourseCommandServiceTest {
 		assertThatThrownBy(() -> courseCommandService.removeStore(memberId, courseId, 100L))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		then(courseRepository).should(never()).bumpVersion(any());
 	}
 
 	@Test
@@ -851,6 +863,7 @@ class CourseCommandServiceTest {
 		courseCommandService.updateCourse(memberId, courseId, request);
 
 		then(course).should().updateTitle("멤버가 고친 제목");
+		then(courseRepository).should().bumpVersion(courseId);
 	}
 
 	@Test
