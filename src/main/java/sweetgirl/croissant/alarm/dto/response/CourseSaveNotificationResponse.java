@@ -2,11 +2,14 @@ package sweetgirl.croissant.alarm.dto.response;
 
 import java.time.LocalDateTime;
 
-import sweetgirl.croissant.alarm.entity.CourseSaveNotification;
-
 /**
- * 알림 한 줄. "{actorNickname} 님이 '{courseTitle}'를 찜했어요" 형태로 앱이 조립한다 —
- * 문구를 서버가 박아 내리면 앱에서 못 고친다.
+ * 구버전 앱이 기대하는 알림 한 줄. 저장 알림 전용 모양이다.
+ *
+ * <p>스토어에 깔린 옛 앱이 actorNickname·courseTitle을 꺼내 "{닉네임} 님이 '{제목}'를 찜했어요"를
+ * 조립한다. 공지에는 그 재료가 없어 빈칸투성이 문장이 되므로, 옛 경로에는 저장 알림만 내려준다.
+ *
+ * <p>그 앱들이 다 올라오면 이 DTO와 /alarm/course-notifications를 함께 지운다.
+ * 새 앱은 {@link NotificationResponse}를 쓴다.
  */
 public record CourseSaveNotificationResponse(
 		Long notificationId,
@@ -18,20 +21,15 @@ public record CourseSaveNotificationResponse(
 		Long courseId,
 		String courseTitle) {
 
-	private static final String TYPE_COURSE_SAVED = "COURSE_SAVED";
-	/** 탈퇴한 사람의 찜도 일어난 일이다 — 줄을 없애는 대신 이름만 가린다. */
-	private static final String WITHDRAWN_NICKNAME = "알 수 없음";
-
-	public static CourseSaveNotificationResponse from(CourseSaveNotification notification) {
-		boolean withdrawn = notification.getActor().isDeleted();
+	public static CourseSaveNotificationResponse from(NotificationResponse notification) {
 		return new CourseSaveNotificationResponse(
-			notification.getId(),
-			TYPE_COURSE_SAVED,
-			notification.isRead(),
-			notification.getNotifiedAt(),
-			withdrawn ? null : notification.getActor().getId(),
-			withdrawn ? WITHDRAWN_NICKNAME : notification.getActor().getNickname(),
-			notification.getCourse().getId(),
-			notification.getCourse().getTitle());
+			notification.notificationId(),
+			notification.type().name(),
+			notification.read(),
+			notification.notifiedAt(),
+			notification.actorId(),
+			notification.actorNickname(),
+			notification.targetId(),
+			notification.targetTitle());
 	}
 }

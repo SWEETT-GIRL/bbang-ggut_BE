@@ -21,12 +21,16 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import sweetgirl.croissant.alarm.dto.response.CourseSaveNotificationListResponse;
 import sweetgirl.croissant.alarm.dto.response.CourseSaveNotificationResponse;
+import sweetgirl.croissant.alarm.dto.response.NotificationListResponse;
+import sweetgirl.croissant.alarm.dto.response.NotificationResponse;
 import sweetgirl.croissant.alarm.dto.response.ReportNotificationResponse;
 import sweetgirl.croissant.alarm.dto.response.UnreadCountResponse;
+import sweetgirl.croissant.alarm.enums.NotificationTargetType;
+import sweetgirl.croissant.alarm.enums.NotificationType;
 import sweetgirl.croissant.alarm.service.AlarmCommandService;
 import sweetgirl.croissant.alarm.service.AlarmQueryService;
-import sweetgirl.croissant.alarm.service.CourseSaveNotificationService;
 import sweetgirl.croissant.alarm.service.FcmService;
+import sweetgirl.croissant.alarm.service.NotificationService;
 import sweetgirl.croissant.alarm.service.ReportNotificationService;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 
@@ -48,7 +52,7 @@ class AlarmControllerTest {
 	private ReportNotificationService reportNotificationService;
 
 	@Mock
-	private CourseSaveNotificationService courseSaveNotificationService;
+	private NotificationService notificationService;
 
 	@InjectMocks
 	private AlarmController alarmController;
@@ -106,17 +110,62 @@ class AlarmControllerTest {
 		verify(reportNotificationService).markAsRead(null, 1L);
 	}
 
-	// ─────────────── 내 빵투어 찜 알림 ───────────────
+	// ─────────────── 알림 (새 경로) ───────────────
 
 	@Test
-	void getMyCourseSaveNotifications_returnsListWithHasNext() throws Exception {
-		CourseSaveNotificationResponse notification = new CourseSaveNotificationResponse(
-			812L, "COURSE_SAVED", false, LocalDateTime.of(2026, 8, 19, 10, 31),
-			2437L, "포실한 까눌레", 352L, "8월 20일 부산 빵투어");
+	void getMyNotifications_returnsAllTypes() throws Exception {
+		NotificationResponse saved = new NotificationResponse(
+			812L, NotificationType.COURSE_SAVED, false, LocalDateTime.of(2026, 8, 19, 10, 31),
+			2437L, "포실한 까눌레", NotificationTargetType.COURSE, 352L, "8월 20일 부산 빵투어",
+			null, null, null);
+		NotificationResponse notice = new NotificationResponse(
+			900L, NotificationType.NOTICE, false, LocalDateTime.of(2026, 9, 3, 9, 0),
+			null, null, null, null, null,
+			"일차 나누기가 생겼어요", "1박 2일 빵투어를 나눠 담아보세요", "/course/12");
 		// standalone MockMvc엔 @AuthenticationPrincipal 리졸버가 없어 memberId는 null로 들어온다
 		// (이 파일의 다른 테스트들과 같은 전제). 여기서 보는 건 경로·기본 페이징·응답 모양이다.
-		given(courseSaveNotificationService.getMyNotifications(null, 0, 20))
-			.willReturn(new CourseSaveNotificationListResponse(List.of(notification), true));
+		given(notificationService.getMine(null, 0, 20))
+			.willReturn(new NotificationListResponse(List.of(saved, notice), true));
+
+		mockMvc.perform(get("/alarm/notifications"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.hasNext").value(true))
+			.andExpect(jsonPath("$.data.notifications[0].type").value("COURSE_SAVED"))
+			.andExpect(jsonPath("$.data.notifications[0].targetTitle").value("8월 20일 부산 빵투어"))
+			// 공지는 actor·target이 비고 서버 문구가 실려 온다
+			.andExpect(jsonPath("$.data.notifications[1].type").value("NOTICE"))
+			.andExpect(jsonPath("$.data.notifications[1].actorNickname").doesNotExist())
+			.andExpect(jsonPath("$.data.notifications[1].title").value("일차 나누기가 생겼어요"))
+			.andExpect(jsonPath("$.data.notifications[1].link").value("/course/12"));
+	}
+
+	@Test
+	void getNotificationUnreadCount_returnsCount() throws Exception {
+		given(notificationService.getUnreadCount(null)).willReturn(new UnreadCountResponse(3L));
+
+		mockMvc.perform(get("/alarm/notifications/unread-count"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.unreadCount").value(3));
+	}
+
+	@Test
+	void readNotifications_withoutBody_marksAll() throws Exception {
+		mockMvc.perform(patch("/alarm/notifications/read"))
+			.andExpect(status().isOk());
+
+		verify(notificationService).markAsRead(null, null);
+	}
+
+	// ─────────────── 구버전 경로 (저장 알림만) ───────────────
+
+	@Test
+	void legacyCourseNotifications_keepOldShapeAndFilterToCourseSaved() throws Exception {
+		NotificationResponse saved = new NotificationResponse(
+			812L, NotificationType.COURSE_SAVED, false, LocalDateTime.of(2026, 8, 19, 10, 31),
+			2437L, "포실한 까눌레", NotificationTargetType.COURSE, 352L, "8월 20일 부산 빵투어",
+			null, null, null);
+		given(notificationService.getMineByType(null, NotificationType.COURSE_SAVED, 0, 20))
+			.willReturn(new NotificationListResponse(List.of(saved), true));
 
 		mockMvc.perform(get("/alarm/course-notifications"))
 			.andExpect(status().isOk())
@@ -124,12 +173,15 @@ class AlarmControllerTest {
 			.andExpect(jsonPath("$.data.notifications[0].notificationId").value(812))
 			.andExpect(jsonPath("$.data.notifications[0].type").value("COURSE_SAVED"))
 			.andExpect(jsonPath("$.data.notifications[0].actorNickname").value("포실한 까눌레"))
+			// 옛 앱이 읽는 이름 그대로여야 한다 — targetId/targetTitle이 아니라 courseId/courseTitle
+			.andExpect(jsonPath("$.data.notifications[0].courseId").value(352))
 			.andExpect(jsonPath("$.data.notifications[0].courseTitle").value("8월 20일 부산 빵투어"));
 	}
 
 	@Test
-	void getCourseSaveNotificationUnreadCount_returnsCount() throws Exception {
-		given(courseSaveNotificationService.getUnreadCount(null)).willReturn(new UnreadCountResponse(3L));
+	void legacyUnreadCount_countsOnlyCourseSaved() throws Exception {
+		given(notificationService.getUnreadCountByType(null, NotificationType.COURSE_SAVED))
+			.willReturn(new UnreadCountResponse(3L));
 
 		mockMvc.perform(get("/alarm/course-notifications/unread-count"))
 			.andExpect(status().isOk())
@@ -137,10 +189,10 @@ class AlarmControllerTest {
 	}
 
 	@Test
-	void readCourseSaveNotifications_withoutBody_marksAll() throws Exception {
+	void legacyRead_marksOnlyCourseSaved() throws Exception {
 		mockMvc.perform(patch("/alarm/course-notifications/read"))
 			.andExpect(status().isOk());
 
-		verify(courseSaveNotificationService).markAsRead(null, null);
+		verify(notificationService).markAsReadByType(null, NotificationType.COURSE_SAVED, null);
 	}
 }
