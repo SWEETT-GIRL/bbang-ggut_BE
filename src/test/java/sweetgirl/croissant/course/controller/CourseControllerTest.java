@@ -2,8 +2,10 @@ package sweetgirl.croissant.course.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willDoNothing;
 import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -31,13 +33,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
+import sweetgirl.croissant.course.dto.response.CourseInviteAcceptResponse;
+import sweetgirl.croissant.course.dto.response.CourseInvitePreviewResponse;
+import sweetgirl.croissant.course.dto.response.CourseInviteResponse;
 import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
+import sweetgirl.croissant.course.enums.CourseInviteState;
 import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.service.CourseCommandService;
+import sweetgirl.croissant.course.service.CourseMemberService;
 import sweetgirl.croissant.course.service.CourseProgressService;
 import sweetgirl.croissant.course.service.CourseQueryService;
 import sweetgirl.croissant.course.service.SavedCourseCommandService;
@@ -58,6 +65,8 @@ class CourseControllerTest {
 	private SavedCourseCommandService savedCourseCommandService;
 	@Mock
 	private CourseProgressService courseProgressService;
+	@Mock
+	private CourseMemberService courseMemberService;
 
 	@InjectMocks
 	private CourseController courseController;
@@ -411,5 +420,104 @@ class CourseControllerTest {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.success").value(false))
 			.andExpect(jsonPath("$.code").value("COURSE400_3"));
+	}
+
+	// ───────────────────────── 동시편집: 초대·멤버 ─────────────────────────
+
+	@Test
+	void createInvite_returns200() throws Exception {
+		LocalDateTime expiresAt = LocalDateTime.of(2026, 9, 10, 14, 3);
+		given(courseMemberService.createInvite(isNull(), eq(10L)))
+			.willReturn(new CourseInviteResponse("k9J-token", expiresAt, false));
+
+		mockMvc.perform(post("/courses/10/invites"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true))
+			.andExpect(jsonPath("$.data.token").value("k9J-token"))
+			.andExpect(jsonPath("$.data.expiresAt").value("2026-09-10T14:03:00"))
+			.andExpect(jsonPath("$.data.reused").value(false));
+	}
+
+	@Test
+	void previewInvite_returns200_withStateAndNoViewerWhenAnonymous() throws Exception {
+		given(courseMemberService.previewInvite(eq("abc_-123"), isNull()))
+			.willReturn(new CourseInvitePreviewResponse(
+				CourseInviteState.OK, 12L, "성수 소금빵 투어", "다나", 3, 8,
+				LocalDateTime.of(2026, 9, 10, 14, 3), null));
+
+		mockMvc.perform(get("/courses/invites/abc_-123"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.state").value("OK"))
+			.andExpect(jsonPath("$.data.courseId").value(12))
+			.andExpect(jsonPath("$.data.ownerName").value("다나"))
+			.andExpect(jsonPath("$.data.memberCount").value(3))
+			.andExpect(jsonPath("$.data.memberLimit").value(8))
+			.andExpect(jsonPath("$.data.viewer").doesNotExist());
+	}
+
+	@Test
+	void previewInvite_invalidToken_stillReturns200() throws Exception {
+		given(courseMemberService.previewInvite(eq("nope"), isNull()))
+			.willReturn(CourseInvitePreviewResponse.invalid());
+
+		mockMvc.perform(get("/courses/invites/nope"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.state").value("INVALID"))
+			.andExpect(jsonPath("$.data.courseId").doesNotExist());
+	}
+
+	@Test
+	void acceptInvite_returns200() throws Exception {
+		given(courseMemberService.acceptInvite(isNull(), eq("abc"), eq("지수")))
+			.willReturn(new CourseInviteAcceptResponse(12L, false));
+
+		mockMvc.perform(post("/courses/invites/abc/accept")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"displayName\":\"지수\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.courseId").value(12))
+			.andExpect(jsonPath("$.data.alreadyMember").value(false));
+	}
+
+	@Test
+	void acceptInvite_blankOrTooLongName_returns400() throws Exception {
+		mockMvc.perform(post("/courses/invites/abc/accept")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"displayName\":\"   \"}"))
+			.andExpect(status().isBadRequest());
+		mockMvc.perform(post("/courses/invites/abc/accept")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"displayName\":\"12345678901\"}"))
+			.andExpect(status().isBadRequest());
+		then(courseMemberService).shouldHaveNoInteractions();
+	}
+
+	@Test
+	void leaveCourse_returns200() throws Exception {
+		willDoNothing().given(courseMemberService).leave(isNull(), eq(10L));
+
+		mockMvc.perform(delete("/courses/10/members/me"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
+		then(courseMemberService).should().leave(null, 10L);
+	}
+
+	@Test
+	void leaveCourse_noSuccessor_returns400() throws Exception {
+		willThrow(new CourseException(CourseErrorCode.COURSE_NO_SUCCESSOR))
+			.given(courseMemberService).leave(isNull(), eq(10L));
+
+		mockMvc.perform(delete("/courses/10/members/me"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("COURSE400_17"));
+	}
+
+	@Test
+	void renameMember_returns200() throws Exception {
+		mockMvc.perform(patch("/courses/10/members/me")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"displayName\":\"빵순이\"}"))
+			.andExpect(status().isOk());
+		then(courseMemberService).should().rename(null, 10L, "빵순이");
 	}
 }

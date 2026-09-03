@@ -130,4 +130,8 @@ public class Member {
 		return this.deletedAt != null;
 	}
 
+	public boolean isGuest() {
+		return "GUEST".equals(this.memberType);
+	}
+
 }

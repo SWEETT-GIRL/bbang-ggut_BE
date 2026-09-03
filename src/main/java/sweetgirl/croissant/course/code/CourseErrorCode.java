@@ -28,7 +28,14 @@ public enum CourseErrorCode implements BaseErrorCode {
 	COURSE_STORE_DAY_INVALID(HttpStatus.BAD_REQUEST, "COURSE400_11", "일차 정보가 올바르지 않습니다."),
 	COURSE_DATES_INVALID(HttpStatus.BAD_REQUEST, "COURSE400_12", "여행 날짜가 올바르지 않습니다."),
 	COURSE_VISIT_RECORD_MISMATCH(HttpStatus.BAD_REQUEST, "COURSE400_13", "그 가게의 기록이 아닙니다."),
-	COURSE_VISIT_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_5", "방문 표시를 찾을 수 없습니다.");
+	COURSE_VISIT_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_5", "방문 표시를 찾을 수 없습니다."),
+	COURSE_INVITE_INVALID(HttpStatus.NOT_FOUND, "COURSE404_6", "유효하지 않은 초대예요."),
+	COURSE_INVITE_EXPIRED(HttpStatus.BAD_REQUEST, "COURSE400_14", "초대 링크가 만료됐어요. 새 링크를 받아주세요."),
+	COURSE_MEMBER_LIMIT(HttpStatus.BAD_REQUEST, "COURSE400_15", "빵투어 인원이 다 찼어요."),
+	COURSE_COLLAB_CANNOT_BE_PUBLIC(HttpStatus.BAD_REQUEST, "COURSE400_16", "같이 편집 중인 빵투어는 공개할 수 없어요."),
+	COURSE_MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_7", "이 빵투어의 일행이 아니에요."),
+	COURSE_NO_SUCCESSOR(HttpStatus.BAD_REQUEST, "COURSE400_17", "넘겨줄 일행이 없어요. 빵투어를 삭제해주세요."),
+	COURSE_DAY_COUNT_INVALID(HttpStatus.BAD_REQUEST, "COURSE400_18", "일차 수는 줄일 수 없어요.");
 
 	private final HttpStatus httpStatus;
 	private final String code;

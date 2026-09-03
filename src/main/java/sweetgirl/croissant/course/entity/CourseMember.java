@@ -31,6 +31,9 @@ public class CourseMember extends BaseTimeEntity {
 	/** 코스 안에서 쓰는 이름의 최대 길이. DB VARCHAR(10) 과 요청 DTO 의 @Size 가 같은 값을 본다. */
 	public static final int DISPLAY_NAME_MAX_LENGTH = 10;
 
+	/** 방장 포함 정원. */
+	public static final int MEMBER_LIMIT = 8;
+
 	@EmbeddedId
 	private CourseMemberId id;
 
