@@ -99,6 +99,10 @@ public class CourseCommandService {
 		if (request.getIsPublic() != null) {
 			validateOwner(course, memberId);
 		}
+		// 같이 편집 중인 코스는 공개할 수 없다 — 방장 말고 활성 멤버가 1명 이상일 때. 방장 행만 있으면 아직 협업이 아니다.
+		if (Boolean.TRUE.equals(request.getIsPublic()) && hasCollaborators(course, memberId)) {
+			throw new CourseException(CourseErrorCode.COURSE_COLLAB_CANNOT_BE_PUBLIC);
+		}
 
 		// FORKED 코스는 원본과 동일한 채로 '공개'만 막는다. 비공개 복제는 동일해도 허용.
 		if (course.getType() == CourseType.FORKED) {
@@ -124,7 +128,32 @@ public class CourseCommandService {
 			validateDates(request.getStartDate(), request.getEndDate());
 			course.updateDates(request.getStartDate(), request.getEndDate());
 		}
+		if (request.getDayCount() != null) {
+			updateDayCount(courseId, request.getDayCount());
+		}
 		courseRepository.bumpVersion(courseId);
+	}
+
+	private boolean hasCollaborators(Course course, Long ownerId) {
+		return courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(course.getId()).stream()
+			.anyMatch(row -> !row.getId().getMemberId().equals(ownerId));
+	}
+
+	/**
+	 * 일차 수는 늘어나기만 한다. 일행이 동시에 뒤 일차에 가게를 담을 수 있으니
+	 * 코스 행에 락을 잡고 현재 값·가게가 있는 마지막 일차와 비교한다.
+	 */
+	private void updateDayCount(Long courseId, int dayCount) {
+		Course lockedCourse = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
+			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
+		int maxDay = courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId).stream()
+			.mapToInt(CourseStore::getDay)
+			.max()
+			.orElse(0);
+		if (dayCount < lockedCourse.getDayCount() || dayCount < maxDay) {
+			throw new CourseException(CourseErrorCode.COURSE_DAY_COUNT_INVALID);
+		}
+		lockedCourse.updateDayCount(dayCount);
 	}
 
 	public void deleteCourse(Long memberId, Long courseId) {
@@ -153,6 +182,8 @@ public class CourseCommandService {
 		if (day < 1 || day > maxDay + 1) {
 			throw new CourseException(CourseErrorCode.COURSE_STORE_DAY_INVALID);
 		}
+		// 뒤 일차에 담기면 일차 수도 따라 올린다 — 일행이 같은 일차 수를 본다
+		course.ensureDayCountAtLeast(day);
 
 		// 삽입 위치: 해당 일차의 마지막 가게 뒤
 		int insertIndex = 0;
@@ -248,6 +279,7 @@ public class CourseCommandService {
 		boolean hasDayInfo = orderItems.stream().anyMatch(item -> item.getDay() != null);
 		if (hasDayInfo) {
 			validateDaySequence(orderItems);
+			orderItems.stream().mapToInt(CourseStoreOrderItem::getDay).max().ifPresent(course::ensureDayCountAtLeast);
 		}
 
 		// (course_id, visit_order) 유니크 제약과의 스왑 충돌을 피하기 위해 임시 음수 순서로 옮긴 뒤 최종 순서 부여
