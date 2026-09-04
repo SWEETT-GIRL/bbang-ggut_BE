@@ -26,9 +26,18 @@ public interface CourseMemberRepository extends JpaRepository<CourseMember, Cour
 	/** 정원(방장 포함 8명) 판정. */
 	long countByIdCourseIdAndDeletedAtIsNull(Long courseId);
 
-	/** 내가 참여한 코스. 코스를 같이 읽는다 — 목록·탈퇴 정리가 행마다 코스를 본다. */
+	/** 내가 참여한 코스. 코스를 같이 읽는다 — 내 목록이 행마다 코스를 본다. */
 	@EntityGraph(attributePaths = "course")
 	List<CourseMember> findAllByIdMemberIdAndDeletedAtIsNull(Long memberId);
+
+	/** 참여 중인 코스 id 만, 코스 id 오름차순 — 탈퇴 정리가 코스마다 락을 잡을 때 순서를 고정해 데드락을 피한다. */
+	@Query("""
+			SELECT m.id.courseId
+			FROM CourseMember m
+			WHERE m.id.memberId = :memberId AND m.deletedAt IS NULL
+			ORDER BY m.id.courseId
+			""")
+	List<Long> findActiveCourseIdsByMemberId(@Param("memberId") Long memberId);
 
 	// ── 게스트 → 회원 데이터 이관 ─────────────────────────────
 	// (course_id, member_id) 가 PK 라 회원이 이미 같은 코스의 행을 가지면 게스트 쪽을 버린다.

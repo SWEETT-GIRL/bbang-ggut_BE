@@ -129,4 +129,19 @@ class CourseMemberRepositoryTest {
 			.extracting(row -> row.getId().getCourseId())
 			.containsExactlyInAnyOrder(course.getId(), otherCourse.getId());
 	}
+
+	@Test
+	@DisplayName("참여 중인 코스 id 는 코스 id 오름차순이고 나간 행은 빠진다 — 탈퇴 정리의 락 순서")
+	void findActiveCourseIds_orderedAndExcludesLeft() {
+		Course later = persistCourse(owner, "나중에 만든 코스");
+		Course left = persistCourse(owner, "나간 코스");
+		persistMemberRow(later, first, "첫째");
+		persistMemberRow(course, first, "첫째");
+		CourseMember leftRow = persistMemberRow(left, first, "첫째");
+		leftRow.leave();
+		entityManager.flush();
+
+		assertThat(courseMemberRepository.findActiveCourseIdsByMemberId(first.getId()))
+			.containsExactly(course.getId(), later.getId());
+	}
 }
