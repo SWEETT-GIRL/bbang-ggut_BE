@@ -31,4 +31,9 @@ public interface CourseStoreRepository extends JpaRepository<CourseStore, Long> 
 	@Query("SELECT COALESCE(MAX(cs.visitOrder), 0) FROM CourseStore cs"
 		+ " WHERE cs.course.id = :courseId AND cs.deletedAt IS NULL")
 	int findMaxVisitOrderByCourseId(@Param("courseId") Long courseId);
+
+	/** 일차 수 검증용 — 가게가 있는 마지막 일차. 정류장을 전부 읽지 않는다. 가게가 없으면 0. */
+	@Query("SELECT COALESCE(MAX(cs.day), 0) FROM CourseStore cs"
+		+ " WHERE cs.course.id = :courseId AND cs.deletedAt IS NULL")
+	int findMaxDayByCourseId(@Param("courseId") Long courseId);
 }

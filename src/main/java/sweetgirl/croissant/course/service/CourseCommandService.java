@@ -189,8 +189,7 @@ public class CourseCommandService {
 	}
 
 	private boolean hasCollaborators(Course course, Long ownerId) {
-		return courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(course.getId()).stream()
-			.anyMatch(row -> !row.getId().getMemberId().equals(ownerId));
+		return courseMemberRepository.existsByIdCourseIdAndIdMemberIdNotAndDeletedAtIsNull(course.getId(), ownerId);
 	}
 
 	/**
@@ -198,11 +197,7 @@ public class CourseCommandService {
 	 * 락을 잡은 코스의 현재 값·가게가 있는 마지막 일차와 비교한다.
 	 */
 	private void updateDayCount(Course lockedCourse, int dayCount) {
-		int maxDay = courseStoreRepository
-			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(lockedCourse.getId()).stream()
-			.mapToInt(CourseStore::getDay)
-			.max()
-			.orElse(0);
+		int maxDay = courseStoreRepository.findMaxDayByCourseId(lockedCourse.getId());
 		if (dayCount < lockedCourse.getDayCount() || dayCount < maxDay) {
 			throw new CourseException(CourseErrorCode.COURSE_DAY_COUNT_INVALID);
 		}
@@ -221,15 +216,16 @@ public class CourseCommandService {
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		validateCanEdit(course, memberId);
 
-		if (courseStoreRepository.existsByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, request.getStoreId())) {
+		// 활성 정류장을 한 번 읽어 중복 가게·일차·삽입 위치·다음 순서를 전부 판정한다 — exists·MAX 쿼리를 따로 내지 않는다
+		List<CourseStore> activeStores = courseStoreRepository
+			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId);
+		if (containsStore(activeStores, request.getStoreId())) {
 			throw new CourseException(CourseErrorCode.COURSE_STORE_ALREADY_EXISTS);
 		}
 
 		Store store = storeRepository.findById(request.getStoreId())
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 
-		List<CourseStore> activeStores = courseStoreRepository
-			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId);
 		int day = resolveDay(request.getDay(), activeStores);
 		// 뒤 일차에 담기면 일차 수도 따라 올린다 — 일행이 같은 일차 수를 본다
 		course.ensureDayCountAtLeast(day);
@@ -257,6 +253,10 @@ public class CourseCommandService {
 		return day;
 	}
 
+	private boolean containsStore(List<CourseStore> activeStores, Long storeId) {
+		return activeStores.stream().anyMatch(courseStore -> courseStore.getStore().getId().equals(storeId));
+	}
+
 	/**
 	 * 해당 일차의 마지막 가게 뒤에 끼워 넣는다.
 	 * 중간 삽입은 (course_id, visit_order) 유니크 충돌을 피하려고 기존 가게를 임시 음수 순서로 옮긴 뒤 끼우고 다시 매긴다.
@@ -265,7 +265,8 @@ public class CourseCommandService {
 			LocalTime visitTime) {
 		int insertIndex = insertIndexFor(activeStores, day);
 		if (insertIndex == activeStores.size()) {
-			int nextOrder = courseStoreRepository.findMaxVisitOrderByCourseId(course.getId()) + 1;
+			// 순서 유니크는 활성 행 기준이라 활성 정류장의 최대 순서 다음이면 된다
+			int nextOrder = activeStores.stream().mapToInt(CourseStore::getVisitOrder).max().orElse(0) + 1;
 			CourseStore appended = CourseStore.createWithDetails(course, store, nextOrder, day, null, visitTime);
 			courseStoreRepository.save(appended);
 			return appended;
@@ -382,22 +383,25 @@ public class CourseCommandService {
 		List<Long> courseStoreIds = orderItems.stream()
 			.map(CourseStoreOrderItem::getCourseStoreId)
 			.toList();
-		validateCompleteOrder(courseId, courseStoreIds);
+		// 락 안에서 활성 정류장을 한 번 읽어 집합 검증·순서 CAS·갱신할 행 조회에 다 쓴다 — count·findAllById 를 따로 내지 않는다
+		List<CourseStore> activeStores = courseStoreRepository
+			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId);
+		validateCompleteOrder(activeStores.size(), courseStoreIds);
 		// 순서 CAS — 두 사람이 같은 집합을 다른 순서로 동시에 저장하면 집합 검증은 둘 다 통과하고 후저장이 이긴다.
 		// version 이 아니라 순서 자체를 비교한다: version 은 메모·제목 저장에도 오르므로
 		// 친구가 메모만 써도 내 드래그가 거부되는 가짜 충돌이 난다. 구버전 앱은 expectedOrder 를 안 보내므로 건너뛴다.
 		if (request.getExpectedOrder() != null) {
-			validateExpectedOrder(courseId, request.getExpectedOrder());
+			validateExpectedOrder(activeStores, request.getExpectedOrder());
 		}
 
-		Map<Long, CourseStore> courseStoreMap = courseStoreRepository.findAllById(courseStoreIds).stream()
-			.collect(Collectors.toMap(CourseStore::getId, cs -> cs));
+		Map<Long, CourseStore> courseStoreById = activeStores.stream()
+			.collect(Collectors.toMap(CourseStore::getId, courseStore -> courseStore));
 
 		List<CourseStore> orderedCourseStores = orderItems.stream()
 			.map(item -> {
-				CourseStore courseStore = courseStoreMap.get(item.getCourseStoreId());
-				if (courseStore == null || courseStore.isDeleted()
-					|| !courseStore.getCourse().getId().equals(courseId)) {
+				CourseStore courseStore = courseStoreById.get(item.getCourseStoreId());
+				// 이 코스의 활성 정류장이 아니다 — 다른 코스의 행이거나 이미 뺀 행
+				if (courseStore == null) {
 					throw new CourseException(CourseErrorCode.COURSE_STORE_NOT_FOUND);
 				}
 				return courseStore;
@@ -424,8 +428,7 @@ public class CourseCommandService {
 		courseRepository.bumpVersion(courseId);
 	}
 
-	private void validateCompleteOrder(Long courseId, List<Long> courseStoreIds) {
-		long activeStoreCount = courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId);
+	private void validateCompleteOrder(int activeStoreCount, List<Long> courseStoreIds) {
 		if (courseStoreIds.contains(null)
 			|| courseStoreIds.size() != activeStoreCount
 			|| new HashSet<>(courseStoreIds).size() != courseStoreIds.size()) {
@@ -433,10 +436,9 @@ public class CourseCommandService {
 		}
 	}
 
-	/** 락 안에서 현재 DB 의 활성 정류장 순서와 클라이언트가 본 순서를 리스트로 비교한다. 다르면 일행이 먼저 옮긴 것이다. */
-	private void validateExpectedOrder(Long courseId, List<Long> expectedOrder) {
-		List<Long> currentOrder = courseStoreRepository
-			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId).stream()
+	/** 락 안에서 읽은 활성 정류장 순서와 클라이언트가 본 순서를 리스트로 비교한다. 다르면 일행이 먼저 옮긴 것이다. */
+	private void validateExpectedOrder(List<CourseStore> activeStores, List<Long> expectedOrder) {
+		List<Long> currentOrder = activeStores.stream()
 			.map(CourseStore::getId)
 			.toList();
 		if (!currentOrder.equals(expectedOrder)) {

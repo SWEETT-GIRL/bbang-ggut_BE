@@ -36,8 +36,6 @@ import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseUpdateResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseImageFile;
-import sweetgirl.croissant.course.entity.CourseMember;
-import sweetgirl.croissant.course.entity.CourseMemberId;
 import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.entity.CourseStoreMemo;
 import sweetgirl.croissant.course.enums.CourseType;
@@ -283,9 +281,7 @@ class CourseCommandServiceTest {
 		given(request.getVisitTime()).willReturn(LocalTime.of(10, 0));
 
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
-		given(courseStoreRepository.existsByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId)).willReturn(false);
 		given(storeRepository.findById(storeId)).willReturn(Optional.of(store));
-		given(courseStoreRepository.findMaxVisitOrderByCourseId(courseId)).willReturn(0);
 
 		CourseStore savedCourseStore = mockCourseStore(1, store);
 		given(courseStoreRepository.save(any(CourseStore.class))).willReturn(savedCourseStore);
@@ -305,6 +301,37 @@ class CourseCommandServiceTest {
 		assertThat(result.memo()).isEqualTo("메모");
 		assertThat(result.memos()).hasSize(1);
 		assertThat(result.memos().get(0).isMine()).isTrue();
+		// 활성 정류장 목록 하나로 중복·다음 순서를 판정한다 — exists·MAX 쿼리는 나가지 않는다
+		then(courseStoreRepository).should(never()).existsByCourseIdAndStoreIdAndDeletedAtIsNull(any(), any());
+		then(courseStoreRepository).should(never()).findMaxVisitOrderByCourseId(any());
+	}
+
+	@Test
+	@DisplayName("addStore: 마지막에 붙이면 활성 정류장의 최대 순서 다음을 쓴다")
+	void addStore_append_usesNextVisitOrder() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Long storeId = 100L;
+
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		Store store = mockStore(storeId);
+		CourseStoreAddRequest request = mock(CourseStoreAddRequest.class);
+		given(request.getStoreId()).willReturn(storeId);
+		given(request.getDay()).willReturn(null);
+
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(storeRepository.findById(storeId)).willReturn(Optional.of(store));
+		CourseStore firstStop = mockCourseStore(1, mockStore(101L));
+		CourseStore secondStop = mockCourseStore(2, mockStore(102L));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
+			.willReturn(List.of(firstStop, secondStop));
+
+		CourseStoreResponse result = courseCommandService.addStore(memberId, courseId, request);
+
+		assertThat(result.visitOrder()).isEqualTo(3);
+		assertThat(result.day()).isEqualTo(1);
+		then(courseStoreRepository).should(never()).flush();
+		then(courseStoreRepository).should(never()).findMaxVisitOrderByCourseId(any());
 	}
 
 	@Test
@@ -319,11 +346,15 @@ class CourseCommandServiceTest {
 		given(request.getStoreId()).willReturn(storeId);
 
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
-		given(courseStoreRepository.existsByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId)).willReturn(true);
+		// 활성 정류장 목록에 같은 가게가 이미 있다
+		CourseStore sameStoreStop = mockCourseStore(1, mockStore(storeId));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
+			.willReturn(List.of(sameStoreStop));
 
 		assertThatThrownBy(() -> courseCommandService.addStore(memberId, courseId, request))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_STORE_ALREADY_EXISTS.getMessage());
+		then(storeRepository).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -343,7 +374,6 @@ class CourseCommandServiceTest {
 		CourseStore day2Store = mockCourseStore(2, 2, mockStore(102L));
 
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
-		given(courseStoreRepository.existsByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId)).willReturn(false);
 		given(storeRepository.findById(storeId)).willReturn(Optional.of(store));
 		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
 			.willReturn(List.of(day1Store, day2Store));
@@ -377,7 +407,6 @@ class CourseCommandServiceTest {
 		CourseStore day1Store = mockCourseStore(1, 1, mockStore(101L));
 
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
-		given(courseStoreRepository.existsByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId)).willReturn(false);
 		given(storeRepository.findById(storeId)).willReturn(Optional.of(store));
 		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
 			.willReturn(List.of(day1Store));
@@ -469,17 +498,16 @@ class CourseCommandServiceTest {
 
 		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
 		given(request.getCourseStoreOrders()).willReturn(List.of(item1, item2));
+		// Mockito 는 List 미스텁 메서드에 빈 리스트를 돌려주므로, expectedOrder 미전송(구버전 앱) 상태를 명시 스텁
+		given(request.getExpectedOrder()).willReturn(null);
 
 		CourseStore courseStore1 = mock(CourseStore.class);
 		given(courseStore1.getId()).willReturn(courseStoreId1);
-		given(courseStore1.getCourse()).willReturn(course);
 		CourseStore courseStore2 = mock(CourseStore.class);
 		given(courseStore2.getId()).willReturn(courseStoreId2);
-		given(courseStore2.getCourse()).willReturn(course);
 
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
-		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
-		given(courseStoreRepository.findAllById(List.of(courseStoreId1, courseStoreId2)))
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
 			.willReturn(List.of(courseStore1, courseStore2));
 
 		courseCommandService.reorderStores(memberId, courseId, request);
@@ -494,6 +522,9 @@ class CourseCommandServiceTest {
 		then(courseStore1).should(never()).updateDay(any());
 		then(courseStore2).should(never()).updateDay(any());
 		then(courseRepository).should().bumpVersion(courseId);
+		// 활성 정류장 목록 하나로 집합 검증·행 조회를 다 한다 — count·findAllById 는 나가지 않는다
+		then(courseStoreRepository).should(never()).countByCourseIdAndDeletedAtIsNull(any());
+		then(courseStoreRepository).should(never()).findAllById(any());
 	}
 
 	@Test
@@ -515,17 +546,16 @@ class CourseCommandServiceTest {
 
 		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
 		given(request.getCourseStoreOrders()).willReturn(List.of(item1, item2));
+		// Mockito 는 List 미스텁 메서드에 빈 리스트를 돌려주므로, expectedOrder 미전송(구버전 앱) 상태를 명시 스텁
+		given(request.getExpectedOrder()).willReturn(null);
 
 		CourseStore courseStore1 = mock(CourseStore.class);
 		given(courseStore1.getId()).willReturn(1L);
-		given(courseStore1.getCourse()).willReturn(course);
 		CourseStore courseStore2 = mock(CourseStore.class);
 		given(courseStore2.getId()).willReturn(2L);
-		given(courseStore2.getCourse()).willReturn(course);
 
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
-		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
-		given(courseStoreRepository.findAllById(List.of(1L, 2L)))
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
 			.willReturn(List.of(courseStore1, courseStore2));
 
 		courseCommandService.reorderStores(memberId, courseId, request);
@@ -556,17 +586,16 @@ class CourseCommandServiceTest {
 
 		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
 		given(request.getCourseStoreOrders()).willReturn(List.of(item1, item2));
+		// Mockito 는 List 미스텁 메서드에 빈 리스트를 돌려주므로, expectedOrder 미전송(구버전 앱) 상태를 명시 스텁
+		given(request.getExpectedOrder()).willReturn(null);
 
 		CourseStore courseStore1 = mock(CourseStore.class);
 		given(courseStore1.getId()).willReturn(1L);
-		given(courseStore1.getCourse()).willReturn(course);
 		CourseStore courseStore2 = mock(CourseStore.class);
 		given(courseStore2.getId()).willReturn(2L);
-		given(courseStore2.getCourse()).willReturn(course);
 
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
-		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
-		given(courseStoreRepository.findAllById(List.of(1L, 2L)))
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
 			.willReturn(List.of(courseStore1, courseStore2));
 
 		assertThatThrownBy(() -> courseCommandService.reorderStores(memberId, courseId, request))
@@ -586,7 +615,8 @@ class CourseCommandServiceTest {
 		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
 		given(request.getCourseStoreOrders()).willReturn(List.of(item, item));
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
-		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
+			.willReturn(List.of(mock(CourseStore.class), mock(CourseStore.class)));
 
 		assertThatThrownBy(() -> courseCommandService.reorderStores(memberId, courseId, request))
 			.isInstanceOf(CourseException.class)
@@ -602,22 +632,21 @@ class CourseCommandServiceTest {
 		Long otherCourseStoreId = 77L;
 
 		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
-		Course otherCourse = mockCourse(99L, "남의 코스", CourseType.CUSTOM, 2L, null);
 
 		CourseStoreReorderRequest.CourseStoreOrderItem item = mock(
 			CourseStoreReorderRequest.CourseStoreOrderItem.class);
 		given(item.getCourseStoreId()).willReturn(otherCourseStoreId);
 		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
 		given(request.getCourseStoreOrders()).willReturn(List.of(item));
+		given(request.getExpectedOrder()).willReturn(null);
 
-		CourseStore otherCourseStore = mock(CourseStore.class);
-		given(otherCourseStore.getId()).willReturn(otherCourseStoreId);
-		given(otherCourseStore.getCourse()).willReturn(otherCourse);
+		// 이 코스의 활성 정류장은 하나뿐이고, 요청한 id 는 그 목록에 없다 — 다른 코스의 행이거나 이미 뺀 행
+		CourseStore ownCourseStore = mock(CourseStore.class);
+		given(ownCourseStore.getId()).willReturn(1L);
 
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
-		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(1L);
-		given(courseStoreRepository.findAllById(List.of(otherCourseStoreId)))
-			.willReturn(List.of(otherCourseStore));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
+			.willReturn(List.of(ownCourseStore));
 
 		assertThatThrownBy(() -> courseCommandService.reorderStores(memberId, courseId, request))
 			.isInstanceOf(CourseException.class)
@@ -892,13 +921,9 @@ class CourseCommandServiceTest {
 
 		CourseStore courseStore1 = mock(CourseStore.class);
 		lenient().when(courseStore1.getId()).thenReturn(1L);
-		lenient().when(courseStore1.getCourse()).thenReturn(course);
 		CourseStore courseStore2 = mock(CourseStore.class);
 		lenient().when(courseStore2.getId()).thenReturn(2L);
-		lenient().when(courseStore2.getCourse()).thenReturn(course);
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
-		lenient().when(courseStoreRepository.findAllById(List.of(2L, 1L)))
-			.thenReturn(List.of(courseStore2, courseStore1));
 		// 현재 DB 순서는 1 → 2
 		lenient().when(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
 			.thenReturn(List.of(courseStore1, courseStore2));
@@ -912,7 +937,6 @@ class CourseCommandServiceTest {
 		Long courseId = 10L;
 		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
 		CourseStoreReorderRequest request = reorderRequestSwapping(courseId, course, List.of(1L, 2L));
-		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
 
 		courseCommandService.reorderStores(memberId, courseId, request);
 
@@ -927,7 +951,6 @@ class CourseCommandServiceTest {
 		Long courseId = 10L;
 		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
 		CourseStoreReorderRequest request = reorderRequestSwapping(courseId, course, List.of(2L, 1L));
-		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
 
 		assertThatThrownBy(() -> courseCommandService.reorderStores(memberId, courseId, request))
 			.isInstanceOf(CourseException.class)
@@ -937,17 +960,17 @@ class CourseCommandServiceTest {
 	}
 
 	@Test
-	@DisplayName("reorderStores: expectedOrder 를 안 보내면(구버전 앱) 집합 검증만 하고 현재 순서를 읽지 않는다")
+	@DisplayName("reorderStores: expectedOrder 를 안 보내면(구버전 앱) 순서 CAS 를 건너뛰고 집합 검증만 한다")
 	void reorderStores_withoutExpectedOrder_skipsCas() {
 		Long memberId = 1L;
 		Long courseId = 10L;
 		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
 		CourseStoreReorderRequest request = reorderRequestSwapping(courseId, course, null);
-		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(2L);
 
 		courseCommandService.reorderStores(memberId, courseId, request);
 
-		then(courseStoreRepository).should(never()).findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(any());
+		// 현재 순서(1 → 2)와 요청(2 → 1)이 달라도 CAS 가 없으니 저장된다
+		then(courseStoreRepository).should().flush();
 		then(courseRepository).should().bumpVersion(courseId);
 	}
 
@@ -959,12 +982,13 @@ class CourseCommandServiceTest {
 		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
 		CourseStoreReorderRequest request = reorderRequestSwapping(courseId, course, List.of(2L, 1L));
 		// DB 에는 정류장이 3개 — 요청 집합(2개)과 다르다
-		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(courseId)).willReturn(3L);
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
+			.willReturn(List.of(mock(CourseStore.class), mock(CourseStore.class), mock(CourseStore.class)));
 
 		assertThatThrownBy(() -> courseCommandService.reorderStores(memberId, courseId, request))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_STORE_ORDER_INVALID.getMessage());
-		then(courseStoreRepository).should(never()).findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(any());
+		then(courseStoreRepository).should(never()).flush();
 	}
 
 	// ───────────────────────── updateCourse: 협업 공개 차단 · dayCount ─────────────────────────
@@ -978,10 +1002,8 @@ class CourseCommandServiceTest {
 		CourseUpdateRequest request = mockUpdateRequest();
 		given(request.getIsPublic()).willReturn(true);
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
-		CourseMember ownerRow = mockMemberRow(courseId, memberId);
-		CourseMember memberRow = mockMemberRow(courseId, 2L);
-		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(courseId))
-			.willReturn(List.of(ownerRow, memberRow));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdNotAndDeletedAtIsNull(courseId, memberId))
+			.willReturn(true);
 
 		assertThatThrownBy(() -> courseCommandService.updateCourse(memberId, courseId, request))
 			.isInstanceOf(CourseException.class)
@@ -999,9 +1021,8 @@ class CourseCommandServiceTest {
 		CourseUpdateRequest request = mockUpdateRequest();
 		given(request.getIsPublic()).willReturn(true);
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
-		CourseMember ownerRow = mockMemberRow(courseId, memberId);
-		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(courseId))
-			.willReturn(List.of(ownerRow));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdNotAndDeletedAtIsNull(courseId, memberId))
+			.willReturn(false);
 
 		courseCommandService.updateCourse(memberId, courseId, request);
 
@@ -1034,9 +1055,7 @@ class CourseCommandServiceTest {
 		CourseUpdateRequest request = mockUpdateRequest();
 		given(request.getDayCount()).willReturn(3);
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
-		CourseStore dayTwoStore = mockCourseStore(1, 2, mockStore(100L));
-		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
-			.willReturn(List.of(dayTwoStore));
+		given(courseStoreRepository.findMaxDayByCourseId(courseId)).willReturn(2);
 
 		courseCommandService.updateCourse(memberId, courseId, request);
 
@@ -1054,8 +1073,7 @@ class CourseCommandServiceTest {
 		CourseUpdateRequest request = mockUpdateRequest();
 		given(request.getDayCount()).willReturn(2);
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
-		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
-			.willReturn(List.of());
+		given(courseStoreRepository.findMaxDayByCourseId(courseId)).willReturn(0);
 
 		assertThatThrownBy(() -> courseCommandService.updateCourse(memberId, courseId, request))
 			.isInstanceOf(CourseException.class)
@@ -1074,9 +1092,7 @@ class CourseCommandServiceTest {
 		CourseUpdateRequest request = mockUpdateRequest();
 		given(request.getDayCount()).willReturn(2);
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
-		CourseStore dayThreeStore = mockCourseStore(1, 3, mockStore(100L));
-		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
-			.willReturn(List.of(dayThreeStore));
+		given(courseStoreRepository.findMaxDayByCourseId(courseId)).willReturn(3);
 
 		assertThatThrownBy(() -> courseCommandService.updateCourse(memberId, courseId, request))
 			.isInstanceOf(CourseException.class)
@@ -1500,12 +1516,6 @@ class CourseCommandServiceTest {
 		lenient().when(request.getIsPublic()).thenReturn(null);
 		lenient().when(request.getDayCount()).thenReturn(null);
 		return request;
-	}
-
-	private CourseMember mockMemberRow(Long courseId, Long memberId) {
-		CourseMember row = mock(CourseMember.class);
-		lenient().when(row.getId()).thenReturn(new CourseMemberId(courseId, memberId));
-		return row;
 	}
 
 	/** CURATED 검사가 멤버 조회보다 먼저라 이 스텁은 안 불려야 정상이다 — 그래서 lenient. */

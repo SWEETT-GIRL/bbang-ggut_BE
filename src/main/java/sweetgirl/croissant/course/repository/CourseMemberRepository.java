@@ -17,6 +17,9 @@ public interface CourseMemberRepository extends JpaRepository<CourseMember, Cour
 	/** 편집 권한 판정 — 활성 멤버인가. */
 	boolean existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(Long courseId, Long memberId);
 
+	/** 협업 판정 — 방장 말고 활성 멤버가 있는가(공개 전환 차단). 참여자 목록을 읽지 않는다. */
+	boolean existsByIdCourseIdAndIdMemberIdNotAndDeletedAtIsNull(Long courseId, Long memberId);
+
 	/** 재참여용 — 나간 행(deleted)도 같은 PK 로 되살려야 하므로 포함해서 찾는다. */
 	Optional<CourseMember> findByIdCourseIdAndIdMemberId(Long courseId, Long memberId);
 

@@ -94,6 +94,23 @@ class CourseMemberRepositoryTest {
 	}
 
 	@Test
+	@DisplayName("방장 말고 활성 멤버가 있는지 — 방장 행만 있거나 나머지가 다 나갔으면 false")
+	void existsOtherActiveMember() {
+		persistMemberRow(course, owner, "방장");
+		assertThat(courseMemberRepository.existsByIdCourseIdAndIdMemberIdNotAndDeletedAtIsNull(
+			course.getId(), owner.getId())).isFalse();
+
+		CourseMember joined = persistMemberRow(course, first, "첫째");
+		assertThat(courseMemberRepository.existsByIdCourseIdAndIdMemberIdNotAndDeletedAtIsNull(
+			course.getId(), owner.getId())).isTrue();
+
+		joined.leave();
+		entityManager.flush();
+		assertThat(courseMemberRepository.existsByIdCourseIdAndIdMemberIdNotAndDeletedAtIsNull(
+			course.getId(), owner.getId())).isFalse();
+	}
+
+	@Test
 	@DisplayName("참여자 목록은 참여 시각 오름차순이다")
 	void findAllActive_orderedByJoinedAt() throws InterruptedException {
 		persistMemberRow(course, owner, "방장");
