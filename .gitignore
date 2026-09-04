@@ -92,3 +92,8 @@ scripts/.venv/
 .claude/planning/feat-course-collab-members.md
 .claude/planning/feat-course-store-memos.md
 .claude/planning/feat-course-collab-response.md
+
+### 동시편집 계획 문서 (원본은 FE 레포, 저장소에 올리지 않음) ###
+docs/course-collab-phases.md
+docs/be-tasks-course-collab.md
+.claude/planning/feat-course-visibility.md
