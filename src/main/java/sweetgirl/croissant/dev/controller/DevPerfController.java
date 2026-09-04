@@ -41,13 +41,18 @@ public class DevPerfController {
 			@RequestParam(defaultValue = "50") int size,
 			@RequestParam(defaultValue = "slow") String sort,
 			@RequestParam(required = false) String endpoint) {
-		validateProdAccess(accessKey);
+		validateAccess(accessKey);
 		return ApiResponse.ok(devPerfService.getRequestLogs(sinceMinutes, size, sort, endpoint));
 	}
 
-	private void validateProdAccess(String accessKey) {
-		boolean prodProfile = Arrays.asList(environment.getActiveProfiles()).contains("prod");
-		if (!prodProfile) {
+	/**
+	 * local 밖(staging·prod)에서는 대시보드 키가 있어야 한다. GET /dev/** 가 permitAll 이라 이 검사가 유일한 문인데,
+	 * prod 만 보던 탓에 staging 의 요청 로그(엔드포인트·소요 시간·상태)가 비로그인으로 열려 있었다.
+	 * 키는 cd-staging·cd-prod 가 PERF_DASHBOARD_ENABLED / ACCESS_KEY 로 내려준다 — 비어 있으면 그 환경은 닫힌다.
+	 */
+	private void validateAccess(String accessKey) {
+		boolean localProfile = Arrays.asList(environment.getActiveProfiles()).contains("local");
+		if (localProfile) {
 			return;
 		}
 		if (!perfDashboardEnabled || !StringUtils.hasText(perfDashboardAccessKey)
