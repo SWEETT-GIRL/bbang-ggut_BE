@@ -203,6 +203,27 @@ class CourseMemberServiceTest {
 		}
 
 		@Test
+		@DisplayName("재사용 경계 — 하루에서 1초 남으면 재사용, 하루에서 1초 모자라면 재발급")
+		void reuseBoundary_oneDayRemaining() {
+			Member courseOwner = owner();
+			Course course = mockCourse(CourseType.CUSTOM, courseOwner, false);
+			given(memberReader.getMember(OWNER_ID)).willReturn(courseOwner);
+			givenLockedCourse(course);
+			givenOwnerRowExists(course);
+			CourseInvite justEnough = inviteExpiringAt(course, LocalDateTime.now().plusDays(1).plusSeconds(1));
+			CourseInvite justShort = inviteExpiringAt(course, LocalDateTime.now().plusDays(1).minusSeconds(1));
+			given(courseInviteRepository.findFirstByCourseIdAndDeletedAtIsNullOrderByCreatedAtDesc(COURSE_ID))
+				.willReturn(Optional.of(justEnough))
+				.willReturn(Optional.of(justShort));
+
+			assertThat(courseMemberService.createInvite(OWNER_ID, COURSE_ID).reused()).isTrue();
+			assertThat(courseMemberService.createInvite(OWNER_ID, COURSE_ID).reused()).isFalse();
+			assertThat(justEnough.getDeletedAt()).isNull();
+			assertThat(justShort.getDeletedAt()).isNotNull();
+			then(courseInviteRepository).should().save(any());
+		}
+
+		@Test
 		@DisplayName("남은 기간이 하루 미만이면 재발급하고 이전 토큰은 무효화한다 — 보내는 링크는 항상 하루 이상 산다")
 		void activeTokenExpiringSoon_reissuedAndOldRevoked() {
 			Member courseOwner = owner();
@@ -683,6 +704,26 @@ class CourseMemberServiceTest {
 			then(courseMemberRepository).should(never()).save(any());
 			then(savedCourseRepository).shouldHaveNoInteractions();
 			then(courseRepository).should(never()).bumpVersion(any());
+		}
+
+		@Test
+		@DisplayName("방장 포함 7명이면 마지막 한 자리로 수락된다 — 정원 경계")
+		void seventhMember_accepted() {
+			joiner();
+			Course course = mockCourse(CourseType.CUSTOM, owner(), false);
+			givenValidInvite(course);
+			givenLockedCourse(course);
+			givenActiveMember(MEMBER_ID, false);
+			givenOwnerRowExists(course);
+			given(courseMemberRepository.countByIdCourseIdAndDeletedAtIsNull(COURSE_ID)).willReturn(7L);
+			given(courseMemberRepository.findByIdCourseIdAndIdMemberId(COURSE_ID, MEMBER_ID))
+				.willReturn(Optional.empty());
+			given(savedCourseRepository.findByMemberIdAndCourseId(MEMBER_ID, COURSE_ID)).willReturn(Optional.empty());
+
+			CourseInviteAcceptResponse response = courseMemberService.acceptInvite(MEMBER_ID, TOKEN, "지수");
+
+			assertThat(response.alreadyMember()).isFalse();
+			then(courseMemberRepository).should().save(any(CourseMember.class));
 		}
 
 		@Test

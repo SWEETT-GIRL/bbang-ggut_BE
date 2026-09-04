@@ -637,6 +637,25 @@ class CourseControllerTest {
 			.andExpect(jsonPath("$.code").value("COURSE409_1"));
 	}
 
+	// 길이 경계 — 이름 10자·메모 200자는 통과한다 (11자·201자는 400)
+	@Test
+	void displayNameAndMemo_atMaxLength_pass() throws Exception {
+		String tenChars = "가".repeat(10);
+		String twoHundredChars = "가".repeat(200);
+		given(courseMemberService.acceptInvite(isNull(), eq("tok"), eq(tenChars)))
+			.willReturn(new CourseInviteAcceptResponse(1L, false));
+
+		mockMvc.perform(post("/courses/invites/tok/accept")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"displayName\":\"" + tenChars + "\"}"))
+			.andExpect(status().isOk());
+		mockMvc.perform(patch("/courses/1/stores/10")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"memo\":\"" + twoHundredChars + "\"}"))
+			.andExpect(status().isOk());
+		then(courseCommandService).should().updateStore(isNull(), eq(1L), eq(10L), any());
+	}
+
 	@Test
 	void storeMemo_over200Chars_returns400() throws Exception {
 		String tooLong = "가".repeat(201);

@@ -228,17 +228,19 @@ public class CourseMemberService {
 		courseStoreMemoRepository.softDeleteAllByCourseIdAndMemberId(courseId, memberId);
 	}
 
-	/**
-	 * 방장을 참여 순서가 가장 빠른 다른 멤버에게 넘기고, 넘긴 사람의 행은 닫는다.
-	 * 나가기와 회원 탈퇴가 같이 쓴다. 새 방장의 행은 남긴다 — 방장도 코스 안에서 이름을 갖는다.
-	 */
-	public void transferOwnership(Course course, Long fromMemberId) {
+	/** 나가기 전용 — 넘길 멤버가 없으면 COURSE_NO_SUCCESSOR(앱은 그때 "삭제"만 보여준다). 탈퇴는 예외 대신 행만 닫는다. */
+	private void transferOwnership(Course course, Long fromMemberId) {
 		if (!transferOwnershipIfPossible(course, fromMemberId)) {
 			throw new CourseException(CourseErrorCode.COURSE_NO_SUCCESSOR);
 		}
 	}
 
-	/** @return 넘길 멤버가 있어 승계했으면 true. 없으면 아무것도 하지 않고 false */
+	/**
+	 * 방장을 참여 순서가 가장 빠른 다른 멤버에게 넘기고, 넘긴 사람의 행은 닫는다.
+	 * 나가기와 회원 탈퇴가 같이 쓴다. 새 방장의 행은 남긴다 — 방장도 코스 안에서 이름을 갖는다.
+	 *
+	 * @return 넘길 멤버가 있어 승계했으면 true. 없으면 아무것도 하지 않고 false
+	 */
 	private boolean transferOwnershipIfPossible(Course course, Long fromMemberId) {
 		List<CourseMember> members = courseMemberRepository
 			.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(course.getId());

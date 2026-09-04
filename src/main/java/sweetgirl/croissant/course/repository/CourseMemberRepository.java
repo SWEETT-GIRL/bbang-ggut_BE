@@ -26,8 +26,8 @@ public interface CourseMemberRepository extends JpaRepository<CourseMember, Cour
 	/** 정원(방장 포함 8명) 판정. */
 	long countByIdCourseIdAndDeletedAtIsNull(Long courseId);
 
-	/** 내가 참여한 코스. 코스를 같이 읽는다 — 내 목록이 행마다 코스를 본다. */
-	@EntityGraph(attributePaths = "course")
+	/** 내가 참여한 코스. 코스와 그 방장을 같이 읽는다 — 내 목록이 코스마다 방장 닉네임(작성자)을 내려준다. */
+	@EntityGraph(attributePaths = {"course", "course.member"})
 	List<CourseMember> findAllByIdMemberIdAndDeletedAtIsNull(Long memberId);
 
 	/** 참여 중인 코스 id 만, 코스 id 오름차순 — 탈퇴 정리가 코스마다 락을 잡을 때 순서를 고정해 데드락을 피한다. */

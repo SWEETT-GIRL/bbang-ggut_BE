@@ -7,8 +7,8 @@ package sweetgirl.croissant.course.enums;
  * UNLISTED 목록 ✗ · 링크 ✓ · 찜 ✗ — 공유용이지 보관용이 아니다
  * PRIVATE  목록 ✗ · 링크 ✗ · 찜 ✗ — 나와 협업 멤버만
  *
- * 링크 공개(UNLISTED)가 열리기 전까지는 is_public 과 같은 값을 유지하는 그림자 컬럼이다.
- * 판정은 아직 is_public 으로 한다.
+ * is_public 은 구버전 앱이 읽어 한 릴리즈 더 남긴다 — Course.updateVisibility 가 PUBLIC 일 때만 true 로 같이 쓴다.
+ * 그래서 "공개일 때만" 판정(공개 목록·찜·따라가기)은 isPublic() 으로, UNLISTED 구분이 필요한 판정(상세·포크)은 이 값과 share_token 으로 한다.
  */
 public enum CourseVisibility {
 	PUBLIC,
