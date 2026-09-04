@@ -222,7 +222,8 @@ public class CourseCommandService {
 		}
 		// 메모는 사람별이다 — course_stores.memo 가 아니라 내 메모 행으로 들어간다
 		String myMemo = upsertMyMemo(courseStore, memberId, request.getMemo());
-		courseProgressService.refreshForCourse(courseId);
+		// 가게가 늘었다 — 분모가 커졌으니 완주 승격을 허용해도 안전하다
+		courseProgressService.refreshForCourse(courseId, true);
 		courseRepository.bumpVersion(courseId);
 
 		List<CourseStoreMemoResponse> memos = myMemo == null
@@ -294,7 +295,8 @@ public class CourseCommandService {
 		courseStore.softDelete();
 		// 메모는 정류장 행에 묶인다 — 가게를 빼면 전원 메모가 함께 닫히고, 다시 담아도 돌아오지 않는다
 		courseStoreMemoRepository.softDeleteAllByCourseStoreId(courseStore.getId());
-		courseProgressService.refreshForCourse(courseId);
+		// 가게가 줄었다 — 방문 수는 그대로인데 분모만 작아지므로 완주 승격을 막는다(안 간 코스가 완주 처리된다)
+		courseProgressService.refreshForCourse(courseId, false);
 		courseRepository.bumpVersion(courseId);
 	}
 

@@ -287,6 +287,8 @@ class CourseCommandServiceTest {
 		assertThat(result).isNotNull();
 		then(courseStoreRepository).should().save(any(CourseStore.class));
 		then(courseRepository).should().bumpVersion(courseId);
+		// 가게가 늘었으니 완주 승격 허용
+		then(courseProgressService).should().refreshForCourse(courseId, true);
 		// 메모는 course_stores.memo 가 아니라 내 메모 행으로 들어가고, 응답엔 myMemo·memos 로 실린다
 		then(courseStoreMemoRepository).should().save(any(CourseStoreMemo.class));
 		assertThat(result.myMemo()).isEqualTo("메모");
@@ -427,6 +429,8 @@ class CourseCommandServiceTest {
 		then(courseStore).should().softDelete();
 		// 메모는 정류장 행에 묶인다 — 가게를 빼면 전원 메모가 함께 닫힌다
 		then(courseStoreMemoRepository).should().softDeleteAllByCourseStoreId(501L);
+		// 가게가 줄었으니 완주 승격 금지 — 분모만 작아져 안 간 코스가 완주 처리되면 안 된다
+		then(courseProgressService).should().refreshForCourse(courseId, false);
 		then(courseRepository).should().bumpVersion(courseId);
 	}
 
