@@ -13,12 +13,14 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
@@ -62,6 +64,13 @@ class CourseStoreVisitServiceTest {
 
 	@InjectMocks
 	private CourseStoreVisitService courseStoreVisitService;
+
+	/** 권한 판정은 CourseAccessPolicy 로 갔지만 근거는 같은 courseMemberRepository 다 — 실체를 넣어 기존 스텁이 그대로 산다. */
+	@BeforeEach
+	void injectAccessPolicy() {
+		ReflectionTestUtils.setField(courseStoreVisitService, "courseAccessPolicy",
+			new CourseAccessPolicy(courseMemberRepository));
+	}
 
 	@Test
 	@DisplayName("markVisited: 처음 표시하면 방문을 새로 저장한다")

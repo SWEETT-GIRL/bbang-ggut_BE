@@ -16,6 +16,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.response.CourseInviteAcceptResponse;
@@ -76,6 +78,13 @@ class CourseMemberServiceTest {
 
 	@InjectMocks
 	private CourseMemberService courseMemberService;
+
+	/** 권한 판정은 CourseAccessPolicy 로 갔지만 근거는 같은 courseMemberRepository 다 — 실체를 넣어 기존 스텁이 그대로 산다. */
+	@BeforeEach
+	void injectAccessPolicy() {
+		ReflectionTestUtils.setField(courseMemberService, "courseAccessPolicy",
+			new CourseAccessPolicy(courseMemberRepository));
+	}
 
 	// ───────────────────────── helpers ─────────────────────────
 

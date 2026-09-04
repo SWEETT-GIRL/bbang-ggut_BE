@@ -55,13 +55,14 @@ public class CourseMemberService {
 	private final CourseStoreMemoRepository courseStoreMemoRepository;
 	private final MemberReader memberReader;
 	private final MemberRestrictionReader memberRestrictionReader;
+	private final CourseAccessPolicy courseAccessPolicy;
 
 	public CourseInviteResponse createInvite(Long memberId, Long courseId) {
 		memberRestrictionReader.validateCanWrite(memberId);
 		Member member = memberReader.getMember(memberId);
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		validateCanEdit(course, memberId);
+		courseAccessPolicy.requireEditable(course, memberId);
 
 		// 협업은 이 호출로 시작된다 — 방장도 코스 안에서 쓰는 이름을 갖는다. 행이 생기면 참여자 목록이 바뀐 것이다.
 		if (ensureOwnerRow(course)) {
@@ -100,7 +101,9 @@ public class CourseMemberService {
 		CourseInviteState state = resolveState(invite, course, memberCount, LocalDateTime.now());
 		Viewer viewer = memberId == null
 			? null
-			: new Viewer(!isOwner(course, memberId) && isActiveMember(course, memberId), isOwner(course, memberId));
+			: new Viewer(
+				!courseAccessPolicy.isOwner(course, memberId) && courseAccessPolicy.isActiveMember(course, memberId),
+				courseAccessPolicy.isOwner(course, memberId));
 		return CourseInvitePreviewResponse.of(state, course, memberCount, invite.getExpiresAt(), viewer);
 	}
 
@@ -146,7 +149,7 @@ public class CourseMemberService {
 			throw new CourseException(CourseErrorCode.COURSE_INVITE_INVALID);
 		}
 		// 자기 링크를 눌러보는 건 흔하다 — 에러가 아니라 "이미 있음"으로 200.
-		if (isOwner(course, memberId) || isActiveMember(course, memberId)) {
+		if (courseAccessPolicy.isOwner(course, memberId) || courseAccessPolicy.isActiveMember(course, memberId)) {
 			return new CourseInviteAcceptResponse(course.getId(), true);
 		}
 
@@ -218,7 +221,7 @@ public class CourseMemberService {
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		CourseMember me = getActiveMemberRow(courseId, memberId);
-		if (isOwner(course, memberId)) {
+		if (courseAccessPolicy.isOwner(course, memberId)) {
 			transferOwnership(course, memberId);
 		} else {
 			me.leave();
@@ -279,7 +282,7 @@ public class CourseMemberService {
 				continue;
 			}
 			Course course = locked.get();
-			if (isOwner(course, memberId)) {
+			if (courseAccessPolicy.isOwner(course, memberId)) {
 				if (!transferOwnershipIfPossible(course, memberId)) {
 					row.leave();
 					// 넘길 사람 없이 방장이 사라진 코스 — 살아있는 링크로 누가 들어오면 탈퇴자가 방장으로 되살아나므로 링크를 끈다
@@ -317,22 +320,4 @@ public class CourseMemberService {
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_MEMBER_NOT_FOUND));
 	}
 
-	/** CourseCommandService.validateCanEdit 와 같은 판정 — CURATED 검사가 소유자 판정보다 먼저다. */
-	private void validateCanEdit(Course course, Long memberId) {
-		if (course.getType() == CourseType.CURATED) {
-			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
-		}
-		if (isOwner(course, memberId) || isActiveMember(course, memberId)) {
-			return;
-		}
-		throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
-	}
-
-	private boolean isOwner(Course course, Long memberId) {
-		return course.getMember() != null && course.getMember().getId().equals(memberId);
-	}
-
-	private boolean isActiveMember(Course course, Long memberId) {
-		return courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(course.getId(), memberId);
-	}
 }

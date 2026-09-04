@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -59,6 +60,13 @@ class CourseProgressServiceTest {
 
 	@InjectMocks
 	CourseProgressService courseProgressService;
+
+	/** 권한 판정은 CourseAccessPolicy 로 갔지만 근거는 같은 courseMemberRepository 다 — 실체를 넣어 기존 스텁이 그대로 산다. */
+	@BeforeEach
+	void injectAccessPolicy() {
+		ReflectionTestUtils.setField(courseProgressService, "courseAccessPolicy",
+			new CourseAccessPolicy(courseMemberRepository));
+	}
 
 	@Test
 	@DisplayName("start: 진행 이력이 없으면 새로 시작한다")

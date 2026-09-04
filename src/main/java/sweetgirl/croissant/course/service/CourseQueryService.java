@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.LongPredicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -16,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.course.code.CourseErrorCode;
+import sweetgirl.croissant.course.dto.projection.CourseStoreSummaryProjection;
+import sweetgirl.croissant.course.dto.response.CourseDetailLookup;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
 import sweetgirl.croissant.course.dto.response.CourseMemberResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreMemoResponse;
@@ -39,7 +42,6 @@ import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
-import sweetgirl.croissant.course.util.ShareTokenMatcher;
 import sweetgirl.croissant.store.RegionFormatter;
 
 @Service
@@ -59,6 +61,7 @@ public class CourseQueryService {
 	private final CourseStoreVisitRepository courseStoreVisitRepository;
 	private final CourseStoreMemoRepository courseStoreMemoRepository;
 	private final CourseMemberRepository courseMemberRepository;
+	private final CourseAccessPolicy courseAccessPolicy;
 
 	public List<CourseSummaryResponse> getCurationCourses() {
 		return buildSummaryResponses(courseRepository.findAllPublicOrderedByPinAndSavedCount(), Set.of());
@@ -77,7 +80,7 @@ public class CourseQueryService {
 			.filter(course -> !course.isDeleted())
 			.toList();
 		Set<Long> memberCourseIds = joined.stream()
-			.filter(course -> !isOwner(course, memberId))
+			.filter(course -> !courseAccessPolicy.isOwner(course, memberId))
 			.map(Course::getId)
 			.collect(Collectors.toSet());
 
@@ -108,16 +111,28 @@ public class CourseQueryService {
 	 * UNLISTED: 방장·활성 멤버 이거나 t 가 share_token 과 일치 / PUBLIC: 누구나.
 	 */
 	public CourseDetailResponse getCourseDetail(Long courseId, Long memberId, String shareToken) {
+		return getCourseDetail(courseId, memberId, shareToken, version -> false).body().orElseThrow();
+	}
+
+	/**
+	 * 조건부 GET 용. 접근 판정을 먼저 하고(권한 없는 사람에게 304 로 코스의 존재를 알려주면 안 된다) 현재 version 을
+	 * notModified 에 넘긴다 — true 면 본문을 만들지 않는다. 코스·참여자 목록은 판정과 조립이 같이 쓰므로 한 번만 읽는다.
+	 * 본문이 사람마다 달라도(isMine·visited·myMemo) ETag 는 version 하나로 충분하다: A 의 304 는 A 의 이전 응답을 다시 쓰라는 뜻이다.
+	 */
+	public CourseDetailLookup getCourseDetail(Long courseId, Long memberId, String shareToken,
+			LongPredicate notModified) {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		List<CourseMember> members = activeMembersOf(course, courseId);
-		boolean isMine = isOwner(course, memberId);
-		boolean isMember = isActiveMemberIn(members, memberId, isMine);
-		// 비공개 코스는 방장과 활성 멤버만 — 협업 코스는 PRIVATE 이라 멤버를 빼면 자기 코스를 못 본다
-		if (!course.isPublic() && !isMine && !isMember && !ShareTokenMatcher.matches(course, shareToken)) {
-			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
+		// 비공개 코스는 방장과 활성 멤버만 — 협업 코스는 PRIVATE 이라 멤버를 빼면 자기 코스를 못 본다.
+		// 판정은 exists 로 끝낸다 — 참여자 목록은 본문을 만들 때만 읽어 304 폴링이 목록까지 읽지 않게 한다
+		courseAccessPolicy.requireViewable(course, memberId, shareToken);
+		if (notModified.test(course.getVersion())) {
+			return CourseDetailLookup.notModified(course.getVersion());
 		}
-		return buildDetail(course, courseId, memberId, members, isMine, isMember);
+		List<CourseMember> members = activeMembersOf(course, courseId);
+		boolean isMine = courseAccessPolicy.isOwner(course, memberId);
+		boolean isMember = isActiveMemberIn(members, memberId, isMine);
+		return CourseDetailLookup.of(buildDetail(course, courseId, memberId, members, isMine, isMember));
 	}
 
 	/**
@@ -129,7 +144,7 @@ public class CourseQueryService {
 			.filter(found -> found.getVisibility() == CourseVisibility.UNLISTED)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		List<CourseMember> members = activeMembersOf(course, course.getId());
-		boolean isMine = isOwner(course, memberId);
+		boolean isMine = courseAccessPolicy.isOwner(course, memberId);
 		boolean isMember = isActiveMemberIn(members, memberId, isMine);
 		return buildDetail(course, course.getId(), memberId, members, isMine, isMember);
 	}
@@ -180,7 +195,7 @@ public class CourseQueryService {
 			isSaved,
 			savedCount,
 			finisherCount,
-			regionsOf(courseStores),
+			detailRegionsOf(courseStores),
 			courseStoreResponses,
 			toMemberResponses(course, members, memberId),
 			isMember,
@@ -214,7 +229,7 @@ public class CourseQueryService {
 			.map(row -> new CourseMemberResponse(
 				row.getId().getMemberId(),
 				row.getDisplayName(),
-				isOwner(course, row.getId().getMemberId()),
+				courseAccessPolicy.isOwner(course, row.getId().getMemberId()),
 				row.getId().getMemberId().equals(viewerId)))
 			.toList();
 	}
@@ -225,29 +240,6 @@ public class CourseQueryService {
 			.map(CourseMember::getDisplayName)
 			.findFirst()
 			.orElse(null);
-	}
-
-	/**
-	 * 폴링 ETag 용. 상세와 같은 접근 판정을 먼저 한다 — 권한이 없는 사람에게 304 로 코스의 존재를 알려주면 안 된다.
-	 * 본문이 사람마다 달라도(isMine·visited·myMemo) ETag 는 같아도 된다: A 의 304 는 A 의 이전 응답을 다시 쓰라는 뜻이다.
-	 */
-	public long getVersion(Long courseId, Long memberId, String shareToken) {
-		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
-			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		if (!course.isPublic() && !isOwner(course, memberId) && !isActiveMember(course, memberId)
-			&& !ShareTokenMatcher.matches(course, shareToken)) {
-			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
-		}
-		return course.getVersion();
-	}
-
-	private boolean isOwner(Course course, Long memberId) {
-		return memberId != null && course.getMember() != null && course.getMember().getId().equals(memberId);
-	}
-
-	private boolean isActiveMember(Course course, Long memberId) {
-		return memberId != null
-			&& courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(course.getId(), memberId);
 	}
 
 	/**
@@ -300,10 +292,11 @@ public class CourseQueryService {
 		}
 		List<Long> courseIds = courses.stream().map(Course::getId).toList();
 
-		Map<Long, List<CourseStore>> courseStoresByCourseId = courseStoreRepository
-			.findAllByCourseIdInAndDeletedAtIsNullOrderByVisitOrderAsc(courseIds)
+		// 목록은 가게 id·이름·지역만 쓴다 — Store 엔티티 대신 프로젝션으로 읽어 geography 위치 같은 컬럼을 싣지 않는다
+		Map<Long, List<CourseStoreSummaryProjection>> stopsByCourseId = courseStoreRepository
+			.findSummariesByCourseIdIn(courseIds)
 			.stream()
-			.collect(Collectors.groupingBy(courseStore -> courseStore.getCourse().getId()));
+			.collect(Collectors.groupingBy(CourseStoreSummaryProjection::getCourseId));
 
 		Map<Long, CourseImageFile> coverImageByCourseId = courseImageFileRepository.findAllByCourseIdIn(courseIds)
 			.stream()
@@ -314,21 +307,22 @@ public class CourseQueryService {
 
 		Map<Long, Long> savedCountByCourseId = findSavedCountByCourseId(courses);
 		Map<Long, Long> finisherCountByCourseId = findFinisherCountByCourseId(courseIds);
+		Map<Long, List<Long>> storeIdsByCourseId = stopsByCourseId.entrySet().stream()
+			.collect(Collectors.toMap(Map.Entry::getKey, entry -> storeIdsOf(entry.getValue())));
 		Map<Long, List<String>> storeThumbnailsByCourseId = courseStoreThumbnailReader
-			.readByCourse(courseStoresByCourseId);
+			.readByCourse(storeIdsByCourseId);
 
 		return courses.stream()
 			.map(course -> {
-				List<CourseStore> courseStores = courseStoresByCourseId.getOrDefault(course.getId(), List.of());
-				List<String> regions = regionsOf(courseStores);
+				List<CourseStoreSummaryProjection> stops = stopsByCourseId.getOrDefault(course.getId(), List.of());
 				return CourseSummaryResponse.of(
 					course,
 					coverImageByCourseId.get(course.getId()),
 					storeThumbnailsByCourseId.getOrDefault(course.getId(), List.of()),
-					storeNamesOf(courseStores),
-					courseStores.size(),
-					storeIdsOf(courseStores),
-					regions,
+					storeNamesOf(stops),
+					stops.size(),
+					storeIdsByCourseId.getOrDefault(course.getId(), List.of()),
+					regionsOf(stops),
 					savedCountByCourseId.getOrDefault(course.getId(), 0L),
 					finisherCountByCourseId.getOrDefault(course.getId(), 0L),
 					memberCourseIds.contains(course.getId()));
@@ -349,9 +343,9 @@ public class CourseQueryService {
 	 * 이미 담긴 코스를 클라이언트가 알아야 하는데(가게 상세의 '빵투어에 담기'), 이게 없으면
 	 * 코스마다 상세를 한 번씩 부르게 된다. 여기선 courseStores를 이미 일괄 조회해 둔 터라 공짜다.
 	 */
-	private List<Long> storeIdsOf(List<CourseStore> courseStores) {
-		return courseStores.stream()
-			.map(courseStore -> courseStore.getStore().getId())
+	private List<Long> storeIdsOf(List<CourseStoreSummaryProjection> stops) {
+		return stops.stream()
+			.map(CourseStoreSummaryProjection::getStoreId)
 			.toList();
 	}
 
@@ -361,16 +355,25 @@ public class CourseQueryService {
 	 * 빵집 사진은 서로 비슷해서 어떤 코스인지 말해 주지 못하는데, 아는 가게 이름 하나가
 	 * 그 일을 한다. regionsOf가 이미 Store를 읽고 있어 여기서 이름을 더 읽는 건 공짜다.
 	 */
-	private List<String> storeNamesOf(List<CourseStore> courseStores) {
-		return courseStores.stream()
+	private List<String> storeNamesOf(List<CourseStoreSummaryProjection> stops) {
+		return stops.stream()
 			.limit(SUMMARY_STORE_NAME_LIMIT)
-			.map(courseStore -> courseStore.getStore().getName())
+			.map(CourseStoreSummaryProjection::getStoreName)
 			.filter(name -> name != null)
 			.toList();
 	}
 
-	/** 코스 가게들의 지역을 "시(축약) 구"(예: "대전 중구") 목록으로. 순서 유지·중복 제거. */
-	private List<String> regionsOf(List<CourseStore> courseStores) {
+	/** 목록용 — 코스 가게들의 지역을 "시(축약) 구"(예: "대전 중구") 목록으로. 순서 유지·중복 제거. */
+	private List<String> regionsOf(List<CourseStoreSummaryProjection> stops) {
+		return stops.stream()
+			.map(stop -> RegionFormatter.cityDistrict(stop.getRegion1st(), stop.getRegion2nd()))
+			.filter(region -> region != null)
+			.distinct()
+			.toList();
+	}
+
+	/** 상세용 — 정류장 엔티티에서 같은 지역 목록을 만든다. 상세는 한 코스라 Store 는 배치 페치로 읽는다. */
+	private List<String> detailRegionsOf(List<CourseStore> courseStores) {
 		return courseStores.stream()
 			.map(courseStore -> RegionFormatter.cityDistrict(
 				courseStore.getStore().getRegion1st(),

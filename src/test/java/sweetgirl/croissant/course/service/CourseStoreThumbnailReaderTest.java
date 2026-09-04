@@ -50,11 +50,11 @@ class CourseStoreThumbnailReaderTest {
 	}
 
 	@Test
-	@DisplayName("readByCourse: 코스별로 갈라 담고, 사진 있는 가게가 없으면 빈 목록")
+	@DisplayName("readByCourse: 코스별 가게 id 로 갈라 담고, 사진 있는 가게가 없으면 빈 목록")
 	void readByCourse_groupsPerCourse() {
-		Map<Long, List<CourseStore>> byCourse = Map.of(
-			10L, List.of(courseStore(1L), courseStore(2L)),
-			20L, List.of(courseStore(2L)));
+		Map<Long, List<Long>> byCourse = Map.of(
+			10L, List.of(1L, 2L),
+			20L, List.of(2L));
 		List<StoreImageThumbnailProjection> thumbs = List.of(thumb(1L, "s1-320", "s1"));
 		given(storeImageFileRepository.findThumbnailsByStoreIdIn(anyList())).willReturn(thumbs);
 

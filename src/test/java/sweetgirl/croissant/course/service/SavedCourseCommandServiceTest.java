@@ -9,6 +9,7 @@ import static org.mockito.Mockito.mock;
 
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,6 +17,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.alarm.event.CourseSavedEvent;
 import sweetgirl.croissant.course.code.CourseErrorCode;
@@ -23,6 +25,7 @@ import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.SavedCourse;
 import sweetgirl.croissant.course.enums.CourseVisibility;
 import sweetgirl.croissant.course.exception.CourseException;
+import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.member.entity.Member;
@@ -40,8 +43,18 @@ class SavedCourseCommandServiceTest {
 	@Mock
 	ApplicationEventPublisher eventPublisher;
 
+	@Mock
+	CourseMemberRepository courseMemberRepository;
+
 	@InjectMocks
 	SavedCourseCommandService savedCourseCommandService;
+
+	/** 권한 판정은 CourseAccessPolicy 로 갔지만 근거는 같은 courseMemberRepository 다 — 실체를 넣어 기존 스텁이 그대로 산다. */
+	@BeforeEach
+	void injectAccessPolicy() {
+		ReflectionTestUtils.setField(savedCourseCommandService, "courseAccessPolicy",
+			new CourseAccessPolicy(courseMemberRepository));
+	}
 
 	// ───────────────────────── saveCourse ─────────────────────────
 

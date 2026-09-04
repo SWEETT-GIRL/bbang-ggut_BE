@@ -8,7 +8,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willDoNothing;
 import static org.mockito.BDDMockito.willThrow;
-import static org.mockito.Mockito.never;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -21,6 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.function.LongPredicate;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +35,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import sweetgirl.croissant.course.code.CourseErrorCode;
+import sweetgirl.croissant.course.dto.response.CourseDetailLookup;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
 import sweetgirl.croissant.course.dto.response.CourseInviteAcceptResponse;
 import sweetgirl.croissant.course.dto.response.CourseInvitePreviewResponse;
@@ -82,6 +83,24 @@ class CourseControllerTest {
 			.standaloneSetup(courseController)
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.build();
+	}
+
+	/** 서비스는 접근 판정 뒤 version 을 컨트롤러의 판정(checkNotModified)에 넘기고, true 면 본문 없이 돌려준다. */
+	private void givenDetailLookup(CourseDetailResponse body) {
+		given(courseQueryService.getCourseDetail(anyLong(), isNull(), isNull(), any()))
+			.willAnswer(invocation -> {
+				LongPredicate notModified = invocation.getArgument(3);
+				return notModified.test(body.version())
+					? CourseDetailLookup.notModified(body.version())
+					: CourseDetailLookup.of(body);
+			});
+	}
+
+	private CourseDetailResponse privateDetail(long version) {
+		return new CourseDetailResponse(
+			1L, "소금빵 투어", null, null, List.of(), 0, List.of(), CourseType.CUSTOM, "다나", 1L, null, false, true,
+			false, 0L, 0L, LocalDateTime.of(2026, 1, 1, 0, 0), null, null, null, List.of(),
+			true, true, false, 0, List.of(), null, 1, CourseVisibility.PRIVATE, null, version);
 	}
 
 	@Test
@@ -172,8 +191,7 @@ class CourseControllerTest {
 			false, 5L, 37L, LocalDateTime.of(2026, 1, 1, 0, 0), "서울", LocalDate.of(2026, 8, 20),
 			LocalDate.of(2026, 8, 21), List.of(),
 			false, false, false, 0, List.of(), null, 1, CourseVisibility.PUBLIC, null, 41L);
-		given(courseQueryService.getVersion(anyLong(), isNull(), isNull())).willReturn(41L);
-		given(courseQueryService.getCourseDetail(anyLong(), isNull(), isNull())).willReturn(response);
+		givenDetailLookup(response);
 
 		mockMvc.perform(get("/courses/1"))
 			.andExpect(status().isOk())
@@ -196,27 +214,21 @@ class CourseControllerTest {
 			.andExpect(jsonPath("$.data.version").value(41));
 	}
 
-	// 같은 version 을 If-None-Match 로 보내면 본문 없이 304 — 상세는 아예 만들지 않는다
+	// 같은 version 을 If-None-Match 로 보내면 본문 없이 304 — 서비스의 판정 콜백이 true 를 받아 본문을 만들지 않는다
 	@Test
 	void getCourseDetail_ifNoneMatchSameVersion_returns304() throws Exception {
-		given(courseQueryService.getVersion(anyLong(), isNull(), isNull())).willReturn(41L);
+		givenDetailLookup(privateDetail(41L));
 
 		mockMvc.perform(get("/courses/1").header("If-None-Match", "\"41\""))
 			.andExpect(status().isNotModified())
 			.andExpect(header().string("ETag", "\"41\""))
 			.andExpect(content().string(""));
-		then(courseQueryService).should(never()).getCourseDetail(any(), any(), any());
 	}
 
 	// 누가 가게를 담아 version 이 올랐으면 옛 ETag 는 200 + 새 ETag
 	@Test
 	void getCourseDetail_ifNoneMatchStale_returns200WithNewEtag() throws Exception {
-		CourseDetailResponse response = new CourseDetailResponse(
-			1L, "소금빵 투어", null, null, List.of(), 0, List.of(), CourseType.CUSTOM, "다나", 1L, null, false, true,
-			false, 0L, 0L, LocalDateTime.of(2026, 1, 1, 0, 0), null, null, null, List.of(),
-			true, true, false, 0, List.of(), null, 1, CourseVisibility.PRIVATE, null, 42L);
-		given(courseQueryService.getVersion(anyLong(), isNull(), isNull())).willReturn(42L);
-		given(courseQueryService.getCourseDetail(anyLong(), isNull(), isNull())).willReturn(response);
+		givenDetailLookup(privateDetail(42L));
 
 		mockMvc.perform(get("/courses/1").header("If-None-Match", "\"41\""))
 			.andExpect(status().isOk())
@@ -227,21 +239,20 @@ class CourseControllerTest {
 	// 권한이 없으면 If-None-Match 가 있어도 304 가 아니라 403 — 304 로 존재를 알려주면 안 된다
 	@Test
 	void getCourseDetail_forbidden_returns403() throws Exception {
-		given(courseQueryService.getVersion(anyLong(), isNull(), isNull()))
+		given(courseQueryService.getCourseDetail(anyLong(), isNull(), isNull(), any()))
 			.willThrow(new CourseException(CourseErrorCode.COURSE_FORBIDDEN));
 
 		mockMvc.perform(get("/courses/1").header("If-None-Match", "\"41\""))
 			.andExpect(status().isForbidden())
 			.andExpect(jsonPath("$.success").value(false))
 			.andExpect(jsonPath("$.code").value("COURSE403_1"));
-		then(courseQueryService).should(never()).getCourseDetail(any(), any(), any());
 	}
 
-	// 링크 공개 코스는 ?t=shareToken 으로 본다 — 토큰이 getVersion·getCourseDetail 둘 다에 전달된다
+	// 링크 공개 코스는 ?t=shareToken 으로 본다 — 토큰이 서비스의 접근 판정에 전달된다
 	@Test
 	void getCourseDetail_withShareToken_passesToken() throws Exception {
-		given(courseQueryService.getVersion(anyLong(), isNull(), eq("secret"))).willReturn(1L);
-		given(courseQueryService.getCourseDetail(anyLong(), isNull(), eq("secret"))).willReturn(unlistedDetail());
+		given(courseQueryService.getCourseDetail(anyLong(), isNull(), eq("secret"), any()))
+			.willReturn(CourseDetailLookup.of(unlistedDetail()));
 
 		mockMvc.perform(get("/courses/1").param("t", "secret"))
 			.andExpect(status().isOk())
@@ -282,7 +293,7 @@ class CourseControllerTest {
 
 	@Test
 	void getCourseDetail_notFound_returns404() throws Exception {
-		given(courseQueryService.getVersion(anyLong(), isNull(), isNull()))
+		given(courseQueryService.getCourseDetail(anyLong(), isNull(), isNull(), any()))
 			.willThrow(new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 
 		mockMvc.perform(get("/courses/1"))

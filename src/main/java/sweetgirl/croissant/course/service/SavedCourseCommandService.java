@@ -26,6 +26,7 @@ public class SavedCourseCommandService {
 	private final CourseRepository courseRepository;
 	private final MemberRepository memberRepository;
 	private final ApplicationEventPublisher eventPublisher;
+	private final CourseAccessPolicy courseAccessPolicy;
 
 	public void saveCourse(Long memberId, Long courseId) {
 		if (savedCourseRepository.existsByMemberIdAndCourseId(memberId, courseId)) {
@@ -35,7 +36,7 @@ public class SavedCourseCommandService {
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		if (course.getMember() != null && course.getMember().getId().equals(memberId)) {
+		if (courseAccessPolicy.isOwner(course, memberId)) {
 			throw new CourseException(CourseErrorCode.COURSE_SAVE_SELF);
 		}
 		if (!course.isPublic()) {

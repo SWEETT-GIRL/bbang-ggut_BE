@@ -16,16 +16,15 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.projection.CourseProgressAggregateProjection;
 import sweetgirl.croissant.course.dto.projection.CourseProgressMemberAggregateProjection;
+import sweetgirl.croissant.course.dto.projection.CourseStoreSummaryProjection;
 import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseImageFile;
 import sweetgirl.croissant.course.entity.CourseProgress;
-import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.entity.CourseStoreVisit;
 import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
-import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
@@ -47,7 +46,7 @@ public class CourseProgressService {
 	private final CourseStoreRepository courseStoreRepository;
 	private final CourseStoreThumbnailReader courseStoreThumbnailReader;
 	private final CourseStoreVisitRepository courseStoreVisitRepository;
-	private final CourseMemberRepository courseMemberRepository;
+	private final CourseAccessPolicy courseAccessPolicy;
 
 	public void start(Long memberId, Long courseId) {
 		Member member = memberReader.getMember(memberId);
@@ -105,12 +104,13 @@ public class CourseProgressService {
 				image -> image.getCourse().getId(),
 				Function.identity(),
 				(first, second) -> first));
-		Map<Long, List<CourseStore>> courseStoresByCourseId = courseStoreRepository
-			.findAllByCourseIdInAndDeletedAtIsNullOrderByVisitOrderAsc(courseIds)
-			.stream()
-			.collect(Collectors.groupingBy(courseStore -> courseStore.getCourse().getId()));
+		// 진행 카드는 가게 썸네일만 필요하다 — Store 엔티티가 아니라 가게 id 만 코스별로 모은다
+		Map<Long, List<Long>> storeIdsByCourseId = courseStoreRepository.findSummariesByCourseIdIn(courseIds).stream()
+			.collect(Collectors.groupingBy(
+				CourseStoreSummaryProjection::getCourseId,
+				Collectors.mapping(CourseStoreSummaryProjection::getStoreId, Collectors.toList())));
 		Map<Long, List<String>> storeThumbnailsByCourseId = courseStoreThumbnailReader
-			.readByCourse(courseStoresByCourseId);
+			.readByCourse(storeIdsByCourseId);
 
 		return progresses.stream()
 			.filter(progress -> ongoingCourseIds.contains(progress.getCourse().getId()))
@@ -232,14 +232,8 @@ public class CourseProgressService {
 	private Course getAccessibleCourse(Long courseId, Long memberId) {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		boolean isOwner = course.getMember() != null && course.getMember().getId().equals(memberId);
-		if (!course.isPublic() && !isOwner && !isActiveMember(course, memberId)) {
-			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
-		}
+		// 토큰 없이 — 링크 공개 코스라도 제3자는 따라가지 못한다
+		courseAccessPolicy.requireViewable(course, memberId, null);
 		return course;
-	}
-
-	private boolean isActiveMember(Course course, Long memberId) {
-		return courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(course.getId(), memberId);
 	}
 }
