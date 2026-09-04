@@ -1,8 +1,10 @@
 package sweetgirl.croissant.course.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.time.LocalDateTime;
@@ -17,13 +19,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.projection.CourseProgressAggregateProjection;
 import sweetgirl.croissant.course.dto.projection.CourseProgressMemberAggregateProjection;
 import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseProgress;
 import sweetgirl.croissant.course.enums.CourseProgressStatus;
+import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
+import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
@@ -48,6 +53,8 @@ class CourseProgressServiceTest {
 	CourseStoreRepository courseStoreRepository;
 	@Mock
 	CourseStoreThumbnailReader courseStoreThumbnailReader;
+	@Mock
+	CourseMemberRepository courseMemberRepository;
 
 	@InjectMocks
 	CourseProgressService courseProgressService;
@@ -66,6 +73,55 @@ class CourseProgressServiceTest {
 		courseProgressService.start(7L, 10L);
 
 		verify(courseProgressRepository).save(any(CourseProgress.class));
+	}
+
+	@Test
+	@DisplayName("start: 비공개 협업 코스도 활성 멤버는 따라갈 수 있다")
+	void start_privateCourse_activeMember_savesProgress() {
+		Member member = member(7L);
+		Course course = privateCourse(10L, member(2L));
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(courseRepository.findByIdAndDeletedAtIsNull(10L)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(10L, 7L)).willReturn(true);
+		given(courseProgressRepository.findByMemberIdAndCourseId(7L, 10L)).willReturn(Optional.empty());
+		given(courseProgressRepository.findAllByMemberIdAndStatus(7L, CourseProgressStatus.IN_PROGRESS))
+			.willReturn(List.of());
+
+		courseProgressService.start(7L, 10L);
+
+		verify(courseProgressRepository).save(any(CourseProgress.class));
+	}
+
+	@Test
+	@DisplayName("start: 비공개 코스를 제3자가 따라가려 하면 COURSE_FORBIDDEN")
+	void start_privateCourse_thirdParty_throwsForbidden() {
+		Member member = member(7L);
+		Course course = privateCourse(10L, member(2L));
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(courseRepository.findByIdAndDeletedAtIsNull(10L)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(10L, 7L)).willReturn(false);
+
+		assertThatThrownBy(() -> courseProgressService.start(7L, 10L))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		verify(courseProgressRepository, never()).save(any());
+	}
+
+	@Test
+	@DisplayName("start: 방장은 멤버 조회 없이 비공개 코스를 따라간다")
+	void start_privateCourse_owner_skipsMemberCheck() {
+		Member owner = member(7L);
+		Course course = privateCourse(10L, owner);
+		given(memberReader.getMember(7L)).willReturn(owner);
+		given(courseRepository.findByIdAndDeletedAtIsNull(10L)).willReturn(Optional.of(course));
+		given(courseProgressRepository.findByMemberIdAndCourseId(7L, 10L)).willReturn(Optional.empty());
+		given(courseProgressRepository.findAllByMemberIdAndStatus(7L, CourseProgressStatus.IN_PROGRESS))
+			.willReturn(List.of());
+
+		courseProgressService.start(7L, 10L);
+
+		verify(courseProgressRepository).save(any(CourseProgress.class));
+		verify(courseMemberRepository, never()).existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(any(), any());
 	}
 
 	@Test
@@ -187,6 +243,12 @@ class CourseProgressServiceTest {
 
 	private Course course(Long id) {
 		Course course = Course.createCurated("코스 " + id, null);
+		ReflectionTestUtils.setField(course, "id", id);
+		return course;
+	}
+
+	private Course privateCourse(Long id, Member owner) {
+		Course course = Course.createCustom("비공개 코스 " + id, owner, false);
 		ReflectionTestUtils.setField(course, "id", id);
 		return course;
 	}

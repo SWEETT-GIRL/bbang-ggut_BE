@@ -25,6 +25,7 @@ import sweetgirl.croissant.course.entity.CourseStoreVisit;
 import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
+import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
@@ -46,6 +47,7 @@ public class CourseProgressService {
 	private final CourseStoreRepository courseStoreRepository;
 	private final CourseStoreThumbnailReader courseStoreThumbnailReader;
 	private final CourseStoreVisitRepository courseStoreVisitRepository;
+	private final CourseMemberRepository courseMemberRepository;
 
 	public void start(Long memberId, Long courseId) {
 		Member member = memberReader.getMember(memberId);
@@ -226,13 +228,18 @@ public class CourseProgressService {
 		return response.lastTouchedAt() != null ? response.lastTouchedAt() : response.startedAt();
 	}
 
+	/** 공개 코스는 누구나, 비공개 코스는 방장과 활성 멤버만 따라갈 수 있다 — 협업 코스는 PRIVATE 이라 멤버를 빼면 시작조차 못 한다. */
 	private Course getAccessibleCourse(Long courseId, Long memberId) {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		boolean isOwner = course.getMember() != null && course.getMember().getId().equals(memberId);
-		if (!course.isPublic() && !isOwner) {
+		if (!course.isPublic() && !isOwner && !isActiveMember(course, memberId)) {
 			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
 		}
 		return course;
+	}
+
+	private boolean isActiveMember(Course course, Long memberId) {
+		return courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(course.getId(), memberId);
 	}
 }

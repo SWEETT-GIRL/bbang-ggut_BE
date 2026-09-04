@@ -728,7 +728,7 @@ class CourseCommandServiceTest {
 	}
 
 	@Test
-	@DisplayName("forkCourse: 비공개 코스 포크 시도 시 COURSE_FORK_NOT_PUBLIC을 던진다")
+	@DisplayName("forkCourse: 비공개 코스를 제3자가 포크하면 COURSE_FORK_NOT_PUBLIC — 멤버 여부까지 보고 거부한다")
 	void forkCourse_privateCourse_throwsForkNotPublic() {
 		Long memberId = 1L;
 		Long ownerId = 2L;
@@ -736,10 +736,60 @@ class CourseCommandServiceTest {
 		Course course = mockCourse(courseId, "비공개 커스텀 코스", CourseType.CUSTOM, ownerId, null);
 
 		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
+			.willReturn(false);
 
 		assertThatThrownBy(() -> courseCommandService.forkCourse(memberId, courseId))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORK_NOT_PUBLIC.getMessage());
+		then(courseRepository).should(never()).save(any());
+	}
+
+	@Test
+	@DisplayName("forkCourse: 비공개 협업 코스도 활성 멤버는 포크할 수 있다")
+	void forkCourse_privateCourse_activeMember_success() {
+		Long memberId = 1L;
+		Long ownerId = 2L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "비공개 협업 코스", CourseType.CUSTOM, ownerId, null);
+		Member member = mockMember(memberId);
+		CourseStore sourceStore = mockCourseStore(1, mockStore(100L));
+
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
+			.willReturn(true);
+		given(memberRepository.findByIdAndDeletedAtIsNull(memberId)).willReturn(Optional.of(member));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
+			.willReturn(List.of(sourceStore));
+		Course forkedCourse = mock(Course.class);
+		given(forkedCourse.getId()).willReturn(20L);
+		given(courseRepository.save(any(Course.class))).willReturn(forkedCourse);
+
+		Long forkedId = courseCommandService.forkCourse(memberId, courseId);
+
+		assertThat(forkedId).isEqualTo(20L);
+		then(courseStoreRepository).should().saveAll(any());
+	}
+
+	@Test
+	@DisplayName("forkCourse: 방장은 멤버 조회 없이 비공개 코스를 포크한다")
+	void forkCourse_privateCourse_owner_skipsMemberCheck() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "내 비공개 코스", CourseType.CUSTOM, memberId, null);
+		Member member = mockMember(memberId);
+
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(memberRepository.findByIdAndDeletedAtIsNull(memberId)).willReturn(Optional.of(member));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
+			.willReturn(List.of());
+		Course forkedCourse = mock(Course.class);
+		given(forkedCourse.getId()).willReturn(20L);
+		given(courseRepository.save(any(Course.class))).willReturn(forkedCourse);
+
+		courseCommandService.forkCourse(memberId, courseId);
+
+		then(courseMemberRepository).shouldHaveNoInteractions();
 	}
 
 	@Test
