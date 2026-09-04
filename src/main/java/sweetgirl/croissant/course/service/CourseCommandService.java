@@ -51,6 +51,7 @@ import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.exception.StoreException;
@@ -72,6 +73,7 @@ public class CourseCommandService {
 	private final S3Service s3Service;
 	private final ImageProcessingCallbackService imageProcessingCallbackService;
 	private final CourseProgressService courseProgressService;
+	private final MemberRestrictionReader memberRestrictionReader;
 
 	public Long createCourse(Long memberId, CourseCreateRequest request) {
 		Member member = memberRepository.findByIdAndDeletedAtIsNull(memberId)
@@ -278,6 +280,8 @@ public class CourseCommandService {
 			existing.filter(memo -> !memo.isDeleted()).ifPresent(CourseStoreMemo::softDelete);
 			return null;
 		}
+		// 메모는 일행에게 보이는 글이다 — 쓰기 제한(밴) 회원은 초대 생성·수락처럼 막는다. 지우는 건 된다.
+		memberRestrictionReader.validateCanWrite(memberId);
 		if (existing.isPresent()) {
 			CourseStoreMemo memo = existing.get();
 			if (memo.isDeleted()) {

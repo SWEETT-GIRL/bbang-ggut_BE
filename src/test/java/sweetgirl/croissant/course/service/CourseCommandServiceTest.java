@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -51,8 +52,11 @@ import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.course.util.CollabTokenGenerator;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
+import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
@@ -81,6 +85,8 @@ class CourseCommandServiceTest {
 	ImageProcessingCallbackService imageProcessingCallbackService;
 	@Mock
 	CourseProgressService courseProgressService;
+	@Mock
+	MemberRestrictionReader memberRestrictionReader;
 
 	@InjectMocks
 	CourseCommandService courseCommandService;
@@ -1345,6 +1351,45 @@ class CourseCommandServiceTest {
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
 		then(course).should(never()).updateVisibility(any());
+	}
+
+	@Test
+	@DisplayName("updateStore: 쓰기 제한(밴) 회원은 메모를 못 쓴다 — 일행에게 보이는 글이다")
+	void updateStore_restrictedMember_cannotWriteMemo() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Long storeId = 100L;
+		givenEditableStore(memberId, courseId, storeId);
+		given(courseStoreMemoRepository.findByIdCourseStoreIdAndIdMemberId(501L, memberId))
+			.willReturn(Optional.empty());
+		willThrow(new MemberException(MemberErrorCode.MEMBER_WRITE_RESTRICTED))
+			.given(memberRestrictionReader).validateCanWrite(memberId);
+		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		given(request.getMemo()).willReturn("남에게 보이는 메모");
+
+		assertThatThrownBy(() -> courseCommandService.updateStore(memberId, courseId, storeId, request))
+			.isInstanceOf(MemberException.class);
+		then(courseStoreMemoRepository).should(never()).save(any());
+		then(courseRepository).should(never()).bumpVersion(any());
+	}
+
+	@Test
+	@DisplayName("updateStore: 쓰기 제한 회원도 자기 메모를 지우는 건 된다 — 지우기는 남에게 보이는 글이 아니다")
+	void updateStore_restrictedMember_canDeleteOwnMemo() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Long storeId = 100L;
+		CourseStore courseStore = givenEditableStore(memberId, courseId, storeId);
+		CourseStoreMemo mine = realMemo(courseStore, memberId, "지울 메모");
+		given(courseStoreMemoRepository.findByIdCourseStoreIdAndIdMemberId(501L, memberId))
+			.willReturn(Optional.of(mine));
+		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		given(request.getMemo()).willReturn("");
+
+		courseCommandService.updateStore(memberId, courseId, storeId, request);
+
+		assertThat(mine.isDeleted()).isTrue();
+		then(memberRestrictionReader).shouldHaveNoInteractions();
 	}
 
 	// ───────────────────────── updateCourse: 링크 공개(visibility) ─────────────────────────

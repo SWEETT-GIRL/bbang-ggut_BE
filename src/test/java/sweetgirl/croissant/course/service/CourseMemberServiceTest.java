@@ -963,6 +963,17 @@ class CourseMemberServiceTest {
 		}
 
 		@Test
+		@DisplayName("쓰기 제한(밴) 계정은 코스 안 이름을 못 바꾼다 — 일행에게 보이는 글이다")
+		void restricted_blocked() {
+			willThrow(new MemberException(MemberErrorCode.MEMBER_WRITE_RESTRICTED))
+				.given(memberRestrictionReader).validateCanWrite(MEMBER_ID);
+
+			assertThatThrownBy(() -> courseMemberService.rename(MEMBER_ID, COURSE_ID, "새이름"))
+				.isInstanceOf(MemberException.class);
+			then(courseRepository).shouldHaveNoInteractions();
+		}
+
+		@Test
 		@DisplayName("나간 사람은 COURSE_MEMBER_NOT_FOUND")
 		void leftMember() {
 			Course course = mockCourse(CourseType.CUSTOM, owner(), false);

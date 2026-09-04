@@ -303,6 +303,8 @@ public class CourseMemberService {
 	}
 
 	public void rename(Long memberId, Long courseId, String displayName) {
+		// 코스 안 이름은 일행에게 보이는 글이다 — 쓰기 제한(밴) 회원은 초대 생성·수락처럼 막는다
+		memberRestrictionReader.validateCanWrite(memberId);
 		courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		getActiveMemberRow(courseId, memberId).rename(displayName);
