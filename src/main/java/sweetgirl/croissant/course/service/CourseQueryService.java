@@ -28,6 +28,7 @@ import sweetgirl.croissant.course.entity.CourseStoreMemo;
 import sweetgirl.croissant.course.entity.CourseStoreVisit;
 import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.enums.CourseType;
+import sweetgirl.croissant.course.enums.CourseVisibility;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseMemberRepository;
@@ -37,6 +38,7 @@ import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
+import sweetgirl.croissant.course.util.ShareTokenMatcher;
 import sweetgirl.croissant.store.RegionFormatter;
 
 @Service
@@ -102,22 +104,51 @@ public class CourseQueryService {
 		return buildSummaryResponses(savedCourses, Set.of());
 	}
 
-	public CourseDetailResponse getCourseDetail(Long courseId, Long memberId) {
+	/**
+	 * 코스 상세. 판정 순서 — PRIVATE: 방장·활성 멤버만(토큰이 맞아도 403, 토큰보다 PRIVATE 이 강하다) /
+	 * UNLISTED: 방장·활성 멤버 이거나 t 가 share_token 과 일치 / PUBLIC: 누구나.
+	 */
+	public CourseDetailResponse getCourseDetail(Long courseId, Long memberId, String shareToken) {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-
-		// 참여자 목록은 한 번만 읽어 접근 판정·members·메모 정렬에 같이 쓴다. 큐레이션엔 행이 없다.
-		List<CourseMember> members = course.getType() == CourseType.CURATED
-			? List.of()
-			: courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(courseId);
+		List<CourseMember> members = activeMembersOf(course, courseId);
 		boolean isMine = isOwner(course, memberId);
-		boolean isMember = !isMine && memberId != null
-			&& members.stream().anyMatch(row -> row.getId().getMemberId().equals(memberId));
+		boolean isMember = isActiveMemberIn(members, memberId, isMine);
 		// 비공개 코스는 방장과 활성 멤버만 — 협업 코스는 PRIVATE 이라 멤버를 빼면 자기 코스를 못 본다
-		if (!course.isPublic() && !isMine && !isMember) {
+		if (!course.isPublic() && !isMine && !isMember && !ShareTokenMatcher.matches(course, shareToken)) {
 			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
 		}
+		return buildDetail(course, courseId, memberId, members, isMine, isMember);
+	}
 
+	/**
+	 * 랜딩이 /c/{shareToken} 으로 받으면 코스 id 를 모른다 — 토큰만으로 찾는 입구.
+	 * 토큰은 맞는데 지금은 UNLISTED 가 아닌 코스는 403 이 아니라 404 — "토큰은 맞다"를 알려주면 토큰 유효성이 샌다.
+	 */
+	public CourseDetailResponse getCourseDetailByShareToken(String shareToken, Long memberId) {
+		Course course = courseRepository.findByShareTokenAndDeletedAtIsNull(shareToken)
+			.filter(found -> found.getVisibility() == CourseVisibility.UNLISTED)
+			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
+		List<CourseMember> members = activeMembersOf(course, course.getId());
+		boolean isMine = isOwner(course, memberId);
+		boolean isMember = isActiveMemberIn(members, memberId, isMine);
+		return buildDetail(course, course.getId(), memberId, members, isMine, isMember);
+	}
+
+	/** 참여자 목록은 한 번만 읽어 접근 판정·members·메모 정렬에 같이 쓴다. 큐레이션엔 행이 없다. */
+	private List<CourseMember> activeMembersOf(Course course, Long courseId) {
+		return course.getType() == CourseType.CURATED
+			? List.of()
+			: courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(courseId);
+	}
+
+	private boolean isActiveMemberIn(List<CourseMember> members, Long memberId, boolean isMine) {
+		return !isMine && memberId != null
+			&& members.stream().anyMatch(row -> row.getId().getMemberId().equals(memberId));
+	}
+
+	private CourseDetailResponse buildDetail(Course course, Long courseId, Long memberId, List<CourseMember> members,
+			boolean isMine, boolean isMember) {
 		List<CourseStore> courseStores = courseStoreRepository
 			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId);
 		// 방문 표시는 사람마다 다르다. 비로그인이면 아무것도 표시되지 않는다.
@@ -166,6 +197,10 @@ public class CourseQueryService {
 			.map(CourseMember::getDisplayName)
 			.findFirst()
 			.orElse(null);
+		// 공유 토큰은 방장에게만, 링크 공개일 때만 — 멤버·토큰으로 들어온 사람에겐 내려주지 않는다
+		String shareTokenForViewer = isMine && course.getVisibility() == CourseVisibility.UNLISTED
+			? course.getShareToken()
+			: null;
 
 		return CourseDetailResponse.of(
 			course,
@@ -179,17 +214,19 @@ public class CourseQueryService {
 			courseStoreResponses,
 			memberResponses,
 			isMember,
-			myDisplayName);
+			myDisplayName,
+			shareTokenForViewer);
 	}
 
 	/**
 	 * 폴링 ETag 용. 상세와 같은 접근 판정을 먼저 한다 — 권한이 없는 사람에게 304 로 코스의 존재를 알려주면 안 된다.
 	 * 본문이 사람마다 달라도(isMine·visited·myMemo) ETag 는 같아도 된다: A 의 304 는 A 의 이전 응답을 다시 쓰라는 뜻이다.
 	 */
-	public long getVersion(Long courseId, Long memberId) {
+	public long getVersion(Long courseId, Long memberId, String shareToken) {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		if (!course.isPublic() && !isOwner(course, memberId) && !isActiveMember(course, memberId)) {
+		if (!course.isPublic() && !isOwner(course, memberId) && !isActiveMember(course, memberId)
+			&& !ShareTokenMatcher.matches(course, shareToken)) {
 			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
 		}
 		return course.getVersion();

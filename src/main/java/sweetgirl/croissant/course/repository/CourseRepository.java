@@ -50,6 +50,9 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 
 	Optional<Course> findByIdAndDeletedAtIsNull(Long id);
 
+	/** 링크 공개 입구 — 랜딩이 /c/{shareToken} 으로 받으면 코스 id 를 모른다. */
+	Optional<Course> findByShareTokenAndDeletedAtIsNull(String shareToken);
+
 	/**
 	 * 코스 행에 비관적 락을 걸고 읽는다. 같은 코스에 동시에 들어오는 쓰기를 줄 세운다 —
 	 * 가게 추가·삭제·순서 변경(유니크 순서 충돌로 500), 초대 생성(활성 링크 2개), 수락(정원 9명).

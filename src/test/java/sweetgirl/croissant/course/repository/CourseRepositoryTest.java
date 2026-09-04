@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityManager;
 import sweetgirl.croissant.course.entity.Course;
+import sweetgirl.croissant.course.enums.CourseVisibility;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.member.entity.Member;
 
@@ -53,6 +54,29 @@ class CourseRepositoryTest {
 			.extracting(Course::getTitle)
 			.isEqualTo("살아있는 코스");
 		assertThat(courseRepository.findWithLockByIdAndDeletedAtIsNull(deleted.getId())).isEmpty();
+	}
+
+	@Test
+	@DisplayName("공유 토큰으로 살아있는 코스를 찾는다 — 지운 코스·모르는 토큰은 비어 있다")
+	void findByShareToken_returnsOnlyLiveCourse() {
+		Member owner = new Member("방장");
+		entityManager.persist(owner);
+		Course live = Course.createCustom("링크 공개", owner, false);
+		live.updateVisibility(CourseVisibility.UNLISTED);
+		live.issueShareToken("live-token");
+		Course deleted = Course.createCustom("지운 코스", owner, false);
+		deleted.issueShareToken("deleted-token");
+		deleted.softDelete();
+		entityManager.persist(live);
+		entityManager.persist(deleted);
+		entityManager.flush();
+
+		assertThat(courseRepository.findByShareTokenAndDeletedAtIsNull("live-token"))
+			.get()
+			.extracting(Course::getTitle)
+			.isEqualTo("링크 공개");
+		assertThat(courseRepository.findByShareTokenAndDeletedAtIsNull("deleted-token")).isEmpty();
+		assertThat(courseRepository.findByShareTokenAndDeletedAtIsNull("unknown")).isEmpty();
 	}
 
 	@Test

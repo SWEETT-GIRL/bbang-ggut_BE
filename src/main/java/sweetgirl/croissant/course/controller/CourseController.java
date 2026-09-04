@@ -88,14 +88,15 @@ public class CourseController {
 		return ResponseEntity.ok(ApiResponse.ok(courseProgressService.getOngoing(memberId)));
 	}
 
-	@Operation(summary = "코스 상세 조회", description = "If-None-Match 에 이전 응답의 ETag(= version)를 보내면 바뀐 게 없을 때 304 로 답한다.")
+	@Operation(summary = "코스 상세 조회", description = "If-None-Match 가 ETag(version)와 같으면 304. 링크 공개는 ?t= 토큰으로 본다.")
 	@GetMapping("/{courseId}")
 	public ResponseEntity<ApiResponse<CourseDetailResponse>> getCourseDetail(
 			@PathVariable Long courseId,
 			@AuthenticationPrincipal Long memberId,
+			@RequestParam(name = "t", required = false) String shareToken,
 			WebRequest request) {
 		// ETag 는 version 만 쓴다(본문 해시 아님). 권한 검사가 먼저다 — 권한 없는 사람에게 304 로 존재를 알려주면 안 된다.
-		String etag = "\"" + courseQueryService.getVersion(courseId, memberId) + "\"";
+		String etag = "\"" + courseQueryService.getVersion(courseId, memberId, shareToken) + "\"";
 		if (request.checkNotModified(etag)) {
 			return null; // Spring 이 304 + ETag 로 응답한다
 		}
@@ -103,7 +104,15 @@ public class CourseController {
 		return ResponseEntity.ok()
 			.eTag(etag)
 			.cacheControl(CacheControl.noCache().cachePrivate())
-			.body(ApiResponse.ok(courseQueryService.getCourseDetail(courseId, memberId)));
+			.body(ApiResponse.ok(courseQueryService.getCourseDetail(courseId, memberId, shareToken)));
+	}
+
+	@Operation(summary = "공유 토큰으로 코스 상세 조회", description = "랜딩 /c/{shareToken} 용. 비로그인 허용. 링크 공개가 아니면 404.")
+	@GetMapping("/by-share/{shareToken}")
+	public ResponseEntity<ApiResponse<CourseDetailResponse>> getCourseDetailByShareToken(
+			@PathVariable String shareToken,
+			@AuthenticationPrincipal Long memberId) {
+		return ResponseEntity.ok(ApiResponse.ok(courseQueryService.getCourseDetailByShareToken(shareToken, memberId)));
 	}
 
 	@Operation(summary = "코스 생성")

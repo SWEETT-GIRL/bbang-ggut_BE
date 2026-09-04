@@ -86,7 +86,9 @@ public class SecurityConfig {
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/courses/\\d+(\\?.*)?$"),
 				// 초대 미리보기 — 랜딩은 사용자 토큰이 없다. /courses/** 로 열면 비공개 코스 API 가 통째로 열리니
 				// 토큰 경로만 좁게 연다. 수락(POST)은 절대 열지 않는다.
-				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/courses/invites/[A-Za-z0-9_-]+(\\?.*)?$"))
+				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/courses/invites/[A-Za-z0-9_-]+(\\?.*)?$"),
+				// 링크 공개 코스 입구 — 랜딩 /c/{shareToken} 도 사용자 토큰이 없다. 토큰 경로만 좁게 연다.
+				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/courses/by-share/[A-Za-z0-9_-]+(\\?.*)?$"))
 			.permitAll()
 			.requestMatchers("/admin/**", "/api/admin/**").permitAll()
 			.requestMatchers(HttpMethod.POST, "/api/admin/members/*/ban").permitAll() // 회원 강퇴 API 임시 허용
