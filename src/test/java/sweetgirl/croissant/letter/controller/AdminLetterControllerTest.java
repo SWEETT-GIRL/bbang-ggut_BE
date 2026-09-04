@@ -58,7 +58,7 @@ class AdminLetterControllerTest {
 	void getThreads_returnsThreadRows() throws Exception {
 		AdminLetterThreadResponse thread = new AdminLetterThreadResponse(
 			11L, 7L, "포실한 까눌레", false, "네 좋아요!", LocalDateTime.of(2026, 9, 3, 10, 0), 2L,
-			LetterCategory.BUG);
+			LetterCategory.BUG, false);
 		given(adminLetterService.getThreads(0, 20))
 			.willReturn(new AdminLetterThreadListResponse(List.of(thread), false));
 

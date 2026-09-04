@@ -19,5 +19,12 @@ public record AdminLetterThreadResponse(
 		LocalDateTime lastMessageAt,
 		long unreadCount,
 		/** 가장 최근 사용자 메시지의 유형. 무슨 건인지 목록에서 바로 보이라고 얹는다. */
-		LetterCategory category) {
+		LetterCategory category,
+		/**
+		 * 어드민이 해결로 닫아 둔 대화인지. 목록에서 처리한 것과 남은 것을 가르는 값이다.
+		 *
+		 * <p>앱이 쓰는 {@code closed}와 다르다 — 이건 사람이 누른 것만 말하고, 오래 조용해서
+		 * 닫힌 것으로 치는 건 포함하지 않는다. 어드민에게는 "내가 처리했나"가 알고 싶은 것이다.
+		 */
+		boolean resolved) {
 }

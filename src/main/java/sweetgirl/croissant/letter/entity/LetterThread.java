@@ -47,6 +47,18 @@ public class LetterThread extends BaseTimeEntity {
 	@Column(name = "last_message_at", nullable = false)
 	private LocalDateTime lastMessageAt;
 
+	/**
+	 * 어드민이 이 대화를 해결로 닫은 시각. NULL이면 진행 중이다.
+	 *
+	 * <p>앱이 "어떤 이야기인지 골라주세요"를 다시 띄울지가 이 값으로 갈린다. 화면 지역 상태로
+	 * 두면 상담 중에 잠깐 나갔다 와도 처음부터 다시 시작하는 것처럼 보인다 — 그 판단은
+	 * 사용자의 화면이 아니라 대화 자체가 들고 있어야 한다.
+	 *
+	 * <p>boolean이 아니라 시각인 건, 닫힌 뒤 얼마 만에 다시 말을 걸었는지가 나중에 볼 값이라서다.
+	 */
+	@Column(name = "resolved_at")
+	private LocalDateTime resolvedAt;
+
 	private LetterThread(Member member, LocalDateTime lastMessageAt) {
 		this.member = member;
 		this.lastMessageAt = lastMessageAt;
@@ -59,5 +71,24 @@ public class LetterThread extends BaseTimeEntity {
 	/** 편지가 오갈 때마다 맨 위로 올린다. */
 	public void touch(LocalDateTime now) {
 		this.lastMessageAt = now;
+	}
+
+	/** 어드민이 해결로 닫는다. 이미 닫혀 있으면 시각을 덮지 않는다 — 처음 닫은 때가 사실이다. */
+	public void resolve(LocalDateTime now) {
+		if (this.resolvedAt == null) {
+			this.resolvedAt = now;
+		}
+	}
+
+	/**
+	 * 다시 연다. 편지가 한 통이라도 새로 오가면 그 대화는 이어지는 중이다 —
+	 * 사용자가 보내든, 어드민이 답장하든, 어드민이 먼저 말을 걸든 마찬가지다.
+	 */
+	public void reopen() {
+		this.resolvedAt = null;
+	}
+
+	public boolean isResolved() {
+		return this.resolvedAt != null;
 	}
 }
