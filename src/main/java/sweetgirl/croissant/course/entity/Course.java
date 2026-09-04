@@ -58,6 +58,13 @@ public class Course extends BaseTimeEntity {
 	@Column(nullable = false, length = 16)
 	private CourseVisibility visibility;
 
+	/**
+	 * 링크 공개(UNLISTED) 공유 토큰. 처음 UNLISTED 로 바꿀 때 발급하고 만료 없이 보존한다 — 왕복해도 이미 나간 링크가 살아 있어야 한다.
+	 * 초대 토큰과 컬럼을 분리한다: 초대 토큰은 수락하면 편집자가 되고 이건 보기만 된다(유출 피해 등급이 다르다).
+	 */
+	@Column(name = "share_token", length = 64)
+	private String shareToken;
+
 	/** 빈 일차를 포함한 일차 수. 일행이 같은 일차 수를 보게 서버가 갖는다. 늘어나기만 한다. */
 	@Column(name = "day_count", nullable = false)
 	private int dayCount = 1;
@@ -166,9 +173,20 @@ public class Course extends BaseTimeEntity {
 		this.title = title;
 	}
 
-	public void updatePublic(boolean isPublic) {
-		this.isPublic = isPublic;
-		this.visibility = CourseVisibility.fromPublic(isPublic);
+	/**
+	 * 공개 범위 전환. is_public 은 구버전 앱이 읽어 한 릴리즈 더 남긴다 — PUBLIC 일 때만 true 로 같이 쓴다.
+	 * 그래서 isPublic() 은 항상 (visibility == PUBLIC) 이다. "공개일 때만" 판정하는 곳은 이 불변식에 기댄다.
+	 */
+	public void updateVisibility(CourseVisibility visibility) {
+		this.visibility = visibility;
+		this.isPublic = visibility == CourseVisibility.PUBLIC;
+	}
+
+	/** 공유 토큰은 한 번만 발급한다 — 공개 범위를 오가도 이미 나간 링크가 살아 있어야 한다. */
+	public void issueShareToken(String shareToken) {
+		if (this.shareToken == null) {
+			this.shareToken = shareToken;
+		}
 	}
 
 	/** 일차 수는 호출부가 검증한다(max(day) 이상, 현재 값 이상). 여기서는 값만 바꾼다. */

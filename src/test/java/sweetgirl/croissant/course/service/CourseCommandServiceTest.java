@@ -3,6 +3,7 @@ package sweetgirl.croissant.course.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -31,6 +32,7 @@ import sweetgirl.croissant.course.dto.request.CourseStoreReorderRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreUpdateRequest;
 import sweetgirl.croissant.course.dto.request.CourseUpdateRequest;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
+import sweetgirl.croissant.course.dto.response.CourseUpdateResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseImageFile;
 import sweetgirl.croissant.course.entity.CourseMember;
@@ -38,6 +40,7 @@ import sweetgirl.croissant.course.entity.CourseMemberId;
 import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.entity.CourseStoreMemo;
 import sweetgirl.croissant.course.enums.CourseType;
+import sweetgirl.croissant.course.enums.CourseVisibility;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseMemberRepository;
@@ -45,6 +48,7 @@ import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
+import sweetgirl.croissant.course.util.CollabTokenGenerator;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
 import sweetgirl.croissant.member.entity.Member;
@@ -174,7 +178,7 @@ class CourseCommandServiceTest {
 		courseCommandService.updateCourse(memberId, courseId, request);
 
 		then(course).should().updateTitle("수정된 제목");
-		then(course).should().updatePublic(true);
+		then(course).should().updateVisibility(CourseVisibility.PUBLIC);
 		then(courseRepository).should().bumpVersion(courseId);
 	}
 
@@ -715,7 +719,7 @@ class CourseCommandServiceTest {
 
 		lenient().when(sourceStore.getMemo()).thenReturn("원본 방장 메모");
 
-		Long forkedId = courseCommandService.forkCourse(memberId, sourceId);
+		Long forkedId = courseCommandService.forkCourse(memberId, sourceId, null);
 
 		assertThat(forkedId).isEqualTo(20L);
 		@SuppressWarnings("unchecked") ArgumentCaptor<List<CourseStore>> copiedCaptor = ArgumentCaptor
@@ -739,7 +743,7 @@ class CourseCommandServiceTest {
 		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
 			.willReturn(false);
 
-		assertThatThrownBy(() -> courseCommandService.forkCourse(memberId, courseId))
+		assertThatThrownBy(() -> courseCommandService.forkCourse(memberId, courseId, null))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORK_NOT_PUBLIC.getMessage());
 		then(courseRepository).should(never()).save(any());
@@ -765,7 +769,7 @@ class CourseCommandServiceTest {
 		given(forkedCourse.getId()).willReturn(20L);
 		given(courseRepository.save(any(Course.class))).willReturn(forkedCourse);
 
-		Long forkedId = courseCommandService.forkCourse(memberId, courseId);
+		Long forkedId = courseCommandService.forkCourse(memberId, courseId, null);
 
 		assertThat(forkedId).isEqualTo(20L);
 		then(courseStoreRepository).should().saveAll(any());
@@ -787,7 +791,7 @@ class CourseCommandServiceTest {
 		given(forkedCourse.getId()).willReturn(20L);
 		given(courseRepository.save(any(Course.class))).willReturn(forkedCourse);
 
-		courseCommandService.forkCourse(memberId, courseId);
+		courseCommandService.forkCourse(memberId, courseId, null);
 
 		then(courseMemberRepository).shouldHaveNoInteractions();
 	}
@@ -802,7 +806,64 @@ class CourseCommandServiceTest {
 
 		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 
-		assertThatThrownBy(() -> courseCommandService.forkCourse(memberId, courseId))
+		assertThatThrownBy(() -> courseCommandService.forkCourse(memberId, courseId, null))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORK_NOT_PUBLIC.getMessage());
+	}
+
+	@Test
+	@DisplayName("forkCourse: 링크 공개(UNLISTED) 코스는 토큰이 맞으면 제3자도 포크한다 — 링크로 본 코스를 챙겨두는 유일한 길")
+	void forkCourse_unlistedCourse_withToken_success() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "링크 공개 코스", CourseType.CUSTOM, 2L, null);
+		given(course.getVisibility()).willReturn(CourseVisibility.UNLISTED);
+		given(course.getShareToken()).willReturn("secret");
+		Member member = mockMember(memberId);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
+			.willReturn(false);
+		given(memberRepository.findByIdAndDeletedAtIsNull(memberId)).willReturn(Optional.of(member));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
+			.willReturn(List.of());
+		Course forkedCourse = mock(Course.class);
+		given(forkedCourse.getId()).willReturn(20L);
+		given(courseRepository.save(any(Course.class))).willReturn(forkedCourse);
+
+		assertThat(courseCommandService.forkCourse(memberId, courseId, "secret")).isEqualTo(20L);
+	}
+
+	@Test
+	@DisplayName("forkCourse: 링크 공개 코스라도 토큰이 틀리면 COURSE_FORK_NOT_PUBLIC — 순차 id 만으로는 못 가져간다")
+	void forkCourse_unlistedCourse_wrongToken_throwsForkNotPublic() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "링크 공개 코스", CourseType.CUSTOM, 2L, null);
+		given(course.getVisibility()).willReturn(CourseVisibility.UNLISTED);
+		given(course.getShareToken()).willReturn("secret");
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
+			.willReturn(false);
+
+		assertThatThrownBy(() -> courseCommandService.forkCourse(memberId, courseId, "wrong"))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORK_NOT_PUBLIC.getMessage());
+		then(courseRepository).should(never()).save(any());
+	}
+
+	@Test
+	@DisplayName("forkCourse: PRIVATE 은 토큰이 맞아도 COURSE_FORK_NOT_PUBLIC — 토큰보다 PRIVATE 이 강하다")
+	void forkCourse_privateCourse_withToken_throwsForkNotPublic() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "비공개 코스", CourseType.CUSTOM, 2L, null);
+		lenient().when(course.getVisibility()).thenReturn(CourseVisibility.PRIVATE);
+		lenient().when(course.getShareToken()).thenReturn("secret");
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
+			.willReturn(false);
+
+		assertThatThrownBy(() -> courseCommandService.forkCourse(memberId, courseId, "secret"))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORK_NOT_PUBLIC.getMessage());
 	}
@@ -919,7 +980,7 @@ class CourseCommandServiceTest {
 		assertThatThrownBy(() -> courseCommandService.updateCourse(memberId, courseId, request))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_COLLAB_CANNOT_BE_PUBLIC.getMessage());
-		then(course).should(never()).updatePublic(any(Boolean.class));
+		then(course).should(never()).updateVisibility(any());
 		then(courseRepository).should(never()).bumpVersion(any());
 	}
 
@@ -938,7 +999,7 @@ class CourseCommandServiceTest {
 
 		courseCommandService.updateCourse(memberId, courseId, request);
 
-		then(course).should().updatePublic(true);
+		then(course).should().updateVisibility(CourseVisibility.PUBLIC);
 	}
 
 	@Test
@@ -953,7 +1014,7 @@ class CourseCommandServiceTest {
 
 		courseCommandService.updateCourse(memberId, courseId, request);
 
-		then(course).should().updatePublic(false);
+		then(course).should().updateVisibility(CourseVisibility.PRIVATE);
 		then(courseMemberRepository).shouldHaveNoInteractions();
 	}
 
@@ -1286,7 +1347,107 @@ class CourseCommandServiceTest {
 		assertThatThrownBy(() -> courseCommandService.updateCourse(memberId, courseId, request))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
-		then(course).should(never()).updatePublic(any(Boolean.class));
+		then(course).should(never()).updateVisibility(any());
+	}
+
+	// ───────────────────────── updateCourse: 링크 공개(visibility) ─────────────────────────
+
+	@Test
+	@DisplayName("updateCourse: 링크 공개(UNLISTED)로 처음 바꾸면 공유 토큰을 발급하고 방장에게 돌려준다")
+	void updateCourse_toUnlisted_issuesShareToken() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		CourseUpdateRequest request = mockUpdateRequest();
+		given(request.getVisibility()).willReturn(CourseVisibility.UNLISTED);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		// 발급 전엔 null, 발급 뒤엔 토큰
+		given(course.getShareToken()).willReturn(null).willReturn("issued-token");
+		given(course.getVisibility()).willReturn(CourseVisibility.UNLISTED);
+
+		CourseUpdateResponse response = courseCommandService.updateCourse(memberId, courseId, request);
+
+		then(course).should().updateVisibility(CourseVisibility.UNLISTED);
+		then(course).should().issueShareToken(argThat(token -> token.length() == CollabTokenGenerator.TOKEN_LENGTH));
+		assertThat(response.visibility()).isEqualTo(CourseVisibility.UNLISTED);
+		assertThat(response.shareToken()).isEqualTo("issued-token");
+		// 협업 여부는 PUBLIC 으로 바꿀 때만 본다 — 링크 공개는 같이 편집 중이어도 된다
+		then(courseMemberRepository).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("updateCourse: 토큰이 이미 있으면 다시 발급하지 않는다 — PUBLIC·PRIVATE 을 오가도 링크가 살아 있다")
+	void updateCourse_toUnlistedAgain_keepsShareToken() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		CourseUpdateRequest request = mockUpdateRequest();
+		given(request.getVisibility()).willReturn(CourseVisibility.UNLISTED);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(course.getShareToken()).willReturn("kept-token");
+		given(course.getVisibility()).willReturn(CourseVisibility.UNLISTED);
+
+		CourseUpdateResponse response = courseCommandService.updateCourse(memberId, courseId, request);
+
+		then(course).should(never()).issueShareToken(any());
+		assertThat(response.shareToken()).isEqualTo("kept-token");
+	}
+
+	@Test
+	@DisplayName("updateCourse: visibility 와 isPublic 이 같이 오면 visibility 가 이긴다")
+	void updateCourse_visibilityWinsOverIsPublic() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		CourseUpdateRequest request = mockUpdateRequest();
+		lenient().when(request.getIsPublic()).thenReturn(true);
+		given(request.getVisibility()).willReturn(CourseVisibility.PRIVATE);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+
+		courseCommandService.updateCourse(memberId, courseId, request);
+
+		then(course).should().updateVisibility(CourseVisibility.PRIVATE);
+		then(courseMemberRepository).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("updateCourse: 활성 멤버는 visibility 를 못 바꾼다 — 방장 전용")
+	void updateCourse_activeMember_cannotChangeVisibility() {
+		Long ownerId = 1L;
+		Long memberId = 2L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, ownerId, null);
+		CourseUpdateRequest request = mockUpdateRequest();
+		given(request.getVisibility()).willReturn(CourseVisibility.UNLISTED);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
+			.willReturn(true);
+
+		assertThatThrownBy(() -> courseCommandService.updateCourse(memberId, courseId, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		then(course).should(never()).updateVisibility(any());
+	}
+
+	@Test
+	@DisplayName("updateCourse: 멤버가 제목만 고치면 응답에 공유 토큰이 실리지 않는다")
+	void updateCourse_member_responseHidesShareToken() {
+		Long ownerId = 1L;
+		Long memberId = 2L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, ownerId, null);
+		lenient().when(course.getVisibility()).thenReturn(CourseVisibility.UNLISTED);
+		lenient().when(course.getShareToken()).thenReturn("secret");
+		CourseUpdateRequest request = mockUpdateRequest();
+		given(request.getTitle()).willReturn("멤버가 고친 제목");
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
+			.willReturn(true);
+
+		CourseUpdateResponse response = courseCommandService.updateCourse(memberId, courseId, request);
+
+		assertThat(response.visibility()).isEqualTo(CourseVisibility.UNLISTED);
+		assertThat(response.shareToken()).isNull();
 	}
 
 	// ───────────────────────── helpers ─────────────────────────

@@ -37,6 +37,7 @@ import sweetgirl.croissant.course.dto.response.CourseInviteResponse;
 import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
+import sweetgirl.croissant.course.dto.response.CourseUpdateResponse;
 import sweetgirl.croissant.course.dto.response.CourseVisitCandidateResponse;
 import sweetgirl.croissant.course.service.CourseCommandService;
 import sweetgirl.croissant.course.service.CourseMemberService;
@@ -87,14 +88,15 @@ public class CourseController {
 		return ResponseEntity.ok(ApiResponse.ok(courseProgressService.getOngoing(memberId)));
 	}
 
-	@Operation(summary = "코스 상세 조회", description = "If-None-Match 에 이전 응답의 ETag(= version)를 보내면 바뀐 게 없을 때 304 로 답한다.")
+	@Operation(summary = "코스 상세 조회", description = "If-None-Match 가 ETag(version)와 같으면 304. 링크 공개는 ?t= 토큰으로 본다.")
 	@GetMapping("/{courseId}")
 	public ResponseEntity<ApiResponse<CourseDetailResponse>> getCourseDetail(
 			@PathVariable Long courseId,
 			@AuthenticationPrincipal Long memberId,
+			@RequestParam(name = "t", required = false) String shareToken,
 			WebRequest request) {
 		// ETag 는 version 만 쓴다(본문 해시 아님). 권한 검사가 먼저다 — 권한 없는 사람에게 304 로 존재를 알려주면 안 된다.
-		String etag = "\"" + courseQueryService.getVersion(courseId, memberId) + "\"";
+		String etag = "\"" + courseQueryService.getVersion(courseId, memberId, shareToken) + "\"";
 		if (request.checkNotModified(etag)) {
 			return null; // Spring 이 304 + ETag 로 응답한다
 		}
@@ -102,7 +104,15 @@ public class CourseController {
 		return ResponseEntity.ok()
 			.eTag(etag)
 			.cacheControl(CacheControl.noCache().cachePrivate())
-			.body(ApiResponse.ok(courseQueryService.getCourseDetail(courseId, memberId)));
+			.body(ApiResponse.ok(courseQueryService.getCourseDetail(courseId, memberId, shareToken)));
+	}
+
+	@Operation(summary = "공유 토큰으로 코스 상세 조회", description = "랜딩 /c/{shareToken} 용. 비로그인 허용. 링크 공개가 아니면 404.")
+	@GetMapping("/by-share/{shareToken}")
+	public ResponseEntity<ApiResponse<CourseDetailResponse>> getCourseDetailByShareToken(
+			@PathVariable String shareToken,
+			@AuthenticationPrincipal Long memberId) {
+		return ResponseEntity.ok(ApiResponse.ok(courseQueryService.getCourseDetailByShareToken(shareToken, memberId)));
 	}
 
 	@Operation(summary = "코스 생성")
@@ -114,14 +124,13 @@ public class CourseController {
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(Map.of("courseId", courseId)));
 	}
 
-	@Operation(summary = "코스 수정")
+	@Operation(summary = "코스 수정", description = "공개 범위(visibility) 전환은 방장 전용. 링크 공개로 처음 바꾸면 shareToken 을 발급한다.")
 	@PatchMapping("/{courseId}")
-	public ResponseEntity<ApiResponse<Void>> updateCourse(
+	public ResponseEntity<ApiResponse<CourseUpdateResponse>> updateCourse(
 			@AuthenticationPrincipal Long memberId,
 			@PathVariable Long courseId,
 			@Valid @RequestBody CourseUpdateRequest request) {
-		courseCommandService.updateCourse(memberId, courseId, request);
-		return ResponseEntity.ok(ApiResponse.ok(null));
+		return ResponseEntity.ok(ApiResponse.ok(courseCommandService.updateCourse(memberId, courseId, request)));
 	}
 
 	@Operation(summary = "코스 삭제")
@@ -268,12 +277,13 @@ public class CourseController {
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
-	@Operation(summary = "코스 포크")
+	@Operation(summary = "코스 포크", description = "링크 공개 코스는 ?t= 토큰이 맞아야 포크할 수 있다.")
 	@PostMapping("/{courseId}/fork")
 	public ResponseEntity<ApiResponse<Map<String, Long>>> forkCourse(
 			@AuthenticationPrincipal Long memberId,
-			@PathVariable Long courseId) {
-		Long newCourseId = courseCommandService.forkCourse(memberId, courseId);
+			@PathVariable Long courseId,
+			@RequestParam(name = "t", required = false) String shareToken) {
+		Long newCourseId = courseCommandService.forkCourse(memberId, courseId, shareToken);
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(Map.of("courseId", newCourseId)));
 	}
 

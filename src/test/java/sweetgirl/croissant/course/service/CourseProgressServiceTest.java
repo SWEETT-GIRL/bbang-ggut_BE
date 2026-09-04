@@ -26,6 +26,7 @@ import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseProgress;
 import sweetgirl.croissant.course.enums.CourseProgressStatus;
+import sweetgirl.croissant.course.enums.CourseVisibility;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseMemberRepository;
@@ -122,6 +123,23 @@ class CourseProgressServiceTest {
 
 		verify(courseProgressRepository).save(any(CourseProgress.class));
 		verify(courseMemberRepository, never()).existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(any(), any());
+	}
+
+	@Test
+	@DisplayName("start: 링크 공개(UNLISTED) 코스도 제3자는 따라갈 수 없다 — 진행률이 원본에 매달려 방장이 PRIVATE 으로 내리면 깨진다")
+	void start_unlistedCourse_thirdParty_throwsForbidden() {
+		Member member = member(7L);
+		Course course = privateCourse(10L, member(2L));
+		course.updateVisibility(CourseVisibility.UNLISTED);
+		course.issueShareToken("secret");
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(courseRepository.findByIdAndDeletedAtIsNull(10L)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(10L, 7L)).willReturn(false);
+
+		assertThatThrownBy(() -> courseProgressService.start(7L, 10L))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		verify(courseProgressRepository, never()).save(any());
 	}
 
 	@Test

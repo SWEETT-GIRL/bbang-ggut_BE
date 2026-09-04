@@ -19,6 +19,7 @@ import sweetgirl.croissant.course.entity.CourseInvite;
 import sweetgirl.croissant.course.entity.CourseMember;
 import sweetgirl.croissant.course.enums.CourseInviteState;
 import sweetgirl.croissant.course.enums.CourseType;
+import sweetgirl.croissant.course.enums.CourseVisibility;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseInviteRepository;
 import sweetgirl.croissant.course.repository.CourseMemberRepository;
@@ -151,9 +152,9 @@ public class CourseMemberService {
 		// 멤버가 되면 찜은 모순이다 — 내 빵투어에 '함께' 배지로 뜬다.
 		savedCourseRepository.findByMemberIdAndCourseId(memberId, course.getId())
 			.ifPresent(savedCourseRepository::delete);
-		// 협업 코스는 공개할 수 없다. 전환 시점은 링크 생성이 아니라 첫 수락이다 — 링크만 만들고 아무도 안 오면 공개 그대로.
+		// 협업 코스는 PUBLIC 일 수 없다(링크 공개는 된다). 전환 시점은 링크 생성이 아니라 첫 수락이다 — 링크만 만들고 아무도 안 오면 공개 그대로.
 		if (course.isPublic()) {
-			course.updatePublic(false);
+			course.updateVisibility(CourseVisibility.PRIVATE);
 		}
 		courseRepository.bumpVersion(course.getId());
 		return new CourseInviteAcceptResponse(course.getId(), false);

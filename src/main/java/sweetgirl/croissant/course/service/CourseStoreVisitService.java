@@ -16,6 +16,7 @@ import sweetgirl.croissant.course.dto.response.CourseVisitCandidateResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseStoreVisit;
 import sweetgirl.croissant.course.exception.CourseException;
+import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
@@ -40,6 +41,7 @@ public class CourseStoreVisitService {
 	private final BreadRecordRepository breadRecordRepository;
 	private final MemberReader memberReader;
 	private final CourseProgressService courseProgressService;
+	private final CourseMemberRepository courseMemberRepository;
 
 	public void markVisited(Long memberId, Long courseId, Long storeId, Long breadRecordId) {
 		Member member = memberReader.getMember(memberId);
@@ -90,12 +92,16 @@ public class CourseStoreVisitService {
 			.toList();
 	}
 
-	/** 비공개 코스는 주인만 본다. 편집 권한이 아니라 조회 권한 기준이다. */
+	/**
+	 * 비공개 코스는 방장과 활성 멤버만 본다. 편집 권한이 아니라 조회 권한 기준이다.
+	 * 링크 공개(UNLISTED)도 제3자는 못 한다 — 방문 체크는 따라가기의 일부라 원본에 매달린다.
+	 */
 	private Course getViewableCourse(Long courseId, Long memberId) {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		boolean isOwner = course.getMember() != null && course.getMember().getId().equals(memberId);
-		if (!course.isPublic() && !isOwner) {
+		if (!course.isPublic() && !isOwner
+			&& !courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId)) {
 			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
 		}
 		return course;

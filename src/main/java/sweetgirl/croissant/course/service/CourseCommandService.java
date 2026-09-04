@@ -25,6 +25,7 @@ import sweetgirl.croissant.course.dto.request.CourseStoreUpdateRequest;
 import sweetgirl.croissant.course.dto.request.CourseUpdateRequest;
 import sweetgirl.croissant.course.dto.response.CourseStoreMemoResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
+import sweetgirl.croissant.course.dto.response.CourseUpdateResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseImageFile;
 import sweetgirl.croissant.course.entity.CourseMember;
@@ -32,6 +33,7 @@ import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.entity.CourseStoreMemo;
 import sweetgirl.croissant.course.entity.SavedCourse;
 import sweetgirl.croissant.course.enums.CourseType;
+import sweetgirl.croissant.course.enums.CourseVisibility;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseMemberRepository;
@@ -39,6 +41,8 @@ import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
+import sweetgirl.croissant.course.util.CollabTokenGenerator;
+import sweetgirl.croissant.course.util.ShareTokenMatcher;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
@@ -93,7 +97,7 @@ public class CourseCommandService {
 		}
 	}
 
-	public void updateCourse(Long memberId, Long courseId, CourseUpdateRequest request) {
+	public CourseUpdateResponse updateCourse(Long memberId, Long courseId, CourseUpdateRequest request) {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 
@@ -102,18 +106,22 @@ public class CourseCommandService {
 		}
 
 		validateCanEdit(course, memberId);
-		// 공개/비공개 전환은 방장 전용이다. 협업 멤버는 제목·지역·날짜만 고친다.
-		if (request.getIsPublic() != null) {
+		// 공개 범위 전환은 방장 전용이다. 협업 멤버는 제목·지역·날짜만 고친다.
+		CourseVisibility requestedVisibility = requestedVisibility(request);
+		if (requestedVisibility != null) {
 			validateOwner(course, memberId);
 		}
-		// 같이 편집 중인 코스는 공개할 수 없다 — 방장 말고 활성 멤버가 1명 이상일 때. 방장 행만 있으면 아직 협업이 아니다.
-		if (Boolean.TRUE.equals(request.getIsPublic()) && hasCollaborators(course, memberId)) {
+		// 같이 편집 중인 코스는 PUBLIC 이 될 수 없다 — 방장 말고 활성 멤버가 1명 이상일 때. 방장 행만 있으면 아직 협업이 아니다.
+		// 링크 공개(UNLISTED)·PRIVATE 은 된다 — 남에게 보여줄 길은 링크 공개다.
+		if (requestedVisibility == CourseVisibility.PUBLIC && hasCollaborators(course, memberId)) {
 			throw new CourseException(CourseErrorCode.COURSE_COLLAB_CANNOT_BE_PUBLIC);
 		}
 
-		// FORKED 코스는 원본과 동일한 채로 '공개'만 막는다. 비공개 복제는 동일해도 허용.
+		// FORKED 코스는 원본과 동일한 채로 PUBLIC 만 막는다. 비공개·링크 공개 복제는 동일해도 허용.
 		if (course.getType() == CourseType.FORKED) {
-			boolean willBePublic = request.getIsPublic() != null ? request.getIsPublic() : course.isPublic();
+			boolean willBePublic = requestedVisibility != null
+				? requestedVisibility == CourseVisibility.PUBLIC
+				: course.isPublic();
 			if (willBePublic) {
 				String effectiveTitle = request.getTitle() != null ? request.getTitle() : course.getTitle();
 				if (isSameAsSource(course, effectiveTitle)) {
@@ -125,8 +133,12 @@ public class CourseCommandService {
 		if (request.getTitle() != null) {
 			course.updateTitle(request.getTitle());
 		}
-		if (request.getIsPublic() != null) {
-			course.updatePublic(request.getIsPublic());
+		if (requestedVisibility != null) {
+			course.updateVisibility(requestedVisibility);
+			// 공유 토큰은 링크 공개로 처음 바꿀 때 발급하고 만료 없이 보존한다 — 왕복해도 이미 나간 링크가 살아 있어야 한다
+			if (requestedVisibility == CourseVisibility.UNLISTED && course.getShareToken() == null) {
+				course.issueShareToken(CollabTokenGenerator.generate());
+			}
 		}
 		if (request.getRegion() != null) {
 			course.updateRegion(request.getRegion());
@@ -139,6 +151,25 @@ public class CourseCommandService {
 			updateDayCount(courseId, request.getDayCount());
 		}
 		courseRepository.bumpVersion(courseId);
+		return new CourseUpdateResponse(course.getVisibility(), shareTokenFor(course, memberId));
+	}
+
+	/** visibility 가 오면 그것, 아니면 구버전 앱의 isPublic(true → PUBLIC, false → PRIVATE). 둘 다 없으면 null. */
+	private CourseVisibility requestedVisibility(CourseUpdateRequest request) {
+		if (request.getVisibility() != null) {
+			return request.getVisibility();
+		}
+		if (request.getIsPublic() != null) {
+			return CourseVisibility.fromPublic(request.getIsPublic());
+		}
+		return null;
+	}
+
+	/** 공유 토큰은 방장에게만, 링크 공개일 때만 — 멤버가 제목만 고쳐도 같은 응답을 받는다. */
+	private String shareTokenFor(Course course, Long memberId) {
+		return isOwner(course, memberId) && course.getVisibility() == CourseVisibility.UNLISTED
+			? course.getShareToken()
+			: null;
 	}
 
 	private boolean hasCollaborators(Course course, Long ownerId) {
@@ -424,13 +455,15 @@ public class CourseCommandService {
 		courseRepository.bumpVersion(courseId);
 	}
 
-	public Long forkCourse(Long memberId, Long courseId) {
+	public Long forkCourse(Long memberId, Long courseId, String shareToken) {
 		Course sourceCourse = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 
-		// 공개 코스는 누구나, 비공개 코스는 방장과 활성 멤버만 복제(fork) 가능.
+		// 조회 가능하면 포크 가능 — 공개 코스는 누구나, 비공개 코스는 방장과 활성 멤버만, 링크 공개는 토큰이 맞아야.
 		// 협업 코스는 PRIVATE 이라 멤버를 빼면 자기가 같이 만든 코스를 챙겨둘 길이 없다.
-		if (!sourceCourse.isPublic() && !isOwner(sourceCourse, memberId) && !isActiveMember(sourceCourse, memberId)) {
+		// 링크 공개에 토큰을 요구하는 이유: 코스 id 는 순차 정수라 토큰 없이 포크되면 내용을 통째로 가져갈 수 있다.
+		if (!sourceCourse.isPublic() && !isOwner(sourceCourse, memberId) && !isActiveMember(sourceCourse, memberId)
+			&& !ShareTokenMatcher.matches(sourceCourse, shareToken)) {
 			throw new CourseException(CourseErrorCode.COURSE_FORK_NOT_PUBLIC);
 		}
 

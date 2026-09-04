@@ -272,7 +272,7 @@ class CourseQueryServiceTest {
 		given(savedCourseRepository.countByCourseId(1L)).willReturn(5L);
 		given(courseProgressRepository.countByCourseIdAndStatus(1L, CourseProgressStatus.FINISHED)).willReturn(37L);
 
-		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, null);
+		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, null, null);
 
 		assertThat(result.id()).isEqualTo(1L);
 		assertThat(result.isPublic()).isTrue();
@@ -297,7 +297,7 @@ class CourseQueryServiceTest {
 		given(savedCourseRepository.existsByMemberIdAndCourseId(memberId, 1L)).willReturn(false);
 		given(savedCourseRepository.countByCourseId(1L)).willReturn(0L);
 
-		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, memberId);
+		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, memberId, null);
 
 		assertThat(result.id()).isEqualTo(1L);
 		assertThat(result.isPublic()).isFalse();
@@ -316,7 +316,7 @@ class CourseQueryServiceTest {
 		given(course.getMember()).willReturn(owner);
 		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
 
-		assertThatThrownBy(() -> courseQueryService.getCourseDetail(1L, otherId))
+		assertThatThrownBy(() -> courseQueryService.getCourseDetail(1L, otherId, null))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
 	}
@@ -338,7 +338,7 @@ class CourseQueryServiceTest {
 		given(courseImageFileRepository.findByCourseId(1L)).willReturn(Optional.empty());
 		given(savedCourseRepository.countByCourseId(1L)).willReturn(0L);
 
-		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, memberId);
+		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, memberId, null);
 
 		assertThat(result.isMine()).isFalse();
 		assertThat(result.isOwner()).isFalse();
@@ -373,7 +373,7 @@ class CourseQueryServiceTest {
 		given(courseImageFileRepository.findByCourseId(1L)).willReturn(Optional.empty());
 		given(savedCourseRepository.countByCourseId(1L)).willReturn(0L);
 
-		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, ownerId);
+		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, ownerId, null);
 
 		assertThat(result.isMine()).isTrue();
 		assertThat(result.isOwner()).isTrue();
@@ -401,7 +401,7 @@ class CourseQueryServiceTest {
 		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(1L))
 			.willReturn(List.of(ownerRow));
 
-		assertThatThrownBy(() -> courseQueryService.getCourseDetail(1L, 99L))
+		assertThatThrownBy(() -> courseQueryService.getCourseDetail(1L, 99L, null))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
 	}
@@ -419,7 +419,7 @@ class CourseQueryServiceTest {
 		given(courseImageFileRepository.findByCourseId(1L)).willReturn(Optional.empty());
 		given(savedCourseRepository.countByCourseId(1L)).willReturn(0L);
 
-		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, ownerId);
+		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, ownerId, null);
 
 		assertThat(result.canEdit()).isTrue();
 		assertThat(result.memberCount()).isZero();
@@ -437,7 +437,7 @@ class CourseQueryServiceTest {
 		given(courseImageFileRepository.findByCourseId(1L)).willReturn(Optional.empty());
 		given(savedCourseRepository.countByCourseId(1L)).willReturn(0L);
 
-		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, 10L);
+		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, 10L, null);
 
 		assertThat(result.canEdit()).isFalse();
 		assertThat(result.isOwner()).isFalse();
@@ -453,7 +453,7 @@ class CourseQueryServiceTest {
 		given(course.getMember()).willReturn(null);
 		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
 
-		assertThatThrownBy(() -> courseQueryService.getCourseDetail(1L, 10L))
+		assertThatThrownBy(() -> courseQueryService.getCourseDetail(1L, 10L, null))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
 	}
@@ -463,7 +463,127 @@ class CourseQueryServiceTest {
 	void getCourseDetail_deletedCourse_throwsNotFound() {
 		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> courseQueryService.getCourseDetail(1L, null))
+		assertThatThrownBy(() -> courseQueryService.getCourseDetail(1L, null, null))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_NOT_FOUND.getMessage());
+	}
+
+	// ───────────────────────── getCourseDetail: 링크 공개(UNLISTED) ─────────────────────────
+
+	/** 상세를 끝까지 만드는 케이스용 — mockCourse 의 strict 스텁(제목·배지·닉네임)이 전부 읽힌다 */
+	private Course unlistedCourse(Long ownerId, String shareToken) {
+		Course course = mockCourse(1L, "링크 공개 코스", false, CourseType.CUSTOM, ownerId);
+		lenient().when(course.getVisibility()).thenReturn(CourseVisibility.UNLISTED);
+		lenient().when(course.getShareToken()).thenReturn(shareToken);
+		return course;
+	}
+
+	/** 접근 판정에서 끝나는 케이스용 — 판정에 필요한 것만 스텁(strict stubbing 회피) */
+	private Course minimalCourse(CourseVisibility visibility, Long ownerId, String shareToken) {
+		Course course = mock(Course.class);
+		Member owner = mock(Member.class);
+		lenient().when(owner.getId()).thenReturn(ownerId);
+		lenient().when(course.getMember()).thenReturn(owner);
+		lenient().when(course.getType()).thenReturn(CourseType.CUSTOM);
+		lenient().when(course.isPublic()).thenReturn(visibility == CourseVisibility.PUBLIC);
+		lenient().when(course.getVisibility()).thenReturn(visibility);
+		lenient().when(course.getShareToken()).thenReturn(shareToken);
+		return course;
+	}
+
+	private void givenDetailReads() {
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(1L)).willReturn(List.of());
+		given(courseImageFileRepository.findByCourseId(1L)).willReturn(Optional.empty());
+		given(savedCourseRepository.countByCourseId(1L)).willReturn(0L);
+	}
+
+	@Test
+	@DisplayName("getCourseDetail: 링크 공개 코스는 토큰이 맞으면 비로그인도 본다 — 응답에 shareToken 은 없다")
+	void getCourseDetail_unlisted_withToken_notLoggedIn_success() {
+		Course course = unlistedCourse(10L, "secret");
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+		givenDetailReads();
+
+		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, null, "secret");
+
+		assertThat(result.visibility()).isEqualTo(CourseVisibility.UNLISTED);
+		assertThat(result.shareToken()).isNull();
+		assertThat(result.canEdit()).isFalse();
+	}
+
+	@Test
+	@DisplayName("getCourseDetail: 링크 공개 코스라도 토큰이 없거나 틀리면 제3자는 COURSE_FORBIDDEN")
+	void getCourseDetail_unlisted_wrongToken_throwsForbidden() {
+		Course course = minimalCourse(CourseVisibility.UNLISTED, 10L, "secret");
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+
+		assertThatThrownBy(() -> courseQueryService.getCourseDetail(1L, 99L, "wrong"))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		assertThatThrownBy(() -> courseQueryService.getCourseDetail(1L, null, null))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+	}
+
+	@Test
+	@DisplayName("getCourseDetail: PRIVATE 은 토큰이 맞아도 COURSE_FORBIDDEN — 토큰보다 PRIVATE 이 강하다")
+	void getCourseDetail_private_withToken_throwsForbidden() {
+		// 예전에 링크 공개였다가 PRIVATE 으로 내린 코스 — 토큰은 보존돼 있다
+		Course course = minimalCourse(CourseVisibility.PRIVATE, 10L, "secret");
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+
+		assertThatThrownBy(() -> courseQueryService.getCourseDetail(1L, null, "secret"))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+	}
+
+	@Test
+	@DisplayName("getCourseDetail: 링크 공개 코스의 shareToken 은 방장에게만 실리고 멤버에겐 안 실린다")
+	void getCourseDetail_unlisted_shareTokenOnlyForOwner() {
+		Long ownerId = 10L;
+		Long memberId = 5L;
+		Course course = unlistedCourse(ownerId, "secret");
+		CourseMember ownerRow = mockMemberRow(1L, ownerId, "다나");
+		CourseMember memberRow = mockMemberRow(1L, memberId, "지수");
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(1L))
+			.willReturn(List.of(ownerRow, memberRow));
+		givenDetailReads();
+
+		assertThat(courseQueryService.getCourseDetail(1L, ownerId, null).shareToken()).isEqualTo("secret");
+		assertThat(courseQueryService.getCourseDetail(1L, memberId, null).shareToken()).isNull();
+	}
+
+	// ───────────────────────── getCourseDetailByShareToken ─────────────────────────
+
+	@Test
+	@DisplayName("getCourseDetailByShareToken: 토큰으로 찾은 링크 공개 코스를 비로그인으로 본다")
+	void getCourseDetailByShareToken_unlisted_success() {
+		Course course = unlistedCourse(10L, "secret");
+		given(courseRepository.findByShareTokenAndDeletedAtIsNull("secret")).willReturn(Optional.of(course));
+		givenDetailReads();
+
+		CourseDetailResponse result = courseQueryService.getCourseDetailByShareToken("secret", null);
+
+		assertThat(result.id()).isEqualTo(1L);
+		assertThat(result.visibility()).isEqualTo(CourseVisibility.UNLISTED);
+		assertThat(result.isMine()).isFalse();
+		assertThat(result.shareToken()).isNull();
+	}
+
+	@Test
+	@DisplayName("getCourseDetailByShareToken: 모르는 토큰이거나 지금은 링크 공개가 아니면 403 이 아니라 COURSE_NOT_FOUND")
+	void getCourseDetailByShareToken_unknownOrNotUnlisted_throwsNotFound() {
+		// 토큰은 맞지만 PRIVATE 으로 내린 코스 — "토큰은 맞다"를 알려주면 토큰 유효성이 샌다
+		Course downgraded = mock(Course.class);
+		given(downgraded.getVisibility()).willReturn(CourseVisibility.PRIVATE);
+		given(courseRepository.findByShareTokenAndDeletedAtIsNull("downgraded")).willReturn(Optional.of(downgraded));
+		given(courseRepository.findByShareTokenAndDeletedAtIsNull("unknown")).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> courseQueryService.getCourseDetailByShareToken("downgraded", 10L))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_NOT_FOUND.getMessage());
+		assertThatThrownBy(() -> courseQueryService.getCourseDetailByShareToken("unknown", 10L))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_NOT_FOUND.getMessage());
 	}
@@ -490,7 +610,7 @@ class CourseQueryServiceTest {
 		Course course = versionedCourse(true, 10L, 41L);
 		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
 
-		assertThat(courseQueryService.getVersion(1L, null)).isEqualTo(41L);
+		assertThat(courseQueryService.getVersion(1L, null, null)).isEqualTo(41L);
 		then(courseMemberRepository).shouldHaveNoInteractions();
 	}
 
@@ -502,12 +622,12 @@ class CourseQueryServiceTest {
 		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(1L, 5L)).willReturn(true);
 		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(1L, 99L)).willReturn(false);
 
-		assertThat(courseQueryService.getVersion(1L, 10L)).isEqualTo(7L);
-		assertThat(courseQueryService.getVersion(1L, 5L)).isEqualTo(7L);
-		assertThatThrownBy(() -> courseQueryService.getVersion(1L, 99L))
+		assertThat(courseQueryService.getVersion(1L, 10L, null)).isEqualTo(7L);
+		assertThat(courseQueryService.getVersion(1L, 5L, null)).isEqualTo(7L);
+		assertThatThrownBy(() -> courseQueryService.getVersion(1L, 99L, null))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
-		assertThatThrownBy(() -> courseQueryService.getVersion(1L, null))
+		assertThatThrownBy(() -> courseQueryService.getVersion(1L, null, null))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
 	}
@@ -517,9 +637,27 @@ class CourseQueryServiceTest {
 	void getVersion_deleted_throwsNotFound() {
 		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> courseQueryService.getVersion(1L, 10L))
+		assertThatThrownBy(() -> courseQueryService.getVersion(1L, 10L, null))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_NOT_FOUND.getMessage());
+	}
+
+	@Test
+	@DisplayName("getVersion: 링크 공개 코스는 토큰이 맞아야 version 을 준다 — PRIVATE 은 토큰이 맞아도 COURSE_FORBIDDEN")
+	void getVersion_unlisted_tokenRequired() {
+		Course unlisted = minimalCourse(CourseVisibility.UNLISTED, 10L, "secret");
+		lenient().when(unlisted.getVersion()).thenReturn(3L);
+		Course downgraded = minimalCourse(CourseVisibility.PRIVATE, 10L, "secret");
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(unlisted));
+		given(courseRepository.findByIdAndDeletedAtIsNull(2L)).willReturn(Optional.of(downgraded));
+
+		assertThat(courseQueryService.getVersion(1L, null, "secret")).isEqualTo(3L);
+		assertThatThrownBy(() -> courseQueryService.getVersion(1L, null, "wrong"))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		assertThatThrownBy(() -> courseQueryService.getVersion(2L, null, "secret"))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
 	}
 
 	// ───────────────────────── getCourseDetail: 사람별 메모 ─────────────────────────
@@ -567,7 +705,7 @@ class CourseQueryServiceTest {
 		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(1L))
 			.willReturn(List.of(ownerRow, memberRow));
 
-		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, ownerId);
+		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, ownerId, null);
 
 		CourseStoreResponse stop = result.courseStores().get(0);
 		assertThat(stop.memos()).extracting(CourseStoreMemoResponse::displayName)
@@ -599,7 +737,7 @@ class CourseQueryServiceTest {
 		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(1L))
 			.willReturn(List.of(ownerRow));
 
-		CourseStoreResponse stop = courseQueryService.getCourseDetail(1L, viewerId).courseStores().get(0);
+		CourseStoreResponse stop = courseQueryService.getCourseDetail(1L, viewerId, null).courseStores().get(0);
 
 		assertThat(stop.myMemo()).isNull();
 		assertThat(stop.memo()).isNull();
@@ -634,7 +772,7 @@ class CourseQueryServiceTest {
 		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(1L))
 			.willReturn(List.of());
 
-		CourseStoreResponse stop = courseQueryService.getCourseDetail(1L, ownerId).courseStores().get(0);
+		CourseStoreResponse stop = courseQueryService.getCourseDetail(1L, ownerId, null).courseStores().get(0);
 
 		assertThat(stop.memos()).extracting(CourseStoreMemoResponse::displayName).containsExactly("탈퇴자");
 	}
@@ -652,7 +790,7 @@ class CourseQueryServiceTest {
 		given(courseImageFileRepository.findByCourseId(1L)).willReturn(Optional.empty());
 		given(savedCourseRepository.countByCourseId(1L)).willReturn(0L);
 
-		CourseStoreResponse stop = courseQueryService.getCourseDetail(1L, null).courseStores().get(0);
+		CourseStoreResponse stop = courseQueryService.getCourseDetail(1L, null, null).courseStores().get(0);
 
 		assertThat(stop.memo()).isEqualTo("코스 설명 메모");
 		assertThat(stop.myMemo()).isNull();
@@ -666,6 +804,7 @@ class CourseQueryServiceTest {
 		given(course.getTitle()).willReturn(title);
 		// getCourseDetail에서만 호출됨 — 다른 테스트에서 호출 안 될 수 있으므로 lenient
 		lenient().when(course.isPublic()).thenReturn(isPublic);
+		lenient().when(course.getVisibility()).thenReturn(CourseVisibility.fromPublic(isPublic));
 		// Mockito는 Integer 반환 미스텁 메서드에 null이 아닌 0을 돌려주므로, 실제 미핀 상태(null)를 명시 스텁
 		lenient().when(course.getPinOrder()).thenReturn(null);
 		given(course.getType()).willReturn(type);

@@ -42,6 +42,7 @@ import sweetgirl.croissant.course.dto.response.CourseInviteResponse;
 import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
+import sweetgirl.croissant.course.dto.response.CourseUpdateResponse;
 import sweetgirl.croissant.course.enums.CourseInviteState;
 import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.enums.CourseType;
@@ -171,8 +172,8 @@ class CourseControllerTest {
 			false, 5L, 37L, LocalDateTime.of(2026, 1, 1, 0, 0), "서울", LocalDate.of(2026, 8, 20),
 			LocalDate.of(2026, 8, 21), List.of(),
 			false, false, false, 0, List.of(), null, 1, CourseVisibility.PUBLIC, null, 41L);
-		given(courseQueryService.getVersion(anyLong(), isNull())).willReturn(41L);
-		given(courseQueryService.getCourseDetail(anyLong(), isNull())).willReturn(response);
+		given(courseQueryService.getVersion(anyLong(), isNull(), isNull())).willReturn(41L);
+		given(courseQueryService.getCourseDetail(anyLong(), isNull(), isNull())).willReturn(response);
 
 		mockMvc.perform(get("/courses/1"))
 			.andExpect(status().isOk())
@@ -198,13 +199,13 @@ class CourseControllerTest {
 	// 같은 version 을 If-None-Match 로 보내면 본문 없이 304 — 상세는 아예 만들지 않는다
 	@Test
 	void getCourseDetail_ifNoneMatchSameVersion_returns304() throws Exception {
-		given(courseQueryService.getVersion(anyLong(), isNull())).willReturn(41L);
+		given(courseQueryService.getVersion(anyLong(), isNull(), isNull())).willReturn(41L);
 
 		mockMvc.perform(get("/courses/1").header("If-None-Match", "\"41\""))
 			.andExpect(status().isNotModified())
 			.andExpect(header().string("ETag", "\"41\""))
 			.andExpect(content().string(""));
-		then(courseQueryService).should(never()).getCourseDetail(any(), any());
+		then(courseQueryService).should(never()).getCourseDetail(any(), any(), any());
 	}
 
 	// 누가 가게를 담아 version 이 올랐으면 옛 ETag 는 200 + 새 ETag
@@ -214,8 +215,8 @@ class CourseControllerTest {
 			1L, "소금빵 투어", null, null, List.of(), 0, List.of(), CourseType.CUSTOM, "다나", 1L, null, false, true,
 			false, 0L, 0L, LocalDateTime.of(2026, 1, 1, 0, 0), null, null, null, List.of(),
 			true, true, false, 0, List.of(), null, 1, CourseVisibility.PRIVATE, null, 42L);
-		given(courseQueryService.getVersion(anyLong(), isNull())).willReturn(42L);
-		given(courseQueryService.getCourseDetail(anyLong(), isNull())).willReturn(response);
+		given(courseQueryService.getVersion(anyLong(), isNull(), isNull())).willReturn(42L);
+		given(courseQueryService.getCourseDetail(anyLong(), isNull(), isNull())).willReturn(response);
 
 		mockMvc.perform(get("/courses/1").header("If-None-Match", "\"41\""))
 			.andExpect(status().isOk())
@@ -226,19 +227,62 @@ class CourseControllerTest {
 	// 권한이 없으면 If-None-Match 가 있어도 304 가 아니라 403 — 304 로 존재를 알려주면 안 된다
 	@Test
 	void getCourseDetail_forbidden_returns403() throws Exception {
-		given(courseQueryService.getVersion(anyLong(), isNull()))
+		given(courseQueryService.getVersion(anyLong(), isNull(), isNull()))
 			.willThrow(new CourseException(CourseErrorCode.COURSE_FORBIDDEN));
 
 		mockMvc.perform(get("/courses/1").header("If-None-Match", "\"41\""))
 			.andExpect(status().isForbidden())
 			.andExpect(jsonPath("$.success").value(false))
 			.andExpect(jsonPath("$.code").value("COURSE403_1"));
-		then(courseQueryService).should(never()).getCourseDetail(any(), any());
+		then(courseQueryService).should(never()).getCourseDetail(any(), any(), any());
+	}
+
+	// 링크 공개 코스는 ?t=shareToken 으로 본다 — 토큰이 getVersion·getCourseDetail 둘 다에 전달된다
+	@Test
+	void getCourseDetail_withShareToken_passesToken() throws Exception {
+		given(courseQueryService.getVersion(anyLong(), isNull(), eq("secret"))).willReturn(1L);
+		given(courseQueryService.getCourseDetail(anyLong(), isNull(), eq("secret"))).willReturn(unlistedDetail());
+
+		mockMvc.perform(get("/courses/1").param("t", "secret"))
+			.andExpect(status().isOk())
+			.andExpect(header().string("ETag", "\"1\""))
+			.andExpect(jsonPath("$.data.visibility").value("UNLISTED"));
+	}
+
+	// 랜딩 /c/{shareToken} 용 입구 — 코스 id 를 모른 채 토큰만으로 찾는다
+	@Test
+	void getCourseDetailByShareToken_returns200() throws Exception {
+		given(courseQueryService.getCourseDetailByShareToken(eq("secret"), isNull())).willReturn(unlistedDetail());
+
+		mockMvc.perform(get("/courses/by-share/secret"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true))
+			.andExpect(jsonPath("$.data.id").value(1))
+			.andExpect(jsonPath("$.data.visibility").value("UNLISTED"));
+	}
+
+	// 링크 공개가 아니면 403 이 아니라 404 — 토큰 유효성을 알려주지 않는다
+	@Test
+	void getCourseDetailByShareToken_notUnlisted_returns404() throws Exception {
+		given(courseQueryService.getCourseDetailByShareToken(eq("downgraded"), isNull()))
+			.willThrow(new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
+
+		mockMvc.perform(get("/courses/by-share/downgraded"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.code").value("COURSE404_1"));
+	}
+
+	private CourseDetailResponse unlistedDetail() {
+		return new CourseDetailResponse(
+			1L, "링크 공개 코스", null, null, List.of(), 0, List.of(), CourseType.CUSTOM, "다나", 10L, null, false, false,
+			false, 0L, 0L, LocalDateTime.of(2026, 1, 1, 0, 0), null, null, null, List.of(),
+			false, false, false, 0, List.of(), null, 1, CourseVisibility.UNLISTED, null, 1L);
 	}
 
 	@Test
 	void getCourseDetail_notFound_returns404() throws Exception {
-		given(courseQueryService.getVersion(anyLong(), isNull()))
+		given(courseQueryService.getVersion(anyLong(), isNull(), isNull()))
 			.willThrow(new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 
 		mockMvc.perform(get("/courses/1"))
@@ -273,13 +317,17 @@ class CourseControllerTest {
 
 	@Test
 	void updateCourse_returns200() throws Exception {
-		willDoNothing().given(courseCommandService).updateCourse(isNull(), anyLong(), any());
+		given(courseCommandService.updateCourse(isNull(), anyLong(), any()))
+			.willReturn(new CourseUpdateResponse(CourseVisibility.UNLISTED, "share-token"));
 
 		mockMvc.perform(patch("/courses/1")
 			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"title\":\"수정된 코스\"}"))
+			.content("{\"title\":\"수정된 코스\",\"visibility\":\"UNLISTED\"}"))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.success").value(true));
+			.andExpect(jsonPath("$.success").value(true))
+			// 링크 공개로 처음 바꾸면 발급된 공유 토큰이 방장에게 돌아온다
+			.andExpect(jsonPath("$.data.visibility").value("UNLISTED"))
+			.andExpect(jsonPath("$.data.shareToken").value("share-token"));
 	}
 
 	@Test
@@ -449,7 +497,7 @@ class CourseControllerTest {
 
 	@Test
 	void forkCourse_returns201() throws Exception {
-		given(courseCommandService.forkCourse(isNull(), anyLong())).willReturn(20L);
+		given(courseCommandService.forkCourse(isNull(), anyLong(), isNull())).willReturn(20L);
 
 		mockMvc.perform(post("/courses/1/fork"))
 			.andExpect(status().isCreated())
@@ -457,10 +505,20 @@ class CourseControllerTest {
 			.andExpect(jsonPath("$.data.courseId").value(20));
 	}
 
+	// 링크 공개 코스는 ?t= 토큰으로 포크한다
+	@Test
+	void forkCourse_withShareToken_passesToken() throws Exception {
+		given(courseCommandService.forkCourse(isNull(), anyLong(), eq("secret"))).willReturn(21L);
+
+		mockMvc.perform(post("/courses/1/fork").param("t", "secret"))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.data.courseId").value(21));
+	}
+
 	@Test
 	void forkCourse_notPublic_returns400() throws Exception {
 		willThrow(new CourseException(CourseErrorCode.COURSE_FORK_NOT_PUBLIC))
-			.given(courseCommandService).forkCourse(isNull(), anyLong());
+			.given(courseCommandService).forkCourse(isNull(), anyLong(), isNull());
 
 		mockMvc.perform(post("/courses/1/fork"))
 			.andExpect(status().isBadRequest())
