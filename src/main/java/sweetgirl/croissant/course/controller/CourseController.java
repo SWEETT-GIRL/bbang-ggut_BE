@@ -30,6 +30,7 @@ import sweetgirl.croissant.course.dto.request.CourseStoreReorderRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreUpdateRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreVisitRequest;
 import sweetgirl.croissant.course.dto.request.CourseUpdateRequest;
+import sweetgirl.croissant.course.dto.response.CourseDetailLookup;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
 import sweetgirl.croissant.course.dto.response.CourseInviteAcceptResponse;
 import sweetgirl.croissant.course.dto.response.CourseInvitePreviewResponse;
@@ -95,20 +96,28 @@ public class CourseController {
 			@AuthenticationPrincipal Long memberId,
 			@RequestParam(name = "t", required = false) String shareToken,
 			WebRequest request) {
-		// ETag 는 version 만 쓴다(본문 해시 아님). 권한 검사가 먼저다 — 권한 없는 사람에게 304 로 존재를 알려주면 안 된다.
-		String etag = "\"" + courseQueryService.getVersion(courseId, memberId, shareToken) + "\"";
-		if (request.checkNotModified(etag)) {
+		// ETag 는 version 만 쓴다(본문 해시 아님). 서비스가 권한 검사를 먼저 하고 version 을 넘긴다 — 권한 없는 사람에게
+		// 304 로 존재를 알려주면 안 된다. 코스는 한 번만 읽고, ETag 가 같으면 본문을 만들지 않는다.
+		CourseDetailLookup lookup = courseQueryService.getCourseDetail(courseId, memberId, shareToken,
+			version -> request.checkNotModified(etagOf(version)));
+		String etag = etagOf(lookup.version());
+		// 본문은 사람마다 다르다(isMine·visited·myMemo) — 중간 캐시가 끼지 않게 private, no-cache
+		CacheControl cacheControl = CacheControl.noCache().cachePrivate();
+		if (lookup.body().isEmpty()) {
 			// checkNotModified 가 이미 304 상태와 ETag 를 응답에 썼다. 본문 없는 응답을 명시적으로 돌려준다
 			return ResponseEntity.status(HttpStatus.NOT_MODIFIED)
 				.eTag(etag)
-				.cacheControl(CacheControl.noCache().cachePrivate())
+				.cacheControl(cacheControl)
 				.build();
 		}
-		// 본문은 사람마다 다르다(isMine·visited·myMemo) — 중간 캐시가 끼지 않게 private, no-cache
 		return ResponseEntity.ok()
 			.eTag(etag)
-			.cacheControl(CacheControl.noCache().cachePrivate())
-			.body(ApiResponse.ok(courseQueryService.getCourseDetail(courseId, memberId, shareToken)));
+			.cacheControl(cacheControl)
+			.body(ApiResponse.ok(lookup.body().get()));
+	}
+
+	private static String etagOf(long version) {
+		return "\"" + version + "\"";
 	}
 
 	@Operation(summary = "공유 토큰으로 코스 상세 조회", description = "랜딩 /c/{shareToken} 용. 비로그인 허용. 링크 공개가 아니면 404.")

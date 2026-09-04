@@ -176,13 +176,5 @@ class CourseAccessPolicyTest {
 			assertThat(courseAccessPolicy.canView(unlisted, OTHER_ID, "wrong")).isFalse();
 			assertThat(courseAccessPolicy.canView(unlisted, OTHER_ID, null)).isFalse();
 		}
-
-		@Test
-		@DisplayName("멤버 여부를 이미 아는 오버로드는 조회하지 않는다 — 상세가 참여자 목록을 먼저 읽는 경로")
-		void preloadedMember_noLookup() {
-			assertThat(courseAccessPolicy.canView(privateCourse(), OTHER_ID, null, true)).isTrue();
-			assertThat(courseAccessPolicy.canView(privateCourse(), OTHER_ID, null, false)).isFalse();
-			then(courseMemberRepository).shouldHaveNoInteractions();
-		}
 	}
 }

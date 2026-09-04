@@ -65,14 +65,6 @@ public class CourseAccessPolicy {
 			|| ShareTokenMatcher.matches(course, shareToken);
 	}
 
-	/** 활성 멤버 여부를 이미 아는 호출부용 — 상세는 참여자 목록을 먼저 읽으므로 같은 조회를 되풀이하지 않는다. */
-	public boolean canView(Course course, Long memberId, String shareToken, boolean isActiveMember) {
-		return course.isPublic()
-			|| isOwner(course, memberId)
-			|| isActiveMember
-			|| ShareTokenMatcher.matches(course, shareToken);
-	}
-
 	public void requireViewable(Course course, Long memberId, String shareToken) {
 		if (!canView(course, memberId, shareToken)) {
 			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);

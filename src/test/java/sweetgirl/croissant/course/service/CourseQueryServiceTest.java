@@ -2,10 +2,13 @@ package sweetgirl.croissant.course.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -22,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.course.code.CourseErrorCode;
+import sweetgirl.croissant.course.dto.response.CourseDetailLookup;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
 import sweetgirl.croissant.course.dto.response.CourseMemberResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreMemoResponse;
@@ -339,6 +343,7 @@ class CourseQueryServiceTest {
 		CourseMember myRow = mockMemberRow(1L, memberId, "지수");
 
 		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(1L, memberId)).willReturn(true);
 		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(1L))
 			.willReturn(List.of(ownerRow, myRow));
 		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(1L))
@@ -400,18 +405,17 @@ class CourseQueryServiceTest {
 		Course course = mock(Course.class);
 		Member owner = mock(Member.class);
 		given(owner.getId()).willReturn(ownerId);
+		given(course.getId()).willReturn(1L);
 		given(course.isPublic()).willReturn(false);
 		given(course.getMember()).willReturn(owner);
-		given(course.getType()).willReturn(CourseType.CUSTOM);
 		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
-		// 활성 행 목록에 없다 = 나갔거나 애초에 멤버가 아니다
-		CourseMember ownerRow = mockMemberRow(1L, ownerId, "다나");
-		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(1L))
-			.willReturn(List.of(ownerRow));
+		// 활성 행이 없다 = 나갔거나 애초에 멤버가 아니다. 판정은 exists 로 끝나고 참여자 목록(과 type)은 읽지 않는다
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(1L, 99L)).willReturn(false);
 
 		assertThatThrownBy(() -> courseQueryService.getCourseDetail(1L, 99L, null))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		then(courseMemberRepository).should(never()).findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(any());
 	}
 
 	@Test
@@ -554,6 +558,8 @@ class CourseQueryServiceTest {
 		CourseMember ownerRow = mockMemberRow(1L, ownerId, "다나");
 		CourseMember memberRow = mockMemberRow(1L, memberId, "지수");
 		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+		// 멤버의 접근 판정은 exists 로, 본문의 members·isMember 는 목록으로
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(1L, memberId)).willReturn(true);
 		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(1L))
 			.willReturn(List.of(ownerRow, memberRow));
 		givenDetailReads();
@@ -596,9 +602,9 @@ class CourseQueryServiceTest {
 			.hasMessageContaining(CourseErrorCode.COURSE_NOT_FOUND.getMessage());
 	}
 
-	// ───────────────────────── getVersion (폴링 ETag) ─────────────────────────
+	// ───────────────────────── getCourseDetail(notModified): 폴링 ETag ─────────────────────────
 
-	/** getVersion 은 제목·배지를 안 읽으므로 mockCourse 의 strict 스텁이 남는다 — 판정에 필요한 것만 스텁 */
+	/** 304 경로는 제목·배지를 안 읽으므로 mockCourse 의 strict 스텁이 남는다 — 판정에 필요한 것만 스텁 */
 	private Course versionedCourse(boolean isPublic, Long ownerId, long version) {
 		Course course = mock(Course.class);
 		lenient().when(course.getId()).thenReturn(1L);
@@ -613,57 +619,75 @@ class CourseQueryServiceTest {
 	}
 
 	@Test
-	@DisplayName("getVersion: 공개 코스는 비로그인도 version 을 받는다 — 멤버 조회 없이")
-	void getVersion_public_notLoggedIn() {
+	@DisplayName("304 폴링: 공개 코스는 비로그인도 version 을 받고, ETag 가 같으면 참여자·정류장을 읽지 않는다")
+	void detailNotModified_public_notLoggedIn() {
 		Course course = versionedCourse(true, 10L, 41L);
 		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
 
-		assertThat(courseQueryService.getVersion(1L, null, null)).isEqualTo(41L);
+		CourseDetailLookup lookup = courseQueryService.getCourseDetail(1L, null, null, version -> version == 41L);
+
+		assertThat(lookup.version()).isEqualTo(41L);
+		assertThat(lookup.body()).isEmpty();
 		then(courseMemberRepository).shouldHaveNoInteractions();
+		then(courseStoreRepository).shouldHaveNoInteractions();
 	}
 
 	@Test
-	@DisplayName("getVersion: 비공개 코스는 방장과 활성 멤버만 — 제3자·비로그인은 304 대신 COURSE_FORBIDDEN")
-	void getVersion_private_ownerAndMemberOnly() {
+	@DisplayName("ETag 가 낡았으면 본문을 만든다 — 코스는 판정과 조립에 한 번만 읽는다")
+	void detailModified_buildsBodyWithSingleCourseRead() {
+		Course course = mockCourse(1L, "공개 코스", true, CourseType.CURATED, null);
+		lenient().when(course.getVersion()).thenReturn(42L);
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+
+		CourseDetailLookup lookup = courseQueryService.getCourseDetail(1L, null, null, version -> version == 41L);
+
+		assertThat(lookup.version()).isEqualTo(42L);
+		assertThat(lookup.body()).map(CourseDetailResponse::version).contains(42L);
+		then(courseRepository).should(times(1)).findByIdAndDeletedAtIsNull(1L);
+	}
+
+	@Test
+	@DisplayName("304 폴링: 비공개 코스는 방장과 활성 멤버만 — 제3자·비로그인은 304 대신 COURSE_FORBIDDEN")
+	void detailNotModified_private_ownerAndMemberOnly() {
 		Course course = versionedCourse(false, 10L, 7L);
 		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
 		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(1L, 5L)).willReturn(true);
 		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(1L, 99L)).willReturn(false);
 
-		assertThat(courseQueryService.getVersion(1L, 10L, null)).isEqualTo(7L);
-		assertThat(courseQueryService.getVersion(1L, 5L, null)).isEqualTo(7L);
-		assertThatThrownBy(() -> courseQueryService.getVersion(1L, 99L, null))
+		assertThat(courseQueryService.getCourseDetail(1L, 10L, null, version -> true).version()).isEqualTo(7L);
+		assertThat(courseQueryService.getCourseDetail(1L, 5L, null, version -> true).version()).isEqualTo(7L);
+		assertThatThrownBy(() -> courseQueryService.getCourseDetail(1L, 99L, null, version -> true))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
-		assertThatThrownBy(() -> courseQueryService.getVersion(1L, null, null))
+		assertThatThrownBy(() -> courseQueryService.getCourseDetail(1L, null, null, version -> true))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
 	}
 
 	@Test
-	@DisplayName("getVersion: 지운 코스는 COURSE_NOT_FOUND")
-	void getVersion_deleted_throwsNotFound() {
+	@DisplayName("304 폴링: 지운 코스는 COURSE_NOT_FOUND")
+	void detailNotModified_deleted_throwsNotFound() {
 		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> courseQueryService.getVersion(1L, 10L, null))
+		assertThatThrownBy(() -> courseQueryService.getCourseDetail(1L, 10L, null, version -> true))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_NOT_FOUND.getMessage());
 	}
 
 	@Test
-	@DisplayName("getVersion: 링크 공개 코스는 토큰이 맞아야 version 을 준다 — PRIVATE 은 토큰이 맞아도 COURSE_FORBIDDEN")
-	void getVersion_unlisted_tokenRequired() {
+	@DisplayName("304 폴링: 링크 공개 코스는 토큰이 맞아야 version 을 준다 — PRIVATE 은 토큰이 맞아도 COURSE_FORBIDDEN")
+	void detailNotModified_unlisted_tokenRequired() {
 		Course unlisted = minimalCourse(CourseVisibility.UNLISTED, 10L, "secret");
 		lenient().when(unlisted.getVersion()).thenReturn(3L);
 		Course downgraded = minimalCourse(CourseVisibility.PRIVATE, 10L, "secret");
 		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(unlisted));
 		given(courseRepository.findByIdAndDeletedAtIsNull(2L)).willReturn(Optional.of(downgraded));
 
-		assertThat(courseQueryService.getVersion(1L, null, "secret")).isEqualTo(3L);
-		assertThatThrownBy(() -> courseQueryService.getVersion(1L, null, "wrong"))
+		assertThat(courseQueryService.getCourseDetail(1L, null, "secret", version -> true).version()).isEqualTo(3L);
+		assertThatThrownBy(() -> courseQueryService.getCourseDetail(1L, null, "wrong", version -> true))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
-		assertThatThrownBy(() -> courseQueryService.getVersion(2L, null, "secret"))
+		assertThatThrownBy(() -> courseQueryService.getCourseDetail(2L, null, "secret", version -> true))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
 	}

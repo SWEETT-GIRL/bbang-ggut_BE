@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.LongPredicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.course.code.CourseErrorCode;
+import sweetgirl.croissant.course.dto.response.CourseDetailLookup;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
 import sweetgirl.croissant.course.dto.response.CourseMemberResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreMemoResponse;
@@ -108,16 +110,28 @@ public class CourseQueryService {
 	 * UNLISTED: 방장·활성 멤버 이거나 t 가 share_token 과 일치 / PUBLIC: 누구나.
 	 */
 	public CourseDetailResponse getCourseDetail(Long courseId, Long memberId, String shareToken) {
+		return getCourseDetail(courseId, memberId, shareToken, version -> false).body().orElseThrow();
+	}
+
+	/**
+	 * 조건부 GET 용. 접근 판정을 먼저 하고(권한 없는 사람에게 304 로 코스의 존재를 알려주면 안 된다) 현재 version 을
+	 * notModified 에 넘긴다 — true 면 본문을 만들지 않는다. 코스·참여자 목록은 판정과 조립이 같이 쓰므로 한 번만 읽는다.
+	 * 본문이 사람마다 달라도(isMine·visited·myMemo) ETag 는 version 하나로 충분하다: A 의 304 는 A 의 이전 응답을 다시 쓰라는 뜻이다.
+	 */
+	public CourseDetailLookup getCourseDetail(Long courseId, Long memberId, String shareToken,
+			LongPredicate notModified) {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
+		// 비공개 코스는 방장과 활성 멤버만 — 협업 코스는 PRIVATE 이라 멤버를 빼면 자기 코스를 못 본다.
+		// 판정은 exists 로 끝낸다 — 참여자 목록은 본문을 만들 때만 읽어 304 폴링이 목록까지 읽지 않게 한다
+		courseAccessPolicy.requireViewable(course, memberId, shareToken);
+		if (notModified.test(course.getVersion())) {
+			return CourseDetailLookup.notModified(course.getVersion());
+		}
 		List<CourseMember> members = activeMembersOf(course, courseId);
 		boolean isMine = courseAccessPolicy.isOwner(course, memberId);
 		boolean isMember = isActiveMemberIn(members, memberId, isMine);
-		// 비공개 코스는 방장과 활성 멤버만 — 협업 코스는 PRIVATE 이라 멤버를 빼면 자기 코스를 못 본다
-		if (!courseAccessPolicy.canView(course, memberId, shareToken, isMember)) {
-			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
-		}
-		return buildDetail(course, courseId, memberId, members, isMine, isMember);
+		return CourseDetailLookup.of(buildDetail(course, courseId, memberId, members, isMine, isMember));
 	}
 
 	/**
@@ -225,17 +239,6 @@ public class CourseQueryService {
 			.map(CourseMember::getDisplayName)
 			.findFirst()
 			.orElse(null);
-	}
-
-	/**
-	 * 폴링 ETag 용. 상세와 같은 접근 판정을 먼저 한다 — 권한이 없는 사람에게 304 로 코스의 존재를 알려주면 안 된다.
-	 * 본문이 사람마다 달라도(isMine·visited·myMemo) ETag 는 같아도 된다: A 의 304 는 A 의 이전 응답을 다시 쓰라는 뜻이다.
-	 */
-	public long getVersion(Long courseId, Long memberId, String shareToken) {
-		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
-			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		courseAccessPolicy.requireViewable(course, memberId, shareToken);
-		return course.getVersion();
 	}
 
 	/**
