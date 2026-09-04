@@ -763,6 +763,101 @@ class CourseMemberServiceTest {
 		}
 	}
 
+	// ───────────────────────── leaveAllCourses (회원 탈퇴) ─────────────────────────
+
+	@Nested
+	@DisplayName("leaveAllCourses")
+	class LeaveAllCourses {
+
+		@Test
+		@DisplayName("방장이 탈퇴하면 참여 순서가 가장 빠른 멤버에게 넘기고 행·메모를 닫는다. 새 방장의 행은 남는다")
+		void owner_transfersToOldestMember() {
+			Course course = mockCourse(CourseType.CUSTOM, owner(), false);
+			CourseMember ownerRow = row(course, OWNER_ID, "다나");
+			CourseMember oldest = row(course, MEMBER_ID, "지수");
+			given(courseMemberRepository.findAllByIdMemberIdAndDeletedAtIsNull(OWNER_ID)).willReturn(List.of(ownerRow));
+			given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(COURSE_ID))
+				.willReturn(List.of(ownerRow, oldest));
+
+			courseMemberService.leaveAllCourses(OWNER_ID);
+
+			then(course).should().changeOwner(oldest.getMember());
+			assertThat(ownerRow.isDeleted()).isTrue();
+			assertThat(oldest.isDeleted()).isFalse();
+			then(courseRepository).should().bumpVersion(COURSE_ID);
+			then(courseStoreMemoRepository).should().softDeleteAllByCourseIdAndMemberId(COURSE_ID, OWNER_ID);
+		}
+
+		@Test
+		@DisplayName("넘길 멤버가 없는 방장은 예외 없이 행만 닫는다 — 코스는 탈퇴자 소유로 남는다")
+		void owner_noSuccessor_closesRowOnly() {
+			Course course = mockCourse(CourseType.CUSTOM, owner(), false);
+			CourseMember ownerRow = row(course, OWNER_ID, "다나");
+			given(courseMemberRepository.findAllByIdMemberIdAndDeletedAtIsNull(OWNER_ID)).willReturn(List.of(ownerRow));
+			given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(COURSE_ID))
+				.willReturn(List.of(ownerRow));
+
+			courseMemberService.leaveAllCourses(OWNER_ID);
+
+			assertThat(ownerRow.isDeleted()).isTrue();
+			then(course).should(never()).changeOwner(any());
+			then(courseRepository).should(never()).bumpVersion(any());
+			then(courseStoreMemoRepository).should().softDeleteAllByCourseIdAndMemberId(COURSE_ID, OWNER_ID);
+		}
+
+		@Test
+		@DisplayName("멤버가 탈퇴하면 참여 중인 코스 전부에서 행을 닫고 메모를 지운다 — 담았던 가게는 남는다")
+		void member_leavesEveryCourse() {
+			Course first = mockCourse(CourseType.CUSTOM, owner(), false);
+			Course second = mock(Course.class);
+			Member secondOwner = owner(); // 스텁 체인 안에서 mock 을 만드는 헬퍼를 부르면 UnfinishedStubbingException
+			lenient().when(second.getId()).thenReturn(11L);
+			lenient().when(second.getMember()).thenReturn(secondOwner);
+			CourseMember firstRow = row(first, MEMBER_ID, "지수");
+			CourseMember secondRow = row(second, MEMBER_ID, "지수");
+			given(courseMemberRepository.findAllByIdMemberIdAndDeletedAtIsNull(MEMBER_ID))
+				.willReturn(List.of(firstRow, secondRow));
+
+			courseMemberService.leaveAllCourses(MEMBER_ID);
+
+			assertThat(firstRow.isDeleted()).isTrue();
+			assertThat(secondRow.isDeleted()).isTrue();
+			then(first).should(never()).changeOwner(any());
+			then(second).should(never()).changeOwner(any());
+			then(courseRepository).should().bumpVersion(COURSE_ID);
+			then(courseRepository).should().bumpVersion(11L);
+			then(courseStoreMemoRepository).should().softDeleteAllByCourseIdAndMemberId(COURSE_ID, MEMBER_ID);
+			then(courseStoreMemoRepository).should().softDeleteAllByCourseIdAndMemberId(11L, MEMBER_ID);
+		}
+
+		@Test
+		@DisplayName("지운 코스의 행은 닫기만 한다 — 승계도 version 도 메모 정리도 없다")
+		void deletedCourse_closesRowOnly() {
+			Course course = mockCourse(CourseType.CUSTOM, owner(), false);
+			given(course.isDeleted()).willReturn(true);
+			CourseMember ownerRow = row(course, OWNER_ID, "다나");
+			given(courseMemberRepository.findAllByIdMemberIdAndDeletedAtIsNull(OWNER_ID)).willReturn(List.of(ownerRow));
+
+			courseMemberService.leaveAllCourses(OWNER_ID);
+
+			assertThat(ownerRow.isDeleted()).isTrue();
+			then(course).should(never()).changeOwner(any());
+			then(courseRepository).shouldHaveNoInteractions();
+			then(courseStoreMemoRepository).shouldHaveNoInteractions();
+		}
+
+		@Test
+		@DisplayName("참여한 코스가 없으면 아무것도 하지 않는다")
+		void noRows_doesNothing() {
+			given(courseMemberRepository.findAllByIdMemberIdAndDeletedAtIsNull(OTHER_ID)).willReturn(List.of());
+
+			courseMemberService.leaveAllCourses(OTHER_ID);
+
+			then(courseRepository).shouldHaveNoInteractions();
+			then(courseStoreMemoRepository).shouldHaveNoInteractions();
+		}
+	}
+
 	// ───────────────────────── rename ─────────────────────────
 
 	@Nested

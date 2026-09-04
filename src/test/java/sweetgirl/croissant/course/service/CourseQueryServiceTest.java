@@ -358,6 +358,38 @@ class CourseQueryServiceTest {
 	}
 
 	@Test
+	@DisplayName("getCourseDetail: 메모 작성자가 탈퇴한 회원이어도 상세는 살아 있고 이름은 닉네임으로 폴백한다")
+	void getCourseDetail_memoAuthorDeleted_stillSucceeds() {
+		Long ownerId = 10L;
+		Long deletedId = 7L;
+		Course course = mockCourse(1L, "협업 코스", false, CourseType.CUSTOM, ownerId);
+		CourseStore courseStore = mockCourseStore(1, "빵집A", "종로구");
+		given(courseStore.getId()).willReturn(501L);
+		// 탈퇴자의 메모는 탈퇴 때 닫히지만, 그 경계 순간에 남은 행 하나가 응답 전체를 죽이면 안 된다 —
+		// 작성자는 MemberReader.getMember(탈퇴자면 예외)가 아니라 조인으로 읽는다
+		Member deletedAuthor = Member.builder().nickname("탈퇴자").build();
+		deletedAuthor.softDelete();
+		CourseStoreMemo memo = mock(CourseStoreMemo.class);
+		given(memo.getId()).willReturn(new CourseStoreMemoId(501L, deletedId));
+		given(memo.getMember()).willReturn(deletedAuthor);
+		given(memo.getContent()).willReturn("남긴 메모");
+
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(1L))
+			.willReturn(List.of(courseStore));
+		given(courseImageFileRepository.findByCourseId(1L)).willReturn(Optional.empty());
+		given(savedCourseRepository.countByCourseId(1L)).willReturn(0L);
+		given(courseStoreMemoRepository.findAllByIdCourseStoreIdInAndDeletedAtIsNull(List.of(501L)))
+			.willReturn(List.of(memo));
+		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(1L))
+			.willReturn(List.of());
+
+		CourseStoreResponse stop = courseQueryService.getCourseDetail(1L, ownerId).courseStores().get(0);
+
+		assertThat(stop.memos()).extracting(CourseStoreMemoResponse::displayName).containsExactly("탈퇴자");
+	}
+
+	@Test
 	@DisplayName("getCourseDetail: 큐레이션 코스는 course_stores.memo 를 그대로 주고 메모 테이블을 읽지 않는다")
 	void getCourseDetail_curated_keepsLegacyMemo() {
 		Course course = mockCourse(1L, "큐레이션", true, CourseType.CURATED, null);

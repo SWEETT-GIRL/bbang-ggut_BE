@@ -220,18 +220,53 @@ public class CourseMemberService {
 	 * 나가기와 회원 탈퇴가 같이 쓴다. 새 방장의 행은 남긴다 — 방장도 코스 안에서 이름을 갖는다.
 	 */
 	public void transferOwnership(Course course, Long fromMemberId) {
+		if (!transferOwnershipIfPossible(course, fromMemberId)) {
+			throw new CourseException(CourseErrorCode.COURSE_NO_SUCCESSOR);
+		}
+	}
+
+	/** @return 넘길 멤버가 있어 승계했으면 true. 없으면 아무것도 하지 않고 false */
+	private boolean transferOwnershipIfPossible(Course course, Long fromMemberId) {
 		List<CourseMember> members = courseMemberRepository
 			.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(course.getId());
-		CourseMember successor = members.stream()
+		Optional<CourseMember> successor = members.stream()
 			.filter(row -> !row.getId().getMemberId().equals(fromMemberId))
-			.findFirst()
-			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NO_SUCCESSOR));
-		course.changeOwner(successor.getMember());
+			.findFirst();
+		if (successor.isEmpty()) {
+			return false;
+		}
+		course.changeOwner(successor.get().getMember());
 		members.stream()
 			.filter(row -> row.getId().getMemberId().equals(fromMemberId))
 			.findFirst()
 			.ifPresent(CourseMember::leave);
 		courseRepository.bumpVersion(course.getId());
+		return true;
+	}
+
+	/**
+	 * 회원 탈퇴 — 참여 중인 협업 코스 전부에서 나간다. 나가기와 같은 규칙이다: 방장이면 승계하고,
+	 * 담았던 가게는 코스에 남기고, 쓴 메모는 지운다. 만든 초대 토큰은 코스의 것이라 그대로 둔다.
+	 * 넘길 멤버가 없는 방장은 예외 대신 행만 닫는다 — 탈퇴는 이미 진행 중이라 나가기처럼 막을 수 없고,
+	 * 코스는 탈퇴자 소유로 남는다. course_members 행이 없는 소유 코스(협업 전 코스)는 손대지 않는다.
+	 */
+	public void leaveAllCourses(Long memberId) {
+		for (CourseMember row : courseMemberRepository.findAllByIdMemberIdAndDeletedAtIsNull(memberId)) {
+			Course course = row.getCourse();
+			if (course.isDeleted()) {
+				row.leave();
+				continue;
+			}
+			if (isOwner(course, memberId)) {
+				if (!transferOwnershipIfPossible(course, memberId)) {
+					row.leave();
+				}
+			} else {
+				row.leave();
+				courseRepository.bumpVersion(course.getId());
+			}
+			courseStoreMemoRepository.softDeleteAllByCourseIdAndMemberId(course.getId(), memberId);
+		}
 	}
 
 	public void rename(Long memberId, Long courseId, String displayName) {
