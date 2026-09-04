@@ -90,7 +90,7 @@ public class CourseMemberService {
 	/** 비로그인 허용 — memberId 가 null 이면 viewer 를 채우지 않는다. 가게·메모는 내려주지 않는다. */
 	@Transactional(readOnly = true)
 	public CourseInvitePreviewResponse previewInvite(String token, Long memberId) {
-		Optional<CourseInvite> found = courseInviteRepository.findByTokenAndDeletedAtIsNull(token);
+		Optional<CourseInvite> found = courseInviteRepository.findWithCourseOwnerByTokenAndDeletedAtIsNull(token);
 		if (found.isEmpty()) {
 			return CourseInvitePreviewResponse.invalid();
 		}
@@ -267,13 +267,11 @@ public class CourseMemberService {
 	 * 코스 id 오름차순으로 락을 잡는다 — 교차 소유한 두 사람의 탈퇴가 겹쳐도 락 순서가 같아 데드락이 없다.
 	 */
 	public void leaveAllCourses(Long memberId) {
-		for (Long courseId : courseMemberRepository.findActiveCourseIdsByMemberId(memberId)) {
-			Optional<CourseMember> activeRow = courseMemberRepository.findByIdCourseIdAndIdMemberId(courseId, memberId)
-				.filter(row -> !row.isDeleted());
-			if (activeRow.isEmpty()) {
-				continue;
-			}
-			CourseMember row = activeRow.get();
+		// 참여 중인 행을 한 번에 읽는다(코스마다 다시 읽지 않는다). 코스는 fetch 하지 않고 아래 락 조회로 읽는다
+		List<CourseMember> rows = courseMemberRepository
+			.findAllByIdMemberIdAndDeletedAtIsNullOrderByIdCourseIdAsc(memberId);
+		for (CourseMember row : rows) {
+			Long courseId = row.getId().getCourseId();
 			Optional<Course> locked = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId);
 			if (locked.isEmpty()) {
 				// 지운 코스 — 행만 닫는다. 승계·version·메모 정리는 의미 없다

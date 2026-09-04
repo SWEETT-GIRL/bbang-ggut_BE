@@ -33,7 +33,7 @@ public interface CourseMemberRepository extends JpaRepository<CourseMember, Cour
 	@EntityGraph(attributePaths = {"course", "course.member"})
 	List<CourseMember> findAllByIdMemberIdAndDeletedAtIsNull(Long memberId);
 
-	/** 참여 중인 코스 id 만, 코스 id 오름차순 — 탈퇴 정리가 코스마다 락을 잡을 때 순서를 고정해 데드락을 피한다. */
+	/** 참여 중인 코스 id 만 — 찜 목록에서 참여 코스를 뺄 때 행을 다 읽지 않는다. */
 	@Query("""
 			SELECT m.id.courseId
 			FROM CourseMember m
@@ -41,6 +41,12 @@ public interface CourseMemberRepository extends JpaRepository<CourseMember, Cour
 			ORDER BY m.id.courseId
 			""")
 	List<Long> findActiveCourseIdsByMemberId(@Param("memberId") Long memberId);
+
+	/**
+	 * 탈퇴 정리용 — 참여 중인 행 전부를 코스 id 오름차순으로. 코스마다 락을 잡을 때 순서를 고정해 데드락을 피한다.
+	 * 코스를 fetch 하지 않는다 — 락 조회 전에 코스가 영속성 컨텍스트에 실리면 락 조회가 낡은 상태를 돌려준다.
+	 */
+	List<CourseMember> findAllByIdMemberIdAndDeletedAtIsNullOrderByIdCourseIdAsc(Long memberId);
 
 	// ── 게스트 → 회원 데이터 이관 ─────────────────────────────
 	// (course_id, member_id) 가 PK 라 회원이 이미 같은 코스의 행을 가지면 게스트 쪽을 버린다.

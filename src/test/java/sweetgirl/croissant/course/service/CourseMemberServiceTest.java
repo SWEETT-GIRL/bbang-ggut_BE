@@ -368,7 +368,8 @@ class CourseMemberServiceTest {
 
 		private CourseInvite givenInvite(Course course, LocalDateTime expiresAt, long memberCount) {
 			CourseInvite invite = inviteExpiringAt(course, expiresAt);
-			given(courseInviteRepository.findByTokenAndDeletedAtIsNull(TOKEN)).willReturn(Optional.of(invite));
+			given(courseInviteRepository.findWithCourseOwnerByTokenAndDeletedAtIsNull(TOKEN))
+				.willReturn(Optional.of(invite));
 			given(courseMemberRepository.countByIdCourseIdAndDeletedAtIsNull(COURSE_ID)).willReturn(memberCount);
 			return invite;
 		}
@@ -376,7 +377,8 @@ class CourseMemberServiceTest {
 		@Test
 		@DisplayName("모르는 토큰은 INVALID 이고 코스 정보는 비어 있다")
 		void unknownToken_invalid() {
-			given(courseInviteRepository.findByTokenAndDeletedAtIsNull(TOKEN)).willReturn(Optional.empty());
+			given(courseInviteRepository.findWithCourseOwnerByTokenAndDeletedAtIsNull(TOKEN))
+				.willReturn(Optional.empty());
 
 			CourseInvitePreviewResponse response = courseMemberService.previewInvite(TOKEN, null);
 
@@ -403,6 +405,8 @@ class CourseMemberServiceTest {
 			assertThat(response.memberLimit()).isEqualTo(8);
 			assertThat(response.expiresAt()).isEqualTo(expiresAt);
 			assertThat(response.viewer()).isNull();
+			// 미리보기는 코스·방장을 같이 읽는 조회를 쓴다 — 수락용 조회가 아니다
+			then(courseInviteRepository).should(never()).findByTokenAndDeletedAtIsNull(any());
 		}
 
 		@Test
@@ -878,20 +882,18 @@ class CourseMemberServiceTest {
 	@DisplayName("leaveAllCourses")
 	class LeaveAllCourses {
 
-		private CourseMember givenActiveRow(Course course, Long memberId, String displayName) {
-			CourseMember activeRow = row(course, memberId, displayName);
-			given(courseMemberRepository.findByIdCourseIdAndIdMemberId(course.getId(), memberId))
-				.willReturn(Optional.of(activeRow));
-			return activeRow;
+		private void givenActiveRows(Long memberId, CourseMember... activeRows) {
+			given(courseMemberRepository.findAllByIdMemberIdAndDeletedAtIsNullOrderByIdCourseIdAsc(memberId))
+				.willReturn(List.of(activeRows));
 		}
 
 		@Test
 		@DisplayName("방장이 탈퇴하면 코스 락을 잡고 참여 순서가 가장 빠른 멤버에게 넘긴 뒤 행·메모를 닫는다. 새 방장의 행은 남는다")
 		void owner_transfersToOldestMember() {
 			Course course = mockCourse(CourseType.CUSTOM, owner(), false);
-			given(courseMemberRepository.findActiveCourseIdsByMemberId(OWNER_ID)).willReturn(List.of(COURSE_ID));
+			CourseMember ownerRow = row(course, OWNER_ID, "다나");
+			givenActiveRows(OWNER_ID, ownerRow);
 			givenLockedCourse(course);
-			CourseMember ownerRow = givenActiveRow(course, OWNER_ID, "다나");
 			CourseMember oldest = row(course, MEMBER_ID, "지수");
 			given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(COURSE_ID))
 				.willReturn(List.of(ownerRow, oldest));
@@ -910,9 +912,9 @@ class CourseMemberServiceTest {
 		@DisplayName("넘길 멤버가 없는 방장은 행만 닫고 살아있는 초대 링크를 끈다 — 그 링크로 들어오면 탈퇴자가 방장으로 되살아난다")
 		void owner_noSuccessor_closesRowAndRevokesInvite() {
 			Course course = mockCourse(CourseType.CUSTOM, owner(), false);
-			given(courseMemberRepository.findActiveCourseIdsByMemberId(OWNER_ID)).willReturn(List.of(COURSE_ID));
+			CourseMember ownerRow = row(course, OWNER_ID, "다나");
+			givenActiveRows(OWNER_ID, ownerRow);
 			givenLockedCourse(course);
-			CourseMember ownerRow = givenActiveRow(course, OWNER_ID, "다나");
 			given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(COURSE_ID))
 				.willReturn(List.of(ownerRow));
 			CourseInvite invite = inviteExpiringAt(course, LocalDateTime.now().plusDays(5));
@@ -936,16 +938,18 @@ class CourseMemberServiceTest {
 			Member secondOwner = owner();
 			lenient().when(second.getId()).thenReturn(11L);
 			lenient().when(second.getMember()).thenReturn(secondOwner);
-			given(courseMemberRepository.findActiveCourseIdsByMemberId(MEMBER_ID)).willReturn(List.of(COURSE_ID, 11L));
+			CourseMember firstRow = row(first, MEMBER_ID, "지수");
+			CourseMember secondRow = row(second, MEMBER_ID, "지수");
+			givenActiveRows(MEMBER_ID, firstRow, secondRow);
 			givenLockedCourse(first);
 			given(courseRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(second));
-			CourseMember firstRow = givenActiveRow(first, MEMBER_ID, "지수");
-			CourseMember secondRow = givenActiveRow(second, MEMBER_ID, "지수");
 
 			courseMemberService.leaveAllCourses(MEMBER_ID);
 
 			assertThat(firstRow.isDeleted()).isTrue();
 			assertThat(secondRow.isDeleted()).isTrue();
+			// 행은 한 번에 읽는다 — 코스마다 멤버 행을 다시 읽지 않는다
+			then(courseMemberRepository).should(never()).findByIdCourseIdAndIdMemberId(any(), any());
 			then(first).should(never()).changeOwner(any());
 			then(second).should(never()).changeOwner(any());
 			then(courseRepository).should().bumpVersion(COURSE_ID);
@@ -958,9 +962,9 @@ class CourseMemberServiceTest {
 		@DisplayName("지운 코스의 행은 닫기만 한다 — 락 조회가 비어 있고, 승계도 version 도 메모 정리도 없다")
 		void deletedCourse_closesRowOnly() {
 			Course course = mockCourse(CourseType.CUSTOM, owner(), false);
-			given(courseMemberRepository.findActiveCourseIdsByMemberId(OWNER_ID)).willReturn(List.of(COURSE_ID));
+			CourseMember ownerRow = row(course, OWNER_ID, "다나");
+			givenActiveRows(OWNER_ID, ownerRow);
 			given(courseRepository.findWithLockByIdAndDeletedAtIsNull(COURSE_ID)).willReturn(Optional.empty());
-			CourseMember ownerRow = givenActiveRow(course, OWNER_ID, "다나");
 
 			courseMemberService.leaveAllCourses(OWNER_ID);
 
@@ -973,7 +977,7 @@ class CourseMemberServiceTest {
 		@Test
 		@DisplayName("참여한 코스가 없으면 아무것도 하지 않는다")
 		void noRows_doesNothing() {
-			given(courseMemberRepository.findActiveCourseIdsByMemberId(OTHER_ID)).willReturn(List.of());
+			givenActiveRows(OTHER_ID);
 
 			courseMemberService.leaveAllCourses(OTHER_ID);
 

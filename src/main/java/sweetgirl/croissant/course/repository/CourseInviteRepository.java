@@ -2,6 +2,7 @@ package sweetgirl.croissant.course.repository;
 
 import java.util.Optional;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -13,6 +14,13 @@ public interface CourseInviteRepository extends JpaRepository<CourseInvite, Long
 
 	/** 무효화된 링크는 제외한다. 만료 여부는 호출부가 expires_at 으로 판정한다. */
 	Optional<CourseInvite> findByTokenAndDeletedAtIsNull(String token);
+
+	/**
+	 * 미리보기 전용 — 코스와 방장을 같이 읽는다(제목·방장 닉네임·탈퇴 여부를 보느라 초대→코스→회원 지연 로딩이 따로 나가던 것).
+	 * 수락은 이걸 쓰지 않는다: 락 조회 전에 코스가 영속성 컨텍스트에 실리면 락 조회가 낡은 상태를 돌려준다.
+	 */
+	@EntityGraph(attributePaths = {"course", "course.member"})
+	Optional<CourseInvite> findWithCourseOwnerByTokenAndDeletedAtIsNull(String token);
 
 	/** 코스의 살아있는 링크. 서비스가 코스당 1개를 보장하지만 방어적으로 최신 것을 고른다. */
 	Optional<CourseInvite> findFirstByCourseIdAndDeletedAtIsNullOrderByCreatedAtDesc(Long courseId);
