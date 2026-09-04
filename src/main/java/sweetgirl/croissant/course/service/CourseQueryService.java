@@ -150,8 +150,26 @@ public class CourseQueryService {
 			myDisplayName);
 	}
 
+	/**
+	 * 폴링 ETag 용. 상세와 같은 접근 판정을 먼저 한다 — 권한이 없는 사람에게 304 로 코스의 존재를 알려주면 안 된다.
+	 * 본문이 사람마다 달라도(isMine·visited·myMemo) ETag 는 같아도 된다: A 의 304 는 A 의 이전 응답을 다시 쓰라는 뜻이다.
+	 */
+	public long getVersion(Long courseId, Long memberId) {
+		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
+			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
+		if (!course.isPublic() && !isOwner(course, memberId) && !isActiveMember(course, memberId)) {
+			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
+		}
+		return course.getVersion();
+	}
+
 	private boolean isOwner(Course course, Long memberId) {
 		return memberId != null && course.getMember() != null && course.getMember().getId().equals(memberId);
+	}
+
+	private boolean isActiveMember(Course course, Long memberId) {
+		return memberId != null
+			&& courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(course.getId(), memberId);
 	}
 
 	/**

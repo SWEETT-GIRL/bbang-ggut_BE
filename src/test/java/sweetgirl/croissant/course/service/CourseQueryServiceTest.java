@@ -396,7 +396,59 @@ class CourseQueryServiceTest {
 			.hasMessageContaining(CourseErrorCode.COURSE_NOT_FOUND.getMessage());
 	}
 
-	// ───────────────────────── helpers ─────────────────────────
+	// ───────────────────────── getVersion (폴링 ETag) ─────────────────────────
+
+	/** getVersion 은 제목·배지를 안 읽으므로 mockCourse 의 strict 스텁이 남는다 — 판정에 필요한 것만 스텁 */
+	private Course versionedCourse(boolean isPublic, Long ownerId, long version) {
+		Course course = mock(Course.class);
+		lenient().when(course.getId()).thenReturn(1L);
+		lenient().when(course.isPublic()).thenReturn(isPublic);
+		lenient().when(course.getVersion()).thenReturn(version);
+		if (ownerId != null) {
+			Member owner = mock(Member.class);
+			lenient().when(owner.getId()).thenReturn(ownerId);
+			lenient().when(course.getMember()).thenReturn(owner);
+		}
+		return course;
+	}
+
+	@Test
+	@DisplayName("getVersion: 공개 코스는 비로그인도 version 을 받는다 — 멤버 조회 없이")
+	void getVersion_public_notLoggedIn() {
+		Course course = versionedCourse(true, 10L, 41L);
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+
+		assertThat(courseQueryService.getVersion(1L, null)).isEqualTo(41L);
+		then(courseMemberRepository).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("getVersion: 비공개 코스는 방장과 활성 멤버만 — 제3자·비로그인은 304 대신 COURSE_FORBIDDEN")
+	void getVersion_private_ownerAndMemberOnly() {
+		Course course = versionedCourse(false, 10L, 7L);
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(1L, 5L)).willReturn(true);
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(1L, 99L)).willReturn(false);
+
+		assertThat(courseQueryService.getVersion(1L, 10L)).isEqualTo(7L);
+		assertThat(courseQueryService.getVersion(1L, 5L)).isEqualTo(7L);
+		assertThatThrownBy(() -> courseQueryService.getVersion(1L, 99L))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+		assertThatThrownBy(() -> courseQueryService.getVersion(1L, null))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+	}
+
+	@Test
+	@DisplayName("getVersion: 지운 코스는 COURSE_NOT_FOUND")
+	void getVersion_deleted_throwsNotFound() {
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> courseQueryService.getVersion(1L, 10L))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_NOT_FOUND.getMessage());
+	}
 
 	// ───────────────────────── getCourseDetail: 사람별 메모 ─────────────────────────
 
