@@ -1,10 +1,14 @@
 package sweetgirl.croissant.course.service;
 
+import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,20 +58,48 @@ public class CourseQueryService {
 	private final CourseMemberRepository courseMemberRepository;
 
 	public List<CourseSummaryResponse> getCurationCourses() {
-		return buildSummaryResponses(courseRepository.findAllPublicOrderedByPinAndSavedCount());
+		return buildSummaryResponses(courseRepository.findAllPublicOrderedByPinAndSavedCount(), Set.of());
 	}
 
+	/**
+	 * 내 빵투어 = 내가 만든 코스 ∪ 참여 중인 코스. 소유·참여를 섞어 최근 수정순으로 내려준다.
+	 * 방장도 course_members 행을 가지므로 협업 중인 내 코스는 양쪽에 다 잡힌다 — courseId 로 dedup 한다.
+	 * bumpVersion 이 updated_at 도 올리므로 가게·메모·멤버 변경이 이 정렬에 잡힌다.
+	 */
 	public List<CourseSummaryResponse> getMyCourses(Long memberId) {
-		return buildSummaryResponses(courseRepository
-			.findAllByMemberIdAndTypeInAndDeletedAtIsNull(memberId, List.of(CourseType.CUSTOM, CourseType.FORKED)));
+		List<Course> owned = courseRepository
+			.findAllByMemberIdAndTypeInAndDeletedAtIsNull(memberId, List.of(CourseType.CUSTOM, CourseType.FORKED));
+		List<Course> joined = courseMemberRepository.findAllByIdMemberIdAndDeletedAtIsNull(memberId).stream()
+			.map(CourseMember::getCourse)
+			.filter(course -> !course.isDeleted())
+			.toList();
+		Set<Long> memberCourseIds = joined.stream()
+			.filter(course -> !isOwner(course, memberId))
+			.map(Course::getId)
+			.collect(Collectors.toSet());
+
+		Map<Long, Course> courseById = new LinkedHashMap<>();
+		Stream.concat(owned.stream(), joined.stream())
+			.forEach(course -> courseById.putIfAbsent(course.getId(), course));
+		List<Course> merged = courseById.values().stream()
+			.sorted(Comparator.comparing(Course::getUpdatedAt, Comparator.nullsLast(
+				Comparator.<LocalDateTime>reverseOrder()))
+				.thenComparing(Course::getId, Comparator.reverseOrder()))
+			.toList();
+		return buildSummaryResponses(merged, memberCourseIds);
 	}
 
 	public List<CourseSummaryResponse> getSavedCourses(Long memberId) {
+		// 참여하면 찜이 풀리지만(수락 때 삭제) 그 전 데이터가 남아 있을 수 있다 — 참여 중인 코스는 목록에서 뺀다
+		Set<Long> joinedCourseIds = courseMemberRepository.findAllByIdMemberIdAndDeletedAtIsNull(memberId).stream()
+			.map(row -> row.getId().getCourseId())
+			.collect(Collectors.toSet());
 		List<Course> savedCourses = savedCourseRepository.findAllByMemberId(memberId).stream()
 			.map(savedCourse -> savedCourse.getCourse())
 			.filter(course -> !course.isDeleted() && course.isPublic())
+			.filter(course -> !joinedCourseIds.contains(course.getId()))
 			.toList();
-		return buildSummaryResponses(savedCourses);
+		return buildSummaryResponses(savedCourses, Set.of());
 	}
 
 	public CourseDetailResponse getCourseDetail(Long courseId, Long memberId) {
@@ -211,8 +243,12 @@ public class CourseQueryService {
 					Objects.equals(memo.getId().getMemberId(), viewerId)), Collectors.toList())));
 	}
 
-	/** 코스별 가게·커버 이미지를 일괄 조회해 코스 수와 무관하게 고정된 쿼리 수로 summary를 만든다 */
-	private List<CourseSummaryResponse> buildSummaryResponses(List<Course> courses) {
+	/**
+	 * 코스별 가게·커버 이미지를 일괄 조회해 코스 수와 무관하게 고정된 쿼리 수로 summary를 만든다.
+	 *
+	 * @param memberCourseIds 방장 아닌 활성 멤버로 참여 중인 코스 id — isMember('함께' 배지). 내 목록 말고는 비어 있다
+	 */
+	private List<CourseSummaryResponse> buildSummaryResponses(List<Course> courses, Set<Long> memberCourseIds) {
 		if (courses.isEmpty()) {
 			return List.of();
 		}
@@ -248,7 +284,8 @@ public class CourseQueryService {
 					storeIdsOf(courseStores),
 					regions,
 					savedCountByCourseId.getOrDefault(course.getId(), 0L),
-					finisherCountByCourseId.getOrDefault(course.getId(), 0L));
+					finisherCountByCourseId.getOrDefault(course.getId(), 0L),
+					memberCourseIds.contains(course.getId()));
 			})
 			.toList();
 	}

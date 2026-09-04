@@ -88,7 +88,7 @@ class CourseControllerTest {
 		CourseSummaryResponse response = new CourseSummaryResponse(
 			1L, "소금빵 투어", null, null, List.of(), List.of("김진환제과점", "성심당"), 2, List.of(11L, 12L), List.of("마포구"),
 			CourseType.CURATED, "어드민",
-			null, 0L, 1, 37L, null, null, null);
+			null, 0L, 1, 37L, null, null, null, false);
 		given(courseQueryService.getCurationCourses()).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses"))
@@ -107,7 +107,7 @@ class CourseControllerTest {
 		CourseSummaryResponse response = new CourseSummaryResponse(
 			2L, "나의 코스", null, null, List.of(), List.of("성심당"), 1, List.of(21L), List.of("서대문구"), CourseType.CUSTOM,
 			"user1", null,
-			0L, null, 0L, null, null, null);
+			0L, null, 0L, null, null, null, true);
 		given(courseQueryService.getMyCourses(isNull())).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses/my"))
@@ -115,6 +115,8 @@ class CourseControllerTest {
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data[0].id").value(2))
 			.andExpect(jsonPath("$.data[0].courseType").value("CUSTOM"))
+			// 참여 코스는 '함께' 배지
+			.andExpect(jsonPath("$.data[0].isMember").value(true))
 			// 가게 상세의 '빵투어에 담기'가 이미 담긴 코스를 이 필드로 가려낸다
 			.andExpect(jsonPath("$.data[0].storeIds[0]").value(21));
 	}
@@ -124,7 +126,7 @@ class CourseControllerTest {
 		CourseSummaryResponse response = new CourseSummaryResponse(
 			3L, "찜한 코스", null, null, List.of(), List.of("성심당"), 3, List.of(31L, 32L, 33L), List.of("강남구"),
 			CourseType.CURATED, "어드민",
-			null, 0L, null, 0L, null, null, null);
+			null, 0L, null, 0L, null, null, null, false);
 		given(courseQueryService.getSavedCourses(isNull())).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses/saved"))

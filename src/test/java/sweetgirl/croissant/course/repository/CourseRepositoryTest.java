@@ -2,6 +2,8 @@ package sweetgirl.croissant.course.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.LocalDateTime;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -69,6 +71,27 @@ class CourseRepositoryTest {
 		entityManager.refresh(course);
 
 		assertThat(course.getVersion()).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("bumpVersion 은 updated_at 도 올린다 — 내 목록의 최근 수정순이 가게·메모·멤버 변경을 본다")
+	void bumpVersion_touchesUpdatedAt() {
+		Member owner = new Member("방장");
+		entityManager.persist(owner);
+		Course course = Course.createCustom("코스", owner, false);
+		entityManager.persist(course);
+		entityManager.flush();
+		// 같은 순간에 돌면 갱신이 안 보이므로 과거로 밀어둔다
+		LocalDateTime past = LocalDateTime.of(2026, 1, 1, 0, 0);
+		entityManager.createNativeQuery("UPDATE courses SET updated_at = :past WHERE id = :id")
+			.setParameter("past", past)
+			.setParameter("id", course.getId())
+			.executeUpdate();
+
+		courseRepository.bumpVersion(course.getId());
+		entityManager.refresh(course);
+
+		assertThat(course.getUpdatedAt()).isAfter(past);
 	}
 
 	@Test

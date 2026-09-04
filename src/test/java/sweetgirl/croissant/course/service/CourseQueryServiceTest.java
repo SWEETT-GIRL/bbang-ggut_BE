@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -120,21 +121,71 @@ class CourseQueryServiceTest {
 	// ───────────────────────── getMyCourses ─────────────────────────
 
 	@Test
-	@DisplayName("getMyCourses: CUSTOM + FORKED 내 코스 목록을 반환한다")
+	@DisplayName("getMyCourses: CUSTOM + FORKED 내 코스 목록을 최근 수정순으로 반환한다")
 	void getMyCourses_success() {
 		Long memberId = 10L;
 		Course custom = mockCourse(1L, "나의 코스", true, CourseType.CUSTOM, memberId);
 		Course forked = mockCourse(2L, "copy of 큐레이션", false, CourseType.FORKED, memberId);
+		lenient().when(custom.getUpdatedAt()).thenReturn(LocalDateTime.of(2026, 9, 3, 12, 0));
+		lenient().when(forked.getUpdatedAt()).thenReturn(LocalDateTime.of(2026, 9, 1, 12, 0));
 
 		given(courseRepository.findAllByMemberIdAndTypeInAndDeletedAtIsNull(
 			memberId, List.of(CourseType.CUSTOM, CourseType.FORKED)))
-			.willReturn(List.of(custom, forked));
+			.willReturn(List.of(forked, custom));
 
 		List<CourseSummaryResponse> result = courseQueryService.getMyCourses(memberId);
 
 		assertThat(result).hasSize(2);
 		assertThat(result.get(0).courseType()).isEqualTo(CourseType.CUSTOM);
 		assertThat(result.get(1).courseType()).isEqualTo(CourseType.FORKED);
+		assertThat(result).extracting(CourseSummaryResponse::isMember).containsOnly(false);
+	}
+
+	@Test
+	@DisplayName("getMyCourses: 참여 코스를 합치고, 협업 중인 내 코스는 한 번만, 섞어서 최근 수정순 — 참여 코스만 isMember")
+	void getMyCourses_unionsJoinedCourses_dedupsAndSortsByUpdatedAt() {
+		Long memberId = 10L;
+		Long friendId = 20L;
+		Course mine = mockCourse(1L, "내 코스", false, CourseType.CUSTOM, memberId);
+		Course myCollab = mockCourse(2L, "내 협업 코스", false, CourseType.CUSTOM, memberId);
+		Course friends = mockCourse(3L, "친구 코스", false, CourseType.CUSTOM, friendId);
+		lenient().when(mine.getUpdatedAt()).thenReturn(LocalDateTime.of(2026, 9, 1, 12, 0));
+		lenient().when(myCollab.getUpdatedAt()).thenReturn(LocalDateTime.of(2026, 9, 3, 12, 0));
+		lenient().when(friends.getUpdatedAt()).thenReturn(LocalDateTime.of(2026, 9, 2, 12, 0));
+		// 방장 행(내 협업 코스) + 멤버 행(친구 코스)
+		CourseMember ownerRow = mockMemberRow(2L, memberId, "다나");
+		CourseMember memberRow = mockMemberRow(3L, memberId, "다나");
+		lenient().when(ownerRow.getCourse()).thenReturn(myCollab);
+		lenient().when(memberRow.getCourse()).thenReturn(friends);
+
+		given(courseRepository.findAllByMemberIdAndTypeInAndDeletedAtIsNull(
+			memberId, List.of(CourseType.CUSTOM, CourseType.FORKED)))
+			.willReturn(List.of(mine, myCollab));
+		given(courseMemberRepository.findAllByIdMemberIdAndDeletedAtIsNull(memberId))
+			.willReturn(List.of(ownerRow, memberRow));
+
+		List<CourseSummaryResponse> result = courseQueryService.getMyCourses(memberId);
+
+		assertThat(result).extracting(CourseSummaryResponse::id).containsExactly(2L, 3L, 1L);
+		assertThat(result).extracting(CourseSummaryResponse::isMember).containsExactly(false, true, false);
+	}
+
+	@Test
+	@DisplayName("getMyCourses: 지운 참여 코스는 빠진다")
+	void getMyCourses_excludesDeletedJoinedCourse() {
+		Long memberId = 10L;
+		Course deleted = mock(Course.class);
+		given(deleted.isDeleted()).willReturn(true);
+		CourseMember memberRow = mock(CourseMember.class);
+		given(memberRow.getCourse()).willReturn(deleted);
+
+		given(courseRepository.findAllByMemberIdAndTypeInAndDeletedAtIsNull(
+			memberId, List.of(CourseType.CUSTOM, CourseType.FORKED)))
+			.willReturn(List.of());
+		given(courseMemberRepository.findAllByIdMemberIdAndDeletedAtIsNull(memberId))
+			.willReturn(List.of(memberRow));
+
+		assertThat(courseQueryService.getMyCourses(memberId)).isEmpty();
 	}
 
 	// ───────────────────────── getSavedCourses ─────────────────────────
@@ -181,6 +232,27 @@ class CourseQueryServiceTest {
 
 		assertThat(result).hasSize(1);
 		assertThat(result.get(0).id()).isEqualTo(1L);
+	}
+
+	@Test
+	@DisplayName("getSavedCourses: 참여 중인 코스는 찜해 뒀어도 목록에서 뺀다 — 내 빵투어에 '함께' 배지로 뜬다")
+	void getSavedCourses_excludesJoinedCourse() {
+		Long memberId = 10L;
+		Course publicCourse = mockCourse(1L, "공개 코스", true, CourseType.CURATED, null);
+		Course joinedCourse = mock(Course.class);
+		given(joinedCourse.isPublic()).willReturn(true);
+		given(joinedCourse.getId()).willReturn(2L);
+		SavedCourse saved1 = mock(SavedCourse.class);
+		given(saved1.getCourse()).willReturn(publicCourse);
+		SavedCourse saved2 = mock(SavedCourse.class);
+		given(saved2.getCourse()).willReturn(joinedCourse);
+		given(savedCourseRepository.findAllByMemberId(memberId)).willReturn(List.of(saved1, saved2));
+		CourseMember memberRow = mockMemberRow(2L, memberId, "다나");
+		given(courseMemberRepository.findAllByIdMemberIdAndDeletedAtIsNull(memberId)).willReturn(List.of(memberRow));
+
+		List<CourseSummaryResponse> result = courseQueryService.getSavedCourses(memberId);
+
+		assertThat(result).extracting(CourseSummaryResponse::id).containsExactly(1L);
 	}
 
 	// ───────────────────────── getCourseDetail ─────────────────────────
