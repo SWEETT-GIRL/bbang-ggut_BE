@@ -247,8 +247,7 @@ class CourseQueryServiceTest {
 		SavedCourse saved2 = mock(SavedCourse.class);
 		given(saved2.getCourse()).willReturn(joinedCourse);
 		given(savedCourseRepository.findAllByMemberId(memberId)).willReturn(List.of(saved1, saved2));
-		CourseMember memberRow = mockMemberRow(2L, memberId, "다나");
-		given(courseMemberRepository.findAllByIdMemberIdAndDeletedAtIsNull(memberId)).willReturn(List.of(memberRow));
+		given(courseMemberRepository.findActiveCourseIdsByMemberId(memberId)).willReturn(List.of(2L));
 
 		List<CourseSummaryResponse> result = courseQueryService.getSavedCourses(memberId);
 

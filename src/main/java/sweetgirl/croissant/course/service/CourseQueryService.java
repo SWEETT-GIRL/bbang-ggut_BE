@@ -2,6 +2,7 @@ package sweetgirl.croissant.course.service;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -93,9 +94,7 @@ public class CourseQueryService {
 
 	public List<CourseSummaryResponse> getSavedCourses(Long memberId) {
 		// 참여하면 찜이 풀리지만(수락 때 삭제) 그 전 데이터가 남아 있을 수 있다 — 참여 중인 코스는 목록에서 뺀다
-		Set<Long> joinedCourseIds = courseMemberRepository.findAllByIdMemberIdAndDeletedAtIsNull(memberId).stream()
-			.map(row -> row.getId().getCourseId())
-			.collect(Collectors.toSet());
+		Set<Long> joinedCourseIds = Set.copyOf(courseMemberRepository.findActiveCourseIdsByMemberId(memberId));
 		List<Course> savedCourses = savedCourseRepository.findAllByMemberId(memberId).stream()
 			.map(savedCourse -> savedCourse.getCourse())
 			.filter(course -> !course.isDeleted() && course.isPublic())
@@ -160,43 +159,14 @@ public class CourseQueryService {
 
 		Map<Long, List<CourseStoreMemoResponse>> memosByCourseStoreId = memosOf(course, courseStores, members,
 			memberId);
-		List<CourseStoreResponse> courseStoreResponses = courseStores.stream()
-			.map(courseStore -> {
-				List<CourseStoreMemoResponse> memos = memosByCourseStoreId.getOrDefault(courseStore.getId(), List.of());
-				String myMemo = memos.stream()
-					.filter(CourseStoreMemoResponse::isMine)
-					.map(CourseStoreMemoResponse::content)
-					.findFirst()
-					.orElse(null);
-				// 구버전 앱이 읽는 memo: 큐레이션은 새 테이블에 행이 없어 course_stores.memo(코스 설명)를 그대로,
-				// 사용자 코스는 내 메모만. legacy 컬럼을 폴백으로 쓰면 멤버가 방장 메모를 자기 것처럼 본다.
-				String memo = course.getType() == CourseType.CURATED ? courseStore.getMemo() : myMemo;
-				return CourseStoreResponse.of(
-					courseStore, visitByStoreId.get(courseStore.getStore().getId()), memo, myMemo, memos);
-			})
-			.toList();
+		List<CourseStoreResponse> courseStoreResponses = toStoreResponses(
+			course, courseStores, visitByStoreId, memosByCourseStoreId);
 
 		CourseImageFile coverImage = courseImageFileRepository.findByCourseId(courseId).orElse(null);
-
 		boolean isSaved = memberId != null && savedCourseRepository.existsByMemberIdAndCourseId(memberId, courseId);
 		long savedCount = savedCourseRepository.countByCourseId(courseId);
 		long finisherCount = courseProgressRepository.countByCourseIdAndStatus(
 			courseId, CourseProgressStatus.FINISHED);
-
-		List<String> regions = regionsOf(courseStores);
-
-		List<CourseMemberResponse> memberResponses = members.stream()
-			.map(row -> new CourseMemberResponse(
-				row.getId().getMemberId(),
-				row.getDisplayName(),
-				isOwner(course, row.getId().getMemberId()),
-				row.getId().getMemberId().equals(memberId)))
-			.toList();
-		String myDisplayName = members.stream()
-			.filter(row -> row.getId().getMemberId().equals(memberId))
-			.map(CourseMember::getDisplayName)
-			.findFirst()
-			.orElse(null);
 		// 공유 토큰은 방장에게만, 링크 공개일 때만 — 멤버·토큰으로 들어온 사람에겐 내려주지 않는다
 		String shareTokenForViewer = isMine && course.getVisibility() == CourseVisibility.UNLISTED
 			? course.getShareToken()
@@ -210,12 +180,51 @@ public class CourseQueryService {
 			isSaved,
 			savedCount,
 			finisherCount,
-			regions,
+			regionsOf(courseStores),
 			courseStoreResponses,
-			memberResponses,
+			toMemberResponses(course, members, memberId),
 			isMember,
-			myDisplayName,
+			myDisplayNameOf(members, memberId),
 			shareTokenForViewer);
+	}
+
+	/**
+	 * 정류장 응답. 구버전 앱이 읽는 memo 는 큐레이션이면 course_stores.memo(코스 설명) 그대로, 사용자 코스면 내 메모만 —
+	 * legacy 컬럼을 폴백으로 쓰면 멤버가 방장 메모를 자기 것처럼 본다.
+	 */
+	private List<CourseStoreResponse> toStoreResponses(Course course, List<CourseStore> courseStores,
+			Map<Long, CourseStoreVisit> visitByStoreId, Map<Long, List<CourseStoreMemoResponse>> memosByCourseStoreId) {
+		return courseStores.stream()
+			.map(courseStore -> {
+				List<CourseStoreMemoResponse> memos = memosByCourseStoreId.getOrDefault(courseStore.getId(), List.of());
+				String myMemo = memos.stream()
+					.filter(CourseStoreMemoResponse::isMine)
+					.map(CourseStoreMemoResponse::content)
+					.findFirst()
+					.orElse(null);
+				String memo = course.getType() == CourseType.CURATED ? courseStore.getMemo() : myMemo;
+				return CourseStoreResponse.of(
+					courseStore, visitByStoreId.get(courseStore.getStore().getId()), memo, myMemo, memos);
+			})
+			.toList();
+	}
+
+	private List<CourseMemberResponse> toMemberResponses(Course course, List<CourseMember> members, Long viewerId) {
+		return members.stream()
+			.map(row -> new CourseMemberResponse(
+				row.getId().getMemberId(),
+				row.getDisplayName(),
+				isOwner(course, row.getId().getMemberId()),
+				row.getId().getMemberId().equals(viewerId)))
+			.toList();
+	}
+
+	private String myDisplayNameOf(List<CourseMember> members, Long viewerId) {
+		return members.stream()
+			.filter(row -> row.getId().getMemberId().equals(viewerId))
+			.map(CourseMember::getDisplayName)
+			.findFirst()
+			.orElse(null);
 	}
 
 	/**
@@ -258,8 +267,8 @@ public class CourseQueryService {
 		if (memos.isEmpty()) {
 			return Map.of();
 		}
-		Map<Long, Integer> joinOrderByMemberId = new java.util.HashMap<>();
-		Map<Long, String> displayNameByMemberId = new java.util.HashMap<>();
+		Map<Long, Integer> joinOrderByMemberId = new HashMap<>();
+		Map<Long, String> displayNameByMemberId = new HashMap<>();
 		for (int i = 0; i < members.size(); i++) {
 			joinOrderByMemberId.put(members.get(i).getId().getMemberId(), i);
 			displayNameByMemberId.put(members.get(i).getId().getMemberId(), members.get(i).getDisplayName());

@@ -2,6 +2,7 @@ package sweetgirl.croissant.course.service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -110,39 +111,14 @@ public class CourseCommandService {
 		}
 
 		validateCanEdit(course, memberId);
-		// 공개 범위 전환은 방장 전용이다. 협업 멤버는 제목·지역·날짜만 고친다.
 		CourseVisibility requestedVisibility = requestedVisibility(request);
-		if (requestedVisibility != null) {
-			validateOwner(course, memberId);
-		}
-		// 같이 편집 중인 코스는 PUBLIC 이 될 수 없다 — 방장 말고 활성 멤버가 1명 이상일 때. 방장 행만 있으면 아직 협업이 아니다.
-		// 링크 공개(UNLISTED)·PRIVATE 은 된다 — 남에게 보여줄 길은 링크 공개다.
-		if (requestedVisibility == CourseVisibility.PUBLIC && hasCollaborators(course, memberId)) {
-			throw new CourseException(CourseErrorCode.COURSE_COLLAB_CANNOT_BE_PUBLIC);
-		}
-
-		// FORKED 코스는 원본과 동일한 채로 PUBLIC 만 막는다. 비공개·링크 공개 복제는 동일해도 허용.
-		if (course.getType() == CourseType.FORKED) {
-			boolean willBePublic = requestedVisibility != null
-				? requestedVisibility == CourseVisibility.PUBLIC
-				: course.isPublic();
-			if (willBePublic) {
-				String effectiveTitle = request.getTitle() != null ? request.getTitle() : course.getTitle();
-				if (isSameAsSource(course, effectiveTitle)) {
-					throw new CourseException(CourseErrorCode.COURSE_FORK_NOT_MODIFIED);
-				}
-			}
-		}
+		validateVisibilityChange(course, memberId, requestedVisibility, request.getTitle());
 
 		if (request.getTitle() != null) {
 			course.updateTitle(request.getTitle());
 		}
 		if (requestedVisibility != null) {
-			course.updateVisibility(requestedVisibility);
-			// 공유 토큰은 링크 공개로 처음 바꿀 때 발급하고 만료 없이 보존한다 — 왕복해도 이미 나간 링크가 살아 있어야 한다
-			if (requestedVisibility == CourseVisibility.UNLISTED && course.getShareToken() == null) {
-				course.issueShareToken(CollabTokenGenerator.generate());
-			}
+			applyVisibility(course, requestedVisibility);
 		}
 		if (request.getRegion() != null) {
 			course.updateRegion(request.getRegion());
@@ -156,6 +132,42 @@ public class CourseCommandService {
 		}
 		courseRepository.bumpVersion(courseId);
 		return new CourseUpdateResponse(course.getVisibility(), shareTokenFor(course, memberId));
+	}
+
+	/**
+	 * 공개 범위 전환 규칙. 방장 전용이고, 같이 편집 중인 코스는 PUBLIC 이 될 수 없으며(방장 행만 있으면 아직 협업이 아니다 —
+	 * 링크 공개·PRIVATE 은 된다), FORKED 코스는 원본과 동일한 채로 PUBLIC 만 막는다(비공개·링크 공개 복제는 동일해도 허용).
+	 */
+	private void validateVisibilityChange(Course course, Long memberId, CourseVisibility requested, String newTitle) {
+		if (requested == null) {
+			// 공개 범위를 안 바꾸는 수정도 FORKED 가 이미 PUBLIC 이면 동일 판정을 탄다 — 제목만 원본으로 되돌리는 경우
+			if (course.getType() == CourseType.FORKED && course.isPublic()) {
+				validateForkModified(course, newTitle);
+			}
+			return;
+		}
+		validateOwner(course, memberId);
+		if (requested == CourseVisibility.PUBLIC && hasCollaborators(course, memberId)) {
+			throw new CourseException(CourseErrorCode.COURSE_COLLAB_CANNOT_BE_PUBLIC);
+		}
+		if (course.getType() == CourseType.FORKED && requested == CourseVisibility.PUBLIC) {
+			validateForkModified(course, newTitle);
+		}
+	}
+
+	private void validateForkModified(Course course, String newTitle) {
+		String effectiveTitle = newTitle != null ? newTitle : course.getTitle();
+		if (isSameAsSource(course, effectiveTitle)) {
+			throw new CourseException(CourseErrorCode.COURSE_FORK_NOT_MODIFIED);
+		}
+	}
+
+	/** 공유 토큰은 링크 공개로 처음 바꿀 때 발급하고 만료 없이 보존한다 — 왕복해도 이미 나간 링크가 살아 있어야 한다. */
+	private void applyVisibility(Course course, CourseVisibility visibility) {
+		course.updateVisibility(visibility);
+		if (visibility == CourseVisibility.UNLISTED && course.getShareToken() == null) {
+			course.issueShareToken(CollabTokenGenerator.generate());
+		}
 	}
 
 	/** visibility 가 오면 그것, 아니면 구버전 앱의 isPublic(true → PUBLIC, false → PRIVATE). 둘 다 없으면 null. */
@@ -218,44 +230,12 @@ public class CourseCommandService {
 
 		List<CourseStore> activeStores = courseStoreRepository
 			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId);
-		int maxDay = activeStores.stream().mapToInt(CourseStore::getDay).max().orElse(0);
-		int day = request.getDay() != null ? request.getDay() : Math.max(maxDay, 1);
-		if (day < 1 || day > maxDay + 1) {
-			throw new CourseException(CourseErrorCode.COURSE_STORE_DAY_INVALID);
-		}
+		int day = resolveDay(request.getDay(), activeStores);
 		// 뒤 일차에 담기면 일차 수도 따라 올린다 — 일행이 같은 일차 수를 본다
 		course.ensureDayCountAtLeast(day);
-
-		// 삽입 위치: 해당 일차의 마지막 가게 뒤
-		int insertIndex = 0;
-		for (int i = 0; i < activeStores.size(); i++) {
-			if (activeStores.get(i).getDay() <= day) {
-				insertIndex = i + 1;
-			}
-		}
-
-		CourseStore courseStore;
-		if (insertIndex == activeStores.size()) {
-			int nextOrder = courseStoreRepository.findMaxVisitOrderByCourseId(courseId) + 1;
-			courseStore = CourseStore.createWithDetails(
-				course, store, nextOrder, day,
-				null, request.getVisitTime());
-			courseStoreRepository.save(courseStore);
-		} else {
-			// 중간 삽입: 유니크 제약 충돌을 피하기 위해 기존 가게를 임시 음수 순서로 옮긴 뒤 끼워 넣고 재부여
-			IntStream.range(0, activeStores.size())
-				.forEach(i -> activeStores.get(i).updateOrder(-(i + 1)));
-			courseStoreRepository.flush();
-			courseStore = CourseStore.createWithDetails(
-				course, store, insertIndex + 1, day,
-				null, request.getVisitTime());
-			courseStoreRepository.save(courseStore);
-			int finalInsertIndex = insertIndex;
-			IntStream.range(0, activeStores.size())
-				.forEach(i -> activeStores.get(i).updateOrder(i < finalInsertIndex ? i + 1 : i + 2));
-		}
+		CourseStore courseStore = insertStore(course, store, activeStores, day, request.getVisitTime());
 		// 메모는 사람별이다 — course_stores.memo 가 아니라 내 메모 행으로 들어간다
-		String myMemo = upsertMyMemo(courseStore, memberId, request.getMemo());
+		String myMemo = saveMyMemo(courseStore, memberId, request.getMemo());
 		// 가게가 늘었다 — 분모가 커졌으니 완주 승격을 허용해도 안전하다
 		courseProgressService.refreshForCourse(courseId, true);
 		courseRepository.bumpVersion(courseId);
@@ -265,6 +245,61 @@ public class CourseCommandService {
 			: List.of(new CourseStoreMemoResponse(
 				memberId, displayNameOf(courseId, memberId), myMemo, LocalDateTime.now(), true));
 		return CourseStoreResponse.of(courseStore, null, myMemo, myMemo, memos);
+	}
+
+	/** 요청 일차가 없으면 마지막 일차(최소 1). 1 ~ (마지막 일차 + 1) 만 허용 — 빈 일차를 건너뛰어 담을 수 없다. */
+	private int resolveDay(Integer requestedDay, List<CourseStore> activeStores) {
+		int maxDay = activeStores.stream().mapToInt(CourseStore::getDay).max().orElse(0);
+		int day = requestedDay != null ? requestedDay : Math.max(maxDay, 1);
+		if (day < 1 || day > maxDay + 1) {
+			throw new CourseException(CourseErrorCode.COURSE_STORE_DAY_INVALID);
+		}
+		return day;
+	}
+
+	/**
+	 * 해당 일차의 마지막 가게 뒤에 끼워 넣는다.
+	 * 중간 삽입은 (course_id, visit_order) 유니크 충돌을 피하려고 기존 가게를 임시 음수 순서로 옮긴 뒤 끼우고 다시 매긴다.
+	 */
+	private CourseStore insertStore(Course course, Store store, List<CourseStore> activeStores, int day,
+			LocalTime visitTime) {
+		int insertIndex = insertIndexFor(activeStores, day);
+		if (insertIndex == activeStores.size()) {
+			int nextOrder = courseStoreRepository.findMaxVisitOrderByCourseId(course.getId()) + 1;
+			CourseStore appended = CourseStore.createWithDetails(course, store, nextOrder, day, null, visitTime);
+			courseStoreRepository.save(appended);
+			return appended;
+		}
+		IntStream.range(0, activeStores.size())
+			.forEach(i -> activeStores.get(i).updateOrder(-(i + 1)));
+		courseStoreRepository.flush();
+		CourseStore inserted = CourseStore.createWithDetails(course, store, insertIndex + 1, day, null, visitTime);
+		courseStoreRepository.save(inserted);
+		IntStream.range(0, activeStores.size())
+			.forEach(i -> activeStores.get(i).updateOrder(i < insertIndex ? i + 1 : i + 2));
+		return inserted;
+	}
+
+	/** 삽입 위치 = 해당 일차(또는 그 앞 일차)의 마지막 가게 뒤. */
+	private int insertIndexFor(List<CourseStore> activeStores, int day) {
+		int insertIndex = 0;
+		for (int i = 0; i < activeStores.size(); i++) {
+			if (activeStores.get(i).getDay() <= day) {
+				insertIndex = i + 1;
+			}
+		}
+		return insertIndex;
+	}
+
+	/** 방금 만든 정류장의 내 메모 — 기존 행이 있을 수 없으니 조회 없이 저장한다. 빈 값이면 아무것도 안 한다. */
+	private String saveMyMemo(CourseStore courseStore, Long memberId, String content) {
+		if (content == null || content.isBlank()) {
+			return null;
+		}
+		memberRestrictionReader.validateCanWrite(memberId);
+		Member author = memberRepository.getReferenceById(memberId);
+		courseStoreMemoRepository.save(CourseStoreMemo.of(courseStore, author, content));
+		return content;
 	}
 
 	/**

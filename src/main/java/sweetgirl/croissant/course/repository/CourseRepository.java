@@ -1,5 +1,6 @@
 package sweetgirl.croissant.course.repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -69,13 +70,18 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 	 * updated_at 도 같이 올린다 — 가게·메모·멤버 변경은 courses 행을 안 건드려서, 이게 없으면
 	 * 내 목록의 '최근 수정순'이 협업 편집을 못 본다.
 	 */
+	default int bumpVersion(Long courseId) {
+		return bumpVersion(courseId, LocalDateTime.now());
+	}
+
+	/** updated_at 은 @LastModifiedDate 와 같은 JVM 시계로 쓴다 — DB CURRENT_TIMESTAMP 와 섞이면 시간대가 다를 때 정렬이 흔들린다. */
 	@Modifying(flushAutomatically = true)
 	@Query(value = """
 			UPDATE courses
-			SET version = version + 1, updated_at = CURRENT_TIMESTAMP
+			SET version = version + 1, updated_at = :now
 			WHERE id = :courseId
 			""", nativeQuery = true)
-	int bumpVersion(@Param("courseId") Long courseId);
+	int bumpVersion(@Param("courseId") Long courseId, @Param("now") LocalDateTime now);
 
 	List<Course> findAllByTypeAndDeletedAtIsNullOrderByCreatedAtDesc(CourseType type);
 
