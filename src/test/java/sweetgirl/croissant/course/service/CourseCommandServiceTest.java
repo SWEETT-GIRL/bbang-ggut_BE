@@ -173,7 +173,7 @@ class CourseCommandServiceTest {
 		given(request.getTitle()).willReturn("수정된 제목");
 		given(request.getIsPublic()).willReturn(true);
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 
 		courseCommandService.updateCourse(memberId, courseId, request);
 
@@ -191,7 +191,7 @@ class CourseCommandServiceTest {
 		Course course = mockCourse(courseId, "제목", CourseType.CUSTOM, ownerId, null);
 		CourseUpdateRequest request = mockUpdateRequest();
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 
 		assertThatThrownBy(() -> courseCommandService.updateCourse(otherId, courseId, request))
 			.isInstanceOf(CourseException.class)
@@ -207,7 +207,7 @@ class CourseCommandServiceTest {
 		Course course = mockCourse(courseId, "큐레이션 코스", CourseType.CURATED, memberId, null);
 		CourseUpdateRequest request = mockUpdateRequest();
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 
 		assertThatThrownBy(() -> courseCommandService.updateCourse(memberId, courseId, request))
 			.isInstanceOf(CourseException.class)
@@ -230,7 +230,7 @@ class CourseCommandServiceTest {
 		// 동일 판정은 '공개로 바꾸려 할 때'만 탄다. mockCourse 는 isPublic() 을 스텁하지 않아 false 이므로 요청으로 켠다.
 		given(request.getIsPublic()).willReturn(true);
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseRepository.findByIdAndDeletedAtIsNull(sourceCourseId)).willReturn(Optional.of(sourceCourse));
 		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
 			.willReturn(List.of());
@@ -396,7 +396,7 @@ class CourseCommandServiceTest {
 		given(request.getMemo()).willReturn("새 메모");
 		given(request.getVisitTime()).willReturn(LocalTime.of(14, 30));
 
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.findByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId))
 			.willReturn(Optional.of(courseStore));
 		Member author = mockMember(memberId);
@@ -971,7 +971,7 @@ class CourseCommandServiceTest {
 		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
 		CourseUpdateRequest request = mockUpdateRequest();
 		given(request.getIsPublic()).willReturn(true);
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		CourseMember ownerRow = mockMemberRow(courseId, memberId);
 		CourseMember memberRow = mockMemberRow(courseId, 2L);
 		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(courseId))
@@ -992,7 +992,7 @@ class CourseCommandServiceTest {
 		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
 		CourseUpdateRequest request = mockUpdateRequest();
 		given(request.getIsPublic()).willReturn(true);
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		CourseMember ownerRow = mockMemberRow(courseId, memberId);
 		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(courseId))
 			.willReturn(List.of(ownerRow));
@@ -1010,7 +1010,7 @@ class CourseCommandServiceTest {
 		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
 		CourseUpdateRequest request = mockUpdateRequest();
 		given(request.getIsPublic()).willReturn(false);
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 
 		courseCommandService.updateCourse(memberId, courseId, request);
 
@@ -1027,7 +1027,6 @@ class CourseCommandServiceTest {
 		given(course.getDayCount()).willReturn(2);
 		CourseUpdateRequest request = mockUpdateRequest();
 		given(request.getDayCount()).willReturn(3);
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		CourseStore dayTwoStore = mockCourseStore(1, 2, mockStore(100L));
 		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
@@ -1048,7 +1047,6 @@ class CourseCommandServiceTest {
 		given(course.getDayCount()).willReturn(3);
 		CourseUpdateRequest request = mockUpdateRequest();
 		given(request.getDayCount()).willReturn(2);
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
 			.willReturn(List.of());
@@ -1069,7 +1067,6 @@ class CourseCommandServiceTest {
 		given(course.getDayCount()).willReturn(1);
 		CourseUpdateRequest request = mockUpdateRequest();
 		given(request.getDayCount()).willReturn(2);
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		CourseStore dayThreeStore = mockCourseStore(1, 3, mockStore(100L));
 		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
@@ -1091,7 +1088,7 @@ class CourseCommandServiceTest {
 		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
 		CourseStore courseStore = mock(CourseStore.class);
 		lenient().when(courseStore.getId()).thenReturn(501L);
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseStoreRepository.findByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId))
 			.willReturn(Optional.of(courseStore));
 		return courseStore;
@@ -1173,7 +1170,7 @@ class CourseCommandServiceTest {
 		CourseUpdateRequest request = mockUpdateRequest();
 		given(request.getTitle()).willReturn("원본 제목");
 		given(request.getIsPublic()).willReturn(true);
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseRepository.findByIdAndDeletedAtIsNull(sourceCourseId)).willReturn(Optional.of(sourceCourse));
 		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
 			.willReturn(List.of(current));
@@ -1197,7 +1194,7 @@ class CourseCommandServiceTest {
 		Long courseId = 10L;
 		Course course = mockCourse(courseId, "큐레이션", CourseType.CURATED, null, null);
 		givenActiveMemberLenient(courseId, memberId);
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 
 		assertThatThrownBy(() -> courseCommandService.updateCourse(memberId, courseId, mockUpdateRequest()))
 			.isInstanceOf(CourseException.class)
@@ -1228,7 +1225,7 @@ class CourseCommandServiceTest {
 		Long courseId = 10L;
 		Course course = mockCourse(courseId, "큐레이션", CourseType.CURATED, null, null);
 		givenActiveMemberLenient(courseId, memberId);
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 
 		assertThatThrownBy(() -> courseCommandService.updateStore(
 			memberId, courseId, 100L, mock(CourseStoreUpdateRequest.class)))
@@ -1279,7 +1276,7 @@ class CourseCommandServiceTest {
 		CourseStore courseStore = mock(CourseStore.class);
 		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
 		given(request.getMemo()).willReturn("멤버 메모");
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
 			.willReturn(true);
 		given(courseStoreRepository.findByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId))
@@ -1321,7 +1318,7 @@ class CourseCommandServiceTest {
 		given(request.getTitle()).willReturn("멤버가 고친 제목");
 		// Mockito 는 Boolean 미스텁에 false 를 돌려준다 — 공개 여부를 안 보낸 요청은 null 이어야 한다
 		given(request.getIsPublic()).willReturn(null);
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
 			.willReturn(true);
 
@@ -1340,7 +1337,7 @@ class CourseCommandServiceTest {
 		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, ownerId, null);
 		CourseUpdateRequest request = mockUpdateRequest();
 		given(request.getIsPublic()).willReturn(true);
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
 			.willReturn(true);
 
@@ -1360,7 +1357,7 @@ class CourseCommandServiceTest {
 		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
 		CourseUpdateRequest request = mockUpdateRequest();
 		given(request.getVisibility()).willReturn(CourseVisibility.UNLISTED);
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		// 발급 전엔 null, 발급 뒤엔 토큰
 		given(course.getShareToken()).willReturn(null).willReturn("issued-token");
 		given(course.getVisibility()).willReturn(CourseVisibility.UNLISTED);
@@ -1383,7 +1380,7 @@ class CourseCommandServiceTest {
 		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
 		CourseUpdateRequest request = mockUpdateRequest();
 		given(request.getVisibility()).willReturn(CourseVisibility.UNLISTED);
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(course.getShareToken()).willReturn("kept-token");
 		given(course.getVisibility()).willReturn(CourseVisibility.UNLISTED);
 
@@ -1402,7 +1399,7 @@ class CourseCommandServiceTest {
 		CourseUpdateRequest request = mockUpdateRequest();
 		lenient().when(request.getIsPublic()).thenReturn(true);
 		given(request.getVisibility()).willReturn(CourseVisibility.PRIVATE);
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 
 		courseCommandService.updateCourse(memberId, courseId, request);
 
@@ -1419,7 +1416,7 @@ class CourseCommandServiceTest {
 		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, ownerId, null);
 		CourseUpdateRequest request = mockUpdateRequest();
 		given(request.getVisibility()).willReturn(CourseVisibility.UNLISTED);
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
 			.willReturn(true);
 
@@ -1440,7 +1437,7 @@ class CourseCommandServiceTest {
 		lenient().when(course.getShareToken()).thenReturn("secret");
 		CourseUpdateRequest request = mockUpdateRequest();
 		given(request.getTitle()).willReturn("멤버가 고친 제목");
-		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
 			.willReturn(true);
 

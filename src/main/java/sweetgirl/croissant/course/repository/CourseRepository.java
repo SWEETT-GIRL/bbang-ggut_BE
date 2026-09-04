@@ -55,8 +55,9 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 
 	/**
 	 * 코스 행에 비관적 락을 걸고 읽는다. 같은 코스에 동시에 들어오는 쓰기를 줄 세운다 —
-	 * 가게 추가·삭제·순서 변경(유니크 순서 충돌로 500), 초대 생성(활성 링크 2개), 수락(정원 9명).
-	 * 전 조회에 락을 걸면 성능이 죽으므로 위 다섯 곳만 쓴다. 일반 조회는 findByIdAndDeletedAtIsNull 그대로.
+	 * 가게 추가·삭제·순서 변경(유니크 순서 충돌로 500), 코스·메모 수정, 초대 생성(활성 링크 2개), 수락(정원 9명),
+	 * 나가기·탈퇴 정리(승계). 코스나 그 자식 행을 바꾸는 쓰기는 전부 이걸로 시작해 락 순서를 courses → 자식으로 맞춘다.
+	 * 조회에는 걸지 않는다 — findByIdAndDeletedAtIsNull 그대로.
 	 */
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	Optional<Course> findWithLockByIdAndDeletedAtIsNull(Long id);

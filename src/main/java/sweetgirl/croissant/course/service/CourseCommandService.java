@@ -98,7 +98,9 @@ public class CourseCommandService {
 	}
 
 	public CourseUpdateResponse updateCourse(Long memberId, Long courseId, CourseUpdateRequest request) {
-		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
+		// 락으로 시작한다 — 공개 여부·일차 수 검사는 읽고-판단하고-쓰기라 락 없이는 수락·가게 추가와 경합한다.
+		// 락 없이 읽은 엔티티를 나중에 락 조회로 다시 만나도 영속성 컨텍스트가 낡은 상태를 돌려주므로, 처음부터 락이어야 한다.
+		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 
 		if (course.getType() == CourseType.CURATED) {
@@ -148,7 +150,7 @@ public class CourseCommandService {
 			course.updateDates(request.getStartDate(), request.getEndDate());
 		}
 		if (request.getDayCount() != null) {
-			updateDayCount(courseId, request.getDayCount());
+			updateDayCount(course, request.getDayCount());
 		}
 		courseRepository.bumpVersion(courseId);
 		return new CourseUpdateResponse(course.getVisibility(), shareTokenFor(course, memberId));
@@ -179,12 +181,11 @@ public class CourseCommandService {
 
 	/**
 	 * 일차 수는 늘어나기만 한다. 일행이 동시에 뒤 일차에 가게를 담을 수 있으니
-	 * 코스 행에 락을 잡고 현재 값·가게가 있는 마지막 일차와 비교한다.
+	 * 락을 잡은 코스의 현재 값·가게가 있는 마지막 일차와 비교한다.
 	 */
-	private void updateDayCount(Long courseId, int dayCount) {
-		Course lockedCourse = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
-			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		int maxDay = courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId).stream()
+	private void updateDayCount(Course lockedCourse, int dayCount) {
+		int maxDay = courseStoreRepository
+			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(lockedCourse.getId()).stream()
 			.mapToInt(CourseStore::getDay)
 			.max()
 			.orElse(0);
@@ -302,7 +303,9 @@ public class CourseCommandService {
 	}
 
 	public void updateStore(Long memberId, Long courseId, Long storeId, CourseStoreUpdateRequest request) {
-		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
+		// 락으로 시작한다 — 같은 사람의 이중 탭이 메모 행을 두 번 INSERT 하지 않게, 그리고 가게 삭제·순서 변경과
+		// 락 순서(courses → course_stores)를 맞춰 데드락을 피한다.
+		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		validateCanEdit(course, memberId);
 
