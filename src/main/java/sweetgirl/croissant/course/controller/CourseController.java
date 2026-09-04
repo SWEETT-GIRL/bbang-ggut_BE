@@ -37,6 +37,7 @@ import sweetgirl.croissant.course.dto.response.CourseInviteResponse;
 import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
+import sweetgirl.croissant.course.dto.response.CourseUpdateResponse;
 import sweetgirl.croissant.course.dto.response.CourseVisitCandidateResponse;
 import sweetgirl.croissant.course.service.CourseCommandService;
 import sweetgirl.croissant.course.service.CourseMemberService;
@@ -114,14 +115,13 @@ public class CourseController {
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(Map.of("courseId", courseId)));
 	}
 
-	@Operation(summary = "코스 수정")
+	@Operation(summary = "코스 수정", description = "공개 범위(visibility) 전환은 방장 전용. 링크 공개로 처음 바꾸면 shareToken 을 발급한다.")
 	@PatchMapping("/{courseId}")
-	public ResponseEntity<ApiResponse<Void>> updateCourse(
+	public ResponseEntity<ApiResponse<CourseUpdateResponse>> updateCourse(
 			@AuthenticationPrincipal Long memberId,
 			@PathVariable Long courseId,
 			@Valid @RequestBody CourseUpdateRequest request) {
-		courseCommandService.updateCourse(memberId, courseId, request);
-		return ResponseEntity.ok(ApiResponse.ok(null));
+		return ResponseEntity.ok(ApiResponse.ok(courseCommandService.updateCourse(memberId, courseId, request)));
 	}
 
 	@Operation(summary = "코스 삭제")

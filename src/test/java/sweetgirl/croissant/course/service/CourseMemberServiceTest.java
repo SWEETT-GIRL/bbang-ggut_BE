@@ -35,6 +35,7 @@ import sweetgirl.croissant.course.entity.CourseMember;
 import sweetgirl.croissant.course.entity.SavedCourse;
 import sweetgirl.croissant.course.enums.CourseInviteState;
 import sweetgirl.croissant.course.enums.CourseType;
+import sweetgirl.croissant.course.enums.CourseVisibility;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseInviteRepository;
 import sweetgirl.croissant.course.repository.CourseMemberRepository;
@@ -457,7 +458,7 @@ class CourseMemberServiceTest {
 			assertThat(rowCaptor.getValue().getId().getMemberId()).isEqualTo(MEMBER_ID);
 			assertThat(rowCaptor.getValue().getDisplayName()).isEqualTo("지수");
 			then(savedCourseRepository).should().delete(saved);
-			then(course).should().updatePublic(false);
+			then(course).should().updateVisibility(CourseVisibility.PRIVATE);
 			then(courseRepository).should().bumpVersion(COURSE_ID);
 		}
 
@@ -477,7 +478,7 @@ class CourseMemberServiceTest {
 
 			courseMemberService.acceptInvite(MEMBER_ID, TOKEN, "지수");
 
-			then(course).should(never()).updatePublic(any(Boolean.class));
+			then(course).should(never()).updateVisibility(any());
 			then(savedCourseRepository).should(never()).delete(any());
 		}
 
@@ -596,7 +597,7 @@ class CourseMemberServiceTest {
 
 			assertThat(response.alreadyMember()).isTrue();
 			then(courseMemberRepository).should(never()).save(any());
-			then(course).should(never()).updatePublic(any(Boolean.class));
+			then(course).should(never()).updateVisibility(any());
 			then(courseRepository).should(never()).bumpVersion(any());
 		}
 
@@ -632,7 +633,7 @@ class CourseMemberServiceTest {
 				.isInstanceOf(CourseException.class)
 				.hasMessageContaining(CourseErrorCode.COURSE_MEMBER_LIMIT.getMessage());
 			then(courseMemberRepository).should(never()).save(any());
-			then(course).should(never()).updatePublic(any(Boolean.class));
+			then(course).should(never()).updateVisibility(any());
 			then(courseRepository).should(never()).bumpVersion(any());
 		}
 

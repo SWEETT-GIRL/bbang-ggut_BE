@@ -28,16 +28,34 @@ class CourseTest {
 	}
 
 	@Test
-	@DisplayName("updatePublic 은 visibility 도 같이 바꾼다 — 링크 공개 전까지 두 컬럼은 같은 값이어야 한다")
-	void updatePublic_syncsVisibility() {
+	@DisplayName("updateVisibility 는 is_public 도 같이 쓴다 — PUBLIC 일 때만 true, UNLISTED·PRIVATE 은 false")
+	void updateVisibility_syncsIsPublic() {
 		Course course = Course.createCustom("코스", mock(Member.class), true);
 
-		course.updatePublic(false);
+		course.updateVisibility(CourseVisibility.UNLISTED);
 		assertThat(course.isPublic()).isFalse();
-		assertThat(course.getVisibility()).isEqualTo(CourseVisibility.PRIVATE);
+		assertThat(course.getVisibility()).isEqualTo(CourseVisibility.UNLISTED);
 
-		course.updatePublic(true);
+		course.updateVisibility(CourseVisibility.PRIVATE);
+		assertThat(course.isPublic()).isFalse();
+
+		course.updateVisibility(CourseVisibility.PUBLIC);
+		assertThat(course.isPublic()).isTrue();
 		assertThat(course.getVisibility()).isEqualTo(CourseVisibility.PUBLIC);
+	}
+
+	@Test
+	@DisplayName("issueShareToken 은 처음 한 번만 — 공개 범위를 오가도 토큰은 보존된다")
+	void issueShareToken_onlyOnce() {
+		Course course = Course.createCustom("코스", mock(Member.class), false);
+		assertThat(course.getShareToken()).isNull();
+
+		course.issueShareToken("first");
+		course.updateVisibility(CourseVisibility.PUBLIC);
+		course.updateVisibility(CourseVisibility.UNLISTED);
+		course.issueShareToken("second");
+
+		assertThat(course.getShareToken()).isEqualTo("first");
 	}
 
 	@Test

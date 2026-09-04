@@ -42,6 +42,7 @@ import sweetgirl.croissant.course.dto.response.CourseInviteResponse;
 import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
+import sweetgirl.croissant.course.dto.response.CourseUpdateResponse;
 import sweetgirl.croissant.course.enums.CourseInviteState;
 import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.enums.CourseType;
@@ -273,13 +274,17 @@ class CourseControllerTest {
 
 	@Test
 	void updateCourse_returns200() throws Exception {
-		willDoNothing().given(courseCommandService).updateCourse(isNull(), anyLong(), any());
+		given(courseCommandService.updateCourse(isNull(), anyLong(), any()))
+			.willReturn(new CourseUpdateResponse(CourseVisibility.UNLISTED, "share-token"));
 
 		mockMvc.perform(patch("/courses/1")
 			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"title\":\"수정된 코스\"}"))
+			.content("{\"title\":\"수정된 코스\",\"visibility\":\"UNLISTED\"}"))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.success").value(true));
+			.andExpect(jsonPath("$.success").value(true))
+			// 링크 공개로 처음 바꾸면 발급된 공유 토큰이 방장에게 돌아온다
+			.andExpect(jsonPath("$.data.visibility").value("UNLISTED"))
+			.andExpect(jsonPath("$.data.shareToken").value("share-token"));
 	}
 
 	@Test
