@@ -12,6 +12,7 @@ import static org.mockito.Mockito.times;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.course.code.CourseErrorCode;
+import sweetgirl.croissant.course.dto.projection.CourseStoreSummaryProjection;
 import sweetgirl.croissant.course.dto.response.CourseDetailLookup;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
 import sweetgirl.croissant.course.dto.response.CourseMemberResponse;
@@ -92,20 +94,25 @@ class CourseQueryServiceTest {
 	@DisplayName("getCurationCourses: 공개 코스 목록을 반환한다")
 	void getCurationCourses_success() {
 		Course course = mockCourse(1L, "망원동 빵지순례", true, CourseType.CURATED, null);
-		CourseStore courseStore = mockCourseStore(1, "빵집A", "마포구");
-		given(courseStore.getCourse()).willReturn(course);
+		// 목록은 Store 엔티티가 아니라 프로젝션(가게 id·이름·지역)만 읽는다
+		CourseStoreSummaryProjection firstStop = mockStop(1L, 101L, "빵집A", "마포구");
+		CourseStoreSummaryProjection secondStop = mockStop(1L, 102L, "빵집B", "마포구");
 
 		given(courseRepository.findAllPublicOrderedByPinAndSavedCount()).willReturn(List.of(course));
-		given(courseStoreRepository.findAllByCourseIdInAndDeletedAtIsNullOrderByVisitOrderAsc(List.of(1L)))
-			.willReturn(List.of(courseStore));
+		given(courseStoreRepository.findSummariesByCourseIdIn(List.of(1L))).willReturn(List.of(firstStop, secondStop));
+		given(courseStoreThumbnailReader.readByCourse(Map.of(1L, List.of(101L, 102L))))
+			.willReturn(Map.of(1L, List.of("s101-320")));
 
 		List<CourseSummaryResponse> result = courseQueryService.getCurationCourses();
 
 		assertThat(result).hasSize(1);
 		assertThat(result.get(0).id()).isEqualTo(1L);
 		assertThat(result.get(0).title()).isEqualTo("망원동 빵지순례");
-		assertThat(result.get(0).storeCount()).isEqualTo(1);
+		assertThat(result.get(0).storeCount()).isEqualTo(2);
+		assertThat(result.get(0).storeIds()).containsExactly(101L, 102L);
+		assertThat(result.get(0).storeNames()).containsExactly("빵집A", "빵집B");
 		assertThat(result.get(0).regions()).containsExactly("마포구");
+		assertThat(result.get(0).storeThumbnailKeys()).containsExactly("s101-320");
 	}
 
 	@Test
@@ -849,6 +856,16 @@ class CourseQueryServiceTest {
 			given(course.getMember()).willReturn(member);
 		}
 		return course;
+	}
+
+	private CourseStoreSummaryProjection mockStop(Long courseId, Long storeId, String storeName, String region2nd) {
+		CourseStoreSummaryProjection stop = mock(CourseStoreSummaryProjection.class);
+		lenient().when(stop.getCourseId()).thenReturn(courseId);
+		lenient().when(stop.getStoreId()).thenReturn(storeId);
+		lenient().when(stop.getStoreName()).thenReturn(storeName);
+		lenient().when(stop.getRegion1st()).thenReturn(null);
+		lenient().when(stop.getRegion2nd()).thenReturn(region2nd);
+		return stop;
 	}
 
 	private CourseStore mockCourseStore(int visitOrder, String storeName, String region2nd) {

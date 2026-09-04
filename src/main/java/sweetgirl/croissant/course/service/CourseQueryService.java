@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.course.code.CourseErrorCode;
+import sweetgirl.croissant.course.dto.projection.CourseStoreSummaryProjection;
 import sweetgirl.croissant.course.dto.response.CourseDetailLookup;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
 import sweetgirl.croissant.course.dto.response.CourseMemberResponse;
@@ -194,7 +195,7 @@ public class CourseQueryService {
 			isSaved,
 			savedCount,
 			finisherCount,
-			regionsOf(courseStores),
+			detailRegionsOf(courseStores),
 			courseStoreResponses,
 			toMemberResponses(course, members, memberId),
 			isMember,
@@ -291,10 +292,11 @@ public class CourseQueryService {
 		}
 		List<Long> courseIds = courses.stream().map(Course::getId).toList();
 
-		Map<Long, List<CourseStore>> courseStoresByCourseId = courseStoreRepository
-			.findAllByCourseIdInAndDeletedAtIsNullOrderByVisitOrderAsc(courseIds)
+		// 목록은 가게 id·이름·지역만 쓴다 — Store 엔티티 대신 프로젝션으로 읽어 geography 위치 같은 컬럼을 싣지 않는다
+		Map<Long, List<CourseStoreSummaryProjection>> stopsByCourseId = courseStoreRepository
+			.findSummariesByCourseIdIn(courseIds)
 			.stream()
-			.collect(Collectors.groupingBy(courseStore -> courseStore.getCourse().getId()));
+			.collect(Collectors.groupingBy(CourseStoreSummaryProjection::getCourseId));
 
 		Map<Long, CourseImageFile> coverImageByCourseId = courseImageFileRepository.findAllByCourseIdIn(courseIds)
 			.stream()
@@ -305,21 +307,22 @@ public class CourseQueryService {
 
 		Map<Long, Long> savedCountByCourseId = findSavedCountByCourseId(courses);
 		Map<Long, Long> finisherCountByCourseId = findFinisherCountByCourseId(courseIds);
+		Map<Long, List<Long>> storeIdsByCourseId = stopsByCourseId.entrySet().stream()
+			.collect(Collectors.toMap(Map.Entry::getKey, entry -> storeIdsOf(entry.getValue())));
 		Map<Long, List<String>> storeThumbnailsByCourseId = courseStoreThumbnailReader
-			.readByCourse(courseStoresByCourseId);
+			.readByCourse(storeIdsByCourseId);
 
 		return courses.stream()
 			.map(course -> {
-				List<CourseStore> courseStores = courseStoresByCourseId.getOrDefault(course.getId(), List.of());
-				List<String> regions = regionsOf(courseStores);
+				List<CourseStoreSummaryProjection> stops = stopsByCourseId.getOrDefault(course.getId(), List.of());
 				return CourseSummaryResponse.of(
 					course,
 					coverImageByCourseId.get(course.getId()),
 					storeThumbnailsByCourseId.getOrDefault(course.getId(), List.of()),
-					storeNamesOf(courseStores),
-					courseStores.size(),
-					storeIdsOf(courseStores),
-					regions,
+					storeNamesOf(stops),
+					stops.size(),
+					storeIdsByCourseId.getOrDefault(course.getId(), List.of()),
+					regionsOf(stops),
 					savedCountByCourseId.getOrDefault(course.getId(), 0L),
 					finisherCountByCourseId.getOrDefault(course.getId(), 0L),
 					memberCourseIds.contains(course.getId()));
@@ -340,9 +343,9 @@ public class CourseQueryService {
 	 * 이미 담긴 코스를 클라이언트가 알아야 하는데(가게 상세의 '빵투어에 담기'), 이게 없으면
 	 * 코스마다 상세를 한 번씩 부르게 된다. 여기선 courseStores를 이미 일괄 조회해 둔 터라 공짜다.
 	 */
-	private List<Long> storeIdsOf(List<CourseStore> courseStores) {
-		return courseStores.stream()
-			.map(courseStore -> courseStore.getStore().getId())
+	private List<Long> storeIdsOf(List<CourseStoreSummaryProjection> stops) {
+		return stops.stream()
+			.map(CourseStoreSummaryProjection::getStoreId)
 			.toList();
 	}
 
@@ -352,16 +355,25 @@ public class CourseQueryService {
 	 * 빵집 사진은 서로 비슷해서 어떤 코스인지 말해 주지 못하는데, 아는 가게 이름 하나가
 	 * 그 일을 한다. regionsOf가 이미 Store를 읽고 있어 여기서 이름을 더 읽는 건 공짜다.
 	 */
-	private List<String> storeNamesOf(List<CourseStore> courseStores) {
-		return courseStores.stream()
+	private List<String> storeNamesOf(List<CourseStoreSummaryProjection> stops) {
+		return stops.stream()
 			.limit(SUMMARY_STORE_NAME_LIMIT)
-			.map(courseStore -> courseStore.getStore().getName())
+			.map(CourseStoreSummaryProjection::getStoreName)
 			.filter(name -> name != null)
 			.toList();
 	}
 
-	/** 코스 가게들의 지역을 "시(축약) 구"(예: "대전 중구") 목록으로. 순서 유지·중복 제거. */
-	private List<String> regionsOf(List<CourseStore> courseStores) {
+	/** 목록용 — 코스 가게들의 지역을 "시(축약) 구"(예: "대전 중구") 목록으로. 순서 유지·중복 제거. */
+	private List<String> regionsOf(List<CourseStoreSummaryProjection> stops) {
+		return stops.stream()
+			.map(stop -> RegionFormatter.cityDistrict(stop.getRegion1st(), stop.getRegion2nd()))
+			.filter(region -> region != null)
+			.distinct()
+			.toList();
+	}
+
+	/** 상세용 — 정류장 엔티티에서 같은 지역 목록을 만든다. 상세는 한 코스라 Store 는 배치 페치로 읽는다. */
+	private List<String> detailRegionsOf(List<CourseStore> courseStores) {
 		return courseStores.stream()
 			.map(courseStore -> RegionFormatter.cityDistrict(
 				courseStore.getStore().getRegion1st(),

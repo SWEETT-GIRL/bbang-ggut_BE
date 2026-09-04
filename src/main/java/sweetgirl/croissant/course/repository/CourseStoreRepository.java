@@ -1,13 +1,14 @@
 package sweetgirl.croissant.course.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import sweetgirl.croissant.course.dto.projection.CourseStoreSummaryProjection;
 import sweetgirl.croissant.course.entity.CourseStore;
 
 public interface CourseStoreRepository extends JpaRepository<CourseStore, Long> {
@@ -18,9 +19,18 @@ public interface CourseStoreRepository extends JpaRepository<CourseStore, Long> 
 	 */
 	List<CourseStore> findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(Long courseId);
 
-	/** 목록 화면용. 코스마다 가게 이름·지역·썸네일을 읽으니 Store 를 같이 가져온다 — 정류장 수만큼 SELECT 가 나가던 N+1. */
-	@EntityGraph(attributePaths = "store")
-	List<CourseStore> findAllByCourseIdInAndDeletedAtIsNullOrderByVisitOrderAsc(List<Long> courseIds);
+	/**
+	 * 목록 화면용 — 코스별 정류장의 가게 id·이름·지역만 한 번에. Store 엔티티를 싣지 않는다(geography 위치 등 15개 컬럼).
+	 * 코스 id·방문 순서로 정렬해 소비처가 코스별로 갈라 담고 순서를 그대로 쓴다.
+	 */
+	@Query("""
+			SELECT cs.course.id AS courseId, s.id AS storeId, s.name AS storeName,
+				s.region1st AS region1st, s.region2nd AS region2nd
+			FROM CourseStore cs JOIN cs.store s
+			WHERE cs.course.id IN :courseIds AND cs.deletedAt IS NULL
+			ORDER BY cs.course.id, cs.visitOrder
+			""")
+	List<CourseStoreSummaryProjection> findSummariesByCourseIdIn(@Param("courseIds") Collection<Long> courseIds);
 
 	Optional<CourseStore> findByCourseIdAndStoreIdAndDeletedAtIsNull(Long courseId, Long storeId);
 

@@ -24,15 +24,18 @@ public class CourseStoreThumbnailReader {
 
 	private final StoreImageFileRepository storeImageFileRepository;
 
-	/** 여러 코스를 한 번의 쿼리로 — 목록 화면에서 코스 수만큼 쿼리가 늘면 안 된다. */
-	public Map<Long, List<String>> readByCourse(Map<Long, List<CourseStore>> courseStoresByCourseId) {
-		List<Long> storeIds = courseStoresByCourseId.values().stream()
+	/**
+	 * 여러 코스를 한 번의 쿼리로 — 목록 화면에서 코스 수만큼 쿼리가 늘면 안 된다.
+	 *
+	 * @param storeIdsByCourseId 코스별 가게 id, 방문 순서대로
+	 */
+	public Map<Long, List<String>> readByCourse(Map<Long, List<Long>> storeIdsByCourseId) {
+		List<Long> storeIds = storeIdsByCourseId.values().stream()
 			.flatMap(List::stream)
-			.map(courseStore -> courseStore.getStore().getId())
 			.distinct()
 			.toList();
 		Map<Long, String> thumbnailByStoreId = thumbnailsOf(storeIds);
-		return courseStoresByCourseId.entrySet().stream()
+		return storeIdsByCourseId.entrySet().stream()
 			.collect(Collectors.toMap(
 				Map.Entry::getKey,
 				entry -> pick(entry.getValue(), thumbnailByStoreId)));
@@ -41,9 +44,8 @@ public class CourseStoreThumbnailReader {
 	public List<String> read(List<CourseStore> courseStores) {
 		List<Long> storeIds = courseStores.stream()
 			.map(courseStore -> courseStore.getStore().getId())
-			.distinct()
 			.toList();
-		return pick(courseStores, thumbnailsOf(storeIds));
+		return pick(storeIds, thumbnailsOf(storeIds.stream().distinct().toList()));
 	}
 
 	private Map<Long, String> thumbnailsOf(List<Long> storeIds) {
@@ -58,9 +60,9 @@ public class CourseStoreThumbnailReader {
 				(first, second) -> first));
 	}
 
-	private static List<String> pick(List<CourseStore> courseStores, Map<Long, String> thumbnailByStoreId) {
-		return courseStores.stream()
-			.map(courseStore -> thumbnailByStoreId.get(courseStore.getStore().getId()))
+	private static List<String> pick(List<Long> storeIdsInVisitOrder, Map<Long, String> thumbnailByStoreId) {
+		return storeIdsInVisitOrder.stream()
+			.map(thumbnailByStoreId::get)
 			.filter(Objects::nonNull)
 			.distinct()
 			.limit(MAX_THUMBNAILS)

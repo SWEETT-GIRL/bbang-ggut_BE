@@ -16,11 +16,11 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.projection.CourseProgressAggregateProjection;
 import sweetgirl.croissant.course.dto.projection.CourseProgressMemberAggregateProjection;
+import sweetgirl.croissant.course.dto.projection.CourseStoreSummaryProjection;
 import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseImageFile;
 import sweetgirl.croissant.course.entity.CourseProgress;
-import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.entity.CourseStoreVisit;
 import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.exception.CourseException;
@@ -104,12 +104,13 @@ public class CourseProgressService {
 				image -> image.getCourse().getId(),
 				Function.identity(),
 				(first, second) -> first));
-		Map<Long, List<CourseStore>> courseStoresByCourseId = courseStoreRepository
-			.findAllByCourseIdInAndDeletedAtIsNullOrderByVisitOrderAsc(courseIds)
-			.stream()
-			.collect(Collectors.groupingBy(courseStore -> courseStore.getCourse().getId()));
+		// 진행 카드는 가게 썸네일만 필요하다 — Store 엔티티가 아니라 가게 id 만 코스별로 모은다
+		Map<Long, List<Long>> storeIdsByCourseId = courseStoreRepository.findSummariesByCourseIdIn(courseIds).stream()
+			.collect(Collectors.groupingBy(
+				CourseStoreSummaryProjection::getCourseId,
+				Collectors.mapping(CourseStoreSummaryProjection::getStoreId, Collectors.toList())));
 		Map<Long, List<String>> storeThumbnailsByCourseId = courseStoreThumbnailReader
-			.readByCourse(courseStoresByCourseId);
+			.readByCourse(storeIdsByCourseId);
 
 		return progresses.stream()
 			.filter(progress -> ongoingCourseIds.contains(progress.getCourse().getId()))
