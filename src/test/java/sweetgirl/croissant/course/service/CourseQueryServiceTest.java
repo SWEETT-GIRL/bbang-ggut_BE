@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
+import sweetgirl.croissant.course.dto.response.CourseMemberResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreMemoResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
@@ -33,6 +34,7 @@ import sweetgirl.croissant.course.entity.CourseStoreMemoId;
 import sweetgirl.croissant.course.entity.SavedCourse;
 import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.enums.CourseType;
+import sweetgirl.croissant.course.enums.CourseVisibility;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseMemberRepository;
@@ -245,6 +247,130 @@ class CourseQueryServiceTest {
 		assertThatThrownBy(() -> courseQueryService.getCourseDetail(1L, otherId))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+	}
+
+	@Test
+	@DisplayName("getCourseDetail: 비공개 협업 코스를 활성 멤버가 보면 성공 — canEdit·isMember 는 true, isMine·isOwner 는 false")
+	void getCourseDetail_privateCourse_activeMember_success() {
+		Long ownerId = 10L;
+		Long memberId = 5L;
+		Course course = mockCourse(1L, "협업 코스", false, CourseType.CUSTOM, ownerId);
+		CourseMember ownerRow = mockMemberRow(1L, ownerId, "다나");
+		CourseMember myRow = mockMemberRow(1L, memberId, "지수");
+
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(1L))
+			.willReturn(List.of(ownerRow, myRow));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(1L))
+			.willReturn(List.of());
+		given(courseImageFileRepository.findByCourseId(1L)).willReturn(Optional.empty());
+		given(savedCourseRepository.countByCourseId(1L)).willReturn(0L);
+
+		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, memberId);
+
+		assertThat(result.isMine()).isFalse();
+		assertThat(result.isOwner()).isFalse();
+		assertThat(result.isMember()).isTrue();
+		assertThat(result.canEdit()).isTrue();
+		assertThat(result.memberCount()).isEqualTo(2);
+		assertThat(result.myDisplayName()).isEqualTo("지수");
+		// 참여 순서 그대로, 방장·나 표시
+		assertThat(result.members()).extracting(CourseMemberResponse::memberId).containsExactly(ownerId, memberId);
+		assertThat(result.members()).extracting(CourseMemberResponse::isOwner).containsExactly(true, false);
+		assertThat(result.members()).extracting(CourseMemberResponse::isMe).containsExactly(false, true);
+		assertThat(result.visibility()).isEqualTo(CourseVisibility.PRIVATE);
+		assertThat(result.shareToken()).isNull();
+	}
+
+	@Test
+	@DisplayName("getCourseDetail: 방장이 보면 isOwner·canEdit 가 true 이고 isMember 는 false, 내 이름은 방장 행에서")
+	void getCourseDetail_privateCourse_owner_collabFlags() {
+		Long ownerId = 10L;
+		Long memberId = 5L;
+		Course course = mockCourse(1L, "협업 코스", false, CourseType.CUSTOM, ownerId);
+		given(course.getVersion()).willReturn(41L);
+		given(course.getDayCount()).willReturn(3);
+		CourseMember ownerRow = mockMemberRow(1L, ownerId, "다나");
+		CourseMember memberRow = mockMemberRow(1L, memberId, "지수");
+
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(1L))
+			.willReturn(List.of(ownerRow, memberRow));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(1L))
+			.willReturn(List.of());
+		given(courseImageFileRepository.findByCourseId(1L)).willReturn(Optional.empty());
+		given(savedCourseRepository.countByCourseId(1L)).willReturn(0L);
+
+		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, ownerId);
+
+		assertThat(result.isMine()).isTrue();
+		assertThat(result.isOwner()).isTrue();
+		assertThat(result.isMember()).isFalse();
+		assertThat(result.canEdit()).isTrue();
+		assertThat(result.myDisplayName()).isEqualTo("다나");
+		assertThat(result.version()).isEqualTo(41L);
+		assertThat(result.dayCount()).isEqualTo(3);
+	}
+
+	@Test
+	@DisplayName("getCourseDetail: 비공개 협업 코스를 나갔던 사람이나 제3자가 보면 COURSE_FORBIDDEN")
+	void getCourseDetail_privateCourse_nonMember_throwsForbidden() {
+		Long ownerId = 10L;
+		// 접근 판정에서 끝나는 코스는 제목·배지가 안 읽혀 strict stubbing 에 걸린다 — 최소 mock
+		Course course = mock(Course.class);
+		Member owner = mock(Member.class);
+		given(owner.getId()).willReturn(ownerId);
+		given(course.isPublic()).willReturn(false);
+		given(course.getMember()).willReturn(owner);
+		given(course.getType()).willReturn(CourseType.CUSTOM);
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+		// 활성 행 목록에 없다 = 나갔거나 애초에 멤버가 아니다
+		CourseMember ownerRow = mockMemberRow(1L, ownerId, "다나");
+		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(1L))
+			.willReturn(List.of(ownerRow));
+
+		assertThatThrownBy(() -> courseQueryService.getCourseDetail(1L, 99L))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+	}
+
+	@Test
+	@DisplayName("getCourseDetail: 협업이 아닌 내 코스는 members 가 비고 memberCount 0, myDisplayName null")
+	void getCourseDetail_noCollab_emptyMembers() {
+		Long ownerId = 10L;
+		Course course = mockCourse(1L, "내 코스", false, CourseType.CUSTOM, ownerId);
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+		given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(1L))
+			.willReturn(List.of());
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(1L))
+			.willReturn(List.of());
+		given(courseImageFileRepository.findByCourseId(1L)).willReturn(Optional.empty());
+		given(savedCourseRepository.countByCourseId(1L)).willReturn(0L);
+
+		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, ownerId);
+
+		assertThat(result.canEdit()).isTrue();
+		assertThat(result.memberCount()).isZero();
+		assertThat(result.members()).isEmpty();
+		assertThat(result.myDisplayName()).isNull();
+	}
+
+	@Test
+	@DisplayName("getCourseDetail: 큐레이션 코스는 canEdit 가 항상 false 이고 참여자 테이블을 읽지 않는다")
+	void getCourseDetail_curated_neverEditable() {
+		Course course = mockCourse(1L, "큐레이션", true, CourseType.CURATED, null);
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(1L))
+			.willReturn(List.of());
+		given(courseImageFileRepository.findByCourseId(1L)).willReturn(Optional.empty());
+		given(savedCourseRepository.countByCourseId(1L)).willReturn(0L);
+
+		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, 10L);
+
+		assertThat(result.canEdit()).isFalse();
+		assertThat(result.isOwner()).isFalse();
+		assertThat(result.visibility()).isEqualTo(CourseVisibility.PUBLIC);
+		then(courseMemberRepository).shouldHaveNoInteractions();
 	}
 
 	@Test

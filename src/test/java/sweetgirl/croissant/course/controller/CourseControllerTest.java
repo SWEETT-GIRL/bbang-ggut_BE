@@ -42,6 +42,7 @@ import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
 import sweetgirl.croissant.course.enums.CourseInviteState;
 import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.enums.CourseType;
+import sweetgirl.croissant.course.enums.CourseVisibility;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.service.CourseCommandService;
 import sweetgirl.croissant.course.service.CourseMemberService;
@@ -163,7 +164,8 @@ class CourseControllerTest {
 		CourseDetailResponse response = new CourseDetailResponse(
 			1L, "소금빵 투어", null, null, List.of(), 2, List.of("마포구"), CourseType.CURATED, "어드민", null, null, true, false,
 			false, 5L, 37L, LocalDateTime.of(2026, 1, 1, 0, 0), "서울", LocalDate.of(2026, 8, 20),
-			LocalDate.of(2026, 8, 21), List.of());
+			LocalDate.of(2026, 8, 21), List.of(),
+			false, false, false, 0, List.of(), null, 1, CourseVisibility.PUBLIC, null, 41L);
 		given(courseQueryService.getCourseDetail(anyLong(), isNull())).willReturn(response);
 
 		mockMvc.perform(get("/courses/1"))
@@ -176,7 +178,12 @@ class CourseControllerTest {
 			.andExpect(jsonPath("$.data.region").value("서울"))
 			.andExpect(jsonPath("$.data.startDate").value("2026-08-20"))
 			.andExpect(jsonPath("$.data.endDate").value("2026-08-21"))
-			.andExpect(jsonPath("$.data.isSaved").value(false));
+			.andExpect(jsonPath("$.data.isSaved").value(false))
+			// 동시편집 — 앱이 권한 게이트(canEdit)·참여자 칩·폴링 ETag(version)를 읽는다
+			.andExpect(jsonPath("$.data.canEdit").value(false))
+			.andExpect(jsonPath("$.data.memberCount").value(0))
+			.andExpect(jsonPath("$.data.visibility").value("PUBLIC"))
+			.andExpect(jsonPath("$.data.version").value(41));
 	}
 
 	@Test

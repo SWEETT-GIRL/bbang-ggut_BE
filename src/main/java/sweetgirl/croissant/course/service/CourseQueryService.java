@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
+import sweetgirl.croissant.course.dto.response.CourseMemberResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreMemoResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
@@ -73,10 +74,16 @@ public class CourseQueryService {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 
-		if (!course.isPublic()) {
-			if (memberId == null || course.getMember() == null || !course.getMember().getId().equals(memberId)) {
-				throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
-			}
+		// 참여자 목록은 한 번만 읽어 접근 판정·members·메모 정렬에 같이 쓴다. 큐레이션엔 행이 없다.
+		List<CourseMember> members = course.getType() == CourseType.CURATED
+			? List.of()
+			: courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(courseId);
+		boolean isMine = isOwner(course, memberId);
+		boolean isMember = !isMine && memberId != null
+			&& members.stream().anyMatch(row -> row.getId().getMemberId().equals(memberId));
+		// 비공개 코스는 방장과 활성 멤버만 — 협업 코스는 PRIVATE 이라 멤버를 빼면 자기 코스를 못 본다
+		if (!course.isPublic() && !isMine && !isMember) {
+			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
 		}
 
 		List<CourseStore> courseStores = courseStoreRepository
@@ -88,7 +95,8 @@ public class CourseQueryService {
 				.findAllByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId).stream()
 				.collect(Collectors.toMap(visit -> visit.getId().getStoreId(), visit -> visit, (a, b) -> a));
 
-		Map<Long, List<CourseStoreMemoResponse>> memosByCourseStoreId = memosOf(course, courseStores, memberId);
+		Map<Long, List<CourseStoreMemoResponse>> memosByCourseStoreId = memosOf(course, courseStores, members,
+			memberId);
 		List<CourseStoreResponse> courseStoreResponses = courseStores.stream()
 			.map(courseStore -> {
 				List<CourseStoreMemoResponse> memos = memosByCourseStoreId.getOrDefault(courseStore.getId(), List.of());
@@ -107,14 +115,25 @@ public class CourseQueryService {
 
 		CourseImageFile coverImage = courseImageFileRepository.findByCourseId(courseId).orElse(null);
 
-		boolean isMine = memberId != null && course.getMember() != null
-			&& course.getMember().getId().equals(memberId);
 		boolean isSaved = memberId != null && savedCourseRepository.existsByMemberIdAndCourseId(memberId, courseId);
 		long savedCount = savedCourseRepository.countByCourseId(courseId);
 		long finisherCount = courseProgressRepository.countByCourseIdAndStatus(
 			courseId, CourseProgressStatus.FINISHED);
 
 		List<String> regions = regionsOf(courseStores);
+
+		List<CourseMemberResponse> memberResponses = members.stream()
+			.map(row -> new CourseMemberResponse(
+				row.getId().getMemberId(),
+				row.getDisplayName(),
+				isOwner(course, row.getId().getMemberId()),
+				row.getId().getMemberId().equals(memberId)))
+			.toList();
+		String myDisplayName = members.stream()
+			.filter(row -> row.getId().getMemberId().equals(memberId))
+			.map(CourseMember::getDisplayName)
+			.findFirst()
+			.orElse(null);
 
 		return CourseDetailResponse.of(
 			course,
@@ -125,17 +144,24 @@ public class CourseQueryService {
 			savedCount,
 			finisherCount,
 			regions,
-			courseStoreResponses);
+			courseStoreResponses,
+			memberResponses,
+			isMember,
+			myDisplayName);
+	}
+
+	private boolean isOwner(Course course, Long memberId) {
+		return memberId != null && course.getMember() != null && course.getMember().getId().equals(memberId);
 	}
 
 	/**
-	 * 정류장별 사람별 메모. 메모 한 방 + 멤버 목록 한 방으로 읽는다 — 정류장마다 돌지 않는다.
+	 * 정류장별 사람별 메모. 메모 한 방으로 읽고 이미 읽어둔 멤버 목록으로 정렬한다 — 정류장마다 돌지 않는다.
 	 * 정렬은 서버가 참여 순서(course_members.joined_at)로 하고, 방장은 첫 초대 때 행이 생기므로 항상 맨 앞이다.
 	 * course_members 행이 없는 사람(이관 전 옛 데이터)은 닉네임으로 폴백하고 맨 뒤에 둔다.
 	 * 큐레이션 코스는 이 테이블을 쓰지 않으므로 읽지 않는다.
 	 */
 	private Map<Long, List<CourseStoreMemoResponse>> memosOf(Course course, List<CourseStore> courseStores,
-			Long viewerId) {
+			List<CourseMember> members, Long viewerId) {
 		if (course.getType() == CourseType.CURATED || courseStores.isEmpty()) {
 			return Map.of();
 		}
@@ -145,8 +171,6 @@ public class CourseQueryService {
 		if (memos.isEmpty()) {
 			return Map.of();
 		}
-		List<CourseMember> members = courseMemberRepository
-			.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(course.getId());
 		Map<Long, Integer> joinOrderByMemberId = new java.util.HashMap<>();
 		Map<Long, String> displayNameByMemberId = new java.util.HashMap<>();
 		for (int i = 0; i < members.size(); i++) {
