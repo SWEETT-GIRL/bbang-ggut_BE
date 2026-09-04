@@ -1,10 +1,12 @@
 package sweetgirl.croissant.admin.controller;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,8 +19,10 @@ import sweetgirl.croissant.admin.dto.request.AdminMemberRestrictionRequest;
 import sweetgirl.croissant.admin.dto.request.AdminProfileResetRequest;
 import sweetgirl.croissant.admin.dto.response.AdminMemberBanResponse;
 import sweetgirl.croissant.admin.dto.response.AdminMemberRestrictionResponse;
+import sweetgirl.croissant.admin.dto.response.AdminMemberSummaryResponse;
 import sweetgirl.croissant.admin.dto.response.AdminProfileResetResponse;
 import sweetgirl.croissant.admin.service.AdminMemberCommandService;
+import sweetgirl.croissant.admin.service.AdminMemberQueryService;
 import sweetgirl.croissant.global.response.ApiResponse;
 
 @Tag(name = "Admin Member", description = "어드민 회원 관리 API")
@@ -28,6 +32,16 @@ import sweetgirl.croissant.global.response.ApiResponse;
 public class AdminMemberController {
 
 	private final AdminMemberCommandService adminMemberCommandService;
+	private final AdminMemberQueryService adminMemberQueryService;
+
+	@Operation(summary = "회원 검색", description = "닉네임 부분일치로 회원을 찾습니다. 검색어가 없으면 최근 가입순입니다. 편지 수신자 선택용.")
+	@GetMapping
+	public ResponseEntity<ApiResponse<AdminMemberSummaryResponse.ListResponse>> searchMembers(
+			@Parameter(description = "닉네임 검색어") @RequestParam(required = false) String keyword,
+			@Parameter(description = "0부터") @RequestParam(defaultValue = "0") int page,
+			@Parameter(description = "기본 20, 최대 50") @RequestParam(defaultValue = "20") int size) {
+		return ResponseEntity.ok(ApiResponse.ok(adminMemberQueryService.search(keyword, page, size)));
+	}
 
 	@Operation(summary = "회원 프로필 초기화", description = "회원 닉네임을 기본 정책값으로 초기화합니다.")
 	@PostMapping("/{memberId}/profile-reset")

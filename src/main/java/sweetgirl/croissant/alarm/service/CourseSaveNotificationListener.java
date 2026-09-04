@@ -23,15 +23,15 @@ public class CourseSaveNotificationListener {
 
 	private static final Logger log = LoggerFactory.getLogger(CourseSaveNotificationListener.class);
 
-	private final CourseSaveNotificationService courseSaveNotificationService;
+	private final NotificationService notificationService;
 
 	@Async
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
 	public void handle(CourseSavedEvent event) {
 		try {
-			courseSaveNotificationService.record(event.courseId(), event.actorId(), event.ownerId());
+			notificationService.recordCourseSaved(event.courseId(), event.actorId(), event.ownerId());
 		} catch (RuntimeException e) {
-			log.warn("코스 찜 알림 적재 실패 [courseId={}, actorId={}]", event.courseId(), event.actorId(), e);
+			log.warn("빵투어 저장 알림 적재 실패 [courseId={}, actorId={}]", event.courseId(), event.actorId(), e);
 		}
 	}
 }

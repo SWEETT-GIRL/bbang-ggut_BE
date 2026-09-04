@@ -26,13 +26,15 @@ import sweetgirl.croissant.alarm.dto.response.CourseSaveNotificationListResponse
 import sweetgirl.croissant.alarm.dto.response.GeofenceCandidatesResponse;
 import sweetgirl.croissant.alarm.dto.response.MarketingEnabledResponse;
 import sweetgirl.croissant.alarm.dto.response.NotificationEnabledResponse;
+import sweetgirl.croissant.alarm.dto.response.NotificationListResponse;
 import sweetgirl.croissant.alarm.dto.response.ReportNotificationResponse;
 import sweetgirl.croissant.alarm.dto.response.StoreNotificationResponse;
 import sweetgirl.croissant.alarm.dto.response.UnreadCountResponse;
+import sweetgirl.croissant.alarm.enums.NotificationType;
 import sweetgirl.croissant.alarm.service.AlarmCommandService;
 import sweetgirl.croissant.alarm.service.AlarmQueryService;
-import sweetgirl.croissant.alarm.service.CourseSaveNotificationService;
 import sweetgirl.croissant.alarm.service.FcmService;
+import sweetgirl.croissant.alarm.service.NotificationService;
 import sweetgirl.croissant.alarm.service.ReportNotificationService;
 import sweetgirl.croissant.global.response.ApiResponse;
 
@@ -46,7 +48,7 @@ public class AlarmController {
 	private final AlarmQueryService alarmQueryService;
 	private final AlarmCommandService alarmCommandService;
 	private final ReportNotificationService reportNotificationService;
-	private final CourseSaveNotificationService courseSaveNotificationService;
+	private final NotificationService notificationService;
 
 	@Operation(summary = "FCM 토큰 등록/갱신", description = "디바이스의 FCM 푸시 토큰을 등록하거나 갱신합니다. 동일 deviceId가 존재하면 토큰을 업데이트합니다.")
 	@PostMapping("/fcm-token")
@@ -118,27 +120,61 @@ public class AlarmController {
 		return ApiResponse.ok(null);
 	}
 
-	@Operation(summary = "내 빵투어 찜 알림 목록 조회", description = "다른 사용자가 내 빵투어를 찜한 알림을 최신순으로 반환합니다.")
+	@Operation(summary = "내 알림 목록 조회", description = "저장·공지 등 모든 알림을 최신순으로 반환합니다. type으로 생김새가 갈립니다.")
+	@GetMapping("/notifications")
+	public ApiResponse<NotificationListResponse> getMyNotifications(
+			@AuthenticationPrincipal Long memberId,
+			@Parameter(description = "0부터 시작하는 페이지 번호") @RequestParam(defaultValue = "0") int page,
+			@Parameter(description = "페이지 크기(최대 50)") @RequestParam(defaultValue = "20") int size) {
+		return ApiResponse.ok(notificationService.getMine(memberId, page, size));
+	}
+
+	@Operation(summary = "내 알림 미읽음 개수", description = "벨 배지 표시용. 종류를 가리지 않고 셉니다.")
+	@GetMapping("/notifications/unread-count")
+	public ApiResponse<UnreadCountResponse> getNotificationUnreadCount(
+			@AuthenticationPrincipal Long memberId) {
+		return ApiResponse.ok(notificationService.getUnreadCount(memberId));
+	}
+
+	@Operation(summary = "내 알림 읽음 처리", description = "notificationIds를 주면 해당 알림만, 없거나 비어 있으면 전체를 읽음 처리합니다.")
+	@PatchMapping("/notifications/read")
+	public ApiResponse<Void> readNotifications(@AuthenticationPrincipal Long memberId,
+			@RequestBody(required = false) CourseNotificationReadRequest request) {
+		notificationService.markAsRead(memberId, request);
+		return ApiResponse.ok(null);
+	}
+
+	// ── 아래 3개는 구버전 앱 전용. 저장 알림만 다룬다 ──
+	// 옛 앱은 응답에서 actorNickname·courseTitle을 꺼내 문장을 조립하는데 공지에는 그 재료가
+	// 없다. 그래서 여기서는 COURSE_SAVED만 내려주고 읽음 처리도 그 타입에만 건다.
+	// 스토어의 앱이 다 올라오면 이 세 개와 CourseSaveNotification* DTO를 함께 지운다.
+
+	@Deprecated
+	@Operation(summary = "[구버전] 내 빵투어 저장 알림 목록", description = "저장 알림만 반환합니다. 새 앱은 /alarm/notifications를 씁니다.")
 	@GetMapping("/course-notifications")
 	public ApiResponse<CourseSaveNotificationListResponse> getMyCourseSaveNotifications(
 			@AuthenticationPrincipal Long memberId,
 			@Parameter(description = "0부터 시작하는 페이지 번호") @RequestParam(defaultValue = "0") int page,
 			@Parameter(description = "페이지 크기(최대 50)") @RequestParam(defaultValue = "20") int size) {
-		return ApiResponse.ok(courseSaveNotificationService.getMyNotifications(memberId, page, size));
+		return ApiResponse.ok(CourseSaveNotificationListResponse.from(
+			notificationService.getMineByType(memberId, NotificationType.COURSE_SAVED, page, size)));
 	}
 
-	@Operation(summary = "내 빵투어 찜 알림 미읽음 개수", description = "상단바 알림 배지 표시용. 읽지 않은 알림 개수를 반환합니다.")
+	@Deprecated
+	@Operation(summary = "[구버전] 내 빵투어 저장 알림 미읽음 개수", description = "저장 알림만 셉니다.")
 	@GetMapping("/course-notifications/unread-count")
 	public ApiResponse<UnreadCountResponse> getCourseSaveNotificationUnreadCount(
 			@AuthenticationPrincipal Long memberId) {
-		return ApiResponse.ok(courseSaveNotificationService.getUnreadCount(memberId));
+		return ApiResponse.ok(
+			notificationService.getUnreadCountByType(memberId, NotificationType.COURSE_SAVED));
 	}
 
-	@Operation(summary = "내 빵투어 찜 알림 읽음 처리", description = "notificationIds를 주면 해당 알림만, 없거나 비어 있으면 전체를 읽음 처리합니다.")
+	@Deprecated
+	@Operation(summary = "[구버전] 내 빵투어 저장 알림 읽음 처리", description = "저장 알림만 읽음 처리합니다.")
 	@PatchMapping("/course-notifications/read")
 	public ApiResponse<Void> readCourseSaveNotifications(@AuthenticationPrincipal Long memberId,
 			@RequestBody(required = false) CourseNotificationReadRequest request) {
-		courseSaveNotificationService.markAsRead(memberId, request);
+		notificationService.markAsReadByType(memberId, NotificationType.COURSE_SAVED, request);
 		return ApiResponse.ok(null);
 	}
 
