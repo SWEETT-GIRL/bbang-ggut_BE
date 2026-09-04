@@ -61,7 +61,7 @@ class LetterControllerTest {
 			5L, LetterSender.ADMIN, "인터뷰 가능하실까요?", LetterCategory.OUTREACH, false,
 			LocalDateTime.of(2026, 9, 3, 10, 0));
 		given(letterService.getMyLetters(any(), eq(0), eq(20)))
-			.willReturn(new LetterListResponse(List.of(message), true));
+			.willReturn(new LetterListResponse(List.of(message), true, false));
 
 		mockMvc.perform(get("/letters").param("page", "0").param("size", "20"))
 			.andExpect(status().isOk())

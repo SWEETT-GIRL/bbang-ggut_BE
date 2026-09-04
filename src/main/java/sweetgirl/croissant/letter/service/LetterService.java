@@ -46,6 +46,18 @@ public class LetterService {
 	 */
 	private static final int SEND_LIMIT_PER_MINUTE = 5;
 
+	/**
+	 * 이만큼 조용하면 그 대화는 닫힌 것으로 본다.
+	 *
+	 * <p>어드민이 해결을 누르는 것만으로는 부족하다. 유형만 눌러보고 말을 안 이어간 사람의
+	 * 대화는 답할 것이 없어 아무도 닫지 않는데, 그러면 그 사람은 다시 들어와도 유형을 고를
+	 * 기회를 영영 못 받는다 — 말풍선 하나짜리 죽은 대화만 남는다.
+	 *
+	 * <p>답장을 기다리는 중에 이 기간이 지나 유형을 다시 물어도 크게 해롭지 않다. 대화가
+	 * 있으면 입력칸은 잠기지 않아, 묻는 말을 지나쳐 그냥 쓰면 된다.
+	 */
+	private static final int DORMANT_DAYS = 7;
+
 	private final LetterThreadRepository letterThreadRepository;
 	private final LetterMessageRepository letterMessageRepository;
 	private final MemberRepository memberRepository;
@@ -68,7 +80,19 @@ public class LetterService {
 
 		return new LetterListResponse(
 			slice.getContent().stream().map(LetterMessageResponse::from).toList(),
-			slice.hasNext());
+			slice.hasNext(),
+			isClosed(thread, LocalDateTime.now()));
+	}
+
+	/**
+	 * 닫힌 대화인가 — 어드민이 해결로 닫았거나, {@link #DORMANT_DAYS}만큼 조용했거나.
+	 *
+	 * <p>두 경로를 두는 건 하나만으로는 구멍이 나기 때문이다. 해결 체크만 믿으면 아무도 안
+	 * 누른 대화가 영영 안 닫히고, 조용함만 보면 방금 해결된 대화를 일주일이나 열어둔다.
+	 */
+	private boolean isClosed(LetterThread thread, LocalDateTime now) {
+		return thread.isResolved()
+			|| thread.getLastMessageAt().isBefore(now.minusDays(DORMANT_DAYS));
 	}
 
 	/** 벨 배지용 — 개발자가 보낸 편지 중 안 읽은 것. */
@@ -102,6 +126,9 @@ public class LetterService {
 		LetterThread thread = letterThreadRepository.findByMemberId(memberId)
 			.orElseGet(() -> createThread(memberId, now));
 		thread.touch(now);
+		// 닫혀 있던 대화라도 사용자가 말을 걸면 다시 열린다 — 그래야 다음 진입에서
+		// "어떤 이야기인지 골라주세요"가 또 뜨지 않는다
+		thread.reopen();
 
 		LetterMessage saved = letterMessageRepository.save(
 			LetterMessage.create(thread, LetterSender.MEMBER, body, request.getCategory()));

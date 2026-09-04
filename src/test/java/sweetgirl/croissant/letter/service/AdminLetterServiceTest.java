@@ -28,6 +28,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.letter.code.LetterErrorCode;
 import sweetgirl.croissant.letter.dto.request.AdminLetterReplyRequest;
+import sweetgirl.croissant.letter.dto.request.AdminLetterResolveRequest;
 import sweetgirl.croissant.letter.dto.request.AdminLetterSendRequest;
 import sweetgirl.croissant.letter.dto.response.AdminLetterSendResponse;
 import sweetgirl.croissant.letter.dto.response.AdminLetterThreadListResponse;
@@ -236,5 +237,72 @@ class AdminLetterServiceTest {
 		assertThatThrownBy(() -> adminLetterService.markAsRead(99L))
 			.isInstanceOf(LetterException.class)
 			.hasFieldOrPropertyWithValue("errorCode", LetterErrorCode.LETTER_THREAD_NOT_FOUND);
+	}
+
+	private AdminLetterResolveRequest resolveRequest(boolean resolved) {
+		AdminLetterResolveRequest request = new AdminLetterResolveRequest();
+		ReflectionTestUtils.setField(request, "resolved", resolved);
+		return request;
+	}
+
+	@Test
+	@DisplayName("해결로 닫으면 닫힌 시각이 남는다")
+	void resolve_closesThread() {
+		LetterThread thread = thread(11L, Member.builder().nickname("포실한 까눌레").build());
+		given(letterThreadRepository.findById(11L)).willReturn(Optional.of(thread));
+
+		adminLetterService.resolve(11L, resolveRequest(true));
+
+		assertThat(thread.isResolved()).isTrue();
+	}
+
+	@Test
+	@DisplayName("두 번 닫아도 처음 닫은 시각을 덮지 않는다")
+	void resolve_keepsFirstResolvedAt() {
+		LetterThread thread = thread(11L, Member.builder().nickname("포실한 까눌레").build());
+		LocalDateTime first = LocalDateTime.of(2026, 9, 1, 9, 0);
+		ReflectionTestUtils.setField(thread, "resolvedAt", first);
+		given(letterThreadRepository.findById(11L)).willReturn(Optional.of(thread));
+
+		adminLetterService.resolve(11L, resolveRequest(true));
+
+		assertThat(thread.getResolvedAt()).isEqualTo(first);
+	}
+
+	@Test
+	@DisplayName("잘못 닫았으면 다시 열 수 있다")
+	void resolve_reopensThread() {
+		LetterThread thread = thread(11L, Member.builder().nickname("포실한 까눌레").build());
+		ReflectionTestUtils.setField(thread, "resolvedAt", LocalDateTime.now());
+		given(letterThreadRepository.findById(11L)).willReturn(Optional.of(thread));
+
+		adminLetterService.resolve(11L, resolveRequest(false));
+
+		assertThat(thread.isResolved()).isFalse();
+	}
+
+	@Test
+	@DisplayName("없는 대화방은 해결 처리도 404")
+	void resolve_throwsWhenThreadMissing() {
+		given(letterThreadRepository.findById(99L)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> adminLetterService.resolve(99L, resolveRequest(true)))
+			.isInstanceOf(LetterException.class);
+	}
+
+	@Test
+	@DisplayName("답장을 쓰면 닫아 뒀던 대화가 다시 열린다 — 아직 오가는 중이다")
+	void reply_reopensResolvedThread() {
+		LetterThread thread = thread(11L, Member.builder().nickname("포실한 까눌레").build());
+		ReflectionTestUtils.setField(thread, "resolvedAt", LocalDateTime.now().minusDays(2));
+		given(letterThreadRepository.findById(11L)).willReturn(Optional.of(thread));
+		given(letterMessageRepository.save(any(LetterMessage.class)))
+			.willAnswer(invocation -> invocation.getArgument(0));
+
+		AdminLetterReplyRequest request = new AdminLetterReplyRequest();
+		ReflectionTestUtils.setField(request, "body", "확인해 볼게요");
+		adminLetterService.reply(11L, request);
+
+		assertThat(thread.isResolved()).isFalse();
 	}
 }
