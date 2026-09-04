@@ -3,6 +3,7 @@ package sweetgirl.croissant.course.repository;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -12,6 +13,8 @@ import sweetgirl.croissant.course.entity.SavedCourse;
 
 public interface SavedCourseRepository extends JpaRepository<SavedCourse, Long> {
 
+	/** 찜 목록용. 코스와 그 작성자(닉네임)를 같이 읽는다 — 찜 수만큼 코스·회원 SELECT 가 따로 나가던 N+1. */
+	@EntityGraph(attributePaths = {"course", "course.member"})
 	List<SavedCourse> findAllByMemberId(Long memberId);
 
 	boolean existsByMemberIdAndCourseId(Long memberId, Long courseId);
