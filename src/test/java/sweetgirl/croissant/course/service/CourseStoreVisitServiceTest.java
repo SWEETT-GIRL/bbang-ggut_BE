@@ -28,6 +28,7 @@ import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.entity.CourseStoreVisit;
 import sweetgirl.croissant.course.exception.CourseException;
+import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
@@ -56,6 +57,8 @@ class CourseStoreVisitServiceTest {
 	private MemberReader memberReader;
 	@Mock
 	private CourseProgressService courseProgressService;
+	@Mock
+	private CourseMemberRepository courseMemberRepository;
 
 	@InjectMocks
 	private CourseStoreVisitService courseStoreVisitService;
@@ -130,6 +133,26 @@ class CourseStoreVisitServiceTest {
 		assertThatThrownBy(() -> courseStoreVisitService.markVisited(MEMBER_ID, COURSE_ID, STORE_ID, RECORD_ID))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+	}
+
+	@Test
+	@DisplayName("markVisited: 남의 비공개 코스라도 활성 멤버면 표시할 수 있다 — 협업 코스는 PRIVATE 이라 멤버를 빼면 방문 체크를 못 한다")
+	void markVisited_activeMemberOfPrivateCourse_saves() {
+		Member member = mockMember(MEMBER_ID);
+		Course course = mockCourse(999L, false);
+		given(memberReader.getMember(MEMBER_ID)).willReturn(member);
+		given(courseRepository.findByIdAndDeletedAtIsNull(COURSE_ID)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(COURSE_ID, MEMBER_ID))
+			.willReturn(true);
+		givenCourseStore();
+		BreadRecord record = mockRecord(MEMBER_ID, STORE_ID);
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(RECORD_ID)).willReturn(Optional.of(record));
+		given(courseStoreVisitRepository.findByIdCourseIdAndIdMemberIdAndIdStoreId(COURSE_ID, MEMBER_ID, STORE_ID))
+			.willReturn(Optional.empty());
+
+		courseStoreVisitService.markVisited(MEMBER_ID, COURSE_ID, STORE_ID, RECORD_ID);
+
+		then(courseStoreVisitRepository).should().save(any(CourseStoreVisit.class));
 	}
 
 	@Test

@@ -277,12 +277,13 @@ public class CourseController {
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
-	@Operation(summary = "코스 포크")
+	@Operation(summary = "코스 포크", description = "링크 공개 코스는 ?t= 토큰이 맞아야 포크할 수 있다.")
 	@PostMapping("/{courseId}/fork")
 	public ResponseEntity<ApiResponse<Map<String, Long>>> forkCourse(
 			@AuthenticationPrincipal Long memberId,
-			@PathVariable Long courseId) {
-		Long newCourseId = courseCommandService.forkCourse(memberId, courseId);
+			@PathVariable Long courseId,
+			@RequestParam(name = "t", required = false) String shareToken) {
+		Long newCourseId = courseCommandService.forkCourse(memberId, courseId, shareToken);
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(Map.of("courseId", newCourseId)));
 	}
 

@@ -21,6 +21,7 @@ import sweetgirl.croissant.alarm.event.CourseSavedEvent;
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.SavedCourse;
+import sweetgirl.croissant.course.enums.CourseVisibility;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
@@ -118,6 +119,24 @@ class SavedCourseCommandServiceTest {
 		Course course = mockPublicCourse(99L);
 		given(course.isPublic()).willReturn(false);
 
+		given(savedCourseRepository.existsByMemberIdAndCourseId(memberId, courseId)).willReturn(false);
+		given(memberRepository.findByIdAndDeletedAtIsNull(memberId)).willReturn(Optional.of(mock(Member.class)));
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+
+		assertThatThrownBy(() -> savedCourseCommandService.saveCourse(memberId, courseId))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+	}
+
+	@Test
+	@DisplayName("saveCourse: 링크 공개(UNLISTED) 코스 → COURSE_FORBIDDEN — 찜은 PUBLIC 전용, 숨은 코스에서 찜 수가 쌓이면 안 된다")
+	void saveCourse_unlistedCourse_throwsForbidden() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Member owner = mock(Member.class);
+		lenient().when(owner.getId()).thenReturn(99L);
+		Course course = Course.createCustom("링크 공개", owner, true);
+		course.updateVisibility(CourseVisibility.UNLISTED);
 		given(savedCourseRepository.existsByMemberIdAndCourseId(memberId, courseId)).willReturn(false);
 		given(memberRepository.findByIdAndDeletedAtIsNull(memberId)).willReturn(Optional.of(mock(Member.class)));
 		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));

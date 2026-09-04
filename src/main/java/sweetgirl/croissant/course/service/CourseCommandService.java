@@ -42,6 +42,7 @@ import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.course.util.CollabTokenGenerator;
+import sweetgirl.croissant.course.util.ShareTokenMatcher;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
@@ -454,13 +455,15 @@ public class CourseCommandService {
 		courseRepository.bumpVersion(courseId);
 	}
 
-	public Long forkCourse(Long memberId, Long courseId) {
+	public Long forkCourse(Long memberId, Long courseId, String shareToken) {
 		Course sourceCourse = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 
-		// 공개 코스는 누구나, 비공개 코스는 방장과 활성 멤버만 복제(fork) 가능.
+		// 조회 가능하면 포크 가능 — 공개 코스는 누구나, 비공개 코스는 방장과 활성 멤버만, 링크 공개는 토큰이 맞아야.
 		// 협업 코스는 PRIVATE 이라 멤버를 빼면 자기가 같이 만든 코스를 챙겨둘 길이 없다.
-		if (!sourceCourse.isPublic() && !isOwner(sourceCourse, memberId) && !isActiveMember(sourceCourse, memberId)) {
+		// 링크 공개에 토큰을 요구하는 이유: 코스 id 는 순차 정수라 토큰 없이 포크되면 내용을 통째로 가져갈 수 있다.
+		if (!sourceCourse.isPublic() && !isOwner(sourceCourse, memberId) && !isActiveMember(sourceCourse, memberId)
+			&& !ShareTokenMatcher.matches(sourceCourse, shareToken)) {
 			throw new CourseException(CourseErrorCode.COURSE_FORK_NOT_PUBLIC);
 		}
 

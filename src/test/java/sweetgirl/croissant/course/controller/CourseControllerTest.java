@@ -497,7 +497,7 @@ class CourseControllerTest {
 
 	@Test
 	void forkCourse_returns201() throws Exception {
-		given(courseCommandService.forkCourse(isNull(), anyLong())).willReturn(20L);
+		given(courseCommandService.forkCourse(isNull(), anyLong(), isNull())).willReturn(20L);
 
 		mockMvc.perform(post("/courses/1/fork"))
 			.andExpect(status().isCreated())
@@ -505,10 +505,20 @@ class CourseControllerTest {
 			.andExpect(jsonPath("$.data.courseId").value(20));
 	}
 
+	// 링크 공개 코스는 ?t= 토큰으로 포크한다
+	@Test
+	void forkCourse_withShareToken_passesToken() throws Exception {
+		given(courseCommandService.forkCourse(isNull(), anyLong(), eq("secret"))).willReturn(21L);
+
+		mockMvc.perform(post("/courses/1/fork").param("t", "secret"))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.data.courseId").value(21));
+	}
+
 	@Test
 	void forkCourse_notPublic_returns400() throws Exception {
 		willThrow(new CourseException(CourseErrorCode.COURSE_FORK_NOT_PUBLIC))
-			.given(courseCommandService).forkCourse(isNull(), anyLong());
+			.given(courseCommandService).forkCourse(isNull(), anyLong(), isNull());
 
 		mockMvc.perform(post("/courses/1/fork"))
 			.andExpect(status().isBadRequest())

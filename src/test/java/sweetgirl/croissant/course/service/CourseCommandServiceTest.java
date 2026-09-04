@@ -719,7 +719,7 @@ class CourseCommandServiceTest {
 
 		lenient().when(sourceStore.getMemo()).thenReturn("원본 방장 메모");
 
-		Long forkedId = courseCommandService.forkCourse(memberId, sourceId);
+		Long forkedId = courseCommandService.forkCourse(memberId, sourceId, null);
 
 		assertThat(forkedId).isEqualTo(20L);
 		@SuppressWarnings("unchecked") ArgumentCaptor<List<CourseStore>> copiedCaptor = ArgumentCaptor
@@ -743,7 +743,7 @@ class CourseCommandServiceTest {
 		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
 			.willReturn(false);
 
-		assertThatThrownBy(() -> courseCommandService.forkCourse(memberId, courseId))
+		assertThatThrownBy(() -> courseCommandService.forkCourse(memberId, courseId, null))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORK_NOT_PUBLIC.getMessage());
 		then(courseRepository).should(never()).save(any());
@@ -769,7 +769,7 @@ class CourseCommandServiceTest {
 		given(forkedCourse.getId()).willReturn(20L);
 		given(courseRepository.save(any(Course.class))).willReturn(forkedCourse);
 
-		Long forkedId = courseCommandService.forkCourse(memberId, courseId);
+		Long forkedId = courseCommandService.forkCourse(memberId, courseId, null);
 
 		assertThat(forkedId).isEqualTo(20L);
 		then(courseStoreRepository).should().saveAll(any());
@@ -791,7 +791,7 @@ class CourseCommandServiceTest {
 		given(forkedCourse.getId()).willReturn(20L);
 		given(courseRepository.save(any(Course.class))).willReturn(forkedCourse);
 
-		courseCommandService.forkCourse(memberId, courseId);
+		courseCommandService.forkCourse(memberId, courseId, null);
 
 		then(courseMemberRepository).shouldHaveNoInteractions();
 	}
@@ -806,7 +806,64 @@ class CourseCommandServiceTest {
 
 		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 
-		assertThatThrownBy(() -> courseCommandService.forkCourse(memberId, courseId))
+		assertThatThrownBy(() -> courseCommandService.forkCourse(memberId, courseId, null))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORK_NOT_PUBLIC.getMessage());
+	}
+
+	@Test
+	@DisplayName("forkCourse: 링크 공개(UNLISTED) 코스는 토큰이 맞으면 제3자도 포크한다 — 링크로 본 코스를 챙겨두는 유일한 길")
+	void forkCourse_unlistedCourse_withToken_success() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "링크 공개 코스", CourseType.CUSTOM, 2L, null);
+		given(course.getVisibility()).willReturn(CourseVisibility.UNLISTED);
+		given(course.getShareToken()).willReturn("secret");
+		Member member = mockMember(memberId);
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
+			.willReturn(false);
+		given(memberRepository.findByIdAndDeletedAtIsNull(memberId)).willReturn(Optional.of(member));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
+			.willReturn(List.of());
+		Course forkedCourse = mock(Course.class);
+		given(forkedCourse.getId()).willReturn(20L);
+		given(courseRepository.save(any(Course.class))).willReturn(forkedCourse);
+
+		assertThat(courseCommandService.forkCourse(memberId, courseId, "secret")).isEqualTo(20L);
+	}
+
+	@Test
+	@DisplayName("forkCourse: 링크 공개 코스라도 토큰이 틀리면 COURSE_FORK_NOT_PUBLIC — 순차 id 만으로는 못 가져간다")
+	void forkCourse_unlistedCourse_wrongToken_throwsForkNotPublic() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "링크 공개 코스", CourseType.CUSTOM, 2L, null);
+		given(course.getVisibility()).willReturn(CourseVisibility.UNLISTED);
+		given(course.getShareToken()).willReturn("secret");
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
+			.willReturn(false);
+
+		assertThatThrownBy(() -> courseCommandService.forkCourse(memberId, courseId, "wrong"))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORK_NOT_PUBLIC.getMessage());
+		then(courseRepository).should(never()).save(any());
+	}
+
+	@Test
+	@DisplayName("forkCourse: PRIVATE 은 토큰이 맞아도 COURSE_FORK_NOT_PUBLIC — 토큰보다 PRIVATE 이 강하다")
+	void forkCourse_privateCourse_withToken_throwsForkNotPublic() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "비공개 코스", CourseType.CUSTOM, 2L, null);
+		lenient().when(course.getVisibility()).thenReturn(CourseVisibility.PRIVATE);
+		lenient().when(course.getShareToken()).thenReturn("secret");
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
+			.willReturn(false);
+
+		assertThatThrownBy(() -> courseCommandService.forkCourse(memberId, courseId, "secret"))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORK_NOT_PUBLIC.getMessage());
 	}
