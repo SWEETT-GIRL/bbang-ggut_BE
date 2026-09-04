@@ -15,7 +15,7 @@ public interface CourseStoreRepository extends JpaRepository<CourseStore, Long> 
 
 	/**
 	 * 한 코스의 활성 정류장. 상세 조회와 가게 추가·순서 변경 같은 쓰기 경로가 같이 쓰므로 Store 를 fetch 하지 않는다 —
-	 * 쓰기는 Store 컬럼이 필요 없고, 상세의 Store 는 default_batch_fetch_size 가 IN 한 방으로 읽는다.
+	 * 쓰기는 Store 컬럼이 필요 없고, 상세의 Store 는 Store 의 @BatchSize 가 IN 한 방으로 읽는다.
 	 */
 	List<CourseStore> findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(Long courseId);
 

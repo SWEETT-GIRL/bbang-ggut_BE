@@ -2,6 +2,7 @@ package sweetgirl.croissant.store.entity;
 
 import java.time.Instant;
 
+import org.hibernate.annotations.BatchSize;
 import org.locationtech.jts.geom.Point;
 
 import jakarta.persistence.Column;
@@ -23,6 +24,9 @@ import sweetgirl.croissant.store.enums.StoreStatus;
 
 @Entity
 @Table(name = "store")
+// 지연 로딩 프록시를 IN 으로 묶어 읽는다 — 코스 상세의 정류장마다 store SELECT 가 따로 나가던 N+1 을 막는다.
+// 전역 default_batch_fetch_size 대신 이 엔티티에만 건다: 실측한 경로가 여기뿐이라 다른 엔티티의 페치는 종전과 같게 둔다.
+@BatchSize(size = 100)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Store extends BaseTimeEntity {

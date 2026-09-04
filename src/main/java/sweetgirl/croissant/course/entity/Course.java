@@ -3,6 +3,7 @@ package sweetgirl.croissant.course.entity;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.DynamicUpdate;
 
 import jakarta.persistence.Column;
@@ -28,6 +29,9 @@ import sweetgirl.croissant.member.entity.Member;
 @Entity
 @Table(name = "courses")
 @DynamicUpdate
+// 지연 로딩 프록시를 IN 으로 묶어 읽는다 — 찜·참여 목록처럼 행마다 course SELECT 가 따로 나가던 N+1 을 막는다.
+// 전역 default_batch_fetch_size 대신 이 엔티티에만 건다: 실측한 경로가 여기뿐이라 다른 엔티티의 페치는 종전과 같게 둔다.
+@BatchSize(size = 100)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Course extends BaseTimeEntity {
