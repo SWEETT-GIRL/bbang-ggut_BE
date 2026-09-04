@@ -39,7 +39,6 @@ import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
-import sweetgirl.croissant.course.util.ShareTokenMatcher;
 import sweetgirl.croissant.store.RegionFormatter;
 
 @Service
@@ -59,6 +58,7 @@ public class CourseQueryService {
 	private final CourseStoreVisitRepository courseStoreVisitRepository;
 	private final CourseStoreMemoRepository courseStoreMemoRepository;
 	private final CourseMemberRepository courseMemberRepository;
+	private final CourseAccessPolicy courseAccessPolicy;
 
 	public List<CourseSummaryResponse> getCurationCourses() {
 		return buildSummaryResponses(courseRepository.findAllPublicOrderedByPinAndSavedCount(), Set.of());
@@ -77,7 +77,7 @@ public class CourseQueryService {
 			.filter(course -> !course.isDeleted())
 			.toList();
 		Set<Long> memberCourseIds = joined.stream()
-			.filter(course -> !isOwner(course, memberId))
+			.filter(course -> !courseAccessPolicy.isOwner(course, memberId))
 			.map(Course::getId)
 			.collect(Collectors.toSet());
 
@@ -111,10 +111,10 @@ public class CourseQueryService {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		List<CourseMember> members = activeMembersOf(course, courseId);
-		boolean isMine = isOwner(course, memberId);
+		boolean isMine = courseAccessPolicy.isOwner(course, memberId);
 		boolean isMember = isActiveMemberIn(members, memberId, isMine);
 		// 비공개 코스는 방장과 활성 멤버만 — 협업 코스는 PRIVATE 이라 멤버를 빼면 자기 코스를 못 본다
-		if (!course.isPublic() && !isMine && !isMember && !ShareTokenMatcher.matches(course, shareToken)) {
+		if (!courseAccessPolicy.canView(course, memberId, shareToken, isMember)) {
 			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
 		}
 		return buildDetail(course, courseId, memberId, members, isMine, isMember);
@@ -129,7 +129,7 @@ public class CourseQueryService {
 			.filter(found -> found.getVisibility() == CourseVisibility.UNLISTED)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		List<CourseMember> members = activeMembersOf(course, course.getId());
-		boolean isMine = isOwner(course, memberId);
+		boolean isMine = courseAccessPolicy.isOwner(course, memberId);
 		boolean isMember = isActiveMemberIn(members, memberId, isMine);
 		return buildDetail(course, course.getId(), memberId, members, isMine, isMember);
 	}
@@ -214,7 +214,7 @@ public class CourseQueryService {
 			.map(row -> new CourseMemberResponse(
 				row.getId().getMemberId(),
 				row.getDisplayName(),
-				isOwner(course, row.getId().getMemberId()),
+				courseAccessPolicy.isOwner(course, row.getId().getMemberId()),
 				row.getId().getMemberId().equals(viewerId)))
 			.toList();
 	}
@@ -234,20 +234,8 @@ public class CourseQueryService {
 	public long getVersion(Long courseId, Long memberId, String shareToken) {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		if (!course.isPublic() && !isOwner(course, memberId) && !isActiveMember(course, memberId)
-			&& !ShareTokenMatcher.matches(course, shareToken)) {
-			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
-		}
+		courseAccessPolicy.requireViewable(course, memberId, shareToken);
 		return course.getVersion();
-	}
-
-	private boolean isOwner(Course course, Long memberId) {
-		return memberId != null && course.getMember() != null && course.getMember().getId().equals(memberId);
-	}
-
-	private boolean isActiveMember(Course course, Long memberId) {
-		return memberId != null
-			&& courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(course.getId(), memberId);
 	}
 
 	/**

@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,6 +19,7 @@ import org.locationtech.jts.geom.Point;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
@@ -72,6 +74,13 @@ class CourseQueryServiceTest {
 
 	@InjectMocks
 	CourseQueryService courseQueryService;
+
+	/** 권한 판정은 CourseAccessPolicy 로 갔지만 근거는 같은 courseMemberRepository 다 — 실체를 넣어 기존 스텁이 그대로 산다. */
+	@BeforeEach
+	void injectAccessPolicy() {
+		ReflectionTestUtils.setField(courseQueryService, "courseAccessPolicy",
+			new CourseAccessPolicy(courseMemberRepository));
+	}
 
 	// ───────────────────────── getCurationCourses ─────────────────────────
 

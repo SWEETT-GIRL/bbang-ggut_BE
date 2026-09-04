@@ -16,7 +16,6 @@ import sweetgirl.croissant.course.dto.response.CourseVisitCandidateResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseStoreVisit;
 import sweetgirl.croissant.course.exception.CourseException;
-import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
@@ -41,7 +40,7 @@ public class CourseStoreVisitService {
 	private final BreadRecordRepository breadRecordRepository;
 	private final MemberReader memberReader;
 	private final CourseProgressService courseProgressService;
-	private final CourseMemberRepository courseMemberRepository;
+	private final CourseAccessPolicy courseAccessPolicy;
 
 	public void markVisited(Long memberId, Long courseId, Long storeId, Long breadRecordId) {
 		Member member = memberReader.getMember(memberId);
@@ -99,11 +98,7 @@ public class CourseStoreVisitService {
 	private Course getViewableCourse(Long courseId, Long memberId) {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		boolean isOwner = course.getMember() != null && course.getMember().getId().equals(memberId);
-		if (!course.isPublic() && !isOwner
-			&& !courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId)) {
-			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
-		}
+		courseAccessPolicy.requireViewable(course, memberId, null);
 		return course;
 	}
 

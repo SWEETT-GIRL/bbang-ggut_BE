@@ -25,7 +25,6 @@ import sweetgirl.croissant.course.entity.CourseStoreVisit;
 import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
-import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
@@ -47,7 +46,7 @@ public class CourseProgressService {
 	private final CourseStoreRepository courseStoreRepository;
 	private final CourseStoreThumbnailReader courseStoreThumbnailReader;
 	private final CourseStoreVisitRepository courseStoreVisitRepository;
-	private final CourseMemberRepository courseMemberRepository;
+	private final CourseAccessPolicy courseAccessPolicy;
 
 	public void start(Long memberId, Long courseId) {
 		Member member = memberReader.getMember(memberId);
@@ -232,14 +231,8 @@ public class CourseProgressService {
 	private Course getAccessibleCourse(Long courseId, Long memberId) {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		boolean isOwner = course.getMember() != null && course.getMember().getId().equals(memberId);
-		if (!course.isPublic() && !isOwner && !isActiveMember(course, memberId)) {
-			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
-		}
+		// 토큰 없이 — 링크 공개 코스라도 제3자는 따라가지 못한다
+		courseAccessPolicy.requireViewable(course, memberId, null);
 		return course;
-	}
-
-	private boolean isActiveMember(Course course, Long memberId) {
-		return courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(course.getId(), memberId);
 	}
 }

@@ -43,7 +43,6 @@ import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.course.util.CollabTokenGenerator;
-import sweetgirl.croissant.course.util.ShareTokenMatcher;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
@@ -75,6 +74,7 @@ public class CourseCommandService {
 	private final ImageProcessingCallbackService imageProcessingCallbackService;
 	private final CourseProgressService courseProgressService;
 	private final MemberRestrictionReader memberRestrictionReader;
+	private final CourseAccessPolicy courseAccessPolicy;
 
 	public Long createCourse(Long memberId, CourseCreateRequest request) {
 		Member member = memberRepository.findByIdAndDeletedAtIsNull(memberId)
@@ -110,7 +110,7 @@ public class CourseCommandService {
 			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
 		}
 
-		validateCanEdit(course, memberId);
+		courseAccessPolicy.requireEditable(course, memberId);
 		CourseVisibility requestedVisibility = requestedVisibility(request);
 		validateVisibilityChange(course, memberId, requestedVisibility, request.getTitle());
 
@@ -146,7 +146,7 @@ public class CourseCommandService {
 			}
 			return;
 		}
-		validateOwner(course, memberId);
+		courseAccessPolicy.requireOwner(course, memberId);
 		if (requested == CourseVisibility.PUBLIC && hasCollaborators(course, memberId)) {
 			throw new CourseException(CourseErrorCode.COURSE_COLLAB_CANNOT_BE_PUBLIC);
 		}
@@ -183,7 +183,7 @@ public class CourseCommandService {
 
 	/** 공유 토큰은 방장에게만, 링크 공개일 때만 — 멤버가 제목만 고쳐도 같은 응답을 받는다. */
 	private String shareTokenFor(Course course, Long memberId) {
-		return isOwner(course, memberId) && course.getVisibility() == CourseVisibility.UNLISTED
+		return courseAccessPolicy.isOwner(course, memberId) && course.getVisibility() == CourseVisibility.UNLISTED
 			? course.getShareToken()
 			: null;
 	}
@@ -207,14 +207,14 @@ public class CourseCommandService {
 	public void deleteCourse(Long memberId, Long courseId) {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		validateOwner(course, memberId);
+		courseAccessPolicy.requireOwner(course, memberId);
 		course.softDelete();
 	}
 
 	public CourseStoreResponse addStore(Long memberId, Long courseId, CourseStoreAddRequest request) {
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		validateCanEdit(course, memberId);
+		courseAccessPolicy.requireEditable(course, memberId);
 
 		// 활성 정류장을 한 번 읽어 중복 가게·일차·삽입 위치·다음 순서를 전부 판정한다 — exists·MAX 쿼리를 따로 내지 않는다
 		List<CourseStore> activeStores = courseStoreRepository
@@ -347,7 +347,7 @@ public class CourseCommandService {
 		// 락 순서(courses → course_stores)를 맞춰 데드락을 피한다.
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		validateCanEdit(course, memberId);
+		courseAccessPolicy.requireEditable(course, memberId);
 
 		CourseStore courseStore = courseStoreRepository.findByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_STORE_NOT_FOUND));
@@ -361,7 +361,7 @@ public class CourseCommandService {
 	public void removeStore(Long memberId, Long courseId, Long storeId) {
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		validateCanEdit(course, memberId);
+		courseAccessPolicy.requireEditable(course, memberId);
 
 		CourseStore courseStore = courseStoreRepository.findByCourseIdAndStoreIdAndDeletedAtIsNull(courseId, storeId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_STORE_NOT_FOUND));
@@ -377,7 +377,7 @@ public class CourseCommandService {
 	public void reorderStores(Long memberId, Long courseId, CourseStoreReorderRequest request) {
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		validateCanEdit(course, memberId);
+		courseAccessPolicy.requireEditable(course, memberId);
 
 		List<CourseStoreOrderItem> orderItems = request.getCourseStoreOrders();
 		List<Long> courseStoreIds = orderItems.stream()
@@ -461,14 +461,14 @@ public class CourseCommandService {
 	public PresignedUrlResponse getPresignedUrl(Long memberId, Long courseId, String mimeType) {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		validateOwner(course, memberId);
+		courseAccessPolicy.requireOwner(course, memberId);
 		return s3Service.generatePresignedUrl(S3PathGenerator.getCoursePath(courseId), mimeType);
 	}
 
 	public void registerImage(Long memberId, Long courseId, CourseImageRegisterRequest request) {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		validateOwner(course, memberId);
+		courseAccessPolicy.requireOwner(course, memberId);
 
 		courseImageFileRepository.findByCourseId(courseId).ifPresent(existing -> {
 			s3Service.deleteObject(existing.getAwsKey());
@@ -489,7 +489,7 @@ public class CourseCommandService {
 	public void deleteImage(Long memberId, Long courseId) {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		validateOwner(course, memberId);
+		courseAccessPolicy.requireOwner(course, memberId);
 
 		CourseImageFile imageFile = courseImageFileRepository.findByCourseId(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_IMAGE_NOT_FOUND));
@@ -506,8 +506,7 @@ public class CourseCommandService {
 		// 조회 가능하면 포크 가능 — 공개 코스는 누구나, 비공개 코스는 방장과 활성 멤버만, 링크 공개는 토큰이 맞아야.
 		// 협업 코스는 PRIVATE 이라 멤버를 빼면 자기가 같이 만든 코스를 챙겨둘 길이 없다.
 		// 링크 공개에 토큰을 요구하는 이유: 코스 id 는 순차 정수라 토큰 없이 포크되면 내용을 통째로 가져갈 수 있다.
-		if (!sourceCourse.isPublic() && !isOwner(sourceCourse, memberId) && !isActiveMember(sourceCourse, memberId)
-			&& !ShareTokenMatcher.matches(sourceCourse, shareToken)) {
+		if (!courseAccessPolicy.canView(sourceCourse, memberId, shareToken)) {
 			throw new CourseException(CourseErrorCode.COURSE_FORK_NOT_PUBLIC);
 		}
 
@@ -535,41 +534,6 @@ public class CourseCommandService {
 		courseStoreRepository.saveAll(copiedStores);
 
 		return savedForkedCourse.getId();
-	}
-
-	/** 방장 전용 — 코스 삭제 · 공개/비공개 전환 · 커버 이미지. */
-	private void validateOwner(Course course, Long memberId) {
-		if (!isOwner(course, memberId)) {
-			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
-		}
-	}
-
-	/**
-	 * 방장 또는 활성 멤버 — 가게 추가·수정·삭제·순서 변경, 제목·지역·날짜 수정.
-	 *
-	 * ⚠️ 이 CURATED 검사를 지우지 말 것.
-	 * 기존 validateOwner 는 course.getMember() == null 조건으로 큐레이션을 "우연히" 막고 있었다.
-	 * 소유자 조건을 멤버까지 넓히는 순간 그 우연한 방어가 사라진다 —
-	 * course_members 에 행 하나만 심으면 공식 추천 코스를 아무나 편집하게 된다.
-	 */
-	private void validateCanEdit(Course course, Long memberId) {
-		if (course.getType() == CourseType.CURATED) {
-			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
-		}
-		if (isOwner(course, memberId)) {
-			return;
-		}
-		if (!courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(course.getId(), memberId)) {
-			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
-		}
-	}
-
-	private boolean isOwner(Course course, Long memberId) {
-		return course.getMember() != null && course.getMember().getId().equals(memberId);
-	}
-
-	private boolean isActiveMember(Course course, Long memberId) {
-		return courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(course.getId(), memberId);
 	}
 
 	private boolean isSameAsSource(Course course, String newTitle) {
