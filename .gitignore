@@ -97,3 +97,4 @@ scripts/.venv/
 docs/course-collab-phases.md
 docs/be-tasks-course-collab.md
 .claude/planning/feat-course-visibility.md
+.claude/planning/refactor-course-access-policy.md
