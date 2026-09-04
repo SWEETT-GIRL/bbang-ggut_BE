@@ -1,10 +1,14 @@
 package sweetgirl.croissant.course.service;
 
+import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
+import sweetgirl.croissant.course.dto.response.CourseMemberResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreMemoResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
@@ -53,30 +58,64 @@ public class CourseQueryService {
 	private final CourseMemberRepository courseMemberRepository;
 
 	public List<CourseSummaryResponse> getCurationCourses() {
-		return buildSummaryResponses(courseRepository.findAllPublicOrderedByPinAndSavedCount());
+		return buildSummaryResponses(courseRepository.findAllPublicOrderedByPinAndSavedCount(), Set.of());
 	}
 
+	/**
+	 * 내 빵투어 = 내가 만든 코스 ∪ 참여 중인 코스. 소유·참여를 섞어 최근 수정순으로 내려준다.
+	 * 방장도 course_members 행을 가지므로 협업 중인 내 코스는 양쪽에 다 잡힌다 — courseId 로 dedup 한다.
+	 * bumpVersion 이 updated_at 도 올리므로 가게·메모·멤버 변경이 이 정렬에 잡힌다.
+	 */
 	public List<CourseSummaryResponse> getMyCourses(Long memberId) {
-		return buildSummaryResponses(courseRepository
-			.findAllByMemberIdAndTypeInAndDeletedAtIsNull(memberId, List.of(CourseType.CUSTOM, CourseType.FORKED)));
+		List<Course> owned = courseRepository
+			.findAllByMemberIdAndTypeInAndDeletedAtIsNull(memberId, List.of(CourseType.CUSTOM, CourseType.FORKED));
+		List<Course> joined = courseMemberRepository.findAllByIdMemberIdAndDeletedAtIsNull(memberId).stream()
+			.map(CourseMember::getCourse)
+			.filter(course -> !course.isDeleted())
+			.toList();
+		Set<Long> memberCourseIds = joined.stream()
+			.filter(course -> !isOwner(course, memberId))
+			.map(Course::getId)
+			.collect(Collectors.toSet());
+
+		Map<Long, Course> courseById = new LinkedHashMap<>();
+		Stream.concat(owned.stream(), joined.stream())
+			.forEach(course -> courseById.putIfAbsent(course.getId(), course));
+		List<Course> merged = courseById.values().stream()
+			.sorted(Comparator.comparing(Course::getUpdatedAt, Comparator.nullsLast(
+				Comparator.<LocalDateTime>reverseOrder()))
+				.thenComparing(Course::getId, Comparator.reverseOrder()))
+			.toList();
+		return buildSummaryResponses(merged, memberCourseIds);
 	}
 
 	public List<CourseSummaryResponse> getSavedCourses(Long memberId) {
+		// 참여하면 찜이 풀리지만(수락 때 삭제) 그 전 데이터가 남아 있을 수 있다 — 참여 중인 코스는 목록에서 뺀다
+		Set<Long> joinedCourseIds = courseMemberRepository.findAllByIdMemberIdAndDeletedAtIsNull(memberId).stream()
+			.map(row -> row.getId().getCourseId())
+			.collect(Collectors.toSet());
 		List<Course> savedCourses = savedCourseRepository.findAllByMemberId(memberId).stream()
 			.map(savedCourse -> savedCourse.getCourse())
 			.filter(course -> !course.isDeleted() && course.isPublic())
+			.filter(course -> !joinedCourseIds.contains(course.getId()))
 			.toList();
-		return buildSummaryResponses(savedCourses);
+		return buildSummaryResponses(savedCourses, Set.of());
 	}
 
 	public CourseDetailResponse getCourseDetail(Long courseId, Long memberId) {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 
-		if (!course.isPublic()) {
-			if (memberId == null || course.getMember() == null || !course.getMember().getId().equals(memberId)) {
-				throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
-			}
+		// 참여자 목록은 한 번만 읽어 접근 판정·members·메모 정렬에 같이 쓴다. 큐레이션엔 행이 없다.
+		List<CourseMember> members = course.getType() == CourseType.CURATED
+			? List.of()
+			: courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(courseId);
+		boolean isMine = isOwner(course, memberId);
+		boolean isMember = !isMine && memberId != null
+			&& members.stream().anyMatch(row -> row.getId().getMemberId().equals(memberId));
+		// 비공개 코스는 방장과 활성 멤버만 — 협업 코스는 PRIVATE 이라 멤버를 빼면 자기 코스를 못 본다
+		if (!course.isPublic() && !isMine && !isMember) {
+			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
 		}
 
 		List<CourseStore> courseStores = courseStoreRepository
@@ -88,7 +127,8 @@ public class CourseQueryService {
 				.findAllByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId).stream()
 				.collect(Collectors.toMap(visit -> visit.getId().getStoreId(), visit -> visit, (a, b) -> a));
 
-		Map<Long, List<CourseStoreMemoResponse>> memosByCourseStoreId = memosOf(course, courseStores, memberId);
+		Map<Long, List<CourseStoreMemoResponse>> memosByCourseStoreId = memosOf(course, courseStores, members,
+			memberId);
 		List<CourseStoreResponse> courseStoreResponses = courseStores.stream()
 			.map(courseStore -> {
 				List<CourseStoreMemoResponse> memos = memosByCourseStoreId.getOrDefault(courseStore.getId(), List.of());
@@ -107,14 +147,25 @@ public class CourseQueryService {
 
 		CourseImageFile coverImage = courseImageFileRepository.findByCourseId(courseId).orElse(null);
 
-		boolean isMine = memberId != null && course.getMember() != null
-			&& course.getMember().getId().equals(memberId);
 		boolean isSaved = memberId != null && savedCourseRepository.existsByMemberIdAndCourseId(memberId, courseId);
 		long savedCount = savedCourseRepository.countByCourseId(courseId);
 		long finisherCount = courseProgressRepository.countByCourseIdAndStatus(
 			courseId, CourseProgressStatus.FINISHED);
 
 		List<String> regions = regionsOf(courseStores);
+
+		List<CourseMemberResponse> memberResponses = members.stream()
+			.map(row -> new CourseMemberResponse(
+				row.getId().getMemberId(),
+				row.getDisplayName(),
+				isOwner(course, row.getId().getMemberId()),
+				row.getId().getMemberId().equals(memberId)))
+			.toList();
+		String myDisplayName = members.stream()
+			.filter(row -> row.getId().getMemberId().equals(memberId))
+			.map(CourseMember::getDisplayName)
+			.findFirst()
+			.orElse(null);
 
 		return CourseDetailResponse.of(
 			course,
@@ -125,17 +176,42 @@ public class CourseQueryService {
 			savedCount,
 			finisherCount,
 			regions,
-			courseStoreResponses);
+			courseStoreResponses,
+			memberResponses,
+			isMember,
+			myDisplayName);
 	}
 
 	/**
-	 * 정류장별 사람별 메모. 메모 한 방 + 멤버 목록 한 방으로 읽는다 — 정류장마다 돌지 않는다.
+	 * 폴링 ETag 용. 상세와 같은 접근 판정을 먼저 한다 — 권한이 없는 사람에게 304 로 코스의 존재를 알려주면 안 된다.
+	 * 본문이 사람마다 달라도(isMine·visited·myMemo) ETag 는 같아도 된다: A 의 304 는 A 의 이전 응답을 다시 쓰라는 뜻이다.
+	 */
+	public long getVersion(Long courseId, Long memberId) {
+		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
+			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
+		if (!course.isPublic() && !isOwner(course, memberId) && !isActiveMember(course, memberId)) {
+			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
+		}
+		return course.getVersion();
+	}
+
+	private boolean isOwner(Course course, Long memberId) {
+		return memberId != null && course.getMember() != null && course.getMember().getId().equals(memberId);
+	}
+
+	private boolean isActiveMember(Course course, Long memberId) {
+		return memberId != null
+			&& courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(course.getId(), memberId);
+	}
+
+	/**
+	 * 정류장별 사람별 메모. 메모 한 방으로 읽고 이미 읽어둔 멤버 목록으로 정렬한다 — 정류장마다 돌지 않는다.
 	 * 정렬은 서버가 참여 순서(course_members.joined_at)로 하고, 방장은 첫 초대 때 행이 생기므로 항상 맨 앞이다.
 	 * course_members 행이 없는 사람(이관 전 옛 데이터)은 닉네임으로 폴백하고 맨 뒤에 둔다.
 	 * 큐레이션 코스는 이 테이블을 쓰지 않으므로 읽지 않는다.
 	 */
 	private Map<Long, List<CourseStoreMemoResponse>> memosOf(Course course, List<CourseStore> courseStores,
-			Long viewerId) {
+			List<CourseMember> members, Long viewerId) {
 		if (course.getType() == CourseType.CURATED || courseStores.isEmpty()) {
 			return Map.of();
 		}
@@ -145,8 +221,6 @@ public class CourseQueryService {
 		if (memos.isEmpty()) {
 			return Map.of();
 		}
-		List<CourseMember> members = courseMemberRepository
-			.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(course.getId());
 		Map<Long, Integer> joinOrderByMemberId = new java.util.HashMap<>();
 		Map<Long, String> displayNameByMemberId = new java.util.HashMap<>();
 		for (int i = 0; i < members.size(); i++) {
@@ -169,8 +243,12 @@ public class CourseQueryService {
 					Objects.equals(memo.getId().getMemberId(), viewerId)), Collectors.toList())));
 	}
 
-	/** 코스별 가게·커버 이미지를 일괄 조회해 코스 수와 무관하게 고정된 쿼리 수로 summary를 만든다 */
-	private List<CourseSummaryResponse> buildSummaryResponses(List<Course> courses) {
+	/**
+	 * 코스별 가게·커버 이미지를 일괄 조회해 코스 수와 무관하게 고정된 쿼리 수로 summary를 만든다.
+	 *
+	 * @param memberCourseIds 방장 아닌 활성 멤버로 참여 중인 코스 id — isMember('함께' 배지). 내 목록 말고는 비어 있다
+	 */
+	private List<CourseSummaryResponse> buildSummaryResponses(List<Course> courses, Set<Long> memberCourseIds) {
 		if (courses.isEmpty()) {
 			return List.of();
 		}
@@ -206,7 +284,8 @@ public class CourseQueryService {
 					storeIdsOf(courseStores),
 					regions,
 					savedCountByCourseId.getOrDefault(course.getId(), 0L),
-					finisherCountByCourseId.getOrDefault(course.getId(), 0L));
+					finisherCountByCourseId.getOrDefault(course.getId(), 0L),
+					memberCourseIds.contains(course.getId()));
 			})
 			.toList();
 	}

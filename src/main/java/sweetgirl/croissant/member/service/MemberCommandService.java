@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository; // 탈퇴 시 FCM 토큰 삭제를 위해 import
+import sweetgirl.croissant.course.service.CourseMemberService;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.dto.request.ConsentCreateRequest;
 import sweetgirl.croissant.member.dto.request.ConsentUpdateRequest;
@@ -45,6 +46,7 @@ public class MemberCommandService {
 	private final RefreshTokenRepository refreshTokenRepository; // 탈퇴 시 해당 회원의 모든 RefreshToken을 revoke하기 위해 주입
 	private final FcmTokenRepository fcmTokenRepository; // 탈퇴 시 해당 회원의 모든 FCM 토큰을 삭제하기 위해 주입
 	private final GuestPromotionService guestPromotionService; // 동의 시점으로 미뤄둔 게스트 이관을 위해 주입
+	private final CourseMemberService courseMemberService; // 탈퇴 시 협업 코스 정리(방장 승계·나가기·메모 삭제)를 위해 주입
 
 	public void createConsent(Long memberId, ConsentCreateRequest request) {
 		Member member = memberReader.getMember(memberId);
@@ -174,6 +176,9 @@ public class MemberCommandService {
 		}
 
 		member.softDelete(); // deletedAt = now() 설정 (dirty checking으로 자동 반영)
+
+		// 같이 편집하던 코스 정리 — 방장이면 가장 오래된 멤버에게 넘기고, 멤버면 나간다. 메모는 지우고 담았던 가게는 남긴다.
+		courseMemberService.leaveAllCourses(memberId);
 
 		List<RefreshToken> refreshTokens = refreshTokenRepository.findAllByMember(member); // 해당 회원의 모든 RefreshToken 조회
 		refreshTokens.forEach(RefreshToken::revoke); // 각 토큰의 revokedAt = now() 설정 → 재로그인 차단

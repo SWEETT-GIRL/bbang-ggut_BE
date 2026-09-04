@@ -8,10 +8,13 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willDoNothing;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.never;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -42,6 +45,7 @@ import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
 import sweetgirl.croissant.course.enums.CourseInviteState;
 import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.enums.CourseType;
+import sweetgirl.croissant.course.enums.CourseVisibility;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.service.CourseCommandService;
 import sweetgirl.croissant.course.service.CourseMemberService;
@@ -84,7 +88,7 @@ class CourseControllerTest {
 		CourseSummaryResponse response = new CourseSummaryResponse(
 			1L, "소금빵 투어", null, null, List.of(), List.of("김진환제과점", "성심당"), 2, List.of(11L, 12L), List.of("마포구"),
 			CourseType.CURATED, "어드민",
-			null, 0L, 1, 37L, null, null, null);
+			null, 0L, 1, 37L, null, null, null, false);
 		given(courseQueryService.getCurationCourses()).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses"))
@@ -103,7 +107,7 @@ class CourseControllerTest {
 		CourseSummaryResponse response = new CourseSummaryResponse(
 			2L, "나의 코스", null, null, List.of(), List.of("성심당"), 1, List.of(21L), List.of("서대문구"), CourseType.CUSTOM,
 			"user1", null,
-			0L, null, 0L, null, null, null);
+			0L, null, 0L, null, null, null, true);
 		given(courseQueryService.getMyCourses(isNull())).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses/my"))
@@ -111,6 +115,8 @@ class CourseControllerTest {
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data[0].id").value(2))
 			.andExpect(jsonPath("$.data[0].courseType").value("CUSTOM"))
+			// 참여 코스는 '함께' 배지
+			.andExpect(jsonPath("$.data[0].isMember").value(true))
 			// 가게 상세의 '빵투어에 담기'가 이미 담긴 코스를 이 필드로 가려낸다
 			.andExpect(jsonPath("$.data[0].storeIds[0]").value(21));
 	}
@@ -120,7 +126,7 @@ class CourseControllerTest {
 		CourseSummaryResponse response = new CourseSummaryResponse(
 			3L, "찜한 코스", null, null, List.of(), List.of("성심당"), 3, List.of(31L, 32L, 33L), List.of("강남구"),
 			CourseType.CURATED, "어드민",
-			null, 0L, null, 0L, null, null, null);
+			null, 0L, null, 0L, null, null, null, false);
 		given(courseQueryService.getSavedCourses(isNull())).willReturn(List.of(response));
 
 		mockMvc.perform(get("/courses/saved"))
@@ -163,11 +169,16 @@ class CourseControllerTest {
 		CourseDetailResponse response = new CourseDetailResponse(
 			1L, "소금빵 투어", null, null, List.of(), 2, List.of("마포구"), CourseType.CURATED, "어드민", null, null, true, false,
 			false, 5L, 37L, LocalDateTime.of(2026, 1, 1, 0, 0), "서울", LocalDate.of(2026, 8, 20),
-			LocalDate.of(2026, 8, 21), List.of());
+			LocalDate.of(2026, 8, 21), List.of(),
+			false, false, false, 0, List.of(), null, 1, CourseVisibility.PUBLIC, null, 41L);
+		given(courseQueryService.getVersion(anyLong(), isNull())).willReturn(41L);
 		given(courseQueryService.getCourseDetail(anyLong(), isNull())).willReturn(response);
 
 		mockMvc.perform(get("/courses/1"))
 			.andExpect(status().isOk())
+			// 폴링용 ETag = version. 본문이 사람마다 달라 중간 캐시는 막는다
+			.andExpect(header().string("ETag", "\"41\""))
+			.andExpect(header().string("Cache-Control", "no-cache, private"))
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.id").value(1))
 			.andExpect(jsonPath("$.data.isPublic").value(true))
@@ -176,23 +187,58 @@ class CourseControllerTest {
 			.andExpect(jsonPath("$.data.region").value("서울"))
 			.andExpect(jsonPath("$.data.startDate").value("2026-08-20"))
 			.andExpect(jsonPath("$.data.endDate").value("2026-08-21"))
-			.andExpect(jsonPath("$.data.isSaved").value(false));
+			.andExpect(jsonPath("$.data.isSaved").value(false))
+			// 동시편집 — 앱이 권한 게이트(canEdit)·참여자 칩·폴링 ETag(version)를 읽는다
+			.andExpect(jsonPath("$.data.canEdit").value(false))
+			.andExpect(jsonPath("$.data.memberCount").value(0))
+			.andExpect(jsonPath("$.data.visibility").value("PUBLIC"))
+			.andExpect(jsonPath("$.data.version").value(41));
 	}
 
+	// 같은 version 을 If-None-Match 로 보내면 본문 없이 304 — 상세는 아예 만들지 않는다
+	@Test
+	void getCourseDetail_ifNoneMatchSameVersion_returns304() throws Exception {
+		given(courseQueryService.getVersion(anyLong(), isNull())).willReturn(41L);
+
+		mockMvc.perform(get("/courses/1").header("If-None-Match", "\"41\""))
+			.andExpect(status().isNotModified())
+			.andExpect(header().string("ETag", "\"41\""))
+			.andExpect(content().string(""));
+		then(courseQueryService).should(never()).getCourseDetail(any(), any());
+	}
+
+	// 누가 가게를 담아 version 이 올랐으면 옛 ETag 는 200 + 새 ETag
+	@Test
+	void getCourseDetail_ifNoneMatchStale_returns200WithNewEtag() throws Exception {
+		CourseDetailResponse response = new CourseDetailResponse(
+			1L, "소금빵 투어", null, null, List.of(), 0, List.of(), CourseType.CUSTOM, "다나", 1L, null, false, true,
+			false, 0L, 0L, LocalDateTime.of(2026, 1, 1, 0, 0), null, null, null, List.of(),
+			true, true, false, 0, List.of(), null, 1, CourseVisibility.PRIVATE, null, 42L);
+		given(courseQueryService.getVersion(anyLong(), isNull())).willReturn(42L);
+		given(courseQueryService.getCourseDetail(anyLong(), isNull())).willReturn(response);
+
+		mockMvc.perform(get("/courses/1").header("If-None-Match", "\"41\""))
+			.andExpect(status().isOk())
+			.andExpect(header().string("ETag", "\"42\""))
+			.andExpect(jsonPath("$.data.version").value(42));
+	}
+
+	// 권한이 없으면 If-None-Match 가 있어도 304 가 아니라 403 — 304 로 존재를 알려주면 안 된다
 	@Test
 	void getCourseDetail_forbidden_returns403() throws Exception {
-		given(courseQueryService.getCourseDetail(anyLong(), isNull()))
+		given(courseQueryService.getVersion(anyLong(), isNull()))
 			.willThrow(new CourseException(CourseErrorCode.COURSE_FORBIDDEN));
 
-		mockMvc.perform(get("/courses/1"))
+		mockMvc.perform(get("/courses/1").header("If-None-Match", "\"41\""))
 			.andExpect(status().isForbidden())
 			.andExpect(jsonPath("$.success").value(false))
 			.andExpect(jsonPath("$.code").value("COURSE403_1"));
+		then(courseQueryService).should(never()).getCourseDetail(any(), any());
 	}
 
 	@Test
 	void getCourseDetail_notFound_returns404() throws Exception {
-		given(courseQueryService.getCourseDetail(anyLong(), isNull()))
+		given(courseQueryService.getVersion(anyLong(), isNull()))
 			.willThrow(new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 
 		mockMvc.perform(get("/courses/1"))

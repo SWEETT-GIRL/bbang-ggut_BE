@@ -3,6 +3,7 @@ package sweetgirl.croissant.course.controller;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.WebRequest;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -85,12 +87,22 @@ public class CourseController {
 		return ResponseEntity.ok(ApiResponse.ok(courseProgressService.getOngoing(memberId)));
 	}
 
-	@Operation(summary = "코스 상세 조회")
+	@Operation(summary = "코스 상세 조회", description = "If-None-Match 에 이전 응답의 ETag(= version)를 보내면 바뀐 게 없을 때 304 로 답한다.")
 	@GetMapping("/{courseId}")
 	public ResponseEntity<ApiResponse<CourseDetailResponse>> getCourseDetail(
 			@PathVariable Long courseId,
-			@AuthenticationPrincipal Long memberId) {
-		return ResponseEntity.ok(ApiResponse.ok(courseQueryService.getCourseDetail(courseId, memberId)));
+			@AuthenticationPrincipal Long memberId,
+			WebRequest request) {
+		// ETag 는 version 만 쓴다(본문 해시 아님). 권한 검사가 먼저다 — 권한 없는 사람에게 304 로 존재를 알려주면 안 된다.
+		String etag = "\"" + courseQueryService.getVersion(courseId, memberId) + "\"";
+		if (request.checkNotModified(etag)) {
+			return null; // Spring 이 304 + ETag 로 응답한다
+		}
+		// 본문은 사람마다 다르다(isMine·visited·myMemo) — 중간 캐시가 끼지 않게 private, no-cache
+		return ResponseEntity.ok()
+			.eTag(etag)
+			.cacheControl(CacheControl.noCache().cachePrivate())
+			.body(ApiResponse.ok(courseQueryService.getCourseDetail(courseId, memberId)));
 	}
 
 	@Operation(summary = "코스 생성")

@@ -3,6 +3,7 @@ package sweetgirl.croissant.course.repository;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -25,7 +26,8 @@ public interface CourseMemberRepository extends JpaRepository<CourseMember, Cour
 	/** 정원(방장 포함 8명) 판정. */
 	long countByIdCourseIdAndDeletedAtIsNull(Long courseId);
 
-	/** 내가 참여한 코스. */
+	/** 내가 참여한 코스. 코스를 같이 읽는다 — 목록·탈퇴 정리가 행마다 코스를 본다. */
+	@EntityGraph(attributePaths = "course")
 	List<CourseMember> findAllByIdMemberIdAndDeletedAtIsNull(Long memberId);
 
 	// ── 게스트 → 회원 데이터 이관 ─────────────────────────────

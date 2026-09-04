@@ -62,9 +62,15 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 	 * 폴링 ETag 올리기. 코스·가게·메모·멤버를 바꾸는 모든 쓰기가 마지막에 부른다 — 빠뜨리면 폴링이 그 변경을 영영 못 본다.
 	 * SET version = version + 1 은 행 단위로 원자적이라 락 없는 경로(제목·메모·이름 변경)에서도 증가가 유실되지 않는다.
 	 * Course.version 은 JPA 쪽에서 읽기 전용이라 네이티브로 쓴다.
+	 * updated_at 도 같이 올린다 — 가게·메모·멤버 변경은 courses 행을 안 건드려서, 이게 없으면
+	 * 내 목록의 '최근 수정순'이 협업 편집을 못 본다.
 	 */
 	@Modifying(flushAutomatically = true)
-	@Query(value = "UPDATE courses SET version = version + 1 WHERE id = :courseId", nativeQuery = true)
+	@Query(value = """
+			UPDATE courses
+			SET version = version + 1, updated_at = CURRENT_TIMESTAMP
+			WHERE id = :courseId
+			""", nativeQuery = true)
 	int bumpVersion(@Param("courseId") Long courseId);
 
 	List<Course> findAllByTypeAndDeletedAtIsNullOrderByCreatedAtDesc(CourseType type);
