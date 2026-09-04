@@ -30,6 +30,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		Pattern.compile("^/menus/\\d+/reviews$"),
 		Pattern.compile("^/menus/\\d+/reviews/summary$"),
 		Pattern.compile("^/courses/\\d+$"),
+		// 초대 미리보기·링크 공개 입구 — SecurityConfig 의 permitAll 과 같은 경로. 만료된 Bearer 가 붙어 와도 익명으로 통과한다
+		Pattern.compile("^/courses/invites/[A-Za-z0-9_-]+$"),
+		Pattern.compile("^/courses/by-share/[A-Za-z0-9_-]+$"),
 		MEMBER_REVIEWS_PATH);
 
 	private final JwtProvider jwtProvider;

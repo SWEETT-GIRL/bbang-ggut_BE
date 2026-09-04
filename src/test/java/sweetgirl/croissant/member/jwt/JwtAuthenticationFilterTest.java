@@ -31,6 +31,43 @@ class JwtAuthenticationFilterTest {
 		verify(filterChain).doFilter(request, response);
 	}
 
+	// 초대 미리보기·링크 공개 입구는 SecurityConfig 에서 비로그인 허용이다 — 만료된 Bearer 가 붙어 와도 익명으로 통과해야 한다
+	@Test
+	void doFilterInternal_continuesAsAnonymousOnInviteAndShareEntryPointsWhenBearerTokenIsInvalid() throws Exception {
+		JwtProvider jwtProvider = mock(JwtProvider.class);
+		given(jwtProvider.validateToken("invalid-token")).willReturn(false);
+		JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider);
+
+		for (String path : new String[] {"/courses/invites/k9J_abc-XYZ", "/courses/by-share/Qm7xyz"}) {
+			MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
+			MockHttpServletResponse response = new MockHttpServletResponse();
+			MockFilterChain filterChain = mock(MockFilterChain.class);
+			request.addHeader("Authorization", "Bearer invalid-token");
+
+			filter.doFilterInternal(request, response, filterChain);
+
+			assertThat(response.getStatus()).isEqualTo(200);
+			verify(filterChain).doFilter(request, response);
+		}
+	}
+
+	// 수락(POST)은 절대 열지 않는다 — 같은 토큰 경로라도 인증 필수
+	@Test
+	void doFilterInternal_returns401OnInviteAcceptWhenBearerTokenIsInvalid() throws Exception {
+		JwtProvider jwtProvider = mock(JwtProvider.class);
+		given(jwtProvider.validateToken("invalid-token")).willReturn(false);
+		JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider);
+		MockHttpServletRequest request = new MockHttpServletRequest("POST", "/courses/invites/k9J_abc/accept");
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain filterChain = mock(MockFilterChain.class);
+		request.addHeader("Authorization", "Bearer invalid-token");
+
+		filter.doFilterInternal(request, response, filterChain);
+
+		assertThat(response.getStatus()).isEqualTo(401);
+		verify(filterChain, never()).doFilter(request, response);
+	}
+
 	@Test
 	void doFilterInternal_returns401JsonOnProtectedRequestWhenBearerTokenIsInvalid() throws Exception {
 		JwtProvider jwtProvider = mock(JwtProvider.class);
