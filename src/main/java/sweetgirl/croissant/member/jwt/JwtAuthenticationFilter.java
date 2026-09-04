@@ -23,17 +23,8 @@ import lombok.extern.slf4j.Slf4j;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 	private static final Pattern MEMBER_REVIEWS_PATH = Pattern.compile("^/users/\\d+/reviews$");
-	private static final List<Pattern> OPTIONAL_AUTH_GET_PATHS = List.of(
-		Pattern.compile("^/stores/\\d+$"),
-		Pattern.compile("^/stores/\\d+/menus$"),
-		Pattern.compile("^/menus/\\d+$"),
-		Pattern.compile("^/menus/\\d+/reviews$"),
-		Pattern.compile("^/menus/\\d+/reviews/summary$"),
-		Pattern.compile("^/courses/\\d+$"),
-		// 초대 미리보기·링크 공개 입구 — SecurityConfig 의 permitAll 과 같은 경로. 만료된 Bearer 가 붙어 와도 익명으로 통과한다
-		Pattern.compile("^/courses/invites/[A-Za-z0-9_-]+$"),
-		Pattern.compile("^/courses/by-share/[A-Za-z0-9_-]+$"),
-		MEMBER_REVIEWS_PATH);
+	/** RFC 6750 — 제시된 토큰이 유효하지 않으면(만료·위조) 401 과 함께 내려, 클라이언트가 토큰을 갱신하게 한다. */
+	private static final String INVALID_TOKEN_CHALLENGE = "Bearer error=\"invalid_token\"";
 
 	private final JwtProvider jwtProvider;
 
@@ -57,13 +48,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 					request.getRequestURI());
 			}
 
-			if (isOptionalAuthGetRequest(request)) {
-				SecurityContextHolder.clearContext();
-				filterChain.doFilter(request, response);
-				return;
-			}
-
+			// 비로그인 허용 경로라도 예외 없이 401 — 토큰을 낸 이상 유효해야 한다. 예전엔 일부 GET 에서 틀린 토큰을 익명으로
+			// 통과시켰는데, 만료된 토큰을 든 멤버가 비공개 협업 코스에서 403 을 받고 갱신 기회 없이 화면에서 밀려났다.
+			// 토큰 없이 오는 요청은 아래로 흘러 SecurityConfig 의 permitAll 이 익명으로 처리한다.
 			response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+			response.setHeader("WWW-Authenticate", INVALID_TOKEN_CHALLENGE);
 			response.setContentType("application/json;charset=UTF-8");
 			response.getWriter().write("""
 					{"success":false,"code":"COMMON401","message":"인증이 필요합니다.","data":null}""");
@@ -115,14 +104,5 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	private boolean isMemberReviewsRequest(HttpServletRequest request) {
 		return "GET".equals(request.getMethod())
 			&& MEMBER_REVIEWS_PATH.matcher(request.getRequestURI()).matches();
-	}
-
-	private boolean isOptionalAuthGetRequest(HttpServletRequest request) {
-		if (!"GET".equals(request.getMethod())) {
-			return false;
-		}
-
-		String path = request.getRequestURI();
-		return OPTIONAL_AUTH_GET_PATHS.stream().anyMatch(pattern -> pattern.matcher(path).matches());
 	}
 }
