@@ -16,11 +16,11 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.projection.CourseProgressAggregateProjection;
 import sweetgirl.croissant.course.dto.projection.CourseProgressMemberAggregateProjection;
+import sweetgirl.croissant.course.dto.projection.CourseStoreSummaryProjection;
 import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseImageFile;
 import sweetgirl.croissant.course.entity.CourseProgress;
-import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.entity.CourseStoreVisit;
 import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.exception.CourseException;
@@ -46,6 +46,7 @@ public class CourseProgressService {
 	private final CourseStoreRepository courseStoreRepository;
 	private final CourseStoreThumbnailReader courseStoreThumbnailReader;
 	private final CourseStoreVisitRepository courseStoreVisitRepository;
+	private final CourseAccessPolicy courseAccessPolicy;
 
 	public void start(Long memberId, Long courseId) {
 		Member member = memberReader.getMember(memberId);
@@ -103,12 +104,13 @@ public class CourseProgressService {
 				image -> image.getCourse().getId(),
 				Function.identity(),
 				(first, second) -> first));
-		Map<Long, List<CourseStore>> courseStoresByCourseId = courseStoreRepository
-			.findAllByCourseIdInAndDeletedAtIsNullOrderByVisitOrderAsc(courseIds)
-			.stream()
-			.collect(Collectors.groupingBy(courseStore -> courseStore.getCourse().getId()));
+		// 진행 카드는 가게 썸네일만 필요하다 — Store 엔티티가 아니라 가게 id 만 코스별로 모은다
+		Map<Long, List<Long>> storeIdsByCourseId = courseStoreRepository.findSummariesByCourseIdIn(courseIds).stream()
+			.collect(Collectors.groupingBy(
+				CourseStoreSummaryProjection::getCourseId,
+				Collectors.mapping(CourseStoreSummaryProjection::getStoreId, Collectors.toList())));
 		Map<Long, List<String>> storeThumbnailsByCourseId = courseStoreThumbnailReader
-			.readByCourse(courseStoresByCourseId);
+			.readByCourse(storeIdsByCourseId);
 
 		return progresses.stream()
 			.filter(progress -> ongoingCourseIds.contains(progress.getCourse().getId()))
@@ -136,7 +138,14 @@ public class CourseProgressService {
 			.forEach(CourseStoreVisit::softDelete);
 	}
 
-	public void refreshForCourse(Long courseId) {
+	/**
+	 * 코스의 가게가 바뀌었을 때 진행 중인 참여자 전원의 완주 여부를 다시 본다.
+	 *
+	 * @param allowPromotion 가게가 늘어난 경우에만 true. 삭제로 storeCount 가 줄면 방문 수는 그대로인 채
+	 *                       분모만 작아져 가지 않은 코스가 완주 처리된다(되돌리는 경로가 없어 뱃지까지 나간다).
+	 *                       그때는 false — 승격 없이 끝난다
+	 */
+	public void refreshForCourse(Long courseId, boolean allowPromotion) {
 		List<CourseProgress> progresses = courseProgressRepository.findAllByCourseIdAndStatus(
 			courseId, CourseProgressStatus.IN_PROGRESS);
 		if (progresses.isEmpty()) {
@@ -153,7 +162,8 @@ public class CourseProgressService {
 				progress,
 				aggregate == null ? 0 : aggregate.getStoreCount(),
 				aggregate == null ? 0 : aggregate.getVisitedStoreCount(),
-				completedAt);
+				completedAt,
+				allowPromotion);
 		});
 	}
 
@@ -172,16 +182,22 @@ public class CourseProgressService {
 				progress,
 				aggregate == null ? 0 : aggregate.getStoreCount(),
 				aggregate == null ? 0 : aggregate.getVisitedStoreCount(),
-				completedAt);
+				completedAt,
+				true);
 		});
 		return progresses;
 	}
 
+	/** 완주는 단방향이다 — 되돌리는 경로가 없다. 승격이 막힌 호출이면 아무것도 하지 않는다. */
 	private void updateCompletion(
 			CourseProgress progress,
 			long storeCount,
 			long visitedStoreCount,
-			LocalDateTime completedAt) {
+			LocalDateTime completedAt,
+			boolean allowPromotion) {
+		if (!allowPromotion) {
+			return;
+		}
 		if (storeCount > 0 && visitedStoreCount >= storeCount) {
 			progress.markFinished(completedAt);
 		}
@@ -212,13 +228,12 @@ public class CourseProgressService {
 		return response.lastTouchedAt() != null ? response.lastTouchedAt() : response.startedAt();
 	}
 
+	/** 공개 코스는 누구나, 비공개 코스는 방장과 활성 멤버만 따라갈 수 있다 — 협업 코스는 PRIVATE 이라 멤버를 빼면 시작조차 못 한다. */
 	private Course getAccessibleCourse(Long courseId, Long memberId) {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		boolean isOwner = course.getMember() != null && course.getMember().getId().equals(memberId);
-		if (!course.isPublic() && !isOwner) {
-			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
-		}
+		// 토큰 없이 — 링크 공개 코스라도 제3자는 따라가지 못한다
+		courseAccessPolicy.requireViewable(course, memberId, null);
 		return course;
 	}
 }

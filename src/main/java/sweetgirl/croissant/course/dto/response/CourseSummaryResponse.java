@@ -27,7 +27,9 @@ public record CourseSummaryResponse(
 		long finisherCount,
 		String region,
 		LocalDate startDate,
-		LocalDate endDate) {
+		LocalDate endDate,
+		/** 방장 아닌 활성 멤버 — 내 빵투어의 '함께' 배지. 내 목록 말고는 항상 false */
+		boolean isMember) {
 
 	public static CourseSummaryResponse of(
 			Course course,
@@ -38,7 +40,8 @@ public record CourseSummaryResponse(
 			List<Long> storeIds,
 			List<String> regions,
 			long savedCount,
-			long finisherCount) {
+			long finisherCount,
+			boolean isMember) {
 		String authorName = course.getMember() != null ? course.getMember().getNickname() : null;
 		return new CourseSummaryResponse(
 			course.getId(),
@@ -58,6 +61,7 @@ public record CourseSummaryResponse(
 			finisherCount,
 			course.getRegion(),
 			course.getStartDate(),
-			course.getEndDate());
+			course.getEndDate(),
+			isMember);
 	}
 }

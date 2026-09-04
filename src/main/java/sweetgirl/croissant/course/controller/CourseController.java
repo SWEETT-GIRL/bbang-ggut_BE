@@ -3,6 +3,7 @@ package sweetgirl.croissant.course.controller;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.WebRequest;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -22,17 +24,24 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.course.dto.request.CourseCreateRequest;
 import sweetgirl.croissant.course.dto.request.CourseImageRegisterRequest;
+import sweetgirl.croissant.course.dto.request.CourseMemberNameRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreAddRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreReorderRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreUpdateRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreVisitRequest;
 import sweetgirl.croissant.course.dto.request.CourseUpdateRequest;
+import sweetgirl.croissant.course.dto.response.CourseDetailLookup;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
+import sweetgirl.croissant.course.dto.response.CourseInviteAcceptResponse;
+import sweetgirl.croissant.course.dto.response.CourseInvitePreviewResponse;
+import sweetgirl.croissant.course.dto.response.CourseInviteResponse;
 import sweetgirl.croissant.course.dto.response.CourseProgressResponse;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
+import sweetgirl.croissant.course.dto.response.CourseUpdateResponse;
 import sweetgirl.croissant.course.dto.response.CourseVisitCandidateResponse;
 import sweetgirl.croissant.course.service.CourseCommandService;
+import sweetgirl.croissant.course.service.CourseMemberService;
 import sweetgirl.croissant.course.service.CourseProgressService;
 import sweetgirl.croissant.course.service.CourseQueryService;
 import sweetgirl.croissant.course.service.CourseStoreVisitService;
@@ -51,6 +60,7 @@ public class CourseController {
 	private final SavedCourseCommandService savedCourseCommandService;
 	private final CourseProgressService courseProgressService;
 	private final CourseStoreVisitService courseStoreVisitService;
+	private final CourseMemberService courseMemberService;
 
 	@Operation(summary = "공개 코스 목록 조회")
 	@GetMapping
@@ -79,12 +89,43 @@ public class CourseController {
 		return ResponseEntity.ok(ApiResponse.ok(courseProgressService.getOngoing(memberId)));
 	}
 
-	@Operation(summary = "코스 상세 조회")
+	@Operation(summary = "코스 상세 조회", description = "If-None-Match 가 ETag(version)와 같으면 304. 링크 공개는 ?t= 토큰으로 본다.")
 	@GetMapping("/{courseId}")
 	public ResponseEntity<ApiResponse<CourseDetailResponse>> getCourseDetail(
 			@PathVariable Long courseId,
+			@AuthenticationPrincipal Long memberId,
+			@RequestParam(name = "t", required = false) String shareToken,
+			WebRequest request) {
+		// ETag 는 version 만 쓴다(본문 해시 아님). 서비스가 권한 검사를 먼저 하고 version 을 넘긴다 — 권한 없는 사람에게
+		// 304 로 존재를 알려주면 안 된다. 코스는 한 번만 읽고, ETag 가 같으면 본문을 만들지 않는다.
+		CourseDetailLookup lookup = courseQueryService.getCourseDetail(courseId, memberId, shareToken,
+			version -> request.checkNotModified(etagOf(version)));
+		String etag = etagOf(lookup.version());
+		// 본문은 사람마다 다르다(isMine·visited·myMemo) — 중간 캐시가 끼지 않게 private, no-cache
+		CacheControl cacheControl = CacheControl.noCache().cachePrivate();
+		if (lookup.body().isEmpty()) {
+			// checkNotModified 가 이미 304 상태와 ETag 를 응답에 썼다. 본문 없는 응답을 명시적으로 돌려준다
+			return ResponseEntity.status(HttpStatus.NOT_MODIFIED)
+				.eTag(etag)
+				.cacheControl(cacheControl)
+				.build();
+		}
+		return ResponseEntity.ok()
+			.eTag(etag)
+			.cacheControl(cacheControl)
+			.body(ApiResponse.ok(lookup.body().get()));
+	}
+
+	private static String etagOf(long version) {
+		return "\"" + version + "\"";
+	}
+
+	@Operation(summary = "공유 토큰으로 코스 상세 조회", description = "랜딩 /c/{shareToken} 용. 비로그인 허용. 링크 공개가 아니면 404.")
+	@GetMapping("/by-share/{shareToken}")
+	public ResponseEntity<ApiResponse<CourseDetailResponse>> getCourseDetailByShareToken(
+			@PathVariable String shareToken,
 			@AuthenticationPrincipal Long memberId) {
-		return ResponseEntity.ok(ApiResponse.ok(courseQueryService.getCourseDetail(courseId, memberId)));
+		return ResponseEntity.ok(ApiResponse.ok(courseQueryService.getCourseDetailByShareToken(shareToken, memberId)));
 	}
 
 	@Operation(summary = "코스 생성")
@@ -96,14 +137,13 @@ public class CourseController {
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(Map.of("courseId", courseId)));
 	}
 
-	@Operation(summary = "코스 수정")
+	@Operation(summary = "코스 수정", description = "공개 범위(visibility) 전환은 방장 전용. 링크 공개로 처음 바꾸면 shareToken 을 발급한다.")
 	@PatchMapping("/{courseId}")
-	public ResponseEntity<ApiResponse<Void>> updateCourse(
+	public ResponseEntity<ApiResponse<CourseUpdateResponse>> updateCourse(
 			@AuthenticationPrincipal Long memberId,
 			@PathVariable Long courseId,
 			@Valid @RequestBody CourseUpdateRequest request) {
-		courseCommandService.updateCourse(memberId, courseId, request);
-		return ResponseEntity.ok(ApiResponse.ok(null));
+		return ResponseEntity.ok(ApiResponse.ok(courseCommandService.updateCourse(memberId, courseId, request)));
 	}
 
 	@Operation(summary = "코스 삭제")
@@ -250,12 +290,60 @@ public class CourseController {
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
-	@Operation(summary = "코스 포크")
+	@Operation(summary = "코스 포크", description = "링크 공개 코스는 ?t= 토큰이 맞아야 포크할 수 있다.")
 	@PostMapping("/{courseId}/fork")
 	public ResponseEntity<ApiResponse<Map<String, Long>>> forkCourse(
 			@AuthenticationPrincipal Long memberId,
-			@PathVariable Long courseId) {
-		Long newCourseId = courseCommandService.forkCourse(memberId, courseId);
+			@PathVariable Long courseId,
+			@RequestParam(name = "t", required = false) String shareToken) {
+		Long newCourseId = courseCommandService.forkCourse(memberId, courseId, shareToken);
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(Map.of("courseId", newCourseId)));
+	}
+
+	// ───────────────────────── 동시편집: 초대·멤버 ─────────────────────────
+
+	@Operation(summary = "초대 링크 만들기·받기", description = "방장 또는 멤버. 하루 이상 남은 링크는 재사용(reused), 아니면 새로 발급한다.")
+	@PostMapping("/{courseId}/invites")
+	public ResponseEntity<ApiResponse<CourseInviteResponse>> createInvite(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable Long courseId) {
+		return ResponseEntity.ok(ApiResponse.ok(courseMemberService.createInvite(memberId, courseId)));
+	}
+
+	@Operation(summary = "초대 미리보기", description = "비로그인 허용. 만료·무효·정원초과·삭제도 state 로 200. viewer 는 인증 헤더가 있을 때만.")
+	@GetMapping("/invites/{token}")
+	public ResponseEntity<ApiResponse<CourseInvitePreviewResponse>> previewInvite(
+			@PathVariable String token,
+			@AuthenticationPrincipal Long memberId) {
+		return ResponseEntity.ok(ApiResponse.ok(courseMemberService.previewInvite(token, memberId)));
+	}
+
+	@Operation(summary = "초대 수락", description = "로그인 필수. 이미 멤버이거나 방장이면 아무것도 안 하고 alreadyMember 로 200.")
+	@PostMapping("/invites/{token}/accept")
+	public ResponseEntity<ApiResponse<CourseInviteAcceptResponse>> acceptInvite(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable String token,
+			@Valid @RequestBody CourseMemberNameRequest request) {
+		return ResponseEntity.ok(ApiResponse.ok(
+			courseMemberService.acceptInvite(memberId, token, request.getDisplayName())));
+	}
+
+	@Operation(summary = "빵투어 나가기", description = "방장은 참여 순서가 가장 빠른 멤버에게 넘기고 나간다. 담았던 가게는 코스에 남는다.")
+	@DeleteMapping("/{courseId}/members/me")
+	public ResponseEntity<ApiResponse<Void>> leaveCourse(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable Long courseId) {
+		courseMemberService.leave(memberId, courseId);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "코스 안에서 쓰는 내 이름 변경")
+	@PatchMapping("/{courseId}/members/me")
+	public ResponseEntity<ApiResponse<Void>> renameMember(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable Long courseId,
+			@Valid @RequestBody CourseMemberNameRequest request) {
+		courseMemberService.rename(memberId, courseId, request.getDisplayName());
+		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 }

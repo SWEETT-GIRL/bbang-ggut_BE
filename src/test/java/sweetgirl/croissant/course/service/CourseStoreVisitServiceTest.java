@@ -13,12 +13,14 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
@@ -28,6 +30,7 @@ import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.entity.CourseStoreVisit;
 import sweetgirl.croissant.course.exception.CourseException;
+import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
@@ -56,9 +59,18 @@ class CourseStoreVisitServiceTest {
 	private MemberReader memberReader;
 	@Mock
 	private CourseProgressService courseProgressService;
+	@Mock
+	private CourseMemberRepository courseMemberRepository;
 
 	@InjectMocks
 	private CourseStoreVisitService courseStoreVisitService;
+
+	/** 권한 판정은 CourseAccessPolicy 로 갔지만 근거는 같은 courseMemberRepository 다 — 실체를 넣어 기존 스텁이 그대로 산다. */
+	@BeforeEach
+	void injectAccessPolicy() {
+		ReflectionTestUtils.setField(courseStoreVisitService, "courseAccessPolicy",
+			new CourseAccessPolicy(courseMemberRepository));
+	}
 
 	@Test
 	@DisplayName("markVisited: 처음 표시하면 방문을 새로 저장한다")
@@ -130,6 +142,26 @@ class CourseStoreVisitServiceTest {
 		assertThatThrownBy(() -> courseStoreVisitService.markVisited(MEMBER_ID, COURSE_ID, STORE_ID, RECORD_ID))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+	}
+
+	@Test
+	@DisplayName("markVisited: 남의 비공개 코스라도 활성 멤버면 표시할 수 있다 — 협업 코스는 PRIVATE 이라 멤버를 빼면 방문 체크를 못 한다")
+	void markVisited_activeMemberOfPrivateCourse_saves() {
+		Member member = mockMember(MEMBER_ID);
+		Course course = mockCourse(999L, false);
+		given(memberReader.getMember(MEMBER_ID)).willReturn(member);
+		given(courseRepository.findByIdAndDeletedAtIsNull(COURSE_ID)).willReturn(Optional.of(course));
+		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(COURSE_ID, MEMBER_ID))
+			.willReturn(true);
+		givenCourseStore();
+		BreadRecord record = mockRecord(MEMBER_ID, STORE_ID);
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(RECORD_ID)).willReturn(Optional.of(record));
+		given(courseStoreVisitRepository.findByIdCourseIdAndIdMemberIdAndIdStoreId(COURSE_ID, MEMBER_ID, STORE_ID))
+			.willReturn(Optional.empty());
+
+		courseStoreVisitService.markVisited(MEMBER_ID, COURSE_ID, STORE_ID, RECORD_ID);
+
+		then(courseStoreVisitRepository).should().save(any(CourseStoreVisit.class));
 	}
 
 	@Test

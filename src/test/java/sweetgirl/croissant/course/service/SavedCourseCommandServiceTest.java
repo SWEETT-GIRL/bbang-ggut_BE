@@ -9,6 +9,7 @@ import static org.mockito.Mockito.mock;
 
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,12 +17,15 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.alarm.event.CourseSavedEvent;
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.SavedCourse;
+import sweetgirl.croissant.course.enums.CourseVisibility;
 import sweetgirl.croissant.course.exception.CourseException;
+import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.member.entity.Member;
@@ -39,8 +43,18 @@ class SavedCourseCommandServiceTest {
 	@Mock
 	ApplicationEventPublisher eventPublisher;
 
+	@Mock
+	CourseMemberRepository courseMemberRepository;
+
 	@InjectMocks
 	SavedCourseCommandService savedCourseCommandService;
+
+	/** 권한 판정은 CourseAccessPolicy 로 갔지만 근거는 같은 courseMemberRepository 다 — 실체를 넣어 기존 스텁이 그대로 산다. */
+	@BeforeEach
+	void injectAccessPolicy() {
+		ReflectionTestUtils.setField(savedCourseCommandService, "courseAccessPolicy",
+			new CourseAccessPolicy(courseMemberRepository));
+	}
 
 	// ───────────────────────── saveCourse ─────────────────────────
 
@@ -118,6 +132,24 @@ class SavedCourseCommandServiceTest {
 		Course course = mockPublicCourse(99L);
 		given(course.isPublic()).willReturn(false);
 
+		given(savedCourseRepository.existsByMemberIdAndCourseId(memberId, courseId)).willReturn(false);
+		given(memberRepository.findByIdAndDeletedAtIsNull(memberId)).willReturn(Optional.of(mock(Member.class)));
+		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+
+		assertThatThrownBy(() -> savedCourseCommandService.saveCourse(memberId, courseId))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
+	}
+
+	@Test
+	@DisplayName("saveCourse: 링크 공개(UNLISTED) 코스 → COURSE_FORBIDDEN — 찜은 PUBLIC 전용, 숨은 코스에서 찜 수가 쌓이면 안 된다")
+	void saveCourse_unlistedCourse_throwsForbidden() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Member owner = mock(Member.class);
+		lenient().when(owner.getId()).thenReturn(99L);
+		Course course = Course.createCustom("링크 공개", owner, true);
+		course.updateVisibility(CourseVisibility.UNLISTED);
 		given(savedCourseRepository.existsByMemberIdAndCourseId(memberId, courseId)).willReturn(false);
 		given(memberRepository.findByIdAndDeletedAtIsNull(memberId)).willReturn(Optional.of(mock(Member.class)));
 		given(courseRepository.findByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));

@@ -3,6 +3,8 @@ package sweetgirl.croissant.course.entity;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
+import org.hibernate.annotations.DynamicUpdate;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -21,6 +23,7 @@ import sweetgirl.croissant.store.entity.Store;
 
 @Entity
 @Table(name = "course_stores")
+@DynamicUpdate
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CourseStore extends BaseTimeEntity {
