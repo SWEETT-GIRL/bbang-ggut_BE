@@ -87,3 +87,8 @@ scripts/.venv/
 
 ### Local Codex workspace artifacts ###
 .agents/
+
+### 브랜치 플래닝 문서 (저장소에 올리지 않음) ###
+.claude/planning/feat-course-collab-members.md
+.claude/planning/feat-course-store-memos.md
+.claude/planning/feat-course-collab-response.md
