@@ -62,6 +62,20 @@ class LetterServiceTest {
 		return thread;
 	}
 
+	/** 마지막 편지 시각과 닫힌 시각을 지정해 만든 대화방. closed 판정을 재는 데 쓴다. */
+	private LetterThread thread(Long id, LocalDateTime lastMessageAt, LocalDateTime resolvedAt) {
+		LetterThread thread = thread(id);
+		ReflectionTestUtils.setField(thread, "lastMessageAt", lastMessageAt);
+		ReflectionTestUtils.setField(thread, "resolvedAt", resolvedAt);
+		return thread;
+	}
+
+	/** 그 대화방의 편지 목록 조회가 빈 슬라이스를 내도록 물려 둔다. */
+	private void givenEmptyMessages(Long threadId) {
+		given(letterMessageRepository.findByThreadIdOrderByCreatedAtDesc(eq(threadId), any(Pageable.class)))
+			.willReturn(new SliceImpl<>(List.of(), PageRequest.of(0, 20), false));
+	}
+
 	private LetterSendRequest sendRequest(String body) {
 		return sendRequest(body, null);
 	}
@@ -211,5 +225,58 @@ class LetterServiceTest {
 		letterService.markAsRead(MEMBER_ID);
 
 		verify(letterMessageRepository, never()).markAllAsRead(anyLong(), any(), any());
+	}
+
+	@Test
+	@DisplayName("오가는 중인 대화는 닫히지 않았다 — 유형을 다시 묻지 않는다")
+	void getMyLetters_openConversationIsNotClosed() {
+		LetterThread thread = thread(3L, LocalDateTime.now().minusMinutes(5), null);
+		given(letterThreadRepository.findByMemberId(MEMBER_ID)).willReturn(Optional.of(thread));
+		givenEmptyMessages(3L);
+
+		assertThat(letterService.getMyLetters(MEMBER_ID, 0, 20).closed()).isFalse();
+	}
+
+	@Test
+	@DisplayName("어드민이 해결로 닫으면 닫힌 것이다")
+	void getMyLetters_resolvedByAdminIsClosed() {
+		LetterThread thread = thread(3L, LocalDateTime.now().minusMinutes(5), LocalDateTime.now());
+		given(letterThreadRepository.findByMemberId(MEMBER_ID)).willReturn(Optional.of(thread));
+		givenEmptyMessages(3L);
+
+		assertThat(letterService.getMyLetters(MEMBER_ID, 0, 20).closed()).isTrue();
+	}
+
+	@Test
+	@DisplayName("아무도 안 닫아도 오래 조용하면 닫힌 것으로 본다 — 유형만 눌러보고 만 사람이 갇히지 않게")
+	void getMyLetters_dormantIsClosedEvenWhenNobodyResolved() {
+		LetterThread thread = thread(3L, LocalDateTime.now().minusDays(8), null);
+		given(letterThreadRepository.findByMemberId(MEMBER_ID)).willReturn(Optional.of(thread));
+		givenEmptyMessages(3L);
+
+		assertThat(letterService.getMyLetters(MEMBER_ID, 0, 20).closed()).isTrue();
+	}
+
+	@Test
+	@DisplayName("기준일 안쪽으로 조용한 건 아직 열려 있다")
+	void getMyLetters_recentlyQuietStaysOpen() {
+		LetterThread thread = thread(3L, LocalDateTime.now().minusDays(6), null);
+		given(letterThreadRepository.findByMemberId(MEMBER_ID)).willReturn(Optional.of(thread));
+		givenEmptyMessages(3L);
+
+		assertThat(letterService.getMyLetters(MEMBER_ID, 0, 20).closed()).isFalse();
+	}
+
+	@Test
+	@DisplayName("닫혀 있던 대화도 편지를 보내면 다시 열린다")
+	void send_reopensResolvedThread() {
+		LetterThread thread = thread(11L, LocalDateTime.now().minusDays(30), LocalDateTime.now().minusDays(20));
+		given(letterThreadRepository.findByMemberId(MEMBER_ID)).willReturn(Optional.of(thread));
+		given(letterMessageRepository.save(any(LetterMessage.class)))
+			.willAnswer(invocation -> invocation.getArgument(0));
+
+		letterService.send(MEMBER_ID, sendRequest("아 그리고 하나 더요"));
+
+		assertThat(thread.isResolved()).isFalse();
 	}
 }

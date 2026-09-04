@@ -9,5 +9,7 @@ public record AdminLetterThreadDetailResponse(
 		String nickname,
 		boolean withdrawn,
 		List<LetterMessageResponse> messages,
-		boolean hasNext) {
+		boolean hasNext,
+		/** 어드민이 해결로 닫아 둔 대화인지. 상세 화면의 해결 버튼 상태가 된다. */
+		boolean resolved) {
 }
