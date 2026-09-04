@@ -16,6 +16,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.letter.dto.request.AdminLetterReplyRequest;
+import sweetgirl.croissant.letter.dto.request.AdminLetterResolveRequest;
 import sweetgirl.croissant.letter.dto.request.AdminLetterSendRequest;
 import sweetgirl.croissant.letter.dto.response.AdminLetterSendResponse;
 import sweetgirl.croissant.letter.dto.response.AdminLetterThreadDetailResponse;
@@ -68,6 +69,16 @@ public class AdminLetterController {
 	@PostMapping("/send")
 	public ApiResponse<AdminLetterSendResponse> send(@Valid @RequestBody AdminLetterSendRequest request) {
 		return ApiResponse.ok(adminLetterService.send(request));
+	}
+
+	@Operation(summary = "대화 해결 처리", description = "해결로 닫거나(resolved=true) 다시 엽니다(false). 닫으면 사용자가 다음에 "
+		+ "편지함을 열 때 문의 유형을 다시 고릅니다. 사용자가 편지를 더 보내면 자동으로 열립니다.")
+	@PatchMapping("/threads/{threadId}/resolve")
+	public ApiResponse<Void> resolve(
+			@Parameter(description = "대화방 ID") @PathVariable Long threadId,
+			@Valid @RequestBody AdminLetterResolveRequest request) {
+		adminLetterService.resolve(threadId, request);
+		return ApiResponse.ok(null);
 	}
 
 	@Operation(summary = "대화 읽음 처리", description = "사용자가 보낸 편지를 전부 읽음으로 만듭니다.")

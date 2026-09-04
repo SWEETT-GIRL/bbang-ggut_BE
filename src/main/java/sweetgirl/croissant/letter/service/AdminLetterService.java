@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.letter.code.LetterErrorCode;
 import sweetgirl.croissant.letter.dto.request.AdminLetterReplyRequest;
+import sweetgirl.croissant.letter.dto.request.AdminLetterResolveRequest;
 import sweetgirl.croissant.letter.dto.request.AdminLetterSendRequest;
 import sweetgirl.croissant.letter.dto.response.AdminLetterSendResponse;
 import sweetgirl.croissant.letter.dto.response.AdminLetterThreadDetailResponse;
@@ -78,7 +79,8 @@ public class AdminLetterService {
 					previews.getOrDefault(thread.getId(), ""),
 					thread.getLastMessageAt(),
 					unreadCounts.getOrDefault(thread.getId(), 0L),
-					categories.get(thread.getId()));
+					categories.get(thread.getId()),
+					thread.isResolved());
 			})
 			.toList();
 
@@ -101,7 +103,8 @@ public class AdminLetterService {
 			member.getNickname(),
 			member.getDeletedAt() != null,
 			slice.getContent().stream().map(LetterMessageResponse::from).toList(),
-			slice.hasNext());
+			slice.hasNext(),
+			thread.isResolved());
 	}
 
 	/**
@@ -117,6 +120,9 @@ public class AdminLetterService {
 
 		LocalDateTime now = LocalDateTime.now();
 		thread.touch(now);
+		// 답장을 썼다는 건 아직 오가는 중이라는 뜻이다 — 닫아 뒀더라도 다시 연다.
+		// 닫는 건 해결을 누를 때뿐이어야, 사용자 화면에서 유형을 다시 묻는 시점이 어긋나지 않는다
+		thread.reopen();
 
 		LetterMessage saved = letterMessageRepository.save(
 			LetterMessage.create(thread, LetterSender.ADMIN, body));
@@ -156,6 +162,7 @@ public class AdminLetterService {
 			LetterThread thread = letterThreadRepository.findByMemberId(memberId)
 				.orElseGet(() -> letterThreadRepository.save(LetterThread.create(member, now)));
 			thread.touch(now);
+			thread.reopen();
 			// 우리가 먼저 건 말은 OUTREACH — 사용자가 올린 문의와 목록에서 갈려 보여야 한다
 			letterMessageRepository.save(
 				LetterMessage.create(thread, LetterSender.ADMIN, body, LetterCategory.OUTREACH));
@@ -163,6 +170,25 @@ public class AdminLetterService {
 		}
 
 		return new AdminLetterSendResponse(sent, skipped);
+	}
+
+	/**
+	 * 해결로 닫거나 다시 연다.
+	 *
+	 * <p>닫으면 사용자가 다음에 편지함에 들어올 때 "어떤 이야기인지 골라주세요"를 다시 본다 —
+	 * 그 건은 끝났고 다음은 새 용건이라는 뜻이다. 사용자가 편지를 한 통이라도 더 보내면
+	 * 자동으로 다시 열린다.
+	 */
+	@Transactional
+	public void resolve(Long threadId, AdminLetterResolveRequest request) {
+		LetterThread thread = letterThreadRepository.findById(threadId)
+			.orElseThrow(() -> new LetterException(LetterErrorCode.LETTER_THREAD_NOT_FOUND));
+
+		if (request.isResolved()) {
+			thread.resolve(LocalDateTime.now());
+		} else {
+			thread.reopen();
+		}
 	}
 
 	/** 대화를 열었으니 사용자가 보낸 편지는 전부 읽음. */
