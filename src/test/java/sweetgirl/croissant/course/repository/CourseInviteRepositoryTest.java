@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDateTime;
 
+import org.hibernate.Hibernate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -76,6 +77,23 @@ class CourseInviteRepositoryTest {
 			.get()
 			.extracting(CourseInvite::getId)
 			.isEqualTo(latest.getId());
+	}
+
+	@Test
+	@DisplayName("미리보기 조회는 코스와 방장을 같이 읽는다 — 제목·방장 닉네임·탈퇴 여부를 보느라 SELECT 가 따로 나가지 않는다")
+	void findWithCourseOwner_fetchesCourseAndOwner() {
+		persistInvite(owner, "preview-token");
+		// 영속성 컨텍스트에 남아 있으면 프록시 없이 그대로 돌아오므로 비우고 다시 읽는다
+		entityManager.clear();
+
+		CourseInvite found = courseInviteRepository
+			.findWithCourseOwnerByTokenAndDeletedAtIsNull("preview-token")
+			.orElseThrow();
+
+		assertThat(Hibernate.isInitialized(found.getCourse())).isTrue();
+		assertThat(Hibernate.isInitialized(found.getCourse().getMember())).isTrue();
+		assertThat(found.getCourse().getMember().getNickname()).isEqualTo("방장");
+		assertThat(courseInviteRepository.findWithCourseOwnerByTokenAndDeletedAtIsNull("unknown")).isEmpty();
 	}
 
 	@Test

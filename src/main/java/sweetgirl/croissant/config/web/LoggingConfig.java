@@ -7,6 +7,7 @@ import org.springframework.core.Ordered;
 import org.springframework.web.filter.CommonsRequestLoggingFilter;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.global.logging.filter.MaskingRequestLoggingFilter;
 import sweetgirl.croissant.global.logging.filter.RequestLoggingFilter;
 import sweetgirl.croissant.global.logging.service.RequestLogService;
 
@@ -18,7 +19,8 @@ public class LoggingConfig {
 
 	@Bean
 	public CommonsRequestLoggingFilter requestLoggingFilter() {
-		CommonsRequestLoggingFilter filter = new CommonsRequestLoggingFilter();
+		// 초대·공유 토큰이 URI·쿼리에 실리므로 DEBUG 요청 로그에서도 가린다
+		CommonsRequestLoggingFilter filter = new MaskingRequestLoggingFilter();
 		filter.setIncludeClientInfo(true);
 		filter.setIncludeQueryString(true);
 		filter.setIncludePayload(true);

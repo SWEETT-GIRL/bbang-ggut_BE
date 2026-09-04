@@ -2,6 +2,8 @@ package sweetgirl.croissant.course.entity;
 
 import java.time.LocalDateTime;
 
+import org.hibernate.annotations.DynamicUpdate;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
@@ -25,6 +27,7 @@ import sweetgirl.croissant.member.entity.Member;
  */
 @Entity
 @Table(name = "course_store_memos")
+@DynamicUpdate
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CourseStoreMemo extends BaseTimeEntity {

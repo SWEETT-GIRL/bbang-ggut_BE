@@ -12,6 +12,6 @@ import sweetgirl.croissant.course.entity.CourseMember;
 public class CourseMemberNameRequest {
 
 	@NotBlank(message = "이름은 필수입니다.")
-	@Size(max = CourseMember.DISPLAY_NAME_MAX_LENGTH, message = "이름은 10자 이내여야 합니다.")
+	@Size(max = CourseMember.DISPLAY_NAME_MAX_LENGTH, message = "이름은 {max}자 이내여야 합니다.")
 	private String displayName;
 }

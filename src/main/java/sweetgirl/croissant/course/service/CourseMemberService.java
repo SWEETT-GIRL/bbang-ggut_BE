@@ -90,7 +90,7 @@ public class CourseMemberService {
 	/** 비로그인 허용 — memberId 가 null 이면 viewer 를 채우지 않는다. 가게·메모는 내려주지 않는다. */
 	@Transactional(readOnly = true)
 	public CourseInvitePreviewResponse previewInvite(String token, Long memberId) {
-		Optional<CourseInvite> found = courseInviteRepository.findByTokenAndDeletedAtIsNull(token);
+		Optional<CourseInvite> found = courseInviteRepository.findWithCourseOwnerByTokenAndDeletedAtIsNull(token);
 		if (found.isEmpty()) {
 			return CourseInvitePreviewResponse.invalid();
 		}
@@ -105,7 +105,8 @@ public class CourseMemberService {
 	}
 
 	private CourseInviteState resolveState(CourseInvite invite, Course course, long memberCount, LocalDateTime now) {
-		if (course.isDeleted()) {
+		// 방장이 탈퇴한 코스도 DELETED — 넘길 사람 없이 방장이 사라진 코스에 들어오게 두지 않는다
+		if (course.isDeleted() || isOwnerDeleted(course)) {
 			return CourseInviteState.DELETED;
 		}
 		if (invite.isExpired(now)) {
@@ -133,9 +134,16 @@ public class CourseMemberService {
 		}
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(invite.getCourse().getId())
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
+		// 락을 기다리는 동안 방장이 링크를 재발급했을 수 있다 — 관리 중인 invite 인스턴스는 낡을 수 있으니 SQL 로 다시 본다
+		courseInviteRepository.findByTokenAndDeletedAtIsNull(token)
+			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_INVITE_INVALID));
 		// 큐레이션 코스에는 초대가 생기지 않지만, 행이 심겨도 편집자가 늘지 않게 2차 방어.
 		if (course.getType() == CourseType.CURATED) {
 			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);
+		}
+		// 방장이 탈퇴한 코스 — 들어오면 ensureOwnerRow 가 탈퇴자를 방장으로 되살리고, 새 멤버는 삭제·양도 못 하는 코스에 갇힌다
+		if (isOwnerDeleted(course)) {
+			throw new CourseException(CourseErrorCode.COURSE_INVITE_INVALID);
 		}
 		// 자기 링크를 눌러보는 건 흔하다 — 에러가 아니라 "이미 있음"으로 200.
 		if (isOwner(course, memberId) || isActiveMember(course, memberId)) {
@@ -175,7 +183,8 @@ public class CourseMemberService {
 	 */
 	private boolean ensureOwnerRow(Course course) {
 		Member owner = course.getMember();
-		if (owner == null) {
+		// 탈퇴한 방장의 행은 되살리지 않는다 — 활성 방장으로 다시 보이면 안 된다
+		if (owner == null || owner.isDeleted()) {
 			return false;
 		}
 		Optional<CourseMember> existing = courseMemberRepository
@@ -201,9 +210,12 @@ public class CourseMemberService {
 			: nickname;
 	}
 
-	/** 멤버는 그냥 나간다. 방장은 승계하고 나간다. 담았던 가게는 코스에 남고, 쓴 메모는 지운다. */
+	/**
+	 * 멤버는 그냥 나간다. 방장은 승계하고 나간다. 담았던 가게는 코스에 남고, 쓴 메모는 지운다.
+	 * 코스 락으로 시작한다 — 방장과 후임이 동시에 나가면 둘 다 서로를 보고 진행해 떠난 사람이 방장으로 남는다.
+	 */
 	public void leave(Long memberId, Long courseId) {
-		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
+		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		CourseMember me = getActiveMemberRow(courseId, memberId);
 		if (isOwner(course, memberId)) {
@@ -216,17 +228,19 @@ public class CourseMemberService {
 		courseStoreMemoRepository.softDeleteAllByCourseIdAndMemberId(courseId, memberId);
 	}
 
-	/**
-	 * 방장을 참여 순서가 가장 빠른 다른 멤버에게 넘기고, 넘긴 사람의 행은 닫는다.
-	 * 나가기와 회원 탈퇴가 같이 쓴다. 새 방장의 행은 남긴다 — 방장도 코스 안에서 이름을 갖는다.
-	 */
-	public void transferOwnership(Course course, Long fromMemberId) {
+	/** 나가기 전용 — 넘길 멤버가 없으면 COURSE_NO_SUCCESSOR(앱은 그때 "삭제"만 보여준다). 탈퇴는 예외 대신 행만 닫는다. */
+	private void transferOwnership(Course course, Long fromMemberId) {
 		if (!transferOwnershipIfPossible(course, fromMemberId)) {
 			throw new CourseException(CourseErrorCode.COURSE_NO_SUCCESSOR);
 		}
 	}
 
-	/** @return 넘길 멤버가 있어 승계했으면 true. 없으면 아무것도 하지 않고 false */
+	/**
+	 * 방장을 참여 순서가 가장 빠른 다른 멤버에게 넘기고, 넘긴 사람의 행은 닫는다.
+	 * 나가기와 회원 탈퇴가 같이 쓴다. 새 방장의 행은 남긴다 — 방장도 코스 안에서 이름을 갖는다.
+	 *
+	 * @return 넘길 멤버가 있어 승계했으면 true. 없으면 아무것도 하지 않고 false
+	 */
 	private boolean transferOwnershipIfPossible(Course course, Long fromMemberId) {
 		List<CourseMember> members = courseMemberRepository
 			.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(course.getId());
@@ -248,29 +262,49 @@ public class CourseMemberService {
 	/**
 	 * 회원 탈퇴 — 참여 중인 협업 코스 전부에서 나간다. 나가기와 같은 규칙이다: 방장이면 승계하고,
 	 * 담았던 가게는 코스에 남기고, 쓴 메모는 지운다. 만든 초대 토큰은 코스의 것이라 그대로 둔다.
-	 * 넘길 멤버가 없는 방장은 예외 대신 행만 닫는다 — 탈퇴는 이미 진행 중이라 나가기처럼 막을 수 없고,
-	 * 코스는 탈퇴자 소유로 남는다. course_members 행이 없는 소유 코스(협업 전 코스)는 손대지 않는다.
+	 * 넘길 멤버가 없는 방장은 예외 대신 행만 닫고 살아있는 초대 링크를 끈다 — 탈퇴는 이미 진행 중이라 나가기처럼 막을 수
+	 * 없고, 코스는 탈퇴자 소유로 남는다. course_members 행이 없는 소유 코스(협업 전 코스)는 손대지 않는다.
+	 * 코스 id 오름차순으로 락을 잡는다 — 교차 소유한 두 사람의 탈퇴가 겹쳐도 락 순서가 같아 데드락이 없다.
 	 */
 	public void leaveAllCourses(Long memberId) {
-		for (CourseMember row : courseMemberRepository.findAllByIdMemberIdAndDeletedAtIsNull(memberId)) {
-			Course course = row.getCourse();
-			if (course.isDeleted()) {
+		// 참여 중인 행을 한 번에 읽는다(코스마다 다시 읽지 않는다). 코스는 fetch 하지 않고 아래 락 조회로 읽는다
+		List<CourseMember> rows = courseMemberRepository
+			.findAllByIdMemberIdAndDeletedAtIsNullOrderByIdCourseIdAsc(memberId);
+		for (CourseMember row : rows) {
+			Long courseId = row.getId().getCourseId();
+			Optional<Course> locked = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId);
+			if (locked.isEmpty()) {
+				// 지운 코스 — 행만 닫는다. 승계·version·메모 정리는 의미 없다
 				row.leave();
 				continue;
 			}
+			Course course = locked.get();
 			if (isOwner(course, memberId)) {
 				if (!transferOwnershipIfPossible(course, memberId)) {
 					row.leave();
+					// 넘길 사람 없이 방장이 사라진 코스 — 살아있는 링크로 누가 들어오면 탈퇴자가 방장으로 되살아나므로 링크를 끈다
+					revokeActiveInvite(courseId);
 				}
 			} else {
 				row.leave();
-				courseRepository.bumpVersion(course.getId());
+				courseRepository.bumpVersion(courseId);
 			}
-			courseStoreMemoRepository.softDeleteAllByCourseIdAndMemberId(course.getId(), memberId);
+			courseStoreMemoRepository.softDeleteAllByCourseIdAndMemberId(courseId, memberId);
 		}
 	}
 
+	private void revokeActiveInvite(Long courseId) {
+		courseInviteRepository.findFirstByCourseIdAndDeletedAtIsNullOrderByCreatedAtDesc(courseId)
+			.ifPresent(CourseInvite::revoke);
+	}
+
+	private boolean isOwnerDeleted(Course course) {
+		return course.getMember() != null && course.getMember().isDeleted();
+	}
+
 	public void rename(Long memberId, Long courseId, String displayName) {
+		// 코스 안 이름은 일행에게 보이는 글이다 — 쓰기 제한(밴) 회원은 초대 생성·수락처럼 막는다
+		memberRestrictionReader.validateCanWrite(memberId);
 		courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		getActiveMemberRow(courseId, memberId).rename(displayName);

@@ -18,6 +18,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.global.logging.LogEventType;
+import sweetgirl.croissant.global.logging.SensitiveUrlMasker;
 import sweetgirl.croissant.global.logging.entity.RequestLog;
 import sweetgirl.croissant.global.logging.service.RequestLogService;
 
@@ -73,10 +74,12 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 	}
 
 	private void saveLog(ContentCachingRequestWrapper request, HttpServletResponse response, long startTime) {
-		String uri = request.getRequestURI();
+		// 초대·공유 토큰이 경로(/courses/invites/{token}, /courses/by-share/{token})와 쿼리(?t=)에 실린다 —
+		// 로그 라인과 request_logs 둘 다에 남기지 않는다. body 마스킹(maskSensitiveFields)은 경로·쿼리를 못 본다.
+		String uri = SensitiveUrlMasker.maskPath(request.getRequestURI());
 		String method = request.getMethod();
 		int durationMs = (int)(System.currentTimeMillis() - startTime);
-		String queryString = request.getQueryString();
+		String queryString = SensitiveUrlMasker.maskQuery(request.getQueryString());
 		String clientIp = resolveClientIp(request);
 		String userAgent = request.getHeader("User-Agent");
 

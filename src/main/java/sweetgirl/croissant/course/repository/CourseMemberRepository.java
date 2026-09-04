@@ -17,6 +17,9 @@ public interface CourseMemberRepository extends JpaRepository<CourseMember, Cour
 	/** 편집 권한 판정 — 활성 멤버인가. */
 	boolean existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(Long courseId, Long memberId);
 
+	/** 협업 판정 — 방장 말고 활성 멤버가 있는가(공개 전환 차단). 참여자 목록을 읽지 않는다. */
+	boolean existsByIdCourseIdAndIdMemberIdNotAndDeletedAtIsNull(Long courseId, Long memberId);
+
 	/** 재참여용 — 나간 행(deleted)도 같은 PK 로 되살려야 하므로 포함해서 찾는다. */
 	Optional<CourseMember> findByIdCourseIdAndIdMemberId(Long courseId, Long memberId);
 
@@ -26,9 +29,24 @@ public interface CourseMemberRepository extends JpaRepository<CourseMember, Cour
 	/** 정원(방장 포함 8명) 판정. */
 	long countByIdCourseIdAndDeletedAtIsNull(Long courseId);
 
-	/** 내가 참여한 코스. 코스를 같이 읽는다 — 목록·탈퇴 정리가 행마다 코스를 본다. */
-	@EntityGraph(attributePaths = "course")
+	/** 내가 참여한 코스. 코스와 그 방장을 같이 읽는다 — 내 목록이 코스마다 방장 닉네임(작성자)을 내려준다. */
+	@EntityGraph(attributePaths = {"course", "course.member"})
 	List<CourseMember> findAllByIdMemberIdAndDeletedAtIsNull(Long memberId);
+
+	/** 참여 중인 코스 id 만 — 찜 목록에서 참여 코스를 뺄 때 행을 다 읽지 않는다. */
+	@Query("""
+			SELECT m.id.courseId
+			FROM CourseMember m
+			WHERE m.id.memberId = :memberId AND m.deletedAt IS NULL
+			ORDER BY m.id.courseId
+			""")
+	List<Long> findActiveCourseIdsByMemberId(@Param("memberId") Long memberId);
+
+	/**
+	 * 탈퇴 정리용 — 참여 중인 행 전부를 코스 id 오름차순으로. 코스마다 락을 잡을 때 순서를 고정해 데드락을 피한다.
+	 * 코스를 fetch 하지 않는다 — 락 조회 전에 코스가 영속성 컨텍스트에 실리면 락 조회가 낡은 상태를 돌려준다.
+	 */
+	List<CourseMember> findAllByIdMemberIdAndDeletedAtIsNullOrderByIdCourseIdAsc(Long memberId);
 
 	// ── 게스트 → 회원 데이터 이관 ─────────────────────────────
 	// (course_id, member_id) 가 PK 라 회원이 이미 같은 코스의 행을 가지면 게스트 쪽을 버린다.

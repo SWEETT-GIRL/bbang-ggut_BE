@@ -98,7 +98,11 @@ public class CourseController {
 		// ETag 는 version 만 쓴다(본문 해시 아님). 권한 검사가 먼저다 — 권한 없는 사람에게 304 로 존재를 알려주면 안 된다.
 		String etag = "\"" + courseQueryService.getVersion(courseId, memberId, shareToken) + "\"";
 		if (request.checkNotModified(etag)) {
-			return null; // Spring 이 304 + ETag 로 응답한다
+			// checkNotModified 가 이미 304 상태와 ETag 를 응답에 썼다. 본문 없는 응답을 명시적으로 돌려준다
+			return ResponseEntity.status(HttpStatus.NOT_MODIFIED)
+				.eTag(etag)
+				.cacheControl(CacheControl.noCache().cachePrivate())
+				.build();
 		}
 		// 본문은 사람마다 다르다(isMine·visited·myMemo) — 중간 캐시가 끼지 않게 private, no-cache
 		return ResponseEntity.ok()

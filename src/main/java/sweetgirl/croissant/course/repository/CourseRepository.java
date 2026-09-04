@@ -1,5 +1,6 @@
 package sweetgirl.croissant.course.repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -55,8 +56,9 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 
 	/**
 	 * 코스 행에 비관적 락을 걸고 읽는다. 같은 코스에 동시에 들어오는 쓰기를 줄 세운다 —
-	 * 가게 추가·삭제·순서 변경(유니크 순서 충돌로 500), 초대 생성(활성 링크 2개), 수락(정원 9명).
-	 * 전 조회에 락을 걸면 성능이 죽으므로 위 다섯 곳만 쓴다. 일반 조회는 findByIdAndDeletedAtIsNull 그대로.
+	 * 가게 추가·삭제·순서 변경(유니크 순서 충돌로 500), 코스·메모 수정, 초대 생성(활성 링크 2개), 수락(정원 9명),
+	 * 나가기·탈퇴 정리(승계). 코스나 그 자식 행을 바꾸는 쓰기는 전부 이걸로 시작해 락 순서를 courses → 자식으로 맞춘다.
+	 * 조회에는 걸지 않는다 — findByIdAndDeletedAtIsNull 그대로.
 	 */
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	Optional<Course> findWithLockByIdAndDeletedAtIsNull(Long id);
@@ -68,13 +70,18 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 	 * updated_at 도 같이 올린다 — 가게·메모·멤버 변경은 courses 행을 안 건드려서, 이게 없으면
 	 * 내 목록의 '최근 수정순'이 협업 편집을 못 본다.
 	 */
+	default int bumpVersion(Long courseId) {
+		return bumpVersion(courseId, LocalDateTime.now());
+	}
+
+	/** updated_at 은 @LastModifiedDate 와 같은 JVM 시계로 쓴다 — DB CURRENT_TIMESTAMP 와 섞이면 시간대가 다를 때 정렬이 흔들린다. */
 	@Modifying(flushAutomatically = true)
 	@Query(value = """
 			UPDATE courses
-			SET version = version + 1, updated_at = CURRENT_TIMESTAMP
+			SET version = version + 1, updated_at = :now
 			WHERE id = :courseId
 			""", nativeQuery = true)
-	int bumpVersion(@Param("courseId") Long courseId);
+	int bumpVersion(@Param("courseId") Long courseId, @Param("now") LocalDateTime now);
 
 	List<Course> findAllByTypeAndDeletedAtIsNullOrderByCreatedAtDesc(CourseType type);
 

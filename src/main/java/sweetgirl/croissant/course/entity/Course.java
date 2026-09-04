@@ -3,6 +3,8 @@ package sweetgirl.croissant.course.entity;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+import org.hibernate.annotations.DynamicUpdate;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -25,6 +27,7 @@ import sweetgirl.croissant.member.entity.Member;
 
 @Entity
 @Table(name = "courses")
+@DynamicUpdate
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Course extends BaseTimeEntity {
@@ -51,8 +54,8 @@ public class Course extends BaseTimeEntity {
 	private boolean isPublic;
 
 	/**
-	 * 공개 범위. 링크 공개(UNLISTED)가 열리기 전까지는 is_public 의 그림자다 — 쓰기는 같이 하고 판정엔 안 쓴다.
-	 * is_public 은 구버전 앱이 읽어 한 릴리즈 더 남긴다.
+	 * 공개 범위(PUBLIC / UNLISTED / PRIVATE). is_public 은 구버전 앱이 읽어 한 릴리즈 더 남기고,
+	 * updateVisibility 가 PUBLIC 일 때만 true 로 같이 쓴다 — isPublic() 은 항상 (visibility == PUBLIC) 이다.
 	 */
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 16)

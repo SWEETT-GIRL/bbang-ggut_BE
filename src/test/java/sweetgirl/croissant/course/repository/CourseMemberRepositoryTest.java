@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 
+import org.hibernate.Hibernate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -94,6 +95,23 @@ class CourseMemberRepositoryTest {
 	}
 
 	@Test
+	@DisplayName("방장 말고 활성 멤버가 있는지 — 방장 행만 있거나 나머지가 다 나갔으면 false")
+	void existsOtherActiveMember() {
+		persistMemberRow(course, owner, "방장");
+		assertThat(courseMemberRepository.existsByIdCourseIdAndIdMemberIdNotAndDeletedAtIsNull(
+			course.getId(), owner.getId())).isFalse();
+
+		CourseMember joined = persistMemberRow(course, first, "첫째");
+		assertThat(courseMemberRepository.existsByIdCourseIdAndIdMemberIdNotAndDeletedAtIsNull(
+			course.getId(), owner.getId())).isTrue();
+
+		joined.leave();
+		entityManager.flush();
+		assertThat(courseMemberRepository.existsByIdCourseIdAndIdMemberIdNotAndDeletedAtIsNull(
+			course.getId(), owner.getId())).isFalse();
+	}
+
+	@Test
 	@DisplayName("참여자 목록은 참여 시각 오름차순이다")
 	void findAllActive_orderedByJoinedAt() throws InterruptedException {
 		persistMemberRow(course, owner, "방장");
@@ -128,5 +146,41 @@ class CourseMemberRepositoryTest {
 		assertThat(courseMemberRepository.findAllByIdMemberIdAndDeletedAtIsNull(target.getId()))
 			.extracting(row -> row.getId().getCourseId())
 			.containsExactlyInAnyOrder(course.getId(), otherCourse.getId());
+	}
+
+	@Test
+	@DisplayName("참여 중인 코스 id 는 코스 id 오름차순이고 나간 행은 빠진다 — 탈퇴 정리의 락 순서")
+	void findActiveCourseIds_orderedAndExcludesLeft() {
+		Course later = persistCourse(owner, "나중에 만든 코스");
+		Course left = persistCourse(owner, "나간 코스");
+		persistMemberRow(later, first, "첫째");
+		persistMemberRow(course, first, "첫째");
+		CourseMember leftRow = persistMemberRow(left, first, "첫째");
+		leftRow.leave();
+		entityManager.flush();
+
+		assertThat(courseMemberRepository.findActiveCourseIdsByMemberId(first.getId()))
+			.containsExactly(course.getId(), later.getId());
+	}
+
+	@Test
+	@DisplayName("탈퇴 정리용 행 목록은 코스 id 오름차순이고 나간 행은 빠지며, 코스는 fetch 하지 않는다 — 락 조회가 새로 읽어야 한다")
+	void findAllActiveRows_orderedByCourseIdWithoutFetchingCourse() {
+		Course later = persistCourse(owner, "나중에 만든 코스");
+		Course left = persistCourse(owner, "나간 코스");
+		persistMemberRow(later, first, "첫째");
+		persistMemberRow(course, first, "첫째");
+		CourseMember leftRow = persistMemberRow(left, first, "첫째");
+		leftRow.leave();
+		entityManager.flush();
+		// 영속성 컨텍스트에 남아 있으면 프록시 없이 그대로 돌아오므로 비우고 다시 읽는다
+		entityManager.clear();
+
+		List<CourseMember> rows = courseMemberRepository
+			.findAllByIdMemberIdAndDeletedAtIsNullOrderByIdCourseIdAsc(first.getId());
+
+		assertThat(rows).extracting(row -> row.getId().getCourseId())
+			.containsExactly(course.getId(), later.getId());
+		assertThat(rows).allSatisfy(row -> assertThat(Hibernate.isInitialized(row.getCourse())).isFalse());
 	}
 }
