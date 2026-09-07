@@ -11,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import sweetgirl.croissant.global.encrypt.TokenHasher;
 import sweetgirl.croissant.member.dto.dto.AppleTokenClaims;
@@ -50,6 +51,9 @@ class AppleAuthServiceTest {
 	private TokenHasher tokenHasher;
 	@Mock
 	private NicknameGenerator nicknameGenerator;
+
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
 	private AppleAuthService appleAuthService;

@@ -12,6 +12,7 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import sweetgirl.croissant.global.encrypt.TokenHasher;
 import sweetgirl.croissant.member.dto.response.GuestLoginResponse;
@@ -41,6 +42,9 @@ class GuestAuthServiceTest {
 	private TokenHasher tokenHasher;
 	@Mock
 	private NicknameGenerator nicknameGenerator;
+
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
 	private GuestAuthService guestAuthService;

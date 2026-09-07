@@ -5,6 +5,7 @@ import java.time.LocalTime;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,7 @@ import sweetgirl.croissant.member.entity.RefreshToken;
 import sweetgirl.croissant.member.enums.MemberRestrictionType;
 import sweetgirl.croissant.member.enums.NotificationRadius;
 import sweetgirl.croissant.member.enums.OAuthProvider;
+import sweetgirl.croissant.member.event.MemberSignedUpEvent;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.jwt.JwtProvider;
 import sweetgirl.croissant.member.repository.MemberRepository;
@@ -43,6 +45,7 @@ public class AppleAuthService {
 	private final JwtProvider jwtProvider;
 	private final TokenHasher tokenHasher;
 	private final NicknameGenerator nicknameGenerator;
+	private final ApplicationEventPublisher eventPublisher;
 
 	@Value("${jwt.refresh-token-expiry}")
 	private long refreshTokenExpiry;
@@ -99,6 +102,10 @@ public class AppleAuthService {
 		String refreshToken = jwtProvider.generateRefreshToken(memberId);
 
 		saveRefreshToken(memberId, deviceId, refreshToken);
+		// 가입이 커밋된 뒤 편찬위원회가 인사 편지를 넣는다. 탈퇴 후 재가입도 새 Member라 다시 받는다.
+		if (isNew) {
+			eventPublisher.publishEvent(new MemberSignedUpEvent(memberId));
+		}
 
 		return new AppleLoginResponse(accessToken, refreshToken, isNew);
 	}

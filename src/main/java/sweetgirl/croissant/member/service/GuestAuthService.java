@@ -5,6 +5,7 @@ import java.time.LocalTime;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +16,7 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
 import sweetgirl.croissant.member.entity.RefreshToken;
 import sweetgirl.croissant.member.enums.NotificationRadius;
+import sweetgirl.croissant.member.event.MemberSignedUpEvent;
 import sweetgirl.croissant.member.jwt.JwtProvider;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
@@ -37,6 +39,7 @@ public class GuestAuthService {
 	private final JwtProvider jwtProvider;
 	private final TokenHasher tokenHasher;
 	private final NicknameGenerator nicknameGenerator;
+	private final ApplicationEventPublisher eventPublisher;
 
 	@Value("${jwt.refresh-token-expiry}")
 	private long refreshTokenExpiry;
@@ -47,7 +50,8 @@ public class GuestAuthService {
 
 		// 같은 기기(deviceId)의 기존 게스트가 있으면 재사용, 없으면 새로 생성.
 		// 앱 재설치/토큰 만료 뒤에도 신원(=코스 소유권)이 유지된다.
-		Member member = findExistingGuest(deviceId).orElseGet(this::createGuest);
+		Optional<Member> existingGuest = findExistingGuest(deviceId);
+		Member member = existingGuest.orElseGet(this::createGuest);
 		Long memberId = member.getId();
 
 		notificationSettingRepository.findByMemberId(memberId)
@@ -56,6 +60,10 @@ public class GuestAuthService {
 		String accessToken = jwtProvider.generateAccessToken(memberId);
 		String refreshToken = jwtProvider.generateRefreshToken(memberId);
 		saveRefreshToken(memberId, deviceId, refreshToken);
+		// 첫 발급일 때만 인사 편지. 재사용된 게스트는 이미 편지함을 갖고 있다.
+		if (existingGuest.isEmpty()) {
+			eventPublisher.publishEvent(new MemberSignedUpEvent(memberId));
+		}
 
 		return new GuestLoginResponse(accessToken, refreshToken, memberId, member.getNickname());
 	}
