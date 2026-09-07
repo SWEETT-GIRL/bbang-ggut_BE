@@ -11,7 +11,8 @@ public record BreadRecordTagResponse(
 		String name,
 		String breadCategory,
 		@JsonProperty("x") double positionX,
-		@JsonProperty("y") double positionY) {
+		@JsonProperty("y") double positionY,
+		String style) {
 
 	public static BreadRecordTagResponse from(BreadRecordTag tag) {
 		return new BreadRecordTagResponse(
@@ -21,6 +22,7 @@ public record BreadRecordTagResponse(
 			tag.getName(),
 			tag.getBreadCategory(),
 			tag.getPositionX(),
-			tag.getPositionY());
+			tag.getPositionY(),
+			tag.getStyle());
 	}
 }
