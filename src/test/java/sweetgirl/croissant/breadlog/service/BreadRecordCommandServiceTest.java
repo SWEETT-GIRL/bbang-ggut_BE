@@ -121,8 +121,8 @@ class BreadRecordCommandServiceTest {
 			List.of(
 				new BreadRecordPhotoRequest("a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
 			List.of(
-				new BreadRecordTagRequest(0, "우유식빵", 0.31, 0.42),
-				new BreadRecordTagRequest(0, "소금빵", 0.5, 0.5)));
+				new BreadRecordTagRequest(0, "우유식빵", 0.31, 0.42, null),
+				new BreadRecordTagRequest(0, "소금빵", 0.5, 0.5, null)));
 		given(memberReader.getMember(7L)).willReturn(member);
 		given(storeRepository.findById(10L)).willReturn(Optional.of(store));
 		given(regionResolver.resolve(store, "client_region")).willReturn("서울_성동구_성수동");
@@ -149,7 +149,7 @@ class BreadRecordCommandServiceTest {
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(
 				new BreadRecordPhotoRequest("a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
-			List.of(new BreadRecordTagRequest(0, "우유식빵", 0.31, 0.42)));
+			List.of(new BreadRecordTagRequest(0, "우유식빵", 0.31, 0.42, null)));
 		given(memberReader.getMember(7L)).willReturn(member(7L));
 		given(storeRepository.findById(10L)).willReturn(Optional.of(store(10L)));
 
@@ -234,7 +234,7 @@ class BreadRecordCommandServiceTest {
 			null,
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(new BreadRecordPhotoRequest("a.jpg", "image/jpeg", awsKey, 0, null, null)),
-			List.of(new BreadRecordTagRequest(tagPhotoSortOrder, "우유식빵", 0.31, 0.42)));
+			List.of(new BreadRecordTagRequest(tagPhotoSortOrder, "우유식빵", 0.31, 0.42, null)));
 	}
 
 	private Member member(Long id) {
