@@ -58,10 +58,14 @@ jobs:
         env:
           SERVER: ${{ inputs.server || 'https://bbang-ggut.cloud' }}
           MAX_BATCHES: ${{ inputs.max_batches || '10' }}
+          # job timeout-minutes(60) 보다 짧게 준다. 스크립트가 스스로 멈추면 진행 요약과 로그가 남고,
+          # 가게 하나를 처리하던 중간에 잘리지도 않는다. 큐가 커서 하루에 다 비우지 못하는 건 정상이다.
+          MAX_SECONDS: "2700"
         run: |
           python naver_menu_scraper.py \
             --photos-only \
             --server "$SERVER" \
             --loop \
             --max-batches "$MAX_BATCHES" \
+            --max-seconds "$MAX_SECONDS" \
             ${{ inputs.dry_run && '--dry-run' || '' }}
