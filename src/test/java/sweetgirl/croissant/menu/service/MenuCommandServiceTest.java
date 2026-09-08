@@ -73,7 +73,7 @@ class MenuCommandServiceTest {
 		ReflectionTestUtils.setField(store, "id", 10L);
 		given(memberReader.getMember(99L)).willReturn(member);
 		given(storeRepository.findByIdForUpdate(10L)).willReturn(Optional.of(store));
-		given(menuRepository.findByStoreIdAndNormalizedNameAndDeletedAtIsNull(10L, "흑임자소금빵"))
+		given(menuRepository.findFirstByStoreIdAndNormalizedNameAndDeletedAtIsNullOrderByIdAsc(10L, "흑임자소금빵"))
 			.willReturn(Optional.empty());
 		given(menuRepository.save(any(Menu.class))).willAnswer(invocation -> {
 			Menu menu = invocation.getArgument(0);
@@ -98,7 +98,7 @@ class MenuCommandServiceTest {
 		Menu existing = menu(3L);
 		given(memberReader.getMember(99L)).willReturn(member);
 		given(storeRepository.findByIdForUpdate(10L)).willReturn(Optional.of(store));
-		given(menuRepository.findByStoreIdAndNormalizedNameAndDeletedAtIsNull(10L, "plaincroissant"))
+		given(menuRepository.findFirstByStoreIdAndNormalizedNameAndDeletedAtIsNullOrderByIdAsc(10L, "plaincroissant"))
 			.willReturn(Optional.of(existing));
 
 		MenuRegistrationResult result = menuCommandService.registerMenu(
@@ -223,7 +223,7 @@ class MenuCommandServiceTest {
 		Store store = Store.builder().name("단팥당").address("서울 마포구").build();
 		given(memberReader.getMember(7L)).willReturn(member(7L));
 		given(storeRepository.findByIdForUpdate(1L)).willReturn(Optional.of(store));
-		given(menuRepository.findByStoreIdAndNormalizedNameAndDeletedAtIsNull(1L, "사각카스테라초코"))
+		given(menuRepository.findFirstByStoreIdAndNormalizedNameAndDeletedAtIsNullOrderByIdAsc(1L, "사각카스테라초코"))
 			.willReturn(Optional.empty());
 		given(menuRepository.save(any(Menu.class))).willAnswer(invocation -> invocation.getArgument(0));
 		given(menuNameClassificationRepository.findById("사각카스테라초코")).willReturn(Optional.of(
@@ -249,7 +249,7 @@ class MenuCommandServiceTest {
 		Store store = Store.builder().name("단팥당").address("서울 마포구").build();
 		given(memberReader.getMember(7L)).willReturn(member(7L));
 		given(storeRepository.findByIdForUpdate(1L)).willReturn(Optional.of(store));
-		given(menuRepository.findByStoreIdAndNormalizedNameAndDeletedAtIsNull(1L, "무화과크림치즈"))
+		given(menuRepository.findFirstByStoreIdAndNormalizedNameAndDeletedAtIsNullOrderByIdAsc(1L, "무화과크림치즈"))
 			.willReturn(Optional.empty());
 		given(menuRepository.save(any(Menu.class))).willAnswer(invocation -> invocation.getArgument(0));
 		given(menuNameClassificationRepository.findById("무화과크림치즈")).willReturn(Optional.empty());
@@ -270,7 +270,7 @@ class MenuCommandServiceTest {
 		Store store = Store.builder().name("단팥당").address("서울 마포구").build();
 		given(memberReader.getMember(7L)).willReturn(member(7L));
 		given(storeRepository.findByIdForUpdate(1L)).willReturn(Optional.of(store));
-		given(menuRepository.findByStoreIdAndNormalizedNameAndDeletedAtIsNull(1L, "호두랑호두"))
+		given(menuRepository.findFirstByStoreIdAndNormalizedNameAndDeletedAtIsNullOrderByIdAsc(1L, "호두랑호두"))
 			.willReturn(Optional.empty());
 		given(menuRepository.save(any(Menu.class))).willAnswer(invocation -> invocation.getArgument(0));
 		given(menuNameClassificationRepository.findById("호두랑호두")).willReturn(Optional.of(
