@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -18,6 +19,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.menu.dto.request.MenuCreateRequest;
+import sweetgirl.croissant.menu.dto.request.MenuKindConfirmRequest;
 import sweetgirl.croissant.menu.dto.response.MenuCategoryResponse;
 import sweetgirl.croissant.menu.dto.response.MenuDetailResponse;
 import sweetgirl.croissant.menu.dto.response.MenuRegistrationResult;
@@ -54,7 +56,8 @@ public class MenuController {
 			@AuthenticationPrincipal Long memberId,
 			@Valid @RequestBody MenuCreateRequest request) {
 		MenuRegistrationResult result = menuCommandService.registerMenu(storeId, memberId, request);
-		StoreMenuResponse response = menuQueryService.getStoreMenu(result.menuId(), memberId);
+		StoreMenuResponse response = menuQueryService.getStoreMenu(result.menuId(), memberId)
+			.withSuggestedKind(result.suggestedKind());
 		HttpStatus status = result.created() ? HttpStatus.CREATED : HttpStatus.OK;
 		return ResponseEntity.status(status).body(ApiResponse.ok(response));
 	}
@@ -65,6 +68,16 @@ public class MenuController {
 			@PathVariable Long menuId,
 			@AuthenticationPrincipal Long memberId) {
 		return ResponseEntity.ok(ApiResponse.ok(menuQueryService.getMenuDetail(menuId, memberId)));
+	}
+
+	@Operation(summary = "메뉴 종류 확정", description = "회원이 직접 등록한 메뉴의 종류(kind)를 AI 제안 칩에서 골라 확정합니다. 본인이 등록한 메뉴가 아니면 403.")
+	@PatchMapping("/menus/{menuId}/kind")
+	public ResponseEntity<ApiResponse<Void>> confirmMenuKind(
+			@PathVariable Long menuId,
+			@AuthenticationPrincipal Long memberId,
+			@Valid @RequestBody MenuKindConfirmRequest request) {
+		menuCommandService.confirmKind(menuId, memberId, request.kind());
+		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
 	@Operation(summary = "메뉴 좋아요", description = "로그인한 사용자가 메뉴에 좋아요를 누릅니다. 이미 좋아요한 경우 409를 반환합니다.")

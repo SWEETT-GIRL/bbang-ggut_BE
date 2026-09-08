@@ -52,7 +52,10 @@ public class AdminCourseCommandService {
 	// ───────────────────────── 코스 CRUD ─────────────────────────
 
 	public Long createCuratedCourse(AdminCourseCreateRequest request) {
-		Course course = Course.createCurated(request.getTitle(), request.getBadge());
+		String categoryGroup = blankToNull(request.getCategoryGroup());
+		String category = blankToNull(request.getCategory());
+		requirePairedCategory(categoryGroup, category);
+		Course course = Course.createCurated(request.getTitle(), request.getBadge(), categoryGroup, category);
 		return courseRepository.save(course).getId();
 	}
 
@@ -63,6 +66,25 @@ public class AdminCourseCommandService {
 		}
 		if (request.getBadge() != null) {
 			course.updateBadge(request.getBadge());
+		}
+		// 분류는 축과 값이 한 쌍이라 한쪽만 온 요청은 무시가 아니라 거절한다 —
+		// 축만 바뀌면 필터에서 사라지고, 값만 바뀌면 엉뚱한 축에 붙는다.
+		if (request.getCategoryGroup() != null || request.getCategory() != null) {
+			String categoryGroup = blankToNull(request.getCategoryGroup());
+			String category = blankToNull(request.getCategory());
+			requirePairedCategory(categoryGroup, category);
+			course.updateCategory(categoryGroup, category);
+		}
+	}
+
+	/** 빈 문자열은 "분류 없음"으로 본다 — 셸에서 `--category ""` 로 분류를 떼는 길을 열어 둔다. */
+	private String blankToNull(String value) {
+		return value == null || value.isBlank() ? null : value.trim();
+	}
+
+	private void requirePairedCategory(String categoryGroup, String category) {
+		if ((categoryGroup == null) != (category == null)) {
+			throw new CourseException(CourseErrorCode.COURSE_CATEGORY_INVALID);
 		}
 	}
 

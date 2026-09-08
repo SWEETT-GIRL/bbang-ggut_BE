@@ -88,9 +88,23 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
 	@Query("SELECT m FROM Menu m WHERE m.store.id = :storeId AND m.deletedAt IS NULL")
 	List<Menu> findActiveByStoreId(@Param("storeId") Long storeId);
 
-	Optional<Menu> findByStoreIdAndNormalizedNameAndDeletedAtIsNull(Long storeId, String normalizedName);
+	/**
+	 * 같은 가게·같은 정규화 이름의 활성 메뉴 중 가장 오래된 것.
+	 * 2026-05-27 이전 수기 데이터에 중복 31그룹이 남아 있어(유니크 인덱스 범위 밖) Optional 로 받으면
+	 * IncorrectResultSize 로 500 이 난다 — 정리 전까지 한 건을 고른다. 목록은 scripts/menu_manual_duplicates.py
+	 */
+	Optional<Menu> findFirstByStoreIdAndNormalizedNameAndDeletedAtIsNullOrderByIdAsc(Long storeId,
+			String normalizedName);
 
 	@Modifying(clearAutomatically = true)
 	@Query("UPDATE Menu menu SET menu.createdByMember.id = :targetId WHERE menu.createdByMember.id = :guestId")
 	int moveCreator(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
+
+	/** AI 분류 대기 — 카테고리 없고, 아직 시도 안 했고, 활성인 것. 오래된 것부터 */
+	@Query("SELECT m FROM Menu m WHERE m.menuCategory IS NULL AND m.classifiedAt IS NULL AND m.deletedAt IS NULL "
+		+ "ORDER BY m.id")
+	List<Menu> findAwaitingClassification(Pageable pageable);
+
+	/** 같은 정규화 이름의 미분류 활성 메뉴 — 어드민이 이름 단위로 kind 를 확정할 때 한꺼번에 적용 */
+	List<Menu> findByNormalizedNameAndMenuCategoryIsNullAndDeletedAtIsNull(String normalizedName);
 }

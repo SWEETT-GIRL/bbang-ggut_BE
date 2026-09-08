@@ -161,7 +161,8 @@ class StoreQueryServiceTest {
 		given(storeRepository.findById(storeId)).willReturn(Optional.of(store));
 		given(storeBusinessHourRepository.findByStoreIdOrderByDayOfWeekAsc(storeId)).willReturn(List.of());
 		given(storeImageFileRepository.findByStoreIdOrderByDisplayOrderAscIdAsc(storeId)).willReturn(List.of());
-		given(menuImageFileRepository.findByMenuStoreIdOrderByDisplayOrderAscIdAsc(storeId)).willReturn(List.of());
+		given(menuImageFileRepository.findByMenuStoreIdAndMenuDeletedAtIsNullOrderByDisplayOrderAscIdAsc(storeId))
+			.willReturn(List.of());
 		given(subscribedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId)).willReturn(false);
 		given(savedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId)).willReturn(true);
 
@@ -185,7 +186,8 @@ class StoreQueryServiceTest {
 		given(storeRepository.findById(storeId)).willReturn(Optional.of(store));
 		given(storeBusinessHourRepository.findByStoreIdOrderByDayOfWeekAsc(storeId)).willReturn(List.of());
 		given(storeImageFileRepository.findByStoreIdOrderByDisplayOrderAscIdAsc(storeId)).willReturn(List.of());
-		given(menuImageFileRepository.findByMenuStoreIdOrderByDisplayOrderAscIdAsc(storeId)).willReturn(List.of());
+		given(menuImageFileRepository.findByMenuStoreIdAndMenuDeletedAtIsNullOrderByDisplayOrderAscIdAsc(storeId))
+			.willReturn(List.of());
 		given(subscribedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId)).willReturn(false);
 		given(savedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId)).willReturn(false);
 

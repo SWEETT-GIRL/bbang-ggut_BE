@@ -22,6 +22,9 @@ public record CourseSummaryResponse(
 		CourseType courseType,
 		String authorName,
 		String badge,
+		/** 어드민이 지정한 분류 — 탐색 탭 필터 축 이름("대학가")과 그 안의 값("홍대"). 분류 없는 코스는 둘 다 null */
+		String categoryGroup,
+		String category,
 		long savedCount,
 		Integer pinOrder,
 		long finisherCount,
@@ -56,6 +59,8 @@ public record CourseSummaryResponse(
 			course.getType(),
 			authorName,
 			course.getBadge(),
+			course.getCategoryGroup(),
+			course.getCategory(),
 			savedCount,
 			course.getPinOrder(),
 			finisherCount,

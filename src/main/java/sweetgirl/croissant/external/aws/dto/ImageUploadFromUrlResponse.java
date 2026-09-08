@@ -11,6 +11,8 @@ public record ImageUploadFromUrlResponse(
 		SUCCESS,
 		SKIPPED,
 		INVALID_URL,
+		/** 점주가 등록한 사진 도메인이 아니다 — 방문자 리뷰·블로그·프로필·클립 썸네일 */
+		REJECTED_SOURCE,
 		DOWNLOAD_FAILED,
 		UPLOAD_FAILED,
 		DB_FAILED

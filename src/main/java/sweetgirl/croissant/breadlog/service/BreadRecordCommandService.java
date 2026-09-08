@@ -235,6 +235,7 @@ public class BreadRecordCommandService {
 				.breadCategory(categoryClassifier.classify(tag.name()))
 				.positionX(tag.positionX())
 				.positionY(tag.positionY())
+				.style(tag.style())
 				.build())
 			.toList();
 		tagRepository.saveAll(tags);

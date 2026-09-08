@@ -15,4 +15,12 @@ public class AdminCourseCreateRequest {
 
 	@Size(max = 30, message = "뱃지는 30자 이내여야 합니다.")
 	private String badge;
+
+	/** 탐색 탭 필터 축 이름("대학가"). category 와 한 쌍 — 둘 다 보내거나 둘 다 비운다. */
+	@Size(max = 20, message = "분류 그룹은 20자 이내여야 합니다.")
+	private String categoryGroup;
+
+	/** 그 축 안의 값("홍대"). 필터 pill 이름이 된다. */
+	@Size(max = 20, message = "분류는 20자 이내여야 합니다.")
+	private String category;
 }

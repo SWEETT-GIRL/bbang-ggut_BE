@@ -14,7 +14,7 @@ from typing import Optional
 DRINK_KEYWORDS = [
 	"아메리카노", "에스프레소", "라떼", "카푸치노", "플랫화이트",
 	"콜드브루", "드립커피", "커피",
-	"얼그레이", "루이보스", "페퍼민트", "캐모마일", "티", "차이",
+	"얼그레이", "루이보스", "페퍼민트", "캐모마일",
 	"주스", "에이드", "스무디", "쉐이크",
 	"맥주", "와인", "샴페인", "하이볼",
 	"우유", "두유", "오트",
@@ -22,7 +22,21 @@ DRINK_KEYWORDS = [
 	"리얼 초콜릿",
 ]
 
-DEFAULT_CATEGORY = "빵"
+# 이름 **끝**에서만 음료로 보는 짧은 말. 부분일치로 두면 한 글자가 빵을 통째로 삼킨다 —
+# '티'가 티라미수를, '차이'가 차이나식 이름을 음료로 만들었다. '밀크티'·'유자차'는 끝에 온다.
+DRINK_SUFFIXES = ["티", "차", "차이"]
+
+# 음료 키워드가 재료·향으로 들어간 빵·디저트를 되살리는 표식.
+# '커피번'·'우유식빵'·'얼그레이 스콘'·'오트밀쿠키'가 전부 음료로 걸러져 사라지고 있었다.
+NOT_DRINK_MARKERS = [
+	"빵", "케이크", "쿠키", "스콘", "휘낭시에", "마들렌", "타르트", "파이", "번", "브레드",
+	"크럼블", "티라미수", "롤", "도넛", "크루아상", "크로와상", "크로아상", "베이글",
+	"브라우니", "푸딩", "샌드위치", "토스트", "머핀", "까눌레", "카눌레", "몽블랑",
+	"바스크", "구움", "와플", "크로플", "산도", "포카치아", "프레즐", "슈크림",
+]
+
+# 룰에 안 걸리면 카테고리를 비워 보낸다(None) — 백엔드가 NULL 로 두고 AI 스케줄러가 분류한다.
+# 그전엔 "빵" 폴백이라 음료·수프·선물세트까지 빵이 됐다 (2026-09-08 신규 가게 11곳 172건 중 98건).
 
 CATEGORY_RULES: list[tuple[list[str], str]] = [
 	(["소금빵"], "소금빵"),
@@ -282,14 +296,19 @@ def _same_region_head(kakao: dict, naver: dict) -> bool:
 # ─── 메뉴 카테고리 ────────────────────────────────────────────────────────────
 
 def is_drink(name: str) -> bool:
-	return any(kw in name for kw in DRINK_KEYWORDS)
+	compact = name.replace(" ", "")
+	if any(marker in compact for marker in NOT_DRINK_MARKERS):
+		return False
+	if any(kw in compact for kw in DRINK_KEYWORDS):
+		return True
+	return any(compact.endswith(suffix) for suffix in DRINK_SUFFIXES)
 
 
-def guess_category(name: str) -> str:
+def guess_category(name: str) -> Optional[str]:
 	for keywords, kind in CATEGORY_RULES:
 		if any(kw in name for kw in keywords):
 			return kind
-	return DEFAULT_CATEGORY
+	return None
 
 
 # ─── 메뉴 텍스트 분류기 (item 4) ──────────────────────────────────────────────

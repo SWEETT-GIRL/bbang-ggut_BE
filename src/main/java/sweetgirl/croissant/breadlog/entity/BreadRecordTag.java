@@ -45,6 +45,10 @@ public class BreadRecordTag extends BaseTimeEntity {
 	@Column(name = "y", nullable = false)
 	private double positionY;
 
+	/** 이름표 꾸밈("모양.종이[.up]"). 앱이 정한 이름을 그대로 든다 — 서버는 해석하지 않는다. 없으면 기본 */
+	@Column(length = 50)
+	private String style;
+
 	@Builder
 	public BreadRecordTag(
 			BreadRecord record,
@@ -52,12 +56,23 @@ public class BreadRecordTag extends BaseTimeEntity {
 			String name,
 			String breadCategory,
 			double positionX,
-			double positionY) {
+			double positionY,
+			String style) {
 		this.record = record;
 		this.photo = photo;
 		this.name = name;
 		this.breadCategory = breadCategory;
 		this.positionX = positionX;
 		this.positionY = positionY;
+		this.style = style;
+	}
+
+	/** 분류 규칙이 바뀌었을 때 기존 태그를 다시 분류 — 이름은 그대로, 분류만. 바뀌었으면 true */
+	public boolean reclassify(String breadCategory) {
+		if (this.breadCategory.equals(breadCategory)) {
+			return false;
+		}
+		this.breadCategory = breadCategory;
+		return true;
 	}
 }
