@@ -93,4 +93,9 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
 	@Modifying(clearAutomatically = true)
 	@Query("UPDATE Menu menu SET menu.createdByMember.id = :targetId WHERE menu.createdByMember.id = :guestId")
 	int moveCreator(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
+
+	/** AI 분류 대기 — 카테고리 없고, 아직 시도 안 했고, 활성인 것. 오래된 것부터 */
+	@Query("SELECT m FROM Menu m WHERE m.menuCategory IS NULL AND m.classifiedAt IS NULL AND m.deletedAt IS NULL "
+		+ "ORDER BY m.id")
+	List<Menu> findAwaitingClassification(Pageable pageable);
 }

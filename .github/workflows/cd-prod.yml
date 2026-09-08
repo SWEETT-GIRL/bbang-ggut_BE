@@ -60,6 +60,8 @@ jobs:
 
           google.places.api-key=${GOOGLE_PLACES_API_KEY}
 
+          gemini.api.key=${GEMINI_API_KEY}
+
           jwt.secret=${JWT_SECRET}
           jwt.access-token-expiry=1800000
           jwt.refresh-token-expiry=5184000000
@@ -210,6 +212,7 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           KAKAO_API_KEY: ${{ secrets.KAKAO_API_KEY }}
           GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           AWS_S3_BUCKET: ${{ secrets.PROD_AWS_S3_BUCKET }}
