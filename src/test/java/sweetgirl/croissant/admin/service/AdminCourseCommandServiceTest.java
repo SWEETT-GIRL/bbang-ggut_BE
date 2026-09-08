@@ -107,6 +107,61 @@ class AdminCourseCommandServiceTest {
 			.hasMessageContaining(CourseErrorCode.COURSE_NOT_FOUND.getMessage());
 	}
 
+	@Test
+	@DisplayName("updateCuratedCourse: 분류는 그룹과 값을 함께 바꾼다")
+	void updateCuratedCourse_category_success() {
+		Course course = mock(Course.class);
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+
+		AdminCourseUpdateRequest request = mock(AdminCourseUpdateRequest.class);
+		given(request.getCategoryGroup()).willReturn("대학가");
+		given(request.getCategory()).willReturn("홍대");
+
+		adminCourseCommandService.updateCuratedCourse(1L, request);
+
+		then(course).should().updateCategory("대학가", "홍대");
+	}
+
+	@Test
+	@DisplayName("updateCuratedCourse: 빈 문자열 쌍이면 분류를 뗀다")
+	void updateCuratedCourse_category_cleared() {
+		Course course = mock(Course.class);
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+
+		AdminCourseUpdateRequest request = mock(AdminCourseUpdateRequest.class);
+		given(request.getCategoryGroup()).willReturn("");
+		given(request.getCategory()).willReturn("");
+
+		adminCourseCommandService.updateCuratedCourse(1L, request);
+
+		then(course).should().updateCategory(null, null);
+	}
+
+	@Test
+	@DisplayName("updateCuratedCourse: 분류 그룹만 오면 COURSE_CATEGORY_INVALID를 던진다")
+	void updateCuratedCourse_categoryGroupOnly_throws() {
+		Course course = mock(Course.class);
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+
+		AdminCourseUpdateRequest request = mock(AdminCourseUpdateRequest.class);
+		given(request.getCategoryGroup()).willReturn("대학가");
+
+		assertThatThrownBy(() -> adminCourseCommandService.updateCuratedCourse(1L, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_CATEGORY_INVALID.getMessage());
+	}
+
+	@Test
+	@DisplayName("createCuratedCourse: 분류 값만 오면 COURSE_CATEGORY_INVALID를 던진다")
+	void createCuratedCourse_categoryOnly_throws() {
+		AdminCourseCreateRequest request = mock(AdminCourseCreateRequest.class);
+		given(request.getCategory()).willReturn("홍대");
+
+		assertThatThrownBy(() -> adminCourseCommandService.createCuratedCourse(request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_CATEGORY_INVALID.getMessage());
+	}
+
 	// ───────────────────────── deleteCuratedCourse ─────────────────────────
 
 	@Test
