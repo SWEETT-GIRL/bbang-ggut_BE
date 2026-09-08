@@ -330,6 +330,14 @@ def upload_images_from_urls(server: str, domain: str, target_id: int, urls: list
 
 # ─── 네이버 크롤링 (Playwright) ──────────────────────────────────────────────
 
+# 플레이스 패널 맨 위에는 어느 탭에 있든 사진 캐러셀 위젯이 붙어 있다(class 에 pui__ek7lQY 포함).
+# 그 안의 사진은 **방문자 사진**이고, li 캡션은 앨범 탭 이름("내부"·"음식·음료")이나 리뷰어
+# 닉네임("lim****")이다. 메뉴 탭에서도 사진 탭 '업체' 필터에서도 이 위젯은 그대로 남아 있어서,
+# 프레임 전체를 훑으면 메뉴에는 앨범 탭 이름이, 업체 사진에는 방문자 사진이 섞여 들어온다.
+# JS 안에서 재사용하는 배제 조건 — 셀렉터가 바뀌어도 한 곳만 고치면 된다.
+_TOP_WIDGET_JS = "el => !!(el && el.closest('[class*=\"pui__ek7lQY\"]'))"
+
+
 def _naver_search_once(page: Page, query: str) -> tuple[list[dict], bool]:
 	"""네이버 지도 한 번 검색 → (후보 places, 차단의심 여부) 반환.
 
@@ -674,9 +682,9 @@ def fetch_menu_data(page: Page, naver_place_id: str) -> dict[str, dict]:
 		if "/menu/" not in frame.url or str(naver_place_id) not in frame.url:
 			print(f"  [diag] 메뉴 페이지 불일치(id={naver_place_id}) — frame URL: {frame.url[:100]}")
 			return {}
-		items = frame.evaluate("""() => {
-			const out = [];
-			document.querySelectorAll('li').forEach(li => {
+		items = frame.evaluate("""(isTopWidgetSrc) => {
+			const isTopWidget = eval(isTopWidgetSrc);
+			function readLi(li) {
 				const img = li.querySelector('img[src*="pstatic"]');
 				const src = img ? (img.getAttribute('src') || '') : '';
 				const texts = [];
@@ -686,16 +694,36 @@ def fetch_menu_data(page: Page, naver_place_id: str) -> dict[str, dict]:
 						if (t) texts.push(t);
 					}
 				});
-				const uniq = [...new Set(texts)];
-				// 메뉴 li 시그널 — 가격성 텍스트 또는 pstatic 이미지 필요. 없으면 네비/탭/UI chrome.
-				// 가격은 '6,000원' 뿐 아니라 '6,000'/'7500' 처럼 '원' 없이 숫자만 별도 노드로 오는
-				// 레이아웃도 있어(예: 카페 디저트), 콤마 숫자·3~6자리 숫자도 가격성으로 인정.
-				const hasPriceLike = uniq.some(t => /\\d.*원|시가|변동|문의/.test(t)
+				return { uniq: [...new Set(texts)], src };
+			}
+			// 1순위 — 메뉴 항목 링크(a.xPf1B)가 있으면 그 li 만 본다. 이 목록엔 상단 사진 위젯도,
+			// 페이지 네비도 섞이지 않으므로 가격이 없는 메뉴(사진만 있는 항목)도 안전하게 담긴다.
+			const links = [...document.querySelectorAll('a.xPf1B')];
+			if (links.length) {
+				const seen = new Set();
+				const out = [];
+				links.forEach(a => {
+					const li = a.closest('li') || a.parentElement;
+					if (!li || seen.has(li) || isTopWidget(li)) return;
+					seen.add(li);
+					const item = readLi(li);
+					if (item.uniq.length) out.push(item);
+				});
+				return out;
+			}
+			// 2순위 — 메뉴 링크가 없는 레이아웃. li 를 훑되 **가격성 텍스트를 반드시 요구**한다.
+			// 예전에는 'pstatic 이미지가 있으면 통과'였는데, 그 조건이 상단 위젯의 방문자 사진
+			// li 를 메뉴로 만들었다(캡션이 '내부'·'음식·음료'·리뷰어 닉네임).
+			const out = [];
+			document.querySelectorAll('li').forEach(li => {
+				if (isTopWidget(li)) return;
+				const item = readLi(li);
+				const hasPriceLike = item.uniq.some(t => /\\d.*원|시가|변동|문의/.test(t)
 					|| /^\\d{1,3}(,\\d{3})+$/.test(t.trim()) || /^\\d{3,6}$/.test(t.trim()));
-				if (uniq.length && (hasPriceLike || src)) out.push({ uniq, src });
+				if (item.uniq.length && hasPriceLike) out.push(item);
 			});
 			return out;
-		}""")
+		}""", _TOP_WIDGET_JS)
 		menu_map: dict[str, dict] = {}
 		for it in items:
 			parsed = classify_menu_texts(it.get("uniq") or [])
@@ -765,14 +793,21 @@ def fetch_store_photos(page: Page, naver_place_id: str, limit: int = 5) -> list[
 			pass
 
 		# 스크롤로 lazy-load 사진 추가 로딩. limit 이상 모일 때까지 최대 3회.
+		# 개수는 **상단 위젯을 뺀** 업체 그리드 기준으로 센다 — 위젯 사진까지 세면 그리드가
+		# 아직 비었는데도 충분한 줄 알고 스크롤을 멈춘다.
 		for _ in range(3):
-			count = frame.evaluate('document.querySelectorAll(\'img[src*="pstatic"]\').length')
+			count = frame.evaluate("""(isTopWidgetSrc) => {
+				const isTopWidget = eval(isTopWidgetSrc);
+				return [...document.querySelectorAll('img[src*="pstatic"]')]
+					.filter(im => !isTopWidget(im)).length;
+			}""", _TOP_WIDGET_JS)
 			if count >= limit * 2:  # canonical dedup 후 limit 확보 위해 여유분
 				break
 			frame.evaluate("window.scrollBy(0, document.body.scrollHeight)")
 			page.wait_for_timeout(700)
 
-		urls = frame.evaluate("""(limit) => {
+		urls = frame.evaluate("""([limit, isTopWidgetSrc]) => {
+			const isTopWidget = eval(isTopWidgetSrc);
 			// search.pstatic.net/common?src=ENCODED 래퍼는 내부 src 디코딩, 직접 pstatic 은 origin+pathname 사용.
 			function canonical(src) {
 				try {
@@ -790,6 +825,9 @@ def fetch_store_photos(page: Page, naver_place_id: str, limit: int = 5) -> list[
 			const seen = new Set();
 			const out = [];
 			document.querySelectorAll('img[src*="pstatic"]').forEach(img => {
+				// 업체 필터가 걸린 사진 탭에도 상단 캐러셀 위젯은 그대로 남아 방문자 사진을 보여준다.
+				// DOM 순서상 위젯이 먼저라, 안 걸러내면 업체 사진 대신 방문자 사진이 올라간다.
+				if (isTopWidget(img)) return;
 				const src = img.getAttribute('src') || '';
 				if (!src) return;
 				// canonical(원본 origin+path)을 반환 — 래퍼(278px 썸네일) 대신 풀해상도 원본을
@@ -801,7 +839,7 @@ def fetch_store_photos(page: Page, naver_place_id: str, limit: int = 5) -> list[
 				}
 			});
 			return out.slice(0, limit);
-		}""", limit)
+		}""", [limit, _TOP_WIDGET_JS])
 		return urls or []
 	except NaverAccessRestricted:
 		raise
@@ -969,6 +1007,22 @@ def _enrich_with_place_id(
 			return stats
 		if menu_info_str:
 			primary_menus = parse_menu_info(menu_info_str)
+			# 검색 응답의 menuInfo 가 메뉴판 전체를 담지 않는 가게가 있다 — 러피는 메뉴 탭에
+			# 12개가 걸려 있는데 menuInfo 는 '쿠낭시에' 하나뿐이었다. 검색을 1차 소스로 두되
+			# (가격이 보장된다), 메뉴 탭 DOM 에만 있는 항목을 이름 정규화로 대조해 덧붙인다.
+			def _menu_key(name: str) -> str:
+				return re.sub(r"\(.*?\)", "", name).replace(" ", "")
+
+			known = {_menu_key(m["name"]) for m in primary_menus}
+			for name, data in place_menu_map.items():
+				if is_drink(name) or _menu_key(name) in known:
+					continue
+				known.add(_menu_key(name))
+				primary_menus.append({
+					"name": name,
+					"price": data.get("price"),
+					"category": guess_category(name),
+				})
 		else:
 			# 수동 매칭 경로: 메뉴 탭 DOM 만으로 구성. 음료/카테고리 추정은 동일 규칙.
 			primary_menus = [
