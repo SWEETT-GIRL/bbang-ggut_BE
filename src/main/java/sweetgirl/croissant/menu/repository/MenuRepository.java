@@ -51,9 +51,10 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
 		+ "ORDER BY m.store.id ASC, m.createdAt DESC", countQuery = "SELECT COUNT(m) FROM Menu m")
 	Page<Menu> findAllMenusWithDetails(Pageable pageable);
 
+	// 분류 전 메뉴는 menuCategory 가 NULL 이라 INNER JOIN 이면 어드민 목록에서 통째로 빠진다
 	@Query("""
 			SELECT m FROM Menu m
-			JOIN FETCH m.menuCategory
+			LEFT JOIN FETCH m.menuCategory
 			WHERE m.store.id = :storeId
 			ORDER BY m.createdAt DESC
 			""")
