@@ -50,6 +50,18 @@ public class Course extends BaseTimeEntity {
 	@Column(length = 30)
 	private String badge;
 
+	/**
+	 * 어드민이 지정하는 분류 — 탐색 탭의 필터 축 이름("대학가")과 그 안의 값("홍대").
+	 * 시·도 필터는 가게 주소에서 파생하지만 대학가처럼 주소로 못 뽑는 묶음은 손으로 지정해야 한다.
+	 * 축 이름을 앱에 박지 않고 값으로 갖는 건 다음 특집을 데이터만으로 늘리기 위해서다.
+	 * 둘은 한 쌍이다 — 둘 다 있거나 둘 다 없다(호출부가 검증).
+	 */
+	@Column(name = "category_group", length = 20)
+	private String categoryGroup;
+
+	@Column(length = 20)
+	private String category;
+
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "member_id")
 	private Member member;
@@ -111,6 +123,8 @@ public class Course extends BaseTimeEntity {
 			Member member,
 			boolean isPublic,
 			String badge,
+			String categoryGroup,
+			String category,
 			Long sourceCourseId,
 			String region,
 			LocalDate startDate,
@@ -121,6 +135,8 @@ public class Course extends BaseTimeEntity {
 		this.isPublic = isPublic;
 		this.visibility = CourseVisibility.fromPublic(isPublic);
 		this.badge = badge;
+		this.categoryGroup = categoryGroup;
+		this.category = category;
 		this.sourceCourseId = sourceCourseId;
 		this.region = region;
 		this.startDate = startDate;
@@ -155,11 +171,21 @@ public class Course extends BaseTimeEntity {
 	public static Course createCurated(
 			String title,
 			String badge) {
+		return createCurated(title, badge, null, null);
+	}
+
+	public static Course createCurated(
+			String title,
+			String badge,
+			String categoryGroup,
+			String category) {
 		return Course.builder()
 			.type(CourseType.CURATED)
 			.title(title)
 			.isPublic(true)
 			.badge(badge)
+			.categoryGroup(categoryGroup)
+			.category(category)
 			.build();
 	}
 
@@ -215,6 +241,12 @@ public class Course extends BaseTimeEntity {
 
 	public void updateBadge(String badge) {
 		this.badge = badge;
+	}
+
+	/** 분류는 축과 값이 한 쌍이라 같이 바꾼다. 빈 문자열로 오면 호출부가 null 로 바꿔 분류를 뗀다. */
+	public void updateCategory(String categoryGroup, String category) {
+		this.categoryGroup = categoryGroup;
+		this.category = category;
 	}
 
 	public void updateRegion(String region) {
