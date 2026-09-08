@@ -58,6 +58,8 @@ jobs:
 
           google.places.api-key=${GOOGLE_PLACES_API_KEY}
 
+          gemini.api.key=${GEMINI_API_KEY}
+
           jwt.secret=${JWT_SECRET}
           jwt.access-token-expiry=1800000
           jwt.refresh-token-expiry=5184000000
@@ -164,6 +166,7 @@ jobs:
             echo "NAVER_CLIENT_ID=${{ secrets.NAVER_CLIENT_ID }}" >> .env
             echo "NAVER_CLIENT_SECRET=${{ secrets.NAVER_CLIENT_SECRET }}" >> .env
             echo "GOOGLE_PLACES_API_KEY=${{ secrets.GOOGLE_PLACES_API_KEY }}" >> .env
+            echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
             echo "AWS_REGION=ap-northeast-2" >> .env
             echo "AWS_S3_BUCKET=${{ secrets.STAGING_AWS_S3_BUCKET }}" >> .env
             echo "STAGING_POSTHOG_API_KEY=${{ secrets.STAGING_POSTHOG_API_KEY }}" >> .env

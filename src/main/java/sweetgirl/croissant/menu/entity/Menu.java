@@ -63,6 +63,14 @@ public class Menu extends BaseTimeEntity {
 	@Column(name = "display_order")
 	private Integer displayOrder;
 
+	/** AI 분류 결과 — 빵집 먹거리인가. null = 미판정 (기존 데이터·분류 전) */
+	@Column(name = "is_bakery_item")
+	private Boolean bakeryItem;
+
+	/** AI 가 분류를 시도한 시각. 답이 갈려 카테고리를 못 받아도 찍는다 — 같은 행을 무한 재시도하지 않게 */
+	@Column
+	private LocalDateTime classifiedAt;
+
 	@Builder
 	public Menu(
 			Store store,
@@ -109,6 +117,18 @@ public class Menu extends BaseTimeEntity {
 
 	public void softDelete() {
 		this.deletedAt = LocalDateTime.now();
+	}
+
+	/** AI 분류 확정 — 세 번 물어 같은 kind 가 나왔을 때 */
+	public void applyClassification(MenuCategory menuCategory, boolean bakeryItem) {
+		this.menuCategory = menuCategory;
+		this.bakeryItem = bakeryItem;
+		this.classifiedAt = LocalDateTime.now();
+	}
+
+	/** AI 가 시도했지만 답을 못 정함 — 카테고리는 비워 두고 시도 흔적만 남긴다 (검수 대상) */
+	public void markClassificationAttempted() {
+		this.classifiedAt = LocalDateTime.now();
 	}
 
 	public void updateOrder(Integer displayOrder) {
