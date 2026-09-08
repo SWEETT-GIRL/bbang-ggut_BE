@@ -53,7 +53,7 @@ public class MenuCommandService {
 
 		String name = request.name().strip();
 		String normalizedName = MenuNameNormalizer.normalize(name);
-		return menuRepository.findByStoreIdAndNormalizedNameAndDeletedAtIsNull(storeId, normalizedName)
+		return menuRepository.findFirstByStoreIdAndNormalizedNameAndDeletedAtIsNullOrderByIdAsc(storeId, normalizedName)
 			.map(existing -> new MenuRegistrationResult(existing.getId(), false, null))
 			.orElseGet(() -> createMemberMenu(store, member, name, normalizedName));
 	}
