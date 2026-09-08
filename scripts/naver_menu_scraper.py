@@ -102,6 +102,28 @@ class NaverAccessRestricted(RuntimeError):
 	pass
 
 
+# 점주가 네이버에 등록한 사진만 쓴다. 방문자·블로거가 올린 것은 저작권과 초상권이 함께 걸린다
+# (리뷰 사진·블로그 본문·블로그 프로필 아바타·클립 썸네일). 사진 탭에 filterType=업체 로 들어가도
+# 필터가 안 먹거나 위젯이 남는 경우가 있어, 화면이 무엇을 보여주든 **URL 도메인으로** 잘라낸다.
+# 여기 없는 도메인은 통째로 버린다 — 새 도메인이 생기면 안 들어오는 쪽이 안전하다.
+_OWNER_PHOTO_HOSTS = ("ldb-phinf.pstatic.net",)
+_OWNER_PHOTO_HOSTS_JS = "[" + ", ".join(f'"{h}"' for h in _OWNER_PHOTO_HOSTS) + "]"
+
+def owner_photo_or_empty(src: str) -> str:
+	"""점주가 등록한 사진 도메인이 아니면 빈 문자열 — 메뉴 사진에도 가게 사진과 같은 기준을 건다.
+
+	메뉴 탭에도 리뷰 사진이 li 에 섞여 오는 경우가 있어, 메뉴 이름은 살리되 그런 사진은 붙이지 않는다.
+	"""
+	canonical = canonicalize_pstatic(src)
+	if not canonical:
+		return ""
+	try:
+		host = urllib.parse.urlparse(canonical).netloc
+	except Exception:
+		return ""
+	return canonical if host in _OWNER_PHOTO_HOSTS else ""
+
+
 def canonicalize_pstatic(src: str) -> str:
 	"""네이버 pstatic 이미지 URL 을 원본(풀해상도) canonical 형태로 정규화.
 
@@ -335,6 +357,7 @@ def upload_images_from_urls(server: str, domain: str, target_id: int, urls: list
 # 닉네임("lim****")이다. 메뉴 탭에서도 사진 탭 '업체' 필터에서도 이 위젯은 그대로 남아 있어서,
 # 프레임 전체를 훑으면 메뉴에는 앨범 탭 이름이, 업체 사진에는 방문자 사진이 섞여 들어온다.
 # JS 안에서 재사용하는 배제 조건 — 셀렉터가 바뀌어도 한 곳만 고치면 된다.
+
 _TOP_WIDGET_JS = "el => !!(el && el.closest('[class*=\"pui__ek7lQY\"]'))"
 
 
@@ -730,7 +753,7 @@ def fetch_menu_data(page: Page, naver_place_id: str) -> dict[str, dict]:
 			if not parsed["name"]:
 				continue
 			menu_map[parsed["name"]] = {
-				"src": canonicalize_pstatic(it.get("src", "")),
+				"src": owner_photo_or_empty(it.get("src", "")),
 				"desc": parsed["desc"],
 				"price": parsed["price"],
 			}
@@ -806,8 +829,16 @@ def fetch_store_photos(page: Page, naver_place_id: str, limit: int = 5) -> list[
 			frame.evaluate("window.scrollBy(0, document.body.scrollHeight)")
 			page.wait_for_timeout(700)
 
-		urls = frame.evaluate("""([limit, isTopWidgetSrc]) => {
+		urls = frame.evaluate("""([limit, isTopWidgetSrc, ownerHosts]) => {
 			const isTopWidget = eval(isTopWidgetSrc);
+			function isOwnerPhoto(src) {
+				try {
+					const u = new URL(src);
+					const inner = u.searchParams.get('src');
+					const host = inner ? new URL(inner).hostname : u.hostname;
+					return ownerHosts.includes(host);
+				} catch (e) { return false; }
+			}
 			// search.pstatic.net/common?src=ENCODED 래퍼는 내부 src 디코딩, 직접 pstatic 은 origin+pathname 사용.
 			function canonical(src) {
 				try {
@@ -830,6 +861,8 @@ def fetch_store_photos(page: Page, naver_place_id: str, limit: int = 5) -> list[
 				if (isTopWidget(img)) return;
 				const src = img.getAttribute('src') || '';
 				if (!src) return;
+				// 업체가 올린 사진만 — 방문자 리뷰·블로그·프로필·클립 썸네일은 여기서 잘린다
+				if (!isOwnerPhoto(src)) return;
 				// canonical(원본 origin+path)을 반환 — 래퍼(278px 썸네일) 대신 풀해상도 원본을
 				// 저장하고, 같은 사진이 항상 동일 키로 수렴해 dedup·멱등성도 안정.
 				const key = canonical(src);
@@ -839,7 +872,7 @@ def fetch_store_photos(page: Page, naver_place_id: str, limit: int = 5) -> list[
 				}
 			});
 			return out.slice(0, limit);
-		}""", [limit, _TOP_WIDGET_JS])
+		}""", [limit, _TOP_WIDGET_JS, list(_OWNER_PHOTO_HOSTS)])
 		return urls or []
 	except NaverAccessRestricted:
 		raise
