@@ -35,6 +35,9 @@ public class MenuClassificationProperties {
 	/** 재시도 전 대기. 무료 티어 429 의 retryDelay 가 20초대였다 */
 	private Duration retryBackoff = Duration.ofSeconds(30);
 
+	/** 회원 메뉴 등록 화면의 1회 즉답 상한 — 사용자가 기다리는 경로라 짧게. 넘기면 제안 없이 진행 */
+	private Duration suggestTimeout = Duration.ofSeconds(3);
+
 	private long fixedDelayMs = 60_000L;
 
 	private long initialDelayMs = 30_000L;

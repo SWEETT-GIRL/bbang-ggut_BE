@@ -5,8 +5,10 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -57,8 +59,8 @@ class MenuControllerTest {
 	void getStoreMenus_returnsReviewCount() throws Exception {
 		given(menuQueryService.getStoreMenus(eq(1L), isNull()))
 			.willReturn(List.of(
-				new StoreMenuResponse(1L, "소금빵", "짭짤한 버터 풍미", "빵", null, 3500, 12, false, 8L),
-				new StoreMenuResponse(2L, "식빵", null, "빵", null, 5000, 3, false, 0L)));
+				new StoreMenuResponse(1L, "소금빵", "짭짤한 버터 풍미", "빵", null, 3500, 12, false, 8L, null),
+				new StoreMenuResponse(2L, "식빵", null, "빵", null, 5000, 3, false, 0L, null)));
 
 		mockMvc.perform(get("/stores/1/menus"))
 			.andExpect(status().isOk())
@@ -74,9 +76,9 @@ class MenuControllerTest {
 	@Test
 	void createStoreMenu_returns201ForNewMenu() throws Exception {
 		StoreMenuResponse response = new StoreMenuResponse(
-			3L, "흑임자 소금빵", null, null, null, null, 0, false, 0L);
+			3L, "흑임자 소금빵", null, null, null, null, 0, false, 0L, null);
 		given(menuCommandService.registerMenu(eq(1L), isNull(), any(MenuCreateRequest.class)))
-			.willReturn(new MenuRegistrationResult(3L, true));
+			.willReturn(new MenuRegistrationResult(3L, true, null));
 		given(menuQueryService.getStoreMenu(3L, null)).willReturn(response);
 
 		mockMvc.perform(post("/stores/1/menus")
@@ -91,9 +93,9 @@ class MenuControllerTest {
 	@Test
 	void createStoreMenu_returns200ForDuplicateMenu() throws Exception {
 		StoreMenuResponse response = new StoreMenuResponse(
-			3L, "흑임자소금빵", null, "빵", null, null, 0, false, 0L);
+			3L, "흑임자소금빵", null, "빵", null, null, 0, false, 0L, null);
 		given(menuCommandService.registerMenu(eq(1L), isNull(), any(MenuCreateRequest.class)))
-			.willReturn(new MenuRegistrationResult(3L, false));
+			.willReturn(new MenuRegistrationResult(3L, false, null));
 		given(menuQueryService.getStoreMenu(3L, null)).willReturn(response);
 
 		mockMvc.perform(post("/stores/1/menus")
@@ -148,5 +150,34 @@ class MenuControllerTest {
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.success").value(false))
 			.andExpect(jsonPath("$.code").value("MENU4042"));
+	}
+
+	@Test
+	void confirmMenuKind_returns200() throws Exception {
+		mockMvc.perform(patch("/menus/3/kind")
+			.contentType("application/json")
+			.content("{\"kind\":\"소금빵\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
+		verify(menuCommandService).confirmKind(eq(3L), isNull(), eq("소금빵"));
+	}
+
+	@Test
+	void confirmMenuKind_returns403_whenNotOwner() throws Exception {
+		willThrow(new MenuException(MenuErrorCode.MENU_NOT_OWNER))
+			.given(menuCommandService).confirmKind(eq(3L), isNull(), eq("소금빵"));
+
+		mockMvc.perform(patch("/menus/3/kind")
+			.contentType("application/json")
+			.content("{\"kind\":\"소금빵\"}"))
+			.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void confirmMenuKind_returns400_whenKindBlank() throws Exception {
+		mockMvc.perform(patch("/menus/3/kind")
+			.contentType("application/json")
+			.content("{\"kind\":\"\"}"))
+			.andExpect(status().isBadRequest());
 	}
 }
