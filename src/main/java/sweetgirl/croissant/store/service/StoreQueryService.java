@@ -66,7 +66,8 @@ public class StoreQueryService {
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 		List<StoreBusinessHour> businessHours = storeBusinessHourRepository.findByStoreIdOrderByDayOfWeekAsc(storeId);
 		List<StoreImageFile> images = storeImageFileRepository.findByStoreIdOrderByDisplayOrderAscIdAsc(storeId);
-		List<MenuImageFile> menuImages = menuImageFileRepository.findByMenuStoreIdOrderByDisplayOrderAscIdAsc(storeId);
+		List<MenuImageFile> menuImages = menuImageFileRepository
+			.findByMenuStoreIdAndMenuDeletedAtIsNullOrderByDisplayOrderAscIdAsc(storeId);
 		boolean isSubscribed = memberId != null
 			&& subscribedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId);
 		boolean isSaved = memberId != null
