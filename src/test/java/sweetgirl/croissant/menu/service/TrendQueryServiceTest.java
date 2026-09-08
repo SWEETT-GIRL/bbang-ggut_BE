@@ -93,7 +93,7 @@ class TrendQueryServiceTest {
 		given(kakaoGeoClient.coordToAddress(LNG, LAT)).willReturn(addressResponse("서울 종로구 재동 84-18"));
 		given(kakaoGeoClient.coordToRegion(LNG, LAT)).willReturn(regionResponse("B", "재동", "H", "존재하지않는동"));
 		given(storeRepository.findNearestRegion(LNG, LAT))
-			.willReturn(List.<Object[]>of(new Object[] {"종로구", "가회동"}));
+			.willReturn(List.<Object[]>of(new Object[] {"서울", "종로구", "가회동"}));
 		given(famousMenuByRegionRepository.findByRegion3rd(Region3rd.종로구_가회동)).willReturn(List.of());
 
 		// when
@@ -111,7 +111,7 @@ class TrendQueryServiceTest {
 		given(kakaoGeoClient.coordToAddress(anyDouble(), anyDouble()))
 			.willThrow(new RuntimeException("Kakao API 장애"));
 		given(storeRepository.findNearestRegion(LNG, LAT))
-			.willReturn(List.<Object[]>of(new Object[] {"종로구", "가회동"}));
+			.willReturn(List.<Object[]>of(new Object[] {"서울", "종로구", "가회동"}));
 		given(famousMenuByRegionRepository.findByRegion3rd(Region3rd.종로구_가회동)).willReturn(List.of());
 
 		// when
