@@ -62,6 +62,11 @@ jobs:
 
           gemini.api.key=${GEMINI_API_KEY}
 
+          # 메뉴 AI 분류 첫 배치를 5분 뒤로 — blue-green 전환이 끝난 뒤 돌게.
+          # 30초면 구 컨테이너가 아직 트래픽을 받는 중에 새 kind(카스테라 등)가 메뉴에 붙어
+          # 구버전 enum 역직렬화가 깨진다 (V20260814134900 머핀·다쿠아즈 선례와 같은 문제)
+          menu.classification.initial-delay-ms=300000
+
           jwt.secret=${JWT_SECRET}
           jwt.access-token-expiry=1800000
           jwt.refresh-token-expiry=5184000000
@@ -241,6 +246,7 @@ jobs:
             echo "JWT_SECRET=${JWT_SECRET}"
             echo "KAKAO_API_KEY=${KAKAO_API_KEY}"
             echo "GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY}"
+            echo "GEMINI_API_KEY=${GEMINI_API_KEY}"
             echo "NAVER_CLIENT_ID=${NAVER_CLIENT_ID}"
             echo "NAVER_CLIENT_SECRET=${NAVER_CLIENT_SECRET}"
             echo "AWS_REGION=ap-northeast-2"
