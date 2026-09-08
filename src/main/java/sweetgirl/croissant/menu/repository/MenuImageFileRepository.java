@@ -49,7 +49,12 @@ public interface MenuImageFileRepository extends JpaRepository<MenuImageFile, Lo
 			""")
 	List<MenuImageByStoreProjection> findMenuImagesByStoreIdIn(@Param("storeIds") List<Long> storeIds);
 
-	List<MenuImageFile> findByMenuStoreIdOrderByDisplayOrderAscIdAsc(Long storeId);
+	/**
+	 * 가게 상세의 메뉴 사진 갤러리. **삭제된 메뉴의 사진은 빼야 한다** — 빼지 않으면 갤러리에
+	 * 지운 메뉴의 사진이 남고, 그 사진으로 세는 메뉴 수도 메뉴 목록 화면과 어긋난다.
+	 * (버터웨이브: 사진 8장 중 4장이 지워진 메뉴 것이라 상세는 '메뉴 8', 목록은 5개였다)
+	 */
+	List<MenuImageFile> findByMenuStoreIdAndMenuDeletedAtIsNullOrderByDisplayOrderAscIdAsc(Long storeId);
 
 	@Query("SELECT COALESCE(MAX(m.displayOrder), 0) FROM MenuImageFile m WHERE m.menu.id = :menuId")
 	int findMaxDisplayOrderByMenuId(@Param("menuId") Long menuId);
