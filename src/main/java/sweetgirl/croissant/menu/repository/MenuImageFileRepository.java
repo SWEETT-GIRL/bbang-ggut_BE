@@ -37,13 +37,15 @@ public interface MenuImageFileRepository extends JpaRepository<MenuImageFile, Lo
 			""")
 	List<MenuImageFile> findImagesByMenuId(@Param("menuId") Long menuId);
 
-	// 트렌드 썸네일용 — 가게들의 메뉴 이미지를 세분류(MenuKind)와 함께 일괄 조회 (N+1 방지)
+	// 트렌드 썸네일용 — 가게들의 메뉴 이미지를 세분류(MenuKind)와 함께 일괄 조회 (N+1 방지).
+	// menuCategory 는 LEFT JOIN 이어야 한다 — 폴백 ②(아무 메뉴 사진)는 카테고리와 무관해야 하는데,
+	// INNER JOIN 이면 분류 전 메뉴의 사진이 후보에서 빠져 가게 사진·placeholder 로 떨어진다
 	@Query("""
 			SELECT mn.store.id AS storeId, mc.name AS menuKind,
 			m.resizedKey320 AS resizedKey320, m.awsKey AS awsKey
 			FROM MenuImageFile m
 			JOIN m.menu mn
-			JOIN mn.menuCategory mc
+			LEFT JOIN mn.menuCategory mc
 			WHERE mn.store.id IN :storeIds AND mn.deletedAt IS NULL
 			ORDER BY m.displayOrder ASC, m.id ASC
 			""")

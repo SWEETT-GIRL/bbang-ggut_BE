@@ -180,6 +180,35 @@ class TrendQueryServiceTest {
 	}
 
 	@Test
+	@DisplayName("아직 분류 안 된 메뉴(kind 없음)의 사진도 '아무 메뉴 사진' 폴백에 쓰인다")
+	void getTrendByRegion_usesUnclassifiedMenuImageBeforeStoreImage() {
+		// given: 케이크 랭킹에 오른 가게가 분류 전 메뉴 사진과 가게 사진을 둘 다 가진 상황
+		FamousMenuByRegion famousMenu = mock(FamousMenuByRegion.class);
+		given(famousMenu.getId()).willReturn(1L);
+		given(famousMenu.getMenuCategory()).willReturn(MenuCategory.케이크);
+
+		HotStoreRankingTrendProjection rank1 = rankingRow(10L, 1);
+		MenuImageByStoreProjection unclassified10 = menuImageRow(10L, null, "menu-unclassified-10");
+		StoreImageThumbnailProjection store10 = storeImageRow(10L, "store-10");
+
+		given(famousMenuByRegionRepository.findByRegion3rd(Region3rd.종로구_가회동))
+			.willReturn(List.of(famousMenu));
+		given(hotStoreRankingRepository.findTrendByFamousMenuByRegionIdIn(List.of(1L)))
+			.willReturn(List.of(rank1));
+		given(menuImageFileRepository.findMenuImagesByStoreIdIn(anyList()))
+			.willReturn(List.of(unclassified10));
+		given(storeImageFileRepository.findThumbnailsByStoreIdIn(anyList()))
+			.willReturn(List.of(store10));
+
+		// when
+		RegionTrendResponse response = trendQueryService.getTrendByRegion(Region3rd.종로구_가회동.name(), null, null);
+
+		// then: 카테고리가 없다고 건너뛰고 가게 사진으로 내려가면 안 된다
+		List<RegionTrendResponse.HotStore> stores = response.categories().get(0).stores();
+		assertThat(stores.get(0).thumbnailImageKeys()).containsExactly("menu-unclassified-10");
+	}
+
+	@Test
 	@DisplayName("좌표를 주면 가게별 거리(distanceMeter)를 포함해 반환")
 	void getTrendByRegion_includesDistances_whenCoordsProvided() {
 		// given
