@@ -8,7 +8,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.springframework.core.io.ClassPathResource;
@@ -83,6 +88,32 @@ public class MenuKindClassifier {
 
 	public String modelName() {
 		return geminiProperties.getModel();
+	}
+
+	/**
+	 * 회원 메뉴 등록 화면용 즉답 — 한 번만 묻고, 재시도·대기 없이 상한 안에 못 받으면 빈 값.
+	 * 확정이 아니다(3회 일치가 아니므로). 화면에 칩으로 보여 주고, 저장은 스케줄러가 3회로 한다.
+	 * 비-빵이거나 '빵'·'기타'로만 답하면 제안하지 않는다.
+	 */
+	public Optional<MenuKind> suggest(String name) {
+		String prompt = buildPrompt(List.of(name));
+		try {
+			// 사용자 대기 경로라 클라이언트의 60초 타임아웃을 그대로 두지 않는다. 넘기면 요청은 버리고 빈 값
+			BatchAnswer answer = CompletableFuture
+				.supplyAsync(() -> geminiClient.generateStructured(prompt, responseSchema, BatchAnswer.class).value())
+				.orTimeout(properties.getSuggestTimeout().toMillis(), TimeUnit.MILLISECONDS)
+				.join();
+			Item item = indexAnswers(answer).get(0);
+			if (item == null || !item.isBakeryItem()) {
+				return Optional.empty();
+			}
+			MenuKind kind = parseKind(item.kind());
+			return kind == null || MenuKindVerdict.isFallbackKind(kind) ? Optional.empty() : Optional.of(kind);
+		} catch (CompletionException | CancellationException failed) {
+			Throwable cause = failed.getCause() != null ? failed.getCause() : failed;
+			log.info("메뉴 kind 즉답 실패 — 제안 없이 진행: {}", cause.toString());
+			return Optional.empty();
+		}
 	}
 
 	/** 한 이름에 대한 N회 답을 하나의 판정으로 */
