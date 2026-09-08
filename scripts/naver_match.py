@@ -35,7 +35,8 @@ NOT_DRINK_MARKERS = [
 	"바스크", "구움", "와플", "크로플", "산도", "포카치아", "프레즐", "슈크림",
 ]
 
-DEFAULT_CATEGORY = "빵"
+# 룰에 안 걸리면 카테고리를 비워 보낸다(None) — 백엔드가 NULL 로 두고 AI 스케줄러가 분류한다.
+# 그전엔 "빵" 폴백이라 음료·수프·선물세트까지 빵이 됐다 (2026-09-08 신규 가게 11곳 172건 중 98건).
 
 CATEGORY_RULES: list[tuple[list[str], str]] = [
 	(["소금빵"], "소금빵"),
@@ -303,11 +304,11 @@ def is_drink(name: str) -> bool:
 	return any(compact.endswith(suffix) for suffix in DRINK_SUFFIXES)
 
 
-def guess_category(name: str) -> str:
+def guess_category(name: str) -> Optional[str]:
 	for keywords, kind in CATEGORY_RULES:
 		if any(kw in name for kw in keywords):
 			return kind
-	return DEFAULT_CATEGORY
+	return None
 
 
 # ─── 메뉴 텍스트 분류기 (item 4) ──────────────────────────────────────────────

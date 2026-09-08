@@ -849,8 +849,32 @@ def fetch_store_photos(page: Page, naver_place_id: str, limit: int = 5) -> list[
 
 # ─── 메뉴 데이터 파싱 ────────────────────────────────────────────────────────
 
+# menuInfo 항목의 가격부. 숫자 하나('3,500' / '3500원')만 가격이고, 범위·변동·시가는 가격 None 으로 두되 이름에서는 뗀다.
+_MENU_INFO_PRICE_NUMERIC_RE = re.compile(r"^(.+?)\s+([\d,]+)\s*원?$")
+_MENU_INFO_PRICE_LIKE_RE = re.compile(
+	r"^(.+?)\s+(?:변동가격\(업주문의\)|변동가격|시가|[\d,]+\s*~\s*[\d,]+\s*원?)$")
+
+
+def split_menu_info_item(item: str) -> tuple[str, Optional[int]]:
+	"""'메뉴명 가격' 한 항목 → (이름, 가격).
+
+	그전엔 숫자 하나만 가격으로 봐서 '아카스키 복숭아 산도 변동가격(업주문의)', '초콜라또 칼도 4,300~6,200' 이
+	통째로 이름이 됐다. 그 이름은 메뉴 탭 DOM 의 깨끗한 이름과 키가 달라 같은 메뉴가 두 번 만들어졌고,
+	dataops 재수집도 못 알아봐 세 번째 행을 만들었다 (2026-09-08 운영 실측 16,859건, 그중 쌍둥이 14,155건).
+	"""
+	m = _MENU_INFO_PRICE_NUMERIC_RE.match(item)
+	if m:
+		digits = m.group(2).replace(",", "")
+		if digits.isdigit():
+			return m.group(1).strip(), int(digits)
+	m = _MENU_INFO_PRICE_LIKE_RE.match(item)
+	if m:
+		return m.group(1).strip(), None
+	return item, None
+
+
 def parse_menu_info(menu_info_str: str) -> list[dict]:
-	"""네이버 menuInfo ('메뉴명 가격 | ...') 파싱. 음료 제외, MenuKind 매핑 포함."""
+	"""네이버 menuInfo ('메뉴명 가격 | ...') 파싱. 음료 제외, MenuKind 매핑 포함(룰 실패는 None → 본 앱 AI 가 분류)."""
 	if not menu_info_str:
 		return []
 	menus = []
@@ -858,13 +882,7 @@ def parse_menu_info(menu_info_str: str) -> list[dict]:
 		item = item.strip()
 		if not item:
 			continue
-		m = re.match(r"^(.+?)\s+([\d,]+)$", item)
-		if m:
-			name = m.group(1).strip()
-			price = int(m.group(2).replace(",", ""))
-		else:
-			name = item
-			price = None
+		name, price = split_menu_info_item(item)
 		if is_drink(name):
 			continue
 		menus.append({"name": name, "price": price, "category": guess_category(name)})
