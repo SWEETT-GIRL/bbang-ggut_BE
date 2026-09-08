@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -81,7 +82,8 @@ class AdminImageCommandServiceTest {
 			.willReturn(101L, 102L);
 
 		ImageUploadFromUrlResponse response = adminImageCommandService.uploadImagesFromUrls(
-			"stores", 1L, List.of(req("https://a.com/1.jpg"), req("https://a.com/2.jpg")));
+			"stores", 1L,
+			List.of(req("https://ldb-phinf.pstatic.net/1.jpg"), req("https://ldb-phinf.pstatic.net/2.jpg")));
 
 		assertThat(response.successCount()).isEqualTo(2);
 		assertThat(response.failureCount()).isZero();
@@ -90,19 +92,57 @@ class AdminImageCommandServiceTest {
 	}
 
 	@Test
+	@DisplayName("uploadImagesFromUrls: 점주 등록 사진 도메인이 아니면 다운로드 없이 REJECTED_SOURCE 로 거절한다")
+	void uploadImagesFromUrls_rejectsNonOwnerPhotoHost() {
+		given(storeRepository.existsById(1L)).willReturn(true);
+		given(storeImageFileRepository.findMaxDisplayOrderByStoreId(1L)).willReturn(0);
+
+		ImageUploadFromUrlResponse response = adminImageCommandService.uploadImagesFromUrls(
+			"stores", 1L, List.of(
+				req("https://pup-review-phinf.pstatic.net/2024/review.jpg"),
+				req("https://blogpfthumb-phinf.pstatic.net/2024/avatar.jpg"),
+				req("https://g-myplace.pstatic.net/cdn/static/images/icon_profile_default.png")));
+
+		assertThat(response.successCount()).isZero();
+		assertThat(response.failureCount()).isEqualTo(3);
+		assertThat(response.results())
+			.allSatisfy(item -> assertThat(item.status()).isEqualTo(ImageUploadFromUrlResponse.Status.REJECTED_SOURCE));
+		then(imageDownloader).should(never()).download(anyString());
+	}
+
+	@Test
+	@DisplayName("uploadImagesFromUrls: search.pstatic 리사이즈 래퍼는 안쪽 원본 호스트로 판단해 ldb-phinf 면 통과한다")
+	void uploadImagesFromUrls_unwrapsResizeWrapperBeforeHostCheck() {
+		String wrapped = "https://search.pstatic.net/common?type=w278&src=https%3A%2F%2Fldb-phinf.pstatic.net%2F2024%2Fowner.jpg";
+		given(storeRepository.existsById(1L)).willReturn(true);
+		given(storeImageFileRepository.findMaxDisplayOrderByStoreId(1L)).willReturn(0);
+		given(imageDownloader.download(wrapped)).willReturn(
+			ImageDownloader.Result.success(new byte[] {1}, MimeType.IMAGE_JPEG));
+		given(imageRowSaver.saveStoreImage(eq(1L), anyString(), anyString(), any(), anyInt(), anyString()))
+			.willReturn(101L);
+
+		ImageUploadFromUrlResponse response = adminImageCommandService.uploadImagesFromUrls(
+			"stores", 1L, List.of(req(wrapped)));
+
+		assertThat(response.successCount()).isEqualTo(1);
+		assertThat(response.results().get(0).status()).isEqualTo(ImageUploadFromUrlResponse.Status.SUCCESS);
+	}
+
+	@Test
 	@DisplayName("uploadImagesFromUrls: 일부 URL 다운로드 실패해도 나머지는 저장된다")
 	void uploadImagesFromUrls_partialDownloadFail() {
 		given(storeRepository.existsById(1L)).willReturn(true);
 		given(storeImageFileRepository.findMaxDisplayOrderByStoreId(1L)).willReturn(0);
-		given(imageDownloader.download("https://a.com/ok.jpg")).willReturn(
+		given(imageDownloader.download("https://ldb-phinf.pstatic.net/ok.jpg")).willReturn(
 			ImageDownloader.Result.success(new byte[] {1}, MimeType.IMAGE_JPEG));
-		given(imageDownloader.download("https://a.com/bad.jpg")).willReturn(
+		given(imageDownloader.download("https://ldb-phinf.pstatic.net/bad.jpg")).willReturn(
 			ImageDownloader.Result.failure("status 403"));
 		given(imageRowSaver.saveStoreImage(eq(1L), anyString(), anyString(), any(), anyInt(), anyString()))
 			.willReturn(101L);
 
 		ImageUploadFromUrlResponse response = adminImageCommandService.uploadImagesFromUrls(
-			"stores", 1L, List.of(req("https://a.com/ok.jpg"), req("https://a.com/bad.jpg")));
+			"stores", 1L,
+			List.of(req("https://ldb-phinf.pstatic.net/ok.jpg"), req("https://ldb-phinf.pstatic.net/bad.jpg")));
 
 		assertThat(response.successCount()).isEqualTo(1);
 		assertThat(response.failureCount()).isEqualTo(1);
@@ -122,7 +162,7 @@ class AdminImageCommandServiceTest {
 			.given(imageRowSaver).saveStoreImage(eq(1L), anyString(), anyString(), any(), anyInt(), anyString());
 
 		ImageUploadFromUrlResponse response = adminImageCommandService.uploadImagesFromUrls(
-			"stores", 1L, List.of(req("https://a.com/x.jpg")));
+			"stores", 1L, List.of(req("https://ldb-phinf.pstatic.net/x.jpg")));
 
 		assertThat(response.failureCount()).isEqualTo(1);
 		assertThat(response.results().get(0).status()).isEqualTo(ImageUploadFromUrlResponse.Status.DB_FAILED);
@@ -140,7 +180,7 @@ class AdminImageCommandServiceTest {
 			.given(s3Service).putObject(anyString(), any(), any());
 
 		ImageUploadFromUrlResponse response = adminImageCommandService.uploadImagesFromUrls(
-			"stores", 1L, List.of(req("https://a.com/x.jpg")));
+			"stores", 1L, List.of(req("https://ldb-phinf.pstatic.net/x.jpg")));
 
 		assertThat(response.failureCount()).isEqualTo(1);
 		assertThat(response.results().get(0).status()).isEqualTo(ImageUploadFromUrlResponse.Status.UPLOAD_FAILED);
@@ -154,7 +194,7 @@ class AdminImageCommandServiceTest {
 		given(storeRepository.existsById(999L)).willReturn(false);
 
 		assertThatThrownBy(() -> adminImageCommandService.uploadImagesFromUrls(
-			"stores", 999L, List.of(req("https://a.com/1.jpg"))))
+			"stores", 999L, List.of(req("https://ldb-phinf.pstatic.net/1.jpg"))))
 			.isInstanceOf(StoreException.class);
 	}
 
@@ -162,7 +202,7 @@ class AdminImageCommandServiceTest {
 	@DisplayName("uploadImagesFromUrls: 잘못된 domain 은 IllegalArgumentException")
 	void uploadImagesFromUrls_invalidDomain() {
 		assertThatThrownBy(() -> adminImageCommandService.uploadImagesFromUrls(
-			"banners", 1L, List.of(req("https://a.com/1.jpg"))))
+			"banners", 1L, List.of(req("https://ldb-phinf.pstatic.net/1.jpg"))))
 			.isInstanceOf(IllegalArgumentException.class);
 	}
 
@@ -189,7 +229,8 @@ class AdminImageCommandServiceTest {
 			.willReturn(1L, 2L);
 
 		adminImageCommandService.uploadImagesFromUrls(
-			"stores", 1L, List.of(req("https://a.com/1.jpg"), req("https://a.com/2.jpg")));
+			"stores", 1L,
+			List.of(req("https://ldb-phinf.pstatic.net/1.jpg"), req("https://ldb-phinf.pstatic.net/2.jpg")));
 
 		verify(imageRowSaver).saveStoreImage(eq(1L), anyString(), anyString(), any(), eq(6), anyString());
 		verify(imageRowSaver).saveStoreImage(eq(1L), anyString(), anyString(), any(), eq(7), anyString());
@@ -205,11 +246,11 @@ class AdminImageCommandServiceTest {
 			.mock(sweetgirl.croissant.store.entity.StoreImageFile.class);
 		given(existing.getId()).willReturn(77L);
 		given(existing.getAwsKey()).willReturn("stores/1/abc");
-		given(storeImageFileRepository.findByStoreIdAndSourceUrl(1L, "https://a.com/dup.jpg"))
+		given(storeImageFileRepository.findByStoreIdAndSourceUrl(1L, "https://ldb-phinf.pstatic.net/dup.jpg"))
 			.willReturn(java.util.Optional.of(existing));
 
 		ImageUploadFromUrlResponse response = adminImageCommandService.uploadImagesFromUrls(
-			"stores", 1L, List.of(req("https://a.com/dup.jpg")));
+			"stores", 1L, List.of(req("https://ldb-phinf.pstatic.net/dup.jpg")));
 
 		assertThat(response.successCount()).isEqualTo(1);
 		assertThat(response.failureCount()).isZero();

@@ -1,8 +1,12 @@
 package sweetgirl.croissant.admin.service;
 
+import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -196,6 +200,13 @@ public class AdminImageCommandService {
 			return ImageUploadFromUrlResponse.Item.failure(
 				url, ImageUploadFromUrlResponse.Status.INVALID_URL, "blank url");
 		}
+		// 자동 수집(크롤러·dataops)의 이미지는 전부 이 문으로 들어온다. 호출자가 화면에서 무엇을 긁었든
+		// 점주가 등록한 사진 도메인이 아니면 여기서 버린다 — 방문자 리뷰·블로그 본문·블로그 프로필
+		// 아바타·클립 썸네일은 저작권과 초상권이 같이 걸려 수집도 보관도 하지 않는다.
+		if (!isOwnerPhotoSource(url)) {
+			return ImageUploadFromUrlResponse.Item.failure(
+				url, ImageUploadFromUrlResponse.Status.REJECTED_SOURCE, "not an owner-registered photo host");
+		}
 
 		// Idempotency — 같은 (target, source_url) 이미 저장돼 있으면 다운로드 자체를 스킵.
 		ImageUploadFromUrlResponse.Item existing = findExistingBySourceUrl(domain, targetId, url);
@@ -247,6 +258,30 @@ public class AdminImageCommandService {
 			}
 			return ImageUploadFromUrlResponse.Item.failure(
 				url, ImageUploadFromUrlResponse.Status.DB_FAILED, e.getMessage());
+		}
+	}
+
+	/** 점주가 네이버에 등록한 사진이 오는 도메인. 없는 도메인이 생기면 안 들어오는 쪽이 안전하다 */
+	private static final Set<String> OWNER_PHOTO_HOSTS = Set.of("ldb-phinf.pstatic.net");
+
+	/** search.pstatic.net/common?src=… 리사이즈 래퍼는 안쪽 원본의 호스트로 판단한다 */
+	static boolean isOwnerPhotoSource(String url) {
+		try {
+			URI uri = URI.create(url.trim());
+			String host = uri.getHost();
+			String query = uri.getRawQuery();
+			if (query != null) {
+				for (String pair : query.split("&")) {
+					if (pair.startsWith("src=")) {
+						String inner = URLDecoder.decode(pair.substring(4), StandardCharsets.UTF_8);
+						host = URI.create(inner).getHost();
+						break;
+					}
+				}
+			}
+			return host != null && OWNER_PHOTO_HOSTS.contains(host.toLowerCase());
+		} catch (RuntimeException invalid) {
+			return false;
 		}
 	}
 
