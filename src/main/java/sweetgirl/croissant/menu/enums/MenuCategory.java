@@ -41,7 +41,10 @@ public enum MenuCategory {
 	식빵(Set.of(MenuKind.식빵)),
 	단과자빵(Set.of(MenuKind.크림빵, MenuKind.단팥빵, MenuKind.소보로, MenuKind.앙버터, MenuKind.고구마빵, MenuKind.밤빵,
 		MenuKind.소라빵, MenuKind.땅콩빵, MenuKind.꿀빵, MenuKind.붕어빵, MenuKind.계란빵, MenuKind.커피콩빵)),
-	떡한과(Set.of(MenuKind.떡, MenuKind.버터떡, MenuKind.약과, MenuKind.화과자, MenuKind.모나카, MenuKind.만쥬));
+	떡한과(Set.of(MenuKind.떡, MenuKind.버터떡, MenuKind.약과, MenuKind.화과자, MenuKind.모나카, MenuKind.만쥬,
+		MenuKind.한과)),
+	// 2026-09-08 신설 — 초콜릿은 기존 어느 대분류에도 맞지 않는다
+	초콜릿(Set.of(MenuKind.초콜릿));
 
 	/** 대분류 밖에 두는 kind — 분류 실패 폴백이라 트렌드 집계 대상이 아니다 */
 	public static final Set<MenuKind> UNCATEGORIZED_KINDS = Set.of(MenuKind.빵, MenuKind.기타);
