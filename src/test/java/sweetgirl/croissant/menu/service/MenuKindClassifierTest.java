@@ -219,4 +219,55 @@ class MenuKindClassifierTest {
 			verify(geminiClient, times(1)).generateStructured(anyString(), anyMap(), eq(BatchAnswer.class));
 		}
 	}
+
+	@Nested
+	@DisplayName("즉답 제안 — 회원 메뉴 등록 화면")
+	class Suggest {
+
+		@Test
+		@DisplayName("한 번만 묻고 그 kind 를 제안한다")
+		void suggestsFromSingleCall() {
+			given(geminiClient.generateStructured(anyString(), anyMap(), eq(BatchAnswer.class)))
+				.willReturn(answer(item(0, "소금빵", true, 0.9)));
+
+			assertThat(classifier.suggest("무화과크림치즈")).contains(MenuKind.소금빵);
+			verify(geminiClient, times(1)).generateStructured(anyString(), anyMap(), eq(BatchAnswer.class));
+		}
+
+		@Test
+		@DisplayName("비-빵이거나 '빵'·'기타'로만 답하면 제안하지 않는다")
+		void noSuggestionForNonBakeryOrFallback() {
+			given(geminiClient.generateStructured(anyString(), anyMap(), eq(BatchAnswer.class)))
+				.willReturn(answer(item(0, "기타", false, 0.9)))
+				.willReturn(answer(item(0, "빵", true, 0.9)));
+
+			assertThat(classifier.suggest("허니레몬차")).isEmpty();
+			assertThat(classifier.suggest("십원빵")).isEmpty();
+		}
+
+		@Test
+		@DisplayName("Gemini 오류는 삼키고 빈 값 — 등록 자체를 막지 않는다")
+		void swallowsGeminiFailure() {
+			given(geminiClient.generateStructured(anyString(), anyMap(), eq(BatchAnswer.class)))
+				.willThrow(new GeminiException(GeminiErrorCode.RATE_LIMITED));
+
+			assertThat(classifier.suggest("소금빵")).isEmpty();
+			verify(geminiClient, times(1)).generateStructured(anyString(), anyMap(), eq(BatchAnswer.class));
+		}
+
+		@Test
+		@DisplayName("상한 안에 답이 없으면 빈 값 — 사용자를 기다리게 하지 않는다")
+		void givesUpAfterTimeout() {
+			MenuClassificationProperties slow = new MenuClassificationProperties();
+			slow.setSuggestTimeout(Duration.ofMillis(50));
+			MenuKindClassifier impatient = new MenuKindClassifier(geminiClient, new GeminiProperties(), slow);
+			given(geminiClient.generateStructured(anyString(), anyMap(), eq(BatchAnswer.class)))
+				.willAnswer(invocation -> {
+					Thread.sleep(300);
+					return answer(item(0, "소금빵", true, 0.9));
+				});
+
+			assertThat(impatient.suggest("소금빵")).isEmpty();
+		}
+	}
 }
