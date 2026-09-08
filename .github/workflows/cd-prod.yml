@@ -241,6 +241,7 @@ jobs:
             echo "JWT_SECRET=${JWT_SECRET}"
             echo "KAKAO_API_KEY=${KAKAO_API_KEY}"
             echo "GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY}"
+            echo "GEMINI_API_KEY=${GEMINI_API_KEY}"
             echo "NAVER_CLIENT_ID=${NAVER_CLIENT_ID}"
             echo "NAVER_CLIENT_SECRET=${NAVER_CLIENT_SECRET}"
             echo "AWS_REGION=ap-northeast-2"
