@@ -104,4 +104,7 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
 	@Query("SELECT m FROM Menu m WHERE m.menuCategory IS NULL AND m.classifiedAt IS NULL AND m.deletedAt IS NULL "
 		+ "ORDER BY m.id")
 	List<Menu> findAwaitingClassification(Pageable pageable);
+
+	/** 같은 정규화 이름의 미분류 활성 메뉴 — 어드민이 이름 단위로 kind 를 확정할 때 한꺼번에 적용 */
+	List<Menu> findByNormalizedNameAndMenuCategoryIsNullAndDeletedAtIsNull(String normalizedName);
 }
