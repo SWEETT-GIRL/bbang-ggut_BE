@@ -66,4 +66,13 @@ public class BreadRecordTag extends BaseTimeEntity {
 		this.positionY = positionY;
 		this.style = style;
 	}
+
+	/** 분류 규칙이 바뀌었을 때 기존 태그를 다시 분류 — 이름은 그대로, 분류만. 바뀌었으면 true */
+	public boolean reclassify(String breadCategory) {
+		if (this.breadCategory.equals(breadCategory)) {
+			return false;
+		}
+		this.breadCategory = breadCategory;
+		return true;
+	}
 }
