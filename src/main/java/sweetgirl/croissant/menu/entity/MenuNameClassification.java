@@ -69,6 +69,22 @@ public class MenuNameClassification extends BaseTimeEntity {
 			model);
 	}
 
+	/** 사람이 정한 판정 — 모델 자리엔 ADMIN 을 남겨 AI 판정과 구분한다 */
+	public static final String ADMIN_MODEL = "ADMIN";
+
+	public static MenuNameClassification confirmedByAdmin(String normalizedName, MenuKind kind, boolean bakeryItem) {
+		return new MenuNameClassification(normalizedName, kind, bakeryItem, null, true, ADMIN_MODEL);
+	}
+
+	/** 이미 AI 가 남긴 행(갈렸거나 틀린 것)을 사람이 덮어쓴다 */
+	public void confirmByAdmin(MenuKind kind, boolean bakeryItem) {
+		this.kind = kind;
+		this.bakeryItem = bakeryItem;
+		this.confidence = null;
+		this.agreed = true;
+		this.model = ADMIN_MODEL;
+	}
+
 	public MenuKindVerdict toVerdict() {
 		return new MenuKindVerdict(normalizedName, kind, bakeryItem, confidence == null ? 0 : confidence, agreed);
 	}
