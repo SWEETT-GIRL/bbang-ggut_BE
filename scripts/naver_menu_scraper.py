@@ -1164,6 +1164,8 @@ def main() -> None:
 	parser.add_argument("--batch", type=int, default=QUEUE_BATCH_SIZE, help=f"한 번에 fetch 할 큐 크기 (기본: {QUEUE_BATCH_SIZE})")
 	parser.add_argument("--loop", action="store_true", help="큐가 빌 때까지 반복 (각 배치 사이 5초 대기)")
 	parser.add_argument("--max-batches", type=int, default=0, help="최대 배치 수 (0 = 무제한)")
+	parser.add_argument("--max-seconds", type=int, default=0,
+		help="이 시간을 넘기면 가게 사이에서 멈추고 정상 종료 (0 = 무제한). CI 타임아웃에 잘려 로그·요약을 잃지 않게 한다")
 	parser.add_argument("--store-id", type=int, default=0,
 		help="단일 가게 모드 — 지정한 store id 만 처리하고 종료 (어드민 'Enrich' 버튼용)")
 	parser.add_argument("--dry-run", action="store_true", help="매칭만 시뮬레이션, 실제 저장 X")
@@ -1243,7 +1245,22 @@ def main() -> None:
 		else:
 			# 큐 모드 (Option B 또는 운영자 CLI)
 			batches_done = 0
+			budget_stopped = False
+			started_at = time.monotonic()
+
+			def budget_exhausted() -> bool:
+				"""시간 예산 소진 여부. 넘겼으면 가게 사이에서 멈춘다.
+
+				CI 타임아웃(job timeout-minutes)에 잘리면 프로세스가 통째로 죽어
+				진행 요약도 로그도 남지 않고, 가게 하나를 처리하던 중간에 끊긴다.
+				예산을 job 타임아웃보다 짧게 주면 늘 스스로 끝내고 요약을 남긴다.
+				"""
+				return bool(args.max_seconds) and (time.monotonic() - started_at) >= args.max_seconds
+
 			while True:
+				if budget_exhausted():
+					print(f"\n[시간 예산 {args.max_seconds}초 소진 — 다음 배치를 시작하지 않고 종료]")
+					break
 				queue = fetch_queue(args.server, args.batch, path=queue_path, partition=args.partition)
 				if not queue:
 					print("\n[큐 비어있음 — 종료]")
@@ -1270,8 +1287,12 @@ def main() -> None:
 						print("        차단 감지 건은 백필 완료 마킹/실패 마킹을 생략합니다.")
 						abort_exit_code = BLOCKED_ABORT_EXIT_CODE
 						break
+					if budget_exhausted():
+						print(f"\n[시간 예산 {args.max_seconds}초 소진 — 배치 중단, 남은 가게는 다음 실행에서]")
+						budget_stopped = True
+						break
 					time.sleep(INTER_STORE_DELAY_SEC + random.uniform(0, INTER_STORE_JITTER_SEC))
-				if abort_exit_code:
+				if abort_exit_code or budget_stopped:
 					break
 				batches_done += 1
 				if not args.loop:
