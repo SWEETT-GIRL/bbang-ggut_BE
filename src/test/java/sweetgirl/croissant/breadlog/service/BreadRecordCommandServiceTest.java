@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.StreamSupport;
 
 import org.junit.jupiter.api.DisplayName;
@@ -44,6 +45,8 @@ import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
+import sweetgirl.croissant.menu.entity.Menu;
+import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
@@ -64,6 +67,8 @@ class BreadRecordCommandServiceTest {
 	BreadRecordPhotoRepository photoRepository;
 	@Mock
 	BreadRecordTagRepository tagRepository;
+	@Mock
+	MenuRepository menuRepository;
 	@Mock
 	BreadCategoryClassifier categoryClassifier;
 	@Mock
@@ -121,8 +126,8 @@ class BreadRecordCommandServiceTest {
 			List.of(
 				new BreadRecordPhotoRequest("a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
 			List.of(
-				new BreadRecordTagRequest(0, "우유식빵", 0.31, 0.42, null),
-				new BreadRecordTagRequest(0, "소금빵", 0.5, 0.5, null)));
+				new BreadRecordTagRequest(0, "우유식빵", null, 0.31, 0.42, null),
+				new BreadRecordTagRequest(0, "소금빵", null, 0.5, 0.5, null)));
 		given(memberReader.getMember(7L)).willReturn(member);
 		given(storeRepository.findById(10L)).willReturn(Optional.of(store));
 		given(regionResolver.resolve(store, "client_region")).willReturn("서울_성동구_성수동");
@@ -149,7 +154,7 @@ class BreadRecordCommandServiceTest {
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(
 				new BreadRecordPhotoRequest("a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
-			List.of(new BreadRecordTagRequest(0, "우유식빵", 0.31, 0.42, null)));
+			List.of(new BreadRecordTagRequest(0, "우유식빵", null, 0.31, 0.42, null)));
 		given(memberReader.getMember(7L)).willReturn(member(7L));
 		given(storeRepository.findById(10L)).willReturn(Optional.of(store(10L)));
 
@@ -234,7 +239,99 @@ class BreadRecordCommandServiceTest {
 			null,
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(new BreadRecordPhotoRequest("a.jpg", "image/jpeg", awsKey, 0, null, null)),
-			List.of(new BreadRecordTagRequest(tagPhotoSortOrder, "우유식빵", 0.31, 0.42, null)));
+			List.of(new BreadRecordTagRequest(tagPhotoSortOrder, "우유식빵", null, 0.31, 0.42, null)));
+	}
+
+	@Test
+	@DisplayName("create: 앱이 menuId 를 안 보내도 가게 메뉴에서 같은 이름을 찾아 태그가 가리키게 한다")
+	void create_linksMenuByName() {
+		Menu menu = menu(99L, "우유식빵");
+		givenCreatableRecord();
+		given(categoryClassifier.classify("우유식빵")).willReturn("식빵");
+		given(menuRepository.findByStoreIdAndDeletedAtIsNullAndNormalizedNameIn(10L, Set.of("우유식빵")))
+			.willReturn(List.of(menu));
+
+		commandService.create(7L, request("bread-records/members/7/images/a", 0));
+
+		verify(tagRepository).saveAll(argThat(tags -> firstTag(tags).getMenu() == menu));
+	}
+
+	@Test
+	@DisplayName("create: 앱이 보낸 menuId 가 이 가게 메뉴면 이름을 다시 찾지 않고 그것을 가리킨다")
+	void create_linksMenuByRequestedId() {
+		Menu menu = menu(99L, "소금빵 (1시)");
+		givenCreatableRecord();
+		given(categoryClassifier.classify("소금빵")).willReturn("소금빵");
+		given(menuRepository.findByStoreIdAndDeletedAtIsNullAndIdIn(10L, Set.of(99L))).willReturn(List.of(menu));
+
+		commandService.create(7L, requestWithTagMenuId(99L));
+
+		verify(tagRepository).saveAll(argThat(tags -> firstTag(tags).getMenu() == menu));
+		verify(menuRepository, never()).findByStoreIdAndDeletedAtIsNullAndNormalizedNameIn(any(), any());
+	}
+
+	@Test
+	@DisplayName("create: 앱이 보낸 menuId 가 이 가게 것이 아니면 저장을 막지 않고 이름 매칭으로 물러선다")
+	void create_ignoresMenuIdOfAnotherStore() {
+		Menu menu = menu(99L, "소금빵");
+		givenCreatableRecord();
+		given(categoryClassifier.classify("소금빵")).willReturn("소금빵");
+		given(menuRepository.findByStoreIdAndDeletedAtIsNullAndIdIn(10L, Set.of(1234L))).willReturn(List.of());
+		given(menuRepository.findByStoreIdAndDeletedAtIsNullAndNormalizedNameIn(10L, Set.of("소금빵")))
+			.willReturn(List.of(menu));
+
+		commandService.create(7L, requestWithTagMenuId(1234L));
+
+		verify(tagRepository).saveAll(argThat(tags -> firstTag(tags).getMenu() == menu));
+	}
+
+	@Test
+	@DisplayName("create: 가게를 안 고른 기록은 메뉴를 찾지 않는다")
+	void create_withoutStore_skipsMenuLookup() {
+		given(memberReader.getMember(7L)).willReturn(member(7L));
+		given(regionResolver.resolve(null, "client_region")).willReturn(null);
+		given(categoryClassifier.classify("소금빵")).willReturn("소금빵");
+		given(breadRecordRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+		given(photoRepository.saveAll(any())).willAnswer(invocation -> invocation.getArgument(0));
+
+		commandService.create(7L, new BreadRecordUpsertRequest(
+			null, "직접 적은 가게", "client_region", null, null, null,
+			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
+			List.of(new BreadRecordPhotoRequest(
+				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
+			List.of(new BreadRecordTagRequest(0, "소금빵", 99L, 0.5, 0.5, null))));
+
+		verify(tagRepository).saveAll(argThat(tags -> firstTag(tags).getMenu() == null));
+		verify(menuRepository, never()).findByStoreIdAndDeletedAtIsNullAndIdIn(any(), any());
+		verify(menuRepository, never()).findByStoreIdAndDeletedAtIsNullAndNormalizedNameIn(any(), any());
+	}
+
+	private void givenCreatableRecord() {
+		Store store = store(10L);
+		given(memberReader.getMember(7L)).willReturn(member(7L));
+		given(storeRepository.findById(10L)).willReturn(Optional.of(store));
+		given(regionResolver.resolve(store, "client_region")).willReturn("서울_성동구_성수동");
+		given(breadRecordRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+		given(photoRepository.saveAll(any())).willAnswer(invocation -> invocation.getArgument(0));
+	}
+
+	private BreadRecordUpsertRequest requestWithTagMenuId(Long menuId) {
+		return new BreadRecordUpsertRequest(
+			10L, "클라이언트 가게명", "client_region", null, null, null,
+			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
+			List.of(new BreadRecordPhotoRequest(
+				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
+			List.of(new BreadRecordTagRequest(0, "소금빵", menuId, 0.5, 0.5, null)));
+	}
+
+	private static BreadRecordTag firstTag(Iterable<BreadRecordTag> tags) {
+		return StreamSupport.stream(tags.spliterator(), false).toList().get(0);
+	}
+
+	private Menu menu(Long id, String name) {
+		Menu menu = Menu.builder().name(name).build();
+		ReflectionTestUtils.setField(menu, "id", id);
+		return menu;
 	}
 
 	private Member member(Long id) {
