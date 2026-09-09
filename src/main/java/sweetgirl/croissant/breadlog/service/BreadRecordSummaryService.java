@@ -13,6 +13,7 @@ import sweetgirl.croissant.breadlog.code.BreadLogErrorCode;
 import sweetgirl.croissant.breadlog.dto.projection.BreadRecordRegionProjection;
 import sweetgirl.croissant.breadlog.dto.projection.BreadRecordStoreVisitProjection;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordSummaryResponse;
+import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
 import sweetgirl.croissant.breadlog.exception.BreadLogException;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
@@ -30,7 +31,6 @@ public class BreadRecordSummaryService {
 		"서울", "경기", "인천", "강원", "충북", "충남", "세종", "대전", "경북",
 		"경남", "대구", "울산", "부산", "전북", "전남", "광주", "제주");
 	private static final Set<String> VALID_SIDOS = Set.copyOf(SIDO_ORDER);
-	private static final String UNCATEGORIZED_BREAD = "기타";
 
 	private final MemberReader memberReader;
 	private final BreadRecordRepository breadRecordRepository;
@@ -56,11 +56,22 @@ public class BreadRecordSummaryService {
 			tagRepository.countBreads(memberId, rangeStart, rangeEnd),
 			storeVisits.size(),
 			sidos,
-			tagRepository.findBreadCategories(memberId, rangeStart, rangeEnd).stream()
-				.filter(category -> !UNCATEGORIZED_BREAD.equals(category))
-				.toList(),
+			resolveBreadCategories(memberId, rangeStart, rangeEnd),
 			topStores,
 			calculateRevisitRate(storeVisits));
+	}
+
+	/**
+	 * 먹은 빵 종류 목록. 분류를 못 정한 태그('빵'·'기타')는 뺀다 — 종류를 셌다고 말할 수 없는 것들이다.
+	 * 이전에는 '기타'만 걸러 '빵'이 종류인 양 섞여 나갔다.
+	 */
+	private List<String> resolveBreadCategories(Long memberId, LocalDateTime from, LocalDateTime to) {
+		return tagRepository.findTagsWithMenu(memberId, from, to).stream()
+			.filter(tag -> !tag.uncategorized())
+			.map(BreadRecordTag::resolvedCategory)
+			.distinct()
+			.sorted()
+			.toList();
 	}
 
 	private List<String> resolveSidos(List<BreadRecordRegionProjection> regions) {

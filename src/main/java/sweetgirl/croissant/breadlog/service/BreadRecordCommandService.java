@@ -40,6 +40,9 @@ import sweetgirl.croissant.external.aws.util.S3PathGenerator;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
+import sweetgirl.croissant.menu.entity.Menu;
+import sweetgirl.croissant.menu.repository.MenuRepository;
+import sweetgirl.croissant.menu.util.MenuNameNormalizer;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.exception.StoreException;
@@ -58,6 +61,7 @@ public class BreadRecordCommandService {
 	private final BreadRecordRepository breadRecordRepository;
 	private final BreadRecordPhotoRepository photoRepository;
 	private final BreadRecordTagRepository tagRepository;
+	private final MenuRepository menuRepository;
 	private final BreadCategoryClassifier categoryClassifier;
 	private final BreadRecordRegionResolver regionResolver;
 	private final ImageProcessingCallbackService imageProcessingCallbackService;
@@ -227,10 +231,13 @@ public class BreadRecordCommandService {
 		photoRepository.saveAll(photos).forEach(photo -> photoBySortOrder.put(photo.getSortOrder(), photo));
 		imageProcessingCallbackService.applyPendingCallbacks(photos);
 
+		Map<Long, Menu> menuById = findMenusById(record.getStore(), request.tags());
+		Map<String, Menu> menuByName = findMenusByName(record.getStore(), request.tags(), menuById);
 		List<BreadRecordTag> tags = request.tags().stream()
 			.map(tag -> BreadRecordTag.builder()
 				.record(record)
 				.photo(photoBySortOrder.get(tag.photoSortOrder()))
+				.menu(resolveMenu(tag, menuById, menuByName))
 				.name(tag.name().strip())
 				.breadCategory(categoryClassifier.classify(tag.name()))
 				.positionX(tag.positionX())
@@ -239,6 +246,63 @@ public class BreadRecordCommandService {
 				.build())
 			.toList();
 		tagRepository.saveAll(tags);
+	}
+
+	/**
+	 * 태그가 가리킬 메뉴. 앱이 실어 보낸 menuId 가 먼저고, 그게 없거나 이 가게 메뉴가 아니면 이름으로 찾는다.
+	 *
+	 * <p>앱이 보낸 id 를 못 쓰더라도 예외를 던지지 않는다 — 메뉴가 그 사이 지워졌을 수 있고,
+	 * 태그 하나가 메뉴를 못 가리키는 것 때문에 기록 저장을 막을 이유가 없다. 못 찾으면 null 이고,
+	 * 그 태그는 저장된 breadCategory(룰 판정)로만 산다.
+	 */
+	private Menu resolveMenu(BreadRecordTagRequest tag, Map<Long, Menu> menuById, Map<String, Menu> menuByName) {
+		if (tag.menuId() != null) {
+			Menu requested = menuById.get(tag.menuId());
+			if (requested != null) {
+				return requested;
+			}
+		}
+		return menuByName.get(MenuNameNormalizer.normalize(tag.name()));
+	}
+
+	private Map<Long, Menu> findMenusById(Store store, List<BreadRecordTagRequest> tags) {
+		if (store == null) {
+			return Map.of();
+		}
+		Set<Long> menuIds = tags.stream()
+			.map(BreadRecordTagRequest::menuId)
+			.filter(Objects::nonNull)
+			.collect(Collectors.toSet());
+		if (menuIds.isEmpty()) {
+			return Map.of();
+		}
+		return menuRepository.findByStoreIdAndDeletedAtIsNullAndIdIn(store.getId(), menuIds).stream()
+			.collect(Collectors.toMap(Menu::getId, menu -> menu));
+	}
+
+	/** menuId 로 이미 짚은 태그는 빼고, 남은 이름만 한 번에 묻는다 */
+	private Map<String, Menu> findMenusByName(
+			Store store,
+			List<BreadRecordTagRequest> tags,
+			Map<Long, Menu> menuById) {
+		if (store == null) {
+			return Map.of();
+		}
+		Set<String> normalizedNames = tags.stream()
+			.filter(tag -> tag.menuId() == null || !menuById.containsKey(tag.menuId()))
+			.map(tag -> MenuNameNormalizer.normalize(tag.name()))
+			.filter(normalizedName -> !normalizedName.isEmpty())
+			.collect(Collectors.toSet());
+		if (normalizedNames.isEmpty()) {
+			return Map.of();
+		}
+		// 2026-05-27 이전 수기 중복이 남아 있어 같은 이름이 둘 이상 올 수 있다 — 오래된 것을 쓴다
+		return menuRepository
+			.findByStoreIdAndDeletedAtIsNullAndNormalizedNameIn(store.getId(), normalizedNames).stream()
+			.collect(Collectors.toMap(
+				Menu::getNormalizedName,
+				menu -> menu,
+				(oldest, duplicate) -> oldest.getId() <= duplicate.getId() ? oldest : duplicate));
 	}
 
 	private BreadRecordPhoto toPhoto(

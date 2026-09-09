@@ -1,5 +1,6 @@
 package sweetgirl.croissant.menu.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -108,4 +109,13 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
 
 	/** 같은 정규화 이름의 미분류 활성 메뉴 — 어드민이 이름 단위로 kind 를 확정할 때 한꺼번에 적용 */
 	List<Menu> findByNormalizedNameAndMenuCategoryIsNullAndDeletedAtIsNull(String normalizedName);
+
+	/**
+	 * 빵로그 태그가 가리킬 메뉴 찾기 — 한 기록의 태그 이름들을 한 번에 묻는다.
+	 * 위 주석의 중복 31그룹이 여기에도 걸릴 수 있으므로 호출부가 이름당 한 건을 골라 쓴다.
+	 */
+	List<Menu> findByStoreIdAndDeletedAtIsNullAndNormalizedNameIn(Long storeId, Collection<String> normalizedNames);
+
+	/** 앱이 태그에 실어 보낸 메뉴 id — 그 가게의 활성 메뉴만 인정한다 */
+	List<Menu> findByStoreIdAndDeletedAtIsNullAndIdIn(Long storeId, Collection<Long> ids);
 }
