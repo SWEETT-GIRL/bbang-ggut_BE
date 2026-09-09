@@ -60,6 +60,11 @@ jobs:
 
           gemini.api.key=${GEMINI_API_KEY}
 
+          # 2026-09-09 정지 — prod 와 같은 무료 티어 키를 쓴다. dev 서버까지 스케줄러를 돌리면
+          # 하루 500 요청을 둘이 나눠 먹어 양쪽 다 429 를 맞는다. 애초에 dev 에서 68만 건을
+          # 분류할 일이 없으므로 여기는 계속 꺼 둔다 (분류 코드를 고칠 때만 잠시 켠다).
+          menu.classification.enabled=false
+
           jwt.secret=${JWT_SECRET}
           jwt.access-token-expiry=1800000
           jwt.refresh-token-expiry=5184000000
