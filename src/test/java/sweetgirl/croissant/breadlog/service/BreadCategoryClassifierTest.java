@@ -53,6 +53,26 @@ class BreadCategoryClassifierTest {
 	}
 
 	@Test
+	@DisplayName("2026-09-09 보강 — 운영 태그에서 룰이 지고 AI 가 맞히던 표기들")
+	void classify_reinforcedWords() {
+		// '시루'는 시루케이크. 다만 '시루떡'은 떡이 더 뒤에서 끝나 그대로 떡이다
+		assertThat(classifier.classify("무화과시루")).isEqualTo("케이크");
+		assertThat(classifier.classify("썸머요거트복숭아시루")).isEqualTo("케이크");
+		assertThat(classifier.classify("쑥시루떡")).isEqualTo("떡");
+		assertThat(classifier.classify("인절미망고반반설빙")).isEqualTo("빙수");
+		assertThat(classifier.classify("애플팥맘모스롤")).isEqualTo("맘모롤");
+		assertThat(classifier.classify("블루베리 치즈케이크 샌드베이들")).isEqualTo("샌드베이글");
+	}
+
+	@Test
+	@DisplayName("'아포가토'가 '가토'(케이크)보다 길어 아이스크림으로 간다 — 갸또 표기는 그대로 케이크")
+	void classify_affogatoBeatsGateau() {
+		assertThat(classifier.classify("초코아포가토")).isEqualTo("아이스크림");
+		assertThat(classifier.classify("쑥갸또")).isEqualTo("케이크");
+		assertThat(classifier.classify("단호박갸또")).isEqualTo("케이크");
+	}
+
+	@Test
 	@DisplayName("괄호 수식은 무시한다")
 	void classify_ignoresParentheses() {
 		assertThat(classifier.classify("과일케이크 1호 (제철과일)")).isEqualTo("케이크");
