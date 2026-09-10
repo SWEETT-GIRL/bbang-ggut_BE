@@ -126,8 +126,8 @@ class BreadRecordCommandServiceTest {
 			List.of(
 				new BreadRecordPhotoRequest("a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
 			List.of(
-				new BreadRecordTagRequest(0, "우유식빵", null, 0.31, 0.42, null),
-				new BreadRecordTagRequest(0, "소금빵", null, 0.5, 0.5, null)));
+				new BreadRecordTagRequest(0, "우유식빵", null, null, 0.31, 0.42, null),
+				new BreadRecordTagRequest(0, "소금빵", null, null, 0.5, 0.5, null)));
 		given(memberReader.getMember(7L)).willReturn(member);
 		given(storeRepository.findById(10L)).willReturn(Optional.of(store));
 		given(regionResolver.resolve(store, "client_region")).willReturn("서울_성동구_성수동");
@@ -154,7 +154,7 @@ class BreadRecordCommandServiceTest {
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(
 				new BreadRecordPhotoRequest("a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
-			List.of(new BreadRecordTagRequest(0, "우유식빵", null, 0.31, 0.42, null)));
+			List.of(new BreadRecordTagRequest(0, "우유식빵", null, null, 0.31, 0.42, null)));
 		given(memberReader.getMember(7L)).willReturn(member(7L));
 		given(storeRepository.findById(10L)).willReturn(Optional.of(store(10L)));
 
@@ -239,7 +239,7 @@ class BreadRecordCommandServiceTest {
 			null,
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(new BreadRecordPhotoRequest("a.jpg", "image/jpeg", awsKey, 0, null, null)),
-			List.of(new BreadRecordTagRequest(tagPhotoSortOrder, "우유식빵", null, 0.31, 0.42, null)));
+			List.of(new BreadRecordTagRequest(tagPhotoSortOrder, "우유식빵", null, null, 0.31, 0.42, null)));
 	}
 
 	@Test
@@ -286,6 +286,64 @@ class BreadRecordCommandServiceTest {
 	}
 
 	@Test
+	@DisplayName("create: AI 가 제안했던 메뉴를 suggestedMenu 로 남긴다 — 유저가 그대로 받아들인 경우")
+	void create_keepsSuggestedMenuWhenAccepted() {
+		Menu menu = menu(99L, "소금빵");
+		givenCreatableRecord();
+		given(categoryClassifier.classify("소금빵")).willReturn("소금빵");
+		given(menuRepository.findByStoreIdAndDeletedAtIsNullAndIdIn(10L, Set.of(99L))).willReturn(List.of(menu));
+
+		commandService.create(7L, requestWithTagMenus(99L, 99L));
+
+		verify(tagRepository)
+			.saveAll(argThat(tags -> firstTag(tags).getMenu() == menu && firstTag(tags).getSuggestedMenu() == menu));
+	}
+
+	@Test
+	@DisplayName("create: 유저가 제안을 고쳐도 무엇이 제안됐었는지는 남는다 — 자주 틀리는 쌍의 재료다")
+	void create_keepsSuggestedMenuWhenCorrected() {
+		Menu chosen = menu(99L, "명란바게트");
+		Menu suggested = menu(77L, "마늘바게트");
+		givenCreatableRecord();
+		given(categoryClassifier.classify("소금빵")).willReturn("소금빵");
+		given(menuRepository.findByStoreIdAndDeletedAtIsNullAndIdIn(10L, Set.of(99L, 77L)))
+			.willReturn(List.of(chosen, suggested));
+
+		commandService.create(7L, requestWithTagMenus(99L, 77L));
+
+		verify(tagRepository).saveAll(
+			argThat(tags -> firstTag(tags).getMenu() == chosen && firstTag(tags).getSuggestedMenu() == suggested));
+	}
+
+	@Test
+	@DisplayName("create: suggestedMenuId 를 안 보내면 null 이다 — 직접 단 태그와 구버전 앱이 그렇다")
+	void create_leavesSuggestedMenuNullWhenAbsent() {
+		Menu menu = menu(99L, "소금빵");
+		givenCreatableRecord();
+		given(categoryClassifier.classify("소금빵")).willReturn("소금빵");
+		given(menuRepository.findByStoreIdAndDeletedAtIsNullAndIdIn(10L, Set.of(99L))).willReturn(List.of(menu));
+
+		commandService.create(7L, requestWithTagMenuId(99L));
+
+		verify(tagRepository).saveAll(argThat(tags -> firstTag(tags).getSuggestedMenu() == null));
+	}
+
+	@Test
+	@DisplayName("create: 제안된 메뉴가 이 가게 것이 아니면 그냥 안 남긴다 — 저장을 막지 않는다")
+	void create_ignoresSuggestedMenuOfAnotherStore() {
+		Menu menu = menu(99L, "소금빵");
+		givenCreatableRecord();
+		given(categoryClassifier.classify("소금빵")).willReturn("소금빵");
+		given(menuRepository.findByStoreIdAndDeletedAtIsNullAndIdIn(10L, Set.of(99L, 1234L)))
+			.willReturn(List.of(menu));
+
+		commandService.create(7L, requestWithTagMenus(99L, 1234L));
+
+		verify(tagRepository)
+			.saveAll(argThat(tags -> firstTag(tags).getMenu() == menu && firstTag(tags).getSuggestedMenu() == null));
+	}
+
+	@Test
 	@DisplayName("create: 가게를 안 고른 기록은 메뉴를 찾지 않는다")
 	void create_withoutStore_skipsMenuLookup() {
 		given(memberReader.getMember(7L)).willReturn(member(7L));
@@ -299,7 +357,7 @@ class BreadRecordCommandServiceTest {
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(new BreadRecordPhotoRequest(
 				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
-			List.of(new BreadRecordTagRequest(0, "소금빵", 99L, 0.5, 0.5, null))));
+			List.of(new BreadRecordTagRequest(0, "소금빵", 99L, null, 0.5, 0.5, null))));
 
 		verify(tagRepository).saveAll(argThat(tags -> firstTag(tags).getMenu() == null));
 		verify(menuRepository, never()).findByStoreIdAndDeletedAtIsNullAndIdIn(any(), any());
@@ -316,12 +374,16 @@ class BreadRecordCommandServiceTest {
 	}
 
 	private BreadRecordUpsertRequest requestWithTagMenuId(Long menuId) {
+		return requestWithTagMenus(menuId, null);
+	}
+
+	private BreadRecordUpsertRequest requestWithTagMenus(Long menuId, Long suggestedMenuId) {
 		return new BreadRecordUpsertRequest(
 			10L, "클라이언트 가게명", "client_region", null, null, null,
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(new BreadRecordPhotoRequest(
 				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
-			List.of(new BreadRecordTagRequest(0, "소금빵", menuId, 0.5, 0.5, null)));
+			List.of(new BreadRecordTagRequest(0, "소금빵", menuId, suggestedMenuId, 0.5, 0.5, null)));
 	}
 
 	private static BreadRecordTag firstTag(Iterable<BreadRecordTag> tags) {

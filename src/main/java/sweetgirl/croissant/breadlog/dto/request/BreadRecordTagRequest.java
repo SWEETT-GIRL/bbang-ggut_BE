@@ -16,6 +16,11 @@ public record BreadRecordTagRequest(
 		 * 이 가게 메뉴가 아니면(지워졌거나 다른 가게) 무시하고 이름 매칭으로 물러선다.
 		 */
 		Long menuId,
+		/**
+		 * 이 자리에 AI 가 제안했던 메뉴. 제안을 그대로 쓴 태그든 유저가 다른 걸로 고친 태그든,
+		 * "AI 가 뭘 제안했었나"를 남기는 게 목적이다. 안 보내면 null — 직접 단 태그와 구버전 앱이 그렇다.
+		 */
+		Long suggestedMenuId,
 		@JsonProperty("x") @DecimalMin("0.0") @DecimalMax("1.0") double positionX,
 		@JsonProperty("y") @DecimalMin("0.0") @DecimalMax("1.0") double positionY,
 		/** 이름표 꾸밈("모양.종이[.up]"). 구버전 앱은 안 보낸다 */
