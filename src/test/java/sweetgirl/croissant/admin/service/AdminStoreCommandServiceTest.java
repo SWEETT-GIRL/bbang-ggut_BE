@@ -187,9 +187,10 @@ class AdminStoreCommandServiceTest {
 			isNull(),
 			eq(address),
 			any(Point.class),
-			eq("경기도"),
+			// 시·도는 짧게 접고, 도로명은 동 자리에 넣지 않는다 (AddressParser, 2026-09-10)
+			eq("경기"),
 			eq("하남시"),
-			eq("신장1로3번길"),
+			isNull(),
 			isNull(),
 			isNull(),
 			isNull());
