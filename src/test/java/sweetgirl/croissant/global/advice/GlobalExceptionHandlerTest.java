@@ -9,6 +9,7 @@ import java.io.IOException;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotWritableException;
 import org.springframework.test.web.servlet.MockMvc;
@@ -17,8 +18,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import jakarta.servlet.http.HttpServletRequest;
+import sweetgirl.croissant.global.logging.filter.RequestLoggingFilter;
 import sweetgirl.croissant.global.response.ApiResponse;
 
 class GlobalExceptionHandlerTest {
@@ -79,6 +82,33 @@ class GlobalExceptionHandlerTest {
 			request);
 
 		assertThat(response.getStatusCode().is5xxServerError()).isTrue();
+	}
+
+	@Test
+	void maxUploadSizeExceededException_returns413() {
+		GlobalExceptionHandler handler = new GlobalExceptionHandler();
+		HttpServletRequest request = mock(HttpServletRequest.class);
+		when(request.getMethod()).thenReturn("POST");
+		when(request.getRequestURI()).thenReturn("/bread-records/photos/analyze");
+
+		ResponseEntity<ApiResponse<?>> response = handler.handleMaxUploadSizeExceededException(
+			new MaxUploadSizeExceededException(5_242_880L), request);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE);
+		assertThat(response.getBody().getCode()).isEqualTo("COMMON413");
+		assertThat(response.getBody().isSuccess()).isFalse();
+	}
+
+	@Test
+	void maxUploadSizeExceededException_recordsErrorCodeForRequestLog() {
+		GlobalExceptionHandler handler = new GlobalExceptionHandler();
+		HttpServletRequest request = mock(HttpServletRequest.class);
+		when(request.getMethod()).thenReturn("POST");
+		when(request.getRequestURI()).thenReturn("/bread-records/photos/analyze");
+
+		handler.handleMaxUploadSizeExceededException(new MaxUploadSizeExceededException(5_242_880L), request);
+
+		verify(request).setAttribute(RequestLoggingFilter.ATTR_ERROR_CODE, "COMMON413");
 	}
 
 	@RestController
