@@ -56,7 +56,25 @@ public class GeminiClient {
 			String prompt,
 			Map<String, Object> responseSchema,
 			Class<T> responseType) {
-		GeminiGenerateResponse response = call(GeminiGenerateRequest.structuredJson(prompt, responseSchema, 0.0));
+		return parse(call(GeminiGenerateRequest.structuredJson(prompt, responseSchema, 0.0)), responseType);
+	}
+
+	/**
+	 * 사진 한 장과 프롬프트를 함께 보낸다. 이미지는 요청 본문에 그대로 싣는다 —
+	 * 한 번 보고 버릴 사진이라 파일 API 에 올렸다 지우는 왕복이 아깝다.
+	 */
+	public <T> GeminiStructuredResult<T> generateStructuredWithImage(
+			String prompt,
+			String mimeType,
+			byte[] image,
+			Map<String, Object> responseSchema,
+			Class<T> responseType) {
+		return parse(
+			call(GeminiGenerateRequest.structuredJsonWithImage(prompt, mimeType, image, responseSchema, 0.0)),
+			responseType);
+	}
+
+	private <T> GeminiStructuredResult<T> parse(GeminiGenerateResponse response, Class<T> responseType) {
 		String text = response.firstText()
 			.orElseThrow(() -> new GeminiException(GeminiErrorCode.EMPTY_RESPONSE));
 		try {
