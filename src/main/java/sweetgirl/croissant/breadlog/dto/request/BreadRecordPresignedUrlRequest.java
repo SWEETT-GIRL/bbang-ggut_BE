@@ -6,5 +6,5 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 public record BreadRecordPresignedUrlRequest(
-		@NotNull @Size(min = 1, max = 10) List<String> mimeTypes) {
+		@NotNull @Size(min = 1, max = 30) List<String> mimeTypes) {
 }

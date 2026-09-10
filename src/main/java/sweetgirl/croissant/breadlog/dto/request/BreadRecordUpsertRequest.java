@@ -18,6 +18,6 @@ public record BreadRecordUpsertRequest(
 		/** 최고였던 빵들 — 각각 tags 중 하나여야 한다 */
 		@Size(max = 10) List<@Size(max = 100) String> lovedBreads,
 		@NotNull LocalDateTime eatenAt,
-		@NotNull @Size(min = 1, max = 10) List<@Valid BreadRecordPhotoRequest> photos,
+		@NotNull @Size(min = 1, max = 30) List<@Valid BreadRecordPhotoRequest> photos,
 		@NotNull List<@Valid BreadRecordTagRequest> tags) {
 }
