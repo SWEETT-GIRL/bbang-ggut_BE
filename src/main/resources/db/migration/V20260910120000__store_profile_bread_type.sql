@@ -34,3 +34,26 @@ COMMENT ON COLUMN store_profile.axis_vibe IS
 COMMENT ON COLUMN store_profile.axis_source IS
     'MENU | REVIEW | BOTH. 네 축이 종류 매핑을 어디서 얻었는지. 리뷰 쪽도 "리뷰에 언급된 메뉴 이름"을 '
     '같은 매핑표로 환산한 것이라, 둘 다 메뉴에서 나온다.';
+
+-- ③ 사용자 쪽 타입도 같은 표현으로 맞춘다.
+-- user_taste_profile.type_code 는 VARCHAR(4) 로 잡혀 있었다. 같은 16타입인데 가게는 숫자, 사용자는
+-- 글자면 비교할 때마다 변환이 붙고 언젠가 어긋난다. "4글자"는 MBTI 식 코드를 염두에 둔 자리였는데
+-- 그 형식이 #660 에서 아직 정해지지 않았고, FE 가 화면에 쓰는 값은 typeLabel("고독한 철학자")이지
+-- typeCode 가 아니다 — 코드는 내부용이라 글자가 주는 이득이 없다. 숫자면 CHECK 로 범위를 잠글 수 있다.
+--
+-- 값이 있으면 변환 규칙 없이 밀어붙이지 않는다. 조용히 망가지는 것보다 배포가 멈추는 편이 낫다.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM user_taste_profile WHERE type_code IS NOT NULL) THEN
+        RAISE EXCEPTION 'user_taste_profile.type_code 에 값이 있다. 글자 → 숫자 변환 규칙을 정하고 다시 시도할 것';
+    END IF;
+END $$;
+
+ALTER TABLE user_taste_profile ALTER COLUMN type_code TYPE SMALLINT USING NULL;
+ALTER TABLE user_taste_profile ADD CONSTRAINT ck_user_taste_profile_type_code
+    CHECK (type_code IS NULL OR type_code BETWEEN 1 AND 16);
+
+COMMENT ON COLUMN user_taste_profile.type_code IS
+    '이 사용자의 빵 취향 타입 1~16. store_profile.bread_type 과 같은 체계라 그대로 비교할 수 있다. '
+    'code = 1 + 8*(axis_taste>0) + 4*(axis_texture>0) + 2*(axis_filling>0) + 1*(axis_vibe>0). '
+    '화면에 보이는 이름("고독한 철학자")은 #660 BbtiType 이 코드에서 찾는다.';
