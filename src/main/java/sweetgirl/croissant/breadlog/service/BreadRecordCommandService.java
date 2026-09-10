@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -238,6 +239,7 @@ public class BreadRecordCommandService {
 				.record(record)
 				.photo(photoBySortOrder.get(tag.photoSortOrder()))
 				.menu(resolveMenu(tag, menuById, menuByName))
+				.suggestedMenu(resolveSuggestedMenu(tag, menuById))
 				.name(tag.name().strip())
 				.breadCategory(categoryClassifier.classify(tag.name()))
 				.positionX(tag.positionX())
@@ -265,12 +267,21 @@ public class BreadRecordCommandService {
 		return menuByName.get(MenuNameNormalizer.normalize(tag.name()));
 	}
 
+	/**
+	 * 그 자리에 AI 가 제안했던 메뉴. 이름으로 물러서지 않는다 — 제안은 언제나 메뉴 id 로 오고,
+	 * 이 가게 메뉴가 아니면 남길 것도 없다. 쌓아 두기만 하는 값이라 못 찾아도 그냥 null 이다.
+	 */
+	private Menu resolveSuggestedMenu(BreadRecordTagRequest tag, Map<Long, Menu> menuById) {
+		return tag.suggestedMenuId() == null ? null : menuById.get(tag.suggestedMenuId());
+	}
+
 	private Map<Long, Menu> findMenusById(Store store, List<BreadRecordTagRequest> tags) {
 		if (store == null) {
 			return Map.of();
 		}
+		// 유저가 고른 메뉴와 AI 가 제안했던 메뉴를 한 번에 가져온다 — 둘 다 이 가게 메뉴여야 한다
 		Set<Long> menuIds = tags.stream()
-			.map(BreadRecordTagRequest::menuId)
+			.flatMap(tag -> Stream.of(tag.menuId(), tag.suggestedMenuId()))
 			.filter(Objects::nonNull)
 			.collect(Collectors.toSet());
 		if (menuIds.isEmpty()) {

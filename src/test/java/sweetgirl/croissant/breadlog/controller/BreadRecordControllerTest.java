@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willDoNothing;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -22,16 +23,23 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import sweetgirl.croissant.breadlog.code.BreadLogErrorCode;
 import sweetgirl.croissant.breadlog.dto.request.BreadRecordPresignedUrlRequest;
 import sweetgirl.croissant.breadlog.dto.request.BreadRecordUpsertRequest;
+import sweetgirl.croissant.breadlog.dto.response.BreadPhotoAnalyzeResponse;
+import sweetgirl.croissant.breadlog.dto.response.BreadPhotoAnalyzeResponse.PhotoSuggestions;
+import sweetgirl.croissant.breadlog.dto.response.BreadPhotoAnalyzeResponse.TagSuggestion;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordCreateResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlInfo;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordSummaryResponse;
+import sweetgirl.croissant.breadlog.exception.BreadLogException;
+import sweetgirl.croissant.breadlog.service.BreadPhotoTagSuggestionService;
 import sweetgirl.croissant.breadlog.service.BreadRecordCommandService;
 import sweetgirl.croissant.breadlog.service.BreadRecordQueryService;
 import sweetgirl.croissant.breadlog.service.BreadRecordSummaryService;
@@ -70,6 +78,8 @@ class BreadRecordControllerTest {
 	BreadRecordCommandService commandService;
 	@Mock
 	BreadRecordSummaryService summaryService;
+	@Mock
+	BreadPhotoTagSuggestionService photoTagSuggestionService;
 
 	@InjectMocks
 	BreadRecordController controller;
@@ -165,5 +175,75 @@ class BreadRecordControllerTest {
 			.param("mimeType", "image/jpeg"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.awsKey").value("bread-records/members/7/images/a"));
+	}
+
+	private static MockMultipartFile photoPart(String fileName) {
+		return new MockMultipartFile("photos", fileName, "image/jpeg", new byte[] {1, 2, 3});
+	}
+
+	@Test
+	void analyzePhotos_returns200() throws Exception {
+		BreadPhotoAnalyzeResponse response = new BreadPhotoAnalyzeResponse(List.of(
+			new PhotoSuggestions("l0", List.of(new TagSuggestion(101L, "참깨 소금빵", 0.6, 0.4))),
+			new PhotoSuggestions("l1", List.of())));
+		given(photoTagSuggestionService.analyzeForMember(isNull(), eq(472221L), any()))
+			.willReturn(response);
+
+		mockMvc.perform(multipart("/bread-records/photos/analyze")
+			.file(photoPart("a.jpg"))
+			.file(photoPart("b.jpg"))
+			.param("storeId", "472221")
+			.param("photoKeys", "l0", "l1"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.results[0].photoKey").value("l0"))
+			.andExpect(jsonPath("$.data.results[0].suggestions[0].menuId").value(101))
+			.andExpect(jsonPath("$.data.results[0].suggestions[0].name").value("참깨 소금빵"))
+			.andExpect(jsonPath("$.data.results[0].suggestions[0].x").value(0.6))
+			.andExpect(jsonPath("$.data.results[1].suggestions").isEmpty());
+	}
+
+	@Test
+	void analyzePhotos_returns400_whenPhotoKeyCountDiffers() throws Exception {
+		mockMvc.perform(multipart("/bread-records/photos/analyze")
+			.file(photoPart("a.jpg"))
+			.param("storeId", "472221")
+			.param("photoKeys", "l0", "l1"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("BREAD_RECORD_PHOTO_KEY_COUNT_MISMATCH"));
+	}
+
+	@Test
+	void analyzePhotos_returns400_whenNoPhoto() throws Exception {
+		mockMvc.perform(multipart("/bread-records/photos/analyze")
+			.param("storeId", "472221")
+			.param("photoKeys", "l0"))
+			.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void analyzePhotos_returns200WithEmptyResults_whenFeatureDisabled() throws Exception {
+		given(photoTagSuggestionService.analyzeForMember(isNull(), eq(472221L), any()))
+			.willReturn(new BreadPhotoAnalyzeResponse(List.of(new PhotoSuggestions("l0", List.of()))));
+
+		mockMvc.perform(multipart("/bread-records/photos/analyze")
+			.file(photoPart("a.jpg"))
+			.param("storeId", "472221")
+			.param("photoKeys", "l0"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true))
+			.andExpect(jsonPath("$.data.results[0].suggestions").isEmpty());
+	}
+
+	@Test
+	void analyzePhotos_returns429_whenRateLimited() throws Exception {
+		given(photoTagSuggestionService.analyzeForMember(isNull(), eq(472221L), any()))
+			.willThrow(new BreadLogException(BreadLogErrorCode.PHOTO_ANALYZE_RATE_LIMITED));
+
+		mockMvc.perform(multipart("/bread-records/photos/analyze")
+			.file(photoPart("a.jpg"))
+			.param("storeId", "472221")
+			.param("photoKeys", "l0"))
+			.andExpect(status().isTooManyRequests())
+			.andExpect(jsonPath("$.code").value("BREAD_RECORD_PHOTO_ANALYZE_RATE_LIMITED"));
 	}
 }
