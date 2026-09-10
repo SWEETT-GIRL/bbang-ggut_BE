@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityManager;
 import sweetgirl.croissant.alarm.entity.Notification;
 import sweetgirl.croissant.alarm.entity.NotificationRecipient;
+import sweetgirl.croissant.alarm.enums.NotificationChannel;
 import sweetgirl.croissant.alarm.enums.NotificationTargetType;
 import sweetgirl.croissant.alarm.enums.NotificationType;
 import sweetgirl.croissant.course.entity.Course;
@@ -136,7 +137,7 @@ class NotificationRecipientRepositoryTest {
 	@DisplayName("공지 하나는 내용 한 줄이고 우편함만 사람마다 생긴다")
 	void insertForAllMembers_fansOutRecipientsOnly() {
 		Notification notice = notificationRepository.saveAndFlush(Notification.announcement(
-			NotificationType.NOTICE, "공지", "본문", null));
+			NotificationType.NOTICE, NotificationChannel.PUSH, "공지", "본문", null));
 
 		int recipients = recipientRepository.insertForAllMembers(notice.getId(), LocalDateTime.now());
 		flushAndClear();
@@ -181,7 +182,8 @@ class NotificationRecipientRepositoryTest {
 
 	private NotificationRecipient persistNotice(String title) {
 		Notification notification = notificationRepository.saveAndFlush(
-			Notification.announcement(NotificationType.NOTICE, title, "본문", "/course/1"));
+			Notification.announcement(
+				NotificationType.NOTICE, NotificationChannel.PUSH, title, "본문", "/course/1"));
 		return recipientRepository.saveAndFlush(
 			NotificationRecipient.of(notification, owner, LocalDateTime.now()));
 	}

@@ -32,7 +32,9 @@ public class AdminNotificationController {
 
 	private final NotificationService notificationService;
 
-	@Operation(summary = "전체 공지 발송", description = "탈퇴하지 않은 전 회원의 알림함에 공지를 한 줄씩 쌓습니다. 푸시는 보내지 않습니다.")
+	@Operation(summary = "전체 공지 발송", description = "탈퇴하지 않은 전 회원의 알림함에 공지를 한 줄씩 쌓습니다. "
+		+ "channel 이 PUSH(생략 시 기본)면 FCM 까지 내보내고, "
+		+ "IN_APP 이면 알림함에만 쌓고 울리지 않습니다.")
 	@PostMapping
 	public ResponseEntity<ApiResponse<NoticeSendResponse>> sendNotice(
 			@Valid @RequestBody NoticeSendRequest request) {

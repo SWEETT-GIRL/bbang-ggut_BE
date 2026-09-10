@@ -30,6 +30,7 @@ import sweetgirl.croissant.alarm.dto.response.NoticeSendResponse;
 import sweetgirl.croissant.alarm.dto.response.NotificationListResponse;
 import sweetgirl.croissant.alarm.entity.Notification;
 import sweetgirl.croissant.alarm.entity.NotificationRecipient;
+import sweetgirl.croissant.alarm.enums.NotificationChannel;
 import sweetgirl.croissant.alarm.enums.NotificationTargetType;
 import sweetgirl.croissant.alarm.enums.NotificationType;
 import sweetgirl.croissant.alarm.event.PushRequestedEvent;
@@ -142,11 +143,7 @@ class NotificationServiceTest {
 	@Test
 	@DisplayName("공지는 내용 한 줄만 만들고 우편함은 회원 수만큼 늘어난다")
 	void sendNotice_createsOneNotificationForEveryone() {
-		Notification notice = Notification.announcement(
-			NotificationType.NOTICE, "일차 나누기가 생겼어요", "본문", "/course/1");
-		ReflectionTestUtils.setField(notice, "id", NOTIFICATION_ID);
-		given(notificationRecorder.recordForAllMembers(any(), any()))
-			.willReturn(new NotificationRecorder.Broadcast(notice, 1234));
+		givenBroadcast(NotificationChannel.PUSH, 1234);
 
 		NoticeSendResponse response = notificationService.sendNotice(
 			noticeRequest("일차 나누기가 생겼어요", "본문", "/course/1"));
@@ -162,6 +159,49 @@ class NotificationServiceTest {
 		assertThat(sent.getDeepLink()).isEqualTo("/course/1");
 
 		verify(eventPublisher).publishEvent(PushRequestedEvent.toEveryone(NOTIFICATION_ID));
+	}
+
+	@Test
+	@DisplayName("채널을 생략한 공지는 지금까지처럼 푸시까지 나간다")
+	void sendNotice_defaultsToPush() {
+		givenBroadcast(NotificationChannel.PUSH, 10);
+
+		NoticeSendResponse response = notificationService.sendNotice(
+			noticeRequest("제목", "본문", null, null));
+
+		assertThat(response.channel()).isEqualTo(NotificationChannel.PUSH);
+
+		ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+		verify(notificationRecorder).recordForAllMembers(captor.capture(), any());
+		assertThat(captor.getValue().getChannel()).isEqualTo(NotificationChannel.PUSH);
+		verify(eventPublisher).publishEvent(PushRequestedEvent.toEveryone(NOTIFICATION_ID));
+	}
+
+	@Test
+	@DisplayName("인앱 공지는 알림함에 쌓이되 푸시를 요청하지 않는다")
+	void sendNotice_inAppOnly_doesNotRequestPush() {
+		givenBroadcast(NotificationChannel.IN_APP, 10);
+
+		NoticeSendResponse response = notificationService.sendNotice(
+			noticeRequest("3.2.0 업데이트", "본문", null, NotificationChannel.IN_APP));
+
+		assertThat(response.channel()).isEqualTo(NotificationChannel.IN_APP);
+
+		// 적재는 그대로 — 울리지만 않을 뿐 알림함에서는 볼 수 있어야 한다.
+		ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+		verify(notificationRecorder).recordForAllMembers(captor.capture(), any());
+		assertThat(captor.getValue().getChannel()).isEqualTo(NotificationChannel.IN_APP);
+
+		verify(eventPublisher, never()).publishEvent(any(PushRequestedEvent.class));
+	}
+
+	/** 공지 발송의 반환값을 채널만 바꿔가며 세운다. */
+	private void givenBroadcast(NotificationChannel channel, int recipients) {
+		Notification notice = Notification.announcement(
+			NotificationType.NOTICE, channel, "제목", "본문", "/course/1");
+		ReflectionTestUtils.setField(notice, "id", NOTIFICATION_ID);
+		given(notificationRecorder.recordForAllMembers(any(), any()))
+			.willReturn(new NotificationRecorder.Broadcast(notice, recipients));
 	}
 
 	// ── 조회·읽음 ───────────────────────────────────────────────────────────
@@ -222,10 +262,16 @@ class NotificationServiceTest {
 	}
 
 	private NoticeSendRequest noticeRequest(String title, String body, String link) {
+		return noticeRequest(title, body, link, null);
+	}
+
+	private NoticeSendRequest noticeRequest(String title, String body, String link,
+			NotificationChannel channel) {
 		NoticeSendRequest request = new NoticeSendRequest();
 		ReflectionTestUtils.setField(request, "title", title);
 		ReflectionTestUtils.setField(request, "body", body);
 		ReflectionTestUtils.setField(request, "link", link);
+		ReflectionTestUtils.setField(request, "channel", channel);
 		return request;
 	}
 
