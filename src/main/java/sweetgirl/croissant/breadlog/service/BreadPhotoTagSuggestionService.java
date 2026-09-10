@@ -5,6 +5,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -13,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.breadlog.code.BreadLogErrorCode;
 import sweetgirl.croissant.breadlog.config.BreadPhotoTagProperties;
 import sweetgirl.croissant.breadlog.dto.analysis.BreadPhotoToAnalyze;
 import sweetgirl.croissant.breadlog.dto.analysis.RawTagSuggestion;
@@ -20,6 +23,7 @@ import sweetgirl.croissant.breadlog.dto.analysis.StoreMenuOption;
 import sweetgirl.croissant.breadlog.dto.response.BreadPhotoAnalyzeResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadPhotoAnalyzeResponse.PhotoSuggestions;
 import sweetgirl.croissant.breadlog.dto.response.BreadPhotoAnalyzeResponse.TagSuggestion;
+import sweetgirl.croissant.breadlog.exception.BreadLogException;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 
 /**
@@ -38,7 +42,36 @@ public class BreadPhotoTagSuggestionService {
 
 	private final MenuRepository menuRepository;
 	private final BreadPhotoTagSuggester breadPhotoTagSuggester;
+	private final BreadPhotoTagRateLimiter breadPhotoTagRateLimiter;
+	private final ExecutorService breadPhotoTagExecutor;
 	private final BreadPhotoTagProperties properties;
+
+	/**
+	 * 앱이 부르는 자리. 기능이 꺼져 있으면 Gemini 를 부르지 않고 빈 결과를 돌려준다 —
+	 * 앱은 "제안 없음"만 알면 되고 에러 처리를 따로 하지 않아도 된다.
+	 */
+	public BreadPhotoAnalyzeResponse analyzeForMember(
+			Long memberId,
+			Long storeId,
+			List<BreadPhotoToAnalyze> photos) {
+		// 기능을 켜는 날 갑자기 400 이 나지 않도록, 꺼져 있어도 요청 자체는 먼저 본다
+		validateSizes(photos);
+		if (!properties.isEnabled()) {
+			return emptyFor(photos);
+		}
+		if (!breadPhotoTagRateLimiter.tryAcquire(memberId)) {
+			throw new BreadLogException(BreadLogErrorCode.PHOTO_ANALYZE_RATE_LIMITED);
+		}
+		return analyze(storeId, photos);
+	}
+
+	private void validateSizes(List<BreadPhotoToAnalyze> photos) {
+		long maxBytes = properties.getMaxPhotoSize().toBytes();
+		boolean tooLarge = photos.stream().anyMatch(photo -> photo.image().length > maxBytes);
+		if (tooLarge) {
+			throw new BreadLogException(BreadLogErrorCode.PHOTO_TOO_LARGE);
+		}
+	}
 
 	public BreadPhotoAnalyzeResponse analyze(Long storeId, List<BreadPhotoToAnalyze> photos) {
 		List<StoreMenuOption> menus = loadMenuOptions(storeId);
@@ -60,14 +93,20 @@ public class BreadPhotoTagSuggestionService {
 	private CompletableFuture<List<RawTagSuggestion>> suggestAsync(
 			List<StoreMenuOption> menus,
 			BreadPhotoToAnalyze photo) {
-		return CompletableFuture
-			.supplyAsync(() -> breadPhotoTagSuggester.suggest(menus, photo))
-			.orTimeout(properties.getTimeout().toMillis(), TimeUnit.MILLISECONDS)
-			.exceptionally(failed -> {
-				Throwable cause = failed.getCause() != null ? failed.getCause() : failed;
-				log.info("사진 태그 제안 실패 — 이 사진만 비운다 (photoKey={}): {}", photo.photoKey(), cause.toString());
-				return List.of();
-			});
+		try {
+			return CompletableFuture
+				.supplyAsync(() -> breadPhotoTagSuggester.suggest(menus, photo), breadPhotoTagExecutor)
+				.orTimeout(properties.getTimeout().toMillis(), TimeUnit.MILLISECONDS)
+				.exceptionally(failed -> {
+					Throwable cause = failed.getCause() != null ? failed.getCause() : failed;
+					log.info("사진 태그 제안 실패 — 이 사진만 비운다 (photoKey={}): {}", photo.photoKey(), cause.toString());
+					return List.of();
+				});
+		} catch (RejectedExecutionException noRoom) {
+			// 풀에 자리가 없으면 supplyAsync 가 그 자리에서 던진다 — 이 사진만 비우고 나머지는 계속 간다
+			log.info("사진 태그 제안 자리 없음 — 이 사진만 비운다 (photoKey={})", photo.photoKey());
+			return CompletableFuture.completedFuture(List.of());
+		}
 	}
 
 	private List<StoreMenuOption> loadMenuOptions(Long storeId) {

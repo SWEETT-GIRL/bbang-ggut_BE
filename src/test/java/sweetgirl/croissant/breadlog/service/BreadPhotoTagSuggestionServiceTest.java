@@ -1,6 +1,7 @@
 package sweetgirl.croissant.breadlog.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -9,8 +10,11 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.assertj.core.data.Offset;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -21,12 +25,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import sweetgirl.croissant.breadlog.code.BreadLogErrorCode;
 import sweetgirl.croissant.breadlog.config.BreadPhotoTagProperties;
 import sweetgirl.croissant.breadlog.dto.analysis.BreadPhotoToAnalyze;
 import sweetgirl.croissant.breadlog.dto.analysis.RawTagSuggestion;
 import sweetgirl.croissant.breadlog.dto.response.BreadPhotoAnalyzeResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadPhotoAnalyzeResponse.PhotoSuggestions;
 import sweetgirl.croissant.breadlog.dto.response.BreadPhotoAnalyzeResponse.TagSuggestion;
+import sweetgirl.croissant.breadlog.exception.BreadLogException;
 import sweetgirl.croissant.external.gemini.exception.GeminiErrorCode;
 import sweetgirl.croissant.external.gemini.exception.GeminiException;
 import sweetgirl.croissant.menu.entity.Menu;
@@ -44,14 +50,25 @@ class BreadPhotoTagSuggestionServiceTest {
 	@Mock
 	private BreadPhotoTagSuggester breadPhotoTagSuggester;
 
+	@Mock
+	private BreadPhotoTagRateLimiter breadPhotoTagRateLimiter;
+
+	private ExecutorService executor;
 	private BreadPhotoTagProperties properties;
 	private BreadPhotoTagSuggestionService breadPhotoTagSuggestionService;
 
 	@BeforeEach
 	void setUp() {
+		executor = Executors.newFixedThreadPool(4);
 		properties = new BreadPhotoTagProperties();
+		properties.setEnabled(true);
 		breadPhotoTagSuggestionService = new BreadPhotoTagSuggestionService(
-			menuRepository, breadPhotoTagSuggester, properties);
+			menuRepository, breadPhotoTagSuggester, breadPhotoTagRateLimiter, executor, properties);
+	}
+
+	@AfterEach
+	void tearDown() {
+		executor.shutdownNow();
 	}
 
 	private static Menu menu(Long id, String name) {
@@ -180,6 +197,20 @@ class BreadPhotoTagSuggestionServiceTest {
 		}
 
 		@Test
+		@DisplayName("사진이 많아 풀에 자리가 없어도 나머지 사진은 결과를 받는다")
+		void survivesRejectedExecution() {
+			givenMenus(menu(1L, "소금빵"));
+			executor.shutdown();
+
+			BreadPhotoAnalyzeResponse response = breadPhotoTagSuggestionService.analyze(
+				STORE_ID, List.of(photo("l0"), photo("l1")));
+
+			assertThat(response.results()).hasSize(2);
+			assertThat(response.results()).allSatisfy(result -> assertThat(result.suggestions()).isEmpty());
+			then(breadPhotoTagSuggester).should(never()).suggest(any(), any());
+		}
+
+		@Test
 		@DisplayName("사진 키는 보낸 그대로 돌려준다 — 병렬 호출이라 순번으로는 되짚을 수 없다")
 		void echoesPhotoKeys() {
 			givenMenus(menu(1L, "소금빵"));
@@ -190,6 +221,65 @@ class BreadPhotoTagSuggestionServiceTest {
 
 			assertThat(response.results())
 				.extracting(PhotoSuggestions::photoKey).containsExactly("l0", "s12", "l3");
+		}
+	}
+
+	@Nested
+	@DisplayName("앱이 부르는 자리 — 플래그와 레이트리밋")
+	class Gate {
+
+		private static final Long MEMBER_ID = 7L;
+
+		@Test
+		@DisplayName("기능이 꺼져 있으면 Gemini 도 메뉴 조회도 하지 않고 빈 결과를 준다")
+		void disabledReturnsEmpty() {
+			properties.setEnabled(false);
+
+			BreadPhotoAnalyzeResponse response = breadPhotoTagSuggestionService.analyzeForMember(
+				MEMBER_ID, STORE_ID, List.of(photo("l0")));
+
+			assertThat(response.results()).hasSize(1);
+			assertThat(response.results().get(0).suggestions()).isEmpty();
+			then(breadPhotoTagSuggester).should(never()).suggest(any(), any());
+			then(menuRepository).shouldHaveNoInteractions();
+		}
+
+		@Test
+		@DisplayName("꺼져 있어도 요청 자체는 본다 — 켜는 날 갑자기 400 이 나면 안 된다")
+		void validatesEvenWhenDisabled() {
+			properties.setEnabled(false);
+			BreadPhotoToAnalyze tooLarge = new BreadPhotoToAnalyze(
+				"l0", "image/jpeg", new byte[(int)properties.getMaxPhotoSize().toBytes() + 1]);
+
+			assertThatThrownBy(() -> breadPhotoTagSuggestionService.analyzeForMember(
+				MEMBER_ID, STORE_ID, List.of(tooLarge)))
+				.isInstanceOf(BreadLogException.class);
+		}
+
+		@Test
+		@DisplayName("레이트리밋에 걸리면 429 예외 — Gemini 는 부르지 않는다")
+		void rateLimited() {
+			given(breadPhotoTagRateLimiter.tryAcquire(MEMBER_ID)).willReturn(false);
+
+			assertThatThrownBy(() -> breadPhotoTagSuggestionService.analyzeForMember(
+				MEMBER_ID, STORE_ID, List.of(photo("l0"))))
+				.isInstanceOf(BreadLogException.class)
+				.extracting("errorCode").isEqualTo(BreadLogErrorCode.PHOTO_ANALYZE_RATE_LIMITED);
+			then(breadPhotoTagSuggester).should(never()).suggest(any(), any());
+		}
+
+		@Test
+		@DisplayName("켜져 있고 한도 안이면 분석까지 간다")
+		void passesThrough() {
+			given(breadPhotoTagRateLimiter.tryAcquire(MEMBER_ID)).willReturn(true);
+			givenMenus(menu(1L, "소금빵"));
+			given(breadPhotoTagSuggester.suggest(any(), any())).willReturn(List.of(suggestion(1L, 0.5)));
+
+			BreadPhotoAnalyzeResponse response = breadPhotoTagSuggestionService.analyzeForMember(
+				MEMBER_ID, STORE_ID, List.of(photo("l0")));
+
+			assertThat(response.results().get(0).suggestions())
+				.extracting(TagSuggestion::menuId).containsExactly(1L);
 		}
 	}
 }
