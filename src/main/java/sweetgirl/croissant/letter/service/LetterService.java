@@ -126,6 +126,8 @@ public class LetterService {
 		LetterThread thread = letterThreadRepository.findByMemberId(memberId)
 			.orElseGet(() -> createThread(memberId, now));
 		thread.touch(now);
+		// 사용자가 말을 걸었으니 어드민 편지함 목록에 오른다 — 가입 인사만 든 방과 갈리는 지점이다
+		thread.touchMember(now);
 		// 닫혀 있던 대화라도 사용자가 말을 걸면 다시 열린다 — 그래야 다음 진입에서
 		// "어떤 이야기인지 골라주세요"가 또 뜨지 않는다
 		thread.reopen();

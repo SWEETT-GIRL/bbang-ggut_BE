@@ -59,6 +59,20 @@ public class LetterThread extends BaseTimeEntity {
 	@Column(name = "resolved_at")
 	private LocalDateTime resolvedAt;
 
+	/**
+	 * 사용자가 이 대화에 마지막으로 편지를 쓴 시각. NULL이면 아직 한 번도 말을 걸지 않았다.
+	 *
+	 * <p>어드민 편지함은 이 값이 있는 대화만 보여준다. 가입 인사도 일괄 발신 공지도 대화방을
+	 * 만들거나 맨 위로 올리는데, 그건 우리가 보낸 말이지 답할 일이 아니다 — 회원이 늘수록
+	 * 그런 줄이 실제 문의를 목록 밖으로 밀어낸다.
+	 *
+	 * <p>{@code lastMessageAt}과 따로 두는 이유: 어드민이 답장하면 마지막 편지 시각은 갱신되지만
+	 * 사용자가 말을 건 때는 그대로여야 한다. 두 값이 "언제 올라왔나"와 "누가 시작했나"를
+	 * 나눠 들고 있다.
+	 */
+	@Column(name = "last_member_message_at")
+	private LocalDateTime lastMemberMessageAt;
+
 	private LetterThread(Member member, LocalDateTime lastMessageAt) {
 		this.member = member;
 		this.lastMessageAt = lastMessageAt;
@@ -71,6 +85,16 @@ public class LetterThread extends BaseTimeEntity {
 	/** 편지가 오갈 때마다 맨 위로 올린다. */
 	public void touch(LocalDateTime now) {
 		this.lastMessageAt = now;
+	}
+
+	/**
+	 * 사용자가 말을 걸었다. 이때부터 이 대화는 어드민 편지함 목록에 오른다.
+	 *
+	 * <p>한 번 오른 대화는 내려가지 않는다 — 해결로 닫아도 지난 문의는 목록에 남아야 하고,
+	 * 같은 사람이 다음에 다시 말을 걸 자리도 그 방이다.
+	 */
+	public void touchMember(LocalDateTime now) {
+		this.lastMemberMessageAt = now;
 	}
 
 	/** 어드민이 해결로 닫는다. 이미 닫혀 있으면 시각을 덮지 않는다 — 처음 닫은 때가 사실이다. */
