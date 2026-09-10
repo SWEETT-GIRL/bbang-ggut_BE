@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -153,6 +154,27 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(AsyncRequestNotUsableException.class)
 	public void handleAsyncRequestNotUsableException(AsyncRequestNotUsableException ex) {
 		log.debug("[ClientAbort] {}", ex.getMessage());
+	}
+
+	/**
+	 * 멀티파트 본문이 크기 상한을 넘어 파싱 단계에서 끊긴 경우.
+	 *
+	 * <p>DispatcherServlet 이 컨트롤러를 부르기 전에 던지므로 서비스 계층의 크기 검증으로는 잡히지 않는다 —
+	 * {@code breadlog.photo-tag.max-photo-size} 처럼 상한이 멀티파트 설정과 같으면 그쪽은 도달조차 못 한다.
+	 *
+	 * <p>클라이언트가 줄여 보내면 되는 잘못이라 500 이 아니라 413 이다. 500 으로 두면 서버 장애 알림에
+	 * 섞여 진짜 장애를 가린다.
+	 */
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	public ResponseEntity<ApiResponse<?>> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex,
+			HttpServletRequest request) {
+		log.warn("[MaxUploadSizeExceeded] method={}, uri={}, maxUploadSize={}",
+			request.getMethod(), request.getRequestURI(), ex.getMaxUploadSize());
+		request.setAttribute(RequestLoggingFilter.ATTR_ERROR_CODE, GeneralErrorCode._PAYLOAD_TOO_LARGE.getCode());
+		request.setAttribute(RequestLoggingFilter.ATTR_ERROR_MESSAGE, ex.getMessage());
+		return ResponseEntity
+			.status(HttpStatus.PAYLOAD_TOO_LARGE)
+			.body(ApiResponse.fail(GeneralErrorCode._PAYLOAD_TOO_LARGE));
 	}
 
 	@ExceptionHandler(Exception.class)
