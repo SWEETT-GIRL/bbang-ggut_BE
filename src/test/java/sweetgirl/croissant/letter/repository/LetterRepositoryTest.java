@@ -61,6 +61,13 @@ class LetterRepositoryTest {
 		return letterThreadRepository.save(LetterThread.create(member, lastMessageAt));
 	}
 
+	/** 사용자가 한 번이라도 말을 건 대화. 어드민 목록에 오르는 건 이쪽뿐이다. */
+	private LetterThread threadWithMemberLetter(Member member, LocalDateTime lastMessageAt) {
+		LetterThread thread = thread(member, lastMessageAt);
+		thread.touchMember(lastMessageAt);
+		return thread;
+	}
+
 	private LetterMessage message(LetterThread thread, LetterSender sender, String body) {
 		return letterMessageRepository.save(LetterMessage.create(thread, sender, body));
 	}
@@ -177,8 +184,8 @@ class LetterRepositoryTest {
 	@Test
 	@DisplayName("어드민 목록은 최근 대화순이고 회원을 같이 끌어온다")
 	void findAllForAdmin_ordersByLastMessage() {
-		thread(member("오래된 대화"), LocalDateTime.now().minusDays(3));
-		thread(member("방금 온 대화"), LocalDateTime.now());
+		threadWithMemberLetter(member("오래된 대화"), LocalDateTime.now().minusDays(3));
+		threadWithMemberLetter(member("방금 온 대화"), LocalDateTime.now());
 		entityManager.flush();
 
 		Slice<LetterThread> slice = letterThreadRepository.findAllForAdmin(PageRequest.of(0, 20));
@@ -186,6 +193,35 @@ class LetterRepositoryTest {
 		assertThat(slice.getContent()).hasSize(2);
 		// JOIN FETCH가 걸려 있어 트랜잭션 밖에서도 닉네임을 읽을 수 있어야 한다
 		assertThat(slice.getContent().get(0).getMember().getNickname()).isEqualTo("방금 온 대화");
+	}
+
+	@Test
+	@DisplayName("어드민 목록은 사용자가 말을 건 대화만 — 가입 인사만 든 방은 빠진다")
+	void findAllForAdmin_skipsThreadsMemberNeverWroteIn() {
+		// 가입 인사(WelcomeLetterService)가 만든 방. 우리가 보낸 말 한 통뿐이다
+		LetterThread welcomeOnly = thread(member("방금 가입한 사람"), LocalDateTime.now());
+		message(welcomeOnly, LetterSender.ADMIN, "반가워요! 빵지도 편찬위원회입니다");
+		// 실제 문의. 가입 인사보다 하루 전이라 목록에서 밀려나기 쉬운 자리다
+		threadWithMemberLetter(member("문의한 사람"), LocalDateTime.now().minusDays(1));
+		entityManager.flush();
+
+		Slice<LetterThread> slice = letterThreadRepository.findAllForAdmin(PageRequest.of(0, 20));
+
+		assertThat(slice.getContent()).hasSize(1);
+		assertThat(slice.getContent().get(0).getMember().getNickname()).isEqualTo("문의한 사람");
+	}
+
+	@Test
+	@DisplayName("해결로 닫은 문의도 목록에 남는다 — 지난 기록이 사라지면 안 된다")
+	void findAllForAdmin_keepsResolvedThreads() {
+		LetterThread resolved = threadWithMemberLetter(member("해결된 문의"), LocalDateTime.now());
+		resolved.resolve(LocalDateTime.now());
+		entityManager.flush();
+
+		Slice<LetterThread> slice = letterThreadRepository.findAllForAdmin(PageRequest.of(0, 20));
+
+		assertThat(slice.getContent()).hasSize(1);
+		assertThat(slice.getContent().get(0).isResolved()).isTrue();
 	}
 
 	@Test

@@ -268,6 +268,21 @@ class LetterServiceTest {
 	}
 
 	@Test
+	@DisplayName("사용자가 편지를 보내면 그때 어드민 목록에 오른다")
+	void send_marksThreadAsInquiry() {
+		// 가입 인사만 들어 있던 방 — 사용자가 말을 건 적이 없어 어드민 목록에 안 뜬다
+		LetterThread thread = thread(11L);
+		given(letterThreadRepository.findByMemberId(MEMBER_ID)).willReturn(Optional.of(thread));
+		given(letterMessageRepository.save(any(LetterMessage.class)))
+			.willAnswer(invocation -> invocation.getArgument(0));
+		assertThat(thread.getLastMemberMessageAt()).isNull();
+
+		letterService.send(MEMBER_ID, sendRequest("오류가 있어요"));
+
+		assertThat(thread.getLastMemberMessageAt()).isNotNull();
+	}
+
+	@Test
 	@DisplayName("닫혀 있던 대화도 편지를 보내면 다시 열린다")
 	void send_reopensResolvedThread() {
 		LetterThread thread = thread(11L, LocalDateTime.now().minusDays(30), LocalDateTime.now().minusDays(20));
