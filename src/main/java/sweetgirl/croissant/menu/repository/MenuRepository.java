@@ -39,6 +39,17 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
 			""")
 	List<Menu> findByStoreIdOrderByLikeCountDesc(@Param("storeId") Long storeId);
 
+	/**
+	 * 사진 태그 제안 프롬프트에 넣을 후보. 좋아요가 같으면(대부분 0이다) id 로 갈라 순서를 고정한다 —
+	 * 같은 가게·같은 사진에 매번 같은 후보 목록이 가야 답도 흔들리지 않는다.
+	 */
+	@Query("""
+			SELECT m FROM Menu m
+			WHERE m.store.id = :storeId AND m.deletedAt IS NULL
+			ORDER BY m.likeCount DESC, m.id ASC
+			""")
+	List<Menu> findByStoreIdOrderByLikeCountDesc(@Param("storeId") Long storeId, Pageable pageable);
+
 	@Query("""
 			SELECT m FROM Menu m
 			LEFT JOIN FETCH m.menuCategory
