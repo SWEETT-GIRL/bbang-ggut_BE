@@ -27,6 +27,20 @@ class StoreSearchSqlBuilderTest {
 	}
 
 	@Test
+	void regionAndName_stillFindsStoreWhoseNameIsTheWholeQuery() {
+		// "어니언 성수" — '성수'가 지역으로 떨어지는데 그 가게 주소는 성동구 아차산로9길이라
+		// 지역 집합에 없다. 교집합만 쓰면 이름이 통째로 맞는데도 0건이 된다 (2026-09-10 실측 버그).
+		SearchSqlQuery query = builder.buildSearch(plan(List.of("성수"), List.of("어니언"), "어니언성수"),
+			16, 0, null, null, SearchSort.RELEVANCE);
+
+		assertThat(count(query.sql(), "INTERSECT")).isEqualTo(1);
+		// 교집합 밖으로 이름 전체 일치 경로가 하나 더 있어야 한다
+		assertThat(query.sql()).contains("UNION (SELECT s.id FROM store s WHERE s.status = 'ACTIVE'"
+			+ " AND s.name_normalized LIKE '%' || :whole || '%'");
+		assertThat(query.params().getValue("whole")).isEqualTo("어니언성수");
+	}
+
+	@Test
 	void regionAndName_intersectsRegionCandidatesWithEachNameToken() {
 		SearchSqlQuery query = builder.buildSearch(plan(List.of("망원"), List.of("브릭", "베이글"), "망원브릭베이글"),
 			16, 0, null, null, SearchSort.RELEVANCE);

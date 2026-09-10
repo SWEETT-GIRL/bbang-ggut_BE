@@ -138,7 +138,15 @@ public class StoreSearchSqlBuilder {
 			String regionCand = String.join("\n   UNION ", regionParts);
 			if (!nameParts.isEmpty()) {
 				// 지역 + 이름: 그 지역의 가게 중 이름 토큰을 모두 가진 가게만 (flood 제거)
-				return "(" + regionCand + ")\nINTERSECT (" + String.join(")\nINTERSECT (", nameParts) + ")";
+				String intersected = "(" + regionCand + ")\nINTERSECT ("
+					+ String.join(")\nINTERSECT (", nameParts) + ")";
+				// 다만 검색어 전체가 가게 이름인 경우를 교집합이 삼키면 안 된다 — "어니언 성수"는
+				// '성수'가 지역으로 떨어지는데, 그 가게 주소는 성동구 아차산로9길이라 지역 집합에 없다.
+				// 이름이 통째로 맞는 가게는 지역과 무관하게 건진다 (2026-09-10 실측 버그).
+				if (plan.hasWholeQuery()) {
+					return "(" + intersected + ")\nUNION (" + nameOrAliasContains("whole") + ")";
+				}
+				return intersected;
 			}
 			// 지역만: 그 지역 가게 ∪ 이름이 검색어를 담은 가게 (지역명이 든 가게명도 노출)
 			if (plan.hasWholeQuery()) {
