@@ -493,7 +493,7 @@ class AdminReportCommandServiceTest {
 			.location(mock(Point.class))
 			.phone("02-123-4567")
 			.source(StoreSource.ADMIN_REGISTERED)
-			.category(StoreCategory.WESTERN)
+			.category(StoreCategory.BAKERY)
 			.build();
 		ReflectionTestUtils.setField(store, "id", id);
 		return store;
