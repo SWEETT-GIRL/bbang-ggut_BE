@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -19,7 +18,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.google.firebase.messaging.FirebaseMessaging;
@@ -44,6 +42,13 @@ class FcmServiceTest {
 
 	@Mock
 	MemberReader memberReader;
+
+	/**
+	 * 발송기를 목으로 끼운다. 예전에는 {@code FirebaseMessaging.getInstance()}를 static 목킹으로
+	 * 가로채야 했는데, 서비스가 주입받는 쪽으로 바뀌면서 그럴 필요가 없어졌다.
+	 */
+	@Mock
+	FirebaseMessaging firebaseMessaging;
 
 	@InjectMocks
 	FcmService fcmService;
@@ -256,16 +261,11 @@ class FcmServiceTest {
 	@Test
 	@DisplayName("sendPushNotification: 전송 성공 시 토큰을 비활성화하지 않는다")
 	void sendPushNotification_doesNotDeactivate_whenSuccess() throws FirebaseMessagingException {
-		FirebaseMessaging mockFirebaseMessaging = mock(FirebaseMessaging.class);
+		given(firebaseMessaging.send(any())).willReturn("message-id");
 
-		try (MockedStatic<FirebaseMessaging> staticMock = mockStatic(FirebaseMessaging.class)) {
-			staticMock.when(FirebaseMessaging::getInstance).thenReturn(mockFirebaseMessaging);
-			given(mockFirebaseMessaging.send(any())).willReturn("message-id");
+		fcmService.sendPushNotification("some-token", "제목", "내용", Map.of());
 
-			fcmService.sendPushNotification("some-token", "제목", "내용", Map.of());
-
-			verify(fcmTokenRepository, never()).findAllByToken(any());
-		}
+		verify(fcmTokenRepository, never()).findAllByToken(any());
 	}
 
 	@Test
@@ -282,17 +282,12 @@ class FcmServiceTest {
 		FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
 		given(exception.getMessagingErrorCode()).willReturn(MessagingErrorCode.UNREGISTERED);
 
-		FirebaseMessaging mockFirebaseMessaging = mock(FirebaseMessaging.class);
+		given(firebaseMessaging.send(any())).willThrow(exception);
+		given(fcmTokenRepository.findAllByToken("some-token")).willReturn(List.of(fcmToken));
 
-		try (MockedStatic<FirebaseMessaging> staticMock = mockStatic(FirebaseMessaging.class)) {
-			staticMock.when(FirebaseMessaging::getInstance).thenReturn(mockFirebaseMessaging);
-			given(mockFirebaseMessaging.send(any())).willThrow(exception);
-			given(fcmTokenRepository.findAllByToken("some-token")).willReturn(List.of(fcmToken));
+		fcmService.sendPushNotification("some-token", "제목", "내용", Map.of());
 
-			fcmService.sendPushNotification("some-token", "제목", "내용", Map.of());
-
-			assertThat(fcmToken.isActive()).isFalse();
-		}
+		assertThat(fcmToken.isActive()).isFalse();
 	}
 
 	@Test
@@ -309,17 +304,12 @@ class FcmServiceTest {
 		FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
 		given(exception.getMessagingErrorCode()).willReturn(MessagingErrorCode.INVALID_ARGUMENT);
 
-		FirebaseMessaging mockFirebaseMessaging = mock(FirebaseMessaging.class);
+		given(firebaseMessaging.send(any())).willThrow(exception);
+		given(fcmTokenRepository.findAllByToken("bad-token")).willReturn(List.of(fcmToken));
 
-		try (MockedStatic<FirebaseMessaging> staticMock = mockStatic(FirebaseMessaging.class)) {
-			staticMock.when(FirebaseMessaging::getInstance).thenReturn(mockFirebaseMessaging);
-			given(mockFirebaseMessaging.send(any())).willThrow(exception);
-			given(fcmTokenRepository.findAllByToken("bad-token")).willReturn(List.of(fcmToken));
+		fcmService.sendPushNotification("bad-token", "제목", "내용", Map.of());
 
-			fcmService.sendPushNotification("bad-token", "제목", "내용", Map.of());
-
-			assertThat(fcmToken.isActive()).isFalse();
-		}
+		assertThat(fcmToken.isActive()).isFalse();
 	}
 
 	@Test
@@ -328,17 +318,12 @@ class FcmServiceTest {
 		FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
 		given(exception.getMessagingErrorCode()).willReturn(MessagingErrorCode.THIRD_PARTY_AUTH_ERROR);
 
-		FirebaseMessaging mockFirebaseMessaging = mock(FirebaseMessaging.class);
+		given(firebaseMessaging.send(any())).willThrow(exception);
 
-		try (MockedStatic<FirebaseMessaging> staticMock = mockStatic(FirebaseMessaging.class)) {
-			staticMock.when(FirebaseMessaging::getInstance).thenReturn(mockFirebaseMessaging);
-			given(mockFirebaseMessaging.send(any())).willThrow(exception);
+		assertThatThrownBy(() -> fcmService.sendPushNotification("some-token", "제목", "내용", Map.of()))
+			.isInstanceOf(AlarmException.class);
 
-			assertThatThrownBy(() -> fcmService.sendPushNotification("some-token", "제목", "내용", Map.of()))
-				.isInstanceOf(AlarmException.class);
-
-			verify(fcmTokenRepository, never()).findAllByToken(any());
-		}
+		verify(fcmTokenRepository, never()).findAllByToken(any());
 	}
 
 	@Test
@@ -347,16 +332,11 @@ class FcmServiceTest {
 		FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
 		given(exception.getMessagingErrorCode()).willReturn(MessagingErrorCode.INTERNAL);
 
-		FirebaseMessaging mockFirebaseMessaging = mock(FirebaseMessaging.class);
+		given(firebaseMessaging.send(any())).willThrow(exception);
 
-		try (MockedStatic<FirebaseMessaging> staticMock = mockStatic(FirebaseMessaging.class)) {
-			staticMock.when(FirebaseMessaging::getInstance).thenReturn(mockFirebaseMessaging);
-			given(mockFirebaseMessaging.send(any())).willThrow(exception);
+		assertThatThrownBy(() -> fcmService.sendPushNotification("some-token", "제목", "내용", Map.of()))
+			.isInstanceOf(AlarmException.class);
 
-			assertThatThrownBy(() -> fcmService.sendPushNotification("some-token", "제목", "내용", Map.of()))
-				.isInstanceOf(AlarmException.class);
-
-			verify(fcmTokenRepository, never()).findAllByToken(any());
-		}
+		verify(fcmTokenRepository, never()).findAllByToken(any());
 	}
 }
