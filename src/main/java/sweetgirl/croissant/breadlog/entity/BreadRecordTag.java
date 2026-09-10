@@ -62,6 +62,17 @@ public class BreadRecordTag extends BaseTimeEntity {
 	@JoinColumn(name = "menu_id")
 	private Menu menu;
 
+	/**
+	 * 이 자리에 AI 가 제안했던 메뉴. {@link #menu} 와 같으면 제안을 그대로 받아들인 것이고,
+	 * 다르면 유저가 고친 것이다 — 자주 틀리는 쌍이 여기서 나온다.
+	 *
+	 * <p>제안이 없던 태그는 null 이다: 유저가 직접 단 것, 기능이 꺼져 있던 때, 구버전 앱.
+	 * 쌓아 두기만 하고 지금은 아무 데도 쓰지 않는다.
+	 */
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "suggested_menu_id")
+	private Menu suggestedMenu;
+
 	@Column(name = "x", nullable = false)
 	private double positionX;
 
@@ -77,6 +88,7 @@ public class BreadRecordTag extends BaseTimeEntity {
 			BreadRecord record,
 			BreadRecordPhoto photo,
 			Menu menu,
+			Menu suggestedMenu,
 			String name,
 			String breadCategory,
 			double positionX,
@@ -85,6 +97,7 @@ public class BreadRecordTag extends BaseTimeEntity {
 		this.record = record;
 		this.photo = photo;
 		this.menu = menu;
+		this.suggestedMenu = suggestedMenu;
 		this.name = name;
 		this.breadCategory = breadCategory;
 		this.positionX = positionX;

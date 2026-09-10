@@ -5,10 +5,12 @@ import java.util.List;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,13 +23,16 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.breadlog.dto.request.BreadPhotoAnalyzeRequest;
 import sweetgirl.croissant.breadlog.dto.request.BreadRecordPresignedUrlRequest;
 import sweetgirl.croissant.breadlog.dto.request.BreadRecordUpsertRequest;
+import sweetgirl.croissant.breadlog.dto.response.BreadPhotoAnalyzeResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordCreateResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlInfo;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordSummaryResponse;
+import sweetgirl.croissant.breadlog.service.BreadPhotoTagSuggestionService;
 import sweetgirl.croissant.breadlog.service.BreadRecordCommandService;
 import sweetgirl.croissant.breadlog.service.BreadRecordQueryService;
 import sweetgirl.croissant.breadlog.service.BreadRecordSummaryService;
@@ -43,6 +48,7 @@ public class BreadRecordController {
 	private final BreadRecordQueryService queryService;
 	private final BreadRecordCommandService commandService;
 	private final BreadRecordSummaryService summaryService;
+	private final BreadPhotoTagSuggestionService photoTagSuggestionService;
 
 	@Operation(summary = "내 빵 기록 목록 조회", description = "기간은 eatenAt 기준이며 from 이상, to 미만으로 조회합니다.")
 	@GetMapping
@@ -91,6 +97,16 @@ public class BreadRecordController {
 			@AuthenticationPrincipal Long memberId) {
 		commandService.delete(recordId, memberId);
 		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "빵 기록 사진 AI 태그 제안", description = "사진에 찍힌 빵을 그 가게 메뉴 중에서 골라 이름과 위치를 제안합니다. "
+		+ "사진은 분석에만 쓰고 저장하지 않습니다. 제안이 없거나 기능이 꺼져 있으면 빈 목록을 돌려줍니다.")
+	@PostMapping(value = "/photos/analyze", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	public ResponseEntity<ApiResponse<BreadPhotoAnalyzeResponse>> analyzePhotos(
+			@AuthenticationPrincipal Long memberId,
+			@Valid @ModelAttribute BreadPhotoAnalyzeRequest request) {
+		return ResponseEntity.ok(ApiResponse.ok(
+			photoTagSuggestionService.analyzeForMember(memberId, request.storeId(), request.toPhotos())));
 	}
 
 	@Operation(summary = "빵 기록 이미지 Presigned URL 단건 발급")

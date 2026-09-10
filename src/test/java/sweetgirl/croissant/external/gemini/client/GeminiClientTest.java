@@ -9,6 +9,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import java.util.Base64;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -62,6 +63,7 @@ class GeminiClientTest {
 				.andExpect(method(HttpMethod.POST))
 				.andExpect(header("x-goog-api-key", "test-key"))
 				.andExpect(jsonPath("$.contents[0].parts[0].text").value("소금빵을 분류해라"))
+				.andExpect(jsonPath("$.contents[0].parts[0].inlineData").doesNotExist())
 				.andExpect(jsonPath("$.generationConfig.responseMimeType").value("application/json"))
 				.andExpect(jsonPath("$.generationConfig.responseSchema.type").value("OBJECT"))
 				.andExpect(jsonPath("$.generationConfig.temperature").value(0.0))
@@ -102,6 +104,49 @@ class GeminiClientTest {
 			assertThatThrownBy(() -> geminiClient.generateStructured("p", SCHEMA, Answer.class))
 				.isInstanceOf(GeminiException.class)
 				.extracting("geminiErrorCode").isEqualTo(GeminiErrorCode.INVALID_JSON);
+		}
+	}
+
+	@Nested
+	@DisplayName("이미지와 함께 호출")
+	class GenerateStructuredWithImage {
+
+		private static final byte[] IMAGE = {1, 2, 3, 4};
+
+		@Test
+		@DisplayName("이미지 파트가 먼저, 프롬프트 파트가 나중에 실린다")
+		void success() {
+			server.expect(requestTo(GENERATE_URL))
+				.andExpect(method(HttpMethod.POST))
+				.andExpect(header("x-goog-api-key", "test-key"))
+				.andExpect(jsonPath("$.contents[0].parts[0].inlineData.mimeType").value("image/jpeg"))
+				.andExpect(jsonPath("$.contents[0].parts[0].inlineData.data")
+					.value(Base64.getEncoder().encodeToString(IMAGE)))
+				.andExpect(jsonPath("$.contents[0].parts[0].text").doesNotExist())
+				.andExpect(jsonPath("$.contents[0].parts[1].text").value("사진 속 빵을 찾아라"))
+				.andExpect(jsonPath("$.contents[0].parts[1].inlineData").doesNotExist())
+				.andExpect(jsonPath("$.generationConfig.temperature").value(0.0))
+				.andRespond(withSuccess(
+					"{\"candidates\": [{\"content\": {\"parts\": [{\"text\": "
+						+ "\"{\\\"kind\\\":\\\"소금빵\\\",\\\"isBakeryItem\\\":true}\"}]}}]}",
+					MediaType.APPLICATION_JSON));
+
+			GeminiStructuredResult<Answer> result = geminiClient.generateStructuredWithImage(
+				"사진 속 빵을 찾아라", "image/jpeg", IMAGE, SCHEMA, Answer.class);
+
+			assertThat(result.value().kind()).isEqualTo("소금빵");
+			server.verify();
+		}
+
+		@Test
+		@DisplayName("이미지 요청도 실패하면 같은 에러코드로 던진다")
+		void rateLimited() {
+			server.expect(requestTo(GENERATE_URL)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+
+			assertThatThrownBy(() -> geminiClient.generateStructuredWithImage(
+				"p", "image/jpeg", IMAGE, SCHEMA, Answer.class))
+				.isInstanceOf(GeminiException.class)
+				.extracting("geminiErrorCode").isEqualTo(GeminiErrorCode.RATE_LIMITED);
 		}
 	}
 
