@@ -36,7 +36,7 @@
 대장은 이번 릴리즈부터 쌓는다. 이관해 온 옛 알림에는 행이 없다 — 그때 무엇이 나갔는지
 기록이 없기 때문이다.
 
-마이그레이션은 `V20260910120000__restructure_notification_for_push.sql`.
+마이그레이션은 `V20260910160000__restructure_notification_for_push.sql`.
 
 ### 뒤집은 결정
 
