@@ -259,7 +259,8 @@ class AdminReportCommandServiceTest {
 			any(),
 			eq("서울"),
 			eq("마포구"),
-			eq("와우산로"),
+			// 도로명은 동 자리에 넣지 않는다 (AddressParser, 2026-09-10)
+			eq((String)null),
 			eq(null),
 			eq(null),
 			eq(null));
