@@ -18,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.config.PushAsyncConfig;
 import sweetgirl.croissant.alarm.entity.Notification;
 import sweetgirl.croissant.alarm.entity.NotificationRecipient;
+import sweetgirl.croissant.alarm.enums.NotificationChannel;
 import sweetgirl.croissant.alarm.event.PushRequestedEvent;
 import sweetgirl.croissant.alarm.repository.NotificationRecipientRepository;
 import sweetgirl.croissant.alarm.repository.NotificationRepository;
@@ -58,6 +59,13 @@ public class PushEventListener {
 				.orElse(null);
 			if (notification == null) {
 				log.warn("푸시 skip — 알림이 사라졌다 [notificationId={}]", event.notificationId());
+				return;
+			}
+			// 울리지 않기로 하고 저장된 알림. 이벤트를 내지 않는 것이 1차 방어고 여기가 2차다 --
+			// 판단 기준을 저장된 값 하나로 두면 부르는 쪽이 늘어도 규칙이 갈라지지 않는다.
+			if (notification.getChannel() != NotificationChannel.PUSH) {
+				log.info("푸시 skip — 알림함까지만 나가는 알림이다 [notificationId={}, channel={}]",
+					notification.getId(), notification.getChannel());
 				return;
 			}
 			if (event.isBroadcast()) {

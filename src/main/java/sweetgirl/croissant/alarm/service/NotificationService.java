@@ -20,6 +20,7 @@ import sweetgirl.croissant.alarm.dto.response.NotificationResponse;
 import sweetgirl.croissant.alarm.dto.response.UnreadCountResponse;
 import sweetgirl.croissant.alarm.entity.Notification;
 import sweetgirl.croissant.alarm.entity.NotificationRecipient;
+import sweetgirl.croissant.alarm.enums.NotificationChannel;
 import sweetgirl.croissant.alarm.enums.NotificationTargetType;
 import sweetgirl.croissant.alarm.enums.NotificationType;
 import sweetgirl.croissant.alarm.event.PushRequestedEvent;
@@ -170,16 +171,22 @@ public class NotificationService {
 	public NoticeSendResponse sendNotice(NoticeSendRequest request) {
 		LocalDateTime now = LocalDateTime.now();
 
+		NotificationChannel channel = request.channelOrDefault();
 		Notification notification = Notification.announcement(
-			NotificationType.NOTICE, request.getTitle(), request.getBody(), request.getLink());
+			NotificationType.NOTICE, channel, request.getTitle(), request.getBody(),
+			request.getLink());
 
 		NotificationRecorder.Broadcast broadcast = notificationRecorder.recordForAllMembers(notification, now);
-		eventPublisher.publishEvent(
-			PushRequestedEvent.toEveryone(broadcast.notification().getId()));
 
-		log.info("공지 발송 [notificationId={}, title={}, recipients={}]",
-			broadcast.notification().getId(), request.getTitle(), broadcast.recipients());
-		return new NoticeSendResponse(broadcast.recipients());
+		// 알림함에는 어느 쪽이든 쌓인다. 울릴지 말지만 여기서 갈린다.
+		if (channel == NotificationChannel.PUSH) {
+			eventPublisher.publishEvent(
+				PushRequestedEvent.toEveryone(broadcast.notification().getId()));
+		}
+
+		log.info("공지 발송 [notificationId={}, title={}, recipients={}, channel={}]",
+			broadcast.notification().getId(), request.getTitle(), broadcast.recipients(), channel);
+		return new NoticeSendResponse(broadcast.recipients(), channel);
 	}
 
 	private Pageable pageable(int page, int size) {

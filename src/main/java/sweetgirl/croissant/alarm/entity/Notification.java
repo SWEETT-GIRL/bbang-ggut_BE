@@ -18,6 +18,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import sweetgirl.croissant.alarm.enums.NotificationChannel;
 import sweetgirl.croissant.alarm.enums.NotificationTargetType;
 import sweetgirl.croissant.alarm.enums.NotificationType;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
@@ -50,6 +51,17 @@ public class Notification extends BaseTimeEntity {
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 30)
 	private NotificationType type;
+
+	/**
+	 * 이 알림이 어디까지 나가는가. {@code IN_APP}이면 알림함에만 쌓이고, {@code PUSH}면 알림함에
+	 * 쌓은 뒤 FCM까지 나간다. 알림함 적재는 어느 쪽이든 하므로 "푸시만 보내기"라는 값은 없다.
+	 *
+	 * <p>{@code notification_delivery.channel}과 이름은 같지만 뜻이 다르다. 그쪽은 "이 줄은 그
+	 * 채널로 나간 기록"이고, 이쪽은 "이 알림은 그 채널까지 나간다"는 의도다.
+	 */
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 20)
+	private NotificationChannel channel;
 
 	/** 서버가 문구를 갖는 알림(공지·광고·제보 결과)용. 활동 알림은 앱이 조립하므로 비어 있다. */
 	@Column(length = 200)
@@ -90,10 +102,11 @@ public class Notification extends BaseTimeEntity {
 	private Map<String, String> payload;
 
 	@Builder(access = AccessLevel.PRIVATE)
-	private Notification(NotificationType type, String title, String body, String deepLink,
-			Member actor, NotificationTargetType targetType, Long targetId, String targetTitle,
-			Map<String, String> payload) {
+	private Notification(NotificationType type, NotificationChannel channel, String title,
+			String body, String deepLink, Member actor, NotificationTargetType targetType,
+			Long targetId, String targetTitle, Map<String, String> payload) {
 		this.type = type;
+		this.channel = channel;
 		this.title = title;
 		this.body = body;
 		this.deepLink = deepLink;
@@ -109,6 +122,7 @@ public class Notification extends BaseTimeEntity {
 			NotificationTargetType targetType, Long targetId, String targetTitle) {
 		return Notification.builder()
 			.type(type)
+			.channel(NotificationChannel.PUSH)
 			.actor(actor)
 			.targetType(targetType)
 			.targetId(targetId)
@@ -116,11 +130,17 @@ public class Notification extends BaseTimeEntity {
 			.build();
 	}
 
-	/** 서버가 문구를 들고 있는 알림 — 공지·광고·제보 결과. 앱 배포 없이 고칠 수 있다. */
-	public static Notification announcement(NotificationType type, String title, String body,
-			String deepLink) {
+	/**
+	 * 서버가 문구를 들고 있는 알림 — 공지·광고. 앱 배포 없이 고칠 수 있다.
+	 *
+	 * <p>채널을 부르는 쪽이 정한다. "업데이트됐다" 같은 소식은 알림함에만 두고 싶을 때가 있어서,
+	 * 울릴지 말지를 발송하는 사람이 고르게 둔다.
+	 */
+	public static Notification announcement(NotificationType type, NotificationChannel channel,
+			String title, String body, String deepLink) {
 		return Notification.builder()
 			.type(type)
+			.channel(channel)
 			.title(title)
 			.body(body)
 			.deepLink(deepLink)
@@ -136,6 +156,7 @@ public class Notification extends BaseTimeEntity {
 			Map<String, String> payload) {
 		return Notification.builder()
 			.type(type)
+			.channel(NotificationChannel.PUSH)
 			.title(title)
 			.body(body)
 			.deepLink(deepLink)
