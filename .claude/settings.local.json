@@ -13,7 +13,9 @@
       "Bash(./gradlew build *)",
       "Bash(./gradlew spotlessApply -q)",
       "Bash(./gradlew compileJava compileTestJava -q)",
-      "Bash(git commit -q -m ' *)"
+      "Bash(git commit -q -m ' *)",
+      "Read(//private/tmp/**)",
+      "Bash(PGPASSWORD=sweetgirl0813! psql 'host=127.0.0.1 port=15432 dbname=soboro user=sweetgirl sslmode=require' -X -P pager=off -c ' *)"
     ]
   }
 }
