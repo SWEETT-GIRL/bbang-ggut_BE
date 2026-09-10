@@ -149,6 +149,24 @@ class AdminLetterServiceTest {
 	}
 
 	@Test
+	@DisplayName("우리가 보낸 편지는 그 대화를 목록에 올리지 않는다 — 답장도, 선발신도")
+	void adminLetters_doNotListThread() {
+		Member member = member(7L, "포실한 까눌레");
+		LetterThread thread = thread(11L, member);
+		given(letterThreadRepository.findById(11L)).willReturn(Optional.of(thread));
+		given(letterThreadRepository.findByMemberId(7L)).willReturn(Optional.of(thread));
+		given(memberRepository.findByIdAndDeletedAtIsNull(7L)).willReturn(Optional.of(member));
+		given(letterMessageRepository.save(any(LetterMessage.class))).willAnswer(inv -> inv.getArgument(0));
+
+		adminLetterService.reply(11L, replyRequest("감사합니다!"));
+		adminLetterService.send(sendRequest(List.of(7L), "인터뷰 가능하실까요?"));
+
+		// 목록에 오르는 건 사용자가 말을 걸 때뿐이다. 일괄 발신이 2,700개 방을 목록에
+		// 올려버리면 고친 의미가 없다
+		assertThat(thread.getLastMemberMessageAt()).isNull();
+	}
+
+	@Test
 	@DisplayName("없는 대화방에 답장하면 404")
 	void reply_rejectsMissingThread() {
 		given(letterThreadRepository.findById(99L)).willReturn(Optional.empty());
