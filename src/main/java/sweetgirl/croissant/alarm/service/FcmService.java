@@ -40,6 +40,7 @@ public class FcmService {
 
 	final FcmTokenRepository fcmTokenRepository;
 	final MemberReader memberReader;
+	final FirebaseMessaging firebaseMessaging;
 
 	// 기기별 FCM Token 저장 또는 갱신
 	public void saveOrUpdateFcmToken(Long memberId, FcmTokenRequest fcmTokenRequest) {
@@ -130,7 +131,7 @@ public class FcmService {
 			.build();
 
 		try {
-			FirebaseMessaging.getInstance().send(message);
+			firebaseMessaging.send(message);
 		} catch (FirebaseMessagingException e) {
 			MessagingErrorCode errorCode = e.getMessagingErrorCode();
 			if (isInvalidTokenError(errorCode)) {
