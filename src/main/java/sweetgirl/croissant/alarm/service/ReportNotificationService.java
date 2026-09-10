@@ -1,11 +1,13 @@
 package sweetgirl.croissant.alarm.service;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,16 +16,28 @@ import sweetgirl.croissant.abuse.entity.AbuseReport;
 import sweetgirl.croissant.abuse.entity.ModerationAction;
 import sweetgirl.croissant.alarm.code.AlarmErrorCode;
 import sweetgirl.croissant.alarm.dto.response.ReportNotificationResponse;
-import sweetgirl.croissant.alarm.entity.FcmToken;
-import sweetgirl.croissant.alarm.entity.ReportNotification;
+import sweetgirl.croissant.alarm.entity.Notification;
+import sweetgirl.croissant.alarm.entity.NotificationRecipient;
+import sweetgirl.croissant.alarm.enums.NotificationTargetType;
+import sweetgirl.croissant.alarm.enums.NotificationType;
 import sweetgirl.croissant.alarm.enums.ReportNotificationAction;
+import sweetgirl.croissant.alarm.event.PushRequestedEvent;
 import sweetgirl.croissant.alarm.exception.AlarmException;
-import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
-import sweetgirl.croissant.alarm.repository.ReportNotificationRepository;
+import sweetgirl.croissant.alarm.repository.NotificationRecipientRepository;
 import sweetgirl.croissant.common.enums.ReportKind;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.store.entity.Store;
 
+/**
+ * 제보·신고·제재 결과 알림. 문구를 서버가 들고 다른 알림과 같은 알림함에 쌓인다.
+ *
+ * <p>예전에는 report_notification이라는 전용 테이블과 전용 조회 API를 갖고 있었다. 알림함이 둘로
+ * 갈려 있을 이유가 없고, 푸시 파이프라인을 두 벌 만들 이유는 더 없어서 통합 알림으로 옮겼다.
+ * 밖으로 나가는 응답 모양은 그대로다 — 앱이 이 필드들로 이의제기 화면을 연다.
+ *
+ * <p>reportId 계열은 payload에 담는다. 통합 테이블에 타입별 컬럼을 펼치면 대부분의 행에서 NULL인
+ * 자리가 쌓이는데, 조건으로 걸어 찾을 일이 없는 값이라 한 덩어리로 두는 편이 낫다.
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -35,45 +49,37 @@ public class ReportNotificationService {
 	private static final String MODERATION_ACTION_TITLE = "운영 정책 위반으로 콘텐츠가 제한되었습니다.";
 	private static final String MODERATION_ACTION_MESSAGE = "결정에 동의하지 않는 경우 30일 이내에 이의제기를 요청할 수 있습니다.";
 
-	private final ReportNotificationRepository reportNotificationRepository;
-	private final FcmTokenRepository fcmTokenRepository;
-	private final FcmService fcmService;
+	private final NotificationRecipientRepository recipientRepository;
+	private final NotificationRecorder notificationRecorder;
+	private final ApplicationEventPublisher eventPublisher;
 
-	// 제보 승인/거절 결과를 사용자에게 알림 — DB 히스토리 저장 + FCM 발송
-	// member 가 null 인 경우(익명 메뉴 추가 제보 등) 알림을 보낼 대상이 없으므로 silent skip
-	public void notifyContributionReportResult(Member member, Store store, String fallbackStoreName, Long reportId,
-			Long contributionReportId, ReportKind reportKind, ReportNotificationAction action, String subjectLabel) {
+	/**
+	 * 제보 승인·반려 결과를 제보자에게 알린다.
+	 *
+	 * <p>member가 null인 경우(익명 메뉴 추가 제보 등) 보낼 대상이 없으므로 조용히 넘어간다.
+	 */
+	public void notifyContributionReportResult(Member member, Store store, String fallbackStoreName,
+			Long reportId, Long contributionReportId, ReportKind reportKind,
+			ReportNotificationAction action, String subjectLabel) {
 		if (member == null) {
 			log.info("notifyReportResult: 제보자 없음 [reportId={}, kind={}]", reportId, reportKind);
 			return;
 		}
 
-		String title = action == ReportNotificationAction.APPROVED
-			? "제보가 반영되었어요"
-			: "제보가 반려되었어요";
+		boolean approved = action == ReportNotificationAction.APPROVED;
+		String title = approved ? "제보가 반영되었어요" : "제보가 반려되었어요";
 		String storeName = store != null ? store.getName() : fallbackStoreName(fallbackStoreName);
-		String body = action == ReportNotificationAction.APPROVED
+		String body = approved
 			? String.format("%s의 %s 제보가 승인되었어요 🎉", storeName, subjectLabel)
 			: String.format("%s의 %s 제보가 반려되었어요", storeName, subjectLabel);
 
-		Map<String, String> data = new HashMap<>();
-		data.put("type", "REPORT_RESULT");
-		data.put("reportId", String.valueOf(reportId));
-		data.put("reportKind", reportKind.name());
-		putIfNotNull(data, "contributionReportId", contributionReportId);
-		data.put("action", action.name());
-		if (store != null) {
-			data.put("storeId", String.valueOf(store.getId()));
-		}
+		Map<String, String> payload = new HashMap<>();
+		payload.put("reportId", String.valueOf(reportId));
+		payload.put("reportKind", reportKind.name());
+		payload.put("action", action.name());
+		putIfNotNull(payload, "contributionReportId", contributionReportId);
 
-		saveAndSend(
-			ReportNotification.ofContributionReportResult(member, store, reportId, contributionReportId, reportKind,
-				action, title, body),
-			data);
-	}
-
-	private String fallbackStoreName(String fallbackStoreName) {
-		return fallbackStoreName != null && !fallbackStoreName.isBlank() ? fallbackStoreName : "가게";
+		deliver(NotificationType.CONTRIBUTION_RESULT, member, title, body, store, storeName, payload);
 	}
 
 	public void notifyAbuseReportResult(AbuseReport report) {
@@ -82,15 +88,14 @@ public class ReportNotificationService {
 			return;
 		}
 
-		Map<String, String> data = new HashMap<>();
-		data.put("type", ReportNotificationAction.ABUSE_REPORT_RESULT.name());
-		data.put("reportId", String.valueOf(report.getId()));
-		data.put("abuseReportId", String.valueOf(report.getId()));
-		data.put("reportKind", ReportKind.ABUSE_REPORT.name());
+		Map<String, String> payload = new HashMap<>();
+		payload.put("reportId", String.valueOf(report.getId()));
+		payload.put("abuseReportId", String.valueOf(report.getId()));
+		payload.put("reportKind", ReportKind.ABUSE_REPORT.name());
+		payload.put("action", ReportNotificationAction.ABUSE_REPORT_RESULT.name());
 
-		saveAndSend(
-			ReportNotification.ofAbuseReportResult(report, ABUSE_REPORT_RESULT_TITLE, ABUSE_REPORT_RESULT_MESSAGE),
-			data);
+		deliver(NotificationType.ABUSE_REPORT_RESULT, report.getReporter(),
+			ABUSE_REPORT_RESULT_TITLE, ABUSE_REPORT_RESULT_MESSAGE, null, null, payload);
 	}
 
 	public void notifyModerationAction(ModerationAction moderationAction) {
@@ -105,71 +110,70 @@ public class ReportNotificationService {
 		}
 
 		Long reportId = moderationAction.getReport().getId();
-		Map<String, String> data = new HashMap<>();
-		data.put("type", ReportNotificationAction.MODERATION_ACTION.name());
-		data.put("reportId", String.valueOf(reportId));
-		data.put("abuseReportId", String.valueOf(reportId));
-		data.put("reportKind", ReportKind.ABUSE_REPORT.name());
-		putIfNotNull(data, "moderationActionId", moderationAction.getId());
+		Map<String, String> payload = new HashMap<>();
+		payload.put("reportId", String.valueOf(reportId));
+		payload.put("abuseReportId", String.valueOf(reportId));
+		payload.put("reportKind", ReportKind.ABUSE_REPORT.name());
+		payload.put("action", ReportNotificationAction.MODERATION_ACTION.name());
+		putIfNotNull(payload, "moderationActionId", moderationAction.getId());
 
-		saveAndSend(
-			ReportNotification.ofModerationAction(moderationAction, MODERATION_ACTION_TITLE, MODERATION_ACTION_MESSAGE),
-			data);
+		deliver(NotificationType.MODERATION_ACTION, moderationAction.getMember(),
+			MODERATION_ACTION_TITLE, MODERATION_ACTION_MESSAGE, null, null, payload);
 	}
 
-	private void saveAndSend(ReportNotification notification, Map<String, String> data) {
-		reportNotificationRepository.save(notification);
+	/**
+	 * 알림함에 앉히고 푸시로 내보낸다. 푸시가 실패해도 알림함에는 남는다 — 적재와 발송이
+	 * 다른 트랜잭션이라 한쪽 실패가 다른 쪽을 되돌리지 않는다.
+	 */
+	private void deliver(NotificationType type, Member member, String title, String body,
+			Store store, String storeName, Map<String, String> payload) {
+		LocalDateTime now = LocalDateTime.now();
 
-		Member member = notification.getMember();
-		List<FcmToken> tokens = fcmTokenRepository.findByMemberAndIsActive(member, true);
-		if (tokens.isEmpty()) {
-			log.info("ReportNotification: FCM 토큰 없음 [memberId={}, reportId={}, action={}]",
-				member.getId(), notification.getReportId(), notification.getAction());
-			return;
-		}
+		Notification notification = Notification.announcement(
+			type, title, body, null,
+			store != null ? NotificationTargetType.STORE : null,
+			store != null ? store.getId() : null,
+			store != null ? store.getName() : storeName,
+			payload);
 
-		// 같은 디바이스 다중 row(legacy 데이터)에 의한 중복 발송 방지
-		List<String> uniqueTokens = tokens.stream()
-			.map(FcmToken::getToken)
-			.distinct()
-			.toList();
-
-		for (String token : uniqueTokens) {
-			try {
-				fcmService.sendPushNotification(token, notification.getTitle(), notification.getMessage(), data);
-			} catch (AlarmException e) {
-				log.warn("FCM 발송 실패 [memberId={}, reportId={}, token={}]",
-					member.getId(), notification.getReportId(), maskToken(token));
-			}
-		}
+		Notification recorded = notificationRecorder.recordFor(notification, member, now);
+		eventPublisher.publishEvent(PushRequestedEvent.to(recorded.getId(), member.getId()));
 	}
 
-	private String maskToken(String token) {
-		if (token == null || token.length() <= 12) {
-			return "***";
-		}
-		return token.substring(0, 6) + "..." + token.substring(token.length() - 6);
+	private String fallbackStoreName(String fallbackStoreName) {
+		return fallbackStoreName != null && !fallbackStoreName.isBlank() ? fallbackStoreName : "가게";
 	}
 
-	private void putIfNotNull(Map<String, String> data, String key, Long value) {
+	private void putIfNotNull(Map<String, String> payload, String key, Long value) {
 		if (value != null) {
-			data.put(key, String.valueOf(value));
+			payload.put(key, String.valueOf(value));
 		}
 	}
 
+	// ── 조회 ────────────────────────────────────────────────────────────────
+
+	/**
+	 * 제보 알림만 골라 준다. 통합 알림함이 생겼어도 이 경로는 남는다 — 앱에 제보 결과만 보는
+	 * 화면이 따로 있고, 그 화면이 통합 목록으로 바뀌는 것은 앱의 판단이다.
+	 */
 	@Transactional(readOnly = true)
 	public List<ReportNotificationResponse> getMyReportNotifications(Long memberId) {
-		return reportNotificationRepository.findByMemberIdOrderBySentAtDesc(memberId).stream()
+		return recipientRepository.findMineByTypes(memberId, REPORT_TYPES).stream()
 			.map(ReportNotificationResponse::from)
 			.toList();
 	}
 
+	private static final List<NotificationType> REPORT_TYPES = List.of(
+		NotificationType.CONTRIBUTION_RESULT,
+		NotificationType.ABUSE_REPORT_RESULT,
+		NotificationType.MODERATION_ACTION);
+
 	public void markAsRead(Long memberId, Long notificationId) {
-		ReportNotification notification = reportNotificationRepository.findById(notificationId)
+		NotificationRecipient recipient = recipientRepository.findById(notificationId)
 			.orElseThrow(() -> new AlarmException(AlarmErrorCode.ALARM_NOT_FOUND));
-		if (!notification.getMember().getId().equals(memberId)) {
+		if (!recipient.getMember().getId().equals(memberId)) {
 			throw new AlarmException(AlarmErrorCode.ALARM_FORBIDDEN);
 		}
-		notification.markAsRead();
+		recipient.markAsRead(LocalDateTime.now());
 	}
 }
