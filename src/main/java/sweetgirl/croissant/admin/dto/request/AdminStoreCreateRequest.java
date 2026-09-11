@@ -16,7 +16,7 @@ public record AdminStoreCreateRequest(
 		@Schema(description = "네이버 플레이스 ID", example = "123456789") String naverPlaceId,
 		@Schema(description = "카카오 플레이스 ID (legacy)", example = "123456789") String kakaoPlaceId,
 		@Schema(description = "가게 상태 (active | inactive)", example = "active") @NotBlank String status,
-		@Schema(description = "가게 카테고리 (WESTERN)") StoreCategory category,
+		@Schema(description = "가게 분류 (BAKERY, CAFE_DESSERT, CAKE ... StoreCategory 참고)") StoreCategory category,
 		@Schema(description = "영업시간 (mon~sun 키, closed=true면 휴무)") Map<String, BusinessHourRequest> hours) {
 
 	@Schema(description = "좌표")
