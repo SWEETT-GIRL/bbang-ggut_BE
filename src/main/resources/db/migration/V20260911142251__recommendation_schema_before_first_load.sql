@@ -1,9 +1,10 @@
--- store_profile 첫 적재 전 정리와 빵 취향 타입 표현 확정 (이슈 #659 후속, 2026-09-11)
+-- 추천 스키마를 첫 적재·첫 사용 전에 한 번에 바로잡는다 (이슈 #659 후속, 2026-09-11)
 --
--- store_profile 과 user_taste_profile 은 운영에서 아직 0 행이다. dataops 가 처음 적재하기 전에 한 번에 바로잡는다.
--- 두 부분으로 되어 있다.
+-- store_profile·user_taste_profile 은 운영에서 아직 0 행이고, courses 의 추천 컬럼 둘은 값이 0 개다.
+-- dataops 가 처음 적재하고 #660 이 처음 쓰기 전에 고친다. 세 부분으로 되어 있다.
 --   1부 — store_profile: 리뷰 집계 셋과 소개글을 attrs 에서 컬럼으로 올리고, 쓰지 않게 된 LLM 태깅 메타를 뺀다.
 --   2부 — 두 표의 타입: 숫자 1~16(V20260910120000) 을 4글자 코드로 바꾼다.
+--   3부 — courses: 코스 단위 추천 출처(source·recommendation_id)를 뺀다. 출처는 가게 단위에만 둔다.
 --
 -- ══════════════════════════════════════════════════════════════════════════════
 -- 1부. store_profile — 리뷰 집계·소개글을 컬럼으로, LLM 태깅 메타 제거
@@ -137,3 +138,23 @@ COMMENT ON COLUMN user_taste_profile.type_code IS
     '이 사용자의 빵 취향 타입 — 4글자 코드. store_profile.bread_type 과 같은 체계라 그대로 비교한다. '
     '자리마다 한 축: 1 맛 S달콤/P담백, 2 식감 F폭신/C바삭, 3 속 R꽉찬/L심플, 4 빵의 신상 O고전/N신상. '
     '화면에 보이는 이름("고독한 철학자")은 #660 의 BbtiType 이 코드에서 찾는다.';
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- 3부. courses — 코스 단위 추천 출처를 뺀다
+-- ══════════════════════════════════════════════════════════════════════════════
+-- V20260908162423 이 courses.source 와 courses.recommendation_id 를 붙였는데, 둘 다 가게 단위 출처와 겹치고
+-- 코스 단위라 정보를 잃는다.
+--
+-- recommendation_id — 한 코스가 추천을 여러 번 받는다. 일차마다 상권 추천을 한 번씩 받게 설계돼 있고(재사용 키에
+-- day 가 있다), 같은 날에도 성수에서 1곳을 담고 다른 상권에서 몇 곳을 담을 수 있다. 한 칸에는 마지막 하나만 남는다.
+-- 필요한 정보는 이미 두 곳에 있다 — 가게마다 어느 추천에서 왔는지는 course_stores.recommendation_id,
+-- 이 코스에 요청된 추천 전부는 recommendation.course_id(NOT NULL).
+--
+-- source — 값이 RECOMMENDED 하나뿐이라 사실상 "추천을 쓴 적 있다" 는 불리언이다. course_stores 가 소프트 삭제라
+-- 사용자가 뺀 가게도 recommendation_id 를 들고 남으므로 이것도 가게 단위에서 나온다. 상권 추천과 앵커 추천을
+-- 가르지도 못한다 — 여정 퍼널이 실제로 필요한 그 구분은 course_stores.recommendation_id 에서 recommendation.mode 로 찾는다.
+--
+-- 운영 courses 730 행에서 두 컬럼 모두 값이 0 개다(2026-09-11 확인). 값을 쓰는 코드가 없었다.
+-- recommendation_id 를 지우면 그 외래 키와 부분 인덱스 idx_courses_recommendation 도 같이 사라진다.
+ALTER TABLE courses DROP COLUMN recommendation_id;
+ALTER TABLE courses DROP COLUMN source;
