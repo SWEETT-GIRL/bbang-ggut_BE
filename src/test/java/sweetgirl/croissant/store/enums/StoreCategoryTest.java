@@ -29,6 +29,7 @@ class StoreCategoryTest {
 	@CsvSource({
 		"'음식점 > 양식 > 베이커리', BAKERY",
 		"'음식점 > 간식 > 도넛', DONUT",
+		"'음식점 > 간식 > 제과,베이커리 > 파리바게뜨', BAKERY",
 		"'카페 > 디저트카페', CAFE_DESSERT",
 		"'음식점 > 카페 > 커피전문점 > 스타벅스', CAFE_DESSERT",
 	})
