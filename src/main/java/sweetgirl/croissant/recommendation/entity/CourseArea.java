@@ -11,8 +11,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
-import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
+import sweetgirl.croissant.recommendation.exception.RecommendationException;
 
 /**
  * 코스용 상권 = 빵여권 도장 칸의 서버 판 (설계 §1 · §4).
@@ -110,10 +110,10 @@ public class CourseArea extends BaseTimeEntity {
 			String region3rd,
 			int displayOrder) {
 		if (radiusM <= 0 || maxHopM <= 0) {
-			throw new CustomException(RecommendationErrorCode.COURSE_AREA_RADIUS_INVALID);
+			throw new RecommendationException(RecommendationErrorCode.COURSE_AREA_RADIUS_INVALID);
 		}
 		if (region3rd != null && region2nd == null) {
-			throw new CustomException(RecommendationErrorCode.COURSE_AREA_REGION_INVALID);
+			throw new RecommendationException(RecommendationErrorCode.COURSE_AREA_REGION_INVALID);
 		}
 		return CourseArea.builder()
 			.sido(sido)

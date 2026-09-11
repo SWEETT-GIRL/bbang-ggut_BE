@@ -8,8 +8,8 @@ import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
+import sweetgirl.croissant.recommendation.exception.RecommendationException;
 
 class TasteAxisTest {
 
@@ -82,7 +82,7 @@ class TasteAxisTest {
 		TasteAxis partial = TasteAxis.of(new BigDecimal("0.500"), null, new BigDecimal("0.500"), null);
 
 		assertThatThrownBy(partial::typeCode)
-			.isInstanceOfSatisfying(CustomException.class, e -> assertThat(e.getErrorCode())
+			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(RecommendationErrorCode.TASTE_AXIS_INCOMPLETE));
 	}
 }

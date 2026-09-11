@@ -6,8 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
+import sweetgirl.croissant.recommendation.exception.RecommendationException;
 
 class CourseAreaTest {
 
@@ -49,7 +49,7 @@ class CourseAreaTest {
 	@DisplayName("읍면동만 있고 시군구가 없으면 만들 수 없다")
 	void create_rejectsDongWithoutDistrict() {
 		assertThatThrownBy(() -> CourseArea.create("서울", "성수동", null, 37.5, 127.0, 1200, 1200, null, "성수동", 0))
-			.isInstanceOfSatisfying(CustomException.class, e -> assertThat(e.getErrorCode())
+			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(RecommendationErrorCode.COURSE_AREA_REGION_INVALID));
 	}
 
@@ -57,10 +57,10 @@ class CourseAreaTest {
 	@DisplayName("반경이나 구간 상한이 0 이하면 만들 수 없다")
 	void create_rejectsNonPositiveDistances() {
 		assertThatThrownBy(() -> CourseArea.create("서울", "성수동", null, 37.5, 127.0, 0, 1200, null, null, 0))
-			.isInstanceOfSatisfying(CustomException.class, e -> assertThat(e.getErrorCode())
+			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(RecommendationErrorCode.COURSE_AREA_RADIUS_INVALID));
 		assertThatThrownBy(() -> CourseArea.create("서울", "성수동", null, 37.5, 127.0, 1200, -1, null, null, 0))
-			.isInstanceOfSatisfying(CustomException.class, e -> assertThat(e.getErrorCode())
+			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(RecommendationErrorCode.COURSE_AREA_RADIUS_INVALID));
 	}
 

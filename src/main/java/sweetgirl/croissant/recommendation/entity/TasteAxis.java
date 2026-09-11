@@ -8,8 +8,8 @@ import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
+import sweetgirl.croissant.recommendation.exception.RecommendationException;
 
 /**
  * 빵BTI 4축. 가게(store_profile)와 사용자(user_taste_profile)가 같은 컬럼 이름으로 갖는다.
@@ -79,12 +79,12 @@ public class TasteAxis {
 	 *
 	 * <p>코드는 식별자로만 쓴다. 자리별 조건이 필요하면 코드를 자르지 말고 축 값을 직접 본다.
 	 *
-	 * @throws CustomException {@code TASTE_AXIS_INCOMPLETE} — 네 축이 다 있지 않을 때. 근거가 없으면 타입도 없다.
+	 * @throws RecommendationException {@code TASTE_AXIS_INCOMPLETE} — 네 축이 다 있지 않을 때. 근거가 없으면 타입도 없다.
 	 *         부르는 쪽이 {@link #isComplete()} 로 먼저 거르는 게 약속이라, 여기 오면 서버 버그다.
 	 */
 	public String typeCode() {
 		if (!isComplete()) {
-			throw new CustomException(RecommendationErrorCode.TASTE_AXIS_INCOMPLETE);
+			throw new RecommendationException(RecommendationErrorCode.TASTE_AXIS_INCOMPLETE);
 		}
 		return new StringBuilder(4)
 			.append(pole(taste, 'S', 'P'))
