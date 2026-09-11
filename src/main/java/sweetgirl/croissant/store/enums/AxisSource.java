@@ -1,4 +1,4 @@
-package sweetgirl.croissant.recommendation.enums;
+package sweetgirl.croissant.store.enums;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

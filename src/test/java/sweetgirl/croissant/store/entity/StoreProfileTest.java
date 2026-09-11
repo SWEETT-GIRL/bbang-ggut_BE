@@ -1,4 +1,4 @@
-package sweetgirl.croissant.recommendation.entity;
+package sweetgirl.croissant.store.entity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -9,7 +9,8 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import sweetgirl.croissant.recommendation.enums.AxisSource;
+import sweetgirl.croissant.personalization.entity.TasteAxis;
+import sweetgirl.croissant.store.enums.AxisSource;
 
 class StoreProfileTest {
 

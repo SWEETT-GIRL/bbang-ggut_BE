@@ -1,4 +1,4 @@
-package sweetgirl.croissant.recommendation.entity;
+package sweetgirl.croissant.personalization.entity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -10,8 +10,8 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import sweetgirl.croissant.recommendation.enums.TasteTypeSource;
-import sweetgirl.croissant.recommendation.enums.TasteUserType;
+import sweetgirl.croissant.personalization.enums.TasteTypeSource;
+import sweetgirl.croissant.personalization.enums.TasteUserType;
 
 class UserTasteProfileTest {
 

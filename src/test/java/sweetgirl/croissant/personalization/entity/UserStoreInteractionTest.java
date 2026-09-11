@@ -1,4 +1,4 @@
-package sweetgirl.croissant.recommendation.entity;
+package sweetgirl.croissant.personalization.entity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -8,8 +8,8 @@ import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
-import sweetgirl.croissant.recommendation.exception.RecommendationException;
+import sweetgirl.croissant.personalization.code.PersonalizationErrorCode;
+import sweetgirl.croissant.personalization.exception.PersonalizationException;
 
 class UserStoreInteractionTest {
 
@@ -40,7 +40,7 @@ class UserStoreInteractionTest {
 	@DisplayName("가게도 메뉴도 없는 신호는 만들 수 없다")
 	void of_rejectsSignalWithoutTarget() {
 		assertThatThrownBy(() -> UserStoreInteraction.of(7L, null, null, "SAVE", null, null, OCCURRED_AT))
-			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
-				.isEqualTo(RecommendationErrorCode.INTERACTION_TARGET_REQUIRED));
+			.isInstanceOfSatisfying(PersonalizationException.class, e -> assertThat(e.getErrorCode())
+				.isEqualTo(PersonalizationErrorCode.INTERACTION_TARGET_REQUIRED));
 	}
 }

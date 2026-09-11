@@ -1,4 +1,4 @@
-package sweetgirl.croissant.recommendation.entity;
+package sweetgirl.croissant.personalization.entity;
 
 import java.time.LocalDateTime;
 
@@ -12,8 +12,8 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
-import sweetgirl.croissant.recommendation.exception.RecommendationException;
+import sweetgirl.croissant.personalization.code.PersonalizationErrorCode;
+import sweetgirl.croissant.personalization.exception.PersonalizationException;
 
 /**
  * 사용자가 가게·빵에 남긴 신호 한 건 (설계 §3.1). 매일 04:00 배치(#663)가 전날분을 적재한다.
@@ -88,7 +88,7 @@ public class UserStoreInteraction {
 			Boolean converted,
 			LocalDateTime occurredAt) {
 		if (storeId == null && menuId == null) {
-			throw new RecommendationException(RecommendationErrorCode.INTERACTION_TARGET_REQUIRED);
+			throw new PersonalizationException(PersonalizationErrorCode.INTERACTION_TARGET_REQUIRED);
 		}
 		return UserStoreInteraction.builder()
 			.memberId(memberId)

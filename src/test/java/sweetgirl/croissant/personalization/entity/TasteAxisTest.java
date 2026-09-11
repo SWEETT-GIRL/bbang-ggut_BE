@@ -1,4 +1,4 @@
-package sweetgirl.croissant.recommendation.entity;
+package sweetgirl.croissant.personalization.entity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -8,8 +8,8 @@ import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
-import sweetgirl.croissant.recommendation.exception.RecommendationException;
+import sweetgirl.croissant.personalization.code.PersonalizationErrorCode;
+import sweetgirl.croissant.personalization.exception.PersonalizationException;
 
 class TasteAxisTest {
 
@@ -82,7 +82,7 @@ class TasteAxisTest {
 		TasteAxis partial = TasteAxis.of(new BigDecimal("0.500"), null, new BigDecimal("0.500"), null);
 
 		assertThatThrownBy(partial::typeCode)
-			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
-				.isEqualTo(RecommendationErrorCode.TASTE_AXIS_INCOMPLETE));
+			.isInstanceOfSatisfying(PersonalizationException.class, e -> assertThat(e.getErrorCode())
+				.isEqualTo(PersonalizationErrorCode.TASTE_AXIS_INCOMPLETE));
 	}
 }

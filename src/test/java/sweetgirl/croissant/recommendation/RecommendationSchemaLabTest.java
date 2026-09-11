@@ -19,18 +19,18 @@ import org.springframework.test.context.TestPropertySource;
 
 import jakarta.persistence.EntityManager;
 import sweetgirl.croissant.config.persistence.JpaConfig;
+import sweetgirl.croissant.personalization.entity.TasteAxis;
+import sweetgirl.croissant.personalization.entity.UserTasteProfile;
+import sweetgirl.croissant.personalization.enums.TasteTypeSource;
+import sweetgirl.croissant.personalization.enums.TasteUserType;
+import sweetgirl.croissant.personalization.repository.UserTasteProfileRepository;
 import sweetgirl.croissant.recommendation.entity.CourseArea;
 import sweetgirl.croissant.recommendation.entity.Recommendation;
-import sweetgirl.croissant.recommendation.entity.StoreProfile;
-import sweetgirl.croissant.recommendation.entity.TasteAxis;
-import sweetgirl.croissant.recommendation.entity.UserTasteProfile;
-import sweetgirl.croissant.recommendation.enums.AxisSource;
-import sweetgirl.croissant.recommendation.enums.TasteTypeSource;
-import sweetgirl.croissant.recommendation.enums.TasteUserType;
 import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationRepository;
-import sweetgirl.croissant.recommendation.repository.StoreProfileRepository;
-import sweetgirl.croissant.recommendation.repository.UserTasteProfileRepository;
+import sweetgirl.croissant.store.entity.StoreProfile;
+import sweetgirl.croissant.store.enums.AxisSource;
+import sweetgirl.croissant.store.repository.StoreProfileRepository;
 
 /**
  * 랩 PG(운영 덤프 복제본)에서 추천 스키마(#659)를 검증한다.

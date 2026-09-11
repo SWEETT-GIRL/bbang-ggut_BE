@@ -1,4 +1,4 @@
-package sweetgirl.croissant.recommendation.entity;
+package sweetgirl.croissant.store.entity;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -21,10 +21,13 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
-import sweetgirl.croissant.recommendation.enums.AxisSource;
+import sweetgirl.croissant.personalization.entity.TasteAxis;
+import sweetgirl.croissant.store.enums.AxisSource;
 
 /**
  * 가게 취향 프로필 — dataops 배치 산출물 (설계 §4 · §5.1).
+ *
+ * 누가 보든 같은 가게 사실이라 store 에 둔다. 축은 사용자와 같은 공간의 값이라 personalization 의 {@link TasteAxis} 를 임베드한다.
  *
  * 쓰는 쪽은 dataops(ServingWriter) 하나뿐이고 BE 는 읽기만 한다. {@code @Immutable} 이라 BE 가 실수로 저장해도
  * UPDATE 가 나가지 않는다 — 한 행을 두 주체가 쓰면 증분 upsert 와 JPA 저장이 서로 덮어쓴다.

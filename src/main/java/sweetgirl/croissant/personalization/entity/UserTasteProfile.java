@@ -1,4 +1,4 @@
-package sweetgirl.croissant.recommendation.entity;
+package sweetgirl.croissant.personalization.entity;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -20,8 +20,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
-import sweetgirl.croissant.recommendation.enums.TasteTypeSource;
-import sweetgirl.croissant.recommendation.enums.TasteUserType;
+import sweetgirl.croissant.personalization.enums.TasteTypeSource;
+import sweetgirl.croissant.personalization.enums.TasteUserType;
 
 /**
  * 사용자 취향 프로필 — 한 사람당 한 행 (설계 §4 · §5.1).
