@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
 import sweetgirl.croissant.recommendation.enums.FeedbackAction;
 
 class RecommendationFeedbackTest {
@@ -32,6 +34,7 @@ class RecommendationFeedbackTest {
 	@DisplayName("가게 단위 반응인데 가게 ID 가 없으면 만들 수 없다")
 	void of_storeScopedWithoutStoreId() {
 		assertThatThrownBy(() -> RecommendationFeedback.of(99L, null, FeedbackAction.STORE_TAP))
-			.isInstanceOf(IllegalArgumentException.class);
+			.isInstanceOfSatisfying(CustomException.class, e -> assertThat(e.getErrorCode())
+				.isEqualTo(RecommendationErrorCode.FEEDBACK_STORE_REQUIRED));
 	}
 }

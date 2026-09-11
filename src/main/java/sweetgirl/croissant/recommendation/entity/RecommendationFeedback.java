@@ -13,6 +13,8 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
 import sweetgirl.croissant.recommendation.enums.FeedbackAction;
 
 /**
@@ -52,7 +54,7 @@ public class RecommendationFeedback {
 
 	public static RecommendationFeedback of(Long recommendationId, Long storeId, FeedbackAction action) {
 		if (action.isStoreScoped() && storeId == null) {
-			throw new IllegalArgumentException("가게 단위 반응에는 가게 ID가 필요합니다: " + action);
+			throw new CustomException(RecommendationErrorCode.FEEDBACK_STORE_REQUIRED);
 		}
 		return new RecommendationFeedback(recommendationId, action.isStoreScoped() ? storeId : null, action);
 	}

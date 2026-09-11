@@ -8,6 +8,9 @@ import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
+
 class TasteAxisTest {
 
 	@Test
@@ -78,6 +81,8 @@ class TasteAxisTest {
 	void typeCode_requiresCompleteAxis() {
 		TasteAxis partial = TasteAxis.of(new BigDecimal("0.500"), null, new BigDecimal("0.500"), null);
 
-		assertThatThrownBy(partial::typeCode).isInstanceOf(IllegalStateException.class);
+		assertThatThrownBy(partial::typeCode)
+			.isInstanceOfSatisfying(CustomException.class, e -> assertThat(e.getErrorCode())
+				.isEqualTo(RecommendationErrorCode.TASTE_AXIS_INCOMPLETE));
 	}
 }

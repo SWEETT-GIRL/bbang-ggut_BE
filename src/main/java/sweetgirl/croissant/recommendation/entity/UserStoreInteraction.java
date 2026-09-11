@@ -12,6 +12,8 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
 
 /**
  * 사용자가 가게·빵에 남긴 신호 한 건 (설계 §3.1). 매일 04:00 배치(#663)가 전날분을 적재한다.
@@ -86,7 +88,7 @@ public class UserStoreInteraction {
 			Boolean converted,
 			LocalDateTime occurredAt) {
 		if (storeId == null && menuId == null) {
-			throw new IllegalArgumentException("가게나 메뉴 중 하나는 있어야 하는 신호입니다.");
+			throw new CustomException(RecommendationErrorCode.INTERACTION_TARGET_REQUIRED);
 		}
 		return UserStoreInteraction.builder()
 			.memberId(memberId)

@@ -25,7 +25,6 @@ import sweetgirl.croissant.recommendation.entity.StoreProfile;
 import sweetgirl.croissant.recommendation.entity.TasteAxis;
 import sweetgirl.croissant.recommendation.entity.UserTasteProfile;
 import sweetgirl.croissant.recommendation.enums.AxisSource;
-import sweetgirl.croissant.recommendation.enums.CourseAreaScale;
 import sweetgirl.croissant.recommendation.enums.TasteTypeSource;
 import sweetgirl.croissant.recommendation.enums.TasteUserType;
 import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
@@ -187,9 +186,9 @@ class RecommendationSchemaLabTest {
 	@Test
 	@DisplayName("course_area: 시군구·동 보조 컬럼까지 저장하고 시/도로 찾는다")
 	void courseArea_roundTrip() {
-		courseAreaRepository.save(CourseArea.create("서울", "성수동", 5L, 37.5446, 127.0557, CourseAreaScale.WALK,
+		courseAreaRepository.save(CourseArea.create("서울", "성수동", 5L, 37.5446, 127.0557,
 			1200, 1200, "성동구", "성수동", 70));
-		courseAreaRepository.save(CourseArea.create("경기", "수원시", null, 37.2636, 127.0286, CourseAreaScale.CAR,
+		courseAreaRepository.save(CourseArea.create("경기", "수원시", null, 37.2636, 127.0286,
 			5000, 8000, "수원시", null, 10));
 		flushAndClear();
 

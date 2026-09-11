@@ -8,6 +8,9 @@ import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
+
 class UserStoreInteractionTest {
 
 	private static final LocalDateTime OCCURRED_AT = LocalDateTime.of(2026, 9, 6, 15, 0);
@@ -37,6 +40,7 @@ class UserStoreInteractionTest {
 	@DisplayName("가게도 메뉴도 없는 신호는 만들 수 없다")
 	void of_rejectsSignalWithoutTarget() {
 		assertThatThrownBy(() -> UserStoreInteraction.of(7L, null, null, "SAVE", null, null, OCCURRED_AT))
-			.isInstanceOf(IllegalArgumentException.class);
+			.isInstanceOfSatisfying(CustomException.class, e -> assertThat(e.getErrorCode())
+				.isEqualTo(RecommendationErrorCode.INTERACTION_TARGET_REQUIRED));
 	}
 }

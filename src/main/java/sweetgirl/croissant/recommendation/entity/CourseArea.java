@@ -2,8 +2,6 @@ package sweetgirl.croissant.recommendation.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -13,13 +11,15 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
-import sweetgirl.croissant.recommendation.enums.CourseAreaScale;
+import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
 
 /**
  * 코스용 상권 = 빵여권 도장 칸의 서버 판 (설계 §1 · §4).
  *
  * 코스 생성 직후에는 위치가 없어서(시/도와 날짜뿐) 서버가 이 표에서 상권 후보를 골라 칩으로 준다.
  * 앵커 추천은 앵커 좌표 + 반경으로 끝나므로 이 표를 쓰지 않는다.
+ * 도보·차량 같은 이동 수단 구분은 두지 않는다 — 앱에 지도 기능이 없어 사용자의 이동 수단을 모른다.
  *
  * 소속 판정은 반경이 주 규칙이고, region2nd · region3rd 는 보조다.
  *   region2nd 만 있으면 그 시군구 전체(서울 밖 도장 칸), 둘 다 있으면 그 읍면동, 둘 다 없으면 반경만.
@@ -52,10 +52,6 @@ public class CourseArea extends BaseTimeEntity {
 	@Column(name = "center_lng", nullable = false)
 	private double centerLng;
 
-	@Enumerated(EnumType.STRING)
-	@Column(nullable = false, length = 10)
-	private CourseAreaScale scale;
-
 	@Column(name = "radius_m", nullable = false)
 	private int radiusM;
 
@@ -84,7 +80,6 @@ public class CourseArea extends BaseTimeEntity {
 			Long searchRegionId,
 			double centerLat,
 			double centerLng,
-			CourseAreaScale scale,
 			int radiusM,
 			int maxHopM,
 			String region2nd,
@@ -95,7 +90,6 @@ public class CourseArea extends BaseTimeEntity {
 		this.searchRegionId = searchRegionId;
 		this.centerLat = centerLat;
 		this.centerLng = centerLng;
-		this.scale = scale;
 		this.radiusM = radiusM;
 		this.maxHopM = maxHopM;
 		this.region2nd = region2nd;
@@ -110,17 +104,16 @@ public class CourseArea extends BaseTimeEntity {
 			Long searchRegionId,
 			double centerLat,
 			double centerLng,
-			CourseAreaScale scale,
 			int radiusM,
 			int maxHopM,
 			String region2nd,
 			String region3rd,
 			int displayOrder) {
 		if (radiusM <= 0 || maxHopM <= 0) {
-			throw new IllegalArgumentException("상권 반경과 구간 상한은 양수여야 합니다.");
+			throw new CustomException(RecommendationErrorCode.COURSE_AREA_RADIUS_INVALID);
 		}
 		if (region3rd != null && region2nd == null) {
-			throw new IllegalArgumentException("읍면동만으로는 상권 소속을 정할 수 없습니다. 시군구가 함께 필요합니다.");
+			throw new CustomException(RecommendationErrorCode.COURSE_AREA_REGION_INVALID);
 		}
 		return CourseArea.builder()
 			.sido(sido)
@@ -128,7 +121,6 @@ public class CourseArea extends BaseTimeEntity {
 			.searchRegionId(searchRegionId)
 			.centerLat(centerLat)
 			.centerLng(centerLng)
-			.scale(scale)
 			.radiusM(radiusM)
 			.maxHopM(maxHopM)
 			.region2nd(region2nd)
@@ -143,11 +135,6 @@ public class CourseArea extends BaseTimeEntity {
 
 	public void deactivate() {
 		this.isActive = false;
-	}
-
-	/** 도보 상권은 취향 후보가 부족해도 반경을 넓히지 않는다. */
-	public boolean isWalk() {
-		return this.scale == CourseAreaScale.WALK;
 	}
 
 	/** 반경 말고 시군구·동 일치로도 소속을 판정하는 상권인지. */
