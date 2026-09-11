@@ -214,7 +214,7 @@ class RecommendationSchemaLabTest {
 		Long courseId = anyOwnedCourseId();
 		Long memberId = ownerOf(courseId);
 		Recommendation recommendation = Recommendation.forAnchor(
-			memberId, courseId, anyActiveStoreId(), (short)1, 1,
+			memberId, courseId, anyActiveStoreId(), (short)1, 1, "gemini", "gemini-2.5-flash", "p1", false,
 			Map.of("title", "성수 담백 산책", "totalDistanceM", 1150,
 				"stores", List.of(Map.of("storeId", 1042, "order", 1, "reason", "담백 취향", "tasteFit", 0.71))));
 		Long id = recommendationRepository.save(recommendation).getId();
@@ -223,7 +223,9 @@ class RecommendationSchemaLabTest {
 		Recommendation found = recommendationRepository.findById(id).orElseThrow();
 
 		assertThat(found.isAnchor()).isTrue();
-		assertThat(found.getProvider()).isEqualTo(Recommendation.RULE_PROVIDER);
+		assertThat(found.getProvider()).isEqualTo("gemini");
+		assertThat(found.getModel()).isEqualTo("gemini-2.5-flash");
+		assertThat(found.isFallback()).isFalse();
 		assertThat(found.getResult()).containsEntry("title", "성수 담백 산책");
 		assertThat(found.getResult()).containsEntry("totalDistanceM", 1150);
 		assertThat(found.getDay()).isEqualTo((short)1);

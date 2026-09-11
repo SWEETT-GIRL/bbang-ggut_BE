@@ -38,24 +38,38 @@ class RecommendationTest {
 	}
 
 	@Test
-	@DisplayName("앵커 추천은 룰만이라 provider 가 rule 이고 model·promptVersion·fallback 이 없다")
+	@DisplayName("앵커 추천도 이유는 LLM 이 쓰므로 provider·model·promptVersion 을 남긴다")
 	void forAnchor() {
-		Recommendation recommendation = Recommendation.forAnchor(7L, 10L, 1042L, (short)1, 3, resultWithNullSkipped());
+		Recommendation recommendation = Recommendation.forAnchor(
+			7L, 10L, 1042L, (short)1, 3, "gemini", "gemini-2.5-flash", "p1", false, resultWithNullSkipped());
 
 		assertThat(recommendation.getMode()).isEqualTo(RecommendationMode.ANCHOR);
 		assertThat(recommendation.isAnchor()).isTrue();
 		assertThat(recommendation.getAnchorStoreId()).isEqualTo(1042L);
+		assertThat(recommendation.getCourseAreaId()).isNull();
+		assertThat(recommendation.getProvider()).isEqualTo("gemini");
+		assertThat(recommendation.getModel()).isEqualTo("gemini-2.5-flash");
+		assertThat(recommendation.getPromptVersion()).isEqualTo("p1");
+		assertThat(recommendation.isFallback()).isFalse();
+	}
+
+	@Test
+	@DisplayName("앵커 이유를 LLM 이 못 쓰면 provider 는 rule, fallback 은 true 로 남는다")
+	void forAnchor_fallback() {
+		Recommendation recommendation = Recommendation.forAnchor(
+			7L, 10L, 1042L, (short)1, 3, Recommendation.RULE_PROVIDER, null, null, true, resultWithNullSkipped());
+
 		assertThat(recommendation.getProvider()).isEqualTo(Recommendation.RULE_PROVIDER);
 		assertThat(recommendation.getModel()).isNull();
-		assertThat(recommendation.getPromptVersion()).isNull();
-		assertThat(recommendation.isFallback()).isFalse();
+		assertThat(recommendation.isFallback()).isTrue();
 	}
 
 	@Test
 	@DisplayName("결과는 복사해 두므로 원본을 바꿔도 영향이 없다")
 	void result_isCopied() {
 		Map<String, Object> mutable = resultWithNullSkipped();
-		Recommendation recommendation = Recommendation.forAnchor(7L, 10L, 1042L, null, 1, mutable);
+		Recommendation recommendation = Recommendation.forAnchor(
+			7L, 10L, 1042L, null, 1, Recommendation.RULE_PROVIDER, null, null, true, mutable);
 
 		mutable.clear();
 

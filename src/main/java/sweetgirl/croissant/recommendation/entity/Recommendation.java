@@ -34,6 +34,7 @@ import sweetgirl.croissant.recommendation.enums.RecommendationMode;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Recommendation {
 
+	/** LLM 실패·타임아웃으로 룰 결과(템플릿 이유)를 내려줄 때의 provider. 이때 fallback 은 true 다. */
 	public static final String RULE_PROVIDER = "rule";
 
 	@Id
@@ -116,7 +117,7 @@ public class Recommendation {
 		this.createdAt = LocalDateTime.now();
 	}
 
-	/** 상권 추천 (진입점 1). LLM 을 부를 수 있어 provider · model · promptVersion · fallback 을 받는다. */
+	/** 상권 추천 (진입점 1). 룰이 후보를 뽑고 LLM 이 그중에서 고르고 이유를 쓴다. */
 	public static Recommendation forArea(
 			Long memberId,
 			Long courseId,
@@ -143,13 +144,17 @@ public class Recommendation {
 			.build();
 	}
 
-	/** 앵커 추천 (진입점 2). 룰만이라 provider 는 rule, model · promptVersion 은 없고 fallback 도 없다. */
+	/** 앵커 추천 (진입점 2). 가게는 룰이 고르고 LLM 은 이유만 쓴다. 그래서 상권 추천과 같은 출처 컬럼을 받는다. */
 	public static Recommendation forAnchor(
 			Long memberId,
 			Long courseId,
 			Long anchorStoreId,
 			Short day,
 			int profileVersion,
+			String provider,
+			String model,
+			String promptVersion,
+			boolean fallback,
 			Map<String, Object> result) {
 		return Recommendation.builder()
 			.memberId(memberId)
@@ -158,8 +163,10 @@ public class Recommendation {
 			.anchorStoreId(anchorStoreId)
 			.day(day)
 			.profileVersion(profileVersion)
-			.provider(RULE_PROVIDER)
-			.fallback(false)
+			.provider(provider)
+			.model(model)
+			.promptVersion(promptVersion)
+			.fallback(fallback)
 			.result(result)
 			.build();
 	}
