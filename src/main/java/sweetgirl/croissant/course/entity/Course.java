@@ -22,6 +22,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
+import sweetgirl.croissant.course.enums.CourseSource;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.enums.CourseVisibility;
 import sweetgirl.croissant.member.entity.Member;
@@ -113,6 +114,15 @@ public class Course extends BaseTimeEntity {
 
 	@Column(name = "end_date")
 	private LocalDate endDate;
+
+	/** 추천으로 채워진 코스인지. null 이면 직접 만든 코스. bulk 담기가 붙인다. */
+	@Enumerated(EnumType.STRING)
+	@Column(length = 16)
+	private CourseSource source;
+
+	/** 이 코스를 채운 추천. 이후 여정(시작·방문·기록)에 따라간다. recommendation 모듈과는 id 로만 잇는다. */
+	@Column(name = "recommendation_id")
+	private Long recommendationId;
 
 	private LocalDateTime deletedAt;
 
@@ -256,6 +266,16 @@ public class Course extends BaseTimeEntity {
 	public void updateDates(LocalDate startDate, LocalDate endDate) {
 		this.startDate = startDate;
 		this.endDate = endDate;
+	}
+
+	/** 추천 결과를 bulk 로 담을 때 남긴다. 같은 코스에 두 번 담으면 마지막 추천을 가리킨다. */
+	public void markRecommended(Long recommendationId) {
+		this.source = CourseSource.RECOMMENDED;
+		this.recommendationId = recommendationId;
+	}
+
+	public boolean isRecommended() {
+		return this.source == CourseSource.RECOMMENDED;
 	}
 
 	public void softDelete() {

@@ -52,6 +52,13 @@ public class CourseStore extends BaseTimeEntity {
 	@Column(name = "visit_time")
 	private LocalTime visitTime;
 
+	/**
+	 * 이 가게를 담게 한 추천(상권 추천이든 앵커 추천이든 그 recommendation.id). 직접 담았으면 null.
+	 * 한 코스에 추천으로 담은 가게와 직접 담은 가게가 섞이므로 가게 단위로 남긴다. recommendation 모듈과는 id 로만 잇는다.
+	 */
+	@Column(name = "recommendation_id")
+	private Long recommendationId;
+
 	private LocalDateTime deletedAt;
 
 	@Builder(access = AccessLevel.PRIVATE)
@@ -113,6 +120,15 @@ public class CourseStore extends BaseTimeEntity {
 
 	public void updateVisitTime(LocalTime visitTime) {
 		this.visitTime = visitTime;
+	}
+
+	/** bulk 담기·앵커 담기가 붙인다. 뺐다가 직접 다시 담으면 새 행이라 자연히 null 이다. */
+	public void markRecommended(Long recommendationId) {
+		this.recommendationId = recommendationId;
+	}
+
+	public boolean isRecommended() {
+		return this.recommendationId != null;
 	}
 
 	public void softDelete() {

@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import sweetgirl.croissant.course.enums.CourseSource;
 import sweetgirl.croissant.course.enums.CourseVisibility;
 import sweetgirl.croissant.member.entity.Member;
 
@@ -80,5 +81,28 @@ class CourseTest {
 		course.changeOwner(successor);
 
 		assertThat(course.getMember()).isSameAs(successor);
+	}
+
+	@Test
+	@DisplayName("직접 만든 코스는 추천 출처가 없다")
+	void createCustom_hasNoRecommendationSource() {
+		Course course = Course.createCustom("코스", mock(Member.class), false);
+
+		assertThat(course.isRecommended()).isFalse();
+		assertThat(course.getSource()).isNull();
+		assertThat(course.getRecommendationId()).isNull();
+	}
+
+	@Test
+	@DisplayName("markRecommended 는 출처와 추천 ID 를 붙이고, 다시 담으면 마지막 추천을 가리킨다")
+	void markRecommended_pointsToLatestRecommendation() {
+		Course course = Course.createCustom("코스", mock(Member.class), false);
+
+		course.markRecommended(99L);
+		course.markRecommended(100L);
+
+		assertThat(course.isRecommended()).isTrue();
+		assertThat(course.getSource()).isEqualTo(CourseSource.RECOMMENDED);
+		assertThat(course.getRecommendationId()).isEqualTo(100L);
 	}
 }
