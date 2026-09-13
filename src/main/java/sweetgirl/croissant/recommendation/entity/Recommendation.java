@@ -37,6 +37,9 @@ public class Recommendation {
 	/** 룰만 돈 행의 provider. 앵커 추천은 항상 이 값이고, 상권 추천은 LLM 실패·타임아웃 때(fallback = true) 이 값이다. */
 	public static final String RULE_PROVIDER = "rule";
 
+	/** 취향 프로필이 아직 없는 회원의 profile_version. 프로필이 생기면 1 부터라 이 값과 겹치지 않는다 — 검사 뒤 첫 추천은 재사용되지 않는다. */
+	public static final int NO_PROFILE_VERSION = 0;
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
@@ -57,7 +60,7 @@ public class Recommendation {
 	@Column(name = "anchor_store_id")
 	private Long anchorStoreId;
 
-	/** 요청의 day. 재사용 키의 일부다. */
+	/** 어느 일차의 동선인지. 상권 추천은 요청(없으면 첫 빈 일차), 앵커 추천은 앵커 가게가 담긴 일차. 재사용 키의 일부다. */
 	private Short day;
 
 	/** 계산에 쓴 user_taste_profile.version. 프로필이 바뀌면 옛 추천은 재사용하지 않는다. */

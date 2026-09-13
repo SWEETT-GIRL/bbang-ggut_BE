@@ -32,6 +32,9 @@ public class TasteAxis {
 	/** 이 미만이면 그 축은 "중간"으로 <b>표시</b>한다. 타입 계산에는 관여하지 않는다. */
 	public static final BigDecimal WEAK_THRESHOLD = new BigDecimal("0.15");
 
+	/** 컬럼 NUMERIC(4,3) 의 소수 자릿수. 축 값을 계산해 넣는 쪽이 이 자리로 반올림한다. */
+	public static final int SCALE = 3;
+
 	@Column(name = "axis_taste", precision = 4, scale = 3)
 	private BigDecimal taste;
 
