@@ -26,6 +26,7 @@ import sweetgirl.croissant.course.dto.request.CourseCreateRequest;
 import sweetgirl.croissant.course.dto.request.CourseImageRegisterRequest;
 import sweetgirl.croissant.course.dto.request.CourseMemberNameRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreAddRequest;
+import sweetgirl.croissant.course.dto.request.CourseStoreBulkAddRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreReorderRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreUpdateRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreVisitRequest;
@@ -190,6 +191,15 @@ public class CourseController {
 			@PathVariable Long courseId,
 			@Valid @RequestBody CourseStoreAddRequest request) {
 		return ResponseEntity.ok(ApiResponse.ok(courseCommandService.addStore(memberId, courseId, request)));
+	}
+
+	@Operation(summary = "코스 가게 여러 곳 담기", description = "한 트랜잭션 — 하나라도 못 담으면 전부 되돌린다. 가게마다 추천 출처가 남는다.")
+	@PostMapping("/{courseId}/stores/bulk")
+	public ResponseEntity<ApiResponse<List<CourseStoreResponse>>> addStores(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable Long courseId,
+			@Valid @RequestBody CourseStoreBulkAddRequest request) {
+		return ResponseEntity.ok(ApiResponse.ok(courseCommandService.addStores(memberId, courseId, request)));
 	}
 
 	@Operation(summary = "코스 가게 수정")
