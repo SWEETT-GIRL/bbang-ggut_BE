@@ -21,7 +21,8 @@ import sweetgirl.croissant.recommendation.exception.RecommendationException;
 /**
  * 추천 결과에 사용자가 보인 반응 (설계 §3.1 · §6 POST /recommendations/{id}/feedback).
  *
- * 가게 단위 반응(STORE_TAP · STORE_UNCHECK)만 storeId 를 갖는다. 결과 시트의 👍/👎(LIKE · DISLIKE)는 코스 단위 명시 신호고,
+ * 가게 단위 반응(STORE_TAP · STORE_UNCHECK)은 storeId 가 필수고, 나머지는 오면 남긴다 — 앵커 카드의 X(DISMISS)와 담기(SAVE)는
+ * 가게를 싣고 오고, 줄 전체 닫기와 결과 시트의 반응은 싣지 않는다. 결과 시트의 👍/👎(LIKE · DISLIKE)는 코스 단위 명시 신호고,
  * 👎 에만 이유 칩(reason)이 붙는다 — 이것이 있어야 provider · promptVersion · fallback 별로 만족도를 비교할 수 있다.
  * 한 번 쓰면 바꾸지 않는다.
  */
@@ -65,7 +66,7 @@ public class RecommendationFeedback {
 		return of(recommendationId, storeId, action, null);
 	}
 
-	/** 피드백 API 요청 본문 {action, storeId, reason} 과 같은 모양. 가게 단위가 아니면 storeId 를 버린다. */
+	/** 피드백 API 요청 본문 {action, storeId, reason} 과 같은 모양. storeId 는 가게 단위 반응에만 필수이고, 오면 어떤 반응이든 남긴다. */
 	public static RecommendationFeedback of(
 			Long recommendationId, Long storeId, FeedbackAction action, FeedbackReason reason) {
 		if (action.isStoreScoped() && storeId == null) {
@@ -74,6 +75,6 @@ public class RecommendationFeedback {
 		if (reason != null && !action.acceptsReason()) {
 			throw new RecommendationException(RecommendationErrorCode.FEEDBACK_REASON_NOT_ALLOWED);
 		}
-		return new RecommendationFeedback(recommendationId, action.isStoreScoped() ? storeId : null, action, reason);
+		return new RecommendationFeedback(recommendationId, storeId, action, reason);
 	}
 }
