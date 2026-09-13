@@ -29,7 +29,9 @@ import sweetgirl.croissant.store.enums.AxisSource;
  *
  * 누가 보든 같은 가게 사실이라 store 에 둔다. 축은 사용자와 같은 공간의 값이라 personalization 의 {@link TasteAxis} 를 임베드한다.
  *
- * 쓰는 쪽은 dataops(ServingWriter) 하나뿐이고 BE 는 읽기만 한다. {@code @Immutable} 이라 BE 가 실수로 저장해도
+ * 쓰는 쪽은 dataops 배치 하나뿐이다 — dataops_writer 롤로 직접 upsert 하고, ServingWriter(store · menu 같은 BE 소유 표에
+ * apply_log 를 남기며 쓰는 통로)는 거치지 않는다. 사람이 고치는 값(store)과 배치가 통째로 덮어쓰는 값(이 표)을 가르는 것이
+ * 이 표를 store 에 두지 않는 이유다. BE 는 읽기만 한다. {@code @Immutable} 이라 BE 가 실수로 저장해도
  * UPDATE 가 나가지 않는다 — 한 행을 두 주체가 쓰면 증분 upsert 와 JPA 저장이 서로 덮어쓴다.
  * 인기 prior 는 여기 없다. BE 소유 store.popularity_score 와 이 표의 reviewCount·ratingCount·reviewScore 를 후보 SQL 이 요청 때 합친다.
  * store 와 연관을 맺지 않고 store_id 만 갖는다. 후보 조회는 네이티브 SQL 이 store 와 조인한다.
@@ -66,7 +68,10 @@ public class StoreProfile extends BaseTimeEntity {
 	@Column(nullable = false)
 	private Map<String, Double> tags;
 
-	/** 편의·유형 속성과 prior 재료. 점수에 넣지 않는다. 예: {"parking": true, "category": "CAKE", "reviewCount": 312} */
+	/**
+	 * 편의시설 10종과 newOpening. 필터·표시용이라 점수에 넣지 않는다. 예: {"parking": true, "takeout": true, "newOpening": true}.
+	 * 리뷰 수·별점은 아래 컬럼으로 빠졌고 category 는 store.category 로 나갔다(#730).
+	 */
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(nullable = false)
 	private Map<String, Object> attrs;
@@ -97,7 +102,7 @@ public class StoreProfile extends BaseTimeEntity {
 
 	/**
 	 * 별점을 매긴 수(`ratingReviewsTotal`) — 별점 신뢰도의 분모다. {@link #reviewCount} 와 다르다(중앙값 26%).
-	 * 파서가 아직 이 필드를 안 뽑아서 그때까지 null 이다.
+	 * 출처는 VisitorReviewStatsResult.ratingReviewsTotal(analysis 의 부모 노드, dataops 파서 v2). 네이버가 안 준 가게는 null.
 	 */
 	@Column(name = "rating_count")
 	private Integer ratingCount;

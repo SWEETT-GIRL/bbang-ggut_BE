@@ -41,7 +41,7 @@ COMMENT ON COLUMN store_profile.rating_count IS
     '별점을 실제로 매긴 사람 수(ratingReviewsTotal). 45,106곳, 평균 149.9 로 리뷰 수의 28.4% 다. '
     'review_score 의 신뢰도라서 따로 둔다 — 이게 없으면 3명이 준 4.9 와 3,000명이 준 4.9 를 구분할 수 없고, '
     '별점이 있는데 10명 미만인 가게가 12,231곳이다. '
-    'StoreSignalParser 가 아직 이 필드를 안 뽑아서 파서 수정 전까지는 NULL 이다(재크롤 불요, 재파싱 1회).';
+    '출처는 VisitorReviewStatsResult.ratingReviewsTotal — analysis 가 아니라 그 부모 노드에 있어 dataops 파서(v2)가 따로 잡는다.';
 
 COMMENT ON COLUMN store_profile.review_score IS
     '네이버 별점 평균 1.00~5.00. 소수 두 자리다 — 실측 최대 자릿수가 2 라 NUMERIC(3,2) 가 정확히 맞는다. '
