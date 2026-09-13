@@ -12,10 +12,17 @@ public enum FeedbackAction {
 	STORE_TAP("시트 안 가게 행을 탭했다", true),
 	STORE_UNCHECK("가게 체크를 해제했다", true),
 	SAVE("담았다", false),
-	DISMISS("담지 않고 닫았다", false);
+	DISMISS("담지 않고 닫았다", false),
+	LIKE("결과 시트의 👍 — 추천이 마음에 든다", false),
+	DISLIKE("결과 시트의 👎 — 이유 칩(FeedbackReason)을 붙일 수 있다", false);
 
 	private final String description;
 
 	/** 가게 단위 반응이면 storeId 가 있어야 한다. */
 	private final boolean storeScoped;
+
+	/** 이유 칩은 👎 에만 붙는다. */
+	public boolean acceptsReason() {
+		return this == DISLIKE;
+	}
 }

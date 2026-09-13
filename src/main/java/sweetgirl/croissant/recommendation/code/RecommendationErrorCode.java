@@ -21,7 +21,9 @@ public enum RecommendationErrorCode implements BaseErrorCode {
 	COURSE_AREA_REGION_INVALID(HttpStatus.BAD_REQUEST, "RECOMMENDATION400_2",
 			"읍면동만으로는 상권 소속을 정할 수 없습니다. 시군구가 함께 필요합니다."),
 	FEEDBACK_STORE_REQUIRED(HttpStatus.BAD_REQUEST, "RECOMMENDATION400_3",
-			"가게 단위 반응에는 가게 ID가 필요합니다.");
+			"가게 단위 반응에는 가게 ID가 필요합니다."),
+	FEEDBACK_REASON_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "RECOMMENDATION400_4",
+			"이유는 별로예요 반응에만 붙일 수 있습니다.");
 
 	private final HttpStatus httpStatus;
 	private final String code;

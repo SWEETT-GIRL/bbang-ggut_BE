@@ -26,7 +26,11 @@ import sweetgirl.croissant.personalization.enums.TasteUserType;
 import sweetgirl.croissant.personalization.repository.UserTasteProfileRepository;
 import sweetgirl.croissant.recommendation.entity.CourseArea;
 import sweetgirl.croissant.recommendation.entity.Recommendation;
+import sweetgirl.croissant.recommendation.entity.RecommendationFeedback;
+import sweetgirl.croissant.recommendation.enums.FeedbackAction;
+import sweetgirl.croissant.recommendation.enums.FeedbackReason;
 import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
+import sweetgirl.croissant.recommendation.repository.RecommendationFeedbackRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationRepository;
 import sweetgirl.croissant.store.entity.StoreProfile;
 import sweetgirl.croissant.store.enums.AxisSource;
@@ -35,7 +39,8 @@ import sweetgirl.croissant.store.repository.StoreProfileRepository;
 /**
  * 랩 PG(운영 덤프 복제본)에서 추천 스키마(#659)를 검증한다.
  *
- * 하는 일 둘: (1) Flyway 로 V20260908162421~153808 을 적용하고 Hibernate validate 가 엔티티와 실제 컬럼(jsonb · text[] ·
+ * 하는 일 둘: (1) Flyway 로 V20260908162421 이후의 추천 마이그레이션(09-11 정리 · 09-13 만족도 포함)을 적용하고
+ * Hibernate validate 가 엔티티와 실제 컬럼(jsonb · text[] ·
  * numeric · smallint)을 맞춰 보는지, (2) JSON · 배열 · 임베디드 축이 저장하고 읽었을 때 그대로인지.
  * H2 로는 jsonb · 배열 · PostGIS 를 검증할 수 없어 랩으로 분리했다. 트랜잭션은 테스트마다 롤백된다.
  *
@@ -70,6 +75,8 @@ class RecommendationSchemaLabTest {
 	private CourseAreaRepository courseAreaRepository;
 	@Autowired
 	private RecommendationRepository recommendationRepository;
+	@Autowired
+	private RecommendationFeedbackRepository recommendationFeedbackRepository;
 	@Autowired
 	private EntityManager entityManager;
 	@Autowired
@@ -229,5 +236,24 @@ class RecommendationSchemaLabTest {
 		assertThat(found.getResult()).containsEntry("title", "성수 담백 산책");
 		assertThat(found.getResult()).containsEntry("totalDistanceM", 1150);
 		assertThat(found.getDay()).isEqualTo((short)1);
+	}
+
+	@Test
+	@DisplayName("recommendation_feedback: 👎 와 이유 칩이 새 CHECK 를 지나 그대로 돌아온다")
+	void recommendationFeedback_roundTrip() {
+		Long courseId = anyOwnedCourseId();
+		Long recommendationId = recommendationRepository.save(Recommendation.forArea(
+			ownerOf(courseId), courseId, null, (short)1, 1, "gemini", "gemini-2.5-flash", "p1", false,
+			Map.of("title", "성수 담백 산책"))).getId();
+		Long id = recommendationFeedbackRepository.save(RecommendationFeedback.of(
+			recommendationId, null, FeedbackAction.DISLIKE, FeedbackReason.BAD_REASON)).getId();
+		recommendationFeedbackRepository.save(RecommendationFeedback.of(recommendationId, null, FeedbackAction.LIKE));
+		flushAndClear();
+
+		RecommendationFeedback found = recommendationFeedbackRepository.findById(id).orElseThrow();
+
+		assertThat(found.getAction()).isEqualTo(FeedbackAction.DISLIKE);
+		assertThat(found.getReason()).isEqualTo(FeedbackReason.BAD_REASON);
+		assertThat(found.getStoreId()).isNull();
 	}
 }
