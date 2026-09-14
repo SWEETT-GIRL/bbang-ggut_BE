@@ -17,5 +17,12 @@ public record RecommendationResult(
 		int totalDistanceM,
 		boolean fallback,
 		int storeCount,
-		List<RecommendedStoreResponse> stores) {
+		List<RecommendedStoreResponse> stores,
+		boolean lastBatch) {
+
+	/** lastBatch 가 없던 행(#661 이전)과 테스트 픽스처 — 더 있을 수 있다고 본다. */
+	public RecommendationResult(String title, RecommendationAreaSummary area, int totalDistanceM, boolean fallback,
+			int storeCount, List<RecommendedStoreResponse> stores) {
+		this(title, area, totalDistanceM, fallback, storeCount, stores, false);
+	}
 }

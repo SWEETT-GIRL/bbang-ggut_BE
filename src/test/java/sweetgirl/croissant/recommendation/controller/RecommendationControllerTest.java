@@ -1,8 +1,10 @@
 package sweetgirl.croissant.recommendation.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -17,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -27,9 +30,11 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
+import sweetgirl.croissant.recommendation.dto.request.RecommendationRequest;
 import sweetgirl.croissant.recommendation.dto.response.AnchorRecommendationResponse;
 import sweetgirl.croissant.recommendation.dto.response.AnchorRecommendedStoreResponse;
 import sweetgirl.croissant.recommendation.dto.response.AnchorStoreSummary;
+import sweetgirl.croissant.recommendation.dto.response.NextAreaResponse;
 import sweetgirl.croissant.recommendation.dto.response.RecommendationAreaResponse;
 import sweetgirl.croissant.recommendation.dto.response.RecommendationAreaSummary;
 import sweetgirl.croissant.recommendation.dto.response.RecommendationContextResponse;
@@ -79,6 +84,31 @@ class RecommendationControllerTest {
 			.andExpect(jsonPath("$.data.areas[0].reason").value("SAVED"))
 			.andExpect(jsonPath("$.data.areas[0].storeCount").value(42))
 			.andExpect(jsonPath("$.data.typeLabel").value("뉴웨이브 미니멀"));
+	}
+
+	@Test
+	@DisplayName("다시 받기: previousRecommendationId 가 서비스로 가고, 바닥 응답의 lastBatch · nextArea · anchorStoreId 가 실린다")
+	void recommend_retryContractShape() throws Exception {
+		given(courseRecommendationCommandService.recommend(eq(null), eq(10L), any())).willReturn(
+			new RecommendationResponse(null, "중문 빵집 코스", new RecommendationAreaSummary(31L, "중문"), 0, false,
+				List.of(), true, new NextAreaResponse(32L, "성산", 13), 1042L));
+
+		mockMvc.perform(post("/courses/10/recommendations").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"areaId\": 31, \"entryScreen\": \"course_empty\", \"sessionEvents\": [],"
+				+ " \"previousRecommendationId\": 77, \"exactArea\": true}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.recommendationId").value(org.hamcrest.Matchers.nullValue()))
+			.andExpect(jsonPath("$.data.stores").isEmpty())
+			.andExpect(jsonPath("$.data.lastBatch").value(true))
+			.andExpect(jsonPath("$.data.nextArea.areaId").value(32))
+			.andExpect(jsonPath("$.data.nextArea.name").value("성산"))
+			.andExpect(jsonPath("$.data.nextArea.storeCount").value(13))
+			.andExpect(jsonPath("$.data.anchorStoreId").value(1042));
+		ArgumentCaptor<RecommendationRequest> request = ArgumentCaptor.forClass(RecommendationRequest.class);
+		then(courseRecommendationCommandService).should().recommend(eq(null), eq(10L), request.capture());
+		assertThat(request.getValue().previousRecommendationId()).isEqualTo(77L);
+		assertThat(request.getValue().areaId()).isEqualTo(31L);
+		assertThat(request.getValue().isExactArea()).isTrue();
 	}
 
 	@Test

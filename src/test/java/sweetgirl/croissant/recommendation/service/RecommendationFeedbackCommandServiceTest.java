@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -102,5 +103,15 @@ class RecommendationFeedbackCommandServiceTest {
 			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(RecommendationErrorCode.FEEDBACK_STORE_REQUIRED));
 		verify(recommendationFeedbackRepository, never()).save(any());
+	}
+
+	@Test
+	@DisplayName("RETRY 는 서버가 다시 추천을 처리하며 남기는 값 — 피드백 API 로 오면 400")
+	void record_retry_isServerOnly() {
+		assertThatThrownBy(() -> recommendationFeedbackCommandService.record(MEMBER_ID, RECOMMENDATION_ID,
+			new RecommendationFeedbackRequest(FeedbackAction.RETRY, null, null)))
+			.isInstanceOf(RecommendationException.class)
+			.hasMessageContaining(RecommendationErrorCode.FEEDBACK_ACTION_SERVER_ONLY.getMessage());
+		then(recommendationFeedbackRepository).should(never()).save(any());
 	}
 }

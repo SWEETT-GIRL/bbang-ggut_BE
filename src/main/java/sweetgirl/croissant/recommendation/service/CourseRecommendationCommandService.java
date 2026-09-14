@@ -1,6 +1,8 @@
 package sweetgirl.croissant.recommendation.service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -36,18 +38,23 @@ import sweetgirl.croissant.recommendation.dto.response.AnchorRecommendationRespo
 import sweetgirl.croissant.recommendation.dto.response.AnchorRecommendationResult;
 import sweetgirl.croissant.recommendation.dto.response.AnchorRecommendedStoreResponse;
 import sweetgirl.croissant.recommendation.dto.response.AnchorStoreSummary;
+import sweetgirl.croissant.recommendation.dto.response.NextAreaResponse;
 import sweetgirl.croissant.recommendation.dto.response.RecommendationAreaSummary;
 import sweetgirl.croissant.recommendation.dto.response.RecommendationResponse;
 import sweetgirl.croissant.recommendation.dto.response.RecommendationResult;
 import sweetgirl.croissant.recommendation.dto.response.RecommendedStoreResponse;
 import sweetgirl.croissant.recommendation.entity.CourseArea;
 import sweetgirl.croissant.recommendation.entity.Recommendation;
+import sweetgirl.croissant.recommendation.entity.RecommendationFeedback;
 import sweetgirl.croissant.recommendation.enums.AnchorReasonTag;
+import sweetgirl.croissant.recommendation.enums.FeedbackAction;
+import sweetgirl.croissant.recommendation.enums.RecommendationMode;
 import sweetgirl.croissant.recommendation.exception.RecommendationException;
 import sweetgirl.croissant.recommendation.repository.AreaChipStats;
 import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
 import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationCandidateJdbcRepository;
+import sweetgirl.croissant.recommendation.repository.RecommendationFeedbackRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationRepository;
 import sweetgirl.croissant.store.entity.Store;
 
@@ -77,6 +84,7 @@ public class CourseRecommendationCommandService {
 	private final CourseAreaRepository courseAreaRepository;
 	private final UserTasteProfileRepository userTasteProfileRepository;
 	private final RecommendationRepository recommendationRepository;
+	private final RecommendationFeedbackRepository recommendationFeedbackRepository;
 	private final RecommendationCandidateJdbcRepository candidateRepository;
 	private final RecommendationProperties recommendationProperties;
 	private final ObjectMapper objectMapper;
@@ -89,6 +97,9 @@ public class CourseRecommendationCommandService {
 		}
 		Course course = findCourse(courseId);
 		courseAccessPolicy.requireEditable(course, memberId);
+		if (request.previousRecommendationId() != null) {
+			return retry(memberId, course, request, storeCount);
+		}
 		CourseArea requested = courseAreaRepository.findByIdAndIsActiveTrue(request.areaId())
 			.filter(found -> found.getSido().equals(course.getRegion()))
 			.orElseThrow(() -> new RecommendationException(RecommendationErrorCode.COURSE_AREA_NOT_FOUND));
@@ -96,7 +107,11 @@ public class CourseRecommendationCommandService {
 		List<CourseStore> activeStores = courseStoreRepository
 			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId);
 		short day = resolveDay(request.day(), course, activeStores);
-		CourseArea area = resolveNeighborhood(memberId, requested, activeStores, day);
+		// 다음 동네 제안(nextArea)에서 온 요청은 그 행을 그대로 쓴다 — 대표 행 id 는 칩 id 와 같아서, 표시가 없으면 칩으로 읽혀
+		// 동네를 다시 고르고 신호가 그대로라 제안한 동네로 못 간다(PR #738 리뷰)
+		CourseArea area = request.isExactArea()
+			? requested
+			: resolveNeighborhood(memberId, requested, activeStores, day);
 		UserTasteProfile profile = userTasteProfileRepository.findById(memberId).orElse(null);
 		int profileVersion = profile != null ? profile.getVersion() : Recommendation.NO_PROFILE_VERSION;
 
@@ -109,8 +124,39 @@ public class CourseRecommendationCommandService {
 				return RecommendationResponse.of(reusable.get().getId(), stored);
 			}
 		}
-		return buildAreaRecommendation(memberId, course, area, day, profile, profileVersion, courseStoreIds,
-			storeCount);
+		return buildAreaRecommendation(memberId, course, area, day, profile, profileVersion, activeStores,
+			courseStoreIds, storeCount);
+	}
+
+	/**
+	 * 다시 받기(#661): 동네를 다시 고르지 않고 이전 추천이 저장한 상권 행·일차를 그대로 쓴다 — "같은 동네에서 다른 가게"가 보장된다.
+	 * 제외 = 이 코스·그 상권 행·그 일차에서 앞서 보여준 가게 전부(프로필 버전 무관) ∪ 코스에 담긴 가게. 이전 추천에 RETRY 를 남긴다 —
+	 * FE 는 따로 반응을 보내지 않는다. 요청 areaId 가 이전 추천의 상권 행과 다르면 앱과 서버가 다른 동네를 말하는 것이라 400.
+	 */
+	private RecommendationResponse retry(Long memberId, Course course, RecommendationRequest request, int storeCount) {
+		Recommendation previous = recommendationRepository
+			.findByIdAndMemberId(request.previousRecommendationId(), memberId)
+			.filter(found -> found.getCourseId().equals(course.getId()))
+			.orElseThrow(() -> new RecommendationException(RecommendationErrorCode.RECOMMENDATION_NOT_FOUND));
+		if (previous.isAnchor() || !previous.getCourseAreaId().equals(request.areaId())) {
+			throw new RecommendationException(RecommendationErrorCode.PREVIOUS_AREA_MISMATCH);
+		}
+		CourseArea area = courseAreaRepository.findByIdAndIsActiveTrue(previous.getCourseAreaId())
+			.orElseThrow(() -> new RecommendationException(RecommendationErrorCode.COURSE_AREA_NOT_FOUND));
+		short day = previous.getDay();
+		List<CourseStore> activeStores = courseStoreRepository
+			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(course.getId());
+		UserTasteProfile profile = userTasteProfileRepository.findById(memberId).orElse(null);
+		int profileVersion = profile != null ? profile.getVersion() : Recommendation.NO_PROFILE_VERSION;
+
+		Set<Long> excludeStoreIds = new HashSet<>(storeIdsOf(activeStores));
+		recommendationRepository
+			.findAllByMemberIdAndCourseIdAndModeAndCourseAreaIdAndDay(memberId, course.getId(),
+				RecommendationMode.AREA, area.getId(), day)
+			.forEach(shown -> excludeStoreIds.addAll(shown.shownStoreIds()));
+		recommendationFeedbackRepository.save(RecommendationFeedback.of(previous.getId(), null, FeedbackAction.RETRY));
+		return buildAreaRecommendation(memberId, course, area, day, profile, profileVersion, activeStores,
+			excludeStoreIds, storeCount);
 	}
 
 	/**
@@ -179,17 +225,24 @@ public class CourseRecommendationCommandService {
 	}
 
 	private RecommendationResponse buildAreaRecommendation(Long memberId, Course course, CourseArea area, short day,
-			UserTasteProfile profile, int profileVersion, Set<Long> courseStoreIds, int storeCount) {
+			UserTasteProfile profile, int profileVersion, List<CourseStore> activeStores, Set<Long> excludeStoreIds,
+			int storeCount) {
 		List<CandidateStoreRow> candidates = candidateRepository.findAreaCandidates(
 			area.getCenterLat(), area.getCenterLng(), area.getRadiusM(), area.getSido(), area.getRegion2nd(),
-			area.getRegion3rd(), courseStoreIds, recommendationProperties.getArea().getCandidateLimit());
+			area.getRegion3rd(), excludeStoreIds, recommendationProperties.getArea().getCandidateLimit());
 		RecommendationAreaSummary areaSummary = new RecommendationAreaSummary(area.getId(), area.getName());
 		if (candidates.isEmpty()) {
-			// 저장할 게 없다 — 재사용될 결과도 없고 반응을 받을 것도 없다
-			return RecommendationResponse.of(null, new RecommendationResult(titleOf(area, profile), areaSummary, 0,
-				false, storeCount, List.of()));
+			// 저장할 게 없다 — 재사용될 결과도 없고 반응을 받을 것도 없다. 대신 다음 동네와 앵커로 넘길 가게를 알려 준다(#661)
+			RecommendationResult empty = new RecommendationResult(titleOf(area, profile), areaSummary, 0, false,
+				storeCount, List.of(), true);
+			return RecommendationResponse.of(null, empty, nextAreaOf(memberId, course, area, day, activeStores),
+				anchorStoreIdOf(activeStores, day));
 		}
 		List<CandidateStoreRow> ordered = chainWithinHop(candidates, area.getMaxHopM(), storeCount);
+		// 마지막 묶음 = 뽑은 후보를 이번에 다 썼고 조회 상한(15)에도 안 닿았다. 구간 상한 때문에 못 이은 후보가 남았으면 다음
+		// 다시 받기에서 코스가 될 수 있으니 마지막이 아니다(PR #738 리뷰 — 랩 59칸 중 7칸이 조기 종료됐다).
+		boolean lastBatch = candidates.size() < recommendationProperties.getArea().getCandidateLimit()
+			&& ordered.size() == candidates.size();
 		List<RecommendedStoreResponse> stores = new ArrayList<>();
 		int totalDistanceM = 0;
 		for (int i = 0; i < ordered.size(); i++) {
@@ -206,10 +259,60 @@ public class CourseRecommendationCommandService {
 				NO_TASTE_FIT, distanceToNext, row.latitude(), row.longitude(), row.thumbnailKey()));
 		}
 		RecommendationResult result = new RecommendationResult(titleOf(area, profile), areaSummary, totalDistanceM,
-			false, storeCount, stores);
+			false, storeCount, stores, lastBatch);
 		Recommendation saved = recommendationRepository.save(Recommendation.forArea(memberId, course.getId(),
 			area.getId(), day, profileVersion, Recommendation.RULE_PROVIDER, null, null, false, write(result)));
 		return RecommendationResponse.of(saved.getId(), result);
+	}
+
+	/**
+	 * 후보가 바닥났을 때의 다음 동네(#661): 같은 도장 칸의 다른 동네 먼저(대표 순, 이 코스에서 아직 추천 안 받은 행), 그다음
+	 * 같은 시·도의 다음 도장 칸 — 그 칸에서 동네 선택까지 한 구체 행. FE 는 이 areaId 를 exactArea = true 로 요청해야 한다 —
+	 * 대표 행(시내)이 제안됐을 때 칩 요청으로 읽히면 동네를 다시 골라 되돌아간다.
+	 */
+	private NextAreaResponse nextAreaOf(Long memberId, Course course, CourseArea exhausted, short day,
+			List<CourseStore> activeStores) {
+		Set<Long> recommendedAreaIds = new HashSet<>(
+			recommendationRepository.findRecommendedAreaIds(memberId, course.getId()));
+		recommendedAreaIds.add(exhausted.getId());
+		Optional<CourseArea> next = courseAreaRepository
+			.findAllBySidoAndPassportSpotAndIsActiveTrueOrderByDisplayOrderAscNameAsc(exhausted.getSido(),
+				exhausted.getPassportSpot())
+			.stream()
+			.filter(neighborhood -> !recommendedAreaIds.contains(neighborhood.getId()))
+			.findFirst();
+		if (next.isEmpty()) {
+			Map<String, List<CourseArea>> spots = new LinkedHashMap<>();
+			for (CourseArea area : courseAreaRepository
+				.findAllBySidoAndIsActiveTrueOrderByDisplayOrderAscNameAsc(exhausted.getSido())) {
+				spots.computeIfAbsent(area.getPassportSpot(), spot -> new ArrayList<>()).add(area);
+			}
+			for (Map.Entry<String, List<CourseArea>> spot : spots.entrySet()) {
+				if (spot.getKey().equals(exhausted.getPassportSpot())) {
+					continue;
+				}
+				CourseArea chosen = resolveNeighborhood(memberId, spot.getValue().get(0), activeStores, day);
+				if (!recommendedAreaIds.contains(chosen.getId())) {
+					next = Optional.of(chosen);
+					break;
+				}
+			}
+		}
+		return next.map(area -> {
+			AreaChipStats stats = candidateRepository.findAreaChipStats(memberId, List.of(area)).get(area.getId());
+			return new NextAreaResponse(area.getId(), area.getName(), stats != null ? stats.storeCount() : 0);
+		}).orElse(null);
+	}
+
+	/** 후보가 바닥났을 때 앵커 추천으로 넘길 가게 — 이 일차에 담긴 가게 중 마지막(방문 순서). 다른 일차 가게는 그 일차 기준이라 안 쓴다. */
+	private static Long anchorStoreIdOf(List<CourseStore> activeStores, short day) {
+		Long anchorStoreId = null;
+		for (CourseStore courseStore : activeStores) {
+			if (courseStore.getDay() != null && courseStore.getDay() == day) {
+				anchorStoreId = courseStore.getStore().getId();
+			}
+		}
+		return anchorStoreId;
 	}
 
 	public AnchorRecommendationResponse recommendNearAnchor(Long memberId, Long courseId, Long anchorStoreId,

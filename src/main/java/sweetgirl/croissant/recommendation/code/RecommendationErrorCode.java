@@ -30,6 +30,10 @@ public enum RecommendationErrorCode implements BaseErrorCode {
 			"추천 가게 수는 1곳 이상 6곳 이하여야 합니다."),
 	DAY_OUT_OF_RANGE(HttpStatus.BAD_REQUEST, "RECOMMENDATION400_7", "일차가 코스 범위를 벗어났습니다."),
 	FEEDBACK_STORE_NOT_IN_RESULT(HttpStatus.BAD_REQUEST, "RECOMMENDATION400_8", "그 추천 결과에 없는 가게입니다."),
+	PREVIOUS_AREA_MISMATCH(HttpStatus.BAD_REQUEST, "RECOMMENDATION400_9",
+			"다시 받기의 상권이 이전 추천과 다릅니다."),
+	FEEDBACK_ACTION_SERVER_ONLY(HttpStatus.BAD_REQUEST, "RECOMMENDATION400_10",
+			"다시 받기 반응은 서버가 기록합니다."),
 
 	RECOMMENDATION_NOT_FOUND(HttpStatus.NOT_FOUND, "RECOMMENDATION404_1", "추천을 찾을 수 없습니다."),
 	COURSE_AREA_NOT_FOUND(HttpStatus.NOT_FOUND, "RECOMMENDATION404_2", "이 코스 지역의 상권을 찾을 수 없습니다.");

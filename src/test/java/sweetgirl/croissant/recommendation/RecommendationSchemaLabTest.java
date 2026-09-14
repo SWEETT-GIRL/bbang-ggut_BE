@@ -249,6 +249,8 @@ class RecommendationSchemaLabTest {
 		Long id = recommendationFeedbackRepository.save(RecommendationFeedback.of(
 			recommendationId, null, FeedbackAction.DISLIKE, FeedbackReason.BAD_REASON)).getId();
 		recommendationFeedbackRepository.save(RecommendationFeedback.of(recommendationId, null, FeedbackAction.LIKE));
+		// 다시 받기(#661) — 서버가 남기는 RETRY 도 CHECK 를 지난다
+		recommendationFeedbackRepository.save(RecommendationFeedback.of(recommendationId, null, FeedbackAction.RETRY));
 		flushAndClear();
 
 		RecommendationFeedback found = recommendationFeedbackRepository.findById(id).orElseThrow();
