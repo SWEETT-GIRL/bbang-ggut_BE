@@ -73,7 +73,7 @@ class RecommendationFeedbackTest {
 
 	@Test
 	@DisplayName("👎 이유 칩 TOO_SIMILAR(비슷한 가게뿐이에요)도 DISLIKE 에 붙는다 — 다양성 후처리를 넣을지 정하는 근거")
-	void dislike_acceptsTooSimilar() {
+	void of_dislikeAcceptsTooSimilar() {
 		RecommendationFeedback feedback = RecommendationFeedback.of(99L, null, FeedbackAction.DISLIKE,
 			FeedbackReason.TOO_SIMILAR);
 
