@@ -2,6 +2,7 @@ package sweetgirl.croissant.recommendation.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -21,6 +22,7 @@ import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.recommendation.entity.CourseArea;
 import sweetgirl.croissant.recommendation.entity.Recommendation;
+import sweetgirl.croissant.recommendation.enums.RecommendationMode;
 
 /**
  * 재사용 조회의 키가 지켜지는지 — 같은 코스의 다른 회원 행은 잡히지 않고, 같은 키면 최신 한 건만 온다.
@@ -112,6 +114,37 @@ class RecommendationRepositoryTest {
 			.isEmpty();
 		assertThat(recommendationRepository.findLatestAnchorForReuse(jimin.getId(), course.getId(), 999L, (short)1, 0))
 			.isEmpty();
+	}
+
+	@Test
+	@DisplayName("다시 추천 제외 재료: 같은 회원·코스·상권·일차의 상권 추천 전부 — 프로필 버전은 가리지 않고, 남·다른 일차는 뺀다")
+	void findAllForExclusion_isScopedToMemberAreaDay_ignoresProfileVersion() {
+		areaRecommendation(jimin, (short)1, 0, "첫 묶음");
+		areaRecommendation(jimin, (short)1, 3, "프로필 바뀐 뒤");
+		areaRecommendation(jimin, (short)2, 0, "다른 일차");
+		areaRecommendation(sujin, (short)1, 0, "남의 추천");
+		entityManager.flush();
+		entityManager.clear();
+
+		List<Recommendation> shown = recommendationRepository
+			.findAllByMemberIdAndCourseIdAndModeAndCourseAreaIdAndDay(jimin.getId(), course.getId(),
+				RecommendationMode.AREA, seongsu.getId(), (short)1);
+
+		assertThat(shown).extracting(r -> r.getResult().get("title")).containsExactlyInAnyOrder("첫 묶음", "프로필 바뀐 뒤");
+	}
+
+	@Test
+	@DisplayName("이 코스에서 추천받은 상권 행 — 회원 기준, 중복 없이")
+	void findRecommendedAreaIds_distinctPerMemberCourse() {
+		areaRecommendation(jimin, (short)1, 0, "a");
+		areaRecommendation(jimin, (short)2, 0, "b");
+		areaRecommendation(sujin, (short)1, 0, "남");
+		entityManager.flush();
+		entityManager.clear();
+
+		assertThat(recommendationRepository.findRecommendedAreaIds(jimin.getId(), course.getId()))
+			.containsExactly(seongsu.getId());
+		assertThat(recommendationRepository.findRecommendedAreaIds(jimin.getId() + 999, course.getId())).isEmpty();
 	}
 
 	@Test

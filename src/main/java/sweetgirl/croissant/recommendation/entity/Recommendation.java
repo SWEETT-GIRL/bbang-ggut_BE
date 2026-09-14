@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -178,16 +180,22 @@ public class Recommendation {
 	}
 
 	/** 이 가게가 결과에 있었는지 — 가게 단위 반응은 사용자에게 보인 가게에만 붙어야 #663 이 신호로 믿을 수 있다. 상권·앵커 결과 모두 stores[].storeId 다. */
-	@SuppressWarnings("unchecked")
 	public boolean containsStore(Long storeId) {
+		return shownStoreIds().contains(storeId);
+	}
+
+	/** 결과에 보인 가게 id 전부 — 다시 추천(#661)이 "앞서 보여준 가게"를 뺄 때 쓴다. 결과 JSON 의 stores[].storeId 다. */
+	@SuppressWarnings("unchecked")
+	public Set<Long> shownStoreIds() {
 		Object stores = this.result.get("stores");
 		if (!(stores instanceof List<?> rows)) {
-			return false;
+			return Set.of();
 		}
 		return rows.stream()
 			.filter(Map.class::isInstance)
 			.map(row -> ((Map<String, Object>)row).get("storeId"))
 			.filter(Number.class::isInstance)
-			.anyMatch(id -> ((Number)id).longValue() == storeId);
+			.map(id -> ((Number)id).longValue())
+			.collect(Collectors.toSet());
 	}
 }
