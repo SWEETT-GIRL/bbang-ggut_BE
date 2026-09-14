@@ -111,6 +111,7 @@ class CourseRecommendationCommandServiceTest {
 		lenient().when(area.getCenterLat()).thenReturn(CENTER_LAT);
 		lenient().when(area.getCenterLng()).thenReturn(CENTER_LNG);
 		lenient().when(area.getRadiusM()).thenReturn(1200);
+		lenient().when(area.getMaxHopM()).thenReturn(1500);
 		return area;
 	}
 
@@ -172,12 +173,12 @@ class CourseRecommendationCommandServiceTest {
 		assertThat(response.recommendationId()).isEqualTo(77L);
 		assertThat(response.title()).isEqualTo("성수동 빵집 코스");
 		assertThat(response.area().areaId()).isEqualTo(AREA_ID);
-		// 인기순 앞 4곳(3·1·4·2)을 중심에서 가까운 순으로: 1 → 2 → 3 → 4
+		// 순위 1위(3)에서 시작해 상한 안 최근접으로: 3 → 4(200m, 같은 200m 인 2보다 순위가 높다) → 5(200m) → 2(600m)
 		assertThat(response.stores()).extracting(RecommendedStoreResponse::storeId)
-			.containsExactly(101L, 102L, 103L, 104L);
+			.containsExactly(103L, 104L, 105L, 102L);
 		assertThat(response.stores().get(3).distanceToNextM()).isNull();
 		assertThat(response.stores().get(0).distanceToNextM()).isBetween(150, 250);
-		assertThat(response.totalDistanceM()).isBetween(450, 750);
+		assertThat(response.totalDistanceM()).isBetween(900, 1100);
 		assertThat(response.stores()).allSatisfy(store -> {
 			assertThat(store.reason()).isEqualTo(RecommendationMessage.RULE_REASON);
 			assertThat(store.tasteFit()).isZero();
@@ -268,6 +269,42 @@ class CourseRecommendationCommandServiceTest {
 			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(RecommendationErrorCode.STORE_COUNT_OUT_OF_RANGE));
 		then(courseRepository).should(never()).findByIdAndDeletedAtIsNull(any());
+	}
+
+	@Test
+	@DisplayName("구간 상한 안에 이을 후보가 없으면 거기서 멈춘다 — 인기 상위를 먼저 확정해 먼 가게를 잇지 않는다")
+	void recommend_stopsWhenNoCandidateWithinMaxHop() {
+		course(1);
+		CourseArea seoulArea = seongsu("서울");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(seoulArea));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of());
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)1, 0))
+			.willReturn(Optional.empty());
+		// 1위(1)와 2위(2)는 200m 사이, 3위(20)는 3.8km 밖 — 상한 1,500 이라 20 은 이을 수 없다
+		given(candidateRepository.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(), any(),
+			anyCollection(), anyInt()))
+			.willReturn(List.of(candidate(1), candidate(2), candidate(20)));
+		savedWithId(78L);
+
+		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(4, null));
+
+		assertThat(response.stores()).extracting(RecommendedStoreResponse::storeId).containsExactly(101L, 102L);
+		assertThat(response.totalDistanceM()).isBetween(150, 250);
+	}
+
+	@Test
+	@DisplayName("chainWithinHop: 같은 거리면 순위가 높은 쪽, 빈 후보면 빈 목록, storeCount 만큼만")
+	void chainWithinHop_rules() {
+		assertThat(CourseRecommendationCommandService.chainWithinHop(List.of(), 1500, 4)).isEmpty();
+		assertThat(CourseRecommendationCommandService.chainWithinHop(
+			List.of(candidate(3), candidate(1), candidate(4), candidate(2), candidate(5)), 1500, 2))
+			.extracting(CandidateStoreRow::storeId).containsExactly(103L, 104L);
+		assertThat(CourseRecommendationCommandService.chainWithinHop(
+			List.of(candidate(1), candidate(2), candidate(3)), 100, 3))
+			.extracting(CandidateStoreRow::storeId).containsExactly(101L);
 	}
 
 	@Test

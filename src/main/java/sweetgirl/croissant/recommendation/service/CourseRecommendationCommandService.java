@@ -54,7 +54,9 @@ import sweetgirl.croissant.store.entity.Store;
  *
  * 둘 다 재사용 키(회원·코스·상권 또는 앵커·일차·프로필 버전)가 맞는 최신 행이 있으면 저장된 result 를 돌려준다 —
  * 단, 그 사이 코스에 담긴 가게가 결과에 들어 있으면 상권은 다시 만들고 앵커는 그 가게를 뺀다.
- * 상권: 반경 안 ACTIVE 가게를 인기순으로 15곳 뽑아 앞 N 곳을 최근접 순으로 잇는다. 이유는 템플릿, tasteFit 은 축이 없어 0.
+ * 상권: 반경 안 ACTIVE 가게를 인기순으로 15곳 뽑고, 인기 1위에서 시작해 구간 상한(course_area.max_hop_m) 안에서 가장 가까운
+ * 가게를 이어 붙여 N 곳을 만든다 — 상한 안에 더 없으면 있는 만큼. 인기 상위 N 곳을 먼저 확정하면 넓은 시군구에서 코스가
+ * 수십 km 로 벌어진다(PR #735 리뷰). 이유는 템플릿, tasteFit 은 축이 없어 0.
  * 앵커: 앵커 좌표 1→2→3km 링 순 30곳을 행 하나에 저장하고 page 로 9곳씩 자른다. 이유 문장 없이 배지만(09-13).
  * 여정 값(entryScreen · sessionEvents)은 받기만 하고 어디에도 쓰지 않는다 — 세션 의도는 #661.
  */
@@ -129,9 +131,7 @@ public class CourseRecommendationCommandService {
 			return RecommendationResponse.of(null, new RecommendationResult(titleOf(area, profile), areaSummary, 0,
 				false, storeCount, List.of()));
 		}
-		List<CandidateStoreRow> ordered = nearestNeighborOrder(
-			candidates.subList(0, Math.min(storeCount, candidates.size())), area.getCenterLat(),
-			area.getCenterLng());
+		List<CandidateStoreRow> ordered = chainWithinHop(candidates, area.getMaxHopM(), storeCount);
 		List<RecommendedStoreResponse> stores = new ArrayList<>();
 		int totalDistanceM = 0;
 		for (int i = 0; i < ordered.size(); i++) {
@@ -280,24 +280,36 @@ public class CourseRecommendationCommandService {
 	}
 
 	/** 중심에서 가장 가까운 곳부터 시작해 매번 남은 것 중 가장 가까운 곳으로 — 동선만 정리한다(다양성은 #661). */
-	static List<CandidateStoreRow> nearestNeighborOrder(List<CandidateStoreRow> picked, double fromLat,
-			double fromLng) {
-		List<CandidateStoreRow> remaining = new ArrayList<>(picked);
+	/**
+	 * 순위(인기순) 후보에서 코스를 만든다: 1위에서 시작해, 지금 가게에서 maxHopM 안에 있는 남은 후보 중 가장 가까운 가게를
+	 * 다음으로 잇는다(같은 거리면 순위가 높은 쪽). 상한 안에 후보가 없으면 거기서 멈춘다 — 있는 만큼만 돌려준다.
+	 * 반경 안 후보라도 서로는 지름만큼 떨어질 수 있어 상한은 여기서 지킨다. 랩 테스트가 시드 48칸 전부로 이 불변 조건을 확인한다.
+	 */
+	public static List<CandidateStoreRow> chainWithinHop(List<CandidateStoreRow> ranked, int maxHopM, int storeCount) {
+		if (ranked.isEmpty() || storeCount <= 0) {
+			return List.of();
+		}
+		List<CandidateStoreRow> remaining = new ArrayList<>(ranked);
 		List<CandidateStoreRow> ordered = new ArrayList<>();
-		double lat = fromLat;
-		double lng = fromLng;
-		while (!remaining.isEmpty()) {
-			final double curLat = lat;
-			final double curLng = lng;
-			CandidateStoreRow nearest = remaining.stream()
-				.min((a, b) -> Integer.compare(
-					GeoDistance.metersBetween(curLat, curLng, a.latitude(), a.longitude()),
-					GeoDistance.metersBetween(curLat, curLng, b.latitude(), b.longitude())))
-				.orElseThrow();
-			remaining.remove(nearest);
-			ordered.add(nearest);
-			lat = nearest.latitude();
-			lng = nearest.longitude();
+		CandidateStoreRow current = remaining.remove(0);
+		ordered.add(current);
+		while (ordered.size() < storeCount && !remaining.isEmpty()) {
+			CandidateStoreRow next = null;
+			int nextDistance = Integer.MAX_VALUE;
+			for (CandidateStoreRow candidate : remaining) {
+				int distance = GeoDistance.metersBetween(current.latitude(), current.longitude(),
+					candidate.latitude(), candidate.longitude());
+				if (distance <= maxHopM && distance < nextDistance) {
+					next = candidate;
+					nextDistance = distance;
+				}
+			}
+			if (next == null) {
+				break;
+			}
+			remaining.remove(next);
+			ordered.add(next);
+			current = next;
 		}
 		return ordered;
 	}
