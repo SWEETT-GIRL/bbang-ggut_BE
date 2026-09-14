@@ -116,6 +116,8 @@ class CourseRecommendationCommandServiceTest {
 		lenient().when(area.getCenterLng()).thenReturn(CENTER_LNG);
 		lenient().when(area.getRadiusM()).thenReturn(1200);
 		lenient().when(area.getMaxHopM()).thenReturn(1500);
+		lenient().when(area.covers(anyDouble(), anyDouble())).thenAnswer(invocation -> GeoDistance.metersBetween(
+			CENTER_LAT, CENTER_LNG, invocation.getArgument(0), invocation.getArgument(1)) <= 1200);
 		return area;
 	}
 
@@ -323,6 +325,34 @@ class CourseRecommendationCommandServiceTest {
 		assertThat(response.area().areaId()).isEqualTo(31L);
 		assertThat(response.area().name()).isEqualTo("성수 서쪽");
 		then(candidateRepository).should(never()).findAreaChipStats(any(), anyList());
+	}
+
+	@Test
+	@DisplayName("동네 선택은 일차가 먼저 — 1일차 시내·2일차 서쪽인 코스에서 2일차를 짜면 서쪽, 1일차를 짜면 시내")
+	void recommend_neighborhoodPrefersStoresOfRequestedDay() {
+		course(2);
+		CourseArea primary = seongsu("서울");
+		CourseArea west = westNeighborhood(31L, "성수 서쪽");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(primary));
+		Store downtownStore = store(500L, CENTER_LAT, CENTER_LNG);
+		Store westStore = store(501L, CENTER_LAT, CENTER_LNG + 0.05);
+		CourseStore day1Downtown = courseStoreOf(downtownStore, 1);
+		CourseStore day1Downtown2 = courseStoreOf(store(502L, CENTER_LAT, CENTER_LNG + 0.001), 1);
+		CourseStore day2West = courseStoreOf(westStore, 2);
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of(day1Downtown, day1Downtown2, day2West));
+		neighborhoodsOfSeongsu(primary, west);
+		given(recommendationRepository.findLatestAreaForReuse(eq(MEMBER_ID), eq(COURSE_ID), any(), any(), eq(0)))
+			.willReturn(Optional.empty());
+
+		RecommendationResponse secondDay = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(null, 2));
+		RecommendationResponse firstDay = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(null, 1));
+
+		// 코스 전체로 세면 시내 2 > 서쪽 1 이지만, 2일차에 담긴 건 서쪽뿐이다
+		assertThat(secondDay.area().areaId()).isEqualTo(31L);
+		assertThat(firstDay.area().areaId()).isEqualTo(AREA_ID);
 	}
 
 	@Test
