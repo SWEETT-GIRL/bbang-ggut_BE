@@ -70,4 +70,14 @@ class RecommendationFeedbackTest {
 			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(RecommendationErrorCode.FEEDBACK_STORE_REQUIRED));
 	}
+
+	@Test
+	@DisplayName("👎 이유 칩 TOO_SIMILAR(비슷한 가게뿐이에요)도 DISLIKE 에 붙는다 — 다양성 후처리를 넣을지 정하는 근거")
+	void of_dislikeAcceptsTooSimilar() {
+		RecommendationFeedback feedback = RecommendationFeedback.of(99L, null, FeedbackAction.DISLIKE,
+			FeedbackReason.TOO_SIMILAR);
+
+		assertThat(feedback.getReason()).isEqualTo(FeedbackReason.TOO_SIMILAR);
+		assertThat(FeedbackReason.TOO_SIMILAR.getLabel()).isEqualTo("비슷한 가게뿐이에요");
+	}
 }
