@@ -55,7 +55,13 @@ class CourseAreaSeedLabTest {
 	@DisplayName("시드 48칸: 빈 코스·4곳 추천이 모두 4곳이 나오고, 이웃 가게 사이 거리가 칸의 max_hop 을 넘지 않는다")
 	void everySeededArea_buildsFourStopCourseWithinMaxHop() {
 		List<CourseArea> areas = courseAreaRepository.findAll().stream().filter(CourseArea::isActive).toList();
-		assertThat(areas).hasSizeGreaterThanOrEqualTo(48);
+		assertThat(areas).hasSizeGreaterThanOrEqualTo(59);
+		// 도장 칸(passport_spot)은 48개 그대로, 동네 이름이 도장 라벨과 다른 행(세부 동네 11 + 이름 바꾼 대표 6)이 17개
+		// 도장 칸은 (시·도, 라벨) 단위다 — "중구" 는 부산·대구·대전·울산·인천에 있다
+		assertThat(areas.stream().map(area -> area.getSido() + "/" + area.getPassportSpot()).distinct().count())
+			.isEqualTo(48);
+		assertThat(areas.stream().filter(area -> !area.getName().equals(area.getPassportSpot())).count())
+			.isGreaterThanOrEqualTo(17);
 
 		for (CourseArea area : areas) {
 			List<CandidateStoreRow> candidates = candidateRepository.findAreaCandidates(

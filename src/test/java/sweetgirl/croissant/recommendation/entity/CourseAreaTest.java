@@ -12,7 +12,7 @@ import sweetgirl.croissant.recommendation.exception.RecommendationException;
 class CourseAreaTest {
 
 	private static CourseArea seongsu() {
-		return CourseArea.create("서울", "성수동", 5L, 37.5446, 127.0557, 1200, 1200, "성동구", "성수동", 70);
+		return CourseArea.create("서울", "성수동", "성수동", 5L, 37.5446, 127.0557, 1200, 1200, "성동구", "성수동", 70);
 	}
 
 	@Test
@@ -30,7 +30,7 @@ class CourseAreaTest {
 	@Test
 	@DisplayName("서울 밖 도장 칸은 시군구 전체를 상권으로 본다")
 	void create_districtWide_coversWholeDistrict() {
-		CourseArea suwon = CourseArea.create("경기", "수원시", null, 37.2636, 127.0286, 5000, 8000, "수원시", null, 10);
+		CourseArea suwon = CourseArea.create("경기", "수원시", "수원시", null, 37.2636, 127.0286, 5000, 8000, "수원시", null, 10);
 
 		assertThat(suwon.hasRegionRule()).isTrue();
 		assertThat(suwon.coversWholeDistrict()).isTrue();
@@ -39,7 +39,7 @@ class CourseAreaTest {
 	@Test
 	@DisplayName("지역 컬럼이 없으면 반경만으로 소속을 판정한다")
 	void create_withoutRegion_usesRadiusOnly() {
-		CourseArea hannam = CourseArea.create("서울", "한남동", 7L, 37.5345, 127.0054, 1200, 1200, null, null, 40);
+		CourseArea hannam = CourseArea.create("서울", "한남동", "한남동", 7L, 37.5345, 127.0054, 1200, 1200, null, null, 40);
 
 		assertThat(hannam.hasRegionRule()).isFalse();
 		assertThat(hannam.coversWholeDistrict()).isFalse();
@@ -48,7 +48,7 @@ class CourseAreaTest {
 	@Test
 	@DisplayName("읍면동만 있고 시군구가 없으면 만들 수 없다")
 	void create_rejectsDongWithoutDistrict() {
-		assertThatThrownBy(() -> CourseArea.create("서울", "성수동", null, 37.5, 127.0, 1200, 1200, null, "성수동", 0))
+		assertThatThrownBy(() -> CourseArea.create("서울", "성수동", "성수동", null, 37.5, 127.0, 1200, 1200, null, "성수동", 0))
 			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(RecommendationErrorCode.COURSE_AREA_REGION_INVALID));
 	}
@@ -56,10 +56,10 @@ class CourseAreaTest {
 	@Test
 	@DisplayName("반경이나 구간 상한이 0 이하면 만들 수 없다")
 	void create_rejectsNonPositiveDistances() {
-		assertThatThrownBy(() -> CourseArea.create("서울", "성수동", null, 37.5, 127.0, 0, 1200, null, null, 0))
+		assertThatThrownBy(() -> CourseArea.create("서울", "성수동", "성수동", null, 37.5, 127.0, 0, 1200, null, null, 0))
 			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(RecommendationErrorCode.COURSE_AREA_RADIUS_INVALID));
-		assertThatThrownBy(() -> CourseArea.create("서울", "성수동", null, 37.5, 127.0, 1200, -1, null, null, 0))
+		assertThatThrownBy(() -> CourseArea.create("서울", "성수동", "성수동", null, 37.5, 127.0, 1200, -1, null, null, 0))
 			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(RecommendationErrorCode.COURSE_AREA_RADIUS_INVALID));
 	}

@@ -194,9 +194,9 @@ class RecommendationSchemaLabTest {
 	@DisplayName("course_area: 시군구·동 보조 컬럼까지 저장하고 시/도로 찾는다")
 	void courseArea_roundTrip() {
 		// 이름에 "(랩)" 을 붙인다 — 도장 칸 48개가 시드돼 있어 (sido, name) 이 겹치면 uq_course_area_sido_name 에 막힌다
-		courseAreaRepository.save(CourseArea.create("서울", "성수동(랩)", 5L, 37.5446, 127.0557,
+		courseAreaRepository.save(CourseArea.create("서울", "성수동(랩)", "성수동(랩)", 5L, 37.5446, 127.0557,
 			1200, 1200, "성동구", "성수동", 70));
-		courseAreaRepository.save(CourseArea.create("경기", "수원시(랩)", null, 37.2636, 127.0286,
+		courseAreaRepository.save(CourseArea.create("경기", "수원시(랩)", "수원시(랩)", null, 37.2636, 127.0286,
 			5000, 8000, "수원시", null, 10));
 		flushAndClear();
 

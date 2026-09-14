@@ -54,7 +54,7 @@ class RecommendationRepositoryTest {
 		jimin = persist(new Member("지민"));
 		sujin = persist(new Member("수진"));
 		course = persist(Course.createCustom("성수 소금빵 투어", jimin, false));
-		seongsu = persist(CourseArea.create("서울", "성수동", null, 37.5446, 127.0557, 1200, 1200, null, null, 1));
+		seongsu = persist(CourseArea.create("서울", "성수동", "성수동", null, 37.5446, 127.0557, 1200, 1200, null, null, 1));
 		entityManager.flush();
 	}
 

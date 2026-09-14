@@ -64,3 +64,36 @@ JOIN dense d ON d.sido=c.sido AND d.name=c.name
 JOIN spread sp ON sp.sido=c.sido AND sp.name=c.name
 LEFT JOIN hpref h ON h.sido=c.sido AND h.name=c.name
 ORDER BY array_position(ARRAY['서울','경기','인천','강원','충북','충남','세종','대전','경북','대구','전북','전남','광주','경남','울산','부산','제주'], c.sido), c.ord;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 2부. 세부 동네(#736, V20260914213000) — 핫플 중심 2,000m 안 + 같은 시·도·도장 시군구 가게를 칸 가게로 보고 최밀집 원 중심을 잡는다.
+-- 시군구로 제한하지 않으면 센텀이 광안리(수영구)로, 송정이 기장읍(기장군)으로 끌려간다. top15 는 새 중심 반경 1,200 안 인기순 후보(코스 시뮬레이션용).
+WITH pick(sido, passport, name, hp_name, ord) AS (VALUES
+ ('제주','제주시','애월','애월',1),('제주','제주시','한림·협재','협재',2),('제주','제주시','구좌·월정리','월정리',3),
+ ('제주','서귀포시','중문','중문',1),('제주','서귀포시','성산','성산',2),('제주','서귀포시','표선','표선',3),
+ ('경북','경주시','보문','경주보문',1),
+ ('강원','강릉시','강문·안목','안목',1),
+ ('부산','해운대구','센텀','센텀',1),('부산','해운대구','송정','송정',2),
+ ('인천','중구','영종도','영종도',1)
+),
+hp AS (SELECT p.*, r.id AS hp_id, ST_SetSRID(ST_MakePoint(r.center_lng, r.center_lat),4326)::geography AS g
+       FROM pick p JOIN search_region r ON r.type='HOT_PLACE' AND r.is_active AND r.name=p.hp_name),
+member AS (
+  SELECT hp.sido, hp.name, s.id, s.location, s.region_3rd
+  FROM hp JOIN store s ON s.status='ACTIVE' AND s.region_1st=hp.sido AND s.region_2nd=hp.passport AND ST_DWithin(s.location, hp.g, 2000)),
+dense AS (
+  SELECT DISTINCT ON (m.sido, m.name) m.sido, m.name, m.location AS g, m.region_3rd AS dong,
+    (SELECT COUNT(*) FROM member t WHERE t.sido=m.sido AND t.name=m.name AND ST_DWithin(t.location, m.location, 1200)) AS own_cnt
+  FROM member m ORDER BY m.sido, m.name, own_cnt DESC, m.id),
+cand AS (  -- 새 중심 반경 1,200 안 ACTIVE 가게 인기순 15 (후보 SQL 과 같은 규칙, 반경만)
+  SELECT d.sido, d.name, s.id, ST_Y(s.location::geometry) lat, ST_X(s.location::geometry) lng,
+    ROW_NUMBER() OVER (PARTITION BY d.sido, d.name ORDER BY s.popularity_score DESC, s.id) rn
+  FROM dense d JOIN store s ON s.status='ACTIVE' AND ST_DWithin(s.location, d.g, 1200))
+SELECT hp.sido, hp.passport, hp.name, hp.hp_name, hp.hp_id,
+  ROUND(ST_Y(d.g::geometry)::numeric,5) AS lat, ROUND(ST_X(d.g::geometry)::numeric,5) AS lng, d.dong,
+  d.own_cnt AS in_1200, ROUND(ST_Distance(hp.g, d.g)::numeric) AS hp_to_center_m,
+  string_agg(c.lat::text || ',' || c.lng::text, ';' ORDER BY c.rn) AS top15
+FROM hp JOIN dense d ON d.sido=hp.sido AND d.name=hp.name
+LEFT JOIN cand c ON c.sido=hp.sido AND c.name=hp.name AND c.rn<=15
+GROUP BY hp.sido, hp.passport, hp.name, hp.hp_name, hp.hp_id, hp.ord, d.g, d.dong, d.own_cnt, hp.g
+ORDER BY hp.sido, hp.passport, hp.ord;
