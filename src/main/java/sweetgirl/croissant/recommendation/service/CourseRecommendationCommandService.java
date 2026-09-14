@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.locationtech.jts.geom.Point;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +44,7 @@ import sweetgirl.croissant.recommendation.entity.CourseArea;
 import sweetgirl.croissant.recommendation.entity.Recommendation;
 import sweetgirl.croissant.recommendation.enums.AnchorReasonTag;
 import sweetgirl.croissant.recommendation.exception.RecommendationException;
+import sweetgirl.croissant.recommendation.repository.AreaChipStats;
 import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
 import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationCandidateJdbcRepository;
@@ -87,12 +89,13 @@ public class CourseRecommendationCommandService {
 		}
 		Course course = findCourse(courseId);
 		courseAccessPolicy.requireEditable(course, memberId);
-		CourseArea area = courseAreaRepository.findByIdAndIsActiveTrue(request.areaId())
+		CourseArea requested = courseAreaRepository.findByIdAndIsActiveTrue(request.areaId())
 			.filter(found -> found.getSido().equals(course.getRegion()))
 			.orElseThrow(() -> new RecommendationException(RecommendationErrorCode.COURSE_AREA_NOT_FOUND));
 
 		List<CourseStore> activeStores = courseStoreRepository
 			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId);
+		CourseArea area = resolveNeighborhood(memberId, requested, activeStores);
 		short day = resolveDay(request.day(), course, activeStores);
 		UserTasteProfile profile = userTasteProfileRepository.findById(memberId).orElse(null);
 		int profileVersion = profile != null ? profile.getVersion() : Recommendation.NO_PROFILE_VERSION;
@@ -108,6 +111,44 @@ public class CourseRecommendationCommandService {
 		}
 		return buildAreaRecommendation(memberId, course, area, day, profile, profileVersion, courseStoreIds,
 			storeCount);
+	}
+
+	/**
+	 * 도장 칸 아래 동네가 여럿이면 서버가 고른다(#736) — 칩은 도장 칸 하나라 사용자가 동네를 고르지 않는다.
+	 * ① 코스에 담긴 가게가 반경 안인 동네(많은 쪽, 같으면 대표 행 순) ② 내 저장 가게가 있는 동네 ③ 대표 행(display_order 첫 행).
+	 * 요청이 대표 행이 아닌 동네 행이면(다음 칸 제안 등으로 동네를 집어 온 것) 그대로 쓴다. 동네가 하나뿐인 칸은 조회 한 번으로 끝난다.
+	 */
+	private CourseArea resolveNeighborhood(Long memberId, CourseArea requested, List<CourseStore> activeStores) {
+		List<CourseArea> neighborhoods = courseAreaRepository
+			.findAllBySidoAndPassportSpotAndIsActiveTrueOrderByDisplayOrderAscNameAsc(requested.getSido(),
+				requested.getPassportSpot());
+		if (neighborhoods.size() <= 1 || !neighborhoods.get(0).getId().equals(requested.getId())) {
+			return requested;
+		}
+		CourseArea byCourseStores = null;
+		int bestCount = 0;
+		for (CourseArea neighborhood : neighborhoods) {
+			int count = 0;
+			for (CourseStore courseStore : activeStores) {
+				Point location = courseStore.getStore().getLocation();
+				if (location != null && neighborhood.covers(location.getY(), location.getX())) {
+					count++;
+				}
+			}
+			if (count > bestCount) {
+				byCourseStores = neighborhood;
+				bestCount = count;
+			}
+		}
+		if (byCourseStores != null) {
+			return byCourseStores;
+		}
+		Map<Long, AreaChipStats> stats = candidateRepository.findAreaChipStats(memberId, neighborhoods);
+		return neighborhoods.stream()
+			.filter(neighborhood -> stats.containsKey(neighborhood.getId())
+				&& stats.get(neighborhood.getId()).hasSavedStore())
+			.findFirst()
+			.orElse(neighborhoods.get(0));
 	}
 
 	/**

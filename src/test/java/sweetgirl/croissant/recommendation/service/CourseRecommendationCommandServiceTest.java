@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -30,6 +31,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import sweetgirl.croissant.common.util.GeoDistance;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.repository.CourseRepository;
@@ -55,6 +57,7 @@ import sweetgirl.croissant.recommendation.entity.Recommendation;
 import sweetgirl.croissant.recommendation.enums.AnchorReasonTag;
 import sweetgirl.croissant.recommendation.enums.RecommendationMode;
 import sweetgirl.croissant.recommendation.exception.RecommendationException;
+import sweetgirl.croissant.recommendation.repository.AreaChipStats;
 import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
 import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationCandidateJdbcRepository;
@@ -107,6 +110,7 @@ class CourseRecommendationCommandServiceTest {
 		CourseArea area = mock(CourseArea.class);
 		lenient().when(area.getId()).thenReturn(AREA_ID);
 		lenient().when(area.getName()).thenReturn("성수동");
+		lenient().when(area.getPassportSpot()).thenReturn("성수동");
 		lenient().when(area.getSido()).thenReturn(sido);
 		lenient().when(area.getCenterLat()).thenReturn(CENTER_LAT);
 		lenient().when(area.getCenterLng()).thenReturn(CENTER_LNG);
@@ -120,6 +124,33 @@ class CourseRecommendationCommandServiceTest {
 		double lng = CENTER_LNG + index * 0.00226; // 약 200m
 		return new CandidateStoreRow(100L + index, "빵집" + index, "성수동", CENTER_LAT, lng, null, index * 200d,
 			10d - index);
+	}
+
+	/** 성수동 도장 칸의 두 번째 동네 — 대표 행(seongsu)에서 동쪽으로 4.4km. covers 는 실제 거리로 판정한다. */
+	private static CourseArea westNeighborhood(Long id, String name) {
+		double lat = CENTER_LAT;
+		double lng = CENTER_LNG + 0.05;
+		CourseArea area = mock(CourseArea.class);
+		lenient().when(area.getId()).thenReturn(id);
+		lenient().when(area.getName()).thenReturn(name);
+		lenient().when(area.getPassportSpot()).thenReturn("성수동");
+		lenient().when(area.getSido()).thenReturn("서울");
+		lenient().when(area.getCenterLat()).thenReturn(lat);
+		lenient().when(area.getCenterLng()).thenReturn(lng);
+		lenient().when(area.getRadiusM()).thenReturn(1200);
+		lenient().when(area.getMaxHopM()).thenReturn(1500);
+		lenient().when(area.covers(anyDouble(), anyDouble())).thenAnswer(invocation -> GeoDistance.metersBetween(lat,
+			lng, invocation.getArgument(0), invocation.getArgument(1)) <= 1200);
+		return area;
+	}
+
+	private void neighborhoodsOfSeongsu(CourseArea primary, CourseArea second) {
+		given(courseAreaRepository.findAllBySidoAndPassportSpotAndIsActiveTrueOrderByDisplayOrderAscNameAsc("서울",
+			"성수동")).willReturn(List.of(primary, second));
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+		given(candidateRepository.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(), any(),
+			anyCollection(), anyInt())).willReturn(List.of(candidate(1), candidate(2)));
+		savedWithId(90L);
 	}
 
 	private static RecommendationRequest request(Integer storeCount, Integer day) {
@@ -269,6 +300,74 @@ class CourseRecommendationCommandServiceTest {
 			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(RecommendationErrorCode.STORE_COUNT_OUT_OF_RANGE));
 		then(courseRepository).should(never()).findByIdAndDeletedAtIsNull(any());
+	}
+
+	@Test
+	@DisplayName("동네 선택 ①: 코스에 담긴 가게가 반경 안인 동네를 고른다 — 응답 area 와 재사용 키가 그 동네다")
+	void recommend_neighborhoodByCourseStores() {
+		course(1);
+		CourseArea primary = seongsu("서울");
+		CourseArea west = westNeighborhood(31L, "성수 서쪽");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(primary));
+		Store inWest = store(500L, CENTER_LAT, CENTER_LNG + 0.05);
+		CourseStore stopInWest = courseStoreOf(inWest, 1);
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of(stopInWest));
+		neighborhoodsOfSeongsu(primary, west);
+		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, 31L, (short)1, 0))
+			.willReturn(Optional.empty());
+
+		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(null, 1));
+
+		assertThat(response.area().areaId()).isEqualTo(31L);
+		assertThat(response.area().name()).isEqualTo("성수 서쪽");
+		then(candidateRepository).should(never()).findAreaChipStats(any(), anyList());
+	}
+
+	@Test
+	@DisplayName("동네 선택 ②: 담긴 가게가 없으면 내 저장 가게가 있는 동네, ③: 그것도 없으면 대표 행")
+	void recommend_neighborhoodBySavedStoreThenPrimary() {
+		course(1);
+		CourseArea primary = seongsu("서울");
+		CourseArea west = westNeighborhood(31L, "성수 서쪽");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(primary));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of());
+		neighborhoodsOfSeongsu(primary, west);
+		given(recommendationRepository.findLatestAreaForReuse(eq(MEMBER_ID), eq(COURSE_ID), any(), eq((short)1),
+			eq(0))).willReturn(Optional.empty());
+		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), anyList()))
+			.willReturn(Map.of(31L, new AreaChipStats(31L, 22, true)))
+			.willReturn(Map.of());
+
+		RecommendationResponse bySaved = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(null, 1));
+		RecommendationResponse byPrimary = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(null, 1));
+
+		assertThat(bySaved.area().areaId()).isEqualTo(31L);
+		assertThat(byPrimary.area().areaId()).isEqualTo(AREA_ID);
+	}
+
+	@Test
+	@DisplayName("요청이 대표 행이 아닌 동네 행이면 그대로 쓴다 — 다음 칸 제안으로 동네를 집어 온 경우")
+	void recommend_requestedNeighborhoodIsUsedAsIs() {
+		course(1);
+		CourseArea primary = seongsu("서울");
+		CourseArea west = westNeighborhood(31L, "성수 서쪽");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(31L)).willReturn(Optional.of(west));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of());
+		neighborhoodsOfSeongsu(primary, west);
+		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, 31L, (short)1, 0))
+			.willReturn(Optional.empty());
+
+		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			new RecommendationRequest(31L, null, 1, "course_empty", List.of()));
+
+		assertThat(response.area().areaId()).isEqualTo(31L);
+		then(candidateRepository).should(never()).findAreaChipStats(any(), anyList());
 	}
 
 	@Test

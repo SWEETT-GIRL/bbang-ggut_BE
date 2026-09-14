@@ -1,5 +1,7 @@
 package sweetgirl.croissant.recommendation.service;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -74,23 +76,38 @@ public class RecommendationContextQueryService {
 		return new RecommendationContextResponse(state, showAccuracyLink, areasOf(course, memberId), typeLabel);
 	}
 
+	/**
+	 * 도장 칸마다 칩 하나(#736): 같은 passport_spot 의 동네 행들을 묶고 첫 행(display_order 최소)이 칩 id·순서가 된다.
+	 * 칩 이름은 도장 칸 라벨, 가게 수는 동네들의 합, 저장 가게는 동네 중 하나라도 있으면 SAVED. 동네가 하나뿐인 칸은 그대로다.
+	 */
 	private List<RecommendationAreaResponse> areasOf(Course course, Long memberId) {
 		if (course.getRegion() == null) {
 			return List.of();
 		}
-		List<CourseArea> areas = courseAreaRepository
-			.findAllBySidoAndIsActiveTrueOrderByDisplayOrderAscNameAsc(course.getRegion())
-			.stream()
+		Map<String, List<CourseArea>> spots = new LinkedHashMap<>();
+		for (CourseArea area : courseAreaRepository
+			.findAllBySidoAndIsActiveTrueOrderByDisplayOrderAscNameAsc(course.getRegion())) {
+			spots.computeIfAbsent(area.getPassportSpot(), spot -> new ArrayList<>()).add(area);
+		}
+		List<List<CourseArea>> shown = spots.values().stream()
 			.limit(recommendationProperties.getArea().getMaxChips())
 			.toList();
 		// 칩마다 두 번 묻지 않고 한 문장으로 — 후보와 같은 소속 규칙로 센다
-		Map<Long, AreaChipStats> stats = candidateRepository.findAreaChipStats(memberId, areas);
-		return areas.stream()
-			.map(area -> {
-				AreaChipStats chip = stats.getOrDefault(area.getId(), new AreaChipStats(area.getId(), 0, false));
-				return new RecommendationAreaResponse(area.getId(), area.getName(),
-					chip.hasSavedStore() ? RecommendationAreaReason.SAVED : RecommendationAreaReason.POPULAR,
-					chip.storeCount());
+		Map<Long, AreaChipStats> stats = candidateRepository.findAreaChipStats(memberId,
+			shown.stream().flatMap(List::stream).toList());
+		return shown.stream()
+			.map(neighborhoods -> {
+				CourseArea primary = neighborhoods.get(0);
+				int storeCount = 0;
+				boolean hasSavedStore = false;
+				for (CourseArea neighborhood : neighborhoods) {
+					AreaChipStats chip = stats.getOrDefault(neighborhood.getId(),
+						new AreaChipStats(neighborhood.getId(), 0, false));
+					storeCount += chip.storeCount();
+					hasSavedStore |= chip.hasSavedStore();
+				}
+				return new RecommendationAreaResponse(primary.getId(), primary.getPassportSpot(),
+					hasSavedStore ? RecommendationAreaReason.SAVED : RecommendationAreaReason.POPULAR, storeCount);
 			})
 			.toList();
 	}
