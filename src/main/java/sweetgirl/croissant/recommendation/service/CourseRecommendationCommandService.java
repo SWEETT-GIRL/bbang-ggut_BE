@@ -56,6 +56,7 @@ import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationCandidateJdbcRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationFeedbackRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationRepository;
+import sweetgirl.croissant.recommendation.repository.TasteQuery;
 import sweetgirl.croissant.store.entity.Store;
 
 /**
@@ -63,19 +64,16 @@ import sweetgirl.croissant.store.entity.Store;
  *
  * 둘 다 재사용 키(회원·코스·상권 또는 앵커·일차·프로필 버전)가 맞는 최신 행이 있으면 저장된 result 를 돌려준다 —
  * 단, 그 사이 코스에 담긴 가게가 결과에 들어 있으면 상권은 다시 만들고 앵커는 그 가게를 뺀다.
- * 상권: 반경 안 ACTIVE 가게를 인기순으로 15곳 뽑고, 인기 1위에서 시작해 구간 상한(course_area.max_hop_m) 안에서 가장 가까운
+ * 상권: 반경 안 ACTIVE 가게(프로필 있고 빵집다움 하한 이상)를 #661 점수순으로 15곳 뽑고, 1위에서 시작해 구간 상한(course_area.max_hop_m) 안에서 가장 가까운
  * 가게를 이어 붙여 N 곳을 만든다 — 상한 안에 더 없으면 있는 만큼. 인기 상위 N 곳을 먼저 확정하면 넓은 시군구에서 코스가
  * 수십 km 로 벌어진다(PR #735 리뷰). 이유는 템플릿, tasteFit 은 축이 없어 0.
- * 앵커: 앵커 좌표 1→2→3km 링 순 30곳을 행 하나에 저장하고 page 로 9곳씩 자른다. 이유 문장 없이 배지만(09-13).
+ * 앵커: 앵커 좌표 1→2→3km 링 순(링 안은 점수순) 30곳을 행 하나에 저장하고 page 로 9곳씩 자른다. 이유 문장 없이 배지만(09-13).
  * 여정 값(entryScreen · sessionEvents)은 받기만 하고 어디에도 쓰지 않는다 — 세션 의도는 #661.
  */
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class CourseRecommendationCommandService {
-
-	/** 축이 없으니 취향 적합도도 없다. #661 의 점수 계산기가 생기면 그쪽이 주인이 되고 이 값은 사라진다. */
-	static final double NO_TASTE_FIT = 0.0;
 
 	private final CourseRepository courseRepository;
 	private final CourseStoreRepository courseStoreRepository;
@@ -120,7 +118,9 @@ public class CourseRecommendationCommandService {
 			.findLatestAreaForReuse(memberId, courseId, area.getId(), day, profileVersion);
 		if (reusable.isPresent()) {
 			RecommendationResult stored = read(reusable.get(), RecommendationResult.class);
-			if (isStillValid(stored, courseStoreIds, storeCount)) {
+			Set<Long> unavailable = candidateRepository.findUnavailableStoreIds(memberId,
+				stored.stores().stream().map(RecommendedStoreResponse::storeId).toList());
+			if (isStillValid(stored, courseStoreIds, unavailable, storeCount)) {
 				return RecommendationResponse.of(reusable.get().getId(), stored);
 			}
 		}
@@ -216,20 +216,29 @@ public class CourseRecommendationCommandService {
 
 	/**
 	 * 저장된 결과를 다시 써도 되는지. 그 사이 코스가 바뀌어 담긴 가게가 결과에 들어 있거나(담으면 중복 오류가 난다),
+	 * 그 사이 내가 기록했거나 자격을 잃은 가게(프로필·빵집다움 필터, 이 배포 전 결과)가 들어 있거나(PR #739 리뷰),
 	 * 요청한 가게 수가 다르면 다시 만든다. 후보가 모자라 결과가 짧은 건 다시 만들 이유가 아니라 stores.size() 가 아니라
 	 * 저장해 둔 요청 수와 비교한다. 새 행이 최신이 되어 다음부터는 그것이 재사용된다.
 	 */
-	private static boolean isStillValid(RecommendationResult stored, Set<Long> courseStoreIds, int storeCount) {
+	private static boolean isStillValid(RecommendationResult stored, Set<Long> courseStoreIds, Set<Long> unavailable,
+			int storeCount) {
 		return stored.storeCount() == storeCount
-			&& stored.stores().stream().noneMatch(store -> courseStoreIds.contains(store.storeId()));
+			&& stored.stores().stream().noneMatch(store -> courseStoreIds.contains(store.storeId())
+				|| unavailable.contains(store.storeId()));
 	}
 
 	private RecommendationResponse buildAreaRecommendation(Long memberId, Course course, CourseArea area, short day,
 			UserTasteProfile profile, int profileVersion, List<CourseStore> activeStores, Set<Long> excludeStoreIds,
 			int storeCount) {
-		List<CandidateStoreRow> candidates = candidateRepository.findAreaCandidates(
-			area.getCenterLat(), area.getCenterLng(), area.getRadiusM(), area.getSido(), area.getRegion2nd(),
-			area.getRegion3rd(), excludeStoreIds, recommendationProperties.getArea().getCandidateLimit());
+		TasteQuery taste = TasteQuery.of(profile);
+		List<CandidateStoreRow> candidates = findAreaCandidates(memberId, taste, area, excludeStoreIds);
+		// 취향 폴백(설계 §9 · #661): 풀에 취향 후보(코사인 > 임계)가 3곳 미만이면 취향 항을 빼고 prior 순으로 채운다 —
+		// 담백 가게가 없는 동네에서 케이크집 4곳을 "취향에 맞는 곳"이라 하지 않는다. 반경은 넓히지 않는다(09-13).
+		boolean fallback = taste.hasAxis() && !candidates.isEmpty()
+			&& candidates.get(0).tasteCandidateCount() < recommendationProperties.getScore().getMinTasteCandidates();
+		if (fallback) {
+			candidates = findAreaCandidates(memberId, TasteQuery.empty(), area, excludeStoreIds);
+		}
 		RecommendationAreaSummary areaSummary = new RecommendationAreaSummary(area.getId(), area.getName());
 		if (candidates.isEmpty()) {
 			// 저장할 게 없다 — 재사용될 결과도 없고 반응을 받을 것도 없다. 대신 다음 동네와 앵커로 넘길 가게를 알려 준다(#661)
@@ -255,14 +264,40 @@ public class CourseRecommendationCommandService {
 				totalDistanceM += distanceToNext;
 			}
 			stores.add(new RecommendedStoreResponse(row.storeId(), row.name(), row.region3rd(),
-				RecommendationMessage.RULE_REASON,
-				NO_TASTE_FIT, distanceToNext, row.latitude(), row.longitude(), row.thumbnailKey()));
+				reasonOf(taste, row, fallback), tasteFitOf(row), distanceToNext, row.latitude(), row.longitude(),
+				row.thumbnailKey()));
 		}
 		RecommendationResult result = new RecommendationResult(titleOf(area, profile), areaSummary, totalDistanceM,
-			false, storeCount, stores, lastBatch);
+			fallback, storeCount, stores, lastBatch);
 		Recommendation saved = recommendationRepository.save(Recommendation.forArea(memberId, course.getId(),
 			area.getId(), day, profileVersion, Recommendation.RULE_PROVIDER, null, null, false, write(result)));
 		return RecommendationResponse.of(saved.getId(), result);
+	}
+
+	private List<CandidateStoreRow> findAreaCandidates(Long memberId, TasteQuery taste, CourseArea area,
+			Set<Long> excludeStoreIds) {
+		return candidateRepository.findAreaCandidates(memberId, taste, area.getCenterLat(), area.getCenterLng(),
+			area.getRadiusM(), area.getSido(), area.getRegion2nd(), area.getRegion3rd(), excludeStoreIds,
+			recommendationProperties.getArea().getCandidateLimit());
+	}
+
+	/**
+	 * 이유 문구(#661 · 설계 §7.1): 취향 폴백이면 전부 시그니처, 취향 후보(코사인 > 임계)면 취향 문구, 그 밖은 시그니처.
+	 * 축이 없는 사용자에겐 취향 근거가 없으니 인기순 문구(RULE_REASON)를 그대로 쓴다 — "취향에 맞는다"고 지어내지 않는다.
+	 */
+	private String reasonOf(TasteQuery taste, CandidateStoreRow row, boolean fallback) {
+		if (!taste.hasAxis()) {
+			return RecommendationMessage.RULE_REASON;
+		}
+		if (fallback || row.tasteFit() <= recommendationProperties.getScore().getTasteCosineThreshold()) {
+			return RecommendationMessage.SIGNATURE_REASON;
+		}
+		return RecommendationMessage.TASTE_REASON;
+	}
+
+	/** 응답의 tasteFit — 코사인(−1~1)을 소수 둘째 자리로. 축이 없으면 SQL 이 0 을 준다. */
+	static double tasteFitOf(CandidateStoreRow row) {
+		return Math.round(row.tasteFit() * 100) / 100.0;
 	}
 
 	/**
@@ -328,9 +363,8 @@ public class CourseRecommendationCommandService {
 		Store anchor = anchorStop.getStore();
 		// 앵커 추천도 그 일차의 동선이다 — 앵커가 담긴 일차를 키로 쓴다. 앵커를 다른 일차로 옮기면 다시 만든다
 		short day = (short)anchorStop.getDay().intValue();
-		int profileVersion = userTasteProfileRepository.findById(memberId)
-			.map(UserTasteProfile::getVersion)
-			.orElse(Recommendation.NO_PROFILE_VERSION);
+		UserTasteProfile profile = userTasteProfileRepository.findById(memberId).orElse(null);
+		int profileVersion = profile != null ? profile.getVersion() : Recommendation.NO_PROFILE_VERSION;
 
 		Set<Long> courseStoreIds = storeIdsOf(activeStores);
 		Recommendation recommendation = recommendationRepository
@@ -338,10 +372,13 @@ public class CourseRecommendationCommandService {
 			.orElse(null);
 		AnchorRecommendationResult result;
 		if (recommendation != null) {
-			// 순위를 만든 뒤 담긴 가게는 뺀다 — 순서는 서로 독립이라 목록에서 빼도 나머지는 그대로 유효하다
-			result = withoutCourseStores(read(recommendation, AnchorRecommendationResult.class), courseStoreIds);
+			// 순위를 만든 뒤 담긴 가게·그 사이 기록했거나 자격을 잃은 가게는 뺀다 — 순서는 서로 독립이라 목록에서 빼도 나머지는 그대로 유효하다
+			AnchorRecommendationResult stored = read(recommendation, AnchorRecommendationResult.class);
+			Set<Long> unavailable = candidateRepository.findUnavailableStoreIds(memberId,
+				stored.stores().stream().map(AnchorRecommendedStoreResponse::storeId).toList());
+			result = withoutStores(stored, courseStoreIds, unavailable);
 		} else {
-			result = rankNearAnchor(anchor, courseStoreIds);
+			result = rankNearAnchor(memberId, TasteQuery.of(profile), anchor, courseStoreIds);
 			if (!result.stores().isEmpty()) {
 				recommendation = recommendationRepository.save(Recommendation.forAnchor(memberId, courseId,
 					anchorStoreId, day, profileVersion, write(result)));
@@ -351,22 +388,24 @@ public class CourseRecommendationCommandService {
 			recommendationProperties.getAnchor().getPageSize());
 	}
 
-	private static AnchorRecommendationResult withoutCourseStores(AnchorRecommendationResult stored,
-			Set<Long> courseStoreIds) {
+	private static AnchorRecommendationResult withoutStores(AnchorRecommendationResult stored,
+			Set<Long> courseStoreIds, Set<Long> unavailable) {
 		return new AnchorRecommendationResult(stored.anchor(), stored.stores().stream()
-			.filter(store -> !courseStoreIds.contains(store.storeId()))
+			.filter(store -> !courseStoreIds.contains(store.storeId()) && !unavailable.contains(store.storeId()))
 			.toList());
 	}
 
-	private AnchorRecommendationResult rankNearAnchor(Store anchor, Set<Long> courseStoreIds) {
+	/** 앵커 순위: 링 순서 → 링 안에서 점수순(#661). 배지는 종류 겹침 > 태그 일치 > 축 극 라벨 > 시그니처. */
+	private AnchorRecommendationResult rankNearAnchor(Long memberId, TasteQuery taste, Store anchor,
+			Set<Long> courseStoreIds) {
 		RecommendationProperties.Anchor anchorRules = recommendationProperties.getAnchor();
-		List<CandidateStoreRow> candidates = candidateRepository.findAnchorCandidates(
+		RecommendationProperties.Score scoreRules = recommendationProperties.getScore();
+		List<CandidateStoreRow> candidates = candidateRepository.findAnchorCandidates(memberId, taste,
 			anchor.getLocation().getY(), anchor.getLocation().getX(), anchorRules.getRingM(),
-			anchorRules.getMaxRadiusM(),
-			courseStoreIds, anchorRules.getRankingSize());
+			anchorRules.getMaxRadiusM(), courseStoreIds, anchorRules.getRankingSize());
 		List<AnchorRecommendedStoreResponse> stores = candidates.stream()
 			.map(row -> new AnchorRecommendedStoreResponse(row.storeId(), row.name(), (int)Math.round(row.distanceM()),
-				AnchorReasonTag.SIGNATURE.label(), NO_TASTE_FIT, row.thumbnailKey()))
+				AnchorBadgeResolver.resolve(taste, row, scoreRules), tasteFitOf(row), row.thumbnailKey()))
 			.toList();
 		return new AnchorRecommendationResult(new AnchorStoreSummary(anchor.getId(), anchor.getName()), stores);
 	}

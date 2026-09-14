@@ -87,6 +87,15 @@ class RecommendationSchemaLabTest {
 			Long.class);
 	}
 
+	/** store_profile 이 적재된 랩(09-14)에서 왕복 테스트가 기존 행과 부딪히지 않게 — 프로필이 없는 ACTIVE 가게(11%)를 고른다. */
+	private Long activeStoreWithoutProfileId() {
+		return jdbcTemplate.queryForObject("""
+				SELECT s.id FROM store s WHERE s.status = 'ACTIVE'
+					AND NOT EXISTS (SELECT 1 FROM store_profile p WHERE p.store_id = s.id)
+				ORDER BY s.id LIMIT 1
+				""", Long.class);
+	}
+
 	private Long anyMemberId() {
 		return jdbcTemplate.queryForObject("SELECT id FROM member ORDER BY id LIMIT 1", Long.class);
 	}
@@ -110,7 +119,7 @@ class RecommendationSchemaLabTest {
 	@Test
 	@DisplayName("store_profile: 축 4컬럼 · jsonb 태그 · text[] 종류가 그대로 돌아온다")
 	void storeProfile_roundTrip() {
-		Long storeId = anyActiveStoreId();
+		Long storeId = activeStoreWithoutProfileId();
 		TasteAxis axis = TasteAxis.of(
 			new BigDecimal("0.810"), new BigDecimal("0.900"), new BigDecimal("0.900"), new BigDecimal("0.810"));
 		storeProfileRepository.save(StoreProfile.builder()
@@ -153,7 +162,7 @@ class RecommendationSchemaLabTest {
 	@Test
 	@DisplayName("store_profile: 축이 없는 가게는 임베디드가 null 로 돌아온다 — 근거 없음")
 	void storeProfile_withoutAxis_readsNullEmbedded() {
-		Long storeId = anyActiveStoreId();
+		Long storeId = activeStoreWithoutProfileId();
 		storeProfileRepository.save(StoreProfile.builder()
 			.storeId(storeId).bakeryScore(BigDecimal.ZERO).storeStatus("ACTIVE").batchVersion("v1")
 			.computedAt(COMPUTED_AT).build());

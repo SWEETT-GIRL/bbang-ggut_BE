@@ -1,0 +1,88 @@
+package sweetgirl.croissant.recommendation.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.List;
+import java.util.Map;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import sweetgirl.croissant.recommendation.config.RecommendationProperties;
+import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
+import sweetgirl.croissant.recommendation.repository.TasteQuery;
+
+class AnchorBadgeResolverTest {
+
+	/** 중심화를 끈 규칙 — 원값 곱으로 기여를 잰다. */
+	private static final RecommendationProperties.Score RAW = rules(false);
+
+	private static RecommendationProperties.Score rules(boolean centerAxes) {
+		RecommendationProperties.Score score = new RecommendationProperties().getScore();
+		score.setCenterAxes(centerAxes);
+		return score;
+	}
+
+	private static CandidateStoreRow row(double tasteFit, Double taste, Double texture, Double filling, Double vibe,
+			Map<String, Double> tags, List<String> kinds) {
+		return new CandidateStoreRow(1L, "가게", "성수동", 37.5, 127.0, null, 100, 0, 1.0, tasteFit, 5,
+			taste, texture, filling, vibe, tags, kinds);
+	}
+
+	@Test
+	@DisplayName("① 사용자 상위 종류가 가게 종류에 있으면 '{종류} 취향' — 태그·축보다 먼저")
+	void kindMatchFirst() {
+		TasteQuery taste = new TasteQuery(0.8, 0.8, 0.5, 0.5, Map.of("카페형", 1.0), List.of("소금빵", "스콘"));
+		CandidateStoreRow store = row(0.9, 0.9, 0.9, 0.5, 0.5, Map.of("카페형", 0.9), List.of("케이크", "스콘"));
+
+		assertThat(AnchorBadgeResolver.resolve(taste, store, RAW)).isEqualTo("스콘 취향");
+	}
+
+	@Test
+	@DisplayName("② 종류가 안 맞으면 둘 다 0.5 이상인 태그 중 곱이 가장 큰 태그 이름")
+	void tagMatchSecond() {
+		TasteQuery taste = new TasteQuery(0.8, 0.8, 0.5, 0.5, Map.of("카페형", 0.6, "혼빵", 0.9, "노포", 0.9),
+			List.of("소금빵"));
+		CandidateStoreRow store = row(0.9, 0.9, 0.9, 0.5, 0.5,
+			Map.of("카페형", 1.0, "혼빵", 0.8, "노포", 0.3), List.of("케이크"));
+
+		// 혼빵 0.9×0.8 = 0.72 > 카페형 0.6×1.0 = 0.6, 노포는 가게 쪽이 0.5 미만이라 빠진다
+		assertThat(AnchorBadgeResolver.resolve(taste, store, RAW)).isEqualTo("혼빵");
+	}
+
+	@Test
+	@DisplayName("③ 종류·태그가 없으면 코사인이 임계를 넘을 때 기여가 가장 큰 축의 사용자 극 라벨")
+	void axisPoleThird() {
+		TasteQuery salty = new TasteQuery(0.9, 0.2, 0.1, 0.1, Map.of(), List.of());
+		CandidateStoreRow store = row(0.8, 0.9, 0.9, 0.1, 0.1, Map.of(), List.of("케이크"));
+		assertThat(AnchorBadgeResolver.resolve(salty, store, RAW)).isEqualTo("담백");
+
+		TasteQuery sweetSoft = new TasteQuery(-0.3, -0.9, 0.0, 0.0, Map.of(), List.of());
+		CandidateStoreRow softStore = row(0.8, -0.3, -0.9, 0.0, 0.0, Map.of(), List.of());
+		assertThat(AnchorBadgeResolver.resolve(sweetSoft, softStore, RAW)).isEqualTo("폭신");
+	}
+
+	@Test
+	@DisplayName("④ 축이 없거나 코사인이 낮으면 '이 동네 시그니처'")
+	void signatureLast() {
+		TasteQuery taste = new TasteQuery(0.9, 0.2, 0.1, 0.1, Map.of(), List.of());
+		assertThat(AnchorBadgeResolver.resolve(taste, row(0.1, 0.9, 0.9, 0.1, 0.1, Map.of(), List.of()), RAW))
+			.isEqualTo("이 동네 시그니처");
+		assertThat(AnchorBadgeResolver.resolve(taste, row(0.9, null, null, null, null, Map.of(), List.of()), RAW))
+			.isEqualTo("이 동네 시그니처");
+		assertThat(AnchorBadgeResolver.resolve(TasteQuery.empty(), row(0.0, 0.9, 0.9, 0.1, 0.1, Map.of(), List.of()),
+			RAW)).isEqualTo("이 동네 시그니처");
+	}
+
+	@Test
+	@DisplayName("중심화가 켜져 있으면 기여도 (사용자−평균)·(가게−평균)으로 잰다 — 원값 곱이 전부 0 인 가게도 점수를 만든 축을 말한다")
+	void axisPole_usesCenteredContributionsWhenCenteringOn() {
+		// PR #739 리뷰 예: 사용자 (−0.7, −0.7, 0.7, 0.7), 가게 (0, 0, 0, 0), 기본 중심값 → 분위기 축 기여 +0.686 이 최대, 중심화 코사인 ≈ 0.53
+		TasteQuery taste = new TasteQuery(-0.7, -0.7, 0.7, 0.7, Map.of(), List.of());
+		CandidateStoreRow neutral = row(0.53, 0.0, 0.0, 0.0, 0.0, Map.of(), List.of());
+
+		assertThat(AnchorBadgeResolver.resolve(taste, neutral, rules(true))).isEqualTo("신상");
+		// 같은 값을 원값으로 재면 곱이 전부 0 이라 첫 축(달콤)이 나온다 — 중심화를 끈 규칙에서만 그렇다
+		assertThat(AnchorBadgeResolver.dominantPole(taste, neutral, RAW)).isEqualTo("달콤");
+	}
+}
