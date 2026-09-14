@@ -130,17 +130,20 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 		double savedLng = ((Number)saved.get("lng")).doubleValue();
 		// 시드된 도장 칸("서울", "성수동")과 (sido, name) 이 겹치지 않게 이름을 구분한다
 		CourseArea seongsu = courseAreaRepository.save(
-			CourseArea.create("서울", "성수동(반경)", null, SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, RADIUS_M, null, null, 1));
+			CourseArea.create("서울", "성수동(반경)", "성수동(반경)", null, SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, RADIUS_M, null,
+				null, 1));
 		// 반경 1m 인데 시군구·동이 맞아 들어오는 가게 — 칩 숫자가 후보 수와 같은 규칙로 센다
 		CourseArea byRegion = courseAreaRepository.save(
-			CourseArea.create("서울", "성수동(지역)", null, SEONGSU_LAT, SEONGSU_LNG, 1, RADIUS_M, "성동구", "성수동", 2));
+			CourseArea.create("서울", "성수동(지역)", "성수동(지역)", null, SEONGSU_LAT, SEONGSU_LNG, 1, RADIUS_M, "성동구", "성수동",
+				2));
 		CourseArea aroundSaved = courseAreaRepository.save(
-			CourseArea.create("서울", "저장 근처", null, savedLat, savedLng, 100, RADIUS_M, null, null, 3));
+			CourseArea.create("서울", "저장 근처", "저장 근처", null, savedLat, savedLng, 100, RADIUS_M, null, null, 3));
 		CourseArea antarctica = courseAreaRepository.save(
-			CourseArea.create("서울", "남극", null, -89.0, 0.0, 100, RADIUS_M, null, null, 4));
+			CourseArea.create("서울", "남극", "남극", null, -89.0, 0.0, 100, RADIUS_M, null, null, 4));
 		// 시군구 이름이 전국에서 겹치는 칸 — 시·도를 안 보면 대구·대전·인천·울산 중구까지 세어 1,500곳이 넘는다
 		CourseArea busanJunggu = courseAreaRepository.save(
-			CourseArea.create("부산", "중구(랩)", null, BUSAN_JUNGGU_LAT, BUSAN_JUNGGU_LNG, 1, RADIUS_M, "중구", null, 5));
+			CourseArea.create("부산", "중구(랩)", "중구(랩)", null, BUSAN_JUNGGU_LAT, BUSAN_JUNGGU_LNG, 1, RADIUS_M, "중구", null,
+				5));
 
 		Map<Long, AreaChipStats> stats = candidateRepository.findAreaChipStats(memberId,
 			List.of(seongsu, byRegion, aroundSaved, antarctica, busanJunggu));

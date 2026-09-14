@@ -85,9 +85,16 @@ class RecommendationContextQueryServiceTest {
 		CourseArea area = mock(CourseArea.class);
 		lenient().when(area.getId()).thenReturn(id);
 		lenient().when(area.getName()).thenReturn(name);
+		lenient().when(area.getPassportSpot()).thenReturn(name);
 		lenient().when(area.getCenterLat()).thenReturn(37.5);
 		lenient().when(area.getCenterLng()).thenReturn(127.0);
 		lenient().when(area.getRadiusM()).thenReturn(1200);
+		return area;
+	}
+
+	private static CourseArea neighborhood(Long id, String passportSpot, String name) {
+		CourseArea area = area(id, name);
+		lenient().when(area.getPassportSpot()).thenReturn(passportSpot);
 		return area;
 	}
 
@@ -97,6 +104,32 @@ class RecommendationContextQueryServiceTest {
 		profile.applyQuiz(List.of(Map.of("axis", "taste", "choice", "B")), TasteAxis.of(one, one, one, one), "PCLN",
 			LocalDateTime.of(2026, 9, 13, 10, 0));
 		return profile;
+	}
+
+	@Test
+	@DisplayName("같은 도장 칸의 동네 행들은 칩 하나로 묶인다 — id 는 대표 행, 이름은 도장 칸, 가게 수는 합, 저장 가게는 하나라도 SAVED")
+	void getContext_groupsNeighborhoodsIntoOnePassportChip() {
+		courseInSeoul();
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.of(typedProfile()));
+		CourseArea downtown = neighborhood(9L, "서귀포시", "서귀포 시내");
+		CourseArea jungmun = neighborhood(10L, "서귀포시", "중문");
+		CourseArea seongsu = neighborhood(11L, "성수동", "성수동");
+		given(courseAreaRepository.findAllBySidoAndIsActiveTrueOrderByDisplayOrderAscNameAsc("서울"))
+			.willReturn(List.of(downtown, jungmun, seongsu));
+		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), anyList())).willReturn(Map.of(
+			9L, new AreaChipStats(9L, 75, false),
+			10L, new AreaChipStats(10L, 22, true),
+			11L, new AreaChipStats(11L, 260, false)));
+
+		RecommendationContextResponse context = recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID);
+
+		assertThat(context.areas()).hasSize(2);
+		assertThat(context.areas().get(0).areaId()).isEqualTo(9L);
+		assertThat(context.areas().get(0).name()).isEqualTo("서귀포시");
+		assertThat(context.areas().get(0).reason()).isEqualTo(RecommendationAreaReason.SAVED);
+		assertThat(context.areas().get(0).storeCount()).isEqualTo(97);
+		assertThat(context.areas().get(1).name()).isEqualTo("성수동");
+		assertThat(context.areas().get(1).storeCount()).isEqualTo(260);
 	}
 
 	@Test

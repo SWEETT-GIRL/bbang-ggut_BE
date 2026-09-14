@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.locationtech.jts.geom.Point;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +44,7 @@ import sweetgirl.croissant.recommendation.entity.CourseArea;
 import sweetgirl.croissant.recommendation.entity.Recommendation;
 import sweetgirl.croissant.recommendation.enums.AnchorReasonTag;
 import sweetgirl.croissant.recommendation.exception.RecommendationException;
+import sweetgirl.croissant.recommendation.repository.AreaChipStats;
 import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
 import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationCandidateJdbcRepository;
@@ -87,13 +89,14 @@ public class CourseRecommendationCommandService {
 		}
 		Course course = findCourse(courseId);
 		courseAccessPolicy.requireEditable(course, memberId);
-		CourseArea area = courseAreaRepository.findByIdAndIsActiveTrue(request.areaId())
+		CourseArea requested = courseAreaRepository.findByIdAndIsActiveTrue(request.areaId())
 			.filter(found -> found.getSido().equals(course.getRegion()))
 			.orElseThrow(() -> new RecommendationException(RecommendationErrorCode.COURSE_AREA_NOT_FOUND));
 
 		List<CourseStore> activeStores = courseStoreRepository
 			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId);
 		short day = resolveDay(request.day(), course, activeStores);
+		CourseArea area = resolveNeighborhood(memberId, requested, activeStores, day);
 		UserTasteProfile profile = userTasteProfileRepository.findById(memberId).orElse(null);
 		int profileVersion = profile != null ? profile.getVersion() : Recommendation.NO_PROFILE_VERSION;
 
@@ -108,6 +111,61 @@ public class CourseRecommendationCommandService {
 		}
 		return buildAreaRecommendation(memberId, course, area, day, profile, profileVersion, courseStoreIds,
 			storeCount);
+	}
+
+	/**
+	 * 도장 칸 아래 동네가 여럿이면 서버가 고른다(#736) — 칩은 도장 칸 하나라 사용자가 동네를 고르지 않는다.
+	 * ① 추천받는 일차에 담긴 가게가 반경 안인 동네 ② 그 일차가 비어 있으면 코스 전체에서 담긴 가게가 많은 동네
+	 * ③ 내 저장 가게가 있는 동네 ④ 대표 행(display_order 첫 행). ①②는 같으면 대표 행 순.
+	 * 일차를 먼저 보는 이유: 1일차 중문·2일차 성산인 코스에서 2일차를 짜는 사람에겐 성산이 맞다 — 코스 전체로 세면 중문이 된다.
+	 * 코스 전체로 넘어가는 건 그 일차가 정말 빈 경우뿐이다 — 일차에 가게는 있는데 어느 동네 반경에도 안 들어가면(남원읍 가게)
+	 * 다른 날의 동선이 오늘을 덮지 않게 ③으로 간다(PR #737 리뷰).
+	 * 요청이 대표 행이 아닌 동네 행이면(다음 칸 제안 등으로 동네를 집어 온 것) 그대로 쓴다. 동네가 하나뿐인 칸은 조회 한 번으로 끝난다.
+	 */
+	private CourseArea resolveNeighborhood(Long memberId, CourseArea requested, List<CourseStore> activeStores,
+			short day) {
+		List<CourseArea> neighborhoods = courseAreaRepository
+			.findAllBySidoAndPassportSpotAndIsActiveTrueOrderByDisplayOrderAscNameAsc(requested.getSido(),
+				requested.getPassportSpot());
+		if (neighborhoods.size() <= 1 || !neighborhoods.get(0).getId().equals(requested.getId())) {
+			return requested;
+		}
+		List<CourseStore> sameDayStores = activeStores.stream()
+			.filter(courseStore -> courseStore.getDay() != null && courseStore.getDay() == day)
+			.toList();
+		Optional<CourseArea> byStores = sameDayStores.isEmpty()
+			? neighborhoodWithMostStores(neighborhoods, activeStores)
+			: neighborhoodWithMostStores(neighborhoods, sameDayStores);
+		if (byStores.isPresent()) {
+			return byStores.get();
+		}
+		Map<Long, AreaChipStats> stats = candidateRepository.findAreaChipStats(memberId, neighborhoods);
+		return neighborhoods.stream()
+			.filter(neighborhood -> stats.containsKey(neighborhood.getId())
+				&& stats.get(neighborhood.getId()).hasSavedStore())
+			.findFirst()
+			.orElse(neighborhoods.get(0));
+	}
+
+	/** 반경 안에 담긴 가게가 가장 많은 동네. 한 곳도 없으면 비어 있다. 같으면 앞(대표 행) 순. */
+	private static Optional<CourseArea> neighborhoodWithMostStores(List<CourseArea> neighborhoods,
+			List<CourseStore> courseStores) {
+		CourseArea best = null;
+		int bestCount = 0;
+		for (CourseArea neighborhood : neighborhoods) {
+			int count = 0;
+			for (CourseStore courseStore : courseStores) {
+				Point location = courseStore.getStore().getLocation();
+				if (location != null && neighborhood.covers(location.getY(), location.getX())) {
+					count++;
+				}
+			}
+			if (count > bestCount) {
+				best = neighborhood;
+				bestCount = count;
+			}
+		}
+		return Optional.ofNullable(best);
 	}
 
 	/**

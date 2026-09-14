@@ -11,6 +11,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
+import sweetgirl.croissant.common.util.GeoDistance;
 import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
 import sweetgirl.croissant.recommendation.exception.RecommendationException;
 
@@ -39,7 +40,14 @@ public class CourseArea extends BaseTimeEntity {
 	@Column(nullable = false, length = 20)
 	private String sido;
 
-	/** 도장 칸 라벨과 같은 표기 (예: 성수동). FE 가 칩과 도장을 같은 문자열로 맞춘다. */
+	/**
+	 * 빵여권 도장 칸 라벨 (예: 서귀포시). 칩은 같은 (sido, passportSpot) 행들의 묶음이고 칩 이름이 이 값이다 — 관광지 도장 칸
+	 * 아래 동네가 여럿이어도 칩은 하나다(#736). display_order 가 가장 작은 행이 대표(칩 id)다.
+	 */
+	@Column(name = "passport_spot", nullable = false, length = 50)
+	private String passportSpot;
+
+	/** 동네 이름 (예: 성수동 · 중문). 결과 제목에 보인다. 동네가 하나뿐인 칸은 도장 칸 라벨과 같다. */
 	@Column(nullable = false, length = 50)
 	private String name;
 
@@ -76,6 +84,7 @@ public class CourseArea extends BaseTimeEntity {
 	@Builder(access = AccessLevel.PRIVATE)
 	private CourseArea(
 			String sido,
+			String passportSpot,
 			String name,
 			Long searchRegionId,
 			double centerLat,
@@ -86,6 +95,7 @@ public class CourseArea extends BaseTimeEntity {
 			String region3rd,
 			int displayOrder) {
 		this.sido = sido;
+		this.passportSpot = passportSpot;
 		this.name = name;
 		this.searchRegionId = searchRegionId;
 		this.centerLat = centerLat;
@@ -100,6 +110,7 @@ public class CourseArea extends BaseTimeEntity {
 
 	public static CourseArea create(
 			String sido,
+			String passportSpot,
 			String name,
 			Long searchRegionId,
 			double centerLat,
@@ -117,6 +128,7 @@ public class CourseArea extends BaseTimeEntity {
 		}
 		return CourseArea.builder()
 			.sido(sido)
+			.passportSpot(passportSpot)
 			.name(name)
 			.searchRegionId(searchRegionId)
 			.centerLat(centerLat)
@@ -127,6 +139,11 @@ public class CourseArea extends BaseTimeEntity {
 			.region3rd(region3rd)
 			.displayOrder(displayOrder)
 			.build();
+	}
+
+	/** 좌표가 이 동네의 반경 안인가 — 코스에 담긴 가게로 동네를 고를 때 쓴다(#736). */
+	public boolean covers(double latitude, double longitude) {
+		return GeoDistance.metersBetween(centerLat, centerLng, latitude, longitude) <= radiusM;
 	}
 
 	public void activate() {
