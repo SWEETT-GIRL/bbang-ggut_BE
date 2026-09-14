@@ -14,7 +14,8 @@ public enum FeedbackAction {
 	SAVE("담았다", false),
 	DISMISS("담지 않고 닫았다", false),
 	LIKE("결과 시트의 👍 — 추천이 마음에 든다", false),
-	DISLIKE("결과 시트의 👎 — 이유 칩(FeedbackReason)을 붙일 수 있다", false);
+	DISLIKE("결과 시트의 👎 — 이유 칩(FeedbackReason)을 붙일 수 있다", false),
+	RETRY("다른 가게로 다시 받았다 — 서버가 다시 추천을 처리하며 이전 추천에 남긴다(#661)", false);
 
 	private final String description;
 
@@ -24,5 +25,10 @@ public enum FeedbackAction {
 	/** 이유 칩은 👎 에만 붙는다. */
 	public boolean acceptsReason() {
 		return this == DISLIKE;
+	}
+
+	/** 서버가 기록하는 값 — 피드백 API 로 오면 거부한다. DISMISS 와 섞이면 지표가 흐려진다. */
+	public boolean isServerOnly() {
+		return this == RETRY;
 	}
 }

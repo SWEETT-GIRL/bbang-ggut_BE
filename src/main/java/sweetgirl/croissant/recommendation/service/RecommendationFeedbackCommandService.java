@@ -23,6 +23,9 @@ public class RecommendationFeedbackCommandService {
 
 	/** 남의 추천은 없는 것으로 본다 — 존재를 알리지 않는다. */
 	public void record(Long memberId, Long recommendationId, RecommendationFeedbackRequest request) {
+		if (request.action().isServerOnly()) {
+			throw new RecommendationException(RecommendationErrorCode.FEEDBACK_ACTION_SERVER_ONLY);
+		}
 		Recommendation recommendation = recommendationRepository.findByIdAndMemberId(recommendationId, memberId)
 			.orElseThrow(() -> new RecommendationException(RecommendationErrorCode.RECOMMENDATION_NOT_FOUND));
 		// 결과에 없던 가게의 반응은 받지 않는다 — #663 이 이 행을 "보고 반응한 가게"로 믿는다
