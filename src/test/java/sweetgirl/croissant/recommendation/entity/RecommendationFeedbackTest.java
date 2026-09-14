@@ -24,17 +24,19 @@ class RecommendationFeedbackTest {
 	}
 
 	@Test
-	@DisplayName("추천 전체에 대한 반응은 가게 ID 를 버린다")
-	void of_recommendationScopedDropsStoreId() {
-		RecommendationFeedback dismiss = RecommendationFeedback.of(99L, 1042L, FeedbackAction.DISMISS);
+	@DisplayName("가게 단위가 아닌 반응도 가게 ID 가 오면 남긴다 — 앵커 카드의 X 는 어느 카드였는지가 신호다")
+	void of_recommendationScopedKeepsStoreIdWhenGiven() {
+		RecommendationFeedback cardDismiss = RecommendationFeedback.of(99L, 1042L, FeedbackAction.DISMISS);
+		RecommendationFeedback rowDismiss = RecommendationFeedback.of(99L, null, FeedbackAction.DISMISS);
 
-		assertThat(dismiss.getStoreId()).isNull();
+		assertThat(cardDismiss.getStoreId()).isEqualTo(1042L);
+		assertThat(rowDismiss.getStoreId()).isNull();
 	}
 
 	@Test
-	@DisplayName("👎 에는 이유 칩을 붙일 수 있고, 코스 단위라 가게 ID 는 버린다")
+	@DisplayName("👎 에는 이유 칩을 붙일 수 있다. 결과 시트는 코스 단위라 가게 ID 없이 온다")
 	void of_dislikeKeepsReason() {
-		RecommendationFeedback dislike = RecommendationFeedback.of(99L, 1042L, FeedbackAction.DISLIKE,
+		RecommendationFeedback dislike = RecommendationFeedback.of(99L, null, FeedbackAction.DISLIKE,
 			FeedbackReason.TOO_FAR);
 
 		assertThat(dislike.getReason()).isEqualTo(FeedbackReason.TOO_FAR);
