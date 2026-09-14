@@ -118,6 +118,8 @@ public class CourseRecommendationCommandService {
 	 * ① 추천받는 일차에 담긴 가게가 반경 안인 동네 ② 그 일차가 비어 있으면 코스 전체에서 담긴 가게가 많은 동네
 	 * ③ 내 저장 가게가 있는 동네 ④ 대표 행(display_order 첫 행). ①②는 같으면 대표 행 순.
 	 * 일차를 먼저 보는 이유: 1일차 중문·2일차 성산인 코스에서 2일차를 짜는 사람에겐 성산이 맞다 — 코스 전체로 세면 중문이 된다.
+	 * 코스 전체로 넘어가는 건 그 일차가 정말 빈 경우뿐이다 — 일차에 가게는 있는데 어느 동네 반경에도 안 들어가면(남원읍 가게)
+	 * 다른 날의 동선이 오늘을 덮지 않게 ③으로 간다(PR #737 리뷰).
 	 * 요청이 대표 행이 아닌 동네 행이면(다음 칸 제안 등으로 동네를 집어 온 것) 그대로 쓴다. 동네가 하나뿐인 칸은 조회 한 번으로 끝난다.
 	 */
 	private CourseArea resolveNeighborhood(Long memberId, CourseArea requested, List<CourseStore> activeStores,
@@ -131,8 +133,9 @@ public class CourseRecommendationCommandService {
 		List<CourseStore> sameDayStores = activeStores.stream()
 			.filter(courseStore -> courseStore.getDay() != null && courseStore.getDay() == day)
 			.toList();
-		Optional<CourseArea> byStores = neighborhoodWithMostStores(neighborhoods, sameDayStores)
-			.or(() -> neighborhoodWithMostStores(neighborhoods, activeStores));
+		Optional<CourseArea> byStores = sameDayStores.isEmpty()
+			? neighborhoodWithMostStores(neighborhoods, activeStores)
+			: neighborhoodWithMostStores(neighborhoods, sameDayStores);
 		if (byStores.isPresent()) {
 			return byStores.get();
 		}

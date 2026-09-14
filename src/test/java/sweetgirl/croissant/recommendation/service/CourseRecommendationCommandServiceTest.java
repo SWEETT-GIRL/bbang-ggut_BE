@@ -356,6 +356,31 @@ class CourseRecommendationCommandServiceTest {
 	}
 
 	@Test
+	@DisplayName("일차에 가게는 있는데 어느 동네 반경에도 안 들어가면 다른 일차로 넘어가지 않고 저장 가게 규칙으로 간다")
+	void recommend_dayWithUnmatchedStores_doesNotFallBackToOtherDays() {
+		course(2);
+		CourseArea primary = seongsu("서울");
+		CourseArea west = westNeighborhood(31L, "성수 서쪽");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(primary));
+		CourseStore day1Downtown = courseStoreOf(store(500L, CENTER_LAT, CENTER_LNG), 1);
+		// 2일차 가게는 두 동네 어디에서도 17km 밖 — 신호가 아니다
+		CourseStore day2FarAway = courseStoreOf(store(503L, CENTER_LAT, CENTER_LNG + 0.2), 2);
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of(day1Downtown, day2FarAway));
+		neighborhoodsOfSeongsu(primary, west);
+		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, 31L, (short)2, 0))
+			.willReturn(Optional.empty());
+		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), anyList()))
+			.willReturn(Map.of(31L, new AreaChipStats(31L, 22, true)));
+
+		RecommendationResponse secondDay = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(null, 2));
+
+		// 1일차 시내 가게로 폴백하면 5(시내)가 되지만, 저장 가게가 있는 서쪽이어야 한다
+		assertThat(secondDay.area().areaId()).isEqualTo(31L);
+	}
+
+	@Test
 	@DisplayName("동네 선택 ②: 담긴 가게가 없으면 내 저장 가게가 있는 동네, ③: 그것도 없으면 대표 행")
 	void recommend_neighborhoodBySavedStoreThenPrimary() {
 		course(1);
