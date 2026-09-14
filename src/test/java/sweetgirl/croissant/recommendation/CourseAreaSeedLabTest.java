@@ -14,11 +14,14 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
 import sweetgirl.croissant.common.util.GeoDistance;
+import sweetgirl.croissant.config.JacksonConfig;
 import sweetgirl.croissant.config.persistence.JpaConfig;
+import sweetgirl.croissant.recommendation.config.RecommendationProperties;
 import sweetgirl.croissant.recommendation.entity.CourseArea;
 import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
 import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationCandidateJdbcRepository;
+import sweetgirl.croissant.recommendation.repository.TasteQuery;
 import sweetgirl.croissant.recommendation.service.CourseRecommendationCommandService;
 
 /**
@@ -29,7 +32,8 @@ import sweetgirl.croissant.recommendation.service.CourseRecommendationCommandSer
 @Tag("lab")
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({JpaConfig.class, RecommendationCandidateJdbcRepository.class})
+@Import({JpaConfig.class, JacksonConfig.class, RecommendationProperties.class,
+	RecommendationCandidateJdbcRepository.class})
 @TestPropertySource(properties = {
 	"spring.datasource.url=${lab.db.url:jdbc:postgresql://localhost:5432/soboro}",
 	"spring.datasource.username=${lab.db.user:sweetgirl}",
@@ -65,7 +69,8 @@ class CourseAreaSeedLabTest {
 
 		for (CourseArea area : areas) {
 			List<CandidateStoreRow> candidates = candidateRepository.findAreaCandidates(
-				area.getCenterLat(), area.getCenterLng(), area.getRadiusM(), area.getSido(), area.getRegion2nd(),
+				-1L, TasteQuery.empty(), area.getCenterLat(), area.getCenterLng(), area.getRadiusM(), area.getSido(),
+				area.getRegion2nd(),
 				area.getRegion3rd(), List.of(), CANDIDATE_LIMIT);
 			List<CandidateStoreRow> course = CourseRecommendationCommandService.chainWithinHop(candidates,
 				area.getMaxHopM(), DEFAULT_STORE_COUNT);
