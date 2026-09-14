@@ -121,8 +121,8 @@ public class CourseRecommendationCommandService {
 	private RecommendationResponse buildAreaRecommendation(Long memberId, Course course, CourseArea area, short day,
 			UserTasteProfile profile, int profileVersion, Set<Long> courseStoreIds, int storeCount) {
 		List<CandidateStoreRow> candidates = candidateRepository.findAreaCandidates(
-			area.getCenterLat(), area.getCenterLng(), area.getRadiusM(), area.getRegion2nd(), area.getRegion3rd(),
-			courseStoreIds, recommendationProperties.getArea().getCandidateLimit());
+			area.getCenterLat(), area.getCenterLng(), area.getRadiusM(), area.getSido(), area.getRegion2nd(),
+			area.getRegion3rd(), courseStoreIds, recommendationProperties.getArea().getCandidateLimit());
 		RecommendationAreaSummary areaSummary = new RecommendationAreaSummary(area.getId(), area.getName());
 		if (candidates.isEmpty()) {
 			// 저장할 게 없다 — 재사용될 결과도 없고 반응을 받을 것도 없다

@@ -161,7 +161,7 @@ class CourseRecommendationCommandServiceTest {
 		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
 		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)1, 0))
 			.willReturn(Optional.empty());
-		given(candidateRepository.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(),
+		given(candidateRepository.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(), any(),
 			anyCollection(), anyInt()))
 			.willReturn(List.of(candidate(3), candidate(1), candidate(4), candidate(2), candidate(5)));
 		savedWithId(77L);
@@ -220,7 +220,7 @@ class CourseRecommendationCommandServiceTest {
 		assertThat(response.totalDistanceM()).isEqualTo(900);
 		assertThat(response.stores()).extracting(RecommendedStoreResponse::storeId).containsExactly(101L);
 		then(candidateRepository).should(never())
-			.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(), anyCollection(), anyInt());
+			.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(), any(), anyCollection(), anyInt());
 		then(recommendationRepository).should(never()).save(any());
 	}
 
@@ -237,7 +237,7 @@ class CourseRecommendationCommandServiceTest {
 		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
 		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)2, 0))
 			.willReturn(Optional.empty());
-		given(candidateRepository.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(),
+		given(candidateRepository.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(), any(),
 			anyCollection(), anyInt())).willReturn(List.of(candidate(1)));
 		savedWithId(78L);
 
@@ -281,7 +281,7 @@ class CourseRecommendationCommandServiceTest {
 		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
 		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)1, 0))
 			.willReturn(Optional.empty());
-		given(candidateRepository.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(),
+		given(candidateRepository.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(), any(),
 			anyCollection(), anyInt())).willReturn(List.of());
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
@@ -418,7 +418,7 @@ class CourseRecommendationCommandServiceTest {
 		// 1일차가 찼으니 첫 빈 일차는 마지막 일차 1 그대로
 		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)1, 0))
 			.willReturn(Optional.of(stale));
-		given(candidateRepository.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(),
+		given(candidateRepository.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(), any(),
 			anyCollection(), anyInt())).willReturn(List.of(candidate(2), candidate(3), candidate(4), candidate(5)));
 		savedWithId(79L);
 
@@ -442,7 +442,7 @@ class CourseRecommendationCommandServiceTest {
 		Recommendation fourStores = storedRecommendation(55L, storedAreaResult(4));
 		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)1, 0))
 			.willReturn(Optional.of(fourStores));
-		given(candidateRepository.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(),
+		given(candidateRepository.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(), any(),
 			anyCollection(), anyInt())).willReturn(List.of(candidate(1), candidate(2)));
 		savedWithId(80L);
 
@@ -505,7 +505,7 @@ class CourseRecommendationCommandServiceTest {
 		assertThat(response.recommendationId()).isEqualTo(55L);
 		assertThat(response.stores()).hasSize(2);
 		then(candidateRepository).should(never())
-			.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(), anyCollection(), anyInt());
+			.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(), any(), anyCollection(), anyInt());
 		then(recommendationRepository).should(never()).save(any());
 	}
 
@@ -540,7 +540,7 @@ class CourseRecommendationCommandServiceTest {
 		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
 		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)2, 0))
 			.willReturn(Optional.empty());
-		given(candidateRepository.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(),
+		given(candidateRepository.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(), any(),
 			anyCollection(), anyInt())).willReturn(List.of(candidate(1)));
 		savedWithId(81L);
 
