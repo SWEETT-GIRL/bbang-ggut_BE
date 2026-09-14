@@ -95,7 +95,7 @@ class RecommendationControllerTest {
 
 		mockMvc.perform(post("/courses/10/recommendations").contentType(MediaType.APPLICATION_JSON)
 			.content("{\"areaId\": 31, \"entryScreen\": \"course_empty\", \"sessionEvents\": [],"
-				+ " \"previousRecommendationId\": 77}"))
+				+ " \"previousRecommendationId\": 77, \"exactArea\": true}"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.recommendationId").value(org.hamcrest.Matchers.nullValue()))
 			.andExpect(jsonPath("$.data.stores").isEmpty())
@@ -108,6 +108,7 @@ class RecommendationControllerTest {
 		then(courseRecommendationCommandService).should().recommend(eq(null), eq(10L), request.capture());
 		assertThat(request.getValue().previousRecommendationId()).isEqualTo(77L);
 		assertThat(request.getValue().areaId()).isEqualTo(31L);
+		assertThat(request.getValue().isExactArea()).isTrue();
 	}
 
 	@Test

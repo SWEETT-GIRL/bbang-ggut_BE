@@ -107,7 +107,11 @@ public class CourseRecommendationCommandService {
 		List<CourseStore> activeStores = courseStoreRepository
 			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId);
 		short day = resolveDay(request.day(), course, activeStores);
-		CourseArea area = resolveNeighborhood(memberId, requested, activeStores, day);
+		// 다음 동네 제안(nextArea)에서 온 요청은 그 행을 그대로 쓴다 — 대표 행 id 는 칩 id 와 같아서, 표시가 없으면 칩으로 읽혀
+		// 동네를 다시 고르고 신호가 그대로라 제안한 동네로 못 간다(PR #738 리뷰)
+		CourseArea area = request.isExactArea()
+			? requested
+			: resolveNeighborhood(memberId, requested, activeStores, day);
 		UserTasteProfile profile = userTasteProfileRepository.findById(memberId).orElse(null);
 		int profileVersion = profile != null ? profile.getVersion() : Recommendation.NO_PROFILE_VERSION;
 
@@ -227,8 +231,6 @@ public class CourseRecommendationCommandService {
 			area.getCenterLat(), area.getCenterLng(), area.getRadiusM(), area.getSido(), area.getRegion2nd(),
 			area.getRegion3rd(), excludeStoreIds, recommendationProperties.getArea().getCandidateLimit());
 		RecommendationAreaSummary areaSummary = new RecommendationAreaSummary(area.getId(), area.getName());
-		// 뽑은 후보가 요청 수 이하면 이 묶음이 마지막이다 — 다시 받아도 더 없다. 상한(15)까지 찼으면 더 있을 수 있다.
-		boolean lastBatch = candidates.size() <= storeCount;
 		if (candidates.isEmpty()) {
 			// 저장할 게 없다 — 재사용될 결과도 없고 반응을 받을 것도 없다. 대신 다음 동네와 앵커로 넘길 가게를 알려 준다(#661)
 			RecommendationResult empty = new RecommendationResult(titleOf(area, profile), areaSummary, 0, false,
@@ -237,6 +239,10 @@ public class CourseRecommendationCommandService {
 				anchorStoreIdOf(activeStores, day));
 		}
 		List<CandidateStoreRow> ordered = chainWithinHop(candidates, area.getMaxHopM(), storeCount);
+		// 마지막 묶음 = 뽑은 후보를 이번에 다 썼고 조회 상한(15)에도 안 닿았다. 구간 상한 때문에 못 이은 후보가 남았으면 다음
+		// 다시 받기에서 코스가 될 수 있으니 마지막이 아니다(PR #738 리뷰 — 랩 59칸 중 7칸이 조기 종료됐다).
+		boolean lastBatch = candidates.size() < recommendationProperties.getArea().getCandidateLimit()
+			&& ordered.size() == candidates.size();
 		List<RecommendedStoreResponse> stores = new ArrayList<>();
 		int totalDistanceM = 0;
 		for (int i = 0; i < ordered.size(); i++) {
@@ -261,7 +267,8 @@ public class CourseRecommendationCommandService {
 
 	/**
 	 * 후보가 바닥났을 때의 다음 동네(#661): 같은 도장 칸의 다른 동네 먼저(대표 순, 이 코스에서 아직 추천 안 받은 행), 그다음
-	 * 같은 시·도의 다음 도장 칸 — 그 칸에서 동네 선택까지 한 구체 행이라 areaId 로 그대로 요청해도 제안과 결과가 어긋나지 않는다.
+	 * 같은 시·도의 다음 도장 칸 — 그 칸에서 동네 선택까지 한 구체 행. FE 는 이 areaId 를 exactArea = true 로 요청해야 한다 —
+	 * 대표 행(시내)이 제안됐을 때 칩 요청으로 읽히면 동네를 다시 골라 되돌아간다.
 	 */
 	private NextAreaResponse nextAreaOf(Long memberId, Course course, CourseArea exhausted, short day,
 			List<CourseStore> activeStores) {

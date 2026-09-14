@@ -559,6 +559,80 @@ class CourseRecommendationCommandServiceTest {
 	}
 
 	@Test
+	@DisplayName("lastBatch: 구간 상한 때문에 못 이은 후보가 남았으면 마지막이 아니다 — 다음 다시 받기에서 코스가 된다")
+	void recommend_lastBatchFalse_whenHopCapLeavesCandidates() {
+		course(1);
+		CourseArea seoulArea = seongsu("서울");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(seoulArea));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of());
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)1, 0))
+			.willReturn(Optional.empty());
+		// 중심 양쪽 약 880m 에 후보 2곳 — 서로 1.76km 라 상한 1.5km 안에서 이을 수 없다
+		CandidateStoreRow east = new CandidateStoreRow(201L, "동쪽", "성수동", CENTER_LAT, CENTER_LNG + 0.00995, null,
+			880d, 9d);
+		CandidateStoreRow westStore = new CandidateStoreRow(202L, "서쪽", "성수동", CENTER_LAT, CENTER_LNG - 0.00995,
+			null, 880d, 8d);
+		given(candidateRepository.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(), any(),
+			anyCollection(), anyInt())).willReturn(List.of(east, westStore));
+		savedWithId(80L);
+
+		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(4, null));
+
+		assertThat(response.stores()).extracting(RecommendedStoreResponse::storeId).containsExactly(201L);
+		assertThat(response.lastBatch()).isFalse();
+	}
+
+	@Test
+	@DisplayName("lastBatch: 후보를 이번에 다 썼고 조회 상한에 안 닿았으면 마지막이다")
+	void recommend_lastBatchTrue_whenAllCandidatesUsed() {
+		course(1);
+		CourseArea seoulArea = seongsu("서울");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(seoulArea));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of());
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)1, 0))
+			.willReturn(Optional.empty());
+		given(candidateRepository.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(), any(),
+			anyCollection(), anyInt())).willReturn(List.of(candidate(1), candidate(2)));
+		savedWithId(81L);
+
+		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(4, null));
+
+		assertThat(response.stores()).hasSize(2);
+		assertThat(response.lastBatch()).isTrue();
+	}
+
+	@Test
+	@DisplayName("exactArea: nextArea 에서 온 대표 행 요청은 동네를 다시 고르지 않는다 — 신호가 서쪽을 가리켜도 시내로 간다")
+	void recommend_exactArea_skipsNeighborhoodResolution() {
+		course(1);
+		CourseArea primary = seongsu("서울");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(primary));
+		Store inWest = store(500L, CENTER_LAT, CENTER_LNG + 0.05);
+		CourseStore stopInWest = courseStoreOf(inWest, 1);
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of(stopInWest));
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)1, 0))
+			.willReturn(Optional.empty());
+		given(candidateRepository.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(), any(),
+			anyCollection(), anyInt())).willReturn(List.of(candidate(1), candidate(2)));
+		savedWithId(82L);
+
+		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			new RecommendationRequest(AREA_ID, null, 1, "course_empty", List.of(), null, true));
+
+		assertThat(response.area().areaId()).isEqualTo(AREA_ID); // 담긴 가게가 서쪽에 있어도 시내
+		then(courseAreaRepository).should(never())
+			.findAllBySidoAndPassportSpotAndIsActiveTrueOrderByDisplayOrderAscNameAsc(any(), any());
+	}
+
+	@Test
 	@DisplayName("동네 선택 ②: 담긴 가게가 없으면 내 저장 가게가 있는 동네, ③: 그것도 없으면 대표 행")
 	void recommend_neighborhoodBySavedStoreThenPrimary() {
 		course(1);
