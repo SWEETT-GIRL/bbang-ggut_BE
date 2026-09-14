@@ -128,8 +128,9 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 		Long memberId = ((Number)saved.get("member_id")).longValue();
 		double savedLat = ((Number)saved.get("lat")).doubleValue();
 		double savedLng = ((Number)saved.get("lng")).doubleValue();
+		// 시드된 도장 칸("서울", "성수동")과 (sido, name) 이 겹치지 않게 이름을 구분한다
 		CourseArea seongsu = courseAreaRepository.save(
-			CourseArea.create("서울", "성수동", null, SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, RADIUS_M, null, null, 1));
+			CourseArea.create("서울", "성수동(반경)", null, SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, RADIUS_M, null, null, 1));
 		// 반경 1m 인데 시군구·동이 맞아 들어오는 가게 — 칩 숫자가 후보 수와 같은 규칙로 센다
 		CourseArea byRegion = courseAreaRepository.save(
 			CourseArea.create("서울", "성수동(지역)", null, SEONGSU_LAT, SEONGSU_LNG, 1, RADIUS_M, "성동구", "성수동", 2));
