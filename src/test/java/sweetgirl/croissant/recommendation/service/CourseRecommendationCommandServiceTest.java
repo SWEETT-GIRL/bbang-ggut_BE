@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -945,6 +946,63 @@ class CourseRecommendationCommandServiceTest {
 		lenient().when(stored.getId()).thenReturn(id);
 		lenient().when(stored.getResult()).thenReturn(resultMap);
 		return stored;
+	}
+
+	@Test
+	@DisplayName("저장된 결과의 가게를 그 사이 기록했거나 자격을 잃었으면(프로필·빵집다움) 재사용하지 않고 다시 만든다")
+	void recommend_reuse_rejectedWhenStoredStoreNowUnavailable() {
+		course(1);
+		CourseArea seoulArea = seongsu("서울");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(seoulArea));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of());
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+		Recommendation stale = storedRecommendation(55L, storedAreaResult(4));
+		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)1, 0))
+			.willReturn(Optional.of(stale));
+		given(candidateRepository.findUnavailableStoreIds(eq(MEMBER_ID), anyCollection())).willReturn(Set.of(103L));
+		given(candidateRepository.findAreaCandidates(any(), any(), anyDouble(), anyDouble(), anyInt(), any(), any(),
+			any(), anyCollection(), anyInt()))
+			.willReturn(List.of(candidate(5), candidate(6), candidate(7), candidate(8)));
+		savedWithId(83L);
+
+		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(null, null));
+
+		assertThat(response.recommendationId()).isEqualTo(83L);
+		assertThat(response.stores()).extracting(RecommendedStoreResponse::storeId).doesNotContain(103L);
+		then(candidateRepository).should().findUnavailableStoreIds(eq(MEMBER_ID),
+			argThat(ids -> ids.containsAll(List.of(101L, 102L, 103L, 104L))));
+	}
+
+	@Test
+	@DisplayName("앵커 재사용: 그 사이 기록했거나 자격을 잃은 가게는 저장된 순위에서 뺀다 — 순서는 독립이라 나머지는 그대로")
+	void anchor_reuse_dropsUnavailableStores() {
+		course(1);
+		Store anchor = store(100L, CENTER_LAT, CENTER_LNG);
+		CourseStore anchorStop = courseStoreOf(anchor, 1);
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of(anchorStop));
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+		AnchorRecommendationResult stored = new AnchorRecommendationResult(new AnchorStoreSummary(100L, "가게100"),
+			IntStream.rangeClosed(1, 12)
+				.mapToObj(i -> new AnchorRecommendedStoreResponse(100L + i, "빵집" + i, i * 200, "이 동네 시그니처", 0.0,
+					null))
+				.toList());
+		Recommendation reused = storedRecommendation(67L, stored);
+		given(recommendationRepository.findLatestAnchorForReuse(MEMBER_ID, COURSE_ID, 100L, (short)1, 0))
+			.willReturn(Optional.of(reused));
+		given(candidateRepository.findUnavailableStoreIds(eq(MEMBER_ID), anyCollection()))
+			.willReturn(Set.of(102L, 105L));
+
+		AnchorRecommendationResponse page0 = courseRecommendationCommandService.recommendNearAnchor(MEMBER_ID,
+			COURSE_ID, 100L, 0);
+
+		assertThat(page0.stores()).extracting(AnchorRecommendedStoreResponse::storeId)
+			.doesNotContain(102L, 105L)
+			.startsWith(101L, 103L, 104L, 106L)
+			.hasSize(9);
+		then(recommendationRepository).should(never()).save(any());
 	}
 
 	@Test

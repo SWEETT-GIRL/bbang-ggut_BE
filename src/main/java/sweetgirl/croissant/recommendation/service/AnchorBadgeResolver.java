@@ -4,6 +4,7 @@ import java.util.Map;
 
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import sweetgirl.croissant.recommendation.config.RecommendationProperties;
 import sweetgirl.croissant.recommendation.enums.AnchorReasonTag;
 import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
 import sweetgirl.croissant.recommendation.repository.TasteQuery;
@@ -18,7 +19,7 @@ public final class AnchorBadgeResolver {
 
 	static final double TAG_MATCH_MIN = 0.5;
 
-	public static String resolve(TasteQuery taste, CandidateStoreRow row, double tasteThreshold) {
+	public static String resolve(TasteQuery taste, CandidateStoreRow row, RecommendationProperties.Score score) {
 		for (String kind : taste.topKinds()) {
 			if (row.kinds().contains(kind)) {
 				return AnchorReasonTag.KIND_MATCH.label(kind);
@@ -37,30 +38,40 @@ public final class AnchorBadgeResolver {
 		if (bestTag != null) {
 			return AnchorReasonTag.TAG_MATCH.label(bestTag);
 		}
-		if (taste.hasAxis() && row.hasAxis() && row.tasteFit() > tasteThreshold) {
-			return AnchorReasonTag.AXIS_POLE.label(dominantPole(taste, row));
+		if (taste.hasAxis() && row.hasAxis() && row.tasteFit() > score.getTasteCosineThreshold()) {
+			return AnchorReasonTag.AXIS_POLE.label(dominantPole(taste, row, score));
 		}
 		return AnchorReasonTag.SIGNATURE.label();
 	}
 
-	/** 코사인 기여가 가장 큰 축의 사용자 극 라벨 — TasteAxis 의 4글자 코드와 같은 어휘. */
-	static String dominantPole(TasteQuery taste, CandidateStoreRow row) {
-		double[] contributions = {
-			taste.taste() * row.axisTaste(),
-			taste.texture() * row.axisTexture(),
-			taste.filling() * row.axisFilling(),
-			taste.vibe() * row.axisVibe()};
+	/**
+	 * 코사인 기여가 가장 큰 축의 사용자 극 라벨 — TasteAxis 의 4글자 코드와 같은 어휘. 기여는 점수 SQL 과 같은 좌표로 잰다:
+	 * 중심화가 켜져 있으면 (사용자 축 − 평균)·(가게 축 − 평균). 원값 곱으로 재면 코사인을 깎은 축을 이유로 보여줄 수 있다(PR #739 리뷰).
+	 * 극 라벨도 같은 좌표의 부호다 — "평균보다 담백한 쪽"이 담백이다.
+	 */
+	static String dominantPole(TasteQuery taste, CandidateStoreRow row, RecommendationProperties.Score score) {
+		boolean center = score.isCenterAxes();
+		double[] user = {
+			taste.taste() - (center ? score.getCenterTaste() : 0),
+			taste.texture() - (center ? score.getCenterTexture() : 0),
+			taste.filling() - (center ? score.getCenterFilling() : 0),
+			taste.vibe() - (center ? score.getCenterVibe() : 0)};
+		double[] store = {
+			row.axisTaste() - (center ? score.getCenterTaste() : 0),
+			row.axisTexture() - (center ? score.getCenterTexture() : 0),
+			row.axisFilling() - (center ? score.getCenterFilling() : 0),
+			row.axisVibe() - (center ? score.getCenterVibe() : 0)};
 		int dominant = 0;
-		for (int i = 1; i < contributions.length; i++) {
-			if (contributions[i] > contributions[dominant]) {
+		for (int i = 1; i < user.length; i++) {
+			if (user[i] * store[i] > user[dominant] * store[dominant]) {
 				dominant = i;
 			}
 		}
 		return switch (dominant) {
-			case 0 -> taste.taste() < 0 ? "달콤" : "담백";
-			case 1 -> taste.texture() < 0 ? "폭신" : "바삭";
-			case 2 -> taste.filling() < 0 ? "꽉 찬" : "심플";
-			default -> taste.vibe() < 0 ? "고전" : "신상";
+			case 0 -> user[0] < 0 ? "달콤" : "담백";
+			case 1 -> user[1] < 0 ? "폭신" : "바삭";
+			case 2 -> user[2] < 0 ? "꽉 찬" : "심플";
+			default -> user[3] < 0 ? "고전" : "신상";
 		};
 	}
 }

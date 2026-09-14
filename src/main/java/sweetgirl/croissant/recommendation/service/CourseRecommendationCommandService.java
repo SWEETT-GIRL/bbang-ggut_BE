@@ -118,7 +118,9 @@ public class CourseRecommendationCommandService {
 			.findLatestAreaForReuse(memberId, courseId, area.getId(), day, profileVersion);
 		if (reusable.isPresent()) {
 			RecommendationResult stored = read(reusable.get(), RecommendationResult.class);
-			if (isStillValid(stored, courseStoreIds, storeCount)) {
+			Set<Long> unavailable = candidateRepository.findUnavailableStoreIds(memberId,
+				stored.stores().stream().map(RecommendedStoreResponse::storeId).toList());
+			if (isStillValid(stored, courseStoreIds, unavailable, storeCount)) {
 				return RecommendationResponse.of(reusable.get().getId(), stored);
 			}
 		}
@@ -214,12 +216,15 @@ public class CourseRecommendationCommandService {
 
 	/**
 	 * 저장된 결과를 다시 써도 되는지. 그 사이 코스가 바뀌어 담긴 가게가 결과에 들어 있거나(담으면 중복 오류가 난다),
+	 * 그 사이 내가 기록했거나 자격을 잃은 가게(프로필·빵집다움 필터, 이 배포 전 결과)가 들어 있거나(PR #739 리뷰),
 	 * 요청한 가게 수가 다르면 다시 만든다. 후보가 모자라 결과가 짧은 건 다시 만들 이유가 아니라 stores.size() 가 아니라
 	 * 저장해 둔 요청 수와 비교한다. 새 행이 최신이 되어 다음부터는 그것이 재사용된다.
 	 */
-	private static boolean isStillValid(RecommendationResult stored, Set<Long> courseStoreIds, int storeCount) {
+	private static boolean isStillValid(RecommendationResult stored, Set<Long> courseStoreIds, Set<Long> unavailable,
+			int storeCount) {
 		return stored.storeCount() == storeCount
-			&& stored.stores().stream().noneMatch(store -> courseStoreIds.contains(store.storeId()));
+			&& stored.stores().stream().noneMatch(store -> courseStoreIds.contains(store.storeId())
+				|| unavailable.contains(store.storeId()));
 	}
 
 	private RecommendationResponse buildAreaRecommendation(Long memberId, Course course, CourseArea area, short day,
@@ -367,8 +372,11 @@ public class CourseRecommendationCommandService {
 			.orElse(null);
 		AnchorRecommendationResult result;
 		if (recommendation != null) {
-			// 순위를 만든 뒤 담긴 가게는 뺀다 — 순서는 서로 독립이라 목록에서 빼도 나머지는 그대로 유효하다
-			result = withoutCourseStores(read(recommendation, AnchorRecommendationResult.class), courseStoreIds);
+			// 순위를 만든 뒤 담긴 가게·그 사이 기록했거나 자격을 잃은 가게는 뺀다 — 순서는 서로 독립이라 목록에서 빼도 나머지는 그대로 유효하다
+			AnchorRecommendationResult stored = read(recommendation, AnchorRecommendationResult.class);
+			Set<Long> unavailable = candidateRepository.findUnavailableStoreIds(memberId,
+				stored.stores().stream().map(AnchorRecommendedStoreResponse::storeId).toList());
+			result = withoutStores(stored, courseStoreIds, unavailable);
 		} else {
 			result = rankNearAnchor(memberId, TasteQuery.of(profile), anchor, courseStoreIds);
 			if (!result.stores().isEmpty()) {
@@ -380,10 +388,10 @@ public class CourseRecommendationCommandService {
 			recommendationProperties.getAnchor().getPageSize());
 	}
 
-	private static AnchorRecommendationResult withoutCourseStores(AnchorRecommendationResult stored,
-			Set<Long> courseStoreIds) {
+	private static AnchorRecommendationResult withoutStores(AnchorRecommendationResult stored,
+			Set<Long> courseStoreIds, Set<Long> unavailable) {
 		return new AnchorRecommendationResult(stored.anchor(), stored.stores().stream()
-			.filter(store -> !courseStoreIds.contains(store.storeId()))
+			.filter(store -> !courseStoreIds.contains(store.storeId()) && !unavailable.contains(store.storeId()))
 			.toList());
 	}
 
@@ -391,13 +399,13 @@ public class CourseRecommendationCommandService {
 	private AnchorRecommendationResult rankNearAnchor(Long memberId, TasteQuery taste, Store anchor,
 			Set<Long> courseStoreIds) {
 		RecommendationProperties.Anchor anchorRules = recommendationProperties.getAnchor();
-		double tasteThreshold = recommendationProperties.getScore().getTasteCosineThreshold();
+		RecommendationProperties.Score scoreRules = recommendationProperties.getScore();
 		List<CandidateStoreRow> candidates = candidateRepository.findAnchorCandidates(memberId, taste,
 			anchor.getLocation().getY(), anchor.getLocation().getX(), anchorRules.getRingM(),
 			anchorRules.getMaxRadiusM(), courseStoreIds, anchorRules.getRankingSize());
 		List<AnchorRecommendedStoreResponse> stores = candidates.stream()
 			.map(row -> new AnchorRecommendedStoreResponse(row.storeId(), row.name(), (int)Math.round(row.distanceM()),
-				AnchorBadgeResolver.resolve(taste, row, tasteThreshold), tasteFitOf(row), row.thumbnailKey()))
+				AnchorBadgeResolver.resolve(taste, row, scoreRules), tasteFitOf(row), row.thumbnailKey()))
 			.toList();
 		return new AnchorRecommendationResult(new AnchorStoreSummary(anchor.getId(), anchor.getName()), stores);
 	}

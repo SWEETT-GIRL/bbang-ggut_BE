@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.assertj.core.data.Offset;
@@ -190,6 +191,19 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 			.stream().collect(Collectors.toMap(CandidateStoreRow::storeId, CandidateStoreRow::score));
 		assertThat(withPenalty).containsKey(storeId);
 		assertThat(withPenalty.get(storeId)).isCloseTo(plain.get(storeId) - 0.3, Offset.offset(1e-9));
+
+		// 칩 가게 수도 같은 규칙 — 기록한 가게를 빼고 센다(PR #739 리뷰)
+		CourseArea seongsuOnly = courseAreaRepository.save(CourseArea.create("서울", "성수동(칩)", "성수동(칩)", null,
+			SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, RADIUS_M, null, null, 9));
+		AreaChipStats chip = candidateRepository.findAreaChipStats(memberId, List.of(seongsuOnly))
+			.get(seongsuOnly.getId());
+		assertThat(chip.storeCount()).isEqualTo(rows.size());
+
+		// 재사용 자격 검사: 기록한 가게는 자격이 없고, 정상 후보는 있다
+		Set<Long> unavailable = candidateRepository.findUnavailableStoreIds(memberId,
+			List.of(storeId, rows.get(0).storeId()));
+		assertThat(unavailable).containsExactly(storeId);
+		assertThat(candidateRepository.findUnavailableStoreIds(LAB_MEMBER, List.of(storeId))).isEmpty();
 	}
 
 	@Test

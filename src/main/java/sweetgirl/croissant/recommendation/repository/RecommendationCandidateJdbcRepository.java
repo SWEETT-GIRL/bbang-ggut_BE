@@ -5,8 +5,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.jdbc.core.RowMapper;
@@ -150,7 +152,9 @@ public class RecommendationCandidateJdbcRepository {
 
 	/**
 	 * 상권 칩 재료를 한 문장으로 — 칩마다 두 번 묻지 않는다(카드 한 번에 6쿼리 → 1쿼리).
-	 * 소속 규칙은 후보 조회와 같다(반경 안 OR 시·도+시군구·동 일치, 프로필 있고 빵집다움 하한 이상) — 칩의 숫자와 실제 후보 수가 어긋나지 않게.
+	 * 소속 규칙은 후보 조회와 같다(반경 안 OR 시·도+시군구·동 일치, 프로필 있고 빵집다움 하한 이상, 기록한 가게 제외 스위치) —
+	 * 칩의 숫자와 실제 후보 수가 어긋나지 않게. 기록한 가게를 빼지 않으면 찜 신호가 그 가게에 남아 이미 기록한 가게만 있는
+	 * 동네를 고르고 빈 추천을 낼 수 있다(PR #739 리뷰).
 	 */
 	public Map<Long, AreaChipStats> findAreaChipStats(Long memberId, List<CourseArea> areas) {
 		if (areas.isEmpty()) {
@@ -167,6 +171,8 @@ public class RecommendationCandidateJdbcRepository {
 				LEFT JOIN store s ON s.status = 'ACTIVE'
 					AND EXISTS (SELECT 1 FROM store_profile p
 						WHERE p.store_id = s.id AND p.bakery_score >= :minBakeryScore)
+					AND NOT (CAST(:excludeRecorded AS boolean) AND EXISTS (SELECT 1 FROM bread_record br
+						WHERE br.store_id = s.id AND br.member_id = :memberId AND br.deleted_at IS NULL))
 					AND (
 					ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(a.lng, a.lat), 4326)::geography, a.radius_m)
 					OR (a.region_2nd IS NOT NULL AND s.region_1st = a.sido AND s.region_2nd = a.region_2nd
@@ -177,6 +183,7 @@ public class RecommendationCandidateJdbcRepository {
 		MapSqlParameterSource params = new MapSqlParameterSource()
 			.addValue("memberId", memberId)
 			.addValue("minBakeryScore", recommendationProperties.getScore().getMinBakeryScore())
+			.addValue("excludeRecorded", recommendationProperties.getScore().isExcludeRecordedStores())
 			.addValue("ids", areas.stream().map(CourseArea::getId).toArray(Long[]::new))
 			.addValue("lats", areas.stream().map(CourseArea::getCenterLat).toArray(Double[]::new))
 			.addValue("lngs", areas.stream().map(CourseArea::getCenterLng).toArray(Double[]::new))
@@ -189,6 +196,31 @@ public class RecommendationCandidateJdbcRepository {
 		return jdbcTemplate.query(sql, params, mapper)
 			.stream()
 			.collect(Collectors.toMap(AreaChipStats::areaId, stats -> stats));
+	}
+
+	/**
+	 * 저장된 추천을 다시 쓰기 전에 그 사이 자격을 잃은 가게를 찾는다(PR #739 리뷰): 그 뒤 내가 기록한 가게(제외 스위치가 켜졌을 때),
+	 * ACTIVE 가 아니거나, 프로필·빵집다움 필터를 못 넘는 가게(이 배포 전에 만든 결과). 후보 SQL 과 같은 자격 규칙이다.
+	 */
+	public Set<Long> findUnavailableStoreIds(Long memberId, Collection<Long> storeIds) {
+		if (storeIds.isEmpty()) {
+			return Set.of();
+		}
+		String sql = """
+				SELECT s.id FROM store s
+				WHERE s.id = ANY (CAST(:ids AS bigint[]))
+					AND (s.status <> 'ACTIVE'
+						OR NOT EXISTS (SELECT 1 FROM store_profile p
+							WHERE p.store_id = s.id AND p.bakery_score >= :minBakeryScore)
+						OR (CAST(:excludeRecorded AS boolean) AND EXISTS (SELECT 1 FROM bread_record br
+							WHERE br.store_id = s.id AND br.member_id = :memberId AND br.deleted_at IS NULL)))
+				""";
+		MapSqlParameterSource params = new MapSqlParameterSource()
+			.addValue("ids", storeIds.toArray(Long[]::new))
+			.addValue("memberId", memberId)
+			.addValue("minBakeryScore", recommendationProperties.getScore().getMinBakeryScore())
+			.addValue("excludeRecorded", recommendationProperties.getScore().isExcludeRecordedStores());
+		return new HashSet<>(jdbcTemplate.queryForList(sql, params, Long.class));
 	}
 
 	private MapSqlParameterSource centerParams(Long memberId, TasteQuery taste, double lat, double lng,
