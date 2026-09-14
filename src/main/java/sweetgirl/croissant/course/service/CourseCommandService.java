@@ -22,7 +22,7 @@ import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.request.CourseCreateRequest;
 import sweetgirl.croissant.course.dto.request.CourseImageRegisterRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreAddRequest;
-import sweetgirl.croissant.course.dto.request.CourseStoreBulkAddRequest;
+import sweetgirl.croissant.course.dto.request.CourseStoreBulkItem;
 import sweetgirl.croissant.course.dto.request.CourseStoreReorderRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreReorderRequest.CourseStoreOrderItem;
 import sweetgirl.croissant.course.dto.request.CourseStoreUpdateRequest;
@@ -55,9 +55,6 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
-import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
-import sweetgirl.croissant.recommendation.exception.RecommendationException;
-import sweetgirl.croissant.recommendation.repository.RecommendationRepository;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.exception.StoreException;
@@ -81,7 +78,6 @@ public class CourseCommandService {
 	private final CourseProgressService courseProgressService;
 	private final MemberRestrictionReader memberRestrictionReader;
 	private final CourseAccessPolicy courseAccessPolicy;
-	private final RecommendationRepository recommendationRepository;
 
 	public Long createCourse(Long memberId, CourseCreateRequest request) {
 		Member member = memberRepository.findByIdAndDeletedAtIsNull(memberId)
@@ -251,26 +247,23 @@ public class CourseCommandService {
 	}
 
 	/**
-	 * 추천 결과를 한 트랜잭션으로 담는다 (#660). 단건 담기와 같은 규칙을 가게 목록으로 한 번 돈다 —
+	 * 여러 곳을 한 트랜잭션으로 담는다 (#660). 단건 담기와 같은 규칙을 가게 목록으로 한 번 돈다 —
 	 * 하나라도 못 담으면(이미 담긴 가게, 없는 가게, 잘못된 일차) 전부 되돌린다.
-	 * recommendationId 가 있으면 이 코스의 추천인지 확인하고 담긴 가게마다 출처로 남긴다. 남의 추천은 없는 것으로 본다.
+	 * recommendationId 는 호출자(추천 모듈)가 소유·코스 일치를 확인해 넘긴 값이고, 여기서는 담긴 가게마다 출처로 남길 뿐이다.
 	 */
-	public List<CourseStoreResponse> addStores(Long memberId, Long courseId, CourseStoreBulkAddRequest request) {
+	public List<CourseStoreResponse> addStores(Long memberId, Long courseId, List<CourseStoreBulkItem> items,
+			Long recommendationId) {
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		courseAccessPolicy.requireEditable(course, memberId);
-		Long recommendationId = request.getRecommendationId();
-		if (recommendationId != null) {
-			requireRecommendationOfCourse(recommendationId, courseId);
-		}
 
 		// 정류장 목록을 손에 들고 돈다 — 방금 담은 가게가 다음 가게의 중복·일차·순서 판정에 바로 보여야 한다
 		List<CourseStore> activeStores = new ArrayList<>(
 			courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId));
-		Map<Long, Store> storesById = findStoresById(request.getStores());
+		Map<Long, Store> storesById = findStoresById(items);
 
 		List<CourseStore> added = new ArrayList<>();
-		for (CourseStoreBulkAddRequest.Item item : request.getStores()) {
+		for (CourseStoreBulkItem item : items) {
 			if (containsStore(activeStores, item.getStoreId())) {
 				throw new CourseException(CourseErrorCode.COURSE_STORE_ALREADY_EXISTS);
 			}
@@ -291,15 +284,9 @@ public class CourseCommandService {
 			.toList();
 	}
 
-	private void requireRecommendationOfCourse(Long recommendationId, Long courseId) {
-		recommendationRepository.findById(recommendationId)
-			.filter(recommendation -> courseId.equals(recommendation.getCourseId()))
-			.orElseThrow(() -> new RecommendationException(RecommendationErrorCode.RECOMMENDATION_NOT_FOUND));
-	}
-
 	/** 한 번에 읽고, 요청한 가게가 하나라도 없으면 아무것도 담지 않는다. */
-	private Map<Long, Store> findStoresById(List<CourseStoreBulkAddRequest.Item> items) {
-		List<Long> storeIds = items.stream().map(CourseStoreBulkAddRequest.Item::getStoreId).distinct().toList();
+	private Map<Long, Store> findStoresById(List<CourseStoreBulkItem> items) {
+		List<Long> storeIds = items.stream().map(CourseStoreBulkItem::getStoreId).distinct().toList();
 		Map<Long, Store> storesById = storeRepository.findAllById(storeIds).stream()
 			.collect(Collectors.toMap(Store::getId, store -> store));
 		if (storesById.size() != storeIds.size()) {

@@ -3,8 +3,7 @@ package sweetgirl.croissant.recommendation.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyDouble;
-import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -43,6 +42,7 @@ import sweetgirl.croissant.recommendation.dto.response.RecommendationContextResp
 import sweetgirl.croissant.recommendation.entity.CourseArea;
 import sweetgirl.croissant.recommendation.enums.RecommendationAreaReason;
 import sweetgirl.croissant.recommendation.enums.RecommendationContextState;
+import sweetgirl.croissant.recommendation.repository.AreaChipStats;
 import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationCandidateJdbcRepository;
 
@@ -110,9 +110,10 @@ class RecommendationContextQueryServiceTest {
 		CourseArea hannam = area(8L, "한남동");
 		given(courseAreaRepository.findAllBySidoAndIsActiveTrueOrderByDisplayOrderAscNameAsc("서울"))
 			.willReturn(List.of(seongsu, yeonnam, mangwon, hannam));
-		given(candidateRepository.countActiveStoresWithin(anyDouble(), anyDouble(), anyInt())).willReturn(42);
-		given(candidateRepository.existsSavedStoreWithin(eq(MEMBER_ID), anyDouble(), anyDouble(), anyInt()))
-			.willReturn(true, false, false);
+		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), anyList())).willReturn(Map.of(
+			5L, new AreaChipStats(5L, 42, true),
+			6L, new AreaChipStats(6L, 17, false),
+			7L, new AreaChipStats(7L, 9, false)));
 
 		RecommendationContextResponse context = recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID);
 
@@ -125,7 +126,9 @@ class RecommendationContextQueryServiceTest {
 		assertThat(context.areas()).extracting(RecommendationAreaResponse::reason)
 			.containsExactly(RecommendationAreaReason.SAVED, RecommendationAreaReason.POPULAR,
 				RecommendationAreaReason.POPULAR);
-		assertThat(context.areas().get(0).storeCount()).isEqualTo(42);
+		assertThat(context.areas()).extracting(RecommendationAreaResponse::storeCount).containsExactly(42, 17, 9);
+		// 칩 재료는 한 문장으로 — 칩마다 묻지 않는다
+		then(candidateRepository).should().findAreaChipStats(eq(MEMBER_ID), anyList());
 		then(courseAccessPolicy).should().requireViewable(course, MEMBER_ID, null);
 		then(tasteSignalJdbcRepository).should(never()).countStrongSignalStores(any());
 	}

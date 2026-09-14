@@ -1,5 +1,6 @@
 package sweetgirl.croissant.recommendation.service;
 
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -15,18 +16,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.common.util.GeoDistance;
 import sweetgirl.croissant.course.code.CourseErrorCode;
+import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.service.CourseAccessPolicy;
+import sweetgirl.croissant.course.service.CourseCommandService;
 import sweetgirl.croissant.personalization.entity.UserTasteProfile;
 import sweetgirl.croissant.personalization.enums.BbtiType;
 import sweetgirl.croissant.personalization.repository.UserTasteProfileRepository;
 import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
 import sweetgirl.croissant.recommendation.code.RecommendationMessage;
 import sweetgirl.croissant.recommendation.config.RecommendationProperties;
+import sweetgirl.croissant.recommendation.dto.request.CourseStoreBulkAddRequest;
 import sweetgirl.croissant.recommendation.dto.request.RecommendationRequest;
 import sweetgirl.croissant.recommendation.dto.response.AnchorRecommendationResponse;
 import sweetgirl.croissant.recommendation.dto.response.AnchorRecommendationResult;
@@ -66,6 +70,7 @@ public class CourseRecommendationCommandService {
 	private final CourseRepository courseRepository;
 	private final CourseStoreRepository courseStoreRepository;
 	private final CourseAccessPolicy courseAccessPolicy;
+	private final CourseCommandService courseCommandService;
 	private final CourseAreaRepository courseAreaRepository;
 	private final UserTasteProfileRepository userTasteProfileRepository;
 	private final RecommendationRepository recommendationRepository;
@@ -87,7 +92,7 @@ public class CourseRecommendationCommandService {
 
 		List<CourseStore> activeStores = courseStoreRepository
 			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId);
-		short day = (short)(request.day() != null ? request.day() : firstEmptyDay(course, activeStores));
+		short day = resolveDay(request.day(), course, activeStores);
 		UserTasteProfile profile = userTasteProfileRepository.findById(memberId).orElse(null);
 		int profileVersion = profile != null ? profile.getVersion() : Recommendation.NO_PROFILE_VERSION;
 
@@ -106,10 +111,11 @@ public class CourseRecommendationCommandService {
 
 	/**
 	 * 저장된 결과를 다시 써도 되는지. 그 사이 코스가 바뀌어 담긴 가게가 결과에 들어 있거나(담으면 중복 오류가 난다),
-	 * 요청한 가게 수가 다르면 다시 만든다. 새 행이 최신이 되어 다음부터는 그것이 재사용된다.
+	 * 요청한 가게 수가 다르면 다시 만든다. 후보가 모자라 결과가 짧은 건 다시 만들 이유가 아니라 stores.size() 가 아니라
+	 * 저장해 둔 요청 수와 비교한다. 새 행이 최신이 되어 다음부터는 그것이 재사용된다.
 	 */
 	private static boolean isStillValid(RecommendationResult stored, Set<Long> courseStoreIds, int storeCount) {
-		return stored.stores().size() == storeCount
+		return stored.storeCount() == storeCount
 			&& stored.stores().stream().noneMatch(store -> courseStoreIds.contains(store.storeId()));
 	}
 
@@ -122,7 +128,7 @@ public class CourseRecommendationCommandService {
 		if (candidates.isEmpty()) {
 			// 저장할 게 없다 — 재사용될 결과도 없고 반응을 받을 것도 없다
 			return RecommendationResponse.of(null, new RecommendationResult(titleOf(area, profile), areaSummary, 0,
-				false, List.of()));
+				false, storeCount, List.of()));
 		}
 		List<CandidateStoreRow> ordered = nearestNeighborOrder(
 			candidates.subList(0, Math.min(storeCount, candidates.size())), area.getCenterLat(),
@@ -143,7 +149,7 @@ public class CourseRecommendationCommandService {
 				NO_TASTE_FIT, distanceToNext, row.latitude(), row.longitude(), row.thumbnailKey()));
 		}
 		RecommendationResult result = new RecommendationResult(titleOf(area, profile), areaSummary, totalDistanceM,
-			false, stores);
+			false, storeCount, stores);
 		Recommendation saved = recommendationRepository.save(Recommendation.forArea(memberId, course.getId(),
 			area.getId(), day, profileVersion, Recommendation.RULE_PROVIDER, null, null, false, write(result)));
 		return RecommendationResponse.of(saved.getId(), result);
@@ -152,7 +158,7 @@ public class CourseRecommendationCommandService {
 	public AnchorRecommendationResponse recommendNearAnchor(Long memberId, Long courseId, Long anchorStoreId,
 			int page) {
 		Course course = findCourse(courseId);
-		courseAccessPolicy.requireViewable(course, memberId, null);
+		courseAccessPolicy.requireEditable(course, memberId);
 		List<CourseStore> activeStores = courseStoreRepository
 			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId);
 		CourseStore anchorStop = activeStores.stream()
@@ -213,20 +219,61 @@ public class CourseRecommendationCommandService {
 			to < result.stores().size());
 	}
 
+	/**
+	 * 추천 결과를 한 번에 담는다. 추천이 내 것이고 이 코스의 것인지는 여기서 확인하고(남의 것·다른 코스 것은 404),
+	 * 담기 자체는 course 모듈이 한다 — course 는 추천을 모른다.
+	 */
+	public List<CourseStoreResponse> addRecommendedStores(Long memberId, Long courseId,
+			CourseStoreBulkAddRequest request) {
+		Long recommendationId = request.getRecommendationId();
+		if (recommendationId != null) {
+			recommendationRepository.findByIdAndMemberId(recommendationId, memberId)
+				.filter(recommendation -> courseId.equals(recommendation.getCourseId()))
+				.orElseThrow(() -> new RecommendationException(RecommendationErrorCode.RECOMMENDATION_NOT_FOUND));
+		}
+		return courseCommandService.addStores(memberId, courseId, request.getStores(), recommendationId);
+	}
+
 	private Course findCourse(Long courseId) {
 		return courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 	}
 
+	/**
+	 * 요청 일차가 있으면 범위 검사, 없으면 첫 빈 일차. 허용 범위는 코스가 아는 일차 수(dayCount · 날짜 span)와
+	 * 담긴 마지막 일차 + 1 중 큰 것까지 — 단건 담기의 resolveDay 와 같은 상한이고, 날짜가 있는 코스는 그 날짜 안 어느 일차든 된다.
+	 * (이 규칙의 course 쪽 정리는 별도 PR — 지금 course 는 빈 앞 일차를 건너뛰지 못하게 막고 있다.)
+	 */
+	static short resolveDay(Integer requestedDay, Course course, List<CourseStore> activeStores) {
+		int maxStoreDay = activeStores.stream().mapToInt(CourseStore::getDay).max().orElse(0);
+		int allowedMaxDay = Math.max(knownDayCount(course), maxStoreDay + 1);
+		if (requestedDay == null) {
+			return (short)firstEmptyDay(course, activeStores);
+		}
+		if (requestedDay < 1 || requestedDay > allowedMaxDay) {
+			throw new RecommendationException(RecommendationErrorCode.DAY_OUT_OF_RANGE);
+		}
+		return requestedDay.shortValue();
+	}
+
+	/** 코스가 아는 일차 수 — 서버의 dayCount 와 날짜 span 중 큰 것. 앱은 날짜로 탭을 그리는데 dayCount 는 생성 때 1 이라 둘이 다를 수 있다. */
+	static int knownDayCount(Course course) {
+		int dateSpan = course.getStartDate() != null && course.getEndDate() != null
+			? (int)ChronoUnit.DAYS.between(course.getStartDate(), course.getEndDate()) + 1
+			: 0;
+		return Math.max(Math.max(course.getDayCount(), dateSpan), 1);
+	}
+
 	/** 첫 빈 일차 — 정류장이 없는 가장 앞 일차. 전부 찼으면 마지막 일차. */
 	static int firstEmptyDay(Course course, List<CourseStore> activeStores) {
 		Set<Integer> occupied = activeStores.stream().map(CourseStore::getDay).collect(Collectors.toSet());
-		for (int day = 1; day <= course.getDayCount(); day++) {
+		int dayCount = knownDayCount(course);
+		for (int day = 1; day <= dayCount; day++) {
 			if (!occupied.contains(day)) {
 				return day;
 			}
 		}
-		return Math.max(course.getDayCount(), 1);
+		return dayCount;
 	}
 
 	private static String titleOf(CourseArea area, UserTasteProfile profile) {

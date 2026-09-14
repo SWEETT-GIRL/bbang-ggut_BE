@@ -35,10 +35,12 @@ import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.service.CourseAccessPolicy;
+import sweetgirl.croissant.course.service.CourseCommandService;
 import sweetgirl.croissant.personalization.repository.UserTasteProfileRepository;
 import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
 import sweetgirl.croissant.recommendation.code.RecommendationMessage;
 import sweetgirl.croissant.recommendation.config.RecommendationProperties;
+import sweetgirl.croissant.recommendation.dto.request.CourseStoreBulkAddRequest;
 import sweetgirl.croissant.recommendation.dto.request.RecommendationRequest;
 import sweetgirl.croissant.recommendation.dto.response.AnchorRecommendationResponse;
 import sweetgirl.croissant.recommendation.dto.response.AnchorRecommendationResult;
@@ -74,6 +76,8 @@ class CourseRecommendationCommandServiceTest {
 	private CourseStoreRepository courseStoreRepository;
 	@Mock
 	private CourseAccessPolicy courseAccessPolicy;
+	@Mock
+	private CourseCommandService courseCommandService;
 	@Mock
 	private CourseAreaRepository courseAreaRepository;
 	@Mock
@@ -199,7 +203,7 @@ class CourseRecommendationCommandServiceTest {
 			.willReturn(List.of());
 		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
 		RecommendationResult stored = new RecommendationResult("성수동 빵집 코스",
-			new RecommendationAreaSummary(AREA_ID, "성수동"), 900, false,
+			new RecommendationAreaSummary(AREA_ID, "성수동"), 900, false, 1,
 			List.of(new RecommendedStoreResponse(101L, "빵집1", "성수동", "이유", 0.0, null, CENTER_LAT, CENTER_LNG,
 				null)));
 		Map<String, Object> storedMap = objectMapper.convertValue(stored, Map.class);
@@ -292,7 +296,7 @@ class CourseRecommendationCommandServiceTest {
 	@Test
 	@DisplayName("앵커: 처음이면 순위 30곳을 앵커가 담긴 일차로 행 하나에 저장하고 첫 페이지 9곳과 hasNext 를 준다. 이유는 배지뿐")
 	void anchor_fresh_savesRankingAndPages() {
-		course(1);
+		Course course = course(1);
 		Store anchor = store(100L, CENTER_LAT, CENTER_LNG);
 		CourseStore anchorStop = courseStoreOf(anchor, 1);
 		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
@@ -323,6 +327,8 @@ class CourseRecommendationCommandServiceTest {
 		assertThat(saved.getValue().getAnchorStoreId()).isEqualTo(100L);
 		assertThat(saved.getValue().getDay()).isEqualTo((short)1);
 		assertThat(saved.getValue().getProvider()).isEqualTo(Recommendation.RULE_PROVIDER);
+		// 담을 수 있는 사람만 — 구경만 하는 사람의 추천 행을 만들지 않는다
+		then(courseAccessPolicy).should().requireEditable(course, MEMBER_ID);
 		// 스파이 getter 를 매처 사이에서 부르면 매처 기록이 깨진다 — 값을 먼저 꺼낸다
 		int ringM = recommendationProperties.getAnchor().getRingM();
 		int maxRadiusM = recommendationProperties.getAnchor().getMaxRadiusM();
@@ -386,7 +392,7 @@ class CourseRecommendationCommandServiceTest {
 				CENTER_LNG, null))
 			.toList();
 		return new RecommendationResult("성수동 빵집 코스", new RecommendationAreaSummary(AREA_ID, "성수동"), 900, false,
-			stores);
+			storeCount, stores);
 	}
 
 	private Recommendation storedRecommendation(Long id, Object result) {
@@ -475,6 +481,113 @@ class CourseRecommendationCommandServiceTest {
 			.startsWith(102L)
 			.hasSize(9);
 		assertThat(page0.hasNext()).isTrue();
+	}
+
+	@Test
+	@DisplayName("가게가 요청보다 적은 상권도 같은 요청이면 재사용한다 — 요청 수를 저장해 두고 비교하므로 행이 쌓이지 않는다")
+	void recommend_reuse_acceptedWhenAreaHasFewerStoresThanRequested() {
+		course(1);
+		CourseArea seoulArea = seongsu("서울");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(seoulArea));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of());
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+		RecommendationResult twoOfFour = new RecommendationResult("성수동 빵집 코스",
+			new RecommendationAreaSummary(AREA_ID, "성수동"), 300, false, 4,
+			storedAreaResult(2).stores());
+		Recommendation stored = storedRecommendation(55L, twoOfFour);
+		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)1, 0))
+			.willReturn(Optional.of(stored));
+
+		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(null, null));
+
+		assertThat(response.recommendationId()).isEqualTo(55L);
+		assertThat(response.stores()).hasSize(2);
+		then(candidateRepository).should(never())
+			.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(), anyCollection(), anyInt());
+		then(recommendationRepository).should(never()).save(any());
+	}
+
+	@Test
+	@DisplayName("일차가 0 이거나 코스가 아는 범위(일차 수 · 날짜 · 마지막 일차+1)를 넘으면 400 이다")
+	void recommend_dayOutOfRange() {
+		course(1);
+		CourseArea seoulArea = seongsu("서울");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(seoulArea));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of());
+
+		assertThatThrownBy(() -> courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID, request(null, 0)))
+			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
+				.isEqualTo(RecommendationErrorCode.DAY_OUT_OF_RANGE));
+		assertThatThrownBy(() -> courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID, request(null, 3)))
+			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
+				.isEqualTo(RecommendationErrorCode.DAY_OUT_OF_RANGE));
+		then(recommendationRepository).should(never()).findLatestAreaForReuse(any(), any(), any(), any(), anyInt());
+	}
+
+	@Test
+	@DisplayName("날짜가 이틀인 코스는 dayCount 가 1 이어도 2일차를 요청할 수 있다 — 앱은 날짜로 탭을 그린다")
+	void recommend_dateSpanAllowsSecondDay() {
+		Course course = course(1);
+		given(course.getStartDate()).willReturn(java.time.LocalDate.of(2026, 9, 21));
+		given(course.getEndDate()).willReturn(java.time.LocalDate.of(2026, 9, 22));
+		CourseArea seoulArea = seongsu("서울");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(seoulArea));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of());
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)2, 0))
+			.willReturn(Optional.empty());
+		given(candidateRepository.findAreaCandidates(anyDouble(), anyDouble(), anyInt(), any(), any(),
+			anyCollection(), anyInt())).willReturn(List.of(candidate(1)));
+		savedWithId(81L);
+
+		courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID, request(null, 2));
+
+		ArgumentCaptor<Recommendation> saved = ArgumentCaptor.forClass(Recommendation.class);
+		then(recommendationRepository).should().save(saved.capture());
+		assertThat(saved.getValue().getDay()).isEqualTo((short)2);
+	}
+
+	@Test
+	@DisplayName("여러 곳 담기: 내 추천이고 이 코스의 것이면 확인만 하고 course 에 넘긴다")
+	void addRecommendedStores_delegatesAfterOwnershipCheck() {
+		Recommendation mine = mock(Recommendation.class);
+		given(mine.getCourseId()).willReturn(COURSE_ID);
+		given(recommendationRepository.findByIdAndMemberId(77L, MEMBER_ID)).willReturn(Optional.of(mine));
+		CourseStoreBulkAddRequest request = new CourseStoreBulkAddRequest(77L,
+			List.of(new sweetgirl.croissant.course.dto.request.CourseStoreBulkItem(100L, 1)));
+
+		courseRecommendationCommandService.addRecommendedStores(MEMBER_ID, COURSE_ID, request);
+
+		then(courseCommandService).should().addStores(MEMBER_ID, COURSE_ID, request.getStores(), 77L);
+	}
+
+	@Test
+	@DisplayName("여러 곳 담기: 남의 추천이거나 다른 코스의 추천이면 404 이고 담지 않는다. 추천 없이 담는 건 그대로 넘긴다")
+	void addRecommendedStores_rejectsForeignRecommendation() {
+		Recommendation otherCourses = mock(Recommendation.class);
+		given(otherCourses.getCourseId()).willReturn(11L);
+		given(recommendationRepository.findByIdAndMemberId(77L, MEMBER_ID)).willReturn(Optional.of(otherCourses));
+		given(recommendationRepository.findByIdAndMemberId(78L, MEMBER_ID)).willReturn(Optional.empty());
+		List<sweetgirl.croissant.course.dto.request.CourseStoreBulkItem> items = List.of(
+			new sweetgirl.croissant.course.dto.request.CourseStoreBulkItem(100L, 1));
+
+		assertThatThrownBy(() -> courseRecommendationCommandService.addRecommendedStores(MEMBER_ID, COURSE_ID,
+			new CourseStoreBulkAddRequest(77L, items)))
+			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
+				.isEqualTo(RecommendationErrorCode.RECOMMENDATION_NOT_FOUND));
+		assertThatThrownBy(() -> courseRecommendationCommandService.addRecommendedStores(MEMBER_ID, COURSE_ID,
+			new CourseStoreBulkAddRequest(78L, items)))
+			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
+				.isEqualTo(RecommendationErrorCode.RECOMMENDATION_NOT_FOUND));
+		then(courseCommandService).should(never()).addStores(any(), any(), any(), any());
+
+		courseRecommendationCommandService.addRecommendedStores(MEMBER_ID, COURSE_ID,
+			new CourseStoreBulkAddRequest(null, items));
+		then(courseCommandService).should().addStores(MEMBER_ID, COURSE_ID, items, null);
 	}
 
 	@Test

@@ -71,6 +71,27 @@ class RecommendationFeedbackCommandServiceTest {
 	}
 
 	@Test
+	@DisplayName("가게 단위 반응은 그 가게가 결과에 있었을 때만 남는다")
+	void record_storeTap_requiresStoreInResult() {
+		Recommendation recommendation = mock(Recommendation.class);
+		given(recommendation.containsStore(1042L)).willReturn(true);
+		given(recommendation.containsStore(7L)).willReturn(false);
+		given(recommendationRepository.findByIdAndMemberId(RECOMMENDATION_ID, MEMBER_ID))
+			.willReturn(Optional.of(recommendation));
+
+		recommendationFeedbackCommandService.record(MEMBER_ID, RECOMMENDATION_ID,
+			new RecommendationFeedbackRequest(FeedbackAction.STORE_TAP, 1042L, null));
+		assertThatThrownBy(() -> recommendationFeedbackCommandService.record(MEMBER_ID, RECOMMENDATION_ID,
+			new RecommendationFeedbackRequest(FeedbackAction.STORE_TAP, 7L, null)))
+			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
+				.isEqualTo(RecommendationErrorCode.FEEDBACK_STORE_NOT_IN_RESULT));
+
+		ArgumentCaptor<RecommendationFeedback> saved = ArgumentCaptor.forClass(RecommendationFeedback.class);
+		verify(recommendationFeedbackRepository).save(saved.capture());
+		assertThat(saved.getValue().getStoreId()).isEqualTo(1042L);
+	}
+
+	@Test
 	@DisplayName("가게 단위 반응인데 가게 ID 가 없으면 엔티티 규칙대로 400 이다")
 	void record_storeScopedWithoutStoreId_isRejected() {
 		given(recommendationRepository.findByIdAndMemberId(RECOMMENDATION_ID, MEMBER_ID))

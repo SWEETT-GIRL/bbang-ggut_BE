@@ -28,6 +28,8 @@ public enum RecommendationErrorCode implements BaseErrorCode {
 			"기준 가게가 이 코스에 담겨 있지 않습니다."),
 	STORE_COUNT_OUT_OF_RANGE(HttpStatus.BAD_REQUEST, "RECOMMENDATION400_6",
 			"추천 가게 수는 1곳 이상 6곳 이하여야 합니다."),
+	DAY_OUT_OF_RANGE(HttpStatus.BAD_REQUEST, "RECOMMENDATION400_7", "일차가 코스 범위를 벗어났습니다."),
+	FEEDBACK_STORE_NOT_IN_RESULT(HttpStatus.BAD_REQUEST, "RECOMMENDATION400_8", "그 추천 결과에 없는 가게입니다."),
 
 	RECOMMENDATION_NOT_FOUND(HttpStatus.NOT_FOUND, "RECOMMENDATION404_1", "추천을 찾을 수 없습니다."),
 	COURSE_AREA_NOT_FOUND(HttpStatus.NOT_FOUND, "RECOMMENDATION404_2", "이 코스 지역의 상권을 찾을 수 없습니다.");

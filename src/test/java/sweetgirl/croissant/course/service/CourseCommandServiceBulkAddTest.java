@@ -23,23 +23,22 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import sweetgirl.croissant.course.code.CourseErrorCode;
-import sweetgirl.croissant.course.dto.request.CourseStoreBulkAddRequest;
+import sweetgirl.croissant.course.dto.request.CourseStoreBulkItem;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
-import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
-import sweetgirl.croissant.recommendation.entity.Recommendation;
-import sweetgirl.croissant.recommendation.exception.RecommendationException;
-import sweetgirl.croissant.recommendation.repository.RecommendationRepository;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
-/** bulk 담기(#660)만 본다 — 단건 담기의 나머지 규칙은 CourseCommandServiceTest 가 본다. */
+/**
+ * bulk 담기(#660)만 본다 — 단건 담기의 나머지 규칙은 CourseCommandServiceTest 가,
+ * 추천 소유 확인은 CourseRecommendationCommandServiceTest 가 본다.
+ */
 @ExtendWith(MockitoExtension.class)
 class CourseCommandServiceBulkAddTest {
 
@@ -57,8 +56,6 @@ class CourseCommandServiceBulkAddTest {
 	private CourseProgressService courseProgressService;
 	@Mock
 	private CourseAccessPolicy courseAccessPolicy;
-	@Mock
-	private RecommendationRepository recommendationRepository;
 
 	@InjectMocks
 	private CourseCommandService courseCommandService;
@@ -90,21 +87,12 @@ class CourseCommandServiceBulkAddTest {
 		return courseStore;
 	}
 
-	private static CourseStoreBulkAddRequest request(Long recommendationId, Long... storeIds) {
-		List<CourseStoreBulkAddRequest.Item> items = java.util.Arrays.stream(storeIds)
-			.map(id -> new CourseStoreBulkAddRequest.Item(id, null))
-			.toList();
-		return new CourseStoreBulkAddRequest(recommendationId, items);
-	}
-
-	private Recommendation recommendationOf(Long courseId) {
-		Recommendation recommendation = mock(Recommendation.class);
-		given(recommendation.getCourseId()).willReturn(courseId);
-		return recommendation;
+	private static List<CourseStoreBulkItem> items(Long... storeIds) {
+		return java.util.Arrays.stream(storeIds).map(id -> new CourseStoreBulkItem(id, null)).toList();
 	}
 
 	@Test
-	@DisplayName("빈 코스에 두 곳을 담으면 순서 1·2 로 이어지고, 추천 출처가 가게마다 남고, 버전·진행률은 한 번만 갱신된다")
+	@DisplayName("빈 코스에 두 곳을 담으면 순서 1·2 로 이어지고, 넘겨받은 추천 id 가 가게마다 출처로 남고, 버전·진행률은 한 번만 갱신된다")
 	void addStores_appendsInOrderWithRecommendation() {
 		lockedCourse();
 		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
@@ -112,11 +100,8 @@ class CourseCommandServiceBulkAddTest {
 		Store first = store(100L);
 		Store second = store(200L);
 		given(storeRepository.findAllById(anyList())).willReturn(List.of(first, second));
-		Recommendation recommendation = recommendationOf(COURSE_ID);
-		given(recommendationRepository.findById(RECOMMENDATION_ID)).willReturn(Optional.of(recommendation));
-
-		List<CourseStoreResponse> result = courseCommandService.addStores(MEMBER_ID, COURSE_ID,
-			request(RECOMMENDATION_ID, 100L, 200L));
+		List<CourseStoreResponse> result = courseCommandService.addStores(MEMBER_ID, COURSE_ID, items(100L, 200L),
+			RECOMMENDATION_ID);
 
 		assertThat(result).extracting(CourseStoreResponse::storeId).containsExactly(100L, 200L);
 		assertThat(result).extracting(CourseStoreResponse::visitOrder).containsExactly(1, 2);
@@ -140,14 +125,13 @@ class CourseCommandServiceBulkAddTest {
 		Store added = store(100L);
 		given(storeRepository.findAllById(anyList())).willReturn(List.of(added));
 
-		List<CourseStoreResponse> result = courseCommandService.addStores(MEMBER_ID, COURSE_ID, request(null, 100L));
+		List<CourseStoreResponse> result = courseCommandService.addStores(MEMBER_ID, COURSE_ID, items(100L), null);
 
 		assertThat(result).hasSize(1);
 		assertThat(result.get(0).visitOrder()).isEqualTo(2);
 		ArgumentCaptor<CourseStore> saved = ArgumentCaptor.forClass(CourseStore.class);
 		then(courseStoreRepository).should().save(saved.capture());
 		assertThat(saved.getValue().getRecommendationId()).isNull();
-		then(recommendationRepository).should(never()).findById(any());
 	}
 
 	@Test
@@ -159,25 +143,11 @@ class CourseCommandServiceBulkAddTest {
 		Store onlyOne = store(100L);
 		given(storeRepository.findAllById(anyList())).willReturn(List.of(onlyOne));
 
-		assertThatThrownBy(() -> courseCommandService.addStores(MEMBER_ID, COURSE_ID, request(null, 100L, 100L)))
+		assertThatThrownBy(() -> courseCommandService.addStores(MEMBER_ID, COURSE_ID, items(100L, 100L), null))
 			.isInstanceOfSatisfying(CourseException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(CourseErrorCode.COURSE_STORE_ALREADY_EXISTS));
 		then(courseRepository).should(never()).bumpVersion(any());
 		then(courseProgressService).should(never()).refreshForCourse(any(), org.mockito.ArgumentMatchers.anyBoolean());
-	}
-
-	@Test
-	@DisplayName("다른 코스의 추천 id 면 아무것도 담지 않고 404 다")
-	void addStores_recommendationOfOtherCourse_isNotFound() {
-		lockedCourse();
-		Recommendation otherCourses = recommendationOf(11L);
-		given(recommendationRepository.findById(RECOMMENDATION_ID)).willReturn(Optional.of(otherCourses));
-
-		assertThatThrownBy(() -> courseCommandService.addStores(MEMBER_ID, COURSE_ID,
-			request(RECOMMENDATION_ID, 100L)))
-			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
-				.isEqualTo(RecommendationErrorCode.RECOMMENDATION_NOT_FOUND));
-		then(courseStoreRepository).should(never()).save(any());
 	}
 
 	@Test
@@ -189,7 +159,7 @@ class CourseCommandServiceBulkAddTest {
 		Store found = store(100L);
 		given(storeRepository.findAllById(anyList())).willReturn(List.of(found));
 
-		assertThatThrownBy(() -> courseCommandService.addStores(MEMBER_ID, COURSE_ID, request(null, 100L, 999L)))
+		assertThatThrownBy(() -> courseCommandService.addStores(MEMBER_ID, COURSE_ID, items(100L, 999L), null))
 			.isInstanceOfSatisfying(StoreException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(StoreErrorCode.STORE_NOT_FOUND));
 		then(courseStoreRepository).should(never()).save(any());

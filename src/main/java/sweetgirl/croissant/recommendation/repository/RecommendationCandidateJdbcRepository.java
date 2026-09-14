@@ -4,6 +4,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -11,6 +13,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.recommendation.entity.CourseArea;
 
 /**
  * 추천 후보 SQL (설계 §5.3 · §5.6). PostGIS 반경 조회라 H2 로는 못 돌린다 — 검증은 랩 테스트(@Tag lab).
@@ -98,23 +101,41 @@ public class RecommendationCandidateJdbcRepository {
 		return jdbcTemplate.query(sql, params, ROW_MAPPER);
 	}
 
-	/** 상권 칩의 storeCount — 반경 안 ACTIVE 가게 수. */
-	public int countActiveStoresWithin(double centerLat, double centerLng, int radiusM) {
-		String sql = "SELECT COUNT(*) FROM store s WHERE s.status = 'ACTIVE' AND ST_DWithin(s.location, " + CENTER
-			+ ", :radiusM)";
-		Integer count = jdbcTemplate.queryForObject(sql,
-			centerParams(centerLat, centerLng, List.of()).addValue("radiusM", radiusM), Integer.class);
-		return count != null ? count : 0;
-	}
-
-	/** 칩 근거 SAVED — 이 회원이 저장한 가게가 반경 안에 있는지. */
-	public boolean existsSavedStoreWithin(Long memberId, double centerLat, double centerLng, int radiusM) {
-		String sql = "SELECT EXISTS (SELECT 1 FROM saved_stores ss JOIN store s ON s.id = ss.store_id"
-			+ " WHERE ss.member_id = :memberId AND ST_DWithin(s.location, " + CENTER + ", :radiusM))";
-		Boolean exists = jdbcTemplate.queryForObject(sql,
-			centerParams(centerLat, centerLng, List.of()).addValue("radiusM", radiusM).addValue("memberId", memberId),
-			Boolean.class);
-		return Boolean.TRUE.equals(exists);
+	/**
+	 * 상권 칩 재료를 한 문장으로 — 칩마다 두 번 묻지 않는다(카드 한 번에 6쿼리 → 1쿼리).
+	 * 소속 규칙은 후보 조회와 같다(반경 안 OR 시군구·동 일치) — 칩의 숫자와 실제 후보 수가 어긋나지 않게.
+	 */
+	public Map<Long, AreaChipStats> findAreaChipStats(Long memberId, List<CourseArea> areas) {
+		if (areas.isEmpty()) {
+			return Map.of();
+		}
+		String sql = """
+				SELECT a.id AS area_id,
+					COUNT(s.id) AS store_count,
+					COALESCE(BOOL_OR(ss.store_id IS NOT NULL), FALSE) AS has_saved_store
+				FROM unnest(CAST(:ids AS bigint[]), CAST(:lats AS float8[]), CAST(:lngs AS float8[]),
+						CAST(:radii AS int[]), CAST(:region2nds AS varchar[]), CAST(:region3rds AS varchar[]))
+					AS a(id, lat, lng, radius_m, region_2nd, region_3rd)
+				LEFT JOIN store s ON s.status = 'ACTIVE' AND (
+					ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(a.lng, a.lat), 4326)::geography, a.radius_m)
+					OR (a.region_2nd IS NOT NULL AND s.region_2nd = a.region_2nd
+						AND (a.region_3rd IS NULL OR s.region_3rd = a.region_3rd)))
+				LEFT JOIN saved_stores ss ON ss.store_id = s.id AND ss.member_id = :memberId
+				GROUP BY a.id
+				""";
+		MapSqlParameterSource params = new MapSqlParameterSource()
+			.addValue("memberId", memberId)
+			.addValue("ids", areas.stream().map(CourseArea::getId).toArray(Long[]::new))
+			.addValue("lats", areas.stream().map(CourseArea::getCenterLat).toArray(Double[]::new))
+			.addValue("lngs", areas.stream().map(CourseArea::getCenterLng).toArray(Double[]::new))
+			.addValue("radii", areas.stream().map(CourseArea::getRadiusM).toArray(Integer[]::new))
+			.addValue("region2nds", areas.stream().map(CourseArea::getRegion2nd).toArray(String[]::new))
+			.addValue("region3rds", areas.stream().map(CourseArea::getRegion3rd).toArray(String[]::new));
+		RowMapper<AreaChipStats> mapper = (rs, rowNum) -> new AreaChipStats(
+			rs.getLong("area_id"), rs.getInt("store_count"), rs.getBoolean("has_saved_store"));
+		return jdbcTemplate.query(sql, params, mapper)
+			.stream()
+			.collect(Collectors.toMap(AreaChipStats::areaId, stats -> stats));
 	}
 
 	/** <> ALL(:excludeStoreIds) 은 빈 배열에도 참이라 제외 목록이 없을 때 조건을 지울 필요가 없다. */

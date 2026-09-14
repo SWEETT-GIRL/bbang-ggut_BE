@@ -24,6 +24,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
 import sweetgirl.croissant.recommendation.dto.response.AnchorRecommendationResponse;
@@ -123,6 +124,31 @@ class RecommendationControllerTest {
 			.andExpect(jsonPath("$.data.stores[0].distanceM").value(200))
 			.andExpect(jsonPath("$.data.stores[0].reason").doesNotExist())
 			.andExpect(jsonPath("$.data.hasNext").value(true));
+	}
+
+	@Test
+	@DisplayName("여러 곳 담기: 본문 {recommendationId, stores[{storeId, day}]} 를 받아 담긴 가게 배열을 돌려준다")
+	void addRecommendedStores_returnsCourseStores() throws Exception {
+		CourseStoreResponse added = new CourseStoreResponse(1L, 1, 1, 100L, "빵집", 37.5, 127.0, "서울 성동구 성수동",
+			null, null, false, null, null, List.of());
+		given(courseRecommendationCommandService.addRecommendedStores(eq(null), eq(10L), any()))
+			.willReturn(List.of(added));
+
+		mockMvc.perform(post("/courses/10/stores/bulk").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"recommendationId\": 99, \"stores\": [{\"storeId\": 100, \"day\": 1}]}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data[0].storeId").value(100))
+			.andExpect(jsonPath("$.data[0].visitOrder").value(1));
+	}
+
+	@Test
+	@DisplayName("여러 곳 담기: 가게 목록이 비면 400 이고 서비스는 불리지 않는다")
+	void addRecommendedStores_emptyStores_isBadRequest() throws Exception {
+		mockMvc.perform(post("/courses/10/stores/bulk").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"stores\": []}"))
+			.andExpect(status().isBadRequest());
+
+		verify(courseRecommendationCommandService, never()).addRecommendedStores(any(), any(), any());
 	}
 
 	@Test

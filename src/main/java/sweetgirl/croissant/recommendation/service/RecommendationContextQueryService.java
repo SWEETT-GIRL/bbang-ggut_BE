@@ -1,6 +1,7 @@
 package sweetgirl.croissant.recommendation.service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ import sweetgirl.croissant.recommendation.dto.response.RecommendationContextResp
 import sweetgirl.croissant.recommendation.entity.CourseArea;
 import sweetgirl.croissant.recommendation.enums.RecommendationAreaReason;
 import sweetgirl.croissant.recommendation.enums.RecommendationContextState;
+import sweetgirl.croissant.recommendation.repository.AreaChipStats;
 import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationCandidateJdbcRepository;
 
@@ -32,7 +34,7 @@ import sweetgirl.croissant.recommendation.repository.RecommendationCandidateJdbc
  *
  * 상태: 검사 타입이 있으면 CHIPS. 없으면 강한 신호(저장 · 담기 · 기록) 가게가 3곳 이상이어야 CHIPS, 아니면 QUIZ.
  * 정확도 링크: CHIPS 인데 검사를 안 했고 빵 단위 신호(기록)가 없을 때.
- * 칩: 코스 지역(시/도)의 활성 상권을 표시 순서대로 3개. 근거는 저장 가게가 반경 안에 있으면 SAVED, 아니면 POPULAR
+ * 칩: 코스 지역(시/도)의 활성 상권을 표시 순서대로 3개. 근거는 저장 가게가 상권 안에 있으면 SAVED, 아니면 POPULAR
  * (SESSION · TASTE 는 #661). 상권 시드 전에는 칩이 비어 카드가 뜨지 않는다.
  */
 @Service
@@ -76,17 +78,20 @@ public class RecommendationContextQueryService {
 		if (course.getRegion() == null) {
 			return List.of();
 		}
-		return courseAreaRepository.findAllBySidoAndIsActiveTrueOrderByDisplayOrderAscNameAsc(course.getRegion())
+		List<CourseArea> areas = courseAreaRepository
+			.findAllBySidoAndIsActiveTrueOrderByDisplayOrderAscNameAsc(course.getRegion())
 			.stream()
 			.limit(recommendationProperties.getArea().getMaxChips())
-			.map(area -> new RecommendationAreaResponse(area.getId(), area.getName(), reasonOf(area, memberId),
-				candidateRepository.countActiveStoresWithin(area.getCenterLat(), area.getCenterLng(),
-					area.getRadiusM())))
 			.toList();
-	}
-
-	private RecommendationAreaReason reasonOf(CourseArea area, Long memberId) {
-		return candidateRepository.existsSavedStoreWithin(memberId, area.getCenterLat(), area.getCenterLng(),
-			area.getRadiusM()) ? RecommendationAreaReason.SAVED : RecommendationAreaReason.POPULAR;
+		// 칩마다 두 번 묻지 않고 한 문장으로 — 후보와 같은 소속 규칙로 센다
+		Map<Long, AreaChipStats> stats = candidateRepository.findAreaChipStats(memberId, areas);
+		return areas.stream()
+			.map(area -> {
+				AreaChipStats chip = stats.getOrDefault(area.getId(), new AreaChipStats(area.getId(), 0, false));
+				return new RecommendationAreaResponse(area.getId(), area.getName(),
+					chip.hasSavedStore() ? RecommendationAreaReason.SAVED : RecommendationAreaReason.POPULAR,
+					chip.storeCount());
+			})
+			.toList();
 	}
 }

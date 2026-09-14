@@ -16,7 +16,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 
 import sweetgirl.croissant.config.persistence.JpaConfig;
+import sweetgirl.croissant.recommendation.entity.CourseArea;
+import sweetgirl.croissant.recommendation.repository.AreaChipStats;
 import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
+import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationCandidateJdbcRepository;
 
 /**
@@ -50,6 +53,8 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 	private RecommendationCandidateJdbcRepository candidateRepository;
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
+	@Autowired
+	private CourseAreaRepository courseAreaRepository;
 
 	@Test
 	@DisplayName("상권 후보: 반경 안 ACTIVE 가게를 인기순으로, 제외 목록과 상한을 지킨다")
@@ -99,22 +104,34 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 	}
 
 	@Test
-	@DisplayName("칩 재료: 반경 안 가게 수와, 회원의 저장 가게가 반경 안에 있는지")
-	void chipInputs_countAndSavedExists() {
-		int count = candidateRepository.countActiveStoresWithin(SEONGSU_LAT, SEONGSU_LNG, RADIUS_M);
-		assertThat(count).isGreaterThan(0);
-
+	@DisplayName("칩 재료 한 문장: 상권마다 가게 수(후보와 같은 소속 규칙)와 내 저장 가게 유무를 같이 준다")
+	void areaChipStats_oneQueryForAllChips() {
 		Map<String, Object> saved = jdbcTemplate.queryForMap("""
 				SELECT ss.member_id, ST_Y(s.location::geometry) AS lat, ST_X(s.location::geometry) AS lng
-				FROM saved_stores ss JOIN store s ON s.id = ss.store_id
+				FROM saved_stores ss JOIN store s ON s.id = ss.store_id WHERE s.status = 'ACTIVE'
 				ORDER BY ss.id LIMIT 1
 				""");
 		Long memberId = ((Number)saved.get("member_id")).longValue();
-		double lat = ((Number)saved.get("lat")).doubleValue();
-		double lng = ((Number)saved.get("lng")).doubleValue();
+		double savedLat = ((Number)saved.get("lat")).doubleValue();
+		double savedLng = ((Number)saved.get("lng")).doubleValue();
+		CourseArea seongsu = courseAreaRepository.save(
+			CourseArea.create("서울", "성수동", null, SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, RADIUS_M, null, null, 1));
+		// 반경 1m 인데 시군구·동이 맞아 들어오는 가게 — 칩 숫자가 후보 수와 같은 규칙로 센다
+		CourseArea byRegion = courseAreaRepository.save(
+			CourseArea.create("서울", "성수동(지역)", null, SEONGSU_LAT, SEONGSU_LNG, 1, RADIUS_M, "성동구", "성수동", 2));
+		CourseArea aroundSaved = courseAreaRepository.save(
+			CourseArea.create("서울", "저장 근처", null, savedLat, savedLng, 100, RADIUS_M, null, null, 3));
+		CourseArea antarctica = courseAreaRepository.save(
+			CourseArea.create("서울", "남극", null, -89.0, 0.0, 100, RADIUS_M, null, null, 4));
 
-		assertThat(candidateRepository.existsSavedStoreWithin(memberId, lat, lng, 100)).isTrue();
-		// 남극점 근처엔 아무도 가게를 저장하지 않았다
-		assertThat(candidateRepository.existsSavedStoreWithin(memberId, -89.0, 0.0, 100)).isFalse();
+		Map<Long, AreaChipStats> stats = candidateRepository.findAreaChipStats(memberId,
+			List.of(seongsu, byRegion, aroundSaved, antarctica));
+
+		assertThat(stats).hasSize(4);
+		assertThat(stats.get(seongsu.getId()).storeCount()).isGreaterThan(0);
+		assertThat(stats.get(byRegion.getId()).storeCount()).isGreaterThan(0);
+		assertThat(stats.get(aroundSaved.getId()).hasSavedStore()).isTrue();
+		assertThat(stats.get(antarctica.getId()).storeCount()).isZero();
+		assertThat(stats.get(antarctica.getId()).hasSavedStore()).isFalse();
 	}
 }

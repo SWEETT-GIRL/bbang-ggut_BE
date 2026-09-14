@@ -2,6 +2,7 @@ package sweetgirl.croissant.recommendation.entity;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.hibernate.annotations.JdbcTypeCode;
@@ -174,5 +175,19 @@ public class Recommendation {
 
 	public boolean isAnchor() {
 		return this.mode == RecommendationMode.ANCHOR;
+	}
+
+	/** 이 가게가 결과에 있었는지 — 가게 단위 반응은 사용자에게 보인 가게에만 붙어야 #663 이 신호로 믿을 수 있다. 상권·앵커 결과 모두 stores[].storeId 다. */
+	@SuppressWarnings("unchecked")
+	public boolean containsStore(Long storeId) {
+		Object stores = this.result.get("stores");
+		if (!(stores instanceof List<?> rows)) {
+			return false;
+		}
+		return rows.stream()
+			.filter(Map.class::isInstance)
+			.map(row -> ((Map<String, Object>)row).get("storeId"))
+			.filter(Number.class::isInstance)
+			.anyMatch(id -> ((Number)id).longValue() == storeId);
 	}
 }

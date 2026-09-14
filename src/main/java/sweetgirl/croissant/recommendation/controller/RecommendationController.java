@@ -1,5 +1,7 @@
 package sweetgirl.croissant.recommendation.controller;
 
+import java.util.List;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,7 +15,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.global.response.ApiResponse;
+import sweetgirl.croissant.recommendation.dto.request.CourseStoreBulkAddRequest;
 import sweetgirl.croissant.recommendation.dto.request.RecommendationFeedbackRequest;
 import sweetgirl.croissant.recommendation.dto.request.RecommendationRequest;
 import sweetgirl.croissant.recommendation.dto.response.AnchorRecommendationResponse;
@@ -60,6 +64,16 @@ public class RecommendationController {
 			@RequestParam(defaultValue = "0") int page) {
 		return ResponseEntity.ok(ApiResponse.ok(
 			courseRecommendationCommandService.recommendNearAnchor(memberId, courseId, storeId, page)));
+	}
+
+	@Operation(summary = "추천 결과 한 번에 담기", description = "한 트랜잭션 — 하나라도 못 담으면 전부 되돌린다. recommendationId 는 내 것이어야 한다.")
+	@PostMapping("/courses/{courseId}/stores/bulk")
+	public ResponseEntity<ApiResponse<List<CourseStoreResponse>>> addRecommendedStores(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable Long courseId,
+			@Valid @RequestBody CourseStoreBulkAddRequest request) {
+		return ResponseEntity.ok(ApiResponse.ok(
+			courseRecommendationCommandService.addRecommendedStores(memberId, courseId, request)));
 	}
 
 	@Operation(summary = "추천 반응 남기기", description = "가게 단위 반응(STORE_TAP · STORE_UNCHECK)엔 storeId, DISLIKE 엔 reason.")

@@ -88,4 +88,13 @@ class BbtiControllerTest {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.code").value("PERSONALIZATION400_1"));
 	}
+
+	@Test
+	@DisplayName("모르는 축 이름은 본문 파싱 단계에서 공통 400 이다 — 도메인 코드가 아니다")
+	void submit_unknownAxis_isBadRequest() throws Exception {
+		mockMvc.perform(post("/users/me/bbti").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"answers\": [{\"axis\": \"vibes\", \"choice\": \"A\"}]}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.success").value(false));
+	}
 }
