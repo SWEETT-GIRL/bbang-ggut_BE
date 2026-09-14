@@ -125,6 +125,11 @@ public class CourseCommandService {
 		}
 		if (request.getStartDate() != null || request.getEndDate() != null) {
 			validateDates(request.getStartDate(), request.getEndDate());
+			// 날짜를 줄여 담긴 가게가 범위 밖 일차에 남게 두지 않는다 — day_count 를 줄일 수 없는 것과 같은 규칙
+			int span = Course.dateSpan(request.getStartDate(), request.getEndDate());
+			if (span > 0 && span < courseStoreRepository.findMaxDayByCourseId(courseId)) {
+				throw new CourseException(CourseErrorCode.COURSE_DAY_COUNT_INVALID);
+			}
 			course.updateDates(request.getStartDate(), request.getEndDate());
 		}
 		if (request.getDayCount() != null) {
@@ -226,7 +231,7 @@ public class CourseCommandService {
 		Store store = storeRepository.findById(request.getStoreId())
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 
-		int day = resolveDay(request.getDay(), activeStores);
+		int day = resolveDay(request.getDay(), course, activeStores);
 		// 뒤 일차에 담기면 일차 수도 따라 올린다 — 일행이 같은 일차 수를 본다
 		course.ensureDayCountAtLeast(day);
 		CourseStore courseStore = insertStore(course, store, activeStores, day, request.getVisitTime());
@@ -243,14 +248,28 @@ public class CourseCommandService {
 		return CourseStoreResponse.of(courseStore, null, myMemo, myMemo, memos);
 	}
 
-	/** 요청 일차가 없으면 마지막 일차(최소 1). 1 ~ (마지막 일차 + 1) 만 허용 — 빈 일차를 건너뛰어 담을 수 없다. */
-	private int resolveDay(Integer requestedDay, List<CourseStore> activeStores) {
-		int maxDay = activeStores.stream().mapToInt(CourseStore::getDay).max().orElse(0);
-		int day = requestedDay != null ? requestedDay : Math.max(maxDay, 1);
-		if (day < 1 || day > maxDay + 1) {
+	/**
+	 * 요청 일차가 없으면 마지막 일차(최소 1). 허용 범위는 1 ~ max(코스가 아는 일차 수, 담긴 마지막 일차 + 1).
+	 * 빈 앞 일차를 건너뛰어 담아도 된다 — 빈 일차는 day_count 가 표현하고(09-03), 앱은 날짜로 탭을 그려 2일차부터 채울 수 있다.
+	 * 예전의 "빠짐없이 이어져야 한다" 는 일차 수 컬럼이 없어 max(day) 로 탭을 도출하던 때의 규칙이다.
+	 */
+	private int resolveDay(Integer requestedDay, Course course, List<CourseStore> activeStores) {
+		int maxStoreDay = activeStores.stream().mapToInt(CourseStore::getDay).max().orElse(0);
+		int day = requestedDay != null ? requestedDay : Math.max(maxStoreDay, 1);
+		if (day < 1 || day > allowedMaxDay(course, maxStoreDay)) {
 			throw new CourseException(CourseErrorCode.COURSE_STORE_DAY_INVALID);
 		}
 		return day;
+	}
+
+	/** 담을 수 있는 마지막 일차 — 코스가 아는 일차 수(day_count · 날짜 일수)와 담긴 마지막 일차 + 1 중 큰 것. */
+	static int allowedMaxDay(Course course, int maxStoreDay) {
+		return Math.max(knownDayCount(course), maxStoreDay + 1);
+	}
+
+	/** 코스가 아는 일차 수 — day_count 와 날짜 일수 중 큰 것(최소 1). 옛 코스는 날짜가 있어도 day_count 가 1 일 수 있다. */
+	static int knownDayCount(Course course) {
+		return Math.max(Math.max(course.getDayCount(), Course.dateSpan(course.getStartDate(), course.getEndDate())), 1);
 	}
 
 	private boolean containsStore(List<CourseStore> activeStores, Long storeId) {
@@ -410,7 +429,8 @@ public class CourseCommandService {
 
 		boolean hasDayInfo = orderItems.stream().anyMatch(item -> item.getDay() != null);
 		if (hasDayInfo) {
-			validateDaySequence(orderItems);
+			int maxStoreDay = activeStores.stream().mapToInt(CourseStore::getDay).max().orElse(0);
+			validateDaySequence(orderItems, allowedMaxDay(course, maxStoreDay));
 			orderItems.stream().mapToInt(CourseStoreOrderItem::getDay).max().ifPresent(course::ensureDayCountAtLeast);
 		}
 
@@ -446,12 +466,12 @@ public class CourseCommandService {
 		}
 	}
 
-	// 일차는 1부터 시작해 빠짐없이 이어져야 한다 (1,1,2,2,3 ✓ / 1,3 ✗ / 2,1 ✗)
-	private void validateDaySequence(List<CourseStoreOrderItem> orderItems) {
+	// 일차는 1 이상, 순서대로 내려가지 않고, 이전 일차 + 1 이거나 코스가 아는 범위 안이어야 한다 (1,1,3 ✓ 빈 2일차 / 2,1 ✗ / 0 ✗)
+	private void validateDaySequence(List<CourseStoreOrderItem> orderItems, int allowedMaxDay) {
 		int prev = 0;
 		for (CourseStoreOrderItem item : orderItems) {
 			Integer day = item.getDay();
-			if (day == null || day < 1 || day < prev || day > prev + 1) {
+			if (day == null || day < 1 || day < prev || day > Math.max(allowedMaxDay, prev + 1)) {
 				throw new CourseException(CourseErrorCode.COURSE_STORE_DAY_INVALID);
 			}
 			prev = day;

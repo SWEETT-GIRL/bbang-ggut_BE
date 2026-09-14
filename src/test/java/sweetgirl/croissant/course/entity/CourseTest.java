@@ -81,4 +81,19 @@ class CourseTest {
 
 		assertThat(course.getMember()).isSameAs(successor);
 	}
+
+	@Test
+	@DisplayName("날짜가 정해지면 일차 수는 그 일수 이상이고, 날짜를 줄여도 일차 수는 줄지 않는다")
+	void dayCount_followsDates() {
+		Course course = Course.createCustom("코스", mock(Member.class), false, "서울",
+			java.time.LocalDate.of(2026, 9, 21), java.time.LocalDate.of(2026, 9, 22));
+		assertThat(course.getDayCount()).isEqualTo(2);
+
+		course.updateDates(java.time.LocalDate.of(2026, 9, 21), java.time.LocalDate.of(2026, 9, 23));
+		assertThat(course.getDayCount()).isEqualTo(3);
+
+		course.updateDates(java.time.LocalDate.of(2026, 9, 21), java.time.LocalDate.of(2026, 9, 21));
+		assertThat(course.getDayCount()).isEqualTo(3);
+		assertThat(Course.dateSpan(null, null)).isZero();
+	}
 }

@@ -2,6 +2,7 @@ package sweetgirl.croissant.course.entity;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.DynamicUpdate;
@@ -84,7 +85,7 @@ public class Course extends BaseTimeEntity {
 	@Column(name = "share_token", length = 64)
 	private String shareToken;
 
-	/** 빈 일차를 포함한 일차 수. 일행이 같은 일차 수를 보게 서버가 갖는다. 늘어나기만 한다. */
+	/** 빈 일차를 포함한 일차 수. 일행이 같은 일차 수를 보게 서버가 갖는다. 늘어나기만 하고, 날짜가 정해지면 그 일수 이상이다. */
 	@Column(name = "day_count", nullable = false)
 	private int dayCount = 1;
 
@@ -141,6 +142,8 @@ public class Course extends BaseTimeEntity {
 		this.region = region;
 		this.startDate = startDate;
 		this.endDate = endDate;
+		// 날짜가 있으면 일차 수가 그 일수 이상이다 — 앱이 날짜로 탭을 그리니 서버도 같은 수를 안다
+		ensureDayCountAtLeast(dateSpan(startDate, endDate));
 	}
 
 	public static Course createCustom(
@@ -256,6 +259,12 @@ public class Course extends BaseTimeEntity {
 	public void updateDates(LocalDate startDate, LocalDate endDate) {
 		this.startDate = startDate;
 		this.endDate = endDate;
+		ensureDayCountAtLeast(dateSpan(startDate, endDate));
+	}
+
+	/** 시작·종료일이 있을 때 그 일수, 없으면 0. */
+	public static int dateSpan(LocalDate startDate, LocalDate endDate) {
+		return startDate != null && endDate != null ? (int)ChronoUnit.DAYS.between(startDate, endDate) + 1 : 0;
 	}
 
 	public void softDelete() {
