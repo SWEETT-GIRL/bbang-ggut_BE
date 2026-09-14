@@ -13,6 +13,10 @@ import lombok.NoArgsConstructor;
 public class RecommendationMessage {
 
 	public static final String RULE_REASON = "이 동네에서 자주 담기는 빵집이에요";
+	/** 취향 후보(코사인 > 임계) — #661 점수식으로 골랐을 때 */
+	public static final String TASTE_REASON = "취향에 가까운 빵집이에요";
+	/** 취향 근거가 약한 가게 — 취향 폴백(취향 후보 3곳 미만)이거나 tasteFit 이 낮을 때(설계 §7.1) */
+	public static final String SIGNATURE_REASON = "이 동네 시그니처 빵집이에요";
 	public static final String TITLE_WITHOUT_TYPE = "빵집";
 	private static final String TITLE_FORMAT = "%s %s 코스";
 
