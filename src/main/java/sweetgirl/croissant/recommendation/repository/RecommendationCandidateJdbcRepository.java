@@ -59,10 +59,12 @@ public class RecommendationCandidateJdbcRepository {
 	private final NamedParameterJdbcTemplate jdbcTemplate;
 
 	/**
-	 * 상권 후보: 반경 안이거나(주 규칙) 시군구·동이 맞는(보조) ACTIVE 가게를 인기순으로. region2nd 가 null 이면 반경만 본다.
+	 * 상권 후보: 반경 안이거나(주 규칙) 시·도 + 시군구·동이 맞는(보조) ACTIVE 가게를 인기순으로. region2nd 가 null 이면 반경만 본다.
+	 * 시·도(store.region_1st = course_area.sido)를 같이 보는 이유: 시군구 이름은 전국에서 겹친다 — 중구·서구·동구·남구가
+	 * 시·도마다 있어 "부산 중구"가 대구·대전·인천·울산 중구까지 끌어온다(도장 칸 시드 검증에서 1,446곳).
 	 */
 	public List<CandidateStoreRow> findAreaCandidates(
-			double centerLat, double centerLng, int radiusM, String region2nd, String region3rd,
+			double centerLat, double centerLng, int radiusM, String sido, String region2nd, String region3rd,
 			Collection<Long> excludeStoreIds, int limit) {
 		StringBuilder sql = new StringBuilder(SELECT_STORE)
 			.append("\tAND (ST_DWithin(s.location, ").append(CENTER).append(", :radiusM)");
@@ -70,7 +72,8 @@ public class RecommendationCandidateJdbcRepository {
 			.addValue("radiusM", radiusM)
 			.addValue("limit", limit);
 		if (region2nd != null) {
-			sql.append(" OR (s.region_2nd = :region2nd");
+			sql.append(" OR (s.region_1st = :sido AND s.region_2nd = :region2nd");
+			params.addValue("sido", sido);
 			params.addValue("region2nd", region2nd);
 			if (region3rd != null) {
 				sql.append(" AND s.region_3rd = :region3rd");
@@ -103,7 +106,7 @@ public class RecommendationCandidateJdbcRepository {
 
 	/**
 	 * 상권 칩 재료를 한 문장으로 — 칩마다 두 번 묻지 않는다(카드 한 번에 6쿼리 → 1쿼리).
-	 * 소속 규칙은 후보 조회와 같다(반경 안 OR 시군구·동 일치) — 칩의 숫자와 실제 후보 수가 어긋나지 않게.
+	 * 소속 규칙은 후보 조회와 같다(반경 안 OR 시·도+시군구·동 일치) — 칩의 숫자와 실제 후보 수가 어긋나지 않게.
 	 */
 	public Map<Long, AreaChipStats> findAreaChipStats(Long memberId, List<CourseArea> areas) {
 		if (areas.isEmpty()) {
@@ -114,11 +117,12 @@ public class RecommendationCandidateJdbcRepository {
 					COUNT(s.id) AS store_count,
 					COALESCE(BOOL_OR(ss.store_id IS NOT NULL), FALSE) AS has_saved_store
 				FROM unnest(CAST(:ids AS bigint[]), CAST(:lats AS float8[]), CAST(:lngs AS float8[]),
-						CAST(:radii AS int[]), CAST(:region2nds AS varchar[]), CAST(:region3rds AS varchar[]))
-					AS a(id, lat, lng, radius_m, region_2nd, region_3rd)
+						CAST(:radii AS int[]), CAST(:sidos AS varchar[]), CAST(:region2nds AS varchar[]),
+						CAST(:region3rds AS varchar[]))
+					AS a(id, lat, lng, radius_m, sido, region_2nd, region_3rd)
 				LEFT JOIN store s ON s.status = 'ACTIVE' AND (
 					ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(a.lng, a.lat), 4326)::geography, a.radius_m)
-					OR (a.region_2nd IS NOT NULL AND s.region_2nd = a.region_2nd
+					OR (a.region_2nd IS NOT NULL AND s.region_1st = a.sido AND s.region_2nd = a.region_2nd
 						AND (a.region_3rd IS NULL OR s.region_3rd = a.region_3rd)))
 				LEFT JOIN saved_stores ss ON ss.store_id = s.id AND ss.member_id = :memberId
 				GROUP BY a.id
@@ -129,6 +133,7 @@ public class RecommendationCandidateJdbcRepository {
 			.addValue("lats", areas.stream().map(CourseArea::getCenterLat).toArray(Double[]::new))
 			.addValue("lngs", areas.stream().map(CourseArea::getCenterLng).toArray(Double[]::new))
 			.addValue("radii", areas.stream().map(CourseArea::getRadiusM).toArray(Integer[]::new))
+			.addValue("sidos", areas.stream().map(CourseArea::getSido).toArray(String[]::new))
 			.addValue("region2nds", areas.stream().map(CourseArea::getRegion2nd).toArray(String[]::new))
 			.addValue("region3rds", areas.stream().map(CourseArea::getRegion3rd).toArray(String[]::new));
 		RowMapper<AreaChipStats> mapper = (rs, rowNum) -> new AreaChipStats(

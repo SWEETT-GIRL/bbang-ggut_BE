@@ -45,6 +45,9 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 
 	private static final double SEONGSU_LAT = 37.5446;
 	private static final double SEONGSU_LNG = 127.0557;
+	/** 부산 중구 도장 칸 중심(V20260914174500 시드와 같은 좌표) */
+	private static final double BUSAN_JUNGGU_LAT = 35.10407;
+	private static final double BUSAN_JUNGGU_LNG = 129.03509;
 	private static final int RADIUS_M = 1_200;
 	private static final int RING_M = 1_000;
 	private static final int MAX_RADIUS_M = 3_000;
@@ -60,7 +63,7 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 	@DisplayName("상권 후보: 반경 안 ACTIVE 가게를 인기순으로, 제외 목록과 상한을 지킨다")
 	void areaCandidates_withinRadius_popularityOrdered() {
 		List<CandidateStoreRow> all = candidateRepository.findAreaCandidates(
-			SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, null, null, List.of(), 15);
+			SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, null, null, null, List.of(), 15);
 
 		assertThat(all).isNotEmpty().hasSizeLessThanOrEqualTo(15);
 		assertThat(all).allSatisfy(row -> assertThat(row.distanceM()).isLessThanOrEqualTo(RADIUS_M));
@@ -69,7 +72,7 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 
 		Long excluded = all.get(0).storeId();
 		List<CandidateStoreRow> withoutFirst = candidateRepository.findAreaCandidates(
-			SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, null, null, List.of(excluded), 15);
+			SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, null, null, null, List.of(excluded), 15);
 		assertThat(withoutFirst).extracting(CandidateStoreRow::storeId).doesNotContain(excluded);
 	}
 
@@ -77,10 +80,21 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 	@DisplayName("상권 후보: 반경이 좁아도 시군구·동이 맞으면 들어온다 — 소속 판정의 보조 규칙")
 	void areaCandidates_regionRuleAddsStoresOutsideRadius() {
 		List<CandidateStoreRow> byRegion = candidateRepository.findAreaCandidates(
-			SEONGSU_LAT, SEONGSU_LNG, 1, "성동구", "성수동", List.of(), 50);
+			SEONGSU_LAT, SEONGSU_LNG, 1, "서울", "성동구", "성수동", List.of(), 50);
 
 		assertThat(byRegion).isNotEmpty();
 		assertThat(byRegion).anySatisfy(row -> assertThat(row.distanceM()).isGreaterThan(1));
+	}
+
+	@Test
+	@DisplayName("상권 후보: 시군구 이름이 같은 다른 시·도(대구·대전·인천 중구)는 들어오지 않는다")
+	void areaCandidates_regionRuleIsScopedBySido() {
+		List<CandidateStoreRow> busanJunggu = candidateRepository.findAreaCandidates(
+			BUSAN_JUNGGU_LAT, BUSAN_JUNGGU_LNG, 1, "부산", "중구", null, List.of(), 3000);
+
+		// 부산 중구 ACTIVE 가게는 120곳 안팎 — 전국 중구를 다 끌어오면 1,500곳이 넘고 대구 중구는 90km 밖이다
+		assertThat(busanJunggu).hasSizeBetween(50, 400);
+		assertThat(busanJunggu).allSatisfy(row -> assertThat(row.distanceM()).isLessThan(30_000));
 	}
 
 	@Test
@@ -114,8 +128,9 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 		Long memberId = ((Number)saved.get("member_id")).longValue();
 		double savedLat = ((Number)saved.get("lat")).doubleValue();
 		double savedLng = ((Number)saved.get("lng")).doubleValue();
+		// 시드된 도장 칸("서울", "성수동")과 (sido, name) 이 겹치지 않게 이름을 구분한다
 		CourseArea seongsu = courseAreaRepository.save(
-			CourseArea.create("서울", "성수동", null, SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, RADIUS_M, null, null, 1));
+			CourseArea.create("서울", "성수동(반경)", null, SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, RADIUS_M, null, null, 1));
 		// 반경 1m 인데 시군구·동이 맞아 들어오는 가게 — 칩 숫자가 후보 수와 같은 규칙로 센다
 		CourseArea byRegion = courseAreaRepository.save(
 			CourseArea.create("서울", "성수동(지역)", null, SEONGSU_LAT, SEONGSU_LNG, 1, RADIUS_M, "성동구", "성수동", 2));
@@ -123,11 +138,15 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 			CourseArea.create("서울", "저장 근처", null, savedLat, savedLng, 100, RADIUS_M, null, null, 3));
 		CourseArea antarctica = courseAreaRepository.save(
 			CourseArea.create("서울", "남극", null, -89.0, 0.0, 100, RADIUS_M, null, null, 4));
+		// 시군구 이름이 전국에서 겹치는 칸 — 시·도를 안 보면 대구·대전·인천·울산 중구까지 세어 1,500곳이 넘는다
+		CourseArea busanJunggu = courseAreaRepository.save(
+			CourseArea.create("부산", "중구(랩)", null, BUSAN_JUNGGU_LAT, BUSAN_JUNGGU_LNG, 1, RADIUS_M, "중구", null, 5));
 
 		Map<Long, AreaChipStats> stats = candidateRepository.findAreaChipStats(memberId,
-			List.of(seongsu, byRegion, aroundSaved, antarctica));
+			List.of(seongsu, byRegion, aroundSaved, antarctica, busanJunggu));
 
-		assertThat(stats).hasSize(4);
+		assertThat(stats).hasSize(5);
+		assertThat(stats.get(busanJunggu.getId()).storeCount()).isBetween(50, 400);
 		assertThat(stats.get(seongsu.getId()).storeCount()).isGreaterThan(0);
 		assertThat(stats.get(byRegion.getId()).storeCount()).isGreaterThan(0);
 		assertThat(stats.get(aroundSaved.getId()).hasSavedStore()).isTrue();
