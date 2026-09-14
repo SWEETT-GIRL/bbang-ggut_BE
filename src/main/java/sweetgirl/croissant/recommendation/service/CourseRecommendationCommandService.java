@@ -1,6 +1,5 @@
 package sweetgirl.croissant.recommendation.service;
 
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -242,7 +241,7 @@ public class CourseRecommendationCommandService {
 	/**
 	 * 요청 일차가 있으면 범위 검사, 없으면 첫 빈 일차. 허용 범위는 코스가 아는 일차 수(dayCount · 날짜 span)와
 	 * 담긴 마지막 일차 + 1 중 큰 것까지 — 단건 담기의 resolveDay 와 같은 상한이고, 날짜가 있는 코스는 그 날짜 안 어느 일차든 된다.
-	 * (이 규칙의 course 쪽 정리는 별도 PR — 지금 course 는 빈 앞 일차를 건너뛰지 못하게 막고 있다.)
+	 * course 의 resolveDay 와 같은 규칙이다(PR #733).
 	 */
 	static short resolveDay(Integer requestedDay, Course course, List<CourseStore> activeStores) {
 		int maxStoreDay = activeStores.stream().mapToInt(CourseStore::getDay).max().orElse(0);
@@ -258,10 +257,7 @@ public class CourseRecommendationCommandService {
 
 	/** 코스가 아는 일차 수 — 서버의 dayCount 와 날짜 span 중 큰 것. 앱은 날짜로 탭을 그리는데 dayCount 는 생성 때 1 이라 둘이 다를 수 있다. */
 	static int knownDayCount(Course course) {
-		int dateSpan = course.getStartDate() != null && course.getEndDate() != null
-			? (int)ChronoUnit.DAYS.between(course.getStartDate(), course.getEndDate()) + 1
-			: 0;
-		return Math.max(Math.max(course.getDayCount(), dateSpan), 1);
+		return Math.max(Math.max(course.getDayCount(), Course.dateSpan(course.getStartDate(), course.getEndDate())), 1);
 	}
 
 	/** 첫 빈 일차 — 정류장이 없는 가장 앞 일차. 전부 찼으면 마지막 일차. */
