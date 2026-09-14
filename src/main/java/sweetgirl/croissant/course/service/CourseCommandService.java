@@ -3,6 +3,8 @@ package sweetgirl.croissant.course.service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +22,7 @@ import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.request.CourseCreateRequest;
 import sweetgirl.croissant.course.dto.request.CourseImageRegisterRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreAddRequest;
+import sweetgirl.croissant.course.dto.request.CourseStoreBulkItem;
 import sweetgirl.croissant.course.dto.request.CourseStoreReorderRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreReorderRequest.CourseStoreOrderItem;
 import sweetgirl.croissant.course.dto.request.CourseStoreUpdateRequest;
@@ -246,6 +249,55 @@ public class CourseCommandService {
 			: List.of(new CourseStoreMemoResponse(
 				memberId, displayNameOf(courseId, memberId), myMemo, LocalDateTime.now(), true));
 		return CourseStoreResponse.of(courseStore, null, myMemo, myMemo, memos);
+	}
+
+	/**
+	 * 여러 곳을 한 트랜잭션으로 담는다 (#660). 단건 담기와 같은 규칙을 가게 목록으로 한 번 돈다 —
+	 * 하나라도 못 담으면(이미 담긴 가게, 없는 가게, 잘못된 일차) 전부 되돌린다.
+	 * recommendationId 는 호출자(추천 모듈)가 소유·코스 일치를 확인해 넘긴 값이고, 여기서는 담긴 가게마다 출처로 남길 뿐이다.
+	 */
+	public List<CourseStoreResponse> addStores(Long memberId, Long courseId, List<CourseStoreBulkItem> items,
+			Long recommendationId) {
+		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
+			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
+		courseAccessPolicy.requireEditable(course, memberId);
+
+		// 정류장 목록을 손에 들고 돈다 — 방금 담은 가게가 다음 가게의 중복·일차·순서 판정에 바로 보여야 한다
+		List<CourseStore> activeStores = new ArrayList<>(
+			courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId));
+		Map<Long, Store> storesById = findStoresById(items);
+
+		List<CourseStore> added = new ArrayList<>();
+		for (CourseStoreBulkItem item : items) {
+			if (containsStore(activeStores, item.getStoreId())) {
+				throw new CourseException(CourseErrorCode.COURSE_STORE_ALREADY_EXISTS);
+			}
+			int day = resolveDay(item.getDay(), course, activeStores);
+			course.ensureDayCountAtLeast(day);
+			CourseStore courseStore = insertStore(course, storesById.get(item.getStoreId()), activeStores, day, null);
+			if (recommendationId != null) {
+				courseStore.markRecommended(recommendationId);
+			}
+			activeStores.add(courseStore);
+			activeStores.sort(Comparator.comparingInt(CourseStore::getVisitOrder));
+			added.add(courseStore);
+		}
+		courseProgressService.refreshForCourse(courseId, true);
+		courseRepository.bumpVersion(courseId);
+		return added.stream()
+			.map(courseStore -> CourseStoreResponse.of(courseStore, null, null, null, List.of()))
+			.toList();
+	}
+
+	/** 한 번에 읽고, 요청한 가게가 하나라도 없으면 아무것도 담지 않는다. */
+	private Map<Long, Store> findStoresById(List<CourseStoreBulkItem> items) {
+		List<Long> storeIds = items.stream().map(CourseStoreBulkItem::getStoreId).distinct().toList();
+		Map<Long, Store> storesById = storeRepository.findAllById(storeIds).stream()
+			.collect(Collectors.toMap(Store::getId, store -> store));
+		if (storesById.size() != storeIds.size()) {
+			throw new StoreException(StoreErrorCode.STORE_NOT_FOUND);
+		}
+		return storesById;
 	}
 
 	/**

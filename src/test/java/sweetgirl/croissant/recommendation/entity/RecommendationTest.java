@@ -62,4 +62,15 @@ class RecommendationTest {
 
 		assertThat(recommendation.getResult()).containsKey("title");
 	}
+
+	@Test
+	@DisplayName("결과에 있던 가게만 있다고 답한다 — stores 가 없거나 모양이 다르면 없다")
+	void containsStore() {
+		Recommendation recommendation = Recommendation.forAnchor(7L, 10L, 1042L, (short)1, 1, resultWithNullSkipped());
+		Recommendation noStores = Recommendation.forAnchor(7L, 10L, 1042L, (short)1, 1, Map.of("title", "빈 결과"));
+
+		assertThat(recommendation.containsStore(1042L)).isTrue();
+		assertThat(recommendation.containsStore(7L)).isFalse();
+		assertThat(noStores.containsStore(1042L)).isFalse();
+	}
 }

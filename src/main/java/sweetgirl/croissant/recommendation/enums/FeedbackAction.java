@@ -18,7 +18,7 @@ public enum FeedbackAction {
 
 	private final String description;
 
-	/** 가게 단위 반응이면 storeId 가 있어야 한다. */
+	/** 가게 단위 반응이면 storeId 가 있어야 한다. 아니어도 storeId 가 오면 남긴다(앵커 카드의 X · 담기). */
 	private final boolean storeScoped;
 
 	/** 이유 칩은 👎 에만 붙는다. */
