@@ -209,6 +209,44 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 	}
 
 	@Test
+	@DisplayName("시군구 칸은 원 밖에서 본·저장한 같은 시군구 가게를 칩 순서용으로 따로 센다 — 원 기준 신호는 0 그대로, 동 이름 칸은 0")
+	void areaChipStats_regionSignal_countsSameSigunguOutsideCircle() {
+		Long memberId = jdbcTemplate.queryForObject("SELECT id FROM member ORDER BY id LIMIT 1", Long.class);
+		CourseArea pohang = courseAreaRepository
+			.findAllBySidoAndPassportSpotAndIsActiveTrueOrderByDisplayOrderAscNameAsc("경북", "포항시").get(0);
+		Long outsideCircle = jdbcTemplate.queryForObject("""
+				SELECT s.id FROM store s JOIN store_profile p ON p.store_id = s.id AND p.bakery_score >= 0.5
+				WHERE s.status = 'ACTIVE' AND s.region_1st = '경북' AND s.region_2nd = '포항시'
+					AND NOT ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?)
+				ORDER BY s.id LIMIT 1
+				""", Long.class, pohang.getCenterLng(), pohang.getCenterLat(), pohang.getRadiusM());
+		LocalDateTime now = LocalDateTime.now();
+		jdbcTemplate.update("""
+				INSERT INTO request_log
+				(member_id, http_method, endpoint, response_status, store_id, event_type, session_id, created_at)
+				VALUES (?, 'GET', '/api/v1/stores/x', 200, ?, 'STORE_VIEW', 'lab-pohang', ?)
+				""", memberId, outsideCircle, now);
+		jdbcTemplate.update("DELETE FROM saved_stores WHERE member_id = ? AND store_id = ?", memberId, outsideCircle);
+		jdbcTemplate.update("INSERT INTO saved_stores (member_id, store_id, created_at) VALUES (?, ?, ?)", memberId,
+			outsideCircle, now);
+
+		AreaChipStats stats = candidateRepository
+			.findAreaChipStats(memberId, "lab-pohang", TasteQuery.empty(), List.of(pohang)).get(pohang.getId());
+
+		assertThat(stats.sessionViewCount()).isZero(); // 원 밖이라 원 기준 신호는 없다
+		assertThat(stats.savedStoreCount()).isZero();
+		assertThat(stats.regionSessionViewCount()).isEqualTo(1); // 같은 시군구라 칩 순서용 신호
+		assertThat(stats.regionSavedStoreCount()).isEqualTo(1);
+		// 동 이름 칸(성수동)은 store.region_2nd(성동구)와 안 맞아 시군구 신호가 없다
+		CourseArea seongsu = courseAreaRepository.save(CourseArea.create("서울", "성수동(시군구)", "성수동(시군구)", null,
+			SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, RADIUS_M, null, null, 9));
+		AreaChipStats dong = candidateRepository
+			.findAreaChipStats(memberId, "lab-pohang", TasteQuery.empty(), List.of(seongsu)).get(seongsu.getId());
+		assertThat(dong.regionSessionViewCount()).isZero();
+		assertThat(dong.regionSavedStoreCount()).isZero();
+	}
+
+	@Test
 	@DisplayName("칩 신호(#661): 세션 id 가 있으면 같은 세션의 STORE_VIEW 만, 없으면 최근 창의 STORE_VIEW 를 세고, 저장 수·취향 후보 수도 같이 온다")
 	void areaChipStats_sessionSavedTasteSignals() {
 		Long memberId = jdbcTemplate.queryForObject("SELECT id FROM member ORDER BY id LIMIT 1", Long.class);

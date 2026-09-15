@@ -196,6 +196,31 @@ class RecommendationContextQueryServiceTest {
 	}
 
 	@Test
+	@DisplayName("시군구 칸은 원 밖에서 본 가게도 신호다 — 동네 행 합이 0 이어도 시군구 신호로 SESSION, 강도는 합과 시군구 중 큰 값")
+	void getContext_regionSignal_liftsChipViewedOutsideCircle() {
+		courseInSeoul();
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.of(typedProfile()));
+		CourseArea jejuCity = neighborhood(5L, "제주시", "제주 시내");
+		CourseArea aewol = neighborhood(6L, "제주시", "애월");
+		CourseArea pohang = area(41L, "포항시");
+		given(courseAreaRepository.findAllBySidoAndIsActiveTrueOrderByDisplayOrderAscNameAsc("서울"))
+			.willReturn(List.of(jejuCity, aewol, pohang));
+		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), any(), any(), anyList())).willReturn(Map.of(
+			5L, new AreaChipStats(5L, 160, 0, 0, 0, 1, 0), // 대표 행: 제주시 시군구에서 본 가게 1 (애월 원 안 그 가게)
+			6L, new AreaChipStats(6L, 24, 0, 1, 0, 0, 0), // 애월 원 안 1 → 합 1, 시군구 1 → 큰 값 1 (합이면 2)
+			41L, new AreaChipStats(41L, 38, 0, 0, 0, 2, 0))); // 포항시: 원 안 0, 시군구 2 → SESSION 강도 2
+
+		RecommendationContextResponse context = recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID,
+			"s");
+
+		// 포항시(2) 가 제주시(1) 보다 앞 — 합으로 셌다면 제주시 2 로 동률이라 도장판 순서(제주시 5)가 먼저였을 것
+		assertThat(context.areas()).extracting(RecommendationAreaResponse::name).containsExactly("포항시", "제주시");
+		assertThat(context.areas()).extracting(RecommendationAreaResponse::reason)
+			.containsOnly(RecommendationAreaReason.SESSION);
+		assertThat(context.areas().get(0).storeCount()).isEqualTo(38); // 칩 숫자는 원 기준 그대로
+	}
+
+	@Test
 	@DisplayName("축이 없는 사용자는 TASTE 버킷이 없다 — 취향 후보 수가 커도 도장판 순서로 POPULAR")
 	void getContext_withoutAxis_noTasteBucket() {
 		courseInSeoul();
