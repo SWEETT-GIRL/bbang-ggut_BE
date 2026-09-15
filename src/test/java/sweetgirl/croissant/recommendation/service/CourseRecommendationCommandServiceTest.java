@@ -171,7 +171,7 @@ class CourseRecommendationCommandServiceTest {
 	}
 
 	private static RecommendationRequest request(Integer storeCount, Integer day) {
-		return new RecommendationRequest(AREA_ID, storeCount, day, "course_empty", List.of());
+		return new RecommendationRequest(AREA_ID, storeCount, day, "course_empty");
 	}
 
 	private Recommendation savedWithId(Long id) {
@@ -436,7 +436,7 @@ class CourseRecommendationCommandServiceTest {
 
 		// 요청 일차 2 는 무시된다 — 다시 받기는 이전 추천의 일차(1)다
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			new RecommendationRequest(AREA_ID, 4, 2, "course_empty", List.of(), 77L), null);
+			new RecommendationRequest(AREA_ID, 4, 2, "course_empty", 77L), null);
 
 		assertThat(response.recommendationId()).isEqualTo(78L);
 		assertThat(response.stores()).extracting(RecommendedStoreResponse::storeId).containsExactly(106L, 107L);
@@ -467,7 +467,7 @@ class CourseRecommendationCommandServiceTest {
 		course(1);
 		given(recommendationRepository.findByIdAndMemberId(77L, MEMBER_ID)).willReturn(Optional.empty());
 		assertThatThrownBy(() -> courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			new RecommendationRequest(AREA_ID, null, null, "course_empty", List.of(), 77L), null))
+			new RecommendationRequest(AREA_ID, null, null, "course_empty", 77L), null))
 			.isInstanceOf(RecommendationException.class)
 			.hasMessageContaining(RecommendationErrorCode.RECOMMENDATION_NOT_FOUND.getMessage());
 
@@ -475,7 +475,7 @@ class CourseRecommendationCommandServiceTest {
 		given(otherCourse.getCourseId()).willReturn(COURSE_ID + 1);
 		given(recommendationRepository.findByIdAndMemberId(78L, MEMBER_ID)).willReturn(Optional.of(otherCourse));
 		assertThatThrownBy(() -> courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			new RecommendationRequest(AREA_ID, null, null, "course_empty", List.of(), 78L), null))
+			new RecommendationRequest(AREA_ID, null, null, "course_empty", 78L), null))
 			.isInstanceOf(RecommendationException.class)
 			.hasMessageContaining(RecommendationErrorCode.RECOMMENDATION_NOT_FOUND.getMessage());
 	}
@@ -487,7 +487,7 @@ class CourseRecommendationCommandServiceTest {
 		Recommendation otherArea = previousAreaRecommendation(77L, 31L, (short)1, Set.of());
 		given(recommendationRepository.findByIdAndMemberId(77L, MEMBER_ID)).willReturn(Optional.of(otherArea));
 		assertThatThrownBy(() -> courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			new RecommendationRequest(AREA_ID, null, null, "course_empty", List.of(), 77L), null))
+			new RecommendationRequest(AREA_ID, null, null, "course_empty", 77L), null))
 			.isInstanceOf(RecommendationException.class)
 			.hasMessageContaining(RecommendationErrorCode.PREVIOUS_AREA_MISMATCH.getMessage());
 
@@ -495,7 +495,7 @@ class CourseRecommendationCommandServiceTest {
 		given(anchor.isAnchor()).willReturn(true);
 		given(recommendationRepository.findByIdAndMemberId(79L, MEMBER_ID)).willReturn(Optional.of(anchor));
 		assertThatThrownBy(() -> courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			new RecommendationRequest(AREA_ID, null, null, "course_empty", List.of(), 79L), null))
+			new RecommendationRequest(AREA_ID, null, null, "course_empty", 79L), null))
 			.isInstanceOf(RecommendationException.class)
 			.hasMessageContaining(RecommendationErrorCode.PREVIOUS_AREA_MISMATCH.getMessage());
 		then(recommendationFeedbackRepository).should(never()).save(any());
@@ -643,7 +643,7 @@ class CourseRecommendationCommandServiceTest {
 		savedWithId(82L);
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			new RecommendationRequest(AREA_ID, null, 1, "course_empty", List.of(), null, true), null);
+			new RecommendationRequest(AREA_ID, null, 1, "course_empty", null, true), null);
 
 		assertThat(response.area().areaId()).isEqualTo(AREA_ID); // 담긴 가게가 서쪽에 있어도 시내
 		then(courseAreaRepository).should(never())
@@ -825,7 +825,7 @@ class CourseRecommendationCommandServiceTest {
 			.willReturn(Optional.empty());
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			new RecommendationRequest(31L, null, 1, "course_empty", List.of()), null);
+			new RecommendationRequest(31L, null, 1, "course_empty"), null);
 
 		assertThat(response.area().areaId()).isEqualTo(31L);
 		then(candidateRepository).should(never()).findAreaChipStats(any(), any(), any(), anyList());

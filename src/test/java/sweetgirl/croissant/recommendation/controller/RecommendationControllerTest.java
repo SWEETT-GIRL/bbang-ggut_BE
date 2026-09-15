@@ -106,7 +106,7 @@ class RecommendationControllerTest {
 				List.of(), true, new NextAreaResponse(32L, "성산", 13), 1042L));
 
 		mockMvc.perform(post("/courses/10/recommendations").contentType(MediaType.APPLICATION_JSON)
-			.content("{\"areaId\": 31, \"entryScreen\": \"course_empty\", \"sessionEvents\": [],"
+			.content("{\"areaId\": 31, \"entryScreen\": \"course_empty\","
 				+ " \"previousRecommendationId\": 77, \"exactArea\": true}")
 			.header("X-Session-Id", " 1757894400123 "))
 			.andExpect(status().isOk())
@@ -133,7 +133,7 @@ class RecommendationControllerTest {
 				List.of(new RecommendedStoreResponse(101L, "빵집", "성수동", "이유", 0.0, null, 37.5, 127.0, null))));
 
 		mockMvc.perform(post("/courses/10/recommendations").contentType(MediaType.APPLICATION_JSON)
-			.content("{\"areaId\": 5, \"entryScreen\": \"course_empty\", \"sessionEvents\": []}"))
+			.content("{\"areaId\": 5, \"entryScreen\": \"course_empty\"}"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.recommendationId").value(77))
 			.andExpect(jsonPath("$.data.area.name").value("성수동"))
