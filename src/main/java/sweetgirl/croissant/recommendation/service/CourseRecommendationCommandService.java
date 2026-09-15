@@ -69,7 +69,9 @@ import sweetgirl.croissant.store.entity.Store;
  * 가게를 이어 붙여 N 곳을 만든다 — 상한 안에 더 없으면 있는 만큼. 인기 상위 N 곳을 먼저 확정하면 넓은 시군구에서 코스가
  * 수십 km 로 벌어진다(PR #735 리뷰). 이유는 템플릿, tasteFit 은 축이 없어 0.
  * 앵커: 앵커 좌표 1→2→3km 링 순(링 안은 점수순) 30곳을 행 하나에 저장하고 page 로 9곳씩 자른다. 이유 문장 없이 배지만(09-13).
- * 여정 값(entryScreen · sessionEvents)은 받기만 하고 어디에도 쓰지 않는다 — 세션 의도는 #661.
+ * 요청 본문에 여정 값은 없다. 세션 의도는 요청 헤더 X-Session-Id 와 요청 로그로 본다(#661) — 카드 직전 이벤트(sessionEvents)는
+ * 그 역할이 옮겨 가서, 진입 화면(entryScreen)은 분석용인데 분석은 Amplitude 가 맡고 서버는 코스 데이터로 같은 사실을 알아서
+ * 09-15 에 뺐다.
  */
 @Service
 @RequiredArgsConstructor
