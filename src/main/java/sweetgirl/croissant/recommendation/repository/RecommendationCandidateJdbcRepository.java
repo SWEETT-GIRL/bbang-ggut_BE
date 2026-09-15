@@ -7,7 +7,6 @@ import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -181,6 +180,8 @@ public class RecommendationCandidateJdbcRepository {
 	 * 시군구 칸(포항시)은 원 1,200m 가 그 시군구 빵집의 30% 안팎만 덮는다(09-15 dev 실측 42칸, 포항 14%). 포항 어디의 가게를
 	 * 봤든 "포항에 관심"이므로 대표 행에 한해 같은 시군구의 본·저장 가게 수를 region_* 로 따로 센다 — 칩 순서에만 쓰고,
 	 * 추천 후보·칩 숫자·동네 선택은 원 기준 그대로다(코스가 시군구로 벌어지지 않게, PR #735 리뷰). 큰 도시에 원을 더 두는 건 #742.
+	 * 칩은 원 기준 합과 시군구 값 중 큰 값을 쓰므로 원이 시군구 경계를 넘을 때(원 안 타 시군구 가게 1 + 원 밖 같은 시군구 가게 1)는
+	 * 2 가 아니라 1 로 살짝 덜 센다 — 순서용 신호라 감수한다.
 	 */
 	public Map<Long, AreaChipStats> findAreaChipStats(Long memberId, String sessionId, TasteQuery taste,
 			List<CourseArea> areas) {
@@ -261,25 +262,16 @@ public class RecommendationCandidateJdbcRepository {
 	}
 
 	/**
-	 * 도장 칸(sido + passport_spot)마다 대표 행(display_order → name 첫 행)에만 칸 이름을 준다 — 시군구 이름(포항시·해운대구)이면
-	 * 그 시군구의 본·저장 가게를 칩 순서용으로 따로 세고, 동 이름(성수동·도담동)은 store.region_2nd 와 안 맞아 0 이 된다.
-	 * 한 칸에 동네 행이 여럿이어도 한 행만 세야 칩이 합칠 때 겹쳐 세지 않는다.
+	 * 도장 칸(sido + passport_spot)마다 첫 행에만 칸 이름을 준다 — 호출자가 넘기는 목록은 리포지토리가 display_order → name 으로
+	 * 정렬한 순서다. 정확성이 아니라 성능 때문이다: ChipSignal 은 region_* 를 합이 아니라 큰 값으로 모으므로 모든 동네 행에 줘도
+	 * 결과는 같지만, 시군구 카운트(LATERAL)를 칸당 한 번만 돌리려는 것(PR #743 리뷰). 시군구 이름(포항시 · 해운대구)이면 그 시군구의
+	 * 본 · 저장 가게를 세고, 동 이름(성수동 · 도담동)은 store.region_2nd 와 안 맞아 0 이 된다 — 이 문자열 계약은 랩 가드 테스트가 지킨다.
 	 */
 	private static String[] signalRegion2ndsOf(List<CourseArea> areas) {
-		Map<String, CourseArea> representatives = new HashMap<>();
-		for (CourseArea area : areas) {
-			representatives.merge(area.getSido() + "|" + area.getPassportSpot(), area,
-				(kept, next) -> comesFirst(next, kept) ? next : kept);
-		}
+		Set<String> seen = new HashSet<>();
 		return areas.stream()
-			.map(area -> representatives.get(area.getSido() + "|" + area.getPassportSpot()) == area
-				? area.getPassportSpot() : null)
+			.map(area -> seen.add(area.getSido() + "|" + area.getPassportSpot()) ? area.getPassportSpot() : null)
 			.toArray(String[]::new);
-	}
-
-	private static boolean comesFirst(CourseArea candidate, CourseArea against) {
-		int byOrder = Integer.compare(candidate.getDisplayOrder(), against.getDisplayOrder());
-		return byOrder != 0 ? byOrder < 0 : candidate.getName().compareTo(against.getName()) < 0;
 	}
 
 	/**

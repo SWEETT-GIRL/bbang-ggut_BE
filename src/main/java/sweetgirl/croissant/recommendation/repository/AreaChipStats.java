@@ -21,7 +21,7 @@ public record AreaChipStats(
 		this(areaId, storeCount, savedStoreCount, sessionViewCount, tasteCandidateCount, 0, 0);
 	}
 
-	/** 신호 없이 가게 수와 저장 여부만 있던 #660 형태 — 동네 선택(resolveNeighborhood)과 테스트 픽스처가 쓴다. */
+	/** 신호 없이 가게 수와 저장 여부만 있던 #660 형태 — ChipSignal.of 가 통계 없는 동네 행의 기본값으로, 테스트 픽스처가 쓴다. */
 	public AreaChipStats(Long areaId, int storeCount, boolean hasSavedStore) {
 		this(areaId, storeCount, hasSavedStore ? 1 : 0, 0, 0);
 	}
