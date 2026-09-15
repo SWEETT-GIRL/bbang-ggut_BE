@@ -4,6 +4,7 @@ import java.sql.Array;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -197,8 +198,7 @@ public class RecommendationCandidateJdbcRepository {
 					SELECT DISTINCT rl.store_id FROM request_log rl
 					WHERE rl.member_id = :memberId AND rl.event_type = 'STORE_VIEW' AND rl.store_id IS NOT NULL
 						AND ((CAST(:sessionId AS varchar) IS NOT NULL AND rl.session_id = CAST(:sessionId AS varchar))
-							OR (CAST(:sessionId AS varchar) IS NULL
-								AND rl.created_at >= now() - (:windowMinutes * interval '1 minute')))
+							OR (CAST(:sessionId AS varchar) IS NULL AND rl.created_at >= :since))
 				) v ON v.store_id = s.id
 				GROUP BY a.id
 				""".formatted(COSINE.strip());
@@ -206,7 +206,10 @@ public class RecommendationCandidateJdbcRepository {
 		MapSqlParameterSource params = tasteParams(new MapSqlParameterSource(), taste)
 			.addValue("memberId", memberId)
 			.addValue("sessionId", sessionId, Types.VARCHAR)
-			.addValue("windowMinutes", recommendationProperties.getArea().getSessionWindowMinutes())
+			// request_log.created_at 은 시간대 없는 TIMESTAMP 에 JPA auditing 이 JVM 시각(LocalDateTime.now())을 넣는다. DB now() 와
+			// 비교하면 DB 세션 시간대(UTC)로 읽혀 한국 시간 로그가 9시간 미래가 된다(PR #741 리뷰) — 같은 시계로 cutoff 를 만든다.
+			.addValue("since", LocalDateTime.now()
+				.minusMinutes(recommendationProperties.getArea().getSessionWindowMinutes()))
 			.addValue("minBakeryScore", score.getMinBakeryScore())
 			.addValue("excludeRecorded", score.isExcludeRecordedStores())
 			.addValue("tasteThreshold", score.getTasteCosineThreshold())

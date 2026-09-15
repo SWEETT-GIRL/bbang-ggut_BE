@@ -54,9 +54,11 @@ public class RecommendationController {
 	public ResponseEntity<ApiResponse<RecommendationResponse>> recommend(
 			@AuthenticationPrincipal Long memberId,
 			@PathVariable Long courseId,
-			@Valid @RequestBody RecommendationRequest request) {
+			@Valid @RequestBody RecommendationRequest request,
+			@RequestHeader(value = RequestLoggingFilter.SESSION_ID_HEADER, required = false) String sessionId) {
 		return ResponseEntity.ok(
-			ApiResponse.ok(courseRecommendationCommandService.recommend(memberId, courseId, request)));
+			ApiResponse.ok(courseRecommendationCommandService.recommend(memberId, courseId, request,
+				RequestLoggingFilter.normalizeSessionId(sessionId))));
 	}
 
 	@Operation(summary = "방금 담은 가게 근처 추천", description = "룰만, LLM 없음. page 는 0부터 9곳씩, recommendationId 는 page 마다 같다.")
