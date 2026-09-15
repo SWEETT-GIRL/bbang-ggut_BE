@@ -33,6 +33,11 @@ public class RecommendationProperties {
 		private int minStoreCount = 1;
 		/** 코스 한 일차에 담을 상한. 6곳이면 반나절 동선을 넘는다 */
 		private int maxStoreCount = 6;
+		/**
+		 * 세션 id 헤더(X-Session-Id)가 없는 요청에서 "이 세션에서 본 가게"를 대신 자르는 창(분). 운영 request_log 실측(09-15):
+		 * 한 회원의 연속 가게 조회 간격이 10분 안 91% · 30분 안 93% · 60분 안 93% — 30분이면 충분하고 60분은 이득이 없다.
+		 */
+		private int sessionWindowMinutes = 30;
 	}
 
 	/**

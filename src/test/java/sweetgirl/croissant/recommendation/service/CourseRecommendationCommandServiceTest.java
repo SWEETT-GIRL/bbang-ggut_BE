@@ -346,7 +346,7 @@ class CourseRecommendationCommandServiceTest {
 
 		assertThat(response.area().areaId()).isEqualTo(31L);
 		assertThat(response.area().name()).isEqualTo("성수 서쪽");
-		then(candidateRepository).should(never()).findAreaChipStats(any(), anyList());
+		then(candidateRepository).should(never()).findAreaChipStats(any(), any(), any(), anyList());
 	}
 
 	@Test
@@ -392,7 +392,7 @@ class CourseRecommendationCommandServiceTest {
 		neighborhoodsOfSeongsu(primary, west);
 		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, 31L, (short)2, 0))
 			.willReturn(Optional.empty());
-		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), anyList()))
+		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), any(), any(), anyList()))
 			.willReturn(Map.of(31L, new AreaChipStats(31L, 22, true)));
 
 		RecommendationResponse secondDay = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
@@ -520,7 +520,7 @@ class CourseRecommendationCommandServiceTest {
 			any(),
 			anyCollection(), anyInt())).willReturn(List.of());
 		given(recommendationRepository.findRecommendedAreaIds(MEMBER_ID, COURSE_ID)).willReturn(List.of(AREA_ID));
-		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), anyList()))
+		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), any(), any(), anyList()))
 			.willReturn(Map.of(31L, new AreaChipStats(31L, 22, false)));
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
@@ -562,7 +562,7 @@ class CourseRecommendationCommandServiceTest {
 			any(),
 			anyCollection(), anyInt())).willReturn(List.of());
 		given(recommendationRepository.findRecommendedAreaIds(MEMBER_ID, COURSE_ID)).willReturn(List.of());
-		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), anyList())).willReturn(Map.of());
+		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), any(), any(), anyList())).willReturn(Map.of());
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
 			request(4, 1));
@@ -742,7 +742,7 @@ class CourseRecommendationCommandServiceTest {
 		neighborhoodsOfSeongsu(primary, west);
 		given(recommendationRepository.findLatestAreaForReuse(eq(MEMBER_ID), eq(COURSE_ID), any(), eq((short)1),
 			eq(0))).willReturn(Optional.empty());
-		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), anyList()))
+		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), any(), any(), anyList()))
 			.willReturn(Map.of(31L, new AreaChipStats(31L, 22, true)))
 			.willReturn(Map.of());
 
@@ -772,7 +772,7 @@ class CourseRecommendationCommandServiceTest {
 			new RecommendationRequest(31L, null, 1, "course_empty", List.of()));
 
 		assertThat(response.area().areaId()).isEqualTo(31L);
-		then(candidateRepository).should(never()).findAreaChipStats(any(), anyList());
+		then(candidateRepository).should(never()).findAreaChipStats(any(), any(), any(), anyList());
 	}
 
 	@Test

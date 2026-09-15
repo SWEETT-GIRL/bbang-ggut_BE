@@ -195,7 +195,8 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 		// 칩 가게 수도 같은 규칙 — 기록한 가게를 빼고 센다(PR #739 리뷰)
 		CourseArea seongsuOnly = courseAreaRepository.save(CourseArea.create("서울", "성수동(칩)", "성수동(칩)", null,
 			SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, RADIUS_M, null, null, 9));
-		AreaChipStats chip = candidateRepository.findAreaChipStats(memberId, List.of(seongsuOnly))
+		AreaChipStats chip = candidateRepository
+			.findAreaChipStats(memberId, null, TasteQuery.empty(), List.of(seongsuOnly))
 			.get(seongsuOnly.getId());
 		assertThat(chip.storeCount()).isEqualTo(rows.size());
 
@@ -204,6 +205,47 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 			List.of(storeId, rows.get(0).storeId()));
 		assertThat(unavailable).containsExactly(storeId);
 		assertThat(candidateRepository.findUnavailableStoreIds(LAB_MEMBER, List.of(storeId))).isEmpty();
+	}
+
+	@Test
+	@DisplayName("칩 신호(#661): 세션 id 가 있으면 같은 세션의 STORE_VIEW 만, 없으면 최근 창의 STORE_VIEW 를 세고, 저장 수·취향 후보 수도 같이 온다")
+	void areaChipStats_sessionSavedTasteSignals() {
+		Long memberId = jdbcTemplate.queryForObject("SELECT id FROM member ORDER BY id LIMIT 1", Long.class);
+		List<Long> inSeongsu = jdbcTemplate.queryForList("""
+				SELECT s.id FROM store s JOIN store_profile p ON p.store_id = s.id AND p.bakery_score >= 0.5
+				WHERE s.status = 'ACTIVE'
+					AND ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?)
+				ORDER BY s.id LIMIT 3
+				""", Long.class, SEONGSU_LNG, SEONGSU_LAT, RADIUS_M);
+		// 이 세션에서 2곳, 다른 세션(3일 전)에서 1곳을 봤다
+		jdbcTemplate.update(
+			"""
+					INSERT INTO request_log
+					(member_id, http_method, endpoint, response_status, store_id, event_type, session_id, created_at)
+					VALUES (?, 'GET', '/api/v1/stores/x', 200, ?, 'STORE_VIEW', 'lab-session', now()),
+						(?, 'GET', '/api/v1/stores/x', 200, ?, 'STORE_VIEW', 'lab-session', now()),
+						(?, 'GET', '/api/v1/stores/x', 200, ?, 'STORE_VIEW', 'lab-old', now() - interval '3 days')
+					""",
+			memberId, inSeongsu.get(0), memberId, inSeongsu.get(1), memberId, inSeongsu.get(2));
+		CourseArea seongsu = courseAreaRepository.save(CourseArea.create("서울", "성수동(신호)", "성수동(신호)", null,
+			SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, RADIUS_M, null, null, 9));
+		TasteQuery saltyCrisp = new TasteQuery(0.8, 0.8, 0.3, 0.3, Map.of(), List.of());
+
+		AreaChipStats bySession = candidateRepository.findAreaChipStats(memberId, "lab-session", saltyCrisp,
+			List.of(seongsu)).get(seongsu.getId());
+		AreaChipStats byWindow = candidateRepository.findAreaChipStats(memberId, null, saltyCrisp,
+			List.of(seongsu)).get(seongsu.getId());
+		AreaChipStats otherSession = candidateRepository.findAreaChipStats(memberId, "lab-other", saltyCrisp,
+			List.of(seongsu)).get(seongsu.getId());
+
+		assertThat(bySession.sessionViewCount()).isEqualTo(2);
+		assertThat(byWindow.sessionViewCount()).isEqualTo(2); // 3일 전 조회는 30분 창 밖
+		assertThat(otherSession.sessionViewCount()).isZero();
+		assertThat(bySession.tasteCandidateCount()).isGreaterThan(0).isLessThanOrEqualTo(bySession.storeCount());
+		assertThat(bySession.savedStoreCount()).isGreaterThanOrEqualTo(0);
+		// 취향 쿼리가 없으면 취향 후보 수는 0
+		assertThat(candidateRepository.findAreaChipStats(memberId, null, TasteQuery.empty(), List.of(seongsu))
+			.get(seongsu.getId()).tasteCandidateCount()).isZero();
 	}
 
 	@Test
@@ -254,7 +296,7 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 			CourseArea.create("부산", "중구(랩)", "중구(랩)", null, BUSAN_JUNGGU_LAT, BUSAN_JUNGGU_LNG, 1, RADIUS_M, "중구", null,
 				5));
 
-		Map<Long, AreaChipStats> stats = candidateRepository.findAreaChipStats(memberId,
+		Map<Long, AreaChipStats> stats = candidateRepository.findAreaChipStats(memberId, null, TasteQuery.empty(),
 			List.of(seongsu, byRegion, aroundSaved, antarctica, busanJunggu));
 
 		assertThat(stats).hasSize(5);

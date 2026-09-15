@@ -3,6 +3,7 @@ package sweetgirl.croissant.recommendation.repository;
 import java.sql.Array;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -40,6 +41,20 @@ public class RecommendationCandidateJdbcRepository {
 	private static final String CENTER = "ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography";
 
 	/** 사용자 축은 자바에서 중심화해 넘기고, 가게 축은 SQL 에서 :c* 를 뺀다(중심화가 꺼져 있으면 0). */
+	/** 사용자·가게 4축 코사인 — 후보 점수와 칩의 취향 후보 수가 같은 식을 쓴다. 가게 프로필 alias 는 p, 사용자 축은 :u*, 중심은 :c*. */
+	private static final String COSINE = """
+			CASE WHEN CAST(:hasAxis AS boolean) AND p.axis_taste IS NOT NULL
+					AND p.axis_texture IS NOT NULL AND p.axis_filling IS NOT NULL AND p.axis_vibe IS NOT NULL
+				THEN COALESCE(
+					(:uTaste * (p.axis_taste - :cTaste) + :uTexture * (p.axis_texture - :cTexture)
+						+ :uFilling * (p.axis_filling - :cFilling) + :uVibe * (p.axis_vibe - :cVibe))
+					/ NULLIF(sqrt(:uTaste * :uTaste + :uTexture * :uTexture
+							+ :uFilling * :uFilling + :uVibe * :uVibe)
+						* sqrt(power(p.axis_taste - :cTaste, 2) + power(p.axis_texture - :cTexture, 2)
+							+ power(p.axis_filling - :cFilling, 2) + power(p.axis_vibe - :cVibe, 2)), 0), 0)
+				ELSE 0 END
+			""";
+
 	private static final String SCORE_PARTS = """
 			SELECT parts.cosine, parts.tag_match, parts.prior, parts.kind_overlap, parts.recorded,
 				(:wCos * parts.cosine + :wTag * parts.tag_match
@@ -49,16 +64,7 @@ public class RecommendationCandidateJdbcRepository {
 				SELECT
 					EXISTS (SELECT 1 FROM bread_record br
 						WHERE br.store_id = s.id AND br.member_id = :memberId AND br.deleted_at IS NULL) AS recorded,
-					CASE WHEN CAST(:hasAxis AS boolean) AND p.axis_taste IS NOT NULL
-							AND p.axis_texture IS NOT NULL AND p.axis_filling IS NOT NULL AND p.axis_vibe IS NOT NULL
-						THEN COALESCE(
-							(:uTaste * (p.axis_taste - :cTaste) + :uTexture * (p.axis_texture - :cTexture)
-								+ :uFilling * (p.axis_filling - :cFilling) + :uVibe * (p.axis_vibe - :cVibe))
-							/ NULLIF(sqrt(:uTaste * :uTaste + :uTexture * :uTexture
-									+ :uFilling * :uFilling + :uVibe * :uVibe)
-								* sqrt(power(p.axis_taste - :cTaste, 2) + power(p.axis_texture - :cTexture, 2)
-									+ power(p.axis_filling - :cFilling, 2) + power(p.axis_vibe - :cVibe, 2)), 0), 0)
-						ELSE 0 END AS cosine,
+					%1$s AS cosine,
 					COALESCE((SELECT SUM(t.w * COALESCE((p.tags ->> t.k)::float8, 0)) / NULLIF(SUM(t.w), 0)
 						FROM unnest(CAST(:tagKeys AS text[]), CAST(:tagWeights AS float8[])) AS t(k, w)), 0)
 						AS tag_match,
@@ -74,7 +80,7 @@ public class RecommendationCandidateJdbcRepository {
 							WHERE k = ANY (CAST(:topKinds AS text[])))::float8
 							/ cardinality(CAST(:topKinds AS text[])) END AS kind_overlap
 			) parts
-			""";
+			""".formatted(COSINE.strip());
 
 	private static final String SELECT_STORE = """
 			SELECT s.id, s.name, s.region_3rd,
@@ -155,15 +161,22 @@ public class RecommendationCandidateJdbcRepository {
 	 * 소속 규칙은 후보 조회와 같다(반경 안 OR 시·도+시군구·동 일치, 프로필 있고 빵집다움 하한 이상, 기록한 가게 제외 스위치) —
 	 * 칩의 숫자와 실제 후보 수가 어긋나지 않게. 기록한 가게를 빼지 않으면 찜 신호가 그 가게에 남아 이미 기록한 가게만 있는
 	 * 동네를 고르고 빈 추천을 낼 수 있다(PR #739 리뷰).
+	 *
+	 * 칩 순서 신호(#661 §5.2)도 같이 센다: 이 세션에서 상세를 본 가게 수(sessionId 가 있으면 같은 세션의 STORE_VIEW, 없으면
+	 * 최근 sessionWindowMinutes 창), 내가 저장한 가게 수, 취향 후보(코사인 > 임계) 수. 세션·저장은 회원의 작은 가게 집합이라
+	 * 서브쿼리로 뽑아 조인한다.
 	 */
-	public Map<Long, AreaChipStats> findAreaChipStats(Long memberId, List<CourseArea> areas) {
+	public Map<Long, AreaChipStats> findAreaChipStats(Long memberId, String sessionId, TasteQuery taste,
+			List<CourseArea> areas) {
 		if (areas.isEmpty()) {
 			return Map.of();
 		}
 		String sql = """
 				SELECT a.id AS area_id,
 					COUNT(s.id) AS store_count,
-					COALESCE(BOOL_OR(ss.store_id IS NOT NULL), FALSE) AS has_saved_store
+					COUNT(ss.store_id) AS saved_store_count,
+					COUNT(v.store_id) AS session_view_count,
+					COUNT(s.id) FILTER (WHERE sc.cosine > :tasteThreshold) AS taste_candidate_count
 				FROM unnest(CAST(:ids AS bigint[]), CAST(:lats AS float8[]), CAST(:lngs AS float8[]),
 						CAST(:radii AS int[]), CAST(:sidos AS varchar[]), CAST(:region2nds AS varchar[]),
 						CAST(:region3rds AS varchar[]))
@@ -177,13 +190,26 @@ public class RecommendationCandidateJdbcRepository {
 					ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(a.lng, a.lat), 4326)::geography, a.radius_m)
 					OR (a.region_2nd IS NOT NULL AND s.region_1st = a.sido AND s.region_2nd = a.region_2nd
 						AND (a.region_3rd IS NULL OR s.region_3rd = a.region_3rd)))
+				LEFT JOIN store_profile p ON p.store_id = s.id
+				LEFT JOIN LATERAL (SELECT %1$s AS cosine) sc ON TRUE
 				LEFT JOIN saved_stores ss ON ss.store_id = s.id AND ss.member_id = :memberId
+				LEFT JOIN (
+					SELECT DISTINCT rl.store_id FROM request_log rl
+					WHERE rl.member_id = :memberId AND rl.event_type = 'STORE_VIEW' AND rl.store_id IS NOT NULL
+						AND ((CAST(:sessionId AS varchar) IS NOT NULL AND rl.session_id = CAST(:sessionId AS varchar))
+							OR (CAST(:sessionId AS varchar) IS NULL
+								AND rl.created_at >= now() - (:windowMinutes * interval '1 minute')))
+				) v ON v.store_id = s.id
 				GROUP BY a.id
-				""";
-		MapSqlParameterSource params = new MapSqlParameterSource()
+				""".formatted(COSINE.strip());
+		RecommendationProperties.Score score = recommendationProperties.getScore();
+		MapSqlParameterSource params = tasteParams(new MapSqlParameterSource(), taste)
 			.addValue("memberId", memberId)
-			.addValue("minBakeryScore", recommendationProperties.getScore().getMinBakeryScore())
-			.addValue("excludeRecorded", recommendationProperties.getScore().isExcludeRecordedStores())
+			.addValue("sessionId", sessionId, Types.VARCHAR)
+			.addValue("windowMinutes", recommendationProperties.getArea().getSessionWindowMinutes())
+			.addValue("minBakeryScore", score.getMinBakeryScore())
+			.addValue("excludeRecorded", score.isExcludeRecordedStores())
+			.addValue("tasteThreshold", score.getTasteCosineThreshold())
 			.addValue("ids", areas.stream().map(CourseArea::getId).toArray(Long[]::new))
 			.addValue("lats", areas.stream().map(CourseArea::getCenterLat).toArray(Double[]::new))
 			.addValue("lngs", areas.stream().map(CourseArea::getCenterLng).toArray(Double[]::new))
@@ -192,7 +218,8 @@ public class RecommendationCandidateJdbcRepository {
 			.addValue("region2nds", areas.stream().map(CourseArea::getRegion2nd).toArray(String[]::new))
 			.addValue("region3rds", areas.stream().map(CourseArea::getRegion3rd).toArray(String[]::new));
 		RowMapper<AreaChipStats> mapper = (rs, rowNum) -> new AreaChipStats(
-			rs.getLong("area_id"), rs.getInt("store_count"), rs.getBoolean("has_saved_store"));
+			rs.getLong("area_id"), rs.getInt("store_count"), rs.getInt("saved_store_count"),
+			rs.getInt("session_view_count"), rs.getInt("taste_candidate_count"));
 		return jdbcTemplate.query(sql, params, mapper)
 			.stream()
 			.collect(Collectors.toMap(AreaChipStats::areaId, stats -> stats));
@@ -227,13 +254,7 @@ public class RecommendationCandidateJdbcRepository {
 			Collection<Long> excludeStoreIds) {
 		RecommendationProperties.Score score = recommendationProperties.getScore();
 		RecommendationProperties.Prior prior = score.getPrior();
-		boolean center = score.isCenterAxes();
-		double cTaste = center ? score.getCenterTaste() : 0;
-		double cTexture = center ? score.getCenterTexture() : 0;
-		double cFilling = center ? score.getCenterFilling() : 0;
-		double cVibe = center ? score.getCenterVibe() : 0;
-		boolean hasAxis = taste.hasAxis();
-		return new MapSqlParameterSource()
+		return tasteParams(new MapSqlParameterSource(), taste)
 			.addValue("memberId", memberId)
 			.addValue("lat", lat)
 			.addValue("lng", lng)
@@ -246,15 +267,6 @@ public class RecommendationCandidateJdbcRepository {
 			.addValue("wTag", score.getTagWeight())
 			.addValue("wPrior", score.getPriorWeight())
 			.addValue("wKind", score.getKindWeight())
-			.addValue("hasAxis", hasAxis)
-			.addValue("uTaste", hasAxis ? taste.taste() - cTaste : 0d)
-			.addValue("uTexture", hasAxis ? taste.texture() - cTexture : 0d)
-			.addValue("uFilling", hasAxis ? taste.filling() - cFilling : 0d)
-			.addValue("uVibe", hasAxis ? taste.vibe() - cVibe : 0d)
-			.addValue("cTaste", cTaste)
-			.addValue("cTexture", cTexture)
-			.addValue("cFilling", cFilling)
-			.addValue("cVibe", cVibe)
 			.addValue("tagKeys", taste.tags().keySet().toArray(String[]::new))
 			.addValue("tagWeights", taste.tags().values().toArray(Double[]::new))
 			.addValue("topKinds", taste.topKinds().toArray(String[]::new))
@@ -267,6 +279,27 @@ public class RecommendationCandidateJdbcRepository {
 			.addValue("ratingFloor", prior.getRatingFloor())
 			.addValue("ratingCeil", prior.getRatingCeil())
 			.addValue("popularityCap", prior.getPopularityCap());
+	}
+
+	/** 코사인식(COSINE)이 쓰는 파라미터 — 사용자 축은 여기서 중심화하고, 가게 축은 SQL 이 :c* 를 뺀다(중심화가 꺼져 있으면 0). */
+	private MapSqlParameterSource tasteParams(MapSqlParameterSource params, TasteQuery taste) {
+		RecommendationProperties.Score score = recommendationProperties.getScore();
+		boolean center = score.isCenterAxes();
+		double cTaste = center ? score.getCenterTaste() : 0;
+		double cTexture = center ? score.getCenterTexture() : 0;
+		double cFilling = center ? score.getCenterFilling() : 0;
+		double cVibe = center ? score.getCenterVibe() : 0;
+		boolean hasAxis = taste.hasAxis();
+		return params
+			.addValue("hasAxis", hasAxis)
+			.addValue("uTaste", hasAxis ? taste.taste() - cTaste : 0d)
+			.addValue("uTexture", hasAxis ? taste.texture() - cTexture : 0d)
+			.addValue("uFilling", hasAxis ? taste.filling() - cFilling : 0d)
+			.addValue("uVibe", hasAxis ? taste.vibe() - cVibe : 0d)
+			.addValue("cTaste", cTaste)
+			.addValue("cTexture", cTexture)
+			.addValue("cFilling", cFilling)
+			.addValue("cVibe", cVibe);
 	}
 
 	private CandidateStoreRow mapRow(ResultSet rs, int rowNum) throws SQLException {

@@ -185,7 +185,8 @@ public class CourseRecommendationCommandService {
 		if (byStores.isPresent()) {
 			return byStores.get();
 		}
-		Map<Long, AreaChipStats> stats = candidateRepository.findAreaChipStats(memberId, neighborhoods);
+		Map<Long, AreaChipStats> stats = candidateRepository.findAreaChipStats(memberId, null, TasteQuery.empty(),
+			neighborhoods);
 		return neighborhoods.stream()
 			.filter(neighborhood -> stats.containsKey(neighborhood.getId())
 				&& stats.get(neighborhood.getId()).hasSavedStore())
@@ -334,7 +335,8 @@ public class CourseRecommendationCommandService {
 			}
 		}
 		return next.map(area -> {
-			AreaChipStats stats = candidateRepository.findAreaChipStats(memberId, List.of(area)).get(area.getId());
+			AreaChipStats stats = candidateRepository
+				.findAreaChipStats(memberId, null, TasteQuery.empty(), List.of(area)).get(area.getId());
 			return new NextAreaResponse(area.getId(), area.getName(), stats != null ? stats.storeCount() : 0);
 		}).orElse(null);
 	}
