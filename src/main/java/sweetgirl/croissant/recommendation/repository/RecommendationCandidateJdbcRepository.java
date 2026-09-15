@@ -163,9 +163,10 @@ public class RecommendationCandidateJdbcRepository {
 	 * 칩의 숫자와 실제 후보 수가 어긋나지 않게. 기록한 가게를 빼지 않으면 찜 신호가 그 가게에 남아 이미 기록한 가게만 있는
 	 * 동네를 고르고 빈 추천을 낼 수 있다(PR #739 리뷰).
 	 *
-	 * 칩 순서 신호(#661 §5.2)도 같이 센다: 이 세션에서 상세를 본 가게 수(sessionId 가 있으면 같은 세션의 STORE_VIEW, 없으면
-	 * 최근 sessionWindowMinutes 창), 내가 저장한 가게 수, 취향 후보(코사인 > 임계) 수. 세션·저장은 회원의 작은 가게 집합이라
-	 * 서브쿼리로 뽑아 조인한다.
+	 * 칩 순서 신호(#661 §5.2)도 같이 센다: 이 세션에서 상세를 본 가게 수, 내가 저장한 가게 수, 취향 후보(코사인 > 임계) 수.
+	 * "이 세션" = 같은 세션 id 의 STORE_VIEW(상한 sessionMaxAgeHours) **또는** 최근 sessionWindowMinutes 창 — 합집합이다.
+	 * 세션 id 만 보면 앱 콜드 스타트 분절(초기화 전 UUID → Amplitude 숫자)이나 5분 무활동 뒤 새 세션에서 헤더 없는 앱보다
+	 * 신호를 더 잃는다(PR #741 리뷰). 세션·저장은 회원의 작은 가게 집합이라 서브쿼리로 뽑아 조인하고, STORE_VIEW 부분 인덱스를 탄다.
 	 */
 	public Map<Long, AreaChipStats> findAreaChipStats(Long memberId, String sessionId, TasteQuery taste,
 			List<CourseArea> areas) {
@@ -197,8 +198,9 @@ public class RecommendationCandidateJdbcRepository {
 				LEFT JOIN (
 					SELECT DISTINCT rl.store_id FROM request_log rl
 					WHERE rl.member_id = :memberId AND rl.event_type = 'STORE_VIEW' AND rl.store_id IS NOT NULL
-						AND ((CAST(:sessionId AS varchar) IS NOT NULL AND rl.session_id = CAST(:sessionId AS varchar))
-							OR (CAST(:sessionId AS varchar) IS NULL AND rl.created_at >= :since))
+						AND ((CAST(:sessionId AS varchar) IS NOT NULL AND rl.session_id = CAST(:sessionId AS varchar)
+								AND rl.created_at >= :sessionSince)
+							OR rl.created_at >= :since)
 				) v ON v.store_id = s.id
 				GROUP BY a.id
 				""".formatted(COSINE.strip());
@@ -210,6 +212,8 @@ public class RecommendationCandidateJdbcRepository {
 			// 비교하면 DB 세션 시간대(UTC)로 읽혀 한국 시간 로그가 9시간 미래가 된다(PR #741 리뷰) — 같은 시계로 cutoff 를 만든다.
 			.addValue("since", LocalDateTime.now()
 				.minusMinutes(recommendationProperties.getArea().getSessionWindowMinutes()))
+			.addValue("sessionSince", LocalDateTime.now()
+				.minusHours(recommendationProperties.getArea().getSessionMaxAgeHours()))
 			.addValue("minBakeryScore", score.getMinBakeryScore())
 			.addValue("excludeRecorded", score.isExcludeRecordedStores())
 			.addValue("tasteThreshold", score.getTasteCosineThreshold())
@@ -226,6 +230,38 @@ public class RecommendationCandidateJdbcRepository {
 		return jdbcTemplate.query(sql, params, mapper)
 			.stream()
 			.collect(Collectors.toMap(AreaChipStats::areaId, stats -> stats));
+	}
+
+	/**
+	 * 상권 행 하나의 후보 가게 수만 — 다음 칸 제안(nextArea)의 storeCount 용. 소속·프로필·빵집다움·기록 제외 규칙은 칩 통계와
+	 * 같지만 세션·저장·취향 신호는 세지 않는다(로그 서브쿼리·코사인을 돌릴 이유가 없다 — PR #741 리뷰).
+	 */
+	public int countAreaStores(Long memberId, CourseArea area) {
+		String sql = """
+				SELECT COUNT(*) FROM store s
+				WHERE s.status = 'ACTIVE'
+					AND EXISTS (SELECT 1 FROM store_profile p
+						WHERE p.store_id = s.id AND p.bakery_score >= :minBakeryScore)
+					AND NOT (CAST(:excludeRecorded AS boolean) AND EXISTS (SELECT 1 FROM bread_record br
+						WHERE br.store_id = s.id AND br.member_id = :memberId AND br.deleted_at IS NULL))
+					AND (ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radiusM)
+						OR (CAST(:region2nd AS varchar) IS NOT NULL AND s.region_1st = :sido
+							AND s.region_2nd = :region2nd
+							AND (CAST(:region3rd AS varchar) IS NULL OR s.region_3rd = :region3rd)))
+				""";
+		RecommendationProperties.Score score = recommendationProperties.getScore();
+		MapSqlParameterSource params = new MapSqlParameterSource()
+			.addValue("memberId", memberId)
+			.addValue("minBakeryScore", score.getMinBakeryScore())
+			.addValue("excludeRecorded", score.isExcludeRecordedStores())
+			.addValue("lat", area.getCenterLat())
+			.addValue("lng", area.getCenterLng())
+			.addValue("radiusM", area.getRadiusM())
+			.addValue("sido", area.getSido())
+			.addValue("region2nd", area.getRegion2nd(), Types.VARCHAR)
+			.addValue("region3rd", area.getRegion3rd(), Types.VARCHAR);
+		Integer count = jdbcTemplate.queryForObject(sql, params, Integer.class);
+		return count != null ? count : 0;
 	}
 
 	/**

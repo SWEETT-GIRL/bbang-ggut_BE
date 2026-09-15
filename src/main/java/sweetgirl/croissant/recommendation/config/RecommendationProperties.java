@@ -38,6 +38,11 @@ public class RecommendationProperties {
 		 * 한 회원의 연속 가게 조회 간격이 10분 안 91% · 30분 안 93% · 60분 안 93% — 30분이면 충분하고 60분은 이득이 없다.
 		 */
 		private int sessionWindowMinutes = 30;
+		/**
+		 * 세션 id 로 찾는 조회 로그의 시간 상한(시간). 값은 클라이언트 입력이라 고정값("0" 등)을 보내는 회귀가 생기면 역대 조회가
+		 * 전부 "이번 세션"이 되어 SESSION 칩이 영구화된다(PR #741 리뷰) — 하루 넘은 로그는 세션 id 가 같아도 안 본다.
+		 */
+		private int sessionMaxAgeHours = 24;
 	}
 
 	/**

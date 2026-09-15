@@ -19,16 +19,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.global.logging.LogEventType;
 import sweetgirl.croissant.global.logging.SensitiveUrlMasker;
+import sweetgirl.croissant.global.logging.SessionIdHeader;
 import sweetgirl.croissant.global.logging.entity.RequestLog;
 import sweetgirl.croissant.global.logging.service.RequestLogService;
 
 @Slf4j
 @RequiredArgsConstructor
 public class RequestLoggingFilter extends OncePerRequestFilter {
-
-	/** 앱이 포그라운드마다 정해 모든 요청에 붙이는 세션 id 헤더(#661). Amplitude SDK 세션 id 재사용을 권한다 — 서버 로그와 이벤트가 이어진다. */
-	public static final String SESSION_ID_HEADER = "X-Session-Id";
-	static final int SESSION_ID_MAX_LENGTH = 64;
 
 	// GlobalExceptionHandler에서 에러 정보를 request attribute로 넘길 때 사용하는 키
 	public static final String ATTR_ERROR_CODE = "LOG_ERROR_CODE";
@@ -101,7 +98,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 			.eventType(resolveEventType(method, uri)) // STORE_VIEW / ALARM_CLICK / null
 			.errorCode((String)request.getAttribute(ATTR_ERROR_CODE)) // 예외 발생 시 GlobalExceptionHandler가 채워줌
 			.errorMessage((String)request.getAttribute(ATTR_ERROR_MESSAGE))
-			.sessionId(normalizeSessionId(request.getHeader(SESSION_ID_HEADER))) // 앱 세션 id (없으면 null)
+			.sessionId(SessionIdHeader.normalize(request.getHeader(SessionIdHeader.NAME))) // 앱 세션 id (없으면 null)
 			.build();
 
 		log.info("API_PERF method={} uri={} query=\"{}\" status={} durationMs={} clientIp={} userAgent=\"{}\"",
@@ -185,24 +182,4 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 		return normalized.substring(0, maxLength) + "...";
 	}
 
-	/**
-	 * 세션 id 헤더 값을 저장·조회용으로 다듬는다: 앞뒤 공백 제거, 비어 있거나 출력 가능한 ASCII 가 아니거나 64자를 넘으면 null.
-	 * 로그 컬럼(VARCHAR(64))과 칩 조회 파라미터가 같은 규칙을 써야 같은 세션이 같은 값으로 잡힌다.
-	 */
-	public static String normalizeSessionId(String raw) {
-		if (raw == null) {
-			return null;
-		}
-		String value = raw.strip();
-		if (value.isEmpty() || value.length() > SESSION_ID_MAX_LENGTH) {
-			return null;
-		}
-		for (int i = 0; i < value.length(); i++) {
-			char ch = value.charAt(i);
-			if (ch < 0x21 || ch > 0x7E) {
-				return null;
-			}
-		}
-		return value;
-	}
 }

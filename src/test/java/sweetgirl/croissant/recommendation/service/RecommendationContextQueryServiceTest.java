@@ -163,6 +163,39 @@ class RecommendationContextQueryServiceTest {
 	}
 
 	@Test
+	@DisplayName("한 도장 칸에 동네가 여럿이면 신호를 합친다 — 동네마다 세션 1곳이면 칩은 SESSION 이고 강도 2. 같은 버킷·같은 강도면 도장판 순서")
+	void getContext_sumsNeighborhoodSignals_andTiesByDisplayOrder() {
+		courseInSeoul();
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.of(typedProfile()));
+		CourseArea downtown = neighborhood(9L, "서귀포시", "서귀포 시내");
+		CourseArea jungmun = neighborhood(10L, "서귀포시", "중문");
+		CourseArea jejuCity = neighborhood(5L, "제주시", "제주 시내");
+		CourseArea aewol = neighborhood(6L, "제주시", "애월");
+		given(courseAreaRepository.findAllBySidoAndIsActiveTrueOrderByDisplayOrderAscNameAsc("서울"))
+			.willReturn(List.of(jejuCity, aewol, downtown, jungmun)); // 도장판 순서: 제주시(5) → 서귀포시(9)
+		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), any(), any(), anyList())).willReturn(Map.of(
+			5L, new AreaChipStats(5L, 160, 0, 2, 0), // 제주 시내 세션 2
+			6L, new AreaChipStats(6L, 24, 0, 0, 0),
+			9L, new AreaChipStats(9L, 75, 0, 1, 0), // 서귀포 시내 세션 1
+			10L, new AreaChipStats(10L, 22, 0, 1, 0))); // 중문 세션 1 → 서귀포시 합 2 = 제주시와 동률 → 도장판 순서
+
+		RecommendationContextResponse context = recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID,
+			"s");
+
+		assertThat(context.areas()).extracting(RecommendationAreaResponse::name).containsExactly("제주시", "서귀포시");
+		assertThat(context.areas()).extracting(RecommendationAreaResponse::reason)
+			.containsOnly(RecommendationAreaReason.SESSION);
+		assertThat(context.areas().get(1).storeCount()).isEqualTo(97); // 동네 합
+		// 우선순위 값이 선언 순서와 무관하게 SESSION < SAVED < TASTE < POPULAR
+		assertThat(RecommendationAreaReason.SESSION.getPriority())
+			.isLessThan(RecommendationAreaReason.SAVED.getPriority());
+		assertThat(RecommendationAreaReason.SAVED.getPriority())
+			.isLessThan(RecommendationAreaReason.TASTE.getPriority());
+		assertThat(RecommendationAreaReason.TASTE.getPriority())
+			.isLessThan(RecommendationAreaReason.POPULAR.getPriority());
+	}
+
+	@Test
 	@DisplayName("축이 없는 사용자는 TASTE 버킷이 없다 — 취향 후보 수가 커도 도장판 순서로 POPULAR")
 	void getContext_withoutAxis_noTasteBucket() {
 		courseInSeoul();

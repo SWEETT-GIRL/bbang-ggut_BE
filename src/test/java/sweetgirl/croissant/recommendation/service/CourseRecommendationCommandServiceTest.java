@@ -521,8 +521,7 @@ class CourseRecommendationCommandServiceTest {
 			any(),
 			anyCollection(), anyInt())).willReturn(List.of());
 		given(recommendationRepository.findRecommendedAreaIds(MEMBER_ID, COURSE_ID)).willReturn(List.of(AREA_ID));
-		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), any(), any(), anyList()))
-			.willReturn(Map.of(31L, new AreaChipStats(31L, 22, false)));
+		given(candidateRepository.countAreaStores(eq(MEMBER_ID), any())).willReturn(22);
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
 			request(4, 1), null);
@@ -563,7 +562,7 @@ class CourseRecommendationCommandServiceTest {
 			any(),
 			anyCollection(), anyInt())).willReturn(List.of());
 		given(recommendationRepository.findRecommendedAreaIds(MEMBER_ID, COURSE_ID)).willReturn(List.of());
-		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), any(), any(), anyList())).willReturn(Map.of());
+		given(candidateRepository.countAreaStores(eq(MEMBER_ID), any())).willReturn(0);
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
 			request(4, 1), null);

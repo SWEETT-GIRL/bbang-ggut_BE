@@ -8,10 +8,12 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum RecommendationAreaReason {
 
-	SESSION("이 세션에서 본 상권"),
-	SAVED("저장·계획한 가게가 있는 상권"),
-	TASTE("취향 점수가 높은 상권"),
-	POPULAR("인기 상권");
+	SESSION("이 세션에서 본 상권", 1),
+	SAVED("저장·계획한 가게가 있는 상권", 2),
+	TASTE("취향 점수가 높은 상권", 3),
+	POPULAR("인기 상권", 4);
 
 	private final String description;
+	/** 칩 정렬 우선순위 — 작을수록 앞. enum 선언 순서(ordinal)에 기대지 않는다: 상수를 끼워 넣어도 순서가 조용히 안 바뀌게 */
+	private final int priority;
 }

@@ -362,11 +362,8 @@ public class CourseRecommendationCommandService {
 				}
 			}
 		}
-		return next.map(area -> {
-			AreaChipStats stats = candidateRepository
-				.findAreaChipStats(memberId, null, TasteQuery.empty(), List.of(area)).get(area.getId());
-			return new NextAreaResponse(area.getId(), area.getName(), stats != null ? stats.storeCount() : 0);
-		}).orElse(null);
+		return next.map(area -> new NextAreaResponse(area.getId(), area.getName(),
+			candidateRepository.countAreaStores(memberId, area))).orElse(null);
 	}
 
 	/** 후보가 바닥났을 때 앵커 추천으로 넘길 가게 — 이 일차에 담긴 가게 중 마지막(방문 순서). 다른 일차 가게는 그 일차 기준이라 안 쓴다. */

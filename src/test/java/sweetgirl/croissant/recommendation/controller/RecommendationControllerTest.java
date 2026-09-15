@@ -107,7 +107,8 @@ class RecommendationControllerTest {
 
 		mockMvc.perform(post("/courses/10/recommendations").contentType(MediaType.APPLICATION_JSON)
 			.content("{\"areaId\": 31, \"entryScreen\": \"course_empty\", \"sessionEvents\": [],"
-				+ " \"previousRecommendationId\": 77, \"exactArea\": true}"))
+				+ " \"previousRecommendationId\": 77, \"exactArea\": true}")
+			.header("X-Session-Id", " 1757894400123 "))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.recommendationId").value(org.hamcrest.Matchers.nullValue()))
 			.andExpect(jsonPath("$.data.stores").isEmpty())
@@ -117,7 +118,8 @@ class RecommendationControllerTest {
 			.andExpect(jsonPath("$.data.nextArea.storeCount").value(13))
 			.andExpect(jsonPath("$.data.anchorStoreId").value(1042));
 		ArgumentCaptor<RecommendationRequest> request = ArgumentCaptor.forClass(RecommendationRequest.class);
-		then(courseRecommendationCommandService).should().recommend(eq(null), eq(10L), request.capture(), any());
+		then(courseRecommendationCommandService).should().recommend(eq(null), eq(10L), request.capture(),
+			eq("1757894400123"));
 		assertThat(request.getValue().previousRecommendationId()).isEqualTo(77L);
 		assertThat(request.getValue().areaId()).isEqualTo(31L);
 		assertThat(request.getValue().isExactArea()).isTrue();

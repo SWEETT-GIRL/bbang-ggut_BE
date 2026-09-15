@@ -38,8 +38,8 @@ import sweetgirl.croissant.recommendation.repository.TasteQuery;
  *
  * 상태: 검사 타입이 있으면 CHIPS. 없으면 강한 신호(저장 · 담기 · 기록) 가게가 3곳 이상이어야 CHIPS, 아니면 QUIZ.
  * 정확도 링크: CHIPS 인데 검사를 안 했고 빵 단위 신호(기록)가 없을 때.
- * 칩: 코스 지역(시/도)의 활성 상권을 표시 순서대로 3개. 근거는 저장 가게가 상권 안에 있으면 SAVED, 아니면 POPULAR
- * (SESSION · TASTE 는 #661). 상권 시드 전에는 칩이 비어 카드가 뜨지 않는다.
+ * 칩: 코스 지역(시/도)의 도장 칸을 우선순위 버킷으로 3개 — 이 세션에서 본 가게가 있는 칸(SESSION) → 저장 가게가 있는 칸(SAVED)
+ * → 취향 후보가 충분한 칸(TASTE) → 나머지(POPULAR), 버킷 안은 신호 크기 → 도장판 순서(#661 §5.2, areasOf 참고).
  */
 @Service
 @RequiredArgsConstructor
@@ -115,7 +115,7 @@ public class RecommendationContextQueryService {
 			int savedStoreCount, int tasteCandidateCount) {
 
 		static final Comparator<ChipSignal> ORDER = Comparator
-			.comparing(ChipSignal::reason)
+			.comparingInt((ChipSignal chip) -> chip.reason().getPriority())
 			.thenComparingInt((ChipSignal chip) -> -chip.signalStrength())
 			.thenComparingInt(chip -> chip.primary().getDisplayOrder())
 			.thenComparing(chip -> chip.primary().getName());

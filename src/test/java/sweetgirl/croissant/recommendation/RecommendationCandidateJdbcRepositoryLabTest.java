@@ -218,7 +218,8 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 					AND ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?)
 				ORDER BY s.id LIMIT 3
 				""", Long.class, SEONGSU_LNG, SEONGSU_LAT, RADIUS_M);
-		// 이 세션에서 2곳(지금·20분 전), 다른 세션(3일 전)에서 1곳을 봤다. created_at 은 JPA auditing 과 같은 JVM 시각으로 넣는다 —
+		// 이 세션에서 지금·20분 전·2일 전(상한 24시간 밖) 각 1곳, 다른 세션(3일 전)에서 1곳을 봤고 1곳은 저장했다.
+		// created_at 은 JPA auditing 과 같은 JVM 시각으로 넣는다 —
 		// 랩·운영 DB 세션 시간대가 UTC 라 DB now() 로 넣으면 실제 저장 경로와 달라진다(PR #741 리뷰)
 		LocalDateTime now = LocalDateTime.now();
 		jdbcTemplate.update(
@@ -227,10 +228,15 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 					(member_id, http_method, endpoint, response_status, store_id, event_type, session_id, created_at)
 					VALUES (?, 'GET', '/api/v1/stores/x', 200, ?, 'STORE_VIEW', 'lab-session', ?),
 						(?, 'GET', '/api/v1/stores/x', 200, ?, 'STORE_VIEW', 'lab-session', ?),
+						(?, 'GET', '/api/v1/stores/x', 200, ?, 'STORE_VIEW', 'lab-session', ?),
 						(?, 'GET', '/api/v1/stores/x', 200, ?, 'STORE_VIEW', 'lab-old', ?)
 					""",
 			memberId, inSeongsu.get(0), now, memberId, inSeongsu.get(1), now.minusMinutes(20),
-			memberId, inSeongsu.get(2), now.minusDays(3));
+			memberId, inSeongsu.get(2), now.minusDays(2), memberId, inSeongsu.get(2), now.minusDays(3));
+		jdbcTemplate.update("DELETE FROM saved_stores WHERE member_id = ? AND store_id = ?", memberId,
+			inSeongsu.get(0));
+		jdbcTemplate.update("INSERT INTO saved_stores (member_id, store_id, created_at) VALUES (?, ?, ?)", memberId,
+			inSeongsu.get(0), now);
 		CourseArea seongsu = courseAreaRepository.save(CourseArea.create("서울", "성수동(신호)", "성수동(신호)", null,
 			SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, RADIUS_M, null, null, 9));
 		TasteQuery saltyCrisp = new TasteQuery(0.8, 0.8, 0.3, 0.3, Map.of(), List.of());
@@ -242,11 +248,12 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 		AreaChipStats otherSession = candidateRepository.findAreaChipStats(memberId, "lab-other", saltyCrisp,
 			List.of(seongsu)).get(seongsu.getId());
 
-		assertThat(bySession.sessionViewCount()).isEqualTo(2);
-		assertThat(byWindow.sessionViewCount()).isEqualTo(2); // 3일 전 조회는 30분 창 밖
-		assertThat(otherSession.sessionViewCount()).isZero();
+		assertThat(bySession.sessionViewCount()).isEqualTo(2); // 같은 세션이라도 2일 전은 상한(24시간) 밖
+		assertThat(byWindow.sessionViewCount()).isEqualTo(2); // 헤더 없음 → 30분 창: 지금·20분 전
+		assertThat(otherSession.sessionViewCount()).isEqualTo(2); // 다른 세션 id 라도 30분 창과 합집합이라 잃지 않는다
 		assertThat(bySession.tasteCandidateCount()).isGreaterThan(0).isLessThanOrEqualTo(bySession.storeCount());
-		assertThat(bySession.savedStoreCount()).isGreaterThanOrEqualTo(0);
+		assertThat(bySession.savedStoreCount()).isEqualTo(1);
+		assertThat(candidateRepository.countAreaStores(memberId, seongsu)).isEqualTo(bySession.storeCount());
 		// 취향 쿼리가 없으면 취향 후보 수는 0
 		assertThat(candidateRepository.findAreaChipStats(memberId, null, TasteQuery.empty(), List.of(seongsu))
 			.get(seongsu.getId()).tasteCandidateCount()).isZero();
