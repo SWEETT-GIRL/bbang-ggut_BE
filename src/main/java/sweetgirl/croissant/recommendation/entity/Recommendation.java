@@ -90,6 +90,13 @@ public class Recommendation {
 	@Column(nullable = false)
 	private Map<String, Object> result;
 
+	/**
+	 * 이 묶음을 만든 요청의 앱 세션 id(X-Session-Id, 없으면 null). 새로 열 때 같은 세션이면 이 묶음을 그대로 주고(자리 기억),
+	 * 다른 세션이면 안 본 가게로 새 묶음을 만든다(#661, 09-15). 옛 행은 null 이라 30분 창으로만 판정된다.
+	 */
+	@Column(name = "session_id", length = 64)
+	private String sessionId;
+
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 
@@ -106,7 +113,8 @@ public class Recommendation {
 			String model,
 			String promptVersion,
 			boolean fallback,
-			Map<String, Object> result) {
+			Map<String, Object> result,
+			String sessionId) {
 		this.memberId = memberId;
 		this.courseId = courseId;
 		this.mode = mode;
@@ -120,6 +128,7 @@ public class Recommendation {
 		this.fallback = fallback;
 		// LLM 출력엔 null 값이 올 수 있어 Map.copyOf 를 쓰지 않는다.
 		this.result = new LinkedHashMap<>(result);
+		this.sessionId = sessionId;
 		this.createdAt = LocalDateTime.now();
 	}
 
@@ -135,6 +144,23 @@ public class Recommendation {
 			String promptVersion,
 			boolean fallback,
 			Map<String, Object> result) {
+		return forArea(memberId, courseId, courseAreaId, day, profileVersion, provider, model, promptVersion, fallback,
+			result, null);
+	}
+
+	/** 상권 추천 — 만든 요청의 앱 세션 id 까지. 새로 열 때 "같은 자리"인지 가르는 재료다(#661). */
+	public static Recommendation forArea(
+			Long memberId,
+			Long courseId,
+			Long courseAreaId,
+			Short day,
+			int profileVersion,
+			String provider,
+			String model,
+			String promptVersion,
+			boolean fallback,
+			Map<String, Object> result,
+			String sessionId) {
 		return Recommendation.builder()
 			.memberId(memberId)
 			.courseId(courseId)
@@ -147,6 +173,7 @@ public class Recommendation {
 			.promptVersion(promptVersion)
 			.fallback(fallback)
 			.result(result)
+			.sessionId(sessionId)
 			.build();
 	}
 

@@ -8,6 +8,7 @@ import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
 import sweetgirl.croissant.recommendation.dto.request.RecommendationFeedbackRequest;
 import sweetgirl.croissant.recommendation.entity.Recommendation;
 import sweetgirl.croissant.recommendation.entity.RecommendationFeedback;
+import sweetgirl.croissant.recommendation.enums.FeedbackAction;
 import sweetgirl.croissant.recommendation.exception.RecommendationException;
 import sweetgirl.croissant.recommendation.repository.RecommendationFeedbackRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationRepository;
@@ -31,6 +32,13 @@ public class RecommendationFeedbackCommandService {
 		// 결과에 없던 가게의 반응은 받지 않는다 — #663 이 이 행을 "보고 반응한 가게"로 믿는다
 		if (request.storeId() != null && !recommendation.containsStore(request.storeId())) {
 			throw new RecommendationException(RecommendationErrorCode.FEEDBACK_STORE_NOT_IN_RESULT);
+		}
+		// VIEW 는 추천당 한 번 — 같은 세션에서 시트를 닫았다 열면 같은 묶음이 재사용되는데 앱은 재사용인지 모르고 매번 보낸다
+		// (dev 실측 한 추천에 VIEW 4번). #663 이 "노출"을 셀 때 같은 묶음을 여러 번 세지 않게 서버가 거른다(FE 합의 09-15).
+		if (request.action() == FeedbackAction.VIEW
+			&& recommendationFeedbackRepository.existsByRecommendationIdAndAction(recommendationId,
+				FeedbackAction.VIEW)) {
+			return;
 		}
 		recommendationFeedbackRepository.save(
 			RecommendationFeedback.of(recommendationId, request.storeId(), request.action(), request.reason()));

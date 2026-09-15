@@ -1,5 +1,6 @@
 package sweetgirl.croissant.recommendation.service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -88,6 +89,10 @@ public class CourseRecommendationCommandService {
 	private final RecommendationProperties recommendationProperties;
 	private final ObjectMapper objectMapper;
 
+	/**
+	 * 새로 열기(previousRecommendationId 없음)의 재사용(09-15): 키의 최신 묶음이 유효하고 같은 자리(같은 세션 id 또는 30분 안)면
+	 * 그대로, 다른 세션이면 안 본 가게로 새 묶음, 안 본 가게가 없으면 첫 묶음을 다시 계산한다 — 소진된 묶음은 다시 주지 않는다.
+	 */
 	public RecommendationResponse recommend(Long memberId, Long courseId, RecommendationRequest request,
 			String sessionId) {
 		RecommendationProperties.Area areaRules = recommendationProperties.getArea();
@@ -117,18 +122,59 @@ public class CourseRecommendationCommandService {
 			: resolveNeighborhood(memberId, sessionId, taste, requested, activeStores, day);
 
 		Set<Long> courseStoreIds = storeIdsOf(activeStores);
-		Optional<Recommendation> reusable = recommendationRepository
+		Optional<Recommendation> latest = recommendationRepository
 			.findLatestAreaForReuse(memberId, courseId, area.getId(), day, profileVersion);
-		if (reusable.isPresent()) {
-			RecommendationResult stored = read(reusable.get(), RecommendationResult.class);
+		if (latest.isPresent()) {
+			RecommendationResult stored = read(latest.get(), RecommendationResult.class);
 			Set<Long> unavailable = candidateRepository.findUnavailableStoreIds(memberId,
 				stored.stores().stream().map(RecommendedStoreResponse::storeId).toList());
 			if (isStillValid(stored, courseStoreIds, unavailable, storeCount)) {
-				return RecommendationResponse.of(reusable.get().getId(), stored);
+				if (isSameSitting(latest.get(), sessionId)) {
+					// 같은 자리에서 닫았다 열면 보던 묶음 그대로 — 가게 상세를 보고 돌아와 담으려는 사람의 자리를 지킨다
+					return RecommendationResponse.of(latest.get().getId(), stored);
+				}
+				// 다른 세션(다음 날)에 열면 안 본 가게로 새 묶음 — 제외는 다시 받기와 같고, RETRY 는 안 남긴다(누른 게 아니다)
+				Set<Long> excludeStoreIds = new HashSet<>(courseStoreIds);
+				excludeStoreIds.addAll(shownStoreIdsOf(memberId, courseId, area.getId(), day));
+				RecommendationResponse unseen = buildAreaRecommendation(memberId, sessionId, course, area, day, profile,
+					profileVersion, activeStores, excludeStoreIds, storeCount);
+				if (!unseen.stores().isEmpty()) {
+					return unseen;
+				}
+				// 다 본 사람이다 — 소진된 마지막 묶음(1곳 · lastBatch)을 다시 주지 않고 첫 묶음을 다시 계산한다.
+				// 그 뒤 다시 받기는 안 본 가게가 없어 바로 다음 동네 제안이다(09-15 결정)
 			}
 		}
 		return buildAreaRecommendation(memberId, sessionId, course, area, day, profile, profileVersion, activeStores,
 			courseStoreIds, storeCount);
+	}
+
+	/**
+	 * 같은 자리인가 — 같은 앱 세션(X-Session-Id, 상한 sessionMaxAgeHours)이거나 마지막 묶음이 세션 창(sessionWindowMinutes) 안이다.
+	 * 헤더 없는 옛 앱과 세션 id 가 없는 옛 행은 창만 본다. 앱은 백그라운드 5분 뒤 새 세션 id 를 만들므로 5~30분 사이에 돌아온
+	 * 사람은 창으로 잡힌다(FE 합의 09-15).
+	 */
+	private boolean isSameSitting(Recommendation latest, String sessionId) {
+		LocalDateTime createdAt = latest.getCreatedAt();
+		if (createdAt == null) {
+			return false;
+		}
+		RecommendationProperties.Area areaRules = recommendationProperties.getArea();
+		LocalDateTime now = LocalDateTime.now();
+		// 같은 세션 id 라도 하루가 넘으면 새 자리 — 앱을 며칠 켜 둔 사람과 세션 id 고정값 회귀에 대한 상한(칩 신호와 같은 값)
+		boolean sameSession = sessionId != null && sessionId.equals(latest.getSessionId())
+			&& createdAt.isAfter(now.minusHours(areaRules.getSessionMaxAgeHours()));
+		return sameSession || createdAt.isAfter(now.minusMinutes(areaRules.getSessionWindowMinutes()));
+	}
+
+	/** 이 회원·코스·동네·일차에서 여태 보여준 가게 전부(프로필 버전 무관) — 다시 받기와 새 세션 새 묶음의 제외 재료. */
+	private Set<Long> shownStoreIdsOf(Long memberId, Long courseId, Long areaId, short day) {
+		Set<Long> shown = new HashSet<>();
+		recommendationRepository
+			.findAllByMemberIdAndCourseIdAndModeAndCourseAreaIdAndDay(memberId, courseId, RecommendationMode.AREA,
+				areaId, day)
+			.forEach(row -> shown.addAll(row.shownStoreIds()));
+		return shown;
 	}
 
 	/**
@@ -154,10 +200,7 @@ public class CourseRecommendationCommandService {
 		int profileVersion = profile != null ? profile.getVersion() : Recommendation.NO_PROFILE_VERSION;
 
 		Set<Long> excludeStoreIds = new HashSet<>(storeIdsOf(activeStores));
-		recommendationRepository
-			.findAllByMemberIdAndCourseIdAndModeAndCourseAreaIdAndDay(memberId, course.getId(),
-				RecommendationMode.AREA, area.getId(), day)
-			.forEach(shown -> excludeStoreIds.addAll(shown.shownStoreIds()));
+		excludeStoreIds.addAll(shownStoreIdsOf(memberId, course.getId(), area.getId(), day));
 		recommendationFeedbackRepository.save(RecommendationFeedback.of(previous.getId(), null, FeedbackAction.RETRY));
 		return buildAreaRecommendation(memberId, sessionId, course, area, day, profile, profileVersion, activeStores,
 			excludeStoreIds, storeCount);
@@ -297,7 +340,8 @@ public class CourseRecommendationCommandService {
 		RecommendationResult result = new RecommendationResult(titleOf(area, profile), areaSummary, totalDistanceM,
 			fallback, storeCount, stores, lastBatch);
 		Recommendation saved = recommendationRepository.save(Recommendation.forArea(memberId, course.getId(),
-			area.getId(), day, profileVersion, Recommendation.RULE_PROVIDER, null, null, false, write(result)));
+			area.getId(), day, profileVersion, Recommendation.RULE_PROVIDER, null, null, false, write(result),
+			sessionId));
 		return RecommendationResponse.of(saved.getId(), result);
 	}
 

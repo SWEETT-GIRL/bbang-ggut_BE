@@ -19,6 +19,7 @@ import static org.mockito.Mockito.times;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -176,6 +177,7 @@ class CourseRecommendationCommandServiceTest {
 
 	private Recommendation savedWithId(Long id) {
 		Recommendation saved = mock(Recommendation.class);
+		lenient().when(saved.getCreatedAt()).thenReturn(LocalDateTime.now());
 		lenient().when(saved.getId()).thenReturn(id);
 		given(recommendationRepository.save(any(Recommendation.class))).willReturn(saved);
 		return saved;
@@ -260,14 +262,13 @@ class CourseRecommendationCommandServiceTest {
 				null)),
 			true);
 		Map<String, Object> storedMap = objectMapper.convertValue(stored, Map.class);
-		Recommendation reused = mock(Recommendation.class);
-		given(reused.getId()).willReturn(55L);
-		given(reused.getResult()).willReturn(storedMap);
+		// 2시간 전 묶음이라도 같은 세션 id 면 같은 자리다
+		Recommendation reused = storedRecommendation(55L, storedMap, "s", LocalDateTime.now().minusHours(2));
 		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)1, 0))
 			.willReturn(Optional.of(reused));
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(1, null), null);
+			request(1, null), "s");
 
 		assertThat(response.recommendationId()).isEqualTo(55L);
 		assertThat(response.totalDistanceM()).isEqualTo(900);
@@ -277,6 +278,118 @@ class CourseRecommendationCommandServiceTest {
 			.findAreaCandidates(any(), any(), anyDouble(), anyDouble(), anyInt(), any(), any(), any(), anyCollection(),
 				anyInt());
 		then(recommendationRepository).should(never()).save(any());
+	}
+
+	@Test
+	@DisplayName("새로 열기: 다른 세션이면 보던 묶음 대신 안 본 가게로 새 묶음을 만든다 — 제외는 다시 받기와 같고 RETRY 는 안 남긴다")
+	void recommend_newSession_buildsUnseenBatch() {
+		course(1);
+		CourseArea seoulArea = seongsu("서울");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(seoulArea));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of());
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+		Recommendation yesterday = storedRecommendation(55L, storedResult(List.of(101L, 102L, 103L, 104L), false),
+			"old-session", LocalDateTime.now().minusHours(20));
+		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)1, 0))
+			.willReturn(Optional.of(yesterday));
+		given(recommendationRepository.findAllByMemberIdAndCourseIdAndModeAndCourseAreaIdAndDay(MEMBER_ID, COURSE_ID,
+			RecommendationMode.AREA, AREA_ID, (short)1)).willReturn(List.of(yesterday));
+		given(candidateRepository.findAreaCandidates(any(), any(), anyDouble(), anyDouble(), anyInt(), any(), any(),
+			any(), anyCollection(), anyInt())).willReturn(List.of(candidate(6), candidate(7)));
+		savedWithId(78L);
+
+		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(4, 1), "new-session");
+
+		assertThat(response.recommendationId()).isEqualTo(78L);
+		assertThat(response.stores()).extracting(RecommendedStoreResponse::storeId).containsExactly(106L, 107L);
+		@SuppressWarnings("unchecked") ArgumentCaptor<Collection<Long>> excluded = ArgumentCaptor
+			.forClass(Collection.class);
+		then(candidateRepository).should().findAreaCandidates(any(), any(), anyDouble(), anyDouble(), anyInt(), any(),
+			any(), any(), excluded.capture(), anyInt());
+		assertThat(excluded.getValue()).containsExactlyInAnyOrder(101L, 102L, 103L, 104L);
+		then(recommendationFeedbackRepository).should(never()).save(any());
+	}
+
+	@Test
+	@DisplayName("새로 열기: 다른 세션인데 안 본 가게가 없으면 소진된 묶음을 주지 않고 첫 묶음을 다시 계산한다")
+	void recommend_newSession_exhausted_restartsFromFirstBatch() {
+		course(1);
+		CourseArea seoulArea = seongsu("서울");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(seoulArea));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of());
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+		Recommendation exhausted = storedRecommendation(30L, storedResult(List.of(105L), true), "old-session",
+			LocalDateTime.now().minusDays(1));
+		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)1, 0))
+			.willReturn(Optional.of(exhausted));
+		given(recommendationRepository.findAllByMemberIdAndCourseIdAndModeAndCourseAreaIdAndDay(MEMBER_ID, COURSE_ID,
+			RecommendationMode.AREA, AREA_ID, (short)1)).willReturn(List.of(exhausted));
+		// 첫 호출(안 본 가게만)은 비고, 둘째 호출(코스 가게만 제외)이 첫 묶음이다
+		given(candidateRepository.findAreaCandidates(any(), any(), anyDouble(), anyDouble(), anyInt(), any(), any(),
+			any(), anyCollection(), anyInt())).willReturn(List.of(), List.of(candidate(1), candidate(2)));
+		savedWithId(36L);
+
+		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(4, 1), "new-session");
+
+		assertThat(response.recommendationId()).isEqualTo(36L);
+		assertThat(response.stores()).extracting(RecommendedStoreResponse::storeId).containsExactly(101L, 102L);
+		@SuppressWarnings("unchecked") ArgumentCaptor<Collection<Long>> excluded = ArgumentCaptor
+			.forClass(Collection.class);
+		then(candidateRepository).should(times(2)).findAreaCandidates(any(), any(), anyDouble(), anyDouble(), anyInt(),
+			any(), any(), any(), excluded.capture(), anyInt());
+		assertThat(excluded.getAllValues().get(0)).containsExactly(105L);
+		assertThat(excluded.getAllValues().get(1)).isEmpty();
+	}
+
+	@Test
+	@DisplayName("새로 열기: 세션 id 가 달라도 마지막 묶음이 30분 안이면 같은 자리다 — 보던 묶음 그대로")
+	void recommend_withinWindow_reusesEvenIfSessionDiffers() {
+		course(1);
+		CourseArea seoulArea = seongsu("서울");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(seoulArea));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of());
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+		Recommendation tenMinutesAgo = storedRecommendation(55L, storedResult(List.of(101L), false), "old-session",
+			LocalDateTime.now().minusMinutes(10));
+		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)1, 0))
+			.willReturn(Optional.of(tenMinutesAgo));
+
+		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(4, 1), "new-session");
+
+		assertThat(response.recommendationId()).isEqualTo(55L);
+		then(recommendationRepository).should(never()).save(any());
+	}
+
+	@Test
+	@DisplayName("새로 열기: 같은 세션 id 라도 마지막 묶음이 24시간을 넘었으면 새 자리다 — 안 본 가게로 새 묶음")
+	void recommend_sameSessionButStale_buildsUnseenBatch() {
+		course(1);
+		CourseArea seoulArea = seongsu("서울");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(seoulArea));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of());
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+		Recommendation stale = storedRecommendation(55L, storedResult(List.of(101L), false), "s",
+			LocalDateTime.now().minusHours(30));
+		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)1, 0))
+			.willReturn(Optional.of(stale));
+		given(recommendationRepository.findAllByMemberIdAndCourseIdAndModeAndCourseAreaIdAndDay(MEMBER_ID, COURSE_ID,
+			RecommendationMode.AREA, AREA_ID, (short)1)).willReturn(List.of(stale));
+		given(candidateRepository.findAreaCandidates(any(), any(), anyDouble(), anyDouble(), anyInt(), any(), any(),
+			any(), anyCollection(), anyInt())).willReturn(List.of(candidate(6)));
+		savedWithId(78L);
+
+		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(4, 1), "s");
+
+		assertThat(response.recommendationId()).isEqualTo(78L);
+		assertThat(response.stores()).extracting(RecommendedStoreResponse::storeId).containsExactly(106L);
 	}
 
 	@Test
@@ -403,8 +516,35 @@ class CourseRecommendationCommandServiceTest {
 		assertThat(secondDay.area().areaId()).isEqualTo(31L);
 	}
 
+	private Map<String, Object> storedResult(List<Long> storeIds, boolean lastBatch) {
+		List<RecommendedStoreResponse> stores = storeIds.stream()
+			.map(id -> new RecommendedStoreResponse(id, "빵집" + id, "성수동", "이유", 0.0, null, CENTER_LAT, CENTER_LNG,
+				null))
+			.toList();
+		RecommendationResult stored = new RecommendationResult("성수동 빵집 코스",
+			new RecommendationAreaSummary(AREA_ID, "성수동"), 900, false, 4, stores, lastBatch);
+		return objectMapper.convertValue(stored, Map.class);
+	}
+
+	/** 저장된 상권 추천 행 — 새로 열기의 같은 자리 판정 재료(세션 id · 만든 시각)까지 갖춘 목. */
+	private static Recommendation storedRecommendation(Long id, Map<String, Object> result, String sessionId,
+			LocalDateTime createdAt) {
+		Recommendation stored = mock(Recommendation.class);
+		lenient().when(stored.getId()).thenReturn(id);
+		lenient().when(stored.getResult()).thenReturn(result);
+		lenient().when(stored.getSessionId()).thenReturn(sessionId);
+		lenient().when(stored.getCreatedAt()).thenReturn(createdAt);
+		Set<Long> shown = new HashSet<>();
+		for (Object row : (List<?>)result.get("stores")) {
+			shown.add(((Number)((Map<?, ?>)row).get("storeId")).longValue());
+		}
+		lenient().when(stored.shownStoreIds()).thenReturn(shown); // 목은 result 필드가 비어 실제 메서드를 못 부른다
+		return stored;
+	}
+
 	private Recommendation previousAreaRecommendation(Long id, Long courseAreaId, short day, Set<Long> shown) {
 		Recommendation previous = mock(Recommendation.class);
+		lenient().when(previous.getCreatedAt()).thenReturn(LocalDateTime.now());
 		lenient().when(previous.getId()).thenReturn(id);
 		lenient().when(previous.getCourseId()).thenReturn(COURSE_ID);
 		lenient().when(previous.getCourseAreaId()).thenReturn(courseAreaId);
@@ -953,6 +1093,7 @@ class CourseRecommendationCommandServiceTest {
 				.toList());
 		Map<String, Object> storedMap = objectMapper.convertValue(stored, Map.class);
 		Recommendation reused = mock(Recommendation.class);
+		lenient().when(reused.getCreatedAt()).thenReturn(LocalDateTime.now());
 		given(reused.getId()).willReturn(66L);
 		given(reused.getResult()).willReturn(storedMap);
 		given(recommendationRepository.findLatestAnchorForReuse(MEMBER_ID, COURSE_ID, 100L, (short)1, 0))
@@ -999,6 +1140,7 @@ class CourseRecommendationCommandServiceTest {
 	private Recommendation storedRecommendation(Long id, Object result) {
 		Map<String, Object> resultMap = objectMapper.convertValue(result, Map.class);
 		Recommendation stored = mock(Recommendation.class);
+		lenient().when(stored.getCreatedAt()).thenReturn(LocalDateTime.now());
 		lenient().when(stored.getId()).thenReturn(id);
 		lenient().when(stored.getResult()).thenReturn(resultMap);
 		return stored;
@@ -1219,6 +1361,7 @@ class CourseRecommendationCommandServiceTest {
 	@DisplayName("여러 곳 담기: 내 추천이고 이 코스의 것이면 확인만 하고 course 에 넘긴다")
 	void addRecommendedStores_delegatesAfterOwnershipCheck() {
 		Recommendation mine = mock(Recommendation.class);
+		lenient().when(mine.getCreatedAt()).thenReturn(LocalDateTime.now());
 		given(mine.getCourseId()).willReturn(COURSE_ID);
 		given(recommendationRepository.findByIdAndMemberId(77L, MEMBER_ID)).willReturn(Optional.of(mine));
 		CourseStoreBulkAddRequest request = new CourseStoreBulkAddRequest(77L,
@@ -1233,6 +1376,7 @@ class CourseRecommendationCommandServiceTest {
 	@DisplayName("여러 곳 담기: 남의 추천이거나 다른 코스의 추천이면 404 이고 담지 않는다. 추천 없이 담는 건 그대로 넘긴다")
 	void addRecommendedStores_rejectsForeignRecommendation() {
 		Recommendation otherCourses = mock(Recommendation.class);
+		lenient().when(otherCourses.getCreatedAt()).thenReturn(LocalDateTime.now());
 		given(otherCourses.getCourseId()).willReturn(11L);
 		given(recommendationRepository.findByIdAndMemberId(77L, MEMBER_ID)).willReturn(Optional.of(otherCourses));
 		given(recommendationRepository.findByIdAndMemberId(78L, MEMBER_ID)).willReturn(Optional.empty());

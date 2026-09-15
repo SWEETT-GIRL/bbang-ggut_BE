@@ -32,6 +32,9 @@ class RecommendationTest {
 		assertThat(recommendation.getCourseAreaId()).isEqualTo(5L);
 		assertThat(recommendation.getProfileVersion()).isEqualTo(3);
 		assertThat(recommendation.getPromptVersion()).isEqualTo("p1");
+		assertThat(recommendation.getSessionId()).isNull(); // 세션 id 없이 만든 옛 모양
+		assertThat(Recommendation.forArea(7L, 10L, 5L, (short)1, 3, "rule", null, null, false,
+			resultWithNullSkipped(), "1757894400123").getSessionId()).isEqualTo("1757894400123");
 		assertThat(recommendation.isFallback()).isTrue();
 		assertThat(recommendation.getResult()).containsEntry("skipped", null);
 		assertThat(recommendation.getCreatedAt()).isNotNull();
