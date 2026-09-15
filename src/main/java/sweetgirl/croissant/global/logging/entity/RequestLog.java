@@ -71,6 +71,10 @@ public class RequestLog {
 	@Column(columnDefinition = "TEXT")
 	private String errorMessage;
 
+	/** 앱 세션 id (요청 헤더 X-Session-Id). 헤더 배포 전 앱은 NULL. 추천 칩의 "세션에서 본 상권"(#661)이 쓴다 */
+	@Column(length = 64)
+	private String sessionId;
+
 	@CreatedDate
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
@@ -79,7 +83,7 @@ public class RequestLog {
 	public RequestLog(Long memberId, String httpMethod, String endpoint, String queryParams,
 			String requestBody, Integer responseStatus, Integer responseTimeMs,
 			String ipAddress, String userAgent, Long storeId, LogEventType eventType,
-			String errorCode, String errorMessage) {
+			String errorCode, String errorMessage, String sessionId) {
 		this.memberId = memberId;
 		this.httpMethod = httpMethod;
 		this.endpoint = endpoint;
@@ -93,5 +97,6 @@ public class RequestLog {
 		this.eventType = eventType;
 		this.errorCode = errorCode;
 		this.errorMessage = errorMessage;
+		this.sessionId = sessionId;
 	}
 }

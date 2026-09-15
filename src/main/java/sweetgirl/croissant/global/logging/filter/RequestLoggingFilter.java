@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.global.logging.LogEventType;
 import sweetgirl.croissant.global.logging.SensitiveUrlMasker;
+import sweetgirl.croissant.global.logging.SessionIdHeader;
 import sweetgirl.croissant.global.logging.entity.RequestLog;
 import sweetgirl.croissant.global.logging.service.RequestLogService;
 
@@ -97,6 +98,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 			.eventType(resolveEventType(method, uri)) // STORE_VIEW / ALARM_CLICK / null
 			.errorCode((String)request.getAttribute(ATTR_ERROR_CODE)) // 예외 발생 시 GlobalExceptionHandler가 채워줌
 			.errorMessage((String)request.getAttribute(ATTR_ERROR_MESSAGE))
+			.sessionId(SessionIdHeader.normalize(request.getHeader(SessionIdHeader.NAME))) // 앱 세션 id (없으면 null)
 			.build();
 
 		log.info("API_PERF method={} uri={} query=\"{}\" status={} durationMs={} clientIp={} userAgent=\"{}\"",
@@ -179,4 +181,5 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 		}
 		return normalized.substring(0, maxLength) + "...";
 	}
+
 }

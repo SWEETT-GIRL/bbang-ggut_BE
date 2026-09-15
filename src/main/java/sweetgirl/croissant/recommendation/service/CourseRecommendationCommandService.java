@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 
 import org.locationtech.jts.geom.Point;
@@ -87,7 +88,8 @@ public class CourseRecommendationCommandService {
 	private final RecommendationProperties recommendationProperties;
 	private final ObjectMapper objectMapper;
 
-	public RecommendationResponse recommend(Long memberId, Long courseId, RecommendationRequest request) {
+	public RecommendationResponse recommend(Long memberId, Long courseId, RecommendationRequest request,
+			String sessionId) {
 		RecommendationProperties.Area areaRules = recommendationProperties.getArea();
 		int storeCount = request.storeCount() != null ? request.storeCount() : areaRules.getDefaultStoreCount();
 		if (storeCount < areaRules.getMinStoreCount() || storeCount > areaRules.getMaxStoreCount()) {
@@ -96,7 +98,7 @@ public class CourseRecommendationCommandService {
 		Course course = findCourse(courseId);
 		courseAccessPolicy.requireEditable(course, memberId);
 		if (request.previousRecommendationId() != null) {
-			return retry(memberId, course, request, storeCount);
+			return retry(memberId, course, request, storeCount, sessionId);
 		}
 		CourseArea requested = courseAreaRepository.findByIdAndIsActiveTrue(request.areaId())
 			.filter(found -> found.getSido().equals(course.getRegion()))
@@ -105,13 +107,14 @@ public class CourseRecommendationCommandService {
 		List<CourseStore> activeStores = courseStoreRepository
 			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId);
 		short day = resolveDay(request.day(), course, activeStores);
+		UserTasteProfile profile = userTasteProfileRepository.findById(memberId).orElse(null);
+		int profileVersion = profile != null ? profile.getVersion() : Recommendation.NO_PROFILE_VERSION;
+		TasteQuery taste = TasteQuery.of(profile);
 		// 다음 동네 제안(nextArea)에서 온 요청은 그 행을 그대로 쓴다 — 대표 행 id 는 칩 id 와 같아서, 표시가 없으면 칩으로 읽혀
 		// 동네를 다시 고르고 신호가 그대로라 제안한 동네로 못 간다(PR #738 리뷰)
 		CourseArea area = request.isExactArea()
 			? requested
-			: resolveNeighborhood(memberId, requested, activeStores, day);
-		UserTasteProfile profile = userTasteProfileRepository.findById(memberId).orElse(null);
-		int profileVersion = profile != null ? profile.getVersion() : Recommendation.NO_PROFILE_VERSION;
+			: resolveNeighborhood(memberId, sessionId, taste, requested, activeStores, day);
 
 		Set<Long> courseStoreIds = storeIdsOf(activeStores);
 		Optional<Recommendation> reusable = recommendationRepository
@@ -124,7 +127,7 @@ public class CourseRecommendationCommandService {
 				return RecommendationResponse.of(reusable.get().getId(), stored);
 			}
 		}
-		return buildAreaRecommendation(memberId, course, area, day, profile, profileVersion, activeStores,
+		return buildAreaRecommendation(memberId, sessionId, course, area, day, profile, profileVersion, activeStores,
 			courseStoreIds, storeCount);
 	}
 
@@ -133,7 +136,8 @@ public class CourseRecommendationCommandService {
 	 * 제외 = 이 코스·그 상권 행·그 일차에서 앞서 보여준 가게 전부(프로필 버전 무관) ∪ 코스에 담긴 가게. 이전 추천에 RETRY 를 남긴다 —
 	 * FE 는 따로 반응을 보내지 않는다. 요청 areaId 가 이전 추천의 상권 행과 다르면 앱과 서버가 다른 동네를 말하는 것이라 400.
 	 */
-	private RecommendationResponse retry(Long memberId, Course course, RecommendationRequest request, int storeCount) {
+	private RecommendationResponse retry(Long memberId, Course course, RecommendationRequest request, int storeCount,
+			String sessionId) {
 		Recommendation previous = recommendationRepository
 			.findByIdAndMemberId(request.previousRecommendationId(), memberId)
 			.filter(found -> found.getCourseId().equals(course.getId()))
@@ -155,21 +159,23 @@ public class CourseRecommendationCommandService {
 				RecommendationMode.AREA, area.getId(), day)
 			.forEach(shown -> excludeStoreIds.addAll(shown.shownStoreIds()));
 		recommendationFeedbackRepository.save(RecommendationFeedback.of(previous.getId(), null, FeedbackAction.RETRY));
-		return buildAreaRecommendation(memberId, course, area, day, profile, profileVersion, activeStores,
+		return buildAreaRecommendation(memberId, sessionId, course, area, day, profile, profileVersion, activeStores,
 			excludeStoreIds, storeCount);
 	}
 
 	/**
 	 * 도장 칸 아래 동네가 여럿이면 서버가 고른다(#736) — 칩은 도장 칸 하나라 사용자가 동네를 고르지 않는다.
 	 * ① 추천받는 일차에 담긴 가게가 반경 안인 동네 ② 그 일차가 비어 있으면 코스 전체에서 담긴 가게가 많은 동네
-	 * ③ 내 저장 가게가 있는 동네 ④ 대표 행(display_order 첫 행). ①②는 같으면 대표 행 순.
+	 * ③ 이 세션에서 상세를 본 가게가 있는 동네 ④ 내 저장 가게가 있는 동네 ⑤ 취향 후보(코사인 > 임계)가 기준 이상인 동네
+	 * ⑥ 대표 행(display_order 첫 행). 같으면 대표 행 순. ③~⑤는 칩 순서와 같은 신호·같은 우선순위다(PR #741 리뷰) —
+	 * 세션 신호로 "서귀포시" 칩이 앞에 왔으면 클릭 뒤 추천도 그 세션에서 본 중문에서 나와야 한다.
 	 * 일차를 먼저 보는 이유: 1일차 중문·2일차 성산인 코스에서 2일차를 짜는 사람에겐 성산이 맞다 — 코스 전체로 세면 중문이 된다.
 	 * 코스 전체로 넘어가는 건 그 일차가 정말 빈 경우뿐이다 — 일차에 가게는 있는데 어느 동네 반경에도 안 들어가면(남원읍 가게)
 	 * 다른 날의 동선이 오늘을 덮지 않게 ③으로 간다(PR #737 리뷰).
 	 * 요청이 대표 행이 아닌 동네 행이면(다음 칸 제안 등으로 동네를 집어 온 것) 그대로 쓴다. 동네가 하나뿐인 칸은 조회 한 번으로 끝난다.
 	 */
-	private CourseArea resolveNeighborhood(Long memberId, CourseArea requested, List<CourseStore> activeStores,
-			short day) {
+	private CourseArea resolveNeighborhood(Long memberId, String sessionId, TasteQuery taste, CourseArea requested,
+			List<CourseStore> activeStores, short day) {
 		List<CourseArea> neighborhoods = courseAreaRepository
 			.findAllBySidoAndPassportSpotAndIsActiveTrueOrderByDisplayOrderAscNameAsc(requested.getSido(),
 				requested.getPassportSpot());
@@ -185,12 +191,32 @@ public class CourseRecommendationCommandService {
 		if (byStores.isPresent()) {
 			return byStores.get();
 		}
-		Map<Long, AreaChipStats> stats = candidateRepository.findAreaChipStats(memberId, neighborhoods);
-		return neighborhoods.stream()
-			.filter(neighborhood -> stats.containsKey(neighborhood.getId())
-				&& stats.get(neighborhood.getId()).hasSavedStore())
-			.findFirst()
+		Map<Long, AreaChipStats> stats = candidateRepository.findAreaChipStats(memberId, sessionId, taste,
+			neighborhoods);
+		int minTasteCandidates = recommendationProperties.getScore().getMinTasteCandidates();
+		return neighborhoodWithMostSignal(neighborhoods, stats, AreaChipStats::sessionViewCount, 1)
+			.or(() -> neighborhoodWithMostSignal(neighborhoods, stats, AreaChipStats::savedStoreCount, 1))
+			.or(() -> taste.hasAxis()
+				? neighborhoodWithMostSignal(neighborhoods, stats, AreaChipStats::tasteCandidateCount,
+					minTasteCandidates)
+				: Optional.empty())
 			.orElse(neighborhoods.get(0));
+	}
+
+	/** 신호가 기준 이상이면서 가장 큰 동네. 같으면 앞(대표 행) 순. 기준에 못 미치면 비어 있다. */
+	private static Optional<CourseArea> neighborhoodWithMostSignal(List<CourseArea> neighborhoods,
+			Map<Long, AreaChipStats> stats, ToIntFunction<AreaChipStats> signal, int minimum) {
+		CourseArea best = null;
+		int bestValue = minimum - 1;
+		for (CourseArea neighborhood : neighborhoods) {
+			AreaChipStats chip = stats.get(neighborhood.getId());
+			int value = chip != null ? signal.applyAsInt(chip) : 0;
+			if (value > bestValue) {
+				best = neighborhood;
+				bestValue = value;
+			}
+		}
+		return Optional.ofNullable(best);
 	}
 
 	/** 반경 안에 담긴 가게가 가장 많은 동네. 한 곳도 없으면 비어 있다. 같으면 앞(대표 행) 순. */
@@ -227,9 +253,9 @@ public class CourseRecommendationCommandService {
 				|| unavailable.contains(store.storeId()));
 	}
 
-	private RecommendationResponse buildAreaRecommendation(Long memberId, Course course, CourseArea area, short day,
-			UserTasteProfile profile, int profileVersion, List<CourseStore> activeStores, Set<Long> excludeStoreIds,
-			int storeCount) {
+	private RecommendationResponse buildAreaRecommendation(Long memberId, String sessionId, Course course,
+			CourseArea area, short day, UserTasteProfile profile, int profileVersion, List<CourseStore> activeStores,
+			Set<Long> excludeStoreIds, int storeCount) {
 		TasteQuery taste = TasteQuery.of(profile);
 		List<CandidateStoreRow> candidates = findAreaCandidates(memberId, taste, area, excludeStoreIds);
 		// 취향 폴백(설계 §9 · #661): 풀에 취향 후보(코사인 > 임계)가 3곳 미만이면 취향 항을 빼고 prior 순으로 채운다 —
@@ -244,7 +270,8 @@ public class CourseRecommendationCommandService {
 			// 저장할 게 없다 — 재사용될 결과도 없고 반응을 받을 것도 없다. 대신 다음 동네와 앵커로 넘길 가게를 알려 준다(#661)
 			RecommendationResult empty = new RecommendationResult(titleOf(area, profile), areaSummary, 0, false,
 				storeCount, List.of(), true);
-			return RecommendationResponse.of(null, empty, nextAreaOf(memberId, course, area, day, activeStores),
+			return RecommendationResponse.of(null, empty,
+				nextAreaOf(memberId, sessionId, taste, course, area, day, activeStores),
 				anchorStoreIdOf(activeStores, day));
 		}
 		List<CandidateStoreRow> ordered = chainWithinHop(candidates, area.getMaxHopM(), storeCount);
@@ -305,8 +332,8 @@ public class CourseRecommendationCommandService {
 	 * 같은 시·도의 다음 도장 칸 — 그 칸에서 동네 선택까지 한 구체 행. FE 는 이 areaId 를 exactArea = true 로 요청해야 한다 —
 	 * 대표 행(시내)이 제안됐을 때 칩 요청으로 읽히면 동네를 다시 골라 되돌아간다.
 	 */
-	private NextAreaResponse nextAreaOf(Long memberId, Course course, CourseArea exhausted, short day,
-			List<CourseStore> activeStores) {
+	private NextAreaResponse nextAreaOf(Long memberId, String sessionId, TasteQuery taste, Course course,
+			CourseArea exhausted, short day, List<CourseStore> activeStores) {
 		Set<Long> recommendedAreaIds = new HashSet<>(
 			recommendationRepository.findRecommendedAreaIds(memberId, course.getId()));
 		recommendedAreaIds.add(exhausted.getId());
@@ -326,17 +353,17 @@ public class CourseRecommendationCommandService {
 				if (spot.getKey().equals(exhausted.getPassportSpot())) {
 					continue;
 				}
-				CourseArea chosen = resolveNeighborhood(memberId, spot.getValue().get(0), activeStores, day);
+				CourseArea chosen = resolveNeighborhood(memberId, sessionId, taste, spot.getValue().get(0),
+					activeStores,
+					day);
 				if (!recommendedAreaIds.contains(chosen.getId())) {
 					next = Optional.of(chosen);
 					break;
 				}
 			}
 		}
-		return next.map(area -> {
-			AreaChipStats stats = candidateRepository.findAreaChipStats(memberId, List.of(area)).get(area.getId());
-			return new NextAreaResponse(area.getId(), area.getName(), stats != null ? stats.storeCount() : 0);
-		}).orElse(null);
+		return next.map(area -> new NextAreaResponse(area.getId(), area.getName(),
+			candidateRepository.countAreaStores(memberId, area))).orElse(null);
 	}
 
 	/** 후보가 바닥났을 때 앵커 추천으로 넘길 가게 — 이 일차에 담긴 가게 중 마지막(방문 순서). 다른 일차 가게는 그 일차 기준이라 안 쓴다. */

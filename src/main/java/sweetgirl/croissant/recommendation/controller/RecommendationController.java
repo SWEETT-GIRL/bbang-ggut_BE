@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -16,6 +17,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
+import sweetgirl.croissant.global.logging.SessionIdHeader;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.recommendation.dto.request.CourseStoreBulkAddRequest;
 import sweetgirl.croissant.recommendation.dto.request.RecommendationFeedbackRequest;
@@ -41,8 +43,10 @@ public class RecommendationController {
 	@GetMapping("/courses/{courseId}/recommendation-context")
 	public ResponseEntity<ApiResponse<RecommendationContextResponse>> getContext(
 			@AuthenticationPrincipal Long memberId,
-			@PathVariable Long courseId) {
-		return ResponseEntity.ok(ApiResponse.ok(recommendationContextQueryService.getContext(memberId, courseId)));
+			@PathVariable Long courseId,
+			@RequestHeader(value = SessionIdHeader.NAME, required = false) String sessionId) {
+		return ResponseEntity.ok(ApiResponse.ok(recommendationContextQueryService.getContext(memberId, courseId,
+			SessionIdHeader.normalize(sessionId))));
 	}
 
 	@Operation(summary = "상권 하나로 코스 추천", description = "같은 코스·상권·일차·프로필이면 저장된 결과를 다시 준다.")
@@ -50,9 +54,11 @@ public class RecommendationController {
 	public ResponseEntity<ApiResponse<RecommendationResponse>> recommend(
 			@AuthenticationPrincipal Long memberId,
 			@PathVariable Long courseId,
-			@Valid @RequestBody RecommendationRequest request) {
+			@Valid @RequestBody RecommendationRequest request,
+			@RequestHeader(value = SessionIdHeader.NAME, required = false) String sessionId) {
 		return ResponseEntity.ok(
-			ApiResponse.ok(courseRecommendationCommandService.recommend(memberId, courseId, request)));
+			ApiResponse.ok(courseRecommendationCommandService.recommend(memberId, courseId, request,
+				SessionIdHeader.normalize(sessionId))));
 	}
 
 	@Operation(summary = "방금 담은 가게 근처 추천", description = "룰만, LLM 없음. page 는 0부터 9곳씩, recommendationId 는 page 마다 같다.")

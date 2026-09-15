@@ -72,9 +72,10 @@ class RecommendationControllerTest {
 	@Test
 	@DisplayName("컨텍스트: state·showAccuracyLink·areas[{areaId,name,reason,storeCount}]·typeLabel 이 FE 계약 그대로다")
 	void getContext_returnsContractShape() throws Exception {
-		given(recommendationContextQueryService.getContext(null, 10L)).willReturn(new RecommendationContextResponse(
-			RecommendationContextState.CHIPS, true,
-			List.of(new RecommendationAreaResponse(5L, "성수동", RecommendationAreaReason.SAVED, 42)), "뉴웨이브 미니멀"));
+		given(recommendationContextQueryService.getContext(null, 10L, null))
+			.willReturn(new RecommendationContextResponse(
+				RecommendationContextState.CHIPS, true,
+				List.of(new RecommendationAreaResponse(5L, "성수동", RecommendationAreaReason.SAVED, 42)), "뉴웨이브 미니멀"));
 
 		mockMvc.perform(get("/courses/10/recommendation-context"))
 			.andExpect(status().isOk())
@@ -87,15 +88,27 @@ class RecommendationControllerTest {
 	}
 
 	@Test
+	@DisplayName("컨텍스트: 세션 id 헤더(X-Session-Id)가 다듬어져 서비스로 간다 — 공백은 잘리고 비어 있으면 null")
+	void getContext_passesSessionIdHeader() throws Exception {
+		given(recommendationContextQueryService.getContext(eq(null), eq(10L), eq("amp-1726000000")))
+			.willReturn(new RecommendationContextResponse(RecommendationContextState.CHIPS, false, List.of(), null));
+
+		mockMvc.perform(get("/courses/10/recommendation-context").header("X-Session-Id", " amp-1726000000 "))
+			.andExpect(status().isOk());
+		then(recommendationContextQueryService).should().getContext(eq(null), eq(10L), eq("amp-1726000000"));
+	}
+
+	@Test
 	@DisplayName("다시 받기: previousRecommendationId 가 서비스로 가고, 바닥 응답의 lastBatch · nextArea · anchorStoreId 가 실린다")
 	void recommend_retryContractShape() throws Exception {
-		given(courseRecommendationCommandService.recommend(eq(null), eq(10L), any())).willReturn(
+		given(courseRecommendationCommandService.recommend(eq(null), eq(10L), any(), any())).willReturn(
 			new RecommendationResponse(null, "중문 빵집 코스", new RecommendationAreaSummary(31L, "중문"), 0, false,
 				List.of(), true, new NextAreaResponse(32L, "성산", 13), 1042L));
 
 		mockMvc.perform(post("/courses/10/recommendations").contentType(MediaType.APPLICATION_JSON)
 			.content("{\"areaId\": 31, \"entryScreen\": \"course_empty\", \"sessionEvents\": [],"
-				+ " \"previousRecommendationId\": 77, \"exactArea\": true}"))
+				+ " \"previousRecommendationId\": 77, \"exactArea\": true}")
+			.header("X-Session-Id", " 1757894400123 "))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.recommendationId").value(org.hamcrest.Matchers.nullValue()))
 			.andExpect(jsonPath("$.data.stores").isEmpty())
@@ -105,7 +118,8 @@ class RecommendationControllerTest {
 			.andExpect(jsonPath("$.data.nextArea.storeCount").value(13))
 			.andExpect(jsonPath("$.data.anchorStoreId").value(1042));
 		ArgumentCaptor<RecommendationRequest> request = ArgumentCaptor.forClass(RecommendationRequest.class);
-		then(courseRecommendationCommandService).should().recommend(eq(null), eq(10L), request.capture());
+		then(courseRecommendationCommandService).should().recommend(eq(null), eq(10L), request.capture(),
+			eq("1757894400123"));
 		assertThat(request.getValue().previousRecommendationId()).isEqualTo(77L);
 		assertThat(request.getValue().areaId()).isEqualTo(31L);
 		assertThat(request.getValue().isExactArea()).isTrue();
@@ -114,7 +128,7 @@ class RecommendationControllerTest {
 	@Test
 	@DisplayName("상권 추천: 응답 필드가 FE 계약 그대로고 마지막 가게의 distanceToNextM 은 null 로 실린다")
 	void recommend_returnsContractShape() throws Exception {
-		given(courseRecommendationCommandService.recommend(eq(null), eq(10L), any())).willReturn(
+		given(courseRecommendationCommandService.recommend(eq(null), eq(10L), any(), any())).willReturn(
 			new RecommendationResponse(77L, "성수동 빵집 코스", new RecommendationAreaSummary(5L, "성수동"), 900, false,
 				List.of(new RecommendedStoreResponse(101L, "빵집", "성수동", "이유", 0.0, null, 37.5, 127.0, null))));
 
@@ -136,7 +150,7 @@ class RecommendationControllerTest {
 			.content("{\"entryScreen\": \"course_empty\"}"))
 			.andExpect(status().isBadRequest());
 
-		verify(courseRecommendationCommandService, never()).recommend(any(), any(), any());
+		verify(courseRecommendationCommandService, never()).recommend(any(), any(), any(), any());
 	}
 
 	@Test

@@ -86,6 +86,7 @@ class RecommendationContextQueryServiceTest {
 		lenient().when(area.getId()).thenReturn(id);
 		lenient().when(area.getName()).thenReturn(name);
 		lenient().when(area.getPassportSpot()).thenReturn(name);
+		lenient().when(area.getDisplayOrder()).thenReturn(id.intValue()); // 픽스처의 표시 순서 = id 순
 		lenient().when(area.getCenterLat()).thenReturn(37.5);
 		lenient().when(area.getCenterLng()).thenReturn(127.0);
 		lenient().when(area.getRadiusM()).thenReturn(1200);
@@ -116,12 +117,13 @@ class RecommendationContextQueryServiceTest {
 		CourseArea seongsu = neighborhood(11L, "성수동", "성수동");
 		given(courseAreaRepository.findAllBySidoAndIsActiveTrueOrderByDisplayOrderAscNameAsc("서울"))
 			.willReturn(List.of(downtown, jungmun, seongsu));
-		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), anyList())).willReturn(Map.of(
+		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), any(), any(), anyList())).willReturn(Map.of(
 			9L, new AreaChipStats(9L, 75, false),
 			10L, new AreaChipStats(10L, 22, true),
 			11L, new AreaChipStats(11L, 260, false)));
 
-		RecommendationContextResponse context = recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID);
+		RecommendationContextResponse context = recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID,
+			null);
 
 		assertThat(context.areas()).hasSize(2);
 		assertThat(context.areas().get(0).areaId()).isEqualTo(9L);
@@ -130,6 +132,89 @@ class RecommendationContextQueryServiceTest {
 		assertThat(context.areas().get(0).storeCount()).isEqualTo(97);
 		assertThat(context.areas().get(1).name()).isEqualTo("성수동");
 		assertThat(context.areas().get(1).storeCount()).isEqualTo(260);
+	}
+
+	@Test
+	@DisplayName("칩 순서는 버킷 우선순위 — 세션에서 본 칸 → 저장 가게 있는 칸 → 취향 후보 충분한 칸 → 나머지 도장판 순. 앞 3개만")
+	void getContext_ordersChipsByBucket() {
+		courseInSeoul();
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.of(typedProfile()));
+		CourseArea seongsu = area(5L, "성수동");
+		CourseArea yeonnam = area(6L, "연남동");
+		CourseArea mangwon = area(7L, "망원동");
+		CourseArea hannam = area(8L, "한남동");
+		CourseArea gongdeok = area(9L, "공덕동");
+		given(courseAreaRepository.findAllBySidoAndIsActiveTrueOrderByDisplayOrderAscNameAsc("서울"))
+			.willReturn(List.of(seongsu, yeonnam, mangwon, hannam, gongdeok));
+		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), any(), any(), anyList())).willReturn(Map.of(
+			5L, new AreaChipStats(5L, 260, 0, 0, 40), // 취향 후보 40 — TASTE
+			6L, new AreaChipStats(6L, 167, 2, 0, 3), // 저장 2 — SAVED
+			7L, new AreaChipStats(7L, 162, 0, 1, 0), // 이 세션에서 1곳 봄 — SESSION(맨 앞)
+			8L, new AreaChipStats(8L, 71, 0, 0, 50), // 취향 후보 50 — TASTE, 성수동보다 앞
+			9L, new AreaChipStats(9L, 31, 0, 0, 1))); // 취향 후보 1 < 3 — POPULAR
+
+		RecommendationContextResponse context = recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID,
+			"session-1");
+
+		assertThat(context.areas()).extracting(RecommendationAreaResponse::areaId).containsExactly(7L, 6L, 8L);
+		assertThat(context.areas()).extracting(RecommendationAreaResponse::reason).containsExactly(
+			RecommendationAreaReason.SESSION, RecommendationAreaReason.SAVED, RecommendationAreaReason.TASTE);
+		then(candidateRepository).should().findAreaChipStats(eq(MEMBER_ID), eq("session-1"), any(), anyList());
+	}
+
+	@Test
+	@DisplayName("한 도장 칸에 동네가 여럿이면 신호를 합친다 — 동네마다 세션 1곳이면 칩은 SESSION 이고 강도 2. 같은 버킷·같은 강도면 도장판 순서")
+	void getContext_sumsNeighborhoodSignals_andTiesByDisplayOrder() {
+		courseInSeoul();
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.of(typedProfile()));
+		CourseArea downtown = neighborhood(9L, "서귀포시", "서귀포 시내");
+		CourseArea jungmun = neighborhood(10L, "서귀포시", "중문");
+		CourseArea jejuCity = neighborhood(5L, "제주시", "제주 시내");
+		CourseArea aewol = neighborhood(6L, "제주시", "애월");
+		given(courseAreaRepository.findAllBySidoAndIsActiveTrueOrderByDisplayOrderAscNameAsc("서울"))
+			.willReturn(List.of(jejuCity, aewol, downtown, jungmun)); // 도장판 순서: 제주시(5) → 서귀포시(9)
+		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), any(), any(), anyList())).willReturn(Map.of(
+			5L, new AreaChipStats(5L, 160, 0, 2, 0), // 제주 시내 세션 2
+			6L, new AreaChipStats(6L, 24, 0, 0, 0),
+			9L, new AreaChipStats(9L, 75, 0, 1, 0), // 서귀포 시내 세션 1
+			10L, new AreaChipStats(10L, 22, 0, 1, 0))); // 중문 세션 1 → 서귀포시 합 2 = 제주시와 동률 → 도장판 순서
+
+		RecommendationContextResponse context = recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID,
+			"s");
+
+		assertThat(context.areas()).extracting(RecommendationAreaResponse::name).containsExactly("제주시", "서귀포시");
+		assertThat(context.areas()).extracting(RecommendationAreaResponse::reason)
+			.containsOnly(RecommendationAreaReason.SESSION);
+		assertThat(context.areas().get(1).storeCount()).isEqualTo(97); // 동네 합
+		// 우선순위 값이 선언 순서와 무관하게 SESSION < SAVED < TASTE < POPULAR
+		assertThat(RecommendationAreaReason.SESSION.getPriority())
+			.isLessThan(RecommendationAreaReason.SAVED.getPriority());
+		assertThat(RecommendationAreaReason.SAVED.getPriority())
+			.isLessThan(RecommendationAreaReason.TASTE.getPriority());
+		assertThat(RecommendationAreaReason.TASTE.getPriority())
+			.isLessThan(RecommendationAreaReason.POPULAR.getPriority());
+	}
+
+	@Test
+	@DisplayName("축이 없는 사용자는 TASTE 버킷이 없다 — 취향 후보 수가 커도 도장판 순서로 POPULAR")
+	void getContext_withoutAxis_noTasteBucket() {
+		courseInSeoul();
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+		given(tasteSignalJdbcRepository.countStrongSignalStores(MEMBER_ID)).willReturn(10);
+		CourseArea seongsu = area(5L, "성수동");
+		CourseArea yeonnam = area(6L, "연남동");
+		given(courseAreaRepository.findAllBySidoAndIsActiveTrueOrderByDisplayOrderAscNameAsc("서울"))
+			.willReturn(List.of(seongsu, yeonnam));
+		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), any(), any(), anyList())).willReturn(Map.of(
+			5L, new AreaChipStats(5L, 260, 0, 0, 0),
+			6L, new AreaChipStats(6L, 167, 0, 0, 99)));
+
+		RecommendationContextResponse context = recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID,
+			null);
+
+		assertThat(context.areas()).extracting(RecommendationAreaResponse::areaId).containsExactly(5L, 6L);
+		assertThat(context.areas()).extracting(RecommendationAreaResponse::reason)
+			.containsOnly(RecommendationAreaReason.POPULAR);
 	}
 
 	@Test
@@ -143,12 +228,13 @@ class RecommendationContextQueryServiceTest {
 		CourseArea hannam = area(8L, "한남동");
 		given(courseAreaRepository.findAllBySidoAndIsActiveTrueOrderByDisplayOrderAscNameAsc("서울"))
 			.willReturn(List.of(seongsu, yeonnam, mangwon, hannam));
-		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), anyList())).willReturn(Map.of(
+		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), any(), any(), anyList())).willReturn(Map.of(
 			5L, new AreaChipStats(5L, 42, true),
 			6L, new AreaChipStats(6L, 17, false),
 			7L, new AreaChipStats(7L, 9, false)));
 
-		RecommendationContextResponse context = recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID);
+		RecommendationContextResponse context = recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID,
+			null);
 
 		assertThat(context.state()).isEqualTo(RecommendationContextState.CHIPS);
 		assertThat(context.typeLabel()).isEqualTo("뉴웨이브 미니멀");
@@ -161,7 +247,7 @@ class RecommendationContextQueryServiceTest {
 				RecommendationAreaReason.POPULAR);
 		assertThat(context.areas()).extracting(RecommendationAreaResponse::storeCount).containsExactly(42, 17, 9);
 		// 칩 재료는 한 문장으로 — 칩마다 묻지 않는다
-		then(candidateRepository).should().findAreaChipStats(eq(MEMBER_ID), anyList());
+		then(candidateRepository).should().findAreaChipStats(eq(MEMBER_ID), any(), any(), anyList());
 		then(courseAccessPolicy).should().requireViewable(course, MEMBER_ID, null);
 		then(tasteSignalJdbcRepository).should(never()).countStrongSignalStores(any());
 	}
@@ -175,7 +261,8 @@ class RecommendationContextQueryServiceTest {
 		given(courseAreaRepository.findAllBySidoAndIsActiveTrueOrderByDisplayOrderAscNameAsc("서울"))
 			.willReturn(List.of());
 
-		RecommendationContextResponse context = recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID);
+		RecommendationContextResponse context = recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID,
+			null);
 
 		assertThat(context.state()).isEqualTo(RecommendationContextState.QUIZ);
 		assertThat(context.showAccuracyLink()).isFalse();
@@ -193,7 +280,8 @@ class RecommendationContextQueryServiceTest {
 		given(courseAreaRepository.findAllBySidoAndIsActiveTrueOrderByDisplayOrderAscNameAsc("서울"))
 			.willReturn(List.of());
 
-		RecommendationContextResponse context = recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID);
+		RecommendationContextResponse context = recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID,
+			null);
 
 		assertThat(context.state()).isEqualTo(RecommendationContextState.CHIPS);
 		assertThat(context.showAccuracyLink()).isTrue();
@@ -207,7 +295,8 @@ class RecommendationContextQueryServiceTest {
 		given(courseRepository.findByIdAndDeletedAtIsNull(COURSE_ID)).willReturn(Optional.of(course));
 		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.of(typedProfile()));
 
-		RecommendationContextResponse context = recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID);
+		RecommendationContextResponse context = recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID,
+			null);
 
 		assertThat(context.areas()).isEmpty();
 		then(courseAreaRepository).should(never()).findAllBySidoAndIsActiveTrueOrderByDisplayOrderAscNameAsc(any());
@@ -218,7 +307,7 @@ class RecommendationContextQueryServiceTest {
 	void getContext_courseNotFound() {
 		given(courseRepository.findByIdAndDeletedAtIsNull(COURSE_ID)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID))
+		assertThatThrownBy(() -> recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID, null))
 			.isInstanceOfSatisfying(CourseException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(CourseErrorCode.COURSE_NOT_FOUND));
 	}

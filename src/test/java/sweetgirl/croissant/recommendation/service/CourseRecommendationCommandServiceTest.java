@@ -217,7 +217,7 @@ class CourseRecommendationCommandServiceTest {
 		savedWithId(77L);
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(null, null));
+			request(null, null), null);
 
 		assertThat(response.recommendationId()).isEqualTo(77L);
 		assertThat(response.title()).isEqualTo("성수동 빵집 코스");
@@ -267,7 +267,7 @@ class CourseRecommendationCommandServiceTest {
 			.willReturn(Optional.of(reused));
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(1, null));
+			request(1, null), null);
 
 		assertThat(response.recommendationId()).isEqualTo(55L);
 		assertThat(response.totalDistanceM()).isEqualTo(900);
@@ -297,7 +297,7 @@ class CourseRecommendationCommandServiceTest {
 			anyCollection(), anyInt())).willReturn(List.of(candidate(1)));
 		savedWithId(78L);
 
-		courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID, request(null, null));
+		courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID, request(null, null), null);
 
 		ArgumentCaptor<Recommendation> saved = ArgumentCaptor.forClass(Recommendation.class);
 		then(recommendationRepository).should().save(saved.capture());
@@ -312,7 +312,7 @@ class CourseRecommendationCommandServiceTest {
 		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(gyeonggiArea));
 
 		assertThatThrownBy(
-			() -> courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID, request(null, null)))
+			() -> courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID, request(null, null), null))
 			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(RecommendationErrorCode.COURSE_AREA_NOT_FOUND));
 	}
@@ -320,7 +320,8 @@ class CourseRecommendationCommandServiceTest {
 	@Test
 	@DisplayName("가게 수가 1~6 밖이면 코스를 읽기도 전에 400 이다")
 	void recommend_storeCountOutOfRange() {
-		assertThatThrownBy(() -> courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID, request(7, null)))
+		assertThatThrownBy(
+			() -> courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID, request(7, null), null))
 			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(RecommendationErrorCode.STORE_COUNT_OUT_OF_RANGE));
 		then(courseRepository).should(never()).findByIdAndDeletedAtIsNull(any());
@@ -342,11 +343,11 @@ class CourseRecommendationCommandServiceTest {
 			.willReturn(Optional.empty());
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(null, 1));
+			request(null, 1), null);
 
 		assertThat(response.area().areaId()).isEqualTo(31L);
 		assertThat(response.area().name()).isEqualTo("성수 서쪽");
-		then(candidateRepository).should(never()).findAreaChipStats(any(), anyList());
+		then(candidateRepository).should(never()).findAreaChipStats(any(), any(), any(), anyList());
 	}
 
 	@Test
@@ -368,9 +369,9 @@ class CourseRecommendationCommandServiceTest {
 			.willReturn(Optional.empty());
 
 		RecommendationResponse secondDay = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(null, 2));
+			request(null, 2), null);
 		RecommendationResponse firstDay = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(null, 1));
+			request(null, 1), null);
 
 		// 코스 전체로 세면 시내 2 > 서쪽 1 이지만, 2일차에 담긴 건 서쪽뿐이다
 		assertThat(secondDay.area().areaId()).isEqualTo(31L);
@@ -392,11 +393,11 @@ class CourseRecommendationCommandServiceTest {
 		neighborhoodsOfSeongsu(primary, west);
 		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, 31L, (short)2, 0))
 			.willReturn(Optional.empty());
-		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), anyList()))
+		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), any(), any(), anyList()))
 			.willReturn(Map.of(31L, new AreaChipStats(31L, 22, true)));
 
 		RecommendationResponse secondDay = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(null, 2));
+			request(null, 2), null);
 
 		// 1일차 시내 가게로 폴백하면 5(시내)가 되지만, 저장 가게가 있는 서쪽이어야 한다
 		assertThat(secondDay.area().areaId()).isEqualTo(31L);
@@ -435,7 +436,7 @@ class CourseRecommendationCommandServiceTest {
 
 		// 요청 일차 2 는 무시된다 — 다시 받기는 이전 추천의 일차(1)다
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			new RecommendationRequest(AREA_ID, 4, 2, "course_empty", List.of(), 77L));
+			new RecommendationRequest(AREA_ID, 4, 2, "course_empty", List.of(), 77L), null);
 
 		assertThat(response.recommendationId()).isEqualTo(78L);
 		assertThat(response.stores()).extracting(RecommendedStoreResponse::storeId).containsExactly(106L, 107L);
@@ -466,7 +467,7 @@ class CourseRecommendationCommandServiceTest {
 		course(1);
 		given(recommendationRepository.findByIdAndMemberId(77L, MEMBER_ID)).willReturn(Optional.empty());
 		assertThatThrownBy(() -> courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			new RecommendationRequest(AREA_ID, null, null, "course_empty", List.of(), 77L)))
+			new RecommendationRequest(AREA_ID, null, null, "course_empty", List.of(), 77L), null))
 			.isInstanceOf(RecommendationException.class)
 			.hasMessageContaining(RecommendationErrorCode.RECOMMENDATION_NOT_FOUND.getMessage());
 
@@ -474,7 +475,7 @@ class CourseRecommendationCommandServiceTest {
 		given(otherCourse.getCourseId()).willReturn(COURSE_ID + 1);
 		given(recommendationRepository.findByIdAndMemberId(78L, MEMBER_ID)).willReturn(Optional.of(otherCourse));
 		assertThatThrownBy(() -> courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			new RecommendationRequest(AREA_ID, null, null, "course_empty", List.of(), 78L)))
+			new RecommendationRequest(AREA_ID, null, null, "course_empty", List.of(), 78L), null))
 			.isInstanceOf(RecommendationException.class)
 			.hasMessageContaining(RecommendationErrorCode.RECOMMENDATION_NOT_FOUND.getMessage());
 	}
@@ -486,7 +487,7 @@ class CourseRecommendationCommandServiceTest {
 		Recommendation otherArea = previousAreaRecommendation(77L, 31L, (short)1, Set.of());
 		given(recommendationRepository.findByIdAndMemberId(77L, MEMBER_ID)).willReturn(Optional.of(otherArea));
 		assertThatThrownBy(() -> courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			new RecommendationRequest(AREA_ID, null, null, "course_empty", List.of(), 77L)))
+			new RecommendationRequest(AREA_ID, null, null, "course_empty", List.of(), 77L), null))
 			.isInstanceOf(RecommendationException.class)
 			.hasMessageContaining(RecommendationErrorCode.PREVIOUS_AREA_MISMATCH.getMessage());
 
@@ -494,7 +495,7 @@ class CourseRecommendationCommandServiceTest {
 		given(anchor.isAnchor()).willReturn(true);
 		given(recommendationRepository.findByIdAndMemberId(79L, MEMBER_ID)).willReturn(Optional.of(anchor));
 		assertThatThrownBy(() -> courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			new RecommendationRequest(AREA_ID, null, null, "course_empty", List.of(), 79L)))
+			new RecommendationRequest(AREA_ID, null, null, "course_empty", List.of(), 79L), null))
 			.isInstanceOf(RecommendationException.class)
 			.hasMessageContaining(RecommendationErrorCode.PREVIOUS_AREA_MISMATCH.getMessage());
 		then(recommendationFeedbackRepository).should(never()).save(any());
@@ -520,11 +521,10 @@ class CourseRecommendationCommandServiceTest {
 			any(),
 			anyCollection(), anyInt())).willReturn(List.of());
 		given(recommendationRepository.findRecommendedAreaIds(MEMBER_ID, COURSE_ID)).willReturn(List.of(AREA_ID));
-		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), anyList()))
-			.willReturn(Map.of(31L, new AreaChipStats(31L, 22, false)));
+		given(candidateRepository.countAreaStores(eq(MEMBER_ID), any())).willReturn(22);
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(4, 1));
+			request(4, 1), null);
 
 		assertThat(response.recommendationId()).isNull();
 		assertThat(response.stores()).isEmpty();
@@ -562,10 +562,10 @@ class CourseRecommendationCommandServiceTest {
 			any(),
 			anyCollection(), anyInt())).willReturn(List.of());
 		given(recommendationRepository.findRecommendedAreaIds(MEMBER_ID, COURSE_ID)).willReturn(List.of());
-		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), anyList())).willReturn(Map.of());
+		given(candidateRepository.countAreaStores(eq(MEMBER_ID), any())).willReturn(0);
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(4, 1));
+			request(4, 1), null);
 
 		assertThat(response.nextArea().areaId()).isEqualTo(6L);
 		assertThat(response.nextArea().name()).isEqualTo("연남동");
@@ -595,7 +595,7 @@ class CourseRecommendationCommandServiceTest {
 		savedWithId(80L);
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(4, null));
+			request(4, null), null);
 
 		assertThat(response.stores()).extracting(RecommendedStoreResponse::storeId).containsExactly(201L);
 		assertThat(response.lastBatch()).isFalse();
@@ -618,7 +618,7 @@ class CourseRecommendationCommandServiceTest {
 		savedWithId(81L);
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(4, null));
+			request(4, null), null);
 
 		assertThat(response.stores()).hasSize(2);
 		assertThat(response.lastBatch()).isTrue();
@@ -643,7 +643,7 @@ class CourseRecommendationCommandServiceTest {
 		savedWithId(82L);
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			new RecommendationRequest(AREA_ID, null, 1, "course_empty", List.of(), null, true));
+			new RecommendationRequest(AREA_ID, null, 1, "course_empty", List.of(), null, true), null);
 
 		assertThat(response.area().areaId()).isEqualTo(AREA_ID); // 담긴 가게가 서쪽에 있어도 시내
 		then(courseAreaRepository).should(never())
@@ -688,7 +688,7 @@ class CourseRecommendationCommandServiceTest {
 		savedWithId(90L);
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(4, null));
+			request(4, null), null);
 
 		assertThat(response.fallback()).isTrue();
 		assertThat(response.stores()).extracting(RecommendedStoreResponse::storeId).containsExactly(104L, 105L);
@@ -719,7 +719,7 @@ class CourseRecommendationCommandServiceTest {
 		savedWithId(91L);
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(4, null));
+			request(4, null), null);
 
 		assertThat(response.fallback()).isFalse();
 		assertThat(response.stores()).extracting(RecommendedStoreResponse::reason).containsExactly(
@@ -728,6 +728,62 @@ class CourseRecommendationCommandServiceTest {
 		assertThat(response.stores().get(0).tasteFit()).isEqualTo(0.88);
 		then(candidateRepository).should(times(1)).findAreaCandidates(any(), any(), anyDouble(), anyDouble(),
 			anyInt(), any(), any(), any(), anyCollection(), anyInt());
+	}
+
+	@Test
+	@DisplayName("동네 선택: 담긴 가게가 없으면 이 세션에서 본 가게가 있는 동네가 저장 가게보다 먼저 — 칩을 올린 신호가 클릭 뒤 추천에도 이어진다")
+	void recommend_neighborhoodBySessionBeforeSaved() {
+		course(1);
+		CourseArea primary = seongsu("서울");
+		CourseArea west = westNeighborhood(31L, "성수 서쪽");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(primary));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of());
+		neighborhoodsOfSeongsu(primary, west);
+		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, 31L, (short)1, 0))
+			.willReturn(Optional.empty());
+		// 시내에는 저장 가게 3곳, 서쪽에서는 이 세션에서 1곳을 봤다 → 세션이 이긴다
+		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), eq("sess-1"), any(), anyList()))
+			.willReturn(Map.of(AREA_ID, new AreaChipStats(AREA_ID, 260, 3, 0, 0),
+				31L, new AreaChipStats(31L, 40, 0, 1, 0)));
+
+		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(null, 1), "sess-1");
+
+		assertThat(response.area().areaId()).isEqualTo(31L);
+	}
+
+	@Test
+	@DisplayName("동네 선택: 담긴·본·저장 가게가 없으면 검사한 사용자는 취향 후보가 기준 이상으로 가장 많은 동네, 기준 미만이면 대표 행")
+	void recommend_neighborhoodByTasteCandidates() {
+		course(1);
+		CourseArea primary = seongsu("서울");
+		CourseArea west = westNeighborhood(31L, "성수 서쪽");
+		UserTasteProfile profile = quizzedProfile();
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(primary));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of());
+		given(courseAreaRepository.findAllBySidoAndPassportSpotAndIsActiveTrueOrderByDisplayOrderAscNameAsc("서울",
+			"성수동")).willReturn(List.of(primary, west));
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.of(profile));
+		given(recommendationRepository.findLatestAreaForReuse(eq(MEMBER_ID), eq(COURSE_ID), any(), eq((short)1),
+			eq(profile.getVersion()))).willReturn(Optional.empty());
+		given(candidateRepository.findAreaCandidates(any(), any(), anyDouble(), anyDouble(), anyInt(), any(), any(),
+			any(), anyCollection(), anyInt())).willReturn(List.of(scored(1, 0.9, 5), scored(2, 0.8, 5)));
+		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), any(), any(), anyList()))
+			.willReturn(Map.of(AREA_ID, new AreaChipStats(AREA_ID, 260, 0, 0, 2),
+				31L, new AreaChipStats(31L, 40, 0, 0, 7)))
+			.willReturn(Map.of(AREA_ID, new AreaChipStats(AREA_ID, 260, 0, 0, 2),
+				31L, new AreaChipStats(31L, 40, 0, 0, 2)));
+		savedWithId(95L);
+
+		RecommendationResponse byTaste = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(null, 1), null);
+		RecommendationResponse byPrimary = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(null, 1), null);
+
+		assertThat(byTaste.area().areaId()).isEqualTo(31L); // 서쪽 7 ≥ 3 이고 시내 2 보다 크다
+		assertThat(byPrimary.area().areaId()).isEqualTo(AREA_ID); // 둘 다 기준(3) 미만 → 대표 행
 	}
 
 	@Test
@@ -742,14 +798,14 @@ class CourseRecommendationCommandServiceTest {
 		neighborhoodsOfSeongsu(primary, west);
 		given(recommendationRepository.findLatestAreaForReuse(eq(MEMBER_ID), eq(COURSE_ID), any(), eq((short)1),
 			eq(0))).willReturn(Optional.empty());
-		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), anyList()))
+		given(candidateRepository.findAreaChipStats(eq(MEMBER_ID), any(), any(), anyList()))
 			.willReturn(Map.of(31L, new AreaChipStats(31L, 22, true)))
 			.willReturn(Map.of());
 
 		RecommendationResponse bySaved = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(null, 1));
+			request(null, 1), null);
 		RecommendationResponse byPrimary = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(null, 1));
+			request(null, 1), null);
 
 		assertThat(bySaved.area().areaId()).isEqualTo(31L);
 		assertThat(byPrimary.area().areaId()).isEqualTo(AREA_ID);
@@ -769,10 +825,10 @@ class CourseRecommendationCommandServiceTest {
 			.willReturn(Optional.empty());
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			new RecommendationRequest(31L, null, 1, "course_empty", List.of()));
+			new RecommendationRequest(31L, null, 1, "course_empty", List.of()), null);
 
 		assertThat(response.area().areaId()).isEqualTo(31L);
-		then(candidateRepository).should(never()).findAreaChipStats(any(), anyList());
+		then(candidateRepository).should(never()).findAreaChipStats(any(), any(), any(), anyList());
 	}
 
 	@Test
@@ -794,7 +850,7 @@ class CourseRecommendationCommandServiceTest {
 		savedWithId(78L);
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(4, null));
+			request(4, null), null);
 
 		assertThat(response.stores()).extracting(RecommendedStoreResponse::storeId).containsExactly(101L, 102L);
 		assertThat(response.totalDistanceM()).isBetween(150, 250);
@@ -828,7 +884,7 @@ class CourseRecommendationCommandServiceTest {
 			anyCollection(), anyInt())).willReturn(List.of());
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(null, null));
+			request(null, null), null);
 
 		assertThat(response.recommendationId()).isNull();
 		assertThat(response.stores()).isEmpty();
@@ -967,7 +1023,7 @@ class CourseRecommendationCommandServiceTest {
 		savedWithId(83L);
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(null, null));
+			request(null, null), null);
 
 		assertThat(response.recommendationId()).isEqualTo(83L);
 		assertThat(response.stores()).extracting(RecommendedStoreResponse::storeId).doesNotContain(103L);
@@ -1026,7 +1082,7 @@ class CourseRecommendationCommandServiceTest {
 		savedWithId(79L);
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(null, null));
+			request(null, null), null);
 
 		assertThat(response.recommendationId()).isEqualTo(79L);
 		assertThat(response.stores()).extracting(RecommendedStoreResponse::storeId).doesNotContain(101L);
@@ -1051,7 +1107,7 @@ class CourseRecommendationCommandServiceTest {
 		savedWithId(80L);
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(2, null));
+			request(2, null), null);
 
 		assertThat(response.recommendationId()).isEqualTo(80L);
 		assertThat(response.stores()).hasSize(2);
@@ -1104,7 +1160,7 @@ class CourseRecommendationCommandServiceTest {
 			.willReturn(Optional.of(stored));
 
 		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
-			request(null, null));
+			request(null, null), null);
 
 		assertThat(response.recommendationId()).isEqualTo(55L);
 		assertThat(response.stores()).hasSize(2);
@@ -1123,10 +1179,12 @@ class CourseRecommendationCommandServiceTest {
 		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
 			.willReturn(List.of());
 
-		assertThatThrownBy(() -> courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID, request(null, 0)))
+		assertThatThrownBy(
+			() -> courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID, request(null, 0), null))
 			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(RecommendationErrorCode.DAY_OUT_OF_RANGE));
-		assertThatThrownBy(() -> courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID, request(null, 3)))
+		assertThatThrownBy(
+			() -> courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID, request(null, 3), null))
 			.isInstanceOfSatisfying(RecommendationException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(RecommendationErrorCode.DAY_OUT_OF_RANGE));
 		then(recommendationRepository).should(never()).findLatestAreaForReuse(any(), any(), any(), any(), anyInt());
@@ -1150,7 +1208,7 @@ class CourseRecommendationCommandServiceTest {
 			anyCollection(), anyInt())).willReturn(List.of(candidate(1)));
 		savedWithId(81L);
 
-		courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID, request(null, 2));
+		courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID, request(null, 2), null);
 
 		ArgumentCaptor<Recommendation> saved = ArgumentCaptor.forClass(Recommendation.class);
 		then(recommendationRepository).should().save(saved.capture());
