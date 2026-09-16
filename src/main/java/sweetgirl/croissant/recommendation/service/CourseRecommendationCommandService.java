@@ -64,8 +64,9 @@ import sweetgirl.croissant.store.entity.Store;
 /**
  * 상권 추천(진입점 1)과 앵커 추천(진입점 2) — #660 의 룰만 도는 임시 구현. LLM 은 #662.
  *
- * 둘 다 재사용 키(회원·코스·상권 또는 앵커·일차·프로필 버전)가 맞는 최신 행이 있으면 저장된 result 를 돌려준다 —
- * 단, 그 사이 코스에 담긴 가게가 결과에 들어 있으면 상권은 다시 만들고 앵커는 그 가게를 뺀다.
+ * 둘 다 재사용 키(회원·코스·상권 또는 앵커·일차·프로필 버전)의 최신 행을 다시 쓴다. 상권은 자리 기준이다(09-15): 같은 자리(같은
+ * 세션 id 또는 30분 안)면 보던 묶음 그대로, 같은 자리인데 담긴 가게 등으로 무효면 보던 묶음의 빈 자리만 채우고, 다른 세션이면
+ * 안 본 가게로 새 묶음, 안 본 가게가 없으면 첫 묶음을 다시 계산한다(reuseOrRefresh). 앵커는 그 사이 담긴 가게를 저장된 순위에서 뺀다.
  * 상권: 반경 안 ACTIVE 가게(프로필 있고 빵집다움 하한 이상)를 #661 점수순으로 15곳 뽑고, 1위에서 시작해 구간 상한(course_area.max_hop_m) 안에서 가장 가까운
  * 가게를 이어 붙여 N 곳을 만든다 — 상한 안에 더 없으면 있는 만큼. 인기 상위 N 곳을 먼저 확정하면 넓은 시군구에서 코스가
  * 수십 km 로 벌어진다(PR #735 리뷰). 이유는 템플릿, tasteFit 은 축이 없어 0.
@@ -92,8 +93,8 @@ public class CourseRecommendationCommandService {
 	private final ObjectMapper objectMapper;
 
 	/**
-	 * 새로 열기(previousRecommendationId 없음)의 재사용(09-15): 키의 최신 묶음이 유효하고 같은 자리(같은 세션 id 또는 30분 안)면
-	 * 그대로, 다른 세션이면 안 본 가게로 새 묶음, 안 본 가게가 없으면 첫 묶음을 다시 계산한다 — 소진된 묶음은 다시 주지 않는다.
+	 * 새로 열기(previousRecommendationId 없음)의 재사용(09-15): 키의 최신 묶음이 있으면 reuseOrRefresh 의 세 갈래(같은 자리·유효 →
+	 * 그대로, 같은 자리·무효 → 빈 자리만 채움, 다른 세션 → 안 본 묶음), 없거나 안 본 가게가 없으면 첫 묶음 — 소진된 묶음은 다시 주지 않는다.
 	 */
 	public RecommendationResponse recommend(Long memberId, Long courseId, RecommendationRequest request,
 			String sessionId) {
@@ -124,31 +125,55 @@ public class CourseRecommendationCommandService {
 			: resolveNeighborhood(memberId, sessionId, taste, requested, activeStores, day);
 
 		Set<Long> courseStoreIds = storeIdsOf(activeStores);
-		Optional<Recommendation> latest = recommendationRepository
-			.findLatestAreaForReuse(memberId, courseId, area.getId(), day, profileVersion);
-		if (latest.isPresent()) {
-			RecommendationResult stored = read(latest.get(), RecommendationResult.class);
-			Set<Long> unavailable = candidateRepository.findUnavailableStoreIds(memberId,
-				stored.stores().stream().map(RecommendedStoreResponse::storeId).toList());
-			if (isStillValid(stored, courseStoreIds, unavailable, storeCount)) {
-				if (isSameSitting(latest.get(), sessionId)) {
-					// 같은 자리에서 닫았다 열면 보던 묶음 그대로 — 가게 상세를 보고 돌아와 담으려는 사람의 자리를 지킨다
-					return RecommendationResponse.of(latest.get().getId(), stored);
-				}
-				// 다른 세션(다음 날)에 열면 안 본 가게로 새 묶음 — 제외는 다시 받기와 같고, RETRY 는 안 남긴다(누른 게 아니다)
-				Set<Long> excludeStoreIds = new HashSet<>(courseStoreIds);
-				excludeStoreIds.addAll(shownStoreIdsOf(memberId, courseId, area.getId(), day));
-				RecommendationResponse unseen = buildAreaRecommendation(memberId, sessionId, course, area, day, profile,
-					profileVersion, activeStores, excludeStoreIds, storeCount);
-				if (!unseen.stores().isEmpty()) {
-					return unseen;
-				}
-				// 다 본 사람이다 — 소진된 마지막 묶음(1곳 · lastBatch)을 다시 주지 않고 첫 묶음을 다시 계산한다.
-				// 그 뒤 다시 받기는 안 본 가게가 없어 바로 다음 동네 제안이다(09-15 결정)
-			}
+		Optional<RecommendationResponse> kept = recommendationRepository
+			.findLatestAreaForReuse(memberId, courseId, area.getId(), day, profileVersion)
+			.flatMap(latest -> reuseOrRefresh(latest, memberId, sessionId, course, area, day, profile, profileVersion,
+				courseStoreIds, storeCount));
+		if (kept.isPresent()) {
+			return kept.get();
 		}
+		// 첫 묶음 — 최신 묶음이 없거나, 다 본 사람(안 본 가게 없음)이라 소진된 마지막 묶음 대신 처음부터. 그 뒤 다시 받기는 바로 다음 동네 제안
 		return buildAreaRecommendation(memberId, sessionId, course, area, day, profile, profileVersion, activeStores,
 			courseStoreIds, storeCount);
+	}
+
+	/**
+	 * 최신 묶음이 있을 때 새로 열기의 세 갈래(09-15, PR #745 리뷰). 다른 세션이면 유효 여부와 무관하게 안 본 가게로 새 묶음 — 어제 B 에서
+	 * 담고 오늘 열면 첫 묶음 A(어제 본 가게)가 아니라 안 본 가게여야 한다. RETRY 는 안 남긴다(누른 게 아니다). 같은 자리에서 유효하면
+	 * 그대로. 같은 자리인데 무효(방금 담음 · 자격 상실 · 가게 수 변경)면 보던 묶음의 빈 자리만 채운다 — 다른 묶음에서 본 가게는 빼되
+	 * 이 묶음의 가게는 다시 후보로 두어 자리를 잃지 않게. 안 본 가게가 없으면 empty — 호출자가 첫 묶음을 만든다.
+	 */
+	private Optional<RecommendationResponse> reuseOrRefresh(Recommendation latest, Long memberId, String sessionId,
+			Course course, CourseArea area, short day, UserTasteProfile profile, int profileVersion,
+			Set<Long> courseStoreIds, int storeCount) {
+		if (!isSameSitting(latest, sessionId)) {
+			Set<Long> excludeStoreIds = new HashSet<>(courseStoreIds);
+			excludeStoreIds.addAll(shownStoreIdsOf(memberId, course.getId(), area.getId(), day));
+			return refresh(memberId, sessionId, course, area, day, profile, profileVersion, excludeStoreIds,
+				storeCount);
+		}
+		RecommendationResult stored = read(latest, RecommendationResult.class);
+		Set<Long> unavailable = candidateRepository.findUnavailableStoreIds(memberId,
+			stored.stores().stream().map(RecommendedStoreResponse::storeId).toList());
+		if (isStillValid(stored, courseStoreIds, unavailable, storeCount)) {
+			// 같은 자리에서 닫았다 열면 보던 묶음 그대로 — 가게 상세를 보고 돌아와 담으려는 사람의 자리를 지킨다
+			return Optional.of(RecommendationResponse.of(latest.getId(), stored));
+		}
+		Set<Long> excludeStoreIds = new HashSet<>(courseStoreIds);
+		Set<Long> shownElsewhere = shownStoreIdsOf(memberId, course.getId(), area.getId(), day);
+		shownElsewhere.removeAll(latest.shownStoreIds());
+		excludeStoreIds.addAll(shownElsewhere);
+		return refresh(memberId, sessionId, course, area, day, profile, profileVersion, excludeStoreIds, storeCount);
+	}
+
+	/** 새 묶음이 있으면 조립해 저장하고, 안 본 가게가 없으면 empty — 소진 판정에 다음 동네 계산까지 돌리지 않는다(PR #745 리뷰). */
+	private Optional<RecommendationResponse> refresh(Long memberId, String sessionId, Course course, CourseArea area,
+			short day, UserTasteProfile profile, int profileVersion, Set<Long> excludeStoreIds, int storeCount) {
+		CandidatePool pool = poolFor(memberId, TasteQuery.of(profile), area, excludeStoreIds);
+		if (pool.candidates().isEmpty()) {
+			return Optional.empty();
+		}
+		return Optional.of(assemble(pool, memberId, sessionId, course, area, day, profile, profileVersion, storeCount));
 	}
 
 	/**
@@ -298,10 +323,11 @@ public class CourseRecommendationCommandService {
 				|| unavailable.contains(store.storeId()));
 	}
 
-	private RecommendationResponse buildAreaRecommendation(Long memberId, String sessionId, Course course,
-			CourseArea area, short day, UserTasteProfile profile, int profileVersion, List<CourseStore> activeStores,
-			Set<Long> excludeStoreIds, int storeCount) {
-		TasteQuery taste = TasteQuery.of(profile);
+	/** 후보 풀과 취향 폴백 여부 — 폴백이면 이유 문구가 시그니처로 바뀐다. */
+	private record CandidatePool(List<CandidateStoreRow> candidates, boolean fallback) {
+	}
+
+	private CandidatePool poolFor(Long memberId, TasteQuery taste, CourseArea area, Set<Long> excludeStoreIds) {
 		List<CandidateStoreRow> candidates = findAreaCandidates(memberId, taste, area, excludeStoreIds);
 		// 취향 폴백(설계 §9 · #661): 풀에 취향 후보(코사인 > 임계)가 3곳 미만이면 취향 항을 빼고 prior 순으로 채운다 —
 		// 담백 가게가 없는 동네에서 케이크집 4곳을 "취향에 맞는 곳"이라 하지 않는다. 반경은 넓히지 않는다(09-13).
@@ -310,15 +336,33 @@ public class CourseRecommendationCommandService {
 		if (fallback) {
 			candidates = findAreaCandidates(memberId, TasteQuery.empty(), area, excludeStoreIds);
 		}
-		RecommendationAreaSummary areaSummary = new RecommendationAreaSummary(area.getId(), area.getName());
-		if (candidates.isEmpty()) {
+		return new CandidatePool(candidates, fallback);
+	}
+
+	private RecommendationResponse buildAreaRecommendation(Long memberId, String sessionId, Course course,
+			CourseArea area, short day, UserTasteProfile profile, int profileVersion, List<CourseStore> activeStores,
+			Set<Long> excludeStoreIds, int storeCount) {
+		TasteQuery taste = TasteQuery.of(profile);
+		CandidatePool pool = poolFor(memberId, taste, area, excludeStoreIds);
+		if (pool.candidates().isEmpty()) {
 			// 저장할 게 없다 — 재사용될 결과도 없고 반응을 받을 것도 없다. 대신 다음 동네와 앵커로 넘길 가게를 알려 준다(#661)
+			RecommendationAreaSummary areaSummary = new RecommendationAreaSummary(area.getId(), area.getName());
 			RecommendationResult empty = new RecommendationResult(titleOf(area, profile), areaSummary, 0, false,
 				storeCount, List.of(), true);
 			return RecommendationResponse.of(null, empty,
 				nextAreaOf(memberId, sessionId, taste, course, area, day, activeStores),
 				anchorStoreIdOf(activeStores, day));
 		}
+		return assemble(pool, memberId, sessionId, course, area, day, profile, profileVersion, storeCount);
+	}
+
+	/** 후보 풀에서 코스를 잇고 행으로 저장한다 — 첫 묶음·다시 받기·새 세션 묶음·빈 자리 채움이 전부 여기로 온다. */
+	private RecommendationResponse assemble(CandidatePool pool, Long memberId, String sessionId, Course course,
+			CourseArea area, short day, UserTasteProfile profile, int profileVersion, int storeCount) {
+		TasteQuery taste = TasteQuery.of(profile);
+		List<CandidateStoreRow> candidates = pool.candidates();
+		boolean fallback = pool.fallback();
+		RecommendationAreaSummary areaSummary = new RecommendationAreaSummary(area.getId(), area.getName());
 		List<CandidateStoreRow> ordered = chainWithinHop(candidates, area.getMaxHopM(), storeCount);
 		// 마지막 묶음 = 뽑은 후보를 이번에 다 썼고 조회 상한(15)에도 안 닿았다. 구간 상한 때문에 못 이은 후보가 남았으면 다음
 		// 다시 받기에서 코스가 될 수 있으니 마지막이 아니다(PR #738 리뷰 — 랩 59칸 중 7칸이 조기 종료됐다).

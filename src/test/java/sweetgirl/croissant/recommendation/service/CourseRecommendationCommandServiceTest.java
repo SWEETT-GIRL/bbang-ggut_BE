@@ -393,6 +393,77 @@ class CourseRecommendationCommandServiceTest {
 	}
 
 	@Test
+	@DisplayName("새로 열기: 다른 세션이면 최신 묶음이 무효(담긴 가게 있음)여도 첫 묶음이 아니라 안 본 가게다 — 자격 확인은 건너뛴다")
+	void recommend_newSession_invalidLatest_stillBuildsUnseenBatch() {
+		course(1);
+		CourseArea seoulArea = seongsu("서울");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(seoulArea));
+		CourseStore addedYesterday = courseStoreOf(store(106L, CENTER_LAT, CENTER_LNG), 1); // 어제 B 에서 담은 가게
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of(addedYesterday));
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+		Recommendation first = storedRecommendation(17L, storedResult(List.of(101L, 102L, 103L, 104L), false), "old",
+			LocalDateTime.now().minusDays(1));
+		Recommendation latest = storedRecommendation(18L, storedResult(List.of(105L, 106L, 107L, 108L), false), "old",
+			LocalDateTime.now().minusDays(1));
+		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)1, 0))
+			.willReturn(Optional.of(latest));
+		given(recommendationRepository.findAllByMemberIdAndCourseIdAndModeAndCourseAreaIdAndDay(MEMBER_ID, COURSE_ID,
+			RecommendationMode.AREA, AREA_ID, (short)1)).willReturn(List.of(first, latest));
+		given(candidateRepository.findAreaCandidates(any(), any(), anyDouble(), anyDouble(), anyInt(), any(), any(),
+			any(), anyCollection(), anyInt())).willReturn(List.of(candidate(9)));
+		savedWithId(19L);
+
+		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(4, 1), "new-session");
+
+		// 첫 묶음 A(101~104)가 아니라 안 본 109
+		assertThat(response.stores()).extracting(RecommendedStoreResponse::storeId).containsExactly(109L);
+		@SuppressWarnings("unchecked") ArgumentCaptor<Collection<Long>> excluded = ArgumentCaptor
+			.forClass(Collection.class);
+		then(candidateRepository).should().findAreaCandidates(any(), any(), anyDouble(), anyDouble(), anyInt(), any(),
+			any(), any(), excluded.capture(), anyInt());
+		assertThat(excluded.getValue()).containsExactlyInAnyOrder(101L, 102L, 103L, 104L, 105L, 106L, 107L, 108L);
+		then(candidateRepository).should(never()).findUnavailableStoreIds(any(), anyCollection());
+	}
+
+	@Test
+	@DisplayName("새로 열기: 같은 자리인데 최신 묶음에서 방금 담은 가게가 있으면 첫 묶음으로 돌아가지 않고 빈 자리만 채운다 — 다른 묶음에서 본 가게만 뺀다")
+	void recommend_sameSitting_invalidLatest_refillsKeepingPlace() {
+		course(1);
+		CourseArea seoulArea = seongsu("서울");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(seoulArea));
+		CourseStore justAdded = courseStoreOf(store(106L, CENTER_LAT, CENTER_LNG), 1); // 방금 B 에서 담은 가게
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of(justAdded));
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+		Recommendation first = storedRecommendation(17L, storedResult(List.of(101L, 102L, 103L, 104L), false), "s",
+			LocalDateTime.now().minusMinutes(5));
+		Recommendation latest = storedRecommendation(18L, storedResult(List.of(105L, 106L, 107L, 108L), false), "s",
+			LocalDateTime.now().minusMinutes(2));
+		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)1, 0))
+			.willReturn(Optional.of(latest));
+		given(recommendationRepository.findAllByMemberIdAndCourseIdAndModeAndCourseAreaIdAndDay(MEMBER_ID, COURSE_ID,
+			RecommendationMode.AREA, AREA_ID, (short)1)).willReturn(List.of(first, latest));
+		given(candidateRepository.findAreaCandidates(any(), any(), anyDouble(), anyDouble(), anyInt(), any(), any(),
+			any(), anyCollection(), anyInt()))
+			.willReturn(List.of(candidate(5), candidate(7), candidate(8), candidate(9)));
+		savedWithId(19L);
+
+		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(4, 1), "s");
+
+		// 보던 B 의 남은 105·107·108 에 안 본 109 를 채운다
+		assertThat(response.stores()).extracting(RecommendedStoreResponse::storeId)
+			.containsExactly(105L, 107L, 108L, 109L);
+		@SuppressWarnings("unchecked") ArgumentCaptor<Collection<Long>> excluded = ArgumentCaptor
+			.forClass(Collection.class);
+		then(candidateRepository).should().findAreaCandidates(any(), any(), anyDouble(), anyDouble(), anyInt(), any(),
+			any(), any(), excluded.capture(), anyInt());
+		assertThat(excluded.getValue()).containsExactlyInAnyOrder(101L, 102L, 103L, 104L, 106L); // B 의 가게는 다시 후보
+	}
+
+	@Test
 	@DisplayName("일차를 안 보내면 첫 빈 일차다 — 1일차가 찼으면 2일차")
 	void recommend_defaultsToFirstEmptyDay() {
 		course(2);
