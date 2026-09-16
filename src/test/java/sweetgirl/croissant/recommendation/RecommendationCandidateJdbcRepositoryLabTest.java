@@ -209,6 +209,87 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 	}
 
 	@Test
+	@DisplayName("가드: 시군구 이름 칸은 전부 store.region_2nd 와 정확히 일치하는 가게가 있다 — 시드나 주소 표기가 어긋나면 시군구 신호가 조용히 0 이 된다")
+	void courseArea_sigunguSpots_matchStoreRegion2nd() {
+		List<Map<String, Object>> unmatched = jdbcTemplate.queryForList("""
+				SELECT DISTINCT a.sido, a.passport_spot FROM course_area a
+				WHERE a.is_active AND a.passport_spot ~ '(시|구|군)$'
+					AND NOT EXISTS (SELECT 1 FROM store s
+						WHERE s.status = 'ACTIVE' AND s.region_1st = a.sido AND s.region_2nd = a.passport_spot)
+				""");
+		assertThat(unmatched).as("칸 이름과 일치하는 가게가 없는 시군구 칸").isEmpty();
+		Integer spots = jdbcTemplate.queryForObject("""
+				SELECT COUNT(DISTINCT (sido, passport_spot)) FROM course_area
+				WHERE is_active AND passport_spot ~ '(시|구|군)$'
+				""", Integer.class);
+		assertThat(spots).isGreaterThanOrEqualTo(40); // 시드 48칸 중 시군구 이름 칸(세종 도담동·조치원읍, 서울 동 이름 제외)
+	}
+
+	@Test
+	@DisplayName("동네 행이 여럿인 칸(제주시)은 첫 행에만 시군구 신호가 실리고 나머지 행은 0 — 칩이 합쳐도 행 수만큼 부풀지 않는다")
+	void areaChipStats_regionSignal_onlyOnFirstRowOfSpot() {
+		Long memberId = jdbcTemplate.queryForObject("SELECT id FROM member ORDER BY id LIMIT 1", Long.class);
+		List<CourseArea> jeju = courseAreaRepository
+			.findAllBySidoAndPassportSpotAndIsActiveTrueOrderByDisplayOrderAscNameAsc("제주", "제주시");
+		assertThat(jeju).hasSizeGreaterThan(1); // #737 세부 동네 행
+		Long inJeju = jdbcTemplate.queryForObject("""
+				SELECT s.id FROM store s JOIN store_profile p ON p.store_id = s.id AND p.bakery_score >= 0.5
+				WHERE s.status = 'ACTIVE' AND s.region_1st = '제주' AND s.region_2nd = '제주시'
+				ORDER BY s.id LIMIT 1
+				""", Long.class);
+		jdbcTemplate.update("""
+				INSERT INTO request_log
+				(member_id, http_method, endpoint, response_status, store_id, event_type, session_id, created_at)
+				VALUES (?, 'GET', '/api/v1/stores/x', 200, ?, 'STORE_VIEW', 'lab-jeju', ?)
+				""", memberId, inJeju, LocalDateTime.now());
+
+		Map<Long, AreaChipStats> stats = candidateRepository.findAreaChipStats(memberId, "lab-jeju", TasteQuery.empty(),
+			jeju);
+
+		List<Integer> regionCounts = jeju.stream().map(row -> stats.get(row.getId()).regionSessionViewCount()).toList();
+		assertThat(regionCounts.get(0)).isEqualTo(1);
+		assertThat(regionCounts.subList(1, regionCounts.size())).containsOnly(0);
+	}
+
+	@Test
+	@DisplayName("시군구 칸은 원 밖에서 본·저장한 같은 시군구 가게를 칩 순서용으로 따로 센다 — 원 기준 신호는 0 그대로, 동 이름 칸은 0")
+	void areaChipStats_regionSignal_countsSameSigunguOutsideCircle() {
+		Long memberId = jdbcTemplate.queryForObject("SELECT id FROM member ORDER BY id LIMIT 1", Long.class);
+		CourseArea pohang = courseAreaRepository
+			.findAllBySidoAndPassportSpotAndIsActiveTrueOrderByDisplayOrderAscNameAsc("경북", "포항시").get(0);
+		Long outsideCircle = jdbcTemplate.queryForObject("""
+				SELECT s.id FROM store s JOIN store_profile p ON p.store_id = s.id AND p.bakery_score >= 0.5
+				WHERE s.status = 'ACTIVE' AND s.region_1st = '경북' AND s.region_2nd = '포항시'
+					AND NOT ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?)
+				ORDER BY s.id LIMIT 1
+				""", Long.class, pohang.getCenterLng(), pohang.getCenterLat(), pohang.getRadiusM());
+		LocalDateTime now = LocalDateTime.now();
+		jdbcTemplate.update("""
+				INSERT INTO request_log
+				(member_id, http_method, endpoint, response_status, store_id, event_type, session_id, created_at)
+				VALUES (?, 'GET', '/api/v1/stores/x', 200, ?, 'STORE_VIEW', 'lab-pohang', ?)
+				""", memberId, outsideCircle, now);
+		jdbcTemplate.update("DELETE FROM saved_stores WHERE member_id = ? AND store_id = ?", memberId, outsideCircle);
+		jdbcTemplate.update("INSERT INTO saved_stores (member_id, store_id, created_at) VALUES (?, ?, ?)", memberId,
+			outsideCircle, now);
+
+		AreaChipStats stats = candidateRepository
+			.findAreaChipStats(memberId, "lab-pohang", TasteQuery.empty(), List.of(pohang)).get(pohang.getId());
+
+		assertThat(stats.sessionViewCount()).isZero(); // 원 밖이라 원 기준 신호는 없다
+		assertThat(stats.savedStoreCount()).isZero();
+		assertThat(stats.regionSessionViewCount()).isEqualTo(1); // 같은 시군구라 칩 순서용 신호
+		assertThat(stats.regionSavedStoreCount()).isEqualTo(1);
+		// 동 이름 칸(성수동)은 store.region_2nd(성동구)와 안 맞아 시군구 신호가 없다
+		CourseArea seongsu = courseAreaRepository.save(CourseArea.create("서울", "성수동(시군구)", "성수동(시군구)", null,
+			SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, RADIUS_M, null, null, 9));
+		AreaChipStats dong = candidateRepository
+			.findAreaChipStats(memberId, "lab-pohang", TasteQuery.empty(), List.of(seongsu)).get(seongsu.getId());
+		assertThat(dong.regionSessionViewCount()).isZero();
+		assertThat(dong.regionSavedStoreCount()).isZero();
+	}
+
+	@Test
 	@DisplayName("칩 신호(#661): 세션 id 가 있으면 같은 세션의 STORE_VIEW 만, 없으면 최근 창의 STORE_VIEW 를 세고, 저장 수·취향 후보 수도 같이 온다")
 	void areaChipStats_sessionSavedTasteSignals() {
 		Long memberId = jdbcTemplate.queryForObject("SELECT id FROM member ORDER BY id LIMIT 1", Long.class);

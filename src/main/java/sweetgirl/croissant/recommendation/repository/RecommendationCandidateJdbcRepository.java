@@ -56,6 +56,15 @@ public class RecommendationCandidateJdbcRepository {
 				ELSE 0 END
 			""";
 
+	/** 후보·칩·가게 수가 공유하는 가게 자격 — ACTIVE, 프로필 있음, 빵집다움 하한, (스위치가 켜졌으면) 내가 기록한 가게 제외. 별칭은 s. */
+	private static final String ELIGIBLE_STORE = """
+			s.status = 'ACTIVE'
+			AND EXISTS (SELECT 1 FROM store_profile p
+				WHERE p.store_id = s.id AND p.bakery_score >= :minBakeryScore)
+			AND NOT (CAST(:excludeRecorded AS boolean) AND EXISTS (SELECT 1 FROM bread_record br
+				WHERE br.store_id = s.id AND br.member_id = :memberId AND br.deleted_at IS NULL))
+			""";
+
 	private static final String SCORE_PARTS = """
 			SELECT parts.cosine, parts.tag_match, parts.prior, parts.kind_overlap, parts.recorded,
 				(:wCos * parts.cosine + :wTag * parts.tag_match
@@ -167,6 +176,12 @@ public class RecommendationCandidateJdbcRepository {
 	 * "이 세션" = 같은 세션 id 의 STORE_VIEW(상한 sessionMaxAgeHours) **또는** 최근 sessionWindowMinutes 창 — 합집합이다.
 	 * 세션 id 만 보면 앱 콜드 스타트 분절(초기화 전 UUID → Amplitude 숫자)이나 5분 무활동 뒤 새 세션에서 헤더 없는 앱보다
 	 * 신호를 더 잃는다(PR #741 리뷰). 세션·저장은 회원의 작은 가게 집합이라 서브쿼리로 뽑아 조인하고, STORE_VIEW 부분 인덱스를 탄다.
+	 *
+	 * 시군구 칸(포항시)은 원 1,200m 가 그 시군구 빵집의 30% 안팎만 덮는다(09-15 dev 실측 42칸, 포항 14%). 포항 어디의 가게를
+	 * 봤든 "포항에 관심"이므로 대표 행에 한해 같은 시군구의 본·저장 가게 수를 region_* 로 따로 센다 — 칩 순서에만 쓰고,
+	 * 추천 후보·칩 숫자·동네 선택은 원 기준 그대로다(코스가 시군구로 벌어지지 않게, PR #735 리뷰). 큰 도시에 원을 더 두는 건 #742.
+	 * 칩은 원 기준 합과 시군구 값 중 큰 값을 쓰므로 원이 시군구 경계를 넘을 때(원 안 타 시군구 가게 1 + 원 밖 같은 시군구 가게 1)는
+	 * 2 가 아니라 1 로 살짝 덜 센다 — 순서용 신호라 감수한다.
 	 */
 	public Map<Long, AreaChipStats> findAreaChipStats(Long memberId, String sessionId, TasteQuery taste,
 			List<CourseArea> areas) {
@@ -174,36 +189,48 @@ public class RecommendationCandidateJdbcRepository {
 			return Map.of();
 		}
 		String sql = """
+				WITH viewed AS (
+					SELECT DISTINCT rl.store_id FROM request_log rl
+					WHERE rl.member_id = :memberId AND rl.event_type = 'STORE_VIEW' AND rl.store_id IS NOT NULL
+						AND ((CAST(:sessionId AS varchar) IS NOT NULL AND rl.session_id = CAST(:sessionId AS varchar)
+								AND rl.created_at >= :sessionSince)
+							OR rl.created_at >= :since)
+				), saved AS (
+					SELECT ss.store_id FROM saved_stores ss WHERE ss.member_id = :memberId
+				)
 				SELECT a.id AS area_id,
 					COUNT(s.id) AS store_count,
 					COUNT(ss.store_id) AS saved_store_count,
 					COUNT(v.store_id) AS session_view_count,
-					COUNT(s.id) FILTER (WHERE sc.cosine > :tasteThreshold) AS taste_candidate_count
+					COUNT(s.id) FILTER (WHERE sc.cosine > :tasteThreshold) AS taste_candidate_count,
+					MAX(rv.n) AS region_session_view_count,
+					MAX(rs.n) AS region_saved_store_count
 				FROM unnest(CAST(:ids AS bigint[]), CAST(:lats AS float8[]), CAST(:lngs AS float8[]),
 						CAST(:radii AS int[]), CAST(:sidos AS varchar[]), CAST(:region2nds AS varchar[]),
-						CAST(:region3rds AS varchar[]))
-					AS a(id, lat, lng, radius_m, sido, region_2nd, region_3rd)
-				LEFT JOIN store s ON s.status = 'ACTIVE'
-					AND EXISTS (SELECT 1 FROM store_profile p
-						WHERE p.store_id = s.id AND p.bakery_score >= :minBakeryScore)
-					AND NOT (CAST(:excludeRecorded AS boolean) AND EXISTS (SELECT 1 FROM bread_record br
-						WHERE br.store_id = s.id AND br.member_id = :memberId AND br.deleted_at IS NULL))
+						CAST(:region3rds AS varchar[]), CAST(:signalRegion2nds AS varchar[]))
+					AS a(id, lat, lng, radius_m, sido, region_2nd, region_3rd, signal_region_2nd)
+				LEFT JOIN LATERAL (
+					SELECT COUNT(*) AS n FROM viewed v2 JOIN store s ON s.id = v2.store_id
+					WHERE a.signal_region_2nd IS NOT NULL AND s.region_1st = a.sido
+						AND s.region_2nd = a.signal_region_2nd AND %2$s
+				) rv ON TRUE
+				LEFT JOIN LATERAL (
+					SELECT COUNT(*) AS n FROM saved s2 JOIN store s ON s.id = s2.store_id
+					WHERE a.signal_region_2nd IS NOT NULL AND s.region_1st = a.sido
+						AND s.region_2nd = a.signal_region_2nd AND %2$s
+				) rs ON TRUE
+				LEFT JOIN store s ON %2$s
 					AND (
 					ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(a.lng, a.lat), 4326)::geography, a.radius_m)
 					OR (a.region_2nd IS NOT NULL AND s.region_1st = a.sido AND s.region_2nd = a.region_2nd
 						AND (a.region_3rd IS NULL OR s.region_3rd = a.region_3rd)))
 				LEFT JOIN store_profile p ON p.store_id = s.id
 				LEFT JOIN LATERAL (SELECT %1$s AS cosine) sc ON TRUE
-				LEFT JOIN saved_stores ss ON ss.store_id = s.id AND ss.member_id = :memberId
-				LEFT JOIN (
-					SELECT DISTINCT rl.store_id FROM request_log rl
-					WHERE rl.member_id = :memberId AND rl.event_type = 'STORE_VIEW' AND rl.store_id IS NOT NULL
-						AND ((CAST(:sessionId AS varchar) IS NOT NULL AND rl.session_id = CAST(:sessionId AS varchar)
-								AND rl.created_at >= :sessionSince)
-							OR rl.created_at >= :since)
-				) v ON v.store_id = s.id
+				LEFT JOIN saved ss ON ss.store_id = s.id
+				LEFT JOIN viewed v ON v.store_id = s.id
 				GROUP BY a.id
-				""".formatted(COSINE.strip());
+				"""
+			.formatted(COSINE.strip(), ELIGIBLE_STORE.strip());
 		RecommendationProperties.Score score = recommendationProperties.getScore();
 		MapSqlParameterSource params = tasteParams(new MapSqlParameterSource(), taste)
 			.addValue("memberId", memberId)
@@ -223,13 +250,28 @@ public class RecommendationCandidateJdbcRepository {
 			.addValue("radii", areas.stream().map(CourseArea::getRadiusM).toArray(Integer[]::new))
 			.addValue("sidos", areas.stream().map(CourseArea::getSido).toArray(String[]::new))
 			.addValue("region2nds", areas.stream().map(CourseArea::getRegion2nd).toArray(String[]::new))
-			.addValue("region3rds", areas.stream().map(CourseArea::getRegion3rd).toArray(String[]::new));
+			.addValue("region3rds", areas.stream().map(CourseArea::getRegion3rd).toArray(String[]::new))
+			.addValue("signalRegion2nds", signalRegion2ndsOf(areas));
 		RowMapper<AreaChipStats> mapper = (rs, rowNum) -> new AreaChipStats(
 			rs.getLong("area_id"), rs.getInt("store_count"), rs.getInt("saved_store_count"),
-			rs.getInt("session_view_count"), rs.getInt("taste_candidate_count"));
+			rs.getInt("session_view_count"), rs.getInt("taste_candidate_count"),
+			rs.getInt("region_session_view_count"), rs.getInt("region_saved_store_count"));
 		return jdbcTemplate.query(sql, params, mapper)
 			.stream()
 			.collect(Collectors.toMap(AreaChipStats::areaId, stats -> stats));
+	}
+
+	/**
+	 * 도장 칸(sido + passport_spot)마다 첫 행에만 칸 이름을 준다 — 호출자가 넘기는 목록은 리포지토리가 display_order → name 으로
+	 * 정렬한 순서다. 정확성이 아니라 성능 때문이다: ChipSignal 은 region_* 를 합이 아니라 큰 값으로 모으므로 모든 동네 행에 줘도
+	 * 결과는 같지만, 시군구 카운트(LATERAL)를 칸당 한 번만 돌리려는 것(PR #743 리뷰). 시군구 이름(포항시 · 해운대구)이면 그 시군구의
+	 * 본 · 저장 가게를 세고, 동 이름(성수동 · 도담동)은 store.region_2nd 와 안 맞아 0 이 된다 — 이 문자열 계약은 랩 가드 테스트가 지킨다.
+	 */
+	private static String[] signalRegion2ndsOf(List<CourseArea> areas) {
+		Set<String> seen = new HashSet<>();
+		return areas.stream()
+			.map(area -> seen.add(area.getSido() + "|" + area.getPassportSpot()) ? area.getPassportSpot() : null)
+			.toArray(String[]::new);
 	}
 
 	/**
@@ -239,16 +281,12 @@ public class RecommendationCandidateJdbcRepository {
 	public int countAreaStores(Long memberId, CourseArea area) {
 		String sql = """
 				SELECT COUNT(*) FROM store s
-				WHERE s.status = 'ACTIVE'
-					AND EXISTS (SELECT 1 FROM store_profile p
-						WHERE p.store_id = s.id AND p.bakery_score >= :minBakeryScore)
-					AND NOT (CAST(:excludeRecorded AS boolean) AND EXISTS (SELECT 1 FROM bread_record br
-						WHERE br.store_id = s.id AND br.member_id = :memberId AND br.deleted_at IS NULL))
+				WHERE %1$s
 					AND (ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radiusM)
 						OR (CAST(:region2nd AS varchar) IS NOT NULL AND s.region_1st = :sido
 							AND s.region_2nd = :region2nd
 							AND (CAST(:region3rd AS varchar) IS NULL OR s.region_3rd = :region3rd)))
-				""";
+				""".formatted(ELIGIBLE_STORE.strip());
 		RecommendationProperties.Score score = recommendationProperties.getScore();
 		MapSqlParameterSource params = new MapSqlParameterSource()
 			.addValue("memberId", memberId)

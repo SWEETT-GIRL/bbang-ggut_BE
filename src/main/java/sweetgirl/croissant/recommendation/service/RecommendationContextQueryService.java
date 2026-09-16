@@ -40,6 +40,7 @@ import sweetgirl.croissant.recommendation.repository.TasteQuery;
  * 정확도 링크: CHIPS 인데 검사를 안 했고 빵 단위 신호(기록)가 없을 때.
  * 칩: 코스 지역(시/도)의 도장 칸을 우선순위 버킷으로 3개 — 이 세션에서 본 가게가 있는 칸(SESSION) → 저장 가게가 있는 칸(SAVED)
  * → 취향 후보가 충분한 칸(TASTE) → 나머지(POPULAR), 버킷 안은 신호 크기 → 도장판 순서(#661 §5.2, areasOf 참고).
+ * 시군구 칸(포항시)은 원 밖이라도 같은 시군구에서 본·저장한 가게를 신호로 친다 — 원은 그 도시 빵집의 30% 안팎만 덮는다.
  */
 @Service
 @RequiredArgsConstructor
@@ -126,6 +127,8 @@ public class RecommendationContextQueryService {
 			int sessionViewCount = 0;
 			int savedStoreCount = 0;
 			int tasteCandidateCount = 0;
+			int regionSessionViewCount = 0;
+			int regionSavedStoreCount = 0;
 			for (CourseArea neighborhood : neighborhoods) {
 				AreaChipStats chip = stats.getOrDefault(neighborhood.getId(),
 					new AreaChipStats(neighborhood.getId(), 0, false));
@@ -133,7 +136,13 @@ public class RecommendationContextQueryService {
 				sessionViewCount += chip.sessionViewCount();
 				savedStoreCount += chip.savedStoreCount();
 				tasteCandidateCount += chip.tasteCandidateCount();
+				regionSessionViewCount = Math.max(regionSessionViewCount, chip.regionSessionViewCount());
+				regionSavedStoreCount = Math.max(regionSavedStoreCount, chip.regionSavedStoreCount());
 			}
+			// 시군구 칸은 원 밖에서 본·저장한 같은 시군구 가게도 신호다(포항 장량동 가게를 봤으면 포항시 칩). 시군구 집합이
+			// 원 집합을 포함하므로 합이 아니라 큰 값 — 애월 원 안 가게가 애월 행과 제주시 시군구에 두 번 세지지 않게.
+			sessionViewCount = Math.max(sessionViewCount, regionSessionViewCount);
+			savedStoreCount = Math.max(savedStoreCount, regionSavedStoreCount);
 			RecommendationAreaReason reason;
 			if (sessionViewCount > 0) {
 				reason = RecommendationAreaReason.SESSION;
