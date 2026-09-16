@@ -254,7 +254,11 @@ class RecommendationSchemaLabTest {
 		Long courseId = anyOwnedCourseId();
 		Long recommendationId = recommendationRepository.save(Recommendation.forArea(
 			ownerOf(courseId), courseId, null, (short)1, 1, "gemini", "gemini-2.5-flash", "p1", false,
-			Map.of("title", "성수 담백 산책"))).getId();
+			Map.of("title", "성수 담백 산책"), "lab-session")).getId();
+		entityManager.flush();
+		entityManager.clear();
+		assertThat(recommendationRepository.findById(recommendationId)).get()
+			.extracting(Recommendation::getSessionId).isEqualTo("lab-session"); // session_id 왕복
 		Long id = recommendationFeedbackRepository.save(RecommendationFeedback.of(
 			recommendationId, null, FeedbackAction.DISLIKE, FeedbackReason.BAD_REASON)).getId();
 		recommendationFeedbackRepository.save(RecommendationFeedback.of(recommendationId, null, FeedbackAction.LIKE));

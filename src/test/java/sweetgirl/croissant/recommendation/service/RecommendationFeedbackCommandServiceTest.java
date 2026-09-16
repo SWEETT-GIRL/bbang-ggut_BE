@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.util.Optional;
@@ -57,6 +58,23 @@ class RecommendationFeedbackCommandServiceTest {
 		assertThat(saved.getValue().getRecommendationId()).isEqualTo(RECOMMENDATION_ID);
 		assertThat(saved.getValue().getAction()).isEqualTo(FeedbackAction.DISLIKE);
 		assertThat(saved.getValue().getReason()).isEqualTo(FeedbackReason.TOO_FAR);
+	}
+
+	@Test
+	@DisplayName("VIEW 는 추천당 한 번만 남는다 — 같은 묶음이 재사용돼 앱이 다시 보내도 두 번째부터는 저장하지 않는다")
+	void record_view_isIdempotentPerRecommendation() {
+		Recommendation recommendation = mock(Recommendation.class);
+		given(recommendationRepository.findByIdAndMemberId(RECOMMENDATION_ID, MEMBER_ID))
+			.willReturn(Optional.of(recommendation));
+		given(recommendationFeedbackRepository.existsByRecommendationIdAndAction(RECOMMENDATION_ID,
+			FeedbackAction.VIEW)).willReturn(false, true);
+
+		recommendationFeedbackCommandService.record(MEMBER_ID, RECOMMENDATION_ID,
+			new RecommendationFeedbackRequest(FeedbackAction.VIEW, null, null));
+		recommendationFeedbackCommandService.record(MEMBER_ID, RECOMMENDATION_ID,
+			new RecommendationFeedbackRequest(FeedbackAction.VIEW, null, null));
+
+		then(recommendationFeedbackRepository).should(times(1)).save(any());
 	}
 
 	@Test
