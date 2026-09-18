@@ -1,5 +1,6 @@
 package sweetgirl.croissant.store.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -11,15 +12,18 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.store.code.SavedStoreErrorCode;
 import sweetgirl.croissant.store.entity.SavedStore;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.event.StoreUnsavedEvent;
 import sweetgirl.croissant.store.exception.SavedStoreException;
 import sweetgirl.croissant.store.repository.SavedStoreRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
@@ -33,6 +37,8 @@ class SavedStoreCommandServiceTest {
 	StoreRepository storeRepository;
 	@Mock
 	MemberRepository memberRepository;
+	@Mock
+	ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
 	SavedStoreCommandService savedStoreCommandService;
@@ -80,6 +86,12 @@ class SavedStoreCommandServiceTest {
 		savedStoreCommandService.unsaveStore(memberId, storeId);
 
 		then(savedStoreRepository).should().deleteByMemberIdAndStoreId(memberId, storeId);
+		// 하드 삭제라 흔적이 없다 — 개인화가 UNSAVE 신호로 받도록 이벤트를 남긴다(#663)
+		ArgumentCaptor<StoreUnsavedEvent> event = ArgumentCaptor.forClass(StoreUnsavedEvent.class);
+		then(eventPublisher).should().publishEvent(event.capture());
+		assertThat(event.getValue().memberId()).isEqualTo(memberId);
+		assertThat(event.getValue().storeId()).isEqualTo(storeId);
+		assertThat(event.getValue().unsavedAt()).isNotNull();
 	}
 
 	@Test

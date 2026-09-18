@@ -1,5 +1,8 @@
 package sweetgirl.croissant.store.service;
 
+import java.time.LocalDateTime;
+
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,6 +15,7 @@ import sweetgirl.croissant.store.code.SavedStoreErrorCode;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.SavedStore;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.event.StoreUnsavedEvent;
 import sweetgirl.croissant.store.exception.SavedStoreException;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.SavedStoreRepository;
@@ -25,6 +29,7 @@ public class SavedStoreCommandService {
 	private final SavedStoreRepository savedStoreRepository;
 	private final StoreRepository storeRepository;
 	private final MemberRepository memberRepository;
+	private final ApplicationEventPublisher eventPublisher;
 
 	public void saveStore(Long memberId, Long storeId) {
 		if (savedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId)) {
@@ -42,5 +47,7 @@ public class SavedStoreCommandService {
 			throw new SavedStoreException(SavedStoreErrorCode.SAVED_STORE_NOT_FOUND);
 		}
 		savedStoreRepository.deleteByMemberIdAndStoreId(memberId, storeId);
+		// 하드 삭제라 흔적이 없다 — 개인화가 UNSAVE 신호로 받는다(#663). 커밋 뒤 비동기, 실패해도 해제는 끝난다
+		eventPublisher.publishEvent(new StoreUnsavedEvent(memberId, storeId, LocalDateTime.now()));
 	}
 }

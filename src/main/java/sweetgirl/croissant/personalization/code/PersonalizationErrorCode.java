@@ -19,6 +19,10 @@ public enum PersonalizationErrorCode implements BaseErrorCode {
 
 	QUIZ_ANSWERS_INVALID(HttpStatus.BAD_REQUEST, "PERSONALIZATION400_1",
 			"검사 응답은 네 축에 하나씩(4문항) 또는 둘씩(8문항) 있어야 합니다."),
+	INGEST_RANGE_INVALID(HttpStatus.BAD_REQUEST, "PERSONALIZATION400_2",
+			"적재 범위는 시작일이 종료일보다 앞이어야 합니다."),
+	INTERACTION_INGEST_ALREADY_RUNNING(HttpStatus.CONFLICT, "PERSONALIZATION409_1",
+			"신호 적재가 이미 실행 중입니다."),
 
 	INTERACTION_TARGET_REQUIRED(HttpStatus.INTERNAL_SERVER_ERROR, "PERSONALIZATION500_1",
 			"가게나 메뉴 중 하나는 있어야 하는 신호입니다."),

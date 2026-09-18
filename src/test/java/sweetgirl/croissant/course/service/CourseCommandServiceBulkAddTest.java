@@ -21,12 +21,14 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.request.CourseStoreBulkItem;
 import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseStore;
+import sweetgirl.croissant.course.event.CourseStoreAddedEvent;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
@@ -56,6 +58,8 @@ class CourseCommandServiceBulkAddTest {
 	private CourseProgressService courseProgressService;
 	@Mock
 	private CourseAccessPolicy courseAccessPolicy;
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
 	private CourseCommandService courseCommandService;
@@ -113,6 +117,16 @@ class CourseCommandServiceBulkAddTest {
 		then(courseAccessPolicy).should().requireEditable(course, MEMBER_ID);
 		then(courseProgressService).should().refreshForCourse(COURSE_ID, true);
 		then(courseRepository).should().bumpVersion(COURSE_ID);
+		// 담은 사람 기준 COURSE_ADD 신호 — 가게마다 하나, 추천 출처를 실어(#663)
+		ArgumentCaptor<CourseStoreAddedEvent> events = ArgumentCaptor.forClass(CourseStoreAddedEvent.class);
+		then(eventPublisher).should(org.mockito.Mockito.times(2)).publishEvent(events.capture());
+		assertThat(events.getAllValues()).extracting(CourseStoreAddedEvent::storeId).containsExactly(100L, 200L);
+		assertThat(events.getAllValues()).allSatisfy(event -> {
+			assertThat(event.memberId()).isEqualTo(MEMBER_ID);
+			assertThat(event.courseId()).isEqualTo(COURSE_ID);
+			assertThat(event.recommendationId()).isEqualTo(RECOMMENDATION_ID);
+			assertThat(event.addedAt()).isNotNull();
+		});
 	}
 
 	@Test

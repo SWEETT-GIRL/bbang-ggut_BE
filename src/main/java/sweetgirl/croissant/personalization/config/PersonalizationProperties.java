@@ -21,4 +21,9 @@ public class PersonalizationProperties {
 
 	/** 8문항(축마다 둘) 검사 결과의 확신도 */
 	private double fullQuizConfidence = 0.9;
+	/**
+	 * 신호 적재(#663): 가게 상세를 본 뒤 이 시간 안에 같은 가게를 저장 · 담기 · 계획했으면 "보고 결정한 것"(converted). 추천의
+	 * 세션 창(30분, 운영 실측 연속 조회 93%)과 같은 값이다.
+	 */
+	private int ingestConversionWindowMinutes = 30;
 }
