@@ -33,9 +33,11 @@ public class AdminApiKeyFilter extends OncePerRequestFilter {
 	private static final Logger log = LoggerFactory.getLogger(AdminApiKeyFilter.class);
 	/**
 	 * 열쇠가 필요한 경로. 편지는 사용자에게 직접 닿고, 개인화 배치(#663)는 취향 신호를 되돌리기 어렵게 바꾸거나 락을 쥔 채 무거운
-	 * 트랜잭션을 건다 — 신호가 오염되면 추천이 바뀐다(PR #747 리뷰). 여기에 더하면 AdminApiKeyConfig 의 URL 패턴도 같이 더한다.
+	 * 트랜잭션을 건다 — 신호가 오염되면 추천이 바뀐다(PR #747 리뷰). 이유 문장 실험(#662)은 호출마다 외부 LLM 에 실제 비용이
+	 * 나간다 — 열어 두면 아무나 우리 계정으로 돈을 쓸 수 있다. 여기에 더하면 AdminApiKeyConfig 의 URL 패턴도 같이 더한다.
 	 */
-	static final List<String> PROTECTED_PREFIXES = List.of("/api/admin/letters", "/admin/personalization");
+	static final List<String> PROTECTED_PREFIXES = List.of(
+		"/api/admin/letters", "/admin/personalization", "/admin/recommendations");
 
 	private final String apiKey;
 
