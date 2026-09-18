@@ -74,7 +74,7 @@ class GeminiLlmAdapterTest {
 		return new GeminiGenerateResponse(
 			List.of(new GeminiGenerateResponse.Candidate(
 				new GeminiGenerateResponse.Content(List.of(new GeminiGenerateResponse.Part(text))), "STOP")),
-			new GeminiGenerateResponse.UsageMetadata(700, 45));
+			new GeminiGenerateResponse.UsageMetadata(700, 45, 12));
 	}
 
 	@Test
@@ -105,8 +105,26 @@ class GeminiLlmAdapterTest {
 		assertThat(captor.getValue().generationConfig().maxOutputTokens()).isEqualTo(800);
 		assertThat(result.value().reason()).isEqualTo("바삭해요");
 		assertThat(result.inputTokens()).isEqualTo(700);
-		assertThat(result.outputTokens()).isEqualTo(45);
+		// 사고 토큰도 과금되므로 출력 토큰에 합친다 — 다른 벤더의 output_tokens 와 같은 뜻이 되게
+		assertThat(result.outputTokens()).isEqualTo(57);
+		assertThat(result.reasoningTokens()).isEqualTo(12);
 		assertThat(result.latencyMs()).isZero();
+	}
+
+	@Test
+	@DisplayName("사고 토큰 필드가 없는 평범한 응답도 읽는다 — Integer 가 아니면 통째로 깨진다")
+	void generateStructured_withoutThoughtsField() {
+		GeminiGenerateResponse plain = new GeminiGenerateResponse(
+			List.of(new GeminiGenerateResponse.Candidate(
+				new GeminiGenerateResponse.Content(List.of(new GeminiGenerateResponse.Part("{\"reason\":\"담백해요\"}"))),
+				"STOP")),
+			new GeminiGenerateResponse.UsageMetadata(700, 45, null));
+		given(geminiClient.generate(any(), any())).willReturn(plain);
+
+		LlmResult<Answer> result = adapter.generateStructured(request(), Answer.class);
+
+		assertThat(result.outputTokens()).isEqualTo(45);
+		assertThat(result.reasoningTokens()).isZero();
 	}
 
 	@Test
@@ -128,7 +146,7 @@ class GeminiLlmAdapterTest {
 				new GeminiGenerateResponse.Content(
 					List.of(new GeminiGenerateResponse.Part("{\"reason\":\"바삭"))),
 				"MAX_TOKENS")),
-			new GeminiGenerateResponse.UsageMetadata(700, 800));
+			new GeminiGenerateResponse.UsageMetadata(700, 800, 0));
 		given(geminiClient.generate(any(), any())).willReturn(truncated);
 
 		assertThatThrownBy(() -> adapter.generateStructured(request(), Answer.class))

@@ -39,6 +39,7 @@ import sweetgirl.croissant.recommendation.config.ReasonExperimentProperties;
 import sweetgirl.croissant.recommendation.config.RecommendationProperties;
 import sweetgirl.croissant.recommendation.dto.request.ReasonExperimentRequest;
 import sweetgirl.croissant.recommendation.dto.response.ReasonExperimentResponse;
+import sweetgirl.croissant.recommendation.dto.response.ReasonExperimentRun;
 import sweetgirl.croissant.recommendation.entity.CourseArea;
 import sweetgirl.croissant.recommendation.enums.ReasonPromptVariant;
 import sweetgirl.croissant.recommendation.exception.RecommendationException;
@@ -47,6 +48,7 @@ import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationCandidateJdbcRepository;
 import sweetgirl.croissant.recommendation.service.ReasonExperimentService.Reason;
 import sweetgirl.croissant.recommendation.service.ReasonExperimentService.ReasonAnswer;
+import sweetgirl.croissant.recommendation.service.ReasonExperimentService.WarmUpAnswer;
 
 /** 이유 문장 실험 (#662) — 조합 실행·실패 격리·비용 가드·블라인드. */
 @ExtendWith(MockitoExtension.class)
@@ -73,6 +75,8 @@ class ReasonExperimentServiceTest {
 	void setUp() {
 		experimentProperties.setModels(List.of("GEMINI:gemini-3.5-flash-lite"));
 		experimentProperties.setVariants(List.of(ReasonPromptVariant.A));
+		experimentProperties.setRepeats(1);
+		experimentProperties.setWarmUp(false);
 		service = new ReasonExperimentService(courseAreaRepository, userTasteProfileRepository, candidateRepository,
 			recommendationProperties, experimentProperties, new ReasonPromptBuilder(recommendationProperties),
 			llmClientRegistry, new ObjectMapper());
@@ -97,7 +101,12 @@ class ReasonExperimentServiceTest {
 
 	private static ReasonExperimentRequest request(List<String> models, List<ReasonPromptVariant> variants,
 			Boolean blind) {
-		return new ReasonExperimentRequest(MEMBER_ID, AREA_ID, 2, models, variants, blind);
+		return new ReasonExperimentRequest(MEMBER_ID, AREA_ID, 2, models, variants, 1, blind);
+	}
+
+	private static LlmResult<ReasonAnswer> answer(long latencyMs) {
+		return new LlmResult<>(new ReasonAnswer(List.of(new Reason(1L, "문장 1"), new Reason(2L, "문장 2"))),
+			LlmProvider.GEMINI, "gemini-3.5-flash-lite", latencyMs, 700, 90, 0, "{}");
 	}
 
 	@SuppressWarnings("unchecked")
@@ -105,7 +114,7 @@ class ReasonExperimentServiceTest {
 		given(llmClientRegistry.generateStructured(any(LlmRequest.class), eq(ReasonAnswer.class)))
 			.willAnswer(invocation -> new LlmResult<>(
 				new ReasonAnswer(List.of(new Reason(1L, firstReason), new Reason(2L, secondReason))),
-				LlmProvider.GEMINI, "gemini-3.5-flash-lite", 640L, 700, 90, "{}"));
+				LlmProvider.GEMINI, "gemini-3.5-flash-lite", 640L, 700, 90, 0, "{}"));
 	}
 
 	@Test
@@ -117,7 +126,8 @@ class ReasonExperimentServiceTest {
 
 		assertThat(response.runs()).hasSize(1);
 		assertThat(response.runs().get(0).label()).isEqualTo("GEMINI/gemini-3.5-flash-lite/A");
-		assertThat(response.runs().get(0).latencyMs()).isEqualTo(640L);
+		assertThat(response.runs().get(0).latencyMedianMs()).isEqualTo(640L);
+		assertThat(response.runs().get(0).samples()).isEqualTo(1);
 		assertThat(response.runs().get(0).inputTokens()).isEqualTo(700);
 		assertThat(response.runs().get(0).reasons()).hasSize(2);
 		assertThat(response.runs().get(0).failure()).isNull();
@@ -141,7 +151,7 @@ class ReasonExperimentServiceTest {
 	void run_alignsSentencesToOurOrder() {
 		given(llmClientRegistry.generateStructured(any(LlmRequest.class), eq(ReasonAnswer.class)))
 			.willAnswer(invocation -> new LlmResult<>(new ReasonAnswer(List.of(new Reason(2L, "두 번째만 왔어요"))),
-				LlmProvider.GEMINI, "gemini-3.5-flash-lite", 500L, 700, 40, "{}"));
+				LlmProvider.GEMINI, "gemini-3.5-flash-lite", 500L, 700, 40, 0, "{}"));
 
 		ReasonExperimentResponse response = service.run(request(null, null, false));
 
@@ -158,12 +168,13 @@ class ReasonExperimentServiceTest {
 			.willThrow(new LlmException(LlmErrorCode.RATE_LIMITED))
 			.willAnswer(invocation -> new LlmResult<>(
 				new ReasonAnswer(List.of(new Reason(1L, "문장 1"), new Reason(2L, "문장 2"))),
-				LlmProvider.GEMINI, "gemini-3.5-flash-lite", 700L, 800, 90, "{}"));
+				LlmProvider.GEMINI, "gemini-3.5-flash-lite", 700L, 800, 90, 0, "{}"));
 
 		ReasonExperimentResponse response = service.run(request(null, null, false));
 
 		assertThat(response.runs()).hasSize(2);
 		assertThat(response.runs().get(0).failure()).isEqualTo("LLM502_2");
+		assertThat(response.runs().get(0).failedSamples()).isEqualTo(1);
 		assertThat(response.runs().get(0).reasons()).isEmpty();
 		assertThat(response.runs().get(1).failure()).isNull();
 	}
@@ -208,6 +219,51 @@ class ReasonExperimentServiceTest {
 	}
 
 	@Test
+	@DisplayName("반복하면 지연의 중앙값과 최댓값을 낸다 — 한 번의 값으로는 결정 근거가 약하다")
+	void run_repeatsAndSummarisesLatency() {
+		given(llmClientRegistry.generateStructured(any(LlmRequest.class), eq(ReasonAnswer.class)))
+			.willReturn(answer(300L), answer(900L), answer(500L));
+
+		ReasonExperimentResponse response = service.run(new ReasonExperimentRequest(
+			MEMBER_ID, AREA_ID, 2, null, List.of(ReasonPromptVariant.A), 3, false));
+
+		ReasonExperimentRun run = response.runs().get(0);
+		assertThat(run.samples()).isEqualTo(3);
+		assertThat(run.failedSamples()).isZero();
+		assertThat(run.latencyMedianMs()).isEqualTo(500L);
+		assertThat(run.latencyMaxMs()).isEqualTo(900L);
+	}
+
+	@Test
+	@DisplayName("재기 전에 벤더마다 한 번 데운다 — 연결 비용이 첫 조합에만 얹히지 않게")
+	void run_warmsUpEachProviderOnce() {
+		experimentProperties.setWarmUp(true);
+		given(llmClientRegistry.generateStructured(any(LlmRequest.class), eq(ReasonAnswer.class)))
+			.willReturn(answer(300L));
+
+		service.run(request(List.of("GEMINI:gemini-3.5-flash-lite"),
+			List.of(ReasonPromptVariant.A, ReasonPromptVariant.D), false));
+
+		// 변형 둘이라 조합은 둘인데, 벤더가 하나이므로 워밍업은 한 번뿐이다
+		verify(llmClientRegistry).generateStructured(any(LlmRequest.class), eq(WarmUpAnswer.class));
+	}
+
+	@Test
+	@DisplayName("워밍업이 실패해도 판은 그대로 돈다 — 거기서 재려는 게 없다")
+	void run_ignoresWarmUpFailure() {
+		experimentProperties.setWarmUp(true);
+		given(llmClientRegistry.generateStructured(any(LlmRequest.class), eq(WarmUpAnswer.class)))
+			.willThrow(new LlmException(LlmErrorCode.UNAVAILABLE));
+		given(llmClientRegistry.generateStructured(any(LlmRequest.class), eq(ReasonAnswer.class)))
+			.willReturn(answer(300L));
+
+		ReasonExperimentResponse response = service.run(request(null, List.of(ReasonPromptVariant.A), false));
+
+		assertThat(response.runs()).hasSize(1);
+		assertThat(response.runs()).extracting("failure").containsOnlyNulls();
+	}
+
+	@Test
 	@DisplayName("키 없는 벤더는 판에서 빼고 무엇을 뺐는지 알려 준다 — 실패 줄로 상한을 잡아먹지 않게")
 	void run_skipsUnconfiguredProviders() {
 		given(llmClientRegistry.configuredProviders()).willReturn(List.of(LlmProvider.GEMINI));
@@ -236,7 +292,7 @@ class ReasonExperimentServiceTest {
 	@Test
 	@DisplayName("조합 상한을 넘으면 돌리기 전에 막는다 — 비용 가드")
 	void run_rejectsTooManyCombinations() {
-		experimentProperties.setMaxCombinations(1);
+		experimentProperties.setMaxCalls(1);
 
 		assertThatThrownBy(() -> service.run(request(
 			List.of("GEMINI:a", "OPENAI:b"), List.of(ReasonPromptVariant.A), false)))
@@ -285,7 +341,7 @@ class ReasonExperimentServiceTest {
 	@Test
 	@DisplayName("가게 수가 범위를 벗어나면 400")
 	void run_rejectsStoreCountOutOfRange() {
-		ReasonExperimentRequest tooMany = new ReasonExperimentRequest(MEMBER_ID, AREA_ID, 99, null, null, false);
+		ReasonExperimentRequest tooMany = new ReasonExperimentRequest(MEMBER_ID, AREA_ID, 99, null, null, 1, false);
 
 		assertThatThrownBy(() -> service.run(tooMany))
 			.isInstanceOf(RecommendationException.class)

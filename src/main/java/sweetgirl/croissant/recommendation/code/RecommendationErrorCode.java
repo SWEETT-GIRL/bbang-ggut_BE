@@ -37,7 +37,7 @@ public enum RecommendationErrorCode implements BaseErrorCode {
 	EXPERIMENT_NO_CANDIDATES(HttpStatus.BAD_REQUEST, "RECOMMENDATION400_11",
 			"그 상권에 추천할 가게가 없어 이유 문장 실험을 할 수 없습니다."),
 	EXPERIMENT_TOO_MANY_COMBINATIONS(HttpStatus.BAD_REQUEST, "RECOMMENDATION400_12",
-			"한 번에 돌릴 수 있는 조합 수를 넘었습니다."),
+			"한 번에 낼 수 있는 LLM 호출 수를 넘었습니다."),
 	EXPERIMENT_MODEL_INVALID(HttpStatus.BAD_REQUEST, "RECOMMENDATION400_13",
 			"모델 표기는 '벤더:모델' 형식이어야 합니다."),
 

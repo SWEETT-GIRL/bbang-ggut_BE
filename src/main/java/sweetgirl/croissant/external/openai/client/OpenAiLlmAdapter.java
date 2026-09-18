@@ -86,6 +86,7 @@ public class OpenAiLlmAdapter implements LlmClient {
 			0L,
 			response.inputTokens(),
 			response.outputTokens(),
+			response.reasoningTokens(),
 			rawText);
 	}
 

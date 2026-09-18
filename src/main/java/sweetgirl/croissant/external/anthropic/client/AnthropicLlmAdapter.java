@@ -88,6 +88,8 @@ public class AnthropicLlmAdapter implements LlmClient {
 			0L,
 			response.inputTokens(),
 			response.outputTokens(),
+			// 사고 토큰이 output_tokens 에 섞여 오고 따로 나오지 않는다. 0 은 "없다"가 아니라 "가를 수 없다"는 뜻
+			0,
 			rawText);
 	}
 

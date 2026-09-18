@@ -60,9 +60,9 @@ class AdminReasonExperimentControllerTest {
 	private static ReasonExperimentResponse measured() {
 		ReasonExperimentInput input = new ReasonExperimentInput(7L, "성수동", "PCLN", "뉴웨이브 미니멀", true, false,
 			List.of(new ReasonExperimentStore(1L, "밀도", "성수동2가", 0.71, "이 동네에서 자주 담기는 빵집이에요")));
-		ReasonExperimentRun run = ReasonExperimentRun.succeeded("GEMINI/gemini-3.5-flash-lite/A",
-			LlmProvider.GEMINI, "gemini-3.5-flash-lite", ReasonPromptVariant.A, 640L, 700, 48, 1_200,
-			List.of(new ReasonSentence(1L, "밀도", "바삭한 소금빵이 강한 집이에요")));
+		ReasonExperimentRun run = new ReasonExperimentRun("GEMINI/gemini-3.5-flash-lite/A",
+			LlmProvider.GEMINI, "gemini-3.5-flash-lite", ReasonPromptVariant.A, 3, 0, 640L, 812L, 700, 48, 0, 1_200,
+			List.of(new ReasonSentence(1L, "밀도", "바삭한 소금빵이 강한 집이에요")), null);
 		return ReasonExperimentResponse.measured(input, List.of(run), List.of());
 	}
 
@@ -80,7 +80,8 @@ class AdminReasonExperimentControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.input.areaName").value("성수동"))
 			.andExpect(jsonPath("$.data.input.stores[0].ruleReason").value("이 동네에서 자주 담기는 빵집이에요"))
-			.andExpect(jsonPath("$.data.runs[0].latencyMs").value(640))
+			.andExpect(jsonPath("$.data.runs[0].latencyMedianMs").value(640))
+			.andExpect(jsonPath("$.data.runs[0].latencyMaxMs").value(812))
 			.andExpect(jsonPath("$.data.runs[0].reasons[0].reason").value("바삭한 소금빵이 강한 집이에요"));
 	}
 

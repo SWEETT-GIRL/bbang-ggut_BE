@@ -13,7 +13,8 @@ import sweetgirl.croissant.recommendation.enums.ReasonPromptVariant;
  * @param areaId 어느 상권의 추천으로 실험할지
  * @param models {@code 벤더:모델} 목록. 비면 설정값
  * @param variants 프롬프트 변형. 비면 설정값
- * @param blind 라벨 없이 문장만 섞어 돌려줄지. 룰 문구도 한 줄 섞인다
+ * @param repeats 같은 조합을 몇 번 부를지. 비면 설정값. 지연 중앙값·최댓값을 이 표본으로 낸다
+ * @param blind 라벨 없이 문장만 섞어 돌려줄지
  */
 public record ReasonExperimentRequest(
 		@NotNull(message = "회원 ID는 필수입니다.") Long memberId,
@@ -21,6 +22,7 @@ public record ReasonExperimentRequest(
 		@Schema(description = "추천 가게 수. 비면 기본값") Integer storeCount,
 		@Schema(example = "[\"GEMINI:gemini-3.5-flash-lite\"]") List<String> models,
 		List<ReasonPromptVariant> variants,
+		@Schema(description = "같은 조합 반복 횟수. 비면 설정값") Integer repeats,
 		Boolean blind) {
 
 	public boolean isBlind() {

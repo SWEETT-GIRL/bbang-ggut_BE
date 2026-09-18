@@ -29,10 +29,17 @@ public record OpenAiResponse(
 	public record IncompleteDetails(String reason) {
 	}
 
+	/** output_tokens 에는 추론 토큰이 <b>이미 포함돼</b> 있고, details 가 그중 몫을 알려 준다 */
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	public record Usage(
 			@JsonProperty("input_tokens") int inputTokens,
-			@JsonProperty("output_tokens") int outputTokens) {
+			@JsonProperty("output_tokens") int outputTokens,
+			@JsonProperty("output_tokens_details") OutputTokensDetails outputTokensDetails) {
+	}
+
+	/** 같은 이유로 Integer 다 — 추론을 안 한 응답에는 이 필드가 없을 수 있다 */
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	public record OutputTokensDetails(@JsonProperty("reasoning_tokens") Integer reasoningTokens) {
 	}
 
 	/**
@@ -63,5 +70,14 @@ public record OpenAiResponse(
 
 	public int outputTokens() {
 		return usage == null ? 0 : usage.outputTokens();
+	}
+
+	/** 출력 토큰 중 추론에 쓴 몫 */
+	public int reasoningTokens() {
+		if (usage == null || usage.outputTokensDetails() == null
+			|| usage.outputTokensDetails().reasoningTokens() == null) {
+			return 0;
+		}
+		return usage.outputTokensDetails().reasoningTokens();
 	}
 }

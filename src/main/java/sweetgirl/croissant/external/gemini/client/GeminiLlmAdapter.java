@@ -72,7 +72,8 @@ public class GeminiLlmAdapter implements LlmClient {
 			request.model(),
 			0L,
 			response.promptTokens(),
-			response.candidatesTokens(),
+			response.billedOutputTokens(),
+			response.thoughtsTokens(),
 			rawText);
 	}
 

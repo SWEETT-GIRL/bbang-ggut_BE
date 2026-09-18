@@ -64,6 +64,14 @@ public class ReasonExperimentService {
 	private static final String MODEL_SEPARATOR = ":";
 	/** 원문 로그 상한 — 이유 네 줄 JSON 이면 넉넉하고, 사고 과정이 딸려 와도 로그를 덮지 않는다 */
 	private static final int RAW_TEXT_LOG_LIMIT = 2_000;
+	/** 워밍업은 연결만 열면 되므로 가장 싼 요청으로 보낸다 */
+	private static final String WARM_UP_PROMPT = "ok 라는 글자만 담아 JSON 으로 답해라.";
+	private static final int WARM_UP_MAX_TOKENS = 64;
+	private static final Map<String, Object> WARM_UP_SCHEMA = Map.of(
+		"type", "object",
+		"properties", Map.of("ok", Map.of("type", "string")),
+		"required", List.of("ok"),
+		"additionalProperties", false);
 	private static final String LABEL_SEPARATOR = "/";
 	/** 문장이 표준 JSON 스키마 하나로 나가고, Gemini 용 대문자 번역은 어댑터가 한다 */
 	private static final Map<String, Object> RESPONSE_SCHEMA = Map.of(
@@ -106,7 +114,11 @@ public class ReasonExperimentService {
 
 		ReasonExperimentInput input = inputOf(area, profile, taste, pool.fallback(), ordered);
 		Set<LlmProvider> skipped = new LinkedHashSet<>();
-		List<ReasonExperimentRun> runs = runAll(combinationsOf(request, skipped), taste, profile, ordered);
+		List<Combination> combinations = combinationsOf(request, skipped);
+		if (experimentProperties.isWarmUp()) {
+			warmUp(combinations);
+		}
+		List<ReasonExperimentRun> runs = runAll(combinations, taste, profile, ordered, repeatsOf(request));
 		List<LlmProvider> skippedProviders = List.copyOf(skipped);
 		if (!request.isBlind()) {
 			return ReasonExperimentResponse.measured(input, runs, skippedProviders);
@@ -139,7 +151,8 @@ public class ReasonExperimentService {
 				modelRefs.add(modelRef);
 			}
 		}
-		if (modelRefs.size() * variants.size() > experimentProperties.getMaxCombinations()) {
+		if (modelRefs.size() * new LinkedHashSet<>(variants).size() * repeatsOf(request) > experimentProperties
+			.getMaxCalls()) {
 			throw new RecommendationException(RecommendationErrorCode.EXPERIMENT_TOO_MANY_COMBINATIONS);
 		}
 
@@ -152,21 +165,54 @@ public class ReasonExperimentService {
 		return combinations;
 	}
 
+	/**
+	 * 조합마다 {@code repeats} 번 부르고 지연의 중앙값·최댓값을 낸다. 반복마다 순서를 섞는다 — 고정 순서면
+	 * 앞자리 조합이 매번 같은 조건을 받아 편향이 쌓인다.
+	 *
+	 * <p>프롬프트는 변형마다 한 번만 만들어 돌려 쓴다. 조립 시간이 지연에 섞이지 않게.
+	 */
 	private List<ReasonExperimentRun> runAll(List<Combination> combinations, TasteQuery taste,
-			UserTasteProfile profile, List<CandidateStoreRow> ordered) {
+			UserTasteProfile profile, List<CandidateStoreRow> ordered, int repeats) {
 		String typeCode = profile == null ? null : profile.getTypeCode();
 		Map<ReasonPromptVariant, String> prompts = new LinkedHashMap<>();
-		List<ReasonExperimentRun> runs = new ArrayList<>(combinations.size());
-		for (Combination combination : combinations) {
-			String prompt = prompts.computeIfAbsent(combination.variant(),
-				variant -> promptBuilder.build(variant, taste, typeCode, ordered));
-			runs.add(runOne(combination, prompt, ordered));
+		combinations.forEach(combination -> prompts.computeIfAbsent(combination.variant(),
+			variant -> promptBuilder.build(variant, taste, typeCode, ordered)));
+
+		Map<Combination, Samples> samples = new LinkedHashMap<>();
+		combinations.forEach(combination -> samples.put(combination, new Samples()));
+		for (int repeat = 0; repeat < repeats; repeat++) {
+			List<Combination> order = new ArrayList<>(combinations);
+			Collections.shuffle(order);
+			order.forEach(combination -> samples.get(combination)
+				.add(runOne(combination, prompts.get(combination.variant()), ordered)));
 		}
-		return runs;
+		return combinations.stream()
+			.map(combination -> samples.get(combination)
+				.toRun(combination, prompts.get(combination.variant()).length()))
+			.toList();
 	}
 
-	/** 한 조합의 실패가 나머지를 멈추지 않는다 — 판을 다시 처음부터 돌리면 비용이 두 배다 */
-	private ReasonExperimentRun runOne(Combination combination, String prompt, List<CandidateStoreRow> ordered) {
+	/**
+	 * 벤더마다 버리는 호출을 한 번 보내 연결을 데운다. 첫 호출만 내는 DNS·TCP·TLS 비용이 그 벤더 첫 조합에
+	 * 얹히면 조합끼리 비교가 어긋난다. 실패는 무시한다 — 여기서 재려는 게 없다.
+	 */
+	private void warmUp(List<Combination> combinations) {
+		combinations.stream().map(Combination::provider).distinct().forEach(provider -> {
+			Combination first = combinations.stream()
+				.filter(combination -> combination.provider() == provider)
+				.findFirst()
+				.orElseThrow();
+			try {
+				llmClientRegistry.generateStructured(new LlmRequest(provider, first.model(), WARM_UP_PROMPT,
+					WARM_UP_SCHEMA, experimentProperties.getTemperature(), WARM_UP_MAX_TOKENS), WarmUpAnswer.class);
+			} catch (RuntimeException e) {
+				log.debug("워밍업 실패(무시) [벤더={}]", provider, e);
+			}
+		});
+	}
+
+	/** 한 번의 호출. 한 조합의 실패가 나머지를 멈추지 않는다 — 판을 처음부터 다시 돌리면 비용이 두 배다 */
+	private Attempt runOne(Combination combination, String prompt, List<CandidateStoreRow> ordered) {
 		String label = combination.label();
 		long startedAt = System.nanoTime();
 		try {
@@ -176,22 +222,20 @@ public class ReasonExperimentService {
 			List<ReasonSentence> sentences = sentencesOf(result.value(), ordered);
 			// 문장까지 남긴다. 조합이 길어져 프록시 제한(운영 120초)을 넘으면 클라이언트는 504 를 받는데,
 			// 건수만 적어 두면 이미 돈을 낸 문장을 되찾을 길이 없다.
-			log.info("이유 문장 실험 [조합={}, 지연={}ms, 입력토큰={}, 출력토큰={}, 문장={}]",
-				label, result.latencyMs(), result.inputTokens(), result.outputTokens(),
+			log.info("이유 문장 실험 [조합={}, 지연={}ms, 입력토큰={}, 출력토큰={}, 사고토큰={}, 문장={}]",
+				label, result.latencyMs(), result.inputTokens(), result.outputTokens(), result.reasoningTokens(),
 				sentences.stream().map(ReasonSentence::reason).toList());
 			// 빈 자리가 있으면 원문을 남긴다 — 모델이 가게를 빠뜨렸는지 다른 id 를 줬는지는 원문에만 있다
 			if (sentences.stream().anyMatch(sentence -> sentence.reason() == null)) {
 				log.warn("이유 문장 실험 빈 자리 [조합={}, 응답원문={}]", label, abbreviate(result.rawText()));
 			}
-			return ReasonExperimentRun.succeeded(label, combination.provider(), combination.model(),
-				combination.variant(), result.latencyMs(), result.inputTokens(), result.outputTokens(),
-				prompt.length(), sentences);
+			return new Attempt(result.latencyMs(), result.inputTokens(), result.outputTokens(),
+				result.reasoningTokens(), sentences, null);
 		} catch (LlmException e) {
 			long latencyMs = (System.nanoTime() - startedAt) / 1_000_000;
 			log.warn("이유 문장 실험 실패 [조합={}, 지연={}ms, 코드={}]",
 				label, latencyMs, e.getLlmErrorCode().getCode(), e);
-			return ReasonExperimentRun.failed(label, combination.provider(), combination.model(),
-				combination.variant(), latencyMs, prompt.length(), e.getLlmErrorCode().getCode());
+			return new Attempt(latencyMs, 0, 0, 0, List.of(), e.getLlmErrorCode().getCode());
 		}
 	}
 
@@ -310,11 +354,59 @@ public class ReasonExperimentService {
 		return storeCount;
 	}
 
+	private int repeatsOf(ReasonExperimentRequest request) {
+		return request.repeats() != null && request.repeats() > 0
+			? request.repeats()
+			: experimentProperties.getRepeats();
+	}
+
 	private static boolean isEmpty(List<?> values) {
 		return values == null || values.isEmpty();
 	}
 
 	private record Pool(List<CandidateStoreRow> candidates, boolean fallback) {
+	}
+
+	/** 한 번의 호출 결과 */
+	private record Attempt(long latencyMs, int inputTokens, int outputTokens, int reasoningTokens,
+			List<ReasonSentence> reasons, String failure) {
+	}
+
+	/** 한 조합의 반복 표본. 문장과 토큰은 마지막 성공 것을 쓴다 — 반복마다 크게 다르지 않다 */
+	private static final class Samples {
+
+		private final List<Long> latencies = new ArrayList<>();
+		private int failed;
+		private Attempt lastSuccess;
+		private String lastFailure;
+
+		private void add(Attempt attempt) {
+			if (attempt.failure() != null) {
+				failed++;
+				lastFailure = attempt.failure();
+				return;
+			}
+			latencies.add(attempt.latencyMs());
+			lastSuccess = attempt;
+		}
+
+		private ReasonExperimentRun toRun(Combination combination, int promptChars) {
+			List<Long> sorted = latencies.stream().sorted().toList();
+			long median = sorted.isEmpty() ? 0 : sorted.get(sorted.size() / 2);
+			long max = sorted.isEmpty() ? 0 : sorted.get(sorted.size() - 1);
+			return new ReasonExperimentRun(combination.label(), combination.provider(), combination.model(),
+				combination.variant(), sorted.size(), failed, median, max,
+				lastSuccess == null ? 0 : lastSuccess.inputTokens(),
+				lastSuccess == null ? 0 : lastSuccess.outputTokens(),
+				lastSuccess == null ? 0 : lastSuccess.reasoningTokens(),
+				promptChars,
+				lastSuccess == null ? List.of() : lastSuccess.reasons(),
+				lastSuccess == null ? lastFailure : null);
+		}
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	record WarmUpAnswer(String ok) {
 	}
 
 	private record Combination(LlmProvider provider, String model, ReasonPromptVariant variant) {

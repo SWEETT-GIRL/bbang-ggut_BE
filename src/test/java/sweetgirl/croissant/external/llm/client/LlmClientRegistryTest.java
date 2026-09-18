@@ -57,7 +57,7 @@ class LlmClientRegistryTest {
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
 			}
-			return (LlmResult<T>)new LlmResult<>(new Answer("문장"), provider, request.model(), 0L, 10, 5, "{}");
+			return (LlmResult<T>)new LlmResult<>(new Answer("문장"), provider, request.model(), 0L, 10, 5, 0, "{}");
 		}
 	}
 

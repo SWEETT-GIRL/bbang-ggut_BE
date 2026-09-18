@@ -8,31 +8,27 @@ import sweetgirl.croissant.recommendation.enums.ReasonPromptVariant;
 /**
  * 조합(벤더 × 모델 × 변형) 하나의 결과와 계측값 (#662).
  *
- * @param latencyMs 요청 직전부터 값이 손에 들어오기까지. 이 값이 곧 "카드가 언제 뜨나"
- * @param failure 실패했을 때의 코드·사유. 한 조합이 실패해도 나머지는 계속 돈다
+ * <p>한 번의 값으로는 "얼마나 걸리나"를 정할 수 없어 같은 조합을 여러 번 부르고 중앙값과 최댓값을 함께 준다.
+ * 중앙값은 보통 얼마나 걸리는지, 최댓값은 나쁜 날에 회원이 얼마나 기다리는지다.
+ *
+ * @param samples 성공한 호출 수. 이 수가 0 이면 문장이 없고 {@code failure} 만 남는다
+ * @param failedSamples 실패한 호출 수. 0 보다 크면 그 조합은 불안정하다
+ * @param outputTokens 과금되는 출력 토큰. 사고 토큰을 포함한다
+ * @param reasoningTokens 그중 사고 몫. Anthropic 은 가를 수 없어 0 이다
  */
 public record ReasonExperimentRun(
 		String label,
 		LlmProvider provider,
 		String model,
 		ReasonPromptVariant variant,
-		long latencyMs,
+		int samples,
+		int failedSamples,
+		long latencyMedianMs,
+		long latencyMaxMs,
 		int inputTokens,
 		int outputTokens,
+		int reasoningTokens,
 		int promptChars,
 		List<ReasonSentence> reasons,
 		String failure) {
-
-	public static ReasonExperimentRun succeeded(String label, LlmProvider provider, String model,
-			ReasonPromptVariant variant, long latencyMs, int inputTokens, int outputTokens, int promptChars,
-			List<ReasonSentence> reasons) {
-		return new ReasonExperimentRun(label, provider, model, variant, latencyMs, inputTokens, outputTokens,
-			promptChars, reasons, null);
-	}
-
-	public static ReasonExperimentRun failed(String label, LlmProvider provider, String model,
-			ReasonPromptVariant variant, long latencyMs, int promptChars, String failure) {
-		return new ReasonExperimentRun(label, provider, model, variant, latencyMs, 0, 0, promptChars, List.of(),
-			failure);
-	}
 }
