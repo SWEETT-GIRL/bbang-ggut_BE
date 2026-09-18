@@ -58,6 +58,11 @@ public class GeminiLlmAdapter implements LlmClient {
 			throw new LlmException(toErrorCode(e.getGeminiErrorCode()), e);
 		}
 
+		// 잘린 응답은 JSON 조각이라 파싱하면 INVALID_JSON 이 되는데, 고칠 곳은 프롬프트가 아니라 출력 상한이다.
+		// 다른 두 어댑터와 같은 코드로 올려 표에서 원인이 같게 읽히게 한다.
+		if (response.isTruncated()) {
+			throw new LlmException(LlmErrorCode.EMPTY_RESPONSE);
+		}
 		String rawText = response.firstText()
 			.filter(StringUtils::hasText)
 			.orElseThrow(() -> new LlmException(LlmErrorCode.EMPTY_RESPONSE));

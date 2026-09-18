@@ -11,6 +11,8 @@ public record GeminiGenerateResponse(
 		List<Candidate> candidates,
 		UsageMetadata usageMetadata) {
 
+	private static final String MAX_TOKENS_FINISH_REASON = "MAX_TOKENS";
+
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	public record Candidate(Content content, String finishReason) {
 	}
@@ -25,6 +27,17 @@ public record GeminiGenerateResponse(
 
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	public record UsageMetadata(int promptTokenCount, int candidatesTokenCount) {
+	}
+
+	/**
+	 * 출력 상한에 걸려 잘렸나 — 잘린 JSON 은 파싱 오류가 아니라 상한 문제로 읽어야 고칠 곳을 안다.
+	 * Anthropic 의 {@code stop_reason=max_tokens}, OpenAI 의 {@code incomplete_details} 와 같은 자리다.
+	 */
+	public boolean isTruncated() {
+		if (candidates == null || candidates.isEmpty()) {
+			return false;
+		}
+		return MAX_TOKENS_FINISH_REASON.equals(candidates.get(0).finishReason());
 	}
 
 	/** 첫 후보의 첫 텍스트 파트. 구조화 출력이면 여기가 JSON 문자열 */

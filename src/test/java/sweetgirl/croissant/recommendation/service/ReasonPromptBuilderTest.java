@@ -56,7 +56,9 @@ class ReasonPromptBuilderTest {
 		String prompt = promptBuilder.build(ReasonPromptVariant.A, taste(), "PCLN", List.of(store(1L, "밀도", 0.71)));
 
 		assertThat(prompt).contains("- 맛: +0.62(담백)");
-		assertThat(prompt).contains("- 분위기: +0.08(중간)");
+		assertThat(prompt).contains("- 빵 스타일: +0.08(중간)");
+		// 넷째 축은 가게 분위기가 아니라 빵의 성질이다. 이름을 잘못 부르면 모델이 입력에 없는 인테리어를 지어낸다
+		assertThat(prompt).doesNotContain("분위기:", "클래식", "트렌디");
 	}
 
 	@Test

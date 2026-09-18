@@ -68,7 +68,7 @@ public class ReasonPromptBuilder {
 		lines.add("- 맛: " + axisText(taste.taste(), "달콤", "담백"));
 		lines.add("- 식감: " + axisText(taste.texture(), "부드러움", "바삭"));
 		lines.add("- 구성: " + axisText(taste.filling(), "풍부", "심플"));
-		lines.add("- 분위기: " + axisText(taste.vibe(), "클래식", "트렌디"));
+		lines.add("- 빵 스타일: " + axisText(taste.vibe(), "고전", "신상"));
 		if (typeCode != null) {
 			lines.add("- 유형: " + typeName(typeCode));
 		}
@@ -88,7 +88,7 @@ public class ReasonPromptBuilder {
 			block.append("   축: 맛 ").append(axisText(row.axisTaste(), "달콤", "담백"))
 				.append(" / 식감 ").append(axisText(row.axisTexture(), "부드러움", "바삭"))
 				.append(" / 구성 ").append(axisText(row.axisFilling(), "풍부", "심플"))
-				.append(" / 분위기 ").append(axisText(row.axisVibe(), "클래식", "트렌디")).append("\n");
+				.append(" / 빵 스타일 ").append(axisText(row.axisVibe(), "고전", "신상")).append("\n");
 			block.append("   태그: ").append(joinOrNone(sortedByWeight(row.tags()))).append("\n");
 			block.append("   빵 종류: ").append(joinOrNone(limit(row.kinds())));
 			if (variant.isIncludesRuleEvidence()) {

@@ -121,6 +121,22 @@ class GeminiLlmAdapterTest {
 	}
 
 	@Test
+	@DisplayName("출력 상한에 걸려 잘리면 파싱 오류가 아니라 빈 응답으로 읽는다 — 고칠 곳이 다르다")
+	void generateStructured_truncated() {
+		GeminiGenerateResponse truncated = new GeminiGenerateResponse(
+			List.of(new GeminiGenerateResponse.Candidate(
+				new GeminiGenerateResponse.Content(
+					List.of(new GeminiGenerateResponse.Part("{\"reason\":\"바삭"))),
+				"MAX_TOKENS")),
+			new GeminiGenerateResponse.UsageMetadata(700, 800));
+		given(geminiClient.generate(any(), any())).willReturn(truncated);
+
+		assertThatThrownBy(() -> adapter.generateStructured(request(), Answer.class))
+			.isInstanceOf(LlmException.class)
+			.hasFieldOrPropertyWithValue("llmErrorCode", LlmErrorCode.EMPTY_RESPONSE);
+	}
+
+	@Test
 	@DisplayName("빈 텍스트는 빈 응답으로 읽는다")
 	void generateStructured_emptyText() {
 		given(geminiClient.generate(any(), any())).willReturn(response("  "));

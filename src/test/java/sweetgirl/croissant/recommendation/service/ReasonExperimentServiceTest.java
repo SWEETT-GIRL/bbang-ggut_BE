@@ -167,19 +167,42 @@ class ReasonExperimentServiceTest {
 	}
 
 	@Test
-	@DisplayName("블라인드 모드는 룰 문구까지 섞고 답표를 접어 준다")
-	void run_blindMixesRuleSentence() {
+	@DisplayName("블라인드에는 LLM 문장만 섞는다 — 룰은 반복되는 고정 문장이라 섞어도 가려지지 않는다")
+	void run_blindMixesOnlyLlmSentences() {
 		givenAnswer("LLM 문장 1", "LLM 문장 2");
 
 		ReasonExperimentResponse response = service.run(request(null, null, true));
 
 		assertThat(response.runs()).isNull();
-		// 가게 2곳 × (룰 1 + 조합 1) = 4줄
-		assertThat(response.blindEntries()).hasSize(4);
+		// 가게 2곳 × 조합 1 = 2줄. 룰은 여기 없다
+		assertThat(response.blindEntries()).hasSize(2);
 		assertThat(response.blindEntries()).extracting("reason")
-			.contains("이 동네에서 자주 담기는 빵집이에요", "LLM 문장 1");
+			.containsExactlyInAnyOrder("LLM 문장 1", "LLM 문장 2")
+			.doesNotContain("이 동네에서 자주 담기는 빵집이에요");
 		assertThat(response.blindEntries()).extracting("label").doesNotContain("GEMINI/gemini-3.5-flash-lite/A");
 		assertThat(response.blindAnswerKey()).isNotBlank();
+	}
+
+	@Test
+	@DisplayName("블라인드 입력에서 취향 일치도는 빠지고, 룰 문구는 2차 비교용으로 남는다")
+	void run_blindHidesScoreButKeepsRuleReason() {
+		givenAnswer("LLM 문장 1", "LLM 문장 2");
+
+		ReasonExperimentResponse response = service.run(request(null, null, true));
+
+		assertThat(response.input().stores()).extracting("tasteFit").containsOnlyNulls();
+		assertThat(response.input().stores()).extracting("ruleReason")
+			.containsOnly("이 동네에서 자주 담기는 빵집이에요");
+	}
+
+	@Test
+	@DisplayName("계측 모드에서는 취향 일치도가 그대로 나온다")
+	void run_measuredKeepsScore() {
+		givenAnswer("문장 1", "문장 2");
+
+		ReasonExperimentResponse response = service.run(request(null, null, false));
+
+		assertThat(response.input().stores()).extracting("tasteFit").doesNotContainNull();
 	}
 
 	@Test

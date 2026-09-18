@@ -59,7 +59,6 @@ public class ReasonExperimentService {
 
 	private static final Logger log = LoggerFactory.getLogger(ReasonExperimentService.class);
 
-	private static final String RULE_LABEL = "RULE";
 	private static final String MODEL_SEPARATOR = ":";
 	private static final String LABEL_SEPARATOR = "/";
 	/** 문장이 표준 JSON 스키마 하나로 나가고, Gemini 용 대문자 번역은 어댑터가 한다 */
@@ -178,8 +177,13 @@ public class ReasonExperimentService {
 	}
 
 	/**
-	 * 가게마다 조합들의 문장과 룰 문구를 섞어 라벨만 붙인다. 답표는 Base64 로 접어 같이 준다 — 암호가 아니라
-	 * 눈가림이다(문장을 고르기 전에 답이 먼저 눈에 들어오지 않게).
+	 * 가게마다 LLM 문장들을 섞어 라벨만 붙인다. 답표는 Base64 로 접어 같이 준다 — 암호가 아니라 눈가림이다.
+	 *
+	 * <p><b>룰 문구는 섞지 않는다.</b> 섞어도 가려지지 않기 때문이다 — 룰은 고정 문장 셋 중 하나라 여러 가게에
+	 * 똑같이 반복되고, "가게마다 같은 말이 나오는 보기"가 곧 룰이다. 대신 {@code input.stores[].ruleReason} 에
+	 * 그대로 두고, 1차 승자와 2차로 견주게 한다({@link BlindReasonEntry} 참고).
+	 *
+	 * <p>입력에서 취향 일치도는 뺀다. 점수가 높은 가게의 문장을 더 좋게 보게 만든다.
 	 */
 	private ReasonExperimentResponse blindOf(ReasonExperimentInput input, List<ReasonExperimentRun> runs) {
 		List<BlindReasonEntry> entries = new ArrayList<>();
@@ -187,7 +191,6 @@ public class ReasonExperimentService {
 		int labelSequence = 1;
 		for (ReasonExperimentStore store : input.stores()) {
 			List<String[]> choices = new ArrayList<>();
-			choices.add(new String[] {RULE_LABEL, store.ruleReason()});
 			for (ReasonExperimentRun run : runs) {
 				run.reasons().stream()
 					.filter(sentence -> sentence.storeId().equals(store.storeId()) && sentence.reason() != null)
@@ -200,7 +203,13 @@ public class ReasonExperimentService {
 				answerKey.put(label, choice[0]);
 			}
 		}
-		return ReasonExperimentResponse.blind(input, entries, encode(answerKey));
+		return ReasonExperimentResponse.blind(blindInputOf(input), entries, encode(answerKey));
+	}
+
+	private ReasonExperimentInput blindInputOf(ReasonExperimentInput input) {
+		return new ReasonExperimentInput(input.areaId(), input.areaName(), input.typeCode(), input.typeLabel(),
+			input.hasAxis(), input.tasteFallback(),
+			input.stores().stream().map(ReasonExperimentStore::withoutScore).toList());
 	}
 
 	private String encode(Map<String, String> answerKey) {
