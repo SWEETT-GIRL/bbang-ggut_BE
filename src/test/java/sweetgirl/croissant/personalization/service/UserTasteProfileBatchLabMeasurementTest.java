@@ -97,6 +97,15 @@ class UserTasteProfileBatchLabMeasurementTest {
 		entityManager.flush();
 		entityManager.clear();
 		long elapsedMs = System.currentTimeMillis() - startedAt;
+		// 2회차: 재하이드레이션된 전원이 UNCHANGED 여야 "매일 version 안 오름" 이 운영 규모에서 성립한다
+		Map<TasteProfileRefreshOutcome, Integer> secondPass = new EnumMap<>(TasteProfileRefreshOutcome.class);
+		for (Long memberId : memberIds) {
+			secondPass.merge(profileCommandService.recompute(memberId), 1, Integer::sum);
+			if (++processed % FLUSH_EVERY == 0) {
+				entityManager.flush();
+				entityManager.clear();
+			}
+		}
 
 		Map<String, Object> stats = jdbcTemplate.queryForMap("""
 				SELECT COUNT(*) AS profiles,
@@ -128,13 +137,14 @@ class UserTasteProfileBatchLabMeasurementTest {
 				FROM user_taste_profile WHERE axis_taste IS NOT NULL
 				""");
 		// 테스트 로거는 파일로만 가서 표준 출력에도 남긴다 — 계측 수치는 PR 본문의 근거
-		String report = String.format("[계측] 신호 %d행 → 회원 %d명, 결과 %s, 실패 %d, %dms%n[계측] 프로필 %s%n[계측] 유형 %s%n"
-			+ "[계측] 타입 %s%n[계측] 축 분포 %s", inserted, memberIds.size(), outcomes, failed, elapsedMs, stats,
+		String report = String.format("[계측] 신호 %d행 → 회원 %d명, 결과 %s, 실패 %d, %dms, 2회차 %s%n[계측] 프로필 %s%n[계측] 유형 %s%n"
+			+ "[계측] 타입 %s%n[계측] 축 분포 %s", inserted, memberIds.size(), outcomes, failed, elapsedMs, secondPass, stats,
 			userTypes, typeCodes, axisSpread);
 		log.info(report);
 		System.out.println(report);
 
 		assertThat(failed).isZero();
+		assertThat(secondPass.getOrDefault(TasteProfileRefreshOutcome.RECOMPUTED, 0)).isZero();
 		long strongMembers = ((Number)stats.get("strong_members")).longValue();
 		long strongWithAxis = ((Number)stats.get("strong_with_axis")).longValue();
 		assertThat(strongWithAxis).isGreaterThanOrEqualTo(Math.round(strongMembers * MIN_AXIS_COVERAGE));

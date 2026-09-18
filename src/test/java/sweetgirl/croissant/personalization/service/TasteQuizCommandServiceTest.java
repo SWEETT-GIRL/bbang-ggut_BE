@@ -66,10 +66,21 @@ class TasteQuizCommandServiceTest {
 		return profile;
 	}
 
+	/** 신호가 없는 회원의 합산 = 검사 축 그대로 — 진짜 서비스가 하는 일을 목이 흉내 낸다 */
+	private void mergeAppliesQuizAxis(UserTasteProfile profile) {
+		given(userTasteProfileCommandService.mergeSignals(eq(profile), any(TasteAxis.class), any(), any()))
+			.willAnswer(call -> {
+				TasteAxis quizAxis = call.getArgument(1);
+				profile.recompute(quizAxis, quizAxis.typeCode(), TasteTypeSource.QUIZ, Map.of(), null, null, 0, 0,
+					call.getArgument(3));
+				return TasteProfileRefreshOutcome.RECOMPUTED;
+			});
+	}
+
 	@Test
 	@DisplayName("4문항: B 만 고르면 담백·바삭·심플·신상 PCLN 이고 프로필이 새로 생겨 저장된다")
 	void submit_shortQuiz_createsProfile() {
-		lockedEmptyProfile();
+		mergeAppliesQuizAxis(lockedEmptyProfile());
 		given(userTasteProfileRepository.save(any(UserTasteProfile.class))).willAnswer(call -> call.getArgument(0));
 
 		BbtiResultResponse result = tasteQuizCommandService.submit(MEMBER_ID,
@@ -88,13 +99,15 @@ class TasteQuizCommandServiceTest {
 		assertThat(saved.getValue().getQuizAnswers()).hasSize(4)
 			.first()
 			.satisfies(stored -> assertThat(stored).containsEntry("axis", "taste").containsEntry("choice", "B"));
-		then(userTasteProfileCommandService).should().mergeSignals(eq(saved.getValue()), any(TasteAxis.class), any());
+		assertThat(saved.getValue().getVersion()).isEqualTo(2); // 빈 행 1 → 합산 한 번
+		then(userTasteProfileCommandService).should().mergeSignals(eq(saved.getValue()), any(TasteAxis.class), any(),
+			any());
 	}
 
 	@Test
 	@DisplayName("8문항: 축마다 두 답을 평균한다 — 맛이 A·B 로 갈리면 0 이고 0 은 −극(S)이다")
 	void submit_fullQuiz_averagesEachAxis() {
-		lockedEmptyProfile();
+		mergeAppliesQuizAxis(lockedEmptyProfile());
 		given(userTasteProfileRepository.save(any(UserTasteProfile.class))).willAnswer(call -> call.getArgument(0));
 		List<BbtiQuizAnswer> answers = List.of(
 			answer(QuizAxis.TASTE, QuizChoice.A), answer(QuizAxis.TASTE, QuizChoice.B),
@@ -118,6 +131,7 @@ class TasteQuizCommandServiceTest {
 		UserTasteProfile existing = UserTasteProfile.createEmpty(MEMBER_ID, LocalDateTime.of(2026, 9, 1, 4, 0));
 		int versionBefore = existing.getVersion();
 		given(userTasteProfileCommandService.lockOrCreate(eq(MEMBER_ID), any())).willReturn(existing);
+		mergeAppliesQuizAxis(existing);
 		given(userTasteProfileRepository.save(existing)).willReturn(existing);
 
 		tasteQuizCommandService.submit(MEMBER_ID, shortQuiz(QuizChoice.A, QuizChoice.A, QuizChoice.A, QuizChoice.A));
@@ -133,7 +147,7 @@ class TasteQuizCommandServiceTest {
 		UserTasteProfile profile = lockedEmptyProfile();
 		given(userTasteProfileRepository.save(profile)).willReturn(profile);
 		BigDecimal half = new BigDecimal("0.500");
-		given(userTasteProfileCommandService.mergeSignals(eq(profile), any(TasteAxis.class), any()))
+		given(userTasteProfileCommandService.mergeSignals(eq(profile), any(TasteAxis.class), any(), any()))
 			.willAnswer(call -> {
 				profile.recompute(TasteAxis.of(half, half, half.negate(), half), "PCRN", TasteTypeSource.SIGNAL,
 					Map.of(), null, null, 3, 0, LocalDateTime.of(2026, 9, 18, 21, 0));
@@ -149,20 +163,21 @@ class TasteQuizCommandServiceTest {
 	}
 
 	@Test
-	@DisplayName("저장된 응답에서 검사 축을 되살린다 — 8문항 저장분은 축별 평균")
-	void quizAxisFromStoredAnswers_rebuildsQuizAxis() {
-		TasteAxis axis = TasteQuizCommandService.quizAxisFromStoredAnswers(List.of(
-			Map.of("axis", "taste", "choice", "A"), Map.of("axis", "taste", "choice", "B"),
-			Map.of("axis", "texture", "choice", "B"), Map.of("axis", "filling", "choice", "A"),
-			Map.of("axis", "vibe", "choice", "B")));
+	@DisplayName("합산이 가게 프로필 데이터 문제로 실패해도 검사는 저장된다 — 검사 축·타입으로 응답, 다음 배치가 다시 합산")
+	void submit_mergeFails_fallsBackToQuizAxis() {
+		UserTasteProfile profile = lockedEmptyProfile();
+		given(userTasteProfileCommandService.mergeSignals(eq(profile), any(TasteAxis.class), any(), any()))
+			.willThrow(new IllegalStateException("store_profile.tags 가 JSON 객체가 아니다"));
+		given(userTasteProfileRepository.save(profile)).willReturn(profile);
 
-		assertThat(axis.getTaste()).isEqualByComparingTo("0.000");
-		assertThat(axis.getTexture()).isEqualByComparingTo("1.000");
-		assertThat(axis.getFilling()).isEqualByComparingTo("-1.000");
-		assertThat(axis.getVibe()).isEqualByComparingTo("1.000");
-		assertThatThrownBy(
-			() -> TasteQuizCommandService.quizAxisFromStoredAnswers(List.of(Map.of("axis", "taste", "choice", "A"))))
-			.isInstanceOf(PersonalizationException.class);
+		BbtiResultResponse result = tasteQuizCommandService.submit(MEMBER_ID,
+			shortQuiz(QuizChoice.B, QuizChoice.B, QuizChoice.B, QuizChoice.B));
+
+		assertThat(result.typeCode()).isEqualTo("PCLN");
+		assertThat(profile.getTypeSource()).isEqualTo(TasteTypeSource.QUIZ);
+		assertThat(profile.getQuizAnswers()).hasSize(4);
+		assertThat(profile.getVersion()).isEqualTo(2);
+		verify(userTasteProfileRepository).save(profile);
 	}
 
 	@Test

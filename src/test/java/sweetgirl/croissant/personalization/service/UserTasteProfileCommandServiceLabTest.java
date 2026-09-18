@@ -77,7 +77,8 @@ class UserTasteProfileCommandServiceLabTest {
 	void pickFixtures() {
 		memberId = jdbcTemplate.queryForObject("""
 				SELECT m.id FROM member m
-				WHERE NOT EXISTS (SELECT 1 FROM user_store_interaction i WHERE i.member_id = m.id)
+				WHERE m.deleted_at IS NULL
+					AND NOT EXISTS (SELECT 1 FROM user_store_interaction i WHERE i.member_id = m.id)
 					AND NOT EXISTS (SELECT 1 FROM user_taste_profile p WHERE p.member_id = m.id)
 					AND NOT EXISTS (SELECT 1 FROM course_store_visits v WHERE v.member_id = m.id)
 				ORDER BY m.id
@@ -143,6 +144,7 @@ class UserTasteProfileCommandServiceLabTest {
 		insertSignal(InteractionType.SAVE, stores.get(0), null, null, LocalDateTime.now().minusDays(1));
 		profileCommandService.recompute(memberId);
 		entityManager.flush();
+		entityManager.clear(); // 재하이드레이션된 엔티티(jsonb · NUMERIC · TEXT[])와 스냅샷을 비교해야 진짜 검증이다
 
 		TasteProfileRefreshOutcome second = profileCommandService.recompute(memberId);
 
@@ -163,7 +165,7 @@ class UserTasteProfileCommandServiceLabTest {
 		UserTasteProfile profile = reload();
 		assertThat(profile.hasTakenQuiz()).isTrue();
 		assertThat(profile.getTypeSource()).isEqualTo(TasteTypeSource.SIGNAL);
-		assertThat(profile.getVersion()).isEqualTo(3); // 빈 행 1 → 검사 2 → 합산 3
+		assertThat(profile.getVersion()).isEqualTo(2); // 빈 행 1 → 검사 + 합산 한 번 2
 		assertThat(response.typeCode()).isEqualTo(profile.getTypeCode());
 		BigDecimal storeTaste = storeAxisTaste(stores.get(0));
 		assertThat(profile.getAxis().getTaste()).isBetween(storeTaste.min(BigDecimal.ONE), BigDecimal.ONE);
@@ -188,6 +190,8 @@ class UserTasteProfileCommandServiceLabTest {
 		assertThat(profile.getTopKinds()).containsExactly((String)menu.get("kind"));
 		assertThat(profile.getBreadSignalCount()).isEqualTo(1);
 		assertThat(profile.getStrongStoreCount()).isEqualTo(1);
+		// TEXT[] 왕복 뒤에도 같아야 한다
+		assertThat(profileCommandService.recompute(memberId)).isEqualTo(TasteProfileRefreshOutcome.UNCHANGED);
 	}
 
 	@Test
@@ -196,7 +200,8 @@ class UserTasteProfileCommandServiceLabTest {
 		insertSignal(InteractionType.SAVE, stores.get(0), null, null, LocalDateTime.now().minusDays(1));
 		Long profiledOnly = jdbcTemplate.queryForObject("""
 				SELECT m.id FROM member m
-				WHERE m.id <> ? AND NOT EXISTS (SELECT 1 FROM user_taste_profile p WHERE p.member_id = m.id)
+				WHERE m.id <> ? AND m.deleted_at IS NULL
+					AND NOT EXISTS (SELECT 1 FROM user_taste_profile p WHERE p.member_id = m.id)
 				ORDER BY m.id
 				LIMIT 1
 				""", Long.class, memberId);
@@ -205,5 +210,20 @@ class UserTasteProfileCommandServiceLabTest {
 		List<Long> memberIds = signalRepository.findMemberIdsToRecompute(LocalDateTime.now().minusDays(365));
 
 		assertThat(memberIds).contains(memberId, profiledOnly);
+	}
+
+	@Test
+	@DisplayName("탈퇴한 회원은 신호가 있어도 재계산 대상이 아니다 — 프로필을 만들지 않는다")
+	void memberIdsToRecompute_excludesWithdrawnMembers() {
+		Long withdrawn = jdbcTemplate.queryForObject(
+			"SELECT id FROM member WHERE deleted_at IS NOT NULL ORDER BY id LIMIT 1", Long.class);
+		jdbcTemplate.update("""
+				INSERT INTO user_store_interaction (member_id, store_id, menu_id, type, context, converted, occurred_at)
+				VALUES (?, ?, NULL, 'SAVE', NULL, NULL, ?)
+				""", withdrawn, stores.get(0), LocalDateTime.now().minusDays(1));
+
+		List<Long> memberIds = signalRepository.findMemberIdsToRecompute(LocalDateTime.now().minusDays(365));
+
+		assertThat(memberIds).doesNotContain(withdrawn);
 	}
 }

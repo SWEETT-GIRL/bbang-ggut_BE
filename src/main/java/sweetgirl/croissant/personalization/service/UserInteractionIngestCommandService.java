@@ -33,7 +33,7 @@ public class UserInteractionIngestCommandService {
 	static final long INGEST_LOCK_KEY = 20260918_1L;
 	/** "어제"와 스케줄 cron 이 같은 시계를 쓴다 — JVM 기본 시간대에 기대지 않는다(PR #747 리뷰). */
 	public static final String ZONE = "Asia/Seoul";
-	private static final ZoneId ZONE_ID = ZoneId.of(ZONE);
+	public static final ZoneId ZONE_ID = ZoneId.of(ZONE);
 
 	private final UserInteractionIngestJdbcRepository ingestRepository;
 	private final PersonalizationProperties personalizationProperties;

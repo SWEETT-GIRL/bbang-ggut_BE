@@ -20,6 +20,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
+import sweetgirl.croissant.member.code.MemberErrorCode;
+import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.personalization.code.PersonalizationErrorCode;
 import sweetgirl.croissant.personalization.dto.response.InteractionIngestResult;
 import sweetgirl.croissant.personalization.dto.response.TasteProfileRefreshResult;
@@ -135,6 +137,17 @@ class AdminPersonalizationControllerTest {
 		mockMvc.perform(post("/admin/personalization/profiles/refresh"))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("PERSONALIZATION409_2"));
+	}
+
+	@Test
+	@DisplayName("없는 회원이면 404 MEMBER404")
+	void refreshProfile_unknownMember_notFound() throws Exception {
+		given(profileCommandService.recompute(404L))
+			.willThrow(new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
+
+		mockMvc.perform(post("/admin/personalization/profiles/refresh/404"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("MEMBER404"));
 	}
 
 	@Test

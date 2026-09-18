@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -29,7 +31,9 @@ public class UserTasteSignalJdbcRepository {
 
 	private static final ObjectMapper TAGS_MAPPER = new ObjectMapper();
 	private static final MapType TAGS_TYPE = TAGS_MAPPER.getTypeFactory().constructMapType(Map.class, String.class,
-		Double.class);
+		Object.class);
+
+	private static final List<String> KNOWN_TYPES = Arrays.stream(InteractionType.values()).map(Enum::name).toList();
 
 	private final NamedParameterJdbcTemplate jdbcTemplate;
 
@@ -40,19 +44,26 @@ public class UserTasteSignalJdbcRepository {
 	}
 
 	/**
-	 * 재계산 대상 = 창 안에 신호가 있는 회원 ∪ 프로필이 이미 있는 회원. 뒤쪽이 있어야 신호가 창 밖으로 빠진 회원의 축이 검사만으로
-	 * 되돌아간다.
+	 * 재계산 대상 = (창 안에 신호가 있는 회원 ∪ 프로필이 이미 있는 회원) 중 탈퇴하지 않은 회원. 뒤쪽이 있어야 신호가 창 밖으로 빠진
+	 * 회원의 축이 검사만으로 되돌아간다. 탈퇴·병합된 게스트의 신호 행은 남지만 프로필은 만들지 않는다(게스트 신호 이관은 #663 ④).
 	 */
 	public List<Long> findMemberIdsToRecompute(LocalDateTime since) {
 		return jdbcTemplate.queryForList("""
-				SELECT member_id FROM user_taste_profile
-				UNION
-				SELECT DISTINCT member_id FROM user_store_interaction WHERE occurred_at >= :since
-				ORDER BY member_id
+				SELECT t.member_id
+				FROM (
+					SELECT member_id FROM user_taste_profile
+					UNION
+					SELECT DISTINCT member_id FROM user_store_interaction WHERE occurred_at >= :since
+				) t
+					JOIN member m ON m.id = t.member_id AND m.deleted_at IS NULL
+				ORDER BY t.member_id
 				""", new MapSqlParameterSource("since", since), Long.class);
 	}
 
-	/** 한 회원의 [since, ∞) 신호를 시각 순으로. 가게 프로필·종류는 LEFT JOIN 이라 없으면 null. */
+	/**
+	 * 한 회원의 [since, ∞) 신호를 시각 순으로. 가게 프로필·종류는 LEFT JOIN 이라 없으면 null. 이 코드가 모르는 type(뒤 배포가 먼저
+	 * 적재한 새 종류)은 걸러 그 회원의 계산이 영구히 실패하지 않게 한다.
+	 */
 	public List<TasteSignal> findSignals(Long memberId, LocalDateTime since) {
 		return jdbcTemplate.query("""
 				SELECT i.type, i.store_id, i.menu_id, i.converted, i.occurred_at,
@@ -62,9 +73,10 @@ public class UserTasteSignalJdbcRepository {
 					LEFT JOIN store_profile p ON p.store_id = i.store_id
 					LEFT JOIN menu m ON m.id = i.menu_id
 					LEFT JOIN menu_category mc ON mc.id = m.menu_category_id
-				WHERE i.member_id = :memberId AND i.occurred_at >= :since
+				WHERE i.member_id = :memberId AND i.occurred_at >= :since AND i.type IN (:types)
 				ORDER BY i.occurred_at, i.id
-				""", new MapSqlParameterSource("memberId", memberId).addValue("since", since), this::toSignal);
+				""", new MapSqlParameterSource("memberId", memberId).addValue("since", since)
+			.addValue("types", KNOWN_TYPES), this::toSignal);
 	}
 
 	/** 사용자 유형 DOER 의 재료 — 방문 체크는 user_store_interaction 에 없어서 따로 센다. */
@@ -88,14 +100,26 @@ public class UserTasteSignalJdbcRepository {
 			rs.getString("kind"));
 	}
 
-	private Map<String, Double> parseTags(String json) {
+	/**
+	 * 관대하게 읽는다 — 숫자 값만 남기고 null · 문자열 · 중첩은 버린다. dataops 가 넣는 데이터 품질에 검사 제출(사용자 경로)이 묶이지
+	 * 않게 하려는 것이고, 12키 밖의 키는 계산기가 어차피 버린다. 아예 JSON 객체가 아니면 그 회원의 계산만 실패한다.
+	 */
+	static Map<String, Double> parseTags(String json) {
 		if (json == null || json.isBlank()) {
 			return Map.of();
 		}
+		Map<String, Object> raw;
 		try {
-			return TAGS_MAPPER.readValue(json, TAGS_TYPE);
+			raw = TAGS_MAPPER.readValue(json, TAGS_TYPE);
 		} catch (JsonProcessingException e) {
-			throw new IllegalStateException("store_profile.tags 가 {키: 숫자} 꼴이 아니다: " + json, e);
+			throw new IllegalStateException("store_profile.tags 가 JSON 객체가 아니다: " + json, e);
 		}
+		Map<String, Double> tags = new LinkedHashMap<>();
+		raw.forEach((key, value) -> {
+			if (value instanceof Number number) {
+				tags.put(key, number.doubleValue());
+			}
+		});
+		return tags;
 	}
 }

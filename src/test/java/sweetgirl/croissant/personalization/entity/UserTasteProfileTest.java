@@ -89,6 +89,20 @@ class UserTasteProfileTest {
 	}
 
 	@Test
+	@DisplayName("검사 응답만 남기면 축·타입·version 이 그대로다 — 합산이 뒤따라 값이 바뀔 때만 version 이 오른다")
+	void recordQuizAnswers_keepsAxisAndVersion() {
+		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, FIRST);
+
+		profile.recordQuizAnswers(List.of(Map.of("axis", "taste", "choice", "B")), QUIZ_AT);
+
+		assertThat(profile.getQuizAnswers()).hasSize(1);
+		assertThat(profile.getQuizAnsweredAt()).isEqualTo(QUIZ_AT);
+		assertThat(profile.hasTakenQuiz()).isTrue();
+		assertThat(profile.hasAxis()).isFalse();
+		assertThat(profile.getVersion()).isEqualTo(1);
+	}
+
+	@Test
 	@DisplayName("유형·카운트만 갱신하면 version 이 그대로다 — 추천이 읽는 값이 아니라 저장된 추천을 깨지 않는다")
 	void refreshStats_keepsVersion() {
 		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, FIRST);

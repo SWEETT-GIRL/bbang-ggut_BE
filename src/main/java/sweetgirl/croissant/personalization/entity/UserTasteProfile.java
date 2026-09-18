@@ -139,7 +139,13 @@ public class UserTasteProfile extends BaseTimeEntity {
 		this.computedAt = computedAt;
 	}
 
-	/** 검사 응답을 저장하고 축·타입을 검사 결과로 바꾼다. 검사 직후엔 검사가 타입을 결정한다. */
+	/** 검사 응답과 시각만 남긴다 — 축·타입·version 은 건드리지 않는다. 합산(recompute)이 뒤따르고, 값이 바뀌면 그때 version 이 오른다. */
+	public void recordQuizAnswers(List<Map<String, String>> quizAnswers, LocalDateTime answeredAt) {
+		this.quizAnswers = quizAnswers != null ? new ArrayList<>(quizAnswers) : null;
+		this.quizAnsweredAt = answeredAt;
+	}
+
+	/** 검사 응답을 저장하고 축·타입을 검사 결과로 바꾼다. 합산이 실패했을 때의 폴백 — 검사가 타입을 결정한다. */
 	public void applyQuiz(
 			List<Map<String, String>> quizAnswers,
 			TasteAxis axis,

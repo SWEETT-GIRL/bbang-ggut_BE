@@ -23,6 +23,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.PlatformTransactionManager;
 
+import sweetgirl.croissant.member.code.MemberErrorCode;
+import sweetgirl.croissant.member.exception.MemberException;
+import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.personalization.code.PersonalizationErrorCode;
 import sweetgirl.croissant.personalization.config.PersonalizationProperties;
 import sweetgirl.croissant.personalization.dto.response.TasteProfileRefreshResult;
@@ -53,6 +56,8 @@ class UserTasteProfileCommandServiceTest {
 	@Mock
 	private UserTasteProfileRepository profileRepository;
 	@Mock
+	private MemberRepository memberRepository;
+	@Mock
 	private PlatformTransactionManager transactionManager;
 
 	private UserTasteProfileCommandService profileCommandService;
@@ -74,7 +79,7 @@ class UserTasteProfileCommandServiceTest {
 	void setUp() {
 		PersonalizationProperties properties = new PersonalizationProperties();
 		profileCommandService = new UserTasteProfileCommandService(signalRepository, profileRepository,
-			new TasteProfileCalculator(properties), properties, transactionManager);
+			memberRepository, new TasteProfileCalculator(properties), properties, transactionManager);
 	}
 
 	@Test
@@ -120,6 +125,7 @@ class UserTasteProfileCommandServiceTest {
 	@DisplayName("한 회원 재계산: 빈 행을 만들고(있으면 무시) 잠근 뒤 신호로 채운다")
 	void recompute_singleMember_createsRowAndFills() {
 		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, YESTERDAY);
+		given(memberRepository.existsById(7L)).willReturn(true);
 		given(profileRepository.findByIdForUpdate(7L)).willReturn(Optional.of(profile));
 		given(signalRepository.findSignals(eq(7L), any())).willReturn(List.of(saved(10L, ALL_MINUS)));
 
@@ -130,6 +136,17 @@ class UserTasteProfileCommandServiceTest {
 		assertThat(profile.getTypeCode()).isEqualTo("SFRO");
 		assertThat(profile.getStrongStoreCount()).isEqualTo(1);
 		then(profileRepository).should().insertEmptyIfAbsent(eq(7L), any());
+	}
+
+	@Test
+	@DisplayName("없는 회원을 재계산하면 404 — FK 위반 500 이 아니라")
+	void recompute_unknownMember_throwsNotFound() {
+		given(memberRepository.existsById(404L)).willReturn(false);
+
+		assertThatThrownBy(() -> profileCommandService.recompute(404L))
+			.isInstanceOfSatisfying(MemberException.class, e -> assertThat(e.getErrorCode())
+				.isEqualTo(MemberErrorCode.MEMBER_NOT_FOUND));
+		then(profileRepository).should(never()).insertEmptyIfAbsent(anyLong(), any());
 	}
 
 	@Test
@@ -149,7 +166,8 @@ class UserTasteProfileCommandServiceTest {
 		profile.applyQuiz(ALL_B, ALL_PLUS, "PCLN", YESTERDAY);
 		given(signalRepository.findSignals(eq(7L), any())).willReturn(List.of());
 
-		TasteProfileRefreshOutcome outcome = profileCommandService.mergeSignals(profile, ALL_PLUS, YESTERDAY);
+		TasteProfileRefreshOutcome outcome = profileCommandService.mergeSignals(profile, ALL_PLUS, YESTERDAY,
+			YESTERDAY);
 
 		assertThat(outcome).isEqualTo(TasteProfileRefreshOutcome.UNCHANGED);
 		assertThat(profile.getVersion()).isEqualTo(2);
@@ -163,7 +181,8 @@ class UserTasteProfileCommandServiceTest {
 		profile.applyQuiz(ALL_B, ALL_PLUS, "PCLN", YESTERDAY);
 		given(signalRepository.findSignals(eq(7L), any())).willReturn(List.of(saved(10L, ALL_MINUS)));
 
-		TasteProfileRefreshOutcome outcome = profileCommandService.mergeSignals(profile, ALL_PLUS, YESTERDAY);
+		TasteProfileRefreshOutcome outcome = profileCommandService.mergeSignals(profile, ALL_PLUS, YESTERDAY,
+			YESTERDAY);
 
 		assertThat(outcome).isEqualTo(TasteProfileRefreshOutcome.RECOMPUTED);
 		assertThat(profile.getVersion()).isEqualTo(3);
@@ -173,18 +192,19 @@ class UserTasteProfileCommandServiceTest {
 	}
 
 	@Test
-	@DisplayName("배치는 저장된 검사 응답에서 검사 축을 되살려 합산한다 — 응답이 전부 B 면 검사 축 +1 로 (3 − 1) ÷ 4")
+	@DisplayName("배치는 저장된 검사 응답에서 검사 축을 되살려 합산한다 — 검사와 신호가 같은 날이면 같은 감쇠라 정확히 (3 − 1) ÷ 4")
 	void recompute_usesStoredQuizAnswers() {
 		UserTasteProfile quizOnly = UserTasteProfile.createEmpty(7L, YESTERDAY);
 		quizOnly.applyQuiz(ALL_B, ALL_PLUS, "PCLN", YESTERDAY);
+		given(memberRepository.existsById(7L)).willReturn(true);
 		given(profileRepository.findByIdForUpdate(7L)).willReturn(Optional.of(quizOnly));
 		given(signalRepository.findSignals(eq(7L), any())).willReturn(List.of());
 		assertThat(profileCommandService.recompute(7L)).isEqualTo(TasteProfileRefreshOutcome.UNCHANGED);
 
 		given(signalRepository.findSignals(eq(7L), any())).willReturn(List.of(saved(10L, ALL_MINUS)));
 		assertThat(profileCommandService.recompute(7L)).isEqualTo(TasteProfileRefreshOutcome.RECOMPUTED);
-		// 서비스의 시계는 지금이라 어제 신호는 0.5^(1/90) = 0.9923 배: (3 − 0.9923) ÷ 3.9923 = 0.503
-		assertThat(quizOnly.getAxis().getTaste()).isEqualByComparingTo("0.503");
+		// 검사(어제)와 신호(어제)가 같은 감쇠를 타므로 (3d − d) ÷ (3d + d) = 0.5 — 날이 지나도 같은 값
+		assertThat(quizOnly.getAxis()).isEqualTo(axis(0.5));
 		assertThat(quizOnly.getTypeSource()).isEqualTo(TasteTypeSource.SIGNAL);
 	}
 }
