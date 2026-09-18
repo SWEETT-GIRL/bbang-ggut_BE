@@ -6,8 +6,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -24,6 +26,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.breadlog.code.BreadLogErrorCode;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordResponse;
+import sweetgirl.croissant.breadlog.dto.response.StoreBreadRecordResponse;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.entity.BreadRecordPhoto;
 import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
@@ -111,6 +114,47 @@ class BreadRecordQueryServiceTest {
 		assertThatThrownBy(() -> queryService.getRecords(7L, null, null, null, 0, 101))
 			.isInstanceOf(BreadLogException.class)
 			.hasMessageContaining(BreadLogErrorCode.INVALID_PAGE_REQUEST.getMessage());
+	}
+
+	@Test
+	@DisplayName("getStorePublicRecords: 작성자와 먹은 날짜(시각 없이)를 담고, 하나 더 읽어 다음 페이지를 판단한다")
+	void getStorePublicRecords_mapsAuthorAndDateOnly_andDetectsNextPage() {
+		BreadRecord first = record(11L);
+		BreadRecord second = record(12L);
+		ReflectionTestUtils.setField(first.getMember(), "id", 7L);
+		given(breadRecordRepository.findPublicByStoreId(10L, 3L, PageRequest.of(0, 2)))
+			.willReturn(List.of(first, second));
+
+		SliceResponse<StoreBreadRecordResponse> result = queryService.getStorePublicRecords(10L, 3L, 0, 1);
+
+		assertThat(result.hasNext()).isTrue();
+		assertThat(result.content()).hasSize(1);
+		StoreBreadRecordResponse response = result.content().get(0);
+		assertThat(response.id()).isEqualTo(11L);
+		assertThat(response.authorId()).isEqualTo(7L);
+		assertThat(response.authorNickname()).isEqualTo("테스터");
+		assertThat(response.eatenOn()).isEqualTo(LocalDate.of(2026, 8, 2));
+		verify(photoRepository).findByRecordIdInOrderByRecordIdAscSortOrderAscIdAsc(List.of(11L));
+	}
+
+	@Test
+	@DisplayName("getStorePublicRecords: 공개 기록이 없으면 사진·태그를 조회하지 않고 빈 목록")
+	void getStorePublicRecords_empty() {
+		given(breadRecordRepository.findPublicByStoreId(10L, null, PageRequest.of(0, 21))).willReturn(List.of());
+
+		SliceResponse<StoreBreadRecordResponse> result = queryService.getStorePublicRecords(10L, null, 0, 20);
+
+		assertThat(result.content()).isEmpty();
+		assertThat(result.hasNext()).isFalse();
+		verify(photoRepository, never()).findByRecordIdInOrderByRecordIdAscSortOrderAscIdAsc(any());
+	}
+
+	@Test
+	@DisplayName("getStorePublicRecords: 페이지 크기가 범위를 벗어나면 예외")
+	void getStorePublicRecords_invalidPage_throwsException() {
+		assertThatThrownBy(() -> queryService.getStorePublicRecords(10L, null, 0, 101))
+			.isInstanceOf(BreadLogException.class)
+			.hasFieldOrPropertyWithValue("errorCode", BreadLogErrorCode.INVALID_PAGE_REQUEST);
 	}
 
 	private BreadRecord record(Long id) {

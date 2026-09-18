@@ -90,6 +90,7 @@ public class BreadRecordCommandService {
 			.memo(normalizeNullable(request.memo()))
 			.lovedBreads(data.lovedBreads())
 			.eatenAt(request.eatenAt())
+			.isPublic(Boolean.TRUE.equals(request.isPublic()))
 			.build());
 		savePhotosAndTags(record, request, data.photoBySortOrder(), Map.of());
 		// 찜은 사용자가 직접 풀 때까지 남긴다 — 기록이 생겨도 "또 가고 싶은 가게"일 수 있다.
@@ -114,12 +115,24 @@ public class BreadRecordCommandService {
 			normalizeNullable(request.memo()),
 			data.lovedBreads(),
 			request.eatenAt());
+		if (request.isPublic() != null) {
+			record.changeVisibility(request.isPublic());
+		}
 		tagRepository.deleteAllByRecordId(recordId);
 		photoRepository.deleteAllIncludingPendingByRecordId(recordId);
 		photoRepository.flush();
 		savePhotosAndTags(record, request, data.photoBySortOrder(), oldPhotoByKey);
 		deleteRemovedImages(oldPhotos, request.photos());
 		courseProgressService.refreshForMember(memberId);
+	}
+
+	public void changeVisibility(Long recordId, Long memberId, boolean isPublic) {
+		Member member = memberReader.getMember(memberId);
+		// 공개는 남에게 보이는 글을 올리는 것과 같다 — 작성 제한 중엔 공개로 못 돌린다. 비공개로 내리는 건 막지 않는다.
+		if (isPublic) {
+			memberRestrictionReader.validateCanWrite(memberId);
+		}
+		getOwnedRecord(recordId, member.getId()).changeVisibility(isPublic);
 	}
 
 	public void delete(Long recordId, Long memberId) {

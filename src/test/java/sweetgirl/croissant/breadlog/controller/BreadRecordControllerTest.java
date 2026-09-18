@@ -1,10 +1,13 @@
 package sweetgirl.croissant.breadlog.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willDoNothing;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -95,7 +98,7 @@ class BreadRecordControllerTest {
 	void getRecords_returns200() throws Exception {
 		BreadRecordResponse response = new BreadRecordResponse(
 			11L, 10L, "밀도 성수", "서울_성동구_성수동", null, null, List.of(),
-			LocalDateTime.of(2026, 8, 2, 14, 21), LocalDateTime.of(2026, 8, 4, 12, 0), null,
+			LocalDateTime.of(2026, 8, 2, 14, 21), false, LocalDateTime.of(2026, 8, 4, 12, 0), null,
 			List.of(), List.of());
 		given(queryService.getRecords(isNull(), any(), any(), eq(10L), eq(0), eq(30)))
 			.willReturn(new SliceResponse<>(List.of(response), false));
@@ -107,7 +110,28 @@ class BreadRecordControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.content[0].id").value(11))
 			.andExpect(jsonPath("$.data.content[0].storeName").value("밀도 성수"))
+			.andExpect(jsonPath("$.data.content[0].isPublic").value(false))
 			.andExpect(jsonPath("$.data.hasNext").value(false));
+	}
+
+	@Test
+	void changeVisibility_returns200() throws Exception {
+		mockMvc.perform(patch("/bread-records/11/visibility")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"isPublic\": true}"))
+			.andExpect(status().isOk());
+
+		verify(commandService).changeVisibility(eq(11L), isNull(), eq(true));
+	}
+
+	@Test
+	void changeVisibility_missingIsPublic_returns400() throws Exception {
+		mockMvc.perform(patch("/bread-records/11/visibility")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isBadRequest());
+
+		verify(commandService, never()).changeVisibility(any(), any(), anyBoolean());
 	}
 
 	@Test

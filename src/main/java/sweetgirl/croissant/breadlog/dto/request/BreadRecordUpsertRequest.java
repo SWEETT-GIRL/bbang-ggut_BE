@@ -19,5 +19,7 @@ public record BreadRecordUpsertRequest(
 		@Size(max = 10) List<@Size(max = 100) String> lovedBreads,
 		@NotNull LocalDateTime eatenAt,
 		@NotNull @Size(min = 1, max = 30) List<@Valid BreadRecordPhotoRequest> photos,
-		@NotNull List<@Valid BreadRecordTagRequest> tags) {
+		@NotNull List<@Valid BreadRecordTagRequest> tags,
+		/** 공개 여부. 생성 때 없으면 비공개, 수정 때 없으면(구버전 앱) 지금 값을 그대로 둔다 */
+		Boolean isPublic) {
 }

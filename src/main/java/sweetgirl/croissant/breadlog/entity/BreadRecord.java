@@ -70,6 +70,10 @@ public class BreadRecord extends BaseTimeEntity {
 
 	private LocalDateTime deletedAt;
 
+	/** 공개하면 가게 상세에 쌓인다. 나만 본다고 생각하고 쓴 옛 기록이 있어 기본은 비공개다. */
+	@Column(nullable = false)
+	private boolean isPublic;
+
 	@Builder
 	public BreadRecord(
 			Member member,
@@ -78,13 +82,15 @@ public class BreadRecord extends BaseTimeEntity {
 			String regionKey,
 			String memo,
 			List<String> lovedBreads,
-			LocalDateTime eatenAt) {
+			LocalDateTime eatenAt,
+			boolean isPublic) {
 		this.member = member;
 		this.store = store;
 		this.storeName = storeName;
 		this.regionKey = regionKey;
 		this.memo = memo;
 		this.eatenAt = eatenAt;
+		this.isPublic = isPublic;
 		replaceLovedBreads(lovedBreads);
 	}
 
@@ -109,6 +115,10 @@ public class BreadRecord extends BaseTimeEntity {
 			this.lovedBreads.addAll(names);
 		}
 		this.lovedBread = this.lovedBreads.isEmpty() ? null : this.lovedBreads.get(0);
+	}
+
+	public void changeVisibility(boolean isPublic) {
+		this.isPublic = isPublic;
 	}
 
 	public void softDelete() {
