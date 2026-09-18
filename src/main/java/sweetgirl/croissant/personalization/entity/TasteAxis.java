@@ -35,6 +35,10 @@ public class TasteAxis {
 	/** 컬럼 NUMERIC(4,3) 의 소수 자릿수. 축 값을 계산해 넣는 쪽이 이 자리로 반올림한다. */
 	public static final int SCALE = 3;
 
+	/** 축 값의 범위 — DB 의 ck_*_axis_range 와 같다. 계산 결과는 이 안으로 자른다 */
+	public static final double MIN_VALUE = -1d;
+	public static final double MAX_VALUE = 1d;
+
 	@Column(name = "axis_taste", precision = 4, scale = 3)
 	private BigDecimal taste;
 

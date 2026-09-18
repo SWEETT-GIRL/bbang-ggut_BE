@@ -27,11 +27,15 @@ public enum PersonalizationErrorCode implements BaseErrorCode {
 			"담기 백필은 담기 이벤트 배포일 이전 범위만 허용합니다."),
 	INTERACTION_INGEST_ALREADY_RUNNING(HttpStatus.CONFLICT, "PERSONALIZATION409_1",
 			"신호 적재가 이미 실행 중입니다."),
+	TASTE_PROFILE_REFRESH_ALREADY_RUNNING(HttpStatus.CONFLICT, "PERSONALIZATION409_2",
+			"취향 프로필 재계산이 이미 실행 중입니다."),
 
 	INTERACTION_TARGET_REQUIRED(HttpStatus.INTERNAL_SERVER_ERROR, "PERSONALIZATION500_1",
 			"가게나 메뉴 중 하나는 있어야 하는 신호입니다."),
 	TASTE_AXIS_INCOMPLETE(HttpStatus.INTERNAL_SERVER_ERROR, "PERSONALIZATION500_2",
-			"네 축이 모두 있어야 타입을 정할 수 있습니다.");
+			"네 축이 모두 있어야 타입을 정할 수 있습니다."),
+	TASTE_PROFILE_ROW_MISSING(HttpStatus.INTERNAL_SERVER_ERROR, "PERSONALIZATION500_3",
+			"프로필 행을 만든 직후 잠그지 못했습니다.");
 
 	private final HttpStatus httpStatus;
 	private final String code;

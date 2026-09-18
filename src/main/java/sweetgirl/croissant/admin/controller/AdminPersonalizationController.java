@@ -3,6 +3,7 @@ package sweetgirl.croissant.admin.controller;
 import java.time.LocalDate;
 
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -12,13 +13,16 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.admin.dto.response.AdminInteractionIngestResponse;
+import sweetgirl.croissant.admin.dto.response.AdminTasteProfileRefreshResponse;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.personalization.code.PersonalizationErrorCode;
 import sweetgirl.croissant.personalization.dto.response.InteractionIngestResult;
+import sweetgirl.croissant.personalization.dto.response.TasteProfileRefreshResult;
 import sweetgirl.croissant.personalization.exception.PersonalizationException;
 import sweetgirl.croissant.personalization.service.UserInteractionIngestCommandService;
+import sweetgirl.croissant.personalization.service.UserTasteProfileCommandService;
 
-/** 개인화 배치 수동 실행 — 매일 04:00 배치를 기다리지 않거나, 과거 범위를 백필할 때. */
+/** 개인화 배치 수동 실행 — 매일 04:00 배치(적재 → 프로필 재계산)를 기다리지 않거나, 과거 범위를 백필할 때. */
 @RestController
 @RequestMapping("/admin/personalization")
 @RequiredArgsConstructor
@@ -26,6 +30,7 @@ import sweetgirl.croissant.personalization.service.UserInteractionIngestCommandS
 public class AdminPersonalizationController {
 
 	private final UserInteractionIngestCommandService ingestCommandService;
+	private final UserTasteProfileCommandService profileCommandService;
 
 	@PostMapping("/interactions/ingest")
 	@Operation(summary = "신호 적재 실행", description = "from(포함)~to(제외) 날짜의 저장·계획·기록·조회·코스 제거·추천 반응을 "
@@ -53,5 +58,19 @@ public class AdminPersonalizationController {
 	public ApiResponse<Integer> backfillCourseAdds(
 			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate until) {
 		return ApiResponse.ok(ingestCommandService.backfillCourseAddsByOwner(until));
+	}
+
+	@PostMapping("/profiles/refresh")
+	@Operation(summary = "취향 프로필 전체 재계산", description = "창 안 신호가 있는 회원과 프로필이 있는 회원 전부를 다시 계산한다. "
+		+ "추천이 읽는 값(축·타입·태그·종류)이 바뀐 회원만 version 이 오른다(recomputed). 다른 재계산이 도는 중이면 409.")
+	public ApiResponse<AdminTasteProfileRefreshResponse> refreshProfiles() {
+		return ApiResponse.ok(AdminTasteProfileRefreshResponse.of(profileCommandService.recomputeAll()));
+	}
+
+	@PostMapping("/profiles/refresh/{memberId}")
+	@Operation(summary = "취향 프로필 한 회원 재계산", description = "그 회원만 다시 계산한다. 행 잠금으로 배치·검사 제출과 줄을 선다.")
+	public ApiResponse<AdminTasteProfileRefreshResponse> refreshProfile(@PathVariable Long memberId) {
+		return ApiResponse.ok(AdminTasteProfileRefreshResponse.of(
+			TasteProfileRefreshResult.single(profileCommandService.recompute(memberId))));
 	}
 }

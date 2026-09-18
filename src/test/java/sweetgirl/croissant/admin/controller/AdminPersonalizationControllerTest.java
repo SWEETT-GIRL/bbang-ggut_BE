@@ -20,11 +20,16 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
+import sweetgirl.croissant.member.code.MemberErrorCode;
+import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.personalization.code.PersonalizationErrorCode;
 import sweetgirl.croissant.personalization.dto.response.InteractionIngestResult;
+import sweetgirl.croissant.personalization.dto.response.TasteProfileRefreshResult;
 import sweetgirl.croissant.personalization.enums.InteractionType;
+import sweetgirl.croissant.personalization.enums.TasteProfileRefreshOutcome;
 import sweetgirl.croissant.personalization.exception.PersonalizationException;
 import sweetgirl.croissant.personalization.service.UserInteractionIngestCommandService;
+import sweetgirl.croissant.personalization.service.UserTasteProfileCommandService;
 
 @ExtendWith(MockitoExtension.class)
 class AdminPersonalizationControllerTest {
@@ -32,6 +37,8 @@ class AdminPersonalizationControllerTest {
 	MockMvc mockMvc;
 	@Mock
 	UserInteractionIngestCommandService ingestCommandService;
+	@Mock
+	UserTasteProfileCommandService profileCommandService;
 	@InjectMocks
 	AdminPersonalizationController controller;
 
@@ -106,5 +113,53 @@ class AdminPersonalizationControllerTest {
 			.andExpect(jsonPath("$.data").value(1_910));
 		mockMvc.perform(post("/admin/personalization/interactions/backfill-course-adds"))
 			.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	@DisplayName("프로필 전체 재계산 — version 이 오른 회원 수(recomputed)와 유형만 바뀐 수를 따로 돌려준다")
+	void refreshProfiles_returnsCounts() throws Exception {
+		given(profileCommandService.recomputeAll()).willReturn(new TasteProfileRefreshResult(720, 31, 12, 676, 1));
+
+		mockMvc.perform(post("/admin/personalization/profiles/refresh"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.members").value(720))
+			.andExpect(jsonPath("$.data.recomputed").value(31))
+			.andExpect(jsonPath("$.data.statsOnly").value(12))
+			.andExpect(jsonPath("$.data.failed").value(1));
+	}
+
+	@Test
+	@DisplayName("다른 재계산이 도는 중이면 409 PERSONALIZATION409_2")
+	void refreshProfiles_whenRunning_conflict() throws Exception {
+		given(profileCommandService.recomputeAll())
+			.willThrow(new PersonalizationException(PersonalizationErrorCode.TASTE_PROFILE_REFRESH_ALREADY_RUNNING));
+
+		mockMvc.perform(post("/admin/personalization/profiles/refresh"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("PERSONALIZATION409_2"));
+	}
+
+	@Test
+	@DisplayName("없는 회원이면 404 MEMBER404")
+	void refreshProfile_unknownMember_notFound() throws Exception {
+		given(profileCommandService.recompute(404L))
+			.willThrow(new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
+
+		mockMvc.perform(post("/admin/personalization/profiles/refresh/404"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("MEMBER404"));
+	}
+
+	@Test
+	@DisplayName("한 회원 재계산 — 결과를 한 명짜리 집계로")
+	void refreshProfile_singleMember() throws Exception {
+		given(profileCommandService.recompute(42L)).willReturn(TasteProfileRefreshOutcome.STATS_ONLY);
+
+		mockMvc.perform(post("/admin/personalization/profiles/refresh/42"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.members").value(1))
+			.andExpect(jsonPath("$.data.recomputed").value(0))
+			.andExpect(jsonPath("$.data.statsOnly").value(1));
+		then(profileCommandService).should().recompute(42L);
 	}
 }
