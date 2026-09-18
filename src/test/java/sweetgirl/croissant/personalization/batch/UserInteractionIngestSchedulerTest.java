@@ -28,7 +28,7 @@ class UserInteractionIngestSchedulerTest {
 	@Test
 	@DisplayName("04:00 — 적재 뒤 프로필 재계산 순서")
 	void dailyIngest_ingestsThenRecomputes() {
-		scheduler.dailyIngest();
+		scheduler.dailyIngestAndRecompute();
 
 		InOrder inOrder = Mockito.inOrder(ingestCommandService, profileCommandService);
 		inOrder.verify(ingestCommandService).ingestYesterday();
@@ -40,7 +40,7 @@ class UserInteractionIngestSchedulerTest {
 	void dailyIngest_recomputesEvenIfIngestFails() {
 		given(ingestCommandService.ingestYesterday()).willThrow(new IllegalStateException("적재 실패"));
 
-		scheduler.dailyIngest();
+		scheduler.dailyIngestAndRecompute();
 
 		then(profileCommandService).should().recomputeAll();
 	}

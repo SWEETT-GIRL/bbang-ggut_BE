@@ -75,7 +75,7 @@ public class UserTasteProfileCommandService {
 		for (Long memberId : memberIds) {
 			try {
 				TasteProfileRefreshOutcome outcome = perMemberTransaction.execute(
-					status -> recomputeLocked(memberId, now));
+					status -> recomputeUnderRowLock(memberId, now));
 				switch (outcome) {
 					case RECOMPUTED -> recomputed++;
 					case STATS_ONLY -> statsOnly++;
@@ -94,7 +94,7 @@ public class UserTasteProfileCommandService {
 	/** 한 회원만 — 관리자 수동 실행. 행 잠금만으로 배치와 줄을 선다. */
 	@Transactional
 	public TasteProfileRefreshOutcome recompute(Long memberId) {
-		return recomputeLocked(memberId, LocalDateTime.now());
+		return recomputeUnderRowLock(memberId, LocalDateTime.now());
 	}
 
 	/** 행이 없으면 만들고 FOR UPDATE 로 잠가 돌려준다. 호출자의 트랜잭션 안에서 쓴다(검사 제출). */
@@ -109,30 +109,32 @@ public class UserTasteProfileCommandService {
 	 * 바뀐 게 없고, version 도 다시 오르지 않는다.
 	 */
 	public TasteProfileRefreshOutcome mergeSignals(UserTasteProfile profile, TasteAxis quizAxis, LocalDateTime now) {
-		return apply(profile, snapshotOf(profile.getMemberId(), quizAxis, now), now);
+		return writeIfChanged(profile, calculateSnapshot(profile.getMemberId(), quizAxis, now), now);
 	}
 
-	private TasteProfileRefreshOutcome recomputeLocked(Long memberId, LocalDateTime now) {
+	private TasteProfileRefreshOutcome recomputeUnderRowLock(Long memberId, LocalDateTime now) {
 		UserTasteProfile profile = lockOrCreate(memberId, now);
-		return apply(profile, snapshotOf(memberId, quizAxisOf(profile), now), now);
+		return writeIfChanged(profile, calculateSnapshot(memberId, storedQuizAxisOf(profile), now), now);
 	}
 
 	/**
 	 * 검사 축은 따로 저장되지 않는다(프로필 축은 합산 결과). 검사 응답에서 다시 만든다 — TasteQuizCommandService 와 같은 규칙(A −1 ·
 	 * B +1 의 축별 평균). 검사를 안 했으면 null.
 	 */
-	private static TasteAxis quizAxisOf(UserTasteProfile profile) {
-		return profile.getQuizAnswers() == null ? null : TasteQuizCommandService.axisOfStored(profile.getQuizAnswers());
+	private static TasteAxis storedQuizAxisOf(UserTasteProfile profile) {
+		return profile.getQuizAnswers() == null ? null
+			: TasteQuizCommandService.quizAxisFromStoredAnswers(profile.getQuizAnswers());
 	}
 
-	private TasteProfileSnapshot snapshotOf(Long memberId, TasteAxis quizAxis, LocalDateTime now) {
+	private TasteProfileSnapshot calculateSnapshot(Long memberId, TasteAxis quizAxis, LocalDateTime now) {
 		List<TasteSignal> signals = signalRepository.findSignals(memberId, signalWindowStart(now));
 		int visits = signalRepository.countVisits(memberId,
 			now.minusDays(personalizationProperties.getProfile().getUserTypeWindowDays()));
 		return calculator.calculate(signals, quizAxis, visits, now);
 	}
 
-	private TasteProfileRefreshOutcome apply(UserTasteProfile profile, TasteProfileSnapshot snapshot,
+	/** 추천이 읽는 값이 바뀌면 recompute(version+1), 유형·카운트만이면 refreshStats(version 유지), 같으면 쓰지 않는다 */
+	private TasteProfileRefreshOutcome writeIfChanged(UserTasteProfile profile, TasteProfileSnapshot snapshot,
 			LocalDateTime now) {
 		if (!snapshot.sameTasteAs(profile)) {
 			profile.recompute(snapshot.axis(), snapshot.typeCode(), snapshot.typeSource(), snapshot.tags(),

@@ -49,6 +49,11 @@ import sweetgirl.croissant.personalization.repository.UserTasteSignalJdbcReposit
 })
 class UserTasteProfileBatchLabMeasurementTest {
 
+	/** 강한 신호 회원 중 축을 얻어야 하는 최소 비율 — 신호 가게의 축 보유율(77~90%)보다 높아야 상속이 제대로 도는 것 */
+	private static final double MIN_AXIS_COVERAGE = 0.9;
+	/** 영속성 컨텍스트가 커지지 않게 이만큼마다 flush · clear */
+	private static final int FLUSH_EVERY = 100;
+
 	@Autowired
 	private UserTasteProfileCommandService profileCommandService;
 	@Autowired
@@ -84,7 +89,7 @@ class UserTasteProfileBatchLabMeasurementTest {
 				failed++;
 				log.warn("[계측] 재계산 실패 memberId={}", memberId, e);
 			}
-			if (++processed % 100 == 0) {
+			if (++processed % FLUSH_EVERY == 0) {
 				entityManager.flush();
 				entityManager.clear();
 			}
@@ -132,6 +137,6 @@ class UserTasteProfileBatchLabMeasurementTest {
 		assertThat(failed).isZero();
 		long strongMembers = ((Number)stats.get("strong_members")).longValue();
 		long strongWithAxis = ((Number)stats.get("strong_with_axis")).longValue();
-		assertThat(strongWithAxis).isGreaterThanOrEqualTo(Math.round(strongMembers * 0.9));
+		assertThat(strongWithAxis).isGreaterThanOrEqualTo(Math.round(strongMembers * MIN_AXIS_COVERAGE));
 	}
 }

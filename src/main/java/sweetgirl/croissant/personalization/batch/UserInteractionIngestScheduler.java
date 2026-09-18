@@ -21,7 +21,7 @@ public class UserInteractionIngestScheduler {
 	private final UserTasteProfileCommandService profileCommandService;
 
 	@Scheduled(cron = "0 0 4 * * *", zone = UserInteractionIngestCommandService.ZONE)
-	public void dailyIngest() {
+	public void dailyIngestAndRecompute() {
 		log.info("[개인화] 전날 신호 적재 시작");
 		try {
 			ingestCommandService.ingestYesterday();

@@ -20,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.personalization.config.PersonalizationProperties;
 import sweetgirl.croissant.personalization.entity.TasteAxis;
 import sweetgirl.croissant.personalization.enums.InteractionType;
+import sweetgirl.croissant.personalization.enums.QuizAxis;
 import sweetgirl.croissant.personalization.enums.TasteTag;
 import sweetgirl.croissant.personalization.enums.TasteTypeSource;
 import sweetgirl.croissant.personalization.enums.TasteUserType;
@@ -47,8 +48,12 @@ public class TasteProfileCalculator {
 	/** 가게를 "좋아한다"고 읽는 강한 신호 — strong_store_count 의 재료이자 조회 페널티를 지우는 근거 */
 	static final Set<InteractionType> STRONG_POSITIVE = EnumSet.of(InteractionType.SAVE, InteractionType.PLAN,
 		InteractionType.COURSE_ADD, InteractionType.RECORD_STORE, InteractionType.RECORD_BREAD);
-	private static final double MILLIS_PER_DAY = 24 * 60 * 60 * 1000d;
-	private static final int AXIS_COUNT = 4;
+	/** 반감기 감쇠의 밑 — 반감기마다 절반 */
+	private static final double HALF_LIFE_BASE = 0.5;
+	/** 이만큼의 날에 걸쳐 보고도 안 담으면 "끝내 안 담음"(−0.5)으로 본다 */
+	private static final int REPEATED_VIEW_DAYS = 2;
+	private static final double MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
+	private static final int AXIS_COUNT = QuizAxis.values().length;
 
 	private final PersonalizationProperties personalizationProperties;
 
@@ -60,43 +65,44 @@ public class TasteProfileCalculator {
 	public TasteProfileSnapshot calculate(List<TasteSignal> signals, TasteAxis quizAxis, int visitCount,
 			LocalDateTime now) {
 		PersonalizationProperties.Profile profile = personalizationProperties.getProfile();
-		List<Weighted> weighted = weigh(signals, now, profile);
+		List<Weighted> weighted = effectiveWeights(signals, now, profile);
 		TasteAxis axis = null;
 		TasteTypeSource typeSource = null;
 		double[] axisSum = new double[AXIS_COUNT];
 		double signalDenominator = 0;
 		boolean hasPositiveAxisSignal = weighted.stream()
-			.anyMatch(item -> item.signal().hasStoreAxis() && item.mass() > 0);
+			.anyMatch(item -> item.signal().hasStoreAxis() && item.effectiveWeight() > 0);
 		for (Weighted item : weighted) {
 			if (!hasPositiveAxisSignal || !item.signal().hasStoreAxis()) {
 				continue;
 			}
-			double mass = item.mass();
-			double[] storeAxis = toArray(item.signal().storeAxis());
+			double effectiveWeight = item.effectiveWeight();
+			double[] storeAxis = axisValues(item.signal().storeAxis());
 			for (int i = 0; i < AXIS_COUNT; i++) {
-				axisSum[i] += mass * storeAxis[i];
+				axisSum[i] += effectiveWeight * storeAxis[i];
 			}
-			signalDenominator += Math.abs(mass);
+			signalDenominator += Math.abs(effectiveWeight);
 		}
 		double denominator = signalDenominator;
 		if (quizAxis != null && quizAxis.isComplete()) {
-			double[] quiz = toArray(quizAxis);
+			double[] quiz = axisValues(quizAxis);
 			for (int i = 0; i < AXIS_COUNT; i++) {
 				axisSum[i] += profile.getQuizWeight() * quiz[i];
 			}
 			denominator += profile.getQuizWeight();
 		}
 		if (denominator > 0) {
-			axis = TasteAxis.of(scaled(axisSum[0] / denominator), scaled(axisSum[1] / denominator),
-				scaled(axisSum[2] / denominator), scaled(axisSum[3] / denominator));
+			axis = TasteAxis.of(clampToAxisScale(axisSum[0] / denominator), clampToAxisScale(axisSum[1] / denominator),
+				clampToAxisScale(axisSum[2] / denominator), clampToAxisScale(axisSum[3] / denominator));
 			typeSource = signalDenominator > 0 ? TasteTypeSource.SIGNAL : TasteTypeSource.QUIZ;
 		}
 		String typeCode = axis != null ? axis.typeCode() : null;
-		return new TasteProfileSnapshot(axis, typeCode, typeSource, tagsOf(weighted), topKindsOf(signals, now, profile),
-			userTypeOf(signals, visitCount, now, profile), strongStoreCount(signals), breadSignalCount(signals));
+		return new TasteProfileSnapshot(axis, typeCode, typeSource, weightedTags(weighted),
+			topKinds(signals, now, profile),
+			userType(signals, visitCount, now, profile), strongStoreCount(signals), breadSignalCount(signals));
 	}
 
-	private List<Weighted> weigh(List<TasteSignal> signals, LocalDateTime now,
+	private List<Weighted> effectiveWeights(List<TasteSignal> signals, LocalDateTime now,
 			PersonalizationProperties.Profile profile) {
 		long saveCount = signals.stream().filter(signal -> signal.type() == InteractionType.SAVE).count();
 		long viewDays = signals.stream().filter(signal -> signal.type() == InteractionType.STORE_VIEW).count();
@@ -119,12 +125,12 @@ public class TasteProfileCalculator {
 			}
 		}
 		viewsByStore.forEach((storeId, views) -> weighted.addAll(
-			weighViews(views, strongStores.contains(storeId), now, profile)));
+			viewWeights(views, strongStores.contains(storeId), now, profile)));
 		return weighted;
 	}
 
 	/** 조회의 부호는 가게 단위다 — 클래스 설명의 규칙. */
-	private List<Weighted> weighViews(List<TasteSignal> views, boolean storeHasStrongSignal, LocalDateTime now,
+	private List<Weighted> viewWeights(List<TasteSignal> views, boolean storeHasStrongSignal, LocalDateTime now,
 			PersonalizationProperties.Profile profile) {
 		List<Weighted> weighted = new ArrayList<>();
 		List<TasteSignal> notConverted = new ArrayList<>();
@@ -144,35 +150,35 @@ public class TasteProfileCalculator {
 			return weighted;
 		}
 		TasteSignal latest = notConverted.stream().max(Comparator.comparing(TasteSignal::occurredAt)).orElseThrow();
-		double weight = notConverted.size() >= 2 ? profile.getViewRepeatedNotConvertedWeight()
+		double weight = notConverted.size() >= REPEATED_VIEW_DAYS ? profile.getViewRepeatedNotConvertedWeight()
 			: profile.getViewNotConvertedWeight();
 		weighted.add(new Weighted(latest, weight, decay(latest.occurredAt(), now, profile)));
 		return weighted;
 	}
 
-	private Map<String, Double> tagsOf(List<Weighted> weighted) {
+	private Map<String, Double> weightedTags(List<Weighted> weighted) {
 		double[] sum = new double[TasteTag.values().length];
 		double denominator = 0;
 		for (Weighted item : weighted) {
-			double mass = item.mass();
-			if (mass <= 0 || !item.signal().hasStoreTags()) {
+			double effectiveWeight = item.effectiveWeight();
+			if (effectiveWeight <= 0 || !item.signal().hasStoreTags()) {
 				continue;
 			}
 			for (TasteTag tag : TasteTag.values()) {
-				sum[tag.ordinal()] += mass * item.signal().storeTags().getOrDefault(tag.getKey(), 0d);
+				sum[tag.ordinal()] += effectiveWeight * item.signal().storeTags().getOrDefault(tag.getKey(), 0d);
 			}
-			denominator += mass;
+			denominator += effectiveWeight;
 		}
 		Map<String, Double> tags = new LinkedHashMap<>();
 		if (denominator > 0) {
 			for (TasteTag tag : TasteTag.values()) {
-				tags.put(tag.getKey(), scaled(sum[tag.ordinal()] / denominator).doubleValue());
+				tags.put(tag.getKey(), clampToAxisScale(sum[tag.ordinal()] / denominator).doubleValue());
 			}
 		}
 		return tags;
 	}
 
-	private String[] topKindsOf(List<TasteSignal> signals, LocalDateTime now,
+	private String[] topKinds(List<TasteSignal> signals, LocalDateTime now,
 			PersonalizationProperties.Profile profile) {
 		Map<String, Double> score = new HashMap<>();
 		for (TasteSignal signal : signals) {
@@ -191,7 +197,7 @@ public class TasteProfileCalculator {
 			.toArray(String[]::new);
 	}
 
-	private TasteUserType userTypeOf(List<TasteSignal> signals, int visitCount, LocalDateTime now,
+	private TasteUserType userType(List<TasteSignal> signals, int visitCount, LocalDateTime now,
 			PersonalizationProperties.Profile profile) {
 		LocalDateTime since = now.minusDays(profile.getUserTypeWindowDays());
 		List<TasteSignal> recent = signals.stream().filter(signal -> !signal.occurredAt().isBefore(since)).toList();
@@ -237,23 +243,23 @@ public class TasteProfileCalculator {
 	/** 0.5^(경과일 ÷ 반감기). 미래 시각(시계 어긋남)은 경과 0 으로 본다. */
 	static double decay(LocalDateTime occurredAt, LocalDateTime now, PersonalizationProperties.Profile profile) {
 		double days = Math.max(0d, Duration.between(occurredAt, now).toMillis() / MILLIS_PER_DAY);
-		return Math.pow(0.5, days / profile.getHalfLifeDays());
+		return Math.pow(HALF_LIFE_BASE, days / profile.getHalfLifeDays());
 	}
 
-	private static double[] toArray(TasteAxis axis) {
+	private static double[] axisValues(TasteAxis axis) {
 		return new double[] {axis.getTaste().doubleValue(), axis.getTexture().doubleValue(),
 			axis.getFilling().doubleValue(), axis.getVibe().doubleValue()};
 	}
 
-	/** [−1, 1] 로 자르고 소수 3자리 — 컬럼 NUMERIC(4,3) 과 검사 축의 자릿수와 같다. */
-	private static BigDecimal scaled(double value) {
-		double clamped = Math.max(-1d, Math.min(1d, value));
+	/** 축 범위로 자르고 소수 3자리 — 컬럼 NUMERIC(4,3) 과 검사 축의 자릿수와 같다. */
+	private static BigDecimal clampToAxisScale(double value) {
+		double clamped = Math.max(TasteAxis.MIN_VALUE, Math.min(TasteAxis.MAX_VALUE, value));
 		return BigDecimal.valueOf(clamped).setScale(TasteAxis.SCALE, RoundingMode.HALF_UP);
 	}
 
-	/** 신호 하나의 유효 가중치 — 부호 있는 가중치와 반감기 감쇠. mass = weight × decay */
+	/** 신호 하나의 부호 있는 가중치와 반감기 감쇠. 유효 가중치 = weight × decay */
 	record Weighted(TasteSignal signal, double weight, double decay) {
-		double mass() {
+		double effectiveWeight() {
 			return weight * decay;
 		}
 	}

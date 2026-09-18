@@ -150,8 +150,8 @@ class TasteQuizCommandServiceTest {
 
 	@Test
 	@DisplayName("저장된 응답에서 검사 축을 되살린다 — 8문항 저장분은 축별 평균")
-	void axisOfStored_rebuildsQuizAxis() {
-		TasteAxis axis = TasteQuizCommandService.axisOfStored(List.of(
+	void quizAxisFromStoredAnswers_rebuildsQuizAxis() {
+		TasteAxis axis = TasteQuizCommandService.quizAxisFromStoredAnswers(List.of(
 			Map.of("axis", "taste", "choice", "A"), Map.of("axis", "taste", "choice", "B"),
 			Map.of("axis", "texture", "choice", "B"), Map.of("axis", "filling", "choice", "A"),
 			Map.of("axis", "vibe", "choice", "B")));
@@ -160,7 +160,8 @@ class TasteQuizCommandServiceTest {
 		assertThat(axis.getTexture()).isEqualByComparingTo("1.000");
 		assertThat(axis.getFilling()).isEqualByComparingTo("-1.000");
 		assertThat(axis.getVibe()).isEqualByComparingTo("1.000");
-		assertThatThrownBy(() -> TasteQuizCommandService.axisOfStored(List.of(Map.of("axis", "taste", "choice", "A"))))
+		assertThatThrownBy(
+			() -> TasteQuizCommandService.quizAxisFromStoredAnswers(List.of(Map.of("axis", "taste", "choice", "A"))))
 			.isInstanceOf(PersonalizationException.class);
 	}
 

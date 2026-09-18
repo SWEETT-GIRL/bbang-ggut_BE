@@ -67,7 +67,7 @@ public class TasteQuizCommandService {
 	 * 저장된 응답([{"axis": "taste", "choice": "B"}, …])에서 검사 축을 다시 만든다 — 배치가 검사 × 3 을 합산할 때. 제출 때와 같은
 	 * 규칙(축별 평균)이다.
 	 */
-	public static TasteAxis axisOfStored(List<Map<String, String>> storedAnswers) {
+	public static TasteAxis quizAxisFromStoredAnswers(List<Map<String, String>> storedAnswers) {
 		Map<QuizAxis, Integer> poleSums = new EnumMap<>(QuizAxis.class);
 		Map<QuizAxis, Integer> counts = new EnumMap<>(QuizAxis.class);
 		for (Map<String, String> stored : storedAnswers) {
