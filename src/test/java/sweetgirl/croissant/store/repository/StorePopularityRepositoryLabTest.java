@@ -19,9 +19,9 @@ import org.springframework.test.context.TestPropertySource;
 import sweetgirl.croissant.config.persistence.JpaConfig;
 
 /**
- * 랩 PG(운영 덤프)에서 인기도 갱신 SQL 을 실제로 돌린다. 신호가 하나도 없는 가게 다섯을 골라 각각 다른 신호를 넣고, 회원 조회를 사람
- * 단위로 세는지 · 찜과 빵투어 담기가 한 번씩 더해지는지 · 익명 조회만 있는 가게가 0 인지 · 랭킹이 배율을 타는지 본다. p0 와 배율은 랩
- * 전체 데이터에 좌우되므로 SQL 과 같은 정의로 다시 계산해 기대값을 만든다.
+ * 랩 PG(운영 덤프)에서 인기도 갱신 SQL 을 실제로 돌린다. 신호가 하나도 없는 ACTIVE 가게 여덟을 골라 각각 다른 신호를 넣고, 회원 조회를
+ * 사람 단위로 세는지 · 찜과 담기가 더해지는지 · 익명 조회 · 큐레이션 코스 · 삭제된 코스 · 삭제된 담기가 0 인지 · 랭킹이 배율을 타는지
+ * 본다. p0 와 배율은 랩 전체 데이터에 좌우되므로 SQL 과 같은 정의로 다시 계산해 기대값을 만든다.
  */
 @Tag("lab")
 @DataJpaTest
@@ -42,22 +42,43 @@ class StorePopularityRepositoryLabTest {
 
 	private static final int SMOOTHING = 10;
 	private static final double QUANTILE = 0.95;
+	/** SQL 의 signals · base 와 같은 정의 — 기대값 계산용 */
+	private static final String SIGNALS_SQL = """
+			WITH rk AS (SELECT store_id, sum(greatest(0, 51 - rank))::float8 AS score
+					FROM nationwide_hot_store_ranking GROUP BY store_id),
+			vw AS (SELECT store_id, count(DISTINCT member_id)::float8 AS members FROM request_log
+					WHERE event_type = 'STORE_VIEW' AND store_id IS NOT NULL AND member_id IS NOT NULL
+					AND response_status < 400
+					GROUP BY store_id),
+			sv AS (SELECT store_id, count(*)::float8 AS cnt FROM saved_stores GROUP BY store_id),
+			ca AS (SELECT cs.store_id, count(DISTINCT c.member_id)::float8 AS cnt
+					FROM course_stores cs JOIN courses c ON c.id = cs.course_id
+					WHERE c.member_id IS NOT NULL AND c.deleted_at IS NULL AND cs.deleted_at IS NULL
+				GROUP BY cs.store_id),
+			signals AS (SELECT st.id, COALESCE(rk.score, 0) AS rank_score, COALESCE(vw.members, 0) AS members,
+					COALESCE(sv.cnt, 0) + COALESCE(ca.cnt, 0) AS conv
+				FROM store st LEFT JOIN rk ON rk.store_id = st.id LEFT JOIN vw ON vw.store_id = st.id
+					LEFT JOIN sv ON sv.store_id = st.id LEFT JOIN ca ON ca.store_id = st.id
+				WHERE st.status = 'ACTIVE'),
+			base AS (SELECT COALESCE(sum(conv) / NULLIF(sum(members), 0), 0) AS p0 FROM signals),
+			behavior AS (SELECT s.id, s.rank_score,
+					s.members * CASE WHEN base.p0 > 0
+						THEN LEAST(1.0, (s.conv + ? * base.p0) / NULLIF(s.members + ?, 0) / base.p0) ELSE 1 END
+					+ s.conv AS score
+				FROM signals s CROSS JOIN base)
+			""";
 
 	@Autowired
 	private StorePopularityRepository storePopularityRepository;
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
 
-	private Long converted;
-	private Long anonymousOnly;
-	private Long courseAddOnly;
-	private Long rankedOnly;
-	private Long untouched;
+	private List<Long> stores;
 	private List<Long> members;
 
 	@BeforeEach
 	void pickFixtures() {
-		List<Long> stores = jdbcTemplate.queryForList("""
+		stores = jdbcTemplate.queryForList("""
 				SELECT s.id FROM store s
 				WHERE s.status = 'ACTIVE'
 					AND NOT EXISTS (SELECT 1 FROM nationwide_hot_store_ranking x WHERE x.store_id = s.id)
@@ -65,25 +86,35 @@ class StorePopularityRepositoryLabTest {
 					AND NOT EXISTS (SELECT 1 FROM saved_stores x WHERE x.store_id = s.id)
 					AND NOT EXISTS (SELECT 1 FROM course_stores x WHERE x.store_id = s.id)
 				ORDER BY s.id
-				LIMIT 5
+				LIMIT 8
 				""", Long.class);
-		assertThat(stores).hasSize(5);
-		converted = stores.get(0);
-		anonymousOnly = stores.get(1);
-		courseAddOnly = stores.get(2);
-		rankedOnly = stores.get(3);
-		untouched = stores.get(4);
+		assertThat(stores).hasSize(8);
 		members = jdbcTemplate.queryForList(
 			"SELECT id FROM member WHERE deleted_at IS NULL ORDER BY id LIMIT 2", Long.class);
 		assertThat(members).hasSize(2);
 	}
 
-	private void view(Long storeId, Long memberId) {
+	private void view(Long storeId, Long memberId, int status) {
 		jdbcTemplate.update("""
 				INSERT INTO request_log
 					(member_id, http_method, endpoint, response_status, store_id, event_type, created_at)
-				VALUES (?, 'GET', '/stores/' || ?, 200, ?, 'STORE_VIEW', NOW())
-				""", memberId, storeId, storeId);
+				VALUES (?, 'GET', '/stores/' || ?, ?, ?, 'STORE_VIEW', NOW())
+				""", memberId, storeId, status, storeId);
+	}
+
+	private Long course(Long ownerId, boolean deleted) {
+		return jdbcTemplate.queryForObject("""
+				INSERT INTO courses (type, title, is_public, created_at, member_id, deleted_at)
+				VALUES (?, '인기도 랩 픽스처', false, NOW(), ?, CASE WHEN ? THEN NOW() END)
+				RETURNING id
+				""", Long.class, ownerId == null ? "CURATED" : "CUSTOM", ownerId, deleted);
+	}
+
+	private void addToCourse(Long courseId, Long storeId, boolean deleted) {
+		jdbcTemplate.update("""
+				INSERT INTO course_stores (course_id, store_id, visit_order, created_at, deleted_at)
+				VALUES (?, ?, 1, NOW(), CASE WHEN ? THEN NOW() END)
+				""", courseId, storeId, deleted);
 	}
 
 	private double score(Long storeId) {
@@ -92,39 +123,45 @@ class StorePopularityRepositoryLabTest {
 		return value != null ? value : 0d;
 	}
 
-	/** SQL 과 같은 정의의 p0 = 전체 (찜 + 담기) ÷ 전체 조회 회원 */
 	private double conversionBase() {
-		return jdbcTemplate.queryForObject("""
-				SELECT ((SELECT count(*) FROM saved_stores)
-						+ (SELECT count(*) FROM course_stores cs JOIN courses c ON c.id = cs.course_id
-							WHERE c.member_id IS NOT NULL AND cs.deleted_at IS NULL))::float8
-					/ (SELECT sum(members) FROM (SELECT count(DISTINCT member_id) AS members FROM request_log
-							WHERE event_type = 'STORE_VIEW' AND store_id IS NOT NULL AND member_id IS NOT NULL
-							GROUP BY store_id) v)
-				""", Double.class);
+		return jdbcTemplate.queryForObject(SIGNALS_SQL + "SELECT p0 FROM base", Double.class, SMOOTHING, SMOOTHING);
+	}
+
+	private double rankingScale() {
+		return jdbcTemplate.queryForObject(SIGNALS_SQL + """
+				SELECT (SELECT percentile_cont(?) WITHIN GROUP (ORDER BY score) FROM behavior WHERE score > 0)
+					/ (SELECT percentile_cont(?) WITHIN GROUP (ORDER BY rank_score) FROM behavior WHERE rank_score > 0)
+				""", Double.class, SMOOTHING, SMOOTHING, QUANTILE, QUANTILE);
 	}
 
 	@Test
-	@DisplayName("행동 점수 = 회원 조회 × min(1, 상대 전환율) + 찜 + 담기 — 재조회는 안 세고, 익명만 있으면 0, 없으면 0")
+	@DisplayName("행동 점수 = 회원 조회 × min(1, 상대 전환율) + 찜 + 담은 회원 수 — 재조회 · 실패 응답 · 익명 · 큐레이션 · 삭제는 안 센다")
 	void refresh_behaviorScore() {
-		view(converted, members.get(0));
-		view(converted, members.get(1));
-		view(converted, members.get(0)); // 같은 회원의 두 번째 조회는 distinct 라 안 센다
+		Long converted = stores.get(0);
+		Long anonymousOnly = stores.get(1);
+		Long courseAddOnly = stores.get(2);
+		Long curatedOnly = stores.get(3);
+		Long deletedCourseOnly = stores.get(4);
+		Long deletedAddOnly = stores.get(5);
+		Long untouched = stores.get(6);
+		view(converted, members.get(0), 200);
+		view(converted, members.get(1), 200);
+		view(converted, members.get(0), 200); // 같은 회원의 두 번째 조회는 distinct 라 안 센다
+		view(converted, members.get(1), 404); // 실패 응답은 조회가 아니다
 		jdbcTemplate.update("INSERT INTO saved_stores (member_id, store_id, created_at) VALUES (?, ?, NOW())",
 			members.get(0), converted);
 		jdbcTemplate.update("INSERT INTO saved_stores (member_id, store_id, created_at) VALUES (?, ?, NOW())",
 			members.get(1), converted);
 		for (int i = 0; i < 5; i++) {
-			view(anonymousOnly, null);
+			view(anonymousOnly, null, 200);
 		}
-		Long courseId = jdbcTemplate.queryForObject("""
-				INSERT INTO courses (type, title, is_public, created_at, member_id)
-				VALUES ('CUSTOM', '인기도 랩 픽스처', false, NOW(), ?)
-				RETURNING id
-				""", Long.class, members.get(0));
-		jdbcTemplate.update(
-			"INSERT INTO course_stores (course_id, store_id, visit_order, created_at) VALUES (?, ?, 1, NOW())",
-			courseId, courseAddOnly);
+		Long owned = course(members.get(0), false);
+		Long ownedTwice = course(members.get(0), false);
+		addToCourse(owned, courseAddOnly, false);
+		addToCourse(ownedTwice, courseAddOnly, false); // 같은 회원이 두 코스에 담아도 한 사람
+		addToCourse(course(null, false), curatedOnly, false);
+		addToCourse(course(members.get(1), true), deletedCourseOnly, false);
+		addToCourse(owned, deletedAddOnly, true);
 
 		int updated = storePopularityRepository.refreshAllPopularityScores(SMOOTHING, QUANTILE);
 
@@ -134,12 +171,16 @@ class StorePopularityRepositoryLabTest {
 		assertThat(score(converted)).isCloseTo(2 * conversionRatio + 2, within(1e-6));
 		assertThat(score(anonymousOnly)).isZero();
 		assertThat(score(courseAddOnly)).isEqualTo(1d);
+		assertThat(score(curatedOnly)).isZero();
+		assertThat(score(deletedCourseOnly)).isZero();
+		assertThat(score(deletedAddOnly)).isZero();
 		assertThat(score(untouched)).isZero();
 	}
 
 	@Test
-	@DisplayName("랭킹만 있는 가게는 raw 점수(51 − 순위)에 배율을 곱한 값 — 배율은 두 분포의 같은 분위 비")
+	@DisplayName("랭킹만 있는 가게는 raw 점수(51 − 순위)에 배율을 곱한 값 — 배율은 두 분포의 같은 분위 비, 랭킹이 비면 0")
 	void refresh_rankingIsScaledToBehaviorQuantile() {
+		Long rankedOnly = stores.get(7);
 		Long famousMenuId = jdbcTemplate.queryForObject("SELECT id FROM nationwide_famous_menu ORDER BY id LIMIT 1",
 			Long.class);
 		jdbcTemplate.update(
@@ -148,38 +189,22 @@ class StorePopularityRepositoryLabTest {
 
 		storePopularityRepository.refreshAllPopularityScores(SMOOTHING, QUANTILE);
 
-		// SQL 과 같은 정의로 배율을 다시 계산한다: 행동 점수(0 초과) 분위 ÷ 랭킹 점수(0 초과) 분위
-		double scale = jdbcTemplate.queryForObject("""
-				WITH rk AS (SELECT store_id, sum(greatest(0, 51 - rank))::float8 AS score
-						FROM nationwide_hot_store_ranking GROUP BY store_id),
-				vw AS (SELECT store_id, count(DISTINCT member_id)::float8 AS members FROM request_log
-						WHERE event_type = 'STORE_VIEW' AND store_id IS NOT NULL AND member_id IS NOT NULL
-						GROUP BY store_id),
-				sv AS (SELECT store_id, count(*)::float8 AS cnt FROM saved_stores GROUP BY store_id),
-				ca AS (SELECT cs.store_id, count(*)::float8 AS cnt
-						FROM course_stores cs JOIN courses c ON c.id = cs.course_id
-						WHERE c.member_id IS NOT NULL AND cs.deleted_at IS NULL GROUP BY cs.store_id),
-				base AS (SELECT COALESCE(((SELECT sum(cnt) FROM sv) + (SELECT sum(cnt) FROM ca))
-						/ NULLIF((SELECT sum(members) FROM vw), 0), 0) AS p0),
-				behavior AS (SELECT st.id, COALESCE(rk.score, 0) AS rank_score,
-						COALESCE(vw.members, 0) * CASE WHEN base.p0 > 0
-							THEN LEAST(1.0, ((COALESCE(sv.cnt, 0) + COALESCE(ca.cnt, 0)) + ? * base.p0)
-								/ (COALESCE(vw.members, 0) + ?) / base.p0) ELSE 1 END
-						+ COALESCE(sv.cnt, 0) + COALESCE(ca.cnt, 0) AS score
-					FROM store st LEFT JOIN rk ON rk.store_id = st.id LEFT JOIN vw ON vw.store_id = st.id
-						LEFT JOIN sv ON sv.store_id = st.id LEFT JOIN ca ON ca.store_id = st.id CROSS JOIN base)
-				SELECT (SELECT percentile_cont(?) WITHIN GROUP (ORDER BY score) FROM behavior WHERE score > 0)
-					/ (SELECT percentile_cont(?) WITHIN GROUP (ORDER BY rank_score) FROM behavior WHERE rank_score > 0)
-				""", Double.class, SMOOTHING, SMOOTHING, QUANTILE, QUANTILE);
+		double scale = rankingScale();
 		assertThat(scale).isBetween(0d, 1d);
 		assertThat(score(rankedOnly)).isCloseTo(50 * scale, within(1e-6));
+
+		jdbcTemplate.update("DELETE FROM nationwide_hot_store_ranking");
+		storePopularityRepository.refreshAllPopularityScores(SMOOTHING, QUANTILE);
+
+		assertThat(score(rankedOnly)).isZero();
 	}
 
 	@Test
-	@DisplayName("같은 데이터로 다시 돌리면 바뀐 행이 0 이다 — 주간 배치가 매번 45k행을 쓰지 않는다")
+	@DisplayName("같은 데이터로 다시 돌리면 바뀐 행이 0 이고, 갱신 뒤 p90 분위를 읽을 수 있다")
 	void refresh_twice_updatesNothing() {
 		storePopularityRepository.refreshAllPopularityScores(SMOOTHING, QUANTILE);
 
 		assertThat(storePopularityRepository.refreshAllPopularityScores(SMOOTHING, QUANTILE)).isZero();
+		assertThat(storePopularityRepository.findActivePopularityQuantile(0.9)).isGreaterThanOrEqualTo(0d);
 	}
 }

@@ -19,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.data.domain.PageRequest;
 
+import sweetgirl.croissant.store.config.StoreSearchProperties;
 import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
 import sweetgirl.croissant.store.enums.MatchedField;
 import sweetgirl.croissant.store.repository.search.SearchSqlQuery;
@@ -37,7 +38,8 @@ class StoreSearchEngineTest {
 	@BeforeEach
 	void setUp() {
 		// SQL 빌더는 순수 로직이라 실제 구현을 쓴다 — 계획 → SQL 파라미터까지 함께 검증된다.
-		engine = new StoreSearchEngine(new StoreSearchSqlBuilder(), storeSearchJdbcRepository);
+		engine = new StoreSearchEngine(new StoreSearchSqlBuilder(new StoreSearchProperties()),
+			storeSearchJdbcRepository);
 	}
 
 	private static SearchIntent intent(String raw, List<String> regions, List<String> breads, List<String> remaining) {

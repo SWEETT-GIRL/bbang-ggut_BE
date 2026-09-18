@@ -6,6 +6,8 @@ import java.util.List;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Component;
 
+import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.store.config.StoreSearchProperties;
 import sweetgirl.croissant.store.repository.search.SearchSqlQuery;
 
 /**
@@ -21,7 +23,10 @@ import sweetgirl.croissant.store.repository.search.SearchSqlQuery;
  * </ul>
  */
 @Component
+@RequiredArgsConstructor
 public class StoreSearchSqlBuilder {
+
+	private final StoreSearchProperties storeSearchProperties;
 
 	// 텍스트 점수 계단 (설명 가능하게 정수로 둔다)
 	public static final int NAME_EXACT = 100;
@@ -34,8 +39,7 @@ public class StoreSearchSqlBuilder {
 	// 지역 토큰이 사전 매핑엔 없고 주소에만 있는 가게("양산 트리마제"의 양산시 가게)의 지역 점수 — 매핑(weight×40)보다 낮은 계단
 	static final int REGION_ADDRESS = 20;
 	public static final int ADDRESS_FALLBACK = 20;
-	// 인기도 보정 계수 — log1p 로 조회수 폭주 가게의 과도한 보정을 막는다
-	static final double POPULARITY_FACTOR = 0.3;
+	// 인기도 보정 계수는 StoreSearchProperties.popularityFactor — log1p 로 인기 폭주 가게의 과도한 보정을 막는다
 	// 거리 gauss — scale 3km, offset 500m, decay 0.5 → 2σ² = scale² / ln(1/decay)
 	static final double GAUSS_OFFSET_METERS = 500.0;
 	static final double GAUSS_TWO_SIGMA_SQUARED = 3000.0 * 3000.0 / Math.log(2.0);
@@ -98,7 +102,7 @@ public class StoreSearchSqlBuilder {
 		sql.append(") t\n");
 		sql.append(orderBy(sort, hasCoordinates));
 		sql.append("LIMIT :limit OFFSET :offset");
-		params.addValue("popularityFactor", POPULARITY_FACTOR);
+		params.addValue("popularityFactor", storeSearchProperties.getPopularityFactor());
 		params.addValue("limit", limit);
 		params.addValue("offset", offset);
 		return new SearchSqlQuery(sql.toString(), params);

@@ -10,21 +10,25 @@ import sweetgirl.croissant.global.logging.LogEventType;
 class RequestLoggingFilterTest {
 
 	@Test
-	@DisplayName("가게 상세·메뉴 GET 은 STORE_VIEW, 구독 POST 는 ALARM_CLICK, 그 외는 없음")
+	@DisplayName("성공한 가게 상세·메뉴 GET 은 STORE_VIEW, 구독 POST 는 ALARM_CLICK, 그 외는 없음")
 	void resolveEventType_userPaths() {
-		assertThat(RequestLoggingFilter.resolveEventType("GET", "/stores/1090")).isEqualTo(LogEventType.STORE_VIEW);
-		assertThat(RequestLoggingFilter.resolveEventType("GET", "/stores/1090/menus"))
+		assertThat(RequestLoggingFilter.resolveEventType("GET", "/stores/1090", 200))
 			.isEqualTo(LogEventType.STORE_VIEW);
-		assertThat(RequestLoggingFilter.resolveEventType("POST", "/stores/1090/subscribe"))
+		assertThat(RequestLoggingFilter.resolveEventType("GET", "/stores/1090/menus", 200))
+			.isEqualTo(LogEventType.STORE_VIEW);
+		assertThat(RequestLoggingFilter.resolveEventType("POST", "/stores/1090/subscribe", 200))
 			.isEqualTo(LogEventType.ALARM_CLICK);
-		assertThat(RequestLoggingFilter.resolveEventType("POST", "/stores/1090/save")).isNull();
+		assertThat(RequestLoggingFilter.resolveEventType("POST", "/stores/1090/save", 200)).isNull();
 	}
 
 	@Test
-	@DisplayName("관리자 API 는 URL 에 /stores/{id} 가 있어도 STORE_VIEW 가 아니다 — dataops 보강 스크립트가 조회로 잡히던 문제")
-	void resolveEventType_adminPathsAreNotViews() {
-		assertThat(RequestLoggingFilter.resolveEventType("GET", "/api/admin/stores/2117/naver-enrich-item")).isNull();
-		assertThat(RequestLoggingFilter.resolveEventType("GET", "/api/admin/stores/70714/menus")).isNull();
-		assertThat(RequestLoggingFilter.resolveEventType("GET", "/admin/images/stores/5")).isNull();
+	@DisplayName("관리자 API · 코스 안 경로 · 실패 응답은 URL 에 /stores/{id} 가 있어도 STORE_VIEW 가 아니다")
+	void resolveEventType_notAView() {
+		assertThat(RequestLoggingFilter.resolveEventType("GET", "/api/admin/stores/2117/naver-enrich-item", 200))
+			.isNull();
+		assertThat(RequestLoggingFilter.resolveEventType("GET", "/admin/images/stores/5", 200)).isNull();
+		assertThat(RequestLoggingFilter.resolveEventType("GET", "/courses/12/stores/1090/records", 200)).isNull();
+		assertThat(RequestLoggingFilter.resolveEventType("GET", "/stores/1090", 404)).isNull();
+		assertThat(RequestLoggingFilter.resolveEventType("GET", "/stores/1090", 500)).isNull();
 	}
 }

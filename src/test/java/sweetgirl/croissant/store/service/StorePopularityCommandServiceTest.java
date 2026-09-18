@@ -35,13 +35,16 @@ class StorePopularityCommandServiceTest {
 
 	@Test
 	void refreshAllPopularityScores_returnsUpdatedCount() {
+		storePopularityProperties.setConversionSmoothing(7);
+		storePopularityProperties.setRankingScaleQuantile(0.9);
 		given(storePopularityRepository.tryLockPopularityRefresh(anyLong())).willReturn(true);
-		given(storePopularityRepository.refreshAllPopularityScores(anyInt(), anyDouble())).willReturn(45_339);
+		given(storePopularityRepository.refreshAllPopularityScores(7, 0.9)).willReturn(45_339);
+		given(storePopularityRepository.findActivePopularityQuantile(anyDouble())).willReturn(4.3);
 
 		int updated = service.refreshAllPopularityScores();
 
 		assertThat(updated).isEqualTo(45_339);
-		verify(storePopularityRepository).refreshAllPopularityScores(10, 0.95); // 설정 기본값
+		verify(storePopularityRepository).refreshAllPopularityScores(7, 0.9); // 설정값이 그대로 전달된다
 	}
 
 	@Test

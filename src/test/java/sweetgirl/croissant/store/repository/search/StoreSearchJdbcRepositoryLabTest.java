@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
+import sweetgirl.croissant.store.config.StoreSearchProperties;
 import sweetgirl.croissant.store.service.search.SearchSort;
 import sweetgirl.croissant.store.service.search.StoreSearchPlan;
 import sweetgirl.croissant.store.service.search.StoreSearchSqlBuilder;
@@ -26,7 +27,7 @@ import sweetgirl.croissant.store.service.search.StoreSearchSqlBuilder;
 class StoreSearchJdbcRepositoryLabTest {
 
 	private static StoreSearchJdbcRepository repository;
-	private static final StoreSearchSqlBuilder BUILDER = new StoreSearchSqlBuilder();
+	private static final StoreSearchSqlBuilder BUILDER = new StoreSearchSqlBuilder(new StoreSearchProperties());
 	private static final double MANGWON_LAT = 37.5563;
 	private static final double MANGWON_LON = 126.9101;
 

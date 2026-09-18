@@ -89,7 +89,8 @@ public class RecommendationProperties {
 
 	/**
 	 * 인기 prior(0~1) = review·리뷰 수 + rating·별점 + popularity·인기 점수. 기준값은 랩(운영 덤프 08-20 + 프로필 v3) 분포:
-	 * 리뷰 수 p95 2,300 · 별점 10명↑ 평균 4.6 · popularity_score 는 09-18 운영 실측(#663 ③ 새 산식, >0 인 3,677곳) p90 4.4.
+	 * 리뷰 수 p95 2,300 · 별점 10명↑ 평균 4.6 · popularity_score 는 09-18 운영 실측(#663 ③ 새 산식, ACTIVE · >0 인 4,118곳) p90 4.3 —
+	 * 주간 배치 로그의 p90 이 크게 벗어나면 다시 맞춘다.
 	 */
 	@Getter
 	@Setter
@@ -107,7 +108,7 @@ public class RecommendationProperties {
 		private double ratingFloor = 3.5;
 		private double ratingCeil = 5.0;
 		/** popularity_score / cap 을 1 로 자른다 */
-		private double popularityCap = 4.4;
+		private double popularityCap = 4.3;
 	}
 
 	/** 앵커 추천(진입점 2). 링 규칙은 #661 09-13 확정 — 1km 에서 시작해 2km → 3km. */
