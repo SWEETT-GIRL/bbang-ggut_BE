@@ -3,6 +3,7 @@ package sweetgirl.croissant.recommendation;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -74,6 +75,8 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 	private ObjectMapper objectMapper;
 	@Autowired
 	private CourseAreaRepository courseAreaRepository;
+	@Autowired
+	private RecommendationProperties recommendationProperties;
 
 	@Test
 	@DisplayName("상권 후보: 반경 안 ACTIVE 가게를 점수순으로, 제외 목록과 상한을 지킨다")
@@ -341,6 +344,42 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 	}
 
 	@Test
+	@DisplayName("불변 조건(#661): 상권·앵커 후보는 전부 프로필이 있고 빵집다움 하한 이상 — 반경 안에 걸러질 가게가 실제로 있어도 안 들어온다")
+	void candidates_alwaysPassEligibilityFilter() {
+		double minBakeryScore = recommendationProperties.getScore().getMinBakeryScore();
+		// 필터가 자명하게 통과하는 상황이 아님을 먼저 못 박는다 — 반경 안에 프로필이 없거나 하한 미달인 가게가 있다
+		Integer filteredOut = jdbcTemplate.queryForObject("""
+				SELECT COUNT(*) FROM store s LEFT JOIN store_profile p ON p.store_id = s.id
+				WHERE s.status = 'ACTIVE'
+					AND ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?)
+					AND (p.store_id IS NULL OR p.bakery_score < ?)
+				""", Integer.class, SEONGSU_LNG, SEONGSU_LAT, RADIUS_M, minBakeryScore);
+		assertThat(filteredOut).as("반경 안에서 걸러져야 할 가게").isPositive();
+
+		List<CandidateStoreRow> area = candidateRepository.findAreaCandidates(
+			LAB_MEMBER, TasteQuery.empty(), SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, null, null, null, List.of(), 15);
+		List<CandidateStoreRow> anchor = candidateRepository.findAnchorCandidates(
+			LAB_MEMBER, TasteQuery.empty(), SEONGSU_LAT, SEONGSU_LNG, RING_M, MAX_RADIUS_M, List.of(), 30);
+
+		assertThat(area).isNotEmpty();
+		assertThat(anchor).isNotEmpty();
+		assertThat(eligibleCount(area, minBakeryScore)).isEqualTo(area.size());
+		assertThat(eligibleCount(anchor, minBakeryScore)).isEqualTo(anchor.size());
+	}
+
+	/** 후보 행 중 프로필이 있고 빵집다움이 하한 이상인 가게 수 — 프로필이 없으면 행이 없어 수가 줄어든다. */
+	private int eligibleCount(List<CandidateStoreRow> rows, double minBakeryScore) {
+		List<Long> storeIds = rows.stream().map(CandidateStoreRow::storeId).toList();
+		String placeholders = storeIds.stream().map(id -> "?").collect(Collectors.joining(", "));
+		List<Object> params = new ArrayList<>(storeIds);
+		params.add(minBakeryScore);
+		Integer count = jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM store_profile WHERE store_id IN (" + placeholders + ") AND bakery_score >= ?",
+			Integer.class, params.toArray());
+		return count != null ? count : 0;
+	}
+
+	@Test
 	@DisplayName("앵커 후보: 3km 안에서 1km 링 안쪽부터, 링 안에서는 점수순이다")
 	void anchorCandidates_ringFirstThenPopularity() {
 		List<CandidateStoreRow> rows = candidateRepository.findAnchorCandidates(
@@ -358,6 +397,21 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 				assertThat(rows.get(i).score()).isLessThanOrEqualTo(rows.get(i - 1).score());
 			}
 		}
+	}
+
+	@Test
+	@DisplayName("불변 조건(#661): 첫 링 안 가게가 한 페이지보다 많으면 첫 페이지는 전부 첫 링 안이다 — 바깥 링이 섞이지 않는다")
+	void anchorCandidates_firstPageStaysInFirstRing() {
+		int rankingSize = recommendationProperties.getAnchor().getRankingSize();
+		int pageSize = recommendationProperties.getAnchor().getPageSize();
+		List<CandidateStoreRow> ranking = candidateRepository.findAnchorCandidates(
+			LAB_MEMBER, TasteQuery.empty(), SEONGSU_LAT, SEONGSU_LNG, RING_M, MAX_RADIUS_M, List.of(), rankingSize);
+
+		assertThat(ranking).hasSizeGreaterThanOrEqualTo(pageSize);
+		long inFirstRing = ranking.stream().filter(row -> row.distanceM() <= RING_M).count();
+		assertThat(inFirstRing).as("성수 1km 링 안 후보").isGreaterThanOrEqualTo(pageSize);
+		assertThat(ranking.subList(0, pageSize))
+			.allSatisfy(row -> assertThat(row.distanceM()).isLessThanOrEqualTo(RING_M));
 	}
 
 	@Test
