@@ -43,6 +43,7 @@ import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.entity.CourseStoreMemo;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.enums.CourseVisibility;
+import sweetgirl.croissant.course.event.CourseStoreAddedEvent;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseMemberRepository;
@@ -861,6 +862,13 @@ class CourseCommandServiceTest {
 		assertThat(copiedCaptor.getValue()).hasSize(1);
 		assertThat(copiedCaptor.getValue().get(0).getMemo()).isNull();
 		assertThat(copiedCaptor.getValue().get(0).getStore()).isSameAs(sourceStore.getStore());
+		// 포크는 코스를 통째로 담은 것 — 복제된 가게마다 포크한 회원의 COURSE_ADD 신호(#663, 담기와 같은 무게)
+		ArgumentCaptor<CourseStoreAddedEvent> event = ArgumentCaptor.forClass(CourseStoreAddedEvent.class);
+		then(eventPublisher).should().publishEvent(event.capture());
+		assertThat(event.getValue().memberId()).isEqualTo(memberId);
+		assertThat(event.getValue().courseId()).isEqualTo(20L);
+		assertThat(event.getValue().storeId()).isEqualTo(100L);
+		assertThat(event.getValue().recommendationId()).isNull();
 	}
 
 	@Test

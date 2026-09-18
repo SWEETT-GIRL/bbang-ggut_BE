@@ -616,6 +616,8 @@ public class CourseCommandService {
 				source.getVisitTime()))
 			.toList();
 		courseStoreRepository.saveAll(copiedStores);
+		// 포크는 코스를 통째로 담은 것 — 가게마다 담기와 같은 COURSE_ADD 신호(09-18 결정, 가중치 동일). 담는 사람은 포크한 회원
+		copiedStores.forEach(copied -> publishAdded(memberId, savedForkedCourse.getId(), copied, null));
 
 		return savedForkedCourse.getId();
 	}
