@@ -237,6 +237,7 @@ jobs:
           LAMBDA_CALLBACK_SECRET_KEY: ${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}
           PERF_DASHBOARD_ENABLED: ${{ secrets.PERF_DASHBOARD_ENABLED }}
           PERF_DASHBOARD_ACCESS_KEY: ${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}
+          ADMIN_API_KEY: ${{ secrets.PROD_ADMIN_API_KEY }}
         run: |
           umask 077
           {
@@ -267,6 +268,7 @@ jobs:
             echo "LAMBDA_CALLBACK_SECRET_KEY=${LAMBDA_CALLBACK_SECRET_KEY}"
             echo "PERF_DASHBOARD_ENABLED=${PERF_DASHBOARD_ENABLED:-false}"
             echo "PERF_DASHBOARD_ACCESS_KEY=${PERF_DASHBOARD_ACCESS_KEY}"
+            echo "ADMIN_API_KEY=${ADMIN_API_KEY}"
           } > env.prod
 
           ssh was 'mkdir -p ~/app'
