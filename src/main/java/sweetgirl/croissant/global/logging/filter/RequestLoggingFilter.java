@@ -129,14 +129,22 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 	}
 
 	// 요청의 목적을 분류 — 가게 인기도 집계에 사용
-	private LogEventType resolveEventType(String method, String uri) {
+	/**
+	 * 관리자 API(/admin/…, /api/admin/…)는 사용자 조회가 아니다 — dataops 보강 스크립트가 /api/admin/stores/{id}/… 를 부른 22,713행이
+	 * STORE_VIEW 로 잡혀 인기도가 부풀었다(#663 ③).
+	 */
+	static LogEventType resolveEventType(String method, String uri) {
 		if ("POST".equals(method) && STORE_SUBSCRIBE_PATTERN.matcher(uri).matches()) {
 			return LogEventType.ALARM_CLICK;
 		}
-		if ("GET".equals(method) && STORE_ID_PATTERN.matcher(uri).find()) {
+		if ("GET".equals(method) && !isAdminPath(uri) && STORE_ID_PATTERN.matcher(uri).find()) {
 			return LogEventType.STORE_VIEW;
 		}
 		return null;
+	}
+
+	private static boolean isAdminPath(String uri) {
+		return uri.startsWith("/admin/") || uri.startsWith("/api/admin/");
 	}
 
 	// POST/PUT/PATCH body만 저장 (GET은 body 없음)

@@ -2,6 +2,7 @@ package sweetgirl.croissant.store.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
@@ -35,12 +36,12 @@ class StorePopularityCommandServiceTest {
 	@Test
 	void refreshAllPopularityScores_returnsUpdatedCount() {
 		given(storePopularityRepository.tryLockPopularityRefresh(anyLong())).willReturn(true);
-		given(storePopularityRepository.refreshAllPopularityScores(anyInt())).willReturn(45_339);
+		given(storePopularityRepository.refreshAllPopularityScores(anyInt(), anyDouble())).willReturn(45_339);
 
 		int updated = service.refreshAllPopularityScores();
 
 		assertThat(updated).isEqualTo(45_339);
-		verify(storePopularityRepository).refreshAllPopularityScores(10); // 설정 기본 스무딩
+		verify(storePopularityRepository).refreshAllPopularityScores(10, 0.95); // 설정 기본값
 	}
 
 	@Test
@@ -51,14 +52,14 @@ class StorePopularityCommandServiceTest {
 		assertThatThrownBy(() -> service.refreshAllPopularityScores())
 			.isInstanceOf(StoreException.class)
 			.hasMessageContaining(StoreErrorCode.POPULARITY_REFRESH_ALREADY_RUNNING.getMessage());
-		verify(storePopularityRepository, never()).refreshAllPopularityScores(anyInt());
+		verify(storePopularityRepository, never()).refreshAllPopularityScores(anyInt(), anyDouble());
 	}
 
 	@Test
 	void refreshAllPopularityScores_propagatesRepositoryFailure() {
 		// 삼키지 않는다 — 어드민 호출은 500 으로, 스케줄러는 자기 계층에서 로깅한다.
 		given(storePopularityRepository.tryLockPopularityRefresh(anyLong())).willReturn(true);
-		given(storePopularityRepository.refreshAllPopularityScores(anyInt()))
+		given(storePopularityRepository.refreshAllPopularityScores(anyInt(), anyDouble()))
 			.willThrow(new DataAccessResourceFailureException("db down"));
 
 		assertThatThrownBy(() -> service.refreshAllPopularityScores())

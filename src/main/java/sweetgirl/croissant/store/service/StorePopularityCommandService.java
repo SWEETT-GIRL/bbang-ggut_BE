@@ -33,7 +33,7 @@ public class StorePopularityCommandService {
 		}
 		long startedAt = System.currentTimeMillis();
 		int updated = storePopularityRepository.refreshAllPopularityScores(
-			storePopularityProperties.getConversionSmoothing());
+			storePopularityProperties.getConversionSmoothing(), storePopularityProperties.getRankingScaleQuantile());
 		log.info("[인기도] store.popularity_score 갱신 완료 updated={} elapsedMs={}", updated,
 			System.currentTimeMillis() - startedAt);
 		return updated;
