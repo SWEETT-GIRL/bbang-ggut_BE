@@ -36,6 +36,8 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
 	// POST /stores/{id}/subscribe — 빵알람 구독(클릭) 엔드포인트 판별용
 	private static final Pattern STORE_SUBSCRIBE_PATTERN = Pattern.compile("^/stores/(\\d+)/subscribe$");
+	/** 가게 상세(및 그 하위 /menus · /reviews) — 앞에 다른 자원이 붙은 경로는 제외 */
+	private static final Pattern STORE_VIEW_PATTERN = Pattern.compile("^/stores/\\d+");
 
 	// body 저장 최대 길이 (10KB 초과분은 잘라냄)
 	private static final int MAX_BODY_LENGTH = 10_000;
@@ -95,7 +97,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 			.ipAddress(clientIp) // 클라이언트 IP (프록시 헤더 우선)
 			.userAgent(userAgent) // 기기/OS/앱 정보
 			.storeId(extractStoreId(uri)) // URL에서 추출한 store_id (없으면 null)
-			.eventType(resolveEventType(method, uri)) // STORE_VIEW / ALARM_CLICK / null
+			.eventType(resolveEventType(method, uri, response.getStatus())) // STORE_VIEW / ALARM_CLICK / null
 			.errorCode((String)request.getAttribute(ATTR_ERROR_CODE)) // 예외 발생 시 GlobalExceptionHandler가 채워줌
 			.errorMessage((String)request.getAttribute(ATTR_ERROR_MESSAGE))
 			.sessionId(SessionIdHeader.normalize(request.getHeader(SessionIdHeader.NAME))) // 앱 세션 id (없으면 null)
@@ -128,15 +130,24 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 		return matcher.find() ? Long.parseLong(matcher.group(1)) : null;
 	}
 
-	// 요청의 목적을 분류 — 가게 인기도 집계에 사용
-	private LogEventType resolveEventType(String method, String uri) {
+	/**
+	 * 요청의 목적을 분류 — 가게 인기도 집계와 취향 신호(STORE_VIEW)에 쓴다. STORE_VIEW 는 성공한(4xx·5xx 아님) GET 이 /stores/{id} 로
+	 * 시작할 때만이다: 관리자 API(/admin/…, /api/admin/…)는 사용자 조회가 아니고(dataops 보강 스크립트의 /api/admin/stores/{id}/… 22,713행이
+	 * 조회로 잡혀 인기도가 부풀었다, #663 ③), /courses/{id}/stores/{id}/records 같은 코스 안 경로는 가게 상세가 아니다.
+	 */
+	static LogEventType resolveEventType(String method, String uri, int status) {
 		if ("POST".equals(method) && STORE_SUBSCRIBE_PATTERN.matcher(uri).matches()) {
 			return LogEventType.ALARM_CLICK;
 		}
-		if ("GET".equals(method) && STORE_ID_PATTERN.matcher(uri).find()) {
+		if ("GET".equals(method) && status < HttpServletResponse.SC_BAD_REQUEST && !isAdminPath(uri)
+			&& STORE_VIEW_PATTERN.matcher(uri).find()) {
 			return LogEventType.STORE_VIEW;
 		}
 		return null;
+	}
+
+	private static boolean isAdminPath(String uri) {
+		return uri.startsWith("/admin/") || uri.startsWith("/api/admin/");
 	}
 
 	// POST/PUT/PATCH body만 저장 (GET은 body 없음)

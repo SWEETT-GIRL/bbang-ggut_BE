@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.store.code.StoreErrorCode;
+import sweetgirl.croissant.store.config.StorePopularityProperties;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.StorePopularityRepository;
 
@@ -17,9 +18,12 @@ import sweetgirl.croissant.store.repository.StorePopularityRepository;
 public class StorePopularityCommandService {
 
 	private final StorePopularityRepository storePopularityRepository;
+	private final StorePopularityProperties storePopularityProperties;
 
 	// pg advisory lock 키 — 이 갱신 작업 전용 임의 상수. 다른 advisory lock 과 겹치지 않게 고정한다.
 	static final long POPULARITY_REFRESH_LOCK_KEY = 20260818_1L;
+	/** 추천 prior 상한(popularityCap)의 기준 분위 — 갱신 때마다 로그로 남겨 상한을 다시 볼 때를 알린다 */
+	static final double CAP_REFERENCE_QUANTILE = 0.9;
 
 	/**
 	 * @return 갱신된 가게 수(값이 실제로 바뀐 행)
@@ -30,9 +34,11 @@ public class StorePopularityCommandService {
 			throw new StoreException(StoreErrorCode.POPULARITY_REFRESH_ALREADY_RUNNING);
 		}
 		long startedAt = System.currentTimeMillis();
-		int updated = storePopularityRepository.refreshAllPopularityScores();
-		log.info("[인기도] store.popularity_score 갱신 완료 updated={} elapsedMs={}", updated,
-			System.currentTimeMillis() - startedAt);
+		int updated = storePopularityRepository.refreshAllPopularityScores(
+			storePopularityProperties.getConversionSmoothing(), storePopularityProperties.getRankingScaleQuantile());
+		double referenceQuantile = storePopularityRepository.findActivePopularityQuantile(CAP_REFERENCE_QUANTILE);
+		log.info("[인기도] store.popularity_score 갱신 완료 updated={} p90={} (recommendation popularityCap 기준) elapsedMs={}",
+			updated, referenceQuantile, System.currentTimeMillis() - startedAt);
 		return updated;
 	}
 }
