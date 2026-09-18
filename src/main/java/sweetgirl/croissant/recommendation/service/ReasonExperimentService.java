@@ -62,6 +62,8 @@ public class ReasonExperimentService {
 	private static final Logger log = LoggerFactory.getLogger(ReasonExperimentService.class);
 
 	private static final String MODEL_SEPARATOR = ":";
+	/** 원문 로그 상한 — 이유 네 줄 JSON 이면 넉넉하고, 사고 과정이 딸려 와도 로그를 덮지 않는다 */
+	private static final int RAW_TEXT_LOG_LIMIT = 2_000;
 	private static final String LABEL_SEPARATOR = "/";
 	/** 문장이 표준 JSON 스키마 하나로 나가고, Gemini 용 대문자 번역은 어댑터가 한다 */
 	private static final Map<String, Object> RESPONSE_SCHEMA = Map.of(
@@ -172,8 +174,15 @@ public class ReasonExperimentService {
 				experimentProperties.getTemperature(), experimentProperties.getMaxOutputTokens());
 			LlmResult<ReasonAnswer> result = llmClientRegistry.generateStructured(request, ReasonAnswer.class);
 			List<ReasonSentence> sentences = sentencesOf(result.value(), ordered);
-			log.info("이유 문장 실험 [조합={}, 지연={}ms, 입력토큰={}, 출력토큰={}, 문장={}건]",
-				label, result.latencyMs(), result.inputTokens(), result.outputTokens(), sentences.size());
+			// 문장까지 남긴다. 조합이 길어져 프록시 제한(운영 120초)을 넘으면 클라이언트는 504 를 받는데,
+			// 건수만 적어 두면 이미 돈을 낸 문장을 되찾을 길이 없다.
+			log.info("이유 문장 실험 [조합={}, 지연={}ms, 입력토큰={}, 출력토큰={}, 문장={}]",
+				label, result.latencyMs(), result.inputTokens(), result.outputTokens(),
+				sentences.stream().map(ReasonSentence::reason).toList());
+			// 빈 자리가 있으면 원문을 남긴다 — 모델이 가게를 빠뜨렸는지 다른 id 를 줬는지는 원문에만 있다
+			if (sentences.stream().anyMatch(sentence -> sentence.reason() == null)) {
+				log.warn("이유 문장 실험 빈 자리 [조합={}, 응답원문={}]", label, abbreviate(result.rawText()));
+			}
 			return ReasonExperimentRun.succeeded(label, combination.provider(), combination.model(),
 				combination.variant(), result.latencyMs(), result.inputTokens(), result.outputTokens(),
 				prompt.length(), sentences);
@@ -184,6 +193,13 @@ public class ReasonExperimentService {
 			return ReasonExperimentRun.failed(label, combination.provider(), combination.model(),
 				combination.variant(), latencyMs, prompt.length(), e.getLlmErrorCode().getCode());
 		}
+	}
+
+	private static String abbreviate(String rawText) {
+		if (rawText == null) {
+			return "(없음)";
+		}
+		return rawText.length() <= RAW_TEXT_LOG_LIMIT ? rawText : rawText.substring(0, RAW_TEXT_LOG_LIMIT) + "…(생략)";
 	}
 
 	/** 모델이 순서를 바꾸거나 가게를 빠뜨려도 판이 흐트러지지 않게, 우리 순서로 다시 맞춘다 */
