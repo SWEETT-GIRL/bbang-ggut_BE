@@ -403,10 +403,18 @@ public class CourseRecommendationCommandService {
 	 * 축이 없는 사용자에겐 취향 근거가 없으니 인기순 문구(RULE_REASON)를 그대로 쓴다 — "취향에 맞는다"고 지어내지 않는다.
 	 */
 	private String reasonOf(TasteQuery taste, CandidateStoreRow row, boolean fallback) {
+		return reasonOf(taste, row, fallback, recommendationProperties.getScore().getTasteCosineThreshold());
+	}
+
+	/**
+	 * 같은 규칙을 설정 없이 부를 수 있게 열어 둔 자리 — 이유 문장 실험(#662)이 "룰이 지금 뭐라고 쓰는지"를 기준선으로
+	 * 나란히 놓아야 해서. 규칙 자체는 위 문서 그대로이고 여기가 유일한 구현이다.
+	 */
+	static String reasonOf(TasteQuery taste, CandidateStoreRow row, boolean fallback, double tasteCosineThreshold) {
 		if (!taste.hasAxis()) {
 			return RecommendationMessage.RULE_REASON;
 		}
-		if (fallback || row.tasteFit() <= recommendationProperties.getScore().getTasteCosineThreshold()) {
+		if (fallback || row.tasteFit() <= tasteCosineThreshold) {
 			return RecommendationMessage.SIGNATURE_REASON;
 		}
 		return RecommendationMessage.TASTE_REASON;
