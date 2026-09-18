@@ -93,8 +93,8 @@ class ReasonLlmLatencyMeasurementTest {
 				System.out.printf(Locale.ROOT, "%s | 건너뜀(키 없음)%n", model);
 				continue;
 			}
-			for (ReasonPromptVariant variant : List.of(ReasonPromptVariant.A, ReasonPromptVariant.D)) {
-				String prompt = promptBuilder.build(variant, taste(), "PCLN", stores);
+			for (ReasonPromptVariant variant : List.of(ReasonPromptVariant.values())) {
+				String prompt = promptBuilder.build(variant, taste(), "PCLN", stores, SIGNATURE_MENUS);
 				measureOne(registry, provider, parts[1], variant, prompt);
 			}
 		}
@@ -163,6 +163,13 @@ class ReasonLlmLatencyMeasurementTest {
 		requestFactory.setReadTimeout(readTimeout);
 		return requestFactory;
 	}
+
+	/** 변형 B 가 쓰는 시그니처 메뉴. 고정 판이라 여기도 손으로 적어 둔다 */
+	private static final Map<Long, List<String>> SIGNATURE_MENUS = Map.of(
+		1L, List.of("소금빵", "깜빠뉴", "바게트"),
+		2L, List.of("크루아상", "스콘"),
+		3L, List.of("단팥빵", "소보로"),
+		4L, List.of("바게트", "치아바타", "사워도우"));
 
 	/** 담백·바삭·심플·트렌디 쪽 회원 — 뉴웨이브 미니멀(PCLN) */
 	private static TasteQuery taste() {

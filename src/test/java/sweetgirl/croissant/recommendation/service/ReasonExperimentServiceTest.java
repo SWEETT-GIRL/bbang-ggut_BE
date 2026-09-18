@@ -49,6 +49,7 @@ import sweetgirl.croissant.recommendation.repository.RecommendationCandidateJdbc
 import sweetgirl.croissant.recommendation.service.ReasonExperimentService.Reason;
 import sweetgirl.croissant.recommendation.service.ReasonExperimentService.ReasonAnswer;
 import sweetgirl.croissant.recommendation.service.ReasonExperimentService.WarmUpAnswer;
+import sweetgirl.croissant.store.repository.StoreProfileRepository;
 
 /** 이유 문장 실험 (#662) — 조합 실행·실패 격리·비용 가드·블라인드. */
 @ExtendWith(MockitoExtension.class)
@@ -66,6 +67,8 @@ class ReasonExperimentServiceTest {
 	RecommendationCandidateJdbcRepository candidateRepository;
 	@Mock
 	LlmClientRegistry llmClientRegistry;
+	@Mock
+	StoreProfileRepository storeProfileRepository;
 
 	RecommendationProperties recommendationProperties = new RecommendationProperties();
 	ReasonExperimentProperties experimentProperties = new ReasonExperimentProperties();
@@ -78,8 +81,8 @@ class ReasonExperimentServiceTest {
 		experimentProperties.setRepeats(1);
 		experimentProperties.setWarmUp(false);
 		service = new ReasonExperimentService(courseAreaRepository, userTasteProfileRepository, candidateRepository,
-			recommendationProperties, experimentProperties, new ReasonPromptBuilder(recommendationProperties),
-			llmClientRegistry, new ObjectMapper());
+			recommendationProperties, experimentProperties, storeProfileRepository,
+			new ReasonPromptBuilder(recommendationProperties), llmClientRegistry, new ObjectMapper());
 
 		given(llmClientRegistry.configuredProviders())
 			.willReturn(List.of(LlmProvider.GEMINI, LlmProvider.OPENAI, LlmProvider.ANTHROPIC));
@@ -172,11 +175,16 @@ class ReasonExperimentServiceTest {
 
 		ReasonExperimentResponse response = service.run(request(null, null, false));
 
+		// 반복마다 순서를 섞으므로 어느 조합이 실패했는지는 고정이 아니다. 하나만 실패하고 나머지는 돈다는 게 요점
 		assertThat(response.runs()).hasSize(2);
-		assertThat(response.runs().get(0).failure()).isEqualTo("LLM502_2");
-		assertThat(response.runs().get(0).failedSamples()).isEqualTo(1);
-		assertThat(response.runs().get(0).reasons()).isEmpty();
-		assertThat(response.runs().get(1).failure()).isNull();
+		assertThat(response.runs()).filteredOn(run -> run.failure() != null)
+			.singleElement()
+			.satisfies(run -> {
+				assertThat(run.failure()).isEqualTo("LLM502_2");
+				assertThat(run.failedSamples()).isEqualTo(1);
+				assertThat(run.reasons()).isEmpty();
+			});
+		assertThat(response.runs()).filteredOn(run -> run.failure() == null).hasSize(1);
 	}
 
 	@Test

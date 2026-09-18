@@ -55,12 +55,13 @@ public class ReasonPromptBuilder {
 	 * @param taste 회원 취향. 축이 없으면 축 줄이 "없음" 이 되고, 프롬프트는 가게 사실만으로 쓰게 된다
 	 * @param typeCode 취향 유형 코드(BBTI). 없으면 유형 줄을 뺀다
 	 * @param stores 룰이 이미 고르고 순서까지 정한 가게들 — 이 순서 그대로 프롬프트에 넣는다
+	 * @param signatureMenus 가게별 시그니처 메뉴. 변형 B 만 쓴다. 없는 가게는 그 줄이 빠진다
 	 */
 	public String build(ReasonPromptVariant variant, TasteQuery taste, String typeCode,
-			List<CandidateStoreRow> stores) {
+			List<CandidateStoreRow> stores, Map<Long, List<String>> signatureMenus) {
 		return templates.get(variant)
 			.replace("{taste}", tasteBlock(taste, typeCode))
-			.replace("{stores}", storesBlock(variant, taste, stores))
+			.replace("{stores}", storesBlock(variant, taste, stores, signatureMenus))
 			.replace("{storeCount}", String.valueOf(stores.size()))
 			.replace("{tasteThreshold}", decimal(recommendationProperties.getScore().getTasteCosineThreshold()));
 	}
@@ -75,7 +76,8 @@ public class ReasonPromptBuilder {
 		return String.join("\n", lines);
 	}
 
-	private String storesBlock(ReasonPromptVariant variant, TasteQuery taste, List<CandidateStoreRow> stores) {
+	private String storesBlock(ReasonPromptVariant variant, TasteQuery taste, List<CandidateStoreRow> stores,
+			Map<Long, List<String>> signatureMenus) {
 		List<String> blocks = new ArrayList<>(stores.size());
 		for (int index = 0; index < stores.size(); index++) {
 			CandidateStoreRow row = stores.get(index);
@@ -83,6 +85,12 @@ public class ReasonPromptBuilder {
 			block.append(index + 1).append(". ").append(row.name())
 				.append(" (storeId=").append(row.storeId()).append(", ")
 				.append(row.region3rd() == null ? "동네 미상" : row.region3rd()).append(")\n");
+			if (variant.isIncludesSignatureMenus()) {
+				List<String> menus = signatureMenus.get(row.storeId());
+				if (menus != null && !menus.isEmpty()) {
+					block.append("   시그니처 메뉴: ").append(String.join(", ", limit(menus))).append("\n");
+				}
+			}
 			block.append("   태그: ").append(joinOrNone(sortedByWeight(row.tags()))).append("\n");
 			block.append("   빵 종류: ").append(joinOrNone(limit(row.kinds())));
 			if (variant.isIncludesRuleEvidence()) {

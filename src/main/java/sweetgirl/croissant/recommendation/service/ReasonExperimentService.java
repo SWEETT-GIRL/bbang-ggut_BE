@@ -45,6 +45,7 @@ import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
 import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationCandidateJdbcRepository;
 import sweetgirl.croissant.recommendation.repository.TasteQuery;
+import sweetgirl.croissant.store.repository.StoreProfileRepository;
 
 /**
  * 이유 문장 실험 (#662): 같은 추천 한 판을 벤더 × 모델 × 프롬프트 변형으로 돌려 지연·토큰·문장을 나란히 놓는다.
@@ -94,6 +95,7 @@ public class ReasonExperimentService {
 	private final RecommendationCandidateJdbcRepository candidateRepository;
 	private final RecommendationProperties recommendationProperties;
 	private final ReasonExperimentProperties experimentProperties;
+	private final StoreProfileRepository storeProfileRepository;
 	private final ReasonPromptBuilder promptBuilder;
 	private final LlmClientRegistry llmClientRegistry;
 	private final ObjectMapper objectMapper;
@@ -175,8 +177,9 @@ public class ReasonExperimentService {
 			UserTasteProfile profile, List<CandidateStoreRow> ordered, int repeats) {
 		String typeCode = profile == null ? null : profile.getTypeCode();
 		Map<ReasonPromptVariant, String> prompts = new LinkedHashMap<>();
+		Map<Long, List<String>> signatureMenus = signatureMenusOf(combinations, ordered);
 		combinations.forEach(combination -> prompts.computeIfAbsent(combination.variant(),
-			variant -> promptBuilder.build(variant, taste, typeCode, ordered)));
+			variant -> promptBuilder.build(variant, taste, typeCode, ordered, signatureMenus)));
 
 		Map<Combination, Samples> samples = new LinkedHashMap<>();
 		combinations.forEach(combination -> samples.put(combination, new Samples()));
@@ -190,6 +193,25 @@ public class ReasonExperimentService {
 			.map(combination -> samples.get(combination)
 				.toRun(combination, prompts.get(combination.variant()).length()))
 			.toList();
+	}
+
+	/**
+	 * 시그니처 메뉴는 고른 4곳만 따로 읽는다. 후보 SQL 은 요청 경로가 쓰는 쿼리라 실험 때문에 컬럼을 늘리지
+	 * 않는다. 쓰는 변형이 없으면 조회하지 않는다.
+	 */
+	private Map<Long, List<String>> signatureMenusOf(List<Combination> combinations,
+			List<CandidateStoreRow> ordered) {
+		if (combinations.stream().noneMatch(combination -> combination.variant().isIncludesSignatureMenus())) {
+			return Map.of();
+		}
+		List<Long> storeIds = ordered.stream().map(CandidateStoreRow::storeId).toList();
+		Map<Long, List<String>> menus = new LinkedHashMap<>();
+		storeProfileRepository.findAllById(storeIds).forEach(profile -> {
+			if (profile.getSignatureMenus() != null && profile.getSignatureMenus().length > 0) {
+				menus.put(profile.getStoreId(), List.of(profile.getSignatureMenus()));
+			}
+		});
+		return menus;
 	}
 
 	/**
