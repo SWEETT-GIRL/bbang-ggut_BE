@@ -21,7 +21,8 @@ public class AdminStorePopularityController {
 	private final StorePopularityCommandService storePopularityCommandService;
 
 	@PostMapping("/refresh")
-	@Operation(summary = "가게 인기도 전체 갱신", description = "구독수·전국 랭킹·조회수로 store.popularity_score 를 다시 계산합니다.")
+	@Operation(summary = "가게 인기도 전체 갱신", description = "구독 수 · 전국 랭킹 · 회원 조회 수 × 상대 전환율(저장 + 담기)로 "
+		+ "store.popularity_score 를 다시 계산합니다. 익명 조회는 세지 않습니다.")
 	public ApiResponse<AdminStorePopularityRefreshResponse> refreshPopularityScores() {
 		int updated = storePopularityCommandService.refreshAllPopularityScores();
 		return ApiResponse.ok(new AdminStorePopularityRefreshResponse(updated));
