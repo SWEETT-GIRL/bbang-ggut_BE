@@ -15,6 +15,7 @@ import sweetgirl.croissant.store.code.SavedStoreErrorCode;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.SavedStore;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.event.StoreSavedEvent;
 import sweetgirl.croissant.store.event.StoreUnsavedEvent;
 import sweetgirl.croissant.store.exception.SavedStoreException;
 import sweetgirl.croissant.store.exception.StoreException;
@@ -39,7 +40,11 @@ public class SavedStoreCommandService {
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
-		savedStoreRepository.save(SavedStore.create(member, store));
+		SavedStore saved = savedStoreRepository.save(SavedStore.create(member, store));
+		// 배치도 읽지만, 배치 전에 해제되면 행이 사라져 UNSAVE 만 남는다 — 이벤트로 SAVE 를 먼저 남겨 짝을 맞춘다(#663)
+		LocalDateTime savedAt = saved != null && saved.getCreatedAt() != null ? saved.getCreatedAt()
+			: LocalDateTime.now();
+		eventPublisher.publishEvent(new StoreSavedEvent(memberId, storeId, savedAt));
 	}
 
 	public void unsaveStore(Long memberId, Long storeId) {

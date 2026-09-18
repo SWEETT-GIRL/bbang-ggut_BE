@@ -1,5 +1,7 @@
 package sweetgirl.croissant.personalization.config;
 
+import java.time.LocalDate;
+
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -26,4 +28,11 @@ public class PersonalizationProperties {
 	 * 세션 창(30분, 운영 실측 연속 조회 93%)과 같은 값이다.
 	 */
 	private int ingestConversionWindowMinutes = 30;
+	/** 한 번에 옮길 수 있는 최대 일수 — 락을 쥔 채 몇 년치를 한 트랜잭션으로 도는 사고를 막는다. 백필은 달 단위로 나눠 돌린다 */
+	private int ingestMaxRangeDays = 62;
+	/**
+	 * 담기 이벤트(CourseStoreAddedEvent)가 배포된 날. 담기 백필(코스 주인 기준)은 이 날짜 이하로만 허용한다 — 그 뒤의 담기는
+	 * 이벤트가 담은 회원으로 남기므로 백필까지 넣으면 협업 코스에서 두 사람에게 귀속된다. **배포일과 맞춰 둔다**(PR #747 리뷰).
+	 */
+	private LocalDate courseAddEventSince = LocalDate.of(2026, 9, 19);
 }

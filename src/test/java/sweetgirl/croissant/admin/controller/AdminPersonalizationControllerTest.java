@@ -72,6 +72,20 @@ class AdminPersonalizationControllerTest {
 	}
 
 	@Test
+	@DisplayName("from 만 주면 그 하루, to 만 주면 400 — 한쪽만 온 요청이 500 으로 새지 않는다")
+	void ingest_withOneSidedRange() throws Exception {
+		given(ingestCommandService.ingest(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 2)))
+			.willReturn(new InteractionIngestResult(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 2), 3, Map.of()));
+
+		mockMvc.perform(post("/admin/personalization/interactions/ingest").param("from", "2026-09-01"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.to").value("2026-09-02"));
+		mockMvc.perform(post("/admin/personalization/interactions/ingest").param("to", "2026-09-02"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("PERSONALIZATION400_2"));
+	}
+
+	@Test
 	@DisplayName("다른 적재가 실행 중이면 409")
 	void ingest_whenRunning_isConflict() throws Exception {
 		given(ingestCommandService.ingestYesterday())

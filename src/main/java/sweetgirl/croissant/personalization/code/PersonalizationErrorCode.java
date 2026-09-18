@@ -21,6 +21,10 @@ public enum PersonalizationErrorCode implements BaseErrorCode {
 			"검사 응답은 네 축에 하나씩(4문항) 또는 둘씩(8문항) 있어야 합니다."),
 	INGEST_RANGE_INVALID(HttpStatus.BAD_REQUEST, "PERSONALIZATION400_2",
 			"적재 범위는 시작일이 종료일보다 앞이어야 합니다."),
+	INGEST_RANGE_TOO_LONG(HttpStatus.BAD_REQUEST, "PERSONALIZATION400_3",
+			"적재 범위가 너무 깁니다 — 달 단위로 나눠 돌려 주세요."),
+	BACKFILL_UNTIL_TOO_LATE(HttpStatus.BAD_REQUEST, "PERSONALIZATION400_4",
+			"담기 백필은 담기 이벤트 배포일 이전 범위만 허용합니다."),
 	INTERACTION_INGEST_ALREADY_RUNNING(HttpStatus.CONFLICT, "PERSONALIZATION409_1",
 			"신호 적재가 이미 실행 중입니다."),
 

@@ -21,6 +21,7 @@ import sweetgirl.croissant.course.event.CourseStoreAddedEvent;
 import sweetgirl.croissant.personalization.entity.UserStoreInteraction;
 import sweetgirl.croissant.personalization.enums.InteractionType;
 import sweetgirl.croissant.personalization.repository.UserStoreInteractionRepository;
+import sweetgirl.croissant.store.event.StoreSavedEvent;
 import sweetgirl.croissant.store.event.StoreUnsavedEvent;
 
 @ExtendWith(MockitoExtension.class)
@@ -32,6 +33,17 @@ class InteractionEventListenerTest {
 	private UserStoreInteractionRepository userStoreInteractionRepository;
 	@InjectMocks
 	private InteractionEventListener listener;
+
+	@Test
+	@DisplayName("저장 → SAVE 신호 한 행(사건 시각 = 엔티티 created_at — 배치 행과 유니크 키가 겹쳐 중복되지 않는다)")
+	void onStoreSaved_recordsSave() {
+		listener.onStoreSaved(new StoreSavedEvent(7L, 1042L, AT));
+
+		UserStoreInteraction saved = savedInteraction();
+		assertThat(saved.getType()).isEqualTo(InteractionType.SAVE.name());
+		assertThat(saved.getStoreId()).isEqualTo(1042L);
+		assertThat(saved.getOccurredAt()).isEqualTo(AT);
+	}
 
 	@Test
 	@DisplayName("저장 해제 → UNSAVE 신호 한 행(가게 단위, 사건 시각 = 해제 시각)")

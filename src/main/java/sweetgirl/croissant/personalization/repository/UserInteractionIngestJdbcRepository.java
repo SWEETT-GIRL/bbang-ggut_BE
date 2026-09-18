@@ -105,19 +105,24 @@ public class UserInteractionIngestJdbcRepository {
 			+ ON_CONFLICT, range(from, to).addValue("windowMinutes", windowMinutes));
 	}
 
-	/** 담았다가 뺌 — course_stores 에 뺀 사람이 없어 코스 주인 기준(#732 S4, 협업 코스에서는 어긋날 수 있다). */
+	/**
+	 * 담았다가 뺌 — course_stores 에 뺀 사람이 없어 코스 주인 기준(#732 S4, 협업 코스에서는 어긋날 수 있다).
+	 * 큐레이션 코스는 주인이 없다(courses.member_id NULL, 운영 38개) — 누구의 신호도 아니므로 뺀다(PR #747 리뷰, NOT NULL 위반).
+	 */
 	public int insertCourseRemoves(LocalDateTime from, LocalDateTime to) {
 		return jdbcTemplate.update(INSERT + """
 				SELECT c.member_id, cs.store_id, NULL, 'COURSE_REMOVE', NULL, NULL, cs.deleted_at
 				FROM course_stores cs
 					JOIN courses c ON c.id = cs.course_id
-				WHERE cs.deleted_at IS NOT NULL AND cs.deleted_at >= :from AND cs.deleted_at < :to
+				WHERE c.member_id IS NOT NULL
+					AND cs.deleted_at IS NOT NULL AND cs.deleted_at >= :from AND cs.deleted_at < :to
 				""" + ON_CONFLICT, range(from, to));
 	}
 
 	/**
 	 * 추천 시트를 담지 않고 닫음 — 그 묶음에 보인 가게마다 한 행. 사건 시각을 묶음(recommendation)의 시각으로 두어 같은 묶음을
-	 * 여러 번 닫아도(재사용) 묶음당 한 번만 센다(#663 TODO "노출 후 안 담김 −0.3 은 묶음당 한 번").
+	 * 여러 번 닫아도(재사용) 묶음당 한 번만 센다(#663 TODO "노출 후 안 담김 −0.3 은 묶음당 한 번"). 그 묶음에서 실제로 담은 가게
+	 * (course_stores.recommendation_id)는 "안 담은 것"이 아니라 뺀다 — 담기 +1.5 와 상쇄돼 신호가 흐려지지 않게(PR #747 리뷰).
 	 */
 	public int insertRecoDismissed(LocalDateTime from, LocalDateTime to) {
 		return jdbcTemplate.update(INSERT + """
@@ -127,6 +132,8 @@ public class UserInteractionIngestJdbcRepository {
 					JOIN recommendation r ON r.id = f.recommendation_id
 					CROSS JOIN LATERAL jsonb_array_elements(r.result->'stores') shown
 				WHERE f.action = 'DISMISS' AND f.created_at >= :from AND f.created_at < :to
+					AND NOT EXISTS (SELECT 1 FROM course_stores cs
+						WHERE cs.recommendation_id = r.id AND cs.store_id = CAST(shown->>'storeId' AS bigint))
 				""" + ON_CONFLICT, range(from, to));
 	}
 
@@ -150,7 +157,7 @@ public class UserInteractionIngestJdbcRepository {
 					CASE WHEN cs.recommendation_id IS NOT NULL THEN 'RECO' END, NULL, cs.created_at
 				FROM course_stores cs
 					JOIN courses c ON c.id = cs.course_id
-				WHERE cs.created_at < :until
+				WHERE c.member_id IS NOT NULL AND cs.created_at < :until
 				""" + ON_CONFLICT, new MapSqlParameterSource("until", until));
 	}
 

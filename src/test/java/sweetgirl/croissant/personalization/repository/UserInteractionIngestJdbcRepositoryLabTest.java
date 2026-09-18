@@ -98,6 +98,20 @@ class UserInteractionIngestJdbcRepositoryLabTest {
 				INSERT INTO recommendation_feedback (recommendation_id, store_id, action, created_at)
 				VALUES (?, ?, 'STORE_UNCHECK', ?)
 				""", recommendationId, store2, BASE.plusHours(3).plusMinutes(2));
+		// 그 묶음에서 store1 을 담았다 — 닫았어도 store1 은 RECO_DISMISSED 가 아니다
+		jdbcTemplate.update("""
+				INSERT INTO course_stores (course_id, store_id, visit_order, created_at, recommendation_id)
+				VALUES (?, ?, 2, ?, ?)
+				""", courseId, store1, BASE.plusHours(5), recommendationId);
+		// 큐레이션 코스(주인 없음)에서 뺀 가게는 누구의 신호도 아니다 — NOT NULL 위반으로 배치가 터지지 않아야 한다(PR #747)
+		Long curatedId = jdbcTemplate.queryForObject("""
+				INSERT INTO courses (type, title, member_id, is_public, created_at)
+				VALUES ('CURATED', '큐레이션 랩', NULL, true, ?) RETURNING id
+				""", Long.class, BASE);
+		jdbcTemplate.update("""
+				INSERT INTO course_stores (course_id, store_id, visit_order, created_at, deleted_at)
+				VALUES (?, ?, 1, ?, ?)
+				""", curatedId, store2, BASE, BASE.plusHours(1));
 
 		InteractionIngestResult first = ingestCommandService.ingest(DAY, DAY.plusDays(2));
 
@@ -106,11 +120,11 @@ class UserInteractionIngestJdbcRepositoryLabTest {
 			.containsEntry(InteractionType.PLAN, 1)
 			.containsEntry(InteractionType.STORE_VIEW, 3)
 			.containsEntry(InteractionType.COURSE_REMOVE, 1)
-			.containsEntry(InteractionType.RECO_DISMISSED, 2) // 두 번 닫아도 묶음당 한 번, 가게마다
+			.containsEntry(InteractionType.RECO_DISMISSED, 1) // 두 번 닫아도 묶음당 한 번, 담은 store1 은 빼고 store2 만
 			.containsEntry(InteractionType.RECO_UNCHECK, 1)
 			.containsEntry(InteractionType.RECORD_STORE, 0)
 			.containsEntry(InteractionType.RECORD_BREAD, 0);
-		assertThat(first.inserted()).isEqualTo(9);
+		assertThat(first.inserted()).isEqualTo(8);
 		List<Map<String, Object>> views = jdbcTemplate.queryForList("""
 				SELECT store_id, converted, occurred_at FROM user_store_interaction
 				WHERE member_id = ? AND type = 'STORE_VIEW' ORDER BY occurred_at, store_id
@@ -124,7 +138,10 @@ class UserInteractionIngestJdbcRepositoryLabTest {
 		Integer recoContext = jdbcTemplate.queryForObject(
 			"SELECT count(*) FROM user_store_interaction WHERE member_id = ? AND context = 'RECO'", Integer.class,
 			memberId);
-		assertThat(recoContext).isEqualTo(3);
+		assertThat(recoContext).isEqualTo(2);
+		Integer ownerless = jdbcTemplate.queryForObject(
+			"SELECT count(*) FROM user_store_interaction WHERE member_id IS NULL", Integer.class);
+		assertThat(ownerless).isZero();
 
 		InteractionIngestResult again = ingestCommandService.ingest(DAY, DAY.plusDays(2));
 
@@ -174,12 +191,22 @@ class UserInteractionIngestJdbcRepositoryLabTest {
 				INSERT INTO course_stores (course_id, store_id, visit_order, created_at, recommendation_id)
 				VALUES (?, ?, 1, ?, ?)
 				""", courseId, store, BASE, recommendationId);
-		Integer before = jdbcTemplate.queryForObject(
-			"SELECT count(*) FROM course_stores WHERE created_at < ?", Integer.class, DAY.plusDays(1).atStartOfDay());
+		// 큐레이션 코스(주인 없음)의 담기는 백필에서 빠진다 — 있어도 NOT NULL 위반으로 터지지 않는다(PR #747)
+		Long curatedId = jdbcTemplate.queryForObject("""
+				INSERT INTO courses (type, title, member_id, is_public, created_at)
+				VALUES ('CURATED', '큐레이션 랩', NULL, true, ?) RETURNING id
+				""", Long.class, BASE);
+		jdbcTemplate.update(
+			"INSERT INTO course_stores (course_id, store_id, visit_order, created_at) VALUES (?, ?, 1, ?)",
+			curatedId, store, BASE);
+		Integer before = jdbcTemplate.queryForObject("""
+				SELECT count(*) FROM course_stores cs JOIN courses c ON c.id = cs.course_id
+				WHERE c.member_id IS NOT NULL AND cs.created_at < ?
+				""", Integer.class, DAY.plusDays(1).atStartOfDay());
 
 		int inserted = ingestCommandService.backfillCourseAddsByOwner(DAY.plusDays(1));
 
-		assertThat(inserted).isEqualTo(before); // 2020-01-02 전에 담긴 건 이 픽스처뿐이거나, 있으면 전부
+		assertThat(inserted).isEqualTo(before); // 2020-01-02 전에 담긴 건(주인 있는 코스) 이 픽스처뿐이거나, 있으면 전부
 		Map<String, Object> row = jdbcTemplate.queryForMap("""
 				SELECT type, context FROM user_store_interaction
 				WHERE member_id = ? AND store_id = ? AND occurred_at = ?

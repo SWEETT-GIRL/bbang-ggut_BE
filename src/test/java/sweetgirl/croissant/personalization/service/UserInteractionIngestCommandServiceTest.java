@@ -11,6 +11,7 @@ import static org.mockito.Mockito.never;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -74,7 +75,7 @@ class UserInteractionIngestCommandServiceTest {
 	@DisplayName("어제분 = 어제 00:00 부터 오늘 00:00 전까지")
 	void ingestYesterday_coversYesterdayOnly() {
 		given(ingestRepository.tryLock(anyLong())).willReturn(true);
-		LocalDate today = LocalDate.now();
+		LocalDate today = LocalDate.now(ZoneId.of(UserInteractionIngestCommandService.ZONE)); // 스케줄 cron 과 같은 시계
 
 		InteractionIngestResult result = ingestCommandService.ingestYesterday();
 
@@ -93,6 +94,24 @@ class UserInteractionIngestCommandServiceTest {
 				.isEqualTo(PersonalizationErrorCode.INGEST_RANGE_INVALID));
 		then(ingestRepository).should(never()).tryLock(anyLong());
 		then(ingestRepository).should(never()).insertSaves(any(), any());
+	}
+
+	@Test
+	@DisplayName("범위가 설정 상한(62일)을 넘으면 400 — 락을 쥔 채 몇 년치를 한 트랜잭션으로 돌지 않는다")
+	void ingest_rejectsTooLongRange() {
+		assertThatThrownBy(() -> ingestCommandService.ingest(LocalDate.of(2026, 6, 1), LocalDate.of(2026, 9, 1)))
+			.isInstanceOfSatisfying(PersonalizationException.class, e -> assertThat(e.getErrorCode())
+				.isEqualTo(PersonalizationErrorCode.INGEST_RANGE_TOO_LONG));
+		then(ingestRepository).should(never()).tryLock(anyLong());
+	}
+
+	@Test
+	@DisplayName("담기 백필은 이벤트 배포일(설정) 뒤로는 거부 — 담은 회원과 코스 주인 두 사람에게 귀속되지 않게")
+	void backfillCourseAdds_rejectsUntilAfterEventDeploy() {
+		assertThatThrownBy(() -> ingestCommandService.backfillCourseAddsByOwner(LocalDate.of(2026, 10, 1)))
+			.isInstanceOfSatisfying(PersonalizationException.class, e -> assertThat(e.getErrorCode())
+				.isEqualTo(PersonalizationErrorCode.BACKFILL_UNTIL_TOO_LATE));
+		then(ingestRepository).should(never()).tryLock(anyLong());
 	}
 
 	@Test

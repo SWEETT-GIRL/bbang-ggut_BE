@@ -23,6 +23,7 @@ import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.store.code.SavedStoreErrorCode;
 import sweetgirl.croissant.store.entity.SavedStore;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.event.StoreSavedEvent;
 import sweetgirl.croissant.store.event.StoreUnsavedEvent;
 import sweetgirl.croissant.store.exception.SavedStoreException;
 import sweetgirl.croissant.store.repository.SavedStoreRepository;
@@ -54,10 +55,17 @@ class SavedStoreCommandServiceTest {
 		given(savedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId)).willReturn(false);
 		given(memberRepository.findByIdAndDeletedAtIsNull(memberId)).willReturn(Optional.of(mock(Member.class)));
 		given(storeRepository.findById(storeId)).willReturn(Optional.of(mock(Store.class)));
+		given(savedStoreRepository.save(any(SavedStore.class))).willAnswer(invocation -> invocation.getArgument(0));
 
 		savedStoreCommandService.saveStore(memberId, storeId);
 
 		then(savedStoreRepository).should().save(any(SavedStore.class));
+		// 배치 전에 해제되면 행이 사라지므로 SAVE 를 이벤트로 먼저 남긴다(#663) — 시각은 created_at(목이라 지금 시각)
+		ArgumentCaptor<StoreSavedEvent> event = ArgumentCaptor.forClass(StoreSavedEvent.class);
+		then(eventPublisher).should().publishEvent(event.capture());
+		assertThat(event.getValue().memberId()).isEqualTo(memberId);
+		assertThat(event.getValue().storeId()).isEqualTo(storeId);
+		assertThat(event.getValue().savedAt()).isNotNull();
 	}
 
 	@Test

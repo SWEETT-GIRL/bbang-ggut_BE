@@ -18,7 +18,7 @@ public class UserInteractionIngestScheduler {
 
 	private final UserInteractionIngestCommandService ingestCommandService;
 
-	@Scheduled(cron = "0 0 4 * * *", zone = "Asia/Seoul")
+	@Scheduled(cron = "0 0 4 * * *", zone = UserInteractionIngestCommandService.ZONE)
 	public void dailyIngest() {
 		log.info("[개인화] 전날 신호 적재 시작");
 		try {

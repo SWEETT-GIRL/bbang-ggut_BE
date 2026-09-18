@@ -3,6 +3,7 @@ package sweetgirl.croissant.letter.config;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,7 +17,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * 어드민 편지 API 앞을 지키는 열쇠.
+ * 열쇠가 필요한 어드민 API 앞을 지킨다 — 편지와 개인화 배치.
  *
  * <p>{@code SecurityConfig}에서 {@code /api/admin/**}은 permitAll이다. 코스나 메뉴를 고치는
  * API라면 데이터가 지저분해지는 정도지만, <b>편지는 사용자에게 직접 닿는다</b> — 열어두면 아무나
@@ -30,21 +31,26 @@ public class AdminApiKeyFilter extends OncePerRequestFilter {
 	public static final String HEADER = "X-Admin-Key";
 
 	private static final Logger log = LoggerFactory.getLogger(AdminApiKeyFilter.class);
-	private static final String PROTECTED_PREFIX = "/api/admin/letters";
+	/**
+	 * 열쇠가 필요한 경로. 편지는 사용자에게 직접 닿고, 개인화 배치(#663)는 취향 신호를 되돌리기 어렵게 바꾸거나 락을 쥔 채 무거운
+	 * 트랜잭션을 건다 — 신호가 오염되면 추천이 바뀐다(PR #747 리뷰). 여기에 더하면 AdminApiKeyConfig 의 URL 패턴도 같이 더한다.
+	 */
+	static final List<String> PROTECTED_PREFIXES = List.of("/api/admin/letters", "/admin/personalization");
 
 	private final String apiKey;
 
 	public AdminApiKeyFilter(String apiKey) {
 		this.apiKey = apiKey == null ? "" : apiKey.trim();
 		if (this.apiKey.isEmpty()) {
-			log.warn("ADMIN_API_KEY가 비어 있다 — 어드민 편지 API({})가 무방비다. 운영에서는 반드시 설정할 것.",
-				PROTECTED_PREFIX);
+			log.warn("ADMIN_API_KEY가 비어 있다 — 열쇠가 필요한 어드민 API({})가 무방비다. 운영에서는 반드시 설정할 것.",
+				PROTECTED_PREFIXES);
 		}
 	}
 
 	@Override
 	protected boolean shouldNotFilter(HttpServletRequest request) {
-		return !request.getRequestURI().startsWith(PROTECTED_PREFIX);
+		String uri = request.getRequestURI();
+		return PROTECTED_PREFIXES.stream().noneMatch(uri::startsWith);
 	}
 
 	@Override
@@ -55,7 +61,7 @@ public class AdminApiKeyFilter extends OncePerRequestFilter {
 			return;
 		}
 
-		log.warn("어드민 편지 API 접근 거부 [uri={}, ip={}]", request.getRequestURI(), request.getRemoteAddr());
+		log.warn("어드민 API 접근 거부 [uri={}, ip={}]", request.getRequestURI(), request.getRemoteAddr());
 		response.setStatus(HttpStatus.UNAUTHORIZED.value());
 		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 		response.setCharacterEncoding(StandardCharsets.UTF_8.name());

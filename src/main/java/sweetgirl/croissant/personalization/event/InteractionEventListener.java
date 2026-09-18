@@ -12,11 +12,12 @@ import sweetgirl.croissant.course.event.CourseStoreAddedEvent;
 import sweetgirl.croissant.personalization.entity.UserStoreInteraction;
 import sweetgirl.croissant.personalization.enums.InteractionType;
 import sweetgirl.croissant.personalization.repository.UserStoreInteractionRepository;
+import sweetgirl.croissant.store.event.StoreSavedEvent;
 import sweetgirl.croissant.store.event.StoreUnsavedEvent;
 
 /**
  * 다른 도메인이 남기는 신호를 이벤트로 받아 user_store_interaction 에 쓴다 (#663 · #731 패키지 경계 — 서비스끼리 주입하면 순환 참조).
- * 원본 표에 흔적이 안 남는 저장 해제와, 담은 사람이 필요한 담기 두 가지다. 커밋 뒤에 비동기로 쓰고, 실패는 로그만 남긴다 — 신호를
+ * 원본 표에 흔적이 안 남는 저장 해제, 그와 짝을 맞추는 저장, 담은 사람이 필요한 담기 세 가지다. 커밋 뒤에 비동기로 쓰고, 실패는 로그만 남긴다 — 신호를
  * 잃는 것이 저장 해제 · 담기 요청을 깨뜨리는 것보다 낫다(SearchMissEventListener 와 같은 이유). logExecutor 는 큐가 차면 버린다.
  */
 @Slf4j
@@ -27,6 +28,13 @@ public class InteractionEventListener {
 	static final String CONTEXT_RECOMMENDATION = "RECO";
 
 	private final UserStoreInteractionRepository userStoreInteractionRepository;
+
+	@Async("logExecutor")
+	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+	public void onStoreSaved(StoreSavedEvent event) {
+		record(UserStoreInteraction.of(event.memberId(), event.storeId(), null, InteractionType.SAVE.name(), null,
+			null, event.savedAt()), event);
+	}
 
 	@Async("logExecutor")
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
