@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
@@ -70,8 +71,9 @@ public class NicknameGenerator {
 		init();
 	}
 
+	// 단어 파일에 같은 단어가 두 줄 있으면 그 단어가 든 조합이 큐에 두 번 들어가 같은 닉네임이 두 명에게 나간다.
 	private List<String> loadWords(String path) {
-		List<String> words = new ArrayList<>();
+		Set<String> words = new LinkedHashSet<>();
 		try (BufferedReader reader = new BufferedReader(
 			new InputStreamReader(
 				new ClassPathResource(path).getInputStream(), StandardCharsets.UTF_8))) {
@@ -85,6 +87,6 @@ public class NicknameGenerator {
 		} catch (IOException e) {
 			throw new NicknameException(NicknameErrorCode.NICKNAME_FILE_LOAD_FAILED, e);
 		}
-		return words;
+		return new ArrayList<>(words);
 	}
 }
