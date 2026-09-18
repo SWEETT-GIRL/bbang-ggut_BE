@@ -8,6 +8,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.config.async.AsyncConfig;
 import sweetgirl.croissant.course.event.CourseStoreAddedEvent;
 import sweetgirl.croissant.personalization.entity.UserStoreInteraction;
 import sweetgirl.croissant.personalization.enums.InteractionType;
@@ -29,21 +30,21 @@ public class InteractionEventListener {
 
 	private final UserStoreInteractionRepository userStoreInteractionRepository;
 
-	@Async("logExecutor")
+	@Async(AsyncConfig.SIGNAL_EXECUTOR)
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	public void onStoreSaved(StoreSavedEvent event) {
 		record(UserStoreInteraction.of(event.memberId(), event.storeId(), null, InteractionType.SAVE.name(), null,
 			null, event.savedAt()), event);
 	}
 
-	@Async("logExecutor")
+	@Async(AsyncConfig.SIGNAL_EXECUTOR)
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	public void onStoreUnsaved(StoreUnsavedEvent event) {
 		record(UserStoreInteraction.of(event.memberId(), event.storeId(), null, InteractionType.UNSAVE.name(), null,
 			null, event.unsavedAt()), event);
 	}
 
-	@Async("logExecutor")
+	@Async(AsyncConfig.SIGNAL_EXECUTOR)
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	public void onCourseStoreAdded(CourseStoreAddedEvent event) {
 		String context = event.recommendationId() != null ? CONTEXT_RECOMMENDATION : null;

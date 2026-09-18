@@ -8,7 +8,8 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * 추천 카드 상태 판정의 재료 — "강한 신호"(저장 · 담기 · 기록) 가게 수를 요청 때 센다 (설계 §1).
- * #663 배치가 user_taste_profile.strong_store_count 를 채우면 그 컬럼으로 바꾸고 이 조회는 뺀다.
+ * #663 ④ 결정: user_taste_profile.strong_store_count 로 바꾸지 않는다 — 그 컬럼은 하루 한 번(04:00) 창 안 양의 신호를 세고, 이 조회는
+ * "지금 저장·담기·기록한 가게"를 세어 방금 저장한 회원도 바로 칩 상태가 된다(하루 지연 없음). 세 표 PK 조회라 싸다.
  */
 @Repository
 @RequiredArgsConstructor

@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -43,4 +44,12 @@ public interface RequestLogRepository extends JpaRepository<RequestLog, Long> {
 			@Param("createdAtAfter") LocalDateTime createdAtAfter,
 			@Param("endpoint") String endpoint,
 			Pageable pageable);
+
+	/**
+	 * 게스트 → 회원 병합(#663 ④). 04:00 적재가 STORE_VIEW 를 member_id 로 읽으므로, 옮기지 않으면 병합 직전 게스트 조회가 닫힌
+	 * 계정으로 적재되어 회원에게 영영 안 붙고 인기도(#663 ③)가 한 사람을 둘로 센다. member_id 인덱스를 탄다.
+	 */
+	@Modifying(clearAutomatically = true)
+	@Query("UPDATE RequestLog log SET log.memberId = :targetId WHERE log.memberId = :guestId")
+	int moveOwner(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
 }

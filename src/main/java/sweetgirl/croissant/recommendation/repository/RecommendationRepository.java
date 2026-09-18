@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -60,4 +61,13 @@ public interface RecommendationRepository extends JpaRepository<Recommendation, 
 				AND r.mode = sweetgirl.croissant.recommendation.enums.RecommendationMode.AREA
 			""")
 	List<Long> findRecommendedAreaIds(@Param("memberId") Long memberId, @Param("courseId") Long courseId);
+
+	/**
+	 * 게스트 → 회원 병합(#663 ④). 적재가 RECO_DISMISSED · RECO_UNCHECK 를 이 표의 member_id 로 읽고, 재사용 키도 회원별이라
+	 * 옮기지 않으면 게스트로 받은 추천을 로그인 뒤 다시 만들게 된다.
+	 */
+	@Modifying(clearAutomatically = true)
+	@Query("UPDATE Recommendation recommendation SET recommendation.memberId = :targetId "
+		+ "WHERE recommendation.memberId = :guestId")
+	int moveOwner(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
 }
