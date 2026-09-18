@@ -50,6 +50,8 @@ class ReviewRepositoryTest {
 				CREATE TABLE member (
 					id BIGINT PRIMARY KEY,
 					nickname VARCHAR(100) NOT NULL,
+					pending_nickname VARCHAR(100),
+					nickname_drawn_at TIMESTAMP,
 					deleted_at TIMESTAMP,
 					agree_to_terms BOOLEAN NOT NULL DEFAULT TRUE,
 					agree_to_marketing BOOLEAN NOT NULL DEFAULT FALSE,

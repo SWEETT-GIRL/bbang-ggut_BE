@@ -20,6 +20,8 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 	@Query("SELECT m.nickname FROM Member m WHERE m.deletedAt IS NULL")
 	List<String> findAllNicknames();
 
+	boolean existsByNicknameAndDeletedAtIsNull(String nickname);
+
 	/**
 	 * 어드민이 편지 받을 사람을 고를 때 쓰는 검색. 닉네임 부분일치이고, 검색어가 비면 최근 가입순이다.
 	 *
