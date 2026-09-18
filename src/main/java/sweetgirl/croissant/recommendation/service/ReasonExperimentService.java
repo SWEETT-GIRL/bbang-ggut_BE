@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -25,6 +26,7 @@ import sweetgirl.croissant.external.llm.dto.LlmRequest;
 import sweetgirl.croissant.external.llm.dto.LlmResult;
 import sweetgirl.croissant.external.llm.exception.LlmException;
 import sweetgirl.croissant.personalization.entity.UserTasteProfile;
+import sweetgirl.croissant.personalization.enums.BbtiType;
 import sweetgirl.croissant.personalization.repository.UserTasteProfileRepository;
 import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
 import sweetgirl.croissant.recommendation.config.ReasonExperimentProperties;
@@ -101,26 +103,47 @@ public class ReasonExperimentService {
 		}
 
 		ReasonExperimentInput input = inputOf(area, profile, taste, pool.fallback(), ordered);
-		List<ReasonExperimentRun> runs = runAll(combinationsOf(request), taste, profile, ordered);
+		Set<LlmProvider> skipped = new LinkedHashSet<>();
+		List<ReasonExperimentRun> runs = runAll(combinationsOf(request, skipped), taste, profile, ordered);
+		List<LlmProvider> skippedProviders = List.copyOf(skipped);
 		if (!request.isBlind()) {
-			return ReasonExperimentResponse.measured(input, runs);
+			return ReasonExperimentResponse.measured(input, runs, skippedProviders);
 		}
-		return blindOf(input, runs);
+		return blindOf(input, runs, skippedProviders);
 	}
 
-	/** 조합 하나 = 벤더 × 모델 × 변형. 상한을 넘으면 돌리기 전에 막는다 — 비용 가드 */
-	private List<Combination> combinationsOf(ReasonExperimentRequest request) {
+	/**
+	 * 조합 하나 = 벤더 × 모델 × 변형.
+	 *
+	 * <p>키 없는 벤더는 <b>돌리기 전에 뺀다.</b> 넣어 두면 호출마다 실패 한 줄만 쌓이고 조합 상한까지 잡아먹어,
+	 * 정작 돌릴 수 있는 조합이 상한에 걸린다. 같은 모델을 두 번 적은 경우도 여기서 없앤다 — 같은 값에 두 번
+	 * 돈을 낼 이유가 없다. 상한 검사는 이 둘을 거른 뒤에 한다.
+	 */
+	private List<Combination> combinationsOf(ReasonExperimentRequest request, Set<LlmProvider> skipped) {
 		List<String> models = isEmpty(request.models()) ? experimentProperties.getModels() : request.models();
 		List<ReasonPromptVariant> variants = isEmpty(request.variants())
 			? experimentProperties.getVariants()
 			: request.variants();
-		if (models.size() * variants.size() > experimentProperties.getMaxCombinations()) {
-			throw new RecommendationException(RecommendationErrorCode.EXPERIMENT_TOO_MANY_COMBINATIONS);
-		}
-		List<Combination> combinations = new ArrayList<>();
+		Set<LlmProvider> configured = Set.copyOf(llmClientRegistry.configuredProviders());
+
+		List<ModelRef> modelRefs = new ArrayList<>();
 		for (String model : models) {
 			ModelRef modelRef = ModelRef.parse(model);
-			for (ReasonPromptVariant variant : variants) {
+			if (!configured.contains(modelRef.provider())) {
+				skipped.add(modelRef.provider());
+				continue;
+			}
+			if (!modelRefs.contains(modelRef)) {
+				modelRefs.add(modelRef);
+			}
+		}
+		if (modelRefs.size() * variants.size() > experimentProperties.getMaxCombinations()) {
+			throw new RecommendationException(RecommendationErrorCode.EXPERIMENT_TOO_MANY_COMBINATIONS);
+		}
+
+		List<Combination> combinations = new ArrayList<>();
+		for (ModelRef modelRef : modelRefs) {
+			for (ReasonPromptVariant variant : new LinkedHashSet<>(variants)) {
 				combinations.add(new Combination(modelRef.provider(), modelRef.model(), variant));
 			}
 		}
@@ -185,7 +208,8 @@ public class ReasonExperimentService {
 	 *
 	 * <p>입력에서 취향 일치도는 뺀다. 점수가 높은 가게의 문장을 더 좋게 보게 만든다.
 	 */
-	private ReasonExperimentResponse blindOf(ReasonExperimentInput input, List<ReasonExperimentRun> runs) {
+	private ReasonExperimentResponse blindOf(ReasonExperimentInput input, List<ReasonExperimentRun> runs,
+			List<LlmProvider> skippedProviders) {
 		List<BlindReasonEntry> entries = new ArrayList<>();
 		Map<String, String> answerKey = new LinkedHashMap<>();
 		int labelSequence = 1;
@@ -203,7 +227,7 @@ public class ReasonExperimentService {
 				answerKey.put(label, choice[0]);
 			}
 		}
-		return ReasonExperimentResponse.blind(blindInputOf(input), entries, encode(answerKey));
+		return ReasonExperimentResponse.blind(blindInputOf(input), entries, encode(answerKey), skippedProviders);
 	}
 
 	private ReasonExperimentInput blindInputOf(ReasonExperimentInput input) {
@@ -232,30 +256,23 @@ public class ReasonExperimentService {
 				CourseRecommendationCommandService.reasonOf(taste, row, fallback, threshold)))
 			.toList();
 		String typeCode = profile == null ? null : profile.getTypeCode();
-		return new ReasonExperimentInput(area.getId(), area.getName(), typeCode, typeLabelOf(typeCode),
+		return new ReasonExperimentInput(area.getId(), area.getName(), typeCode, BbtiType.labelOrCode(typeCode),
 			taste.hasAxis(), fallback, stores);
 	}
 
-	private String typeLabelOf(String typeCode) {
-		if (typeCode == null) {
-			return null;
-		}
-		try {
-			return sweetgirl.croissant.personalization.enums.BbtiType.fromCode(typeCode).getLabel();
-		} catch (RuntimeException e) {
-			return typeCode;
-		}
-	}
-
 	/**
-	 * 후보 풀 — {@code CourseRecommendationCommandService#poolFor} 와 같은 규칙이다(취향 후보가 모자라면 취향 항을
-	 * 빼고 다시 뽑는다). 실험이 보여 주는 4곳은 운영이 보여 줄 4곳과 같아야 비교가 성립한다. 거기는 요청 경로라 손대지
-	 * 않고 여기에 같은 규칙을 둔다 — 규칙이 바뀌면 두 곳을 같이 고친다.
+	 * 후보 풀 — {@code CourseRecommendationCommandService#poolFor} 와 같은 규칙으로 뽑는다. 폴백 판정은
+	 * {@link CourseRecommendationCommandService#isTasteFallback} 를 그대로 부르므로 임계가 갈릴 일이 없고,
+	 * 여기 남은 복제는 "폴백이면 취향 항을 빼고 다시 조회한다" 두 줄뿐이다.
+	 *
+	 * <p><b>다만 제외 목록이 비어 있다.</b> 운영은 코스에 담긴 가게와 이미 보여 준 가게를 빼고 뽑는데, 실험 API 는
+	 * 코스를 받지 않아 뺄 목록이 없다. 그래서 여기서 나오는 4곳은 <b>빈 코스에서 처음 받는 추천</b>과만 같다.
+	 * 회원이 이미 그 동네에서 추천을 받았거나 코스에 가게를 담아 뒀다면 운영 화면과 갈린다.
 	 */
 	private Pool poolFor(Long memberId, TasteQuery taste, CourseArea area) {
 		List<CandidateStoreRow> candidates = findAreaCandidates(memberId, taste, area);
-		boolean fallback = taste.hasAxis() && !candidates.isEmpty()
-			&& candidates.get(0).tasteCandidateCount() < recommendationProperties.getScore().getMinTasteCandidates();
+		boolean fallback = CourseRecommendationCommandService.isTasteFallback(candidates, taste,
+			recommendationProperties.getScore().getMinTasteCandidates());
 		if (fallback) {
 			candidates = findAreaCandidates(memberId, TasteQuery.empty(), area);
 		}

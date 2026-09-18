@@ -47,6 +47,21 @@ public enum BbtiType {
 	 *
 	 * @throws PersonalizationException {@code TASTE_AXIS_INCOMPLETE} — 규칙에 없는 코드
 	 */
+	/**
+	 * 화면 이름. 코드 체계 밖 값이면 코드를 그대로 돌려준다 — 표시용 경로가 알 수 없는 코드 하나 때문에 멈출 이유는 없다.
+	 * 저장된 코드가 규칙을 지키는지 따져야 하는 자리에서는 {@link #fromCode} 를 쓴다.
+	 */
+	public static String labelOrCode(String code) {
+		if (code == null) {
+			return null;
+		}
+		return Arrays.stream(values())
+			.filter(type -> type.name().equals(code))
+			.map(BbtiType::getLabel)
+			.findFirst()
+			.orElse(code);
+	}
+
 	public static BbtiType fromCode(String code) {
 		return Arrays.stream(values())
 			.filter(type -> type.name().equals(code))

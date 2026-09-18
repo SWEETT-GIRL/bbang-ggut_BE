@@ -77,6 +77,8 @@ class ReasonExperimentServiceTest {
 			recommendationProperties, experimentProperties, new ReasonPromptBuilder(recommendationProperties),
 			llmClientRegistry, new ObjectMapper());
 
+		given(llmClientRegistry.configuredProviders())
+			.willReturn(List.of(LlmProvider.GEMINI, LlmProvider.OPENAI, LlmProvider.ANTHROPIC));
 		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(seongsu()));
 		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
 		given(candidateRepository.findAreaCandidates(anyLong(), any(), anyDouble(), anyDouble(), anyInt(), anyString(),
@@ -203,6 +205,32 @@ class ReasonExperimentServiceTest {
 		ReasonExperimentResponse response = service.run(request(null, null, false));
 
 		assertThat(response.input().stores()).extracting("tasteFit").doesNotContainNull();
+	}
+
+	@Test
+	@DisplayName("키 없는 벤더는 판에서 빼고 무엇을 뺐는지 알려 준다 — 실패 줄로 상한을 잡아먹지 않게")
+	void run_skipsUnconfiguredProviders() {
+		given(llmClientRegistry.configuredProviders()).willReturn(List.of(LlmProvider.GEMINI));
+		givenAnswer("문장 1", "문장 2");
+
+		ReasonExperimentResponse response = service.run(request(
+			List.of("GEMINI:gemini-3.5-flash-lite", "OPENAI:gpt-5.6-luna"), List.of(ReasonPromptVariant.A), false));
+
+		assertThat(response.runs()).hasSize(1);
+		assertThat(response.runs().get(0).provider()).isEqualTo(LlmProvider.GEMINI);
+		assertThat(response.skippedProviders()).containsExactly(LlmProvider.OPENAI);
+	}
+
+	@Test
+	@DisplayName("같은 모델을 두 번 적어도 한 번만 부른다 — 같은 값에 두 번 돈을 내지 않는다")
+	void run_dedupesModels() {
+		givenAnswer("문장 1", "문장 2");
+
+		ReasonExperimentResponse response = service.run(request(
+			List.of("GEMINI:gemini-3.5-flash-lite", "GEMINI:gemini-3.5-flash-lite"),
+			List.of(ReasonPromptVariant.A), false));
+
+		assertThat(response.runs()).hasSize(1);
 	}
 
 	@Test

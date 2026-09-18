@@ -70,7 +70,7 @@ public class ReasonPromptBuilder {
 		lines.add("- 구성: " + axisText(taste.filling(), "풍부", "심플"));
 		lines.add("- 빵 스타일: " + axisText(taste.vibe(), "고전", "신상"));
 		if (typeCode != null) {
-			lines.add("- 유형: " + typeName(typeCode));
+			lines.add("- 유형: " + BbtiType.labelOrCode(typeCode));
 		}
 		lines.add("- 좋아하는 태그: " + joinOrNone(sortedByWeight(taste.tags())));
 		lines.add("- 자주 먹는 빵 종류: " + joinOrNone(taste.topKinds()));
@@ -169,15 +169,6 @@ public class ReasonPromptBuilder {
 
 	private static String joinOrNone(List<String> values) {
 		return values == null || values.isEmpty() ? NO_VALUE : String.join(", ", values);
-	}
-
-	private static String typeName(String typeCode) {
-		try {
-			return BbtiType.fromCode(typeCode).getLabel();
-		} catch (RuntimeException e) {
-			// 코드 체계 밖 값이면 유형 이름 없이 코드만 — 실험이 여기서 멈출 이유가 없다
-			return typeCode;
-		}
 	}
 
 	private static String load(String promptFile) {

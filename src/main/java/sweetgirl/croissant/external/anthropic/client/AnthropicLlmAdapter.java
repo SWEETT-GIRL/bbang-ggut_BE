@@ -70,8 +70,7 @@ public class AnthropicLlmAdapter implements LlmClient {
 			request.model(),
 			request.prompt(),
 			request.responseSchema(),
-			request.maxOutputTokens(),
-			request.temperature());
+			request.maxOutputTokens());
 
 		AnthropicMessageResponse response = call(body);
 		if (response.isRefusal()) {

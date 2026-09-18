@@ -74,7 +74,8 @@ class AnthropicLlmAdapterTest {
 			.andExpect(header("anthropic-version", "2023-06-01"))
 			.andExpect(jsonPath("$.model").value("claude-haiku-4-5-20251001"))
 			.andExpect(jsonPath("$.max_tokens").value(800))
-			.andExpect(jsonPath("$.temperature").value(0.0))
+			// Sonnet 5 는 temperature 를 폐기했다 — 보내면 400 이라 아예 안 보낸다
+			.andExpect(jsonPath("$.temperature").doesNotExist())
 			.andExpect(jsonPath("$.messages[0].role").value("user"))
 			.andExpect(jsonPath("$.messages[0].content").value("이유를 써라"))
 			.andExpect(jsonPath("$.output_config.format.type").value("json_schema"))

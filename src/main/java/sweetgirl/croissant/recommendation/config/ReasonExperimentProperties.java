@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
+import org.springframework.validation.annotation.Validated;
 
 import jakarta.validation.constraints.Min;
 import lombok.Getter;
@@ -18,6 +19,7 @@ import sweetgirl.croissant.recommendation.enums.ReasonPromptVariant;
  */
 @Getter
 @Setter
+@Validated
 @Component
 @ConfigurationProperties(prefix = "recommendation.reason-experiment")
 public class ReasonExperimentProperties {

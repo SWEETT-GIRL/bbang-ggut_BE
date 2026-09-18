@@ -63,7 +63,7 @@ class AdminReasonExperimentControllerTest {
 		ReasonExperimentRun run = ReasonExperimentRun.succeeded("GEMINI/gemini-3.5-flash-lite/A",
 			LlmProvider.GEMINI, "gemini-3.5-flash-lite", ReasonPromptVariant.A, 640L, 700, 48, 1_200,
 			List.of(new ReasonSentence(1L, "밀도", "바삭한 소금빵이 강한 집이에요")));
-		return ReasonExperimentResponse.measured(input, List.of(run));
+		return ReasonExperimentResponse.measured(input, List.of(run), List.of());
 	}
 
 	@Test
