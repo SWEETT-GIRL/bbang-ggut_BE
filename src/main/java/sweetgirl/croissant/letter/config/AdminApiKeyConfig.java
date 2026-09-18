@@ -5,17 +5,22 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
+import org.springframework.core.env.Environment;
 
 @Configuration
 public class AdminApiKeyConfig {
 
+	/** 로컬에서만 열쇠 없이 통과시킨다 — 개발 편의는 지키되 배포 환경에서는 비용 경로를 막는다 */
+	private static final String LOCAL_PROFILE = "local";
+
 	@Bean
 	public FilterRegistrationBean<AdminApiKeyFilter> adminApiKeyFilter(
-			@Value("${admin.api-key:}") String apiKey) {
+			@Value("${admin.api-key:}") String apiKey, Environment environment) {
+		boolean allowWithoutKey = environment.matchesProfiles(LOCAL_PROFILE);
 		FilterRegistrationBean<AdminApiKeyFilter> bean = new FilterRegistrationBean<>();
-		bean.setFilter(new AdminApiKeyFilter(apiKey));
+		bean.setFilter(new AdminApiKeyFilter(apiKey, allowWithoutKey));
 		// AdminApiKeyFilter.PROTECTED_PREFIXES 와 짝 — 한쪽만 더하면 필터가 안 걸리거나 헛돈다
-		bean.addUrlPatterns("/api/admin/letters/*", "/admin/personalization/*");
+		bean.addUrlPatterns("/api/admin/letters/*", "/admin/personalization/*", "/admin/recommendations/*");
 		// 인증을 다루므로 요청 로깅보다도 앞이다 — 막을 요청에 일을 시키지 않는다.
 		bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 10);
 		return bean;

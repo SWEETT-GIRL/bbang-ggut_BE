@@ -60,6 +60,10 @@ jobs:
 
           gemini.api.key=${GEMINI_API_KEY}
 
+          # 이유 문장 LLM 실험(#662) — 없으면 그 벤더만 실험에서 빠진다
+          openai.api.key=${OPENAI_API_KEY:}
+          anthropic.api.key=${CLAUDE_API_KEY:}
+
           # 2026-09-09 정지 — prod 와 같은 무료 티어 키를 쓴다. dev 서버까지 스케줄러를 돌리면
           # 하루 500 요청을 둘이 나눠 먹어 양쪽 다 429 를 맞는다. 애초에 dev 에서 68만 건을
           # 분류할 일이 없으므로 여기는 계속 꺼 둔다 (분류 코드를 고칠 때만 잠시 켠다).
@@ -172,6 +176,8 @@ jobs:
             echo "NAVER_CLIENT_SECRET=${{ secrets.NAVER_CLIENT_SECRET }}" >> .env
             echo "GOOGLE_PLACES_API_KEY=${{ secrets.GOOGLE_PLACES_API_KEY }}" >> .env
             echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+            echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
+            echo "CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }}" >> .env
             echo "AWS_REGION=ap-northeast-2" >> .env
             echo "AWS_S3_BUCKET=${{ secrets.STAGING_AWS_S3_BUCKET }}" >> .env
             echo "STAGING_POSTHOG_API_KEY=${{ secrets.STAGING_POSTHOG_API_KEY }}" >> .env

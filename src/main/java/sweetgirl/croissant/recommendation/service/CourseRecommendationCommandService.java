@@ -331,12 +331,23 @@ public class CourseRecommendationCommandService {
 		List<CandidateStoreRow> candidates = findAreaCandidates(memberId, taste, area, excludeStoreIds);
 		// 취향 폴백(설계 §9 · #661): 풀에 취향 후보(코사인 > 임계)가 3곳 미만이면 취향 항을 빼고 prior 순으로 채운다 —
 		// 담백 가게가 없는 동네에서 케이크집 4곳을 "취향에 맞는 곳"이라 하지 않는다. 반경은 넓히지 않는다(09-13).
-		boolean fallback = taste.hasAxis() && !candidates.isEmpty()
-			&& candidates.get(0).tasteCandidateCount() < recommendationProperties.getScore().getMinTasteCandidates();
+		boolean fallback = isTasteFallback(candidates, taste,
+			recommendationProperties.getScore().getMinTasteCandidates());
 		if (fallback) {
 			candidates = findAreaCandidates(memberId, TasteQuery.empty(), area, excludeStoreIds);
 		}
 		return new CandidatePool(candidates, fallback);
+	}
+
+	/**
+	 * 취향 폴백인가 — 풀에 취향 후보(코사인 > 임계)가 {@code minTasteCandidates} 곳 미만이면 취향 항을 빼고 다시 뽑아야 한다.
+	 *
+	 * <p>설정 없이 부를 수 있게 열어 둔 자리다. 이유 문장 실험(#662)이 같은 판정을 해야 하는데, 복제해 두면 임계가 한쪽에서만
+	 * 바뀌어도 조용히 갈린다. 저장소를 타지 않는 순수 함수라 여기만 고치면 양쪽이 같이 따라온다.
+	 */
+	static boolean isTasteFallback(List<CandidateStoreRow> candidates, TasteQuery taste, int minTasteCandidates) {
+		return taste.hasAxis() && !candidates.isEmpty()
+			&& candidates.get(0).tasteCandidateCount() < minTasteCandidates;
 	}
 
 	private RecommendationResponse buildAreaRecommendation(Long memberId, String sessionId, Course course,
@@ -403,10 +414,18 @@ public class CourseRecommendationCommandService {
 	 * 축이 없는 사용자에겐 취향 근거가 없으니 인기순 문구(RULE_REASON)를 그대로 쓴다 — "취향에 맞는다"고 지어내지 않는다.
 	 */
 	private String reasonOf(TasteQuery taste, CandidateStoreRow row, boolean fallback) {
+		return reasonOf(taste, row, fallback, recommendationProperties.getScore().getTasteCosineThreshold());
+	}
+
+	/**
+	 * 같은 규칙을 설정 없이 부를 수 있게 열어 둔 자리 — 이유 문장 실험(#662)이 "룰이 지금 뭐라고 쓰는지"를 기준선으로
+	 * 나란히 놓아야 해서. 규칙 자체는 위 문서 그대로이고 여기가 유일한 구현이다.
+	 */
+	static String reasonOf(TasteQuery taste, CandidateStoreRow row, boolean fallback, double tasteCosineThreshold) {
 		if (!taste.hasAxis()) {
 			return RecommendationMessage.RULE_REASON;
 		}
-		if (fallback || row.tasteFit() <= recommendationProperties.getScore().getTasteCosineThreshold()) {
+		if (fallback || row.tasteFit() <= tasteCosineThreshold) {
 			return RecommendationMessage.SIGNATURE_REASON;
 		}
 		return RecommendationMessage.TASTE_REASON;

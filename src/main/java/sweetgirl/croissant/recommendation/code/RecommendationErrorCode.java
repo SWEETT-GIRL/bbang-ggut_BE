@@ -34,6 +34,12 @@ public enum RecommendationErrorCode implements BaseErrorCode {
 			"다시 받기의 상권이 이전 추천과 다릅니다."),
 	FEEDBACK_ACTION_SERVER_ONLY(HttpStatus.BAD_REQUEST, "RECOMMENDATION400_10",
 			"다시 받기 반응은 서버가 기록합니다."),
+	EXPERIMENT_NO_CANDIDATES(HttpStatus.BAD_REQUEST, "RECOMMENDATION400_11",
+			"그 상권에 추천할 가게가 없어 이유 문장 실험을 할 수 없습니다."),
+	EXPERIMENT_TOO_MANY_COMBINATIONS(HttpStatus.BAD_REQUEST, "RECOMMENDATION400_12",
+			"한 번에 낼 수 있는 LLM 호출 수를 넘었습니다."),
+	EXPERIMENT_MODEL_INVALID(HttpStatus.BAD_REQUEST, "RECOMMENDATION400_13",
+			"모델 표기는 '벤더:모델' 형식이어야 합니다."),
 
 	RECOMMENDATION_NOT_FOUND(HttpStatus.NOT_FOUND, "RECOMMENDATION404_1", "추천을 찾을 수 없습니다."),
 	COURSE_AREA_NOT_FOUND(HttpStatus.NOT_FOUND, "RECOMMENDATION404_2", "이 코스 지역의 상권을 찾을 수 없습니다.");

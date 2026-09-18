@@ -88,6 +88,11 @@ tasks.named('test') {
         if (!project.hasProperty('labTests')) {
             excludeTags 'lab'
         }
+        // 'llm' 태그 = 진짜 LLM API 를 부르는 측정 테스트(#662). 호출마다 실제 비용이 나가고 키가 있어야 돈다.
+        // 키를 환경 변수로 주고 ./gradlew test -PllmTests --tests "*ReasonLlmLatencyMeasurementTest" 로 돌린다.
+        if (!project.hasProperty('llmTests')) {
+            excludeTags 'llm'
+        }
     }
 }
 

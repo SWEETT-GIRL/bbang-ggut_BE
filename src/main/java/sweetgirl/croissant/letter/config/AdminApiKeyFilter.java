@@ -33,17 +33,29 @@ public class AdminApiKeyFilter extends OncePerRequestFilter {
 	private static final Logger log = LoggerFactory.getLogger(AdminApiKeyFilter.class);
 	/**
 	 * 열쇠가 필요한 경로. 편지는 사용자에게 직접 닿고, 개인화 배치(#663)는 취향 신호를 되돌리기 어렵게 바꾸거나 락을 쥔 채 무거운
-	 * 트랜잭션을 건다 — 신호가 오염되면 추천이 바뀐다(PR #747 리뷰). 여기에 더하면 AdminApiKeyConfig 의 URL 패턴도 같이 더한다.
+	 * 트랜잭션을 건다 — 신호가 오염되면 추천이 바뀐다(PR #747 리뷰). 이유 문장 실험(#662)은 호출마다 외부 LLM 에 실제 비용이
+	 * 나간다 — 열어 두면 아무나 우리 계정으로 돈을 쓸 수 있다. 여기에 더하면 AdminApiKeyConfig 의 URL 패턴도 같이 더한다.
 	 */
-	static final List<String> PROTECTED_PREFIXES = List.of("/api/admin/letters", "/admin/personalization");
+	static final List<String> PROTECTED_PREFIXES = List.of(
+		"/api/admin/letters", "/admin/personalization", "/admin/recommendations");
+
+	/**
+	 * 열쇠가 비었을 때 <b>통과시키지 않고 막는</b> 경로. 호출마다 외부 LLM 에 실제 비용이 나가서, 열려 있으면
+	 * 아무나 우리 계정으로 돈을 쓴다. 편지·개인화는 데이터가 지저분해지는 대가라 기존대로 경고 후 통과시킨다 —
+	 * 열쇠 없이 띄운 로컬·기존 배포를 세우지 않으려는 원래 뜻을 여기까지 넓히지는 않는다.
+	 */
+	static final List<String> COST_INCURRING_PREFIXES = List.of("/admin/recommendations");
 
 	private final String apiKey;
+	private final boolean allowWithoutKey;
 
-	public AdminApiKeyFilter(String apiKey) {
+	public AdminApiKeyFilter(String apiKey, boolean allowWithoutKey) {
+		this.allowWithoutKey = allowWithoutKey;
 		this.apiKey = apiKey == null ? "" : apiKey.trim();
 		if (this.apiKey.isEmpty()) {
-			log.warn("ADMIN_API_KEY가 비어 있다 — 열쇠가 필요한 어드민 API({})가 무방비다. 운영에서는 반드시 설정할 것.",
-				PROTECTED_PREFIXES);
+			log.warn("ADMIN_API_KEY가 비어 있다 — 열쇠가 필요한 어드민 API({})가 무방비다. 운영에서는 반드시 설정할 것. "
+				+ "비용이 나가는 경로({})는 {}", PROTECTED_PREFIXES, COST_INCURRING_PREFIXES,
+				allowWithoutKey ? "로컬이라 통과시킨다" : "503 으로 막는다");
 		}
 	}
 
@@ -56,17 +68,38 @@ public class AdminApiKeyFilter extends OncePerRequestFilter {
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
 			throws ServletException, IOException {
-		if (apiKey.isEmpty() || matches(request.getHeader(HEADER))) {
+		if (apiKey.isEmpty()) {
+			if (allowWithoutKey || !isCostIncurring(request.getRequestURI())) {
+				chain.doFilter(request, response);
+				return;
+			}
+			// 막는 쪽으로 기운다 — 열쇠가 빠진 채 뜬 환경에서 이 경로가 공개되면 대가가 돈이다
+			log.error("열쇠 없이 비용 경로 요청 [uri={}, ip={}] — ADMIN_API_KEY 를 넣어야 한다",
+				request.getRequestURI(), request.getRemoteAddr());
+			write(response, HttpStatus.SERVICE_UNAVAILABLE, "ADMIN503",
+				"어드민 열쇠가 설정되지 않아 이 경로를 막았습니다.");
+			return;
+		}
+		if (matches(request.getHeader(HEADER))) {
 			chain.doFilter(request, response);
 			return;
 		}
 
 		log.warn("어드민 API 접근 거부 [uri={}, ip={}]", request.getRequestURI(), request.getRemoteAddr());
-		response.setStatus(HttpStatus.UNAUTHORIZED.value());
+		write(response, HttpStatus.UNAUTHORIZED, "ADMIN401", "어드민 인증이 필요합니다.");
+	}
+
+	private static boolean isCostIncurring(String uri) {
+		return COST_INCURRING_PREFIXES.stream().anyMatch(uri::startsWith);
+	}
+
+	private static void write(HttpServletResponse response, HttpStatus status, String code, String message)
+			throws IOException {
+		response.setStatus(status.value());
 		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 		response.setCharacterEncoding(StandardCharsets.UTF_8.name());
 		response.getWriter().write(
-			"{\"success\":false,\"code\":\"ADMIN401\",\"message\":\"어드민 인증이 필요합니다.\"}");
+			"{\"success\":false,\"code\":\"" + code + "\",\"message\":\"" + message + "\"}");
 	}
 
 	/** 길이로 정답을 흘리지 않게 상수 시간 비교를 쓴다. */
