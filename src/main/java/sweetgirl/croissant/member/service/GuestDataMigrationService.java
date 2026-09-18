@@ -1,5 +1,6 @@
 package sweetgirl.croissant.member.service;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,12 +17,15 @@ import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.course.service.CourseProgressService;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.event.GuestMergedEvent;
 import sweetgirl.croissant.member.repository.LikedMenuCategoryRepository;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository;
 import sweetgirl.croissant.menu.repository.MenuLikeRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.mission.repository.MemberMissionRepository;
+import sweetgirl.croissant.personalization.repository.UserStoreInteractionRepository;
+import sweetgirl.croissant.personalization.repository.UserTasteProfileRepository;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 import sweetgirl.croissant.store.repository.SavedStoreRepository;
 import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
@@ -61,6 +65,9 @@ public class GuestDataMigrationService {
 	private final CourseProgressService courseProgressService;
 	private final MemberRepository memberRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
+	private final UserStoreInteractionRepository userStoreInteractionRepository;
+	private final UserTasteProfileRepository userTasteProfileRepository;
+	private final ApplicationEventPublisher eventPublisher;
 
 	/**
 	 * 게스트 데이터를 회원에게 이관하고 게스트 계정을 닫는다.
@@ -119,6 +126,14 @@ public class GuestDataMigrationService {
 
 		menuRepository.moveCreator(guestId, targetId);
 		courseProgressService.refreshForMember(targetId);
+
+		// 취향 신호(#663 ④): 게스트 시절 저장·조회·담기 신호를 회원에게 붙이고, 게스트 프로필은 버린다 — PK 가 member_id 라 프로필
+		// 행은 옮길 수 없다. 회원 프로필 재계산은 커밋 뒤 이벤트로(GuestMergedEventListener): 가게 프로필 데이터 문제가 로그인 병합을
+		// 되돌리지 않게. 카드의 칩 상태는 옮겨진 찜·담기를 실시간으로 세므로 재계산 전에도 게스트 시절 행동을 반영한다.
+		userStoreInteractionRepository.deleteGuestDuplicates(guestId, targetId);
+		userStoreInteractionRepository.moveOwner(guestId, targetId);
+		userTasteProfileRepository.findById(guestId).ifPresent(userTasteProfileRepository::delete);
+		eventPublisher.publishEvent(new GuestMergedEvent(guestId, targetId));
 
 		closeGuest(guestId);
 
