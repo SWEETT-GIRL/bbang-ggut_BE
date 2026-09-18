@@ -87,4 +87,21 @@ class UserTasteProfileTest {
 		assertThat(profile.getComputedAt()).isEqualTo(LATER);
 		assertThat(profile.getVersion()).isEqualTo(3);
 	}
+
+	@Test
+	@DisplayName("유형·카운트만 갱신하면 version 이 그대로다 — 추천이 읽는 값이 아니라 저장된 추천을 깨지 않는다")
+	void refreshStats_keepsVersion() {
+		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, FIRST);
+		profile.recompute(plainCrispy(), "PFLN", TasteTypeSource.SIGNAL, Map.of(), null, TasteUserType.BROWSER, 1, 0,
+			FIRST);
+
+		profile.refreshStats(TasteUserType.PLANNER, 6, 2, LATER);
+
+		assertThat(profile.getVersion()).isEqualTo(2);
+		assertThat(profile.getUserType()).isEqualTo(TasteUserType.PLANNER);
+		assertThat(profile.getStrongStoreCount()).isEqualTo(6);
+		assertThat(profile.getBreadSignalCount()).isEqualTo(2);
+		assertThat(profile.getComputedAt()).isEqualTo(LATER);
+		assertThat(profile.getTypeCode()).isEqualTo("PFLN");
+	}
 }

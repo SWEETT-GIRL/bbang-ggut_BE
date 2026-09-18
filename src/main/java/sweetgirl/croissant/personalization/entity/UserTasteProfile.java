@@ -128,6 +128,17 @@ public class UserTasteProfile extends BaseTimeEntity {
 		this.version++;
 	}
 
+	/**
+	 * 유형·카운트만 갱신. 추천이 읽는 값(축·타입·태그·종류)이 아니라 version 은 그대로 둔다 — 저장된 추천의 재사용 키를 깨지 않는다.
+	 */
+	public void refreshStats(TasteUserType userType, int strongStoreCount, int breadSignalCount,
+			LocalDateTime computedAt) {
+		this.userType = userType;
+		this.strongStoreCount = strongStoreCount;
+		this.breadSignalCount = breadSignalCount;
+		this.computedAt = computedAt;
+	}
+
 	/** 검사 응답을 저장하고 축·타입을 검사 결과로 바꾼다. 검사 직후엔 검사가 타입을 결정한다. */
 	public void applyQuiz(
 			List<Map<String, String>> quizAnswers,
