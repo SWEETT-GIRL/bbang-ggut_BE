@@ -127,7 +127,8 @@ class BreadRecordCommandServiceTest {
 				new BreadRecordPhotoRequest("a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
 			List.of(
 				new BreadRecordTagRequest(0, "우유식빵", null, null, 0.31, 0.42, null),
-				new BreadRecordTagRequest(0, "소금빵", null, null, 0.5, 0.5, null)));
+				new BreadRecordTagRequest(0, "소금빵", null, null, 0.5, 0.5, null)),
+			null);
 		given(memberReader.getMember(7L)).willReturn(member);
 		given(storeRepository.findById(10L)).willReturn(Optional.of(store));
 		given(regionResolver.resolve(store, "client_region")).willReturn("서울_성동구_성수동");
@@ -154,7 +155,7 @@ class BreadRecordCommandServiceTest {
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(
 				new BreadRecordPhotoRequest("a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
-			List.of(new BreadRecordTagRequest(0, "우유식빵", null, null, 0.31, 0.42, null)));
+			List.of(new BreadRecordTagRequest(0, "우유식빵", null, null, 0.31, 0.42, null)), null);
 		given(memberReader.getMember(7L)).willReturn(member(7L));
 		given(storeRepository.findById(10L)).willReturn(Optional.of(store(10L)));
 
@@ -239,7 +240,7 @@ class BreadRecordCommandServiceTest {
 			null,
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(new BreadRecordPhotoRequest("a.jpg", "image/jpeg", awsKey, 0, null, null)),
-			List.of(new BreadRecordTagRequest(tagPhotoSortOrder, "우유식빵", null, null, 0.31, 0.42, null)));
+			List.of(new BreadRecordTagRequest(tagPhotoSortOrder, "우유식빵", null, null, 0.31, 0.42, null)), null);
 	}
 
 	@Test
@@ -357,11 +358,114 @@ class BreadRecordCommandServiceTest {
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(new BreadRecordPhotoRequest(
 				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
-			List.of(new BreadRecordTagRequest(0, "소금빵", 99L, null, 0.5, 0.5, null))));
+			List.of(new BreadRecordTagRequest(0, "소금빵", 99L, null, 0.5, 0.5, null)), null));
 
 		verify(tagRepository).saveAll(argThat(tags -> firstTag(tags).getMenu() == null));
 		verify(menuRepository, never()).findByStoreIdAndDeletedAtIsNullAndIdIn(any(), any());
 		verify(menuRepository, never()).findByStoreIdAndDeletedAtIsNullAndNormalizedNameIn(any(), any());
+	}
+
+	@Test
+	@DisplayName("create: 공개 여부를 안 보내면(구버전 앱) 비공개로 저장한다")
+	void create_defaultsToPrivate_whenIsPublicMissing() {
+		givenCreatableRecord();
+
+		commandService.create(7L, requestWithVisibility(null));
+
+		verify(breadRecordRepository).save(argThat(record -> !record.isPublic()));
+	}
+
+	@Test
+	@DisplayName("create: 공개로 보내면 공개로 저장한다")
+	void create_savesPublic_whenRequested() {
+		givenCreatableRecord();
+
+		commandService.create(7L, requestWithVisibility(true));
+
+		verify(breadRecordRepository).save(argThat(BreadRecord::isPublic));
+	}
+
+	@Test
+	@DisplayName("replace: 공개 여부를 안 보내면(구버전 앱) 지금 값을 그대로 둔다")
+	void replace_keepsVisibility_whenIsPublicMissing() {
+		BreadRecord record = givenReplaceableRecord(true);
+
+		commandService.replace(11L, 7L, requestWithVisibility(null));
+
+		assertThat(record.isPublic()).isTrue();
+	}
+
+	@Test
+	@DisplayName("replace: 공개 여부를 보내면 그 값으로 바꾼다")
+	void replace_changesVisibility_whenGiven() {
+		BreadRecord record = givenReplaceableRecord(true);
+
+		commandService.replace(11L, 7L, requestWithVisibility(false));
+
+		assertThat(record.isPublic()).isFalse();
+	}
+
+	@Test
+	@DisplayName("changeVisibility: 공개로 돌리면 작성 제한을 확인하고 공개로 바꾼다")
+	void changeVisibility_toPublic_checksWriteRestriction() {
+		Member member = member(7L);
+		BreadRecord record = record(11L, member);
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+
+		commandService.changeVisibility(11L, 7L, true);
+
+		assertThat(record.isPublic()).isTrue();
+		verify(memberRestrictionReader).validateCanWrite(7L);
+	}
+
+	@Test
+	@DisplayName("changeVisibility: 비공개로 내리는 건 작성 제한 중에도 막지 않는다")
+	void changeVisibility_toPrivate_skipsWriteRestriction() {
+		Member member = member(7L);
+		BreadRecord record = record(11L, member);
+		record.changeVisibility(true);
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+
+		commandService.changeVisibility(11L, 7L, false);
+
+		assertThat(record.isPublic()).isFalse();
+		verify(memberRestrictionReader, never()).validateCanWrite(any());
+	}
+
+	@Test
+	@DisplayName("changeVisibility: 남의 기록이면 접근 거부")
+	void changeVisibility_othersRecord_throwsAccessDenied() {
+		given(memberReader.getMember(8L)).willReturn(member(8L));
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record(11L, member(7L))));
+
+		assertThatThrownBy(() -> commandService.changeVisibility(11L, 8L, true))
+			.isInstanceOf(BreadLogException.class)
+			.hasFieldOrPropertyWithValue("errorCode", BreadLogErrorCode.BREAD_RECORD_ACCESS_DENIED);
+	}
+
+	private BreadRecord givenReplaceableRecord(boolean isPublic) {
+		Member member = member(7L);
+		BreadRecord record = record(11L, member);
+		record.changeVisibility(isPublic);
+		Store store = store(10L);
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+		given(storeRepository.findById(10L)).willReturn(Optional.of(store));
+		given(photoRepository.findAllIncludingPendingByRecordId(11L)).willReturn(List.of());
+		given(photoRepository.saveAll(any())).willAnswer(invocation -> invocation.getArgument(0));
+		return record;
+	}
+
+	private BreadRecordUpsertRequest requestWithVisibility(Boolean isPublic) {
+		return new BreadRecordUpsertRequest(
+			10L, "클라이언트 가게명", "client_region", null, null, null,
+			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
+			List.of(new BreadRecordPhotoRequest(
+				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
+			List.of(new BreadRecordTagRequest(0, "소금빵", null, null, 0.5, 0.5, null)),
+			isPublic);
 	}
 
 	private void givenCreatableRecord() {
@@ -383,7 +487,7 @@ class BreadRecordCommandServiceTest {
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(new BreadRecordPhotoRequest(
 				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
-			List.of(new BreadRecordTagRequest(0, "소금빵", menuId, suggestedMenuId, 0.5, 0.5, null)));
+			List.of(new BreadRecordTagRequest(0, "소금빵", menuId, suggestedMenuId, 0.5, 0.5, null)), null);
 	}
 
 	private static BreadRecordTag firstTag(Iterable<BreadRecordTag> tags) {

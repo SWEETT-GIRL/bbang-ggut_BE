@@ -56,6 +56,27 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			@Param("storeId") Long storeId,
 			Pageable pageable);
 
+	// 가게 상세에 쌓이는 공개 기록 — 탈퇴한 작성자와 보는 사람이 차단한 작성자는 뺀다.
+	@Query("""
+			SELECT record
+			FROM BreadRecord record
+			JOIN FETCH record.member member
+			WHERE record.store.id = :storeId
+			AND record.isPublic = true
+			AND record.deletedAt IS NULL
+			AND member.deletedAt IS NULL
+			AND (:viewerMemberId IS NULL OR NOT EXISTS (
+				SELECT 1 FROM MemberBlock mb
+				WHERE mb.blocker.id = :viewerMemberId
+				AND mb.blockedMember.id = member.id
+			))
+			ORDER BY record.eatenAt DESC, record.id DESC
+			""")
+	List<BreadRecord> findPublicByStoreId(
+			@Param("storeId") Long storeId,
+			@Param("viewerMemberId") Long viewerMemberId,
+			Pageable pageable);
+
 	@Modifying(clearAutomatically = true)
 	@Query("UPDATE BreadRecord record SET record.member.id = :targetId WHERE record.member.id = :guestId")
 	int moveOwner(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
