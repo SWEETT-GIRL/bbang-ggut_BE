@@ -69,6 +69,19 @@ class AdminApiKeyFilterTest {
 	}
 
 	@Test
+	@DisplayName("개인화 배치 경로도 열쇠가 필요하다 — 신호를 되돌리기 어렵게 바꾸는 API(#663)")
+	void protectsPersonalizationAdminPaths() throws Exception {
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		new AdminApiKeyFilter("secret")
+			.doFilter(request("/admin/personalization/interactions/ingest", null), response, chain);
+
+		assertThat(response.getStatus()).isEqualTo(401);
+		assertThat(chain.getRequest()).isNull();
+	}
+
+	@Test
 	@DisplayName("편지가 아닌 어드민 경로는 이 필터가 건드리지 않는다")
 	void ignoresOtherAdminPaths() throws Exception {
 		MockHttpServletResponse response = new MockHttpServletResponse();

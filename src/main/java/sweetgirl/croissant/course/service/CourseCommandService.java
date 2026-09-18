@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +39,7 @@ import sweetgirl.croissant.course.entity.CourseStoreMemo;
 import sweetgirl.croissant.course.entity.SavedCourse;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.enums.CourseVisibility;
+import sweetgirl.croissant.course.event.CourseStoreAddedEvent;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseMemberRepository;
@@ -78,6 +80,7 @@ public class CourseCommandService {
 	private final CourseProgressService courseProgressService;
 	private final MemberRestrictionReader memberRestrictionReader;
 	private final CourseAccessPolicy courseAccessPolicy;
+	private final ApplicationEventPublisher eventPublisher;
 
 	public Long createCourse(Long memberId, CourseCreateRequest request) {
 		Member member = memberRepository.findByIdAndDeletedAtIsNull(memberId)
@@ -238,6 +241,7 @@ public class CourseCommandService {
 		// 뒤 일차에 담기면 일차 수도 따라 올린다 — 일행이 같은 일차 수를 본다
 		course.ensureDayCountAtLeast(day);
 		CourseStore courseStore = insertStore(course, store, activeStores, day, request.getVisitTime());
+		publishAdded(memberId, courseId, courseStore, null);
 		// 메모는 사람별이다 — course_stores.memo 가 아니라 내 메모 행으로 들어간다
 		String myMemo = saveMyMemo(courseStore, memberId, request.getMemo());
 		// 가게가 늘었다 — 분모가 커졌으니 완주 승격을 허용해도 안전하다
@@ -278,6 +282,7 @@ public class CourseCommandService {
 			if (recommendationId != null) {
 				courseStore.markRecommended(recommendationId);
 			}
+			publishAdded(memberId, courseId, courseStore, recommendationId);
 			activeStores.add(courseStore);
 			activeStores.sort(Comparator.comparingInt(CourseStore::getVisitOrder));
 			added.add(courseStore);
@@ -322,6 +327,13 @@ public class CourseCommandService {
 	/** 코스가 아는 일차 수 — day_count 와 날짜 일수 중 큰 것(최소 1). 옛 코스는 날짜가 있어도 day_count 가 1 일 수 있다. */
 	static int knownDayCount(Course course) {
 		return Math.max(Math.max(course.getDayCount(), Course.dateSpan(course.getStartDate(), course.getEndDate())), 1);
+	}
+
+	/** 담은 사람 기준 COURSE_ADD 신호(#663). created_at 은 persist 때 auditing 이 채우므로 저장 직후에도 있다 — 없으면 지금 시각. */
+	private void publishAdded(Long memberId, Long courseId, CourseStore courseStore, Long recommendationId) {
+		LocalDateTime addedAt = courseStore.getCreatedAt() != null ? courseStore.getCreatedAt() : LocalDateTime.now();
+		eventPublisher.publishEvent(new CourseStoreAddedEvent(memberId, courseId, courseStore.getStore().getId(),
+			recommendationId, addedAt));
 	}
 
 	private boolean containsStore(List<CourseStore> activeStores, Long storeId) {
@@ -604,6 +616,8 @@ public class CourseCommandService {
 				source.getVisitTime()))
 			.toList();
 		courseStoreRepository.saveAll(copiedStores);
+		// 포크는 코스를 통째로 담은 것 — 가게마다 담기와 같은 COURSE_ADD 신호(09-18 결정, 가중치 동일). 담는 사람은 포크한 회원
+		copiedStores.forEach(copied -> publishAdded(memberId, savedForkedCourse.getId(), copied, null));
 
 		return savedForkedCourse.getId();
 	}
