@@ -7,6 +7,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.config.async.AsyncConfig;
 import sweetgirl.croissant.member.event.GuestMergedEvent;
 import sweetgirl.croissant.personalization.service.UserTasteProfileCommandService;
 
@@ -21,7 +22,7 @@ public class GuestMergedEventListener {
 
 	private final UserTasteProfileCommandService userTasteProfileCommandService;
 
-	@Async("logExecutor")
+	@Async(AsyncConfig.SIGNAL_EXECUTOR)
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	public void onGuestMerged(GuestMergedEvent event) {
 		try {

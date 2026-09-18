@@ -14,8 +14,10 @@ import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
+import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.course.service.CourseProgressService;
+import sweetgirl.croissant.global.logging.repository.RequestLogRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.event.GuestMergedEvent;
 import sweetgirl.croissant.member.repository.LikedMenuCategoryRepository;
@@ -26,6 +28,7 @@ import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.mission.repository.MemberMissionRepository;
 import sweetgirl.croissant.personalization.repository.UserStoreInteractionRepository;
 import sweetgirl.croissant.personalization.repository.UserTasteProfileRepository;
+import sweetgirl.croissant.recommendation.repository.RecommendationRepository;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 import sweetgirl.croissant.store.repository.SavedStoreRepository;
 import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
@@ -65,6 +68,9 @@ public class GuestDataMigrationService {
 	private final CourseProgressService courseProgressService;
 	private final MemberRepository memberRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
+	private final CourseStoreVisitRepository courseStoreVisitRepository;
+	private final RequestLogRepository requestLogRepository;
+	private final RecommendationRepository recommendationRepository;
 	private final UserStoreInteractionRepository userStoreInteractionRepository;
 	private final UserTasteProfileRepository userTasteProfileRepository;
 	private final ApplicationEventPublisher eventPublisher;
@@ -124,12 +130,20 @@ public class GuestDataMigrationService {
 		memberMissionRepository.deleteGuestDuplicates(guestId, targetId);
 		memberMissionRepository.moveOwner(guestId, targetId);
 
+		// 방문 체크는 코스를 따라가야 한다 — 진행률(refreshForMember)과 사용자 유형(DOER)의 재료다
+		courseStoreVisitRepository.deleteGuestDuplicates(guestId, targetId);
+		courseStoreVisitRepository.moveOwner(guestId, targetId);
+
 		menuRepository.moveCreator(guestId, targetId);
 		courseProgressService.refreshForMember(targetId);
 
 		// 취향 신호(#663 ④): 게스트 시절 저장·조회·담기 신호를 회원에게 붙이고, 게스트 프로필은 버린다 — PK 가 member_id 라 프로필
 		// 행은 옮길 수 없다. 회원 프로필 재계산은 커밋 뒤 이벤트로(GuestMergedEventListener): 가게 프로필 데이터 문제가 로그인 병합을
 		// 되돌리지 않게. 카드의 칩 상태는 옮겨진 찜·담기를 실시간으로 세므로 재계산 전에도 게스트 시절 행동을 반영한다.
+		// 04:00 적재는 조회를 request_log.member_id 로, 추천 반응을 recommendation.member_id 로 읽는다. 옮기지 않으면 병합
+		// 직전 게스트 행동이 닫힌 계정으로 적재되어 회원에게 영영 안 붙고, 인기도(#663 ③)가 한 사람을 둘로 센다.
+		requestLogRepository.moveOwner(guestId, targetId);
+		recommendationRepository.moveOwner(guestId, targetId);
 		userStoreInteractionRepository.deleteGuestDuplicates(guestId, targetId);
 		userStoreInteractionRepository.moveOwner(guestId, targetId);
 		userTasteProfileRepository.findById(guestId).ifPresent(userTasteProfileRepository::delete);

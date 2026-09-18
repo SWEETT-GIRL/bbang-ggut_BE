@@ -22,8 +22,10 @@ import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
+import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.course.service.CourseProgressService;
+import sweetgirl.croissant.global.logging.repository.RequestLogRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.event.GuestMergedEvent;
 import sweetgirl.croissant.member.repository.LikedMenuCategoryRepository;
@@ -35,6 +37,7 @@ import sweetgirl.croissant.mission.repository.MemberMissionRepository;
 import sweetgirl.croissant.personalization.entity.UserTasteProfile;
 import sweetgirl.croissant.personalization.repository.UserStoreInteractionRepository;
 import sweetgirl.croissant.personalization.repository.UserTasteProfileRepository;
+import sweetgirl.croissant.recommendation.repository.RecommendationRepository;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 import sweetgirl.croissant.store.repository.SavedStoreRepository;
 import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
@@ -80,6 +83,12 @@ class GuestDataMigrationServiceTest {
 	private MemberRepository memberRepository;
 	@Mock
 	private RefreshTokenRepository refreshTokenRepository;
+	@Mock
+	private CourseStoreVisitRepository courseStoreVisitRepository;
+	@Mock
+	private RequestLogRepository requestLogRepository;
+	@Mock
+	private RecommendationRepository recommendationRepository;
 	@Mock
 	private UserStoreInteractionRepository userStoreInteractionRepository;
 	@Mock
@@ -141,6 +150,14 @@ class GuestDataMigrationServiceTest {
 		var memoOrder = inOrder(courseStoreMemoRepository);
 		memoOrder.verify(courseStoreMemoRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
 		memoOrder.verify(courseStoreMemoRepository).moveOwner(GUEST_ID, TARGET_ID);
+		// 방문 체크도 코스를 따라간다 — 진행률과 사용자 유형(DOER)의 재료
+		var visitOrder = inOrder(courseStoreVisitRepository, courseProgressService);
+		visitOrder.verify(courseStoreVisitRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
+		visitOrder.verify(courseStoreVisitRepository).moveOwner(GUEST_ID, TARGET_ID);
+		visitOrder.verify(courseProgressService).refreshForMember(TARGET_ID);
+		// 04:00 적재가 회원 id 로 읽는 표도 옮긴다 — 안 옮기면 병합 직전 행동이 닫힌 게스트로 적재된다(#663 ④)
+		then(requestLogRepository).should().moveOwner(GUEST_ID, TARGET_ID);
+		then(recommendationRepository).should().moveOwner(GUEST_ID, TARGET_ID);
 		// 취향 신호: 회원과 겹치는 사건은 지우고 옮긴 뒤, 게스트 프로필은 버리고 커밋 뒤 회원 재계산 이벤트를 낸다(#663 ④)
 		var tasteOrder = inOrder(userStoreInteractionRepository, userTasteProfileRepository, eventPublisher);
 		tasteOrder.verify(userStoreInteractionRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
