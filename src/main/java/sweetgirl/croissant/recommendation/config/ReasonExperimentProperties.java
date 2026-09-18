@@ -26,13 +26,14 @@ public class ReasonExperimentProperties {
 
 	/**
 	 * 돌릴 모델. {@code 벤더:모델} 로 적는다 — 벤더는 {@code GEMINI · OPENAI · ANTHROPIC}.
-	 * 기본값은 09-03 비용 계산기가 남긴 후보 넷(기준선 · 채택 후보 · 하한 · 상한 대조).
+	 * 기본값은 기준선 · 채택 후보 · 하한 셋. 상한 대조였던 Sonnet 5 는 뺐다 — 랩 실측에서 한 판에 24.4초가
+	 * 걸리고 출력 토큰을 2,405 개 썼다(다른 셋은 118~560). 요청 경로에 둘 수 없는 시간이라 "저가로 충분한가"를
+	 * 재는 데 더 쓸 값이 없다. 다시 보고 싶으면 요청 models 에 적으면 그대로 돈다.
 	 */
 	private List<String> models = List.of(
 		"GEMINI:gemini-3.5-flash-lite",
 		"ANTHROPIC:claude-haiku-4-5-20251001",
-		"OPENAI:gpt-5.6-luna",
-		"ANTHROPIC:claude-sonnet-5");
+		"OPENAI:gpt-5.6-luna");
 
 	/** 돌릴 프롬프트 변형. 1차는 A(최소 재료)·D(룰의 선정 근거) */
 	private List<ReasonPromptVariant> variants = List.of(ReasonPromptVariant.A, ReasonPromptVariant.D);

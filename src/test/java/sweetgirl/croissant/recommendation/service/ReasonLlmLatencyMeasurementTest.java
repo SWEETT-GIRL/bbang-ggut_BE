@@ -68,12 +68,11 @@ class ReasonLlmLatencyMeasurementTest {
 		"required", List.of("reasons"),
 		"additionalProperties", false);
 
-	/** 판: 09-18 기준 후보 넷. 여기 한 줄을 더하면 모델이 는다 */
+	/** 판: 09-18 기준 후보 셋. 여기 한 줄을 더하면 모델이 는다 (Sonnet 5 는 24초라 뺐다) */
 	private static final List<String> MODELS = List.of(
 		"GEMINI:gemini-3.5-flash-lite",
 		"ANTHROPIC:claude-haiku-4-5-20251001",
-		"OPENAI:gpt-5.6-luna",
-		"ANTHROPIC:claude-sonnet-5");
+		"OPENAI:gpt-5.6-luna");
 
 	@Test
 	@DisplayName("모델 × 변형마다 이유 네 줄을 받아 지연·토큰·문장을 표로 남긴다")
