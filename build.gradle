@@ -73,10 +73,6 @@ dependencies {
     //AWS S3
     implementation 'software.amazon.awssdk:s3:2.42.41'
 
-    // AWS Bedrock
-    implementation 'software.amazon.awssdk:bedrockruntime:2.42.41'
-
-
     // Testing
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     // Boot 4 는 슬라이스 테스트(@DataJpaTest 등)가 별도 스타터다. 랩 PG 스키마 검증(@Tag lab)과 @DataJpaTest 용
