@@ -53,6 +53,7 @@ services:
       OPENSEARCH_DEBUG_LOGGING: ${OPENSEARCH_DEBUG_LOGGING:-INFO}
       PERF_DASHBOARD_ENABLED: ${PERF_DASHBOARD_ENABLED:-false}
       PERF_DASHBOARD_ACCESS_KEY: ${PERF_DASHBOARD_ACCESS_KEY:-}
+      ADMIN_API_KEY: ${ADMIN_API_KEY}
 
     ports:
       # 앞단 Nginx가 bastion(다른 호스트)에 있으므로 127.0.0.1 바인딩은 쓸 수 없다.
