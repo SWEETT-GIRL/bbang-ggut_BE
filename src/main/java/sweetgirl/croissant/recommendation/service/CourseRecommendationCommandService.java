@@ -353,12 +353,12 @@ public class CourseRecommendationCommandService {
 			CourseArea area, short day, UserTasteProfile profile, int profileVersion, List<CourseStore> activeStores,
 			Set<Long> excludeStoreIds, int storeCount) {
 		TasteQuery taste = TasteQuery.of(profile);
+		String title = RecommendationMessage.courseTitle(area.getName());
 		CandidatePool pool = poolFor(memberId, taste, area, excludeStoreIds);
 		if (pool.candidates().isEmpty()) {
 			// 저장할 게 없다 — 재사용될 결과도 없고 반응을 받을 것도 없다. 대신 다음 동네와 앵커로 넘길 가게를 알려 준다(#661)
 			RecommendationAreaSummary areaSummary = new RecommendationAreaSummary(area.getId(), area.getName());
-			RecommendationResult empty = new RecommendationResult(RecommendationMessage.courseTitle(area.getName()),
-				areaSummary, 0, false,
+			RecommendationResult empty = new RecommendationResult(title, areaSummary, 0, false,
 				storeCount, List.of(), true);
 			return RecommendationResponse.of(null, empty,
 				nextAreaOf(memberId, sessionId, taste, course, area, day, activeStores),
@@ -394,8 +394,8 @@ public class CourseRecommendationCommandService {
 				reasonOf(taste, row, fallback), tasteFitOf(row), distanceToNext, row.latitude(), row.longitude(),
 				row.thumbnailKey()));
 		}
-		RecommendationResult result = new RecommendationResult(RecommendationMessage.courseTitle(area.getName()),
-			areaSummary, totalDistanceM,
+		String title = RecommendationMessage.courseTitle(area.getName());
+		RecommendationResult result = new RecommendationResult(title, areaSummary, totalDistanceM,
 			fallback, storeCount, stores, lastBatch);
 		Recommendation saved = recommendationRepository.save(Recommendation.forArea(memberId, course.getId(),
 			area.getId(), day, profileVersion, Recommendation.RULE_PROVIDER, null, null, false, write(result),
