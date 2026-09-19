@@ -41,6 +41,9 @@ import sweetgirl.croissant.personalization.repository.TasteSignal;
  * 자르고 소수 3자리. 양의 신호가 기여했으면 SIGNAL, 검사만이면 QUIZ, 둘 다 없으면 축 없음(추천은 인기 prior 순).</li>
  * <li>태그 = 양의 유효 가중치 가게의 {@link TasteTag} 키별 가중 평균(값이 빠진 가게는 그 태그의 중립값으로).
  * top_kinds = RECORD_BREAD 종류의 decay 합 상위 N.</li>
+ * <li>추정 종류(#762) = 좋아한 가게(유효 가중치 합이 양수)들의 대표 종류 중 lift(그 종류가 대표인 가게 비율 ÷ 전체 빵집 비율)가 하한
+ * 이상인 것, lift 상위 N. 좋아한 가게가 많은 회원은 그 종류가 여러 곳에 나와야 한다. 가게 수로 세고 감쇠하지 않는다 — 좋아한 가게가
+ * 들고 나거나 대표 종류가 바뀔 때만 값이 바뀐다.</li>
  * <li>유형(§3.3, 90일) = PLANNER → ARCHIVER → DOER → COLLECTOR → BROWSER 순서로 첫 매치, 90일 신호가 없으면 null.</li>
  * </ul>
  */
@@ -68,9 +71,10 @@ public class TasteProfileCalculator {
 	 * @param quizAnsweredAt 검사 시각 — 검사 축도 같은 반감기로 감쇠한다(null 이면 지금). 검사만 감쇠하지 않으면 신호가 하루씩
 	 *        늙을 때마다 합산 축이 조금씩 움직여 version 이 매일 오른다(#748 리뷰)
 	 * @param visitCount 유형 창 안 방문 체크 수(course_store_visits)
+	 * @param kindBaseRates 종류별 전체 빵집 비율(대표 종류 기준) — 추정 종류의 lift 분모. 비어 있으면 추정 종류도 비운다
 	 */
 	public TasteProfileSnapshot calculate(List<TasteSignal> signals, TasteAxis quizAxis, LocalDateTime quizAnsweredAt,
-			int visitCount, LocalDateTime now) {
+			int visitCount, Map<String, Double> kindBaseRates, LocalDateTime now) {
 		PersonalizationProperties.Profile profile = personalizationProperties.getProfile();
 		List<Weighted> weighted = effectiveWeights(signals, now, profile);
 		TasteAxis axis = null;
@@ -110,9 +114,58 @@ public class TasteProfileCalculator {
 			typeSource = signalDenominator > 0 ? TasteTypeSource.SIGNAL : TasteTypeSource.QUIZ;
 		}
 		String typeCode = axis != null ? axis.typeCode() : null;
+		int strongStores = strongStoreCount(signals);
 		return new TasteProfileSnapshot(axis, typeCode, typeSource, weightedTags(weighted),
-			topKinds(signals, now, profile),
-			userType(signals, visitCount, now, profile), strongStoreCount(signals), breadSignalCount(signals));
+			topKinds(signals, now, profile), inferredKinds(weighted, strongStores, kindBaseRates, profile),
+			userType(signals, visitCount, now, profile), strongStores, breadSignalCount(signals));
+	}
+
+	/**
+	 * 좋아한 가게들의 대표 종류 중 유난히 많은 것. 가게 한 곳에는 대표 종류가 평균 2.8개 딸려 오므로, 좋아한 가게가 많은 회원에게 한
+	 * 곳짜리 종류는 우연이다 — 특히 전체 비율이 작은 희귀 종류는 한 곳만 나와도 lift 가 튄다(랩 09-20: 맘모스 · 소보로). 가게가 적은
+	 * 회원은 한 곳이 근거의 전부라 받는다.
+	 */
+	private String[] inferredKinds(List<Weighted> weighted, int strongStores, Map<String, Double> kindBaseRates,
+			PersonalizationProperties.Profile profile) {
+		if (kindBaseRates.isEmpty()) {
+			return new String[0];
+		}
+		Map<Long, Double> storeWeight = new HashMap<>();
+		Map<Long, List<String>> storeKinds = new HashMap<>();
+		for (Weighted weightedSignal : weighted) {
+			Long storeId = weightedSignal.signal().storeId();
+			if (storeId == null) {
+				continue;
+			}
+			storeWeight.merge(storeId, weightedSignal.effectiveWeight(), Double::sum);
+			List<String> kinds = weightedSignal.signal().storeSignatureKinds();
+			if (kinds != null && !kinds.isEmpty()) {
+				storeKinds.putIfAbsent(storeId, kinds);
+			}
+		}
+		List<Long> likedStores = storeKinds.keySet().stream().filter(storeId -> storeWeight.get(storeId) > 0).toList();
+		if (likedStores.isEmpty()) {
+			return new String[0];
+		}
+		int minStores = strongStores >= profile.getInferredKindManyStores()
+			? profile.getInferredKindMinStoresWhenMany() : 1;
+		Map<String, Integer> storesPerKind = new HashMap<>();
+		for (Long storeId : likedStores) {
+			storeKinds.get(storeId).stream()
+				.filter(kind -> !GenericKind.isGeneric(kind))
+				.distinct()
+				.forEach(kind -> storesPerKind.merge(kind, 1, Integer::sum));
+		}
+		return storesPerKind.entrySet().stream()
+			.filter(entry -> entry.getValue() >= minStores && kindBaseRates.getOrDefault(entry.getKey(), 0d) > 0)
+			.map(entry -> Map.entry(entry.getKey(),
+				(double)entry.getValue() / likedStores.size() / kindBaseRates.get(entry.getKey())))
+			.filter(entry -> entry.getValue() >= profile.getInferredKindMinLift())
+			.sorted(Map.Entry.<String, Double>comparingByValue(Comparator.reverseOrder())
+				.thenComparing(Map.Entry.comparingByKey()))
+			.limit(profile.getInferredKindsLimit())
+			.map(Map.Entry::getKey)
+			.toArray(String[]::new);
 	}
 
 	private List<Weighted> effectiveWeights(List<TasteSignal> signals, LocalDateTime now,

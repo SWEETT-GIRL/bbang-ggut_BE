@@ -1,5 +1,6 @@
 package sweetgirl.croissant.personalization.config;
 
+import java.time.Duration;
 import java.time.LocalDate;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -71,6 +72,29 @@ public class PersonalizationProperties {
 		/** top_kinds 에 남기는 종류 수 */
 		@PositiveOrZero
 		private int topKindsLimit = 5;
+		/**
+		 * 추정 종류(#762): lift(좋아한 가게 중 그 종류가 대표인 가게 비율 ÷ 전체 빵집 비율) 하한. 케이크 · 쿠키처럼 어디나 대표인
+		 * 종류가 모두에게 붙는 것(인기 쏠림)을 거른다 — 랩 09-20 실측값
+		 */
+		@Positive
+		private double inferredKindMinLift = 1.5;
+		/** 추정 종류 수 */
+		@PositiveOrZero
+		private int inferredKindsLimit = 3;
+		/**
+		 * 좋아한 가게가 많은 회원(강한 신호 가게 이 수 이상)은 그 종류가 {@code inferredKindMinStoresWhenMany} 곳 이상에 나와야 한다.
+		 * 가게 한 곳에 딸려 온 희귀 종류가 lift 로 튀는 것(랩: 맘모스 · 소보로)을 막는다. 가게가 적은 회원은 한 곳이 근거의 전부라 1곳이면
+		 * 된다. 배지의 태그 근거 기준(minStrongStoresForTagReason)과 같은 4
+		 */
+		@Min(1)
+		private int inferredKindManyStores = 4;
+		@Min(1)
+		private int inferredKindMinStoresWhenMany = 2;
+		/** 전체 빵집 비율의 모집단 — 추천 후보 풀과 같은 빵집다움 하한 */
+		@PositiveOrZero
+		private double kindBaseMinBakeryScore = 0.5;
+		/** 전체 빵집 비율 캐시 — 가게 프로필은 dataops 적재 때만 바뀐다. 검사 제출 경로가 매번 집계 쿼리(30~80ms)를 돌지 않게 */
+		private Duration kindBaseRateTtl = Duration.ofHours(1);
 		/** 사용자 유형(§3.3)을 정하는 행동 창(일) */
 		@Min(1)
 		private int userTypeWindowDays = 90;

@@ -3,6 +3,7 @@ package sweetgirl.croissant.personalization.service;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -49,17 +50,19 @@ public class UserTasteProfileCommandService {
 	private final UserTasteProfileRepository profileRepository;
 	private final MemberRepository memberRepository;
 	private final TasteProfileCalculator calculator;
+	private final SignatureKindBaseRates kindBaseRates;
 	private final PersonalizationProperties personalizationProperties;
 	private final TransactionTemplate perMemberTransaction;
 
 	public UserTasteProfileCommandService(UserTasteSignalJdbcRepository signalRepository,
 			UserTasteProfileRepository profileRepository, MemberRepository memberRepository,
-			TasteProfileCalculator calculator, PersonalizationProperties personalizationProperties,
-			PlatformTransactionManager transactionManager) {
+			TasteProfileCalculator calculator, SignatureKindBaseRates kindBaseRates,
+			PersonalizationProperties personalizationProperties, PlatformTransactionManager transactionManager) {
 		this.signalRepository = signalRepository;
 		this.profileRepository = profileRepository;
 		this.memberRepository = memberRepository;
 		this.calculator = calculator;
+		this.kindBaseRates = kindBaseRates;
 		this.personalizationProperties = personalizationProperties;
 		this.perMemberTransaction = new TransactionTemplate(transactionManager);
 		this.perMemberTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -77,6 +80,8 @@ public class UserTasteProfileCommandService {
 		}
 		LocalDateTime now = LocalDateTime.now(ZONE_ID);
 		long startedAt = System.currentTimeMillis();
+		// 배치는 새로 읽는다 — dataops 가 방금 적재했을 수 있다. 회원마다 같은 분모를 쓴다
+		Map<String, Double> baseRates = kindBaseRates.reload();
 		List<Long> memberIds = signalRepository.findMemberIdsToRecompute(signalWindowStart(now));
 		int recomputed = 0;
 		int statsOnly = 0;
@@ -85,7 +90,7 @@ public class UserTasteProfileCommandService {
 		for (Long memberId : memberIds) {
 			try {
 				TasteProfileRefreshOutcome outcome = perMemberTransaction.execute(
-					status -> recomputeUnderRowLock(memberId, now));
+					status -> recomputeUnderRowLock(memberId, now, baseRates));
 				switch (outcome) {
 					case RECOMPUTED -> recomputed++;
 					case STATS_ONLY -> statsOnly++;
@@ -116,7 +121,7 @@ public class UserTasteProfileCommandService {
 		if (!memberRepository.existsById(memberId)) {
 			throw new MemberException(MemberErrorCode.MEMBER_NOT_FOUND);
 		}
-		return recomputeUnderRowLock(memberId, LocalDateTime.now(ZONE_ID));
+		return recomputeUnderRowLock(memberId, LocalDateTime.now(ZONE_ID), kindBaseRates.current());
 	}
 
 	/** 행이 없으면 만들고 FOR UPDATE 로 잠가 돌려준다. 호출자의 트랜잭션이 없으면 즉시 실패한다(MANDATORY). */
@@ -134,13 +139,15 @@ public class UserTasteProfileCommandService {
 	@Transactional(propagation = Propagation.MANDATORY, noRollbackFor = RuntimeException.class)
 	public TasteProfileRefreshOutcome mergeSignals(UserTasteProfile profile, TasteAxis quizAxis,
 			LocalDateTime quizAnsweredAt, LocalDateTime now) {
-		return writeIfChanged(profile, calculateSnapshot(profile.getMemberId(), quizAxis, quizAnsweredAt, now), now);
+		return writeIfChanged(profile,
+			calculateSnapshot(profile.getMemberId(), quizAxis, quizAnsweredAt, kindBaseRates.current(), now), now);
 	}
 
-	private TasteProfileRefreshOutcome recomputeUnderRowLock(Long memberId, LocalDateTime now) {
+	private TasteProfileRefreshOutcome recomputeUnderRowLock(Long memberId, LocalDateTime now,
+			Map<String, Double> baseRates) {
 		UserTasteProfile profile = lockOrCreate(memberId, now);
 		return writeIfChanged(profile,
-			calculateSnapshot(memberId, storedQuizAxisOf(profile), profile.getQuizAnsweredAt(), now), now);
+			calculateSnapshot(memberId, storedQuizAxisOf(profile), profile.getQuizAnsweredAt(), baseRates, now), now);
 	}
 
 	/** 검사 축은 따로 저장되지 않는다(프로필 축은 합산 결과). 저장된 검사 응답에서 다시 만든다. 검사를 안 했으면 null. */
@@ -149,11 +156,11 @@ public class UserTasteProfileCommandService {
 	}
 
 	private TasteProfileSnapshot calculateSnapshot(Long memberId, TasteAxis quizAxis, LocalDateTime quizAnsweredAt,
-			LocalDateTime now) {
+			Map<String, Double> baseRates, LocalDateTime now) {
 		List<TasteSignal> signals = signalRepository.findSignals(memberId, signalWindowStart(now));
 		int visits = signalRepository.countVisits(memberId,
 			now.minusDays(personalizationProperties.getProfile().getUserTypeWindowDays()));
-		return calculator.calculate(signals, quizAxis, quizAnsweredAt, visits, now);
+		return calculator.calculate(signals, quizAxis, quizAnsweredAt, visits, baseRates, now);
 	}
 
 	/** 추천이 읽는 값이 바뀌면 recompute(version+1), 유형·카운트만이면 refreshStats(version 유지), 같으면 쓰지 않는다 */
@@ -161,8 +168,8 @@ public class UserTasteProfileCommandService {
 			LocalDateTime now) {
 		if (!snapshot.sameTasteAs(profile)) {
 			profile.recompute(snapshot.axis(), snapshot.typeCode(), snapshot.typeSource(), snapshot.tags(),
-				snapshot.topKinds(), snapshot.userType(), snapshot.strongStoreCount(), snapshot.breadSignalCount(),
-				now);
+				snapshot.topKinds(), snapshot.inferredKinds(), snapshot.userType(), snapshot.strongStoreCount(),
+				snapshot.breadSignalCount(), now);
 			return TasteProfileRefreshOutcome.RECOMPUTED;
 		}
 		if (!snapshot.sameStatsAs(profile)) {

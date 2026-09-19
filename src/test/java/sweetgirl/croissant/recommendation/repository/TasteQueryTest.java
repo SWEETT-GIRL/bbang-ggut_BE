@@ -53,7 +53,7 @@ class TasteQueryTest {
 	void ofProfile_dropsGenericKinds() {
 		LocalDateTime now = LocalDateTime.of(2026, 9, 19, 18, 0);
 		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, now);
-		profile.recompute(null, null, null, Map.of(), new String[] {"빵", "소금빵", "기타", "휘낭시에", "요거트"},
+		profile.recompute(null, null, null, Map.of(), new String[] {"빵", "소금빵", "기타", "휘낭시에", "요거트"}, new String[0],
 			TasteUserType.BROWSER, 1, 5, now);
 
 		assertThat(TasteQuery.of(profile).topKinds()).containsExactly("소금빵", "휘낭시에");
@@ -64,7 +64,7 @@ class TasteQueryTest {
 	void ofProfile_carriesStrongStoreCount() {
 		LocalDateTime now = LocalDateTime.of(2026, 9, 19, 18, 0);
 		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, now);
-		profile.recompute(null, null, null, Map.of("가성비", 0.9), null, TasteUserType.BROWSER, 5, 0, now);
+		profile.recompute(null, null, null, Map.of("가성비", 0.9), null, new String[0], TasteUserType.BROWSER, 5, 0, now);
 
 		assertThat(TasteQuery.of(profile).strongStoreCount()).isEqualTo(5);
 		assertThat(TasteQuery.empty().strongStoreCount()).isZero();
@@ -86,7 +86,7 @@ class TasteQueryTest {
 	void ofProfile_dropsTagsOutsideDictionary() {
 		LocalDateTime now = LocalDateTime.of(2026, 9, 19, 23, 0);
 		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, now);
-		profile.recompute(null, null, null, Map.of("카페형", 0.9, "노포", 0.4, "머물기", 0.7), null,
+		profile.recompute(null, null, null, Map.of("카페형", 0.9, "노포", 0.4, "머물기", 0.7), null, new String[0],
 			TasteUserType.BROWSER, 5, 0, now);
 
 		assertThat(TasteQuery.of(profile).tags()).containsOnlyKeys("머물기");

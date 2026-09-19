@@ -1,6 +1,7 @@
 package sweetgirl.croissant.personalization.repository;
 
 import java.math.BigDecimal;
+import java.sql.Array;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -9,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -68,7 +70,7 @@ public class UserTasteSignalJdbcRepository {
 		return jdbcTemplate.query("""
 				SELECT i.type, i.store_id, i.menu_id, i.converted, i.occurred_at,
 					p.axis_taste, p.axis_texture, p.axis_filling, p.axis_vibe, CAST(p.tags AS text) AS tags,
-					mc.name AS kind
+					p.signature_kinds, mc.name AS kind
 				FROM user_store_interaction i
 					LEFT JOIN store_profile p ON p.store_id = i.store_id
 					LEFT JOIN menu m ON m.id = i.menu_id
@@ -97,7 +99,31 @@ public class UserTasteSignalJdbcRepository {
 		Boolean converted = rs.getObject("converted", Boolean.class);
 		return new TasteSignal(InteractionType.valueOf(rs.getString("type")), storeId, menuId, converted,
 			rs.getTimestamp("occurred_at").toLocalDateTime(), storeAxis, parseTags(rs.getString("tags")),
-			rs.getString("kind"));
+			rs.getString("kind"), signatureKindsOf(rs.getArray("signature_kinds")));
+	}
+
+	private static List<String> signatureKindsOf(Array array) throws SQLException {
+		return array == null ? List.of() : List.of((String[])array.getArray());
+	}
+
+	/**
+	 * 종류별 전체 빵집 비율 — 추정 종류의 lift 분모. 모집단은 추천 후보 풀과 같다(ACTIVE · 빵집다움 하한 이상). 대표 종류가 없는 가게도
+	 * 분모에 든다: "이 종류가 대표인 빵집은 전체의 몇 %" 다.
+	 */
+	public Map<String, Double> findSignatureKindBaseRates(double minBakeryScore) {
+		Map<String, Double> rates = new LinkedHashMap<>();
+		jdbcTemplate.query("""
+				SELECT k, COUNT(*)::float8 / NULLIF((SELECT COUNT(*) FROM store_profile p
+					JOIN store s ON s.id = p.store_id
+					WHERE s.status = 'ACTIVE' AND p.bakery_score >= :minBakeryScore), 0) AS rate
+				FROM store_profile p
+					JOIN store s ON s.id = p.store_id,
+					unnest(p.signature_kinds) AS k
+				WHERE s.status = 'ACTIVE' AND p.bakery_score >= :minBakeryScore
+				GROUP BY k
+				""", new MapSqlParameterSource("minBakeryScore", minBakeryScore),
+			(RowCallbackHandler)rs -> rates.put(rs.getString("k"), rs.getDouble("rate")));
+		return rates;
 	}
 
 	/**

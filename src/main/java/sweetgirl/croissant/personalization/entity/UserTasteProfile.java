@@ -75,6 +75,14 @@ public class UserTasteProfile extends BaseTimeEntity {
 	@Column(name = "top_kinds")
 	private String[] topKinds;
 
+	/**
+	 * 좋아한 가게들의 대표 종류(store_profile.signature_kinds)로 추정한 종류, lift 상위 3 (#762). 기록 종류(topKinds)가 없는
+	 * 회원에게도 "{종류} 취향" 배지를 붙이는 재료다. 기록 종류와 따로 둔다 — 기록이 더 강한 근거다. 없으면 빈 배열.
+	 */
+	@JdbcTypeCode(SqlTypes.ARRAY)
+	@Column(name = "inferred_kinds", nullable = false)
+	private String[] inferredKinds;
+
 	@Enumerated(EnumType.STRING)
 	@Column(name = "user_type", length = 12)
 	private TasteUserType userType;
@@ -96,6 +104,7 @@ public class UserTasteProfile extends BaseTimeEntity {
 	private UserTasteProfile(Long memberId, LocalDateTime computedAt) {
 		this.memberId = memberId;
 		this.tags = new HashMap<>();
+		this.inferredKinds = new String[0];
 		this.version = 1;
 		this.computedAt = computedAt;
 	}
@@ -112,6 +121,7 @@ public class UserTasteProfile extends BaseTimeEntity {
 			TasteTypeSource typeSource,
 			Map<String, Double> tags,
 			String[] topKinds,
+			String[] inferredKinds,
 			TasteUserType userType,
 			int strongStoreCount,
 			int breadSignalCount,
@@ -121,6 +131,7 @@ public class UserTasteProfile extends BaseTimeEntity {
 		this.typeSource = typeSource;
 		this.tags = tags != null ? new HashMap<>(tags) : new HashMap<>();
 		this.topKinds = topKinds;
+		this.inferredKinds = inferredKinds != null ? inferredKinds : new String[0];
 		this.userType = userType;
 		this.strongStoreCount = strongStoreCount;
 		this.breadSignalCount = breadSignalCount;

@@ -68,18 +68,22 @@ class UserTasteProfileCommandServiceTest {
 	}
 
 	private static TasteSignal saved(long storeId, TasteAxis storeAxis) {
-		return new TasteSignal(InteractionType.SAVE, storeId, null, null, YESTERDAY, storeAxis, Map.of(), null);
+		return new TasteSignal(InteractionType.SAVE, storeId, null, null, YESTERDAY, storeAxis, Map.of(), null,
+			List.of());
 	}
 
 	private static TasteSignal viewed(long storeId) {
-		return new TasteSignal(InteractionType.STORE_VIEW, storeId, null, null, YESTERDAY, null, Map.of(), null);
+		return new TasteSignal(InteractionType.STORE_VIEW, storeId, null, null, YESTERDAY, null, Map.of(), null,
+			List.of());
 	}
 
 	@BeforeEach
 	void setUp() {
 		PersonalizationProperties properties = new PersonalizationProperties();
 		profileCommandService = new UserTasteProfileCommandService(signalRepository, profileRepository,
-			memberRepository, new TasteProfileCalculator(properties), properties, transactionManager);
+			memberRepository, new TasteProfileCalculator(properties),
+			new SignatureKindBaseRates(signalRepository, properties),
+			properties, transactionManager);
 	}
 
 	@Test

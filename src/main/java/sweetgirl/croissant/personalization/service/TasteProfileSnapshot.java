@@ -14,16 +14,17 @@ import sweetgirl.croissant.personalization.enums.TasteUserType;
  * 바뀌었나"(version 유지)를 가른다.
  */
 public record TasteProfileSnapshot(TasteAxis axis, String typeCode, TasteTypeSource typeSource,
-		Map<String, Double> tags, String[] topKinds, TasteUserType userType, int strongStoreCount,
-		int breadSignalCount) {
+		Map<String, Double> tags, String[] topKinds, String[] inferredKinds, TasteUserType userType,
+		int strongStoreCount, int breadSignalCount) {
 
-	/** 추천이 읽는 값 — 축 · 타입 · 출처 · 태그 · 종류. 이 중 하나라도 다르면 recompute(version+1). */
+	/** 추천이 읽는 값 — 축 · 타입 · 출처 · 태그 · 종류(기록 · 추정). 이 중 하나라도 다르면 recompute(version+1). */
 	public boolean sameTasteAs(UserTasteProfile profile) {
 		return Objects.equals(axis, profile.getAxis())
 			&& Objects.equals(typeCode, profile.getTypeCode())
 			&& Objects.equals(typeSource, profile.getTypeSource())
 			&& Objects.equals(tags, profile.getTags() != null ? profile.getTags() : Map.of())
-			&& Arrays.equals(topKinds, profile.getTopKinds());
+			&& Arrays.equals(topKinds, profile.getTopKinds())
+			&& Arrays.equals(inferredKinds, profile.getInferredKinds());
 	}
 
 	/** 유형 · 카운트 — 추천은 안 읽지만 컨텍스트(칩 상태)와 타입 카드가 읽는다. */
