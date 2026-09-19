@@ -5,10 +5,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -48,10 +50,13 @@ public class ReasonPromptBuilder {
 	 * 모델이 쓸 수 있는 태그 목록. 프롬프트 파일에 글자로 박아 두면 사전이 바뀔 때마다 파일 셋을 손으로 고쳐야 하고,
 	 * 빠뜨리면 없어진 태그를 쓰라고 하거나 새 태그를 쓰지 말라고 하게 된다(#758 에서 실제로 그랬다 — 노포 · 신상 · 아침 ·
 	 * 저녁이 dataops #11 에서 빠졌는데 프롬프트에는 남아 있었다). 태그의 원본은 {@link TasteTag} 하나다.
+	 *
+	 * <p>데이터 키가 아니라 표시 문구를 쓴다 — 배지 칩과 이유 문장이 같은 말을 하고, "공간사진" 같은 데이터 이름이 문장에
+	 * 새지 않는다(#759 리뷰). 문구 "건강·신선" 에 가운뎃점이 있어 구분자는 쉼표다.
 	 */
 	private static final String TAG_VOCABULARY = Arrays.stream(TasteTag.values())
-		.map(TasteTag::getKey)
-		.collect(Collectors.joining("·"));
+		.map(TasteTag::getLabel)
+		.collect(Collectors.joining(", "));
 
 	private final Map<ReasonPromptVariant, String> templates = new EnumMap<>(ReasonPromptVariant.class);
 	private final RecommendationProperties recommendationProperties;
@@ -85,7 +90,7 @@ public class ReasonPromptBuilder {
 	 */
 	private String tasteBlock(TasteQuery taste) {
 		List<String> lines = new ArrayList<>();
-		lines.add("- 좋아하는 태그: " + joinOrNone(notableTags(reasonTags(taste))));
+		lines.add("- 좋아하는 태그: " + joinOrNone(labels(notableTags(reasonTags(taste)))));
 		lines.add("- 자주 먹는 빵 종류: " + joinOrNone(taste.topKinds()));
 		return String.join("\n", lines);
 	}
@@ -105,7 +110,7 @@ public class ReasonPromptBuilder {
 					block.append("   시그니처 메뉴: ").append(String.join(", ", limit(menus))).append("\n");
 				}
 			}
-			block.append("   태그: ").append(joinOrNone(notableTags(row.tags()))).append("\n");
+			block.append("   태그: ").append(joinOrNone(labels(notableTags(row.tags())))).append("\n");
 			block.append("   빵 종류: ").append(joinOrNone(limit(specificKinds(row.kinds()))));
 			if (variant.isIncludesRuleEvidence()) {
 				block.append("\n   선정 근거: ").append(evidenceText(taste, row));
@@ -122,7 +127,7 @@ public class ReasonPromptBuilder {
 
 	private String evidenceText(TasteQuery taste, CandidateStoreRow row) {
 		return "취향 일치도 " + decimal(row.tasteFit())
-			+ " · 겹치는 태그 " + joinOrNone(sharedNotableTags(reasonTags(taste), row.tags()))
+			+ " · 겹치는 태그 " + joinOrNone(labels(sharedNotableTags(reasonTags(taste), row.tags())))
 			+ " · 겹치는 빵 종류 " + joinOrNone(intersection(taste.topKinds(), row.kinds()))
 			+ " · 인기도 " + decimal(popularityPrior(row.popularityScore()));
 	}
@@ -140,9 +145,10 @@ public class ReasonPromptBuilder {
 	/** 가중치가 큰 태그가 앞에 오게 — 모델이 앞쪽을 더 본다 */
 	/**
 	 * 도드라진 태그만, 값이 큰 순으로 — 배지와 같은 문턱({@code notableTagAbove})을 넘는 것. v5 는 모든 가게가 8키를 다 갖고
-	 * 표가 없는 가게도 0.5 라, "0 보다 크면 있다" 로 거르면 가게마다 8개가 거의 다 나열된다(#759 리뷰).
+	 * 표가 없는 가게도 0.5 라, "0 보다 크면 있다" 로 거르면 가게마다 8개가 거의 다 나열된다(#759 리뷰). 사전 밖 키(적재가
+	 * 사전보다 앞서거나 뒤처진 옛 키)는 뺀다 — 프롬프트가 "사전에 적힌 것만 쓴다" 고 하므로.
 	 */
-	private List<String> notableTags(Map<String, Double> weights) {
+	private List<TasteTag> notableTags(Map<String, Double> weights) {
 		if (weights == null || weights.isEmpty()) {
 			return List.of();
 		}
@@ -151,14 +157,20 @@ public class ReasonPromptBuilder {
 			.filter(entry -> entry.getValue() != null && entry.getValue() > above)
 			.sorted(Map.Entry.<String, Double>comparingByValue().reversed()
 				.thenComparing(Map.Entry.comparingByKey()))
-			.map(Map.Entry::getKey)
+			.map(entry -> TasteTag.fromKey(entry.getKey()))
+			.flatMap(Optional::stream)
 			.toList();
 	}
 
 	/** 회원 · 가게 둘 다에서 도드라진 태그 — 배지의 태그 일치와 같은 조건이다 */
-	private List<String> sharedNotableTags(Map<String, Double> member, Map<String, Double> store) {
-		Set<String> storeTags = new LinkedHashSet<>(notableTags(store));
+	private List<TasteTag> sharedNotableTags(Map<String, Double> member, Map<String, Double> store) {
+		Set<TasteTag> storeTags = EnumSet.noneOf(TasteTag.class);
+		storeTags.addAll(notableTags(store));
 		return notableTags(member).stream().filter(storeTags::contains).toList();
+	}
+
+	private static List<String> labels(List<TasteTag> tags) {
+		return tags.stream().map(TasteTag::getLabel).toList();
 	}
 
 	private static List<String> intersection(List<String> kinds, List<String> other) {
