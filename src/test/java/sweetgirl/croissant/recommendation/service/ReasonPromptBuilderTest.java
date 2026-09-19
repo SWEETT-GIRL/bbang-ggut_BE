@@ -154,9 +154,33 @@ class ReasonPromptBuilderTest {
 	@Test
 	@DisplayName("유형 코드는 화면 이름으로 바뀐다")
 	void typeCode_isWrittenAsLabel() {
-		String prompt = promptBuilder.build(ReasonPromptVariant.A, taste(), "PCLN", List.of(store(1L, "밀도", 0.71)),
+		String prompt = promptBuilder.build(ReasonPromptVariant.D, taste(), "PCLN", List.of(store(1L, "밀도", 0.71)),
 			Map.of());
 
 		assertThat(prompt).contains("- 유형: 뉴웨이브 미니멀");
+	}
+
+	@Test
+	@DisplayName("유형 줄은 D 에만 — A · B 에는 가게 쪽 근거가 없어 유형과 가게를 잇는 문장이 지어낸 연결이 된다(#758 리뷰)")
+	void typeName_onlyInRuleEvidenceVariant() {
+		for (ReasonPromptVariant variant : List.of(ReasonPromptVariant.A, ReasonPromptVariant.B)) {
+			String prompt = promptBuilder.build(variant, taste(), "SCRO", List.of(store(1L, "밀도", 0.71)), Map.of());
+
+			assertThat(prompt).as(variant.name()).doesNotContain("- 유형:", "완벽주의 미식가");
+		}
+		String withEvidence = promptBuilder.build(ReasonPromptVariant.D, taste(), "SCRO",
+			List.of(store(1L, "밀도", 0.71)), Map.of());
+		assertThat(withEvidence).contains("- 유형: 완벽주의 미식가", "유형 이름은 카드 제목에 이미 나오므로");
+	}
+
+	@Test
+	@DisplayName("메뉴 이름이 없는 A · D 는 메뉴 이름을 지어내지 말라고 적는다 — A 가 지어내면 B(실제 메뉴 이름)와의 비교가 흐려진다")
+	void menuNamesAreNotInvented_whereNotGiven() {
+		for (ReasonPromptVariant variant : List.of(ReasonPromptVariant.A, ReasonPromptVariant.D)) {
+			assertThat(promptBuilder.build(variant, taste(), null, List.of(store(1L, "밀도", 0.71)), Map.of()))
+				.as(variant.name()).contains("메뉴 이름은 주어지지 않았다. 빵 종류 목록에 적힌 이름만 쓴다.");
+		}
+		assertThat(promptBuilder.build(ReasonPromptVariant.B, taste(), null, List.of(store(1L, "밀도", 0.71)),
+			Map.of(1L, List.of("뺑 스위스")))).contains("메뉴 이름은 적힌 그대로 쓴다").doesNotContain("메뉴 이름은 주어지지 않았다");
 	}
 }
