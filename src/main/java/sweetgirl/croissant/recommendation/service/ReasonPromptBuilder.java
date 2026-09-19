@@ -3,6 +3,7 @@ package sweetgirl.croissant.recommendation.service;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -15,6 +16,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
 import sweetgirl.croissant.personalization.enums.BbtiType;
+import sweetgirl.croissant.personalization.enums.TasteTag;
 import sweetgirl.croissant.recommendation.config.RecommendationProperties;
 import sweetgirl.croissant.recommendation.enums.ReasonPromptVariant;
 import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
@@ -41,6 +43,15 @@ public class ReasonPromptBuilder {
 	private static final String NO_VALUE = "없음";
 	private static final int MAX_KINDS = 5;
 
+	/**
+	 * 모델이 쓸 수 있는 태그 목록. 프롬프트 파일에 글자로 박아 두면 사전이 바뀔 때마다 파일 셋을 손으로 고쳐야 하고,
+	 * 빠뜨리면 없어진 태그를 쓰라고 하거나 새 태그를 쓰지 말라고 하게 된다(#758 에서 실제로 그랬다 — 노포 · 신상 · 아침 ·
+	 * 저녁이 dataops #11 에서 빠졌는데 프롬프트에는 남아 있었다). 태그의 원본은 {@link TasteTag} 하나다.
+	 */
+	private static final String TAG_VOCABULARY = Arrays.stream(TasteTag.values())
+		.map(TasteTag::getKey)
+		.collect(Collectors.joining("·"));
+
 	private final Map<ReasonPromptVariant, String> templates = new EnumMap<>(ReasonPromptVariant.class);
 	private final RecommendationProperties recommendationProperties;
 
@@ -63,7 +74,8 @@ public class ReasonPromptBuilder {
 			.replace("{taste}", tasteBlock(taste, typeCode))
 			.replace("{stores}", storesBlock(variant, taste, stores, signatureMenus))
 			.replace("{storeCount}", String.valueOf(stores.size()))
-			.replace("{tasteThreshold}", decimal(recommendationProperties.getScore().getTasteCosineThreshold()));
+			.replace("{tasteThreshold}", decimal(recommendationProperties.getScore().getTasteCosineThreshold()))
+			.replace("{tagVocabulary}", TAG_VOCABULARY);
 	}
 
 	private String tasteBlock(TasteQuery taste, String typeCode) {

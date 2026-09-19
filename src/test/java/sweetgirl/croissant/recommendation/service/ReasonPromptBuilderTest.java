@@ -8,6 +8,7 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import sweetgirl.croissant.personalization.enums.TasteTag;
 import sweetgirl.croissant.recommendation.config.RecommendationProperties;
 import sweetgirl.croissant.recommendation.enums.ReasonPromptVariant;
 import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
@@ -95,6 +96,19 @@ class ReasonPromptBuilderTest {
 		assertThat(prompt).contains("- 좋아하는 태그: 없음");
 		assertThat(prompt).contains("- 자주 먹는 빵 종류: 없음");
 		assertThat(prompt).doesNotContain("- 유형:");
+	}
+
+	@Test
+	@DisplayName("쓸 수 있는 태그 목록은 TasteTag 에서 만든다 — 프롬프트 파일에 박아 두면 사전이 바뀔 때 어긋난다")
+	void tagVocabulary_followsTasteTag() {
+		for (ReasonPromptVariant variant : ReasonPromptVariant.values()) {
+			String prompt = promptBuilder.build(variant, taste(), "PCLN", List.of(store(1L, "밀도", 0.71)), Map.of());
+
+			assertThat(prompt).doesNotContain("{tagVocabulary}");
+			for (TasteTag tag : TasteTag.values()) {
+				assertThat(prompt).as("%s 변형에 %s 태그", variant, tag.getKey()).contains(tag.getKey());
+			}
+		}
 	}
 
 	@Test
