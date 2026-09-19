@@ -902,6 +902,8 @@ class CourseRecommendationCommandServiceTest {
 			request(4, null), null);
 
 		assertThat(response.fallback()).isTrue();
+		// 유형(PCLN)이 있는 회원도 코스 이름에 유형 이름이 없다 — 유형 이름은 앱에서 없앴다(#760)
+		assertThat(response.title()).isEqualTo("성수동 빵집 코스");
 		assertThat(response.stores()).extracting(RecommendedStoreResponse::storeId).containsExactly(104L, 105L);
 		assertThat(response.stores()).extracting(RecommendedStoreResponse::reason)
 			.containsOnly(RecommendationMessage.SIGNATURE_REASON);
