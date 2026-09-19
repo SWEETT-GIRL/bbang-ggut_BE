@@ -21,7 +21,7 @@ class ReasonPromptBuilderTest {
 
 	private static TasteQuery taste() {
 		return new TasteQuery(0.62, 0.31, -0.55, 0.08,
-			Map.of("동네빵집", 0.9, "아침", 0.4, "선물", 0.2), List.of("소금빵", "바게트"));
+			Map.of("동네빵집", 0.9, "아침", 0.4, "선물", 0.2), List.of("소금빵", "바게트"), 4);
 	}
 
 	private static CandidateStoreRow store(long storeId, String name, double tasteFit) {
@@ -100,6 +100,20 @@ class ReasonPromptBuilderTest {
 
 		assertThat(prompt).contains("   빵 종류: 소금빵, 깜빠뉴\n", "   빵 종류: 없음");
 		assertThat(prompt).doesNotContain("빵 종류: 빵", "기타", "요거트");
+	}
+
+	@Test
+	@DisplayName("강한 신호 가게가 4곳 미만이면 회원 태그를 없음으로 쓴다 — D 의 겹치는 태그도. 종류와 가게 태그 줄은 그대로")
+	void thinEvidence_hidesMemberTags() {
+		TasteQuery thin = new TasteQuery(0.62, 0.31, -0.55, 0.08, Map.of("동네빵집", 0.9), List.of("소금빵"), 3);
+
+		String prompt = promptBuilder.build(ReasonPromptVariant.D, thin, "PCLN", List.of(store(1L, "밀도", 0.71)),
+			Map.of());
+
+		assertThat(prompt).contains("- 좋아하는 태그: 없음", "겹치는 태그 없음");
+		assertThat(prompt).contains("- 자주 먹는 빵 종류: 소금빵", "겹치는 빵 종류 소금빵");
+		// 가게 태그는 가게의 사실이라 회원 근거와 상관없이 남는다
+		assertThat(prompt).contains("   태그: 동네빵집, 데이트");
 	}
 
 	@Test

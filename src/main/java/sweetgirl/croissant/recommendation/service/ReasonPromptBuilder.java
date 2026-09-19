@@ -84,7 +84,7 @@ public class ReasonPromptBuilder {
 		if (typeCode != null) {
 			lines.add("- 유형: " + BbtiType.labelOrCode(typeCode));
 		}
-		lines.add("- 좋아하는 태그: " + joinOrNone(sortedByWeight(taste.tags())));
+		lines.add("- 좋아하는 태그: " + joinOrNone(sortedByWeight(reasonTags(taste))));
 		lines.add("- 자주 먹는 빵 종류: " + joinOrNone(taste.topKinds()));
 		return String.join("\n", lines);
 	}
@@ -114,9 +114,14 @@ public class ReasonPromptBuilder {
 		return String.join("\n", blocks);
 	}
 
+	/** 근거가 모자란 회원(강한 신호 가게 수 미달)의 태그는 없는 것으로 쓴다 — 배지와 같은 판정 */
+	private Map<String, Double> reasonTags(TasteQuery taste) {
+		return taste.reasonTags(recommendationProperties.getScore().getMinStrongStoresForTagReason());
+	}
+
 	private String evidenceText(TasteQuery taste, CandidateStoreRow row) {
 		return "취향 일치도 " + decimal(row.tasteFit())
-			+ " · 겹치는 태그 " + joinOrNone(intersection(taste.tags(), row.tags()))
+			+ " · 겹치는 태그 " + joinOrNone(intersection(reasonTags(taste), row.tags()))
 			+ " · 겹치는 빵 종류 " + joinOrNone(intersection(taste.topKinds(), row.kinds()))
 			+ " · 인기도 " + decimal(popularityPrior(row.popularityScore()));
 	}

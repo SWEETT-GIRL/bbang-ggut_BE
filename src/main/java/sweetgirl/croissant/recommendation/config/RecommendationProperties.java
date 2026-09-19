@@ -64,6 +64,11 @@ public class RecommendationProperties {
 		private double minBakeryScore = 0.5;
 		/** 이 코사인을 넘어야 "취향 후보"다. 시그니처 문구·배지 판정에도 쓴다(설계 §9 "코사인 > 0.2") */
 		private double tasteCosineThreshold = 0.2;
+		/**
+		 * 회원 태그를 문구(배지 · 이유 문장)에 쓰려면 강한 신호 가게가 이만큼 있어야 한다. 랩 실측(09-19)에서 축이 완성된 회원의 36.5% 가
+		 * 강한 신호 가게 1곳이었고, 4곳 이상으로 잘라야 회원끼리 태그가 갈리는 것이 우연과 구분됐다. 점수의 태그 항에는 쓰지 않는다
+		 */
+		private int minStrongStoresForTagReason = 4;
 		/** 풀 안 취향 후보가 이 수 미만이면 취향 항을 빼고 prior 순으로 채운다(fallback) */
 		private int minTasteCandidates = 3;
 		/**
