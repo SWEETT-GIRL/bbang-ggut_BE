@@ -26,7 +26,7 @@ class AnchorBadgeResolverTest {
 	private static CandidateStoreRow row(double tasteFit, Double taste, Double texture, Double filling, Double vibe,
 			Map<String, Double> tags, List<String> kinds) {
 		return new CandidateStoreRow(1L, "가게", "성수동", 37.5, 127.0, null, 100, 0, 1.0, tasteFit, 5,
-			taste, texture, filling, vibe, tags, kinds);
+			taste, texture, filling, vibe, tags, kinds, List.of());
 	}
 
 	@Test

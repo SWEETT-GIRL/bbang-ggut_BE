@@ -10,6 +10,9 @@ import java.util.Map;
  * <p>#661 점수: score 가 정렬 기준이고 tasteFit 은 사용자·가게 축 코사인(둘 다 없으면 0). tasteCandidateCount 는 이 조회의 풀
  * 전체에서 코사인이 임계를 넘은 가게 수(창 함수)라 모든 행이 같은 값이다 — 취향 폴백 판정에 쓴다. 축·태그·종류는 앵커 배지를
  * 자바에서 정하려고 실어 온다.
+ *
+ * <p>kinds 는 메뉴 ∪ 리뷰 언급 종류(종류 겹침 점수의 재료), signatureKinds 는 대표 메뉴를 종류로 푼 것(#762 — "{종류} 취향" 배지는
+ * 가게가 그 종류로 알려졌을 때만 붙인다). 없으면 빈 목록.
  */
 public record CandidateStoreRow(
 		Long storeId,
@@ -28,13 +31,14 @@ public record CandidateStoreRow(
 		Double axisFilling,
 		Double axisVibe,
 		Map<String, Double> tags,
-		List<String> kinds) {
+		List<String> kinds,
+		List<String> signatureKinds) {
 
 	/** 점수 항이 없는 행 — #660 형태의 픽스처·인기순만 있을 때. */
 	public CandidateStoreRow(Long storeId, String name, String region3rd, double latitude, double longitude,
 			String thumbnailKey, double distanceM, double popularityScore) {
 		this(storeId, name, region3rd, latitude, longitude, thumbnailKey, distanceM, popularityScore, 0, 0, 0,
-			null, null, null, null, Map.of(), List.of());
+			null, null, null, null, Map.of(), List.of(), List.of());
 	}
 
 	public boolean hasAxis() {

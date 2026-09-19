@@ -107,6 +107,7 @@ public class RecommendationCandidateJdbcRepository {
 				s.popularity_score,
 				img.thumbnail_key,
 				p.axis_taste, p.axis_texture, p.axis_filling, p.axis_vibe, p.tags::text AS tags, p.kinds,
+				p.signature_kinds,
 				sc.cosine, sc.score,
 				COUNT(*) FILTER (WHERE sc.cosine > :tasteThreshold) OVER () AS taste_candidate_count
 			FROM store s
@@ -122,7 +123,8 @@ public class RecommendationCandidateJdbcRepository {
 			WHERE s.status = 'ACTIVE'
 				AND s.id <> ALL (:excludeStoreIds)
 				AND NOT (CAST(:excludeRecorded AS boolean) AND sc.recorded)
-			""".formatted(CENTER, SCORE_PARTS);
+			"""
+		.formatted(CENTER, SCORE_PARTS);
 
 	private final NamedParameterJdbcTemplate jdbcTemplate;
 	private final RecommendationProperties recommendationProperties;
@@ -410,7 +412,8 @@ public class RecommendationCandidateJdbcRepository {
 			nullableDouble(rs, "axis_filling"),
 			nullableDouble(rs, "axis_vibe"),
 			readTags(rs.getString("tags")),
-			readKinds(rs.getArray("kinds")));
+			readKinds(rs.getArray("kinds")),
+			readKinds(rs.getArray("signature_kinds")));
 	}
 
 	private static String nullableString(ResultSet rs, String column) throws SQLException {

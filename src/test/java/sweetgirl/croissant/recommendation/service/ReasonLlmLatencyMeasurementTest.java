@@ -193,6 +193,6 @@ class ReasonLlmLatencyMeasurementTest {
 			double axisTaste, double axisTexture, double axisFilling, double axisVibe,
 			Map<String, Double> tags, List<String> kinds) {
 		return new CandidateStoreRow(storeId, name, "성수동2가", 37.5446, 127.0557, null, 200, popularityScore,
-			1.2, tasteFit, 5, axisTaste, axisTexture, axisFilling, axisVibe, tags, kinds);
+			1.2, tasteFit, 5, axisTaste, axisTexture, axisFilling, axisVibe, tags, kinds, List.of());
 	}
 }

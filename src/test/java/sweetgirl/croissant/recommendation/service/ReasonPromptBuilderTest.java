@@ -28,7 +28,7 @@ class ReasonPromptBuilderTest {
 
 	private static CandidateStoreRow store(long storeId, String name, double tasteFit) {
 		return new CandidateStoreRow(storeId, name, "성수동2가", 37.5, 127.05, null, 120, 3.4, 1.2, tasteFit, 5,
-			0.5, 0.8, -0.2, 0.4, Map.of("특별한메뉴", 1.0, "공간사진", 0.5), List.of("소금빵", "깜빠뉴"));
+			0.5, 0.8, -0.2, 0.4, Map.of("특별한메뉴", 1.0, "공간사진", 0.5), List.of("소금빵", "깜빠뉴"), List.of());
 	}
 
 	@Test
@@ -93,9 +93,9 @@ class ReasonPromptBuilderTest {
 	@DisplayName("가게 빵 종류 줄에서 일반 종류(빵 · 기타 · 요거트)를 뺀다 — 그것만 있으면 없음")
 	void storeKinds_dropGenericKinds() {
 		CandidateStoreRow mixed = new CandidateStoreRow(1L, "밀도", "성수동2가", 37.5, 127.05, null, 120, 3.4, 1.2, 0.71,
-			5, 0.5, 0.8, -0.2, 0.4, Map.of(), List.of("빵", "소금빵", "기타", "깜빠뉴", "요거트"));
+			5, 0.5, 0.8, -0.2, 0.4, Map.of(), List.of("빵", "소금빵", "기타", "깜빠뉴", "요거트"), List.of());
 		CandidateStoreRow genericOnly = new CandidateStoreRow(2L, "베통", "성수동2가", 37.5, 127.05, null, 120, 3.4, 1.2,
-			0.12, 5, 0.5, 0.8, -0.2, 0.4, Map.of(), List.of("빵", "기타"));
+			0.12, 5, 0.5, 0.8, -0.2, 0.4, Map.of(), List.of("빵", "기타"), List.of());
 
 		String prompt = promptBuilder.build(ReasonPromptVariant.A, taste(), List.of(mixed, genericOnly),
 			Map.of());
@@ -124,7 +124,7 @@ class ReasonPromptBuilderTest {
 		Map<String, Double> tags = Map.of("머물기", 0.51, "가성비", 0.5, "디저트", 0.3, "웨이팅", 0.0);
 		TasteQuery member = new TasteQuery(0.62, 0.31, -0.55, 0.08, tags, List.of("소금빵"), 4);
 		CandidateStoreRow store = new CandidateStoreRow(1L, "밀도", "성수동2가", 37.5, 127.05, null, 120, 3.4, 1.2, 0.71,
-			5, 0.5, 0.8, -0.2, 0.4, Map.of("머물기", 0.9, "가성비", 0.9, "디저트", 0.9), List.of("소금빵"));
+			5, 0.5, 0.8, -0.2, 0.4, Map.of("머물기", 0.9, "가성비", 0.9, "디저트", 0.9), List.of("소금빵"), List.of());
 
 		String prompt = promptBuilder.build(ReasonPromptVariant.D, member, List.of(store), Map.of());
 
@@ -135,7 +135,7 @@ class ReasonPromptBuilderTest {
 	@DisplayName("태그는 데이터 키가 아니라 표시 문구로 쓰고, 사전 밖 옛 키는 뺀다 — 배지 칩과 같은 말이 되게")
 	void tagsAreWrittenAsLabels_andUnknownKeysDropped() {
 		CandidateStoreRow store = new CandidateStoreRow(1L, "밀도", "성수동2가", 37.5, 127.05, null, 120, 3.4, 1.2, 0.71,
-			5, 0.5, 0.8, -0.2, 0.4, Map.of("공간사진", 0.9, "카페형", 0.95, "건강한맛", 0.7), List.of("소금빵"));
+			5, 0.5, 0.8, -0.2, 0.4, Map.of("공간사진", 0.9, "카페형", 0.95, "건강한맛", 0.7), List.of("소금빵"), List.of());
 
 		String prompt = promptBuilder.build(ReasonPromptVariant.A, taste(), List.of(store), Map.of());
 

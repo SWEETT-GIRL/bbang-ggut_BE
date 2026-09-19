@@ -135,6 +135,9 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 			(int)rows.stream().filter(row -> row.tasteFit() > 0.2).count());
 		assertThat(rows).anySatisfy(row -> assertThat(row.tasteFit()).isGreaterThan(0.2));
 		assertThat(rows).allSatisfy(row -> assertThat(row.hasAxis() || row.tasteFit() == 0).isTrue());
+		// 대표 종류(signature_kinds, dataops v5)가 행에 실려 온다 — "{종류} 취향" 배지의 가게 쪽 재료(#762)
+		assertThat(rows).allSatisfy(row -> assertThat(row.signatureKinds()).isNotNull());
+		assertThat(rows).anySatisfy(row -> assertThat(row.signatureKinds()).isNotEmpty());
 		Long[] ids = rows.stream().map(CandidateStoreRow::storeId).toArray(Long[]::new);
 		Integer belowBakery = jdbcTemplate.queryForObject(
 			"SELECT COUNT(*) FROM store_profile WHERE store_id = ANY (?) AND bakery_score < 0.5", Integer.class,
