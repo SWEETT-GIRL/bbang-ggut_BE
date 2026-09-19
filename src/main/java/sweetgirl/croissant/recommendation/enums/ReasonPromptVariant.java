@@ -14,7 +14,7 @@ import lombok.RequiredArgsConstructor;
 public enum ReasonPromptVariant {
 
 	/** 최소 재료 — 가게의 빵 종류·태그 + 회원 태그·자주 먹는 종류 */
-	A("recommendation-reason-a-prompt.txt", false, false, false),
+	A("recommendation-reason-a-prompt.txt", false, false),
 
 	/**
 	 * A + 시그니처 메뉴. 그 가게가 무엇으로 알려졌는지가 거기 있다 — "플레인 포카치아 · 뺑 스위스 · 잠봉뵈르" 는
@@ -22,10 +22,10 @@ public enum ReasonPromptVariant {
 	 * 5개 26자라 토큰도 얼마 안 든다. 소개글은 여기 넣지 않는다 — 점주 마케팅 문구라 검증이 안 되고, p90 이
 	 * 616자여서 한 가게 몫이 프롬프트를 통째로 밀어낸다. 그건 가게당 한 번 읽어 태그로 남길 일이다.
 	 */
-	B("recommendation-reason-b-prompt.txt", false, true, false),
+	B("recommendation-reason-b-prompt.txt", false, true),
 
-	/** A + 룰의 선정 근거(취향 코사인 · 겹친 태그 · 겹친 종류 · 인기도) + 회원 유형 */
-	D("recommendation-reason-d-prompt.txt", true, false, true);
+	/** A + 룰의 선정 근거(취향 코사인 · 겹친 태그 · 겹친 종류 · 인기도) */
+	D("recommendation-reason-d-prompt.txt", true, false);
 
 	private final String promptFile;
 
@@ -34,10 +34,4 @@ public enum ReasonPromptVariant {
 
 	/** 가게마다 "시그니처 메뉴" 줄을 붙일지 */
 	private final boolean includesSignatureMenus;
-
-	/**
-	 * 회원 "유형" 줄을 넣을지. 유형 이름은 네 축의 부호를 이름 하나로 요약한 것이라 축과 같은 문제를 안는다 — 가게 쪽에 대응할
-	 * 근거가 없는 A · B 에서 유형과 가게를 잇는 문장은 지어낸 연결이 된다. 일치도 근거가 함께 가는 D 에만 둔다(#758 리뷰).
-	 */
-	private final boolean includesTypeName;
 }

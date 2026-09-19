@@ -15,7 +15,6 @@ import java.util.stream.Collectors;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
-import sweetgirl.croissant.personalization.enums.BbtiType;
 import sweetgirl.croissant.personalization.enums.GenericKind;
 import sweetgirl.croissant.personalization.enums.TasteTag;
 import sweetgirl.croissant.recommendation.config.RecommendationProperties;
@@ -65,25 +64,25 @@ public class ReasonPromptBuilder {
 
 	/**
 	 * @param taste 회원 취향. 축이 없으면 축 줄이 "없음" 이 되고, 프롬프트는 가게 사실만으로 쓰게 된다
-	 * @param typeCode 취향 유형 코드(BBTI). 유형 줄을 넣는 변형(D)만 쓰고, 없으면 그 줄을 뺀다
 	 * @param stores 룰이 이미 고르고 순서까지 정한 가게들 — 이 순서 그대로 프롬프트에 넣는다
 	 * @param signatureMenus 가게별 시그니처 메뉴. 변형 B 만 쓴다. 없는 가게는 그 줄이 빠진다
 	 */
-	public String build(ReasonPromptVariant variant, TasteQuery taste, String typeCode,
-			List<CandidateStoreRow> stores, Map<Long, List<String>> signatureMenus) {
+	public String build(ReasonPromptVariant variant, TasteQuery taste, List<CandidateStoreRow> stores,
+			Map<Long, List<String>> signatureMenus) {
 		return templates.get(variant)
-			.replace("{taste}", tasteBlock(variant, taste, typeCode))
+			.replace("{taste}", tasteBlock(taste))
 			.replace("{stores}", storesBlock(variant, taste, stores, signatureMenus))
 			.replace("{storeCount}", String.valueOf(stores.size()))
 			.replace("{tasteThreshold}", decimal(recommendationProperties.getScore().getTasteCosineThreshold()))
 			.replace("{tagVocabulary}", TAG_VOCABULARY);
 	}
 
-	private String tasteBlock(ReasonPromptVariant variant, TasteQuery taste, String typeCode) {
+	/**
+	 * 회원 쪽은 좋아하는 태그와 자주 먹는 종류뿐이다. 유형 이름은 넣지 않는다 — 네 축의 부호를 이름 하나로 요약한 것이라 축과
+	 * 같은 문제(가게 쪽 근거 없이 유형과 가게를 잇는 문장)를 안고, 유형 이름 자체를 앱에서 없애기로 했다(09-19 사용자 결정).
+	 */
+	private String tasteBlock(TasteQuery taste) {
 		List<String> lines = new ArrayList<>();
-		if (variant.isIncludesTypeName() && typeCode != null) {
-			lines.add("- 유형: " + BbtiType.labelOrCode(typeCode));
-		}
 		lines.add("- 좋아하는 태그: " + joinOrNone(sortedByWeight(reasonTags(taste))));
 		lines.add("- 자주 먹는 빵 종류: " + joinOrNone(taste.topKinds()));
 		return String.join("\n", lines);

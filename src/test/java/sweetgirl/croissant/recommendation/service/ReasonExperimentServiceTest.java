@@ -14,6 +14,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -37,6 +39,8 @@ import sweetgirl.croissant.external.llm.dto.LlmRequest;
 import sweetgirl.croissant.external.llm.dto.LlmResult;
 import sweetgirl.croissant.external.llm.exception.LlmErrorCode;
 import sweetgirl.croissant.external.llm.exception.LlmException;
+import sweetgirl.croissant.personalization.entity.TasteAxis;
+import sweetgirl.croissant.personalization.entity.UserTasteProfile;
 import sweetgirl.croissant.personalization.repository.UserTasteProfileRepository;
 import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
 import sweetgirl.croissant.recommendation.config.ReasonExperimentProperties;
@@ -416,5 +420,24 @@ class ReasonExperimentServiceTest {
 		InOrder order = inOrder(storeProfileRepository, llmClientRegistry);
 		order.verify(storeProfileRepository).findAllById(any());
 		order.verify(llmClientRegistry).generateStructured(any(LlmRequest.class), eq(WarmUpAnswer.class));
+	}
+
+	@Test
+	@DisplayName("유형이 있는 회원이어도 모델에 보내는 프롬프트에 유형 코드 · 이름이 없다")
+	void prompt_hasNoTypeEvenWhenMemberHasOne() {
+		UserTasteProfile quizzed = UserTasteProfile.createEmpty(MEMBER_ID, LocalDateTime.of(2026, 9, 19, 23, 0));
+		quizzed.applyQuiz(List.of(Map.of("axis", "taste", "choice", "A")),
+			TasteAxis.of(new BigDecimal("-1.000"), new BigDecimal("1.000"), new BigDecimal("-1.000"),
+				new BigDecimal("-1.000")),
+			"SCRO", LocalDateTime.of(2026, 9, 19, 23, 0));
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.of(quizzed));
+		givenAnswer("문장 1", "문장 2");
+
+		service.run(request(null, List.of(ReasonPromptVariant.A, ReasonPromptVariant.B, ReasonPromptVariant.D), false));
+
+		ArgumentCaptor<LlmRequest> sent = ArgumentCaptor.forClass(LlmRequest.class);
+		verify(llmClientRegistry, times(3)).generateStructured(sent.capture(), eq(ReasonAnswer.class));
+		assertThat(sent.getAllValues())
+			.allSatisfy(request -> assertThat(request.prompt()).doesNotContain("SCRO", "완벽주의 미식가", "유형"));
 	}
 }

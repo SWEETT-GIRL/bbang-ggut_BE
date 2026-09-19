@@ -94,7 +94,7 @@ class ReasonLlmLatencyMeasurementTest {
 				continue;
 			}
 			for (ReasonPromptVariant variant : List.of(ReasonPromptVariant.values())) {
-				String prompt = promptBuilder.build(variant, taste(), "PCLN", stores, SIGNATURE_MENUS);
+				String prompt = promptBuilder.build(variant, taste(), stores, SIGNATURE_MENUS);
 				measureOne(registry, provider, parts[1], variant, prompt);
 			}
 		}

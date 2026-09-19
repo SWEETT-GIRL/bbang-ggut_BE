@@ -120,7 +120,7 @@ public class ReasonExperimentService {
 		Set<LlmProvider> skipped = new LinkedHashSet<>();
 		List<Combination> combinations = combinationsOf(request, skipped);
 		// 프롬프트(시그니처 메뉴 조회 포함)는 워밍업보다 먼저 만든다 — 여기서 실패하면 워밍업 비용만 날린다
-		Map<ReasonPromptVariant, String> prompts = promptsOf(combinations, taste, profile, ordered);
+		Map<ReasonPromptVariant, String> prompts = promptsOf(combinations, taste, ordered);
 		if (experimentProperties.isWarmUp()) {
 			warmUp(combinations);
 		}
@@ -173,12 +173,11 @@ public class ReasonExperimentService {
 
 	/** 프롬프트는 변형마다 한 번만 만들어 돌려 쓴다. 조립 시간이 지연에 섞이지 않게. */
 	private Map<ReasonPromptVariant, String> promptsOf(List<Combination> combinations, TasteQuery taste,
-			UserTasteProfile profile, List<CandidateStoreRow> ordered) {
-		String typeCode = profile == null ? null : profile.getTypeCode();
+			List<CandidateStoreRow> ordered) {
 		Map<Long, List<String>> signatureMenus = signatureMenusOf(combinations, ordered);
 		Map<ReasonPromptVariant, String> prompts = new LinkedHashMap<>();
 		combinations.forEach(combination -> prompts.computeIfAbsent(combination.variant(),
-			variant -> promptBuilder.build(variant, taste, typeCode, ordered, signatureMenus)));
+			variant -> promptBuilder.build(variant, taste, ordered, signatureMenus)));
 		return prompts;
 	}
 
