@@ -28,7 +28,6 @@ import sweetgirl.croissant.external.llm.dto.LlmRequest;
 import sweetgirl.croissant.external.llm.dto.LlmResult;
 import sweetgirl.croissant.external.llm.exception.LlmException;
 import sweetgirl.croissant.personalization.entity.UserTasteProfile;
-import sweetgirl.croissant.personalization.enums.BbtiType;
 import sweetgirl.croissant.personalization.repository.UserTasteProfileRepository;
 import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
 import sweetgirl.croissant.recommendation.config.ReasonExperimentProperties;
@@ -333,8 +332,8 @@ public class ReasonExperimentService {
 	}
 
 	private ReasonExperimentInput blindInputOf(ReasonExperimentInput input) {
-		return new ReasonExperimentInput(input.areaId(), input.areaName(), input.typeCode(), input.typeLabel(),
-			input.hasAxis(), input.tasteFallback(),
+		return new ReasonExperimentInput(input.areaId(), input.areaName(), input.typeCode(), input.hasAxis(),
+			input.tasteFallback(),
 			input.stores().stream().map(ReasonExperimentStore::withoutScore).toList());
 	}
 
@@ -358,8 +357,7 @@ public class ReasonExperimentService {
 				CourseRecommendationCommandService.reasonOf(taste, row, fallback, threshold)))
 			.toList();
 		String typeCode = profile == null ? null : profile.getTypeCode();
-		return new ReasonExperimentInput(area.getId(), area.getName(), typeCode, BbtiType.labelOrCode(typeCode),
-			taste.hasAxis(), fallback, stores);
+		return new ReasonExperimentInput(area.getId(), area.getName(), typeCode, taste.hasAxis(), fallback, stores);
 	}
 
 	/**
