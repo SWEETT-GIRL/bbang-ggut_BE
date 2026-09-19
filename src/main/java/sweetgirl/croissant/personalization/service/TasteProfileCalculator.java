@@ -39,7 +39,8 @@ import sweetgirl.croissant.personalization.repository.TasteSignal;
  * 하고 안 담은 회원의 축이 본 가게의 정반대가 되거나(랩 계측에서 140명), 저장 → 해제로 상쇄된 회원이 확정 타입을 갖는 것을 막는다.
  * 검사 축도 검사 시각 기준으로 같은 반감기를 탄다 — 모든 항이 같은 시계를 타야 값이 정말 바뀔 때만 version 이 오른다. [−1, 1] 로
  * 자르고 소수 3자리. 양의 신호가 기여했으면 SIGNAL, 검사만이면 QUIZ, 둘 다 없으면 축 없음(추천은 인기 prior 순).</li>
- * <li>태그 = 양의 유효 가중치 가게의 {@link TasteTag} 키별 가중 평균. top_kinds = RECORD_BREAD 종류의 decay 합 상위 N.</li>
+ * <li>태그 = 양의 유효 가중치 가게의 {@link TasteTag} 키별 가중 평균(값이 빠진 가게는 그 태그의 중립값으로).
+ * top_kinds = RECORD_BREAD 종류의 decay 합 상위 N.</li>
  * <li>유형(§3.3, 90일) = PLANNER → ARCHIVER → DOER → COLLECTOR → BROWSER 순서로 첫 매치, 90일 신호가 없으면 null.</li>
  * </ul>
  */
@@ -178,7 +179,8 @@ public class TasteProfileCalculator {
 			}
 			for (TasteTag tag : TasteTag.values()) {
 				Double tagValue = weightedSignal.signal().storeTags().get(tag.getKey());
-				sum[tag.ordinal()] += effectiveWeight * (tagValue != null ? tagValue : 0d);
+				// 값이 빠진 가게는 중립값으로 — 0 으로 읽으면 투표 태그에서 "보통보다 한참 약함" 이라 회원 태그를 끌어내린다
+				sum[tag.ordinal()] += effectiveWeight * (tagValue != null ? tagValue : tag.getNeutral());
 			}
 			denominator += effectiveWeight;
 		}

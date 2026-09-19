@@ -35,4 +35,13 @@ class TasteTagTest {
 		assertThat(TasteTag.fromKey("공간·사진")).isEmpty();
 		assertThat(TasteTag.fromKey(null)).isEmpty();
 	}
+
+	@Test
+	@DisplayName("값이 빠졌을 때의 중립값 — 투표 태그는 보통 빵집 0.5, 규칙 태그(웨이팅 · 대형)는 0")
+	void neutralByScale() {
+		assertThat(TasteTag.values()).allSatisfy(tag -> {
+			boolean ruleTag = tag == TasteTag.WAITING || tag == TasteTag.LARGE;
+			assertThat(tag.getNeutral()).as(tag.getKey()).isEqualTo(ruleTag ? 0.0 : 0.5);
+		});
+	}
 }

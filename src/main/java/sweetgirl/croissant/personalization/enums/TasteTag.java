@@ -20,17 +20,31 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum TasteTag {
-	WAITING("웨이팅", "웨이팅"),
-	STAY("머물기", "머물기 좋은"),
-	SPACE_PHOTO("공간사진", "사진"),
-	VALUE("가성비", "가성비"),
-	HEALTHY("건강한맛", "건강·신선"),
-	SPECIAL_MENU("특별한메뉴", "특별한 메뉴"),
-	LARGE("대형", "대형 베이커리"),
-	DESSERT("디저트", "디저트");
+	WAITING("웨이팅", "웨이팅", Neutral.RULE),
+	STAY("머물기", "머물기 좋은", Neutral.VOTE),
+	SPACE_PHOTO("공간사진", "사진", Neutral.VOTE),
+	VALUE("가성비", "가성비", Neutral.VOTE),
+	HEALTHY("건강한맛", "건강·신선", Neutral.VOTE),
+	SPECIAL_MENU("특별한메뉴", "특별한 메뉴", Neutral.VOTE),
+	LARGE("대형", "대형 베이커리", Neutral.RULE),
+	DESSERT("디저트", "디저트", Neutral.VOTE);
 
 	private final String key;
 	private final String label;
+	/**
+	 * 값이 빠졌을 때 읽을 값 — 투표 태그는 보통 빵집(0.5), 규칙 태그는 0. dataops 는 모든 가게에 8키를 다 넣지만, 적재가
+	 * 끊기거나 사전이 바뀌는 사이 계약이 잠깐 어긋나도 그 가게를 "한참 약함" 으로 깎지 않고 "효과 없음" 으로 떨어지게 한다
+	 * (#759 리뷰). 후보 SQL 과 프로필 계산기가 같이 쓴다.
+	 */
+	private final double neutral;
+
+	/** 척도별 중립값 — enum 상수 선언보다 앞에 상수를 둘 수 없어 중첩 클래스에 둔다 */
+	private static final class Neutral {
+		/** 투표 태그: lift 1(보통 빵집)이 정확히 0.5 다 */
+		static final double VOTE = 0.5;
+		/** 규칙 태그(웨이팅 · 대형): 옛 규칙의 0~1 이라 "해당 없음" 이 0 이다 */
+		static final double RULE = 0.0;
+	}
 
 	public static Optional<TasteTag> fromKey(String key) {
 		return Arrays.stream(values()).filter(tag -> tag.key.equals(key)).findFirst();
