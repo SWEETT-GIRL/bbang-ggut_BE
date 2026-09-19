@@ -35,15 +35,17 @@ public class ReasonExperimentProperties {
 		"ANTHROPIC:claude-haiku-4-5-20251001",
 		"OPENAI:gpt-5.6-luna");
 
-	/** 돌릴 프롬프트 변형. 1차는 A(최소 재료)·D(룰의 선정 근거) */
-	private List<ReasonPromptVariant> variants = List.of(ReasonPromptVariant.A, ReasonPromptVariant.D);
+	/** 돌릴 프롬프트 변형. A(최소 재료) · B(+시그니처 메뉴) · D(+룰의 선정 근거) */
+	private List<ReasonPromptVariant> variants = List.of(
+		ReasonPromptVariant.A, ReasonPromptVariant.B, ReasonPromptVariant.D);
 
 	/**
-	 * 한 요청이 낼 수 있는 호출 수 상한 — 비용 가드. <b>모델 × 변형 × 반복</b>이 이 수를 넘으면 돌리기 전에 400.
-	 * 기본 판(모델 3 × 변형 2 × 반복 3 = 18)이 들어가고 조금 여유가 있는 값.
+	 * 한 요청이 낼 수 있는 호출 수 상한 — 비용 가드. <b>모델 × 변형 × 반복 + 워밍업(켜져 있으면 벤더당 1회)</b>이 이 수를
+	 * 넘으면 돌리기 전에 400. 워밍업도 실제로 나가는 호출이라 센다(#758 리뷰). 기본 판(모델 3 × 변형 3 × 반복 3 = 27, 벤더 3 의
+	 * 워밍업 3 → 30)이 딱 들어가는 값.
 	 */
 	@Min(1)
-	private int maxCalls = 24;
+	private int maxCalls = 30;
 
 	/**
 	 * 같은 조합을 몇 번 부를지. 한 번으로는 지연 분산을 볼 수 없어 중앙값과 최댓값을 내려면 여러 번이 필요하다.

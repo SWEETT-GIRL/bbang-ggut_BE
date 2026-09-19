@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import sweetgirl.croissant.personalization.entity.TasteAxis;
 import sweetgirl.croissant.personalization.entity.UserTasteProfile;
+import sweetgirl.croissant.personalization.enums.TasteUserType;
 
 class TasteQueryTest {
 
@@ -45,5 +46,38 @@ class TasteQueryTest {
 		assertThat(query.texture()).isEqualTo(-0.25);
 		assertThat(query.filling()).isZero();
 		assertThat(query.vibe()).isEqualTo(1.0);
+	}
+
+	@Test
+	@DisplayName("일반 종류가 남은 프로필(계산기 수정 전 계산분)도 조회 입구에서 거른다 — 순서는 그대로")
+	void ofProfile_dropsGenericKinds() {
+		LocalDateTime now = LocalDateTime.of(2026, 9, 19, 18, 0);
+		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, now);
+		profile.recompute(null, null, null, Map.of(), new String[] {"빵", "소금빵", "기타", "휘낭시에", "요거트"},
+			TasteUserType.BROWSER, 1, 5, now);
+
+		assertThat(TasteQuery.of(profile).topKinds()).containsExactly("소금빵", "휘낭시에");
+	}
+
+	@Test
+	@DisplayName("프로필의 강한 신호 가게 수를 옮긴다. 빈 쿼리는 0")
+	void ofProfile_carriesStrongStoreCount() {
+		LocalDateTime now = LocalDateTime.of(2026, 9, 19, 18, 0);
+		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, now);
+		profile.recompute(null, null, null, Map.of("혼빵", 0.9), null, TasteUserType.BROWSER, 5, 0, now);
+
+		assertThat(TasteQuery.of(profile).strongStoreCount()).isEqualTo(5);
+		assertThat(TasteQuery.empty().strongStoreCount()).isZero();
+	}
+
+	@Test
+	@DisplayName("문구용 태그는 강한 신호 가게가 기준 이상일 때만 준다 — 점수용 태그는 그대로")
+	void reasonTags_needEnoughStrongStores() {
+		TasteQuery thin = new TasteQuery(null, null, null, null, Map.of("혼빵", 0.9), List.of(), 3);
+		TasteQuery enough = new TasteQuery(null, null, null, null, Map.of("혼빵", 0.9), List.of(), 4);
+
+		assertThat(thin.reasonTags(4)).isEmpty();
+		assertThat(thin.tags()).containsEntry("혼빵", 0.9);
+		assertThat(enough.reasonTags(4)).containsEntry("혼빵", 0.9);
 	}
 }
