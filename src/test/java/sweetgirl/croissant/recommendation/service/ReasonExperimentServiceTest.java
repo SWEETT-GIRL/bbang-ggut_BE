@@ -9,7 +9,9 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.util.List;
@@ -20,6 +22,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -49,6 +53,7 @@ import sweetgirl.croissant.recommendation.repository.RecommendationCandidateJdbc
 import sweetgirl.croissant.recommendation.service.ReasonExperimentService.Reason;
 import sweetgirl.croissant.recommendation.service.ReasonExperimentService.ReasonAnswer;
 import sweetgirl.croissant.recommendation.service.ReasonExperimentService.WarmUpAnswer;
+import sweetgirl.croissant.store.entity.StoreProfile;
 import sweetgirl.croissant.store.repository.StoreProfileRepository;
 
 /** 이유 문장 실험 (#662) — 조합 실행·실패 격리·비용 가드·블라인드. */
@@ -354,5 +359,62 @@ class ReasonExperimentServiceTest {
 		assertThatThrownBy(() -> service.run(tooMany))
 			.isInstanceOf(RecommendationException.class)
 			.hasFieldOrPropertyWithValue("errorCode", RecommendationErrorCode.STORE_COUNT_OUT_OF_RANGE);
+	}
+
+	@Test
+	@DisplayName("시그니처 메뉴를 쓰는 변형(B)이 없으면 store_profile 을 읽지 않는다")
+	void signatureMenus_notReadWithoutVariantB() {
+		givenAnswer("문장 1", "문장 2");
+
+		service.run(request(null, List.of(ReasonPromptVariant.A, ReasonPromptVariant.D), false));
+
+		verify(storeProfileRepository, never()).findAllById(any());
+	}
+
+	@Test
+	@DisplayName("B 가 있으면 고른 가게 id 로 한 번 읽어 B 프롬프트에 싣는다 — null · 공백 원소는 거르고 앞뒤 공백 · 중복을 없앤다")
+	@SuppressWarnings("unchecked")
+	void signatureMenus_readOnceForChosenStores_andCleaned() {
+		givenAnswer("문장 1", "문장 2");
+		given(storeProfileRepository.findAllById(any())).willReturn(List.of(
+			StoreProfile.builder().storeId(1L).signatureMenus(new String[] {"뺑 스위스", null, " ", "잠봉뵈르 ", "뺑 스위스"})
+				.build(),
+			StoreProfile.builder().storeId(2L).signatureMenus(new String[] {null, ""}).build()));
+
+		service.run(request(null, List.of(ReasonPromptVariant.B), false));
+
+		ArgumentCaptor<Iterable<Long>> ids = ArgumentCaptor.forClass(Iterable.class);
+		verify(storeProfileRepository, times(1)).findAllById(ids.capture());
+		assertThat(ids.getValue()).containsExactlyInAnyOrder(1L, 2L);
+		ArgumentCaptor<LlmRequest> sent = ArgumentCaptor.forClass(LlmRequest.class);
+		verify(llmClientRegistry).generateStructured(sent.capture(), eq(ReasonAnswer.class));
+		assertThat(sent.getValue().prompt()).contains("   시그니처 메뉴: 뺑 스위스, 잠봉뵈르\n");
+		// 걸러서 비는 가게는 그 줄이 통째로 빠진다 — 가게 둘 중 하나에만 줄이 있다
+		assertThat(sent.getValue().prompt().split("시그니처 메뉴:", -1)).hasSize(2);
+	}
+
+	@Test
+	@DisplayName("시그니처 메뉴 조회는 워밍업보다 먼저다 — 조회가 실패하면 LLM 을 한 번도 부르지 않는다")
+	void signatureMenus_readBeforeWarmUp() {
+		experimentProperties.setWarmUp(true);
+		given(storeProfileRepository.findAllById(any())).willThrow(new IllegalStateException("store_profile 조회 실패"));
+
+		assertThatThrownBy(() -> service.run(request(null, List.of(ReasonPromptVariant.B), false)))
+			.isInstanceOf(IllegalStateException.class);
+
+		verify(llmClientRegistry, never()).generateStructured(any(), any());
+	}
+
+	@Test
+	@DisplayName("워밍업이 켜져 있으면 프롬프트를 다 만든 뒤에 워밍업한다")
+	void prompts_builtBeforeWarmUp() {
+		experimentProperties.setWarmUp(true);
+		givenAnswer("문장 1", "문장 2");
+
+		service.run(request(null, List.of(ReasonPromptVariant.B), false));
+
+		InOrder order = inOrder(storeProfileRepository, llmClientRegistry);
+		order.verify(storeProfileRepository).findAllById(any());
+		order.verify(llmClientRegistry).generateStructured(any(LlmRequest.class), eq(WarmUpAnswer.class));
 	}
 }

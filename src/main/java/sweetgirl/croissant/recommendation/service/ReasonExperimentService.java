@@ -2,6 +2,7 @@ package sweetgirl.croissant.recommendation.service;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -14,6 +15,7 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -117,10 +119,12 @@ public class ReasonExperimentService {
 		ReasonExperimentInput input = inputOf(area, profile, taste, pool.fallback(), ordered);
 		Set<LlmProvider> skipped = new LinkedHashSet<>();
 		List<Combination> combinations = combinationsOf(request, skipped);
+		// 프롬프트(시그니처 메뉴 조회 포함)는 워밍업보다 먼저 만든다 — 여기서 실패하면 워밍업 비용만 날린다
+		Map<ReasonPromptVariant, String> prompts = promptsOf(combinations, taste, profile, ordered);
 		if (experimentProperties.isWarmUp()) {
 			warmUp(combinations);
 		}
-		List<ReasonExperimentRun> runs = runAll(combinations, taste, profile, ordered, repeatsOf(request));
+		List<ReasonExperimentRun> runs = runAll(combinations, prompts, ordered, repeatsOf(request));
 		List<LlmProvider> skippedProviders = List.copyOf(skipped);
 		if (!request.isBlind()) {
 			return ReasonExperimentResponse.measured(input, runs, skippedProviders);
@@ -167,20 +171,23 @@ public class ReasonExperimentService {
 		return combinations;
 	}
 
+	/** 프롬프트는 변형마다 한 번만 만들어 돌려 쓴다. 조립 시간이 지연에 섞이지 않게. */
+	private Map<ReasonPromptVariant, String> promptsOf(List<Combination> combinations, TasteQuery taste,
+			UserTasteProfile profile, List<CandidateStoreRow> ordered) {
+		String typeCode = profile == null ? null : profile.getTypeCode();
+		Map<Long, List<String>> signatureMenus = signatureMenusOf(combinations, ordered);
+		Map<ReasonPromptVariant, String> prompts = new LinkedHashMap<>();
+		combinations.forEach(combination -> prompts.computeIfAbsent(combination.variant(),
+			variant -> promptBuilder.build(variant, taste, typeCode, ordered, signatureMenus)));
+		return prompts;
+	}
+
 	/**
 	 * 조합마다 {@code repeats} 번 부르고 지연의 중앙값·최댓값을 낸다. 반복마다 순서를 섞는다 — 고정 순서면
 	 * 앞자리 조합이 매번 같은 조건을 받아 편향이 쌓인다.
-	 *
-	 * <p>프롬프트는 변형마다 한 번만 만들어 돌려 쓴다. 조립 시간이 지연에 섞이지 않게.
 	 */
-	private List<ReasonExperimentRun> runAll(List<Combination> combinations, TasteQuery taste,
-			UserTasteProfile profile, List<CandidateStoreRow> ordered, int repeats) {
-		String typeCode = profile == null ? null : profile.getTypeCode();
-		Map<ReasonPromptVariant, String> prompts = new LinkedHashMap<>();
-		Map<Long, List<String>> signatureMenus = signatureMenusOf(combinations, ordered);
-		combinations.forEach(combination -> prompts.computeIfAbsent(combination.variant(),
-			variant -> promptBuilder.build(variant, taste, typeCode, ordered, signatureMenus)));
-
+	private List<ReasonExperimentRun> runAll(List<Combination> combinations,
+			Map<ReasonPromptVariant, String> prompts, List<CandidateStoreRow> ordered, int repeats) {
 		Map<Combination, Samples> samples = new LinkedHashMap<>();
 		combinations.forEach(combination -> samples.put(combination, new Samples()));
 		for (int repeat = 0; repeat < repeats; repeat++) {
@@ -207,11 +214,23 @@ public class ReasonExperimentService {
 		List<Long> storeIds = ordered.stream().map(CandidateStoreRow::storeId).toList();
 		Map<Long, List<String>> menus = new LinkedHashMap<>();
 		storeProfileRepository.findAllById(storeIds).forEach(profile -> {
-			if (profile.getSignatureMenus() != null && profile.getSignatureMenus().length > 0) {
-				menus.put(profile.getStoreId(), List.of(profile.getSignatureMenus()));
+			List<String> names = menuNamesOf(profile.getSignatureMenus());
+			if (!names.isEmpty()) {
+				menus.put(profile.getStoreId(), names);
 			}
 		});
 		return menus;
+	}
+
+	/**
+	 * dataops 가 쓰는 TEXT[] 라 NULL 원소 · 빈 문자열이 들어올 수 있다. {@code List.of} 는 null 원소에서 NPE 라 실험 전체가
+	 * 500 으로 끝나고, 빈 문자열은 "시그니처 메뉴: , 잠봉뵈르" 같은 줄을 만든다 — 먼저 거른다.
+	 */
+	private static List<String> menuNamesOf(String[] signatureMenus) {
+		if (signatureMenus == null) {
+			return List.of();
+		}
+		return Arrays.stream(signatureMenus).filter(StringUtils::hasText).map(String::trim).distinct().toList();
 	}
 
 	/**
