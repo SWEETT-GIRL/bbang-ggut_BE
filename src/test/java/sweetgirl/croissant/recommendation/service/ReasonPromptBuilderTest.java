@@ -21,12 +21,12 @@ class ReasonPromptBuilderTest {
 
 	private static TasteQuery taste() {
 		return new TasteQuery(0.62, 0.31, -0.55, 0.08,
-			Map.of("동네빵집", 0.9, "아침", 0.4, "선물", 0.2), List.of("소금빵", "바게트"), 4);
+			Map.of("특별한메뉴", 0.9, "건강한맛", 0.4, "대형", 0.2), List.of("소금빵", "바게트"), 4);
 	}
 
 	private static CandidateStoreRow store(long storeId, String name, double tasteFit) {
 		return new CandidateStoreRow(storeId, name, "성수동2가", 37.5, 127.05, null, 120, 3.4, 1.2, tasteFit, 5,
-			0.5, 0.8, -0.2, 0.4, Map.of("동네빵집", 1.0, "데이트", 0.5), List.of("소금빵", "깜빠뉴"));
+			0.5, 0.8, -0.2, 0.4, Map.of("특별한메뉴", 1.0, "공간사진", 0.5), List.of("소금빵", "깜빠뉴"));
 	}
 
 	@Test
@@ -46,9 +46,9 @@ class ReasonPromptBuilderTest {
 			Map.of());
 
 		assertThat(prompt).contains("선정 근거: 취향 일치도 0.71");
-		// 회원 태그 셋 중 가게와 겹치는 것은 동네빵집 하나뿐이다
-		assertThat(prompt).contains("겹치는 태그 동네빵집");
-		assertThat(prompt).doesNotContain("겹치는 태그 동네빵집, 아침");
+		// 회원 태그 셋 중 가게와 겹치는 것은 특별한메뉴 하나뿐이다
+		assertThat(prompt).contains("겹치는 태그 특별한메뉴");
+		assertThat(prompt).doesNotContain("겹치는 태그 특별한메뉴, 건강한맛");
 		assertThat(prompt).contains("겹치는 빵 종류 소금빵");
 	}
 
@@ -84,7 +84,7 @@ class ReasonPromptBuilderTest {
 
 		assertThat(prompt).doesNotContain("담백", "바삭", "심플", "트렌디", "고전", "신상 빵", "축:");
 		// 회원이 알아보는 것만 남는다
-		assertThat(prompt).contains("- 좋아하는 태그: 동네빵집", "- 자주 먹는 빵 종류: 소금빵", "빵 종류: 소금빵");
+		assertThat(prompt).contains("- 좋아하는 태그: 특별한메뉴", "- 자주 먹는 빵 종류: 소금빵", "빵 종류: 소금빵");
 	}
 
 	@Test
@@ -105,7 +105,7 @@ class ReasonPromptBuilderTest {
 	@Test
 	@DisplayName("강한 신호 가게가 4곳 미만이면 회원 태그를 없음으로 쓴다 — D 의 겹치는 태그도. 종류와 가게 태그 줄은 그대로")
 	void thinEvidence_hidesMemberTags() {
-		TasteQuery thin = new TasteQuery(0.62, 0.31, -0.55, 0.08, Map.of("동네빵집", 0.9), List.of("소금빵"), 3);
+		TasteQuery thin = new TasteQuery(0.62, 0.31, -0.55, 0.08, Map.of("특별한메뉴", 0.9), List.of("소금빵"), 3);
 
 		String prompt = promptBuilder.build(ReasonPromptVariant.D, thin, List.of(store(1L, "밀도", 0.71)),
 			Map.of());
@@ -113,7 +113,7 @@ class ReasonPromptBuilderTest {
 		assertThat(prompt).contains("- 좋아하는 태그: 없음", "겹치는 태그 없음");
 		assertThat(prompt).contains("- 자주 먹는 빵 종류: 소금빵", "겹치는 빵 종류 소금빵");
 		// 가게 태그는 가게의 사실이라 회원 근거와 상관없이 남는다
-		assertThat(prompt).contains("   태그: 동네빵집, 데이트");
+		assertThat(prompt).contains("   태그: 특별한메뉴, 공간사진");
 	}
 
 	@Test

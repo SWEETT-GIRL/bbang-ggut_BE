@@ -12,8 +12,8 @@ class UserTasteSignalJdbcRepositoryTest {
 	@DisplayName("태그는 관대하게 읽는다 — 숫자만 남기고 null · 문자열 · 중첩은 버린다(검사 제출이 dataops 데이터 품질에 묶이지 않게)")
 	void parseTags_keepsNumbersOnly() {
 		assertThat(UserTasteSignalJdbcRepository.parseTags(
-			"{\"카페형\": 0.9, \"혼빵\": 1, \"노포\": null, \"신상\": \"x\", \"대형\": {\"a\": 1}}"))
-			.containsOnly(java.util.Map.entry("카페형", 0.9), java.util.Map.entry("혼빵", 1.0));
+			"{\"머물기\": 0.9, \"가성비\": 1, \"디저트\": null, \"웨이팅\": \"x\", \"대형\": {\"a\": 1}}"))
+			.containsOnly(java.util.Map.entry("머물기", 0.9), java.util.Map.entry("가성비", 1.0));
 		assertThat(UserTasteSignalJdbcRepository.parseTags(null)).isEmpty();
 		assertThat(UserTasteSignalJdbcRepository.parseTags(" ")).isEmpty();
 	}

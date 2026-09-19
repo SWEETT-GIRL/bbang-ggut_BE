@@ -1,9 +1,11 @@
 package sweetgirl.croissant.recommendation.service;
 
 import java.util.Map;
+import java.util.Optional;
 
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import sweetgirl.croissant.personalization.enums.TasteTag;
 import sweetgirl.croissant.recommendation.config.RecommendationProperties;
 import sweetgirl.croissant.recommendation.enums.AnchorReasonTag;
 import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
@@ -11,7 +13,7 @@ import sweetgirl.croissant.recommendation.repository.TasteQuery;
 
 /**
  * 앵커 카드 배지(#661 · 09-13 확정 우선순위): ① 사용자 top_kinds ∩ 가게 kinds → "{종류} 취향"
- * ② 사용자·가게 태그 둘 다 0.5 이상인 태그 중 곱이 가장 큰 것 → 태그 이름. 강한 신호 가게가
+ * ② 사용자·가게 태그 둘 다 0.5 이상인 태그 중 곱이 가장 큰 것 → 그 태그의 표시 문구. 강한 신호 가게가
  * {@code minStrongStoresForTagReason} 곳 미만인 회원은 건너뛴다 ③ 코사인이 임계를 넘으면 기여(u_i·s_i)가 가장 큰 축의
  * 사용자 극 라벨 ④ 그 밖엔 "이 동네 시그니처".
  * SQL 이 아니라 자바에서 정한다 — 행에 축·태그·종류가 실려 오고, 규칙이 바뀌어도 SQL 을 안 건드린다.
@@ -27,18 +29,19 @@ public final class AnchorBadgeResolver {
 				return AnchorReasonTag.KIND_MATCH.label(kind);
 			}
 		}
-		String bestTag = null;
+		TasteTag bestTag = null;
 		double bestProduct = 0;
 		for (Map.Entry<String, Double> userTag : taste.reasonTags(score.getMinStrongStoresForTagReason()).entrySet()) {
+			Optional<TasteTag> tag = TasteTag.fromKey(userTag.getKey());
 			Double storeValue = row.tags().get(userTag.getKey());
-			if (userTag.getValue() >= TAG_MATCH_MIN && storeValue != null && storeValue >= TAG_MATCH_MIN
-				&& userTag.getValue() * storeValue > bestProduct) {
-				bestTag = userTag.getKey();
+			if (tag.isPresent() && userTag.getValue() >= TAG_MATCH_MIN && storeValue != null
+				&& storeValue >= TAG_MATCH_MIN && userTag.getValue() * storeValue > bestProduct) {
+				bestTag = tag.get();
 				bestProduct = userTag.getValue() * storeValue;
 			}
 		}
 		if (bestTag != null) {
-			return AnchorReasonTag.TAG_MATCH.label(bestTag);
+			return AnchorReasonTag.TAG_MATCH.label(bestTag.getLabel());
 		}
 		if (taste.hasAxis() && row.hasAxis() && row.tasteFit() > score.getTasteCosineThreshold()) {
 			return AnchorReasonTag.AXIS_POLE.label(dominantPole(taste, row, score));

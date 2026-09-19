@@ -1,27 +1,38 @@
 package sweetgirl.croissant.personalization.enums;
 
+import java.util.Arrays;
+import java.util.Optional;
+
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 취향 태그 12개 (설계 §2). store_profile.tags · user_taste_profile.tags 의 jsonb 키는 이 한글 이름 그대로다 — LLM 프롬프트
- * 사전(§7.2)과 같은 문자열이라 변환표가 없다. 프로필 계산은 이 12개만 읽고 쓴다(모르는 키는 버린다).
+ * 취향 태그 8개 — dataops #11 v5 사전(2026-09-19 확정). store_profile.tags · user_taste_profile.tags 의 jsonb 키가
+ * {@link #key} 다. 프로필 계산은 이 8개만 읽고 쓴다(모르는 키는 버린다).
+ *
+ * <p>키와 표시 문구를 나눈다. 키는 데이터 이름이라 문장부호 없이 두고, 앱 배지 칩에 보이는 글자는 {@link #label} 이다 — 사전을
+ * 고를 때 "칩으로 어색하지 않은가" 가 끼어들지 않게. 칩은 담기 버튼과 한 줄을 나눠 쓰고 길면 잘리므로 문구는 짧게 둔다.
+ *
+ * <p>값의 뜻: 방문자 투표 태그 여섯(머물기 · 공간사진 · 가성비 · 건강한맛 · 특별한메뉴 · 디저트)은 0.5 가 보통 빵집이고 표가
+ * 없는 가게도 정확히 0.5 다. 웨이팅 · 대형은 규칙으로 계산한 0~1 이라 척도가 다르다. 서로 반대인 취향은 키 둘로 나눈다(가성비 ↔
+ * 공간사진) — 태그 일치는 가게 값에 대한 증가 함수라 "이 값이 낮은 가게를 좋아함" 을 한 키로 담지 못한다.
  */
 @Getter
 @RequiredArgsConstructor
 public enum TasteTag {
-	CAFE("카페형"),
-	TAKEOUT("테이크아웃"),
-	OLD_SCHOOL("노포"),
-	NEW_OPEN("신상"),
-	LARGE("대형"),
-	NEIGHBORHOOD("동네빵집"),
-	DATE("데이트"),
-	SOLO("혼빵"),
-	GIFT("선물"),
-	WORTH_WAITING("웨이팅감수"),
-	MORNING("아침"),
-	EVENING("저녁");
+	WAITING("웨이팅", "웨이팅"),
+	STAY("머물기", "머물기 좋은"),
+	SPACE_PHOTO("공간사진", "사진"),
+	VALUE("가성비", "가성비"),
+	HEALTHY("건강한맛", "건강·신선"),
+	SPECIAL_MENU("특별한메뉴", "특별한 메뉴"),
+	LARGE("대형", "대형 베이커리"),
+	DESSERT("디저트", "디저트");
 
 	private final String key;
+	private final String label;
+
+	public static Optional<TasteTag> fromKey(String key) {
+		return Arrays.stream(values()).filter(tag -> tag.key.equals(key)).findFirst();
+	}
 }

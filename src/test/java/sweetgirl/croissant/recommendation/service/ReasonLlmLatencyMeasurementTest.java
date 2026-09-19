@@ -174,19 +174,19 @@ class ReasonLlmLatencyMeasurementTest {
 	/** 담백·바삭·심플·트렌디 쪽 회원 — 뉴웨이브 미니멀(PCLN) */
 	private static TasteQuery taste() {
 		return new TasteQuery(0.62, 0.41, 0.38, 0.22,
-			Map.of("동네빵집", 0.9, "아침", 0.5, "테이크아웃", 0.3), List.of("소금빵", "바게트", "깜빠뉴"), 4);
+			Map.of("특별한메뉴", 0.9, "건강한맛", 0.5, "웨이팅", 0.3), List.of("소금빵", "바게트", "깜빠뉴"), 4);
 	}
 
 	private static List<CandidateStoreRow> stores() {
 		return List.of(
 			store(1L, "밀도", 0.71, 3.9, 0.55, 0.72, 0.30, 0.48,
-				Map.of("동네빵집", 1.0, "아침", 0.8), List.of("소금빵", "깜빠뉴")),
+				Map.of("특별한메뉴", 1.0, "건강한맛", 0.8), List.of("소금빵", "깜빠뉴")),
 			store(2L, "베이커리 성수", 0.44, 3.1, 0.20, 0.35, -0.10, 0.60,
-				Map.of("카페형", 1.0, "데이트", 0.7), List.of("크루아상", "스콘")),
+				Map.of("머물기", 1.0, "공간사진", 0.7), List.of("크루아상", "스콘")),
 			store(3L, "동네 방앗간빵집", 0.18, 2.2, -0.30, -0.20, -0.45, -0.70,
-				Map.of("노포", 1.0, "동네빵집", 0.9), List.of("단팥빵", "소보로")),
+				Map.of("디저트", 1.0, "특별한메뉴", 0.9), List.of("단팥빵", "소보로")),
 			store(4L, "브레드랩", 0.63, 2.8, 0.48, 0.66, 0.41, 0.35,
-				Map.of("테이크아웃", 1.0, "아침", 0.6), List.of("바게트", "치아바타")));
+				Map.of("웨이팅", 1.0, "건강한맛", 0.6), List.of("바게트", "치아바타")));
 	}
 
 	private static CandidateStoreRow store(long storeId, String name, double tasteFit, double popularityScore,

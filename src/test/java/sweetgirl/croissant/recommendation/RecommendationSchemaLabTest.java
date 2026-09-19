@@ -127,7 +127,7 @@ class RecommendationSchemaLabTest {
 			.axis(axis)
 			.axisSource(AxisSource.BOTH)
 			.breadType(axis.typeCode())
-			.tags(Map.of("테이크아웃", 0.8, "동네빵집", 0.6))
+			.tags(Map.of("웨이팅", 0.8, "특별한메뉴", 0.6))
 			.attrs(Map.of("parking", true, "newOpening", true))
 			.kinds(new String[] {"소금빵", "깜빠뉴"})
 			.signatureMenus(new String[] {"소금빵"})
@@ -147,7 +147,7 @@ class RecommendationSchemaLabTest {
 		assertThat(found.hasAxis()).isTrue();
 		assertThat(found.getAxis()).isEqualTo(axis);
 		assertThat(found.getAxisSource()).isEqualTo(AxisSource.BOTH);
-		assertThat(found.getTags()).containsEntry("테이크아웃", 0.8);
+		assertThat(found.getTags()).containsEntry("웨이팅", 0.8);
 		assertThat(found.getAttrs()).containsEntry("newOpening", true);
 		assertThat(found.getKinds()).containsExactly("소금빵", "깜빠뉴");
 		assertThat(found.getBakeryScore()).isEqualByComparingTo("0.920");
@@ -183,7 +183,7 @@ class RecommendationSchemaLabTest {
 		profile.recompute(
 			TasteAxis.of(new BigDecimal("0.600"), new BigDecimal("0.400"), new BigDecimal("0.500"),
 				new BigDecimal("0.200")),
-			"PCLN", TasteTypeSource.SIGNAL, Map.of("카페형", 0.7), new String[] {"소금빵"},
+			"PCLN", TasteTypeSource.SIGNAL, Map.of("머물기", 0.7), new String[] {"소금빵"},
 			TasteUserType.PLANNER, 4, 2, COMPUTED_AT);
 		profile.applyQuiz(List.of(Map.of("axis", "taste", "choice", "B")), profile.getAxis(), "PFLN", COMPUTED_AT);
 		userTasteProfileRepository.save(profile);

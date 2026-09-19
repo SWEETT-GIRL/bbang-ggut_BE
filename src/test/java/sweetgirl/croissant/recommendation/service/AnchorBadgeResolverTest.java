@@ -32,8 +32,8 @@ class AnchorBadgeResolverTest {
 	@Test
 	@DisplayName("① 사용자 상위 종류가 가게 종류에 있으면 '{종류} 취향' — 태그·축보다 먼저")
 	void kindMatchFirst() {
-		TasteQuery taste = new TasteQuery(0.8, 0.8, 0.5, 0.5, Map.of("카페형", 1.0), List.of("소금빵", "스콘"), 4);
-		CandidateStoreRow store = row(0.9, 0.9, 0.9, 0.5, 0.5, Map.of("카페형", 0.9), List.of("케이크", "스콘"));
+		TasteQuery taste = new TasteQuery(0.8, 0.8, 0.5, 0.5, Map.of("머물기", 1.0), List.of("소금빵", "스콘"), 4);
+		CandidateStoreRow store = row(0.9, 0.9, 0.9, 0.5, 0.5, Map.of("머물기", 0.9), List.of("케이크", "스콘"));
 
 		assertThat(AnchorBadgeResolver.resolve(taste, store, RAW)).isEqualTo("스콘 취향");
 	}
@@ -41,23 +41,35 @@ class AnchorBadgeResolverTest {
 	@Test
 	@DisplayName("② 종류가 안 맞으면 둘 다 0.5 이상인 태그 중 곱이 가장 큰 태그 이름")
 	void tagMatchSecond() {
-		TasteQuery taste = new TasteQuery(0.8, 0.8, 0.5, 0.5, Map.of("카페형", 0.6, "혼빵", 0.9, "노포", 0.9),
+		TasteQuery taste = new TasteQuery(0.8, 0.8, 0.5, 0.5, Map.of("머물기", 0.6, "가성비", 0.9, "디저트", 0.9),
 			List.of("소금빵"), 4);
 		CandidateStoreRow store = row(0.9, 0.9, 0.9, 0.5, 0.5,
-			Map.of("카페형", 1.0, "혼빵", 0.8, "노포", 0.3), List.of("케이크"));
+			Map.of("머물기", 1.0, "가성비", 0.8, "디저트", 0.3), List.of("케이크"));
 
-		// 혼빵 0.9×0.8 = 0.72 > 카페형 0.6×1.0 = 0.6, 노포는 가게 쪽이 0.5 미만이라 빠진다
-		assertThat(AnchorBadgeResolver.resolve(taste, store, RAW)).isEqualTo("혼빵");
+		// 가성비 0.9×0.8 = 0.72 > 머물기 0.6×1.0 = 0.6, 디저트는 가게 쪽이 0.5 미만이라 빠진다
+		assertThat(AnchorBadgeResolver.resolve(taste, store, RAW)).isEqualTo("가성비");
+	}
+
+	@Test
+	@DisplayName("② 태그 칩은 데이터 키가 아니라 표시 문구다 — 머물기 → '머물기 좋은', 공간사진 → '사진'")
+	void tagMatchShowsLabel() {
+		TasteQuery taste = new TasteQuery(0.9, 0.2, 0.1, 0.1, Map.of("머물기", 0.9), List.of(), 4);
+		CandidateStoreRow stay = row(0.8, 0.9, 0.9, 0.1, 0.1, Map.of("머물기", 0.8), List.of("케이크"));
+		assertThat(AnchorBadgeResolver.resolve(taste, stay, RAW)).isEqualTo("머물기 좋은");
+
+		TasteQuery photoLover = new TasteQuery(0.9, 0.2, 0.1, 0.1, Map.of("공간사진", 0.9), List.of(), 4);
+		CandidateStoreRow photo = row(0.8, 0.9, 0.9, 0.1, 0.1, Map.of("공간사진", 0.8), List.of("케이크"));
+		assertThat(AnchorBadgeResolver.resolve(photoLover, photo, RAW)).isEqualTo("사진");
 	}
 
 	@Test
 	@DisplayName("② 강한 신호 가게가 4곳 미만인 회원은 태그 배지를 건너뛰고 ③ 으로 내려간다 — 한두 곳의 태그를 옮겨 적은 것이라서")
 	void tagMatchSkippedWithoutEnoughStrongStores() {
-		CandidateStoreRow store = row(0.8, 0.9, 0.9, 0.1, 0.1, Map.of("혼빵", 0.8), List.of("케이크"));
-		TasteQuery enough = new TasteQuery(0.9, 0.2, 0.1, 0.1, Map.of("혼빵", 0.9), List.of(), 4);
-		TasteQuery thin = new TasteQuery(0.9, 0.2, 0.1, 0.1, Map.of("혼빵", 0.9), List.of(), 3);
+		CandidateStoreRow store = row(0.8, 0.9, 0.9, 0.1, 0.1, Map.of("가성비", 0.8), List.of("케이크"));
+		TasteQuery enough = new TasteQuery(0.9, 0.2, 0.1, 0.1, Map.of("가성비", 0.9), List.of(), 4);
+		TasteQuery thin = new TasteQuery(0.9, 0.2, 0.1, 0.1, Map.of("가성비", 0.9), List.of(), 3);
 
-		assertThat(AnchorBadgeResolver.resolve(enough, store, RAW)).isEqualTo("혼빵");
+		assertThat(AnchorBadgeResolver.resolve(enough, store, RAW)).isEqualTo("가성비");
 		assertThat(AnchorBadgeResolver.resolve(thin, store, RAW)).isEqualTo("담백");
 	}
 

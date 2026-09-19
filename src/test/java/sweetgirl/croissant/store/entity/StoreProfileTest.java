@@ -26,7 +26,7 @@ class StoreProfileTest {
 			.axis(saltBreadShop)
 			.axisSource(AxisSource.BOTH)
 			.breadType(saltBreadShop.typeCode())
-			.tags(Map.of("테이크아웃", 0.8, "동네빵집", 0.6))
+			.tags(Map.of("웨이팅", 0.8, "특별한메뉴", 0.6))
 			.attrs(Map.of("parking", false))
 			.kinds(new String[] {"소금빵", "깜빠뉴"})
 			.signatureMenus(new String[] {"소금빵"})
@@ -40,7 +40,7 @@ class StoreProfileTest {
 			.build();
 
 		assertThat(profile.hasAxis()).isTrue();
-		assertThat(profile.getTags()).containsEntry("테이크아웃", 0.8);
+		assertThat(profile.getTags()).containsEntry("웨이팅", 0.8);
 		assertThat(profile.getKinds()).containsExactly("소금빵", "깜빠뉴");
 		assertThat(profile.getBatchVersion()).isEqualTo("v1");
 		assertThat(profile.getReviewScore()).isEqualByComparingTo("4.87");

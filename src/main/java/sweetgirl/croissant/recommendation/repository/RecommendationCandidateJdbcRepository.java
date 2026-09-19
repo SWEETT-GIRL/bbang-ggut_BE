@@ -65,6 +65,12 @@ public class RecommendationCandidateJdbcRepository {
 				WHERE br.store_id = s.id AND br.member_id = :memberId AND br.deleted_at IS NULL))
 			""";
 
+	/**
+	 * 점수 항 — 코사인 · 태그 일치 · 인기 prior · 종류 겹침. 태그 일치는 회원 태그 가중치로 가게 태그를 평균한 값이다.
+	 * 안쪽 {@code COALESCE((p.tags ->> t.k)::float8, 0)} 은 정상 경로에선 발동하지 않는다 — dataops 가 모든 가게에 사전의 키를 다
+	 * 넣고(v5), 회원 태그는 {@link TasteQuery#of} 가 지금 사전의 키로 거른다. 발동했다면 적재 계약이 깨진 것이고, 투표 태그에서 0 은
+	 * "보통 빵집(0.5)보다 한참 약함" 이라 그 가게를 조용히 깎는다.
+	 */
 	private static final String SCORE_PARTS = """
 			SELECT parts.cosine, parts.tag_match, parts.prior, parts.kind_overlap, parts.recorded,
 				(:wCos * parts.cosine + :wTag * parts.tag_match

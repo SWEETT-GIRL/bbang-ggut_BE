@@ -41,7 +41,7 @@ class UserTasteProfileTest {
 	void recompute_bumpsVersion() {
 		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, FIRST);
 
-		profile.recompute(plainCrispy(), "PFLN", TasteTypeSource.SIGNAL, Map.of("카페형", 0.7),
+		profile.recompute(plainCrispy(), "PFLN", TasteTypeSource.SIGNAL, Map.of("머물기", 0.7),
 			new String[] {"소금빵", "깜빠뉴"}, TasteUserType.PLANNER, 4, 2, LATER);
 
 		assertThat(profile.getVersion()).isEqualTo(2);

@@ -63,7 +63,10 @@ public class StoreProfile extends BaseTimeEntity {
 	@Column(name = "bread_type", length = 4)
 	private String breadType;
 
-	/** 취향 태그 12 (0~1). 키는 설계 §2 의 한글 이름 그대로. 예: {"카페형": 0.9, "혼빵": 0.6} */
+	/**
+	 * 취향 태그 8 (0~1). 키는 {@link sweetgirl.croissant.personalization.enums.TasteTag} 의 key 그대로이고 dataops 는 모든 가게에
+	 * 8키를 다 넣는다. 투표 태그는 0.5 가 보통 빵집이다. 예: {"머물기": 0.82, "가성비": 0.5}
+	 */
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(nullable = false)
 	private Map<String, Double> tags;

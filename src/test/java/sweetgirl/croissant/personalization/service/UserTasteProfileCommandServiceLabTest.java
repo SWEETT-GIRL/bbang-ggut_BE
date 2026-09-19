@@ -113,7 +113,7 @@ class UserTasteProfileCommandServiceLabTest {
 	}
 
 	@Test
-	@DisplayName("저장·담기 두 가게의 축·태그를 상속한다 — 축은 두 가게 축 사이, 태그는 12키, 출처 SIGNAL, version 2")
+	@DisplayName("저장·담기 두 가게의 축·태그를 상속한다 — 축은 두 가게 축 사이, 태그는 사전의 모든 키, 출처 SIGNAL, version 2")
 	void recompute_inheritsStoreAxisAndTags() {
 		LocalDateTime now = LocalDateTime.now();
 		insertSignal(InteractionType.SAVE, stores.get(0), null, null, now.minusDays(1));
