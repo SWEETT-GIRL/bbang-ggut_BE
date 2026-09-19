@@ -69,4 +69,17 @@ class StoreProfileTest {
 
 		assertThat(profile.hasAxis()).isFalse();
 	}
+
+	@Test
+	@DisplayName("signature_kinds 는 NOT NULL 이라 안 주면 빈 배열이다 — 주면 순서 그대로")
+	void signatureKinds_defaultsToEmpty() {
+		StoreProfile withoutKinds = StoreProfile.builder()
+			.storeId(1L).bakeryScore(new BigDecimal("0.900")).batchVersion("v5").computedAt(COMPUTED_AT).build();
+		StoreProfile withKinds = StoreProfile.builder()
+			.storeId(2L).signatureKinds(new String[] {"소금빵", "크루아상"})
+			.bakeryScore(new BigDecimal("0.900")).batchVersion("v5").computedAt(COMPUTED_AT).build();
+
+		assertThat(withoutKinds.getSignatureKinds()).isEmpty();
+		assertThat(withKinds.getSignatureKinds()).containsExactly("소금빵", "크루아상");
+	}
 }

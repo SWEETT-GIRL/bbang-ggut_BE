@@ -87,6 +87,14 @@ public class StoreProfile extends BaseTimeEntity {
 	@Column(name = "signature_menus")
 	private String[] signatureMenus;
 
+	/**
+	 * 대표 메뉴를 빵 종류 이름(menu_category)으로 푼 것 — 대표 메뉴 순서, 일반 종류 없음. 메뉴 이름과 달리 회원 top_kinds 와
+	 * 바로 맞춰 볼 수 있다. 풀린 게 없으면 빈 배열이다(NULL 아님). 아직 읽는 곳은 없다(#662).
+	 */
+	@JdbcTypeCode(SqlTypes.ARRAY)
+	@Column(name = "signature_kinds", nullable = false)
+	private String[] signatureKinds;
+
 	/** 빵집다움 0~1. 후보 필터는 0.5 이상만 (설계 §5.3). */
 	@Column(name = "bakery_score", nullable = false, precision = 4, scale = 3)
 	private BigDecimal bakeryScore;
@@ -138,6 +146,7 @@ public class StoreProfile extends BaseTimeEntity {
 			Map<String, Object> attrs,
 			String[] kinds,
 			String[] signatureMenus,
+			String[] signatureKinds,
 			BigDecimal bakeryScore,
 			Integer reviewCount,
 			Integer ratingCount,
@@ -154,6 +163,7 @@ public class StoreProfile extends BaseTimeEntity {
 		this.attrs = attrs != null ? new HashMap<>(attrs) : new HashMap<>();
 		this.kinds = kinds;
 		this.signatureMenus = signatureMenus;
+		this.signatureKinds = signatureKinds != null ? signatureKinds : new String[0];
 		this.bakeryScore = bakeryScore;
 		this.reviewCount = reviewCount;
 		this.ratingCount = ratingCount;
