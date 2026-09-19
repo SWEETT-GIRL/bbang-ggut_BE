@@ -113,7 +113,33 @@ class ReasonPromptBuilderTest {
 		assertThat(prompt).contains("- 좋아하는 태그: 없음", "겹치는 태그 없음");
 		assertThat(prompt).contains("- 자주 먹는 빵 종류: 소금빵", "겹치는 빵 종류 소금빵");
 		// 가게 태그는 가게의 사실이라 회원 근거와 상관없이 남는다
-		assertThat(prompt).contains("   태그: 특별한메뉴, 공간사진");
+		assertThat(prompt).contains("   태그: 특별한메뉴\n");
+	}
+
+	@Test
+	@DisplayName("태그는 배지와 같은 문턱을 넘는 것만 쓴다 — 0.5(보통 빵집 · 표 없는 가게)나 그 아래는 나열하지 않는다")
+	void onlyNotableTagsAreListed() {
+		Map<String, Double> tags = Map.of("머물기", 0.51, "가성비", 0.5, "디저트", 0.3, "웨이팅", 0.0);
+		TasteQuery member = new TasteQuery(0.62, 0.31, -0.55, 0.08, tags, List.of("소금빵"), 4);
+		CandidateStoreRow store = new CandidateStoreRow(1L, "밀도", "성수동2가", 37.5, 127.05, null, 120, 3.4, 1.2, 0.71,
+			5, 0.5, 0.8, -0.2, 0.4, Map.of("머물기", 0.9, "가성비", 0.9, "디저트", 0.9), List.of("소금빵"));
+
+		String prompt = promptBuilder.build(ReasonPromptVariant.D, member, List.of(store), Map.of());
+
+		assertThat(prompt).contains("- 좋아하는 태그: 머물기\n", "   태그: 가성비, 디저트, 머물기\n", "겹치는 태그 머물기 ·");
+	}
+
+	@Test
+	@DisplayName("문턱은 설정값을 따른다 — 0.6 으로 올리면 0.51 인 태그는 빠진다")
+	void notableThresholdFollowsConfig() {
+		RecommendationProperties stricter = new RecommendationProperties();
+		stricter.getScore().setNotableTagAbove(0.6);
+		TasteQuery member = new TasteQuery(0.62, 0.31, -0.55, 0.08, Map.of("머물기", 0.51, "가성비", 0.9), List.of(), 4);
+
+		String prompt = new ReasonPromptBuilder(stricter).build(ReasonPromptVariant.A, member,
+			List.of(store(1L, "밀도", 0.71)), Map.of());
+
+		assertThat(prompt).contains("- 좋아하는 태그: 가성비\n");
 	}
 
 	@Test

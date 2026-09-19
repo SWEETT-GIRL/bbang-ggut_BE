@@ -36,7 +36,9 @@ public record TasteQuery(
 			return EMPTY;
 		}
 		// 사전이 바뀌면(09-19 v5) 재계산 전 프로필에 옛 키가 남는다 — 새 가게 태그에 없는 키라 태그 항을 0 쪽으로 끌고,
-		// 이유 문장에는 없어진 태그 이름이 샌다. 지금 사전에 있는 키만 넘긴다
+		// 이유 문장에는 없어진 태그 이름이 샌다. 지금 사전에 있는 키만 넘긴다.
+		// "> 0" 은 SQL 가중 평균의 재료를 고르는 것이지 "도드라진 태그" 문턱이 아니다 — v5 에서는 거의 다 통과한다. 문구 쪽은
+		// notableTagAbove 로 거르고, 여기를 바꾸면 점수가 달라지므로 태그 비중 조정 때 같이 본다(#759 리뷰)
 		Map<String, Double> tags = profile.getTags() == null ? Map.of() : profile.getTags().entrySet().stream()
 			.filter(entry -> entry.getValue() != null && entry.getValue() > 0)
 			.filter(entry -> TasteTag.fromKey(entry.getKey()).isPresent())

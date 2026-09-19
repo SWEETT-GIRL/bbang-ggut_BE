@@ -85,7 +85,7 @@ public class ReasonPromptBuilder {
 	 */
 	private String tasteBlock(TasteQuery taste) {
 		List<String> lines = new ArrayList<>();
-		lines.add("- 좋아하는 태그: " + joinOrNone(sortedByWeight(reasonTags(taste))));
+		lines.add("- 좋아하는 태그: " + joinOrNone(notableTags(reasonTags(taste))));
 		lines.add("- 자주 먹는 빵 종류: " + joinOrNone(taste.topKinds()));
 		return String.join("\n", lines);
 	}
@@ -105,7 +105,7 @@ public class ReasonPromptBuilder {
 					block.append("   시그니처 메뉴: ").append(String.join(", ", limit(menus))).append("\n");
 				}
 			}
-			block.append("   태그: ").append(joinOrNone(sortedByWeight(row.tags()))).append("\n");
+			block.append("   태그: ").append(joinOrNone(notableTags(row.tags()))).append("\n");
 			block.append("   빵 종류: ").append(joinOrNone(limit(specificKinds(row.kinds()))));
 			if (variant.isIncludesRuleEvidence()) {
 				block.append("\n   선정 근거: ").append(evidenceText(taste, row));
@@ -122,7 +122,7 @@ public class ReasonPromptBuilder {
 
 	private String evidenceText(TasteQuery taste, CandidateStoreRow row) {
 		return "취향 일치도 " + decimal(row.tasteFit())
-			+ " · 겹치는 태그 " + joinOrNone(intersection(reasonTags(taste), row.tags()))
+			+ " · 겹치는 태그 " + joinOrNone(sharedNotableTags(reasonTags(taste), row.tags()))
 			+ " · 겹치는 빵 종류 " + joinOrNone(intersection(taste.topKinds(), row.kinds()))
 			+ " · 인기도 " + decimal(popularityPrior(row.popularityScore()));
 	}
@@ -138,27 +138,27 @@ public class ReasonPromptBuilder {
 	}
 
 	/** 가중치가 큰 태그가 앞에 오게 — 모델이 앞쪽을 더 본다 */
-	private static List<String> sortedByWeight(Map<String, Double> weights) {
+	/**
+	 * 도드라진 태그만, 값이 큰 순으로 — 배지와 같은 문턱({@code notableTagAbove})을 넘는 것. v5 는 모든 가게가 8키를 다 갖고
+	 * 표가 없는 가게도 0.5 라, "0 보다 크면 있다" 로 거르면 가게마다 8개가 거의 다 나열된다(#759 리뷰).
+	 */
+	private List<String> notableTags(Map<String, Double> weights) {
 		if (weights == null || weights.isEmpty()) {
 			return List.of();
 		}
+		double above = recommendationProperties.getScore().getNotableTagAbove();
 		return weights.entrySet().stream()
-			.filter(entry -> entry.getValue() != null && entry.getValue() > 0)
+			.filter(entry -> entry.getValue() != null && entry.getValue() > above)
 			.sorted(Map.Entry.<String, Double>comparingByValue().reversed()
 				.thenComparing(Map.Entry.comparingByKey()))
 			.map(Map.Entry::getKey)
 			.toList();
 	}
 
-	private static List<String> intersection(Map<String, Double> weights, Map<String, Double> other) {
-		if (other == null || other.isEmpty()) {
-			return List.of();
-		}
-		Set<String> otherKeys = other.entrySet().stream()
-			.filter(entry -> entry.getValue() != null && entry.getValue() > 0)
-			.map(Map.Entry::getKey)
-			.collect(Collectors.toCollection(LinkedHashSet::new));
-		return sortedByWeight(weights).stream().filter(otherKeys::contains).toList();
+	/** 회원 · 가게 둘 다에서 도드라진 태그 — 배지의 태그 일치와 같은 조건이다 */
+	private List<String> sharedNotableTags(Map<String, Double> member, Map<String, Double> store) {
+		Set<String> storeTags = new LinkedHashSet<>(notableTags(store));
+		return notableTags(member).stream().filter(storeTags::contains).toList();
 	}
 
 	private static List<String> intersection(List<String> kinds, List<String> other) {
