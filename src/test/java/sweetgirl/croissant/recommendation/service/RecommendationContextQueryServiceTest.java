@@ -243,7 +243,7 @@ class RecommendationContextQueryServiceTest {
 	}
 
 	@Test
-	@DisplayName("타입이 있으면 CHIPS 이고 라벨이 붙는다. 칩은 표시 순서대로 3개, 저장 가게가 반경 안이면 SAVED")
+	@DisplayName("타입이 있으면 CHIPS 다(이름 없이 코드만으로). 칩은 표시 순서대로 3개, 저장 가게가 반경 안이면 SAVED")
 	void getContext_typedProfile_chipsWithLabel() {
 		Course course = courseInSeoul();
 		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.of(typedProfile()));
@@ -262,7 +262,6 @@ class RecommendationContextQueryServiceTest {
 			null);
 
 		assertThat(context.state()).isEqualTo(RecommendationContextState.CHIPS);
-		assertThat(context.typeLabel()).isEqualTo("뉴웨이브 미니멀");
 		assertThat(context.showAccuracyLink()).isFalse();
 		assertThat(context.areas()).hasSize(3);
 		assertThat(context.areas()).extracting(RecommendationAreaResponse::name)
@@ -291,7 +290,6 @@ class RecommendationContextQueryServiceTest {
 
 		assertThat(context.state()).isEqualTo(RecommendationContextState.QUIZ);
 		assertThat(context.showAccuracyLink()).isFalse();
-		assertThat(context.typeLabel()).isNull();
 		assertThat(context.areas()).isEmpty();
 	}
 
