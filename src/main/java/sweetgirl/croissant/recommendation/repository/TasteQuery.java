@@ -7,9 +7,10 @@ import java.util.stream.Collectors;
 
 import sweetgirl.croissant.personalization.entity.UserTasteProfile;
 import sweetgirl.croissant.personalization.enums.GenericKind;
+import sweetgirl.croissant.personalization.enums.TasteTag;
 
 /**
- * 후보 SQL 에 넘기는 사용자 취향(#661): 4축(없으면 null) · 태그 가중치(0~1, 12종) · 상위 빵 종류.
+ * 후보 SQL 에 넘기는 사용자 취향(#661): 4축(없으면 null) · 태그 가중치(0~1, {@link TasteTag} 8종) · 상위 빵 종류.
  * 프로필이 없거나 축이 없으면 축 항이 0 이 되고, 태그·종류가 비면 그 항도 0 이라 결과는 인기 prior 순이다.
  * 취향 폴백(취향 후보 3곳 미만)은 {@link #empty()} 로 다시 조회한다 — 취향 항을 전부 뺀다.
  *
@@ -34,8 +35,13 @@ public record TasteQuery(
 		if (profile == null) {
 			return EMPTY;
 		}
+		// 사전이 바뀌면(09-19 v5) 재계산 전 프로필에 옛 키가 남는다 — 새 가게 태그에 없는 키라 태그 항을 0 쪽으로 끌고,
+		// 이유 문장에는 없어진 태그 이름이 샌다. 지금 사전에 있는 키만 넘긴다.
+		// "> 0" 은 SQL 가중 평균의 재료를 고르는 것이지 "도드라진 태그" 문턱이 아니다 — v5 에서는 거의 다 통과한다. 문구 쪽은
+		// notableTagAbove 로 거르고, 여기를 바꾸면 점수가 달라지므로 태그 비중 조정 때 같이 본다(#759 리뷰)
 		Map<String, Double> tags = profile.getTags() == null ? Map.of() : profile.getTags().entrySet().stream()
 			.filter(entry -> entry.getValue() != null && entry.getValue() > 0)
+			.filter(entry -> TasteTag.fromKey(entry.getKey()).isPresent())
 			.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 		// 계산기가 이미 일반 종류를 빼지만, 그 전에 계산된 프로필에는 남아 있을 수 있다 — 조회 입구에서 한 번 더 막는다
 		List<String> topKinds = profile.getTopKinds() == null ? List.of() : Arrays.stream(profile.getTopKinds())

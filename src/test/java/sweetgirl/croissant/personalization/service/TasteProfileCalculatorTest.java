@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import sweetgirl.croissant.personalization.config.PersonalizationProperties;
 import sweetgirl.croissant.personalization.entity.TasteAxis;
 import sweetgirl.croissant.personalization.enums.InteractionType;
+import sweetgirl.croissant.personalization.enums.TasteTag;
 import sweetgirl.croissant.personalization.enums.TasteTypeSource;
 import sweetgirl.croissant.personalization.enums.TasteUserType;
 import sweetgirl.croissant.personalization.repository.TasteSignal;
@@ -228,17 +229,18 @@ class TasteProfileCalculatorTest {
 	}
 
 	@Test
-	@DisplayName("태그는 양의 신호 가게만의 12키 가중 평균 — 없는 키는 0, 음수 신호 가게는 빠진다")
+	@DisplayName("태그는 양의 신호 가게만의 사전 키별 가중 평균 — 값이 빠진 가게는 중립값(투표 0.5 · 규칙 0), 음수 신호 가게는 빠진다")
 	void tags_weightedAverageOfPositiveSignals() {
 		TasteProfileSnapshot snapshot = calculator.calculate(List.of(
-			tagged(InteractionType.SAVE, 1, Map.of("카페형", 1.0)),
-			tagged(InteractionType.COURSE_ADD, 2, Map.of("혼빵", 1.0)),
-			tagged(InteractionType.UNSAVE, 3, Map.of("카페형", 1.0))), null, null, 0, NOW);
+			tagged(InteractionType.SAVE, 1, Map.of("머물기", 1.0)),
+			tagged(InteractionType.COURSE_ADD, 2, Map.of("가성비", 1.0)),
+			tagged(InteractionType.UNSAVE, 3, Map.of("머물기", 1.0))), null, null, 0, NOW);
 
-		assertThat(snapshot.tags()).hasSize(12)
-			.containsEntry("카페형", 0.4) // 1 ÷ 2.5
-			.containsEntry("혼빵", 0.6) // 1.5 ÷ 2.5
-			.containsEntry("노포", 0.0);
+		assertThat(snapshot.tags()).hasSize(TasteTag.values().length)
+			.containsEntry("머물기", 0.7) // (1 × 1.0 + 1.5 × 중립 0.5) ÷ 2.5
+			.containsEntry("가성비", 0.8) // (1 × 중립 0.5 + 1.5 × 1.0) ÷ 2.5
+			.containsEntry("디저트", 0.5) // 두 가게 다 값이 없어 투표 태그 중립값
+			.containsEntry("웨이팅", 0.0); // 규칙 태그의 중립값은 0
 	}
 
 	@Test

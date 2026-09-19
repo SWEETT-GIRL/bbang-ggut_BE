@@ -108,7 +108,7 @@ class ReasonExperimentServiceTest {
 	/** 두 곳을 가깝게 두어 chainWithinHop 이 둘 다 잇게 한다 */
 	private static CandidateStoreRow store(long storeId, String name) {
 		return new CandidateStoreRow(storeId, name, "성수동2가", 37.5446 + storeId * 0.0001, 127.0557, null, 100,
-			3.4, 1.2, 0.5, 5, 0.5, 0.8, -0.2, 0.4, Map.of("동네빵집", 1.0), List.of("소금빵"));
+			3.4, 1.2, 0.5, 5, 0.5, 0.8, -0.2, 0.4, Map.of("특별한메뉴", 1.0), List.of("소금빵"));
 	}
 
 	private static ReasonExperimentRequest request(List<String> models, List<ReasonPromptVariant> variants,

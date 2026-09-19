@@ -102,7 +102,7 @@ public class UserTasteSignalJdbcRepository {
 
 	/**
 	 * 관대하게 읽는다 — 숫자 값만 남기고 null · 문자열 · 중첩은 버린다. dataops 가 넣는 데이터 품질에 검사 제출(사용자 경로)이 묶이지
-	 * 않게 하려는 것이고, 12키 밖의 키는 계산기가 어차피 버린다. 아예 JSON 객체가 아니면 그 회원의 계산만 실패한다.
+	 * 않게 하려는 것이고, 태그 사전 밖의 키는 계산기가 어차피 버린다. 아예 JSON 객체가 아니면 그 회원의 계산만 실패한다.
 	 */
 	static Map<String, Double> parseTags(String json) {
 		if (json == null || json.isBlank()) {

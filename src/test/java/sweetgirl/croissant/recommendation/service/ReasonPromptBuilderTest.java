@@ -2,8 +2,10 @@ package sweetgirl.croissant.recommendation.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,12 +23,12 @@ class ReasonPromptBuilderTest {
 
 	private static TasteQuery taste() {
 		return new TasteQuery(0.62, 0.31, -0.55, 0.08,
-			Map.of("동네빵집", 0.9, "아침", 0.4, "선물", 0.2), List.of("소금빵", "바게트"), 4);
+			Map.of("특별한메뉴", 0.9, "건강한맛", 0.4, "대형", 0.2), List.of("소금빵", "바게트"), 4);
 	}
 
 	private static CandidateStoreRow store(long storeId, String name, double tasteFit) {
 		return new CandidateStoreRow(storeId, name, "성수동2가", 37.5, 127.05, null, 120, 3.4, 1.2, tasteFit, 5,
-			0.5, 0.8, -0.2, 0.4, Map.of("동네빵집", 1.0, "데이트", 0.5), List.of("소금빵", "깜빠뉴"));
+			0.5, 0.8, -0.2, 0.4, Map.of("특별한메뉴", 1.0, "공간사진", 0.5), List.of("소금빵", "깜빠뉴"));
 	}
 
 	@Test
@@ -46,9 +48,9 @@ class ReasonPromptBuilderTest {
 			Map.of());
 
 		assertThat(prompt).contains("선정 근거: 취향 일치도 0.71");
-		// 회원 태그 셋 중 가게와 겹치는 것은 동네빵집 하나뿐이다
-		assertThat(prompt).contains("겹치는 태그 동네빵집");
-		assertThat(prompt).doesNotContain("겹치는 태그 동네빵집, 아침");
+		// 회원 태그 셋 중 가게와 겹치는 것은 특별한메뉴 하나뿐이다
+		assertThat(prompt).contains("겹치는 태그 특별한 메뉴");
+		assertThat(prompt).doesNotContain("겹치는 태그 특별한 메뉴, 건강·신선");
 		assertThat(prompt).contains("겹치는 빵 종류 소금빵");
 	}
 
@@ -82,9 +84,9 @@ class ReasonPromptBuilderTest {
 		String prompt = promptBuilder.build(ReasonPromptVariant.A, taste(), List.of(store(1L, "밀도", 0.71)),
 			Map.of());
 
-		assertThat(prompt).doesNotContain("담백", "바삭", "심플", "트렌디", "고전", "신상 빵", "축:");
+		assertThat(prompt).doesNotContain("담백", "바삭", "심플", "트렌디", "클래식", "고전", "신상 빵", "축:");
 		// 회원이 알아보는 것만 남는다
-		assertThat(prompt).contains("- 좋아하는 태그: 동네빵집", "- 자주 먹는 빵 종류: 소금빵", "빵 종류: 소금빵");
+		assertThat(prompt).contains("- 좋아하는 태그: 특별한 메뉴", "- 자주 먹는 빵 종류: 소금빵", "빵 종류: 소금빵");
 	}
 
 	@Test
@@ -105,7 +107,7 @@ class ReasonPromptBuilderTest {
 	@Test
 	@DisplayName("강한 신호 가게가 4곳 미만이면 회원 태그를 없음으로 쓴다 — D 의 겹치는 태그도. 종류와 가게 태그 줄은 그대로")
 	void thinEvidence_hidesMemberTags() {
-		TasteQuery thin = new TasteQuery(0.62, 0.31, -0.55, 0.08, Map.of("동네빵집", 0.9), List.of("소금빵"), 3);
+		TasteQuery thin = new TasteQuery(0.62, 0.31, -0.55, 0.08, Map.of("특별한메뉴", 0.9), List.of("소금빵"), 3);
 
 		String prompt = promptBuilder.build(ReasonPromptVariant.D, thin, List.of(store(1L, "밀도", 0.71)),
 			Map.of());
@@ -113,7 +115,45 @@ class ReasonPromptBuilderTest {
 		assertThat(prompt).contains("- 좋아하는 태그: 없음", "겹치는 태그 없음");
 		assertThat(prompt).contains("- 자주 먹는 빵 종류: 소금빵", "겹치는 빵 종류 소금빵");
 		// 가게 태그는 가게의 사실이라 회원 근거와 상관없이 남는다
-		assertThat(prompt).contains("   태그: 동네빵집, 데이트");
+		assertThat(prompt).contains("   태그: 특별한 메뉴\n");
+	}
+
+	@Test
+	@DisplayName("태그는 배지와 같은 문턱을 넘는 것만 쓴다 — 0.5(보통 빵집 · 표 없는 가게)나 그 아래는 나열하지 않는다")
+	void onlyNotableTagsAreListed() {
+		Map<String, Double> tags = Map.of("머물기", 0.51, "가성비", 0.5, "디저트", 0.3, "웨이팅", 0.0);
+		TasteQuery member = new TasteQuery(0.62, 0.31, -0.55, 0.08, tags, List.of("소금빵"), 4);
+		CandidateStoreRow store = new CandidateStoreRow(1L, "밀도", "성수동2가", 37.5, 127.05, null, 120, 3.4, 1.2, 0.71,
+			5, 0.5, 0.8, -0.2, 0.4, Map.of("머물기", 0.9, "가성비", 0.9, "디저트", 0.9), List.of("소금빵"));
+
+		String prompt = promptBuilder.build(ReasonPromptVariant.D, member, List.of(store), Map.of());
+
+		assertThat(prompt).contains("- 좋아하는 태그: 머물기 좋은\n", "   태그: 가성비, 디저트, 머물기 좋은\n", "겹치는 태그 머물기 좋은 ·");
+	}
+
+	@Test
+	@DisplayName("태그는 데이터 키가 아니라 표시 문구로 쓰고, 사전 밖 옛 키는 뺀다 — 배지 칩과 같은 말이 되게")
+	void tagsAreWrittenAsLabels_andUnknownKeysDropped() {
+		CandidateStoreRow store = new CandidateStoreRow(1L, "밀도", "성수동2가", 37.5, 127.05, null, 120, 3.4, 1.2, 0.71,
+			5, 0.5, 0.8, -0.2, 0.4, Map.of("공간사진", 0.9, "카페형", 0.95, "건강한맛", 0.7), List.of("소금빵"));
+
+		String prompt = promptBuilder.build(ReasonPromptVariant.A, taste(), List.of(store), Map.of());
+
+		assertThat(prompt).contains("   태그: 사진, 건강·신선\n");
+		assertThat(prompt).doesNotContain("공간사진", "건강한맛", "카페형");
+	}
+
+	@Test
+	@DisplayName("문턱은 설정값을 따른다 — 0.6 으로 올리면 0.51 인 태그는 빠진다")
+	void notableThresholdFollowsConfig() {
+		RecommendationProperties stricter = new RecommendationProperties();
+		stricter.getScore().setNotableTagAbove(0.6);
+		TasteQuery member = new TasteQuery(0.62, 0.31, -0.55, 0.08, Map.of("머물기", 0.51, "가성비", 0.9), List.of(), 4);
+
+		String prompt = new ReasonPromptBuilder(stricter).build(ReasonPromptVariant.A, member,
+			List.of(store(1L, "밀도", 0.71)), Map.of());
+
+		assertThat(prompt).contains("- 좋아하는 태그: 가성비\n");
 	}
 
 	@Test
@@ -134,9 +174,9 @@ class ReasonPromptBuilderTest {
 			String prompt = promptBuilder.build(variant, taste(), List.of(store(1L, "밀도", 0.71)), Map.of());
 
 			assertThat(prompt).doesNotContain("{tagVocabulary}");
-			for (TasteTag tag : TasteTag.values()) {
-				assertThat(prompt).as("%s 변형에 %s 태그", variant, tag.getKey()).contains(tag.getKey());
-			}
+			String vocabulary = Arrays.stream(TasteTag.values()).map(TasteTag::getLabel)
+				.collect(Collectors.joining(", "));
+			assertThat(prompt).as(variant.name()).contains(vocabulary + " 중 적힌 것만 쓴다");
 		}
 	}
 

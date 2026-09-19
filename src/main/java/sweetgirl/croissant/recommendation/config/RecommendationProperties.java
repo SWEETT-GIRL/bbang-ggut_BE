@@ -69,6 +69,12 @@ public class RecommendationProperties {
 		 * 강한 신호 가게 1곳이었고, 4곳 이상으로 잘라야 회원끼리 태그가 갈리는 것이 우연과 구분됐다. 점수의 태그 항에는 쓰지 않는다
 		 */
 		private int minStrongStoresForTagReason = 4;
+		/**
+		 * 태그가 "도드라진다" 고 볼 문턱. 회원 · 가게 값이 둘 다 이 값을 <b>넘어야</b> 태그 칩이 붙고, 이유 프롬프트도 이 값을 넘는
+		 * 태그만 나열한다. v5 투표 태그는 0.5 가 보통 빵집이고 표가 없는 가게도 정확히 0.5 라 "초과" 다(09-19 사용자 결정: 태그
+		 * 구분 없이 0.5 초과). 0.501 도 넘을 만큼 여유가 없어, v5 적재 뒤 태그별 가게 · 회원 비율을 재서 올릴 수 있게 설정으로 둔다
+		 */
+		private double notableTagAbove = 0.5;
 		/** 풀 안 취향 후보가 이 수 미만이면 취향 항을 빼고 prior 순으로 채운다(fallback) */
 		private int minTasteCandidates = 3;
 		/**

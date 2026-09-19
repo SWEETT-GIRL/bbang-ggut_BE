@@ -22,6 +22,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.personalization.enums.TasteTag;
 import sweetgirl.croissant.recommendation.config.RecommendationProperties;
 import sweetgirl.croissant.recommendation.entity.CourseArea;
 
@@ -65,6 +66,12 @@ public class RecommendationCandidateJdbcRepository {
 				WHERE br.store_id = s.id AND br.member_id = :memberId AND br.deleted_at IS NULL))
 			""";
 
+	/**
+	 * 점수 항 — 코사인 · 태그 일치 · 인기 prior · 종류 겹침. 태그 일치는 회원 태그 가중치로 가게 태그를 평균한 값이다.
+	 * 안쪽 {@code COALESCE((p.tags ->> t.k)::float8, t.n)} 은 정상 경로에선 발동하지 않는다 — dataops 가 모든 가게에 사전의 키를 다
+	 * 넣고(v5), 회원 태그는 {@link TasteQuery#of} 가 지금 사전의 키로 거른다. 발동했다면 적재 계약이 깨진 것이고, 투표 태그에서 0 은
+	 * "보통 빵집(0.5)보다 한참 약함" 이라 그 가게를 조용히 깎는다.
+	 */
 	private static final String SCORE_PARTS = """
 			SELECT parts.cosine, parts.tag_match, parts.prior, parts.kind_overlap, parts.recorded,
 				(:wCos * parts.cosine + :wTag * parts.tag_match
@@ -75,8 +82,9 @@ public class RecommendationCandidateJdbcRepository {
 					EXISTS (SELECT 1 FROM bread_record br
 						WHERE br.store_id = s.id AND br.member_id = :memberId AND br.deleted_at IS NULL) AS recorded,
 					%1$s AS cosine,
-					COALESCE((SELECT SUM(t.w * COALESCE((p.tags ->> t.k)::float8, 0)) / NULLIF(SUM(t.w), 0)
-						FROM unnest(CAST(:tagKeys AS text[]), CAST(:tagWeights AS float8[])) AS t(k, w)), 0)
+					COALESCE((SELECT SUM(t.w * COALESCE((p.tags ->> t.k)::float8, t.n)) / NULLIF(SUM(t.w), 0)
+						FROM unnest(CAST(:tagKeys AS text[]), CAST(:tagWeights AS float8[]),
+							CAST(:tagNeutrals AS float8[])) AS t(k, w, n)), 0)
 						AS tag_match,
 					(:wReview * LEAST(1, ln(1 + COALESCE(p.review_count, 0)) / ln(1 + CAST(:reviewCap AS float8)))
 						+ :wRating * LEAST(1, GREATEST(0,
@@ -331,6 +339,8 @@ public class RecommendationCandidateJdbcRepository {
 			Collection<Long> excludeStoreIds) {
 		RecommendationProperties.Score score = recommendationProperties.getScore();
 		RecommendationProperties.Prior prior = score.getPrior();
+		// 키 · 가중치 · 중립값 세 배열이 같은 순서여야 해서 항목 목록을 한 번만 만든다
+		List<Map.Entry<String, Double>> tagEntries = List.copyOf(taste.tags().entrySet());
 		return tasteParams(new MapSqlParameterSource(), taste)
 			.addValue("memberId", memberId)
 			.addValue("lat", lat)
@@ -344,8 +354,11 @@ public class RecommendationCandidateJdbcRepository {
 			.addValue("wTag", score.getTagWeight())
 			.addValue("wPrior", score.getPriorWeight())
 			.addValue("wKind", score.getKindWeight())
-			.addValue("tagKeys", taste.tags().keySet().toArray(String[]::new))
-			.addValue("tagWeights", taste.tags().values().toArray(Double[]::new))
+			.addValue("tagKeys", tagEntries.stream().map(Map.Entry::getKey).toArray(String[]::new))
+			.addValue("tagWeights", tagEntries.stream().map(Map.Entry::getValue).toArray(Double[]::new))
+			.addValue("tagNeutrals", tagEntries.stream()
+				.map(entry -> TasteTag.fromKey(entry.getKey()).map(TasteTag::getNeutral).orElse(0d))
+				.toArray(Double[]::new))
 			.addValue("topKinds", taste.topKinds().toArray(String[]::new))
 			.addValue("wReview", prior.getReviewWeight())
 			.addValue("wRating", prior.getRatingWeight())

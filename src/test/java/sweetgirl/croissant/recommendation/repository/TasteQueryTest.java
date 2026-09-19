@@ -64,7 +64,7 @@ class TasteQueryTest {
 	void ofProfile_carriesStrongStoreCount() {
 		LocalDateTime now = LocalDateTime.of(2026, 9, 19, 18, 0);
 		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, now);
-		profile.recompute(null, null, null, Map.of("혼빵", 0.9), null, TasteUserType.BROWSER, 5, 0, now);
+		profile.recompute(null, null, null, Map.of("가성비", 0.9), null, TasteUserType.BROWSER, 5, 0, now);
 
 		assertThat(TasteQuery.of(profile).strongStoreCount()).isEqualTo(5);
 		assertThat(TasteQuery.empty().strongStoreCount()).isZero();
@@ -73,11 +73,22 @@ class TasteQueryTest {
 	@Test
 	@DisplayName("문구용 태그는 강한 신호 가게가 기준 이상일 때만 준다 — 점수용 태그는 그대로")
 	void reasonTags_needEnoughStrongStores() {
-		TasteQuery thin = new TasteQuery(null, null, null, null, Map.of("혼빵", 0.9), List.of(), 3);
-		TasteQuery enough = new TasteQuery(null, null, null, null, Map.of("혼빵", 0.9), List.of(), 4);
+		TasteQuery thin = new TasteQuery(null, null, null, null, Map.of("가성비", 0.9), List.of(), 3);
+		TasteQuery enough = new TasteQuery(null, null, null, null, Map.of("가성비", 0.9), List.of(), 4);
 
 		assertThat(thin.reasonTags(4)).isEmpty();
-		assertThat(thin.tags()).containsEntry("혼빵", 0.9);
-		assertThat(enough.reasonTags(4)).containsEntry("혼빵", 0.9);
+		assertThat(thin.tags()).containsEntry("가성비", 0.9);
+		assertThat(enough.reasonTags(4)).containsEntry("가성비", 0.9);
+	}
+
+	@Test
+	@DisplayName("사전이 바뀌기 전에 계산된 프로필의 옛 키(카페형 · 노포 …)는 넘기지 않는다 — 지금 사전의 키만 남는다")
+	void ofProfile_dropsTagsOutsideDictionary() {
+		LocalDateTime now = LocalDateTime.of(2026, 9, 19, 23, 0);
+		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, now);
+		profile.recompute(null, null, null, Map.of("카페형", 0.9, "노포", 0.4, "머물기", 0.7), null,
+			TasteUserType.BROWSER, 5, 0, now);
+
+		assertThat(TasteQuery.of(profile).tags()).containsOnlyKeys("머물기");
 	}
 }

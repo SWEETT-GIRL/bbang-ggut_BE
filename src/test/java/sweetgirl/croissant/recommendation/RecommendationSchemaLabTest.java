@@ -117,6 +117,24 @@ class RecommendationSchemaLabTest {
 	}
 
 	@Test
+	@DisplayName("store_profile.signature_kinds: 기존 행은 빈 배열이고, 열을 빼고 넣는 적재도 빈 배열이 된다(NOT NULL DEFAULT '{}')")
+	void storeProfile_signatureKindsDefaultsToEmpty() {
+		Integer nullRows = jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM store_profile WHERE signature_kinds IS NULL", Integer.class);
+		assertThat(nullRows).isZero();
+
+		Long storeId = activeStoreWithoutProfileId();
+		jdbcTemplate.update("""
+				INSERT INTO store_profile (store_id, tags, attrs, bakery_score, batch_version, computed_at)
+				VALUES (?, '{}', '{}', 0.9, 'v5', now())
+				""", storeId);
+		String[] kinds = jdbcTemplate.queryForObject(
+			"SELECT signature_kinds FROM store_profile WHERE store_id = ?",
+			(rs, rowNum) -> (String[])rs.getArray(1).getArray(), storeId);
+		assertThat(kinds).isEmpty();
+	}
+
+	@Test
 	@DisplayName("store_profile: 축 4컬럼 · jsonb 태그 · text[] 종류가 그대로 돌아온다")
 	void storeProfile_roundTrip() {
 		Long storeId = activeStoreWithoutProfileId();
@@ -127,10 +145,11 @@ class RecommendationSchemaLabTest {
 			.axis(axis)
 			.axisSource(AxisSource.BOTH)
 			.breadType(axis.typeCode())
-			.tags(Map.of("테이크아웃", 0.8, "동네빵집", 0.6))
+			.tags(Map.of("웨이팅", 0.8, "특별한메뉴", 0.6))
 			.attrs(Map.of("parking", true, "newOpening", true))
 			.kinds(new String[] {"소금빵", "깜빠뉴"})
 			.signatureMenus(new String[] {"소금빵"})
+			.signatureKinds(new String[] {"소금빵", "크루아상"})
 			.bakeryScore(new BigDecimal("0.920"))
 			.reviewCount(143)
 			.ratingCount(16)
@@ -147,9 +166,10 @@ class RecommendationSchemaLabTest {
 		assertThat(found.hasAxis()).isTrue();
 		assertThat(found.getAxis()).isEqualTo(axis);
 		assertThat(found.getAxisSource()).isEqualTo(AxisSource.BOTH);
-		assertThat(found.getTags()).containsEntry("테이크아웃", 0.8);
+		assertThat(found.getTags()).containsEntry("웨이팅", 0.8);
 		assertThat(found.getAttrs()).containsEntry("newOpening", true);
 		assertThat(found.getKinds()).containsExactly("소금빵", "깜빠뉴");
+		assertThat(found.getSignatureKinds()).containsExactly("소금빵", "크루아상");
 		assertThat(found.getBakeryScore()).isEqualByComparingTo("0.920");
 		assertThat(found.getBatchVersion()).isEqualTo("v1");
 		assertThat(found.getBreadType()).isEqualTo(axis.typeCode());
@@ -183,7 +203,7 @@ class RecommendationSchemaLabTest {
 		profile.recompute(
 			TasteAxis.of(new BigDecimal("0.600"), new BigDecimal("0.400"), new BigDecimal("0.500"),
 				new BigDecimal("0.200")),
-			"PCLN", TasteTypeSource.SIGNAL, Map.of("카페형", 0.7), new String[] {"소금빵"},
+			"PCLN", TasteTypeSource.SIGNAL, Map.of("머물기", 0.7), new String[] {"소금빵"},
 			TasteUserType.PLANNER, 4, 2, COMPUTED_AT);
 		profile.applyQuiz(List.of(Map.of("axis", "taste", "choice", "B")), profile.getAxis(), "PFLN", COMPUTED_AT);
 		userTasteProfileRepository.save(profile);
