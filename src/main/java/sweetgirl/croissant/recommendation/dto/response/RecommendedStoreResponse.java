@@ -14,4 +14,10 @@ public record RecommendedStoreResponse(
 		double latitude,
 		double longitude,
 		String thumbnailImageKey) {
+
+	/** 이유 문장만 갈아끼운 사본 (#764) — 나머지는 룰이 정한 그대로여야 한다. 가게도 순서도 바뀌지 않는다 */
+	public RecommendedStoreResponse withReason(String reason) {
+		return new RecommendedStoreResponse(storeId, name, region3rd, reason, tasteFit, distanceToNextM,
+			latitude, longitude, thumbnailImageKey);
+	}
 }
