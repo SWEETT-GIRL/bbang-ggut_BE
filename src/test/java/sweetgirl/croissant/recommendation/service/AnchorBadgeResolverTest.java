@@ -39,15 +39,29 @@ class AnchorBadgeResolverTest {
 	}
 
 	@Test
-	@DisplayName("② 종류가 안 맞으면 둘 다 0.5 이상인 태그 중 곱이 가장 큰 태그 이름")
+	@DisplayName("② 종류가 안 맞으면 둘 다 0.5 를 넘는 태그 중 곱이 가장 큰 태그의 표시 문구")
 	void tagMatchSecond() {
 		TasteQuery taste = new TasteQuery(0.8, 0.8, 0.5, 0.5, Map.of("머물기", 0.6, "가성비", 0.9, "디저트", 0.9),
 			List.of("소금빵"), 4);
 		CandidateStoreRow store = row(0.9, 0.9, 0.9, 0.5, 0.5,
 			Map.of("머물기", 1.0, "가성비", 0.8, "디저트", 0.3), List.of("케이크"));
 
-		// 가성비 0.9×0.8 = 0.72 > 머물기 0.6×1.0 = 0.6, 디저트는 가게 쪽이 0.5 미만이라 빠진다
+		// 가성비 0.9×0.8 = 0.72 > 머물기 0.6×1.0 = 0.6, 디저트는 가게 쪽이 0.5 이하라 빠진다
 		assertThat(AnchorBadgeResolver.resolve(taste, store, RAW)).isEqualTo("가성비");
+	}
+
+	@Test
+	@DisplayName("② 0.5 는 보통 빵집(표가 없는 가게도 0.5)이라 칩을 붙이지 않는다 — 가게·사용자 어느 쪽이든 넘어야 한다")
+	void tagMatchNeedsAboveAverage() {
+		TasteQuery lover = new TasteQuery(0.9, 0.2, 0.1, 0.1, Map.of("가성비", 0.9), List.of(), 4);
+		TasteQuery average = new TasteQuery(0.9, 0.2, 0.1, 0.1, Map.of("가성비", 0.5), List.of(), 4);
+		CandidateStoreRow noVotes = row(0.8, 0.9, 0.9, 0.1, 0.1, Map.of("가성비", 0.5), List.of("케이크"));
+		CandidateStoreRow standsOut = row(0.8, 0.9, 0.9, 0.1, 0.1, Map.of("가성비", 0.51), List.of("케이크"));
+
+		// 칩이 안 붙으면 ③ 축 극 라벨로 내려간다
+		assertThat(AnchorBadgeResolver.resolve(lover, noVotes, RAW)).isEqualTo("담백");
+		assertThat(AnchorBadgeResolver.resolve(average, standsOut, RAW)).isEqualTo("담백");
+		assertThat(AnchorBadgeResolver.resolve(lover, standsOut, RAW)).isEqualTo("가성비");
 	}
 
 	@Test
