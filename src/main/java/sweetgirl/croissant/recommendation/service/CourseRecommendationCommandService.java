@@ -29,7 +29,6 @@ import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.service.CourseAccessPolicy;
 import sweetgirl.croissant.course.service.CourseCommandService;
 import sweetgirl.croissant.personalization.entity.UserTasteProfile;
-import sweetgirl.croissant.personalization.enums.BbtiType;
 import sweetgirl.croissant.personalization.repository.UserTasteProfileRepository;
 import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
 import sweetgirl.croissant.recommendation.code.RecommendationMessage;
@@ -354,11 +353,12 @@ public class CourseRecommendationCommandService {
 			CourseArea area, short day, UserTasteProfile profile, int profileVersion, List<CourseStore> activeStores,
 			Set<Long> excludeStoreIds, int storeCount) {
 		TasteQuery taste = TasteQuery.of(profile);
+		String title = RecommendationMessage.courseTitle(area.getName());
 		CandidatePool pool = poolFor(memberId, taste, area, excludeStoreIds);
 		if (pool.candidates().isEmpty()) {
 			// 저장할 게 없다 — 재사용될 결과도 없고 반응을 받을 것도 없다. 대신 다음 동네와 앵커로 넘길 가게를 알려 준다(#661)
 			RecommendationAreaSummary areaSummary = new RecommendationAreaSummary(area.getId(), area.getName());
-			RecommendationResult empty = new RecommendationResult(titleOf(area, profile), areaSummary, 0, false,
+			RecommendationResult empty = new RecommendationResult(title, areaSummary, 0, false,
 				storeCount, List.of(), true);
 			return RecommendationResponse.of(null, empty,
 				nextAreaOf(memberId, sessionId, taste, course, area, day, activeStores),
@@ -394,7 +394,8 @@ public class CourseRecommendationCommandService {
 				reasonOf(taste, row, fallback), tasteFitOf(row), distanceToNext, row.latitude(), row.longitude(),
 				row.thumbnailKey()));
 		}
-		RecommendationResult result = new RecommendationResult(titleOf(area, profile), areaSummary, totalDistanceM,
+		String title = RecommendationMessage.courseTitle(area.getName());
+		RecommendationResult result = new RecommendationResult(title, areaSummary, totalDistanceM,
 			fallback, storeCount, stores, lastBatch);
 		Recommendation saved = recommendationRepository.save(Recommendation.forArea(memberId, course.getId(),
 			area.getId(), day, profileVersion, Recommendation.RULE_PROVIDER, null, null, false, write(result),
@@ -606,13 +607,6 @@ public class CourseRecommendationCommandService {
 			}
 		}
 		return dayCount;
-	}
-
-	private static String titleOf(CourseArea area, UserTasteProfile profile) {
-		String typeLabel = profile != null && profile.hasType()
-			? BbtiType.fromCode(profile.getTypeCode()).getLabel()
-			: null;
-		return RecommendationMessage.courseTitle(area.getName(), typeLabel);
 	}
 
 	/** 중심에서 가장 가까운 곳부터 시작해 매번 남은 것 중 가장 가까운 곳으로 — 동선만 정리한다(다양성은 #661). */

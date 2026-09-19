@@ -19,7 +19,6 @@ import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.service.CourseAccessPolicy;
 import sweetgirl.croissant.personalization.config.PersonalizationProperties;
 import sweetgirl.croissant.personalization.entity.UserTasteProfile;
-import sweetgirl.croissant.personalization.enums.BbtiType;
 import sweetgirl.croissant.personalization.repository.TasteSignalJdbcRepository;
 import sweetgirl.croissant.personalization.repository.UserTasteProfileRepository;
 import sweetgirl.croissant.recommendation.config.RecommendationProperties;
@@ -63,12 +62,10 @@ public class RecommendationContextQueryService {
 		courseAccessPolicy.requireViewable(course, memberId, null);
 
 		Optional<UserTasteProfile> profile = userTasteProfileRepository.findById(memberId);
-		String typeLabel = profile.filter(UserTasteProfile::hasType)
-			.map(found -> BbtiType.fromCode(found.getTypeCode()).getLabel())
-			.orElse(null);
+		boolean hasType = profile.map(UserTasteProfile::hasType).orElse(false);
 		boolean quizTaken = profile.map(UserTasteProfile::hasTakenQuiz).orElse(false);
 
-		RecommendationContextState state = typeLabel != null
+		RecommendationContextState state = hasType
 			|| tasteSignalJdbcRepository.countStrongSignalStores(memberId) >= personalizationProperties
 				.getStrongSignalStoresForChips()
 					? RecommendationContextState.CHIPS
@@ -77,7 +74,7 @@ public class RecommendationContextQueryService {
 			&& breadRecordRepository.countByMemberIdAndDeletedAtIsNull(memberId) == 0;
 
 		return new RecommendationContextResponse(state, showAccuracyLink,
-			areasOf(course, memberId, sessionId, TasteQuery.of(profile.orElse(null))), typeLabel);
+			areasOf(course, memberId, sessionId, TasteQuery.of(profile.orElse(null))));
 	}
 
 	/**

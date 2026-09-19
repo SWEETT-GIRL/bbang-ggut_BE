@@ -58,7 +58,7 @@ class AdminReasonExperimentControllerTest {
 	}
 
 	private static ReasonExperimentResponse measured() {
-		ReasonExperimentInput input = new ReasonExperimentInput(7L, "성수동", "PCLN", "뉴웨이브 미니멀", true, false,
+		ReasonExperimentInput input = new ReasonExperimentInput(7L, "성수동", "PCLN", true, false,
 			List.of(new ReasonExperimentStore(1L, "밀도", "성수동2가", 0.71, "이 동네에서 자주 담기는 빵집이에요")));
 		ReasonExperimentRun run = new ReasonExperimentRun("GEMINI/gemini-3.5-flash-lite/A",
 			LlmProvider.GEMINI, "gemini-3.5-flash-lite", ReasonPromptVariant.A, 3, 0, 640L, 812L, 700, 48, 0, 1_200,

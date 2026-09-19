@@ -11,7 +11,6 @@ public record ReasonExperimentInput(
 		Long areaId,
 		String areaName,
 		String typeCode,
-		String typeLabel,
 		boolean hasAxis,
 		boolean tasteFallback,
 		List<ReasonExperimentStore> stores) {

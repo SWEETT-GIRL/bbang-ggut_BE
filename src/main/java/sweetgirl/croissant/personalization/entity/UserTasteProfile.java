@@ -47,7 +47,7 @@ public class UserTasteProfile extends BaseTimeEntity {
 
 	/**
 	 * 이 사용자의 빵 취향 타입 — 4글자 코드. {@code store_profile.bread_type} 과 같은 체계라 그대로 비교한다.
-	 * 규칙은 {@link TasteAxis#typeCode()} 한 곳에 있다. 화면에 보이는 이름은 #660 의 BbtiType 이 코드에서 찾는다.
+	 * 규칙은 {@link TasteAxis#typeCode()} 한 곳에 있다. 화면에 보이는 유형 이름은 없다(#760).
 	 */
 	@Column(name = "type_code", length = 4)
 	private String typeCode;

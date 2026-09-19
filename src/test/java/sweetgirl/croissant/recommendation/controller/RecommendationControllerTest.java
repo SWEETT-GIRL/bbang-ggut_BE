@@ -70,12 +70,12 @@ class RecommendationControllerTest {
 	}
 
 	@Test
-	@DisplayName("컨텍스트: state·showAccuracyLink·areas[{areaId,name,reason,storeCount}]·typeLabel 이 FE 계약 그대로다")
+	@DisplayName("컨텍스트: state·showAccuracyLink·areas[{areaId,name,reason,storeCount}] 가 FE 계약이다 — typeLabel 없음(#760)")
 	void getContext_returnsContractShape() throws Exception {
 		given(recommendationContextQueryService.getContext(null, 10L, null))
 			.willReturn(new RecommendationContextResponse(
 				RecommendationContextState.CHIPS, true,
-				List.of(new RecommendationAreaResponse(5L, "성수동", RecommendationAreaReason.SAVED, 42)), "뉴웨이브 미니멀"));
+				List.of(new RecommendationAreaResponse(5L, "성수동", RecommendationAreaReason.SAVED, 42))));
 
 		mockMvc.perform(get("/courses/10/recommendation-context"))
 			.andExpect(status().isOk())
@@ -84,14 +84,14 @@ class RecommendationControllerTest {
 			.andExpect(jsonPath("$.data.areas[0].areaId").value(5))
 			.andExpect(jsonPath("$.data.areas[0].reason").value("SAVED"))
 			.andExpect(jsonPath("$.data.areas[0].storeCount").value(42))
-			.andExpect(jsonPath("$.data.typeLabel").value("뉴웨이브 미니멀"));
+			.andExpect(jsonPath("$.data.typeLabel").doesNotExist());
 	}
 
 	@Test
 	@DisplayName("컨텍스트: 세션 id 헤더(X-Session-Id)가 다듬어져 서비스로 간다 — 공백은 잘리고 비어 있으면 null")
 	void getContext_passesSessionIdHeader() throws Exception {
 		given(recommendationContextQueryService.getContext(eq(null), eq(10L), eq("amp-1726000000")))
-			.willReturn(new RecommendationContextResponse(RecommendationContextState.CHIPS, false, List.of(), null));
+			.willReturn(new RecommendationContextResponse(RecommendationContextState.CHIPS, false, List.of()));
 
 		mockMvc.perform(get("/courses/10/recommendation-context").header("X-Session-Id", " amp-1726000000 "))
 			.andExpect(status().isOk());
