@@ -1,10 +1,12 @@
 package sweetgirl.croissant.recommendation.repository;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import sweetgirl.croissant.personalization.entity.UserTasteProfile;
+import sweetgirl.croissant.personalization.enums.GenericKind;
 
 /**
  * 후보 SQL 에 넘기는 사용자 취향(#661): 4축(없으면 null) · 태그 가중치(0~1, 12종) · 상위 빵 종류.
@@ -32,7 +34,10 @@ public record TasteQuery(
 		Map<String, Double> tags = profile.getTags() == null ? Map.of() : profile.getTags().entrySet().stream()
 			.filter(entry -> entry.getValue() != null && entry.getValue() > 0)
 			.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-		List<String> topKinds = profile.getTopKinds() == null ? List.of() : List.of(profile.getTopKinds());
+		// 계산기가 이미 일반 종류를 빼지만, 그 전에 계산된 프로필에는 남아 있을 수 있다 — 조회 입구에서 한 번 더 막는다
+		List<String> topKinds = profile.getTopKinds() == null ? List.of() : Arrays.stream(profile.getTopKinds())
+			.filter(kind -> !GenericKind.isGeneric(kind))
+			.toList();
 		if (!profile.hasAxis()) {
 			return new TasteQuery(null, null, null, null, tags, topKinds);
 		}

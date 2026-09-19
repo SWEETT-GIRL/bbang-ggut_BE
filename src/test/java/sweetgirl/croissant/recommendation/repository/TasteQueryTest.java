@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import sweetgirl.croissant.personalization.entity.TasteAxis;
 import sweetgirl.croissant.personalization.entity.UserTasteProfile;
+import sweetgirl.croissant.personalization.enums.TasteUserType;
 
 class TasteQueryTest {
 
@@ -45,5 +46,16 @@ class TasteQueryTest {
 		assertThat(query.texture()).isEqualTo(-0.25);
 		assertThat(query.filling()).isZero();
 		assertThat(query.vibe()).isEqualTo(1.0);
+	}
+
+	@Test
+	@DisplayName("일반 종류가 남은 프로필(계산기 수정 전 계산분)도 조회 입구에서 거른다 — 순서는 그대로")
+	void ofProfile_dropsGenericKinds() {
+		LocalDateTime now = LocalDateTime.of(2026, 9, 19, 18, 0);
+		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, now);
+		profile.recompute(null, null, null, Map.of(), new String[] {"빵", "소금빵", "기타", "휘낭시에", "요거트"},
+			TasteUserType.BROWSER, 1, 5, now);
+
+		assertThat(TasteQuery.of(profile).topKinds()).containsExactly("소금빵", "휘낭시에");
 	}
 }

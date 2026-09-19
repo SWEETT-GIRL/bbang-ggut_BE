@@ -256,6 +256,26 @@ class TasteProfileCalculatorTest {
 	}
 
 	@Test
+	@DisplayName("일반 종류(빵 · 기타 · 요거트)는 top_kinds 에 넣지 않는다 — 기록 수에는 그대로 센다")
+	void topKinds_skipsGenericKinds() {
+		TasteProfileSnapshot snapshot = calculator.calculate(List.of(
+			bread(1, "빵", NOW), bread(1, "빵", NOW), bread(1, "빵", NOW), bread(2, "기타", NOW),
+			bread(2, "요거트", NOW), bread(3, "소금빵", NOW)), null, null, 0, NOW);
+
+		assertThat(snapshot.topKinds()).containsExactly("소금빵");
+		assertThat(snapshot.breadSignalCount()).isEqualTo(6);
+	}
+
+	@Test
+	@DisplayName("일반 종류만 기록한 회원은 종류 기록이 없는 회원과 같다")
+	void topKinds_onlyGenericKinds_isNull() {
+		TasteProfileSnapshot snapshot = calculator.calculate(List.of(bread(1, "빵", NOW), bread(2, "기타", NOW)),
+			null, null, 0, NOW);
+
+		assertThat(snapshot.topKinds()).isNull();
+	}
+
+	@Test
 	@DisplayName("사용자 유형(90일): 담기 5 → PLANNER, 기록 5 → ARCHIVER, 방문 3 → DOER, 저장 10·비율 ≥0.5 → COLLECTOR, 그 외 BROWSER")
 	void userType_rulesInOrder() {
 		LocalDateTime recent = NOW.minusDays(1);

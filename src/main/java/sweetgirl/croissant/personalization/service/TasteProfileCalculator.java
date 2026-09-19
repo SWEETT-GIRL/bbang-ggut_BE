@@ -19,6 +19,7 @@ import org.springframework.stereotype.Component;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.personalization.config.PersonalizationProperties;
 import sweetgirl.croissant.personalization.entity.TasteAxis;
+import sweetgirl.croissant.personalization.enums.GenericKind;
 import sweetgirl.croissant.personalization.enums.InteractionType;
 import sweetgirl.croissant.personalization.enums.QuizAxis;
 import sweetgirl.croissant.personalization.enums.TasteTag;
@@ -194,7 +195,9 @@ public class TasteProfileCalculator {
 			PersonalizationProperties.Profile profile) {
 		Map<String, Double> score = new HashMap<>();
 		for (TasteSignal signal : signals) {
-			if (signal.type() == InteractionType.RECORD_BREAD && signal.kind() != null) {
+			// 일반 종류(빵 · 기타 · 요거트)는 취향을 말해 주지 않는다 — 여기서 빼야 상위 다섯 자리를 낭비하지 않는다
+			if (signal.type() == InteractionType.RECORD_BREAD && signal.kind() != null
+				&& !GenericKind.isGeneric(signal.kind())) {
 				score.merge(signal.kind(), decay(signal.occurredAt(), now, profile), Double::sum);
 			}
 		}

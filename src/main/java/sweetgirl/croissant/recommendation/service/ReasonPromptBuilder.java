@@ -16,6 +16,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
 import sweetgirl.croissant.personalization.enums.BbtiType;
+import sweetgirl.croissant.personalization.enums.GenericKind;
 import sweetgirl.croissant.personalization.enums.TasteTag;
 import sweetgirl.croissant.recommendation.config.RecommendationProperties;
 import sweetgirl.croissant.recommendation.enums.ReasonPromptVariant;
@@ -104,7 +105,7 @@ public class ReasonPromptBuilder {
 				}
 			}
 			block.append("   태그: ").append(joinOrNone(sortedByWeight(row.tags()))).append("\n");
-			block.append("   빵 종류: ").append(joinOrNone(limit(row.kinds())));
+			block.append("   빵 종류: ").append(joinOrNone(limit(specificKinds(row.kinds()))));
 			if (variant.isIncludesRuleEvidence()) {
 				block.append("\n   선정 근거: ").append(evidenceText(taste, row));
 			}
@@ -160,6 +161,14 @@ public class ReasonPromptBuilder {
 		}
 		Set<String> otherKinds = new LinkedHashSet<>(other);
 		return kinds.stream().filter(otherKinds::contains).toList();
+	}
+
+	/** 가게 종류에서 일반 종류(빵 · 기타 · 요거트)를 뺀다 — 넣으면 "기타·빵을 파는 곳" 같은 문장이 나온다 */
+	private static List<String> specificKinds(List<String> kinds) {
+		if (kinds == null) {
+			return List.of();
+		}
+		return kinds.stream().filter(kind -> !GenericKind.isGeneric(kind)).toList();
 	}
 
 	private static List<String> limit(List<String> values) {

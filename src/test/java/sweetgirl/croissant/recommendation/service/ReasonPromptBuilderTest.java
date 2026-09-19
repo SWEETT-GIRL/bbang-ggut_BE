@@ -88,6 +88,21 @@ class ReasonPromptBuilderTest {
 	}
 
 	@Test
+	@DisplayName("가게 빵 종류 줄에서 일반 종류(빵 · 기타 · 요거트)를 뺀다 — 그것만 있으면 없음")
+	void storeKinds_dropGenericKinds() {
+		CandidateStoreRow mixed = new CandidateStoreRow(1L, "밀도", "성수동2가", 37.5, 127.05, null, 120, 3.4, 1.2, 0.71,
+			5, 0.5, 0.8, -0.2, 0.4, Map.of(), List.of("빵", "소금빵", "기타", "깜빠뉴", "요거트"));
+		CandidateStoreRow genericOnly = new CandidateStoreRow(2L, "베통", "성수동2가", 37.5, 127.05, null, 120, 3.4, 1.2,
+			0.12, 5, 0.5, 0.8, -0.2, 0.4, Map.of(), List.of("빵", "기타"));
+
+		String prompt = promptBuilder.build(ReasonPromptVariant.A, taste(), "PCLN", List.of(mixed, genericOnly),
+			Map.of());
+
+		assertThat(prompt).contains("   빵 종류: 소금빵, 깜빠뉴\n", "   빵 종류: 없음");
+		assertThat(prompt).doesNotContain("빵 종류: 빵", "기타", "요거트");
+	}
+
+	@Test
 	@DisplayName("태그도 종류도 없는 회원이면 없음이 된다")
 	void emptyTaste_isWrittenAsNone() {
 		String prompt = promptBuilder.build(ReasonPromptVariant.A, TasteQuery.empty(), null,
