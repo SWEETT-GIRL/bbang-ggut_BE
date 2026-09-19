@@ -157,8 +157,10 @@ public class ReasonExperimentService {
 				modelRefs.add(modelRef);
 			}
 		}
-		if (modelRefs.size() * new LinkedHashSet<>(variants).size() * repeatsOf(request) > experimentProperties
-			.getMaxCalls()) {
+		int warmUpCalls = experimentProperties.isWarmUp()
+			? (int)modelRefs.stream().map(ModelRef::provider).distinct().count() : 0;
+		int calls = modelRefs.size() * new LinkedHashSet<>(variants).size() * repeatsOf(request) + warmUpCalls;
+		if (calls > experimentProperties.getMaxCalls()) {
 			throw new RecommendationException(RecommendationErrorCode.EXPERIMENT_TOO_MANY_COMBINATIONS);
 		}
 

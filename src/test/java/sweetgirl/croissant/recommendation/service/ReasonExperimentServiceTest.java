@@ -307,6 +307,25 @@ class ReasonExperimentServiceTest {
 	}
 
 	@Test
+	@DisplayName("워밍업도 상한에 센다 — 켜져 있으면 벤더당 1회가 더해진다")
+	void run_countsWarmUpCallsTowardsCap() {
+		experimentProperties.setWarmUp(true);
+		experimentProperties.setMaxCalls(2);
+		givenAnswer("문장 1", "문장 2");
+		ReasonExperimentRequest twoVendors = request(List.of("GEMINI:a", "OPENAI:b"), List.of(ReasonPromptVariant.A),
+			false);
+
+		// 조합 2 + 워밍업 2 = 4 > 2
+		assertThatThrownBy(() -> service.run(twoVendors))
+			.isInstanceOf(RecommendationException.class)
+			.hasFieldOrPropertyWithValue("errorCode", RecommendationErrorCode.EXPERIMENT_TOO_MANY_COMBINATIONS);
+
+		// 워밍업을 끄면 조합 2 뿐이라 들어간다
+		experimentProperties.setWarmUp(false);
+		assertThat(service.run(twoVendors).runs()).hasSize(2);
+	}
+
+	@Test
 	@DisplayName("조합 상한을 넘으면 돌리기 전에 막는다 — 비용 가드")
 	void run_rejectsTooManyCombinations() {
 		experimentProperties.setMaxCalls(1);

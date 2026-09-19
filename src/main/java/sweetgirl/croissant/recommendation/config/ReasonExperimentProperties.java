@@ -40,8 +40,9 @@ public class ReasonExperimentProperties {
 		ReasonPromptVariant.A, ReasonPromptVariant.B, ReasonPromptVariant.D);
 
 	/**
-	 * 한 요청이 낼 수 있는 호출 수 상한 — 비용 가드. <b>모델 × 변형 × 반복</b>이 이 수를 넘으면 돌리기 전에 400.
-	 * 기본 판(모델 3 × 변형 3 × 반복 3 = 27)이 들어가고 조금 여유가 있는 값.
+	 * 한 요청이 낼 수 있는 호출 수 상한 — 비용 가드. <b>모델 × 변형 × 반복 + 워밍업(켜져 있으면 벤더당 1회)</b>이 이 수를
+	 * 넘으면 돌리기 전에 400. 워밍업도 실제로 나가는 호출이라 센다(#758 리뷰). 기본 판(모델 3 × 변형 3 × 반복 3 = 27, 벤더 3 의
+	 * 워밍업 3 → 30)이 딱 들어가는 값.
 	 */
 	@Min(1)
 	private int maxCalls = 30;
