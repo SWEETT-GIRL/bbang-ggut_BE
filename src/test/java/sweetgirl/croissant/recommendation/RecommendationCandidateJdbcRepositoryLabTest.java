@@ -121,7 +121,7 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 	@Test
 	@DisplayName("점수식(#661): 취향 쿼리를 주면 코사인이 실리고 점수순이며, 풀의 취향 후보 수가 모든 행에 같이 실린다. 빵집다움 하한 미만은 없다")
 	void areaCandidates_scoredByTaste() {
-		TasteQuery saltyCrisp = new TasteQuery(0.8, 0.8, 0.3, 0.3, Map.of("머물기", 1.0), List.of("소금빵"), 4);
+		TasteQuery saltyCrisp = new TasteQuery(0.8, 0.8, 0.3, 0.3, Map.of("머물기", 1.0), List.of("소금빵"), 4, List.of());
 
 		List<CandidateStoreRow> rows = candidateRepository.findAreaCandidates(
 			LAB_MEMBER, saltyCrisp, SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, null, null, null, List.of(), 15);
@@ -150,7 +150,8 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 	void areaCandidates_kindAndTagRaiseScore() {
 		List<CandidateStoreRow> plain = candidateRepository.findAreaCandidates(
 			LAB_MEMBER, TasteQuery.empty(), SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, null, null, null, List.of(), 50);
-		TasteQuery saltyLover = new TasteQuery(null, null, null, null, Map.of("머물기", 1.0), List.of("소금빵"), 4);
+		TasteQuery saltyLover = new TasteQuery(null, null, null, null, Map.of("머물기", 1.0), List.of("소금빵"), 4,
+			List.of());
 		List<CandidateStoreRow> withKinds = candidateRepository.findAreaCandidates(
 			LAB_MEMBER, saltyLover, SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, null, null, null, List.of(), 50);
 
@@ -326,7 +327,7 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 			inSeongsu.get(0), now);
 		CourseArea seongsu = courseAreaRepository.save(CourseArea.create("서울", "성수동(신호)", "성수동(신호)", null,
 			SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, RADIUS_M, null, null, 9));
-		TasteQuery saltyCrisp = new TasteQuery(0.8, 0.8, 0.3, 0.3, Map.of(), List.of(), 0);
+		TasteQuery saltyCrisp = new TasteQuery(0.8, 0.8, 0.3, 0.3, Map.of(), List.of(), 0, List.of());
 
 		AreaChipStats bySession = candidateRepository.findAreaChipStats(memberId, "lab-session", saltyCrisp,
 			List.of(seongsu)).get(seongsu.getId());

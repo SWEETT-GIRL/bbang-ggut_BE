@@ -174,7 +174,7 @@ class ReasonLlmLatencyMeasurementTest {
 	/** 담백·바삭·심플·트렌디 쪽 회원 — 뉴웨이브 미니멀(PCLN) */
 	private static TasteQuery taste() {
 		return new TasteQuery(0.62, 0.41, 0.38, 0.22,
-			Map.of("특별한메뉴", 0.9, "건강한맛", 0.5, "웨이팅", 0.3), List.of("소금빵", "바게트", "깜빠뉴"), 4);
+			Map.of("특별한메뉴", 0.9, "건강한맛", 0.5, "웨이팅", 0.3), List.of("소금빵", "바게트", "깜빠뉴"), 4, List.of());
 	}
 
 	private static List<CandidateStoreRow> stores() {

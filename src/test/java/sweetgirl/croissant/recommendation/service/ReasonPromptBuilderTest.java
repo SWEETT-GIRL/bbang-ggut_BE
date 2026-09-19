@@ -23,7 +23,7 @@ class ReasonPromptBuilderTest {
 
 	private static TasteQuery taste() {
 		return new TasteQuery(0.62, 0.31, -0.55, 0.08,
-			Map.of("특별한메뉴", 0.9, "건강한맛", 0.4, "대형", 0.2), List.of("소금빵", "바게트"), 4);
+			Map.of("특별한메뉴", 0.9, "건강한맛", 0.4, "대형", 0.2), List.of("소금빵", "바게트"), 4, List.of());
 	}
 
 	private static CandidateStoreRow store(long storeId, String name, double tasteFit) {
@@ -107,7 +107,7 @@ class ReasonPromptBuilderTest {
 	@Test
 	@DisplayName("강한 신호 가게가 4곳 미만이면 회원 태그를 없음으로 쓴다 — D 의 겹치는 태그도. 종류와 가게 태그 줄은 그대로")
 	void thinEvidence_hidesMemberTags() {
-		TasteQuery thin = new TasteQuery(0.62, 0.31, -0.55, 0.08, Map.of("특별한메뉴", 0.9), List.of("소금빵"), 3);
+		TasteQuery thin = new TasteQuery(0.62, 0.31, -0.55, 0.08, Map.of("특별한메뉴", 0.9), List.of("소금빵"), 3, List.of());
 
 		String prompt = promptBuilder.build(ReasonPromptVariant.D, thin, List.of(store(1L, "밀도", 0.71)),
 			Map.of());
@@ -122,7 +122,7 @@ class ReasonPromptBuilderTest {
 	@DisplayName("태그는 배지와 같은 문턱을 넘는 것만 쓴다 — 0.5(보통 빵집 · 표 없는 가게)나 그 아래는 나열하지 않는다")
 	void onlyNotableTagsAreListed() {
 		Map<String, Double> tags = Map.of("머물기", 0.51, "가성비", 0.5, "디저트", 0.3, "웨이팅", 0.0);
-		TasteQuery member = new TasteQuery(0.62, 0.31, -0.55, 0.08, tags, List.of("소금빵"), 4);
+		TasteQuery member = new TasteQuery(0.62, 0.31, -0.55, 0.08, tags, List.of("소금빵"), 4, List.of());
 		CandidateStoreRow store = new CandidateStoreRow(1L, "밀도", "성수동2가", 37.5, 127.05, null, 120, 3.4, 1.2, 0.71,
 			5, 0.5, 0.8, -0.2, 0.4, Map.of("머물기", 0.9, "가성비", 0.9, "디저트", 0.9), List.of("소금빵"), List.of());
 
@@ -148,7 +148,8 @@ class ReasonPromptBuilderTest {
 	void notableThresholdFollowsConfig() {
 		RecommendationProperties stricter = new RecommendationProperties();
 		stricter.getScore().getMemberNotableTagAbove().put("머물기", 0.6);
-		TasteQuery member = new TasteQuery(0.62, 0.31, -0.55, 0.08, Map.of("머물기", 0.51, "가성비", 0.9), List.of(), 4);
+		TasteQuery member = new TasteQuery(0.62, 0.31, -0.55, 0.08, Map.of("머물기", 0.51, "가성비", 0.9), List.of(), 4,
+			List.of());
 
 		String prompt = new ReasonPromptBuilder(stricter).build(ReasonPromptVariant.A, member,
 			List.of(store(1L, "밀도", 0.71)), Map.of());

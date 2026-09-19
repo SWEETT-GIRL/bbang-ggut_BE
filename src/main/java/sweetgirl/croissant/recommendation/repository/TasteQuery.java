@@ -15,6 +15,7 @@ import sweetgirl.croissant.personalization.enums.TasteTag;
  * 취향 폴백(취향 후보 3곳 미만)은 {@link #empty()} 로 다시 조회한다 — 취향 항을 전부 뺀다.
  *
  * <p>강한 신호 가게 수는 SQL 에 넘기지 않는다 — 태그를 문구에 써도 되는지({@link #reasonTags(int)}) 가르는 데만 쓴다.
+ * 추정 종류(inferredKinds, #762)도 SQL 에 넘기지 않는다 — 점수가 아니라 "{종류} 취향" 배지에만 쓴다(점수에 넣을지는 측정 뒤).
  */
 public record TasteQuery(
 		Double taste,
@@ -23,9 +24,10 @@ public record TasteQuery(
 		Double vibe,
 		Map<String, Double> tags,
 		List<String> topKinds,
-		int strongStoreCount) {
+		int strongStoreCount,
+		List<String> inferredKinds) {
 
-	private static final TasteQuery EMPTY = new TasteQuery(null, null, null, null, Map.of(), List.of(), 0);
+	private static final TasteQuery EMPTY = new TasteQuery(null, null, null, null, Map.of(), List.of(), 0, List.of());
 
 	public static TasteQuery empty() {
 		return EMPTY;
@@ -47,12 +49,16 @@ public record TasteQuery(
 		List<String> topKinds = profile.getTopKinds() == null ? List.of() : Arrays.stream(profile.getTopKinds())
 			.filter(kind -> !GenericKind.isGeneric(kind))
 			.toList();
+		List<String> inferredKinds = profile.getInferredKinds() == null ? List.of()
+			: Arrays.stream(profile.getInferredKinds())
+				.filter(kind -> !GenericKind.isGeneric(kind))
+				.toList();
 		if (!profile.hasAxis()) {
-			return new TasteQuery(null, null, null, null, tags, topKinds, profile.getStrongStoreCount());
+			return new TasteQuery(null, null, null, null, tags, topKinds, profile.getStrongStoreCount(), inferredKinds);
 		}
 		return new TasteQuery(profile.getAxis().getTaste().doubleValue(), profile.getAxis().getTexture().doubleValue(),
 			profile.getAxis().getFilling().doubleValue(), profile.getAxis().getVibe().doubleValue(), tags, topKinds,
-			profile.getStrongStoreCount());
+			profile.getStrongStoreCount(), inferredKinds);
 	}
 
 	/**

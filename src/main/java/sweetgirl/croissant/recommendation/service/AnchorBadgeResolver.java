@@ -12,11 +12,18 @@ import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
 import sweetgirl.croissant.recommendation.repository.TasteQuery;
 
 /**
- * 앵커 카드 배지(#661 · 09-13 확정 우선순위): ① 사용자 top_kinds ∩ 가게 kinds → "{종류} 취향"
- * ② 회원 태그가 태그별 문턱({@code memberNotableTagAbove})을, 가게 태그가 {@code storeNotableTagAbove}(0.6)를 넘는 태그 중 곱이
- * 가장 큰 것 → 그 태그의 표시 문구. 강한 신호 가게가
- * {@code minStrongStoresForTagReason} 곳 미만인 회원은 건너뛴다 ③ 코사인이 임계를 넘으면 기여(u_i·s_i)가 가장 큰 축의
- * 사용자 극 라벨 ④ 그 밖엔 "이 동네 시그니처".
+ * 앵커 카드 배지 — 빵 종류가 먼저다(#762). 종류 이름 하나에 맛 · 식감 · 속 · 스타일이 다 들어 있고 가게마다 달라, 회원의 극을
+ * 말하는 축 라벨("담백")이나 인기와 같이 가는 태그("특별한 메뉴")보다 이유 구실을 한다(랩 09-20: 화면당 서로 다른 배지 2.85 → 3.86).
+ * <ol>
+ * <li>기록 종류(top_kinds) ∩ 가게 <b>대표 종류</b>(signature_kinds) → "{종류} 취향"</li>
+ * <li>추정 종류(좋아한 가게들의 대표 종류, inferred_kinds) ∩ 가게 대표 종류 → "{종류} 취향"</li>
+ * <li>회원 태그가 태그별 문턱({@code memberNotableTagAbove})을, 가게 태그가 {@code storeNotableTagAbove}(0.6)를 넘는 태그 중 곱이
+ * 가장 큰 것 → 그 태그의 표시 문구. 강한 신호 가게가 {@code minStrongStoresForTagReason} 곳 미만인 회원은 건너뛴다</li>
+ * <li>코사인이 임계를 넘으면 기여(u_i·s_i)가 가장 큰 축의 사용자 극 라벨</li>
+ * <li>그 밖엔 "이 동네 시그니처"</li>
+ * </ol>
+ * 가게 쪽을 메뉴 전체(kinds)가 아니라 대표 종류로 맞추는 이유: 메뉴에 소금빵이 하나 있다고 "소금빵 취향" 을 붙이면 사실보다 넓다.
+ * 대표 종류면 "이 가게는 소금빵으로 알려졌다" 가 된다.
  * SQL 이 아니라 자바에서 정한다 — 행에 축·태그·종류가 실려 오고, 규칙이 바뀌어도 SQL 을 안 건드린다.
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
@@ -24,7 +31,12 @@ public final class AnchorBadgeResolver {
 
 	public static String resolve(TasteQuery taste, CandidateStoreRow row, RecommendationProperties.Score score) {
 		for (String kind : taste.topKinds()) {
-			if (row.kinds().contains(kind)) {
+			if (row.signatureKinds().contains(kind)) {
+				return AnchorReasonTag.KIND_MATCH.label(kind);
+			}
+		}
+		for (String kind : taste.inferredKinds()) {
+			if (row.signatureKinds().contains(kind)) {
 				return AnchorReasonTag.KIND_MATCH.label(kind);
 			}
 		}
