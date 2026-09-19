@@ -13,19 +13,13 @@ import sweetgirl.croissant.recommendation.repository.TasteQuery;
 
 /**
  * 앵커 카드 배지(#661 · 09-13 확정 우선순위): ① 사용자 top_kinds ∩ 가게 kinds → "{종류} 취향"
- * ② 사용자·가게 태그 둘 다 0.5 를 넘는 태그 중 곱이 가장 큰 것 → 그 태그의 표시 문구. 강한 신호 가게가
+ * ② 사용자·가게 태그 둘 다 {@code notableTagAbove}(기본 0.5)를 넘는 태그 중 곱이 가장 큰 것 → 그 태그의 표시 문구. 강한 신호 가게가
  * {@code minStrongStoresForTagReason} 곳 미만인 회원은 건너뛴다 ③ 코사인이 임계를 넘으면 기여(u_i·s_i)가 가장 큰 축의
  * 사용자 극 라벨 ④ 그 밖엔 "이 동네 시그니처".
  * SQL 이 아니라 자바에서 정한다 — 행에 축·태그·종류가 실려 오고, 규칙이 바뀌어도 SQL 을 안 건드린다.
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class AnchorBadgeResolver {
-
-	/**
-	 * 태그 칩은 사용자·가게 값이 둘 다 이 값을 <b>넘어야</b> 붙는다. v5 투표 태그는 0.5 가 보통 빵집이고 표가 하나도 없는 가게도
-	 * 정확히 0.5 라, "이상" 이면 아무도 누르지 않은 가게에도 칩이 붙는다(09-19 사용자 결정: 태그 구분 없이 0.5 초과).
-	 */
-	static final double TAG_MATCH_ABOVE = 0.5;
 
 	public static String resolve(TasteQuery taste, CandidateStoreRow row, RecommendationProperties.Score score) {
 		for (String kind : taste.topKinds()) {
@@ -35,11 +29,12 @@ public final class AnchorBadgeResolver {
 		}
 		TasteTag bestTag = null;
 		double bestProduct = 0;
+		double notableAbove = score.getNotableTagAbove();
 		for (Map.Entry<String, Double> userTag : taste.reasonTags(score.getMinStrongStoresForTagReason()).entrySet()) {
 			Optional<TasteTag> tag = TasteTag.fromKey(userTag.getKey());
 			Double storeValue = row.tags().get(userTag.getKey());
-			if (tag.isPresent() && userTag.getValue() > TAG_MATCH_ABOVE && storeValue != null
-				&& storeValue > TAG_MATCH_ABOVE && userTag.getValue() * storeValue > bestProduct) {
+			if (tag.isPresent() && userTag.getValue() > notableAbove && storeValue != null
+				&& storeValue > notableAbove && userTag.getValue() * storeValue > bestProduct) {
 				bestTag = tag.get();
 				bestProduct = userTag.getValue() * storeValue;
 			}

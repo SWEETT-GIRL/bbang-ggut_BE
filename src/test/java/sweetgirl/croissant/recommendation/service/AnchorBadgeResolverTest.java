@@ -65,6 +65,20 @@ class AnchorBadgeResolverTest {
 	}
 
 	@Test
+	@DisplayName("② 문턱은 설정값이다 — 0.6 으로 올리면 0.55 인 가게에는 칩이 붙지 않는다")
+	void tagMatchThresholdIsConfigurable() {
+		RecommendationProperties.Score stricter = rules(false);
+		stricter.setNotableTagAbove(0.6);
+		TasteQuery lover = new TasteQuery(0.9, 0.2, 0.1, 0.1, Map.of("가성비", 0.9), List.of(), 4);
+		CandidateStoreRow slightlyAbove = row(0.8, 0.9, 0.9, 0.1, 0.1, Map.of("가성비", 0.55), List.of("케이크"));
+		CandidateStoreRow clearlyAbove = row(0.8, 0.9, 0.9, 0.1, 0.1, Map.of("가성비", 0.8), List.of("케이크"));
+
+		assertThat(AnchorBadgeResolver.resolve(lover, slightlyAbove, RAW)).isEqualTo("가성비");
+		assertThat(AnchorBadgeResolver.resolve(lover, slightlyAbove, stricter)).isEqualTo("담백");
+		assertThat(AnchorBadgeResolver.resolve(lover, clearlyAbove, stricter)).isEqualTo("가성비");
+	}
+
+	@Test
 	@DisplayName("② 태그 칩은 데이터 키가 아니라 표시 문구다 — 머물기 → '머물기 좋은', 공간사진 → '사진'")
 	void tagMatchShowsLabel() {
 		TasteQuery taste = new TasteQuery(0.9, 0.2, 0.1, 0.1, Map.of("머물기", 0.9), List.of(), 4);
