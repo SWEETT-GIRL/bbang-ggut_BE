@@ -144,10 +144,10 @@ class ReasonPromptBuilderTest {
 	}
 
 	@Test
-	@DisplayName("문턱은 설정값을 따른다 — 0.6 으로 올리면 0.51 인 태그는 빠진다")
+	@DisplayName("회원 문턱은 태그별 설정값을 따른다 — 머물기를 0.6 으로 올리면 0.51 인 머물기는 빠진다")
 	void notableThresholdFollowsConfig() {
 		RecommendationProperties stricter = new RecommendationProperties();
-		stricter.getScore().setNotableTagAbove(0.6);
+		stricter.getScore().getMemberNotableTagAbove().put("머물기", 0.6);
 		TasteQuery member = new TasteQuery(0.62, 0.31, -0.55, 0.08, Map.of("머물기", 0.51, "가성비", 0.9), List.of(), 4);
 
 		String prompt = new ReasonPromptBuilder(stricter).build(ReasonPromptVariant.A, member,

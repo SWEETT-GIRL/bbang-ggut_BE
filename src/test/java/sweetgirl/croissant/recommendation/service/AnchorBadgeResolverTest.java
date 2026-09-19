@@ -51,26 +51,42 @@ class AnchorBadgeResolverTest {
 	}
 
 	@Test
-	@DisplayName("② 0.5 는 보통 빵집(표가 없는 가게도 0.5)이라 칩을 붙이지 않는다 — 가게·사용자 어느 쪽이든 넘어야 한다")
-	void tagMatchNeedsAboveAverage() {
+	@DisplayName("② 가게 문턱은 0.6 초과 — 0.5(보통 빵집 · 표 없는 가게)부터 0.6 까지는 표 몇 개 차이라 칩을 붙이지 않는다")
+	void tagMatchNeedsStoreAboveThreshold() {
 		TasteQuery lover = new TasteQuery(0.9, 0.2, 0.1, 0.1, Map.of("가성비", 0.9), List.of(), 4);
-		TasteQuery average = new TasteQuery(0.9, 0.2, 0.1, 0.1, Map.of("가성비", 0.5), List.of(), 4);
 		CandidateStoreRow noVotes = row(0.8, 0.9, 0.9, 0.1, 0.1, Map.of("가성비", 0.5), List.of("케이크"));
-		CandidateStoreRow standsOut = row(0.8, 0.9, 0.9, 0.1, 0.1, Map.of("가성비", 0.51), List.of("케이크"));
+		CandidateStoreRow atThreshold = row(0.8, 0.9, 0.9, 0.1, 0.1, Map.of("가성비", 0.6), List.of("케이크"));
+		CandidateStoreRow standsOut = row(0.8, 0.9, 0.9, 0.1, 0.1, Map.of("가성비", 0.61), List.of("케이크"));
 
 		// 칩이 안 붙으면 ③ 축 극 라벨로 내려간다
 		assertThat(AnchorBadgeResolver.resolve(lover, noVotes, RAW)).isEqualTo("담백");
-		assertThat(AnchorBadgeResolver.resolve(average, standsOut, RAW)).isEqualTo("담백");
+		assertThat(AnchorBadgeResolver.resolve(lover, atThreshold, RAW)).isEqualTo("담백");
 		assertThat(AnchorBadgeResolver.resolve(lover, standsOut, RAW)).isEqualTo("가성비");
 	}
 
 	@Test
-	@DisplayName("② 문턱은 설정값이다 — 0.6 으로 올리면 0.55 인 가게에는 칩이 붙지 않는다")
+	@DisplayName("② 회원 문턱은 태그마다 다르다 — 모두에게 높은 특별한메뉴는 0.831 을 넘어야, 가성비는 0.5 를 넘으면 된다")
+	void tagMatchUsesPerTagMemberThreshold() {
+		CandidateStoreRow special = row(0.8, 0.9, 0.9, 0.1, 0.1, Map.of("특별한메뉴", 0.9), List.of("케이크"));
+		CandidateStoreRow value = row(0.8, 0.9, 0.9, 0.1, 0.1, Map.of("가성비", 0.9), List.of("케이크"));
+
+		assertThat(AnchorBadgeResolver.resolve(new TasteQuery(0.9, 0.2, 0.1, 0.1, Map.of("특별한메뉴", 0.8), List.of(), 4),
+			special, RAW)).isEqualTo("담백");
+		assertThat(AnchorBadgeResolver.resolve(new TasteQuery(0.9, 0.2, 0.1, 0.1, Map.of("특별한메뉴", 0.85), List.of(), 4),
+			special, RAW)).isEqualTo("특별한 메뉴");
+		assertThat(AnchorBadgeResolver.resolve(new TasteQuery(0.9, 0.2, 0.1, 0.1, Map.of("가성비", 0.5), List.of(), 4),
+			value, RAW)).isEqualTo("담백");
+		assertThat(AnchorBadgeResolver.resolve(new TasteQuery(0.9, 0.2, 0.1, 0.1, Map.of("가성비", 0.51), List.of(), 4),
+			value, RAW)).isEqualTo("가성비");
+	}
+
+	@Test
+	@DisplayName("② 문턱은 설정값이다 — 가게 문턱을 0.7 로 올리면 0.65 인 가게에는 칩이 붙지 않는다")
 	void tagMatchThresholdIsConfigurable() {
 		RecommendationProperties.Score stricter = rules(false);
-		stricter.setNotableTagAbove(0.6);
+		stricter.setStoreNotableTagAbove(0.7);
 		TasteQuery lover = new TasteQuery(0.9, 0.2, 0.1, 0.1, Map.of("가성비", 0.9), List.of(), 4);
-		CandidateStoreRow slightlyAbove = row(0.8, 0.9, 0.9, 0.1, 0.1, Map.of("가성비", 0.55), List.of("케이크"));
+		CandidateStoreRow slightlyAbove = row(0.8, 0.9, 0.9, 0.1, 0.1, Map.of("가성비", 0.65), List.of("케이크"));
 		CandidateStoreRow clearlyAbove = row(0.8, 0.9, 0.9, 0.1, 0.1, Map.of("가성비", 0.8), List.of("케이크"));
 
 		assertThat(AnchorBadgeResolver.resolve(lover, slightlyAbove, RAW)).isEqualTo("가성비");
