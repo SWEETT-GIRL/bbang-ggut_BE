@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import sweetgirl.croissant.personalization.enums.GenericKind;
 import sweetgirl.croissant.personalization.enums.TasteTag;
@@ -198,6 +199,19 @@ public class ReasonPromptBuilder {
 			return List.of();
 		}
 		return kinds.stream().filter(kind -> !GenericKind.isGeneric(kind)).toList();
+	}
+
+	/**
+	 * 시그니처 메뉴 이름 손질 — dataops 가 쓰는 TEXT[] 라 NULL 원소 · 빈 문자열이 들어올 수 있다. {@code List.of} 는 null
+	 * 원소에서 NPE 라 요청 전체가 500 으로 끝나고, 빈 문자열은 "시그니처 메뉴: , 잠봉뵈르" 같은 줄을 만든다 — 먼저 거른다.
+	 *
+	 * <p>프롬프트 재료를 만드는 쪽(실험 #662 · 서빙 #764)이 둘이라 여기 한 곳에 둔다.
+	 */
+	public static List<String> menuNamesOf(String[] signatureMenus) {
+		if (signatureMenus == null) {
+			return List.of();
+		}
+		return Arrays.stream(signatureMenus).filter(StringUtils::hasText).map(String::trim).distinct().toList();
 	}
 
 	private static List<String> limit(List<String> values) {

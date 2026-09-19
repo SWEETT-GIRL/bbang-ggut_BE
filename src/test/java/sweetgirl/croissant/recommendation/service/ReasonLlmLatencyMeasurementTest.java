@@ -35,8 +35,8 @@ import sweetgirl.croissant.recommendation.config.RecommendationProperties;
 import sweetgirl.croissant.recommendation.enums.ReasonPromptVariant;
 import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
 import sweetgirl.croissant.recommendation.repository.TasteQuery;
-import sweetgirl.croissant.recommendation.service.ReasonExperimentService.Reason;
-import sweetgirl.croissant.recommendation.service.ReasonExperimentService.ReasonAnswer;
+import sweetgirl.croissant.recommendation.service.ReasonLlmContract.Reason;
+import sweetgirl.croissant.recommendation.service.ReasonLlmContract.ReasonAnswer;
 
 /**
  * 진짜 LLM 을 불러 <b>얼마나 걸리는지</b> 재는 측정 테스트 (#662). 기본 빌드에서 제외된다 — 호출마다 실제 비용이 나간다.
@@ -53,20 +53,6 @@ import sweetgirl.croissant.recommendation.service.ReasonExperimentService.Reason
 class ReasonLlmLatencyMeasurementTest {
 
 	private static final int MAX_OUTPUT_TOKENS = 800;
-	private static final Map<String, Object> RESPONSE_SCHEMA = Map.of(
-		"type", "object",
-		"properties", Map.of(
-			"reasons", Map.of(
-				"type", "array",
-				"items", Map.of(
-					"type", "object",
-					"properties", Map.of(
-						"storeId", Map.of("type", "integer"),
-						"reason", Map.of("type", "string")),
-					"required", List.of("storeId", "reason"),
-					"additionalProperties", false))),
-		"required", List.of("reasons"),
-		"additionalProperties", false);
 
 	/** 판: 09-18 기준 후보 셋. 여기 한 줄을 더하면 모델이 는다 (Sonnet 5 는 24초라 뺐다) */
 	private static final List<String> MODELS = List.of(
@@ -105,7 +91,8 @@ class ReasonLlmLatencyMeasurementTest {
 		String label = provider + "/" + model + "/" + variant;
 		try {
 			LlmResult<ReasonAnswer> result = registry.generateStructured(
-				new LlmRequest(provider, model, prompt, RESPONSE_SCHEMA, 0.0, MAX_OUTPUT_TOKENS), ReasonAnswer.class);
+				new LlmRequest(provider, model, prompt, ReasonLlmContract.RESPONSE_SCHEMA, 0.0, MAX_OUTPUT_TOKENS),
+				ReasonAnswer.class);
 			List<Reason> reasons = result.value().reasons() == null ? List.of() : result.value().reasons();
 			System.out.printf(Locale.ROOT, "%s | %d | %d | %d | %s%n",
 				label, result.latencyMs(), result.inputTokens(), result.outputTokens(),
