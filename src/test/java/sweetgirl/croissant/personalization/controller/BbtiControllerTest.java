@@ -53,17 +53,17 @@ class BbtiControllerTest {
 			""";
 
 	@Test
-	@DisplayName("검사 응답을 보내면 FE 계약 그대로 typeCode·typeLabel·axis[4]·confidence 가 온다")
+	@DisplayName("검사 응답을 보내면 typeCode·axis[4]·confidence 가 온다 — 유형 이름(typeLabel)은 없다(#760)")
 	void submit_returnsContractShape() throws Exception {
 		BigDecimal one = new BigDecimal("1.000");
 		given(tasteQuizCommandService.submit(eq(null), any()))
-			.willReturn(new BbtiResultResponse("PCLN", "뉴웨이브 미니멀", List.of(one, one, one, one), 0.7));
+			.willReturn(new BbtiResultResponse("PCLN", List.of(one, one, one, one), 0.7));
 
 		mockMvc.perform(post("/users/me/bbti").contentType(MediaType.APPLICATION_JSON).content(SHORT_QUIZ))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.typeCode").value("PCLN"))
-			.andExpect(jsonPath("$.data.typeLabel").value("뉴웨이브 미니멀"))
+			.andExpect(jsonPath("$.data.typeLabel").doesNotExist())
 			.andExpect(jsonPath("$.data.axis.length()").value(4))
 			.andExpect(jsonPath("$.data.axis[0]").value(1.0))
 			.andExpect(jsonPath("$.data.confidence").value(0.7));

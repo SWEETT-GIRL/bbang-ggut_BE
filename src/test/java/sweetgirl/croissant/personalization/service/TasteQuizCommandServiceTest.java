@@ -87,7 +87,6 @@ class TasteQuizCommandServiceTest {
 			shortQuiz(QuizChoice.B, QuizChoice.B, QuizChoice.B, QuizChoice.B));
 
 		assertThat(result.typeCode()).isEqualTo("PCLN");
-		assertThat(result.typeLabel()).isEqualTo("뉴웨이브 미니멀");
 		assertThat(result.axis()).allSatisfy(value -> assertThat(value).isEqualByComparingTo("1.000"));
 		assertThat(result.confidence()).isEqualTo(personalizationProperties.getShortQuizConfidence());
 
