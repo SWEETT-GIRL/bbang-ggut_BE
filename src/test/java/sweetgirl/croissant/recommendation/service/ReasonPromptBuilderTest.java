@@ -82,7 +82,7 @@ class ReasonPromptBuilderTest {
 		String prompt = promptBuilder.build(ReasonPromptVariant.A, taste(), List.of(store(1L, "밀도", 0.71)),
 			Map.of());
 
-		assertThat(prompt).doesNotContain("담백", "바삭", "심플", "트렌디", "고전", "신상 빵", "축:");
+		assertThat(prompt).doesNotContain("담백", "바삭", "심플", "트렌디", "클래식", "고전", "신상 빵", "축:");
 		// 회원이 알아보는 것만 남는다
 		assertThat(prompt).contains("- 좋아하는 태그: 특별한메뉴", "- 자주 먹는 빵 종류: 소금빵", "빵 종류: 소금빵");
 	}
