@@ -58,6 +58,22 @@ public class WorldProgressCalculator {
 	}
 
 	/**
+	 * 지금까지 닿은 행성들. 도착 이력을 남길 대상을 고르는 데 쓴다.
+	 */
+	public List<String> reachedPlanetCodes(List<WorldPlanetResponse> planets, int maxRecordCount) {
+		List<WorldPlanetResponse> journey = toJourney(planets);
+		List<Integer> arriveAt = toArrivePoints(journey);
+
+		List<String> reached = new ArrayList<>();
+		for (int index = 0; index < journey.size(); index++) {
+			if (arriveAt.get(index) <= maxRecordCount) {
+				reached.add(journey.get(index).code());
+			}
+		}
+		return reached;
+	}
+
+	/**
 	 * {@code unlockAfter} 사슬을 이어 여정 순서를 만든다. 사슬에 안 걸린 행성은 아직 갈 수 없는
 	 * 곳이므로 빠진다.
 	 *

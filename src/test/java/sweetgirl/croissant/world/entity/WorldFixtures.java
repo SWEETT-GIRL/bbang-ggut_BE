@@ -2,6 +2,8 @@ package sweetgirl.croissant.world.entity;
 
 import org.springframework.test.util.ReflectionTestUtils;
 
+import sweetgirl.croissant.world.enums.AcquiredBy;
+import sweetgirl.croissant.world.enums.CharacterStatus;
 import sweetgirl.croissant.world.enums.PlanetGroup;
 
 /**
@@ -75,6 +77,35 @@ public final class WorldFixtures {
 		set(asset, "id", new WorldCharacterAssetId(characterCode, pose));
 		set(asset, "imageKey", imageKey);
 		return asset;
+	}
+
+	public static MemberWorld memberWorld(Long memberId, String selectedCharacter, int maxRecordCount) {
+		MemberWorld memberWorld = MemberWorld.start(memberId, selectedCharacter);
+		set(memberWorld, "maxRecordCount", maxRecordCount);
+		return memberWorld;
+	}
+
+	public static MemberPlanetArrival arrival(Long memberId, String planetCode) {
+		MemberPlanetArrival arrival = new MemberPlanetArrival();
+		set(arrival, "id", new MemberPlanetArrivalId(memberId, planetCode));
+		set(arrival, "arrivedAt", java.time.LocalDateTime.now());
+		return arrival;
+	}
+
+	public static MemberCharacter memberCharacter(
+			Long memberId,
+			String characterCode,
+			CharacterStatus status,
+			int adViews,
+			AcquiredBy acquiredBy) {
+		MemberCharacter memberCharacter = new MemberCharacter();
+		set(memberCharacter, "id", new MemberCharacterId(memberId, characterCode));
+		set(memberCharacter, "status", status);
+		set(memberCharacter, "adViews", adViews);
+		set(memberCharacter, "acquiredBy", acquiredBy);
+		set(memberCharacter, "acquiredAt",
+			acquiredBy == null ? null : java.time.LocalDateTime.now());
+		return memberCharacter;
 	}
 
 	private static void set(Object target, String name, Object value) {
