@@ -15,6 +15,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 
@@ -84,7 +85,7 @@ public class ReasonPromptBuilder {
 			// 해시 입력에 템플릿 밖의 재료까지 넣는다 — 태그 사전이나 문턱이 바뀌면 모델에게 가는 글자가
 			// 달라지는데 템플릿만 보면 판이 같아 보인다(#768 리뷰)
 			versions.put(variant, "reason-" + variant.name() + "-" + digest(template + FORM_RULE + TAG_RULE
-				+ TAG_VOCABULARY + recommendationProperties.getScore().getNotableTagAbove() + MAX_KINDS));
+				+ TAG_VOCABULARY + thresholds()));
 		}
 	}
 
@@ -100,6 +101,16 @@ public class ReasonPromptBuilder {
 	 */
 	public String versionOf(ReasonPromptVariant variant) {
 		return versions.get(variant);
+	}
+
+	/**
+	 * 해시에 넣는 문턱 · 상한. 회원 문턱은 <b>키 순으로 정렬해</b> 적는다 — {@code HashMap} 의 출력 순서에 기대면
+	 * 같은 설정인데 판 이름이 달라질 수 있고, 그러면 "같은 판이면 같은 해시" 가 깨진다.
+	 */
+	private String thresholds() {
+		RecommendationProperties.Score score = recommendationProperties.getScore();
+		return new TreeMap<>(score.getMemberNotableTagAbove()) + "|" + score.getStoreNotableTagAbove()
+			+ "|" + MAX_KINDS;
 	}
 
 	private static String digest(String template) {
