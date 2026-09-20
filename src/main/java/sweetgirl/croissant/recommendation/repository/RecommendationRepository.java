@@ -1,12 +1,14 @@
 package sweetgirl.croissant.recommendation.repository;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import sweetgirl.croissant.recommendation.entity.Recommendation;
 import sweetgirl.croissant.recommendation.enums.RecommendationMode;
@@ -61,6 +63,26 @@ public interface RecommendationRepository extends JpaRepository<Recommendation, 
 				AND r.mode = sweetgirl.croissant.recommendation.enums.RecommendationMode.AREA
 			""")
 	List<Long> findRecommendedAreaIds(@Param("memberId") Long memberId, @Param("courseId") Long courseId);
+
+	/**
+	 * 이유 문장을 채운다 — 아직 룰 문장인 행에만 (#764). 같은 묶음에 요청이 나란히 들어오면 둘 다 LLM 을 부르는데,
+	 * 문장은 같아도(temperature 0) 저장까지 둘 다 하면 나중 것이 앞 것을 덮는다. 조건을 걸어 한 번만 성공시키고,
+	 * 진 쪽은 저장된 문장을 다시 읽어 돌려준다. 잠금 없이 되는 일이라 커넥션을 오래 쥐지 않는다.
+	 *
+	 * <p>{@code @Transactional} 은 이 메서드에만 건다 — 서비스는 LLM 호출을 트랜잭션 밖에 두려고 클래스에 걸지 않는다.
+	 */
+	@Transactional
+	@Modifying(clearAutomatically = true)
+	@Query("""
+			UPDATE Recommendation recommendation
+			SET recommendation.result = :result, recommendation.provider = :provider,
+				recommendation.model = :model, recommendation.promptVersion = :promptVersion,
+				recommendation.fallback = false
+			WHERE recommendation.id = :id AND recommendation.provider = :ruleProvider
+			""")
+	int fillReasonsIfStillRule(@Param("id") Long id, @Param("result") Map<String, Object> result,
+			@Param("provider") String provider, @Param("model") String model,
+			@Param("promptVersion") String promptVersion, @Param("ruleProvider") String ruleProvider);
 
 	/**
 	 * 게스트 → 회원 병합(#663 ④). 적재가 RECO_DISMISSED · RECO_UNCHECK 를 이 표의 member_id 로 읽고, 재사용 키도 회원별이라

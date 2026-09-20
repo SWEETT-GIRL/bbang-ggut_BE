@@ -35,6 +35,8 @@ import sweetgirl.croissant.recommendation.dto.response.AnchorRecommendationRespo
 import sweetgirl.croissant.recommendation.dto.response.AnchorRecommendedStoreResponse;
 import sweetgirl.croissant.recommendation.dto.response.AnchorStoreSummary;
 import sweetgirl.croissant.recommendation.dto.response.NextAreaResponse;
+import sweetgirl.croissant.recommendation.dto.response.ReasonSentence;
+import sweetgirl.croissant.recommendation.dto.response.ReasonSentencesResponse;
 import sweetgirl.croissant.recommendation.dto.response.RecommendationAreaResponse;
 import sweetgirl.croissant.recommendation.dto.response.RecommendationAreaSummary;
 import sweetgirl.croissant.recommendation.dto.response.RecommendationContextResponse;
@@ -44,6 +46,7 @@ import sweetgirl.croissant.recommendation.enums.RecommendationAreaReason;
 import sweetgirl.croissant.recommendation.enums.RecommendationContextState;
 import sweetgirl.croissant.recommendation.exception.RecommendationException;
 import sweetgirl.croissant.recommendation.service.CourseRecommendationCommandService;
+import sweetgirl.croissant.recommendation.service.ReasonSentenceCommandService;
 import sweetgirl.croissant.recommendation.service.RecommendationContextQueryService;
 import sweetgirl.croissant.recommendation.service.RecommendationFeedbackCommandService;
 
@@ -58,6 +61,8 @@ class RecommendationControllerTest {
 	private CourseRecommendationCommandService courseRecommendationCommandService;
 	@Mock
 	private RecommendationFeedbackCommandService recommendationFeedbackCommandService;
+	@Mock
+	private ReasonSentenceCommandService reasonSentenceCommandService;
 
 	@InjectMocks
 	private RecommendationController recommendationController;
@@ -225,5 +230,49 @@ class RecommendationControllerTest {
 			.content("{\"action\": \"VIEW\"}"))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.code").value("RECOMMENDATION404_1"));
+	}
+
+	@Test
+	@DisplayName("이유 문장: {recommendationId, provider, model, fallback, latencyMs, reasons[]} 가 FE 계약이다")
+	void fillReasons_returnsContractShape() throws Exception {
+		given(reasonSentenceCommandService.fill(null, 99L))
+			.willReturn(new ReasonSentencesResponse(99L, "gemini", "gemini-3.5-flash-lite", false, 1_310L,
+				List.of(new ReasonSentence(1042L, "밀도", "소금빵이 유명한 집이에요"))));
+
+		mockMvc.perform(post("/recommendations/99/reasons"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.recommendationId").value(99))
+			.andExpect(jsonPath("$.data.provider").value("gemini"))
+			.andExpect(jsonPath("$.data.model").value("gemini-3.5-flash-lite"))
+			.andExpect(jsonPath("$.data.fallback").value(false))
+			.andExpect(jsonPath("$.data.latencyMs").value(1310))
+			.andExpect(jsonPath("$.data.reasons[0].storeId").value(1042))
+			.andExpect(jsonPath("$.data.reasons[0].storeName").value("밀도"))
+			.andExpect(jsonPath("$.data.reasons[0].reason").value("소금빵이 유명한 집이에요"));
+	}
+
+	@Test
+	@DisplayName("LLM 이 꺼져 있어도 200 에 룰 문장과 fallback=true 로 나간다")
+	void fillReasons_fallback_isOk() throws Exception {
+		given(reasonSentenceCommandService.fill(null, 99L))
+			.willReturn(new ReasonSentencesResponse(99L, "rule", null, true, 0,
+				List.of(new ReasonSentence(1042L, "밀도", "이 동네에서 많이 찾는 곳이에요"))));
+
+		mockMvc.perform(post("/recommendations/99/reasons"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.provider").value("rule"))
+			.andExpect(jsonPath("$.data.fallback").value(true))
+			.andExpect(jsonPath("$.data.model").doesNotExist());
+	}
+
+	@Test
+	@DisplayName("앵커 추천의 문장을 요구하면 400 코드가 그대로 나간다")
+	void fillReasons_anchorRecommendation_isBadRequest() throws Exception {
+		given(reasonSentenceCommandService.fill(null, 99L))
+			.willThrow(new RecommendationException(RecommendationErrorCode.ANCHOR_REASON_NOT_SUPPORTED));
+
+		mockMvc.perform(post("/recommendations/99/reasons"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("RECOMMENDATION400_14"));
 	}
 }

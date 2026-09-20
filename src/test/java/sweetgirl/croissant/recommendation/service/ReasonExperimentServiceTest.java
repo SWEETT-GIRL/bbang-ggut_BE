@@ -54,9 +54,9 @@ import sweetgirl.croissant.recommendation.exception.RecommendationException;
 import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
 import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationCandidateJdbcRepository;
-import sweetgirl.croissant.recommendation.service.ReasonExperimentService.Reason;
-import sweetgirl.croissant.recommendation.service.ReasonExperimentService.ReasonAnswer;
 import sweetgirl.croissant.recommendation.service.ReasonExperimentService.WarmUpAnswer;
+import sweetgirl.croissant.recommendation.service.ReasonLlmContract.Reason;
+import sweetgirl.croissant.recommendation.service.ReasonLlmContract.ReasonAnswer;
 import sweetgirl.croissant.store.entity.StoreProfile;
 import sweetgirl.croissant.store.repository.StoreProfileRepository;
 

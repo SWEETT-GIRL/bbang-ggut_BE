@@ -16,6 +16,9 @@ public class AsyncConfig implements AsyncConfigurer {
 	/** 취향 신호 적재 전용 (#663 ④) */
 	public static final String SIGNAL_EXECUTOR = "signalExecutor";
 
+	/** 이유 문장 LLM 호출 전용 (#764) */
+	public static final String REASON_LLM_EXECUTOR = "reasonLlmExecutor";
+
 	@Override
 	public Executor getAsyncExecutor() {
 		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
@@ -62,6 +65,29 @@ public class AsyncConfig implements AsyncConfigurer {
 		executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
 		executor.setWaitForTasksToCompleteOnShutdown(true);
 		executor.setAwaitTerminationSeconds(10);
+		executor.initialize();
+		return executor;
+	}
+
+	/**
+	 * 이유 문장 LLM 호출 전용 (#764). 요청 스레드가 직접 부르지 않고 여기로 던지는 이유는 하나다 — <b>기다림을 끊기
+	 * 위해서다.</b> 벤더 클라이언트의 읽기 타임아웃은 60초인데 사용자는 그만큼 못 기다린다. 호출을 이 줄에 맡기고 요청
+	 * 스레드는 설정한 시간(기본 4초)만 기다린 뒤 룰 문장으로 답한다.
+	 *
+	 * <p>줄을 세우지 않는다(queueCapacity = 0). 대기열에서 차례를 기다린 호출은 이미 기다림 예산을 다 쓴 뒤라 어차피
+	 * 버려진다. 자리가 없으면 바로 거절(AbortPolicy)하고 부르는 쪽이 룰 문장으로 넘어간다.
+	 *
+	 * <p>스레드가 4개인 것은 <b>끊긴 호출이 스레드를 놓지 않기 때문이다</b> — 기다림을 끊어도 그 HTTP 읽기는 벤더
+	 * 타임아웃까지 계속된다. 넷이 물려 있는 동안 들어온 요청은 기다리지 않고 룰 문장을 받는다.
+	 */
+	@Bean(name = REASON_LLM_EXECUTOR)
+	public Executor reasonLlmExecutor() {
+		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+		executor.setCorePoolSize(2);
+		executor.setMaxPoolSize(4);
+		executor.setQueueCapacity(0);
+		executor.setThreadNamePrefix("reason-llm-");
+		executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
 		executor.initialize();
 		return executor;
 	}

@@ -29,7 +29,10 @@ import sweetgirl.croissant.recommendation.enums.RecommendationMode;
  *
  * result 는 사용자에게 내려간 최종본이고, 재사용(같은 코스·모드·상권/앵커·일차·프로필 버전)과 피드백 해석의 기준이다.
  * 여정 변수는 Amplitude, 지연·토큰은 Micrometer, 후보 목록과 LLM 원문은 recommendation_id 를 단 구조화 로그에 남긴다
- * (플래닝 문서 §12). 만들어진 뒤에는 바꾸지 않는다. member · course 와 연관을 맺지 않고 id 만 갖는다.
+ * (플래닝 문서 §12). 만들어진 뒤에 바뀌는 것은 이유 문장뿐이다 — 그것도 엔티티를 고쳐 저장하지 않고
+ * {@code RecommendationRepository#fillReasonsIfStillRule} 의 조건부 갱신으로만 바뀐다(#764). 같은 묶음에 요청이
+ * 나란히 들어와도 한 번만 이겨야 해서, "읽고 고쳐 저장" 대신 "아직 룰 문장일 때만 쓴다" 를 DB 에 맡긴다.
+ * member · course 와 연관을 맺지 않고 id 만 갖는다.
  */
 @Entity
 @Table(name = "recommendation")

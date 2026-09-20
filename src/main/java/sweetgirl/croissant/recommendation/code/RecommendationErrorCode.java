@@ -40,6 +40,8 @@ public enum RecommendationErrorCode implements BaseErrorCode {
 			"한 번에 낼 수 있는 LLM 호출 수를 넘었습니다."),
 	EXPERIMENT_MODEL_INVALID(HttpStatus.BAD_REQUEST, "RECOMMENDATION400_13",
 			"모델 표기는 '벤더:모델' 형식이어야 합니다."),
+	ANCHOR_REASON_NOT_SUPPORTED(HttpStatus.BAD_REQUEST, "RECOMMENDATION400_14",
+			"방금 담은 가게 근처 추천에는 이유 문장이 없습니다."),
 
 	RECOMMENDATION_NOT_FOUND(HttpStatus.NOT_FOUND, "RECOMMENDATION404_1", "추천을 찾을 수 없습니다."),
 	COURSE_AREA_NOT_FOUND(HttpStatus.NOT_FOUND, "RECOMMENDATION404_2", "이 코스 지역의 상권을 찾을 수 없습니다.");

@@ -1,6 +1,7 @@
 package sweetgirl.croissant.recommendation.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.LIST;
 
 import java.util.List;
 import java.util.Map;
@@ -155,5 +156,29 @@ class RecommendationRepositoryTest {
 
 		assertThat(recommendationRepository.findByIdAndMemberId(mine.getId(), jimin.getId())).isPresent();
 		assertThat(recommendationRepository.findByIdAndMemberId(mine.getId(), sujin.getId())).isEmpty();
+	}
+
+	@Test
+	@DisplayName("이유 문장은 아직 룰 문장인 행에만 쓰인다 — 나란히 들어온 두 요청 중 하나만 이긴다 (#764)")
+	void fillReasonsIfStillRule_onlyFirstWins() {
+		Recommendation recommendation = areaRecommendation(jimin, (short)1, 1, "성수동 빵집 코스");
+		entityManager.flush();
+
+		int first = recommendationRepository.fillReasonsIfStillRule(recommendation.getId(),
+			Map.of("title", "성수동 빵집 코스", "stores", List.of(Map.of("storeId", 1042, "reason", "첫 번째 문장"))),
+			"gemini", "gemini-3.5-flash-lite", "reason-A", Recommendation.RULE_PROVIDER);
+		int second = recommendationRepository.fillReasonsIfStillRule(recommendation.getId(),
+			Map.of("title", "성수동 빵집 코스", "stores", List.of(Map.of("storeId", 1042, "reason", "두 번째 문장"))),
+			"gemini", "gemini-3.5-flash-lite", "reason-A", Recommendation.RULE_PROVIDER);
+
+		assertThat(first).isEqualTo(1);
+		assertThat(second).isZero();
+		entityManager.clear();
+		Recommendation saved = recommendationRepository.findById(recommendation.getId()).orElseThrow();
+		assertThat(saved.getProvider()).isEqualTo("gemini");
+		assertThat(saved.getModel()).isEqualTo("gemini-3.5-flash-lite");
+		assertThat(saved.isFallback()).isFalse();
+		assertThat(saved.getResult()).extracting("stores").asInstanceOf(LIST).hasSize(1);
+		assertThat(saved.getResult().toString()).contains("첫 번째 문장").doesNotContain("두 번째 문장");
 	}
 }

@@ -2,20 +2,17 @@ package sweetgirl.croissant.recommendation.service;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -24,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.external.llm.LlmProvider;
 import sweetgirl.croissant.external.llm.client.LlmClientRegistry;
+import sweetgirl.croissant.external.llm.dto.LlmModelRef;
 import sweetgirl.croissant.external.llm.dto.LlmRequest;
 import sweetgirl.croissant.external.llm.dto.LlmResult;
 import sweetgirl.croissant.external.llm.exception.LlmException;
@@ -46,6 +44,7 @@ import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
 import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationCandidateJdbcRepository;
 import sweetgirl.croissant.recommendation.repository.TasteQuery;
+import sweetgirl.croissant.recommendation.service.ReasonLlmContract.ReasonAnswer;
 import sweetgirl.croissant.store.repository.StoreProfileRepository;
 
 /**
@@ -63,7 +62,6 @@ public class ReasonExperimentService {
 
 	private static final Logger log = LoggerFactory.getLogger(ReasonExperimentService.class);
 
-	private static final String MODEL_SEPARATOR = ":";
 	/** 원문 로그 상한 — 이유 네 줄 JSON 이면 넉넉하고, 사고 과정이 딸려 와도 로그를 덮지 않는다 */
 	private static final int RAW_TEXT_LOG_LIMIT = 2_000;
 	/** 워밍업은 연결만 열면 되므로 가장 싼 요청으로 보낸다 */
@@ -75,22 +73,6 @@ public class ReasonExperimentService {
 		"required", List.of("ok"),
 		"additionalProperties", false);
 	private static final String LABEL_SEPARATOR = "/";
-	/** 문장이 표준 JSON 스키마 하나로 나가고, Gemini 용 대문자 번역은 어댑터가 한다 */
-	private static final Map<String, Object> RESPONSE_SCHEMA = Map.of(
-		"type", "object",
-		"properties", Map.of(
-			"reasons", Map.of(
-				"type", "array",
-				"items", Map.of(
-					"type", "object",
-					"properties", Map.of(
-						"storeId", Map.of("type", "integer"),
-						"reason", Map.of("type", "string")),
-					"required", List.of("storeId", "reason"),
-					"additionalProperties", false))),
-		"required", List.of("reasons"),
-		"additionalProperties", false);
-
 	private final CourseAreaRepository courseAreaRepository;
 	private final UserTasteProfileRepository userTasteProfileRepository;
 	private final RecommendationCandidateJdbcRepository candidateRepository;
@@ -145,9 +127,9 @@ public class ReasonExperimentService {
 			: request.variants();
 		Set<LlmProvider> configured = Set.copyOf(llmClientRegistry.configuredProviders());
 
-		List<ModelRef> modelRefs = new ArrayList<>();
+		List<LlmModelRef> modelRefs = new ArrayList<>();
 		for (String model : models) {
-			ModelRef modelRef = ModelRef.parse(model);
+			LlmModelRef modelRef = parseModel(model);
 			if (!configured.contains(modelRef.provider())) {
 				skipped.add(modelRef.provider());
 				continue;
@@ -157,19 +139,28 @@ public class ReasonExperimentService {
 			}
 		}
 		int warmUpCalls = experimentProperties.isWarmUp()
-			? (int)modelRefs.stream().map(ModelRef::provider).distinct().count() : 0;
+			? (int)modelRefs.stream().map(LlmModelRef::provider).distinct().count() : 0;
 		int calls = modelRefs.size() * new LinkedHashSet<>(variants).size() * repeatsOf(request) + warmUpCalls;
 		if (calls > experimentProperties.getMaxCalls()) {
 			throw new RecommendationException(RecommendationErrorCode.EXPERIMENT_TOO_MANY_COMBINATIONS);
 		}
 
 		List<Combination> combinations = new ArrayList<>();
-		for (ModelRef modelRef : modelRefs) {
+		for (LlmModelRef modelRef : modelRefs) {
 			for (ReasonPromptVariant variant : new LinkedHashSet<>(variants)) {
 				combinations.add(new Combination(modelRef.provider(), modelRef.model(), variant));
 			}
 		}
 		return combinations;
+	}
+
+	/** 요청이 보낸 표기라 잘못된 값은 400 이다 — 기동 때 읽는 서빙 설정({@code recommendation.reason.llm.model})과 다르다 */
+	private static LlmModelRef parseModel(String model) {
+		try {
+			return LlmModelRef.parse(model);
+		} catch (IllegalArgumentException e) {
+			throw new RecommendationException(RecommendationErrorCode.EXPERIMENT_MODEL_INVALID);
+		}
 	}
 
 	/** 프롬프트는 변형마다 한 번만 만들어 돌려 쓴다. 조립 시간이 지연에 섞이지 않게. */
@@ -214,23 +205,12 @@ public class ReasonExperimentService {
 		List<Long> storeIds = ordered.stream().map(CandidateStoreRow::storeId).toList();
 		Map<Long, List<String>> menus = new LinkedHashMap<>();
 		storeProfileRepository.findAllById(storeIds).forEach(profile -> {
-			List<String> names = menuNamesOf(profile.getSignatureMenus());
+			List<String> names = ReasonPromptBuilder.menuNamesOf(profile.getSignatureMenus());
 			if (!names.isEmpty()) {
 				menus.put(profile.getStoreId(), names);
 			}
 		});
 		return menus;
-	}
-
-	/**
-	 * dataops 가 쓰는 TEXT[] 라 NULL 원소 · 빈 문자열이 들어올 수 있다. {@code List.of} 는 null 원소에서 NPE 라 실험 전체가
-	 * 500 으로 끝나고, 빈 문자열은 "시그니처 메뉴: , 잠봉뵈르" 같은 줄을 만든다 — 먼저 거른다.
-	 */
-	private static List<String> menuNamesOf(String[] signatureMenus) {
-		if (signatureMenus == null) {
-			return List.of();
-		}
-		return Arrays.stream(signatureMenus).filter(StringUtils::hasText).map(String::trim).distinct().toList();
 	}
 
 	/**
@@ -257,8 +237,9 @@ public class ReasonExperimentService {
 		String label = combination.label();
 		long startedAt = System.nanoTime();
 		try {
-			LlmRequest request = new LlmRequest(combination.provider(), combination.model(), prompt, RESPONSE_SCHEMA,
-				experimentProperties.getTemperature(), experimentProperties.getMaxOutputTokens());
+			LlmRequest request = new LlmRequest(combination.provider(), combination.model(), prompt,
+				ReasonLlmContract.RESPONSE_SCHEMA, experimentProperties.getTemperature(),
+				experimentProperties.getMaxOutputTokens());
 			LlmResult<ReasonAnswer> result = llmClientRegistry.generateStructured(request, ReasonAnswer.class);
 			List<ReasonSentence> sentences = sentencesOf(result.value(), ordered);
 			// 문장까지 남긴다. 조합이 길어져 프록시 제한(운영 120초)을 넘으면 클라이언트는 504 를 받는데,
@@ -289,12 +270,7 @@ public class ReasonExperimentService {
 
 	/** 모델이 순서를 바꾸거나 가게를 빠뜨려도 판이 흐트러지지 않게, 우리 순서로 다시 맞춘다 */
 	private List<ReasonSentence> sentencesOf(ReasonAnswer answer, List<CandidateStoreRow> ordered) {
-		Map<Long, String> byStoreId = new LinkedHashMap<>();
-		if (answer != null && answer.reasons() != null) {
-			answer.reasons().stream()
-				.filter(reason -> reason.storeId() != null && reason.reason() != null)
-				.forEach(reason -> byStoreId.putIfAbsent(reason.storeId(), reason.reason().trim()));
-		}
+		Map<Long, String> byStoreId = ReasonLlmContract.byStoreId(answer);
 		return ordered.stream()
 			.map(row -> new ReasonSentence(row.storeId(), row.name(), byStoreId.get(row.storeId())))
 			.toList();
@@ -454,29 +430,5 @@ public class ReasonExperimentService {
 		String label() {
 			return provider.name() + LABEL_SEPARATOR + model + LABEL_SEPARATOR + variant.name();
 		}
-	}
-
-	/** 설정·요청의 {@code 벤더:모델} 한 줄 */
-	private record ModelRef(LlmProvider provider, String model) {
-
-		static ModelRef parse(String value) {
-			String[] parts = value == null ? new String[0] : value.split(MODEL_SEPARATOR, 2);
-			if (parts.length != 2 || parts[0].isBlank() || parts[1].isBlank()) {
-				throw new RecommendationException(RecommendationErrorCode.EXPERIMENT_MODEL_INVALID);
-			}
-			try {
-				return new ModelRef(LlmProvider.valueOf(parts[0].trim().toUpperCase(Locale.ROOT)), parts[1].trim());
-			} catch (IllegalArgumentException e) {
-				throw new RecommendationException(RecommendationErrorCode.EXPERIMENT_MODEL_INVALID);
-			}
-		}
-	}
-
-	@JsonIgnoreProperties(ignoreUnknown = true)
-	record ReasonAnswer(List<Reason> reasons) {
-	}
-
-	@JsonIgnoreProperties(ignoreUnknown = true)
-	record Reason(Long storeId, String reason) {
 	}
 }

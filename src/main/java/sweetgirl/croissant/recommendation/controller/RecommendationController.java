@@ -23,9 +23,11 @@ import sweetgirl.croissant.recommendation.dto.request.CourseStoreBulkAddRequest;
 import sweetgirl.croissant.recommendation.dto.request.RecommendationFeedbackRequest;
 import sweetgirl.croissant.recommendation.dto.request.RecommendationRequest;
 import sweetgirl.croissant.recommendation.dto.response.AnchorRecommendationResponse;
+import sweetgirl.croissant.recommendation.dto.response.ReasonSentencesResponse;
 import sweetgirl.croissant.recommendation.dto.response.RecommendationContextResponse;
 import sweetgirl.croissant.recommendation.dto.response.RecommendationResponse;
 import sweetgirl.croissant.recommendation.service.CourseRecommendationCommandService;
+import sweetgirl.croissant.recommendation.service.ReasonSentenceCommandService;
 import sweetgirl.croissant.recommendation.service.RecommendationContextQueryService;
 import sweetgirl.croissant.recommendation.service.RecommendationFeedbackCommandService;
 
@@ -38,6 +40,7 @@ public class RecommendationController {
 	private final RecommendationContextQueryService recommendationContextQueryService;
 	private final CourseRecommendationCommandService courseRecommendationCommandService;
 	private final RecommendationFeedbackCommandService recommendationFeedbackCommandService;
+	private final ReasonSentenceCommandService reasonSentenceCommandService;
 
 	@Operation(summary = "빈 코스 카드 상태", description = "CHIPS 면 상권 칩 3개, QUIZ 면 같은 자리에 빵BTI 4문항.")
 	@GetMapping("/courses/{courseId}/recommendation-context")
@@ -80,6 +83,14 @@ public class RecommendationController {
 			@Valid @RequestBody CourseStoreBulkAddRequest request) {
 		return ResponseEntity.ok(ApiResponse.ok(
 			courseRecommendationCommandService.addRecommendedStores(memberId, courseId, request)));
+	}
+
+	@Operation(summary = "추천 이유 문장 받기", description = "코스를 먼저 그린 뒤 문장만 따로 받는다. 꺼져 있거나 실패·타임아웃이면 룰 문장과 fallback=true.")
+	@PostMapping("/recommendations/{recommendationId}/reasons")
+	public ResponseEntity<ApiResponse<ReasonSentencesResponse>> fillReasons(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable Long recommendationId) {
+		return ResponseEntity.ok(ApiResponse.ok(reasonSentenceCommandService.fill(memberId, recommendationId)));
 	}
 
 	@Operation(summary = "추천 반응 남기기", description = "가게 단위 반응(STORE_TAP · STORE_UNCHECK)엔 storeId, DISLIKE 엔 reason.")
