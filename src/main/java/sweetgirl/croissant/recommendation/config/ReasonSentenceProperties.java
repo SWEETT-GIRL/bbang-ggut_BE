@@ -6,11 +6,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.annotation.Validated;
 
+import sweetgirl.croissant.external.llm.LlmProvider;
+import sweetgirl.croissant.external.llm.dto.LlmModelRef;
+
 import jakarta.validation.constraints.Min;
 import lombok.Getter;
 import lombok.Setter;
-import sweetgirl.croissant.external.llm.LlmProvider;
-import sweetgirl.croissant.external.llm.dto.LlmModelRef;
 import sweetgirl.croissant.recommendation.enums.ReasonPromptVariant;
 
 /**
@@ -45,6 +46,13 @@ public class ReasonSentenceProperties {
 	private Duration timeout = Duration.ofSeconds(4);
 
 	/**
+	 * 이 경로의 HTTP 읽기 타임아웃. 공용 Gemini 클라이언트(60초)를 그대로 쓰면, 기다림을 끊어도 그 호출은 1분 동안
+	 * 전용 줄의 스레드를 쥐고 있다(끊기가 HTTP 읽기를 멈추지는 못한다). 4초만 기다릴 경로에 1분짜리 클라이언트를
+	 * 쓸 이유가 없어 따로 둔다 — 실험 · 메뉴 분류는 오래 기다려도 되므로 공용 클라이언트는 건드리지 않는다(#765 리뷰).
+	 */
+	private Duration readTimeout = Duration.ofSeconds(10);
+
+	/**
 	 * 하루 호출 수 상한 — Gemini 무료 등급 하루 500회를 메뉴 분류와 나눠 쓴다. 인스턴스 메모리 카운터라 스테이징(1대)에서만
 	 * 뜻이 있고, 여러 대가 되면 공유 저장소로 옮겨야 한다. 한국 날짜(Asia/Seoul) 자정에 0 으로 돌아간다.
 	 */
@@ -77,4 +85,5 @@ public class ReasonSentenceProperties {
 	private LlmModelRef modelRef() {
 		return LlmModelRef.parse(model);
 	}
+
 }
