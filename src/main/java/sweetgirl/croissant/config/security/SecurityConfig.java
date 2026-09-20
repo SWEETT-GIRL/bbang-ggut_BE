@@ -67,6 +67,8 @@ public class SecurityConfig {
 			.permitAll()
 			.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
 			.requestMatchers(HttpMethod.GET, "/trend/**", "/menu-categories", "/banners", "/banners/**").permitAll()
+			// 세계관 카탈로그는 회원과 무관한 전역 콘텐츠다
+			.requestMatchers(HttpMethod.GET, "/world/catalog").permitAll()
 			// 홈화면 근처/인기 빵집·검색 비로그인 허용
 			.requestMatchers(HttpMethod.GET, "/stores/district", "/stores/nearby", "/stores/popular",
 				"/stores/search",
