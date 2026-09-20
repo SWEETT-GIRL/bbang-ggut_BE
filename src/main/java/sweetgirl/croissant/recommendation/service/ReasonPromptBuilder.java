@@ -53,15 +53,24 @@ public class ReasonPromptBuilder {
 
 	/**
 	 * 모델이 쓸 수 있는 태그 목록. 프롬프트 파일에 글자로 박아 두면 사전이 바뀔 때마다 파일 셋을 손으로 고쳐야 하고,
-	 * 빠뜨리면 없어진 태그를 쓰라고 하거나 새 태그를 쓰지 말라고 하게 된다(#758 에서 실제로 그랬다 — 노포 · 신상 · 아침 ·
-	 * 저녁이 dataops #11 에서 빠졌는데 프롬프트에는 남아 있었다). 태그의 원본은 {@link TasteTag} 하나다.
+	 * 빠뜨리면 없어진 태그를 쓰라고 하거나 새 태그를 쓰지 말라고 하게 된다(#758 에서 실제로 그랬다). 태그의 원본은
+	 * {@link TasteTag} 하나다.
 	 *
-	 * <p>데이터 키가 아니라 표시 문구를 쓴다 — 배지 칩과 이유 문장이 같은 말을 하고, "공간사진" 같은 데이터 이름이 문장에
-	 * 새지 않는다(#759 리뷰). 문구 "건강·신선" 에 가운뎃점이 있어 구분자는 쉼표다.
+	 * <p>데이터 키가 아니라 표시 문구를 쓴다 — 배지 칩과 이유 문장이 같은 말을 하고, "공간사진" 같은 데이터 이름이
+	 * 문장에 새지 않는다(#759 리뷰). 문구 "건강·신선" 에 가운뎃점이 있어 구분자는 쉼표다.
 	 */
 	private static final String TAG_VOCABULARY = Arrays.stream(TasteTag.values())
 		.map(TasteTag::getLabel)
 		.collect(Collectors.joining(", "));
+
+	/**
+	 * 세 변형이 함께 쓰는 규칙. 파일마다 복사해 두면 한 곳을 빠뜨렸을 때 "무엇이 효과였나" 를 가릴 수 없게 된다
+	 * (#768 리뷰). 예시는 재료 사용법이라 변형마다 달라도 되므로 변형 파일에 남긴다.
+	 */
+	private static final String FORM_RULE = load("recommendation-reason-form-rule.txt").strip();
+
+	/** 태그를 문장에 그대로 옮기지 못하게 하는 규칙 — 랩 실험에서 "특별한 메뉴" 가 문장의 절반을 덮었다 */
+	private static final String TAG_RULE = load("recommendation-reason-tag-rule.txt").strip();
 
 	private final Map<ReasonPromptVariant, String> templates = new EnumMap<>(ReasonPromptVariant.class);
 	private final Map<ReasonPromptVariant, String> versions = new EnumMap<>(ReasonPromptVariant.class);
@@ -72,7 +81,10 @@ public class ReasonPromptBuilder {
 		for (ReasonPromptVariant variant : ReasonPromptVariant.values()) {
 			String template = load(variant.getPromptFile());
 			templates.put(variant, template);
-			versions.put(variant, "reason-" + variant.name() + "-" + digest(template));
+			// 해시 입력에 템플릿 밖의 재료까지 넣는다 — 태그 사전이나 문턱이 바뀌면 모델에게 가는 글자가
+			// 달라지는데 템플릿만 보면 판이 같아 보인다(#768 리뷰)
+			versions.put(variant, "reason-" + variant.name() + "-" + digest(template + FORM_RULE + TAG_RULE
+				+ TAG_VOCABULARY + recommendationProperties.getScore().getNotableTagAbove() + MAX_KINDS));
 		}
 	}
 
@@ -112,6 +124,8 @@ public class ReasonPromptBuilder {
 			.replace("{stores}", storesBlock(variant, taste, stores, signatureMenus))
 			.replace("{storeCount}", String.valueOf(stores.size()))
 			.replace("{tasteThreshold}", decimal(recommendationProperties.getScore().getTasteCosineThreshold()))
+			.replace("{formRule}", FORM_RULE)
+			.replace("{tagRule}", TAG_RULE)
 			.replace("{tagVocabulary}", TAG_VOCABULARY);
 	}
 
