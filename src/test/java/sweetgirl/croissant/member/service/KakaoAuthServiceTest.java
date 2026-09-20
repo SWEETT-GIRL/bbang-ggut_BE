@@ -8,9 +8,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
 
@@ -47,12 +47,15 @@ class KakaoAuthServiceTest {
 	@Mock
 	NicknameGenerator nicknameGenerator;
 
+	/** MockRestServiceServer 가 붙으려면 진짜 인스턴스여야 해서 목이 아니라 @Spy 다. */
+	@Spy
+	RestTemplate restTemplate = new RestTemplate();
+
 	@InjectMocks
 	KakaoAuthService kakaoAuthService;
 
 	@Test
 	void login_throwsUnauthorizedMemberException_whenKakaoRejectsToken() {
-		RestTemplate restTemplate = (RestTemplate)ReflectionTestUtils.getField(kakaoAuthService, "restTemplate");
 		MockRestServiceServer server = MockRestServiceServer.createServer(restTemplate);
 		server.expect(requestTo("https://kapi.kakao.com/v2/user/me"))
 			.andRespond(withStatus(HttpStatus.UNAUTHORIZED));
