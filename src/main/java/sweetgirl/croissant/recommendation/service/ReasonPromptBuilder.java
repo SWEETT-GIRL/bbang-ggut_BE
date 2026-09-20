@@ -2,10 +2,13 @@ package sweetgirl.croissant.recommendation.service;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -61,12 +64,38 @@ public class ReasonPromptBuilder {
 		.collect(Collectors.joining(", "));
 
 	private final Map<ReasonPromptVariant, String> templates = new EnumMap<>(ReasonPromptVariant.class);
+	private final Map<ReasonPromptVariant, String> versions = new EnumMap<>(ReasonPromptVariant.class);
 	private final RecommendationProperties recommendationProperties;
 
 	public ReasonPromptBuilder(RecommendationProperties recommendationProperties) {
 		this.recommendationProperties = recommendationProperties;
 		for (ReasonPromptVariant variant : ReasonPromptVariant.values()) {
-			templates.put(variant, load(variant.getPromptFile()));
+			String template = load(variant.getPromptFile());
+			templates.put(variant, template);
+			versions.put(variant, "reason-" + variant.name() + "-" + digest(template));
+		}
+	}
+
+	/**
+	 * 이 문장을 어느 프롬프트가 썼는지 — 변형 이름과 템플릿 내용 해시다(예: {@code reason-B-3f9c2e}).
+	 *
+	 * <p>변형 이름만 남기면 <b>문구를 깎는 순간 판이 섞인다.</b> 같은 "reason-B" 인데 어제 프롬프트와 오늘 프롬프트가
+	 * 달라, 나중에 추천 행을 놓고 "어느 판이 쓴 문장인가" 를 가릴 수 없다. 내용에서 뽑으므로 사람이 버전을 올려
+	 * 적는 것을 잊을 수 없고, 한 글자만 고쳐도 값이 달라진다.
+	 *
+	 * <p>{@code recommendation.prompt_version} 이 20자라 해시는 6자만 쓴다 — 우리가 가진 판이 열 몇 개일 자리에서
+	 * 충돌은 사실상 없다.
+	 */
+	public String versionOf(ReasonPromptVariant variant) {
+		return versions.get(variant);
+	}
+
+	private static String digest(String template) {
+		try {
+			byte[] hash = MessageDigest.getInstance("SHA-256").digest(template.getBytes(StandardCharsets.UTF_8));
+			return HexFormat.of().formatHex(hash, 0, 3);
+		} catch (NoSuchAlgorithmException e) {
+			throw new IllegalStateException("SHA-256 을 쓸 수 없습니다", e);
 		}
 	}
 

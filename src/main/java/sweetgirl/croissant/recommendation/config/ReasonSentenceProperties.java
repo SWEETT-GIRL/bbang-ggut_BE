@@ -67,12 +67,4 @@ public class ReasonSentenceProperties {
 	@Min(1)
 	private int maxOutputTokens = 800;
 
-	/**
-	 * 추천 행에 남기는 프롬프트 규칙 버전 — 나중에 "어느 프롬프트가 쓴 문장인가" 를 문장만 보고는 알 수 없다.
-	 * 변형에서 만들어 설정 항목을 하나 줄인다(실험과 같은 변형 이름이라 실험 표와 그대로 이어진다).
-	 */
-	public String promptVersion() {
-		return "reason-" + variant.name();
-	}
-
 }

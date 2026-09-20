@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.DisplayName;
@@ -212,6 +213,21 @@ class ReasonPromptBuilderTest {
 		}
 		assertThat(promptBuilder.build(ReasonPromptVariant.B, taste(), List.of(store(1L, "밀도", 0.71)),
 			Map.of(1L, List.of("뺑 스위스")))).contains("메뉴 이름은 적힌 그대로 쓴다").doesNotContain("메뉴 이름은 주어지지 않았다");
+	}
+
+	@Test
+	@DisplayName("판 구분은 변형 이름과 프롬프트 내용에서 나온다 — 변형마다 다르고 컬럼(20자)에 들어간다")
+	void versionOf_isVariantAndContentHash() {
+		ReasonPromptBuilder builder = promptBuilder;
+
+		String versionA = builder.versionOf(ReasonPromptVariant.A);
+
+		assertThat(versionA).matches("reason-A-[0-9a-f]{6}");
+		assertThat(versionA.length()).isLessThanOrEqualTo(20);
+		// 같은 빌더를 두 번 물어도 같은 값이어야 추천 행끼리 견줄 수 있다
+		assertThat(builder.versionOf(ReasonPromptVariant.A)).isEqualTo(versionA);
+		assertThat(Set.of(builder.versionOf(ReasonPromptVariant.A), builder.versionOf(ReasonPromptVariant.B),
+			builder.versionOf(ReasonPromptVariant.D))).hasSize(3);
 	}
 
 	@Test

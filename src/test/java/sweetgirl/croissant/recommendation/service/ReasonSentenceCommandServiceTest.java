@@ -128,9 +128,11 @@ class ReasonSentenceCommandServiceTest {
 			.containsExactly("소금빵이 유명한 집이에요", "머무르기 좋은 공간이에요");
 
 		ArgumentCaptor<Map<String, Object>> saved = ArgumentCaptor.forClass(Map.class);
+		// 판 구분은 변형 이름 + 프롬프트 내용 해시다 — 문구를 깎으면 값이 저절로 달라진다(#768)
+		String promptVersion = new ReasonPromptBuilder(recommendationProperties).versionOf(properties.getVariant());
+		assertThat(promptVersion).startsWith("reason-B-");
 		verify(recommendationRepository).fillReasonsIfStillRule(eq(RECOMMENDATION_ID), saved.capture(),
-			eq("gemini"), eq("gemini-3.5-flash-lite"), eq(properties.promptVersion()),
-			eq(Recommendation.RULE_PROVIDER));
+			eq("gemini"), eq("gemini-3.5-flash-lite"), eq(promptVersion), eq(Recommendation.RULE_PROVIDER));
 		assertThat(storedOf(saved.getValue()).stores()).extracting("reason")
 			.containsExactly("소금빵이 유명한 집이에요", "머무르기 좋은 공간이에요");
 	}
