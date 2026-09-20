@@ -177,7 +177,7 @@ class ReasonPromptBuilderTest {
 			assertThat(prompt).doesNotContain("{tagVocabulary}");
 			String vocabulary = Arrays.stream(TasteTag.values()).map(TasteTag::getLabel)
 				.collect(Collectors.joining(", "));
-			assertThat(prompt).as(variant.name()).contains(vocabulary + " 중 적힌 것만 쓴다");
+			assertThat(prompt).as(variant.name()).contains("태그(" + vocabulary + ")");
 		}
 	}
 
@@ -212,5 +212,17 @@ class ReasonPromptBuilderTest {
 		}
 		assertThat(promptBuilder.build(ReasonPromptVariant.B, taste(), List.of(store(1L, "밀도", 0.71)),
 			Map.of(1L, List.of("뺑 스위스")))).contains("메뉴 이름은 적힌 그대로 쓴다").doesNotContain("메뉴 이름은 주어지지 않았다");
+	}
+
+	@Test
+	@DisplayName("프롬프트는 가게를 설명하지 말고 권하라고 이른다 — 랩 실험에서 문형을 뒤집은 규칙(#764)")
+	void prompt_asksToInviteNotExplain() {
+		ReasonPromptBuilder builder = promptBuilder;
+
+		String prompt = builder.build(ReasonPromptVariant.A, taste(), List.of(store(1L, "밀도", 0.71)), Map.of());
+
+		assertThat(prompt).contains("가게를 소개하지 말고 회원에게 권한다");
+		// 태그 이름을 그대로 옮기지 말라는 규칙이 빠지면 "특별한 메뉴" 가 문장의 절반을 덮는다
+		assertThat(prompt).contains("태그 이름을 문장에 그대로");
 	}
 }
