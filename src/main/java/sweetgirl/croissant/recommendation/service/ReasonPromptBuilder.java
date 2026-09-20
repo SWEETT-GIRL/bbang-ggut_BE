@@ -6,6 +6,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HexFormat;
@@ -51,6 +52,15 @@ public class ReasonPromptBuilder {
 
 	private static final String NO_VALUE = "없음";
 	private static final int MAX_KINDS = 5;
+
+	/**
+	 * 재료를 고르고 자르는 규칙의 판. <b>조립을 바꾸면 이 값을 올린다.</b>
+	 *
+	 * <p>판 해시는 "같은 판이면 같은 해시" 여야 하는데, 템플릿과 설정값만 덮으면 이 클래스의 조립 규칙이 바뀐 것을
+	 * 놓친다(2026-09-21: 종류를 회원과 겹치는 것 먼저로 바꾸면서 드러났다 — 모델에게 가는 글자가 달라지는데 해시는
+	 * 그대로였다). 사람이 올려 적어야 한다는 점에서 내용 해시보다 약한 장치라, 조립 규칙을 고칠 때 같이 본다.
+	 */
+	private static final int MATERIAL_RULE_VERSION = 2;
 
 	/**
 	 * 모델이 쓸 수 있는 태그 목록. 프롬프트 파일에 글자로 박아 두면 사전이 바뀔 때마다 파일 셋을 손으로 고쳐야 하고,
@@ -110,7 +120,7 @@ public class ReasonPromptBuilder {
 	private String thresholds() {
 		RecommendationProperties.Score score = recommendationProperties.getScore();
 		return new TreeMap<>(score.getMemberNotableTagAbove()) + "|" + score.getStoreNotableTagAbove()
-			+ "|" + MAX_KINDS;
+			+ "|" + MAX_KINDS + "|v" + MATERIAL_RULE_VERSION;
 	}
 
 	private static String digest(String template) {
@@ -167,7 +177,7 @@ public class ReasonPromptBuilder {
 				}
 			}
 			block.append("   태그: ").append(joinOrNone(labels(notableStoreTags(row.tags())))).append("\n");
-			block.append("   빵 종류: ").append(joinOrNone(limit(specificKinds(row.kinds()))));
+			block.append("   빵 종류: ").append(joinOrNone(kindsOf(taste, row)));
 			if (variant.isIncludesRuleEvidence()) {
 				block.append("\n   선정 근거: ").append(evidenceText(taste, row));
 			}
@@ -266,6 +276,27 @@ public class ReasonPromptBuilder {
 			return List.of();
 		}
 		return Arrays.stream(signatureMenus).filter(StringUtils::hasText).map(String::trim).distinct().toList();
+	}
+
+	/**
+	 * 프롬프트에 넣을 가게 빵 종류 — <b>회원과 겹치는 것 먼저</b>, 그다음 그 가게 대표 종류, 나머지 순으로 다섯 개.
+	 *
+	 * <p>앞서는 가게가 준 순서(사실상 가나다순) 그대로 앞 다섯 개를 잘랐다. 그래서 프롬프트가 "회원과 가게가 겹치는
+	 * 지점이 있으면 그걸 짚어라" 고 해 놓고 <b>정작 겹치는 종류를 잘라서 안 보여 줬다</b> — 고정 평가 세트에서 취향이
+	 * 있는 회원의 가게 16곳 중 10곳이 그랬다(희와제과는 회원이 좋아하는 마들렌 · 소금빵 · 케이크 · 휘낭시에가 넷 다
+	 * 빠지고 고구마빵 · 까눌레 · 다쿠아즈가 들어갔다).
+	 *
+	 * <p>같은 등급 안에서는 원래 순서를 지킨다(안정 정렬) — 가게가 준 순서에 뜻이 있을 수 있고, 여기서 또 다른
+	 * 기준을 얹으면 무엇 때문에 문장이 달라졌는지 가리기 어려워진다.
+	 */
+	private static List<String> kindsOf(TasteQuery taste, CandidateStoreRow row) {
+		Set<String> memberKinds = new LinkedHashSet<>(taste.topKinds() == null ? List.of() : taste.topKinds());
+		Set<String> signatureKinds = new LinkedHashSet<>(specificKinds(row.signatureKinds()));
+		return specificKinds(row.kinds()).stream()
+			.sorted(
+				Comparator.comparingInt(kind -> memberKinds.contains(kind) ? 0 : signatureKinds.contains(kind) ? 1 : 2))
+			.limit(MAX_KINDS)
+			.toList();
 	}
 
 	private static List<String> limit(List<String> values) {
