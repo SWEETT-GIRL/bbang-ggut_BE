@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.DisplayName;
@@ -177,7 +178,7 @@ class ReasonPromptBuilderTest {
 			assertThat(prompt).doesNotContain("{tagVocabulary}");
 			String vocabulary = Arrays.stream(TasteTag.values()).map(TasteTag::getLabel)
 				.collect(Collectors.joining(", "));
-			assertThat(prompt).as(variant.name()).contains(vocabulary + " 중 적힌 것만 쓴다");
+			assertThat(prompt).as(variant.name()).contains("태그(" + vocabulary + ")");
 		}
 	}
 
@@ -212,5 +213,32 @@ class ReasonPromptBuilderTest {
 		}
 		assertThat(promptBuilder.build(ReasonPromptVariant.B, taste(), List.of(store(1L, "밀도", 0.71)),
 			Map.of(1L, List.of("뺑 스위스")))).contains("메뉴 이름은 적힌 그대로 쓴다").doesNotContain("메뉴 이름은 주어지지 않았다");
+	}
+
+	@Test
+	@DisplayName("판 구분은 변형 이름과 프롬프트 내용에서 나온다 — 변형마다 다르고 컬럼(20자)에 들어간다")
+	void versionOf_isVariantAndContentHash() {
+		ReasonPromptBuilder builder = promptBuilder;
+
+		String versionA = builder.versionOf(ReasonPromptVariant.A);
+
+		assertThat(versionA).matches("reason-A-[0-9a-f]{6}");
+		assertThat(versionA.length()).isLessThanOrEqualTo(20);
+		// 같은 빌더를 두 번 물어도 같은 값이어야 추천 행끼리 견줄 수 있다
+		assertThat(builder.versionOf(ReasonPromptVariant.A)).isEqualTo(versionA);
+		assertThat(Set.of(builder.versionOf(ReasonPromptVariant.A), builder.versionOf(ReasonPromptVariant.B),
+			builder.versionOf(ReasonPromptVariant.D))).hasSize(3);
+	}
+
+	@Test
+	@DisplayName("프롬프트는 가게를 설명하지 말고 권하라고 이른다 — 랩 실험에서 문형을 뒤집은 규칙(#764)")
+	void prompt_asksToInviteNotExplain() {
+		ReasonPromptBuilder builder = promptBuilder;
+
+		String prompt = builder.build(ReasonPromptVariant.A, taste(), List.of(store(1L, "밀도", 0.71)), Map.of());
+
+		assertThat(prompt).contains("가게를 소개하지 말고 회원에게 권한다");
+		// 태그 이름을 그대로 옮기지 말라는 규칙이 빠지면 "특별한 메뉴" 가 문장의 절반을 덮는다
+		assertThat(prompt).contains("태그 이름을 문장에 그대로");
 	}
 }

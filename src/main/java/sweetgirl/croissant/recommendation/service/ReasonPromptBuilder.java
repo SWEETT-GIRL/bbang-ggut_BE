@@ -2,16 +2,20 @@ package sweetgirl.croissant.recommendation.service;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 
@@ -50,23 +54,71 @@ public class ReasonPromptBuilder {
 
 	/**
 	 * 모델이 쓸 수 있는 태그 목록. 프롬프트 파일에 글자로 박아 두면 사전이 바뀔 때마다 파일 셋을 손으로 고쳐야 하고,
-	 * 빠뜨리면 없어진 태그를 쓰라고 하거나 새 태그를 쓰지 말라고 하게 된다(#758 에서 실제로 그랬다 — 노포 · 신상 · 아침 ·
-	 * 저녁이 dataops #11 에서 빠졌는데 프롬프트에는 남아 있었다). 태그의 원본은 {@link TasteTag} 하나다.
+	 * 빠뜨리면 없어진 태그를 쓰라고 하거나 새 태그를 쓰지 말라고 하게 된다(#758 에서 실제로 그랬다). 태그의 원본은
+	 * {@link TasteTag} 하나다.
 	 *
-	 * <p>데이터 키가 아니라 표시 문구를 쓴다 — 배지 칩과 이유 문장이 같은 말을 하고, "공간사진" 같은 데이터 이름이 문장에
-	 * 새지 않는다(#759 리뷰). 문구 "건강·신선" 에 가운뎃점이 있어 구분자는 쉼표다.
+	 * <p>데이터 키가 아니라 표시 문구를 쓴다 — 배지 칩과 이유 문장이 같은 말을 하고, "공간사진" 같은 데이터 이름이
+	 * 문장에 새지 않는다(#759 리뷰). 문구 "건강·신선" 에 가운뎃점이 있어 구분자는 쉼표다.
 	 */
 	private static final String TAG_VOCABULARY = Arrays.stream(TasteTag.values())
 		.map(TasteTag::getLabel)
 		.collect(Collectors.joining(", "));
 
+	/**
+	 * 세 변형이 함께 쓰는 규칙. 파일마다 복사해 두면 한 곳을 빠뜨렸을 때 "무엇이 효과였나" 를 가릴 수 없게 된다
+	 * (#768 리뷰). 예시는 재료 사용법이라 변형마다 달라도 되므로 변형 파일에 남긴다.
+	 */
+	private static final String FORM_RULE = load("recommendation-reason-form-rule.txt").strip();
+
+	/** 태그를 문장에 그대로 옮기지 못하게 하는 규칙 — 랩 실험에서 "특별한 메뉴" 가 문장의 절반을 덮었다 */
+	private static final String TAG_RULE = load("recommendation-reason-tag-rule.txt").strip();
+
 	private final Map<ReasonPromptVariant, String> templates = new EnumMap<>(ReasonPromptVariant.class);
+	private final Map<ReasonPromptVariant, String> versions = new EnumMap<>(ReasonPromptVariant.class);
 	private final RecommendationProperties recommendationProperties;
 
 	public ReasonPromptBuilder(RecommendationProperties recommendationProperties) {
 		this.recommendationProperties = recommendationProperties;
 		for (ReasonPromptVariant variant : ReasonPromptVariant.values()) {
-			templates.put(variant, load(variant.getPromptFile()));
+			String template = load(variant.getPromptFile());
+			templates.put(variant, template);
+			// 해시 입력에 템플릿 밖의 재료까지 넣는다 — 태그 사전이나 문턱이 바뀌면 모델에게 가는 글자가
+			// 달라지는데 템플릿만 보면 판이 같아 보인다(#768 리뷰)
+			versions.put(variant, "reason-" + variant.name() + "-" + digest(template + FORM_RULE + TAG_RULE
+				+ TAG_VOCABULARY + thresholds()));
+		}
+	}
+
+	/**
+	 * 이 문장을 어느 프롬프트가 썼는지 — 변형 이름과 템플릿 내용 해시다(예: {@code reason-B-3f9c2e}).
+	 *
+	 * <p>변형 이름만 남기면 <b>문구를 깎는 순간 판이 섞인다.</b> 같은 "reason-B" 인데 어제 프롬프트와 오늘 프롬프트가
+	 * 달라, 나중에 추천 행을 놓고 "어느 판이 쓴 문장인가" 를 가릴 수 없다. 내용에서 뽑으므로 사람이 버전을 올려
+	 * 적는 것을 잊을 수 없고, 한 글자만 고쳐도 값이 달라진다.
+	 *
+	 * <p>{@code recommendation.prompt_version} 이 20자라 해시는 6자만 쓴다 — 우리가 가진 판이 열 몇 개일 자리에서
+	 * 충돌은 사실상 없다.
+	 */
+	public String versionOf(ReasonPromptVariant variant) {
+		return versions.get(variant);
+	}
+
+	/**
+	 * 해시에 넣는 문턱 · 상한. 회원 문턱은 <b>키 순으로 정렬해</b> 적는다 — {@code HashMap} 의 출력 순서에 기대면
+	 * 같은 설정인데 판 이름이 달라질 수 있고, 그러면 "같은 판이면 같은 해시" 가 깨진다.
+	 */
+	private String thresholds() {
+		RecommendationProperties.Score score = recommendationProperties.getScore();
+		return new TreeMap<>(score.getMemberNotableTagAbove()) + "|" + score.getStoreNotableTagAbove()
+			+ "|" + MAX_KINDS;
+	}
+
+	private static String digest(String template) {
+		try {
+			byte[] hash = MessageDigest.getInstance("SHA-256").digest(template.getBytes(StandardCharsets.UTF_8));
+			return HexFormat.of().formatHex(hash, 0, 3);
+		} catch (NoSuchAlgorithmException e) {
+			throw new IllegalStateException("SHA-256 을 쓸 수 없습니다", e);
 		}
 	}
 
@@ -83,6 +135,8 @@ public class ReasonPromptBuilder {
 			.replace("{stores}", storesBlock(variant, taste, stores, signatureMenus))
 			.replace("{storeCount}", String.valueOf(stores.size()))
 			.replace("{tasteThreshold}", decimal(recommendationProperties.getScore().getTasteCosineThreshold()))
+			.replace("{formRule}", FORM_RULE)
+			.replace("{tagRule}", TAG_RULE)
 			.replace("{tagVocabulary}", TAG_VOCABULARY);
 	}
 
