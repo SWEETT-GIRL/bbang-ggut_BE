@@ -75,6 +75,9 @@ __pycache__/
 ### Claude Code ###
 .claude/scheduled_tasks.lock
 
+# 실험 도구·평가 세트 — 랩(운영 덤프 복제본)에서 뜬 실제 가게·회원 데이터가 들어 있어 추적하지 않는다
+.claude/experiments/
+
 # blog_score local secrets & cache
 scripts/blog_score/.secrets.json
 scripts/blog_score/cache/
