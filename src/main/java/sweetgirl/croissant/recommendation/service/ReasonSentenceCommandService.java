@@ -243,7 +243,8 @@ public class ReasonSentenceCommandService {
 				store.longitude(), store.thumbnailImageKey(), 0, 0, 0, store.tasteFit(), 0,
 				null, null, null, null,
 				profile == null || profile.getTags() == null ? Map.of() : profile.getTags(),
-				profile == null ? List.of() : kindsOf(profile.getKinds())));
+				profile == null ? List.of() : kindsOf(profile.getKinds()),
+				profile == null ? List.of() : kindsOf(profile.getSignatureKinds())));
 		}
 		return rows;
 	}
@@ -269,7 +270,7 @@ public class ReasonSentenceCommandService {
 		return menus;
 	}
 
-	/** 종류도 dataops 의 TEXT[] 라 NULL 원소가 올 수 있다 — {@code List.of} 는 거기서 NPE 다 */
+	/** 종류도 대표 종류도 dataops 의 TEXT[] 라 NULL 원소가 올 수 있다 — {@code List.of} 는 거기서 NPE 다 */
 	private static List<String> kindsOf(String[] kinds) {
 		if (kinds == null) {
 			return List.of();
