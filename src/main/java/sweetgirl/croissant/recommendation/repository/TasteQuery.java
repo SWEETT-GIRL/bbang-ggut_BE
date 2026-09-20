@@ -15,6 +15,7 @@ import sweetgirl.croissant.personalization.enums.TasteTag;
  * 취향 폴백(취향 후보 3곳 미만)은 {@link #empty()} 로 다시 조회한다 — 취향 항을 전부 뺀다.
  *
  * <p>강한 신호 가게 수는 SQL 에 넘기지 않는다 — 태그를 문구에 써도 되는지({@link #reasonTags(int)}) 가르는 데만 쓴다.
+ * 추정 종류(inferredKinds, #762)도 SQL 에 넘기지 않는다 — 점수가 아니라 "{종류} 취향" 배지에만 쓴다(점수에 넣을지는 측정 뒤).
  */
 public record TasteQuery(
 		Double taste,
@@ -23,9 +24,10 @@ public record TasteQuery(
 		Double vibe,
 		Map<String, Double> tags,
 		List<String> topKinds,
-		int strongStoreCount) {
+		int strongStoreCount,
+		List<String> inferredKinds) {
 
-	private static final TasteQuery EMPTY = new TasteQuery(null, null, null, null, Map.of(), List.of(), 0);
+	private static final TasteQuery EMPTY = new TasteQuery(null, null, null, null, Map.of(), List.of(), 0, List.of());
 
 	public static TasteQuery empty() {
 		return EMPTY;
@@ -38,7 +40,7 @@ public record TasteQuery(
 		// 사전이 바뀌면(09-19 v5) 재계산 전 프로필에 옛 키가 남는다 — 새 가게 태그에 없는 키라 태그 항을 0 쪽으로 끌고,
 		// 이유 문장에는 없어진 태그 이름이 샌다. 지금 사전에 있는 키만 넘긴다.
 		// "> 0" 은 SQL 가중 평균의 재료를 고르는 것이지 "도드라진 태그" 문턱이 아니다 — v5 에서는 거의 다 통과한다. 문구 쪽은
-		// notableTagAbove 로 거르고, 여기를 바꾸면 점수가 달라지므로 태그 비중 조정 때 같이 본다(#759 리뷰)
+		// memberNotableTagAbove 로 거르고, 여기를 바꾸면 점수가 달라지므로 태그 비중 조정 때 같이 본다(#759 리뷰)
 		Map<String, Double> tags = profile.getTags() == null ? Map.of() : profile.getTags().entrySet().stream()
 			.filter(entry -> entry.getValue() != null && entry.getValue() > 0)
 			.filter(entry -> TasteTag.fromKey(entry.getKey()).isPresent())
@@ -47,12 +49,16 @@ public record TasteQuery(
 		List<String> topKinds = profile.getTopKinds() == null ? List.of() : Arrays.stream(profile.getTopKinds())
 			.filter(kind -> !GenericKind.isGeneric(kind))
 			.toList();
+		List<String> inferredKinds = profile.getInferredKinds() == null ? List.of()
+			: Arrays.stream(profile.getInferredKinds())
+				.filter(kind -> !GenericKind.isGeneric(kind))
+				.toList();
 		if (!profile.hasAxis()) {
-			return new TasteQuery(null, null, null, null, tags, topKinds, profile.getStrongStoreCount());
+			return new TasteQuery(null, null, null, null, tags, topKinds, profile.getStrongStoreCount(), inferredKinds);
 		}
 		return new TasteQuery(profile.getAxis().getTaste().doubleValue(), profile.getAxis().getTexture().doubleValue(),
 			profile.getAxis().getFilling().doubleValue(), profile.getAxis().getVibe().doubleValue(), tags, topKinds,
-			profile.getStrongStoreCount());
+			profile.getStrongStoreCount(), inferredKinds);
 	}
 
 	/**

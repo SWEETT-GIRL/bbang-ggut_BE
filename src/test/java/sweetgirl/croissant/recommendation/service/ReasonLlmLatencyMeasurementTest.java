@@ -174,7 +174,7 @@ class ReasonLlmLatencyMeasurementTest {
 	/** 담백·바삭·심플·트렌디 쪽 회원 — 뉴웨이브 미니멀(PCLN) */
 	private static TasteQuery taste() {
 		return new TasteQuery(0.62, 0.41, 0.38, 0.22,
-			Map.of("특별한메뉴", 0.9, "건강한맛", 0.5, "웨이팅", 0.3), List.of("소금빵", "바게트", "깜빠뉴"), 4);
+			Map.of("특별한메뉴", 0.9, "건강한맛", 0.5, "웨이팅", 0.3), List.of("소금빵", "바게트", "깜빠뉴"), 4, List.of());
 	}
 
 	private static List<CandidateStoreRow> stores() {
@@ -193,6 +193,6 @@ class ReasonLlmLatencyMeasurementTest {
 			double axisTaste, double axisTexture, double axisFilling, double axisVibe,
 			Map<String, Double> tags, List<String> kinds) {
 		return new CandidateStoreRow(storeId, name, "성수동2가", 37.5446, 127.0557, null, 200, popularityScore,
-			1.2, tasteFit, 5, axisTaste, axisTexture, axisFilling, axisVibe, tags, kinds);
+			1.2, tasteFit, 5, axisTaste, axisTexture, axisFilling, axisVibe, tags, kinds, List.of());
 	}
 }

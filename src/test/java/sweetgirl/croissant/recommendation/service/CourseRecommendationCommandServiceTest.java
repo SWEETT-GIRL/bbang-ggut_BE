@@ -877,7 +877,7 @@ class CourseRecommendationCommandServiceTest {
 		CandidateStoreRow base = candidate(index);
 		return new CandidateStoreRow(base.storeId(), base.name(), base.region3rd(), base.latitude(), base.longitude(),
 			null, base.distanceM(), base.popularityScore(), 1.0 - index * 0.1, tasteFit, tasteCandidateCount,
-			0.5, 0.5, 0.5, 0.5, Map.of(), List.of());
+			0.5, 0.5, 0.5, 0.5, Map.of(), List.of(), List.of());
 	}
 
 	@Test

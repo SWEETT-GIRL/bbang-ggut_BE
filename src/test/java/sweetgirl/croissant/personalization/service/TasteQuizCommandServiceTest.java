@@ -71,7 +71,8 @@ class TasteQuizCommandServiceTest {
 		given(userTasteProfileCommandService.mergeSignals(eq(profile), any(TasteAxis.class), any(), any()))
 			.willAnswer(call -> {
 				TasteAxis quizAxis = call.getArgument(1);
-				profile.recompute(quizAxis, quizAxis.typeCode(), TasteTypeSource.QUIZ, Map.of(), null, null, 0, 0,
+				profile.recompute(quizAxis, quizAxis.typeCode(), TasteTypeSource.QUIZ, Map.of(), null, new String[0],
+					null, 0, 0,
 					call.getArgument(3));
 				return TasteProfileRefreshOutcome.RECOMPUTED;
 			});
@@ -149,7 +150,7 @@ class TasteQuizCommandServiceTest {
 		given(userTasteProfileCommandService.mergeSignals(eq(profile), any(TasteAxis.class), any(), any()))
 			.willAnswer(call -> {
 				profile.recompute(TasteAxis.of(half, half, half.negate(), half), "PCRN", TasteTypeSource.SIGNAL,
-					Map.of(), null, null, 3, 0, LocalDateTime.of(2026, 9, 18, 21, 0));
+					Map.of(), null, new String[0], null, 3, 0, LocalDateTime.of(2026, 9, 18, 21, 0));
 				return TasteProfileRefreshOutcome.RECOMPUTED;
 			});
 

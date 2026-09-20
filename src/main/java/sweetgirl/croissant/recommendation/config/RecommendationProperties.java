@@ -1,5 +1,8 @@
 package sweetgirl.croissant.recommendation.config;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -52,6 +55,8 @@ public class RecommendationProperties {
 	@Getter
 	@Setter
 	public static class Score {
+		private static final double DEFAULT_MEMBER_NOTABLE_TAG_ABOVE = 0.5;
+
 		/** 코사인 항 가중치. 코사인은 −1~1 이라 범위가 다른 항의 두 배다 — 취향이 먼저라는 뜻이 그대로 담겨 있다 */
 		private double cosineWeight = 1.0;
 		/** 태그 일치(0~1) 가중치 — 사용자 태그는 #663 배치 전엔 비어 있어 0 이다 */
@@ -70,11 +75,25 @@ public class RecommendationProperties {
 		 */
 		private int minStrongStoresForTagReason = 4;
 		/**
-		 * 태그가 "도드라진다" 고 볼 문턱. 회원 · 가게 값이 둘 다 이 값을 <b>넘어야</b> 태그 칩이 붙고, 이유 프롬프트도 이 값을 넘는
-		 * 태그만 나열한다. v5 투표 태그는 0.5 가 보통 빵집이고 표가 없는 가게도 정확히 0.5 라 "초과" 다(09-19 사용자 결정: 태그
-		 * 구분 없이 0.5 초과). 0.501 도 넘을 만큼 여유가 없어, v5 적재 뒤 태그별 가게 · 회원 비율을 재서 올릴 수 있게 설정으로 둔다
+		 * 회원 태그가 "도드라진다" 고 볼 문턱 — 태그마다 다르다. 회원 태그는 좋아한 가게 값의 평균이라 인기와 같이 가는 태그가 모두에게
+		 * 높다(랩 09-20: 강한 신호 4곳 이상 회원의 94% 가 특별한메뉴 0.5 초과). 그래서 태그마다 max(0.5, 그 회원들의 상위 30% 경계)
+		 * 로 둔다 — 0.5 는 "좋아한 가게들이 보통 빵집보다 높다"(참), 상위 30% 는 "다른 회원보다 두드러진다"(구별). 사전에 없는 키는
+		 * 0.5. 랩 194명(운영 복제본) 기준 값이라 회원이 늘면 다시 잰다(#762). 배지와 이유 프롬프트가 같이 쓴다
 		 */
-		private double notableTagAbove = 0.5;
+		private Map<String, Double> memberNotableTagAbove = new HashMap<>(Map.of(
+			"웨이팅", 0.555, "머물기", 0.5, "공간사진", 0.517, "가성비", 0.5,
+			"건강한맛", 0.5, "특별한메뉴", 0.831, "대형", 0.5, "디저트", 0.534));
+		/**
+		 * 가게 태그가 도드라진다고 볼 문턱. 가게 값은 dataops 가 백분위로 편 값(0.5 = 보통 빵집, 표 없는 가게도 정확히 0.5)이라 하나로
+		 * 된다. 0.5~0.6 은 표 몇 개 차이라 여유를 둔다 — 투표 태그마다 후보 빵집의 20~37% 가 넘는다(#759 리뷰 · #762)
+		 */
+		private double storeNotableTagAbove = 0.6;
+
+		/** 그 태그의 회원 쪽 문턱 — 설정에 없는 키는 보통 빵집(0.5) */
+		public double memberNotableTagAbove(String tagKey) {
+			return memberNotableTagAbove.getOrDefault(tagKey, DEFAULT_MEMBER_NOTABLE_TAG_ABOVE);
+		}
+
 		/** 풀 안 취향 후보가 이 수 미만이면 취향 항을 빼고 prior 순으로 채운다(fallback) */
 		private int minTasteCandidates = 3;
 		/**

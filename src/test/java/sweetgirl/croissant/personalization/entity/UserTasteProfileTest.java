@@ -42,7 +42,7 @@ class UserTasteProfileTest {
 		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, FIRST);
 
 		profile.recompute(plainCrispy(), "PFLN", TasteTypeSource.SIGNAL, Map.of("머물기", 0.7),
-			new String[] {"소금빵", "깜빠뉴"}, TasteUserType.PLANNER, 4, 2, LATER);
+			new String[] {"소금빵", "깜빠뉴"}, new String[0], TasteUserType.PLANNER, 4, 2, LATER);
 
 		assertThat(profile.getVersion()).isEqualTo(2);
 		assertThat(profile.hasAxis()).isTrue();
@@ -80,7 +80,8 @@ class UserTasteProfileTest {
 		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, FIRST);
 		profile.applyQuiz(List.of(Map.of("axis", "taste", "choice", "B")), plainCrispy(), "PFLN", QUIZ_AT);
 
-		profile.recompute(plainCrispy(), "PFLN", TasteTypeSource.SIGNAL, Map.of(), null, TasteUserType.BROWSER, 1, 1,
+		profile.recompute(plainCrispy(), "PFLN", TasteTypeSource.SIGNAL, Map.of(), null, new String[0],
+			TasteUserType.BROWSER, 1, 1,
 			LATER);
 
 		assertThat(profile.getQuizAnsweredAt()).isEqualTo(QUIZ_AT);
@@ -106,7 +107,8 @@ class UserTasteProfileTest {
 	@DisplayName("유형·카운트만 갱신하면 version 이 그대로다 — 추천이 읽는 값이 아니라 저장된 추천을 깨지 않는다")
 	void refreshStats_keepsVersion() {
 		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, FIRST);
-		profile.recompute(plainCrispy(), "PFLN", TasteTypeSource.SIGNAL, Map.of(), null, TasteUserType.BROWSER, 1, 0,
+		profile.recompute(plainCrispy(), "PFLN", TasteTypeSource.SIGNAL, Map.of(), null, new String[0],
+			TasteUserType.BROWSER, 1, 0,
 			FIRST);
 
 		profile.refreshStats(TasteUserType.PLANNER, 6, 2, LATER);

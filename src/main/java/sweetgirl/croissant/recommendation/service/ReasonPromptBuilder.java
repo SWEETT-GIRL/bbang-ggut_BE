@@ -12,6 +12,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 
 import org.springframework.core.io.ClassPathResource;
@@ -90,7 +91,7 @@ public class ReasonPromptBuilder {
 	 */
 	private String tasteBlock(TasteQuery taste) {
 		List<String> lines = new ArrayList<>();
-		lines.add("- 좋아하는 태그: " + joinOrNone(labels(notableTags(reasonTags(taste)))));
+		lines.add("- 좋아하는 태그: " + joinOrNone(labels(notableMemberTags(reasonTags(taste)))));
 		lines.add("- 자주 먹는 빵 종류: " + joinOrNone(taste.topKinds()));
 		return String.join("\n", lines);
 	}
@@ -110,7 +111,7 @@ public class ReasonPromptBuilder {
 					block.append("   시그니처 메뉴: ").append(String.join(", ", limit(menus))).append("\n");
 				}
 			}
-			block.append("   태그: ").append(joinOrNone(labels(notableTags(row.tags())))).append("\n");
+			block.append("   태그: ").append(joinOrNone(labels(notableStoreTags(row.tags())))).append("\n");
 			block.append("   빵 종류: ").append(joinOrNone(limit(specificKinds(row.kinds()))));
 			if (variant.isIncludesRuleEvidence()) {
 				block.append("\n   선정 근거: ").append(evidenceText(taste, row));
@@ -142,19 +143,29 @@ public class ReasonPromptBuilder {
 		return String.format(Locale.ROOT, "%.2f", value);
 	}
 
-	/** 가중치가 큰 태그가 앞에 오게 — 모델이 앞쪽을 더 본다 */
+	/** 회원 쪽 도드라진 태그 — 태그별 문턱. 배지와 같다 */
+	private List<TasteTag> notableMemberTags(Map<String, Double> weights) {
+		RecommendationProperties.Score score = recommendationProperties.getScore();
+		return notableTags(weights, score::memberNotableTagAbove);
+	}
+
+	/** 가게 쪽 도드라진 태그 — 문턱 하나. 배지와 같다 */
+	private List<TasteTag> notableStoreTags(Map<String, Double> weights) {
+		double above = recommendationProperties.getScore().getStoreNotableTagAbove();
+		return notableTags(weights, key -> above);
+	}
+
 	/**
-	 * 도드라진 태그만, 값이 큰 순으로 — 배지와 같은 문턱({@code notableTagAbove})을 넘는 것. v5 는 모든 가게가 8키를 다 갖고
-	 * 표가 없는 가게도 0.5 라, "0 보다 크면 있다" 로 거르면 가게마다 8개가 거의 다 나열된다(#759 리뷰). 사전 밖 키(적재가
-	 * 사전보다 앞서거나 뒤처진 옛 키)는 뺀다 — 프롬프트가 "사전에 적힌 것만 쓴다" 고 하므로.
+	 * 도드라진 태그만, 값이 큰 순으로(모델이 앞쪽을 더 본다). v5 는 모든 가게가 8키를 다 갖고 표가 없는 가게도 0.5 라, "0 보다 크면
+	 * 있다" 로 거르면 가게마다 8개가 거의 다 나열된다(#759 리뷰). 사전 밖 키(적재가 사전보다 앞서거나 뒤처진 옛 키)는 뺀다 —
+	 * 프롬프트가 "사전에 적힌 것만 쓴다" 고 하므로.
 	 */
-	private List<TasteTag> notableTags(Map<String, Double> weights) {
+	private static List<TasteTag> notableTags(Map<String, Double> weights, ToDoubleFunction<String> aboveOf) {
 		if (weights == null || weights.isEmpty()) {
 			return List.of();
 		}
-		double above = recommendationProperties.getScore().getNotableTagAbove();
 		return weights.entrySet().stream()
-			.filter(entry -> entry.getValue() != null && entry.getValue() > above)
+			.filter(entry -> entry.getValue() != null && entry.getValue() > aboveOf.applyAsDouble(entry.getKey()))
 			.sorted(Map.Entry.<String, Double>comparingByValue().reversed()
 				.thenComparing(Map.Entry.comparingByKey()))
 			.map(entry -> TasteTag.fromKey(entry.getKey()))
@@ -165,8 +176,8 @@ public class ReasonPromptBuilder {
 	/** 회원 · 가게 둘 다에서 도드라진 태그 — 배지의 태그 일치와 같은 조건이다 */
 	private List<TasteTag> sharedNotableTags(Map<String, Double> member, Map<String, Double> store) {
 		Set<TasteTag> storeTags = EnumSet.noneOf(TasteTag.class);
-		storeTags.addAll(notableTags(store));
-		return notableTags(member).stream().filter(storeTags::contains).toList();
+		storeTags.addAll(notableStoreTags(store));
+		return notableMemberTags(member).stream().filter(storeTags::contains).toList();
 	}
 
 	private static List<String> labels(List<TasteTag> tags) {
