@@ -31,10 +31,14 @@ public class ReasonSentenceProperties {
 	private String model = "GEMINI:gemini-3.5-flash-lite";
 
 	/**
-	 * 쓸 프롬프트 변형. 선정 근거를 붙이는 D 는 쓸 수 없다 — 저장된 추천에는 인기도 점수가 없어 근거 줄의 절반이 0 으로
-	 * 나간다. 기동 때 막는다(설정 잘못은 첫 요청이 아니라 배포에서 드러나야 한다).
+	 * 쓸 프롬프트 변형. 기본이 B(시그니처 메뉴까지 주는 재료)인 이유는 랩 실험이다 — 같은 규칙이면 메뉴를 준 쪽이
+	 * 그 가게 실제 메뉴를 문장에 넣는다("까눌레와 버터떡 고를 때"). 입력 토큰이 24% 늘지만 지연은 갈리지 않았고
+	 * 출력 토큰은 오히려 줄었다.
+	 *
+	 * <p>선정 근거를 붙이는 D 는 쓸 수 없다 — 저장된 추천에는 인기도 점수가 없어 근거 줄의 절반이 0 으로 나간다.
+	 * 기동 때 막는다(설정 잘못은 첫 요청이 아니라 배포에서 드러나야 한다).
 	 */
-	private ReasonPromptVariant variant = ReasonPromptVariant.A;
+	private ReasonPromptVariant variant = ReasonPromptVariant.B;
 
 	/**
 	 * 이 시간을 넘으면 기다리지 않고 룰 문장을 준다. 랩 중앙값 1.3~1.4초의 세 배쯤 — 꼬리를 조금 기다려 주되 사용자가
@@ -62,13 +66,5 @@ public class ReasonSentenceProperties {
 	/** 이유 네 줄이면 충분하다. 넘치면 잘려서 JSON 이 깨지므로 여유를 조금 둔다 */
 	@Min(1)
 	private int maxOutputTokens = 800;
-
-	/**
-	 * 추천 행에 남기는 프롬프트 규칙 버전 — 나중에 "어느 프롬프트가 쓴 문장인가" 를 문장만 보고는 알 수 없다.
-	 * 변형에서 만들어 설정 항목을 하나 줄인다(실험과 같은 변형 이름이라 실험 표와 그대로 이어진다).
-	 */
-	public String promptVersion() {
-		return "reason-" + variant.name();
-	}
 
 }

@@ -176,7 +176,7 @@ public class ReasonSentenceCommandService {
 		// 아직 룰 문장인 행에만 쓴다. 같은 묶음에 요청이 나란히 들어와도 저장은 한 번만 이기고, 진 쪽은 이긴 쪽의
 		// 문장을 그대로 돌려준다 — 둘이 쓴 문장은 같지만(temperature 0) 덮어쓰기를 남겨 둘 이유가 없다(#765 리뷰)
 		int filledRows = recommendationRepository.fillReasonsIfStillRule(recommendation.getId(), write(filled),
-			provider, model.model(), properties.promptVersion(), Recommendation.RULE_PROVIDER);
+			provider, model.model(), promptBuilder.versionOf(properties.getVariant()), Recommendation.RULE_PROVIDER);
 		if (filledRows == 0) {
 			log.info("이유 문장을 다른 요청이 먼저 채웠다 [추천={}]", recommendation.getId());
 			return recommendationRepository.findByIdAndMemberId(recommendation.getId(), recommendation.getMemberId())
