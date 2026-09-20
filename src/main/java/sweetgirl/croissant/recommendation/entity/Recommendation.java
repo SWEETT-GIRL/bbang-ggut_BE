@@ -29,7 +29,9 @@ import sweetgirl.croissant.recommendation.enums.RecommendationMode;
  *
  * result 는 사용자에게 내려간 최종본이고, 재사용(같은 코스·모드·상권/앵커·일차·프로필 버전)과 피드백 해석의 기준이다.
  * 여정 변수는 Amplitude, 지연·토큰은 Micrometer, 후보 목록과 LLM 원문은 recommendation_id 를 단 구조화 로그에 남긴다
- * (플래닝 문서 §12). 만들어진 뒤에 바뀌는 것은 이유 문장뿐이다({@link #applyLlmReasons} — #764 에서 문장을 따로 받는다).
+ * (플래닝 문서 §12). 만들어진 뒤에 바뀌는 것은 이유 문장뿐이다 — 그것도 엔티티를 고쳐 저장하지 않고
+ * {@code RecommendationRepository#fillReasonsIfStillRule} 의 조건부 갱신으로만 바뀐다(#764). 같은 묶음에 요청이
+ * 나란히 들어와도 한 번만 이겨야 해서, "읽고 고쳐 저장" 대신 "아직 룰 문장일 때만 쓴다" 를 DB 에 맡긴다.
  * member · course 와 연관을 맺지 않고 id 만 갖는다.
  */
 @Entity
@@ -205,24 +207,6 @@ public class Recommendation {
 
 	public boolean isAnchor() {
 		return this.mode == RecommendationMode.ANCHOR;
-	}
-
-	/**
-	 * 룰 문장을 LLM 문장으로 갈아끼운다 (#764) — 만들어진 뒤에 바뀌는 유일한 자리다.
-	 *
-	 * <p>행을 새로 만들지 않는 이유: 재사용 키(회원 · 코스 · 상권 · 일차 · 프로필 버전)가 같은 행이 둘이 되면 다음 조회가
-	 * 어느 쪽을 집을지에 따라 같은 자리에서 문장이 오락가락한다. 사용자가 본 묶음은 하나이고, 문장은 그 묶음의 일부다.
-	 *
-	 * <p>바꾸는 것은 이유 문장과 그 출처뿐이다 — 고른 가게 · 순서 · 거리 · 취향 폴백 여부는 룰이 정한 그대로 남는다.
-	 * {@code fallback} 은 false 가 된다: 이 값은 "LLM 대신 룰 문장을 내려줬다" 는 뜻이라, 문장이 LLM 것으로 바뀐 순간
-	 * 참이 아니게 된다(가게를 고를 때의 취향 폴백은 result 안에 따로 있다).
-	 */
-	public void applyLlmReasons(Map<String, Object> result, String provider, String model, String promptVersion) {
-		this.result = new LinkedHashMap<>(result);
-		this.provider = provider;
-		this.model = model;
-		this.promptVersion = promptVersion;
-		this.fallback = false;
 	}
 
 	/** 이 가게가 결과에 있었는지 — 가게 단위 반응은 사용자에게 보인 가게에만 붙어야 #663 이 신호로 믿을 수 있다. 상권·앵커 결과 모두 stores[].storeId 다. */

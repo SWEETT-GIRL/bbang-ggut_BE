@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +31,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import sweetgirl.croissant.external.llm.LlmProvider;
 import sweetgirl.croissant.external.llm.LlmProvider;
 import sweetgirl.croissant.external.llm.client.LlmClientRegistry;
 import sweetgirl.croissant.external.llm.dto.LlmRequest;
@@ -79,16 +81,21 @@ class ReasonSentenceCommandServiceTest {
 	@BeforeEach
 	void setUp() {
 		properties.setEnabled(true);
+		// 전용 레지스트리가 그 벤더를 들고 있어야 기동한다 — 전용 클라이언트 없는 벤더를 막는 검사(#765 리뷰)
+		given(llmClientRegistry.configuredProviders()).willReturn(List.of(LlmProvider.GEMINI));
 		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
 		given(storeProfileRepository.findAllById(anyList())).willReturn(List.of());
 		given(recommendationRepository.findByIdAndMemberId(RECOMMENDATION_ID, MEMBER_ID))
 			.willReturn(Optional.of(ruleRecommendation()));
+		// 조건부 갱신이 이긴 것으로 둔다 — 진 경우는 따로 시험한다
+		given(recommendationRepository.fillReasonsIfStillRule(any(), any(), any(), any(), any(), any()))
+			.willReturn(1);
 	}
 
 	private ReasonSentenceCommandService service() {
 		return new ReasonSentenceCommandService(recommendationRepository, userTasteProfileRepository,
-			storeProfileRepository, new ReasonPromptBuilder(recommendationProperties), llmClientRegistry, properties,
-			objectMapper, executor);
+			storeProfileRepository, new ReasonPromptBuilder(recommendationProperties), properties, objectMapper,
+			llmClientRegistry, executor);
 	}
 
 	@Test
@@ -103,7 +110,7 @@ class ReasonSentenceCommandServiceTest {
 		assertThat(response.latencyMs()).isZero();
 		assertThat(response.reasons()).extracting("reason").containsExactly(RULE_REASON, RULE_REASON);
 		verify(llmClientRegistry, never()).generateStructured(any(), any());
-		verify(recommendationRepository, never()).save(any());
+		verify(recommendationRepository, never()).fillReasonsIfStillRule(any(), any(), any(), any(), any(), any());
 	}
 
 	@Test
@@ -120,11 +127,10 @@ class ReasonSentenceCommandServiceTest {
 		assertThat(response.reasons()).extracting("reason")
 			.containsExactly("소금빵이 유명한 집이에요", "머무르기 좋은 공간이에요");
 
-		ArgumentCaptor<Recommendation> saved = ArgumentCaptor.forClass(Recommendation.class);
-		verify(recommendationRepository).save(saved.capture());
-		assertThat(saved.getValue().getProvider()).isEqualTo("gemini");
-		assertThat(saved.getValue().getPromptVersion()).isEqualTo("reason-A");
-		assertThat(saved.getValue().isFallback()).isFalse();
+		ArgumentCaptor<Map<String, Object>> saved = ArgumentCaptor.forClass(Map.class);
+		verify(recommendationRepository).fillReasonsIfStillRule(eq(RECOMMENDATION_ID), saved.capture(),
+			eq("gemini"), eq("gemini-3.5-flash-lite"), eq(properties.promptVersion()),
+			eq(Recommendation.RULE_PROVIDER));
 		assertThat(storedOf(saved.getValue()).stores()).extracting("reason")
 			.containsExactly("소금빵이 유명한 집이에요", "머무르기 좋은 공간이에요");
 	}
@@ -136,8 +142,9 @@ class ReasonSentenceCommandServiceTest {
 
 		service().fill(MEMBER_ID, RECOMMENDATION_ID);
 
-		ArgumentCaptor<Recommendation> saved = ArgumentCaptor.forClass(Recommendation.class);
-		verify(recommendationRepository).save(saved.capture());
+		ArgumentCaptor<Map<String, Object>> saved = ArgumentCaptor.forClass(Map.class);
+		verify(recommendationRepository).fillReasonsIfStillRule(eq(RECOMMENDATION_ID), saved.capture(), any(), any(),
+			any(), any());
 		RecommendationResult stored = storedOf(saved.getValue());
 		assertThat(stored.stores()).extracting("storeId").containsExactly(1L, 2L);
 		assertThat(stored.totalDistanceM()).isEqualTo(420);
@@ -166,7 +173,7 @@ class ReasonSentenceCommandServiceTest {
 		assertThat(response.provider()).isEqualTo("gemini");
 		assertThat(response.reasons()).extracting("reason").containsExactly("이미 받은 문장 1", "이미 받은 문장 2");
 		verify(llmClientRegistry, never()).generateStructured(any(), any());
-		verify(recommendationRepository, never()).save(any());
+		verify(recommendationRepository, never()).fillReasonsIfStillRule(any(), any(), any(), any(), any(), any());
 	}
 
 	@Test
@@ -179,7 +186,7 @@ class ReasonSentenceCommandServiceTest {
 
 		assertThat(response.fallback()).isTrue();
 		assertThat(response.reasons()).extracting("reason").containsExactly(RULE_REASON, RULE_REASON);
-		verify(recommendationRepository, never()).save(any());
+		verify(recommendationRepository, never()).fillReasonsIfStillRule(any(), any(), any(), any(), any(), any());
 	}
 
 	@Test
@@ -191,7 +198,7 @@ class ReasonSentenceCommandServiceTest {
 
 		assertThat(response.fallback()).isTrue();
 		assertThat(response.reasons()).extracting("reason").containsExactly(RULE_REASON, RULE_REASON);
-		verify(recommendationRepository, never()).save(any());
+		verify(recommendationRepository, never()).fillReasonsIfStillRule(any(), any(), any(), any(), any(), any());
 	}
 
 	@Test
@@ -234,7 +241,7 @@ class ReasonSentenceCommandServiceTest {
 
 		assertThat(response.fallback()).isTrue();
 		assertThat(response.reasons()).extracting("reason").containsExactly(RULE_REASON, RULE_REASON);
-		verify(recommendationRepository, never()).save(any());
+		verify(recommendationRepository, never()).fillReasonsIfStillRule(any(), any(), any(), any(), any(), any());
 	}
 
 	@Test
@@ -257,6 +264,74 @@ class ReasonSentenceCommandServiceTest {
 		assertThatThrownBy(() -> service().fill(MEMBER_ID, RECOMMENDATION_ID))
 			.isInstanceOf(RecommendationException.class)
 			.hasFieldOrPropertyWithValue("errorCode", RecommendationErrorCode.ANCHOR_REASON_NOT_SUPPORTED);
+	}
+
+	@Test
+	@DisplayName("모델 표기가 틀리면 기동 때 막는다 — 첫 요청에서 500 으로 터지지 않게 (#765 리뷰)")
+	void construct_badModelReference_throws() {
+		properties.setModel("제미나이-플래시");
+
+		assertThatThrownBy(this::service).isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("제미나이-플래시");
+	}
+
+	@Test
+	@DisplayName("전용 클라이언트가 없는 벤더면 기동 때 막는다")
+	void construct_providerWithoutDedicatedClient_throws() {
+		properties.setModel("OPENAI:gpt-5.6-luna");
+
+		assertThatThrownBy(this::service).isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("OPENAI");
+	}
+
+	@Test
+	@DisplayName("호출할 자리가 없으면 룰 문장을 주고 예산은 돌려준다 (#765 리뷰)")
+	void fill_executorRejects_refundsBudget() {
+		properties.setDailyCallLimit(1);
+		executor = task -> {
+			throw new RejectedExecutionException("자리 없음");
+		};
+		given(recommendationRepository.findByIdAndMemberId(RECOMMENDATION_ID, MEMBER_ID))
+			.willAnswer(invocation -> Optional.of(ruleRecommendation()));
+		ReasonSentenceCommandService service = service();
+
+		assertThat(service.fill(MEMBER_ID, RECOMMENDATION_ID).fallback()).isTrue();
+
+		// 나가지 않은 호출이라 예산이 그대로여야 한다 — 다음 요청이 상한에 걸리면 안 된다
+		executor = Runnable::run;
+		givenAnswer(new Reason(1L, "문장 1"), new Reason(2L, "문장 2"));
+		assertThat(service().fill(MEMBER_ID, RECOMMENDATION_ID).fallback()).isFalse();
+	}
+
+	@Test
+	@DisplayName("벤더 키가 없어 부르지도 못하면 예산을 돌려준다")
+	void fill_providerNotConfigured_refundsBudget() {
+		properties.setDailyCallLimit(1);
+		given(llmClientRegistry.generateStructured(any(LlmRequest.class), eq(ReasonAnswer.class)))
+			.willThrow(new LlmException(LlmErrorCode.PROVIDER_NOT_CONFIGURED));
+		given(recommendationRepository.findByIdAndMemberId(RECOMMENDATION_ID, MEMBER_ID))
+			.willAnswer(invocation -> Optional.of(ruleRecommendation()));
+		ReasonSentenceCommandService service = service();
+
+		assertThat(service.fill(MEMBER_ID, RECOMMENDATION_ID).fallback()).isTrue();
+
+		givenAnswer(new Reason(1L, "문장 1"), new Reason(2L, "문장 2"));
+		assertThat(service().fill(MEMBER_ID, RECOMMENDATION_ID).fallback()).isFalse();
+	}
+
+	@Test
+	@DisplayName("다른 요청이 먼저 채웠으면 덮지 않고 그쪽 문장을 돌려준다 (#765 리뷰)")
+	void fill_lostTheRace_returnsWinnersSentences() {
+		givenAnswer(new Reason(1L, "내가 쓴 문장"), new Reason(2L, "내가 쓴 문장 2"));
+		given(recommendationRepository.fillReasonsIfStillRule(any(), any(), any(), any(), any(), any()))
+			.willReturn(0);
+		given(recommendationRepository.findByIdAndMemberId(RECOMMENDATION_ID, MEMBER_ID))
+			.willReturn(Optional.of(ruleRecommendation()), Optional.of(llmRecommendation()));
+
+		ReasonSentencesResponse response = service().fill(MEMBER_ID, RECOMMENDATION_ID);
+
+		assertThat(response.reasons()).extracting("reason").containsExactly("이미 받은 문장 1", "이미 받은 문장 2");
+		assertThat(response.provider()).isEqualTo("gemini");
 	}
 
 	@Test
@@ -284,8 +359,8 @@ class ReasonSentenceCommandServiceTest {
 			1_310L, 720, 95, 0, "{}");
 	}
 
-	private RecommendationResult storedOf(Recommendation recommendation) {
-		return objectMapper.convertValue(recommendation.getResult(), RecommendationResult.class);
+	private RecommendationResult storedOf(Map<String, Object> result) {
+		return objectMapper.convertValue(result, RecommendationResult.class);
 	}
 
 	private Recommendation ruleRecommendation() {

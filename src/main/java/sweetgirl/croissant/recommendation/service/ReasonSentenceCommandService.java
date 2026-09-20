@@ -25,10 +25,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import sweetgirl.croissant.config.async.AsyncConfig;
 import sweetgirl.croissant.external.llm.client.LlmClientRegistry;
+import sweetgirl.croissant.external.llm.dto.LlmModelRef;
 import sweetgirl.croissant.external.llm.dto.LlmRequest;
 import sweetgirl.croissant.external.llm.dto.LlmResult;
+import sweetgirl.croissant.external.llm.exception.LlmErrorCode;
+import sweetgirl.croissant.external.llm.exception.LlmException;
 import sweetgirl.croissant.personalization.repository.UserTasteProfileRepository;
 import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
+import sweetgirl.croissant.recommendation.config.ReasonLlmClientConfig;
 import sweetgirl.croissant.recommendation.config.ReasonSentenceProperties;
 import sweetgirl.croissant.recommendation.dto.response.ReasonSentence;
 import sweetgirl.croissant.recommendation.dto.response.ReasonSentencesResponse;
@@ -74,6 +78,8 @@ public class ReasonSentenceCommandService {
 	private final ReasonSentenceProperties properties;
 	private final ObjectMapper objectMapper;
 	private final Executor reasonLlmExecutor;
+	/** 기동 때 한 번 푼다 — 요청마다 다시 파싱하지 않고, 표기가 틀렸으면 배포에서 드러난다 */
+	private final LlmModelRef model;
 
 	private final Object callCountLock = new Object();
 	private LocalDate callCountDate = LocalDate.now(ZONE);
@@ -84,9 +90,9 @@ public class ReasonSentenceCommandService {
 			UserTasteProfileRepository userTasteProfileRepository,
 			StoreProfileRepository storeProfileRepository,
 			ReasonPromptBuilder promptBuilder,
-			LlmClientRegistry llmClientRegistry,
 			ReasonSentenceProperties properties,
 			ObjectMapper objectMapper,
+			@Qualifier(ReasonLlmClientConfig.REASON_LLM_REGISTRY) LlmClientRegistry llmClientRegistry,
 			@Qualifier(AsyncConfig.REASON_LLM_EXECUTOR) Executor reasonLlmExecutor) {
 		this.recommendationRepository = recommendationRepository;
 		this.userTasteProfileRepository = userTasteProfileRepository;
@@ -101,6 +107,17 @@ public class ReasonSentenceCommandService {
 		if (properties.getVariant().isIncludesRuleEvidence()) {
 			throw new IllegalStateException(
 				"이유 문장 서빙에는 선정 근거 변형을 쓸 수 없습니다(저장된 추천에 인기도가 없다): " + properties.getVariant());
+		}
+		// 모델 표기도 같은 자리에서 막는다. 요청 때 풀면 그 예외는 LlmException 이 아니라서 폴백에 걸리지 않고
+		// 500 으로 나가며, 그 요청은 이미 하루 예산을 한 칸 쓴 뒤다(#765 리뷰).
+		try {
+			this.model = LlmModelRef.parse(properties.getModel());
+		} catch (IllegalArgumentException e) {
+			throw new IllegalStateException("이유 문장 모델 설정이 잘못됐습니다: " + properties.getModel(), e);
+		}
+		// 전용 클라이언트가 없는 벤더를 가리키면 조용히 공용 클라이언트를 타는 대신 여기서 멈춘다
+		if (properties.isEnabled() && !llmClientRegistry.configuredProviders().contains(model.provider())) {
+			throw new IllegalStateException("이유 문장 전용 클라이언트가 없는 벤더입니다: " + model.provider());
 		}
 	}
 
@@ -155,13 +172,22 @@ public class ReasonSentenceCommandService {
 				: store)
 			.toList();
 		RecommendationResult filled = stored.withStores(stores);
-		String provider = properties.provider().name().toLowerCase(Locale.ROOT);
-		recommendation.applyLlmReasons(write(filled), provider, properties.modelName(), properties.promptVersion());
-		recommendationRepository.save(recommendation);
+		String provider = model.provider().name().toLowerCase(Locale.ROOT);
+		// 아직 룰 문장인 행에만 쓴다. 같은 묶음에 요청이 나란히 들어와도 저장은 한 번만 이기고, 진 쪽은 이긴 쪽의
+		// 문장을 그대로 돌려준다 — 둘이 쓴 문장은 같지만(temperature 0) 덮어쓰기를 남겨 둘 이유가 없다(#765 리뷰)
+		int filledRows = recommendationRepository.fillReasonsIfStillRule(recommendation.getId(), write(filled),
+			provider, model.model(), properties.promptVersion(), Recommendation.RULE_PROVIDER);
+		if (filledRows == 0) {
+			log.info("이유 문장을 다른 요청이 먼저 채웠다 [추천={}]", recommendation.getId());
+			return recommendationRepository.findByIdAndMemberId(recommendation.getId(), recommendation.getMemberId())
+				.map(latest -> storedOf(latest, objectMapper.convertValue(latest.getResult(),
+					RecommendationResult.class)))
+				.orElseGet(() -> storedOf(recommendation, stored));
+		}
 		log.info("이유 문장 [추천={}, 모델={}:{}, 지연={}ms, 입력토큰={}, 출력토큰={}, 채운가게={}/{}]",
-			recommendation.getId(), provider, properties.modelName(), result.latencyMs(), result.inputTokens(),
+			recommendation.getId(), provider, model.model(), result.latencyMs(), result.inputTokens(),
 			result.outputTokens(), byStoreId.size(), stores.size());
-		return new ReasonSentencesResponse(recommendation.getId(), provider, properties.modelName(), false,
+		return new ReasonSentencesResponse(recommendation.getId(), provider, model.model(), false,
 			result.latencyMs(), sentencesOf(filled));
 	}
 
@@ -172,13 +198,15 @@ public class ReasonSentenceCommandService {
 	 * 문장을 저장하면 사용자가 이미 룰 문장을 읽은 뒤에 화면과 저장된 값이 갈린다.
 	 */
 	private LlmResult<ReasonAnswer> call(String prompt, Long recommendationId) {
-		LlmRequest request = new LlmRequest(properties.provider(), properties.modelName(), prompt,
+		LlmRequest request = new LlmRequest(model.provider(), model.model(), prompt,
 			ReasonLlmContract.RESPONSE_SCHEMA, properties.getTemperature(), properties.getMaxOutputTokens());
 		CompletableFuture<LlmResult<ReasonAnswer>> future;
 		try {
 			future = CompletableFuture.supplyAsync(
 				() -> llmClientRegistry.generateStructured(request, ReasonAnswer.class), reasonLlmExecutor);
 		} catch (RejectedExecutionException e) {
+			// 호출이 나가지 않았으니 예산을 돌려준다 — 자리 거절이 몰리면 한 건도 안 부르고 상한을 태운다(#765 리뷰)
+			releaseCall();
 			log.warn("이유 문장 호출 자리 없음 [추천={}]", recommendationId);
 			return null;
 		}
@@ -188,6 +216,11 @@ public class ReasonSentenceCommandService {
 			future.cancel(true);
 			log.warn("이유 문장 타임아웃 [추천={}, 상한={}ms]", recommendationId, properties.getTimeout().toMillis());
 		} catch (ExecutionException e) {
+			// 키가 없어 부르지도 못한 것은 돈이 안 나갔다. 벤더가 받아 놓고 실패한 것은 나갔으니 그대로 센다
+			if (e.getCause() instanceof LlmException failure
+				&& failure.getLlmErrorCode() == LlmErrorCode.PROVIDER_NOT_CONFIGURED) {
+				releaseCall();
+			}
 			log.warn("이유 문장 실패 [추천={}]", recommendationId, e.getCause());
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
@@ -280,6 +313,15 @@ public class ReasonSentenceCommandService {
 			}
 			callsToday++;
 			return true;
+		}
+	}
+
+	/** 나가지 않은 호출의 예산을 돌려준다 — 차감과 같은 잠금 안에서 */
+	private void releaseCall() {
+		synchronized (callCountLock) {
+			if (callsToday > 0) {
+				callsToday--;
+			}
 		}
 	}
 

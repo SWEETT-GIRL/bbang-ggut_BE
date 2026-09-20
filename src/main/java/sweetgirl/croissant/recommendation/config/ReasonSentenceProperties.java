@@ -6,9 +6,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.annotation.Validated;
 
-import sweetgirl.croissant.external.llm.LlmProvider;
-import sweetgirl.croissant.external.llm.dto.LlmModelRef;
-
 import jakarta.validation.constraints.Min;
 import lombok.Getter;
 import lombok.Setter;
@@ -66,24 +63,12 @@ public class ReasonSentenceProperties {
 	@Min(1)
 	private int maxOutputTokens = 800;
 
-	public LlmProvider provider() {
-		return modelRef().provider();
-	}
-
-	public String modelName() {
-		return modelRef().model();
-	}
-
 	/**
 	 * 추천 행에 남기는 프롬프트 규칙 버전 — 나중에 "어느 프롬프트가 쓴 문장인가" 를 문장만 보고는 알 수 없다.
 	 * 변형에서 만들어 설정 항목을 하나 줄인다(실험과 같은 변형 이름이라 실험 표와 그대로 이어진다).
 	 */
 	public String promptVersion() {
 		return "reason-" + variant.name();
-	}
-
-	private LlmModelRef modelRef() {
-		return LlmModelRef.parse(model);
 	}
 
 }
