@@ -26,6 +26,7 @@ import sweetgirl.croissant.world.enums.CharacterStatus;
 import sweetgirl.croissant.world.enums.PlanetGroup;
 import sweetgirl.croissant.world.exception.WorldException;
 import sweetgirl.croissant.world.repository.MemberCharacterRepository;
+import sweetgirl.croissant.world.repository.RewardedAdTransactionRepository;
 
 /**
  * 적립은 이 콜백에서만 한다. 앱이 "봤어요"라고 말하는 것으로는 아무 일도 일어나지 않는다.
@@ -33,7 +34,8 @@ import sweetgirl.croissant.world.repository.MemberCharacterRepository;
 @ExtendWith(MockitoExtension.class)
 class RewardedAdSsvServiceTest {
 
-	private static final String QUERY = "ad_network=5450213213286189855&reward_amount=1&custom_data=7%3Afrog"
+	private static final String QUERY = "ad_network=5450213213286189855&ad_unit=ca-app-pub-1%2F2"
+		+ "&reward_amount=1&reward_item=friend&transaction_id=TX1&custom_data=7%3Afrog"
 		+ "&signature=SIG&key_id=1234567890";
 
 	@Mock
@@ -44,6 +46,8 @@ class RewardedAdSsvServiceTest {
 	private WorldCatalogService worldCatalogService;
 	@Mock
 	private WorldCommandService worldCommandService;
+	@Mock
+	private RewardedAdTransactionRepository rewardedAdTransactionRepository;
 
 	@InjectMocks
 	private RewardedAdSsvService rewardedAdSsvService;
@@ -54,6 +58,8 @@ class RewardedAdSsvServiceTest {
 	private void givenVerifiedAndWakeable() {
 		given(signatureVerifier.verify(QUERY)).willReturn(true);
 		given(worldCommandService.requireWakeable(7L, "frog")).willReturn(MARS);
+		given(rewardedAdTransactionRepository.recordIfFirstTime(
+			any(), any(), any(), any(), any(), any())).willReturn(1);
 	}
 
 	@Test
@@ -110,6 +116,44 @@ class RewardedAdSsvServiceTest {
 
 		assertThat(rewardedAdSsvService.credit(QUERY)).isTrue();
 		then(memberCharacterRepository).should().awakeIfSleeping(7L, "frog", "AD");
+	}
+
+	@Test
+	@DisplayName("같은 보상이 다시 오면 버린다 — 구글은 콜백을 재시도한다")
+	void ignoresRetriedCallback() {
+		given(signatureVerifier.verify(QUERY)).willReturn(true);
+		given(worldCommandService.requireWakeable(7L, "frog")).willReturn(MARS);
+		given(rewardedAdTransactionRepository.recordIfFirstTime(
+			any(), any(), any(), any(), any(), any())).willReturn(0);
+
+		assertThat(rewardedAdSsvService.credit(QUERY)).isFalse();
+		then(memberCharacterRepository).should(never()).addAdView(any(), anyString());
+	}
+
+	@Test
+	@DisplayName("transaction_id 가 없으면 중복을 가릴 수 없어 버린다")
+	void ignoresMissingTransactionId() {
+		String query = "custom_data=7%3Afrog&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(true);
+		given(worldCommandService.requireWakeable(7L, "frog")).willReturn(MARS);
+
+		assertThat(rewardedAdSsvService.credit(query)).isFalse();
+		then(memberCharacterRepository).should(never()).addAdView(any(), anyString());
+	}
+
+	@Test
+	@DisplayName("정산에 대조할 수 있게 광고 단위와 보상 내용을 함께 남긴다")
+	void recordsAdUnitForReconciliation() {
+		givenVerifiedAndWakeable();
+		given(memberCharacterRepository.addAdView(7L, "frog")).willReturn(1);
+		given(memberCharacterRepository.findById(new MemberCharacterId(7L, "frog")))
+			.willReturn(Optional.of(WorldFixtures.memberCharacter(
+				7L, "frog", CharacterStatus.SLEEPING, 1, null)));
+
+		rewardedAdSsvService.credit(QUERY);
+
+		then(rewardedAdTransactionRepository).should()
+			.recordIfFirstTime("TX1", 7L, "frog", "ca-app-pub-1/2", 1, "friend");
 	}
 
 	@Test

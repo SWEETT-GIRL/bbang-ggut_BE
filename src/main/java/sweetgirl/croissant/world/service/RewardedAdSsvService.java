@@ -16,6 +16,7 @@ import sweetgirl.croissant.world.entity.MemberCharacterId;
 import sweetgirl.croissant.world.enums.AcquiredBy;
 import sweetgirl.croissant.world.exception.WorldException;
 import sweetgirl.croissant.world.repository.MemberCharacterRepository;
+import sweetgirl.croissant.world.repository.RewardedAdTransactionRepository;
 
 /**
  * 구글이 서버로 직접 보내는 보상 검증 콜백을 받아 광고 한 편을 적립한다.
@@ -26,8 +27,8 @@ import sweetgirl.croissant.world.repository.MemberCharacterRepository;
  * <p>누구의 어떤 친구인지는 {@code custom_data} 로 온다({@code memberId:characterCode}).
  * 앱이 광고를 띄울 때 실어 보내는 값이라, 형식이 어긋나면 적립할 곳을 알 수 없으므로 버린다.
  *
- * <p>같은 콜백이 두 번 와도(구글은 재시도한다) 두 번 적립되지 않게 해야 하는데, 지금은
- * 거래 번호를 저장할 자리가 없어 막지 못한다 — §남은 일 참고.
+ * <p>구글은 콜백을 재시도한다. 같은 보상은 재시도돼도 {@code transaction_id} 가 같으므로,
+ * 그 번호를 PK 로 둔 표에 먼저 남겨 보고 이미 있으면 버린다 — 중복 적립을 코드가 아니라 DB 가 막는다.
  */
 @Slf4j
 @Service
@@ -38,6 +39,7 @@ public class RewardedAdSsvService {
 	private final MemberCharacterRepository memberCharacterRepository;
 	private final WorldCatalogService worldCatalogService;
 	private final WorldCommandService worldCommandService;
+	private final RewardedAdTransactionRepository rewardedAdTransactionRepository;
 
 	/**
 	 * @param query 콜백 쿼리 문자열 원본. 구글이 서명한 그대로여야 해서 다시 조립한 값을 넘기면 안 된다
@@ -77,6 +79,24 @@ public class RewardedAdSsvService {
 			return false;
 		}
 
+		// 이미 처리한 보상이면 여기서 끝난다. 읽어 보고 넣는 식이면 재시도가 나란히 들어왔을 때 둘 다 통과한다.
+		String transactionId = params.get("transaction_id");
+		if (transactionId == null) {
+			log.warn("[AdMob SSV] transaction_id 가 없어 중복을 가릴 수 없다");
+			return false;
+		}
+		int recorded = rewardedAdTransactionRepository.recordIfFirstTime(
+			transactionId,
+			memberId,
+			characterCode,
+			params.get("ad_unit"),
+			toInteger(params.get("reward_amount")),
+			params.get("reward_item"));
+		if (recorded == 0) {
+			log.info("[AdMob SSV] 이미 처리한 보상이라 넘어간다 - transaction={}", transactionId);
+			return false;
+		}
+
 		if (memberCharacterRepository.addAdView(memberId, characterCode) == 0) {
 			log.info("[AdMob SSV] 이미 깨어난 친구라 적립하지 않는다 - member={}, character={}",
 				memberId, characterCode);
@@ -95,6 +115,14 @@ public class RewardedAdSsvService {
 
 		if (adViews >= adsRequired) {
 			memberCharacterRepository.awakeIfSleeping(memberId, characterCode, AcquiredBy.AD.name());
+		}
+	}
+
+	private Integer toInteger(String value) {
+		try {
+			return value == null ? null : Integer.valueOf(value);
+		} catch (NumberFormatException exception) {
+			return null;
 		}
 	}
 
