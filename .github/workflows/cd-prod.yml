@@ -119,6 +119,9 @@ jobs:
           lambda.callback.secret-key=${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}
 
 
+          # 게스트 쓰기 차단 — 새 앱 출시 뒤에 GUEST_WRITE_BLOCKED=true 로 켠다
+          guest.write-blocked=${GUEST_WRITE_BLOCKED:false}
+
           perf.dashboard.enabled=${PERF_DASHBOARD_ENABLED:false}
           perf.dashboard.access-key=${PERF_DASHBOARD_ACCESS_KEY:}
           EOF
@@ -241,6 +244,7 @@ jobs:
           SLACK_REPORT_WEBHOOK_URL: ${{ secrets.SLACK_REPORT_WEBHOOK_URL_PROD }}
           SLACK_ABUSE_WEBHOOK_URL: ${{ secrets.SLACK_ABUSE_WEBHOOK_URL_PROD }}
           LAMBDA_CALLBACK_SECRET_KEY: ${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}
+          GUEST_WRITE_BLOCKED: ${{ secrets.GUEST_WRITE_BLOCKED }}
           PERF_DASHBOARD_ENABLED: ${{ secrets.PERF_DASHBOARD_ENABLED }}
           PERF_DASHBOARD_ACCESS_KEY: ${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}
           ADMIN_API_KEY: ${{ secrets.PROD_ADMIN_API_KEY }}
@@ -274,6 +278,7 @@ jobs:
             echo "SLACK_REPORT_WEBHOOK_URL=${SLACK_REPORT_WEBHOOK_URL}"
             echo "SLACK_ABUSE_WEBHOOK_URL=${SLACK_ABUSE_WEBHOOK_URL}"
             echo "LAMBDA_CALLBACK_SECRET_KEY=${LAMBDA_CALLBACK_SECRET_KEY}"
+            echo "GUEST_WRITE_BLOCKED=${GUEST_WRITE_BLOCKED:-false}"
             echo "PERF_DASHBOARD_ENABLED=${PERF_DASHBOARD_ENABLED:-false}"
             echo "PERF_DASHBOARD_ACCESS_KEY=${PERF_DASHBOARD_ACCESS_KEY}"
             echo "ADMIN_API_KEY=${ADMIN_API_KEY}"

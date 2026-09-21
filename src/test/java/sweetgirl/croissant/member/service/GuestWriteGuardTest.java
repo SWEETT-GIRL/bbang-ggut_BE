@@ -18,6 +18,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
@@ -86,10 +87,16 @@ class GuestWriteGuardTest {
 		@Mock
 		private MemberRestrictionRepository memberRestrictionRepository;
 
-		@Test
-		@DisplayName("게스트는 제재가 없어도 막힌다")
-		void blocksGuestEvenWithoutRestriction() {
+		private MemberRestrictionReader readerWithToggle(boolean blocked) {
 			MemberRestrictionReader reader = new MemberRestrictionReader(memberRestrictionRepository, memberReader);
+			ReflectionTestUtils.setField(reader, "guestWriteBlocked", blocked);
+			return reader;
+		}
+
+		@Test
+		@DisplayName("차단을 켜면 게스트는 제재가 없어도 막힌다")
+		void blocksGuestEvenWithoutRestriction() {
+			MemberRestrictionReader reader = readerWithToggle(true);
 			given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(guest()));
 
 			assertThatThrownBy(() -> reader.validateCanWrite(MEMBER_ID))
@@ -98,9 +105,20 @@ class GuestWriteGuardTest {
 		}
 
 		@Test
+		@DisplayName("차단을 끄면 게스트도 통과한다 — 새 앱이 깔리기 전까지의 기본값")
+		void allowsGuestWhileToggleOff() {
+			MemberRestrictionReader reader = readerWithToggle(false);
+			// 꺼져 있으면 게스트인지조차 묻지 않는다(단락 평가) — 회원 조회가 한 번 줄어든다
+			given(memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(
+				any(), any(), any(LocalDateTime.class))).willReturn(List.of());
+
+			assertThatCode(() -> reader.validateCanWrite(MEMBER_ID)).doesNotThrowAnyException();
+		}
+
+		@Test
 		@DisplayName("로그인했고 제재도 없으면 통과한다")
 		void allowsCleanMember() {
-			MemberRestrictionReader reader = new MemberRestrictionReader(memberRestrictionRepository, memberReader);
+			MemberRestrictionReader reader = readerWithToggle(true);
 			given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(loggedIn()));
 			given(memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(
 				any(), any(), any(LocalDateTime.class))).willReturn(List.of());
