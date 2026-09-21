@@ -84,7 +84,7 @@ class BbtiControllerTest {
 			.andExpect(jsonPath("$.data.labels.chewy").value(1.0))
 			.andExpect(jsonPath("$.data.labels.sweet").value(0.0))
 			.andExpect(jsonPath("$.data.labels.aroma").value(0.0))
-			.andExpect(jsonPath("$.data.labels.filling").value(1.0))
+			.andExpect(jsonPath("$.data.labels.filling").value(0.0))
 			.andExpect(jsonPath("$.data.labels.vibe").value(1.0))
 			.andExpect(jsonPath("$.data.confidence").value(0.7));
 	}

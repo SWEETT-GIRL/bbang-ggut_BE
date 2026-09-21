@@ -58,12 +58,15 @@ public enum QuizChoice {
 
 	/**
 	 * 라벨 값이 1 인가 — 속·스타일은 두 갈래가 라벨 키 하나({@code filling} · {@code vibe})를 나눠 쓴다.
-	 * 그 키의 값은 "꽉 찬 정도" · "트렌디한 정도" 라서, 반대쪽 갈래({@code FULL} · {@code CLASSIC})를 고르면 0 이다.
-	 * 맛·식감은 갈래마다 키가 따로 있어 고른 것이 1, 나머지가 0 이다.
+	 * 그 키의 값은 "꽉 찬 정도" · "트렌디한 정도" 라서, <b>그 정도가 낮은 쪽</b>({@code SIMPLE} · {@code CLASSIC})을
+	 * 고르면 0 이다. 맛·식감은 갈래마다 키가 따로 있어 고른 것이 1, 나머지가 0 이다.
+	 *
+	 * <p>기존 축과 부호가 반대라는 점에 주의한다 — {@code axis_filling} 은 꽉 참이 −1 · 심플이 +1 이지만,
+	 * 라벨은 "꽉 찬 정도" 라서 꽉 참이 1 이다. 축은 두 극 사이의 위치이고 라벨은 한 성질의 세기라 방향이 다르다.
 	 */
 	public double labelValue() {
 		return switch (this) {
-			case FULL, CLASSIC -> 0d;
+			case SIMPLE, CLASSIC -> 0d;
 			default -> 1d;
 		};
 	}

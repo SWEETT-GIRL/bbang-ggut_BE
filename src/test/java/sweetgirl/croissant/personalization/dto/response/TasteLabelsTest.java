@@ -29,15 +29,16 @@ class TasteLabelsTest {
 	}
 
 	@Test
-	@DisplayName("속·스타일은 두 갈래가 키 하나를 나눠 쓴다 — 반대쪽을 고르면 0 이다")
+	@DisplayName("속·스타일은 키 하나가 '꽉 찬 정도'·'트렌디한 정도'다 — 그 정도가 낮은 쪽을 고르면 0 이다")
 	void fillingAndVibeAreDegrees() {
-		TasteLabels simpleTrendy = TasteLabels.of(List.of(QuizChoice.SIMPLE, QuizChoice.TRENDY));
-		TasteLabels fullClassic = TasteLabels.of(List.of(QuizChoice.FULL, QuizChoice.CLASSIC));
+		TasteLabels fullTrendy = TasteLabels.of(List.of(QuizChoice.FULL, QuizChoice.TRENDY));
+		TasteLabels simpleClassic = TasteLabels.of(List.of(QuizChoice.SIMPLE, QuizChoice.CLASSIC));
 
-		assertThat(simpleTrendy.filling()).isEqualTo(1);
-		assertThat(simpleTrendy.vibe()).isEqualTo(1);
-		assertThat(fullClassic.filling()).isZero();
-		assertThat(fullClassic.vibe()).isZero();
+		// filling 은 "꽉 찬 정도" 라 FULL 이 1 이다 — axis_filling(꽉 참 −1 · 심플 +1)과 부호가 반대인 데 주의
+		assertThat(fullTrendy.filling()).isEqualTo(1);
+		assertThat(fullTrendy.vibe()).isEqualTo(1);
+		assertThat(simpleClassic.filling()).isZero();
+		assertThat(simpleClassic.vibe()).isZero();
 	}
 
 	@Test
