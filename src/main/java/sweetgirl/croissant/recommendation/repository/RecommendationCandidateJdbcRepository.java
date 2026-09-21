@@ -26,7 +26,9 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.personalization.entity.TasteLabelVector;
 import sweetgirl.croissant.personalization.enums.TasteTag;
 import sweetgirl.croissant.recommendation.config.RecommendationProperties;
+import sweetgirl.croissant.recommendation.config.RecommendationProperties.Score.TasteSource;
 import sweetgirl.croissant.recommendation.entity.CourseArea;
+import sweetgirl.croissant.recommendation.service.LabelCenterParams;
 
 /**
  * 추천 후보 SQL (설계 §5.3 · §5.6 · #661). PostGIS 반경 조회라 H2 로는 못 돌린다 — 검증은 랩 테스트(@Tag lab).
@@ -58,6 +60,36 @@ public class RecommendationCandidateJdbcRepository {
 							+ power(p.axis_filling - :cFilling, 2) + power(p.axis_vibe - :cVibe, 2)), 0), 0)
 				ELSE 0 END
 			""";
+
+	/**
+	 * 사용자·가게 라벨 아홉 값 코사인. 가게 alias 는 f, 사용자 라벨은 :l0~:l8(이미 중심화해 넘긴다), 중심은 :m0~:m8.
+	 *
+	 * <p>축 코사인과 <b>같은 자리에 들어간다</b> — 설정이 둘 중 하나를 고르고 나머지는 0 이다. 두 값을 더하면 같은
+	 * 취향을 두 번 세게 되고, 어느 쪽이 이기는지도 못 잰다.
+	 *
+	 * <p>순서는 TasteLabelVector.values() 와 같다(sweet · plain · salty · aroma · soft · crisp · chewy ·
+	 * filling_rich · vibe_trendy). 한 자리만 어긋나도 달콤이 담백과 곱해지는데 예외는 안 난다.
+	 */
+	private static final String LABEL_COSINE = """
+			CASE WHEN CAST(:hasLabels AS boolean) AND f.taste_sweet IS NOT NULL
+				THEN COALESCE(
+					(:l0 * (f.taste_sweet - :m0) + :l1 * (f.taste_plain - :m1)
+						+ :l2 * (f.taste_salty - :m2) + :l3 * (f.taste_aroma - :m3)
+						+ :l4 * (f.tex_soft - :m4) + :l5 * (f.tex_crisp - :m5)
+						+ :l6 * (f.tex_chewy - :m6) + :l7 * (f.filling_rich - :m7)
+						+ :l8 * (f.vibe_trendy - :m8))
+					/ NULLIF(sqrt(:l0 * :l0 + :l1 * :l1 + :l2 * :l2 + :l3 * :l3 + :l4 * :l4
+							+ :l5 * :l5 + :l6 * :l6 + :l7 * :l7 + :l8 * :l8)
+						* sqrt(power(f.taste_sweet - :m0, 2) + power(f.taste_plain - :m1, 2)
+							+ power(f.taste_salty - :m2, 2) + power(f.taste_aroma - :m3, 2)
+							+ power(f.tex_soft - :m4, 2) + power(f.tex_crisp - :m5, 2)
+							+ power(f.tex_chewy - :m6, 2) + power(f.filling_rich - :m7, 2)
+							+ power(f.vibe_trendy - :m8, 2)), 0), 0)
+				ELSE 0 END
+			""";
+
+	/** 설정이 고른 쪽만 살아 있다 — 축 코사인과 라벨 코사인을 더하지 않는다. */
+	private static final String TASTE_COSINE = "(%s + %s)".formatted(COSINE.strip(), LABEL_COSINE.strip());
 
 	/** 후보·칩·가게 수가 공유하는 가게 자격 — ACTIVE, 프로필 있음, 빵집다움 하한, (스위치가 켜졌으면) 내가 기록한 가게 제외. 별칭은 s. */
 	private static final String ELIGIBLE_STORE = """
@@ -100,7 +132,7 @@ public class RecommendationCandidateJdbcRepository {
 							WHERE k = ANY (CAST(:topKinds AS text[])))::float8
 							/ cardinality(CAST(:topKinds AS text[])) END AS kind_overlap
 			) parts
-			""".formatted(COSINE.strip());
+			""".formatted(TASTE_COSINE);
 
 	private static final String SELECT_STORE = """
 			SELECT s.id, s.name, s.region_3rd,
@@ -133,6 +165,7 @@ public class RecommendationCandidateJdbcRepository {
 
 	private final NamedParameterJdbcTemplate jdbcTemplate;
 	private final RecommendationProperties recommendationProperties;
+	private final LabelCenterParams labelCenterParams;
 	private final ObjectMapper objectMapper;
 
 	/**
@@ -240,12 +273,13 @@ public class RecommendationCandidateJdbcRepository {
 					OR (a.region_2nd IS NOT NULL AND s.region_1st = a.sido AND s.region_2nd = a.region_2nd
 						AND (a.region_3rd IS NULL OR s.region_3rd = a.region_3rd)))
 				LEFT JOIN store_profile p ON p.store_id = s.id
+				LEFT JOIN store_recommendation_feature f ON f.store_id = s.id
 				LEFT JOIN LATERAL (SELECT %1$s AS cosine) sc ON TRUE
 				LEFT JOIN saved ss ON ss.store_id = s.id
 				LEFT JOIN viewed v ON v.store_id = s.id
 				GROUP BY a.id
 				"""
-			.formatted(COSINE.strip(), ELIGIBLE_STORE.strip());
+			.formatted(TASTE_COSINE, ELIGIBLE_STORE.strip());
 		RecommendationProperties.Score score = recommendationProperties.getScore();
 		MapSqlParameterSource params = tasteParams(new MapSqlParameterSource(), taste)
 			.addValue("memberId", memberId)
@@ -387,7 +421,7 @@ public class RecommendationCandidateJdbcRepository {
 		double cFilling = center ? score.getCenterFilling() : 0;
 		double cVibe = center ? score.getCenterVibe() : 0;
 		boolean hasAxis = taste.hasAxis();
-		return params
+		params
 			.addValue("hasAxis", hasAxis)
 			.addValue("uTaste", hasAxis ? taste.taste() - cTaste : 0d)
 			.addValue("uTexture", hasAxis ? taste.texture() - cTexture : 0d)
@@ -397,6 +431,31 @@ public class RecommendationCandidateJdbcRepository {
 			.addValue("cTexture", cTexture)
 			.addValue("cFilling", cFilling)
 			.addValue("cVibe", cVibe);
+		return labelParams(params, taste);
+	}
+
+	/**
+	 * 라벨 코사인의 재료 — 사용자 라벨은 중심화해서, 가게 쪽 중심은 그대로 넘긴다(축과 같은 방식).
+	 *
+	 * <p>셋 중 하나라도 없으면 {@code hasLabels = false} 라 그 항이 통째로 0 이다.
+	 * <ul>
+	 *   <li>설정이 AXIS — 축으로 점수를 낸다</li>
+	 *   <li>회원에게 라벨이 없다 — 검사도 안 했고 좋아한 가게에 라벨도 없다</li>
+	 *   <li>중심화 상수를 못 읽었다 — 표가 비어 있다. 0 으로 중심화하면 "모두가 평균보다 달콤" 이 되어
+	 *       달콤한 가게만 몰아준다</li>
+	 * </ul>
+	 */
+	private MapSqlParameterSource labelParams(MapSqlParameterSource params, TasteQuery taste) {
+		double[] centers = recommendationProperties.getScore().getTasteSource() == TasteSource.LABEL
+			? labelCenterParams.current() : null;
+		boolean hasLabels = centers != null && taste.hasLabels();
+		params.addValue("hasLabels", hasLabels);
+		for (int i = 0; i < TasteLabelVector.DIMENSION; i++) {
+			double center = hasLabels ? centers[i] : 0d;
+			params.addValue("l" + i, hasLabels ? taste.labels()[i] - center : 0d);
+			params.addValue("m" + i, center);
+		}
+		return params;
 	}
 
 	private CandidateStoreRow mapRow(ResultSet rs, int rowNum) throws SQLException {

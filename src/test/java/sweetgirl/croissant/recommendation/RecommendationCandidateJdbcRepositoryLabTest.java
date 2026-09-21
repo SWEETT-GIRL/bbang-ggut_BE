@@ -32,7 +32,9 @@ import sweetgirl.croissant.recommendation.repository.AreaChipStats;
 import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
 import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationCandidateJdbcRepository;
+import sweetgirl.croissant.recommendation.repository.StoreLabelStatsRepository;
 import sweetgirl.croissant.recommendation.repository.TasteQuery;
+import sweetgirl.croissant.recommendation.service.LabelCenterParams;
 
 /**
  * 후보 SQL 을 랩 PG(운영 덤프 복제본, PostGIS)에서 돈다. H2 로는 ST_DWithin 을 검증할 수 없다.
@@ -190,7 +192,9 @@ class RecommendationCandidateJdbcRepositoryLabTest {
 		penaltyMode.getScore().setExcludeRecordedStores(false);
 		penaltyMode.getScore().setRecordedStorePenalty(0.3);
 		RecommendationCandidateJdbcRepository penaltyRepository = new RecommendationCandidateJdbcRepository(
-			new NamedParameterJdbcTemplate(jdbcTemplate), penaltyMode, objectMapper);
+			new NamedParameterJdbcTemplate(jdbcTemplate), penaltyMode,
+			new LabelCenterParams(new StoreLabelStatsRepository(new NamedParameterJdbcTemplate(jdbcTemplate))),
+			objectMapper);
 		Map<Long, Double> withPenalty = penaltyRepository.findAreaCandidates(
 			memberId, TasteQuery.empty(), SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, null, null, null, List.of(), 500)
 			.stream().collect(Collectors.toMap(CandidateStoreRow::storeId, CandidateStoreRow::score));
