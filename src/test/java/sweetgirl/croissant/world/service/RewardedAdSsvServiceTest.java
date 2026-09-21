@@ -1,0 +1,123 @@
+package sweetgirl.croissant.world.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.never;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import sweetgirl.croissant.world.code.WorldErrorCode;
+import sweetgirl.croissant.world.dto.response.WorldPlanetResponse;
+import sweetgirl.croissant.world.entity.MemberCharacterId;
+import sweetgirl.croissant.world.entity.WorldFixtures;
+import sweetgirl.croissant.world.enums.CharacterStatus;
+import sweetgirl.croissant.world.enums.PlanetGroup;
+import sweetgirl.croissant.world.exception.WorldException;
+import sweetgirl.croissant.world.repository.MemberCharacterRepository;
+
+/**
+ * 적립은 이 콜백에서만 한다. 앱이 "봤어요"라고 말하는 것으로는 아무 일도 일어나지 않는다.
+ */
+@ExtendWith(MockitoExtension.class)
+class RewardedAdSsvServiceTest {
+
+	private static final String QUERY = "ad_network=5450213213286189855&reward_amount=1&custom_data=7%3Afrog"
+		+ "&signature=SIG&key_id=1234567890";
+
+	@Mock
+	private RewardedAdSignatureVerifier signatureVerifier;
+	@Mock
+	private MemberCharacterRepository memberCharacterRepository;
+	@Mock
+	private WorldCatalogService worldCatalogService;
+	@Mock
+	private WorldCommandService worldCommandService;
+
+	@InjectMocks
+	private RewardedAdSsvService rewardedAdSsvService;
+
+	private static final WorldPlanetResponse MARS = new WorldPlanetResponse(
+		"mars", "화성", PlanetGroup.SOLAR, 2, 30, "earth", false, 1, 2, true, null, List.of());
+
+	private void givenVerifiedAndWakeable() {
+		given(signatureVerifier.verify(QUERY)).willReturn(true);
+		given(worldCommandService.requireWakeable(7L, "frog")).willReturn(MARS);
+	}
+
+	@Test
+	@DisplayName("서명이 맞지 않으면 아무것도 하지 않는다")
+	void ignoresBadSignature() {
+		given(signatureVerifier.verify(QUERY)).willReturn(false);
+
+		assertThat(rewardedAdSsvService.credit(QUERY)).isFalse();
+		then(memberCharacterRepository).should(never()).addAdView(any(), anyString());
+	}
+
+	@Test
+	@DisplayName("custom_data 가 없으면 적립할 곳을 몰라 버린다")
+	void ignoresMissingCustomData() {
+		String query = "ad_network=5&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(true);
+
+		assertThat(rewardedAdSsvService.credit(query)).isFalse();
+		then(memberCharacterRepository).should(never()).addAdView(any(), anyString());
+	}
+
+	@Test
+	@DisplayName("아직 깨울 수 없는 친구면 적립하지 않는다 — custom_data 를 바꿔도 규칙을 넘지 못한다")
+	void respectsWakeRules() {
+		given(signatureVerifier.verify(QUERY)).willReturn(true);
+		willThrow(new WorldException(WorldErrorCode.WORLD_ROULETTE_REQUIRED))
+			.given(worldCommandService).requireWakeable(7L, "frog");
+
+		assertThat(rewardedAdSsvService.credit(QUERY)).isFalse();
+		then(memberCharacterRepository).should(never()).addAdView(any(), anyString());
+	}
+
+	@Test
+	@DisplayName("한 편 적립하고, 아직 모자라면 깨우지 않는다")
+	void countsWithoutAwakening() {
+		givenVerifiedAndWakeable();
+		given(memberCharacterRepository.addAdView(7L, "frog")).willReturn(1);
+		given(memberCharacterRepository.findById(new MemberCharacterId(7L, "frog")))
+			.willReturn(Optional.of(WorldFixtures.memberCharacter(
+				7L, "frog", CharacterStatus.SLEEPING, 1, null)));
+
+		assertThat(rewardedAdSsvService.credit(QUERY)).isTrue();
+		then(memberCharacterRepository).should(never()).awakeIfSleeping(any(), anyString(), anyString());
+	}
+
+	@Test
+	@DisplayName("필요한 편수를 채우면 깨운다 — 편수는 그 친구가 사는 행성 값이다")
+	void awakensWhenEnough() {
+		givenVerifiedAndWakeable();
+		given(memberCharacterRepository.addAdView(7L, "frog")).willReturn(1);
+		given(memberCharacterRepository.findById(new MemberCharacterId(7L, "frog")))
+			.willReturn(Optional.of(WorldFixtures.memberCharacter(
+				7L, "frog", CharacterStatus.SLEEPING, 2, null)));
+
+		assertThat(rewardedAdSsvService.credit(QUERY)).isTrue();
+		then(memberCharacterRepository).should().awakeIfSleeping(7L, "frog", "AD");
+	}
+
+	@Test
+	@DisplayName("이미 깨어난 친구면 적립하지 않는다")
+	void ignoresAwakeCharacter() {
+		givenVerifiedAndWakeable();
+		given(memberCharacterRepository.addAdView(7L, "frog")).willReturn(0);
+
+		assertThat(rewardedAdSsvService.credit(QUERY)).isFalse();
+	}
+}

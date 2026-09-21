@@ -54,15 +54,6 @@ public class WorldController {
 		return ResponseEntity.ok(ApiResponse.ok(worldCommandService.spinRoulette(memberId, code)));
 	}
 
-	@Operation(summary = "광고 한 편 적립", description = "필요한 편수를 채우면 그 자리에서 깨어난다. "
-		+ "필요한 편수는 그 친구가 사는 행성마다 다를 수 있다.")
-	@PostMapping("/characters/{code}/ad-views")
-	public ResponseEntity<ApiResponse<WorldWakeResponse>> addAdView(
-			@AuthenticationPrincipal Long memberId,
-			@PathVariable String code) {
-		return ResponseEntity.ok(ApiResponse.ok(worldCommandService.addAdView(memberId, code)));
-	}
-
 	@Operation(summary = "티켓으로 친구 깨우기", description = "친구 추천으로 받은 티켓을 써서 "
 		+ "광고 없이 한 명을 바로 깨운다.")
 	@PostMapping("/characters/{code}/wake-ticket")
