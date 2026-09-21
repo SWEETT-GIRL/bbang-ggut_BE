@@ -15,6 +15,9 @@ public interface MemberCharacterRepository
 
 	List<MemberCharacter> findAllByIdMemberId(Long memberId);
 
+	/** 이 캐릭터를 가진 회원 수. 어드민이 비활성으로 돌리기 전에 영향 범위를 본다. */
+	long countByIdCharacterCode(String characterCode);
+
 	/**
 	 * 게스트와 회원이 같은 친구를 가진 경우를 합친다. 광고는 많이 모은 쪽, 획득 시각은 이른 쪽을
 	 * 남기고, 한쪽이라도 깨어났으면 깨어난 것으로 본다.

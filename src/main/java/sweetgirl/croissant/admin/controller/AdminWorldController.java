@@ -17,13 +17,17 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.admin.service.AdminWorldCharacterService;
 import sweetgirl.croissant.admin.service.AdminWorldPlanetService;
 import sweetgirl.croissant.admin.service.AdminWorldStageService;
 import sweetgirl.croissant.global.response.ApiResponse;
+import sweetgirl.croissant.world.dto.request.AdminWorldCharacterCreateRequest;
+import sweetgirl.croissant.world.dto.request.AdminWorldCharacterUpdateRequest;
 import sweetgirl.croissant.world.dto.request.AdminWorldPlanetCreateRequest;
 import sweetgirl.croissant.world.dto.request.AdminWorldPlanetUpdateRequest;
 import sweetgirl.croissant.world.dto.request.AdminWorldStageCreateRequest;
 import sweetgirl.croissant.world.dto.request.AdminWorldStageUpdateRequest;
+import sweetgirl.croissant.world.dto.response.AdminWorldCharacterResponse;
 import sweetgirl.croissant.world.dto.response.AdminWorldPlanetResponse;
 import sweetgirl.croissant.world.dto.response.AdminWorldStageResponse;
 
@@ -34,6 +38,7 @@ import sweetgirl.croissant.world.dto.response.AdminWorldStageResponse;
 public class AdminWorldController {
 
 	private final AdminWorldPlanetService adminWorldPlanetService;
+	private final AdminWorldCharacterService adminWorldCharacterService;
 	private final AdminWorldStageService adminWorldStageService;
 
 	@Operation(summary = "행성 목록", description = "여정 순서대로 누적한 도착점(arriveAt)을 함께 내린다 — span 을 고쳤을 때 "
@@ -89,6 +94,31 @@ public class AdminWorldController {
 	@DeleteMapping("/stages/{stageId}")
 	public ResponseEntity<ApiResponse<Void>> deleteStage(@PathVariable Long stageId) {
 		adminWorldStageService.delete(stageId);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "캐릭터 목록", description = "올라간 포즈 그림 키와, 그 캐릭터를 가진 회원 수를 함께 내린다 — 비활성으로 "
+		+ "돌리기 전에 영향 범위를 보라고.")
+	@GetMapping("/characters")
+	public ResponseEntity<ApiResponse<List<AdminWorldCharacterResponse>>> getCharacters() {
+		return ResponseEntity.ok(ApiResponse.ok(adminWorldCharacterService.getCharacters()));
+	}
+
+	@Operation(summary = "캐릭터 추가")
+	@PostMapping("/characters")
+	public ResponseEntity<ApiResponse<Map<String, String>>> createCharacter(
+			@Valid @RequestBody AdminWorldCharacterCreateRequest request) {
+		return ResponseEntity.ok(
+			ApiResponse.created(Map.of("code", adminWorldCharacterService.create(request))));
+	}
+
+	@Operation(summary = "캐릭터 수정", description = "이름의 정본이 서버라 여기서 고치면 앱 배포 없이 바뀐다. 지금 마스코트를 "
+		+ "내리거나 비활성으로 돌리려면 대신 세울 캐릭터를 함께 지정해야 한다.")
+	@PatchMapping("/characters/{code}")
+	public ResponseEntity<ApiResponse<Void>> updateCharacter(
+			@PathVariable String code,
+			@Valid @RequestBody AdminWorldCharacterUpdateRequest request) {
+		adminWorldCharacterService.update(code, request);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 }
