@@ -1,0 +1,294 @@
+# 선착순 쿠폰 동시성 — 1차: 비관적 락
+
+작성 2026-09-21 · 브랜치 `feat/coupon-concurrency` · base `origin/dev`
+
+> **이 문서는 비관적 락 한 가지만 다룬다.**
+> 다음에 뭘 할지는 여기서 정하지 않는다 — §12의 측정 결과를 보고 그때 정한다.
+
+---
+
+## 0. 무엇을 하는가
+
+**선착순 쿠폰 발급을 비관적 락으로 만들고, 재고 100장에 5만 명이 몰릴 때 무슨 일이 벌어지는지 측정한다.**
+
+목적이 기능이 아니라 측정이므로, 쿠폰 도메인은 **측정에 필요한 최소한만** 만든다.
+
+## 1. 이번에 답할 질문
+
+| # | 질문 | 어떻게 판정하나 |
+|---|---|---|
+| Q1 | 락이 없으면 정말 초과 발급이 나는가 | JUnit 동시성 테스트. 발급 행 > 100 이면 재현 |
+| Q2 | 비관락이 정합성을 지키는가 | 정확히 100행, 중복 0 |
+| Q3 | 5만이 몰리면 무엇이 먼저 마르는가 | k6 + actuator + 로그를 시각으로 붙여서 |
+| Q4 | 커넥션 풀을 10→50으로 늘리면 달라지는가 | 같은 시나리오 재측정 |
+| Q5 | 쿠폰 폭주가 다른 API에 영향을 주는가 | 동시에 도는 `/stores/search` p99 |
+
+**Q1은 대비군이다.** 락을 뺐을 때 실제로 깨지는 걸 봐야 비관락이 일하고 있다는 게 증명된다.
+
+## 2. 범위
+
+### 만든다
+- 쿠폰 발급 API 1개 (`POST /coupons/{couponId}/issue`)
+- 비관적 락 구현 + 락 없는 구현(대비군, 테스트 전용)
+- 실험 반복용 리셋 엔드포인트 (dev 전용)
+- k6 시나리오 + actuator·로그 수집 스크립트
+- JUnit 동시성 테스트
+
+### 안 만든다
+- 쿠폰 사용·만료·취소, 내 쿠폰함 조회
+- 어드민 쿠폰 생성 API — 마이그레이션 시드와 dev 리셋으로 충분
+- **다음 단계 대비 설계 일체.** 측정 결과를 보고 다음 브랜치에서 정한다
+
+## 3. 테이블
+
+마이그레이션은 `V20260921HHMMSS__create_coupons.sql`. 테이블명은 **복수형** — 최근 도메인 관례(`world_planets`, `dessert_item_*`)를 따른다.
+
+### `coupons`
+
+| 컬럼 | 타입 | 비고 |
+|---|---|---|
+| `id` | BIGSERIAL PK | |
+| `name` | VARCHAR(100) NOT NULL | |
+| `total_quantity` | INTEGER NOT NULL | 재고 |
+| `issued_quantity` | INTEGER NOT NULL DEFAULT 0 | **모든 요청이 줄 서는 지점** |
+| `opens_at` | TIMESTAMP NOT NULL | 오픈 시각 |
+| `created_at` / `updated_at` | TIMESTAMP | `BaseTimeEntity` |
+
+**`issued_quantity <= total_quantity` CHECK 제약은 걸지 않는다.** 걸면 Q1(락 없을 때 초과 발급)이 DB에서 막혀 재현이 안 된다. 실험이 끝나고 이 컬럼을 계속 쓸지 정해진 뒤에 추가한다.
+
+### `coupon_issues`
+
+| 컬럼 | 타입 | 비고 |
+|---|---|---|
+| `id` | BIGSERIAL PK | |
+| `coupon_id` | BIGINT NOT NULL REFERENCES coupons (id) | |
+| `member_id` | BIGINT NOT NULL REFERENCES member (id) | |
+| `issued_at` | TIMESTAMP NOT NULL | |
+
+`CONSTRAINT uq_coupon_issue UNIQUE (coupon_id, member_id)` — 1인 1매.
+
+### 왜 `member_id`를 `@ManyToOne`이 아니라 `Long`으로 두는가
+
+이 레포는 두 방식이 다 쓰인다 (`BreadRecord`는 `@ManyToOne Member`, `MemberWorld`·`UserTasteProfile`은 `Long memberId`).
+
+**쿠폰은 `Long memberId`를 쓴다.** `@ManyToOne`이면 발급할 때마다 `Member`를 로드하고, 그 왕복이 **락을 쥔 채로** 일어난다. 락 보유 시간이 이 측정의 핵심 변수인데 거기에 쿼리를 하나 더 얹을 이유가 없다. 발급 경로에서 회원 정보를 읽을 일도 없다.
+
+FK는 건다 — 관례이기도 하고, 5만 명 시드가 실제 `member` 행이어야 한다는 제약이 되기도 한다.
+
+### 왜 `issued_quantity` 카운터를 두는가
+
+`count(*)`로 매번 세면 그 자체가 정합성 판정 기준이 못 된다. 카운터를 따로 두면 **"카운터와 실제 행 수가 일치하는가"**가 검증 항목이 된다 — 락이 깨지면 여기서 어긋난다.
+
+## 4. 비관적 락 구현
+
+락은 **PostgreSQL이 행에 건다.** 코드에서는 JPA 어노테이션으로 쓰고, JPA가 `SELECT ... FOR UPDATE` SQL을 만든다. 락은 **트랜잭션이 끝날 때 풀린다.**
+
+```java
+@Lock(LockModeType.PESSIMISTIC_WRITE)
+@QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))
+Optional<Coupon> findWithLockById(Long id);
+```
+
+선례가 이미 있다 — `CourseRepository.findWithLockByIdAndDeletedAtIsNull` (코스 초대 정원 9명).
+
+### 발급 흐름
+
+```
+@Transactional 시작
+  1. findWithLockById      → FOR UPDATE, 여기서 줄 선다
+  2. 재고 검사              → 소진이면 409
+  3. issued_quantity + 1
+  4. coupon_issues INSERT  → 유니크 위반이면 409 (중복 발급)
+@Transactional 종료 → 락 해제
+```
+
+### 주의점
+
+- **self-invocation 금지.** 같은 클래스 안에서 부르면 프록시를 안 타 트랜잭션이 없고, 락이 즉시 풀린다. 가장 흔한 버그다
+- **락 타임아웃을 반드시 준다.** 없으면 무한 대기. 3초로 시작하고 Q3 결과를 보고 조정한다
+- `LockTimeoutException` / `PessimisticLockException`은 재시도 안내 응답으로 매핑한다
+- 1인 1매는 락과 별개로 **DB 유니크 제약**이 최종 방어선이다
+
+### 대비군 — 락 없는 구현
+
+`CouponIssuer` 인터페이스를 두고 구현 두 개를 만든다. **인터페이스는 대비군 때문에 두는 것이지 나중을 위한 확장점이 아니다.**
+
+| 구현 | 쓰는 곳 |
+|---|---|
+| `PessimisticCouponIssuer` | 실제 경로 |
+| `NoLockCouponIssuer` | **테스트 전용.** Q1 재현 |
+
+## 5. 부하 실험
+
+재고 100장 / 10초간 5만 건 / 배경 조회 부하 동시.
+
+| 회차 | 풀 | 보는 것 |
+|---|---|---|
+| R1 | 10 (기본값) | 기준선. 무엇이 먼저 마르나 (Q2·Q3·Q5) |
+| R2 | 50 | 풀을 늘리면 달라지는가 (Q4) |
+
+**여기까지다.** R3 이후는 R1·R2 결과를 보고 정한다.
+
+### 왜 10초에 5만인가
+
+5만 명이 동시 접속한다는 뜻이 아니다. **도착률** 5,000 req/s다. k6의 `constant-arrival-rate`가 이걸 직접 만든다 — 응답이 느려지면 VU를 알아서 늘린다.
+
+## 6. 측정
+
+증거는 세 겹이고 **타임스탬프로 맞춰 본다.**
+
+| 출처 | 무엇 | 수집 |
+|---|---|---|
+| k6 | 초별 요청·성공·409·500·연결실패 | `--out csv=result.csv` |
+| actuator | Hikari active/pending/timeout, 톰캣 busy | 1초 간격 curl 루프 |
+| 앱 로그 | 풀 고갈·락 타임아웃 **정확한 건수** | `grep -c` |
+
+k6는 **밖에서 본 증상**만 본다. 500이 왜 났는지(풀 고갈인지 락 타임아웃인지)는 actuator와 로그가 답한다.
+
+### 정합성 (전부 통과해야 함)
+
+```sql
+select count(*) from coupon_issues where coupon_id = 1;            -- = 100
+select issued_quantity from coupons where id = 1;                  -- = 100
+select count(*) from (select member_id from coupon_issues
+  where coupon_id = 1 group by member_id having count(*) > 1) t;   -- = 0
+```
+
+### 성능·영향
+
+- 전체 소진 시간, 발급 p99, 409 p99, **초별 에러 분포**
+- 쿠폰 폭주 중 `/stores/search` p99
+
+## 7. 부하 생성
+
+### 회원 5만 명
+랩 DB에 현재 10,102명. FK 때문에 실제 행이 필요하다. 부족분을 시드한다 (`scripts/perf/seed-coupon-members.sql`). `member.nickname`이 NOT NULL이라 유니크한 값을 만들어 넣는다.
+
+### JWT 5만 개
+`JwtProvider.generateAccessToken(Long memberId)`가 memberId만 받는다. **JWT 필터를 실제로 태워야 부하가 진짜이므로** 인증 우회는 쓰지 않는다. 미리 뽑아 CSV로 만들고 k6 `SharedArray`로 읽는다. 만료가 짧으면 실험 중 죽으므로 **생성 직후 바로 돌린다.**
+
+### k6 시나리오
+```
+쿠폰 스파이크:  constant-arrival-rate  5000/s × 10s
+배경 조회부하:  constant-arrival-rate    50/s × 30s  (/stores/search)
+```
+
+응답은 `ApiResponse.code`를 태그로 읽어 분류한다. `http.setResponseCallback(http.expectedStatuses(200, 201, 409))`로 정상 거절을 실패율에서 뺀다. 연결 실패는 `res.status === 0` + `error_code`로 따로 센다.
+
+## 8. 파일 구성
+
+```
+coupon/entity/Coupon.java                  extends BaseTimeEntity, @Table(name="coupons")
+coupon/entity/CouponIssue.java             Long memberId (§3)
+coupon/repository/CouponRepository.java    findWithLockById
+coupon/repository/CouponIssueRepository.java
+coupon/issuer/CouponIssuer.java            + Pessimistic / NoLock 두 구현
+coupon/service/CouponCommandService.java   @Service @Transactional
+coupon/controller/CouponController.java    @RequestMapping("/coupons")
+coupon/code/CouponErrorCode.java           implements BaseErrorCode
+coupon/exception/CouponException.java      extends CustomException
+coupon/dto/response/CouponIssueResponse.java
+```
+
+- `/api` prefix는 붙이지 않는다 (클라이언트 API 관례)
+- Swagger `@Tag`(클래스) + `@Operation`(메서드) **한국어 필수**
+- 인증 주체는 `@AuthenticationPrincipal Long memberId`
+- 에러코드 문자열은 서술형(`"COUPON_SOLD_OUT"`) — 최신 도메인(breadlog) 방식
+- 조회가 없으므로 `QueryService`는 만들지 않는다
+
+## 9. 테스트
+
+CLAUDE.md 원칙대로 **기능 구현 직후 바로** 쓴다.
+
+| 대상 | 종류 | 케이스 |
+|---|---|---|
+| `PessimisticCouponIssuer` | 동시성 통합 `@Tag("lab")` | 1000 스레드 → 정확히 100 |
+| `NoLockCouponIssuer` | 동시성 통합 `@Tag("lab")` | 1000 스레드 → **100 초과**(Q1) |
+| `CouponCommandService` | 단위 (Mockito) | 성공 / 품절 / 중복 / 락타임아웃 |
+| `CouponController` | `@WebMvcTest` | 201 / 409 / 401 |
+| 마이그레이션 | `@Tag("lab")` 스키마 검증 | 기존 `*SchemaLabTest` 패턴 |
+
+lab 테스트는 `@TestPropertySource`에 랩 PG 접속값을 직접 박는다 (기존 `*LabTest` 방식).
+
+```java
+@Tag("lab")
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@TestPropertySource(properties = {
+    "spring.datasource.url=${lab.db.url:jdbc:postgresql://localhost:5432/soboro}",
+    "spring.datasource.username=${lab.db.user:sweetgirl}",
+    "spring.datasource.password=${lab.db.password:soboro-lab}",
+    "spring.jpa.hibernate.ddl-auto=validate"
+})
+```
+
+**동시성 테스트는 `@DataJpaTest`가 아니라 `@SpringBootTest`다.** 슬라이스 테스트는 테스트 트랜잭션으로 감싸 롤백하는데, 동시성 테스트는 워커 스레드가 실제로 커밋해야 의미가 있다.
+
+- **테스트 메서드에 `@Transactional` 금지** — 워커는 별도 트랜잭션이라 커밋을 못 본다. 정리는 `@AfterEach`에서 직접
+- `CountDownLatch`로 동시 출발. 스레드 1000개 수준 (그 이상은 컨텍스트 스위칭이 지배)
+
+실행: `./gradlew test -PlabTests`
+
+## 10. 확정 전제
+
+- **로컬 전용이다.** staging·prod 프로파일은 ERROR 로그를 전부 슬랙 웹훅으로 보낸다. 500이 수만 건이면 채널이 마비된다
+- **랩 PG(5432)에만 붙는다.** 실행은 반드시 두 프로파일을 켠다:
+  `./gradlew bootRun --args='--spring.profiles.active=local,lab'`
+- ⚠️ **`local` 단독으로 띄우지 않는다.** `application-local.properties`는 `localhost:15432`를 가리키는데,
+  `application-lab.properties` 주석은 15432를 **운영 터널**로, local을 15433(개발 DB)으로 적고 있다 —
+  **주석과 설정이 어긋난다.** 어느 쪽이 맞든 local 단독 실행은 랩이 아닌 DB에 Flyway를 실행한다.
+  (현재 15432는 닫혀 있어 연결 실패로 끝나지만, 터널이 열려 있으면 그리로 적용된다.)
+  → 이 불일치는 별도로 확인해 고쳐야 한다
+- 테이블은 **Flyway가 앱 기동 때 만든다.** 한 번 적용되면 브랜치를 되돌려도 남는다. 랩은 `scripts/lab/restore-lab.sh`로 다시 만들 수 있다
+- `ddl-auto=validate`다 (local은 `none`). 엔티티만 만들면 랩 테스트가 깨진다 — **마이그레이션이 먼저다**
+- 로컬 수치는 prod보다 낙관적이다. app↔RDS 네트워크 왕복 때문에 **prod 직렬 처리량은 로컬의 1/5~1/10**. 결론에 안전계수를 적어둔다
+- 대상 앱은 도커로 CPU·메모리를 제한해 띄운다. 맥북 성능 그대로면 비교 의미가 없다
+- 다계정 어뷰징은 막지 않는다. 1인 1매는 memberId 기준이다
+- **이 브랜치를 dev에 머지할지는 측정 후에 정한다.** 머지하면 스테이징·prod에도 테이블이 생긴다
+
+## 11. 뒤집은 결정
+
+| 원안 | 최종 | 이유 |
+|---|---|---|
+| 오라클 클라우드에 부하 서버 구축 | **로컬 단독** | 5만 명 ≠ VU 5만. 도착률 모델이면 맥북으로 충분하다. 공용 인터넷이 끼면 지연이 서버 탓인지 네트워크 탓인지 못 가린다 |
+| nGrinder | **k6** | nGrinder는 VU(스레드) 기반이라 도착률 모델이 없다. 1초에 5천 건을 정확히 못 만든다. k6는 이미 `scripts/perf/`에 있다 |
+| Prometheus + Grafana 구축 | **curl 1초 루프** | 기본 스크랩 15초는 10초 테스트를 통째로 놓친다 |
+| 전략 4종 + 목표 아키텍처 선설계 | **비관락 하나만** | 아직 데이터가 없다. 다음 수를 미리 정하면 측정이 결론을 확인하는 절차로 전락한다 |
+
+## 12. 작업 순서
+
+1. 마이그레이션 + 엔티티 + 스키마 랩 테스트
+2. `CouponIssuer` + `PessimisticCouponIssuer` → **동시성 랩 테스트** (Q2)
+3. `NoLockCouponIssuer` → **동시성 랩 테스트로 초과 발급 재현** (Q1)
+4. `CouponCommandService` + 단위 테스트
+5. `CouponController` + `@WebMvcTest`
+6. dev 리셋 엔드포인트
+7. 회원 시드 + JWT CSV 생성 스크립트
+8. k6 시나리오 + actuator·로그 수집 스크립트
+9. **R1·R2 측정**
+10. 결과를 §13에 정리 → **여기서 다음 스텝을 정한다**
+
+## 13. 측정 결과
+
+> 9단계에서 채운다. 이 표가 다음 브랜치의 입력이 된다.
+
+---
+
+## 부록 — 미결
+
+- [ ] 락 타임아웃 3초가 적절한지 — R1 보고 조정
+- [ ] 도커 리소스 제한값 — 운영 서버 스펙 확인 후
+- [ ] ephemeral port 16,384개에 걸리는지 — `TIME_WAIT` 수로 판단
+
+## 부록 — 확인 완료
+
+| 항목 | 결과 |
+|---|---|
+| k6 | v2.2.0 설치됨 |
+| 랩 PG | `postgres-lab` healthy, 5432 |
+| prod 터널(15432) | **닫힘** — 열지 않는다 |
+| 랩 DB 회원 수 | 10,102명 → 4만 명 추가 시드 필요 |
+| `ddl-auto` | `validate` (local은 `none`) |
+| JWT 발급 | `JwtProvider.generateAccessToken(Long memberId)` |
+| dev 엔드포인트 선례 | `DevPerfController` — `@Profile` + 헤더 키 가드 |
+| 톰캣·Hikari | **설정 없음 = 전부 기본값** (스레드 200, accept 100, 풀 10) |
+| 비관락 선례 | `CourseRepository.findWithLockByIdAndDeletedAtIsNull` |
