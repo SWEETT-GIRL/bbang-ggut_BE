@@ -9,4 +9,6 @@ import sweetgirl.croissant.world.entity.WorldPlanetStage;
 public interface WorldPlanetStageRepository extends JpaRepository<WorldPlanetStage, Long> {
 
 	List<WorldPlanetStage> findAllByOrderByPlanetCodeAscStageOrderAsc();
+
+	List<WorldPlanetStage> findAllByPlanetCodeOrderByStageOrderAsc(String planetCode);
 }
