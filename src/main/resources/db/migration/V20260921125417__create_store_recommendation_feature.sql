@@ -20,6 +20,20 @@
 --     ⚠ 적재는 반드시 upsert 로 한다. DROP; CREATE 는 ACCESS EXCLUSIVE 락이라 MVCC 밖이고,
 --       적재 내내 읽기가 막혀 추천 API 가 그만큼 멈춘다.
 --
+--   ■ 아홉 값이 모두 0~1 이고, 이름이 어느 쪽이 1 인지 말한다
+--     속·스타일은 store_profile 에서 두 극 사이의 위치(꽉 참 −1 · 심플 +1)였다. 여기서는 라벨
+--     일곱 개와 같이 "그 성질의 세기" 로 두어 filling_rich · vibe_trendy 로 부른다.
+--
+--     부호를 맞추려는 게 아니라 틀렸을 때의 무게가 달라서다. store_profile 부호를 물려받으면
+--     회원 선언(labels.filling 은 꽉 참이 1)과 반대라 점수 경로에서 매번 뒤집어야 하는데,
+--     한 곳만 빼먹어도 내적이 조용히 반대 가게를 올린다. 예외도 안 나고 코스는 그럴듯하게
+--     나오므로 틀린 걸 알 방법이 없다. 이름을 axis_filling 으로 두면 주석을 안 읽은 사람이
+--     반반 확률로 틀린다. 이름이 방향을 말하면 그 실수가 안 난다.
+--
+--     범위를 0~1 로 맞춘 것도 같은 이유다. 이 둘만 −1~+1 이면 폭이 두 배라, 아홉 차원을 같은
+--     무게로 놓는 순간 점수의 59% 를 이 둘이 정한다(dataops 실측) — 신호가 세서가 아니라 자가
+--     달라서다. 표에서 맞춰 두면 읽는 쪽이 정규화를 기억할 필요가 없다.
+--
 --   ■ observed_at 이 nullable 인 이유
 --     지금 랩 적재에는 null 이 0건이지만(가장 오래된 것 08-11), 스냅샷이 없는 가게가 앞으로
 --     생길 수 있다. NOT NULL 로 두면 그때 가짜 시각을 넣게 되고, 그것이 문장 freshness 판정을
@@ -38,10 +52,9 @@ CREATE TABLE store_recommendation_feature
     tex_crisp          NUMERIC(5, 4) NOT NULL,
     tex_chewy          NUMERIC(5, 4) NOT NULL,
 
-    -- 속·스타일은 갈래가 둘뿐이라 예전처럼 두 극 사이의 위치다(−1~+1). 라벨 일곱 개와 자가
-    -- 달라서, 점수를 낼 때 같은 범위로 맞추지 않으면 이 둘이 분산의 59% 를 먹는다(dataops 실측).
-    axis_filling       NUMERIC(5, 4) NOT NULL,
-    axis_vibe          NUMERIC(5, 4) NOT NULL,
+    -- 속·스타일도 같은 자다 — 0~1 의 세기이고 이름이 어느 쪽이 1 인지 말한다
+    filling_rich       NUMERIC(5, 4) NOT NULL,
+    vibe_trendy        NUMERIC(5, 4) NOT NULL,
 
     -- 무엇을 보고 만들었나. 리뷰만으로 만든 값을 메뉴에서 확인된 사실과 같은 강도로 쓰지 않는다
     label_source       VARCHAR(10)   NOT NULL,
@@ -61,27 +74,32 @@ CREATE TABLE store_recommendation_feature
     observed_at        TIMESTAMP,
     computed_at        TIMESTAMP     NOT NULL,
 
+    -- 아홉 값이 모두 같은 자다. 하나라도 범위를 벗어나면 그 차원만 점수를 더 먹는다
     CONSTRAINT ck_store_feature_label_range CHECK (
         taste_sweet BETWEEN 0 AND 1 AND taste_plain BETWEEN 0 AND 1
         AND taste_salty BETWEEN 0 AND 1 AND taste_aroma BETWEEN 0 AND 1
         AND tex_soft BETWEEN 0 AND 1 AND tex_crisp BETWEEN 0 AND 1
-        AND tex_chewy BETWEEN 0 AND 1),
-    CONSTRAINT ck_store_feature_axis_range CHECK (
-        axis_filling BETWEEN -1 AND 1 AND axis_vibe BETWEEN -1 AND 1),
+        AND tex_chewy BETWEEN 0 AND 1
+        AND filling_rich BETWEEN 0 AND 1 AND vibe_trendy BETWEEN 0 AND 1),
     CONSTRAINT ck_store_feature_source CHECK (label_source IN ('MENU', 'REVIEW', 'BOTH')),
     CONSTRAINT ck_store_feature_counts CHECK (menu_label_count >= 0 AND review_label_count >= 0)
 );
 
 COMMENT ON TABLE store_recommendation_feature IS
     '가게의 취향 라벨 9개 — 회원이 검사에서 고른 갈래와 맞대는 값. store_profile.axis_* 를 대체하지 않고 나란히 둔다. '
-    '적재는 dataops, 스키마 소유는 BE. 반드시 한 트랜잭션 안에서 upsert 한다(DROP; CREATE 는 읽기를 막는다).';
+    '적재는 dataops, 스키마 소유는 BE. 반드시 한 트랜잭션 안에서 upsert 한다(DROP; CREATE 는 읽기를 막는다). '
+    '아홉 값이 모두 0~1 이고 이름이 어느 쪽이 1 인지 말한다 — store_profile.axis_* 와 부호가 다르니 그대로 옮기지 않는다.';
 
 COMMENT ON COLUMN store_recommendation_feature.taste_aroma IS
     '풍미 — rich 가 아니라 aroma 다. 리뷰 태그의 rich 가 초코·치즈의 "진한 맛" 을 가리켜 혼동을 본 적이 있다.';
 
-COMMENT ON COLUMN store_recommendation_feature.axis_filling IS
-    '속이 꽉 찬 정도 — 꽉 참 −1 · 심플 +1 로 기존 축과 같은 부호다. '
-    '회원 응답의 labels.filling 은 "꽉 찬 정도" 라 꽉 참이 1 이므로 부호가 반대인 데 주의한다.';
+COMMENT ON COLUMN store_recommendation_feature.filling_rich IS
+    '속이 꽉 찬 정도 0~1 — 심플할수록 0 이다. 회원 응답의 labels.filling 과 같은 방향·같은 범위라 그대로 맞댄다. '
+    'store_profile.axis_filling 은 꽉 참이 −1 인 반대 부호이니 그 값을 여기에 그대로 옮기지 않는다.';
+
+COMMENT ON COLUMN store_recommendation_feature.vibe_trendy IS
+    '빵이 트렌디한 정도 0~1 — 클래식할수록 0 이다. 가게 분위기가 아니라 빵의 성질이다(분위기는 store_profile.tags). '
+    'store_profile.axis_vibe 는 클래식이 −1 인 반대 부호다.';
 
 COMMENT ON COLUMN store_recommendation_feature.source_fingerprint IS
     'sha256 앞 32자 — 사전 판본 + 신호 스냅샷 id + 쓰인 메뉴(종류·가중치) + 리뷰 라벨(종류·언급수). '
