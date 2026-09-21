@@ -26,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.breadlog.dto.request.BreadPhotoAnalyzeRequest;
 import sweetgirl.croissant.breadlog.dto.request.BreadRecordPresignedUrlRequest;
 import sweetgirl.croissant.breadlog.dto.request.BreadRecordUpsertRequest;
+import sweetgirl.croissant.breadlog.dto.request.BreadRecordVisibilityRequest;
 import sweetgirl.croissant.breadlog.dto.response.BreadPhotoAnalyzeResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordCreateResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlInfo;
@@ -87,6 +88,17 @@ public class BreadRecordController {
 			@AuthenticationPrincipal Long memberId,
 			@Valid @RequestBody BreadRecordUpsertRequest request) {
 		commandService.replace(recordId, memberId, request);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "빵 기록 공개 여부 변경", description = "공개하면 가게 상세의 빵로그 목록에 보입니다. "
+		+ "사진·태그는 건드리지 않고 공개 여부만 바꿉니다.")
+	@PatchMapping("/{recordId}/visibility")
+	public ResponseEntity<ApiResponse<Void>> changeVisibility(
+			@PathVariable Long recordId,
+			@AuthenticationPrincipal Long memberId,
+			@Valid @RequestBody BreadRecordVisibilityRequest request) {
+		commandService.changeVisibility(recordId, memberId, request.isPublic());
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 

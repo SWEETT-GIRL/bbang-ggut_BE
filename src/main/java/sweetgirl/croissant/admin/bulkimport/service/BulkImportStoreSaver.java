@@ -5,7 +5,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
-import sweetgirl.croissant.admin.bulkimport.code.StoreCategoryDeriver;
 import sweetgirl.croissant.external.kakao.dto.KakaoPlace;
 import sweetgirl.croissant.store.AddressParser;
 import sweetgirl.croissant.store.enums.StoreCategory;
@@ -23,7 +22,7 @@ public class BulkImportStoreSaver {
 			? place.roadAddressName() : place.addressName();
 
 		String[] addr = AddressParser.parse(place.addressName());
-		StoreCategory category = StoreCategoryDeriver.derive(place.categoryName());
+		StoreCategory category = StoreCategory.fromExternalName(place.categoryName());
 		String categoryName = category != null ? category.name() : null;
 
 		storeRepository.insertIfNotExistsByKakaoPlaceId(

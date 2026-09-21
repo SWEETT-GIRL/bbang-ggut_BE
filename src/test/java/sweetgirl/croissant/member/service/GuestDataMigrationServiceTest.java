@@ -3,6 +3,7 @@ package sweetgirl.croissant.member.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import sweetgirl.croissant.badge.repository.MemberBadgeRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
@@ -20,18 +22,29 @@ import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
+import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.course.service.CourseProgressService;
+import sweetgirl.croissant.global.logging.repository.RequestLogRepository;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.event.GuestMergedEvent;
 import sweetgirl.croissant.member.repository.LikedMenuCategoryRepository;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository;
 import sweetgirl.croissant.menu.repository.MenuLikeRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.mission.repository.MemberMissionRepository;
+import sweetgirl.croissant.personalization.entity.UserTasteProfile;
+import sweetgirl.croissant.personalization.repository.UserStoreInteractionRepository;
+import sweetgirl.croissant.personalization.repository.UserTasteProfileRepository;
+import sweetgirl.croissant.recommendation.repository.RecommendationRepository;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 import sweetgirl.croissant.store.repository.SavedStoreRepository;
 import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
+import sweetgirl.croissant.world.repository.MemberCharacterRepository;
+import sweetgirl.croissant.world.repository.MemberPlanetArrivalRepository;
+import sweetgirl.croissant.world.repository.MemberWakeTicketRepository;
+import sweetgirl.croissant.world.repository.MemberWorldRepository;
 
 @ExtendWith(MockitoExtension.class)
 class GuestDataMigrationServiceTest {
@@ -74,6 +87,26 @@ class GuestDataMigrationServiceTest {
 	private MemberRepository memberRepository;
 	@Mock
 	private RefreshTokenRepository refreshTokenRepository;
+	@Mock
+	private CourseStoreVisitRepository courseStoreVisitRepository;
+	@Mock
+	private RequestLogRepository requestLogRepository;
+	@Mock
+	private RecommendationRepository recommendationRepository;
+	@Mock
+	private UserStoreInteractionRepository userStoreInteractionRepository;
+	@Mock
+	private UserTasteProfileRepository userTasteProfileRepository;
+	@Mock
+	private MemberWorldRepository memberWorldRepository;
+	@Mock
+	private MemberCharacterRepository memberCharacterRepository;
+	@Mock
+	private MemberPlanetArrivalRepository memberPlanetArrivalRepository;
+	@Mock
+	private MemberWakeTicketRepository memberWakeTicketRepository;
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
 	private GuestDataMigrationService guestDataMigrationService;
@@ -115,6 +148,20 @@ class GuestDataMigrationServiceTest {
 		breadLogOrder.verify(courseProgressRepository).mergeGuestDuplicates(GUEST_ID, TARGET_ID);
 		breadLogOrder.verify(courseProgressRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
 		breadLogOrder.verify(courseProgressRepository).moveOwner(GUEST_ID, TARGET_ID);
+		// 세계관 — 빠뜨리면 게스트로 만난 첫 친구와 진행도가 로그인하는 순간 사라진다
+		var worldOrder = inOrder(memberWorldRepository, memberCharacterRepository,
+			memberPlanetArrivalRepository);
+		worldOrder.verify(memberWorldRepository).mergeGuestDuplicates(GUEST_ID, TARGET_ID);
+		worldOrder.verify(memberWorldRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
+		worldOrder.verify(memberWorldRepository).moveOwner(GUEST_ID, TARGET_ID);
+		worldOrder.verify(memberCharacterRepository).mergeGuestDuplicates(GUEST_ID, TARGET_ID);
+		worldOrder.verify(memberCharacterRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
+		worldOrder.verify(memberCharacterRepository).moveOwner(GUEST_ID, TARGET_ID);
+		worldOrder.verify(memberPlanetArrivalRepository).mergeGuestDuplicates(GUEST_ID, TARGET_ID);
+		worldOrder.verify(memberPlanetArrivalRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
+		worldOrder.verify(memberPlanetArrivalRepository).moveOwner(GUEST_ID, TARGET_ID);
+		then(memberWakeTicketRepository).should().moveOwner(GUEST_ID, TARGET_ID);
+
 		var badgeOrder = inOrder(memberBadgeRepository);
 		badgeOrder.verify(memberBadgeRepository).mergeGuestDuplicates(GUEST_ID, TARGET_ID);
 		badgeOrder.verify(memberBadgeRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
@@ -129,6 +176,37 @@ class GuestDataMigrationServiceTest {
 		var memoOrder = inOrder(courseStoreMemoRepository);
 		memoOrder.verify(courseStoreMemoRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
 		memoOrder.verify(courseStoreMemoRepository).moveOwner(GUEST_ID, TARGET_ID);
+		// 방문 체크도 코스를 따라간다 — 진행률과 사용자 유형(DOER)의 재료
+		var visitOrder = inOrder(courseStoreVisitRepository, courseProgressService);
+		visitOrder.verify(courseStoreVisitRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
+		visitOrder.verify(courseStoreVisitRepository).moveOwner(GUEST_ID, TARGET_ID);
+		visitOrder.verify(courseProgressService).refreshForMember(TARGET_ID);
+		// 04:00 적재가 회원 id 로 읽는 표도 옮긴다 — 안 옮기면 병합 직전 행동이 닫힌 게스트로 적재된다(#663 ④)
+		then(requestLogRepository).should().moveOwner(GUEST_ID, TARGET_ID);
+		then(recommendationRepository).should().moveOwner(GUEST_ID, TARGET_ID);
+		// 취향 신호: 회원과 겹치는 사건은 지우고 옮긴 뒤, 게스트 프로필은 버리고 커밋 뒤 회원 재계산 이벤트를 낸다(#663 ④)
+		var tasteOrder = inOrder(userStoreInteractionRepository, userTasteProfileRepository, eventPublisher);
+		tasteOrder.verify(userStoreInteractionRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
+		tasteOrder.verify(userStoreInteractionRepository).moveOwner(GUEST_ID, TARGET_ID);
+		tasteOrder.verify(userTasteProfileRepository).findById(GUEST_ID);
+		tasteOrder.verify(eventPublisher).publishEvent(new GuestMergedEvent(GUEST_ID, TARGET_ID));
+	}
+
+	// 게스트 프로필 행은 PK 가 member_id 라 옮길 수 없다 — 있으면 지우고 커밋 뒤 회원 쪽을 다시 계산하게 한다
+	@Test
+	void discardsGuestTasteProfile_beforeRecomputingTarget() {
+		Member guest = mock(Member.class);
+		UserTasteProfile guestProfile = UserTasteProfile.createEmpty(GUEST_ID, LocalDateTime.of(2026, 9, 18, 4, 0));
+		given(memberRepository.getReferenceById(GUEST_ID)).willReturn(guest);
+		given(refreshTokenRepository.findAllByMember(guest)).willReturn(List.of());
+		given(memberRepository.findById(GUEST_ID)).willReturn(Optional.of(guest));
+		given(userTasteProfileRepository.findById(GUEST_ID)).willReturn(Optional.of(guestProfile));
+
+		guestDataMigrationService.migrate(GUEST_ID, TARGET_ID);
+
+		var order = inOrder(userTasteProfileRepository, eventPublisher);
+		order.verify(userTasteProfileRepository).delete(guestProfile);
+		order.verify(eventPublisher).publishEvent(new GuestMergedEvent(GUEST_ID, TARGET_ID));
 	}
 
 	// 빈 껍데기 게스트가 남아 다음 로그인에서 다시 이관 대상이 되면 안 된다

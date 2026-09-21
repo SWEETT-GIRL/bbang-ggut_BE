@@ -56,7 +56,9 @@ public class GeminiClient {
 			String prompt,
 			Map<String, Object> responseSchema,
 			Class<T> responseType) {
-		return parse(call(GeminiGenerateRequest.structuredJson(prompt, responseSchema, 0.0)), responseType);
+		return parse(
+			generate(geminiProperties.getModel(), GeminiGenerateRequest.structuredJson(prompt, responseSchema, 0.0)),
+			responseType);
 	}
 
 	/**
@@ -70,7 +72,9 @@ public class GeminiClient {
 			Map<String, Object> responseSchema,
 			Class<T> responseType) {
 		return parse(
-			call(GeminiGenerateRequest.structuredJsonWithImage(prompt, mimeType, image, responseSchema, 0.0)),
+			generate(
+				geminiProperties.getModel(),
+				GeminiGenerateRequest.structuredJsonWithImage(prompt, mimeType, image, responseSchema, 0.0)),
 			responseType);
 	}
 
@@ -85,11 +89,15 @@ public class GeminiClient {
 		}
 	}
 
-	private GeminiGenerateResponse call(GeminiGenerateRequest request) {
+	/**
+	 * 모델과 요청 본문을 직접 정해 부른다 — 이유 문장 실험(#662)이 한 프롬프트를 여러 모델에 돌려야 해서 열어 둔다.
+	 * 파싱은 호출자 몫이다. 실험은 응답 원문도 눈으로 봐야 하기 때문.
+	 */
+	public GeminiGenerateResponse generate(String model, GeminiGenerateRequest request) {
 		GeminiGenerateResponse response;
 		try {
 			response = geminiRestClient.post()
-				.uri(GENERATE_CONTENT_PATH, geminiProperties.getModel())
+				.uri(GENERATE_CONTENT_PATH, model)
 				.contentType(MediaType.APPLICATION_JSON)
 				.body(request)
 				.retrieve()

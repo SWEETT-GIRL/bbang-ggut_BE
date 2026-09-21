@@ -1,0 +1,460 @@
+package sweetgirl.croissant.recommendation;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.assertj.core.data.Offset;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.test.context.TestPropertySource;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import sweetgirl.croissant.config.JacksonConfig;
+import sweetgirl.croissant.config.persistence.JpaConfig;
+import sweetgirl.croissant.recommendation.config.RecommendationProperties;
+import sweetgirl.croissant.recommendation.entity.CourseArea;
+import sweetgirl.croissant.recommendation.repository.AreaChipStats;
+import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
+import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
+import sweetgirl.croissant.recommendation.repository.RecommendationCandidateJdbcRepository;
+import sweetgirl.croissant.recommendation.repository.TasteQuery;
+
+/**
+ * 후보 SQL 을 랩 PG(운영 덤프 복제본, PostGIS)에서 돈다. H2 로는 ST_DWithin 을 검증할 수 없다.
+ * 실행: {@code ./gradlew test -PlabTests}. 성수 중심(37.5446, 127.0557)은 서울 HOT_PLACE 와 같은 좌표다.
+ */
+@Tag("lab")
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Import({JpaConfig.class, JacksonConfig.class, RecommendationProperties.class,
+	RecommendationCandidateJdbcRepository.class})
+@TestPropertySource(properties = {
+	"spring.datasource.url=${lab.db.url:jdbc:postgresql://localhost:5432/soboro}",
+	"spring.datasource.username=${lab.db.user:sweetgirl}",
+	"spring.datasource.password=${lab.db.password:soboro-lab}",
+	"spring.flyway.enabled=true",
+	"spring.flyway.out-of-order=true",
+	"spring.flyway.baseline-on-migrate=true",
+	"spring.flyway.baseline-version=20260604.0",
+	"spring.jpa.hibernate.ddl-auto=validate",
+	"spring.jpa.show-sql=false"
+})
+class RecommendationCandidateJdbcRepositoryLabTest {
+
+	private static final double SEONGSU_LAT = 37.5446;
+	private static final double SEONGSU_LNG = 127.0557;
+	/** 부산 중구 도장 칸 중심(V20260914174500 시드와 같은 좌표) */
+	private static final double BUSAN_JUNGGU_LAT = 35.10407;
+	private static final double BUSAN_JUNGGU_LNG = 129.03509;
+	/** 기록이 없는 회원 id — bread_record 제외 규칙이 결과를 안 건드리게 */
+	private static final long LAB_MEMBER = -1L;
+	private static final int RADIUS_M = 1_200;
+	private static final int RING_M = 1_000;
+	private static final int MAX_RADIUS_M = 3_000;
+
+	@Autowired
+	private RecommendationCandidateJdbcRepository candidateRepository;
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
+	@Autowired
+	private ObjectMapper objectMapper;
+	@Autowired
+	private CourseAreaRepository courseAreaRepository;
+	@Autowired
+	private RecommendationProperties recommendationProperties;
+
+	@Test
+	@DisplayName("상권 후보: 반경 안 ACTIVE 가게를 점수순으로, 제외 목록과 상한을 지킨다")
+	void areaCandidates_withinRadius_popularityOrdered() {
+		List<CandidateStoreRow> all = candidateRepository.findAreaCandidates(
+			LAB_MEMBER, TasteQuery.empty(), SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, null, null, null, List.of(), 15);
+
+		assertThat(all).isNotEmpty().hasSizeLessThanOrEqualTo(15);
+		assertThat(all).allSatisfy(row -> assertThat(row.distanceM()).isLessThanOrEqualTo(RADIUS_M));
+		// #661: 정렬은 인기 점수가 아니라 점수(취향이 없으면 인기 prior 만 남는다)
+		assertThat(all).extracting(CandidateStoreRow::score).isSortedAccordingTo((a, b) -> Double.compare(b, a));
+		assertThat(all).allSatisfy(row -> assertThat(row.tasteFit()).isZero());
+
+		Long excluded = all.get(0).storeId();
+		List<CandidateStoreRow> withoutFirst = candidateRepository.findAreaCandidates(
+			LAB_MEMBER, TasteQuery.empty(), SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, null, null, null, List.of(excluded),
+			15);
+		assertThat(withoutFirst).extracting(CandidateStoreRow::storeId).doesNotContain(excluded);
+	}
+
+	@Test
+	@DisplayName("상권 후보: 반경이 좁아도 시군구·동이 맞으면 들어온다 — 소속 판정의 보조 규칙")
+	void areaCandidates_regionRuleAddsStoresOutsideRadius() {
+		List<CandidateStoreRow> byRegion = candidateRepository.findAreaCandidates(
+			LAB_MEMBER, TasteQuery.empty(), SEONGSU_LAT, SEONGSU_LNG, 1, "서울", "성동구", "성수동", List.of(), 50);
+
+		assertThat(byRegion).isNotEmpty();
+		assertThat(byRegion).anySatisfy(row -> assertThat(row.distanceM()).isGreaterThan(1));
+	}
+
+	@Test
+	@DisplayName("상권 후보: 시군구 이름이 같은 다른 시·도(대구·대전·인천 중구)는 들어오지 않는다")
+	void areaCandidates_regionRuleIsScopedBySido() {
+		List<CandidateStoreRow> busanJunggu = candidateRepository.findAreaCandidates(
+			LAB_MEMBER, TasteQuery.empty(), BUSAN_JUNGGU_LAT, BUSAN_JUNGGU_LNG, 1, "부산", "중구", null, List.of(), 3000);
+
+		// 부산 중구 ACTIVE 가게는 120곳 안팎 — 전국 중구를 다 끌어오면 1,500곳이 넘고 대구 중구는 90km 밖이다
+		assertThat(busanJunggu).hasSizeBetween(50, 400);
+		assertThat(busanJunggu).allSatisfy(row -> assertThat(row.distanceM()).isLessThan(30_000));
+	}
+
+	@Test
+	@DisplayName("점수식(#661): 취향 쿼리를 주면 코사인이 실리고 점수순이며, 풀의 취향 후보 수가 모든 행에 같이 실린다. 빵집다움 하한 미만은 없다")
+	void areaCandidates_scoredByTaste() {
+		TasteQuery saltyCrisp = new TasteQuery(0.8, 0.8, 0.3, 0.3, Map.of("머물기", 1.0), List.of("소금빵"), 4, List.of());
+
+		List<CandidateStoreRow> rows = candidateRepository.findAreaCandidates(
+			LAB_MEMBER, saltyCrisp, SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, null, null, null, List.of(), 15);
+
+		assertThat(rows).hasSize(15);
+		assertThat(rows).extracting(CandidateStoreRow::score).isSortedAccordingTo((a, b) -> Double.compare(b, a));
+		assertThat(rows).allSatisfy(row -> assertThat(row.tasteFit()).isBetween(-1.0, 1.0));
+		assertThat(rows).extracting(CandidateStoreRow::tasteCandidateCount)
+			.containsOnly(rows.get(0).tasteCandidateCount());
+		assertThat(rows.get(0).tasteCandidateCount()).isGreaterThanOrEqualTo(
+			(int)rows.stream().filter(row -> row.tasteFit() > 0.2).count());
+		assertThat(rows).anySatisfy(row -> assertThat(row.tasteFit()).isGreaterThan(0.2));
+		assertThat(rows).allSatisfy(row -> assertThat(row.hasAxis() || row.tasteFit() == 0).isTrue());
+		// 대표 종류(signature_kinds, dataops v5)가 행에 실려 온다 — "{종류} 취향" 배지의 가게 쪽 재료(#762)
+		assertThat(rows).allSatisfy(row -> assertThat(row.signatureKinds()).isNotNull());
+		assertThat(rows).anySatisfy(row -> assertThat(row.signatureKinds()).isNotEmpty());
+		Long[] ids = rows.stream().map(CandidateStoreRow::storeId).toArray(Long[]::new);
+		Integer belowBakery = jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM store_profile WHERE store_id = ANY (?) AND bakery_score < 0.5", Integer.class,
+			(Object)ids);
+		assertThat(belowBakery).isZero();
+	}
+
+	@Test
+	@DisplayName("점수식(#661): 종류·태그가 맞는 가게는 같은 가게라도 빈 쿼리 때보다 점수가 오른다")
+	void areaCandidates_kindAndTagRaiseScore() {
+		List<CandidateStoreRow> plain = candidateRepository.findAreaCandidates(
+			LAB_MEMBER, TasteQuery.empty(), SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, null, null, null, List.of(), 50);
+		TasteQuery saltyLover = new TasteQuery(null, null, null, null, Map.of("머물기", 1.0), List.of("소금빵"), 4,
+			List.of());
+		List<CandidateStoreRow> withKinds = candidateRepository.findAreaCandidates(
+			LAB_MEMBER, saltyLover, SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, null, null, null, List.of(), 50);
+
+		Map<Long, Double> plainScore = plain.stream()
+			.collect(Collectors.toMap(CandidateStoreRow::storeId, CandidateStoreRow::score));
+		assertThat(withKinds).anySatisfy(row -> {
+			assertThat(row.kinds()).contains("소금빵");
+			assertThat(plainScore).containsKey(row.storeId());
+			assertThat(row.score()).isGreaterThan(plainScore.get(row.storeId()));
+		});
+		// 축이 없는 쿼리라 코사인은 0
+		assertThat(withKinds).allSatisfy(row -> assertThat(row.tasteFit()).isZero());
+	}
+
+	@Test
+	@DisplayName("점수식(#661): 내가 기록한 가게는 기본으로 빠지고, 스위치를 끄면 점수만 깎인다")
+	void areaCandidates_excludeRecordedStores() {
+		List<Map<String, Object>> recorded = jdbcTemplate.queryForList("""
+				SELECT br.member_id, br.store_id FROM bread_record br JOIN store s ON s.id = br.store_id
+				JOIN store_profile p ON p.store_id = s.id AND p.bakery_score >= 0.5
+				WHERE br.deleted_at IS NULL AND s.status = 'ACTIVE'
+					AND ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?)
+				LIMIT 1
+				""", SEONGSU_LNG, SEONGSU_LAT, RADIUS_M);
+		Assumptions.assumeFalse(recorded.isEmpty(), "성수 반경 안에 기록한 가게가 있는 회원이 없다");
+		Long memberId = ((Number)recorded.get(0).get("member_id")).longValue();
+		Long storeId = ((Number)recorded.get(0).get("store_id")).longValue();
+
+		List<CandidateStoreRow> rows = candidateRepository.findAreaCandidates(
+			memberId, TasteQuery.empty(), SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, null, null, null, List.of(), 500);
+
+		assertThat(rows).extracting(CandidateStoreRow::storeId).doesNotContain(storeId);
+
+		// 스위치를 끄면(설정만 다른 리포지토리) 빠지지 않고 점수만 recorded-store-penalty 만큼 깎인다
+		RecommendationProperties penaltyMode = new RecommendationProperties();
+		penaltyMode.getScore().setExcludeRecordedStores(false);
+		penaltyMode.getScore().setRecordedStorePenalty(0.3);
+		RecommendationCandidateJdbcRepository penaltyRepository = new RecommendationCandidateJdbcRepository(
+			new NamedParameterJdbcTemplate(jdbcTemplate), penaltyMode, objectMapper);
+		Map<Long, Double> withPenalty = penaltyRepository.findAreaCandidates(
+			memberId, TasteQuery.empty(), SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, null, null, null, List.of(), 500)
+			.stream().collect(Collectors.toMap(CandidateStoreRow::storeId, CandidateStoreRow::score));
+		Map<Long, Double> plain = penaltyRepository.findAreaCandidates(
+			LAB_MEMBER, TasteQuery.empty(), SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, null, null, null, List.of(), 500)
+			.stream().collect(Collectors.toMap(CandidateStoreRow::storeId, CandidateStoreRow::score));
+		assertThat(withPenalty).containsKey(storeId);
+		assertThat(withPenalty.get(storeId)).isCloseTo(plain.get(storeId) - 0.3, Offset.offset(1e-9));
+
+		// 칩 가게 수도 같은 규칙 — 기록한 가게를 빼고 센다(PR #739 리뷰)
+		CourseArea seongsuOnly = courseAreaRepository.save(CourseArea.create("서울", "성수동(칩)", "성수동(칩)", null,
+			SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, RADIUS_M, null, null, 9));
+		AreaChipStats chip = candidateRepository
+			.findAreaChipStats(memberId, null, TasteQuery.empty(), List.of(seongsuOnly))
+			.get(seongsuOnly.getId());
+		assertThat(chip.storeCount()).isEqualTo(rows.size());
+
+		// 재사용 자격 검사: 기록한 가게는 자격이 없고, 정상 후보는 있다
+		Set<Long> unavailable = candidateRepository.findUnavailableStoreIds(memberId,
+			List.of(storeId, rows.get(0).storeId()));
+		assertThat(unavailable).containsExactly(storeId);
+		assertThat(candidateRepository.findUnavailableStoreIds(LAB_MEMBER, List.of(storeId))).isEmpty();
+	}
+
+	@Test
+	@DisplayName("가드: 시군구 이름 칸은 전부 store.region_2nd 와 정확히 일치하는 가게가 있다 — 시드나 주소 표기가 어긋나면 시군구 신호가 조용히 0 이 된다")
+	void courseArea_sigunguSpots_matchStoreRegion2nd() {
+		List<Map<String, Object>> unmatched = jdbcTemplate.queryForList("""
+				SELECT DISTINCT a.sido, a.passport_spot FROM course_area a
+				WHERE a.is_active AND a.passport_spot ~ '(시|구|군)$'
+					AND NOT EXISTS (SELECT 1 FROM store s
+						WHERE s.status = 'ACTIVE' AND s.region_1st = a.sido AND s.region_2nd = a.passport_spot)
+				""");
+		assertThat(unmatched).as("칸 이름과 일치하는 가게가 없는 시군구 칸").isEmpty();
+		Integer spots = jdbcTemplate.queryForObject("""
+				SELECT COUNT(DISTINCT (sido, passport_spot)) FROM course_area
+				WHERE is_active AND passport_spot ~ '(시|구|군)$'
+				""", Integer.class);
+		assertThat(spots).isGreaterThanOrEqualTo(40); // 시드 48칸 중 시군구 이름 칸(세종 도담동·조치원읍, 서울 동 이름 제외)
+	}
+
+	@Test
+	@DisplayName("동네 행이 여럿인 칸(제주시)은 첫 행에만 시군구 신호가 실리고 나머지 행은 0 — 칩이 합쳐도 행 수만큼 부풀지 않는다")
+	void areaChipStats_regionSignal_onlyOnFirstRowOfSpot() {
+		Long memberId = jdbcTemplate.queryForObject("SELECT id FROM member ORDER BY id LIMIT 1", Long.class);
+		List<CourseArea> jeju = courseAreaRepository
+			.findAllBySidoAndPassportSpotAndIsActiveTrueOrderByDisplayOrderAscNameAsc("제주", "제주시");
+		assertThat(jeju).hasSizeGreaterThan(1); // #737 세부 동네 행
+		Long inJeju = jdbcTemplate.queryForObject("""
+				SELECT s.id FROM store s JOIN store_profile p ON p.store_id = s.id AND p.bakery_score >= 0.5
+				WHERE s.status = 'ACTIVE' AND s.region_1st = '제주' AND s.region_2nd = '제주시'
+				ORDER BY s.id LIMIT 1
+				""", Long.class);
+		jdbcTemplate.update("""
+				INSERT INTO request_log
+				(member_id, http_method, endpoint, response_status, store_id, event_type, session_id, created_at)
+				VALUES (?, 'GET', '/api/v1/stores/x', 200, ?, 'STORE_VIEW', 'lab-jeju', ?)
+				""", memberId, inJeju, LocalDateTime.now());
+
+		Map<Long, AreaChipStats> stats = candidateRepository.findAreaChipStats(memberId, "lab-jeju", TasteQuery.empty(),
+			jeju);
+
+		List<Integer> regionCounts = jeju.stream().map(row -> stats.get(row.getId()).regionSessionViewCount()).toList();
+		assertThat(regionCounts.get(0)).isEqualTo(1);
+		assertThat(regionCounts.subList(1, regionCounts.size())).containsOnly(0);
+	}
+
+	@Test
+	@DisplayName("시군구 칸은 원 밖에서 본·저장한 같은 시군구 가게를 칩 순서용으로 따로 센다 — 원 기준 신호는 0 그대로, 동 이름 칸은 0")
+	void areaChipStats_regionSignal_countsSameSigunguOutsideCircle() {
+		Long memberId = jdbcTemplate.queryForObject("SELECT id FROM member ORDER BY id LIMIT 1", Long.class);
+		CourseArea pohang = courseAreaRepository
+			.findAllBySidoAndPassportSpotAndIsActiveTrueOrderByDisplayOrderAscNameAsc("경북", "포항시").get(0);
+		Long outsideCircle = jdbcTemplate.queryForObject("""
+				SELECT s.id FROM store s JOIN store_profile p ON p.store_id = s.id AND p.bakery_score >= 0.5
+				WHERE s.status = 'ACTIVE' AND s.region_1st = '경북' AND s.region_2nd = '포항시'
+					AND NOT ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?)
+				ORDER BY s.id LIMIT 1
+				""", Long.class, pohang.getCenterLng(), pohang.getCenterLat(), pohang.getRadiusM());
+		LocalDateTime now = LocalDateTime.now();
+		jdbcTemplate.update("""
+				INSERT INTO request_log
+				(member_id, http_method, endpoint, response_status, store_id, event_type, session_id, created_at)
+				VALUES (?, 'GET', '/api/v1/stores/x', 200, ?, 'STORE_VIEW', 'lab-pohang', ?)
+				""", memberId, outsideCircle, now);
+		jdbcTemplate.update("DELETE FROM saved_stores WHERE member_id = ? AND store_id = ?", memberId, outsideCircle);
+		jdbcTemplate.update("INSERT INTO saved_stores (member_id, store_id, created_at) VALUES (?, ?, ?)", memberId,
+			outsideCircle, now);
+
+		AreaChipStats stats = candidateRepository
+			.findAreaChipStats(memberId, "lab-pohang", TasteQuery.empty(), List.of(pohang)).get(pohang.getId());
+
+		assertThat(stats.sessionViewCount()).isZero(); // 원 밖이라 원 기준 신호는 없다
+		assertThat(stats.savedStoreCount()).isZero();
+		assertThat(stats.regionSessionViewCount()).isEqualTo(1); // 같은 시군구라 칩 순서용 신호
+		assertThat(stats.regionSavedStoreCount()).isEqualTo(1);
+		// 동 이름 칸(성수동)은 store.region_2nd(성동구)와 안 맞아 시군구 신호가 없다
+		CourseArea seongsu = courseAreaRepository.save(CourseArea.create("서울", "성수동(시군구)", "성수동(시군구)", null,
+			SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, RADIUS_M, null, null, 9));
+		AreaChipStats dong = candidateRepository
+			.findAreaChipStats(memberId, "lab-pohang", TasteQuery.empty(), List.of(seongsu)).get(seongsu.getId());
+		assertThat(dong.regionSessionViewCount()).isZero();
+		assertThat(dong.regionSavedStoreCount()).isZero();
+	}
+
+	@Test
+	@DisplayName("칩 신호(#661): 세션 id 가 있으면 같은 세션의 STORE_VIEW 만, 없으면 최근 창의 STORE_VIEW 를 세고, 저장 수·취향 후보 수도 같이 온다")
+	void areaChipStats_sessionSavedTasteSignals() {
+		Long memberId = jdbcTemplate.queryForObject("SELECT id FROM member ORDER BY id LIMIT 1", Long.class);
+		List<Long> inSeongsu = jdbcTemplate.queryForList("""
+				SELECT s.id FROM store s JOIN store_profile p ON p.store_id = s.id AND p.bakery_score >= 0.5
+				WHERE s.status = 'ACTIVE'
+					AND ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?)
+				ORDER BY s.id LIMIT 3
+				""", Long.class, SEONGSU_LNG, SEONGSU_LAT, RADIUS_M);
+		// 이 세션에서 지금·20분 전·2일 전(상한 24시간 밖) 각 1곳, 다른 세션(3일 전)에서 1곳을 봤고 1곳은 저장했다.
+		// created_at 은 JPA auditing 과 같은 JVM 시각으로 넣는다 —
+		// 랩·운영 DB 세션 시간대가 UTC 라 DB now() 로 넣으면 실제 저장 경로와 달라진다(PR #741 리뷰)
+		LocalDateTime now = LocalDateTime.now();
+		jdbcTemplate.update(
+			"""
+					INSERT INTO request_log
+					(member_id, http_method, endpoint, response_status, store_id, event_type, session_id, created_at)
+					VALUES (?, 'GET', '/api/v1/stores/x', 200, ?, 'STORE_VIEW', 'lab-session', ?),
+						(?, 'GET', '/api/v1/stores/x', 200, ?, 'STORE_VIEW', 'lab-session', ?),
+						(?, 'GET', '/api/v1/stores/x', 200, ?, 'STORE_VIEW', 'lab-session', ?),
+						(?, 'GET', '/api/v1/stores/x', 200, ?, 'STORE_VIEW', 'lab-old', ?)
+					""",
+			memberId, inSeongsu.get(0), now, memberId, inSeongsu.get(1), now.minusMinutes(20),
+			memberId, inSeongsu.get(2), now.minusDays(2), memberId, inSeongsu.get(2), now.minusDays(3));
+		jdbcTemplate.update("DELETE FROM saved_stores WHERE member_id = ? AND store_id = ?", memberId,
+			inSeongsu.get(0));
+		jdbcTemplate.update("INSERT INTO saved_stores (member_id, store_id, created_at) VALUES (?, ?, ?)", memberId,
+			inSeongsu.get(0), now);
+		CourseArea seongsu = courseAreaRepository.save(CourseArea.create("서울", "성수동(신호)", "성수동(신호)", null,
+			SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, RADIUS_M, null, null, 9));
+		TasteQuery saltyCrisp = new TasteQuery(0.8, 0.8, 0.3, 0.3, Map.of(), List.of(), 0, List.of());
+
+		AreaChipStats bySession = candidateRepository.findAreaChipStats(memberId, "lab-session", saltyCrisp,
+			List.of(seongsu)).get(seongsu.getId());
+		AreaChipStats byWindow = candidateRepository.findAreaChipStats(memberId, null, saltyCrisp,
+			List.of(seongsu)).get(seongsu.getId());
+		AreaChipStats otherSession = candidateRepository.findAreaChipStats(memberId, "lab-other", saltyCrisp,
+			List.of(seongsu)).get(seongsu.getId());
+
+		assertThat(bySession.sessionViewCount()).isEqualTo(2); // 같은 세션이라도 2일 전은 상한(24시간) 밖
+		assertThat(byWindow.sessionViewCount()).isEqualTo(2); // 헤더 없음 → 30분 창: 지금·20분 전
+		assertThat(otherSession.sessionViewCount()).isEqualTo(2); // 다른 세션 id 라도 30분 창과 합집합이라 잃지 않는다
+		assertThat(bySession.tasteCandidateCount()).isGreaterThan(0).isLessThanOrEqualTo(bySession.storeCount());
+		assertThat(bySession.savedStoreCount()).isEqualTo(1);
+		assertThat(candidateRepository.countAreaStores(memberId, seongsu)).isEqualTo(bySession.storeCount());
+		// 취향 쿼리가 없으면 취향 후보 수는 0
+		assertThat(candidateRepository.findAreaChipStats(memberId, null, TasteQuery.empty(), List.of(seongsu))
+			.get(seongsu.getId()).tasteCandidateCount()).isZero();
+	}
+
+	@Test
+	@DisplayName("불변 조건(#661): 상권·앵커 후보는 전부 프로필이 있고 빵집다움 하한 이상 — 반경 안에 걸러질 가게가 실제로 있어도 안 들어온다")
+	void candidates_alwaysPassEligibilityFilter() {
+		double minBakeryScore = recommendationProperties.getScore().getMinBakeryScore();
+		// 필터가 자명하게 통과하는 상황이 아님을 먼저 못 박는다 — 반경 안에 프로필이 없거나 하한 미달인 가게가 있다
+		Integer filteredOut = jdbcTemplate.queryForObject("""
+				SELECT COUNT(*) FROM store s LEFT JOIN store_profile p ON p.store_id = s.id
+				WHERE s.status = 'ACTIVE'
+					AND ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?)
+					AND (p.store_id IS NULL OR p.bakery_score < ?)
+				""", Integer.class, SEONGSU_LNG, SEONGSU_LAT, RADIUS_M, minBakeryScore);
+		assertThat(filteredOut).as("반경 안에서 걸러져야 할 가게").isPositive();
+
+		List<CandidateStoreRow> area = candidateRepository.findAreaCandidates(
+			LAB_MEMBER, TasteQuery.empty(), SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, null, null, null, List.of(), 15);
+		List<CandidateStoreRow> anchor = candidateRepository.findAnchorCandidates(
+			LAB_MEMBER, TasteQuery.empty(), SEONGSU_LAT, SEONGSU_LNG, RING_M, MAX_RADIUS_M, List.of(), 30);
+
+		assertThat(area).isNotEmpty();
+		assertThat(anchor).isNotEmpty();
+		assertThat(eligibleCount(area, minBakeryScore)).isEqualTo(area.size());
+		assertThat(eligibleCount(anchor, minBakeryScore)).isEqualTo(anchor.size());
+	}
+
+	/** 후보 행 중 프로필이 있고 빵집다움이 하한 이상인 가게 수 — 프로필이 없으면 행이 없어 수가 줄어든다. */
+	private int eligibleCount(List<CandidateStoreRow> rows, double minBakeryScore) {
+		List<Long> storeIds = rows.stream().map(CandidateStoreRow::storeId).toList();
+		String placeholders = storeIds.stream().map(id -> "?").collect(Collectors.joining(", "));
+		List<Object> params = new ArrayList<>(storeIds);
+		params.add(minBakeryScore);
+		Integer count = jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM store_profile WHERE store_id IN (" + placeholders + ") AND bakery_score >= ?",
+			Integer.class, params.toArray());
+		return count != null ? count : 0;
+	}
+
+	@Test
+	@DisplayName("앵커 후보: 3km 안에서 1km 링 안쪽부터, 링 안에서는 점수순이다")
+	void anchorCandidates_ringFirstThenPopularity() {
+		List<CandidateStoreRow> rows = candidateRepository.findAnchorCandidates(
+			LAB_MEMBER, TasteQuery.empty(), SEONGSU_LAT, SEONGSU_LNG, RING_M, MAX_RADIUS_M, List.of(), 30);
+
+		assertThat(rows).hasSize(30);
+		assertThat(rows).allSatisfy(row -> assertThat(row.distanceM()).isLessThanOrEqualTo(MAX_RADIUS_M));
+		List<Integer> rings = rows.stream()
+			.map(row -> (int)Math.ceil(row.distanceM() / RING_M))
+			.toList();
+		assertThat(rings).isSorted();
+		// 같은 링 안에서는 점수순(#661)
+		for (int i = 1; i < rows.size(); i++) {
+			if (rings.get(i).equals(rings.get(i - 1))) {
+				assertThat(rows.get(i).score()).isLessThanOrEqualTo(rows.get(i - 1).score());
+			}
+		}
+	}
+
+	@Test
+	@DisplayName("불변 조건(#661): 첫 링 안 가게가 한 페이지보다 많으면 첫 페이지는 전부 첫 링 안이다 — 바깥 링이 섞이지 않는다")
+	void anchorCandidates_firstPageStaysInFirstRing() {
+		int rankingSize = recommendationProperties.getAnchor().getRankingSize();
+		int pageSize = recommendationProperties.getAnchor().getPageSize();
+		List<CandidateStoreRow> ranking = candidateRepository.findAnchorCandidates(
+			LAB_MEMBER, TasteQuery.empty(), SEONGSU_LAT, SEONGSU_LNG, RING_M, MAX_RADIUS_M, List.of(), rankingSize);
+
+		assertThat(ranking).hasSizeGreaterThanOrEqualTo(pageSize);
+		long inFirstRing = ranking.stream().filter(row -> row.distanceM() <= RING_M).count();
+		assertThat(inFirstRing).as("성수 1km 링 안 후보").isGreaterThanOrEqualTo(pageSize);
+		assertThat(ranking.subList(0, pageSize))
+			.allSatisfy(row -> assertThat(row.distanceM()).isLessThanOrEqualTo(RING_M));
+	}
+
+	@Test
+	@DisplayName("칩 재료 한 문장: 상권마다 가게 수(후보와 같은 소속 규칙)와 내 저장 가게 유무를 같이 준다")
+	void areaChipStats_oneQueryForAllChips() {
+		Map<String, Object> saved = jdbcTemplate.queryForMap("""
+				SELECT ss.member_id, ST_Y(s.location::geometry) AS lat, ST_X(s.location::geometry) AS lng
+				FROM saved_stores ss JOIN store s ON s.id = ss.store_id WHERE s.status = 'ACTIVE'
+				ORDER BY ss.id LIMIT 1
+				""");
+		Long memberId = ((Number)saved.get("member_id")).longValue();
+		double savedLat = ((Number)saved.get("lat")).doubleValue();
+		double savedLng = ((Number)saved.get("lng")).doubleValue();
+		// 시드된 도장 칸("서울", "성수동")과 (sido, name) 이 겹치지 않게 이름을 구분한다
+		CourseArea seongsu = courseAreaRepository.save(
+			CourseArea.create("서울", "성수동(반경)", "성수동(반경)", null, SEONGSU_LAT, SEONGSU_LNG, RADIUS_M, RADIUS_M, null,
+				null, 1));
+		// 반경 1m 인데 시군구·동이 맞아 들어오는 가게 — 칩 숫자가 후보 수와 같은 규칙로 센다
+		CourseArea byRegion = courseAreaRepository.save(
+			CourseArea.create("서울", "성수동(지역)", "성수동(지역)", null, SEONGSU_LAT, SEONGSU_LNG, 1, RADIUS_M, "성동구", "성수동",
+				2));
+		CourseArea aroundSaved = courseAreaRepository.save(
+			CourseArea.create("서울", "저장 근처", "저장 근처", null, savedLat, savedLng, 100, RADIUS_M, null, null, 3));
+		CourseArea antarctica = courseAreaRepository.save(
+			CourseArea.create("서울", "남극", "남극", null, -89.0, 0.0, 100, RADIUS_M, null, null, 4));
+		// 시군구 이름이 전국에서 겹치는 칸 — 시·도를 안 보면 대구·대전·인천·울산 중구까지 세어 1,500곳이 넘는다
+		CourseArea busanJunggu = courseAreaRepository.save(
+			CourseArea.create("부산", "중구(랩)", "중구(랩)", null, BUSAN_JUNGGU_LAT, BUSAN_JUNGGU_LNG, 1, RADIUS_M, "중구", null,
+				5));
+
+		Map<Long, AreaChipStats> stats = candidateRepository.findAreaChipStats(memberId, null, TasteQuery.empty(),
+			List.of(seongsu, byRegion, aroundSaved, antarctica, busanJunggu));
+
+		assertThat(stats).hasSize(5);
+		assertThat(stats.get(busanJunggu.getId()).storeCount()).isBetween(50, 400);
+		assertThat(stats.get(seongsu.getId()).storeCount()).isGreaterThan(0);
+		assertThat(stats.get(byRegion.getId()).storeCount()).isGreaterThan(0);
+		assertThat(stats.get(aroundSaved.getId()).hasSavedStore()).isTrue();
+		assertThat(stats.get(antarctica.getId()).storeCount()).isZero();
+		assertThat(stats.get(antarctica.getId()).hasSavedStore()).isFalse();
+	}
+}

@@ -17,7 +17,11 @@ public record BreadRecordUpsertRequest(
 		@Size(max = 100) String lovedBread,
 		/** 최고였던 빵들 — 각각 tags 중 하나여야 한다 */
 		@Size(max = 10) List<@Size(max = 100) String> lovedBreads,
+		/** 빵탑에 쌓을 빵. 빵탑을 모르는 구버전 앱은 안 보낸다. */
+		@Size(max = 20) String towerBread,
 		@NotNull LocalDateTime eatenAt,
 		@NotNull @Size(min = 1, max = 30) List<@Valid BreadRecordPhotoRequest> photos,
-		@NotNull List<@Valid BreadRecordTagRequest> tags) {
+		@NotNull List<@Valid BreadRecordTagRequest> tags,
+		/** 공개 여부. 생성 때 없으면 비공개, 수정 때 없으면(구버전 앱) 지금 값을 그대로 둔다 */
+		Boolean isPublic) {
 }

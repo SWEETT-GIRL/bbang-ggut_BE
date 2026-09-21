@@ -26,6 +26,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.course.code.CourseErrorCode;
@@ -42,6 +43,7 @@ import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.entity.CourseStoreMemo;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.enums.CourseVisibility;
+import sweetgirl.croissant.course.event.CourseStoreAddedEvent;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseMemberRepository;
@@ -56,6 +58,7 @@ import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.repository.StoreRepository;
@@ -87,6 +90,10 @@ class CourseCommandServiceTest {
 	CourseProgressService courseProgressService;
 	@Mock
 	MemberRestrictionReader memberRestrictionReader;
+	@Mock
+	ApplicationEventPublisher eventPublisher;
+	@Mock
+	MemberReader memberReader;
 
 	@InjectMocks
 	CourseCommandService courseCommandService;
@@ -425,6 +432,50 @@ class CourseCommandServiceTest {
 			.hasMessageContaining(CourseErrorCode.COURSE_STORE_DAY_INVALID.getMessage());
 	}
 
+	@Test
+	@DisplayName("addStore: 코스가 아는 일차(날짜 이틀)면 1일차가 비어 있어도 2일차에 담을 수 있다")
+	void addStore_skipsEmptyDay_whenCourseKnowsTheDay() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Long storeId = 100L;
+
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		given(course.getStartDate()).willReturn(LocalDate.of(2026, 9, 21));
+		given(course.getEndDate()).willReturn(LocalDate.of(2026, 9, 22));
+		Store store = mockStore(storeId);
+		CourseStoreAddRequest request = mock(CourseStoreAddRequest.class);
+		given(request.getStoreId()).willReturn(storeId);
+		given(request.getDay()).willReturn(2);
+
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(storeRepository.findById(storeId)).willReturn(Optional.of(store));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
+			.willReturn(List.of());
+		given(courseStoreRepository.save(any(CourseStore.class))).willAnswer(call -> call.getArgument(0));
+		CourseStoreResponse result = courseCommandService.addStore(memberId, courseId, request);
+
+		assertThat(result.day()).isEqualTo(2);
+		then(course).should().ensureDayCountAtLeast(2);
+	}
+
+	@Test
+	@DisplayName("updateCourse: 날짜를 담긴 마지막 일차보다 짧게 줄이면 COURSE_DAY_COUNT_INVALID를 던진다")
+	void updateCourse_shrinkingDatesBelowStores_throwsDayCountInvalid() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+		CourseUpdateRequest request = mockUpdateRequest();
+		given(request.getStartDate()).willReturn(LocalDate.of(2026, 9, 21));
+		given(request.getEndDate()).willReturn(LocalDate.of(2026, 9, 21));
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseStoreRepository.findMaxDayByCourseId(courseId)).willReturn(2);
+
+		assertThatThrownBy(() -> courseCommandService.updateCourse(memberId, courseId, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_DAY_COUNT_INVALID.getMessage());
+		then(course).should(never()).updateDates(any(), any());
+	}
+
 	// ───────────────────────── updateStore ─────────────────────────
 
 	@Test
@@ -577,8 +628,8 @@ class CourseCommandServiceTest {
 	}
 
 	@Test
-	@DisplayName("reorderStores: 일차가 1부터 이어지지 않으면 COURSE_STORE_DAY_INVALID를 던진다")
-	void reorderStores_dayGap_throwsDayInvalid() {
+	@DisplayName("reorderStores: 일차가 순서대로 내려가면(2,1) COURSE_STORE_DAY_INVALID를 던진다")
+	void reorderStores_dayGoesBackwards_throwsDayInvalid() {
 		Long memberId = 1L;
 		Long courseId = 10L;
 
@@ -587,11 +638,13 @@ class CourseCommandServiceTest {
 		CourseStoreReorderRequest.CourseStoreOrderItem item1 = mock(
 			CourseStoreReorderRequest.CourseStoreOrderItem.class);
 		given(item1.getCourseStoreId()).willReturn(1L);
-		given(item1.getDay()).willReturn(1);
+		given(item1.getDay()).willReturn(2);
 		CourseStoreReorderRequest.CourseStoreOrderItem item2 = mock(
 			CourseStoreReorderRequest.CourseStoreOrderItem.class);
 		given(item2.getCourseStoreId()).willReturn(2L);
-		given(item2.getDay()).willReturn(3);
+		given(item2.getDay()).willReturn(1);
+		// 코스가 2일차까지 안다 — 첫 항목의 2일차는 되고, 그다음 1일차로 내려가는 게 거부된다
+		given(course.getDayCount()).willReturn(2);
 
 		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
 		given(request.getCourseStoreOrders()).willReturn(List.of(item1, item2));
@@ -610,6 +663,45 @@ class CourseCommandServiceTest {
 		assertThatThrownBy(() -> courseCommandService.reorderStores(memberId, courseId, request))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_STORE_DAY_INVALID.getMessage());
+	}
+
+	@Test
+	@DisplayName("reorderStores: 빈 앞 일차를 두고 뒤 일차에 놓을 수 있다(1,3) — 빈 일차는 day_count 가 표현한다")
+	void reorderStores_dayGap_isAllowed() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+
+		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
+
+		CourseStoreReorderRequest.CourseStoreOrderItem item1 = mock(
+			CourseStoreReorderRequest.CourseStoreOrderItem.class);
+		given(item1.getCourseStoreId()).willReturn(1L);
+		given(item1.getDay()).willReturn(1);
+		CourseStoreReorderRequest.CourseStoreOrderItem item2 = mock(
+			CourseStoreReorderRequest.CourseStoreOrderItem.class);
+		given(item2.getCourseStoreId()).willReturn(2L);
+		given(item2.getDay()).willReturn(3);
+		// 코스가 3일차까지 안다 — 빈 2일차를 두고 3일차에 놓을 수 있다
+		given(course.getDayCount()).willReturn(3);
+
+		CourseStoreReorderRequest request = mock(CourseStoreReorderRequest.class);
+		given(request.getCourseStoreOrders()).willReturn(List.of(item1, item2));
+		// Mockito 는 List 미스텁 메서드에 빈 리스트를 돌려주므로, expectedOrder 미전송(구버전 앱) 상태를 명시 스텁
+		given(request.getExpectedOrder()).willReturn(null);
+
+		CourseStore courseStore1 = mock(CourseStore.class);
+		given(courseStore1.getId()).willReturn(1L);
+		CourseStore courseStore2 = mock(CourseStore.class);
+		given(courseStore2.getId()).willReturn(2L);
+
+		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
+			.willReturn(List.of(courseStore1, courseStore2));
+
+		courseCommandService.reorderStores(memberId, courseId, request);
+
+		then(course).should().ensureDayCountAtLeast(3);
+		then(courseStore2).should().updateDay(3);
 	}
 
 	@Test
@@ -773,6 +865,13 @@ class CourseCommandServiceTest {
 		assertThat(copiedCaptor.getValue()).hasSize(1);
 		assertThat(copiedCaptor.getValue().get(0).getMemo()).isNull();
 		assertThat(copiedCaptor.getValue().get(0).getStore()).isSameAs(sourceStore.getStore());
+		// 포크는 코스를 통째로 담은 것 — 복제된 가게마다 포크한 회원의 COURSE_ADD 신호(#663, 담기와 같은 무게)
+		ArgumentCaptor<CourseStoreAddedEvent> event = ArgumentCaptor.forClass(CourseStoreAddedEvent.class);
+		then(eventPublisher).should().publishEvent(event.capture());
+		assertThat(event.getValue().memberId()).isEqualTo(memberId);
+		assertThat(event.getValue().courseId()).isEqualTo(20L);
+		assertThat(event.getValue().storeId()).isEqualTo(100L);
+		assertThat(event.getValue().recommendationId()).isNull();
 	}
 
 	@Test

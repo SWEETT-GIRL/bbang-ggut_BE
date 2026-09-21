@@ -25,7 +25,7 @@ class AdminApiKeyFilterTest {
 		MockHttpServletResponse response = new MockHttpServletResponse();
 		MockFilterChain chain = new MockFilterChain();
 
-		new AdminApiKeyFilter("secret").doFilter(request("/api/admin/letters/send", "secret"), response, chain);
+		new AdminApiKeyFilter("secret", true).doFilter(request("/api/admin/letters/send", "secret"), response, chain);
 
 		assertThat(response.getStatus()).isEqualTo(200);
 		assertThat(chain.getRequest()).isNotNull();
@@ -37,7 +37,7 @@ class AdminApiKeyFilterTest {
 		MockHttpServletResponse response = new MockHttpServletResponse();
 		MockFilterChain chain = new MockFilterChain();
 
-		new AdminApiKeyFilter("secret").doFilter(request("/api/admin/letters/send", "guess"), response, chain);
+		new AdminApiKeyFilter("secret", true).doFilter(request("/api/admin/letters/send", "guess"), response, chain);
 
 		assertThat(response.getStatus()).isEqualTo(401);
 		assertThat(response.getContentAsString()).contains("ADMIN401");
@@ -50,7 +50,7 @@ class AdminApiKeyFilterTest {
 		MockHttpServletResponse response = new MockHttpServletResponse();
 		MockFilterChain chain = new MockFilterChain();
 
-		new AdminApiKeyFilter("secret").doFilter(request("/api/admin/letters/threads", null), response, chain);
+		new AdminApiKeyFilter("secret", true).doFilter(request("/api/admin/letters/threads", null), response, chain);
 
 		assertThat(response.getStatus()).isEqualTo(401);
 		assertThat(chain.getRequest()).isNull();
@@ -62,10 +62,23 @@ class AdminApiKeyFilterTest {
 		MockHttpServletResponse response = new MockHttpServletResponse();
 		MockFilterChain chain = new MockFilterChain();
 
-		new AdminApiKeyFilter("").doFilter(request("/api/admin/letters/send", null), response, chain);
+		new AdminApiKeyFilter("", true).doFilter(request("/api/admin/letters/send", null), response, chain);
 
 		assertThat(response.getStatus()).isEqualTo(200);
 		assertThat(chain.getRequest()).isNotNull();
+	}
+
+	@Test
+	@DisplayName("개인화 배치 경로도 열쇠가 필요하다 — 신호를 되돌리기 어렵게 바꾸는 API(#663)")
+	void protectsPersonalizationAdminPaths() throws Exception {
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		new AdminApiKeyFilter("secret", true)
+			.doFilter(request("/admin/personalization/interactions/ingest", null), response, chain);
+
+		assertThat(response.getStatus()).isEqualTo(401);
+		assertThat(chain.getRequest()).isNull();
 	}
 
 	@Test
@@ -74,9 +87,47 @@ class AdminApiKeyFilterTest {
 		MockHttpServletResponse response = new MockHttpServletResponse();
 		MockFilterChain chain = new MockFilterChain();
 
-		new AdminApiKeyFilter("secret").doFilter(request("/api/admin/members/1/ban", null), response, chain);
+		new AdminApiKeyFilter("secret", true).doFilter(request("/api/admin/members/1/ban", null), response, chain);
 
 		assertThat(response.getStatus()).isEqualTo(200);
+		assertThat(chain.getRequest()).isNotNull();
+	}
+
+	@Test
+	@DisplayName("열쇠가 비면 비용 경로는 503 으로 막는다 — 열려 있으면 아무나 우리 계정으로 돈을 쓴다")
+	void blocksCostIncurringPathWhenKeyMissing() throws Exception {
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		new AdminApiKeyFilter("", false)
+			.doFilter(request("/admin/recommendations/reason-experiment", null), response, chain);
+
+		assertThat(response.getStatus()).isEqualTo(503);
+		assertThat(response.getContentAsString()).contains("ADMIN503");
+		assertThat(chain.getRequest()).isNull();
+	}
+
+	@Test
+	@DisplayName("열쇠가 비어도 로컬이면 비용 경로를 통과시킨다 — 개발 편의는 지킨다")
+	void allowsCostIncurringPathOnLocal() throws Exception {
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		new AdminApiKeyFilter("", true)
+			.doFilter(request("/admin/recommendations/reason-experiment", null), response, chain);
+
+		assertThat(chain.getRequest()).isNotNull();
+	}
+
+	@Test
+	@DisplayName("열쇠가 비었을 때 비용이 아닌 경로는 기존대로 통과시킨다")
+	void stillAllowsOtherPathsWhenKeyMissing() throws Exception {
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		new AdminApiKeyFilter("", false).doFilter(request("/admin/personalization/profiles/refresh", null),
+			response, chain);
+
 		assertThat(chain.getRequest()).isNotNull();
 	}
 }

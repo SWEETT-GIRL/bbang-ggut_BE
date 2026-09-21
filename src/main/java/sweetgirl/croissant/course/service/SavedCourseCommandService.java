@@ -16,6 +16,7 @@ import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.service.MemberReader;
 
 @Service
 @RequiredArgsConstructor
@@ -23,12 +24,14 @@ import sweetgirl.croissant.member.repository.MemberRepository;
 public class SavedCourseCommandService {
 
 	private final SavedCourseRepository savedCourseRepository;
+	private final MemberReader memberReader;
 	private final CourseRepository courseRepository;
 	private final MemberRepository memberRepository;
 	private final ApplicationEventPublisher eventPublisher;
 	private final CourseAccessPolicy courseAccessPolicy;
 
 	public void saveCourse(Long memberId, Long courseId) {
+		memberReader.requireLoggedIn(memberId);
 		if (savedCourseRepository.existsByMemberIdAndCourseId(memberId, courseId)) {
 			throw new CourseException(CourseErrorCode.COURSE_SAVED_ALREADY);
 		}
@@ -53,6 +56,7 @@ public class SavedCourseCommandService {
 	}
 
 	public void unsaveCourse(Long memberId, Long courseId) {
+		memberReader.requireLoggedIn(memberId);
 		SavedCourse savedCourse = savedCourseRepository.findByMemberIdAndCourseId(memberId, courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_SAVED_NOT_FOUND));
 		savedCourseRepository.delete(savedCourse);

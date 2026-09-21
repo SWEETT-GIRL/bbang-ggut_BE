@@ -60,6 +60,14 @@ jobs:
 
           gemini.api.key=${GEMINI_API_KEY}
 
+          # 이유 문장 LLM 실험(#662) — 없으면 그 벤더만 실험에서 빠진다
+          openai.api.key=${OPENAI_API_KEY:}
+          anthropic.api.key=${CLAUDE_API_KEY:}
+
+          # 앱에서 눌러 이유 문장을 받아 본다 (#764). 스테이징에서만 켠다 — 운영은 프롬프트를 깎고 나서.
+          # 하루 상한 200 은 메뉴 분류와 나눠 쓰는 무료 등급(500)의 몫이다.
+          recommendation.reason.llm.enabled=true
+
           # 2026-09-09 정지 — prod 와 같은 무료 티어 키를 쓴다. dev 서버까지 스케줄러를 돌리면
           # 하루 500 요청을 둘이 나눠 먹어 양쪽 다 429 를 맞는다. 애초에 dev 에서 68만 건을
           # 분류할 일이 없으므로 여기는 계속 꺼 둔다 (분류 코드를 고칠 때만 잠시 켠다).
@@ -112,6 +120,9 @@ jobs:
           lambda.callback.secret-key=${{secrets.LAMBDA_CALLBACK_SECRET_KEY}}
 
           # 성능 측정 대시보드
+          # 게스트 쓰기 차단 — 새 앱 출시 뒤에 GUEST_WRITE_BLOCKED=true 로 켠다
+          guest.write-blocked=${GUEST_WRITE_BLOCKED:false}
+
           perf.dashboard.enabled=${PERF_DASHBOARD_ENABLED:false}
           perf.dashboard.access-key=${PERF_DASHBOARD_ACCESS_KEY:}
           EOF
@@ -172,6 +183,8 @@ jobs:
             echo "NAVER_CLIENT_SECRET=${{ secrets.NAVER_CLIENT_SECRET }}" >> .env
             echo "GOOGLE_PLACES_API_KEY=${{ secrets.GOOGLE_PLACES_API_KEY }}" >> .env
             echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+            echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
+            echo "CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }}" >> .env
             echo "AWS_REGION=ap-northeast-2" >> .env
             echo "AWS_S3_BUCKET=${{ secrets.STAGING_AWS_S3_BUCKET }}" >> .env
             echo "STAGING_POSTHOG_API_KEY=${{ secrets.STAGING_POSTHOG_API_KEY }}" >> .env
@@ -182,6 +195,7 @@ jobs:
             echo "LAMBDA_CALLBACK_SECRET_KEY=${{ secrets.LAMBDA_CALLBACK_SECRET_KEY }}" >> .env
             echo "PERF_DASHBOARD_ENABLED=true" >> .env
             echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env
+            echo "ADMIN_API_KEY=${{ secrets.STAGING_ADMIN_API_KEY }}" >> .env
             echo "SCOUTER_OBJ_NAME=bbang-staging" >> .env
             echo "SCOUTER_SERVER_PORT=6100" >> .env
             echo "SCOUTER_WEB_PORT=6188" >> .env

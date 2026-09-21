@@ -6,11 +6,12 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import sweetgirl.croissant.store.config.StoreSearchProperties;
 import sweetgirl.croissant.store.repository.search.SearchSqlQuery;
 
 class StoreSearchSqlBuilderTest {
 
-	private final StoreSearchSqlBuilder builder = new StoreSearchSqlBuilder();
+	private final StoreSearchSqlBuilder builder = new StoreSearchSqlBuilder(new StoreSearchProperties());
 
 	private static StoreSearchPlan plan(List<String> regions, List<String> names, String whole) {
 		return new StoreSearchPlan(regions, names, whole, false);

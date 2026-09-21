@@ -50,6 +50,8 @@ class ReviewRepositoryTest {
 				CREATE TABLE member (
 					id BIGINT PRIMARY KEY,
 					nickname VARCHAR(100) NOT NULL,
+					pending_nickname VARCHAR(100),
+					nickname_drawn_at TIMESTAMP,
 					deleted_at TIMESTAMP,
 					agree_to_terms BOOLEAN NOT NULL DEFAULT TRUE,
 					agree_to_marketing BOOLEAN NOT NULL DEFAULT FALSE,
@@ -99,12 +101,16 @@ class ReviewRepositoryTest {
 					store_id BIGINT NOT NULL,
 					menu_category_id BIGINT NOT NULL,
 					name VARCHAR(100) NOT NULL,
+					normalized_name VARCHAR(100) NOT NULL,
+					created_by_member_id BIGINT,
 					price INTEGER,
 					recommend_count INTEGER NOT NULL DEFAULT 0,
 					like_count INTEGER NOT NULL DEFAULT 0,
 					deleted_at TIMESTAMP,
 					description VARCHAR(255),
 					display_order INTEGER,
+					is_bakery_item BOOLEAN,
+					classified_at TIMESTAMP,
 					created_at TIMESTAMP NOT NULL,
 					updated_at TIMESTAMP
 				)
@@ -312,10 +318,10 @@ class ReviewRepositoryTest {
 		execute("INSERT INTO menu_category (id, name) VALUES (?, ?)", 1L, "소금빵");
 		execute("""
 				INSERT INTO menu (
-					id, store_id, menu_category_id, name, price, recommend_count, created_at
+					id, store_id, menu_category_id, name, normalized_name, price, recommend_count, created_at
 				)
-				VALUES (?, ?, ?, ?, ?, ?, TIMESTAMP '2026-06-05 08:00:00')
-				""", 1L, 1L, 1L, "소금빵", 3000, 0);
+				VALUES (?, ?, ?, ?, ?, ?, ?, TIMESTAMP '2026-06-05 08:00:00')
+				""", 1L, 1L, 1L, "소금빵", "소금빵", 3000, 0);
 	}
 
 	private void saveReview(Long id, Long menuId, Long memberId, BigDecimal rating, String content, String createdAt) {

@@ -1,0 +1,275 @@
+package sweetgirl.croissant.recommendation.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import sweetgirl.croissant.personalization.enums.TasteTag;
+import sweetgirl.croissant.recommendation.config.RecommendationProperties;
+import sweetgirl.croissant.recommendation.enums.ReasonPromptVariant;
+import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
+import sweetgirl.croissant.recommendation.repository.TasteQuery;
+
+/** 이유 문장 프롬프트 조립 (#662) — 네트워크 없이 변형별 결과 문자열을 그대로 본다. */
+class ReasonPromptBuilderTest {
+
+	private final ReasonPromptBuilder promptBuilder = new ReasonPromptBuilder(new RecommendationProperties());
+
+	private static TasteQuery taste() {
+		return new TasteQuery(0.62, 0.31, -0.55, 0.08,
+			Map.of("특별한메뉴", 0.9, "건강한맛", 0.4, "대형", 0.2), List.of("소금빵", "바게트"), 4, List.of());
+	}
+
+	private static CandidateStoreRow store(long storeId, String name, double tasteFit) {
+		return new CandidateStoreRow(storeId, name, "성수동2가", 37.5, 127.05, null, 120, 3.4, 1.2, tasteFit, 5,
+			0.5, 0.8, -0.2, 0.4, Map.of("특별한메뉴", 1.0, "공간사진", 0.5), List.of("소금빵", "깜빠뉴"), List.of());
+	}
+
+	@Test
+	@DisplayName("A 는 최소 재료만 넣는다 — 선정 근거 줄이 없다")
+	void buildA_hasNoRuleEvidence() {
+		String prompt = promptBuilder.build(ReasonPromptVariant.A, taste(),
+			List.of(store(1L, "밀도", 0.71), store(2L, "베통", 0.12)), Map.of());
+
+		assertThat(prompt).doesNotContain("선정 근거");
+		assertThat(prompt).contains("밀도", "베통", "storeId=1", "storeId=2");
+	}
+
+	@Test
+	@DisplayName("D 는 가게마다 룰의 선정 근거를 붙인다 — 겹치는 것만 적는다")
+	void buildD_hasRuleEvidenceWithOverlapOnly() {
+		String prompt = promptBuilder.build(ReasonPromptVariant.D, taste(), List.of(store(1L, "밀도", 0.71)),
+			Map.of());
+
+		assertThat(prompt).contains("선정 근거: 취향 일치도 0.71");
+		// 회원 태그 셋 중 가게와 겹치는 것은 특별한메뉴 하나뿐이다
+		assertThat(prompt).contains("겹치는 태그 특별한 메뉴");
+		assertThat(prompt).doesNotContain("겹치는 태그 특별한 메뉴, 건강·신선");
+		assertThat(prompt).contains("겹치는 빵 종류 소금빵");
+	}
+
+	@Test
+	@DisplayName("B 만 시그니처 메뉴를 넣는다 — 그 가게가 무엇으로 알려졌는지가 거기 있다")
+	void buildB_addsSignatureMenus() {
+		Map<Long, List<String>> menus = Map.of(1L, List.of("플레인 포카치아", "뺑 스위스", "잠봉뵈르"));
+
+		String withMenus = promptBuilder.build(ReasonPromptVariant.B, taste(),
+			List.of(store(1L, "에르제", 0.71)), menus);
+		String without = promptBuilder.build(ReasonPromptVariant.A, taste(),
+			List.of(store(1L, "에르제", 0.71)), menus);
+
+		assertThat(withMenus).contains("   시그니처 메뉴: 플레인 포카치아, 뺑 스위스, 잠봉뵈르");
+		assertThat(without).doesNotContain("   시그니처 메뉴:");
+	}
+
+	@Test
+	@DisplayName("시그니처 메뉴가 없는 가게는 그 줄이 통째로 빠진다")
+	void buildB_skipsMissingSignatureMenus() {
+		String prompt = promptBuilder.build(ReasonPromptVariant.B, taste(),
+			List.of(store(1L, "밀도", 0.71)), Map.of());
+
+		assertThat(prompt).doesNotContain("   시그니처 메뉴:");
+		assertThat(prompt).contains("빵 종류: 소금빵");
+	}
+
+	@Test
+	@DisplayName("축 값과 축 이름은 프롬프트에 넣지 않는다 — 모델이 그 형용사를 그대로 문장으로 돌려준다")
+	void axisIsNeverInPrompt() {
+		String prompt = promptBuilder.build(ReasonPromptVariant.A, taste(), List.of(store(1L, "밀도", 0.71)),
+			Map.of());
+
+		assertThat(prompt).doesNotContain("담백", "바삭", "심플", "트렌디", "클래식", "고전", "신상 빵", "축:");
+		// 회원이 알아보는 것만 남는다
+		assertThat(prompt).contains("- 좋아하는 태그: 특별한 메뉴", "- 자주 먹는 빵 종류: 소금빵", "빵 종류: 소금빵");
+	}
+
+	@Test
+	@DisplayName("가게 빵 종류 줄에서 일반 종류(빵 · 기타 · 요거트)를 뺀다 — 그것만 있으면 없음")
+	void storeKinds_dropGenericKinds() {
+		CandidateStoreRow mixed = new CandidateStoreRow(1L, "밀도", "성수동2가", 37.5, 127.05, null, 120, 3.4, 1.2, 0.71,
+			5, 0.5, 0.8, -0.2, 0.4, Map.of(), List.of("빵", "소금빵", "기타", "깜빠뉴", "요거트"), List.of());
+		CandidateStoreRow genericOnly = new CandidateStoreRow(2L, "베통", "성수동2가", 37.5, 127.05, null, 120, 3.4, 1.2,
+			0.12, 5, 0.5, 0.8, -0.2, 0.4, Map.of(), List.of("빵", "기타"), List.of());
+
+		String prompt = promptBuilder.build(ReasonPromptVariant.A, taste(), List.of(mixed, genericOnly),
+			Map.of());
+
+		assertThat(prompt).contains("   빵 종류: 소금빵, 깜빠뉴\n", "   빵 종류: 없음");
+		assertThat(prompt).doesNotContain("빵 종류: 빵", "기타", "요거트");
+	}
+
+	@Test
+	@DisplayName("강한 신호 가게가 4곳 미만이면 회원 태그를 없음으로 쓴다 — D 의 겹치는 태그도. 종류와 가게 태그 줄은 그대로")
+	void thinEvidence_hidesMemberTags() {
+		TasteQuery thin = new TasteQuery(0.62, 0.31, -0.55, 0.08, Map.of("특별한메뉴", 0.9), List.of("소금빵"), 3, List.of());
+
+		String prompt = promptBuilder.build(ReasonPromptVariant.D, thin, List.of(store(1L, "밀도", 0.71)),
+			Map.of());
+
+		assertThat(prompt).contains("- 좋아하는 태그: 없음", "겹치는 태그 없음");
+		assertThat(prompt).contains("- 자주 먹는 빵 종류: 소금빵", "겹치는 빵 종류 소금빵");
+		// 가게 태그는 가게의 사실이라 회원 근거와 상관없이 남는다
+		assertThat(prompt).contains("   태그: 특별한 메뉴\n");
+	}
+
+	@Test
+	@DisplayName("태그는 배지와 같은 문턱을 넘는 것만 쓴다 — 0.5(보통 빵집 · 표 없는 가게)나 그 아래는 나열하지 않는다")
+	void onlyNotableTagsAreListed() {
+		Map<String, Double> tags = Map.of("머물기", 0.51, "가성비", 0.5, "디저트", 0.3, "웨이팅", 0.0);
+		TasteQuery member = new TasteQuery(0.62, 0.31, -0.55, 0.08, tags, List.of("소금빵"), 4, List.of());
+		CandidateStoreRow store = new CandidateStoreRow(1L, "밀도", "성수동2가", 37.5, 127.05, null, 120, 3.4, 1.2, 0.71,
+			5, 0.5, 0.8, -0.2, 0.4, Map.of("머물기", 0.9, "가성비", 0.9, "디저트", 0.9), List.of("소금빵"), List.of());
+
+		String prompt = promptBuilder.build(ReasonPromptVariant.D, member, List.of(store), Map.of());
+
+		assertThat(prompt).contains("- 좋아하는 태그: 머물기 좋은\n", "   태그: 가성비, 디저트, 머물기 좋은\n", "겹치는 태그 머물기 좋은 ·");
+	}
+
+	@Test
+	@DisplayName("태그는 데이터 키가 아니라 표시 문구로 쓰고, 사전 밖 옛 키는 뺀다 — 배지 칩과 같은 말이 되게")
+	void tagsAreWrittenAsLabels_andUnknownKeysDropped() {
+		CandidateStoreRow store = new CandidateStoreRow(1L, "밀도", "성수동2가", 37.5, 127.05, null, 120, 3.4, 1.2, 0.71,
+			5, 0.5, 0.8, -0.2, 0.4, Map.of("공간사진", 0.9, "카페형", 0.95, "건강한맛", 0.7), List.of("소금빵"), List.of());
+
+		String prompt = promptBuilder.build(ReasonPromptVariant.A, taste(), List.of(store), Map.of());
+
+		assertThat(prompt).contains("   태그: 사진, 건강·신선\n");
+		assertThat(prompt).doesNotContain("공간사진", "건강한맛", "카페형");
+	}
+
+	@Test
+	@DisplayName("회원 문턱은 태그별 설정값을 따른다 — 머물기를 0.6 으로 올리면 0.51 인 머물기는 빠진다")
+	void notableThresholdFollowsConfig() {
+		RecommendationProperties stricter = new RecommendationProperties();
+		stricter.getScore().getMemberNotableTagAbove().put("머물기", 0.6);
+		TasteQuery member = new TasteQuery(0.62, 0.31, -0.55, 0.08, Map.of("머물기", 0.51, "가성비", 0.9), List.of(), 4,
+			List.of());
+
+		String prompt = new ReasonPromptBuilder(stricter).build(ReasonPromptVariant.A, member,
+			List.of(store(1L, "밀도", 0.71)), Map.of());
+
+		assertThat(prompt).contains("- 좋아하는 태그: 가성비\n");
+	}
+
+	@Test
+	@DisplayName("태그도 종류도 없는 회원이면 없음이 된다")
+	void emptyTaste_isWrittenAsNone() {
+		String prompt = promptBuilder.build(ReasonPromptVariant.A, TasteQuery.empty(),
+			List.of(store(1L, "밀도", 0)), Map.of());
+
+		assertThat(prompt).contains("- 좋아하는 태그: 없음");
+		assertThat(prompt).contains("- 자주 먹는 빵 종류: 없음");
+		assertThat(prompt).doesNotContain("- 유형:");
+	}
+
+	@Test
+	@DisplayName("쓸 수 있는 태그 목록은 TasteTag 에서 만든다 — 프롬프트 파일에 박아 두면 사전이 바뀔 때 어긋난다")
+	void tagVocabulary_followsTasteTag() {
+		for (ReasonPromptVariant variant : ReasonPromptVariant.values()) {
+			String prompt = promptBuilder.build(variant, taste(), List.of(store(1L, "밀도", 0.71)), Map.of());
+
+			assertThat(prompt).doesNotContain("{tagVocabulary}");
+			String vocabulary = Arrays.stream(TasteTag.values()).map(TasteTag::getLabel)
+				.collect(Collectors.joining(", "));
+			assertThat(prompt).as(variant.name()).contains("태그(" + vocabulary + ")");
+		}
+	}
+
+	@Test
+	@DisplayName("가게 수와 임계값이 프롬프트에 그대로 박힌다")
+	void placeholders_areReplaced() {
+		String prompt = promptBuilder.build(ReasonPromptVariant.D, taste(),
+			List.of(store(1L, "밀도", 0.71), store(2L, "베통", 0.12)), Map.of());
+
+		assertThat(prompt).contains("[추천된 빵집 2곳]");
+		assertThat(prompt).contains("0.20 를 넘으면");
+		assertThat(prompt).doesNotContain("{storeCount}", "{taste}", "{stores}", "{tasteThreshold}");
+	}
+
+	@Test
+	@DisplayName("회원 유형은 어떤 변형에도 넣지 않는다 — 유형 이름은 앱에서 없애기로 했고, 가게 쪽 근거 없이 유형과 가게를 잇게 된다")
+	void typeIsNeverInPrompt() {
+		for (ReasonPromptVariant variant : ReasonPromptVariant.values()) {
+			String prompt = promptBuilder.build(variant, taste(), List.of(store(1L, "밀도", 0.71)),
+				Map.of(1L, List.of("뺑 스위스")));
+
+			assertThat(prompt).as(variant.name()).doesNotContain("유형");
+		}
+	}
+
+	@Test
+	@DisplayName("메뉴 이름이 없는 A · D 는 메뉴 이름을 지어내지 말라고 적는다 — A 가 지어내면 B(실제 메뉴 이름)와의 비교가 흐려진다")
+	void menuNamesAreNotInvented_whereNotGiven() {
+		for (ReasonPromptVariant variant : List.of(ReasonPromptVariant.A, ReasonPromptVariant.D)) {
+			assertThat(promptBuilder.build(variant, taste(), List.of(store(1L, "밀도", 0.71)), Map.of()))
+				.as(variant.name()).contains("메뉴 이름은 주어지지 않았다. 빵 종류 목록에 적힌 이름만 쓴다.");
+		}
+		assertThat(promptBuilder.build(ReasonPromptVariant.B, taste(), List.of(store(1L, "밀도", 0.71)),
+			Map.of(1L, List.of("뺑 스위스")))).contains("메뉴 이름은 적힌 그대로 쓴다").doesNotContain("메뉴 이름은 주어지지 않았다");
+	}
+
+	@Test
+	@DisplayName("가게 빵 종류는 회원과 겹치는 것부터 — 뒤에 있어도 다섯 개 안에 들어온다 (#764)")
+	void buildA_putsOverlappingKindsFirst() {
+		// 가게가 준 순서(가나다순)로는 소금빵·케이크가 여섯째부터라 잘려 나갔다
+		CandidateStoreRow store = new CandidateStoreRow(1L, "희와제과", "전포동", 37.5, 127.05, null, 120, 3.4, 1.2,
+			0.7, 5, null, null, null, null, Map.of(),
+			List.of("고구마빵", "까눌레", "다쿠아즈", "단팥빵", "롤", "마들렌", "소금빵", "케이크"),
+			List.of("휘낭시에"));
+		TasteQuery taste = new TasteQuery(null, null, null, null, Map.of(), List.of("소금빵", "케이크"), 4, List.of());
+
+		String prompt = promptBuilder.build(ReasonPromptVariant.A, taste, List.of(store), Map.of());
+
+		// 겹치는 소금빵 · 케이크가 앞으로 오고, 나머지는 가게가 준 순서 그대로. 대표 종류(휘낭시에)는
+		// 이 가게 종류 목록에 없으므로 더해지지 않는다 — 순위를 올릴 뿐 없는 사실을 만들지 않는다
+		assertThat(prompt).contains("빵 종류: 소금빵, 케이크, 고구마빵, 까눌레, 다쿠아즈");
+	}
+
+	@Test
+	@DisplayName("겹치는 종류가 없으면 대표 종류가 먼저, 그다음 원래 순서")
+	void buildA_putsSignatureKindsNext() {
+		CandidateStoreRow store = new CandidateStoreRow(1L, "희와제과", "전포동", 37.5, 127.05, null, 120, 3.4, 1.2,
+			0.7, 5, null, null, null, null, Map.of(),
+			List.of("고구마빵", "까눌레", "다쿠아즈", "단팥빵", "롤", "마들렌"),
+			List.of("마들렌"));
+		TasteQuery taste = new TasteQuery(null, null, null, null, Map.of(), List.of("바게트"), 4, List.of());
+
+		String prompt = promptBuilder.build(ReasonPromptVariant.A, taste, List.of(store), Map.of());
+
+		assertThat(prompt).contains("빵 종류: 마들렌, 고구마빵, 까눌레, 다쿠아즈, 단팥빵");
+	}
+
+	@Test
+	@DisplayName("판 구분은 변형 이름과 프롬프트 내용에서 나온다 — 변형마다 다르고 컬럼(20자)에 들어간다")
+	void versionOf_isVariantAndContentHash() {
+		ReasonPromptBuilder builder = promptBuilder;
+
+		String versionA = builder.versionOf(ReasonPromptVariant.A);
+
+		assertThat(versionA).matches("reason-A-[0-9a-f]{6}");
+		assertThat(versionA.length()).isLessThanOrEqualTo(20);
+		// 같은 빌더를 두 번 물어도 같은 값이어야 추천 행끼리 견줄 수 있다
+		assertThat(builder.versionOf(ReasonPromptVariant.A)).isEqualTo(versionA);
+		assertThat(Set.of(builder.versionOf(ReasonPromptVariant.A), builder.versionOf(ReasonPromptVariant.B),
+			builder.versionOf(ReasonPromptVariant.D))).hasSize(3);
+	}
+
+	@Test
+	@DisplayName("프롬프트는 가게를 설명하지 말고 권하라고 이른다 — 랩 실험에서 문형을 뒤집은 규칙(#764)")
+	void prompt_asksToInviteNotExplain() {
+		ReasonPromptBuilder builder = promptBuilder;
+
+		String prompt = builder.build(ReasonPromptVariant.A, taste(), List.of(store(1L, "밀도", 0.71)), Map.of());
+
+		assertThat(prompt).contains("가게를 소개하지 말고 회원에게 권한다");
+		// 태그 이름을 그대로 옮기지 말라는 규칙이 빠지면 "특별한 메뉴" 가 문장의 절반을 덮는다
+		assertThat(prompt).contains("태그 이름을 문장에 그대로");
+	}
+}

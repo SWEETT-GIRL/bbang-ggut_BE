@@ -36,20 +36,31 @@ public record GeminiGenerateRequest(
 
 	/**
 	 * @param responseSchema OpenAPI 스키마 — enum 목록이 런타임에 정해지므로(MenuKind) Map 으로 받는다
+	 * @param maxOutputTokens 안 보내면 모델 기본값. 이유 문장처럼 짧은 응답에만 걸어 폭주를 막는다
 	 */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
 	public record GenerationConfig(
 			String responseMimeType,
 			Map<String, Object> responseSchema,
-			double temperature) {
+			double temperature,
+			Integer maxOutputTokens) {
 	}
 
 	public static GeminiGenerateRequest structuredJson(
 			String prompt,
 			Map<String, Object> responseSchema,
 			double temperature) {
+		return structuredJson(prompt, responseSchema, temperature, null);
+	}
+
+	public static GeminiGenerateRequest structuredJson(
+			String prompt,
+			Map<String, Object> responseSchema,
+			double temperature,
+			Integer maxOutputTokens) {
 		return new GeminiGenerateRequest(
 			List.of(new Content(List.of(Part.ofText(prompt)))),
-			new GenerationConfig("application/json", responseSchema, temperature));
+			new GenerationConfig("application/json", responseSchema, temperature, maxOutputTokens));
 	}
 
 	/** 이미지가 먼저, 프롬프트가 나중이다 — 지시문이 "앞의 사진"을 가리키게 하려면 순서가 이래야 한다 */
@@ -61,6 +72,6 @@ public record GeminiGenerateRequest(
 			double temperature) {
 		return new GeminiGenerateRequest(
 			List.of(new Content(List.of(Part.ofImage(mimeType, image), Part.ofText(prompt)))),
-			new GenerationConfig("application/json", responseSchema, temperature));
+			new GenerationConfig("application/json", responseSchema, temperature, null));
 	}
 }

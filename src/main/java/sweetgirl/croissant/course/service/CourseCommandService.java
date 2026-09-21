@@ -3,6 +3,8 @@ package sweetgirl.croissant.course.service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +13,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +23,7 @@ import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.request.CourseCreateRequest;
 import sweetgirl.croissant.course.dto.request.CourseImageRegisterRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreAddRequest;
+import sweetgirl.croissant.course.dto.request.CourseStoreBulkItem;
 import sweetgirl.croissant.course.dto.request.CourseStoreReorderRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreReorderRequest.CourseStoreOrderItem;
 import sweetgirl.croissant.course.dto.request.CourseStoreUpdateRequest;
@@ -35,6 +39,7 @@ import sweetgirl.croissant.course.entity.CourseStoreMemo;
 import sweetgirl.croissant.course.entity.SavedCourse;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.enums.CourseVisibility;
+import sweetgirl.croissant.course.event.CourseStoreAddedEvent;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseMemberRepository;
@@ -51,6 +56,7 @@ import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
@@ -63,6 +69,7 @@ import sweetgirl.croissant.store.repository.StoreRepository;
 public class CourseCommandService {
 
 	private final CourseRepository courseRepository;
+	private final MemberReader memberReader;
 	private final CourseStoreRepository courseStoreRepository;
 	private final CourseImageFileRepository courseImageFileRepository;
 	private final SavedCourseRepository savedCourseRepository;
@@ -75,8 +82,10 @@ public class CourseCommandService {
 	private final CourseProgressService courseProgressService;
 	private final MemberRestrictionReader memberRestrictionReader;
 	private final CourseAccessPolicy courseAccessPolicy;
+	private final ApplicationEventPublisher eventPublisher;
 
 	public Long createCourse(Long memberId, CourseCreateRequest request) {
+		memberReader.requireLoggedIn(memberId);
 		Member member = memberRepository.findByIdAndDeletedAtIsNull(memberId)
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 		validateDates(request.getStartDate(), request.getEndDate());
@@ -101,6 +110,7 @@ public class CourseCommandService {
 	}
 
 	public CourseUpdateResponse updateCourse(Long memberId, Long courseId, CourseUpdateRequest request) {
+		memberReader.requireLoggedIn(memberId);
 		// 락으로 시작한다 — 공개 여부·일차 수 검사는 읽고-판단하고-쓰기라 락 없이는 수락·가게 추가와 경합한다.
 		// 락 없이 읽은 엔티티를 나중에 락 조회로 다시 만나도 영속성 컨텍스트가 낡은 상태를 돌려주므로, 처음부터 락이어야 한다.
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
@@ -125,6 +135,11 @@ public class CourseCommandService {
 		}
 		if (request.getStartDate() != null || request.getEndDate() != null) {
 			validateDates(request.getStartDate(), request.getEndDate());
+			// 날짜를 줄여 담긴 가게가 범위 밖 일차에 남게 두지 않는다 — day_count 를 줄일 수 없는 것과 같은 규칙
+			int span = Course.dateSpan(request.getStartDate(), request.getEndDate());
+			if (span > 0 && span < courseStoreRepository.findMaxDayByCourseId(courseId)) {
+				throw new CourseException(CourseErrorCode.COURSE_DAY_COUNT_INVALID);
+			}
 			course.updateDates(request.getStartDate(), request.getEndDate());
 		}
 		if (request.getDayCount() != null) {
@@ -205,6 +220,7 @@ public class CourseCommandService {
 	}
 
 	public void deleteCourse(Long memberId, Long courseId) {
+		memberReader.requireLoggedIn(memberId);
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		courseAccessPolicy.requireOwner(course, memberId);
@@ -212,6 +228,7 @@ public class CourseCommandService {
 	}
 
 	public CourseStoreResponse addStore(Long memberId, Long courseId, CourseStoreAddRequest request) {
+		memberReader.requireLoggedIn(memberId);
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		courseAccessPolicy.requireEditable(course, memberId);
@@ -226,10 +243,11 @@ public class CourseCommandService {
 		Store store = storeRepository.findById(request.getStoreId())
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 
-		int day = resolveDay(request.getDay(), activeStores);
+		int day = resolveDay(request.getDay(), course, activeStores);
 		// 뒤 일차에 담기면 일차 수도 따라 올린다 — 일행이 같은 일차 수를 본다
 		course.ensureDayCountAtLeast(day);
 		CourseStore courseStore = insertStore(course, store, activeStores, day, request.getVisitTime());
+		publishAdded(memberId, courseId, courseStore, null);
 		// 메모는 사람별이다 — course_stores.memo 가 아니라 내 메모 행으로 들어간다
 		String myMemo = saveMyMemo(courseStore, memberId, request.getMemo());
 		// 가게가 늘었다 — 분모가 커졌으니 완주 승격을 허용해도 안전하다
@@ -243,14 +261,85 @@ public class CourseCommandService {
 		return CourseStoreResponse.of(courseStore, null, myMemo, myMemo, memos);
 	}
 
-	/** 요청 일차가 없으면 마지막 일차(최소 1). 1 ~ (마지막 일차 + 1) 만 허용 — 빈 일차를 건너뛰어 담을 수 없다. */
-	private int resolveDay(Integer requestedDay, List<CourseStore> activeStores) {
-		int maxDay = activeStores.stream().mapToInt(CourseStore::getDay).max().orElse(0);
-		int day = requestedDay != null ? requestedDay : Math.max(maxDay, 1);
-		if (day < 1 || day > maxDay + 1) {
+	/**
+	 * 여러 곳을 한 트랜잭션으로 담는다 (#660). 단건 담기와 같은 규칙을 가게 목록으로 한 번 돈다 —
+	 * 하나라도 못 담으면(이미 담긴 가게, 없는 가게, 잘못된 일차) 전부 되돌린다.
+	 * recommendationId 는 호출자(추천 모듈)가 소유·코스 일치를 확인해 넘긴 값이고, 여기서는 담긴 가게마다 출처로 남길 뿐이다.
+	 */
+	public List<CourseStoreResponse> addStores(Long memberId, Long courseId, List<CourseStoreBulkItem> items,
+			Long recommendationId) {
+		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
+			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
+		courseAccessPolicy.requireEditable(course, memberId);
+
+		// 정류장 목록을 손에 들고 돈다 — 방금 담은 가게가 다음 가게의 중복·일차·순서 판정에 바로 보여야 한다
+		List<CourseStore> activeStores = new ArrayList<>(
+			courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId));
+		Map<Long, Store> storesById = findStoresById(items);
+
+		List<CourseStore> added = new ArrayList<>();
+		for (CourseStoreBulkItem item : items) {
+			if (containsStore(activeStores, item.getStoreId())) {
+				throw new CourseException(CourseErrorCode.COURSE_STORE_ALREADY_EXISTS);
+			}
+			int day = resolveDay(item.getDay(), course, activeStores);
+			course.ensureDayCountAtLeast(day);
+			CourseStore courseStore = insertStore(course, storesById.get(item.getStoreId()), activeStores, day, null);
+			if (recommendationId != null) {
+				courseStore.markRecommended(recommendationId);
+			}
+			publishAdded(memberId, courseId, courseStore, recommendationId);
+			activeStores.add(courseStore);
+			activeStores.sort(Comparator.comparingInt(CourseStore::getVisitOrder));
+			added.add(courseStore);
+		}
+		courseProgressService.refreshForCourse(courseId, true);
+		courseRepository.bumpVersion(courseId);
+		return added.stream()
+			.map(courseStore -> CourseStoreResponse.of(courseStore, null, null, null, List.of()))
+			.toList();
+	}
+
+	/** 한 번에 읽고, 요청한 가게가 하나라도 없으면 아무것도 담지 않는다. */
+	private Map<Long, Store> findStoresById(List<CourseStoreBulkItem> items) {
+		List<Long> storeIds = items.stream().map(CourseStoreBulkItem::getStoreId).distinct().toList();
+		Map<Long, Store> storesById = storeRepository.findAllById(storeIds).stream()
+			.collect(Collectors.toMap(Store::getId, store -> store));
+		if (storesById.size() != storeIds.size()) {
+			throw new StoreException(StoreErrorCode.STORE_NOT_FOUND);
+		}
+		return storesById;
+	}
+
+	/**
+	 * 요청 일차가 없으면 마지막 일차(최소 1). 허용 범위는 1 ~ max(코스가 아는 일차 수, 담긴 마지막 일차 + 1).
+	 * 빈 앞 일차를 건너뛰어 담아도 된다 — 빈 일차는 day_count 가 표현하고(09-03), 앱은 날짜로 탭을 그려 2일차부터 채울 수 있다.
+	 * 예전의 "빠짐없이 이어져야 한다" 는 일차 수 컬럼이 없어 max(day) 로 탭을 도출하던 때의 규칙이다.
+	 */
+	private int resolveDay(Integer requestedDay, Course course, List<CourseStore> activeStores) {
+		int maxStoreDay = activeStores.stream().mapToInt(CourseStore::getDay).max().orElse(0);
+		int day = requestedDay != null ? requestedDay : Math.max(maxStoreDay, 1);
+		if (day < 1 || day > allowedMaxDay(course, maxStoreDay)) {
 			throw new CourseException(CourseErrorCode.COURSE_STORE_DAY_INVALID);
 		}
 		return day;
+	}
+
+	/** 담을 수 있는 마지막 일차 — 코스가 아는 일차 수(day_count · 날짜 일수)와 담긴 마지막 일차 + 1 중 큰 것. */
+	static int allowedMaxDay(Course course, int maxStoreDay) {
+		return Math.max(knownDayCount(course), maxStoreDay + 1);
+	}
+
+	/** 코스가 아는 일차 수 — day_count 와 날짜 일수 중 큰 것(최소 1). 옛 코스는 날짜가 있어도 day_count 가 1 일 수 있다. */
+	static int knownDayCount(Course course) {
+		return Math.max(Math.max(course.getDayCount(), Course.dateSpan(course.getStartDate(), course.getEndDate())), 1);
+	}
+
+	/** 담은 사람 기준 COURSE_ADD 신호(#663). created_at 은 persist 때 auditing 이 채우므로 저장 직후에도 있다 — 없으면 지금 시각. */
+	private void publishAdded(Long memberId, Long courseId, CourseStore courseStore, Long recommendationId) {
+		LocalDateTime addedAt = courseStore.getCreatedAt() != null ? courseStore.getCreatedAt() : LocalDateTime.now();
+		eventPublisher.publishEvent(new CourseStoreAddedEvent(memberId, courseId, courseStore.getStore().getId(),
+			recommendationId, addedAt));
 	}
 
 	private boolean containsStore(List<CourseStore> activeStores, Long storeId) {
@@ -343,6 +432,7 @@ public class CourseCommandService {
 	}
 
 	public void updateStore(Long memberId, Long courseId, Long storeId, CourseStoreUpdateRequest request) {
+		memberReader.requireLoggedIn(memberId);
 		// 락으로 시작한다 — 같은 사람의 이중 탭이 메모 행을 두 번 INSERT 하지 않게, 그리고 가게 삭제·순서 변경과
 		// 락 순서(courses → course_stores)를 맞춰 데드락을 피한다.
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
@@ -359,6 +449,7 @@ public class CourseCommandService {
 	}
 
 	public void removeStore(Long memberId, Long courseId, Long storeId) {
+		memberReader.requireLoggedIn(memberId);
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		courseAccessPolicy.requireEditable(course, memberId);
@@ -375,6 +466,7 @@ public class CourseCommandService {
 	}
 
 	public void reorderStores(Long memberId, Long courseId, CourseStoreReorderRequest request) {
+		memberReader.requireLoggedIn(memberId);
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		courseAccessPolicy.requireEditable(course, memberId);
@@ -410,7 +502,8 @@ public class CourseCommandService {
 
 		boolean hasDayInfo = orderItems.stream().anyMatch(item -> item.getDay() != null);
 		if (hasDayInfo) {
-			validateDaySequence(orderItems);
+			int maxStoreDay = activeStores.stream().mapToInt(CourseStore::getDay).max().orElse(0);
+			validateDaySequence(orderItems, allowedMaxDay(course, maxStoreDay));
 			orderItems.stream().mapToInt(CourseStoreOrderItem::getDay).max().ifPresent(course::ensureDayCountAtLeast);
 		}
 
@@ -446,12 +539,12 @@ public class CourseCommandService {
 		}
 	}
 
-	// 일차는 1부터 시작해 빠짐없이 이어져야 한다 (1,1,2,2,3 ✓ / 1,3 ✗ / 2,1 ✗)
-	private void validateDaySequence(List<CourseStoreOrderItem> orderItems) {
+	// 일차는 1 이상, 순서대로 내려가지 않고, 이전 일차 + 1 이거나 코스가 아는 범위 안이어야 한다 (1,1,3 ✓ 빈 2일차 / 2,1 ✗ / 0 ✗)
+	private void validateDaySequence(List<CourseStoreOrderItem> orderItems, int allowedMaxDay) {
 		int prev = 0;
 		for (CourseStoreOrderItem item : orderItems) {
 			Integer day = item.getDay();
-			if (day == null || day < 1 || day < prev || day > prev + 1) {
+			if (day == null || day < 1 || day < prev || day > Math.max(allowedMaxDay, prev + 1)) {
 				throw new CourseException(CourseErrorCode.COURSE_STORE_DAY_INVALID);
 			}
 			prev = day;
@@ -459,6 +552,7 @@ public class CourseCommandService {
 	}
 
 	public PresignedUrlResponse getPresignedUrl(Long memberId, Long courseId, String mimeType) {
+		memberReader.requireLoggedIn(memberId);
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		courseAccessPolicy.requireOwner(course, memberId);
@@ -466,6 +560,7 @@ public class CourseCommandService {
 	}
 
 	public void registerImage(Long memberId, Long courseId, CourseImageRegisterRequest request) {
+		memberReader.requireLoggedIn(memberId);
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		courseAccessPolicy.requireOwner(course, memberId);
@@ -487,6 +582,7 @@ public class CourseCommandService {
 	}
 
 	public void deleteImage(Long memberId, Long courseId) {
+		memberReader.requireLoggedIn(memberId);
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		courseAccessPolicy.requireOwner(course, memberId);
@@ -500,6 +596,7 @@ public class CourseCommandService {
 	}
 
 	public Long forkCourse(Long memberId, Long courseId, String shareToken) {
+		memberReader.requireLoggedIn(memberId);
 		Course sourceCourse = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 
@@ -532,6 +629,8 @@ public class CourseCommandService {
 				source.getVisitTime()))
 			.toList();
 		courseStoreRepository.saveAll(copiedStores);
+		// 포크는 코스를 통째로 담은 것 — 가게마다 담기와 같은 COURSE_ADD 신호(09-18 결정, 가중치 동일). 담는 사람은 포크한 회원
+		copiedStores.forEach(copied -> publishAdded(memberId, savedForkedCourse.getId(), copied, null));
 
 		return savedForkedCourse.getId();
 	}

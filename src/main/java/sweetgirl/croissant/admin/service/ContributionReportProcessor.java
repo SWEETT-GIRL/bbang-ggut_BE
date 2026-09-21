@@ -39,7 +39,6 @@ import sweetgirl.croissant.store.dto.request.StoreBusinessHoursReportRequest;
 import sweetgirl.croissant.store.dto.request.StoreImageReportRequest;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreImageFile;
-import sweetgirl.croissant.store.enums.StoreCategory;
 import sweetgirl.croissant.store.enums.StoreReportType;
 import sweetgirl.croissant.store.enums.StoreSource;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
@@ -178,7 +177,6 @@ public class ContributionReportProcessor {
 			.phone(report.getPhone())
 			.naverPlaceId(report.getNaverPlaceId())
 			.source(StoreSource.ADMIN_REGISTERED)
-			.category(StoreCategory.WESTERN)
 			.build();
 		Store saved = storeRepository.save(store);
 		return saved;

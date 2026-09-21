@@ -62,6 +62,10 @@ jobs:
 
           gemini.api.key=${GEMINI_API_KEY}
 
+          # 이유 문장 LLM 실험(#662) — 없으면 그 벤더만 실험에서 빠진다
+          openai.api.key=${OPENAI_API_KEY:}
+          anthropic.api.key=${CLAUDE_API_KEY:}
+
           # 메뉴 AI 분류 첫 배치를 5분 뒤로 — blue-green 전환이 끝난 뒤 돌게.
           # 30초면 구 컨테이너가 아직 트래픽을 받는 중에 새 kind(카스테라 등)가 메뉴에 붙어
           # 구버전 enum 역직렬화가 깨진다 (V20260814134900 머핀·다쿠아즈 선례와 같은 문제)
@@ -114,6 +118,9 @@ jobs:
           # Lambda 콜백 인증 키
           lambda.callback.secret-key=${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}
 
+
+          # 게스트 쓰기 차단 — 새 앱 출시 뒤에 GUEST_WRITE_BLOCKED=true 로 켠다
+          guest.write-blocked=${GUEST_WRITE_BLOCKED:false}
 
           perf.dashboard.enabled=${PERF_DASHBOARD_ENABLED:false}
           perf.dashboard.access-key=${PERF_DASHBOARD_ACCESS_KEY:}
@@ -226,6 +233,8 @@ jobs:
           KAKAO_API_KEY: ${{ secrets.KAKAO_API_KEY }}
           GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           AWS_S3_BUCKET: ${{ secrets.PROD_AWS_S3_BUCKET }}
@@ -235,8 +244,10 @@ jobs:
           SLACK_REPORT_WEBHOOK_URL: ${{ secrets.SLACK_REPORT_WEBHOOK_URL_PROD }}
           SLACK_ABUSE_WEBHOOK_URL: ${{ secrets.SLACK_ABUSE_WEBHOOK_URL_PROD }}
           LAMBDA_CALLBACK_SECRET_KEY: ${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}
+          GUEST_WRITE_BLOCKED: ${{ secrets.GUEST_WRITE_BLOCKED }}
           PERF_DASHBOARD_ENABLED: ${{ secrets.PERF_DASHBOARD_ENABLED }}
           PERF_DASHBOARD_ACCESS_KEY: ${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}
+          ADMIN_API_KEY: ${{ secrets.PROD_ADMIN_API_KEY }}
         run: |
           umask 077
           {
@@ -255,6 +266,8 @@ jobs:
             echo "KAKAO_API_KEY=${KAKAO_API_KEY}"
             echo "GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY}"
             echo "GEMINI_API_KEY=${GEMINI_API_KEY}"
+            echo "OPENAI_API_KEY=${OPENAI_API_KEY}"
+            echo "CLAUDE_API_KEY=${CLAUDE_API_KEY}"
             echo "NAVER_CLIENT_ID=${NAVER_CLIENT_ID}"
             echo "NAVER_CLIENT_SECRET=${NAVER_CLIENT_SECRET}"
             echo "AWS_REGION=ap-northeast-2"
@@ -265,8 +278,10 @@ jobs:
             echo "SLACK_REPORT_WEBHOOK_URL=${SLACK_REPORT_WEBHOOK_URL}"
             echo "SLACK_ABUSE_WEBHOOK_URL=${SLACK_ABUSE_WEBHOOK_URL}"
             echo "LAMBDA_CALLBACK_SECRET_KEY=${LAMBDA_CALLBACK_SECRET_KEY}"
+            echo "GUEST_WRITE_BLOCKED=${GUEST_WRITE_BLOCKED:-false}"
             echo "PERF_DASHBOARD_ENABLED=${PERF_DASHBOARD_ENABLED:-false}"
             echo "PERF_DASHBOARD_ACCESS_KEY=${PERF_DASHBOARD_ACCESS_KEY}"
+            echo "ADMIN_API_KEY=${ADMIN_API_KEY}"
           } > env.prod
 
           ssh was 'mkdir -p ~/app'

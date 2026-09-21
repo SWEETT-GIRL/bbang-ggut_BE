@@ -1,5 +1,6 @@
 package sweetgirl.croissant.member.entity;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import org.springframework.data.annotation.CreatedDate;
@@ -31,6 +32,14 @@ public class Member {
 
 	@Column(nullable = false, length = 100)
 	private String nickname;
+
+	// 닉네임 뽑기로 받은 후보. 수락해야 nickname 이 되고, "원래대로"를 누르면 비운다.
+	@Column(length = 100)
+	private String pendingNickname;
+
+	// 마지막으로 닉네임을 뽑은 시각(Asia/Seoul 벽시계). 뽑기는 한국 날짜로 하루 한 번이다.
+	@Column
+	private LocalDateTime nicknameDrawnAt;
 
 	@Column
 	private LocalDateTime deletedAt;
@@ -115,6 +124,25 @@ public class Member {
 
 	public void resetNickname(String nickname) {
 		this.nickname = nickname;
+	}
+
+	public boolean canDrawNickname(LocalDate today) {
+		return this.nicknameDrawnAt == null || this.nicknameDrawnAt.toLocalDate().isBefore(today);
+	}
+
+	// 뽑는 순간 그날 기회를 쓴 것이다 — 수락하든 "원래대로"를 누르든 다시 뽑을 수 없다.
+	public void drawNickname(String candidate, LocalDateTime now) {
+		this.pendingNickname = candidate;
+		this.nicknameDrawnAt = now;
+	}
+
+	public void acceptPendingNickname() {
+		this.nickname = this.pendingNickname;
+		this.pendingNickname = null;
+	}
+
+	public void discardPendingNickname() {
+		this.pendingNickname = null;
 	}
 
 	public void markAsGuest() {

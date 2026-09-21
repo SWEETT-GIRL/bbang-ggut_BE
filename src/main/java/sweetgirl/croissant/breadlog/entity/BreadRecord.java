@@ -65,10 +65,18 @@ public class BreadRecord extends BaseTimeEntity {
 	@BatchSize(size = 100)
 	private List<String> lovedBreads = new ArrayList<>();
 
+	/** 빵탑에 쌓은 빵. 기록을 지우면 같이 사라진다. 빵 종류가 늘 수 있어 값을 제한하지 않는다. */
+	@Column(length = 20)
+	private String towerBread;
+
 	@Column(nullable = false)
 	private LocalDateTime eatenAt;
 
 	private LocalDateTime deletedAt;
+
+	/** 공개하면 가게 상세에 쌓인다. 나만 본다고 생각하고 쓴 옛 기록이 있어 기본은 비공개다. */
+	@Column(nullable = false)
+	private boolean isPublic;
 
 	@Builder
 	public BreadRecord(
@@ -78,13 +86,17 @@ public class BreadRecord extends BaseTimeEntity {
 			String regionKey,
 			String memo,
 			List<String> lovedBreads,
-			LocalDateTime eatenAt) {
+			String towerBread,
+			LocalDateTime eatenAt,
+			boolean isPublic) {
 		this.member = member;
 		this.store = store;
 		this.storeName = storeName;
 		this.regionKey = regionKey;
 		this.memo = memo;
+		this.towerBread = towerBread;
 		this.eatenAt = eatenAt;
+		this.isPublic = isPublic;
 		replaceLovedBreads(lovedBreads);
 	}
 
@@ -94,12 +106,17 @@ public class BreadRecord extends BaseTimeEntity {
 			String regionKey,
 			String memo,
 			List<String> lovedBreads,
+			String towerBread,
 			LocalDateTime eatenAt) {
 		this.store = store;
 		this.storeName = storeName;
 		this.regionKey = regionKey;
 		this.memo = memo;
 		this.eatenAt = eatenAt;
+		// 안 보내면 지금 값을 그대로 둔다 — 빵탑 빵을 모르는 구버전 앱이 수정해도 쌓아둔 빵이 사라지지 않게.
+		if (towerBread != null) {
+			this.towerBread = towerBread;
+		}
 		replaceLovedBreads(lovedBreads);
 	}
 
@@ -109,6 +126,10 @@ public class BreadRecord extends BaseTimeEntity {
 			this.lovedBreads.addAll(names);
 		}
 		this.lovedBread = this.lovedBreads.isEmpty() ? null : this.lovedBreads.get(0);
+	}
+
+	public void changeVisibility(boolean isPublic) {
+		this.isPublic = isPublic;
 	}
 
 	public void softDelete() {

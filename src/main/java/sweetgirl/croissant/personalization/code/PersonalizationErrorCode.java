@@ -1,0 +1,45 @@
+package sweetgirl.croissant.personalization.code;
+
+import org.springframework.http.HttpStatus;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import sweetgirl.croissant.global.code.BaseErrorCode;
+
+/**
+ * 개인화 모듈의 에러 코드.
+ *
+ * 400 은 검사 응답처럼 호출자가 고칠 수 있는 입력 오류다.
+ * 500 은 축과 행동 신호에 대한 서버 안의 약속이 깨진 것이다 — 배치나 서비스가
+ * 앞 단계 검사를 빼먹은 버그라서 사용자에게 원인을 돌리지 않는다.
+ */
+@Getter
+@AllArgsConstructor
+public enum PersonalizationErrorCode implements BaseErrorCode {
+
+	QUIZ_ANSWERS_INVALID(HttpStatus.BAD_REQUEST, "PERSONALIZATION400_1",
+			"검사 응답은 네 축에 하나씩(4문항) 또는 둘씩(8문항) 있어야 합니다."),
+	INGEST_RANGE_INVALID(HttpStatus.BAD_REQUEST, "PERSONALIZATION400_2",
+			"적재 범위는 시작일이 종료일보다 앞이어야 합니다."),
+	INGEST_RANGE_TOO_LONG(HttpStatus.BAD_REQUEST, "PERSONALIZATION400_3",
+			"적재 범위가 너무 깁니다 — 달 단위로 나눠 돌려 주세요."),
+	BACKFILL_UNTIL_TOO_LATE(HttpStatus.BAD_REQUEST, "PERSONALIZATION400_4",
+			"담기 백필은 담기 이벤트 배포일 이전 범위만 허용합니다."),
+	QUIZ_CHOICE_AXIS_MISMATCH(HttpStatus.BAD_REQUEST, "PERSONALIZATION400_5",
+			"선택지가 그 문항의 축과 맞지 않습니다."),
+	INTERACTION_INGEST_ALREADY_RUNNING(HttpStatus.CONFLICT, "PERSONALIZATION409_1",
+			"신호 적재가 이미 실행 중입니다."),
+	TASTE_PROFILE_REFRESH_ALREADY_RUNNING(HttpStatus.CONFLICT, "PERSONALIZATION409_2",
+			"취향 프로필 재계산이 이미 실행 중입니다."),
+
+	INTERACTION_TARGET_REQUIRED(HttpStatus.INTERNAL_SERVER_ERROR, "PERSONALIZATION500_1",
+			"가게나 메뉴 중 하나는 있어야 하는 신호입니다."),
+	TASTE_AXIS_INCOMPLETE(HttpStatus.INTERNAL_SERVER_ERROR, "PERSONALIZATION500_2",
+			"네 축이 모두 있어야 타입을 정할 수 있습니다."),
+	TASTE_PROFILE_ROW_MISSING(HttpStatus.INTERNAL_SERVER_ERROR, "PERSONALIZATION500_3",
+			"프로필 행을 만든 직후 잠그지 못했습니다.");
+
+	private final HttpStatus httpStatus;
+	private final String code;
+	private final String message;
+}

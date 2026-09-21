@@ -1,0 +1,95 @@
+package sweetgirl.croissant.recommendation.repository;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
+
+import sweetgirl.croissant.recommendation.entity.Recommendation;
+import sweetgirl.croissant.recommendation.enums.RecommendationMode;
+
+public interface RecommendationRepository extends JpaRepository<Recommendation, Long> {
+
+	/**
+	 * 재사용 키(상권 추천): 같은 회원·코스·상권·일차·프로필 버전의 최신 한 건. idx_recommendation_reuse 를 탄다.
+	 * 회원이 키에 있는 이유: 코스는 공동 편집이라 같은 코스를 여러 사람이 보는데, 추천은 그 사람의 취향으로 계산한 것이고
+	 * 프로필 버전은 사람마다 따로 세는 값이라 회원 없이는 남의 추천이 잡힌다.
+	 */
+	@Query("""
+			SELECT r FROM Recommendation r
+			WHERE r.memberId = :memberId AND r.courseId = :courseId
+				AND r.mode = sweetgirl.croissant.recommendation.enums.RecommendationMode.AREA
+				AND r.courseAreaId = :courseAreaId AND r.day = :day AND r.profileVersion = :profileVersion
+			ORDER BY r.createdAt DESC
+			LIMIT 1
+			""")
+	Optional<Recommendation> findLatestAreaForReuse(@Param("memberId") Long memberId, @Param("courseId") Long courseId,
+			@Param("courseAreaId") Long courseAreaId, @Param("day") Short day,
+			@Param("profileVersion") int profileVersion);
+
+	/** 재사용 키(앵커 추천): 같은 회원·코스·앵커·일차·프로필 버전. 일차는 앵커 가게가 담긴 일차다 — 앵커를 다른 일차로 옮기면 그 일차 기준으로 다시 만든다. */
+	@Query("""
+			SELECT r FROM Recommendation r
+			WHERE r.memberId = :memberId AND r.courseId = :courseId
+				AND r.mode = sweetgirl.croissant.recommendation.enums.RecommendationMode.ANCHOR
+				AND r.anchorStoreId = :anchorStoreId AND r.day = :day AND r.profileVersion = :profileVersion
+			ORDER BY r.createdAt DESC
+			LIMIT 1
+			""")
+	Optional<Recommendation> findLatestAnchorForReuse(@Param("memberId") Long memberId,
+			@Param("courseId") Long courseId,
+			@Param("anchorStoreId") Long anchorStoreId, @Param("day") Short day,
+			@Param("profileVersion") int profileVersion);
+
+	/** 피드백·bulk 담기의 소유 확인 — 남의 추천은 못 찾은 것으로 본다. */
+	Optional<Recommendation> findByIdAndMemberId(Long id, Long memberId);
+
+	/**
+	 * 다시 추천(#661)의 제외 재료: 이 회원·코스·상권 행·일차의 상권 추천 전부(프로필 버전 무관 — 프로필이 바뀌어도 본 가게는 다시
+	 * 안 보인다). 한 키에 행이 몇 개 안 돼 result 의 stores 는 자바에서 읽는다(jsonb 함수 없이 — H2 로도 검증된다).
+	 */
+	List<Recommendation> findAllByMemberIdAndCourseIdAndModeAndCourseAreaIdAndDay(Long memberId, Long courseId,
+			RecommendationMode mode, Long courseAreaId, Short day);
+
+	/** 다음 칸 제안(#661)에서 "이 코스에서 이미 추천받은 상권 행"을 뺀다 — 일차와 무관. */
+	@Query("""
+			SELECT DISTINCT r.courseAreaId FROM Recommendation r
+			WHERE r.memberId = :memberId AND r.courseId = :courseId
+				AND r.mode = sweetgirl.croissant.recommendation.enums.RecommendationMode.AREA
+			""")
+	List<Long> findRecommendedAreaIds(@Param("memberId") Long memberId, @Param("courseId") Long courseId);
+
+	/**
+	 * 이유 문장을 채운다 — 아직 룰 문장인 행에만 (#764). 같은 묶음에 요청이 나란히 들어오면 둘 다 LLM 을 부르는데,
+	 * 문장은 같아도(temperature 0) 저장까지 둘 다 하면 나중 것이 앞 것을 덮는다. 조건을 걸어 한 번만 성공시키고,
+	 * 진 쪽은 저장된 문장을 다시 읽어 돌려준다. 잠금 없이 되는 일이라 커넥션을 오래 쥐지 않는다.
+	 *
+	 * <p>{@code @Transactional} 은 이 메서드에만 건다 — 서비스는 LLM 호출을 트랜잭션 밖에 두려고 클래스에 걸지 않는다.
+	 */
+	@Transactional
+	@Modifying(clearAutomatically = true)
+	@Query("""
+			UPDATE Recommendation recommendation
+			SET recommendation.result = :result, recommendation.provider = :provider,
+				recommendation.model = :model, recommendation.promptVersion = :promptVersion,
+				recommendation.fallback = false
+			WHERE recommendation.id = :id AND recommendation.provider = :ruleProvider
+			""")
+	int fillReasonsIfStillRule(@Param("id") Long id, @Param("result") Map<String, Object> result,
+			@Param("provider") String provider, @Param("model") String model,
+			@Param("promptVersion") String promptVersion, @Param("ruleProvider") String ruleProvider);
+
+	/**
+	 * 게스트 → 회원 병합(#663 ④). 적재가 RECO_DISMISSED · RECO_UNCHECK 를 이 표의 member_id 로 읽고, 재사용 키도 회원별이라
+	 * 옮기지 않으면 게스트로 받은 추천을 로그인 뒤 다시 만들게 된다.
+	 */
+	@Modifying(clearAutomatically = true)
+	@Query("UPDATE Recommendation recommendation SET recommendation.memberId = :targetId "
+		+ "WHERE recommendation.memberId = :guestId")
+	int moveOwner(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
+}

@@ -17,6 +17,7 @@ import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -49,6 +50,7 @@ import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.repository.StoreRepository;
+import sweetgirl.croissant.world.repository.MemberWorldRepository;
 
 @ExtendWith(MockitoExtension.class)
 class BreadRecordCommandServiceTest {
@@ -77,6 +79,8 @@ class BreadRecordCommandServiceTest {
 	ImageProcessingCallbackService imageProcessingCallbackService;
 	@Mock
 	CourseProgressService courseProgressService;
+	@Mock
+	MemberWorldRepository memberWorldRepository;
 
 	@InjectMocks
 	BreadRecordCommandService commandService;
@@ -116,18 +120,54 @@ class BreadRecordCommandServiceTest {
 	}
 
 	@Test
+	@DisplayName("create: 빵탑에 쌓을 빵을 저장한다")
+	void create_savesTowerBread() {
+		givenCreatableRecord();
+
+		commandService.create(7L, requestWithTowerBread("소금빵"));
+
+		ArgumentCaptor<BreadRecord> saved = ArgumentCaptor.forClass(BreadRecord.class);
+		verify(breadRecordRepository).save(saved.capture());
+		assertThat(saved.getValue().getTowerBread()).isEqualTo("소금빵");
+	}
+
+	@Test
+	@DisplayName("create: 빵탑 빵을 안 보내는 구버전 요청도 그대로 성공한다")
+	void create_withoutTowerBread_succeeds() {
+		givenCreatableRecord();
+
+		commandService.create(7L, requestWithTowerBread(null));
+
+		ArgumentCaptor<BreadRecord> saved = ArgumentCaptor.forClass(BreadRecord.class);
+		verify(breadRecordRepository).save(saved.capture());
+		assertThat(saved.getValue().getTowerBread()).isNull();
+	}
+
+	@Test
+	@DisplayName("create: 기록이 늘면 빵탑의 최고 높이를 올린다")
+	void create_raisesMaxRecordCount() {
+		givenCreatableRecord();
+		given(breadRecordRepository.countByMemberIdAndDeletedAtIsNull(7L)).willReturn(12L);
+
+		commandService.create(7L, requestWithTowerBread("소금빵"));
+
+		verify(memberWorldRepository).raiseMaxRecordCount(7L, 12L);
+	}
+
+	@Test
 	@DisplayName("create: 최고였던 빵을 여러 개 저장하고 첫 값은 구버전 컬럼에도 비춘다")
 	void create_multipleLovedBreads_saved() {
 		Member member = member(7L);
 		Store store = store(10L);
 		BreadRecordUpsertRequest request = new BreadRecordUpsertRequest(
-			10L, "클라이언트 가게명", "client_region", null, "무시되는 단일값", List.of("소금빵", " 우유식빵 ", "소금빵"),
+			10L, "클라이언트 가게명", "client_region", null, "무시되는 단일값", List.of("소금빵", " 우유식빵 ", "소금빵"), null,
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(
 				new BreadRecordPhotoRequest("a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
 			List.of(
 				new BreadRecordTagRequest(0, "우유식빵", null, null, 0.31, 0.42, null),
-				new BreadRecordTagRequest(0, "소금빵", null, null, 0.5, 0.5, null)));
+				new BreadRecordTagRequest(0, "소금빵", null, null, 0.5, 0.5, null)),
+			null);
 		given(memberReader.getMember(7L)).willReturn(member);
 		given(storeRepository.findById(10L)).willReturn(Optional.of(store));
 		given(regionResolver.resolve(store, "client_region")).willReturn("서울_성동구_성수동");
@@ -150,11 +190,11 @@ class BreadRecordCommandServiceTest {
 	@DisplayName("create: 최고였던 빵 중 태그에 없는 이름이 있으면 거절한다")
 	void create_lovedBreadNotTagged_throwsException() {
 		BreadRecordUpsertRequest request = new BreadRecordUpsertRequest(
-			10L, "클라이언트 가게명", "client_region", null, null, List.of("우유식빵", "크루아상"),
+			10L, "클라이언트 가게명", "client_region", null, null, List.of("우유식빵", "크루아상"), null,
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(
 				new BreadRecordPhotoRequest("a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
-			List.of(new BreadRecordTagRequest(0, "우유식빵", null, null, 0.31, 0.42, null)));
+			List.of(new BreadRecordTagRequest(0, "우유식빵", null, null, 0.31, 0.42, null)), null);
 		given(memberReader.getMember(7L)).willReturn(member(7L));
 		given(storeRepository.findById(10L)).willReturn(Optional.of(store(10L)));
 
@@ -236,10 +276,10 @@ class BreadRecordCommandServiceTest {
 			"client_region",
 			"맛있었다",
 			"우유식빵",
-			null,
+			null, null,
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(new BreadRecordPhotoRequest("a.jpg", "image/jpeg", awsKey, 0, null, null)),
-			List.of(new BreadRecordTagRequest(tagPhotoSortOrder, "우유식빵", null, null, 0.31, 0.42, null)));
+			List.of(new BreadRecordTagRequest(tagPhotoSortOrder, "우유식빵", null, null, 0.31, 0.42, null)), null);
 	}
 
 	@Test
@@ -353,15 +393,118 @@ class BreadRecordCommandServiceTest {
 		given(photoRepository.saveAll(any())).willAnswer(invocation -> invocation.getArgument(0));
 
 		commandService.create(7L, new BreadRecordUpsertRequest(
-			null, "직접 적은 가게", "client_region", null, null, null,
+			null, "직접 적은 가게", "client_region", null, null, null, null,
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(new BreadRecordPhotoRequest(
 				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
-			List.of(new BreadRecordTagRequest(0, "소금빵", 99L, null, 0.5, 0.5, null))));
+			List.of(new BreadRecordTagRequest(0, "소금빵", 99L, null, 0.5, 0.5, null)), null));
 
 		verify(tagRepository).saveAll(argThat(tags -> firstTag(tags).getMenu() == null));
 		verify(menuRepository, never()).findByStoreIdAndDeletedAtIsNullAndIdIn(any(), any());
 		verify(menuRepository, never()).findByStoreIdAndDeletedAtIsNullAndNormalizedNameIn(any(), any());
+	}
+
+	@Test
+	@DisplayName("create: 공개 여부를 안 보내면(구버전 앱) 비공개로 저장한다")
+	void create_defaultsToPrivate_whenIsPublicMissing() {
+		givenCreatableRecord();
+
+		commandService.create(7L, requestWithVisibility(null));
+
+		verify(breadRecordRepository).save(argThat(record -> !record.isPublic()));
+	}
+
+	@Test
+	@DisplayName("create: 공개로 보내면 공개로 저장한다")
+	void create_savesPublic_whenRequested() {
+		givenCreatableRecord();
+
+		commandService.create(7L, requestWithVisibility(true));
+
+		verify(breadRecordRepository).save(argThat(BreadRecord::isPublic));
+	}
+
+	@Test
+	@DisplayName("replace: 공개 여부를 안 보내면(구버전 앱) 지금 값을 그대로 둔다")
+	void replace_keepsVisibility_whenIsPublicMissing() {
+		BreadRecord record = givenReplaceableRecord(true);
+
+		commandService.replace(11L, 7L, requestWithVisibility(null));
+
+		assertThat(record.isPublic()).isTrue();
+	}
+
+	@Test
+	@DisplayName("replace: 공개 여부를 보내면 그 값으로 바꾼다")
+	void replace_changesVisibility_whenGiven() {
+		BreadRecord record = givenReplaceableRecord(true);
+
+		commandService.replace(11L, 7L, requestWithVisibility(false));
+
+		assertThat(record.isPublic()).isFalse();
+	}
+
+	@Test
+	@DisplayName("changeVisibility: 공개로 돌리면 작성 제한을 확인하고 공개로 바꾼다")
+	void changeVisibility_toPublic_checksWriteRestriction() {
+		Member member = member(7L);
+		BreadRecord record = record(11L, member);
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+
+		commandService.changeVisibility(11L, 7L, true);
+
+		assertThat(record.isPublic()).isTrue();
+		verify(memberRestrictionReader).validateCanWrite(7L);
+	}
+
+	@Test
+	@DisplayName("changeVisibility: 비공개로 내리는 건 작성 제한 중에도 막지 않는다")
+	void changeVisibility_toPrivate_skipsWriteRestriction() {
+		Member member = member(7L);
+		BreadRecord record = record(11L, member);
+		record.changeVisibility(true);
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+
+		commandService.changeVisibility(11L, 7L, false);
+
+		assertThat(record.isPublic()).isFalse();
+		verify(memberRestrictionReader, never()).validateCanWrite(any());
+	}
+
+	@Test
+	@DisplayName("changeVisibility: 남의 기록이면 접근 거부")
+	void changeVisibility_othersRecord_throwsAccessDenied() {
+		given(memberReader.getMember(8L)).willReturn(member(8L));
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record(11L, member(7L))));
+
+		assertThatThrownBy(() -> commandService.changeVisibility(11L, 8L, true))
+			.isInstanceOf(BreadLogException.class)
+			.hasFieldOrPropertyWithValue("errorCode", BreadLogErrorCode.BREAD_RECORD_ACCESS_DENIED);
+	}
+
+	private BreadRecord givenReplaceableRecord(boolean isPublic) {
+		Member member = member(7L);
+		BreadRecord record = record(11L, member);
+		record.changeVisibility(isPublic);
+		Store store = store(10L);
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+		given(storeRepository.findById(10L)).willReturn(Optional.of(store));
+		given(photoRepository.findAllIncludingPendingByRecordId(11L)).willReturn(List.of());
+		given(photoRepository.saveAll(any())).willAnswer(invocation -> invocation.getArgument(0));
+		return record;
+	}
+
+	private BreadRecordUpsertRequest requestWithVisibility(Boolean isPublic) {
+		return new BreadRecordUpsertRequest(
+			10L, "클라이언트 가게명", "client_region", null, null, null, null,
+			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
+			List.of(new BreadRecordPhotoRequest(
+				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
+			List.of(new BreadRecordTagRequest(0, "소금빵", null, null, 0.5, 0.5, null)),
+			isPublic);
 	}
 
 	private void givenCreatableRecord() {
@@ -373,17 +516,33 @@ class BreadRecordCommandServiceTest {
 		given(photoRepository.saveAll(any())).willAnswer(invocation -> invocation.getArgument(0));
 	}
 
+	private BreadRecordUpsertRequest requestWithTowerBread(String towerBread) {
+		return new BreadRecordUpsertRequest(
+			10L,
+			"클라이언트 가게명",
+			"client_region",
+			"맛있었다",
+			"우유식빵",
+			null,
+			towerBread,
+			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
+			List.of(new BreadRecordPhotoRequest(
+				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
+			List.of(new BreadRecordTagRequest(0, "우유식빵", null, null, 0.31, 0.42, null)),
+			null);
+	}
+
 	private BreadRecordUpsertRequest requestWithTagMenuId(Long menuId) {
 		return requestWithTagMenus(menuId, null);
 	}
 
 	private BreadRecordUpsertRequest requestWithTagMenus(Long menuId, Long suggestedMenuId) {
 		return new BreadRecordUpsertRequest(
-			10L, "클라이언트 가게명", "client_region", null, null, null,
+			10L, "클라이언트 가게명", "client_region", null, null, null, null,
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(new BreadRecordPhotoRequest(
 				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
-			List.of(new BreadRecordTagRequest(0, "소금빵", menuId, suggestedMenuId, 0.5, 0.5, null)));
+			List.of(new BreadRecordTagRequest(0, "소금빵", menuId, suggestedMenuId, 0.5, 0.5, null)), null);
 	}
 
 	private static BreadRecordTag firstTag(Iterable<BreadRecordTag> tags) {
