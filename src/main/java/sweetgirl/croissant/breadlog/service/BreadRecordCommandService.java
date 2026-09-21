@@ -48,6 +48,7 @@ import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.StoreRepository;
+import sweetgirl.croissant.world.repository.MemberWorldRepository;
 
 @Slf4j
 @Service
@@ -67,6 +68,7 @@ public class BreadRecordCommandService {
 	private final BreadRecordRegionResolver regionResolver;
 	private final ImageProcessingCallbackService imageProcessingCallbackService;
 	private final CourseProgressService courseProgressService;
+	private final MemberWorldRepository memberWorldRepository;
 
 	public BreadRecordPresignedUrlResponse generatePresignedUrls(
 			Long memberId,
@@ -89,10 +91,14 @@ public class BreadRecordCommandService {
 			.regionKey(data.regionKey())
 			.memo(normalizeNullable(request.memo()))
 			.lovedBreads(data.lovedBreads())
+			.towerBread(request.towerBread())
 			.eatenAt(request.eatenAt())
 			.isPublic(Boolean.TRUE.equals(request.isPublic()))
 			.build());
 		savePhotosAndTags(record, request, data.photoBySortOrder(), Map.of());
+		// 빵탑은 기록 수만큼 오른다. 최고 높이는 내려가지 않아서, 기록을 지워도 행성이 밀리지 않는다.
+		memberWorldRepository.raiseMaxRecordCount(
+			memberId, breadRecordRepository.countByMemberIdAndDeletedAtIsNull(memberId));
 		// 찜은 사용자가 직접 풀 때까지 남긴다 — 기록이 생겨도 "또 가고 싶은 가게"일 수 있다.
 		// (기록 시 자동 해제는 정책 변경으로 제거)
 		courseProgressService.refreshForMember(memberId);
@@ -114,6 +120,7 @@ public class BreadRecordCommandService {
 			data.regionKey(),
 			normalizeNullable(request.memo()),
 			data.lovedBreads(),
+			request.towerBread(),
 			request.eatenAt());
 		if (request.isPublic() != null) {
 			record.changeVisibility(request.isPublic());
