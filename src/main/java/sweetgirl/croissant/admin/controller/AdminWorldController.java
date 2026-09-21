@@ -17,10 +17,14 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.admin.service.AdminWorldAssetService;
 import sweetgirl.croissant.admin.service.AdminWorldCharacterService;
 import sweetgirl.croissant.admin.service.AdminWorldPlanetService;
 import sweetgirl.croissant.admin.service.AdminWorldStageService;
+import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.global.response.ApiResponse;
+import sweetgirl.croissant.world.dto.request.AdminWorldAssetRegisterRequest;
+import sweetgirl.croissant.world.dto.request.AdminWorldAssetUploadRequest;
 import sweetgirl.croissant.world.dto.request.AdminWorldCharacterCreateRequest;
 import sweetgirl.croissant.world.dto.request.AdminWorldCharacterUpdateRequest;
 import sweetgirl.croissant.world.dto.request.AdminWorldPlanetCreateRequest;
@@ -39,6 +43,7 @@ public class AdminWorldController {
 
 	private final AdminWorldPlanetService adminWorldPlanetService;
 	private final AdminWorldCharacterService adminWorldCharacterService;
+	private final AdminWorldAssetService adminWorldAssetService;
 	private final AdminWorldStageService adminWorldStageService;
 
 	@Operation(summary = "행성 목록", description = "여정 순서대로 누적한 도착점(arriveAt)을 함께 내린다 — span 을 고쳤을 때 "
@@ -119,6 +124,34 @@ public class AdminWorldController {
 			@PathVariable String code,
 			@Valid @RequestBody AdminWorldCharacterUpdateRequest request) {
 		adminWorldCharacterService.update(code, request);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "캐릭터 그림 올릴 자리 받기", description = "키는 서버가 조립한다 — world/characters/{code}/{pose}_v{n}.{ext}. "
+		+ "번호가 올라가므로 같은 포즈를 다시 올려도 CDN 과 앱이 옛 그림을 쓰지 않는다.")
+	@PostMapping("/characters/{code}/assets/upload-url")
+	public ResponseEntity<ApiResponse<PresignedUrlResponse>> createAssetUploadUrl(
+			@PathVariable String code,
+			@Valid @RequestBody AdminWorldAssetUploadRequest request) {
+		return ResponseEntity.ok(
+			ApiResponse.ok(adminWorldAssetService.createUploadUrl(code, request)));
+	}
+
+	@Operation(summary = "캐릭터 그림 등록", description = "올리기를 마친 키를 카탈로그에 붙인다.")
+	@PostMapping("/characters/{code}/assets")
+	public ResponseEntity<ApiResponse<Void>> registerAsset(
+			@PathVariable String code,
+			@Valid @RequestBody AdminWorldAssetRegisterRequest request) {
+		adminWorldAssetService.register(code, request);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "캐릭터 그림 등록 해제", description = "카탈로그에서만 뺀다. S3 객체는 남는다 — 잘못 지웠을 때 키만 다시 등록하면 된다.")
+	@DeleteMapping("/characters/{code}/assets/{pose}")
+	public ResponseEntity<ApiResponse<Void>> unregisterAsset(
+			@PathVariable String code,
+			@PathVariable String pose) {
+		adminWorldAssetService.unregister(code, pose);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 }
