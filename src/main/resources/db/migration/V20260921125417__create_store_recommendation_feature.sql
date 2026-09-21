@@ -108,3 +108,17 @@ COMMENT ON COLUMN store_recommendation_feature.source_fingerprint IS
 COMMENT ON COLUMN store_recommendation_feature.observed_at IS
     '원천(네이버 스냅샷)을 마지막으로 읽은 때. 모르면 NULL — 가짜 시각을 넣지 않는다. '
     'computed_at 은 배치가 돈 시각이라 신선도 판정에 쓸 수 없다.';
+
+-- dataops 가 채우고 reader 로 읽는다. store_profile 과 같은 구성이다 — 새 표에는 기본 SELECT 만
+-- 상속되므로 INSERT/UPDATE 를 따로 주지 않으면 적재가 permission denied 로 막힌다.
+-- 롤이 없는 환경(로컬·CI·랩)에서는 조용히 건너뛴다. PK 가 store_id 라 시퀀스 GRANT 는 필요 없다.
+-- DELETE 는 폐업 가게의 행을 거두기 위한 것이지 전량 삭제용이 아니다 — 적재는 upsert 로 한다.
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'dataops_writer') THEN
+        GRANT SELECT, INSERT, UPDATE, DELETE ON store_recommendation_feature TO dataops_writer;
+    END IF;
+    IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'dataops_reader') THEN
+        GRANT SELECT ON store_recommendation_feature TO dataops_reader;
+    END IF;
+END $$;
