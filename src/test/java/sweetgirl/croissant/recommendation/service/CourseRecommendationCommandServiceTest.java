@@ -865,7 +865,7 @@ class CourseRecommendationCommandServiceTest {
 	private static UserTasteProfile quizzedProfile() {
 		LocalDateTime now = LocalDateTime.of(2026, 9, 14, 23, 0);
 		UserTasteProfile profile = UserTasteProfile.createEmpty(MEMBER_ID, now);
-		profile.applyQuiz(List.of(Map.of("axis", "taste", "choice", "B")), 2,
+		profile.applyQuiz(List.of(Map.of("axis", "taste", "choice", "PLAIN")), (short)2,
 			TasteAxis.of(new BigDecimal("0.800"), new BigDecimal("0.800"), new BigDecimal("0.200"),
 				new BigDecimal("0.200")),
 			"PCLN", now);

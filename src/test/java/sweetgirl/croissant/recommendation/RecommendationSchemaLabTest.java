@@ -205,7 +205,8 @@ class RecommendationSchemaLabTest {
 				new BigDecimal("0.200")),
 			"PCLN", TasteTypeSource.SIGNAL, Map.of("머물기", 0.7), new String[] {"소금빵"}, new String[0],
 			TasteUserType.PLANNER, 4, 2, COMPUTED_AT);
-		profile.applyQuiz(List.of(Map.of("axis", "taste", "choice", "B")), 2, profile.getAxis(), "PFLN", COMPUTED_AT);
+		profile.applyQuiz(List.of(Map.of("axis", "taste", "choice", "PLAIN")), (short)2, profile.getAxis(), "PFLN",
+			COMPUTED_AT);
 		userTasteProfileRepository.save(profile);
 		flushAndClear();
 
@@ -214,7 +215,7 @@ class RecommendationSchemaLabTest {
 		assertThat(found.getVersion()).isEqualTo(3);
 		assertThat(found.getTypeSource()).isEqualTo(TasteTypeSource.QUIZ);
 		assertThat(found.getTypeCode()).isEqualTo("PFLN");
-		assertThat(found.getQuizAnswers()).containsExactly(Map.of("axis", "taste", "choice", "B"));
+		assertThat(found.getQuizAnswers()).containsExactly(Map.of("axis", "taste", "choice", "PLAIN"));
 		assertThat(found.getTopKinds()).containsExactly("소금빵");
 		assertThat(found.getUserType()).isEqualTo(TasteUserType.PLANNER);
 	}

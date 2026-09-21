@@ -70,7 +70,7 @@ public class UserTasteProfile extends BaseTimeEntity {
 	 * 저장된 선택지 이름으로도 지금은 판이 드러나지만, 판이 하나 더 생기면 값만으로 구분되지 않는다.
 	 */
 	@Column(name = "quiz_version")
-	private Integer quizVersion;
+	private Short quizVersion;
 
 	/** 가게 태그 상속 합 (0~1). 키는 store_profile 과 같은 한글 태그 이름. */
 	@JdbcTypeCode(SqlTypes.JSON)
@@ -158,7 +158,7 @@ public class UserTasteProfile extends BaseTimeEntity {
 	}
 
 	/** 검사 응답과 시각만 남긴다 — 축·타입·version 은 건드리지 않는다. 합산(recompute)이 뒤따르고, 값이 바뀌면 그때 version 이 오른다. */
-	public void recordQuizAnswers(List<Map<String, String>> quizAnswers, Integer quizVersion,
+	public void recordQuizAnswers(List<Map<String, String>> quizAnswers, Short quizVersion,
 			LocalDateTime answeredAt) {
 		this.quizAnswers = quizAnswers != null ? new ArrayList<>(quizAnswers) : null;
 		this.quizVersion = quizVersion;
@@ -168,7 +168,7 @@ public class UserTasteProfile extends BaseTimeEntity {
 	/** 검사 응답을 저장하고 축·타입을 검사 결과로 바꾼다. 합산이 실패했을 때의 폴백 — 검사가 타입을 결정한다. */
 	public void applyQuiz(
 			List<Map<String, String>> quizAnswers,
-			Integer quizVersion,
+			Short quizVersion,
 			TasteAxis axis,
 			String typeCode,
 			LocalDateTime answeredAt) {

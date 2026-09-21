@@ -162,7 +162,7 @@ class UserTasteProfileCommandServiceLabTest {
 			new BbtiQuizAnswer(QuizAxis.FILLING, QuizChoice.SIMPLE),
 			new BbtiQuizAnswer(QuizAxis.VIBE, QuizChoice.TRENDY));
 
-		BbtiResultResponse response = quizCommandService.submit(memberId, new BbtiQuizRequest(2, allPlus));
+		BbtiResultResponse response = quizCommandService.submit(memberId, new BbtiQuizRequest((short)2, allPlus));
 
 		UserTasteProfile profile = reload();
 		assertThat(profile.hasTakenQuiz()).isTrue();

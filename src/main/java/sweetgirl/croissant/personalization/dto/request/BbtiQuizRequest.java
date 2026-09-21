@@ -14,6 +14,6 @@ public record BbtiQuizRequest(
 		 * 저장한다(막지 않는다) — 선택지 이름만으로도 지금은 판이 드러나고, 옛 앱을 400 으로 막아 봐야 사용자가
 		 * 할 수 있는 일이 없다.
 		 */
-		@Schema(description = "검사 판 — 1 은 축마다 두 갈래(A/B), 2 는 갈래 이름 11개", example = "2") Integer quizVersion,
+		@Schema(description = "검사 판 — 1 은 축마다 두 갈래(A/B), 2 는 갈래 이름 11개", example = "2") Short quizVersion,
 		@NotEmpty(message = "검사 응답은 비어 있을 수 없습니다.") List<@Valid BbtiQuizAnswer> answers) {
 }

@@ -64,7 +64,7 @@ class UserTasteProfileTest {
 			Map.of("axis", "filling", "choice", "SIMPLE"),
 			Map.of("axis", "vibe", "choice", "TRENDY"));
 
-		profile.applyQuiz(answers, 2, plainCrispy(), "PFLN", QUIZ_AT);
+		profile.applyQuiz(answers, (short)2, plainCrispy(), "PFLN", QUIZ_AT);
 
 		assertThat(profile.getVersion()).isEqualTo(2);
 		assertThat(profile.getTypeSource()).isEqualTo(TasteTypeSource.QUIZ);
@@ -78,7 +78,8 @@ class UserTasteProfileTest {
 	@DisplayName("배치 재계산은 검사 시각을 건드리지 않는다 — 타입 카드의 '저장 후 기록 N건' 기준이 유지된다")
 	void recompute_keepsQuizAnsweredAt() {
 		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, FIRST);
-		profile.applyQuiz(List.of(Map.of("axis", "taste", "choice", "PLAIN")), 2, plainCrispy(), "PFLN", QUIZ_AT);
+		profile.applyQuiz(List.of(Map.of("axis", "taste", "choice", "PLAIN")), (short)2, plainCrispy(), "PFLN",
+			QUIZ_AT);
 
 		profile.recompute(plainCrispy(), "PFLN", TasteTypeSource.SIGNAL, Map.of(), null, new String[0],
 			TasteUserType.BROWSER, 1, 1,
@@ -94,7 +95,7 @@ class UserTasteProfileTest {
 	void recordQuizAnswers_keepsAxisAndVersion() {
 		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, FIRST);
 
-		profile.recordQuizAnswers(List.of(Map.of("axis", "taste", "choice", "PLAIN")), 2, QUIZ_AT);
+		profile.recordQuizAnswers(List.of(Map.of("axis", "taste", "choice", "PLAIN")), (short)2, QUIZ_AT);
 
 		assertThat(profile.getQuizAnswers()).hasSize(1);
 		assertThat(profile.getQuizAnsweredAt()).isEqualTo(QUIZ_AT);

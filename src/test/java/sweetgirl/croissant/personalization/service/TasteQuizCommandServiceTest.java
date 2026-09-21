@@ -86,7 +86,7 @@ class TasteQuizCommandServiceTest {
 		mergeAppliesQuizAxis(lockedEmptyProfile());
 		given(userTasteProfileRepository.save(any(UserTasteProfile.class))).willAnswer(call -> call.getArgument(0));
 
-		BbtiResultResponse result = tasteQuizCommandService.submit(MEMBER_ID, new BbtiQuizRequest(2,
+		BbtiResultResponse result = tasteQuizCommandService.submit(MEMBER_ID, new BbtiQuizRequest((short)2,
 			shortQuiz(QuizChoice.PLAIN, QuizChoice.CRISP, QuizChoice.SIMPLE, QuizChoice.TRENDY)));
 
 		assertThat(result.typeCode()).isEqualTo("PCLN");
@@ -117,7 +117,7 @@ class TasteQuizCommandServiceTest {
 			answer(QuizAxis.FILLING, QuizChoice.FULL), answer(QuizAxis.FILLING, QuizChoice.FULL),
 			answer(QuizAxis.VIBE, QuizChoice.TRENDY), answer(QuizAxis.VIBE, QuizChoice.CLASSIC));
 
-		BbtiResultResponse result = tasteQuizCommandService.submit(MEMBER_ID, new BbtiQuizRequest(2, answers));
+		BbtiResultResponse result = tasteQuizCommandService.submit(MEMBER_ID, new BbtiQuizRequest((short)2, answers));
 
 		assertThat(result.typeCode()).isEqualTo("SCRO");
 		assertThat(result.axis().get(0)).isEqualByComparingTo("0.000");
@@ -137,7 +137,8 @@ class TasteQuizCommandServiceTest {
 		given(userTasteProfileRepository.save(existing)).willReturn(existing);
 
 		tasteQuizCommandService.submit(MEMBER_ID,
-			new BbtiQuizRequest(2, shortQuiz(QuizChoice.SWEET, QuizChoice.SOFT, QuizChoice.FULL, QuizChoice.CLASSIC)));
+			new BbtiQuizRequest((short)2,
+				shortQuiz(QuizChoice.SWEET, QuizChoice.SOFT, QuizChoice.FULL, QuizChoice.CLASSIC)));
 
 		assertThat(existing.getTypeCode()).isEqualTo("SFRO");
 		assertThat(existing.getVersion()).isEqualTo(versionBefore + 1);
@@ -157,7 +158,7 @@ class TasteQuizCommandServiceTest {
 				return TasteProfileRefreshOutcome.RECOMPUTED;
 			});
 
-		BbtiResultResponse result = tasteQuizCommandService.submit(MEMBER_ID, new BbtiQuizRequest(2,
+		BbtiResultResponse result = tasteQuizCommandService.submit(MEMBER_ID, new BbtiQuizRequest((short)2,
 			shortQuiz(QuizChoice.PLAIN, QuizChoice.CRISP, QuizChoice.SIMPLE, QuizChoice.TRENDY)));
 
 		assertThat(result.typeCode()).isEqualTo("PCRN");
@@ -173,7 +174,7 @@ class TasteQuizCommandServiceTest {
 			.willThrow(new IllegalStateException("store_profile.tags 가 JSON 객체가 아니다"));
 		given(userTasteProfileRepository.save(profile)).willReturn(profile);
 
-		BbtiResultResponse result = tasteQuizCommandService.submit(MEMBER_ID, new BbtiQuizRequest(2,
+		BbtiResultResponse result = tasteQuizCommandService.submit(MEMBER_ID, new BbtiQuizRequest((short)2,
 			shortQuiz(QuizChoice.PLAIN, QuizChoice.CRISP, QuizChoice.SIMPLE, QuizChoice.TRENDY)));
 
 		assertThat(result.typeCode()).isEqualTo("PCLN");
@@ -194,10 +195,11 @@ class TasteQuizCommandServiceTest {
 			answer(QuizAxis.TASTE, QuizChoice.SWEET), answer(QuizAxis.TASTE, QuizChoice.PLAIN),
 			answer(QuizAxis.FILLING, QuizChoice.FULL), answer(QuizAxis.VIBE, QuizChoice.CLASSIC));
 
-		assertThatThrownBy(() -> tasteQuizCommandService.submit(MEMBER_ID, new BbtiQuizRequest(2, fiveAnswers)))
+		assertThatThrownBy(() -> tasteQuizCommandService.submit(MEMBER_ID, new BbtiQuizRequest((short)2, fiveAnswers)))
 			.isInstanceOfSatisfying(PersonalizationException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(PersonalizationErrorCode.QUIZ_ANSWERS_INVALID));
-		assertThatThrownBy(() -> tasteQuizCommandService.submit(MEMBER_ID, new BbtiQuizRequest(2, duplicatedAxis)))
+		assertThatThrownBy(
+			() -> tasteQuizCommandService.submit(MEMBER_ID, new BbtiQuizRequest((short)2, duplicatedAxis)))
 			.isInstanceOfSatisfying(PersonalizationException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(PersonalizationErrorCode.QUIZ_ANSWERS_INVALID));
 	}

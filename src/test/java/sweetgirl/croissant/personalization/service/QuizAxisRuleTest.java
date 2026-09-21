@@ -101,6 +101,7 @@ class QuizAxisRuleTest {
 	@Test
 	@DisplayName("지금 규칙에 없는 선택지 이름은 400 — 배치가 회원 하나 때문에 멈추지 않는다")
 	void rejectsUnknownStoredChoice() {
+		// 옛 판(v1)의 자리 문자 — 지금 규칙에 없으므로 거부되어야 한다. 유효한 이름으로 바꾸면 이 테스트는 뜻을 잃는다
 		List<Map<String, String>> stored = List.of(Map.of("axis", "taste", "choice", "A"));
 
 		assertThatThrownBy(() -> QuizAxisRule.choicesOf(stored))
