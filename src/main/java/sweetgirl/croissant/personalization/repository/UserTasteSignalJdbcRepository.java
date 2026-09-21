@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.type.MapType;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.personalization.entity.TasteAxis;
+import sweetgirl.croissant.personalization.entity.TasteLabelVector;
 import sweetgirl.croissant.personalization.enums.InteractionType;
 
 /**
@@ -70,9 +71,12 @@ public class UserTasteSignalJdbcRepository {
 		return jdbcTemplate.query("""
 				SELECT i.type, i.store_id, i.menu_id, i.converted, i.occurred_at,
 					p.axis_taste, p.axis_texture, p.axis_filling, p.axis_vibe, CAST(p.tags AS text) AS tags,
-					p.signature_kinds, mc.name AS kind
+					p.signature_kinds, mc.name AS kind,
+					f.taste_sweet, f.taste_plain, f.taste_salty, f.taste_aroma,
+					f.tex_soft, f.tex_crisp, f.tex_chewy, f.filling_rich, f.vibe_trendy
 				FROM user_store_interaction i
 					LEFT JOIN store_profile p ON p.store_id = i.store_id
+					LEFT JOIN store_recommendation_feature f ON f.store_id = i.store_id
 					LEFT JOIN menu m ON m.id = i.menu_id
 					LEFT JOIN menu_category mc ON mc.id = m.menu_category_id
 				WHERE i.member_id = :memberId AND i.occurred_at >= :since AND i.type IN (:types)
@@ -99,7 +103,23 @@ public class UserTasteSignalJdbcRepository {
 		Boolean converted = rs.getObject("converted", Boolean.class);
 		return new TasteSignal(InteractionType.valueOf(rs.getString("type")), storeId, menuId, converted,
 			rs.getTimestamp("occurred_at").toLocalDateTime(), storeAxis, parseTags(rs.getString("tags")),
-			rs.getString("kind"), signatureKindsOf(rs.getArray("signature_kinds")));
+			rs.getString("kind"), signatureKindsOf(rs.getArray("signature_kinds")), storeLabelsOf(rs));
+	}
+
+	/**
+	 * 아홉 값 중 하나라도 비면 통째로 null — DB CHECK 가 "함께 차거나 함께 빈다" 를 지키므로 정상 경로에서는
+	 * 전부 있거나 전부 없다. 섞인 행을 벡터로 쓰면 코사인이 반쪽이 되고, 그건 예외가 아니라 "조금 덜 맞는 값" 이다.
+	 */
+	private static TasteLabelVector storeLabelsOf(ResultSet rs) throws SQLException {
+		BigDecimal sweet = rs.getBigDecimal("taste_sweet");
+		if (sweet == null) {
+			return null;
+		}
+		TasteLabelVector labels = TasteLabelVector.of(sweet, rs.getBigDecimal("taste_plain"),
+			rs.getBigDecimal("taste_salty"), rs.getBigDecimal("taste_aroma"), rs.getBigDecimal("tex_soft"),
+			rs.getBigDecimal("tex_crisp"), rs.getBigDecimal("tex_chewy"), rs.getBigDecimal("filling_rich"),
+			rs.getBigDecimal("vibe_trendy"));
+		return labels.isComplete() ? labels : null;
 	}
 
 	private static List<String> signatureKindsOf(Array array) throws SQLException {

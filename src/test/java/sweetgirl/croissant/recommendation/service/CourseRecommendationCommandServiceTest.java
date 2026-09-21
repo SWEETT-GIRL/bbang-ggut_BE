@@ -868,6 +868,7 @@ class CourseRecommendationCommandServiceTest {
 		profile.applyQuiz(List.of(Map.of("axis", "taste", "choice", "PLAIN")), (short)2,
 			TasteAxis.of(new BigDecimal("0.800"), new BigDecimal("0.800"), new BigDecimal("0.200"),
 				new BigDecimal("0.200")),
+			null,
 			"PCLN", now);
 		return profile;
 	}

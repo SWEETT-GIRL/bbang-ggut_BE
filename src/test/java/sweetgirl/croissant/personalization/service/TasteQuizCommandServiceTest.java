@@ -73,7 +73,7 @@ class TasteQuizCommandServiceTest {
 			.willAnswer(call -> {
 				TasteAxis quizAxis = call.getArgument(1);
 				List<QuizChoice> choices = call.getArgument(2);
-				profile.recompute(quizAxis, QuizAxisRule.typeCodeOf(choices, quizAxis), TasteTypeSource.QUIZ,
+				profile.recompute(quizAxis, null, QuizAxisRule.typeCodeOf(choices, quizAxis), TasteTypeSource.QUIZ,
 					Map.of(), null, new String[0], null, 0, 0,
 					call.getArgument(4));
 				return TasteProfileRefreshOutcome.RECOMPUTED;
@@ -153,7 +153,7 @@ class TasteQuizCommandServiceTest {
 		BigDecimal half = new BigDecimal("0.500");
 		given(userTasteProfileCommandService.mergeSignals(eq(profile), any(TasteAxis.class), any(), any(), any()))
 			.willAnswer(call -> {
-				profile.recompute(TasteAxis.of(half, half, half.negate(), half), "PCRN", TasteTypeSource.SIGNAL,
+				profile.recompute(TasteAxis.of(half, half, half.negate(), half), null, "PCRN", TasteTypeSource.SIGNAL,
 					Map.of(), null, new String[0], null, 3, 0, LocalDateTime.of(2026, 9, 18, 21, 0));
 				return TasteProfileRefreshOutcome.RECOMPUTED;
 			});

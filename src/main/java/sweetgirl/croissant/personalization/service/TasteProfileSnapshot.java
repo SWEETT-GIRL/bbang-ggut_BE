@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import sweetgirl.croissant.personalization.entity.TasteAxis;
+import sweetgirl.croissant.personalization.entity.TasteLabelVector;
 import sweetgirl.croissant.personalization.entity.UserTasteProfile;
 import sweetgirl.croissant.personalization.enums.TasteTypeSource;
 import sweetgirl.croissant.personalization.enums.TasteUserType;
@@ -13,13 +14,18 @@ import sweetgirl.croissant.personalization.enums.TasteUserType;
  * 계산기가 낸 프로필 값 한 벌. 엔티티에 쓰기 전에 지금 값과 비교해 "추천이 읽는 값이 바뀌었나"(version+1) 와 "유형·카운트만
  * 바뀌었나"(version 유지)를 가른다.
  */
-public record TasteProfileSnapshot(TasteAxis axis, String typeCode, TasteTypeSource typeSource,
-		Map<String, Double> tags, String[] topKinds, String[] inferredKinds, TasteUserType userType,
-		int strongStoreCount, int breadSignalCount) {
+public record TasteProfileSnapshot(TasteAxis axis, TasteLabelVector labels, String typeCode,
+		TasteTypeSource typeSource, Map<String, Double> tags, String[] topKinds, String[] inferredKinds,
+		TasteUserType userType, int strongStoreCount, int breadSignalCount) {
 
-	/** 추천이 읽는 값 — 축 · 타입 · 출처 · 태그 · 종류(기록 · 추정). 이 중 하나라도 다르면 recompute(version+1). */
+	/**
+	 * 추천이 읽는 값 — 축 · 라벨 · 타입 · 출처 · 태그 · 종류(기록 · 추정). 이 중 하나라도 다르면 recompute(version+1).
+	 *
+	 * <p>라벨을 빼먹으면 라벨만 바뀐 회원의 version 이 그대로라, 저장된 추천이 낡은 라벨로 계속 재사용된다.
+	 */
 	public boolean sameTasteAs(UserTasteProfile profile) {
 		return Objects.equals(axis, profile.getAxis())
+			&& Objects.equals(labels, profile.getLabels())
 			&& Objects.equals(typeCode, profile.getTypeCode())
 			&& Objects.equals(typeSource, profile.getTypeSource())
 			&& Objects.equals(tags, profile.getTags() != null ? profile.getTags() : Map.of())

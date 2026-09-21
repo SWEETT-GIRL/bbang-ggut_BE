@@ -132,6 +132,7 @@ public class UserTasteProfile extends BaseTimeEntity {
 	/** 배치 재계산. 신호에서 나온 값으로 전부 갈아끼우고 version 을 올린다. 검사 응답과 그 시각은 건드리지 않는다. */
 	public void recompute(
 			TasteAxis axis,
+			TasteLabelVector labels,
 			String typeCode,
 			TasteTypeSource typeSource,
 			Map<String, Double> tags,
@@ -142,6 +143,7 @@ public class UserTasteProfile extends BaseTimeEntity {
 			int breadSignalCount,
 			LocalDateTime computedAt) {
 		this.axis = axis;
+		this.labels = labels;
 		this.typeCode = typeCode;
 		this.typeSource = typeSource;
 		this.tags = tags != null ? new HashMap<>(tags) : new HashMap<>();
@@ -178,12 +180,14 @@ public class UserTasteProfile extends BaseTimeEntity {
 			List<Map<String, String>> quizAnswers,
 			Short quizVersion,
 			TasteAxis axis,
+			TasteLabelVector labels,
 			String typeCode,
 			LocalDateTime answeredAt) {
 		this.quizAnswers = quizAnswers != null ? new ArrayList<>(quizAnswers) : null;
 		this.quizVersion = quizVersion;
 		this.quizAnsweredAt = answeredAt;
 		this.axis = axis;
+		this.labels = labels;
 		this.typeCode = typeCode;
 		this.typeSource = TasteTypeSource.QUIZ;
 		this.computedAt = answeredAt;
