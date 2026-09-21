@@ -13,6 +13,16 @@ public interface MemberWakeTicketRepository extends JpaRepository<MemberWakeTick
 
 	int countByMemberIdAndUsedAtIsNull(Long memberId);
 
+	/**
+	 * 티켓은 소유자만 바꾸면 된다. 추천 티켓의 유니크 인덱스가 주인이 아니라 추천받은 사람
+	 * (ref_member) 하나에만 걸려 있어, 옮겨도 충돌할 짝이 애초에 없다.
+	 */
+	@Modifying(clearAutomatically = true)
+	@Query(value = """
+			UPDATE member_wake_tickets SET member_id = :targetId WHERE member_id = :guestId
+			""", nativeQuery = true)
+	int moveOwner(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
+
 	/** 가장 먼저 받은 티켓부터 쓴다. */
 	Optional<MemberWakeTicket> findFirstByMemberIdAndUsedAtIsNullOrderByIdAsc(Long memberId);
 

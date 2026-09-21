@@ -15,6 +15,38 @@ public interface MemberPlanetArrivalRepository
 
 	List<MemberPlanetArrival> findAllByIdMemberId(Long memberId);
 
+	/** 같은 행성 이력이 양쪽에 있으면 먼저 닿은 때와 먼저 돌린 때를 남긴다. */
+	@Modifying(clearAutomatically = true)
+	@Query(value = """
+			UPDATE member_planet_arrivals target
+			SET arrived_at = LEAST(target.arrived_at, guest.arrived_at),
+				roulette_at = CASE
+					WHEN target.roulette_at IS NULL THEN guest.roulette_at
+					WHEN guest.roulette_at IS NULL THEN target.roulette_at
+					ELSE LEAST(target.roulette_at, guest.roulette_at)
+				END
+			FROM member_planet_arrivals guest
+			WHERE target.member_id = :targetId AND guest.member_id = :guestId
+			AND target.planet_code = guest.planet_code
+			""", nativeQuery = true)
+	int mergeGuestDuplicates(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
+
+	@Modifying(clearAutomatically = true)
+	@Query(value = """
+			DELETE FROM member_planet_arrivals guest
+			WHERE guest.member_id = :guestId
+			AND EXISTS (
+				SELECT 1 FROM member_planet_arrivals target
+				WHERE target.member_id = :targetId AND target.planet_code = guest.planet_code
+			)
+			""", nativeQuery = true)
+	int deleteGuestDuplicates(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
+
+	@Modifying(clearAutomatically = true)
+	@Query(value = "UPDATE member_planet_arrivals SET member_id = :targetId "
+		+ "WHERE member_id = :guestId", nativeQuery = true)
+	int moveOwner(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
+
 	/**
 	 * 룰렛을 돌린 것으로 표시한다. <b>이중 지급을 막는 유일한 장치다.</b>
 	 *
