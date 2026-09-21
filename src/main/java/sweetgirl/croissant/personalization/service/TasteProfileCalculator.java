@@ -115,13 +115,21 @@ public class TasteProfileCalculator {
 				clampToAxisScale(axisSum[2] / denominator), clampToAxisScale(axisSum[3] / denominator));
 			typeSource = signalDenominator > 0 ? TasteTypeSource.SIGNAL : TasteTypeSource.QUIZ;
 		}
-		// 검사를 푼 회원은 고른 갈래가 맛·식감 글자를 정한다(48타입). 짭짤·풍미·쫄깃은 −1~+1 축 하나로
-		// 표현되지 않아 축만으로는 나올 수 없고, 신호만 있는 회원은 예전처럼 16타입 안에 남는다.
+		// 검사를 푼 회원의 타입 코드는 네 자리 모두 검사 답에서 나온다. 맛·식감은 고른 갈래가 그대로 글자가
+		// 되고, 속·스타일은 갈래가 둘뿐이라 <b>검사 축</b>의 부호가 글자다 — 합산 축이 아니다.
+		//
+		// 합산 축을 쓰면 같은 코드 네 글자가 두 가지 근거를 섞는다. 앞 두 자리는 검사 답이고 뒤 두 자리는
+		// 행동 신호라, 신호가 많은 회원은 트렌디를 고르고도 O(클래식)를 받는다(개발 서버 실측: vibe −0.008).
+		// 화면이 "4문항으로 더 정확하게" 라고 약속하고 받은 답이라 그 약속과도 어긋난다. 코드는 그 사람이
+		// 스스로 한 선언이고, 행동까지 합친 추정은 axis 가 따로 들고 있다.
+		//
+		// 짭짤·풍미·쫄깃은 −1~+1 축 하나로 표현되지 않아 축만으로는 나올 수 없다. 검사를 안 한 회원은
+		// 고른 갈래가 없으니 예전처럼 합산 축의 부호로 정해져 옛 16타입 안에 남는다.
 		String typeCode = null;
 		if (axis != null) {
-			typeCode = quizChoices == null || quizChoices.isEmpty()
-				? axis.typeCode()
-				: QuizAxisRule.typeCodeOf(quizChoices, axis);
+			boolean fromQuiz = quizChoices != null && !quizChoices.isEmpty()
+				&& quizAxis != null && quizAxis.isComplete();
+			typeCode = fromQuiz ? QuizAxisRule.typeCodeOf(quizChoices, quizAxis) : axis.typeCode();
 		}
 		int strongStores = strongStoreCount(signals);
 		return new TasteProfileSnapshot(axis, typeCode, typeSource, weightedTags(weighted),

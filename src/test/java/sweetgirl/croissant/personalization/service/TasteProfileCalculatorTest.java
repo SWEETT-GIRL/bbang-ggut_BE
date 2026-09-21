@@ -410,6 +410,26 @@ class TasteProfileCalculatorTest {
 	}
 
 	@Test
+	@DisplayName("신호가 검사를 눌러도 타입 코드 네 자리는 검사 답 그대로다 — 합산 축을 따라가지 않는다")
+	void typeCodeFollowsQuizEvenWhenSignalsOutweighIt() {
+		TasteProfileCalculator calculator = newCalculator();
+		// 검사는 짭짤·쫄깃·심플·트렌디, 신호는 네 축 모두 반대쪽(−1)으로 여러 건
+		TasteAxis quizAxis = axis(1, 0, 1, 1);
+		List<QuizChoice> choices = List.of(QuizChoice.SALTY, QuizChoice.CHEWY, QuizChoice.SIMPLE, QuizChoice.TRENDY);
+		List<TasteSignal> signals = List.of(
+			signal(InteractionType.SAVE, 1, NOW, ALL_MINUS),
+			signal(InteractionType.SAVE, 2, NOW, ALL_MINUS),
+			signal(InteractionType.COURSE_ADD, 3, NOW, ALL_MINUS));
+
+		TasteProfileSnapshot snapshot = calculator.calculate(signals, quizAxis, choices, NOW, 0, Map.of(), NOW);
+
+		// 합산 축은 신호에 끌려 음수 쪽으로 갔지만 코드는 검사 그대로다. 합산 축을 쓰면 속·스타일 두 자리가
+		// 신호를 따라가 TYRO 가 된다 — 트렌디를 고르고도 O(클래식)를 받는 것이 개발 서버에서 실제로 났다
+		assertThat(snapshot.axis().getVibe()).isNegative();
+		assertThat(snapshot.typeCode()).isEqualTo("TYLN");
+	}
+
+	@Test
 	@DisplayName("검사를 푼 회원은 고른 갈래가 맛·식감 글자를 정한다 — 신호만 있는 회원은 옛 16타입 안에 남는다")
 	void typeCodeUsesQuizChoicesWhenPresent() {
 		TasteProfileCalculator calculator = newCalculator();
