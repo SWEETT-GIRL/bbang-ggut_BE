@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import sweetgirl.croissant.personalization.entity.TasteLabelVector;
 import sweetgirl.croissant.personalization.entity.UserTasteProfile;
 import sweetgirl.croissant.personalization.enums.GenericKind;
 import sweetgirl.croissant.personalization.enums.TasteTag;
@@ -13,6 +14,11 @@ import sweetgirl.croissant.personalization.enums.TasteTag;
  * 후보 SQL 에 넘기는 사용자 취향(#661): 4축(없으면 null) · 태그 가중치(0~1, {@link TasteTag} 8종) · 상위 빵 종류.
  * 프로필이 없거나 축이 없으면 축 항이 0 이 되고, 태그·종류가 비면 그 항도 0 이라 결과는 인기 prior 순이다.
  * 취향 폴백(취향 후보 3곳 미만)은 {@link #empty()} 로 다시 조회한다 — 취향 항을 전부 뺀다.
+ *
+ * <p>labels 는 취향 라벨 아홉 값(0~1)이다. 축과 <b>같은 회원의 다른 표현</b>이고, 어느 쪽으로 점수를 낼지는 설정이 고른다.
+ * 축이 있는데 라벨이 없는 회원(라벨 적재 전에 계산된 프로필)도, 그 반대도 있으므로 두 값은 따로 본다.
+ * 순서는 {@link sweetgirl.croissant.personalization.entity.TasteLabelVector#values()} 와 같다 — 어긋나면
+ * 달콤이 담백 자리로 들어가는데 예외도 안 나고 추천만 조용히 틀린다.
  *
  * <p>강한 신호 가게 수는 SQL 에 넘기지 않는다 — 태그를 문구에 써도 되는지({@link #reasonTags(int)}) 가르는 데만 쓴다.
  * 추정 종류(inferredKinds, #762)도 SQL 에 넘기지 않는다 — 점수가 아니라 "{종류} 취향" 배지에만 쓴다(점수에 넣을지는 측정 뒤).
@@ -25,9 +31,17 @@ public record TasteQuery(
 		Map<String, Double> tags,
 		List<String> topKinds,
 		int strongStoreCount,
-		List<String> inferredKinds) {
+		List<String> inferredKinds,
+		double[] labels) {
 
-	private static final TasteQuery EMPTY = new TasteQuery(null, null, null, null, Map.of(), List.of(), 0, List.of());
+	private static final TasteQuery EMPTY = new TasteQuery(null, null, null, null, Map.of(), List.of(), 0, List.of(),
+		null);
+
+	/** 라벨 없는 취향 — 라벨 적재 전 프로필이거나 축만 보는 픽스처. 없는 것이 정상 상태다. */
+	public TasteQuery(Double taste, Double texture, Double filling, Double vibe, Map<String, Double> tags,
+			List<String> topKinds, int strongStoreCount, List<String> inferredKinds) {
+		this(taste, texture, filling, vibe, tags, topKinds, strongStoreCount, inferredKinds, null);
+	}
 
 	public static TasteQuery empty() {
 		return EMPTY;
@@ -53,12 +67,21 @@ public record TasteQuery(
 			: Arrays.stream(profile.getInferredKinds())
 				.filter(kind -> !GenericKind.isGeneric(kind))
 				.toList();
+		// 라벨은 축과 따로 채워진다 — 축은 있는데 라벨이 없는 회원(라벨 적재 전 계산된 프로필)도, 그 반대도 있다
+		double[] labels = profile.getLabels() != null && profile.getLabels().isComplete()
+			? profile.getLabels().values() : null;
 		if (!profile.hasAxis()) {
-			return new TasteQuery(null, null, null, null, tags, topKinds, profile.getStrongStoreCount(), inferredKinds);
+			return new TasteQuery(null, null, null, null, tags, topKinds, profile.getStrongStoreCount(), inferredKinds,
+				labels);
 		}
 		return new TasteQuery(profile.getAxis().getTaste().doubleValue(), profile.getAxis().getTexture().doubleValue(),
 			profile.getAxis().getFilling().doubleValue(), profile.getAxis().getVibe().doubleValue(), tags, topKinds,
-			profile.getStrongStoreCount(), inferredKinds);
+			profile.getStrongStoreCount(), inferredKinds, labels);
+	}
+
+	/** 라벨로 점수를 낼 수 있는 회원인가 — 아홉이 다 있어야 한다. */
+	public boolean hasLabels() {
+		return labels != null && labels.length == TasteLabelVector.DIMENSION;
 	}
 
 	/**

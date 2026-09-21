@@ -244,7 +244,9 @@ public class ReasonSentenceCommandService {
 				null, null, null, null,
 				profile == null || profile.getTags() == null ? Map.of() : profile.getTags(),
 				profile == null ? List.of() : kindsOf(profile.getKinds()),
-				profile == null ? List.of() : kindsOf(profile.getSignatureKinds())));
+				profile == null ? List.of() : kindsOf(profile.getSignatureKinds()),
+				// 이유 문장은 라벨을 쓰지 않는다 — 문장 재료는 메뉴·태그·종류이고 라벨은 점수의 몫이다
+				null));
 		}
 		return rows;
 	}

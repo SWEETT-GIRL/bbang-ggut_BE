@@ -18,7 +18,9 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.personalization.config.PersonalizationProperties;
+import sweetgirl.croissant.personalization.dto.response.TasteLabels;
 import sweetgirl.croissant.personalization.entity.TasteAxis;
+import sweetgirl.croissant.personalization.entity.TasteLabelVector;
 import sweetgirl.croissant.personalization.enums.GenericKind;
 import sweetgirl.croissant.personalization.enums.InteractionType;
 import sweetgirl.croissant.personalization.enums.QuizAxis;
@@ -132,9 +134,79 @@ public class TasteProfileCalculator {
 			typeCode = fromQuiz ? QuizAxisRule.typeCodeOf(quizChoices, quizAxis) : axis.typeCode();
 		}
 		int strongStores = strongStoreCount(signals);
-		return new TasteProfileSnapshot(axis, typeCode, typeSource, weightedTags(weighted),
+		return new TasteProfileSnapshot(axis, labels(weighted, quizChoices, quizAnsweredAt, now, profile),
+			typeCode, typeSource, weightedTags(weighted),
 			topKinds(signals, now, profile), inferredKinds(weighted, strongStores, kindBaseRates, profile),
 			userType(signals, visitCount, now, profile), strongStores, breadSignalCount(signals));
+	}
+
+	/**
+	 * 취향 라벨 아홉 값 — <b>좋아한</b> 가게들의 라벨 가중 평균에 검사 답을 같은 무게로 섞는다.
+	 *
+	 * <p><b>축과 달리 음수 가중치를 쓰지 않는다.</b> 축은 −1~+1 이라 음수 신호가 반대쪽으로 당기는 게 뜻이 되지만,
+	 * 라벨은 0~1 인 세기라서 음수를 곱하면 값이 범위 밖으로 나간다(조회만 하고 안 담은 가게 하나로 달콤이 −1 이 될 수
+	 * 있다). 0~1 척도에는 "안 좋아함" 을 담을 자리가 없다 — 라벨은 "이 사람이 좋아하는 성질의 세기" 이고, 싫어함은
+	 * 그 가게를 후보에서 빼는 쪽이 맡는다.
+	 *
+	 * <p>가게 단위로 먼저 합산해 <b>가중치 합이 양수인 가게만</b> 쓴다(추정 종류와 같은 기준). 저장했다 해제한 가게가
+	 * 평균에 남지 않게 하려는 것이다.
+	 *
+	 * <p>검사 답은 축과 같은 가중치·같은 반감기를 탄다. 모든 항이 같은 시계를 타야 값이 정말 바뀔 때만 version 이 오른다.
+	 * 신호도 검사도 없으면 null — 0 으로 채우면 "모든 성질이 0 인 사람" 이 되어 엉뚱한 가게와 맞는다.
+	 */
+	private TasteLabelVector labels(List<Weighted> weighted, List<QuizChoice> quizChoices,
+			LocalDateTime quizAnsweredAt, LocalDateTime now, PersonalizationProperties.Profile profile) {
+		double[] sum = new double[TasteLabelVector.DIMENSION];
+		double denominator = 0;
+
+		Map<Long, Double> storeWeight = new HashMap<>();
+		Map<Long, TasteLabelVector> storeLabels = new HashMap<>();
+		for (Weighted weightedSignal : weighted) {
+			Long storeId = weightedSignal.signal().storeId();
+			if (storeId == null || !weightedSignal.signal().hasStoreLabels()) {
+				continue;
+			}
+			storeWeight.merge(storeId, weightedSignal.effectiveWeight(), Double::sum);
+			storeLabels.putIfAbsent(storeId, weightedSignal.signal().storeLabels());
+		}
+		for (Map.Entry<Long, TasteLabelVector> entry : storeLabels.entrySet()) {
+			double weight = storeWeight.get(entry.getKey());
+			if (weight <= 0) {
+				continue;
+			}
+			double[] values = entry.getValue().values();
+			for (int i = 0; i < sum.length; i++) {
+				sum[i] += weight * values[i];
+			}
+			denominator += weight;
+		}
+
+		if (quizChoices != null && !quizChoices.isEmpty()) {
+			double quizWeight = profile.getQuizWeight()
+				* decay(quizAnsweredAt != null ? quizAnsweredAt : now, now, profile);
+			double[] values = TasteLabels.of(quizChoices).values();
+			for (int i = 0; i < sum.length; i++) {
+				sum[i] += quizWeight * values[i];
+			}
+			denominator += quizWeight;
+		}
+
+		if (denominator <= 0) {
+			return null;
+		}
+		double total = denominator;
+		BigDecimal[] labels = new BigDecimal[sum.length];
+		for (int i = 0; i < sum.length; i++) {
+			labels[i] = BigDecimal.valueOf(clampToLabelScale(sum[i] / total))
+				.setScale(TasteLabelVector.SCALE, RoundingMode.HALF_UP);
+		}
+		return TasteLabelVector.of(labels[0], labels[1], labels[2], labels[3], labels[4], labels[5], labels[6],
+			labels[7], labels[8]);
+	}
+
+	/** 가중 평균이라 0~1 을 벗어날 수 없지만, 부동소수 잔여로 경계를 넘는 것은 자른다(DB CHECK 가 막는 범위다). */
+	private static double clampToLabelScale(double value) {
+		return Math.max(TasteLabelVector.MIN_VALUE, Math.min(TasteLabelVector.MAX_VALUE, value));
 	}
 
 	/**

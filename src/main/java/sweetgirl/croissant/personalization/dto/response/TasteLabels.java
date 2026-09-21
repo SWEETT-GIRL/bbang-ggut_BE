@@ -30,6 +30,15 @@ public record TasteLabels(
 		@Schema(description = "트렌디한 정도 — 클래식을 고르면 0", example = "0") double vibe) {
 
 	/**
+	 * 정해진 순서로 아홉 값 — {@link sweetgirl.croissant.personalization.entity.TasteLabelVector#values()} 와
+	 * <b>같은 순서</b>여야 한다. 한쪽만 순서가 바뀌면 검사 답이 다른 차원으로 들어가는데, 예외도 안 나고 추천은
+	 * 그럴듯하게 나와서 틀린 걸 알 방법이 없다. 두 순서가 같은지는 테스트가 고정한다.
+	 */
+	public double[] values() {
+		return new double[] {sweet, plain, salty, aroma, soft, crisp, chewy, filling, vibe};
+	}
+
+	/**
 	 * 고른 선택지에서 라벨을 만든다. 8문항 검사에서 한 축의 두 답이 갈리면 둘 다 1 이다 — 달콤과 짭짤을 하나씩
 	 * 골랐으면 두 라벨이 모두 선다. 축 요약값처럼 평균 내 0 으로 만들지 않는다. "둘 다 좋아한다" 를
 	 * "어느 쪽도 아니다" 로 바꾸면 없는 취향을 지어내는 것이다.

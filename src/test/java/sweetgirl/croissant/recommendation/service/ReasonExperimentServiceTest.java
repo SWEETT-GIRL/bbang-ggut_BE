@@ -448,6 +448,7 @@ class ReasonExperimentServiceTest {
 		quizzed.applyQuiz(List.of(Map.of("axis", "taste", "choice", "SWEET")), (short)2,
 			TasteAxis.of(new BigDecimal("-1.000"), new BigDecimal("1.000"), new BigDecimal("-1.000"),
 				new BigDecimal("-1.000")),
+			null,
 			"SCRO", LocalDateTime.of(2026, 9, 19, 23, 0));
 		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.of(quizzed));
 		givenAnswer("문장 1", "문장 2");

@@ -19,11 +19,13 @@ class TasteProfileSnapshotTest {
 	@DisplayName("추정 종류가 바뀌면 추천이 읽는 값이 바뀐 것이다 — version 을 올린다. 같으면 그대로")
 	void inferredKindsAreTasteValues() {
 		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, NOW);
-		profile.recompute(null, null, null, Map.of(), null, new String[] {"바게트"}, TasteUserType.BROWSER, 1, 0, NOW);
+		profile.recompute(null, null, null, null, Map.of(), null, new String[] {"바게트"}, TasteUserType.BROWSER, 1, 0,
+			NOW);
 
-		TasteProfileSnapshot same = new TasteProfileSnapshot(null, null, null, Map.of(), null, new String[] {"바게트"},
+		TasteProfileSnapshot same = new TasteProfileSnapshot(null, null, null, null, Map.of(), null,
+			new String[] {"바게트"},
 			TasteUserType.BROWSER, 1, 0);
-		TasteProfileSnapshot changed = new TasteProfileSnapshot(null, null, null, Map.of(), null,
+		TasteProfileSnapshot changed = new TasteProfileSnapshot(null, null, null, null, Map.of(), null,
 			new String[] {"바게트", "소금빵"}, TasteUserType.BROWSER, 1, 0);
 
 		assertThat(same.sameTasteAs(profile)).isTrue();
@@ -36,7 +38,7 @@ class TasteProfileSnapshotTest {
 		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, NOW);
 
 		assertThat(profile.getInferredKinds()).isEmpty();
-		assertThat(new TasteProfileSnapshot(null, null, null, Map.of(), null, new String[0], null, 0, 0)
+		assertThat(new TasteProfileSnapshot(null, null, null, null, Map.of(), null, new String[0], null, 0, 0)
 			.sameTasteAs(profile)).isTrue();
 	}
 }
