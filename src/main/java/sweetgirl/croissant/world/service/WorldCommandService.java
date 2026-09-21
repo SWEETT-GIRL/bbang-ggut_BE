@@ -1,5 +1,6 @@
 package sweetgirl.croissant.world.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -10,6 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.world.code.WorldErrorCode;
+import sweetgirl.croissant.world.entity.MemberCharacter;
+import sweetgirl.croissant.world.entity.MemberCharacterId;
 import sweetgirl.croissant.world.entity.MemberPlanetArrival;
 import sweetgirl.croissant.world.entity.MemberWorld;
 import sweetgirl.croissant.world.entity.WorldCharacter;
@@ -47,6 +50,28 @@ public class WorldCommandService {
 	public void syncProgress(Long memberId) {
 		startIfAbsent(memberId);
 		recordArrivals(memberId);
+	}
+
+	/** 데리고 다닐 친구를 바꾼다. 아직 못 만난 친구는 고를 수 없다. */
+	public void selectCharacter(Long memberId, String characterCode) {
+		MemberWorld memberWorld = memberWorldRepository.findById(memberId)
+			.orElseThrow(() -> new WorldException(WorldErrorCode.WORLD_NOT_STARTED));
+
+		MemberCharacter memberCharacter = memberCharacterRepository
+			.findById(new MemberCharacterId(memberId, characterCode))
+			.orElseThrow(() -> new WorldException(WorldErrorCode.WORLD_CHARACTER_NOT_FOUND));
+		if (!memberCharacter.isAwake()) {
+			throw new WorldException(WorldErrorCode.WORLD_CHARACTER_LOCKED);
+		}
+
+		memberWorld.selectCharacter(characterCode);
+	}
+
+	/** 첫 친구 연출을 봤다고 표시한다. 두 번 불러도 처음 본 때가 남는다. */
+	public void welcome(Long memberId) {
+		memberWorldRepository.findById(memberId)
+			.orElseThrow(() -> new WorldException(WorldErrorCode.WORLD_NOT_STARTED))
+			.welcome(LocalDateTime.now());
 	}
 
 	private void startIfAbsent(Long memberId) {

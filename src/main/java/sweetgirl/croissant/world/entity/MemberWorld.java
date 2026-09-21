@@ -50,4 +50,16 @@ public class MemberWorld extends BaseTimeEntity {
 	public static MemberWorld start(Long memberId, String mascotCode) {
 		return new MemberWorld(memberId, mascotCode);
 	}
+
+	/** 데리고 다닐 친구를 바꾼다. 가진 친구인지는 서비스가 먼저 확인한다. */
+	public void selectCharacter(String characterCode) {
+		this.selectedCharacter = characterCode;
+	}
+
+	/** 첫 친구 연출을 봤다. 두 번째부터는 처음 본 때를 덮어쓰지 않는다. */
+	public void welcome(LocalDateTime welcomedAt) {
+		if (this.welcomedAt == null) {
+			this.welcomedAt = welcomedAt;
+		}
+	}
 }

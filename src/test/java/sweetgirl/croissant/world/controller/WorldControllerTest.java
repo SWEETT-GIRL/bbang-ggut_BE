@@ -1,12 +1,14 @@
 package sweetgirl.croissant.world.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -92,5 +94,35 @@ class WorldControllerTest {
 			.andExpect(jsonPath("$.code").value("WORLD500_2"));
 
 		then(worldQueryService).should(never()).getMemberWorld(any());
+	}
+
+	@Test
+	@DisplayName("친구를 바꾸면 서비스로 넘긴다")
+	void selectsCharacter() throws Exception {
+		mockMvc.perform(post("/members/me/world/characters/cat/select"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.success").value(true));
+
+		then(worldCommandService).should().selectCharacter(any(), eq("cat"));
+	}
+
+	@Test
+	@DisplayName("못 만난 친구를 고르면 403 이다")
+	void rejectsLockedCharacter() throws Exception {
+		willThrow(new WorldException(WorldErrorCode.WORLD_CHARACTER_LOCKED))
+			.given(worldCommandService).selectCharacter(any(), eq("quoka"));
+
+		mockMvc.perform(post("/members/me/world/characters/quoka/select"))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("WORLD403_1"));
+	}
+
+	@Test
+	@DisplayName("첫 친구 연출 확인을 서비스로 넘긴다")
+	void marksWelcomed() throws Exception {
+		mockMvc.perform(post("/members/me/world/welcome"))
+			.andExpect(status().isOk());
+
+		then(worldCommandService).should().welcome(any());
 	}
 }

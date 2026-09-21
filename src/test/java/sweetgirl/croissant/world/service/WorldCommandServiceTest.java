@@ -1,5 +1,6 @@
 package sweetgirl.croissant.world.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -21,7 +22,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.world.dto.response.WorldCatalogResponse;
+import sweetgirl.croissant.world.entity.MemberCharacterId;
+import sweetgirl.croissant.world.entity.MemberWorld;
 import sweetgirl.croissant.world.entity.WorldFixtures;
+import sweetgirl.croissant.world.enums.AcquiredBy;
+import sweetgirl.croissant.world.enums.CharacterStatus;
 import sweetgirl.croissant.world.exception.WorldException;
 import sweetgirl.croissant.world.repository.MemberCharacterRepository;
 import sweetgirl.croissant.world.repository.MemberPlanetArrivalRepository;
@@ -119,6 +124,81 @@ class WorldCommandServiceTest {
 
 			assertThatThrownBy(() -> worldCommandService.syncProgress(MEMBER_ID))
 				.isInstanceOf(WorldException.class);
+		}
+	}
+
+	@Nested
+	@DisplayName("친구 고르기")
+	class SelectCharacter {
+
+		@Test
+		@DisplayName("이미 만난 친구면 바꿔 준다")
+		void changesSelectedCharacter() {
+			MemberWorld memberWorld = WorldFixtures.memberWorld(MEMBER_ID, "dog", 0);
+			given(memberWorldRepository.findById(MEMBER_ID)).willReturn(Optional.of(memberWorld));
+			given(memberCharacterRepository.findById(new MemberCharacterId(MEMBER_ID, "cat")))
+				.willReturn(Optional.of(WorldFixtures.memberCharacter(
+					MEMBER_ID, "cat", CharacterStatus.AWAKE, 0, AcquiredBy.ROULETTE)));
+
+			worldCommandService.selectCharacter(MEMBER_ID, "cat");
+
+			assertThat(memberWorld.getSelectedCharacter()).isEqualTo("cat");
+		}
+
+		@Test
+		@DisplayName("아직 자고 있는 친구는 고를 수 없다")
+		void rejectsSleepingCharacter() {
+			given(memberWorldRepository.findById(MEMBER_ID))
+				.willReturn(Optional.of(WorldFixtures.memberWorld(MEMBER_ID, "dog", 0)));
+			given(memberCharacterRepository.findById(new MemberCharacterId(MEMBER_ID, "cat")))
+				.willReturn(Optional.of(WorldFixtures.memberCharacter(
+					MEMBER_ID, "cat", CharacterStatus.SLEEPING, 1, null)));
+
+			assertThatThrownBy(() -> worldCommandService.selectCharacter(MEMBER_ID, "cat"))
+				.isInstanceOf(WorldException.class)
+				.hasMessageContaining("아직 만나지 못한 친구");
+		}
+
+		@Test
+		@DisplayName("만난 적 없는 친구면 예외다")
+		void rejectsUnknownCharacter() {
+			given(memberWorldRepository.findById(MEMBER_ID))
+				.willReturn(Optional.of(WorldFixtures.memberWorld(MEMBER_ID, "dog", 0)));
+			given(memberCharacterRepository.findById(new MemberCharacterId(MEMBER_ID, "quoka")))
+				.willReturn(Optional.empty());
+
+			assertThatThrownBy(() -> worldCommandService.selectCharacter(MEMBER_ID, "quoka"))
+				.isInstanceOf(WorldException.class)
+				.hasMessageContaining("그런 친구가 없습니다");
+		}
+	}
+
+	@Nested
+	@DisplayName("첫 친구 연출 확인")
+	class Welcome {
+
+		@Test
+		@DisplayName("처음 본 때를 남긴다")
+		void marksWelcomed() {
+			MemberWorld memberWorld = WorldFixtures.memberWorld(MEMBER_ID, "dog", 0);
+			given(memberWorldRepository.findById(MEMBER_ID)).willReturn(Optional.of(memberWorld));
+
+			worldCommandService.welcome(MEMBER_ID);
+
+			assertThat(memberWorld.getWelcomedAt()).isNotNull();
+		}
+
+		@Test
+		@DisplayName("두 번 불러도 처음 본 때가 덮이지 않는다")
+		void keepsTheFirstWelcomedAt() {
+			MemberWorld memberWorld = WorldFixtures.memberWorld(MEMBER_ID, "dog", 0);
+			given(memberWorldRepository.findById(MEMBER_ID)).willReturn(Optional.of(memberWorld));
+
+			worldCommandService.welcome(MEMBER_ID);
+			var firstSeen = memberWorld.getWelcomedAt();
+			worldCommandService.welcome(MEMBER_ID);
+
+			assertThat(memberWorld.getWelcomedAt()).isEqualTo(firstSeen);
 		}
 	}
 

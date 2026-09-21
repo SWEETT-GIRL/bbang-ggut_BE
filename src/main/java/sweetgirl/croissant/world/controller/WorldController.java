@@ -3,6 +3,8 @@ package sweetgirl.croissant.world.controller;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -30,5 +32,21 @@ public class WorldController {
 			@AuthenticationPrincipal Long memberId) {
 		worldCommandService.syncProgress(memberId);
 		return ResponseEntity.ok(ApiResponse.ok(worldQueryService.getMemberWorld(memberId)));
+	}
+
+	@Operation(summary = "데리고 다닐 친구 변경", description = "이미 만난 친구 중에서만 고를 수 있다.")
+	@PostMapping("/characters/{code}/select")
+	public ResponseEntity<ApiResponse<Void>> selectCharacter(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable String code) {
+		worldCommandService.selectCharacter(memberId, code);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "첫 친구 연출 확인", description = "처음 본 때를 남긴다. 두 번 불러도 그 때가 덮이지 않는다.")
+	@PostMapping("/welcome")
+	public ResponseEntity<ApiResponse<Void>> welcome(@AuthenticationPrincipal Long memberId) {
+		worldCommandService.welcome(memberId);
+		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 }
