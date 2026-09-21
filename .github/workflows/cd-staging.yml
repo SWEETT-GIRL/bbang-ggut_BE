@@ -64,6 +64,11 @@ jobs:
           openai.api.key=${OPENAI_API_KEY:}
           anthropic.api.key=${CLAUDE_API_KEY:}
 
+          # 취향 점수를 라벨 아홉 값으로 낸다 (#783). 스테이징에서만 켠다 — 운영은 여기서 확인한 뒤.
+          # 켜기 전에 가게 라벨 적재와 프로필 배치가 끝나 있어야 한다. 라벨 없는 회원에게 켜면 취향 항이
+          # 0 이 되어 전원이 인기순으로 같은 코스를 받는다(개발 확인: 회원 105/109 가 라벨 보유, 97가지).
+          recommendation.score.taste-source=LABEL
+
           # 앱에서 눌러 이유 문장을 받아 본다 (#764). 스테이징에서만 켠다 — 운영은 프롬프트를 깎고 나서.
           # 하루 상한 200 은 메뉴 분류와 나눠 쓰는 무료 등급(500)의 몫이다.
           recommendation.reason.llm.enabled=true
