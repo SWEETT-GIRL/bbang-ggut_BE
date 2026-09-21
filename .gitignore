@@ -99,6 +99,12 @@ scripts/.venv/
 ### 파이썬 가상환경 (스크립트 실행용, 저장소에 올리지 않음) ###
 .venv/
 
+### 부하 측정 산출물 (회원 id·액세스 토큰 5만 건, 6MB 넘음 — 매 측정마다 새로 만든다) ###
+scripts/perf/member-ids.txt
+scripts/perf/tokens.csv
+scripts/perf/result*.csv
+scripts/perf/server-metrics*.log
+
 ### 동시편집 계획 문서 (원본은 FE 레포, 저장소에 올리지 않음) ###
 docs/course-collab-phases.md
 docs/be-tasks-course-collab.md
