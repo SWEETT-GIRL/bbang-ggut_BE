@@ -5,6 +5,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import sweetgirl.croissant.world.enums.AcquiredBy;
 import sweetgirl.croissant.world.enums.CharacterStatus;
 import sweetgirl.croissant.world.enums.PlanetGroup;
+import sweetgirl.croissant.world.enums.WakeTicketSource;
 
 /**
  * 카탈로그 엔티티는 JPA 가 읽기만 하는 콘텐츠라 운영 코드에 생성 경로가 없다. 그래서 테스트 픽스처를
@@ -86,9 +87,14 @@ public final class WorldFixtures {
 	}
 
 	public static MemberPlanetArrival arrival(Long memberId, String planetCode) {
+		return arrival(memberId, planetCode, false);
+	}
+
+	public static MemberPlanetArrival arrival(Long memberId, String planetCode, boolean spunRoulette) {
 		MemberPlanetArrival arrival = new MemberPlanetArrival();
 		set(arrival, "id", new MemberPlanetArrivalId(memberId, planetCode));
 		set(arrival, "arrivedAt", java.time.LocalDateTime.now());
+		set(arrival, "rouletteAt", spunRoulette ? java.time.LocalDateTime.now() : null);
 		return arrival;
 	}
 
@@ -106,6 +112,15 @@ public final class WorldFixtures {
 		set(memberCharacter, "acquiredAt",
 			acquiredBy == null ? null : java.time.LocalDateTime.now());
 		return memberCharacter;
+	}
+
+	public static MemberWakeTicket wakeTicket(Long id, Long memberId, WakeTicketSource source) {
+		MemberWakeTicket ticket = new MemberWakeTicket();
+		set(ticket, "id", id);
+		set(ticket, "memberId", memberId);
+		set(ticket, "source", source);
+		set(ticket, "createdAt", java.time.LocalDateTime.now());
+		return ticket;
 	}
 
 	private static void set(Object target, String name, Object value) {

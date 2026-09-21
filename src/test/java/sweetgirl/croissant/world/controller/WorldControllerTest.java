@@ -29,6 +29,7 @@ import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.world.code.WorldErrorCode;
 import sweetgirl.croissant.world.dto.response.MemberWorldResponse;
 import sweetgirl.croissant.world.dto.response.WorldRouletteResponse;
+import sweetgirl.croissant.world.dto.response.WorldWakeResponse;
 import sweetgirl.croissant.world.exception.WorldException;
 import sweetgirl.croissant.world.service.WorldCommandService;
 import sweetgirl.croissant.world.service.WorldQueryService;
@@ -138,6 +139,52 @@ class WorldControllerTest {
 		mockMvc.perform(post("/members/me/world/planets/mars/roulette"))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("WORLD409_1"));
+	}
+
+	@Test
+	@DisplayName("광고 적립 결과로 진행도와 해금 여부를 내린다")
+	void returnsAdViewProgress() throws Exception {
+		given(worldCommandService.addAdView(any(), eq("frog")))
+			.willReturn(new WorldWakeResponse("frog", 2, 2, true));
+
+		mockMvc.perform(post("/members/me/world/characters/frog/ad-views"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.adViews").value(2))
+			.andExpect(jsonPath("$.data.adsRequired").value(2))
+			.andExpect(jsonPath("$.data.awakened").value(true));
+	}
+
+	@Test
+	@DisplayName("룰렛 전에 광고를 보려 하면 403 이다")
+	void rejectsAdBeforeRoulette() throws Exception {
+		given(worldCommandService.addAdView(any(), eq("frog")))
+			.willThrow(new WorldException(WorldErrorCode.WORLD_ROULETTE_REQUIRED));
+
+		mockMvc.perform(post("/members/me/world/characters/frog/ad-views"))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("WORLD403_3"));
+	}
+
+	@Test
+	@DisplayName("티켓으로 깨우기를 서비스로 넘긴다")
+	void usesWakeTicket() throws Exception {
+		given(worldCommandService.useWakeTicket(any(), eq("frog")))
+			.willReturn(new WorldWakeResponse("frog", 0, 2, true));
+
+		mockMvc.perform(post("/members/me/world/characters/frog/wake-ticket"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.awakened").value(true));
+	}
+
+	@Test
+	@DisplayName("쓸 티켓이 없으면 409 다")
+	void rejectsWithoutTicket() throws Exception {
+		given(worldCommandService.useWakeTicket(any(), eq("frog")))
+			.willThrow(new WorldException(WorldErrorCode.WORLD_NO_WAKE_TICKET));
+
+		mockMvc.perform(post("/members/me/world/characters/frog/wake-ticket"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("WORLD409_4"));
 	}
 
 	@Test
