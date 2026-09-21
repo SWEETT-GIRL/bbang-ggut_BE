@@ -420,7 +420,10 @@ public class RecommendationCandidateJdbcRepository {
 		double cTexture = center ? score.getCenterTexture() : 0;
 		double cFilling = center ? score.getCenterFilling() : 0;
 		double cVibe = center ? score.getCenterVibe() : 0;
-		boolean hasAxis = taste.hasAxis();
+		// 설정이 고른 쪽만 켠다. 둘 다 켜면 TASTE_COSINE 이 두 식을 더해 취향을 두 번 세고, tasteFit 이 −1~1 을
+		// 벗어나 취향 후보 임계 판정까지 깨진다(실측: 라벨만 1.0 → 축까지 주면 1.9999999999999998).
+		// 실제 회원은 축과 라벨을 둘 다 갖기 때문에 이 자리를 안 막으면 LABEL 모드에서 반드시 겹친다.
+		boolean hasAxis = score.getTasteSource() == TasteSource.AXIS && taste.hasAxis();
 		params
 			.addValue("hasAxis", hasAxis)
 			.addValue("uTaste", hasAxis ? taste.taste() - cTaste : 0d)

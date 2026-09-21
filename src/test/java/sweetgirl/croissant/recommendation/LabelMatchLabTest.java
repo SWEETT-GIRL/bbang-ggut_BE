@@ -1,5 +1,7 @@
 package sweetgirl.croissant.recommendation;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -106,8 +108,14 @@ class LabelMatchLabTest {
 	private record Area(String name, double lat, double lng, int radiusM) {
 	}
 
-	/** 합성 회원 — 검사 답 하나로 축과 라벨을 함께 만든다(실제 제출 경로와 같은 규칙). */
-	private record Member(String name, TasteQuery axisOnly, TasteQuery labelOnly) {
+	/**
+	 * 합성 회원 — 검사 답 하나로 축과 라벨을 함께 만든다(실제 제출 경로와 같은 규칙).
+	 *
+	 * <p>{@code both} 는 실제 회원의 모습이다 — 검사를 풀면 축과 라벨이 함께 저장된다. 측정은 이것으로 한다.
+	 * {@code labelOnly} 는 "축이 켜져 있지 않은지" 를 확인하는 대조군이다: 설정이 LABEL 이면 두 입력의 점수가
+	 * 같아야 한다. 다르면 축 코사인이 같이 더해지고 있다는 뜻이다.
+	 */
+	private record Member(String name, TasteQuery axisOnly, TasteQuery labelOnly, TasteQuery both) {
 	}
 
 	@Test
@@ -146,7 +154,8 @@ class LabelMatchLabTest {
 		Set<List<Long>> courses = new LinkedHashSet<>();
 		Map<Long, Integer> exposure = new LinkedHashMap<>();
 		for (Member member : members) {
-			TasteQuery taste = source == TasteSource.LABEL ? member.labelOnly() : member.axisOnly();
+			// 실제 회원처럼 축과 라벨을 둘 다 가진 입력으로 잰다 — 설정이 고른 쪽만 점수에 들어가야 한다
+			TasteQuery taste = member.both();
 			List<Long> course = repository
 				.findAreaCandidates(1L, taste, area.lat(), area.lng(), area.radiusM(), null, null, null,
 					List.of(), CANDIDATE_LIMIT)
@@ -203,11 +212,40 @@ class LabelMatchLabTest {
 		return new Member(name,
 			new TasteQuery(axis.getTaste().doubleValue(), axis.getTexture().doubleValue(),
 				axis.getFilling().doubleValue(), axis.getVibe().doubleValue(), Map.of(), List.of(), 0, List.of()),
-			new TasteQuery(null, null, null, null, Map.of(), List.of(), 0, List.of(), labels));
+			new TasteQuery(null, null, null, null, Map.of(), List.of(), 0, List.of(), labels),
+			new TasteQuery(axis.getTaste().doubleValue(), axis.getTexture().doubleValue(),
+				axis.getFilling().doubleValue(), axis.getVibe().doubleValue(), Map.of(), List.of(), 0, List.of(),
+				labels));
 	}
 
 	private long labelRows() {
 		Long rows = jdbcTemplate.queryForObject("SELECT count(*) FROM store_recommendation_feature", Long.class);
 		return rows == null ? 0 : rows;
+	}
+
+	@Test
+	@DisplayName("[회귀] LABEL 모드에서 축이 같이 더해지지 않는다 — 축·라벨을 둘 다 가진 회원도 라벨만 준 것과 같다")
+	void labelModeIgnoresAxis() {
+		Assumptions.assumeTrue(labelRows() > 0, "랩에 가게 라벨이 없다");
+		RecommendationCandidateJdbcRepository repository = repositoryFor(TasteSource.LABEL);
+		Area area = AREAS.get(0);
+
+		for (Member member : syntheticMembers()) {
+			Map<Long, Double> withAxis = scoresOf(repository, area, member.both());
+			Map<Long, Double> labelOnly = scoresOf(repository, area, member.labelOnly());
+
+			// 두 식을 더하면 tasteFit 이 −1~1 을 벗어나고 취향 후보 임계 판정도 깨진다
+			assertThat(withAxis)
+				.as("회원 %s — 축을 같이 주면 점수가 달라진다면 축 코사인이 더해지고 있다", member.name())
+				.isEqualTo(labelOnly);
+		}
+	}
+
+	private Map<Long, Double> scoresOf(RecommendationCandidateJdbcRepository repository, Area area, TasteQuery taste) {
+		return repository
+			.findAreaCandidates(1L, taste, area.lat(), area.lng(), area.radiusM(), null, null, null,
+				List.of(), COURSE_SIZE)
+			.stream()
+			.collect(java.util.stream.Collectors.toMap(CandidateStoreRow::storeId, CandidateStoreRow::tasteFit));
 	}
 }

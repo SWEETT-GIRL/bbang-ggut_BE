@@ -2,6 +2,9 @@ package sweetgirl.croissant.store.entity;
 
 import java.time.LocalDateTime;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
@@ -54,7 +57,12 @@ public class StoreRecommendationFeature {
 	/**
 	 * sha256 앞 32자 — 사전 판본 + 신호 스냅샷 id + 쓰인 메뉴 + 리뷰 라벨. 시각은 넣지 않는다.
 	 * 같은 값이면 다시 계산해도 같은 벡터라, 재적재가 진짜 바뀐 것인지 가린다.
+	 *
+	 * <p>컬럼이 {@code CHAR(32)} 라 JDBC 타입을 명시한다. String 의 기본 매핑은 VARCHAR 이고, 운영 설정인
+	 * {@code ddl-auto=validate} 는 그 차이에서 기동을 멈춘다(bpchar vs varchar). H2 create-drop 테스트는
+	 * 엔티티에서 스키마를 만들기 때문에 이 불일치를 잡지 못한다.
 	 */
+	@JdbcTypeCode(SqlTypes.CHAR)
 	@Column(name = "source_fingerprint", length = 32, nullable = false)
 	private String sourceFingerprint;
 
