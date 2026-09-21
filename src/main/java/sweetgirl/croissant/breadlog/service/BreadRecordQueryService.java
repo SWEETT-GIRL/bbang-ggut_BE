@@ -39,6 +39,7 @@ public class BreadRecordQueryService {
 	private final BreadRecordRepository breadRecordRepository;
 	private final BreadRecordPhotoRepository photoRepository;
 	private final BreadRecordTagRepository tagRepository;
+	private final TowerBreadPicker towerBreadPicker;
 
 	public SliceResponse<BreadRecordResponse> getRecords(
 			Long memberId,
@@ -99,7 +100,8 @@ public class BreadRecordQueryService {
 			.map(record -> BreadRecordResponse.of(
 				record,
 				photosByRecordId.getOrDefault(record.getId(), List.of()),
-				tagsByRecordId.getOrDefault(record.getId(), List.of())))
+				tagsByRecordId.getOrDefault(record.getId(), List.of()),
+				towerBreadPicker.resolve(record.getId(), record.getTowerBread())))
 			.toList();
 	}
 
