@@ -25,6 +25,8 @@ public enum PersonalizationErrorCode implements BaseErrorCode {
 			"적재 범위가 너무 깁니다 — 달 단위로 나눠 돌려 주세요."),
 	BACKFILL_UNTIL_TOO_LATE(HttpStatus.BAD_REQUEST, "PERSONALIZATION400_4",
 			"담기 백필은 담기 이벤트 배포일 이전 범위만 허용합니다."),
+	QUIZ_CHOICE_AXIS_MISMATCH(HttpStatus.BAD_REQUEST, "PERSONALIZATION400_5",
+			"선택지가 그 문항의 축과 맞지 않습니다."),
 	INTERACTION_INGEST_ALREADY_RUNNING(HttpStatus.CONFLICT, "PERSONALIZATION409_1",
 			"신호 적재가 이미 실행 중입니다."),
 	TASTE_PROFILE_REFRESH_ALREADY_RUNNING(HttpStatus.CONFLICT, "PERSONALIZATION409_2",

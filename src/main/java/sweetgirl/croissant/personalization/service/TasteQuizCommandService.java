@@ -10,10 +10,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.personalization.config.PersonalizationProperties;
 import sweetgirl.croissant.personalization.dto.request.BbtiQuizAnswer;
+import sweetgirl.croissant.personalization.dto.request.BbtiQuizRequest;
 import sweetgirl.croissant.personalization.dto.response.BbtiResultResponse;
+import sweetgirl.croissant.personalization.dto.response.TasteLabels;
 import sweetgirl.croissant.personalization.entity.TasteAxis;
 import sweetgirl.croissant.personalization.entity.UserTasteProfile;
 import sweetgirl.croissant.personalization.enums.BbtiType;
+import sweetgirl.croissant.personalization.enums.QuizChoice;
 import sweetgirl.croissant.personalization.repository.UserTasteProfileRepository;
 
 /**
@@ -35,25 +38,31 @@ public class TasteQuizCommandService {
 	private final PersonalizationProperties personalizationProperties;
 	private final UserTasteProfileCommandService userTasteProfileCommandService;
 
-	public BbtiResultResponse submit(Long memberId, List<BbtiQuizAnswer> answers) {
+	public BbtiResultResponse submit(Long memberId, BbtiQuizRequest request) {
+		List<BbtiQuizAnswer> answers = request.answers();
 		int answersPerAxis = QuizAxisRule.answersPerAxis(answers);
 		TasteAxis quizAxis = QuizAxisRule.fromAnswers(answers, answersPerAxis);
+		List<QuizChoice> choices = answers.stream().map(BbtiQuizAnswer::choice).toList();
 		LocalDateTime now = LocalDateTime.now(UserTasteProfileCommandService.ZONE_ID);
 
 		UserTasteProfile profile = userTasteProfileCommandService.lockOrCreate(memberId, now);
-		profile.recordQuizAnswers(QuizAxisRule.toStoredAnswers(answers), now);
+		profile.recordQuizAnswers(QuizAxisRule.toStoredAnswers(answers), request.quizVersion(), now);
 		try {
-			userTasteProfileCommandService.mergeSignals(profile, quizAxis, now, now);
+			userTasteProfileCommandService.mergeSignals(profile, quizAxis, choices, now, now);
 		} catch (RuntimeException e) {
 			// 사용자 경로를 가게 프로필 데이터 품질에서 격리한다 — 검사 축으로 저장하고 다음 배치가 다시 합산(#748 리뷰)
 			log.warn("[개인화] 검사 직후 신호 합산 실패 — 검사 축만 저장 memberId={}", memberId, e);
-			profile.applyQuiz(QuizAxisRule.toStoredAnswers(answers), quizAxis, quizAxis.typeCode(), now);
+			profile.applyQuiz(QuizAxisRule.toStoredAnswers(answers), request.quizVersion(), quizAxis,
+				QuizAxisRule.typeCodeOf(choices, quizAxis), now);
 		}
 		userTasteProfileRepository.save(profile);
 
 		double confidence = answersPerAxis == QuizAxisRule.SHORT_QUIZ_ANSWERS_PER_AXIS
 			? personalizationProperties.getShortQuizConfidence()
 			: personalizationProperties.getFullQuizConfidence();
-		return BbtiResultResponse.of(BbtiType.fromCode(profile.getTypeCode()), profile.getAxis(), confidence);
+		// 라벨은 고른 갈래 그대로다 — 프로필 축과 달리 행동 신호와 섞이지 않는다. 아직 신호에서 라벨을 만들 수
+		// 없기 때문이고(가게 라벨이 와야 한다), 섞을 수 있게 되기 전까지 이 값은 "이 사람이 검사에서 고른 것"이다.
+		return BbtiResultResponse.of(BbtiType.fromCode(profile.getTypeCode()), profile.getAxis(),
+			TasteLabels.of(choices), confidence);
 	}
 }

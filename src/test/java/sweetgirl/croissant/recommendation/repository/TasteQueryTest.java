@@ -35,7 +35,7 @@ class TasteQueryTest {
 		assertThat(TasteQuery.of(empty).hasAxis()).isFalse();
 
 		UserTasteProfile quizzed = UserTasteProfile.createEmpty(7L, now);
-		quizzed.applyQuiz(List.of(Map.of("axis", "taste", "choice", "B")),
+		quizzed.applyQuiz(List.of(Map.of("axis", "taste", "choice", "PLAIN")), (short)2,
 			TasteAxis.of(new BigDecimal("0.750"), new BigDecimal("-0.250"), new BigDecimal("0.000"),
 				new BigDecimal("1.000")),
 			"PFLN", now);

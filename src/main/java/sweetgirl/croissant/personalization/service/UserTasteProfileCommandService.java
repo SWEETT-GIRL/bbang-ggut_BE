@@ -21,6 +21,7 @@ import sweetgirl.croissant.personalization.config.PersonalizationProperties;
 import sweetgirl.croissant.personalization.dto.response.TasteProfileRefreshResult;
 import sweetgirl.croissant.personalization.entity.TasteAxis;
 import sweetgirl.croissant.personalization.entity.UserTasteProfile;
+import sweetgirl.croissant.personalization.enums.QuizChoice;
 import sweetgirl.croissant.personalization.enums.TasteProfileRefreshOutcome;
 import sweetgirl.croissant.personalization.exception.PersonalizationException;
 import sweetgirl.croissant.personalization.repository.TasteSignal;
@@ -138,16 +139,16 @@ public class UserTasteProfileCommandService {
 	 */
 	@Transactional(propagation = Propagation.MANDATORY, noRollbackFor = RuntimeException.class)
 	public TasteProfileRefreshOutcome mergeSignals(UserTasteProfile profile, TasteAxis quizAxis,
-			LocalDateTime quizAnsweredAt, LocalDateTime now) {
-		return writeIfChanged(profile,
-			calculateSnapshot(profile.getMemberId(), quizAxis, quizAnsweredAt, kindBaseRates.current(), now), now);
+			List<QuizChoice> quizChoices, LocalDateTime quizAnsweredAt, LocalDateTime now) {
+		return writeIfChanged(profile, calculateSnapshot(profile.getMemberId(), quizAxis, quizChoices,
+			quizAnsweredAt, kindBaseRates.current(), now), now);
 	}
 
 	private TasteProfileRefreshOutcome recomputeUnderRowLock(Long memberId, LocalDateTime now,
 			Map<String, Double> baseRates) {
 		UserTasteProfile profile = lockOrCreate(memberId, now);
-		return writeIfChanged(profile,
-			calculateSnapshot(memberId, storedQuizAxisOf(profile), profile.getQuizAnsweredAt(), baseRates, now), now);
+		return writeIfChanged(profile, calculateSnapshot(memberId, storedQuizAxisOf(profile),
+			storedQuizChoicesOf(profile), profile.getQuizAnsweredAt(), baseRates, now), now);
 	}
 
 	/** 검사 축은 따로 저장되지 않는다(프로필 축은 합산 결과). 저장된 검사 응답에서 다시 만든다. 검사를 안 했으면 null. */
@@ -155,12 +156,20 @@ public class UserTasteProfileCommandService {
 		return profile.getQuizAnswers() == null ? null : QuizAxisRule.fromStoredAnswers(profile.getQuizAnswers());
 	}
 
-	private TasteProfileSnapshot calculateSnapshot(Long memberId, TasteAxis quizAxis, LocalDateTime quizAnsweredAt,
-			Map<String, Double> baseRates, LocalDateTime now) {
+	/**
+	 * 고른 갈래도 저장된 응답에서 다시 읽는다 — 타입 코드의 맛·식감 글자가 여기서 나온다. 배치가 다시 계산할 때도 제출 때와
+	 * 같은 코드가 나와야 하므로 두 경로가 같은 값을 본다. 검사를 안 했으면 빈 목록이고, 그러면 축 부호로만 정해진다.
+	 */
+	private static List<QuizChoice> storedQuizChoicesOf(UserTasteProfile profile) {
+		return profile.getQuizAnswers() == null ? List.of() : QuizAxisRule.choicesOf(profile.getQuizAnswers());
+	}
+
+	private TasteProfileSnapshot calculateSnapshot(Long memberId, TasteAxis quizAxis, List<QuizChoice> quizChoices,
+			LocalDateTime quizAnsweredAt, Map<String, Double> baseRates, LocalDateTime now) {
 		List<TasteSignal> signals = signalRepository.findSignals(memberId, signalWindowStart(now));
 		int visits = signalRepository.countVisits(memberId,
 			now.minusDays(personalizationProperties.getProfile().getUserTypeWindowDays()));
-		return calculator.calculate(signals, quizAxis, quizAnsweredAt, visits, baseRates, now);
+		return calculator.calculate(signals, quizAxis, quizChoices, quizAnsweredAt, visits, baseRates, now);
 	}
 
 	/** 추천이 읽는 값이 바뀌면 recompute(version+1), 유형·카운트만이면 refreshStats(version 유지), 같으면 쓰지 않는다 */

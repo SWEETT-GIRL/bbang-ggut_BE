@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import sweetgirl.croissant.personalization.config.PersonalizationProperties;
 import sweetgirl.croissant.personalization.entity.TasteAxis;
 import sweetgirl.croissant.personalization.enums.InteractionType;
+import sweetgirl.croissant.personalization.enums.QuizChoice;
 import sweetgirl.croissant.personalization.enums.TasteTag;
 import sweetgirl.croissant.personalization.enums.TasteTypeSource;
 import sweetgirl.croissant.personalization.enums.TasteUserType;
@@ -55,7 +56,7 @@ class TasteProfileCalculatorTest {
 	}
 
 	private static TasteProfileSnapshot withBaseRates(List<TasteSignal> signals, Map<String, Double> baseRates) {
-		return newCalculator().calculate(signals, null, null, 0, baseRates, NOW);
+		return newCalculator().calculate(signals, null, List.of(), null, 0, baseRates, NOW);
 	}
 
 	private static TasteProfileCalculator newCalculator() {
@@ -81,7 +82,7 @@ class TasteProfileCalculatorTest {
 	@Test
 	@DisplayName("신호도 검사도 없으면 축·타입·출처·종류·유형이 전부 없고 태그는 빈 맵, 카운트 0")
 	void empty() {
-		TasteProfileSnapshot snapshot = calculator.calculate(List.of(), null, null, 0, Map.of(), NOW);
+		TasteProfileSnapshot snapshot = calculator.calculate(List.of(), null, List.of(), null, 0, Map.of(), NOW);
 
 		assertThat(snapshot.axis()).isNull();
 		assertThat(snapshot.typeCode()).isNull();
@@ -96,7 +97,8 @@ class TasteProfileCalculatorTest {
 	@Test
 	@DisplayName("검사만 있으면 검사 축 그대로(두 번째 version 이 오르지 않게 정확히 같아야 한다), 출처 QUIZ, 0 은 −극")
 	void quizOnly_returnsQuizAxisExactly() {
-		TasteProfileSnapshot snapshot = calculator.calculate(List.of(), axis(0.5, -0.5, 0, 1), NOW, 0, Map.of(), NOW);
+		TasteProfileSnapshot snapshot = calculator.calculate(List.of(), axis(0.5, -0.5, 0, 1), List.of(), NOW, 0,
+			Map.of(), NOW);
 
 		assertThat(snapshot.axis()).isEqualTo(axis(0.5, -0.5, 0, 1));
 		assertThat(snapshot.typeSource()).isEqualTo(TasteTypeSource.QUIZ);
@@ -108,7 +110,7 @@ class TasteProfileCalculatorTest {
 	void storeAxis_weightedByInteractionType() {
 		TasteProfileSnapshot snapshot = calculator.calculate(List.of(
 			signal(InteractionType.SAVE, 1, NOW, ALL_PLUS),
-			signal(InteractionType.COURSE_ADD, 2, NOW, ALL_MINUS)), null, null, 0, Map.of(), NOW);
+			signal(InteractionType.COURSE_ADD, 2, NOW, ALL_MINUS)), null, List.of(), null, 0, Map.of(), NOW);
 
 		assertAxis(snapshot.axis(), "-0.200", "-0.200", "-0.200", "-0.200"); // (1 − 1.5) ÷ 2.5
 		assertThat(snapshot.typeSource()).isEqualTo(TasteTypeSource.SIGNAL);
@@ -120,7 +122,7 @@ class TasteProfileCalculatorTest {
 	void decay_halvesAtNinetyDays() {
 		TasteProfileSnapshot snapshot = calculator.calculate(List.of(
 			signal(InteractionType.SAVE, 1, NOW.minusDays(90), ALL_PLUS),
-			signal(InteractionType.SAVE, 2, NOW, ALL_MINUS)), null, null, 0, Map.of(), NOW);
+			signal(InteractionType.SAVE, 2, NOW, ALL_MINUS)), null, List.of(), null, 0, Map.of(), NOW);
 
 		assertAxis(snapshot.axis(), "-0.333", "-0.333", "-0.333", "-0.333"); // (0.5 − 1) ÷ 1.5
 	}
@@ -129,7 +131,7 @@ class TasteProfileCalculatorTest {
 	@DisplayName("검사 ×3 과 신호를 합산한다 — 검사 전부 +1, 저장 가게 전부 −1 이면 (3 − 1) ÷ 4 = 0.5, 출처 SIGNAL")
 	void quiz_mergedWithSignals() {
 		TasteProfileSnapshot snapshot = calculator.calculate(
-			List.of(signal(InteractionType.SAVE, 1, NOW, ALL_MINUS)), ALL_PLUS, NOW, 0, Map.of(), NOW);
+			List.of(signal(InteractionType.SAVE, 1, NOW, ALL_MINUS)), ALL_PLUS, List.of(), NOW, 0, Map.of(), NOW);
 
 		assertAxis(snapshot.axis(), "0.500", "0.500", "0.500", "0.500");
 		assertThat(snapshot.typeSource()).isEqualTo(TasteTypeSource.SIGNAL);
@@ -141,10 +143,10 @@ class TasteProfileCalculatorTest {
 	void negativeSignals_pullAway_withAbsoluteDenominator() {
 		TasteProfileSnapshot cancelled = calculator.calculate(List.of(
 			signal(InteractionType.SAVE, 1, NOW, ALL_PLUS),
-			signal(InteractionType.UNSAVE, 1, NOW, ALL_PLUS)), null, null, 0, Map.of(), NOW);
+			signal(InteractionType.UNSAVE, 1, NOW, ALL_PLUS)), null, List.of(), null, 0, Map.of(), NOW);
 		TasteProfileSnapshot pushed = calculator.calculate(List.of(
 			signal(InteractionType.SAVE, 1, NOW, ALL_PLUS),
-			signal(InteractionType.COURSE_REMOVE, 2, NOW, ALL_MINUS)), null, null, 0, Map.of(), NOW);
+			signal(InteractionType.COURSE_REMOVE, 2, NOW, ALL_MINUS)), null, List.of(), null, 0, Map.of(), NOW);
 
 		assertThat(cancelled.axis()).isNull(); // 합이 0 벡터 — 분모만 남아 "정확히 0 = −극" 타입이 확정되는 것을 막는다
 		assertThat(cancelled.typeSource()).isNull();
@@ -157,9 +159,10 @@ class TasteProfileCalculatorTest {
 		LocalDateTime tenDaysAgo = NOW.minusDays(10);
 		List<TasteSignal> saved = List.of(signal(InteractionType.SAVE, 1, tenDaysAgo, ALL_MINUS));
 
-		TasteProfileSnapshot today = calculator.calculate(saved, ALL_PLUS, tenDaysAgo, 0, Map.of(), NOW);
-		TasteProfileSnapshot tomorrow = calculator.calculate(saved, ALL_PLUS, tenDaysAgo, 0, Map.of(), NOW.plusDays(1));
-		TasteProfileSnapshot nextMonth = calculator.calculate(saved, ALL_PLUS, tenDaysAgo, 0, Map.of(),
+		TasteProfileSnapshot today = calculator.calculate(saved, ALL_PLUS, List.of(), tenDaysAgo, 0, Map.of(), NOW);
+		TasteProfileSnapshot tomorrow = calculator.calculate(saved, ALL_PLUS, List.of(), tenDaysAgo, 0, Map.of(),
+			NOW.plusDays(1));
+		TasteProfileSnapshot nextMonth = calculator.calculate(saved, ALL_PLUS, List.of(), tenDaysAgo, 0, Map.of(),
 			NOW.plusDays(30));
 
 		assertAxis(today.axis(), "0.500", "0.500", "0.500", "0.500"); // (3d − d) ÷ (3d + d)
@@ -176,8 +179,9 @@ class TasteProfileCalculatorTest {
 			view(1, NOW.minusDays(10), false, ALL_PLUS),
 			signal(InteractionType.RECO_DISMISSED, 2, NOW, ALL_MINUS));
 
-		TasteProfileSnapshot withoutQuiz = calculator.calculate(onlyPenalties, null, null, 0, Map.of(), NOW);
-		TasteProfileSnapshot withQuiz = calculator.calculate(onlyPenalties, axis(0.5, -0.5, 0, 1), NOW, 0, Map.of(),
+		TasteProfileSnapshot withoutQuiz = calculator.calculate(onlyPenalties, null, List.of(), null, 0, Map.of(), NOW);
+		TasteProfileSnapshot withQuiz = calculator.calculate(onlyPenalties, axis(0.5, -0.5, 0, 1), List.of(), NOW, 0,
+			Map.of(),
 			NOW);
 
 		assertThat(withoutQuiz.axis()).isNull();
@@ -195,7 +199,7 @@ class TasteProfileCalculatorTest {
 			signal(InteractionType.SAVE, 2, NOW, ALL_PLUS),
 			view(1, NOW.minusDays(10), false, ALL_PLUS), // 저장한 가게의 조회는 부호 없음(강한 신호가 말한다)
 			view(2, NOW.minusDays(10), false, ALL_PLUS),
-			signal(InteractionType.COURSE_ADD, 3, NOW, ALL_MINUS)), null, null, 0, Map.of(), NOW);
+			signal(InteractionType.COURSE_ADD, 3, NOW, ALL_MINUS)), null, List.of(), null, 0, Map.of(), NOW);
 
 		assertAxis(snapshot.axis(), "-0.200", "-0.200", "-0.200", "-0.200"); // (0.5 + 0.5 − 1.5) ÷ 2.5
 	}
@@ -205,7 +209,7 @@ class TasteProfileCalculatorTest {
 	void view_converted_isStrongPositive() {
 		TasteProfileSnapshot snapshot = calculator.calculate(List.of(
 			view(1, NOW, true, ALL_PLUS),
-			signal(InteractionType.COURSE_ADD, 2, NOW, ALL_MINUS)), null, null, 0, Map.of(), NOW);
+			signal(InteractionType.COURSE_ADD, 2, NOW, ALL_MINUS)), null, List.of(), null, 0, Map.of(), NOW);
 
 		assertAxis(snapshot.axis(), "0.143", "0.143", "0.143", "0.143"); // (2 − 1.5) ÷ 3.5
 	}
@@ -216,14 +220,14 @@ class TasteProfileCalculatorTest {
 		// 기준점은 담기(1.5) — 저장이면 저장 ÷ 조회일 보정이 같이 걸려 읽기 어렵다
 		TasteProfileSnapshot penalised = calculator.calculate(List.of(
 			signal(InteractionType.COURSE_ADD, 9, NOW, ALL_PLUS),
-			view(1, NOW.minusDays(8), false, ALL_PLUS)), null, null, 0, Map.of(), NOW);
+			view(1, NOW.minusDays(8), false, ALL_PLUS)), null, List.of(), null, 0, Map.of(), NOW);
 		TasteProfileSnapshot undecided = calculator.calculate(List.of(
 			signal(InteractionType.COURSE_ADD, 9, NOW, ALL_PLUS),
-			view(1, NOW.minusDays(3), false, ALL_PLUS)), null, null, 0, Map.of(), NOW);
+			view(1, NOW.minusDays(3), false, ALL_PLUS)), null, List.of(), null, 0, Map.of(), NOW);
 		TasteProfileSnapshot spokenByStrong = calculator.calculate(List.of(
 			signal(InteractionType.COURSE_ADD, 9, NOW, ALL_PLUS),
 			signal(InteractionType.PLAN, 1, NOW.minusDays(40), ALL_MINUS),
-			view(1, NOW.minusDays(30), false, ALL_MINUS)), null, null, 0, Map.of(), NOW);
+			view(1, NOW.minusDays(30), false, ALL_MINUS)), null, List.of(), null, 0, Map.of(), NOW);
 
 		// (1.5 − 0.3·d8) ÷ (1.5 + 0.3·d8), d8 = 0.5^(8/90) = 0.9402 → 0.683
 		assertAxis(penalised.axis(), "0.683", "0.683", "0.683", "0.683");
@@ -238,7 +242,7 @@ class TasteProfileCalculatorTest {
 		TasteProfileSnapshot snapshot = calculator.calculate(List.of(
 			signal(InteractionType.COURSE_ADD, 9, NOW, ALL_PLUS),
 			view(1, NOW.minusDays(20), false, ALL_PLUS),
-			view(1, NOW.minusDays(10), false, ALL_PLUS)), null, null, 0, Map.of(), NOW);
+			view(1, NOW.minusDays(10), false, ALL_PLUS)), null, List.of(), null, 0, Map.of(), NOW);
 
 		// (1.5 − 0.5·d10) ÷ (1.5 + 0.5·d10), d10 = 0.9259 → 0.528 (둘 다 −0.5 면 0.254, −0.3 씩이면 0.474)
 		assertAxis(snapshot.axis(), "0.528", "0.528", "0.528", "0.528");
@@ -250,7 +254,7 @@ class TasteProfileCalculatorTest {
 		TasteProfileSnapshot snapshot = calculator.calculate(List.of(
 			tagged(InteractionType.SAVE, 1, Map.of("머물기", 1.0)),
 			tagged(InteractionType.COURSE_ADD, 2, Map.of("가성비", 1.0)),
-			tagged(InteractionType.UNSAVE, 3, Map.of("머물기", 1.0))), null, null, 0, Map.of(), NOW);
+			tagged(InteractionType.UNSAVE, 3, Map.of("머물기", 1.0))), null, List.of(), null, 0, Map.of(), NOW);
 
 		assertThat(snapshot.tags()).hasSize(TasteTag.values().length)
 			.containsEntry("머물기", 0.7) // (1 × 1.0 + 1.5 × 중립 0.5) ÷ 2.5
@@ -267,7 +271,8 @@ class TasteProfileCalculatorTest {
 			bread(1, "소금빵", NOW), bread(1, "소금빵", NOW), bread(2, "휘낭시에", NOW),
 			bread(3, "케이크", NOW.minusDays(200)), bread(3, "케이크", NOW.minusDays(200)),
 			bread(3, "케이크", NOW.minusDays(200)),
-			bread(4, "식빵", yesterday), bread(4, "스콘", yesterday), bread(4, "바게트", yesterday)), null, null, 0, Map.of(),
+			bread(4, "식빵", yesterday), bread(4, "스콘", yesterday), bread(4, "바게트", yesterday)), null, List.of(), null, 0,
+			Map.of(),
 			NOW);
 
 		assertThat(snapshot.topKinds()).containsExactly("소금빵", "휘낭시에", "바게트", "스콘", "식빵");
@@ -279,7 +284,7 @@ class TasteProfileCalculatorTest {
 	void topKinds_skipsGenericKinds() {
 		TasteProfileSnapshot snapshot = calculator.calculate(List.of(
 			bread(1, "빵", NOW), bread(1, "빵", NOW), bread(1, "빵", NOW), bread(2, "기타", NOW),
-			bread(2, "요거트", NOW), bread(3, "소금빵", NOW)), null, null, 0, Map.of(), NOW);
+			bread(2, "요거트", NOW), bread(3, "소금빵", NOW)), null, List.of(), null, 0, Map.of(), NOW);
 
 		assertThat(snapshot.topKinds()).containsExactly("소금빵");
 		assertThat(snapshot.breadSignalCount()).isEqualTo(6);
@@ -289,7 +294,7 @@ class TasteProfileCalculatorTest {
 	@DisplayName("일반 종류만 기록한 회원은 종류 기록이 없는 회원과 같다")
 	void topKinds_onlyGenericKinds_isNull() {
 		TasteProfileSnapshot snapshot = calculator.calculate(List.of(bread(1, "빵", NOW), bread(2, "기타", NOW)),
-			null, null, 0, Map.of(), NOW);
+			null, List.of(), null, 0, Map.of(), NOW);
 
 		assertThat(snapshot.topKinds()).isNull();
 	}
@@ -305,19 +310,21 @@ class TasteProfileCalculatorTest {
 		List<TasteSignal> browser = new ArrayList<>(repeat(InteractionType.SAVE, 10, recent));
 		browser.addAll(repeat(InteractionType.STORE_VIEW, 40, recent));
 
-		assertThat(calculator.calculate(plannerAndArchiver, null, null, 0, Map.of(), NOW).userType())
+		assertThat(calculator.calculate(plannerAndArchiver, null, List.of(), null, 0, Map.of(), NOW).userType())
 			.isEqualTo(TasteUserType.PLANNER);
-		assertThat(calculator.calculate(repeat(InteractionType.RECORD_STORE, 5, recent), null, null, 0, Map.of(), NOW)
+		assertThat(calculator
+			.calculate(repeat(InteractionType.RECORD_STORE, 5, recent), null, List.of(), null, 0, Map.of(), NOW)
 			.userType())
 			.isEqualTo(TasteUserType.ARCHIVER);
-		assertThat(calculator.calculate(List.of(), null, null, 3, Map.of(), NOW).userType())
+		assertThat(calculator.calculate(List.of(), null, List.of(), null, 3, Map.of(), NOW).userType())
 			.isEqualTo(TasteUserType.DOER);
-		assertThat(calculator.calculate(collector, null, null, 0, Map.of(), NOW).userType())
+		assertThat(calculator.calculate(collector, null, List.of(), null, 0, Map.of(), NOW).userType())
 			.isEqualTo(TasteUserType.COLLECTOR);
-		assertThat(calculator.calculate(browser, null, null, 0, Map.of(), NOW).userType())
+		assertThat(calculator.calculate(browser, null, List.of(), null, 0, Map.of(), NOW).userType())
 			.isEqualTo(TasteUserType.BROWSER);
 		assertThat(
-			calculator.calculate(repeat(InteractionType.SAVE, 1, NOW.minusDays(100)), null, null, 0, Map.of(), NOW)
+			calculator
+				.calculate(repeat(InteractionType.SAVE, 1, NOW.minusDays(100)), null, List.of(), null, 0, Map.of(), NOW)
 				.userType())
 			.isNull();
 	}
@@ -332,7 +339,7 @@ class TasteProfileCalculatorTest {
 			signal(InteractionType.RECORD_STORE, 3, NOW, null),
 			bread(3, "소금빵", NOW),
 			signal(InteractionType.UNSAVE, 4, NOW, null),
-			view(5, NOW, null, null)), null, null, 0, Map.of(), NOW);
+			view(5, NOW, null, null)), null, List.of(), null, 0, Map.of(), NOW);
 
 		assertThat(snapshot.strongStoreCount()).isEqualTo(3);
 		assertThat(snapshot.breadSignalCount()).isEqualTo(1);
@@ -342,7 +349,8 @@ class TasteProfileCalculatorTest {
 	@DisplayName("가게 프로필이 없는 신호는 카운트에는 남지만 축을 만들지 못한다 — 검사만 축이 되고 출처는 QUIZ")
 	void signalWithoutStoreProfile_countsButDoesNotShapeAxis() {
 		TasteProfileSnapshot snapshot = calculator.calculate(
-			List.of(signal(InteractionType.SAVE, 1, NOW, null)), axis(0.5, -0.5, 0, 1), NOW, 0, Map.of(), NOW);
+			List.of(signal(InteractionType.SAVE, 1, NOW, null)), axis(0.5, -0.5, 0, 1), List.of(), NOW, 0, Map.of(),
+			NOW);
 
 		assertThat(snapshot.axis()).isEqualTo(axis(0.5, -0.5, 0, 1));
 		assertThat(snapshot.typeSource()).isEqualTo(TasteTypeSource.QUIZ);
@@ -399,5 +407,22 @@ class TasteProfileCalculatorTest {
 
 		assertThat(withBaseRates(signals, baseRates).inferredKinds()).containsExactly("바게트", "소금빵", "스콘");
 		assertThat(withBaseRates(signals, Map.of()).inferredKinds()).isEmpty();
+	}
+
+	@Test
+	@DisplayName("검사를 푼 회원은 고른 갈래가 맛·식감 글자를 정한다 — 신호만 있는 회원은 옛 16타입 안에 남는다")
+	void typeCodeUsesQuizChoicesWhenPresent() {
+		TasteProfileCalculator calculator = newCalculator();
+		// 짭짤 · 쫄깃 · 심플 · 트렌디 — 요약 축으로는 맛 +1, 식감 0 이라 축만으로는 P·F 가 된다
+		TasteAxis quizAxis = axis(1, 0, 1, 1);
+		List<QuizChoice> choices = List.of(QuizChoice.SALTY, QuizChoice.CHEWY, QuizChoice.SIMPLE, QuizChoice.TRENDY);
+
+		TasteProfileSnapshot withChoices = calculator.calculate(List.of(), quizAxis, choices, NOW, 0, Map.of(), NOW);
+		TasteProfileSnapshot withoutChoices = calculator.calculate(List.of(), quizAxis, List.of(), NOW, 0, Map.of(),
+			NOW);
+
+		assertThat(withChoices.typeCode()).isEqualTo("TYLN");
+		// 같은 축인데 갈래를 모르면 짭짤·쫄깃이 사라진다 — 라벨이 없으면 담을 수 없는 정보다
+		assertThat(withoutChoices.typeCode()).isEqualTo("PFLN");
 	}
 }
