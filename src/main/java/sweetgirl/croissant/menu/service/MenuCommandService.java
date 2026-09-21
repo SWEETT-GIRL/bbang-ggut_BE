@@ -103,6 +103,7 @@ public class MenuCommandService {
 	}
 
 	public void likeMenu(Long menuId, Long memberId) {
+		memberReader.requireLoggedIn(memberId);
 		Menu menu = menuRepository.findById(menuId)
 			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
 
@@ -118,6 +119,7 @@ public class MenuCommandService {
 	}
 
 	public void cancelMenuLike(Long menuId, Long memberId) {
+		memberReader.requireLoggedIn(memberId);
 		Menu menu = menuRepository.findById(menuId)
 			.orElseThrow(() -> new MenuException(MenuErrorCode.MENU_NOT_FOUND));
 

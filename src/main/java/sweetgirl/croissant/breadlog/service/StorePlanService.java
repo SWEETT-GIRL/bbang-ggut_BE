@@ -58,6 +58,7 @@ public class StorePlanService {
 	}
 
 	public void delete(Long memberId, Long storeId) {
+		memberReader.requireLoggedIn(memberId);
 		memberReader.getMember(memberId);
 		storePlanRepository.findById(new StorePlanId(memberId, storeId))
 			.ifPresent(storePlanRepository::delete);

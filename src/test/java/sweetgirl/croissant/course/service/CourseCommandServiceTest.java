@@ -58,6 +58,7 @@ import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.repository.StoreRepository;
@@ -91,6 +92,8 @@ class CourseCommandServiceTest {
 	MemberRestrictionReader memberRestrictionReader;
 	@Mock
 	ApplicationEventPublisher eventPublisher;
+	@Mock
+	MemberReader memberReader;
 
 	@InjectMocks
 	CourseCommandService courseCommandService;
