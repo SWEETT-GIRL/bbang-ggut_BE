@@ -56,6 +56,14 @@ public class UserTasteProfile extends BaseTimeEntity {
 	@Column(name = "type_source", length = 10)
 	private TasteTypeSource typeSource;
 
+	/**
+	 * 취향 라벨 아홉 값(0~1) — 가게 store_recommendation_feature 와 같은 이름·방향으로 맞댄다.
+	 * 아홉이 함께 차거나 함께 비고, 전부 비면 Hibernate 가 null 로 돌려준다(= 근거 없음).
+	 * axis 와 부호가 반대인 자리가 있다({@link TasteLabelVector} 주석) — 축 값을 여기에 옮기지 않는다.
+	 */
+	@Embedded
+	private TasteLabelVector labels;
+
 	/** [{"axis": "taste", "choice": "SALTY"}, …] 4문항 또는 8문항. 다시 풀면 덮어쓴다. */
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(name = "quiz_answers")
