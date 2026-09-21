@@ -22,6 +22,7 @@ import jakarta.persistence.EntityManager;
 import sweetgirl.croissant.config.persistence.JpaConfig;
 import sweetgirl.croissant.personalization.config.PersonalizationProperties;
 import sweetgirl.croissant.personalization.dto.request.BbtiQuizAnswer;
+import sweetgirl.croissant.personalization.dto.request.BbtiQuizRequest;
 import sweetgirl.croissant.personalization.dto.response.BbtiResultResponse;
 import sweetgirl.croissant.personalization.entity.UserTasteProfile;
 import sweetgirl.croissant.personalization.enums.InteractionType;
@@ -156,11 +157,12 @@ class UserTasteProfileCommandServiceLabTest {
 	@DisplayName("검사 제출: 빈 행 INSERT → FOR UPDATE 뒤 검사 ×3 과 저장 가게를 합산해 프로필과 응답이 같은 타입이다")
 	void quizSubmit_locksRowAndMergesSignals() {
 		insertSignal(InteractionType.SAVE, stores.get(0), null, null, LocalDateTime.now().minusDays(1));
-		List<BbtiQuizAnswer> allB = List.of(new BbtiQuizAnswer(QuizAxis.TASTE, QuizChoice.B),
-			new BbtiQuizAnswer(QuizAxis.TEXTURE, QuizChoice.B), new BbtiQuizAnswer(QuizAxis.FILLING, QuizChoice.B),
-			new BbtiQuizAnswer(QuizAxis.VIBE, QuizChoice.B));
+		List<BbtiQuizAnswer> allPlus = List.of(new BbtiQuizAnswer(QuizAxis.TASTE, QuizChoice.PLAIN),
+			new BbtiQuizAnswer(QuizAxis.TEXTURE, QuizChoice.CRISP),
+			new BbtiQuizAnswer(QuizAxis.FILLING, QuizChoice.SIMPLE),
+			new BbtiQuizAnswer(QuizAxis.VIBE, QuizChoice.TRENDY));
 
-		BbtiResultResponse response = quizCommandService.submit(memberId, allB);
+		BbtiResultResponse response = quizCommandService.submit(memberId, new BbtiQuizRequest(2, allPlus));
 
 		UserTasteProfile profile = reload();
 		assertThat(profile.hasTakenQuiz()).isTrue();

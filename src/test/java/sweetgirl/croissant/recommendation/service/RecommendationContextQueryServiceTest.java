@@ -102,7 +102,7 @@ class RecommendationContextQueryServiceTest {
 	private static UserTasteProfile typedProfile() {
 		UserTasteProfile profile = UserTasteProfile.createEmpty(MEMBER_ID, LocalDateTime.of(2026, 9, 1, 4, 0));
 		BigDecimal one = new BigDecimal("1.000");
-		profile.applyQuiz(List.of(Map.of("axis", "taste", "choice", "B")), TasteAxis.of(one, one, one, one), "PCLN",
+		profile.applyQuiz(List.of(Map.of("axis", "taste", "choice", "B")), 2, TasteAxis.of(one, one, one, one), "PCLN",
 			LocalDateTime.of(2026, 9, 13, 10, 0));
 		return profile;
 	}

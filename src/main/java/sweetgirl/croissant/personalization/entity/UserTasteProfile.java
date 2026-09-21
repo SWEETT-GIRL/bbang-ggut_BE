@@ -56,7 +56,7 @@ public class UserTasteProfile extends BaseTimeEntity {
 	@Column(name = "type_source", length = 10)
 	private TasteTypeSource typeSource;
 
-	/** [{"axis": "taste", "choice": "A"}, …] 4문항 또는 8문항. 다시 풀면 덮어쓴다. */
+	/** [{"axis": "taste", "choice": "SALTY"}, …] 4문항 또는 8문항. 다시 풀면 덮어쓴다. */
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(name = "quiz_answers")
 	private List<Map<String, String>> quizAnswers;
@@ -64,6 +64,13 @@ public class UserTasteProfile extends BaseTimeEntity {
 	/** 마지막으로 검사를 푼 시각. 검사한 적 없으면 null. */
 	@Column(name = "quiz_answered_at")
 	private LocalDateTime quizAnsweredAt;
+
+	/**
+	 * 푼 검사의 판 — 1 은 축마다 두 갈래(A/B), 2 는 갈래 이름 11개. 앱이 보낸 값을 그대로 적고, 안 보내면 null 이다.
+	 * 저장된 선택지 이름으로도 지금은 판이 드러나지만, 판이 하나 더 생기면 값만으로 구분되지 않는다.
+	 */
+	@Column(name = "quiz_version")
+	private Integer quizVersion;
 
 	/** 가게 태그 상속 합 (0~1). 키는 store_profile 과 같은 한글 태그 이름. */
 	@JdbcTypeCode(SqlTypes.JSON)
@@ -151,18 +158,22 @@ public class UserTasteProfile extends BaseTimeEntity {
 	}
 
 	/** 검사 응답과 시각만 남긴다 — 축·타입·version 은 건드리지 않는다. 합산(recompute)이 뒤따르고, 값이 바뀌면 그때 version 이 오른다. */
-	public void recordQuizAnswers(List<Map<String, String>> quizAnswers, LocalDateTime answeredAt) {
+	public void recordQuizAnswers(List<Map<String, String>> quizAnswers, Integer quizVersion,
+			LocalDateTime answeredAt) {
 		this.quizAnswers = quizAnswers != null ? new ArrayList<>(quizAnswers) : null;
+		this.quizVersion = quizVersion;
 		this.quizAnsweredAt = answeredAt;
 	}
 
 	/** 검사 응답을 저장하고 축·타입을 검사 결과로 바꾼다. 합산이 실패했을 때의 폴백 — 검사가 타입을 결정한다. */
 	public void applyQuiz(
 			List<Map<String, String>> quizAnswers,
+			Integer quizVersion,
 			TasteAxis axis,
 			String typeCode,
 			LocalDateTime answeredAt) {
 		this.quizAnswers = quizAnswers != null ? new ArrayList<>(quizAnswers) : null;
+		this.quizVersion = quizVersion;
 		this.quizAnsweredAt = answeredAt;
 		this.axis = axis;
 		this.typeCode = typeCode;

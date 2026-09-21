@@ -205,7 +205,7 @@ class RecommendationSchemaLabTest {
 				new BigDecimal("0.200")),
 			"PCLN", TasteTypeSource.SIGNAL, Map.of("머물기", 0.7), new String[] {"소금빵"}, new String[0],
 			TasteUserType.PLANNER, 4, 2, COMPUTED_AT);
-		profile.applyQuiz(List.of(Map.of("axis", "taste", "choice", "B")), profile.getAxis(), "PFLN", COMPUTED_AT);
+		profile.applyQuiz(List.of(Map.of("axis", "taste", "choice", "B")), 2, profile.getAxis(), "PFLN", COMPUTED_AT);
 		userTasteProfileRepository.save(profile);
 		flushAndClear();
 

@@ -22,6 +22,7 @@ import sweetgirl.croissant.personalization.entity.TasteAxis;
 import sweetgirl.croissant.personalization.enums.GenericKind;
 import sweetgirl.croissant.personalization.enums.InteractionType;
 import sweetgirl.croissant.personalization.enums.QuizAxis;
+import sweetgirl.croissant.personalization.enums.QuizChoice;
 import sweetgirl.croissant.personalization.enums.TasteTag;
 import sweetgirl.croissant.personalization.enums.TasteTypeSource;
 import sweetgirl.croissant.personalization.enums.TasteUserType;
@@ -73,8 +74,9 @@ public class TasteProfileCalculator {
 	 * @param visitCount 유형 창 안 방문 체크 수(course_store_visits)
 	 * @param kindBaseRates 종류별 전체 빵집 비율(대표 종류 기준) — 추정 종류의 lift 분모. 비어 있으면 추정 종류도 비운다
 	 */
-	public TasteProfileSnapshot calculate(List<TasteSignal> signals, TasteAxis quizAxis, LocalDateTime quizAnsweredAt,
-			int visitCount, Map<String, Double> kindBaseRates, LocalDateTime now) {
+	public TasteProfileSnapshot calculate(List<TasteSignal> signals, TasteAxis quizAxis,
+			List<QuizChoice> quizChoices, LocalDateTime quizAnsweredAt, int visitCount,
+			Map<String, Double> kindBaseRates, LocalDateTime now) {
 		PersonalizationProperties.Profile profile = personalizationProperties.getProfile();
 		List<Weighted> weighted = effectiveWeights(signals, now, profile);
 		TasteAxis axis = null;
@@ -113,7 +115,14 @@ public class TasteProfileCalculator {
 				clampToAxisScale(axisSum[2] / denominator), clampToAxisScale(axisSum[3] / denominator));
 			typeSource = signalDenominator > 0 ? TasteTypeSource.SIGNAL : TasteTypeSource.QUIZ;
 		}
-		String typeCode = axis != null ? axis.typeCode() : null;
+		// 검사를 푼 회원은 고른 갈래가 맛·식감 글자를 정한다(48타입). 짭짤·풍미·쫄깃은 −1~+1 축 하나로
+		// 표현되지 않아 축만으로는 나올 수 없고, 신호만 있는 회원은 예전처럼 16타입 안에 남는다.
+		String typeCode = null;
+		if (axis != null) {
+			typeCode = quizChoices == null || quizChoices.isEmpty()
+				? axis.typeCode()
+				: QuizAxisRule.typeCodeOf(quizChoices, axis);
+		}
 		int strongStores = strongStoreCount(signals);
 		return new TasteProfileSnapshot(axis, typeCode, typeSource, weightedTags(weighted),
 			topKinds(signals, now, profile), inferredKinds(weighted, strongStores, kindBaseRates, profile),

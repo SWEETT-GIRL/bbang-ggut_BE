@@ -445,7 +445,7 @@ class ReasonExperimentServiceTest {
 	@DisplayName("유형이 있는 회원이어도 모델에 보내는 프롬프트에 유형 코드 · 이름이 없다")
 	void prompt_hasNoTypeEvenWhenMemberHasOne() {
 		UserTasteProfile quizzed = UserTasteProfile.createEmpty(MEMBER_ID, LocalDateTime.of(2026, 9, 19, 23, 0));
-		quizzed.applyQuiz(List.of(Map.of("axis", "taste", "choice", "A")),
+		quizzed.applyQuiz(List.of(Map.of("axis", "taste", "choice", "A")), 2,
 			TasteAxis.of(new BigDecimal("-1.000"), new BigDecimal("1.000"), new BigDecimal("-1.000"),
 				new BigDecimal("-1.000")),
 			"SCRO", LocalDateTime.of(2026, 9, 19, 23, 0));

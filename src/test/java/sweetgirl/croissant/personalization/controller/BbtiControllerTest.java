@@ -23,7 +23,11 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.personalization.code.PersonalizationErrorCode;
+import sweetgirl.croissant.personalization.code.PersonalizationErrorCode;
 import sweetgirl.croissant.personalization.dto.response.BbtiResultResponse;
+import sweetgirl.croissant.personalization.dto.response.TasteLabels;
+import sweetgirl.croissant.personalization.enums.QuizChoice;
+import sweetgirl.croissant.personalization.exception.PersonalizationException;
 import sweetgirl.croissant.personalization.exception.PersonalizationException;
 import sweetgirl.croissant.personalization.service.TasteQuizCommandService;
 
@@ -46,27 +50,69 @@ class BbtiControllerTest {
 	}
 
 	private static final String SHORT_QUIZ = """
-			{"answers": [
-				{"axis": "taste", "choice": "B"}, {"axis": "texture", "choice": "B"},
-				{"axis": "filling", "choice": "B"}, {"axis": "vibe", "choice": "B"}
+			{"quizVersion": 2, "answers": [
+				{"axis": "taste", "choice": "SALTY"}, {"axis": "texture", "choice": "CHEWY"},
+				{"axis": "filling", "choice": "SIMPLE"}, {"axis": "vibe", "choice": "TRENDY"}
+			]}
+			""";
+
+	/** 맛 문항에 식감 갈래를 넣은 요청 — 자리 문자(A/B)였다면 조용히 통과했을 자리다 */
+	private static final String MISMATCHED_QUIZ = """
+			{"quizVersion": 2, "answers": [
+				{"axis": "taste", "choice": "CHEWY"}, {"axis": "texture", "choice": "CRISP"},
+				{"axis": "filling", "choice": "SIMPLE"}, {"axis": "vibe", "choice": "TRENDY"}
 			]}
 			""";
 
 	@Test
-	@DisplayName("검사 응답을 보내면 typeCode·axis[4]·confidence 가 온다 — 유형 이름(typeLabel)은 없다(#760)")
+	@DisplayName("검사 응답을 보내면 typeCode·axis[4]·labels·confidence 가 온다 — 유형 이름(typeLabel)은 없다(#760)")
 	void submit_returnsContractShape() throws Exception {
 		BigDecimal one = new BigDecimal("1.000");
+		TasteLabels labels = TasteLabels.of(List.of(QuizChoice.SALTY, QuizChoice.CHEWY, QuizChoice.SIMPLE,
+			QuizChoice.TRENDY));
 		given(tasteQuizCommandService.submit(eq(null), any()))
-			.willReturn(new BbtiResultResponse("PCLN", List.of(one, one, one, one), 0.7));
+			.willReturn(new BbtiResultResponse("TYLN", List.of(one, one, one, one), labels, 0.7));
 
 		mockMvc.perform(post("/users/me/bbti").contentType(MediaType.APPLICATION_JSON).content(SHORT_QUIZ))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true))
-			.andExpect(jsonPath("$.data.typeCode").value("PCLN"))
+			.andExpect(jsonPath("$.data.typeCode").value("TYLN"))
 			.andExpect(jsonPath("$.data.typeLabel").doesNotExist())
 			.andExpect(jsonPath("$.data.axis.length()").value(4))
 			.andExpect(jsonPath("$.data.axis[0]").value(1.0))
+			.andExpect(jsonPath("$.data.labels.salty").value(1.0))
+			.andExpect(jsonPath("$.data.labels.chewy").value(1.0))
+			.andExpect(jsonPath("$.data.labels.sweet").value(0.0))
+			.andExpect(jsonPath("$.data.labels.aroma").value(0.0))
+			.andExpect(jsonPath("$.data.labels.filling").value(1.0))
+			.andExpect(jsonPath("$.data.labels.vibe").value(1.0))
 			.andExpect(jsonPath("$.data.confidence").value(0.7));
+	}
+
+	@Test
+	@DisplayName("맛 문항에 식감 갈래가 오면 400 이고 서비스는 불리지 않는다")
+	void submit_choiceFromAnotherAxis_isBadRequest() throws Exception {
+		given(tasteQuizCommandService.submit(eq(null), any()))
+			.willThrow(new PersonalizationException(PersonalizationErrorCode.QUIZ_CHOICE_AXIS_MISMATCH));
+
+		mockMvc.perform(post("/users/me/bbti").contentType(MediaType.APPLICATION_JSON).content(MISMATCHED_QUIZ))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.code").value("PERSONALIZATION400_5"));
+	}
+
+	@Test
+	@DisplayName("규칙에 없는 선택지 이름은 본문 파싱에서 400 — 옛 앱의 A/B 가 여기서 걸린다")
+	void submit_unknownChoiceName_isBadRequest() throws Exception {
+		String legacy = """
+				{"answers": [
+					{"axis": "taste", "choice": "A"}, {"axis": "texture", "choice": "B"},
+					{"axis": "filling", "choice": "A"}, {"axis": "vibe", "choice": "B"}
+				]}
+				""";
+
+		mockMvc.perform(post("/users/me/bbti").contentType(MediaType.APPLICATION_JSON).content(legacy))
+			.andExpect(status().isBadRequest());
 	}
 
 	@Test

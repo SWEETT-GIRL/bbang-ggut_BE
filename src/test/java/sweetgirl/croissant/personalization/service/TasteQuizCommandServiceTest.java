@@ -25,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import sweetgirl.croissant.personalization.code.PersonalizationErrorCode;
 import sweetgirl.croissant.personalization.config.PersonalizationProperties;
 import sweetgirl.croissant.personalization.dto.request.BbtiQuizAnswer;
+import sweetgirl.croissant.personalization.dto.request.BbtiQuizRequest;
 import sweetgirl.croissant.personalization.dto.response.BbtiResultResponse;
 import sweetgirl.croissant.personalization.entity.TasteAxis;
 import sweetgirl.croissant.personalization.entity.UserTasteProfile;
@@ -68,12 +69,13 @@ class TasteQuizCommandServiceTest {
 
 	/** 신호가 없는 회원의 합산 = 검사 축 그대로 — 진짜 서비스가 하는 일을 목이 흉내 낸다 */
 	private void mergeAppliesQuizAxis(UserTasteProfile profile) {
-		given(userTasteProfileCommandService.mergeSignals(eq(profile), any(TasteAxis.class), any(), any()))
+		given(userTasteProfileCommandService.mergeSignals(eq(profile), any(TasteAxis.class), any(), any(), any()))
 			.willAnswer(call -> {
 				TasteAxis quizAxis = call.getArgument(1);
-				profile.recompute(quizAxis, quizAxis.typeCode(), TasteTypeSource.QUIZ, Map.of(), null, new String[0],
-					null, 0, 0,
-					call.getArgument(3));
+				List<QuizChoice> choices = call.getArgument(2);
+				profile.recompute(quizAxis, QuizAxisRule.typeCodeOf(choices, quizAxis), TasteTypeSource.QUIZ,
+					Map.of(), null, new String[0], null, 0, 0,
+					call.getArgument(4));
 				return TasteProfileRefreshOutcome.RECOMPUTED;
 			});
 	}
@@ -84,8 +86,8 @@ class TasteQuizCommandServiceTest {
 		mergeAppliesQuizAxis(lockedEmptyProfile());
 		given(userTasteProfileRepository.save(any(UserTasteProfile.class))).willAnswer(call -> call.getArgument(0));
 
-		BbtiResultResponse result = tasteQuizCommandService.submit(MEMBER_ID,
-			shortQuiz(QuizChoice.B, QuizChoice.B, QuizChoice.B, QuizChoice.B));
+		BbtiResultResponse result = tasteQuizCommandService.submit(MEMBER_ID, new BbtiQuizRequest(2,
+			shortQuiz(QuizChoice.PLAIN, QuizChoice.CRISP, QuizChoice.SIMPLE, QuizChoice.TRENDY)));
 
 		assertThat(result.typeCode()).isEqualTo("PCLN");
 		assertThat(result.axis()).allSatisfy(value -> assertThat(value).isEqualByComparingTo("1.000"));
@@ -98,10 +100,10 @@ class TasteQuizCommandServiceTest {
 		assertThat(saved.getValue().getQuizAnsweredAt()).isNotNull();
 		assertThat(saved.getValue().getQuizAnswers()).hasSize(4)
 			.first()
-			.satisfies(stored -> assertThat(stored).containsEntry("axis", "taste").containsEntry("choice", "B"));
+			.satisfies(stored -> assertThat(stored).containsEntry("axis", "taste").containsEntry("choice", "PLAIN"));
 		assertThat(saved.getValue().getVersion()).isEqualTo(2); // 빈 행 1 → 합산 한 번
 		then(userTasteProfileCommandService).should().mergeSignals(eq(saved.getValue()), any(TasteAxis.class), any(),
-			any());
+			any(), any());
 	}
 
 	@Test
@@ -110,12 +112,12 @@ class TasteQuizCommandServiceTest {
 		mergeAppliesQuizAxis(lockedEmptyProfile());
 		given(userTasteProfileRepository.save(any(UserTasteProfile.class))).willAnswer(call -> call.getArgument(0));
 		List<BbtiQuizAnswer> answers = List.of(
-			answer(QuizAxis.TASTE, QuizChoice.A), answer(QuizAxis.TASTE, QuizChoice.B),
-			answer(QuizAxis.TEXTURE, QuizChoice.B), answer(QuizAxis.TEXTURE, QuizChoice.B),
-			answer(QuizAxis.FILLING, QuizChoice.A), answer(QuizAxis.FILLING, QuizChoice.A),
-			answer(QuizAxis.VIBE, QuizChoice.B), answer(QuizAxis.VIBE, QuizChoice.A));
+			answer(QuizAxis.TASTE, QuizChoice.SWEET), answer(QuizAxis.TASTE, QuizChoice.PLAIN),
+			answer(QuizAxis.TEXTURE, QuizChoice.CRISP), answer(QuizAxis.TEXTURE, QuizChoice.CRISP),
+			answer(QuizAxis.FILLING, QuizChoice.FULL), answer(QuizAxis.FILLING, QuizChoice.FULL),
+			answer(QuizAxis.VIBE, QuizChoice.TRENDY), answer(QuizAxis.VIBE, QuizChoice.CLASSIC));
 
-		BbtiResultResponse result = tasteQuizCommandService.submit(MEMBER_ID, answers);
+		BbtiResultResponse result = tasteQuizCommandService.submit(MEMBER_ID, new BbtiQuizRequest(2, answers));
 
 		assertThat(result.typeCode()).isEqualTo("SCRO");
 		assertThat(result.axis().get(0)).isEqualByComparingTo("0.000");
@@ -134,7 +136,8 @@ class TasteQuizCommandServiceTest {
 		mergeAppliesQuizAxis(existing);
 		given(userTasteProfileRepository.save(existing)).willReturn(existing);
 
-		tasteQuizCommandService.submit(MEMBER_ID, shortQuiz(QuizChoice.A, QuizChoice.A, QuizChoice.A, QuizChoice.A));
+		tasteQuizCommandService.submit(MEMBER_ID,
+			new BbtiQuizRequest(2, shortQuiz(QuizChoice.SWEET, QuizChoice.SOFT, QuizChoice.FULL, QuizChoice.CLASSIC)));
 
 		assertThat(existing.getTypeCode()).isEqualTo("SFRO");
 		assertThat(existing.getVersion()).isEqualTo(versionBefore + 1);
@@ -147,15 +150,15 @@ class TasteQuizCommandServiceTest {
 		UserTasteProfile profile = lockedEmptyProfile();
 		given(userTasteProfileRepository.save(profile)).willReturn(profile);
 		BigDecimal half = new BigDecimal("0.500");
-		given(userTasteProfileCommandService.mergeSignals(eq(profile), any(TasteAxis.class), any(), any()))
+		given(userTasteProfileCommandService.mergeSignals(eq(profile), any(TasteAxis.class), any(), any(), any()))
 			.willAnswer(call -> {
 				profile.recompute(TasteAxis.of(half, half, half.negate(), half), "PCRN", TasteTypeSource.SIGNAL,
 					Map.of(), null, new String[0], null, 3, 0, LocalDateTime.of(2026, 9, 18, 21, 0));
 				return TasteProfileRefreshOutcome.RECOMPUTED;
 			});
 
-		BbtiResultResponse result = tasteQuizCommandService.submit(MEMBER_ID,
-			shortQuiz(QuizChoice.B, QuizChoice.B, QuizChoice.B, QuizChoice.B));
+		BbtiResultResponse result = tasteQuizCommandService.submit(MEMBER_ID, new BbtiQuizRequest(2,
+			shortQuiz(QuizChoice.PLAIN, QuizChoice.CRISP, QuizChoice.SIMPLE, QuizChoice.TRENDY)));
 
 		assertThat(result.typeCode()).isEqualTo("PCRN");
 		assertThat(result.axis().get(2)).isEqualByComparingTo("-0.500");
@@ -166,12 +169,12 @@ class TasteQuizCommandServiceTest {
 	@DisplayName("합산이 가게 프로필 데이터 문제로 실패해도 검사는 저장된다 — 검사 축·타입으로 응답, 다음 배치가 다시 합산")
 	void submit_mergeFails_fallsBackToQuizAxis() {
 		UserTasteProfile profile = lockedEmptyProfile();
-		given(userTasteProfileCommandService.mergeSignals(eq(profile), any(TasteAxis.class), any(), any()))
+		given(userTasteProfileCommandService.mergeSignals(eq(profile), any(TasteAxis.class), any(), any(), any()))
 			.willThrow(new IllegalStateException("store_profile.tags 가 JSON 객체가 아니다"));
 		given(userTasteProfileRepository.save(profile)).willReturn(profile);
 
-		BbtiResultResponse result = tasteQuizCommandService.submit(MEMBER_ID,
-			shortQuiz(QuizChoice.B, QuizChoice.B, QuizChoice.B, QuizChoice.B));
+		BbtiResultResponse result = tasteQuizCommandService.submit(MEMBER_ID, new BbtiQuizRequest(2,
+			shortQuiz(QuizChoice.PLAIN, QuizChoice.CRISP, QuizChoice.SIMPLE, QuizChoice.TRENDY)));
 
 		assertThat(result.typeCode()).isEqualTo("PCLN");
 		assertThat(profile.getTypeSource()).isEqualTo(TasteTypeSource.QUIZ);
@@ -184,17 +187,17 @@ class TasteQuizCommandServiceTest {
 	@DisplayName("4·8개가 아니거나 축이 빠지거나 겹치면 입력 오류다")
 	void submit_rejectsWrongShape() {
 		List<BbtiQuizAnswer> fiveAnswers = List.of(
-			answer(QuizAxis.TASTE, QuizChoice.A), answer(QuizAxis.TEXTURE, QuizChoice.A),
-			answer(QuizAxis.FILLING, QuizChoice.A), answer(QuizAxis.VIBE, QuizChoice.A),
-			answer(QuizAxis.VIBE, QuizChoice.B));
+			answer(QuizAxis.TASTE, QuizChoice.SWEET), answer(QuizAxis.TEXTURE, QuizChoice.SOFT),
+			answer(QuizAxis.FILLING, QuizChoice.FULL), answer(QuizAxis.VIBE, QuizChoice.CLASSIC),
+			answer(QuizAxis.VIBE, QuizChoice.TRENDY));
 		List<BbtiQuizAnswer> duplicatedAxis = List.of(
-			answer(QuizAxis.TASTE, QuizChoice.A), answer(QuizAxis.TASTE, QuizChoice.B),
-			answer(QuizAxis.FILLING, QuizChoice.A), answer(QuizAxis.VIBE, QuizChoice.A));
+			answer(QuizAxis.TASTE, QuizChoice.SWEET), answer(QuizAxis.TASTE, QuizChoice.PLAIN),
+			answer(QuizAxis.FILLING, QuizChoice.FULL), answer(QuizAxis.VIBE, QuizChoice.CLASSIC));
 
-		assertThatThrownBy(() -> tasteQuizCommandService.submit(MEMBER_ID, fiveAnswers))
+		assertThatThrownBy(() -> tasteQuizCommandService.submit(MEMBER_ID, new BbtiQuizRequest(2, fiveAnswers)))
 			.isInstanceOfSatisfying(PersonalizationException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(PersonalizationErrorCode.QUIZ_ANSWERS_INVALID));
-		assertThatThrownBy(() -> tasteQuizCommandService.submit(MEMBER_ID, duplicatedAxis))
+		assertThatThrownBy(() -> tasteQuizCommandService.submit(MEMBER_ID, new BbtiQuizRequest(2, duplicatedAxis)))
 			.isInstanceOfSatisfying(PersonalizationException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(PersonalizationErrorCode.QUIZ_ANSWERS_INVALID));
 	}
