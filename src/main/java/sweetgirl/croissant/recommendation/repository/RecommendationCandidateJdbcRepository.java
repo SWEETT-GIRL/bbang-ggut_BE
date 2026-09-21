@@ -420,10 +420,16 @@ public class RecommendationCandidateJdbcRepository {
 		double cTexture = center ? score.getCenterTexture() : 0;
 		double cFilling = center ? score.getCenterFilling() : 0;
 		double cVibe = center ? score.getCenterVibe() : 0;
-		// 설정이 고른 쪽만 켠다. 둘 다 켜면 TASTE_COSINE 이 두 식을 더해 취향을 두 번 세고, tasteFit 이 −1~1 을
+		// 둘 중 하나만 켠다. 둘 다 켜면 TASTE_COSINE 이 두 식을 더해 취향을 두 번 세고, tasteFit 이 −1~1 을
 		// 벗어나 취향 후보 임계 판정까지 깨진다(실측: 라벨만 1.0 → 축까지 주면 1.9999999999999998).
 		// 실제 회원은 축과 라벨을 둘 다 갖기 때문에 이 자리를 안 막으면 LABEL 모드에서 반드시 겹친다.
-		boolean hasAxis = score.getTasteSource() == TasteSource.AXIS && taste.hasAxis();
+		//
+		// LABEL 을 켰는데 라벨을 못 쓰면 축으로 되돌아간다 — 취향 항을 통째로 0 으로 두면 전원이 인기순으로
+		// 같은 코스를 받아 개인화가 늘기는커녕 사라진다. 설정 하나로 서비스 품질이 떨어지면 안 된다.
+		// 라벨을 못 쓰는 경우는 셋이다: 표가 비어 중심화 상수를 못 읽었거나, 회원에게 라벨이 없거나
+		// (배치 전·신호도 검사도 없음), 설정이 AXIS 다.
+		boolean useLabel = useLabel(taste);
+		boolean hasAxis = !useLabel && taste.hasAxis();
 		params
 			.addValue("hasAxis", hasAxis)
 			.addValue("uTaste", hasAxis ? taste.taste() - cTaste : 0d)
@@ -449,9 +455,8 @@ public class RecommendationCandidateJdbcRepository {
 	 * </ul>
 	 */
 	private MapSqlParameterSource labelParams(MapSqlParameterSource params, TasteQuery taste) {
-		double[] centers = recommendationProperties.getScore().getTasteSource() == TasteSource.LABEL
-			? labelCenterParams.current() : null;
-		boolean hasLabels = centers != null && taste.hasLabels();
+		boolean hasLabels = useLabel(taste);
+		double[] centers = hasLabels ? labelCenterParams.current() : null;
 		params.addValue("hasLabels", hasLabels);
 		for (int i = 0; i < TasteLabelVector.DIMENSION; i++) {
 			double center = hasLabels ? centers[i] : 0d;
@@ -459,6 +464,16 @@ public class RecommendationCandidateJdbcRepository {
 			params.addValue("m" + i, center);
 		}
 		return params;
+	}
+
+	/**
+	 * 이 요청을 라벨로 낼 수 있나. 셋이 다 맞아야 한다 — 설정이 LABEL, 회원에게 라벨이 있음, 중심화 상수를
+	 * 읽을 수 있음(표가 비어 있지 않음). 하나라도 어긋나면 축으로 돌아간다.
+	 */
+	private boolean useLabel(TasteQuery taste) {
+		return recommendationProperties.getScore().getTasteSource() == TasteSource.LABEL
+			&& taste.hasLabels()
+			&& labelCenterParams.current() != null;
 	}
 
 	private CandidateStoreRow mapRow(ResultSet rs, int rowNum) throws SQLException {

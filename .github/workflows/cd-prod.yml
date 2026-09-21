@@ -3,6 +3,9 @@ name: CD - Production
 on:
   push:
     branches: [ main ]
+  # 코드 변경 없이 설정만 바꿔 다시 띄울 때 — Repository variables 를 고친 뒤 여기서 수동 실행한다.
+  # 이게 없으면 변수를 바꿔도 다음 main 머지까지 반영되지 않는다(장애 때 되돌릴 방법이 없다는 뜻이다).
+  workflow_dispatch:
 
 # 배포 알림의 PR 타이틀 조회(gh api …/pulls)에 필요 — 없으면 403으로 에러 본문이 제목에 섞인다
 permissions:
@@ -61,6 +64,16 @@ jobs:
           google.places.api-key=${GOOGLE_PLACES_API_KEY}
 
           gemini.api.key=${GEMINI_API_KEY}
+
+          # 취향 점수를 무엇으로 낼지 (#783) — AXIS 는 4축 코사인, LABEL 은 라벨 아홉 값 코사인.
+          # Repository variables 의 PROD_TASTE_SOURCE 로 켜고 끈다(Secrets 아님 — 숨길 값이 아니고,
+          # Secret 이면 배포 로그에서 ***로 가려져 어느 쪽으로 떴는지 확인할 수 없다).
+          # 변수가 없으면 AXIS 라, 지워져도 기존 동작으로 돌아간다.
+          #
+          # LABEL 로 켜도 라벨을 못 쓰는 회원은 축으로 돈다 — 가게 라벨 적재 전이거나 프로필 배치 전이어도
+          # 개인화가 사라지지 않는다. 다만 그 상태로 켜면 아무도 라벨로 돌지 않으므로, 켜기 전에
+          # store_recommendation_feature 적재와 profiles/refresh 를 먼저 끝낸다.
+          recommendation.score.taste-source=${{ vars.PROD_TASTE_SOURCE || 'AXIS' }}
 
           # 이유 문장 LLM 실험(#662) — 없으면 그 벤더만 실험에서 빠진다
           openai.api.key=${OPENAI_API_KEY:}
