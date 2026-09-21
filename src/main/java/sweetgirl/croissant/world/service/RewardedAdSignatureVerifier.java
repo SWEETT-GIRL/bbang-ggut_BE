@@ -4,11 +4,13 @@ import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.spec.X509EncodedKeySpec;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -34,7 +36,18 @@ public class RewardedAdSignatureVerifier {
 
 	private static final String SIGNATURE_PARAM = "&signature=";
 
-	private final RestClient restClient = RestClient.create();
+	/**
+	 * 검증 키를 받아오는 데 오래 걸리면 광고 콜백 스레드가 묶인다. 콜백은 몰려서 오므로
+	 * 기다리느니 그 건을 버리는 편이 낫다 — 구글이 다시 보낸다.
+	 */
+	private final RestClient restClient = RestClient.builder()
+		.requestFactory(new SimpleClientHttpRequestFactory() {
+			{
+				setConnectTimeout((int)Duration.ofSeconds(3).toMillis());
+				setReadTimeout((int)Duration.ofSeconds(5).toMillis());
+			}
+		})
+		.build();
 	private final AtomicReference<Map<Long, PublicKey>> cachedKeys = new AtomicReference<>(Map.of());
 
 	@Value("${admob.ssv.verifier-keys-url:https://gstatic.com/admob/reward/verifier-keys.json}")

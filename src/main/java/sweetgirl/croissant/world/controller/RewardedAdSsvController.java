@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.world.service.RewardedAdSsvService;
 
 /**
@@ -19,6 +20,7 @@ import sweetgirl.croissant.world.service.RewardedAdSsvService;
  *
  * <p>GET 인 이유: 구글 규격이 GET 이다. 설계 문서에는 POST 로 적혀 있었다.
  */
+@Slf4j
 @Tag(name = "[Callback] AdMob 보상 검증", description = "구글이 부르는 서버 보상 검증 콜백")
 @RestController
 @RequiredArgsConstructor
@@ -31,7 +33,13 @@ public class RewardedAdSsvController {
 		+ "(memberId:characterCode)로 온다. 앱이 보내는 요청은 적립하지 않는다.")
 	@GetMapping("/ssv")
 	public ResponseEntity<Void> verify(HttpServletRequest request) {
-		rewardedAdSsvService.credit(request.getQueryString());
+		try {
+			rewardedAdSsvService.credit(request.getQueryString());
+		} catch (RuntimeException exception) {
+			// 여기서 4xx · 5xx 가 나가면 구글이 같은 콜백을 끝없이 재시도한다. 그 편이 못 받은 것보다 나쁘다 —
+			// 재시도가 쌓이는 동안 진짜 콜백까지 밀린다. 못 받은 보상은 로그를 보고 어드민으로 지급한다.
+			log.error("[AdMob SSV] 처리하다 실패했다 - query={}", request.getQueryString(), exception);
+		}
 		return ResponseEntity.ok().build();
 	}
 }
