@@ -1,5 +1,6 @@
 package sweetgirl.croissant.recommendation.repository;
 
+import java.math.BigDecimal;
 import java.sql.Array;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -22,6 +23,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.personalization.entity.TasteLabelVector;
 import sweetgirl.croissant.personalization.enums.TasteTag;
 import sweetgirl.croissant.recommendation.config.RecommendationProperties;
 import sweetgirl.croissant.recommendation.entity.CourseArea;
@@ -108,10 +110,13 @@ public class RecommendationCandidateJdbcRepository {
 				img.thumbnail_key,
 				p.axis_taste, p.axis_texture, p.axis_filling, p.axis_vibe, p.tags::text AS tags, p.kinds,
 				p.signature_kinds,
+				f.taste_sweet, f.taste_plain, f.taste_salty, f.taste_aroma,
+				f.tex_soft, f.tex_crisp, f.tex_chewy, f.filling_rich, f.vibe_trendy,
 				sc.cosine, sc.score,
 				COUNT(*) FILTER (WHERE sc.cosine > :tasteThreshold) OVER () AS taste_candidate_count
 			FROM store s
 			JOIN store_profile p ON p.store_id = s.id AND p.bakery_score >= :minBakeryScore
+			LEFT JOIN store_recommendation_feature f ON f.store_id = s.id
 			LEFT JOIN LATERAL (
 				SELECT COALESCE(f.resized_key_320, f.aws_key) AS thumbnail_key
 				FROM store_image_file f
@@ -413,7 +418,30 @@ public class RecommendationCandidateJdbcRepository {
 			nullableDouble(rs, "axis_vibe"),
 			readTags(rs.getString("tags")),
 			readKinds(rs.getArray("kinds")),
-			readKinds(rs.getArray("signature_kinds")));
+			readKinds(rs.getArray("signature_kinds")),
+			readLabels(rs));
+	}
+
+	/**
+	 * 아홉 값 중 하나라도 비면 통째로 null — DB CHECK 가 "함께 차거나 함께 빈다" 를 지키므로 정상 경로에서는
+	 * 전부 있거나 전부 없다. 여기서 섞인 행을 받으면 계약이 깨진 것이라 벡터로 쓰지 않는다.
+	 */
+	private static TasteLabelVector readLabels(ResultSet rs) throws SQLException {
+		BigDecimal sweet = nullableDecimal(rs, "taste_sweet");
+		if (sweet == null) {
+			return null;
+		}
+		TasteLabelVector labels = TasteLabelVector.of(sweet,
+			nullableDecimal(rs, "taste_plain"), nullableDecimal(rs, "taste_salty"),
+			nullableDecimal(rs, "taste_aroma"), nullableDecimal(rs, "tex_soft"),
+			nullableDecimal(rs, "tex_crisp"), nullableDecimal(rs, "tex_chewy"),
+			nullableDecimal(rs, "filling_rich"), nullableDecimal(rs, "vibe_trendy"));
+		return labels.isComplete() ? labels : null;
+	}
+
+	private static BigDecimal nullableDecimal(ResultSet rs, String column) throws SQLException {
+		BigDecimal value = rs.getBigDecimal(column);
+		return rs.wasNull() ? null : value;
 	}
 
 	private static String nullableString(ResultSet rs, String column) throws SQLException {
