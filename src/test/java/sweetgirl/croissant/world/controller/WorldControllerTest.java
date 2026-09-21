@@ -28,6 +28,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.world.code.WorldErrorCode;
 import sweetgirl.croissant.world.dto.response.MemberWorldResponse;
+import sweetgirl.croissant.world.dto.response.WorldRouletteResponse;
 import sweetgirl.croissant.world.exception.WorldException;
 import sweetgirl.croissant.world.service.WorldCommandService;
 import sweetgirl.croissant.world.service.WorldQueryService;
@@ -115,6 +116,28 @@ class WorldControllerTest {
 		mockMvc.perform(post("/members/me/world/characters/quoka/select"))
 			.andExpect(status().isForbidden())
 			.andExpect(jsonPath("$.code").value("WORLD403_1"));
+	}
+
+	@Test
+	@DisplayName("룰렛 결과로 뽑힌 친구를 내린다")
+	void returnsRouletteResult() throws Exception {
+		given(worldCommandService.spinRoulette(any(), eq("mars")))
+			.willReturn(new WorldRouletteResponse(List.of("frog")));
+
+		mockMvc.perform(post("/members/me/world/planets/mars/roulette"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.characterCodes[0]").value("frog"));
+	}
+
+	@Test
+	@DisplayName("이미 돌린 행성이면 409 다")
+	void rejectsSecondSpin() throws Exception {
+		given(worldCommandService.spinRoulette(any(), eq("mars")))
+			.willThrow(new WorldException(WorldErrorCode.WORLD_ROULETTE_ALREADY_DONE));
+
+		mockMvc.perform(post("/members/me/world/planets/mars/roulette"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("WORLD409_1"));
 	}
 
 	@Test

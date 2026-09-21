@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.world.dto.response.MemberWorldResponse;
+import sweetgirl.croissant.world.dto.response.WorldRouletteResponse;
 import sweetgirl.croissant.world.service.WorldCommandService;
 import sweetgirl.croissant.world.service.WorldQueryService;
 
@@ -41,6 +42,15 @@ public class WorldController {
 			@PathVariable String code) {
 		worldCommandService.selectCharacter(memberId, code);
 		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "행성 도착 룰렛", description = "그 행성에서 아직 못 만난 친구 중 서버가 뽑는다. "
+		+ "행성마다 한 번만 돌릴 수 있다.")
+	@PostMapping("/planets/{code}/roulette")
+	public ResponseEntity<ApiResponse<WorldRouletteResponse>> spinRoulette(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable String code) {
+		return ResponseEntity.ok(ApiResponse.ok(worldCommandService.spinRoulette(memberId, code)));
 	}
 
 	@Operation(summary = "첫 친구 연출 확인", description = "처음 본 때를 남긴다. 두 번 불러도 그 때가 덮이지 않는다.")

@@ -1,6 +1,8 @@
 package sweetgirl.croissant.world.service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -11,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.world.code.WorldErrorCode;
+import sweetgirl.croissant.world.dto.response.WorldPlanetResponse;
+import sweetgirl.croissant.world.dto.response.WorldRouletteResponse;
 import sweetgirl.croissant.world.entity.MemberCharacter;
 import sweetgirl.croissant.world.entity.MemberCharacterId;
 import sweetgirl.croissant.world.entity.MemberPlanetArrival;
@@ -65,6 +69,60 @@ public class WorldCommandService {
 		}
 
 		memberWorld.selectCharacter(characterCode);
+	}
+
+	/**
+	 * 행성 도착 룰렛. <b>뽑기는 서버가 한다</b> — 앱이 뽑으면 결과를 앱이 정하게 된다.
+	 *
+	 * <p>검사 순서에 뜻이 있다. 후보가 남았는지를 <b>돌린 것으로 표시하기 전에</b> 본다. 순서를
+	 * 뒤집으면 줄 친구가 없는 호출이 룰렛만 태워 버린다.
+	 */
+	public WorldRouletteResponse spinRoulette(Long memberId, String planetCode) {
+		WorldPlanetResponse planet = worldCatalogService.getCatalog().planets().stream()
+			.filter(candidate -> candidate.code().equals(planetCode))
+			.findFirst()
+			.orElseThrow(() -> new WorldException(WorldErrorCode.WORLD_PLANET_NOT_FOUND));
+		if (planet.rouletteSize() <= 0) {
+			throw new WorldException(WorldErrorCode.WORLD_ROULETTE_NOT_AVAILABLE);
+		}
+		requireArrived(memberId, planetCode);
+
+		List<String> candidates = sleepingCandidates(memberId, planetCode);
+		if (candidates.isEmpty()) {
+			throw new WorldException(WorldErrorCode.WORLD_NO_SLEEPING_FRIEND);
+		}
+
+		if (memberPlanetArrivalRepository.markRouletteSpun(memberId, planetCode) == 0) {
+			throw new WorldException(WorldErrorCode.WORLD_ROULETTE_ALREADY_DONE);
+		}
+
+		Collections.shuffle(candidates);
+		List<String> awakened = candidates.subList(0, Math.min(planet.rouletteSize(), candidates.size()));
+		awakened.forEach(characterCode -> memberCharacterRepository
+			.grantIfAbsent(memberId, characterCode, AcquiredBy.ROULETTE.name()));
+		return new WorldRouletteResponse(List.copyOf(awakened));
+	}
+
+	private void requireArrived(Long memberId, String planetCode) {
+		boolean arrived = memberPlanetArrivalRepository.findAllByIdMemberId(memberId).stream()
+			.anyMatch(arrival -> arrival.planetCode().equals(planetCode));
+		if (!arrived) {
+			throw new WorldException(WorldErrorCode.WORLD_PLANET_NOT_REACHED);
+		}
+	}
+
+	/** 그 행성에 사는 캐릭터 중 아직 깨어나지 않은 것. 카탈로그에서 빠진 캐릭터는 후보가 아니다. */
+	private List<String> sleepingCandidates(Long memberId, String planetCode) {
+		Set<String> awake = memberCharacterRepository.findAllByIdMemberId(memberId).stream()
+			.filter(MemberCharacter::isAwake)
+			.map(MemberCharacter::characterCode)
+			.collect(Collectors.toSet());
+
+		return new ArrayList<>(worldCatalogService.getCatalog().characters().stream()
+			.filter(character -> character.planet().equals(planetCode))
+			.map(character -> character.code())
+			.filter(characterCode -> !awake.contains(characterCode))
+			.toList());
 	}
 
 	/** 첫 친구 연출을 봤다고 표시한다. 두 번 불러도 처음 본 때가 남는다. */

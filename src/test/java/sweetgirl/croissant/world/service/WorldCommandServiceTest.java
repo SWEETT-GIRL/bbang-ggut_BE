@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
@@ -22,11 +23,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.world.dto.response.WorldCatalogResponse;
+import sweetgirl.croissant.world.dto.response.WorldCharacterResponse;
+import sweetgirl.croissant.world.dto.response.WorldPlanetResponse;
+import sweetgirl.croissant.world.dto.response.WorldRouletteResponse;
 import sweetgirl.croissant.world.entity.MemberCharacterId;
 import sweetgirl.croissant.world.entity.MemberWorld;
 import sweetgirl.croissant.world.entity.WorldFixtures;
 import sweetgirl.croissant.world.enums.AcquiredBy;
 import sweetgirl.croissant.world.enums.CharacterStatus;
+import sweetgirl.croissant.world.enums.PlanetGroup;
 import sweetgirl.croissant.world.exception.WorldException;
 import sweetgirl.croissant.world.repository.MemberCharacterRepository;
 import sweetgirl.croissant.world.repository.MemberPlanetArrivalRepository;
@@ -199,6 +204,110 @@ class WorldCommandServiceTest {
 			worldCommandService.welcome(MEMBER_ID);
 
 			assertThat(memberWorld.getWelcomedAt()).isEqualTo(firstSeen);
+		}
+	}
+
+	/** 지구는 룰렛이 없고(마스코트로 줌) 화성은 한 명을 준다. */
+	private static final WorldCatalogResponse CATALOG = new WorldCatalogResponse(
+		1,
+		List.of(planet("earth", 1, 0), planet("mars", 2, 1)),
+		List.of(
+			new WorldCharacterResponse("dog", "빵댕이", "earth", 1, true, Map.of()),
+			new WorldCharacterResponse("chick", "삐약이", "mars", 1, false, Map.of()),
+			new WorldCharacterResponse("frog", "개굴이", "mars", 2, false, Map.of())));
+
+	private static WorldPlanetResponse planet(String code, int sortOrder, int rouletteSize) {
+		return new WorldPlanetResponse(
+			code, code, PlanetGroup.SOLAR, sortOrder, 10, null, false,
+			rouletteSize, 2, true, null, List.of());
+	}
+
+	@Nested
+	@DisplayName("행성 도착 룰렛")
+	class Roulette {
+
+		private void givenArrivedAtMars() {
+			given(worldCatalogService.getCatalog()).willReturn(CATALOG);
+			given(memberPlanetArrivalRepository.findAllByIdMemberId(MEMBER_ID))
+				.willReturn(List.of(WorldFixtures.arrival(MEMBER_ID, "mars")));
+		}
+
+		@Test
+		@DisplayName("아직 못 만난 친구 중에서 뽑아 깨어난 채로 준다")
+		void grantsOneOfTheSleepingFriends() {
+			givenArrivedAtMars();
+			given(memberCharacterRepository.findAllByIdMemberId(MEMBER_ID)).willReturn(List.of(
+				WorldFixtures.memberCharacter(
+					MEMBER_ID, "chick", CharacterStatus.AWAKE, 0, AcquiredBy.ROULETTE)));
+			given(memberPlanetArrivalRepository.markRouletteSpun(MEMBER_ID, "mars")).willReturn(1);
+
+			WorldRouletteResponse response = worldCommandService.spinRoulette(MEMBER_ID, "mars");
+
+			// 이미 가진 chick 은 후보가 아니므로 frog 만 남는다
+			assertThat(response.characterCodes()).containsExactly("frog");
+			then(memberCharacterRepository).should().grantIfAbsent(MEMBER_ID, "frog", "ROULETTE");
+		}
+
+		@Test
+		@DisplayName("두 번째 호출은 이미 돌렸다고 막는다")
+		void rejectsSecondSpin() {
+			givenArrivedAtMars();
+			given(memberCharacterRepository.findAllByIdMemberId(MEMBER_ID)).willReturn(List.of());
+			given(memberPlanetArrivalRepository.markRouletteSpun(MEMBER_ID, "mars")).willReturn(0);
+
+			assertThatThrownBy(() -> worldCommandService.spinRoulette(MEMBER_ID, "mars"))
+				.isInstanceOf(WorldException.class)
+				.hasMessageContaining("이미 룰렛을 돌린");
+			then(memberCharacterRepository).should(never())
+				.grantIfAbsent(any(), anyString(), anyString());
+		}
+
+		@Test
+		@DisplayName("닿지 않은 행성이면 막는다")
+		void rejectsUnreachedPlanet() {
+			given(worldCatalogService.getCatalog()).willReturn(CATALOG);
+			given(memberPlanetArrivalRepository.findAllByIdMemberId(MEMBER_ID)).willReturn(List.of());
+
+			assertThatThrownBy(() -> worldCommandService.spinRoulette(MEMBER_ID, "mars"))
+				.isInstanceOf(WorldException.class)
+				.hasMessageContaining("아직 닿지 않은 행성");
+		}
+
+		@Test
+		@DisplayName("줄 친구가 없으면 룰렛을 태우지 않는다")
+		void doesNotBurnTheRouletteWhenNobodyIsLeft() {
+			givenArrivedAtMars();
+			given(memberCharacterRepository.findAllByIdMemberId(MEMBER_ID)).willReturn(List.of(
+				WorldFixtures.memberCharacter(
+					MEMBER_ID, "chick", CharacterStatus.AWAKE, 0, AcquiredBy.ROULETTE),
+				WorldFixtures.memberCharacter(
+					MEMBER_ID, "frog", CharacterStatus.AWAKE, 0, AcquiredBy.AD)));
+
+			assertThatThrownBy(() -> worldCommandService.spinRoulette(MEMBER_ID, "mars"))
+				.isInstanceOf(WorldException.class)
+				.hasMessageContaining("만날 친구가 남아 있지 않");
+			// 돌린 것으로 표시했다면 다시는 못 돌린다 — 표시 전에 막아야 한다
+			then(memberPlanetArrivalRepository).should(never()).markRouletteSpun(any(), anyString());
+		}
+
+		@Test
+		@DisplayName("룰렛이 없는 행성이면 막는다 — 지구는 첫 친구를 마스코트로 준다")
+		void rejectsPlanetWithoutRoulette() {
+			given(worldCatalogService.getCatalog()).willReturn(CATALOG);
+
+			assertThatThrownBy(() -> worldCommandService.spinRoulette(MEMBER_ID, "earth"))
+				.isInstanceOf(WorldException.class)
+				.hasMessageContaining("돌릴 룰렛이 없");
+		}
+
+		@Test
+		@DisplayName("카탈로그에 없는 행성이면 예외다")
+		void rejectsUnknownPlanet() {
+			given(worldCatalogService.getCatalog()).willReturn(CATALOG);
+
+			assertThatThrownBy(() -> worldCommandService.spinRoulette(MEMBER_ID, "pluto"))
+				.isInstanceOf(WorldException.class)
+				.hasMessageContaining("그런 행성이 없습니다");
 		}
 	}
 
