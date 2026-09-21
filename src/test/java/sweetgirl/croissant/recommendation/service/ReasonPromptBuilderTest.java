@@ -216,6 +216,37 @@ class ReasonPromptBuilderTest {
 	}
 
 	@Test
+	@DisplayName("가게 빵 종류는 회원과 겹치는 것부터 — 뒤에 있어도 다섯 개 안에 들어온다 (#764)")
+	void buildA_putsOverlappingKindsFirst() {
+		// 가게가 준 순서(가나다순)로는 소금빵·케이크가 여섯째부터라 잘려 나갔다
+		CandidateStoreRow store = new CandidateStoreRow(1L, "희와제과", "전포동", 37.5, 127.05, null, 120, 3.4, 1.2,
+			0.7, 5, null, null, null, null, Map.of(),
+			List.of("고구마빵", "까눌레", "다쿠아즈", "단팥빵", "롤", "마들렌", "소금빵", "케이크"),
+			List.of("휘낭시에"));
+		TasteQuery taste = new TasteQuery(null, null, null, null, Map.of(), List.of("소금빵", "케이크"), 4, List.of());
+
+		String prompt = promptBuilder.build(ReasonPromptVariant.A, taste, List.of(store), Map.of());
+
+		// 겹치는 소금빵 · 케이크가 앞으로 오고, 나머지는 가게가 준 순서 그대로. 대표 종류(휘낭시에)는
+		// 이 가게 종류 목록에 없으므로 더해지지 않는다 — 순위를 올릴 뿐 없는 사실을 만들지 않는다
+		assertThat(prompt).contains("빵 종류: 소금빵, 케이크, 고구마빵, 까눌레, 다쿠아즈");
+	}
+
+	@Test
+	@DisplayName("겹치는 종류가 없으면 대표 종류가 먼저, 그다음 원래 순서")
+	void buildA_putsSignatureKindsNext() {
+		CandidateStoreRow store = new CandidateStoreRow(1L, "희와제과", "전포동", 37.5, 127.05, null, 120, 3.4, 1.2,
+			0.7, 5, null, null, null, null, Map.of(),
+			List.of("고구마빵", "까눌레", "다쿠아즈", "단팥빵", "롤", "마들렌"),
+			List.of("마들렌"));
+		TasteQuery taste = new TasteQuery(null, null, null, null, Map.of(), List.of("바게트"), 4, List.of());
+
+		String prompt = promptBuilder.build(ReasonPromptVariant.A, taste, List.of(store), Map.of());
+
+		assertThat(prompt).contains("빵 종류: 마들렌, 고구마빵, 까눌레, 다쿠아즈, 단팥빵");
+	}
+
+	@Test
 	@DisplayName("판 구분은 변형 이름과 프롬프트 내용에서 나온다 — 변형마다 다르고 컬럼(20자)에 들어간다")
 	void versionOf_isVariantAndContentHash() {
 		ReasonPromptBuilder builder = promptBuilder;
