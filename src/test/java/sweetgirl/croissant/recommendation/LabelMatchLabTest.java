@@ -248,4 +248,23 @@ class LabelMatchLabTest {
 			.stream()
 			.collect(java.util.stream.Collectors.toMap(CandidateStoreRow::storeId, CandidateStoreRow::tasteFit));
 	}
+
+	@Test
+	@DisplayName("[회귀] LABEL 을 켜도 라벨 없는 회원은 축으로 돈다 — 취향 항을 0 으로 두면 전원이 인기순이 된다")
+	void labelModeFallsBackToAxisWithoutLabels() {
+		Assumptions.assumeTrue(labelRows() > 0, "랩에 가게 라벨이 없다");
+		Area area = AREAS.get(0);
+		Member member = syntheticMembers().get(0);
+
+		// 라벨이 없는 회원(배치 전이거나 신호도 검사도 없음)이 LABEL 모드로 들어온 경우
+		Map<Long, Double> labelMode = scoresOf(repositoryFor(TasteSource.LABEL), area, member.axisOnly());
+		Map<Long, Double> axisMode = scoresOf(repositoryFor(TasteSource.AXIS), area, member.axisOnly());
+
+		assertThat(labelMode)
+			.as("라벨을 못 쓰면 축으로 돌아가야 한다 — 다르면 취향 항이 0 이 되어 인기순으로 떨어진 것이다")
+			.isEqualTo(axisMode);
+		assertThat(labelMode.values())
+			.as("취향 항이 살아 있어야 한다 — 전부 0 이면 개인화가 사라진 것이다")
+			.anySatisfy(fit -> assertThat(fit).isNotZero());
+	}
 }
