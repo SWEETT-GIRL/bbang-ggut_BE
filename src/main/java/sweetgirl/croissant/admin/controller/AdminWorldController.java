@@ -19,6 +19,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.admin.service.AdminWorldAssetService;
 import sweetgirl.croissant.admin.service.AdminWorldCharacterService;
+import sweetgirl.croissant.admin.service.AdminWorldMemberService;
 import sweetgirl.croissant.admin.service.AdminWorldPlanetService;
 import sweetgirl.croissant.admin.service.AdminWorldStageService;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
@@ -27,11 +28,13 @@ import sweetgirl.croissant.world.dto.request.AdminWorldAssetRegisterRequest;
 import sweetgirl.croissant.world.dto.request.AdminWorldAssetUploadRequest;
 import sweetgirl.croissant.world.dto.request.AdminWorldCharacterCreateRequest;
 import sweetgirl.croissant.world.dto.request.AdminWorldCharacterUpdateRequest;
+import sweetgirl.croissant.world.dto.request.AdminWorldMemberGrantRequest;
 import sweetgirl.croissant.world.dto.request.AdminWorldPlanetCreateRequest;
 import sweetgirl.croissant.world.dto.request.AdminWorldPlanetUpdateRequest;
 import sweetgirl.croissant.world.dto.request.AdminWorldStageCreateRequest;
 import sweetgirl.croissant.world.dto.request.AdminWorldStageUpdateRequest;
 import sweetgirl.croissant.world.dto.response.AdminWorldCharacterResponse;
+import sweetgirl.croissant.world.dto.response.AdminWorldMemberResponse;
 import sweetgirl.croissant.world.dto.response.AdminWorldPlanetResponse;
 import sweetgirl.croissant.world.dto.response.AdminWorldStageResponse;
 
@@ -44,6 +47,7 @@ public class AdminWorldController {
 	private final AdminWorldPlanetService adminWorldPlanetService;
 	private final AdminWorldCharacterService adminWorldCharacterService;
 	private final AdminWorldAssetService adminWorldAssetService;
+	private final AdminWorldMemberService adminWorldMemberService;
 	private final AdminWorldStageService adminWorldStageService;
 
 	@Operation(summary = "행성 목록", description = "여정 순서대로 누적한 도착점(arriveAt)을 함께 내린다 — span 을 고쳤을 때 "
@@ -152,6 +156,23 @@ public class AdminWorldController {
 			@PathVariable String code,
 			@PathVariable String pose) {
 		adminWorldAssetService.unregister(code, pose);
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "회원의 세계관 상태 조회", description = "\"광고를 봤는데 안 깨어났어요\" 같은 문의에 광고 적립 수와 도착 · 룰렛 이력으로 답한다.")
+	@GetMapping("/members/{memberId}")
+	public ResponseEntity<ApiResponse<AdminWorldMemberResponse>> getMemberWorld(
+			@PathVariable Long memberId) {
+		return ResponseEntity.ok(ApiResponse.ok(adminWorldMemberService.getMemberWorld(memberId)));
+	}
+
+	@Operation(summary = "회원에게 지급 · 진행도 조정", description = "CS · 광고 오류 보상용. 비워 보낸 칸은 건드리지 않는다. 진행도를 실제 기록 수보다 "
+		+ "낮추면 효과가 없다 — 조회가 큰 쪽을 쓴다.")
+	@PostMapping("/members/{memberId}/grants")
+	public ResponseEntity<ApiResponse<Void>> grant(
+			@PathVariable Long memberId,
+			@Valid @RequestBody AdminWorldMemberGrantRequest request) {
+		adminWorldMemberService.grant(memberId, request);
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 }
