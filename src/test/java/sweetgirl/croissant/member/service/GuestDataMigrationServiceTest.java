@@ -41,6 +41,10 @@ import sweetgirl.croissant.recommendation.repository.RecommendationRepository;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 import sweetgirl.croissant.store.repository.SavedStoreRepository;
 import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
+import sweetgirl.croissant.world.repository.MemberCharacterRepository;
+import sweetgirl.croissant.world.repository.MemberPlanetArrivalRepository;
+import sweetgirl.croissant.world.repository.MemberWakeTicketRepository;
+import sweetgirl.croissant.world.repository.MemberWorldRepository;
 
 @ExtendWith(MockitoExtension.class)
 class GuestDataMigrationServiceTest {
@@ -94,6 +98,14 @@ class GuestDataMigrationServiceTest {
 	@Mock
 	private UserTasteProfileRepository userTasteProfileRepository;
 	@Mock
+	private MemberWorldRepository memberWorldRepository;
+	@Mock
+	private MemberCharacterRepository memberCharacterRepository;
+	@Mock
+	private MemberPlanetArrivalRepository memberPlanetArrivalRepository;
+	@Mock
+	private MemberWakeTicketRepository memberWakeTicketRepository;
+	@Mock
 	private ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
@@ -136,6 +148,20 @@ class GuestDataMigrationServiceTest {
 		breadLogOrder.verify(courseProgressRepository).mergeGuestDuplicates(GUEST_ID, TARGET_ID);
 		breadLogOrder.verify(courseProgressRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
 		breadLogOrder.verify(courseProgressRepository).moveOwner(GUEST_ID, TARGET_ID);
+		// 세계관 — 빠뜨리면 게스트로 만난 첫 친구와 진행도가 로그인하는 순간 사라진다
+		var worldOrder = inOrder(memberWorldRepository, memberCharacterRepository,
+			memberPlanetArrivalRepository);
+		worldOrder.verify(memberWorldRepository).mergeGuestDuplicates(GUEST_ID, TARGET_ID);
+		worldOrder.verify(memberWorldRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
+		worldOrder.verify(memberWorldRepository).moveOwner(GUEST_ID, TARGET_ID);
+		worldOrder.verify(memberCharacterRepository).mergeGuestDuplicates(GUEST_ID, TARGET_ID);
+		worldOrder.verify(memberCharacterRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
+		worldOrder.verify(memberCharacterRepository).moveOwner(GUEST_ID, TARGET_ID);
+		worldOrder.verify(memberPlanetArrivalRepository).mergeGuestDuplicates(GUEST_ID, TARGET_ID);
+		worldOrder.verify(memberPlanetArrivalRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
+		worldOrder.verify(memberPlanetArrivalRepository).moveOwner(GUEST_ID, TARGET_ID);
+		then(memberWakeTicketRepository).should().moveOwner(GUEST_ID, TARGET_ID);
+
 		var badgeOrder = inOrder(memberBadgeRepository);
 		badgeOrder.verify(memberBadgeRepository).mergeGuestDuplicates(GUEST_ID, TARGET_ID);
 		badgeOrder.verify(memberBadgeRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);

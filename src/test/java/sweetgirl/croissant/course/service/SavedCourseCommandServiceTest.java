@@ -30,6 +30,7 @@ import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.service.MemberReader;
 
 @ExtendWith(MockitoExtension.class)
 class SavedCourseCommandServiceTest {
@@ -45,6 +46,8 @@ class SavedCourseCommandServiceTest {
 
 	@Mock
 	CourseMemberRepository courseMemberRepository;
+	@Mock
+	MemberReader memberReader;
 
 	@InjectMocks
 	SavedCourseCommandService savedCourseCommandService;

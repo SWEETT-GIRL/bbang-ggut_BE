@@ -11,6 +11,7 @@ import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.store.code.SavedStoreErrorCode;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.SavedStore;
@@ -28,11 +29,13 @@ import sweetgirl.croissant.store.repository.StoreRepository;
 public class SavedStoreCommandService {
 
 	private final SavedStoreRepository savedStoreRepository;
+	private final MemberReader memberReader;
 	private final StoreRepository storeRepository;
 	private final MemberRepository memberRepository;
 	private final ApplicationEventPublisher eventPublisher;
 
 	public void saveStore(Long memberId, Long storeId) {
+		memberReader.requireLoggedIn(memberId);
 		if (savedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId)) {
 			throw new SavedStoreException(SavedStoreErrorCode.SAVED_STORE_ALREADY);
 		}
@@ -48,6 +51,7 @@ public class SavedStoreCommandService {
 	}
 
 	public void unsaveStore(Long memberId, Long storeId) {
+		memberReader.requireLoggedIn(memberId);
 		if (!savedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId)) {
 			throw new SavedStoreException(SavedStoreErrorCode.SAVED_STORE_NOT_FOUND);
 		}

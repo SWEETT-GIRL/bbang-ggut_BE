@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -50,6 +51,9 @@ class BreadRecordQueryServiceTest {
 	BreadRecordPhotoRepository photoRepository;
 	@Mock
 	BreadRecordTagRepository tagRepository;
+	/** 의존이 없는 순수 계산이라 목이 아니라 실체를 넣는다 — 조립 결과를 그대로 본다. */
+	@Spy
+	TowerBreadPicker towerBreadPicker = new TowerBreadPicker();
 
 	@InjectMocks
 	BreadRecordQueryService queryService;

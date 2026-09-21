@@ -20,6 +20,7 @@ import org.springframework.context.ApplicationEventPublisher;
 
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.store.code.SavedStoreErrorCode;
 import sweetgirl.croissant.store.entity.SavedStore;
 import sweetgirl.croissant.store.entity.Store;
@@ -40,6 +41,8 @@ class SavedStoreCommandServiceTest {
 	MemberRepository memberRepository;
 	@Mock
 	ApplicationEventPublisher eventPublisher;
+	@Mock
+	MemberReader memberReader;
 
 	@InjectMocks
 	SavedStoreCommandService savedStoreCommandService;

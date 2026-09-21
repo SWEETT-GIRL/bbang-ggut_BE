@@ -17,6 +17,7 @@ import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -49,6 +50,7 @@ import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.repository.StoreRepository;
+import sweetgirl.croissant.world.repository.MemberWorldRepository;
 
 @ExtendWith(MockitoExtension.class)
 class BreadRecordCommandServiceTest {
@@ -77,6 +79,8 @@ class BreadRecordCommandServiceTest {
 	ImageProcessingCallbackService imageProcessingCallbackService;
 	@Mock
 	CourseProgressService courseProgressService;
+	@Mock
+	MemberWorldRepository memberWorldRepository;
 
 	@InjectMocks
 	BreadRecordCommandService commandService;
@@ -116,12 +120,47 @@ class BreadRecordCommandServiceTest {
 	}
 
 	@Test
+	@DisplayName("create: 빵탑에 쌓을 빵을 저장한다")
+	void create_savesTowerBread() {
+		givenCreatableRecord();
+
+		commandService.create(7L, requestWithTowerBread("소금빵"));
+
+		ArgumentCaptor<BreadRecord> saved = ArgumentCaptor.forClass(BreadRecord.class);
+		verify(breadRecordRepository).save(saved.capture());
+		assertThat(saved.getValue().getTowerBread()).isEqualTo("소금빵");
+	}
+
+	@Test
+	@DisplayName("create: 빵탑 빵을 안 보내는 구버전 요청도 그대로 성공한다")
+	void create_withoutTowerBread_succeeds() {
+		givenCreatableRecord();
+
+		commandService.create(7L, requestWithTowerBread(null));
+
+		ArgumentCaptor<BreadRecord> saved = ArgumentCaptor.forClass(BreadRecord.class);
+		verify(breadRecordRepository).save(saved.capture());
+		assertThat(saved.getValue().getTowerBread()).isNull();
+	}
+
+	@Test
+	@DisplayName("create: 기록이 늘면 빵탑의 최고 높이를 올린다")
+	void create_raisesMaxRecordCount() {
+		givenCreatableRecord();
+		given(breadRecordRepository.countByMemberIdAndDeletedAtIsNull(7L)).willReturn(12L);
+
+		commandService.create(7L, requestWithTowerBread("소금빵"));
+
+		verify(memberWorldRepository).raiseMaxRecordCount(7L, 12L);
+	}
+
+	@Test
 	@DisplayName("create: 최고였던 빵을 여러 개 저장하고 첫 값은 구버전 컬럼에도 비춘다")
 	void create_multipleLovedBreads_saved() {
 		Member member = member(7L);
 		Store store = store(10L);
 		BreadRecordUpsertRequest request = new BreadRecordUpsertRequest(
-			10L, "클라이언트 가게명", "client_region", null, "무시되는 단일값", List.of("소금빵", " 우유식빵 ", "소금빵"),
+			10L, "클라이언트 가게명", "client_region", null, "무시되는 단일값", List.of("소금빵", " 우유식빵 ", "소금빵"), null,
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(
 				new BreadRecordPhotoRequest("a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
@@ -151,7 +190,7 @@ class BreadRecordCommandServiceTest {
 	@DisplayName("create: 최고였던 빵 중 태그에 없는 이름이 있으면 거절한다")
 	void create_lovedBreadNotTagged_throwsException() {
 		BreadRecordUpsertRequest request = new BreadRecordUpsertRequest(
-			10L, "클라이언트 가게명", "client_region", null, null, List.of("우유식빵", "크루아상"),
+			10L, "클라이언트 가게명", "client_region", null, null, List.of("우유식빵", "크루아상"), null,
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(
 				new BreadRecordPhotoRequest("a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
@@ -237,7 +276,7 @@ class BreadRecordCommandServiceTest {
 			"client_region",
 			"맛있었다",
 			"우유식빵",
-			null,
+			null, null,
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(new BreadRecordPhotoRequest("a.jpg", "image/jpeg", awsKey, 0, null, null)),
 			List.of(new BreadRecordTagRequest(tagPhotoSortOrder, "우유식빵", null, null, 0.31, 0.42, null)), null);
@@ -354,7 +393,7 @@ class BreadRecordCommandServiceTest {
 		given(photoRepository.saveAll(any())).willAnswer(invocation -> invocation.getArgument(0));
 
 		commandService.create(7L, new BreadRecordUpsertRequest(
-			null, "직접 적은 가게", "client_region", null, null, null,
+			null, "직접 적은 가게", "client_region", null, null, null, null,
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(new BreadRecordPhotoRequest(
 				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
@@ -460,7 +499,7 @@ class BreadRecordCommandServiceTest {
 
 	private BreadRecordUpsertRequest requestWithVisibility(Boolean isPublic) {
 		return new BreadRecordUpsertRequest(
-			10L, "클라이언트 가게명", "client_region", null, null, null,
+			10L, "클라이언트 가게명", "client_region", null, null, null, null,
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(new BreadRecordPhotoRequest(
 				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
@@ -477,13 +516,29 @@ class BreadRecordCommandServiceTest {
 		given(photoRepository.saveAll(any())).willAnswer(invocation -> invocation.getArgument(0));
 	}
 
+	private BreadRecordUpsertRequest requestWithTowerBread(String towerBread) {
+		return new BreadRecordUpsertRequest(
+			10L,
+			"클라이언트 가게명",
+			"client_region",
+			"맛있었다",
+			"우유식빵",
+			null,
+			towerBread,
+			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
+			List.of(new BreadRecordPhotoRequest(
+				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
+			List.of(new BreadRecordTagRequest(0, "우유식빵", null, null, 0.31, 0.42, null)),
+			null);
+	}
+
 	private BreadRecordUpsertRequest requestWithTagMenuId(Long menuId) {
 		return requestWithTagMenus(menuId, null);
 	}
 
 	private BreadRecordUpsertRequest requestWithTagMenus(Long menuId, Long suggestedMenuId) {
 		return new BreadRecordUpsertRequest(
-			10L, "클라이언트 가게명", "client_region", null, null, null,
+			10L, "클라이언트 가게명", "client_region", null, null, null, null,
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(new BreadRecordPhotoRequest(
 				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),

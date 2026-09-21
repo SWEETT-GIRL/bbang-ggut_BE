@@ -103,6 +103,7 @@ class BreadRecordRepositoryTest {
 					region_key VARCHAR(100),
 					memo VARCHAR(500),
 					loved_bread VARCHAR(100),
+					tower_bread VARCHAR(20),
 					eaten_at TIMESTAMP NOT NULL,
 					deleted_at TIMESTAMP,
 					is_public BOOLEAN NOT NULL DEFAULT FALSE,

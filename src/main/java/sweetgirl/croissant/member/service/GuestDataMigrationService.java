@@ -32,6 +32,10 @@ import sweetgirl.croissant.recommendation.repository.RecommendationRepository;
 import sweetgirl.croissant.review.repository.ReviewRepository;
 import sweetgirl.croissant.store.repository.SavedStoreRepository;
 import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
+import sweetgirl.croissant.world.repository.MemberCharacterRepository;
+import sweetgirl.croissant.world.repository.MemberPlanetArrivalRepository;
+import sweetgirl.croissant.world.repository.MemberWakeTicketRepository;
+import sweetgirl.croissant.world.repository.MemberWorldRepository;
 
 /**
  * 게스트로 쌓은 데이터를 로그인한 회원 계정으로 옮긴다.
@@ -73,6 +77,10 @@ public class GuestDataMigrationService {
 	private final RecommendationRepository recommendationRepository;
 	private final UserStoreInteractionRepository userStoreInteractionRepository;
 	private final UserTasteProfileRepository userTasteProfileRepository;
+	private final MemberWorldRepository memberWorldRepository;
+	private final MemberCharacterRepository memberCharacterRepository;
+	private final MemberPlanetArrivalRepository memberPlanetArrivalRepository;
+	private final MemberWakeTicketRepository memberWakeTicketRepository;
 	private final ApplicationEventPublisher eventPublisher;
 
 	/**
@@ -133,6 +141,22 @@ public class GuestDataMigrationService {
 		// 방문 체크는 코스를 따라가야 한다 — 진행률(refreshForMember)과 사용자 유형(DOER)의 재료다
 		courseStoreVisitRepository.deleteGuestDuplicates(guestId, targetId);
 		courseStoreVisitRepository.moveOwner(guestId, targetId);
+
+		// 세계관 — 빠뜨리면 게스트로 만난 첫 친구와 모아둔 광고 진행도가 로그인하는 순간 사라진다.
+		// 진행도(max_record_count)와 도착 이력이 없으면 행성도 처음으로 되돌아간다.
+		memberWorldRepository.mergeGuestDuplicates(guestId, targetId);
+		memberWorldRepository.deleteGuestDuplicates(guestId, targetId);
+		memberWorldRepository.moveOwner(guestId, targetId);
+
+		memberCharacterRepository.mergeGuestDuplicates(guestId, targetId);
+		memberCharacterRepository.deleteGuestDuplicates(guestId, targetId);
+		memberCharacterRepository.moveOwner(guestId, targetId);
+
+		memberPlanetArrivalRepository.mergeGuestDuplicates(guestId, targetId);
+		memberPlanetArrivalRepository.deleteGuestDuplicates(guestId, targetId);
+		memberPlanetArrivalRepository.moveOwner(guestId, targetId);
+
+		memberWakeTicketRepository.moveOwner(guestId, targetId);
 
 		menuRepository.moveCreator(guestId, targetId);
 		courseProgressService.refreshForMember(targetId);

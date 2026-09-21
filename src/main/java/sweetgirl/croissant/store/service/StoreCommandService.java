@@ -106,6 +106,7 @@ public class StoreCommandService {
 	}
 
 	public void subscribeStore(Long storeId, Long memberId) {
+		memberReader.requireLoggedIn(memberId);
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
 		if (subscribedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId)) {
@@ -118,6 +119,7 @@ public class StoreCommandService {
 	}
 
 	public void unsubscribeStore(Long storeId, Long memberId) {
+		memberReader.requireLoggedIn(memberId);
 		if (!storeRepository.existsById(storeId)) {
 			throw new StoreException(StoreErrorCode.STORE_NOT_FOUND);
 		}

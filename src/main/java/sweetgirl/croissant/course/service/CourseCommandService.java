@@ -56,6 +56,7 @@ import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
@@ -68,6 +69,7 @@ import sweetgirl.croissant.store.repository.StoreRepository;
 public class CourseCommandService {
 
 	private final CourseRepository courseRepository;
+	private final MemberReader memberReader;
 	private final CourseStoreRepository courseStoreRepository;
 	private final CourseImageFileRepository courseImageFileRepository;
 	private final SavedCourseRepository savedCourseRepository;
@@ -83,6 +85,7 @@ public class CourseCommandService {
 	private final ApplicationEventPublisher eventPublisher;
 
 	public Long createCourse(Long memberId, CourseCreateRequest request) {
+		memberReader.requireLoggedIn(memberId);
 		Member member = memberRepository.findByIdAndDeletedAtIsNull(memberId)
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
 		validateDates(request.getStartDate(), request.getEndDate());
@@ -107,6 +110,7 @@ public class CourseCommandService {
 	}
 
 	public CourseUpdateResponse updateCourse(Long memberId, Long courseId, CourseUpdateRequest request) {
+		memberReader.requireLoggedIn(memberId);
 		// 락으로 시작한다 — 공개 여부·일차 수 검사는 읽고-판단하고-쓰기라 락 없이는 수락·가게 추가와 경합한다.
 		// 락 없이 읽은 엔티티를 나중에 락 조회로 다시 만나도 영속성 컨텍스트가 낡은 상태를 돌려주므로, 처음부터 락이어야 한다.
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
@@ -216,6 +220,7 @@ public class CourseCommandService {
 	}
 
 	public void deleteCourse(Long memberId, Long courseId) {
+		memberReader.requireLoggedIn(memberId);
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		courseAccessPolicy.requireOwner(course, memberId);
@@ -223,6 +228,7 @@ public class CourseCommandService {
 	}
 
 	public CourseStoreResponse addStore(Long memberId, Long courseId, CourseStoreAddRequest request) {
+		memberReader.requireLoggedIn(memberId);
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		courseAccessPolicy.requireEditable(course, memberId);
@@ -426,6 +432,7 @@ public class CourseCommandService {
 	}
 
 	public void updateStore(Long memberId, Long courseId, Long storeId, CourseStoreUpdateRequest request) {
+		memberReader.requireLoggedIn(memberId);
 		// 락으로 시작한다 — 같은 사람의 이중 탭이 메모 행을 두 번 INSERT 하지 않게, 그리고 가게 삭제·순서 변경과
 		// 락 순서(courses → course_stores)를 맞춰 데드락을 피한다.
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
@@ -442,6 +449,7 @@ public class CourseCommandService {
 	}
 
 	public void removeStore(Long memberId, Long courseId, Long storeId) {
+		memberReader.requireLoggedIn(memberId);
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		courseAccessPolicy.requireEditable(course, memberId);
@@ -458,6 +466,7 @@ public class CourseCommandService {
 	}
 
 	public void reorderStores(Long memberId, Long courseId, CourseStoreReorderRequest request) {
+		memberReader.requireLoggedIn(memberId);
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		courseAccessPolicy.requireEditable(course, memberId);
@@ -543,6 +552,7 @@ public class CourseCommandService {
 	}
 
 	public PresignedUrlResponse getPresignedUrl(Long memberId, Long courseId, String mimeType) {
+		memberReader.requireLoggedIn(memberId);
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		courseAccessPolicy.requireOwner(course, memberId);
@@ -550,6 +560,7 @@ public class CourseCommandService {
 	}
 
 	public void registerImage(Long memberId, Long courseId, CourseImageRegisterRequest request) {
+		memberReader.requireLoggedIn(memberId);
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		courseAccessPolicy.requireOwner(course, memberId);
@@ -571,6 +582,7 @@ public class CourseCommandService {
 	}
 
 	public void deleteImage(Long memberId, Long courseId) {
+		memberReader.requireLoggedIn(memberId);
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		courseAccessPolicy.requireOwner(course, memberId);
@@ -584,6 +596,7 @@ public class CourseCommandService {
 	}
 
 	public Long forkCourse(Long memberId, Long courseId, String shareToken) {
+		memberReader.requireLoggedIn(memberId);
 		Course sourceCourse = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 
