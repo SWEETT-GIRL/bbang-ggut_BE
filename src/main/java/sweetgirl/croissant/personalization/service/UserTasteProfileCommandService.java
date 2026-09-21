@@ -176,7 +176,8 @@ public class UserTasteProfileCommandService {
 	private TasteProfileRefreshOutcome writeIfChanged(UserTasteProfile profile, TasteProfileSnapshot snapshot,
 			LocalDateTime now) {
 		if (!snapshot.sameTasteAs(profile)) {
-			profile.recompute(snapshot.axis(), snapshot.typeCode(), snapshot.typeSource(), snapshot.tags(),
+			profile.recompute(snapshot.axis(), snapshot.labels(), snapshot.typeCode(), snapshot.typeSource(),
+				snapshot.tags(),
 				snapshot.topKinds(), snapshot.inferredKinds(), snapshot.userType(), snapshot.strongStoreCount(),
 				snapshot.breadSignalCount(), now);
 			return TasteProfileRefreshOutcome.RECOMPUTED;

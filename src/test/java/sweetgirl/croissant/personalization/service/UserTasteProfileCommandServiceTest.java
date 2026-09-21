@@ -30,6 +30,7 @@ import sweetgirl.croissant.personalization.code.PersonalizationErrorCode;
 import sweetgirl.croissant.personalization.config.PersonalizationProperties;
 import sweetgirl.croissant.personalization.dto.response.TasteProfileRefreshResult;
 import sweetgirl.croissant.personalization.entity.TasteAxis;
+import sweetgirl.croissant.personalization.entity.TasteLabelVector;
 import sweetgirl.croissant.personalization.entity.UserTasteProfile;
 import sweetgirl.croissant.personalization.enums.InteractionType;
 import sweetgirl.croissant.personalization.enums.TasteProfileRefreshOutcome;
@@ -47,6 +48,14 @@ class UserTasteProfileCommandServiceTest {
 	private static final LocalDateTime YESTERDAY = LocalDateTime.now().minusDays(1);
 	private static final TasteAxis ALL_PLUS = axis(1);
 	private static final TasteAxis ALL_MINUS = axis(-1);
+	/** 위 응답이 만드는 라벨 — 담백 1 · 바삭 1 · 트렌디 1, 심플이라 filling 0. 저장된 값과 같아야 UNCHANGED 다 */
+	private static final TasteLabelVector ALL_PLUS_LABELS = TasteLabelVector.of(
+		label(0), label(1), label(0), label(0), label(0), label(1), label(0), label(0), label(1));
+
+	private static BigDecimal label(int value) {
+		return BigDecimal.valueOf(value).setScale(TasteLabelVector.SCALE);
+	}
+
 	/** 네 축 모두 +1 극을 고른 응답 — 담백 · 바삭 · 심플 · 트렌디 */
 	private static final List<Map<String, String>> ALL_PLUS_ANSWERS = List.of(
 		Map.of("axis", "taste", "choice", "PLAIN"), Map.of("axis", "texture", "choice", "CRISP"),
@@ -168,7 +177,7 @@ class UserTasteProfileCommandServiceTest {
 	@DisplayName("검사 직후 합산: 신호가 없으면 검사 축 그대로라 UNCHANGED — version 이 두 번 오르지 않는다")
 	void mergeSignals_withoutSignals_keepsQuizAxis() {
 		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, YESTERDAY);
-		profile.applyQuiz(ALL_PLUS_ANSWERS, (short)2, ALL_PLUS, "PCLN", YESTERDAY);
+		profile.applyQuiz(ALL_PLUS_ANSWERS, (short)2, ALL_PLUS, null, "PCLN", YESTERDAY);
 		given(signalRepository.findSignals(eq(7L), any())).willReturn(List.of());
 
 		TasteProfileRefreshOutcome outcome = profileCommandService.mergeSignals(profile, ALL_PLUS, java.util.List.of(),
@@ -184,7 +193,7 @@ class UserTasteProfileCommandServiceTest {
 	@DisplayName("검사 직후 합산: 신호가 있으면 검사 ×3 과 합쳐 축이 바뀌고 version 이 한 번 더 오른다")
 	void mergeSignals_withSignals_recomputesMergedAxis() {
 		UserTasteProfile profile = UserTasteProfile.createEmpty(7L, YESTERDAY);
-		profile.applyQuiz(ALL_PLUS_ANSWERS, (short)2, ALL_PLUS, "PCLN", YESTERDAY);
+		profile.applyQuiz(ALL_PLUS_ANSWERS, (short)2, ALL_PLUS, null, "PCLN", YESTERDAY);
 		given(signalRepository.findSignals(eq(7L), any())).willReturn(List.of(saved(10L, ALL_MINUS)));
 
 		TasteProfileRefreshOutcome outcome = profileCommandService.mergeSignals(profile, ALL_PLUS, java.util.List.of(),
@@ -202,7 +211,7 @@ class UserTasteProfileCommandServiceTest {
 	@DisplayName("배치는 저장된 검사 응답에서 검사 축을 되살려 합산한다 — 검사와 신호가 같은 날이면 같은 감쇠라 정확히 (3 − 1) ÷ 4")
 	void recompute_usesStoredQuizAnswers() {
 		UserTasteProfile quizOnly = UserTasteProfile.createEmpty(7L, YESTERDAY);
-		quizOnly.applyQuiz(ALL_PLUS_ANSWERS, (short)2, ALL_PLUS, "PCLN", YESTERDAY);
+		quizOnly.applyQuiz(ALL_PLUS_ANSWERS, (short)2, ALL_PLUS, ALL_PLUS_LABELS, "PCLN", YESTERDAY);
 		given(memberRepository.existsById(7L)).willReturn(true);
 		given(profileRepository.findByIdForUpdate(7L)).willReturn(Optional.of(quizOnly));
 		given(signalRepository.findSignals(eq(7L), any())).willReturn(List.of());

@@ -1,5 +1,7 @@
 package sweetgirl.croissant.personalization.service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -14,6 +16,7 @@ import sweetgirl.croissant.personalization.dto.request.BbtiQuizRequest;
 import sweetgirl.croissant.personalization.dto.response.BbtiResultResponse;
 import sweetgirl.croissant.personalization.dto.response.TasteLabels;
 import sweetgirl.croissant.personalization.entity.TasteAxis;
+import sweetgirl.croissant.personalization.entity.TasteLabelVector;
 import sweetgirl.croissant.personalization.entity.UserTasteProfile;
 import sweetgirl.croissant.personalization.enums.BbtiType;
 import sweetgirl.croissant.personalization.enums.QuizChoice;
@@ -52,8 +55,9 @@ public class TasteQuizCommandService {
 		} catch (RuntimeException e) {
 			// 사용자 경로를 가게 프로필 데이터 품질에서 격리한다 — 검사 축으로 저장하고 다음 배치가 다시 합산(#748 리뷰)
 			log.warn("[개인화] 검사 직후 신호 합산 실패 — 검사 축만 저장 memberId={}", memberId, e);
+			// 합산이 실패해도 라벨은 검사 답 그대로다 — 가게 데이터가 필요 없는 값이라 같이 저장한다
 			profile.applyQuiz(QuizAxisRule.toStoredAnswers(answers), request.quizVersion(), quizAxis,
-				QuizAxisRule.typeCodeOf(choices, quizAxis), now);
+				quizLabels(choices), QuizAxisRule.typeCodeOf(choices, quizAxis), now);
 		}
 		userTasteProfileRepository.save(profile);
 
@@ -64,5 +68,16 @@ public class TasteQuizCommandService {
 		// 없기 때문이고(가게 라벨이 와야 한다), 섞을 수 있게 되기 전까지 이 값은 "이 사람이 검사에서 고른 것"이다.
 		return BbtiResultResponse.of(BbtiType.fromCode(profile.getTypeCode()), profile.getAxis(),
 			TasteLabels.of(choices), confidence);
+	}
+
+	/** 검사 답 그대로의 라벨 — 0/1 이라 소수 자리를 맞춰 저장한다(DB NUMERIC(5,4)). */
+	private static TasteLabelVector quizLabels(List<QuizChoice> choices) {
+		double[] values = TasteLabels.of(choices).values();
+		BigDecimal[] scaled = new BigDecimal[values.length];
+		for (int i = 0; i < values.length; i++) {
+			scaled[i] = BigDecimal.valueOf(values[i]).setScale(TasteLabelVector.SCALE, RoundingMode.HALF_UP);
+		}
+		return TasteLabelVector.of(scaled[0], scaled[1], scaled[2], scaled[3], scaled[4], scaled[5], scaled[6],
+			scaled[7], scaled[8]);
 	}
 }

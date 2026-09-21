@@ -109,12 +109,32 @@ public class RecommendationProperties {
 		private boolean excludeRecordedStores = true;
 		/** excludeRecordedStores 가 false 일 때 기록한 가게의 점수에서 빼는 값 — 새 가게가 먼저 오되 취향이 강하게 맞는 단골은 남는다 */
 		private double recordedStorePenalty = 0.3;
+		/**
+		 * 취향 점수를 무엇으로 낼지. AXIS 는 4축 코사인(지금까지의 방식), LABEL 은 라벨 아홉 값 코사인이다.
+		 *
+		 * <p>기본이 AXIS 인 이유: 라벨이 이기는지 아직 재지 않았다. 축을 지우지 않고 나란히 두어 랩에서 같은
+		 * 코호트로 비교한 뒤에 바꾼다. LABEL 로 켜도 라벨이 없는 회원·가게는 그 항이 0 이라 인기 prior 로 돈다 —
+		 * 폴백이 따로 필요 없다.
+		 *
+		 * <p>LABEL 의 중심화 상수는 여기 두지 않는다. 그건 가게 표의 평균이라 적재마다 바뀌어서
+		 * {@link sweetgirl.croissant.recommendation.service.LabelCenterParams} 가 표에서 읽는다 — 아래 centerTaste
+		 * 처럼 박아 두면 적재 뒤에 조용히 틀린다(2026-09-21 에 filling 중심이 0.035 → 0.517 로 부호까지 바뀌었다).
+		 */
+		private TasteSource tasteSource = TasteSource.AXIS;
 		/** 전체 가게 축 평균(랩 09-14 실측: 달콤 쪽·고전 쪽으로 쏠려 있다). centerAxes 가 켜졌을 때만 쓴다 */
 		private double centerTaste = -0.375;
 		private double centerTexture = -0.167;
 		private double centerFilling = -0.151;
 		private double centerVibe = -0.549;
 		private final Prior prior = new Prior();
+
+		/** 취향 점수의 재료. */
+		public enum TasteSource {
+			/** 4축 코사인 — 맛이 달콤↔담백 하나라 짭짤·풍미가 접힌다. */
+			AXIS,
+			/** 라벨 아홉 값 코사인 — 짭짤·풍미·쫄깃이 따로 선다. */
+			LABEL
+		}
 	}
 
 	/**

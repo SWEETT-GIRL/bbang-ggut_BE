@@ -3,6 +3,7 @@ package sweetgirl.croissant.personalization.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -12,7 +13,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import sweetgirl.croissant.personalization.config.PersonalizationProperties;
+import sweetgirl.croissant.personalization.dto.response.TasteLabels;
 import sweetgirl.croissant.personalization.entity.TasteAxis;
+import sweetgirl.croissant.personalization.entity.TasteLabelVector;
 import sweetgirl.croissant.personalization.enums.InteractionType;
 import sweetgirl.croissant.personalization.enums.QuizChoice;
 import sweetgirl.croissant.personalization.enums.TasteTag;
@@ -35,6 +38,17 @@ class TasteProfileCalculatorTest {
 
 	private static TasteSignal signal(InteractionType type, long storeId, LocalDateTime at, TasteAxis storeAxis) {
 		return new TasteSignal(type, storeId, null, null, at, storeAxis, Map.of(), null, List.of());
+	}
+
+	/** 라벨을 단 신호 — 아홉 값을 순서대로 준다(sweet · plain · salty · aroma · soft · crisp · chewy · filling · vibe) */
+	private static TasteSignal labelled(InteractionType type, long storeId, LocalDateTime at, double... values) {
+		BigDecimal[] labels = new BigDecimal[values.length];
+		for (int i = 0; i < values.length; i++) {
+			labels[i] = BigDecimal.valueOf(values[i]).setScale(TasteLabelVector.SCALE, RoundingMode.HALF_UP);
+		}
+		return new TasteSignal(type, storeId, null, null, at, null, Map.of(), null, List.of(),
+			TasteLabelVector.of(labels[0], labels[1], labels[2], labels[3], labels[4], labels[5], labels[6],
+				labels[7], labels[8]));
 	}
 
 	private static TasteSignal tagged(InteractionType type, long storeId, Map<String, Double> tags) {
@@ -444,5 +458,86 @@ class TasteProfileCalculatorTest {
 		assertThat(withChoices.typeCode()).isEqualTo("TYLN");
 		// 같은 축인데 갈래를 모르면 짭짤·쫄깃이 사라진다 — 라벨이 없으면 담을 수 없는 정보다
 		assertThat(withoutChoices.typeCode()).isEqualTo("PFLN");
+	}
+
+	@Test
+	@DisplayName("라벨은 좋아한 가게들의 가중 평균이다")
+	void labelsAverageLikedStores() {
+		TasteProfileSnapshot snapshot = newCalculator().calculate(List.of(
+			labelled(InteractionType.SAVE, 1, NOW, 1, 0, 0, 0, 0, 1, 0, 1, 0),
+			labelled(InteractionType.SAVE, 2, NOW, 0, 1, 0, 0, 1, 0, 0, 0, 0)),
+			null, List.of(), null, 0, Map.of(), NOW);
+
+		// 같은 종류·같은 시각이라 가중치가 같다 — 두 가게의 가운데
+		assertThat(snapshot.labels()).isNotNull();
+		assertThat(snapshot.labels().getTasteSweet()).isEqualByComparingTo("0.5");
+		assertThat(snapshot.labels().getTastePlain()).isEqualByComparingTo("0.5");
+		assertThat(snapshot.labels().getTexCrisp()).isEqualByComparingTo("0.5");
+		assertThat(snapshot.labels().getFillingRich()).isEqualByComparingTo("0.5");
+	}
+
+	@Test
+	@DisplayName("음수 신호는 라벨을 범위 밖으로 밀지 못한다 — 축과 달리 좋아한 가게만 평균한다")
+	void negativeSignalsDoNotPushLabelsOutOfRange() {
+		// 조회만 하고 안 담은 가게(음수 가중치)가 유일한 라벨 신호다. 축이었다면 반대쪽으로 당겼겠지만
+		// 라벨은 0~1 척도라 음수를 곱하면 값이 범위를 벗어난다 — 좋아한 가게가 없으면 라벨도 없다
+		TasteProfileSnapshot snapshot = newCalculator().calculate(List.of(
+			labelled(InteractionType.STORE_VIEW, 1, NOW.minusDays(30), 1, 0, 0, 0, 0, 1, 0, 1, 0)),
+			null, List.of(), null, 0, Map.of(), NOW);
+
+		assertThat(snapshot.labels()).isNull();
+	}
+
+	@Test
+	@DisplayName("저장했다 해제해 가중치 합이 0 이하가 된 가게는 평균에서 빠진다")
+	void cancelledStoreDropsOutOfLabels() {
+		TasteProfileSnapshot snapshot = newCalculator().calculate(List.of(
+			labelled(InteractionType.SAVE, 1, NOW, 1, 0, 0, 0, 0, 1, 0, 1, 0),
+			labelled(InteractionType.STORE_VIEW, 1, NOW.minusDays(30), 1, 0, 0, 0, 0, 1, 0, 1, 0),
+			labelled(InteractionType.SAVE, 2, NOW, 0, 1, 0, 0, 1, 0, 0, 0, 0)),
+			null, List.of(), null, 0, Map.of(), NOW);
+
+		// 1번 가게는 저장(+)과 조회(−)가 남아 있고 합이 양수면 남는다 — 어느 쪽이든 값은 0~1 안이다
+		assertThat(snapshot.labels()).isNotNull();
+		for (double value : snapshot.labels().values()) {
+			assertThat(value).isBetween(TasteLabelVector.MIN_VALUE, TasteLabelVector.MAX_VALUE);
+		}
+	}
+
+	@Test
+	@DisplayName("검사 답이 신호와 같은 무게·같은 반감기로 섞인다 — 신호가 없으면 검사 그대로다")
+	void quizLabelsMixIn() {
+		List<QuizChoice> choices = List.of(QuizChoice.SALTY, QuizChoice.CHEWY, QuizChoice.SIMPLE, QuizChoice.TRENDY);
+
+		TasteProfileSnapshot quizOnly = newCalculator().calculate(List.of(), axis(1, 0, 1, 1), choices,
+			NOW, 0, Map.of(), NOW);
+
+		assertThat(quizOnly.labels()).isNotNull();
+		assertThat(quizOnly.labels().getTasteSalty()).isEqualByComparingTo("1");
+		assertThat(quizOnly.labels().getTexChewy()).isEqualByComparingTo("1");
+		assertThat(quizOnly.labels().getTasteSweet()).isEqualByComparingTo("0");
+		// 심플을 골랐으니 "꽉 찬 정도" 는 0 이다 — axis_filling 과 부호가 반대인 자리
+		assertThat(quizOnly.labels().getFillingRich()).isEqualByComparingTo("0");
+		assertThat(quizOnly.labels().getVibeTrendy()).isEqualByComparingTo("1");
+	}
+
+	@Test
+	@DisplayName("신호도 검사도 없으면 라벨이 없다 — 0 으로 채우면 모든 성질이 0 인 사람이 된다")
+	void noEvidenceMeansNoLabels() {
+		TasteProfileSnapshot snapshot = newCalculator().calculate(List.of(), null, List.of(), null, 0, Map.of(), NOW);
+
+		assertThat(snapshot.labels()).isNull();
+	}
+
+	@Test
+	@DisplayName("회원 라벨과 가게 라벨이 같은 순서를 쓴다 — 한쪽만 바뀌면 다른 차원끼리 곱해진다")
+	void memberAndStoreLabelOrderMatch() {
+		double[] fromQuiz = TasteLabels.of(List.of(QuizChoice.SALTY, QuizChoice.CHEWY,
+			QuizChoice.SIMPLE, QuizChoice.TRENDY)).values();
+		double[] fromVector = TasteLabelVector.of(
+			BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO,
+			BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE).values();
+
+		assertThat(fromQuiz).containsExactly(fromVector);
 	}
 }

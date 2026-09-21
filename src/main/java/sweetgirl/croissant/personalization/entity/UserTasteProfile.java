@@ -56,6 +56,14 @@ public class UserTasteProfile extends BaseTimeEntity {
 	@Column(name = "type_source", length = 10)
 	private TasteTypeSource typeSource;
 
+	/**
+	 * 취향 라벨 아홉 값(0~1) — 가게 store_recommendation_feature 와 같은 이름·방향으로 맞댄다.
+	 * 아홉이 함께 차거나 함께 비고, 전부 비면 Hibernate 가 null 로 돌려준다(= 근거 없음).
+	 * axis 와 부호가 반대인 자리가 있다({@link TasteLabelVector} 주석) — 축 값을 여기에 옮기지 않는다.
+	 */
+	@Embedded
+	private TasteLabelVector labels;
+
 	/** [{"axis": "taste", "choice": "SALTY"}, …] 4문항 또는 8문항. 다시 풀면 덮어쓴다. */
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(name = "quiz_answers")
@@ -124,6 +132,7 @@ public class UserTasteProfile extends BaseTimeEntity {
 	/** 배치 재계산. 신호에서 나온 값으로 전부 갈아끼우고 version 을 올린다. 검사 응답과 그 시각은 건드리지 않는다. */
 	public void recompute(
 			TasteAxis axis,
+			TasteLabelVector labels,
 			String typeCode,
 			TasteTypeSource typeSource,
 			Map<String, Double> tags,
@@ -134,6 +143,7 @@ public class UserTasteProfile extends BaseTimeEntity {
 			int breadSignalCount,
 			LocalDateTime computedAt) {
 		this.axis = axis;
+		this.labels = labels;
 		this.typeCode = typeCode;
 		this.typeSource = typeSource;
 		this.tags = tags != null ? new HashMap<>(tags) : new HashMap<>();
@@ -170,12 +180,14 @@ public class UserTasteProfile extends BaseTimeEntity {
 			List<Map<String, String>> quizAnswers,
 			Short quizVersion,
 			TasteAxis axis,
+			TasteLabelVector labels,
 			String typeCode,
 			LocalDateTime answeredAt) {
 		this.quizAnswers = quizAnswers != null ? new ArrayList<>(quizAnswers) : null;
 		this.quizVersion = quizVersion;
 		this.quizAnsweredAt = answeredAt;
 		this.axis = axis;
+		this.labels = labels;
 		this.typeCode = typeCode;
 		this.typeSource = TasteTypeSource.QUIZ;
 		this.computedAt = answeredAt;
