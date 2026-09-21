@@ -46,6 +46,15 @@ public class MemberWakeTicket {
 	@Column(nullable = false)
 	private LocalDateTime createdAt;
 
+	public static MemberWakeTicket issue(Long memberId, WakeTicketSource source, Long refMember) {
+		MemberWakeTicket ticket = new MemberWakeTicket();
+		ticket.memberId = memberId;
+		ticket.source = source;
+		ticket.refMember = refMember;
+		ticket.createdAt = LocalDateTime.now();
+		return ticket;
+	}
+
 	public boolean isUsed() {
 		return usedAt != null;
 	}

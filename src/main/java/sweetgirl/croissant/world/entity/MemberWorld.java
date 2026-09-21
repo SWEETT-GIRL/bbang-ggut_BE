@@ -46,6 +46,16 @@ public class MemberWorld extends BaseTimeEntity {
 		this.maxRecordCount = 0;
 	}
 
+	/**
+	 * 어드민이 진행도를 고쳐 준다(CS · 광고 오류 보상).
+	 *
+	 * <p>실제 기록 수보다 낮춰도 화면은 안 내려간다 — 조회가 저장값과 지금 기록 수 중 큰 쪽을
+	 * 쓰기 때문이다. 올리는 쪽으로만 효과가 있다.
+	 */
+	public void adjustMaxRecordCount(int maxRecordCount) {
+		this.maxRecordCount = maxRecordCount;
+	}
+
 	/** 첫 조회에서 마스코트를 데리고 여정을 시작한다. */
 	public static MemberWorld start(Long memberId, String mascotCode) {
 		return new MemberWorld(memberId, mascotCode);

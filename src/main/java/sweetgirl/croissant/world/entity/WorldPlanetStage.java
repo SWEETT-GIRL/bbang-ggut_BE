@@ -48,4 +48,40 @@ public class WorldPlanetStage {
 	/** 배경 그림. 비어 있으면 앱이 번들 그림을 쓴다. */
 	@Column(length = 255)
 	private String imageKey;
+
+	public static WorldPlanetStage create(
+			String planetCode,
+			String code,
+			String name,
+			int stageOrder,
+			int offsetAt,
+			String imageKey) {
+		WorldPlanetStage stage = new WorldPlanetStage();
+		stage.planetCode = planetCode;
+		stage.code = code;
+		stage.name = name;
+		stage.stageOrder = stageOrder;
+		stage.offsetAt = offsetAt;
+		stage.imageKey = imageKey;
+		return stage;
+	}
+
+	/** 비워 보낸 칸은 지금 값을 그대로 둔다. */
+	public void update(String code, String name, Integer stageOrder, Integer offsetAt, String imageKey) {
+		if (code != null) {
+			this.code = code;
+		}
+		if (name != null) {
+			this.name = name;
+		}
+		if (stageOrder != null) {
+			this.stageOrder = stageOrder;
+		}
+		if (offsetAt != null) {
+			this.offsetAt = offsetAt;
+		}
+		if (imageKey != null) {
+			this.imageKey = imageKey;
+		}
+	}
 }

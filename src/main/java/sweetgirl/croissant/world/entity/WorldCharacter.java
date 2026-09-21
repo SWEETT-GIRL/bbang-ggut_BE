@@ -41,4 +41,44 @@ public class WorldCharacter extends BaseTimeEntity {
 
 	@Column(nullable = false)
 	private boolean active;
+
+	public static WorldCharacter create(
+			String code,
+			String name,
+			String planetCode,
+			int sortOrder,
+			boolean mascot) {
+		WorldCharacter character = new WorldCharacter();
+		character.code = code;
+		character.name = name;
+		character.planetCode = planetCode;
+		character.sortOrder = sortOrder;
+		character.mascot = mascot;
+		character.active = true;
+		return character;
+	}
+
+	/** 비워 보낸 칸은 지금 값을 그대로 둔다. */
+	public void update(
+			String name,
+			String planetCode,
+			Integer sortOrder,
+			Boolean mascot,
+			Boolean active) {
+		if (name != null) {
+			this.name = name;
+		}
+		if (planetCode != null) {
+			this.planetCode = planetCode;
+		}
+		if (sortOrder != null) {
+			this.sortOrder = sortOrder;
+		}
+		if (mascot != null) {
+			this.mascot = mascot;
+		}
+		if (active != null) {
+			this.active = active;
+		}
+	}
 }

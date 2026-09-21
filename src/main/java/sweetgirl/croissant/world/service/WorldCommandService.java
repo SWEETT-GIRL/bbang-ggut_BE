@@ -130,29 +130,6 @@ public class WorldCommandService {
 			.toList());
 	}
 
-	/**
-	 * 광고 한 편을 적립하고, 필요한 편수를 채웠으면 그 자리에서 깨운다.
-	 *
-	 * <p>필요한 편수는 상수가 아니라 그 친구가 사는 <b>행성 행</b>의 값이다.
-	 */
-	public WorldWakeResponse addAdView(Long memberId, String characterCode) {
-		WorldPlanetResponse planet = requireWakeable(memberId, characterCode);
-
-		if (memberCharacterRepository.addAdView(memberId, characterCode) == 0) {
-			throw new WorldException(WorldErrorCode.WORLD_CHARACTER_ALREADY_AWAKE);
-		}
-
-		int adViews = memberCharacterRepository
-			.findById(new MemberCharacterId(memberId, characterCode))
-			.map(MemberCharacter::getAdViews)
-			.orElse(0);
-
-		boolean awakened = adViews >= planet.adsPerWake()
-			&& memberCharacterRepository
-				.awakeIfSleeping(memberId, characterCode, AcquiredBy.AD.name()) == 1;
-		return new WorldWakeResponse(characterCode, adViews, planet.adsPerWake(), awakened);
-	}
-
 	/** 추천으로 받은 티켓을 써서 광고를 건너뛰고 한 명을 바로 깨운다. */
 	public WorldWakeResponse useWakeTicket(Long memberId, String characterCode) {
 		WorldPlanetResponse planet = requireWakeable(memberId, characterCode);
@@ -179,7 +156,7 @@ public class WorldCommandService {
 	 * <p>룰렛을 먼저 돌리게 하는 이유: 안 그러면 광고로 넷을 다 모은 뒤 룰렛을 돌려 "줄 친구가
 	 * 없는" 구멍이 생긴다. 룰렛이 없는 행성(지구)은 이 조건을 건너뛴다.
 	 */
-	private WorldPlanetResponse requireWakeable(Long memberId, String characterCode) {
+	public WorldPlanetResponse requireWakeable(Long memberId, String characterCode) {
 		WorldCharacterResponse character = worldCatalogService.getCatalog().characters().stream()
 			.filter(candidate -> candidate.code().equals(characterCode))
 			.findFirst()

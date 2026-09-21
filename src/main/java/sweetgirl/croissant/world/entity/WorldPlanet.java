@@ -73,4 +73,79 @@ public class WorldPlanet extends BaseTimeEntity {
 
 	@Column(nullable = false)
 	private boolean active;
+
+	private WorldPlanet(String code, PlanetGroup planetGroup) {
+		this.code = code;
+		this.planetGroup = planetGroup;
+		this.active = true;
+	}
+
+	public static WorldPlanet create(
+			String code,
+			String name,
+			PlanetGroup planetGroup,
+			int sortOrder,
+			int span,
+			String unlockAfter,
+			boolean selectable,
+			int rouletteSize,
+			int adsPerWake,
+			boolean referralOk,
+			String imageKey) {
+		WorldPlanet planet = new WorldPlanet(code, planetGroup);
+		planet.name = name;
+		planet.sortOrder = sortOrder;
+		planet.span = span;
+		planet.unlockAfter = unlockAfter;
+		planet.selectable = selectable;
+		planet.rouletteSize = rouletteSize;
+		planet.adsPerWake = adsPerWake;
+		planet.referralOk = referralOk;
+		planet.imageKey = imageKey;
+		return planet;
+	}
+
+	/** 비워 보낸 칸은 지금 값을 그대로 둔다. 어드민 화면이 일부만 고쳐 보낼 수 있게. */
+	public void update(
+			String name,
+			Integer sortOrder,
+			Integer span,
+			String unlockAfter,
+			Boolean selectable,
+			Integer rouletteSize,
+			Integer adsPerWake,
+			Boolean referralOk,
+			String imageKey,
+			Boolean active) {
+		if (name != null) {
+			this.name = name;
+		}
+		if (sortOrder != null) {
+			this.sortOrder = sortOrder;
+		}
+		if (span != null) {
+			this.span = span;
+		}
+		if (unlockAfter != null) {
+			this.unlockAfter = unlockAfter;
+		}
+		if (selectable != null) {
+			this.selectable = selectable;
+		}
+		if (rouletteSize != null) {
+			this.rouletteSize = rouletteSize;
+		}
+		if (adsPerWake != null) {
+			this.adsPerWake = adsPerWake;
+		}
+		if (referralOk != null) {
+			this.referralOk = referralOk;
+		}
+		if (imageKey != null) {
+			this.imageKey = imageKey;
+		}
+		if (active != null) {
+			this.active = active;
+		}
+	}
 }

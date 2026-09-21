@@ -30,6 +30,26 @@ public class WorldCharacterAsset {
 
 	private Integer height;
 
+	public static WorldCharacterAsset create(
+			String characterCode,
+			String pose,
+			String imageKey,
+			Integer width,
+			Integer height) {
+		WorldCharacterAsset asset = new WorldCharacterAsset();
+		asset.id = new WorldCharacterAssetId(characterCode, pose);
+		asset.imageKey = imageKey;
+		asset.width = width;
+		asset.height = height;
+		return asset;
+	}
+
+	public void replace(String imageKey, Integer width, Integer height) {
+		this.imageKey = imageKey;
+		this.width = width;
+		this.height = height;
+	}
+
 	public String characterCode() {
 		return id.getCharacterCode();
 	}

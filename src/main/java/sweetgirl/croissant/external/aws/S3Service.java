@@ -67,6 +67,36 @@ public class S3Service {
 		}
 	}
 
+	/**
+	 * 키를 호출하는 쪽이 정하는 presign. 파일명이 뜻을 가져야 하는 자리에 쓴다 —
+	 * 어드민이 목록에서 무슨 그림인지 읽을 수 있어야 하는 세계관 에셋 같은 것.
+	 *
+	 * <p>키는 서버가 조립한 값만 넘긴다. 사용자가 보낸 문자열을 그대로 키로 쓰면 버킷 아무 데나
+	 * 쓸 수 있게 된다.
+	 */
+	public PresignedUrlResponse generatePresignedUrlForKey(String awsKey, String mimeTypeStr) {
+		MimeType mimeType = MimeType.fromString(mimeTypeStr);
+		try {
+			PutObjectRequest objectRequest = PutObjectRequest.builder()
+				.bucket(bucketName)
+				.key(awsKey)
+				.contentType(mimeType.getValue())
+				.build();
+
+			PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
+				.signatureDuration(Duration.ofMinutes(10))
+				.putObjectRequest(objectRequest)
+				.build();
+
+			String url = s3Presigner.presignPutObject(presignRequest).url().toString();
+			return new PresignedUrlResponse(awsKey.substring(awsKey.lastIndexOf('/') + 1),
+				mimeTypeStr, url, awsKey);
+
+		} catch (S3Exception e) {
+			throw new S3StorageException(S3ErrorCode.PRE_SIGNED_URL_FAILED, e.awsErrorDetails().errorMessage());
+		}
+	}
+
 	public void putObject(String awsKey, byte[] bytes, MimeType mimeType) {
 		try {
 			PutObjectRequest objectRequest = PutObjectRequest.builder()

@@ -34,4 +34,10 @@ public class WorldCatalogVersion {
 
 	@Column(name = "updated_at", nullable = false)
 	private LocalDateTime updatedAt;
+
+	/** 어드민이 카탈로그를 바꿀 때마다 부른다. 이 값이 안 오르면 앱과 서버 캐시가 옛 것을 계속 쓴다. */
+	public void raise(LocalDateTime updatedAt) {
+		this.version = this.version + 1;
+		this.updatedAt = updatedAt;
+	}
 }
