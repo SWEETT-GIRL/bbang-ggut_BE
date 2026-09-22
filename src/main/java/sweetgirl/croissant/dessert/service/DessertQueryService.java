@@ -17,6 +17,7 @@ import sweetgirl.croissant.dessert.dto.response.HotDessertResponse;
 import sweetgirl.croissant.dessert.entity.DessertItem;
 import sweetgirl.croissant.dessert.enums.DessertTrendStatus;
 import sweetgirl.croissant.dessert.exception.DessertException;
+import sweetgirl.croissant.dessert.repository.ChainStoreRepository;
 import sweetgirl.croissant.dessert.repository.ConvenienceStoreRepository;
 import sweetgirl.croissant.dessert.repository.DessertItemRepository;
 import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
@@ -41,6 +42,7 @@ public class DessertQueryService {
 
 	private final DessertItemRepository dessertItemRepository;
 	private final ConvenienceStoreRepository convenienceStoreRepository;
+	private final ChainStoreRepository chainStoreRepository;
 	private final StoreImageFileRepository storeImageFileRepository;
 
 	/** 칩 줄 — 뜨는 것부터, 같은 판정 안에서는 먼저 들어온 것부터 */
@@ -71,27 +73,43 @@ public class DessertQueryService {
 		PageRequest limit = PageRequest.of(0, Math.min(Math.max(size, 1), MAX_STORE_SIZE));
 		double radius = radiusMeters == null ? DEFAULT_RADIUS_METERS : radiusMeters;
 
-		if (dessertItem.getItemType().isConvenience()) {
-			return toConvenienceResponses(dessertItem, latitude, longitude, radius, limit);
-		}
-		return toStoreResponses(dessertItem, latitude, longitude, radius, limit);
+		// enum 을 다 훑는 switch 라, 네 번째 성격이 생기면 여기서 컴파일이 깨진다 — 조용히 빠지지 않는다.
+		return switch (dessertItem.getItemType()) {
+			case CONVENIENCE ->
+				toBrandBranchResponses(dessertItem, convenienceStoreRepository::findBranchesNearby,
+					latitude, longitude, radius, limit);
+			case CHAIN ->
+				toBrandBranchResponses(dessertItem, chainStoreRepository::findBranchesNearby,
+					latitude, longitude, radius, limit);
+			case GENERIC -> toStoreResponses(dessertItem, latitude, longitude, radius, limit);
+		};
 	}
 
-	private List<DessertStoreResponse> toConvenienceResponses(
+	/**
+	 * 브랜드 이름으로 가까운 지점을 찾는다. 편의점이든 체인이든 하는 일이 같아 표만 갈아 끼운다.
+	 */
+	private List<DessertStoreResponse> toBrandBranchResponses(
 			DessertItem dessertItem,
+			BrandBranchQuery brandBranchQuery,
 			double latitude,
 			double longitude,
 			double radius,
 			PageRequest limit) {
 		// 표의 CHECK 제약(item_type = 'GENERIC' OR brand IS NOT NULL)이 막고 있지만,
-		// 브랜드 없이 편의점 상품이 들어오면 조회할 대상 자체가 없어 조용히 빈 목록을 주면 안 된다.
+		// 브랜드 없이 들어오면 조회할 대상 자체가 없어 조용히 빈 목록을 주면 안 된다.
 		if (dessertItem.getBrand() == null) {
 			throw new DessertException(DessertErrorCode.DESSERT_BRAND_MISSING);
 		}
-		return convenienceStoreRepository
-			.findBranchesNearby(dessertItem.getBrand(), latitude, longitude, radius, limit).stream()
+		return brandBranchQuery.find(dessertItem.getBrand(), latitude, longitude, radius, limit).stream()
 			.map(branch -> DessertStoreResponse.of(branch, null, dessertItem.getBrand()))
 			.toList();
+	}
+
+	/** convenience_store·chain_store 두 리포지토리가 같은 모양이라 함수로 받는다 */
+	@FunctionalInterface
+	private interface BrandBranchQuery {
+		List<DessertStoreProjection> find(String brand, double latitude, double longitude, double radiusMeters,
+				PageRequest limit);
 	}
 
 	private List<DessertStoreResponse> toStoreResponses(
