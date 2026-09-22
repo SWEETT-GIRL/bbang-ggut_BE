@@ -302,6 +302,26 @@ jobs:
           scp env.prod was:~/app/.env
           rm -f env.prod
 
+      # 정리를 pull 앞에 둔다 — 디스크가 찬 뒤에는 pull 이 "no space left on device" 로 먼저 죽고,
+      # set -e 가 스크립트를 끊어 배포 뒤 정리 단계까지 오지 못한다. 공간을 비워줄 명령이 공간을
+      # 필요로 하는 명령 뒤에 있는 교착이다 (2026-09-22 운영 배포 실패). 스테이징은 같은 이유로
+      # 2026-09-08 에 이미 고쳤는데 운영에는 그 수정이 오지 않았다.
+      #
+      # 파랑·초록 배포라 구 색 컨테이너가 아직 돌고 있다. 도는 컨테이너가 쓰는 이미지는 prune
+      # 대상이 아니므로, 공간이 급해 -a 까지 가도 롤백 대상 이미지는 그대로 남는다.
+      - name: 기동 전 디스크 정리
+        run: |
+          ssh was "
+            docker image prune -af --filter 'until=168h' || true
+            AVAILABLE_MB=\$(df -Pm / | awk 'NR==2 {print \$4}')
+            echo \"여유 공간 \${AVAILABLE_MB}MB\"
+            if [ \"\$AVAILABLE_MB\" -lt 4096 ]; then
+              echo '4GB 미만 — 안 쓰는 이미지를 모두 정리한다'
+              docker image prune -af || true
+              df -h /
+            fi
+          "
+
       - name: 신규 색 컨테이너 기동
         env:
           NEW: ${{ steps.color.outputs.new }}
@@ -372,7 +392,10 @@ jobs:
             && docker compose -f docker-compose.yml down --remove-orphans 2>/dev/null || true"
           # 직전 버전 이미지는 남긴다 — 신규 컨테이너가 기동에 실패했을 때
           # IMAGE_TAG만 되돌려 즉시 롤백할 수 있어야 한다.
-          ssh was "docker image prune -f --filter 'until=168h'"
+          # -a 가 없으면 dangling 만 지운다. 배포마다 새 태그가 붙어 dangling 이 생기지 않으니
+          # 이 명령으로는 한 장도 안 지워졌고, 종전 이미지가 무한히 쌓여 디스크가 찼다.
+          # until 은 168h 그대로 둔다 — 일주일 치 롤백 대상은 남긴다.
+          ssh was "docker image prune -af --filter 'until=168h'"
 
       # 어느 단계에서 실패했든 구 색 스택은 아직 살아있다. upstream만 되돌리면 복구된다.
       - name: 실패 시 롤백
