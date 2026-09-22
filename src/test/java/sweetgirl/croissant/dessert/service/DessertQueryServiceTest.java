@@ -34,6 +34,7 @@ import sweetgirl.croissant.dessert.enums.DessertGrade;
 import sweetgirl.croissant.dessert.enums.DessertItemType;
 import sweetgirl.croissant.dessert.enums.DessertTrendStatus;
 import sweetgirl.croissant.dessert.exception.DessertException;
+import sweetgirl.croissant.dessert.repository.ChainStoreRepository;
 import sweetgirl.croissant.dessert.repository.ConvenienceStoreRepository;
 import sweetgirl.croissant.dessert.repository.DessertItemRepository;
 import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
@@ -50,6 +51,9 @@ class DessertQueryServiceTest {
 
 	@Mock
 	private ConvenienceStoreRepository convenienceStoreRepository;
+
+	@Mock
+	private ChainStoreRepository chainStoreRepository;
 
 	@Mock
 	private StoreImageFileRepository storeImageFileRepository;
@@ -117,6 +121,29 @@ class DessertQueryServiceTest {
 	}
 
 	@Test
+	@DisplayName("체인 한정 메뉴는 그 브랜드 지점을 준다 — 표만 다르고 편의점과 같은 길이다")
+	void getSellingStores_chainUsesBranches() {
+		DessertItem churros = dessertItem(5L, "초코츄러스", DessertItemType.CHAIN, "파리바게뜨",
+			DessertTrendStatus.HOT);
+		given(dessertItemRepository.findById(5L)).willReturn(Optional.of(churros));
+		given(chainStoreRepository.findBranchesNearby(eq("파리바게뜨"), anyDouble(), anyDouble(), anyDouble(),
+			any(Pageable.class)))
+			.willReturn(List.of(sellingStore(null, "파리바게뜨 시청역점", null, null, null, 180)));
+
+		List<DessertStoreResponse> branches = dessertQueryService.getSellingStores(5L, SEOUL_LAT, SEOUL_LNG, 30, null);
+
+		assertThat(branches).singleElement().satisfies(branch -> {
+			assertThat(branch.name()).isEqualTo("파리바게뜨 시청역점");
+			assertThat(branch.storeId()).isNull();
+			assertThat(branch.grade()).isNull();
+			assertThat(branch.brand()).isEqualTo("파리바게뜨");
+		});
+		// 체인은 dessert_item_store 를 쓰지 않는다 — 그 표는 GENERIC 전용이다
+		verify(dessertItemRepository, never())
+			.findSellingStoresNearby(anyLong(), anyDouble(), anyDouble(), anyDouble(), any(Pageable.class));
+	}
+
+	@Test
 	@DisplayName("요청한 개수가 상한을 넘으면 상한으로 자른다 — 편의점 5만 곳이 핀으로 쏟아지면 안 된다")
 	void getSellingStores_capsSize() {
 		DessertItem pizzaSeolgi = dessertItem(1L, "피자설기", DessertItemType.GENERIC, null, DessertTrendStatus.HOT);
@@ -144,7 +171,7 @@ class DessertQueryServiceTest {
 	}
 
 	@Test
-	@DisplayName("편의점 상품에 브랜드가 없으면 조용히 빈 목록을 주지 않고 멈춘다")
+	@DisplayName("브랜드 지점을 봐야 하는데 브랜드가 없으면 조용히 빈 목록을 주지 않고 멈춘다")
 	void getSellingStores_throwsWhenConvenienceBrandMissing() {
 		DessertItem brandless = dessertItem(5L, "브랜드없는편의점상품", DessertItemType.CONVENIENCE, null,
 			DessertTrendStatus.HOT);
