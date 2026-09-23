@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -141,6 +142,22 @@ class WorldQueryServiceTest {
 			.containsExactly(
 				org.assertj.core.groups.Tuple.tuple("chick", 3),
 				org.assertj.core.groups.Tuple.tuple("dog", 2));
+	}
+
+	@Test
+	@DisplayName("첫 친구 연출을 봤는지 싣는다 — 첫 조회가 마스코트를 주므로 characters 로는 못 가린다")
+	void carriesWelcomedAt() {
+		givenMember(0, 0L, List.of());
+		given(memberCharacterRepository.findAllByIdMemberId(MEMBER_ID)).willReturn(List.of(
+			WorldFixtures.memberCharacter(MEMBER_ID, "dog", CharacterStatus.AWAKE, 0, AcquiredBy.FIRST)));
+		given(memberWakeTicketRepository.countByMemberIdAndUsedAtIsNull(MEMBER_ID)).willReturn(0);
+
+		assertThat(worldQueryService.getMemberWorld(MEMBER_ID).welcomedAt()).isNull();
+
+		LocalDateTime seenAt = LocalDateTime.of(2026, 9, 23, 10, 0);
+		memberWorldRepository.findById(MEMBER_ID).orElseThrow().welcome(seenAt);
+
+		assertThat(worldQueryService.getMemberWorld(MEMBER_ID).welcomedAt()).isEqualTo(seenAt);
 	}
 
 	@Test
