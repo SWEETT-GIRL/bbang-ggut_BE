@@ -27,8 +27,6 @@ public class RecommendationProperties {
 	@Getter
 	@Setter
 	public static class Area {
-		/** 빈 코스 카드에 서는 상권 칩 수. 설계 §1 의 "칩 3개" */
-		private int maxChips = 3;
 		/** 후보로 뽑는 가게 수. 설계 §5.3 의 15 — LLM 이 이 안에서 고른다(#662). 룰만 돌 땐 앞 N 곳이 코스가 된다 */
 		private int candidateLimit = 15;
 		/** 요청이 storeCount 를 안 보냈을 때 */
