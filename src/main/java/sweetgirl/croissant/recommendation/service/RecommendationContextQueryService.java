@@ -83,7 +83,14 @@ public class RecommendationContextQueryService {
 	 *
 	 * 칩 순서(#661 §5.2)는 버킷 우선순위다 — 이 세션에서 상세를 본 가게가 있는 칸(SESSION) → 내 저장 가게가 있는 칸(SAVED) →
 	 * 취향 후보가 충분한 칸(TASTE, 축이 있을 때만) → 나머지(POPULAR). 버킷 안에서는 신호 크기 순, 같으면 도장판 순서.
-	 * 앞 maxChips 개만 주고 reason 은 그 칩이 속한 버킷이다. 세션은 sessionId 가 있으면 같은 세션, 없으면 최근 창(설정)이다.
+	 * reason 은 그 칩이 속한 버킷이다. 세션은 sessionId 가 있으면 같은 세션, 없으면 최근 창(설정)이다.
+	 *
+	 * <p><b>그 시·도의 도장 칸을 전부 준다 — 자르지 않는다.</b> 예전엔 앞 3개만 줬는데, 서울은 도장 칸이 6개라 신호가 없는
+	 * 칸 절반이 늘 안 보였다(성수·연남·망원만 뜨고 한남·공덕·서교는 못 고름). 여권에 있는 지역인데 고를 수가 없다.
+	 *
+	 * <p>자르는 것이 비용을 줄이지도 않는다 — 위 {@code findAreaChipStats} 가 이미 그 시·도의 모든 칸을 세고 오므로,
+	 * 자르기는 계산해 둔 것을 버리는 일이다. 집합도 작다: 도장 칸은 시·도당 최대 6개, 전국 48개다(시드 기준).
+	 * 몇 개를 보여줄지는 화면이 정한다 — 서버는 고를 수 있는 것을 다 주고 순서로 말한다.
 	 */
 	private List<RecommendationAreaResponse> areasOf(Course course, Long memberId, String sessionId,
 			TasteQuery taste) {
@@ -102,7 +109,6 @@ public class RecommendationContextQueryService {
 		return spots.values().stream()
 			.map(neighborhoods -> ChipSignal.of(neighborhoods, stats, taste.hasAxis(), minTasteCandidates))
 			.sorted(ChipSignal.ORDER)
-			.limit(recommendationProperties.getArea().getMaxChips())
 			.map(chip -> new RecommendationAreaResponse(chip.primary().getId(), chip.primary().getPassportSpot(),
 				chip.reason(), chip.storeCount()))
 			.toList();
