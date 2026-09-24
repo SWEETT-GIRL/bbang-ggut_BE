@@ -1,5 +1,7 @@
 package sweetgirl.croissant.world.service;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.Signature;
@@ -62,7 +64,11 @@ public class RewardedAdSignatureVerifier {
 		if (signatureAt < 0) {
 			return false;
 		}
-		String signedPart = query.substring(0, signatureAt);
+		// 구글은 퍼센트 인코딩을 푼 문자열에 서명한다(custom_data 의 ':' 가 주소에선 %3A 로 온다).
+		// 원본 그대로 검증하면 인코딩될 글자가 없는 콜백만 통과해서, 'URL 확인' 테스트는 되는데
+		// 회원 번호가 실린 진짜 콜백은 전부 떨어졌다(9/24). '+' 는 공백으로 바꾸지 않는다.
+		String signedPart = URLDecoder.decode(
+			query.substring(0, signatureAt).replace("+", "%2B"), StandardCharsets.UTF_8);
 		String tail = query.substring(signatureAt + SIGNATURE_PARAM.length());
 
 		int keyIdAt = tail.indexOf("&key_id=");
