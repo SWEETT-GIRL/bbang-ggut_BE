@@ -1,11 +1,15 @@
 package sweetgirl.croissant.member.service;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.*;
 import static org.mockito.BDDMockito.*;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.temporal.TemporalAdjusters;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,7 +49,8 @@ class NicknameDrawServiceTest {
 	void setUp() {
 		member = Member.builder().nickname("달콤한 소금빵").build();
 		ReflectionTestUtils.setField(member, "id", 1L);
-		given(memberReader.getMember(1L)).willReturn(member);
+		// drawWithAd 는 탈퇴 회원도 조용히 넘기려고 memberReader 를 거치지 않는다
+		lenient().when(memberReader.getMember(1L)).thenReturn(member);
 	}
 
 	@Test
@@ -62,11 +67,32 @@ class NicknameDrawServiceTest {
 	}
 
 	@Test
-	void draw_succeeds_whenLastDrawWasYesterday() {
-		ReflectionTestUtils.setField(member, "nicknameDrawnAt", LocalDate.now(ZONE).minusDays(1).atTime(23, 59));
+	void draw_succeeds_whenLastDrawWasBeforeThisWeek() {
+		ReflectionTestUtils.setField(member, "nicknameDrawnAt", thisMonday().minusDays(1).atTime(23, 59));
 		given(nicknameGenerator.generate()).willReturn("바삭한 츄러스");
 
 		assertThat(nicknameDrawService.draw(1L).candidate()).isEqualTo("바삭한 츄러스");
+	}
+
+	@Test
+	void draw_throws429FreeUsed_whenDrawnEarlierThisWeek() {
+		assumeFalse(LocalDate.now(ZONE).getDayOfWeek() == DayOfWeek.MONDAY, "월요일엔 '이번 주 어제'가 없다");
+		ReflectionTestUtils.setField(member, "nicknameDrawnAt", thisMonday().atStartOfDay());
+
+		assertThatThrownBy(() -> nicknameDrawService.draw(1L))
+			.isInstanceOf(NicknameException.class)
+			.hasFieldOrPropertyWithValue("errorCode", NicknameErrorCode.NICKNAME_FREE_DRAW_USED);
+		then(nicknameGenerator).shouldHaveNoInteractions();
+	}
+
+	@Test
+	void usedFreeNicknameDraw_countsOnlyDrawsFromMondayOn() {
+		LocalDate monday = LocalDate.of(2026, 9, 21);
+		ReflectionTestUtils.setField(member, "nicknameDrawnAt", LocalDateTime.of(2026, 9, 20, 23, 59));
+		assertThat(member.usedFreeNicknameDraw(monday)).isFalse();
+
+		ReflectionTestUtils.setField(member, "nicknameDrawnAt", LocalDateTime.of(2026, 9, 21, 0, 0));
+		assertThat(member.usedFreeNicknameDraw(monday)).isTrue();
 	}
 
 	@Test
@@ -146,7 +172,56 @@ class NicknameDrawServiceTest {
 		NicknameDrawStatusResponse status = nicknameDrawService.getStatus(1L);
 
 		assertThat(status.canDraw()).isFalse();
+		assertThat(status.canDrawWithAd()).isFalse();
 		assertThat(status.pendingNickname()).isEqualTo("바삭한 츄러스");
 		assertThat(status.nextDrawAt()).isEqualTo(LocalDate.now(ZONE).plusDays(1).atStartOfDay());
+		assertThat(status.nextFreeDrawAt()).isEqualTo(thisMonday().plusWeeks(1).atStartOfDay());
+	}
+
+	@Test
+	void getStatus_canDrawWithAd_whenFreeUsedEarlierThisWeek() {
+		assumeFalse(LocalDate.now(ZONE).getDayOfWeek() == DayOfWeek.MONDAY, "월요일엔 '이번 주 어제'가 없다");
+		ReflectionTestUtils.setField(member, "nicknameDrawnAt", thisMonday().atStartOfDay());
+
+		NicknameDrawStatusResponse status = nicknameDrawService.getStatus(1L);
+
+		assertThat(status.canDraw()).isFalse();
+		assertThat(status.canDrawWithAd()).isTrue();
+		assertThat(status.nextDrawAt()).isNull();
+		assertThat(status.nextFreeDrawAt()).isEqualTo(thisMonday().plusWeeks(1).atStartOfDay());
+	}
+
+	@Test
+	void drawWithAd_drawsOnlyAfterFreeUsedAndNotToday() {
+		assumeFalse(LocalDate.now(ZONE).getDayOfWeek() == DayOfWeek.MONDAY, "월요일엔 '이번 주 어제'가 없다");
+		ReflectionTestUtils.setField(member, "nicknameDrawnAt", thisMonday().atStartOfDay());
+		given(memberRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(member));
+		given(nicknameGenerator.generate()).willReturn("바삭한 츄러스");
+		given(memberRepository.drawNicknameWithAdIfAllowed(eq(1L), eq("바삭한 츄러스"), any(),
+			eq(thisMonday().atStartOfDay()), eq(LocalDate.now(ZONE).atStartOfDay()))).willReturn(1);
+
+		assertThat(nicknameDrawService.drawWithAd(1L)).isTrue();
+	}
+
+	@Test
+	void drawWithAd_refuses_whenFreeDrawStillLeft() {
+		ReflectionTestUtils.setField(member, "nicknameDrawnAt", thisMonday().minusDays(1).atStartOfDay());
+		given(memberRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(member));
+
+		assertThat(nicknameDrawService.drawWithAd(1L)).isFalse();
+		then(nicknameGenerator).shouldHaveNoInteractions();
+	}
+
+	@Test
+	void drawWithAd_refuses_whenAlreadyDrawnToday() {
+		member.drawNickname("바삭한 츄러스", LocalDateTime.now(ZONE));
+		given(memberRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(member));
+
+		assertThat(nicknameDrawService.drawWithAd(1L)).isFalse();
+		then(nicknameGenerator).shouldHaveNoInteractions();
+	}
+
+	private static LocalDate thisMonday() {
+		return LocalDate.now(ZONE).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
 	}
 }

@@ -43,7 +43,8 @@ class NicknameDrawControllerTest {
 
 	@Test
 	void getStatus_returns200() throws Exception {
-		given(nicknameDrawService.getStatus(any())).willReturn(new NicknameDrawStatusResponse(true, null, null));
+		given(nicknameDrawService.getStatus(any()))
+			.willReturn(new NicknameDrawStatusResponse(true, false, null, null, null));
 
 		mockMvc.perform(get("/users/me/nickname/draw"))
 			.andExpect(status().isOk())

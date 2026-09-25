@@ -23,15 +23,18 @@ public class NicknameDrawController {
 
 	private final NicknameDrawService nicknameDrawService;
 
-	@Operation(summary = "닉네임 뽑기 상태", description = "오늘 뽑을 수 있는지, 아직 처리 안 한 후보가 있는지 반환합니다. "
-		+ "광고를 보여주기 전에 먼저 호출하세요.")
+	@Operation(summary = "닉네임 뽑기 상태", description = "무료로 뽑을 수 있는지(canDraw), 광고를 보면 뽑을 수 있는지"
+		+ "(canDrawWithAd), 아직 처리 안 한 후보가 있는지 반환합니다. 주(월~일, 한국 시간) 첫 뽑기만 무료이고, "
+		+ "그 뒤로는 광고를 보면 하루 한 번 뽑습니다. 광고 뽑기는 custom_data \"nickname:{memberId}\" 로 광고를 띄우면 "
+		+ "보상 콜백이 서버에서 뽑아 두므로, 광고가 끝나면 이 API 로 pendingNickname 이 생겼는지 확인하세요.")
 	@GetMapping
 	public ApiResponse<NicknameDrawStatusResponse> getStatus(@AuthenticationPrincipal Long memberId) {
 		return ApiResponse.ok(nicknameDrawService.getStatus(memberId));
 	}
 
-	@Operation(summary = "닉네임 뽑기", description = "새 닉네임 후보를 랜덤으로 하나 뽑습니다. 한국 날짜로 하루 한 번이며, "
-		+ "이미 뽑았으면 429(NICKNAME429_DRAW_LIMIT). 닉네임은 수락해야 바뀝니다.")
+	@Operation(summary = "닉네임 무료 뽑기", description = "새 닉네임 후보를 랜덤으로 하나 뽑습니다. 이번 주 무료 뽑기만 "
+		+ "여기로 합니다. 오늘 이미 뽑았으면 429(NICKNAME429_DRAW_LIMIT), 이번 주 무료를 썼으면 "
+		+ "429(NICKNAME429_FREE_USED). 닉네임은 수락해야 바뀝니다.")
 	@PostMapping
 	public ApiResponse<NicknameDrawResponse> draw(@AuthenticationPrincipal Long memberId) {
 		return ApiResponse.ok(nicknameDrawService.draw(memberId));

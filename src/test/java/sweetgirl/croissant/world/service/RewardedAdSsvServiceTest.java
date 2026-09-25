@@ -18,6 +18,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import sweetgirl.croissant.member.service.NicknameDrawService;
 import sweetgirl.croissant.world.code.WorldErrorCode;
 import sweetgirl.croissant.world.dto.response.WorldPlanetResponse;
 import sweetgirl.croissant.world.entity.MemberCharacterId;
@@ -48,6 +49,8 @@ class RewardedAdSsvServiceTest {
 	private WorldCommandService worldCommandService;
 	@Mock
 	private RewardedAdTransactionRepository rewardedAdTransactionRepository;
+	@Mock
+	private NicknameDrawService nicknameDrawService;
 
 	@InjectMocks
 	private RewardedAdSsvService rewardedAdSsvService;
@@ -163,5 +166,27 @@ class RewardedAdSsvServiceTest {
 		given(memberCharacterRepository.addAdView(7L, "frog")).willReturn(0);
 
 		assertThat(rewardedAdSsvService.credit(QUERY)).isFalse();
+	}
+
+	@Test
+	@DisplayName("닉네임 광고(nickname:회원번호)는 친구가 아니라 닉네임 뽑기로 보낸다")
+	void routesNicknameAdToNicknameDraw() {
+		String query = "transaction_id=TX2&custom_data=nickname%3A7&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(true);
+		given(nicknameDrawService.drawWithAd(7L)).willReturn(true);
+
+		assertThat(rewardedAdSsvService.credit(query)).isTrue();
+		then(worldCommandService).should(never()).requireWakeable(any(), anyString());
+		then(memberCharacterRepository).should(never()).addAdView(any(), anyString());
+	}
+
+	@Test
+	@DisplayName("닉네임 광고의 회원 번호가 숫자가 아니면 버린다")
+	void ignoresBadNicknameMemberId() {
+		String query = "transaction_id=TX2&custom_data=nickname%3Aabc&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(true);
+
+		assertThat(rewardedAdSsvService.credit(query)).isFalse();
+		then(nicknameDrawService).should(never()).drawWithAd(any());
 	}
 }

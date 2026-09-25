@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.member.service.NicknameDrawService;
 import sweetgirl.croissant.world.entity.MemberCharacter;
 import sweetgirl.croissant.world.entity.MemberCharacterId;
 import sweetgirl.croissant.world.enums.AcquiredBy;
@@ -26,6 +27,7 @@ import sweetgirl.croissant.world.repository.RewardedAdTransactionRepository;
  *
  * <p>누구의 어떤 친구인지는 {@code custom_data} 로 온다({@code memberId:characterCode}).
  * 앱이 광고를 띄울 때 실어 보내는 값이라, 형식이 어긋나면 적립할 곳을 알 수 없으므로 버린다.
+ * 닉네임 뽑기 광고는 {@code nickname:memberId} 로 온다 — 친구 형식은 앞자리가 숫자라 겹치지 않는다.
  *
  * <p>구글은 콜백을 재시도한다. 같은 보상은 재시도돼도 {@code transaction_id} 가 같으므로,
  * 그 번호를 PK 로 둔 표에 먼저 남겨 보고 이미 있으면 버린다 — 중복 적립을 코드가 아니라 DB 가 막는다.
@@ -35,11 +37,14 @@ import sweetgirl.croissant.world.repository.RewardedAdTransactionRepository;
 @RequiredArgsConstructor
 public class RewardedAdSsvService {
 
+	private static final String NICKNAME_PURPOSE = "nickname";
+
 	private final RewardedAdSignatureVerifier signatureVerifier;
 	private final MemberCharacterRepository memberCharacterRepository;
 	private final WorldCatalogService worldCatalogService;
 	private final WorldCommandService worldCommandService;
 	private final RewardedAdTransactionRepository rewardedAdTransactionRepository;
+	private final NicknameDrawService nicknameDrawService;
 
 	/**
 	 * @param query 콜백 쿼리 문자열 원본. 구글이 서명한 그대로여야 해서 다시 조립한 값을 넘기면 안 된다
@@ -60,6 +65,9 @@ public class RewardedAdSsvService {
 		}
 
 		String[] parts = customData.split(":", 2);
+		if (NICKNAME_PURPOSE.equals(parts[0])) {
+			return drawNickname(parts[1], params.get("transaction_id"));
+		}
 		Long memberId;
 		try {
 			memberId = Long.valueOf(parts[0]);
@@ -104,6 +112,25 @@ public class RewardedAdSsvService {
 		}
 		awakeIfEnough(memberId, characterCode, adsRequired);
 		return true;
+	}
+
+	/**
+	 * 닉네임 뽑기 광고. 중복은 "오늘 이미 뽑았나"로 막는다 — 재시도가 와도 하루 한 번을 넘지 않는다.
+	 *
+	 * <p>이력 표(rewarded_ad_transaction)에는 남기지 않는다. 그 표의 character_code 가 NOT NULL 이고
+	 * 친구 표를 가리키기 때문이다. 정산 대조는 이 로그로 한다.
+	 */
+	private boolean drawNickname(String memberIdText, String transactionId) {
+		Long memberId;
+		try {
+			memberId = Long.valueOf(memberIdText);
+		} catch (NumberFormatException exception) {
+			log.warn("[AdMob SSV] 닉네임 광고의 회원 번호를 읽지 못했다: {}", memberIdText);
+			return false;
+		}
+		boolean drawn = nicknameDrawService.drawWithAd(memberId);
+		log.info("[AdMob SSV] 닉네임 광고 - member={}, transaction={}, 뽑음={}", memberId, transactionId, drawn);
+		return drawn;
 	}
 
 	/** 필요한 편수를 채웠으면 깨운다. 편수는 그 친구가 사는 행성 행에서 읽은 값이다. */
