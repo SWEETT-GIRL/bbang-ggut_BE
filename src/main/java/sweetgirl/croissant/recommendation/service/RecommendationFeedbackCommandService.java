@@ -4,7 +4,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.personalization.repository.UserTasteProfileRepository;
 import sweetgirl.croissant.recommendation.code.RecommendationErrorCode;
+import sweetgirl.croissant.recommendation.config.RecommendationProperties;
 import sweetgirl.croissant.recommendation.dto.request.RecommendationFeedbackRequest;
 import sweetgirl.croissant.recommendation.entity.Recommendation;
 import sweetgirl.croissant.recommendation.entity.RecommendationFeedback;
@@ -12,6 +14,7 @@ import sweetgirl.croissant.recommendation.enums.FeedbackAction;
 import sweetgirl.croissant.recommendation.exception.RecommendationException;
 import sweetgirl.croissant.recommendation.repository.RecommendationFeedbackRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationRepository;
+import sweetgirl.croissant.recommendation.repository.TasteQuery;
 
 /** 추천 반응을 쌓는다 (설계 §3.1 · §6). 해석은 #663 배치의 몫이라 여기서는 사실만 남긴다. */
 @Service
@@ -21,6 +24,9 @@ public class RecommendationFeedbackCommandService {
 
 	private final RecommendationRepository recommendationRepository;
 	private final RecommendationFeedbackRepository recommendationFeedbackRepository;
+	private final UserTasteProfileRepository userTasteProfileRepository;
+	private final RecommendationProperties recommendationProperties;
+	private final ReasonMetrics reasonMetrics;
 
 	/** 남의 추천은 없는 것으로 본다 — 존재를 알리지 않는다. */
 	public void record(Long memberId, Long recommendationId, RecommendationFeedbackRequest request) {
@@ -44,5 +50,18 @@ public class RecommendationFeedbackCommandService {
 		}
 		recommendationFeedbackRepository.save(
 			RecommendationFeedback.of(recommendationId, request.storeId(), request.action(), request.reason()));
+		recordMetric(memberId, request.action());
+	}
+
+	/**
+	 * 반응을 재료 갈래와 함께 센다. 프로필을 한 번 더 읽지만 반응은 드문 호출이라 비용이 문제되지 않는다 —
+	 * 추천 생성(초당 여러 건)과 달리 사람이 버튼을 누를 때만 온다.
+	 *
+	 * <p>계측이 반응 기록을 막으면 안 된다. 프로필 조회가 실패해도 저장은 이미 끝난 뒤다.
+	 */
+	private void recordMetric(Long memberId, FeedbackAction action) {
+		TasteQuery taste = TasteQuery.of(userTasteProfileRepository.findById(memberId).orElse(null));
+		reasonMetrics.recordFeedback(action.name(), ReasonMetrics.TasteMaterial.of(taste,
+			recommendationProperties.getScore().getMinStrongStoresForTagReason()));
 	}
 }

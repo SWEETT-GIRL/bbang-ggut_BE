@@ -4,16 +4,19 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +42,7 @@ import sweetgirl.croissant.recommendation.dto.response.ReasonSentencesResponse;
 import sweetgirl.croissant.recommendation.dto.response.RecommendationResult;
 import sweetgirl.croissant.recommendation.dto.response.RecommendedStoreResponse;
 import sweetgirl.croissant.recommendation.entity.Recommendation;
+import sweetgirl.croissant.recommendation.enums.ReasonSource;
 import sweetgirl.croissant.recommendation.exception.RecommendationException;
 import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
 import sweetgirl.croissant.recommendation.repository.RecommendationRepository;
@@ -67,6 +71,19 @@ public class ReasonSentenceCommandService {
 
 	private static final Logger log = LoggerFactory.getLogger(ReasonSentenceCommandService.class);
 
+	/**
+	 * 저장 JSON 최상위의 내부 메타 — 줄별 출처를 여기 둔다 (#807 리뷰).
+	 *
+	 * <p><b>코스 응답 계약을 넓히지 않으려고 stores 밖에 둔다.</b> {@code RecommendationResult} 는 모르는 필드를
+	 * 무시하므로(@JsonIgnoreProperties) 이 값은 DTO 로 안 올라오고, 코스 추천 응답에도 안 나간다.
+	 * 읽을 때는 원본 Map 에서 직접 꺼낸다.
+	 *
+	 * <p>DTO 로 바꿨다 다시 저장하면 사라지므로, 저장 직전에 손으로 다시 넣는다(withReasonMeta).
+	 */
+	static final String REASON_META = "reasonMeta";
+	static final String LLM_STORE_IDS = "llmStoreIds";
+	private static final String META_VERSION = "version";
+
 	/** 하루 상한은 한국 날짜로 센다 — 운영 · 스테이징의 하루와 사용자의 하루가 같아야 읽힌다 */
 	private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
 
@@ -76,6 +93,7 @@ public class ReasonSentenceCommandService {
 	private final ReasonPromptBuilder promptBuilder;
 	private final LlmClientRegistry llmClientRegistry;
 	private final ReasonSentenceProperties properties;
+	private final ReasonMetrics reasonMetrics;
 	private final ObjectMapper objectMapper;
 	private final Executor reasonLlmExecutor;
 	/** 기동 때 한 번 푼다 — 요청마다 다시 파싱하지 않고, 표기가 틀렸으면 배포에서 드러난다 */
@@ -91,7 +109,7 @@ public class ReasonSentenceCommandService {
 			StoreProfileRepository storeProfileRepository,
 			ReasonPromptBuilder promptBuilder,
 			ReasonSentenceProperties properties,
-			ObjectMapper objectMapper,
+			ObjectMapper objectMapper, ReasonMetrics reasonMetrics,
 			@Qualifier(ReasonLlmClientConfig.REASON_LLM_REGISTRY) LlmClientRegistry llmClientRegistry,
 			@Qualifier(AsyncConfig.REASON_LLM_EXECUTOR) Executor reasonLlmExecutor) {
 		this.recommendationRepository = recommendationRepository;
@@ -101,6 +119,7 @@ public class ReasonSentenceCommandService {
 		this.llmClientRegistry = llmClientRegistry;
 		this.properties = properties;
 		this.objectMapper = objectMapper;
+		this.reasonMetrics = reasonMetrics;
 		this.reasonLlmExecutor = reasonLlmExecutor;
 		// 설정 잘못은 첫 사용자 요청이 아니라 배포에서 드러나야 한다. 선정 근거 변형(D)은 저장된 추천에 인기도 점수가
 		// 없어 근거 줄의 절반이 0 으로 나간다 — 프롬프트가 거짓 재료를 받는 것이라 조용히 넘어갈 일이 아니다.
@@ -165,18 +184,59 @@ public class ReasonSentenceCommandService {
 			log.warn("이유 문장이 하나도 오지 않았다 [추천={}, 지연={}ms]", recommendation.getId(), result.latencyMs());
 			return storedOf(recommendation, stored);
 		}
-		List<RecommendedStoreResponse> stores = stored.stores().stream()
-			// 빠진 가게는 룰 문장을 그대로 둔다 — 빈 칸을 내려보내느니 앞서 보여 준 문장이 낫다
-			.map(store -> byStoreId.containsKey(store.storeId())
-				? store.withReason(byStoreId.get(store.storeId()))
-				: store)
-			.toList();
+		// 줄 단위로 가른다 — 한 줄이 길다고 네 줄을 통째로 버리지 않는다. 버려진 줄은 앞서 보여 준 룰 문장이
+		// 그대로 남는데, 그 문장이 이제 근거 기반이라(ReasonTemplates) 잘린 LLM 문장보다 낫다.
+		//
+		// 세는 기준은 응답 map 이 아니라 **추천에 실제로 있는 가게**다. byStoreId 는 추천에 없는 id 를 걸러 주지
+		// 않아서, 모델이 엉뚱한 id 를 돌려주면 그 줄이 적용되지도 않았는데 성공으로 잡힌다(#807 리뷰 P2).
+		int applied = 0;
+		int tooLong = 0;
+		int missing = 0;
+		List<RecommendedStoreResponse> stores = new ArrayList<>(stored.stores().size());
+		for (RecommendedStoreResponse store : stored.stores()) {
+			String sentence = byStoreId.get(store.storeId());
+			if (sentence == null) {
+				// 빠진 가게는 룰 문장을 그대로 둔다 — 빈 칸을 내려보내느니 앞서 보여 준 문장이 낫다
+				missing++;
+				stores.add(store);
+			} else if (sentence.length() > ReasonTemplates.MAX_LENGTH) {
+				tooLong++;
+				stores.add(store);
+			} else {
+				applied++;
+				stores.add(store.withReason(sentence));
+			}
+		}
+		reasonMetrics.recordLlmOutcome("filled", applied);
+		reasonMetrics.recordLlmOutcome("too_long", tooLong);
+		reasonMetrics.recordLlmOutcome("missing", missing);
+		if (tooLong > 0) {
+			// 이 수를 세지 않으면 켜 놓고도 LLM 문장이 실제로 몇 % 나 나가는지 모른다. 프롬프트가 길이를 부탁만 하고
+			// 모델은 대표 메뉴 이름(운영 최대 20자)을 넣으면 쉽게 넘긴다 — FE 실측 49~57자
+			log.warn("이유 문장 길이 초과 [추천={}, 초과={}줄, 적용={}줄, 상한={}자]",
+				recommendation.getId(), tooLong, applied, ReasonTemplates.MAX_LENGTH);
+		}
+		// 한 줄도 못 썼으면 성공으로 저장하지 않는다. 저장하면 provider 가 LLM 으로 바뀌어 다음 fill() 이
+		// "이미 채워졌다" 로 보고 재호출을 막는다 — 실제로는 룰 문장뿐인데 그대로 굳는다(#807 리뷰 P2)
+		if (applied == 0) {
+			log.warn("이유 문장을 한 줄도 쓰지 못했다 [추천={}, 길이초과={}, 누락={}]",
+				recommendation.getId(), tooLong, missing);
+			return storedOf(recommendation, stored);
+		}
 		RecommendationResult filled = stored.withStores(stores);
+		Set<Long> llmStoreIds = stores.stream()
+			.filter(store -> {
+				String sentence = byStoreId.get(store.storeId());
+				return sentence != null && sentence.equals(store.reason());
+			})
+			.map(RecommendedStoreResponse::storeId)
+			.collect(Collectors.toSet());
 		String provider = model.provider().name().toLowerCase(Locale.ROOT);
 		// 아직 룰 문장인 행에만 쓴다. 같은 묶음에 요청이 나란히 들어와도 저장은 한 번만 이기고, 진 쪽은 이긴 쪽의
 		// 문장을 그대로 돌려준다 — 둘이 쓴 문장은 같지만(temperature 0) 덮어쓰기를 남겨 둘 이유가 없다(#765 리뷰)
-		int filledRows = recommendationRepository.fillReasonsIfStillRule(recommendation.getId(), write(filled),
-			provider, model.model(), promptBuilder.versionOf(properties.getVariant()), Recommendation.RULE_PROVIDER);
+		int filledRows = recommendationRepository.fillReasonsIfStillRule(recommendation.getId(),
+			withReasonMeta(write(filled), llmStoreIds), provider, model.model(),
+			promptBuilder.versionOf(properties.getVariant()), Recommendation.RULE_PROVIDER);
 		if (filledRows == 0) {
 			log.info("이유 문장을 다른 요청이 먼저 채웠다 [추천={}]", recommendation.getId());
 			return recommendationRepository.findByIdAndMemberId(recommendation.getId(), recommendation.getMemberId())
@@ -184,11 +244,11 @@ public class ReasonSentenceCommandService {
 					RecommendationResult.class)))
 				.orElseGet(() -> storedOf(recommendation, stored));
 		}
-		log.info("이유 문장 [추천={}, 모델={}:{}, 지연={}ms, 입력토큰={}, 출력토큰={}, 채운가게={}/{}]",
+		log.info("이유 문장 [추천={}, 모델={}:{}, 지연={}ms, 입력토큰={}, 출력토큰={}, 채운가게={}/{}, 길이초과={}, 오늘남은호출={}]",
 			recommendation.getId(), provider, model.model(), result.latencyMs(), result.inputTokens(),
-			result.outputTokens(), byStoreId.size(), stores.size());
+			result.outputTokens(), applied, stores.size(), tooLong, remainingCallsToday());
 		return new ReasonSentencesResponse(recommendation.getId(), provider, model.model(), false,
-			result.latencyMs(), sentencesOf(filled));
+			result.latencyMs(), sentencesOf(filled, llmStoreIds));
 	}
 
 	/**
@@ -288,16 +348,44 @@ public class ReasonSentenceCommandService {
 	private ReasonSentencesResponse storedOf(Recommendation recommendation, RecommendationResult stored) {
 		boolean rule = Recommendation.RULE_PROVIDER.equals(recommendation.getProvider());
 		return new ReasonSentencesResponse(recommendation.getId(), recommendation.getProvider(),
-			recommendation.getModel(), rule, 0, sentencesOf(stored));
+			recommendation.getModel(), rule, 0, sentencesOf(stored, sourcesOf(recommendation)));
 	}
 
-	private static List<ReasonSentence> sentencesOf(RecommendationResult result) {
+	/**
+	 * 저장된 행에서 줄별 출처를 판정한다 (#807 리뷰).
+	 *
+	 * <p>세 갈래다. provider 가 rule 이면 전부 룰이다. LLM 이 채웠고 {@code reasonMeta} 가 있으면 그 목록이
+	 * 답이다. LLM 이 채웠는데 메타가 없으면 <b>옛 행</b>이라 알 수 없다 — 그것을 LLM 으로 뭉뚱그리지 않는다.
+	 *
+	 * @return null 이면 "알 수 없음", 그 밖에는 LLM 이 실제로 쓴 가게 id 집합
+	 */
+	private Set<Long> sourcesOf(Recommendation recommendation) {
+		if (Recommendation.RULE_PROVIDER.equals(recommendation.getProvider())) {
+			return Set.of();
+		}
+		Object meta = recommendation.getResult().get(REASON_META);
+		if (!(meta instanceof Map<?, ?> map) || !(map.get(LLM_STORE_IDS) instanceof Collection<?> ids)) {
+			return null;
+		}
+		return ids.stream().map(id -> ((Number)id).longValue()).collect(Collectors.toSet());
+	}
+
+	/** @param llmStoreIds LLM 이 실제로 쓴 가게. 빈 집합이면 전부 룰, null 이면 알 수 없다 */
+	private static List<ReasonSentence> sentencesOf(RecommendationResult result, Set<Long> llmStoreIds) {
 		if (result.stores() == null) {
 			return List.of();
 		}
 		return result.stores().stream()
-			.map(store -> new ReasonSentence(store.storeId(), store.name(), store.reason()))
+			.map(store -> new ReasonSentence(store.storeId(), store.name(), store.reason(),
+				sourceOf(store.storeId(), llmStoreIds)))
 			.toList();
+	}
+
+	private static ReasonSource sourceOf(Long storeId, Set<Long> llmStoreIds) {
+		if (llmStoreIds == null) {
+			return ReasonSource.UNKNOWN;
+		}
+		return llmStoreIds.contains(storeId) ? ReasonSource.LLM : ReasonSource.RULE;
 	}
 
 	/**
@@ -319,6 +407,16 @@ public class ReasonSentenceCommandService {
 		}
 	}
 
+	/**
+	 * 오늘 남은 호출 수 — 로그에만 쓴다. 상한을 넘을 때만 경고하면 "언제 바닥날지" 를 미리 볼 수 없다.
+	 * 인스턴스 메모리라 배포할 때마다 0 으로 돌아간다는 점을 읽는 쪽이 알아야 한다(§ tryAcquireCall 주석).
+	 */
+	private int remainingCallsToday() {
+		synchronized (callCountLock) {
+			return Math.max(0, properties.getDailyCallLimit() - callsToday);
+		}
+	}
+
 	/** 나가지 않은 호출의 예산을 돌려준다 — 차감과 같은 잠금 안에서 */
 	private void releaseCall() {
 		synchronized (callCountLock) {
@@ -326,6 +424,15 @@ public class ReasonSentenceCommandService {
 				callsToday--;
 			}
 		}
+	}
+
+	/**
+	 * 저장 Map 에 줄별 출처를 얹는다. {@code write()} 가 DTO 에서 만든 Map 에는 이 키가 없으므로 여기서 넣는다 —
+	 * DTO 를 거치는 모든 경로에서 메타가 조용히 사라지는 것을 막는 자리가 여기 하나다.
+	 */
+	private static Map<String, Object> withReasonMeta(Map<String, Object> result, Set<Long> llmStoreIds) {
+		result.put(REASON_META, Map.of(META_VERSION, 1, LLM_STORE_IDS, List.copyOf(llmStoreIds)));
+		return result;
 	}
 
 	private Map<String, Object> write(Object result) {

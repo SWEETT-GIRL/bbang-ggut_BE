@@ -12,9 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.posthog.server.PostHogCaptureOptions;
-import com.posthog.server.PostHogInterface;
-
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.code.AlarmErrorCode;
 import sweetgirl.croissant.alarm.dto.request.GeofenceEnterRequest;
@@ -47,7 +45,7 @@ public class AlarmCommandService {
 	private final SubscribedStoreRepository subscribedStoreRepository;
 	private final MemberReader memberReader;
 	private final StoreRepository storeRepository;
-	private final PostHogInterface postHog;
+	private final MeterRegistry meterRegistry;
 	private final NotificationSettingProvider notificationSettingProvider;
 
 	// 빵알람 수신 여부 토글 — 현재 값을 반전시키고 변경된 상태 반환
@@ -187,14 +185,9 @@ public class AlarmCommandService {
 				fcmService.sendPushNotification(token, title, body, data);
 				anySent = true;
 
-				postHog.capture(
-					String.valueOf(member.getId()),
-					"push_sent",
-					PostHogCaptureOptions.builder()
-						.property("store_id", String.valueOf(store.getId()))
-						.property("store_name", store.getName())
-						.property("notification_type", "geofence_enter")
-						.build());
+				// 가게 id·이름은 라벨로 쓰지 않는다 — 가게가 5만이라 시계열이 그만큼 늘어난다.
+				// 어느 가게였는지는 StoreNotification 행에 남으므로 메트릭은 종류별 건수만 센다
+				meterRegistry.counter("push.sent", "type", "geofence_enter").increment();
 			} catch (AlarmException e) {
 				log.warn("FCM 발송 실패 [memberId={}, storeId={}, token={}]",
 					member.getId(), store.getId(), maskToken(token));

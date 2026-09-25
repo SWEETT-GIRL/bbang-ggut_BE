@@ -42,6 +42,7 @@ import sweetgirl.croissant.recommendation.dto.response.RecommendationAreaSummary
 import sweetgirl.croissant.recommendation.dto.response.RecommendationContextResponse;
 import sweetgirl.croissant.recommendation.dto.response.RecommendationResponse;
 import sweetgirl.croissant.recommendation.dto.response.RecommendedStoreResponse;
+import sweetgirl.croissant.recommendation.enums.ReasonSource;
 import sweetgirl.croissant.recommendation.enums.RecommendationAreaReason;
 import sweetgirl.croissant.recommendation.enums.RecommendationContextState;
 import sweetgirl.croissant.recommendation.exception.RecommendationException;
@@ -237,7 +238,7 @@ class RecommendationControllerTest {
 	void fillReasons_returnsContractShape() throws Exception {
 		given(reasonSentenceCommandService.fill(null, 99L))
 			.willReturn(new ReasonSentencesResponse(99L, "gemini", "gemini-3.5-flash-lite", false, 1_310L,
-				List.of(new ReasonSentence(1042L, "밀도", "소금빵이 유명한 집이에요"))));
+				List.of(new ReasonSentence(1042L, "밀도", "소금빵이 유명한 집이에요", ReasonSource.LLM))));
 
 		mockMvc.perform(post("/recommendations/99/reasons"))
 			.andExpect(status().isOk())
@@ -256,7 +257,7 @@ class RecommendationControllerTest {
 	void fillReasons_fallback_isOk() throws Exception {
 		given(reasonSentenceCommandService.fill(null, 99L))
 			.willReturn(new ReasonSentencesResponse(99L, "rule", null, true, 0,
-				List.of(new ReasonSentence(1042L, "밀도", "이 동네에서 많이 찾는 곳이에요"))));
+				List.of(new ReasonSentence(1042L, "밀도", "이 동네에서 많이 찾는 곳이에요", ReasonSource.RULE))));
 
 		mockMvc.perform(post("/recommendations/99/reasons"))
 			.andExpect(status().isOk())
