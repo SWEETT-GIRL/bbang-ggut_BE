@@ -220,10 +220,10 @@ class WorldCommandServiceTest {
 			planet("mars", 2, 1),
 			planet("jupiter", 3, 1, 3, false)),
 		List.of(
-			new WorldCharacterResponse("dog", "빵댕이", "earth", 1, true, Map.of()),
-			new WorldCharacterResponse("chick", "삐약이", "mars", 1, false, Map.of()),
-			new WorldCharacterResponse("frog", "개굴이", "mars", 2, false, Map.of()),
-			new WorldCharacterResponse("ber", "곰도리", "jupiter", 1, false, Map.of())));
+			new WorldCharacterResponse("dog", "빵댕이", null, "earth", 1, true, Map.of()),
+			new WorldCharacterResponse("chick", "삐약이", null, "mars", 1, false, Map.of()),
+			new WorldCharacterResponse("frog", "개굴이", null, "mars", 2, false, Map.of()),
+			new WorldCharacterResponse("ber", "곰도리", null, "jupiter", 1, false, Map.of())));
 
 	private static WorldPlanetResponse planet(String code, int sortOrder, int rouletteSize) {
 		return planet(code, sortOrder, rouletteSize, 2, true);

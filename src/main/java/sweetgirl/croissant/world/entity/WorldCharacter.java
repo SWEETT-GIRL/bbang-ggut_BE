@@ -28,6 +28,10 @@ public class WorldCharacter extends BaseTimeEntity {
 	@Column(nullable = false, length = 30)
 	private String name;
 
+	/** 프로필에 이름과 함께 나오는 한 줄 소개. 없으면 앱이 번들 문구를 쓴다. */
+	@Column(length = 100)
+	private String description;
+
 	@Column(name = "planet_code", nullable = false, length = 30)
 	private String planetCode;
 
@@ -45,12 +49,14 @@ public class WorldCharacter extends BaseTimeEntity {
 	public static WorldCharacter create(
 			String code,
 			String name,
+			String description,
 			String planetCode,
 			int sortOrder,
 			boolean mascot) {
 		WorldCharacter character = new WorldCharacter();
 		character.code = code;
 		character.name = name;
+		character.description = description;
 		character.planetCode = planetCode;
 		character.sortOrder = sortOrder;
 		character.mascot = mascot;
@@ -58,7 +64,7 @@ public class WorldCharacter extends BaseTimeEntity {
 		return character;
 	}
 
-	/** 비워 보낸 칸은 지금 값을 그대로 둔다. */
+	/** 비워 보낸 칸은 지금 값을 그대로 둔다. 소개를 지우는 건 {@link #changeDescription} 으로 한다. */
 	public void update(
 			String name,
 			String planetCode,
@@ -80,5 +86,10 @@ public class WorldCharacter extends BaseTimeEntity {
 		if (active != null) {
 			this.active = active;
 		}
+	}
+
+	/** 소개를 바꾼다. null 이면 소개를 지워, 앱이 번들 문구로 돌아간다. */
+	public void changeDescription(String description) {
+		this.description = description;
 	}
 }

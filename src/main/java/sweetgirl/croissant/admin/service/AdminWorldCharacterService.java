@@ -66,7 +66,12 @@ public class AdminWorldCharacterService {
 			worldCharacterRepository.clearMascot();
 		}
 		worldCharacterRepository.save(WorldCharacter.create(
-			code, request.name().strip(), request.planetCode().strip(), request.sortOrder(), mascot));
+			code,
+			request.name().strip(),
+			normalize(request.description()),
+			request.planetCode().strip(),
+			request.sortOrder(),
+			mascot));
 		worldCatalogVersionRaiser.raise();
 		return code;
 	}
@@ -88,6 +93,9 @@ public class AdminWorldCharacterService {
 			request.sortOrder(),
 			request.mascot(),
 			request.active());
+		if (request.description() != null) {
+			character.changeDescription(normalize(request.description()));
+		}
 		worldCatalogVersionRaiser.raise();
 	}
 

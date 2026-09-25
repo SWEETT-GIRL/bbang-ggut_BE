@@ -3,6 +3,7 @@ package sweetgirl.croissant.admin.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
@@ -56,7 +57,7 @@ class AdminWorldCharacterServiceTest {
 				.willReturn(Optional.of(WorldFixtures.character("dog", "빵댕이", "earth", 1, true)));
 
 			assertThatThrownBy(() -> adminWorldCharacterService.update("dog",
-				new AdminWorldCharacterUpdateRequest(null, null, null, false, null)))
+				new AdminWorldCharacterUpdateRequest(null, null, null, null, false, null)))
 				.isInstanceOf(WorldException.class)
 				.hasMessageContaining("반드시 한 명");
 			then(worldCatalogVersionRaiser).should(never()).raise();
@@ -69,7 +70,7 @@ class AdminWorldCharacterServiceTest {
 				.willReturn(Optional.of(WorldFixtures.character("dog", "빵댕이", "earth", 1, true)));
 
 			assertThatThrownBy(() -> adminWorldCharacterService.update("dog",
-				new AdminWorldCharacterUpdateRequest(null, null, null, null, false)))
+				new AdminWorldCharacterUpdateRequest(null, null, null, null, null, false)))
 				.isInstanceOf(WorldException.class)
 				.hasMessageContaining("반드시 한 명");
 		}
@@ -81,7 +82,7 @@ class AdminWorldCharacterServiceTest {
 			given(worldCharacterRepository.findById("cat")).willReturn(Optional.of(cat));
 
 			adminWorldCharacterService.update("cat",
-				new AdminWorldCharacterUpdateRequest(null, null, null, true, null));
+				new AdminWorldCharacterUpdateRequest(null, null, null, null, true, null));
 
 			// 부분 유니크 인덱스가 둘을 못 버틴다 — 세우기 전에 내려야 한다
 			then(worldCharacterRepository).should().clearMascot();
@@ -95,7 +96,7 @@ class AdminWorldCharacterServiceTest {
 			given(worldCharacterRepository.findById("cat")).willReturn(Optional.of(cat));
 
 			adminWorldCharacterService.update("cat",
-				new AdminWorldCharacterUpdateRequest(null, null, null, null, false));
+				new AdminWorldCharacterUpdateRequest(null, null, null, null, null, false));
 
 			assertThat(cat.isActive()).isFalse();
 			then(worldCatalogVersionRaiser).should().raise();
@@ -113,7 +114,7 @@ class AdminWorldCharacterServiceTest {
 			given(worldPlanetRepository.existsById("pluto")).willReturn(false);
 
 			assertThatThrownBy(() -> adminWorldCharacterService.create(
-				new AdminWorldCharacterCreateRequest("otter", "수달", "pluto", 3, false)))
+				new AdminWorldCharacterCreateRequest("otter", "수달", null, "pluto", 3, false)))
 				.isInstanceOf(WorldException.class)
 				.hasMessageContaining("그런 행성이 없습니다");
 		}
@@ -124,7 +125,7 @@ class AdminWorldCharacterServiceTest {
 			given(worldCharacterRepository.existsById("dog")).willReturn(true);
 
 			assertThatThrownBy(() -> adminWorldCharacterService.create(
-				new AdminWorldCharacterCreateRequest("dog", "빵댕이", "earth", 1, false)))
+				new AdminWorldCharacterCreateRequest("dog", "빵댕이", null, "earth", 1, false)))
 				.isInstanceOf(WorldException.class)
 				.hasMessageContaining("이미 쓰고 있는 캐릭터 코드");
 		}
@@ -136,10 +137,67 @@ class AdminWorldCharacterServiceTest {
 			given(worldPlanetRepository.existsById("jupiter")).willReturn(true);
 
 			adminWorldCharacterService.create(
-				new AdminWorldCharacterCreateRequest("otter", "수달", "jupiter", 3, false));
+				new AdminWorldCharacterCreateRequest("otter", "수달", null, "jupiter", 3, false));
 
 			then(worldCharacterRepository).should().save(any());
 			then(worldCatalogVersionRaiser).should().raise();
+		}
+	}
+
+	@Nested
+	@DisplayName("한 줄 소개")
+	class Description {
+
+		@Test
+		@DisplayName("만들 때 소개를 함께 저장한다")
+		void savesDescriptionOnCreate() {
+			given(worldCharacterRepository.existsById("otter")).willReturn(false);
+			given(worldPlanetRepository.existsById("jupiter")).willReturn(true);
+
+			adminWorldCharacterService.create(
+				new AdminWorldCharacterCreateRequest("otter", "수달", " 장난꾸러기 수달 ", "jupiter", 3, false));
+
+			then(worldCharacterRepository).should()
+				.save(argThat(character -> "장난꾸러기 수달".equals(character.getDescription())));
+		}
+
+		@Test
+		@DisplayName("소개를 보내면 바꾸고 카탈로그 번호를 올린다")
+		void changesDescription() {
+			WorldCharacter cat = WorldFixtures.character("cat", "냥이", "earth", 2, false);
+			given(worldCharacterRepository.findById("cat")).willReturn(Optional.of(cat));
+
+			adminWorldCharacterService.update("cat",
+				new AdminWorldCharacterUpdateRequest(null, "꼬질한 고양이", null, null, null, null));
+
+			assertThat(cat.getDescription()).isEqualTo("꼬질한 고양이");
+			then(worldCatalogVersionRaiser).should().raise();
+		}
+
+		@Test
+		@DisplayName("소개를 비워 보내지 않으면(null) 지금 소개를 그대로 둔다")
+		void keepsDescriptionWhenNull() {
+			WorldCharacter cat = WorldFixtures.character("cat", "냥이", "earth", 2, false);
+			cat.changeDescription("꼬질한 고양이");
+			given(worldCharacterRepository.findById("cat")).willReturn(Optional.of(cat));
+
+			adminWorldCharacterService.update("cat",
+				new AdminWorldCharacterUpdateRequest("야옹이", null, null, null, null, null));
+
+			assertThat(cat.getDescription()).isEqualTo("꼬질한 고양이");
+		}
+
+		@Test
+		@DisplayName("빈 문자열을 보내면 소개를 지운다 — 앱이 번들 문구로 돌아간다")
+		void clearsDescriptionWhenBlank() {
+			WorldCharacter cat = WorldFixtures.character("cat", "냥이", "earth", 2, false);
+			cat.changeDescription("꼬질한 고양이");
+			given(worldCharacterRepository.findById("cat")).willReturn(Optional.of(cat));
+
+			adminWorldCharacterService.update("cat",
+				new AdminWorldCharacterUpdateRequest(null, "", null, null, null, null));
+
+			assertThat(cat.getDescription()).isNull();
 		}
 	}
 }

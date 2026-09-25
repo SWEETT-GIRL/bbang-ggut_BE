@@ -12,6 +12,8 @@ import jakarta.validation.constraints.Size;
 public record AdminWorldCharacterCreateRequest(
 		@NotBlank @Size(max = 30) String code,
 		@NotBlank @Size(max = 30) String name,
+		/** 한 줄 소개. 비우면 앱이 번들 문구를 쓴다. */
+		@Size(max = 100) String description,
 		@NotBlank @Size(max = 30) String planetCode,
 		@NotNull @Min(1) Integer sortOrder,
 		/** 첫 설치 때 바로 주는 한 명. 참으로 두면 지금 마스코트가 자리를 내준다. */

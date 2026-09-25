@@ -23,6 +23,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import sweetgirl.croissant.world.dto.response.WorldCatalogResponse;
 import sweetgirl.croissant.world.dto.response.WorldCharacterResponse;
 import sweetgirl.croissant.world.dto.response.WorldPlanetResponse;
+import sweetgirl.croissant.world.entity.WorldCharacter;
 import sweetgirl.croissant.world.entity.WorldFixtures;
 import sweetgirl.croissant.world.exception.WorldException;
 import sweetgirl.croissant.world.repository.WorldCatalogVersionRepository;
@@ -63,10 +64,10 @@ class WorldCatalogServiceTest {
 				WorldFixtures.stage("earth", "village", "마을", 1, 0),
 				WorldFixtures.stage("earth", "sky", "하늘", 2, 3),
 				WorldFixtures.stage("mars", "village", "마을", 1, 0)));
+		WorldCharacter dog = WorldFixtures.character("dog", "빵댕이", "earth", 1, true);
+		dog.changeDescription("항상 신나지만 어딘가 허술한 강아지");
 		given(worldCharacterRepository.findAllByActiveTrueOrderByPlanetCodeAscSortOrderAsc())
-			.willReturn(List.of(
-				WorldFixtures.character("dog", "빵댕이", "earth", 1, true),
-				WorldFixtures.character("cat", "냥이", "earth", 2, false)));
+			.willReturn(List.of(dog, WorldFixtures.character("cat", "냥이", "earth", 2, false)));
 		given(worldCharacterAssetRepository.findAllByOrderByIdCharacterCodeAscIdPoseAsc())
 			.willReturn(List.of(WorldFixtures.asset("dog", "front", "world/characters/dog/front_v1.png")));
 	}
@@ -94,6 +95,18 @@ class WorldCatalogServiceTest {
 				.containsExactly(org.assertj.core.api.Assertions.entry(
 					"front", "https://cdn.example.test/world/characters/dog/front_v1.png"));
 			assertThat(catalog.characters().get(1).assets()).isEmpty();
+		}
+
+		@Test
+		@DisplayName("캐릭터 소개를 싣고, 없으면 null 로 둔다 — 앱이 번들 문구로 돌아간다")
+		void carriesDescription() {
+			given(worldCatalogVersionRepository.findCurrentVersion()).willReturn(Optional.of(1));
+			givenCatalog();
+
+			WorldCatalogResponse catalog = worldCatalogService.getCatalog();
+
+			assertThat(catalog.characters()).extracting(WorldCharacterResponse::description)
+				.containsExactly("항상 신나지만 어딘가 허술한 강아지", null);
 		}
 
 		@Test
