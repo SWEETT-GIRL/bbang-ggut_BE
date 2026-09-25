@@ -61,6 +61,8 @@ public class AlarmCommandService {
 	public MarketingEnabledResponse toggleMarketingEnabled(Long memberId) {
 		NotificationSetting setting = notificationSettingProvider.getOrCreate(memberId); // 알림 설정 조회, 없으면 예외
 		setting.toggleMarketingEnabled(); // true → false 또는 false → true 로 반전
+		// 설정 화면의 토글도 마케팅 수신 동의다 — 동의 기록(동의 여부·동의 시각)을 같은 값으로 남긴다
+		memberReader.getMember(memberId).updateMarketingAgreement(setting.isMarketingEnabled());
 		return MarketingEnabledResponse.from(setting); // 변경된 마케팅 알람 여부를 DTO 로 반환
 	}
 

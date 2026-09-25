@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository; // 탈퇴 시 FCM 토큰 삭제를 위해 import
+import sweetgirl.croissant.alarm.service.NotificationSettingProvider;
 import sweetgirl.croissant.course.service.CourseMemberService;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.dto.request.ConsentCreateRequest;
@@ -47,6 +48,7 @@ public class MemberCommandService {
 	private final FcmTokenRepository fcmTokenRepository; // 탈퇴 시 해당 회원의 모든 FCM 토큰을 삭제하기 위해 주입
 	private final GuestPromotionService guestPromotionService; // 동의 시점으로 미뤄둔 게스트 이관을 위해 주입
 	private final CourseMemberService courseMemberService; // 탈퇴 시 협업 코스 정리(방장 승계·나가기·메모 삭제)를 위해 주입
+	private final NotificationSettingProvider notificationSettingProvider; // 마케팅 동의를 발송 설정에 맞추기 위해 주입
 
 	public void createConsent(Long memberId, ConsentCreateRequest request) {
 		Member member = memberReader.getMember(memberId);
@@ -59,6 +61,8 @@ public class MemberCommandService {
 			request.locationAgreed(),
 			request.termsVersion(),
 			request.privacyVersion());
+		// 발송(PushDispatcher)은 알림 설정의 마케팅 값을 본다 — 동의를 받은 지금 설정도 동의대로 맞춘다.
+		notificationSettingProvider.getOrCreate(memberId).updateMarketingEnabled(request.marketingAgreed());
 
 		// 소셜 로그인 시점에 미뤄둔 게스트 이관 — 동의로 가입이 확정된 지금 한다.
 		// (동의 전에 이관하면, 동의 취소로 게스트로 돌아온 사용자의 세션이 이미 닫혀 410을 맞는다)
@@ -73,6 +77,7 @@ public class MemberCommandService {
 		Member member = memberReader.getMember(memberId);
 		if (request.agreeToMarketing() != null) {
 			member.updateMarketingAgreement(request.agreeToMarketing());
+			notificationSettingProvider.getOrCreate(memberId).updateMarketingEnabled(request.agreeToMarketing());
 		}
 		if (request.agreeToNightMarketing() != null) {
 			member.updateNightMarketingAgreement(request.agreeToNightMarketing());
