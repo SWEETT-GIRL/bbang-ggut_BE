@@ -173,6 +173,8 @@ class RewardedAdSsvServiceTest {
 	void routesNicknameAdToNicknameDraw() {
 		String query = "transaction_id=TX2&custom_data=nickname%3A7&signature=SIG&key_id=1";
 		given(signatureVerifier.verify(query)).willReturn(true);
+		given(rewardedAdTransactionRepository.recordNicknameIfFirstTime(
+			any(), any(), any(), any(), any())).willReturn(1);
 		given(nicknameDrawService.drawWithAd(7L)).willReturn(true);
 
 		assertThat(rewardedAdSsvService.credit(query)).isTrue();
@@ -184,6 +186,46 @@ class RewardedAdSsvServiceTest {
 	@DisplayName("닉네임 광고의 회원 번호가 숫자가 아니면 버린다")
 	void ignoresBadNicknameMemberId() {
 		String query = "transaction_id=TX2&custom_data=nickname%3Aabc&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(true);
+
+		assertThat(rewardedAdSsvService.credit(query)).isFalse();
+		then(nicknameDrawService).should(never()).drawWithAd(any());
+	}
+
+	@Test
+	@DisplayName("닉네임 광고도 이력 표에 남긴다 — 정산 대조를 친구 광고와 한 표에서 한다")
+	void recordsNicknameAd() {
+		String query = "ad_unit=ca-app-pub-1%2F3&reward_amount=1&reward_item=nickname"
+			+ "&transaction_id=TX2&custom_data=nickname%3A7&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(true);
+		given(rewardedAdTransactionRepository.recordNicknameIfFirstTime(
+			any(), any(), any(), any(), any())).willReturn(1);
+		given(nicknameDrawService.drawWithAd(7L)).willReturn(true);
+
+		rewardedAdSsvService.credit(query);
+
+		then(rewardedAdTransactionRepository).should()
+			.recordNicknameIfFirstTime("TX2", 7L, "ca-app-pub-1/3", 1, "nickname");
+		then(rewardedAdTransactionRepository).should(never())
+			.recordIfFirstTime(any(), any(), any(), any(), any(), any());
+	}
+
+	@Test
+	@DisplayName("같은 닉네임 광고 보상이 다시 오면 뽑지 않는다 — 구글은 콜백을 재시도한다")
+	void ignoresRetriedNicknameCallback() {
+		String query = "transaction_id=TX2&custom_data=nickname%3A7&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(true);
+		given(rewardedAdTransactionRepository.recordNicknameIfFirstTime(
+			any(), any(), any(), any(), any())).willReturn(0);
+
+		assertThat(rewardedAdSsvService.credit(query)).isFalse();
+		then(nicknameDrawService).should(never()).drawWithAd(any());
+	}
+
+	@Test
+	@DisplayName("닉네임 광고에 transaction_id 가 없으면 중복을 가릴 수 없어 뽑지 않는다")
+	void ignoresNicknameAdWithoutTransactionId() {
+		String query = "custom_data=nickname%3A7&signature=SIG&key_id=1";
 		given(signatureVerifier.verify(query)).willReturn(true);
 
 		assertThat(rewardedAdSsvService.credit(query)).isFalse();

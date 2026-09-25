@@ -48,4 +48,40 @@ public interface DessertItemRepository extends JpaRepository<DessertItem, Long> 
 			@Param("lng") double longitude,
 			@Param("radiusMeters") double radiusMeters,
 			Pageable pageable);
+
+	/**
+	 * 이 디저트를 파는 빵긋 가게 중 지도 영역(사각형) 안, 기준점에서 가까운 순.
+	 *
+	 * <p>{@code &&}(영역 상자 겹침)로 GIST 인덱스를 태우고, 위경도 BETWEEN 으로 앱이 보는 사각형과 정확히 맞춘다.
+	 */
+	@Query(value = """
+			SELECT
+			s.id AS "storeId",
+			s.name AS "name",
+			s.address AS "address",
+			ST_Y(s.location::geometry) AS "latitude",
+			ST_X(s.location::geometry) AS "longitude",
+			ST_Distance(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS "distanceMeters",
+			dessert_store.grade AS "grade",
+			dessert_store.evidence_count AS "evidenceCount",
+			dessert_store.last_evidence_at AS "lastEvidenceAt"
+			FROM dessert_item_store dessert_store
+			JOIN store s ON s.id = dessert_store.store_id
+			WHERE dessert_store.dessert_item_id = :dessertItemId
+			AND dessert_store.status = 'ACTIVE'
+			AND s.status = 'ACTIVE'
+			AND s.location && ST_MakeEnvelope(:swLng, :swLat, :neLng, :neLat, 4326)::geography
+			AND ST_Y(s.location::geometry) BETWEEN :swLat AND :neLat
+			AND ST_X(s.location::geometry) BETWEEN :swLng AND :neLng
+			ORDER BY "distanceMeters" ASC
+			""", nativeQuery = true)
+	List<DessertStoreProjection> findSellingStoresInBounds(
+			@Param("dessertItemId") Long dessertItemId,
+			@Param("swLat") double swLat,
+			@Param("swLng") double swLng,
+			@Param("neLat") double neLat,
+			@Param("neLng") double neLng,
+			@Param("lat") double latitude,
+			@Param("lng") double longitude,
+			Pageable pageable);
 }

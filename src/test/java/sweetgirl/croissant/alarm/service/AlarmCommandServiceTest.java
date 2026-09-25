@@ -299,10 +299,11 @@ class AlarmCommandServiceTest {
 	}
 
 	@Test
-	@DisplayName("toggleMarketingEnabled: 설정에서 끄면 마케팅 동의도 철회되고 동의 시각을 지운다")
+	@DisplayName("toggleMarketingEnabled: 설정에서 끄면 마케팅·야간 동의가 철회되고 동의 시각을 지운다")
 	void toggleMarketingEnabled_off_withdrawsConsent() {
 		Member member = Member.builder().nickname("테스터").build();
 		member.updateMarketingAgreement(true);
+		member.updateNightMarketingAgreement(true);
 		NotificationSetting setting = NotificationSetting.builder().member(member).isMarketingEnabled(true).build();
 		given(notificationSettingProvider.getOrCreate(1L)).willReturn(setting);
 		given(memberReader.getMember(1L)).willReturn(member);
@@ -312,5 +313,6 @@ class AlarmCommandServiceTest {
 		assertThat(response.isMarketingEnabled()).isFalse();
 		assertThat(member.isAgreeToMarketing()).isFalse();
 		assertThat(member.getMarketingAgreedAt()).isNull();
+		assertThat(member.isAgreeToNightMarketing()).isFalse();
 	}
 }

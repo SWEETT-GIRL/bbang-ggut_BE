@@ -95,6 +95,10 @@ public class Member {
 	public void updateMarketingAgreement(boolean agreeToMarketing) {
 		this.agreeToMarketing = agreeToMarketing;
 		this.marketingAgreedAt = agreeToMarketing ? LocalDateTime.now() : null;
+		// 야간 광고 동의는 광고 수신 동의 위에 얹는 동의다 — 광고를 철회하면 야간 동의도 함께 거둔다
+		if (!agreeToMarketing) {
+			this.agreeToNightMarketing = false;
+		}
 	}
 
 	public void updateNightMarketingAgreement(boolean agreeToNightMarketing) {
