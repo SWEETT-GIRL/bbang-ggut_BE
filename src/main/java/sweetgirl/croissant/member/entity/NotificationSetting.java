@@ -67,6 +67,11 @@ public class NotificationSetting extends BaseTimeEntity {
 		this.isMarketingEnabled = !this.isMarketingEnabled; // true → false, false → true
 	}
 
+	// 마케팅 수신 동의(Member.agreeToMarketing)에 맞춰 설정을 맞춘다 — 발송은 이 값을 본다
+	public void updateMarketingEnabled(boolean isMarketingEnabled) {
+		this.isMarketingEnabled = isMarketingEnabled;
+	}
+
 	// 알림 반경을 새 값으로 업데이트 (dirty checking으로 자동 저장)
 	public void updateRadius(NotificationRadius radius) {
 		this.notificationRadius = radius;

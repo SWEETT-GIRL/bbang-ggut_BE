@@ -70,8 +70,8 @@ class WorldQueryServiceTest {
 			planet("earth", 1, 10, null, 0, 2),
 			planet("mars", 2, 30, "earth", 1, 3)),
 		List.of(
-			new WorldCharacterResponse("dog", "빵댕이", "earth", 1, true, Map.of()),
-			new WorldCharacterResponse("chick", "삐약이", "mars", 1, false, Map.of())));
+			new WorldCharacterResponse("dog", "빵댕이", null, "earth", 1, true, Map.of()),
+			new WorldCharacterResponse("chick", "삐약이", null, "mars", 1, false, Map.of())));
 
 	private static WorldPlanetResponse planet(
 			String code, int sortOrder, int span, String unlockAfter, int rouletteSize, int adsPerWake) {

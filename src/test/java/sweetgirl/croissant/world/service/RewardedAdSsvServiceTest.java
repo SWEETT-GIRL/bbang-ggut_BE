@@ -18,6 +18,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import sweetgirl.croissant.member.service.NicknameDrawService;
 import sweetgirl.croissant.world.code.WorldErrorCode;
 import sweetgirl.croissant.world.dto.response.WorldPlanetResponse;
 import sweetgirl.croissant.world.entity.MemberCharacterId;
@@ -48,6 +49,8 @@ class RewardedAdSsvServiceTest {
 	private WorldCommandService worldCommandService;
 	@Mock
 	private RewardedAdTransactionRepository rewardedAdTransactionRepository;
+	@Mock
+	private NicknameDrawService nicknameDrawService;
 
 	@InjectMocks
 	private RewardedAdSsvService rewardedAdSsvService;
@@ -163,5 +166,69 @@ class RewardedAdSsvServiceTest {
 		given(memberCharacterRepository.addAdView(7L, "frog")).willReturn(0);
 
 		assertThat(rewardedAdSsvService.credit(QUERY)).isFalse();
+	}
+
+	@Test
+	@DisplayName("닉네임 광고(nickname:회원번호)는 친구가 아니라 닉네임 뽑기로 보낸다")
+	void routesNicknameAdToNicknameDraw() {
+		String query = "transaction_id=TX2&custom_data=nickname%3A7&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(true);
+		given(rewardedAdTransactionRepository.recordNicknameIfFirstTime(
+			any(), any(), any(), any(), any())).willReturn(1);
+		given(nicknameDrawService.drawWithAd(7L)).willReturn(true);
+
+		assertThat(rewardedAdSsvService.credit(query)).isTrue();
+		then(worldCommandService).should(never()).requireWakeable(any(), anyString());
+		then(memberCharacterRepository).should(never()).addAdView(any(), anyString());
+	}
+
+	@Test
+	@DisplayName("닉네임 광고의 회원 번호가 숫자가 아니면 버린다")
+	void ignoresBadNicknameMemberId() {
+		String query = "transaction_id=TX2&custom_data=nickname%3Aabc&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(true);
+
+		assertThat(rewardedAdSsvService.credit(query)).isFalse();
+		then(nicknameDrawService).should(never()).drawWithAd(any());
+	}
+
+	@Test
+	@DisplayName("닉네임 광고도 이력 표에 남긴다 — 정산 대조를 친구 광고와 한 표에서 한다")
+	void recordsNicknameAd() {
+		String query = "ad_unit=ca-app-pub-1%2F3&reward_amount=1&reward_item=nickname"
+			+ "&transaction_id=TX2&custom_data=nickname%3A7&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(true);
+		given(rewardedAdTransactionRepository.recordNicknameIfFirstTime(
+			any(), any(), any(), any(), any())).willReturn(1);
+		given(nicknameDrawService.drawWithAd(7L)).willReturn(true);
+
+		rewardedAdSsvService.credit(query);
+
+		then(rewardedAdTransactionRepository).should()
+			.recordNicknameIfFirstTime("TX2", 7L, "ca-app-pub-1/3", 1, "nickname");
+		then(rewardedAdTransactionRepository).should(never())
+			.recordIfFirstTime(any(), any(), any(), any(), any(), any());
+	}
+
+	@Test
+	@DisplayName("같은 닉네임 광고 보상이 다시 오면 뽑지 않는다 — 구글은 콜백을 재시도한다")
+	void ignoresRetriedNicknameCallback() {
+		String query = "transaction_id=TX2&custom_data=nickname%3A7&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(true);
+		given(rewardedAdTransactionRepository.recordNicknameIfFirstTime(
+			any(), any(), any(), any(), any())).willReturn(0);
+
+		assertThat(rewardedAdSsvService.credit(query)).isFalse();
+		then(nicknameDrawService).should(never()).drawWithAd(any());
+	}
+
+	@Test
+	@DisplayName("닉네임 광고에 transaction_id 가 없으면 중복을 가릴 수 없어 뽑지 않는다")
+	void ignoresNicknameAdWithoutTransactionId() {
+		String query = "custom_data=nickname%3A7&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(true);
+
+		assertThat(rewardedAdSsvService.credit(query)).isFalse();
+		then(nicknameDrawService).should(never()).drawWithAd(any());
 	}
 }

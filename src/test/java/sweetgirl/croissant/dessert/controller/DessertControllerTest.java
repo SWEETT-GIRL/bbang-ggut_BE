@@ -1,9 +1,14 @@
 package sweetgirl.croissant.dessert.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -21,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import sweetgirl.croissant.common.util.MapBounds;
 import sweetgirl.croissant.dessert.code.DessertErrorCode;
 import sweetgirl.croissant.dessert.dto.response.DessertStoreResponse;
 import sweetgirl.croissant.dessert.dto.response.HotDessertResponse;
@@ -93,5 +99,33 @@ class DessertControllerTest {
 			.param("lng", "126.978"))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.code").value("DESSERT404"));
+	}
+
+	@Test
+	@DisplayName("영역을 주면 반경 대신 그 영역 안에서 찾는다")
+	void getSellingStores_withBoundsUsesBounds() throws Exception {
+		given(dessertQueryService.getSellingStoresInBounds(eq(1L), eq(new MapBounds(37.5, 126.9, 37.6, 127.1)),
+			eq(37.55), eq(127.0), eq(150)))
+			.willReturn(List.of(new DessertStoreResponse(
+				9963L, "원조공주떡집", "서울 중구 한강대로 416", null,
+				37.5555, 126.9737, 3000, DessertGrade.STRONG, 2, LocalDate.of(2026, 9, 17), null)));
+
+		mockMvc.perform(get("/desserts/1/stores")
+			.param("lat", "37.55").param("lng", "127.0").param("size", "150")
+			.param("swLat", "37.5").param("swLng", "126.9")
+			.param("neLat", "37.6").param("neLng", "127.1"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data[0].storeId").value(9963));
+		verify(dessertQueryService, never()).getSellingStores(anyLong(), anyDouble(), anyDouble(), any(int.class),
+			any());
+	}
+
+	@Test
+	@DisplayName("영역 인자가 일부만 오면 400 — 반경으로 조용히 넘어가지 않는다")
+	void getSellingStores_rejectsPartialBounds() throws Exception {
+		mockMvc.perform(get("/desserts/1/stores")
+			.param("lat", "37.55").param("lng", "127.0")
+			.param("swLat", "37.5").param("swLng", "126.9"))
+			.andExpect(status().isBadRequest());
 	}
 }

@@ -1,5 +1,6 @@
 package sweetgirl.croissant.member.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.*;
 
@@ -14,10 +15,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
+import sweetgirl.croissant.alarm.service.NotificationSettingProvider;
 import sweetgirl.croissant.course.service.CourseMemberService;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.dto.request.ConsentCreateRequest;
+import sweetgirl.croissant.member.dto.request.ConsentUpdateRequest;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.entity.NotificationSetting;
 import sweetgirl.croissant.member.entity.RefreshToken;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.LikedMenuCategoryRepository;
@@ -47,6 +51,8 @@ class MemberCommandServiceTest {
 	private GuestPromotionService guestPromotionService;
 	@Mock
 	private CourseMemberService courseMemberService;
+	@Mock
+	private NotificationSettingProvider notificationSettingProvider;
 
 	@InjectMocks
 	private MemberCommandService memberCommandService;
@@ -89,6 +95,7 @@ class MemberCommandServiceTest {
 		RefreshToken session = mock(RefreshToken.class);
 		given(session.getDeviceId()).willReturn("device-001");
 		given(refreshTokenRepository.findAllByMember(member)).willReturn(List.of(session));
+		given(notificationSettingProvider.getOrCreate(1L)).willReturn(mock(NotificationSetting.class));
 
 		memberCommandService.createConsent(1L,
 			new ConsentCreateRequest(true, true, true, false, false, true, "v1", "v1", null));
@@ -104,10 +111,86 @@ class MemberCommandServiceTest {
 		Member member = mock(Member.class);
 		given(memberReader.getMember(1L)).willReturn(member);
 		given(refreshTokenRepository.findAllByMember(member)).willReturn(List.of());
+		given(notificationSettingProvider.getOrCreate(1L)).willReturn(mock(NotificationSetting.class));
 
 		memberCommandService.createConsent(1L,
 			new ConsentCreateRequest(true, true, true, false, false, true, "v1", "v1", null));
 
 		then(guestPromotionService).shouldHaveNoInteractions();
+	}
+
+	// 약관에서 혜택 알림에 동의하면 발송이 보는 알림 설정(isMarketingEnabled)도 켜진다
+	@Test
+	void createConsent_marketingAgreed_turnsOnMarketingSetting() {
+		Member member = Member.builder().nickname("테스터").build();
+		given(memberReader.getMember(1L)).willReturn(member);
+		given(refreshTokenRepository.findAllByMember(member)).willReturn(List.of());
+		NotificationSetting setting = NotificationSetting.builder().member(member).isMarketingEnabled(false).build();
+		given(notificationSettingProvider.getOrCreate(1L)).willReturn(setting);
+
+		memberCommandService.createConsent(1L,
+			new ConsentCreateRequest(true, true, true, true, false, true, "v1", "v1", null));
+
+		assertThat(member.isAgreeToMarketing()).isTrue();
+		assertThat(member.getMarketingAgreedAt()).isNotNull();
+		assertThat(setting.isMarketingEnabled()).isTrue();
+	}
+
+	// 동의하지 않으면 설정도 꺼진 채다
+	@Test
+	void createConsent_marketingDeclined_keepsMarketingSettingOff() {
+		Member member = Member.builder().nickname("테스터").build();
+		given(memberReader.getMember(1L)).willReturn(member);
+		given(refreshTokenRepository.findAllByMember(member)).willReturn(List.of());
+		NotificationSetting setting = NotificationSetting.builder().member(member).isMarketingEnabled(true).build();
+		given(notificationSettingProvider.getOrCreate(1L)).willReturn(setting);
+
+		memberCommandService.createConsent(1L,
+			new ConsentCreateRequest(true, true, true, false, false, true, "v1", "v1", null));
+
+		assertThat(setting.isMarketingEnabled()).isFalse();
+	}
+
+	// 동의 변경 API로 마케팅 동의를 켜고 끄면 알림 설정도 따라간다
+	@Test
+	void updateConsent_marketing_syncsMarketingSetting() {
+		Member member = Member.builder().nickname("테스터").build();
+		given(memberReader.getMember(1L)).willReturn(member);
+		NotificationSetting setting = NotificationSetting.builder().member(member).isMarketingEnabled(false).build();
+		given(notificationSettingProvider.getOrCreate(1L)).willReturn(setting);
+
+		memberCommandService.updateConsent(1L, new ConsentUpdateRequest(true, null));
+		assertThat(setting.isMarketingEnabled()).isTrue();
+
+		memberCommandService.updateConsent(1L, new ConsentUpdateRequest(false, null));
+		assertThat(setting.isMarketingEnabled()).isFalse();
+		assertThat(member.getMarketingAgreedAt()).isNull();
+	}
+
+	// 야간 동의만 바꾸는 요청은 알림 설정을 건드리지 않는다(설정에 야간 항목이 없다)
+	@Test
+	void updateConsent_nightOnly_doesNotTouchSetting() {
+		Member member = Member.builder().nickname("테스터").build();
+		given(memberReader.getMember(1L)).willReturn(member);
+
+		memberCommandService.updateConsent(1L, new ConsentUpdateRequest(null, true));
+
+		assertThat(member.isAgreeToNightMarketing()).isTrue();
+		then(notificationSettingProvider).shouldHaveNoInteractions();
+	}
+
+	// 마케팅 동의를 철회하면 야간 광고 동의도 함께 철회된다
+	@Test
+	void updateConsent_marketingWithdrawn_withdrawsNightConsent() {
+		Member member = Member.builder().nickname("테스터").build();
+		member.updateMarketingAgreement(true);
+		member.updateNightMarketingAgreement(true);
+		given(memberReader.getMember(1L)).willReturn(member);
+		given(notificationSettingProvider.getOrCreate(1L)).willReturn(mock(NotificationSetting.class));
+
+		memberCommandService.updateConsent(1L, new ConsentUpdateRequest(false, null));
+
+		assertThat(member.isAgreeToMarketing()).isFalse();
+		assertThat(member.isAgreeToNightMarketing()).isFalse();
 	}
 }

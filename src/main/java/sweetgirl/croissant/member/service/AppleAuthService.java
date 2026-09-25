@@ -102,7 +102,7 @@ public class AppleAuthService {
 		String refreshToken = jwtProvider.generateRefreshToken(memberId);
 
 		saveRefreshToken(memberId, deviceId, refreshToken);
-		// 가입이 커밋된 뒤 편찬위원회가 인사 편지를 넣는다. 탈퇴 후 재가입도 새 Member라 다시 받는다.
+		// 가입이 커밋된 뒤 빵별일지 팀이 인사 편지를 넣는다. 탈퇴 후 재가입도 새 Member라 다시 받는다.
 		if (isNew) {
 			eventPublisher.publishEvent(new MemberSignedUpEvent(memberId));
 		}

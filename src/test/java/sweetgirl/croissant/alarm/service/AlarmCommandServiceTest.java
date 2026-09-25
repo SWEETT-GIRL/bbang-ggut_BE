@@ -1,5 +1,6 @@
 package sweetgirl.croissant.alarm.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -26,6 +27,7 @@ import com.posthog.server.PostHogInterface;
 
 import sweetgirl.croissant.alarm.code.AlarmErrorCode;
 import sweetgirl.croissant.alarm.dto.request.GeofenceEnterRequest;
+import sweetgirl.croissant.alarm.dto.response.MarketingEnabledResponse;
 import sweetgirl.croissant.alarm.entity.FcmToken;
 import sweetgirl.croissant.alarm.exception.AlarmException;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
@@ -277,5 +279,40 @@ class AlarmCommandServiceTest {
 		alarmCommandService.handleGeofenceEnter(memberId, request);
 
 		verify(storeNotificationRepository, times(1)).save(any());
+	}
+
+	// ───────────────────────── toggleMarketingEnabled ─────────────────────────
+
+	@Test
+	@DisplayName("toggleMarketingEnabled: 설정에서 켜면 마케팅 동의와 동의 시각도 남긴다")
+	void toggleMarketingEnabled_on_recordsConsent() {
+		Member member = Member.builder().nickname("테스터").build();
+		NotificationSetting setting = NotificationSetting.builder().member(member).isMarketingEnabled(false).build();
+		given(notificationSettingProvider.getOrCreate(1L)).willReturn(setting);
+		given(memberReader.getMember(1L)).willReturn(member);
+
+		MarketingEnabledResponse response = alarmCommandService.toggleMarketingEnabled(1L);
+
+		assertThat(response.isMarketingEnabled()).isTrue();
+		assertThat(member.isAgreeToMarketing()).isTrue();
+		assertThat(member.getMarketingAgreedAt()).isNotNull();
+	}
+
+	@Test
+	@DisplayName("toggleMarketingEnabled: 설정에서 끄면 마케팅·야간 동의가 철회되고 동의 시각을 지운다")
+	void toggleMarketingEnabled_off_withdrawsConsent() {
+		Member member = Member.builder().nickname("테스터").build();
+		member.updateMarketingAgreement(true);
+		member.updateNightMarketingAgreement(true);
+		NotificationSetting setting = NotificationSetting.builder().member(member).isMarketingEnabled(true).build();
+		given(notificationSettingProvider.getOrCreate(1L)).willReturn(setting);
+		given(memberReader.getMember(1L)).willReturn(member);
+
+		MarketingEnabledResponse response = alarmCommandService.toggleMarketingEnabled(1L);
+
+		assertThat(response.isMarketingEnabled()).isFalse();
+		assertThat(member.isAgreeToMarketing()).isFalse();
+		assertThat(member.getMarketingAgreedAt()).isNull();
+		assertThat(member.isAgreeToNightMarketing()).isFalse();
 	}
 }

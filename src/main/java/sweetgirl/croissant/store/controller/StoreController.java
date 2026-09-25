@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.common.util.MapBounds;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.store.dto.request.KakaoStoreRegisterRequest;
@@ -28,10 +29,12 @@ import sweetgirl.croissant.store.dto.response.NearbyStoreResponse;
 import sweetgirl.croissant.store.dto.response.StoreAutocompleteResponse;
 import sweetgirl.croissant.store.dto.response.StoreDetailResponse;
 import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
+import sweetgirl.croissant.store.dto.response.StoresInBoundsResponse;
 import sweetgirl.croissant.store.dto.response.SubscribedStoreResponse;
 import sweetgirl.croissant.store.dto.response.TopSubscribedStoreResponse;
 import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
 import sweetgirl.croissant.store.service.StoreCommandService;
+import sweetgirl.croissant.store.service.StoreInBoundsQueryService;
 import sweetgirl.croissant.store.service.StoreQueryService;
 import sweetgirl.croissant.store.service.search.SearchSort;
 import sweetgirl.croissant.store.service.search.StoreSearchService;
@@ -45,6 +48,7 @@ public class StoreController {
 	private final StoreQueryService storeQueryService;
 	private final StoreCommandService storeCommandService;
 	private final StoreSearchService storeSearchService;
+	private final StoreInBoundsQueryService storeInBoundsQueryService;
 
 	@Operation(summary = "빵집 상세 조회", description = "빵집 ID로 상세 정보를 조회합니다.")
 	@GetMapping("/{storeId}")
@@ -114,6 +118,22 @@ public class StoreController {
 			@RequestParam(defaultValue = "10") int size) {
 		return ResponseEntity.ok(
 			ApiResponse.ok(storeQueryService.getNearbyStores(lng, lat, PageRequest.of(page, size))));
+	}
+
+	@Operation(summary = "지도 영역 안 빵집 조회", description = "남서(sw)·북동(ne) 모서리로 준 사각형 안의 빵집을 "
+		+ "기준점(lat·lng, 없으면 영역 가운데)에서 가까운 순으로 limit 곳 반환합니다. total 은 자르기 전 영역 안 빵집 수입니다.")
+	@GetMapping("/in-bounds")
+	public ResponseEntity<ApiResponse<StoresInBoundsResponse>> getStoresInBounds(
+			@RequestParam double swLat,
+			@RequestParam double swLng,
+			@RequestParam double neLat,
+			@RequestParam double neLng,
+			@Parameter(description = "가까운 순 기준 위도 (없으면 영역 가운데)") @RequestParam(required = false) Double lat,
+			@Parameter(description = "가까운 순 기준 경도 (없으면 영역 가운데)") @RequestParam(required = false) Double lng,
+			@Parameter(description = "기본 150, 최대 300") @RequestParam(required = false) Integer limit) {
+		MapBounds bounds = new MapBounds(swLat, swLng, neLat, neLng);
+		return ResponseEntity.ok(
+			ApiResponse.ok(storeInBoundsQueryService.getStoresInBounds(bounds, lat, lng, limit)));
 	}
 
 	@Operation(summary = "인기 빵집 목록 조회", description = "구독 수 내림차순으로 상위 빵집 목록을 조회합니다.")
