@@ -26,6 +26,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import sweetgirl.croissant.common.util.MapBounds;
 import sweetgirl.croissant.dessert.dto.projection.DessertStoreProjection;
 import sweetgirl.croissant.dessert.dto.response.DessertStoreResponse;
 import sweetgirl.croissant.dessert.dto.response.HotDessertResponse;
@@ -178,6 +179,82 @@ class DessertQueryServiceTest {
 		given(dessertItemRepository.findById(5L)).willReturn(Optional.of(brandless));
 
 		assertThatThrownBy(() -> dessertQueryService.getSellingStores(5L, SEOUL_LAT, SEOUL_LNG, 30, null))
+			.isInstanceOf(DessertException.class);
+	}
+
+	@Test
+	@DisplayName("영역을 주면 동네 가게를 그 영역 안에서 찾고, 기본 150곳까지 세운다")
+	void getSellingStoresInBounds_genericUsesBounds() {
+		MapBounds bounds = new MapBounds(37.5, 126.9, 37.6, 127.1);
+		DessertItem pizzaSeolgi = dessertItem(1L, "피자설기", DessertItemType.GENERIC, null, DessertTrendStatus.HOT);
+		given(dessertItemRepository.findById(1L)).willReturn(Optional.of(pizzaSeolgi));
+		given(dessertItemRepository.findSellingStoresInBounds(eq(1L), eq(37.5), eq(126.9), eq(37.6), eq(127.1),
+			eq(SEOUL_LAT), eq(SEOUL_LNG), any(Pageable.class)))
+			.willReturn(List.of(sellingStore(9963L, "원조공주떡집", "STRONG", 2, LocalDate.of(2026, 9, 17), 1278)));
+		given(storeImageFileRepository.findThumbnailsByStoreIdIn(List.of(9963L)))
+			.willReturn(List.of(thumbnail(9963L, "aws-key", "resized-320")));
+
+		List<DessertStoreResponse> sellingStores = dessertQueryService.getSellingStoresInBounds(1L, bounds,
+			SEOUL_LAT, SEOUL_LNG, null);
+
+		assertThat(sellingStores).singleElement().satisfies(sellingStore -> {
+			assertThat(sellingStore.storeId()).isEqualTo(9963L);
+			assertThat(sellingStore.thumbnailImageKey()).isEqualTo("resized-320");
+		});
+		ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+		verify(dessertItemRepository).findSellingStoresInBounds(anyLong(), anyDouble(), anyDouble(), anyDouble(),
+			anyDouble(), anyDouble(), anyDouble(), pageable.capture());
+		assertThat(pageable.getValue().getPageSize()).isEqualTo(DessertQueryService.DEFAULT_BOUNDS_STORE_SIZE);
+		verify(dessertItemRepository, never())
+			.findSellingStoresNearby(anyLong(), anyDouble(), anyDouble(), anyDouble(), any(Pageable.class));
+	}
+
+	@Test
+	@DisplayName("영역으로 찾는 편의점 상품은 그 영역 안 브랜드 지점을 주고, 개수는 300에서 자른다")
+	void getSellingStoresInBounds_convenienceCapsSize() {
+		MapBounds bounds = new MapBounds(37.5, 126.9, 37.6, 127.1);
+		DessertItem gs25Item = dessertItem(3L, "GS25 한정선", DessertItemType.CONVENIENCE, "GS25",
+			DessertTrendStatus.HOT);
+		given(dessertItemRepository.findById(3L)).willReturn(Optional.of(gs25Item));
+		given(convenienceStoreRepository.findBranchesInBounds(eq("GS25"), anyDouble(), anyDouble(), anyDouble(),
+			anyDouble(), anyDouble(), anyDouble(), any(Pageable.class)))
+			.willReturn(List.of(sellingStore(null, "무교YG타워점", null, null, null, 238)));
+
+		List<DessertStoreResponse> branches = dessertQueryService.getSellingStoresInBounds(3L, bounds,
+			SEOUL_LAT, SEOUL_LNG, 9999);
+
+		assertThat(branches).singleElement().satisfies(branch -> assertThat(branch.brand()).isEqualTo("GS25"));
+		ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+		verify(convenienceStoreRepository).findBranchesInBounds(eq("GS25"), anyDouble(), anyDouble(), anyDouble(),
+			anyDouble(), anyDouble(), anyDouble(), pageable.capture());
+		assertThat(pageable.getValue().getPageSize()).isEqualTo(DessertQueryService.MAX_BOUNDS_STORE_SIZE);
+	}
+
+	@Test
+	@DisplayName("영역으로 찾는 체인 한정 메뉴는 그 영역 안 브랜드 지점을 준다")
+	void getSellingStoresInBounds_chainUsesBranches() {
+		MapBounds bounds = new MapBounds(37.5, 126.9, 37.6, 127.1);
+		DessertItem churros = dessertItem(5L, "초코츄러스", DessertItemType.CHAIN, "파리바게뜨",
+			DessertTrendStatus.HOT);
+		given(dessertItemRepository.findById(5L)).willReturn(Optional.of(churros));
+		given(chainStoreRepository.findBranchesInBounds(eq("파리바게뜨"), anyDouble(), anyDouble(), anyDouble(),
+			anyDouble(), anyDouble(), anyDouble(), any(Pageable.class)))
+			.willReturn(List.of(sellingStore(null, "파리바게뜨 시청역점", null, null, null, 180)));
+
+		List<DessertStoreResponse> branches = dessertQueryService.getSellingStoresInBounds(5L, bounds,
+			SEOUL_LAT, SEOUL_LNG, 150);
+
+		assertThat(branches).singleElement()
+			.satisfies(branch -> assertThat(branch.name()).isEqualTo("파리바게뜨 시청역점"));
+	}
+
+	@Test
+	@DisplayName("영역으로 찾아도 없는 디저트는 404")
+	void getSellingStoresInBounds_throwsWhenDessertMissing() {
+		given(dessertItemRepository.findById(404L)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> dessertQueryService.getSellingStoresInBounds(404L,
+			new MapBounds(37.5, 126.9, 37.6, 127.1), SEOUL_LAT, SEOUL_LNG, null))
 			.isInstanceOf(DessertException.class);
 	}
 

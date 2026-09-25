@@ -42,4 +42,36 @@ public interface ConvenienceStoreRepository extends JpaRepository<ConvenienceSto
 			@Param("lng") double longitude,
 			@Param("radiusMeters") double radiusMeters,
 			Pageable pageable);
+
+	/**
+	 * 이 브랜드의 지도 영역(사각형) 안 지점, 기준점에서 가까운 순. 모양은 findBranchesNearby 와 같다.
+	 */
+	@Query(value = """
+			SELECT
+			CAST(NULL AS BIGINT) AS "storeId",
+			convenience.branch_name AS "name",
+			convenience.address AS "address",
+			ST_Y(convenience.location::geometry) AS "latitude",
+			ST_X(convenience.location::geometry) AS "longitude",
+			ST_Distance(convenience.location,
+				ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS "distanceMeters",
+			CAST(NULL AS VARCHAR) AS "grade",
+			CAST(NULL AS INTEGER) AS "evidenceCount",
+			CAST(NULL AS DATE) AS "lastEvidenceAt"
+			FROM convenience_store convenience
+			WHERE convenience.brand = :brand
+			AND convenience.location && ST_MakeEnvelope(:swLng, :swLat, :neLng, :neLat, 4326)::geography
+			AND ST_Y(convenience.location::geometry) BETWEEN :swLat AND :neLat
+			AND ST_X(convenience.location::geometry) BETWEEN :swLng AND :neLng
+			ORDER BY "distanceMeters" ASC
+			""", nativeQuery = true)
+	List<DessertStoreProjection> findBranchesInBounds(
+			@Param("brand") String brand,
+			@Param("swLat") double swLat,
+			@Param("swLng") double swLng,
+			@Param("neLat") double neLat,
+			@Param("neLng") double neLng,
+			@Param("lat") double latitude,
+			@Param("lng") double longitude,
+			Pageable pageable);
 }
