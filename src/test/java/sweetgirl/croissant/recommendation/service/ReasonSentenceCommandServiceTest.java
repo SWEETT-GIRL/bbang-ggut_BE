@@ -189,8 +189,8 @@ class ReasonSentenceCommandServiceTest {
 	}
 
 	@Test
-	@DisplayName("문장이 잘려 나가지 않는다 — 길면 통째로 버리고 룰 문장을 쓴다")
-	void fill_neverTruncates() {
+	@DisplayName("전부 길이 초과면 성공으로 저장하지 않는다 — 저장하면 provider 가 바뀌어 다음 호출이 막힌다")
+	void fill_allTooLong_doesNotSaveAsSuccess() {
 		String tooLong = "가".repeat(ReasonTemplates.MAX_LENGTH + 1);
 		givenAnswer(new Reason(1L, tooLong), new Reason(2L, tooLong));
 
@@ -198,6 +198,35 @@ class ReasonSentenceCommandServiceTest {
 
 		assertThat(response.reasons()).extracting("reason").containsExactly(RULE_REASON, RULE_REASON);
 		assertThat(response.reasons()).noneMatch(reason -> reason.reason().startsWith("가가가"));
+		// 한 줄도 못 썼으니 룰 폴백이다 — 이걸 성공으로 저장하면 다음 fill() 이 재호출을 막고 그대로 굳는다
+		assertThat(response.fallback()).isTrue();
+		assertThat(response.provider()).isEqualTo(Recommendation.RULE_PROVIDER);
+		verify(recommendationRepository, never()).fillReasonsIfStillRule(any(), any(), any(), any(), any(), any());
+	}
+
+	@Test
+	@DisplayName("한 줄이라도 쓰였으면 성공으로 저장한다 — 나머지가 길어도")
+	void fill_partiallyTooLong_savesAsSuccess() {
+		givenAnswer(new Reason(1L, "소금빵이 맛있어요"),
+			new Reason(2L, "가".repeat(ReasonTemplates.MAX_LENGTH + 1)));
+
+		ReasonSentencesResponse response = service().fill(MEMBER_ID, RECOMMENDATION_ID);
+
+		assertThat(response.reasons()).extracting("reason").containsExactly("소금빵이 맛있어요", RULE_REASON);
+		assertThat(response.fallback()).isFalse();
+		verify(recommendationRepository).fillReasonsIfStillRule(any(), any(), any(), any(), any(), any());
+	}
+
+	@Test
+	@DisplayName("추천에 없는 가게 id 가 오면 그 줄은 적용도 집계도 되지 않는다 — 성공 수가 부풀지 않게")
+	void fill_unknownStoreId_isNotCountedAsFilled() {
+		givenAnswer(new Reason(1L, "소금빵이 맛있어요"), new Reason(999L, "엉뚱한 가게 문장이에요"));
+
+		ReasonSentencesResponse response = service().fill(MEMBER_ID, RECOMMENDATION_ID);
+
+		// 가게 2 는 룰 문장 그대로 — 999 는 추천에 없어 아무 자리도 채우지 못한다
+		assertThat(response.reasons()).extracting("reason").containsExactly("소금빵이 맛있어요", RULE_REASON);
+		assertThat(response.reasons()).extracting("storeId").containsExactly(1L, 2L);
 	}
 
 	@Test

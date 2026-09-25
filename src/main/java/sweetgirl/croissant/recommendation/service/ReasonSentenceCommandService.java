@@ -168,29 +168,43 @@ public class ReasonSentenceCommandService {
 			return storedOf(recommendation, stored);
 		}
 		// 줄 단위로 가른다 — 한 줄이 길다고 네 줄을 통째로 버리지 않는다. 버려진 줄은 앞서 보여 준 룰 문장이
-		// 그대로 남는데, 그 문장이 이제 근거 기반이라(ReasonTemplates) 잘린 LLM 문장보다 낫다
+		// 그대로 남는데, 그 문장이 이제 근거 기반이라(ReasonTemplates) 잘린 LLM 문장보다 낫다.
+		//
+		// 세는 기준은 응답 map 이 아니라 **추천에 실제로 있는 가게**다. byStoreId 는 추천에 없는 id 를 걸러 주지
+		// 않아서, 모델이 엉뚱한 id 를 돌려주면 그 줄이 적용되지도 않았는데 성공으로 잡힌다(#807 리뷰 P2).
+		int applied = 0;
 		int tooLong = 0;
+		int missing = 0;
 		List<RecommendedStoreResponse> stores = new ArrayList<>(stored.stores().size());
 		for (RecommendedStoreResponse store : stored.stores()) {
 			String sentence = byStoreId.get(store.storeId());
 			if (sentence == null) {
 				// 빠진 가게는 룰 문장을 그대로 둔다 — 빈 칸을 내려보내느니 앞서 보여 준 문장이 낫다
+				missing++;
 				stores.add(store);
 			} else if (sentence.length() > ReasonTemplates.MAX_LENGTH) {
 				tooLong++;
 				stores.add(store);
 			} else {
+				applied++;
 				stores.add(store.withReason(sentence));
 			}
 		}
-		reasonMetrics.recordLlmOutcome("filled", byStoreId.size() - tooLong);
+		reasonMetrics.recordLlmOutcome("filled", applied);
 		reasonMetrics.recordLlmOutcome("too_long", tooLong);
-		reasonMetrics.recordLlmOutcome("missing", stored.stores().size() - byStoreId.size());
+		reasonMetrics.recordLlmOutcome("missing", missing);
 		if (tooLong > 0) {
 			// 이 수를 세지 않으면 켜 놓고도 LLM 문장이 실제로 몇 % 나 나가는지 모른다. 프롬프트가 길이를 부탁만 하고
 			// 모델은 대표 메뉴 이름(운영 최대 20자)을 넣으면 쉽게 넘긴다 — FE 실측 49~57자
-			log.warn("이유 문장 길이 초과 [추천={}, 초과={}/{}줄, 상한={}자]",
-				recommendation.getId(), tooLong, byStoreId.size(), ReasonTemplates.MAX_LENGTH);
+			log.warn("이유 문장 길이 초과 [추천={}, 초과={}줄, 적용={}줄, 상한={}자]",
+				recommendation.getId(), tooLong, applied, ReasonTemplates.MAX_LENGTH);
+		}
+		// 한 줄도 못 썼으면 성공으로 저장하지 않는다. 저장하면 provider 가 LLM 으로 바뀌어 다음 fill() 이
+		// "이미 채워졌다" 로 보고 재호출을 막는다 — 실제로는 룰 문장뿐인데 그대로 굳는다(#807 리뷰 P2)
+		if (applied == 0) {
+			log.warn("이유 문장을 한 줄도 쓰지 못했다 [추천={}, 길이초과={}, 누락={}]",
+				recommendation.getId(), tooLong, missing);
+			return storedOf(recommendation, stored);
 		}
 		RecommendationResult filled = stored.withStores(stores);
 		String provider = model.provider().name().toLowerCase(Locale.ROOT);
@@ -207,7 +221,7 @@ public class ReasonSentenceCommandService {
 		}
 		log.info("이유 문장 [추천={}, 모델={}:{}, 지연={}ms, 입력토큰={}, 출력토큰={}, 채운가게={}/{}, 길이초과={}, 오늘남은호출={}]",
 			recommendation.getId(), provider, model.model(), result.latencyMs(), result.inputTokens(),
-			result.outputTokens(), byStoreId.size() - tooLong, stores.size(), tooLong, remainingCallsToday());
+			result.outputTokens(), applied, stores.size(), tooLong, remainingCallsToday());
 		return new ReasonSentencesResponse(recommendation.getId(), provider, model.model(), false,
 			result.latencyMs(), sentencesOf(filled));
 	}
