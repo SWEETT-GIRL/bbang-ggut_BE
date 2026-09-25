@@ -200,7 +200,7 @@ class LetterRepositoryTest {
 	void findAllForAdmin_skipsThreadsMemberNeverWroteIn() {
 		// 가입 인사(WelcomeLetterService)가 만든 방. 우리가 보낸 말 한 통뿐이다
 		LetterThread welcomeOnly = thread(member("방금 가입한 사람"), LocalDateTime.now());
-		message(welcomeOnly, LetterSender.ADMIN, "반가워요! 빵지도 편찬위원회입니다");
+		message(welcomeOnly, LetterSender.ADMIN, "반가워요! 빵별일지 팀입니다");
 		// 실제 문의. 가입 인사보다 하루 전이라 목록에서 밀려나기 쉬운 자리다
 		threadWithMemberLetter(member("문의한 사람"), LocalDateTime.now().minusDays(1));
 		entityManager.flush();
