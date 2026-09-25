@@ -89,6 +89,7 @@ public class CourseRecommendationCommandService {
 	private final RecommendationFeedbackRepository recommendationFeedbackRepository;
 	private final RecommendationCandidateJdbcRepository candidateRepository;
 	private final RecommendationProperties recommendationProperties;
+	private final ReasonMetrics reasonMetrics;
 	private final ObjectMapper objectMapper;
 
 	/**
@@ -382,6 +383,8 @@ public class CourseRecommendationCommandService {
 		// 이유는 코스 단위로 만든다 — 가게마다 따로 만들면 앞에 무엇이 나왔는지 몰라 같은 문장이 네 번 선다
 		List<GeneratedReasonSentence> reasons = ReasonSentenceGenerator.generate(taste, ordered,
 			recommendationProperties.getScore());
+		reasonMetrics.recordGenerated(reasons, taste,
+			recommendationProperties.getScore().getMinStrongStoresForTagReason());
 		List<RecommendedStoreResponse> stores = new ArrayList<>();
 		int totalDistanceM = 0;
 		for (int i = 0; i < ordered.size(); i++) {

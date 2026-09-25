@@ -76,6 +76,7 @@ public class ReasonSentenceCommandService {
 	private final ReasonPromptBuilder promptBuilder;
 	private final LlmClientRegistry llmClientRegistry;
 	private final ReasonSentenceProperties properties;
+	private final ReasonMetrics reasonMetrics;
 	private final ObjectMapper objectMapper;
 	private final Executor reasonLlmExecutor;
 	/** 기동 때 한 번 푼다 — 요청마다 다시 파싱하지 않고, 표기가 틀렸으면 배포에서 드러난다 */
@@ -91,7 +92,7 @@ public class ReasonSentenceCommandService {
 			StoreProfileRepository storeProfileRepository,
 			ReasonPromptBuilder promptBuilder,
 			ReasonSentenceProperties properties,
-			ObjectMapper objectMapper,
+			ObjectMapper objectMapper, ReasonMetrics reasonMetrics,
 			@Qualifier(ReasonLlmClientConfig.REASON_LLM_REGISTRY) LlmClientRegistry llmClientRegistry,
 			@Qualifier(AsyncConfig.REASON_LLM_EXECUTOR) Executor reasonLlmExecutor) {
 		this.recommendationRepository = recommendationRepository;
@@ -101,6 +102,7 @@ public class ReasonSentenceCommandService {
 		this.llmClientRegistry = llmClientRegistry;
 		this.properties = properties;
 		this.objectMapper = objectMapper;
+		this.reasonMetrics = reasonMetrics;
 		this.reasonLlmExecutor = reasonLlmExecutor;
 		// 설정 잘못은 첫 사용자 요청이 아니라 배포에서 드러나야 한다. 선정 근거 변형(D)은 저장된 추천에 인기도 점수가
 		// 없어 근거 줄의 절반이 0 으로 나간다 — 프롬프트가 거짓 재료를 받는 것이라 조용히 넘어갈 일이 아니다.
@@ -181,6 +183,9 @@ public class ReasonSentenceCommandService {
 				stores.add(store.withReason(sentence));
 			}
 		}
+		reasonMetrics.recordLlmOutcome("filled", byStoreId.size() - tooLong);
+		reasonMetrics.recordLlmOutcome("too_long", tooLong);
+		reasonMetrics.recordLlmOutcome("missing", stored.stores().size() - byStoreId.size());
 		if (tooLong > 0) {
 			// 이 수를 세지 않으면 켜 놓고도 LLM 문장이 실제로 몇 % 나 나가는지 모른다. 프롬프트가 길이를 부탁만 하고
 			// 모델은 대표 메뉴 이름(운영 최대 20자)을 넣으면 쉽게 넘긴다 — FE 실측 49~57자

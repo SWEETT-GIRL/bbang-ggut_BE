@@ -38,6 +38,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import sweetgirl.croissant.common.util.GeoDistance;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.entity.CourseStore;
@@ -108,6 +109,9 @@ class CourseRecommendationCommandServiceTest {
 	private RecommendationProperties recommendationProperties = new RecommendationProperties();
 	@Spy
 	private ObjectMapper objectMapper = new ObjectMapper();
+
+	@Spy
+	private ReasonMetrics reasonMetrics = new ReasonMetrics(new SimpleMeterRegistry());
 
 	@InjectMocks
 	private CourseRecommendationCommandService courseRecommendationCommandService;

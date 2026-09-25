@@ -21,10 +21,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.posthog.server.PostHogInterface;
-
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import sweetgirl.croissant.alarm.code.AlarmErrorCode;
 import sweetgirl.croissant.alarm.dto.request.GeofenceEnterRequest;
 import sweetgirl.croissant.alarm.dto.response.MarketingEnabledResponse;
@@ -57,8 +57,9 @@ class AlarmCommandServiceTest {
 	MemberReader memberReader;
 	@Mock
 	StoreRepository storeRepository;
-	@Mock
-	PostHogInterface postHog;
+	/** 푸시 발송 건수를 세는 곳 — 옛 PostHog 이벤트를 메트릭으로 옮겼다 */
+	@Spy
+	SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 	@Mock
 	NotificationSettingProvider notificationSettingProvider;
 

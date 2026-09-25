@@ -31,6 +31,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import sweetgirl.croissant.external.llm.LlmProvider;
 import sweetgirl.croissant.external.llm.LlmProvider;
 import sweetgirl.croissant.external.llm.client.LlmClientRegistry;
@@ -95,7 +96,7 @@ class ReasonSentenceCommandServiceTest {
 	private ReasonSentenceCommandService service() {
 		return new ReasonSentenceCommandService(recommendationRepository, userTasteProfileRepository,
 			storeProfileRepository, new ReasonPromptBuilder(recommendationProperties), properties, objectMapper,
-			llmClientRegistry, executor);
+			new ReasonMetrics(new SimpleMeterRegistry()), llmClientRegistry, executor);
 	}
 
 	@Test

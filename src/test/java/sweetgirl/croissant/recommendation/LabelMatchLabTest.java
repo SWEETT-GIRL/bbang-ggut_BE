@@ -129,8 +129,8 @@ class LabelMatchLabTest {
 			.append("합성 회원 ").append(members.size()).append("명 × 상권 ").append(AREAS.size())
 			.append("곳 · 코스 ").append(COURSE_SIZE).append("곳 · 후보 상한 ").append(CANDIDATE_LIMIT).append("\n\n")
 			.append("가게 라벨 ").append(labelRows()).append("행\n\n")
-			.append("| 상권 | 판 | 서로 다른 코스 | 한 가게 최대 노출 | 전원 공통 가게 |\n")
-			.append("|---|---|---|---|---|\n");
+			.append("| 상권 | 판 | 서로 다른 코스 | 한 가게 최대 노출 | 전원 공통 가게 | 빵집다움 평균 |\n")
+			.append("|---|---|---|---|---|---|\n");
 
 		for (Area area : AREAS) {
 			appendRow(report, area, "AXIS", measure(area, members, TasteSource.AXIS));
@@ -142,14 +142,20 @@ class LabelMatchLabTest {
 		System.out.println(report);
 	}
 
-	private void appendRow(StringBuilder report, Area area, String source, int[] result) {
+	private void appendRow(StringBuilder report, Area area, String source, double[] result) {
 		report.append("| ").append(area.name()).append(" | ").append(source)
-			.append(" | ").append(result[0]).append(" | ").append(result[1])
-			.append(" | ").append(result[2]).append(" |\n");
+			.append(" | ").append((int)result[0]).append(" | ").append((int)result[1])
+			.append(" | ").append((int)result[2])
+			.append(" | ").append(String.format("%.3f", result[3])).append(" |\n");
 	}
 
-	/** @return [서로 다른 코스 수, 한 가게 최대 노출, 전원 공통 가게 수] */
-	private int[] measure(Area area, List<Member> members, TasteSource source) {
+	/**
+	 * @return [서로 다른 코스 수, 한 가게 최대 노출, 전원 공통 가게 수, 뽑힌 가게의 빵집다움 평균]
+	 *
+	 *         <p>빵집다움을 같이 재는 이유: 그 값은 후보 자격(0.5 이상)으로만 쓰이고 점수에는 안 들어간다.
+	 *         취향 항이 세지면 문턱만 겨우 넘은 가게가 더 올라올 수 있는데, 사용자는 빵집 코스를 기대한다.
+	 */
+	private double[] measure(Area area, List<Member> members, TasteSource source) {
 		RecommendationCandidateJdbcRepository repository = repositoryFor(source);
 		Set<List<Long>> courses = new LinkedHashSet<>();
 		Map<Long, Integer> exposure = new LinkedHashMap<>();
@@ -169,7 +175,18 @@ class LabelMatchLabTest {
 		}
 		int maxExposure = exposure.values().stream().mapToInt(Integer::intValue).max().orElse(0);
 		long sharedByAll = exposure.values().stream().filter(count -> count == members.size()).count();
-		return new int[] {courses.size(), maxExposure, (int)sharedByAll};
+		return new double[] {courses.size(), maxExposure, sharedByAll, bakeryScoreOf(exposure.keySet())};
+	}
+
+	/** 뽑힌 가게들의 빵집다움 평균 — 낮아지면 취향 항이 카페·디저트 쪽을 끌어올린 것이다. */
+	private double bakeryScoreOf(java.util.Collection<Long> storeIds) {
+		if (storeIds.isEmpty()) {
+			return 0;
+		}
+		Double average = new NamedParameterJdbcTemplate(jdbcTemplate).queryForObject(
+			"SELECT avg(bakery_score) FROM store_profile WHERE store_id IN (:ids)",
+			Map.of("ids", storeIds), Double.class);
+		return average == null ? 0 : average;
 	}
 
 	private RecommendationCandidateJdbcRepository repositoryFor(TasteSource source) {
