@@ -66,7 +66,7 @@ public class RewardedAdSsvService {
 
 		String[] parts = customData.split(":", 2);
 		if (NICKNAME_PURPOSE.equals(parts[0])) {
-			return drawNickname(parts[1], params.get("transaction_id"));
+			return drawNickname(parts[1], params);
 		}
 		Long memberId;
 		try {
@@ -115,12 +115,10 @@ public class RewardedAdSsvService {
 	}
 
 	/**
-	 * 닉네임 뽑기 광고. 중복은 "오늘 이미 뽑았나"로 막는다 — 재시도가 와도 하루 한 번을 넘지 않는다.
-	 *
-	 * <p>이력 표(rewarded_ad_transaction)에는 남기지 않는다. 그 표의 character_code 가 NOT NULL 이고
-	 * 친구 표를 가리키기 때문이다. 정산 대조는 이 로그로 한다.
+	 * 닉네임 뽑기 광고. 친구 광고와 같이 이력 표에 먼저 남겨 보고, 이미 본 {@code transaction_id} 면 버린다 —
+	 * 구글의 재시도가 나란히 들어와도 한 번만 뽑는다. 하루 한 번 제한은 그 뒤에 {@link NicknameDrawService} 가 본다.
 	 */
-	private boolean drawNickname(String memberIdText, String transactionId) {
+	private boolean drawNickname(String memberIdText, Map<String, String> params) {
 		Long memberId;
 		try {
 			memberId = Long.valueOf(memberIdText);
@@ -128,6 +126,23 @@ public class RewardedAdSsvService {
 			log.warn("[AdMob SSV] 닉네임 광고의 회원 번호를 읽지 못했다: {}", memberIdText);
 			return false;
 		}
+
+		String transactionId = params.get("transaction_id");
+		if (transactionId == null) {
+			log.warn("[AdMob SSV] transaction_id 가 없어 중복을 가릴 수 없다");
+			return false;
+		}
+		int recorded = rewardedAdTransactionRepository.recordNicknameIfFirstTime(
+			transactionId,
+			memberId,
+			params.get("ad_unit"),
+			toInteger(params.get("reward_amount")),
+			params.get("reward_item"));
+		if (recorded == 0) {
+			log.info("[AdMob SSV] 이미 처리한 보상이라 넘어간다 - transaction={}", transactionId);
+			return false;
+		}
+
 		boolean drawn = nicknameDrawService.drawWithAd(memberId);
 		log.info("[AdMob SSV] 닉네임 광고 - member={}, transaction={}, 뽑음={}", memberId, transactionId, drawn);
 		return drawn;
