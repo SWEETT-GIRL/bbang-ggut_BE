@@ -11,6 +11,7 @@ import sweetgirl.croissant.world.entity.WorldCharacter;
 public record AdminWorldCharacterResponse(
 		String code,
 		String name,
+		String description,
 		String planetCode,
 		int sortOrder,
 		boolean mascot,
@@ -25,6 +26,7 @@ public record AdminWorldCharacterResponse(
 		return new AdminWorldCharacterResponse(
 			character.getCode(),
 			character.getName(),
+			character.getDescription(),
 			character.getPlanetCode(),
 			character.getSortOrder(),
 			character.isMascot(),
