@@ -33,7 +33,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import sweetgirl.croissant.external.llm.LlmProvider;
-import sweetgirl.croissant.external.llm.LlmProvider;
 import sweetgirl.croissant.external.llm.client.LlmClientRegistry;
 import sweetgirl.croissant.external.llm.dto.LlmRequest;
 import sweetgirl.croissant.external.llm.dto.LlmResult;
@@ -49,6 +48,7 @@ import sweetgirl.croissant.recommendation.dto.response.RecommendationResult;
 import sweetgirl.croissant.recommendation.dto.response.RecommendedStoreResponse;
 import sweetgirl.croissant.recommendation.entity.Recommendation;
 import sweetgirl.croissant.recommendation.enums.ReasonPromptVariant;
+import sweetgirl.croissant.recommendation.enums.ReasonSource;
 import sweetgirl.croissant.recommendation.exception.RecommendationException;
 import sweetgirl.croissant.recommendation.repository.RecommendationRepository;
 import sweetgirl.croissant.recommendation.service.ReasonLlmContract.Reason;
@@ -227,6 +227,47 @@ class ReasonSentenceCommandServiceTest {
 		// 가게 2 는 룰 문장 그대로 — 999 는 추천에 없어 아무 자리도 채우지 못한다
 		assertThat(response.reasons()).extracting("reason").containsExactly("소금빵이 맛있어요", RULE_REASON);
 		assertThat(response.reasons()).extracting("storeId").containsExactly(1L, 2L);
+	}
+
+	@Test
+	@DisplayName("줄마다 출처가 실린다 — 길이 초과로 룰이 된 줄은 RULE, 적용된 줄은 LLM")
+	void fill_carriesPerLineSource() {
+		givenAnswer(new Reason(1L, "소금빵이 맛있어요"),
+			new Reason(2L, "가".repeat(ReasonTemplates.MAX_LENGTH + 1)));
+
+		ReasonSentencesResponse response = service().fill(MEMBER_ID, RECOMMENDATION_ID);
+
+		assertThat(response.reasons()).extracting("source")
+			.containsExactly(ReasonSource.LLM, ReasonSource.RULE);
+		// 묶음 fallback 은 "전부 룰인가" 라, 섞였을 때 false 다 — 그 값으로 줄별 출처를 추정하면 안 된다
+		assertThat(response.fallback()).isFalse();
+	}
+
+	@Test
+	@DisplayName("저장에 줄별 출처가 같이 남는다 — DTO 로 바꿨다 저장해도 사라지지 않게")
+	void fill_savesReasonMeta() {
+		givenAnswer(new Reason(1L, "소금빵이 맛있어요"),
+			new Reason(2L, "가".repeat(ReasonTemplates.MAX_LENGTH + 1)));
+
+		service().fill(MEMBER_ID, RECOMMENDATION_ID);
+
+		ArgumentCaptor<Map<String, Object>> saved = ArgumentCaptor.captor();
+		verify(recommendationRepository).fillReasonsIfStillRule(any(), saved.capture(), any(), any(), any(), any());
+		Object meta = saved.getValue().get(ReasonSentenceCommandService.REASON_META);
+		assertThat(meta).isInstanceOf(Map.class);
+		assertThat(((Map<?, ?>)meta).get(ReasonSentenceCommandService.LLM_STORE_IDS))
+			.asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
+			.containsExactly(1L);
+	}
+
+	@Test
+	@DisplayName("꺼져 있으면 모든 줄이 RULE 이다")
+	void fill_disabled_allLinesAreRule() {
+		properties.setEnabled(false);
+
+		ReasonSentencesResponse response = service().fill(MEMBER_ID, RECOMMENDATION_ID);
+
+		assertThat(response.reasons()).extracting("source").containsOnly(ReasonSource.RULE);
 	}
 
 	@Test

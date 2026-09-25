@@ -33,6 +33,7 @@ import sweetgirl.croissant.recommendation.dto.response.ReasonExperimentRun;
 import sweetgirl.croissant.recommendation.dto.response.ReasonExperimentStore;
 import sweetgirl.croissant.recommendation.dto.response.ReasonSentence;
 import sweetgirl.croissant.recommendation.enums.ReasonPromptVariant;
+import sweetgirl.croissant.recommendation.enums.ReasonSource;
 import sweetgirl.croissant.recommendation.exception.RecommendationException;
 import sweetgirl.croissant.recommendation.service.ReasonExperimentService;
 
@@ -62,7 +63,7 @@ class AdminReasonExperimentControllerTest {
 			List.of(new ReasonExperimentStore(1L, "밀도", "성수동2가", 0.71, "이 동네에서 자주 담기는 빵집이에요")));
 		ReasonExperimentRun run = new ReasonExperimentRun("GEMINI/gemini-3.5-flash-lite/A",
 			LlmProvider.GEMINI, "gemini-3.5-flash-lite", ReasonPromptVariant.A, 3, 0, 640L, 812L, 700, 48, 0, 1_200,
-			List.of(new ReasonSentence(1L, "밀도", "바삭한 소금빵이 강한 집이에요")), null);
+			List.of(new ReasonSentence(1L, "밀도", "바삭한 소금빵이 강한 집이에요", ReasonSource.LLM)), null);
 		return ReasonExperimentResponse.measured(input, List.of(run), List.of());
 	}
 

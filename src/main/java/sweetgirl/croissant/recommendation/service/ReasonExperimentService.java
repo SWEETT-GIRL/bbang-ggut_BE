@@ -39,6 +39,7 @@ import sweetgirl.croissant.recommendation.dto.response.ReasonExperimentStore;
 import sweetgirl.croissant.recommendation.dto.response.ReasonSentence;
 import sweetgirl.croissant.recommendation.entity.CourseArea;
 import sweetgirl.croissant.recommendation.enums.ReasonPromptVariant;
+import sweetgirl.croissant.recommendation.enums.ReasonSource;
 import sweetgirl.croissant.recommendation.exception.RecommendationException;
 import sweetgirl.croissant.recommendation.repository.CandidateStoreRow;
 import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
@@ -271,8 +272,13 @@ public class ReasonExperimentService {
 	/** 모델이 순서를 바꾸거나 가게를 빠뜨려도 판이 흐트러지지 않게, 우리 순서로 다시 맞춘다 */
 	private List<ReasonSentence> sentencesOf(ReasonAnswer answer, List<CandidateStoreRow> ordered) {
 		Map<Long, String> byStoreId = ReasonLlmContract.byStoreId(answer);
+		// 실험은 LLM 판을 재는 자리라, 모델이 빠뜨린 가게는 문장이 null 이고 출처도 LLM 이 아니다
 		return ordered.stream()
-			.map(row -> new ReasonSentence(row.storeId(), row.name(), byStoreId.get(row.storeId())))
+			.map(row -> {
+				String sentence = byStoreId.get(row.storeId());
+				return new ReasonSentence(row.storeId(), row.name(), sentence,
+					sentence != null ? ReasonSource.LLM : ReasonSource.RULE);
+			})
 			.toList();
 	}
 
