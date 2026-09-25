@@ -21,11 +21,10 @@ import sweetgirl.croissant.recommendation.repository.TasteQuery;
  * <p><b>메트릭은 지금부터 쌓인다.</b> 지난 데이터를 보려면 DB 를 조회해야 한다 — 이미 쌓인
  * {@code recommendation_feedback} 과 프로필이 있다.
  *
- * <p><b>반응(LIKE · SAVE · RETRY)은 여기서 세지 않는다.</b> "개인화 근거로 설명한 추천이 더 담기는가" 를
- * 보려면 그 추천을 <b>무엇으로 설명했는지가 저장돼 있어야</b> 하는데, 지금은 문장만 저장하고 근거는 버린다.
- * 근거를 {@code recommendation.result} 에 같이 싣는 것은 응답 계약이 넓어지는 결정이라 따로 판단한다.
- * 그 전까지 "재료가 있는 회원이 더 만족하는가" 는 {@code recommendation_feedback × user_taste_profile}
- * 조인으로 본다 — 이미 쌓인 데이터까지 거슬러 볼 수 있어 메트릭보다 낫다.
+ * <p><b>반응에는 근거 라벨을 달지 않는다.</b> "개인화 근거로 설명한 추천이 더 담기는가" 를 보려면 그 추천을
+ * 무엇으로 설명했는지가 저장돼 있어야 하는데, 지금은 문장만 저장하고 근거는 버린다. 근거를
+ * {@code recommendation.result} 에 같이 싣는 것은 응답 계약이 넓어지는 결정이라 따로 판단한다.
+ * 재료 갈래만으로도 "재료가 있는 회원이 더 담는가" 는 볼 수 있어, 그것부터 센다.
  */
 @Component
 @RequiredArgsConstructor
@@ -66,6 +65,17 @@ public class ReasonMetrics {
 				EVIDENCE, sentence.evidence().type().name(),
 				TASTE_MATERIAL, material).increment();
 		}
+	}
+
+	/**
+	 * 추천에 대한 반응 — 회원 재료 갈래를 달아 "재료가 있는 회원이 더 담는가" 를 그라파나에서 나눠 본다.
+	 *
+	 * <p>라벨은 {@code 행동 8 × 재료 3 = 24} 시계열이다. 가게 id 나 추천 id 는 달지 않는다 —
+	 * 그건 {@code recommendation_feedback} 행이 이미 들고 있고, 라벨로 쓰면 시계열이 무한정 는다.
+	 */
+	public void recordFeedback(String action, TasteMaterial material) {
+		meterRegistry.counter("recommendation.feedback", "action", action, TASTE_MATERIAL, material.name())
+			.increment();
 	}
 
 	/** LLM 이 그 자리를 실제로 채웠는지 — filled · too_long · missing */

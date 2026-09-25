@@ -229,6 +229,9 @@ public class CourseRecommendationCommandService {
 		Set<Long> excludeStoreIds = new HashSet<>(storeIdsOf(activeStores));
 		excludeStoreIds.addAll(shownStoreIdsOf(memberId, course.getId(), area.getId(), day));
 		recommendationFeedbackRepository.save(RecommendationFeedback.of(previous.getId(), null, FeedbackAction.RETRY));
+		// RETRY 는 앱이 아니라 서버가 남긴다(isServerOnly) — 반응 메트릭에서 빠지지 않게 여기서 같이 센다
+		reasonMetrics.recordFeedback(FeedbackAction.RETRY.name(), ReasonMetrics.TasteMaterial.of(
+			TasteQuery.of(profile), recommendationProperties.getScore().getMinStrongStoresForTagReason()));
 		return buildAreaRecommendation(memberId, sessionId, course, area, day, profile, profileVersion, activeStores,
 			excludeStoreIds, storeCount);
 	}
