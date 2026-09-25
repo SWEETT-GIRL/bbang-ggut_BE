@@ -31,7 +31,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import sweetgirl.croissant.external.llm.LlmProvider;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import sweetgirl.croissant.external.llm.LlmProvider;
 import sweetgirl.croissant.external.llm.client.LlmClientRegistry;
 import sweetgirl.croissant.external.llm.dto.LlmRequest;
@@ -48,6 +48,7 @@ import sweetgirl.croissant.recommendation.dto.response.RecommendationResult;
 import sweetgirl.croissant.recommendation.dto.response.RecommendedStoreResponse;
 import sweetgirl.croissant.recommendation.entity.Recommendation;
 import sweetgirl.croissant.recommendation.enums.ReasonPromptVariant;
+import sweetgirl.croissant.recommendation.enums.ReasonSource;
 import sweetgirl.croissant.recommendation.exception.RecommendationException;
 import sweetgirl.croissant.recommendation.repository.RecommendationRepository;
 import sweetgirl.croissant.recommendation.service.ReasonLlmContract.Reason;
@@ -95,7 +96,7 @@ class ReasonSentenceCommandServiceTest {
 	private ReasonSentenceCommandService service() {
 		return new ReasonSentenceCommandService(recommendationRepository, userTasteProfileRepository,
 			storeProfileRepository, new ReasonPromptBuilder(recommendationProperties), properties, objectMapper,
-			llmClientRegistry, executor);
+			new ReasonMetrics(new SimpleMeterRegistry()), llmClientRegistry, executor);
 	}
 
 	@Test
@@ -161,6 +162,112 @@ class ReasonSentenceCommandServiceTest {
 		ReasonSentencesResponse response = service().fill(MEMBER_ID, RECOMMENDATION_ID);
 
 		assertThat(response.reasons()).extracting("reason").containsExactly("소금빵이 유명한 집이에요", RULE_REASON);
+	}
+
+	@Test
+	@DisplayName("35자를 넘는 줄만 룰 문장으로 되돌린다 — 한 줄이 길다고 네 줄을 통째로 버리지 않는다")
+	void fill_tooLongSentence_fallsBackPerLine() {
+		String tooLong = "사진 남기기 좋고 머물기 좋은 대형 베이커리라 플레인 소금빵과 케이크를 즐기기 좋아요";
+		assertThat(tooLong.length()).isGreaterThan(ReasonTemplates.MAX_LENGTH);
+		givenAnswer(new Reason(1L, tooLong), new Reason(2L, "소금빵이 맛있어요"));
+
+		ReasonSentencesResponse response = service().fill(MEMBER_ID, RECOMMENDATION_ID);
+
+		// 긴 줄만 룰 문장으로 남고 짧은 줄은 LLM 문장이 나간다
+		assertThat(response.reasons()).extracting("reason").containsExactly(RULE_REASON, "소금빵이 맛있어요");
+	}
+
+	@Test
+	@DisplayName("딱 35자는 통과한다 — 경계")
+	void fill_exactlyMaxLength_passes() {
+		String exact = "가".repeat(ReasonTemplates.MAX_LENGTH);
+		givenAnswer(new Reason(1L, exact), new Reason(2L, exact));
+
+		ReasonSentencesResponse response = service().fill(MEMBER_ID, RECOMMENDATION_ID);
+
+		assertThat(response.reasons()).extracting("reason").containsExactly(exact, exact);
+	}
+
+	@Test
+	@DisplayName("전부 길이 초과면 성공으로 저장하지 않는다 — 저장하면 provider 가 바뀌어 다음 호출이 막힌다")
+	void fill_allTooLong_doesNotSaveAsSuccess() {
+		String tooLong = "가".repeat(ReasonTemplates.MAX_LENGTH + 1);
+		givenAnswer(new Reason(1L, tooLong), new Reason(2L, tooLong));
+
+		ReasonSentencesResponse response = service().fill(MEMBER_ID, RECOMMENDATION_ID);
+
+		assertThat(response.reasons()).extracting("reason").containsExactly(RULE_REASON, RULE_REASON);
+		assertThat(response.reasons()).noneMatch(reason -> reason.reason().startsWith("가가가"));
+		// 한 줄도 못 썼으니 룰 폴백이다 — 이걸 성공으로 저장하면 다음 fill() 이 재호출을 막고 그대로 굳는다
+		assertThat(response.fallback()).isTrue();
+		assertThat(response.provider()).isEqualTo(Recommendation.RULE_PROVIDER);
+		verify(recommendationRepository, never()).fillReasonsIfStillRule(any(), any(), any(), any(), any(), any());
+	}
+
+	@Test
+	@DisplayName("한 줄이라도 쓰였으면 성공으로 저장한다 — 나머지가 길어도")
+	void fill_partiallyTooLong_savesAsSuccess() {
+		givenAnswer(new Reason(1L, "소금빵이 맛있어요"),
+			new Reason(2L, "가".repeat(ReasonTemplates.MAX_LENGTH + 1)));
+
+		ReasonSentencesResponse response = service().fill(MEMBER_ID, RECOMMENDATION_ID);
+
+		assertThat(response.reasons()).extracting("reason").containsExactly("소금빵이 맛있어요", RULE_REASON);
+		assertThat(response.fallback()).isFalse();
+		verify(recommendationRepository).fillReasonsIfStillRule(any(), any(), any(), any(), any(), any());
+	}
+
+	@Test
+	@DisplayName("추천에 없는 가게 id 가 오면 그 줄은 적용도 집계도 되지 않는다 — 성공 수가 부풀지 않게")
+	void fill_unknownStoreId_isNotCountedAsFilled() {
+		givenAnswer(new Reason(1L, "소금빵이 맛있어요"), new Reason(999L, "엉뚱한 가게 문장이에요"));
+
+		ReasonSentencesResponse response = service().fill(MEMBER_ID, RECOMMENDATION_ID);
+
+		// 가게 2 는 룰 문장 그대로 — 999 는 추천에 없어 아무 자리도 채우지 못한다
+		assertThat(response.reasons()).extracting("reason").containsExactly("소금빵이 맛있어요", RULE_REASON);
+		assertThat(response.reasons()).extracting("storeId").containsExactly(1L, 2L);
+	}
+
+	@Test
+	@DisplayName("줄마다 출처가 실린다 — 길이 초과로 룰이 된 줄은 RULE, 적용된 줄은 LLM")
+	void fill_carriesPerLineSource() {
+		givenAnswer(new Reason(1L, "소금빵이 맛있어요"),
+			new Reason(2L, "가".repeat(ReasonTemplates.MAX_LENGTH + 1)));
+
+		ReasonSentencesResponse response = service().fill(MEMBER_ID, RECOMMENDATION_ID);
+
+		assertThat(response.reasons()).extracting("source")
+			.containsExactly(ReasonSource.LLM, ReasonSource.RULE);
+		// 묶음 fallback 은 "전부 룰인가" 라, 섞였을 때 false 다 — 그 값으로 줄별 출처를 추정하면 안 된다
+		assertThat(response.fallback()).isFalse();
+	}
+
+	@Test
+	@DisplayName("저장에 줄별 출처가 같이 남는다 — DTO 로 바꿨다 저장해도 사라지지 않게")
+	void fill_savesReasonMeta() {
+		givenAnswer(new Reason(1L, "소금빵이 맛있어요"),
+			new Reason(2L, "가".repeat(ReasonTemplates.MAX_LENGTH + 1)));
+
+		service().fill(MEMBER_ID, RECOMMENDATION_ID);
+
+		ArgumentCaptor<Map<String, Object>> saved = ArgumentCaptor.captor();
+		verify(recommendationRepository).fillReasonsIfStillRule(any(), saved.capture(), any(), any(), any(), any());
+		Object meta = saved.getValue().get(ReasonSentenceCommandService.REASON_META);
+		assertThat(meta).isInstanceOf(Map.class);
+		assertThat(((Map<?, ?>)meta).get(ReasonSentenceCommandService.LLM_STORE_IDS))
+			.asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
+			.containsExactly(1L);
+	}
+
+	@Test
+	@DisplayName("꺼져 있으면 모든 줄이 RULE 이다")
+	void fill_disabled_allLinesAreRule() {
+		properties.setEnabled(false);
+
+		ReasonSentencesResponse response = service().fill(MEMBER_ID, RECOMMENDATION_ID);
+
+		assertThat(response.reasons()).extracting("source").containsOnly(ReasonSource.RULE);
 	}
 
 	@Test
