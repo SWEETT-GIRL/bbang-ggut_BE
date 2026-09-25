@@ -326,12 +326,16 @@ public class ReasonExperimentService {
 
 	private ReasonExperimentInput inputOf(CourseArea area, UserTasteProfile profile, TasteQuery taste,
 			boolean fallback, List<CandidateStoreRow> ordered) {
-		double threshold = recommendationProperties.getScore().getTasteCosineThreshold();
-		List<ReasonExperimentStore> stores = ordered.stream()
-			.map(row -> new ReasonExperimentStore(row.storeId(), row.name(), row.region3rd(),
-				CourseRecommendationCommandService.tasteFitOf(row),
-				CourseRecommendationCommandService.reasonOf(taste, row, fallback, threshold)))
-			.toList();
+		// 운영과 같은 코스 단위 함수를 쓴다 — 가게별로 따로 만들면 표현 변형과 중복 완화가 실험에 안 잡혀,
+		// 룰 기준선을 실제 출력과 다른 조건으로 재게 된다(설계 §8)
+		List<GeneratedReasonSentence> reasons = ReasonSentenceGenerator.generate(taste, ordered,
+			recommendationProperties.getScore());
+		List<ReasonExperimentStore> stores = new ArrayList<>(ordered.size());
+		for (int i = 0; i < ordered.size(); i++) {
+			CandidateStoreRow row = ordered.get(i);
+			stores.add(new ReasonExperimentStore(row.storeId(), row.name(), row.region3rd(),
+				CourseRecommendationCommandService.tasteFitOf(row), reasons.get(i).text()));
+		}
 		String typeCode = profile == null ? null : profile.getTypeCode();
 		return new ReasonExperimentInput(area.getId(), area.getName(), typeCode, taste.hasAxis(), fallback, stores);
 	}

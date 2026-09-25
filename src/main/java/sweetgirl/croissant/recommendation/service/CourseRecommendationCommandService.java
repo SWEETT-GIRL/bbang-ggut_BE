@@ -379,6 +379,9 @@ public class CourseRecommendationCommandService {
 		// 다시 받기에서 코스가 될 수 있으니 마지막이 아니다(PR #738 리뷰 — 랩 59칸 중 7칸이 조기 종료됐다).
 		boolean lastBatch = candidates.size() < recommendationProperties.getArea().getCandidateLimit()
 			&& ordered.size() == candidates.size();
+		// 이유는 코스 단위로 만든다 — 가게마다 따로 만들면 앞에 무엇이 나왔는지 몰라 같은 문장이 네 번 선다
+		List<GeneratedReasonSentence> reasons = ReasonSentenceGenerator.generate(taste, ordered,
+			recommendationProperties.getScore());
 		List<RecommendedStoreResponse> stores = new ArrayList<>();
 		int totalDistanceM = 0;
 		for (int i = 0; i < ordered.size(); i++) {
@@ -391,7 +394,7 @@ public class CourseRecommendationCommandService {
 				totalDistanceM += distanceToNext;
 			}
 			stores.add(new RecommendedStoreResponse(row.storeId(), row.name(), row.region3rd(),
-				reasonOf(taste, row, fallback), tasteFitOf(row), distanceToNext, row.latitude(), row.longitude(),
+				reasons.get(i).text(), tasteFitOf(row), distanceToNext, row.latitude(), row.longitude(),
 				row.thumbnailKey()));
 		}
 		String title = RecommendationMessage.courseTitle(area.getName());
@@ -408,28 +411,6 @@ public class CourseRecommendationCommandService {
 		return candidateRepository.findAreaCandidates(memberId, taste, area.getCenterLat(), area.getCenterLng(),
 			area.getRadiusM(), area.getSido(), area.getRegion2nd(), area.getRegion3rd(), excludeStoreIds,
 			recommendationProperties.getArea().getCandidateLimit());
-	}
-
-	/**
-	 * 이유 문구(#661 · 설계 §7.1): 취향 폴백이면 전부 시그니처, 취향 후보(코사인 > 임계)면 취향 문구, 그 밖은 시그니처.
-	 * 축이 없는 사용자에겐 취향 근거가 없으니 인기순 문구(RULE_REASON)를 그대로 쓴다 — "취향에 맞는다"고 지어내지 않는다.
-	 */
-	private String reasonOf(TasteQuery taste, CandidateStoreRow row, boolean fallback) {
-		return reasonOf(taste, row, fallback, recommendationProperties.getScore().getTasteCosineThreshold());
-	}
-
-	/**
-	 * 같은 규칙을 설정 없이 부를 수 있게 열어 둔 자리 — 이유 문장 실험(#662)이 "룰이 지금 뭐라고 쓰는지"를 기준선으로
-	 * 나란히 놓아야 해서. 규칙 자체는 위 문서 그대로이고 여기가 유일한 구현이다.
-	 */
-	static String reasonOf(TasteQuery taste, CandidateStoreRow row, boolean fallback, double tasteCosineThreshold) {
-		if (!taste.hasAxis()) {
-			return RecommendationMessage.RULE_REASON;
-		}
-		if (fallback || row.tasteFit() <= tasteCosineThreshold) {
-			return RecommendationMessage.SIGNATURE_REASON;
-		}
-		return RecommendationMessage.TASTE_REASON;
 	}
 
 	/** 응답의 tasteFit — 코사인(−1~1)을 소수 둘째 자리로. 축이 없으면 SQL 이 0 을 준다. */

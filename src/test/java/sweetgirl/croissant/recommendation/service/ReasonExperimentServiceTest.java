@@ -154,7 +154,7 @@ class ReasonExperimentServiceTest {
 		ReasonExperimentResponse response = service.run(request(null, null, false));
 
 		assertThat(response.input().stores()).extracting("ruleReason")
-			.containsOnly("이 동네에서 자주 담기는 빵집이에요");
+			.containsOnly("특별한 메뉴가 있다는 평이 있는 곳이에요");
 		assertThat(response.input().areaName()).isEqualTo("성수동");
 	}
 
@@ -222,7 +222,7 @@ class ReasonExperimentServiceTest {
 
 		assertThat(response.input().stores()).extracting("tasteFit").containsOnlyNulls();
 		assertThat(response.input().stores()).extracting("ruleReason")
-			.containsOnly("이 동네에서 자주 담기는 빵집이에요");
+			.containsOnly("특별한 메뉴가 있다는 평이 있는 곳이에요");
 	}
 
 	@Test

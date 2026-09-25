@@ -231,7 +231,8 @@ class CourseRecommendationCommandServiceTest {
 		assertThat(response.stores().get(0).distanceToNextM()).isBetween(150, 250);
 		assertThat(response.totalDistanceM()).isBetween(900, 1100);
 		assertThat(response.stores()).allSatisfy(store -> {
-			assertThat(store.reason()).isEqualTo(RecommendationMessage.RULE_REASON);
+			// 픽스처에 대표 종류도 태그도 없어 근거가 하나도 없다 — 확인되는 사실만 말한다
+			assertThat(store.reason()).isEqualTo("이번 코스에 함께 담아본 빵집이에요");
 			assertThat(store.tasteFit()).isZero();
 		});
 		assertThat(response.fallback()).isFalse();
@@ -874,6 +875,66 @@ class CourseRecommendationCommandServiceTest {
 	}
 
 	/** 점수가 실린 후보 — tasteFit 과 풀의 취향 후보 수를 지정한다. */
+	/** 대표 종류와 태그를 실은 후보 — 이유 문장의 재료가 있는 경우 */
+	private static CandidateStoreRow withMaterial(int index, List<String> signatureKinds, Map<String, Double> tags) {
+		CandidateStoreRow base = candidate(index);
+		return new CandidateStoreRow(base.storeId(), base.name(), base.region3rd(), base.latitude(), base.longitude(),
+			null, base.distanceM(), base.popularityScore(), 1.0 - index * 0.1, 0.0, 0,
+			null, null, null, null, tags, signatureKinds, signatureKinds);
+	}
+
+	@Test
+	@DisplayName("가게 재료가 있으면 코스의 네 줄이 갈린다 — 같은 종류가 겹쳐도 같은 문장을 두 번 쓰지 않는다")
+	void recommend_reasonsDifferWithinCourse() {
+		course(1);
+		CourseArea seoulArea = seongsu("서울");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(seoulArea));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of());
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)1,
+			Recommendation.NO_PROFILE_VERSION))
+			.willReturn(Optional.empty());
+		given(candidateRepository.findAreaCandidates(any(), any(), anyDouble(), anyDouble(), anyInt(), any(), any(),
+			any(), anyCollection(), anyInt()))
+			.willReturn(List.of(
+				withMaterial(1, List.of("소금빵"), Map.of()),
+				withMaterial(2, List.of("소금빵"), Map.of()),
+				withMaterial(3, List.of("케이크"), Map.of("가성비", 0.9))));
+		savedWithId(92L);
+
+		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(3, null), null);
+
+		List<String> reasons = response.stores().stream().map(RecommendedStoreResponse::reason).toList();
+		assertThat(reasons).doesNotHaveDuplicates();
+		// 같은 소금빵이라도 표현을 바꿔 쓴다 — 근거를 깎아 아래 층으로 내려가지 않는다
+		assertThat(reasons).contains("대표 빵은 소금빵이에요", "소금빵이 대표 빵인 곳이에요");
+	}
+
+	@Test
+	@DisplayName("취향 항을 뺀 폴백이어도 가게 근거는 설명한다 — 축이 없다고 가게 특징까지 막지 않는다")
+	void recommend_fallbackStillExplainsStoreEvidence() {
+		course(1);
+		CourseArea seoulArea = seongsu("서울");
+		given(courseAreaRepository.findByIdAndIsActiveTrue(AREA_ID)).willReturn(Optional.of(seoulArea));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(COURSE_ID))
+			.willReturn(List.of());
+		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+		given(recommendationRepository.findLatestAreaForReuse(MEMBER_ID, COURSE_ID, AREA_ID, (short)1,
+			Recommendation.NO_PROFILE_VERSION))
+			.willReturn(Optional.empty());
+		given(candidateRepository.findAreaCandidates(any(), any(), anyDouble(), anyDouble(), anyInt(), any(), any(),
+			any(), anyCollection(), anyInt()))
+			.willReturn(List.of(withMaterial(1, List.of(), Map.of("디저트", 0.9))));
+		savedWithId(93L);
+
+		RecommendationResponse response = courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID,
+			request(1, null), null);
+
+		assertThat(response.stores().get(0).reason()).isEqualTo("디저트가 맛있다는 평이 있는 곳이에요");
+	}
+
 	private static CandidateStoreRow scored(int index, double tasteFit, int tasteCandidateCount) {
 		CandidateStoreRow base = candidate(index);
 		return new CandidateStoreRow(base.storeId(), base.name(), base.region3rd(), base.latitude(), base.longitude(),
@@ -907,7 +968,7 @@ class CourseRecommendationCommandServiceTest {
 		assertThat(response.title()).isEqualTo("성수동 빵집 코스");
 		assertThat(response.stores()).extracting(RecommendedStoreResponse::storeId).containsExactly(104L, 105L);
 		assertThat(response.stores()).extracting(RecommendedStoreResponse::reason)
-			.containsOnly(RecommendationMessage.SIGNATURE_REASON);
+			.containsOnly("이번 코스에 함께 담아본 빵집이에요");
 		ArgumentCaptor<TasteQuery> tastes = ArgumentCaptor.forClass(TasteQuery.class);
 		then(candidateRepository).should(times(2)).findAreaCandidates(eq(MEMBER_ID), tastes.capture(), anyDouble(),
 			anyDouble(), anyInt(), any(), any(), any(), anyCollection(), anyInt());
@@ -916,7 +977,7 @@ class CourseRecommendationCommandServiceTest {
 	}
 
 	@Test
-	@DisplayName("이유·tasteFit: 취향 후보면 취향 문구, 코사인이 낮으면 시그니처, 축 없는 사용자는 인기순 문구")
+	@DisplayName("이유는 tasteFit 이 아니라 근거로 정해진다 — 코사인이 높든 낮든 재료가 없으면 같은 기본 문장, tasteFit 만 다르다")
 	void recommend_reasonsFollowTasteFit() {
 		course(1);
 		CourseArea seoulArea = seongsu("서울");
@@ -936,10 +997,12 @@ class CourseRecommendationCommandServiceTest {
 			request(4, null), null);
 
 		assertThat(response.fallback()).isFalse();
-		assertThat(response.stores()).extracting(RecommendedStoreResponse::reason).containsExactly(
-			RecommendationMessage.TASTE_REASON, RecommendationMessage.SIGNATURE_REASON,
-			RecommendationMessage.TASTE_REASON);
+		// 코사인 0.876 · 0.15 · 0.4 로 갈리는데 이유는 같다 — 옛 규칙은 여기서 취향/시그니처를 갈랐지만
+		// 그것은 "취향에 맞는다" 를 근거 없이 말한 것이었다. tasteFit 은 응답에 그대로 실린다
+		assertThat(response.stores()).extracting(RecommendedStoreResponse::reason)
+			.containsOnly("이번 코스에 함께 담아본 빵집이에요");
 		assertThat(response.stores().get(0).tasteFit()).isEqualTo(0.88);
+		assertThat(response.stores().get(1).tasteFit()).isEqualTo(0.15);
 		then(candidateRepository).should(times(1)).findAreaCandidates(any(), any(), anyDouble(), anyDouble(),
 			anyInt(), any(), any(), any(), anyCollection(), anyInt());
 	}

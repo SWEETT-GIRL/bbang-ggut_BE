@@ -164,6 +164,42 @@ class ReasonSentenceCommandServiceTest {
 	}
 
 	@Test
+	@DisplayName("35자를 넘는 줄만 룰 문장으로 되돌린다 — 한 줄이 길다고 네 줄을 통째로 버리지 않는다")
+	void fill_tooLongSentence_fallsBackPerLine() {
+		String tooLong = "사진 남기기 좋고 머물기 좋은 대형 베이커리라 플레인 소금빵과 케이크를 즐기기 좋아요";
+		assertThat(tooLong.length()).isGreaterThan(ReasonTemplates.MAX_LENGTH);
+		givenAnswer(new Reason(1L, tooLong), new Reason(2L, "소금빵이 맛있어요"));
+
+		ReasonSentencesResponse response = service().fill(MEMBER_ID, RECOMMENDATION_ID);
+
+		// 긴 줄만 룰 문장으로 남고 짧은 줄은 LLM 문장이 나간다
+		assertThat(response.reasons()).extracting("reason").containsExactly(RULE_REASON, "소금빵이 맛있어요");
+	}
+
+	@Test
+	@DisplayName("딱 35자는 통과한다 — 경계")
+	void fill_exactlyMaxLength_passes() {
+		String exact = "가".repeat(ReasonTemplates.MAX_LENGTH);
+		givenAnswer(new Reason(1L, exact), new Reason(2L, exact));
+
+		ReasonSentencesResponse response = service().fill(MEMBER_ID, RECOMMENDATION_ID);
+
+		assertThat(response.reasons()).extracting("reason").containsExactly(exact, exact);
+	}
+
+	@Test
+	@DisplayName("문장이 잘려 나가지 않는다 — 길면 통째로 버리고 룰 문장을 쓴다")
+	void fill_neverTruncates() {
+		String tooLong = "가".repeat(ReasonTemplates.MAX_LENGTH + 1);
+		givenAnswer(new Reason(1L, tooLong), new Reason(2L, tooLong));
+
+		ReasonSentencesResponse response = service().fill(MEMBER_ID, RECOMMENDATION_ID);
+
+		assertThat(response.reasons()).extracting("reason").containsExactly(RULE_REASON, RULE_REASON);
+		assertThat(response.reasons()).noneMatch(reason -> reason.reason().startsWith("가가가"));
+	}
+
+	@Test
 	@DisplayName("두 번째 호출은 저장된 문장을 주고 LLM 을 부르지 않는다")
 	void fill_alreadyFilled_doesNotCallLlm() {
 		given(recommendationRepository.findByIdAndMemberId(RECOMMENDATION_ID, MEMBER_ID))
