@@ -68,7 +68,8 @@ public class WorldQueryService {
 			memberWorld.getSelectedCharacter(),
 			pendingRoulettePlanets(catalog, arrivals),
 			memberWakeTicketRepository.countByMemberIdAndUsedAtIsNull(memberId),
-			characters(catalog, memberId));
+			characters(catalog, memberId),
+			memberWorld.getWelcomedAt());
 	}
 
 	/**

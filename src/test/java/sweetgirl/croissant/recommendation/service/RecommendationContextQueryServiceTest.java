@@ -136,7 +136,7 @@ class RecommendationContextQueryServiceTest {
 	}
 
 	@Test
-	@DisplayName("칩 순서는 버킷 우선순위 — 세션에서 본 칸 → 저장 가게 있는 칸 → 취향 후보 충분한 칸 → 나머지 도장판 순. 앞 3개만")
+	@DisplayName("칩 순서는 버킷 우선순위 — 세션에서 본 칸 → 저장 가게 있는 칸 → 취향 후보 충분한 칸 → 나머지 도장판 순. 자르지 않는다")
 	void getContext_ordersChipsByBucket() {
 		courseInSeoul();
 		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.of(typedProfile()));
@@ -157,9 +157,12 @@ class RecommendationContextQueryServiceTest {
 		RecommendationContextResponse context = recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID,
 			"session-1");
 
-		assertThat(context.areas()).extracting(RecommendationAreaResponse::areaId).containsExactly(7L, 6L, 8L);
+		// 신호가 없는 칸도 뒤에 남는다 — 자르면 여권에 있는 지역을 고를 수가 없다(서울은 도장 칸이 여섯이다)
+		assertThat(context.areas()).extracting(RecommendationAreaResponse::areaId)
+			.containsExactly(7L, 6L, 8L, 5L, 9L);
 		assertThat(context.areas()).extracting(RecommendationAreaResponse::reason).containsExactly(
-			RecommendationAreaReason.SESSION, RecommendationAreaReason.SAVED, RecommendationAreaReason.TASTE);
+			RecommendationAreaReason.SESSION, RecommendationAreaReason.SAVED, RecommendationAreaReason.TASTE,
+			RecommendationAreaReason.TASTE, RecommendationAreaReason.POPULAR);
 		then(candidateRepository).should().findAreaChipStats(eq(MEMBER_ID), eq("session-1"), any(), anyList());
 	}
 
@@ -244,7 +247,7 @@ class RecommendationContextQueryServiceTest {
 	}
 
 	@Test
-	@DisplayName("타입이 있으면 CHIPS 다(이름 없이 코드만으로). 칩은 표시 순서대로 3개, 저장 가게가 반경 안이면 SAVED")
+	@DisplayName("타입이 있으면 CHIPS 다(이름 없이 코드만으로). 칩은 도장 칸 전부가 표시 순서대로, 저장 가게가 반경 안이면 SAVED")
 	void getContext_typedProfile_chipsWithLabel() {
 		Course course = courseInSeoul();
 		given(userTasteProfileRepository.findById(MEMBER_ID)).willReturn(Optional.of(typedProfile()));
@@ -264,13 +267,14 @@ class RecommendationContextQueryServiceTest {
 
 		assertThat(context.state()).isEqualTo(RecommendationContextState.CHIPS);
 		assertThat(context.showAccuracyLink()).isFalse();
-		assertThat(context.areas()).hasSize(3);
+		// 통계가 없는 한남동도 남는다 — 가게 수로 거르지 않는다(운영 48칸의 최소가 26곳이라 빈 칩은 안 생긴다)
+		assertThat(context.areas()).hasSize(4);
 		assertThat(context.areas()).extracting(RecommendationAreaResponse::name)
-			.containsExactly("성수동", "연남동", "망원동");
+			.containsExactly("성수동", "연남동", "망원동", "한남동");
 		assertThat(context.areas()).extracting(RecommendationAreaResponse::reason)
 			.containsExactly(RecommendationAreaReason.SAVED, RecommendationAreaReason.POPULAR,
-				RecommendationAreaReason.POPULAR);
-		assertThat(context.areas()).extracting(RecommendationAreaResponse::storeCount).containsExactly(42, 17, 9);
+				RecommendationAreaReason.POPULAR, RecommendationAreaReason.POPULAR);
+		assertThat(context.areas()).extracting(RecommendationAreaResponse::storeCount).containsExactly(42, 17, 9, 0);
 		// 칩 재료는 한 문장으로 — 칩마다 묻지 않는다
 		then(candidateRepository).should().findAreaChipStats(eq(MEMBER_ID), any(), any(), anyList());
 		then(courseAccessPolicy).should().requireViewable(course, MEMBER_ID, null);
