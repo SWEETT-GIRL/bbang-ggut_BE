@@ -178,4 +178,19 @@ class MemberCommandServiceTest {
 		assertThat(member.isAgreeToNightMarketing()).isTrue();
 		then(notificationSettingProvider).shouldHaveNoInteractions();
 	}
+
+	// 마케팅 동의를 철회하면 야간 광고 동의도 함께 철회된다
+	@Test
+	void updateConsent_marketingWithdrawn_withdrawsNightConsent() {
+		Member member = Member.builder().nickname("테스터").build();
+		member.updateMarketingAgreement(true);
+		member.updateNightMarketingAgreement(true);
+		given(memberReader.getMember(1L)).willReturn(member);
+		given(notificationSettingProvider.getOrCreate(1L)).willReturn(mock(NotificationSetting.class));
+
+		memberCommandService.updateConsent(1L, new ConsentUpdateRequest(false, null));
+
+		assertThat(member.isAgreeToMarketing()).isFalse();
+		assertThat(member.isAgreeToNightMarketing()).isFalse();
+	}
 }

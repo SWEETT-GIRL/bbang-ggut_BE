@@ -41,6 +41,8 @@ import sweetgirl.croissant.member.repository.NotificationSettingRepository;
 public class PushDispatcher {
 
 	private static final Logger log = LoggerFactory.getLogger(PushDispatcher.class);
+	private static final int NIGHT_START_HOUR = 21;
+	private static final int NIGHT_END_HOUR = 8;
 
 	private final NotificationSettingRepository notificationSettingRepository;
 	private final FcmTokenRepository fcmTokenRepository;
@@ -53,7 +55,7 @@ public class PushDispatcher {
 	 */
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void dispatch(Notification notification, Member member, LocalDateTime now) {
-		if (!isEligible(notification, member)) {
+		if (!isEligible(notification, member, now)) {
 			return;
 		}
 
@@ -99,12 +101,12 @@ public class PushDispatcher {
 
 	/**
 	 * 보낼 자격. 알림 수신을 끈 사람에게는 무엇도 보내지 않고, 광고는 마케팅 동의를 따로 본다 —
-	 * 광고성 정보는 일반 알림 동의로 갈음할 수 없다.
+	 * 광고성 정보는 일반 알림 동의로 갈음할 수 없다. 야간(21~08시)의 광고는 야간 동의까지 본다.
 	 *
 	 * <p>설정이 없으면 기본값(수신 켬)으로 본다. 여기서 설정을 만들어 두면 공지 한 번에 회원 수만큼
 	 * INSERT가 나간다 — 설정은 사용자가 그 화면을 열 때 만들어진다.
 	 */
-	private boolean isEligible(Notification notification, Member member) {
+	private boolean isEligible(Notification notification, Member member, LocalDateTime now) {
 		NotificationSetting setting = notificationSettingRepository.findByMemberId(member.getId())
 			.orElse(null);
 		if (setting == null) {
@@ -113,7 +115,20 @@ public class PushDispatcher {
 		if (!setting.isNotificationEnabled()) {
 			return false;
 		}
-		return !notification.getType().requiresMarketingConsent() || setting.isMarketingEnabled();
+		if (!notification.getType().requiresMarketingConsent()) {
+			return true;
+		}
+		return setting.isMarketingEnabled() && (!isNightTime(now) || member.isAgreeToNightMarketing());
+	}
+
+	/**
+	 * 21:00~08:00(한국 시각)은 광고에 야간 동의가 따로 필요한 시간이다(정보통신망법 제50조).
+	 * {@code now}는 서버 벽시계이고 서버는 Asia/Seoul로 돈다(docker-compose의 TZ·user.timezone).
+	 * 이 시간에 야간 동의가 없는 사람은 그냥 건너뛴다 — 아침까지 미뤄 보낼 스케줄러가 없다.
+	 */
+	private boolean isNightTime(LocalDateTime now) {
+		int hour = now.getHour();
+		return hour >= NIGHT_START_HOUR || hour < NIGHT_END_HOUR;
 	}
 
 	/** 같은 기기가 여러 줄로 남은 옛 데이터가 있어 토큰 문자열로 한 번 접는다. */
