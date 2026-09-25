@@ -37,7 +37,7 @@ public class Member {
 	@Column(length = 100)
 	private String pendingNickname;
 
-	// 마지막으로 닉네임을 뽑은 시각(Asia/Seoul 벽시계). 뽑기는 한국 날짜로 하루 한 번이다.
+	// 마지막으로 닉네임을 뽑은 시각(Asia/Seoul 벽시계). 뽑기는 한국 날짜로 하루 한 번이고, 주(월~일) 첫 뽑기만 무료다.
 	@Column
 	private LocalDateTime nicknameDrawnAt;
 
@@ -128,6 +128,11 @@ public class Member {
 
 	public boolean canDrawNickname(LocalDate today) {
 		return this.nicknameDrawnAt == null || this.nicknameDrawnAt.toLocalDate().isBefore(today);
+	}
+
+	// 주의 첫 뽑기는 늘 무료다(광고 뽑기는 무료를 쓴 뒤에만 열린다). 그래서 이번 주에 뽑은 적이 있으면 무료는 쓴 것이다.
+	public boolean usedFreeNicknameDraw(LocalDate weekStart) {
+		return this.nicknameDrawnAt != null && !this.nicknameDrawnAt.toLocalDate().isBefore(weekStart);
 	}
 
 	// 뽑는 순간 그날 기회를 쓴 것이다 — 수락하든 "원래대로"를 누르든 다시 뽑을 수 없다.

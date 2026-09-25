@@ -1,8 +1,10 @@
 package sweetgirl.croissant.member.service;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.temporal.TemporalAdjusters;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,7 +21,11 @@ import sweetgirl.croissant.member.util.NicknameGenerator;
 
 /**
  * 닉네임 뽑기 — 사용자가 고르지 않고 서버가 랜덤으로 하나 뽑아 준다. 한국 날짜로 하루 한 번이고,
- * 뽑은 후보는 수락해야 닉네임이 된다. "원래대로"를 눌러도 그날 기회는 쓴 것이다(앱은 뽑기 전에 광고를 보여준다).
+ * 뽑은 후보는 수락해야 닉네임이 된다. "원래대로"를 눌러도 그날 기회는 쓴 것이다.
+ *
+ * <p>주(월요일 0시 ~ 일요일 24시, Asia/Seoul)의 첫 뽑기는 무료로 앱이 직접 부른다. 그 주에 더 뽑으려면
+ * 광고를 봐야 하고, 그 뽑기는 광고 보상 콜백(SSV)이 {@link #drawWithAd} 로 서버에서 한다 — 앱이 "광고 봤어요"라고
+ * 말하는 것을 믿으면 그 요청만 흉내 내도 광고 없이 뽑힌다.
  */
 @Service
 @Transactional
@@ -36,11 +42,16 @@ public class NicknameDrawService {
 	public NicknameDrawStatusResponse getStatus(Long memberId) {
 		Member member = memberReader.getMember(memberId);
 		LocalDate today = LocalDate.now(ZONE);
-		boolean canDraw = member.canDrawNickname(today);
+		LocalDate weekStart = weekStart(today);
+		boolean freeUsed = member.usedFreeNicknameDraw(weekStart);
+		boolean canDraw = !freeUsed;
+		boolean canDrawWithAd = freeUsed && member.canDrawNickname(today);
 		return new NicknameDrawStatusResponse(
 			canDraw,
+			canDrawWithAd,
 			member.getPendingNickname(),
-			canDraw ? null : today.plusDays(1).atStartOfDay());
+			canDraw || canDrawWithAd ? null : today.plusDays(1).atStartOfDay(),
+			freeUsed ? weekStart.plusWeeks(1).atStartOfDay() : null);
 	}
 
 	public NicknameDrawResponse draw(Long memberId) {
@@ -49,9 +60,35 @@ public class NicknameDrawService {
 		if (!member.canDrawNickname(now.toLocalDate())) {
 			throw new NicknameException(NicknameErrorCode.NICKNAME_DRAW_LIMIT);
 		}
+		if (member.usedFreeNicknameDraw(weekStart(now.toLocalDate()))) {
+			throw new NicknameException(NicknameErrorCode.NICKNAME_FREE_DRAW_USED);
+		}
 		String candidate = nicknameGenerator.generate();
 		member.drawNickname(candidate, now);
 		return new NicknameDrawResponse(member.getNickname(), candidate);
+	}
+
+	/**
+	 * 광고 보상 콜백(SSV)에서만 부른다. 이번 주 무료를 이미 썼고 오늘은 아직 안 뽑았을 때만 후보를 뽑아 둔다.
+	 * 앱은 광고가 끝나면 상태를 다시 물어 {@code pendingNickname} 이 생겼는지 본다.
+	 *
+	 * <p>던지지 않는다 — 콜백 트랜잭션을 롤백 전용으로 만들지 않도록, 못 뽑으면 false 만 준다.
+	 *
+	 * @return 뽑았으면 true
+	 */
+	public boolean drawWithAd(Long memberId) {
+		LocalDateTime now = LocalDateTime.now(ZONE);
+		LocalDate today = now.toLocalDate();
+		LocalDate weekStart = weekStart(today);
+		boolean allowed = memberRepository.findByIdAndDeletedAtIsNull(memberId)
+			.map(member -> member.usedFreeNicknameDraw(weekStart) && member.canDrawNickname(today))
+			.orElse(false);
+		if (!allowed) {
+			return false;
+		}
+		String candidate = nicknameGenerator.generate();
+		return memberRepository.drawNicknameWithAdIfAllowed(
+			memberId, candidate, now, weekStart.atStartOfDay(), today.atStartOfDay()) == 1;
 	}
 
 	public MemberProfileResponse accept(Long memberId) {
@@ -72,5 +109,9 @@ public class NicknameDrawService {
 		Member member = memberReader.getMember(memberId);
 		member.discardPendingNickname();
 		return MemberProfileResponse.from(member);
+	}
+
+	private static LocalDate weekStart(LocalDate today) {
+		return today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
 	}
 }
