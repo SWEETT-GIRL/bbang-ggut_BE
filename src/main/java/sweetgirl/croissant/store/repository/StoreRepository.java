@@ -19,6 +19,7 @@ import sweetgirl.croissant.store.dto.projection.NearbyStoreProjection;
 import sweetgirl.croissant.store.dto.projection.RegionByDistanceProjection;
 import sweetgirl.croissant.store.dto.projection.RegionBySubscribeProjection;
 import sweetgirl.croissant.store.dto.projection.StoreDistanceProjection;
+import sweetgirl.croissant.store.dto.projection.StoreInBoundsProjection;
 import sweetgirl.croissant.store.dto.projection.TopSubscribedStoreProjection;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.enums.StoreStatus;
@@ -482,4 +483,31 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 	List<Object[]> findNearestRegion(
 			@Param("lng") double longitude,
 			@Param("lat") double latitude);
+
+	/**
+	 * 지도 영역(사각형) 안 가게를 기준점에서 가까운 순으로 limit 곳, 그리고 자르기 전 영역 안 가게 수.
+	 *
+	 * <p>{@code &&}(영역 상자 겹침)로 store.location 의 GIST 인덱스를 태워 후보를 좁히고, 위경도 BETWEEN 으로
+	 * 앱이 보는 사각형과 정확히 맞춘다 — geography 상자는 구면이라 모서리가 조금 넉넉하다.
+	 */
+	@Query(value = """
+			SELECT
+			s.id AS "storeId",
+			COUNT(*) OVER () AS "total"
+			FROM store s
+			WHERE s.status = 'ACTIVE'
+			AND s.location && ST_MakeEnvelope(:swLng, :swLat, :neLng, :neLat, 4326)::geography
+			AND ST_Y(s.location::geometry) BETWEEN :swLat AND :neLat
+			AND ST_X(s.location::geometry) BETWEEN :swLng AND :neLng
+			ORDER BY s.location <-> ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, s.id
+			LIMIT :limit
+			""", nativeQuery = true)
+	List<StoreInBoundsProjection> findStoresInBounds(
+			@Param("swLat") double swLat,
+			@Param("swLng") double swLng,
+			@Param("neLat") double neLat,
+			@Param("neLng") double neLng,
+			@Param("lat") double latitude,
+			@Param("lng") double longitude,
+			@Param("limit") int limit);
 }

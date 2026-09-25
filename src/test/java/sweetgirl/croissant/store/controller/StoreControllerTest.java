@@ -17,11 +17,15 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import sweetgirl.croissant.common.util.MapBounds;
+import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.store.dto.response.StoreAutocompleteResponse;
 import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
+import sweetgirl.croissant.store.dto.response.StoresInBoundsResponse;
 import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
 import sweetgirl.croissant.store.service.StoreCommandService;
+import sweetgirl.croissant.store.service.StoreInBoundsQueryService;
 import sweetgirl.croissant.store.service.StoreQueryService;
 import sweetgirl.croissant.store.service.search.SearchSort;
 import sweetgirl.croissant.store.service.search.StoreSearchService;
@@ -40,12 +44,44 @@ class StoreControllerTest {
 	@Mock
 	private StoreSearchService storeSearchService;
 
+	@Mock
+	private StoreInBoundsQueryService storeInBoundsQueryService;
+
 	@InjectMocks
 	private StoreController storeController;
 
 	@BeforeEach
 	void setUp() {
-		mockMvc = MockMvcBuilders.standaloneSetup(storeController).build();
+		mockMvc = MockMvcBuilders.standaloneSetup(storeController)
+			.setControllerAdvice(new GlobalExceptionHandler())
+			.build();
+	}
+
+	@Test
+	void getStoresInBounds_returnsStoresAndTotal() throws Exception {
+		StoreSearchResponse response = new StoreSearchResponse(
+			102L, "성수 베이크", "서울 성동구 성수동", "resized/320/a.jpg", "kakao-102", null, "127.05", "37.54", List.of(),
+			List.of());
+		given(storeInBoundsQueryService.getStoresInBounds(eq(new MapBounds(37.53, 127.03, 37.56, 127.07)),
+			eq(37.54), eq(127.05), isNull()))
+			.willReturn(new StoresInBoundsResponse(List.of(response), 412));
+
+		mockMvc.perform(get("/stores/in-bounds")
+			.param("swLat", "37.53").param("swLng", "127.03")
+			.param("neLat", "37.56").param("neLng", "127.07")
+			.param("lat", "37.54").param("lng", "127.05"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.content[0].id").value(102))
+			.andExpect(jsonPath("$.data.content[0].x").value("127.05"))
+			.andExpect(jsonPath("$.data.total").value(412));
+	}
+
+	@Test
+	void getStoresInBounds_rejectsInvertedBounds() throws Exception {
+		mockMvc.perform(get("/stores/in-bounds")
+			.param("swLat", "37.56").param("swLng", "127.03")
+			.param("neLat", "37.53").param("neLng", "127.07"))
+			.andExpect(status().isBadRequest());
 	}
 
 	@Test
