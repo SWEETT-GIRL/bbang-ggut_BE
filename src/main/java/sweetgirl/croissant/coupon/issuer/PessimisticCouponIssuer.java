@@ -3,6 +3,7 @@ package sweetgirl.croissant.coupon.issuer;
 import java.time.LocalDateTime;
 
 import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.stereotype.Component;
@@ -25,10 +26,13 @@ import sweetgirl.croissant.coupon.repository.CouponRepository;
  * 를 전부 안고 있다. 이 구간에 들어가는 왕복 하나하나가 곧 락 보유 시간이고, 그게 처리량을 결정한다
  * (처리량 ≈ 1 ÷ 락 보유 시간). 여기에 쿼리를 더하기 전에 정말 필요한지 따진다.
  *
+ * <p>설정 {@code coupon.issuer} 가 없거나 {@code pessimistic} 일 때 등록된다(기본값).
+ *
  * <p><b>self-invocation 주의.</b> 같은 클래스 안에서 {@code issue()} 를 부르면 프록시를 타지 않아
  * 트랜잭션이 없고, 락이 곧바로 풀린다. 반드시 빈 바깥에서 호출해야 한다.
  */
 @Component
+@ConditionalOnProperty(name = "coupon.issuer", havingValue = "pessimistic", matchIfMissing = true)
 @RequiredArgsConstructor
 public class PessimisticCouponIssuer implements CouponIssuer {
 

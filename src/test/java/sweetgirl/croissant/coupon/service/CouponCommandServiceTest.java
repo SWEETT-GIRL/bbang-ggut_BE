@@ -23,6 +23,7 @@ import sweetgirl.croissant.coupon.dto.response.CouponIssueResponse;
 import sweetgirl.croissant.coupon.entity.CouponIssue;
 import sweetgirl.croissant.coupon.exception.CouponException;
 import sweetgirl.croissant.coupon.issuer.CouponIssuer;
+import sweetgirl.croissant.coupon.issuer.CouponSoldOutFlags;
 
 @ExtendWith(MockitoExtension.class)
 class CouponCommandServiceTest {
@@ -32,6 +33,9 @@ class CouponCommandServiceTest {
 
 	@Mock
 	private CouponIssuer couponIssuer;
+	/** 기본 스텁이 false 를 돌려주므로 관문 ①을 통과한다 — 여기서 보려는 건 플래그가 아니라 위임과 예외 전파다. */
+	@Mock
+	private CouponSoldOutFlags soldOutFlags;
 
 	@InjectMocks
 	private CouponCommandService couponCommandService;

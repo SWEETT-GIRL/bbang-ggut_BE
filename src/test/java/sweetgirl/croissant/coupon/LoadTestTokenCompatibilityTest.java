@@ -7,6 +7,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
 import java.util.Properties;
 
@@ -43,17 +45,27 @@ class LoadTestTokenCompatibilityTest {
 			Long.parseLong(properties.getProperty("jwt.refresh-token-expiry")));
 	}
 
+	/** 액세스 토큰은 1시간짜리다. 만료된 파일로는 서명이 맞는지 가릴 수 없으므로 건너뛴다. */
+	private boolean notExpired(String token) {
+		String payload = new String(Base64.getUrlDecoder().decode(token.split("\\.")[1]), StandardCharsets.UTF_8);
+		long expiresAt = Long.parseLong(payload.replaceAll(".*\"exp\":(\\d+).*", "$1"));
+		return Instant.ofEpochSecond(expiresAt).isAfter(Instant.now());
+	}
+
 	@Test
 	@DisplayName("Node 로 서명한 측정용 토큰을 JwtProvider 가 검증하고 memberId 를 그대로 꺼낸다")
 	void generatedTokens_areAcceptedByJwtProvider() throws IOException {
 		assumeTrue(Files.exists(TOKENS), "측정 준비를 한 적이 없으면 건너뛴다 (generate-tokens.mjs 미실행)");
 
 		JwtProvider jwtProvider = jwtProviderFromLocalProperties();
+
 		List<String> sample;
 		try (var lines = Files.lines(TOKENS, StandardCharsets.UTF_8)) {
 			sample = lines.limit(5).toList();
 		}
 		assertThat(sample).as("tokens.csv 가 비어 있다").isNotEmpty();
+		assumeTrue(notExpired(sample.get(0).split(",", 2)[1]),
+			"토큰이 만료됐다. 측정 직전에 generate-tokens.mjs 로 새로 뽑아야 한다");
 
 		for (String line : sample) {
 			String[] columns = line.split(",", 2);
