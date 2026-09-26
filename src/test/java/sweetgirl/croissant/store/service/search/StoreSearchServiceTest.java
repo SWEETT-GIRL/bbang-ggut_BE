@@ -359,6 +359,31 @@ class StoreSearchServiceTest {
 	}
 
 	@Test
+	void autocompleteStores_carriesRegionCoordinatesAndParentName() {
+		// 같은 이름의 동네가 여럿이라("중동"은 열세 곳) 부모 이름 없이는 어느 곳인지 고를 수 없고,
+		// 좌표·반경 없이는 고른 뒤 지도를 어디로 옮길지 알 수 없다.
+		given(searchEngine.autocompleteStores("중동", 5)).willReturn(List.of(
+			new StoreAutocompleteSuggestion("중동", AutocompleteSuggestionType.REGION, null,
+				37.48784, 126.76819, 1500, "부천시"),
+			new StoreAutocompleteSuggestion("중동", AutocompleteSuggestionType.REGION, null,
+				35.15896, 129.17825, 1500, "해운대구"),
+			new StoreAutocompleteSuggestion("중동제과", AutocompleteSuggestionType.STORE, 7L)));
+
+		var result = service.autocompleteStores("중동", 5);
+
+		assertThat(result).hasSize(3);
+		assertThat(result.get(0).parentName()).isEqualTo("부천시");
+		assertThat(result.get(0).centerLat()).isEqualTo(37.48784);
+		assertThat(result.get(0).centerLng()).isEqualTo(126.76819);
+		assertThat(result.get(0).radiusMeters()).isEqualTo(1500);
+		assertThat(result.get(1).parentName()).isEqualTo("해운대구");
+		// 가게 후보는 좌표를 갖지 않는다 — 지도를 옮길 자리가 아니라 가게 그 자체다
+		assertThat(result.get(2).type()).isEqualTo(AutocompleteSuggestionType.STORE);
+		assertThat(result.get(2).centerLat()).isNull();
+		assertThat(result.get(2).parentName()).isNull();
+	}
+
+	@Test
 	void autocompleteStores_deduplicatesByTypeAndKeywordAndMovesStoresToBottom() {
 		given(searchEngine.autocompleteStores("소금", 3)).willReturn(List.of(
 			new StoreAutocompleteSuggestion("소금집델리", AutocompleteSuggestionType.STORE, 1L),

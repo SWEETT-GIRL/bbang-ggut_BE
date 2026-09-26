@@ -260,7 +260,11 @@ public class StoreSearchService {
 			if (!allowedTypes.contains(response.type())) {
 				continue;
 			}
-			uniqueSuggestions.putIfAbsent(response.type() + ":" + response.keyword(), response);
+			// 지역은 이름이 같아도 다른 곳이다 — "중동"만 열세 곳이라 부모까지 넣어야 따로 선다.
+			// 부모 없이 묶으면 사용자가 고를 수 있는 중동이 하나뿐이게 된다.
+			String key = response.type() + ":" + response.keyword()
+				+ (response.parentName() != null ? ":" + response.parentName() : "");
+			uniqueSuggestions.putIfAbsent(key, response);
 		}
 		List<StoreAutocompleteResponse> responses = uniqueSuggestions.values().stream()
 			.sorted((left, right) -> Integer.compare(autocompletePriority(left), autocompletePriority(right)))

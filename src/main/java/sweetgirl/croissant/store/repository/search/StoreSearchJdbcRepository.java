@@ -34,7 +34,11 @@ public class StoreSearchJdbcRepository {
 				rs.getString("type"),
 				nullableLong(rs, "store_id"),
 				rs.getInt("tier"),
-				rs.getDouble("pop"));
+				rs.getDouble("pop"),
+				nullableDouble(rs, "center_lat"),
+				nullableDouble(rs, "center_lng"),
+				nullableInteger(rs, "radius_meters"),
+				rs.getString("parent_name"));
 
 	private final NamedParameterJdbcTemplate jdbcTemplate;
 
@@ -48,6 +52,11 @@ public class StoreSearchJdbcRepository {
 
 	private static Double nullableDouble(ResultSet rs, String column) throws SQLException {
 		double value = rs.getDouble(column);
+		return rs.wasNull() ? null : value;
+	}
+
+	private static Integer nullableInteger(ResultSet rs, String column) throws SQLException {
+		int value = rs.getInt(column);
 		return rs.wasNull() ? null : value;
 	}
 
