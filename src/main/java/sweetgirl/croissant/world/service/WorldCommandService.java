@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
+import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.world.code.WorldErrorCode;
 import sweetgirl.croissant.world.dto.response.WorldCharacterResponse;
 import sweetgirl.croissant.world.dto.response.WorldPlanetResponse;
@@ -55,16 +56,26 @@ public class WorldCommandService {
 	private final BreadRecordRepository breadRecordRepository;
 	private final WorldCatalogService worldCatalogService;
 	private final WorldProgressCalculator worldProgressCalculator;
+	private final MemberRestrictionReader memberRestrictionReader;
 
 	public void syncProgress(Long memberId) {
 		startIfAbsent(memberId);
 		recordArrivals(memberId);
 	}
 
-	/** 데리고 다닐 친구를 바꾼다. 아직 못 만난 친구는 고를 수 없다. */
+	/**
+	 * 데리고 다닐 친구를 바꾼다. 아직 못 만난 친구는 고를 수 없다.
+	 *
+	 * <p>이미 데리고 다니는 친구면 게스트 검사 전에 끝낸다 — 첫 친구 연출(게스트도 지난다)이 마스코트를
+	 * 다시 고르는데, 거기서 로그인 시트가 뜨면 안 된다.
+	 */
 	public void selectCharacter(Long memberId, String characterCode) {
 		MemberWorld memberWorld = memberWorldRepository.findById(memberId)
 			.orElseThrow(() -> new WorldException(WorldErrorCode.WORLD_NOT_STARTED));
+		if (characterCode.equals(memberWorld.getSelectedCharacter())) {
+			return;
+		}
+		memberRestrictionReader.validateNotGuest(memberId);
 
 		MemberCharacter memberCharacter = memberCharacterRepository
 			.findById(new MemberCharacterId(memberId, characterCode))
@@ -83,6 +94,7 @@ public class WorldCommandService {
 	 * 뒤집으면 줄 친구가 없는 호출이 룰렛만 태워 버린다.
 	 */
 	public WorldRouletteResponse spinRoulette(Long memberId, String planetCode) {
+		memberRestrictionReader.validateNotGuest(memberId);
 		WorldPlanetResponse planet = worldCatalogService.getCatalog().planets().stream()
 			.filter(candidate -> candidate.code().equals(planetCode))
 			.findFirst()
@@ -137,6 +149,7 @@ public class WorldCommandService {
 	 * 0 행인 쪽이 예외를 던져 티켓 사용까지 되돌린다 — 티켓은 누군가를 깨웠을 때만 줄어든다.
 	 */
 	public WorldWakeResponse useWakeTicket(Long memberId, String characterCode) {
+		memberRestrictionReader.validateNotGuest(memberId);
 		WorldPlanetResponse planet = requireWakeable(memberId, characterCode);
 		if (!planet.referralOk()) {
 			throw new WorldException(WorldErrorCode.WORLD_REFERRAL_NOT_ALLOWED);

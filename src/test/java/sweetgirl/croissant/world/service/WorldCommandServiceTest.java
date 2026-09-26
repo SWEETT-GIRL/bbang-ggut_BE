@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 
@@ -24,6 +25,9 @@ import org.springframework.transaction.annotation.AnnotationTransactionAttribute
 import org.springframework.transaction.interceptor.TransactionAttribute;
 
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
+import sweetgirl.croissant.member.code.MemberErrorCode;
+import sweetgirl.croissant.member.exception.MemberException;
+import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.world.code.WorldErrorCode;
 import sweetgirl.croissant.world.dto.response.WorldCatalogResponse;
 import sweetgirl.croissant.world.dto.response.WorldCharacterResponse;
@@ -65,6 +69,8 @@ class WorldCommandServiceTest {
 	private WorldCatalogService worldCatalogService;
 	@Mock
 	private WorldProgressCalculator worldProgressCalculator;
+	@Mock
+	private MemberRestrictionReader memberRestrictionReader;
 
 	@InjectMocks
 	private WorldCommandService worldCommandService;
@@ -159,6 +165,31 @@ class WorldCommandServiceTest {
 		}
 
 		@Test
+		@DisplayName("이미 데리고 다니는 친구를 다시 고르면 게스트 검사 없이 끝난다 — 첫 친구 연출은 게스트도 지난다")
+		void keepsCurrentWithoutGuestCheck() {
+			given(memberWorldRepository.findById(MEMBER_ID))
+				.willReturn(Optional.of(WorldFixtures.memberWorld(MEMBER_ID, "dog", 0)));
+
+			worldCommandService.selectCharacter(MEMBER_ID, "dog");
+
+			then(memberRestrictionReader).should(never()).validateNotGuest(any());
+			then(memberCharacterRepository).should(never()).findById(any());
+		}
+
+		@Test
+		@DisplayName("게스트 쓰기가 막혀 있으면 다른 친구로 바꾸지 못한다")
+		void rejectsGuestWhenBlocked() {
+			MemberWorld memberWorld = WorldFixtures.memberWorld(MEMBER_ID, "dog", 0);
+			given(memberWorldRepository.findById(MEMBER_ID)).willReturn(Optional.of(memberWorld));
+			willThrow(new MemberException(MemberErrorCode.GUEST_LOGIN_REQUIRED))
+				.given(memberRestrictionReader).validateNotGuest(MEMBER_ID);
+
+			assertThatThrownBy(() -> worldCommandService.selectCharacter(MEMBER_ID, "cat"))
+				.isInstanceOf(MemberException.class);
+			assertThat(memberWorld.getSelectedCharacter()).isEqualTo("dog");
+		}
+
+		@Test
 		@DisplayName("아직 자고 있는 친구는 고를 수 없다")
 		void rejectsSleepingCharacter() {
 			given(memberWorldRepository.findById(MEMBER_ID))
@@ -247,6 +278,17 @@ class WorldCommandServiceTest {
 			given(worldCatalogService.getCatalog()).willReturn(CATALOG);
 			given(memberPlanetArrivalRepository.findAllByIdMemberId(MEMBER_ID))
 				.willReturn(List.of(WorldFixtures.arrival(MEMBER_ID, "mars")));
+		}
+
+		@Test
+		@DisplayName("게스트 쓰기가 막혀 있으면 룰렛을 태우지 않는다")
+		void rejectsGuestWhenBlocked() {
+			willThrow(new MemberException(MemberErrorCode.GUEST_LOGIN_REQUIRED))
+				.given(memberRestrictionReader).validateNotGuest(MEMBER_ID);
+
+			assertThatThrownBy(() -> worldCommandService.spinRoulette(MEMBER_ID, "mars"))
+				.isInstanceOf(MemberException.class);
+			then(memberPlanetArrivalRepository).should(never()).markRouletteSpun(any(), anyString());
 		}
 
 		@Test
@@ -397,6 +439,17 @@ class WorldCommandServiceTest {
 			assertThatThrownBy(() -> worldCommandService.useWakeTicket(MEMBER_ID, "frog"))
 				.isInstanceOf(WorldException.class)
 				.hasMessageContaining("이미 깨어난 친구");
+		}
+
+		@Test
+		@DisplayName("게스트 쓰기가 막혀 있으면 티켓을 건드리지 않는다")
+		void rejectsGuestWhenBlocked() {
+			willThrow(new MemberException(MemberErrorCode.GUEST_LOGIN_REQUIRED))
+				.given(memberRestrictionReader).validateNotGuest(MEMBER_ID);
+
+			assertThatThrownBy(() -> worldCommandService.useWakeTicket(MEMBER_ID, "frog"))
+				.isInstanceOf(MemberException.class);
+			then(memberWakeTicketRepository).should(never()).findFirstByMemberIdAndUsedAtIsNullOrderByIdAsc(any());
 		}
 
 		@Test
