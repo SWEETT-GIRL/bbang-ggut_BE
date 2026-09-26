@@ -155,7 +155,7 @@ public class StoreSearchEngine {
 			.sorted(Comparator.comparingInt(StoreAutocompleteRow::tier)
 				.thenComparing(StoreAutocompleteRow::popularityScore, Comparator.reverseOrder()))
 			.map(row -> new StoreAutocompleteSuggestion(row.keyword(), AutocompleteSuggestionType.valueOf(row.type()),
-				row.storeId()))
+				row.storeId(), row.centerLat(), row.centerLng(), row.radiusMeters(), row.parentName()))
 			.toList();
 	}
 }

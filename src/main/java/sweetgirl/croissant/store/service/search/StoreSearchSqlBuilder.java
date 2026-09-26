@@ -262,20 +262,30 @@ public class StoreSearchSqlBuilder {
 			.addValue("limit", limitPerSource);
 		String sql = """
 				(SELECT s.name AS keyword, 'STORE' AS type, s.id AS store_id,
-					CASE WHEN s.name_normalized LIKE :q || '%' THEN 0 ELSE 1 END AS tier, s.popularity_score AS pop
+					CASE WHEN s.name_normalized LIKE :q || '%' THEN 0 ELSE 1 END AS tier, s.popularity_score AS pop,
+					CAST(NULL AS double precision) AS center_lat, CAST(NULL AS double precision) AS center_lng,
+					CAST(NULL AS integer) AS radius_meters, CAST(NULL AS varchar) AS parent_name
 				FROM store s
 				WHERE s.status = 'ACTIVE' AND s.name_normalized LIKE '%' || :q || '%'
 				ORDER BY tier, pop DESC, s.id LIMIT :limit)
 				UNION ALL
 				(SELECT a.alias AS keyword, 'STORE' AS type, a.store_id,
-					CASE WHEN a.alias_normalized LIKE :q || '%' THEN 0 ELSE 1 END AS tier, s.popularity_score AS pop
+					CASE WHEN a.alias_normalized LIKE :q || '%' THEN 0 ELSE 1 END AS tier, s.popularity_score AS pop,
+					CAST(NULL AS double precision) AS center_lat, CAST(NULL AS double precision) AS center_lng,
+					CAST(NULL AS integer) AS radius_meters, CAST(NULL AS varchar) AS parent_name
 				FROM store_name_alias a JOIN store s ON s.id = a.store_id
 				WHERE s.status = 'ACTIVE' AND a.alias_normalized LIKE '%' || :q || '%'
 				ORDER BY tier, pop DESC, a.id LIMIT :limit)
 				UNION ALL
+				-- 지역 후보는 좌표·반경·부모 이름을 함께 준다.
+				-- 좌표·반경: 고르면 지도가 그 자리로 가고 반경만큼 당긴다 — 앱이 동네 이름으로 추측하지 않아도 된다.
+				-- 부모 이름: '중동'이 열세 곳이라 이것 없이는 어느 중동인지 고를 수가 없다.
 				(SELECT ra.alias AS keyword, 'REGION' AS type, CAST(NULL AS bigint) AS store_id,
-					CASE WHEN ra.normalized_alias LIKE :q || '%' THEN 0 ELSE 1 END AS tier, 0 AS pop
-				FROM search_region_alias ra JOIN search_region r ON r.id = ra.region_id
+					CASE WHEN ra.normalized_alias LIKE :q || '%' THEN 0 ELSE 1 END AS tier, 0 AS pop,
+					r.center_lat, r.center_lng, r.radius_meters, parent.name AS parent_name
+				FROM search_region_alias ra
+				JOIN search_region r ON r.id = ra.region_id
+				LEFT JOIN search_region parent ON parent.id = r.parent_region_id
 				WHERE r.is_active = TRUE AND ra.normalized_alias LIKE '%' || :q || '%'
 				ORDER BY tier, ra.is_primary DESC, r.display_order, ra.id LIMIT :limit)
 				""";
