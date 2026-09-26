@@ -100,7 +100,9 @@ class DessertInBoundsRepositoryLabTest {
 			assertThat(row.getLatitude()).isBetween(swLat, neLat);
 			assertThat(row.getLongitude()).isBetween(swLng, neLng);
 			if (i > 0) {
-				assertThat(row.getDistanceMeters()).isGreaterThanOrEqualTo(rows.get(i - 1).getDistanceMeters());
+				// 정렬은 <->(구면), distanceMeters 는 ST_Distance(회전타원체)라 거의 같은 거리끼리는 뒤집힐 수 있다 — 0.5% 여유
+				double previous = rows.get(i - 1).getDistanceMeters();
+				assertThat(row.getDistanceMeters()).isGreaterThanOrEqualTo(previous - Math.max(1.0, previous * 0.005));
 			}
 		}
 	}

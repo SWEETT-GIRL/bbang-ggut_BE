@@ -14,7 +14,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
-import sweetgirl.croissant.badge.repository.MemberBadgeRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.StorePlanRepository;
 import sweetgirl.croissant.course.repository.CourseInviteRepository;
@@ -33,7 +32,6 @@ import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository;
 import sweetgirl.croissant.menu.repository.MenuLikeRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
-import sweetgirl.croissant.mission.repository.MemberMissionRepository;
 import sweetgirl.croissant.personalization.entity.UserTasteProfile;
 import sweetgirl.croissant.personalization.repository.UserStoreInteractionRepository;
 import sweetgirl.croissant.personalization.repository.UserTasteProfileRepository;
@@ -75,10 +73,6 @@ class GuestDataMigrationServiceTest {
 	private StorePlanRepository storePlanRepository;
 	@Mock
 	private CourseProgressRepository courseProgressRepository;
-	@Mock
-	private MemberBadgeRepository memberBadgeRepository;
-	@Mock
-	private MemberMissionRepository memberMissionRepository;
 	@Mock
 	private MenuRepository menuRepository;
 	@Mock
@@ -162,10 +156,6 @@ class GuestDataMigrationServiceTest {
 		worldOrder.verify(memberPlanetArrivalRepository).moveOwner(GUEST_ID, TARGET_ID);
 		then(memberWakeTicketRepository).should().moveOwner(GUEST_ID, TARGET_ID);
 
-		var badgeOrder = inOrder(memberBadgeRepository);
-		badgeOrder.verify(memberBadgeRepository).mergeGuestDuplicates(GUEST_ID, TARGET_ID);
-		badgeOrder.verify(memberBadgeRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
-		badgeOrder.verify(memberBadgeRepository).moveOwner(GUEST_ID, TARGET_ID);
 		then(menuRepository).should().moveCreator(GUEST_ID, TARGET_ID);
 		then(courseProgressService).should().refreshForMember(TARGET_ID);
 		// 협업 코스: 게스트가 방장으로 시작한 코스의 멤버 행·초대 토큰도 따라가야 한다

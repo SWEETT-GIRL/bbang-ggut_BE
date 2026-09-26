@@ -268,6 +268,7 @@ public class CourseCommandService {
 	 */
 	public List<CourseStoreResponse> addStores(Long memberId, Long courseId, List<CourseStoreBulkItem> items,
 			Long recommendationId) {
+		memberReader.requireLoggedIn(memberId);
 		Course course = courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		courseAccessPolicy.requireEditable(course, memberId);

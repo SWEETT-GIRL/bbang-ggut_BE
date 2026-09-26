@@ -43,20 +43,36 @@ class StoreInBoundsQueryServiceTest {
 	private StoreInBoundsQueryService storeInBoundsQueryService;
 
 	@Test
-	@DisplayName("영역 안 가게를 받은 순서대로 검색 결과 모양으로 채우고, 자르기 전 수를 함께 준다")
+	@DisplayName("영역 안 가게를 받은 순서대로 검색 결과 모양으로 채우고, limit 만큼 찼으면 자르기 전 수를 따로 세어 준다")
 	void getStoresInBounds_assemblesInOrderWithTotal() {
-		given(storeRepository.findStoresInBounds(37.53, 127.03, 37.56, 127.07, 37.54, 127.05, 150))
-			.willReturn(List.of(row(20L, 412L), row(10L, 412L)));
+		given(storeRepository.findStoresInBounds(37.53, 127.03, 37.56, 127.07, 37.54, 127.05, 2))
+			.willReturn(List.of(row(20L), row(10L)));
+		given(storeRepository.countStoresInBounds(37.53, 127.03, 37.56, 127.07, StoreInBoundsQueryService.TOTAL_CAP))
+			.willReturn(412L);
 		List<StoreSearchResponse> assembled = List.of(store(20L), store(10L));
 		given(storeSearchAssembler.assemble(anyList())).willReturn(assembled);
 
-		StoresInBoundsResponse response = storeInBoundsQueryService.getStoresInBounds(SEONGSU, 37.54, 127.05, null);
+		StoresInBoundsResponse response = storeInBoundsQueryService.getStoresInBounds(SEONGSU, 37.54, 127.05, 2);
 
 		assertThat(response.content()).isEqualTo(assembled);
 		assertThat(response.total()).isEqualTo(412L);
 		@SuppressWarnings("unchecked") ArgumentCaptor<List<StoreSearchHit>> hits = ArgumentCaptor.forClass(List.class);
 		verify(storeSearchAssembler).assemble(hits.capture());
 		assertThat(hits.getValue()).extracting(StoreSearchHit::storeId).containsExactly(20L, 10L);
+	}
+
+	@Test
+	@DisplayName("limit 에 못 미치면 영역 안이 다 온 것이라 따로 세지 않는다 — total 은 받은 수다")
+	void getStoresInBounds_skipsCountWhenUnderLimit() {
+		given(storeRepository.findStoresInBounds(37.53, 127.03, 37.56, 127.07, 37.54, 127.05, 150))
+			.willReturn(List.of(row(20L), row(10L)));
+		given(storeSearchAssembler.assemble(anyList())).willReturn(List.of(store(20L), store(10L)));
+
+		StoresInBoundsResponse response = storeInBoundsQueryService.getStoresInBounds(SEONGSU, 37.54, 127.05, null);
+
+		assertThat(response.total()).isEqualTo(2L);
+		verify(storeRepository, never()).countStoresInBounds(anyDouble(), anyDouble(), anyDouble(), anyDouble(),
+			anyInt());
 	}
 
 	@Test
@@ -104,18 +120,8 @@ class StoreInBoundsQueryServiceTest {
 			.isInstanceOf(IllegalArgumentException.class);
 	}
 
-	private static StoreInBoundsProjection row(Long storeId, Long total) {
-		return new StoreInBoundsProjection() {
-			@Override
-			public Long getStoreId() {
-				return storeId;
-			}
-
-			@Override
-			public Long getTotal() {
-				return total;
-			}
-		};
+	private static StoreInBoundsProjection row(Long storeId) {
+		return () -> storeId;
 	}
 
 	private static StoreSearchResponse store(Long id) {

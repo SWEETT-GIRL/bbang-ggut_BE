@@ -47,6 +47,9 @@ public interface ChainStoreRepository extends JpaRepository<ChainStore, Long> {
 
 	/**
 	 * 이 브랜드의 지도 영역(사각형) 안 지점, 기준점에서 가까운 순. 모양은 findBranchesNearby 와 같다.
+	 *
+	 * <p>정렬은 {@code <->}(구면 거리)로 해 GIST 인덱스의 가까운 순 탐색(KNN)을 태운다. 내려주는 distanceMeters 는
+	 * 회전타원체 거리라, 거리가 거의 같은 두 곳은 순서가 그 값과 조금 어긋날 수 있다.
 	 */
 	@Query(value = """
 			SELECT
@@ -65,7 +68,7 @@ public interface ChainStoreRepository extends JpaRepository<ChainStore, Long> {
 			AND chain.location && ST_MakeEnvelope(:swLng, :swLat, :neLng, :neLat, 4326)::geography
 			AND ST_Y(chain.location::geometry) BETWEEN :swLat AND :neLat
 			AND ST_X(chain.location::geometry) BETWEEN :swLng AND :neLng
-			ORDER BY "distanceMeters" ASC
+			ORDER BY chain.location <-> ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography
 			""", nativeQuery = true)
 	List<DessertStoreProjection> findBranchesInBounds(
 			@Param("brand") String brand,

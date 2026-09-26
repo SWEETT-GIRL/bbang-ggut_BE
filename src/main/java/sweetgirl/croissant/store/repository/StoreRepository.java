@@ -485,15 +485,17 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 			@Param("lat") double latitude);
 
 	/**
-	 * 지도 영역(사각형) 안 가게를 기준점에서 가까운 순으로 limit 곳, 그리고 자르기 전 영역 안 가게 수.
+	 * 지도 영역(사각형) 안 가게를 기준점에서 가까운 순으로 limit 곳.
 	 *
 	 * <p>{@code &&}(영역 상자 겹침)로 store.location 의 GIST 인덱스를 태워 후보를 좁히고, 위경도 BETWEEN 으로
 	 * 앱이 보는 사각형과 정확히 맞춘다 — geography 상자는 구면이라 모서리가 조금 넉넉하다.
+	 *
+	 * <p>영역 안 가게 수는 {@link #countStoresInBounds} 로 따로 센다. 여기서 {@code COUNT(*) OVER ()} 를 같이 내면
+	 * 영역 안 줄을 다 만든 뒤에야 LIMIT 을 걸 수 있어 {@code <->} 의 가까운 순 탐색(KNN)이 무너진다.
 	 */
 	@Query(value = """
 			SELECT
-			s.id AS "storeId",
-			COUNT(*) OVER () AS "total"
+			s.id AS "storeId"
 			FROM store s
 			WHERE s.status = 'ACTIVE'
 			AND s.location && ST_MakeEnvelope(:swLng, :swLat, :neLng, :neLat, 4326)::geography
@@ -510,4 +512,26 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 			@Param("lat") double latitude,
 			@Param("lng") double longitude,
 			@Param("limit") int limit);
+
+	/**
+	 * 영역 안 ACTIVE 가게 수, 단 {@code cap} 곳까지만 센다. 전국을 띄운 지도에서도 세는 비용이 cap 을 넘지 않게.
+	 * 조건은 {@link #findStoresInBounds} 와 같다.
+	 */
+	@Query(value = """
+			SELECT COUNT(*) FROM (
+			SELECT 1
+			FROM store s
+			WHERE s.status = 'ACTIVE'
+			AND s.location && ST_MakeEnvelope(:swLng, :swLat, :neLng, :neLat, 4326)::geography
+			AND ST_Y(s.location::geometry) BETWEEN :swLat AND :neLat
+			AND ST_X(s.location::geometry) BETWEEN :swLng AND :neLng
+			LIMIT :cap
+			) bounded
+			""", nativeQuery = true)
+	long countStoresInBounds(
+			@Param("swLat") double swLat,
+			@Param("swLng") double swLng,
+			@Param("neLat") double neLat,
+			@Param("neLng") double neLng,
+			@Param("cap") int cap);
 }

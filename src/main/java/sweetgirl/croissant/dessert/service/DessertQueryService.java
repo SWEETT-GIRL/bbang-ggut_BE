@@ -42,6 +42,8 @@ public class DessertQueryService {
 
 	/** 반경 기본값. "내 주변"이라 부를 수 있는 한계이자, GIST 인덱스를 태우는 조건이다 */
 	public static final double DEFAULT_RADIUS_METERS = 30_000;
+	/** 반경 상한. 비로그인 엔드포인트라 반경을 크게 주면 전국을 재게 된다 — 넘으면 여기까지로 줄인다 */
+	public static final double MAX_RADIUS_METERS = 50_000;
 
 	/** trend_status 는 nullable 이다. 판정이 아직 없는 것은 판정된 것들 뒤에 세운다 */
 	private static final int UNJUDGED_CHIP_ORDER = Integer.MAX_VALUE;
@@ -73,11 +75,12 @@ public class DessertQueryService {
 			double longitude,
 			int size,
 			Double radiusMeters) {
+		validateCoordinate(latitude, longitude);
 		DessertItem dessertItem = dessertItemRepository.findById(dessertItemId)
 			.orElseThrow(() -> new DessertException(DessertErrorCode.DESSERT_NOT_FOUND));
 
 		PageRequest limit = PageRequest.of(0, Math.min(Math.max(size, 1), MAX_STORE_SIZE));
-		double radius = radiusMeters == null ? DEFAULT_RADIUS_METERS : radiusMeters;
+		double radius = radiusMeters == null ? DEFAULT_RADIUS_METERS : Math.min(radiusMeters, MAX_RADIUS_METERS);
 
 		// enum 을 다 훑는 switch 라, 네 번째 성격이 생기면 여기서 컴파일이 깨진다 — 조용히 빠지지 않는다.
 		return switch (dessertItem.getItemType()) {
@@ -101,6 +104,7 @@ public class DessertQueryService {
 			double latitude,
 			double longitude,
 			Integer size) {
+		validateCoordinate(latitude, longitude);
 		DessertItem dessertItem = dessertItemRepository.findById(dessertItemId)
 			.orElseThrow(() -> new DessertException(DessertErrorCode.DESSERT_NOT_FOUND));
 
@@ -170,5 +174,12 @@ public class DessertQueryService {
 	private static int chipOrderOf(DessertItem dessertItem) {
 		DessertTrendStatus trendStatus = dessertItem.getTrendStatus();
 		return trendStatus == null ? UNJUDGED_CHIP_ORDER : trendStatus.getChipOrder();
+	}
+
+	/** 범위 밖 좌표는 PostGIS 가 500 을 낸다 — 400 으로 먼저 거른다(MapBounds 와 같은 규칙) */
+	private static void validateCoordinate(double latitude, double longitude) {
+		if (!(latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180)) {
+			throw new IllegalArgumentException("lat 은 -90~90, lng 는 -180~180 이어야 합니다");
+		}
 	}
 }

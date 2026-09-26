@@ -9,7 +9,9 @@ import java.security.spec.X509EncodedKeySpec;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -31,6 +33,10 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <p>키는 구글이 돌려가며 쓰므로 한 번 받아 들고 있다가, <b>모르는 {@code key_id} 를 만나면 다시
  * 받는다</b>. 시간 기반으로 갱신하면 키가 도는 순간의 콜백을 놓친다.
+ *
+ * <p>다만 이 콜백은 인증이 없어 아무나 모르는 {@code key_id} 를 보낼 수 있다. 그때마다 받으러 가면 요청마다
+ * 최대 8초씩 묶인다 — 다시 받기는 {@link #REFRESH_INTERVAL} 에 한 번, 한 스레드만 한다. 나머지는 기다리지 않고
+ * 떨어뜨린다(구글이 다시 보낸다).
  */
 @Slf4j
 @Component
@@ -51,6 +57,11 @@ public class RewardedAdSignatureVerifier {
 		})
 		.build();
 	private final AtomicReference<Map<Long, PublicKey>> cachedKeys = new AtomicReference<>(Map.of());
+
+	static final Duration REFRESH_INTERVAL = Duration.ofSeconds(60);
+	private final ReentrantLock refreshLock = new ReentrantLock();
+	/** 마지막으로 받으러 간 때(System.nanoTime). 0 이면 아직 한 번도 안 갔다 */
+	private final AtomicLong lastRefreshAt = new AtomicLong();
 
 	@Value("${admob.ssv.verifier-keys-url:https://gstatic.com/admob/reward/verifier-keys.json}")
 	private String verifierKeysUrl;
@@ -97,8 +108,26 @@ public class RewardedAdSignatureVerifier {
 		if (cached != null) {
 			return cached;
 		}
-		refreshKeys();
+		refreshKeysThrottled();
 		return cachedKeys.get().get(parsed);
+	}
+
+	/** 다른 스레드가 받는 중이거나 최근에 받았으면 그냥 돌아간다 — 그 사이 모르는 키는 검증 실패다. */
+	private void refreshKeysThrottled() {
+		if (!refreshLock.tryLock()) {
+			return;
+		}
+		try {
+			long last = lastRefreshAt.get();
+			long now = System.nanoTime();
+			if (last != 0 && now - last < REFRESH_INTERVAL.toNanos()) {
+				return;
+			}
+			lastRefreshAt.set(now);
+			refreshKeys();
+		} finally {
+			refreshLock.unlock();
+		}
 	}
 
 	private void refreshKeys() {

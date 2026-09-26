@@ -6,7 +6,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import sweetgirl.croissant.badge.repository.MemberBadgeRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.StorePlanRepository;
 import sweetgirl.croissant.course.repository.CourseInviteRepository;
@@ -25,7 +24,6 @@ import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository;
 import sweetgirl.croissant.menu.repository.MenuLikeRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
-import sweetgirl.croissant.mission.repository.MemberMissionRepository;
 import sweetgirl.croissant.personalization.repository.UserStoreInteractionRepository;
 import sweetgirl.croissant.personalization.repository.UserTasteProfileRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationRepository;
@@ -66,8 +64,6 @@ public class GuestDataMigrationService {
 	private final BreadRecordRepository breadRecordRepository;
 	private final StorePlanRepository storePlanRepository;
 	private final CourseProgressRepository courseProgressRepository;
-	private final MemberBadgeRepository memberBadgeRepository;
-	private final MemberMissionRepository memberMissionRepository;
 	private final MenuRepository menuRepository;
 	private final CourseProgressService courseProgressService;
 	private final MemberRepository memberRepository;
@@ -129,14 +125,6 @@ public class GuestDataMigrationService {
 		courseProgressRepository.mergeGuestDuplicates(guestId, targetId);
 		courseProgressRepository.deleteGuestDuplicates(guestId, targetId);
 		courseProgressRepository.moveOwner(guestId, targetId);
-
-		memberBadgeRepository.mergeGuestDuplicates(guestId, targetId);
-		memberBadgeRepository.deleteGuestDuplicates(guestId, targetId);
-		memberBadgeRepository.moveOwner(guestId, targetId);
-
-		memberMissionRepository.mergeGuestDuplicates(guestId, targetId);
-		memberMissionRepository.deleteGuestDuplicates(guestId, targetId);
-		memberMissionRepository.moveOwner(guestId, targetId);
 
 		// 방문 체크는 코스를 따라가야 한다 — 진행률(refreshForMember)과 사용자 유형(DOER)의 재료다
 		courseStoreVisitRepository.deleteGuestDuplicates(guestId, targetId);

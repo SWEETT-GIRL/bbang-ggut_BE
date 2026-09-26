@@ -25,6 +25,11 @@ public class StoreInBoundsQueryService {
 	public static final int DEFAULT_LIMIT = 150;
 	/** 비로그인 엔드포인트라 상한을 둔다. 한 화면에 이보다 많으면 핀이 지도를 덮는다 */
 	public static final int MAX_LIMIT = 300;
+	/**
+	 * total 을 세는 상한. 앱은 total 을 "N곳 중 M곳"에만 쓰고 지금 앱(1.4.x)은 읽지도 않는다 — 전국을 띄워도
+	 * 영역 안 가게를 끝까지 세지 않게 여기서 멈춘다. MAX_LIMIT 보다 커서 "content 보다 크다"는 뜻은 지켜진다.
+	 */
+	public static final int TOTAL_CAP = 1000;
 
 	private final StoreRepository storeRepository;
 	private final StoreSearchAssembler storeSearchAssembler;
@@ -44,17 +49,22 @@ public class StoreInBoundsQueryService {
 			throw new IllegalArgumentException("lat 은 -90~90, lng 는 -180~180 이어야 합니다");
 		}
 
+		int clampedLimit = clampLimit(limit);
 		List<StoreInBoundsProjection> rows = storeRepository.findStoresInBounds(
-			bounds.swLat(), bounds.swLng(), bounds.neLat(), bounds.neLng(), centerLat, centerLng,
-			clampLimit(limit));
+			bounds.swLat(), bounds.swLng(), bounds.neLat(), bounds.neLng(), centerLat, centerLng, clampedLimit);
 		if (rows.isEmpty()) {
 			return new StoresInBoundsResponse(List.of(), 0);
 		}
+		// limit 에 못 미쳤으면 영역 안이 전부 온 것이다 — 따로 셀 필요가 없다
+		long total = rows.size() < clampedLimit
+			? rows.size()
+			: storeRepository.countStoresInBounds(
+				bounds.swLat(), bounds.swLng(), bounds.neLat(), bounds.neLng(), TOTAL_CAP);
 		// 조립기는 받은 순서를 지키고 썸네일·대표 메뉴를 벌크로 채운다 — 검색 결과와 같은 줄 모양이 된다
 		List<StoreSearchHit> hits = rows.stream()
 			.map(row -> new StoreSearchHit(row.getStoreId(), null, null, List.of(), List.of()))
 			.toList();
-		return new StoresInBoundsResponse(storeSearchAssembler.assemble(hits), rows.get(0).getTotal());
+		return new StoresInBoundsResponse(storeSearchAssembler.assemble(hits), total);
 	}
 
 	static int clampLimit(Integer limit) {

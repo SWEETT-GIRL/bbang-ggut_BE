@@ -53,6 +53,9 @@ public interface DessertItemRepository extends JpaRepository<DessertItem, Long> 
 	 * 이 디저트를 파는 빵긋 가게 중 지도 영역(사각형) 안, 기준점에서 가까운 순.
 	 *
 	 * <p>{@code &&}(영역 상자 겹침)로 GIST 인덱스를 태우고, 위경도 BETWEEN 으로 앱이 보는 사각형과 정확히 맞춘다.
+	 *
+	 * <p>정렬은 {@code <->}(구면 거리)로 해 GIST 인덱스의 가까운 순 탐색(KNN)을 태운다. 내려주는 distanceMeters 는
+	 * 회전타원체 거리라, 거리가 거의 같은 두 곳은 순서가 그 값과 조금 어긋날 수 있다.
 	 */
 	@Query(value = """
 			SELECT
@@ -73,7 +76,7 @@ public interface DessertItemRepository extends JpaRepository<DessertItem, Long> 
 			AND s.location && ST_MakeEnvelope(:swLng, :swLat, :neLng, :neLat, 4326)::geography
 			AND ST_Y(s.location::geometry) BETWEEN :swLat AND :neLat
 			AND ST_X(s.location::geometry) BETWEEN :swLng AND :neLng
-			ORDER BY "distanceMeters" ASC
+			ORDER BY s.location <-> ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography
 			""", nativeQuery = true)
 	List<DessertStoreProjection> findSellingStoresInBounds(
 			@Param("dessertItemId") Long dessertItemId,
