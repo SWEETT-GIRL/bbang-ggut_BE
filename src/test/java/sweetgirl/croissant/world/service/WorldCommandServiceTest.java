@@ -343,12 +343,57 @@ class WorldCommandServiceTest {
 				.willReturn(Optional.of(
 					WorldFixtures.wakeTicket(10L, MEMBER_ID, WakeTicketSource.REFERRAL)));
 			given(memberWakeTicketRepository.useTicket(10L)).willReturn(1);
+			given(memberCharacterRepository.grantIfAbsent(MEMBER_ID, "frog", "REFERRAL")).willReturn(1);
 
 			WorldWakeResponse response = worldCommandService.useWakeTicket(MEMBER_ID, "frog");
 
 			assertThat(response.awakened()).isTrue();
 			then(memberCharacterRepository).should().grantIfAbsent(MEMBER_ID, "frog", "REFERRAL");
 			then(memberCharacterRepository).should().awakeIfSleeping(MEMBER_ID, "frog", "REFERRAL");
+		}
+
+		@Test
+		@DisplayName("광고를 모으다 만 친구(자는 행이 있음)도 티켓으로 깨운다")
+		void awakensHalfWatchedFriend() {
+			givenSpunAtMars();
+			given(memberCharacterRepository.findById(new MemberCharacterId(MEMBER_ID, "frog")))
+				.willReturn(Optional.of(WorldFixtures.memberCharacter(
+					MEMBER_ID, "frog", CharacterStatus.SLEEPING, 1, null)));
+			given(memberWakeTicketRepository.findFirstByMemberIdAndUsedAtIsNullOrderByIdAsc(MEMBER_ID))
+				.willReturn(Optional.of(
+					WorldFixtures.wakeTicket(10L, MEMBER_ID, WakeTicketSource.REFERRAL)));
+			given(memberWakeTicketRepository.useTicket(10L)).willReturn(1);
+			given(memberCharacterRepository.awakeIfSleeping(MEMBER_ID, "frog", "REFERRAL")).willReturn(1);
+
+			assertThat(worldCommandService.useWakeTicket(MEMBER_ID, "frog").awakened()).isTrue();
+		}
+
+		@Test
+		@DisplayName("이미 깨어난 친구면 티켓을 쓰기 전에 막는다")
+		void rejectsAlreadyAwakeBeforeUsingTicket() {
+			givenSpunAtMars();
+			given(memberCharacterRepository.findById(new MemberCharacterId(MEMBER_ID, "frog")))
+				.willReturn(Optional.of(WorldFixtures.memberCharacter(
+					MEMBER_ID, "frog", CharacterStatus.AWAKE, 0, AcquiredBy.ROULETTE)));
+
+			assertThatThrownBy(() -> worldCommandService.useWakeTicket(MEMBER_ID, "frog"))
+				.isInstanceOf(WorldException.class)
+				.hasMessageContaining("이미 깨어난 친구");
+			then(memberWakeTicketRepository).should(never()).useTicket(any());
+		}
+
+		@Test
+		@DisplayName("검사 뒤 나란히 깨워져 지급·깨우기가 둘 다 0 행이면 예외로 티켓 사용까지 되돌린다")
+		void rollsBackTicketWhenNobodyWasAwakened() {
+			givenSpunAtMars();
+			given(memberWakeTicketRepository.findFirstByMemberIdAndUsedAtIsNullOrderByIdAsc(MEMBER_ID))
+				.willReturn(Optional.of(
+					WorldFixtures.wakeTicket(10L, MEMBER_ID, WakeTicketSource.REFERRAL)));
+			given(memberWakeTicketRepository.useTicket(10L)).willReturn(1);
+
+			assertThatThrownBy(() -> worldCommandService.useWakeTicket(MEMBER_ID, "frog"))
+				.isInstanceOf(WorldException.class)
+				.hasMessageContaining("이미 깨어난 친구");
 		}
 
 		@Test

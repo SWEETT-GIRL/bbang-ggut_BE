@@ -130,11 +130,23 @@ public class WorldCommandService {
 			.toList());
 	}
 
-	/** 추천으로 받은 티켓을 써서 광고를 건너뛰고 한 명을 바로 깨운다. */
+	/**
+	 * 추천으로 받은 티켓을 써서 광고를 건너뛰고 한 명을 바로 깨운다.
+	 *
+	 * <p>이미 깨어난 친구면 티켓을 쓰기 전에 막는다. 나란히 들어와 둘 다 검사를 지나면, 지급도 깨우기도
+	 * 0 행인 쪽이 예외를 던져 티켓 사용까지 되돌린다 — 티켓은 누군가를 깨웠을 때만 줄어든다.
+	 */
 	public WorldWakeResponse useWakeTicket(Long memberId, String characterCode) {
 		WorldPlanetResponse planet = requireWakeable(memberId, characterCode);
 		if (!planet.referralOk()) {
 			throw new WorldException(WorldErrorCode.WORLD_REFERRAL_NOT_ALLOWED);
+		}
+		boolean alreadyAwake = memberCharacterRepository
+			.findById(new MemberCharacterId(memberId, characterCode))
+			.map(MemberCharacter::isAwake)
+			.orElse(false);
+		if (alreadyAwake) {
+			throw new WorldException(WorldErrorCode.WORLD_CHARACTER_ALREADY_AWAKE);
 		}
 
 		MemberWakeTicket ticket = memberWakeTicketRepository
@@ -145,8 +157,11 @@ public class WorldCommandService {
 		}
 
 		// 획득 경로는 늘 REFERRAL 이다 — 티켓이 어디서 났는지는 티켓 행이 갖고 있다.
-		memberCharacterRepository.grantIfAbsent(memberId, characterCode, AcquiredBy.REFERRAL.name());
-		memberCharacterRepository.awakeIfSleeping(memberId, characterCode, AcquiredBy.REFERRAL.name());
+		int granted = memberCharacterRepository.grantIfAbsent(memberId, characterCode, AcquiredBy.REFERRAL.name());
+		int awakened = memberCharacterRepository.awakeIfSleeping(memberId, characterCode, AcquiredBy.REFERRAL.name());
+		if (granted == 0 && awakened == 0) {
+			throw new WorldException(WorldErrorCode.WORLD_CHARACTER_ALREADY_AWAKE);
+		}
 		return new WorldWakeResponse(characterCode, 0, planet.adsPerWake(), true);
 	}
 
