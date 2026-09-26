@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -124,6 +125,26 @@ class GuestWriteGuardTest {
 				any(), any(), any(LocalDateTime.class))).willReturn(List.of());
 
 			assertThatCode(() -> reader.validateCanWrite(MEMBER_ID)).doesNotThrowAnyException();
+		}
+
+		@Test
+		@DisplayName("세계관 쓰기용 게스트 검사 — 차단을 켜면 게스트를 막는다")
+		void validateNotGuest_blocksGuestWhenToggleOn() {
+			MemberRestrictionReader reader = readerWithToggle(true);
+			given(memberRepository.findById(MEMBER_ID)).willReturn(Optional.of(guest()));
+
+			assertThatThrownBy(() -> reader.validateNotGuest(MEMBER_ID))
+				.isInstanceOf(MemberException.class)
+				.hasMessageContaining("로그인하면");
+		}
+
+		@Test
+		@DisplayName("세계관 쓰기용 게스트 검사 — 차단이 꺼져 있으면 게스트도 통과하고, 제재는 보지 않는다")
+		void validateNotGuest_allowsGuestWhileToggleOff() {
+			MemberRestrictionReader reader = readerWithToggle(false);
+
+			assertThatCode(() -> reader.validateNotGuest(MEMBER_ID)).doesNotThrowAnyException();
+			verifyNoInteractions(memberRestrictionRepository, memberRepository);
 		}
 	}
 }
