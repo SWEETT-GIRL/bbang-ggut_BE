@@ -170,7 +170,11 @@ public class WorldCommandService {
 	 *
 	 * <p>룰렛을 먼저 돌리게 하는 이유: 안 그러면 광고로 넷을 다 모은 뒤 룰렛을 돌려 "줄 친구가
 	 * 없는" 구멍이 생긴다. 룰렛이 없는 행성(지구)은 이 조건을 건너뛴다.
+	 *
+	 * <p>{@code noRollbackFor}: 광고 콜백은 이 예외를 잡아 "적립 안 함"으로 끝내는데, 예외가 이 경계를 지나면
+	 * 바깥 트랜잭션이 rollback-only 가 돼 커밋에서 UnexpectedRollbackException 이 났다. 여기서는 읽기만 한다.
 	 */
+	@Transactional(noRollbackFor = WorldException.class)
 	public WorldPlanetResponse requireWakeable(Long memberId, String characterCode) {
 		WorldCharacterResponse character = worldCatalogService.getCatalog().characters().stream()
 			.filter(candidate -> candidate.code().equals(characterCode))

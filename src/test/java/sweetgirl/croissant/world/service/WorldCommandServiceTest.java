@@ -20,8 +20,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
+import org.springframework.transaction.interceptor.TransactionAttribute;
 
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
+import sweetgirl.croissant.world.code.WorldErrorCode;
 import sweetgirl.croissant.world.dto.response.WorldCatalogResponse;
 import sweetgirl.croissant.world.dto.response.WorldCharacterResponse;
 import sweetgirl.croissant.world.dto.response.WorldPlanetResponse;
@@ -481,5 +484,23 @@ class WorldCommandServiceTest {
 
 			then(worldProgressCalculator).should().reachedPlanetCodes(List.of(), 40);
 		}
+	}
+
+	@Test
+	@DisplayName("깨우기 조건 검사의 WorldException 은 트랜잭션을 rollback-only 로 만들지 않는다 — 광고 콜백이 잡아서 끝낸다")
+	void requireWakeableDoesNotMarkRollbackOnWorldException() throws NoSuchMethodException {
+		TransactionAttribute attribute = new AnnotationTransactionAttributeSource().getTransactionAttribute(
+			WorldCommandService.class.getMethod("requireWakeable", Long.class, String.class),
+			WorldCommandService.class);
+
+		assertThat(attribute).isNotNull();
+		assertThat(attribute.rollbackOn(new WorldException(WorldErrorCode.WORLD_ROULETTE_REQUIRED))).isFalse();
+		assertThat(attribute.rollbackOn(new IllegalStateException())).isTrue();
+
+		// 티켓 깨우기는 반대로 되돌려야 한다 — 아무도 못 깨웠을 때 던지는 예외가 티켓 사용을 되돌린다
+		TransactionAttribute wakeTicket = new AnnotationTransactionAttributeSource().getTransactionAttribute(
+			WorldCommandService.class.getMethod("useWakeTicket", Long.class, String.class),
+			WorldCommandService.class);
+		assertThat(wakeTicket.rollbackOn(new WorldException(WorldErrorCode.WORLD_CHARACTER_ALREADY_AWAKE))).isTrue();
 	}
 }
