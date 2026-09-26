@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
+import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.world.code.WorldErrorCode;
 import sweetgirl.croissant.world.dto.response.WorldCharacterResponse;
 import sweetgirl.croissant.world.dto.response.WorldPlanetResponse;
@@ -55,16 +56,26 @@ public class WorldCommandService {
 	private final BreadRecordRepository breadRecordRepository;
 	private final WorldCatalogService worldCatalogService;
 	private final WorldProgressCalculator worldProgressCalculator;
+	private final MemberRestrictionReader memberRestrictionReader;
 
 	public void syncProgress(Long memberId) {
 		startIfAbsent(memberId);
 		recordArrivals(memberId);
 	}
 
-	/** 데리고 다닐 친구를 바꾼다. 아직 못 만난 친구는 고를 수 없다. */
+	/**
+	 * 데리고 다닐 친구를 바꾼다. 아직 못 만난 친구는 고를 수 없다.
+	 *
+	 * <p>이미 데리고 다니는 친구면 게스트 검사 전에 끝낸다 — 첫 친구 연출(게스트도 지난다)이 마스코트를
+	 * 다시 고르는데, 거기서 로그인 시트가 뜨면 안 된다.
+	 */
 	public void selectCharacter(Long memberId, String characterCode) {
 		MemberWorld memberWorld = memberWorldRepository.findById(memberId)
 			.orElseThrow(() -> new WorldException(WorldErrorCode.WORLD_NOT_STARTED));
+		if (characterCode.equals(memberWorld.getSelectedCharacter())) {
+			return;
+		}
+		memberRestrictionReader.validateNotGuest(memberId);
 
 		MemberCharacter memberCharacter = memberCharacterRepository
 			.findById(new MemberCharacterId(memberId, characterCode))
@@ -83,6 +94,7 @@ public class WorldCommandService {
 	 * 뒤집으면 줄 친구가 없는 호출이 룰렛만 태워 버린다.
 	 */
 	public WorldRouletteResponse spinRoulette(Long memberId, String planetCode) {
+		memberRestrictionReader.validateNotGuest(memberId);
 		WorldPlanetResponse planet = worldCatalogService.getCatalog().planets().stream()
 			.filter(candidate -> candidate.code().equals(planetCode))
 			.findFirst()
@@ -130,11 +142,24 @@ public class WorldCommandService {
 			.toList());
 	}
 
-	/** 추천으로 받은 티켓을 써서 광고를 건너뛰고 한 명을 바로 깨운다. */
+	/**
+	 * 추천으로 받은 티켓을 써서 광고를 건너뛰고 한 명을 바로 깨운다.
+	 *
+	 * <p>이미 깨어난 친구면 티켓을 쓰기 전에 막는다. 나란히 들어와 둘 다 검사를 지나면, 지급도 깨우기도
+	 * 0 행인 쪽이 예외를 던져 티켓 사용까지 되돌린다 — 티켓은 누군가를 깨웠을 때만 줄어든다.
+	 */
 	public WorldWakeResponse useWakeTicket(Long memberId, String characterCode) {
+		memberRestrictionReader.validateNotGuest(memberId);
 		WorldPlanetResponse planet = requireWakeable(memberId, characterCode);
 		if (!planet.referralOk()) {
 			throw new WorldException(WorldErrorCode.WORLD_REFERRAL_NOT_ALLOWED);
+		}
+		boolean alreadyAwake = memberCharacterRepository
+			.findById(new MemberCharacterId(memberId, characterCode))
+			.map(MemberCharacter::isAwake)
+			.orElse(false);
+		if (alreadyAwake) {
+			throw new WorldException(WorldErrorCode.WORLD_CHARACTER_ALREADY_AWAKE);
 		}
 
 		MemberWakeTicket ticket = memberWakeTicketRepository
@@ -145,8 +170,11 @@ public class WorldCommandService {
 		}
 
 		// 획득 경로는 늘 REFERRAL 이다 — 티켓이 어디서 났는지는 티켓 행이 갖고 있다.
-		memberCharacterRepository.grantIfAbsent(memberId, characterCode, AcquiredBy.REFERRAL.name());
-		memberCharacterRepository.awakeIfSleeping(memberId, characterCode, AcquiredBy.REFERRAL.name());
+		int granted = memberCharacterRepository.grantIfAbsent(memberId, characterCode, AcquiredBy.REFERRAL.name());
+		int awakened = memberCharacterRepository.awakeIfSleeping(memberId, characterCode, AcquiredBy.REFERRAL.name());
+		if (granted == 0 && awakened == 0) {
+			throw new WorldException(WorldErrorCode.WORLD_CHARACTER_ALREADY_AWAKE);
+		}
 		return new WorldWakeResponse(characterCode, 0, planet.adsPerWake(), true);
 	}
 
@@ -155,7 +183,11 @@ public class WorldCommandService {
 	 *
 	 * <p>룰렛을 먼저 돌리게 하는 이유: 안 그러면 광고로 넷을 다 모은 뒤 룰렛을 돌려 "줄 친구가
 	 * 없는" 구멍이 생긴다. 룰렛이 없는 행성(지구)은 이 조건을 건너뛴다.
+	 *
+	 * <p>{@code noRollbackFor}: 광고 콜백은 이 예외를 잡아 "적립 안 함"으로 끝내는데, 예외가 이 경계를 지나면
+	 * 바깥 트랜잭션이 rollback-only 가 돼 커밋에서 UnexpectedRollbackException 이 났다. 여기서는 읽기만 한다.
 	 */
+	@Transactional(noRollbackFor = WorldException.class)
 	public WorldPlanetResponse requireWakeable(Long memberId, String characterCode) {
 		WorldCharacterResponse character = worldCatalogService.getCatalog().characters().stream()
 			.filter(candidate -> candidate.code().equals(characterCode))

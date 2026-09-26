@@ -162,6 +162,32 @@ class DessertQueryServiceTest {
 	}
 
 	@Test
+	@DisplayName("반경이 상한(50km)을 넘으면 상한으로 줄인다 — 비로그인 엔드포인트라 전국을 재지 않게")
+	void getSellingStores_capsRadius() {
+		DessertItem pizzaSeolgi = dessertItem(1L, "피자설기", DessertItemType.GENERIC, null, DessertTrendStatus.HOT);
+		given(dessertItemRepository.findById(1L)).willReturn(Optional.of(pizzaSeolgi));
+		given(dessertItemRepository.findSellingStoresNearby(anyLong(), anyDouble(), anyDouble(), anyDouble(),
+			any(Pageable.class)))
+			.willReturn(List.of());
+
+		dessertQueryService.getSellingStores(1L, SEOUL_LAT, SEOUL_LNG, 30, 20_000_000.0);
+
+		verify(dessertItemRepository).findSellingStoresNearby(anyLong(), anyDouble(), anyDouble(),
+			eq(DessertQueryService.MAX_RADIUS_METERS), any(Pageable.class));
+	}
+
+	@Test
+	@DisplayName("좌표가 WGS84 범위 밖이면 PostGIS 500 이 아니라 400 으로 먼저 막는다")
+	void getSellingStores_rejectsOutOfRangeCoordinate() {
+		assertThatThrownBy(() -> dessertQueryService.getSellingStores(1L, 95.0, SEOUL_LNG, 30, null))
+			.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> dessertQueryService.getSellingStoresInBounds(1L,
+			new MapBounds(37.5, 126.9, 37.6, 127.1), SEOUL_LAT, 200.0, null))
+			.isInstanceOf(IllegalArgumentException.class);
+		verify(dessertItemRepository, never()).findById(anyLong());
+	}
+
+	@Test
 	@DisplayName("없는 디저트를 물으면 404")
 	void getSellingStores_throwsWhenDessertMissing() {
 		given(dessertItemRepository.findById(404L)).willReturn(Optional.empty());

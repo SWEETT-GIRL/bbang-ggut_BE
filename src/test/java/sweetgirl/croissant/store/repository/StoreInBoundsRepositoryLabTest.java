@@ -63,11 +63,42 @@ class StoreInBoundsRepositoryLabTest {
 
 		List<StoreInBoundsProjection> rows = storeRepository.findStoresInBounds(SW_LAT, SW_LNG, NE_LAT, NE_LNG,
 			CENTER_LAT, CENTER_LNG, 300);
+		long total = storeRepository.countStoresInBounds(SW_LAT, SW_LNG, NE_LAT, NE_LNG, 1_000_000);
 
 		assertThat(plainCount).isPositive();
 		assertThat(rows).isNotEmpty();
-		assertThat(rows.get(0).getTotal()).isEqualTo(plainCount);
+		assertThat(total).isEqualTo(plainCount);
 		assertThat(rows).hasSize((int)Math.min(plainCount, 300));
+	}
+
+	@Test
+	@DisplayName("영역 안 가게 수는 cap 에서 멈춘다")
+	void count_stopsAtCap() {
+		Long plainCount = jdbcTemplate.queryForObject(PLAIN_COUNT_SQL, Long.class, SW_LAT, NE_LAT, SW_LNG, NE_LNG);
+
+		assertThat(storeRepository.countStoresInBounds(SW_LAT, SW_LNG, NE_LAT, NE_LNG, 5))
+			.isEqualTo(Math.min(plainCount, 5));
+	}
+
+	@Test
+	@DisplayName("<-> 정렬 결과가 예전 쿼리(count(*) OVER() + 같은 정렬)와 id·순서까지 같다")
+	void rows_matchPreviousQuery() {
+		List<Long> previous = jdbcTemplate.query("""
+				SELECT s.id, COUNT(*) OVER () AS total
+				FROM store s
+				WHERE s.status = 'ACTIVE'
+				AND s.location && ST_MakeEnvelope(?, ?, ?, ?, 4326)::geography
+				AND ST_Y(s.location::geometry) BETWEEN ? AND ?
+				AND ST_X(s.location::geometry) BETWEEN ? AND ?
+				ORDER BY s.location <-> ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, s.id
+				LIMIT 150
+				""", (resultSet, rowNum) -> resultSet.getLong("id"),
+			SW_LNG, SW_LAT, NE_LNG, NE_LAT, SW_LAT, NE_LAT, SW_LNG, NE_LNG, CENTER_LNG, CENTER_LAT);
+
+		List<Long> current = storeRepository.findStoresInBounds(SW_LAT, SW_LNG, NE_LAT, NE_LNG,
+			CENTER_LAT, CENTER_LNG, 150).stream().map(StoreInBoundsProjection::getStoreId).toList();
+
+		assertThat(current).isEqualTo(previous);
 	}
 
 	@Test

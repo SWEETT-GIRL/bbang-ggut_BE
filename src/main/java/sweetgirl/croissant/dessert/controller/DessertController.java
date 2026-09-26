@@ -45,7 +45,7 @@ public class DessertController {
 			@RequestParam double lat,
 			@RequestParam double lng,
 			@Parameter(description = "기본 30·최대 50 (영역을 주면 기본 150·최대 300)") @RequestParam(required = false) Integer size,
-			@Parameter(description = "반경(m). 기본 30000, 영역이 있으면 무시") @RequestParam(required = false) Double radiusMeters,
+			@Parameter(description = "반경(m) 기본 3만·최대 5만, 영역 주면 무시") @RequestParam(required = false) Double radiusMeters,
 			@Parameter(description = "지도 영역 남서 위도") @RequestParam(required = false) Double swLat,
 			@Parameter(description = "지도 영역 남서 경도") @RequestParam(required = false) Double swLng,
 			@Parameter(description = "지도 영역 북동 위도") @RequestParam(required = false) Double neLat,

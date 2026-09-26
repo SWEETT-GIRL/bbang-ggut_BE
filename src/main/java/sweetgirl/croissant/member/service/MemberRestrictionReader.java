@@ -37,9 +37,11 @@ public class MemberRestrictionReader {
 	/**
 	 * 쓸 자격이 있는가 — 게스트가 아니고, 제재 중도 아닌가.
 	 *
-	 * <p>게스트를 여기서 막는 이유: 쓰기 경로마다 따로 검사하면 새 기능이 늘 때 빠뜨린다.
-	 * 저장·기록·만들기 경로는 전부 이 문을 지나므로, 여기 한 곳이면 새 경로도 기본으로 막힌다.
-	 * 반대로 로그인·알림 설정·약관 동의·닉네임·탈퇴는 이 문을 안 지나며, 게스트에게도 열려 있어야 한다.
+	 * <p>이 문을 지나는 쓰기는 빵 기록·리뷰·메뉴 등록·가게 계획·코스 메모·코스 초대/합류/진행뿐이다(전부가 아니다).
+	 * 세계관 쓰기(룰렛·티켓 깨우기·친구 고르기)는 제재 없이 게스트 스위치만 보는 {@link #validateNotGuest} 를 부른다.
+	 * 찜·코스 만들기/담기는 스위치와 상관없이 {@link MemberReader#requireLoggedIn} 이 늘 막는다.
+	 * 새 쓰기 경로는 저절로 막히지 않는다 — 만들 때 둘 중 하나를 골라 부른다.
+	 * 로그인·알림 설정·약관 동의·닉네임·탈퇴는 어느 쪽도 안 지나며, 게스트에게도 열려 있어야 한다.
 	 *
 	 * <p><b>401 이 아니라 403 이다.</b> 앱 apiClient 는 401 을 받으면 게스트 세션을 자동
 	 * 재발급하므로, 401 로 막으면 같은 요청이 끝없이 되풀이된다.
@@ -48,14 +50,22 @@ public class MemberRestrictionReader {
 		if (memberId == null) {
 			throw new MemberException(MemberErrorCode.UNAUTHORIZED);
 		}
-		if (guestWriteBlocked && memberReader.getMember(memberId).isGuest()) {
-			throw new MemberException(MemberErrorCode.GUEST_LOGIN_REQUIRED);
-		}
+		validateNotGuest(memberId);
 		if (!memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(
 			memberId,
 			WRITE_BLOCKING_TYPES,
 			LocalDateTime.now()).isEmpty()) {
 			throw new MemberException(MemberErrorCode.MEMBER_WRITE_RESTRICTED);
+		}
+	}
+
+	/**
+	 * 게스트 쓰기 스위치만 본다 — 제재는 보지 않는다. 세계관처럼 남에게 보이지 않는 쓰기용이다.
+	 * 스위치가 꺼져 있으면 아무것도 막지 않는다.
+	 */
+	public void validateNotGuest(Long memberId) {
+		if (guestWriteBlocked && memberReader.getMember(memberId).isGuest()) {
+			throw new MemberException(MemberErrorCode.GUEST_LOGIN_REQUIRED);
 		}
 	}
 }
