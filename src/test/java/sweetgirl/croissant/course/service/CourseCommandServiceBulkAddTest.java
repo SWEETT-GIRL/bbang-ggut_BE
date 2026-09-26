@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -32,6 +33,9 @@ import sweetgirl.croissant.course.event.CourseStoreAddedEvent;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
+import sweetgirl.croissant.member.code.MemberErrorCode;
+import sweetgirl.croissant.member.exception.MemberException;
+import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.exception.StoreException;
@@ -60,6 +64,8 @@ class CourseCommandServiceBulkAddTest {
 	private CourseAccessPolicy courseAccessPolicy;
 	@Mock
 	private ApplicationEventPublisher eventPublisher;
+	@Mock
+	private MemberReader memberReader;
 
 	@InjectMocks
 	private CourseCommandService courseCommandService;
@@ -93,6 +99,17 @@ class CourseCommandServiceBulkAddTest {
 
 	private static List<CourseStoreBulkItem> items(Long... storeIds) {
 		return java.util.Arrays.stream(storeIds).map(id -> new CourseStoreBulkItem(id, null)).toList();
+	}
+
+	@Test
+	@DisplayName("게스트는 한꺼번에 담기도 막힌다 — 단건 담기와 같은 문")
+	void addStores_rejectsGuest() {
+		willThrow(new MemberException(MemberErrorCode.GUEST_LOGIN_REQUIRED))
+			.given(memberReader).requireLoggedIn(MEMBER_ID);
+
+		assertThatThrownBy(() -> courseCommandService.addStores(MEMBER_ID, COURSE_ID, items(100L), null))
+			.isInstanceOf(MemberException.class);
+		then(courseRepository).should(never()).findWithLockByIdAndDeletedAtIsNull(any());
 	}
 
 	@Test
