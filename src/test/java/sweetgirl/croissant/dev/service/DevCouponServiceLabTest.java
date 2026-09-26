@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import sweetgirl.croissant.config.persistence.JpaConfig;
+import sweetgirl.croissant.coupon.issuer.CouponSoldOutFlags;
 import sweetgirl.croissant.dev.dto.response.DevCouponResetResponse;
 
 /**
@@ -55,7 +56,8 @@ class DevCouponServiceLabTest {
 
 	@BeforeEach
 	void setUp() {
-		devCouponService = new DevCouponService(jdbcTemplate);
+		// 플래그는 꺼진 채로 만든다 — 이 테스트가 보는 건 초기화 SQL 이지 플래그 동작이 아니다.
+		devCouponService = new DevCouponService(jdbcTemplate, new CouponSoldOutFlags(false));
 		removeLoadTestCoupon();
 	}
 

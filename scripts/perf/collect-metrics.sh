@@ -11,7 +11,9 @@ set -euo pipefail
 
 OUT="${1:-scripts/perf/server-metrics.log}"
 PORT="${2:-8081}"
-PATTERN='hikaricp_connections_(active|idle|pending|timeout_total)|tomcat_threads_(busy|current)|jvm_threads_live'
+# http_server_requests_seconds = 서버가 직접 재는 처리 시간(큐 대기 제외).
+# k6 가 재는 시간과 비교하면 "처리가 느린 것"과 "차례를 기다린 것"이 갈린다 — 코드를 볼지 인프라를 볼지가 여기서 결정된다.
+PATTERN='hikaricp_connections_(active|idle|pending|timeout_total)|tomcat_threads_(busy|current)|jvm_threads_live|http_server_requests_seconds_(count|sum)|process_cpu_usage|system_cpu_usage'
 
 if ! curl -sf --max-time 2 "http://localhost:${PORT}/actuator/prometheus" >/dev/null; then
 	echo "actuator(localhost:${PORT})에 붙지 못했습니다. 앱이 떠 있는지 확인하세요." >&2

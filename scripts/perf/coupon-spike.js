@@ -23,8 +23,13 @@ import { SharedArray } from "k6/data";
 
 const baseUrl = __ENV.BASE_URL || "http://localhost:8080";
 
-if (baseUrl.includes("bbang-ggut.cloud") || baseUrl.includes("bbang-ggut.site")) {
-  throw new Error("운영·스테이징에는 돌리지 않는다. ERROR 로그가 전부 슬랙 웹훅으로 나간다.");
+// 운영에는 어떤 경우에도 쏘지 않는다.
+if (baseUrl.includes("bbang-ggut.cloud")) {
+  throw new Error("운영에는 돌리지 않는다.");
+}
+// 스테이징은 의도를 명시했을 때만. ALLOW_STAGING=true 를 손으로 붙여야 한다.
+if (baseUrl.includes("bbang-ggut.site") && __ENV.ALLOW_STAGING !== "true") {
+  throw new Error("스테이징을 때리려면 ALLOW_STAGING=true 를 주세요. 측정 중 스테이징은 쓸 수 없습니다.");
 }
 
 /** 미리 뽑아둔 `memberId,token` (scripts/perf/generate-tokens.mjs). VU 마다 복사되지 않게 SharedArray 로 읽는다. */
@@ -85,8 +90,23 @@ export const options = {
  */
 export function setup() {
   const stock = Number(__ENV.STOCK || 100);
+
+  // 리셋 엔드포인트를 못 쓰는 환경(이미 준비된 쿠폰으로 잴 때)은 COUPON_ID 로 건너뛴다.
+  if (__ENV.COUPON_ID) {
+    const preflightOnly = http.get(searchUrl);
+    if (preflightOnly.status !== 200) {
+      throw new Error(`배경 조회가 부하 전에도 ${preflightOnly.status} 입니다.`);
+    }
+    console.log(`쿠폰 초기화 건너뜀 — COUPON_ID=${__ENV.COUPON_ID} 를 그대로 씁니다`);
+    return { couponId: Number(__ENV.COUPON_ID), stock };
+  }
+
   const response = http.post(`${baseUrl}/dev/coupons/reset?totalQuantity=${stock}`, null, {
-    headers: { Authorization: `Bearer ${tokens[0].token}` },
+    headers: {
+      Authorization: `Bearer ${tokens[0].token}`,
+      // local 밖에서는 대시보드 키가 필요하다 (DevCouponController.validateAccess).
+      "X-Perf-Dashboard-Key": __ENV.PERF_KEY || "",
+    },
   });
   if (response.status !== 200) {
     throw new Error(
