@@ -9,6 +9,12 @@ services:
     environment:
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Seoul"
+      # 부하 측정에서 발급 방식을 코드 변경 없이 갈아끼우기 위한 노브.
+      # 기본값은 현재 동작 그대로다 — 명시하지 않으면 아무것도 바뀌지 않는다.
+      COUPON_ISSUER: ${COUPON_ISSUER:-pessimistic}
+      COUPON_SOLD_OUT_FLAG_ENABLED: ${COUPON_SOLD_OUT_FLAG_ENABLED:-false}
+      COUPON_SOLD_OUT_FILTER_ENABLED: ${COUPON_SOLD_OUT_FILTER_ENABLED:-true}
+      SERVER_TOMCAT_THREADS_MAX: ${SERVER_TOMCAT_THREADS_MAX:-200}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILE}
       DB_URL: ${DB_URL}
       DB_USERNAME: ${DB_USERNAME}
