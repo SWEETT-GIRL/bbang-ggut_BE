@@ -56,12 +56,14 @@ fi
 echo "[${LABEL}] ${BASE_URL} 에 ${RATE}/s × ${DURATION}, 재고 ${STOCK}장"
 
 # actuator 는 건너편이라 URL 로 받는다. 1초 간격 — 기본 스크랩 15초로는 10초 스파이크를 통째로 놓친다.
+# coupon_issue_rejected_total 을 반드시 포함한다 — CouponSoldOutFilter 가 응답을 끝내면
+# http_server_requests 에 안 잡히므로, 빠뜨리면 거절 건수를 관측할 수단이 사라진다.
 (
 	: >"$METRICS"
 	while true; do
 		TS=$(date +%s)
 		curl -s --max-time 1 "http://${APP_HOST}:${MGMT_PORT}/actuator/prometheus" \
-			| grep -E '^(hikaricp_connections_(active|idle|pending|timeout_total)|tomcat_threads_(busy|current)|jvm_threads_live|http_server_requests_seconds_(count|sum)|process_cpu_usage|system_cpu_usage)' \
+			| grep -E '^(hikaricp_connections_(active|idle|pending|timeout_total)|tomcat_threads_(busy|current)|jvm_threads_live|http_server_requests_seconds_(count|sum)|process_cpu_usage|system_cpu_usage|coupon_issue_rejected_total)' \
 			| sed "s/^/${TS} /" >>"$METRICS" || true
 		sleep 1
 	done
