@@ -48,11 +48,21 @@ if (!idFile) {
   process.exit(1);
 }
 
-const properties = readFileSync(PROPERTIES, "utf8");
+// 부하 생성기에는 레포가 없다 — JWT_SECRET 을 주면 properties 없이도 돌아야 한다.
+// 무조건 읽으면 원격 박스에서 ENOENT 로 죽는다.
+const properties = tryReadProperties();
 const secret = process.env.JWT_SECRET ?? readProperty(properties, SECRET_KEY);
 if (!secret) {
   console.error(`${SECRET_KEY} 를 찾지 못했습니다. JWT_SECRET 환경변수로 넘기세요.`);
   process.exit(1);
+}
+
+function tryReadProperties() {
+  try {
+    return readFileSync(PROPERTIES, "utf8");
+  } catch {
+    return "";
+  }
 }
 const key = Buffer.from(secret, "base64");
 const bits = key.length * 8;
