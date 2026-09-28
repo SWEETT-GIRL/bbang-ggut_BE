@@ -25,8 +25,11 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
+import sweetgirl.croissant.store.code.StoreConstants;
+import sweetgirl.croissant.store.dto.projection.TopSubscribedStoreProjection;
 import sweetgirl.croissant.store.dto.response.StoreDetailResponse;
 import sweetgirl.croissant.store.dto.response.SubscribedStoreResponse;
+import sweetgirl.croissant.store.dto.response.TopSubscribedStoreResponse;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.entity.SubscribedStore;
@@ -194,5 +197,37 @@ class StoreQueryServiceTest {
 		StoreDetailResponse result = storeQueryService.getStoreDetail(memberId, storeId);
 
 		assertThat(result.isSaved()).isFalse();
+	}
+
+	// ───────────────────────── getTopSubscribedStores ─────────────────────────
+
+	@Test
+	@DisplayName("getTopSubscribedStores: 저장소가 준 인기도 순서를 그대로 두고 subscribeCount 는 모두 0이다")
+	void getTopSubscribedStores_keepsRepositoryOrderWithZeroSubscribeCount() {
+		List<TopSubscribedStoreProjection> topStores = List.of(topStore(30L, "성수 베이크"), topStore(10L, "몽심"));
+		given(storeRepository.findTopSubscribedStores(StoreConstants.TOP_SUBSCRIBED_STORE_LIMIT))
+			.willReturn(topStores);
+
+		List<TopSubscribedStoreResponse> result = storeQueryService.getTopSubscribedStores();
+
+		assertThat(result).containsExactly(
+			new TopSubscribedStoreResponse(30L, "성수 베이크", 0L),
+			new TopSubscribedStoreResponse(10L, "몽심", 0L));
+	}
+
+	@Test
+	@DisplayName("getTopSubscribedStores: ACTIVE 가게가 없으면 빈 목록을 반환한다")
+	void getTopSubscribedStores_returnsEmptyList_whenNoStores() {
+		given(storeRepository.findTopSubscribedStores(StoreConstants.TOP_SUBSCRIBED_STORE_LIMIT))
+			.willReturn(List.of());
+
+		assertThat(storeQueryService.getTopSubscribedStores()).isEmpty();
+	}
+
+	private TopSubscribedStoreProjection topStore(Long id, String name) {
+		TopSubscribedStoreProjection projection = mock(TopSubscribedStoreProjection.class);
+		given(projection.getId()).willReturn(id);
+		given(projection.getName()).willReturn(name);
+		return projection;
 	}
 }
