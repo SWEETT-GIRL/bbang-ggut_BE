@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 
 import java.util.Optional;
 
@@ -72,19 +73,18 @@ class SavedStoreCommandServiceTest {
 	}
 
 	@Test
-	@DisplayName("saveStore: 이미 찜한 가게 → SAVED_STORE_ALREADY")
-	void saveStore_duplicate_throwsSavedStoreAlready() {
+	@DisplayName("saveStore: 이미 찜한 가게면 다시 저장하지도, 이벤트를 내지도 않고 그냥 끝난다(더블탭·재시도)")
+	void saveStore_duplicate_isIdempotent() {
 		Long memberId = 1L;
 		Long storeId = 10L;
 
 		given(savedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId)).willReturn(true);
 
-		assertThatThrownBy(() -> savedStoreCommandService.saveStore(memberId, storeId))
-			.isInstanceOf(SavedStoreException.class)
-			.hasMessageContaining(SavedStoreErrorCode.SAVED_STORE_ALREADY.getMessage());
-	}
+		savedStoreCommandService.saveStore(memberId, storeId);
 
-	// ───────────────────────── unsaveStore ─────────────────────────
+		then(savedStoreRepository).should(never()).save(any());
+		then(eventPublisher).shouldHaveNoInteractions();
+	}
 
 	@Test
 	@DisplayName("unsaveStore: 찜 해제 성공")

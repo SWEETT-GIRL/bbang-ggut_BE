@@ -36,8 +36,9 @@ public class SavedStoreCommandService {
 
 	public void saveStore(Long memberId, Long storeId) {
 		memberReader.requireLoggedIn(memberId);
+		// 이미 찜한 가게면 그대로 — 더블탭·재시도가 400 으로 끝나지 않게. 이벤트도 다시 내지 않는다
 		if (savedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId)) {
-			throw new SavedStoreException(SavedStoreErrorCode.SAVED_STORE_ALREADY);
+			return;
 		}
 		Member member = memberRepository.findByIdAndDeletedAtIsNull(memberId)
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));

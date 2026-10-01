@@ -351,8 +351,8 @@ class CourseCommandServiceTest {
 	}
 
 	@Test
-	@DisplayName("addStore: 이미 추가된 가게이면 COURSE_STORE_ALREADY_EXISTS를 던진다")
-	void addStore_duplicate_throwsAlreadyExists() {
+	@DisplayName("addStore: 이미 추가된 가게이면 새로 넣지 않고 그 정류장을 그대로 돌려준다(더블탭·재시도)")
+	void addStore_duplicate_returnsExisting() {
 		Long memberId = 1L;
 		Long courseId = 10L;
 		Long storeId = 100L;
@@ -367,10 +367,11 @@ class CourseCommandServiceTest {
 		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId))
 			.willReturn(List.of(sameStoreStop));
 
-		assertThatThrownBy(() -> courseCommandService.addStore(memberId, courseId, request))
-			.isInstanceOf(CourseException.class)
-			.hasMessageContaining(CourseErrorCode.COURSE_STORE_ALREADY_EXISTS.getMessage());
+		CourseStoreResponse response = courseCommandService.addStore(memberId, courseId, request);
+
+		assertThat(response.storeId()).isEqualTo(storeId);
 		then(storeRepository).shouldHaveNoInteractions();
+		then(courseStoreRepository).should(never()).save(any());
 	}
 
 	@Test
