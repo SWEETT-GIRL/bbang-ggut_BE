@@ -24,9 +24,8 @@ import sweetgirl.croissant.breadranking.entity.BreadRankEntry;
 import sweetgirl.croissant.breadranking.repository.BreadRankEntryRepository;
 import sweetgirl.croissant.breadranking.repository.MemberBreadCategoryRepository;
 import sweetgirl.croissant.member.service.MemberReader;
-import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
 import sweetgirl.croissant.store.entity.Store;
-import sweetgirl.croissant.store.repository.StoreImageFileRepository;
+import sweetgirl.croissant.store.service.StoreThumbnailReader;
 
 /** 내 빵 순위 조회 — 탭, 한 카테고리의 내 줄, 담을 후보. 로그인한 회원만. */
 @Service
@@ -48,7 +47,7 @@ public class MyBreadRankingQueryService {
 	private final BreadRankEntryRepository entryRepository;
 	private final BreadRecordRepository breadRecordRepository;
 	private final BreadRecordTagRepository tagRepository;
-	private final StoreImageFileRepository storeImageFileRepository;
+	private final StoreThumbnailReader thumbnailReader;
 
 	/** 내 탭(순서) + 탭마다 내 1등. */
 	public List<MyBreadCategoryResponse> getMyCategories(Long memberId) {
@@ -124,17 +123,7 @@ public class MyBreadRankingQueryService {
 				(latest, older) -> latest));
 	}
 
-	/** StoreQueryService 와 같은 규칙 — 320 리사이즈가 있으면 그것, 없으면 원본 키. */
 	private Map<Long, String> thumbnails(List<Long> storeIds) {
-		if (storeIds.isEmpty()) {
-			return Map.of();
-		}
-		return storeImageFileRepository.findThumbnailsByStoreIdIn(storeIds.stream().distinct().toList()).stream()
-			.filter(projection -> projection.getResizedKey320() != null || projection.getAwsKey() != null)
-			.collect(Collectors.toMap(
-				StoreImageThumbnailProjection::getStoreId,
-				projection -> projection.getResizedKey320() != null ? projection.getResizedKey320()
-					: projection.getAwsKey(),
-				(first, second) -> first));
+		return thumbnailReader.thumbnailsOf(storeIds);
 	}
 }
