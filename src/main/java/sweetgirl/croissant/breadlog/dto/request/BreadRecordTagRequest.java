@@ -2,6 +2,7 @@ package sweetgirl.croissant.breadlog.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
@@ -24,5 +25,10 @@ public record BreadRecordTagRequest(
 		@JsonProperty("x") @DecimalMin("0.0") @DecimalMax("1.0") double positionX,
 		@JsonProperty("y") @DecimalMin("0.0") @DecimalMax("1.0") double positionY,
 		/** 이름표 꾸밈("모양.종이[.up]"). 구버전 앱은 안 보낸다 */
-		@Size(max = 50) String style) {
+		@Size(max = 50) String style,
+		/**
+		 * 빵 평가. 생성 때 없으면 평가 없음, 수정 때 없으면(구버전 앱) 이름 같은 이전 태그의 평가를 이어간다.
+		 * 빈 평가를 보내면({@code {}}) 이전 평가를 지우는 것이다.
+		 */
+		@Valid BreadTagRatingRequest rating) {
 }

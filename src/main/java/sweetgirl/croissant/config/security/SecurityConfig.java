@@ -71,6 +71,8 @@ public class SecurityConfig {
 			.requestMatchers(HttpMethod.GET, "/desserts", "/desserts/**").permitAll()
 			// 세계관 카탈로그는 회원과 무관한 전역 콘텐츠다
 			.requestMatchers(HttpMethod.GET, "/world/catalog").permitAll()
+			// 빵 종류 목록·평가 칩 목록은 회원과 무관한 전역 콘텐츠다
+			.requestMatchers(HttpMethod.GET, "/bread-categories", "/bread-rating-chips").permitAll()
 			// AdMob 보상 검증은 구글이 부르는 자리다. 인증 대신 서명으로 진짜인지를 가린다
 			.requestMatchers(HttpMethod.GET, "/ads/rewarded/ssv").permitAll()
 			// 홈화면 근처/인기 빵집·검색 비로그인 허용

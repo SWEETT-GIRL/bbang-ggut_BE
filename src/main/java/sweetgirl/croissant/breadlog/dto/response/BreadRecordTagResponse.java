@@ -15,7 +15,9 @@ public record BreadRecordTagResponse(
 		Long menuId,
 		@JsonProperty("x") double positionX,
 		@JsonProperty("y") double positionY,
-		String style) {
+		String style,
+		/** 빵 평가. 아무것도 안 남긴 태그는 null */
+		BreadTagRatingResponse rating) {
 
 	public static BreadRecordTagResponse from(BreadRecordTag tag) {
 		return new BreadRecordTagResponse(
@@ -27,6 +29,11 @@ public record BreadRecordTagResponse(
 			tag.getMenu() == null ? null : tag.getMenu().getId(),
 			tag.getPositionX(),
 			tag.getPositionY(),
-			tag.getStyle());
+			tag.getStyle(),
+			tag.rating().map(BreadTagRatingResponse::from).orElse(null));
+	}
+
+	public boolean wantsAgain() {
+		return rating != null && Boolean.TRUE.equals(rating.again());
 	}
 }
