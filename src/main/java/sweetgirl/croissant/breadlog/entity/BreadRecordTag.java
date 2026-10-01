@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -174,11 +175,12 @@ public class BreadRecordTag extends BaseTimeEntity {
 		this.again = again;
 		this.ratingMemo = memo;
 		this.chips.clear();
+		// JSON 배열의 null 원소는 조용히 버린다 — 칩 하나 때문에 저장이 500 으로 깨질 이유가 없다
 		if (textures != null) {
-			textures.forEach(texture -> chips.add(TagChip.texture(texture)));
+			textures.stream().filter(Objects::nonNull).forEach(texture -> chips.add(TagChip.texture(texture)));
 		}
 		if (tastes != null) {
-			tastes.forEach(taste -> chips.add(TagChip.taste(taste)));
+			tastes.stream().filter(Objects::nonNull).forEach(taste -> chips.add(TagChip.taste(taste)));
 		}
 	}
 

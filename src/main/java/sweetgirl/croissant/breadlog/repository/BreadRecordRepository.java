@@ -14,7 +14,6 @@ import org.springframework.data.repository.query.Param;
 import sweetgirl.croissant.breadlog.dto.projection.BreadRecordRegionProjection;
 import sweetgirl.croissant.breadlog.dto.projection.BreadRecordStoreVisitProjection;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
-import sweetgirl.croissant.store.entity.Store;
 
 public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> {
 
@@ -30,18 +29,15 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 	boolean existsByMemberIdAndStoreIdAndDeletedAtIsNull(Long memberId, Long storeId);
 
 	/**
-	 * 내 빵 순위에 담을 후보 — 빵로그를 남긴(안 지운) 가게. 가게 없는 기록·삭제된 가게는 뺀다.
-	 * query 는 가게 이름 부분 일치 — 빈 문자열이면 전부.
+	 * 빵로그를 남긴(안 지운) 가게 id — 내 빵 순위에 담을 후보. 가게 없는 기록은 뺀다.
+	 * id 만 뽑는 이유: Store 엔티티를 DISTINCT 하면 geography 컬럼까지 비교 대상이 된다. 상태·이름 필터는 가게를 읽은 뒤 건다.
 	 */
 	@Query("""
-			SELECT DISTINCT record.store
+			SELECT DISTINCT record.store.id
 			FROM BreadRecord record
 			WHERE record.member.id = :memberId AND record.deletedAt IS NULL AND record.store IS NOT NULL
-				AND record.store.status = sweetgirl.croissant.store.enums.StoreStatus.ACTIVE
-				AND LOWER(record.store.name) LIKE LOWER(CONCAT('%', :query, '%'))
-			ORDER BY record.store.name ASC
 			""")
-	List<Store> findEatenStores(@Param("memberId") Long memberId, @Param("query") String query);
+	List<Long> findEatenStoreIds(@Param("memberId") Long memberId);
 
 	@Query(value = """
 			SELECT COALESCE(MAX(visits), 0)

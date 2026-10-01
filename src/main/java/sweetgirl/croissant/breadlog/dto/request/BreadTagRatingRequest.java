@@ -2,6 +2,7 @@ package sweetgirl.croissant.breadlog.dto.request;
 
 import java.util.List;
 
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import sweetgirl.croissant.breadlog.enums.TasteChip;
 import sweetgirl.croissant.breadlog.enums.TextureChip;
@@ -17,7 +18,7 @@ import sweetgirl.croissant.breadlog.enums.TextureChip;
  */
 public record BreadTagRatingRequest(
 		Boolean again,
-		@Size(max = 16) List<TextureChip> textures,
-		@Size(max = 10) List<TasteChip> tastes,
+		@Size(max = 16) List<@NotNull TextureChip> textures,
+		@Size(max = 10) List<@NotNull TasteChip> tastes,
 		@Size(max = 100) String memo) {
 }

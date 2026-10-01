@@ -51,45 +51,44 @@ class BreadCategoryCommandServiceTest {
 	private BreadCategoryCommandService service;
 
 	@Test
-	@DisplayName("새 이름이면 만든다 — 분류기로 세분류를 맞춰 대분류를 정하고, 만든 회원을 남긴다")
+	@DisplayName("새 이름이면 넣는다 — 분류기로 세분류를 맞춰 대분류를 정하고, 넣은 행을 돌려준다")
 	void create_newName() {
-		given(categoryRepository.findByNameKey("트러플소금빵")).willReturn(Optional.empty());
+		BreadCategory created = BreadCategory.custom("트러플 소금빵", BreadGroup.빵, MEMBER_ID);
+		ReflectionTestUtils.setField(created, "id", 200L);
 		given(categoryClassifier.classify("트러플 소금빵")).willReturn("소금빵");
-		given(categoryRepository.save(any(BreadCategory.class))).willAnswer(invocation -> {
-			BreadCategory category = invocation.getArgument(0);
-			ReflectionTestUtils.setField(category, "id", 200L);
-			return category;
-		});
+		given(categoryRepository.insertCustomIfAbsent("트러플 소금빵", "트러플소금빵", "빵", MEMBER_ID)).willReturn(1);
+		given(categoryRepository.findByNameKey("트러플소금빵")).willReturn(Optional.of(created));
 
 		BreadCategoryCreateResult result = service.create(MEMBER_ID, " 트러플 소금빵 ");
 
 		assertThat(result.created()).isTrue();
-		assertThat(result.category().name()).isEqualTo("트러플 소금빵");
+		assertThat(result.category().id()).isEqualTo(200L);
 		assertThat(result.category().breadGroup()).isEqualTo(BreadGroup.빵.name());
 		assertThat(result.category().isDefault()).isFalse();
-		verify(categoryRepository).save(any(BreadCategory.class));
 	}
 
 	@Test
-	@DisplayName("같은 이름(공백·기호 무시)이 있으면 새로 만들지 않고 그걸 돌려준다")
+	@DisplayName("같은 이름(공백·기호 무시)이 있으면 DB 가 안 받고(0) 기존 것을 돌려준다 — 동시에 만들어도 한 쪽만 들어간다")
 	void create_duplicateReturnsExisting() {
 		BreadCategory existing = BreadCategory.custom("트러플 소금빵", BreadGroup.빵, 3L);
 		ReflectionTestUtils.setField(existing, "id", 200L);
+		given(categoryClassifier.classify("트러플소금빵!")).willReturn("소금빵");
+		given(categoryRepository.insertCustomIfAbsent("트러플소금빵!", "트러플소금빵", "빵", MEMBER_ID)).willReturn(0);
 		given(categoryRepository.findByNameKey("트러플소금빵")).willReturn(Optional.of(existing));
 
 		BreadCategoryCreateResult result = service.create(MEMBER_ID, "트러플소금빵!");
 
 		assertThat(result.created()).isFalse();
 		assertThat(result.category().id()).isEqualTo(200L);
-		verify(categoryRepository, never()).save(any());
 	}
 
 	@Test
-	@DisplayName("분류기가 빵·기타로 물러서면 대분류 없이 만든다")
+	@DisplayName("분류기가 빵·기타로 물러서면 대분류 없이 넣는다")
 	void create_withoutGroupWhenUnclassified() {
-		given(categoryRepository.findByNameKey("우리집빵")).willReturn(Optional.empty());
+		BreadCategory created = BreadCategory.custom("우리집빵", null, MEMBER_ID);
 		given(categoryClassifier.classify("우리집빵")).willReturn("빵");
-		given(categoryRepository.save(any(BreadCategory.class))).willAnswer(invocation -> invocation.getArgument(0));
+		given(categoryRepository.insertCustomIfAbsent("우리집빵", "우리집빵", null, MEMBER_ID)).willReturn(1);
+		given(categoryRepository.findByNameKey("우리집빵")).willReturn(Optional.of(created));
 
 		BreadCategoryCreateResult result = service.create(MEMBER_ID, "우리집빵");
 
@@ -106,7 +105,7 @@ class BreadCategoryCommandServiceTest {
 				.extracting("errorCode")
 				.isEqualTo(BreadRankingErrorCode.BREAD_CATEGORY_INVALID_NAME);
 		}
-		verify(categoryRepository, never()).save(any());
+		verify(categoryRepository, never()).insertCustomIfAbsent(any(), any(), any(), any());
 	}
 
 	@Test
@@ -118,7 +117,7 @@ class BreadCategoryCommandServiceTest {
 			.isInstanceOf(BreadRankingException.class)
 			.extracting("errorCode")
 			.isEqualTo(BreadRankingErrorCode.BREAD_CATEGORY_NAME_REJECTED);
-		verify(categoryRepository, never()).save(any());
+		verify(categoryRepository, never()).insertCustomIfAbsent(any(), any(), any(), any());
 	}
 
 	@Test
@@ -128,6 +127,6 @@ class BreadCategoryCommandServiceTest {
 			.requireLoggedIn(MEMBER_ID);
 
 		assertThatThrownBy(() -> service.create(MEMBER_ID, "트러플 소금빵")).isInstanceOf(MemberException.class);
-		verify(categoryRepository, never()).findByNameKey(any());
+		verify(categoryRepository, never()).insertCustomIfAbsent(any(), any(), any(), any());
 	}
 }

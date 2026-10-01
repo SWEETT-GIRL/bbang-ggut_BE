@@ -103,29 +103,23 @@ class MyBreadRankingCommandServiceTest {
 			.isInstanceOf(BreadRankingException.class)
 			.extracting("errorCode")
 			.isEqualTo(BreadRankingErrorCode.BREAD_RANK_NOT_EATEN);
-		verify(entryRepository, never()).save(any());
+		verify(entryRepository, never()).insertUnrankedIfAbsent(any(), any(), any());
 	}
 
 	@Test
-	@DisplayName("담기: 등수 없이 저장하고, 탭에 없으면 맨 뒤 탭으로 추가한다")
+	@DisplayName("담기: 등수 없이 DB 에 한 번만 넣고(더블탭이어도), 탭에 없으면 맨 뒤 탭으로 추가한다")
 	void addStore_savesUnrankedAndAddsTab() {
 		Store store = store(10L);
 		given(categoryQueryService.getCategory(CATEGORY_ID)).willReturn(category);
 		given(storeRepository.findById(10L)).willReturn(Optional.of(store));
 		given(breadRecordRepository.existsByMemberIdAndStoreIdAndDeletedAtIsNull(MEMBER_ID, 10L)).willReturn(true);
-		given(entryRepository.findByMemberIdAndCategoryIdAndStoreId(MEMBER_ID, CATEGORY_ID, 10L))
-			.willReturn(Optional.empty());
-		given(memberCategoryRepository.existsById(new MemberBreadCategoryId(MEMBER_ID, CATEGORY_ID))).willReturn(false);
-		given(memberCategoryRepository.findAllWithCategoryByMemberId(MEMBER_ID)).willReturn(List.of(
-			MemberBreadCategory.append(MEMBER_ID, category(9L, MenuKind.식빵), 0)));
 		given(rankingQueryService.toRanking(any(), any(), any())).willReturn(emptyRanking());
 
 		service.addStore(MEMBER_ID, CATEGORY_ID, 10L);
 
-		verify(entryRepository).save(argThat((BreadRankEntry entry) -> !entry.isRanked()
-			&& entry.getStore().getId().equals(10L) && entry.getMemberId().equals(MEMBER_ID)));
-		verify(memberCategoryRepository).save(argThat((MemberBreadCategory tab) -> tab.getSortOrder() == 1
-			&& tab.getCategory().getId().equals(CATEGORY_ID)));
+		verify(entryRepository).insertUnrankedIfAbsent(MEMBER_ID, CATEGORY_ID, 10L);
+		verify(memberCategoryRepository).appendIfAbsent(MEMBER_ID, CATEGORY_ID);
+		verify(entryRepository).findAllWithStoreByMemberIdAndCategoryId(MEMBER_ID, CATEGORY_ID);
 	}
 
 	@Test

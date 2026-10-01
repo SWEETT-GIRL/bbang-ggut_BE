@@ -45,13 +45,12 @@ public class BreadCategoryCommandService {
 		if (contentFilter.containsObjectionableContent(name)) {
 			throw new BreadRankingException(BreadRankingErrorCode.BREAD_CATEGORY_NAME_REJECTED);
 		}
-		Optional<BreadCategory> existing = categoryRepository.findByNameKey(nameKey);
-		if (existing.isPresent()) {
-			return new BreadCategoryCreateResult(BreadCategoryResponse.of(existing.get(), 0), false);
-		}
-		BreadCategory created = categoryRepository.save(
-			BreadCategory.custom(name, resolveGroup(name).orElse(null), memberId));
-		return new BreadCategoryCreateResult(BreadCategoryResponse.of(created, 0), true);
+		// 같은 이름을 둘이 동시에 만들어도 DB 가 한 번만 받는다 — 못 넣은 쪽은 들어간 것을 읽어 돌려준다
+		boolean created = categoryRepository.insertCustomIfAbsent(
+			name, nameKey, resolveGroup(name).map(Enum::name).orElse(null), memberId) == 1;
+		BreadCategory category = categoryRepository.findByNameKey(nameKey)
+			.orElseThrow(() -> new BreadRankingException(BreadRankingErrorCode.BREAD_CATEGORY_NOT_FOUND));
+		return new BreadCategoryCreateResult(BreadCategoryResponse.of(category, 0), created);
 	}
 
 	private Optional<BreadGroup> resolveGroup(String name) {
