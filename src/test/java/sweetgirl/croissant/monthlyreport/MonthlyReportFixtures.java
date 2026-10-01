@@ -1,7 +1,18 @@
 package sweetgirl.croissant.monthlyreport;
 
+import java.time.Instant;
+import java.util.Map;
+
+import org.springframework.beans.BeanUtils;
+import org.springframework.data.projection.SpelAwareProxyProjectionFactory;
+import org.springframework.test.util.ReflectionTestUtils;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+
+import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMember;
+import sweetgirl.croissant.monthlyreport.enums.MonthlyReportStatus;
+import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository.PublishedReport;
 
 public final class MonthlyReportFixtures {
 
@@ -30,6 +41,18 @@ public final class MonthlyReportFixtures {
 
 	private MonthlyReportFixtures() {
 		// 테스트 예시 데이터만 제공한다.
+	}
+
+	public static MonthlyReportMember snapshot(String status, String payload) {
+		MonthlyReportMember snapshot = BeanUtils.instantiateClass(MonthlyReportMember.class);
+		ReflectionTestUtils.setField(snapshot, "status", MonthlyReportStatus.valueOf(status));
+		ReflectionTestUtils.setField(snapshot, "payload", payload);
+		return snapshot;
+	}
+
+	public static PublishedReport published(String month, Instant time) {
+		return new SpelAwareProxyProjectionFactory().createProjection(PublishedReport.class,
+			Map.of("yearMonth", month, "publishedAt", time));
 	}
 
 	public static ObjectNode payload() throws Exception {

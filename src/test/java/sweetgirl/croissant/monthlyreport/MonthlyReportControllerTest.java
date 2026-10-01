@@ -25,6 +25,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
@@ -40,9 +42,8 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.monthlyreport.controller.MonthlyReportController;
-import sweetgirl.croissant.monthlyreport.dto.MonthlyReportListItem;
+import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
-import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository.Snapshot;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportQueryService;
 
@@ -84,7 +85,8 @@ class MonthlyReportControllerTest {
 	@Test
 	void respondsWithOwnSnapshotAndIgnoresSuppliedMemberId() throws Exception {
 		authenticate();
-		given(repository.find(123L, MONTH)).willReturn(Optional.of(new Snapshot("PUBLISHED", PAYLOAD)));
+		given(repository.findById(new MonthlyReportMemberId(123L, MONTH)))
+			.willReturn(Optional.of(MonthlyReportFixtures.snapshot("PUBLISHED", PAYLOAD)));
 		given(repository.findVisiblePhotoKeys(eq(123L), any()))
 			.willReturn(Set.of("bread-records/members/123/images/a"));
 		mvc.perform(get("/reports/monthly/{month}/me", MONTH).param("memberId", "456"))
@@ -93,13 +95,13 @@ class MonthlyReportControllerTest {
 			.andExpect(jsonPath("$.data.yearMonth").value(MONTH))
 			.andExpect(jsonPath("$.data.activity.totalScore").value(72))
 			.andExpect(jsonPath("$.data.breads[0].imageKey").value("bread-records/members/123/images/a"));
-		verify(repository, never()).find(eq(456L), any());
+		verify(repository, never()).findById(new MonthlyReportMemberId(456L, MONTH));
 	}
 
 	@Test
 	void requiresAuthentication() throws Exception {
 		mvc.perform(get("/reports/monthly/{month}/me", MONTH)).andExpect(status().isUnauthorized());
-		verify(repository, never()).find(any(), any());
+		verify(repository, never()).findById(any());
 	}
 
 	@Test
@@ -107,13 +109,14 @@ class MonthlyReportControllerTest {
 		authenticate();
 		mvc.perform(get("/reports/monthly/2026-13/me")).andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.code").value("MONTHLY_REPORT4001"));
-		verify(repository, never()).find(any(), any());
+		verify(repository, never()).findById(any());
 	}
 
 	@Test
 	void absentAndWithheldSnapshotsAre404() throws Exception {
 		authenticate();
-		given(repository.find(123L, MONTH)).willReturn(Optional.empty(), Optional.of(new Snapshot("WITHHELD", null)));
+		given(repository.findById(new MonthlyReportMemberId(123L, MONTH))).willReturn(Optional.empty(),
+			Optional.of(MonthlyReportFixtures.snapshot("WITHHELD", null)));
 		for (int i = 0; i < 2; i++) {
 			mvc.perform(get("/reports/monthly/{month}/me", MONTH)).andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.code").value("MONTHLY_REPORT4041"));
@@ -123,7 +126,8 @@ class MonthlyReportControllerTest {
 	@Test
 	void failedAggregationIs503() throws Exception {
 		authenticate();
-		given(repository.find(123L, MONTH)).willReturn(Optional.of(new Snapshot("FAILED", null)));
+		given(repository.findById(new MonthlyReportMemberId(123L, MONTH)))
+			.willReturn(Optional.of(MonthlyReportFixtures.snapshot("FAILED", null)));
 		mvc.perform(get("/reports/monthly/{month}/me", MONTH)).andExpect(status().isServiceUnavailable())
 			.andExpect(jsonPath("$.code").value("MONTHLY_REPORT5031"));
 	}
@@ -131,8 +135,8 @@ class MonthlyReportControllerTest {
 	@Test
 	void mismatchedPayloadIs500WithoutLeakingAnotherMember() throws Exception {
 		authenticate();
-		given(repository.find(123L, MONTH))
-			.willReturn(Optional.of(new Snapshot("PUBLISHED", PAYLOAD.replace("123", "456"))));
+		given(repository.findById(new MonthlyReportMemberId(123L, MONTH)))
+			.willReturn(Optional.of(MonthlyReportFixtures.snapshot("PUBLISHED", PAYLOAD.replace("123", "456"))));
 		mvc.perform(get("/reports/monthly/{month}/me", MONTH)).andExpect(status().isInternalServerError())
 			.andExpect(jsonPath("$.code").value("MONTHLY_REPORT5001")).andExpect(jsonPath("$.data").doesNotExist());
 	}
@@ -140,7 +144,7 @@ class MonthlyReportControllerTest {
 	@Test
 	void databaseFailureIsNotDisguisedAsMissingReport() throws Exception {
 		authenticate();
-		given(repository.find(123L, MONTH))
+		given(repository.findById(new MonthlyReportMemberId(123L, MONTH)))
 			.willThrow(new DataAccessResourceFailureException("test database unavailable"));
 		mvc.perform(get("/reports/monthly/{month}/me", MONTH)).andExpect(status().isInternalServerError())
 			.andExpect(jsonPath("$.code").value("COMMON500"));
@@ -149,7 +153,8 @@ class MonthlyReportControllerTest {
 	@Test
 	void deletedOrForeignPhotosAreRemovedWithoutChangingCounts() throws Exception {
 		authenticate();
-		given(repository.find(123L, MONTH)).willReturn(Optional.of(new Snapshot("PUBLISHED", PAYLOAD)));
+		given(repository.findById(new MonthlyReportMemberId(123L, MONTH)))
+			.willReturn(Optional.of(MonthlyReportFixtures.snapshot("PUBLISHED", PAYLOAD)));
 		given(repository.findVisiblePhotoKeys(eq(123L), any())).willReturn(Set.of());
 		mvc.perform(get("/reports/monthly/{month}/me", MONTH)).andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.breads[0].imageKey").isEmpty())
@@ -163,7 +168,8 @@ class MonthlyReportControllerTest {
 		var payload = MonthlyReportFixtures.payload();
 		payload.withObject("/activity").putNull("abilities").putNull("totalScore");
 		payload.putArray("breads");
-		given(repository.find(123L, MONTH)).willReturn(Optional.of(new Snapshot("PUBLISHED", payload.toString())));
+		given(repository.findById(new MonthlyReportMemberId(123L, MONTH)))
+			.willReturn(Optional.of(MonthlyReportFixtures.snapshot("PUBLISHED", payload.toString())));
 		mvc.perform(get("/reports/monthly/{month}/me", MONTH)).andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.activity.totalScore").hasJsonPath())
 			.andExpect(jsonPath("$.data.activity.totalScore").isEmpty())
@@ -174,9 +180,10 @@ class MonthlyReportControllerTest {
 	void listsOwnPublishedMonthsWithLinksAndPagination() throws Exception {
 		authenticate();
 		Instant publishedAt = Instant.parse("2026-01-01T01:00:00Z");
-		given(repository.findPublished(123L, 0L, 3)).willReturn(List.of(
-			MonthlyReportListItem.of("2025-12", publishedAt), MonthlyReportListItem.of("2025-11", publishedAt),
-			MonthlyReportListItem.of("2025-10", publishedAt)));
+		given(repository.findPublished(123L, PageRequest.of(0, 2))).willReturn(new SliceImpl<>(List.of(
+			MonthlyReportFixtures.published("2025-12", publishedAt),
+			MonthlyReportFixtures.published("2025-11", publishedAt)),
+			PageRequest.of(0, 2), true));
 		mvc.perform(get("/reports/monthly/me").param("size", "2").param("memberId", "456"))
 			.andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
 			.andExpect(jsonPath("$.data.content.length()").value(2))
@@ -184,13 +191,13 @@ class MonthlyReportControllerTest {
 			.andExpect(jsonPath("$.data.content[0].publishedAt").value("2026-01-01T01:00:00Z"))
 			.andExpect(jsonPath("$.data.content[0].link").value("/reports/monthly/2025-12"))
 			.andExpect(jsonPath("$.data.hasNext").value(true));
-		verify(repository, never()).findPublished(eq(456L), any(Long.class), any(Integer.class));
+		verify(repository, never()).findPublished(eq(456L), any());
 	}
 
 	@Test
 	void emptyListIs200AndUsesDefaultPageSize() throws Exception {
 		authenticate();
-		given(repository.findPublished(123L, 0L, 13)).willReturn(List.of());
+		given(repository.findPublished(123L, PageRequest.of(0, 12))).willReturn(new SliceImpl<>(List.of()));
 		mvc.perform(get("/reports/monthly/me")).andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.content").isEmpty()).andExpect(jsonPath("$.data.hasNext").value(false));
 	}
@@ -209,8 +216,8 @@ class MonthlyReportControllerTest {
 	@Test
 	void listSecondPageUsesOffsetAndHasNoNextPage() throws Exception {
 		authenticate();
-		given(repository.findPublished(123L, 12L, 13)).willReturn(List.of(
-			MonthlyReportListItem.of("2024-12", Instant.parse("2025-01-01T01:00:00Z"))));
+		given(repository.findPublished(123L, PageRequest.of(1, 12))).willReturn(new SliceImpl<>(List.of(
+			MonthlyReportFixtures.published("2024-12", Instant.parse("2025-01-01T01:00:00Z")))));
 		mvc.perform(get("/reports/monthly/me").param("page", "1"))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.data.hasNext").value(false))
 			.andExpect(jsonPath("$.data.content[0].yearMonth").value("2024-12"));

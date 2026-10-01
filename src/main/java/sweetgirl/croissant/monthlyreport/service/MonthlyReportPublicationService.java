@@ -42,7 +42,7 @@ public class MonthlyReportPublicationService {
 		}
 		String payload = codec.write(report, memberId, yearMonth);
 		boolean published = repository.publish(memberId, yearMonth, payload, rawMetrics.toString(), calculationVersion,
-			generatedAt, publishedAt);
+			generatedAt, publishedAt) == 1;
 		if (published) {
 			notificationService.recordPublished(member, month,
 				LocalDateTime.ofInstant(publishedAt, ZoneId.of("Asia/Seoul")));

@@ -11,6 +11,7 @@ import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.PAYLOAD;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -25,28 +26,37 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.orm.jpa.JpaTransactionManager;
+import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
+import org.springframework.orm.jpa.vendor.HibernateJpaDialect;
+import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.event.TransactionalEventListenerFactory;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import jakarta.persistence.EntityManagerFactory;
 import jakarta.validation.Validation;
 import sweetgirl.croissant.alarm.entity.Notification;
 import sweetgirl.croissant.alarm.event.PushRequestedEvent;
 import sweetgirl.croissant.alarm.service.NotificationRecorder;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
-import sweetgirl.croissant.monthlyreport.dto.MonthlyReportListItem;
+import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
+import sweetgirl.croissant.monthlyreport.enums.MonthlyReportStatus;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
+import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository.PublishedReport;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportNotificationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPublicationService;
@@ -62,6 +72,7 @@ class MonthlyReportRepositoryTest {
 	private JdbcTemplate jdbc;
 	private MonthlyReportRepository repository;
 	private TransactionTemplate transactions;
+	private AnnotationConfigApplicationContext jpaContext;
 
 	@BeforeAll
 	void createSchema() {
@@ -72,7 +83,6 @@ class MonthlyReportRepositoryTest {
 		var scopedSource = new DriverManagerDataSource(source.getUrl(), source.getUsername(), source.getPassword());
 		scopedSource.setSchema(schema);
 		jdbc = new JdbcTemplate(scopedSource);
-		transactions = new TransactionTemplate(new DataSourceTransactionManager(scopedSource));
 		jdbc.execute("CREATE TABLE member (id bigint PRIMARY KEY)");
 		jdbc.execute("CREATE TABLE recorded_notice (id bigint GENERATED ALWAYS AS IDENTITY, link text)");
 		jdbc.execute("CREATE TABLE bread_record (id bigint PRIMARY KEY, member_id bigint, deleted_at timestamp)");
@@ -82,7 +92,22 @@ class MonthlyReportRepositoryTest {
 				""");
 		new ResourceDatabasePopulator(new ClassPathResource(
 			"db/migration/V20261001131708__create_monthly_report_member.sql")).execute(scopedSource);
-		repository = new MonthlyReportRepository(new NamedParameterJdbcTemplate(scopedSource));
+		var factory = new LocalContainerEntityManagerFactoryBean();
+		factory.setDataSource(scopedSource);
+		factory.setPackagesToScan("sweetgirl.croissant.monthlyreport.entity");
+		factory.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
+		factory.setJpaPropertyMap(Map.of("hibernate.hbm2ddl.auto", "validate", "hibernate.default_schema", schema));
+		factory.afterPropertiesSet();
+		EntityManagerFactory emf = factory.getObject();
+		jpaContext = new AnnotationConfigApplicationContext();
+		jpaContext.registerBean("entityManagerFactory", EntityManagerFactory.class, () -> emf);
+		jpaContext.registerBean("transactionManager", JpaTransactionManager.class,
+			() -> new JpaTransactionManager(emf));
+		jpaContext.registerBean(HibernateJpaDialect.class);
+		jpaContext.register(JpaConfig.class);
+		jpaContext.refresh();
+		repository = jpaContext.getBean(MonthlyReportRepository.class);
+		transactions = new TransactionTemplate(jpaContext.getBean(JpaTransactionManager.class));
 	}
 
 	@BeforeEach
@@ -93,6 +118,9 @@ class MonthlyReportRepositoryTest {
 
 	@AfterAll
 	void dropSchema() {
+		if (jpaContext != null) {
+			jpaContext.close();
+		}
 		if (rootJdbc != null) {
 			rootJdbc.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
 		}
@@ -101,12 +129,12 @@ class MonthlyReportRepositoryTest {
 	@Test
 	void storesJsonAndScopesQueriesByMemberAndMonth() {
 		assertThat(publish(123L, MONTH, PAYLOAD)).isTrue();
-		assertThat(repository.find(123L, MONTH)).hasValueSatisfying(snapshot -> {
-			assertThat(snapshot.status()).isEqualTo("PUBLISHED");
-			assertThat(snapshot.payload()).contains("소금이");
+		assertThat(repository.findById(new MonthlyReportMemberId(123L, MONTH))).hasValueSatisfying(snapshot -> {
+			assertThat(snapshot.getStatus()).isEqualTo(MonthlyReportStatus.PUBLISHED);
+			assertThat(snapshot.getPayload()).contains("소금이");
 		});
-		assertThat(repository.find(456L, MONTH)).isEmpty();
-		assertThat(repository.find(123L, "2025-11")).isEmpty();
+		assertThat(repository.findById(new MonthlyReportMemberId(456L, MONTH))).isEmpty();
+		assertThat(repository.findById(new MonthlyReportMemberId(123L, "2025-11"))).isEmpty();
 		assertThat(jdbc.queryForObject("SELECT raw_metrics->>'records' FROM monthly_report_member", String.class))
 			.isEqualTo("12");
 	}
@@ -114,10 +142,11 @@ class MonthlyReportRepositoryTest {
 	@Test
 	void retryDoesNotChangePublishedPayloadOrTimestamp() {
 		assertThat(publish(123L, MONTH, PAYLOAD)).isTrue();
-		var original = repository.find(123L, MONTH);
+		var original = repository.findById(new MonthlyReportMemberId(123L, MONTH));
 		var time = jdbc.queryForObject("SELECT published_at FROM monthly_report_member", java.sql.Timestamp.class);
 		assertThat(publish(123L, MONTH, PAYLOAD.replace("소금이", "바뀐 이름"))).isFalse();
-		assertThat(repository.find(123L, MONTH)).isEqualTo(original);
+		assertThat(repository.findById(new MonthlyReportMemberId(123L, MONTH)).orElseThrow().getPayload())
+			.isEqualTo(original.orElseThrow().getPayload());
 		assertThat(jdbc.queryForObject("SELECT published_at FROM monthly_report_member", java.sql.Timestamp.class))
 			.isEqualTo(time);
 	}
@@ -148,7 +177,8 @@ class MonthlyReportRepositoryTest {
 	void failedOrWithheldSnapshotsCanBePublishedAfterRetry() {
 		jdbc.update("INSERT INTO monthly_report_member (member_id, year_month, status) VALUES (123, ?, 'FAILED')",
 			MONTH);
-		assertThat(repository.find(123L, MONTH).orElseThrow().status()).isEqualTo("FAILED");
+		assertThat(repository.findById(new MonthlyReportMemberId(123L, MONTH)).orElseThrow().getStatus())
+			.isEqualTo(MonthlyReportStatus.FAILED);
 		assertThat(publish(123L, MONTH, PAYLOAD)).isTrue();
 		jdbc.update("INSERT INTO monthly_report_member (member_id, year_month, status) VALUES (456, ?, 'WITHHELD')",
 			MONTH);
@@ -164,7 +194,7 @@ class MonthlyReportRepositoryTest {
 			.isInstanceOf(DataIntegrityViolationException.class);
 		publish(123L, MONTH, PAYLOAD);
 		jdbc.update("DELETE FROM member WHERE id = 123");
-		assertThat(repository.find(123L, MONTH)).isEmpty();
+		assertThat(repository.findById(new MonthlyReportMemberId(123L, MONTH))).isEmpty();
 	}
 
 	@Test
@@ -191,12 +221,14 @@ class MonthlyReportRepositoryTest {
 				INSERT INTO monthly_report_member (member_id, year_month, status)
 				VALUES (123, '2026-02', 'WITHHELD'), (123, '2026-01', 'FAILED')
 				""");
-		assertThat(repository.findPublished(123L, 0, 2)).extracting(MonthlyReportListItem::yearMonth)
+		assertThat(repository.findPublished(123L, PageRequest.of(0, 2)).getContent())
+			.extracting(PublishedReport::getYearMonth)
 			.containsExactly("2025-12", "2025-11");
-		assertThat(repository.findPublished(123L, 2, 2)).extracting(MonthlyReportListItem::yearMonth)
+		assertThat(repository.findPublished(123L, PageRequest.of(1, 2)).getContent())
+			.extracting(PublishedReport::getYearMonth)
 			.containsExactly("2025-10");
-		assertThat(repository.findPublished(123L, 3, 2)).isEmpty();
-		assertThat(repository.findPublished(789L, 0, 12)).isEmpty();
+		assertThat(repository.findPublished(123L, PageRequest.of(2, 2)).getContent()).isEmpty();
+		assertThat(repository.findPublished(789L, PageRequest.of(0, 12)).getContent()).isEmpty();
 	}
 
 	@Test
@@ -233,7 +265,7 @@ class MonthlyReportRepositoryTest {
 				assertThat(capture.events).isEmpty();
 				status.setRollbackOnly();
 			});
-			assertThat(repository.find(123L, MONTH)).isEmpty();
+			assertThat(repository.findById(new MonthlyReportMemberId(123L, MONTH))).isEmpty();
 			assertThat(jdbc.queryForObject("SELECT count(*) FROM recorded_notice", Integer.class)).isZero();
 			assertThat(capture.events).isEmpty();
 
@@ -253,6 +285,13 @@ class MonthlyReportRepositoryTest {
 		}
 	}
 
+	@Configuration(proxyBeanMethods = false)
+	@EnableTransactionManagement
+	@EnableJpaRepositories(basePackageClasses = MonthlyReportRepository.class)
+	static class JpaConfig {
+		// 보고서 저장소만 독립적인 JPA 컨텍스트에서 검증한다.
+	}
+
 	static class PushCapture {
 		private final List<PushRequestedEvent> events = new ArrayList<>();
 
@@ -264,6 +303,6 @@ class MonthlyReportRepositoryTest {
 
 	private boolean publish(Long memberId, String month, String payload) {
 		return repository.publish(memberId, month, payload, "{\"records\":12}", "test-v1",
-			Instant.parse("2026-01-01T00:00:00Z"), Instant.now());
+			Instant.parse("2026-01-01T00:00:00Z"), Instant.now()) == 1;
 	}
 }

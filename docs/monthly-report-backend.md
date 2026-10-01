@@ -63,6 +63,11 @@
 `payload`, `raw_metrics`는 JSONB, `generated_at`, `published_at`은 TIMESTAMPTZ다.
 상태는 `WITHHELD`, `FAILED`, `PUBLISHED`를 구분한다.
 
+`MonthlyReportMember` Entity는 `MonthlyReportMemberId(memberId, yearMonth)` 복합키를 사용한다.
+`MonthlyReportRepository`는 `JpaRepository`이며 상세는 Entity, 목록은 필요한 열만 읽는 JPA projection/Slice로 조회한다.
+발행본에는 변경 메서드를 두지 않고 Hibernate `@Immutable`로 일반 dirty checking 갱신을 막는다.
+동시 발행을 막는 PostgreSQL upsert와 사진 소유권 쿼리는 Spring Data의 native query로 유지한다.
+
 `MonthlyReportPublicationService.publish(...)`는 향후 집계 배치가 부를 내부 서비스다.
 HTTP 발행 API와 자동 집계 스케줄러는 아직 연결하지 않았다. 이 서비스를 호출해 최초 발행하면 알림함 적재와 푸시 요청도 수행한다.
 

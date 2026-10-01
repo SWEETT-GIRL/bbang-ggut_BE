@@ -65,7 +65,7 @@ class MonthlyReportPublicationServiceTest {
 		Instant generatedAt = Instant.parse("2026-01-01T00:00:00Z");
 		var raw = mapper.createObjectNode().put("records", 12);
 		given(repository.publish(eq(123L), eq(MONTH), any(), eq(raw.toString()), eq("test-v1"), eq(generatedAt), any()))
-			.willReturn(true, false);
+			.willReturn(1, 0);
 		assertThat(service.publish(123L, MONTH, report, raw, "test-v1", generatedAt)).isTrue();
 		assertThat(service.publish(123L, MONTH, report, raw, "test-v1", generatedAt)).isFalse();
 		verify(notificationService, times(1)).recordPublished(any(), eq(YearMonth.parse(MONTH)), any());

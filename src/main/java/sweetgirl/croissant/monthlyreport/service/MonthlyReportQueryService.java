@@ -4,6 +4,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +15,7 @@ import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportListItem;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
+import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 
 @Service
@@ -30,21 +32,21 @@ public class MonthlyReportQueryService {
 		if (page < 0 || size < 1 || size > 100) {
 			throw new CustomException(MonthlyReportErrorCode.INVALID_PAGE);
 		}
-		var reports = repository.findPublished(memberId, (long)page * size, size + 1);
-		boolean hasNext = reports.size() > size;
-		return new SliceResponse<>(hasNext ? reports.subList(0, size) : reports, hasNext);
+		var reports = repository.findPublished(memberId, PageRequest.of(page, size));
+		return SliceResponse
+			.from(reports.map(report -> MonthlyReportListItem.of(report.getYearMonth(), report.getPublishedAt())));
 	}
 
 	public MonthlyReportResponse getReport(Long memberId, String yearMonth) {
 		memberReader.getMember(memberId);
 		MonthlyReportMonth.parse(yearMonth);
-		var snapshot = repository.find(memberId, yearMonth)
+		var snapshot = repository.findById(new MonthlyReportMemberId(memberId, yearMonth))
 			.orElseThrow(() -> new CustomException(MonthlyReportErrorCode.NOT_PUBLISHED));
-		switch (snapshot.status()) {
-			case "WITHHELD" -> throw new CustomException(MonthlyReportErrorCode.NOT_PUBLISHED);
-			case "FAILED" -> throw new CustomException(MonthlyReportErrorCode.GENERATION_FAILED);
-			case "PUBLISHED" -> {
-				MonthlyReportResponse report = codec.read(snapshot.payload(), memberId, yearMonth);
+		switch (snapshot.getStatus()) {
+			case WITHHELD -> throw new CustomException(MonthlyReportErrorCode.NOT_PUBLISHED);
+			case FAILED -> throw new CustomException(MonthlyReportErrorCode.GENERATION_FAILED);
+			case PUBLISHED -> {
+				MonthlyReportResponse report = codec.read(snapshot.getPayload(), memberId, yearMonth);
 				return removeUnavailablePhotos(report);
 			}
 			default -> throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
