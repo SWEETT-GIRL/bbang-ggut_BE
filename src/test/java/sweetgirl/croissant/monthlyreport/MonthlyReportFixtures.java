@@ -1,6 +1,7 @@
 package sweetgirl.croissant.monthlyreport;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.springframework.beans.BeanUtils;
@@ -64,8 +65,15 @@ public final class MonthlyReportFixtures {
 	}
 
 	public static PublishedReport published(String month, Instant time) {
+		return published(month, time, null);
+	}
+
+	public static PublishedReport published(String month, Instant time, String imageKey) {
+		Map<String, Object> values = new HashMap<>(Map.of(
+			"yearMonth", month, "publishedAt", time, "characterCode", "cat", "characterName", "냥이"));
+		values.put("characterImageKey", imageKey);
 		return new SpelAwareProxyProjectionFactory().createProjection(PublishedReport.class,
-			Map.of("yearMonth", month, "publishedAt", time));
+			values);
 	}
 
 	public static ObjectNode payload() throws Exception {

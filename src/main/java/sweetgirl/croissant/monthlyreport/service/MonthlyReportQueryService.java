@@ -33,8 +33,9 @@ public class MonthlyReportQueryService {
 			throw new CustomException(MonthlyReportErrorCode.INVALID_PAGE);
 		}
 		var reports = repository.findPublished(memberId, PageRequest.of(page, size));
-		return SliceResponse
-			.from(reports.map(report -> MonthlyReportListItem.of(report.getYearMonth(), report.getPublishedAt())));
+		return SliceResponse.from(reports.map(report -> MonthlyReportListItem.of(
+			report.getYearMonth(), report.getPublishedAt(), new MonthlyReportResponse.Character(
+				report.getCharacterCode(), report.getCharacterName(), report.getCharacterImageKey()))));
 	}
 
 	public MonthlyReportResponse getReport(Long memberId, String yearMonth) {

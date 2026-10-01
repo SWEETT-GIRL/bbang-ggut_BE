@@ -19,7 +19,9 @@ import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 public interface MonthlyReportRepository extends JpaRepository<MonthlyReportMember, MonthlyReportMemberId> {
 
 	@Query("""
-			SELECT r.id.yearMonth AS yearMonth, r.publishedAt AS publishedAt
+			SELECT r.id.yearMonth AS yearMonth, r.publishedAt AS publishedAt,
+				r.characterCode AS characterCode, r.characterName AS characterName,
+				r.characterImageKey AS characterImageKey
 			FROM MonthlyReportMember r
 			WHERE r.id.memberId = :memberId
 				AND r.status = sweetgirl.croissant.monthlyreport.enums.MonthlyReportStatus.PUBLISHED
@@ -87,6 +89,12 @@ public interface MonthlyReportRepository extends JpaRepository<MonthlyReportMemb
 		String getYearMonth();
 
 		Instant getPublishedAt();
+
+		String getCharacterCode();
+
+		String getCharacterName();
+
+		String getCharacterImageKey();
 	}
 
 	interface PhotoKeys {

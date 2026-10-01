@@ -237,6 +237,11 @@ class MonthlyReportRepositoryTest {
 			.containsExactly("2025-10");
 		assertThat(repository.findPublished(123L, PageRequest.of(2, 2)).getContent()).isEmpty();
 		assertThat(repository.findPublished(789L, PageRequest.of(0, 12)).getContent()).isEmpty();
+		assertThat(repository.findPublished(123L, PageRequest.of(0, 2)).getContent()).allSatisfy(report -> {
+			assertThat(report.getCharacterCode()).isEqualTo("cat");
+			assertThat(report.getCharacterName()).isEqualTo("냥이");
+			assertThat(report.getCharacterImageKey()).isNull();
+		});
 	}
 
 	@Test
@@ -258,6 +263,8 @@ class MonthlyReportRepositoryTest {
 			jdbc.update("UPDATE world_character SET name = '바뀐 캐릭터 이름' WHERE code = 'cat'");
 			jdbc.update("UPDATE world_planet SET name = '바뀐 행성 이름' WHERE code = 'earth'");
 			assertThat(query.getReport(123L, MONTH)).isEqualTo(before);
+			assertThat(query.getReports(123L, 0, 12).content()).singleElement()
+				.satisfies(report -> assertThat(report.character()).isEqualTo(before.character()));
 			assertThat(before.nickname()).isEqualTo("소금이");
 			assertThat(before.character().code()).isEqualTo("cat");
 			assertThat(before.planet().code()).isEqualTo("earth");

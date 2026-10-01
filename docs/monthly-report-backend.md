@@ -36,7 +36,10 @@
 - 동일한 Bearer 인증을 사용한다. 본인의 PUBLISHED만 보고서 월 내림차순으로 반환한다.
 - 기본값은 page=0, size=12다. page는 0 이상, size는 1~100이며 범위 밖이면 400/MONTHLY_REPORT4002다.
 - 데이터가 없으면 200과 `content: [], hasNext: false`를 반환한다. WITHHELD/FAILED는 목록에 포함하지 않는다.
-- 목록에는 전체 payload 대신 월·발행 시각·상세 경로만 담는다. 다음 페이지는 page를 1 증가시킨다.
+- 목록에는 월·발행 시각·상세 경로·발행 당시 캐릭터를 담는다. 다음 페이지는 page를 1 증가시킨다.
+- `character`는 상세와 같은 `{ code, name, imageKey }`이며 저장된 발행 시점 열에서 읽는다.
+  현재 사용자 선택이나 카탈로그와 조인하지 않는다. `imageKey`는 CDN 키이며 없으면 null이다.
+  클라이언트는 구버전 응답에 character가 없거나 null이면 중립 폴백을 표시한다.
 - `publishedAt`은 UTC ISO-8601 문자열, `link`는 앱 내부 경로다. 응답은 `Cache-Control: no-store`다.
 
 ```json
@@ -49,7 +52,8 @@
       {
         "yearMonth": "2026-09",
         "publishedAt": "2026-10-01T01:00:00Z",
-        "link": "/reports/monthly/2026-09"
+        "link": "/reports/monthly/2026-09",
+        "character": { "code": "cat", "name": "냥이", "imageKey": null }
       }
     ],
     "hasNext": false
