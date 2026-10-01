@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +25,7 @@ import sweetgirl.croissant.breadranking.repository.BreadBoardJdbcRepository;
 import sweetgirl.croissant.breadranking.repository.BreadBoardJdbcRepository.BoardRow;
 import sweetgirl.croissant.breadranking.repository.BreadBoardJdbcRepository.CategoryVotersRow;
 import sweetgirl.croissant.breadranking.repository.BreadCategoryRepository;
+import sweetgirl.croissant.config.cache.CacheConfig;
 import sweetgirl.croissant.ranking.service.RankChangeResolver;
 import sweetgirl.croissant.ranking.service.RankChanges;
 import sweetgirl.croissant.store.entity.Store;
@@ -54,7 +56,8 @@ public class BreadBoardQueryService {
 	private final StoreThumbnailReader thumbnailReader;
 	private final RankChangeResolver rankChangeResolver;
 
-	/** 탭에 뜨는 카테고리 — 10명 이상, 사람 수 많은 순(앞 4개는 탭, 나머지는 "전체" 격자). */
+	/** 탭에 뜨는 카테고리 — 10명 이상, 사람 수 많은 순(앞 4개는 탭, 나머지는 "전체" 격자). 1분 캐시. */
+	@Cacheable(cacheNames = CacheConfig.BREAD_BOARD_CATEGORIES)
 	public List<BreadCategoryResponse> getBoardCategories() {
 		List<CategoryVotersRow> rows = boardRepository.findCategoriesByVoters(MIN_VOTERS_FOR_TAB);
 		Map<Long, BreadCategory> categories = categoriesOf(rows.stream().map(CategoryVotersRow::categoryId).toList());
@@ -64,6 +67,8 @@ public class BreadBoardQueryService {
 			.toList();
 	}
 
+	/** 1분 캐시 — 표가 바뀌어도 그 안엔 같은 순위를 본다. 홈 노출·동시 접속에도 집계는 분당 한 번. */
+	@Cacheable(cacheNames = CacheConfig.BREAD_BOARD, key = "#categoryId + ':' + #limit")
 	public BreadBoardResponse getBoard(Long categoryId, Integer limit) {
 		BreadCategory category = categoryQueryService.getCategory(categoryId);
 		int lim = limit == null ? DEFAULT_LIMIT : Math.max(1, Math.min(limit, MAX_LIMIT));
