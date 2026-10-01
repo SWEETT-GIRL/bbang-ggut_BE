@@ -9,35 +9,37 @@ import org.junit.jupiter.api.Test;
 
 class MemberRankingRegionTest {
 
-	private static final LocalDateTime FIRST = LocalDateTime.of(2026, 9, 29, 10, 0);
+	private static final LocalDateTime FIRST = LocalDateTime.of(2026, 10, 1, 10, 0);
 
 	@Test
-	@DisplayName("처음 정하고 24시간 안에는 바로 바꿀 수 있다")
-	void freeFixWithinFirstDay() {
-		MemberRankingRegion region = MemberRankingRegion.first(1L, "서울", FIRST);
+	@DisplayName("다른 곳에서 다시 인증하면 바로 바뀌고 인증 시각이 새로 찍힌다 — 잠금 없음")
+	void reverifyElsewhere() {
+		MemberRankingRegion region = MemberRankingRegion.verified(1L, "서울", "동대문구", FIRST);
 
-		assertThat(region.nextChangeableAt(FIRST.plusHours(23))).isNull();
+		region.reverify("부산", "해운대구", FIRST.plusMinutes(5));
+
+		assertThat(region.getSido()).isEqualTo("부산");
+		assertThat(region.getSigungu()).isEqualTo("해운대구");
+		assertThat(region.getVerifiedAt()).isEqualTo(FIRST.plusMinutes(5));
+		assertThat(region.isVerified()).isTrue();
 	}
 
 	@Test
-	@DisplayName("처음 정하고 하루가 지나면 30일을 기다려야 한다")
-	void cooldownAfterFirstDay() {
-		MemberRankingRegion region = MemberRankingRegion.first(1L, "서울", FIRST);
+	@DisplayName("같은 곳을 다시 인증하면 인증 시각만 새로 찍힌다")
+	void reverifySamePlace() {
+		MemberRankingRegion region = MemberRankingRegion.verified(1L, "서울", "동대문구", FIRST);
 
-		assertThat(region.nextChangeableAt(FIRST.plusDays(2))).isEqualTo(FIRST.plusDays(30));
-		assertThat(region.nextChangeableAt(FIRST.plusDays(30))).isNull();
+		region.reverify("서울", "동대문구", FIRST.plusDays(3));
+
+		assertThat(region.getSigungu()).isEqualTo("동대문구");
+		assertThat(region.getVerifiedAt()).isEqualTo(FIRST.plusDays(3));
 	}
 
 	@Test
-	@DisplayName("첫날 정정을 쓰고 나면 그때부터 30일이다")
-	void cooldownAfterFreeFix() {
-		MemberRankingRegion region = MemberRankingRegion.first(1L, "서울", FIRST);
-		LocalDateTime fixedAt = FIRST.plusHours(1);
+	@DisplayName("시·도만 고르던 때의 행은 시·군·구가 없어 인증한 것으로 치지 않는다")
+	void legacyRowIsNotVerified() {
+		MemberRankingRegion region = MemberRankingRegion.verified(1L, "서울", null, FIRST);
 
-		region.change("경기", fixedAt);
-
-		assertThat(region.getSido()).isEqualTo("경기");
-		assertThat(region.getChangeCount()).isEqualTo(2);
-		assertThat(region.nextChangeableAt(fixedAt.plusHours(1))).isEqualTo(fixedAt.plusDays(30));
+		assertThat(region.isVerified()).isFalse();
 	}
 }

@@ -6,10 +6,11 @@ import java.util.List;
  * 빵로그 랭킹 한 판.
  *
  * @param sido    내 지역 판이면 그 시·도, 전국이면 null
+ * @param sigungu 내 지역 판이면 그 시·군·구("동대문구"·"수원시"), 전국이면 null
  * @param entries 1위부터 요청한 수만큼. 공동 순위 없이 1, 2, 3…
  * @param me      보는 사람의 자리. 게스트면 null
  */
-public record BreadRecordRankingResponse(String sido, List<Entry> entries, Me me) {
+public record BreadRecordRankingResponse(String sido, String sigungu, List<Entry> entries, Me me) {
 
 	/**
 	 * @param character 대표 캐릭터 코드. 세계관을 아직 시작 안 한 회원은 null — 앱이 마스코트로 보여준다

@@ -16,6 +16,7 @@ import sweetgirl.croissant.breadlog.dto.response.BreadRecordRankingResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordRankingResponse.Entry;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordRankingResponse.Me;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordRankingResponse.Next;
+import sweetgirl.croissant.breadlog.dto.response.RankingRegionResponse;
 import sweetgirl.croissant.breadlog.enums.RankingBoard;
 import sweetgirl.croissant.breadlog.enums.RankingScope;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRankingRepository;
@@ -40,18 +41,20 @@ public class BreadRecordRankingService {
 	public BreadRecordRankingResponse getRanking(Long viewerId, RankingBoard board, RankingScope scope, int limit) {
 		boolean guest = memberReader.getMember(viewerId).isGuest();
 		int lim = Math.max(1, Math.min(limit, MAX_LIMIT));
-		// 내 지역은 앱이 보내지 않고 서버에 저장된 것을 쓴다 — 여러 지역 판을 돌아가며 보지 못하게
-		String sido = scope == RankingScope.LOCAL && board.supportsLocal()
+		// 내 지역은 앱이 보내지 않고 서버에 인증된 것을 쓴다 — 여러 지역 판을 돌아가며 보지 못하게
+		RankingRegionResponse region = scope == RankingScope.LOCAL && board.supportsLocal()
 			? regionService.requireRegion(viewerId)
 			: null;
+		String sido = region == null ? null : region.sido();
+		String sigungu = region == null ? null : region.sigungu();
 		List<RankingRowProjection> rows = switch (board) {
 			case WEEKLY -> rankingRepository.findRecordRanking(weekStart(LocalDate.now(RankingRegionService.ZONE)),
-				sido, viewerId, lim);
-			case RECORDS -> rankingRepository.findRecordRanking(null, sido, viewerId, lim);
+				sido, sigungu, viewerId, lim);
+			case RECORDS -> rankingRepository.findRecordRanking(null, sido, sigungu, viewerId, lim);
 			case REGIONS -> rankingRepository.findRegionRanking(viewerId, lim);
 			case SHARE -> rankingRepository.findShareRanking(viewerId, lim);
 		};
-		return assemble(rows, viewerId, guest, lim, sido);
+		return assemble(rows, viewerId, guest, lim, sido, sigungu);
 	}
 
 	/** 이번 주 월요일 0시(Asia/Seoul). DB 의 created_at 도 같은 벽시계다. */
@@ -60,23 +63,25 @@ public class BreadRecordRankingService {
 	}
 
 	static BreadRecordRankingResponse assemble(
-			List<RankingRowProjection> rows, Long viewerId, boolean guest, int limit, String sido) {
+			List<RankingRowProjection> rows, Long viewerId, boolean guest, int limit, String sido,
+			String sigungu) {
 		List<Entry> entries = rows.stream()
 			.filter(row -> row.getRank() <= limit)
 			.map(row -> new Entry(row.getRank(), row.getNickname(), row.getSelectedCharacter(), row.getScore(),
 				Objects.equals(row.getMemberId(), viewerId)))
 			.toList();
 		if (guest) {
-			return new BreadRecordRankingResponse(sido, entries, null);
+			return new BreadRecordRankingResponse(sido, sigungu, entries, null);
 		}
 		RankingRowProjection mine = rows.stream()
 			.filter(row -> Objects.equals(row.getMemberId(), viewerId))
 			.findFirst()
 			.orElse(null);
 		if (mine == null) {
-			return new BreadRecordRankingResponse(sido, entries, new Me(null, 0, null));
+			return new BreadRecordRankingResponse(sido, sigungu, entries, new Me(null, 0, null));
 		}
-		return new BreadRecordRankingResponse(sido, entries, new Me(mine.getRank(), mine.getScore(), next(rows, mine)));
+		return new BreadRecordRankingResponse(sido, sigungu, entries,
+			new Me(mine.getRank(), mine.getScore(), next(rows, mine)));
 	}
 
 	/**

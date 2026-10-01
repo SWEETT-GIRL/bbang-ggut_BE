@@ -1,6 +1,5 @@
 package sweetgirl.croissant.breadlog.entity;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
@@ -13,10 +12,10 @@ import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
 
 /**
- * 빵로그 랭킹 "내 지역" — 회원이 직접 고른 시·도.
+ * 빵로그 랭킹 "내 지역" — 지금 있는 곳으로 인증한 시·군·구.
  *
  * <p>앱이 지역을 보내게 하지 않고 서버가 들고 있는 이유: 여러 지역 판을 돌아가며 보지 못하게 하려는 것이다.
- * 바꾸기는 {@link #COOLDOWN} 에 한 번이고, 처음 정한 뒤 {@link #FREE_FIX} 안의 한 번은 잘못 누른 것으로 보고 봐준다.
+ * 위치로만 인증하니 다른 판을 보려면 실제로 거기 가 있어야 한다 — 그래서 재인증 잠금은 두지 않고, 어디서든 다시 인증하면 바로 바뀐다.
  *
  * <p>{@code member} 를 연관 관계로 잡지 않은 이유는 {@code MemberWorld} 와 같다 — 회원 id 만 있으면 된다.
  */
@@ -26,9 +25,6 @@ import sweetgirl.croissant.common.entity.BaseTimeEntity;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MemberRankingRegion extends BaseTimeEntity {
 
-	public static final Duration COOLDOWN = Duration.ofDays(30);
-	public static final Duration FREE_FIX = Duration.ofHours(24);
-
 	@Id
 	@Column(name = "member_id")
 	private Long memberId;
@@ -37,42 +33,34 @@ public class MemberRankingRegion extends BaseTimeEntity {
 	@Column(nullable = false, length = 10)
 	private String sido;
 
-	/** 마지막으로 정하거나 바꾼 시각(Asia/Seoul). */
-	@Column(nullable = false)
-	private LocalDateTime changedAt;
+	/** 시·군·구("동대문구"·"수원시") — bread_record.region_key 둘째 칸과 같은 표기. 시·도만 고르던 때의 행은 null. */
+	@Column(length = 20)
+	private String sigungu;
 
-	/** 처음 정한 것도 1 번으로 센다. */
+	/** 마지막으로 인증한 시각(Asia/Seoul). 같은 곳을 다시 인증해도 새로 찍는다. */
 	@Column(nullable = false)
-	private int changeCount;
+	private LocalDateTime verifiedAt;
 
-	private MemberRankingRegion(Long memberId, String sido, LocalDateTime now) {
+	private MemberRankingRegion(Long memberId, String sido, String sigungu, LocalDateTime now) {
 		this.memberId = memberId;
 		this.sido = sido;
-		this.changedAt = now;
-		this.changeCount = 1;
+		this.sigungu = sigungu;
+		this.verifiedAt = now;
 	}
 
-	public static MemberRankingRegion first(Long memberId, String sido, LocalDateTime now) {
-		return new MemberRankingRegion(memberId, sido, now);
+	public static MemberRankingRegion verified(Long memberId, String sido, String sigungu, LocalDateTime now) {
+		return new MemberRankingRegion(memberId, sido, sigungu, now);
 	}
 
-	/**
-	 * 다음에 바꿀 수 있는 시각. 지금 바꿀 수 있으면 null.
-	 *
-	 * <p>처음 정하고 하루 안이면 한 번은 바로 바꿀 수 있다. 그 뒤로는 마지막으로 바꾼 때부터 30일.
-	 */
-	public LocalDateTime nextChangeableAt(LocalDateTime now) {
-		if (changeCount == 1 && now.isBefore(changedAt.plus(FREE_FIX))) {
-			return null;
-		}
-		LocalDateTime next = changedAt.plus(COOLDOWN);
-		return now.isBefore(next) ? next : null;
-	}
-
-	/** 바꿀 수 있는지는 서비스가 {@link #nextChangeableAt} 로 먼저 확인한다. */
-	public void change(String sido, LocalDateTime now) {
+	/** 다시 인증 — 다른 곳이면 바뀌고, 같은 곳이면 인증 시각만 새로 찍는다. */
+	public void reverify(String sido, String sigungu, LocalDateTime now) {
 		this.sido = sido;
-		this.changedAt = now;
-		this.changeCount++;
+		this.sigungu = sigungu;
+		this.verifiedAt = now;
+	}
+
+	/** 시·군·구까지 인증했는가 — 시·도만 고르던 때의 행은 내 지역 판을 볼 수 없다. */
+	public boolean isVerified() {
+		return sigungu != null;
 	}
 }
