@@ -86,6 +86,7 @@ class MonthlyReportControllerTest {
 	@Test
 	void respondsWithOwnSnapshotAndIgnoresSuppliedMemberId() throws Exception {
 		authenticate();
+		given(memberRepository.findById(123L)).willReturn(Optional.of(new Member("새 닉네임")));
 		given(repository.findById(new MonthlyReportMemberId(123L, MONTH)))
 			.willReturn(Optional.of(MonthlyReportFixtures.snapshot("PUBLISHED", PAYLOAD)));
 		given(repository.findVisiblePhotoKeys(eq(123L), any()))
@@ -94,6 +95,7 @@ class MonthlyReportControllerTest {
 			.andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
 			.andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data.memberId").value(123))
 			.andExpect(jsonPath("$.data.yearMonth").value(MONTH))
+			.andExpect(jsonPath("$.data.nickname").value("새 닉네임"))
 			.andExpect(jsonPath("$.data.activity.totalScore").value(72))
 			.andExpect(jsonPath("$.data.breads[0].imageKey").value("bread-records/members/123/images/a"));
 		verify(repository, never()).findById(new MonthlyReportMemberId(456L, MONTH));

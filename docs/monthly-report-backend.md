@@ -26,6 +26,7 @@
 - `comparison.currentRecords`와 요약 기록 수, 능력치별 상한과 총합, artwork의 캐릭터·행성·유형 일치를 검증한다.
 - `totalScore: null`, `abilities: null`은 그대로 전달한다. 집계 완료된 0과 전월의 실제 값도 그대로 전달한다.
 - 조회 응답에는 `Cache-Control: no-store`를 붙인다. 조회 시 원시 활동을 다시 집계하지 않는다.
+- `nickname`은 조회 시 현재 회원의 닉네임으로 반환한다. 닉네임 변경은 응답에만 반영하고 저장된 통계는 갱신하지 않는다.
 - 빵 사진 키만 현재 `bread_record_photo`와 삭제되지 않은 본인 기록에 연결되는지 한 번에 확인한다. 삭제·사진 교체·다른 회원의 키는 응답에서 null로 바꾼다. 기록 공개 여부는 본인 조회에 영향을 주지 않는다.
 - 사진은 DB에 저장된 원본/리사이즈 상대 키를 스냅샷에 사용한다. 삭제된 키를 가린다고 발행 당시 숫자를 재계산하지는 않는다.
 
@@ -76,7 +77,8 @@
 
 Entity에 `characterCode`, `characterName`, `characterImageKey`, `planetCode`, `planetName`을 저장한다.
 현재 MemberWorld나 카탈로그와의 연관관계로 두지 않으며, 조회 때 현재 선택·진행도·이름을 다시 가져오지 않는다.
-보고서의 닉네임·통계·능력치·전용 artwork 코드/버전/키는 최종 payload에 그대로 보관한다.
+통계·능력치·전용 artwork 코드/버전/키는 최종 payload에 그대로 보관한다.
+payload에 남아 있는 발행 당시 nickname은 조회 응답에서 사용하지 않고 현재 회원의 닉네임으로 대체한다.
 
 발행 upsert가 검증된 payload에서 다섯 열을 함께 추출해 저장하고, DB 제약과 조회 검증이 둘의 불일치를 막는다.
 발행된 회원·월에 다시 호출해도 캐릭터·행성과 payload를 덮어쓰지 않는다.

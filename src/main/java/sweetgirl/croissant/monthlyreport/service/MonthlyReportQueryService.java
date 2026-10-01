@@ -39,7 +39,7 @@ public class MonthlyReportQueryService {
 	}
 
 	public MonthlyReportResponse getReport(Long memberId, String yearMonth) {
-		memberReader.getMember(memberId);
+		var member = memberReader.getMember(memberId);
 		MonthlyReportMonth.parse(yearMonth);
 		var snapshot = repository.findById(new MonthlyReportMemberId(memberId, yearMonth))
 			.orElseThrow(() -> new CustomException(MonthlyReportErrorCode.NOT_PUBLISHED));
@@ -55,7 +55,7 @@ public class MonthlyReportQueryService {
 					|| !Objects.equals(snapshot.getPlanetName(), report.planet().name())) {
 					throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
 				}
-				return removeUnavailablePhotos(report);
+				return removeUnavailablePhotos(report).withNickname(member.getNickname());
 			}
 			default -> throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
 		}

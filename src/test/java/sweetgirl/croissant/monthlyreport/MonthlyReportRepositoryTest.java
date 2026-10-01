@@ -253,7 +253,8 @@ class MonthlyReportRepositoryTest {
 		jdbc.update("INSERT INTO world_character VALUES ('cat', '냥이')");
 		jdbc.update("INSERT INTO world_planet VALUES ('earth', '지구')");
 		var reader = mock(MemberReader.class);
-		given(reader.getMember(123L)).willReturn(new Member("현재 닉네임"));
+		var member = new Member("현재 닉네임");
+		given(reader.getMember(123L)).willReturn(member);
 		try (var factory = Validation.buildDefaultValidatorFactory()) {
 			var codec = new MonthlyReportPayloadCodec(new ObjectMapper(), factory.getValidator());
 			var query = new MonthlyReportQueryService(reader, repository, codec);
@@ -262,10 +263,13 @@ class MonthlyReportRepositoryTest {
 				"UPDATE member_world SET selected_character = 'dog', max_record_count = 9999 WHERE member_id = 123");
 			jdbc.update("UPDATE world_character SET name = '바뀐 캐릭터 이름' WHERE code = 'cat'");
 			jdbc.update("UPDATE world_planet SET name = '바뀐 행성 이름' WHERE code = 'earth'");
-			assertThat(query.getReport(123L, MONTH)).isEqualTo(before);
+			member.resetNickname("변경한 닉네임");
+			assertThat(query.getReport(123L, MONTH)).isEqualTo(before.withNickname("변경한 닉네임"));
 			assertThat(query.getReports(123L, 0, 12).content()).singleElement()
 				.satisfies(report -> assertThat(report.character()).isEqualTo(before.character()));
-			assertThat(before.nickname()).isEqualTo("소금이");
+			assertThat(before.nickname()).isEqualTo("현재 닉네임");
+			assertThat(repository.findById(new MonthlyReportMemberId(123L, MONTH)).orElseThrow().getPayload())
+				.contains("소금이");
 			assertThat(before.character().code()).isEqualTo("cat");
 			assertThat(before.planet().code()).isEqualTo("earth");
 			assertThat(before.activity().artwork().imageKey()).isEqualTo("reports/types/v1/earth/cat/record.webp");
