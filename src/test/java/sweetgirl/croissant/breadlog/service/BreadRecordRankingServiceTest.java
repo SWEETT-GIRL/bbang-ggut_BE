@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import sweetgirl.croissant.breadlog.dto.projection.RankingRowProjection;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordRankingResponse;
+import sweetgirl.croissant.breadranking.service.RankChanges;
 
 class BreadRecordRankingServiceTest {
 
@@ -35,7 +36,8 @@ class BreadRecordRankingServiceTest {
 			row(2L, "두쫀쿠", 4, 2, 1),
 			row(ME, "앙버터", 1, 3, 3));
 
-		BreadRecordRankingResponse response = BreadRecordRankingService.assemble(rows, ME, false, 1, null, null);
+		BreadRecordRankingResponse response = BreadRecordRankingService.assemble(rows, ME, false, 1, null, null,
+			RankChanges.unknown());
 
 		assertThat(response.entries()).extracting(BreadRecordRankingResponse.Entry::nickname).containsExactly("호떡");
 		assertThat(response.me().rank()).isEqualTo(3L);
@@ -48,9 +50,13 @@ class BreadRecordRankingServiceTest {
 	void edgeCases() {
 		List<RankingRowProjection> rows = List.of(row(ME, "앙버터", 5, 1, 1));
 
-		assertThat(BreadRecordRankingService.assemble(rows, ME, false, 100, null, null).me().next()).isNull();
-		assertThat(BreadRecordRankingService.assemble(List.of(), ME, false, 100, null, null).me().rank()).isNull();
-		assertThat(BreadRecordRankingService.assemble(rows, ME, true, 100, null, null).me()).isNull();
+		assertThat(
+			BreadRecordRankingService.assemble(rows, ME, false, 100, null, null, RankChanges.unknown()).me().next())
+			.isNull();
+		assertThat(BreadRecordRankingService.assemble(List.of(), ME, false, 100, null, null, RankChanges.unknown()).me()
+			.rank()).isNull();
+		assertThat(BreadRecordRankingService.assemble(rows, ME, true, 100, null, null, RankChanges.unknown()).me())
+			.isNull();
 	}
 
 	private static RankingRowProjection row(Long memberId, String nickname, long score, long rank, long firstRank) {
@@ -79,5 +85,24 @@ class BreadRecordRankingServiceTest {
 				return firstRank;
 			}
 		};
+	}
+
+	@Test
+	@DisplayName("어제 스냅샷이 있으면 줄마다 변동과 NEW 를 붙이고, 없으면 둘 다 null 이다")
+	void rankChangesAttached() {
+		List<RankingRowProjection> rows = List.of(row(3L, "호떡", 4, 1, 1), row(ME, "앙버터", 1, 2, 2));
+		RankChanges known = RankChanges.of(java.util.Map.of(3L, 2));
+
+		BreadRecordRankingResponse withChanges = BreadRecordRankingService.assemble(rows, ME, false, 10, null, null,
+			known);
+		BreadRecordRankingResponse unknown = BreadRecordRankingService.assemble(rows, ME, false, 10, null, null,
+			RankChanges.unknown());
+
+		assertThat(withChanges.entries().get(0).rankChange()).isEqualTo(1); // 2위 → 1위
+		assertThat(withChanges.entries().get(0).isNew()).isFalse();
+		assertThat(withChanges.entries().get(1).rankChange()).isNull();
+		assertThat(withChanges.entries().get(1).isNew()).isTrue();
+		assertThat(unknown.entries().get(0).rankChange()).isNull();
+		assertThat(unknown.entries().get(0).isNew()).isNull();
 	}
 }
