@@ -71,7 +71,9 @@ public interface BreadRecordTagRepository extends JpaRepository<BreadRecordTag, 
 			JOIN FETCH tag.photo photo
 			LEFT JOIN FETCH tag.menu menu
 			LEFT JOIN FETCH menu.menuCategory
-			WHERE record.member.id = :memberId AND record.deletedAt IS NULL
+			WHERE record.member.id = :memberId
+			AND record.createdAt < :to
+			AND (record.deletedAt IS NULL OR record.deletedAt >= :to)
 			AND record.eatenAt >= :from AND record.eatenAt < :to
 			AND photo.record.id = record.id
 			ORDER BY CASE WHEN tag.name MEMBER OF record.lovedBreads OR tag.name = record.lovedBread THEN 0 ELSE 1 END,

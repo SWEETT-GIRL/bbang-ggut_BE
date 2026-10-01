@@ -17,6 +17,26 @@ import sweetgirl.croissant.breadlog.entity.BreadRecord;
 
 public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> {
 
+	/** 월말에 존재한 기록. 가게 ID가 없는 기록은 각각 다른 빵집으로 센다. */
+	@Query("""
+			SELECT COUNT(record.id) AS records,
+				COUNT(DISTINCT record.store.id)
+					+ COALESCE(SUM(CASE WHEN record.store IS NULL THEN 1 ELSE 0 END), 0) AS stores
+			FROM BreadRecord record
+			WHERE record.member.id = :memberId
+			AND record.eatenAt >= :from AND record.eatenAt < :to
+			AND record.createdAt < :to
+			AND (record.deletedAt IS NULL OR record.deletedAt >= :to)
+			""")
+	MonthlyRecordCounts countMonthlyReportRecords(@Param("memberId") Long memberId,
+			@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+	interface MonthlyRecordCounts {
+		long getRecords();
+
+		long getStores();
+	}
+
 	Optional<BreadRecord> findByIdAndDeletedAtIsNull(Long id);
 
 	// 코스에서 "다녀왔어요"로 고를 후보 — 그 가게의 내 기록 전부, 최신순.

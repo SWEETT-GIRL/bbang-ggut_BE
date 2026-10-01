@@ -23,7 +23,7 @@ import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
 @Transactional(readOnly = true)
 public class MonthlyReportBreadAggregationService {
 
-	public static final String VERSION = "bread-tags-v1";
+	public static final String VERSION = "bread-tags-month-end-v2";
 
 	private final BreadRecordTagRepository tagRepository;
 

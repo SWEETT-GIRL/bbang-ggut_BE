@@ -38,7 +38,7 @@ INSERT INTO bread_record (id, member_id, eaten_at, is_public, deleted_at) VALUES
     (4, 123, '2026-01-01 00:00:00', true, NULL),
     (5, 123, '2025-11-30 23:59:59', true, NULL),
     (6, 456, '2025-12-31 23:59:59', true, NULL),
-    (7, 123, '2025-12-31 23:59:59', true, CURRENT_TIMESTAMP);
+    (7, 123, '2025-12-31 23:59:59', true, TIMESTAMP '2025-12-31 23:59:59');
 INSERT INTO bread_record_photo (id, record_id, sort_order, aws_key, resized_key_640) VALUES
     (1, 1, 0, 'old-salt', NULL),
     (2, 2, 0, 'newer-salt', NULL),
@@ -64,3 +64,5 @@ INSERT INTO bread_record_tag (id, record_id, photo_id, name, bread_category, men
     (12, 6, 8, '소금빵', '소금빵', NULL),
     (13, 7, 9, '소금빵', '소금빵', NULL),
     (14, 3, 8, '잘못 연결된 사진', '소금빵', NULL);
+
+UPDATE bread_record SET created_at = eaten_at, store_name = '같은 이름';

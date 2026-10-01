@@ -31,6 +31,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.validation.Validation;
+import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
@@ -43,6 +44,7 @@ import sweetgirl.croissant.monthlyreport.service.MonthlyReportNotificationServic
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPublicationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportQueryService;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportRecordAggregationService;
 
 @Tag("lab")
 @EnabledIfEnvironmentVariable(named = "MONTHLY_REPORT_TEST_JDBC_URL", matches = ".+")
@@ -116,6 +118,50 @@ class MonthlyReportBreadAggregationTest {
 	}
 
 	@Test
+	void countsDistinctStoreIdsSeparateManualRecordsAndMonthEndDeletions() {
+		jdbc.update("INSERT INTO member VALUES (901)");
+		jdbc.update("""
+				INSERT INTO bread_record (id, member_id, store_id, store_name, eaten_at, created_at, deleted_at)
+				VALUES
+				(101, 901, 11, '같은 이름', '2025-12-01', '2025-12-01', NULL),
+				(102, 901, 11, '다른 이름', '2025-12-02', '2025-12-02', NULL),
+				(103, 901, NULL, '같은 이름', '2025-12-03', '2025-12-03', NULL),
+				(104, 901, NULL, '같은 이름', '2025-12-04', '2025-12-04', NULL),
+				(105, 901, 12, '삭제된 가게', '2025-12-05', '2025-12-05', '2026-01-01 00:10:00'),
+				(106, 901, 13, '경계 삭제', '2025-12-06', '2025-12-06', '2026-01-01'),
+				(107, 901, 14, '월중 삭제', '2025-12-07', '2025-12-07', '2025-12-31 23:59:59'),
+				(108, 901, 15, '월말 후 작성', '2025-12-08', '2026-01-01', NULL),
+				(109, 901, 16, '다음 달 섭취', '2026-01-01', '2025-12-31', NULL),
+				(110, 901, 17, '이전 달 섭취', '2025-11-30 23:59:59', '2025-11-30', NULL)
+				""");
+		jdbc.update("""
+				INSERT INTO bread_record_photo (id, record_id, sort_order, aws_key)
+				SELECT id, id, 0, 'boundary-photo-' || id FROM bread_record WHERE id BETWEEN 105 AND 108
+				""");
+		jdbc.update("""
+				INSERT INTO bread_record_tag (id, record_id, photo_id, name, bread_category)
+				SELECT id, id, id, '소금빵', '소금빵' FROM bread_record WHERE id BETWEEN 105 AND 108
+				""");
+		BreadRecordRepository records = new JpaRepositoryFactory(entityManager)
+			.getRepository(BreadRecordRepository.class);
+		try (var validation = Validation.buildDefaultValidatorFactory()) {
+			MonthlyReportPayloadCodec codec = new MonthlyReportPayloadCodec(new ObjectMapper(),
+				validation.getValidator());
+			MonthlyReportRecordAggregationService service = new MonthlyReportRecordAggregationService(
+				records, repository, codec);
+			assertThat(service.aggregate(901L, MONTH))
+				.isEqualTo(new MonthlyReportRecordAggregationService.Result(6, 5, null));
+			assertThat(service.aggregate(999L, MONTH))
+				.isEqualTo(new MonthlyReportRecordAggregationService.Result(0, 0, null));
+		}
+		MonthlyReportBreadAggregationService.Result breads = aggregation.aggregate(901L, MONTH);
+		assertThat(breads.total()).isEqualTo(2);
+		assertThat(breads.photoSources().get("소금빵").recordId()).isEqualTo(106);
+		assertThat(tagRepository.findMonthlyReportPhotoTags(901L,
+			Set.of(breads.photoSources().get("소금빵").photoReferenceId()), Set.of())).isEmpty();
+	}
+
+	@Test
 	void aggregatesRealTagsThenKeepsPublishedCountsAndPhotoChoiceAfterDeletion() throws Exception {
 		// 같은 로그의 다른 종류가 최고였던 빵이어도 소금빵 사진의 우선순위에는 영향을 주지 않는다.
 		jdbc.update("INSERT INTO bread_record_loved_bread VALUES (1, 0, '베이글')");
@@ -146,7 +192,9 @@ class MonthlyReportBreadAggregationTest {
 		try (var validation = Validation.buildDefaultValidatorFactory()) {
 			var codec = new MonthlyReportPayloadCodec(mapper, validation.getValidator());
 			var publication = new MonthlyReportPublicationService(reader, repository, codec, notifications);
-			var generation = new MonthlyReportGenerationService(repository, codec, aggregation, publication);
+			var records = new MonthlyReportRecordAggregationService(
+				new JpaRepositoryFactory(entityManager).getRepository(BreadRecordRepository.class), repository, codec);
+			var generation = new MonthlyReportGenerationService(repository, codec, aggregation, records, publication);
 			var draft = codec.read(PAYLOAD, 123L, MONTH);
 			var metrics = mapper.createObjectNode().put("records", 12);
 			entityManager.getTransaction().begin();
@@ -155,6 +203,9 @@ class MonthlyReportBreadAggregationTest {
 			assertThat(metrics.has("breadAggregation")).isFalse();
 			var snapshot = repository.findById(new MonthlyReportMemberId(123L, MONTH)).orElseThrow();
 			String originalPayload = snapshot.getPayload();
+			assertThat(codec.read(originalPayload, 123L, MONTH).summary().records()).isEqualTo(3);
+			assertThat(codec.read(originalPayload, 123L, MONTH).summary().stores()).isEqualTo(3);
+			assertThat(codec.read(originalPayload, 123L, MONTH).comparison().previousRecords()).isNull();
 			assertThat(codec.read(originalPayload, 123L, MONTH).breads()).isEqualTo(result.breads());
 			assertThat(codec.read(originalPayload, 123L, MONTH).summary().breads()).isEqualTo(9);
 			assertThat(mapper.readTree(snapshot.getRawMetrics()).at("/breadAggregation/uncategorizedTags").asLong())
