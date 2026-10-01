@@ -30,6 +30,7 @@ import org.springframework.data.domain.SliceImpl;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -137,6 +138,16 @@ class MonthlyReportControllerTest {
 		authenticate();
 		given(repository.findById(new MonthlyReportMemberId(123L, MONTH)))
 			.willReturn(Optional.of(MonthlyReportFixtures.snapshot("PUBLISHED", PAYLOAD.replace("123", "456"))));
+		mvc.perform(get("/reports/monthly/{month}/me", MONTH)).andExpect(status().isInternalServerError())
+			.andExpect(jsonPath("$.code").value("MONTHLY_REPORT5001")).andExpect(jsonPath("$.data").doesNotExist());
+	}
+
+	@Test
+	void inconsistentAppearanceColumnsAreRejectedInsteadOfReplacingHistoricalValues() throws Exception {
+		authenticate();
+		var snapshot = MonthlyReportFixtures.snapshot("PUBLISHED", PAYLOAD);
+		ReflectionTestUtils.setField(snapshot, "planetCode", "mars");
+		given(repository.findById(new MonthlyReportMemberId(123L, MONTH))).willReturn(Optional.of(snapshot));
 		mvc.perform(get("/reports/monthly/{month}/me", MONTH)).andExpect(status().isInternalServerError())
 			.andExpect(jsonPath("$.code").value("MONTHLY_REPORT5001")).andExpect(jsonPath("$.data").doesNotExist());
 	}

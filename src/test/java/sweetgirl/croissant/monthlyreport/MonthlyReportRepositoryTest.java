@@ -25,8 +25,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
@@ -60,6 +60,7 @@ import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository.Publ
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportNotificationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPublicationService;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportQueryService;
 
 /** 전용 PostgreSQL에서 실행한다. 운영/개발 스키마를 건드리지 않고 임의 이름의 테스트 스키마만 만든다. */
 @Tag("lab")
@@ -84,6 +85,10 @@ class MonthlyReportRepositoryTest {
 		scopedSource.setSchema(schema);
 		jdbc = new JdbcTemplate(scopedSource);
 		jdbc.execute("CREATE TABLE member (id bigint PRIMARY KEY)");
+		jdbc.execute(
+			"CREATE TABLE member_world (member_id bigint PRIMARY KEY, selected_character text, max_record_count int)");
+		jdbc.execute("CREATE TABLE world_character (code text PRIMARY KEY, name text)");
+		jdbc.execute("CREATE TABLE world_planet (code text PRIMARY KEY, name text)");
 		jdbc.execute("CREATE TABLE recorded_notice (id bigint GENERATED ALWAYS AS IDENTITY, link text)");
 		jdbc.execute("CREATE TABLE bread_record (id bigint PRIMARY KEY, member_id bigint, deleted_at timestamp)");
 		jdbc.execute("""
@@ -91,7 +96,9 @@ class MonthlyReportRepositoryTest {
 					resized_key_320 text, resized_key_640 text, resized_key_1024 text)
 				""");
 		new ResourceDatabasePopulator(new ClassPathResource(
-			"db/migration/V20261001131708__create_monthly_report_member.sql")).execute(scopedSource);
+			"db/migration/V20261001131708__create_monthly_report_member.sql"),
+			new ClassPathResource("db/migration/V20261001140644__add_monthly_report_appearance.sql"))
+			.execute(scopedSource);
 		var factory = new LocalContainerEntityManagerFactoryBean();
 		factory.setDataSource(scopedSource);
 		factory.setPackagesToScan("sweetgirl.croissant.monthlyreport.entity");
@@ -112,7 +119,8 @@ class MonthlyReportRepositoryTest {
 
 	@BeforeEach
 	void clearFixtures() {
-		jdbc.execute("TRUNCATE monthly_report_member, bread_record_photo, bread_record, member, recorded_notice");
+		jdbc.execute("TRUNCATE monthly_report_member, bread_record_photo, bread_record, member, recorded_notice, "
+			+ "member_world, world_character, world_planet");
 		jdbc.update("INSERT INTO member (id) VALUES (123), (456)");
 	}
 
@@ -232,6 +240,89 @@ class MonthlyReportRepositoryTest {
 	}
 
 	@Test
+	void appearanceAndPayloadStayFrozenAfterProfileAndCatalogChanges() throws Exception {
+		var original = MonthlyReportFixtures.payload();
+		original.withObject("/character").put("imageKey", "reports/characters/v1/cat.webp");
+		assertThat(publish(123L, MONTH, original.toString())).isTrue();
+		jdbc.update("INSERT INTO member_world VALUES (123, 'cat', 12)");
+		jdbc.update("INSERT INTO world_character VALUES ('cat', '냥이')");
+		jdbc.update("INSERT INTO world_planet VALUES ('earth', '지구')");
+		var reader = mock(MemberReader.class);
+		given(reader.getMember(123L)).willReturn(new Member("현재 닉네임"));
+		try (var factory = Validation.buildDefaultValidatorFactory()) {
+			var codec = new MonthlyReportPayloadCodec(new ObjectMapper(), factory.getValidator());
+			var query = new MonthlyReportQueryService(reader, repository, codec);
+			var before = query.getReport(123L, MONTH);
+			jdbc.update(
+				"UPDATE member_world SET selected_character = 'dog', max_record_count = 9999 WHERE member_id = 123");
+			jdbc.update("UPDATE world_character SET name = '바뀐 캐릭터 이름' WHERE code = 'cat'");
+			jdbc.update("UPDATE world_planet SET name = '바뀐 행성 이름' WHERE code = 'earth'");
+			assertThat(query.getReport(123L, MONTH)).isEqualTo(before);
+			assertThat(before.nickname()).isEqualTo("소금이");
+			assertThat(before.character().code()).isEqualTo("cat");
+			assertThat(before.planet().code()).isEqualTo("earth");
+			assertThat(before.activity().artwork().imageKey()).isEqualTo("reports/types/v1/earth/cat/record.webp");
+		}
+		var changed = original.deepCopy();
+		changed.withObject("/character").put("code", "dog").put("name", "멍이").putNull("imageKey");
+		changed.withObject("/planet").put("code", "mars").put("name", "화성");
+		assertThat(publish(123L, MONTH, changed.toString())).isFalse();
+		var snapshot = repository.findById(new MonthlyReportMemberId(123L, MONTH)).orElseThrow();
+		assertThat(snapshot.getCharacterCode()).isEqualTo("cat");
+		assertThat(snapshot.getCharacterName()).isEqualTo("냥이");
+		assertThat(snapshot.getCharacterImageKey()).isEqualTo("reports/characters/v1/cat.webp");
+		assertThat(snapshot.getPlanetCode()).isEqualTo("earth");
+		assertThat(snapshot.getPlanetName()).isEqualTo("지구");
+	}
+
+	@Test
+	void entityDoesNotDirtyCheckPublishedAppearanceAndDatabaseRejectsDivergence() {
+		publish(123L, MONTH, PAYLOAD);
+		transactions.executeWithoutResult(status -> {
+			var snapshot = repository.findById(new MonthlyReportMemberId(123L, MONTH)).orElseThrow();
+			ReflectionTestUtils.setField(snapshot, "characterCode", "dog");
+			repository.flush();
+		});
+		assertThat(repository.findById(new MonthlyReportMemberId(123L, MONTH)).orElseThrow().getCharacterCode())
+			.isEqualTo("cat");
+		assertThatThrownBy(() -> jdbc.update("UPDATE monthly_report_member SET planet_code = 'mars'"))
+			.isInstanceOf(DataIntegrityViolationException.class);
+	}
+
+	@Test
+	void appearanceMigrationBackfillsFromOldPayload() {
+		String oldSchema = schema + "_old";
+		rootJdbc.execute("CREATE SCHEMA " + oldSchema);
+		var source = new DriverManagerDataSource(System.getenv("MONTHLY_REPORT_TEST_JDBC_URL"),
+			System.getenv("MONTHLY_REPORT_TEST_DB_USER"), System.getenv("MONTHLY_REPORT_TEST_DB_PASSWORD"));
+		source.setSchema(oldSchema);
+		var oldJdbc = new JdbcTemplate(source);
+		try {
+			oldJdbc.execute("CREATE TABLE member (id bigint PRIMARY KEY)");
+			oldJdbc.update("INSERT INTO member VALUES (123)");
+			new ResourceDatabasePopulator(new ClassPathResource(
+				"db/migration/V20261001131708__create_monthly_report_member.sql")).execute(source);
+			oldJdbc.update(
+				"""
+								INSERT INTO monthly_report_member
+								(member_id, year_month, status, payload, raw_metrics,
+						calculation_version, generated_at, published_at)
+								VALUES (123, '2025-12', 'PUBLISHED', CAST(? AS jsonb), '{}', 'v1', now(), now())
+								""",
+				PAYLOAD);
+			new ResourceDatabasePopulator(new ClassPathResource(
+				"db/migration/V20261001140644__add_monthly_report_appearance.sql")).execute(source);
+			var row = oldJdbc.queryForMap("SELECT character_code, character_name, character_image_key, "
+				+ "planet_code, planet_name FROM monthly_report_member");
+			assertThat(row).containsEntry("character_code", "cat").containsEntry("character_name", "냥이")
+				.containsEntry("character_image_key", null).containsEntry("planet_code", "earth")
+				.containsEntry("planet_name", "지구");
+		} finally {
+			rootJdbc.execute("DROP SCHEMA " + oldSchema + " CASCADE");
+		}
+	}
+
+	@Test
 	void publishesPushEventOnlyAfterCommitAndRollsBackNoticeWithSnapshot() {
 		try (var context = new AnnotationConfigApplicationContext();
 				var factory = Validation.buildDefaultValidatorFactory()) {
@@ -285,7 +376,7 @@ class MonthlyReportRepositoryTest {
 		}
 	}
 
-	@Configuration(proxyBeanMethods = false)
+	@TestConfiguration(proxyBeanMethods = false)
 	@EnableTransactionManagement
 	@EnableJpaRepositories(basePackageClasses = MonthlyReportRepository.class)
 	static class JpaConfig {

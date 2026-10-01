@@ -33,13 +33,22 @@ public interface MonthlyReportRepository extends JpaRepository<MonthlyReportMemb
 	@Query(value = """
 			INSERT INTO monthly_report_member
 			(member_id, year_month, status, payload, raw_metrics,
-			calculation_version, generated_at, published_at)
+			calculation_version, generated_at, published_at,
+			character_code, character_name, character_image_key, planet_code, planet_name)
 			VALUES (:memberId, :yearMonth, 'PUBLISHED', CAST(:payload AS jsonb), CAST(:rawMetrics AS jsonb),
-			:calculationVersion, :generatedAt, :publishedAt)
+			:calculationVersion, :generatedAt, :publishedAt,
+			CAST(:payload AS jsonb)->'character'->>'code',
+			CAST(:payload AS jsonb)->'character'->>'name',
+			CAST(:payload AS jsonb)->'character'->>'imageKey',
+			CAST(:payload AS jsonb)->'planet'->>'code',
+			CAST(:payload AS jsonb)->'planet'->>'name')
 			ON CONFLICT (member_id, year_month) DO UPDATE
 			SET status = 'PUBLISHED', payload = EXCLUDED.payload, raw_metrics = EXCLUDED.raw_metrics,
 			calculation_version = EXCLUDED.calculation_version, generated_at = EXCLUDED.generated_at,
-			published_at = EXCLUDED.published_at
+			published_at = EXCLUDED.published_at,
+			character_code = EXCLUDED.character_code, character_name = EXCLUDED.character_name,
+			character_image_key = EXCLUDED.character_image_key,
+			planet_code = EXCLUDED.planet_code, planet_name = EXCLUDED.planet_name
 			WHERE monthly_report_member.status <> 'PUBLISHED'
 			""", nativeQuery = true)
 	int publish(@Param("memberId") Long memberId, @Param("yearMonth") String yearMonth,

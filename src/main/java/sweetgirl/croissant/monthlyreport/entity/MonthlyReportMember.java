@@ -32,6 +32,23 @@ public class MonthlyReportMember {
 	@Column(nullable = false, length = 16)
 	private MonthlyReportStatus status;
 
+	/** 발행에 사용한 캐릭터 값. 현재 선택이나 카탈로그 이름 변경을 따라가지 않는다. */
+	@Column(name = "character_code", length = 100)
+	private String characterCode;
+
+	@Column(name = "character_name", length = 100)
+	private String characterName;
+
+	@Column(name = "character_image_key", length = 2048)
+	private String characterImageKey;
+
+	/** 발행에 사용한 행성 값. 현재 진행도와 독립적인 스냅샷이다. */
+	@Column(name = "planet_code", length = 100)
+	private String planetCode;
+
+	@Column(name = "planet_name", length = 100)
+	private String planetName;
+
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(columnDefinition = "jsonb")
 	private String payload;

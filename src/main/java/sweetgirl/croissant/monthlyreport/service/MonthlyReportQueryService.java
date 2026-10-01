@@ -47,6 +47,13 @@ public class MonthlyReportQueryService {
 			case FAILED -> throw new CustomException(MonthlyReportErrorCode.GENERATION_FAILED);
 			case PUBLISHED -> {
 				MonthlyReportResponse report = codec.read(snapshot.getPayload(), memberId, yearMonth);
+				if (!Objects.equals(snapshot.getCharacterCode(), report.character().code())
+					|| !Objects.equals(snapshot.getCharacterName(), report.character().name())
+					|| !Objects.equals(snapshot.getCharacterImageKey(), report.character().imageKey())
+					|| !Objects.equals(snapshot.getPlanetCode(), report.planet().code())
+					|| !Objects.equals(snapshot.getPlanetName(), report.planet().name())) {
+					throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
+				}
 				return removeUnavailablePhotos(report);
 			}
 			default -> throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);

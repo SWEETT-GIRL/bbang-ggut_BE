@@ -47,6 +47,19 @@ public final class MonthlyReportFixtures {
 		MonthlyReportMember snapshot = BeanUtils.instantiateClass(MonthlyReportMember.class);
 		ReflectionTestUtils.setField(snapshot, "status", MonthlyReportStatus.valueOf(status));
 		ReflectionTestUtils.setField(snapshot, "payload", payload);
+		if (payload != null) {
+			try {
+				var json = new ObjectMapper().readTree(payload);
+				ReflectionTestUtils.setField(snapshot, "characterCode", json.at("/character/code").asText(null));
+				ReflectionTestUtils.setField(snapshot, "characterName", json.at("/character/name").asText(null));
+				ReflectionTestUtils.setField(snapshot, "characterImageKey",
+					json.at("/character/imageKey").asText(null));
+				ReflectionTestUtils.setField(snapshot, "planetCode", json.at("/planet/code").asText(null));
+				ReflectionTestUtils.setField(snapshot, "planetName", json.at("/planet/name").asText(null));
+			} catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+				throw new IllegalArgumentException(e);
+			}
+		}
 		return snapshot;
 	}
 
