@@ -12,10 +12,13 @@ public enum MonthlyReportErrorCode implements BaseErrorCode {
 
 	INVALID_MONTH(HttpStatus.BAD_REQUEST, "MONTHLY_REPORT4001", "월은 2000-01부터 2099-12까지 YYYY-MM 형식이어야 합니다."),
 	INVALID_PAGE(HttpStatus.BAD_REQUEST, "MONTHLY_REPORT4002", "page는 0 이상, size는 1부터 100까지여야 합니다."),
+	MONTH_NOT_CLOSED(HttpStatus.BAD_REQUEST, "MONTHLY_REPORT4003", "아직 종료되지 않은 월은 발행할 수 없습니다."),
+	INVALID_BATCH_PAGE(HttpStatus.BAD_REQUEST, "MONTHLY_REPORT4004", "회원 커서는 0 이상, 배치 크기는 1부터 1000까지여야 합니다."),
 	NOT_PUBLISHED(HttpStatus.NOT_FOUND, "MONTHLY_REPORT4041", "아직 발행되지 않은 월간 빵일지입니다."),
 	INVALID_SNAPSHOT(HttpStatus.INTERNAL_SERVER_ERROR, "MONTHLY_REPORT5001", "월간 빵일지 데이터가 올바르지 않습니다."),
 	GENERATION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "MONTHLY_REPORT5031", "월간 빵일지 집계를 완료하지 못했습니다."),
-	SOURCE_HISTORY_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "MONTHLY_REPORT5032", "월말 기준 활동 이력을 복원할 수 없습니다.");
+	SOURCE_HISTORY_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "MONTHLY_REPORT5032", "월말 기준 활동 이력을 복원할 수 없습니다."),
+	VIEW_INGEST_INCOMPLETE(HttpStatus.SERVICE_UNAVAILABLE, "MONTHLY_REPORT5033", "해당 월의 빵집 조회 적재가 완료되지 않았습니다.");
 
 	private final HttpStatus httpStatus;
 	private final String code;

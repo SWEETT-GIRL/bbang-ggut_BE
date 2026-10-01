@@ -1,6 +1,7 @@
 package sweetgirl.croissant.monthlyreport;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -11,6 +12,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMember;
 import sweetgirl.croissant.monthlyreport.enums.MonthlyReportStatus;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository.PublishedReport;
@@ -79,4 +81,12 @@ public final class MonthlyReportFixtures {
 	public static ObjectNode payload() throws Exception {
 		return (ObjectNode)new ObjectMapper().readTree(PAYLOAD);
 	}
+
+	static Member eligibleMember(String nickname) {
+		Member member = new Member(nickname);
+		ReflectionTestUtils.setField(member, "id", 123L);
+		ReflectionTestUtils.setField(member, "createdAt", LocalDateTime.of(2025, 1, 1, 0, 0));
+		return member;
+	}
+
 }

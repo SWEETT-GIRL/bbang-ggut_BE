@@ -1,6 +1,7 @@
 package sweetgirl.croissant.monthlyreport.service;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -28,6 +29,8 @@ public class MonthlyReportGenerationService {
 	private final MonthlyReportRecordAggregationService recordAggregationService;
 	private final MonthlyReportPublicationService publicationService;
 	private final MonthlyReportSourceReader sourceReader;
+	private final MonthlyReportViewedStoreAggregationService viewedStoreAggregation;
+	private final MonthlyReportTownAggregationService townAggregation;
 
 	public boolean publishFromDraft(MonthlyReportResponse draft, ObjectNode rawMetrics, String calculationVersion) {
 		if (draft == null || rawMetrics == null || rawMetrics.isEmpty()) {
@@ -43,9 +46,15 @@ public class MonthlyReportGenerationService {
 		MonthlyReportRecordAggregationService.Result records = recordAggregationService.aggregate(
 			draft.memberId(), draft.yearMonth(), source);
 		MonthlyReportBreadAggregationService.Result breads = breadAggregationService.aggregate(source);
-		MonthlyReportResponse.Stores stores = new MonthlyReportResponse.Stores(draft.stores().viewed(),
+		MonthlyReportResponse.Stores stores = new MonthlyReportResponse.Stores(
+			viewedStoreAggregation.aggregate(draft.memberId(), draft.yearMonth()),
 			(long)source.savedStoreIds().size(), (long)source.plannedStoreIds().size(), source.courses());
+		List<MonthlyReportResponse.Town> towns = townAggregation.aggregate(source);
 		ObjectNode metrics = rawMetrics.deepCopy();
+		metrics.putObject("viewedStoreAggregation").put("version", MonthlyReportViewedStoreAggregationService.VERSION)
+			.put("viewed", stores.viewed()).put("source", "user_store_interaction.STORE_VIEW");
+		metrics.putObject("townAggregation").put("version", MonthlyReportTownAggregationService.VERSION)
+			.put("towns", towns.size()).put("source", "bread_record.region_key history");
 		metrics.putObject("sourceHistory").put("version", "source-history-v1")
 			.put("coveredFrom", source.coveredFrom().toString());
 		metrics.putObject("storeAggregation").put("version", "retained-relations-v1")
@@ -64,7 +73,7 @@ public class MonthlyReportGenerationService {
 			.put("recordId", photoSource.recordId())
 			.put("photoReferenceId", photoSource.photoReferenceId().toString()));
 		return publicationService.publish(draft.memberId(), draft.yearMonth(),
-			breads.applyTo(records.applyTo(draft)).withStores(stores),
+			breads.applyTo(records.applyTo(draft)).withStores(stores).withTowns(towns),
 			metrics,
 			calculationVersion, Instant.now());
 	}

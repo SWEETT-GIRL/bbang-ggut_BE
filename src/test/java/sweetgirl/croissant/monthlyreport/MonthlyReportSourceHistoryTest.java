@@ -51,6 +51,8 @@ import sweetgirl.croissant.monthlyreport.service.MonthlyReportPublicationService
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportQueryService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportRecordAggregationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportSourceReader;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportTownAggregationService;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportViewedStoreAggregationService;
 
 @Tag("lab")
 @EnabledIfEnvironmentVariable(named = "MONTHLY_REPORT_TEST_JDBC_URL", matches = ".+")
@@ -203,6 +205,8 @@ class MonthlyReportSourceHistoryTest {
 
 	@Test
 	void publishesHistoricalCountsAfterSourceDeletionAndHidesDeletedPhoto() {
+		jdbc.update("UPDATE bread_record SET region_key = '서울_성동구_성수동' WHERE id = 3");
+		baselineId = jdbc.queryForObject("SELECT MAX(id) FROM monthly_report_source_history", Long.class);
 		historyBeforeMonthEnd();
 		transactions.executeWithoutResult(status -> {
 			jdbc.update("DELETE FROM bread_record_tag WHERE record_id = 3");
@@ -216,15 +220,19 @@ class MonthlyReportSourceHistoryTest {
 		JpaRepositoryFactory repositories = new JpaRepositoryFactory(entityManager);
 		MonthlyReportRepository reports = repositories.getRepository(MonthlyReportRepository.class);
 		MemberReader memberReader = mock(MemberReader.class);
-		given(memberReader.getMember(123L)).willReturn(new Member("현재 이름"));
+		given(memberReader.getMember(123L)).willReturn(MonthlyReportFixtures.eligibleMember("현재 이름"));
 		try (var validation = Validation.buildDefaultValidatorFactory()) {
 			MonthlyReportPayloadCodec codec = new MonthlyReportPayloadCodec(new ObjectMapper(),
 				validation.getValidator());
 			MonthlyReportPublicationService publication = new MonthlyReportPublicationService(memberReader,
 				reports, codec, mock(MonthlyReportNotificationService.class));
+			MonthlyReportViewedStoreAggregationService views = mock(MonthlyReportViewedStoreAggregationService.class);
+			given(views.aggregate(123L, MONTH)).willReturn(2L);
 			MonthlyReportGenerationService generation = new MonthlyReportGenerationService(reports, codec,
 				new MonthlyReportBreadAggregationService(reader),
-				new MonthlyReportRecordAggregationService(reader, reports, codec), publication, reader);
+				new MonthlyReportRecordAggregationService(reader, reports, codec), publication, reader,
+				views,
+				new MonthlyReportTownAggregationService());
 			entityManager.getTransaction().begin();
 			assertThat(generation.publishFromDraft(codec.read(PAYLOAD, 123L, MONTH),
 				new ObjectMapper().createObjectNode().put("test", true), "history-test-v1")).isTrue();
@@ -234,6 +242,8 @@ class MonthlyReportSourceHistoryTest {
 				repositories.getRepository(BreadRecordTagRepository.class));
 			MonthlyReportResponse report = query.getReport(123L, MONTH);
 			assertThat(report.summary()).isEqualTo(new MonthlyReportResponse.Summary(3L, 9L, 3L));
+			assertThat(report.stores().viewed()).isEqualTo(2);
+			assertThat(report.towns()).containsExactly(new MonthlyReportResponse.Town("성수동", "서울 성동구"));
 			assertThat(report.stores().saved()).isEqualTo(1);
 			assertThat(report.stores().planned()).isEqualTo(2);
 			assertThat(report.stores().courses()).isEqualTo(1);

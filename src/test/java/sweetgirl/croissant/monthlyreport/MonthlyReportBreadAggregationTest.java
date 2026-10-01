@@ -53,6 +53,8 @@ import sweetgirl.croissant.monthlyreport.service.MonthlyReportPublicationService
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportQueryService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportRecordAggregationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportSourceReader;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportTownAggregationService;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportViewedStoreAggregationService;
 
 @Tag("lab")
 @EnabledIfEnvironmentVariable(named = "MONTHLY_REPORT_TEST_JDBC_URL", matches = ".+")
@@ -255,7 +257,7 @@ class MonthlyReportBreadAggregationTest {
 		jdbc.update("UPDATE bread_record SET loved_bread = NULL WHERE id = 3");
 
 		var reader = mock(MemberReader.class);
-		given(reader.getMember(123L)).willReturn(new Member("현재 닉네임"));
+		given(reader.getMember(123L)).willReturn(MonthlyReportFixtures.eligibleMember("현재 닉네임"));
 		var notifications = mock(MonthlyReportNotificationService.class);
 		var mapper = new ObjectMapper();
 		try (var validation = Validation.buildDefaultValidatorFactory()) {
@@ -263,7 +265,8 @@ class MonthlyReportBreadAggregationTest {
 			var publication = new MonthlyReportPublicationService(reader, repository, codec, notifications);
 			var records = new MonthlyReportRecordAggregationService(sourceReader, repository, codec);
 			var generation = new MonthlyReportGenerationService(repository, codec, aggregation, records, publication,
-				sourceReader);
+				sourceReader, mock(MonthlyReportViewedStoreAggregationService.class),
+				new MonthlyReportTownAggregationService());
 			var draft = codec.read(PAYLOAD, 123L, MONTH);
 			var metrics = mapper.createObjectNode().put("records", 12);
 			changesBeforeMonthEnd();

@@ -48,6 +48,11 @@ public record MonthlyReportResponse(
 			summary, currentStores, breads, activity, comparison, towns);
 	}
 
+	public MonthlyReportResponse withTowns(List<Town> recordedTowns) {
+		return new MonthlyReportResponse(schemaVersion, yearMonth, memberId, nickname, character, planet,
+			summary, stores, breads, activity, comparison, recordedTowns);
+	}
+
 	public MonthlyReportResponse withNickname(String currentNickname) {
 		return new MonthlyReportResponse(schemaVersion, yearMonth, memberId, currentNickname, character, planet,
 			summary, stores, breads, activity, comparison, towns);

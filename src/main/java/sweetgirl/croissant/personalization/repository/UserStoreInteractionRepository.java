@@ -1,5 +1,7 @@
 package sweetgirl.croissant.personalization.repository;
 
+import java.time.LocalDateTime;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -8,6 +10,14 @@ import org.springframework.data.repository.query.Param;
 import sweetgirl.croissant.personalization.entity.UserStoreInteraction;
 
 public interface UserStoreInteractionRepository extends JpaRepository<UserStoreInteraction, Long> {
+
+	@Query("""
+			SELECT COUNT(DISTINCT i.storeId) FROM UserStoreInteraction i
+			WHERE i.memberId = :memberId AND i.type = 'STORE_VIEW'
+				AND i.occurredAt >= :from AND i.occurredAt < :until
+			""")
+	long countMonthlyViewedStores(@Param("memberId") Long memberId,
+			@Param("from") LocalDateTime from, @Param("until") LocalDateTime until);
 
 	/**
 	 * 게스트 → 회원 병합(#663 ④)에서 회원과 겹치는 게스트 신호를 지운다. 유니크(NULLS NOT DISTINCT) 충돌을 피하는 것이 먼저지만,
