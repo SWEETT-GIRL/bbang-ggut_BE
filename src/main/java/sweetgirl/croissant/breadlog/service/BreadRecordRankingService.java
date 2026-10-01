@@ -20,9 +20,9 @@ import sweetgirl.croissant.breadlog.dto.response.RankingRegionResponse;
 import sweetgirl.croissant.breadlog.enums.RankingBoard;
 import sweetgirl.croissant.breadlog.enums.RankingScope;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRankingRepository;
-import sweetgirl.croissant.breadranking.service.RankChangeResolver;
-import sweetgirl.croissant.breadranking.service.RankChanges;
 import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.ranking.service.RankChangeResolver;
+import sweetgirl.croissant.ranking.service.RankChanges;
 
 /**
  * 빵로그 랭킹 — 판·범위에 맞는 쿼리를 골라 부르고, 내 자리와 "N개 더 하면 몇 위"를 붙인다.

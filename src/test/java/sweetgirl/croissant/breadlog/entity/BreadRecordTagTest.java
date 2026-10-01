@@ -7,8 +7,8 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import sweetgirl.croissant.breadranking.enums.TasteChip;
-import sweetgirl.croissant.breadranking.enums.TextureChip;
+import sweetgirl.croissant.breadlog.enums.TasteChip;
+import sweetgirl.croissant.breadlog.enums.TextureChip;
 
 class BreadRecordTagTest {
 
@@ -63,5 +63,19 @@ class BreadRecordTagTest {
 
 	private static BreadRecordTag tag() {
 		return BreadRecordTag.builder().name("소금빵").breadCategory("소금빵").positionX(0.5).positionY(0.5).build();
+	}
+
+	@Test
+	@DisplayName("칩 목록의 null 원소는 버린다 — 하나 때문에 저장이 깨지지 않는다")
+	void rateIgnoresNullChips() {
+		BreadRecordTag tag = tag();
+		List<TextureChip> textures = new java.util.ArrayList<>();
+		textures.add(null);
+		textures.add(TextureChip.바삭);
+
+		tag.rate(true, textures, java.util.Arrays.asList(TasteChip.고소, null), null);
+
+		assertThat(tag.textures()).containsExactly(TextureChip.바삭);
+		assertThat(tag.tastes()).containsExactly(TasteChip.고소);
 	}
 }

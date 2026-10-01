@@ -1,4 +1,4 @@
-package sweetgirl.croissant.breadranking.service;
+package sweetgirl.croissant.ranking.service;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
-import sweetgirl.croissant.breadranking.repository.RankingSnapshotJdbcRepository;
+import sweetgirl.croissant.ranking.repository.RankingSnapshotJdbcRepository;
 
 /**
  * 조회 때 어제 스냅샷을 읽어 변동을 만든다. 사람 판은 {@code RankingBoard} 이름, 빵 판은 {@link #BREAD_BOARD}.

@@ -30,6 +30,8 @@ import sweetgirl.croissant.breadranking.repository.BreadBoardJdbcRepository.Boar
 import sweetgirl.croissant.breadranking.repository.BreadBoardJdbcRepository.CategoryVotersRow;
 import sweetgirl.croissant.breadranking.repository.BreadCategoryRepository;
 import sweetgirl.croissant.menu.enums.MenuKind;
+import sweetgirl.croissant.ranking.service.RankChangeResolver;
+import sweetgirl.croissant.ranking.service.RankChanges;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.repository.StoreRepository;
 import sweetgirl.croissant.store.service.StoreThumbnailReader;

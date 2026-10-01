@@ -1,4 +1,4 @@
-package sweetgirl.croissant.breadranking.service;
+package sweetgirl.croissant.ranking.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -18,7 +18,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import sweetgirl.croissant.breadranking.repository.RankingSnapshotJdbcRepository;
+import sweetgirl.croissant.ranking.repository.RankingSnapshotJdbcRepository;
 
 @ExtendWith(MockitoExtension.class)
 class RankChangeResolverTest {

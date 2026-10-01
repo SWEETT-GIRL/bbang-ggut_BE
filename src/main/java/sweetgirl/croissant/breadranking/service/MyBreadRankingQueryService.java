@@ -25,6 +25,8 @@ import sweetgirl.croissant.breadranking.repository.BreadRankEntryRepository;
 import sweetgirl.croissant.breadranking.repository.MemberBreadCategoryRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.enums.StoreStatus;
+import sweetgirl.croissant.store.repository.StoreRepository;
 import sweetgirl.croissant.store.service.StoreThumbnailReader;
 
 /** 내 빵 순위 조회 — 탭, 한 카테고리의 내 줄, 담을 후보. 로그인한 회원만. */
@@ -47,6 +49,7 @@ public class MyBreadRankingQueryService {
 	private final BreadRankEntryRepository entryRepository;
 	private final BreadRecordRepository breadRecordRepository;
 	private final BreadRecordTagRepository tagRepository;
+	private final StoreRepository storeRepository;
 	private final StoreThumbnailReader thumbnailReader;
 
 	/** 내 탭(순서) + 탭마다 내 1등. */
@@ -84,9 +87,15 @@ public class MyBreadRankingQueryService {
 		Set<Long> added = entryRepository.findAllWithStoreByMemberIdAndCategoryId(memberId, categoryId).stream()
 			.map(entry -> entry.getStore().getId())
 			.collect(Collectors.toSet());
-		List<Store> stores = breadRecordRepository.findEatenStores(memberId, query == null ? "" : query.strip())
-			.stream()
-			.filter(store -> !added.contains(store.getId()))
+		String keyword = query == null ? "" : query.strip().toLowerCase();
+		List<Long> eatenStoreIds = breadRecordRepository.findEatenStoreIds(memberId).stream()
+			.filter(storeId -> !added.contains(storeId))
+			.toList();
+		// 삭제된 가게·이름 필터는 가게를 읽은 뒤 — 내 가게 수십 개라 메모리에서 거르는 게 싸다
+		List<Store> stores = eatenStoreIds.isEmpty() ? List.of() : storeRepository.findAllById(eatenStoreIds).stream()
+			.filter(store -> store.getStatus() == StoreStatus.ACTIVE)
+			.filter(store -> keyword.isEmpty() || store.getName().toLowerCase().contains(keyword))
+			.sorted(Comparator.comparing(Store::getName))
 			.toList();
 		Map<Long, String> thumbnails = thumbnails(stores.stream().map(Store::getId).toList());
 		return stores.stream()

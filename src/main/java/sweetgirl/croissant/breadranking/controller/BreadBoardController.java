@@ -36,7 +36,7 @@ public class BreadBoardController {
 	@Operation(summary = "빵 종류별 가게 순위", description = "1등으로 매긴 사람 수 순(같으면 또 먹을래요 % → 최근 표 → 가게 id). 공동 순위 없음. "
 		+ "전체 3표 미만이면 entries 가 비고 missingVotes 에 모자란 수. limit 기본 50, 최대 100. "
 		+ "rankChange·isNew 는 어제 스냅샷 대비 — 어제 것이 없으면 null. 게스트 OK.")
-	@GetMapping("/{categoryId}")
+	@GetMapping("/boards/{categoryId}")
 	public ResponseEntity<ApiResponse<BreadBoardResponse>> getBoard(
 			@PathVariable Long categoryId,
 			@RequestParam(required = false) Integer limit) {

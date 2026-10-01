@@ -8,6 +8,8 @@ import java.util.Set;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.breadlog.enums.TasteChip;
+import sweetgirl.croissant.breadlog.enums.TextureChip;
 import sweetgirl.croissant.menu.enums.MenuKind;
 
 /**

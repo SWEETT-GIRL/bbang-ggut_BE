@@ -16,6 +16,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
+import sweetgirl.croissant.breadlog.enums.TextureChip;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
 import sweetgirl.croissant.breadranking.dto.response.MyBreadCategoryResponse;
@@ -26,13 +27,14 @@ import sweetgirl.croissant.breadranking.entity.BreadCategory;
 import sweetgirl.croissant.breadranking.entity.BreadRankEntry;
 import sweetgirl.croissant.breadranking.entity.MemberBreadCategory;
 import sweetgirl.croissant.breadranking.enums.BreadGroup;
-import sweetgirl.croissant.breadranking.enums.TextureChip;
 import sweetgirl.croissant.breadranking.repository.BreadRankEntryRepository;
 import sweetgirl.croissant.breadranking.repository.MemberBreadCategoryRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.menu.enums.MenuKind;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.enums.StoreStatus;
+import sweetgirl.croissant.store.repository.StoreRepository;
 import sweetgirl.croissant.store.service.StoreThumbnailReader;
 
 @ExtendWith(MockitoExtension.class)
@@ -53,6 +55,8 @@ class MyBreadRankingQueryServiceTest {
 	private BreadRecordRepository breadRecordRepository;
 	@Mock
 	private BreadRecordTagRepository tagRepository;
+	@Mock
+	private StoreRepository storeRepository;
 	@Mock
 	private StoreThumbnailReader thumbnailReader;
 
@@ -110,7 +114,8 @@ class MyBreadRankingQueryServiceTest {
 		given(categoryQueryService.getCategory(CATEGORY_ID)).willReturn(category);
 		given(entryRepository.findAllWithStoreByMemberIdAndCategoryId(MEMBER_ID, CATEGORY_ID))
 			.willReturn(List.of(entry(category, added, null)));
-		given(breadRecordRepository.findEatenStores(MEMBER_ID, "")).willReturn(List.of(added, candidate));
+		given(breadRecordRepository.findEatenStoreIds(MEMBER_ID)).willReturn(List.of(1L, 2L));
+		given(storeRepository.findAllById(List.of(2L))).willReturn(List.of(candidate));
 
 		List<StoreSummaryResponse> candidates = service.getCandidates(MEMBER_ID, CATEGORY_ID, null);
 
@@ -145,6 +150,7 @@ class MyBreadRankingQueryServiceTest {
 	private static Store store(Long id) {
 		Store store = Store.builder().name("가게 " + id).address("서울 성동구").region1st("서울").region2nd("성동구").build();
 		ReflectionTestUtils.setField(store, "id", id);
+		ReflectionTestUtils.setField(store, "status", StoreStatus.ACTIVE);
 		return store;
 	}
 

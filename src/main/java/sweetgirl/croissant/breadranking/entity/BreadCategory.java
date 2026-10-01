@@ -68,6 +68,11 @@ public class BreadCategory extends BaseTimeEntity {
 		return new BreadCategory(name, null, breadGroup, createdBy);
 	}
 
+	/** 기본 목록 한 줄 — 마이그레이션 시딩과 같은 모양. 새 MenuKind 가 생기면 기동 때 채운다. */
+	public static BreadCategory defaultOf(MenuKind kind, BreadGroup breadGroup) {
+		return new BreadCategory(kind.name(), kind, breadGroup, null);
+	}
+
 	public boolean isDefault() {
 		return menuKind != null;
 	}

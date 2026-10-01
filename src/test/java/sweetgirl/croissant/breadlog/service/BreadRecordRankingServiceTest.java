@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import sweetgirl.croissant.breadlog.dto.projection.RankingRowProjection;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordRankingResponse;
-import sweetgirl.croissant.breadranking.service.RankChanges;
+import sweetgirl.croissant.ranking.service.RankChanges;
 
 class BreadRecordRankingServiceTest {
 

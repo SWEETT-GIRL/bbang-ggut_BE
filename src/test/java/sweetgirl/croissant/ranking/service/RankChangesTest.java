@@ -1,4 +1,4 @@
-package sweetgirl.croissant.breadranking.service;
+package sweetgirl.croissant.ranking.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

@@ -93,9 +93,8 @@ public class MyBreadRankingCommandService {
 		if (!breadRecordRepository.existsByMemberIdAndStoreIdAndDeletedAtIsNull(memberId, storeId)) {
 			throw new BreadRankingException(BreadRankingErrorCode.BREAD_RANK_NOT_EATEN);
 		}
-		if (entryRepository.findByMemberIdAndCategoryIdAndStoreId(memberId, categoryId, storeId).isEmpty()) {
-			entryRepository.save(BreadRankEntry.unranked(memberId, category, store));
-		}
+		// 더블탭·재시도가 와도 DB 가 한 번만 받는다 — 이미 담긴 가게면 그대로
+		entryRepository.insertUnrankedIfAbsent(memberId, categoryId, store.getId());
 		ensureTab(memberId, category);
 		return rankingQueryService.toRanking(category,
 			entryRepository.findAllWithStoreByMemberIdAndCategoryId(memberId, categoryId), memberId);
@@ -160,11 +159,7 @@ public class MyBreadRankingCommandService {
 	}
 
 	private void ensureTab(Long memberId, BreadCategory category) {
-		if (memberCategoryRepository.existsById(new MemberBreadCategoryId(memberId, category.getId()))) {
-			return;
-		}
-		int count = memberCategoryRepository.findAllWithCategoryByMemberId(memberId).size();
-		memberCategoryRepository.save(MemberBreadCategory.append(memberId, category, count));
+		memberCategoryRepository.appendIfAbsent(memberId, category.getId());
 	}
 
 	private static BreadRankEntry find(List<BreadRankEntry> entries, Long storeId) {

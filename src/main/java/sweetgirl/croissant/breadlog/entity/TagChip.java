@@ -8,9 +8,9 @@ import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import sweetgirl.croissant.breadranking.enums.ChipType;
-import sweetgirl.croissant.breadranking.enums.TasteChip;
-import sweetgirl.croissant.breadranking.enums.TextureChip;
+import sweetgirl.croissant.breadlog.enums.ChipType;
+import sweetgirl.croissant.breadlog.enums.TasteChip;
+import sweetgirl.croissant.breadlog.enums.TextureChip;
 
 /** 빵로그 태그에 붙은 평가 칩 하나 — 식감 또는 맛. 값은 enum 이름이다. */
 @Embeddable

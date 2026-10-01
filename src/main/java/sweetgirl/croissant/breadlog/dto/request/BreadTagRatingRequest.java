@@ -2,9 +2,10 @@ package sweetgirl.croissant.breadlog.dto.request;
 
 import java.util.List;
 
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import sweetgirl.croissant.breadranking.enums.TasteChip;
-import sweetgirl.croissant.breadranking.enums.TextureChip;
+import sweetgirl.croissant.breadlog.enums.TasteChip;
+import sweetgirl.croissant.breadlog.enums.TextureChip;
 
 /**
  * 태그 하나의 빵 평가("빵은 어땠어요?" 단계). 전부 건너뛸 수 있다 — 칸마다 null·빈 목록이면 안 고른 것.
@@ -17,7 +18,7 @@ import sweetgirl.croissant.breadranking.enums.TextureChip;
  */
 public record BreadTagRatingRequest(
 		Boolean again,
-		@Size(max = 16) List<TextureChip> textures,
-		@Size(max = 10) List<TasteChip> tastes,
+		@Size(max = 16) List<@NotNull TextureChip> textures,
+		@Size(max = 10) List<@NotNull TasteChip> tastes,
 		@Size(max = 100) String memo) {
 }
