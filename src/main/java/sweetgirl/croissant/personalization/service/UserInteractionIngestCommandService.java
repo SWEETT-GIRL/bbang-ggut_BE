@@ -56,6 +56,7 @@ public class UserInteractionIngestCommandService {
 		if (ChronoUnit.DAYS.between(fromDate, toDate) > personalizationProperties.getIngestMaxRangeDays()) {
 			throw new PersonalizationException(PersonalizationErrorCode.INGEST_RANGE_TOO_LONG);
 		}
+		LocalDate closedUntil = LocalDate.now(ZONE_ID);
 		acquireLock();
 		LocalDateTime from = fromDate.atStartOfDay();
 		LocalDateTime to = toDate.atStartOfDay();
@@ -70,6 +71,10 @@ public class UserInteractionIngestCommandService {
 		byType.put(InteractionType.COURSE_REMOVE, ingestRepository.insertCourseRemoves(from, to));
 		byType.put(InteractionType.RECO_DISMISSED, ingestRepository.insertRecoDismissed(from, to));
 		byType.put(InteractionType.RECO_UNCHECK, ingestRepository.insertRecoUnchecks(from, to));
+		LocalDate completedUntil = toDate.isBefore(closedUntil) ? toDate : closedUntil;
+		if (fromDate.isBefore(completedUntil)) {
+			ingestRepository.recordCompletedDays(from, completedUntil.atStartOfDay());
+		}
 		int inserted = byType.values().stream().mapToInt(Integer::intValue).sum();
 		log.info("[개인화] 신호 적재 완료 from={} to={} inserted={} byType={} elapsedMs={}", fromDate, toDate, inserted,
 			byType, System.currentTimeMillis() - startedAt);

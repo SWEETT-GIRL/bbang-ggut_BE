@@ -7,6 +7,8 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 
 import java.time.LocalDate;
@@ -69,6 +71,34 @@ class UserInteractionIngestCommandServiceTest {
 			.containsEntry(InteractionType.RECO_DISMISSED, 8)
 			.doesNotContainKeys(InteractionType.COURSE_ADD, InteractionType.UNSAVE); // 둘은 이벤트 · 백필 몫
 		then(ingestRepository).should().tryLock(UserInteractionIngestCommandService.INGEST_LOCK_KEY);
+	}
+
+	@Test
+	void recordsCompletionAfterAllSourcesAndExcludesOpenDays() {
+		given(ingestRepository.tryLock(anyLong())).willReturn(true);
+		LocalDate today = LocalDate.now(UserInteractionIngestCommandService.ZONE_ID);
+		ingestCommandService.ingest(today.minusDays(2), today.plusDays(2));
+		var order = inOrder(ingestRepository);
+		order.verify(ingestRepository).insertRecoUnchecks(today.minusDays(2).atStartOfDay(),
+			today.plusDays(2).atStartOfDay());
+		order.verify(ingestRepository).recordCompletedDays(today.minusDays(2).atStartOfDay(), today.atStartOfDay());
+	}
+
+	@Test
+	void failedSourceDoesNotRecordCompletion() {
+		given(ingestRepository.tryLock(anyLong())).willReturn(true);
+		doThrow(new IllegalStateException("test failure")).when(ingestRepository).insertRecoUnchecks(any(), any());
+		assertThatThrownBy(() -> ingestCommandService.ingest(LocalDate.of(2025, 12, 1), LocalDate.of(2026, 1, 1)))
+			.isInstanceOf(IllegalStateException.class);
+		then(ingestRepository).should(never()).recordCompletedDays(any(), any());
+	}
+
+	@Test
+	void openDaysAloneCannotBeMarkedComplete() {
+		given(ingestRepository.tryLock(anyLong())).willReturn(true);
+		LocalDate today = LocalDate.now(UserInteractionIngestCommandService.ZONE_ID);
+		ingestCommandService.ingest(today, today.plusDays(1));
+		then(ingestRepository).should(never()).recordCompletedDays(any(), any());
 	}
 
 	@Test

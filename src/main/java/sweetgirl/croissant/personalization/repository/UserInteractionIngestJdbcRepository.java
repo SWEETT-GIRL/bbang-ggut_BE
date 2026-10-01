@@ -73,6 +73,17 @@ public class UserInteractionIngestJdbcRepository {
 				""" + ON_CONFLICT, range(from, to));
 	}
 
+	/** 일별 적재 전체가 성공한 뒤 호출한다. 아직 끝나지 않은 날짜는 호출자가 제외한다. */
+	public int recordCompletedDays(LocalDateTime from, LocalDateTime until) {
+		return jdbcTemplate.update("""
+				INSERT INTO user_interaction_ingest_day (ingest_date, completed_at)
+				SELECT CAST(day AS date), clock_timestamp()
+				FROM generate_series(CAST(:from AS timestamp), CAST(:to AS timestamp) - interval '1 day',
+					interval '1 day') AS day
+				ON CONFLICT (ingest_date) DO UPDATE SET completed_at = EXCLUDED.completed_at
+				""", range(from, until));
+	}
+
 	/**
 	 * 가게 상세 조회 — 회원 · 가게 · 날짜당 한 행(첫 조회 시각). converted = 첫 조회 뒤 windowMinutes 안에 같은 가게를
 	 * 저장 · 담기 · 계획했는가. 익명(member_id NULL)은 빼고, STORE_VIEW 부분 인덱스(#741)를 탄다.
