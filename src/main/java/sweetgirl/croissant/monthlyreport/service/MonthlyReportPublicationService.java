@@ -40,6 +40,12 @@ public class MonthlyReportPublicationService {
 			|| calculationVersion == null || calculationVersion.isBlank() || calculationVersion.length() > 100) {
 			throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
 		}
+		// 순회 이후 탈퇴·유형 변경도 다시 확인한다. 활동이 없어도 일반 회원이면 발행한다.
+		if (member.isDeleted() || !"USER".equals(member.getMemberType())
+			|| member.getCreatedAt() == null
+			|| !member.getCreatedAt().isBefore(month.plusMonths(1).atDay(1).atStartOfDay())) {
+			return false;
+		}
 		String payload = codec.write(report, memberId, yearMonth);
 		codec.readPhotoSources(rawMetrics.toString());
 		boolean published = repository.publish(memberId, yearMonth, payload, rawMetrics.toString(), calculationVersion,

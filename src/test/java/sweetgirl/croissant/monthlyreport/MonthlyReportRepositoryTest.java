@@ -273,7 +273,7 @@ class MonthlyReportRepositoryTest {
 		jdbc.update("INSERT INTO world_character VALUES ('cat', '냥이')");
 		jdbc.update("INSERT INTO world_planet VALUES ('earth', '지구')");
 		var reader = mock(MemberReader.class);
-		var member = new Member("현재 닉네임");
+		var member = MonthlyReportFixtures.eligibleMember("현재 닉네임");
 		given(reader.getMember(123L)).willReturn(member);
 		try (var factory = Validation.buildDefaultValidatorFactory()) {
 			var codec = new MonthlyReportPayloadCodec(new ObjectMapper(), factory.getValidator());
@@ -369,7 +369,7 @@ class MonthlyReportRepositoryTest {
 				ReflectionTestUtils.setField(notification, "id", id);
 				return notification;
 			});
-			Member member = new Member("소금이");
+			Member member = MonthlyReportFixtures.eligibleMember("소금이");
 			ReflectionTestUtils.setField(member, "id", 123L);
 			var reader = mock(MemberReader.class);
 			given(reader.getMember(123L)).willReturn(member);

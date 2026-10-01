@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -12,6 +13,7 @@ import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.MONTH;
 import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.PAYLOAD;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 
 import org.junit.jupiter.api.AfterAll;
@@ -20,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -53,6 +56,7 @@ class MonthlyReportPublicationServiceTest {
 		var codec = new MonthlyReportPayloadCodec(mapper, FACTORY.getValidator());
 		service = new MonthlyReportPublicationService(memberReader, repository, codec, notificationService);
 		report = codec.read(PAYLOAD, 123L, MONTH);
+		lenient().when(memberReader.getMember(any())).thenReturn(MonthlyReportFixtures.eligibleMember("현재 이름"));
 	}
 
 	@AfterAll
@@ -89,6 +93,29 @@ class MonthlyReportPublicationServiceTest {
 		assertInvalid(() -> service.publish(123L, MONTH, report, raw, "test-v1",
 			Instant.parse("2025-12-31T14:59:59Z")));
 		assertInvalid(() -> service.publish(123L, MONTH, report, raw, "test-v1", Instant.now().plusSeconds(3600)));
+		verifyNoInteractions(repository, notificationService);
+	}
+
+	@Test
+	void skipsGuestsBotsDeletedAndNewMembersWithoutNotification() {
+		for (String type : new String[] {"GUEST", "BLOG_BOT"}) {
+			var member = MonthlyReportFixtures.eligibleMember("제외 회원");
+			ReflectionTestUtils.setField(member, "memberType", type);
+			given(memberReader.getMember(123L)).willReturn(member);
+			assertThat(service.publish(123L, MONTH, report, mapper.createObjectNode().put("records", 0),
+				"test-v1", Instant.parse("2026-01-01T00:00:00Z"))).isFalse();
+		}
+		var member = MonthlyReportFixtures.eligibleMember("탈퇴 회원");
+		member.softDelete();
+		given(memberReader.getMember(123L)).willReturn(member);
+		assertThat(service.publish(123L, MONTH, report, mapper.createObjectNode().put("records", 0),
+			"test-v1", Instant.parse("2026-01-01T00:00:00Z"))).isFalse();
+		member = MonthlyReportFixtures.eligibleMember("다음 달 가입");
+		ReflectionTestUtils.setField(member, "createdAt",
+			LocalDateTime.of(2026, 1, 1, 0, 0));
+		given(memberReader.getMember(123L)).willReturn(member);
+		assertThat(service.publish(123L, MONTH, report, mapper.createObjectNode().put("records", 0),
+			"test-v1", Instant.parse("2026-01-01T00:00:00Z"))).isFalse();
 		verifyNoInteractions(repository, notificationService);
 	}
 
