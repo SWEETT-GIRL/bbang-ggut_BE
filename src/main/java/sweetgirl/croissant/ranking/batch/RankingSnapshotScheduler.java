@@ -1,11 +1,11 @@
-package sweetgirl.croissant.breadranking.batch;
+package sweetgirl.croissant.ranking.batch;
 
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import sweetgirl.croissant.breadranking.service.RankingSnapshotCommandService;
+import sweetgirl.croissant.ranking.service.RankingSnapshotCommandService;
 
 /**
  * 매일 00:05 KST — 어제 마감 순위를 남긴다. 실패하면 그날 변동(▲▼NEW)만 안 보이고 다음 날 다시 돈다.

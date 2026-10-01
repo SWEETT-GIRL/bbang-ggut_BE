@@ -1,4 +1,4 @@
-package sweetgirl.croissant.breadranking.repository;
+package sweetgirl.croissant.ranking.repository;
 
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
@@ -11,9 +11,10 @@ import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.stereotype.Repository;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.ranking.snapshot.RankedSubject;
 
 /**
- * 순위 스냅샷(ranking_snapshot) — 하루 한 번 쓰고 조회 때 어제 것을 읽는다. 행이 많고 모양이 단순해 JDBC 로 둔다.
+ * 순위 스냅샷(ranking_snapshot) — 하루 한 번 판마다 쓰고, 조회 때 어제 것을 읽는다. 행이 많고 모양이 단순해 JDBC 로 둔다.
  * 키 = (날짜, 판, 카테고리(사람 판은 0), 지역('' = 전국), 대상 id).
  */
 @Repository
@@ -22,16 +23,17 @@ public class RankingSnapshotJdbcRepository {
 
 	private final NamedParameterJdbcTemplate jdbcTemplate;
 
-	/** 인기도 배치와 같은 방식 — 같은 트랜잭션 안에서 잡고, 커밋/롤백 때 풀린다. */
-	public boolean tryLock(long lockKey) {
-		return Boolean.TRUE.equals(jdbcTemplate.queryForObject("SELECT pg_try_advisory_xact_lock(:lockKey)",
-			new MapSqlParameterSource("lockKey", lockKey), Boolean.class));
-	}
-
-	/** 같은 날을 다시 돌리면 그날 것을 통째로 바꾼다. */
-	public int deleteByDate(LocalDate snapshotDate) {
-		return jdbcTemplate.update("DELETE FROM ranking_snapshot WHERE snapshot_date = :date",
-			new MapSqlParameterSource("date", snapshotDate));
+	/** 한 판의 그날 것을 지운다 — 판 하나를 다시 쓰기 전에. */
+	public int deleteBoard(LocalDate snapshotDate, String board, long categoryId, String region) {
+		return jdbcTemplate.update("""
+				DELETE FROM ranking_snapshot
+				WHERE snapshot_date = :date AND board = :board AND category_id = :categoryId AND region = :region
+				""",
+			new MapSqlParameterSource()
+				.addValue("date", snapshotDate)
+				.addValue("board", board)
+				.addValue("categoryId", categoryId)
+				.addValue("region", region));
 	}
 
 	public int deleteBefore(LocalDate exclusive) {
@@ -39,7 +41,7 @@ public class RankingSnapshotJdbcRepository {
 			new MapSqlParameterSource("date", exclusive));
 	}
 
-	/** 한 판의 상위 N — 같은 키가 없다는 전제(날짜별로 먼저 지운다). */
+	/** 한 판의 상위 N — 같은 키가 없다는 전제({@link #deleteBoard} 뒤에). */
 	public int insertAll(LocalDate snapshotDate, String board, long categoryId, String region,
 			List<RankedSubject> rows) {
 		if (rows.isEmpty()) {
@@ -86,8 +88,5 @@ public class RankingSnapshotJdbcRepository {
 				ranks.put(resultSet.getLong("subject_id"), resultSet.getInt("rank"));
 			});
 		return ranks;
-	}
-
-	public record RankedSubject(long subjectId, int rank) {
 	}
 }

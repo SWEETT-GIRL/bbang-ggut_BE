@@ -34,12 +34,12 @@ import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlResponse
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.entity.BreadRecordPhoto;
 import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
+import sweetgirl.croissant.breadlog.enums.TasteChip;
+import sweetgirl.croissant.breadlog.enums.TextureChip;
 import sweetgirl.croissant.breadlog.exception.BreadLogException;
 import sweetgirl.croissant.breadlog.repository.BreadRecordPhotoRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
-import sweetgirl.croissant.breadranking.enums.TasteChip;
-import sweetgirl.croissant.breadranking.enums.TextureChip;
 import sweetgirl.croissant.common.enums.ImageStatus;
 import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.course.service.CourseProgressService;

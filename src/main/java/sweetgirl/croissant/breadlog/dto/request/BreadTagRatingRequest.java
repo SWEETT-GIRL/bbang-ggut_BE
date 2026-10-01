@@ -3,8 +3,8 @@ package sweetgirl.croissant.breadlog.dto.request;
 import java.util.List;
 
 import jakarta.validation.constraints.Size;
-import sweetgirl.croissant.breadranking.enums.TasteChip;
-import sweetgirl.croissant.breadranking.enums.TextureChip;
+import sweetgirl.croissant.breadlog.enums.TasteChip;
+import sweetgirl.croissant.breadlog.enums.TextureChip;
 
 /**
  * 태그 하나의 빵 평가("빵은 어땠어요?" 단계). 전부 건너뛸 수 있다 — 칸마다 null·빈 목록이면 안 고른 것.

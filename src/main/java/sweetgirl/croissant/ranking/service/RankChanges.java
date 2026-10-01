@@ -1,4 +1,4 @@
-package sweetgirl.croissant.breadranking.service;
+package sweetgirl.croissant.ranking.service;
 
 import java.util.Map;
 

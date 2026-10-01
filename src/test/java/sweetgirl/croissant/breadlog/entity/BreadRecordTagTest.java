@@ -7,8 +7,8 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import sweetgirl.croissant.breadranking.enums.TasteChip;
-import sweetgirl.croissant.breadranking.enums.TextureChip;
+import sweetgirl.croissant.breadlog.enums.TasteChip;
+import sweetgirl.croissant.breadlog.enums.TextureChip;
 
 class BreadRecordTagTest {
 

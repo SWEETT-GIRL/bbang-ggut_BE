@@ -2,8 +2,8 @@ package sweetgirl.croissant.breadranking.dto.response;
 
 import java.util.List;
 
-import sweetgirl.croissant.breadranking.enums.TasteChip;
-import sweetgirl.croissant.breadranking.enums.TextureChip;
+import sweetgirl.croissant.breadlog.enums.TasteChip;
+import sweetgirl.croissant.breadlog.enums.TextureChip;
 
 /**
  * 빵 평가 칩 목록 — 앞 6개가 그 빵 종류(대분류)에서 펼쳐 보이는 것, 나머지는 "더보기". 전체가 다 들어 있다.

@@ -29,6 +29,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import sweetgirl.croissant.breadlog.enums.TextureChip;
 import sweetgirl.croissant.breadranking.dto.response.BreadCategoryResponse;
 import sweetgirl.croissant.breadranking.dto.response.MyBreadCategoryResponse;
 import sweetgirl.croissant.breadranking.dto.response.MyBreadRankingChangeResponse;
@@ -36,7 +37,6 @@ import sweetgirl.croissant.breadranking.dto.response.MyBreadRankingResponse;
 import sweetgirl.croissant.breadranking.dto.response.MyBreadRatingResponse;
 import sweetgirl.croissant.breadranking.dto.response.StoreSummaryResponse;
 import sweetgirl.croissant.breadranking.enums.RankMode;
-import sweetgirl.croissant.breadranking.enums.TextureChip;
 import sweetgirl.croissant.breadranking.service.MyBreadRankingCommandService;
 import sweetgirl.croissant.breadranking.service.MyBreadRankingQueryService;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;

@@ -1,4 +1,4 @@
-package sweetgirl.croissant.breadranking.enums;
+package sweetgirl.croissant.breadlog.enums;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

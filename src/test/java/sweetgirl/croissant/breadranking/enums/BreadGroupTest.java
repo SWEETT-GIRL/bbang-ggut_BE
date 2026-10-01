@@ -8,6 +8,8 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import sweetgirl.croissant.breadlog.enums.TasteChip;
+import sweetgirl.croissant.breadlog.enums.TextureChip;
 import sweetgirl.croissant.menu.enums.MenuCategory;
 import sweetgirl.croissant.menu.enums.MenuKind;
 

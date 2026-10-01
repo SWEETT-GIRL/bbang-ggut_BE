@@ -16,6 +16,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
+import sweetgirl.croissant.breadlog.enums.TextureChip;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
 import sweetgirl.croissant.breadranking.dto.response.MyBreadCategoryResponse;
@@ -26,7 +27,6 @@ import sweetgirl.croissant.breadranking.entity.BreadCategory;
 import sweetgirl.croissant.breadranking.entity.BreadRankEntry;
 import sweetgirl.croissant.breadranking.entity.MemberBreadCategory;
 import sweetgirl.croissant.breadranking.enums.BreadGroup;
-import sweetgirl.croissant.breadranking.enums.TextureChip;
 import sweetgirl.croissant.breadranking.repository.BreadRankEntryRepository;
 import sweetgirl.croissant.breadranking.repository.MemberBreadCategoryRepository;
 import sweetgirl.croissant.member.entity.Member;

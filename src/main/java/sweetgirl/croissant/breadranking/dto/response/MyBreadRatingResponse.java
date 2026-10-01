@@ -4,8 +4,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
-import sweetgirl.croissant.breadranking.enums.TasteChip;
-import sweetgirl.croissant.breadranking.enums.TextureChip;
+import sweetgirl.croissant.breadlog.enums.TasteChip;
+import sweetgirl.croissant.breadlog.enums.TextureChip;
 
 /**
  * 그 가게 × 빵 종류에 내가 남긴 최신 빵 평가 — 빵로그 태그 하나다. 태그가 없으면 줄의 rating 은 null.

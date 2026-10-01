@@ -1,4 +1,4 @@
-package sweetgirl.croissant.breadranking.batch;
+package sweetgirl.croissant.ranking.batch;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.BDDMockito.given;
@@ -10,7 +10,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import sweetgirl.croissant.breadranking.service.RankingSnapshotCommandService;
+import sweetgirl.croissant.ranking.service.RankingSnapshotCommandService;
 
 @ExtendWith(MockitoExtension.class)
 class RankingSnapshotSchedulerTest {
