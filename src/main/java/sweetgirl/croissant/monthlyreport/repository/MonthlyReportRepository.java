@@ -1,10 +1,6 @@
 package sweetgirl.croissant.monthlyreport.repository;
 
 import java.time.Instant;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -59,49 +55,6 @@ public interface MonthlyReportRepository extends JpaRepository<MonthlyReportMemb
 			@Param("calculationVersion") String calculationVersion, @Param("generatedAt") Instant generatedAt,
 			@Param("publishedAt") Instant publishedAt);
 
-	/** 삭제된 사진이나 다른 회원의 사진 키를 반환하지 않도록 소유권을 확인한다. */
-	default Set<String> findVisiblePhotoKeys(Long memberId, Set<String> keys) {
-		if (keys.isEmpty()) {
-			return Set.of();
-		}
-		Set<String> visible = new HashSet<>();
-		for (PhotoKeys photo : findOwnedPhotos(memberId, keys)) {
-			for (String key : new String[] {photo.getAwsKey(), photo.getResizedKey320(),
-				photo.getResizedKey640(), photo.getResizedKey1024()}) {
-				if (key != null && keys.contains(key)) {
-					visible.add(key);
-				}
-			}
-		}
-		return visible;
-	}
-
-	@Query(value = """
-			SELECT p.aws_key AS "awsKey", p.resized_key_320 AS "resizedKey320",
-				p.resized_key_640 AS "resizedKey640", p.resized_key_1024 AS "resizedKey1024"
-			FROM bread_record_photo p JOIN bread_record r ON r.id = p.record_id
-			WHERE r.member_id = :memberId AND r.deleted_at IS NULL
-				AND (p.aws_key IN (:keys) OR p.resized_key_320 IN (:keys)
-					OR p.resized_key_640 IN (:keys) OR p.resized_key_1024 IN (:keys))
-			""", nativeQuery = true)
-	List<PhotoKeys> findOwnedPhotos(@Param("memberId") Long memberId, @Param("keys") Set<String> keys);
-
-	@Query(value = """
-			SELECT p.reference_id AS "referenceId", p.record_id AS "recordId", p.aws_key AS "awsKey",
-				p.resized_key_320 AS "resizedKey320", p.resized_key_640 AS "resizedKey640",
-				p.resized_key_1024 AS "resizedKey1024"
-			FROM bread_record_photo p JOIN bread_record r ON r.id = p.record_id
-			WHERE r.member_id = :memberId AND r.deleted_at IS NULL AND p.reference_id IN (:references)
-			""", nativeQuery = true)
-	List<CurrentPhoto> findCurrentPhotos(@Param("memberId") Long memberId,
-			@Param("references") Set<UUID> references);
-
-	interface CurrentPhoto extends PhotoKeys {
-		UUID getReferenceId();
-
-		Long getRecordId();
-	}
-
 	interface PublishedReport {
 		String getYearMonth();
 
@@ -114,13 +67,4 @@ public interface MonthlyReportRepository extends JpaRepository<MonthlyReportMemb
 		String getCharacterImageKey();
 	}
 
-	interface PhotoKeys {
-		String getAwsKey();
-
-		String getResizedKey320();
-
-		String getResizedKey640();
-
-		String getResizedKey1024();
-	}
 }

@@ -15,7 +15,6 @@ import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.PAYLOAD;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -38,6 +37,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
+import sweetgirl.croissant.breadlog.entity.BreadRecord;
+import sweetgirl.croissant.breadlog.entity.BreadRecordPhoto;
+import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
+import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
@@ -56,12 +59,14 @@ class MonthlyReportControllerTest {
 	private MonthlyReportRepository repository;
 	@Mock
 	private MemberRepository memberRepository;
+	@Mock
+	private BreadRecordTagRepository tagRepository;
 	private MockMvc mvc;
 
 	@BeforeEach
 	void setUp() {
 		var service = new MonthlyReportQueryService(new MemberReader(memberRepository), repository,
-			new MonthlyReportPayloadCodec(new ObjectMapper(), FACTORY.getValidator()));
+			new MonthlyReportPayloadCodec(new ObjectMapper(), FACTORY.getValidator()), tagRepository);
 		mvc = MockMvcBuilders.standaloneSetup(new MonthlyReportController(service))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
@@ -89,8 +94,8 @@ class MonthlyReportControllerTest {
 		given(memberRepository.findById(123L)).willReturn(Optional.of(new Member("새 닉네임")));
 		given(repository.findById(new MonthlyReportMemberId(123L, MONTH)))
 			.willReturn(Optional.of(MonthlyReportFixtures.snapshot("PUBLISHED", PAYLOAD)));
-		given(repository.findVisiblePhotoKeys(eq(123L), any()))
-			.willReturn(Set.of("bread-records/members/123/images/a"));
+		given(tagRepository.findMonthlyReportPhotoTags(eq(123L), any(), any()))
+			.willReturn(List.of(photoTag("소금빵")));
 		mvc.perform(get("/reports/monthly/{month}/me", MONTH).param("memberId", "456"))
 			.andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
 			.andExpect(jsonPath("$.success").value(true)).andExpect(jsonPath("$.data.memberId").value(123))
@@ -99,6 +104,26 @@ class MonthlyReportControllerTest {
 			.andExpect(jsonPath("$.data.activity.totalScore").value(72))
 			.andExpect(jsonPath("$.data.breads[0].imageKey").value("bread-records/members/123/images/a"));
 		verify(repository, never()).findById(new MonthlyReportMemberId(456L, MONTH));
+	}
+
+	private BreadRecordTag photoTag(String category) {
+		BreadRecord record = BreadRecord.builder().build();
+		ReflectionTestUtils.setField(record, "id", 1L);
+		BreadRecordPhoto photo = BreadRecordPhoto.builder().record(record)
+			.awsKey("bread-records/members/123/images/a").build();
+		return BreadRecordTag.builder().record(record).photo(photo).name(category).breadCategory(category).build();
+	}
+
+	@Test
+	void legacyPhotoWithChangedCategoryIsHiddenWithoutChangingCounts() throws Exception {
+		authenticate();
+		given(repository.findById(new MonthlyReportMemberId(123L, MONTH)))
+			.willReturn(Optional.of(MonthlyReportFixtures.snapshot("PUBLISHED", PAYLOAD)));
+		given(tagRepository.findMonthlyReportPhotoTags(eq(123L), any(), any()))
+			.willReturn(List.of(photoTag("베이글")));
+		mvc.perform(get("/reports/monthly/{month}/me", MONTH)).andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.breads[0].imageKey").isEmpty())
+			.andExpect(jsonPath("$.data.breads[0].count").value(8));
 	}
 
 	@Test
@@ -168,7 +193,7 @@ class MonthlyReportControllerTest {
 		authenticate();
 		given(repository.findById(new MonthlyReportMemberId(123L, MONTH)))
 			.willReturn(Optional.of(MonthlyReportFixtures.snapshot("PUBLISHED", PAYLOAD)));
-		given(repository.findVisiblePhotoKeys(eq(123L), any())).willReturn(Set.of());
+		given(tagRepository.findMonthlyReportPhotoTags(eq(123L), any(), any())).willReturn(List.of());
 		mvc.perform(get("/reports/monthly/{month}/me", MONTH)).andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.breads[0].imageKey").isEmpty())
 			.andExpect(jsonPath("$.data.breads[0].count").value(8))

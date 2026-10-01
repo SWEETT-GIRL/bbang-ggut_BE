@@ -12,7 +12,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -51,6 +50,7 @@ import jakarta.validation.Validation;
 import sweetgirl.croissant.alarm.entity.Notification;
 import sweetgirl.croissant.alarm.event.PushRequestedEvent;
 import sweetgirl.croissant.alarm.service.NotificationRecorder;
+import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
@@ -208,20 +208,6 @@ class MonthlyReportRepositoryTest {
 	}
 
 	@Test
-	void hidesDeletedAndForeignPhotosWhileAllowingOwnPrivateRecords() {
-		jdbc.update("INSERT INTO bread_record (id, member_id) VALUES (1, 123), (2, 456)");
-		jdbc.update("""
-				INSERT INTO bread_record_photo (id, record_id, aws_key, resized_key_640)
-				VALUES (1, 1, 'own-original', 'own-640'), (2, 2, 'foreign-original', 'foreign-640')
-				""");
-		var keys = Set.of("own-original", "own-640", "foreign-original", "foreign-640", "removed-photo");
-		assertThat(repository.findVisiblePhotoKeys(123L, keys)).containsExactlyInAnyOrder("own-original", "own-640");
-		jdbc.update("UPDATE bread_record SET deleted_at = CURRENT_TIMESTAMP WHERE id = 1");
-		assertThat(repository.findVisiblePhotoKeys(123L, keys)).isEmpty();
-		assertThat(repository.findVisiblePhotoKeys(123L, Set.of())).isEmpty();
-	}
-
-	@Test
 	void listFiltersOwnerAndPublicationStatusAndSortsMonthsBeforePagination() {
 		publish(123L, "2025-10", PAYLOAD);
 		publish(123L, "2025-12", PAYLOAD);
@@ -286,7 +272,7 @@ class MonthlyReportRepositoryTest {
 		given(reader.getMember(123L)).willReturn(member);
 		try (var factory = Validation.buildDefaultValidatorFactory()) {
 			var codec = new MonthlyReportPayloadCodec(new ObjectMapper(), factory.getValidator());
-			var query = new MonthlyReportQueryService(reader, repository, codec);
+			var query = new MonthlyReportQueryService(reader, repository, codec, mock(BreadRecordTagRepository.class));
 			var before = query.getReport(123L, MONTH);
 			jdbc.update(
 				"UPDATE member_world SET selected_character = 'dog', max_record_count = 9999 WHERE member_id = 123");

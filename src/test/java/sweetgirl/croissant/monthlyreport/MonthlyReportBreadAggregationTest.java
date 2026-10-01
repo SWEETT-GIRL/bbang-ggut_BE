@@ -10,6 +10,7 @@ import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.MONTH;
 import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.PAYLOAD;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterAll;
@@ -55,6 +56,7 @@ class MonthlyReportBreadAggregationTest {
 	private EntityManager entityManager;
 	private MonthlyReportRepository repository;
 	private MonthlyReportBreadAggregationService aggregation;
+	private BreadRecordTagRepository tagRepository;
 
 	@BeforeAll
 	void setUp() {
@@ -82,8 +84,8 @@ class MonthlyReportBreadAggregationTest {
 		entityManager = factory.getObject().createEntityManager();
 		var repositories = new JpaRepositoryFactory(entityManager);
 		repository = repositories.getRepository(MonthlyReportRepository.class);
-		aggregation = new MonthlyReportBreadAggregationService(
-			repositories.getRepository(BreadRecordTagRepository.class));
+		tagRepository = repositories.getRepository(BreadRecordTagRepository.class);
+		aggregation = new MonthlyReportBreadAggregationService(tagRepository);
 	}
 
 	@AfterAll
@@ -97,6 +99,20 @@ class MonthlyReportBreadAggregationTest {
 		if (rootJdbc != null) {
 			rootJdbc.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
 		}
+	}
+
+	private MonthlyReportResponse readReport(MonthlyReportQueryService query) {
+		entityManager.clear();
+		return query.getReport(123L, MONTH);
+	}
+
+	@Test
+	void legacyLookupChecksPhotoOwnerDeletionAndMatchingRecord() {
+		entityManager.clear();
+		assertThat(tagRepository.findMonthlyReportPhotoTags(123L, Set.of(),
+			Set.of("old-salt", "foreign", "deleted", "missing")))
+			.allSatisfy(tag -> assertThat(tag.getPhoto().getAwsKey()).isEqualTo("old-salt"))
+			.isNotEmpty();
 	}
 
 	@Test
@@ -144,7 +160,7 @@ class MonthlyReportBreadAggregationTest {
 			assertThat(mapper.readTree(snapshot.getRawMetrics()).at("/breadAggregation/uncategorizedTags").asLong())
 				.isEqualTo(2);
 
-			var query = new MonthlyReportQueryService(reader, repository, codec);
+			var query = new MonthlyReportQueryService(reader, repository, codec, tagRepository);
 			var reference = result.photoSources().get("소금빵");
 			assertThat(codec.readPhotoSources(snapshot.getRawMetrics()).get("소금빵")).isEqualTo(reference);
 			// 수정 저장은 사진 행을 재생성해도 참조를 유지한다. 원본→리사이즈 변경도 현재 키로 응답한다.
@@ -153,28 +169,57 @@ class MonthlyReportBreadAggregationTest {
 					INSERT INTO bread_record_photo (id, record_id, reference_id, sort_order, aws_key)
 					VALUES (22, 2, ?, 1, 'edited-salt')
 					""", reference.photoReferenceId());
-			entityManager.clear();
-			assertThat(query.getReport(123L, MONTH).breads().get(0))
+			jdbc.update("UPDATE bread_record_tag SET photo_id = 22 WHERE id = 2");
+			assertThat(readReport(query).breads().get(0))
 				.isEqualTo(new MonthlyReportResponse.Bread("소금빵", 5L, "edited-salt"));
 			jdbc.update("UPDATE bread_record_photo SET resized_key_640 = 'edited-salt-640' WHERE id = 22");
-			assertThat(query.getReport(123L, MONTH).breads().get(0).imageKey()).isEqualTo("edited-salt-640");
+			assertThat(readReport(query).breads().get(0).imageKey()).isEqualTo("edited-salt-640");
+			// 태그가 재생성되거나 이름이 바뀌어도 같은 빵 종류면 수정된 사진을 사용한다.
+			jdbc.update("UPDATE bread_record_tag SET id = 22, name = '새 소금빵' WHERE id = 2");
+			assertThat(readReport(query).breads().get(0).imageKey()).isEqualTo("edited-salt-640");
+			jdbc.update("UPDATE bread_record_tag SET bread_category = '베이글' WHERE id = 22");
+			assertThat(readReport(query).breads().get(0))
+				.isEqualTo(new MonthlyReportResponse.Bread("소금빵", 5L, null));
+			// 미분류 태그의 메뉴 분류 보완도 집계와 같은 규칙을 사용한다.
+			jdbc.update("UPDATE bread_record_tag SET bread_category = '기타' WHERE id = 22");
+			assertThat(readReport(query).breads().get(0).imageKey()).isEqualTo("edited-salt-640");
+			jdbc.update("UPDATE bread_record_tag SET menu_id = NULL WHERE id = 22");
+			assertThat(readReport(query).breads().get(0).imageKey()).isNull();
+			jdbc.update("DELETE FROM bread_record_tag WHERE id = 22");
+			assertThat(readReport(query).breads().get(0).imageKey()).isNull();
+			// 같은 로그의 다른 사진에 있는 태그로 대표 사진을 노출하지 않는다.
+			jdbc.update("INSERT INTO bread_record_photo (id, record_id, aws_key) VALUES (24, 2, 'other-salt')");
+			jdbc.update("""
+					INSERT INTO bread_record_tag (id, record_id, photo_id, name, bread_category)
+					VALUES (22, 2, 24, '소금빵', '소금빵'), (23, 2, 24, '버터소금빵', '소금빵')
+					""");
+			assertThat(readReport(query).breads().get(0).imageKey()).isNull();
+			jdbc.update("UPDATE bread_record_tag SET photo_id = 22 WHERE id IN (22, 23)");
+			assertThat(readReport(query).breads().get(0))
+				.isEqualTo(new MonthlyReportResponse.Bread("소금빵", 5L, "edited-salt-640"));
+			jdbc.update("UPDATE bread_record SET deleted_at = CURRENT_TIMESTAMP WHERE id = 2");
+			assertThat(readReport(query).breads().get(0).imageKey()).isNull();
+			jdbc.update("UPDATE bread_record SET deleted_at = NULL WHERE id = 2");
 			// 원본 로그와 연결이 다르면 같은 회원의 사진이어도 노출하지 않는다.
 			jdbc.update("UPDATE bread_record_photo SET record_id = 3 WHERE id = 22");
-			assertThat(query.getReport(123L, MONTH).breads().get(0).imageKey()).isNull();
+			jdbc.update("UPDATE bread_record_tag SET record_id = 3 WHERE id IN (22, 23)");
+			assertThat(readReport(query).breads().get(0).imageKey()).isNull();
 			jdbc.update("UPDATE bread_record_photo SET record_id = 6 WHERE id = 22");
-			assertThat(query.getReport(123L, MONTH).breads().get(0).imageKey()).isNull();
+			jdbc.update("UPDATE bread_record_tag SET record_id = 6 WHERE id IN (22, 23)");
+			assertThat(readReport(query).breads().get(0).imageKey()).isNull();
 			jdbc.update("UPDATE bread_record_photo SET record_id = 2 WHERE id = 22");
+			jdbc.update("UPDATE bread_record_tag SET record_id = 2 WHERE id IN (22, 23)");
 			jdbc.update("DELETE FROM bread_record_photo WHERE id = 22");
 			jdbc.update("""
 					INSERT INTO bread_record_photo (id, record_id, sort_order, aws_key)
 					VALUES (23, 2, 1, 'unrelated-new-photo')
 					""");
-			assertThat(query.getReport(123L, MONTH).breads().get(0).imageKey()).isNull();
+			assertThat(readReport(query).breads().get(0).imageKey()).isNull();
 			// 다른 소금빵 사진이 남아 있어도 삭제된 대표 사진을 다시 선택하거나 통계를 재계산하지 않는다.
 			jdbc.update("UPDATE bread_record SET deleted_at = CURRENT_TIMESTAMP WHERE id = 2");
 			jdbc.update("UPDATE bread_record_tag SET bread_category = '쿠키' WHERE id = 1");
 			entityManager.clear();
-			var visible = query.getReport(123L, MONTH);
+			var visible = readReport(query);
 			assertThat(visible.breads().get(0)).isEqualTo(new MonthlyReportResponse.Bread("소금빵", 5L, null));
 			assertThat(visible.summary().breads()).isEqualTo(9);
 			assertThat(visible.nickname()).isEqualTo("현재 닉네임");

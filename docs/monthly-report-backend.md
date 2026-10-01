@@ -28,8 +28,9 @@
 - 조회 응답에는 `Cache-Control: no-store`를 붙인다. 조회 시 원시 활동을 다시 집계하지 않는다.
 - `nickname`은 조회 시 현재 회원의 닉네임으로 반환한다. 닉네임 변경은 응답에만 반영하고 저장된 통계는 갱신하지 않는다.
 - 빵 사진은 발행 시 선택한 원본 기록 ID와 사진 참조 UUID로 조회한다. 현재 원본/리사이즈 키를 반환하므로
-  명시적으로 연결한 사진 교체가 반영된다. 삭제됐거나 본인 원본 기록과 연결되지 않으면 null이다. 비공개 기록도 본인은 볼 수 있다.
-- 사진 조회는 숫자·순위·대표 사진의 출처를 다시 집계하지 않는다. 사진 출처를 복원하지 못한 구버전 보고서는 기존 키의 소유권·존재 확인을 유지한다.
+  명시적으로 연결한 사진 교체가 반영된다. 현재 사진에 보고서와 같은 빵 종류의 태그가 있어야 한다.
+  태그 삭제·종류 변경, 사진 삭제, 본인 원본 기록과 연결 불일치 시 null이다. 비공개 기록도 본인은 볼 수 있다.
+- 사진 조회는 숫자·순위·대표 사진의 출처를 다시 집계하지 않는다. 사진 출처를 복원하지 못한 구버전 보고서는 기존 키의 소유권·존재와 해당 사진의 현재 빵 종류를 확인한다.
 
 ## 내 보고서 목록
 
@@ -72,7 +73,9 @@
 `MonthlyReportMember` Entity는 `MonthlyReportMemberId(memberId, yearMonth)` 복합키를 사용한다.
 `MonthlyReportRepository`는 `JpaRepository`이며 상세는 Entity, 목록은 필요한 열만 읽는 JPA projection/Slice로 조회한다.
 발행본에는 변경 메서드를 두지 않고 Hibernate `@Immutable`로 일반 dirty checking 갱신을 막는다.
-동시 발행을 막는 PostgreSQL upsert와 사진 소유권 쿼리는 Spring Data의 native query로 유지한다.
+동시 발행을 막는 PostgreSQL upsert는 Spring Data의 native query로 유지한다.
+사진 조회는 `BreadRecordTagRepository.findMonthlyReportPhotoTags`의 JPQL fetch join으로 현재 태그·사진·원본 기록·메뉴 분류를 가져온다.
+집계와 동일한 `resolvedCategory()`로 빵 종류를 확인하므로 메뉴 분류 보완 규칙도 일치한다.
 
 ### 발행 당시 캐릭터·행성 보존
 
@@ -117,7 +120,9 @@ HTTP 발행 API와 자동 집계 스케줄러는 아직 연결하지 않았다. 
 - 사진 키는 존재하는 640 → 320 → 1024 리사이즈 키 → 원본 순으로 선택한다.
 - 발행 시 `raw_metrics.breadPhotoSources`에 종류별 `{ recordId, photoReferenceId }`를 저장한다.
   `payload.breads[].imageKey`에는 초기 키가 남지만, 출처가 있는 보고서는 현재 사진을 찾는 식별자로 사용하지 않는다.
-- 사진을 교체해도 참조 UUID를 유지해 수정된 사진을 보여준다. 삭제하면 null로 가리고 다른 사진을 다시 선택하지 않는다.
+- 사진을 교체해도 참조 UUID를 유지하고, 그 사진에 같은 빵 종류의 태그가 있으면 수정된 사진을 보여준다.
+  태그 이름이나 ID는 달라져도 된다. 태그가 없어지거나 다른 종류로 바뀌면 null로 가린다.
+  사진 삭제 시에도 null로 가리며, 같은 로그의 다른 사진을 다시 선택하지 않는다. 횟수·순위는 발행 당시 값을 유지한다.
   현재 null만으로 로그 삭제와 사진 누락을 구분할 수 없으므로 화면 문구는 ‘사진을 볼 수 없어요’를 권장한다.
 - 집계 버전 `bread-tags-v1`, 사진 선택 기준 `loved-then-latest-eaten`, 전체·미분류 태그 수를 원시 메타데이터에 저장한다.
 
@@ -126,6 +131,7 @@ HTTP 발행 API와 자동 집계 스케줄러는 아직 연결하지 않았다. 
 기존 빵로그 수정은 사진 행을 삭제하고 다시 생성한다. 변하는 photo.id 대신 `bread_record_photo.reference_id`를
 추가해 같은 사진의 파일 교체와 재정렬을 추적한다. 새 사진은 새 UUID, 기존 사진은 동일 UUID를 사용한다.
 한 UUID는 현재 사진 행 한 건에만 존재하도록 DB 유니크 인덱스를 둔다.
+`originalPhotoId`는 사진 교체 관계만 유지한다. 메뉴 태그는 수정 요청으로 다시 생성되므로 별도로 확인해야 한다.
 
 `BreadRecordPhotoRequest.originalPhotoId`는 선택 필드이며, 상세 응답의 `photos[].id`를 사용한다.
 프론트는 기존 사진의 편집·교체 요청에 이 값을 함께 보내야 한다. 기존 키를 그대로 쓰는 구버전 요청은 키로
