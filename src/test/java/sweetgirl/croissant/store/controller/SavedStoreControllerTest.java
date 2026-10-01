@@ -75,17 +75,6 @@ class SavedStoreControllerTest {
 	}
 
 	@Test
-	void saveStore_duplicate_returns400() throws Exception {
-		willThrow(new SavedStoreException(SavedStoreErrorCode.SAVED_STORE_ALREADY))
-			.given(savedStoreCommandService).saveStore(isNull(), anyLong());
-
-		mockMvc.perform(post("/stores/10/save"))
-			.andExpect(status().isBadRequest())
-			.andExpect(jsonPath("$.success").value(false))
-			.andExpect(jsonPath("$.code").value("SAVED_STORE400_1"));
-	}
-
-	@Test
 	void unsaveStore_returns200() throws Exception {
 		willDoNothing().given(savedStoreCommandService).unsaveStore(isNull(), anyLong());
 

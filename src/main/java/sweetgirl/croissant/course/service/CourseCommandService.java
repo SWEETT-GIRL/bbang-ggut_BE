@@ -236,8 +236,11 @@ public class CourseCommandService {
 		// 활성 정류장을 한 번 읽어 중복 가게·일차·삽입 위치·다음 순서를 전부 판정한다 — exists·MAX 쿼리를 따로 내지 않는다
 		List<CourseStore> activeStores = courseStoreRepository
 			.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(courseId);
-		if (containsStore(activeStores, request.getStoreId())) {
-			throw new CourseException(CourseErrorCode.COURSE_STORE_ALREADY_EXISTS);
+		// 이미 담긴 가게는 그대로 돌려준다 — 더블탭·재시도가 400 으로 끝나지 않게(한 사람이 같은 가게를 3~7번 눌러 실패하던 것)
+		for (CourseStore existing : activeStores) {
+			if (existing.getStore().getId().equals(request.getStoreId())) {
+				return CourseStoreResponse.of(existing, null, null, null, List.of());
+			}
 		}
 
 		Store store = storeRepository.findById(request.getStoreId())
