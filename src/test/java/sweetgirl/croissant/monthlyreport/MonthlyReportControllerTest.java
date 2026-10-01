@@ -34,6 +34,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
@@ -212,6 +213,21 @@ class MonthlyReportControllerTest {
 			.andExpect(jsonPath("$.data.activity.totalScore").hasJsonPath())
 			.andExpect(jsonPath("$.data.activity.totalScore").isEmpty())
 			.andExpect(jsonPath("$.data.activity.abilities").isEmpty());
+	}
+
+	@Test
+	void reportWithoutPreviousMonthStillReturnsOtherCards() throws Exception {
+		authenticate();
+		ObjectNode payload = MonthlyReportFixtures.payload();
+		payload.withObject("/comparison").putNull("previousRecords");
+		given(repository.findById(new MonthlyReportMemberId(123L, MONTH)))
+			.willReturn(Optional.of(MonthlyReportFixtures.snapshot("PUBLISHED", payload.toString())));
+		mvc.perform(get("/reports/monthly/{month}/me", MONTH)).andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.comparison.previousRecords").hasJsonPath())
+			.andExpect(jsonPath("$.data.comparison.previousRecords").isEmpty())
+			.andExpect(jsonPath("$.data.comparison.currentRecords").value(12))
+			.andExpect(jsonPath("$.data.summary.records").value(12))
+			.andExpect(jsonPath("$.data.breads[0].count").value(8));
 	}
 
 	@Test

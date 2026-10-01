@@ -86,11 +86,26 @@ class MonthlyReportPayloadCodecTest {
 		assertThat(report.activity().totalScore()).isZero();
 	}
 
+	@Test
+	void missingPreviousMonthRemainsExplicitNullWhileKnownZeroIsPreserved() throws Exception {
+		ObjectNode payload = MonthlyReportFixtures.payload();
+		payload.withObject("/comparison").putNull("previousRecords");
+		MonthlyReportResponse report = codec.read(payload.toString(), 123L, MONTH);
+		assertThat(report.comparison().previousRecords()).isNull();
+		assertThat(report.comparison().currentRecords()).isEqualTo(12);
+		assertThat(mapper.readTree(codec.write(report, 123L, MONTH)).at("/comparison/previousRecords").isNull())
+			.isTrue();
+		payload.withObject("/comparison").put("previousRecords", 0);
+		assertThat(codec.read(payload.toString(), 123L, MONTH).comparison().previousRecords()).isZero();
+		payload.withObject("/comparison").remove("previousRecords");
+		assertInvalid(payload.toString());
+	}
+
 	@ParameterizedTest
 	@CsvSource({
 		"/summary, records, -1", "/summary, records, 1.5", "/summary, records, '\"12\"'",
 		"/summary, records, 9007199254740992", "/summary, records, null",
-		"/summary, records, true", "/stores, saved, null", "/comparison, previousRecords, null",
+		"/summary, records, true", "/stores, saved, null", "/comparison, previousRecords, -1",
 		"/comparison, currentRecords, 11", "/activity, type, '\"invalid\"'",
 		"/activity, totalScore, 71", "/activity/abilities/record, score, 26",
 		"/activity/abilities/record, maxScore, 0", "/activity/abilities, save, null",

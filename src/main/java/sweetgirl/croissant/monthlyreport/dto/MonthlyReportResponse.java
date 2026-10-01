@@ -109,8 +109,10 @@ public record MonthlyReportResponse(
 			@NotBlank @Size(max = 2048) String imageKey) {
 	}
 
+	/** 전월 집계가 없으면 previousRecords는 null이며 프론트는 비교 카드를 생략한다. */
+	@JsonInclude(JsonInclude.Include.ALWAYS)
 	public record Comparison(
-			@NotNull @Min(0) @Max(MAX_SAFE_INTEGER) Long previousRecords,
+			@JsonProperty(required = true) @Min(0) @Max(MAX_SAFE_INTEGER) Long previousRecords,
 			@NotNull @Min(0) @Max(MAX_SAFE_INTEGER) Long currentRecords) {
 	}
 
