@@ -20,6 +20,8 @@ import sweetgirl.croissant.breadlog.dto.response.RankingRegionResponse;
 import sweetgirl.croissant.breadlog.enums.RankingBoard;
 import sweetgirl.croissant.breadlog.enums.RankingScope;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRankingRepository;
+import sweetgirl.croissant.breadranking.service.RankChangeResolver;
+import sweetgirl.croissant.breadranking.service.RankChanges;
 import sweetgirl.croissant.member.service.MemberReader;
 
 /**
@@ -37,6 +39,7 @@ public class BreadRecordRankingService {
 	private final MemberReader memberReader;
 	private final BreadRecordRankingRepository rankingRepository;
 	private final RankingRegionService regionService;
+	private final RankChangeResolver rankChangeResolver;
 
 	public BreadRecordRankingResponse getRanking(Long viewerId, RankingBoard board, RankingScope scope, int limit) {
 		boolean guest = memberReader.getMember(viewerId).isGuest();
@@ -54,21 +57,24 @@ public class BreadRecordRankingService {
 			case REGIONS -> rankingRepository.findRegionRanking(viewerId, lim);
 			case SHARE -> rankingRepository.findShareRanking(viewerId, lim);
 		};
-		return assemble(rows, viewerId, guest, lim, sido, sigungu);
+		RankChanges changes = rankChangeResolver.resolve(board.name(), 0,
+			RankChangeResolver.regionKey(sido, sigungu), LocalDate.now(RankingRegionService.ZONE));
+		return assemble(rows, viewerId, guest, lim, sido, sigungu, changes);
 	}
 
 	/** 이번 주 월요일 0시(Asia/Seoul). DB 의 created_at 도 같은 벽시계다. */
-	static LocalDateTime weekStart(LocalDate today) {
+	public static LocalDateTime weekStart(LocalDate today) {
 		return today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).atStartOfDay();
 	}
 
 	static BreadRecordRankingResponse assemble(
 			List<RankingRowProjection> rows, Long viewerId, boolean guest, int limit, String sido,
-			String sigungu) {
+			String sigungu, RankChanges changes) {
 		List<Entry> entries = rows.stream()
 			.filter(row -> row.getRank() <= limit)
 			.map(row -> new Entry(row.getRank(), row.getNickname(), row.getSelectedCharacter(), row.getScore(),
-				Objects.equals(row.getMemberId(), viewerId)))
+				Objects.equals(row.getMemberId(), viewerId),
+				changes.changeOf(row.getMemberId(), row.getRank()), changes.isNew(row.getMemberId())))
 			.toList();
 		if (guest) {
 			return new BreadRecordRankingResponse(sido, sigungu, entries, null);

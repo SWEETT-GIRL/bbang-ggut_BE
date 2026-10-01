@@ -13,10 +13,19 @@ import java.util.List;
 public record BreadRecordRankingResponse(String sido, String sigungu, List<Entry> entries, Me me) {
 
 	/**
-	 * @param character 대표 캐릭터 코드. 세계관을 아직 시작 안 한 회원은 null — 앱이 마스코트로 보여준다
-	 * @param isMe      보는 사람 본인인가
+	 * @param character  대표 캐릭터 코드. 세계관을 아직 시작 안 한 회원은 null — 앱이 마스코트로 보여준다
+	 * @param isMe       보는 사람 본인인가
+	 * @param rankChange 어제 대비(양수 ▲, 음수 ▼, 0 같음 — 0 이면 앱은 아무것도 안 그린다). 어제 스냅샷이 없거나 NEW 면 null
+	 * @param isNew      어제 상위 100 에 없던 사람. 어제 스냅샷이 없으면 null. 주간 판은 월요일에 둘 다 null
 	 */
-	public record Entry(long rank, String nickname, String character, long score, boolean isMe) {
+	public record Entry(
+			long rank,
+			String nickname,
+			String character,
+			long score,
+			boolean isMe,
+			Integer rankChange,
+			Boolean isNew) {
 	}
 
 	/**

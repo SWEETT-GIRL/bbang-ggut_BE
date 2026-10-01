@@ -33,7 +33,7 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.menu.enums.MenuKind;
 import sweetgirl.croissant.store.entity.Store;
-import sweetgirl.croissant.store.repository.StoreImageFileRepository;
+import sweetgirl.croissant.store.service.StoreThumbnailReader;
 
 @ExtendWith(MockitoExtension.class)
 class MyBreadRankingQueryServiceTest {
@@ -54,7 +54,7 @@ class MyBreadRankingQueryServiceTest {
 	@Mock
 	private BreadRecordTagRepository tagRepository;
 	@Mock
-	private StoreImageFileRepository storeImageFileRepository;
+	private StoreThumbnailReader thumbnailReader;
 
 	@InjectMocks
 	private MyBreadRankingQueryService service;
