@@ -1,0 +1,92 @@
+package sweetgirl.croissant.monthlyreport;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.MONTH;
+import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.PAYLOAD;
+
+import java.time.Instant;
+
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import jakarta.validation.Validation;
+import jakarta.validation.ValidatorFactory;
+import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
+import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
+import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportPublicationService;
+
+@ExtendWith(MockitoExtension.class)
+class MonthlyReportPublicationServiceTest {
+
+	private static final ValidatorFactory FACTORY = Validation.buildDefaultValidatorFactory();
+	private final ObjectMapper mapper = new ObjectMapper();
+	@Mock
+	private MemberReader memberReader;
+	@Mock
+	private MonthlyReportRepository repository;
+	private MonthlyReportPublicationService service;
+	private MonthlyReportResponse report;
+
+	@BeforeEach
+	void setUp() {
+		var codec = new MonthlyReportPayloadCodec(mapper, FACTORY.getValidator());
+		service = new MonthlyReportPublicationService(memberReader, repository, codec);
+		report = codec.read(PAYLOAD, 123L, MONTH);
+	}
+
+	@AfterAll
+	static void closeFactory() {
+		FACTORY.close();
+	}
+
+	@Test
+	void publishesOnceAndReportsDuplicateWithoutRepublishing() {
+		Instant generatedAt = Instant.parse("2026-01-01T00:00:00Z");
+		var raw = mapper.createObjectNode().put("records", 12);
+		given(repository.publish(eq(123L), eq(MONTH), any(), eq(raw.toString()), eq("test-v1"), eq(generatedAt), any()))
+			.willReturn(true, false);
+		assertThat(service.publish(123L, MONTH, report, raw, "test-v1", generatedAt)).isTrue();
+		assertThat(service.publish(123L, MONTH, report, raw, "test-v1", generatedAt)).isFalse();
+	}
+
+	@Test
+	void rejectsIncompleteMetadataAndMismatchedOwner() {
+		var raw = mapper.createObjectNode().put("records", 12);
+		Instant generatedAt = Instant.parse("2026-01-01T00:00:00Z");
+		assertInvalid(() -> service.publish(123L, MONTH, report, null, "test-v1", generatedAt));
+		assertInvalid(() -> service.publish(123L, MONTH, report, mapper.createObjectNode(), "test-v1", generatedAt));
+		assertInvalid(() -> service.publish(123L, MONTH, report, raw, " ", generatedAt));
+		assertInvalid(() -> service.publish(123L, MONTH, report, raw, "test-v1", null));
+		assertInvalid(() -> service.publish(456L, MONTH, report, raw, "test-v1", generatedAt));
+		verifyNoInteractions(repository);
+	}
+
+	@Test
+	void rejectsGenerationBeforeKstMonthEndAndFutureGeneration() {
+		var raw = mapper.createObjectNode().put("records", 12);
+		assertInvalid(() -> service.publish(123L, MONTH, report, raw, "test-v1",
+			Instant.parse("2025-12-31T14:59:59Z")));
+		assertInvalid(() -> service.publish(123L, MONTH, report, raw, "test-v1", Instant.now().plusSeconds(3600)));
+		verifyNoInteractions(repository);
+	}
+
+	private void assertInvalid(org.assertj.core.api.ThrowableAssert.ThrowingCallable action) {
+		assertThatThrownBy(action).isInstanceOf(CustomException.class)
+			.extracting("errorCode").isEqualTo(MonthlyReportErrorCode.INVALID_SNAPSHOT);
+	}
+}
