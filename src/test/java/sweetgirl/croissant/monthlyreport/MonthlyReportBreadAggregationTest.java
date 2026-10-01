@@ -33,12 +33,15 @@ import jakarta.persistence.EntityManager;
 import jakarta.validation.Validation;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
+import sweetgirl.croissant.course.repository.CourseRepository;
+import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportBreadAggregationService;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportCourseAggregationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportGenerationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportNotificationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
@@ -159,6 +162,45 @@ class MonthlyReportBreadAggregationTest {
 		assertThat(breads.photoSources().get("소금빵").recordId()).isEqualTo(106);
 		assertThat(tagRepository.findMonthlyReportPhotoTags(901L,
 			Set.of(breads.photoSources().get("소금빵").photoReferenceId()), Set.of())).isEmpty();
+	}
+
+	@Test
+	void countsOwnerCoursesAndRetainedMonthlyAdditionsWithoutActorEvents() {
+		jdbc.update("INSERT INTO member VALUES (777), (778)");
+		jdbc.update("""
+				INSERT INTO courses (id, member_id, created_at, deleted_at) VALUES
+				(201, 777, '2025-11-01', NULL),
+				(202, 777, '2025-12-01', '2026-01-01 00:10:00'),
+				(203, 777, '2025-12-01', '2025-12-31 23:59:59'),
+				(204, 778, '2025-12-01', NULL),
+				(205, 777, '2026-01-01', NULL),
+				(206, 777, '2025-12-31 23:59:59', NULL),
+				(207, 777, '2025-12-01', '2026-01-01')
+				""");
+		jdbc.update("""
+				INSERT INTO course_stores (id, course_id, store_id, created_at, deleted_at) VALUES
+				(201, 201, 11, '2025-12-01', NULL),
+				(202, 202, 11, '2025-12-02', '2026-01-01 00:10:00'),
+				(203, 202, 12, '2025-12-01', '2026-01-01 00:10:00'),
+				(204, 203, 13, '2025-12-01', NULL),
+				(205, 204, 14, '2025-12-01', NULL),
+				(206, 205, 15, '2026-01-01', NULL),
+				(207, 201, 16, '2025-12-01', '2025-12-31 23:59:59'),
+				(208, 201, 17, '2025-11-01', NULL),
+				(209, 207, 18, '2025-12-31 23:59:59', '2026-01-01'),
+				(210, 206, 19, '2026-01-01', NULL)
+				""");
+		JpaRepositoryFactory repositories = new JpaRepositoryFactory(entityManager);
+		MonthlyReportCourseAggregationService service = new MonthlyReportCourseAggregationService(
+			repositories.getRepository(CourseRepository.class),
+			repositories.getRepository(CourseStoreRepository.class));
+		MonthlyReportCourseAggregationService.Result result = service.aggregate(777L, MONTH);
+		assertThat(result.courses()).isEqualTo(3);
+		assertThat(result.plannedStoreIds()).containsExactlyInAnyOrder(11L, 12L, 18L);
+		assertThat(result.countPlannedStoresWith(Set.of(11L, 20L))).isEqualTo(4);
+		assertThat(service.aggregate(778L, MONTH).plannedStoreIds()).containsExactly(14L);
+		assertThat(service.aggregate(999L, MONTH).courses()).isZero();
+		assertThat(service.aggregate(999L, MONTH).plannedStoreIds()).isEmpty();
 	}
 
 	@Test

@@ -147,6 +147,19 @@ raw_metrics에는 `recordAggregation`의 버전·기록 수·빵집 수·전월 
 월말 후 발행 전에 수정된 내용을 과거 상태로 복원하는 이력 보강은 아직 남아 있다.
 월말 조건 쿼리만으로 과거 모든 필드가 복원된다고 보지 않는다. 태그와 사진을 재생성하는 수정도 이 대상이다.
 
+### 공동 코스의 월말 집계
+
+`MonthlyReportCourseAggregationService`는 코스 소유자 기준으로 월말에 남은 코스와 그 안의 가게를 집계한다.
+`CourseRepository.countMonthlyReportCourses`는 해당 월 생성 후 월말까지 유지된 코스를 세고,
+`CourseStoreRepository.findMonthlyReportPlannedStoreIds`는 해당 월 추가한 관계 중 월말에도 유지된 가게 ID를 반환한다.
+코스 자체가 월말 전에 삭제됐다면 그 가게도 제외한다. 코스와 관계의 월말 이후 삭제는 해당 월 집계에 영향을 주지 않는다.
+이전 달에 만든 코스라도 이번 달에 추가한 가게는 포함한다. 친구의 추가도 소유자에게 귀속하며 행위자 이벤트를 사용하지 않는다.
+여러 코스의 같은 가게와 직접 계획에 담은 같은 가게는 `countPlannedStoresWith`에서 한 번만 센다.
+
+이 서비스의 코스 원천 집계는 구현·검증했으며 전체 `stores` 생성 연결은 저장·계획 이력 집계와 함께 남아 있다.
+직접 계획과 코스의 합집합을 완성하기 전에 코스 가게 수만 `stores.planned`에 채우지 않는다.
+월말 이후 소유권이 이전된 경우의 과거 소유자 복원은 변경 이력이 없어 추가 보완 대상이다.
+
 ### 사진 수정 요청과 보고서 연결
 
 기존 빵로그 수정은 사진 행을 삭제하고 다시 생성한다. 변하는 photo.id 대신 `bread_record_photo.reference_id`를

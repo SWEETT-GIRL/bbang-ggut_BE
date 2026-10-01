@@ -66,3 +66,10 @@ INSERT INTO bread_record_tag (id, record_id, photo_id, name, bread_category, men
     (14, 3, 8, '잘못 연결된 사진', '소금빵', NULL);
 
 UPDATE bread_record SET created_at = eaten_at, store_name = '같은 이름';
+
+CREATE TABLE courses (
+    id bigint PRIMARY KEY, member_id bigint, created_at timestamp NOT NULL, deleted_at timestamp
+);
+CREATE TABLE course_stores (
+    id bigint PRIMARY KEY, course_id bigint, store_id bigint, created_at timestamp NOT NULL, deleted_at timestamp
+);
