@@ -49,12 +49,11 @@ public interface BreadRecordRankingRepository extends Repository<BreadRecord, Lo
 				GROUP BY r.member_id
 			)""";
 
-	/** 전국 정복왕 — 비공개 포함 빵로그를 남긴 시·군·구 수(region_key = 시도_구_동 → 앞 두 칸). 동점은 다녀간 빵집 수. */
+	/** 전국 정복왕 — 비공개 포함 빵로그를 남긴 동네(region_key = 시도_구_동 전체) 수. 동점은 다녀간 빵집 수. */
 	String REGIONS_SCORED = """
 			WITH scored AS (
 				SELECT r.member_id,
-						COUNT(DISTINCT split_part(r.region_key, '_', 1) || '_'
-							|| split_part(r.region_key, '_', 2)) AS score,
+						COUNT(DISTINCT r.region_key) AS score,
 						COUNT(DISTINCT ("""
 		+ STORE_KEY + """
 				)) AS tie,
