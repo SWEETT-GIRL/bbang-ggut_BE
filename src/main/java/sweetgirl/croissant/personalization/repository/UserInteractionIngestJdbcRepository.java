@@ -1,5 +1,6 @@
 package sweetgirl.croissant.personalization.repository;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -34,6 +35,12 @@ public class UserInteractionIngestJdbcRepository {
 		Boolean locked = jdbcTemplate.queryForObject("SELECT pg_try_advisory_xact_lock(:lockKey)",
 			new MapSqlParameterSource("lockKey", lockKey), Boolean.class);
 		return Boolean.TRUE.equals(locked);
+	}
+
+	public boolean isDayComplete(LocalDate day) {
+		return Boolean.TRUE.equals(jdbcTemplate.queryForObject("""
+				SELECT EXISTS (SELECT 1 FROM user_interaction_ingest_day WHERE ingest_date = :day)
+				""", new MapSqlParameterSource("day", day), Boolean.class));
 	}
 
 	public int insertSaves(LocalDateTime from, LocalDateTime to) {

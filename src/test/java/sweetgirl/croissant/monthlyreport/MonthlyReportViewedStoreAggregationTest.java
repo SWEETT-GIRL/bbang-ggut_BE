@@ -91,7 +91,9 @@ class MonthlyReportViewedStoreAggregationTest {
 	@Test
 	void incompleteMonthFailsButCompletedEmptyMonthReturnsZero() {
 		assertIncomplete();
+		assertThat(ingest.isDayComplete(from.toLocalDate())).isFalse();
 		ingest.recordCompletedDays(from, until.minusDays(1));
+		assertThat(ingest.isDayComplete(from.toLocalDate())).isTrue();
 		assertIncomplete();
 		ingest.recordCompletedDays(until.minusDays(1), until);
 		assertThat(service.aggregate(123L, "2025-12")).isZero();

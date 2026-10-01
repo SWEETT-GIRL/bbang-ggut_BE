@@ -44,6 +44,27 @@ class UserInteractionIngestCommandServiceTest {
 	}
 
 	@Test
+	void skipsCompletedDayAfterAcquiringSharedIngestLock() {
+		LocalDate day = LocalDate.of(2025, 12, 31);
+		given(ingestRepository.tryLock(anyLong())).willReturn(true);
+		given(ingestRepository.isDayComplete(day)).willReturn(true);
+		assertThat(ingestCommandService.ingestMissingDay(day)).isFalse();
+		var order = inOrder(ingestRepository);
+		order.verify(ingestRepository).tryLock(UserInteractionIngestCommandService.INGEST_LOCK_KEY);
+		order.verify(ingestRepository).isDayComplete(day);
+		then(ingestRepository).should(never()).insertStoreViews(any(), any(), anyInt());
+	}
+
+	@Test
+	void repairsOnlyMissingClosedDayThroughCommonIngest() {
+		LocalDate day = LocalDate.of(2025, 12, 31);
+		given(ingestRepository.tryLock(anyLong())).willReturn(true);
+		assertThat(ingestCommandService.ingestMissingDay(day)).isTrue();
+		then(ingestRepository).should().insertStoreViews(day.atStartOfDay(), day.plusDays(1).atStartOfDay(), 30);
+		then(ingestRepository).should().recordCompletedDays(day.atStartOfDay(), day.plusDays(1).atStartOfDay());
+	}
+
+	@Test
 	@DisplayName("범위 [from, to) 를 자정 기준으로 넘기고, 여덟 원천의 새 행 수를 종류별로 합쳐 돌려준다")
 	void ingest_sumsEverySource() {
 		LocalDate from = LocalDate.of(2026, 9, 17);

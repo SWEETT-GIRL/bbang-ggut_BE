@@ -81,6 +81,19 @@ public class UserInteractionIngestCommandService {
 		return new InteractionIngestResult(fromDate, toDate, inserted, byType);
 	}
 
+	/** 공통 적재 잠금 안에서 다시 확인하므로 다른 실행이 완료한 날짜는 재적재하지 않는다. */
+	public boolean ingestMissingDay(LocalDate day) {
+		if (day == null || !day.isBefore(LocalDate.now(ZONE_ID))) {
+			throw new PersonalizationException(PersonalizationErrorCode.INGEST_RANGE_INVALID);
+		}
+		acquireLock();
+		if (ingestRepository.isDayComplete(day)) {
+			return false;
+		}
+		ingest(day, day.plusDays(1));
+		return true;
+	}
+
 	/**
 	 * 담기 백필 — 이벤트(담는 요청의 회원)가 붙기 전에 담긴 가게를 코스 주인 기준으로 한 번 옮긴다. until 은 이벤트 배포 시각.
 	 *
