@@ -27,10 +27,12 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.menu.code.MenuErrorCode;
 import sweetgirl.croissant.menu.dto.request.MenuCreateRequest;
+import sweetgirl.croissant.menu.dto.response.MenuPriceResponse;
 import sweetgirl.croissant.menu.dto.response.MenuRegistrationResult;
 import sweetgirl.croissant.menu.dto.response.StoreMenuResponse;
 import sweetgirl.croissant.menu.exception.MenuException;
 import sweetgirl.croissant.menu.service.MenuCommandService;
+import sweetgirl.croissant.menu.service.MenuPriceCommandService;
 import sweetgirl.croissant.menu.service.MenuQueryService;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,6 +45,9 @@ class MenuControllerTest {
 
 	@Mock
 	private MenuCommandService menuCommandService;
+
+	@Mock
+	MenuPriceCommandService menuPriceCommandService;
 
 	@InjectMocks
 	private MenuController menuController;
@@ -178,6 +183,27 @@ class MenuControllerTest {
 		mockMvc.perform(patch("/menus/3/kind")
 			.contentType("application/json")
 			.content("{\"kind\":\"\"}"))
+			.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void updatePrice_returns200() throws Exception {
+		given(menuPriceCommandService.updatePrice(10L, 100L, null, 3800)).willReturn(new MenuPriceResponse(100L, 3800));
+
+		mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+			.patch("/stores/10/menus/100/price")
+			.contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+			.content("{\"price\":3800}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.price").value(3800));
+	}
+
+	@Test
+	void updatePrice_zero_returns400() throws Exception {
+		mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+			.patch("/stores/10/menus/100/price")
+			.contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+			.content("{\"price\":0}"))
 			.andExpect(status().isBadRequest());
 	}
 }
