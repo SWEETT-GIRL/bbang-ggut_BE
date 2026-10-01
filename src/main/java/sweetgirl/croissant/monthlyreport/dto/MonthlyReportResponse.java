@@ -15,9 +15,9 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-/** schemaVersion 1: 미집계 점수는 null로 유지하고, 집계된 수치만 0을 허용한다. */
+/** schemaVersion 1은 기존 상한 점수, 2는 상한 없는 활동별 빵력을 보관한다. */
 public record MonthlyReportResponse(
-		@Min(1) @Max(1) int schemaVersion,
+		@Min(1) @Max(2) int schemaVersion,
 		@NotNull @Pattern(regexp = "20[0-9]{2}-(0[1-9]|1[0-2])") String yearMonth,
 		@NotNull @Min(1) @Max(MAX_SAFE_INTEGER) Long memberId,
 		@NotBlank @Size(max = 100) String nickname,
@@ -108,7 +108,7 @@ public record MonthlyReportResponse(
 
 	public record Ability(
 			@NotNull @Min(0) @Max(MAX_SAFE_INTEGER) Long score,
-			@NotNull @Min(1) @Max(MAX_SAFE_INTEGER) Long maxScore) {
+			@JsonInclude(JsonInclude.Include.NON_NULL) @Min(1) @Max(MAX_SAFE_INTEGER) Long maxScore) {
 	}
 
 	public record Artwork(

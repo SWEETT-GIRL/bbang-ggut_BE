@@ -47,8 +47,10 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.monthlyreport.controller.MonthlyReportController;
+import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportActivityPolicy;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportQueryService;
 
@@ -105,6 +107,24 @@ class MonthlyReportControllerTest {
 			.andExpect(jsonPath("$.data.activity.totalScore").value(72))
 			.andExpect(jsonPath("$.data.breads[0].imageKey").value("bread-records/members/123/images/a"));
 		verify(repository, never()).findById(new MonthlyReportMemberId(456L, MONTH));
+	}
+
+	@Test
+	void respondsWithVersionTwoPowerWithoutMaximumThroughMvcSerialization() throws Exception {
+		authenticate();
+		ObjectMapper mapper = new ObjectMapper();
+		MonthlyReportPayloadCodec codec = new MonthlyReportPayloadCodec(mapper, FACTORY.getValidator());
+		MonthlyReportResponse draft = codec.read(PAYLOAD, 123L, MONTH)
+			.withStores(new MonthlyReportResponse.Stores(2000L, 0L, 0L, 0L));
+		MonthlyReportResponse report = new MonthlyReportActivityPolicy().applyTo(draft, mapper.createObjectNode());
+		given(repository.findById(new MonthlyReportMemberId(123L, MONTH)))
+			.willReturn(Optional.of(MonthlyReportFixtures.snapshot("PUBLISHED", codec.write(report, 123L, MONTH))));
+		mvc.perform(get("/reports/monthly/{month}/me", MONTH)).andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.schemaVersion").value(2))
+			.andExpect(jsonPath("$.data.activity.totalScore").value(2084))
+			.andExpect(jsonPath("$.data.activity.type").value("explore"))
+			.andExpect(jsonPath("$.data.activity.abilities.explore.score").value(2000))
+			.andExpect(jsonPath("$.data.activity.abilities.explore.maxScore").doesNotHaveJsonPath());
 	}
 
 	private BreadRecordTag photoTag(String category) {

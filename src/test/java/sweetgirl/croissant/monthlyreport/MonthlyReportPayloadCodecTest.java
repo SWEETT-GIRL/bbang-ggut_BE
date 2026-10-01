@@ -22,6 +22,7 @@ import jakarta.validation.ValidatorFactory;
 import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportActivityPolicy;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportMonth;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
 
@@ -41,6 +42,40 @@ class MonthlyReportPayloadCodecTest {
 		var report = codec.read(PAYLOAD, 123L, MONTH);
 		assertThat(codec.read(codec.write(report, 123L, MONTH), 123L, MONTH)).isEqualTo(report);
 		assertThat(report.activity().totalScore()).isEqualTo(72);
+	}
+
+	@Test
+	void versionTwoStoresUnboundedPowerWithoutMaxScoreAndReadsBack() throws Exception {
+		MonthlyReportResponse draft = codec.read(PAYLOAD, 123L, MONTH)
+			.withStores(new MonthlyReportResponse.Stores(2000L, 0L, 0L, 0L));
+		MonthlyReportResponse report = new MonthlyReportActivityPolicy().applyTo(draft, mapper.createObjectNode());
+		String json = codec.write(report, 123L, MONTH);
+		assertThat(mapper.readTree(json).at("/activity/abilities/explore").has("maxScore")).isFalse();
+		assertThat(codec.read(json, 123L, MONTH)).isEqualTo(report);
+		assertThat(report.activity().totalScore()).isEqualTo(2084);
+		assertThat(report.activity().artwork()).isNull();
+	}
+
+	@ParameterizedTest
+	@CsvSource({
+		"/activity, abilities, null", "/activity, totalScore, null", "/activity, totalScore, 1",
+		"/activity/abilities/record, score, -1", "/activity/abilities/record, maxScore, 1000",
+		"/activity/abilities/record, score, 9007199254740992"
+	})
+	void versionTwoRejectsUncomputedPowerOrArtificialMaximum(String parent, String field, String json)
+			throws Exception {
+		MonthlyReportResponse report = new MonthlyReportActivityPolicy().applyTo(codec.read(PAYLOAD, 123L, MONTH),
+			mapper.createObjectNode());
+		ObjectNode payload = (ObjectNode)mapper.readTree(codec.write(report, 123L, MONTH));
+		((ObjectNode)payload.at(parent)).set(field, mapper.readTree(json));
+		assertInvalid(payload.toString());
+	}
+
+	@Test
+	void versionOneStillRequiresMaximumForComputedAbilities() throws Exception {
+		ObjectNode payload = MonthlyReportFixtures.payload();
+		payload.withObject("/activity/abilities/record").remove("maxScore");
+		assertInvalid(payload.toString());
 	}
 
 	@ParameterizedTest

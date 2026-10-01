@@ -96,10 +96,15 @@ public class MonthlyReportPayloadCodec {
 			throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
 		}
 		MonthlyReportResponse.Abilities abilities = response.activity().abilities();
+		if (response.schemaVersion() == 2 && (abilities == null || response.activity().totalScore() == null)) {
+			throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
+		}
 		if (abilities != null) {
 			long sum = abilities.values().stream().mapToLong(MonthlyReportResponse.Ability::score).sum();
 			if (sum > MonthlyReportResponse.MAX_SAFE_INTEGER
-				|| abilities.values().stream().anyMatch(ability -> ability.score() > ability.maxScore())
+				|| abilities.values().stream().anyMatch(ability -> response.schemaVersion() == 1
+					? ability.maxScore() == null || ability.score() > ability.maxScore()
+					: ability.maxScore() != null)
 				|| (response.activity().totalScore() != null && response.activity().totalScore() != sum)) {
 				throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
 			}
