@@ -43,6 +43,7 @@ import sweetgirl.croissant.monthlyreport.dto.MonthlyReportSourceSnapshot;
 import sweetgirl.croissant.monthlyreport.enums.MonthlyReportSourceType;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportSourceHistoryRepository;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportActivityPolicy;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportBreadAggregationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportGenerationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportNotificationService;
@@ -232,7 +233,7 @@ class MonthlyReportSourceHistoryTest {
 				new MonthlyReportBreadAggregationService(reader),
 				new MonthlyReportRecordAggregationService(reader, reports, codec), publication, reader,
 				views,
-				new MonthlyReportTownAggregationService());
+				new MonthlyReportTownAggregationService(), new MonthlyReportActivityPolicy());
 			entityManager.getTransaction().begin();
 			assertThat(generation.publishFromDraft(codec.read(PAYLOAD, 123L, MONTH),
 				new ObjectMapper().createObjectNode().put("test", true), "history-test-v1")).isTrue();
@@ -241,6 +242,10 @@ class MonthlyReportSourceHistoryTest {
 			MonthlyReportQueryService query = new MonthlyReportQueryService(memberReader, reports, codec,
 				repositories.getRepository(BreadRecordTagRepository.class));
 			MonthlyReportResponse report = query.getReport(123L, MONTH);
+			assertThat(report.schemaVersion()).isEqualTo(2);
+			assertThat(report.activity().totalScore()).isEqualTo(36);
+			assertThat(report.activity().abilities().record().score()).isEqualTo(21);
+			assertThat(report.activity().type()).isEqualTo("record");
 			assertThat(report.summary()).isEqualTo(new MonthlyReportResponse.Summary(3L, 9L, 3L));
 			assertThat(report.stores().viewed()).isEqualTo(2);
 			assertThat(report.towns()).containsExactly(new MonthlyReportResponse.Town("성수동", "서울 성동구"));

@@ -45,6 +45,7 @@ import sweetgirl.croissant.monthlyreport.dto.MonthlyReportSourceSnapshot;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportSourceHistoryRepository;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportActivityPolicy;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportBreadAggregationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportGenerationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportNotificationService;
@@ -266,7 +267,7 @@ class MonthlyReportBreadAggregationTest {
 			var records = new MonthlyReportRecordAggregationService(sourceReader, repository, codec);
 			var generation = new MonthlyReportGenerationService(repository, codec, aggregation, records, publication,
 				sourceReader, mock(MonthlyReportViewedStoreAggregationService.class),
-				new MonthlyReportTownAggregationService());
+				new MonthlyReportTownAggregationService(), new MonthlyReportActivityPolicy());
 			var draft = codec.read(PAYLOAD, 123L, MONTH);
 			var metrics = mapper.createObjectNode().put("records", 12);
 			changesBeforeMonthEnd();

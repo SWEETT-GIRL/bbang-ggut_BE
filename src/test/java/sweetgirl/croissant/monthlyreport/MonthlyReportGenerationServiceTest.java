@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Validation;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportActivityPolicy;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportBreadAggregationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportGenerationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
@@ -36,16 +37,18 @@ class MonthlyReportGenerationServiceTest {
 		var publication = mock(MonthlyReportPublicationService.class);
 		var views = mock(MonthlyReportViewedStoreAggregationService.class);
 		var towns = mock(MonthlyReportTownAggregationService.class);
+		MonthlyReportActivityPolicy activityPolicy = mock(MonthlyReportActivityPolicy.class);
 		given(repository.findById(new MonthlyReportMemberId(123L, MONTH)))
 			.willReturn(Optional.of(MonthlyReportFixtures.snapshot("PUBLISHED", PAYLOAD)));
 		var mapper = new ObjectMapper();
 		try (var validation = Validation.buildDefaultValidatorFactory()) {
 			var codec = new MonthlyReportPayloadCodec(mapper, validation.getValidator());
 			var generation = new MonthlyReportGenerationService(repository, codec, aggregation, records, publication,
-				sourceReader, views, towns);
+				sourceReader, views, towns, activityPolicy);
 			assertThat(generation.publishFromDraft(codec.read(PAYLOAD, 123L, MONTH),
 				mapper.createObjectNode().put("records", 12), "test-v2")).isFalse();
-			verifyNoInteractions(aggregation, records, publication, sourceReader, views, towns);
+			verifyNoInteractions(aggregation, records, publication, sourceReader, views, towns,
+				activityPolicy);
 		}
 	}
 }

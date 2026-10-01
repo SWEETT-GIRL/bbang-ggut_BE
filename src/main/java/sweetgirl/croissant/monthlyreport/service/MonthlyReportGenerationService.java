@@ -31,6 +31,7 @@ public class MonthlyReportGenerationService {
 	private final MonthlyReportSourceReader sourceReader;
 	private final MonthlyReportViewedStoreAggregationService viewedStoreAggregation;
 	private final MonthlyReportTownAggregationService townAggregation;
+	private final MonthlyReportActivityPolicy activityPolicy;
 
 	public boolean publishFromDraft(MonthlyReportResponse draft, ObjectNode rawMetrics, String calculationVersion) {
 		if (draft == null || rawMetrics == null || rawMetrics.isEmpty()) {
@@ -72,8 +73,10 @@ public class MonthlyReportGenerationService {
 		breads.photoSources().forEach((name, photoSource) -> sources.putObject(name)
 			.put("recordId", photoSource.recordId())
 			.put("photoReferenceId", photoSource.photoReferenceId().toString()));
+		MonthlyReportResponse report = activityPolicy.applyTo(
+			breads.applyTo(records.applyTo(draft)).withStores(stores).withTowns(towns), metrics);
 		return publicationService.publish(draft.memberId(), draft.yearMonth(),
-			breads.applyTo(records.applyTo(draft)).withStores(stores).withTowns(towns),
+			report,
 			metrics,
 			calculationVersion, Instant.now());
 	}
