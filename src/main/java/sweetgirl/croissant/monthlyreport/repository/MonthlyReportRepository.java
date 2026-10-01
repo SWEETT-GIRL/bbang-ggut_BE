@@ -55,6 +55,14 @@ public interface MonthlyReportRepository extends JpaRepository<MonthlyReportMemb
 			@Param("calculationVersion") String calculationVersion, @Param("generatedAt") Instant generatedAt,
 			@Param("publishedAt") Instant publishedAt);
 
+	@Modifying(flushAutomatically = true)
+	@Query(value = """
+			INSERT INTO monthly_report_member (member_id, year_month, status) VALUES (:memberId, :yearMonth, 'FAILED')
+			ON CONFLICT (member_id, year_month) DO UPDATE SET status = 'FAILED'
+			WHERE monthly_report_member.status <> 'PUBLISHED'
+			""", nativeQuery = true)
+	int recordGenerationFailure(@Param("memberId") Long memberId, @Param("yearMonth") String yearMonth);
+
 	interface PublishedReport {
 		String getYearMonth();
 
