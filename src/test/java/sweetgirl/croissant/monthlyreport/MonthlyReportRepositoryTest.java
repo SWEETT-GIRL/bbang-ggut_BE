@@ -98,7 +98,8 @@ class MonthlyReportRepositoryTest {
 		new ResourceDatabasePopulator(new ClassPathResource(
 			"db/migration/V20261001131708__create_monthly_report_member.sql"),
 			new ClassPathResource("db/migration/V20261001140644__add_monthly_report_appearance.sql"),
-			new ClassPathResource("db/migration/V20261001170000__add_bread_photo_reference.sql"))
+			new ClassPathResource("db/migration/V20261001170000__add_bread_photo_reference.sql"),
+			new ClassPathResource("db/migration/V20261001170100__link_monthly_report_bread_photos.sql"))
 			.execute(scopedSource);
 		var factory = new LocalContainerEntityManagerFactoryBean();
 		factory.setDataSource(scopedSource);
@@ -243,6 +244,33 @@ class MonthlyReportRepositoryTest {
 			assertThat(report.getCharacterName()).isEqualTo("냥이");
 			assertThat(report.getCharacterImageKey()).isNull();
 		});
+	}
+
+	@Test
+	void photoSourceMigrationLinksOnlyUnambiguousOwnedPhotosAndPreservesPayload() throws Exception {
+		jdbc.update("INSERT INTO bread_record (id, member_id) VALUES (1, 123), (2, 123), (3, 456)");
+		jdbc.update("""
+				INSERT INTO bread_record_photo (id, record_id, aws_key)
+				VALUES (1, 1, 'unique'), (2, 1, 'shared'), (3, 2, 'shared'), (4, 3, 'foreign')
+				""");
+		String oldKey = "bread-records/members/123/images/a";
+		publish(123L, MONTH, PAYLOAD.replace(oldKey, "unique"));
+		publish(123L, "2025-11", PAYLOAD.replace(oldKey, "shared"));
+		publish(123L, "2025-10", PAYLOAD.replace(oldKey, "foreign"));
+		String original = repository.findById(new MonthlyReportMemberId(123L, MONTH)).orElseThrow().getPayload();
+		new ResourceDatabasePopulator(new ClassPathResource(
+			"db/migration/V20261001170100__link_monthly_report_bread_photos.sql")).execute(jdbc.getDataSource());
+		var mapper = new ObjectMapper();
+		var snapshot = repository.findById(new MonthlyReportMemberId(123L, MONTH)).orElseThrow();
+		assertThat(snapshot.getPayload()).isEqualTo(original);
+		var source = mapper.readTree(snapshot.getRawMetrics()).at("/breadPhotoSources/소금빵");
+		assertThat(source.path("recordId").asLong()).isEqualTo(1);
+		assertThat(source.path("photoReferenceId").asText()).isEqualTo(jdbc.queryForObject(
+			"SELECT reference_id::text FROM bread_record_photo WHERE id = 1", String.class));
+		for (String month : List.of("2025-11", "2025-10")) {
+			var unresolved = repository.findById(new MonthlyReportMemberId(123L, month)).orElseThrow();
+			assertThat(mapper.readTree(unresolved.getRawMetrics()).has("breadPhotoSources")).isFalse();
+		}
 	}
 
 	@Test

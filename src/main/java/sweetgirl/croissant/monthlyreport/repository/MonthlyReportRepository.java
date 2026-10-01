@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -84,6 +85,22 @@ public interface MonthlyReportRepository extends JpaRepository<MonthlyReportMemb
 					OR p.resized_key_640 IN (:keys) OR p.resized_key_1024 IN (:keys))
 			""", nativeQuery = true)
 	List<PhotoKeys> findOwnedPhotos(@Param("memberId") Long memberId, @Param("keys") Set<String> keys);
+
+	@Query(value = """
+			SELECT p.reference_id AS "referenceId", p.record_id AS "recordId", p.aws_key AS "awsKey",
+				p.resized_key_320 AS "resizedKey320", p.resized_key_640 AS "resizedKey640",
+				p.resized_key_1024 AS "resizedKey1024"
+			FROM bread_record_photo p JOIN bread_record r ON r.id = p.record_id
+			WHERE r.member_id = :memberId AND r.deleted_at IS NULL AND p.reference_id IN (:references)
+			""", nativeQuery = true)
+	List<CurrentPhoto> findCurrentPhotos(@Param("memberId") Long memberId,
+			@Param("references") Set<UUID> references);
+
+	interface CurrentPhoto extends PhotoKeys {
+		UUID getReferenceId();
+
+		Long getRecordId();
+	}
 
 	interface PublishedReport {
 		String getYearMonth();

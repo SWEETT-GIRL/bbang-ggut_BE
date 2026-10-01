@@ -41,6 +41,9 @@ public class MonthlyReportGenerationService {
 			.put("version", MonthlyReportBreadAggregationService.VERSION)
 			.put("photoSelection", "loved-then-latest-eaten")
 			.put("totalTags", breads.total()).put("uncategorizedTags", breads.uncategorized());
+		ObjectNode sources = metrics.putObject("breadPhotoSources");
+		breads.photoSources().forEach((name, source) -> sources.putObject(name)
+			.put("recordId", source.recordId()).put("photoReferenceId", source.photoReferenceId().toString()));
 		return publicationService.publish(draft.memberId(), draft.yearMonth(), breads.applyTo(draft), metrics,
 			calculationVersion, Instant.now());
 	}

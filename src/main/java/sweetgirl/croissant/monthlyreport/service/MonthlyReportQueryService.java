@@ -1,8 +1,11 @@
 package sweetgirl.croissant.monthlyreport.service;
 
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -14,9 +17,11 @@ import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportListItem;
+import sweetgirl.croissant.monthlyreport.dto.MonthlyReportPhotoSource;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
+import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository.CurrentPhoto;
 
 @Service
 @RequiredArgsConstructor
@@ -55,22 +60,41 @@ public class MonthlyReportQueryService {
 					|| !Objects.equals(snapshot.getPlanetName(), report.planet().name())) {
 					throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
 				}
-				return removeUnavailablePhotos(report).withNickname(member.getNickname());
+				return resolveCurrentPhotos(report, codec.readPhotoSources(snapshot.getRawMetrics()))
+					.withNickname(member.getNickname());
 			}
 			default -> throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
 		}
 	}
 
-	private MonthlyReportResponse removeUnavailablePhotos(MonthlyReportResponse report) {
-		Set<String> keys = report.breads().stream().map(MonthlyReportResponse.Bread::imageKey)
+	private MonthlyReportResponse resolveCurrentPhotos(MonthlyReportResponse report,
+			Map<String, MonthlyReportPhotoSource> sources) {
+		Set<UUID> references = sources.values().stream().map(MonthlyReportPhotoSource::photoReferenceId)
+			.collect(Collectors.toSet());
+		Map<UUID, CurrentPhoto> current = references.isEmpty() ? Map.of()
+			: repository.findCurrentPhotos(report.memberId(), references).stream()
+				.collect(Collectors.toMap(CurrentPhoto::getReferenceId, photo -> photo));
+		Set<String> keys = report.breads().stream().filter(bread -> !sources.containsKey(bread.name()))
+			.map(MonthlyReportResponse.Bread::imageKey)
 			.filter(Objects::nonNull).collect(Collectors.toSet());
-		if (keys.isEmpty()) {
-			return report;
-		}
-		Set<String> visible = repository.findVisiblePhotoKeys(report.memberId(), keys);
+		Set<String> visible = keys.isEmpty() ? Set.of() : repository.findVisiblePhotoKeys(report.memberId(), keys);
 		return report.withBreads(report.breads().stream()
-			.map(bread -> new MonthlyReportResponse.Bread(bread.name(), bread.count(),
-				bread.imageKey() != null && visible.contains(bread.imageKey()) ? bread.imageKey() : null))
+			.map(bread -> {
+				var source = sources.get(bread.name());
+				String key = source == null
+					? (bread.imageKey() != null && visible.contains(bread.imageKey()) ? bread.imageKey() : null)
+					: currentImageKey(source, current.get(source.photoReferenceId()));
+				return new MonthlyReportResponse.Bread(bread.name(), bread.count(), key);
+			})
 			.toList());
+	}
+
+	private String currentImageKey(MonthlyReportPhotoSource source, CurrentPhoto photo) {
+		if (photo == null || !source.recordId().equals(photo.getRecordId())) {
+			return null;
+		}
+		return Stream
+			.of(photo.getResizedKey640(), photo.getResizedKey320(), photo.getResizedKey1024(), photo.getAwsKey())
+			.filter(key -> key != null && !key.isBlank()).findFirst().orElse(null);
 	}
 }

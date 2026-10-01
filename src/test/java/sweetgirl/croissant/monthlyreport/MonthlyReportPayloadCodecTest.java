@@ -43,6 +43,19 @@ class MonthlyReportPayloadCodecTest {
 		assertThat(report.activity().totalScore()).isEqualTo(72);
 	}
 
+	@ParameterizedTest
+	@ValueSource(strings = {
+		"null", "[]", "{\"소금빵\": null}", "{\"소금빵\": {\"recordId\": 1}}",
+		"{\"소금빵\": {\"recordId\": 1, \"photoReferenceId\": \"invalid\"}}",
+		"{\"소금빵\": {\"recordId\": 0, \"photoReferenceId\": \"c0c3913e-4531-40f1-8c66-309027a40611\"}}",
+		"{\"소금빵\": {\"recordId\": \"1\", \"photoReferenceId\": \"c0c3913e-4531-40f1-8c66-309027a40611\"}}"
+	})
+	void rejectsMalformedPhotoSourcesInsteadOfFallingBackToOldPhoto(String sources) {
+		assertThatThrownBy(() -> codec.readPhotoSources("{\"breadPhotoSources\":" + sources + "}"))
+			.isInstanceOf(CustomException.class).hasFieldOrPropertyWithValue("errorCode",
+				MonthlyReportErrorCode.INVALID_SNAPSHOT);
+	}
+
 	@Test
 	void uncomputedAbilitiesAndScoreRemainNull() throws Exception {
 		var payload = MonthlyReportFixtures.payload();

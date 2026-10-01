@@ -41,6 +41,7 @@ public class MonthlyReportPublicationService {
 			throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
 		}
 		String payload = codec.write(report, memberId, yearMonth);
+		codec.readPhotoSources(rawMetrics.toString());
 		boolean published = repository.publish(memberId, yearMonth, payload, rawMetrics.toString(), calculationVersion,
 			generatedAt, publishedAt) == 1;
 		if (published) {

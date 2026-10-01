@@ -1,9 +1,13 @@
 package sweetgirl.croissant.monthlyreport.service;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.cfg.CoercionAction;
 import com.fasterxml.jackson.databind.cfg.CoercionInputShape;
@@ -12,6 +16,7 @@ import com.fasterxml.jackson.databind.type.LogicalType;
 import jakarta.validation.Validator;
 import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
+import sweetgirl.croissant.monthlyreport.dto.MonthlyReportPhotoSource;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
 
 @Component
@@ -48,6 +53,37 @@ public class MonthlyReportPayloadCodec {
 		try {
 			return mapper.writeValueAsString(response);
 		} catch (JsonProcessingException e) {
+			throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT, e);
+		}
+	}
+
+	public Map<String, MonthlyReportPhotoSource> readPhotoSources(String rawMetrics) {
+		if (rawMetrics == null) {
+			return Map.of();
+		}
+		try {
+			var root = mapper.readTree(rawMetrics);
+			if (root == null || !root.isObject()) {
+				throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
+			}
+			var sources = root.get("breadPhotoSources");
+			if (sources == null) {
+				return Map.of();
+			}
+			if (!sources.isObject() || sources.size() > 100) {
+				throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
+			}
+			Map<String, MonthlyReportPhotoSource> result = new HashMap<>();
+			for (Map.Entry<String, JsonNode> field : sources.properties()) {
+				var source = mapper.treeToValue(field.getValue(), MonthlyReportPhotoSource.class);
+				if (field.getKey().isBlank() || field.getKey().length() > 100 || source == null
+					|| !validator.validate(source).isEmpty()) {
+					throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
+				}
+				result.put(field.getKey(), source);
+			}
+			return Map.copyOf(result);
+		} catch (JsonProcessingException | IllegalArgumentException e) {
 			throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT, e);
 		}
 	}

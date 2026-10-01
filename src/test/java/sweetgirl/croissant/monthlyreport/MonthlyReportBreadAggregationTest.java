@@ -67,7 +67,8 @@ class MonthlyReportBreadAggregationTest {
 		new ResourceDatabasePopulator(new ClassPathResource("monthly-report-bread-aggregation.sql"),
 			new ClassPathResource("db/migration/V20261001131708__create_monthly_report_member.sql"),
 			new ClassPathResource("db/migration/V20261001140644__add_monthly_report_appearance.sql"),
-			new ClassPathResource("db/migration/V20261001170000__add_bread_photo_reference.sql"))
+			new ClassPathResource("db/migration/V20261001170000__add_bread_photo_reference.sql"),
+			new ClassPathResource("db/migration/V20261001170100__link_monthly_report_bread_photos.sql"))
 			.execute(source);
 		factory = new LocalContainerEntityManagerFactoryBean();
 		factory.setDataSource(source);
@@ -143,11 +144,36 @@ class MonthlyReportBreadAggregationTest {
 			assertThat(mapper.readTree(snapshot.getRawMetrics()).at("/breadAggregation/uncategorizedTags").asLong())
 				.isEqualTo(2);
 
-			// 이전 소금빵 사진이 남아 있어도 발행 사진을 교체하거나 통계를 다시 계산하지 않는다.
+			var query = new MonthlyReportQueryService(reader, repository, codec);
+			var reference = result.photoSources().get("소금빵");
+			assertThat(codec.readPhotoSources(snapshot.getRawMetrics()).get("소금빵")).isEqualTo(reference);
+			// 수정 저장은 사진 행을 재생성해도 참조를 유지한다. 원본→리사이즈 변경도 현재 키로 응답한다.
+			jdbc.update("DELETE FROM bread_record_photo WHERE id = 2");
+			jdbc.update("""
+					INSERT INTO bread_record_photo (id, record_id, reference_id, sort_order, aws_key)
+					VALUES (22, 2, ?, 1, 'edited-salt')
+					""", reference.photoReferenceId());
+			entityManager.clear();
+			assertThat(query.getReport(123L, MONTH).breads().get(0))
+				.isEqualTo(new MonthlyReportResponse.Bread("소금빵", 5L, "edited-salt"));
+			jdbc.update("UPDATE bread_record_photo SET resized_key_640 = 'edited-salt-640' WHERE id = 22");
+			assertThat(query.getReport(123L, MONTH).breads().get(0).imageKey()).isEqualTo("edited-salt-640");
+			// 원본 로그와 연결이 다르면 같은 회원의 사진이어도 노출하지 않는다.
+			jdbc.update("UPDATE bread_record_photo SET record_id = 3 WHERE id = 22");
+			assertThat(query.getReport(123L, MONTH).breads().get(0).imageKey()).isNull();
+			jdbc.update("UPDATE bread_record_photo SET record_id = 6 WHERE id = 22");
+			assertThat(query.getReport(123L, MONTH).breads().get(0).imageKey()).isNull();
+			jdbc.update("UPDATE bread_record_photo SET record_id = 2 WHERE id = 22");
+			jdbc.update("DELETE FROM bread_record_photo WHERE id = 22");
+			jdbc.update("""
+					INSERT INTO bread_record_photo (id, record_id, sort_order, aws_key)
+					VALUES (23, 2, 1, 'unrelated-new-photo')
+					""");
+			assertThat(query.getReport(123L, MONTH).breads().get(0).imageKey()).isNull();
+			// 다른 소금빵 사진이 남아 있어도 삭제된 대표 사진을 다시 선택하거나 통계를 재계산하지 않는다.
 			jdbc.update("UPDATE bread_record SET deleted_at = CURRENT_TIMESTAMP WHERE id = 2");
 			jdbc.update("UPDATE bread_record_tag SET bread_category = '쿠키' WHERE id = 1");
 			entityManager.clear();
-			var query = new MonthlyReportQueryService(reader, repository, codec);
 			var visible = query.getReport(123L, MONTH);
 			assertThat(visible.breads().get(0)).isEqualTo(new MonthlyReportResponse.Bread("소금빵", 5L, null));
 			assertThat(visible.summary().breads()).isEqualTo(9);
