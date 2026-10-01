@@ -16,6 +16,10 @@ public interface BreadCategoryRepository extends JpaRepository<BreadCategory, Lo
 
 	Optional<BreadCategory> findByMenuKind(MenuKind menuKind);
 
+	/** 기본 목록이 덮는 MenuKind 전부 — 기동 때 빠진 종류를 채우려고. */
+	@Query("SELECT c.menuKind FROM BreadCategory c WHERE c.menuKind IS NOT NULL")
+	List<MenuKind> findAllMenuKinds();
+
 	/**
 	 * 공용 목록 — 1등을 매긴 서로 다른 회원 수 순. 탈퇴 회원의 표는 빼고 센다.
 	 * 회원 수가 같으면 기본 목록(menuKind 있음)이 먼저, 그다음 id 순.
