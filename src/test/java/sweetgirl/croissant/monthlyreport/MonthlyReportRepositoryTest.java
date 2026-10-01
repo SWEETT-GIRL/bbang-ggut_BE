@@ -97,7 +97,8 @@ class MonthlyReportRepositoryTest {
 				""");
 		new ResourceDatabasePopulator(new ClassPathResource(
 			"db/migration/V20261001131708__create_monthly_report_member.sql"),
-			new ClassPathResource("db/migration/V20261001140644__add_monthly_report_appearance.sql"))
+			new ClassPathResource("db/migration/V20261001140644__add_monthly_report_appearance.sql"),
+			new ClassPathResource("db/migration/V20261001170000__add_bread_photo_reference.sql"))
 			.execute(scopedSource);
 		var factory = new LocalContainerEntityManagerFactoryBean();
 		factory.setDataSource(scopedSource);

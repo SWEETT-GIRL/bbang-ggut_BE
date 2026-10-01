@@ -66,7 +66,8 @@ class MonthlyReportBreadAggregationTest {
 		jdbc = new JdbcTemplate(source);
 		new ResourceDatabasePopulator(new ClassPathResource("monthly-report-bread-aggregation.sql"),
 			new ClassPathResource("db/migration/V20261001131708__create_monthly_report_member.sql"),
-			new ClassPathResource("db/migration/V20261001140644__add_monthly_report_appearance.sql"))
+			new ClassPathResource("db/migration/V20261001140644__add_monthly_report_appearance.sql"),
+			new ClassPathResource("db/migration/V20261001170000__add_bread_photo_reference.sql"))
 			.execute(source);
 		factory = new LocalContainerEntityManagerFactoryBean();
 		factory.setDataSource(source);
