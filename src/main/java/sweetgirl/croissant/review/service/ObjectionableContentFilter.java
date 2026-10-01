@@ -52,7 +52,8 @@ public class ObjectionableContentFilter {
 		}
 	}
 
-	boolean containsObjectionableContent(String content) {
+	/** 리뷰 밖(빵 종류 이름 등)에서도 같은 판정을 쓴다 — 예외는 부르는 쪽 도메인 것으로 */
+	public boolean containsObjectionableContent(String content) {
 		if (content == null || content.isBlank()) {
 			return false;
 		}

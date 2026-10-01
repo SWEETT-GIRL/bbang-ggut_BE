@@ -14,6 +14,7 @@ import org.springframework.data.repository.query.Param;
 import sweetgirl.croissant.breadlog.dto.projection.BreadRecordRegionProjection;
 import sweetgirl.croissant.breadlog.dto.projection.BreadRecordStoreVisitProjection;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
+import sweetgirl.croissant.store.entity.Store;
 
 public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> {
 
@@ -24,6 +25,23 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			Long memberId, Long storeId);
 
 	long countByMemberIdAndDeletedAtIsNull(Long memberId);
+
+	/** 먹어 본 가게인가 — 그 가게에 안 지운 빵로그가 하나라도 있으면. 내 빵 순위에 담을 수 있는 기준. */
+	boolean existsByMemberIdAndStoreIdAndDeletedAtIsNull(Long memberId, Long storeId);
+
+	/**
+	 * 내 빵 순위에 담을 후보 — 빵로그를 남긴(안 지운) 가게. 가게 없는 기록·삭제된 가게는 뺀다.
+	 * query 는 가게 이름 부분 일치 — 빈 문자열이면 전부.
+	 */
+	@Query("""
+			SELECT DISTINCT record.store
+			FROM BreadRecord record
+			WHERE record.member.id = :memberId AND record.deletedAt IS NULL AND record.store IS NOT NULL
+				AND record.store.status = sweetgirl.croissant.store.enums.StoreStatus.ACTIVE
+				AND LOWER(record.store.name) LIKE LOWER(CONCAT('%', :query, '%'))
+			ORDER BY record.store.name ASC
+			""")
+	List<Store> findEatenStores(@Param("memberId") Long memberId, @Param("query") String query);
 
 	@Query(value = """
 			SELECT COALESCE(MAX(visits), 0)
