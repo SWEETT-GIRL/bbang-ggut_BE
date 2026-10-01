@@ -1,6 +1,7 @@
 package sweetgirl.croissant.monthlyreport;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -35,8 +36,10 @@ import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
+import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
@@ -162,6 +165,12 @@ class MonthlyReportBreadAggregationTest {
 		assertThat(breads.photoSources().get("소금빵").recordId()).isEqualTo(106);
 		assertThat(tagRepository.findMonthlyReportPhotoTags(901L,
 			Set.of(breads.photoSources().get("소금빵").photoReferenceId()), Set.of())).isEmpty();
+		// 실제 삭제 경로처럼 태그·사진 행이 사라지면 기록 수는 남지만 빵 종류는 복원할 수 없다.
+		jdbc.update("DELETE FROM bread_record_tag WHERE record_id IN (105, 106)");
+		jdbc.update("DELETE FROM bread_record_photo WHERE record_id IN (105, 106)");
+		entityManager.clear();
+		assertThatThrownBy(() -> aggregation.aggregate(901L, MONTH)).isInstanceOf(CustomException.class)
+			.hasFieldOrPropertyWithValue("errorCode", MonthlyReportErrorCode.SOURCE_HISTORY_UNAVAILABLE);
 	}
 
 	@Test

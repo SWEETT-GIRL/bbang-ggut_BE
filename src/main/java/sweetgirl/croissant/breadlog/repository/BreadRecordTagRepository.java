@@ -63,6 +63,17 @@ public interface BreadRecordTagRepository extends JpaRepository<BreadRecordTag, 
 			@Param("from") LocalDateTime from,
 			@Param("to") LocalDateTime to);
 
+	/** 월말 이후 삭제로 태그가 사라진 기록은 당시 빵 수를 0으로 추정할 수 없다. */
+	@Query("""
+			SELECT COUNT(record.id) FROM BreadRecord record
+			WHERE record.member.id = :memberId
+			AND record.eatenAt >= :from AND record.eatenAt < :to
+			AND record.createdAt < :to AND record.deletedAt >= :to
+			AND NOT EXISTS (SELECT tag.id FROM BreadRecordTag tag WHERE tag.record.id = record.id)
+			""")
+	long countMonthlyReportDeletedRecordsWithoutTags(@Param("memberId") Long memberId,
+			@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
 	/** 월간 보고서의 종류별 집계와 대표 사진 선택. 사진·기록·메뉴 분류를 한 번에 읽는다. */
 	@Query("""
 			SELECT tag

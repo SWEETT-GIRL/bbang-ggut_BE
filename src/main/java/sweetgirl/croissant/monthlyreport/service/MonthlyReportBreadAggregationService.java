@@ -1,5 +1,6 @@
 package sweetgirl.croissant.monthlyreport.service;
 
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -14,6 +15,8 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.breadlog.entity.BreadRecordPhoto;
 import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
+import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportPhotoSource;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
 
@@ -29,8 +32,12 @@ public class MonthlyReportBreadAggregationService {
 
 	public Result aggregate(Long memberId, String yearMonth) {
 		YearMonth month = MonthlyReportMonth.parse(yearMonth);
-		List<BreadRecordTag> tags = tagRepository.findMonthlyReportTags(memberId,
-			month.atDay(1).atStartOfDay(), month.plusMonths(1).atDay(1).atStartOfDay());
+		LocalDateTime from = month.atDay(1).atStartOfDay();
+		LocalDateTime to = month.plusMonths(1).atDay(1).atStartOfDay();
+		if (tagRepository.countMonthlyReportDeletedRecordsWithoutTags(memberId, from, to) > 0) {
+			throw new CustomException(MonthlyReportErrorCode.SOURCE_HISTORY_UNAVAILABLE);
+		}
+		List<BreadRecordTag> tags = tagRepository.findMonthlyReportTags(memberId, from, to);
 		Map<String, Long> counts = new HashMap<>();
 		Map<String, String> images = new HashMap<>();
 		Map<String, MonthlyReportPhotoSource> sources = new HashMap<>();
