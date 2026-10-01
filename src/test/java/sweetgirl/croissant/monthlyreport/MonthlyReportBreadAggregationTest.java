@@ -23,34 +23,36 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.jpa.repository.support.JpaRepositoryFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
 import jakarta.validation.Validation;
-import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
-import sweetgirl.croissant.course.repository.CourseRepository;
-import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
+import sweetgirl.croissant.monthlyreport.dto.MonthlyReportSourceSnapshot;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
+import sweetgirl.croissant.monthlyreport.repository.MonthlyReportSourceHistoryRepository;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportBreadAggregationService;
-import sweetgirl.croissant.monthlyreport.service.MonthlyReportCourseAggregationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportGenerationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportNotificationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPublicationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportQueryService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportRecordAggregationService;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportSourceReader;
 
 @Tag("lab")
 @EnabledIfEnvironmentVariable(named = "MONTHLY_REPORT_TEST_JDBC_URL", matches = ".+")
@@ -65,6 +67,7 @@ class MonthlyReportBreadAggregationTest {
 	private MonthlyReportRepository repository;
 	private MonthlyReportBreadAggregationService aggregation;
 	private BreadRecordTagRepository tagRepository;
+	private MonthlyReportSourceReader sourceReader;
 
 	@BeforeAll
 	void setUp() {
@@ -80,6 +83,12 @@ class MonthlyReportBreadAggregationTest {
 			new ClassPathResource("db/migration/V20261001170000__add_bread_photo_reference.sql"),
 			new ClassPathResource("db/migration/V20261001170100__link_monthly_report_bread_photos.sql"))
 			.execute(source);
+		ResourceDatabasePopulator historyMigration = new ResourceDatabasePopulator(new ClassPathResource(
+			"db/migration/V20261001190000__create_monthly_report_source_history.sql"));
+		historyMigration.setSeparator(ScriptUtils.EOF_STATEMENT_SEPARATOR);
+		new TransactionTemplate(new DataSourceTransactionManager(source))
+			.executeWithoutResult(status -> historyMigration.execute(source));
+		jdbc.update("UPDATE monthly_report_history_coverage SET covered_from = '2025-12-01'");
 		factory = new LocalContainerEntityManagerFactoryBean();
 		factory.setDataSource(source);
 		// 빵로그 엔티티가 참조하는 회원·가게 등도 매핑하되 테스트용 원천 테이블만 생성한다.
@@ -93,7 +102,9 @@ class MonthlyReportBreadAggregationTest {
 		var repositories = new JpaRepositoryFactory(entityManager);
 		repository = repositories.getRepository(MonthlyReportRepository.class);
 		tagRepository = repositories.getRepository(BreadRecordTagRepository.class);
-		aggregation = new MonthlyReportBreadAggregationService(tagRepository);
+		sourceReader = new MonthlyReportSourceReader(
+			repositories.getRepository(MonthlyReportSourceHistoryRepository.class), new ObjectMapper());
+		aggregation = new MonthlyReportBreadAggregationService(sourceReader);
 	}
 
 	@AfterAll
@@ -107,6 +118,16 @@ class MonthlyReportBreadAggregationTest {
 		if (rootJdbc != null) {
 			rootJdbc.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
 		}
+	}
+
+	private void changesBeforeMonthEnd() {
+		jdbc.update("UPDATE monthly_report_source_history SET recorded_at = '2025-12-31 23:59:59'");
+		entityManager.clear();
+	}
+
+	private MonthlyReportBreadAggregationService.Result aggregateBeforePublication() {
+		changesBeforeMonthEnd();
+		return aggregation.aggregate(123L, MONTH);
 	}
 
 	private MonthlyReportResponse readReport(MonthlyReportQueryService query) {
@@ -148,13 +169,12 @@ class MonthlyReportBreadAggregationTest {
 				INSERT INTO bread_record_tag (id, record_id, photo_id, name, bread_category)
 				SELECT id, id, id, '소금빵', '소금빵' FROM bread_record WHERE id BETWEEN 105 AND 108
 				""");
-		BreadRecordRepository records = new JpaRepositoryFactory(entityManager)
-			.getRepository(BreadRecordRepository.class);
+		changesBeforeMonthEnd();
 		try (var validation = Validation.buildDefaultValidatorFactory()) {
 			MonthlyReportPayloadCodec codec = new MonthlyReportPayloadCodec(new ObjectMapper(),
 				validation.getValidator());
 			MonthlyReportRecordAggregationService service = new MonthlyReportRecordAggregationService(
-				records, repository, codec);
+				sourceReader, repository, codec);
 			assertThat(service.aggregate(901L, MONTH))
 				.isEqualTo(new MonthlyReportRecordAggregationService.Result(6, 5, null));
 			assertThat(service.aggregate(999L, MONTH))
@@ -165,12 +185,11 @@ class MonthlyReportBreadAggregationTest {
 		assertThat(breads.photoSources().get("소금빵").recordId()).isEqualTo(106);
 		assertThat(tagRepository.findMonthlyReportPhotoTags(901L,
 			Set.of(breads.photoSources().get("소금빵").photoReferenceId()), Set.of())).isEmpty();
-		// 실제 삭제 경로처럼 태그·사진 행이 사라지면 기록 수는 남지만 빵 종류는 복원할 수 없다.
+		// 실제 삭제 경로처럼 원본 태그·사진이 사라져도 월말 이력은 남는다.
 		jdbc.update("DELETE FROM bread_record_tag WHERE record_id IN (105, 106)");
 		jdbc.update("DELETE FROM bread_record_photo WHERE record_id IN (105, 106)");
 		entityManager.clear();
-		assertThatThrownBy(() -> aggregation.aggregate(901L, MONTH)).isInstanceOf(CustomException.class)
-			.hasFieldOrPropertyWithValue("errorCode", MonthlyReportErrorCode.SOURCE_HISTORY_UNAVAILABLE);
+		assertThat(aggregation.aggregate(901L, MONTH).total()).isEqualTo(2);
 	}
 
 	@Test
@@ -199,41 +218,40 @@ class MonthlyReportBreadAggregationTest {
 				(209, 207, 18, '2025-12-31 23:59:59', '2026-01-01'),
 				(210, 206, 19, '2026-01-01', NULL)
 				""");
-		JpaRepositoryFactory repositories = new JpaRepositoryFactory(entityManager);
-		MonthlyReportCourseAggregationService service = new MonthlyReportCourseAggregationService(
-			repositories.getRepository(CourseRepository.class),
-			repositories.getRepository(CourseStoreRepository.class));
-		MonthlyReportCourseAggregationService.Result result = service.aggregate(777L, MONTH);
+		jdbc.update("INSERT INTO store_plan (member_id, store_id, created_at) VALUES (777, 11, '2025-12-01')");
+		changesBeforeMonthEnd();
+		MonthlyReportSourceSnapshot result = sourceReader.read(777L, MONTH);
 		assertThat(result.courses()).isEqualTo(3);
 		assertThat(result.plannedStoreIds()).containsExactlyInAnyOrder(11L, 12L, 18L);
-		assertThat(result.countPlannedStoresWith(Set.of(11L, 20L))).isEqualTo(4);
-		assertThat(service.aggregate(778L, MONTH).plannedStoreIds()).containsExactly(14L);
-		assertThat(service.aggregate(999L, MONTH).courses()).isZero();
-		assertThat(service.aggregate(999L, MONTH).plannedStoreIds()).isEmpty();
+		assertThat(sourceReader.read(778L, MONTH).plannedStoreIds()).containsExactly(14L);
+		assertThat(sourceReader.read(999L, MONTH).courses()).isZero();
+		assertThat(sourceReader.read(999L, MONTH).plannedStoreIds()).isEmpty();
 	}
 
 	@Test
 	void aggregatesRealTagsThenKeepsPublishedCountsAndPhotoChoiceAfterDeletion() throws Exception {
 		// 같은 로그의 다른 종류가 최고였던 빵이어도 소금빵 사진의 우선순위에는 영향을 주지 않는다.
 		jdbc.update("INSERT INTO bread_record_loved_bread VALUES (1, 0, '베이글')");
-		var result = aggregation.aggregate(123L, MONTH);
+		var result = aggregateBeforePublication();
 		assertThat(result.total()).isEqualTo(9);
 		assertThat(result.uncategorized()).isEqualTo(2);
 		assertThat(result.breads()).containsExactly(
-			new MonthlyReportResponse.Bread("소금빵", 5L, "first-photo-640"),
-			new MonthlyReportResponse.Bread("베이글", 1L, "old-salt"),
-			new MonthlyReportResponse.Bread("식빵", 1L, "old-salt"));
+			new MonthlyReportResponse.Bread("소금빵", 5L, null),
+			new MonthlyReportResponse.Bread("베이글", 1L, null),
+			new MonthlyReportResponse.Bread("식빵", 1L, null));
 		assertThat(aggregation.aggregate(789L, MONTH).breads()).isEmpty();
-		assertThat(aggregation.aggregate(123L, "2025-10").total()).isZero();
+		assertThatThrownBy(() -> aggregation.aggregate(123L, "2025-10")).isInstanceOf(CustomException.class)
+			.hasFieldOrPropertyWithValue("errorCode", MonthlyReportErrorCode.SOURCE_HISTORY_UNAVAILABLE);
 		jdbc.update("INSERT INTO bread_record_loved_bread VALUES (1, 1, '소금빵')");
-		result = aggregation.aggregate(123L, MONTH);
-		assertThat(result.breads().get(0).imageKey()).isEqualTo("old-salt");
+		result = aggregateBeforePublication();
+		assertThat(result.photoSources().get("소금빵").recordId()).isEqualTo(1);
 		// 같은 종류에 최고였던 빵이 여럿이면 그중 최신 기록을 사용한다. 다른 이름의 태그도 분류로 묶는다.
 		jdbc.update("INSERT INTO bread_record_loved_bread VALUES (2, 0, '버터소금빵')");
-		result = aggregation.aggregate(123L, MONTH);
-		assertThat(result.breads().get(0).imageKey()).isEqualTo("newer-salt");
+		result = aggregateBeforePublication();
+		assertThat(result.photoSources().get("소금빵").recordId()).isEqualTo(2);
 		jdbc.update("UPDATE bread_record SET loved_bread = '소금빵' WHERE id = 3");
-		assertThat(aggregation.aggregate(123L, MONTH).breads().get(0).imageKey()).isEqualTo("first-photo-640");
+		assertThat(aggregateBeforePublication().photoSources().get("소금빵").photoReferenceId())
+			.isEqualTo(jdbc.queryForObject("SELECT reference_id FROM bread_record_photo WHERE id = 4", UUID.class));
 		jdbc.update("UPDATE bread_record SET loved_bread = NULL WHERE id = 3");
 
 		var reader = mock(MemberReader.class);
@@ -243,11 +261,12 @@ class MonthlyReportBreadAggregationTest {
 		try (var validation = Validation.buildDefaultValidatorFactory()) {
 			var codec = new MonthlyReportPayloadCodec(mapper, validation.getValidator());
 			var publication = new MonthlyReportPublicationService(reader, repository, codec, notifications);
-			var records = new MonthlyReportRecordAggregationService(
-				new JpaRepositoryFactory(entityManager).getRepository(BreadRecordRepository.class), repository, codec);
-			var generation = new MonthlyReportGenerationService(repository, codec, aggregation, records, publication);
+			var records = new MonthlyReportRecordAggregationService(sourceReader, repository, codec);
+			var generation = new MonthlyReportGenerationService(repository, codec, aggregation, records, publication,
+				sourceReader);
 			var draft = codec.read(PAYLOAD, 123L, MONTH);
 			var metrics = mapper.createObjectNode().put("records", 12);
+			changesBeforeMonthEnd();
 			entityManager.getTransaction().begin();
 			assertThat(generation.publishFromDraft(draft, metrics, "test-v1")).isTrue();
 			entityManager.getTransaction().commit();

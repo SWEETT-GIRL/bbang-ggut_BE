@@ -16,16 +16,6 @@ import sweetgirl.croissant.course.enums.CourseType;
 
 public interface CourseRepository extends JpaRepository<Course, Long> {
 
-	/** 해당 월에 생성했고 월말에도 남은 본인 소유 코스. 공개 여부와 공동 편집자는 집계에 영향을 주지 않는다. */
-	@Query("""
-			SELECT COUNT(course.id) FROM Course course
-			WHERE course.member.id = :memberId
-			AND course.createdAt >= :from AND course.createdAt < :to
-			AND (course.deletedAt IS NULL OR course.deletedAt >= :to)
-			""")
-	long countMonthlyReportCourses(@Param("memberId") Long memberId,
-			@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
-
 	/**
 	 * 공개 목록에 세울 코스. 가게가 2곳 미만이면 뺀다.
 	 *

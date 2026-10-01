@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -31,7 +32,7 @@ import sweetgirl.croissant.monthlyreport.entity.MonthlyReportSourceHistory;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportSourceHistoryRepository;
 
 @Service
-@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ, propagation = Propagation.REQUIRES_NEW)
 public class MonthlyReportSourceReader {
 
 	private final MonthlyReportSourceHistoryRepository repository;

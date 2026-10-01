@@ -63,38 +63,6 @@ public interface BreadRecordTagRepository extends JpaRepository<BreadRecordTag, 
 			@Param("from") LocalDateTime from,
 			@Param("to") LocalDateTime to);
 
-	/** 월말 이후 삭제로 태그가 사라진 기록은 당시 빵 수를 0으로 추정할 수 없다. */
-	@Query("""
-			SELECT COUNT(record.id) FROM BreadRecord record
-			WHERE record.member.id = :memberId
-			AND record.eatenAt >= :from AND record.eatenAt < :to
-			AND record.createdAt < :to AND record.deletedAt >= :to
-			AND NOT EXISTS (SELECT tag.id FROM BreadRecordTag tag WHERE tag.record.id = record.id)
-			""")
-	long countMonthlyReportDeletedRecordsWithoutTags(@Param("memberId") Long memberId,
-			@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
-
-	/** 월간 보고서의 종류별 집계와 대표 사진 선택. 사진·기록·메뉴 분류를 한 번에 읽는다. */
-	@Query("""
-			SELECT tag
-			FROM BreadRecordTag tag
-			JOIN FETCH tag.record record
-			JOIN FETCH tag.photo photo
-			LEFT JOIN FETCH tag.menu menu
-			LEFT JOIN FETCH menu.menuCategory
-			WHERE record.member.id = :memberId
-			AND record.createdAt < :to
-			AND (record.deletedAt IS NULL OR record.deletedAt >= :to)
-			AND record.eatenAt >= :from AND record.eatenAt < :to
-			AND photo.record.id = record.id
-			ORDER BY CASE WHEN tag.name MEMBER OF record.lovedBreads OR tag.name = record.lovedBread THEN 0 ELSE 1 END,
-				record.eatenAt DESC, record.id DESC, photo.sortOrder, photo.id, tag.id
-			""")
-	List<BreadRecordTag> findMonthlyReportTags(
-			@Param("memberId") Long memberId,
-			@Param("from") LocalDateTime from,
-			@Param("to") LocalDateTime to);
-
 	/** 보고서에 선택된 사진의 현재 태그만 확인한다. 발행 당시 횟수와 순위를 재집계하지 않는다. */
 	@Query("""
 			SELECT tag

@@ -1,14 +1,17 @@
 package sweetgirl.croissant.monthlyreport;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.MONTH;
 import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.PAYLOAD;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -19,24 +22,25 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
-import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
-import sweetgirl.croissant.breadlog.repository.BreadRecordRepository.MonthlyRecordCounts;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
+import sweetgirl.croissant.monthlyreport.dto.MonthlyReportSourceSnapshot;
+import sweetgirl.croissant.monthlyreport.dto.MonthlyReportSourceSnapshot.RecordState;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMember;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportRecordAggregationService;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportSourceReader;
 
 class MonthlyReportRecordAggregationServiceTest {
 
 	private static final ValidatorFactory FACTORY = Validation.buildDefaultValidatorFactory();
-	private final BreadRecordRepository records = mock(BreadRecordRepository.class);
+	private final MonthlyReportSourceReader sourceReader = mock(MonthlyReportSourceReader.class);
 	private final MonthlyReportRepository reports = mock(MonthlyReportRepository.class);
 	private final MonthlyReportPayloadCodec codec = new MonthlyReportPayloadCodec(new ObjectMapper(),
 		FACTORY.getValidator());
 	private final MonthlyReportRecordAggregationService service = new MonthlyReportRecordAggregationService(
-		records, reports, codec);
+		sourceReader, reports, codec);
 
 	@AfterAll
 	static void closeValidator() {
@@ -44,10 +48,14 @@ class MonthlyReportRecordAggregationServiceTest {
 	}
 
 	private void currentCounts() {
-		MonthlyRecordCounts counts = mock(MonthlyRecordCounts.class);
-		given(counts.getRecords()).willReturn(6L);
-		given(counts.getStores()).willReturn(5L);
-		given(records.countMonthlyReportRecords(eq(123L), any(), any())).willReturn(counts);
+		LocalDateTime time = LocalDateTime.of(2025, 12, 1, 0, 0);
+		List<RecordState> records = new ArrayList<>();
+		Long[] stores = {11L, 11L, null, null, 12L, 13L};
+		for (int i = 0; i < stores.length; i++) {
+			records.add(new RecordState((long)i + 1, stores[i], null, time, time, null, null, List.of()));
+		}
+		given(sourceReader.read(123L, MONTH)).willReturn(new MonthlyReportSourceSnapshot(time, records,
+			List.of(), Map.of(), Set.of(), Set.of(), 0));
 	}
 
 	@Test

@@ -1,10 +1,8 @@
 package sweetgirl.croissant.course.repository;
 
-import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -14,18 +12,6 @@ import sweetgirl.croissant.course.dto.projection.CourseStoreSummaryProjection;
 import sweetgirl.croissant.course.entity.CourseStore;
 
 public interface CourseStoreRepository extends JpaRepository<CourseStore, Long> {
-
-	/** 소유자의 코스에 해당 월 추가해 월말에도 남은 가게. 여러 코스의 같은 가게는 한 번만 반환한다. */
-	@Query("""
-			SELECT DISTINCT cs.store.id FROM CourseStore cs
-			JOIN cs.course course
-			WHERE course.member.id = :memberId
-			AND course.createdAt < :to AND (course.deletedAt IS NULL OR course.deletedAt >= :to)
-			AND cs.createdAt >= :from AND cs.createdAt < :to
-			AND (cs.deletedAt IS NULL OR cs.deletedAt >= :to)
-			""")
-	Set<Long> findMonthlyReportPlannedStoreIds(@Param("memberId") Long memberId,
-			@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
 	/**
 	 * 한 코스의 활성 정류장. 상세 조회와 가게 추가·순서 변경 같은 쓰기 경로가 같이 쓰므로 Store 를 fetch 하지 않는다 —

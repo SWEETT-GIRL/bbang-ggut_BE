@@ -21,6 +21,7 @@ import sweetgirl.croissant.monthlyreport.service.MonthlyReportGenerationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPublicationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportRecordAggregationService;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportSourceReader;
 
 class MonthlyReportGenerationServiceTest {
 
@@ -28,6 +29,7 @@ class MonthlyReportGenerationServiceTest {
 	void publishedMonthDoesNotReadBreadLogsOrRequestPublicationAgain() {
 		var repository = mock(MonthlyReportRepository.class);
 		var aggregation = mock(MonthlyReportBreadAggregationService.class);
+		var sourceReader = mock(MonthlyReportSourceReader.class);
 		var records = mock(MonthlyReportRecordAggregationService.class);
 		var publication = mock(MonthlyReportPublicationService.class);
 		given(repository.findById(new MonthlyReportMemberId(123L, MONTH)))
@@ -35,10 +37,11 @@ class MonthlyReportGenerationServiceTest {
 		var mapper = new ObjectMapper();
 		try (var validation = Validation.buildDefaultValidatorFactory()) {
 			var codec = new MonthlyReportPayloadCodec(mapper, validation.getValidator());
-			var generation = new MonthlyReportGenerationService(repository, codec, aggregation, records, publication);
+			var generation = new MonthlyReportGenerationService(repository, codec, aggregation, records, publication,
+				sourceReader);
 			assertThat(generation.publishFromDraft(codec.read(PAYLOAD, 123L, MONTH),
 				mapper.createObjectNode().put("records", 12), "test-v2")).isFalse();
-			verifyNoInteractions(aggregation, records, publication);
+			verifyNoInteractions(aggregation, records, publication, sourceReader);
 		}
 	}
 }

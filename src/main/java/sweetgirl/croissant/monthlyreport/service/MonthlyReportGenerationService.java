@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
@@ -12,15 +11,15 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
+import sweetgirl.croissant.monthlyreport.dto.MonthlyReportSourceSnapshot;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMember;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 import sweetgirl.croissant.monthlyreport.enums.MonthlyReportStatus;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 
-/** 초안에 기록·빵집·빵 종류·전월 비교를 채워 발행한다. 대상 회원 순회와 나머지 집계는 배치 책임이다. */
+/** 초안에 월말 이력의 기록·빵·저장·계획·코스와 전월 비교를 채워 발행한다. 대상 회원 순회와 나머지 집계는 배치 책임이다. */
 @Service
 @RequiredArgsConstructor
-@Transactional
 public class MonthlyReportGenerationService {
 
 	private final MonthlyReportRepository repository;
@@ -28,6 +27,7 @@ public class MonthlyReportGenerationService {
 	private final MonthlyReportBreadAggregationService breadAggregationService;
 	private final MonthlyReportRecordAggregationService recordAggregationService;
 	private final MonthlyReportPublicationService publicationService;
+	private final MonthlyReportSourceReader sourceReader;
 
 	public boolean publishFromDraft(MonthlyReportResponse draft, ObjectNode rawMetrics, String calculationVersion) {
 		if (draft == null || rawMetrics == null || rawMetrics.isEmpty()) {
@@ -39,11 +39,17 @@ public class MonthlyReportGenerationService {
 		if (existing.isPresent() && existing.get().getStatus() == MonthlyReportStatus.PUBLISHED) {
 			return false;
 		}
+		MonthlyReportSourceSnapshot source = sourceReader.read(draft.memberId(), draft.yearMonth());
 		MonthlyReportRecordAggregationService.Result records = recordAggregationService.aggregate(
-			draft.memberId(), draft.yearMonth());
-		MonthlyReportBreadAggregationService.Result breads = breadAggregationService.aggregate(
-			draft.memberId(), draft.yearMonth());
+			draft.memberId(), draft.yearMonth(), source);
+		MonthlyReportBreadAggregationService.Result breads = breadAggregationService.aggregate(source);
+		MonthlyReportResponse.Stores stores = new MonthlyReportResponse.Stores(draft.stores().viewed(),
+			(long)source.savedStoreIds().size(), (long)source.plannedStoreIds().size(), source.courses());
 		ObjectNode metrics = rawMetrics.deepCopy();
+		metrics.putObject("sourceHistory").put("version", "source-history-v1")
+			.put("coveredFrom", source.coveredFrom().toString());
+		metrics.putObject("storeAggregation").put("version", "retained-relations-v1")
+			.put("saved", stores.saved()).put("planned", stores.planned()).put("courses", stores.courses());
 		metrics.putObject("recordAggregation")
 			.put("version", MonthlyReportRecordAggregationService.VERSION)
 			.put("records", records.records()).put("stores", records.stores())
@@ -54,9 +60,11 @@ public class MonthlyReportGenerationService {
 			.put("photoSelection", "loved-then-latest-eaten")
 			.put("totalTags", breads.total()).put("uncategorizedTags", breads.uncategorized());
 		ObjectNode sources = metrics.putObject("breadPhotoSources");
-		breads.photoSources().forEach((name, source) -> sources.putObject(name)
-			.put("recordId", source.recordId()).put("photoReferenceId", source.photoReferenceId().toString()));
-		return publicationService.publish(draft.memberId(), draft.yearMonth(), breads.applyTo(records.applyTo(draft)),
+		breads.photoSources().forEach((name, photoSource) -> sources.putObject(name)
+			.put("recordId", photoSource.recordId())
+			.put("photoReferenceId", photoSource.photoReferenceId().toString()));
+		return publicationService.publish(draft.memberId(), draft.yearMonth(),
+			breads.applyTo(records.applyTo(draft)).withStores(stores),
 			metrics,
 			calculationVersion, Instant.now());
 	}

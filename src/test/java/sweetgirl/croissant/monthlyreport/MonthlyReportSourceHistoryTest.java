@@ -2,7 +2,10 @@ package sweetgirl.croissant.monthlyreport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.MONTH;
+import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.PAYLOAD;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -28,12 +31,25 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
+import jakarta.validation.Validation;
+import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
 import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.menu.enums.MenuKind;
 import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
+import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportSourceSnapshot;
 import sweetgirl.croissant.monthlyreport.enums.MonthlyReportSourceType;
+import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportSourceHistoryRepository;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportBreadAggregationService;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportGenerationService;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportNotificationService;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportPublicationService;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportQueryService;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportRecordAggregationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportSourceReader;
 
 @Tag("lab")
@@ -183,6 +199,67 @@ class MonthlyReportSourceHistoryTest {
 			.filter(history -> history.getSourceType() == MonthlyReportSourceType.STORE_PLAN
 				|| history.getSourceType() == MonthlyReportSourceType.COURSE))
 			.hasSize(2);
+	}
+
+	@Test
+	void publishesHistoricalCountsAfterSourceDeletionAndHidesDeletedPhoto() {
+		historyBeforeMonthEnd();
+		transactions.executeWithoutResult(status -> {
+			jdbc.update("DELETE FROM bread_record_tag WHERE record_id = 3");
+			jdbc.update("DELETE FROM bread_record_photo WHERE record_id = 3");
+			jdbc.update("UPDATE bread_record SET deleted_at = '2026-01-01 00:10:00' WHERE id = 3");
+			jdbc.update("DELETE FROM saved_stores WHERE id = 1");
+			jdbc.update("DELETE FROM store_plan WHERE member_id = 123");
+			jdbc.update("UPDATE courses SET deleted_at = '2026-01-01 00:10:00' WHERE id = 201");
+		});
+		changesAfterMonthEnd();
+		JpaRepositoryFactory repositories = new JpaRepositoryFactory(entityManager);
+		MonthlyReportRepository reports = repositories.getRepository(MonthlyReportRepository.class);
+		MemberReader memberReader = mock(MemberReader.class);
+		given(memberReader.getMember(123L)).willReturn(new Member("현재 이름"));
+		try (var validation = Validation.buildDefaultValidatorFactory()) {
+			MonthlyReportPayloadCodec codec = new MonthlyReportPayloadCodec(new ObjectMapper(),
+				validation.getValidator());
+			MonthlyReportPublicationService publication = new MonthlyReportPublicationService(memberReader,
+				reports, codec, mock(MonthlyReportNotificationService.class));
+			MonthlyReportGenerationService generation = new MonthlyReportGenerationService(reports, codec,
+				new MonthlyReportBreadAggregationService(reader),
+				new MonthlyReportRecordAggregationService(reader, reports, codec), publication, reader);
+			entityManager.getTransaction().begin();
+			assertThat(generation.publishFromDraft(codec.read(PAYLOAD, 123L, MONTH),
+				new ObjectMapper().createObjectNode().put("test", true), "history-test-v1")).isTrue();
+			entityManager.getTransaction().commit();
+			entityManager.clear();
+			MonthlyReportQueryService query = new MonthlyReportQueryService(memberReader, reports, codec,
+				repositories.getRepository(BreadRecordTagRepository.class));
+			MonthlyReportResponse report = query.getReport(123L, MONTH);
+			assertThat(report.summary()).isEqualTo(new MonthlyReportResponse.Summary(3L, 9L, 3L));
+			assertThat(report.stores().saved()).isEqualTo(1);
+			assertThat(report.stores().planned()).isEqualTo(2);
+			assertThat(report.stores().courses()).isEqualTo(1);
+			assertThat(report.breads().get(0)).isEqualTo(new MonthlyReportResponse.Bread("소금빵", 5L, null));
+		}
+	}
+
+	@Test
+	void appliesRemovalAndReadditionBeforeMonthEndAndLeavesOldMonthUntouched() {
+		historyBeforeMonthEnd();
+		transactions.executeWithoutResult(status -> {
+			jdbc.update("DELETE FROM saved_stores WHERE id = 1");
+			jdbc.update(
+				"INSERT INTO saved_stores (id, member_id, store_id, created_at) VALUES (3, 123, 11, '2025-12-31')");
+			jdbc.update("DELETE FROM store_plan WHERE member_id = 123");
+			jdbc.update("INSERT INTO store_plan (member_id, store_id, created_at) VALUES (123, 14, '2025-12-31')");
+		});
+		jdbc.update("UPDATE monthly_report_source_history SET recorded_at = '2025-12-31 23:59:59' WHERE id > ?",
+			baselineId);
+		entityManager.clear();
+		MonthlyReportSourceSnapshot source = reader.read(123L, MONTH);
+		assertThat(source.savedStoreIds()).containsExactly(11L);
+		assertThat(source.plannedStoreIds()).containsExactlyInAnyOrder(11L, 13L, 14L);
+		jdbc.update("DELETE FROM saved_stores WHERE id = 3");
+		entityManager.clear();
+		assertThat(reader.read(123L, MONTH)).isEqualTo(source);
 	}
 
 	@Test
