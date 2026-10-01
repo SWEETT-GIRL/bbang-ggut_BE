@@ -90,9 +90,9 @@ public class SecurityConfig {
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/stores/\\d+/menus(\\?.*)?$"),
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/stores/\\d+/reviews(\\?.*)?$"),
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/stores/\\d+/bread-records(\\?.*)?$"),
-				// 빵집 랭킹과 가게의 빵 평가는 회원과 무관한 전역 콘텐츠다 (/bread-rankings/me/** 는 숫자가 아니라 안 열린다)
+				// 빵집 랭킹과 가게의 빵 평가는 회원과 무관한 전역 콘텐츠다 (/bread-rankings/me/** 는 boards 가 아니라 안 열린다)
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/stores/\\d+/bread-ratings(\\?.*)?$"),
-				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/bread-rankings/\\d+(\\?.*)?$"),
+				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/bread-rankings/boards/\\d+(\\?.*)?$"),
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/menus/\\d+(\\?.*)?$"),
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/menus/\\d+/reviews(\\?.*)?$"),
 				RegexRequestMatcher.regexMatcher(HttpMethod.GET, "^/menus/\\d+/reviews/summary(\\?.*)?$"),

@@ -63,7 +63,7 @@ class BreadBoardControllerTest {
 			new BreadBoardEntryResponse(1, new StoreSummaryResponse(10L, "밀도 성수", null, "서울 성동구 성수동"), 5, 0.75,
 				new Chip("겉바속촉", "겉바속촉"), 1, false))));
 
-		mockMvc.perform(get("/bread-rankings/1").param("limit", "10"))
+		mockMvc.perform(get("/bread-rankings/boards/1").param("limit", "10"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.totalVotes").value(8))
 			.andExpect(jsonPath("$.data.entries[0].rank").value(1))
@@ -77,7 +77,7 @@ class BreadBoardControllerTest {
 	void getBoard_notOpen_returns200() throws Exception {
 		given(boardQueryService.getBoard(1L, null)).willReturn(new BreadBoardResponse(SALT, 2, 3, 1, List.of()));
 
-		mockMvc.perform(get("/bread-rankings/1"))
+		mockMvc.perform(get("/bread-rankings/boards/1"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.missingVotes").value(1))
 			.andExpect(jsonPath("$.data.entries").isEmpty());
