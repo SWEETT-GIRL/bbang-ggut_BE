@@ -1,5 +1,7 @@
 package sweetgirl.croissant.monthlyreport.dto;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -32,8 +34,8 @@ public record MonthlyReportResponse(
 
 	public MonthlyReportResponse {
 		// 불변 스냅샷이 호출자의 리스트 변경으로 달라지지 않게 한다. null 항목은 검증기가 거절한다.
-		breads = breads == null ? null : java.util.Collections.unmodifiableList(new java.util.ArrayList<>(breads));
-		towns = towns == null ? null : java.util.Collections.unmodifiableList(new java.util.ArrayList<>(towns));
+		breads = breads == null ? null : Collections.unmodifiableList(new ArrayList<>(breads));
+		towns = towns == null ? null : Collections.unmodifiableList(new ArrayList<>(towns));
 	}
 
 	public MonthlyReportResponse withBreads(List<Bread> visibleBreads) {
@@ -63,6 +65,7 @@ public record MonthlyReportResponse(
 			@NotNull @Min(0) @Max(MAX_SAFE_INTEGER) Long courses) {
 	}
 
+	/** 발행 스냅샷에 담긴 빵 종류별 집계 항목: 표시 이름, 집계 횟수, 대표 사진 키. */
 	public record Bread(
 			@NotBlank @Size(max = 100) String name,
 			@NotNull @Min(1) @Max(MAX_SAFE_INTEGER) Long count,
