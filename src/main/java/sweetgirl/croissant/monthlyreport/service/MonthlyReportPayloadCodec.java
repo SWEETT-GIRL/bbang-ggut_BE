@@ -62,11 +62,11 @@ public class MonthlyReportPayloadCodec {
 			return Map.of();
 		}
 		try {
-			var root = mapper.readTree(rawMetrics);
+			JsonNode root = mapper.readTree(rawMetrics);
 			if (root == null || !root.isObject()) {
 				throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
 			}
-			var sources = root.get("breadPhotoSources");
+			JsonNode sources = root.get("breadPhotoSources");
 			if (sources == null) {
 				return Map.of();
 			}
@@ -75,7 +75,7 @@ public class MonthlyReportPayloadCodec {
 			}
 			Map<String, MonthlyReportPhotoSource> result = new HashMap<>();
 			for (Map.Entry<String, JsonNode> field : sources.properties()) {
-				var source = mapper.treeToValue(field.getValue(), MonthlyReportPhotoSource.class);
+				MonthlyReportPhotoSource source = mapper.treeToValue(field.getValue(), MonthlyReportPhotoSource.class);
 				if (field.getKey().isBlank() || field.getKey().length() > 100 || source == null
 					|| !validator.validate(source).isEmpty()) {
 					throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
@@ -95,7 +95,7 @@ public class MonthlyReportPayloadCodec {
 			|| response.towns().stream().anyMatch(town -> town.region() != null && town.region().isBlank())) {
 			throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
 		}
-		var abilities = response.activity().abilities();
+		MonthlyReportResponse.Abilities abilities = response.activity().abilities();
 		if (abilities != null) {
 			long sum = abilities.values().stream().mapToLong(MonthlyReportResponse.Ability::score).sum();
 			if (sum > MonthlyReportResponse.MAX_SAFE_INTEGER
@@ -104,7 +104,7 @@ public class MonthlyReportPayloadCodec {
 				throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
 			}
 		}
-		var artwork = response.activity().artwork();
+		MonthlyReportResponse.Artwork artwork = response.activity().artwork();
 		if (artwork != null && (!artwork.characterCode().equals(response.character().code())
 			|| !artwork.planetCode().equals(response.planet().code())
 			|| !artwork.type().equals(response.activity().type()))) {

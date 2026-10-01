@@ -1,5 +1,6 @@
 package sweetgirl.croissant.monthlyreport.service;
 
+import java.time.YearMonth;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -11,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.breadlog.entity.BreadRecordPhoto;
+import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportPhotoSource;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
@@ -26,14 +28,14 @@ public class MonthlyReportBreadAggregationService {
 	private final BreadRecordTagRepository tagRepository;
 
 	public Result aggregate(Long memberId, String yearMonth) {
-		var month = MonthlyReportMonth.parse(yearMonth);
-		var tags = tagRepository.findMonthlyReportTags(memberId,
+		YearMonth month = MonthlyReportMonth.parse(yearMonth);
+		List<BreadRecordTag> tags = tagRepository.findMonthlyReportTags(memberId,
 			month.atDay(1).atStartOfDay(), month.plusMonths(1).atDay(1).atStartOfDay());
 		Map<String, Long> counts = new HashMap<>();
 		Map<String, String> images = new HashMap<>();
 		Map<String, MonthlyReportPhotoSource> sources = new HashMap<>();
 		long uncategorized = 0;
-		for (var tag : tags) {
+		for (BreadRecordTag tag : tags) {
 			if (tag.uncategorized()) {
 				uncategorized++;
 				continue;

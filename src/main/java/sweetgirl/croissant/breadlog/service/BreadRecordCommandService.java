@@ -369,11 +369,12 @@ public class BreadRecordCommandService {
 		Map<String, BreadRecordPhoto> resolved = new HashMap<>();
 		Set<String> requestedKeys = new HashSet<>();
 		Set<BreadRecordPhoto> usedOriginals = new HashSet<>();
-		for (var photo : requested) {
+		for (BreadRecordPhotoRequest photo : requested) {
 			if (!requestedKeys.add(photo.awsKey())) {
 				throw new BreadLogException(BreadLogErrorCode.INVALID_PHOTO_REFERENCE);
 			}
-			var matchingKey = originals.stream().filter(original -> original.getAwsKey().equals(photo.awsKey()))
+			BreadRecordPhoto matchingKey = originals.stream()
+				.filter(original -> original.getAwsKey().equals(photo.awsKey()))
 				.findFirst().orElse(null);
 			BreadRecordPhoto original = matchingKey;
 			if (photo.originalPhotoId() != null) {

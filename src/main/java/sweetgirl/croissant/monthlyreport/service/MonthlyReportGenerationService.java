@@ -1,6 +1,7 @@
 package sweetgirl.croissant.monthlyreport.service;
 
 import java.time.Instant;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
+import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMember;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 import sweetgirl.croissant.monthlyreport.enums.MonthlyReportStatus;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
@@ -31,11 +33,13 @@ public class MonthlyReportGenerationService {
 			throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
 		}
 		codec.write(draft, draft.memberId(), draft.yearMonth());
-		var existing = repository.findById(new MonthlyReportMemberId(draft.memberId(), draft.yearMonth()));
+		Optional<MonthlyReportMember> existing = repository.findById(
+			new MonthlyReportMemberId(draft.memberId(), draft.yearMonth()));
 		if (existing.isPresent() && existing.get().getStatus() == MonthlyReportStatus.PUBLISHED) {
 			return false;
 		}
-		var breads = breadAggregationService.aggregate(draft.memberId(), draft.yearMonth());
+		MonthlyReportBreadAggregationService.Result breads = breadAggregationService.aggregate(
+			draft.memberId(), draft.yearMonth());
 		ObjectNode metrics = rawMetrics.deepCopy();
 		metrics.putObject("breadAggregation")
 			.put("version", MonthlyReportBreadAggregationService.VERSION)

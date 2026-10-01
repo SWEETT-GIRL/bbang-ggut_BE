@@ -8,20 +8,24 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.global.response.SliceResponse;
+import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportListItem;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportPhotoSource;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
+import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMember;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository.CurrentPhoto;
+import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository.PublishedReport;
 
 @Service
 @RequiredArgsConstructor
@@ -37,16 +41,16 @@ public class MonthlyReportQueryService {
 		if (page < 0 || size < 1 || size > 100) {
 			throw new CustomException(MonthlyReportErrorCode.INVALID_PAGE);
 		}
-		var reports = repository.findPublished(memberId, PageRequest.of(page, size));
+		Slice<PublishedReport> reports = repository.findPublished(memberId, PageRequest.of(page, size));
 		return SliceResponse.from(reports.map(report -> MonthlyReportListItem.of(
 			report.getYearMonth(), report.getPublishedAt(), new MonthlyReportResponse.Character(
 				report.getCharacterCode(), report.getCharacterName(), report.getCharacterImageKey()))));
 	}
 
 	public MonthlyReportResponse getReport(Long memberId, String yearMonth) {
-		var member = memberReader.getMember(memberId);
+		Member member = memberReader.getMember(memberId);
 		MonthlyReportMonth.parse(yearMonth);
-		var snapshot = repository.findById(new MonthlyReportMemberId(memberId, yearMonth))
+		MonthlyReportMember snapshot = repository.findById(new MonthlyReportMemberId(memberId, yearMonth))
 			.orElseThrow(() -> new CustomException(MonthlyReportErrorCode.NOT_PUBLISHED));
 		switch (snapshot.getStatus()) {
 			case WITHHELD -> throw new CustomException(MonthlyReportErrorCode.NOT_PUBLISHED);
@@ -80,7 +84,7 @@ public class MonthlyReportQueryService {
 		Set<String> visible = keys.isEmpty() ? Set.of() : repository.findVisiblePhotoKeys(report.memberId(), keys);
 		return report.withBreads(report.breads().stream()
 			.map(bread -> {
-				var source = sources.get(bread.name());
+				MonthlyReportPhotoSource source = sources.get(bread.name());
 				String key = source == null
 					? (bread.imageKey() != null && visible.contains(bread.imageKey()) ? bread.imageKey() : null)
 					: currentImageKey(source, current.get(source.photoReferenceId()));
