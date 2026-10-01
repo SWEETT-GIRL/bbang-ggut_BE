@@ -31,7 +31,7 @@ public interface BreadRecordRankingRepository extends Repository<BreadRecord, Lo
 
 	/**
 	 * 빵로그왕 — 비공개 포함 빵로그 수. :weekStart 를 주면 그 뒤에 쓴(created_at) 기록만(이번 주 빵로그왕),
-	 * :sido 를 주면 그 시·도 기록만(내 지역). 동점은 다녀간 빵집 수.
+	 * :sido·:sigungu 를 주면 그 시·군·구 기록만(내 지역 — region_key 첫·둘째 칸이 둘 다 같아야 한다). 동점은 다녀간 빵집 수.
 	 *
 	 * <p>이번 주를 먹은 날(eaten_at)이 아니라 쓴 날로 자르는 이유: 지난 빵을 이번 주 날짜로 적어 몰아 올릴 수 없게.
 	 */
@@ -45,7 +45,9 @@ public interface BreadRecordRankingRepository extends Repository<BreadRecord, Lo
 				FROM bread_record r
 				WHERE r.deleted_at IS NULL
 					AND (CAST(:weekStart AS TIMESTAMP) IS NULL OR r.created_at >= CAST(:weekStart AS TIMESTAMP))
-					AND (CAST(:sido AS VARCHAR) IS NULL OR split_part(r.region_key, '_', 1) = CAST(:sido AS VARCHAR))
+					AND (CAST(:sido AS VARCHAR) IS NULL
+						OR (split_part(r.region_key, '_', 1) = CAST(:sido AS VARCHAR)
+							AND split_part(r.region_key, '_', 2) = CAST(:sigungu AS VARCHAR)))
 				GROUP BY r.member_id
 			)""";
 
@@ -111,6 +113,7 @@ public interface BreadRecordRankingRepository extends Repository<BreadRecord, Lo
 	List<RankingRowProjection> findRecordRanking(
 			@Param("weekStart") LocalDateTime weekStart,
 			@Param("sido") String sido,
+			@Param("sigungu") String sigungu,
 			@Param("viewer") Long viewerId,
 			@Param("lim") int limit);
 

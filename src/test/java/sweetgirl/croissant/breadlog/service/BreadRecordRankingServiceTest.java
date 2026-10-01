@@ -35,7 +35,7 @@ class BreadRecordRankingServiceTest {
 			row(2L, "두쫀쿠", 4, 2, 1),
 			row(ME, "앙버터", 1, 3, 3));
 
-		BreadRecordRankingResponse response = BreadRecordRankingService.assemble(rows, ME, false, 1, null);
+		BreadRecordRankingResponse response = BreadRecordRankingService.assemble(rows, ME, false, 1, null, null);
 
 		assertThat(response.entries()).extracting(BreadRecordRankingResponse.Entry::nickname).containsExactly("호떡");
 		assertThat(response.me().rank()).isEqualTo(3L);
@@ -48,9 +48,9 @@ class BreadRecordRankingServiceTest {
 	void edgeCases() {
 		List<RankingRowProjection> rows = List.of(row(ME, "앙버터", 5, 1, 1));
 
-		assertThat(BreadRecordRankingService.assemble(rows, ME, false, 100, null).me().next()).isNull();
-		assertThat(BreadRecordRankingService.assemble(List.of(), ME, false, 100, null).me().rank()).isNull();
-		assertThat(BreadRecordRankingService.assemble(rows, ME, true, 100, null).me()).isNull();
+		assertThat(BreadRecordRankingService.assemble(rows, ME, false, 100, null, null).me().next()).isNull();
+		assertThat(BreadRecordRankingService.assemble(List.of(), ME, false, 100, null, null).me().rank()).isNull();
+		assertThat(BreadRecordRankingService.assemble(rows, ME, true, 100, null, null).me()).isNull();
 	}
 
 	private static RankingRowProjection row(Long memberId, String nickname, long score, long rank, long firstRank) {

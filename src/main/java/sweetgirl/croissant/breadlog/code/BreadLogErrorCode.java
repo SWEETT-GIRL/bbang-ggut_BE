@@ -1,7 +1,6 @@
 package sweetgirl.croissant.breadlog.code;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
-import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.http.HttpStatus.TOO_MANY_REQUESTS;
@@ -31,9 +30,8 @@ public enum BreadLogErrorCode implements BaseErrorCode {
 	PHOTO_TOO_LARGE(BAD_REQUEST, "BREAD_RECORD_PHOTO_TOO_LARGE", "분석할 사진이 너무 큽니다."),
 	PHOTO_ANALYZE_RATE_LIMITED(TOO_MANY_REQUESTS, "BREAD_RECORD_PHOTO_ANALYZE_RATE_LIMITED",
 			"사진 분석 요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요."),
-	INVALID_RANKING_REGION(BAD_REQUEST, "RANKING_INVALID_REGION", "지원하지 않는 지역입니다."),
-	RANKING_REGION_NOT_SET(BAD_REQUEST, "RANKING_REGION_NOT_SET", "내 지역을 먼저 정해 주세요."),
-	RANKING_REGION_LOCKED(CONFLICT, "RANKING_REGION_LOCKED", "지역은 30일에 한 번 바꿀 수 있어요.");
+	INVALID_RANKING_REGION(BAD_REQUEST, "RANKING_INVALID_REGION", "위치를 지역으로 확인하지 못했어요."),
+	RANKING_REGION_NOT_SET(BAD_REQUEST, "RANKING_REGION_NOT_SET", "내 동네를 먼저 인증해 주세요.");
 
 	private final HttpStatus httpStatus;
 	private final String code;

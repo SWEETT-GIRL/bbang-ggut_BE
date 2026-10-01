@@ -13,7 +13,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import sweetgirl.croissant.breadlog.dto.request.RankingRegionUpdateRequest;
+import sweetgirl.croissant.breadlog.dto.request.RankingRegionVerifyRequest;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordRankingResponse;
 import sweetgirl.croissant.breadlog.dto.response.RankingRegionResponse;
 import sweetgirl.croissant.breadlog.enums.RankingBoard;
@@ -33,8 +33,8 @@ public class BreadRecordRankingController {
 
 	@Operation(summary = "빵로그 랭킹", description = "board: WEEKLY(이번 주 빵로그왕)·RECORDS(역대 빵로그왕)·"
 		+ "REGIONS(전국 정복왕)·SHARE(공유왕). "
-		+ "scope=LOCAL 이면 저장된 내 지역(시·도) 판이고 WEEKLY·RECORDS 에만 통한다 — 로그인하고 지역을 정했어야 한다. "
-		+ "상위 limit 명(최대 100)과 내 순위, 한 칸 위로 가는 목표를 준다. 게스트는 me 가 null.")
+		+ "scope=LOCAL 이면 인증한 내 지역(시·군·구) 판이고 WEEKLY·RECORDS 에만 통한다 — 로그인하고 위치를 인증했어야 한다"
+		+ "(안 했으면 400 RANKING_REGION_NOT_SET). 상위 limit 명(최대 100)과 내 순위, 한 칸 위로 가는 목표를 준다. 게스트는 me 가 null.")
 	@GetMapping
 	public ResponseEntity<ApiResponse<BreadRecordRankingResponse>> getRanking(
 			@AuthenticationPrincipal Long memberId,
@@ -44,18 +44,21 @@ public class BreadRecordRankingController {
 		return ResponseEntity.ok(ApiResponse.ok(rankingService.getRanking(memberId, board, scope, limit)));
 	}
 
-	@Operation(summary = "랭킹 내 지역 조회", description = "안 골랐으면 sido 가 null. nextChangeableAt 이 null 이면 지금 바꿀 수 있다.")
+	@Operation(summary = "랭킹 내 지역 조회", description = "인증한 시·도·시·군·구와 인증 시각. 아직 안 했으면 전부 null. "
+		+ "sigungu 만 null 이면 시·도만 고르던 때의 값이라 다시 인증해야 내 지역 판을 볼 수 있다.")
 	@GetMapping("/region")
 	public ResponseEntity<ApiResponse<RankingRegionResponse>> getRegion(@AuthenticationPrincipal Long memberId) {
 		return ResponseEntity.ok(ApiResponse.ok(regionService.getRegion(memberId)));
 	}
 
-	@Operation(summary = "랭킹 내 지역 정하기", description = "짧은 시·도(서울·경기…). 30일에 한 번 바꿀 수 있고, "
-		+ "처음 정한 뒤 24시간 안의 한 번은 바로 바꿀 수 있다. 아직 못 바꾸면 409 RANKING_REGION_LOCKED. 게스트는 403.")
+	@Operation(summary = "랭킹 내 지역 인증", description = "지금 있는 곳의 좌표를 보내면 서버가 시·군·구(동대문구·수원시)로 바꿔 저장한다. "
+		+ "어디서든 다시 인증하면 바로 바뀐다 — 잠금 없음. 한국 범위 밖 좌표는 400, 지역을 못 찾으면 400 RANKING_INVALID_REGION, "
+		+ "카카오 장애는 502 KAKAO502_2. 게스트는 403.")
 	@PutMapping("/region")
-	public ResponseEntity<ApiResponse<RankingRegionResponse>> updateRegion(
+	public ResponseEntity<ApiResponse<RankingRegionResponse>> verifyRegion(
 			@AuthenticationPrincipal Long memberId,
-			@Valid @RequestBody RankingRegionUpdateRequest request) {
-		return ResponseEntity.ok(ApiResponse.ok(regionService.updateRegion(memberId, request.sido())));
+			@Valid @RequestBody RankingRegionVerifyRequest request) {
+		return ResponseEntity.ok(ApiResponse.ok(
+			regionService.verifyRegion(memberId, request.latitude(), request.longitude())));
 	}
 }
