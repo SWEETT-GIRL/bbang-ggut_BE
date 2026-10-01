@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.springframework.context.annotation.FilterType.ASSIGNABLE_TYPE;
 import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.MONTH;
 import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.PAYLOAD;
 
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.context.annotation.ComponentScan.Filter;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
@@ -35,6 +37,7 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
+import org.springframework.orm.jpa.persistenceunit.PersistenceManagedTypes;
 import org.springframework.orm.jpa.vendor.HibernateJpaDialect;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -53,10 +56,12 @@ import sweetgirl.croissant.alarm.service.NotificationRecorder;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMember;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 import sweetgirl.croissant.monthlyreport.enums.MonthlyReportStatus;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository.PublishedReport;
+import sweetgirl.croissant.monthlyreport.repository.MonthlyReportSourceHistoryRepository;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportNotificationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPublicationService;
@@ -103,7 +108,7 @@ class MonthlyReportRepositoryTest {
 			.execute(scopedSource);
 		var factory = new LocalContainerEntityManagerFactoryBean();
 		factory.setDataSource(scopedSource);
-		factory.setPackagesToScan("sweetgirl.croissant.monthlyreport.entity");
+		factory.setManagedTypes(PersistenceManagedTypes.of(MonthlyReportMember.class.getName()));
 		factory.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
 		factory.setJpaPropertyMap(Map.of("hibernate.hbm2ddl.auto", "validate", "hibernate.default_schema", schema));
 		factory.afterPropertiesSet();
@@ -404,7 +409,9 @@ class MonthlyReportRepositoryTest {
 
 	@TestConfiguration(proxyBeanMethods = false)
 	@EnableTransactionManagement
-	@EnableJpaRepositories(basePackageClasses = MonthlyReportRepository.class)
+	@EnableJpaRepositories(basePackageClasses = MonthlyReportRepository.class,
+			// 이 테스트의 최소 스키마에는 원천 이력 저장소를 등록하지 않는다.
+			excludeFilters = @Filter(type = ASSIGNABLE_TYPE, classes = MonthlyReportSourceHistoryRepository.class))
 	static class JpaConfig {
 		// 보고서 저장소만 독립적인 JPA 컨텍스트에서 검증한다.
 	}

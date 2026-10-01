@@ -73,3 +73,11 @@ CREATE TABLE courses (
 CREATE TABLE course_stores (
     id bigint PRIMARY KEY, course_id bigint, store_id bigint, created_at timestamp NOT NULL, deleted_at timestamp
 );
+
+CREATE TABLE saved_stores (
+    id bigint PRIMARY KEY, member_id bigint, store_id bigint, created_at timestamp NOT NULL, updated_at timestamp
+);
+CREATE TABLE store_plan (
+    member_id bigint, store_id bigint, created_at timestamp NOT NULL, updated_at timestamp,
+    memo varchar(200), PRIMARY KEY (member_id, store_id)
+);
