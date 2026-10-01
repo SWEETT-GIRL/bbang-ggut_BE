@@ -1,6 +1,7 @@
 package sweetgirl.croissant.monthlyreport.service;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 
@@ -11,6 +12,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
@@ -25,10 +27,11 @@ public class MonthlyReportPublicationService {
 	private final MemberReader memberReader;
 	private final MonthlyReportRepository repository;
 	private final MonthlyReportPayloadCodec codec;
+	private final MonthlyReportNotificationService notificationService;
 
 	public boolean publish(Long memberId, String yearMonth, MonthlyReportResponse report, JsonNode rawMetrics,
 			String calculationVersion, Instant generatedAt) {
-		memberReader.getMember(memberId);
+		Member member = memberReader.getMember(memberId);
 		YearMonth month = MonthlyReportMonth.parse(yearMonth);
 		Instant publishedAt = Instant.now();
 		Instant monthEnd = month.plusMonths(1).atDay(1).atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
@@ -38,7 +41,12 @@ public class MonthlyReportPublicationService {
 			throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
 		}
 		String payload = codec.write(report, memberId, yearMonth);
-		return repository.publish(memberId, yearMonth, payload, rawMetrics.toString(), calculationVersion,
+		boolean published = repository.publish(memberId, yearMonth, payload, rawMetrics.toString(), calculationVersion,
 			generatedAt, publishedAt);
+		if (published) {
+			notificationService.recordPublished(member, month,
+				LocalDateTime.ofInstant(publishedAt, ZoneId.of("Asia/Seoul")));
+		}
+		return published;
 	}
 }

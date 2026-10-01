@@ -9,8 +9,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
+import sweetgirl.croissant.monthlyreport.dto.MonthlyReportListItem;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 
@@ -22,6 +24,16 @@ public class MonthlyReportQueryService {
 	private final MemberReader memberReader;
 	private final MonthlyReportRepository repository;
 	private final MonthlyReportPayloadCodec codec;
+
+	public SliceResponse<MonthlyReportListItem> getReports(Long memberId, int page, int size) {
+		memberReader.getMember(memberId);
+		if (page < 0 || size < 1 || size > 100) {
+			throw new CustomException(MonthlyReportErrorCode.INVALID_PAGE);
+		}
+		var reports = repository.findPublished(memberId, (long)page * size, size + 1);
+		boolean hasNext = reports.size() > size;
+		return new SliceResponse<>(hasNext ? reports.subList(0, size) : reports, hasNext);
+	}
 
 	public MonthlyReportResponse getReport(Long memberId, String yearMonth) {
 		memberReader.getMember(memberId);

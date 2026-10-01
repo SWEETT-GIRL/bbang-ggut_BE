@@ -13,12 +13,25 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.monthlyreport.dto.MonthlyReportListItem;
 
 @Repository
 @RequiredArgsConstructor
 public class MonthlyReportRepository {
 
 	private final NamedParameterJdbcTemplate jdbcTemplate;
+
+	public List<MonthlyReportListItem> findPublished(Long memberId, long offset, int limit) {
+		return jdbcTemplate.query("""
+				SELECT year_month, published_at
+				FROM monthly_report_member
+				WHERE member_id = :memberId AND status = 'PUBLISHED'
+				ORDER BY year_month DESC
+				LIMIT :limit OFFSET :offset
+				""", Map.of("memberId", memberId, "limit", limit, "offset", offset),
+			(rs, rowNum) -> MonthlyReportListItem.of(rs.getString("year_month"),
+				rs.getTimestamp("published_at").toInstant()));
+	}
 
 	public Optional<Snapshot> find(Long memberId, String yearMonth) {
 		return jdbcTemplate.query("""

@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.MONTH;
 import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.PAYLOAD;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -39,6 +40,7 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.monthlyreport.controller.MonthlyReportController;
+import sweetgirl.croissant.monthlyreport.dto.MonthlyReportListItem;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository.Snapshot;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
@@ -166,5 +168,51 @@ class MonthlyReportControllerTest {
 			.andExpect(jsonPath("$.data.activity.totalScore").hasJsonPath())
 			.andExpect(jsonPath("$.data.activity.totalScore").isEmpty())
 			.andExpect(jsonPath("$.data.activity.abilities").isEmpty());
+	}
+
+	@Test
+	void listsOwnPublishedMonthsWithLinksAndPagination() throws Exception {
+		authenticate();
+		Instant publishedAt = Instant.parse("2026-01-01T01:00:00Z");
+		given(repository.findPublished(123L, 0L, 3)).willReturn(List.of(
+			MonthlyReportListItem.of("2025-12", publishedAt), MonthlyReportListItem.of("2025-11", publishedAt),
+			MonthlyReportListItem.of("2025-10", publishedAt)));
+		mvc.perform(get("/reports/monthly/me").param("size", "2").param("memberId", "456"))
+			.andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+			.andExpect(jsonPath("$.data.content.length()").value(2))
+			.andExpect(jsonPath("$.data.content[0].yearMonth").value("2025-12"))
+			.andExpect(jsonPath("$.data.content[0].publishedAt").value("2026-01-01T01:00:00Z"))
+			.andExpect(jsonPath("$.data.content[0].link").value("/reports/monthly/2025-12"))
+			.andExpect(jsonPath("$.data.hasNext").value(true));
+		verify(repository, never()).findPublished(eq(456L), any(Long.class), any(Integer.class));
+	}
+
+	@Test
+	void emptyListIs200AndUsesDefaultPageSize() throws Exception {
+		authenticate();
+		given(repository.findPublished(123L, 0L, 13)).willReturn(List.of());
+		mvc.perform(get("/reports/monthly/me")).andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.content").isEmpty()).andExpect(jsonPath("$.data.hasNext").value(false));
+	}
+
+	@Test
+	void listRequiresAuthenticationAndRejectsInvalidPagination() throws Exception {
+		mvc.perform(get("/reports/monthly/me")).andExpect(status().isUnauthorized());
+		authenticate();
+		for (String[] params : List.of(new String[] {"-1", "12"}, new String[] {"0", "0"}, new String[] {"0", "101"})) {
+			mvc.perform(get("/reports/monthly/me").param("page", params[0]).param("size", params[1]))
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("MONTHLY_REPORT4002"));
+		}
+		mvc.perform(get("/reports/monthly/me").param("page", "bad")).andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void listSecondPageUsesOffsetAndHasNoNextPage() throws Exception {
+		authenticate();
+		given(repository.findPublished(123L, 12L, 13)).willReturn(List.of(
+			MonthlyReportListItem.of("2024-12", Instant.parse("2025-01-01T01:00:00Z"))));
+		mvc.perform(get("/reports/monthly/me").param("page", "1"))
+			.andExpect(status().isOk()).andExpect(jsonPath("$.data.hasNext").value(false))
+			.andExpect(jsonPath("$.data.content[0].yearMonth").value("2024-12"));
 	}
 }

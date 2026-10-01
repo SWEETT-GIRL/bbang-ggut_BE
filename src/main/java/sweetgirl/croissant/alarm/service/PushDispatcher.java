@@ -148,6 +148,10 @@ public class PushDispatcher {
 		if (notification.getPayload() != null) {
 			data.putAll(notification.getPayload());
 		}
+		// 알림함의 link와 푸시의 목적지가 같아야 한다. announcement는 payload 없이 deepLink만 저장할 수 있다.
+		if (notification.getDeepLink() != null && !notification.getDeepLink().isBlank()) {
+			data.put("link", notification.getDeepLink());
+		}
 		data.put("type", notification.getType().pushType());
 		data.put("notificationId", String.valueOf(notification.getId()));
 		if (notification.getTargetType() != null && notification.getTargetId() != null) {

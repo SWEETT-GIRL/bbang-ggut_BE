@@ -2,10 +2,14 @@ package sweetgirl.croissant.monthlyreport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.MONTH;
 import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.PAYLOAD;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -20,14 +24,32 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.transaction.event.TransactionalEventListenerFactory;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import jakarta.validation.Validation;
+import sweetgirl.croissant.alarm.entity.Notification;
+import sweetgirl.croissant.alarm.event.PushRequestedEvent;
+import sweetgirl.croissant.alarm.service.NotificationRecorder;
+import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.monthlyreport.dto.MonthlyReportListItem;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportNotificationService;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportPublicationService;
 
 /** 전용 PostgreSQL에서 실행한다. 운영/개발 스키마를 건드리지 않고 임의 이름의 테스트 스키마만 만든다. */
 @Tag("lab")
@@ -39,6 +61,7 @@ class MonthlyReportRepositoryTest {
 	private JdbcTemplate rootJdbc;
 	private JdbcTemplate jdbc;
 	private MonthlyReportRepository repository;
+	private TransactionTemplate transactions;
 
 	@BeforeAll
 	void createSchema() {
@@ -49,7 +72,9 @@ class MonthlyReportRepositoryTest {
 		var scopedSource = new DriverManagerDataSource(source.getUrl(), source.getUsername(), source.getPassword());
 		scopedSource.setSchema(schema);
 		jdbc = new JdbcTemplate(scopedSource);
+		transactions = new TransactionTemplate(new DataSourceTransactionManager(scopedSource));
 		jdbc.execute("CREATE TABLE member (id bigint PRIMARY KEY)");
+		jdbc.execute("CREATE TABLE recorded_notice (id bigint GENERATED ALWAYS AS IDENTITY, link text)");
 		jdbc.execute("CREATE TABLE bread_record (id bigint PRIMARY KEY, member_id bigint, deleted_at timestamp)");
 		jdbc.execute("""
 				CREATE TABLE bread_record_photo (id bigint PRIMARY KEY, record_id bigint, aws_key text,
@@ -62,7 +87,7 @@ class MonthlyReportRepositoryTest {
 
 	@BeforeEach
 	void clearFixtures() {
-		jdbc.execute("TRUNCATE monthly_report_member, bread_record_photo, bread_record, member");
+		jdbc.execute("TRUNCATE monthly_report_member, bread_record_photo, bread_record, member, recorded_notice");
 		jdbc.update("INSERT INTO member (id) VALUES (123), (456)");
 	}
 
@@ -154,6 +179,87 @@ class MonthlyReportRepositoryTest {
 		jdbc.update("UPDATE bread_record SET deleted_at = CURRENT_TIMESTAMP WHERE id = 1");
 		assertThat(repository.findVisiblePhotoKeys(123L, keys)).isEmpty();
 		assertThat(repository.findVisiblePhotoKeys(123L, Set.of())).isEmpty();
+	}
+
+	@Test
+	void listFiltersOwnerAndPublicationStatusAndSortsMonthsBeforePagination() {
+		publish(123L, "2025-10", PAYLOAD);
+		publish(123L, "2025-12", PAYLOAD);
+		publish(123L, "2025-11", PAYLOAD);
+		publish(456L, "2026-03", PAYLOAD);
+		jdbc.update("""
+				INSERT INTO monthly_report_member (member_id, year_month, status)
+				VALUES (123, '2026-02', 'WITHHELD'), (123, '2026-01', 'FAILED')
+				""");
+		assertThat(repository.findPublished(123L, 0, 2)).extracting(MonthlyReportListItem::yearMonth)
+			.containsExactly("2025-12", "2025-11");
+		assertThat(repository.findPublished(123L, 2, 2)).extracting(MonthlyReportListItem::yearMonth)
+			.containsExactly("2025-10");
+		assertThat(repository.findPublished(123L, 3, 2)).isEmpty();
+		assertThat(repository.findPublished(789L, 0, 12)).isEmpty();
+	}
+
+	@Test
+	void publishesPushEventOnlyAfterCommitAndRollsBackNoticeWithSnapshot() {
+		try (var context = new AnnotationConfigApplicationContext();
+				var factory = Validation.buildDefaultValidatorFactory()) {
+			context.registerBean(TransactionalEventListenerFactory.class);
+			context.registerBean(PushCapture.class);
+			context.refresh();
+			var capture = context.getBean(PushCapture.class);
+			var recorder = mock(NotificationRecorder.class);
+			given(recorder.recordFor(any(), any(), any())).willAnswer(invocation -> {
+				Notification notification = invocation.getArgument(0);
+				Long id = jdbc.queryForObject("INSERT INTO recorded_notice (link) VALUES (?) RETURNING id",
+					Long.class, notification.getDeepLink());
+				ReflectionTestUtils.setField(notification, "id", id);
+				return notification;
+			});
+			Member member = new Member("소금이");
+			ReflectionTestUtils.setField(member, "id", 123L);
+			var reader = mock(MemberReader.class);
+			given(reader.getMember(123L)).willReturn(member);
+			var mapper = new ObjectMapper();
+			var codec = new MonthlyReportPayloadCodec(mapper, factory.getValidator());
+			var report = codec.read(PAYLOAD, 123L, MONTH);
+			var publication = new MonthlyReportPublicationService(reader, repository, codec,
+				new MonthlyReportNotificationService(recorder, context));
+			var metrics = mapper.createObjectNode().put("records", 12);
+			Instant generatedAt = Instant.parse("2026-01-01T00:00:00Z");
+
+			// 롤백되는 발행은 스냅샷과 알림이 함께 사라지고 AFTER_COMMIT 이벤트도 실행되지 않는다.
+			transactions.executeWithoutResult(status -> {
+				assertThat(publication.publish(123L, MONTH, report, metrics, "test-v1", generatedAt)).isTrue();
+				assertThat(capture.events).isEmpty();
+				status.setRollbackOnly();
+			});
+			assertThat(repository.find(123L, MONTH)).isEmpty();
+			assertThat(jdbc.queryForObject("SELECT count(*) FROM recorded_notice", Integer.class)).isZero();
+			assertThat(capture.events).isEmpty();
+
+			transactions.executeWithoutResult(status -> {
+				assertThat(publication.publish(123L, MONTH, report, metrics, "test-v1", generatedAt)).isTrue();
+				assertThat(capture.events).isEmpty();
+			});
+			assertThat(capture.events).hasSize(1);
+			assertThat(capture.events.get(0).memberId()).isEqualTo(123L);
+			assertThat(jdbc.queryForObject("SELECT link FROM recorded_notice", String.class))
+				.isEqualTo("/reports/monthly/2025-12");
+			transactions.executeWithoutResult(
+				status -> assertThat(publication.publish(123L, MONTH, report, metrics, "test-v1", generatedAt))
+					.isFalse());
+			assertThat(capture.events).hasSize(1);
+			assertThat(jdbc.queryForObject("SELECT count(*) FROM recorded_notice", Integer.class)).isEqualTo(1);
+		}
+	}
+
+	static class PushCapture {
+		private final List<PushRequestedEvent> events = new ArrayList<>();
+
+		@TransactionalEventListener
+		public void afterCommit(PushRequestedEvent event) {
+			events.add(event);
+		}
 	}
 
 	private boolean publish(Long memberId, String month, String payload) {

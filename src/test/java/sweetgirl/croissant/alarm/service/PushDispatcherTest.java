@@ -1,5 +1,6 @@
 package sweetgirl.croissant.alarm.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -12,11 +13,13 @@ import static org.mockito.Mockito.verify;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -109,6 +112,36 @@ class PushDispatcherTest {
 		pushDispatcher.dispatch(notification(NotificationType.NOTICE), member, NIGHT_START);
 
 		verify(fcmService).sendPushNotification(eq("token"), anyString(), anyString(), anyMap());
+	}
+
+	@Test
+	void monthlyReportNoticeSendsDirectLinkWithoutMarketingConsent() {
+		Member member = new Member("테스터");
+		given(notificationSettingRepository.findByMemberId(any())).willReturn(Optional.of(
+			NotificationSetting.builder().member(member).isNotificationEnabled(true).isMarketingEnabled(false)
+				.build()));
+		givenToken(member);
+		Notification report = Notification.announcement(NotificationType.NOTICE, NotificationChannel.PUSH,
+			"9월 빵일지가 도착했어요", "빵 기록을 확인해 보세요.", "/reports/monthly/2026-09");
+
+		pushDispatcher.dispatch(report, member, DAY);
+
+		@SuppressWarnings("unchecked") ArgumentCaptor<Map<String, String>> data = ArgumentCaptor.forClass(Map.class);
+		verify(fcmService).sendPushNotification(eq("token"), eq(report.getTitle()), eq(report.getBody()),
+			data.capture());
+		assertThat(data.getValue()).containsEntry("link", "/reports/monthly/2026-09").containsEntry("type", "NOTICE");
+	}
+
+	@Test
+	void monthlyReportNoticeRespectsNotificationOptOut() {
+		Member member = new Member("테스터");
+		given(notificationSettingRepository.findByMemberId(any())).willReturn(Optional.of(
+			NotificationSetting.builder().member(member).isNotificationEnabled(false).isMarketingEnabled(true)
+				.build()));
+		pushDispatcher.dispatch(Notification.announcement(NotificationType.NOTICE, NotificationChannel.PUSH,
+			"9월 빵일지가 도착했어요", "빵 기록을 확인해 보세요.", "/reports/monthly/2026-09"), member, DAY);
+		verify(fcmTokenRepository, never()).findByMemberAndIsActive(any(), any(Boolean.class));
+		verify(fcmService, never()).sendPushNotification(anyString(), anyString(), anyString(), anyMap());
 	}
 
 	private Member marketingMember(boolean nightAgreed) {
