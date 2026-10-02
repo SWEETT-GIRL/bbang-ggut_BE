@@ -20,6 +20,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import sweetgirl.croissant.dev.dto.response.DevEndpointStatsListResponse;
 import sweetgirl.croissant.dev.dto.response.DevRequestLogListResponse;
 import sweetgirl.croissant.dev.service.DevPerfService;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
@@ -117,6 +118,30 @@ class DevPerfControllerTest {
 
 		givenDashboard(true, "");
 		mockMvc.perform(get("/dev/perf/request-logs").header(KEY_HEADER, ""))
+			.andExpect(status().isForbidden());
+		then(devPerfService).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("endpoint-stats 도 같은 문 — local 은 키 없이, 기본 창 60분·limit 20 으로 서비스를 부른다")
+	void local_endpointStats_ok() throws Exception {
+		givenProfile("local");
+		given(devPerfService.getEndpointStats(60, null, 20))
+			.willReturn(new DevEndpointStatsListResponse(60, 0, List.of()));
+
+		mockMvc.perform(get("/dev/perf/endpoint-stats"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.sinceMinutes").value(60))
+			.andExpect(jsonPath("$.data.totalRequests").value(0));
+	}
+
+	@Test
+	@DisplayName("endpoint-stats 는 staging 에서 키가 없으면 403")
+	void staging_endpointStats_noKey_forbidden() throws Exception {
+		givenProfile("staging");
+		givenDashboard(true, "secret");
+
+		mockMvc.perform(get("/dev/perf/endpoint-stats").param("sinceMinutes", "1440"))
 			.andExpect(status().isForbidden());
 		then(devPerfService).shouldHaveNoInteractions();
 	}

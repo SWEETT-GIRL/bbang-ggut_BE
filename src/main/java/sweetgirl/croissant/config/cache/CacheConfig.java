@@ -15,6 +15,9 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 /**
  * 짧은 인메모리 캐시 — 같은 요청이 몰리는 집계·자동완성만. 서버가 한 대라 인스턴스 간 불일치는 없다.
  * 캐시마다 TTL 이 달라 하나의 spec 이 아니라 캐시별로 만든다.
+ *
+ * <p>recordStats 로 히트·미스를 세어 Spring Boot 가 {@code cache_gets_total{cache,result}} 로 노출한다 — 자동완성 TTL(30초)이
+ * 맞는지는 히트율을 보고 정한다(2026-10 조사 때 캐시는 있었지만 히트율을 아무도 몰랐다).
  */
 @Configuration
 @EnableCaching
@@ -32,11 +35,11 @@ public class CacheConfig {
 		SimpleCacheManager manager = new SimpleCacheManager();
 		manager.setCaches(List.of(
 			new CaffeineCache(BREAD_BOARD, Caffeine.newBuilder()
-				.expireAfterWrite(Duration.ofMinutes(1)).maximumSize(500).build()),
+				.expireAfterWrite(Duration.ofMinutes(1)).maximumSize(500).recordStats().build()),
 			new CaffeineCache(BREAD_BOARD_CATEGORIES, Caffeine.newBuilder()
-				.expireAfterWrite(Duration.ofMinutes(1)).maximumSize(4).build()),
+				.expireAfterWrite(Duration.ofMinutes(1)).maximumSize(4).recordStats().build()),
 			new CaffeineCache(STORE_AUTOCOMPLETE, Caffeine.newBuilder()
-				.expireAfterWrite(Duration.ofSeconds(30)).maximumSize(5_000).build())));
+				.expireAfterWrite(Duration.ofSeconds(30)).maximumSize(5_000).recordStats().build())));
 		return manager;
 	}
 }
