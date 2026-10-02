@@ -24,7 +24,10 @@ public enum SearchOutcome {
 	MISMATCH,
 
 	/** 사전에 없는 말이 섞여 검색어 전체를 통째로 대조했고 실패했다. 지역어 + 가게명 조합 등에서 오탐이 섞일 수 있다. */
-	MISMATCH_LOOSE;
+	MISMATCH_LOOSE,
+
+	/** 시간 안에 답을 못 했다 — SQL 이 statement 타임아웃에 끊겼다. 쿼리가 아니라 DB·커넥션이 멈췄다는 신호다. */
+	TIMEOUT;
 
 	public String tagValue() {
 		return name().toLowerCase(Locale.ROOT);

@@ -21,12 +21,15 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.domain.PageRequest;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import sweetgirl.croissant.searchmiss.event.SearchMissEvent;
+import sweetgirl.croissant.store.code.StoreSearchErrorCode;
 import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
+import sweetgirl.croissant.store.exception.StoreSearchException;
 
 @ExtendWith(MockitoExtension.class)
 class StoreSearchServiceTest {
@@ -356,6 +359,40 @@ class StoreSearchServiceTest {
 		}
 		assertThat(outcomeCount("autocomplete", SearchOutcome.HIT)).isZero();
 		assertThat(outcomeCount("autocomplete", SearchOutcome.EMPTY)).isZero();
+		assertThat(outcomeCount("autocomplete", SearchOutcome.TIMEOUT)).isZero();
+	}
+
+	@Test
+	@DisplayName("자동완성 SQL 이 타임아웃되면 빈 목록으로 조용히 답하고 timeout 으로 센다 — 추천어는 없어도 되는 기능")
+	void autocompleteStores_timeout_returnsEmptyAndCounts() {
+		given(searchEngine.autocompleteStores("성", 10))
+			.willThrow(new QueryTimeoutException("canceling statement due to statement timeout"));
+
+		var result = service.autocompleteStores("성", 10);
+
+		assertThat(result).isEmpty();
+		assertThat(outcomeCount("autocomplete", SearchOutcome.TIMEOUT)).isEqualTo(1.0);
+		assertThat(outcomeCount("autocomplete", SearchOutcome.EMPTY)).isZero();
+	}
+
+	@Test
+	@DisplayName("검색 SQL 이 타임아웃되면 503 으로 끊고 timeout 으로 센다 — 요청 스레드를 붙잡아 두지 않는다")
+	void searchStores_timeout_throwsServiceUnavailableAndCounts() {
+		SearchIntent intent = new SearchIntent("성심당", "성심당", List.of("성심당"), List.of(), List.of(), List.of("성심당"));
+		PageRequest pageable = PageRequest.of(0, 15);
+		given(storeSearchQueryParser.parse("성심당")).willReturn(intent);
+		given(searchEngine.searchStores(intent, pageable, null, null, SearchSort.RELEVANCE))
+			.willThrow(new QueryTimeoutException("canceling statement due to statement timeout"));
+
+		assertThatThrownBy(() -> service.searchStores("성심당", null, null, SearchSort.RELEVANCE, pageable))
+			.isInstanceOf(StoreSearchException.class)
+			.satisfies(exception -> assertThat(((StoreSearchException)exception).getErrorCode())
+				.isEqualTo(StoreSearchErrorCode.SEARCH_TIMEOUT));
+
+		assertThat(outcomeCount("search", SearchOutcome.TIMEOUT)).isEqualTo(1.0);
+		// 타임아웃은 "입력한 말이 결과에 없음"이 아니다 — 검색 실패 적재(search_misses)로 넘기지 않는다
+		verify(eventPublisher, never()).publishEvent(any(SearchMissEvent.class));
+		verify(storeSearchAssembler, never()).assemble(any());
 	}
 
 	@Test
