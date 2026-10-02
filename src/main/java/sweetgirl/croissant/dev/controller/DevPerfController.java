@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.dev.dto.response.DevEndpointStatsListResponse;
 import sweetgirl.croissant.dev.dto.response.DevRequestLogListResponse;
 import sweetgirl.croissant.dev.service.DevPerfService;
 import sweetgirl.croissant.global.response.ApiResponse;
@@ -43,6 +44,17 @@ public class DevPerfController {
 			@RequestParam(required = false) String endpoint) {
 		validateAccess(accessKey);
 		return ApiResponse.ok(devPerfService.getRequestLogs(sinceMinutes, size, sort, endpoint));
+	}
+
+	/** 엔드포인트별 서버측 응답시간 통계(p50·p95·p99·max·1초 이상·5xx). 창은 최대 1440분, limit 은 최대 100. */
+	@GetMapping("/endpoint-stats")
+	public ApiResponse<DevEndpointStatsListResponse> getEndpointStats(
+			@RequestHeader(value = "X-Perf-Dashboard-Key", required = false) String accessKey,
+			@RequestParam(defaultValue = "60") int sinceMinutes,
+			@RequestParam(required = false) String endpoint,
+			@RequestParam(defaultValue = "20") int limit) {
+		validateAccess(accessKey);
+		return ApiResponse.ok(devPerfService.getEndpointStats(sinceMinutes, endpoint, limit));
 	}
 
 	/**
