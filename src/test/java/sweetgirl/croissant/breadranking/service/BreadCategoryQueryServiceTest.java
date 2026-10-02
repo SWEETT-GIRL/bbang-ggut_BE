@@ -33,18 +33,28 @@ class BreadCategoryQueryServiceTest {
 	private BreadCategoryQueryService service;
 
 	@Test
-	@DisplayName("공용 목록은 리포지토리 순서(1등 매긴 사람 수) 그대로 — 사람 수를 같이 준다")
+	@DisplayName("공용 목록은 리포지토리 순서 그대로 — 내 id 와 3명 기준을 넘기고, 사람 수를 같이 준다")
 	void getCategories() {
 		BreadCategory custom = BreadCategory.custom("트러플 소금빵", BreadGroup.빵, 3L);
 		ReflectionTestUtils.setField(custom, "id", 200L);
-		given(categoryRepository.findAllOrderByVoters()).willReturn(List.of(new BreadCategoryVoters(custom, 12)));
+		given(categoryRepository.findVisibleOrderByDisplay(3L, BreadCategoryQueryService.MIN_TAB_MEMBERS_FOR_SHARED))
+			.willReturn(List.of(new BreadCategoryVoters(custom, 12)));
 
-		List<BreadCategoryResponse> categories = service.getCategories();
+		List<BreadCategoryResponse> categories = service.getCategories(3L);
 
 		assertThat(categories).hasSize(1);
 		assertThat(categories.get(0).voters()).isEqualTo(12);
 		assertThat(categories.get(0).menuKind()).isNull();
 		assertThat(categories.get(0).breadGroup()).isEqualTo("빵");
+	}
+
+	@Test
+	@DisplayName("게스트·비로그인은 memberId 없이 묻는다 — 내 것 없이 기본 + 3명 이상만")
+	void getCategories_guestPassesNullMember() {
+		given(categoryRepository.findVisibleOrderByDisplay(null, BreadCategoryQueryService.MIN_TAB_MEMBERS_FOR_SHARED))
+			.willReturn(List.of());
+
+		assertThat(service.getCategories(null)).isEmpty();
 	}
 
 	@Test

@@ -55,7 +55,7 @@ class BreadCategoryControllerTest {
 	@Test
 	@DisplayName("GET /bread-categories — 공용 목록")
 	void getCategories_returns200() throws Exception {
-		given(categoryQueryService.getCategories()).willReturn(List.of(SALT));
+		given(categoryQueryService.getCategories(null)).willReturn(List.of(SALT));
 
 		mockMvc.perform(get("/bread-categories"))
 			.andExpect(status().isOk())

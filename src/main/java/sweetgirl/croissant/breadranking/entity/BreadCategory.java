@@ -55,6 +55,13 @@ public class BreadCategory extends BaseTimeEntity {
 	/** 만든 회원. 기본 목록은 null. 연관 관계로 잡지 않는 이유는 MemberWorld 와 같다 — id 만 있으면 된다. */
 	private Long createdBy;
 
+	/**
+	 * 공용 목록에서 앞에 고정되는 자리(1부터). 기본 8종(소금빵·케이크·사워도우·휘낭시에·샌드베이글·에그타르트·크루아상·도넛)만 값이
+	 * 있고 나머지는 null — 1등 매긴 사람 수 순으로 뒤따른다. 마이그레이션이 정하고 코드에서는 바꾸지 않는다.
+	 */
+	@Column(name = "display_order")
+	private Integer displayOrder;
+
 	private BreadCategory(String name, MenuKind menuKind, BreadGroup breadGroup, Long createdBy) {
 		this.name = name;
 		this.nameKey = MenuNameNormalizer.normalize(name);
