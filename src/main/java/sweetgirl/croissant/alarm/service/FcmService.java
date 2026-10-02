@@ -5,7 +5,6 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,7 +27,6 @@ import sweetgirl.croissant.alarm.enums.DeviceOs;
 import sweetgirl.croissant.alarm.exception.AlarmException;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
 import sweetgirl.croissant.global.exception.CustomException;
-import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 
 @Service
@@ -45,7 +43,8 @@ public class FcmService {
 	// 기기별 FCM Token 저장 또는 갱신
 	public void saveOrUpdateFcmToken(Long memberId, FcmTokenRequest fcmTokenRequest) {
 
-		Member member = memberReader.getMember(memberId);
+		// 없는 회원이면 여기서 404 — 아래 업서트가 FK 로 깨져 500 이 되지 않게
+		memberReader.getMember(memberId);
 
 		String deviceId = fcmTokenRequest.getDeviceId();
 		DeviceOs deviceOs = fcmTokenRequest.getDeviceOs();
@@ -61,23 +60,9 @@ public class FcmService {
 				&& other.getDeviceId().equals(deviceId)))
 			.forEach(FcmToken::deactivate);
 
-		try {
-			fcmTokenRepository.findByMemberAndDeviceId(member, deviceId)
-				.ifPresentOrElse(
-					fcmToken -> fcmToken.updateToken(token, appVersion, buildVersion, bundleId),
-					() -> fcmTokenRepository.save(FcmToken.builder()
-						.member(member)
-						.deviceId(deviceId)
-						.deviceOs(deviceOs)
-						.token(token)
-						.appVersion(appVersion)
-						.buildVersion(buildVersion)
-						.bundleId(bundleId)
-						.build()));
-		} catch (DataIntegrityViolationException e) {
-			fcmTokenRepository.findByMemberAndDeviceId(member, deviceId)
-				.ifPresent(fcmToken -> fcmToken.updateToken(token, appVersion, buildVersion, bundleId));
-		}
+		// (회원, 기기) 한 행을 한 문장으로 넣거나 갱신한다. 같은 기기의 등록이 동시에 둘 와도 뒤 쪽은 갱신으로 돈다 —
+		// 예전엔 insert 가 유니크로 깨진 뒤 같은 세션에서 다시 읽다가 Hibernate 가 세션을 버리라며 500 을 냈다.
+		fcmTokenRepository.upsert(memberId, deviceId, deviceOs.name(), token, appVersion, buildVersion, bundleId);
 	}
 
 	// FCM Token 비활성화
