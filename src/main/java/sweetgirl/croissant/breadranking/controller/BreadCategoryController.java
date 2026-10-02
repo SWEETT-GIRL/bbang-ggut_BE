@@ -29,10 +29,12 @@ public class BreadCategoryController {
 	private final BreadCategoryQueryService categoryQueryService;
 	private final BreadCategoryCommandService categoryCommandService;
 
-	@Operation(summary = "빵 종류 공용 목록", description = "기본 목록 + 다른 사람이 만든 것. 1등 매긴 사람 수(voters) 많은 순. 게스트 OK.")
+	@Operation(summary = "빵 종류 공용 목록", description = "기본 목록 + 내가 만든 것 + 서로 다른 3명 이상이 탭에 넣은 사용자 생성 종류. "
+		+ "기본 8종(소금빵·케이크·사워도우·휘낭시에·샌드베이글·에그타르트·크루아상·도넛)이 그 순서로 먼저, 나머지는 1등 매긴 사람 수(voters) 많은 순. 게스트 OK.")
 	@GetMapping
-	public ResponseEntity<ApiResponse<java.util.List<BreadCategoryResponse>>> getCategories() {
-		return ResponseEntity.ok(ApiResponse.ok(categoryQueryService.getCategories()));
+	public ResponseEntity<ApiResponse<java.util.List<BreadCategoryResponse>>> getCategories(
+			@AuthenticationPrincipal Long memberId) {
+		return ResponseEntity.ok(ApiResponse.ok(categoryQueryService.getCategories(memberId)));
 	}
 
 	@Operation(summary = "빵 종류 직접 만들기", description = "2~15자. 같은 이름(공백·기호 무시)이 있으면 새로 만들지 않고 200 으로 그걸 준다 — "
