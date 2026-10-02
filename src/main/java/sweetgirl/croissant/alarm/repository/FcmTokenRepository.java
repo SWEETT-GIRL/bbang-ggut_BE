@@ -1,16 +1,16 @@
 package sweetgirl.croissant.alarm.repository;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import sweetgirl.croissant.alarm.entity.FcmToken;
 import sweetgirl.croissant.member.entity.Member;
 
 public interface FcmTokenRepository extends JpaRepository<FcmToken, Long> {
-
-	Optional<FcmToken> findByMemberAndDeviceId(Member member, String deviceId);
 
 	List<FcmToken> findByMemberAndIsActive(Member member, boolean isActive);
 
@@ -20,4 +20,34 @@ public interface FcmTokenRepository extends JpaRepository<FcmToken, Long> {
 
 	// 회원 탈퇴 시 해당 회원의 모든 FCM 토큰 삭제를 위해 사용
 	void deleteAllByMember(Member member);
+
+	/**
+	 * 기기 한 대의 토큰을 한 문장으로 넣거나 갱신한다.
+	 *
+	 * <p>같은 (회원, 기기)의 등록이 동시에 둘 들어온다 — 앱이 첫 기동과 토큰 갱신 리스너에서 잇따라 부른다.
+	 * 따로 읽고 넣으면 양쪽 다 "없다"를 보고 넣으려 들고, 뒤에 온 쪽은 유니크로 깨진다. 한 문장이면 뒤에 온 쪽이
+	 * 앞 쪽의 커밋을 기다렸다가 갱신으로 돈다. 기기의 OS 는 바뀌지 않으니 갱신하지 않는다.
+	 */
+	@Modifying(flushAutomatically = true, clearAutomatically = true)
+	@Query(value = """
+			INSERT INTO fcm_token (member_id, device_id, device_os, token, app_version, build_version, bundle_id,
+				is_active, created_at, updated_at)
+			VALUES (:memberId, :deviceId, :deviceOs, :token, :appVersion, :buildVersion, :bundleId,
+				TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+			ON CONFLICT (member_id, device_id) DO UPDATE SET
+				token = EXCLUDED.token,
+				app_version = EXCLUDED.app_version,
+				build_version = EXCLUDED.build_version,
+				bundle_id = EXCLUDED.bundle_id,
+				is_active = TRUE,
+				updated_at = CURRENT_TIMESTAMP
+			""", nativeQuery = true)
+	int upsert(
+			@Param("memberId") Long memberId,
+			@Param("deviceId") String deviceId,
+			@Param("deviceOs") String deviceOs,
+			@Param("token") String token,
+			@Param("appVersion") String appVersion,
+			@Param("buildVersion") String buildVersion,
+			@Param("bundleId") String bundleId);
 }
