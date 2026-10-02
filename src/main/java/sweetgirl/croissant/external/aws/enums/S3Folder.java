@@ -14,6 +14,8 @@ public enum S3Folder {
 	BANNERS("banners"),
 	COURSES("courses"),
 	BREAD_RECORDS("bread-records"),
+	/** 편지함에서 사용자가 운영자에게 보낸 사진. */
+	LETTERS("letters"),
 	/**
 	 * 빵별일지 세계관 에셋(캐릭터 누끼 · 행성 배경).
 	 *

@@ -58,7 +58,7 @@ class LetterControllerTest {
 	@DisplayName("편지 목록은 sender와 본문을 그대로 내려준다")
 	void getMyLetters_returnsMessages() throws Exception {
 		LetterMessageResponse message = new LetterMessageResponse(
-			5L, LetterSender.ADMIN, "인터뷰 가능하실까요?", LetterCategory.OUTREACH, false,
+			5L, LetterSender.ADMIN, "인터뷰 가능하실까요?", null, LetterCategory.OUTREACH, false,
 			LocalDateTime.of(2026, 9, 3, 10, 0));
 		given(letterService.getMyLetters(any(), eq(0), eq(20)))
 			.willReturn(new LetterListResponse(List.of(message), true, false));
@@ -88,7 +88,7 @@ class LetterControllerTest {
 	void send_returnsSavedMessage() throws Exception {
 		given(letterService.send(any(), any(LetterSendRequest.class)))
 			.willReturn(new LetterMessageResponse(
-				9L, LetterSender.MEMBER, "네 좋아요!", null, false, LocalDateTime.of(2026, 9, 3, 11, 0)));
+				9L, LetterSender.MEMBER, "네 좋아요!", null, null, false, LocalDateTime.of(2026, 9, 3, 11, 0)));
 
 		mockMvc.perform(post("/letters")
 			.contentType(MediaType.APPLICATION_JSON)

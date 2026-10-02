@@ -16,6 +16,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -25,6 +26,7 @@ import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.letter.code.LetterErrorCode;
 import sweetgirl.croissant.letter.dto.request.LetterSendRequest;
 import sweetgirl.croissant.letter.dto.response.LetterListResponse;
@@ -52,6 +54,9 @@ class LetterServiceTest {
 
 	@Mock
 	private MemberRepository memberRepository;
+
+	@Mock
+	private S3Service s3Service;
 
 	@InjectMocks
 	private LetterService letterService;
@@ -85,6 +90,47 @@ class LetterServiceTest {
 		ReflectionTestUtils.setField(request, "body", body);
 		ReflectionTestUtils.setField(request, "category", category);
 		return request;
+	}
+
+	private LetterSendRequest photoRequest(String body, String imageKey) {
+		LetterSendRequest request = sendRequest(body);
+		ReflectionTestUtils.setField(request, "imageKey", imageKey);
+		return request;
+	}
+
+	@Test
+	@DisplayName("사진만 있으면 본문이 비어도 보낸다")
+	void send_acceptsPhotoOnly() {
+		String key = "letters/members/" + MEMBER_ID + "/images/abc";
+		given(letterMessageRepository.countByThreadMemberIdAndSenderAndCreatedAtAfter(
+			eq(MEMBER_ID), eq(LetterSender.MEMBER), any())).willReturn(0L);
+		given(letterThreadRepository.findByMemberId(MEMBER_ID)).willReturn(Optional.of(thread(11L)));
+		given(letterMessageRepository.save(any(LetterMessage.class))).willAnswer(inv -> inv.getArgument(0));
+
+		letterService.send(MEMBER_ID, photoRequest(null, key));
+
+		ArgumentCaptor<LetterMessage> captor = ArgumentCaptor.forClass(LetterMessage.class);
+		verify(letterMessageRepository).save(captor.capture());
+		assertThat(captor.getValue().getImageKey()).isEqualTo(key);
+		assertThat(captor.getValue().getBody()).isEmpty();
+	}
+
+	@Test
+	@DisplayName("내 편지 사진 폴더가 아닌 키는 거부한다")
+	void send_rejectsForeignImageKey() {
+		assertThatThrownBy(() -> letterService.send(MEMBER_ID, photoRequest("봐주세요", "letters/members/8/images/abc")))
+			.isInstanceOf(LetterException.class)
+			.hasFieldOrPropertyWithValue("errorCode", LetterErrorCode.LETTER_INVALID_IMAGE_KEY);
+
+		verify(letterMessageRepository, never()).save(any());
+	}
+
+	@Test
+	@DisplayName("사진이 아닌 형식은 presigned URL을 주지 않는다")
+	void generateImagePresignedUrl_rejectsNonImage() {
+		assertThatThrownBy(() -> letterService.generateImagePresignedUrl(MEMBER_ID, "application/pdf"))
+			.isInstanceOf(LetterException.class)
+			.hasFieldOrPropertyWithValue("errorCode", LetterErrorCode.LETTER_INVALID_IMAGE_MIME_TYPE);
 	}
 
 	@Test

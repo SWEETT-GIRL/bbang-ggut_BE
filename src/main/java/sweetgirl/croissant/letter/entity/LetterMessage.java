@@ -55,6 +55,10 @@ public class LetterMessage extends BaseTimeEntity {
 	@Column(length = 20)
 	private LetterCategory category;
 
+	/** 사용자가 첨부한 사진의 S3 키. 사진 없는 편지가 대부분이라 nullable. */
+	@Column(name = "image_key", length = 512)
+	private String imageKey;
+
 	@Column(name = "read_at")
 	private LocalDateTime readAt;
 
@@ -72,6 +76,14 @@ public class LetterMessage extends BaseTimeEntity {
 	public static LetterMessage create(LetterThread thread, LetterSender sender, String body,
 			LetterCategory category) {
 		return new LetterMessage(thread, sender, body, category);
+	}
+
+	/** 사진이 붙은 편지. 사진만 보낼 땐 body가 빈 문자열이다 — 컬럼이 NOT NULL이라. */
+	public static LetterMessage create(LetterThread thread, LetterSender sender, String body,
+			LetterCategory category, String imageKey) {
+		LetterMessage message = new LetterMessage(thread, sender, body, category);
+		message.imageKey = imageKey;
+		return message;
 	}
 
 	public void markAsRead(LocalDateTime now) {

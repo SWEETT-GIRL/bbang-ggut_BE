@@ -48,6 +48,10 @@ public class S3PathGenerator {
 		return String.format("%s/members/%d/images", S3Folder.BREAD_RECORDS.getValue(), memberId);
 	}
 
+	public static String getLetterImagePath(Long memberId) {
+		return String.format("%s/members/%d/images", S3Folder.LETTERS.getValue(), memberId);
+	}
+
 	public static String getResizedKey(int width, String awsKey) {
 		return String.format("resized/%d/%s", width, awsKey);
 	}

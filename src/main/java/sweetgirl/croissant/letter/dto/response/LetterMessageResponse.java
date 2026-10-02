@@ -11,6 +11,8 @@ public record LetterMessageResponse(
 		Long messageId,
 		LetterSender sender,
 		String body,
+		/** 첨부 사진의 S3 키. 없으면 null. */
+		String imageKey,
 		LetterCategory category,
 		boolean read,
 		LocalDateTime sentAt) {
@@ -20,6 +22,7 @@ public record LetterMessageResponse(
 			message.getId(),
 			message.getSender(),
 			message.getBody(),
+			message.getImageKey(),
 			message.getCategory(),
 			message.isRead(),
 			message.getCreatedAt());
