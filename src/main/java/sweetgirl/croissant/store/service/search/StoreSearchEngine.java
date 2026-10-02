@@ -7,12 +7,14 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import io.micrometer.core.annotation.Timed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.config.cache.CacheConfig;
 import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
 import sweetgirl.croissant.store.enums.MatchedField;
 import sweetgirl.croissant.store.repository.search.SearchSqlQuery;
@@ -143,6 +145,8 @@ public class StoreSearchEngine {
 		return plan.hasRegionTokens() && row.matchedByRegion();
 	}
 
+	/** 30초 캐시 — 글자마다 부르는 자동완성이 가장 느리고 가장 자주 불린다. 같은 검색어·size 는 한 번만 센다. */
+	@Cacheable(cacheNames = CacheConfig.STORE_AUTOCOMPLETE, key = "#query + ':' + #size")
 	@Timed(value = "search.engine.query", histogram = true)
 	public List<StoreAutocompleteSuggestion> autocompleteStores(String query, int size) {
 		String normalizedQuery = SearchTextNormalizer.normalize(query);

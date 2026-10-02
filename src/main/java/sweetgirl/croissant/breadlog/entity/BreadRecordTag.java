@@ -1,9 +1,19 @@
 package sweetgirl.croissant.breadlog.entity;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.hibernate.annotations.BatchSize;
+
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -16,6 +26,9 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import sweetgirl.croissant.breadlog.enums.ChipType;
+import sweetgirl.croissant.breadlog.enums.TasteChip;
+import sweetgirl.croissant.breadlog.enums.TextureChip;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.enums.MenuCategory;
@@ -83,6 +96,23 @@ public class BreadRecordTag extends BaseTimeEntity {
 	@Column(length = 50)
 	private String style;
 
+	/**
+	 * 빵 평가 — 태그 하나가 평가 하나다("빵은 어땠어요?" 단계). 또 먹을래요는 null 이면 안 고른 것.
+	 * 옛 하트(lovedBreads)는 또 먹을래요 on 으로 합쳐졌다(마이그레이션 + 저장 시 변환).
+	 */
+	@Column
+	private Boolean again;
+
+	/** 빵별 한 줄. 기록 전체 한 줄({@code BreadRecord.memo})과는 다른 칸이다. */
+	@Column(name = "rating_memo", length = 100)
+	private String ratingMemo;
+
+	/** 식감·맛 칩. 값은 enum 이름 — {@link TextureChip}·{@link TasteChip} 로 검증한 것만 들어온다. */
+	@ElementCollection(fetch = FetchType.LAZY)
+	@CollectionTable(name = "bread_record_tag_chip", joinColumns = @JoinColumn(name = "tag_id"))
+	@BatchSize(size = 100)
+	private Set<TagChip> chips = new HashSet<>();
+
 	@Builder
 	public BreadRecordTag(
 			BreadRecord record,
@@ -138,5 +168,64 @@ public class BreadRecordTag extends BaseTimeEntity {
 		}
 		this.breadCategory = breadCategory;
 		return true;
+	}
+
+	/** 평가를 통째로 넣는다 — 전부 건너뛸 수 있어 모두 null·빈 목록이어도 된다. 칩은 중복 없이. */
+	public void rate(Boolean again, List<TextureChip> textures, List<TasteChip> tastes, String memo) {
+		this.again = again;
+		this.ratingMemo = memo;
+		this.chips.clear();
+		// JSON 배열의 null 원소는 조용히 버린다 — 칩 하나 때문에 저장이 500 으로 깨질 이유가 없다
+		if (textures != null) {
+			textures.stream().filter(Objects::nonNull).forEach(texture -> chips.add(TagChip.texture(texture)));
+		}
+		if (tastes != null) {
+			tastes.stream().filter(Objects::nonNull).forEach(taste -> chips.add(TagChip.taste(taste)));
+		}
+	}
+
+	public void rate(Rating rating) {
+		rate(rating.again(), rating.textures(), rating.tastes(), rating.memo());
+	}
+
+	/** 하트(lovedBreads)로 고른 빵 — 또 먹을래요를 아직 안 정했을 때만 on 으로. 평가가 명시한 값은 건드리지 않는다. */
+	public void markAgain() {
+		if (this.again == null) {
+			this.again = true;
+		}
+	}
+
+	public boolean hasRating() {
+		return again != null || ratingMemo != null || !chips.isEmpty();
+	}
+
+	/** 평가가 하나라도 있으면 그 값 — 없으면 empty. 칩은 enum 순서(기본 노출 순서)로 돌려준다. */
+	public Optional<Rating> rating() {
+		if (!hasRating()) {
+			return Optional.empty();
+		}
+		return Optional.of(new Rating(again, textures(), tastes(), ratingMemo));
+	}
+
+	public List<TextureChip> textures() {
+		return chipsOf(ChipType.TEXTURE, TextureChip.values());
+	}
+
+	public List<TasteChip> tastes() {
+		return chipsOf(ChipType.TASTE, TasteChip.values());
+	}
+
+	private <T extends Enum<T>> List<T> chipsOf(ChipType type, T[] values) {
+		Set<String> names = chips.stream()
+			.filter(chip -> chip.getChipType() == type)
+			.map(TagChip::getChip)
+			.collect(Collectors.toSet());
+		List<T> ordered = new ArrayList<>();
+		Arrays.stream(values).filter(value -> names.contains(value.name())).forEach(ordered::add);
+		return ordered;
+	}
+
+	/** 태그 평가 한 벌 — 수정으로 태그가 다시 만들어질 때 이름 같은 이전 태그에서 옮겨 온다. */
+	public record Rating(Boolean again, List<TextureChip> textures, List<TasteChip> tastes, String memo) {
 	}
 }

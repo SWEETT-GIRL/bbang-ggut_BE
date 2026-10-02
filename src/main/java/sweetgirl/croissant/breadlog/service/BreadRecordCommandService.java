@@ -20,6 +20,7 @@ import sweetgirl.croissant.breadlog.dto.request.BreadRecordPhotoRequest;
 import sweetgirl.croissant.breadlog.dto.request.BreadRecordPresignedUrlRequest;
 import sweetgirl.croissant.breadlog.dto.request.BreadRecordTagRequest;
 import sweetgirl.croissant.breadlog.dto.request.BreadRecordUpsertRequest;
+import sweetgirl.croissant.breadlog.dto.request.BreadTagRatingRequest;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordCreateResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlInfo;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlResponse;
@@ -95,7 +96,7 @@ public class BreadRecordCommandService {
 			.eatenAt(request.eatenAt())
 			.isPublic(Boolean.TRUE.equals(request.isPublic()))
 			.build());
-		savePhotosAndTags(record, request, data.photoBySortOrder(), Map.of());
+		savePhotosAndTags(record, request, data.photoBySortOrder(), Map.of(), data.lovedBreads(), Map.of());
 		// 빵탑은 기록 수만큼 오른다. 최고 높이는 내려가지 않아서, 기록을 지워도 행성이 밀리지 않는다.
 		memberWorldRepository.raiseMaxRecordCount(
 			memberId, breadRecordRepository.countByMemberIdAndDeletedAtIsNull(memberId));
@@ -125,10 +126,13 @@ public class BreadRecordCommandService {
 		if (request.isPublic() != null) {
 			record.changeVisibility(request.isPublic());
 		}
+		// 태그는 지우고 다시 만든다 — 평가는 이름으로 이어 줘야 구버전 앱의 수정에 사라지지 않는다
+		Map<String, BreadRecordTag.Rating> previousRatingByName = previousRatingsByName(recordId);
 		tagRepository.deleteAllByRecordId(recordId);
 		photoRepository.deleteAllIncludingPendingByRecordId(recordId);
 		photoRepository.flush();
-		savePhotosAndTags(record, request, data.photoBySortOrder(), oldPhotoByKey);
+		savePhotosAndTags(record, request, data.photoBySortOrder(), oldPhotoByKey, data.lovedBreads(),
+			previousRatingByName);
 		deleteRemovedImages(oldPhotos, request.photos());
 		courseProgressService.refreshForMember(memberId);
 	}
@@ -243,7 +247,9 @@ public class BreadRecordCommandService {
 			BreadRecord record,
 			BreadRecordUpsertRequest request,
 			Map<Integer, BreadRecordPhotoRequest> requestedPhotoByOrder,
-			Map<String, BreadRecordPhoto> oldPhotoByKey) {
+			Map<String, BreadRecordPhoto> oldPhotoByKey,
+			List<String> lovedBreads,
+			Map<String, BreadRecordTag.Rating> previousRatingByName) {
 		Map<Integer, BreadRecordPhoto> photoBySortOrder = new HashMap<>();
 		List<BreadRecordPhoto> photos = requestedPhotoByOrder.values().stream()
 			.sorted(java.util.Comparator.comparingInt(BreadRecordPhotoRequest::sortOrder))
@@ -267,7 +273,39 @@ public class BreadRecordCommandService {
 				.style(tag.style())
 				.build())
 			.toList();
+		Set<String> lovedNames = Set.copyOf(lovedBreads);
+		for (int index = 0; index < tags.size(); index++) {
+			applyRating(tags.get(index), request.tags().get(index).rating(), previousRatingByName, lovedNames);
+		}
 		tagRepository.saveAll(tags);
+	}
+
+	/**
+	 * 태그 평가 — 요청에 실린 것이 먼저다. 없으면(구버전 앱의 수정) 이름 같은 이전 태그의 평가를 이어간다.
+	 * 하트(lovedBreads)에 든 이름은 또 먹을래요 on — 평가가 또 먹을래요를 명시하지 않았을 때만.
+	 */
+	private void applyRating(
+			BreadRecordTag tag,
+			BreadTagRatingRequest rating,
+			Map<String, BreadRecordTag.Rating> previousRatingByName,
+			Set<String> lovedNames) {
+		if (rating != null) {
+			tag.rate(rating.again(), rating.textures(), rating.tastes(), normalizeNullable(rating.memo()));
+		} else if (previousRatingByName.containsKey(tag.getName())) {
+			tag.rate(previousRatingByName.get(tag.getName()));
+		}
+		if (lovedNames.contains(tag.getName())) {
+			tag.markAgain();
+		}
+	}
+
+	/** 지우기 전의 태그 평가를 이름별로 — 같은 이름이 둘이면 먼저 단 것. */
+	private Map<String, BreadRecordTag.Rating> previousRatingsByName(Long recordId) {
+		Map<String, BreadRecordTag.Rating> ratingByName = new HashMap<>();
+		for (BreadRecordTag tag : tagRepository.findAllWithChipsByRecordId(recordId)) {
+			tag.rating().ifPresent(rating -> ratingByName.putIfAbsent(tag.getName(), rating));
+		}
+		return ratingByName;
 	}
 
 	/**

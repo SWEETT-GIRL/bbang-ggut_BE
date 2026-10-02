@@ -43,6 +43,11 @@ public final class RegionFormatter {
 		return SIDO_SHORT.getOrDefault(region1st, region1st);
 	}
 
+	/** 짧은 시/도 표기("서울", "경기")가 맞는지 — 랭킹 "내 지역"이 받는 값을 거른다. */
+	public static boolean isShortSido(String sido) {
+		return sido != null && SIDO_SHORT.containsValue(sido);
+	}
+
 	/** "대전 중구 은행동" — 시(축약)·구·동을 공백으로 연결. null/공백 조각은 건너뛴다. */
 	public static String full(String region1st, String region2nd, String region3rd) {
 		return join(shortSido(region1st), region2nd, region3rd);

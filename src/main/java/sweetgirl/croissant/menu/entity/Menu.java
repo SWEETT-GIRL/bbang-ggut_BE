@@ -103,6 +103,11 @@ public class Menu extends BaseTimeEntity {
 		}
 	}
 
+	/** 공동 가격 수정 — 빵 평가 화면에서 누구나. 이력은 서비스가 남긴다. */
+	public void updatePrice(int price) {
+		this.price = price;
+	}
+
 	// 크롤러 재실행(match-and-enrich) 시 비어 있는 필드만 채운다. 어드민/기존 값은 덮어쓰지 않음.
 	// LocalData 로 들어온 한글 메뉴의 빈 가격·설명을 네이버 크롤 값으로 보강하는 용도.
 	public void enrichIfMissing(Integer price, String description) {

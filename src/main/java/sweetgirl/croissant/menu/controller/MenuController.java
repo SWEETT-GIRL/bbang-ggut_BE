@@ -20,11 +20,14 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.menu.dto.request.MenuCreateRequest;
 import sweetgirl.croissant.menu.dto.request.MenuKindConfirmRequest;
+import sweetgirl.croissant.menu.dto.request.MenuPriceUpdateRequest;
 import sweetgirl.croissant.menu.dto.response.MenuCategoryResponse;
 import sweetgirl.croissant.menu.dto.response.MenuDetailResponse;
+import sweetgirl.croissant.menu.dto.response.MenuPriceResponse;
 import sweetgirl.croissant.menu.dto.response.MenuRegistrationResult;
 import sweetgirl.croissant.menu.dto.response.StoreMenuResponse;
 import sweetgirl.croissant.menu.service.MenuCommandService;
+import sweetgirl.croissant.menu.service.MenuPriceCommandService;
 import sweetgirl.croissant.menu.service.MenuQueryService;
 
 @Tag(name = "Menu", description = "메뉴 API")
@@ -34,6 +37,7 @@ public class MenuController {
 
 	private final MenuQueryService menuQueryService;
 	private final MenuCommandService menuCommandService;
+	private final MenuPriceCommandService menuPriceCommandService;
 
 	@Operation(summary = "메뉴 카테고리 목록 조회", description = "등록된 모든 메뉴 카테고리(id, name)를 반환합니다.")
 	@GetMapping("/menu-categories")
@@ -68,6 +72,18 @@ public class MenuController {
 			@PathVariable Long menuId,
 			@AuthenticationPrincipal Long memberId) {
 		return ResponseEntity.ok(ApiResponse.ok(menuQueryService.getMenuDetail(menuId, memberId)));
+	}
+
+	@Operation(summary = "메뉴 가격 공동 수정", description = "빵 평가 화면에서 누구나 고친다. 1원 이상 1,000,000원 이하, "
+		+ "바뀔 때만 이력을 남긴다. 그 가게 메뉴가 아니거나 지워졌으면 404. 게스트는 403.")
+	@PatchMapping("/stores/{storeId}/menus/{menuId}/price")
+	public ResponseEntity<ApiResponse<MenuPriceResponse>> updatePrice(
+			@PathVariable Long storeId,
+			@PathVariable Long menuId,
+			@AuthenticationPrincipal Long memberId,
+			@Valid @RequestBody MenuPriceUpdateRequest request) {
+		return ResponseEntity.ok(ApiResponse.ok(
+			menuPriceCommandService.updatePrice(storeId, menuId, memberId, request.price())));
 	}
 
 	@Operation(summary = "메뉴 종류 확정", description = "회원이 직접 등록한 메뉴의 종류(kind)를 AI 제안 칩에서 골라 확정합니다. 본인이 등록한 메뉴가 아니면 403.")

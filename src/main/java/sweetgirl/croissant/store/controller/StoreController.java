@@ -136,11 +136,13 @@ public class StoreController {
 			ApiResponse.ok(storeInBoundsQueryService.getStoresInBounds(bounds, lat, lng, limit)));
 	}
 
-	@Operation(summary = "인기 빵집 목록 조회", description = "구독 수 내림차순으로 상위 빵집 목록을 조회합니다.")
+	@Operation(summary = "인기 빵집 목록 조회", description = "인기도(popularity_score) 내림차순으로 상위 빵집 목록을 조회합니다. "
+		+ "subscribeCount 는 항상 0입니다(구버전 앱 호환).")
 	@GetMapping("/popular")
 	public ResponseEntity<ApiResponse<List<TopSubscribedStoreResponse>>> getTopSubscribedStores(
-			@RequestParam double lat, @RequestParam double lng) {
-		return ResponseEntity.ok(ApiResponse.ok(storeQueryService.getTopSubscribedStores(lng, lat)));
+			@Parameter(description = "사용하지 않음 — 구버전 앱 호환용") @RequestParam(required = false) Double lat,
+			@Parameter(description = "사용하지 않음 — 구버전 앱 호환용") @RequestParam(required = false) Double lng) {
+		return ResponseEntity.ok(ApiResponse.ok(storeQueryService.getTopSubscribedStores()));
 	}
 
 	@Operation(summary = "카카오 검색 결과 빵집 등록", description = "카카오 검색 결과에서 클릭한 빵집을 DB에 저장하고 storeId를 반환")

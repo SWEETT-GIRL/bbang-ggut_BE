@@ -25,6 +25,20 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 
 	long countByMemberIdAndDeletedAtIsNull(Long memberId);
 
+	/** 먹어 본 가게인가 — 그 가게에 안 지운 빵로그가 하나라도 있으면. 내 빵 순위에 담을 수 있는 기준. */
+	boolean existsByMemberIdAndStoreIdAndDeletedAtIsNull(Long memberId, Long storeId);
+
+	/**
+	 * 빵로그를 남긴(안 지운) 가게 id — 내 빵 순위에 담을 후보. 가게 없는 기록은 뺀다.
+	 * id 만 뽑는 이유: Store 엔티티를 DISTINCT 하면 geography 컬럼까지 비교 대상이 된다. 상태·이름 필터는 가게를 읽은 뒤 건다.
+	 */
+	@Query("""
+			SELECT DISTINCT record.store.id
+			FROM BreadRecord record
+			WHERE record.member.id = :memberId AND record.deletedAt IS NULL AND record.store IS NOT NULL
+			""")
+	List<Long> findEatenStoreIds(@Param("memberId") Long memberId);
+
 	@Query(value = """
 			SELECT COALESCE(MAX(visits), 0)
 			FROM (
