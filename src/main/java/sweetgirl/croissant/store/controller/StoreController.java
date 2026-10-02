@@ -137,7 +137,7 @@ public class StoreController {
 	}
 
 	@Operation(summary = "인기 빵집 목록 조회", description = "인기도(popularity_score) 내림차순으로 상위 빵집 목록을 조회합니다. "
-		+ "subscribeCount 는 항상 0입니다(구버전 앱 호환).")
+		+ "region 은 null 없이(없으면 빈 문자열) 내리고, subscribeCount 는 항상 0입니다(구버전 앱 호환).")
 	@GetMapping("/popular")
 	public ResponseEntity<ApiResponse<List<TopSubscribedStoreResponse>>> getTopSubscribedStores(
 			@Parameter(description = "사용하지 않음 — 구버전 앱 호환용") @RequestParam(required = false) Double lat,

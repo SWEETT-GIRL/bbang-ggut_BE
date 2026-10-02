@@ -143,14 +143,18 @@ class StoreControllerTest {
 	}
 
 	@Test
-	void getTopSubscribedStores_returnsIdNameAndZeroSubscribeCount() throws Exception {
+	void getTopSubscribedStores_returnsRegionAddressThumbnailAndZeroSubscribeCount() throws Exception {
 		given(storeQueryService.getTopSubscribedStores())
-			.willReturn(List.of(new TopSubscribedStoreResponse(30L, "성수 베이크", 0L)));
+			.willReturn(List.of(new TopSubscribedStoreResponse(30L, "성수 베이크", "서울 성동구", "서울 성동구 성수동 1-1",
+				"store/30_320.jpg", 0L)));
 
 		mockMvc.perform(get("/stores/popular"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data[0].id").value(30))
 			.andExpect(jsonPath("$.data[0].name").value("성수 베이크"))
+			.andExpect(jsonPath("$.data[0].region").value("서울 성동구"))
+			.andExpect(jsonPath("$.data[0].address").value("서울 성동구 성수동 1-1"))
+			.andExpect(jsonPath("$.data[0].thumbnailImageKey").value("store/30_320.jpg"))
 			.andExpect(jsonPath("$.data[0].subscribeCount").value(0))
 			.andExpect(jsonPath("$.data[0].distanceMeters").doesNotExist());
 	}
@@ -158,7 +162,7 @@ class StoreControllerTest {
 	@Test
 	void getTopSubscribedStores_acceptsLegacyLocationParams() throws Exception {
 		given(storeQueryService.getTopSubscribedStores())
-			.willReturn(List.of(new TopSubscribedStoreResponse(30L, "성수 베이크", 0L)));
+			.willReturn(List.of(new TopSubscribedStoreResponse(30L, "성수 베이크", "", null, null, 0L)));
 
 		mockMvc.perform(get("/stores/popular")
 			.param("lat", "37.54").param("lng", "127.05"))

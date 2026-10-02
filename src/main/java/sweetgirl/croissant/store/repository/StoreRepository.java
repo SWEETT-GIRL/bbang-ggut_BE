@@ -210,8 +210,9 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 
 	// 구독(빵알람)은 더 쓰지 않는 기능이라 인기도(popularity_score) 순으로 뽑는다.
 	// idx_store_popularity_score 를 순서대로 읽다가 limit 에서 멈춘다 — 정렬 없음(운영 EXPLAIN 2026-09-28).
+	// 지역·주소는 1.5.x 앱이 가게 고르기 화면에서 그대로 읽는다 — 빼면 앱이 꺼진다(2026-10-02, #818 회귀).
 	@Query(value = """
-				SELECT s.id, s.name
+				SELECT s.id, s.name, s.region_1st AS region1st, s.region_2nd AS region2nd, s.address
 				FROM store s
 				WHERE s.status = 'ACTIVE'
 				ORDER BY s.popularity_score DESC
