@@ -92,33 +92,35 @@ class LetterServiceTest {
 		return request;
 	}
 
-	private LetterSendRequest photoRequest(String body, String imageKey) {
+	private LetterSendRequest photoRequest(String body, String... imageKeys) {
 		LetterSendRequest request = sendRequest(body);
-		ReflectionTestUtils.setField(request, "imageKey", imageKey);
+		ReflectionTestUtils.setField(request, "imageKeys", List.of(imageKeys));
 		return request;
 	}
 
 	@Test
-	@DisplayName("사진만 있으면 본문이 비어도 보낸다")
+	@DisplayName("사진만 있으면 본문이 비어도 보낸다 — 고른 순서대로")
 	void send_acceptsPhotoOnly() {
-		String key = "letters/members/" + MEMBER_ID + "/images/abc";
+		String first = "letters/members/" + MEMBER_ID + "/images/a";
+		String second = "letters/members/" + MEMBER_ID + "/images/b";
 		given(letterMessageRepository.countByThreadMemberIdAndSenderAndCreatedAtAfter(
 			eq(MEMBER_ID), eq(LetterSender.MEMBER), any())).willReturn(0L);
 		given(letterThreadRepository.findByMemberId(MEMBER_ID)).willReturn(Optional.of(thread(11L)));
 		given(letterMessageRepository.save(any(LetterMessage.class))).willAnswer(inv -> inv.getArgument(0));
 
-		letterService.send(MEMBER_ID, photoRequest(null, key));
+		letterService.send(MEMBER_ID, photoRequest(null, first, second));
 
 		ArgumentCaptor<LetterMessage> captor = ArgumentCaptor.forClass(LetterMessage.class);
 		verify(letterMessageRepository).save(captor.capture());
-		assertThat(captor.getValue().getImageKey()).isEqualTo(key);
+		assertThat(captor.getValue().getImageKeys()).containsExactly(first, second);
 		assertThat(captor.getValue().getBody()).isEmpty();
 	}
 
 	@Test
-	@DisplayName("내 편지 사진 폴더가 아닌 키는 거부한다")
+	@DisplayName("내 편지 사진 폴더가 아닌 키가 하나라도 있으면 거부한다")
 	void send_rejectsForeignImageKey() {
-		assertThatThrownBy(() -> letterService.send(MEMBER_ID, photoRequest("봐주세요", "letters/members/8/images/abc")))
+		assertThatThrownBy(() -> letterService.send(MEMBER_ID,
+			photoRequest("봐주세요", "letters/members/" + MEMBER_ID + "/images/a", "letters/members/8/images/b")))
 			.isInstanceOf(LetterException.class)
 			.hasFieldOrPropertyWithValue("errorCode", LetterErrorCode.LETTER_INVALID_IMAGE_KEY);
 

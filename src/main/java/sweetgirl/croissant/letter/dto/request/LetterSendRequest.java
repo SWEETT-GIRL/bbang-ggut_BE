@@ -1,5 +1,7 @@
 package sweetgirl.croissant.letter.dto.request;
 
+import java.util.List;
+
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -14,9 +16,9 @@ public class LetterSendRequest {
 	@Size(max = 1000)
 	private String body;
 
-	/** {@code GET /letters/images/presigned-url}로 받아 S3에 올린 사진의 키. 없으면 글만 보낸다. */
-	@Size(max = 512)
-	private String imageKey;
+	/** {@code GET /letters/images/presigned-url}로 받아 S3에 올린 사진 키들. 최대 5장, 없으면 글만 보낸다. */
+	@Size(max = 5)
+	private List<String> imageKeys;
 
 	/**
 	 * 문의 유형. 말을 처음 걸 때 고르고, 이어지는 메시지에도 앱이 같은 값을 실어 보낸다.

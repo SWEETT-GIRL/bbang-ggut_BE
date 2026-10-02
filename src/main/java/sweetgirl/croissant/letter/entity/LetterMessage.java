@@ -1,8 +1,14 @@
 package sweetgirl.croissant.letter.entity;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
+import org.hibernate.annotations.BatchSize;
+
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -12,6 +18,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -55,9 +62,13 @@ public class LetterMessage extends BaseTimeEntity {
 	@Column(length = 20)
 	private LetterCategory category;
 
-	/** 사용자가 첨부한 사진의 S3 키. 사진 없는 편지가 대부분이라 nullable. */
-	@Column(name = "image_key", length = 512)
-	private String imageKey;
+	/** 사용자가 첨부한 사진들의 S3 키. 고른 순서를 지킨다. */
+	@ElementCollection(fetch = FetchType.LAZY)
+	@CollectionTable(name = "letter_message_image", joinColumns = @JoinColumn(name = "message_id"))
+	@OrderColumn(name = "sort_order")
+	@Column(name = "image_key", nullable = false, length = 512)
+	@BatchSize(size = 100)
+	private List<String> imageKeys = new ArrayList<>();
 
 	@Column(name = "read_at")
 	private LocalDateTime readAt;
@@ -80,9 +91,9 @@ public class LetterMessage extends BaseTimeEntity {
 
 	/** 사진이 붙은 편지. 사진만 보낼 땐 body가 빈 문자열이다 — 컬럼이 NOT NULL이라. */
 	public static LetterMessage create(LetterThread thread, LetterSender sender, String body,
-			LetterCategory category, String imageKey) {
+			LetterCategory category, List<String> imageKeys) {
 		LetterMessage message = new LetterMessage(thread, sender, body, category);
-		message.imageKey = imageKey;
+		message.imageKeys.addAll(imageKeys);
 		return message;
 	}
 

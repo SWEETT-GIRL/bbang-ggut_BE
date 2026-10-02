@@ -45,7 +45,7 @@ public class LetterController {
 		return ApiResponse.ok(letterService.send(memberId, request));
 	}
 
-	@Operation(summary = "편지 사진 Presigned URL 발급", description = "uploadUrl로 PUT한 뒤 awsKey를 편지의 imageKey로 넘깁니다.")
+	@Operation(summary = "편지 사진 Presigned URL 발급", description = "uploadUrl로 PUT한 뒤 awsKey를 편지의 imageKeys에 담습니다.")
 	@GetMapping("/images/presigned-url")
 	public ApiResponse<PresignedUrlResponse> getImagePresignedUrl(@AuthenticationPrincipal Long memberId,
 			@Parameter(description = "image/jpeg, image/png 등") @RequestParam String mimeType) {

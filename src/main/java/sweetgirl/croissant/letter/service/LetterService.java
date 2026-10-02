@@ -1,6 +1,7 @@
 package sweetgirl.croissant.letter.service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Locale;
 
 import org.springframework.data.domain.PageRequest;
@@ -120,13 +121,17 @@ public class LetterService {
 	@Transactional
 	public LetterMessageResponse send(Long memberId, LetterSendRequest request) {
 		String body = request.getBody() == null ? "" : request.getBody().trim();
-		String imageKey = request.getImageKey() == null || request.getImageKey().isBlank()
-			? null : request.getImageKey().strip();
-		if (body.isEmpty() && imageKey == null) {
+		List<String> imageKeys = request.getImageKeys() == null ? List.of() : request.getImageKeys().stream()
+			.filter(key -> key != null && !key.isBlank())
+			.map(String::strip)
+			.distinct()
+			.toList();
+		if (body.isEmpty() && imageKeys.isEmpty()) {
 			throw new LetterException(LetterErrorCode.LETTER_BODY_EMPTY);
 		}
 		// 남의 폴더나 버킷 아무 데나 가리키는 키를 막는다 — 내 편지 사진 폴더 아래만 받는다
-		if (imageKey != null && !imageKey.startsWith(S3PathGenerator.getLetterImagePath(memberId) + "/")) {
+		String ownPrefix = S3PathGenerator.getLetterImagePath(memberId) + "/";
+		if (imageKeys.stream().anyMatch(key -> !key.startsWith(ownPrefix))) {
 			throw new LetterException(LetterErrorCode.LETTER_INVALID_IMAGE_KEY);
 		}
 
@@ -146,14 +151,14 @@ public class LetterService {
 		thread.reopen();
 
 		LetterMessage saved = letterMessageRepository.save(
-			LetterMessage.create(thread, LetterSender.MEMBER, body, request.getCategory(), imageKey));
+			LetterMessage.create(thread, LetterSender.MEMBER, body, request.getCategory(), imageKeys));
 		LetterMessageResponse response = LetterMessageResponse.from(saved);
 
 		letterMessageRepository.markAllAsRead(thread.getId(), LetterSender.ADMIN, now);
 		return response;
 	}
 
-	/** 편지에 붙일 사진을 올릴 presigned URL. 받은 awsKey를 {@link LetterSendRequest#getImageKey()}로 보낸다. */
+	/** 편지에 붙일 사진을 올릴 presigned URL. 받은 awsKey를 {@link LetterSendRequest#getImageKeys()}로 보낸다. */
 	public PresignedUrlResponse generateImagePresignedUrl(Long memberId, String mimeType) {
 		if (mimeType == null) {
 			throw new LetterException(LetterErrorCode.LETTER_INVALID_IMAGE_MIME_TYPE);

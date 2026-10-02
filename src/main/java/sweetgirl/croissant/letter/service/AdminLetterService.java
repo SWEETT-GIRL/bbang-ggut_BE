@@ -207,7 +207,7 @@ public class AdminLetterService {
 		Map<Long, String> previews = new HashMap<>();
 		for (LetterMessage message : letterMessageRepository.findLatestPerThread(threadIds)) {
 			// 사진만 보낸 편지는 본문이 비어 목록 줄이 텅 빈다 — 사진이라고 적어 둔다
-			String body = message.getBody().isBlank() && message.getImageKey() != null ? "(사진)" : message.getBody();
+			String body = message.getBody().isBlank() && !message.getImageKeys().isEmpty() ? "(사진)" : message.getBody();
 			previews.put(message.getThread().getId(), preview(body));
 		}
 		return previews;
