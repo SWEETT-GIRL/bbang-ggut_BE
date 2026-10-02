@@ -29,6 +29,7 @@ import sweetgirl.croissant.store.dto.projection.NearbyStoreProjection;
 import sweetgirl.croissant.store.dto.projection.RegionByDistanceProjection;
 import sweetgirl.croissant.store.dto.projection.RegionBySubscribeProjection;
 import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
+import sweetgirl.croissant.store.dto.projection.TopSubscribedStoreProjection;
 import sweetgirl.croissant.store.dto.response.NearbyStoreResponse;
 import sweetgirl.croissant.store.dto.response.RegionByDistanceResponse;
 import sweetgirl.croissant.store.dto.response.RegionBySubscribeResponse;
@@ -186,8 +187,18 @@ public class StoreQueryService {
 	}
 
 	public List<TopSubscribedStoreResponse> getTopSubscribedStores() {
-		return storeRepository.findTopSubscribedStores(TOP_SUBSCRIBED_STORE_LIMIT).stream()
-			.map(TopSubscribedStoreResponse::from)
+		List<TopSubscribedStoreProjection> topStores = storeRepository.findTopSubscribedStores(
+			TOP_SUBSCRIBED_STORE_LIMIT);
+		if (topStores.isEmpty()) {
+			return List.of();
+		}
+		List<Long> storeIds = topStores.stream()
+			.map(TopSubscribedStoreProjection::getId)
+			.toList();
+		Map<Long, String> storeThumbnailMap = getStoreThumbnails(storeIds);
+
+		return topStores.stream()
+			.map(store -> TopSubscribedStoreResponse.of(store, storeThumbnailMap.get(store.getId())))
 			.toList();
 	}
 
