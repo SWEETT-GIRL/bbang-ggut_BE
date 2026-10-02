@@ -1,6 +1,8 @@
 package sweetgirl.croissant.letter.service;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Locale;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -9,6 +11,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.common.enums.MimeType;
+import sweetgirl.croissant.external.aws.S3Service;
+import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
+import sweetgirl.croissant.external.aws.exception.S3StorageException;
+import sweetgirl.croissant.external.aws.util.S3PathGenerator;
 import sweetgirl.croissant.letter.code.LetterErrorCode;
 import sweetgirl.croissant.letter.dto.request.LetterSendRequest;
 import sweetgirl.croissant.letter.dto.response.LetterListResponse;
@@ -61,6 +68,7 @@ public class LetterService {
 	private final LetterThreadRepository letterThreadRepository;
 	private final LetterMessageRepository letterMessageRepository;
 	private final MemberRepository memberRepository;
+	private final S3Service s3Service;
 
 	/**
 	 * 내 편지 목록 — 최신순. 앱이 뒤집힌 목록(inverted)으로 그리고, 위로 당기면 옛 편지를 더 받는다.
@@ -113,8 +121,18 @@ public class LetterService {
 	@Transactional
 	public LetterMessageResponse send(Long memberId, LetterSendRequest request) {
 		String body = request.getBody() == null ? "" : request.getBody().trim();
-		if (body.isEmpty()) {
+		List<String> imageKeys = request.getImageKeys() == null ? List.of() : request.getImageKeys().stream()
+			.filter(key -> key != null && !key.isBlank())
+			.map(String::strip)
+			.distinct()
+			.toList();
+		if (body.isEmpty() && imageKeys.isEmpty()) {
 			throw new LetterException(LetterErrorCode.LETTER_BODY_EMPTY);
+		}
+		// 남의 폴더나 버킷 아무 데나 가리키는 키를 막는다 — 내 편지 사진 폴더 아래만 받는다
+		String ownPrefix = S3PathGenerator.getLetterImagePath(memberId) + "/";
+		if (imageKeys.stream().anyMatch(key -> !key.startsWith(ownPrefix))) {
+			throw new LetterException(LetterErrorCode.LETTER_INVALID_IMAGE_KEY);
 		}
 
 		LocalDateTime now = LocalDateTime.now();
@@ -133,11 +151,25 @@ public class LetterService {
 		thread.reopen();
 
 		LetterMessage saved = letterMessageRepository.save(
-			LetterMessage.create(thread, LetterSender.MEMBER, body, request.getCategory()));
+			LetterMessage.create(thread, LetterSender.MEMBER, body, request.getCategory(), imageKeys));
 		LetterMessageResponse response = LetterMessageResponse.from(saved);
 
 		letterMessageRepository.markAllAsRead(thread.getId(), LetterSender.ADMIN, now);
 		return response;
+	}
+
+	/** 편지에 붙일 사진을 올릴 presigned URL. 받은 awsKey를 {@link LetterSendRequest#getImageKeys()}로 보낸다. */
+	public PresignedUrlResponse generateImagePresignedUrl(Long memberId, String mimeType) {
+		if (mimeType == null) {
+			throw new LetterException(LetterErrorCode.LETTER_INVALID_IMAGE_MIME_TYPE);
+		}
+		String normalized = mimeType.toLowerCase(Locale.ROOT);
+		try {
+			MimeType.fromString(normalized);
+		} catch (S3StorageException exception) {
+			throw new LetterException(LetterErrorCode.LETTER_INVALID_IMAGE_MIME_TYPE);
+		}
+		return s3Service.generatePresignedUrl(S3PathGenerator.getLetterImagePath(memberId), normalized);
 	}
 
 	/** 편지함을 열었으니 받은 편지는 전부 읽음. 대화방이 없으면 읽을 것도 없다. */
