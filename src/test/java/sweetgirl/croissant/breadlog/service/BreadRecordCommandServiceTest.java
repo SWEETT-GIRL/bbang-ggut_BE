@@ -592,7 +592,7 @@ class BreadRecordCommandServiceTest {
 		verify(tagRepository).saveAll(argThat(tags -> {
 			BreadRecordTag tag = firstTag(tags);
 			return Boolean.TRUE.equals(tag.getAgain())
-				&& tag.textures().equals(List.of(TextureChip.쫄깃, TextureChip.겉바속촉))
+				&& tag.textures().equals(List.of(TextureChip.겉바속촉, TextureChip.쫄깃))
 				&& tag.tastes().equals(List.of(TasteChip.짭짤))
 				&& "겉은 바삭".equals(tag.getRatingMemo());
 		}));
