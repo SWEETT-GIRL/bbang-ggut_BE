@@ -2,6 +2,7 @@ package sweetgirl.croissant.breadlog.service;
 
 import java.util.List;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +17,8 @@ import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.enums.TrendingSignal;
+import sweetgirl.croissant.store.event.StoreTrendingSignalEvent;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
@@ -28,6 +31,7 @@ public class StorePlanService {
 	private final MemberRestrictionReader memberRestrictionReader;
 	private final StoreRepository storeRepository;
 	private final StorePlanRepository storePlanRepository;
+	private final ApplicationEventPublisher eventPublisher;
 
 	@Transactional(readOnly = true)
 	public List<StorePlanResponse> getPlans(Long memberId) {
@@ -49,11 +53,15 @@ public class StorePlanService {
 				existing.updateMemo(memo);
 				return existing;
 			})
-			.orElseGet(() -> storePlanRepository.save(StorePlan.builder()
-				.member(member)
-				.store(store)
-				.memo(memo)
-				.build()));
+			.orElseGet(() -> {
+				// 새로 담을 때만 관심 신호다 — 메모 수정은 새 행동이 아니다
+				eventPublisher.publishEvent(new StoreTrendingSignalEvent(memberId, storeId, TrendingSignal.PLAN));
+				return storePlanRepository.save(StorePlan.builder()
+					.member(member)
+					.store(store)
+					.memo(memo)
+					.build());
+			});
 		return StorePlanResponse.from(plan);
 	}
 

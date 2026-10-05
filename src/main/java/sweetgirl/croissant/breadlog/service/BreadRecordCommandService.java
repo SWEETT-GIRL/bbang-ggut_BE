@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +48,8 @@ import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.menu.util.MenuNameNormalizer;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.enums.TrendingSignal;
+import sweetgirl.croissant.store.event.StoreTrendingSignalEvent;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.StoreRepository;
 import sweetgirl.croissant.world.repository.MemberWorldRepository;
@@ -70,6 +73,7 @@ public class BreadRecordCommandService {
 	private final ImageProcessingCallbackService imageProcessingCallbackService;
 	private final CourseProgressService courseProgressService;
 	private final MemberWorldRepository memberWorldRepository;
+	private final ApplicationEventPublisher eventPublisher;
 
 	public BreadRecordPresignedUrlResponse generatePresignedUrls(
 			Long memberId,
@@ -103,6 +107,11 @@ public class BreadRecordCommandService {
 		// 찜은 사용자가 직접 풀 때까지 남긴다 — 기록이 생겨도 "또 가고 싶은 가게"일 수 있다.
 		// (기록 시 자동 해제는 정책 변경으로 제거)
 		courseProgressService.refreshForMember(memberId);
+		// 가게를 고른 기록만 급부상 신호다 — 가게 없이 이름만 적은 기록은 어느 가게인지 모른다
+		if (data.store() != null) {
+			eventPublisher.publishEvent(
+				new StoreTrendingSignalEvent(memberId, data.store().getId(), TrendingSignal.RECORD));
+		}
 		return new BreadRecordCreateResponse(record.getId(), record.getCreatedAt());
 	}
 
