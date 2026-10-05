@@ -43,6 +43,13 @@ public class MonthlyReportGenerationService {
 		if (existing.isPresent() && existing.get().getStatus() == MonthlyReportStatus.PUBLISHED) {
 			return false;
 		}
+		Prepared prepared = prepare(draft, rawMetrics);
+		return publicationService.publish(draft.memberId(), draft.yearMonth(), prepared.report(),
+			prepared.metrics(), calculationVersion, prepared.generatedAt());
+	}
+
+	public Prepared prepare(MonthlyReportResponse draft, ObjectNode rawMetrics) {
+		codec.write(draft, draft.memberId(), draft.yearMonth());
 		MonthlyReportSourceSnapshot source = sourceReader.read(draft.memberId(), draft.yearMonth());
 		MonthlyReportRecordAggregationService.Result records = recordAggregationService.aggregate(
 			draft.memberId(), draft.yearMonth(), source);
@@ -75,9 +82,9 @@ public class MonthlyReportGenerationService {
 			.put("photoReferenceId", photoSource.photoReferenceId().toString()));
 		MonthlyReportResponse report = activityPolicy.applyTo(
 			breads.applyTo(records.applyTo(draft)).withStores(stores).withTowns(towns), metrics);
-		return publicationService.publish(draft.memberId(), draft.yearMonth(),
-			report,
-			metrics,
-			calculationVersion, Instant.now());
+		return new Prepared(report, metrics, Instant.now());
+	}
+
+	public record Prepared(MonthlyReportResponse report, ObjectNode metrics, Instant generatedAt) {
 	}
 }
