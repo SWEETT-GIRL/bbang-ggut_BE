@@ -257,7 +257,26 @@ Redis를 쓰는 근거 (운영은 WAS 1대 안에서 blue/green 전환 — `chor
   - `cd-staging.yml`이 `.env`에 `REDIS_PASSWORD`(시크릿 `STAGING_REDIS_PASSWORD`)와 `AUTOCOMPLETE_CACHE_ENABLED`(저장소 변수 `STAGING_AUTOCOMPLETE_CACHE_ENABLED`, 기본 false)를 쓴다
 - 측정 전에 `scouter-agent`를 끈다 — 쿠폰 측정 때 CPU를 19~24% 먹었다
 
+### 측정 결과 (2026-10-05, staging t3.small · k6 c7g.xlarge · 운영 검색어 3,964건 재생)
+
+| 초당 | 캐시 없음 | 이전 Caffeine 30초 | Redis 7일 |
+|---|---|---|---|
+| 50 | p95 13.1ms · CPU 29% | p95 9.5ms · CPU 17% | p95 10.7ms · CPU 26% |
+| 100 | p95 22.5ms · CPU 48% | p95 8.8ms · CPU 29% | p95 11.8ms · CPU 43% |
+| 200 | 실패 6.5% · p95 13.6초 | p95 23ms · CPU 60% | p95 172ms · CPU 77% |
+
+- Redis 적중률은 38.9%였다. 초당 200건에서 동시 미스 128건을 한 번의 DB 조회로 합쳤다.
+- **압축 재생(36일 → 80초)은 Caffeine 에 유리하다.** 30초 TTL 이 실제 시간으로 약 13일을 버티는 셈이다.
+- 실제 시간 기준 적중률은 운영 로그 시뮬레이션으로 본다. 08-27 이후 배포 46회를 반영했다.
+  - Caffeine 30초(배포마다 비움) 12.4%
+  - 메모리 7일(배포마다 비움) 26.4%
+  - **Redis 7일 31.1%**
+- **결론**
+  - Redis 결과 캐시의 이득은 "오래, 배포와 무관하게 남아 적중률이 높다"는 데 있다.
+  - 대신 적중 1건의 속도와 CPU 는 메모리 캐시보다 비싸다. 미스 시 Redis 를 4번 왕복하고, 2코어 호스트를 앱·DB 와 나눠 쓴다.
+  - 지금 규모(하루 120건, p95 27ms)에서는 효과가 작다. **운영에서는 꺼 둔 채로 둔다.**
+- Redis 가 꼭 필요한 곳은 급부상(실시간 카운트·순위표·7일 기록)이다 → `feat-autocomplete-trending.md`
+
 ### 남은 것
-- [ ] k6 부하 테스트(캐시 on/off × 1·10·100배) — 0단계 실제 검색어 분포 재현
-- [ ] 운영 인프라(was-1 Redis, `docker-compose.prod.yml`·`cd-prod.yml`) — 측정 결과를 보고 진행
+- [ ] 운영 인프라(was-1 Redis, `docker-compose.prod.yml`·`cd-prod.yml`) — 급부상(PR2)과 함께 진행
 - [ ] 커밋 전 무효화와 동시 미스가 겹치면 옛 결과가 다시 채워질 수 있다(cache-aside의 알려진 경쟁). 창이 수 ms라 TTL에 맡긴다 — 필요하면 지연 이중 삭제
