@@ -2,7 +2,7 @@
 
 ## 사용 흐름
 
-이 문서는 어드민 웹에서 호출할 **백엔드 API**다. 어드민 화면은 별도로 연결해야 한다.
+이 문서는 어드민 웹에서 호출할 **백엔드 API**다. 어드민 웹 PR #20의 `/monthly-reports` 화면에서 연결한다.
 
 1. S3에 표지·유형 카드를 업로드하고 이미지 버전별로 등록한다.
 2. 대상 월과 이미지 버전을 지정해 생성 작업을 등록한다.
@@ -79,12 +79,15 @@ monthly-reports/assets/{version}/types/{characterCode}/{planetCode}/{type}-{UUID
 
 | 메서드 | 경로 | 용도 |
 | --- | --- | --- |
-| POST | `/{month}/runs` | 작업 생성, 202 |
+| POST | `/{month}/runs` | 전체 작업 생성, 202 |
+| POST | `/{month}/members/{memberId}/runs` | 회원 1명 작업 생성, 202 |
 | GET | `/{month}/runs/{id}` | 작업 상태·회원별 상태 건수 |
 | GET | `/{month}/runs/{id}/members?page=0&size=20` | 회원 ID·상태·시도 횟수·오류 코드, Slice |
 | GET | `/{month}/runs/{id}/preview/{memberId}` | 생성된 보고서 미리보기, Cache-Control: no-store |
 | POST | `/{month}/runs/{id}/publish` | 발행 승인, 202 |
-| POST | `/{month}/runs/{id}/retry` | 실패 작업 재시도, 202 |
+| POST | `/{month}/runs/{id}/retry` | 생성·발행 실패 재시도, 202 |
+| GET | `/{month}/runs/{id}/operations?page=0&size=20` | 발행·푸시·조회 현황 |
+| POST | `/{month}/runs/{id}/members/{memberId}/push/retry` | 최종 실패 푸시만 재시도, 202 |
 
 ### 생성
 
@@ -95,7 +98,7 @@ monthly-reports/assets/{version}/types/{characterCode}/{planetCode}/{type}-{UUID
 ```
 
 KST 기준 종료된 월만 허용한다. 반환된 `id`로 진행 상태를 조회한다.
-월당 작업 하나이며 같은 버전으로 중복 요청하면 기존 작업을 돌려준다. 다른 버전 요청은 409다.
+월·대상별 작업 하나이며 같은 버전으로 중복 요청하면 기존 작업을 돌려준다. 다른 버전 요청은 409다.
 이 구현에는 작업 취소·버전 교체·성공한 초안 재생성 API가 없다. 버전을 잘못 등록했다면 발행 전에 별도 정정 작업이 필요하다.
 
 작업 상태:
@@ -142,7 +145,7 @@ KST 기준 종료된 월만 허용한다. 반환된 `id`로 진행 상태를 조
 FCM과 DB 사이의 원자적 커밋은 보장하지 않는다.
 
 `COMPLETE`는 보고서 처리 완료다. 푸시 상태는 `monthly_report_push`와 `notification_delivery`에서 확인한다.
-최대 횟수 이후 자동 재시도는 종료된다. 푸시 상태 조회·수동 재전송 어드민 API는 아직 없다.
+최대 횟수 이후 자동 재시도는 종료된다. 어드민 operations API에서 확인하고 최종 실패만 수동 재시도할 수 있다.
 
 ### 실패 후 재시도
 
@@ -161,7 +164,8 @@ FCM과 DB 사이의 원자적 커밋은 보장하지 않는다.
 | `monthly_report_run` | 월별 진행 상태·마지막 회원 ID·예약 시각 |
 | `monthly_report_draft` | 회원별 미리보기 payload·원시 메타데이터·처리 상태 |
 | `monthly_report_member` | 앱에서 읽는 최종 발행본 |
-| `monthly_report_push` | 알림 ID별 발송 시각·재시도 상태 |
+| `monthly_report_push` | 알림 ID별 발송 시각·재시도 상태·전체 시도 횟수 |
+| `monthly_report_notification` | 발행본과 기존 알림 ID의 연결. 알림 내용·읽음·발송 결과는 중복 저장하지 않음 |
 
 JPA Entity/Repository를 사용한다. 월별 등록은 UNIQUE+조건부 INSERT, 워커는 `FOR UPDATE SKIP LOCKED`로
 중복 처리를 방지한다. 재시작 시 DB에 저장된 위치에서 계속한다. 준비된 모든 payload를 메모리에 모으지 않는다.
@@ -178,6 +182,7 @@ monthly-report.admin.push-delay-ms=10000
 ### 마이그레이션 버전 정리
 
 이번 PR의 미배포 신규 파일 10개를 `V20261005222045`~`V20261005222054`로 정리했다.
+회원별 작업은 `55`, 운영 조회·재시도와 요청 로그 조회 인덱스는 `56`으로 이어진다.
 원격 main의 기존 버전과 중복되지 않으며, 10월 2일 적용 이력 이후에도 순서대로 실행된다.
 기존 운영 마이그레이션의 이름이나 SQL은 변경하지 않았다. 기존 번호로 개인 테스트 DB에 적용했다면
 재생성한 격리 DB에서 검증한다. 운영 DB의 Flyway 이력을 지우거나 repair로 우회하지 않는다.
@@ -205,4 +210,29 @@ monthly-report.admin.push-delay-ms=10000
 
 푸시 예약은 별도 테이블에 저장되며 10초 간격으로 처리하고 실패 시 최대 5회 시도합니다. `COMPLETE`는 보고서 발행 처리 완료이지 푸시 전달 완료가 아닙니다. FCM 접수 성공도 실제 기기 표시나 회원 열람을 보장하지 않습니다.
 
-푸시 결과·최종 실패 건을 어드민에 조회하는 API와 수동 푸시 재시도는 아직 없습니다. 알림함 `readAt`은 알림 읽음이며 보고서 열람으로 사용할 수 없습니다. 보고서 최초 열람을 확인하려면 앱의 실제 보고서 진입 이벤트와 서버 저장·조회 API를 추가해야 합니다.
+### 운영 조회
+
+`GET /{month}/runs/{id}/operations?page=0&size=20`은 다음 `data`를 반환합니다. page는 0 이상, size는 1~100입니다.
+
+- `published`: 해당 작업 대상 중 발행된 회원 수.
+- `viewed`: 발행 후 본인 상세 GET 요청에 200을 받은 회원 수. 반복 조회는 1명으로 집계합니다.
+- `notificationOpened`: 기존 `notification_recipient.read_at`이 있는 회원 수.
+- `pushCounts`: `PENDING`, `RETRY_WAIT`, `SENT`, `SKIPPED`, `FAILED`, `NOT_SCHEDULED`, `NOT_PUBLISHED`, `UNKNOWN`별 건수.
+- `members.content`: `memberId`, `publishedAt`, `firstViewedAt`, `notificationReadAt`, `pushState`, `sendAt`, `nextAttemptAt`, `completedAt`, `totalAttempts`, `manualRetries`, `errorCode`.
+- `members.hasNext`: 다음 페이지 여부. 시각은 UTC ISO-8601이며 화면에서 KST로 표시합니다.
+
+보고서 조회는 기존 `request_log`에서 회원 ID·월 경로·GET·200·발행 이후 조건을 만족하는 가장 이른 기록입니다.
+관리자 미리보기, 목록, 실패 응답, 다른 회원·월은 제외합니다. 별도 열람 테이블·전송 API는 만들지 않습니다.
+로그는 비동기로 저장되므로 지연·누락·삭제의 영향을 받으며, 보존 중인 로그 범위의 최초 성공 조회입니다.
+현재 앱의 공통 Amplitude 이벤트는 화면 진입·이탈·체류만 기록합니다. 카드별 도달·공유 이벤트는 별도 보완이 필요합니다.
+
+푸시 결과는 기존 `notification_delivery`, 알림 읽음은 `notification_recipient`에서 조회합니다.
+`monthly_report_notification`에는 보고서와 알림을 연결하는 ID만 저장합니다. 이 연결이 없는 이전 발행본은 `UNKNOWN`으로 표시합니다.
+수신 설정·활성 토큰·회원 상태로 제외된 푸시는 `SKIPPED`, 푸시를 예약하지 않은 발행본은 `NOT_SCHEDULED`입니다.
+
+### 푸시 재시도
+
+`POST /{month}/runs/{id}/members/{memberId}/push/retry`는 body가 없고 성공 시 202와 `data: null`을 반환합니다.
+해당 작업에 속한 회원의 자동 시도 5회 최종 실패만 허용하며, 최대 5회의 새 시도를 즉시 예약합니다.
+잠금 중·예약 대기·성공·발송 제외는 409입니다. 기존 성공 전달 기록이 있는 경우도 거절합니다.
+보고서·알림을 재생성하지 않으며 누적 시도 횟수와 수동 재시도 횟수는 보존합니다.
