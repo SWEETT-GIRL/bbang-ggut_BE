@@ -16,6 +16,12 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MonthlyReportPush {
+	@Column(name = "created_at", insertable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", insertable = false, updatable = false)
+	private Instant updatedAt;
+
 	@Id
 	@Column(name = "notification_id")
 	private Long notificationId;

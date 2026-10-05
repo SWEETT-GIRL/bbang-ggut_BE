@@ -18,6 +18,9 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MonthlyReportRun {
+	@Column(name = "updated_at", insertable = false, updatable = false)
+	private Instant updatedAt;
+
 	@Id
 	private UUID id;
 	@Column(name = "year_month", nullable = false, length = 7)

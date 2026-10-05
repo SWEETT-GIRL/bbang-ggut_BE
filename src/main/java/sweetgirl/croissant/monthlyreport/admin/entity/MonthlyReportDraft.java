@@ -21,6 +21,12 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MonthlyReportDraft {
+	@Column(name = "created_at", insertable = false, updatable = false)
+	private Instant createdAt;
+
+	@Column(name = "updated_at", insertable = false, updatable = false)
+	private Instant updatedAt;
+
 	@EmbeddedId
 	private MonthlyReportDraftId id;
 	@Column(name = "run_id", nullable = false, insertable = false, updatable = false)

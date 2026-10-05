@@ -20,6 +20,7 @@ import static org.mockito.Mockito.when;
 import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.MONTH;
 import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.PAYLOAD;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -176,6 +177,8 @@ class MonthlyReportAdminTest {
 			new ClassPathResource("db/migration/V20261005222056__monthly_report_operations.sql"),
 			new ClassPathResource("db/migration/V20261006055838__add_monthly_report_push_lease.sql"))
 			.execute(source);
+		jdbc.execute(new ClassPathResource("db/migration/V20261006055839__add_monthly_report_admin_audit.sql")
+			.getContentAsString(StandardCharsets.UTF_8));
 		LocalContainerEntityManagerFactoryBean factory = new LocalContainerEntityManagerFactoryBean();
 		factory.setDataSource(source);
 		factory.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
@@ -617,6 +620,26 @@ class MonthlyReportAdminTest {
 		assertThat(completed.isDone()).isTrue();
 		assertThat(completed.getLeaseToken()).isNull();
 		assertThat(completed.getAttempts()).isEqualTo(1);
+	}
+
+	@Test
+	void auditTimesCoverNativeInsertBulkRetryAndJpaChanges() {
+		MonthlyReportRunResponse run = admin.createReportRun(MONTH, "v1", 123L);
+		when(preparation.prepare(123L, MONTH, "v1")).thenThrow(new IllegalStateException("test failure"));
+		worker.processReportRunStep(run.id());
+		worker.processReportRunStep(run.id());
+		Instant before = jdbc.queryForObject("SELECT updated_at FROM monthly_report_draft WHERE run_id = ?",
+			OffsetDateTime.class, run.id()).toInstant();
+		admin.retryReportRun(MONTH, run.id());
+		Instant after = jdbc.queryForObject("SELECT updated_at FROM monthly_report_draft WHERE run_id = ?",
+			OffsetDateTime.class, run.id()).toInstant();
+		assertThat(after).isAfter(before);
+		assertThat(jdbc.queryForObject(
+			"SELECT count(*) FROM monthly_report_run WHERE created_at IS NOT NULL AND updated_at > created_at",
+			Integer.class)).isEqualTo(1);
+		assertThat(
+			jdbc.queryForObject("SELECT state FROM monthly_report_draft WHERE run_id = ?", String.class, run.id()))
+			.isEqualTo("PENDING");
 	}
 
 	@Test
