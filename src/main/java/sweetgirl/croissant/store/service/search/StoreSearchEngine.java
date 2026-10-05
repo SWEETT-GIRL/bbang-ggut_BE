@@ -7,20 +7,19 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
 import io.micrometer.core.annotation.Timed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import sweetgirl.croissant.config.cache.CacheConfig;
 import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
 import sweetgirl.croissant.store.enums.MatchedField;
 import sweetgirl.croissant.store.repository.search.SearchSqlQuery;
 import sweetgirl.croissant.store.repository.search.StoreAutocompleteRow;
 import sweetgirl.croissant.store.repository.search.StoreSearchJdbcRepository;
 import sweetgirl.croissant.store.repository.search.StoreSearchRow;
+import sweetgirl.croissant.store.service.search.cache.StoreAutocompleteCache;
 
 /**
  * 가게 검색 엔진 — PostgreSQL(pg_bigm) 부분일치 + PostGIS 거리. 가게명·구명·지역·주소만 본다(메뉴·카테고리 검색 없음).
@@ -42,6 +41,7 @@ public class StoreSearchEngine {
 
 	private final StoreSearchSqlBuilder sqlBuilder;
 	private final StoreSearchJdbcRepository storeSearchJdbcRepository;
+	private final StoreAutocompleteCache storeAutocompleteCache;
 
 	// 검색 API 지연에서 엔진(SQL 실행+매핑) 몫만 따로 본다. RDB 조립(StoreSearchAssembler)은 별도.
 	@Timed(value = "search.engine.query", histogram = true)
@@ -145,14 +145,20 @@ public class StoreSearchEngine {
 		return plan.hasRegionTokens() && row.matchedByRegion();
 	}
 
-	/** 30초 캐시 — 글자마다 부르는 자동완성이 가장 느리고 가장 자주 불린다. 같은 검색어·size 는 한 번만 센다. */
-	@Cacheable(cacheNames = CacheConfig.STORE_AUTOCOMPLETE, key = "#query + ':' + #size")
+	/**
+	 * Redis 캐시(검색어·size 별)를 먼저 본다 — 글자마다 부르는 자동완성은 같은 검색어가 반복된다. 캐시 키는 정규화한 검색어라 "성심 당"과
+	 * "성심당"이 같은 결과를 나눠 쓴다. 지표(search.engine.query)는 캐시 적중까지 포함한 응답 시간이다 — 캐시 전후를 같은 눈금으로 본다.
+	 */
 	@Timed(value = "search.engine.query", histogram = true)
 	public List<StoreAutocompleteSuggestion> autocompleteStores(String query, int size) {
 		String normalizedQuery = SearchTextNormalizer.normalize(query);
 		if (normalizedQuery.isBlank()) {
 			return List.of();
 		}
+		return storeAutocompleteCache.getOrLoad(normalizedQuery, size, () -> queryAutocomplete(normalizedQuery, size));
+	}
+
+	private List<StoreAutocompleteSuggestion> queryAutocomplete(String normalizedQuery, int size) {
 		SearchSqlQuery sqlQuery = sqlBuilder.buildAutocomplete(normalizedQuery, size);
 		List<StoreAutocompleteRow> rows = storeSearchJdbcRepository.autocomplete(sqlQuery);
 		return rows.stream()
