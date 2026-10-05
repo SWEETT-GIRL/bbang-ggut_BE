@@ -49,9 +49,9 @@ class MonthlyReportNotificationServiceTest {
 
 		service.recordPublished(member, YearMonth.of(2025, 12), now);
 
-		var notification = ArgumentCaptor.forClass(Notification.class);
+		ArgumentCaptor<Notification> notification = ArgumentCaptor.forClass(Notification.class);
 		verify(recorder).recordFor(notification.capture(), eq(member), eq(now));
-		assertThat(notification.getValue().getType()).isEqualTo(NotificationType.NOTICE);
+		assertThat(notification.getValue().getType()).isEqualTo(NotificationType.MONTHLY_REPORT);
 		assertThat(notification.getValue().getChannel()).isEqualTo(NotificationChannel.PUSH);
 		assertThat(notification.getValue().getTitle()).isEqualTo("12월 빵일지가 도착했어요");
 		assertThat(notification.getValue().getDeepLink()).isEqualTo("/reports/monthly/2025-12");

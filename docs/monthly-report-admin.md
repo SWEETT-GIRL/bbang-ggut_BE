@@ -301,3 +301,12 @@ CD는 저장소 variables `STAGING_MONTHLY_REPORT_AUTO_PREPARATION` / `STAGING_M
 관리 테이블 `monthly_report_run`, `monthly_report_draft`, `monthly_report_asset`, `monthly_report_push`의 생성·수정 시각을 저장한다. 수정 시각은 DB 트리거로 관리하여 JPA와 직접 SQL 변경을 모두 기록한다. 기존 행의 알 수 없는 과거 시각에는 마이그레이션 적용 시각을 사용한다. 기존 run의 생성 시각은 유지한다.
 
 준비·발행·발송 실패 로그에는 작업 ID, 회원 ID, 알림 ID, 처리 단계, 예외 클래스와 발생 위치를 남긴다. 보고서 본문과 예외 메시지는 진단 로그에 넣지 않는다.
+
+
+## 월간 보고서 알림 타입
+
+새 발행은 `notification.type = MONTHLY_REPORT`, FCM `data.type = MONTHLY_REPORT`를 사용한다. 제목·본문과 `link: /reports/monthly/YYYY-MM`은 서버가 제공한다. 푸시 예약 여부와 알림 타입은 별개이며 `pushAt`이 null이면 IN_APP, 예약하면 PUSH 채널이다. 일반 알림 수신 설정을 따르고 광고 마케팅 동의를 요구하지 않는다. 월간 보고서 전용 수신 설정이나 필터 API는 이번 변경에 추가하지 않는다.
+
+앱은 알림함에서 ‘월간 보고서’ 분류와 서버 제목·본문을 표시하고 알림함·푸시 모두 해당 월 상세로 이동한다. 링크 누락·잘못된 월이면 보고서 목록으로 이동한다. 기존 일반 NOTICE 공지의 표시와 이동은 유지한다.
+
+기존 보고서 알림이 없다는 운영 전제에 따라 데이터 변환 마이그레이션은 추가하지 않는다. notification.type은 VARCHAR(30)이고 값 목록 CHECK 제약이 없어 전용 enum 값 추가에 스키마 변경이 필요하지 않다. 구버전 앱은 새 타입을 찜으로 표시할 수 있으므로 앱 반영을 확인한 뒤 새 타입의 발행을 시작한다.

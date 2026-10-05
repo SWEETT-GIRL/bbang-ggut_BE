@@ -37,6 +37,7 @@ jobs:
         run: >-
           ./gradlew test -PlabTests
           --tests 'sweetgirl.croissant.monthlyreport.*'
+          --tests 'sweetgirl.croissant.alarm.controller.AlarmControllerTest'
           --tests 'sweetgirl.croissant.alarm.service.FcmServiceTest'
           --tests 'sweetgirl.croissant.alarm.service.PushDispatcherTest'
           --tests 'sweetgirl.croissant.alarm.service.AlarmCommandServiceTest'

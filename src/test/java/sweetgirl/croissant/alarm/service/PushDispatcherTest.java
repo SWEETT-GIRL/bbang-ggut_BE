@@ -122,13 +122,13 @@ class PushDispatcherTest {
 	}
 
 	@Test
-	void monthlyReportNoticeSendsDirectLinkWithoutMarketingConsent() {
+	void monthlyReportSendsDirectLinkWithoutMarketingConsent() {
 		Member member = new Member("테스터");
 		given(notificationSettingRepository.findByMemberId(any())).willReturn(Optional.of(
 			NotificationSetting.builder().member(member).isNotificationEnabled(true).isMarketingEnabled(false)
 				.build()));
 		givenToken(member);
-		Notification report = Notification.announcement(NotificationType.NOTICE, NotificationChannel.PUSH,
+		Notification report = Notification.announcement(NotificationType.MONTHLY_REPORT, NotificationChannel.PUSH,
 			"9월 빵일지가 도착했어요", "빵 기록을 확인해 보세요.", "/reports/monthly/2026-09");
 
 		pushDispatcher.dispatch(report, member, DAY);
@@ -136,16 +136,17 @@ class PushDispatcherTest {
 		@SuppressWarnings("unchecked") ArgumentCaptor<Map<String, String>> data = ArgumentCaptor.forClass(Map.class);
 		verify(fcmService).sendPushNotification(eq("token"), eq(report.getTitle()), eq(report.getBody()),
 			data.capture());
-		assertThat(data.getValue()).containsEntry("link", "/reports/monthly/2026-09").containsEntry("type", "NOTICE");
+		assertThat(data.getValue()).containsEntry("link", "/reports/monthly/2026-09").containsEntry("type",
+			"MONTHLY_REPORT");
 	}
 
 	@Test
-	void monthlyReportNoticeRespectsNotificationOptOut() {
+	void monthlyReportRespectsNotificationOptOut() {
 		Member member = new Member("테스터");
 		given(notificationSettingRepository.findByMemberId(any())).willReturn(Optional.of(
 			NotificationSetting.builder().member(member).isNotificationEnabled(false).isMarketingEnabled(true)
 				.build()));
-		pushDispatcher.dispatch(Notification.announcement(NotificationType.NOTICE, NotificationChannel.PUSH,
+		pushDispatcher.dispatch(Notification.announcement(NotificationType.MONTHLY_REPORT, NotificationChannel.PUSH,
 			"9월 빵일지가 도착했어요", "빵 기록을 확인해 보세요.", "/reports/monthly/2026-09"), member, DAY);
 		verify(fcmTokenRepository, never()).findByMemberAndIsActive(any(), any(Boolean.class));
 		verify(fcmService, never()).sendPushNotification(anyString(), anyString(), anyString(), anyMap());

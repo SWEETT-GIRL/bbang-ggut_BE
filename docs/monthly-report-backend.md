@@ -353,8 +353,8 @@ native 변경 전 flush, 변경 후 영속성 컨텍스트 clear와 실제 Postg
 
 - 기존 내부 배치는 발행 직후 푸시를 요청한다. 어드민 경로는 발행 때 알림함을 적재하고 `pushAt`에 푸시를 예약한다.
   null이면 푸시 없이 발행한다. 자동 생성 설정을 켜면 매월 1일 전월 초안을 등록하지만 발행 승인은 어드민이 한다.
-- 수신자는 보고서 소유자 한 명이다. 기존 NOTICE 타입으로 알림함과 푸시에 같은 제목·본문·상세 경로를 사용한다.
-- 제목은 `9월 빵일지가 도착했어요` 형태다. FCM data에 `type: NOTICE`, `notificationId`, `link: /reports/monthly/2026-09`를 보낸다.
+- 수신자는 보고서 소유자 한 명이다. 전용 MONTHLY_REPORT 타입으로 알림함과 푸시에 같은 제목·본문·상세 경로를 사용한다.
+- 제목은 `9월 빵일지가 도착했어요` 형태다. FCM data에 `type: MONTHLY_REPORT`, `notificationId`, `link: /reports/monthly/2026-09`를 보낸다.
 - PushDispatcher는 저장된 deepLink를 data.link에 넣는다. 알림함 목록의 link와 같은 경로가 된다.
 - 프론트의 `src/services/push/index.tsx`는 data.link를 우선 사용한다. 백그라운드 탭과 콜드스타트 모두 보고서 상세를 열 수 있으며, 콜드스타트는 초기 화면 결정 후 이동한다.
 - 기존 알림 수신 설정·활성 FCM 토큰 확인을 재사용한다. 수신 거부·토큰 없음은 푸시를 건너뛰고 알림함과 보고서는 남긴다.

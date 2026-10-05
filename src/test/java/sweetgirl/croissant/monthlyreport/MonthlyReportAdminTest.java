@@ -42,6 +42,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.mockito.ArgumentCaptor;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
@@ -71,6 +72,8 @@ import jakarta.persistence.EntityManagerFactory;
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
 import sweetgirl.croissant.alarm.entity.Notification;
+import sweetgirl.croissant.alarm.enums.NotificationChannel;
+import sweetgirl.croissant.alarm.enums.NotificationType;
 import sweetgirl.croissant.alarm.repository.NotificationDeliveryRepository;
 import sweetgirl.croissant.alarm.repository.NotificationRepository;
 import sweetgirl.croissant.alarm.service.NotificationRecorder;
@@ -344,7 +347,28 @@ class MonthlyReportAdminTest {
 		worker.processReportRunStep(run.id());
 		assertThat(pushes.count()).isEqualTo(2);
 		verifyNoInteractions(preparation, legacyNotifications);
-		verify(recorder, times(2)).recordFor(any(), any(), any());
+		ArgumentCaptor<Notification> notifications = ArgumentCaptor.forClass(Notification.class);
+		verify(recorder, times(2)).recordFor(notifications.capture(), any(), any());
+		assertThat(notifications.getAllValues()).allSatisfy(notification -> {
+			assertThat(notification.getType()).isEqualTo(NotificationType.MONTHLY_REPORT);
+			assertThat(notification.getChannel()).isEqualTo(NotificationChannel.PUSH);
+			assertThat(notification.getDeepLink()).isEqualTo("/reports/monthly/" + MONTH);
+		});
+	}
+
+	@Test
+	void publishesMonthlyReportInAppWithoutSchedulingPushWhenPushAtIsAbsent() {
+		MonthlyReportRunResponse run = admin.createReportRun(MONTH, "v1", 123L);
+		worker.processReportRunStep(run.id());
+		worker.processReportRunStep(run.id());
+		admin.approveReportPublication(MONTH, run.id(), null);
+		worker.processReportRunStep(run.id());
+		ArgumentCaptor<Notification> notification = ArgumentCaptor.forClass(Notification.class);
+		verify(recorder).recordFor(notification.capture(), any(), any());
+		assertThat(notification.getValue().getType()).isEqualTo(NotificationType.MONTHLY_REPORT);
+		assertThat(notification.getValue().getChannel()).isEqualTo(NotificationChannel.IN_APP);
+		assertThat(notification.getValue().getDeepLink()).isEqualTo("/reports/monthly/" + MONTH);
+		assertThat(pushes.count()).isZero();
 	}
 
 	@Test

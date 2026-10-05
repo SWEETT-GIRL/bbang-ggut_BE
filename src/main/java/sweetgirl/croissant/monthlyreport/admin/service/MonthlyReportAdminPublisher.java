@@ -52,10 +52,11 @@ public class MonthlyReportAdminPublisher {
 			if (created) {
 				Member member = members.getMember(memberId);
 				String label = Integer.parseInt(month.substring(5)) + "월";
-				Notification notification = notifications.recordFor(Notification.announcement(NotificationType.NOTICE,
-					pushAt == null ? NotificationChannel.IN_APP : NotificationChannel.PUSH,
-					label + " 빵일지가 도착했어요", label + "의 빵 기록과 활동을 확인해 보세요.",
-					"/reports/monthly/" + month), member, LocalDateTime.now(ZoneId.of("Asia/Seoul")));
+				Notification notification = notifications
+					.recordFor(Notification.announcement(NotificationType.MONTHLY_REPORT,
+						pushAt == null ? NotificationChannel.IN_APP : NotificationChannel.PUSH,
+						label + " 빵일지가 도착했어요", label + "의 빵 기록과 활동을 확인해 보세요.",
+						"/reports/monthly/" + month), member, LocalDateTime.now(ZoneId.of("Asia/Seoul")));
 				reportNotifications.linkNotification(memberId, month, notification.getId());
 				if (pushAt != null) {
 					pushes.save(MonthlyReportPush.schedule(notification.getId(), memberId, pushAt));
