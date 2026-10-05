@@ -55,15 +55,24 @@ public class PushDispatcher {
 	 */
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void dispatch(Notification notification, Member member, LocalDateTime now) {
+		dispatchWithResult(notification, member, now);
+	}
+
+	public enum Result {
+		SENT, FAILED, SKIPPED
+	}
+
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	public Result dispatchWithResult(Notification notification, Member member, LocalDateTime now) {
 		if (!isEligible(notification, member, now)) {
-			return;
+			return Result.SKIPPED;
 		}
 
 		List<String> tokens = activeTokensOf(member);
 		if (tokens.isEmpty()) {
 			log.info("푸시 skip — 활성 토큰 없음 [memberId={}, type={}]",
 				member.getId(), notification.getType());
-			return;
+			return Result.SKIPPED;
 		}
 
 		Map<String, String> data = pushDataOf(notification);
@@ -83,6 +92,7 @@ public class PushDispatcher {
 		}
 
 		record(notification, member, anySent, lastFailure, now);
+		return anySent ? Result.SENT : Result.FAILED;
 	}
 
 	private void record(Notification notification, Member member, boolean sent, String failReason,
