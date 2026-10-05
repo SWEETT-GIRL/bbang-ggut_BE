@@ -3,6 +3,7 @@ package sweetgirl.croissant.monthlyreport.admin.service;
 import java.time.Instant;
 import java.time.YearMonth;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -59,9 +60,11 @@ public class MonthlyReportAdminCommandService {
 
 	@Transactional
 	public MonthlyReportRunResponse approveReportPublication(String month, UUID id, Instant pushAt) {
+		// PostgreSQL timestamptz와 같은 정밀도로 저장·비교해 동일 요청의 재승인을 보장한다.
+		Instant normalizedPushAt = pushAt == null ? null : pushAt.truncatedTo(ChronoUnit.MICROS);
 		MonthlyReportRun run = lockReportRun(month, id);
 		if (run.getState() == MonthlyReportRun.State.PUBLISHING || run.getState() == MonthlyReportRun.State.COMPLETE) {
-			if (!Objects.equals(run.getPushAt(), pushAt)) {
+			if (!Objects.equals(run.getPushAt(), normalizedPushAt)) {
 				throw createRunConflictException();
 			}
 			return MonthlyReportRunResponse.from(run);
@@ -70,10 +73,10 @@ public class MonthlyReportAdminCommandService {
 			|| drafts.countByRunIdAndState(id, MonthlyReportDraft.State.FAILED) > 0) {
 			throw createRunConflictException();
 		}
-		if (pushAt != null && pushAt.isBefore(Instant.now())) {
+		if (normalizedPushAt != null && normalizedPushAt.isBefore(Instant.now())) {
 			throw new CustomException(MonthlyReportErrorCode.INVALID_ADMIN_REQUEST);
 		}
-		run.approve(pushAt);
+		run.approve(normalizedPushAt);
 		return MonthlyReportRunResponse.from(run);
 	}
 

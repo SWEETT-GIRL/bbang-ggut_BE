@@ -42,6 +42,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Configuration;
@@ -311,8 +313,9 @@ class MonthlyReportAdminTest {
 		verify(assetStore).validateStoredAsset(key, "image/png");
 	}
 
-	@Test
-	void preparesReviewsAndPublishesSavedPayloadWithOneScheduledNotification() {
+	@ParameterizedTest
+	@ValueSource(longs = {0, 123000000, 123456000, 123456789, 999999999})
+	void preparesReviewsAndPublishesSavedPayloadWithOneScheduledNotification(long nanos) {
 		MonthlyReportRunResponse run = admin.createReportRun(MONTH, "v1");
 		assertThat(admin.createReportRun(MONTH, "v1").id()).isEqualTo(run.id());
 		assertThatThrownBy(() -> admin.createReportRun(MONTH, "v2")).isInstanceOf(CustomException.class);
@@ -329,8 +332,15 @@ class MonthlyReportAdminTest {
 		assertThat(queries.getReportPreview(MONTH, run.id(), 123L).nickname()).isEqualTo("현재 이름");
 		String original = drafts.findById(new MonthlyReportDraftId(run.id(), 123L, MONTH)).orElseThrow()
 			.getPayload();
-		Instant at = Instant.now().plusSeconds(3600);
-		admin.approveReportPublication(MONTH, run.id(), at);
+		Instant at = Instant.now().plusSeconds(3600).truncatedTo(ChronoUnit.SECONDS).plusNanos(nanos);
+		assertThat(admin.approveReportPublication(MONTH, run.id(), at).pushAt())
+			.isEqualTo(at.truncatedTo(ChronoUnit.MICROS));
+		assertThat(admin.approveReportPublication(MONTH, run.id(), at).pushAt())
+			.isEqualTo(at.truncatedTo(ChronoUnit.MICROS));
+		assertThatThrownBy(() -> admin.approveReportPublication(MONTH, run.id(), at.plusNanos(1000)))
+			.isInstanceOf(CustomException.class);
+		assertThatThrownBy(() -> admin.approveReportPublication(MONTH, run.id(), null))
+			.isInstanceOf(CustomException.class);
 		reset(preparation);
 		for (int i = 0; i < 3; i++) {
 			worker.processReportRunStep(run.id());
@@ -343,7 +353,10 @@ class MonthlyReportAdminTest {
 			.isEqualTo(mapper.valueToTree(codec.read(original, 123L, MONTH)));
 		assertThat(pushes.count()).isEqualTo(2);
 		assertThat(pushes.findDue(Instant.now(), PageRequest.of(0, 100))).isEmpty();
-		admin.approveReportPublication(MONTH, run.id(), at);
+		assertThat(admin.approveReportPublication(MONTH, run.id(), at).pushAt())
+			.isEqualTo(at.truncatedTo(ChronoUnit.MICROS));
+		assertThatThrownBy(() -> admin.approveReportPublication(MONTH, run.id(), at.plusNanos(1000)))
+			.isInstanceOf(CustomException.class);
 		worker.processReportRunStep(run.id());
 		assertThat(pushes.count()).isEqualTo(2);
 		verifyNoInteractions(preparation, legacyNotifications);
