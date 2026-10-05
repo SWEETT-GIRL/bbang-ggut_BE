@@ -75,6 +75,7 @@ dependencies {
 
     // Testing
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     // Boot 4 는 슬라이스 테스트(@DataJpaTest 등)가 별도 스타터다. 랩 PG 스키마 검증(@Tag lab)과 @DataJpaTest 용
     testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
     testRuntimeOnly 'com.h2database:h2'

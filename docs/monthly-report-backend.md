@@ -509,3 +509,10 @@ INSERT/UPDATE/DELETE 트리거를 설치한다. 원본 변경과 이력은 같�
 마이그레이션은 원본 쓰기를 잠깐 잠그고 기준 적재와 트리거 설치를 같은 트랜잭션에서 수행해야 한다.
 기존 운영 규칙대로 스키마를 먼저 적용하고 애플리케이션을 배포한다. 이력 트리거를 비활성화하거나 원본을 TRUNCATE하는
 별도 운영 작업은 지원 이력의 연속성을 깨뜨리므로 이력 정책과 함께 검토해야 한다.
+
+
+## 어드민 계층과 회귀 검증
+
+어드민 생성·승인·재시도는 `MonthlyReportAdminCommandService`, 조회는 `MonthlyReportAdminQueryService`가 담당한다. 이미지와 운영 현황도 Command/Query 서비스를 분리한다. Controller는 전용 record 응답만 반환하며 기존 JSON 필드명은 유지한다. S3 업로드 URL 발급·파일 확인은 `MonthlyReportAssetUploadService`, DB 등록은 `MonthlyReportAssetCommandService`로 나눈다.
+
+`.github/workflows/monthly-report-tests.yml`은 dev/main 대상 PR마다 격리 PostgreSQL에서 월간 보고서 전체 테스트와 알림·사진 수정·적재 회귀 테스트를 실행한다. `-PlabTests`를 지정하여 실제 Flyway 마이그레이션, 동시 실행, 처리권 회수, 감사 시각 테스트도 포함한다. 실제 SecurityConfig와 관리자 API 키 필터를 적용한 MVC 테스트에서 조회·발행·재시도의 인증 실패와 요청 검증을 확인한다. FCM과 S3는 모의 객체를 사용하며 실제 발송·업로드는 하지 않는다.
