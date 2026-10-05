@@ -26,6 +26,13 @@ public class MonthlyReportPush {
 	private Instant nextAttemptAt;
 	private int attempts;
 	private boolean done;
+	@Column(name = "completed_at")
+	private Instant completedAt;
+	@Column(name = "total_attempts")
+	private int totalAttempts;
+	@Column(name = "manual_retries")
+	private int manualRetries;
+
 	@Column(name = "error_code", length = 100)
 	private String errorCode;
 
@@ -40,11 +47,31 @@ public class MonthlyReportPush {
 
 	public void begin() {
 		attempts++;
+		totalAttempts++;
 	}
 
 	public void complete() {
 		done = true;
+		completedAt = Instant.now();
 		errorCode = null;
+	}
+
+	public void skip(String reason) {
+		done = true;
+		completedAt = Instant.now();
+		errorCode = reason;
+	}
+
+	public boolean retry() {
+		if (done || attempts < 5) {
+			return false;
+		}
+		attempts = 0;
+		manualRetries++;
+		done = false;
+		errorCode = null;
+		nextAttemptAt = Instant.now();
+		return true;
 	}
 
 	public void fail() {

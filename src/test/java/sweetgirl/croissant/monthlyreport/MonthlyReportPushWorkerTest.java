@@ -41,6 +41,7 @@ class MonthlyReportPushWorkerTest {
 	private MonthlyReportPush due() {
 		MonthlyReportPush push = MonthlyReportPush.schedule(1L, 123L, Instant.now().minusSeconds(1));
 		when(pushes.lock(1L)).thenReturn(Optional.of(push));
+		when(dispatcher.dispatchWithResult(any(), any(), any())).thenReturn(PushDispatcher.Result.SKIPPED);
 		when(members.findById(123L)).thenReturn(Optional.of(member));
 		when(notifications.findById(1L)).thenReturn(Optional.of(notification));
 		return push;
@@ -70,15 +71,16 @@ class MonthlyReportPushWorkerTest {
 		MonthlyReportPush push = due();
 		worker.send(1L);
 		worker.send(1L);
-		verify(dispatcher).dispatch(eq(notification), eq(member), any());
+		verify(dispatcher).dispatchWithResult(eq(notification), eq(member), any());
 		assertThat(push.isDone()).isTrue();
 		assertThat(push.getAttempts()).isEqualTo(1);
+		assertThat(push.getErrorCode()).isEqualTo("NO_ELIGIBLE_DELIVERY");
 	}
 
 	@Test
 	void failedSendBacksOffAndStopsAfterFiveAttempts() {
 		MonthlyReportPush push = due();
-		doThrow(new IllegalStateException("FCM unavailable")).when(dispatcher).dispatch(any(), any(), any());
+		doThrow(new IllegalStateException("FCM unavailable")).when(dispatcher).dispatchWithResult(any(), any(), any());
 		for (int attempt = 1; attempt <= 5; attempt++) {
 			ReflectionTestUtils.setField(push, "nextAttemptAt", Instant.now().minusSeconds(1));
 			worker.send(1L);
@@ -89,5 +91,10 @@ class MonthlyReportPushWorkerTest {
 		worker.send(1L);
 		assertThat(push.getAttempts()).isEqualTo(5);
 		assertThat(push.getErrorCode()).isEqualTo("PUSH_FAILED");
+		assertThat(push.isDone()).isFalse();
+		assertThat(push.retry()).isTrue();
+		assertThat(push.getTotalAttempts()).isEqualTo(5);
+		assertThat(push.getManualRetries()).isEqualTo(1);
+		assertThat(push.retry()).isFalse();
 	}
 }

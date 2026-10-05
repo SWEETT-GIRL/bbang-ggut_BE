@@ -10,7 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.entity.Notification;
-import sweetgirl.croissant.alarm.entity.NotificationDelivery;
 import sweetgirl.croissant.alarm.enums.DeliveryStatus;
 import sweetgirl.croissant.alarm.enums.NotificationChannel;
 import sweetgirl.croissant.alarm.repository.NotificationDeliveryRepository;
@@ -39,17 +38,22 @@ public class MonthlyReportPushWorker {
 		}
 		Member member = members.findById(push.getMemberId()).orElse(null);
 		Notification notification = notifications.findById(notificationId).orElse(null);
-		if (member == null || member.isDeleted() || notification == null || sent(push)) {
+		if (member == null || member.isDeleted() || notification == null) {
+			push.skip("RECIPIENT_UNAVAILABLE");
+			return;
+		}
+		if (sent(push)) {
 			push.complete();
 			return;
 		}
 		push.begin();
 		try {
-			dispatcher.dispatch(notification, member, LocalDateTime.now(ZoneId.of("Asia/Seoul")));
-			NotificationDelivery delivery = deliveries.findByNotificationIdAndMemberIdAndChannel(notificationId,
-				push.getMemberId(), NotificationChannel.PUSH).orElse(null);
-			if (delivery == null || delivery.getStatus() == DeliveryStatus.SENT) {
+			PushDispatcher.Result result = dispatcher.dispatchWithResult(notification, member,
+				LocalDateTime.now(ZoneId.of("Asia/Seoul")));
+			if (result == PushDispatcher.Result.SENT) {
 				push.complete();
+			} else if (result == PushDispatcher.Result.SKIPPED) {
+				push.skip("NO_ELIGIBLE_DELIVERY");
 			} else {
 				push.fail();
 			}

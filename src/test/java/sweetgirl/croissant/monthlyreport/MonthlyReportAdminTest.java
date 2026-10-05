@@ -21,6 +21,8 @@ import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.PAYLOAD;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -77,10 +79,14 @@ import sweetgirl.croissant.monthlyreport.admin.repository.MonthlyReportPushRepos
 import sweetgirl.croissant.monthlyreport.admin.repository.MonthlyReportRunRepository;
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAdminPublisher;
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAdminService;
+import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportOperationsService;
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportPreparation;
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportRunWorker;
 import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMember;
+import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
+import sweetgirl.croissant.monthlyreport.entity.MonthlyReportNotification;
+import sweetgirl.croissant.monthlyreport.repository.MonthlyReportNotificationRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportSourceHistoryRepository;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportGenerationService;
@@ -125,13 +131,20 @@ class MonthlyReportAdminTest {
 		source.setSchema(schema);
 		jdbc.execute("CREATE TABLE member (id bigint PRIMARY KEY)");
 		jdbc.execute("CREATE TABLE notification (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY)");
+		jdbc.execute("CREATE TABLE notification_delivery (notification_id bigint, member_id bigint, "
+			+ "channel varchar(20), status varchar(20), fail_reason varchar(200))");
+		jdbc.execute(
+			"CREATE TABLE notification_recipient (notification_id bigint, member_id bigint, read_at timestamp)");
+		jdbc.execute("CREATE TABLE request_log (member_id bigint, http_method varchar(10), endpoint varchar(500), "
+			+ "response_status integer, created_at timestamp)");
 		new ResourceDatabasePopulator(
 			new ClassPathResource("db/migration/V20261005222045__create_monthly_report_member.sql"),
 			new ClassPathResource("db/migration/V20261005222046__add_monthly_report_appearance.sql"),
 			new ClassPathResource("db/migration/V20261005222052__monthly_report_assets.sql"),
 			new ClassPathResource("db/migration/V20261005222053__monthly_report_push.sql"),
 			new ClassPathResource("db/migration/V20261005222054__monthly_report_admin.sql"),
-			new ClassPathResource("db/migration/V20261005222055__monthly_report_single_member_run.sql"))
+			new ClassPathResource("db/migration/V20261005222055__monthly_report_single_member_run.sql"),
+			new ClassPathResource("db/migration/V20261005222056__monthly_report_operations.sql"))
 			.execute(source);
 		LocalContainerEntityManagerFactoryBean factory = new LocalContainerEntityManagerFactoryBean();
 		factory.setDataSource(source);
@@ -139,7 +152,7 @@ class MonthlyReportAdminTest {
 		factory.setManagedTypes(
 			PersistenceManagedTypes.of(MonthlyReportRun.class.getName(), MonthlyReportDraft.class.getName(),
 				MonthlyReportPush.class.getName(), MonthlyReportAsset.class.getName(),
-				MonthlyReportMember.class.getName()));
+				MonthlyReportMember.class.getName(), MonthlyReportNotification.class.getName()));
 		factory.setJpaPropertyMap(Map.of("hibernate.hbm2ddl.auto", "validate"));
 		factory.afterPropertiesSet();
 		emf = factory.getObject();
@@ -151,6 +164,8 @@ class MonthlyReportAdminTest {
 			() -> repos.getRepository(MonthlyReportRunRepository.class));
 		context.registerBean(MonthlyReportDraftRepository.class,
 			() -> repos.getRepository(MonthlyReportDraftRepository.class));
+		context.registerBean(MonthlyReportNotificationRepository.class,
+			() -> repos.getRepository(MonthlyReportNotificationRepository.class));
 		context.registerBean(MonthlyReportPushRepository.class,
 			() -> repos.getRepository(MonthlyReportPushRepository.class));
 		context.registerBean(MonthlyReportRepository.class, () -> repos.getRepository(MonthlyReportRepository.class));
@@ -165,7 +180,7 @@ class MonthlyReportAdminTest {
 		context.registerBean(ObjectMapper.class, () -> mapper);
 		context.registerBean(MonthlyReportPayloadCodec.class, () -> codec);
 		context.register(TxConfig.class, MonthlyReportQueryService.class, MonthlyReportAdminService.class,
-			MonthlyReportRunWorker.class,
+			MonthlyReportRunWorker.class, MonthlyReportOperationsService.class,
 			MonthlyReportAdminPublisher.class, MonthlyReportPublicationService.class);
 		context.refresh();
 		admin = context.getBean(MonthlyReportAdminService.class);
@@ -180,7 +195,8 @@ class MonthlyReportAdminTest {
 	void fixtures() {
 		jdbc.execute(
 			"TRUNCATE monthly_report_push, monthly_report_draft, monthly_report_run, "
-				+ "monthly_report_member, notification, member CASCADE");
+				+ "monthly_report_member, notification, notification_delivery, notification_recipient, "
+				+ "request_log, member CASCADE");
 		jdbc.execute("INSERT INTO member VALUES (123), (456)");
 		reset(preparation, targets, history, recovery, members, recorder, legacyNotifications);
 		when(history.findCoveredFrom()).thenReturn(LocalDateTime.of(2025, 12, 1, 0, 0));
@@ -388,6 +404,86 @@ class MonthlyReportAdminTest {
 		assertThat(runs.count()).isZero();
 		admin.create(MONTH, "v1", 123L);
 		assertThatThrownBy(() -> admin.create(MONTH, "v2", 123L)).isInstanceOf(CustomException.class);
+	}
+
+	@Test
+	void operationsUseSuccessfulRequestLogsAndExistingNotificationsIndependently() {
+		MonthlyReportRun run = admin.create(MONTH, "v1", 123L);
+		worker.step(run.getId());
+		worker.step(run.getId());
+		MonthlyReportOperationsService operations = context.getBean(MonthlyReportOperationsService.class);
+		assertThat(operations.status(MONTH, run.getId(), 0, 20).published()).isZero();
+		admin.approve(MONTH, run.getId(), Instant.now().plusSeconds(3600));
+		worker.step(run.getId());
+		worker.step(run.getId());
+		MonthlyReportOperationsService.Operations before = operations.status(MONTH, run.getId(), 0, 20);
+		assertThat(before.published()).isEqualTo(1);
+		assertThat(before.viewed()).isZero();
+		assertThat(before.pushCounts()).containsEntry("PENDING", 1L);
+		assertThat(before.members().content()).singleElement().satisfies(status -> {
+			assertThat(status.getSendAt()).isAfter(Instant.now());
+			assertThat(status.getPublishedAt()).isNotNull();
+			assertThat(status.getFirstViewedAt()).isNull();
+		});
+		admin.preview(MONTH, run.getId(), 123L);
+		Instant first = Instant.now().plusSeconds(1).truncatedTo(ChronoUnit.SECONDS);
+		String endpoint = "/reports/monthly/" + MONTH + "/me";
+		insertRequestLog(123L, "GET", endpoint, 404, first);
+		insertRequestLog(123L, "POST", endpoint, 200, first);
+		insertRequestLog(456L, "GET", endpoint, 200, first);
+		insertRequestLog(123L, "GET", "/reports/monthly/2025-01/me", 200, first);
+		insertRequestLog(123L, "GET", "/api/admin/monthly-reports/" + MONTH + "/preview/123", 200, first);
+		insertRequestLog(123L, "GET", endpoint, 200, first.minusSeconds(3600));
+		Long notificationId = pushes.findAll().get(0).getNotificationId();
+		jdbc.update("INSERT INTO notification_recipient VALUES (?, 123, TIMESTAMP '2026-10-05 10:00:00')",
+			notificationId);
+		assertThat(operations.status(MONTH, run.getId(), 0, 20).viewed()).isZero();
+		assertThat(operations.status(MONTH, run.getId(), 0, 20).notificationOpened()).isEqualTo(1);
+		insertRequestLog(123L, "GET", endpoint, 200, first);
+		insertRequestLog(123L, "GET", endpoint, 200, first.plusSeconds(60));
+		assertThat(operations.status(MONTH, run.getId(), 0, 20).viewed()).isEqualTo(1);
+		assertThat(operations.status(MONTH, run.getId(), 0, 20).members().content().get(0).getFirstViewedAt())
+			.isEqualTo(first);
+		jdbc.update("INSERT INTO notification_delivery VALUES (?, 123, 'PUSH', 'SENT', NULL)", notificationId);
+		assertThat(operations.status(MONTH, run.getId(), 0, 20).pushCounts()).containsEntry("SENT", 1L);
+	}
+
+	private void insertRequestLog(Long memberId, String method, String endpoint, int status, Instant at) {
+		jdbc.update("INSERT INTO request_log VALUES (?, ?, ?, ?, ?)", memberId, method, endpoint, status,
+			LocalDateTime.ofInstant(at, ZoneId.of("Asia/Seoul")));
+	}
+
+	@Test
+	void manualPushRetryOnlyQueuesExhaustedFailureForMemberOfRun() {
+		MonthlyReportRun run = admin.create(MONTH, "v1", 123L);
+		worker.step(run.getId());
+		worker.step(run.getId());
+		admin.approve(MONTH, run.getId(), Instant.now().plusSeconds(3600));
+		worker.step(run.getId());
+		MonthlyReportOperationsService operations = context.getBean(MonthlyReportOperationsService.class);
+		assertThatThrownBy(() -> operations.retryPush(MONTH, run.getId(), 123L)).isInstanceOf(CustomException.class);
+		assertThatThrownBy(() -> operations.retryPush(MONTH, run.getId(), 456L)).isInstanceOf(CustomException.class);
+		Long notificationId = pushes.findAll().get(0).getNotificationId();
+		tx.executeWithoutResult(status -> {
+			MonthlyReportPush push = pushes.lock(notificationId).orElseThrow();
+			for (int i = 0; i < 5; i++) {
+				push.begin();
+				push.fail();
+			}
+		});
+		assertThat(operations.status(MONTH, run.getId(), 0, 20).pushCounts()).containsEntry("FAILED", 1L);
+		jdbc.update("INSERT INTO notification_delivery VALUES (?, 123, 'PUSH', 'SENT', NULL)", notificationId);
+		assertThatThrownBy(() -> operations.retryPush(MONTH, run.getId(), 123L)).isInstanceOf(CustomException.class);
+		jdbc.update("DELETE FROM notification_delivery WHERE notification_id = ?", notificationId);
+		operations.retryPush(MONTH, run.getId(), 123L);
+		assertThat(pushes.findDue(Instant.now(), PageRequest.of(0, 10))).containsExactly(notificationId);
+		assertThat(operations.status(MONTH, run.getId(), 0, 20).members().content()).singleElement()
+			.satisfies(status -> {
+				assertThat(status.getTotalAttempts()).isEqualTo(5);
+				assertThat(status.getManualRetries()).isEqualTo(1);
+			});
+		assertThatThrownBy(() -> operations.retryPush(MONTH, run.getId(), 123L)).isInstanceOf(CustomException.class);
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM notification", Integer.class)).isEqualTo(1);
 	}
 
 	@Test

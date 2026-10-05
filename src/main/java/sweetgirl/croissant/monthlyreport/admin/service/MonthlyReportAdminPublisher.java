@@ -21,6 +21,7 @@ import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportDraft;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportPush;
 import sweetgirl.croissant.monthlyreport.admin.repository.MonthlyReportPushRepository;
+import sweetgirl.croissant.monthlyreport.repository.MonthlyReportNotificationRepository;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPublicationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportTargetReader;
@@ -35,6 +36,7 @@ public class MonthlyReportAdminPublisher {
 	private final NotificationRecorder notifications;
 	private final MonthlyReportPushRepository pushes;
 	private final MonthlyReportTargetReader targets;
+	private final MonthlyReportNotificationRepository reportNotifications;
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public boolean publish(MonthlyReportDraft draft, Instant pushAt) {
@@ -54,6 +56,7 @@ public class MonthlyReportAdminPublisher {
 					pushAt == null ? NotificationChannel.IN_APP : NotificationChannel.PUSH,
 					label + " 빵일지가 도착했어요", label + "의 빵 기록과 활동을 확인해 보세요.",
 					"/reports/monthly/" + month), member, LocalDateTime.now(ZoneId.of("Asia/Seoul")));
+				reportNotifications.linkNotification(memberId, month, notification.getId());
 				if (pushAt != null) {
 					pushes.save(MonthlyReportPush.schedule(notification.getId(), memberId, pushAt));
 				}

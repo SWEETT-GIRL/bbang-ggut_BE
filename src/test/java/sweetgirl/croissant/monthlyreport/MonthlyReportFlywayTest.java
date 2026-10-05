@@ -36,6 +36,10 @@ class MonthlyReportFlywayTest {
 			new ResourceDatabasePopulator(new ClassPathResource("monthly-report-bread-aggregation.sql"))
 				.execute(source);
 			jdbc.execute("CREATE TABLE notification (id bigint PRIMARY KEY)");
+			jdbc.execute("CREATE TABLE request_log (member_id bigint, http_method varchar(10), endpoint varchar(500), "
+				+ "response_status integer, created_at timestamp)");
+			jdbc.execute("CREATE TABLE notification_delivery (notification_id bigint, member_id bigint, "
+				+ "channel varchar(20), status varchar(20))");
 			List<String> migrations = List.of(
 				"V20261005222045__create_monthly_report_member.sql",
 				"V20261005222046__add_monthly_report_appearance.sql",
@@ -47,7 +51,8 @@ class MonthlyReportFlywayTest {
 				"V20261005222052__monthly_report_assets.sql",
 				"V20261005222053__monthly_report_push.sql",
 				"V20261005222054__monthly_report_admin.sql",
-				"V20261005222055__monthly_report_single_member_run.sql");
+				"V20261005222055__monthly_report_single_member_run.sql",
+				"V20261005222056__monthly_report_operations.sql");
 			for (String migration : migrations) {
 				try (InputStream sql = new ClassPathResource("db/migration/" + migration).getInputStream()) {
 					Files.copy(sql, scripts.resolve(migration));
