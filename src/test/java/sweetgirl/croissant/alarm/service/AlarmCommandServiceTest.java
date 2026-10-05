@@ -181,8 +181,8 @@ class AlarmCommandServiceTest {
 		given(memberReader.getMember(memberId)).willReturn(member);
 		given(notificationSettingProvider.getOrCreate(memberId)).willReturn(setting);
 		given(setting.isNotificationEnabled()).willReturn(true);
-		given(setting.getStartTime()).willReturn(LocalTime.of(8, 0));
-		given(setting.getEndTime()).willReturn(LocalTime.of(21, 0));
+		given(setting.getStartTime()).willReturn(LocalTime.MIN);
+		given(setting.getEndTime()).willReturn(LocalTime.MAX);
 		given(setting.getDaysOfWeek()).willReturn("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY");
 		given(setting.getNotificationRadius()).willReturn(NotificationRadius.R300);
 		given(request.getStoreId()).willReturn(1L);
@@ -260,8 +260,8 @@ class AlarmCommandServiceTest {
 		given(memberReader.getMember(memberId)).willReturn(member);
 		given(notificationSettingProvider.getOrCreate(memberId)).willReturn(setting);
 		given(setting.isNotificationEnabled()).willReturn(true);
-		given(setting.getStartTime()).willReturn(LocalTime.of(8, 0));
-		given(setting.getEndTime()).willReturn(LocalTime.of(21, 0));
+		given(setting.getStartTime()).willReturn(LocalTime.MIN);
+		given(setting.getEndTime()).willReturn(LocalTime.MAX);
 		given(setting.getDaysOfWeek()).willReturn("MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY");
 		given(setting.getNotificationRadius()).willReturn(NotificationRadius.R300);
 		given(request.getStoreId()).willReturn(1L);

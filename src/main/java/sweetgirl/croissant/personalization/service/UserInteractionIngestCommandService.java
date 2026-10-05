@@ -56,6 +56,7 @@ public class UserInteractionIngestCommandService {
 		if (ChronoUnit.DAYS.between(fromDate, toDate) > personalizationProperties.getIngestMaxRangeDays()) {
 			throw new PersonalizationException(PersonalizationErrorCode.INGEST_RANGE_TOO_LONG);
 		}
+		LocalDate closedUntil = LocalDate.now(ZONE_ID);
 		acquireLock();
 		LocalDateTime from = fromDate.atStartOfDay();
 		LocalDateTime to = toDate.atStartOfDay();
@@ -70,10 +71,27 @@ public class UserInteractionIngestCommandService {
 		byType.put(InteractionType.COURSE_REMOVE, ingestRepository.insertCourseRemoves(from, to));
 		byType.put(InteractionType.RECO_DISMISSED, ingestRepository.insertRecoDismissed(from, to));
 		byType.put(InteractionType.RECO_UNCHECK, ingestRepository.insertRecoUnchecks(from, to));
+		LocalDate completedUntil = toDate.isBefore(closedUntil) ? toDate : closedUntil;
+		if (fromDate.isBefore(completedUntil)) {
+			ingestRepository.recordCompletedDays(from, completedUntil.atStartOfDay());
+		}
 		int inserted = byType.values().stream().mapToInt(Integer::intValue).sum();
 		log.info("[개인화] 신호 적재 완료 from={} to={} inserted={} byType={} elapsedMs={}", fromDate, toDate, inserted,
 			byType, System.currentTimeMillis() - startedAt);
 		return new InteractionIngestResult(fromDate, toDate, inserted, byType);
+	}
+
+	/** 공통 적재 잠금 안에서 다시 확인하므로 다른 실행이 완료한 날짜는 재적재하지 않는다. */
+	public boolean ingestMissingDay(LocalDate day) {
+		if (day == null || !day.isBefore(LocalDate.now(ZONE_ID))) {
+			throw new PersonalizationException(PersonalizationErrorCode.INGEST_RANGE_INVALID);
+		}
+		acquireLock();
+		if (ingestRepository.isDayComplete(day)) {
+			return false;
+		}
+		ingest(day, day.plusDays(1));
+		return true;
 	}
 
 	/**

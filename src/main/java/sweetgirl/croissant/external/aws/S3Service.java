@@ -17,6 +17,8 @@ import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.Delete;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
@@ -95,6 +97,18 @@ public class S3Service {
 		} catch (S3Exception e) {
 			throw new S3StorageException(S3ErrorCode.PRE_SIGNED_URL_FAILED, e.awsErrorDetails().errorMessage());
 		}
+	}
+
+	/** 버전이 고정된 에셋의 기존 객체를 덮어쓰지 않는 업로드 URL. 반환 헤더를 함께 전송해야 한다. */
+	public String generateImmutableUploadUrl(String key, String contentType) {
+		PutObjectRequest put = PutObjectRequest.builder().bucket(bucketName).key(key).contentType(contentType)
+			.ifNoneMatch("*").build();
+		return s3Presigner.presignPutObject(PutObjectPresignRequest.builder().signatureDuration(Duration.ofMinutes(10))
+			.putObjectRequest(put).build()).url().toString();
+	}
+
+	public HeadObjectResponse headObject(String key) {
+		return s3Client.headObject(HeadObjectRequest.builder().bucket(bucketName).key(key).build());
 	}
 
 	public void putObject(String awsKey, byte[] bytes, MimeType mimeType) {

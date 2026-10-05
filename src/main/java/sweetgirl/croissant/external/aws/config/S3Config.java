@@ -1,5 +1,7 @@
 package sweetgirl.croissant.external.aws.config;
 
+import java.time.Duration;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -40,6 +42,8 @@ public class S3Config {
 	@Bean
 	public S3Client s3Client() {
 		return S3Client.builder()
+			.overrideConfiguration(config -> config.apiCallTimeout(Duration.ofSeconds(15))
+				.apiCallAttemptTimeout(Duration.ofSeconds(5)))
 			.region(Region.of(awsProperties.getRegion()))
 			.credentialsProvider(credentialsProvider())
 			.build();
