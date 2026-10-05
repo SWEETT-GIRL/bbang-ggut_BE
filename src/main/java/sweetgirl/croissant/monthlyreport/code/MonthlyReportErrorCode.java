@@ -1,0 +1,30 @@
+package sweetgirl.croissant.monthlyreport.code;
+
+import org.springframework.http.HttpStatus;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import sweetgirl.croissant.global.code.BaseErrorCode;
+
+@Getter
+@AllArgsConstructor
+public enum MonthlyReportErrorCode implements BaseErrorCode {
+
+	ADMIN_NOT_FOUND(HttpStatus.NOT_FOUND, "MONTHLY_REPORT4042", "보고서 생성 작업 또는 이미지가 없습니다."),
+	ADMIN_CONFLICT(HttpStatus.CONFLICT, "MONTHLY_REPORT4091", "현재 상태에서는 요청을 처리할 수 없습니다. 작업 상태를 확인해 주세요."),
+	ASSET_MISSING(HttpStatus.CONFLICT, "MONTHLY_REPORT4092", "필요한 월간 보고서 이미지가 등록되지 않았습니다."),
+	INVALID_ADMIN_REQUEST(HttpStatus.BAD_REQUEST, "MONTHLY_REPORT4005", "월간 보고서 관리 요청이 올바르지 않습니다."),
+	INVALID_MONTH(HttpStatus.BAD_REQUEST, "MONTHLY_REPORT4001", "월은 2000-01부터 2099-12까지 YYYY-MM 형식이어야 합니다."),
+	INVALID_PAGE(HttpStatus.BAD_REQUEST, "MONTHLY_REPORT4002", "page는 0 이상, size는 1부터 100까지여야 합니다."),
+	MONTH_NOT_CLOSED(HttpStatus.BAD_REQUEST, "MONTHLY_REPORT4003", "아직 종료되지 않은 월은 발행할 수 없습니다."),
+	INVALID_BATCH_PAGE(HttpStatus.BAD_REQUEST, "MONTHLY_REPORT4004", "회원 커서는 0 이상, 배치 크기는 1부터 1000까지여야 합니다."),
+	NOT_PUBLISHED(HttpStatus.NOT_FOUND, "MONTHLY_REPORT4041", "아직 발행되지 않은 월간 빵일지입니다."),
+	INVALID_SNAPSHOT(HttpStatus.INTERNAL_SERVER_ERROR, "MONTHLY_REPORT5001", "월간 빵일지 데이터가 올바르지 않습니다."),
+	GENERATION_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "MONTHLY_REPORT5031", "월간 빵일지 집계를 완료하지 못했습니다."),
+	SOURCE_HISTORY_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "MONTHLY_REPORT5032", "월말 기준 활동 이력을 복원할 수 없습니다."),
+	VIEW_INGEST_INCOMPLETE(HttpStatus.SERVICE_UNAVAILABLE, "MONTHLY_REPORT5033", "해당 월의 빵집 조회 적재가 완료되지 않았습니다.");
+
+	private final HttpStatus httpStatus;
+	private final String code;
+	private final String message;
+}

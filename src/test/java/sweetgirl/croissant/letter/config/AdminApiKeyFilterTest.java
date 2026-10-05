@@ -130,4 +130,33 @@ class AdminApiKeyFilterTest {
 
 		assertThat(chain.getRequest()).isNotNull();
 	}
+
+	@Test
+	void monthlyReportsRequireConfiguredKeyEvenLocally() throws Exception {
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+		new AdminApiKeyFilter("", true).doFilter(request("/api/admin/monthly-reports/2026-09/runs", null), response,
+			chain);
+		assertThat(response.getStatus()).isEqualTo(503);
+		assertThat(chain.getRequest()).isNull();
+	}
+
+	@Test
+	void monthlyReportPreviewRejectsMissingHeader() throws Exception {
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+		new AdminApiKeyFilter("secret", false)
+			.doFilter(request("/api/admin/monthly-reports/2026-09/runs/id/preview/1", null), response, chain);
+		assertThat(response.getStatus()).isEqualTo(401);
+		assertThat(chain.getRequest()).isNull();
+	}
+
+	@Test
+	void monthlyReportAssetsAcceptCorrectKey() throws Exception {
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+		new AdminApiKeyFilter("secret", false).doFilter(request("/api/admin/monthly-reports/assets", "secret"),
+			response, chain);
+		assertThat(chain.getRequest()).isNotNull();
+	}
 }

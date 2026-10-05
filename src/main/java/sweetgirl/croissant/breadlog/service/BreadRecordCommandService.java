@@ -89,6 +89,7 @@ public class BreadRecordCommandService {
 		Member member = memberReader.getMember(memberId);
 		memberRestrictionReader.validateCanWrite(memberId);
 		ValidatedRecordData data = validate(memberId, request);
+		resolveOriginalPhotos(request.photos(), List.of());
 		BreadRecord record = breadRecordRepository.save(BreadRecord.builder()
 			.member(member)
 			.store(data.store())
@@ -121,8 +122,7 @@ public class BreadRecordCommandService {
 		BreadRecord record = getOwnedRecord(recordId, member.getId());
 		ValidatedRecordData data = validate(memberId, request);
 		List<BreadRecordPhoto> oldPhotos = photoRepository.findAllIncludingPendingByRecordId(recordId);
-		Map<String, BreadRecordPhoto> oldPhotoByKey = oldPhotos.stream()
-			.collect(java.util.stream.Collectors.toMap(BreadRecordPhoto::getAwsKey, photo -> photo));
+		Map<String, BreadRecordPhoto> originalByRequestedKey = resolveOriginalPhotos(request.photos(), oldPhotos);
 
 		record.update(
 			data.store(),
@@ -140,7 +140,7 @@ public class BreadRecordCommandService {
 		tagRepository.deleteAllByRecordId(recordId);
 		photoRepository.deleteAllIncludingPendingByRecordId(recordId);
 		photoRepository.flush();
-		savePhotosAndTags(record, request, data.photoBySortOrder(), oldPhotoByKey, data.lovedBreads(),
+		savePhotosAndTags(record, request, data.photoBySortOrder(), originalByRequestedKey, data.lovedBreads(),
 			previousRatingByName);
 		deleteRemovedImages(oldPhotos, request.photos());
 		courseProgressService.refreshForMember(memberId);
@@ -256,13 +256,13 @@ public class BreadRecordCommandService {
 			BreadRecord record,
 			BreadRecordUpsertRequest request,
 			Map<Integer, BreadRecordPhotoRequest> requestedPhotoByOrder,
-			Map<String, BreadRecordPhoto> oldPhotoByKey,
+			Map<String, BreadRecordPhoto> originalByRequestedKey,
 			List<String> lovedBreads,
 			Map<String, BreadRecordTag.Rating> previousRatingByName) {
 		Map<Integer, BreadRecordPhoto> photoBySortOrder = new HashMap<>();
 		List<BreadRecordPhoto> photos = requestedPhotoByOrder.values().stream()
 			.sorted(java.util.Comparator.comparingInt(BreadRecordPhotoRequest::sortOrder))
-			.map(photoRequest -> toPhoto(record, photoRequest, oldPhotoByKey.get(photoRequest.awsKey())))
+			.map(photoRequest -> toPhoto(record, photoRequest, originalByRequestedKey.get(photoRequest.awsKey())))
 			.toList();
 		photoRepository.saveAll(photos).forEach(photo -> photoBySortOrder.put(photo.getSortOrder(), photo));
 		imageProcessingCallbackService.applyPendingCallbacks(photos);
@@ -396,13 +396,49 @@ public class BreadRecordCommandService {
 			.width(request.width())
 			.height(request.height())
 			.build();
-		if (oldPhoto != null && oldPhoto.getProcessingStatus() == ImageStatus.DONE) {
+		if (oldPhoto != null) {
+			photo.retainReferenceFrom(oldPhoto);
+		}
+		if (oldPhoto == null || !oldPhoto.getAwsKey().equals(request.awsKey())) {
+			return photo;
+		}
+		if (oldPhoto.getProcessingStatus() == ImageStatus.DONE) {
 			photo.markDone();
 			photo.updateResizedKeys(photo.getAwsKey());
-		} else if (oldPhoto != null && oldPhoto.getProcessingStatus() == ImageStatus.FAILED) {
+		} else if (oldPhoto.getProcessingStatus() == ImageStatus.FAILED) {
 			photo.markFailed();
 		}
 		return photo;
+	}
+
+	private Map<String, BreadRecordPhoto> resolveOriginalPhotos(
+			List<BreadRecordPhotoRequest> requested, List<BreadRecordPhoto> originals) {
+		Map<String, BreadRecordPhoto> resolved = new HashMap<>();
+		Set<String> requestedKeys = new HashSet<>();
+		Set<BreadRecordPhoto> usedOriginals = new HashSet<>();
+		for (BreadRecordPhotoRequest photo : requested) {
+			if (!requestedKeys.add(photo.awsKey())) {
+				throw new BreadLogException(BreadLogErrorCode.INVALID_PHOTO_REFERENCE);
+			}
+			BreadRecordPhoto matchingKey = originals.stream()
+				.filter(original -> original.getAwsKey().equals(photo.awsKey()))
+				.findFirst().orElse(null);
+			BreadRecordPhoto original = matchingKey;
+			if (photo.originalPhotoId() != null) {
+				original = originals.stream().filter(candidate -> photo.originalPhotoId().equals(candidate.getId()))
+					.findFirst().orElseThrow(() -> new BreadLogException(BreadLogErrorCode.INVALID_PHOTO_REFERENCE));
+				if (matchingKey != null && matchingKey != original) {
+					throw new BreadLogException(BreadLogErrorCode.INVALID_PHOTO_REFERENCE);
+				}
+			}
+			if (original != null) {
+				if (!usedOriginals.add(original)) {
+					throw new BreadLogException(BreadLogErrorCode.INVALID_PHOTO_REFERENCE);
+				}
+				resolved.put(photo.awsKey(), original);
+			}
+		}
+		return resolved;
 	}
 
 	private void deleteRemovedImages(

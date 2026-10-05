@@ -2,6 +2,8 @@ package sweetgirl.croissant.breadlog.repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -92,4 +94,20 @@ public interface BreadRecordTagRepository extends JpaRepository<BreadRecordTag, 
 			@Param("memberId") Long memberId,
 			@Param("from") LocalDateTime from,
 			@Param("to") LocalDateTime to);
+
+	/** 보고서에 선택된 사진의 현재 태그만 확인한다. 발행 당시 횟수와 순위를 재집계하지 않는다. */
+	@Query("""
+			SELECT tag
+			FROM BreadRecordTag tag
+			JOIN FETCH tag.record record
+			JOIN FETCH tag.photo photo
+			LEFT JOIN FETCH tag.menu menu
+			LEFT JOIN FETCH menu.menuCategory
+			WHERE record.member.id = :memberId AND record.deletedAt IS NULL
+			AND photo.record.id = record.id
+			AND (photo.referenceId IN :references OR photo.awsKey IN :keys
+				OR photo.resizedKey320 IN :keys OR photo.resizedKey640 IN :keys OR photo.resizedKey1024 IN :keys)
+			""")
+	List<BreadRecordTag> findMonthlyReportPhotoTags(@Param("memberId") Long memberId,
+			@Param("references") Set<UUID> references, @Param("keys") Set<String> keys);
 }

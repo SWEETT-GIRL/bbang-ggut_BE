@@ -259,10 +259,82 @@ class BreadRecordCommandServiceTest {
 		verify(photoRepository).saveAll(argThat(photos -> {
 			List<BreadRecordPhoto> photoList = StreamSupport.stream(photos.spliterator(), false).toList();
 			return photoList.size() == 1
+				&& photoList.get(0).getReferenceId().equals(oldPhoto.getReferenceId())
 				&& photoList.get(0).getProcessingStatus() == ImageStatus.DONE
 				&& photoList.get(0).getResizedKey320().equals("resized/320/" + awsKey);
 		}));
 		verify(courseProgressService).refreshForMember(7L);
+	}
+
+	@Test
+	void replace_newFilePreservesPhotoReferenceAndPreviousTagRating() {
+		BreadRecord record = givenReplaceableRecord(false);
+		String oldKey = "bread-records/members/7/images/a";
+		String newKey = "bread-records/members/7/images/edited";
+		BreadRecordPhoto original = BreadRecordPhoto.builder().record(record).name("a.jpg")
+			.mimeType(MimeType.IMAGE_JPEG).awsKey(oldKey).sortOrder(0).build();
+		ReflectionTestUtils.setField(original, "id", 23L);
+		original.markDone();
+		original.updateResizedKeys(oldKey);
+		given(photoRepository.findAllIncludingPendingByRecordId(11L)).willReturn(List.of(original));
+		BreadRecordTag previous = BreadRecordTag.builder()
+			.record(record).photo(original).name("소금빵").breadCategory("소금빵")
+			.positionX(0.1).positionY(0.1).build();
+		previous.rate(true, List.of(TextureChip.촉촉), List.of(TasteChip.고소), "부드러워");
+		given(tagRepository.findAllWithChipsByRecordId(11L)).willReturn(List.of(previous));
+		BreadRecordUpsertRequest request = withPhotos(List.of(new BreadRecordPhotoRequest(
+			"edited.jpg", "image/jpeg", newKey, 0, 800, 600, 23L)));
+
+		commandService.replace(11L, 7L, request);
+
+		verify(photoRepository).saveAll(argThat(photos -> {
+			BreadRecordPhoto photo = photos.iterator().next();
+			return photo.getReferenceId().equals(original.getReferenceId()) && photo.getAwsKey().equals(newKey)
+				&& photo.getProcessingStatus() == ImageStatus.PENDING && photo.getResizedKey640() == null;
+		}));
+		verify(tagRepository).saveAll(argThat(tags -> {
+			BreadRecordTag tag = firstTag(tags);
+			return tag.getPhoto().getReferenceId().equals(original.getReferenceId())
+				&& tag.getPhoto().getAwsKey().equals(newKey)
+				&& Boolean.TRUE.equals(tag.getAgain())
+				&& tag.textures().equals(List.of(TextureChip.촉촉))
+				&& tag.tastes().equals(List.of(TasteChip.고소))
+				&& "부드러워".equals(tag.getRatingMemo());
+		}));
+		verify(s3Service).deleteObject(oldKey);
+	}
+
+	@Test
+	void replace_rejectsForeignStaleOrRepeatedOriginalPhotoBeforeDeletingExistingPhotos() {
+		var member = member(7L);
+		var record = record(11L, member);
+		var original = BreadRecordPhoto.builder().record(record).name("a.jpg")
+			.mimeType(MimeType.IMAGE_JPEG).awsKey("bread-records/members/7/images/a").sortOrder(0).build();
+		ReflectionTestUtils.setField(original, "id", 23L);
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+		given(storeRepository.findById(10L)).willReturn(Optional.of(store(10L)));
+		given(photoRepository.findAllIncludingPendingByRecordId(11L)).willReturn(List.of(original));
+		for (var photos : List.of(
+			List.of(
+				new BreadRecordPhotoRequest("b", "image/jpeg", "bread-records/members/7/images/b", 0, null, null, 99L)),
+			List.of(
+				new BreadRecordPhotoRequest("b", "image/jpeg", "bread-records/members/7/images/b", 0, null, null, 23L),
+				new BreadRecordPhotoRequest("c", "image/jpeg", "bread-records/members/7/images/c", 1, null, null,
+					23L)))) {
+			assertThatThrownBy(() -> commandService.replace(11L, 7L, withPhotos(photos)))
+				.isInstanceOf(BreadLogException.class)
+				.hasFieldOrPropertyWithValue("errorCode", BreadLogErrorCode.INVALID_PHOTO_REFERENCE);
+		}
+		verify(tagRepository, never()).deleteAllByRecordId(any());
+		verify(photoRepository, never()).deleteAllIncludingPendingByRecordId(any());
+	}
+
+	private BreadRecordUpsertRequest withPhotos(List<BreadRecordPhotoRequest> photos) {
+		var base = requestWithVisibility(null);
+		return new BreadRecordUpsertRequest(base.storeId(), base.storeName(), base.regionKey(), base.memo(),
+			base.lovedBread(), base.lovedBreads(), base.towerBread(), base.eatenAt(), photos, base.tags(),
+			base.isPublic());
 	}
 
 	@Test

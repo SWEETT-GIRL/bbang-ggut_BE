@@ -148,13 +148,15 @@ public class BreadRecordTag extends BaseTimeEntity {
 	 * <p>메뉴 쪽도 '빵'·'기타'면 그것 역시 "모르겠다"이므로 룰이 낸 값을 그대로 둔다.
 	 */
 	public String resolvedCategory() {
-		if (!FALLBACK_CATEGORIES.contains(breadCategory)) {
+		MenuKind kind = menu == null || menu.getMenuCategory() == null ? null : menu.getMenuCategory().getName();
+		return resolveCategory(breadCategory, kind);
+	}
+
+	/** 현재 태그와 월말 이력에서 동일한 분류 규칙을 사용한다. */
+	public static String resolveCategory(String breadCategory, MenuKind kind) {
+		if (!FALLBACK_CATEGORIES.contains(breadCategory) || kind == null) {
 			return breadCategory;
 		}
-		if (menu == null || menu.getMenuCategory() == null) {
-			return breadCategory;
-		}
-		MenuKind kind = menu.getMenuCategory().getName();
 		return MenuCategory.UNCATEGORIZED_KINDS.contains(kind) ? breadCategory : kind.name();
 	}
 

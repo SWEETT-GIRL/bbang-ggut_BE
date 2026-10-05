@@ -82,7 +82,7 @@ public class FcmService {
 	// Firebase에 푸시 메시지를 쏘는 메서드
 	// NOT_SUPPORTED: 부모 트랜잭션과 분리해 FCM 실패가 DB 트랜잭션을 rollback-only로 오염시키지 않도록
 	@Transactional(propagation = Propagation.NOT_SUPPORTED)
-	public void sendPushNotification(String fcmToken, String title, String body, Map<String, String> data) {
+	public SendResult sendPushNotification(String fcmToken, String title, String body, Map<String, String> data) {
 		// Android: HIGH priority 명시 (Doze 우회 시도) + 1시간 TTL.
 		AndroidConfig androidConfig = AndroidConfig.builder()
 			.setPriority(AndroidConfig.Priority.HIGH)
@@ -117,11 +117,13 @@ public class FcmService {
 
 		try {
 			firebaseMessaging.send(message);
+			return SendResult.SENT;
 		} catch (FirebaseMessagingException e) {
 			MessagingErrorCode errorCode = e.getMessagingErrorCode();
 			if (isInvalidTokenError(errorCode)) {
 				log.warn("FCM 토큰 비활성화 [token={}, errorCode={}]", maskToken(fcmToken), errorCode);
 				deactivateFcmToken(fcmToken);
+				return SendResult.INVALID_TOKEN;
 			} else if (errorCode == MessagingErrorCode.THIRD_PARTY_AUTH_ERROR) {
 				log.error("FCM APNs 인증/환경 오류 [token={}, errorCode={}]", maskToken(fcmToken), errorCode, e);
 				throw new AlarmException(AlarmErrorCode.FCM_SEND_FAILED);
@@ -130,6 +132,10 @@ public class FcmService {
 				throw new AlarmException(AlarmErrorCode.FCM_SEND_FAILED);
 			}
 		}
+	}
+
+	public enum SendResult {
+		SENT, INVALID_TOKEN
 	}
 
 	private boolean isInvalidTokenError(MessagingErrorCode errorCode) {

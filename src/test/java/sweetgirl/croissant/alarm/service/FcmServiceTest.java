@@ -228,7 +228,8 @@ class FcmServiceTest {
 	void sendPushNotification_doesNotDeactivate_whenSuccess() throws FirebaseMessagingException {
 		given(firebaseMessaging.send(any())).willReturn("message-id");
 
-		fcmService.sendPushNotification("some-token", "제목", "내용", Map.of());
+		assertThat(fcmService.sendPushNotification("some-token", "제목", "내용", Map.of()))
+			.isEqualTo(FcmService.SendResult.SENT);
 
 		verify(fcmTokenRepository, never()).findAllByToken(any());
 	}
@@ -250,7 +251,8 @@ class FcmServiceTest {
 		given(firebaseMessaging.send(any())).willThrow(exception);
 		given(fcmTokenRepository.findAllByToken("some-token")).willReturn(List.of(fcmToken));
 
-		fcmService.sendPushNotification("some-token", "제목", "내용", Map.of());
+		assertThat(fcmService.sendPushNotification("some-token", "제목", "내용", Map.of()))
+			.isEqualTo(FcmService.SendResult.INVALID_TOKEN);
 
 		assertThat(fcmToken.isActive()).isFalse();
 	}
@@ -272,7 +274,8 @@ class FcmServiceTest {
 		given(firebaseMessaging.send(any())).willThrow(exception);
 		given(fcmTokenRepository.findAllByToken("bad-token")).willReturn(List.of(fcmToken));
 
-		fcmService.sendPushNotification("bad-token", "제목", "내용", Map.of());
+		assertThat(fcmService.sendPushNotification("bad-token", "제목", "내용", Map.of()))
+			.isEqualTo(FcmService.SendResult.INVALID_TOKEN);
 
 		assertThat(fcmToken.isActive()).isFalse();
 	}
