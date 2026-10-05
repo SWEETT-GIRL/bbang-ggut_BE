@@ -106,6 +106,7 @@ monthly-reports/assets/{version}/types/{characterCode}/{planetCode}/{type}-{UUID
 
 | 메서드 | 경로 | 용도 |
 | --- | --- | --- |
+| GET | `/{month}/runs?page=0&size=20` | 월별 생성 작업 목록, 최근 생성 순. `{content,hasNext}` |
 | POST | `/{month}/runs` | 전체 작업 생성, 202 |
 | POST | `/{month}/members/{memberId}/runs` | 회원 1명 작업 생성, 202 |
 | GET | `/{month}/runs/{id}` | 작업 상태·회원별 상태 건수 |
@@ -202,7 +203,28 @@ monthly-report.admin.poll-delay-ms=5000
 monthly-report.admin.push-delay-ms=10000
 ```
 
-스케줄러는 어드민이 등록·승인한 작업만 실행한다. 매월 1일 작업 자동 등록과 자동 승인은 하지 않는다.
+자동 생성을 활성화하면 KST 기준 전월의 전체 회원 작업을 등록한다. 기본 주기는 매시 5분이므로
+매월 1일 00:05에 새 전월을 등록하며, 서버가 중단됐으면 재시작 또는 다음 주기에 보완한다.
+등록만 자동화하며 기존 워커는 원천과 이미지를 확인해 초안을 만든 뒤 REVIEW에서 멈춘다.
+발행·알림함 등록·푸시 예약은 어드민의 명시적 승인 후 진행한다.
+
+```properties
+monthly-report.auto-preparation.enabled=false
+monthly-report.auto-preparation.asset-version=
+monthly-report.auto-preparation.cron=0 5 * * * *
+```
+
+- 활성화할 때 등록한 이미지 버전을 지정해야 한다. 빈 값이나 잘못된 버전이면 서버 시작 시 검증 오류가 난다.
+- 동일 월 전체 작업은 DB 유일 제약으로 하나만 유지한다. 수동 생성·여러 서버·재시작이 겹쳐도 중복 작업을 만들지 않는다.
+- 먼저 생성된 작업의 이미지 버전과 상태를 유지한다. 이후 설정을 바꿔도 기존 초안이나 발행본을 덮어쓰지 않는다.
+- 누락 이미지·월말 이력·조회 적재로 실패한 작업은 자동 등록으로 초기화하지 않는다. 어드민에서 원인을 해결한 뒤 재시도한다.
+- 이전에 놓친 더 오래된 월은 어드민에서 수동 생성한다. 자동 등록은 현재 기준 전월만 대상으로 한다.
+- GET 작업 목록의 page는 0 이상, size는 1~100이다. 단일 회원 테스트 작업과 전체 회원 작업을 함께 보여 준다.
+
+CD는 저장소 variables `STAGING_MONTHLY_REPORT_AUTO_PREPARATION` / `STAGING_MONTHLY_REPORT_ASSET_VERSION`,
+운영은 `PROD_MONTHLY_REPORT_AUTO_PREPARATION` / `PROD_MONTHLY_REPORT_ASSET_VERSION`을 읽는다.
+자동화 기본값은 false다. 개발 서버에서 이미지·원천과 단일 회원 발행을 확인한 뒤 활성화하고 재배포한다.
+이번 코드 작업에서는 실제 환경 변수나 운영 설정을 바꾸지 않았다.
 기존 `monthly-report.batch.cron=-` 경로는 호출자가 완성 초안을 넣는 내부 배치이며 즉시 푸시 방식을 유지한다.
 어드민 예약 발행에는 새 runs API를 사용한다. 운영 스케줄, S3 CORS, 운영 DB, 실제 FCM 발송은 이번 코드 작업에서 변경하지 않았다.
 

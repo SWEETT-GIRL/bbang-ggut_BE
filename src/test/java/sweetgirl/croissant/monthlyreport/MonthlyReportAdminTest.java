@@ -487,6 +487,32 @@ class MonthlyReportAdminTest {
 	}
 
 	@Test
+	void automaticRegistrationKeepsExistingVersionAndStopsAtReview() {
+		admin.prepareAutomatically(MONTH, "v1");
+		admin.prepareAutomatically(MONTH, "v2");
+		MonthlyReportRun run = admin.list(MONTH, 0, 20).content().get(0);
+		assertThat(run.getAssetVersion()).isEqualTo("v1");
+		assertThat(run.getTargetMemberId()).isNull();
+		assertThat(runs.count()).isEqualTo(1);
+		assertThat(admin.create(MONTH, "v1").getId()).isEqualTo(run.getId());
+		admin.create(MONTH, "v1", 123L);
+		assertThat(admin.list(MONTH, 0, 1).hasNext()).isTrue();
+		assertThat(admin.list(MONTH, 1, 1).content()).singleElement()
+			.satisfies(item -> assertThat(item.getId()).isEqualTo(run.getId()));
+		assertThatThrownBy(() -> admin.list(MONTH, -1, 20)).isInstanceOf(CustomException.class);
+		assertThatThrownBy(() -> admin.list(MONTH, 0, 101)).isInstanceOf(CustomException.class);
+		for (int i = 0; i < 3; i++) {
+			worker.step(run.getId());
+		}
+		assertThat(admin.progress(MONTH, run.getId()).run().getState()).isEqualTo(MonthlyReportRun.State.REVIEW);
+		admin.prepareAutomatically(MONTH, "v2");
+		assertThat(admin.progress(MONTH, run.getId()).run().getState()).isEqualTo(MonthlyReportRun.State.REVIEW);
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM monthly_report_member", Integer.class)).isZero();
+		assertThat(pushes.count()).isZero();
+		verifyNoInteractions(recorder, legacyNotifications);
+	}
+
+	@Test
 	void concurrentRegistrationReturnsSameRunAndLockedRunIsSkipped() throws Exception {
 		ExecutorService pool = Executors.newFixedThreadPool(2);
 		try {

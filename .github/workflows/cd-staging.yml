@@ -109,6 +109,10 @@ jobs:
 
           oauth2.front-redirect-uri=bbanggut://permission-location
 
+          # 월간 초안만 자동 생성. 발행·푸시는 어드민 검토 후 승인한다.
+          monthly-report.auto-preparation.enabled=${{ vars.STAGING_MONTHLY_REPORT_AUTO_PREPARATION || 'false' }}
+          monthly-report.auto-preparation.asset-version=${{ vars.STAGING_MONTHLY_REPORT_ASSET_VERSION || '' }}
+
           spring.jpa.hibernate.ddl-auto=validate
           spring.jpa.show-sql=false
           spring.jpa.properties.hibernate.format_sql=false

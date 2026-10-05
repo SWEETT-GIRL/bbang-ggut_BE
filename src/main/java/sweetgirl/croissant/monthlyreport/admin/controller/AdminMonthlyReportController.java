@@ -47,6 +47,12 @@ public class AdminMonthlyReportController {
 		return ApiResponse.ok(assets.list(version));
 	}
 
+	@GetMapping("/{month}/runs")
+	public ApiResponse<SliceResponse<MonthlyReportRun>> list(@PathVariable String month,
+			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+		return ApiResponse.ok(reports.list(month, page, size));
+	}
+
 	@PostMapping("/{month}/runs")
 	public ResponseEntity<ApiResponse<MonthlyReportRun>> create(@PathVariable String month,
 			@Valid @RequestBody MonthlyReportAdminRequests.CreateRun request) {

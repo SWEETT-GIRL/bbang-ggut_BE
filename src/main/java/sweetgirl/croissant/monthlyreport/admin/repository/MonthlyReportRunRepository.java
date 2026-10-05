@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -15,6 +16,8 @@ import org.springframework.data.repository.query.Param;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportRun;
 
 public interface MonthlyReportRunRepository extends JpaRepository<MonthlyReportRun, UUID> {
+	Slice<MonthlyReportRun> findByYearMonthOrderByCreatedAtDescIdDesc(String month, Pageable pageable);
+
 	Optional<MonthlyReportRun> findByYearMonthAndTargetMemberId(String month, Long targetMemberId);
 
 	@Query("select r.id from MonthlyReportRun r where r.state in :states order by r.createdAt")

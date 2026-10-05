@@ -14,7 +14,7 @@ import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportRun.State;
 import sweetgirl.croissant.monthlyreport.admin.repository.MonthlyReportPushRepository;
 import sweetgirl.croissant.monthlyreport.admin.repository.MonthlyReportRunRepository;
 
-/** 어드민이 등록한 작업만 처리한다. 월별 자동 작업 등록이나 자동 발행 승인은 하지 않는다. */
+/** 등록된 작업을 처리한다. 자동 생성 작업도 검토 완료 후 어드민이 승인해야 발행한다. */
 @Slf4j
 @Component
 @RequiredArgsConstructor

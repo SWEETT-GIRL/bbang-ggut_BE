@@ -61,6 +61,23 @@ public class MonthlyReportAdminService {
 		return run;
 	}
 
+	/** 여러 서버와 수동 생성이 경합해도 먼저 등록된 작업의 버전과 상태를 유지한다. */
+	@Transactional
+	public void prepareAutomatically(String month, String version) {
+		if (!MonthlyReportMonth.parse(month).isBefore(YearMonth.now(ZoneId.of("Asia/Seoul")))) {
+			throw new CustomException(MonthlyReportErrorCode.MONTH_NOT_CLOSED);
+		}
+		runs.enqueue(UUID.randomUUID(), month, version, Instant.now(), null);
+	}
+
+	public SliceResponse<MonthlyReportRun> list(String month, int page, int size) {
+		MonthlyReportMonth.parse(month);
+		if (page < 0 || size < 1 || size > 100) {
+			throw new CustomException(MonthlyReportErrorCode.INVALID_PAGE);
+		}
+		return SliceResponse.from(runs.findByYearMonthOrderByCreatedAtDescIdDesc(month, PageRequest.of(page, size)));
+	}
+
 	public Progress progress(String month, UUID id) {
 		MonthlyReportRun run = require(month, id);
 		Map<MonthlyReportDraft.State, Long> counts = new EnumMap<>(MonthlyReportDraft.State.class);
