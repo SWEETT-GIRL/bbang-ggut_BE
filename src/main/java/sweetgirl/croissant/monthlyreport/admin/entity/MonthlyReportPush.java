@@ -1,6 +1,7 @@
 package sweetgirl.croissant.monthlyreport.admin.entity;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -35,6 +36,31 @@ public class MonthlyReportPush {
 
 	@Column(name = "error_code", length = 100)
 	private String errorCode;
+	@Column(name = "lease_token")
+	private UUID leaseToken;
+	@Column(name = "lease_expires_at")
+	private Instant leaseExpiresAt;
+
+	public boolean isClaimAvailable(Instant now) {
+		return !done && !nextAttemptAt.isAfter(now)
+			&& (leaseExpiresAt == null || !leaseExpiresAt.isAfter(now));
+	}
+
+	public UUID claimDelivery(Instant now) {
+		begin();
+		leaseToken = UUID.randomUUID();
+		leaseExpiresAt = now.plusSeconds(600);
+		return leaseToken;
+	}
+
+	public boolean ownsDelivery(UUID token) {
+		return token != null && token.equals(leaseToken);
+	}
+
+	private void releaseDelivery() {
+		leaseToken = null;
+		leaseExpiresAt = null;
+	}
 
 	public static MonthlyReportPush schedule(Long notificationId, Long memberId, Instant sendAt) {
 		MonthlyReportPush push = new MonthlyReportPush();
@@ -51,21 +77,24 @@ public class MonthlyReportPush {
 	}
 
 	public void complete() {
+		releaseDelivery();
 		done = true;
 		completedAt = Instant.now();
 		errorCode = null;
 	}
 
 	public void skip(String reason) {
+		releaseDelivery();
 		done = true;
 		completedAt = Instant.now();
 		errorCode = reason;
 	}
 
 	public boolean retry() {
-		if (done || attempts < 5) {
+		if (done || attempts < 5 || (leaseExpiresAt != null && leaseExpiresAt.isAfter(Instant.now()))) {
 			return false;
 		}
+		releaseDelivery();
 		attempts = 0;
 		manualRetries++;
 		done = false;
@@ -75,6 +104,7 @@ public class MonthlyReportPush {
 	}
 
 	public void fail() {
+		releaseDelivery();
 		errorCode = "PUSH_FAILED";
 		nextAttemptAt = Instant.now().plusSeconds(300L * attempts);
 	}

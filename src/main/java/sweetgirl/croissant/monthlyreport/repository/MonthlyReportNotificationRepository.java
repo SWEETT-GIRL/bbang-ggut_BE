@@ -40,7 +40,8 @@ public interface MonthlyReportNotificationRepository
 			CASE WHEN r.status IS DISTINCT FROM 'PUBLISHED' THEN 'NOT_PUBLISHED'
 			WHEN nd.status = 'SENT' THEN 'SENT'
 			WHEN p.done THEN 'SKIPPED'
-			WHEN p.attempts >= 5 THEN 'FAILED'
+			WHEN p.attempts >= 5
+				AND (p.lease_expires_at IS NULL OR p.lease_expires_at <= CURRENT_TIMESTAMP) THEN 'FAILED'
 			WHEN p.attempts > 0 THEN 'RETRY_WAIT'
 			WHEN p.notification_id IS NOT NULL THEN 'PENDING'
 			WHEN e.notification_id IS NOT NULL THEN 'NOT_SCHEDULED' ELSE 'UNKNOWN' END

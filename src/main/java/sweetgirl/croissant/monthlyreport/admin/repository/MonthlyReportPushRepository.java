@@ -13,8 +13,10 @@ import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportPush;
 
 public interface MonthlyReportPushRepository extends JpaRepository<MonthlyReportPush, Long> {
 	@Query("""
-			select p.notificationId from MonthlyReportPush p where p.done = false and p.attempts < 5 and
-			p.nextAttemptAt <= :now order by p.nextAttemptAt
+			select p.notificationId from MonthlyReportPush p
+			where p.done = false and (p.attempts < 5 or p.leaseToken is not null)
+			and p.nextAttemptAt <= :now and (p.leaseExpiresAt is null or p.leaseExpiresAt <= :now)
+			order by p.nextAttemptAt
 			""")
 	List<Long> findDue(@Param("now") Instant now, Pageable pageable);
 

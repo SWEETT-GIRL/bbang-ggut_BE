@@ -25,6 +25,7 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportPush;
 import sweetgirl.croissant.monthlyreport.admin.repository.MonthlyReportPushRepository;
+import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportPushCommandService;
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportPushWorker;
 
 class MonthlyReportPushWorkerTest {
@@ -33,8 +34,9 @@ class MonthlyReportPushWorkerTest {
 	private final MemberRepository members = mock(MemberRepository.class);
 	private final NotificationDeliveryRepository deliveries = mock(NotificationDeliveryRepository.class);
 	private final PushDispatcher dispatcher = mock(PushDispatcher.class);
-	private final MonthlyReportPushWorker worker = new MonthlyReportPushWorker(pushes, notifications, members,
-		deliveries, dispatcher);
+	private final MonthlyReportPushCommandService commandService = new MonthlyReportPushCommandService(
+		pushes, notifications, members, deliveries);
+	private final MonthlyReportPushWorker worker = new MonthlyReportPushWorker(commandService, dispatcher);
 	private final Member member = MonthlyReportFixtures.eligibleMember("member");
 	private final Notification notification = mock(Notification.class);
 
@@ -51,7 +53,7 @@ class MonthlyReportPushWorkerTest {
 	void futureReservationDoesNotSend() {
 		MonthlyReportPush push = MonthlyReportPush.schedule(1L, 123L, Instant.now().plusSeconds(3600));
 		when(pushes.lock(1L)).thenReturn(Optional.of(push));
-		worker.send(1L);
+		worker.sendScheduledReportPush(1L);
 		verifyNoInteractions(dispatcher, members, notifications);
 		assertThat(push.getAttempts()).isZero();
 	}
@@ -61,7 +63,7 @@ class MonthlyReportPushWorkerTest {
 		MonthlyReportPush push = due();
 		when(deliveries.existsByNotificationIdAndMemberIdAndChannelAndStatus(1L, 123L, NotificationChannel.PUSH,
 			DeliveryStatus.SENT)).thenReturn(true);
-		worker.send(1L);
+		worker.sendScheduledReportPush(1L);
 		assertThat(push.isDone()).isTrue();
 		verifyNoInteractions(dispatcher);
 	}
@@ -69,8 +71,8 @@ class MonthlyReportPushWorkerTest {
 	@Test
 	void noEligibleDeviceCompletesReservation() {
 		MonthlyReportPush push = due();
-		worker.send(1L);
-		worker.send(1L);
+		worker.sendScheduledReportPush(1L);
+		worker.sendScheduledReportPush(1L);
 		verify(dispatcher).dispatchWithResult(eq(notification), eq(member), any());
 		assertThat(push.isDone()).isTrue();
 		assertThat(push.getAttempts()).isEqualTo(1);
@@ -83,12 +85,12 @@ class MonthlyReportPushWorkerTest {
 		doThrow(new IllegalStateException("FCM unavailable")).when(dispatcher).dispatchWithResult(any(), any(), any());
 		for (int attempt = 1; attempt <= 5; attempt++) {
 			ReflectionTestUtils.setField(push, "nextAttemptAt", Instant.now().minusSeconds(1));
-			worker.send(1L);
+			worker.sendScheduledReportPush(1L);
 			assertThat(push.getAttempts()).isEqualTo(attempt);
 			assertThat(push.getNextAttemptAt()).isAfter(Instant.now().plusSeconds(290L * attempt));
 		}
 		ReflectionTestUtils.setField(push, "nextAttemptAt", Instant.now().minusSeconds(1));
-		worker.send(1L);
+		worker.sendScheduledReportPush(1L);
 		assertThat(push.getAttempts()).isEqualTo(5);
 		assertThat(push.getErrorCode()).isEqualTo("PUSH_FAILED");
 		assertThat(push.isDone()).isFalse();
@@ -97,4 +99,31 @@ class MonthlyReportPushWorkerTest {
 		assertThat(push.getManualRetries()).isEqualTo(1);
 		assertThat(push.retry()).isFalse();
 	}
+
+	@Test
+	void activeClaimExcludesSecondWorkerAndExpiredClaimRejectsOldResult() {
+		MonthlyReportPush push = due();
+		MonthlyReportPushCommandService.DeliveryClaim first = commandService.claimScheduledPush(1L).orElseThrow();
+		assertThat(commandService.claimScheduledPush(1L)).isEmpty();
+		ReflectionTestUtils.setField(push, "leaseExpiresAt", Instant.now().minusSeconds(1));
+		MonthlyReportPushCommandService.DeliveryClaim second = commandService.claimScheduledPush(1L).orElseThrow();
+		commandService.completeScheduledPush(1L, first.token(), PushDispatcher.Result.SENT);
+		assertThat(push.isDone()).isFalse();
+		commandService.completeScheduledPush(1L, second.token(), PushDispatcher.Result.FAILED);
+		assertThat(push.getLeaseToken()).isNull();
+		assertThat(push.getAttempts()).isEqualTo(2);
+	}
+
+	@Test
+	void crashedFifthAttemptCanBeRecoveredAndManuallyRetried() {
+		MonthlyReportPush push = due();
+		ReflectionTestUtils.setField(push, "attempts", 4);
+		commandService.claimScheduledPush(1L).orElseThrow();
+		assertThat(push.retry()).isFalse();
+		ReflectionTestUtils.setField(push, "leaseExpiresAt", Instant.now().minusSeconds(1));
+		assertThat(commandService.claimScheduledPush(1L)).isEmpty();
+		assertThat(push.getLeaseToken()).isNull();
+		assertThat(push.retry()).isTrue();
+	}
+
 }

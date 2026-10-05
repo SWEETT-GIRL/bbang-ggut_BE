@@ -144,7 +144,8 @@ class MonthlyReportAdminTest {
 			new ClassPathResource("db/migration/V20261005222053__monthly_report_push.sql"),
 			new ClassPathResource("db/migration/V20261005222054__monthly_report_admin.sql"),
 			new ClassPathResource("db/migration/V20261005222055__monthly_report_single_member_run.sql"),
-			new ClassPathResource("db/migration/V20261005222056__monthly_report_operations.sql"))
+			new ClassPathResource("db/migration/V20261005222056__monthly_report_operations.sql"),
+			new ClassPathResource("db/migration/V20261006055838__add_monthly_report_push_lease.sql"))
 			.execute(source);
 		LocalContainerEntityManagerFactoryBean factory = new LocalContainerEntityManagerFactoryBean();
 		factory.setDataSource(source);

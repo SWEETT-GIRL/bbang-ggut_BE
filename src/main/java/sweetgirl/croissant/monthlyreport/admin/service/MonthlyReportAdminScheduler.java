@@ -42,7 +42,7 @@ public class MonthlyReportAdminScheduler {
 	public void sendPushes() {
 		for (Long id : pushes.findDue(Instant.now(), PageRequest.of(0, 100))) {
 			try {
-				pushWorker.send(id);
+				pushWorker.sendScheduledReportPush(id);
 			} catch (RuntimeException e) {
 				log.error("월간 푸시 예약 처리 실패 notificationId={}", id, e);
 			}
