@@ -99,3 +99,52 @@ APP_HOST=10.3.31.174 PERF_KEY=<대시보드키> ./run-remote.sh R5 5000 10s 500
 | `seed-coupon-members.sql` | 측정용 회원 시드 (멱등) |
 | `generate-tokens.mjs` | JWT 5만 개 → CSV (의존성 없음) |
 | `api-load.js` | 읽기 API 일반 부하 (쿠폰과 무관) |
+
+---
+
+# 자동완성 캐시 부하 측정
+
+설계와 측정 결과는 `.claude/planning/feat-autocomplete-cache.md`.
+
+운영에서 사람들이 실제로 친 자동완성 검색어를 **그 순서대로** 빨리 감아 재생한다. 캐시 적중률은 같은 검색어가 얼마나
+반복되느냐로 정해지는데, 빈도대로 무작위로 뽑으면 요청이 많을수록 드문 검색어까지 반복돼 적중률이 부풀려진다.
+한 바퀴만 돈다 — 두 바퀴째는 전부 적중이다.
+
+## 준비
+
+```bash
+# 1) 운영 request_log 에서 읽기 전용으로 내보내기 (운영 터널, SELECT 만)
+\copy (SELECT created_at, query_params FROM request_log WHERE endpoint = '/stores/autocomplete'
+       AND created_at >= now() - interval '35 days') TO 'ac.csv' CSV HEADER
+
+# 2) k6 입력 만들기 — 이메일 형태 검색어와 그 입력 도중 접두어는 뺀다. 결과는 git 에 올리지 않는다
+python3 build-autocomplete-queries.py ac.csv autocomplete-queries.json
+
+# 3) autocomplete-queries.json 을 k6 서버로 옮긴다
+```
+
+staging DB 는 자동완성이 읽는 4개 테이블(`store`, `store_name_alias`, `search_region`, `search_region_alias`)에
+운영 수준 데이터가 있어야 한다 — 가게가 몇 개뿐이면 DB 조회가 공짜라 캐시 효과가 안 보인다.
+
+## 측정
+
+```bash
+# 측정 전 앱 서버에서 Scouter 를 끈다 — 쿠폰 측정 때 CPU 를 19~24% 먹었다
+docker stop scouter-agent
+
+# 캐시 끔 (서버 .env AUTOCOMPLETE_CACHE_ENABLED=false → docker compose up -d app)
+APP_HOST=10.3.31.174 ./run-autocomplete.sh off-50 50
+
+# 캐시 켬 — 회차마다 비우고 빈 상태에서 시작
+APP_HOST=10.3.31.174 FLUSH=true ADMIN_KEY=<관리자키> ./run-autocomplete.sh on-50 50
+```
+
+RATE 는 초당 요청 수다. 운영 실제 트래픽(하루 약 120건)은 부하가 아니라서, 20·50·100·200 처럼 올리며
+**캐시를 끈 쪽이 어디서 버거워지는지**를 본다. 같은 RATE 끼리 on/off 를 짝지어 비교한다.
+
+| 요약 항목 | 어디서 |
+| --- | --- |
+| 응답 p50·p95·p99 | k6 (밖에서 본 시간) |
+| 적중률 · DB 까지 간 요청 수 | `autocomplete_cache_total` 회차 전후 차이 |
+| 엔진 평균 | `search_engine_query_seconds` (서버 측, 캐시 포함) |
+| CPU | `system_cpu_usage` — 앱과 DB 가 한 호스트라 둘 다 포함 |
