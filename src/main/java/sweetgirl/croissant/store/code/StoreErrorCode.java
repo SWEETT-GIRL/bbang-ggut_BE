@@ -17,7 +17,8 @@ public enum StoreErrorCode implements BaseErrorCode {
 	NAVER_ENRICH_ALREADY_RUNNING(HttpStatus.CONFLICT, "STORE409_2", "네이버 일괄 매칭이 이미 실행 중입니다."),
 	NAVER_ENRICH_STORE_IN_PROGRESS(HttpStatus.CONFLICT, "STORE409_3", "해당 가게의 네이버 매칭이 이미 진행 중입니다."),
 	NAVER_PLACE_ID_DUPLICATE(HttpStatus.CONFLICT, "STORE409_4", "다른 가게가 이미 사용 중인 네이버 placeId 입니다."),
-	POPULARITY_REFRESH_ALREADY_RUNNING(HttpStatus.CONFLICT, "STORE409_5", "가게 인기도 갱신이 이미 실행 중입니다.");
+	POPULARITY_REFRESH_ALREADY_RUNNING(HttpStatus.CONFLICT, "STORE409_5", "가게 인기도 갱신이 이미 실행 중입니다."),
+	TRENDING_BASELINE_REFRESH_ALREADY_RUNNING(HttpStatus.CONFLICT, "STORE409_6", "가게 평소 수준 갱신이 이미 실행 중입니다.");
 
 	private final HttpStatus httpStatus;
 	private final String code;
