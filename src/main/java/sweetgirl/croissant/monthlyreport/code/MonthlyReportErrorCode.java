@@ -10,6 +10,10 @@ import sweetgirl.croissant.global.code.BaseErrorCode;
 @AllArgsConstructor
 public enum MonthlyReportErrorCode implements BaseErrorCode {
 
+	ADMIN_NOT_FOUND(HttpStatus.NOT_FOUND, "MONTHLY_REPORT4042", "보고서 생성 작업 또는 이미지가 없습니다."),
+	ADMIN_CONFLICT(HttpStatus.CONFLICT, "MONTHLY_REPORT4091", "현재 상태에서는 요청을 처리할 수 없습니다. 작업 상태를 확인해 주세요."),
+	ASSET_MISSING(HttpStatus.CONFLICT, "MONTHLY_REPORT4092", "필요한 월간 보고서 이미지가 등록되지 않았습니다."),
+	INVALID_ADMIN_REQUEST(HttpStatus.BAD_REQUEST, "MONTHLY_REPORT4005", "월간 보고서 관리 요청이 올바르지 않습니다."),
 	INVALID_MONTH(HttpStatus.BAD_REQUEST, "MONTHLY_REPORT4001", "월은 2000-01부터 2099-12까지 YYYY-MM 형식이어야 합니다."),
 	INVALID_PAGE(HttpStatus.BAD_REQUEST, "MONTHLY_REPORT4002", "page는 0 이상, size는 1부터 100까지여야 합니다."),
 	MONTH_NOT_CLOSED(HttpStatus.BAD_REQUEST, "MONTHLY_REPORT4003", "아직 종료되지 않은 월은 발행할 수 없습니다."),

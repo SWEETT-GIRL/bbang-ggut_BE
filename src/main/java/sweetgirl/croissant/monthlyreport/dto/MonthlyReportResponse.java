@@ -28,7 +28,15 @@ public record MonthlyReportResponse(
 		@NotNull @Size(max = 100) List<@NotNull @Valid Bread> breads,
 		@NotNull @Valid Activity activity,
 		@NotNull @Valid Comparison comparison,
-		@NotNull @Size(max = 500) List<@NotNull @Valid Town> towns) {
+		@NotNull @Size(max = 500) List<@NotNull @Valid Town> towns,
+		@JsonInclude(JsonInclude.Include.NON_NULL) @Size(max = 2048) String coverImageKey) {
+
+	public MonthlyReportResponse(int schemaVersion, String yearMonth, Long memberId, String nickname,
+			Character character, Planet planet, Summary summary, Stores stores, List<Bread> breads,
+			Activity activity, Comparison comparison, List<Town> towns) {
+		this(schemaVersion, yearMonth, memberId, nickname, character, planet, summary, stores, breads,
+			activity, comparison, towns, null);
+	}
 
 	public static final long MAX_SAFE_INTEGER = 9_007_199_254_740_991L;
 
@@ -40,22 +48,22 @@ public record MonthlyReportResponse(
 
 	public MonthlyReportResponse withBreads(List<Bread> visibleBreads) {
 		return new MonthlyReportResponse(schemaVersion, yearMonth, memberId, nickname, character, planet,
-			summary, stores, visibleBreads, activity, comparison, towns);
+			summary, stores, visibleBreads, activity, comparison, towns, coverImageKey);
 	}
 
 	public MonthlyReportResponse withStores(Stores currentStores) {
 		return new MonthlyReportResponse(schemaVersion, yearMonth, memberId, nickname, character, planet,
-			summary, currentStores, breads, activity, comparison, towns);
+			summary, currentStores, breads, activity, comparison, towns, coverImageKey);
 	}
 
 	public MonthlyReportResponse withTowns(List<Town> recordedTowns) {
 		return new MonthlyReportResponse(schemaVersion, yearMonth, memberId, nickname, character, planet,
-			summary, stores, breads, activity, comparison, recordedTowns);
+			summary, stores, breads, activity, comparison, recordedTowns, coverImageKey);
 	}
 
 	public MonthlyReportResponse withNickname(String currentNickname) {
 		return new MonthlyReportResponse(schemaVersion, yearMonth, memberId, currentNickname, character, planet,
-			summary, stores, breads, activity, comparison, towns);
+			summary, stores, breads, activity, comparison, towns, coverImageKey);
 	}
 
 	public record Character(
