@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.util.Collections;
@@ -21,6 +22,7 @@ import org.locationtech.jts.geom.Point;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import sweetgirl.croissant.admin.dto.request.AdminStoreCreateRequest;
 import sweetgirl.croissant.admin.dto.request.AdminStoreUpdateRequest;
@@ -30,6 +32,7 @@ import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.enums.StoreStatus;
+import sweetgirl.croissant.store.event.StoreSearchNameChangedEvent;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.NaverEnrichCandidateRepository;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
@@ -54,6 +57,8 @@ class AdminStoreCommandServiceTest {
 	NaverEnrichOrchestrator naverEnrichOrchestrator;
 	@Mock
 	NaverEnrichCandidateRepository candidateRepository;
+	@Mock
+	ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
 	AdminStoreCommandService adminStoreCommandService;
@@ -86,6 +91,7 @@ class AdminStoreCommandServiceTest {
 
 		verify(storeRepository).save(any(Store.class));
 		verify(storeBusinessHourRepository).saveAll(anyList());
+		verify(eventPublisher).publishEvent(StoreSearchNameChangedEvent.of("소금빵집"));
 		assertThat(response.name()).isEqualTo("소금빵집");
 		assertThat(response.status()).isEqualTo("active");
 	}
@@ -116,6 +122,70 @@ class AdminStoreCommandServiceTest {
 
 		verify(store).update(null, null, null, null, null, null, null, StoreStatus.DELETED, null);
 		verify(candidateRepository).deleteByStoreId(1L);
+	}
+
+	@Test
+	@DisplayName("updateStore: 이름이 바뀌면 옛 이름·새 이름 둘 다 자동완성 캐시 무효화 이벤트로 넘긴다")
+	void updateStore_publishesOldAndNewNameWhenRenamed() {
+		Store store = activeStore("옛이름");
+		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
+
+		adminStoreCommandService.updateStore(1L, updateRequest("새이름", "active"));
+
+		verify(eventPublisher).publishEvent(StoreSearchNameChangedEvent.of("옛이름", "새이름"));
+	}
+
+	@Test
+	@DisplayName("updateStore: 이름은 그대로고 비활성화만 하면 그 이름으로 무효화한다 — 자동완성에서 빠져야 한다")
+	void updateStore_publishesNameWhenDeactivated() {
+		Store store = activeStore("소금빵집");
+		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
+
+		adminStoreCommandService.updateStore(1L, updateRequest(null, "inactive"));
+
+		verify(eventPublisher).publishEvent(StoreSearchNameChangedEvent.of("소금빵집"));
+	}
+
+	@Test
+	@DisplayName("updateStore: 이름·상태가 그대로면 무효화하지 않는다 — 전화번호 수정 같은 변경으로 캐시를 비우지 않는다")
+	void updateStore_skipsEventWhenNameAndStatusUnchanged() {
+		Store store = activeStore("소금빵집");
+		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
+
+		adminStoreCommandService.updateStore(1L, updateRequest(null, "active"));
+
+		verify(eventPublisher, never()).publishEvent(any(StoreSearchNameChangedEvent.class));
+	}
+
+	@Test
+	@DisplayName("deleteStore: 노출 중이던 가게를 지우면 그 이름으로 무효화한다")
+	void deleteStore_publishesNameWhenActiveStoreDeleted() {
+		Store store = activeStore("소금빵집");
+		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
+
+		adminStoreCommandService.deleteStore(1L);
+
+		verify(eventPublisher).publishEvent(StoreSearchNameChangedEvent.of("소금빵집"));
+	}
+
+	@Test
+	@DisplayName("deleteStore: 이미 삭제된 가게면 무효화하지 않는다 — 자동완성 결과가 달라지지 않는다")
+	void deleteStore_skipsEventWhenAlreadyDeleted() {
+		Store store = activeStore("소금빵집");
+		store.update(null, null, null, null, null, null, null, StoreStatus.DELETED, null);
+		given(storeRepository.findById(1L)).willReturn(Optional.of(store));
+
+		adminStoreCommandService.deleteStore(1L);
+
+		verify(eventPublisher, never()).publishEvent(any(StoreSearchNameChangedEvent.class));
+	}
+
+	private static Store activeStore(String name) {
+		return Store.builder().name(name).address("서울 마포구 월드컵로 1").build();
+	}
+
+	private static AdminStoreUpdateRequest updateRequest(String name, String status) {
+		return new AdminStoreUpdateRequest(name, null, null, null, status, null, null, null);
 	}
 
 	@Test

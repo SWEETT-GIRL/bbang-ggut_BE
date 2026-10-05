@@ -11,8 +11,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import sweetgirl.croissant.external.kakao.dto.KakaoPlace;
+import sweetgirl.croissant.store.event.StoreSearchNameChangedEvent;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -20,6 +22,8 @@ class BulkImportStoreSaverTest {
 
 	@Mock
 	StoreRepository storeRepository;
+	@Mock
+	ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
 	BulkImportStoreSaver saver;
@@ -36,6 +40,8 @@ class BulkImportStoreSaverTest {
 		verify(storeRepository).insertIfNotExistsByKakaoPlaceId(
 			eq("테스트빵집"), anyString(), anyString(), anyString(), anyString(),
 			anyDouble(), anyDouble(), eq("02-1234-5678"), eq("kakao-1"), eq("BAKERY"));
+		// 가게마다 커밋하므로 무효화도 가게마다 — 새 가게 이름으로 걸리는 자동완성 캐시를 지운다
+		verify(eventPublisher).publishEvent(StoreSearchNameChangedEvent.of("테스트빵집"));
 	}
 
 	@Test

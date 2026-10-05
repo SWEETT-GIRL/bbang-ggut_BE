@@ -24,6 +24,7 @@ import org.locationtech.jts.geom.Point;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -67,6 +68,7 @@ import sweetgirl.croissant.store.enums.StoreCategory;
 import sweetgirl.croissant.store.enums.StoreReportStatus;
 import sweetgirl.croissant.store.enums.StoreReportType;
 import sweetgirl.croissant.store.enums.StoreSource;
+import sweetgirl.croissant.store.event.StoreSearchNameChangedEvent;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
@@ -104,6 +106,8 @@ class AdminReportCommandServiceTest {
 	ImageProcessingCallbackService imageProcessingCallbackService;
 	@Mock
 	ReportNotificationService reportNotificationService;
+	@Mock
+	ApplicationEventPublisher eventPublisher;
 
 	AdminReportCommandService adminReportCommandService;
 
@@ -119,7 +123,8 @@ class AdminReportCommandServiceTest {
 			menuContributionReportImageFileRepository,
 			s3Service,
 			new ObjectMapper(),
-			imageProcessingCallbackService);
+			imageProcessingCallbackService,
+			eventPublisher);
 		adminReportCommandService = new AdminReportCommandService(
 			storeContributionReportRepository,
 			menuContributionReportRepository,
@@ -151,6 +156,8 @@ class AdminReportCommandServiceTest {
 		verify(reportNotificationService).notifyContributionReportResult(
 			eq(reporter), eq(savedStore), eq("새빵집"), eq(13L), eq(13L), eq(ReportKind.STORE_ADD_REPORT),
 			eq(ReportNotificationAction.APPROVED), anyString());
+		// 새 가게가 자동완성에 바로 나오도록 그 이름으로 걸리는 캐시를 지운다
+		verify(eventPublisher).publishEvent(StoreSearchNameChangedEvent.of("새빵집"));
 	}
 
 	@Test
@@ -164,6 +171,7 @@ class AdminReportCommandServiceTest {
 		adminReportCommandService.reviewReport(14L, new AdminReportReviewRequest("STORE_ADD_REPORT", "REJECT"));
 
 		verify(storeRepository, never()).save(any(Store.class));
+		verify(eventPublisher, never()).publishEvent(any(StoreSearchNameChangedEvent.class));
 		assertThat(report.getStatus()).isEqualTo(StoreReportStatus.REJECTED);
 		assertThat(report.getContributionReport().getStatus()).isEqualTo(ContributionReportStatus.REJECTED);
 		verify(reportNotificationService).notifyContributionReportResult(

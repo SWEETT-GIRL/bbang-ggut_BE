@@ -2,6 +2,7 @@ package sweetgirl.croissant.store.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -15,10 +16,12 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataAccessResourceFailureException;
 
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.config.StorePopularityProperties;
+import sweetgirl.croissant.store.event.StorePopularityRefreshedEvent;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.StorePopularityRepository;
 
@@ -29,6 +32,8 @@ class StorePopularityCommandServiceTest {
 	private StorePopularityRepository storePopularityRepository;
 	@Spy
 	private StorePopularityProperties storePopularityProperties = new StorePopularityProperties();
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
 	private StorePopularityCommandService service;
@@ -45,6 +50,8 @@ class StorePopularityCommandServiceTest {
 
 		assertThat(updated).isEqualTo(45_339);
 		verify(storePopularityRepository).refreshAllPopularityScores(7, 0.9); // 설정값이 그대로 전달된다
+		// 자동완성 캐시는 인기도 순으로 정렬된 결과라 갱신 뒤 통째로 비운다(리스너가 커밋 뒤에 처리)
+		verify(eventPublisher).publishEvent(new StorePopularityRefreshedEvent(45_339));
 	}
 
 	@Test
@@ -56,6 +63,7 @@ class StorePopularityCommandServiceTest {
 			.isInstanceOf(StoreException.class)
 			.hasMessageContaining(StoreErrorCode.POPULARITY_REFRESH_ALREADY_RUNNING.getMessage());
 		verify(storePopularityRepository, never()).refreshAllPopularityScores(anyInt(), anyDouble());
+		verify(eventPublisher, never()).publishEvent(any(StorePopularityRefreshedEvent.class));
 	}
 
 	@Test
