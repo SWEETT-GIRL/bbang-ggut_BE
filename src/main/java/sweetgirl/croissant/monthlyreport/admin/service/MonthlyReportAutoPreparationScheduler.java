@@ -29,7 +29,7 @@ public class MonthlyReportAutoPreparationScheduler {
 			return;
 		}
 		try {
-			reports.prepareAutomatically(previousMonth(Instant.now()), properties.getAssetVersion());
+			reports.registerAutomaticReportRun(previousMonth(Instant.now()), properties.getAssetVersion());
 		} catch (RuntimeException error) {
 			log.error("월간 보고서 자동 생성 등록 실패", error);
 		}

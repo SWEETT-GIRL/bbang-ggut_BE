@@ -32,67 +32,74 @@ public class AdminMonthlyReportController {
 	private final MonthlyReportAssetService assets;
 
 	@PostMapping("/assets/upload-urls")
-	public ApiResponse<MonthlyReportAssetStore.Upload> upload(
+	public ApiResponse<MonthlyReportAssetStore.Upload> issueAssetUploadUrl(
 			@Valid @RequestBody MonthlyReportAdminRequests.Asset request) {
-		return ApiResponse.ok(assets.upload(request));
+		return ApiResponse.ok(assets.issueAssetUploadUrl(request));
 	}
 
 	@PostMapping("/assets")
-	public ApiResponse<MonthlyReportAsset> register(@Valid @RequestBody MonthlyReportAdminRequests.Asset request) {
-		return ApiResponse.ok(assets.register(request));
+	public ApiResponse<MonthlyReportAsset> registerReportAsset(
+			@Valid @RequestBody MonthlyReportAdminRequests.Asset request) {
+		return ApiResponse.ok(assets.registerReportAsset(request));
 	}
 
 	@GetMapping("/assets")
-	public ApiResponse<List<MonthlyReportAsset>> assets(@RequestParam String version) {
-		return ApiResponse.ok(assets.list(version));
+	public ApiResponse<List<MonthlyReportAsset>> getReportAssets(@RequestParam String version) {
+		return ApiResponse.ok(assets.getReportAssets(version));
 	}
 
 	@GetMapping("/{month}/runs")
-	public ApiResponse<SliceResponse<MonthlyReportRun>> list(@PathVariable String month,
+	public ApiResponse<SliceResponse<MonthlyReportRun>> getReportRuns(@PathVariable String month,
 			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-		return ApiResponse.ok(reports.list(month, page, size));
+		return ApiResponse.ok(reports.getReportRuns(month, page, size));
 	}
 
 	@PostMapping("/{month}/runs")
-	public ResponseEntity<ApiResponse<MonthlyReportRun>> create(@PathVariable String month,
+	public ResponseEntity<ApiResponse<MonthlyReportRun>> createReportRun(@PathVariable String month,
 			@Valid @RequestBody MonthlyReportAdminRequests.CreateRun request) {
 		return ResponseEntity.accepted()
-			.body(ApiResponse.ok(reports.create(month, request.assetVersion())));
+			.body(ApiResponse.ok(reports.createReportRun(month, request.assetVersion())));
 	}
 
 	@PostMapping("/{month}/members/{memberId}/runs")
-	public ResponseEntity<ApiResponse<MonthlyReportRun>> createForMember(@PathVariable String month,
+	public ResponseEntity<ApiResponse<MonthlyReportRun>> createMemberReportRun(@PathVariable String month,
 			@PathVariable Long memberId, @Valid @RequestBody MonthlyReportAdminRequests.CreateRun request) {
-		return ResponseEntity.accepted().body(ApiResponse.ok(reports.create(month, request.assetVersion(), memberId)));
+		return ResponseEntity.accepted()
+			.body(ApiResponse.ok(reports.createReportRun(month, request.assetVersion(), memberId)));
 	}
 
 	@GetMapping("/{month}/runs/{id}")
-	public ApiResponse<MonthlyReportAdminService.Progress> progress(@PathVariable String month, @PathVariable UUID id) {
-		return ApiResponse.ok(reports.progress(month, id));
+	public ApiResponse<MonthlyReportAdminService.Progress> getReportRunProgress(@PathVariable String month,
+			@PathVariable UUID id) {
+		return ApiResponse.ok(reports.getReportRunProgress(month, id));
 	}
 
 	@GetMapping("/{month}/runs/{id}/members")
-	public ApiResponse<SliceResponse<MonthlyReportAdminService.Item>> items(@PathVariable String month,
+	public ApiResponse<SliceResponse<MonthlyReportAdminService.Item>> getReportRunMembers(@PathVariable String month,
 			@PathVariable UUID id,
 			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-		return ApiResponse.ok(reports.items(month, id, page, size));
+		return ApiResponse.ok(reports.getReportRunMembers(month, id, page, size));
 	}
 
 	@GetMapping("/{month}/runs/{id}/preview/{memberId}")
-	public ResponseEntity<ApiResponse<MonthlyReportResponse>> preview(@PathVariable String month, @PathVariable UUID id,
+	public ResponseEntity<ApiResponse<MonthlyReportResponse>> getReportPreview(@PathVariable String month,
+			@PathVariable UUID id,
 			@PathVariable Long memberId) {
 		return ResponseEntity.ok().header("Cache-Control", "no-store")
-			.body(ApiResponse.ok(reports.preview(month, id, memberId)));
+			.body(ApiResponse.ok(reports.getReportPreview(month, id, memberId)));
 	}
 
 	@PostMapping("/{month}/runs/{id}/publish")
-	public ResponseEntity<ApiResponse<MonthlyReportRun>> publish(@PathVariable String month, @PathVariable UUID id,
+	public ResponseEntity<ApiResponse<MonthlyReportRun>> approveReportPublication(@PathVariable String month,
+			@PathVariable UUID id,
 			@Valid @RequestBody MonthlyReportAdminRequests.Publish request) {
-		return ResponseEntity.accepted().body(ApiResponse.ok(reports.approve(month, id, request.pushAt())));
+		return ResponseEntity.accepted()
+			.body(ApiResponse.ok(reports.approveReportPublication(month, id, request.pushAt())));
 	}
 
 	@PostMapping("/{month}/runs/{id}/retry")
-	public ResponseEntity<ApiResponse<MonthlyReportRun>> retry(@PathVariable String month, @PathVariable UUID id) {
-		return ResponseEntity.accepted().body(ApiResponse.ok(reports.retry(month, id)));
+	public ResponseEntity<ApiResponse<MonthlyReportRun>> retryReportRun(@PathVariable String month,
+			@PathVariable UUID id) {
+		return ResponseEntity.accepted().body(ApiResponse.ok(reports.retryReportRun(month, id)));
 	}
 }

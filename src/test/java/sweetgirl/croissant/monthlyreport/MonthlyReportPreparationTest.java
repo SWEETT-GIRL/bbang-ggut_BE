@@ -40,9 +40,9 @@ class MonthlyReportPreparationTest {
 		when(appearance.draft(123L, MONTH)).thenReturn(report);
 		when(generation.prepare(eq(report), any()))
 			.thenReturn(new Prepared(report, mapper.createObjectNode(), captured));
-		when(assets.require("v2", Kind.COVER, report.character().code(), "", MONTH.substring(5)))
+		when(assets.getRequiredAssetImageKey("v2", Kind.COVER, report.character().code(), "", MONTH.substring(5)))
 			.thenReturn("covers/v2.png");
-		when(assets.require("v2", Kind.TYPE, report.character().code(), report.planet().code(),
+		when(assets.getRequiredAssetImageKey("v2", Kind.TYPE, report.character().code(), report.planet().code(),
 			report.activity().type()))
 			.thenReturn("types/v2.png");
 		Prepared result = preparation.prepare(123L, MONTH, "v2");
@@ -60,7 +60,7 @@ class MonthlyReportPreparationTest {
 		when(appearance.draft(123L, MONTH)).thenReturn(report);
 		when(generation.prepare(eq(report), any()))
 			.thenReturn(new Prepared(report, mapper.createObjectNode(), Instant.now()));
-		when(assets.require("v2", Kind.COVER, report.character().code(), "", MONTH.substring(5)))
+		when(assets.getRequiredAssetImageKey("v2", Kind.COVER, report.character().code(), "", MONTH.substring(5)))
 			.thenThrow(new CustomException(MonthlyReportErrorCode.ASSET_MISSING));
 		assertThatThrownBy(() -> preparation.prepare(123L, MONTH, "v2")).isInstanceOf(CustomException.class);
 	}

@@ -41,12 +41,12 @@ public class MonthlyReportAdminService {
 	private final MonthlyReportTargetReader targets;
 
 	@Transactional
-	public MonthlyReportRun create(String month, String version) {
-		return create(month, version, null);
+	public MonthlyReportRun createReportRun(String month, String version) {
+		return createReportRun(month, version, null);
 	}
 
 	@Transactional
-	public MonthlyReportRun create(String month, String version, Long targetMemberId) {
+	public MonthlyReportRun createReportRun(String month, String version, Long targetMemberId) {
 		if (!MonthlyReportMonth.parse(month).isBefore(YearMonth.now(ZoneId.of("Asia/Seoul")))) {
 			throw new CustomException(MonthlyReportErrorCode.MONTH_NOT_CLOSED);
 		}
@@ -56,21 +56,21 @@ public class MonthlyReportAdminService {
 		runs.enqueue(UUID.randomUUID(), month, version, Instant.now(), targetMemberId);
 		MonthlyReportRun run = runs.findByYearMonthAndTargetMemberId(month, targetMemberId).orElseThrow();
 		if (!run.getAssetVersion().equals(version)) {
-			throw conflict();
+			throw createRunConflictException();
 		}
 		return run;
 	}
 
 	/** 여러 서버와 수동 생성이 경합해도 먼저 등록된 작업의 버전과 상태를 유지한다. */
 	@Transactional
-	public void prepareAutomatically(String month, String version) {
+	public void registerAutomaticReportRun(String month, String version) {
 		if (!MonthlyReportMonth.parse(month).isBefore(YearMonth.now(ZoneId.of("Asia/Seoul")))) {
 			throw new CustomException(MonthlyReportErrorCode.MONTH_NOT_CLOSED);
 		}
 		runs.enqueue(UUID.randomUUID(), month, version, Instant.now(), null);
 	}
 
-	public SliceResponse<MonthlyReportRun> list(String month, int page, int size) {
+	public SliceResponse<MonthlyReportRun> getReportRuns(String month, int page, int size) {
 		MonthlyReportMonth.parse(month);
 		if (page < 0 || size < 1 || size > 100) {
 			throw new CustomException(MonthlyReportErrorCode.INVALID_PAGE);
@@ -78,8 +78,8 @@ public class MonthlyReportAdminService {
 		return SliceResponse.from(runs.findByYearMonthOrderByCreatedAtDescIdDesc(month, PageRequest.of(page, size)));
 	}
 
-	public Progress progress(String month, UUID id) {
-		MonthlyReportRun run = require(month, id);
+	public Progress getReportRunProgress(String month, UUID id) {
+		MonthlyReportRun run = getRequiredReportRun(month, id);
 		Map<MonthlyReportDraft.State, Long> counts = new EnumMap<>(MonthlyReportDraft.State.class);
 		for (MonthlyReportDraft.State state : MonthlyReportDraft.State.values()) {
 			counts.put(state, drafts.countByRunIdAndState(id, state));
@@ -87,8 +87,8 @@ public class MonthlyReportAdminService {
 		return new Progress(run, counts);
 	}
 
-	public SliceResponse<Item> items(String month, UUID id, int page, int size) {
-		require(month, id);
+	public SliceResponse<Item> getReportRunMembers(String month, UUID id, int page, int size) {
+		getRequiredReportRun(month, id);
 		if (page < 0 || size < 1 || size > 100) {
 			throw new CustomException(MonthlyReportErrorCode.INVALID_PAGE);
 		}
@@ -97,8 +97,8 @@ public class MonthlyReportAdminService {
 				value.getErrorCode())));
 	}
 
-	public MonthlyReportResponse preview(String month, UUID id, Long memberId) {
-		require(month, id);
+	public MonthlyReportResponse getReportPreview(String month, UUID id, Long memberId) {
+		getRequiredReportRun(month, id);
 		MonthlyReportDraft draft = drafts.findById(new MonthlyReportDraftId(id, memberId, month))
 			.filter(value -> value.getRunId().equals(id))
 			.orElseThrow(() -> new CustomException(MonthlyReportErrorCode.ADMIN_NOT_FOUND));
@@ -106,24 +106,24 @@ public class MonthlyReportAdminService {
 			return queries.getReport(memberId, month);
 		}
 		if (draft.getPayload() == null) {
-			throw conflict();
+			throw createRunConflictException();
 		}
 		return queries.resolveCurrentPhotos(codec.read(draft.getPayload(), memberId, month),
 			codec.readPhotoSources(draft.getRawMetrics())).withNickname(members.getMember(memberId).getNickname());
 	}
 
 	@Transactional
-	public MonthlyReportRun approve(String month, UUID id, Instant pushAt) {
-		MonthlyReportRun run = locked(month, id);
+	public MonthlyReportRun approveReportPublication(String month, UUID id, Instant pushAt) {
+		MonthlyReportRun run = lockReportRun(month, id);
 		if (run.getState() == MonthlyReportRun.State.PUBLISHING || run.getState() == MonthlyReportRun.State.COMPLETE) {
 			if (!Objects.equals(run.getPushAt(), pushAt)) {
-				throw conflict();
+				throw createRunConflictException();
 			}
 			return run;
 		}
 		if (run.getState() != MonthlyReportRun.State.REVIEW || !run.isScanComplete()
 			|| drafts.countByRunIdAndState(id, MonthlyReportDraft.State.FAILED) > 0) {
-			throw conflict();
+			throw createRunConflictException();
 		}
 		if (pushAt != null && pushAt.isBefore(Instant.now())) {
 			throw new CustomException(MonthlyReportErrorCode.INVALID_ADMIN_REQUEST);
@@ -133,10 +133,10 @@ public class MonthlyReportAdminService {
 	}
 
 	@Transactional
-	public MonthlyReportRun retry(String month, UUID id) {
-		MonthlyReportRun run = locked(month, id);
+	public MonthlyReportRun retryReportRun(String month, UUID id) {
+		MonthlyReportRun run = lockReportRun(month, id);
 		if (run.getState() != MonthlyReportRun.State.REVIEW && run.getState() != MonthlyReportRun.State.BLOCKED) {
-			throw conflict();
+			throw createRunConflictException();
 		}
 		List<MonthlyReportDraft> failed = drafts.findByRunIdAndStateIn(id,
 			List.of(MonthlyReportDraft.State.FAILED, MonthlyReportDraft.State.PUBLISH_FAILED));
@@ -147,18 +147,19 @@ public class MonthlyReportAdminService {
 		return run;
 	}
 
-	private MonthlyReportRun require(String month, UUID id) {
+	private MonthlyReportRun getRequiredReportRun(String month, UUID id) {
 		MonthlyReportMonth.parse(month);
 		return runs.findById(id).filter(run -> run.getYearMonth().equals(month))
 			.orElseThrow(() -> new CustomException(MonthlyReportErrorCode.ADMIN_NOT_FOUND));
 	}
 
-	private MonthlyReportRun locked(String month, UUID id) {
+	private MonthlyReportRun lockReportRun(String month, UUID id) {
 		MonthlyReportMonth.parse(month);
-		return runs.lock(id).filter(run -> run.getYearMonth().equals(month)).orElseThrow(this::conflict);
+		return runs.lock(id).filter(run -> run.getYearMonth().equals(month))
+			.orElseThrow(this::createRunConflictException);
 	}
 
-	private CustomException conflict() {
+	private CustomException createRunConflictException() {
 		return new CustomException(MonthlyReportErrorCode.ADMIN_CONFLICT);
 	}
 

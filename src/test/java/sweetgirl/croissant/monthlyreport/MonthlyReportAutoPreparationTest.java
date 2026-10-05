@@ -49,12 +49,12 @@ class MonthlyReportAutoPreparationTest {
 		properties.setAssetVersion("v1");
 		MonthlyReportAdminService reports = mock(MonthlyReportAdminService.class);
 		doThrow(new IllegalStateException("DB unavailable")).doNothing()
-			.when(reports).prepareAutomatically(anyString(), eq("v1"));
+			.when(reports).registerAutomaticReportRun(anyString(), eq("v1"));
 		MonthlyReportAutoPreparationScheduler scheduler = new MonthlyReportAutoPreparationScheduler(properties,
 			reports);
 		scheduler.prepare();
 		scheduler.prepare();
-		verify(reports, times(2)).prepareAutomatically(
+		verify(reports, times(2)).registerAutomaticReportRun(
 			MonthlyReportAutoPreparationScheduler.previousMonth(Instant.now()), "v1");
 		verifyNoMoreInteractions(reports);
 	}

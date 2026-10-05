@@ -26,23 +26,24 @@ public class MonthlyReportAssetService {
 	private final WorldPlanetRepository planets;
 	private final MonthlyReportAssetStore store;
 
-	public MonthlyReportAssetStore.Upload upload(Asset request) {
-		validate(request);
-		String key = prefix(request) + request.variant() + "-" + UUID.randomUUID()
+	public MonthlyReportAssetStore.Upload issueAssetUploadUrl(Asset request) {
+		validateAssetRequest(request);
+		String key = buildAssetKeyPrefix(request) + request.variant() + "-" + UUID.randomUUID()
 			+ (request.contentType().equals("image/png") ? ".png" : ".webp");
-		return store.upload(key, request.contentType());
+		return store.issueAssetUploadUrl(key, request.contentType());
 	}
 
 	@Transactional
-	public MonthlyReportAsset register(Asset request) {
-		validate(request);
+	public MonthlyReportAsset registerReportAsset(Asset request) {
+		validateAssetRequest(request);
 		String key = request.imageKey();
 		String extension = request.contentType().equals("image/png") ? ".png" : ".webp";
-		if (key == null || !key.startsWith(prefix(request)) || !key.endsWith(extension)
-			|| !key.substring(prefix(request).length()).matches(request.variant() + "(-[a-z0-9-]+)?\\.(png|webp)")) {
+		if (key == null || !key.startsWith(buildAssetKeyPrefix(request)) || !key.endsWith(extension)
+			|| !key.substring(buildAssetKeyPrefix(request).length())
+				.matches(request.variant() + "(-[a-z0-9-]+)?\\.(png|webp)")) {
 			throw new CustomException(MonthlyReportErrorCode.INVALID_ADMIN_REQUEST);
 		}
-		store.verify(key, request.contentType());
+		store.validateStoredAsset(key, request.contentType());
 		String id = MonthlyReportAsset.identity(request.version(), request.kind(), request.characterCode(),
 			request.planetCode(), request.variant());
 		assets.register(id, request.version(), request.kind().name(), request.characterCode(), request.planetCode(),
@@ -54,23 +55,23 @@ public class MonthlyReportAssetService {
 		return asset;
 	}
 
-	public List<MonthlyReportAsset> list(String version) {
+	public List<MonthlyReportAsset> getReportAssets(String version) {
 		return assets.findByAssetVersionOrderById(version);
 	}
 
-	public String require(String version, Kind kind, String character, String planet, String variant) {
+	public String getRequiredAssetImageKey(String version, Kind kind, String character, String planet, String variant) {
 		return assets.findById(MonthlyReportAsset.identity(version, kind, character, planet, variant))
 			.map(MonthlyReportAsset::getImageKey)
 			.orElseThrow(() -> new CustomException(MonthlyReportErrorCode.ASSET_MISSING));
 	}
 
-	private String prefix(Asset request) {
+	private String buildAssetKeyPrefix(Asset request) {
 		return "monthly-reports/assets/" + request.version() + "/"
 			+ (request.kind() == Kind.COVER ? "covers/" : "types/") + request.characterCode() + "/"
 			+ (request.kind() == Kind.TYPE ? request.planetCode() + "/" : "");
 	}
 
-	private void validate(Asset request) {
+	private void validateAssetRequest(Asset request) {
 		boolean valid = request.kind() == Kind.COVER
 			? request.planetCode().isEmpty() && request.variant().matches("0[1-9]|1[0-2]")
 			: planets.existsById(request.planetCode())

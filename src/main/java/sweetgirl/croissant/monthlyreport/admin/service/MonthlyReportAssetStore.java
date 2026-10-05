@@ -15,12 +15,12 @@ import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 public class MonthlyReportAssetStore {
 	private final S3Service storage;
 
-	public Upload upload(String key, String type) {
+	public Upload issueAssetUploadUrl(String key, String type) {
 		String url = storage.generateImmutableUploadUrl(key, type);
 		return new Upload(key, url, Map.of("Content-Type", type, "If-None-Match", "*"));
 	}
 
-	public void verify(String key, String type) {
+	public void validateStoredAsset(String key, String type) {
 		HeadObjectResponse object = storage.headObject(key);
 		if (!type.equals(object.contentType()) || object.contentLength() == null || object.contentLength() <= 0
 			|| object.contentLength() > 20 * 1024 * 1024) {

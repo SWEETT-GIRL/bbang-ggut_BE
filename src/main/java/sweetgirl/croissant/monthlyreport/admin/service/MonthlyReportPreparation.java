@@ -28,8 +28,8 @@ public class MonthlyReportPreparation {
 		String character = report.character().code();
 		String planet = report.planet().code();
 		String type = report.activity().type();
-		String cover = assets.require(assetVersion, Kind.COVER, character, "", month.substring(5));
-		String artwork = assets.require(assetVersion, Kind.TYPE, character, planet, type);
+		String cover = assets.getRequiredAssetImageKey(assetVersion, Kind.COVER, character, "", month.substring(5));
+		String artwork = assets.getRequiredAssetImageKey(assetVersion, Kind.TYPE, character, planet, type);
 		MonthlyReportResponse.Activity activity = new MonthlyReportResponse.Activity(type,
 			report.activity().totalScore(),
 			report.activity().abilities(),

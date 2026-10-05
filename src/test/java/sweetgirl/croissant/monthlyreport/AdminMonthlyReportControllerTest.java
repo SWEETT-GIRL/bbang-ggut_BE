@@ -25,8 +25,8 @@ class AdminMonthlyReportControllerTest {
 		mvc.perform(post("/api/admin/monthly-reports/2026-09/members/123/runs")
 			.contentType(MediaType.APPLICATION_JSON).content("{\"assetVersion\":\"v1\"}"))
 			.andExpect(status().isAccepted());
-		verify(reports).create("2026-09", "v1", 123L);
-		verify(reports, never()).create("2026-09", "v1");
+		verify(reports).createReportRun("2026-09", "v1", 123L);
+		verify(reports, never()).createReportRun("2026-09", "v1");
 	}
 
 	@Test
@@ -34,6 +34,6 @@ class AdminMonthlyReportControllerTest {
 		mvc.perform(post("/api/admin/monthly-reports/2026-09/members/123/runs")
 			.contentType(MediaType.APPLICATION_JSON).content("{\"assetVersion\":\"../v1\"}"))
 			.andExpect(status().isBadRequest());
-		verify(reports, never()).create("2026-09", "../v1", 123L);
+		verify(reports, never()).createReportRun("2026-09", "../v1", 123L);
 	}
 }

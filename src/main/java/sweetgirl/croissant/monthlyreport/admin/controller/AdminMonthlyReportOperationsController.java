@@ -21,17 +21,18 @@ public class AdminMonthlyReportOperationsController {
 	private final MonthlyReportOperationsService operations;
 
 	@GetMapping("/operations")
-	public ResponseEntity<ApiResponse<MonthlyReportOperationsService.Operations>> status(@PathVariable String month,
+	public ResponseEntity<ApiResponse<MonthlyReportOperationsService.Operations>> getReportOperations(
+			@PathVariable String month,
 			@PathVariable UUID id, @RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "20") int size) {
 		return ResponseEntity.ok().header("Cache-Control", "no-store")
-			.body(ApiResponse.ok(operations.status(month, id, page, size)));
+			.body(ApiResponse.ok(operations.getReportOperations(month, id, page, size)));
 	}
 
 	@PostMapping("/members/{memberId}/push/retry")
-	public ResponseEntity<ApiResponse<Void>> retry(@PathVariable String month, @PathVariable UUID id,
+	public ResponseEntity<ApiResponse<Void>> retryFailedReportPush(@PathVariable String month, @PathVariable UUID id,
 			@PathVariable Long memberId) {
-		operations.retryPush(month, id, memberId);
+		operations.retryFailedReportPush(month, id, memberId);
 		return ResponseEntity.accepted().body(ApiResponse.ok(null));
 	}
 }

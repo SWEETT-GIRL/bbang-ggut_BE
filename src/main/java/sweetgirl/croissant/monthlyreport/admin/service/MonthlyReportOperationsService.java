@@ -30,8 +30,8 @@ public class MonthlyReportOperationsService {
 	private final MonthlyReportNotificationRepository reportNotifications;
 	private final MonthlyReportPushRepository pushes;
 
-	public Operations status(String month, UUID runId, int page, int size) {
-		requireRun(month, runId);
+	public Operations getReportOperations(String month, UUID runId, int page, int size) {
+		validateReportRunExists(month, runId);
 		if (page < 0 || size < 1 || size > 100) {
 			throw new CustomException(MonthlyReportErrorCode.INVALID_PAGE);
 		}
@@ -51,27 +51,27 @@ public class MonthlyReportOperationsService {
 
 	/** 자동 재시도를 모두 소진한 실패 건만 새 시도 묶음을 예약한다. 성공·제외·예약 대기는 재발송하지 않는다. */
 	@Transactional
-	public void retryPush(String month, UUID runId, Long memberId) {
-		requireRun(month, runId);
+	public void retryFailedReportPush(String month, UUID runId, Long memberId) {
+		validateReportRunExists(month, runId);
 		if (!drafts.existsById(new MonthlyReportDraftId(runId, memberId, month))) {
 			throw new CustomException(MonthlyReportErrorCode.ADMIN_NOT_FOUND);
 		}
 		Long notificationId = reportNotifications.findById(new MonthlyReportMemberId(memberId, month))
-			.map(value -> value.getNotificationId()).orElseThrow(this::conflict);
-		MonthlyReportPush push = pushes.lock(notificationId).orElseThrow(this::conflict);
+			.map(value -> value.getNotificationId()).orElseThrow(this::createRunConflictException);
+		MonthlyReportPush push = pushes.lock(notificationId).orElseThrow(this::createRunConflictException);
 		if (!push.getMemberId().equals(memberId) || reportNotifications.hasSuccessfulPush(notificationId, memberId)
 			|| !push.retry()) {
-			throw conflict();
+			throw createRunConflictException();
 		}
 	}
 
-	private void requireRun(String month, UUID id) {
+	private void validateReportRunExists(String month, UUID id) {
 		MonthlyReportMonth.parse(month);
 		runs.findById(id).filter(run -> run.getYearMonth().equals(month))
 			.orElseThrow(() -> new CustomException(MonthlyReportErrorCode.ADMIN_NOT_FOUND));
 	}
 
-	private CustomException conflict() {
+	private CustomException createRunConflictException() {
 		return new CustomException(MonthlyReportErrorCode.ADMIN_CONFLICT);
 	}
 
