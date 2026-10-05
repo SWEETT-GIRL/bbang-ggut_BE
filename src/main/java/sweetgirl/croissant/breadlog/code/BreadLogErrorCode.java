@@ -30,7 +30,9 @@ public enum BreadLogErrorCode implements BaseErrorCode {
 	UNREADABLE_PHOTO(BAD_REQUEST, "BREAD_RECORD_UNREADABLE_PHOTO", "사진을 읽을 수 없습니다."),
 	PHOTO_TOO_LARGE(BAD_REQUEST, "BREAD_RECORD_PHOTO_TOO_LARGE", "분석할 사진이 너무 큽니다."),
 	PHOTO_ANALYZE_RATE_LIMITED(TOO_MANY_REQUESTS, "BREAD_RECORD_PHOTO_ANALYZE_RATE_LIMITED",
-			"사진 분석 요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.");
+			"사진 분석 요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요."),
+	INVALID_RANKING_REGION(BAD_REQUEST, "RANKING_INVALID_REGION", "위치를 지역으로 확인하지 못했어요."),
+	RANKING_REGION_NOT_SET(BAD_REQUEST, "RANKING_REGION_NOT_SET", "내 동네를 먼저 인증해 주세요.");
 
 	private final HttpStatus httpStatus;
 	private final String code;

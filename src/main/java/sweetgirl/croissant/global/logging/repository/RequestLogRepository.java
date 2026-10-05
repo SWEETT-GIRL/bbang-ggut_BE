@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import sweetgirl.croissant.global.logging.LogEventType;
+import sweetgirl.croissant.global.logging.dto.projection.RequestTimingProjection;
 import sweetgirl.croissant.global.logging.entity.RequestLog;
 import sweetgirl.croissant.store.dto.projection.StoreIdCountProjection;
 
@@ -44,6 +45,14 @@ public interface RequestLogRepository extends JpaRepository<RequestLog, Long> {
 			@Param("createdAtAfter") LocalDateTime createdAtAfter,
 			@Param("endpoint") String endpoint,
 			Pageable pageable);
+
+	/** 기간 안의 (endpoint, 응답시간, 상태) — 엔드포인트별 백분위(/dev/perf/endpoint-stats)용. 응답시간이 없는 행은 뺀다. */
+	@Query("""
+			SELECT r.endpoint AS endpoint, r.responseTimeMs AS responseTimeMs, r.responseStatus AS responseStatus
+			FROM RequestLog r
+			WHERE r.createdAt >= :createdAtAfter AND r.responseTimeMs IS NOT NULL
+			""")
+	List<RequestTimingProjection> findTimingsSince(@Param("createdAtAfter") LocalDateTime createdAtAfter);
 
 	/**
 	 * 게스트 → 회원 병합(#663 ④). 04:00 적재가 STORE_VIEW 를 member_id 로 읽으므로, 옮기지 않으면 병합 직전 게스트 조회가 닫힌

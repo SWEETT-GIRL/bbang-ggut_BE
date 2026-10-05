@@ -28,11 +28,14 @@ import sweetgirl.croissant.breadlog.dto.request.BreadRecordPhotoRequest;
 import sweetgirl.croissant.breadlog.dto.request.BreadRecordPresignedUrlRequest;
 import sweetgirl.croissant.breadlog.dto.request.BreadRecordTagRequest;
 import sweetgirl.croissant.breadlog.dto.request.BreadRecordUpsertRequest;
+import sweetgirl.croissant.breadlog.dto.request.BreadTagRatingRequest;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordCreateResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlResponse;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.entity.BreadRecordPhoto;
 import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
+import sweetgirl.croissant.breadlog.enums.TasteChip;
+import sweetgirl.croissant.breadlog.enums.TextureChip;
 import sweetgirl.croissant.breadlog.exception.BreadLogException;
 import sweetgirl.croissant.breadlog.repository.BreadRecordPhotoRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
@@ -165,8 +168,8 @@ class BreadRecordCommandServiceTest {
 			List.of(
 				new BreadRecordPhotoRequest("a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
 			List.of(
-				new BreadRecordTagRequest(0, "우유식빵", null, null, 0.31, 0.42, null),
-				new BreadRecordTagRequest(0, "소금빵", null, null, 0.5, 0.5, null)),
+				new BreadRecordTagRequest(0, "우유식빵", null, null, 0.31, 0.42, null, null),
+				new BreadRecordTagRequest(0, "소금빵", null, null, 0.5, 0.5, null, null)),
 			null);
 		given(memberReader.getMember(7L)).willReturn(member);
 		given(storeRepository.findById(10L)).willReturn(Optional.of(store));
@@ -194,7 +197,7 @@ class BreadRecordCommandServiceTest {
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(
 				new BreadRecordPhotoRequest("a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
-			List.of(new BreadRecordTagRequest(0, "우유식빵", null, null, 0.31, 0.42, null)), null);
+			List.of(new BreadRecordTagRequest(0, "우유식빵", null, null, 0.31, 0.42, null, null)), null);
 		given(memberReader.getMember(7L)).willReturn(member(7L));
 		given(storeRepository.findById(10L)).willReturn(Optional.of(store(10L)));
 
@@ -256,7 +259,7 @@ class BreadRecordCommandServiceTest {
 	}
 
 	@Test
-	void replace_newFileRetainsReferenceAndResetsResizingWhenOriginalPhotoIsSpecified() {
+	void replace_newFilePreservesPhotoReferenceAndPreviousTagRating() {
 		BreadRecord record = givenReplaceableRecord(false);
 		String oldKey = "bread-records/members/7/images/a";
 		String newKey = "bread-records/members/7/images/edited";
@@ -266,15 +269,29 @@ class BreadRecordCommandServiceTest {
 		original.markDone();
 		original.updateResizedKeys(oldKey);
 		given(photoRepository.findAllIncludingPendingByRecordId(11L)).willReturn(List.of(original));
-		var request = withPhotos(List.of(new BreadRecordPhotoRequest(
+		BreadRecordTag previous = BreadRecordTag.builder()
+			.record(record).photo(original).name("소금빵").breadCategory("소금빵")
+			.positionX(0.1).positionY(0.1).build();
+		previous.rate(true, List.of(TextureChip.촉촉), List.of(TasteChip.고소), "부드러워");
+		given(tagRepository.findAllWithChipsByRecordId(11L)).willReturn(List.of(previous));
+		BreadRecordUpsertRequest request = withPhotos(List.of(new BreadRecordPhotoRequest(
 			"edited.jpg", "image/jpeg", newKey, 0, 800, 600, 23L)));
 
 		commandService.replace(11L, 7L, request);
 
 		verify(photoRepository).saveAll(argThat(photos -> {
-			var photo = photos.iterator().next();
+			BreadRecordPhoto photo = photos.iterator().next();
 			return photo.getReferenceId().equals(original.getReferenceId()) && photo.getAwsKey().equals(newKey)
 				&& photo.getProcessingStatus() == ImageStatus.PENDING && photo.getResizedKey640() == null;
+		}));
+		verify(tagRepository).saveAll(argThat(tags -> {
+			BreadRecordTag tag = firstTag(tags);
+			return tag.getPhoto().getReferenceId().equals(original.getReferenceId())
+				&& tag.getPhoto().getAwsKey().equals(newKey)
+				&& Boolean.TRUE.equals(tag.getAgain())
+				&& tag.textures().equals(List.of(TextureChip.촉촉))
+				&& tag.tastes().equals(List.of(TasteChip.고소))
+				&& "부드러워".equals(tag.getRatingMemo());
 		}));
 		verify(s3Service).deleteObject(oldKey);
 	}
@@ -337,7 +354,7 @@ class BreadRecordCommandServiceTest {
 			null, null,
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(new BreadRecordPhotoRequest("a.jpg", "image/jpeg", awsKey, 0, null, null)),
-			List.of(new BreadRecordTagRequest(tagPhotoSortOrder, "우유식빵", null, null, 0.31, 0.42, null)), null);
+			List.of(new BreadRecordTagRequest(tagPhotoSortOrder, "우유식빵", null, null, 0.31, 0.42, null, null)), null);
 	}
 
 	@Test
@@ -455,7 +472,7 @@ class BreadRecordCommandServiceTest {
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(new BreadRecordPhotoRequest(
 				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
-			List.of(new BreadRecordTagRequest(0, "소금빵", 99L, null, 0.5, 0.5, null)), null));
+			List.of(new BreadRecordTagRequest(0, "소금빵", 99L, null, 0.5, 0.5, null, null)), null));
 
 		verify(tagRepository).saveAll(argThat(tags -> firstTag(tags).getMenu() == null));
 		verify(menuRepository, never()).findByStoreIdAndDeletedAtIsNullAndIdIn(any(), any());
@@ -561,7 +578,7 @@ class BreadRecordCommandServiceTest {
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(new BreadRecordPhotoRequest(
 				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
-			List.of(new BreadRecordTagRequest(0, "소금빵", null, null, 0.5, 0.5, null)),
+			List.of(new BreadRecordTagRequest(0, "소금빵", null, null, 0.5, 0.5, null, null)),
 			isPublic);
 	}
 
@@ -586,7 +603,7 @@ class BreadRecordCommandServiceTest {
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(new BreadRecordPhotoRequest(
 				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
-			List.of(new BreadRecordTagRequest(0, "우유식빵", null, null, 0.31, 0.42, null)),
+			List.of(new BreadRecordTagRequest(0, "우유식빵", null, null, 0.31, 0.42, null, null)),
 			null);
 	}
 
@@ -600,7 +617,7 @@ class BreadRecordCommandServiceTest {
 			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
 			List.of(new BreadRecordPhotoRequest(
 				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
-			List.of(new BreadRecordTagRequest(0, "소금빵", menuId, suggestedMenuId, 0.5, 0.5, null)), null);
+			List.of(new BreadRecordTagRequest(0, "소금빵", menuId, suggestedMenuId, 0.5, 0.5, null, null)), null);
 	}
 
 	private static BreadRecordTag firstTag(Iterable<BreadRecordTag> tags) {
@@ -633,5 +650,98 @@ class BreadRecordCommandServiceTest {
 			.build();
 		ReflectionTestUtils.setField(record, "id", id);
 		return record;
+	}
+
+	@Test
+	@DisplayName("create: 태그에 실린 빵 평가(또 먹을래요·식감·맛·메모)를 저장한다")
+	void create_savesTagRating() {
+		givenCreatableRecord();
+		BreadTagRatingRequest rating = new BreadTagRatingRequest(
+			true, List.of(TextureChip.겉바속촉, TextureChip.쫄깃), List.of(TasteChip.짭짤), " 겉은 바삭 ");
+
+		commandService.create(7L, requestWithRating(rating, null));
+
+		verify(tagRepository).saveAll(argThat(tags -> {
+			BreadRecordTag tag = firstTag(tags);
+			return Boolean.TRUE.equals(tag.getAgain())
+				&& tag.textures().equals(List.of(TextureChip.겉바속촉, TextureChip.쫄깃))
+				&& tag.tastes().equals(List.of(TasteChip.짭짤))
+				&& "겉은 바삭".equals(tag.getRatingMemo());
+		}));
+	}
+
+	@Test
+	@DisplayName("create: 하트(lovedBreads)로 고른 빵은 또 먹을래요 on 으로 저장한다 — 구버전 앱")
+	void create_lovedBreadMarksAgain() {
+		givenCreatableRecord();
+
+		commandService.create(7L, requestWithRating(null, List.of("우유식빵")));
+
+		verify(tagRepository).saveAll(argThat(tags -> Boolean.TRUE.equals(firstTag(tags).getAgain())));
+	}
+
+	@Test
+	@DisplayName("create: 평가가 또 먹을래요를 off 로 명시하면 하트가 있어도 그대로 둔다")
+	void create_explicitRatingBeatsLovedBread() {
+		givenCreatableRecord();
+		BreadTagRatingRequest rating = new BreadTagRatingRequest(false, null, null, null);
+
+		commandService.create(7L, requestWithRating(rating, List.of("우유식빵")));
+
+		verify(tagRepository).saveAll(argThat(tags -> Boolean.FALSE.equals(firstTag(tags).getAgain())));
+	}
+
+	@Test
+	@DisplayName("replace: 요청에 평가가 없으면 이름 같은 이전 태그의 평가를 이어간다 — 구버전 앱의 수정")
+	void replace_withoutRating_carriesOverPreviousRating() {
+		Member member = member(7L);
+		BreadRecord record = record(11L, member);
+		BreadRecordTag previous = BreadRecordTag.builder()
+			.record(record).name("우유식빵").breadCategory("식빵").positionX(0.1).positionY(0.1).build();
+		previous.rate(true, List.of(TextureChip.촉촉), List.of(TasteChip.고소), "부드러워");
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+		given(storeRepository.findById(10L)).willReturn(Optional.of(store(10L)));
+		given(tagRepository.findAllWithChipsByRecordId(11L)).willReturn(List.of(previous));
+		given(photoRepository.saveAll(any())).willAnswer(invocation -> invocation.getArgument(0));
+		given(categoryClassifier.classify("우유식빵")).willReturn("식빵");
+
+		commandService.replace(11L, 7L, requestWithRating(null, null));
+
+		verify(tagRepository).saveAll(argThat(tags -> {
+			BreadRecordTag tag = firstTag(tags);
+			return Boolean.TRUE.equals(tag.getAgain())
+				&& tag.textures().equals(List.of(TextureChip.촉촉))
+				&& "부드러워".equals(tag.getRatingMemo());
+		}));
+	}
+
+	@Test
+	@DisplayName("replace: 빈 평가를 보내면 이전 평가를 지운다")
+	void replace_withEmptyRating_clearsPrevious() {
+		Member member = member(7L);
+		BreadRecord record = record(11L, member);
+		BreadRecordTag previous = BreadRecordTag.builder()
+			.record(record).name("우유식빵").breadCategory("식빵").positionX(0.1).positionY(0.1).build();
+		previous.rate(true, List.of(TextureChip.촉촉), null, null);
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+		given(storeRepository.findById(10L)).willReturn(Optional.of(store(10L)));
+		given(tagRepository.findAllWithChipsByRecordId(11L)).willReturn(List.of(previous));
+		given(photoRepository.saveAll(any())).willAnswer(invocation -> invocation.getArgument(0));
+		given(categoryClassifier.classify("우유식빵")).willReturn("식빵");
+
+		commandService.replace(11L, 7L, requestWithRating(new BreadTagRatingRequest(null, null, null, null), null));
+
+		verify(tagRepository).saveAll(argThat(tags -> !firstTag(tags).hasRating()));
+	}
+
+	private BreadRecordUpsertRequest requestWithRating(BreadTagRatingRequest rating, List<String> lovedBreads) {
+		return new BreadRecordUpsertRequest(
+			10L, "클라이언트 가게명", "client_region", null, null, lovedBreads, null,
+			LocalDateTime.of(2026, 8, 2, 14, 21, 7),
+			List.of(new BreadRecordPhotoRequest(
+				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
+			List.of(new BreadRecordTagRequest(0, "우유식빵", null, null, 0.31, 0.42, null, rating)), null);
 	}
 }

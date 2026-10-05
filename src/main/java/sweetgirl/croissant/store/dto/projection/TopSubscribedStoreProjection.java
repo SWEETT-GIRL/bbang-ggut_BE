@@ -10,8 +10,4 @@ public interface TopSubscribedStoreProjection {
 	String getRegion2nd();
 
 	String getAddress();
-
-	double getDistanceMeters();
-
-	long getSubscribeCount();
 }

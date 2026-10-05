@@ -28,7 +28,7 @@ public record StoreBreadRecordResponse(
 			record.getMember().getId(),
 			record.getMember().getNickname(),
 			record.getMemo(),
-			List.copyOf(record.getLovedBreads()),
+			BreadRecordResponse.lovedBreadsOf(tags),
 			record.getEatenAt().toLocalDate(),
 			photos,
 			tags);

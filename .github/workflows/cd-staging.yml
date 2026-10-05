@@ -20,6 +20,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # dev 와 prod 가 같은 키로 토큰을 서명하면 dev 에서 받은 토큰이 prod 에서 그대로 통한다(dev DB 가 prod 덤프라
+      # 회원 id 까지 겹친다). 그래서 dev 는 제 키를 쓴다 — 비어 있거나 prod 와 같으면 띄우지 않는다.
+      - name: Check staging JWT secret
+        env:
+          JWT_SECRET_STAGING: ${{ secrets.JWT_SECRET_STAGING }}
+          JWT_SECRET_PROD: ${{ secrets.JWT_SECRET }}
+        run: |
+          if [ -z "$JWT_SECRET_STAGING" ]; then
+            echo "::error::JWT_SECRET_STAGING 시크릿이 비어 있다. Settings > Secrets 에 dev 전용 키를 등록해야 한다."
+            exit 1
+          fi
+          if [ "$JWT_SECRET_STAGING" = "$JWT_SECRET_PROD" ]; then
+            echo "::error::JWT_SECRET_STAGING 이 prod 의 JWT_SECRET 과 같다. dev 전용 키로 바꿔야 한다."
+            exit 1
+          fi
+
       - name: Set image tag
         id: tag
         run: echo "IMAGE_TAG=develop-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
@@ -187,7 +203,7 @@ jobs:
             echo "DB_PASSWORD=${{ secrets.STAGING_DB_PASSWORD }}" >> .env
             echo "KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}" >> .env
             echo "KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}" >> .env
-            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET_STAGING }}" >> .env
             echo "KAKAO_API_KEY=${{ secrets.KAKAO_API_KEY }}" >> .env
             echo "NAVER_CLIENT_ID=${{ secrets.NAVER_CLIENT_ID }}" >> .env
             echo "NAVER_CLIENT_SECRET=${{ secrets.NAVER_CLIENT_SECRET }}" >> .env

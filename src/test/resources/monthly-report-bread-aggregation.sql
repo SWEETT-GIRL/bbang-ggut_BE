@@ -25,7 +25,7 @@ CREATE TABLE menu (
 CREATE TABLE bread_record_tag (
     id bigint PRIMARY KEY, record_id bigint, photo_id bigint, name varchar(100), bread_category varchar(50),
     menu_id bigint, suggested_menu_id bigint, x double precision DEFAULT 0, y double precision DEFAULT 0,
-    style varchar(50), created_at timestamp DEFAULT CURRENT_TIMESTAMP, updated_at timestamp
+    style varchar(50), again boolean, rating_memo varchar(100), created_at timestamp DEFAULT CURRENT_TIMESTAMP, updated_at timestamp
 );
 
 INSERT INTO member VALUES (123), (456);

@@ -10,12 +10,10 @@ import static org.mockito.Mockito.verify;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -31,7 +29,9 @@ import sweetgirl.croissant.alarm.enums.DeviceOs;
 import sweetgirl.croissant.alarm.exception.AlarmException;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
 import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.service.MemberReader;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,40 +54,8 @@ class FcmServiceTest {
 	FcmService fcmService;
 
 	@Test
-	@DisplayName("saveOrUpdateFcmToken: 기존 토큰 있으면 토큰값을 갱신한다")
-	void saveOrUpdateFcmToken_updatesToken_whenTokenExists() {
-		Member member = mock(Member.class);
-		FcmToken existingToken = FcmToken.builder()
-			.member(member)
-			.deviceId("device-001")
-			.deviceOs(DeviceOs.IOS)
-			.token("old-token")
-			.build();
-
-		FcmTokenRequest request = mock(FcmTokenRequest.class);
-		given(request.getDeviceId()).willReturn("device-001");
-		given(request.getDeviceOs()).willReturn(DeviceOs.IOS);
-		given(request.getToken()).willReturn("new-token");
-		given(request.getAppVersion()).willReturn("2.0.0");
-		given(request.getBuildVersion()).willReturn("42");
-		given(request.getBundleId()).willReturn("com.bbanggut.app");
-
-		given(memberReader.getMember(1L)).willReturn(member);
-		given(fcmTokenRepository.findByMemberAndDeviceId(member, "device-001"))
-			.willReturn(Optional.of(existingToken));
-
-		fcmService.saveOrUpdateFcmToken(1L, request);
-
-		assertThat(existingToken.getToken()).isEqualTo("new-token");
-		assertThat(existingToken.getAppVersion()).isEqualTo("2.0.0");
-		assertThat(existingToken.getBuildVersion()).isEqualTo("42");
-		assertThat(existingToken.getBundleId()).isEqualTo("com.bbanggut.app");
-		verify(fcmTokenRepository, never()).save(any());
-	}
-
-	@Test
-	@DisplayName("saveOrUpdateFcmToken: 기존 토큰 없으면 새 토큰을 저장한다")
-	void saveOrUpdateFcmToken_savesNewToken_whenTokenNotExists() {
+	@DisplayName("saveOrUpdateFcmToken: 기존 행 유무를 따지지 않고 업서트 한 문장으로 넣거나 갱신한다")
+	void saveOrUpdateFcmToken_upsertsOnce() {
 		Member member = mock(Member.class);
 		FcmTokenRequest request = mock(FcmTokenRequest.class);
 		given(request.getDeviceId()).willReturn("device-001");
@@ -96,20 +64,23 @@ class FcmServiceTest {
 		given(request.getAppVersion()).willReturn("2.0.0");
 		given(request.getBuildVersion()).willReturn("43");
 		given(request.getBundleId()).willReturn("com.bbanggut.app");
-
 		given(memberReader.getMember(1L)).willReturn(member);
-		given(fcmTokenRepository.findByMemberAndDeviceId(member, "device-001"))
-			.willReturn(Optional.empty());
 
 		fcmService.saveOrUpdateFcmToken(1L, request);
 
-		ArgumentCaptor<FcmToken> captor = ArgumentCaptor.forClass(FcmToken.class);
-		verify(fcmTokenRepository).save(captor.capture());
-		assertThat(captor.getValue().getToken()).isEqualTo("new-token");
-		assertThat(captor.getValue().getDeviceId()).isEqualTo("device-001");
-		assertThat(captor.getValue().getAppVersion()).isEqualTo("2.0.0");
-		assertThat(captor.getValue().getBuildVersion()).isEqualTo("43");
-		assertThat(captor.getValue().getBundleId()).isEqualTo("com.bbanggut.app");
+		verify(fcmTokenRepository).upsert(1L, "device-001", "ANDROID", "new-token", "2.0.0", "43", "com.bbanggut.app");
+		verify(fcmTokenRepository, never()).save(any());
+	}
+
+	@Test
+	@DisplayName("saveOrUpdateFcmToken: 없는 회원이면 예외가 나고 업서트는 부르지 않는다")
+	void saveOrUpdateFcmToken_throws_whenMemberNotFound() {
+		FcmTokenRequest request = mock(FcmTokenRequest.class);
+		given(memberReader.getMember(99L)).willThrow(new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
+
+		assertThatThrownBy(() -> fcmService.saveOrUpdateFcmToken(99L, request))
+			.isInstanceOf(MemberException.class);
+		verify(fcmTokenRepository, never()).upsert(any(), any(), any(), any(), any(), any(), any());
 	}
 
 	@Test
@@ -135,13 +106,11 @@ class FcmServiceTest {
 		given(memberReader.getMember(10L)).willReturn(currentMember);
 		given(fcmTokenRepository.findAllByTokenAndIsActiveTrue("shared-token"))
 			.willReturn(List.of(otherMemberToken));
-		given(fcmTokenRepository.findByMemberAndDeviceId(currentMember, "device-shared"))
-			.willReturn(Optional.empty());
 
 		fcmService.saveOrUpdateFcmToken(10L, request);
 
 		assertThat(otherMemberToken.isActive()).isFalse();
-		verify(fcmTokenRepository).save(any());
+		verify(fcmTokenRepository).upsert(10L, "device-shared", "IOS", "shared-token", null, null, null);
 	}
 
 	@Test
@@ -165,13 +134,11 @@ class FcmServiceTest {
 		given(memberReader.getMember(10L)).willReturn(currentMember);
 		given(fcmTokenRepository.findAllByTokenAndIsActiveTrue("same-token"))
 			.willReturn(List.of(ownToken));
-		given(fcmTokenRepository.findByMemberAndDeviceId(currentMember, "device-001"))
-			.willReturn(Optional.of(ownToken));
 
 		fcmService.saveOrUpdateFcmToken(10L, request);
 
 		assertThat(ownToken.isActive()).isTrue();
-		assertThat(ownToken.getToken()).isEqualTo("same-token");
+		verify(fcmTokenRepository).upsert(10L, "device-001", "IOS", "same-token", null, null, null);
 	}
 
 	@Test
@@ -195,13 +162,11 @@ class FcmServiceTest {
 		given(memberReader.getMember(10L)).willReturn(currentMember);
 		given(fcmTokenRepository.findAllByTokenAndIsActiveTrue("same-token"))
 			.willReturn(List.of(oldDeviceToken));
-		given(fcmTokenRepository.findByMemberAndDeviceId(currentMember, "device-new"))
-			.willReturn(Optional.empty());
 
 		fcmService.saveOrUpdateFcmToken(10L, request);
 
 		assertThat(oldDeviceToken.isActive()).isFalse();
-		verify(fcmTokenRepository).save(any());
+		verify(fcmTokenRepository).upsert(10L, "device-new", "IOS", "same-token", null, null, null);
 	}
 
 	@Test

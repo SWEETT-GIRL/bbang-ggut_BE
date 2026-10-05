@@ -22,6 +22,7 @@ public record BreadRecordResponse(
 		List<BreadRecordTagResponse> tags) {
 
 	/**
+	 * @param lovedBreads 또 먹을래요(again) on 인 태그 이름 — 옛 하트 칩의 자리. 1.5.x 앱이 아직 읽는다
 	 * @param towerBread 빵탑에 쌓인 빵. 사용자가 고르지 않은 옛 기록은 서버가 골라 채운 값이다
 	 *                   ({@code TowerBreadPicker}). DB 의 빈 칸과 구분하지 않고 늘 값이 실린다.
 	 */
@@ -30,14 +31,15 @@ public record BreadRecordResponse(
 			List<BreadRecordPhotoResponse> photos,
 			List<BreadRecordTagResponse> tags,
 			String towerBread) {
+		List<String> lovedBreads = lovedBreadsOf(tags);
 		return new BreadRecordResponse(
 			record.getId(),
 			record.getStore() != null ? record.getStore().getId() : null,
 			record.getStoreName(),
 			record.getRegionKey(),
 			record.getMemo(),
-			record.getLovedBread(),
-			List.copyOf(record.getLovedBreads()),
+			lovedBreads.isEmpty() ? null : lovedBreads.get(0),
+			lovedBreads,
 			towerBread,
 			record.getEatenAt(),
 			record.isPublic(),
@@ -45,5 +47,13 @@ public record BreadRecordResponse(
 			record.getUpdatedAt(),
 			photos,
 			tags);
+	}
+
+	static List<String> lovedBreadsOf(List<BreadRecordTagResponse> tags) {
+		return tags.stream()
+			.filter(BreadRecordTagResponse::wantsAgain)
+			.map(BreadRecordTagResponse::name)
+			.distinct()
+			.toList();
 	}
 }

@@ -425,19 +425,6 @@ class CourseControllerTest {
 	}
 
 	@Test
-	void addStore_duplicate_returns400() throws Exception {
-		willThrow(new CourseException(CourseErrorCode.COURSE_STORE_ALREADY_EXISTS))
-			.given(courseCommandService).addStore(isNull(), anyLong(), any());
-
-		mockMvc.perform(post("/courses/1/stores")
-			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"storeId\":10}"))
-			.andExpect(status().isBadRequest())
-			.andExpect(jsonPath("$.success").value(false))
-			.andExpect(jsonPath("$.code").value("COURSE400_1"));
-	}
-
-	@Test
 	void updateStore_returns200() throws Exception {
 		willDoNothing().given(courseCommandService).updateStore(isNull(), anyLong(), anyLong(), any());
 

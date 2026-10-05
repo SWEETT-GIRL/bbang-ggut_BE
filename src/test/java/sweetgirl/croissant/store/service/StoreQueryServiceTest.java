@@ -25,8 +25,12 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
+import sweetgirl.croissant.store.code.StoreConstants;
+import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
+import sweetgirl.croissant.store.dto.projection.TopSubscribedStoreProjection;
 import sweetgirl.croissant.store.dto.response.StoreDetailResponse;
 import sweetgirl.croissant.store.dto.response.SubscribedStoreResponse;
+import sweetgirl.croissant.store.dto.response.TopSubscribedStoreResponse;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.entity.SubscribedStore;
@@ -194,5 +198,71 @@ class StoreQueryServiceTest {
 		StoreDetailResponse result = storeQueryService.getStoreDetail(memberId, storeId);
 
 		assertThat(result.isSaved()).isFalse();
+	}
+
+	// ───────────────────────── getTopSubscribedStores ─────────────────────────
+
+	@Test
+	@DisplayName("getTopSubscribedStores: 저장소가 준 인기도 순서를 그대로 두고 지역·주소·썸네일을 싣고 subscribeCount 는 모두 0이다")
+	void getTopSubscribedStores_keepsRepositoryOrderWithRegionAddressThumbnail() {
+		List<TopSubscribedStoreProjection> topStores = List.of(
+			topStore(30L, "성수 베이크", "서울", "성동구", "서울 성동구 성수동 1-1"),
+			topStore(10L, "몽심", "서울", "마포구", null));
+		given(storeRepository.findTopSubscribedStores(StoreConstants.TOP_SUBSCRIBED_STORE_LIMIT))
+			.willReturn(topStores);
+		// 헬퍼가 다른 mock 을 스텁하므로 given(...) 안에서 부르면 UnfinishedStubbing 이 난다 — 먼저 만든다.
+		List<StoreImageThumbnailProjection> thumbnails = List.of(thumbnail(30L, "store/30_320.jpg"));
+		given(storeImageFileRepository.findThumbnailsByStoreIdIn(List.of(30L, 10L))).willReturn(thumbnails);
+
+		List<TopSubscribedStoreResponse> result = storeQueryService.getTopSubscribedStores();
+
+		assertThat(result).containsExactly(
+			new TopSubscribedStoreResponse(30L, "성수 베이크", "서울 성동구", "서울 성동구 성수동 1-1", "store/30_320.jpg",
+				0L),
+			new TopSubscribedStoreResponse(10L, "몽심", "서울 마포구", null, null, 0L));
+	}
+
+	@Test
+	@DisplayName("getTopSubscribedStores: 지역이 하나만 있으면 그것만, 둘 다 없으면 빈 문자열이다 — null 이면 1.5.x 앱이 꺼진다")
+	void getTopSubscribedStores_neverReturnsNullRegion() {
+		List<TopSubscribedStoreProjection> topStores = List.of(
+			topStore(1L, "시도만", "서울", null, null),
+			topStore(2L, "구만", null, "성동구", null),
+			topStore(3L, "둘 다 없음", null, null, null));
+		given(storeRepository.findTopSubscribedStores(StoreConstants.TOP_SUBSCRIBED_STORE_LIMIT))
+			.willReturn(topStores);
+
+		List<TopSubscribedStoreResponse> result = storeQueryService.getTopSubscribedStores();
+
+		assertThat(result).extracting(TopSubscribedStoreResponse::region)
+			.containsExactly("서울", "성동구", "");
+	}
+
+	@Test
+	@DisplayName("getTopSubscribedStores: ACTIVE 가게가 없으면 빈 목록을 반환한다")
+	void getTopSubscribedStores_returnsEmptyList_whenNoStores() {
+		given(storeRepository.findTopSubscribedStores(StoreConstants.TOP_SUBSCRIBED_STORE_LIMIT))
+			.willReturn(List.of());
+
+		assertThat(storeQueryService.getTopSubscribedStores()).isEmpty();
+	}
+
+	private TopSubscribedStoreProjection topStore(Long id, String name, String region1st, String region2nd,
+			String address) {
+		TopSubscribedStoreProjection projection = mock(TopSubscribedStoreProjection.class);
+		given(projection.getId()).willReturn(id);
+		given(projection.getName()).willReturn(name);
+		given(projection.getRegion1st()).willReturn(region1st);
+		given(projection.getRegion2nd()).willReturn(region2nd);
+		given(projection.getAddress()).willReturn(address);
+		return projection;
+	}
+
+	/** 320 리사이즈 키가 있는 썸네일 — 서비스는 그 키가 있으면 원본 키를 보지 않는다 */
+	private StoreImageThumbnailProjection thumbnail(Long storeId, String resizedKey320) {
+		StoreImageThumbnailProjection projection = mock(StoreImageThumbnailProjection.class);
+		given(projection.getStoreId()).willReturn(storeId);
+		given(projection.getResizedKey320()).willReturn(resizedKey320);
+		return projection;
 	}
 }

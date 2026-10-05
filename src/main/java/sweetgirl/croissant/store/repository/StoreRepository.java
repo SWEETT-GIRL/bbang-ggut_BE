@@ -208,24 +208,17 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 	Slice<NearbyStoreProjection> findNearbyStores(@Param("lng") double longitude, @Param("lat") double latitude,
 			@Param("radius") double radiusMeters, Pageable pageable);
 
+	// 구독(빵알람)은 더 쓰지 않는 기능이라 인기도(popularity_score) 순으로 뽑는다.
+	// idx_store_popularity_score 를 순서대로 읽다가 limit 에서 멈춘다 — 정렬 없음(운영 EXPLAIN 2026-09-28).
+	// 지역·주소는 1.5.x 앱이 가게 고르기 화면에서 그대로 읽는다 — 빼면 앱이 꺼진다(2026-10-02, #818 회귀).
 	@Query(value = """
-				SELECT
-					s.id,
-					s.name,
-					s.region_1st AS region1st,
-					s.region_2nd AS region2nd,
-					s.address,
-					COUNT(ss.id) AS subscribe_count,
-					ST_Distance(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS distance_meters
+				SELECT s.id, s.name, s.region_1st AS region1st, s.region_2nd AS region2nd, s.address
 				FROM store s
-				LEFT JOIN subscribed_store ss ON ss.store_id = s.id
 				WHERE s.status = 'ACTIVE'
-				GROUP BY s.id
-				ORDER BY subscribe_count DESC
+				ORDER BY s.popularity_score DESC
 				LIMIT :limit
 			""", nativeQuery = true)
-	List<TopSubscribedStoreProjection> findTopSubscribedStores(@Param("lng") double longitude,
-			@Param("lat") double latitude, @Param("limit") int limit);
+	List<TopSubscribedStoreProjection> findTopSubscribedStores(@Param("limit") int limit);
 
 	boolean existsById(Long storeId);
 

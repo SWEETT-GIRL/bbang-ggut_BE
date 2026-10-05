@@ -2,78 +2,111 @@ package sweetgirl.croissant.breadlog.entity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
+import java.util.Set;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
-import sweetgirl.croissant.menu.entity.Menu;
-import sweetgirl.croissant.menu.entity.MenuCategory;
-import sweetgirl.croissant.menu.enums.MenuKind;
+import sweetgirl.croissant.breadlog.enums.TasteChip;
+import sweetgirl.croissant.breadlog.enums.TextureChip;
 
 class BreadRecordTagTest {
 
 	@Test
-	@DisplayName("룰이 구체 분류를 냈으면 메뉴 분류가 달라도 룰 값을 쓴다")
-	void resolvedCategory_prefersRuleWhenDecided() {
-		// 밤식빵은 끝단어 원리로 식빵이다. 메뉴 쪽 AI 는 밤빵이라 하지만 룰이 답을 낸 자리는 건드리지 않는다
-		BreadRecordTag tag = tag("밤식빵", "식빵", MenuKind.밤빵);
+	@DisplayName("평가를 넣으면 칩은 중복 없이 고른 순서로 돌려준다 — 같은 칩은 첫 자리만 남는다")
+	void rateKeepsChipsOrderedAndDistinct() {
+		BreadRecordTag tag = tag();
 
-		assertThat(tag.resolvedCategory()).isEqualTo("식빵");
-		assertThat(tag.uncategorized()).isFalse();
+		tag.rate(true, List.of(TextureChip.쫀득, TextureChip.바삭, TextureChip.쫀득), List.of(TasteChip.짭짤, TasteChip.고소),
+			"겉은 바삭");
+
+		assertThat(tag.hasRating()).isTrue();
+		assertThat(tag.textures()).containsExactly(TextureChip.쫀득, TextureChip.바삭);
+		assertThat(tag.tastes()).containsExactly(TasteChip.짭짤, TasteChip.고소);
+		assertThat(tag.rating()).get().extracting(BreadRecordTag.Rating::memo).isEqualTo("겉은 바삭");
 	}
 
 	@Test
-	@DisplayName("룰이 '빵'·'기타'로 물러섰으면 가리키는 메뉴의 분류를 쓴다")
-	void resolvedCategory_fallsBackToMenu() {
-		assertThat(tag("소금버터빵", "빵", MenuKind.소금빵).resolvedCategory()).isEqualTo("소금빵");
-		assertThat(tag("잠봉뵈르", "기타", MenuKind.샌드위치).resolvedCategory()).isEqualTo("샌드위치");
+	@DisplayName("아무것도 안 남긴 태그는 평가가 없다")
+	void noRatingWhenNothingGiven() {
+		BreadRecordTag tag = tag();
+
+		assertThat(tag.hasRating()).isFalse();
+		assertThat(tag.rating()).isEmpty();
+		assertThat(tag.textures()).isEmpty();
 	}
 
 	@Test
-	@DisplayName("메뉴도 '빵'·'기타'면 여전히 모르는 것이라 룰 값을 그대로 둔다")
-	void resolvedCategory_keepsFallbackWhenMenuAlsoUndecided() {
-		BreadRecordTag tag = tag("작은메아리", "기타", MenuKind.빵);
+	@DisplayName("하트는 또 먹을래요를 아직 안 정했을 때만 on 으로 — 평가가 off 로 둔 건 안 건드린다")
+	void markAgainOnlyWhenUndecided() {
+		BreadRecordTag undecided = tag();
+		BreadRecordTag declined = tag();
+		declined.rate(false, null, null, null);
 
-		assertThat(tag.resolvedCategory()).isEqualTo("기타");
-		assertThat(tag.uncategorized()).isTrue();
+		undecided.markAgain();
+		declined.markAgain();
+
+		assertThat(undecided.getAgain()).isTrue();
+		assertThat(declined.getAgain()).isFalse();
 	}
 
 	@Test
-	@DisplayName("메뉴를 못 가리키거나 그 메뉴가 아직 미분류면 룰 값으로 산다")
-	void resolvedCategory_withoutMenu() {
-		BreadRecordTag noMenu = BreadRecordTag.builder()
-			.name("튀소구마")
-			.breadCategory("기타")
-			.positionX(0.1)
-			.positionY(0.2)
-			.build();
-		BreadRecordTag unclassifiedMenu = tag("튀소구마", "기타", null);
+	@DisplayName("빈 평가를 다시 넣으면 이전 칩·메모가 지워진다")
+	void rateWithEmptyClearsPrevious() {
+		BreadRecordTag tag = tag();
+		tag.rate(true, List.of(TextureChip.바삭), List.of(TasteChip.고소), "메모");
 
-		assertThat(noMenu.resolvedCategory()).isEqualTo("기타");
-		assertThat(noMenu.uncategorized()).isTrue();
-		assertThat(unclassifiedMenu.resolvedCategory()).isEqualTo("기타");
+		tag.rate(null, null, null, null);
+
+		assertThat(tag.hasRating()).isFalse();
 	}
 
 	@Test
-	@DisplayName("분류 규칙이 바뀌면 이름은 그대로 두고 분류만 갱신한다")
-	void reclassify_changesCategoryOnly() {
-		BreadRecordTag tag = tag("시오빵", "빵", null);
+	@DisplayName("쫄깃만 두었다가 바삭을 더해도 대표(첫 번째)는 쫄깃 — enum 순서(바삭이 앞)가 아니라 고른 순서다 (#842)")
+	void rateKeepsChosenOrderWhenChipAdded() {
+		BreadRecordTag tag = tag();
+		tag.rate(true, List.of(TextureChip.쫄깃), null, null);
 
-		assertThat(tag.reclassify("소금빵")).isTrue();
-		assertThat(tag.reclassify("소금빵")).isFalse();
-		assertThat(tag.getName()).isEqualTo("시오빵");
-		assertThat(tag.getBreadCategory()).isEqualTo("소금빵");
+		tag.rate(true, List.of(TextureChip.쫄깃, TextureChip.바삭), List.of(TasteChip.짭짤, TasteChip.고소), null);
+
+		assertThat(tag.textures()).containsExactly(TextureChip.쫄깃, TextureChip.바삭);
+		assertThat(tag.tastes()).containsExactly(TasteChip.짭짤, TasteChip.고소);
+		assertThat(tag.rating()).get().extracting(BreadRecordTag.Rating::textures)
+			.isEqualTo(List.of(TextureChip.쫄깃, TextureChip.바삭));
 	}
 
-	private static BreadRecordTag tag(String name, String breadCategory, MenuKind menuKind) {
-		return BreadRecordTag.builder()
-			.name(name)
-			.breadCategory(breadCategory)
-			.positionX(0.5)
-			.positionY(0.5)
-			.menu(Menu.builder()
-				.name(name)
-				.menuCategory(menuKind == null ? null : MenuCategory.builder().name(menuKind).build())
-				.build())
-			.build();
+	@Test
+	@DisplayName("순서 칸이 생기기 전 행(chip_order 전부 0)은 지금처럼 enum 순서로 돌려준다")
+	@SuppressWarnings("unchecked")
+	void legacyChipsWithoutOrderFallBackToEnumOrder() {
+		BreadRecordTag tag = tag();
+		Set<TagChip> chips = (Set<TagChip>)ReflectionTestUtils.getField(tag, "chips");
+		chips.add(TagChip.texture(TextureChip.쫄깃, 0));
+		chips.add(TagChip.texture(TextureChip.바삭, 0));
+		chips.add(TagChip.taste(TasteChip.짭짤, 0));
+		chips.add(TagChip.taste(TasteChip.고소, 0));
+
+		assertThat(tag.textures()).containsExactly(TextureChip.바삭, TextureChip.쫄깃);
+		assertThat(tag.tastes()).containsExactly(TasteChip.고소, TasteChip.짭짤);
+	}
+
+	private static BreadRecordTag tag() {
+		return BreadRecordTag.builder().name("소금빵").breadCategory("소금빵").positionX(0.5).positionY(0.5).build();
+	}
+
+	@Test
+	@DisplayName("칩 목록의 null 원소는 버린다 — 하나 때문에 저장이 깨지지 않는다")
+	void rateIgnoresNullChips() {
+		BreadRecordTag tag = tag();
+		List<TextureChip> textures = new java.util.ArrayList<>();
+		textures.add(null);
+		textures.add(TextureChip.바삭);
+
+		tag.rate(true, textures, java.util.Arrays.asList(TasteChip.고소, null), null);
+
+		assertThat(tag.textures()).containsExactly(TextureChip.바삭);
+		assertThat(tag.tastes()).containsExactly(TasteChip.고소);
 	}
 }

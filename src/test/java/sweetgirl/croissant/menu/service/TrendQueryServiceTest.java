@@ -277,7 +277,7 @@ class TrendQueryServiceTest {
 	private KakaoCoordToRegionResponse regionResponse(
 			String type1, String dong1, String type2, String dong2) {
 		return new KakaoCoordToRegionResponse(List.of(
-			new KakaoCoordToRegionResponse.Document(type1, "종로구", dong1),
-			new KakaoCoordToRegionResponse.Document(type2, "종로구", dong2)));
+			new KakaoCoordToRegionResponse.Document(type1, "서울특별시", "종로구", dong1),
+			new KakaoCoordToRegionResponse.Document(type2, "서울특별시", "종로구", dong2)));
 	}
 }

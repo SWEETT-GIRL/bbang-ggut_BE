@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
+import sweetgirl.croissant.menu.enums.MenuKind;
 
 public interface BreadRecordTagRepository extends JpaRepository<BreadRecordTag, Long> {
 
@@ -29,6 +30,37 @@ public interface BreadRecordTagRepository extends JpaRepository<BreadRecordTag, 
 	List<BreadRecordTag> findByRecordIdInWithPhoto(@Param("recordIds") List<Long> recordIds);
 
 	void deleteAllByRecordId(Long recordId);
+
+	/** 기록 하나의 태그를 평가 칩까지 — 수정으로 태그를 다시 만들기 전에 평가를 이름별로 옮겨 두려고. */
+	@Query("""
+			SELECT DISTINCT tag
+			FROM BreadRecordTag tag
+			LEFT JOIN FETCH tag.chips
+			WHERE tag.record.id = :recordId
+			""")
+	List<BreadRecordTag> findAllWithChipsByRecordId(@Param("recordId") Long recordId);
+
+	/**
+	 * 그 회원이 그 가게들에서 그 빵 종류로 단 태그 — 최신 기록부터. 룰이 빵·기타로 물러선 태그는 메뉴의 분류로 잇는다
+	 * ({@code resolvedCategory()} 와 같은 규칙). 내 빵 순위 줄의 평가 읽기·고치기용 — 가게 수와 무관하게 쿼리 한 번.
+	 */
+	@Query("""
+			SELECT tag
+			FROM BreadRecordTag tag
+			JOIN FETCH tag.record record
+			JOIN FETCH record.store store
+			LEFT JOIN FETCH tag.menu menu
+			LEFT JOIN FETCH menu.menuCategory menuCategory
+			WHERE record.member.id = :memberId AND record.deletedAt IS NULL AND store.id IN :storeIds
+				AND (tag.breadCategory = :kindName
+					OR (tag.breadCategory IN ('빵', '기타') AND menuCategory.name = :kind))
+			ORDER BY record.eatenAt DESC, tag.id DESC
+			""")
+	List<BreadRecordTag> findLatestTagsByStores(
+			@Param("memberId") Long memberId,
+			@Param("storeIds") List<Long> storeIds,
+			@Param("kindName") String kindName,
+			@Param("kind") MenuKind kind);
 
 	@Query("""
 			SELECT COUNT(tag.id)

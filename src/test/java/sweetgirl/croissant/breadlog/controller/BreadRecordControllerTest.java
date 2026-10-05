@@ -2,6 +2,7 @@ package sweetgirl.croissant.breadlog.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
@@ -269,5 +270,35 @@ class BreadRecordControllerTest {
 			.param("photoKeys", "l0"))
 			.andExpect(status().isTooManyRequests())
 			.andExpect(jsonPath("$.code").value("BREAD_RECORD_PHOTO_ANALYZE_RATE_LIMITED"));
+	}
+
+	@Test
+	void create_withUnknownChip_returns400() throws Exception {
+		String body = VALID_REQUEST.replace("\"y\": 0.42", "\"y\": 0.42, \"rating\": {\"textures\": [\"없는칩\"]}");
+
+		mockMvc.perform(post("/bread-records")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(body))
+			.andExpect(status().isBadRequest());
+
+		verify(commandService, never()).create(any(), any());
+	}
+
+	@Test
+	void create_withRating_returns201() throws Exception {
+		given(commandService.create(isNull(), any(BreadRecordUpsertRequest.class)))
+			.willReturn(new BreadRecordCreateResponse(11L, LocalDateTime.of(2026, 8, 4, 12, 0)));
+		String body = VALID_REQUEST.replace("\"y\": 0.42",
+			"\"y\": 0.42, \"rating\": {\"again\": true, \"textures\": [\"겉바속촉\"], "
+				+ "\"tastes\": [\"짭짤\"], \"memo\": \"겉바속촉\"}");
+
+		mockMvc.perform(post("/bread-records")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(body))
+			.andExpect(status().isCreated());
+
+		verify(commandService).create(isNull(),
+			argThat(request -> Boolean.TRUE.equals(request.tags().get(0).rating().again())
+				&& request.tags().get(0).rating().textures().size() == 1));
 	}
 }

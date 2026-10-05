@@ -2,9 +2,11 @@ import http from 'k6/http';
 import {check, sleep} from 'k6';
 
 const baseUrl = __ENV.BASE_URL || 'http://localhost:8080';
+// 쿼리의 한글은 반드시 인코딩한다 — 날것으로 두면 톰캣이 URI 단계에서 400 으로 거부하고,
+// 앱까지 가지 않으므로 "빠르다"는 잘못된 측정이 나온다.
 const defaultReadOnlyPaths = [
-  '/stores/search?query=소금빵',
-  '/stores/autocomplete?query=소금',
+  `/stores/search?query=${encodeURIComponent('소금빵')}`,
+  `/stores/autocomplete?query=${encodeURIComponent('소금')}`,
   '/stores/nearby?lat=37.5665&lng=126.9780',
   '/stores/popular?lat=37.5665&lng=126.9780',
   '/trend/nearby?lat=37.5665&lng=126.9780',

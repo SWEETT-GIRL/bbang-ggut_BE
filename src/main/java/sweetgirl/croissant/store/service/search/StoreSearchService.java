@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -22,9 +23,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.searchmiss.event.SearchMissEvent;
+import sweetgirl.croissant.store.code.StoreSearchErrorCode;
 import sweetgirl.croissant.store.dto.response.StoreAutocompleteResponse;
 import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
 import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
+import sweetgirl.croissant.store.exception.StoreSearchException;
 
 @Slf4j
 @Service
@@ -60,9 +63,10 @@ public class StoreSearchService {
 		for (SearchOutcome outcome : SearchOutcome.values()) {
 			searchCounter(outcome);
 		}
-		// 자동완성은 후보 문자열 자체를 엔진에서 이미 검증하므로 hit/empty만 발생한다.
+		// 자동완성은 후보 문자열 자체를 엔진에서 이미 검증하므로 hit/empty, 그리고 SQL 이 끊긴 timeout 만 발생한다.
 		autocompleteCounter(SearchOutcome.HIT);
 		autocompleteCounter(SearchOutcome.EMPTY);
+		autocompleteCounter(SearchOutcome.TIMEOUT);
 	}
 
 	public SliceResponse<StoreSearchResponse> searchStores(String keyword, Double latitude, Double longitude,
@@ -71,7 +75,7 @@ public class StoreSearchService {
 		Pageable pageable = clampPageSize(requestedPageable);
 		// 1차: 가게명 우선 — "브릭베이글"·"소금도화"처럼 붙여쓴 토큰은 통째로 가게명 검색
 		SearchIntent intent = storeSearchQueryParser.parse(keyword);
-		StoreSearchResult result = storeSearchEngine.searchStores(intent, pageable, latitude, longitude, sort);
+		StoreSearchResult result = runSearch(intent, pageable, latitude, longitude, sort, keyword);
 		// 폴백: 1차가 0건일 때만 붙어쓴 토큰을 분해해 다시 검색한다
 		// ("초코소금빵"→빵 "소금빵", "한남에그타르트"→지역 "한남" + 빵 "에그타르트").
 		// 지역·빵 어느 쪽도 새로 분해되지 않으면 같은 쿼리가 되므로 재검색하지 않는다.
@@ -79,7 +83,7 @@ public class StoreSearchService {
 		if (result.hits().isEmpty()) {
 			SearchIntent fallbackIntent = storeSearchQueryParser.parseWithGluedTokenFallback(keyword);
 			if (isDecomposed(fallbackIntent, intent)) {
-				result = storeSearchEngine.searchStores(fallbackIntent, pageable, latitude, longitude, sort);
+				result = runSearch(fallbackIntent, pageable, latitude, longitude, sort, keyword);
 				fallbackApplied = !result.hits().isEmpty();
 			}
 		}
@@ -96,6 +100,21 @@ public class StoreSearchService {
 			return new SliceResponse<>(List.of(), false);
 		}
 		return new SliceResponse<>(storeSearchAssembler.assemble(result.hits()), result.hasNext());
+	}
+
+	/**
+	 * 검색 SQL 이 statement 타임아웃(StoreSearchProperties.queryTimeoutSeconds)에 끊기면 503 으로 답한다. 운영 측정상 수백 ms 가
+	 * 상한인 쿼리가 2초를 넘는 건 DB·커넥션이 멈춘 것이라, 요청 스레드를 붙잡아 nginx 504 까지 끌고 가는 대신 빨리 끊는다.
+	 */
+	private StoreSearchResult runSearch(SearchIntent intent, Pageable pageable, Double latitude, Double longitude,
+			SearchSort sort, String keyword) {
+		try {
+			return storeSearchEngine.searchStores(intent, pageable, latitude, longitude, sort);
+		} catch (QueryTimeoutException exception) {
+			searchCounter(SearchOutcome.TIMEOUT).increment();
+			log.warn("[검색] 쿼리 타임아웃 keyword={}", keyword);
+			throw new StoreSearchException(StoreSearchErrorCode.SEARCH_TIMEOUT);
+		}
 	}
 
 	/**
@@ -253,7 +272,15 @@ public class StoreSearchService {
 		int normalizedSize = normalizeAutocompleteSize(size);
 		// 타입을 거르면 남는 후보가 줄어드니, 걸러낼 때는 항상 최대치로 가져와 자른다.
 		int fetchSize = filtered ? MAX_AUTOCOMPLETE_SIZE : normalizedSize;
-		List<StoreAutocompleteSuggestion> suggestions = storeSearchEngine.autocompleteStores(query, fetchSize);
+		List<StoreAutocompleteSuggestion> suggestions;
+		try {
+			suggestions = storeSearchEngine.autocompleteStores(query, fetchSize);
+		} catch (QueryTimeoutException exception) {
+			// 추천어는 없어도 되는 기능이다 — 500 대신 빈 목록으로 조용히 물러난다. 예외는 엔진에서 던지므로 @Cacheable 이 빈 결과를 캐시하지 않는다.
+			autocompleteCounter(SearchOutcome.TIMEOUT).increment();
+			log.warn("[자동완성] 쿼리 타임아웃 keyword={}", query);
+			return List.of();
+		}
 		Map<String, StoreAutocompleteResponse> uniqueSuggestions = new LinkedHashMap<>();
 		for (StoreAutocompleteSuggestion suggestion : suggestions) {
 			StoreAutocompleteResponse response = StoreAutocompleteResponse.from(suggestion);

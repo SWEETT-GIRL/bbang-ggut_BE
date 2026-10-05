@@ -186,17 +186,19 @@ public class StoreQueryService {
 		return SliceResponse.from(responseSlice);
 	}
 
-	public List<TopSubscribedStoreResponse> getTopSubscribedStores(double longitude, double latitude) {
-		List<TopSubscribedStoreProjection> topStores = storeRepository.findTopSubscribedStores(longitude, latitude,
+	public List<TopSubscribedStoreResponse> getTopSubscribedStores() {
+		List<TopSubscribedStoreProjection> topStores = storeRepository.findTopSubscribedStores(
 			TOP_SUBSCRIBED_STORE_LIMIT);
+		if (topStores.isEmpty()) {
+			return List.of();
+		}
 		List<Long> storeIds = topStores.stream()
 			.map(TopSubscribedStoreProjection::getId)
 			.toList();
 		Map<Long, String> storeThumbnailMap = getStoreThumbnails(storeIds);
 
 		return topStores.stream()
-			.map(store -> TopSubscribedStoreResponse.of(store, storeThumbnailMap.get(store.getId()),
-				Math.round(store.getDistanceMeters())))
+			.map(store -> TopSubscribedStoreResponse.of(store, storeThumbnailMap.get(store.getId())))
 			.toList();
 	}
 

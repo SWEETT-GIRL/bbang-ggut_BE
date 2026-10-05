@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.letter.dto.request.LetterSendRequest;
 import sweetgirl.croissant.letter.dto.response.LetterListResponse;
@@ -42,6 +43,13 @@ public class LetterController {
 	public ApiResponse<LetterMessageResponse> send(@AuthenticationPrincipal Long memberId,
 			@Valid @RequestBody LetterSendRequest request) {
 		return ApiResponse.ok(letterService.send(memberId, request));
+	}
+
+	@Operation(summary = "편지 사진 Presigned URL 발급", description = "uploadUrl로 PUT한 뒤 awsKey를 편지의 imageKeys에 담습니다.")
+	@GetMapping("/images/presigned-url")
+	public ApiResponse<PresignedUrlResponse> getImagePresignedUrl(@AuthenticationPrincipal Long memberId,
+			@Parameter(description = "image/jpeg, image/png 등") @RequestParam String mimeType) {
+		return ApiResponse.ok(letterService.generateImagePresignedUrl(memberId, mimeType));
 	}
 
 	@Operation(summary = "안 읽은 편지 개수", description = "벨 배지 표시용. 개발자가 보낸 편지 중 안 읽은 수입니다.")
