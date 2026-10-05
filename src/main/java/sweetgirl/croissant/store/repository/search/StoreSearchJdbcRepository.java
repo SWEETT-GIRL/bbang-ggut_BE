@@ -41,7 +41,8 @@ public class StoreSearchJdbcRepository {
 				nullableDouble(rs, "center_lat"),
 				nullableDouble(rs, "center_lng"),
 				nullableInteger(rs, "radius_meters"),
-				rs.getString("parent_name"));
+				rs.getString("parent_name"),
+				rs.getDouble("steady"));
 
 	private final NamedParameterJdbcTemplate jdbcTemplate;
 

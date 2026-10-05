@@ -1,8 +1,11 @@
 package sweetgirl.croissant.store.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import java.util.List;
 import java.util.Optional;
@@ -17,6 +20,7 @@ import org.locationtech.jts.geom.PrecisionModel;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.SliceImpl;
 
@@ -35,6 +39,8 @@ import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.entity.SubscribedStore;
 import sweetgirl.croissant.store.enums.StoreStatus;
+import sweetgirl.croissant.store.enums.TrendingSignal;
+import sweetgirl.croissant.store.event.StoreTrendingSignalEvent;
 import sweetgirl.croissant.store.repository.SavedStoreRepository;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
@@ -67,6 +73,9 @@ class StoreQueryServiceTest {
 
 	@Mock
 	MemberReader memberReader;
+
+	@Mock
+	ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
 	StoreQueryService storeQueryService;
@@ -175,6 +184,26 @@ class StoreQueryServiceTest {
 		assertThat(result.isSaved()).isTrue();
 		assertThat(result.latitude()).isEqualTo(37.5665);
 		assertThat(result.longitude()).isEqualTo(126.9780);
+		// 로그인 회원의 상세 조회는 급부상 원재료다
+		verify(eventPublisher).publishEvent(new StoreTrendingSignalEvent(memberId, storeId, TrendingSignal.VIEW));
+	}
+
+	@Test
+	@DisplayName("getStoreDetail: 비로그인 조회는 급부상 신호로 세지 않는다 — 평소 수준(STORE_VIEW 적재)과 같은 기준")
+	void getStoreDetail_guest_doesNotPublishTrendingSignal() {
+		Long storeId = 10L;
+		Store store = mock(Store.class);
+		given(store.getLocation()).willReturn(new GeometryFactory(new PrecisionModel(), 4326)
+			.createPoint(new Coordinate(126.9780, 37.5665)));
+		given(storeRepository.findById(storeId)).willReturn(Optional.of(store));
+		given(storeBusinessHourRepository.findByStoreIdOrderByDayOfWeekAsc(storeId)).willReturn(List.of());
+		given(storeImageFileRepository.findByStoreIdOrderByDisplayOrderAscIdAsc(storeId)).willReturn(List.of());
+		given(menuImageFileRepository.findByMenuStoreIdAndMenuDeletedAtIsNullOrderByDisplayOrderAscIdAsc(storeId))
+			.willReturn(List.of());
+
+		storeQueryService.getStoreDetail(null, storeId);
+
+		verify(eventPublisher, never()).publishEvent(any(StoreTrendingSignalEvent.class));
 	}
 
 	@Test

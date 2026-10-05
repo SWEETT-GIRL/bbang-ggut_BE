@@ -21,6 +21,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.breadlog.code.BreadLogErrorCode;
@@ -52,6 +53,8 @@ import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.enums.TrendingSignal;
+import sweetgirl.croissant.store.event.StoreTrendingSignalEvent;
 import sweetgirl.croissant.store.repository.StoreRepository;
 import sweetgirl.croissant.world.repository.MemberWorldRepository;
 
@@ -84,6 +87,9 @@ class BreadRecordCommandServiceTest {
 	CourseProgressService courseProgressService;
 	@Mock
 	MemberWorldRepository memberWorldRepository;
+
+	@Mock
+	ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
 	BreadRecordCommandService commandService;
@@ -120,6 +126,8 @@ class BreadRecordCommandServiceTest {
 				&& tagList.get(0).getPositionY() == 0.42;
 		}));
 		verify(courseProgressService).refreshForMember(7L);
+		// 가게를 고른 기록은 급부상 신호다
+		verify(eventPublisher).publishEvent(new StoreTrendingSignalEvent(7L, 10L, TrendingSignal.RECORD));
 	}
 
 	@Test
@@ -405,6 +413,8 @@ class BreadRecordCommandServiceTest {
 		verify(tagRepository).saveAll(argThat(tags -> firstTag(tags).getMenu() == null));
 		verify(menuRepository, never()).findByStoreIdAndDeletedAtIsNullAndIdIn(any(), any());
 		verify(menuRepository, never()).findByStoreIdAndDeletedAtIsNullAndNormalizedNameIn(any(), any());
+		// 어느 가게인지 모르니 급부상 신호도 없다
+		verify(eventPublisher, never()).publishEvent(any(StoreTrendingSignalEvent.class));
 	}
 
 	@Test

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
@@ -40,6 +41,8 @@ import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreBusinessHour;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.entity.SubscribedStore;
+import sweetgirl.croissant.store.enums.TrendingSignal;
+import sweetgirl.croissant.store.event.StoreTrendingSignalEvent;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.SavedStoreRepository;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
@@ -60,6 +63,7 @@ public class StoreQueryService {
 	private final MemberReader memberReader;
 	private final MenuImageFileRepository menuImageFileRepository;
 	private final MenuRepository menuRepository;
+	private final ApplicationEventPublisher eventPublisher;
 
 	public StoreDetailResponse getStoreDetail(Long memberId, Long storeId) {
 		Store store = storeRepository.findById(storeId)
@@ -72,6 +76,10 @@ public class StoreQueryService {
 			&& subscribedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId);
 		boolean isSaved = memberId != null
 			&& savedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId);
+		// 급부상 원재료 — 로그인 회원의 상세 조회만 센다(평소 수준인 user_store_interaction 의 STORE_VIEW 와 같은 기준)
+		if (memberId != null) {
+			eventPublisher.publishEvent(new StoreTrendingSignalEvent(memberId, storeId, TrendingSignal.VIEW));
+		}
 		return StoreDetailResponse.of(store, businessHours, images, menuImages, isSubscribed, isSaved);
 	}
 

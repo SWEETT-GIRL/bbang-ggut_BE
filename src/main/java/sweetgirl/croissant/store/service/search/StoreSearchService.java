@@ -1,12 +1,14 @@
 package sweetgirl.croissant.store.service.search;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.QueryTimeoutException;
@@ -24,10 +26,13 @@ import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.searchmiss.event.SearchMissEvent;
 import sweetgirl.croissant.store.code.StoreSearchErrorCode;
+import sweetgirl.croissant.store.config.StoreTrendingProperties;
 import sweetgirl.croissant.store.dto.response.StoreAutocompleteResponse;
 import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
 import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
 import sweetgirl.croissant.store.exception.StoreSearchException;
+import sweetgirl.croissant.store.service.trending.TrendingRankingReader;
+import sweetgirl.croissant.store.service.trending.TrendingStore;
 
 @Slf4j
 @Service
@@ -52,6 +57,8 @@ public class StoreSearchService {
 	private final StoreSearchAssembler storeSearchAssembler;
 	private final MeterRegistry meterRegistry;
 	private final ApplicationEventPublisher eventPublisher;
+	private final TrendingRankingReader trendingRankingReader;
+	private final StoreTrendingProperties storeTrendingProperties;
 
 	private final Map<SearchOutcome, Counter> searchCounters = new EnumMap<>(SearchOutcome.class);
 	private final Map<SearchOutcome, Counter> autocompleteCounters = new EnumMap<>(SearchOutcome.class);
@@ -281,21 +288,26 @@ public class StoreSearchService {
 			log.warn("[자동완성] 쿼리 타임아웃 keyword={}", query);
 			return List.of();
 		}
-		Map<String, StoreAutocompleteResponse> uniqueSuggestions = new LinkedHashMap<>();
+		Map<String, StoreAutocompleteSuggestion> uniqueSuggestions = new LinkedHashMap<>();
 		for (StoreAutocompleteSuggestion suggestion : suggestions) {
-			StoreAutocompleteResponse response = StoreAutocompleteResponse.from(suggestion);
-			if (!allowedTypes.contains(response.type())) {
+			if (!allowedTypes.contains(suggestion.type())) {
 				continue;
 			}
 			// 지역은 이름이 같아도 다른 곳이다 — "중동"만 열세 곳이라 부모까지 넣어야 따로 선다.
 			// 부모 없이 묶으면 사용자가 고를 수 있는 중동이 하나뿐이게 된다.
-			String key = response.type() + ":" + response.keyword()
-				+ (response.parentName() != null ? ":" + response.parentName() : "");
-			uniqueSuggestions.putIfAbsent(key, response);
+			String key = suggestion.type() + ":" + suggestion.keyword()
+				+ (suggestion.parentName() != null ? ":" + suggestion.parentName() : "");
+			uniqueSuggestions.putIfAbsent(key, suggestion);
 		}
-		List<StoreAutocompleteResponse> responses = uniqueSuggestions.values().stream()
-			.sorted((left, right) -> Integer.compare(autocompletePriority(left), autocompletePriority(right)))
+		List<StoreAutocompleteSuggestion> ordered = new ArrayList<>(uniqueSuggestions.values());
+		ordered.sort((left, right) -> Integer.compare(autocompletePriority(left.type()),
+			autocompletePriority(right.type())));
+		if (allowedTypes.contains(AutocompleteSuggestionType.STORE)) {
+			promoteTrendingOrSteady(SearchTextNormalizer.normalize(query), ordered);
+		}
+		List<StoreAutocompleteResponse> responses = ordered.stream()
 			.limit(normalizedSize)
+			.map(StoreAutocompleteResponse::from)
 			.toList();
 		autocompleteCounter(responses.isEmpty() ? SearchOutcome.EMPTY : SearchOutcome.HIT).increment();
 		if (responses.isEmpty()) {
@@ -311,8 +323,38 @@ public class StoreSearchService {
 		return Math.min(size, MAX_AUTOCOMPLETE_SIZE);
 	}
 
-	private int autocompletePriority(StoreAutocompleteResponse response) {
-		return switch (response.type()) {
+	/**
+	 * 디저트는 유행이 빨라 '한'을 치면 지금 뜨는 가게가 지역보다 먼저 보여야 한다. 검색어로 시작하는 급부상 가게가 있으면 그 가게들을, 없으면
+	 * 요즘 꾸준히 찾는 가게(평소 수준 1위) 하나를 맨 앞에 둔다. 나머지 순서는 그대로다.
+	 */
+	private void promoteTrendingOrSteady(String normalizedQuery, List<StoreAutocompleteSuggestion> ordered) {
+		if (!storeTrendingProperties.isEnabled()) {
+			return;
+		}
+		List<TrendingStore> trending = trendingRankingReader.findStartingWith(normalizedQuery,
+			storeTrendingProperties.getMaxPromoted());
+		if (!trending.isEmpty()) {
+			Set<Long> promotedIds = trending.stream().map(TrendingStore::storeId).collect(Collectors.toSet());
+			// 목록에 이미 있으면(가게명·별칭 행) 빼고 맨 앞에 한 번만 둔다. 목록에 없던 가게도 끼워 넣는다 — 캐시가 옛 목록이어도 뜬다
+			ordered.removeIf(suggestion -> suggestion.type() == AutocompleteSuggestionType.STORE
+				&& promotedIds.contains(suggestion.storeId()));
+			ordered.addAll(0, trending.stream()
+				.map(store -> new StoreAutocompleteSuggestion(store.name(), AutocompleteSuggestionType.STORE,
+					store.storeId()))
+				.toList());
+			return;
+		}
+		for (int index = 0; index < ordered.size(); index++) {
+			if (ordered.get(index).isSteadyCandidate(storeTrendingProperties.getSteadyMinBaseline())) {
+				// 엔진이 가게를 평소 수준 순으로 세워 두므로 처음 만나는 접두 일치 가게가 스테디 1위다
+				ordered.add(0, ordered.remove(index));
+				return;
+			}
+		}
+	}
+
+	private int autocompletePriority(AutocompleteSuggestionType type) {
+		return switch (type) {
 			case REGION -> 0;
 			case BREAD_TYPE -> 1;
 			case MENU -> 2;
