@@ -19,7 +19,7 @@ import sweetgirl.croissant.monthlyreport.config.MonthlyReportAutoPreparationProp
 @RequiredArgsConstructor
 public class MonthlyReportAutoPreparationScheduler {
 	private final MonthlyReportAutoPreparationProperties properties;
-	private final MonthlyReportAdminService reports;
+	private final MonthlyReportAdminCommandService reports;
 
 	// 매월 1일 00:05 KST부터 전월을 등록한다. 중단 중 놓친 실행은 재시작/다음 시간에 회복한다.
 	@EventListener(ApplicationReadyEvent.class)

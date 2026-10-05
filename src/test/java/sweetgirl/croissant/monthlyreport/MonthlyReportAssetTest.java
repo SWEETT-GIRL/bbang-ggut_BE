@@ -23,11 +23,14 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.monthlyreport.admin.dto.MonthlyReportAdminRequests.Asset;
+import sweetgirl.croissant.monthlyreport.admin.dto.MonthlyReportAssetUploadResponse;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportAsset;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportAsset.Kind;
 import sweetgirl.croissant.monthlyreport.admin.repository.MonthlyReportAssetRepository;
-import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAssetService;
+import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAssetCommandService;
+import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAssetQueryService;
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAssetStore;
+import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAssetUploadService;
 import sweetgirl.croissant.world.repository.WorldCharacterRepository;
 import sweetgirl.croissant.world.repository.WorldPlanetRepository;
 
@@ -36,8 +39,10 @@ class MonthlyReportAssetTest {
 	private final WorldCharacterRepository characters = mock(WorldCharacterRepository.class);
 	private final WorldPlanetRepository planets = mock(WorldPlanetRepository.class);
 	private final MonthlyReportAssetStore store = mock(MonthlyReportAssetStore.class);
-	private final MonthlyReportAssetService service = new MonthlyReportAssetService(repository, characters, planets,
-		store);
+	private final MonthlyReportAssetQueryService queries = new MonthlyReportAssetQueryService(repository, characters,
+		planets);
+	private final MonthlyReportAssetUploadService service = new MonthlyReportAssetUploadService(queries,
+		new MonthlyReportAssetCommandService(repository, queries), store);
 
 	@Test
 	void uploadAllocatesUniqueKeysWithinVersionAndCoverMonth() {
@@ -72,7 +77,7 @@ class MonthlyReportAssetTest {
 		when(asset.getImageKey()).thenReturn(key);
 		when(repository.findById(id)).thenReturn(Optional.of(asset));
 		assertThat(service.registerReportAsset(new Asset("v1", Kind.COVER, "cat", "", "09", "image/png", key)))
-			.isSameAs(asset);
+			.extracting(value -> value.imageKey()).isEqualTo(key);
 		assertThatThrownBy(() -> service.registerReportAsset(new Asset("v1", Kind.COVER, "cat", "", "09", "image/png",
 			"monthly-reports/assets/v1/covers/cat/09-new.png"))).isInstanceOf(CustomException.class);
 		verify(store).validateStoredAsset(key, "image/png");
@@ -86,7 +91,7 @@ class MonthlyReportAssetTest {
 			S3Service s3 = new S3Service(presigner, mock(S3Client.class));
 			ReflectionTestUtils.setField(s3, "bucketName", "test-assets");
 			MonthlyReportAssetStore storage = new MonthlyReportAssetStore(s3);
-			MonthlyReportAssetStore.Upload upload = storage.issueAssetUploadUrl("monthly-reports/assets/v1/09.png",
+			MonthlyReportAssetUploadResponse upload = storage.issueAssetUploadUrl("monthly-reports/assets/v1/09.png",
 				"image/png");
 			assertThat(upload.headers()).containsEntry("If-None-Match", "*").containsEntry("Content-Type", "image/png");
 			assertThat(upload.uploadUrl()).contains("X-Amz-Expires=600", "if-none-match", "content-type");

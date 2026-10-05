@@ -18,7 +18,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportAsset.Kind;
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAppearanceReader;
-import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAssetService;
+import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAssetQueryService;
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportPreparation;
 import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
@@ -28,7 +28,7 @@ import sweetgirl.croissant.monthlyreport.service.MonthlyReportGenerationService.
 class MonthlyReportPreparationTest {
 	private final MonthlyReportAppearanceReader appearance = mock(MonthlyReportAppearanceReader.class);
 	private final MonthlyReportGenerationService generation = mock(MonthlyReportGenerationService.class);
-	private final MonthlyReportAssetService assets = mock(MonthlyReportAssetService.class);
+	private final MonthlyReportAssetQueryService assets = mock(MonthlyReportAssetQueryService.class);
 	private final ObjectMapper mapper = new ObjectMapper();
 	private final MonthlyReportPreparation preparation = new MonthlyReportPreparation(appearance, generation, assets,
 		mapper);
@@ -37,7 +37,7 @@ class MonthlyReportPreparationTest {
 	void selectsAssetsUsingCalculatedTypeAndKeepsAppearanceMetadata() throws Exception {
 		MonthlyReportResponse report = mapper.readValue(PAYLOAD, MonthlyReportResponse.class);
 		Instant captured = Instant.now();
-		when(appearance.draft(123L, MONTH)).thenReturn(report);
+		when(appearance.createAppearanceDraft(123L, MONTH)).thenReturn(report);
 		when(generation.prepare(eq(report), any()))
 			.thenReturn(new Prepared(report, mapper.createObjectNode(), captured));
 		when(assets.getRequiredAssetImageKey("v2", Kind.COVER, report.character().code(), "", MONTH.substring(5)))
@@ -57,7 +57,7 @@ class MonthlyReportPreparationTest {
 	@Test
 	void missingAssetBlocksPreparation() throws Exception {
 		MonthlyReportResponse report = mapper.readValue(PAYLOAD, MonthlyReportResponse.class);
-		when(appearance.draft(123L, MONTH)).thenReturn(report);
+		when(appearance.createAppearanceDraft(123L, MONTH)).thenReturn(report);
 		when(generation.prepare(eq(report), any()))
 			.thenReturn(new Prepared(report, mapper.createObjectNode(), Instant.now()));
 		when(assets.getRequiredAssetImageKey("v2", Kind.COVER, report.character().code(), "", MONTH.substring(5)))

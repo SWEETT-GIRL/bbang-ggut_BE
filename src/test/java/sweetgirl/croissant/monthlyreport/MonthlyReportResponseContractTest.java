@@ -18,10 +18,13 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import sweetgirl.croissant.config.JacksonConfig;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.global.response.SliceResponse;
+import sweetgirl.croissant.monthlyreport.admin.dto.MonthlyReportMemberResponse;
+import sweetgirl.croissant.monthlyreport.admin.dto.MonthlyReportMemberStatusResponse;
+import sweetgirl.croissant.monthlyreport.admin.dto.MonthlyReportOperationsResponse;
+import sweetgirl.croissant.monthlyreport.admin.dto.MonthlyReportProgressResponse;
+import sweetgirl.croissant.monthlyreport.admin.dto.MonthlyReportRunResponse;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportDraft;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportRun;
-import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAdminService;
-import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportOperationsService;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportListItem;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportNotificationRepository.MemberStatus;
@@ -51,20 +54,21 @@ class MonthlyReportResponseContractTest {
 	@Test
 	void adminResponsesPreserveNullableFieldsButEmptyEnvelopeOmitsData() throws Exception {
 		MonthlyReportRun run = MonthlyReportRun.create("2025-12", "v1");
-		JsonNode json = export("run", run).get("data");
+		JsonNode json = export("run", MonthlyReportRunResponse.from(run)).get("data");
 		assertThat(json.get("pushAt").isNull()).isTrue();
 		assertThat(json.get("errorCode").isNull()).isTrue();
 		assertThat(json.get("scanComplete").isBoolean()).isTrue();
-		export("progress", new MonthlyReportAdminService.Progress(run, Map.of(
+		export("progress", new MonthlyReportProgressResponse(MonthlyReportRunResponse.from(run), Map.of(
 			MonthlyReportDraft.State.PENDING, 0L, MonthlyReportDraft.State.PREPARED, 1L,
 			MonthlyReportDraft.State.FAILED, 0L, MonthlyReportDraft.State.PUBLISHED, 0L,
 			MonthlyReportDraft.State.SKIPPED, 0L, MonthlyReportDraft.State.PUBLISH_FAILED, 0L)));
-		export("members", new SliceResponse<>(List.of(new MonthlyReportAdminService.Item(123L,
+		export("members", new SliceResponse<>(List.of(new MonthlyReportMemberResponse(123L,
 			MonthlyReportDraft.State.PREPARED, 1, null)), false));
 		MemberStatus status = new SpelAwareProxyProjectionFactory().createProjection(MemberStatus.class,
 			Map.of("memberId", 123L, "pushState", "NOT_SCHEDULED", "totalAttempts", 0, "manualRetries", 0));
-		JsonNode operations = export("operations", new MonthlyReportOperationsService.Operations(1, 0, 0,
-			Map.of("NOT_SCHEDULED", 1L), new SliceResponse<>(List.of(status), false)));
+		JsonNode operations = export("operations", new MonthlyReportOperationsResponse(1, 0, 0,
+			Map.of("NOT_SCHEDULED", 1L),
+			new SliceResponse<>(List.of(MonthlyReportMemberStatusResponse.from(status)), false)));
 		assertThat(operations.at("/data/members/content/0/firstViewedAt").isNull()).isTrue();
 		assertThat(export("retry-push", null).has("data")).isFalse();
 	}

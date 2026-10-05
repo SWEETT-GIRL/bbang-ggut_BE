@@ -23,6 +23,7 @@ import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 import sweetgirl.croissant.monthlyreport.enums.MonthlyReportStatus;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportSourceHistoryRepository;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportFailureLogger;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportGenerationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportIngestRecoveryService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
@@ -43,7 +44,7 @@ public class MonthlyReportRunWorker {
 
 	/** 한 회원씩 커밋한다. 프로세스 중단 후에도 DB 상태에서 이어간다. */
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
-	public void step(UUID runId) {
+	public void processReportRunStep(UUID runId) {
 		Optional<MonthlyReportRun> locked = runs.lock(runId);
 		if (locked.isEmpty()) {
 			return;
@@ -67,7 +68,8 @@ public class MonthlyReportRunWorker {
 				recovery.ensureComplete(run.getYearMonth());
 				run.sourceReady();
 			} catch (RuntimeException e) {
-				run.block(code(e));
+				MonthlyReportFailureLogger.logFailure(run.getId(), null, null, "sources", e);
+				run.block(resolveErrorCode(e));
 				return;
 			}
 		}
@@ -99,7 +101,8 @@ public class MonthlyReportRunWorker {
 			draft.prepare(codec.write(value.report(), draft.getId().getMemberId(), run.getYearMonth()),
 				value.metrics().toString(), value.generatedAt());
 		} catch (RuntimeException e) {
-			draft.fail(code(e), false);
+			MonthlyReportFailureLogger.logFailure(run.getId(), draft.getId().getMemberId(), null, "prepare", e);
+			draft.fail(resolveErrorCode(e), false);
 		}
 	}
 
@@ -123,11 +126,12 @@ public class MonthlyReportRunWorker {
 					.filter(value -> value.getStatus() == MonthlyReportStatus.PUBLISHED).isPresent();
 			draft.finish(published);
 		} catch (RuntimeException e) {
-			draft.fail(code(e), true);
+			MonthlyReportFailureLogger.logFailure(run.getId(), draft.getId().getMemberId(), null, "publish", e);
+			draft.fail(resolveErrorCode(e), true);
 		}
 	}
 
-	private String code(RuntimeException exception) {
+	private String resolveErrorCode(RuntimeException exception) {
 		return exception instanceof CustomException custom ? custom.getErrorCode().getCode()
 			: "REPORT_OPERATION_FAILED";
 	}

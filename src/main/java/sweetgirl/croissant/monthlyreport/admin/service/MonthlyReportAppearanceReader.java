@@ -36,7 +36,7 @@ public class MonthlyReportAppearanceReader {
 	private final WorldCatalogService catalogService;
 	private final WorldProgressCalculator calculator;
 
-	public MonthlyReportResponse draft(Long memberId, String month) {
+	public MonthlyReportResponse createAppearanceDraft(Long memberId, String month) {
 		MemberWorld world = worlds.findById(memberId).orElse(null);
 		WorldCharacter character = world == null ? characters.findByMascotTrue().orElseThrow()
 			: characters.findById(world.getSelectedCharacter()).orElseThrow();

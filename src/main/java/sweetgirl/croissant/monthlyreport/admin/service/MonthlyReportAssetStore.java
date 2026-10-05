@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.monthlyreport.admin.dto.MonthlyReportAssetUploadResponse;
 import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 
 @Service
@@ -15,9 +16,9 @@ import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 public class MonthlyReportAssetStore {
 	private final S3Service storage;
 
-	public Upload issueAssetUploadUrl(String key, String type) {
+	public MonthlyReportAssetUploadResponse issueAssetUploadUrl(String key, String type) {
 		String url = storage.generateImmutableUploadUrl(key, type);
-		return new Upload(key, url, Map.of("Content-Type", type, "If-None-Match", "*"));
+		return new MonthlyReportAssetUploadResponse(key, url, Map.of("Content-Type", type, "If-None-Match", "*"));
 	}
 
 	public void validateStoredAsset(String key, String type) {
@@ -28,6 +29,4 @@ public class MonthlyReportAssetStore {
 		}
 	}
 
-	public record Upload(String imageKey, String uploadUrl, Map<String, String> headers) {
-	}
 }

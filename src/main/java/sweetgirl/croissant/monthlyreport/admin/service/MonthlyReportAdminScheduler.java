@@ -25,11 +25,11 @@ public class MonthlyReportAdminScheduler {
 	private final MonthlyReportPushWorker pushWorker;
 
 	@Scheduled(fixedDelayString = "${monthly-report.admin.poll-delay-ms:5000}")
-	public void process() {
+	public void processActiveReportRuns() {
 		for (UUID id : runs.findActive(List.of(State.PREPARING, State.PUBLISHING), PageRequest.of(0, 20))) {
 			for (int i = 0; i < 20; i++) {
 				try {
-					worker.step(id);
+					worker.processReportRunStep(id);
 				} catch (RuntimeException e) {
 					log.error("월간 어드민 작업 처리 실패 runId={}", id, e);
 					break;
@@ -39,7 +39,7 @@ public class MonthlyReportAdminScheduler {
 	}
 
 	@Scheduled(fixedDelayString = "${monthly-report.admin.push-delay-ms:10000}")
-	public void sendPushes() {
+	public void sendScheduledReportPushes() {
 		for (Long id : pushes.findDue(Instant.now(), PageRequest.of(0, 100))) {
 			try {
 				pushWorker.sendScheduledReportPush(id);

@@ -17,12 +17,12 @@ import sweetgirl.croissant.monthlyreport.service.MonthlyReportGenerationService.
 public class MonthlyReportPreparation {
 	private final MonthlyReportAppearanceReader appearance;
 	private final MonthlyReportGenerationService generation;
-	private final MonthlyReportAssetService assets;
+	private final MonthlyReportAssetQueryService assets;
 	private final ObjectMapper mapper;
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
 	public Prepared prepare(Long memberId, String month, String assetVersion) {
-		Prepared prepared = generation.prepare(appearance.draft(memberId, month),
+		Prepared prepared = generation.prepare(appearance.createAppearanceDraft(memberId, month),
 			mapper.createObjectNode().put("assemblyVersion", "admin-report-v1"));
 		MonthlyReportResponse report = prepared.report();
 		String character = report.character().code();

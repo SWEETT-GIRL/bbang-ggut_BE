@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
-import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAdminService;
+import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAdminCommandService;
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAutoPreparationScheduler;
 import sweetgirl.croissant.monthlyreport.config.MonthlyReportAutoPreparationProperties;
 
@@ -27,7 +27,7 @@ class MonthlyReportAutoPreparationTest {
 	@Test
 	void disabledByDefaultAndEnabledRequiresValidAssetVersion() {
 		MonthlyReportAutoPreparationProperties properties = new MonthlyReportAutoPreparationProperties();
-		MonthlyReportAdminService reports = mock(MonthlyReportAdminService.class);
+		MonthlyReportAdminCommandService reports = mock(MonthlyReportAdminCommandService.class);
 		new MonthlyReportAutoPreparationScheduler(properties, reports).prepare();
 		verifyNoInteractions(reports);
 		try (ValidatorFactory factory = Validation.buildDefaultValidatorFactory()) {
@@ -47,7 +47,7 @@ class MonthlyReportAutoPreparationTest {
 		MonthlyReportAutoPreparationProperties properties = new MonthlyReportAutoPreparationProperties();
 		properties.setEnabled(true);
 		properties.setAssetVersion("v1");
-		MonthlyReportAdminService reports = mock(MonthlyReportAdminService.class);
+		MonthlyReportAdminCommandService reports = mock(MonthlyReportAdminCommandService.class);
 		doThrow(new IllegalStateException("DB unavailable")).doNothing()
 			.when(reports).registerAutomaticReportRun(anyString(), eq("v1"));
 		MonthlyReportAutoPreparationScheduler scheduler = new MonthlyReportAutoPreparationScheduler(properties,
