@@ -31,6 +31,16 @@ public class MonthlyReportPublicationService {
 
 	public boolean publish(Long memberId, String yearMonth, MonthlyReportResponse report, JsonNode rawMetrics,
 			String calculationVersion, Instant generatedAt) {
+		return persist(memberId, yearMonth, report, rawMetrics, calculationVersion, generatedAt, true);
+	}
+
+	public boolean publishWithoutNotification(Long memberId, String yearMonth, MonthlyReportResponse report,
+			JsonNode rawMetrics, String calculationVersion, Instant generatedAt) {
+		return persist(memberId, yearMonth, report, rawMetrics, calculationVersion, generatedAt, false);
+	}
+
+	private boolean persist(Long memberId, String yearMonth, MonthlyReportResponse report, JsonNode rawMetrics,
+			String calculationVersion, Instant generatedAt, boolean notify) {
 		Member member = memberReader.getMember(memberId);
 		YearMonth month = MonthlyReportMonth.parse(yearMonth);
 		Instant publishedAt = Instant.now();
@@ -50,7 +60,7 @@ public class MonthlyReportPublicationService {
 		codec.readPhotoSources(rawMetrics.toString());
 		boolean published = repository.publish(memberId, yearMonth, payload, rawMetrics.toString(), calculationVersion,
 			generatedAt, publishedAt) == 1;
-		if (published) {
+		if (published && notify) {
 			notificationService.recordPublished(member, month,
 				LocalDateTime.ofInstant(publishedAt, ZoneId.of("Asia/Seoul")));
 		}

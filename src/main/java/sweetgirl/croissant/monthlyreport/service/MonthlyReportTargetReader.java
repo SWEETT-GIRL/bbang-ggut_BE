@@ -20,6 +20,13 @@ import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 public class MonthlyReportTargetReader {
 	private final MemberRepository members;
 
+	public boolean isEligible(Long memberId, String yearMonth) {
+		YearMonth month = MonthlyReportMonth.parse(yearMonth);
+		return members.findById(memberId).filter(member -> !member.isDeleted()
+			&& "USER".equals(member.getMemberType()) && member.getCreatedAt() != null
+			&& member.getCreatedAt().isBefore(month.plusMonths(1).atDay(1).atStartOfDay())).isPresent();
+	}
+
 	public Slice<Long> nextPage(String yearMonth, long afterMemberId, int size) {
 		YearMonth month = MonthlyReportMonth.parse(yearMonth);
 		if (!month.isBefore(YearMonth.now(ZoneId.of("Asia/Seoul")))) {

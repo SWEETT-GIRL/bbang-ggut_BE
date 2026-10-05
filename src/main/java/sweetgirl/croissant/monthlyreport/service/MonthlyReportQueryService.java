@@ -76,7 +76,7 @@ public class MonthlyReportQueryService {
 		}
 	}
 
-	private MonthlyReportResponse resolveCurrentPhotos(MonthlyReportResponse report,
+	public MonthlyReportResponse resolveCurrentPhotos(MonthlyReportResponse report,
 			Map<String, MonthlyReportPhotoSource> sources) {
 		Set<UUID> references = sources.values().stream().map(MonthlyReportPhotoSource::photoReferenceId)
 			.collect(Collectors.toSet());
