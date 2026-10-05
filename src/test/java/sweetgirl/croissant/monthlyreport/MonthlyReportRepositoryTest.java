@@ -102,10 +102,10 @@ class MonthlyReportRepositoryTest {
 					resized_key_320 text, resized_key_640 text, resized_key_1024 text)
 				""");
 		new ResourceDatabasePopulator(new ClassPathResource(
-			"db/migration/V20261001131708__create_monthly_report_member.sql"),
-			new ClassPathResource("db/migration/V20261001140644__add_monthly_report_appearance.sql"),
-			new ClassPathResource("db/migration/V20261001170000__add_bread_photo_reference.sql"),
-			new ClassPathResource("db/migration/V20261001170100__link_monthly_report_bread_photos.sql"))
+			"db/migration/V20261005222045__create_monthly_report_member.sql"),
+			new ClassPathResource("db/migration/V20261005222046__add_monthly_report_appearance.sql"),
+			new ClassPathResource("db/migration/V20261005222047__add_bread_photo_reference.sql"),
+			new ClassPathResource("db/migration/V20261005222048__link_monthly_report_bread_photos.sql"))
 			.execute(scopedSource);
 		var factory = new LocalContainerEntityManagerFactoryBean();
 		factory.setDataSource(scopedSource);
@@ -251,7 +251,7 @@ class MonthlyReportRepositoryTest {
 		publish(123L, "2025-10", PAYLOAD.replace(oldKey, "foreign"));
 		String original = repository.findById(new MonthlyReportMemberId(123L, MONTH)).orElseThrow().getPayload();
 		new ResourceDatabasePopulator(new ClassPathResource(
-			"db/migration/V20261001170100__link_monthly_report_bread_photos.sql")).execute(jdbc.getDataSource());
+			"db/migration/V20261005222048__link_monthly_report_bread_photos.sql")).execute(jdbc.getDataSource());
 		var mapper = new ObjectMapper();
 		var snapshot = repository.findById(new MonthlyReportMemberId(123L, MONTH)).orElseThrow();
 		assertThat(snapshot.getPayload()).isEqualTo(original);
@@ -333,7 +333,7 @@ class MonthlyReportRepositoryTest {
 			oldJdbc.execute("CREATE TABLE member (id bigint PRIMARY KEY)");
 			oldJdbc.update("INSERT INTO member VALUES (123)");
 			new ResourceDatabasePopulator(new ClassPathResource(
-				"db/migration/V20261001131708__create_monthly_report_member.sql")).execute(source);
+				"db/migration/V20261005222045__create_monthly_report_member.sql")).execute(source);
 			oldJdbc.update(
 				"""
 								INSERT INTO monthly_report_member
@@ -343,7 +343,7 @@ class MonthlyReportRepositoryTest {
 								""",
 				PAYLOAD);
 			new ResourceDatabasePopulator(new ClassPathResource(
-				"db/migration/V20261001140644__add_monthly_report_appearance.sql")).execute(source);
+				"db/migration/V20261005222046__add_monthly_report_appearance.sql")).execute(source);
 			var row = oldJdbc.queryForMap("SELECT character_code, character_name, character_image_key, "
 				+ "planet_code, planet_name FROM monthly_report_member");
 			assertThat(row).containsEntry("character_code", "cat").containsEntry("character_name", "냥이")

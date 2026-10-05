@@ -106,9 +106,9 @@ class MonthlyReportJobTest {
 					deleted_at timestamp)
 				""");
 		new ResourceDatabasePopulator(
-			new ClassPathResource("db/migration/V20261001131708__create_monthly_report_member.sql"),
-			new ClassPathResource("db/migration/V20261001140644__add_monthly_report_appearance.sql"),
-			new ClassPathResource("db/migration/V20261001210000__create_monthly_report_jobs.sql")).execute(source);
+			new ClassPathResource("db/migration/V20261005222045__create_monthly_report_member.sql"),
+			new ClassPathResource("db/migration/V20261005222046__add_monthly_report_appearance.sql"),
+			new ClassPathResource("db/migration/V20261005222051__create_monthly_report_jobs.sql")).execute(source);
 		LocalContainerEntityManagerFactoryBean factory = new LocalContainerEntityManagerFactoryBean();
 		factory.setDataSource(source);
 		factory.setManagedTypes(PersistenceManagedTypes.of(MonthlyReportJob.class.getName(),

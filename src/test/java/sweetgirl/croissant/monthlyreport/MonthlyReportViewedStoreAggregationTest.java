@@ -52,7 +52,7 @@ class MonthlyReportViewedStoreAggregationTest {
 		jdbc.execute("CREATE SCHEMA " + schema);
 		source.setSchema(schema);
 		new ResourceDatabasePopulator(new ClassPathResource(
-			"db/migration/V20261001200000__track_interaction_ingest_days.sql")).execute(source);
+			"db/migration/V20261005222050__track_interaction_ingest_days.sql")).execute(source);
 		jdbc.execute("""
 				CREATE TABLE user_store_interaction (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 					member_id bigint, store_id bigint, menu_id bigint, type varchar(24), context varchar(24),

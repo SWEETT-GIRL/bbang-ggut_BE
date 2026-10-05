@@ -124,11 +124,11 @@ class MonthlyReportAdminTest {
 		jdbc.execute("CREATE TABLE member (id bigint PRIMARY KEY)");
 		jdbc.execute("CREATE TABLE notification (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY)");
 		new ResourceDatabasePopulator(
-			new ClassPathResource("db/migration/V20261001131708__create_monthly_report_member.sql"),
-			new ClassPathResource("db/migration/V20261001140644__add_monthly_report_appearance.sql"),
-			new ClassPathResource("db/migration/V20261005120000__monthly_report_assets.sql"),
-			new ClassPathResource("db/migration/V20261005120001__monthly_report_push.sql"),
-			new ClassPathResource("db/migration/V20261005120002__monthly_report_admin.sql")).execute(source);
+			new ClassPathResource("db/migration/V20261005222045__create_monthly_report_member.sql"),
+			new ClassPathResource("db/migration/V20261005222046__add_monthly_report_appearance.sql"),
+			new ClassPathResource("db/migration/V20261005222052__monthly_report_assets.sql"),
+			new ClassPathResource("db/migration/V20261005222053__monthly_report_push.sql"),
+			new ClassPathResource("db/migration/V20261005222054__monthly_report_admin.sql")).execute(source);
 		LocalContainerEntityManagerFactoryBean factory = new LocalContainerEntityManagerFactoryBean();
 		factory.setDataSource(source);
 		factory.setJpaVendorAdapter(new HibernateJpaVendorAdapter());

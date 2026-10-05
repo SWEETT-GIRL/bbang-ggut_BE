@@ -81,13 +81,13 @@ class MonthlyReportBreadAggregationTest {
 		source.setSchema(schema);
 		jdbc = new JdbcTemplate(source);
 		new ResourceDatabasePopulator(new ClassPathResource("monthly-report-bread-aggregation.sql"),
-			new ClassPathResource("db/migration/V20261001131708__create_monthly_report_member.sql"),
-			new ClassPathResource("db/migration/V20261001140644__add_monthly_report_appearance.sql"),
-			new ClassPathResource("db/migration/V20261001170000__add_bread_photo_reference.sql"),
-			new ClassPathResource("db/migration/V20261001170100__link_monthly_report_bread_photos.sql"))
+			new ClassPathResource("db/migration/V20261005222045__create_monthly_report_member.sql"),
+			new ClassPathResource("db/migration/V20261005222046__add_monthly_report_appearance.sql"),
+			new ClassPathResource("db/migration/V20261005222047__add_bread_photo_reference.sql"),
+			new ClassPathResource("db/migration/V20261005222048__link_monthly_report_bread_photos.sql"))
 			.execute(source);
 		ResourceDatabasePopulator historyMigration = new ResourceDatabasePopulator(new ClassPathResource(
-			"db/migration/V20261001190000__create_monthly_report_source_history.sql"));
+			"db/migration/V20261005222049__create_monthly_report_source_history.sql"));
 		historyMigration.setSeparator(ScriptUtils.EOF_STATEMENT_SEPARATOR);
 		new TransactionTemplate(new DataSourceTransactionManager(source))
 			.executeWithoutResult(status -> historyMigration.execute(source));

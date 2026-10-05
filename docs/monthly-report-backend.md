@@ -143,7 +143,7 @@ payload에 남아 있는 발행 당시 nickname은 조회 응답에서 사용하
 발행된 회원·월에 다시 호출해도 캐릭터·행성과 payload를 덮어쓰지 않는다.
 어드민 경로는 초안 생성 시점의 세계관을 저장하고 미리보기와 발행본에 동일하게 사용한다. 과거 월말 세계관을 복원하지 않는다.
 
-`V20261001140644__add_monthly_report_appearance.sql`은 기존 발행 payload에서 다섯 열을 채운다.
+`V20261005222046__add_monthly_report_appearance.sql`은 기존 발행 payload에서 다섯 열을 채운다.
 현재 프로필을 사용해 과거 값을 추정하지 않는다. 코드뿐 아니라 표시 이름과 이미지 키도 복사하므로
 카탈로그 이름이나 사용자 선택이 바뀌어도 과거 보고서의 값은 유지된다.
 이미지 파일 자체가 바뀌지 않게 하려면 기존 계약대로 버전이 포함된 불변 CDN 키를 사용한다.
@@ -322,8 +322,8 @@ monthly-report.batch.retry-delay-minutes=30
 - 사진을 삭제하고 별도 사진을 추가하는 경우 originalPhotoId를 보내지 않는다. 보고서의 삭제된 사진을 다른 사진으로 대체하지 않는다.
 - 프론트의 originalPhotoId 전송 연결은 별도 반영이 필요하다. 응답 imageKey 구조와 기존 업로드 API는 유지한다.
 
-`V20261001170000__add_bread_photo_reference.sql`은 사진 UUID를 채우고,
-`V20261001170100__link_monthly_report_bread_photos.sql`은 기존 보고서의 사진 키가 본인 사진 한 건에만
+`V20261005222047__add_bread_photo_reference.sql`은 사진 UUID를 채우고,
+`V20261005222048__link_monthly_report_bread_photos.sql`은 기존 보고서의 사진 키가 본인 사진 한 건에만
 대응하는 경우 출처를 연결한다. 삭제된 사진이나 여러 기록에 공유된 키의 출처는 추측하지 않는다.
 
 `MonthlyReportPayloadCodec.write`는 DTO를 JSON 문자열로 직렬화하고, `read`는 저장된 문자열을 DTO로 역직렬화한다.
@@ -482,7 +482,7 @@ JPA 매핑을 실제 PostgreSQL 스키마와 validate하며, 캐릭터 선택·�
 
 ## 월말 원천 이력 저장
 
-`V20261001190000__create_monthly_report_source_history.sql`은 원본 테이블의 현재 상태를 기준 이력으로 적재하고
+`V20261005222049__create_monthly_report_source_history.sql`은 원본 테이블의 현재 상태를 기준 이력으로 적재하고
 INSERT/UPDATE/DELETE 트리거를 설치한다. 원본 변경과 이력은 같은 트랜잭션에서 함께 커밋하거나 롤백한다.
 이력 실패를 무시하지 않는다. 운영 DB에 이 마이그레이션을 적용하는 작업은 아직 수행하지 않았다.
 
