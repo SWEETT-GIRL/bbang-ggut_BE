@@ -204,4 +204,18 @@ class StoreSearchEngineTest {
 		assertThat(suggestions.get(2).storeId()).isNull();
 		assertThat(suggestions.get(0).storeId()).isEqualTo(1L);
 	}
+
+	@Test
+	void autocompleteStores_ordersSteadyStoresBeforeCumulativePopularityWithinTier() {
+		// 같은 접두 일치 안에서는 요즘 꾸준히 찾는 가게(평소 수준)가 누적 인기도보다 앞선다 — 예전에 유명했던 가게가 위를 막지 않게
+		given(storeSearchJdbcRepository.autocomplete(any())).willReturn(List.of(
+			new StoreAutocompleteRow("한옛날빵집", "STORE", 1L, 0, 900, null, null, null, null, 0.1),
+			new StoreAutocompleteRow("한요즘빵집", "STORE", 2L, 0, 10, null, null, null, null, 2.5)));
+
+		List<StoreAutocompleteSuggestion> suggestions = engine.autocompleteStores("한", 10);
+
+		assertThat(suggestions).extracting(StoreAutocompleteSuggestion::keyword).containsExactly("한요즘빵집", "한옛날빵집");
+		assertThat(suggestions.get(0).tier()).isZero();
+		assertThat(suggestions.get(0).steadyScore()).isEqualTo(2.5);
+	}
 }

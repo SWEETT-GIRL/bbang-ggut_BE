@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.time.LocalDateTime;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.breadlog.dto.request.StorePlanUpsertRequest;
@@ -26,6 +28,8 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.enums.TrendingSignal;
+import sweetgirl.croissant.store.event.StoreTrendingSignalEvent;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,6 +43,9 @@ class StorePlanServiceTest {
 	StoreRepository storeRepository;
 	@Mock
 	StorePlanRepository storePlanRepository;
+
+	@Mock
+	ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
 	StorePlanService storePlanService;
@@ -62,6 +69,7 @@ class StorePlanServiceTest {
 
 		assertThat(result.memo()).isEqualTo("소금빵 꼭 먹기");
 		verify(storePlanRepository).save(argThat(plan -> plan.getMember() == member && plan.getStore() == store));
+		verify(eventPublisher).publishEvent(new StoreTrendingSignalEvent(7L, 10L, TrendingSignal.PLAN));
 	}
 
 	@Test
@@ -77,6 +85,8 @@ class StorePlanServiceTest {
 		StorePlanResponse result = storePlanService.upsert(7L, 10L, new StorePlanUpsertRequest("새 메모"));
 
 		assertThat(result.memo()).isEqualTo("새 메모");
+		// 메모 수정은 새 관심이 아니다
+		verify(eventPublisher, never()).publishEvent(any(StoreTrendingSignalEvent.class));
 	}
 
 	private Member member(Long id) {

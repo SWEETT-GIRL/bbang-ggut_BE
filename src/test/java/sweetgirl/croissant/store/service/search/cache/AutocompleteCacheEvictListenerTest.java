@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import sweetgirl.croissant.store.event.StorePopularityRefreshedEvent;
 import sweetgirl.croissant.store.event.StoreSearchNameChangedEvent;
+import sweetgirl.croissant.store.event.StoreTrendingBaselineRefreshedEvent;
 
 @ExtendWith(MockitoExtension.class)
 class AutocompleteCacheEvictListenerTest {
@@ -36,6 +37,14 @@ class AutocompleteCacheEvictListenerTest {
 	@DisplayName("인기도를 다시 계산하면 순서가 통째로 바뀌므로 전체를 비운다")
 	void popularityRefreshed_evictsAll() {
 		listener.onStorePopularityRefreshed(new StorePopularityRefreshedEvent(45_339));
+
+		verify(invalidator).evictAll();
+	}
+
+	@Test
+	@DisplayName("평소 수준을 다시 계산하면 스테디 순서가 바뀌므로 전체를 비운다")
+	void trendingBaselineRefreshed_evictsAll() {
+		listener.onStoreTrendingBaselineRefreshed(new StoreTrendingBaselineRefreshedEvent(10));
 
 		verify(invalidator).evictAll();
 	}
