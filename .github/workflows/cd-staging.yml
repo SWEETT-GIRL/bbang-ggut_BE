@@ -221,6 +221,9 @@ jobs:
             echo "PERF_DASHBOARD_ENABLED=true" >> .env
             echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env
             echo "ADMIN_API_KEY=${{ secrets.STAGING_ADMIN_API_KEY }}" >> .env
+            echo "REDIS_PASSWORD=${{ secrets.STAGING_REDIS_PASSWORD }}" >> .env
+            # 자동완성 Redis 캐시 스위치 — 저장소 변수로 켠다(없으면 꺼짐, 매번 DB)
+            echo "AUTOCOMPLETE_CACHE_ENABLED=${{ vars.STAGING_AUTOCOMPLETE_CACHE_ENABLED || 'false' }}" >> .env
             echo "SCOUTER_OBJ_NAME=bbang-staging" >> .env
             echo "SCOUTER_SERVER_PORT=6100" >> .env
             echo "SCOUTER_WEB_PORT=6188" >> .env

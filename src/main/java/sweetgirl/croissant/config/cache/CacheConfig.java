@@ -13,11 +13,11 @@ import org.springframework.context.annotation.Configuration;
 import com.github.benmanes.caffeine.cache.Caffeine;
 
 /**
- * 짧은 인메모리 캐시 — 같은 요청이 몰리는 집계·자동완성만. 서버가 한 대라 인스턴스 간 불일치는 없다.
+ * 짧은 인메모리 캐시 — 같은 요청이 몰리는 집계만. 서버가 한 대라 인스턴스 간 불일치는 없다.
+ * 가게 자동완성은 TTL(7일)이 배포 주기보다 길어 메모리 대신 Redis 에 둔다({@code StoreAutocompleteCache}).
  * 캐시마다 TTL 이 달라 하나의 spec 이 아니라 캐시별로 만든다.
  *
- * <p>recordStats 로 히트·미스를 세어 Spring Boot 가 {@code cache_gets_total{cache,result}} 로 노출한다 — 자동완성 TTL(30초)이
- * 맞는지는 히트율을 보고 정한다(2026-10 조사 때 캐시는 있었지만 히트율을 아무도 몰랐다).
+ * <p>recordStats 로 히트·미스를 세어 Spring Boot 가 {@code cache_gets_total{cache,result}} 로 노출한다.
  */
 @Configuration
 @EnableCaching
@@ -27,8 +27,6 @@ public class CacheConfig {
 	public static final String BREAD_BOARD = "breadBoard";
 	/** 빵집 탭 목록(10명 이상 종류) */
 	public static final String BREAD_BOARD_CATEGORIES = "breadBoardCategories";
-	/** 가게 자동완성(검색어·size 별) — 가장 느리고 가장 자주 불리는 조회 */
-	public static final String STORE_AUTOCOMPLETE = "storeAutocomplete";
 
 	@Bean
 	public CacheManager cacheManager() {
@@ -37,9 +35,7 @@ public class CacheConfig {
 			new CaffeineCache(BREAD_BOARD, Caffeine.newBuilder()
 				.expireAfterWrite(Duration.ofMinutes(1)).maximumSize(500).recordStats().build()),
 			new CaffeineCache(BREAD_BOARD_CATEGORIES, Caffeine.newBuilder()
-				.expireAfterWrite(Duration.ofMinutes(1)).maximumSize(4).recordStats().build()),
-			new CaffeineCache(STORE_AUTOCOMPLETE, Caffeine.newBuilder()
-				.expireAfterWrite(Duration.ofSeconds(30)).maximumSize(5_000).recordStats().build())));
+				.expireAfterWrite(Duration.ofMinutes(1)).maximumSize(4).recordStats().build())));
 		return manager;
 	}
 }

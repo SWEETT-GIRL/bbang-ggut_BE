@@ -3,7 +3,9 @@ package sweetgirl.croissant.store.service.search;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -19,6 +21,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.data.domain.PageRequest;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import sweetgirl.croissant.store.config.StoreAutocompleteCacheProperties;
 import sweetgirl.croissant.store.config.StoreSearchProperties;
 import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
 import sweetgirl.croissant.store.enums.MatchedField;
@@ -26,6 +30,7 @@ import sweetgirl.croissant.store.repository.search.SearchSqlQuery;
 import sweetgirl.croissant.store.repository.search.StoreAutocompleteRow;
 import sweetgirl.croissant.store.repository.search.StoreSearchJdbcRepository;
 import sweetgirl.croissant.store.repository.search.StoreSearchRow;
+import sweetgirl.croissant.store.service.search.cache.StoreAutocompleteCache;
 
 @ExtendWith(MockitoExtension.class)
 class StoreSearchEngineTest {
@@ -38,8 +43,11 @@ class StoreSearchEngineTest {
 	@BeforeEach
 	void setUp() {
 		// SQL 빌더는 순수 로직이라 실제 구현을 쓴다 — 계획 → SQL 파라미터까지 함께 검증된다.
+		// 캐시는 꺼 둔다(매번 DB) — 캐시 동작은 StoreAutocompleteCacheTest 가 따로 본다
+		StoreAutocompleteCache disabledCache = new StoreAutocompleteCache(null, null,
+			new StoreAutocompleteCacheProperties(), new SimpleMeterRegistry());
 		engine = new StoreSearchEngine(new StoreSearchSqlBuilder(new StoreSearchProperties()),
-			storeSearchJdbcRepository);
+			storeSearchJdbcRepository, disabledCache);
 	}
 
 	private static SearchIntent intent(String raw, List<String> regions, List<String> breads, List<String> remaining) {
@@ -158,6 +166,20 @@ class StoreSearchEngineTest {
 
 		assertThatThrownBy(() -> engine.searchStores(intent, PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE))
 			.isInstanceOf(DataAccessResourceFailureException.class);
+	}
+
+	@Test
+	void autocompleteStores_usesNormalizedQueryAsCacheKey() {
+		// "성심 당"과 "성심당"이 같은 캐시를 나눠 쓴다 — 키는 정규화한 검색어
+		StoreAutocompleteCache cache = mock(StoreAutocompleteCache.class);
+		given(cache.getOrLoad(eq("성심당"), eq(10), any())).willReturn(List.of());
+		StoreSearchEngine cachedEngine = new StoreSearchEngine(new StoreSearchSqlBuilder(new StoreSearchProperties()),
+			storeSearchJdbcRepository, cache);
+
+		cachedEngine.autocompleteStores("성심 당!", 10);
+
+		verify(cache).getOrLoad(eq("성심당"), eq(10), any());
+		verify(storeSearchJdbcRepository, never()).autocomplete(any());
 	}
 
 	@Test

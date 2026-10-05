@@ -276,7 +276,7 @@ public class StoreSearchService {
 		try {
 			suggestions = storeSearchEngine.autocompleteStores(query, fetchSize);
 		} catch (QueryTimeoutException exception) {
-			// 추천어는 없어도 되는 기능이다 — 500 대신 빈 목록으로 조용히 물러난다. 예외는 엔진에서 던지므로 @Cacheable 이 빈 결과를 캐시하지 않는다.
+			// 추천어는 없어도 되는 기능이다 — 500 대신 빈 목록으로 조용히 물러난다. 예외는 엔진에서 던지므로 Redis 캐시가 빈 결과를 담지 않는다.
 			autocompleteCounter(SearchOutcome.TIMEOUT).increment();
 			log.warn("[자동완성] 쿼리 타임아웃 keyword={}", query);
 			return List.of();

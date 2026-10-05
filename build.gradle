@@ -31,6 +31,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-restclient'
     implementation 'org.springframework.boot:spring-boot-starter-cache'
     implementation 'com.github.ben-manes.caffeine:caffeine'
+    // 자동완성 캐시 — 배포(blue/green 전환)로 JVM 이 바뀌어도 남아야 해서 앱 밖에 둔다
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     // @Timed 등 애노테이션 기반 계측용 (Boot 4부터 starter-aop → starter-aspectj)
     implementation 'org.springframework.boot:spring-boot-starter-aspectj'
     implementation 'com.nimbusds:nimbus-jose-jwt:9.37.3'

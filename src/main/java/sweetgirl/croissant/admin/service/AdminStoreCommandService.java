@@ -4,11 +4,13 @@ import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.PrecisionModel;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +29,7 @@ import sweetgirl.croissant.store.entity.StoreBusinessHour;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.enums.StoreSource;
 import sweetgirl.croissant.store.enums.StoreStatus;
+import sweetgirl.croissant.store.event.StoreSearchNameChangedEvent;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.NaverEnrichCandidateRepository;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
@@ -57,6 +60,7 @@ public class AdminStoreCommandService {
 	private final MenuRepository menuRepository;
 	private final NaverEnrichOrchestrator naverEnrichOrchestrator;
 	private final NaverEnrichCandidateRepository candidateRepository;
+	private final ApplicationEventPublisher eventPublisher;
 
 	public AdminStoreResponse createStore(AdminStoreCreateRequest request) {
 		Point location = toPoint(request.coord().latitude(), request.coord().longitude());
@@ -76,6 +80,7 @@ public class AdminStoreCommandService {
 			.category(request.category())
 			.build();
 		store = storeRepository.save(store);
+		eventPublisher.publishEvent(StoreSearchNameChangedEvent.of(store.getName()));
 
 		saveBusinessHours(store, request.hours());
 		return buildResponse(store);
@@ -89,9 +94,15 @@ public class AdminStoreCommandService {
 			? toPoint(request.coord().latitude(), request.coord().longitude()) : null;
 		String[] addr = request.address() != null ? AddressParser.parse(request.address()) : new String[3];
 		StoreStatus newStatus = resolveStatus(request);
+		String previousName = store.getName();
+		StoreStatus previousStatus = store.getStatus();
 
 		store.update(request.name(), request.address(), newLocation, addr[0], addr[1], addr[2],
 			request.phone(), newStatus, request.category());
+		// 이름이나 노출 여부가 바뀌면 자동완성 결과가 달라진다 — 옛 이름으로 캐시된 검색어도 지워야 해서 둘 다 넘긴다
+		if (!Objects.equals(previousName, store.getName()) || previousStatus != store.getStatus()) {
+			eventPublisher.publishEvent(StoreSearchNameChangedEvent.of(previousName, store.getName()));
+		}
 
 		if (request.hours() != null) {
 			storeBusinessHourRepository.deleteByStoreId(storeId);
@@ -102,8 +113,12 @@ public class AdminStoreCommandService {
 	public void deleteStore(Long storeId) {
 		Store store = storeRepository.findById(storeId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
+		boolean wasActive = store.getStatus() != StoreStatus.DELETED;
 		store.update(null, null, null, null, null, null, null, StoreStatus.DELETED, null);
 		candidateRepository.deleteByStoreId(storeId);
+		if (wasActive) {
+			eventPublisher.publishEvent(StoreSearchNameChangedEvent.of(store.getName()));
+		}
 	}
 
 	public void deleteNaverClosedSuspect(Long storeId) {
