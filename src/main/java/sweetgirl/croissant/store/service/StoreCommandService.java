@@ -2,6 +2,7 @@ package sweetgirl.croissant.store.service;
 
 import java.util.Optional;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +16,7 @@ import sweetgirl.croissant.store.dto.response.KakaoStoreRegisterResponse;
 import sweetgirl.croissant.store.dto.response.NaverStoreRegisterResponse;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.SubscribedStore;
+import sweetgirl.croissant.store.event.StoreSearchNameChangedEvent;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.StoreRepository;
 import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
@@ -27,6 +29,7 @@ public class StoreCommandService {
 	private final StoreRepository storeRepository;
 	private final SubscribedStoreRepository subscribedStoreRepository;
 	private final MemberReader memberReader;
+	private final ApplicationEventPublisher eventPublisher;
 
 	public KakaoStoreRegisterResponse registerKakaoStore(KakaoStoreRegisterRequest request) {
 		Optional<Store> storeByKakaoPlaceId = storeRepository.findByKakaoPlaceId(request.kakaoPlaceId());
@@ -53,6 +56,8 @@ public class StoreCommandService {
 			Double.parseDouble(request.x()), Double.parseDouble(request.y()),
 			request.phone(), request.kakaoPlaceId(),
 			null);
+		// ON CONFLICT DO NOTHING 이라 새로 안 생겼을 수도 있다 — 그래도 지우는 것은 안전하다(다음 검색이 다시 채운다)
+		eventPublisher.publishEvent(StoreSearchNameChangedEvent.of(request.name()));
 		Long storeId = storeRepository.findByKakaoPlaceId(request.kakaoPlaceId())
 			.map(Store::getId)
 			.orElseThrow(() -> new StoreException(StoreErrorCode.STORE_NOT_FOUND));
@@ -95,6 +100,7 @@ public class StoreCommandService {
 			request.longitude(), request.latitude(),
 			request.phone(), naverPlaceId,
 			null);
+		eventPublisher.publishEvent(StoreSearchNameChangedEvent.of(request.name()));
 
 		// place id가 없으면 방금 넣은 행을 이름·주소로 되찾는다 — null로 place id 조회는 금물.
 		Long storeId = (naverPlaceId != null
