@@ -16,18 +16,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import sweetgirl.croissant.alarm.code.AlarmErrorCode;
 import sweetgirl.croissant.alarm.entity.FcmToken;
 import sweetgirl.croissant.alarm.entity.Notification;
 import sweetgirl.croissant.alarm.enums.NotificationChannel;
 import sweetgirl.croissant.alarm.enums.NotificationType;
+import sweetgirl.croissant.alarm.exception.AlarmException;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
 import sweetgirl.croissant.alarm.repository.NotificationDeliveryRepository;
 import sweetgirl.croissant.member.entity.Member;
@@ -51,8 +53,13 @@ class PushDispatcherTest {
 	@Mock
 	FcmService fcmService;
 
-	@InjectMocks
 	PushDispatcher pushDispatcher;
+
+	@BeforeEach
+	void setUpDispatcher() {
+		pushDispatcher = new PushDispatcher(notificationSettingRepository, fcmTokenRepository,
+			new NotificationDeliveryCommandService(deliveryRepository), fcmService);
+	}
 
 	@Test
 	@DisplayName("야간(21시)에는 야간 동의가 없는 사람에게 광고를 보내지 않는다")
@@ -144,6 +151,35 @@ class PushDispatcherTest {
 		verify(fcmService, never()).sendPushNotification(anyString(), anyString(), anyString(), anyMap());
 	}
 
+	@Test
+	void invalidTokenAndTransientFailureCannotCountAsSuccess() {
+		Member member = marketingMember(false);
+		givenSetting(member);
+		FcmToken invalid = mock(FcmToken.class);
+		FcmToken temporary = mock(FcmToken.class);
+		given(invalid.getToken()).willReturn("invalid");
+		given(temporary.getToken()).willReturn("temporary");
+		given(fcmTokenRepository.findByMemberAndIsActive(member, true)).willReturn(List.of(invalid, temporary));
+		given(fcmService.sendPushNotification(eq("invalid"), any(), any(), anyMap()))
+			.willReturn(FcmService.SendResult.INVALID_TOKEN);
+		given(fcmService.sendPushNotification(eq("temporary"), any(), any(), anyMap()))
+			.willThrow(new AlarmException(
+				AlarmErrorCode.FCM_SEND_FAILED));
+		assertThat(pushDispatcher.dispatchWithResult(notification(NotificationType.NOTICE), member, DAY))
+			.isEqualTo(PushDispatcher.Result.FAILED);
+		verify(deliveryRepository).recordPushResult(any(), any(), eq("FAILED"), eq("FCM_SEND_FAILED"), eq(DAY));
+	}
+
+	@Test
+	void onlyInvalidTokensAreSkipped() {
+		Member member = marketingMember(false);
+		givenSetting(member);
+		givenToken(member, FcmService.SendResult.INVALID_TOKEN);
+		assertThat(pushDispatcher.dispatchWithResult(notification(NotificationType.NOTICE), member, DAY))
+			.isEqualTo(PushDispatcher.Result.SKIPPED);
+		verify(deliveryRepository, never()).recordPushResult(any(), any(), any(), any(), any());
+	}
+
 	private Member marketingMember(boolean nightAgreed) {
 		Member member = Member.builder().nickname("테스터").build();
 		member.updateMarketingAgreement(true);
@@ -158,9 +194,14 @@ class PushDispatcherTest {
 	}
 
 	private void givenToken(Member member) {
+		givenToken(member, FcmService.SendResult.SENT);
+	}
+
+	private void givenToken(Member member, FcmService.SendResult result) {
 		FcmToken token = mock(FcmToken.class);
 		given(token.getToken()).willReturn("token");
 		given(fcmTokenRepository.findByMemberAndIsActive(member, true)).willReturn(List.of(token));
+		given(fcmService.sendPushNotification(eq("token"), any(), any(), anyMap())).willReturn(result);
 	}
 
 	private Notification ad() {

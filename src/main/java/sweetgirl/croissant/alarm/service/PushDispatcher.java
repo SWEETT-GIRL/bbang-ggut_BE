@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,12 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.entity.FcmToken;
 import sweetgirl.croissant.alarm.entity.Notification;
-import sweetgirl.croissant.alarm.entity.NotificationDelivery;
-import sweetgirl.croissant.alarm.enums.DeliveryStatus;
-import sweetgirl.croissant.alarm.enums.NotificationChannel;
 import sweetgirl.croissant.alarm.exception.AlarmException;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
-import sweetgirl.croissant.alarm.repository.NotificationDeliveryRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
@@ -46,14 +43,13 @@ public class PushDispatcher {
 
 	private final NotificationSettingRepository notificationSettingRepository;
 	private final FcmTokenRepository fcmTokenRepository;
-	private final NotificationDeliveryRepository deliveryRepository;
+	private final NotificationDeliveryCommandService deliveryCommandService;
 	private final FcmService fcmService;
 
 	/**
-	 * 한 사람에게 보낸다. 부르는 쪽의 트랜잭션과 분리한다 — FCM 응답을 기다리는 동안 알림을
-	 * 적재한 트랜잭션이 DB 커넥션을 잡고 있으면 안 되고, 발송 실패가 적재를 되돌려서도 안 된다.
+	 * 외부 호출에는 트랜잭션을 열지 않는다. 호출자는 DB 작업을 먼저 커밋하고 호출해야 한다.
 	 */
-	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	public void dispatch(Notification notification, Member member, LocalDateTime now) {
 		dispatchWithResult(notification, member, now);
 	}
@@ -62,7 +58,7 @@ public class PushDispatcher {
 		SENT, FAILED, SKIPPED
 	}
 
-	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	public Result dispatchWithResult(Notification notification, Member member, LocalDateTime now) {
 		if (!isEligible(notification, member, now)) {
 			return Result.SKIPPED;
@@ -79,34 +75,28 @@ public class PushDispatcher {
 		String title = notification.getTitle();
 		String body = notification.getBody();
 
-		// 기기 하나만 성공해도 그 사람에게는 도착한 것이다. 전부 실패했을 때만 FAILED 로 남긴다.
+		// FCM이 한 기기의 요청이라도 접수하면 성공이다. 실제 기기 표시 여부는 별도다.
 		boolean anySent = false;
 		String lastFailure = null;
+		long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(2);
 		for (String token : tokens) {
+			if (System.nanoTime() >= deadline) {
+				lastFailure = "PUSH_TIME_BUDGET_EXCEEDED";
+				break;
+			}
 			try {
-				fcmService.sendPushNotification(token, title, body, data);
-				anySent = true;
+				FcmService.SendResult result = fcmService.sendPushNotification(token, title, body, data);
+				anySent |= result == FcmService.SendResult.SENT;
 			} catch (AlarmException e) {
-				lastFailure = e.getMessage();
+				lastFailure = "FCM_SEND_FAILED";
 			}
 		}
 
-		record(notification, member, anySent, lastFailure, now);
+		if (!anySent && lastFailure == null) {
+			return Result.SKIPPED;
+		}
+		deliveryCommandService.recordDelivery(notification, member, anySent, lastFailure, now);
 		return anySent ? Result.SENT : Result.FAILED;
-	}
-
-	private void record(Notification notification, Member member, boolean sent, String failReason,
-			LocalDateTime now) {
-		deliveryRepository
-			.findByNotificationIdAndMemberIdAndChannel(
-				notification.getId(), member.getId(), NotificationChannel.PUSH)
-			.ifPresentOrElse(
-				existing -> existing.retried(
-					sent ? DeliveryStatus.SENT : DeliveryStatus.FAILED, sent ? null : failReason, now),
-				() -> deliveryRepository.save(sent
-					? NotificationDelivery.sent(notification, member, NotificationChannel.PUSH, now)
-					: NotificationDelivery.failed(
-						notification, member, NotificationChannel.PUSH, failReason, now)));
 	}
 
 	/**

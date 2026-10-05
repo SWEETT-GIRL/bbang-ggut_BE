@@ -36,4 +36,17 @@ public interface NotificationDeliveryRepository extends JpaRepository<Notificati
 			""", nativeQuery = true)
 	int insertInAppForRecipients(@Param("notificationId") Long notificationId,
 			@Param("now") LocalDateTime now);
+
+	/** 동시 재시도에서도 이미 확인된 성공을 실패 결과로 되돌리지 않는다. */
+	@Modifying
+	@Query(value = """
+			INSERT INTO notification_delivery (notification_id, member_id, channel, status, fail_reason, sent_at)
+			VALUES (:notificationId, :memberId, 'PUSH', :status, :failReason, :now)
+			ON CONFLICT (notification_id, member_id, channel) DO UPDATE
+			SET status = EXCLUDED.status, fail_reason = EXCLUDED.fail_reason, sent_at = EXCLUDED.sent_at
+			WHERE notification_delivery.status <> 'SENT'
+			""", nativeQuery = true)
+	int recordPushResult(@Param("notificationId") Long notificationId, @Param("memberId") Long memberId,
+			@Param("status") String status, @Param("failReason") String failReason, @Param("now") LocalDateTime now);
+
 }
