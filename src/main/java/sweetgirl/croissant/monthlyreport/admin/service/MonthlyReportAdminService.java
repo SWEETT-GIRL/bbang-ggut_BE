@@ -18,15 +18,16 @@ import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportDraft;
+import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportDraftId;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportRun;
 import sweetgirl.croissant.monthlyreport.admin.repository.MonthlyReportDraftRepository;
 import sweetgirl.croissant.monthlyreport.admin.repository.MonthlyReportRunRepository;
 import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
-import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportMonth;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportQueryService;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportTargetReader;
 
 @Service
 @RequiredArgsConstructor
@@ -37,14 +38,23 @@ public class MonthlyReportAdminService {
 	private final MonthlyReportPayloadCodec codec;
 	private final MemberReader members;
 	private final MonthlyReportQueryService queries;
+	private final MonthlyReportTargetReader targets;
 
 	@Transactional
 	public MonthlyReportRun create(String month, String version) {
+		return create(month, version, null);
+	}
+
+	@Transactional
+	public MonthlyReportRun create(String month, String version, Long targetMemberId) {
 		if (!MonthlyReportMonth.parse(month).isBefore(YearMonth.now(ZoneId.of("Asia/Seoul")))) {
 			throw new CustomException(MonthlyReportErrorCode.MONTH_NOT_CLOSED);
 		}
-		runs.enqueue(UUID.randomUUID(), month, version, Instant.now());
-		MonthlyReportRun run = runs.findByYearMonth(month).orElseThrow();
+		if (targetMemberId != null && !targets.isEligible(targetMemberId, month)) {
+			throw new CustomException(MonthlyReportErrorCode.INVALID_ADMIN_REQUEST);
+		}
+		runs.enqueue(UUID.randomUUID(), month, version, Instant.now(), targetMemberId);
+		MonthlyReportRun run = runs.findByYearMonthAndTargetMemberId(month, targetMemberId).orElseThrow();
 		if (!run.getAssetVersion().equals(version)) {
 			throw conflict();
 		}
@@ -72,9 +82,12 @@ public class MonthlyReportAdminService {
 
 	public MonthlyReportResponse preview(String month, UUID id, Long memberId) {
 		require(month, id);
-		MonthlyReportDraft draft = drafts.findById(new MonthlyReportMemberId(memberId, month))
+		MonthlyReportDraft draft = drafts.findById(new MonthlyReportDraftId(id, memberId, month))
 			.filter(value -> value.getRunId().equals(id))
 			.orElseThrow(() -> new CustomException(MonthlyReportErrorCode.ADMIN_NOT_FOUND));
+		if (draft.getState() == MonthlyReportDraft.State.PUBLISHED) {
+			return queries.getReport(memberId, month);
+		}
 		if (draft.getPayload() == null) {
 			throw conflict();
 		}

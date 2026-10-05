@@ -46,7 +46,8 @@ class MonthlyReportFlywayTest {
 				"V20261005222051__create_monthly_report_jobs.sql",
 				"V20261005222052__monthly_report_assets.sql",
 				"V20261005222053__monthly_report_push.sql",
-				"V20261005222054__monthly_report_admin.sql");
+				"V20261005222054__monthly_report_admin.sql",
+				"V20261005222055__monthly_report_single_member_run.sql");
 			for (String migration : migrations) {
 				try (InputStream sql = new ClassPathResource("db/migration/" + migration).getInputStream()) {
 					Files.copy(sql, scripts.resolve(migration));
@@ -55,7 +56,7 @@ class MonthlyReportFlywayTest {
 			Flyway flyway = Flyway.configure().dataSource(source).defaultSchema(schema).schemas(schema)
 				.locations("filesystem:" + scripts).baselineOnMigrate(true).baselineVersion("20261002150000")
 				.outOfOrder(false).load();
-			assertThat(flyway.migrate().migrationsExecuted).isEqualTo(10);
+			assertThat(flyway.migrate().migrationsExecuted).isEqualTo(migrations.size());
 			flyway.validate();
 			assertThat(flyway.migrate().migrationsExecuted).isZero();
 			assertThat(jdbc.queryForObject("SELECT count(*) FROM monthly_report_history_coverage", Integer.class))

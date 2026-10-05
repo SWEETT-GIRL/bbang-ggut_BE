@@ -20,10 +20,12 @@ import lombok.NoArgsConstructor;
 public class MonthlyReportRun {
 	@Id
 	private UUID id;
-	@Column(name = "year_month", nullable = false, unique = true, length = 7)
+	@Column(name = "year_month", nullable = false, length = 7)
 	private String yearMonth;
 	@Column(name = "asset_version", nullable = false, length = 60)
 	private String assetVersion;
+	@Column(name = "target_member_id")
+	private Long targetMemberId;
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
 	private State state;

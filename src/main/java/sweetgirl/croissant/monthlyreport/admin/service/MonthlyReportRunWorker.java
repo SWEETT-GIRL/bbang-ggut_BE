@@ -2,10 +2,12 @@ package sweetgirl.croissant.monthlyreport.admin.service;
 
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,7 +75,9 @@ public class MonthlyReportRunWorker {
 			.findFirstByRunIdAndStateOrderByIdMemberId(run.getId(), MonthlyReportDraft.State.PENDING)
 			.orElse(null);
 		if (draft == null && !run.isScanComplete()) {
-			Slice<Long> page = targets.nextPage(run.getYearMonth(), run.getAfterMemberId(), 1);
+			Slice<Long> page = run.getTargetMemberId() == null
+				? targets.nextPage(run.getYearMonth(), run.getAfterMemberId(), 1)
+				: new SliceImpl<>(run.getAfterMemberId() == 0 ? List.of(run.getTargetMemberId()) : List.of());
 			if (!page.isEmpty()) {
 				Long memberId = page.getContent().get(0);
 				draft = drafts.save(MonthlyReportDraft.create(run.getId(), memberId, run.getYearMonth()));

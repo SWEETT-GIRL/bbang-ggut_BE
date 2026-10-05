@@ -15,7 +15,6 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 
 @Entity
 @Table(name = "monthly_report_draft")
@@ -23,8 +22,8 @@ import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MonthlyReportDraft {
 	@EmbeddedId
-	private MonthlyReportMemberId id;
-	@Column(name = "run_id", nullable = false)
+	private MonthlyReportDraftId id;
+	@Column(name = "run_id", nullable = false, insertable = false, updatable = false)
 	private UUID runId;
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
@@ -47,7 +46,7 @@ public class MonthlyReportDraft {
 
 	public static MonthlyReportDraft create(UUID runId, Long memberId, String month) {
 		MonthlyReportDraft draft = new MonthlyReportDraft();
-		draft.id = new MonthlyReportMemberId(memberId, month);
+		draft.id = new MonthlyReportDraftId(runId, memberId, month);
 		draft.runId = runId;
 		draft.state = State.PENDING;
 		return draft;

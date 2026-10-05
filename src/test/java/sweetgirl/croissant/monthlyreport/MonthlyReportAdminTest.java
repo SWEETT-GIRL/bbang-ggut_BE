@@ -3,11 +3,13 @@ package sweetgirl.croissant.monthlyreport;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -67,6 +69,7 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportAsset;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportDraft;
+import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportDraftId;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportPush;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportRun;
 import sweetgirl.croissant.monthlyreport.admin.repository.MonthlyReportDraftRepository;
@@ -78,7 +81,6 @@ import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportPreparation;
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportRunWorker;
 import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMember;
-import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportSourceHistoryRepository;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportGenerationService;
@@ -128,7 +130,9 @@ class MonthlyReportAdminTest {
 			new ClassPathResource("db/migration/V20261005222046__add_monthly_report_appearance.sql"),
 			new ClassPathResource("db/migration/V20261005222052__monthly_report_assets.sql"),
 			new ClassPathResource("db/migration/V20261005222053__monthly_report_push.sql"),
-			new ClassPathResource("db/migration/V20261005222054__monthly_report_admin.sql")).execute(source);
+			new ClassPathResource("db/migration/V20261005222054__monthly_report_admin.sql"),
+			new ClassPathResource("db/migration/V20261005222055__monthly_report_single_member_run.sql"))
+			.execute(source);
 		LocalContainerEntityManagerFactoryBean factory = new LocalContainerEntityManagerFactoryBean();
 		factory.setDataSource(source);
 		factory.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
@@ -237,7 +241,8 @@ class MonthlyReportAdminTest {
 		verifyNoInteractions(recorder, legacyNotifications);
 		assertThat(admin.preview(MONTH, run.getId(), 123L).coverImageKey()).contains("covers/cat/12.png");
 		assertThat(admin.preview(MONTH, run.getId(), 123L).nickname()).isEqualTo("현재 이름");
-		String original = drafts.findById(new MonthlyReportMemberId(123L, MONTH)).orElseThrow().getPayload();
+		String original = drafts.findById(new MonthlyReportDraftId(run.getId(), 123L, MONTH)).orElseThrow()
+			.getPayload();
 		Instant at = Instant.now().plusSeconds(3600);
 		admin.approve(MONTH, run.getId(), at);
 		reset(preparation);
@@ -344,6 +349,45 @@ class MonthlyReportAdminTest {
 		worker.step(run.getId());
 		assertThat(admin.progress(MONTH, run.getId()).counts().get(MonthlyReportDraft.State.SKIPPED)).isEqualTo(2);
 		verifyNoInteractions(recorder);
+	}
+
+	@Test
+	void singleMemberRunPublishesOnlySelectedMemberAndKeepsAllMemberDraftsSeparate() {
+		MonthlyReportRun single = admin.create(MONTH, "v1", 123L);
+		MonthlyReportRun all = admin.create(MONTH, "v1");
+		assertThat(single.getTargetMemberId()).isEqualTo(123L);
+		assertThat(single.getId()).isNotEqualTo(all.getId());
+		assertThat(admin.create(MONTH, "v1", 123L).getId()).isEqualTo(single.getId());
+		worker.step(single.getId());
+		worker.step(single.getId());
+		verify(targets, never()).nextPage(anyString(), anyLong(), anyInt());
+		assertThat(admin.items(MONTH, single.getId(), 0, 20).content()).hasSize(1);
+		assertThatThrownBy(() -> admin.preview(MONTH, single.getId(), 456L)).isInstanceOf(CustomException.class);
+		for (int i = 0; i < 3; i++) {
+			worker.step(all.getId());
+		}
+		assertThat(admin.items(MONTH, all.getId(), 0, 20).content()).hasSize(2);
+		assertThat(drafts.count()).isEqualTo(3);
+		admin.approve(MONTH, single.getId(), Instant.now().plusSeconds(3600));
+		worker.step(single.getId());
+		worker.step(single.getId());
+		assertThat(jdbc.queryForList("SELECT member_id FROM monthly_report_member", Long.class)).containsExactly(123L);
+		assertThat(pushes.findAll()).singleElement().satisfies(push -> assertThat(push.getMemberId()).isEqualTo(123L));
+		admin.approve(MONTH, all.getId(), Instant.now().plusSeconds(3600));
+		for (int i = 0; i < 3; i++) {
+			worker.step(all.getId());
+		}
+		assertThat(pushes.count()).isEqualTo(2);
+		verify(recorder, times(2)).recordFor(any(), any(), any());
+	}
+
+	@Test
+	void singleMemberMustBeEligibleAndVersionCannotChange() {
+		when(targets.isEligible(999L, MONTH)).thenReturn(false);
+		assertThatThrownBy(() -> admin.create(MONTH, "v1", 999L)).isInstanceOf(CustomException.class);
+		assertThat(runs.count()).isZero();
+		admin.create(MONTH, "v1", 123L);
+		assertThatThrownBy(() -> admin.create(MONTH, "v2", 123L)).isInstanceOf(CustomException.class);
 	}
 
 	@Test

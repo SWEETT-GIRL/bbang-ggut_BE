@@ -50,7 +50,14 @@ public class AdminMonthlyReportController {
 	@PostMapping("/{month}/runs")
 	public ResponseEntity<ApiResponse<MonthlyReportRun>> create(@PathVariable String month,
 			@Valid @RequestBody MonthlyReportAdminRequests.CreateRun request) {
-		return ResponseEntity.accepted().body(ApiResponse.ok(reports.create(month, request.assetVersion())));
+		return ResponseEntity.accepted()
+			.body(ApiResponse.ok(reports.create(month, request.assetVersion())));
+	}
+
+	@PostMapping("/{month}/members/{memberId}/runs")
+	public ResponseEntity<ApiResponse<MonthlyReportRun>> createForMember(@PathVariable String month,
+			@PathVariable Long memberId, @Valid @RequestBody MonthlyReportAdminRequests.CreateRun request) {
+		return ResponseEntity.accepted().body(ApiResponse.ok(reports.create(month, request.assetVersion(), memberId)));
 	}
 
 	@GetMapping("/{month}/runs/{id}")

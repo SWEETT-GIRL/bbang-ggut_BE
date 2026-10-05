@@ -11,9 +11,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportDraft;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportDraft.State;
-import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
+import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportDraftId;
 
-public interface MonthlyReportDraftRepository extends JpaRepository<MonthlyReportDraft, MonthlyReportMemberId> {
+public interface MonthlyReportDraftRepository extends JpaRepository<MonthlyReportDraft, MonthlyReportDraftId> {
 	Optional<MonthlyReportDraft> findFirstByRunIdAndStateOrderByIdMemberId(UUID runId, State state);
 
 	long countByRunIdAndState(UUID runId, State state);
