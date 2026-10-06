@@ -27,6 +27,7 @@ import sweetgirl.croissant.monthlyreport.dto.MonthlyReportSourceSnapshot;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportSourceSnapshot.RecordState;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMember;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
+import sweetgirl.croissant.monthlyreport.enums.MonthlyReportAggregationBasis;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportRecordAggregationService;
@@ -54,8 +55,9 @@ class MonthlyReportRecordAggregationServiceTest {
 		for (int i = 0; i < stores.length; i++) {
 			records.add(new RecordState((long)i + 1, stores[i], null, time, time, null, null, List.of()));
 		}
-		given(sourceReader.read(123L, MONTH)).willReturn(new MonthlyReportSourceSnapshot(time, records,
-			List.of(), Map.of(), Set.of(), Set.of(), 0));
+		given(sourceReader.read(123L, MONTH)).willReturn(
+			new MonthlyReportSourceSnapshot(time, MonthlyReportAggregationBasis.MONTH_END_HISTORY, time, records,
+				List.of(), Map.of(), Set.of(), Set.of(), 0));
 	}
 
 	@Test

@@ -8,10 +8,12 @@ import java.util.UUID;
 
 import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
 import sweetgirl.croissant.menu.enums.MenuKind;
+import sweetgirl.croissant.monthlyreport.enums.MonthlyReportAggregationBasis;
 
 /** 한 번의 월말 원천 조회 결과를 모든 집계가 공유한다. 파일 키와 개인 메모는 담지 않는다. */
 public record MonthlyReportSourceSnapshot(
-		LocalDateTime coveredFrom, List<RecordState> records, List<TagState> tags,
+		LocalDateTime coveredFrom, MonthlyReportAggregationBasis aggregationBasis, LocalDateTime sourceAsOf,
+		List<RecordState> records, List<TagState> tags,
 		Map<Long, PhotoState> photos, Set<Long> savedStoreIds, Set<Long> plannedStoreIds, long courses) {
 
 	public MonthlyReportSourceSnapshot {

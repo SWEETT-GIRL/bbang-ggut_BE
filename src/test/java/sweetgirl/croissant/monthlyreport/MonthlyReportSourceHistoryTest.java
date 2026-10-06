@@ -40,6 +40,7 @@ import sweetgirl.croissant.menu.enums.MenuKind;
 import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportSourceSnapshot;
+import sweetgirl.croissant.monthlyreport.enums.MonthlyReportAggregationBasis;
 import sweetgirl.croissant.monthlyreport.enums.MonthlyReportSourceType;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportSourceHistoryRepository;
@@ -77,6 +78,7 @@ class MonthlyReportSourceHistoryTest {
 		source.setSchema(schema);
 		transactions = new TransactionTemplate(new DataSourceTransactionManager(source));
 		new ResourceDatabasePopulator(new ClassPathResource("monthly-report-bread-aggregation.sql"),
+			new ClassPathResource("monthly-report-initial-sources.sql"),
 			new ClassPathResource("db/migration/V20261005222045__create_monthly_report_member.sql"),
 			new ClassPathResource("db/migration/V20261005222046__add_monthly_report_appearance.sql"),
 			new ClassPathResource("db/migration/V20261005222047__add_bread_photo_reference.sql"),
@@ -135,9 +137,76 @@ class MonthlyReportSourceHistoryTest {
 	}
 
 	@Test
-	void rejectsMonthsBeforeCoverageRatherThanInventingMissingHistory() {
+	void rejectsMissingCoverageRatherThanTreatingBrokenInitializationAsZeroActivity() {
+		jdbc.update("DELETE FROM monthly_report_history_coverage");
 		assertThatThrownBy(() -> reader.read(123L, MONTH)).isInstanceOf(CustomException.class)
 			.hasFieldOrPropertyWithValue("errorCode", MonthlyReportErrorCode.SOURCE_HISTORY_UNAVAILABLE);
+	}
+
+	@Test
+	void preparesPrelaunchMonthFromAvailableSourcesIncludingEmptyMember() {
+		MonthlyReportSourceSnapshot source = reader.read(123L, MONTH);
+		assertThat(source.aggregationBasis()).isEqualTo(MonthlyReportAggregationBasis.INITIAL_AVAILABLE_SOURCES);
+		assertThat(source.sourceAsOf()).isAfterOrEqualTo(source.coveredFrom());
+		assertThat(source.records()).hasSize(3);
+		assertThat(source.savedStoreIds()).containsExactly(11L);
+		assertThat(source.plannedStoreIds()).containsExactlyInAnyOrder(11L, 13L);
+		assertThat(source.courses()).isEqualTo(1);
+		MonthlyReportSourceSnapshot empty = reader.read(50001L, MONTH);
+		assertThat(empty.records()).isEmpty();
+		assertThat(empty.tags()).isEmpty();
+		assertThat(empty.savedStoreIds()).isEmpty();
+		assertThat(empty.plannedStoreIds()).isEmpty();
+		assertThat(empty.courses()).isZero();
+	}
+
+	@Test
+	void reconstructsSavedAndPlannedStoresFromSuccessfulRequestsAndInteractions() {
+		jdbc.update("DELETE FROM saved_stores");
+		jdbc.update("DELETE FROM store_plan");
+		jdbc.update("DELETE FROM course_stores");
+		jdbc.update("""
+				INSERT INTO user_store_interaction (member_id, store_id, type, occurred_at) VALUES
+				(123, 11, 'SAVE', '2025-12-29'), (123, 11, 'UNSAVE', '2026-01-02'),
+				(123, 12, 'SAVE', '2025-12-29'), (123, 12, 'UNSAVE', '2025-12-30'),
+				(123, 13, 'SAVE', '2025-11-01'), (123, 13, 'UNSAVE', '2025-12-01'),
+				(123, 13, 'SAVE', '2025-12-29'), (123, 21, 'PLAN', '2025-12-29'),
+				(123, 22, 'PLAN', '2025-12-29'), (456, 99, 'SAVE', '2025-12-29')
+				""");
+		jdbc.update("""
+				INSERT INTO request_log (member_id, http_method, endpoint, response_status, created_at) VALUES
+				(123, 'POST', '/stores/11/save', 200, '2025-12-29 00:00:01'),
+				(123, 'DELETE', '/stores/11/save', 200, '2026-01-02'),
+				(123, 'DELETE', '/store-plans/21', 200, '2026-01-02'),
+				(123, 'DELETE', '/store-plans/22', 200, '2025-12-30'),
+				(123, 'PUT', '/api/store-plans/23', 200, '2025-12-29'),
+				(123, 'PUT', '/store-plans/24', 200, '2025-11-29'),
+				(123, 'PUT', '/store-plans/24', 200, '2025-12-29'),
+				(123, 'POST', '/api/stores/31/save', 200, '2025-12-29'),
+				(123, 'POST', '/stores/32/save', 500, '2025-12-29'),
+				(123, 'DELETE', '/stores/31/save', 403, '2025-12-30'),
+				(123, 'POST', '/courses/1/stores/33/save', 200, '2025-12-29'),
+				(123, 'POST', '/stores/34/save', 200, '2026-01-01'),
+				(456, 'POST', '/stores/35/save', 200, '2025-12-29')
+				""");
+		MonthlyReportSourceSnapshot source = reader.read(123L, MONTH);
+		assertThat(source.savedStoreIds()).containsExactlyInAnyOrder(11L, 13L, 31L);
+		assertThat(source.plannedStoreIds()).containsExactlyInAnyOrder(21L, 23L);
+	}
+
+	@Test
+	void initialReportUsesCourseDeletionDatesButDoesNotInventRemovedBreadTags() {
+		jdbc.update("UPDATE courses SET deleted_at = '2026-01-02' WHERE id = 201");
+		jdbc.update("UPDATE course_stores SET deleted_at = '2026-01-02' WHERE id = 201");
+		jdbc.update("UPDATE course_stores SET deleted_at = '2025-12-30' WHERE id = 202");
+		jdbc.update("DELETE FROM bread_record_tag WHERE record_id = 2");
+		jdbc.update("UPDATE bread_record SET deleted_at = '2026-01-02' WHERE id = 2");
+		MonthlyReportSourceSnapshot source = reader.read(123L, MONTH);
+		assertThat(source.courses()).isEqualTo(1);
+		assertThat(source.plannedStoreIds()).containsExactly(11L);
+		assertThat(source.records()).extracting(MonthlyReportSourceSnapshot.RecordState::id)
+			.containsExactly(1L, 3L);
+		assertThat(source.tags()).noneMatch(tag -> tag.recordId().equals(2L));
 	}
 
 	@Test

@@ -29,7 +29,9 @@ import sweetgirl.croissant.monthlyreport.dto.MonthlyReportSourceSnapshot.RecordS
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportSourceSnapshot.RelationState;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportSourceSnapshot.TagState;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportSourceHistory;
+import sweetgirl.croissant.monthlyreport.enums.MonthlyReportAggregationBasis;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportSourceHistoryRepository;
+import sweetgirl.croissant.monthlyreport.repository.MonthlyReportSourceHistoryRepository.InitialRelation;
 
 @Service
 @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ, propagation = Propagation.REQUIRES_NEW)
@@ -48,7 +50,15 @@ public class MonthlyReportSourceReader {
 		LocalDateTime from = month.atDay(1).atStartOfDay();
 		LocalDateTime until = month.plusMonths(1).atDay(1).atStartOfDay();
 		LocalDateTime coveredFrom = repository.findCoveredFrom();
-		if (coveredFrom == null || !coveredFrom.isBefore(until)) {
+		if (coveredFrom == null) {
+			throw new CustomException(MonthlyReportErrorCode.SOURCE_HISTORY_UNAVAILABLE);
+		}
+		MonthlyReportAggregationBasis basis = coveredFrom.isBefore(until)
+			? MonthlyReportAggregationBasis.MONTH_END_HISTORY : MonthlyReportAggregationBasis.INITIAL_AVAILABLE_SOURCES;
+		// 도입 전 월은 남은 원천과 기존 요청·인터랙션을 활용한다. 과거 이력의 시각은 바꾸지 않는다.
+		LocalDateTime sourceAsOf = basis == MonthlyReportAggregationBasis.MONTH_END_HISTORY
+			? until : repository.findSnapshotTime();
+		if (sourceAsOf == null || sourceAsOf.isBefore(coveredFrom)) {
 			throw new CustomException(MonthlyReportErrorCode.SOURCE_HISTORY_UNAVAILABLE);
 		}
 		List<RecordState> records = new ArrayList<>();
@@ -56,11 +66,11 @@ public class MonthlyReportSourceReader {
 		Set<Long> planned = new HashSet<>();
 		Set<Long> courseIds = new HashSet<>();
 		long courses = 0;
-		for (MonthlyReportSourceHistory history : repository.findOwnerState(memberId, until)) {
+		for (MonthlyReportSourceHistory history : repository.findOwnerState(memberId, sourceAsOf)) {
 			switch (history.getSourceType()) {
 				case BREAD_RECORD -> {
 					RecordState record = decode(history, RecordState.class);
-					if (record.createdAt().isBefore(until) && retained(record.deletedAt(), until)
+					if (record.createdAt().isBefore(until) && retained(record.deletedAt(), sourceAsOf)
 						&& inMonth(record.eatenAt(), from, until)) {
 						records.add(record);
 					}
@@ -87,7 +97,18 @@ public class MonthlyReportSourceReader {
 				default -> throw new CustomException(MonthlyReportErrorCode.SOURCE_HISTORY_UNAVAILABLE);
 			}
 		}
-		for (MonthlyReportSourceHistory history : children("COURSE_STORE", courseIds, until)) {
+		if (basis == MonthlyReportAggregationBasis.INITIAL_AVAILABLE_SOURCES) {
+			saved.clear();
+			planned.clear();
+			for (InitialRelation relation : repository.findInitialMonthEndRelations(memberId, from, until)) {
+				if ("SAVE".equals(relation.getRelationType())) {
+					saved.add(relation.getStoreId());
+				} else {
+					planned.add(relation.getStoreId());
+				}
+			}
+		}
+		for (MonthlyReportSourceHistory history : children("COURSE_STORE", courseIds, sourceAsOf)) {
 			RelationState relation = decode(history, RelationState.class);
 			if (inMonth(relation.createdAt(), from, until) && retained(relation.deletedAt(), until)) {
 				planned.add(relation.storeId());
@@ -95,14 +116,15 @@ public class MonthlyReportSourceReader {
 		}
 		Set<Long> recordIds = records.stream().map(RecordState::id).collect(Collectors.toSet());
 		Map<Long, PhotoState> photos = new HashMap<>();
-		for (MonthlyReportSourceHistory history : children("BREAD_PHOTO", recordIds, until)) {
+		for (MonthlyReportSourceHistory history : children("BREAD_PHOTO", recordIds, sourceAsOf)) {
 			PhotoState photo = decode(history, PhotoState.class);
 			photos.put(photo.id(), photo);
 		}
-		List<TagState> tags = children("BREAD_TAG", recordIds, until).stream()
+		List<TagState> tags = children("BREAD_TAG", recordIds, sourceAsOf).stream()
 			.map(history -> decode(history, TagState.class)).sorted(Comparator.comparing(TagState::id)).toList();
 		records.sort(Comparator.comparing(RecordState::id));
-		return new MonthlyReportSourceSnapshot(coveredFrom, records, tags, photos, saved, planned, courses);
+		return new MonthlyReportSourceSnapshot(coveredFrom, basis, sourceAsOf, records, tags, photos, saved, planned,
+			courses);
 	}
 
 	private List<MonthlyReportSourceHistory> children(String sourceType, Set<Long> parentIds, LocalDateTime until) {

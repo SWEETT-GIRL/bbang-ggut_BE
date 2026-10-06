@@ -1,7 +1,6 @@
 package sweetgirl.croissant.monthlyreport.admin.service;
 
 import java.time.LocalDateTime;
-import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -61,8 +60,7 @@ public class MonthlyReportRunWorker {
 		if (!run.isSourcesReady()) {
 			try {
 				LocalDateTime coverage = history.findCoveredFrom();
-				if (coverage == null
-					|| !coverage.isBefore(YearMonth.parse(run.getYearMonth()).plusMonths(1).atDay(1).atStartOfDay())) {
+				if (coverage == null) {
 					throw new CustomException(MonthlyReportErrorCode.SOURCE_HISTORY_UNAVAILABLE);
 				}
 				recovery.ensureComplete(run.getYearMonth());
