@@ -1,5 +1,6 @@
 package sweetgirl.croissant.alarm.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -12,19 +13,23 @@ import static org.mockito.Mockito.verify;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import sweetgirl.croissant.alarm.code.AlarmErrorCode;
 import sweetgirl.croissant.alarm.entity.FcmToken;
 import sweetgirl.croissant.alarm.entity.Notification;
 import sweetgirl.croissant.alarm.enums.NotificationChannel;
 import sweetgirl.croissant.alarm.enums.NotificationType;
+import sweetgirl.croissant.alarm.exception.AlarmException;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
 import sweetgirl.croissant.alarm.repository.NotificationDeliveryRepository;
 import sweetgirl.croissant.member.entity.Member;
@@ -48,8 +53,13 @@ class PushDispatcherTest {
 	@Mock
 	FcmService fcmService;
 
-	@InjectMocks
 	PushDispatcher pushDispatcher;
+
+	@BeforeEach
+	void setUpDispatcher() {
+		pushDispatcher = new PushDispatcher(notificationSettingRepository, fcmTokenRepository,
+			new NotificationDeliveryCommandService(deliveryRepository), fcmService);
+	}
 
 	@Test
 	@DisplayName("야간(21시)에는 야간 동의가 없는 사람에게 광고를 보내지 않는다")
@@ -111,6 +121,66 @@ class PushDispatcherTest {
 		verify(fcmService).sendPushNotification(eq("token"), anyString(), anyString(), anyMap());
 	}
 
+	@Test
+	void monthlyReportSendsDirectLinkWithoutMarketingConsent() {
+		Member member = new Member("테스터");
+		given(notificationSettingRepository.findByMemberId(any())).willReturn(Optional.of(
+			NotificationSetting.builder().member(member).isNotificationEnabled(true).isMarketingEnabled(false)
+				.build()));
+		givenToken(member);
+		Notification report = Notification.announcement(NotificationType.MONTHLY_REPORT, NotificationChannel.PUSH,
+			"9월 빵일지가 도착했어요", "빵 기록을 확인해 보세요.", "/reports/monthly/2026-09");
+
+		pushDispatcher.dispatch(report, member, DAY);
+
+		@SuppressWarnings("unchecked") ArgumentCaptor<Map<String, String>> data = ArgumentCaptor.forClass(Map.class);
+		verify(fcmService).sendPushNotification(eq("token"), eq(report.getTitle()), eq(report.getBody()),
+			data.capture());
+		assertThat(data.getValue()).containsEntry("link", "/reports/monthly/2026-09").containsEntry("type",
+			"MONTHLY_REPORT");
+	}
+
+	@Test
+	void monthlyReportRespectsNotificationOptOut() {
+		Member member = new Member("테스터");
+		given(notificationSettingRepository.findByMemberId(any())).willReturn(Optional.of(
+			NotificationSetting.builder().member(member).isNotificationEnabled(false).isMarketingEnabled(true)
+				.build()));
+		pushDispatcher.dispatch(Notification.announcement(NotificationType.MONTHLY_REPORT, NotificationChannel.PUSH,
+			"9월 빵일지가 도착했어요", "빵 기록을 확인해 보세요.", "/reports/monthly/2026-09"), member, DAY);
+		verify(fcmTokenRepository, never()).findByMemberAndIsActive(any(), any(Boolean.class));
+		verify(fcmService, never()).sendPushNotification(anyString(), anyString(), anyString(), anyMap());
+	}
+
+	@Test
+	void invalidTokenAndTransientFailureCannotCountAsSuccess() {
+		Member member = marketingMember(false);
+		givenSetting(member);
+		FcmToken invalid = mock(FcmToken.class);
+		FcmToken temporary = mock(FcmToken.class);
+		given(invalid.getToken()).willReturn("invalid");
+		given(temporary.getToken()).willReturn("temporary");
+		given(fcmTokenRepository.findByMemberAndIsActive(member, true)).willReturn(List.of(invalid, temporary));
+		given(fcmService.sendPushNotification(eq("invalid"), any(), any(), anyMap()))
+			.willReturn(FcmService.SendResult.INVALID_TOKEN);
+		given(fcmService.sendPushNotification(eq("temporary"), any(), any(), anyMap()))
+			.willThrow(new AlarmException(
+				AlarmErrorCode.FCM_SEND_FAILED));
+		assertThat(pushDispatcher.dispatchWithResult(notification(NotificationType.NOTICE), member, DAY))
+			.isEqualTo(PushDispatcher.Result.FAILED);
+		verify(deliveryRepository).recordPushResult(any(), any(), eq("FAILED"), eq("FCM_SEND_FAILED"), eq(DAY));
+	}
+
+	@Test
+	void onlyInvalidTokensAreSkipped() {
+		Member member = marketingMember(false);
+		givenSetting(member);
+		givenToken(member, FcmService.SendResult.INVALID_TOKEN);
+		assertThat(pushDispatcher.dispatchWithResult(notification(NotificationType.NOTICE), member, DAY))
+			.isEqualTo(PushDispatcher.Result.SKIPPED);
+		verify(deliveryRepository, never()).recordPushResult(any(), any(), any(), any(), any());
+	}
+
 	private Member marketingMember(boolean nightAgreed) {
 		Member member = Member.builder().nickname("테스터").build();
 		member.updateMarketingAgreement(true);
@@ -125,9 +195,14 @@ class PushDispatcherTest {
 	}
 
 	private void givenToken(Member member) {
+		givenToken(member, FcmService.SendResult.SENT);
+	}
+
+	private void givenToken(Member member, FcmService.SendResult result) {
 		FcmToken token = mock(FcmToken.class);
 		given(token.getToken()).willReturn("token");
 		given(fcmTokenRepository.findByMemberAndIsActive(member, true)).willReturn(List.of(token));
+		given(fcmService.sendPushNotification(eq("token"), any(), any(), anyMap())).willReturn(result);
 	}
 
 	private Notification ad() {

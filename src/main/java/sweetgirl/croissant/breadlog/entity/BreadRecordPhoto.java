@@ -1,5 +1,7 @@
 package sweetgirl.croissant.breadlog.entity;
 
+import java.util.UUID;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -21,6 +23,10 @@ import sweetgirl.croissant.common.enums.MimeType;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class BreadRecordPhoto extends ImageFile {
+
+	/** 사진 행을 다시 만들거나 파일을 교체해도 이어지는 참조. 삭제 후 새 사진에는 새 값을 부여한다. */
+	@Column(name = "reference_id", nullable = false, updatable = false, unique = true)
+	private UUID referenceId = UUID.randomUUID();
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "record_id", nullable = false)
@@ -48,5 +54,9 @@ public class BreadRecordPhoto extends ImageFile {
 		this.sortOrder = sortOrder;
 		this.width = width;
 		this.height = height;
+	}
+
+	public void retainReferenceFrom(BreadRecordPhoto original) {
+		this.referenceId = original.getReferenceId();
 	}
 }

@@ -25,6 +25,8 @@ public enum NotificationType {
 
 	/** 운영 공지 — 새 버전 소식 등 */
 	NOTICE("NOTICE"),
+	/** 월간 빵일지 발행 알림 */
+	MONTHLY_REPORT("MONTHLY_REPORT"),
 	/** 광고성 알림. 마케팅 수신 동의가 따로 있어야 나간다 */
 	AD("AD"),
 	/** 내가 올린 기여 제보(메뉴 추가·가게 추가·가게 정보)의 승인·반려 결과 */

@@ -1,5 +1,6 @@
 package sweetgirl.croissant.personalization.repository;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -34,6 +35,12 @@ public class UserInteractionIngestJdbcRepository {
 		Boolean locked = jdbcTemplate.queryForObject("SELECT pg_try_advisory_xact_lock(:lockKey)",
 			new MapSqlParameterSource("lockKey", lockKey), Boolean.class);
 		return Boolean.TRUE.equals(locked);
+	}
+
+	public boolean isDayComplete(LocalDate day) {
+		return Boolean.TRUE.equals(jdbcTemplate.queryForObject("""
+				SELECT EXISTS (SELECT 1 FROM user_interaction_ingest_day WHERE ingest_date = :day)
+				""", new MapSqlParameterSource("day", day), Boolean.class));
 	}
 
 	public int insertSaves(LocalDateTime from, LocalDateTime to) {
@@ -71,6 +78,17 @@ public class UserInteractionIngestJdbcRepository {
 				WHERE br.deleted_at IS NULL AND t.menu_id IS NOT NULL
 					AND br.created_at >= :from AND br.created_at < :to
 				""" + ON_CONFLICT, range(from, to));
+	}
+
+	/** 일별 적재 전체가 성공한 뒤 호출한다. 아직 끝나지 않은 날짜는 호출자가 제외한다. */
+	public int recordCompletedDays(LocalDateTime from, LocalDateTime until) {
+		return jdbcTemplate.update("""
+				INSERT INTO user_interaction_ingest_day (ingest_date, completed_at)
+				SELECT CAST(day AS date), clock_timestamp()
+				FROM generate_series(CAST(:from AS timestamp), CAST(:to AS timestamp) - interval '1 day',
+					interval '1 day') AS day
+				ON CONFLICT (ingest_date) DO UPDATE SET completed_at = EXCLUDED.completed_at
+				""", range(from, until));
 	}
 
 	/**

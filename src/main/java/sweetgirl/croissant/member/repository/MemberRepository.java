@@ -15,6 +15,22 @@ import sweetgirl.croissant.member.entity.Member;
 
 public interface MemberRepository extends JpaRepository<Member, Long> {
 
+	/** 월말 전에 가입한 현재 일반 회원. 이미 발행한 회원은 재시도 순회에서 제외한다. */
+	@Query("""
+			SELECT m.id FROM Member m
+			WHERE m.id > :afterId AND m.memberType = 'USER' AND m.deletedAt IS NULL
+				AND m.createdAt < :until
+				AND NOT EXISTS (SELECT r FROM MonthlyReportMember r
+					WHERE r.id.memberId = m.id AND r.id.yearMonth = :yearMonth
+						AND r.status = sweetgirl.croissant.monthlyreport.enums.MonthlyReportStatus.PUBLISHED)
+			ORDER BY m.id
+			""")
+	Slice<Long> findMonthlyReportTargets(@Param("yearMonth") String yearMonth,
+			@Param("until") LocalDateTime until, @Param("afterId") Long afterId, Pageable pageable);
+
+	boolean existsByIdAndMemberTypeAndDeletedAtIsNullAndCreatedAtBefore(Long id, String memberType,
+			LocalDateTime until);
+
 	// id로 회원을 조회하되, 탈퇴한 회원(deletedAt이 null이 아닌 경우)은 조회 결과에서 제외
 	// 탈퇴 회원에게 서비스 접근을 막기 위해 기존 findById 대신 이 메서드를 사용
 	Optional<Member> findByIdAndDeletedAtIsNull(Long id);

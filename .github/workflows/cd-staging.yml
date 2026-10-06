@@ -7,6 +7,12 @@ on:
   # 이게 없으면 변수를 바꿔도 다음 dev 머지까지 반영되지 않는다.
   workflow_dispatch:
 
+# 같은 EC2의 .env·Compose 파일과 Docker 저장소를 동시에 변경하지 않는다.
+# 실행 중인 배포는 끝내고 다음 배포를 시작한다.
+concurrency:
+  group: cd-staging
+  cancel-in-progress: false
+
 # 배포 알림의 PR 타이틀 조회(gh api …/pulls)에 필요 — 없으면 403으로 에러 본문이 제목에 섞인다
 permissions:
   contents: read
@@ -108,6 +114,10 @@ jobs:
           firebase.config.path=firebase/firebase-service-account.json
 
           oauth2.front-redirect-uri=bbanggut://permission-location
+
+          # 월간 초안만 자동 생성. 발행·푸시는 어드민 검토 후 승인한다.
+          monthly-report.auto-preparation.enabled=${{ vars.STAGING_MONTHLY_REPORT_AUTO_PREPARATION || 'false' }}
+          monthly-report.auto-preparation.asset-version=${{ vars.STAGING_MONTHLY_REPORT_ASSET_VERSION || '' }}
 
           spring.jpa.hibernate.ddl-auto=validate
           spring.jpa.show-sql=false
@@ -243,7 +253,17 @@ jobs:
               df -h /
             fi
 
-            docker compose -f docker-compose.yml -f docker-compose.scouter.yml pull
+            # 레이어 다운로드의 일시 오류는 재시도하되, 실패한 이미지로 up을 실행하지 않는다.
+            for attempt in 1 2 3; do
+              if docker compose -f docker-compose.yml -f docker-compose.scouter.yml pull; then
+                break
+              fi
+              if [ "$attempt" -eq 3 ]; then
+                echo "Docker 이미지 다운로드가 3회 실패했습니다. 기존 컨테이너를 유지합니다."
+                exit 1
+              fi
+              sleep $((attempt * 5))
+            done
             docker compose -f docker-compose.yml -f docker-compose.scouter.yml up -d
             # 배포 뒤 한 번 더 — 방금 밀려난 이미지를 다음 배포까지 안고 가지 않게.
             # 직전 버전 이미지는 남긴다 — 롤백 시 IMAGE_TAG만 되돌리면 되도록.

@@ -17,14 +17,14 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * 열쇠가 필요한 어드민 API 앞을 지킨다 — 편지와 개인화 배치.
+ * 편지·개인화·추천·월간 보고서 어드민 API의 공유 키를 확인한다.
  *
  * <p>{@code SecurityConfig}에서 {@code /api/admin/**}은 permitAll이다. 코스나 메뉴를 고치는
  * API라면 데이터가 지저분해지는 정도지만, <b>편지는 사용자에게 직접 닿는다</b> — 열어두면 아무나
- * 개발자를 사칭해 메시지를 보낼 수 있다. 그래서 편지 경로에만 열쇠를 하나 건다.
+ * 개발자를 사칭해 메시지를 보낼 수 있다. 사용자에게 영향을 주는 경로는 공유 키를 확인한다.
  *
  * <p>키가 설정돼 있지 않으면 통과시킨다. 로컬 개발과 기존 배포를 세우지 않으려는 것이고,
- * 대신 기동할 때마다 경고를 남긴다. <b>운영에는 반드시 {@code ADMIN_API_KEY}를 넣어야 한다.</b>
+ * 대신 기동할 때마다 경고를 남긴다. 월간 보고서는 키 미설정 시 환경과 무관하게 거절한다. <b>운영에는 반드시 {@code ADMIN_API_KEY}를 넣어야 한다.</b>
  */
 public class AdminApiKeyFilter extends OncePerRequestFilter {
 
@@ -37,7 +37,7 @@ public class AdminApiKeyFilter extends OncePerRequestFilter {
 	 * 나간다 — 열어 두면 아무나 우리 계정으로 돈을 쓸 수 있다. 여기에 더하면 AdminApiKeyConfig 의 URL 패턴도 같이 더한다.
 	 */
 	static final List<String> PROTECTED_PREFIXES = List.of(
-		"/api/admin/letters", "/admin/personalization", "/admin/recommendations");
+		"/api/admin/letters", "/admin/personalization", "/admin/recommendations", "/api/admin/monthly-reports");
 
 	/**
 	 * 열쇠가 비었을 때 <b>통과시키지 않고 막는</b> 경로. 호출마다 외부 LLM 에 실제 비용이 나가서, 열려 있으면
@@ -53,7 +53,7 @@ public class AdminApiKeyFilter extends OncePerRequestFilter {
 		this.allowWithoutKey = allowWithoutKey;
 		this.apiKey = apiKey == null ? "" : apiKey.trim();
 		if (this.apiKey.isEmpty()) {
-			log.warn("ADMIN_API_KEY가 비어 있다 — 열쇠가 필요한 어드민 API({})가 무방비다. 운영에서는 반드시 설정할 것. "
+			log.warn("ADMIN_API_KEY가 비어 있다 — 월간 보고서는 503으로 막는다. 기타 보호 경로: {}. "
 				+ "비용이 나가는 경로({})는 {}", PROTECTED_PREFIXES, COST_INCURRING_PREFIXES,
 				allowWithoutKey ? "로컬이라 통과시킨다" : "503 으로 막는다");
 		}
@@ -69,12 +69,13 @@ public class AdminApiKeyFilter extends OncePerRequestFilter {
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
 			throws ServletException, IOException {
 		if (apiKey.isEmpty()) {
-			if (allowWithoutKey || !isCostIncurring(request.getRequestURI())) {
+			if (!request.getRequestURI().startsWith("/api/admin/monthly-reports")
+				&& (allowWithoutKey || !isCostIncurring(request.getRequestURI()))) {
 				chain.doFilter(request, response);
 				return;
 			}
-			// 막는 쪽으로 기운다 — 열쇠가 빠진 채 뜬 환경에서 이 경로가 공개되면 대가가 돈이다
-			log.error("열쇠 없이 비용 경로 요청 [uri={}, ip={}] — ADMIN_API_KEY 를 넣어야 한다",
+			// 비용 경로와 월간 보고서는 키 설정 누락 시 요청을 거절한다.
+			log.error("열쇠 없이 보호 경로 요청 [uri={}, ip={}] — ADMIN_API_KEY 를 넣어야 한다",
 				request.getRequestURI(), request.getRemoteAddr());
 			write(response, HttpStatus.SERVICE_UNAVAILABLE, "ADMIN503",
 				"어드민 열쇠가 설정되지 않아 이 경로를 막았습니다.");
