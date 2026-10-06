@@ -62,6 +62,7 @@ import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMember;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 import sweetgirl.croissant.monthlyreport.enums.MonthlyReportJobStatus;
 import sweetgirl.croissant.monthlyreport.enums.MonthlyReportStatus;
+import sweetgirl.croissant.monthlyreport.repository.MonthlyReportAssetReplacementRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportJobRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportNotificationRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
@@ -303,7 +304,7 @@ class MonthlyReportJobTest {
 	@EnableJpaRepositories(basePackageClasses = MonthlyReportRepository.class,
 			// 이 테스트는 발행·작업 저장소만 스캔한다.
 			excludeFilters = @Filter(type = ASSIGNABLE_TYPE, classes = {MonthlyReportSourceHistoryRepository.class,
-				MonthlyReportNotificationRepository.class}))
+				MonthlyReportNotificationRepository.class, MonthlyReportAssetReplacementRepository.class}))
 	static class JpaConfig {
 		// 트랜잭션 프록시로 실제 DB 롤백과 회원별 커밋을 검증한다.
 	}
