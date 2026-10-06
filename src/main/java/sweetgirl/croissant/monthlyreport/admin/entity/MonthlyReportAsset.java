@@ -20,7 +20,7 @@ public class MonthlyReportAsset {
 	@Column(name = "created_at", insertable = false, updatable = false)
 	private Instant createdAt;
 
-	@Column(name = "updated_at", insertable = false, updatable = false)
+	@Column(name = "updated_at", insertable = false)
 	private Instant updatedAt;
 
 	@Id
@@ -39,6 +39,11 @@ public class MonthlyReportAsset {
 	private String variant;
 	@Column(name = "image_key", nullable = false, length = 500)
 	private String imageKey;
+
+	public void replaceImageKey(String imageKey) {
+		this.imageKey = imageKey;
+		this.updatedAt = Instant.now();
+	}
 
 	public enum Kind {
 		COVER, TYPE, FACE

@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import sweetgirl.croissant.monthlyreport.admin.controller.AdminMonthlyReportController;
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAdminCommandService;
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAdminQueryService;
+import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAssetCommandService;
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAssetQueryService;
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAssetUploadService;
 
@@ -21,7 +22,8 @@ class AdminMonthlyReportControllerTest {
 	private final MonthlyReportAdminCommandService reports = mock(MonthlyReportAdminCommandService.class);
 	private final MockMvc mvc = MockMvcBuilders
 		.standaloneSetup(new AdminMonthlyReportController(reports, mock(MonthlyReportAdminQueryService.class),
-			mock(MonthlyReportAssetUploadService.class), mock(MonthlyReportAssetQueryService.class)))
+			mock(MonthlyReportAssetUploadService.class), mock(MonthlyReportAssetQueryService.class),
+			mock(MonthlyReportAssetCommandService.class)))
 		.build();
 
 	@Test

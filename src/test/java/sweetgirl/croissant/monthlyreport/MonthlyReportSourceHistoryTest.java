@@ -42,9 +42,11 @@ import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportSourceSnapshot;
 import sweetgirl.croissant.monthlyreport.enums.MonthlyReportAggregationBasis;
 import sweetgirl.croissant.monthlyreport.enums.MonthlyReportSourceType;
+import sweetgirl.croissant.monthlyreport.repository.MonthlyReportAssetReplacementRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportSourceHistoryRepository;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportActivityPolicy;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportAssetImageQueryService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportBreadAggregationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportGenerationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportNotificationService;
@@ -309,7 +311,8 @@ class MonthlyReportSourceHistoryTest {
 			entityManager.getTransaction().commit();
 			entityManager.clear();
 			MonthlyReportQueryService query = new MonthlyReportQueryService(memberReader, reports, codec,
-				repositories.getRepository(BreadRecordTagRepository.class));
+				repositories.getRepository(BreadRecordTagRepository.class),
+				new MonthlyReportAssetImageQueryService(mock(MonthlyReportAssetReplacementRepository.class)));
 			MonthlyReportResponse report = query.getReport(123L, MONTH);
 			assertThat(report.schemaVersion()).isEqualTo(2);
 			assertThat(report.activity().totalScore()).isEqualTo(36);

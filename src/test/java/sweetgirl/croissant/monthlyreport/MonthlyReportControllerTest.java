@@ -3,6 +3,7 @@ package sweetgirl.croissant.monthlyreport;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -49,8 +50,10 @@ import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.monthlyreport.controller.MonthlyReportController;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
+import sweetgirl.croissant.monthlyreport.repository.MonthlyReportAssetReplacementRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportActivityPolicy;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportAssetImageQueryService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportQueryService;
 
@@ -69,7 +72,8 @@ class MonthlyReportControllerTest {
 	@BeforeEach
 	void setUp() {
 		var service = new MonthlyReportQueryService(new MemberReader(memberRepository), repository,
-			new MonthlyReportPayloadCodec(new ObjectMapper(), FACTORY.getValidator()), tagRepository);
+			new MonthlyReportPayloadCodec(new ObjectMapper(), FACTORY.getValidator()), tagRepository,
+			new MonthlyReportAssetImageQueryService(mock(MonthlyReportAssetReplacementRepository.class)));
 		mvc = MockMvcBuilders.standaloneSetup(new MonthlyReportController(service))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();

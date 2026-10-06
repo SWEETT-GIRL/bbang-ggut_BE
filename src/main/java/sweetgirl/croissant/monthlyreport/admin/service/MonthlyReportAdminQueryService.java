@@ -76,7 +76,7 @@ public class MonthlyReportAdminQueryService {
 		if (draft.getPayload() == null) {
 			throw createRunConflictException();
 		}
-		return queries.resolveCurrentPhotos(codec.read(draft.getPayload(), memberId, month),
+		return queries.resolveCurrentImages(codec.read(draft.getPayload(), memberId, month),
 			codec.readPhotoSources(draft.getRawMetrics())).withNickname(members.getMember(memberId).getNickname());
 	}
 

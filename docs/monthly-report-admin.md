@@ -73,14 +73,14 @@ PNG 또는 WebP, 0바이트 초과·20MiB 이하를 사용한다. 등록 시 S3 
 - 파일·폴더 선택은 `S3 업로드 → 서버의 파일 확인 → monthly_report_asset 등록`까지 완료해야 성공이다.
 - 표지는 `covers/cat/09.png`, 얼굴은 `faces/cat/smile.png`, 유형 카드는 `types/cat/earth/record.png`처럼 준비한다.
   `cat__09.png`, `cat__smile.png`, `cat__earth__record.png`도 자동 인식한다. 각 파일의 종류·캐릭터·월·표정을 확인한다.
-- 같은 버전의 기존 조합은 덮어쓰지 않는다. 교체할 때는 새 버전의 전체 필요한 이미지 조합을 준비한 뒤 그 버전으로 새 초안을 생성한다.
+- 신규 등록은 같은 버전의 기존 조합을 건너뛴다. 같은 그림을 WebP로 최적화할 때는 ‘WebP로 교체’를 사용한다. 그림 자체가 달라진 경우 새 버전을 등록한다.
 - S3 업로드만 성공하면 완료로 표시하지 않는다. 등록 실패 항목은 같은 키로 DB 등록만 재시도한다.
 - 이미 S3에 직접 올린 개발 파일은 ‘이미 S3에 올린 파일 연결하기’에서 객체 키를 한 줄씩 넣는다.
   현재 버전과 맞는 경로인지 검토한 뒤 등록한다. 예: `monthly-reports/assets/v1/faces/cat/smile.png`.
   S3 파일이 없거나 형식·크기가 맞지 않으면 서버가 거절한다. S3 전체 목록을 조회하거나 다른 버킷 파일을 가져오지는 않는다.
 - 새 초안은 표지·유형 카드와 함께 해당 월의 얼굴 이미지도 필수로 확인한다. 부족하면 ASSET_MISSING으로 실패하므로 등록 후 재시도한다.
 - 표정은 기존 앱과 같은 캐릭터·월 계산으로 선택한다. 캐릭터 스냅샷에 `faceImageKey`를 저장하고 목록·상세 응답에 동일하게 보낸다.
-  이후 등록부나 앱 환경변수가 달라져도 이미 발행한 얼굴 키는 유지된다. 이전 발행본의 필드는 없을 수 있다.
+  발행 스냅샷의 키는 유지한다. 동일 그림의 WebP 교체를 승인하면 조회 응답에서 교체된 키를 내려준다. 이전 발행본에는 얼굴 키가 없을 수 있다.
 - 앱은 등록된 얼굴 키를 우선하고 이전 발행본에는 기존 얼굴 CDN 규약을 사용한다. 이미지 로딩 실패 시 기존 캐릭터 폴백을 유지한다.
 - 배포 순서: `V20261006160000__allow_monthly_report_face_assets.sql`과 백엔드 → 어드민 → 앱 연동.
   이 마이그레이션은 FACE 종류 허용만 추가하며 기존 COVER/TYPE과 보고서를 수정하지 않는다.
@@ -120,6 +120,43 @@ monthly-reports/assets/{version}/types/{characterCode}/{planetCode}/{type}-{UUID
 다른 키로 바꾸려 하면 409다. 디자인 변경에는 새 버전을 사용한다. 이미 발행된 이미지 파일은 삭제·덮어쓰기하지 않는다.
 직접 S3에 올릴 때도 위 경로를 지키면 등록할 수 있으며 UUID 없는 `{variant}.png`도 허용한다.
 직접 S3 권한으로 파일을 덮어쓰는 행위까지 애플리케이션이 차단하지는 않으므로 버전 키를 보존해야 한다.
+
+### 3. 같은 그림의 WebP로 교체
+
+새 파일은 `POST /assets/upload-urls`로 새 UUID 키에 업로드한 뒤 `PATCH /assets`로 연결한다.
+표지·얼굴·유형 카드 모두 지원하며 요청/응답에 관리자 키가 필요하다.
+
+```json
+{
+  "asset": {
+    "version": "v1", "kind": "FACE", "characterCode": "cat", "planetCode": "",
+    "variant": "neutral", "contentType": "image/webp",
+    "imageKey": "monthly-reports/assets/v1/faces/cat/neutral-new.webp"
+  },
+  "expectedImageKey": "monthly-reports/assets/v1/faces/cat/neutral.png",
+  "applyToExistingReports": true
+}
+```
+
+- `expectedImageKey`는 교체 전에 조회한 현재 키다. 다른 관리자가 이미 바꿨다면 409로 거절한다.
+- `applyToExistingReports: true`는 **같은 그림의 WebP 최적화**에 사용한다. 서버는 WebP 형식·경로·존재·크기를 확인한다. 그림 내용이 같은지는 관리자가 확인한다.
+- 원본 JSON·통계·발행 당시 캐릭터는 수정하지 않는다. `monthly_report_asset_replacement`의 연결을 목록·상세·초안 미리보기 조회에 적용한다.
+- 여러 번 최적화해도 이전 키들이 최신 키를 바로 가리킨다. 등록을 삭제해도 이 연결과 S3 객체는 남는다.
+- 같은 교체 요청의 재시도는 멱등 처리한다. 어드민에서 DB 연결만 실패한 파일은 업로드를 반복하지 않는다.
+- `false`이면 등록부만 교체하므로 이후 생성한 보고서에 적용한다. 어드민 WebP 교체는 `true`로 요청한다.
+- 배포는 `V20261006180000__monthly_report_asset_replacements.sql`과 백엔드 → 어드민 순서다.
+  얼굴 키 연동이 포함된 앱은 API를 다시 조회하면 새 WebP 주소를 받는다. 이번 교체를 위한 APK 재빌드는 필요 없다.
+
+### 4. 등록 삭제
+
+`DELETE /assets`에 아래 본문을 보낸다. 성공은 200이며 일반 `ApiResponse`를 반환한다.
+
+```json
+{"assetId":"v1/FACE/cat//neutral","expectedImageKey":"monthly-reports/assets/v1/faces/cat/neutral-new.webp"}
+```
+
+등록부만 삭제한다. 발행된 보고서와 S3 파일은 유지한다. 해당 조합을 사용하는 새 초안은 다시 등록하기 전까지 생성할 수 없다.
+이미 삭제된 항목은 성공으로 처리하고, 현재 키가 달라졌다면 409로 거절한다.
 
 ## 보고서 API
 
