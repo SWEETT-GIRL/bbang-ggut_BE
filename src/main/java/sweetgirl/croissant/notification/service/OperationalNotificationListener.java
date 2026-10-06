@@ -34,7 +34,16 @@ public class OperationalNotificationListener {
 		return switch (channel) {
 			case REPORT -> properties.getReportWebhookUrl();
 			case ABUSE -> properties.getAbuseWebhookUrl();
+			case LETTER -> properties.getLetterWebhookUrl();
 		};
+	}
+
+	private String title(String title) {
+		String prefix = properties.getTitlePrefix();
+		if (prefix == null || prefix.isBlank()) {
+			return title;
+		}
+		return prefix.strip() + " " + title;
 	}
 
 	private SlackMessage toMessage(OperationalNotificationEvent event) {
@@ -43,7 +52,7 @@ public class OperationalNotificationListener {
 			.toList();
 		return new SlackMessage(
 			event.color(),
-			event.title(),
+			title(event.title()),
 			event.description(),
 			event.timestamp(),
 			fields);

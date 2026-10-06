@@ -14,6 +14,8 @@ import sweetgirl.croissant.contribution.entity.MenuContributionReport;
 import sweetgirl.croissant.contribution.entity.StoreContributionReport;
 import sweetgirl.croissant.contribution.enums.ContributionReportType;
 import sweetgirl.croissant.inquiry.entity.Inquiry;
+import sweetgirl.croissant.letter.entity.LetterMessage;
+import sweetgirl.croissant.letter.entity.LetterThread;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.notification.code.AdminNotificationMessage;
@@ -115,6 +117,35 @@ public class AdminReportNotificationPublisher {
 			AdminNotificationMessage.title(AdminNotificationMessage.INQUIRY_EMOJI, subject),
 			AdminNotificationMessage.description(subject),
 			AdminNotificationMessage.INQUIRY_COLOR,
+			fields);
+	}
+
+	/**
+	 * 사용자가 편지함으로 보낸 편지. 어드민 답장·가입 인사·일괄 발신은 여기로 오지 않는다.
+	 *
+	 * <p>필드를 지금 문자열로 굳혀 둔다 — 호출 직후 벌크 UPDATE가 영속성 컨텍스트를 비워서,
+	 * 커밋 뒤 리스너에서 엔티티를 만지면 준영속 프록시를 건드리게 된다.
+	 */
+	public void publishLetterReceived(LetterMessage message) {
+		LetterThread thread = message.getThread();
+		Member member = thread.getMember();
+
+		List<OperationalNotificationEvent.Field> fields = new ArrayList<>();
+		addField(fields, "대화 ID", thread.getId(), true);
+		addField(fields, "회원 ID", memberId(member), true);
+		addField(fields, "닉네임", member != null ? member.getNickname() : null, true);
+		addField(fields, "유형", message.getCategory(), true);
+		if (!message.getImageKeys().isEmpty()) {
+			addField(fields, "사진", message.getImageKeys().size() + "장", true);
+		}
+		addField(fields, "내용", message.getBody(), false);
+
+		String subject = AdminNotificationMessage.LETTER_SUBJECT;
+		publish(
+			Channel.LETTER,
+			AdminNotificationMessage.title(AdminNotificationMessage.LETTER_EMOJI, subject),
+			AdminNotificationMessage.description(subject),
+			AdminNotificationMessage.LETTER_COLOR,
 			fields);
 	}
 

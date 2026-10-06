@@ -22,7 +22,8 @@ public record OperationalNotificationEvent(
 
 	public enum Channel {
 		REPORT,
-		ABUSE
+		ABUSE,
+		LETTER
 	}
 
 	public record Field(String name, String value, boolean inline) {
