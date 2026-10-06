@@ -40,6 +40,15 @@ jobs:
 
           exit 1
 
-      # DB 연동 테스트가 필요하다면 testcontainers 설정 후 아래 주석 해제
-      # - name: Run tests
-      #   run: ./gradlew test --no-daemon
+      # 기본 test 는 H2 로 돈다. 로컬 랩 PG(@Tag lab)·실제 LLM 호출(@Tag llm) 테스트는 build.gradle 에서 제외된다
+      - name: Run tests
+        run: ./gradlew test --no-daemon
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            build/reports/tests/test
+            build/test-results/test
