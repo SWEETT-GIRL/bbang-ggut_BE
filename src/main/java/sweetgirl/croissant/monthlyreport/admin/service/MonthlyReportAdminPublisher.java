@@ -55,7 +55,7 @@ public class MonthlyReportAdminPublisher {
 				Notification notification = notifications
 					.recordFor(Notification.announcement(NotificationType.MONTHLY_REPORT,
 						pushAt == null ? NotificationChannel.IN_APP : NotificationChannel.PUSH,
-						label + " 빵일지가 도착했어요", label + "의 빵 기록과 활동을 확인해 보세요.",
+						label + " 빵일지가 도착했어요", label + "의 빵로그과 활동을 확인해 보세요.",
 						"/reports/monthly/" + month), member, LocalDateTime.now(ZoneId.of("Asia/Seoul")));
 				reportNotifications.linkNotification(memberId, month, notification.getId());
 				if (pushAt != null) {

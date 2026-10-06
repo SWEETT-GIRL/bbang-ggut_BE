@@ -28,7 +28,7 @@ public class MonthlyReportNotificationService {
 	public void recordPublished(Member member, YearMonth month, LocalDateTime now) {
 		String link = "/reports/monthly/" + month;
 		Notification notification = Notification.announcement(NotificationType.MONTHLY_REPORT, NotificationChannel.PUSH,
-			month.getMonthValue() + "월 빵일지가 도착했어요", month.getMonthValue() + "월의 빵 기록과 활동을 확인해 보세요.", link);
+			month.getMonthValue() + "월 빵일지가 도착했어요", month.getMonthValue() + "월의 빵로그과 활동을 확인해 보세요.", link);
 		Notification recorded = recorder.recordFor(notification, member, now);
 		eventPublisher.publishEvent(PushRequestedEvent.to(recorded.getId(), member.getId()));
 	}
