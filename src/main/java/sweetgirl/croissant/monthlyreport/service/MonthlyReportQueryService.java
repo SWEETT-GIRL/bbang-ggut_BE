@@ -49,7 +49,8 @@ public class MonthlyReportQueryService {
 		Slice<PublishedReport> reports = repository.findPublished(memberId, PageRequest.of(page, size));
 		return SliceResponse.from(reports.map(report -> MonthlyReportListItem.of(
 			report.getYearMonth(), report.getPublishedAt(), new MonthlyReportResponse.Character(
-				report.getCharacterCode(), report.getCharacterName(), report.getCharacterImageKey()))));
+				report.getCharacterCode(), report.getCharacterName(), report.getCharacterImageKey(),
+				report.getFaceImageKey()))));
 	}
 
 	public MonthlyReportResponse getReport(Long memberId, String yearMonth) {

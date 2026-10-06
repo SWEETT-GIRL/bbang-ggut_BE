@@ -69,7 +69,11 @@ public record MonthlyReportResponse(
 	public record Character(
 			@NotBlank @Size(max = 100) String code,
 			@NotBlank @Size(max = 100) String name,
-			@Size(max = 2048) String imageKey) {
+			@Size(max = 2048) String imageKey,
+			@JsonInclude(JsonInclude.Include.NON_NULL) @Size(max = 2048) String faceImageKey) {
+		public Character(String code, String name, String imageKey) {
+			this(code, name, imageKey, null);
+		}
 	}
 
 	public record Planet(@NotBlank @Size(max = 100) String code, @NotBlank @Size(max = 100) String name) {
