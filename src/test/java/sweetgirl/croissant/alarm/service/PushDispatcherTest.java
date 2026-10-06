@@ -129,7 +129,7 @@ class PushDispatcherTest {
 				.build()));
 		givenToken(member);
 		Notification report = Notification.announcement(NotificationType.MONTHLY_REPORT, NotificationChannel.PUSH,
-			"9월 빵일지가 도착했어요", "빵로그을 확인해 보세요.", "/reports/monthly/2026-09");
+			"🪐 9월 빵별일지가 도착했어요!", "우리 9월엔 어떤 빵을 만났을까? 빵로그와 활동을 함께 돌아봐요.", "/reports/monthly/2026-09");
 
 		pushDispatcher.dispatch(report, member, DAY);
 
@@ -147,7 +147,7 @@ class PushDispatcherTest {
 			NotificationSetting.builder().member(member).isNotificationEnabled(false).isMarketingEnabled(true)
 				.build()));
 		pushDispatcher.dispatch(Notification.announcement(NotificationType.MONTHLY_REPORT, NotificationChannel.PUSH,
-			"9월 빵일지가 도착했어요", "빵로그을 확인해 보세요.", "/reports/monthly/2026-09"), member, DAY);
+			"🪐 9월 빵별일지가 도착했어요!", "우리 9월엔 어떤 빵을 만났을까? 빵로그와 활동을 함께 돌아봐요.", "/reports/monthly/2026-09"), member, DAY);
 		verify(fcmTokenRepository, never()).findByMemberAndIsActive(any(), any(Boolean.class));
 		verify(fcmService, never()).sendPushNotification(anyString(), anyString(), anyString(), anyMap());
 	}
