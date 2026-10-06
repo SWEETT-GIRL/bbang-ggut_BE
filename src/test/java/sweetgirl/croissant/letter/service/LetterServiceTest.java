@@ -40,6 +40,7 @@ import sweetgirl.croissant.letter.repository.LetterThreadRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.notification.service.AdminReportNotificationPublisher;
 
 @ExtendWith(MockitoExtension.class)
 class LetterServiceTest {
@@ -57,6 +58,9 @@ class LetterServiceTest {
 
 	@Mock
 	private S3Service s3Service;
+
+	@Mock
+	private AdminReportNotificationPublisher adminReportNotificationPublisher;
 
 	@InjectMocks
 	private LetterService letterService;
@@ -182,6 +186,33 @@ class LetterServiceTest {
 
 		verify(letterThreadRepository).save(any(LetterThread.class));
 		verify(letterMessageRepository).save(any(LetterMessage.class));
+	}
+
+	@Test
+	@DisplayName("보낸 편지는 슬랙 알림으로 넘긴다")
+	void send_publishesSlackAlert() {
+		given(letterMessageRepository.countByThreadMemberIdAndSenderAndCreatedAtAfter(
+			eq(MEMBER_ID), eq(LetterSender.MEMBER), any())).willReturn(0L);
+		given(letterThreadRepository.findByMemberId(MEMBER_ID)).willReturn(Optional.of(thread(11L)));
+		given(letterMessageRepository.save(any(LetterMessage.class))).willAnswer(inv -> inv.getArgument(0));
+
+		letterService.send(MEMBER_ID, sendRequest("앱이 자꾸 꺼져요", LetterCategory.BUG));
+
+		ArgumentCaptor<LetterMessage> captor = ArgumentCaptor.forClass(LetterMessage.class);
+		verify(adminReportNotificationPublisher).publishLetterReceived(captor.capture());
+		assertThat(captor.getValue().getBody()).isEqualTo("앱이 자꾸 꺼져요");
+	}
+
+	@Test
+	@DisplayName("도배로 막힌 편지는 슬랙에 알리지 않는다")
+	void send_doesNotAlertWhenRejected() {
+		given(letterMessageRepository.countByThreadMemberIdAndSenderAndCreatedAtAfter(
+			eq(MEMBER_ID), eq(LetterSender.MEMBER), any())).willReturn(5L);
+
+		assertThatThrownBy(() -> letterService.send(MEMBER_ID, sendRequest("또 보내요")))
+			.isInstanceOf(LetterException.class);
+
+		verify(adminReportNotificationPublisher, never()).publishLetterReceived(any());
 	}
 
 	@Test

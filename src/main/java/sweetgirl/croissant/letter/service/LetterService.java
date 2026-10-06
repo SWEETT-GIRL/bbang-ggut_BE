@@ -31,6 +31,7 @@ import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.notification.service.AdminReportNotificationPublisher;
 
 /**
  * 사용자 쪽 편지함 — 개발자와 주고받은 대화를 보고, 답장하고, 먼저 말을 건다.
@@ -69,6 +70,7 @@ public class LetterService {
 	private final LetterMessageRepository letterMessageRepository;
 	private final MemberRepository memberRepository;
 	private final S3Service s3Service;
+	private final AdminReportNotificationPublisher adminReportNotificationPublisher;
 
 	/**
 	 * 내 편지 목록 — 최신순. 앱이 뒤집힌 목록(inverted)으로 그리고, 위로 당기면 옛 편지를 더 받는다.
@@ -153,6 +155,8 @@ public class LetterService {
 		LetterMessage saved = letterMessageRepository.save(
 			LetterMessage.create(thread, LetterSender.MEMBER, body, request.getCategory(), imageKeys));
 		LetterMessageResponse response = LetterMessageResponse.from(saved);
+		// 슬랙은 커밋 뒤에 나간다 — 저장이 롤백되면 알림도 없다
+		adminReportNotificationPublisher.publishLetterReceived(saved);
 
 		letterMessageRepository.markAllAsRead(thread.getId(), LetterSender.ADMIN, now);
 		return response;
