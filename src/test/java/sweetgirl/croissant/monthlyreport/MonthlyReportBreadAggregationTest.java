@@ -81,6 +81,7 @@ class MonthlyReportBreadAggregationTest {
 		source.setSchema(schema);
 		jdbc = new JdbcTemplate(source);
 		new ResourceDatabasePopulator(new ClassPathResource("monthly-report-bread-aggregation.sql"),
+			new ClassPathResource("monthly-report-initial-sources.sql"),
 			new ClassPathResource("db/migration/V20261005222045__create_monthly_report_member.sql"),
 			new ClassPathResource("db/migration/V20261005222046__add_monthly_report_appearance.sql"),
 			new ClassPathResource("db/migration/V20261005222047__add_bread_photo_reference.sql"),
@@ -243,8 +244,7 @@ class MonthlyReportBreadAggregationTest {
 			new MonthlyReportResponse.Bread("베이글", 1L, null),
 			new MonthlyReportResponse.Bread("식빵", 1L, null));
 		assertThat(aggregation.aggregate(789L, MONTH).breads()).isEmpty();
-		assertThatThrownBy(() -> aggregation.aggregate(123L, "2025-10")).isInstanceOf(CustomException.class)
-			.hasFieldOrPropertyWithValue("errorCode", MonthlyReportErrorCode.SOURCE_HISTORY_UNAVAILABLE);
+		assertThat(aggregation.aggregate(123L, "2025-10").breads()).isEmpty();
 		jdbc.update("INSERT INTO bread_record_loved_bread VALUES (1, 1, '소금빵')");
 		result = aggregateBeforePublication();
 		assertThat(result.photoSources().get("소금빵").recordId()).isEqualTo(1);

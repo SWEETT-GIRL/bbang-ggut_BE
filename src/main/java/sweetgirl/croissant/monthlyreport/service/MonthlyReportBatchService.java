@@ -2,7 +2,6 @@ package sweetgirl.croissant.monthlyreport.service;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.YearMonth;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
@@ -39,8 +38,7 @@ public class MonthlyReportBatchService {
 		for (String month : jobs.findDueMonths(scanAt, properties.getMaxAttempts())) {
 			try {
 				LocalDateTime coveredFrom = history.findCoveredFrom();
-				if (coveredFrom == null || !coveredFrom.isBefore(
-					YearMonth.parse(month).plusMonths(1).atDay(1).atStartOfDay())) {
+				if (coveredFrom == null) {
 					throw new CustomException(MonthlyReportErrorCode.SOURCE_HISTORY_UNAVAILABLE);
 				}
 				recovery.ensureComplete(month);

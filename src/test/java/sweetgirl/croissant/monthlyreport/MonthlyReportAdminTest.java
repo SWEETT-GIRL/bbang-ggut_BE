@@ -413,14 +413,14 @@ class MonthlyReportAdminTest {
 	}
 
 	@Test
-	void insufficientHistoryBlocksBeforeReadingMembersAndDoesNotConsumeAttempts() {
-		when(history.findCoveredFrom()).thenReturn(LocalDateTime.of(2026, 1, 1, 0, 0));
+	void missingHistoryCoverageBlocksBeforeReadingMembersAndCanRetryAfterInitialization() {
+		when(history.findCoveredFrom()).thenReturn(null);
 		MonthlyReportRunResponse run = admin.createReportRun(MONTH, "v1");
 		worker.processReportRunStep(run.id());
 		assertThat(queries.getReportRunProgress(MONTH, run.id()).run().errorCode()).isEqualTo("MONTHLY_REPORT5032");
 		assertThat(drafts.count()).isZero();
 		verifyNoInteractions(preparation, targets, recovery);
-		when(history.findCoveredFrom()).thenReturn(LocalDateTime.of(2025, 12, 1, 0, 0));
+		when(history.findCoveredFrom()).thenReturn(LocalDateTime.of(2026, 1, 1, 0, 0));
 		admin.retryReportRun(MONTH, run.id());
 		worker.processReportRunStep(run.id());
 		assertThat(drafts.count()).isEqualTo(1);
