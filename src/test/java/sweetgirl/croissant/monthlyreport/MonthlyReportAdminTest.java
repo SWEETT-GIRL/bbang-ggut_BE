@@ -86,9 +86,12 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.monthlyreport.admin.dto.MonthlyReportAdminRequests.Asset;
+import sweetgirl.croissant.monthlyreport.admin.dto.MonthlyReportAdminRequests.RemoveAsset;
+import sweetgirl.croissant.monthlyreport.admin.dto.MonthlyReportAdminRequests.ReplaceAsset;
 import sweetgirl.croissant.monthlyreport.admin.dto.MonthlyReportOperationsResponse;
 import sweetgirl.croissant.monthlyreport.admin.dto.MonthlyReportRunResponse;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportAsset;
+import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportAsset.Kind;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportDraft;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportDraftId;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportPush;
@@ -111,11 +114,14 @@ import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportPushCommandS
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportPushWorker;
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportRunWorker;
 import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
+import sweetgirl.croissant.monthlyreport.entity.MonthlyReportAssetReplacement;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMember;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportNotification;
+import sweetgirl.croissant.monthlyreport.repository.MonthlyReportAssetReplacementRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportNotificationRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportSourceHistoryRepository;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportAssetImageQueryService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportGenerationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportIngestRecoveryService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportNotificationService;
@@ -176,6 +182,8 @@ class MonthlyReportAdminTest {
 			new ClassPathResource("db/migration/V20261005222045__create_monthly_report_member.sql"),
 			new ClassPathResource("db/migration/V20261005222046__add_monthly_report_appearance.sql"),
 			new ClassPathResource("db/migration/V20261005222052__monthly_report_assets.sql"),
+			new ClassPathResource("db/migration/V20261006180000__monthly_report_asset_replacements.sql"),
+			new ClassPathResource("db/migration/V20261006160000__allow_monthly_report_face_assets.sql"),
 			new ClassPathResource("db/migration/V20261005222053__monthly_report_push.sql"),
 			new ClassPathResource("db/migration/V20261005222054__monthly_report_admin.sql"),
 			new ClassPathResource("db/migration/V20261005222055__monthly_report_single_member_run.sql"),
@@ -190,6 +198,7 @@ class MonthlyReportAdminTest {
 		factory.setManagedTypes(
 			PersistenceManagedTypes.of(MonthlyReportRun.class.getName(), MonthlyReportDraft.class.getName(),
 				MonthlyReportPush.class.getName(), MonthlyReportAsset.class.getName(),
+				MonthlyReportAssetReplacement.class.getName(),
 				MonthlyReportMember.class.getName(), MonthlyReportNotification.class.getName()));
 		factory.setJpaPropertyMap(Map.of("hibernate.hbm2ddl.auto", "validate"));
 		factory.afterPropertiesSet();
@@ -222,6 +231,9 @@ class MonthlyReportAdminTest {
 		context.registerBean(NotificationDeliveryRepository.class, () -> pushDeliveries);
 		context.registerBean(PushDispatcher.class, () -> pushDispatcher);
 		context.register(MonthlyReportPushCommandService.class, MonthlyReportPushWorker.class);
+		context.registerBean(MonthlyReportAssetReplacementRepository.class,
+			() -> repos.getRepository(MonthlyReportAssetReplacementRepository.class));
+		context.register(MonthlyReportAssetImageQueryService.class);
 		context.registerBean(MonthlyReportAssetRepository.class,
 			() -> repos.getRepository(MonthlyReportAssetRepository.class));
 		context.registerBean(WorldCharacterRepository.class, () -> mock(WorldCharacterRepository.class));
@@ -246,7 +258,8 @@ class MonthlyReportAdminTest {
 	@BeforeEach
 	void fixtures() {
 		jdbc.execute(
-			"TRUNCATE monthly_report_push, monthly_report_draft, monthly_report_run, "
+			"TRUNCATE monthly_report_asset_replacement, monthly_report_asset, "
+				+ "monthly_report_push, monthly_report_draft, monthly_report_run, "
 				+ "monthly_report_member, notification, notification_delivery, notification_recipient, "
 				+ "request_log, member CASCADE");
 		jdbc.execute("INSERT INTO member VALUES (123), (456)");
@@ -305,12 +318,100 @@ class MonthlyReportAdminTest {
 			assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
 			return null;
 		}).when(assetStore).validateStoredAsset(key, "image/png");
-		Asset request = new Asset("tx-check", MonthlyReportAsset.Kind.COVER, "cat", "", "09", "image/png", key);
+		Asset request = new Asset("tx-check", Kind.COVER, "cat", "", "09", "image/png", key);
 		assertThat(context.getBean(MonthlyReportAssetUploadService.class).registerReportAsset(request).imageKey())
 			.isEqualTo(key);
 		assertThat(jdbc.queryForObject("SELECT count(*) FROM monthly_report_asset WHERE image_key = ?",
 			Integer.class, key)).isEqualTo(1);
 		verify(assetStore).validateStoredAsset(key, "image/png");
+	}
+
+	@Test
+	void concurrentAssetReplacementsOnlyAcceptOneExpectedKey() throws Exception {
+		when(context.getBean(WorldCharacterRepository.class).existsById("cat")).thenReturn(true);
+		MonthlyReportAssetUploadService uploads = context.getBean(MonthlyReportAssetUploadService.class);
+		String original = "monthly-reports/assets/v1/covers/cat/09.png";
+		uploads.registerReportAsset(new Asset("v1", Kind.COVER, "cat", "", "09", "image/png", original));
+		ExecutorService pool = Executors.newFixedThreadPool(2);
+		try {
+			List<Future<Boolean>> results = pool.invokeAll(List.of(
+				() -> tryReplaceCover(uploads, original, "first"),
+				() -> tryReplaceCover(uploads, original, "second")));
+			int succeeded = 0;
+			for (Future<Boolean> result : results) {
+				if (result.get(10, TimeUnit.SECONDS)) {
+					succeeded++;
+				}
+			}
+			assertThat(succeeded).isEqualTo(1);
+			String current = jdbc.queryForObject("SELECT image_key FROM monthly_report_asset WHERE id=?",
+				String.class, "v1/COVER/cat//09");
+			assertThat(replacementImageKey(original)).isEqualTo(current);
+		} finally {
+			pool.shutdownNow();
+		}
+	}
+
+	private String replacementImageKey(String originalKey) {
+		return jdbc.queryForObject(
+			"SELECT image_key FROM monthly_report_asset_replacement WHERE original_image_key=?",
+			String.class, originalKey);
+	}
+
+	private boolean tryReplaceCover(MonthlyReportAssetUploadService uploads, String original, String suffix) {
+		try {
+			uploads.replaceReportAsset(
+				new ReplaceAsset(new Asset("v1", Kind.COVER, "cat", "", "09", "image/webp",
+					"monthly-reports/assets/v1/covers/cat/09-" + suffix + ".webp"), original, true));
+			return true;
+		} catch (CustomException conflict) {
+			assertThat(conflict.getMessage())
+				.isEqualTo(new CustomException(MonthlyReportErrorCode.ADMIN_CONFLICT).getMessage());
+			return false;
+		}
+	}
+
+	@Test
+	void imageReplacementKeepsSnapshotAndSurvivesRepeatedOptimizationAndUnregister() throws Exception {
+		when(context.getBean(WorldCharacterRepository.class).existsById("cat")).thenReturn(true);
+		String oldKey = "monthly-reports/assets/v1/covers/cat/12.png";
+		String newKey = "monthly-reports/assets/v1/covers/cat/12-first.webp";
+		String latestKey = "monthly-reports/assets/v1/covers/cat/12-second.webp";
+		MonthlyReportAssetUploadService uploads = context.getBean(MonthlyReportAssetUploadService.class);
+		MonthlyReportAssetCommandService commands = context.getBean(MonthlyReportAssetCommandService.class);
+		uploads.registerReportAsset(new Asset("v1", Kind.COVER, "cat", "", "12", "image/png", oldKey));
+		MonthlyReportRunResponse run = admin.createReportRun(MONTH, "v1", 123L);
+		worker.processReportRunStep(run.id());
+		worker.processReportRunStep(run.id());
+		admin.approveReportPublication(MONTH, run.id(), null);
+		worker.processReportRunStep(run.id());
+		String originalPayload = jdbc.queryForObject(
+			"SELECT payload::text FROM monthly_report_member WHERE member_id=123", String.class);
+		ReplaceAsset first = new ReplaceAsset(new Asset("v1", Kind.COVER, "cat", "", "12",
+			"image/webp", newKey), oldKey, true);
+		MonthlyReportAssetStore store = context.getBean(MonthlyReportAssetStore.class);
+		doAnswer(invocation -> {
+			assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+			return null;
+		}).when(store).validateStoredAsset(newKey, "image/webp");
+		uploads.replaceReportAsset(first);
+		uploads.replaceReportAsset(first);
+		assertThat(queries.getReportPreview(MONTH, run.id(), 123L).coverImageKey()).isEqualTo(newKey);
+		assertThat(context.getBean(MonthlyReportQueryService.class).getReports(123L, 0,
+			20).content().get(0).coverImageKey()).isEqualTo(newKey);
+		uploads.replaceReportAsset(new ReplaceAsset(new Asset("v1", Kind.COVER, "cat", "", "12",
+			"image/webp", latestKey), newKey, true));
+		assertThatThrownBy(() -> uploads.replaceReportAsset(first)).isInstanceOf(CustomException.class);
+		assertThatThrownBy(() -> commands.removeReportAsset(new RemoveAsset("v1/COVER/cat//12",
+			oldKey))).isInstanceOf(CustomException.class);
+		assertThat(replacementImageKey(oldKey)).isEqualTo(latestKey);
+		commands.removeReportAsset(new RemoveAsset("v1/COVER/cat//12", latestKey));
+		commands.removeReportAsset(new RemoveAsset("v1/COVER/cat//12", latestKey));
+		assertThat(queries.getReportPreview(MONTH, run.id(), 123L).coverImageKey()).isEqualTo(latestKey);
+		assertThat(jdbc.queryForObject("SELECT payload::text FROM monthly_report_member WHERE member_id=123",
+			String.class)).isEqualTo(originalPayload);
+		assertThatThrownBy(() -> uploads.registerReportAsset(new Asset("v1", Kind.COVER, "cat", "",
+			"12", "image/png", oldKey))).isInstanceOf(CustomException.class);
 	}
 
 	@ParameterizedTest
