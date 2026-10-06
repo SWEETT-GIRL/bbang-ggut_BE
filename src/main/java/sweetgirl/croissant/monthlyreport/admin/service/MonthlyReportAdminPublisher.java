@@ -14,7 +14,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.entity.Notification;
 import sweetgirl.croissant.alarm.enums.NotificationChannel;
-import sweetgirl.croissant.alarm.enums.NotificationType;
 import sweetgirl.croissant.alarm.service.NotificationRecorder;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
@@ -22,6 +21,8 @@ import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportDraft;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportPush;
 import sweetgirl.croissant.monthlyreport.admin.repository.MonthlyReportPushRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportNotificationRepository;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportMonth;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportNotificationFactory;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPublicationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportTargetReader;
@@ -51,12 +52,10 @@ public class MonthlyReportAdminPublisher {
 				"admin-bread-power-v1", draft.getGeneratedAt());
 			if (created) {
 				Member member = members.getMember(memberId);
-				String label = Integer.parseInt(month.substring(5)) + "월";
 				Notification notification = notifications
-					.recordFor(Notification.announcement(NotificationType.MONTHLY_REPORT,
-						pushAt == null ? NotificationChannel.IN_APP : NotificationChannel.PUSH,
-						label + " 빵일지가 도착했어요", label + "의 빵 기록과 활동을 확인해 보세요.",
-						"/reports/monthly/" + month), member, LocalDateTime.now(ZoneId.of("Asia/Seoul")));
+					.recordFor(MonthlyReportNotificationFactory.create(MonthlyReportMonth.parse(month),
+						pushAt == null ? NotificationChannel.IN_APP : NotificationChannel.PUSH),
+						member, LocalDateTime.now(ZoneId.of("Asia/Seoul")));
 				reportNotifications.linkNotification(memberId, month, notification.getId());
 				if (pushAt != null) {
 					pushes.save(MonthlyReportPush.schedule(notification.getId(), memberId, pushAt));
