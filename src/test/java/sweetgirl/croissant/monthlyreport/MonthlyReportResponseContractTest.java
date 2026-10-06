@@ -48,7 +48,7 @@ class MonthlyReportResponseContractTest {
 		assertThat(json.at("/activity/abilities/record").has("maxScore")).isFalse();
 		assertThat(json.get("coverImageKey").asText()).endsWith("/12.png");
 		export("list", new SliceResponse<>(List.of(MonthlyReportListItem.of(report.yearMonth(),
-			Instant.parse("2026-01-01T01:00:00Z"), report.character())), false));
+			Instant.parse("2026-01-01T01:00:00Z"), report.character(), report.coverImageKey())), false));
 	}
 
 	@Test

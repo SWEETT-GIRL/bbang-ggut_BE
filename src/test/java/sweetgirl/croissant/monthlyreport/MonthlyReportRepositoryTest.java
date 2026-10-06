@@ -269,6 +269,7 @@ class MonthlyReportRepositoryTest {
 	@Test
 	void appearanceAndPayloadStayFrozenAfterProfileAndCatalogChanges() throws Exception {
 		var original = MonthlyReportFixtures.payload();
+		original.put("coverImageKey", "monthly-reports/assets/v1/covers/cat/12.png");
 		original.withObject("/character").put("imageKey", "reports/characters/v1/cat.webp")
 			.put("faceImageKey", "monthly-reports/assets/v1/faces/cat/smile.png");
 		assertThat(publish(123L, MONTH, original.toString())).isTrue();
@@ -289,7 +290,11 @@ class MonthlyReportRepositoryTest {
 			member.resetNickname("변경한 닉네임");
 			assertThat(query.getReport(123L, MONTH)).isEqualTo(before.withNickname("변경한 닉네임"));
 			assertThat(query.getReports(123L, 0, 12).content()).singleElement()
-				.satisfies(report -> assertThat(report.character()).isEqualTo(before.character()));
+				.satisfies(report -> {
+					assertThat(report.character()).isEqualTo(before.character());
+					assertThat(report.coverImageKey()).isEqualTo(before.coverImageKey());
+					assertThat(report.coverImageKey()).isEqualTo("monthly-reports/assets/v1/covers/cat/12.png");
+				});
 			assertThat(before.nickname()).isEqualTo("현재 닉네임");
 			assertThat(repository.findById(new MonthlyReportMemberId(123L, MONTH)).orElseThrow().getPayload())
 				.contains("소금이");

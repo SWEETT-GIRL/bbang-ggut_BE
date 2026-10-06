@@ -50,7 +50,8 @@ public class MonthlyReportQueryService {
 		return SliceResponse.from(reports.map(report -> MonthlyReportListItem.of(
 			report.getYearMonth(), report.getPublishedAt(), new MonthlyReportResponse.Character(
 				report.getCharacterCode(), report.getCharacterName(), report.getCharacterImageKey(),
-				report.getFaceImageKey()))));
+				report.getFaceImageKey()),
+			report.getCoverImageKey())));
 	}
 
 	public MonthlyReportResponse getReport(Long memberId, String yearMonth) {
