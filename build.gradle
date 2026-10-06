@@ -94,6 +94,11 @@ tasks.named('test') {
         if (!project.hasProperty('llmTests')) {
             excludeTags 'llm'
         }
+        // 'openapi' 태그 = API 명세(openapi.json)를 build/openapi 에 뽑는 테스트. 전체 컨텍스트를 하나 더 띄우므로 기본 test 에선 빼고,
+        // 앱 타입 검사가 필요할 때 ./gradlew test -PopenapiExport --tests "*OpenApiSpecExportTest" 로 돌린다.
+        if (!project.hasProperty('openapiExport')) {
+            excludeTags 'openapi'
+        }
     }
 }
 
