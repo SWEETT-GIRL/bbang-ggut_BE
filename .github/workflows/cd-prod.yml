@@ -140,6 +140,7 @@ jobs:
           slack.webhook.url=${SLACK_ERROR_WEBHOOK_URL}
           slack.notification.report-webhook-url=${SLACK_REPORT_WEBHOOK_URL}
           slack.notification.abuse-webhook-url=${SLACK_ABUSE_WEBHOOK_URL}
+          slack.notification.letter-webhook-url=${SLACK_LETTER_WEBHOOK_URL}
 
           # Lambda 콜백 인증 키
           lambda.callback.secret-key=${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}
@@ -268,6 +269,7 @@ jobs:
           SLACK_ERROR_WEBHOOK_URL: ${{ secrets.SLACK_ERROR_WEBHOOK_URL_PROD }}
           SLACK_REPORT_WEBHOOK_URL: ${{ secrets.SLACK_REPORT_WEBHOOK_URL_PROD }}
           SLACK_ABUSE_WEBHOOK_URL: ${{ secrets.SLACK_ABUSE_WEBHOOK_URL_PROD }}
+          SLACK_LETTER_WEBHOOK_URL: ${{ secrets.SLACK_LETTER_WEBHOOK_URL_PROD }}
           LAMBDA_CALLBACK_SECRET_KEY: ${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}
           GUEST_WRITE_BLOCKED: ${{ secrets.GUEST_WRITE_BLOCKED }}
           PERF_DASHBOARD_ENABLED: ${{ secrets.PERF_DASHBOARD_ENABLED }}
@@ -301,6 +303,7 @@ jobs:
             echo "SLACK_ERROR_WEBHOOK_URL=${SLACK_ERROR_WEBHOOK_URL}"
             echo "SLACK_REPORT_WEBHOOK_URL=${SLACK_REPORT_WEBHOOK_URL}"
             echo "SLACK_ABUSE_WEBHOOK_URL=${SLACK_ABUSE_WEBHOOK_URL}"
+            echo "SLACK_LETTER_WEBHOOK_URL=${SLACK_LETTER_WEBHOOK_URL}"
             echo "LAMBDA_CALLBACK_SECRET_KEY=${LAMBDA_CALLBACK_SECRET_KEY}"
             echo "GUEST_WRITE_BLOCKED=${GUEST_WRITE_BLOCKED:-false}"
             echo "PERF_DASHBOARD_ENABLED=${PERF_DASHBOARD_ENABLED:-false}"

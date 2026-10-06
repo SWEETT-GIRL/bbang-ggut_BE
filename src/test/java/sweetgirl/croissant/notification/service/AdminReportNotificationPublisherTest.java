@@ -5,6 +5,9 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +24,11 @@ import sweetgirl.croissant.contribution.entity.MenuContributionReport;
 import sweetgirl.croissant.contribution.entity.StoreContributionReport;
 import sweetgirl.croissant.contribution.enums.ContributionReportType;
 import sweetgirl.croissant.inquiry.entity.Inquiry;
+import sweetgirl.croissant.letter.entity.LetterMessage;
+import sweetgirl.croissant.letter.entity.LetterThread;
+import sweetgirl.croissant.letter.enums.LetterCategory;
+import sweetgirl.croissant.letter.enums.LetterSender;
+import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.notification.event.OperationalNotificationEvent;
 import sweetgirl.croissant.notification.event.OperationalNotificationEvent.Channel;
 
@@ -91,6 +99,22 @@ class AdminReportNotificationPublisherTest {
 		publisher.publishInquiryCreated(mock(Inquiry.class));
 
 		assertThat(captured().title()).isEqualTo("💬 문의 접수");
+	}
+
+	@Test
+	@DisplayName("편지: LETTER 채널로 '새 편지 접수'를 보내고, 닉네임·유형·사진 장수를 싣는다")
+	void letter() {
+		LetterThread thread = LetterThread.create(Member.builder().nickname("포실한 까눌레").build(), LocalDateTime.now());
+		LetterMessage message = LetterMessage.create(
+			thread, LetterSender.MEMBER, "지도가 안 떠요", LetterCategory.BUG, List.of("letters/members/7/images/a"));
+
+		publisher.publishLetterReceived(message);
+
+		OperationalNotificationEvent event = captured();
+		assertThat(event.channel()).isEqualTo(Channel.LETTER);
+		assertThat(event.title()).isEqualTo("💌 새 편지 접수");
+		assertThat(event.fields()).extracting(OperationalNotificationEvent.Field::value)
+			.contains("포실한 까눌레", "BUG", "1장", "지도가 안 떠요");
 	}
 
 	private StoreContributionReport storeReport(ContributionReportType reportType) {

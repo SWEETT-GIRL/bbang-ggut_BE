@@ -156,6 +156,8 @@ jobs:
           slack.webhook.url=${SLACK_ERROR_WEBHOOK_URL}
           slack.notification.report-webhook-url=${SLACK_REPORT_WEBHOOK_URL}
           slack.notification.abuse-webhook-url=${SLACK_ABUSE_WEBHOOK_URL}
+          slack.notification.letter-webhook-url=${SLACK_LETTER_WEBHOOK_URL}
+          slack.notification.title-prefix=[DEV]
 
           # Lambda 콜백 인증 키
           lambda.callback.secret-key=${{secrets.LAMBDA_CALLBACK_SECRET_KEY}}
@@ -232,6 +234,7 @@ jobs:
             echo "SLACK_ERROR_WEBHOOK_URL=${{ secrets.SLACK_ERROR_WEBHOOK_URL_DEV }}" >> .env
             echo "SLACK_REPORT_WEBHOOK_URL=${{ secrets.SLACK_REPORT_WEBHOOK_URL_DEV }}" >> .env
             echo "SLACK_ABUSE_WEBHOOK_URL=${{ secrets.SLACK_ABUSE_WEBHOOK_URL_DEV }}" >> .env
+            echo "SLACK_LETTER_WEBHOOK_URL=${{ secrets.SLACK_LETTER_WEBHOOK_URL_DEV }}" >> .env
             echo "LAMBDA_CALLBACK_SECRET_KEY=${{ secrets.LAMBDA_CALLBACK_SECRET_KEY }}" >> .env
             echo "PERF_DASHBOARD_ENABLED=true" >> .env
             echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env
