@@ -3,6 +3,16 @@ name: CI - Build & Test
 on:
   pull_request:
     branches: [ main, dev ]
+    # 문서·Claude 설정만 바꾼 PR 은 빌드·테스트할 게 없다 — Actions 무료 분량(월 2,000분)을 아낀다
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.claude/**'
+
+# 같은 PR 에 연달아 푸시하면 앞선 실행은 결과를 볼 일이 없으니 취소한다
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   build:

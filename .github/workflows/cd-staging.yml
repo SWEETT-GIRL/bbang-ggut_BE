@@ -3,6 +3,11 @@ name: CD - Staging
 on:
   push:
     branches: [ dev ]
+    # 문서·Claude 설정만 바뀐 머지는 다시 띄울 이유가 없다
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.claude/**'
   # 코드 변경 없이 설정만 바꿔 다시 띄울 때 — Repository variables 를 고친 뒤 여기서 수동 실행한다.
   # 이게 없으면 변수를 바꿔도 다음 dev 머지까지 반영되지 않는다.
   workflow_dispatch:
