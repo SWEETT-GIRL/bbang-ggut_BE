@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse.Town;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportSourceSnapshot;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportSourceSnapshot.RecordState;
+import sweetgirl.croissant.monthlyreport.enums.MonthlyReportAggregationBasis;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportTownAggregationService;
 
 class MonthlyReportTownAggregationServiceTest {
@@ -36,6 +37,7 @@ class MonthlyReportTownAggregationServiceTest {
 		LocalDateTime time = LocalDateTime.of(2025, 12, 1, 0, 0);
 		List<RecordState> records = IntStream.range(0, keys.length)
 			.mapToObj(i -> new RecordState((long)i + 1, 11L, keys[i], time, time, null, null, List.of())).toList();
-		return new MonthlyReportSourceSnapshot(time, records, List.of(), Map.of(), Set.of(), Set.of(), 0);
+		return new MonthlyReportSourceSnapshot(time, MonthlyReportAggregationBasis.MONTH_END_HISTORY, time, records,
+			List.of(), Map.of(), Set.of(), Set.of(), 0);
 	}
 }

@@ -63,8 +63,10 @@ public class MonthlyReportGenerationService {
 			.put("viewed", stores.viewed()).put("source", "user_store_interaction.STORE_VIEW");
 		metrics.putObject("townAggregation").put("version", MonthlyReportTownAggregationService.VERSION)
 			.put("towns", towns.size()).put("source", "bread_record.region_key history");
-		metrics.putObject("sourceHistory").put("version", "source-history-v1")
-			.put("coveredFrom", source.coveredFrom().toString());
+		metrics.putObject("sourceHistory").put("version", "source-history-v2")
+			.put("coveredFrom", source.coveredFrom().toString())
+			.put("aggregationBasis", source.aggregationBasis().name())
+			.put("sourceAsOf", source.sourceAsOf().toString());
 		metrics.putObject("storeAggregation").put("version", "retained-relations-v1")
 			.put("saved", stores.saved()).put("planned", stores.planned()).put("courses", stores.courses());
 		metrics.putObject("recordAggregation")

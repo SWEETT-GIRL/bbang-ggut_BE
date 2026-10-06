@@ -281,12 +281,21 @@ class MonthlyReportJobTest {
 	}
 
 	@Test
-	void unsupportedMonthDoesNotReingestSourcesOrConsumeMemberAttempts() {
+	void missingHistoryCoverageDoesNotReingestSourcesOrConsumeMemberAttempts() {
 		enqueue(123);
-		given(history.findCoveredFrom()).willReturn(LocalDateTime.of(2026, 1, 1, 0, 0));
+		given(history.findCoveredFrom()).willReturn(null);
 		assertThat(batch.runDue()).isEqualTo(new MonthlyReportBatchService.Result(0, 0, 0, 1));
 		assertThat(jobs.findById(new MonthlyReportMemberId(123L, MONTH)).orElseThrow().getAttempts()).isZero();
 		verifyNoInteractions(recovery, generation);
+	}
+
+	@Test
+	void publishesMonthBeforeHistoryCollectionUsingInitialReportPath() {
+		enqueue(123);
+		given(history.findCoveredFrom()).willReturn(LocalDateTime.of(2026, 1, 1, 0, 0));
+		assertThat(batch.runDue()).isEqualTo(new MonthlyReportBatchService.Result(1, 0, 0, 0));
+		verify(recovery).ensureComplete(MONTH);
+		verify(generation).publishFromDraft(any(), any(), any());
 	}
 
 	@TestConfiguration
