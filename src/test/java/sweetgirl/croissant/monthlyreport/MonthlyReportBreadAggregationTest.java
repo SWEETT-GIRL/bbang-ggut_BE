@@ -43,9 +43,11 @@ import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportSourceSnapshot;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
+import sweetgirl.croissant.monthlyreport.repository.MonthlyReportAssetReplacementRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportSourceHistoryRepository;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportActivityPolicy;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportAssetImageQueryService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportBreadAggregationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportGenerationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportNotificationService;
@@ -285,7 +287,8 @@ class MonthlyReportBreadAggregationTest {
 			assertThat(mapper.readTree(snapshot.getRawMetrics()).at("/breadAggregation/uncategorizedTags").asLong())
 				.isEqualTo(2);
 
-			var query = new MonthlyReportQueryService(reader, repository, codec, tagRepository);
+			var query = new MonthlyReportQueryService(reader, repository, codec, tagRepository,
+				new MonthlyReportAssetImageQueryService(mock(MonthlyReportAssetReplacementRepository.class)));
 			var reference = result.photoSources().get("소금빵");
 			assertThat(codec.readPhotoSources(snapshot.getRawMetrics()).get("소금빵")).isEqualTo(reference);
 			// 수정 저장은 사진 행을 재생성해도 참조를 유지한다. 원본→리사이즈 변경도 현재 키로 응답한다.

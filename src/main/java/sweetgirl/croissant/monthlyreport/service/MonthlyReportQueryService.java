@@ -40,6 +40,7 @@ public class MonthlyReportQueryService {
 	private final MonthlyReportRepository repository;
 	private final MonthlyReportPayloadCodec codec;
 	private final BreadRecordTagRepository tagRepository;
+	private final MonthlyReportAssetImageQueryService assetImages;
 
 	public SliceResponse<MonthlyReportListItem> getReports(Long memberId, int page, int size) {
 		memberReader.getMember(memberId);
@@ -47,11 +48,13 @@ public class MonthlyReportQueryService {
 			throw new CustomException(MonthlyReportErrorCode.INVALID_PAGE);
 		}
 		Slice<PublishedReport> reports = repository.findPublished(memberId, PageRequest.of(page, size));
+		Map<String, String> imageKeys = assetImages.getReplacementKeys(reports.getContent().stream()
+			.flatMap(report -> Stream.of(report.getFaceImageKey(), report.getCoverImageKey())).toList());
 		return SliceResponse.from(reports.map(report -> MonthlyReportListItem.of(
 			report.getYearMonth(), report.getPublishedAt(), new MonthlyReportResponse.Character(
 				report.getCharacterCode(), report.getCharacterName(), report.getCharacterImageKey(),
-				report.getFaceImageKey()),
-			report.getCoverImageKey())));
+				MonthlyReportAssetImageQueryService.replaceKey(imageKeys, report.getFaceImageKey())),
+			MonthlyReportAssetImageQueryService.replaceKey(imageKeys, report.getCoverImageKey()))));
 	}
 
 	public MonthlyReportResponse getReport(Long memberId, String yearMonth) {
@@ -71,11 +74,16 @@ public class MonthlyReportQueryService {
 					|| !Objects.equals(snapshot.getPlanetName(), report.planet().name())) {
 					throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
 				}
-				return resolveCurrentPhotos(report, codec.readPhotoSources(snapshot.getRawMetrics()))
+				return resolveCurrentImages(report, codec.readPhotoSources(snapshot.getRawMetrics()))
 					.withNickname(member.getNickname());
 			}
 			default -> throw new CustomException(MonthlyReportErrorCode.INVALID_SNAPSHOT);
 		}
+	}
+
+	public MonthlyReportResponse resolveCurrentImages(MonthlyReportResponse report,
+			Map<String, MonthlyReportPhotoSource> sources) {
+		return assetImages.resolveReportImages(resolveCurrentPhotos(report, sources));
 	}
 
 	public MonthlyReportResponse resolveCurrentPhotos(MonthlyReportResponse report,

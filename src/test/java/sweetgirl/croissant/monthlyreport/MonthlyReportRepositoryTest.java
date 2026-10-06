@@ -59,11 +59,13 @@ import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMember;
 import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 import sweetgirl.croissant.monthlyreport.enums.MonthlyReportStatus;
+import sweetgirl.croissant.monthlyreport.repository.MonthlyReportAssetReplacementRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportJobRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportNotificationRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportRepository.PublishedReport;
 import sweetgirl.croissant.monthlyreport.repository.MonthlyReportSourceHistoryRepository;
+import sweetgirl.croissant.monthlyreport.service.MonthlyReportAssetImageQueryService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportNotificationService;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPayloadCodec;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportPublicationService;
@@ -281,7 +283,8 @@ class MonthlyReportRepositoryTest {
 		given(reader.getMember(123L)).willReturn(member);
 		try (var factory = Validation.buildDefaultValidatorFactory()) {
 			var codec = new MonthlyReportPayloadCodec(new ObjectMapper(), factory.getValidator());
-			var query = new MonthlyReportQueryService(reader, repository, codec, mock(BreadRecordTagRepository.class));
+			var query = new MonthlyReportQueryService(reader, repository, codec, mock(BreadRecordTagRepository.class),
+				new MonthlyReportAssetImageQueryService(mock(MonthlyReportAssetReplacementRepository.class)));
 			var before = query.getReport(123L, MONTH);
 			jdbc.update(
 				"UPDATE member_world SET selected_character = 'dog', max_record_count = 9999 WHERE member_id = 123");
@@ -421,7 +424,8 @@ class MonthlyReportRepositoryTest {
 	@EnableJpaRepositories(basePackageClasses = MonthlyReportRepository.class,
 			// 이 테스트의 최소 스키마에는 원천 이력 저장소를 등록하지 않는다.
 			excludeFilters = @Filter(type = ASSIGNABLE_TYPE, classes = {MonthlyReportSourceHistoryRepository.class,
-				MonthlyReportJobRepository.class, MonthlyReportNotificationRepository.class}))
+				MonthlyReportJobRepository.class, MonthlyReportNotificationRepository.class,
+				MonthlyReportAssetReplacementRepository.class}))
 	static class JpaConfig {
 		// 보고서 저장소만 독립적인 JPA 컨텍스트에서 검증한다.
 	}

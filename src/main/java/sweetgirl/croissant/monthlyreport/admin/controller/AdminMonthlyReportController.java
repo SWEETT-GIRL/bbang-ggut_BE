@@ -4,7 +4,9 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -25,6 +27,7 @@ import sweetgirl.croissant.monthlyreport.admin.dto.MonthlyReportProgressResponse
 import sweetgirl.croissant.monthlyreport.admin.dto.MonthlyReportRunResponse;
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAdminCommandService;
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAdminQueryService;
+import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAssetCommandService;
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAssetQueryService;
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAssetUploadService;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
@@ -38,6 +41,7 @@ public class AdminMonthlyReportController {
 	private final MonthlyReportAdminQueryService reportQueryService;
 	private final MonthlyReportAssetUploadService assetUploadService;
 	private final MonthlyReportAssetQueryService assetQueryService;
+	private final MonthlyReportAssetCommandService assetCommandService;
 
 	@PostMapping("/assets/upload-urls")
 	public ApiResponse<MonthlyReportAssetUploadResponse> issueAssetUploadUrl(
@@ -49,6 +53,18 @@ public class AdminMonthlyReportController {
 	public ApiResponse<MonthlyReportAssetResponse> registerReportAsset(
 			@Valid @RequestBody MonthlyReportAdminRequests.Asset request) {
 		return ApiResponse.ok(assetUploadService.registerReportAsset(request));
+	}
+
+	@PatchMapping("/assets")
+	public ApiResponse<MonthlyReportAssetResponse> replaceReportAsset(
+			@Valid @RequestBody MonthlyReportAdminRequests.ReplaceAsset request) {
+		return ApiResponse.ok(assetUploadService.replaceReportAsset(request));
+	}
+
+	@DeleteMapping("/assets")
+	public ApiResponse<Void> removeReportAsset(@Valid @RequestBody MonthlyReportAdminRequests.RemoveAsset request) {
+		assetCommandService.removeReportAsset(request);
+		return ApiResponse.ok(null);
 	}
 
 	@GetMapping("/assets")

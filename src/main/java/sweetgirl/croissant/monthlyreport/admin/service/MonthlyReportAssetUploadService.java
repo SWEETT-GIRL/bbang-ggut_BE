@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.monthlyreport.admin.dto.MonthlyReportAdminRequests.Asset;
+import sweetgirl.croissant.monthlyreport.admin.dto.MonthlyReportAdminRequests.ReplaceAsset;
 import sweetgirl.croissant.monthlyreport.admin.dto.MonthlyReportAssetResponse;
 import sweetgirl.croissant.monthlyreport.admin.dto.MonthlyReportAssetUploadResponse;
 import sweetgirl.croissant.monthlyreport.admin.entity.MonthlyReportAsset.Kind;
@@ -30,6 +31,19 @@ public class MonthlyReportAssetUploadService {
 	}
 
 	public MonthlyReportAssetResponse registerReportAsset(Asset request) {
+		validateStoredAsset(request);
+		return assetCommandService.registerReportAsset(request);
+	}
+
+	public MonthlyReportAssetResponse replaceReportAsset(ReplaceAsset request) {
+		if (request.applyToExistingReports() && !"image/webp".equals(request.asset().contentType())) {
+			throw new CustomException(MonthlyReportErrorCode.INVALID_ADMIN_REQUEST);
+		}
+		validateStoredAsset(request.asset());
+		return assetCommandService.replaceReportAsset(request);
+	}
+
+	private void validateStoredAsset(Asset request) {
 		assetQueryService.validateAssetRequest(request);
 		String key = request.imageKey();
 		String extension = request.contentType().equals("image/png") ? ".png" : ".webp";
@@ -39,7 +53,6 @@ public class MonthlyReportAssetUploadService {
 			throw new CustomException(MonthlyReportErrorCode.INVALID_ADMIN_REQUEST);
 		}
 		store.validateStoredAsset(key, request.contentType());
-		return assetCommandService.registerReportAsset(request);
 	}
 
 	private String buildAssetKeyPrefix(Asset request) {

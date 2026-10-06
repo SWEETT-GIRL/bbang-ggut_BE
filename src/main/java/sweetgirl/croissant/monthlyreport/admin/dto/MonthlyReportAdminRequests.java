@@ -2,6 +2,7 @@ package sweetgirl.croissant.monthlyreport.admin.dto;
 
 import java.time.Instant;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -17,6 +18,12 @@ public final class MonthlyReportAdminRequests {
 	}
 	/** null이면 알림함만 적재하고 푸시는 예약하지 않는다. */
 	public record Publish(Instant pushAt) {
+	}
+	public record ReplaceAsset(@NotNull @Valid Asset asset,
+			@NotBlank @Size(max = 500) String expectedImageKey, boolean applyToExistingReports) {
+	}
+	public record RemoveAsset(@NotBlank @Size(max = 250) String assetId,
+			@NotBlank @Size(max = 500) String expectedImageKey) {
 	}
 	public record Asset(@NotBlank @Pattern(regexp = "[a-z0-9][a-z0-9-]{0,59}") String version,
 			@NotNull Kind kind, @NotBlank @Pattern(regexp = "[a-z][a-z0-9-]{0,29}") String characterCode,
