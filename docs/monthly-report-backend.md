@@ -537,4 +537,21 @@ INSERT/UPDATE/DELETE 트리거를 설치한다. 원본 변경과 이력은 같�
 
 어드민 생성·승인·재시도는 `MonthlyReportAdminCommandService`, 조회는 `MonthlyReportAdminQueryService`가 담당한다. 이미지와 운영 현황도 Command/Query 서비스를 분리한다. Controller는 전용 record 응답만 반환하며 기존 JSON 필드명은 유지한다. S3 업로드 URL 발급·파일 확인은 `MonthlyReportAssetUploadService`, DB 등록은 `MonthlyReportAssetCommandService`로 나눈다.
 
-`.github/workflows/monthly-report-tests.yml`은 dev/main 대상 PR마다 격리 PostgreSQL에서 월간 보고서 전체 테스트와 알림·사진 수정·적재 회귀 테스트를 실행한다. `-PlabTests`를 지정하여 실제 Flyway 마이그레이션, 동시 실행, 처리권 회수, 감사 시각 테스트도 포함한다. 실제 SecurityConfig와 관리자 API 키 필터를 적용한 MVC 테스트에서 조회·발행·재시도의 인증 실패와 요청 검증을 확인한다. FCM과 S3는 모의 객체를 사용하며 실제 발송·업로드는 하지 않는다.
+월간 보고서 전용 GitHub Actions 워크플로는 실행 비용과 중복 검증 시간을 줄이기 위해 제거했다. 기본 CI의 빌드·단위 테스트는 유지한다. PostgreSQL을 사용하는 회귀 검증은 필요할 때 로컬의 격리된 테스트 DB에서 실행한다.
+
+테스트 DB 연결은 `MONTHLY_REPORT_TEST_JDBC_URL`, `MONTHLY_REPORT_TEST_DB_USER`, `MONTHLY_REPORT_TEST_DB_PASSWORD`로 지정한다. 운영·개발 서비스 DB를 테스트 DB로 사용하지 않는다.
+
+```sh
+./gradlew test -PlabTests \
+  --tests 'sweetgirl.croissant.monthlyreport.*' \
+  --tests 'sweetgirl.croissant.alarm.controller.AlarmControllerTest' \
+  --tests 'sweetgirl.croissant.alarm.service.FcmServiceTest' \
+  --tests 'sweetgirl.croissant.alarm.service.PushDispatcherTest' \
+  --tests 'sweetgirl.croissant.alarm.service.AlarmCommandServiceTest' \
+  --tests 'sweetgirl.croissant.letter.config.AdminApiKeyFilterTest' \
+  --tests 'sweetgirl.croissant.breadlog.service.BreadRecordCommandServiceTest' \
+  --tests 'sweetgirl.croissant.personalization.service.UserInteractionIngestCommandServiceTest' \
+  --no-daemon
+```
+
+`-PlabTests`를 지정하면 실제 Flyway 마이그레이션, 동시 실행, 처리권 회수, 감사 시각 테스트를 포함한다. FCM과 S3는 모의 객체를 사용하며 실제 발송·업로드는 하지 않는다.
