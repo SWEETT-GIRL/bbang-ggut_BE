@@ -57,6 +57,36 @@ class MonthlyReportAssetTest {
 	}
 
 	@Test
+	void acceptsExistingFaceWithoutReuploadAndValidatesItsObject() {
+		when(characters.existsById("cat")).thenReturn(true);
+		String key = "monthly-reports/assets/v1/faces/cat/smile.png";
+		String id = MonthlyReportAsset.identity("v1", Kind.FACE, "cat", "", "smile");
+		MonthlyReportAsset asset = mock(MonthlyReportAsset.class);
+		when(asset.getImageKey()).thenReturn(key);
+		when(repository.findById(id)).thenReturn(Optional.of(asset));
+		assertThat(service.registerReportAsset(new Asset("v1", Kind.FACE, "cat", "", "smile", "image/png", key)))
+			.extracting(value -> value.imageKey()).isEqualTo(key);
+		verify(store).validateStoredAsset(key, "image/png");
+		service.issueAssetUploadUrl(new Asset("v1", Kind.FACE, "cat", "", "wink", "image/webp", null));
+		ArgumentCaptor<String> keys = ArgumentCaptor.forClass(String.class);
+		verify(store).issueAssetUploadUrl(keys.capture(), eq("image/webp"));
+		assertThat(keys.getValue()).matches("monthly-reports/assets/v1/faces/cat/wink-[a-f0-9-]+\\.webp");
+	}
+
+	@Test
+	void rejectsInvalidFaceExpressionPlanetAndDifferentSlot() {
+		when(characters.existsById("cat")).thenReturn(true);
+		for (Asset request : new Asset[] {
+			new Asset("v1", Kind.FACE, "cat", "", "record", "image/png", null),
+			new Asset("v1", Kind.FACE, "cat", "earth", "smile", "image/png", null),
+			new Asset("v1", Kind.FACE, "cat", "", "smile", "image/png",
+				"monthly-reports/assets/v1/faces/dog/smile.png")}) {
+			assertThatThrownBy(() -> service.registerReportAsset(request)).isInstanceOf(CustomException.class);
+		}
+		verifyNoInteractions(store, repository);
+	}
+
+	@Test
 	void rejectsUnknownTypeAndKeyOutsideItsRegisteredSlot() {
 		when(characters.existsById("cat")).thenReturn(true);
 		when(planets.existsById("moon")).thenReturn(true);

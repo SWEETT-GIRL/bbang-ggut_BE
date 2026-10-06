@@ -43,8 +43,13 @@ public class MonthlyReportAssetUploadService {
 	}
 
 	private String buildAssetKeyPrefix(Asset request) {
+		String folder = switch (request.kind()) {
+			case COVER -> "covers/";
+			case TYPE -> "types/";
+			case FACE -> "faces/";
+		};
 		return "monthly-reports/assets/" + request.version() + "/"
-			+ (request.kind() == Kind.COVER ? "covers/" : "types/") + request.characterCode() + "/"
+			+ folder + request.characterCode() + "/"
 			+ (request.kind() == Kind.TYPE ? request.planetCode() + "/" : "");
 	}
 }
