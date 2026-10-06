@@ -255,7 +255,8 @@ class MonthlyReportControllerTest {
 		authenticate();
 		Instant publishedAt = Instant.parse("2026-01-01T01:00:00Z");
 		given(repository.findPublished(123L, PageRequest.of(0, 2))).willReturn(new SliceImpl<>(List.of(
-			MonthlyReportFixtures.published("2025-12", publishedAt, "reports/characters/v1/cat.webp"),
+			MonthlyReportFixtures.published("2025-12", publishedAt, "reports/characters/v1/cat.webp",
+				"monthly-reports/assets/v1/covers/cat/12.png"),
 			MonthlyReportFixtures.published("2025-11", publishedAt)),
 			PageRequest.of(0, 2), true));
 		mvc.perform(get("/reports/monthly/me").param("size", "2").param("memberId", "456"))
@@ -267,6 +268,10 @@ class MonthlyReportControllerTest {
 			.andExpect(jsonPath("$.data.content[0].character.code").value("cat"))
 			.andExpect(jsonPath("$.data.content[0].character.name").value("냥이"))
 			.andExpect(jsonPath("$.data.content[0].character.imageKey").value("reports/characters/v1/cat.webp"))
+			.andExpect(jsonPath("$.data.content[0].coverImageKey")
+				.value("monthly-reports/assets/v1/covers/cat/12.png"))
+			.andExpect(jsonPath("$.data.content[1].coverImageKey").hasJsonPath())
+			.andExpect(jsonPath("$.data.content[1].coverImageKey").isEmpty())
 			.andExpect(jsonPath("$.data.content[1].character.code").value("cat"))
 			.andExpect(jsonPath("$.data.content[1].character.imageKey").hasJsonPath())
 			.andExpect(jsonPath("$.data.content[1].character.imageKey").isEmpty())

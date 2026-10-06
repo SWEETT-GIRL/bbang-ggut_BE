@@ -71,9 +71,14 @@ public final class MonthlyReportFixtures {
 	}
 
 	public static PublishedReport published(String month, Instant time, String imageKey) {
+		return published(month, time, imageKey, null);
+	}
+
+	public static PublishedReport published(String month, Instant time, String imageKey, String coverImageKey) {
 		Map<String, Object> values = new HashMap<>(Map.of(
 			"yearMonth", month, "publishedAt", time, "characterCode", "cat", "characterName", "냥이"));
 		values.put("characterImageKey", imageKey);
+		values.put("coverImageKey", coverImageKey);
 		return new SpelAwareProxyProjectionFactory().createProjection(PublishedReport.class,
 			values);
 	}
