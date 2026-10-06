@@ -53,7 +53,8 @@ class MonthlyReportNotificationServiceTest {
 		verify(recorder).recordFor(notification.capture(), eq(member), eq(now));
 		assertThat(notification.getValue().getType()).isEqualTo(NotificationType.MONTHLY_REPORT);
 		assertThat(notification.getValue().getChannel()).isEqualTo(NotificationChannel.PUSH);
-		assertThat(notification.getValue().getTitle()).isEqualTo("12월 빵일지가 도착했어요");
+		assertThat(notification.getValue().getTitle()).isEqualTo("🪐 12월 빵별일지가 도착했어요!");
+		assertThat(notification.getValue().getBody()).isEqualTo("우리 12월엔 어떤 빵을 만났을까? 빵로그와 활동을 함께 돌아봐요.");
 		assertThat(notification.getValue().getDeepLink()).isEqualTo("/reports/monthly/2025-12");
 		verify(publisher).publishEvent(PushRequestedEvent.to(900L, 123L));
 	}
