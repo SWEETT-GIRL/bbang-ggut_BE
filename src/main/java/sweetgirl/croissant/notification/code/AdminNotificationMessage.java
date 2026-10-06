@@ -16,12 +16,14 @@ public class AdminNotificationMessage {
 	public static final int REPORT_COLOR = 5763719;
 	public static final int ABUSE_COLOR = 15158332;
 	public static final int INQUIRY_COLOR = 3447003;
+	public static final int LETTER_COLOR = 15277667;
 
 	// 헤더 이모지
 	public static final String STORE_EMOJI = "🏪";
 	public static final String MENU_EMOJI = "🥐";
 	public static final String ABUSE_EMOJI = "🚨";
 	public static final String INQUIRY_EMOJI = "💬";
+	public static final String LETTER_EMOJI = "💌";
 
 	// 주제 (제목·설명 공통 어구)
 	public static final String STORE_ADD_SUBJECT = "새 가게 제보";
@@ -31,6 +33,7 @@ public class AdminNotificationMessage {
 	public static final String REVIEW_ABUSE_SUBJECT = "리뷰 신고";
 	public static final String PROFILE_ABUSE_SUBJECT = "프로필 신고";
 	public static final String INQUIRY_SUBJECT = "문의";
+	public static final String LETTER_SUBJECT = "새 편지";
 
 	private static final String TITLE_FORMAT = "%s %s 접수";
 	private static final String DESCRIPTION_FORMAT = "Admin Web에서 확인이 필요한 %s가 접수되었습니다.";
