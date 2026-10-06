@@ -55,7 +55,8 @@ class MonthlyReportFlywayTest {
 				"V20261005222056__monthly_report_operations.sql",
 				"V20261006055838__add_monthly_report_push_lease.sql",
 				"V20261006055839__add_monthly_report_admin_audit.sql",
-				"V20261006160000__allow_monthly_report_face_assets.sql");
+				"V20261006160000__allow_monthly_report_face_assets.sql",
+				"V20261006180000__monthly_report_asset_replacements.sql");
 			for (String migration : migrations) {
 				try (InputStream sql = new ClassPathResource("db/migration/" + migration).getInputStream()) {
 					Files.copy(sql, scripts.resolve(migration));
