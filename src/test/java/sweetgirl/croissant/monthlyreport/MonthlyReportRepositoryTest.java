@@ -269,7 +269,8 @@ class MonthlyReportRepositoryTest {
 	@Test
 	void appearanceAndPayloadStayFrozenAfterProfileAndCatalogChanges() throws Exception {
 		var original = MonthlyReportFixtures.payload();
-		original.withObject("/character").put("imageKey", "reports/characters/v1/cat.webp");
+		original.withObject("/character").put("imageKey", "reports/characters/v1/cat.webp")
+			.put("faceImageKey", "monthly-reports/assets/v1/faces/cat/smile.png");
 		assertThat(publish(123L, MONTH, original.toString())).isTrue();
 		jdbc.update("INSERT INTO member_world VALUES (123, 'cat', 12)");
 		jdbc.update("INSERT INTO world_character VALUES ('cat', '냥이')");
@@ -293,6 +294,7 @@ class MonthlyReportRepositoryTest {
 			assertThat(repository.findById(new MonthlyReportMemberId(123L, MONTH)).orElseThrow().getPayload())
 				.contains("소금이");
 			assertThat(before.character().code()).isEqualTo("cat");
+			assertThat(before.character().faceImageKey()).isEqualTo("monthly-reports/assets/v1/faces/cat/smile.png");
 			assertThat(before.planet().code()).isEqualTo("earth");
 			assertThat(before.activity().artwork().imageKey()).isEqualTo("reports/types/v1/earth/cat/record.webp");
 		}

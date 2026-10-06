@@ -36,10 +36,13 @@ public class MonthlyReportAssetQueryService {
 	}
 
 	public void validateAssetRequest(Asset request) {
-		boolean valid = request.kind() == Kind.COVER
-			? request.planetCode().isEmpty() && request.variant().matches("0[1-9]|1[0-2]")
-			: planets.existsById(request.planetCode())
+		boolean valid = switch (request.kind()) {
+			case COVER -> request.planetCode().isEmpty() && request.variant().matches("0[1-9]|1[0-2]");
+			case FACE -> request.planetCode().isEmpty()
+				&& Set.of("smile", "wink", "neutral", "closed").contains(request.variant());
+			case TYPE -> planets.existsById(request.planetCode())
 				&& Set.of("explore", "save", "plan", "record", "seed").contains(request.variant());
+		};
 		if (!valid || !characters.existsById(request.characterCode())) {
 			throw new CustomException(MonthlyReportErrorCode.INVALID_ADMIN_REQUEST);
 		}

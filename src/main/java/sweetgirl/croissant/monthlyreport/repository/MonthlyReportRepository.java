@@ -15,15 +15,15 @@ import sweetgirl.croissant.monthlyreport.entity.MonthlyReportMemberId;
 
 public interface MonthlyReportRepository extends JpaRepository<MonthlyReportMember, MonthlyReportMemberId> {
 
-	@Query("""
-			SELECT r.id.yearMonth AS yearMonth, r.publishedAt AS publishedAt,
-				r.characterCode AS characterCode, r.characterName AS characterName,
-				r.characterImageKey AS characterImageKey
-			FROM MonthlyReportMember r
-			WHERE r.id.memberId = :memberId
-				AND r.status = sweetgirl.croissant.monthlyreport.enums.MonthlyReportStatus.PUBLISHED
-			ORDER BY r.id.yearMonth DESC
-			""")
+	@Query(value = """
+			SELECT r.year_month AS "yearMonth", r.published_at AS "publishedAt",
+				r.character_code AS "characterCode", r.character_name AS "characterName",
+				r.character_image_key AS "characterImageKey",
+				r.payload->'character'->>'faceImageKey' AS "faceImageKey"
+			FROM monthly_report_member r
+			WHERE r.member_id = :memberId AND r.status = 'PUBLISHED'
+			ORDER BY r.year_month DESC
+			""", nativeQuery = true)
 	Slice<PublishedReport> findPublished(@Param("memberId") Long memberId, Pageable pageable);
 
 	/** 중복 발행은 DB에서 막는다. native 변경 후 영속성 컨텍스트에 남은 보류 상태도 비운다. */
@@ -73,6 +73,8 @@ public interface MonthlyReportRepository extends JpaRepository<MonthlyReportMemb
 		String getCharacterName();
 
 		String getCharacterImageKey();
+
+		String getFaceImageKey();
 	}
 
 }

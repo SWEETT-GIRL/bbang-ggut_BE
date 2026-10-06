@@ -41,7 +41,7 @@ public class MonthlyReportAsset {
 	private String imageKey;
 
 	public enum Kind {
-		COVER, TYPE
+		COVER, TYPE, FACE
 	}
 
 	public static String identity(String version, Kind kind, String character, String planet, String variant) {

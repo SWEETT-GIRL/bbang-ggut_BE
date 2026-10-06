@@ -54,7 +54,8 @@ class MonthlyReportFlywayTest {
 				"V20261005222055__monthly_report_single_member_run.sql",
 				"V20261005222056__monthly_report_operations.sql",
 				"V20261006055838__add_monthly_report_push_lease.sql",
-				"V20261006055839__add_monthly_report_admin_audit.sql");
+				"V20261006055839__add_monthly_report_admin_audit.sql",
+				"V20261006160000__allow_monthly_report_face_assets.sql");
 			for (String migration : migrations) {
 				try (InputStream sql = new ClassPathResource("db/migration/" + migration).getInputStream()) {
 					Files.copy(sql, scripts.resolve(migration));
@@ -64,6 +65,13 @@ class MonthlyReportFlywayTest {
 				.locations("filesystem:" + scripts).baselineOnMigrate(true).baselineVersion("20261002150000")
 				.outOfOrder(false).load();
 			assertThat(flyway.migrate().migrationsExecuted).isEqualTo(migrations.size());
+			jdbc.update(
+				"""
+							INSERT INTO monthly_report_asset
+						(id, asset_version, kind, character_code, planet_code, variant, image_key)
+							VALUES ('face', 'v1', 'FACE', 'cat', '', 'smile',
+						'monthly-reports/assets/v1/faces/cat/smile.png')
+							""");
 			flyway.validate();
 			assertThat(flyway.migrate().migrationsExecuted).isZero();
 			assertThat(jdbc.queryForObject("SELECT count(*) FROM monthly_report_history_coverage", Integer.class))
