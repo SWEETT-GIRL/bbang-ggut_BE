@@ -19,7 +19,8 @@ public interface MonthlyReportRepository extends JpaRepository<MonthlyReportMemb
 			SELECT r.year_month AS "yearMonth", r.published_at AS "publishedAt",
 				r.character_code AS "characterCode", r.character_name AS "characterName",
 				r.character_image_key AS "characterImageKey",
-				r.payload->'character'->>'faceImageKey' AS "faceImageKey"
+				r.payload->'character'->>'faceImageKey' AS "faceImageKey",
+				r.payload->>'coverImageKey' AS "coverImageKey"
 			FROM monthly_report_member r
 			WHERE r.member_id = :memberId AND r.status = 'PUBLISHED'
 			ORDER BY r.year_month DESC
@@ -75,6 +76,8 @@ public interface MonthlyReportRepository extends JpaRepository<MonthlyReportMemb
 		String getCharacterImageKey();
 
 		String getFaceImageKey();
+
+		String getCoverImageKey();
 	}
 
 }
