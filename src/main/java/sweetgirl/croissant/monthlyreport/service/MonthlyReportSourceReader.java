@@ -49,18 +49,10 @@ public class MonthlyReportSourceReader {
 		YearMonth month = MonthlyReportMonth.parse(yearMonth);
 		LocalDateTime from = month.atDay(1).atStartOfDay();
 		LocalDateTime until = month.plusMonths(1).atDay(1).atStartOfDay();
-		LocalDateTime coveredFrom = repository.findCoveredFrom();
-		if (coveredFrom == null) {
-			throw new CustomException(MonthlyReportErrorCode.SOURCE_HISTORY_UNAVAILABLE);
-		}
-		MonthlyReportAggregationBasis basis = coveredFrom.isBefore(until)
-			? MonthlyReportAggregationBasis.MONTH_END_HISTORY : MonthlyReportAggregationBasis.INITIAL_AVAILABLE_SOURCES;
-		// 도입 전 월은 남은 원천과 기존 요청·인터랙션을 활용한다. 과거 이력의 시각은 바꾸지 않는다.
-		LocalDateTime sourceAsOf = basis == MonthlyReportAggregationBasis.MONTH_END_HISTORY
-			? until : repository.findSnapshotTime();
-		if (sourceAsOf == null || sourceAsOf.isBefore(coveredFrom)) {
-			throw new CustomException(MonthlyReportErrorCode.SOURCE_HISTORY_UNAVAILABLE);
-		}
+		SourceBoundary boundary = sourceBoundary(until);
+		LocalDateTime coveredFrom = boundary.coveredFrom();
+		MonthlyReportAggregationBasis basis = boundary.basis();
+		LocalDateTime sourceAsOf = boundary.sourceAsOf();
 		List<RecordState> records = new ArrayList<>();
 		Set<Long> saved = new HashSet<>();
 		Set<Long> planned = new HashSet<>();
@@ -70,8 +62,7 @@ public class MonthlyReportSourceReader {
 			switch (history.getSourceType()) {
 				case BREAD_RECORD -> {
 					RecordState record = decode(history, RecordState.class);
-					if (record.createdAt().isBefore(until) && retained(record.deletedAt(), sourceAsOf)
-						&& inMonth(record.eatenAt(), from, until)) {
+					if (includedRecord(record, from, until, sourceAsOf)) {
 						records.add(record);
 					}
 				}
@@ -125,6 +116,47 @@ public class MonthlyReportSourceReader {
 		records.sort(Comparator.comparing(RecordState::id));
 		return new MonthlyReportSourceSnapshot(coveredFrom, basis, sourceAsOf, records, tags, photos, saved, planned,
 			courses);
+	}
+
+	/** 전월 비교는 사진·태그·저장·계획을 조회하지 않고 같은 기준으로 빵로그만 센다. */
+	public RecordCount countRecords(Long memberId, String yearMonth) {
+		YearMonth month = MonthlyReportMonth.parse(yearMonth);
+		LocalDateTime from = month.atDay(1).atStartOfDay();
+		LocalDateTime until = month.plusMonths(1).atDay(1).atStartOfDay();
+		SourceBoundary boundary = sourceBoundary(until);
+		long count = repository.findRecordState(memberId, boundary.sourceAsOf()).stream()
+			.map(history -> decode(history, RecordState.class))
+			.filter(record -> includedRecord(record, from, until, boundary.sourceAsOf())).count();
+		return new RecordCount(count, boundary.basis());
+	}
+
+	public record RecordCount(long records, MonthlyReportAggregationBasis basis) {
+	}
+
+	private boolean includedRecord(RecordState record, LocalDateTime from, LocalDateTime until,
+			LocalDateTime sourceAsOf) {
+		return record.createdAt().isBefore(until) && retained(record.deletedAt(), sourceAsOf)
+			&& inMonth(record.eatenAt(), from, until);
+	}
+
+	private SourceBoundary sourceBoundary(LocalDateTime until) {
+		LocalDateTime coveredFrom = repository.findCoveredFrom();
+		if (coveredFrom == null) {
+			throw new CustomException(MonthlyReportErrorCode.SOURCE_HISTORY_UNAVAILABLE);
+		}
+		MonthlyReportAggregationBasis basis = coveredFrom.isBefore(until)
+			? MonthlyReportAggregationBasis.MONTH_END_HISTORY : MonthlyReportAggregationBasis.INITIAL_AVAILABLE_SOURCES;
+		// 도입 전 월은 남은 원천과 기존 요청·인터랙션을 활용한다. 과거 이력의 시각은 바꾸지 않는다.
+		LocalDateTime sourceAsOf = basis == MonthlyReportAggregationBasis.MONTH_END_HISTORY
+			? until : repository.findSnapshotTime();
+		if (sourceAsOf == null || sourceAsOf.isBefore(coveredFrom)) {
+			throw new CustomException(MonthlyReportErrorCode.SOURCE_HISTORY_UNAVAILABLE);
+		}
+		return new SourceBoundary(coveredFrom, basis, sourceAsOf);
+	}
+
+	private record SourceBoundary(LocalDateTime coveredFrom, MonthlyReportAggregationBasis basis,
+			LocalDateTime sourceAsOf) {
 	}
 
 	private List<MonthlyReportSourceHistory> children(String sourceType, Set<Long> parentIds, LocalDateTime until) {

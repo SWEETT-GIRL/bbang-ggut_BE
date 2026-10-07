@@ -77,6 +77,19 @@ public interface MonthlyReportSourceHistoryRepository extends JpaRepository<Mont
 	List<MonthlyReportSourceHistory> findOwnerState(@Param("memberId") Long memberId,
 			@Param("until") LocalDateTime until);
 
+	/** 전월 비교에 필요한 빵로그 상태만 읽는다. 삭제·소유권 변경을 포함해 마지막 이력을 고른다. */
+	@Query(value = """
+			SELECT h.* FROM monthly_report_source_history h
+			WHERE h.member_id = :memberId AND h.source_type = 'BREAD_RECORD'
+			AND h.recorded_at < :until AND h.payload IS NOT NULL
+			AND NOT EXISTS (SELECT 1 FROM monthly_report_source_history newer
+				WHERE newer.source_type = h.source_type AND newer.source_key = h.source_key
+				AND newer.recorded_at < :until
+				AND (newer.recorded_at, newer.id) > (h.recorded_at, h.id))
+			""", nativeQuery = true)
+	List<MonthlyReportSourceHistory> findRecordState(@Param("memberId") Long memberId,
+			@Param("until") LocalDateTime until);
+
 	/** 자식은 월말 부모 소유권으로 범위를 정한다. 현재 자식의 작성자/소유권으로 거르지 않는다. */
 	@Query(value = """
 			SELECT h.* FROM monthly_report_source_history h
