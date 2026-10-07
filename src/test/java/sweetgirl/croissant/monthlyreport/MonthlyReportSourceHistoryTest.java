@@ -139,6 +139,38 @@ class MonthlyReportSourceHistoryTest {
 	}
 
 	@Test
+	void countsPreviousRecordsWithoutPublishedReportUsingInitialSources() {
+		jdbc.update("""
+				INSERT INTO bread_record (id, member_id, eaten_at, created_at, deleted_at) VALUES
+				(801, 123, '2025-11-01', '2025-11-01', NULL),
+				(802, 123, '2025-11-30 23:59:59', '2025-11-30', NULL),
+				(803, 123, '2025-11-15', '2025-12-01', NULL),
+				(804, 123, '2025-11-15', '2025-11-15', '2025-12-02'),
+				(805, 456, '2025-11-15', '2025-11-15', NULL)
+				""");
+		MonthlyReportSourceReader.RecordCount result = reader.countRecords(123L, "2025-11");
+		assertThat(result.basis()).isEqualTo(MonthlyReportAggregationBasis.INITIAL_AVAILABLE_SOURCES);
+		assertThat(result.records()).isEqualTo(reader.read(123L, "2025-11").records().size());
+		assertThat(result.records()).isEqualTo(3);
+		assertThat(reader.countRecords(999L, "2025-11").records()).isZero();
+	}
+
+	@Test
+	void previousRecordCountPreservesMonthEndStateAfterDeletion() {
+		jdbc.update("""
+				INSERT INTO bread_record (id, member_id, eaten_at, created_at) VALUES
+				(801, 123, '2025-11-15', '2025-11-15')
+				""");
+		jdbc.update("UPDATE monthly_report_history_coverage SET covered_from = '2025-11-01'");
+		jdbc.update("UPDATE monthly_report_source_history SET recorded_at = '2025-11-30 23:00:00'");
+		jdbc.update("UPDATE bread_record SET deleted_at = '2025-12-02' WHERE id = 801");
+		MonthlyReportSourceReader.RecordCount result = reader.countRecords(123L, "2025-11");
+		assertThat(result.basis()).isEqualTo(MonthlyReportAggregationBasis.MONTH_END_HISTORY);
+		assertThat(result.records()).isEqualTo(2);
+		assertThat(result.records()).isEqualTo(reader.read(123L, "2025-11").records().size());
+	}
+
+	@Test
 	void rejectsMissingCoverageRatherThanTreatingBrokenInitializationAsZeroActivity() {
 		jdbc.update("DELETE FROM monthly_report_history_coverage");
 		assertThatThrownBy(() -> reader.read(123L, MONTH)).isInstanceOf(CustomException.class)
