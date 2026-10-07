@@ -73,7 +73,8 @@ public class MonthlyReportGenerationService {
 			.put("version", MonthlyReportRecordAggregationService.VERSION)
 			.put("records", records.records()).put("stores", records.stores())
 			.put("previousRecords", records.previousRecords())
-			.put("previousSource", "published-report");
+			.put("previousSource", records.previousSource())
+			.put("previousMonth", MonthlyReportMonth.parse(draft.yearMonth()).minusMonths(1).toString());
 		metrics.putObject("breadAggregation")
 			.put("version", MonthlyReportBreadAggregationService.VERSION)
 			.put("photoSelection", "loved-then-latest-eaten")

@@ -1,8 +1,11 @@
 package sweetgirl.croissant.monthlyreport;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.MONTH;
 import static sweetgirl.croissant.monthlyreport.MonthlyReportFixtures.PAYLOAD;
 
@@ -22,6 +25,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
+import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportSourceSnapshot;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportSourceSnapshot.RecordState;
@@ -70,17 +75,46 @@ class MonthlyReportRecordAggregationServiceTest {
 		assertThat(report.summary().records()).isEqualTo(6);
 		assertThat(report.summary().stores()).isEqualTo(5);
 		assertThat(report.comparison()).isEqualTo(new MonthlyReportResponse.Comparison(12L, 6L));
+		verify(sourceReader, never()).countRecords(123L, "2025-11");
 		assertThat(codec.read(codec.write(report, 123L, MONTH), 123L, MONTH)).isEqualTo(report);
 	}
 
 	@ParameterizedTest
 	@ValueSource(strings = {"MISSING", "WITHHELD", "FAILED"})
-	void unpublishedPreviousMonthDoesNotPreventCurrentReport(String status) {
+	void unpublishedPreviousMonthUsesRecordHistory(String status) {
 		currentCounts();
 		Optional<MonthlyReportMember> snapshot = status.equals("MISSING") ? Optional.empty()
 			: Optional.of(MonthlyReportFixtures.snapshot(status, null));
 		given(reports.findById(new MonthlyReportMemberId(123L, "2025-11"))).willReturn(snapshot);
+		given(sourceReader.countRecords(123L, "2025-11")).willReturn(new MonthlyReportSourceReader.RecordCount(
+			3L, MonthlyReportAggregationBasis.INITIAL_AVAILABLE_SOURCES));
 		assertThat(service.aggregate(123L, MONTH))
-			.isEqualTo(new MonthlyReportRecordAggregationService.Result(6, 5, null));
+			.isEqualTo(new MonthlyReportRecordAggregationService.Result(6, 5, 3L, "INITIAL_AVAILABLE_SOURCES"));
+	}
+
+	@Test
+	void zeroPreviousActivityIsComparable() {
+		currentCounts();
+		given(sourceReader.countRecords(123L, "2025-11")).willReturn(new MonthlyReportSourceReader.RecordCount(
+			0L, MonthlyReportAggregationBasis.MONTH_END_HISTORY));
+		assertThat(service.aggregate(123L, MONTH))
+			.isEqualTo(new MonthlyReportRecordAggregationService.Result(6, 5, 0L, "MONTH_END_HISTORY"));
+	}
+
+	@Test
+	void unavailablePreviousHistoryKeepsCurrentReportWithoutInventingZero() {
+		currentCounts();
+		given(sourceReader.countRecords(123L, "2025-11"))
+			.willThrow(new CustomException(MonthlyReportErrorCode.SOURCE_HISTORY_UNAVAILABLE));
+		assertThat(service.aggregate(123L, MONTH))
+			.isEqualTo(new MonthlyReportRecordAggregationService.Result(6, 5, null, "unavailable"));
+	}
+
+	@Test
+	void unexpectedPreviousAggregationFailureIsNotHidden() {
+		currentCounts();
+		given(sourceReader.countRecords(123L, "2025-11"))
+			.willThrow(new CustomException(MonthlyReportErrorCode.GENERATION_FAILED));
+		assertThatThrownBy(() -> service.aggregate(123L, MONTH)).isInstanceOf(CustomException.class);
 	}
 }

@@ -182,9 +182,9 @@ class MonthlyReportBreadAggregationTest {
 			MonthlyReportRecordAggregationService service = new MonthlyReportRecordAggregationService(
 				sourceReader, repository, codec);
 			assertThat(service.aggregate(901L, MONTH))
-				.isEqualTo(new MonthlyReportRecordAggregationService.Result(6, 5, null));
+				.isEqualTo(new MonthlyReportRecordAggregationService.Result(6, 5, 1L, "INITIAL_AVAILABLE_SOURCES"));
 			assertThat(service.aggregate(999L, MONTH))
-				.isEqualTo(new MonthlyReportRecordAggregationService.Result(0, 0, null));
+				.isEqualTo(new MonthlyReportRecordAggregationService.Result(0, 0, 0L, "INITIAL_AVAILABLE_SOURCES"));
 		}
 		MonthlyReportBreadAggregationService.Result breads = aggregation.aggregate(901L, MONTH);
 		assertThat(breads.total()).isEqualTo(2);
@@ -281,7 +281,7 @@ class MonthlyReportBreadAggregationTest {
 			String originalPayload = snapshot.getPayload();
 			assertThat(codec.read(originalPayload, 123L, MONTH).summary().records()).isEqualTo(3);
 			assertThat(codec.read(originalPayload, 123L, MONTH).summary().stores()).isEqualTo(3);
-			assertThat(codec.read(originalPayload, 123L, MONTH).comparison().previousRecords()).isNull();
+			assertThat(codec.read(originalPayload, 123L, MONTH).comparison().previousRecords()).isEqualTo(1L);
 			assertThat(codec.read(originalPayload, 123L, MONTH).breads()).isEqualTo(result.breads());
 			assertThat(codec.read(originalPayload, 123L, MONTH).summary().breads()).isEqualTo(9);
 			assertThat(mapper.readTree(snapshot.getRawMetrics()).at("/breadAggregation/uncategorizedTags").asLong())

@@ -50,6 +50,9 @@ class MonthlyReportLowActivityTest {
 		given(sourceReader.read(123L, MONTH)).willReturn(new MonthlyReportSourceSnapshot(monthStart,
 			MonthlyReportAggregationBasis.INITIAL_AVAILABLE_SOURCES, monthStart.plusMonths(1), records,
 			List.of(), Map.of(), Set.of(), Set.of(), 0));
+		given(sourceReader.countRecords(123L, YearMonth.parse(MONTH).minusMonths(1).toString()))
+			.willReturn(
+				new MonthlyReportSourceReader.RecordCount(0, MonthlyReportAggregationBasis.INITIAL_AVAILABLE_SOURCES));
 		ObjectMapper mapper = new ObjectMapper();
 		try (ValidatorFactory validation = Validation.buildDefaultValidatorFactory()) {
 			MonthlyReportPayloadCodec codec = new MonthlyReportPayloadCodec(mapper, validation.getValidator());
@@ -67,7 +70,9 @@ class MonthlyReportLowActivityTest {
 			assertThat(report.stores()).isEqualTo(new MonthlyReportResponse.Stores(0L, 0L, 0L, 0L));
 			assertThat(report.breads()).isEmpty();
 			assertThat(report.towns()).isEmpty();
-			assertThat(report.comparison().previousRecords()).isNull();
+			assertThat(report.comparison().previousRecords()).isZero();
+			assertThat(prepared.metrics().path("recordAggregation").path("previousSource").asText())
+				.isEqualTo("INITIAL_AVAILABLE_SOURCES");
 			assertThat(report.comparison().currentRecords()).isEqualTo(recordCount);
 			assertThat(report.activity().type()).isEqualTo(recordCount == 0 ? "seed" : "record");
 			assertThat(report.activity().totalScore()).isEqualTo(recordCount * 7L);
