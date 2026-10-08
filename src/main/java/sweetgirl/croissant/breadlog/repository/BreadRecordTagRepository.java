@@ -67,7 +67,6 @@ public interface BreadRecordTagRepository extends JpaRepository<BreadRecordTag, 
 			FROM BreadRecordTag tag
 			WHERE tag.record.member.id = :memberId
 			AND tag.record.deletedAt IS NULL
-			AND tag.record.recordType = sweetgirl.croissant.breadlog.enums.RecordType.NORMAL
 			AND tag.record.eatenAt >= :from
 			AND tag.record.eatenAt < :to
 			""")
@@ -88,7 +87,6 @@ public interface BreadRecordTagRepository extends JpaRepository<BreadRecordTag, 
 			LEFT JOIN FETCH menu.menuCategory
 			WHERE tag.record.member.id = :memberId
 			AND tag.record.deletedAt IS NULL
-			AND tag.record.recordType = sweetgirl.croissant.breadlog.enums.RecordType.NORMAL
 			AND tag.record.eatenAt >= :from
 			AND tag.record.eatenAt < :to
 			""")

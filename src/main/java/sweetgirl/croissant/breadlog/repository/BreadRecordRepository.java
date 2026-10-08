@@ -25,14 +25,6 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 
 	long countByMemberIdAndDeletedAtIsNull(Long memberId);
 
-	@Modifying
-	@Query(value = """
-			UPDATE bread_record SET deleted_at = CURRENT_TIMESTAMP
-			WHERE member_id = :guestId AND record_type = 'TUTORIAL' AND deleted_at IS NULL
-			AND EXISTS (SELECT 1 FROM member_tutorial_completion WHERE member_id = :targetId)
-			""", nativeQuery = true)
-	void retireDuplicateTutorial(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
-
 	/** 먹어 본 가게인가 — 그 가게에 안 지운 빵로그가 하나라도 있으면. 내 빵 순위에 담을 수 있는 기준. */
 	boolean existsByMemberIdAndStoreIdAndDeletedAtIsNull(Long memberId, Long storeId);
 
@@ -54,7 +46,6 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 				FROM bread_record
 				WHERE member_id = :memberId
 				AND deleted_at IS NULL
-				AND record_type = 'NORMAL'
 				GROUP BY CASE
 					WHEN store_id IS NOT NULL THEN 'id:' || CAST(store_id AS VARCHAR)
 					ELSE 'name:' || store_name
@@ -112,7 +103,6 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			FROM bread_record record
 			WHERE record.member_id = :memberId
 			AND record.deleted_at IS NULL
-			AND record.record_type = 'NORMAL'
 			AND record.eaten_at >= :from
 			AND record.eaten_at < :to
 			GROUP BY
@@ -136,7 +126,6 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			LEFT JOIN store ON store.id = record.store_id
 			WHERE record.member_id = :memberId
 			AND record.deleted_at IS NULL
-			AND record.record_type = 'NORMAL'
 			AND record.eaten_at >= :from
 			AND record.eaten_at < :to
 			""", nativeQuery = true)

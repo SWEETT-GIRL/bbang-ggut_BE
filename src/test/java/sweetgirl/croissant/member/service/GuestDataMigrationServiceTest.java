@@ -46,8 +46,6 @@ import sweetgirl.croissant.world.repository.MemberWorldRepository;
 
 @ExtendWith(MockitoExtension.class)
 class GuestDataMigrationServiceTest {
-	@Mock
-	private sweetgirl.croissant.breadlog.repository.MemberTutorialCompletionRepository tutorialCompletions;
 
 	@Mock
 	private CourseRepository courseRepository;
@@ -114,10 +112,7 @@ class GuestDataMigrationServiceTest {
 	@Test
 	void movesEveryGuestOwnedRow_andRemovesDuplicatesFirst() {
 		Member guest = mock(Member.class);
-		given(memberRepository.findActiveForUpdate(GUEST_ID)).willReturn(Optional.of(guest));
-		given(memberRepository.findActiveForUpdate(TARGET_ID)).willReturn(Optional.of(mock(Member.class)));
 		given(courseRepository.moveOwner(GUEST_ID, TARGET_ID)).willReturn(3);
-		given(guest.isGuest()).willReturn(true);
 		given(memberRepository.getReferenceById(GUEST_ID)).willReturn(guest);
 		given(refreshTokenRepository.findAllByMember(guest)).willReturn(List.of());
 		given(memberRepository.findById(GUEST_ID)).willReturn(Optional.of(guest));
@@ -192,9 +187,6 @@ class GuestDataMigrationServiceTest {
 	void discardsGuestTasteProfile_beforeRecomputingTarget() {
 		Member guest = mock(Member.class);
 		UserTasteProfile guestProfile = UserTasteProfile.createEmpty(GUEST_ID, LocalDateTime.of(2026, 9, 18, 4, 0));
-		given(guest.isGuest()).willReturn(true);
-		given(memberRepository.findActiveForUpdate(GUEST_ID)).willReturn(Optional.of(guest));
-		given(memberRepository.findActiveForUpdate(TARGET_ID)).willReturn(Optional.of(mock(Member.class)));
 		given(memberRepository.getReferenceById(GUEST_ID)).willReturn(guest);
 		given(refreshTokenRepository.findAllByMember(guest)).willReturn(List.of());
 		given(memberRepository.findById(GUEST_ID)).willReturn(Optional.of(guest));
@@ -211,9 +203,6 @@ class GuestDataMigrationServiceTest {
 	@Test
 	void closesGuestAccount_afterMigration() {
 		Member guest = mock(Member.class);
-		given(guest.isGuest()).willReturn(true);
-		given(memberRepository.findActiveForUpdate(GUEST_ID)).willReturn(Optional.of(guest));
-		given(memberRepository.findActiveForUpdate(TARGET_ID)).willReturn(Optional.of(mock(Member.class)));
 		given(memberRepository.getReferenceById(GUEST_ID)).willReturn(guest);
 		given(refreshTokenRepository.findAllByMember(guest)).willReturn(List.of());
 		given(memberRepository.findById(GUEST_ID)).willReturn(Optional.of(guest));

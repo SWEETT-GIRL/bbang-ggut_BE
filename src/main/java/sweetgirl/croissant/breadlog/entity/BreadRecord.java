@@ -10,8 +10,6 @@ import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -24,7 +22,6 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import sweetgirl.croissant.breadlog.enums.RecordType;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.store.entity.Store;
@@ -38,29 +35,6 @@ public class BreadRecord extends BaseTimeEntity {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
-
-	@Enumerated(EnumType.STRING)
-	@Column(nullable = false, length = 20)
-	private RecordType recordType = RecordType.NORMAL;
-
-	@Column(length = 60)
-	private String tutorialTemplateCode;
-
-	public boolean isTutorial() {
-		return recordType == RecordType.TUTORIAL;
-	}
-
-	public void markTutorial(String templateCode) {
-		this.recordType = RecordType.TUTORIAL;
-		this.tutorialTemplateCode = templateCode;
-		this.isPublic = false;
-	}
-
-	/** 사진·가게·작성일은 보존하고 개인 메모와 쌓을 빵만 바꾼다. */
-	public void editTutorial(String memo, String towerBread) {
-		this.memo = memo;
-		this.towerBread = towerBread;
-	}
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "member_id", nullable = false)

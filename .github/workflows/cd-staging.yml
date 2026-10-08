@@ -160,8 +160,6 @@ jobs:
           # 성능 측정 대시보드
           # 게스트 쓰기 차단 — 새 앱 출시 뒤에 GUEST_WRITE_BLOCKED=true 로 켠다
           guest.write-blocked=${GUEST_WRITE_BLOCKED:false}
-          # 준비된 첫 기록은 개발 앱에서 실제 저장까지 검증한다. 운영은 기본 비활성 유지.
-          tutorial.enabled=true
 
           perf.dashboard.enabled=${PERF_DASHBOARD_ENABLED:false}
           perf.dashboard.access-key=${PERF_DASHBOARD_ACCESS_KEY:}
