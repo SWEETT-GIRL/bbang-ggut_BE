@@ -25,7 +25,13 @@ public record MonthlyReportSourceSnapshot(
 	}
 
 	public record RecordState(Long id, Long storeId, String regionKey, LocalDateTime createdAt,
-			LocalDateTime eatenAt, LocalDateTime deletedAt, String lovedBread, List<String> lovedBreads) {
+			LocalDateTime eatenAt, LocalDateTime deletedAt, String lovedBread, List<String> lovedBreads,
+			String recordType) {
+		public RecordState(Long id, Long storeId, String regionKey, LocalDateTime createdAt,
+				LocalDateTime eatenAt, LocalDateTime deletedAt, String lovedBread, List<String> lovedBreads) {
+			this(id, storeId, regionKey, createdAt, eatenAt, deletedAt, lovedBread, lovedBreads, "NORMAL");
+		}
+
 		public RecordState {
 			lovedBreads = List.copyOf(lovedBreads);
 		}
