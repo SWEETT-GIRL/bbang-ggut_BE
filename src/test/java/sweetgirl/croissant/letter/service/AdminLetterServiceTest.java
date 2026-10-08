@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -15,25 +16,36 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.SliceImpl;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import sweetgirl.croissant.alarm.entity.Notification;
+import sweetgirl.croissant.alarm.enums.NotificationChannel;
+import sweetgirl.croissant.alarm.enums.NotificationType;
+import sweetgirl.croissant.alarm.event.PushRequestedEvent;
+import sweetgirl.croissant.alarm.repository.NotificationRepository;
+import sweetgirl.croissant.alarm.service.NotificationRecorder;
 import sweetgirl.croissant.letter.code.LetterErrorCode;
 import sweetgirl.croissant.letter.dto.request.AdminLetterReplyRequest;
 import sweetgirl.croissant.letter.dto.request.AdminLetterResolveRequest;
 import sweetgirl.croissant.letter.dto.request.AdminLetterSendRequest;
 import sweetgirl.croissant.letter.dto.response.AdminLetterSendResponse;
+import sweetgirl.croissant.letter.dto.response.AdminLetterSendStatsResponse;
 import sweetgirl.croissant.letter.dto.response.AdminLetterThreadListResponse;
 import sweetgirl.croissant.letter.entity.LetterMessage;
 import sweetgirl.croissant.letter.entity.LetterThread;
+import sweetgirl.croissant.letter.enums.LetterCategory;
 import sweetgirl.croissant.letter.enums.LetterSender;
 import sweetgirl.croissant.letter.exception.LetterException;
 import sweetgirl.croissant.letter.repository.LetterMessageRepository;
@@ -53,8 +65,33 @@ class AdminLetterServiceTest {
 	@Mock
 	private MemberRepository memberRepository;
 
+	@Mock
+	private NotificationRepository notificationRepository;
+
+	@Mock
+	private NotificationRecorder notificationRecorder;
+
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
+
 	@InjectMocks
 	private AdminLetterService adminLetterService;
+
+	private static final Long SEND_ID = 900L;
+
+	/** 기록기는 저장한 알림을 돌려준다 — id를 채워 돌려줘야 푸시 이벤트가 그 id로 나간다. */
+	@BeforeEach
+	void recorderReturnsSavedNotification() {
+		lenient().when(notificationRecorder.recordFor(any(Notification.class), any(Member.class), any()))
+			.thenAnswer(inv -> withId(inv.getArgument(0), SEND_ID));
+		lenient().when(notificationRecorder.recordForMembers(any(Notification.class), anyList(), any()))
+			.thenAnswer(inv -> withId(inv.getArgument(0), SEND_ID));
+	}
+
+	private static Notification withId(Notification notification, Long id) {
+		ReflectionTestUtils.setField(notification, "id", id);
+		return notification;
+	}
 
 	private Member member(Long id, String nickname) {
 		Member member = Member.builder().nickname(nickname).build();
@@ -322,5 +359,116 @@ class AdminLetterServiceTest {
 		adminLetterService.reply(11L, request);
 
 		assertThat(thread.isResolved()).isFalse();
+	}
+
+	@Test
+	@DisplayName("발송은 알림 한 건으로 남고, 각자 받은 편지가 그 발송에 이어진다")
+	void send_recordsOneSendAndLinksLetters() {
+		Member first = member(1L, "포실한 까눌레");
+		Member second = member(2L, "바삭한 크루아상");
+		given(memberRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(first));
+		given(memberRepository.findByIdAndDeletedAtIsNull(2L)).willReturn(Optional.of(second));
+		given(letterThreadRepository.findByMemberId(anyLong())).willReturn(Optional.empty());
+		given(letterThreadRepository.save(any(LetterThread.class))).willAnswer(inv -> inv.getArgument(0));
+		List<LetterMessage> saved = new java.util.ArrayList<>();
+		given(letterMessageRepository.save(any(LetterMessage.class))).willAnswer(inv -> {
+			saved.add(inv.getArgument(0));
+			return inv.getArgument(0);
+		});
+
+		AdminLetterSendRequest request = sendRequest(List.of(1L, 2L), "기록이 어려웠던 이유가 있다면요?");
+		ReflectionTestUtils.setField(request, "name", "A. 구경파 · 10/8 설문");
+		ReflectionTestUtils.setField(request, "choiceCount", 4);
+		adminLetterService.send(request);
+
+		ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+		verify(notificationRecorder).recordForMembers(captor.capture(), eq(List.of(first, second)), any());
+		assertThat(captor.getValue().getType()).isEqualTo(NotificationType.LETTER);
+		assertThat(captor.getValue().getChannel()).isEqualTo(NotificationChannel.IN_APP);
+		assertThat(captor.getValue().payloadValue("admin.name")).isEqualTo("A. 구경파 · 10/8 설문");
+		assertThat(saved).extracting(LetterMessage::getNotificationId).containsOnly(SEND_ID);
+		// 푸시를 안 골랐으면 울리지 않는다 — 알림함에만 쌓인다
+		verify(eventPublisher, never()).publishEvent(any(PushRequestedEvent.class));
+	}
+
+	@Test
+	@DisplayName("푸시를 고르면 받은 사람마다 알림이 울린다")
+	void send_pushesEachRecipientWhenAsked() {
+		Member first = member(1L, "포실한 까눌레");
+		Member second = member(2L, "바삭한 크루아상");
+		given(memberRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(first));
+		given(memberRepository.findByIdAndDeletedAtIsNull(2L)).willReturn(Optional.of(second));
+		given(letterThreadRepository.findByMemberId(anyLong())).willReturn(Optional.empty());
+		given(letterThreadRepository.save(any(LetterThread.class))).willAnswer(inv -> inv.getArgument(0));
+		given(letterMessageRepository.save(any(LetterMessage.class))).willAnswer(inv -> inv.getArgument(0));
+
+		AdminLetterSendRequest request = sendRequest(List.of(1L, 2L), "잠깐 여쭤봐도 될까요?");
+		ReflectionTestUtils.setField(request, "push", true);
+		adminLetterService.send(request);
+
+		verify(eventPublisher).publishEvent(PushRequestedEvent.to(SEND_ID, 1L));
+		verify(eventPublisher).publishEvent(PushRequestedEvent.to(SEND_ID, 2L));
+	}
+
+	@Test
+	@DisplayName("문의에 답장하면 그 사람에게 답장 알림이 울린다")
+	void reply_pushesInquiryReply() {
+		Member member = member(7L, "포실한 까눌레");
+		given(letterThreadRepository.findById(11L)).willReturn(Optional.of(thread(11L, member)));
+		given(letterMessageRepository.save(any(LetterMessage.class))).willAnswer(inv -> inv.getArgument(0));
+
+		adminLetterService.reply(11L, replyRequest("고쳐서 다음 업데이트에 넣을게요!"));
+
+		ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+		verify(notificationRecorder).recordFor(captor.capture(), eq(member), any());
+		assertThat(captor.getValue().getType()).isEqualTo(NotificationType.INQUIRY_REPLY);
+		assertThat(captor.getValue().getDeepLink()).isEqualTo("/letters");
+		verify(eventPublisher).publishEvent(PushRequestedEvent.to(SEND_ID, 7L));
+	}
+
+	@Test
+	@DisplayName("집계는 발송 뒤 답장에서 번호를 읽어 사람마다 한 번씩 센다 — 다음 발송 뒤 답장은 빼고")
+	void getSendStats_countsChoicesPerPerson() {
+		Notification send = withId(Notification.letterSend(NotificationChannel.PUSH, "t", "b", "/letters",
+			java.util.Map.of("admin.name", "A 설문", "admin.choiceCount", "4")), SEND_ID);
+		given(notificationRepository.findById(SEND_ID)).willReturn(Optional.of(send));
+
+		LetterThread threadA = thread(11L, member(1L, "포실한 까눌레"));
+		LetterThread threadB = thread(12L, member(2L, "바삭한 크루아상"));
+		LetterThread threadC = thread(13L, member(3L, "촉촉한 마들렌"));
+		LetterMessage toA = sent(threadA, 101L, 0);
+		LetterMessage toB = sent(threadB, 102L, 0);
+		LetterMessage toC = sent(threadC, 103L, 0);
+		given(letterMessageRepository.findAllBySendIds(List.of(SEND_ID))).willReturn(List.of(toA, toB, toC));
+		LetterMessage laterSend = sent(threadA, 105L, 30);
+		ReflectionTestUtils.setField(laterSend, "notificationId", 901L);
+		given(letterMessageRepository.findInThreadsSince(anyList(), any())).willReturn(List.of(
+			toA, answer(threadA, 201L, "2번입니다!", 1), answer(threadA, 202L, "아 그리고 2", 2), laterSend,
+			answer(threadA, 203L, "4", 31),
+			toB, answer(threadB, 204L, "음.. 잘 모르겠어요", 1),
+			toC));
+
+		AdminLetterSendStatsResponse stats = adminLetterService.getSendStats(SEND_ID);
+
+		assertThat(stats.recipientCount()).isEqualTo(3);
+		assertThat(stats.repliedCount()).isEqualTo(2);
+		assertThat(stats.counts()).extracting(AdminLetterSendStatsResponse.ChoiceCount::count)
+			.containsExactly(0, 1, 0, 0);
+		assertThat(stats.unnumberedCount()).isEqualTo(1);
+	}
+
+	private LetterMessage sent(LetterThread thread, Long id, int minutes) {
+		LetterMessage message = LetterMessage.create(thread, LetterSender.ADMIN, "설문", LetterCategory.OUTREACH);
+		ReflectionTestUtils.setField(message, "id", id);
+		ReflectionTestUtils.setField(message, "notificationId", SEND_ID);
+		ReflectionTestUtils.setField(message, "createdAt", LocalDateTime.of(2026, 10, 8, 14, 0).plusMinutes(minutes));
+		return message;
+	}
+
+	private LetterMessage answer(LetterThread thread, Long id, String body, int minutes) {
+		LetterMessage message = LetterMessage.create(thread, LetterSender.MEMBER, body);
+		ReflectionTestUtils.setField(message, "id", id);
+		ReflectionTestUtils.setField(message, "createdAt", LocalDateTime.of(2026, 10, 8, 14, 0).plusMinutes(minutes));
+		return message;
 	}
 }

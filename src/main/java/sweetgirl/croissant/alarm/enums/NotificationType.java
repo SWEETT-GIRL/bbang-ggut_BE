@@ -38,8 +38,10 @@ public enum NotificationType {
 	 * 때문이다 — 이의제기 화면으로 가는 길이 붙어 있고, 흘려보내도 되는 알림이 아니다.
 	 */
 	MODERATION_ACTION("MODERATION_ACTION"),
-	/** 내 문의에 답변이 달렸다 */
-	INQUIRY_REPLY("INQUIRY_REPLY");
+	/** 내 문의에 답변이 달렸다 — 어드민이 편지함에서 답장했다 */
+	INQUIRY_REPLY("INQUIRY_REPLY"),
+	/** 빵별일지 팀이 먼저 편지를 보냈다(설문·안내). 받은 사람에게만 간다 */
+	LETTER("LETTER");
 
 	private final String pushType;
 

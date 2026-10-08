@@ -11,6 +11,7 @@ import sweetgirl.croissant.global.code.BaseErrorCode;
 public enum LetterErrorCode implements BaseErrorCode {
 
 	LETTER_THREAD_NOT_FOUND(HttpStatus.NOT_FOUND, "LETTER404", "편지함을 찾을 수 없습니다."),
+	LETTER_SEND_NOT_FOUND(HttpStatus.NOT_FOUND, "LETTER404_SEND", "편지 발송을 찾을 수 없습니다."),
 	LETTER_BODY_EMPTY(HttpStatus.BAD_REQUEST, "LETTER400", "편지 내용을 입력해주세요."),
 	LETTER_INVALID_IMAGE_KEY(HttpStatus.BAD_REQUEST, "LETTER400_IMAGE_KEY", "올바르지 않은 사진입니다."),
 	LETTER_INVALID_IMAGE_MIME_TYPE(HttpStatus.BAD_REQUEST, "LETTER400_IMAGE_TYPE", "지원하지 않는 사진 형식입니다."),
