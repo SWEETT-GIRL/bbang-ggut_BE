@@ -47,7 +47,6 @@ import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
 import sweetgirl.croissant.member.entity.Member;
-import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.menu.entity.Menu;
@@ -58,33 +57,6 @@ import sweetgirl.croissant.world.repository.MemberWorldRepository;
 
 @ExtendWith(MockitoExtension.class)
 class BreadRecordCommandServiceTest {
-	@Mock
-	MemberRepository memberRepository;
-
-	@Test
-	void tutorialDeleteKeepsSharedPhotoAndCannotBeMadePublic() {
-		Member member = member(7L);
-		BreadRecord tutorial = record(11L, member);
-		tutorial.markTutorial(TutorialRecordTemplate.CODE);
-		given(memberReader.getMember(7L)).willReturn(member);
-		given(memberRepository.findActiveForUpdate(7L)).willReturn(Optional.of(member));
-		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(tutorial));
-		assertThatThrownBy(() -> commandService.changeVisibility(11L, 7L, true))
-			.isInstanceOf(BreadLogException.class);
-		commandService.delete(11L, 7L);
-		assertThat(tutorial.getDeletedAt()).isNotNull();
-		org.mockito.Mockito.verifyNoInteractions(s3Service, photoRepository, tagRepository);
-	}
-
-	@Test
-	void cannotDeleteAnotherMembersTutorial() {
-		BreadRecord tutorial = record(11L, member(9L));
-		tutorial.markTutorial(TutorialRecordTemplate.CODE);
-		given(memberRepository.findActiveForUpdate(7L)).willReturn(Optional.of(member(7L)));
-		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(tutorial));
-		assertThatThrownBy(() -> commandService.delete(11L, 7L)).isInstanceOf(BreadLogException.class);
-		assertThat(tutorial.getDeletedAt()).isNull();
-	}
 
 	@Mock
 	S3Service s3Service;

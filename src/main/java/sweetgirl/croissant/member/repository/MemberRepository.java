@@ -7,19 +7,13 @@ import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import jakarta.persistence.LockModeType;
 import sweetgirl.croissant.member.entity.Member;
 
 public interface MemberRepository extends JpaRepository<Member, Long> {
-
-	@Lock(LockModeType.PESSIMISTIC_WRITE)
-	@Query("SELECT m FROM Member m WHERE m.id = :memberId AND m.deletedAt IS NULL")
-	Optional<Member> findActiveForUpdate(@Param("memberId") Long memberId);
 
 	/** 월말 전에 가입한 현재 일반 회원. 이미 발행한 회원은 재시도 순회에서 제외한다. */
 	@Query("""

@@ -33,8 +33,6 @@ public class GuestPromotionService {
 	public Member resolveMemberForNewOAuth(String deviceId, Long callerGuestId) {
 		return resolveCallerGuest(callerGuestId)
 			.or(() -> findReusableGuest(deviceId))
-			.flatMap(guest -> memberRepository.findActiveForUpdate(guest.getId()))
-			.filter(Member::isGuest)
 			.map(guest -> {
 				guest.promoteToUser();
 				return guest;
