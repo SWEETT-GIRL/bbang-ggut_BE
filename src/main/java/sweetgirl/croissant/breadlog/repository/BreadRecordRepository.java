@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import sweetgirl.croissant.breadlog.dto.projection.BreadRecordActivityProjection;
 import sweetgirl.croissant.breadlog.dto.projection.BreadRecordRegionProjection;
 import sweetgirl.croissant.breadlog.dto.projection.BreadRecordStoreVisitProjection;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
@@ -24,6 +25,9 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			Long memberId, Long storeId);
 
 	long countByMemberIdAndDeletedAtIsNull(Long memberId);
+
+	List<BreadRecordActivityProjection> findAllByMemberIdAndDeletedAtIsNullAndCreatedAtLessThanEqual(
+			Long memberId, LocalDateTime asOf);
 
 	@Modifying
 	@Query(value = """
