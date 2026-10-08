@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
+import sweetgirl.croissant.breadlog.enums.RecordType;
 import sweetgirl.croissant.menu.enums.MenuKind;
 import sweetgirl.croissant.monthlyreport.enums.MonthlyReportAggregationBasis;
 
@@ -25,8 +26,16 @@ public record MonthlyReportSourceSnapshot(
 	}
 
 	public record RecordState(Long id, Long storeId, String regionKey, LocalDateTime createdAt,
-			LocalDateTime eatenAt, LocalDateTime deletedAt, String lovedBread, List<String> lovedBreads) {
+			LocalDateTime eatenAt, LocalDateTime deletedAt, String lovedBread, List<String> lovedBreads,
+			RecordType recordType) {
+		public RecordState(Long id, Long storeId, String regionKey, LocalDateTime createdAt,
+				LocalDateTime eatenAt, LocalDateTime deletedAt, String lovedBread, List<String> lovedBreads) {
+			this(id, storeId, regionKey, createdAt, eatenAt, deletedAt, lovedBread, lovedBreads, RecordType.NORMAL);
+		}
+
 		public RecordState {
+			// 유형 도입 이전에 저장한 이력은 필드가 없거나 null이다.
+			recordType = recordType == null ? RecordType.NORMAL : recordType;
 			lovedBreads = List.copyOf(lovedBreads);
 		}
 

@@ -39,6 +39,9 @@ class GuestPromotionServiceTest {
 	@Test
 	void promotesExistingGuest_whenGuestSessionExistsForDevice() {
 		Member guest = mock(Member.class);
+		given(guest.getId()).willReturn(10L);
+		given(guest.isGuest()).willReturn(true);
+		given(memberRepository.findActiveForUpdate(10L)).willReturn(java.util.Optional.of(guest));
 		RefreshToken guestToken = mock(RefreshToken.class);
 		given(guestToken.getMember()).willReturn(guest);
 		given(refreshTokenRepository.findGuestTokensByDeviceId(DEVICE_ID)).willReturn(List.of(guestToken));

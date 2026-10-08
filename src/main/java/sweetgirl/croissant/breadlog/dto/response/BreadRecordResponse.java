@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
+import sweetgirl.croissant.breadlog.enums.RecordType;
 
 public record BreadRecordResponse(
 		Long id,
@@ -19,7 +20,8 @@ public record BreadRecordResponse(
 		LocalDateTime createdAt,
 		LocalDateTime updatedAt,
 		List<BreadRecordPhotoResponse> photos,
-		List<BreadRecordTagResponse> tags) {
+		List<BreadRecordTagResponse> tags,
+		RecordType recordType) {
 
 	/**
 	 * @param lovedBreads 또 먹을래요(again) on 인 태그 이름 — 옛 하트 칩의 자리. 1.5.x 앱이 아직 읽는다
@@ -46,7 +48,8 @@ public record BreadRecordResponse(
 			record.getCreatedAt(),
 			record.getUpdatedAt(),
 			photos,
-			tags);
+			tags,
+			record.getRecordType());
 	}
 
 	static List<String> lovedBreadsOf(List<BreadRecordTagResponse> tags) {
