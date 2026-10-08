@@ -1,6 +1,8 @@
 package sweetgirl.croissant.alarm.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -49,4 +51,16 @@ public interface NotificationDeliveryRepository extends JpaRepository<Notificati
 	int recordPushResult(@Param("notificationId") Long notificationId, @Param("memberId") Long memberId,
 			@Param("status") String status, @Param("failReason") String failReason, @Param("now") LocalDateTime now);
 
+	/**
+	 * 발송들의 채널·결과별 건수 — [notificationId, status, count]. 어드민이 편지 푸시가 몇 명에게 갔는지 본다.
+	 * 받을 자격이 없거나(알림 끔) 기기 토큰이 없어 안 보낸 사람은 대장에 없다 — 받은 사람 수에서 빼서 센다.
+	 */
+	@Query("""
+			SELECT d.notification.id, d.status, COUNT(d)
+			FROM NotificationDelivery d
+			WHERE d.notification.id IN :notificationIds AND d.channel = :channel
+			GROUP BY d.notification.id, d.status
+			""")
+	List<Object[]> countByNotificationIdsAndChannel(@Param("notificationIds") Collection<Long> notificationIds,
+			@Param("channel") NotificationChannel channel);
 }
