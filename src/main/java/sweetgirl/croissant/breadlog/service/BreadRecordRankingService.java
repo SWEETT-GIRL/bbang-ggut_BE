@@ -59,7 +59,8 @@ public class BreadRecordRankingService {
 		};
 		RankChanges changes = rankChangeResolver.resolve(board.name(), 0,
 			RankChangeResolver.regionKey(sido, sigungu), LocalDate.now(RankingRegionService.ZONE));
-		return assemble(rows, viewerId, guest, lim, sido, sigungu, changes);
+		BreadRecordRankingResponse response = assemble(rows, viewerId, guest, lim, sido, sigungu, changes);
+		return region == null ? response : response.withRegionMemberCount(regionService.countMembers(sido, sigungu));
 	}
 
 	/** 이번 주 월요일 0시(Asia/Seoul). DB 의 created_at 도 같은 벽시계다. */
