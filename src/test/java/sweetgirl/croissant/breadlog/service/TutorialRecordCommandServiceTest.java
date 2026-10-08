@@ -17,6 +17,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import sweetgirl.croissant.breadlog.TutorialTemplateFixture;
+import sweetgirl.croissant.breadlog.code.BreadLogErrorCode;
 import sweetgirl.croissant.breadlog.dto.request.TutorialRecordEditRequest;
 import sweetgirl.croissant.breadlog.dto.request.TutorialRecordRequest;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
@@ -36,6 +38,8 @@ import sweetgirl.croissant.world.service.WorldCommandService;
 class TutorialRecordCommandServiceTest {
 	@Mock
 	MemberRepository memberRepository;
+	@Mock
+	TutorialTemplateQueryService templates;
 	@Mock
 	MemberRestrictionReader restrictions;
 	@Mock
@@ -67,11 +71,12 @@ class TutorialRecordCommandServiceTest {
 	}
 
 	private TutorialRecordRequest request(String code) {
-		return new TutorialRecordRequest(code, "croissant", LocalDateTime.now(), "첫 기록", .5, .7, null, null);
+		return new TutorialRecordRequest(code, LocalDateTime.now());
 	}
 
 	@Test
 	void guestCreatesOneRealRecordWithoutNormalWritePermission() {
+		when(templates.published(TutorialRecordTemplate.CODE)).thenReturn(TutorialTemplateFixture.content());
 		when(completions.findById(1L)).thenReturn(Optional.empty());
 		when(records.saveAndFlush(any())).thenAnswer(invocation -> {
 			BreadRecord record = invocation.getArgument(0);
@@ -85,7 +90,10 @@ class TutorialRecordCommandServiceTest {
 		assertThat(service.complete(1L, request(TutorialRecordTemplate.CODE)).created()).isTrue();
 		verify(restrictions).validateNotRestricted(1L);
 		verify(restrictions, never()).validateCanWrite(any());
-		verify(photos).save(argThat(photo -> TutorialRecordTemplate.PHOTO_KEY.equals(photo.getAwsKey())));
+		verify(photos).save(argThat(photo -> TutorialTemplateFixture.content().imageKey().equals(photo.getAwsKey())));
+		verify(records).saveAndFlush(argThat(record ->
+			TutorialTemplateFixture.content().memo().equals(record.getMemo())));
+		verify(tags).save(argThat(tag -> TutorialTemplateFixture.content().breadName().equals(tag.getName())));
 		verify(completions).save(any());
 		verify(memberWorldRepository).raiseMaxRecordCount(1L, 1L);
 	}
@@ -104,6 +112,7 @@ class TutorialRecordCommandServiceTest {
 
 	@Test
 	void invalidTemplateCannotCreateRecord() {
+		when(templates.published("forged")).thenThrow(new BreadLogException(BreadLogErrorCode.INVALID_TUTORIAL));
 		assertThatThrownBy(() -> service.complete(1L, request("forged"))).isInstanceOf(BreadLogException.class);
 		verify(records, never()).saveAndFlush(any());
 	}

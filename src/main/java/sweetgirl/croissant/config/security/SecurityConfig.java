@@ -71,7 +71,6 @@ public class SecurityConfig {
 			.requestMatchers(HttpMethod.GET, "/desserts", "/desserts/**").permitAll()
 			// 세계관 카탈로그는 회원과 무관한 전역 콘텐츠다
 			.requestMatchers(HttpMethod.GET, "/world/catalog").permitAll()
-			.requestMatchers(HttpMethod.GET, "/onboarding/bbangdaengi-v1.png").permitAll()
 			// 빵 종류 목록·평가 칩 목록은 회원과 무관한 전역 콘텐츠다
 			.requestMatchers(HttpMethod.GET, "/bread-categories", "/bread-rating-chips", "/bread-rankings/categories")
 			.permitAll()

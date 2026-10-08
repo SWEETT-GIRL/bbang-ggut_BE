@@ -21,6 +21,8 @@ class TutorialRecordQueryServiceTest {
 	@Mock
 	MemberReader memberReader;
 	@Mock
+	TutorialTemplateQueryService templates;
+	@Mock
 	MemberTutorialCompletionRepository completions;
 	@Mock
 	BreadRecordRepository records;
