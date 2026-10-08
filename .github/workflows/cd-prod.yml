@@ -115,8 +115,9 @@ jobs:
           monthly-report.auto-preparation.enabled=${{ vars.PROD_MONTHLY_REPORT_AUTO_PREPARATION || 'false' }}
           monthly-report.auto-preparation.asset-version=${{ vars.PROD_MONTHLY_REPORT_ASSET_VERSION || '' }}
 
-          # 운영 템플릿 발행 후 활성화한다. 변수 변경 후 CD 재실행이 필요하다.
-          tutorial.enabled=${{ vars.PROD_TUTORIAL_ENABLED || 'false' }}
+          # 기본으로 켠다. 운영 어드민에 발행된 템플릿이 있어야 노출되고, 발행 전에는 켜져 있어도 숨는다.
+          # 긴급 중단은 변수 PROD_TUTORIAL_ENABLED=false 로 두고 CD를 다시 실행한다.
+          tutorial.enabled=${{ vars.PROD_TUTORIAL_ENABLED || 'true' }}
 
           spring.jpa.hibernate.ddl-auto=validate
           spring.jpa.show-sql=false
