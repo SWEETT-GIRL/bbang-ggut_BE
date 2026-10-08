@@ -15,6 +15,9 @@ import sweetgirl.croissant.global.code.BaseErrorCode;
 @AllArgsConstructor
 public enum BreadLogErrorCode implements BaseErrorCode {
 
+	TUTORIAL_CATALOG_CONFLICT(HttpStatus.CONFLICT, "TUTORIAL_CATALOG_CONFLICT",
+			"다른 관리자가 발행 상태를 바꿨어요. 새로고침 후 다시 확인해 주세요."),
+
 	TUTORIAL_UNAVAILABLE(BAD_REQUEST, "TUTORIAL_UNAVAILABLE", "첫 빵로그 체험을 준비 중이에요. 잠시 후 다시 시도해 주세요."),
 	INVALID_TUTORIAL(BAD_REQUEST, "INVALID_TUTORIAL", "체험 내용을 확인해 주세요."),
 	TUTORIAL_EDIT_RESTRICTED(BAD_REQUEST, "TUTORIAL_EDIT_RESTRICTED", "체험 기록은 메모·평가·쌓을 빵만 수정할 수 있어요."),
