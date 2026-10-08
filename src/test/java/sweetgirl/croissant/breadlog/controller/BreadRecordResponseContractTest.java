@@ -19,6 +19,7 @@ import sweetgirl.croissant.breadlog.dto.response.BreadRecordPhotoResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordTagResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadTagRatingResponse;
+import sweetgirl.croissant.breadlog.enums.RecordType;
 import sweetgirl.croissant.breadlog.enums.TasteChip;
 import sweetgirl.croissant.breadlog.enums.TextureChip;
 import sweetgirl.croissant.breadlog.service.BreadPhotoTagSuggestionService;
@@ -61,7 +62,7 @@ class BreadRecordResponseContractTest extends ResponseContractWebMvcTest {
 			.willReturn(new SliceResponse<>(List.of(new BreadRecordResponse(1L, 11L, "성심당", "대전 중구", "맛있다",
 				"튀김소보로", List.of("튀김소보로"), "탑", LocalDateTime.of(2026, 10, 4, 12, 30, 15), true,
 				LocalDateTime.of(2026, 10, 4, 13, 0, 5), LocalDateTime.of(2026, 10, 4, 13, 0, 5), List.of(photo),
-				List.of(tag))), false));
+				List.of(tag), RecordType.NORMAL)), false));
 
 		mockMvc.perform(get("/bread-records"))
 			.andExpect(status().isOk())
@@ -70,6 +71,7 @@ class BreadRecordResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.hasNext").isBoolean())
 			// bbanglog.ts:143-148
 			.andExpect(jsonPath("$.data.content[0].id").isNumber())
+			.andExpect(jsonPath("$.data.content[0].recordType").value("NORMAL"))
 			.andExpect(jsonPath("$.data.content[0].storeId").isNumber())
 			.andExpect(jsonPath("$.data.content[0].storeName").isString())
 			.andExpect(jsonPath("$.data.content[0].regionKey").isString())
