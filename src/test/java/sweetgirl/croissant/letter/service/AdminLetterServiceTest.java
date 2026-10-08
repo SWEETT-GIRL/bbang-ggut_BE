@@ -31,9 +31,11 @@ import org.springframework.data.domain.SliceImpl;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.alarm.entity.Notification;
+import sweetgirl.croissant.alarm.enums.DeliveryStatus;
 import sweetgirl.croissant.alarm.enums.NotificationChannel;
 import sweetgirl.croissant.alarm.enums.NotificationType;
 import sweetgirl.croissant.alarm.event.PushRequestedEvent;
+import sweetgirl.croissant.alarm.repository.NotificationDeliveryRepository;
 import sweetgirl.croissant.alarm.repository.NotificationRepository;
 import sweetgirl.croissant.alarm.service.NotificationRecorder;
 import sweetgirl.croissant.letter.code.LetterErrorCode;
@@ -42,6 +44,7 @@ import sweetgirl.croissant.letter.dto.request.AdminLetterResolveRequest;
 import sweetgirl.croissant.letter.dto.request.AdminLetterSendRequest;
 import sweetgirl.croissant.letter.dto.response.AdminLetterSendResponse;
 import sweetgirl.croissant.letter.dto.response.AdminLetterSendStatsResponse;
+import sweetgirl.croissant.letter.dto.response.AdminLetterSendSummaryResponse;
 import sweetgirl.croissant.letter.dto.response.AdminLetterThreadListResponse;
 import sweetgirl.croissant.letter.entity.LetterMessage;
 import sweetgirl.croissant.letter.entity.LetterThread;
@@ -73,6 +76,9 @@ class AdminLetterServiceTest {
 
 	@Mock
 	private ApplicationEventPublisher eventPublisher;
+
+	@Mock
+	private NotificationDeliveryRepository notificationDeliveryRepository;
 
 	@InjectMocks
 	private AdminLetterService adminLetterService;
@@ -455,6 +461,30 @@ class AdminLetterServiceTest {
 		assertThat(stats.counts()).extracting(AdminLetterSendStatsResponse.ChoiceCount::count)
 			.containsExactly(0, 1, 0, 0);
 		assertThat(stats.unnumberedCount()).isEqualTo(1);
+		// 대장에 푸시 줄이 없으면 아무에게도 안 간 것이다 — 받은 3명 모두 안 보냄
+		assertThat(stats.pushResult()).isEqualTo(new AdminLetterSendSummaryResponse.PushResult(0, 0, 3));
+	}
+
+	@Test
+	@DisplayName("푸시 결과는 대장의 성공·실패를 세고, 나머지는 안 보낸 것으로 친다")
+	void getSendStats_countsPushResults() {
+		Notification send = withId(Notification.letterSend(NotificationChannel.PUSH, "t", "b", "/letters",
+			java.util.Map.of("admin.name", "A 설문")), SEND_ID);
+		given(notificationRepository.findById(SEND_ID)).willReturn(Optional.of(send));
+		LetterThread threadA = thread(11L, member(1L, "포실한 까눌레"));
+		LetterThread threadB = thread(12L, member(2L, "바삭한 크루아상"));
+		LetterThread threadC = thread(13L, member(3L, "촉촉한 마들렌"));
+		given(letterMessageRepository.findAllBySendIds(List.of(SEND_ID)))
+			.willReturn(List.of(sent(threadA, 101L, 0), sent(threadB, 102L, 0), sent(threadC, 103L, 0)));
+		given(letterMessageRepository.findInThreadsSince(anyList(), any())).willReturn(List.of());
+		given(notificationDeliveryRepository.countByNotificationIdsAndChannel(List.of(SEND_ID),
+			NotificationChannel.PUSH)).willReturn(List.of(
+				new Object[] {SEND_ID, DeliveryStatus.SENT, 1L},
+				new Object[] {SEND_ID, DeliveryStatus.FAILED, 1L}));
+
+		AdminLetterSendStatsResponse stats = adminLetterService.getSendStats(SEND_ID);
+
+		assertThat(stats.pushResult()).isEqualTo(new AdminLetterSendSummaryResponse.PushResult(1, 1, 1));
 	}
 
 	private LetterMessage sent(LetterThread thread, Long id, int minutes) {
