@@ -17,9 +17,11 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
+import sweetgirl.croissant.breadlog.enums.RecordType;
 import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.monthlyreport.code.MonthlyReportErrorCode;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportSourceSnapshot;
@@ -42,7 +44,11 @@ public class MonthlyReportSourceReader {
 
 	public MonthlyReportSourceReader(MonthlyReportSourceHistoryRepository repository, ObjectMapper mapper) {
 		this.repository = repository;
-		this.mapper = mapper.copy().registerModule(new JavaTimeModule());
+		this.mapper = mapper.copy().registerModule(new JavaTimeModule())
+			// 미지의 유형을 null로 바꾸면 과거 NORMAL 이력으로 오인하므로 엄격히 읽는다.
+			.disable(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL)
+			.disable(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE)
+			.enable(DeserializationFeature.FAIL_ON_NUMBERS_FOR_ENUMS);
 	}
 
 	public MonthlyReportSourceSnapshot read(Long memberId, String yearMonth) {
@@ -135,7 +141,8 @@ public class MonthlyReportSourceReader {
 
 	private boolean includedRecord(RecordState record, LocalDateTime from, LocalDateTime until,
 			LocalDateTime sourceAsOf) {
-		return record.createdAt().isBefore(until) && retained(record.deletedAt(), sourceAsOf)
+		return record.recordType() == RecordType.NORMAL
+			&& record.createdAt().isBefore(until) && retained(record.deletedAt(), sourceAsOf)
 			&& inMonth(record.eatenAt(), from, until);
 	}
 

@@ -104,6 +104,8 @@ class BreadRecordRepositoryTest {
 					memo VARCHAR(500),
 					loved_bread VARCHAR(100),
 					tower_bread VARCHAR(20),
+					record_type VARCHAR(20) NOT NULL DEFAULT 'NORMAL',
+					tutorial_template_code VARCHAR(60),
 					eaten_at TIMESTAMP NOT NULL,
 					deleted_at TIMESTAMP,
 					is_public BOOLEAN NOT NULL DEFAULT FALSE,
