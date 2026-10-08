@@ -2,7 +2,8 @@
 
 작성·갱신: 2026-10-08 · 상태: 구현 및 로컬 자동 검증 완료, PR 검토·개발 서버 통합 QA 대기
 
-- BE: #874 / `feat/874-onboarding-tutorial-record` / origin/main 기반 별도 worktree
+- BE: #874 / `feat/874-onboarding-tutorial-dev` / origin/dev 기반 별도 worktree
+- main에 잘못 머지된 #875는 복구 PR #876으로 되돌린다. 기존 기능 커밋 10개만 dev에 cherry-pick했으며 main 자체를 dev에 병합하지 않는다.
 - FE: SWEETT-GIRL/daedongbbangmap#140 / `feat/140-onboarding-tutorial`
 - Admin: SWEETT-GIRL/bbang-ggut_admin_web#21 / `feat/21-tutorial-template-admin`
 - 기존 백엔드 작업 브랜치와 프론트의 무관한 변경은 포함하지 않는다.
@@ -132,17 +133,17 @@
 
 ### 자동 검증 범위
 
-BE 전체 테스트 2,191개 중 실패 0·오류 0·스킵 1. PostgreSQL 테스트는 일반 실행에서 제외되는 lab 태그로, localhost:5432 테스트 DB의 UUID 스키마에만 데이터를 만들고 정리한다. 공개/가게 연결 금지, 활성 기록 중복, 삭제된 완료 이력의 병합, 월간 보고서 제외, 새 템플릿 카탈로그 migration을 검증한다. 이 검증을 실제 OAuth 또는 앱 전체 통합 테스트로 표현하지 않는다.
+dev 기준 BE 전체 테스트 2,270개 중 실패 0·오류 0·스킵 1. dev 전용 응답 계약 테스트에도 recordType=NORMAL 검증을 추가했다. PostgreSQL 테스트는 일반 실행에서 제외되는 lab 태그로, localhost:5432 테스트 DB의 UUID 스키마에만 데이터를 만들고 정리한다. 공개/가게 연결 금지, 활성 기록 중복, 삭제된 완료 이력의 병합, 월간 보고서 제외, 새 템플릿 카탈로그 migration을 검증한다. 이 검증을 실제 OAuth 또는 앱 전체 통합 테스트로 표현하지 않는다.
 
 관리 API WebMvcTest의 관리자 키·입력·409 충돌, 키 미설정 로컬 503, 템플릿 repository 잠금/발행 유지 테스트를 포함한다. 어드민은 프로덕션 빌드 및 모델/API 5개 테스트를 통과했고 앱은 TypeScript·변경 파일 ESLint·iOS export·기존 사진 회귀 6개 테스트를 통과했다. 브라우저에서 로컬 어드민의 세계관→홈 튜토리얼 연결 화면을 확인했다. 실제 S3 업로드·CDN 노출·발행→앱 저장 통합 QA는 배포 후 남아 있다.
 
 ### 배포·롤백
 
-1. BE main 기반 PR과 FE PR을 함께 검토한다. 서버·DB 배포와 앱 배포는 PR 생성과 별개다.
+1. BE dev 대상 기능 PR과 FE PR을 함께 검토한다. main 복구 PR #876은 예외적인 운영 브랜치 복구용이며 자동으로 머지하지 않는다. 서버·DB 배포와 앱 배포는 PR 생성과 별개다.
 2. 서버 migration/API가 준비된 개발 환경에서 먼저 켠다. cd-staging에 tutorial.enabled=true를 추가하되 실제 배포는 아직 하지 않았다.
 3. 현재 개발 서버가 계약을 지원하지 않으면 초대는 숨긴다. 일반 생성 API로 우회하거나 가짜 성공을 표시하지 않는다.
 4. 운영 flag는 기본 false로 유지한다. 스키마·S3/CDN·앱 호환 및 QA 후 활성화한다. S3 PUT CORS에 어드민 origin, Content-Type, If-None-Match가 허용돼 있어야 한다.
 5. 되돌릴 때 신규 생성 flag만 끄고 저장된 기록·완료 이력은 보존한다.
-6. main과 dev는 분기 이력이 다르다. main 기반 결과물을 공유 dev에 덮어씌우지 않고 개발 배포 시 dev 기준 통합을 별도 확인한다.
+6. main과 dev는 분기 이력이 다르다. dev의 기존 급부상 신호 발행과 staging 설정을 유지한 채 기능 커밋만 이관한다. 앞으로 기능 PR의 base는 dev로 확인한다.
 
 현재 로컬 앱 설정은 개발 API(bbang-ggut.site)다. .env.local은 PR에 포함하지 않는다. 운영 DB 변경·서버 배포·푸시 발송은 이 검증에서 수행하지 않았다.
