@@ -48,6 +48,8 @@ class TutorialRecordPostgresTest {
 			"db/migration/V20261008110000__add_tutorial_bread_record.sql"));
 		migration.setSeparator(ScriptUtils.EOF_STATEMENT_SEPARATOR);
 		migration.execute(source);
+		new ResourceDatabasePopulator(new ClassPathResource(
+			"db/migration/V20261008150000__add_managed_tutorial_templates.sql")).execute(source);
 	}
 
 	@AfterEach
@@ -56,6 +58,21 @@ class TutorialRecordPostgresTest {
 			// 이 테스트에서 생성한 UUID 스키마만 정리한다.
 			jdbc.execute("DROP SCHEMA " + schema + " CASCADE");
 		}
+	}
+
+	@Test
+	void catalogMigrationSeedsOneRowAndReferencesStoredRevision() {
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM tutorial_template_catalog", Long.class)).isEqualTo(1);
+		assertThatThrownBy(() -> jdbc.update("UPDATE tutorial_template_catalog SET active_code='missing' WHERE id=1"))
+			.isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+		jdbc.update(
+			"INSERT INTO tutorial_template_revision (code, content, published, created_at) "
+				+ "VALUES ('v1', '{}', true, CURRENT_TIMESTAMP)");
+		jdbc.update("UPDATE tutorial_template_catalog SET active_code='v1' WHERE id=1");
+		jdbc.update("UPDATE tutorial_template_catalog SET active_code=null WHERE id=1");
+		assertThat(
+			jdbc.queryForObject("SELECT published FROM tutorial_template_revision WHERE code='v1'", Boolean.class))
+			.isTrue();
 	}
 
 	@Test
