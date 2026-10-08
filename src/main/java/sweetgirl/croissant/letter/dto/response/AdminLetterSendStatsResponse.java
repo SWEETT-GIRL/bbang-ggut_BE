@@ -24,7 +24,8 @@ public record AdminLetterSendStatsResponse(
 		List<ChoiceCount> counts,
 		int unnumberedCount,
 		List<Reply> replies,
-		List<Recipient> recipients) {
+		List<Recipient> recipients,
+		AdminLetterSendSummaryResponse.PushResult pushResult) {
 
 	public record ChoiceCount(int choice, int count) {
 	}

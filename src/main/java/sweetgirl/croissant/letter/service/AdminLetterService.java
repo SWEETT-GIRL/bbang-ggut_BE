@@ -16,9 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.entity.Notification;
+import sweetgirl.croissant.alarm.enums.DeliveryStatus;
 import sweetgirl.croissant.alarm.enums.NotificationChannel;
 import sweetgirl.croissant.alarm.enums.NotificationType;
 import sweetgirl.croissant.alarm.event.PushRequestedEvent;
+import sweetgirl.croissant.alarm.repository.NotificationDeliveryRepository;
 import sweetgirl.croissant.alarm.repository.NotificationRepository;
 import sweetgirl.croissant.alarm.service.NotificationRecorder;
 import sweetgirl.croissant.letter.code.LetterErrorCode;
@@ -72,6 +74,7 @@ public class AdminLetterService {
 	private final MemberRepository memberRepository;
 	private final NotificationRepository notificationRepository;
 	private final NotificationRecorder notificationRecorder;
+	private final NotificationDeliveryRepository notificationDeliveryRepository;
 	private final ApplicationEventPublisher eventPublisher;
 
 	/**
@@ -259,8 +262,9 @@ public class AdminLetterService {
 	public AdminLetterSendSummaryResponse.Page getSends(int page, int size) {
 		Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_PAGE_SIZE));
 		Slice<Notification> slice = notificationRepository.findByTypeOrderByIdDesc(NotificationType.LETTER, pageable);
-		Map<Long, List<SendReply>> replies = collectReplies(
-			slice.getContent().stream().map(Notification::getId).toList());
+		List<Long> sendIds = slice.getContent().stream().map(Notification::getId).toList();
+		Map<Long, List<SendReply>> replies = collectReplies(sendIds);
+		Map<Long, int[]> pushCounts = countPushes(sendIds);
 		List<AdminLetterSendSummaryResponse> sends = slice.getContent().stream()
 			.map(send -> {
 				List<SendReply> rows = replies.getOrDefault(send.getId(), List.of());
@@ -271,7 +275,8 @@ public class AdminLetterService {
 					send.getChannel() == NotificationChannel.PUSH,
 					send.getCreatedAt(),
 					rows.size(),
-					(int)rows.stream().filter(SendReply::replied).count());
+					(int)rows.stream().filter(SendReply::replied).count(),
+					pushResultOf(send, rows.size(), pushCounts));
 			})
 			.toList();
 		return new AdminLetterSendSummaryResponse.Page(sends, slice.hasNext());
@@ -330,7 +335,33 @@ public class AdminLetterService {
 			choiceCounts,
 			unnumbered,
 			replies,
-			recipients);
+			recipients,
+			pushResultOf(send, rows.size(), countPushes(List.of(sendId))));
+	}
+
+	/** 발송마다 [보낸 수, 실패 수] — 대장에 푸시 줄로 남은 것만 센다. */
+	private Map<Long, int[]> countPushes(List<Long> sendIds) {
+		if (sendIds.isEmpty()) {
+			return Map.of();
+		}
+		Map<Long, int[]> counts = new HashMap<>();
+		for (Object[] row : notificationDeliveryRepository.countByNotificationIdsAndChannel(
+			sendIds, NotificationChannel.PUSH)) {
+			int[] count = counts.computeIfAbsent((Long)row[0], k -> new int[2]);
+			count[row[1] == DeliveryStatus.SENT ? 0 : 1] += ((Long)row[2]).intValue();
+		}
+		return counts;
+	}
+
+	/** 알림을 울린 발송만 결과가 있다. 안 보낸 수는 받은 사람에서 보낸·실패를 뺀 것이다. */
+	private static AdminLetterSendSummaryResponse.PushResult pushResultOf(Notification send, int recipients,
+			Map<Long, int[]> pushCounts) {
+		if (send.getChannel() != NotificationChannel.PUSH) {
+			return null;
+		}
+		int[] count = pushCounts.getOrDefault(send.getId(), new int[2]);
+		return new AdminLetterSendSummaryResponse.PushResult(count[0], count[1],
+			Math.max(0, recipients - count[0] - count[1]));
 	}
 
 	/** 발송 편지 하나와 그 뒤로 사용자가 쓴 편지들 */
