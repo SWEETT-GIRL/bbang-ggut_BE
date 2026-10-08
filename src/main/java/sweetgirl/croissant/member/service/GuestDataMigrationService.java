@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
+import sweetgirl.croissant.breadlog.repository.MemberTutorialCompletionRepository;
 import sweetgirl.croissant.breadlog.repository.StorePlanRepository;
 import sweetgirl.croissant.course.repository.CourseInviteRepository;
 import sweetgirl.croissant.course.repository.CourseMemberRepository;
@@ -50,6 +51,7 @@ import sweetgirl.croissant.world.repository.MemberWorldRepository;
 @Service
 @RequiredArgsConstructor
 public class GuestDataMigrationService {
+	private final MemberTutorialCompletionRepository tutorialCompletions;
 
 	private final CourseRepository courseRepository;
 	private final CourseMemberRepository courseMemberRepository;
@@ -89,6 +91,20 @@ public class GuestDataMigrationService {
 		if (guestId == null || targetId == null || guestId.equals(targetId)) {
 			return 0;
 		}
+
+		// 완료 저장과 같은 회원 잠금. 늘 ID 순으로 잡고 닫힌 게스트를 다시 이관하지 않는다.
+		var first = memberRepository.findActiveForUpdate(Math.min(guestId, targetId));
+		var second = memberRepository.findActiveForUpdate(Math.max(guestId, targetId));
+		if (first.isEmpty() || second.isEmpty()) {
+			return 0;
+		}
+		Member source = guestId < targetId ? first.get() : second.get();
+		if (!source.isGuest()) {
+			return 0;
+		}
+		breadRecordRepository.retireDuplicateTutorial(guestId, targetId);
+		tutorialCompletions.removeMergedCompletion(guestId, targetId);
+		tutorialCompletions.moveOwner(guestId, targetId);
 
 		int courses = courseRepository.moveOwner(guestId, targetId);
 
