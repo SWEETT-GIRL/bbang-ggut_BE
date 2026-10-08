@@ -135,7 +135,8 @@ public class MonthlyReportSourceReader {
 
 	private boolean includedRecord(RecordState record, LocalDateTime from, LocalDateTime until,
 			LocalDateTime sourceAsOf) {
-		return record.createdAt().isBefore(until) && retained(record.deletedAt(), sourceAsOf)
+		return !"TUTORIAL".equals(record.recordType())
+			&& record.createdAt().isBefore(until) && retained(record.deletedAt(), sourceAsOf)
 			&& inMonth(record.eatenAt(), from, until);
 	}
 
