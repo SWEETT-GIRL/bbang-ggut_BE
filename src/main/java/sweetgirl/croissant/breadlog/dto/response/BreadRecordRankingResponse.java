@@ -9,8 +9,18 @@ import java.util.List;
  * @param sigungu 내 지역 판이면 그 시·군·구("동대문구"·"수원시"), 전국이면 null
  * @param entries 1위부터 요청한 수만큼. 공동 순위 없이 1, 2, 3…
  * @param me      보는 사람의 자리. 게스트면 null
+ * @param regionMemberCount 내 지역 판이면 그 구로 인증한 사람 수(앱은 3명 미만이면 판 대신 친구 초대를 보인다), 전국이면 null
  */
-public record BreadRecordRankingResponse(String sido, String sigungu, List<Entry> entries, Me me) {
+public record BreadRecordRankingResponse(
+		String sido, String sigungu, List<Entry> entries, Me me, Long regionMemberCount) {
+
+	public BreadRecordRankingResponse(String sido, String sigungu, List<Entry> entries, Me me) {
+		this(sido, sigungu, entries, me, null);
+	}
+
+	public BreadRecordRankingResponse withRegionMemberCount(Long count) {
+		return new BreadRecordRankingResponse(sido, sigungu, entries, me, count);
+	}
 
 	/**
 	 * @param character  대표 캐릭터 코드. 세계관을 아직 시작 안 한 회원은 null — 앱이 마스코트로 보여준다

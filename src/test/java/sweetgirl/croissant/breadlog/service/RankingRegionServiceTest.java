@@ -226,4 +226,12 @@ class RankingRegionServiceTest {
 	private static KakaoCoordToRegionResponse.Document document(String type, String sido, String sigungu) {
 		return new KakaoCoordToRegionResponse.Document(type, sido, sigungu, "장안동");
 	}
+
+	@Test
+	@DisplayName("그 구로 인증한 사람 수를 센다")
+	void countMembers() {
+		given(regionRepository.countMembers("서울", "성동구")).willReturn(2L);
+
+		assertThat(service.countMembers("서울", "성동구")).isEqualTo(2L);
+	}
 }
