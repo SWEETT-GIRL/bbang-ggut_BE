@@ -15,6 +15,7 @@ import sweetgirl.croissant.member.service.MemberReader;
 @Transactional(readOnly = true)
 public class TutorialRecordQueryService {
 	private final MemberReader memberReader;
+	private final TutorialTemplateQueryService templates;
 	private final MemberTutorialCompletionRepository completions;
 	private final BreadRecordRepository records;
 	@Value("${tutorial.enabled:false}")
@@ -24,9 +25,10 @@ public class TutorialRecordQueryService {
 		memberReader.getMember(memberId);
 		var completion = completions.findById(memberId);
 		Long recordId = completion.map(value -> value.getRecordId()).orElse(null);
-		return new TutorialRecordStateResponse(enabled, TutorialRecordTemplate.CODE,
-			"/" + TutorialRecordTemplate.PHOTO_KEY, TutorialRecordTemplate.STORE_NAME,
-			TutorialRecordTemplate.BREAD_NAME, TutorialRecordTemplate.TOWER_BREADS, completion.isPresent(),
+		var active = templates.active();
+		return new TutorialRecordStateResponse(enabled && active.isPresent(),
+			active.map(value -> value.code()).orElse(null), active.map(value -> value.content()).orElse(null),
+			TutorialRecordTemplate.TOWER_BREADS, completion.isPresent(),
 			recordId, recordId != null && records.findByIdAndDeletedAtIsNull(recordId).isEmpty());
 	}
 }

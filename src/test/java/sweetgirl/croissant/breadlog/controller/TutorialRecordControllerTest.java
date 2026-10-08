@@ -43,7 +43,7 @@ class TutorialRecordControllerTest {
 	@Autowired
 	MockMvc mvc;
 	private static final String BODY = """
-			{"templateCode":"bbangdaengi-v1","towerBread":"croissant","eatenAt":"2026-10-08T12:00:00","x":0.5,"y":0.7}
+			{"templateCode":"bbangdaengi-v1","eatenAt":"2026-10-08T12:00:00"}
 			""";
 
 	private void authenticate() {
@@ -76,11 +76,11 @@ class TutorialRecordControllerTest {
 	}
 
 	@Test
-	void rejectsInvalidCoordinates() throws Exception {
+	void rejectsMissingDate() throws Exception {
 		authenticate();
 		mvc.perform(post("/bread-records/tutorial").header("Authorization", "Bearer guest-token")
 			.contentType(MediaType.APPLICATION_JSON)
-			.content(BODY.replace("0.5", "2.0"))).andExpect(status().isBadRequest());
+			.content("{\"templateCode\":\"bbangdaengi-v1\"}")).andExpect(status().isBadRequest());
 		verifyNoInteractions(commandService);
 	}
 
