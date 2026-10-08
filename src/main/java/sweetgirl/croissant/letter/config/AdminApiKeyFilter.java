@@ -37,7 +37,8 @@ public class AdminApiKeyFilter extends OncePerRequestFilter {
 	 * 나간다 — 열어 두면 아무나 우리 계정으로 돈을 쓸 수 있다. 여기에 더하면 AdminApiKeyConfig 의 URL 패턴도 같이 더한다.
 	 */
 	static final List<String> PROTECTED_PREFIXES = List.of(
-		"/api/admin/letters", "/admin/personalization", "/admin/recommendations", "/api/admin/monthly-reports");
+		"/api/admin/letters", "/admin/personalization", "/admin/recommendations", "/api/admin/monthly-reports",
+		"/api/admin/tutorial-templates");
 
 	/**
 	 * 열쇠가 비었을 때 <b>통과시키지 않고 막는</b> 경로. 호출마다 외부 LLM 에 실제 비용이 나가서, 열려 있으면
@@ -70,6 +71,7 @@ public class AdminApiKeyFilter extends OncePerRequestFilter {
 			throws ServletException, IOException {
 		if (apiKey.isEmpty()) {
 			if (!request.getRequestURI().startsWith("/api/admin/monthly-reports")
+				&& !request.getRequestURI().startsWith("/api/admin/tutorial-templates")
 				&& (allowWithoutKey || !isCostIncurring(request.getRequestURI()))) {
 				chain.doFilter(request, response);
 				return;
