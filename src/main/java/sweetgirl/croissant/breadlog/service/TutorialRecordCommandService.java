@@ -34,6 +34,7 @@ import sweetgirl.croissant.world.service.WorldCommandService;
 @Transactional
 public class TutorialRecordCommandService {
 	private final MemberRepository memberRepository;
+	private final TutorialTemplateQueryService templates;
 	private final MemberRestrictionReader restrictions;
 	private final MemberTutorialCompletionRepository completions;
 	private final BreadRecordRepository records;
@@ -60,31 +61,25 @@ public class TutorialRecordCommandService {
 		if (!member.isAgreeToTerms() || !member.isAgreeToPrivacy() || !member.isAgreeToAgeOver14()) {
 			throw new BreadLogException(BreadLogErrorCode.INVALID_TUTORIAL);
 		}
-		if (!TutorialRecordTemplate.CODE.equals(request.templateCode())
-			|| !Double.isFinite(request.x()) || !Double.isFinite(request.y())
-			|| request.x() < 0 || request.x() > 1 || request.y() < 0 || request.y() > 1) {
-			throw new BreadLogException(BreadLogErrorCode.INVALID_TUTORIAL);
-		}
-		validateBread(request.towerBread());
+		var template = templates.published(request.templateCode());
 		BreadRecord record = BreadRecord.builder().member(member)
-			.storeName(TutorialRecordTemplate.STORE_NAME).memo(request.memo())
-			.eatenAt(request.eatenAt()).towerBread(request.towerBread()).lovedBreads(List.of()).build();
-		record.markTutorial(TutorialRecordTemplate.CODE);
+			.storeName(template.storeName()).memo(template.memo())
+			.eatenAt(request.eatenAt()).towerBread(template.towerBread()).lovedBreads(List.of()).build();
+		record.markTutorial(request.templateCode());
 		records.saveAndFlush(record);
 		BreadRecordPhoto photo = BreadRecordPhoto.builder().record(record)
-			.name("bbangdaengi-v1.png").mimeType(MimeType.IMAGE_PNG)
-			.awsKey(TutorialRecordTemplate.PHOTO_KEY).sortOrder(0).width(1254).height(1254).build();
+			.name(template.imageKey().substring(template.imageKey().lastIndexOf('/') + 1))
+			.mimeType(MimeType.fromString(template.contentType()))
+			.awsKey(template.imageKey()).sortOrder(0).width(template.width()).height(template.height()).build();
 		photo.markDone();
 		photos.save(photo);
 		BreadRecordTag tag = BreadRecordTag.builder().record(record).photo(photo)
-			.name(TutorialRecordTemplate.BREAD_NAME).breadCategory(TutorialRecordTemplate.BREAD_NAME)
-			.positionX(request.x()).positionY(request.y()).style(request.style()).build();
-		if (request.rating() != null) {
-			var rating = request.rating();
-			tag.rate(rating.again(), rating.textures(), rating.tastes(), rating.memo());
-		}
+			.name(template.breadName()).breadCategory(template.breadName())
+			.positionX(template.x()).positionY(template.y()).style(template.style()).build();
+		var rating = template.rating();
+		tag.rate(rating.again(), rating.textures(), rating.tastes(), rating.memo());
 		tags.save(tag);
-		completions.save(new MemberTutorialCompletion(memberId, record.getId(), TutorialRecordTemplate.CODE));
+		completions.save(new MemberTutorialCompletion(memberId, record.getId(), request.templateCode()));
 		world.syncProgress(memberId);
 		memberWorldRepository.raiseMaxRecordCount(memberId, records.countByMemberIdAndDeletedAtIsNull(memberId));
 		return new TutorialRecordResponse(true, true, record.getId(), false);
