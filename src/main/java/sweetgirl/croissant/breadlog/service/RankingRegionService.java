@@ -93,6 +93,12 @@ public class RankingRegionService {
 			.orElseThrow(() -> new BreadLogException(BreadLogErrorCode.INVALID_RANKING_REGION));
 	}
 
+	/** 그 구로 인증한 사람 수(탈퇴·게스트 제외). */
+	@Transactional(readOnly = true)
+	public long countMembers(String sido, String sigungu) {
+		return regionRepository.countMembers(sido, sigungu);
+	}
+
 	/** "수원시 영통구" → "수원시". 비어 있으면 빈 문자열. */
 	private static String firstWord(String name) {
 		if (name == null || name.isBlank()) {
