@@ -3,6 +3,7 @@ package sweetgirl.croissant.letter.repository;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -53,6 +54,27 @@ public interface LetterMessageRepository extends JpaRepository<LetterMessage, Lo
 			)
 			""")
 	List<LetterMessage> findLatestPerThread(@Param("threadIds") Collection<Long> threadIds);
+
+	/** 대화의 마지막 편지 하나 — 사용자 화면에서 대화가 닫혔는지 볼 때 쓴다. */
+	Optional<LetterMessage> findFirstByThreadIdOrderByIdDesc(Long threadId);
+
+	/** 발송 한 번에서 사람마다 꽂힌 편지들. 대화방과 회원까지 한 번에 올린다. */
+	@Query("""
+			SELECT m FROM LetterMessage m
+			JOIN FETCH m.thread t
+			JOIN FETCH t.member
+			WHERE m.notificationId IN :notificationIds
+			""")
+	List<LetterMessage> findAllBySendIds(@Param("notificationIds") Collection<Long> notificationIds);
+
+	/** 대화방들에서 어느 시각 뒤로 오간 편지 — 발송 뒤 답장을 가르는 데 쓴다. 오래된 것부터. */
+	@Query("""
+			SELECT m FROM LetterMessage m
+			WHERE m.thread.id IN :threadIds AND m.createdAt >= :since
+			ORDER BY m.createdAt ASC, m.id ASC
+			""")
+	List<LetterMessage> findInThreadsSince(@Param("threadIds") Collection<Long> threadIds,
+			@Param("since") LocalDateTime since);
 
 	/**
 	 * 스레드별 안 읽은 편지 수 — 어드민 목록의 뱃지용. 위와 같은 이유로 한 번에 받는다.

@@ -88,10 +88,13 @@ public class LetterService {
 		Slice<LetterMessage> slice = letterMessageRepository
 			.findByThreadIdOrderByCreatedAtDesc(thread.getId(), pageable);
 
+		LetterMessage latest = page == 0 && !slice.isEmpty()
+			? slice.getContent().get(0)
+			: letterMessageRepository.findFirstByThreadIdOrderByIdDesc(thread.getId()).orElse(null);
 		return new LetterListResponse(
 			slice.getContent().stream().map(LetterMessageResponse::from).toList(),
 			slice.hasNext(),
-			isClosed(thread, LocalDateTime.now()));
+			isClosed(thread, latest, LocalDateTime.now()));
 	}
 
 	/**
@@ -100,9 +103,22 @@ public class LetterService {
 	 * <p>두 경로를 두는 건 하나만으로는 구멍이 나기 때문이다. 해결 체크만 믿으면 아무도 안
 	 * 누른 대화가 영영 안 닫히고, 조용함만 보면 방금 해결된 대화를 일주일이나 열어둔다.
 	 */
-	private boolean isClosed(LetterThread thread, LocalDateTime now) {
+	private boolean isClosed(LetterThread thread, LetterMessage latest, LocalDateTime now) {
 		return thread.isResolved()
-			|| thread.getLastMessageAt().isBefore(now.minusDays(DORMANT_DAYS));
+			|| (thread.getLastMessageAt().isBefore(now.minusDays(DORMANT_DAYS)) && !awaitingAnswer(latest));
+	}
+
+	/**
+	 * 우리가 먼저 보낸 편지(설문·안내)에 아직 답이 없는가 — 그렇다면 오래 조용해도 닫지 않는다.
+	 *
+	 * <p>닫힌 대화는 앱이 "어떤 이야기인지 골라주세요"를 띄운다. 설문을 보내고 일주일 뒤에 처음 연
+	 * 사람에게 그게 우리 질문 위에 뜨면, 답하려던 사람이 엉뚱한 걸 고르게 된다(10/8).
+	 * 가입 인사는 답을 기다리는 편지가 아니라서 빼 둔다 — 그 사람에게는 여전히 유형을 묻는다.
+	 */
+	private static boolean awaitingAnswer(LetterMessage latest) {
+		return latest != null
+			&& latest.getSender() == LetterSender.ADMIN
+			&& latest.getNotificationId() != null;
 	}
 
 	/** 벨 배지용 — 개발자가 보낸 편지 중 안 읽은 것. */

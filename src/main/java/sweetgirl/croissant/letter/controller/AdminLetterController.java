@@ -19,6 +19,8 @@ import sweetgirl.croissant.letter.dto.request.AdminLetterReplyRequest;
 import sweetgirl.croissant.letter.dto.request.AdminLetterResolveRequest;
 import sweetgirl.croissant.letter.dto.request.AdminLetterSendRequest;
 import sweetgirl.croissant.letter.dto.response.AdminLetterSendResponse;
+import sweetgirl.croissant.letter.dto.response.AdminLetterSendStatsResponse;
+import sweetgirl.croissant.letter.dto.response.AdminLetterSendSummaryResponse;
 import sweetgirl.croissant.letter.dto.response.AdminLetterThreadDetailResponse;
 import sweetgirl.croissant.letter.dto.response.AdminLetterThreadListResponse;
 import sweetgirl.croissant.letter.dto.response.LetterMessageResponse;
@@ -65,10 +67,28 @@ public class AdminLetterController {
 	}
 
 	@Operation(summary = "새 편지 보내기", description = "지정한 회원들에게 같은 편지를 한 통씩 보냅니다. "
-		+ "탈퇴·없는 회원은 건너뛰고 skippedMemberIds로 알려줍니다.")
+		+ "탈퇴·없는 회원은 건너뛰고 skippedMemberIds로 알려줍니다. 발송은 알림 한 건으로 남아 "
+		+ "받은 사람 알림함에 쌓이고, push=true면 알림도 울립니다.")
 	@PostMapping("/send")
 	public ApiResponse<AdminLetterSendResponse> send(@Valid @RequestBody AdminLetterSendRequest request) {
 		return ApiResponse.ok(adminLetterService.send(request));
+	}
+
+	@Operation(summary = "보낸 편지 목록", description = "여러 명에게 보낸 편지를 발송별로 최근순 반환합니다. "
+		+ "받은 사람 수와 그 뒤로 답장한 사람 수를 포함합니다.")
+	@GetMapping("/sends")
+	public ApiResponse<AdminLetterSendSummaryResponse.Page> getSends(
+			@Parameter(description = "0부터") @RequestParam(defaultValue = "0") int page,
+			@Parameter(description = "기본 20, 최대 50") @RequestParam(defaultValue = "20") int size) {
+		return ApiResponse.ok(adminLetterService.getSends(page, size));
+	}
+
+	@Operation(summary = "보낸 편지 집계", description = "발송 한 번의 받은 사람·답장·보기 번호별 인원을 반환합니다. "
+		+ "답장에 1~보기 개수의 숫자(①~ 포함)가 있으면 그 번호로 셉니다.")
+	@GetMapping("/sends/{sendId}")
+	public ApiResponse<AdminLetterSendStatsResponse> getSendStats(
+			@Parameter(description = "발송 ID") @PathVariable Long sendId) {
+		return ApiResponse.ok(adminLetterService.getSendStats(sendId));
 	}
 
 	@Operation(summary = "대화 해결 처리", description = "해결로 닫거나(resolved=true) 다시 엽니다(false). 닫으면 사용자가 다음에 "

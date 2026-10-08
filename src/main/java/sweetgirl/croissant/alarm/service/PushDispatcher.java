@@ -146,7 +146,12 @@ public class PushDispatcher {
 	private Map<String, String> pushDataOf(Notification notification) {
 		Map<String, String> data = new HashMap<>();
 		if (notification.getPayload() != null) {
-			data.putAll(notification.getPayload());
+			// "admin."으로 시작하는 값은 어드민만 본다(편지 발송 이름 같은) — 사용자 기기로 내보내지 않는다
+			notification.getPayload().forEach((key, value) -> {
+				if (!key.startsWith(Notification.ADMIN_PAYLOAD_PREFIX)) {
+					data.put(key, value);
+				}
+			});
 		}
 		// 알림함의 link와 푸시의 목적지가 같아야 한다. announcement는 payload 없이 deepLink만 저장할 수 있다.
 		if (notification.getDeepLink() != null && !notification.getDeepLink().isBlank()) {
