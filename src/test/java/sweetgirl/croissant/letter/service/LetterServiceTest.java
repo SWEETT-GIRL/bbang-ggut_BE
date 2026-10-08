@@ -337,6 +337,31 @@ class LetterServiceTest {
 	}
 
 	@Test
+	@DisplayName("우리가 보낸 설문에 아직 답이 없으면 오래 조용해도 닫지 않는다 — 질문 위에 유형 고르기가 뜨지 않게")
+	void getMyLetters_unansweredSendStaysOpen() {
+		LetterThread thread = thread(3L, LocalDateTime.now().minusDays(8), null);
+		given(letterThreadRepository.findByMemberId(MEMBER_ID)).willReturn(Optional.of(thread));
+		LetterMessage send = LetterMessage.create(thread, LetterSender.ADMIN, "설문", LetterCategory.OUTREACH);
+		send.linkSend(900L);
+		given(letterMessageRepository.findByThreadIdOrderByCreatedAtDesc(eq(3L), any()))
+			.willReturn(new SliceImpl<>(List.of(send)));
+
+		assertThat(letterService.getMyLetters(MEMBER_ID, 0, 20).closed()).isFalse();
+	}
+
+	@Test
+	@DisplayName("가입 인사만 있고 오래 조용하면 닫힌 것이다 — 그 사람에겐 유형을 묻는다")
+	void getMyLetters_welcomeOnlyStillClosesWhenDormant() {
+		LetterThread thread = thread(3L, LocalDateTime.now().minusDays(8), null);
+		given(letterThreadRepository.findByMemberId(MEMBER_ID)).willReturn(Optional.of(thread));
+		LetterMessage welcome = LetterMessage.create(thread, LetterSender.ADMIN, "안녕하세요", LetterCategory.OUTREACH);
+		given(letterMessageRepository.findByThreadIdOrderByCreatedAtDesc(eq(3L), any()))
+			.willReturn(new SliceImpl<>(List.of(welcome)));
+
+		assertThat(letterService.getMyLetters(MEMBER_ID, 0, 20).closed()).isTrue();
+	}
+
+	@Test
 	@DisplayName("기준일 안쪽으로 조용한 건 아직 열려 있다")
 	void getMyLetters_recentlyQuietStaysOpen() {
 		LetterThread thread = thread(3L, LocalDateTime.now().minusDays(6), null);

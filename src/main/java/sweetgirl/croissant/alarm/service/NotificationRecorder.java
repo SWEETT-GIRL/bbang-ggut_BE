@@ -1,6 +1,7 @@
 package sweetgirl.croissant.alarm.service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +44,21 @@ public class NotificationRecorder {
 		recipientRepository.save(NotificationRecipient.of(saved, member, now));
 		deliveryRepository.save(
 			NotificationDelivery.sent(saved, member, NotificationChannel.IN_APP, now));
+		return saved;
+	}
+
+	/**
+	 * 정해 둔 사람들에게 가는 같은 알림 — 편지 발송처럼. 내용은 한 행이고 우편함·대장만 사람 수만큼 쌓인다.
+	 * 전 회원 발송과 달리 많아야 수백 명이라 엔티티로 넣는다.
+	 */
+	@Transactional
+	public Notification recordForMembers(Notification notification, List<Member> members, LocalDateTime now) {
+		Notification saved = notificationRepository.save(notification);
+		for (Member member : members) {
+			recipientRepository.save(NotificationRecipient.of(saved, member, now));
+			deliveryRepository.save(
+				NotificationDelivery.sent(saved, member, NotificationChannel.IN_APP, now));
+		}
 		return saved;
 	}
 

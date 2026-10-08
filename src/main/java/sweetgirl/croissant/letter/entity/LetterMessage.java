@@ -73,6 +73,13 @@ public class LetterMessage extends BaseTimeEntity {
 	@Column(name = "read_at")
 	private LocalDateTime readAt;
 
+	/**
+	 * 어드민이 여러 사람에게 한 번에 보낸 편지라면 그 발송(notification)의 id. 발송 이름과 받은 사람은
+	 * 그쪽에 있다. 답장을 발송별로 세는 데 쓴다 — 1:1 답장·사용자 편지·가입 인사는 비어 있다.
+	 */
+	@Column(name = "notification_id")
+	private Long notificationId;
+
 	private LetterMessage(LetterThread thread, LetterSender sender, String body, LetterCategory category) {
 		this.thread = thread;
 		this.sender = sender;
@@ -95,6 +102,11 @@ public class LetterMessage extends BaseTimeEntity {
 		LetterMessage message = new LetterMessage(thread, sender, body, category);
 		message.imageKeys.addAll(imageKeys);
 		return message;
+	}
+
+	/** 이 편지가 어느 발송에서 나왔는지 적는다. */
+	public void linkSend(Long notificationId) {
+		this.notificationId = notificationId;
 	}
 
 	public void markAsRead(LocalDateTime now) {

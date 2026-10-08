@@ -2,6 +2,8 @@ package sweetgirl.croissant.alarm.repository;
 
 import java.util.Optional;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import sweetgirl.croissant.alarm.entity.Notification;
@@ -20,4 +22,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 	 */
 	Optional<Notification> findByActorIdAndTypeAndTargetTypeAndTargetId(Long actorId,
 			NotificationType type, NotificationTargetType targetType, Long targetId);
+
+	/** 한 종류의 알림을 최근 것부터 — 어드민의 보낸 편지 목록. */
+	Slice<Notification> findByTypeOrderByIdDesc(NotificationType type, Pageable pageable);
 }

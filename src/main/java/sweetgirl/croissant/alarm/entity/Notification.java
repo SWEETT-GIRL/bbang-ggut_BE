@@ -97,6 +97,9 @@ public class Notification extends BaseTimeEntity {
 	 * NULL인 자리가 쌓이기 때문이다. 조건으로 걸어 찾을 일이 없어 한 덩어리로 둔다 — 여기 담긴
 	 * 값으로 WHERE를 쓰고 싶어지면 그때 그 값은 컬럼이 될 자격이 있는 것이다.
 	 */
+	/** 이 접두어로 시작하는 payload 값은 어드민만 본다 — 푸시로 기기에 실리지 않는다. */
+	public static final String ADMIN_PAYLOAD_PREFIX = "admin.";
+
 	@Convert(converter = NotificationPayloadConverter.class)
 	@Column(columnDefinition = "TEXT")
 	private Map<String, String> payload;
@@ -164,6 +167,22 @@ public class Notification extends BaseTimeEntity {
 			.targetId(targetId)
 			.targetTitle(targetTitle)
 			.payload(payload)
+			.build();
+	}
+
+	/**
+	 * 정해 둔 사람들에게 보내는 편지 발송 — 문구는 푸시·알림함 줄, 부수 값은 어드민만 보는 것.
+	 * 울릴지(PUSH) 알림함에만 둘지(IN_APP)는 보내는 사람이 고른다.
+	 */
+	public static Notification letterSend(NotificationChannel channel, String title, String body,
+			String deepLink, Map<String, String> adminPayload) {
+		return Notification.builder()
+			.type(NotificationType.LETTER)
+			.channel(channel)
+			.title(title)
+			.body(body)
+			.deepLink(deepLink)
+			.payload(adminPayload)
 			.build();
 	}
 
