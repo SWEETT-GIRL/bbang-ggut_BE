@@ -51,6 +51,14 @@ public class MemberRestrictionReader {
 			throw new MemberException(MemberErrorCode.UNAUTHORIZED);
 		}
 		validateNotGuest(memberId);
+		validateNotRestricted(memberId);
+	}
+
+	/** 준비된 비공개 튜토리얼만 게스트 여부와 무관하게 허용한다. 제재 검증은 유지한다. */
+	public void validateNotRestricted(Long memberId) {
+		if (memberId == null) {
+			throw new MemberException(MemberErrorCode.UNAUTHORIZED);
+		}
 		if (!memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(
 			memberId,
 			WRITE_BLOCKING_TYPES,

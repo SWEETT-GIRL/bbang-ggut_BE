@@ -40,7 +40,10 @@ import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.external.aws.exception.S3StorageException;
 import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
 import sweetgirl.croissant.external.aws.util.S3PathGenerator;
+import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.exception.MemberException;
+import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.menu.entity.Menu;
@@ -62,6 +65,7 @@ public class BreadRecordCommandService {
 
 	private final S3Service s3Service;
 	private final MemberReader memberReader;
+	private final MemberRepository memberRepository;
 	private final MemberRestrictionReader memberRestrictionReader;
 	private final StoreRepository storeRepository;
 	private final BreadRecordRepository breadRecordRepository;
@@ -120,6 +124,9 @@ public class BreadRecordCommandService {
 		Member member = memberReader.getMember(memberId);
 		memberRestrictionReader.validateCanWrite(memberId);
 		BreadRecord record = getOwnedRecord(recordId, member.getId());
+		if (record.isTutorial()) {
+			throw new BreadLogException(BreadLogErrorCode.TUTORIAL_EDIT_RESTRICTED);
+		}
 		ValidatedRecordData data = validate(memberId, request);
 		List<BreadRecordPhoto> oldPhotos = photoRepository.findAllIncludingPendingByRecordId(recordId);
 		Map<String, BreadRecordPhoto> originalByRequestedKey = resolveOriginalPhotos(request.photos(), oldPhotos);
@@ -152,12 +159,26 @@ public class BreadRecordCommandService {
 		if (isPublic) {
 			memberRestrictionReader.validateCanWrite(memberId);
 		}
-		getOwnedRecord(recordId, member.getId()).changeVisibility(isPublic);
+		BreadRecord record = getOwnedRecord(recordId, member.getId());
+		if (record.isTutorial() && isPublic) {
+			throw new BreadLogException(BreadLogErrorCode.TUTORIAL_EDIT_RESTRICTED);
+		}
+		record.changeVisibility(isPublic);
 	}
 
 	public void delete(Long recordId, Long memberId) {
-		Member member = memberReader.getMember(memberId);
+		if (memberId == null) {
+			throw new MemberException(MemberErrorCode.UNAUTHORIZED);
+		}
+		// 저장·로그인 이관과 같은 잠금을 먼저 잡아 소유권이 바뀐 뒤 옛 계정으로 지우지 못하게 한다.
+		Member member = memberRepository.findActiveForUpdate(memberId)
+			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_DELETED));
 		BreadRecord record = getOwnedRecord(recordId, member.getId());
+		if (record.isTutorial()) {
+			// 공용 정적 사진과 태그는 보존한다. 완료 이력은 지우지 않아 재지급을 막는다.
+			record.softDelete();
+			return;
+		}
 		List<BreadRecordPhoto> photos = photoRepository.findAllIncludingPendingByRecordId(recordId);
 		tagRepository.deleteAllByRecordId(recordId);
 		photoRepository.deleteAllIncludingPendingByRecordId(recordId);
