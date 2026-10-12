@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -18,18 +19,23 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import sweetgirl.croissant.global.contract.ResponseContractWebMvcTest;
 import sweetgirl.croissant.reward.dto.response.AttendanceResponse;
+import sweetgirl.croissant.reward.dto.response.BbangdaengLetterOpenResponse;
+import sweetgirl.croissant.reward.dto.response.BbangdaengLetterResponse;
 import sweetgirl.croissant.reward.dto.response.FeedResponse;
 import sweetgirl.croissant.reward.dto.response.RewardClaimResponse;
 import sweetgirl.croissant.reward.dto.response.RewardHistoryResponse;
 import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
 import sweetgirl.croissant.reward.dto.response.RewardRulesResponse;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Ad;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Attendance;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.CarryOver;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Feed;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Letter;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Welcome;
 import sweetgirl.croissant.reward.enums.CrumbReason;
 import sweetgirl.croissant.reward.enums.RewardItemType;
+import sweetgirl.croissant.reward.service.BbangdaengLetterService;
 import sweetgirl.croissant.reward.service.GrantResult;
 import sweetgirl.croissant.reward.service.GrantResult.Outcome;
 import sweetgirl.croissant.reward.service.RewardCommandService;
@@ -47,6 +53,11 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 
 	private static final Attendance ATTENDANCE = new Attendance(false, 2, 3, 10, 5);
 	private static final Feed FEED = new Feed(false, List.of(10, 5, 3, 5, 10, 50));
+	private static final Letter LETTER = new Letter(1, 31L);
+	private static final Ad AD = new Ad(2);
+
+	@MockitoBean
+	private BbangdaengLetterService bbangdaengLetterService;
 
 	@MockitoBean
 	private RewardCommandService rewardCommandService;
@@ -63,7 +74,8 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 			new GrantResult(Outcome.GRANTED, 100, 185, 285), CrumbReason.INVITE_INVITER).withId(31L);
 		given(rewardCommandService.carryOverIfNeeded(any())).willReturn(Optional.empty());
 		given(rewardQueryService.getSummary(any(), any())).willReturn(new RewardSummaryResponse(
-			285, 26, RULES, new CarryOver(true, 110, 12), new Welcome(false), List.of(pending), ATTENDANCE, FEED));
+			285, 26, RULES, new CarryOver(true, 110, 12), new Welcome(false), List.of(pending), ATTENDANCE, FEED,
+			LETTER, AD));
 
 		mockMvc.perform(get("/members/me/rewards/summary"))
 			.andExpect(status().isOk())
@@ -97,6 +109,9 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.feed.doneToday").isBoolean())
 			// 룰렛 그림의 칸 순서 — 시계 방향, 12 시가 0 번
 			.andExpect(jsonPath("$.data.feed.wedges", hasSize(6)))
+			.andExpect(jsonPath("$.data.letter.waitingCount").isNumber())
+			.andExpect(jsonPath("$.data.letter.latestId").isNumber())
+			.andExpect(jsonPath("$.data.ad.leftToday").isNumber())
 			// rewards[] 한 칸 — 기록 저장·출석 등 뒤 phase 의 응답도 같은 모양을 쓴다
 			.andExpect(jsonPath("$.data.pendingRewards[0].id").isNumber())
 			.andExpect(jsonPath("$.data.pendingRewards[0].type").value("CRUMBS"))
@@ -126,7 +141,7 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 		given(rewardQueryService.getSummary(any(), any())).willReturn(new RewardSummaryResponse(
 			0, 0, RULES, null, new Welcome(false), List.of(new RewardItemResponse(
 				32L, RewardItemType.LEVEL_UP, null, 2, 3, null, null, "earth", "space", null, null)),
-			ATTENDANCE, FEED));
+			ATTENDANCE, FEED, LETTER, AD));
 
 		mockMvc.perform(get("/members/me/rewards/summary"))
 			.andExpect(status().isOk())
@@ -178,6 +193,27 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.crumbs").isNumber())
 			.andExpect(jsonPath("$.data.alreadyDone").isBoolean())
 			.andExpect(jsonPath("$.data.rewards[0].reason").value("FEED"));
+	}
+
+	@Test
+	void letters_keepFieldsTheAppReads() throws Exception {
+		given(bbangdaengLetterService.getLetters(any())).willReturn(List.of(
+			new BbangdaengLetterResponse(31L, LocalDate.of(2026, 10, 12), "안녕! 나 빵댕이야.", false)));
+		given(bbangdaengLetterService.open(any(), any())).willReturn(new BbangdaengLetterOpenResponse(
+			"안녕! 나 빵댕이야.", false, List.of(
+				RewardItemResponse.crumbs(new GrantResult(Outcome.GRANTED, 10, 30, 40), CrumbReason.LETTER))));
+
+		mockMvc.perform(get("/members/me/rewards/letters"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data[0].id").isNumber())
+			.andExpect(jsonPath("$.data[0].weekStart").value("2026-10-12"))
+			.andExpect(jsonPath("$.data[0].body").isString())
+			.andExpect(jsonPath("$.data[0].opened").isBoolean());
+		mockMvc.perform(post("/members/me/rewards/letters/31/open"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.body").isString())
+			.andExpect(jsonPath("$.data.alreadyOpened").isBoolean())
+			.andExpect(jsonPath("$.data.rewards[0].reason").value("LETTER"));
 	}
 
 	@Test

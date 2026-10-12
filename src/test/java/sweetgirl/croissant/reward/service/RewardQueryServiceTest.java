@@ -28,9 +28,11 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.reward.dto.response.RewardHistoryResponse;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Ad;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Attendance;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.CarryOver;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Feed;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Letter;
 import sweetgirl.croissant.reward.entity.CrumbLedgerEntry;
 import sweetgirl.croissant.reward.entity.MemberAttendanceDay;
 import sweetgirl.croissant.reward.entity.MemberFeedDay;
@@ -60,6 +62,10 @@ class RewardQueryServiceTest {
 	private MemberAttendanceDayRepository attendanceDayRepository;
 	@Mock
 	private MemberFeedDayRepository feedDayRepository;
+	@Mock
+	private BbangdaengLetterService bbangdaengLetterService;
+	@Mock
+	private EarnRewardService earnRewardService;
 
 	@InjectMocks
 	private RewardQueryService rewardQueryService;
@@ -131,6 +137,35 @@ class RewardQueryServiceTest {
 			assertThat(summary.rules()).isNotNull();
 			then(walletRepository).shouldHaveNoInteractions();
 			then(ledgerRepository).shouldHaveNoInteractions();
+		}
+	}
+
+	@Nested
+	@DisplayName("요약의 편지 · 광고")
+	class LetterAndAd {
+
+		@Test
+		@DisplayName("안 연 편지 수와 오늘 남은 광고 횟수를 싣는다")
+		void member() {
+			given(bbangdaengLetterService.summaryOf(MEMBER_ID)).willReturn(new Letter(2, 31L));
+			given(earnRewardService.adsLeftToday(MEMBER_ID)).willReturn(1);
+
+			RewardSummaryResponse summary = rewardQueryService.getSummary(MEMBER_ID, null);
+
+			assertThat(summary.letter()).isEqualTo(new Letter(2, 31L));
+			assertThat(summary.ad()).isEqualTo(new Ad(1));
+		}
+
+		@Test
+		@DisplayName("게스트는 편지도 광고도 없다")
+		void guest() {
+			given(member.isGuest()).willReturn(true);
+
+			RewardSummaryResponse summary = rewardQueryService.getSummary(MEMBER_ID, null);
+
+			assertThat(summary.letter()).isEqualTo(new Letter(0, null));
+			assertThat(summary.ad()).isEqualTo(new Ad(0));
+			then(bbangdaengLetterService).shouldHaveNoInteractions();
 		}
 	}
 

@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
+import sweetgirl.croissant.reward.dto.response.SaveStoreResponse;
 import sweetgirl.croissant.store.dto.response.SavedStoreResponse;
 import sweetgirl.croissant.store.service.SavedStoreCommandService;
 import sweetgirl.croissant.store.service.SavedStoreQueryService;
@@ -37,11 +38,10 @@ public class SavedStoreController {
 
 	@Operation(summary = "가게 찜 추가")
 	@PostMapping("/{storeId}/save")
-	public ResponseEntity<ApiResponse<Void>> saveStore(
+	public ResponseEntity<ApiResponse<SaveStoreResponse>> saveStore(
 			@PathVariable Long storeId,
 			@AuthenticationPrincipal Long memberId) {
-		savedStoreCommandService.saveStore(memberId, storeId);
-		return ResponseEntity.ok(ApiResponse.ok(null));
+		return ResponseEntity.ok(ApiResponse.ok(savedStoreCommandService.saveStore(memberId, storeId)));
 	}
 
 	@Operation(summary = "가게 찜 해제")

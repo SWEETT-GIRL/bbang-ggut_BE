@@ -8,6 +8,7 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
@@ -22,6 +23,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
+import sweetgirl.croissant.reward.service.EarnRewardService;
 import sweetgirl.croissant.store.code.SavedStoreErrorCode;
 import sweetgirl.croissant.store.entity.SavedStore;
 import sweetgirl.croissant.store.entity.Store;
@@ -44,6 +47,9 @@ class SavedStoreCommandServiceTest {
 	ApplicationEventPublisher eventPublisher;
 	@Mock
 	MemberReader memberReader;
+
+	@Mock
+	private EarnRewardService earnRewardService;
 
 	@InjectMocks
 	SavedStoreCommandService savedStoreCommandService;
@@ -70,6 +76,30 @@ class SavedStoreCommandServiceTest {
 		assertThat(event.getValue().memberId()).isEqualTo(memberId);
 		assertThat(event.getValue().storeId()).isEqualTo(storeId);
 		assertThat(event.getValue().savedAt()).isNotNull();
+	}
+
+	@Test
+	@DisplayName("saveStore: 새로 담으면 담기 보상을 응답에 싣는다")
+	void saveStore_returnsReward() {
+		Long memberId = 1L;
+		Long storeId = 10L;
+		given(savedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId)).willReturn(false);
+		given(memberRepository.findByIdAndDeletedAtIsNull(memberId)).willReturn(Optional.of(mock(Member.class)));
+		given(storeRepository.findById(storeId)).willReturn(Optional.of(mock(Store.class)));
+		given(savedStoreRepository.save(any(SavedStore.class))).willAnswer(invocation -> invocation.getArgument(0));
+		List<RewardItemResponse> rewards = List.of(RewardItemResponse.bread(0, 1));
+		given(earnRewardService.rewardStoreSaved(memberId, storeId)).willReturn(rewards);
+
+		assertThat(savedStoreCommandService.saveStore(memberId, storeId).rewards()).isEqualTo(rewards);
+	}
+
+	@Test
+	@DisplayName("saveStore: 이미 담은 가게면 보상을 다시 따지지 않는다")
+	void saveStore_duplicate_noReward() {
+		given(savedStoreRepository.existsByMemberIdAndStoreId(1L, 10L)).willReturn(true);
+
+		assertThat(savedStoreCommandService.saveStore(1L, 10L).rewards()).isEmpty();
+		then(earnRewardService).shouldHaveNoInteractions();
 	}
 
 	@Test

@@ -11,7 +11,8 @@ import lombok.RequiredArgsConstructor;
 public enum RewardedAdPurpose {
 
 	CHARACTER("친구 깨우기"),
-	NICKNAME("닉네임 뽑기");
+	NICKNAME("닉네임 뽑기"),
+	CRUMBS("부스러기 받기");
 
 	private final String description;
 }

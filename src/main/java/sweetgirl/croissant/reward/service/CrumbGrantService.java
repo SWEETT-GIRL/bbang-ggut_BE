@@ -117,6 +117,20 @@ public class CrumbGrantService {
 		return deduct(memberId, CrumbReason.ADMIN_REVOKE, revocable, idempotencyKey, memo, balance, now);
 	}
 
+	/** 오늘 이 이유로 받은 횟수. 화면에 "오늘 몇 번 남았나"를 보여 줄 때 쓴다 — 지급 판정은 지갑을 잠근 쪽이 한다. */
+	@Transactional(readOnly = true)
+	public long countToday(long memberId, CrumbReason reason) {
+		return ledgerRepository.countByMemberIdAndReasonAndEarnedOn(memberId, reason, LocalDate.now(ZONE));
+	}
+
+	/**
+	 * 이 회원의 리워드 변동을 한 줄로 세운다(지갑 행 잠금). 적립이 아닌 일도 같은 줄에 세워야 할 때 부른다 —
+	 * 한 주에 한 통인 편지를 만드는 일처럼, 나란히 들어온 요청이 같은 것을 두 번 만들면 안 되는 경우다.
+	 */
+	public void serialize(long memberId) {
+		lockWallet(memberId, LocalDateTime.now());
+	}
+
 	/** 지금 잔액. 지갑이 아직 없으면 0 이다. */
 	@Transactional(readOnly = true)
 	public int balanceOf(long memberId) {
