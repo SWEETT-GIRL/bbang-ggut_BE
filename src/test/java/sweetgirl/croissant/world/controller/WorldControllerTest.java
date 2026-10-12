@@ -9,6 +9,7 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -24,10 +25,17 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
+import sweetgirl.croissant.reward.code.RewardErrorCode;
+import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
+import sweetgirl.croissant.reward.enums.CrumbReason;
+import sweetgirl.croissant.reward.exception.RewardException;
+import sweetgirl.croissant.reward.service.FriendCommandService;
+import sweetgirl.croissant.reward.service.SpendResult;
 import sweetgirl.croissant.world.code.WorldErrorCode;
 import sweetgirl.croissant.world.dto.response.MemberWorldResponse;
 import sweetgirl.croissant.world.dto.response.WorldRouletteResponse;
@@ -45,6 +53,8 @@ class WorldControllerTest {
 	private WorldCommandService worldCommandService;
 	@Mock
 	private WorldQueryService worldQueryService;
+	@Mock
+	private FriendCommandService friendCommandService;
 
 	@InjectMocks
 	private WorldController worldController;
@@ -77,6 +87,42 @@ class WorldControllerTest {
 			.andExpect(jsonPath("$.data.pendingRoulettePlanets[0]").value("mars"))
 			// 앱은 키가 있는지로 새 서버인지 가린다. null 이어도 빠지면 안 된다
 			.andExpect(content().string(containsString("\"welcomedAt\":null")));
+	}
+
+	@Test
+	@DisplayName("부스러기로 깨우면 깨어난 친구와 쓴 부스러기를 내린다")
+	void wakesWithCrumbs() throws Exception {
+		given(friendCommandService.wakeWithCrumbs(any(), eq("frog"))).willReturn(new WorldWakeResponse(
+			"frog", 0, 2, true, List.of(RewardItemResponse.spent(
+				new SpendResult(true, 600, 700, 100), CrumbReason.WAKE_FRIEND))));
+
+		mockMvc.perform(post("/members/me/world/characters/frog/wake-crumbs"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.awakened").value(true))
+			.andExpect(jsonPath("$.data.rewards[0].amount").value(-600))
+			.andExpect(jsonPath("$.data.rewards[0].reason").value("WAKE_FRIEND"));
+	}
+
+	@Test
+	@DisplayName("광고를 본 친구를 부스러기로 깨우려 하면 409 REWARD409_3")
+	void wakeWithCrumbsAfterAd() throws Exception {
+		given(friendCommandService.wakeWithCrumbs(any(), eq("frog")))
+			.willThrow(new RewardException(RewardErrorCode.REWARD_WAKE_AD_STARTED));
+
+		mockMvc.perform(post("/members/me/world/characters/frog/wake-crumbs"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("REWARD409_3"));
+	}
+
+	@Test
+	@DisplayName("친구 이름을 붙인다")
+	void renamesFriend() throws Exception {
+		mockMvc.perform(patch("/members/me/world/characters/dog/nickname")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"nickname\":\"초코\"}"))
+			.andExpect(status().isOk());
+
+		then(friendCommandService).should().rename(any(), eq("dog"), eq("초코"));
 	}
 
 	@Test

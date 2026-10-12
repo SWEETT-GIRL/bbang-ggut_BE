@@ -44,10 +44,14 @@ import sweetgirl.croissant.reward.entity.BbangdaengLetter;
 import sweetgirl.croissant.reward.entity.CrumbLedgerEntry;
 import sweetgirl.croissant.reward.entity.MemberAttendanceDay;
 import sweetgirl.croissant.reward.entity.MemberBbangdaengLetter;
+import sweetgirl.croissant.reward.entity.MemberCharacterLook;
 import sweetgirl.croissant.reward.entity.MemberCrumbWallet;
 import sweetgirl.croissant.reward.entity.MemberFeedDay;
 import sweetgirl.croissant.reward.entity.MemberPendingReward;
+import sweetgirl.croissant.reward.entity.MemberShopItem;
 import sweetgirl.croissant.reward.entity.RewardSetting;
+import sweetgirl.croissant.reward.entity.ShopCatalog;
+import sweetgirl.croissant.reward.entity.ShopItem;
 import sweetgirl.croissant.reward.enums.CrumbReason;
 import sweetgirl.croissant.reward.enums.RewardRefType;
 import sweetgirl.croissant.reward.enums.RewardSettingKey;
@@ -124,6 +128,12 @@ class RewardWalletPostgresTest {
 		jdbc.execute("CREATE TABLE world_catalog (id smallint PRIMARY KEY, version int NOT NULL, "
 			+ "updated_at timestamp NOT NULL)");
 		jdbc.execute("INSERT INTO world_catalog (id, version, updated_at) VALUES (1, 7, '2026-09-20 10:00:00')");
+		// 상점 마이그레이션이 가리키거나 고치는 세계관 표들
+		jdbc.execute("CREATE TABLE world_characters (code varchar(30) PRIMARY KEY)");
+		jdbc.execute("INSERT INTO world_characters (code) VALUES ('dog')");
+		jdbc.execute("CREATE TABLE member_world (member_id bigint PRIMARY KEY, updated_at timestamp)");
+		jdbc.execute("CREATE TABLE member_characters (member_id bigint, character_code varchar(30), "
+			+ "PRIMARY KEY (member_id, character_code))");
 		for (String migration : List.of(
 			"V20261012200000__create_crumb_wallet_and_ledger.sql",
 			"V20261012200100__create_reward_settings.sql",
@@ -132,7 +142,8 @@ class RewardWalletPostgresTest {
 			"V20261012220000__allow_photoless_bread_record.sql",
 			"V20261012220100__validate_bread_record_tag_pinned.sql",
 			"V20261012220200__advance_earth_stage_offsets.sql",
-			"V20261012230000__create_bbangdaeng_letters.sql")) {
+			"V20261012230000__create_bbangdaeng_letters.sql",
+			"V20261013000000__create_reward_shop.sql")) {
 			jdbc.execute(new ClassPathResource("db/migration/" + migration).getContentAsString(StandardCharsets.UTF_8));
 		}
 
@@ -143,7 +154,9 @@ class RewardWalletPostgresTest {
 			MemberCrumbWallet.class.getName(), CrumbLedgerEntry.class.getName(),
 			MemberPendingReward.class.getName(), RewardSetting.class.getName(),
 			MemberAttendanceDay.class.getName(), MemberFeedDay.class.getName(),
-			BbangdaengLetter.class.getName(), MemberBbangdaengLetter.class.getName()));
+			BbangdaengLetter.class.getName(), MemberBbangdaengLetter.class.getName(),
+			ShopItem.class.getName(), ShopCatalog.class.getName(), MemberShopItem.class.getName(),
+			MemberCharacterLook.class.getName()));
 		// 마이그레이션이 만든 표와 엔티티가 어긋나면 여기서 터진다 — 운영 기동 실패를 미리 본다
 		// 이름 전략은 앱(Spring Boot 기본값)과 같게 둔다 — balanceAfter 를 balance_after 로 읽는다
 		factory.setJpaPropertyMap(Map.of(
@@ -395,6 +408,35 @@ class RewardWalletPostgresTest {
 
 		assertThatThrownBy(() -> jdbc.update(insert, 1L, letterId, TODAY, TODAY.plusDays(1)))
 			.hasMessageContaining("uq_member_bbangdaeng_letters_week");
+	}
+
+	@Test
+	@DisplayName("상점 품목 10 개와 버전 1 이 시드되고, 소품은 계정에 하나 · 모습은 친구마다 하나만 살 수 있다")
+	void shopSeedAndOwnership() {
+		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM shop_items", Integer.class)).isEqualTo(10);
+		assertThat(jdbc.queryForObject(
+			"SELECT price FROM shop_items WHERE code = 'pose-bread-tower' AND lock_level = 5", Integer.class))
+			.isEqualTo(180);
+		assertThat(jdbc.queryForObject("SELECT version FROM shop_catalog", Integer.class)).isEqualTo(1);
+
+		String buy = "INSERT INTO member_shop_items (member_id, character_code, item_code, purchased_at) "
+			+ "VALUES (?, ?, ?, now()) ON CONFLICT DO NOTHING";
+		assertThat(jdbc.update(buy, 1L, "", "prop-flag")).isEqualTo(1);
+		assertThat(jdbc.update(buy, 1L, "", "prop-flag")).isZero();
+		assertThat(jdbc.update(buy, 1L, "dog", "pose-joy")).isEqualTo(1);
+		assertThat(jdbc.update(buy, 1L, "cat", "pose-joy")).isEqualTo(1);
+		assertThat(jdbc.update(buy, 1L, "dog", "pose-joy")).isZero();
+	}
+
+	@Test
+	@DisplayName("모습 품목은 포즈가 있어야 하고, 가격은 0 보다 커야 한다")
+	void shopItemChecks() {
+		assertThatThrownBy(() -> jdbc.execute(
+			"INSERT INTO shop_items (code, kind, name, price, sort_order) VALUES ('pose-x', 'POSE', 'x', 10, 1)"))
+			.hasMessageContaining("chk_shop_items_pose");
+		assertThatThrownBy(() -> jdbc.execute(
+			"INSERT INTO shop_items (code, kind, name, price, sort_order) VALUES ('prop-x', 'PROP', 'x', 0, 1)"))
+			.hasMessageContaining("chk_shop_items_price");
 	}
 
 	private LocalDateTime registeredAt(long memberId) {

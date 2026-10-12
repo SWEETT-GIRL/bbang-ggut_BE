@@ -3,8 +3,10 @@ package sweetgirl.croissant.world.controller;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -12,6 +14,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
+import sweetgirl.croissant.reward.dto.request.FriendNicknameRequest;
+import sweetgirl.croissant.reward.service.FriendCommandService;
 import sweetgirl.croissant.world.dto.response.MemberWorldResponse;
 import sweetgirl.croissant.world.dto.response.WorldRouletteResponse;
 import sweetgirl.croissant.world.dto.response.WorldWakeResponse;
@@ -26,6 +30,7 @@ public class WorldController {
 
 	private final WorldCommandService worldCommandService;
 	private final WorldQueryService worldQueryService;
+	private final FriendCommandService friendCommandService;
 
 	@Operation(summary = "내 세계관 상태 조회", description = "빵탑 높이 · 행성 · 고도 · 가진 친구를 내린다. 첫 조회에서 여정이 시작되고 "
 		+ "첫 친구가 지급된다.")
@@ -61,6 +66,26 @@ public class WorldController {
 			@AuthenticationPrincipal Long memberId,
 			@PathVariable String code) {
 		return ResponseEntity.ok(ApiResponse.ok(worldCommandService.useWakeTicket(memberId, code)));
+	}
+
+	@Operation(summary = "부스러기로 친구 깨우기", description = "광고 대신 부스러기를 쓴다. "
+		+ "광고를 한 편이라도 본 친구는 부스러기로 깨울 수 없다(REWARD409_3).")
+	@PostMapping("/characters/{code}/wake-crumbs")
+	public ResponseEntity<ApiResponse<WorldWakeResponse>> wakeWithCrumbs(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable String code) {
+		return ResponseEntity.ok(ApiResponse.ok(friendCommandService.wakeWithCrumbs(memberId, code)));
+	}
+
+	@Operation(summary = "친구 이름 붙이기", description = "깨어 있는 친구에게 1~8자 이름을 붙인다. "
+		+ "비워 보내면 기본 이름으로 되돌린다.")
+	@PatchMapping("/characters/{code}/nickname")
+	public ResponseEntity<ApiResponse<Void>> renameFriend(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable String code,
+			@RequestBody FriendNicknameRequest request) {
+		friendCommandService.rename(memberId, code, request.nickname());
+		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
 	@Operation(summary = "첫 친구 연출 확인", description = "처음 본 때를 남긴다. 두 번 불러도 그 때가 덮이지 않는다.")

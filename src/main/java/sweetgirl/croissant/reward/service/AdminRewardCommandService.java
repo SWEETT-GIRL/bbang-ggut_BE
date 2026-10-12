@@ -13,14 +13,20 @@ import sweetgirl.croissant.reward.code.RewardErrorCode;
 import sweetgirl.croissant.reward.dto.request.AdminBbangdaengLetterRequest;
 import sweetgirl.croissant.reward.dto.request.AdminCrumbAdjustRequest;
 import sweetgirl.croissant.reward.dto.request.AdminRewardSettingsUpdateRequest;
+import sweetgirl.croissant.reward.dto.request.AdminShopItemRequest;
 import sweetgirl.croissant.reward.dto.response.AdminBbangdaengLetterResponse;
 import sweetgirl.croissant.reward.dto.response.AdminCrumbAdjustResponse;
+import sweetgirl.croissant.reward.dto.response.ShopCatalogResponse;
 import sweetgirl.croissant.reward.entity.BbangdaengLetter;
 import sweetgirl.croissant.reward.entity.RewardSetting;
+import sweetgirl.croissant.reward.entity.ShopCatalog;
+import sweetgirl.croissant.reward.entity.ShopItem;
 import sweetgirl.croissant.reward.enums.RewardSettingKey;
 import sweetgirl.croissant.reward.exception.RewardException;
 import sweetgirl.croissant.reward.repository.BbangdaengLetterRepository;
 import sweetgirl.croissant.reward.repository.RewardSettingRepository;
+import sweetgirl.croissant.reward.repository.ShopCatalogRepository;
+import sweetgirl.croissant.reward.repository.ShopItemRepository;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +38,8 @@ public class AdminRewardCommandService {
 	private final RewardSettings rewardSettings;
 	private final MemberReader memberReader;
 	private final BbangdaengLetterRepository bbangdaengLetterRepository;
+	private final ShopItemRepository shopItemRepository;
+	private final ShopCatalogRepository shopCatalogRepository;
 
 	/** 게스트에게는 주지 않는다 — 게스트는 지갑이 없고, 로그인하면 사라질 행을 만들지 않는다. */
 	public AdminCrumbAdjustResponse grant(Long memberId, AdminCrumbAdjustRequest request) {
@@ -82,6 +90,32 @@ public class AdminRewardCommandService {
 	public List<AdminBbangdaengLetterResponse> getLetters() {
 		return bbangdaengLetterRepository.findAllByOrderBySeqAsc().stream()
 			.map(AdminBbangdaengLetterResponse::from)
+			.toList();
+	}
+
+	/** 품목을 만들거나 고친다. 바뀌면 상점 버전을 올려 앱이 품목을 다시 받게 한다. */
+	public ShopCatalogResponse.Item upsertShopItem(String code, AdminShopItemRequest request) {
+		ShopItem item = shopItemRepository.findById(code)
+			.orElseGet(() -> ShopItem.create(code, request.kind()));
+		if (item.isPose() && (request.pose() == null || request.pose().isBlank())) {
+			throw new RewardException(RewardErrorCode.REWARD_SHOP_POSE_UNAVAILABLE);
+		}
+		item.revise(item.isPose() ? request.pose() : null, request.name().strip(), request.price(),
+			request.lockLevel(), request.sortOrder(), request.isNew(), !Boolean.FALSE.equals(request.active()));
+		shopItemRepository.save(item);
+
+		LocalDateTime now = LocalDateTime.now();
+		shopCatalogRepository.findById(ShopCatalog.SINGLE_ROW_ID).ifPresentOrElse(
+			catalog -> catalog.raise(now),
+			() -> shopCatalogRepository.save(ShopCatalog.first(now)));
+		return ShopCatalogResponse.Item.from(item);
+	}
+
+	/** 끈 것까지 전부. */
+	@Transactional(readOnly = true)
+	public List<ShopCatalogResponse.Item> getShopItems() {
+		return shopItemRepository.findAllByOrderBySortOrderAscCodeAsc().stream()
+			.map(ShopCatalogResponse.Item::from)
 			.toList();
 	}
 
