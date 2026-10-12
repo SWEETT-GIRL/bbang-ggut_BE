@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 
 import sweetgirl.croissant.reward.entity.CrumbLedgerEntry;
 import sweetgirl.croissant.reward.enums.CrumbReason;
+import sweetgirl.croissant.reward.enums.RewardRefType;
 
 public interface CrumbLedgerRepository extends JpaRepository<CrumbLedgerEntry, Long> {
 
@@ -46,6 +47,10 @@ public interface CrumbLedgerRepository extends JpaRepository<CrumbLedgerEntry, L
 
 	/** 그날 이 이유로 받은 횟수 — 하루 상한을 센다. 지갑을 잠근 뒤에 불러야 뜻이 있다. */
 	long countByMemberIdAndReasonAndEarnedOn(Long memberId, CrumbReason reason, LocalDate earnedOn);
+
+	/** 이 대상(기록 · 가게 …)으로 이 이유의 보상을 받은 적이 있는가. */
+	boolean existsByMemberIdAndReasonAndRefTypeAndRefId(
+			Long memberId, CrumbReason reason, RewardRefType refType, Long refId);
 
 	/** 이 키의 보상을 이미 줬는가. */
 	boolean existsByMemberIdAndIdempotencyKey(Long memberId, String idempotencyKey);

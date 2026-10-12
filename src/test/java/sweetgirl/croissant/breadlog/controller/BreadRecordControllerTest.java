@@ -1,11 +1,13 @@
 package sweetgirl.croissant.breadlog.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willDoNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -23,6 +25,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -42,6 +45,7 @@ import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlInfo;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordSummaryResponse;
+import sweetgirl.croissant.breadlog.dto.response.BreadRecordUpdateResponse;
 import sweetgirl.croissant.breadlog.enums.RecordType;
 import sweetgirl.croissant.breadlog.exception.BreadLogException;
 import sweetgirl.croissant.breadlog.service.BreadPhotoTagSuggestionService;
@@ -149,12 +153,46 @@ class BreadRecordControllerTest {
 			.andExpect(jsonPath("$.data.recordId").value(11));
 	}
 
+	// 사진은 선택이다 — 가게만 고른 기록도 저장된다
 	@Test
-	void create_withoutPhoto_returns400() throws Exception {
+	void create_withoutPhoto_returns201() throws Exception {
+		given(commandService.create(isNull(), any(BreadRecordUpsertRequest.class)))
+			.willReturn(new BreadRecordCreateResponse(12L, LocalDateTime.of(2026, 8, 2, 14, 21, 7), List.of()));
+
 		mockMvc.perform(post("/bread-records")
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"storeName\":\"밀도 성수\",\"eatenAt\":\"2026-08-02T14:21:07\",\"photos\":[],\"tags\":[]}"))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.data.recordId").value(12))
+			.andExpect(jsonPath("$.data.rewards").isArray());
+	}
+
+	// 가게는 여전히 필수다
+	@Test
+	void create_withoutStore_returns400() throws Exception {
+		mockMvc.perform(post("/bread-records")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"eatenAt\":\"2026-08-02T14:21:07\",\"photos\":[],\"tags\":[]}"))
 			.andExpect(status().isBadRequest());
+	}
+
+	// 사진에 안 붙은 빵 이름 — photoSortOrder · x · y 없이 이름만 온다
+	@Test
+	void create_withUnpinnedTag_passesNullPosition() throws Exception {
+		given(commandService.create(isNull(), any(BreadRecordUpsertRequest.class)))
+			.willReturn(new BreadRecordCreateResponse(12L, LocalDateTime.of(2026, 8, 2, 14, 21, 7), List.of()));
+
+		mockMvc.perform(post("/bread-records")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"storeName\":\"밀도 성수\",\"eatenAt\":\"2026-08-02T14:21:07\",\"photos\":[],"
+				+ "\"tags\":[{\"name\":\"소금빵\"}],\"requestId\":\"7f1c9a52-0d43-4a0b-9d6e-0f2b6c1a8e11\"}"))
+			.andExpect(status().isCreated());
+
+		ArgumentCaptor<BreadRecordUpsertRequest> request = ArgumentCaptor.forClass(BreadRecordUpsertRequest.class);
+		then(commandService).should().create(isNull(), request.capture());
+		assertThat(request.getValue().tags().get(0).photoSortOrder()).isNull();
+		assertThat(request.getValue().tags().get(0).positionX()).isNull();
+		assertThat(request.getValue().requestId()).hasToString("7f1c9a52-0d43-4a0b-9d6e-0f2b6c1a8e11");
 	}
 
 	@Test
@@ -173,7 +211,8 @@ class BreadRecordControllerTest {
 
 	@Test
 	void replace_returns200() throws Exception {
-		willDoNothing().given(commandService).replace(eq(11L), isNull(), any(BreadRecordUpsertRequest.class));
+		given(commandService.replace(eq(11L), isNull(), any(BreadRecordUpsertRequest.class)))
+			.willReturn(new BreadRecordUpdateResponse(List.of()));
 
 		mockMvc.perform(patch("/bread-records/11")
 			.contentType(MediaType.APPLICATION_JSON)

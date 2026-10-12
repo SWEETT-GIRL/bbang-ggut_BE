@@ -47,6 +47,7 @@ public interface BreadRecordRankingRepository extends Repository<BreadRecord, Lo
 						MAX(r.created_at) AS reached_at
 				FROM bread_record r
 				WHERE r.deleted_at IS NULL
+					AND EXISTS (SELECT 1 FROM bread_record_photo p WHERE p.record_id = r.id)
 					AND (CAST(:weekStart AS TIMESTAMP) IS NULL OR r.created_at >= CAST(:weekStart AS TIMESTAMP))
 					AND (CAST(:sido AS VARCHAR) IS NULL OR EXISTS (
 						SELECT 1 FROM member_ranking_region mr

@@ -3,6 +3,7 @@ package sweetgirl.croissant.breadlog.repository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -34,6 +35,9 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			Long memberId, Long storeId);
 
 	long countByMemberIdAndDeletedAtIsNull(Long memberId);
+
+	/** 같은 저장 요청으로 이미 만든 기록. 지운 기록도 찾는다 — 재전송이 지운 기록을 되살려 또 만들지 않게. */
+	Optional<BreadRecord> findByMemberIdAndClientRequestId(Long memberId, UUID clientRequestId);
 
 	/**
 	 * 보통 기록을 남긴 날들(저장한 날 기준, 최근 것부터). 1.x 홈의 "N일 연속"과 같은 기준이다 — 먹은 날이 아니라 저장한 날.
@@ -104,6 +108,7 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			Pageable pageable);
 
 	// 가게 상세에 쌓이는 공개 기록 — 탈퇴한 작성자와 보는 사람이 차단한 작성자는 뺀다.
+	// 사진이 없는 기록은 공개로 저장했어도 남에게 내리지 않는다(옛 앱은 사진 없는 기록을 열면 꺼진다).
 	@Query("""
 			SELECT record
 			FROM BreadRecord record
@@ -112,6 +117,7 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			AND record.isPublic = true
 			AND record.deletedAt IS NULL
 			AND member.deletedAt IS NULL
+			AND EXISTS (SELECT 1 FROM BreadRecordPhoto photo WHERE photo.record.id = record.id)
 			AND (:viewerMemberId IS NULL OR NOT EXISTS (
 				SELECT 1 FROM MemberBlock mb
 				WHERE mb.blocker.id = :viewerMemberId

@@ -1,9 +1,12 @@
 package sweetgirl.croissant.breadlog.controller;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -18,6 +21,7 @@ import sweetgirl.croissant.breadlog.dto.response.BreadRecordCreateResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPhotoResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordTagResponse;
+import sweetgirl.croissant.breadlog.dto.response.BreadRecordUpdateResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadTagRatingResponse;
 import sweetgirl.croissant.breadlog.enums.RecordType;
 import sweetgirl.croissant.breadlog.enums.TasteChip;
@@ -28,6 +32,9 @@ import sweetgirl.croissant.breadlog.service.BreadRecordQueryService;
 import sweetgirl.croissant.breadlog.service.BreadRecordSummaryService;
 import sweetgirl.croissant.global.contract.ResponseContractWebMvcTest;
 import sweetgirl.croissant.global.response.SliceResponse;
+import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
+import sweetgirl.croissant.reward.enums.CrumbReason;
+import sweetgirl.croissant.reward.service.GrantResult;
 
 /**
  * 앱이 실제로 읽는 빵로그 응답 필드를 고정한다. 목록 응답은 상세 화면도 같은 캐시로 쓴다.
@@ -127,6 +134,70 @@ class BreadRecordResponseContractTest extends ResponseContractWebMvcTest {
 					+ "\"awsKey\":\"bread-records/a.jpg\",\"sortOrder\":0}]}"))
 			.andExpect(status().isCreated())
 			// record.tsx:583 — 없으면 저장 직후 랭킹 묻기·코스 연결이 빠진다
-			.andExpect(jsonPath("$.data.recordId").isNumber());
+			.andExpect(jsonPath("$.data.recordId").isNumber())
+			// 보상이 없어도(게스트 · 옛 앱) 배열은 내려간다
+			.andExpect(jsonPath("$.data.rewards").isArray());
+	}
+
+	@Test
+	void create_carriesRewardsInDisplayOrder() throws Exception {
+		given(commandService.create(any(), any())).willReturn(new BreadRecordCreateResponse(
+			1L, LocalDateTime.of(2026, 10, 4, 13, 0, 5), List.of(
+				RewardItemResponse.bread(4, 5),
+				RewardItemResponse.crumbs(new GrantResult(GrantResult.Outcome.GRANTED, 10, 270, 280),
+					CrumbReason.RECORD),
+				RewardItemResponse.levelUp(2, 3, "earth", "space"))));
+
+		mockMvc
+			.perform(post("/bread-records").contentType(MediaType.APPLICATION_JSON).content(
+				"{\"storeId\":11,\"storeName\":\"성심당\",\"eatenAt\":\"2026-10-04T12:30:00\",\"tags\":[],"
+					+ "\"photos\":[]}"))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.data.rewards[0].type").value("BREAD"))
+			.andExpect(jsonPath("$.data.rewards[0].from").value(4))
+			.andExpect(jsonPath("$.data.rewards[0].to").value(5))
+			.andExpect(jsonPath("$.data.rewards[1].type").value("CRUMBS"))
+			.andExpect(jsonPath("$.data.rewards[1].amount").value(10))
+			.andExpect(jsonPath("$.data.rewards[1].reason").value("RECORD"))
+			.andExpect(jsonPath("$.data.rewards[1].capped").value(false))
+			.andExpect(jsonPath("$.data.rewards[2].type").value("LEVEL_UP"))
+			.andExpect(jsonPath("$.data.rewards[2].planet").value("earth"))
+			.andExpect(jsonPath("$.data.rewards[2].stage").value("space"));
+	}
+
+	@Test
+	void records_keepUnpinnedTagWithNullPosition() throws Exception {
+		// 사진에 안 붙은 빵 이름 — 키는 그대로 있고 값이 null 이다
+		BreadRecordTagResponse tag = new BreadRecordTagResponse(201L, null, null, "소금빵", "소금빵", null, null, null,
+			null, null);
+		given(queryService.getRecords(any(), isNull(), isNull(), isNull(), anyInt(), anyInt()))
+			.willReturn(new SliceResponse<>(List.of(new BreadRecordResponse(1L, 11L, "성심당", "대전 중구", null,
+				null, List.of(), null, LocalDateTime.of(2026, 10, 4, 12, 30, 15), false,
+				LocalDateTime.of(2026, 10, 4, 13, 0, 5), LocalDateTime.of(2026, 10, 4, 13, 0, 5), List.of(),
+				List.of(tag), RecordType.NORMAL)), false));
+
+		mockMvc.perform(get("/bread-records"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.content[0].photos").isEmpty())
+			.andExpect(jsonPath("$.data.content[0].tags[0].name").value("소금빵"))
+			.andExpect(content().string(containsString("\"photoSortOrder\":null")))
+			.andExpect(content().string(containsString("\"x\":null")))
+			.andExpect(content().string(containsString("\"y\":null")));
+	}
+
+	@Test
+	void replace_carriesRewards() throws Exception {
+		given(commandService.replace(any(), any(), any())).willReturn(new BreadRecordUpdateResponse(List.of(
+			RewardItemResponse.crumbs(new GrantResult(GrantResult.Outcome.GRANTED, 5, 280, 285),
+				CrumbReason.RECORD_PHOTO))));
+
+		mockMvc
+			.perform(patch("/bread-records/1").contentType(MediaType.APPLICATION_JSON).content(
+				"{\"storeId\":11,\"storeName\":\"성심당\",\"eatenAt\":\"2026-10-04T12:30:00\",\"tags\":[],"
+					+ "\"photos\":[{\"fileName\":\"a.jpg\",\"contentType\":\"image/jpeg\","
+					+ "\"awsKey\":\"bread-records/a.jpg\",\"sortOrder\":0}]}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.rewards[0].reason").value("RECORD_PHOTO"))
+			.andExpect(jsonPath("$.data.rewards[0].amount").value(5));
 	}
 }

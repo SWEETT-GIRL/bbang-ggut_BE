@@ -33,6 +33,18 @@ public record RewardItemResponse(
 			reason, result.isCapped(), null, null, null, null);
 	}
 
+	/** 빵 칸(기록 수)이 올랐다. */
+	public static RewardItemResponse bread(int from, int to) {
+		return new RewardItemResponse(null, RewardItemType.BREAD, null, from, to, null, null, null, null, null,
+			null);
+	}
+
+	/** 레벨이 올랐다. 오른 뒤에 선 행성과 고도를 같이 싣는다. */
+	public static RewardItemResponse levelUp(int from, int to, String planet, String stage) {
+		return new RewardItemResponse(null, RewardItemType.LEVEL_UP, null, from, to, null, null, planet, stage,
+			null, null);
+	}
+
 	public RewardItemResponse withId(Long id) {
 		return new RewardItemResponse(id, type, amount, from, to, reason, capped, planet, stage, courseId, step);
 	}
