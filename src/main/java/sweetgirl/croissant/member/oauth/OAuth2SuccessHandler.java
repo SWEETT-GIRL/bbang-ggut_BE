@@ -6,6 +6,7 @@ import java.util.Arrays;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +23,7 @@ import sweetgirl.croissant.member.entity.RefreshToken;
 import sweetgirl.croissant.member.jwt.JwtProvider;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository;
+import sweetgirl.croissant.member.service.CustomOAuth2UserService;
 
 // 카카오 로그인 성공 시 Spring Security가 자동으로 호출하는 핸들러
 // JWT 발급 → RefreshToken DB 저장 → 앱 딥링크로 redirect
@@ -35,6 +37,9 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 	private final RefreshTokenRepository refreshTokenRepository;
 	// DB 저장 전 refreshToken을 SHA-256 해시로 변환하기 위해 주입
 	private final TokenHasher tokenHasher;
+
+	// 네이버 로그인은 빵별일지 앱만 쓴다 — 그 앱의 스킴으로 돌려보낸다.
+	public static final String NAVER_FRONT_REDIRECT_URI = "daedongbbangmap://oauth";
 
 	// application-local.properties의 oauth2.front-redirect-uri 값 주입 (bbanggut://oauth)
 	@Value("${oauth2.front-redirect-uri}")
@@ -71,7 +76,9 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 		clearCookie(response, "deviceId");
 
 		// bbanggut://oauth?accessToken=xxx&refreshToken=yyy 형태로 앱에 딥링크 redirect
-		String redirectUrl = "bbanggut://oauth"
+		boolean isNaver = authentication instanceof OAuth2AuthenticationToken token
+			&& CustomOAuth2UserService.NAVER_REGISTRATION_ID.equals(token.getAuthorizedClientRegistrationId());
+		String redirectUrl = (isNaver ? NAVER_FRONT_REDIRECT_URI : "bbanggut://oauth")
 			+ "?accessToken=" + accessToken
 			+ "&refreshToken=" + refreshToken
 			+ "&isNew=" + isNew;
