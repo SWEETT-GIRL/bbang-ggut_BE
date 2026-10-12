@@ -7,10 +7,12 @@ import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import jakarta.persistence.LockModeType;
 import sweetgirl.croissant.breadlog.dto.projection.BreadRecordRegionProjection;
 import sweetgirl.croissant.breadlog.dto.projection.BreadRecordStoreVisitProjection;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
@@ -18,6 +20,13 @@ import sweetgirl.croissant.breadlog.entity.BreadRecord;
 public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> {
 
 	Optional<BreadRecord> findByIdAndDeletedAtIsNull(Long id);
+
+	/**
+	 * 기록과 그 사진·태그를 바꾸는 쓰기(수정·삭제·공개 전환)의 시작점. 같은 기록의 쓰기를 한 줄로 세우고
+	 * 락 순서를 기록 → 사진으로 맞춘다. 조회에는 걸지 않는다 — findByIdAndDeletedAtIsNull 그대로.
+	 */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	Optional<BreadRecord> findWithLockByIdAndDeletedAtIsNull(Long id);
 
 	// 코스에서 "다녀왔어요"로 고를 후보 — 그 가게의 내 기록 전부, 최신순.
 	List<BreadRecord> findAllByMemberIdAndStoreIdAndDeletedAtIsNullOrderByEatenAtDesc(
