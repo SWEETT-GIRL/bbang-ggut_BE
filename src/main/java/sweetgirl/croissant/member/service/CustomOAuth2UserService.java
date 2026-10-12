@@ -2,7 +2,9 @@ package sweetgirl.croissant.member.service;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
@@ -11,7 +13,10 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
+import jakarta.servlet.http.Cookie;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.encrypt.TokenHasher;
 import sweetgirl.croissant.member.dto.dto.CustomOAuth2User;
@@ -32,12 +37,15 @@ import sweetgirl.croissant.member.util.NicknameGenerator;
 @RequiredArgsConstructor
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
+	public static final String NAVER_REGISTRATION_ID = "naver";
+
 	private final MemberRepository memberRepository;
 	private final NotificationSettingRepository notificationSettingRepository;
 	private final OAuthRepository oAuthRepository;
 	private final MemberRestrictionRepository memberRestrictionRepository;
 	private final TokenHasher tokenHasher;
 	private final NicknameGenerator nicknameGenerator;
+	private final NaverAuthService naverAuthService;
 
 	// Spring Security가 카카오 사용자 정보를 받아온 직후 자동으로 호출하는 메서드
 	// 여기서 DB upsert(신규 가입 or 기존 유저 조회)를 처리하고 인증된 유저 정보를 반환
@@ -49,7 +57,38 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 		// 내부적으로 카카오 User Info API(https://kapi.kakao.com/v2/user/me)를 호출
 		OAuth2User oAuth2User = super.loadUser(userRequest);
 
+		if (NAVER_REGISTRATION_ID.equals(userRequest.getClientRegistration().getRegistrationId())) {
+			return processNaverUser(oAuth2User, currentDeviceId());
+		}
 		return processOAuth2User(oAuth2User);
+	}
+
+	// 네이버 응답은 { resultcode, message, response: { id, email, ... } } — 필요한 값은 response 안에 있다.
+	@SuppressWarnings("unchecked")
+	protected OAuth2User processNaverUser(OAuth2User oAuth2User, String deviceId) {
+		Map<String, Object> response = (Map<String, Object>)oAuth2User.getAttributes().get("response");
+		if (response == null || response.get("id") == null) {
+			throw new OAuth2AuthenticationException(
+				new OAuth2Error("invalid_user_info_response", "네이버 사용자 정보에 id가 없습니다.", null));
+		}
+
+		NaverAuthService.NaverLoginResult result = naverAuthService.login(
+			String.valueOf(response.get("id")), (String)response.get("email"), deviceId);
+
+		return new CustomOAuth2User(oAuth2User, result.memberId(), result.isNew());
+	}
+
+	// CustomAuthorizationRequestResolver가 로그인 시작 때 저장해 둔 deviceId 쿠키 — 게스트 승격에 쓴다.
+	private String currentDeviceId() {
+		if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attrs)
+			|| attrs.getRequest().getCookies() == null) {
+			return null;
+		}
+		return Arrays.stream(attrs.getRequest().getCookies())
+			.filter(cookie -> "deviceId".equals(cookie.getName()))
+			.map(Cookie::getValue)
+			.findFirst()
+			.orElse(null);
 	}
 
 	protected OAuth2User processOAuth2User(OAuth2User oAuth2User) {
