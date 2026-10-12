@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 
 import sweetgirl.croissant.global.encrypt.TokenHasher;
@@ -41,6 +42,8 @@ class CustomOAuth2UserServiceTest {
 	private TokenHasher tokenHasher;
 	@Mock
 	private NicknameGenerator nicknameGenerator;
+	@Mock
+	private NaverAuthService naverAuthService;
 
 	@InjectMocks
 	private CustomOAuth2UserService customOAuth2UserService;
@@ -131,6 +134,33 @@ class CustomOAuth2UserServiceTest {
 		assertThat(result.getIsNewMember()).isTrue();
 		then(nicknameGenerator).should().generate();
 		then(existingOAuth).should().updateMember(newMember);
+	}
+
+	// 네이버 — 값이 response 안에 있고, 회원 처리는 NaverAuthService에 맡긴다
+	@Test
+	void processNaverUser_delegatesToNaverAuthService_withProfileFromResponse() {
+		OAuth2User oAuth2User = mock(OAuth2User.class);
+		given(oAuth2User.getAttributes()).willReturn(Map.of(
+			"resultcode", "00",
+			"response", Map.of("id", "naver-id", "email", "a@naver.com")));
+		given(naverAuthService.login("naver-id", "a@naver.com", "device-1"))
+			.willReturn(new NaverAuthService.NaverLoginResult(7L, true));
+
+		CustomOAuth2User result = (CustomOAuth2User)customOAuth2UserService.processNaverUser(oAuth2User,
+			"device-1");
+
+		assertThat(result.getMemberId()).isEqualTo(7L);
+		assertThat(result.getIsNewMember()).isTrue();
+	}
+
+	@Test
+	void processNaverUser_throws_whenResponseHasNoId() {
+		OAuth2User oAuth2User = mock(OAuth2User.class);
+		given(oAuth2User.getAttributes()).willReturn(Map.of("resultcode", "024"));
+
+		assertThatThrownBy(() -> customOAuth2UserService.processNaverUser(oAuth2User, "device-1"))
+			.isInstanceOf(OAuth2AuthenticationException.class);
+		then(naverAuthService).shouldHaveNoInteractions();
 	}
 
 	private OAuth2User kakaoOAuth2User(String providerId) {

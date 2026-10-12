@@ -128,7 +128,12 @@ public class SecurityConfig {
 					&& "MEMBER_BANNED".equals(oae.getError().getErrorCode())) {
 					errorCode = "MEMBER_BANNED";
 				}
-				response.sendRedirect(frontRedirectUri + "?error=" + errorCode);
+				// 콜백 경로(/api/v1/oauth2/{registrationId})로 어느 로그인이었는지 가른다.
+				String redirectUri = request.getRequestURI()
+					.endsWith("/" + CustomOAuth2UserService.NAVER_REGISTRATION_ID)
+						? OAuth2SuccessHandler.NAVER_FRONT_REDIRECT_URI
+						: frontRedirectUri;
+				response.sendRedirect(redirectUri + "?error=" + errorCode);
 			}));
 
 		http.exceptionHandling(exception -> exception.authenticationEntryPoint(apiAuthenticationEntryPoint));
