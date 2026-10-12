@@ -24,15 +24,12 @@ import sweetgirl.croissant.breadlog.dto.request.TutorialRecordRequest;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.entity.MemberTutorialCompletion;
 import sweetgirl.croissant.breadlog.exception.BreadLogException;
-import sweetgirl.croissant.breadlog.repository.BreadRecordPhotoRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
 import sweetgirl.croissant.breadlog.repository.MemberTutorialCompletionRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
-import sweetgirl.croissant.world.repository.MemberWorldRepository;
-import sweetgirl.croissant.world.service.WorldCommandService;
 
 @ExtendWith(MockitoExtension.class)
 class TutorialRecordCommandServiceTest {
@@ -47,13 +44,7 @@ class TutorialRecordCommandServiceTest {
 	@Mock
 	BreadRecordRepository records;
 	@Mock
-	BreadRecordPhotoRepository photos;
-	@Mock
 	BreadRecordTagRepository tags;
-	@Mock
-	WorldCommandService world;
-	@Mock
-	MemberWorldRepository memberWorldRepository;
 	@InjectMocks
 	TutorialRecordCommandService service;
 	Member member;
@@ -75,27 +66,30 @@ class TutorialRecordCommandServiceTest {
 	}
 
 	@Test
-	void guestCreatesOneRealRecordWithoutNormalWritePermission() {
+	void completeLeavesOnlyCompletionWithoutCreatingRecord() {
 		when(templates.published(TutorialRecordTemplate.CODE)).thenReturn(TutorialTemplateFixture.content());
 		when(completions.findById(1L)).thenReturn(Optional.empty());
-		when(records.saveAndFlush(any())).thenAnswer(invocation -> {
-			BreadRecord record = invocation.getArgument(0);
-			ReflectionTestUtils.setField(record, "id", 10L);
-			assertThat(record.isTutorial()).isTrue();
-			assertThat(record.getStore()).isNull();
-			assertThat(record.isPublic()).isFalse();
-			return record;
-		});
-		when(records.countByMemberIdAndDeletedAtIsNull(1L)).thenReturn(1L);
-		assertThat(service.complete(1L, request(TutorialRecordTemplate.CODE)).created()).isTrue();
+		var response = service.complete(1L, request(TutorialRecordTemplate.CODE));
+		assertThat(response.created()).isTrue();
+		assertThat(response.completed()).isTrue();
+		assertThat(response.recordId()).isNull();
 		verify(restrictions).validateNotRestricted(1L);
 		verify(restrictions, never()).validateCanWrite(any());
-		verify(photos).save(argThat(photo -> TutorialTemplateFixture.content().imageKey().equals(photo.getAwsKey())));
-		verify(records).saveAndFlush(argThat(record ->
-			TutorialTemplateFixture.content().memo().equals(record.getMemo())));
-		verify(tags).save(argThat(tag -> TutorialTemplateFixture.content().breadName().equals(tag.getName())));
-		verify(completions).save(any());
-		verify(memberWorldRepository).raiseMaxRecordCount(1L, 1L);
+		verify(records, never()).saveAndFlush(any());
+		verify(tags, never()).save(any());
+		verify(completions).save(argThat(completion ->
+			completion.getRecordId() == null && TutorialRecordTemplate.CODE.equals(completion.getTemplateCode())));
+	}
+
+	@Test
+	void retryAfterRecordlessCompletionDoesNotLookUpRecord() {
+		when(completions.findById(1L)).thenReturn(Optional.of(new MemberTutorialCompletion(1L, null, "v2")));
+		var response = service.complete(1L, request(TutorialRecordTemplate.CODE));
+		assertThat(response.created()).isFalse();
+		assertThat(response.recordId()).isNull();
+		assertThat(response.recordDeleted()).isFalse();
+		verify(records, never()).findByIdAndDeletedAtIsNull(any());
+		verify(completions, never()).save(any());
 	}
 
 	@Test
@@ -111,17 +105,18 @@ class TutorialRecordCommandServiceTest {
 	}
 
 	@Test
-	void invalidTemplateCannotCreateRecord() {
+	void invalidTemplateCannotComplete() {
 		when(templates.published("forged")).thenThrow(new BreadLogException(BreadLogErrorCode.INVALID_TUTORIAL));
 		assertThatThrownBy(() -> service.complete(1L, request("forged"))).isInstanceOf(BreadLogException.class);
-		verify(records, never()).saveAndFlush(any());
+		verify(completions, never()).save(any());
 	}
 
 	@Test
-	void noConsentCannotCreateRecord() {
+	void noConsentCannotComplete() {
 		ReflectionTestUtils.setField(member, "agreeToTerms", false);
 		assertThatThrownBy(() -> service.complete(1L, request(TutorialRecordTemplate.CODE)))
 			.isInstanceOf(BreadLogException.class);
+		verify(completions, never()).save(any());
 	}
 
 	@Test
@@ -129,7 +124,7 @@ class TutorialRecordCommandServiceTest {
 		doThrow(new IllegalStateException("restricted")).when(restrictions).validateNotRestricted(1L);
 		assertThatThrownBy(() -> service.complete(1L, request(TutorialRecordTemplate.CODE)))
 			.hasMessage("restricted");
-		verify(records, never()).saveAndFlush(any());
+		verify(completions, never()).save(any());
 	}
 
 	@Test
