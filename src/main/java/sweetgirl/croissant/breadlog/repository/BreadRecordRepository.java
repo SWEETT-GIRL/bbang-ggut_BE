@@ -16,6 +16,7 @@ import jakarta.persistence.LockModeType;
 import sweetgirl.croissant.breadlog.dto.projection.BreadRecordRegionProjection;
 import sweetgirl.croissant.breadlog.dto.projection.BreadRecordStoreVisitProjection;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
+import sweetgirl.croissant.breadlog.enums.RecordType;
 
 public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> {
 
@@ -33,6 +34,9 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			Long memberId, Long storeId);
 
 	long countByMemberIdAndDeletedAtIsNull(Long memberId);
+
+	/** 종류를 가려 센다. 리워드는 체험(TUTORIAL) 기록을 세지 않는다. */
+	long countByMemberIdAndRecordTypeAndDeletedAtIsNull(Long memberId, RecordType recordType);
 
 	@Modifying
 	@Query(value = """

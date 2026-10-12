@@ -76,9 +76,7 @@ public class AppleAuthService {
 		Member activeMember;
 		if (isDeletedMember) {
 			activeMember = memberRepository.save(
-				Member.builder()
-					.nickname(nicknameGenerator.generate())
-					.build());
+				Member.rejoining(nicknameGenerator.generate(), member.getId(), LocalDateTime.now()));
 			oAuth.updateMember(activeMember);
 		} else {
 			activeMember = member;

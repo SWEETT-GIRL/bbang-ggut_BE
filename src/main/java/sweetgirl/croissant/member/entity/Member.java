@@ -77,6 +77,19 @@ public class Member {
 	@Column(nullable = false, length = 20, columnDefinition = "VARCHAR DEFAULT 'USER'")
 	private String memberType = "USER";
 
+	/**
+	 * 소셜로 가입한 때. 게스트는 비어 있다.
+	 *
+	 * <p>{@code createdAt} 과 다르다 — 게스트로 쓰다 로그인하면 같은 행이 승격돼 {@code createdAt} 은
+	 * 게스트 발급 시각으로 남는다. 리워드의 "2.0 이전 가입자인가"가 이 값을 본다.
+	 */
+	@Column
+	private LocalDateTime registeredAt;
+
+	/** 탈퇴한 뒤 같은 소셜 계정으로 다시 가입했다면, 탈퇴한 옛 회원의 id. */
+	@Column
+	private Long previousMemberId;
+
 	@CreatedDate
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
@@ -90,6 +103,24 @@ public class Member {
 	@Builder
 	public Member(String nickname) {
 		this.nickname = nickname;
+	}
+
+	/** 소셜 계정으로 처음 가입하는 회원. */
+	public static Member registering(String nickname, LocalDateTime registeredAt) {
+		Member member = new Member(nickname);
+		member.registeredAt = registeredAt;
+		return member;
+	}
+
+	/** 탈퇴한 회원이 같은 소셜 계정으로 다시 가입한다. 옛 회원을 가리켜 둔다 — 환영 선물·초대 코드를 다시 받지 못하게 한다. */
+	public static Member rejoining(String nickname, Long previousMemberId, LocalDateTime registeredAt) {
+		Member member = registering(nickname, registeredAt);
+		member.previousMemberId = previousMemberId;
+		return member;
+	}
+
+	public boolean isRejoined() {
+		return this.previousMemberId != null;
 	}
 
 	public void updateMarketingAgreement(boolean agreeToMarketing) {
@@ -159,8 +190,9 @@ public class Member {
 	}
 
 	// 게스트로 쓰던 계정이 소셜 로그인으로 승격될 때. id를 유지하므로 코스/찜 소유권이 그대로 따라간다.
-	public void promoteToUser() {
+	public void promoteToUser(LocalDateTime registeredAt) {
 		this.memberType = "USER";
+		this.registeredAt = registeredAt;
 	}
 
 	public boolean isDeleted() {

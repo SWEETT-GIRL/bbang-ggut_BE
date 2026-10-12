@@ -39,6 +39,10 @@ public interface MemberCrumbWalletRepository extends JpaRepository<MemberCrumbWa
 	@Query(value = "SELECT balance FROM member_crumb_wallet WHERE member_id = :memberId", nativeQuery = true)
 	Optional<Integer> findBalance(@Param("memberId") Long memberId);
 
+	/** 이관 선물을 준 때. 지갑이 없거나 아직 주지 않았으면 비어 있다. */
+	@Query("SELECT wallet.carriedOverAt FROM MemberCrumbWallet wallet WHERE wallet.memberId = :memberId")
+	Optional<LocalDateTime> findCarriedOverAt(@Param("memberId") Long memberId);
+
 	/** 잔액을 움직인다(차감은 음수). 반드시 {@link #lockBalance} 로 잠근 뒤에 부른다. */
 	@Modifying
 	@Query(value = """

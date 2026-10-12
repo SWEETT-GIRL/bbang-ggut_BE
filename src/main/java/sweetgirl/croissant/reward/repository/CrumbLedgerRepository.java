@@ -47,6 +47,9 @@ public interface CrumbLedgerRepository extends JpaRepository<CrumbLedgerEntry, L
 	/** 그날 이 이유로 받은 횟수 — 하루 상한을 센다. 지갑을 잠근 뒤에 불러야 뜻이 있다. */
 	long countByMemberIdAndReasonAndEarnedOn(Long memberId, CrumbReason reason, LocalDate earnedOn);
 
+	/** 이 키의 보상을 이미 줬는가. */
+	boolean existsByMemberIdAndIdempotencyKey(Long memberId, String idempotencyKey);
+
 	/** 그날 받은 양(쓴 것은 빼지 않는다). */
 	@Query("""
 			SELECT COALESCE(SUM(entry.amount), 0) FROM CrumbLedgerEntry entry

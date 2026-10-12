@@ -9,6 +9,7 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -134,6 +135,11 @@ class CustomOAuth2UserServiceTest {
 		assertThat(result.getIsNewMember()).isTrue();
 		then(nicknameGenerator).should().generate();
 		then(existingOAuth).should().updateMember(newMember);
+		// 재가입 사실을 남긴다 — 환영 선물·초대 코드를 다시 받지 못하게 하는 근거다
+		ArgumentCaptor<Member> rejoined = ArgumentCaptor.forClass(Member.class);
+		then(memberRepository).should().save(rejoined.capture());
+		assertThat(rejoined.getValue().getPreviousMemberId()).isEqualTo(3L);
+		assertThat(rejoined.getValue().getRegisteredAt()).isNotNull();
 	}
 
 	// 네이버 — 값이 response 안에 있고, 회원 처리는 NaverAuthService에 맡긴다

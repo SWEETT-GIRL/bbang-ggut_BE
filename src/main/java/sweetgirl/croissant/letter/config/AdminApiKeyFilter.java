@@ -35,11 +35,16 @@ public class AdminApiKeyFilter extends OncePerRequestFilter {
 	 * 열쇠가 필요한 경로. 편지는 사용자에게 직접 닿고, 개인화 배치(#663)는 취향 신호를 되돌리기 어렵게 바꾸거나 락을 쥔 채 무거운
 	 * 트랜잭션을 건다 — 신호가 오염되면 추천이 바뀐다(PR #747 리뷰). 이유 문장 실험(#662)은 호출마다 외부 LLM 에 실제 비용이
 	 * 나간다 — 열어 두면 아무나 우리 계정으로 돈을 쓸 수 있다. S3 정리는 버킷의 파일을 되돌릴 수 없게 지운다.
+	 * 리워드는 부스러기를 지급·회수하고 보상 수치를 바꾼다 — 열려 있으면 아무나 재화를 찍어낸다.
 	 * 여기에 더하면 AdminApiKeyConfig 의 URL 패턴도 같이 더한다.
 	 */
 	static final List<String> PROTECTED_PREFIXES = List.of(
 		"/api/admin/letters", "/admin/personalization", "/admin/recommendations", "/api/admin/monthly-reports",
-		"/api/admin/tutorial-templates", "/admin/images/reconcile");
+		"/api/admin/tutorial-templates", "/admin/images/reconcile", "/api/admin/rewards");
+
+	/** 열쇠가 비었을 때 환경과 무관하게 막는 경로. 로컬에서도 열쇠 없이는 열리지 않는다. */
+	static final List<String> KEY_REQUIRED_PREFIXES = List.of(
+		"/api/admin/monthly-reports", "/api/admin/tutorial-templates", "/api/admin/rewards");
 
 	/**
 	 * 열쇠가 비었을 때 <b>통과시키지 않고 막는</b> 경로. 호출마다 외부 LLM 에 실제 비용이 나가서, 열려 있으면
@@ -72,8 +77,7 @@ public class AdminApiKeyFilter extends OncePerRequestFilter {
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
 			throws ServletException, IOException {
 		if (apiKey.isEmpty()) {
-			if (!request.getRequestURI().startsWith("/api/admin/monthly-reports")
-				&& !request.getRequestURI().startsWith("/api/admin/tutorial-templates")
+			if (!isKeyRequired(request.getRequestURI())
 				&& (allowWithoutKey || !isCostIncurring(request.getRequestURI()))) {
 				chain.doFilter(request, response);
 				return;
@@ -92,6 +96,10 @@ public class AdminApiKeyFilter extends OncePerRequestFilter {
 
 		log.warn("어드민 API 접근 거부 [uri={}, ip={}]", request.getRequestURI(), request.getRemoteAddr());
 		write(response, HttpStatus.UNAUTHORIZED, "ADMIN401", "어드민 인증이 필요합니다.");
+	}
+
+	private static boolean isKeyRequired(String uri) {
+		return KEY_REQUIRED_PREFIXES.stream().anyMatch(uri::startsWith);
 	}
 
 	private static boolean isCostIncurring(String uri) {

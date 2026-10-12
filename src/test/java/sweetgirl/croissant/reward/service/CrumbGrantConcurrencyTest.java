@@ -3,8 +3,10 @@ package sweetgirl.croissant.reward.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -23,6 +25,10 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import sweetgirl.croissant.external.aws.S3Service;
+import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.CarryOver;
 import sweetgirl.croissant.reward.enums.CrumbReason;
 import sweetgirl.croissant.reward.enums.RewardRefType;
 import sweetgirl.croissant.reward.exception.RewardException;
@@ -50,6 +56,15 @@ class CrumbGrantConcurrencyTest {
 	private CrumbGrantService crumbGrantService;
 
 	@Autowired
+	private RewardCommandService rewardCommandService;
+
+	@Autowired
+	private RewardPendingService rewardPendingService;
+
+	@Autowired
+	private MemberRepository memberRepository;
+
+	@Autowired
 	private JdbcTemplate jdbcTemplate;
 
 	private final ExecutorService executor = Executors.newFixedThreadPool(THREADS);
@@ -59,6 +74,7 @@ class CrumbGrantConcurrencyTest {
 		executor.shutdownNow();
 		jdbcTemplate.update("DELETE FROM crumb_ledger");
 		jdbcTemplate.update("DELETE FROM member_crumb_wallet");
+		jdbcTemplate.update("DELETE FROM member_pending_rewards");
 	}
 
 	@Test
@@ -113,6 +129,38 @@ class CrumbGrantConcurrencyTest {
 
 		assertThat(results).filteredOn(Boolean::booleanValue).hasSize(1);
 		assertThat(crumbGrantService.balanceOf(memberId)).isZero();
+	}
+
+	@Test
+	@DisplayName("요약 조회가 동시에 들어와도 이관 선물은 한 번만 들어가고, 한쪽만 안내를 띄운다")
+	void carryOverOnceUnderRace() throws Exception {
+		Long memberId = memberRepository.save(
+			Member.registering("청순한 포카치아", LocalDateTime.of(2026, 9, 1, 12, 0))).getId();
+
+		List<Optional<CarryOver>> results = runTogether(() -> rewardCommandService.carryOverIfNeeded(memberId));
+
+		assertThat(results).filteredOn(Optional::isPresent).hasSize(1);
+		assertThat(ledgerRows(memberId)).isEqualTo(1);
+		assertThat(crumbGrantService.balanceOf(memberId)).isEqualTo(50);
+		assertThat(rewardCommandService.carryOverIfNeeded(memberId)).isEmpty();
+	}
+
+	@Test
+	@DisplayName("연출할 보상은 DB 를 거쳐도 같은 모양으로 읽히고, 확인하면 사라진다")
+	void pendingRewardRoundTripsThroughDatabase() {
+		long memberId = 104L;
+		RewardItemResponse reward = RewardItemResponse.crumbs(
+			new GrantResult(GrantResult.Outcome.GRANTED, 100, 20, 120), CrumbReason.INVITE_INVITER);
+
+		rewardPendingService.add(memberId, "invite:9:inviter", reward);
+		rewardPendingService.add(memberId, "invite:9:inviter", reward);
+
+		List<RewardItemResponse> pending = rewardPendingService.list(memberId);
+		assertThat(pending).hasSize(1);
+		assertThat(pending.get(0).withId(null)).isEqualTo(reward);
+
+		rewardPendingService.acknowledge(memberId, List.of(pending.get(0).id()));
+		assertThat(rewardPendingService.list(memberId)).isEmpty();
 	}
 
 	private <T> List<T> runTogether(Callable<T> task) throws Exception {
