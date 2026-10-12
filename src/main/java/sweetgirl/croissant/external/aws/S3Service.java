@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
@@ -17,6 +18,7 @@ import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.Delete;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
@@ -28,6 +30,7 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
+import sweetgirl.croissant.external.aws.dto.S3ObjectSummary;
 import sweetgirl.croissant.external.aws.exception.S3ErrorCode;
 import sweetgirl.croissant.external.aws.exception.S3StorageException;
 
@@ -159,6 +162,32 @@ public class S3Service {
 		return keys;
 	}
 
+	/**
+	 * 접두사 아래 객체를 페이지(최대 1000개)마다 읽어 하나씩 넘긴다.
+	 *
+	 * <p>키가 수백만 개인 접두사도 목록 전체를 메모리에 올리지 않는다. 용량·최종 수정 시각이 함께 온다.
+	 */
+	public void forEachObject(String prefix, Consumer<S3ObjectSummary> consumer) {
+		String continuationToken = null;
+		try {
+			do {
+				ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder()
+					.bucket(bucketName)
+					.prefix(prefix);
+				if (continuationToken != null) {
+					requestBuilder.continuationToken(continuationToken);
+				}
+				ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
+				response.contents().forEach(s3Object -> consumer.accept(
+					new S3ObjectSummary(s3Object.key(), s3Object.size(), s3Object.lastModified())));
+				continuationToken = Boolean.TRUE.equals(response.isTruncated()) ? response.nextContinuationToken()
+					: null;
+			} while (continuationToken != null);
+		} catch (S3Exception e) {
+			throw new S3StorageException(S3ErrorCode.LIST_FAILED, e.awsErrorDetails().errorMessage());
+		}
+	}
+
 	// DeleteObjects 는 한 요청당 최대 1000개 — 배치 분할 호출.
 	public int deleteObjects(List<String> keys) {
 		if (keys.isEmpty()) {
@@ -174,8 +203,9 @@ public class S3Service {
 					.bucket(bucketName)
 					.delete(Delete.builder().objects(identifiers).quiet(true).build())
 					.build();
-				s3Client.deleteObjects(request);
-				deleted += identifiers.size();
+				// 요청은 200 이어도 키별로 실패할 수 있다 — 실패한 키는 지운 수에서 뺀다.
+				DeleteObjectsResponse response = s3Client.deleteObjects(request);
+				deleted += identifiers.size() - response.errors().size();
 			}
 		} catch (S3Exception e) {
 			throw new S3StorageException(S3ErrorCode.DELETE_FAILED, e.awsErrorDetails().errorMessage());
