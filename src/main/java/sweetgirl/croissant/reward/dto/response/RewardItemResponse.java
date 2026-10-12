@@ -52,6 +52,12 @@ public record RewardItemResponse(
 			null, null);
 	}
 
+	/** 빵투어 단계(완주 · 사진 완주)를 채웠다. 바로 뒤에 그 부스러기 칸이 온다. */
+	public static RewardItemResponse tourStep(Long courseId, String step) {
+		return new RewardItemResponse(null, RewardItemType.TOUR_STEP, null, null, null, null, null, null, null,
+			courseId, step);
+	}
+
 	public RewardItemResponse withId(Long id) {
 		return new RewardItemResponse(id, type, amount, from, to, reason, capped, planet, stage, courseId, step);
 	}

@@ -58,6 +58,7 @@ import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
 import sweetgirl.croissant.reward.service.RecordRewardService;
+import sweetgirl.croissant.reward.service.TourRewardService;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.enums.TrendingSignal;
 import sweetgirl.croissant.store.event.StoreTrendingSignalEvent;
@@ -161,6 +162,8 @@ class BreadRecordCommandServiceTest {
 	// 보상 규칙은 RecordRewardServiceTest 가 본다. 여기서는 빈 목록을 돌려주는 목이면 된다
 	@Mock
 	RecordRewardService recordRewardService;
+	@Mock
+	TourRewardService tourRewardService;
 
 	@Mock
 	ApplicationEventPublisher eventPublisher;
@@ -770,6 +773,47 @@ class BreadRecordCommandServiceTest {
 
 		assertThat(record.getId()).isEqualTo(11L);
 		assertThat(response.rewards()).isEqualTo(rewards);
+	}
+
+	@Test
+	@DisplayName("replace: 이 수정으로 채워진 빵투어 사진 완주 보상을 사진 보너스 뒤에 이어 싣는다")
+	void replace_appendsTourRewards() {
+		givenReplaceableRecord(false);
+		given(recordRewardService.rewardPhotosAttached(any(Member.class), eq(11L), any(), eq(1)))
+			.willReturn(List.of(RewardItemResponse.bread(1, 2)));
+		given(tourRewardService.rewardPhotoCompletions(any(Member.class), any()))
+			.willReturn(List.of(RewardItemResponse.tourStep(812L, "PHOTO_COMPLETE")));
+
+		BreadRecordUpdateResponse response = commandService.replace(11L, 7L, requestWithVisibility(null));
+
+		assertThat(response.rewards()).containsExactly(
+			RewardItemResponse.bread(1, 2), RewardItemResponse.tourStep(812L, "PHOTO_COMPLETE"));
+	}
+
+	@Test
+	@DisplayName("createTourQuickRecord: 가게만 있는 비공개 기록을 만들고, 보상 키는 (빵투어, 가게)이며 급부상 신호를 내지 않는다")
+	void createTourQuickRecord_lightRecord() {
+		Store store = store(10L);
+		given(memberReader.getMember(7L)).willReturn(member(7L));
+		given(storeRepository.findById(10L)).willReturn(Optional.of(store));
+		given(breadRecordRepository.save(any())).willAnswer(invocation -> {
+			BreadRecord record = invocation.getArgument(0);
+			ReflectionTestUtils.setField(record, "id", 31L);
+			return record;
+		});
+		given(photoRepository.saveAll(any())).willAnswer(invocation -> invocation.getArgument(0));
+		List<RewardItemResponse> rewards = List.of(RewardItemResponse.bread(0, 1));
+		given(recordRewardService.rewardTourRecordCreated(any(Member.class), eq(31L), eq(812L), eq(10L),
+			org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt())).willReturn(rewards);
+
+		BreadRecordCreateResponse response = commandService.createTourQuickRecord(7L, 812L, store, null);
+
+		assertThat(response.recordId()).isEqualTo(31L);
+		assertThat(response.rewards()).isEqualTo(rewards);
+		verify(breadRecordRepository).save(argThat(record -> !record.isPublic() && record.getStore() == store));
+		org.mockito.Mockito.verifyNoInteractions(eventPublisher);
+		verify(recordRewardService, never()).rewardCreated(any(), any(), org.mockito.ArgumentMatchers.anyInt(),
+			org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt());
 	}
 
 	private BreadRecordUpsertRequest photolessRequest(UUID requestId) {

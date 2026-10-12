@@ -20,6 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.LongPredicate;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -53,9 +54,12 @@ import sweetgirl.croissant.course.service.CourseCommandService;
 import sweetgirl.croissant.course.service.CourseMemberService;
 import sweetgirl.croissant.course.service.CourseProgressService;
 import sweetgirl.croissant.course.service.CourseQueryService;
+import sweetgirl.croissant.course.service.CourseStoreVisitService;
 import sweetgirl.croissant.course.service.SavedCourseCommandService;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
+import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
+import sweetgirl.croissant.reward.dto.response.TourRewardResponse;
 
 @ExtendWith(MockitoExtension.class)
 class CourseControllerTest {
@@ -73,6 +77,8 @@ class CourseControllerTest {
 	private CourseProgressService courseProgressService;
 	@Mock
 	private CourseMemberService courseMemberService;
+	@Mock
+	private CourseStoreVisitService courseStoreVisitService;
 
 	@InjectMocks
 	private CourseController courseController;
@@ -83,6 +89,48 @@ class CourseControllerTest {
 			.standaloneSetup(courseController)
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.build();
+	}
+
+	// 한 번 탭으로 다녀왔다고 표시하면 만든 기록과 보상을 내린다 — 본문 없이 보내도 된다
+	@Test
+	void markVisitedQuick_withoutBody() throws Exception {
+		given(courseStoreVisitService.markVisitedQuick(isNull(), eq(100L), eq(10L), isNull()))
+			.willReturn(new TourRewardResponse(31L, List.of(RewardItemResponse.tourStep(100L, "COMPLETE"))));
+
+		mockMvc.perform(post("/courses/100/stores/10/visit-quick"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.recordId").value(31))
+			.andExpect(jsonPath("$.data.rewards[0].type").value("TOUR_STEP"))
+			.andExpect(jsonPath("$.data.rewards[0].courseId").value(100))
+			.andExpect(jsonPath("$.data.rewards[0].step").value("COMPLETE"));
+	}
+
+	// 한 번 탭 방문의 requestId 를 서비스로 넘긴다
+	@Test
+	void markVisitedQuick_withRequestId() throws Exception {
+		UUID requestId = UUID.fromString("7f1c9a52-0d43-4a0b-9d6e-0f2b6c1a8e11");
+		given(courseStoreVisitService.markVisitedQuick(isNull(), eq(100L), eq(10L), eq(requestId)))
+			.willReturn(new TourRewardResponse(31L, List.of()));
+
+		mockMvc.perform(post("/courses/100/stores/10/visit-quick")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"requestId\":\"7f1c9a52-0d43-4a0b-9d6e-0f2b6c1a8e11\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.rewards").isEmpty());
+	}
+
+	// 기록을 골라 다녀왔다고 표시해도 보상을 내린다
+	@Test
+	void markVisited_returnsRewards() throws Exception {
+		given(courseStoreVisitService.markVisited(isNull(), eq(100L), eq(10L), eq(5L)))
+			.willReturn(new TourRewardResponse(5L, List.of()));
+
+		mockMvc.perform(post("/courses/100/stores/10/visit")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"breadRecordId\":5}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.recordId").value(5))
+			.andExpect(jsonPath("$.data.rewards").isArray());
 	}
 
 	/** 서비스는 접근 판정 뒤 version 을 컨트롤러의 판정(checkNotModified)에 넘기고, true 면 본문 없이 돌려준다. */

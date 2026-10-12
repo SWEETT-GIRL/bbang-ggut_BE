@@ -51,6 +51,31 @@ public class RecordRewardService {
 			int photoCount,
 			int heightBefore,
 			int heightAfter) {
+		return rewardCreated(member, recordId, photoCount, heightBefore, heightAfter, "record:" + recordId);
+	}
+
+	/**
+	 * 빵투어에서 한 번 탭으로 만든 가벼운 기록의 보상. 보통 기록과 같은 하루 상한에 세되, 멱등 키가 기록이 아니라
+	 * (빵투어, 가게)다 — 가벼운 기록을 지우고 다시 눌러 기록이 새로 생겨도 보상은 처음 한 번뿐이다.
+	 */
+	public List<RewardItemResponse> rewardTourRecordCreated(
+			Member member,
+			Long recordId,
+			Long courseId,
+			Long storeId,
+			int heightBefore,
+			int heightAfter) {
+		return rewardCreated(member, recordId, 0, heightBefore, heightAfter,
+			"tour_record:" + courseId + ":" + storeId);
+	}
+
+	private List<RewardItemResponse> rewardCreated(
+			Member member,
+			Long recordId,
+			int photoCount,
+			int heightBefore,
+			int heightAfter,
+			String recordRewardKey) {
 		if (member.isGuest()) {
 			return List.of();
 		}
@@ -61,7 +86,7 @@ public class RecordRewardService {
 		}
 
 		GrantResult record = crumbGrantService.grantWithDailyCap(
-			memberId, CrumbReason.RECORD, rewardSettings.get(RewardSettingKey.RECORD), "record:" + recordId,
+			memberId, CrumbReason.RECORD, rewardSettings.get(RewardSettingKey.RECORD), recordRewardKey,
 			RewardRefType.RECORD, recordId, rewardSettings.get(RewardSettingKey.RECORD_DAILY_CAP),
 			LocalDate.now(CrumbGrantService.ZONE));
 		if (record.isGranted() || record.isCapped()) {

@@ -64,6 +64,18 @@ public class CrumbGrantService {
 		return grant(new CrumbGrant(memberId, reason, amount, idempotencyKey, null, null, null, null), earnedOn);
 	}
 
+	/** 날짜와 대상을 함께 정해 주는 적립. */
+	public GrantResult grantOn(
+			long memberId,
+			CrumbReason reason,
+			int amount,
+			String idempotencyKey,
+			RewardRefType refType,
+			Long refId,
+			LocalDate earnedOn) {
+		return grant(new CrumbGrant(memberId, reason, amount, idempotencyKey, refType, refId, null, null), earnedOn);
+	}
+
 	/**
 	 * 하루 상한이 있는 적립. 그날 이 이유로 받은 횟수가 상한에 닿았으면 주지 않고 {@code CAPPED} 로 답한다.
 	 *

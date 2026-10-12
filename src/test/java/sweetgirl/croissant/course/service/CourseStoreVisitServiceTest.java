@@ -3,6 +3,7 @@ package sweetgirl.croissant.course.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.lenient;
@@ -22,8 +23,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import sweetgirl.croissant.breadlog.dto.response.BreadRecordCreateResponse;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
+import sweetgirl.croissant.breadlog.service.BreadRecordCommandService;
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.response.CourseVisitCandidateResponse;
 import sweetgirl.croissant.course.entity.Course;
@@ -36,6 +39,9 @@ import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
+import sweetgirl.croissant.reward.dto.response.TourRewardResponse;
+import sweetgirl.croissant.reward.service.TourRewardService;
 import sweetgirl.croissant.store.entity.Store;
 
 @ExtendWith(MockitoExtension.class)
@@ -61,6 +67,10 @@ class CourseStoreVisitServiceTest {
 	private CourseProgressService courseProgressService;
 	@Mock
 	private CourseMemberRepository courseMemberRepository;
+	@Mock
+	private BreadRecordCommandService breadRecordCommandService;
+	@Mock
+	private TourRewardService tourRewardService;
 
 	@InjectMocks
 	private CourseStoreVisitService courseStoreVisitService;
@@ -207,6 +217,93 @@ class CourseStoreVisitServiceTest {
 		assertThat(result).hasSize(2);
 		assertThat(result.get(0).linked()).isTrue();
 		assertThat(result.get(1).linked()).isFalse();
+	}
+
+	@Test
+	@DisplayName("markVisited: 다녀옴 · 완주 · 사진 완주 보상을 순서대로 이어 응답에 싣는다")
+	void markVisited_returnsRewardsInOrder() {
+		givenMemberAndPublicCourse();
+		givenCourseStore();
+		BreadRecord record = mockRecord(MEMBER_ID, STORE_ID);
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(RECORD_ID)).willReturn(Optional.of(record));
+		given(courseStoreVisitRepository.findByIdCourseIdAndIdMemberIdAndIdStoreId(COURSE_ID, MEMBER_ID, STORE_ID))
+			.willReturn(Optional.empty());
+		given(courseProgressService.refreshForMember(MEMBER_ID)).willReturn(List.of(COURSE_ID));
+		RewardItemResponse visit = RewardItemResponse.bread(0, 1);
+		RewardItemResponse complete = RewardItemResponse.tourStep(COURSE_ID, "COMPLETE");
+		RewardItemResponse photo = RewardItemResponse.tourStep(COURSE_ID, "PHOTO_COMPLETE");
+		given(tourRewardService.rewardVisit(any(), any(), eq(STORE_ID), any(), any())).willReturn(List.of(visit));
+		given(tourRewardService.rewardCompletions(any(), eq(List.of(COURSE_ID)), any())).willReturn(List.of(complete));
+		given(tourRewardService.rewardPhotoCompletions(any(), any())).willReturn(List.of(photo));
+
+		TourRewardResponse response = courseStoreVisitService.markVisited(MEMBER_ID, COURSE_ID, STORE_ID, RECORD_ID);
+
+		assertThat(response.rewards()).containsExactly(visit, complete, photo);
+		// "시작하기"를 누르지 않았어도 여기서 진행이 시작된다
+		then(courseProgressService).should().ensureStartedForVisit(any(), any(), any());
+	}
+
+	@Test
+	@DisplayName("markVisitedQuick: 가벼운 기록을 만들어 잇고, 기록 보상 뒤에 다녀옴 보상을 이어 싣는다")
+	void markVisitedQuick_createsLightRecord() {
+		givenMemberAndPublicCourse();
+		givenCourseStore();
+		given(courseStoreVisitRepository.findByIdCourseIdAndIdMemberIdAndIdStoreId(COURSE_ID, MEMBER_ID, STORE_ID))
+			.willReturn(Optional.empty());
+		RewardItemResponse recordReward = RewardItemResponse.bread(0, 1);
+		given(breadRecordCommandService.createTourQuickRecord(eq(MEMBER_ID), eq(COURSE_ID), any(Store.class), any()))
+			.willReturn(new BreadRecordCreateResponse(31L, LocalDateTime.of(2026, 10, 14, 12, 0),
+				List.of(recordReward)));
+		BreadRecord created = mockRecord(MEMBER_ID, STORE_ID);
+		given(created.getId()).willReturn(31L);
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(31L)).willReturn(Optional.of(created));
+		RewardItemResponse visit = RewardItemResponse.tourStep(COURSE_ID, "VISIT");
+		given(tourRewardService.rewardVisit(any(), any(), eq(STORE_ID), any(), any())).willReturn(List.of(visit));
+
+		TourRewardResponse response = courseStoreVisitService.markVisitedQuick(MEMBER_ID, COURSE_ID, STORE_ID, null);
+
+		assertThat(response.recordId()).isEqualTo(31L);
+		assertThat(response.rewards()).containsExactly(recordReward, visit);
+		then(courseStoreVisitRepository).should().save(any(CourseStoreVisit.class));
+	}
+
+	@Test
+	@DisplayName("markVisitedQuick: 이미 표시한 가게면 기록을 또 만들지 않고 그 기록을 보상 없이 돌려준다")
+	void markVisitedQuick_alreadyVisited() {
+		givenMemberAndPublicCourse();
+		givenCourseStore();
+		CourseStoreVisit existing = mock(CourseStoreVisit.class);
+		BreadRecord linked = mock(BreadRecord.class);
+		given(linked.getId()).willReturn(RECORD_ID);
+		given(existing.getBreadRecord()).willReturn(linked);
+		given(courseStoreVisitRepository.findByIdCourseIdAndIdMemberIdAndIdStoreId(COURSE_ID, MEMBER_ID, STORE_ID))
+			.willReturn(Optional.of(existing));
+
+		TourRewardResponse response = courseStoreVisitService.markVisitedQuick(MEMBER_ID, COURSE_ID, STORE_ID, null);
+
+		assertThat(response).isEqualTo(new TourRewardResponse(RECORD_ID, List.of()));
+		then(breadRecordCommandService).shouldHaveNoInteractions();
+		then(tourRewardService).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("markVisitedQuick: 풀어 둔 표시는 다시 켠다 — 기록은 새로 생긴다")
+	void markVisitedQuick_recheckAfterUnmark() {
+		givenMemberAndPublicCourse();
+		givenCourseStore();
+		CourseStoreVisit unmarked = mock(CourseStoreVisit.class);
+		given(unmarked.isDeleted()).willReturn(true);
+		given(courseStoreVisitRepository.findByIdCourseIdAndIdMemberIdAndIdStoreId(COURSE_ID, MEMBER_ID, STORE_ID))
+			.willReturn(Optional.of(unmarked));
+		given(breadRecordCommandService.createTourQuickRecord(eq(MEMBER_ID), eq(COURSE_ID), any(Store.class), any()))
+			.willReturn(new BreadRecordCreateResponse(32L, LocalDateTime.of(2026, 10, 14, 12, 0), List.of()));
+		BreadRecord created = mockRecord(MEMBER_ID, STORE_ID);
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(32L)).willReturn(Optional.of(created));
+
+		courseStoreVisitService.markVisitedQuick(MEMBER_ID, COURSE_ID, STORE_ID, null);
+
+		then(unmarked).should().relink(created, created.getEatenAt());
+		then(courseStoreVisitRepository).should(never()).save(any());
 	}
 
 	// ───────────────────────── helpers ─────────────────────────

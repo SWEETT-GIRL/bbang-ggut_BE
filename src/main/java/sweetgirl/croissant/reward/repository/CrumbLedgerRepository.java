@@ -52,6 +52,14 @@ public interface CrumbLedgerRepository extends JpaRepository<CrumbLedgerEntry, L
 	boolean existsByMemberIdAndReasonAndRefTypeAndRefId(
 			Long memberId, CrumbReason reason, RewardRefType refType, Long refId);
 
+	/** 그날 이 대상으로 이 이유의 보상을 받은 적이 있는가(같은 가게는 하루 한 번). */
+	boolean existsByMemberIdAndReasonAndRefTypeAndRefIdAndEarnedOn(
+			Long memberId, CrumbReason reason, RewardRefType refType, Long refId, LocalDate earnedOn);
+
+	/** 그 기간에 이 이유의 보상을 받은 적이 있는가(한 주에 하나). */
+	boolean existsByMemberIdAndReasonAndEarnedOnBetween(
+			Long memberId, CrumbReason reason, LocalDate from, LocalDate to);
+
 	/** 이 키의 보상을 이미 줬는가. */
 	boolean existsByMemberIdAndIdempotencyKey(Long memberId, String idempotencyKey);
 

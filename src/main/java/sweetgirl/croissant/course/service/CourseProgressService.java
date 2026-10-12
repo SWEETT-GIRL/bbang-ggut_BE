@@ -1,5 +1,6 @@
 package sweetgirl.croissant.course.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -123,8 +124,28 @@ public class CourseProgressService {
 			.toList();
 	}
 
-	public void refreshForMember(Long memberId) {
-		refresh(memberId);
+	/**
+	 * 완주 여부를 다시 본다.
+	 *
+	 * @return 이번 호출로 "진행 중 → 완주"가 된 빵투어들. 완주는 되돌아가지 않으므로 한 빵투어는 한 번만 여기 담긴다
+	 */
+	public List<Long> refreshForMember(Long memberId) {
+		return refresh(memberId).stream()
+			.filter(progress -> progress.getStatus() == CourseProgressStatus.FINISHED)
+			.map(progress -> progress.getCourse().getId())
+			.toList();
+	}
+
+	/**
+	 * 방문을 표시하는 회원의 진행 행을 보장하고, 처음 다녀온 날을 남긴다.
+	 * "시작하기"를 누르지 않고 바로 다녀왔다고 표시해도 진행과 완주가 따라오게 한다. 멈춰 둔 빵투어는 다시 이어진다.
+	 */
+	public CourseProgress ensureStartedForVisit(Member member, Course course, LocalDate visitedOn) {
+		CourseProgress progress = courseProgressRepository.findByMemberIdAndCourseId(member.getId(), course.getId())
+			.orElseGet(() -> courseProgressRepository.save(CourseProgress.start(member, course, LocalDateTime.now())));
+		progress.resume();
+		progress.markFirstVisit(visitedOn);
+		return progress;
 	}
 
 	/**

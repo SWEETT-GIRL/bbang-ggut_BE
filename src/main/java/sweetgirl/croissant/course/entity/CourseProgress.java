@@ -1,5 +1,6 @@
 package sweetgirl.croissant.course.entity;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
@@ -52,6 +53,14 @@ public class CourseProgress extends BaseTimeEntity {
 
 	private LocalDateTime finishedAt;
 
+	/** 이 빵투어에서 처음 "다녀왔어요"를 누른 한국 날짜. 리워드의 날짜 판정이 본다. */
+	@Column(name = "first_visited_on")
+	private LocalDate firstVisitedOn;
+
+	/** 모든 가게에 사진 붙은 기록이 달린 때. 사진 완주 판정을 한 번만 하기 위한 표시다. */
+	@Column(name = "photo_completed_at")
+	private LocalDateTime photoCompletedAt;
+
 	private CourseProgress(Member member, Course course, LocalDateTime startedAt) {
 		this.id = new CourseProgressId(member.getId(), course.getId());
 		this.member = member;
@@ -75,6 +84,19 @@ public class CourseProgress extends BaseTimeEntity {
 		if (this.status == CourseProgressStatus.IN_PROGRESS) {
 			this.status = CourseProgressStatus.STOPPED;
 			this.stoppedAt = stoppedAt;
+		}
+	}
+
+	/** 처음 다녀온 날을 남긴다. 이미 있으면 덮지 않는다. */
+	public void markFirstVisit(LocalDate visitedOn) {
+		if (this.firstVisitedOn == null) {
+			this.firstVisitedOn = visitedOn;
+		}
+	}
+
+	public void markPhotoCompleted(LocalDateTime photoCompletedAt) {
+		if (this.photoCompletedAt == null) {
+			this.photoCompletedAt = photoCompletedAt;
 		}
 	}
 
