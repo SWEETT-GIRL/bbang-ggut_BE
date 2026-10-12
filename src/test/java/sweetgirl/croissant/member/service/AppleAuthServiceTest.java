@@ -8,6 +8,7 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -158,6 +159,11 @@ class AppleAuthServiceTest {
 		assertThat(response.isNew()).isTrue();
 		then(nicknameGenerator).should().generate();
 		then(existingOAuth).should().updateMember(newMember);
+		// 재가입 사실을 남긴다 — 환영 선물·초대 코드를 다시 받지 못하게 하는 근거다
+		ArgumentCaptor<Member> rejoined = ArgumentCaptor.forClass(Member.class);
+		then(memberRepository).should().save(rejoined.capture());
+		assertThat(rejoined.getValue().getPreviousMemberId()).isEqualTo(3L);
+		assertThat(rejoined.getValue().getRegisteredAt()).isNotNull();
 		// 아직 동의 전이므로 게스트 이관은 미뤄진다 — 여기서 이관하면 동의 취소 시
 		// 게스트 세션이 이미 닫혀 410으로 온보딩에 튕긴다.
 		then(guestPromotionService).should(never()).mergeGuestDataInto(any(), any(), any());

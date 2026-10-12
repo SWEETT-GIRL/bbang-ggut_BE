@@ -3,6 +3,7 @@ package sweetgirl.croissant.member.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -49,7 +50,7 @@ class GuestPromotionServiceTest {
 		Member resolved = guestPromotionService.resolveMemberForNewOAuth(DEVICE_ID, null);
 
 		assertThat(resolved).isSameAs(guest);
-		then(guest).should().promoteToUser();
+		then(guest).should().promoteToUser(any(LocalDateTime.class));
 		then(memberRepository).should(never()).save(any(Member.class));
 	}
 

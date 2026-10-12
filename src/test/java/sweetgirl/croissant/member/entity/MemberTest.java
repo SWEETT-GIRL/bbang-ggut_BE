@@ -2,6 +2,8 @@ package sweetgirl.croissant.member.entity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.LocalDateTime;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -56,9 +58,43 @@ class MemberTest {
 		member.markAsGuest();
 		member.applyInitialConsent(true, true, true, false, false, false, "v1", "v1");
 
-		member.promoteToUser();
+		member.promoteToUser(LocalDateTime.of(2026, 10, 12, 9, 0));
 
 		assertThat(member.getMemberType()).isEqualTo("USER");
 		assertThat(member.isAgreeToTerms()).isTrue();
+	}
+
+	@Test
+	@DisplayName("게스트가 승격된 때가 가입 시각이다 — 게스트로 처음 들어온 때가 아니다")
+	void promoteToUser_recordsRegisteredAt() {
+		Member member = Member.builder().nickname("청순한 포카치아").build();
+		member.markAsGuest();
+		LocalDateTime promotedAt = LocalDateTime.of(2026, 10, 12, 9, 0);
+
+		member.promoteToUser(promotedAt);
+
+		assertThat(member.getRegisteredAt()).isEqualTo(promotedAt);
+		assertThat(member.isRejoined()).isFalse();
+	}
+
+	@Test
+	@DisplayName("재가입한 회원은 탈퇴한 옛 회원을 가리킨다")
+	void rejoining_pointsToPreviousMember() {
+		LocalDateTime rejoinedAt = LocalDateTime.of(2026, 10, 12, 9, 0);
+
+		Member member = Member.rejoining("청순한 포카치아", 41L, rejoinedAt);
+
+		assertThat(member.isRejoined()).isTrue();
+		assertThat(member.getPreviousMemberId()).isEqualTo(41L);
+		assertThat(member.getRegisteredAt()).isEqualTo(rejoinedAt);
+	}
+
+	@Test
+	@DisplayName("게스트는 가입 시각이 없다")
+	void guest_hasNoRegisteredAt() {
+		Member member = Member.builder().nickname("청순한 포카치아").build();
+		member.markAsGuest();
+
+		assertThat(member.getRegisteredAt()).isNull();
 	}
 }

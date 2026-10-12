@@ -8,6 +8,7 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -123,6 +124,37 @@ class NaverAuthServiceTest {
 			.isInstanceOfSatisfying(OAuth2AuthenticationException.class,
 				ex -> assertThat(ex.getError().getErrorCode()).isEqualTo("MEMBER_BANNED"));
 		then(eventPublisher).shouldHaveNoInteractions();
+	}
+
+	// 탈퇴 후 재가입 — 새 회원을 만들고, 탈퇴한 옛 회원을 가리켜 둔다
+	@Test
+	void login_createsRejoinedMember_whenPreviouslyDeleted() {
+		given(tokenHasher.hash(PROVIDER_ID)).willReturn(HASHED_ID);
+		given(oAuthRepository.existsByProviderAndProviderId(OAuthProvider.NAVER, HASHED_ID)).willReturn(true);
+		given(nicknameGenerator.generate()).willReturn("신난 두쫀쿠");
+
+		Member deleted = memberOf(4L);
+		given(deleted.isDeleted()).willReturn(true);
+		OAuth oAuth = mock(OAuth.class);
+		given(oAuth.getMember()).willReturn(deleted);
+		given(oAuthRepository.findByProviderAndProviderId(OAuthProvider.NAVER, HASHED_ID))
+			.willReturn(Optional.of(oAuth));
+		given(memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(eq(4L), any(), any()))
+			.willReturn(List.of());
+		Member rejoinedMember = memberOf(5L);
+		given(memberRepository.save(any(Member.class))).willReturn(rejoinedMember);
+		given(notificationSettingRepository.findByMemberId(5L))
+			.willReturn(Optional.of(mock(NotificationSetting.class)));
+
+		NaverAuthService.NaverLoginResult result = naverAuthService.login(PROVIDER_ID, "a@naver.com", DEVICE_ID);
+
+		assertThat(result.memberId()).isEqualTo(5L);
+		assertThat(result.isNew()).isTrue();
+		ArgumentCaptor<Member> rejoined = ArgumentCaptor.forClass(Member.class);
+		then(memberRepository).should().save(rejoined.capture());
+		assertThat(rejoined.getValue().getPreviousMemberId()).isEqualTo(4L);
+		assertThat(rejoined.getValue().getRegisteredAt()).isNotNull();
+		then(oAuth).should().updateMember(rejoinedMember);
 	}
 
 	private Member memberOf(Long id) {

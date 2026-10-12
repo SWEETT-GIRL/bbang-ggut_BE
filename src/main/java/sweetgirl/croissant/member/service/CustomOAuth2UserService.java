@@ -124,9 +124,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 		Member activeMember;
 		if (isDeletedMember) {
 			activeMember = memberRepository.save(
-				Member.builder()
-					.nickname(nicknameGenerator.generate())
-					.build());
+				Member.rejoining(nicknameGenerator.generate(), member.getId(), LocalDateTime.now()));
 			oAuth.updateMember(activeMember);
 		} else {
 			activeMember = member;
@@ -146,9 +144,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
 	private OAuth registerNewMember(KakaoOAuth2UserInfo userInfo) {
 		Member member = memberRepository.save(
-			Member.builder()
-				.nickname(nicknameGenerator.generate())
-				.build());
+			Member.registering(nicknameGenerator.generate(), LocalDateTime.now()));
 
 		OAuth oAuth = oAuthRepository.save(
 			OAuth.builder()

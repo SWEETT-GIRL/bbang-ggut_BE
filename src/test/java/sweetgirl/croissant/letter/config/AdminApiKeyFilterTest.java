@@ -197,4 +197,30 @@ class AdminApiKeyFilterTest {
 			response, chain);
 		assertThat(chain.getRequest()).isNotNull();
 	}
+
+	@Test
+	@DisplayName("리워드 어드민 경로는 열쇠가 없으면 401 로 막는다 — 열려 있으면 아무나 부스러기를 찍어낸다")
+	void protectsRewardAdminPaths() throws Exception {
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		new AdminApiKeyFilter("secret", false)
+			.doFilter(request("/api/admin/rewards/members/7/grant", null), response, chain);
+
+		assertThat(response.getStatus()).isEqualTo(401);
+		assertThat(chain.getRequest()).isNull();
+	}
+
+	@Test
+	@DisplayName("서버에 열쇠가 비어 있으면 리워드 어드민은 로컬에서도 503 으로 막는다")
+	void blocksRewardAdminWhenKeyMissingEvenOnLocal() throws Exception {
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		new AdminApiKeyFilter("", true)
+			.doFilter(request("/api/admin/rewards/settings", null), response, chain);
+
+		assertThat(response.getStatus()).isEqualTo(503);
+		assertThat(chain.getRequest()).isNull();
+	}
 }

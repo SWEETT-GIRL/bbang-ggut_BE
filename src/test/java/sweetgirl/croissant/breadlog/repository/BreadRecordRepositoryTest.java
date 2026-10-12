@@ -69,6 +69,8 @@ class BreadRecordRepositoryTest {
 					terms_agreed_at TIMESTAMP,
 					marketing_agreed_at TIMESTAMP,
 					member_type VARCHAR(20) NOT NULL DEFAULT 'USER',
+					registered_at TIMESTAMP,
+					previous_member_id BIGINT,
 					created_at TIMESTAMP NOT NULL,
 					updated_at TIMESTAMP
 				)
