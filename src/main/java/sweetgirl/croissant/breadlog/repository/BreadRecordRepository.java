@@ -35,6 +35,17 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 
 	long countByMemberIdAndDeletedAtIsNull(Long memberId);
 
+	/**
+	 * 보통 기록을 남긴 날들(저장한 날 기준, 최근 것부터). 1.x 홈의 "N일 연속"과 같은 기준이다 — 먹은 날이 아니라 저장한 날.
+	 */
+	@Query(value = """
+			SELECT DISTINCT CAST(created_at AS DATE) AS recorded_on
+			FROM bread_record
+			WHERE member_id = :memberId AND deleted_at IS NULL AND record_type = 'NORMAL' AND created_at >= :since
+			ORDER BY recorded_on DESC
+			""", nativeQuery = true)
+	List<java.sql.Date> findRecordedDaysSince(@Param("memberId") Long memberId, @Param("since") LocalDateTime since);
+
 	/** 종류를 가려 센다. 리워드는 체험(TUTORIAL) 기록을 세지 않는다. */
 	long countByMemberIdAndRecordTypeAndDeletedAtIsNull(Long memberId, RecordType recordType);
 

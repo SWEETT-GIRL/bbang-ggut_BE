@@ -27,6 +27,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.reward.dto.response.AttendanceResponse;
+import sweetgirl.croissant.reward.dto.response.FeedResponse;
 import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.CarryOver;
 import sweetgirl.croissant.reward.enums.CrumbReason;
@@ -62,6 +64,9 @@ class CrumbGrantConcurrencyTest {
 	private RewardPendingService rewardPendingService;
 
 	@Autowired
+	private RewardDailyCommandService rewardDailyCommandService;
+
+	@Autowired
 	private MemberRepository memberRepository;
 
 	@Autowired
@@ -75,6 +80,8 @@ class CrumbGrantConcurrencyTest {
 		jdbcTemplate.update("DELETE FROM crumb_ledger");
 		jdbcTemplate.update("DELETE FROM member_crumb_wallet");
 		jdbcTemplate.update("DELETE FROM member_pending_rewards");
+		jdbcTemplate.update("DELETE FROM member_attendance_days");
+		jdbcTemplate.update("DELETE FROM member_feed_days");
 	}
 
 	@Test
@@ -143,6 +150,35 @@ class CrumbGrantConcurrencyTest {
 		assertThat(ledgerRows(memberId)).isEqualTo(1);
 		assertThat(crumbGrantService.balanceOf(memberId)).isEqualTo(50);
 		assertThat(rewardCommandService.carryOverIfNeeded(memberId)).isEmpty();
+	}
+
+	@Test
+	@DisplayName("출석이 동시에 들어와도 오늘 도장은 하나, 부스러기는 한 번만 받는다")
+	void attendanceOnceUnderRace() throws Exception {
+		Long memberId = memberRepository.save(
+			Member.registering("신난 두쫀쿠", LocalDateTime.of(2026, 9, 1, 12, 0))).getId();
+
+		List<AttendanceResponse> results = runTogether(() -> rewardDailyCommandService.checkIn(memberId));
+
+		assertThat(results).filteredOn(result -> !result.alreadyDone()).hasSize(1);
+		assertThat(results).allSatisfy(result -> {
+			assertThat(result.boardDay()).isEqualTo(1);
+			assertThat(result.crumbs()).isEqualTo(5);
+		});
+		assertThat(crumbGrantService.balanceOf(memberId)).isEqualTo(5);
+	}
+
+	@Test
+	@DisplayName("밥 룰렛이 동시에 들어와도 모두 같은 칸을 보고, 그 칸의 값만큼 한 번만 받는다")
+	void feedOnceUnderRace() throws Exception {
+		Long memberId = memberRepository.save(
+			Member.registering("신난 두쫀쿠", LocalDateTime.of(2026, 9, 1, 12, 0))).getId();
+
+		List<FeedResponse> results = runTogether(() -> rewardDailyCommandService.feed(memberId));
+
+		assertThat(results).filteredOn(result -> !result.alreadyDone()).hasSize(1);
+		assertThat(results).extracting(FeedResponse::wedge).containsOnly(results.get(0).wedge());
+		assertThat(crumbGrantService.balanceOf(memberId)).isEqualTo(results.get(0).crumbs());
 	}
 
 	@Test

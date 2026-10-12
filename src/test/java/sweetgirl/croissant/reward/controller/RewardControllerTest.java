@@ -30,11 +30,14 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.exception.MemberException;
+import sweetgirl.croissant.reward.dto.response.AttendanceResponse;
+import sweetgirl.croissant.reward.dto.response.FeedResponse;
 import sweetgirl.croissant.reward.dto.response.RewardClaimResponse;
 import sweetgirl.croissant.reward.dto.response.RewardHistoryResponse;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.CarryOver;
 import sweetgirl.croissant.reward.service.RewardCommandService;
+import sweetgirl.croissant.reward.service.RewardDailyCommandService;
 import sweetgirl.croissant.reward.service.RewardQueryService;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,6 +49,8 @@ class RewardControllerTest {
 	private RewardCommandService rewardCommandService;
 	@Mock
 	private RewardQueryService rewardQueryService;
+	@Mock
+	private RewardDailyCommandService rewardDailyCommandService;
 
 	@InjectMocks
 	private RewardController rewardController;
@@ -63,7 +68,7 @@ class RewardControllerTest {
 		CarryOver carryOver = new CarryOver(true, 110, 12);
 		given(rewardCommandService.carryOverIfNeeded(any())).willReturn(Optional.of(carryOver));
 		given(rewardQueryService.getSummary(any(), eq(carryOver)))
-			.willReturn(RewardSummaryResponse.guest(null));
+			.willReturn(RewardSummaryResponse.guest(null, null, null));
 
 		mockMvc.perform(get("/members/me/rewards/summary")).andExpect(status().isOk());
 
@@ -76,7 +81,7 @@ class RewardControllerTest {
 	@DisplayName("이관이 없던 조회는 carryOver 없이 읽는다")
 	void readsWithoutCarryOver() throws Exception {
 		given(rewardCommandService.carryOverIfNeeded(any())).willReturn(Optional.empty());
-		given(rewardQueryService.getSummary(any(), isNull())).willReturn(RewardSummaryResponse.guest(null));
+		given(rewardQueryService.getSummary(any(), isNull())).willReturn(RewardSummaryResponse.guest(null, null, null));
 
 		mockMvc.perform(get("/members/me/rewards/summary"))
 			.andExpect(status().isOk())
@@ -112,6 +117,38 @@ class RewardControllerTest {
 			.given(rewardCommandService).claimWelcome(any());
 
 		mockMvc.perform(post("/members/me/rewards/welcome")).andExpect(status().isForbidden());
+	}
+
+	@Test
+	@DisplayName("오늘 이미 출석했으면 에러가 아니라 alreadyDone 과 오늘 결과로 답한다")
+	void attendanceAlreadyDone() throws Exception {
+		given(rewardDailyCommandService.checkIn(any())).willReturn(new AttendanceResponse(3, 10, true, List.of()));
+
+		mockMvc.perform(post("/members/me/rewards/attendance"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.boardDay").value(3))
+			.andExpect(jsonPath("$.data.crumbs").value(10))
+			.andExpect(jsonPath("$.data.alreadyDone").value(true));
+	}
+
+	@Test
+	@DisplayName("밥 룰렛은 멈춘 칸과 받은 양을 내린다")
+	void feed() throws Exception {
+		given(rewardDailyCommandService.feed(any())).willReturn(new FeedResponse(5, 50, false, List.of()));
+
+		mockMvc.perform(post("/members/me/rewards/feed"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.wedge").value(5))
+			.andExpect(jsonPath("$.data.crumbs").value(50));
+	}
+
+	@Test
+	@DisplayName("게스트가 출석하려 하면 403 이다")
+	void attendanceGuest() throws Exception {
+		willThrow(new MemberException(MemberErrorCode.GUEST_LOGIN_REQUIRED))
+			.given(rewardDailyCommandService).checkIn(any());
+
+		mockMvc.perform(post("/members/me/rewards/attendance")).andExpect(status().isForbidden());
 	}
 
 	@Test

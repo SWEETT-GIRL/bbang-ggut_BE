@@ -1,6 +1,7 @@
 package sweetgirl.croissant.reward;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 import java.nio.charset.StandardCharsets;
@@ -40,7 +41,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 import jakarta.persistence.EntityManagerFactory;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.reward.entity.CrumbLedgerEntry;
+import sweetgirl.croissant.reward.entity.MemberAttendanceDay;
 import sweetgirl.croissant.reward.entity.MemberCrumbWallet;
+import sweetgirl.croissant.reward.entity.MemberFeedDay;
 import sweetgirl.croissant.reward.entity.MemberPendingReward;
 import sweetgirl.croissant.reward.entity.RewardSetting;
 import sweetgirl.croissant.reward.enums.CrumbReason;
@@ -48,7 +51,9 @@ import sweetgirl.croissant.reward.enums.RewardRefType;
 import sweetgirl.croissant.reward.enums.RewardSettingKey;
 import sweetgirl.croissant.reward.exception.RewardException;
 import sweetgirl.croissant.reward.repository.CrumbLedgerRepository;
+import sweetgirl.croissant.reward.repository.MemberAttendanceDayRepository;
 import sweetgirl.croissant.reward.repository.MemberCrumbWalletRepository;
+import sweetgirl.croissant.reward.repository.MemberFeedDayRepository;
 import sweetgirl.croissant.reward.repository.MemberPendingRewardRepository;
 import sweetgirl.croissant.reward.repository.RewardSettingRepository;
 import sweetgirl.croissant.reward.service.CrumbGrantService;
@@ -106,7 +111,8 @@ class RewardWalletPostgresTest {
 		for (String migration : List.of(
 			"V20261012200000__create_crumb_wallet_and_ledger.sql",
 			"V20261012200100__create_reward_settings.sql",
-			"V20261012200200__add_registration_columns_to_member.sql")) {
+			"V20261012200200__add_registration_columns_to_member.sql",
+			"V20261012210000__create_reward_daily_tables.sql")) {
 			jdbc.execute(new ClassPathResource("db/migration/" + migration).getContentAsString(StandardCharsets.UTF_8));
 		}
 
@@ -115,7 +121,8 @@ class RewardWalletPostgresTest {
 		factory.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
 		factory.setManagedTypes(PersistenceManagedTypes.of(
 			MemberCrumbWallet.class.getName(), CrumbLedgerEntry.class.getName(),
-			MemberPendingReward.class.getName(), RewardSetting.class.getName()));
+			MemberPendingReward.class.getName(), RewardSetting.class.getName(),
+			MemberAttendanceDay.class.getName(), MemberFeedDay.class.getName()));
 		// 마이그레이션이 만든 표와 엔티티가 어긋나면 여기서 터진다 — 운영 기동 실패를 미리 본다
 		// 이름 전략은 앱(Spring Boot 기본값)과 같게 둔다 — balanceAfter 를 balance_after 로 읽는다
 		factory.setJpaPropertyMap(Map.of(
@@ -138,6 +145,10 @@ class RewardWalletPostgresTest {
 			() -> repositories.getRepository(MemberPendingRewardRepository.class));
 		context.registerBean(RewardSettingRepository.class,
 			() -> repositories.getRepository(RewardSettingRepository.class));
+		context.registerBean(MemberAttendanceDayRepository.class,
+			() -> repositories.getRepository(MemberAttendanceDayRepository.class));
+		context.registerBean(MemberFeedDayRepository.class,
+			() -> repositories.getRepository(MemberFeedDayRepository.class));
 		// 제재 표는 이 스키마에 없다 — 아무도 제재 중이 아닌 것으로 둔다
 		context.registerBean(MemberRestrictionReader.class, () -> mock(MemberRestrictionReader.class));
 		context.registerBean(CrumbGrantService.class);
@@ -255,6 +266,53 @@ class RewardWalletPostgresTest {
 		assertThat(jdbc.queryForObject(
 			"SELECT payload ->> 'type' FROM member_pending_rewards WHERE member_id = 1", String.class))
 			.isEqualTo("LEVEL_UP");
+	}
+
+	@Test
+	@DisplayName("같은 날의 출석은 PK 가 한 줄만 받고, 날짜로 그날 출석한 회원을 찾는다")
+	void attendanceDayIsOnePerMemberPerDay() {
+		MemberAttendanceDayRepository attendanceDays = context.getBean(MemberAttendanceDayRepository.class);
+		TransactionTemplate transaction = new TransactionTemplate(context.getBean(JpaTransactionManager.class));
+
+		int first = transaction.execute(status -> attendanceDays.insertIfAbsent(1L, TODAY, 3, 10, LocalDateTime.now()));
+		int second = transaction.execute(status -> attendanceDays.insertIfAbsent(1L, TODAY, 4, 5, LocalDateTime.now()));
+		transaction.executeWithoutResult(status -> attendanceDays.updateCrumbs(1L, TODAY, 0));
+
+		assertThat(first).isEqualTo(1);
+		assertThat(second).isZero();
+		assertThat(attendanceDays.findByMemberIdAndDay(1L, TODAY)).hasValueSatisfying(day -> {
+			assertThat(day.getBoardDay()).isEqualTo(3);
+			assertThat(day.getCrumbs()).isZero();
+		});
+		assertThat(jdbc.queryForList(
+			"SELECT member_id FROM member_attendance_days WHERE attended_on = ?", Long.class, TODAY))
+			.containsExactly(1L);
+	}
+
+	@Test
+	@DisplayName("8 일째 칸은 DB 가 받지 않는다")
+	void boardDayIsBoundedByCheck() {
+		MemberAttendanceDayRepository attendanceDays = context.getBean(MemberAttendanceDayRepository.class);
+		TransactionTemplate transaction = new TransactionTemplate(context.getBean(JpaTransactionManager.class));
+
+		assertThatThrownBy(() -> transaction.execute(
+			status -> attendanceDays.insertIfAbsent(1L, TODAY, 8, 5, LocalDateTime.now())))
+			.hasMessageContaining("chk_member_attendance_board_day");
+	}
+
+	@Test
+	@DisplayName("밥 룰렛 결과도 하루에 한 줄이다")
+	void feedDayIsOnePerMemberPerDay() {
+		MemberFeedDayRepository feedDays = context.getBean(MemberFeedDayRepository.class);
+		TransactionTemplate transaction = new TransactionTemplate(context.getBean(JpaTransactionManager.class));
+
+		int first = transaction.execute(status -> feedDays.insertIfAbsent(1L, TODAY, 5, 50, LocalDateTime.now()));
+		int second = transaction.execute(status -> feedDays.insertIfAbsent(1L, TODAY, 0, 10, LocalDateTime.now()));
+
+		assertThat(first).isEqualTo(1);
+		assertThat(second).isZero();
+		assertThat(feedDays.findByMemberIdAndDay(1L, TODAY)).hasValueSatisfying(
+			day -> assertThat(day.getWedge()).isEqualTo(5));
 	}
 
 	private LocalDateTime registeredAt(long memberId) {

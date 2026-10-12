@@ -16,11 +16,38 @@ public record RewardSummaryResponse(
 		RewardRulesResponse rules,
 		CarryOver carryOver,
 		Welcome welcome,
-		List<RewardItemResponse> pendingRewards) {
+		List<RewardItemResponse> pendingRewards,
+		Attendance attendance,
+		Feed feed) {
 
 	/** 게스트는 보상이 없다. 홈이 매번 부르는 조회라 403 대신 빈 요약으로 답한다. */
-	public static RewardSummaryResponse guest(RewardRulesResponse rules) {
-		return new RewardSummaryResponse(0, 0, rules, null, new Welcome(false), List.of());
+	public static RewardSummaryResponse guest(RewardRulesResponse rules, Attendance attendance, Feed feed) {
+		return new RewardSummaryResponse(0, 0, rules, null, new Welcome(false), List.of(), attendance, feed);
+	}
+
+	/**
+	 * 출석 7일판의 지금 모습.
+	 *
+	 * @param doneToday      오늘 출석했는가
+	 * @param stampedDays    판에 찍힌 칸 수(0~7)
+	 * @param nextBoardDay   다음에 찍힐 칸. 오늘 안 했으면 오늘 찍을 칸, 했으면 내일 찍을 칸
+	 * @param todayReward    오늘 칸의 보상(했으면 받은 칸, 안 했으면 받을 칸)
+	 * @param tomorrowReward 내일도 이어서 출석하면 받을 양
+	 */
+	public record Attendance(
+			boolean doneToday,
+			int stampedDays,
+			int nextBoardDay,
+			int todayReward,
+			int tomorrowReward) {
+	}
+
+	/**
+	 * 밥 룰렛.
+	 *
+	 * @param wedges 칸별 보상. 시계 방향이고 12 시가 0 번이다
+	 */
+	public record Feed(boolean doneToday, List<Integer> wedges) {
 	}
 
 	public record CarryOver(boolean granted, int crumbs, int recordCount) {
