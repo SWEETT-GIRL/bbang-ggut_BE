@@ -12,6 +12,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -266,6 +267,166 @@ class StoreSearchServiceTest {
 
 		assertThat(outcomeCount("search", SearchOutcome.FALLBACK)).isEqualTo(1.0);
 		assertThat(outcomeCount("search", SearchOutcome.EMPTY)).isZero();
+	}
+
+	private double fallbackStageCount(SearchFallbackStage stage) {
+		Counter counter = meterRegistry.find("search.fallback")
+			.tag("stage", stage.tagValue())
+			.counter();
+		return counter == null ? -1 : counter.count();
+	}
+
+	@Test
+	@DisplayName("토큰 완화 — 전부 0건일 때만 타고, 결과는 hit 이 아니라 fallback 으로 집계·적재한다")
+	void searchStores_relaxesTokensWhenEverythingElseIsEmpty() {
+		SearchIntent intent = new SearchIntent("성수 어니언", "성수 어니언", List.of("성수", "어니언"),
+			List.of("성수"), List.of(), List.of("어니언"));
+		PageRequest pageable = PageRequest.of(0, 15);
+		List<StoreSearchHit> hits = List.of(hit());
+		given(storeSearchQueryParser.parse("성수 어니언")).willReturn(intent);
+		given(storeSearchQueryParser.parseWithGluedTokenFallback("성수 어니언")).willReturn(intent);
+		given(searchEngine.searchStores(intent, pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(StoreSearchResult.empty());
+		// 완화 결과는 이름이 실제로 맞아 queryCovered=true 로 오지만, 1차가 0건이었으므로 hit 으로 세지 않는다
+		given(searchEngine.searchStoresRelaxed(List.of(intent), pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(Optional.of(new StoreSearchRelaxedResult(new StoreSearchResult(hits, false, true),
+				SearchFallbackStage.NAME_ANY_ORDER, "")));
+		given(storeSearchAssembler.assemble(hits)).willReturn(List.of());
+
+		service.searchStores("성수 어니언", null, null, SearchSort.RELEVANCE, pageable);
+
+		verify(storeSearchAssembler).assemble(hits);
+		assertThat(outcomeCount("search", SearchOutcome.FALLBACK)).isEqualTo(1.0);
+		assertThat(outcomeCount("search", SearchOutcome.HIT)).isZero();
+		assertThat(outcomeCount("search", SearchOutcome.EMPTY)).isZero();
+		assertThat(fallbackStageCount(SearchFallbackStage.NAME_ANY_ORDER)).isEqualTo(1.0);
+		assertThat(fallbackStageCount(SearchFallbackStage.SINGLE_TOKEN)).isZero();
+		ArgumentCaptor<SearchMissEvent> event = ArgumentCaptor.forClass(SearchMissEvent.class);
+		verify(eventPublisher).publishEvent(event.capture());
+		assertThat(event.getValue().outcome()).isEqualTo(SearchOutcome.FALLBACK);
+		assertThat(event.getValue().keyword()).isEqualTo("성수 어니언");
+	}
+
+	@Test
+	@DisplayName("토큰 완화 — 붙여 쓴 토큰을 분해한 인텐트도 함께 넘긴다")
+	void searchStores_passesDecomposedIntentToRelaxation() {
+		SearchIntent primary = new SearchIntent("성수어니언", "성수어니언", List.of("성수어니언"),
+			List.of(), List.of(), List.of("성수어니언"));
+		SearchIntent decomposed = new SearchIntent("성수어니언", "성수어니언", List.of("성수어니언"),
+			List.of("성수"), List.of(), List.of("어니언"));
+		PageRequest pageable = PageRequest.of(0, 15);
+		List<StoreSearchHit> hits = List.of(hit());
+		given(storeSearchQueryParser.parse("성수어니언")).willReturn(primary);
+		given(storeSearchQueryParser.parseWithGluedTokenFallback("성수어니언")).willReturn(decomposed);
+		given(searchEngine.searchStores(primary, pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(StoreSearchResult.empty());
+		given(searchEngine.searchStores(decomposed, pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(StoreSearchResult.empty());
+		given(searchEngine.searchStoresRelaxed(List.of(primary, decomposed), pageable, null, null,
+			SearchSort.RELEVANCE))
+			.willReturn(Optional.of(new StoreSearchRelaxedResult(new StoreSearchResult(hits, false, true),
+				SearchFallbackStage.SINGLE_TOKEN, "어니언")));
+		given(storeSearchAssembler.assemble(hits)).willReturn(List.of());
+
+		service.searchStores("성수어니언", null, null, SearchSort.RELEVANCE, pageable);
+
+		verify(storeSearchAssembler).assemble(hits);
+		assertThat(outcomeCount("search", SearchOutcome.FALLBACK)).isEqualTo(1.0);
+		assertThat(fallbackStageCount(SearchFallbackStage.SINGLE_TOKEN)).isEqualTo(1.0);
+		assertThat(fallbackStageCount(SearchFallbackStage.GLUED_TOKEN)).isZero();
+	}
+
+	@Test
+	@DisplayName("토큰 완화 — 1차에 결과가 있으면 타지 않는다")
+	void searchStores_doesNotRelaxWhenPrimaryHasResults() {
+		SearchIntent intent = new SearchIntent("어니언 성수", "어니언 성수", List.of("어니언", "성수"),
+			List.of("성수"), List.of(), List.of("어니언"));
+		PageRequest pageable = PageRequest.of(0, 15);
+		List<StoreSearchHit> hits = List.of(hit());
+		given(storeSearchQueryParser.parse("어니언 성수")).willReturn(intent);
+		given(searchEngine.searchStores(intent, pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(new StoreSearchResult(hits, false, true));
+		given(storeSearchAssembler.assemble(hits)).willReturn(List.of());
+
+		service.searchStores("어니언 성수", null, null, SearchSort.RELEVANCE, pageable);
+
+		verify(searchEngine, never()).searchStoresRelaxed(any(), any(), any(), any(), any());
+		assertThat(outcomeCount("search", SearchOutcome.HIT)).isEqualTo(1.0);
+		for (SearchFallbackStage stage : SearchFallbackStage.values()) {
+			if (stage != SearchFallbackStage.NONE) {
+				assertThat(fallbackStageCount(stage)).isZero();
+			}
+		}
+	}
+
+	@Test
+	@DisplayName("토큰 완화 — 붙여 쓴 토큰 분해로 결과가 나오면 타지 않고 glued_token 단계로 센다")
+	void searchStores_doesNotRelaxWhenGluedFallbackHasResults() {
+		SearchIntent primary = new SearchIntent("초코소금빵", "초코소금빵", List.of("초코소금빵"),
+			List.of(), List.of(), List.of("초코소금빵"));
+		SearchIntent fallback = new SearchIntent("초코소금빵", "초코소금빵", List.of("초코소금빵"),
+			List.of(), List.of("소금빵"), List.of("초코"));
+		PageRequest pageable = PageRequest.of(0, 15);
+		List<StoreSearchHit> hits = List.of(hit());
+		given(storeSearchQueryParser.parse("초코소금빵")).willReturn(primary);
+		given(storeSearchQueryParser.parseWithGluedTokenFallback("초코소금빵")).willReturn(fallback);
+		given(searchEngine.searchStores(primary, pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(StoreSearchResult.empty());
+		given(searchEngine.searchStores(fallback, pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(new StoreSearchResult(hits, false, false));
+		given(storeSearchAssembler.assemble(hits)).willReturn(List.of());
+
+		service.searchStores("초코소금빵", null, null, SearchSort.RELEVANCE, pageable);
+
+		verify(searchEngine, never()).searchStoresRelaxed(any(), any(), any(), any(), any());
+		assertThat(fallbackStageCount(SearchFallbackStage.GLUED_TOKEN)).isEqualTo(1.0);
+	}
+
+	@Test
+	@DisplayName("토큰 완화 — 2페이지 이후는 결과는 주되 집계·적재하지 않는다")
+	void searchStores_relaxedLaterPageIsNotRecorded() {
+		SearchIntent intent = new SearchIntent("성수 어니언", "성수 어니언", List.of("성수", "어니언"),
+			List.of("성수"), List.of(), List.of("어니언"));
+		PageRequest secondPage = PageRequest.of(1, 5);
+		List<StoreSearchHit> hits = List.of(hit());
+		given(storeSearchQueryParser.parse("성수 어니언")).willReturn(intent);
+		given(storeSearchQueryParser.parseWithGluedTokenFallback("성수 어니언")).willReturn(intent);
+		given(searchEngine.searchStores(intent, secondPage, null, null, SearchSort.RELEVANCE))
+			.willReturn(StoreSearchResult.empty());
+		given(searchEngine.searchStoresRelaxed(List.of(intent), secondPage, null, null, SearchSort.RELEVANCE))
+			.willReturn(Optional.of(new StoreSearchRelaxedResult(new StoreSearchResult(hits, false, true),
+				SearchFallbackStage.SINGLE_TOKEN, "어니언")));
+		given(storeSearchAssembler.assemble(hits)).willReturn(List.of());
+
+		service.searchStores("성수 어니언", null, null, SearchSort.RELEVANCE, secondPage);
+
+		verify(storeSearchAssembler).assemble(hits);
+		assertThat(outcomeCount("search", SearchOutcome.FALLBACK)).isZero();
+		assertThat(fallbackStageCount(SearchFallbackStage.SINGLE_TOKEN)).isZero();
+		verify(eventPublisher, never()).publishEvent(any(SearchMissEvent.class));
+	}
+
+	@Test
+	@DisplayName("토큰 완화 — 완화 SQL 이 타임아웃돼도 503 으로 끊고 timeout 으로 센다")
+	void searchStores_relaxedTimeout_throwsServiceUnavailableAndCounts() {
+		SearchIntent intent = new SearchIntent("성수 어니언", "성수 어니언", List.of("성수", "어니언"),
+			List.of("성수"), List.of(), List.of("어니언"));
+		PageRequest pageable = PageRequest.of(0, 15);
+		given(storeSearchQueryParser.parse("성수 어니언")).willReturn(intent);
+		given(storeSearchQueryParser.parseWithGluedTokenFallback("성수 어니언")).willReturn(intent);
+		given(searchEngine.searchStores(intent, pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(StoreSearchResult.empty());
+		given(searchEngine.searchStoresRelaxed(List.of(intent), pageable, null, null, SearchSort.RELEVANCE))
+			.willThrow(new QueryTimeoutException("canceling statement due to statement timeout"));
+
+		assertThatThrownBy(() -> service.searchStores("성수 어니언", null, null, SearchSort.RELEVANCE, pageable))
+			.isInstanceOf(StoreSearchException.class)
+			.satisfies(exception -> assertThat(((StoreSearchException)exception).getErrorCode())
+				.isEqualTo(StoreSearchErrorCode.SEARCH_TIMEOUT));
+
+		assertThat(outcomeCount("search", SearchOutcome.TIMEOUT)).isEqualTo(1.0);
+		verify(eventPublisher, never()).publishEvent(any(SearchMissEvent.class));
+		verify(storeSearchAssembler, never()).assemble(any());
 	}
 
 	@Test

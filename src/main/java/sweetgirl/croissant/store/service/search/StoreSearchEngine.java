@@ -5,8 +5,10 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
@@ -19,6 +21,7 @@ import sweetgirl.croissant.store.repository.search.SearchSqlQuery;
 import sweetgirl.croissant.store.repository.search.StoreAutocompleteRow;
 import sweetgirl.croissant.store.repository.search.StoreSearchJdbcRepository;
 import sweetgirl.croissant.store.repository.search.StoreSearchRow;
+import sweetgirl.croissant.store.repository.search.StoreSearchTokenCountRow;
 import sweetgirl.croissant.store.service.search.cache.StoreAutocompleteCache;
 
 /**
@@ -38,6 +41,9 @@ public class StoreSearchEngine {
 
 	// 잔여 토큰(가게명 성분)을 필터로 쓸 최소 길이 — "성수점"→"점" 같은 분해 노이즈 배제
 	private static final int MIN_NAME_TOKEN_LENGTH = 2;
+	// 토큰 완화 폴백에서 한 토큰만 남길 때 허용하는 후보 가게 수 상한. 운영 14일 검색 재생(2026-10)에서 0건이던 다토큰 검색 202건 중
+	// 132건이 단독 결과 15건 미만인 토큰을 가졌다 — 기본 한 페이지(15건)를 넘기는 토큰은 '베이커리' 같은 일반어라 남기지 않는다.
+	static final int RELAXED_TOKEN_MAX_CANDIDATES = 14;
 
 	private final StoreSearchSqlBuilder sqlBuilder;
 	private final StoreSearchJdbcRepository storeSearchJdbcRepository;
@@ -68,6 +74,120 @@ public class StoreSearchEngine {
 			log.debug("[검색] 주소 폴백 적중 query='{}' hits={}", intent.rawQuery(), addressResult.hits().size());
 		}
 		return addressResult;
+	}
+
+	/**
+	 * 토큰 완화 폴백 — 1차·주소·붙여 쓴 토큰 분해까지 전부 0건일 때만 부른다. 결과가 있던 검색은 이 경로를 타지 않는다.
+	 * <ol>
+	 *   <li>어순 무관 이름 매칭: 지역으로 분류된 토큰도 이름 토큰으로 보고, 모든 토큰이 이름/구명에 든 가게를 찾는다.
+	 *       "성수 어니언"의 '성수'가 지역으로 떨어져도 가게 "어니언 성수"가 잡힌다.</li>
+	 *   <li>그래도 0건이면 가장 구체적인(후보가 가장 적은) 토큰 하나만 남긴다. 남길 만한 토큰이 없으면 완화하지 않는다.</li>
+	 * </ol>
+	 *
+	 * @param intents 1차 인텐트가 맨 앞, 붙여 쓴 토큰을 분해한 인텐트가 있으면 그 뒤. 한 토큰 남기기는 사용자가 띄어 쓴 1차 토큰으로만 한다
+	 *                (분해 조각은 시스템이 만든 것이라 하나만 남기면 엉뚱한 가게가 나온다).
+	 */
+	@Timed(value = "search.engine.query", histogram = true)
+	public Optional<StoreSearchRelaxedResult> searchStoresRelaxed(List<SearchIntent> intents, Pageable pageable,
+			Double latitude, Double longitude, SearchSort sort) {
+		if (intents.isEmpty()) {
+			return Optional.empty();
+		}
+		// 2페이지 이후의 0건은 "결과가 없는 검색"이 아니라 "결과의 끝을 넘긴 요청"일 수 있다. 완화 없는 검색이 첫 페이지부터
+		// 0건일 때만 완화해, 결과가 있던 검색의 끝 뒤에 완화 결과가 이어 붙지 않게 한다.
+		if (pageable.getPageNumber() > 0 && hasResultWithoutRelaxation(intents, latitude, longitude, sort)) {
+			return Optional.empty();
+		}
+		Set<StoreSearchPlan> triedPlans = new LinkedHashSet<>();
+		for (SearchIntent intent : intents) {
+			Optional<StoreSearchPlan> anyOrderPlan = toAnyOrderNamePlan(intent);
+			if (anyOrderPlan.isEmpty() || !triedPlans.add(anyOrderPlan.get())) {
+				continue;
+			}
+			StoreSearchResult result = execute(anyOrderPlan.get(), pageable, latitude, longitude, sort);
+			if (!result.hits().isEmpty()) {
+				return Optional.of(new StoreSearchRelaxedResult(result, SearchFallbackStage.NAME_ANY_ORDER, ""));
+			}
+		}
+		Optional<String> keptToken = selectMostSpecificToken(intents.get(0));
+		if (keptToken.isEmpty()) {
+			return Optional.empty();
+		}
+		StoreSearchPlan singleTokenPlan = new StoreSearchPlan(List.of(), List.of(keptToken.get()), keptToken.get(),
+			false);
+		StoreSearchResult result = execute(singleTokenPlan, pageable, latitude, longitude, sort);
+		if (result.hits().isEmpty()) {
+			return Optional.empty();
+		}
+		return Optional.of(new StoreSearchRelaxedResult(result, SearchFallbackStage.SINGLE_TOKEN, keptToken.get()));
+	}
+
+	private boolean hasResultWithoutRelaxation(List<SearchIntent> intents, Double latitude, Double longitude,
+			SearchSort sort) {
+		Pageable firstRow = PageRequest.of(0, 1);
+		return intents.stream()
+			.anyMatch(intent -> !searchStores(intent, firstRow, latitude, longitude, sort).hits().isEmpty());
+	}
+
+	/**
+	 * 어순 무관 이름 매칭 계획 — 지역·빵·잔여 토큰을 모두 이름 토큰(AND)으로 둔다. 지역 토큰이 없으면 1차와 같은 조건이라 만들지 않는다.
+	 */
+	Optional<StoreSearchPlan> toAnyOrderNamePlan(SearchIntent intent) {
+		if (intent.regionTokens().isEmpty()) {
+			return Optional.empty();
+		}
+		List<String> tokens = normalizedDistinct(allTokens(intent), MIN_NAME_TOKEN_LENGTH);
+		if (tokens.size() < 2) {
+			return Optional.empty();
+		}
+		return Optional.of(new StoreSearchPlan(List.of(), tokens,
+			SearchTextNormalizer.normalize(intent.cleanQuery()), false));
+	}
+
+	/**
+	 * 한 토큰만 남긴다면 어느 토큰인지. 후보 가게 수가 1 이상 {@link #RELAXED_TOKEN_MAX_CANDIDATES} 이하인 토큰 중 가장 적은 것을
+	 * 고르고(같으면 긴 토큰, 그다음 앞선 토큰), 그런 토큰이 없으면 비운다 — 넓은 토큰만 남는 검색은 완화하지 않는다.
+	 */
+	Optional<String> selectMostSpecificToken(SearchIntent intent) {
+		// 토큰이 하나뿐이면 버릴 것이 없다 — 그 토큰만으로 다시 찾아도 1차와 같은 검색이다.
+		if (normalizedDistinct(allTokens(intent), MIN_NAME_TOKEN_LENGTH).size() < 2) {
+			return Optional.empty();
+		}
+		List<String> tokens = relaxableTokens(intent);
+		if (tokens.isEmpty()) {
+			return Optional.empty();
+		}
+		List<StoreSearchTokenCountRow> counts = storeSearchJdbcRepository.countTokenCandidates(
+			sqlBuilder.buildTokenCandidateCounts(tokens, RELAXED_TOKEN_MAX_CANDIDATES + 1));
+		return counts.stream()
+			.filter(count -> count.tokenIndex() >= 0 && count.tokenIndex() < tokens.size())
+			.filter(count -> count.candidateCount() > 0 && count.candidateCount() <= RELAXED_TOKEN_MAX_CANDIDATES)
+			.min(Comparator.comparingLong(StoreSearchTokenCountRow::candidateCount)
+				.thenComparing(count -> tokens.get(count.tokenIndex()).length(), Comparator.reverseOrder())
+				.thenComparingInt(StoreSearchTokenCountRow::tokenIndex))
+			.map(count -> tokens.get(count.tokenIndex()));
+	}
+
+	/**
+	 * 하나만 남겨도 되는 토큰. 지역 토큰은 뺀다 — 지역명만 남기면 이름에 그 지역명이 든 엉뚱한 가게가 나온다. 불용어("맛집")도
+	 * 뺀다(cleanQuery 에 남지 않은 잔여 토큰).
+	 */
+	private List<String> relaxableTokens(SearchIntent intent) {
+		Set<String> cleanTokens = new LinkedHashSet<>(normalizedDistinct(List.of(intent.cleanQuery().split(" ")), 1));
+		List<String> tokens = new ArrayList<>(intent.breadTokens());
+		for (String token : intent.remainingTokens()) {
+			if (cleanTokens.contains(SearchTextNormalizer.normalize(token))) {
+				tokens.add(token);
+			}
+		}
+		return normalizedDistinct(tokens, MIN_NAME_TOKEN_LENGTH);
+	}
+
+	private List<String> allTokens(SearchIntent intent) {
+		List<String> tokens = new ArrayList<>(intent.regionTokens());
+		tokens.addAll(intent.breadTokens());
+		tokens.addAll(intent.remainingTokens());
+		return tokens;
 	}
 
 	StoreSearchPlan toPlan(SearchIntent intent, boolean addressFallback) {

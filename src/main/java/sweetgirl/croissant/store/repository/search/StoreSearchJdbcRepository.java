@@ -44,6 +44,11 @@ public class StoreSearchJdbcRepository {
 				rs.getString("parent_name"),
 				rs.getDouble("steady"));
 
+	private static final RowMapper<StoreSearchTokenCountRow> TOKEN_COUNT_ROW_MAPPER = (rs,
+			rowNum) -> new StoreSearchTokenCountRow(
+				rs.getInt("token_index"),
+				rs.getLong("candidate_count"));
+
 	private final NamedParameterJdbcTemplate jdbcTemplate;
 
 	/**
@@ -69,6 +74,10 @@ public class StoreSearchJdbcRepository {
 
 	public List<StoreSearchRow> search(SearchSqlQuery query) {
 		return jdbcTemplate.query(query.sql(), query.params(), SEARCH_ROW_MAPPER);
+	}
+
+	public List<StoreSearchTokenCountRow> countTokenCandidates(SearchSqlQuery query) {
+		return jdbcTemplate.query(query.sql(), query.params(), TOKEN_COUNT_ROW_MAPPER);
 	}
 
 	public List<StoreAutocompleteRow> autocomplete(SearchSqlQuery query) {
