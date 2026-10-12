@@ -97,7 +97,7 @@ class BreadRecordCommandServiceTest {
 		BreadRecordPhoto photo = BreadRecordPhoto.builder().record(record).name("a.jpg")
 			.mimeType(MimeType.IMAGE_JPEG).awsKey(awsKey).sortOrder(0).build();
 		given(memberRepository.findActiveForUpdate(7L)).willReturn(Optional.of(member));
-		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
 		given(photoRepository.findAllIncludingPendingByRecordId(11L)).willReturn(List.of(photo));
 
 		commandService.delete(11L, 7L);
@@ -116,7 +116,7 @@ class BreadRecordCommandServiceTest {
 		BreadRecordPhoto photo = BreadRecordPhoto.builder().record(record).name("a.jpg")
 			.mimeType(MimeType.IMAGE_JPEG).awsKey(awsKey).sortOrder(0).build();
 		given(memberRepository.findActiveForUpdate(7L)).willReturn(Optional.of(member));
-		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
 		given(photoRepository.findAllIncludingPendingByRecordId(11L)).willReturn(List.of(photo));
 		given(photoRepository.existsByAwsKey(awsKey)).willReturn(true);
 
