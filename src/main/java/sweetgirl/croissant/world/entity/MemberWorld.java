@@ -40,6 +40,10 @@ public class MemberWorld extends BaseTimeEntity {
 	/** 첫 친구 연출을 봤는가. */
 	private LocalDateTime welcomedAt;
 
+	/** 홈에 놓은 소품(상점 품목 코드). 없으면 아무것도 놓지 않았다. */
+	@Column(name = "home_prop_item", length = 40)
+	private String homePropItem;
+
 	private MemberWorld(Long memberId, String selectedCharacter) {
 		this.memberId = memberId;
 		this.selectedCharacter = selectedCharacter;

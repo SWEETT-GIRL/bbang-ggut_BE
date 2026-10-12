@@ -96,6 +96,17 @@ public interface MemberCharacterRepository
 			@Param("characterCode") String characterCode,
 			@Param("acquiredBy") String acquiredBy);
 
+	/** 깨어 있는 친구에게 이름을 붙인다(null 이면 기본 이름으로 되돌린다). 깨우지 않은 친구면 0 이다. */
+	@Modifying(clearAutomatically = true)
+	@Query(value = """
+			UPDATE member_characters SET nickname = :nickname
+			WHERE member_id = :memberId AND character_code = :characterCode AND status = 'AWAKE'
+			""", nativeQuery = true)
+	int updateNickname(
+			@Param("memberId") Long memberId,
+			@Param("characterCode") String characterCode,
+			@Param("nickname") String nickname);
+
 	/** 이미 가진 친구면 건드리지 않는다 — 획득 경로와 시각을 덮어쓰지 않기 위해서다. */
 	@Modifying(clearAutomatically = true)
 	@Query(value = """

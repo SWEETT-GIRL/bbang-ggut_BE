@@ -19,9 +19,11 @@ import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.reward.dto.request.AdminBbangdaengLetterRequest;
 import sweetgirl.croissant.reward.dto.request.AdminCrumbAdjustRequest;
 import sweetgirl.croissant.reward.dto.request.AdminRewardSettingsUpdateRequest;
+import sweetgirl.croissant.reward.dto.request.AdminShopItemRequest;
 import sweetgirl.croissant.reward.dto.response.AdminBbangdaengLetterResponse;
 import sweetgirl.croissant.reward.dto.response.AdminCrumbAdjustResponse;
 import sweetgirl.croissant.reward.dto.response.AdminRewardSettingResponse;
+import sweetgirl.croissant.reward.dto.response.ShopCatalogResponse;
 import sweetgirl.croissant.reward.service.AdminRewardCommandService;
 import sweetgirl.croissant.reward.service.RewardSettings;
 
@@ -73,6 +75,21 @@ public class AdminRewardController {
 			@PathVariable Long letterId,
 			@Valid @RequestBody AdminBbangdaengLetterRequest request) {
 		return ResponseEntity.ok(ApiResponse.ok(adminRewardCommandService.reviseLetter(letterId, request)));
+	}
+
+	@Operation(summary = "상점 품목 목록", description = "끈 품목까지 전부 내린다.")
+	@GetMapping("/shop/items")
+	public ResponseEntity<ApiResponse<List<ShopCatalogResponse.Item>>> getShopItems() {
+		return ResponseEntity.ok(ApiResponse.ok(adminRewardCommandService.getShopItems()));
+	}
+
+	@Operation(summary = "상점 품목 만들기·고치기", description = "없던 코드면 만들고 있던 코드면 고친다. "
+		+ "active: false 로 끄면 목록에서 빠진다.")
+	@PutMapping("/shop/items/{code}")
+	public ResponseEntity<ApiResponse<ShopCatalogResponse.Item>> upsertShopItem(
+			@PathVariable String code,
+			@Valid @RequestBody AdminShopItemRequest request) {
+		return ResponseEntity.ok(ApiResponse.ok(adminRewardCommandService.upsertShopItem(code, request)));
 	}
 
 	@Operation(summary = "보상 수치 조회", description = "지금 쓰이는 값과 기본값을 내린다.")

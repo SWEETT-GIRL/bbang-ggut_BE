@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import sweetgirl.croissant.reward.enums.CrumbReason;
 import sweetgirl.croissant.reward.enums.RewardItemType;
 import sweetgirl.croissant.reward.service.GrantResult;
+import sweetgirl.croissant.reward.service.SpendResult;
 
 /**
  * 보상 한 칸. 보상이 생기는 모든 응답이 {@code rewards[]} 에 같은 모양으로 싣고, 앱은 배열 순서대로 연출한다.
@@ -31,6 +32,12 @@ public record RewardItemResponse(
 	public static RewardItemResponse crumbs(GrantResult result, CrumbReason reason) {
 		return new RewardItemResponse(null, RewardItemType.CRUMBS, result.amount(), result.from(), result.to(),
 			reason, result.isCapped(), null, null, null, null);
+	}
+
+	/** 부스러기를 썼다. {@code amount} 가 음수다. */
+	public static RewardItemResponse spent(SpendResult result, CrumbReason reason) {
+		return new RewardItemResponse(null, RewardItemType.CRUMBS, -result.amount(), result.from(), result.to(),
+			reason, false, null, null, null, null);
 	}
 
 	/** 빵 칸(기록 수)이 올랐다. */

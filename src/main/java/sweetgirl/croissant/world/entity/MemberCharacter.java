@@ -41,6 +41,10 @@ public class MemberCharacter {
 
 	private LocalDateTime acquiredAt;
 
+	/** 회원이 붙인 이름. 없으면 카탈로그의 기본 이름으로 부른다. */
+	@Column(length = 8)
+	private String nickname;
+
 	private MemberCharacter(
 			MemberCharacterId id,
 			CharacterStatus status,

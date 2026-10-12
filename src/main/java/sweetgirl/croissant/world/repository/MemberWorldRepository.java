@@ -43,6 +43,18 @@ public interface MemberWorldRepository extends JpaRepository<MemberWorld, Long> 
 	@Query(value = "UPDATE member_world SET member_id = :targetId WHERE member_id = :guestId", nativeQuery = true)
 	int moveOwner(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
 
+	/** 홈에 놓은 소품. 없으면 비어 있다. */
+	@Query(value = "SELECT home_prop_item FROM member_world WHERE member_id = :memberId", nativeQuery = true)
+	Optional<String> findHomePropItem(@Param("memberId") Long memberId);
+
+	/** 홈 소품을 바꾼다(null 이면 치운다). 세계관을 시작하지 않은 회원이면 0 이다. */
+	@Modifying(clearAutomatically = true)
+	@Query(value = """
+			UPDATE member_world SET home_prop_item = :itemCode, updated_at = CURRENT_TIMESTAMP
+			WHERE member_id = :memberId
+			""", nativeQuery = true)
+	int updateHomePropItem(@Param("memberId") Long memberId, @Param("itemCode") String itemCode);
+
 	/** 저장된 최고 높이. 아직 세계관에 들어온 적이 없으면 비어 있다. */
 	@Query(value = "SELECT max_record_count FROM member_world WHERE member_id = :memberId", nativeQuery = true)
 	Optional<Integer> findMaxRecordCount(@Param("memberId") Long memberId);
