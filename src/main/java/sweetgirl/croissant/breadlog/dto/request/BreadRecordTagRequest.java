@@ -10,7 +10,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record BreadRecordTagRequest(
-		@Min(0) int photoSortOrder,
+		/** 이 빵이 찍힌 사진의 순서. 사진에 안 붙은 빵 이름이면 안 보낸다(그때는 x · y 도 안 보낸다). */
+		@Min(0) Integer photoSortOrder,
 		@NotBlank @Size(max = 100) String name,
 		/**
 		 * 앱이 고른 가게 메뉴. 안 보내면 서버가 이름으로 찾는다 — 구버전 앱과 가게를 안 고른 기록이 그렇다.
@@ -22,8 +23,8 @@ public record BreadRecordTagRequest(
 		 * "AI 가 뭘 제안했었나"를 남기는 게 목적이다. 안 보내면 null — 직접 단 태그와 구버전 앱이 그렇다.
 		 */
 		Long suggestedMenuId,
-		@JsonProperty("x") @DecimalMin("0.0") @DecimalMax("1.0") double positionX,
-		@JsonProperty("y") @DecimalMin("0.0") @DecimalMax("1.0") double positionY,
+		@JsonProperty("x") @DecimalMin("0.0") @DecimalMax("1.0") Double positionX,
+		@JsonProperty("y") @DecimalMin("0.0") @DecimalMax("1.0") Double positionY,
 		/** 이름표 꾸밈("모양.종이[.up]"). 구버전 앱은 안 보낸다 */
 		@Size(max = 50) String style,
 		/**

@@ -33,6 +33,7 @@ import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlInfo;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordSummaryResponse;
+import sweetgirl.croissant.breadlog.dto.response.BreadRecordUpdateResponse;
 import sweetgirl.croissant.breadlog.service.BreadPhotoTagSuggestionService;
 import sweetgirl.croissant.breadlog.service.BreadRecordCommandService;
 import sweetgirl.croissant.breadlog.service.BreadRecordQueryService;
@@ -83,12 +84,11 @@ public class BreadRecordController {
 
 	@Operation(summary = "빵 기록 전체 교체", description = "사진·태그·메모·가게·먹은 날을 요청 스냅샷으로 교체합니다.")
 	@PatchMapping("/{recordId}")
-	public ResponseEntity<ApiResponse<Void>> replace(
+	public ResponseEntity<ApiResponse<BreadRecordUpdateResponse>> replace(
 			@PathVariable Long recordId,
 			@AuthenticationPrincipal Long memberId,
 			@Valid @RequestBody BreadRecordUpsertRequest request) {
-		commandService.replace(recordId, memberId, request);
-		return ResponseEntity.ok(ApiResponse.ok(null));
+		return ResponseEntity.ok(ApiResponse.ok(commandService.replace(recordId, memberId, request)));
 	}
 
 	@Operation(summary = "빵 기록 공개 여부 변경", description = "공개하면 가게 상세의 빵로그 목록에 보입니다. "

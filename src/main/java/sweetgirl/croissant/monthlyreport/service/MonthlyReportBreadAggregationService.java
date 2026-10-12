@@ -40,7 +40,9 @@ public class MonthlyReportBreadAggregationService {
 			.thenComparingInt(tag -> photos.get(tag.photoId()).sortOrder())
 			.thenComparing(TagState::photoId).thenComparing(TagState::id);
 		List<TagState> tags = snapshot.tags().stream()
-			.filter(tag -> records.containsKey(tag.recordId()) && photos.containsKey(tag.photoId())
+			// 사진에 안 붙은 빵 이름(photoId 없음)은 건너뛴다 — 불변 맵은 null 키를 물으면 던진다
+			.filter(tag -> tag.photoId() != null
+				&& records.containsKey(tag.recordId()) && photos.containsKey(tag.photoId())
 				&& tag.recordId().equals(photos.get(tag.photoId()).recordId()))
 			.sorted(priority).toList();
 		Map<String, Long> counts = new HashMap<>();

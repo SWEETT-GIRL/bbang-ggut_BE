@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -25,6 +26,7 @@ import sweetgirl.croissant.breadlog.dto.request.BreadTagRatingRequest;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordCreateResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlInfo;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlResponse;
+import sweetgirl.croissant.breadlog.dto.response.BreadRecordUpdateResponse;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.entity.BreadRecordPhoto;
 import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
@@ -49,6 +51,8 @@ import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.menu.util.MenuNameNormalizer;
+import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
+import sweetgirl.croissant.reward.service.RecordRewardService;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.enums.TrendingSignal;
@@ -77,6 +81,7 @@ public class BreadRecordCommandService {
 	private final ImageProcessingCallbackService imageProcessingCallbackService;
 	private final CourseProgressService courseProgressService;
 	private final MemberWorldRepository memberWorldRepository;
+	private final RecordRewardService recordRewardService;
 	private final ApplicationEventPublisher eventPublisher;
 
 	public BreadRecordPresignedUrlResponse generatePresignedUrls(
@@ -92,7 +97,21 @@ public class BreadRecordCommandService {
 	public BreadRecordCreateResponse create(Long memberId, BreadRecordUpsertRequest request) {
 		Member member = memberReader.getMember(memberId);
 		memberRestrictionReader.validateCanWrite(memberId);
+		if (request.requestId() != null) {
+			// 같은 요청이 나란히 들어와도 한쪽이 끝난 뒤에 찾도록 회원 행을 잠근다(삭제·로그인 이관과 같은 잠금).
+			memberRepository.findActiveForUpdate(memberId)
+				.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_DELETED));
+			Optional<BreadRecord> alreadyCreated = breadRecordRepository.findByMemberIdAndClientRequestId(
+				memberId, request.requestId());
+			if (alreadyCreated.isPresent()) {
+				// 응답을 못 받아 다시 보낸 저장이다 — 처음 만든 기록을 그대로 돌려주고 보상은 다시 싣지 않는다
+				return new BreadRecordCreateResponse(
+					alreadyCreated.get().getId(), alreadyCreated.get().getCreatedAt(), List.of());
+			}
+		}
 		ValidatedRecordData data = validate(memberId, request);
+		int storedMaxHeight = memberWorldRepository.findMaxRecordCount(memberId).orElse(0);
+		long recordCountBefore = breadRecordRepository.countByMemberIdAndDeletedAtIsNull(memberId);
 		resolveOriginalPhotos(request.photos(), List.of());
 		BreadRecord record = breadRecordRepository.save(BreadRecord.builder()
 			.member(member)
@@ -104,11 +123,16 @@ public class BreadRecordCommandService {
 			.towerBread(request.towerBread())
 			.eatenAt(request.eatenAt())
 			.isPublic(Boolean.TRUE.equals(request.isPublic()))
+			.clientRequestId(request.requestId())
 			.build());
 		savePhotosAndTags(record, request, data.photoBySortOrder(), Map.of(), data.lovedBreads(), Map.of());
 		// 빵탑은 기록 수만큼 오른다. 최고 높이는 내려가지 않아서, 기록을 지워도 행성이 밀리지 않는다.
-		memberWorldRepository.raiseMaxRecordCount(
-			memberId, breadRecordRepository.countByMemberIdAndDeletedAtIsNull(memberId));
+		long recordCountAfter = breadRecordRepository.countByMemberIdAndDeletedAtIsNull(memberId);
+		memberWorldRepository.raiseMaxRecordCount(memberId, recordCountAfter);
+		List<RewardItemResponse> rewards = recordRewardService.rewardCreated(
+			member, record.getId(), request.photos().size(),
+			(int)Math.max(storedMaxHeight, recordCountBefore),
+			(int)Math.max(storedMaxHeight, recordCountAfter));
 		// 찜은 사용자가 직접 풀 때까지 남긴다 — 기록이 생겨도 "또 가고 싶은 가게"일 수 있다.
 		// (기록 시 자동 해제는 정책 변경으로 제거)
 		courseProgressService.refreshForMember(memberId);
@@ -117,10 +141,10 @@ public class BreadRecordCommandService {
 			eventPublisher.publishEvent(
 				new StoreTrendingSignalEvent(memberId, data.store().getId(), TrendingSignal.RECORD));
 		}
-		return new BreadRecordCreateResponse(record.getId(), record.getCreatedAt());
+		return new BreadRecordCreateResponse(record.getId(), record.getCreatedAt(), rewards);
 	}
 
-	public void replace(Long recordId, Long memberId, BreadRecordUpsertRequest request) {
+	public BreadRecordUpdateResponse replace(Long recordId, Long memberId, BreadRecordUpsertRequest request) {
 		Member member = memberReader.getMember(memberId);
 		memberRestrictionReader.validateCanWrite(memberId);
 		BreadRecord record = getOwnedRecord(recordId, member.getId());
@@ -151,6 +175,9 @@ public class BreadRecordCommandService {
 			previousRatingByName);
 		deleteRemovedImages(oldPhotos, request.photos());
 		courseProgressService.refreshForMember(memberId);
+		// 사진 없이 쓴 기록에 사진을 붙였으면 보너스를 준다(기록한 지 7 일 안, 기록당 한 번)
+		return new BreadRecordUpdateResponse(recordRewardService.rewardPhotosAttached(
+			member, recordId, record.getCreatedAt(), request.photos().size()));
 	}
 
 	public void changeVisibility(Long recordId, Long memberId, boolean isPublic) {
@@ -249,6 +276,16 @@ public class BreadRecordCommandService {
 
 	private void validateTags(List<BreadRecordTagRequest> tags, Set<Integer> photoSortOrders) {
 		for (BreadRecordTagRequest tag : tags) {
+			if (tag.photoSortOrder() == null) {
+				// 사진에 안 붙은 빵 이름 — 좌표도 없어야 한다
+				if (tag.positionX() != null || tag.positionY() != null) {
+					throw new BreadLogException(BreadLogErrorCode.INVALID_TAG_POSITION);
+				}
+				continue;
+			}
+			if (tag.positionX() == null || tag.positionY() == null) {
+				throw new BreadLogException(BreadLogErrorCode.INVALID_TAG_POSITION);
+			}
 			if (!photoSortOrders.contains(tag.photoSortOrder())) {
 				throw new BreadLogException(BreadLogErrorCode.TAG_PHOTO_NOT_FOUND);
 			}
@@ -293,7 +330,7 @@ public class BreadRecordCommandService {
 		List<BreadRecordTag> tags = request.tags().stream()
 			.map(tag -> BreadRecordTag.builder()
 				.record(record)
-				.photo(photoBySortOrder.get(tag.photoSortOrder()))
+				.photo(tag.photoSortOrder() == null ? null : photoBySortOrder.get(tag.photoSortOrder()))
 				.menu(resolveMenu(tag, menuById, menuByName))
 				.suggestedMenu(resolveSuggestedMenu(tag, menuById))
 				.name(tag.name().strip())

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -12,6 +13,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.StreamSupport;
 
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +34,7 @@ import sweetgirl.croissant.breadlog.dto.request.BreadRecordUpsertRequest;
 import sweetgirl.croissant.breadlog.dto.request.BreadTagRatingRequest;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordCreateResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlResponse;
+import sweetgirl.croissant.breadlog.dto.response.BreadRecordUpdateResponse;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.entity.BreadRecordPhoto;
 import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
@@ -53,6 +56,8 @@ import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.repository.MenuRepository;
+import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
+import sweetgirl.croissant.reward.service.RecordRewardService;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.enums.TrendingSignal;
 import sweetgirl.croissant.store.event.StoreTrendingSignalEvent;
@@ -153,6 +158,9 @@ class BreadRecordCommandServiceTest {
 	CourseProgressService courseProgressService;
 	@Mock
 	MemberWorldRepository memberWorldRepository;
+	// 보상 규칙은 RecordRewardServiceTest 가 본다. 여기서는 빈 목록을 돌려주는 목이면 된다
+	@Mock
+	RecordRewardService recordRewardService;
 
 	@Mock
 	ApplicationEventPublisher eventPublisher;
@@ -659,6 +667,116 @@ class BreadRecordCommandServiceTest {
 				"a.jpg", "image/jpeg", "bread-records/members/7/images/a", 0, null, null)),
 			List.of(new BreadRecordTagRequest(0, "소금빵", null, null, 0.5, 0.5, null, null)),
 			isPublic);
+	}
+
+	@Test
+	@DisplayName("create: 사진 없이 가게와 빵 이름만으로 저장한다 — 태그는 사진도 좌표도 비운다")
+	void create_savesPhotolessRecordWithUnpinnedTag() {
+		givenCreatableRecord();
+		given(categoryClassifier.classify("소금빵")).willReturn("소금빵");
+
+		commandService.create(7L, photolessRequest(null));
+
+		verify(tagRepository).saveAll(argThat(tags -> {
+			BreadRecordTag tag = firstTag(tags);
+			return tag.getName().equals("소금빵") && tag.getPhoto() == null
+				&& tag.getPositionX() == null && tag.getPositionY() == null;
+		}));
+	}
+
+	@Test
+	@DisplayName("create: 사진 순서 없이 좌표만 보낸 태그는 거절한다")
+	void create_rejectsUnpinnedTagWithPosition() {
+		Store store = store(10L);
+		given(memberReader.getMember(7L)).willReturn(member(7L));
+		given(storeRepository.findById(10L)).willReturn(Optional.of(store));
+		BreadRecordUpsertRequest request = new BreadRecordUpsertRequest(
+			10L, "클라이언트 가게명", "client_region", null, null, null, null,
+			LocalDateTime.of(2026, 8, 2, 14, 21, 7), List.of(),
+			List.of(new BreadRecordTagRequest(null, "소금빵", null, null, 0.3, null, null, null)), null);
+
+		assertThatThrownBy(() -> commandService.create(7L, request))
+			.isInstanceOf(BreadLogException.class)
+			.extracting("errorCode").isEqualTo(BreadLogErrorCode.INVALID_TAG_POSITION);
+	}
+
+	@Test
+	@DisplayName("create: 보상 계산에 사진 수와 저장 전·후의 빵탑 높이를 넘기고, 받은 보상을 응답에 싣는다")
+	void create_passesHeightsToRewards() {
+		givenCreatableRecord();
+		given(memberWorldRepository.findMaxRecordCount(7L)).willReturn(Optional.of(4));
+		given(breadRecordRepository.countByMemberIdAndDeletedAtIsNull(7L)).willReturn(4L, 5L);
+		List<RewardItemResponse> rewards = List.of(RewardItemResponse.bread(4, 5));
+		given(recordRewardService.rewardCreated(any(Member.class), any(), eq(1), eq(4), eq(5))).willReturn(rewards);
+
+		BreadRecordCreateResponse response = commandService.create(7L, requestWithTowerBread("소금빵"));
+
+		assertThat(response.rewards()).isEqualTo(rewards);
+	}
+
+	@Test
+	@DisplayName("create: 지웠다 다시 쓴 기록은 빵탑 높이가 오르지 않은 것으로 넘긴다")
+	void create_keepsHeightWhenBelowStoredMax() {
+		givenCreatableRecord();
+		given(memberWorldRepository.findMaxRecordCount(7L)).willReturn(Optional.of(9));
+		given(breadRecordRepository.countByMemberIdAndDeletedAtIsNull(7L)).willReturn(4L, 5L);
+
+		commandService.create(7L, requestWithTowerBread("소금빵"));
+
+		verify(recordRewardService).rewardCreated(any(Member.class), any(), eq(1), eq(9), eq(9));
+	}
+
+	@Test
+	@DisplayName("create: 같은 requestId 가 다시 오면 새로 만들지 않고 처음 만든 기록을 보상 없이 돌려준다")
+	void create_replaysSameRequest() {
+		UUID requestId = UUID.fromString("7f1c9a52-0d43-4a0b-9d6e-0f2b6c1a8e11");
+		Member member = member(7L);
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(memberRepository.findActiveForUpdate(7L)).willReturn(Optional.of(member));
+		BreadRecord created = record(11L, member);
+		ReflectionTestUtils.setField(created, "createdAt", LocalDateTime.of(2026, 8, 4, 12, 0));
+		given(breadRecordRepository.findByMemberIdAndClientRequestId(7L, requestId)).willReturn(Optional.of(created));
+
+		BreadRecordCreateResponse response = commandService.create(7L, photolessRequest(requestId));
+
+		assertThat(response).isEqualTo(
+			new BreadRecordCreateResponse(11L, LocalDateTime.of(2026, 8, 4, 12, 0), List.of()));
+		verify(breadRecordRepository, never()).save(any());
+		org.mockito.Mockito.verifyNoInteractions(recordRewardService);
+	}
+
+	@Test
+	@DisplayName("create: 처음 보는 requestId 면 회원 행을 잠그고 그 번호를 기록에 남긴다")
+	void create_storesRequestId() {
+		UUID requestId = UUID.fromString("7f1c9a52-0d43-4a0b-9d6e-0f2b6c1a8e11");
+		givenCreatableRecord();
+		given(categoryClassifier.classify("소금빵")).willReturn("소금빵");
+		given(memberRepository.findActiveForUpdate(7L)).willReturn(Optional.of(member(7L)));
+		given(breadRecordRepository.findByMemberIdAndClientRequestId(7L, requestId)).willReturn(Optional.empty());
+
+		commandService.create(7L, photolessRequest(requestId));
+
+		verify(breadRecordRepository).save(argThat(record -> requestId.equals(record.getClientRequestId())));
+	}
+
+	@Test
+	@DisplayName("replace: 사진을 붙인 수정은 사진 보너스를 판정해 응답에 싣는다")
+	void replace_returnsPhotoBonus() {
+		BreadRecord record = givenReplaceableRecord(false);
+		List<RewardItemResponse> rewards = List.of(RewardItemResponse.bread(1, 2));
+		given(recordRewardService.rewardPhotosAttached(any(Member.class), eq(11L), any(), eq(1))).willReturn(rewards);
+
+		BreadRecordUpdateResponse response = commandService.replace(11L, 7L, requestWithVisibility(null));
+
+		assertThat(record.getId()).isEqualTo(11L);
+		assertThat(response.rewards()).isEqualTo(rewards);
+	}
+
+	private BreadRecordUpsertRequest photolessRequest(UUID requestId) {
+		return new BreadRecordUpsertRequest(
+			10L, "클라이언트 가게명", "client_region", null, null, null, null,
+			LocalDateTime.of(2026, 8, 2, 14, 21, 7), List.of(),
+			List.of(new BreadRecordTagRequest(null, "소금빵", null, null, null, null, null, null)), null, requestId);
 	}
 
 	private void givenCreatableRecord() {

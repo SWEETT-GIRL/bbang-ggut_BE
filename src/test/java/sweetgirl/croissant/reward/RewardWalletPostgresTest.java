@@ -108,11 +108,28 @@ class RewardWalletPostgresTest {
 				INSERT INTO oauth (id, member_id, created_at) VALUES
 					(1, 1, '2026-08-01 10:00:00'), (2, 2, '2026-09-05 10:00:00'), (3, 3, '2026-07-01 10:00:00')
 				""");
+		// 기록 쪽 마이그레이션이 고치는 표들 — 지금 운영의 모양(사진 · 좌표 필수, 지구 하늘 3 · 우주 7)으로 둔다
+		jdbc.execute("CREATE TABLE bread_record (id bigint PRIMARY KEY, member_id bigint NOT NULL)");
+		jdbc.execute("CREATE TABLE bread_record_tag (id bigserial PRIMARY KEY, record_id bigint NOT NULL, "
+			+ "photo_id bigint NOT NULL, x double precision NOT NULL, y double precision NOT NULL)");
+		jdbc.execute("INSERT INTO bread_record (id, member_id) VALUES (10, 1)");
+		jdbc.execute("INSERT INTO bread_record_tag (record_id, photo_id, x, y) VALUES (10, 100, 0.3, 0.4)");
+		jdbc.execute("CREATE TABLE world_planet_stages (planet_code varchar(30), code varchar(20), offset_at int)");
+		jdbc.execute("""
+				INSERT INTO world_planet_stages (planet_code, code, offset_at) VALUES
+					('earth', 'village', 0), ('earth', 'sky', 3), ('earth', 'space', 7), ('mars', 'sky', 10)
+				""");
+		jdbc.execute("CREATE TABLE world_catalog (id smallint PRIMARY KEY, version int NOT NULL, "
+			+ "updated_at timestamp NOT NULL)");
+		jdbc.execute("INSERT INTO world_catalog (id, version, updated_at) VALUES (1, 7, '2026-09-20 10:00:00')");
 		for (String migration : List.of(
 			"V20261012200000__create_crumb_wallet_and_ledger.sql",
 			"V20261012200100__create_reward_settings.sql",
 			"V20261012200200__add_registration_columns_to_member.sql",
-			"V20261012210000__create_reward_daily_tables.sql")) {
+			"V20261012210000__create_reward_daily_tables.sql",
+			"V20261012220000__allow_photoless_bread_record.sql",
+			"V20261012220100__validate_bread_record_tag_pinned.sql",
+			"V20261012220200__advance_earth_stage_offsets.sql")) {
 			jdbc.execute(new ClassPathResource("db/migration/" + migration).getContentAsString(StandardCharsets.UTF_8));
 		}
 
@@ -313,6 +330,44 @@ class RewardWalletPostgresTest {
 		assertThat(second).isZero();
 		assertThat(feedDays.findByMemberIdAndDay(1L, TODAY)).hasValueSatisfying(
 			day -> assertThat(day.getWedge()).isEqualTo(5));
+	}
+
+	@Test
+	@DisplayName("사진에 안 붙은 빵 이름은 사진 · 좌표를 모두 비워야 들어가고, 하나만 비우면 DB 가 받지 않는다")
+	void tagIsPinnedOrNotAtAll() {
+		jdbc.execute("INSERT INTO bread_record_tag (record_id, photo_id, x, y) VALUES (10, NULL, NULL, NULL)");
+
+		assertThatThrownBy(() -> jdbc.execute(
+			"INSERT INTO bread_record_tag (record_id, photo_id, x, y) VALUES (10, 100, 0.3, NULL)"))
+			.hasMessageContaining("chk_bread_record_tag_pinned");
+		assertThatThrownBy(() -> jdbc.execute(
+			"INSERT INTO bread_record_tag (record_id, photo_id, x, y) VALUES (10, NULL, 0.3, 0.4)"))
+			.hasMessageContaining("chk_bread_record_tag_pinned");
+		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM bread_record_tag", Integer.class)).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("같은 회원의 같은 요청 번호는 기록 하나만 — 번호가 없는 기록과 다른 회원은 막지 않는다")
+	void requestIdIsUniquePerMember() {
+		String requestId = "7f1c9a52-0d43-4a0b-9d6e-0f2b6c1a8e11";
+		jdbc.update("INSERT INTO bread_record (id, member_id, client_request_id) VALUES (11, 1, ?::uuid)", requestId);
+		jdbc.update("INSERT INTO bread_record (id, member_id, client_request_id) VALUES (12, 2, ?::uuid)", requestId);
+		jdbc.execute("INSERT INTO bread_record (id, member_id) VALUES (13, 1), (14, 1)");
+
+		assertThatThrownBy(() -> jdbc.update(
+			"INSERT INTO bread_record (id, member_id, client_request_id) VALUES (15, 1, ?::uuid)", requestId))
+			.hasMessageContaining("uq_bread_record_client_request");
+	}
+
+	@Test
+	@DisplayName("지구의 하늘 · 우주만 1 · 5 로 당겨지고 카탈로그 버전이 오른다")
+	void advancesEarthStages() {
+		assertThat(jdbc.queryForList(
+			"SELECT offset_at FROM world_planet_stages WHERE planet_code = 'earth' ORDER BY offset_at", Integer.class))
+			.containsExactly(0, 1, 5);
+		assertThat(jdbc.queryForObject(
+			"SELECT offset_at FROM world_planet_stages WHERE planet_code = 'mars'", Integer.class)).isEqualTo(10);
+		assertThat(jdbc.queryForObject("SELECT version FROM world_catalog", Integer.class)).isEqualTo(8);
 	}
 
 	private LocalDateTime registeredAt(long memberId) {

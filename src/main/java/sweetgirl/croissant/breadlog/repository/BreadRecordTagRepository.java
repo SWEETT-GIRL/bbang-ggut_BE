@@ -21,7 +21,7 @@ public interface BreadRecordTagRepository extends JpaRepository<BreadRecordTag, 
 	@Query("""
 			SELECT tag
 			FROM BreadRecordTag tag
-			JOIN FETCH tag.photo photo
+			LEFT JOIN FETCH tag.photo photo
 			LEFT JOIN FETCH tag.menu menu
 			LEFT JOIN FETCH menu.menuCategory
 			WHERE tag.record.id IN :recordIds

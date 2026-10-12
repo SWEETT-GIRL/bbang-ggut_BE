@@ -56,6 +56,11 @@ public class WorldQueryService {
 			reachedHeight,
 			arrivals.stream().map(MemberPlanetArrival::planetCode).toList());
 
+		WorldLevel level = worldProgressCalculator.level(
+			catalog.planets(),
+			reachedHeight,
+			arrivals.stream().map(MemberPlanetArrival::planetCode).toList());
+
 		return new MemberWorldResponse(
 			catalog.version(),
 			recordCount,
@@ -69,7 +74,9 @@ public class WorldQueryService {
 			pendingRoulettePlanets(catalog, arrivals),
 			memberWakeTicketRepository.countByMemberIdAndUsedAtIsNull(memberId),
 			characters(catalog, memberId),
-			memberWorld.getWelcomedAt());
+			memberWorld.getWelcomedAt(),
+			level.level(),
+			level.levelUpAt());
 	}
 
 	/**

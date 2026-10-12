@@ -2,6 +2,7 @@ package sweetgirl.croissant.world.service;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -55,6 +56,52 @@ public class WorldProgressCalculator {
 			isLast ? null : journey.get(index + 1).code(),
 			isLast ? 0 : Math.max(0, arriveAt.get(index + 1) - maxRecordCount),
 			ratio(walked, current.span()));
+	}
+
+	/**
+	 * 레벨 — 지나온 행성들의 단계 수에 지금 행성에서 선 단계의 순번을 더한 것이다.
+	 *
+	 * <p>현재 행성은 {@link #calculate} 와 같은 규칙(계산값과 도착 이력 중 더 멀리 간 쪽)으로 정한다.
+	 * 단계를 안 둔 행성은 한 레벨로 센다.
+	 */
+	public WorldLevel level(
+			List<WorldPlanetResponse> planets,
+			int maxRecordCount,
+			Collection<String> arrivedPlanetCodes) {
+		List<WorldPlanetResponse> journey = toJourney(planets);
+		List<Integer> arriveAt = toArrivePoints(journey);
+		int index = Math.max(
+			indexByRecordCount(arriveAt, maxRecordCount),
+			indexByArrivalHistory(journey, arrivedPlanetCodes));
+
+		int level = 0;
+		for (int passed = 0; passed < index; passed++) {
+			level += Math.max(1, journey.get(passed).stages().size());
+		}
+
+		WorldPlanetResponse current = journey.get(index);
+		List<WorldStageResponse> stages = current.stages().stream()
+			.sorted(Comparator.comparingInt(WorldStageResponse::offset))
+			.toList();
+		int walked = Math.max(0, maxRecordCount - arriveAt.get(index));
+		int stageIndex = 0;
+		for (int candidate = 0; candidate < stages.size(); candidate++) {
+			if (stages.get(candidate).offset() <= walked) {
+				stageIndex = candidate;
+			}
+		}
+
+		Integer levelUpAt = null;
+		if (stageIndex + 1 < stages.size()) {
+			levelUpAt = arriveAt.get(index) + stages.get(stageIndex + 1).offset();
+		} else if (index + 1 < journey.size()) {
+			levelUpAt = arriveAt.get(index + 1);
+		}
+		return new WorldLevel(
+			level + stageIndex + 1,
+			levelUpAt,
+			current.code(),
+			stages.isEmpty() ? null : stages.get(stageIndex).code());
 	}
 
 	/**
