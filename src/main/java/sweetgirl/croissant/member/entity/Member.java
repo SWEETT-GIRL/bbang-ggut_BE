@@ -90,6 +90,10 @@ public class Member {
 	@Column
 	private Long previousMemberId;
 
+	/** 내 초대 코드. 처음 초대 화면을 열 때 만들어진다 — 그 전에는 비어 있다. */
+	@Column(name = "invite_code", length = 8, updatable = false, insertable = false)
+	private String inviteCode;
+
 	@CreatedDate
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;

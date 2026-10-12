@@ -77,4 +77,19 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 			ORDER BY m.createdAt DESC
 			""")
 	Slice<Member> searchForAdmin(@Param("keyword") String keyword, Pageable pageable);
+
+	Optional<Member> findByInviteCodeAndDeletedAtIsNull(String inviteCode);
+
+	boolean existsByInviteCode(String inviteCode);
+
+	@Query(value = "SELECT invite_code FROM member WHERE id = :memberId", nativeQuery = true)
+	Optional<String> findInviteCode(@Param("memberId") Long memberId);
+
+	/** 초대 코드가 없을 때만 붙인다. 이미 있으면 0 이다 — 한 번 정해진 코드는 바뀌지 않는다. */
+	@Modifying
+	@Query(value = """
+			UPDATE member SET invite_code = :code
+			WHERE id = :memberId AND invite_code IS NULL
+			""", nativeQuery = true)
+	int assignInviteCodeIfAbsent(@Param("memberId") Long memberId, @Param("code") String code);
 }

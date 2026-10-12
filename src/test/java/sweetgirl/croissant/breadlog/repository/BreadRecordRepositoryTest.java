@@ -71,6 +71,7 @@ class BreadRecordRepositoryTest {
 					member_type VARCHAR(20) NOT NULL DEFAULT 'USER',
 					registered_at TIMESTAMP,
 					previous_member_id BIGINT,
+					invite_code VARCHAR(8),
 					created_at TIMESTAMP NOT NULL,
 					updated_at TIMESTAMP
 				)

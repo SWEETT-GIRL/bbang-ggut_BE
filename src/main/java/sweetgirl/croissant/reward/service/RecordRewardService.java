@@ -37,6 +37,7 @@ public class RecordRewardService {
 	private final RewardSettings rewardSettings;
 	private final CrumbLedgerRepository ledgerRepository;
 	private final WorldLevelReader worldLevelReader;
+	private final InviteService inviteService;
 
 	/**
 	 * 새 기록의 보상.
@@ -96,6 +97,9 @@ public class RecordRewardService {
 		if (record.isGranted() && photoCount > 0) {
 			grantPhotoBonus(memberId, recordId, rewards);
 		}
+
+		// 초대받은 회원의 첫 빵이면 초대가 성사된다
+		rewards.addAll(inviteService.rewardFirstRecord(member));
 
 		if (heightAfter > heightBefore) {
 			addLevelUp(memberId, heightBefore, heightAfter, rewards);
