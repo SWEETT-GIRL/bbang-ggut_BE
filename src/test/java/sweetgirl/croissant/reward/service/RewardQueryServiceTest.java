@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.withSettings;
 
@@ -27,10 +28,16 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.reward.dto.response.RewardHistoryResponse;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Attendance;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.CarryOver;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Feed;
 import sweetgirl.croissant.reward.entity.CrumbLedgerEntry;
+import sweetgirl.croissant.reward.entity.MemberAttendanceDay;
+import sweetgirl.croissant.reward.entity.MemberFeedDay;
 import sweetgirl.croissant.reward.repository.CrumbLedgerRepository;
+import sweetgirl.croissant.reward.repository.MemberAttendanceDayRepository;
 import sweetgirl.croissant.reward.repository.MemberCrumbWalletRepository;
+import sweetgirl.croissant.reward.repository.MemberFeedDayRepository;
 
 @ExtendWith(MockitoExtension.class)
 class RewardQueryServiceTest {
@@ -49,6 +56,10 @@ class RewardQueryServiceTest {
 	private RewardMemberPolicy rewardMemberPolicy;
 	@Mock
 	private MemberReader memberReader;
+	@Mock
+	private MemberAttendanceDayRepository attendanceDayRepository;
+	@Mock
+	private MemberFeedDayRepository feedDayRepository;
 
 	@InjectMocks
 	private RewardQueryService rewardQueryService;
@@ -59,6 +70,9 @@ class RewardQueryServiceTest {
 	void setUp() {
 		member = mock(Member.class);
 		given(memberReader.getMember(MEMBER_ID)).willReturn(member);
+		// 내역 조회는 수치를 읽지 않는다
+		lenient().when(rewardSettings.attendance()).thenReturn(List.of(5, 5, 10, 5, 10, 10, 30));
+		lenient().when(rewardSettings.feedWedges()).thenReturn(List.of(10, 5, 3, 5, 10, 50));
 	}
 
 	@Nested
@@ -117,6 +131,89 @@ class RewardQueryServiceTest {
 			assertThat(summary.rules()).isNotNull();
 			then(walletRepository).shouldHaveNoInteractions();
 			then(ledgerRepository).shouldHaveNoInteractions();
+		}
+	}
+
+	@Nested
+	@DisplayName("요약의 출석 · 밥")
+	class DailyBlocks {
+
+		private MemberAttendanceDay attended(int boardDay) {
+			MemberAttendanceDay day = mock(MemberAttendanceDay.class);
+			// 오늘 행이 있으면 어제 행의 칸은 읽히지 않는다
+			lenient().when(day.getBoardDay()).thenReturn(boardDay);
+			return day;
+		}
+
+		@Test
+		@DisplayName("어제 2 일째까지 찍었고 오늘 안 했으면 — 찍힌 칸 2, 오늘 3 일째 10, 내일 5")
+		void continuing() {
+			MemberAttendanceDay yesterday = attended(2);
+			given(attendanceDayRepository.findByMemberIdAndDay(eq(MEMBER_ID), any()))
+				.willReturn(Optional.of(yesterday), Optional.empty());
+
+			Attendance attendance = rewardQueryService.getSummary(MEMBER_ID, null).attendance();
+
+			assertThat(attendance).isEqualTo(new Attendance(false, 2, 3, 10, 5));
+		}
+
+		@Test
+		@DisplayName("오늘 7 일째를 찍었으면 — 찍힌 칸 7, 오늘 30, 내일은 1 일째 5")
+		void finishedBoardToday() {
+			MemberAttendanceDay yesterday = attended(6);
+			MemberAttendanceDay today = attended(7);
+			given(attendanceDayRepository.findByMemberIdAndDay(eq(MEMBER_ID), any()))
+				.willReturn(Optional.of(yesterday), Optional.of(today));
+
+			Attendance attendance = rewardQueryService.getSummary(MEMBER_ID, null).attendance();
+
+			assertThat(attendance).isEqualTo(new Attendance(true, 7, 1, 30, 5));
+		}
+
+		@Test
+		@DisplayName("어제 7 일째를 채웠으면 오늘은 빈 판의 1 일째다")
+		void newBoardAfterSeventh() {
+			MemberAttendanceDay yesterday = attended(7);
+			given(attendanceDayRepository.findByMemberIdAndDay(eq(MEMBER_ID), any()))
+				.willReturn(Optional.of(yesterday), Optional.empty());
+
+			Attendance attendance = rewardQueryService.getSummary(MEMBER_ID, null).attendance();
+
+			assertThat(attendance).isEqualTo(new Attendance(false, 0, 1, 5, 5));
+		}
+
+		@Test
+		@DisplayName("어제 안 했으면 끊겨서 1 일째다")
+		void broken() {
+			given(attendanceDayRepository.findByMemberIdAndDay(eq(MEMBER_ID), any())).willReturn(Optional.empty());
+
+			Attendance attendance = rewardQueryService.getSummary(MEMBER_ID, null).attendance();
+
+			assertThat(attendance).isEqualTo(new Attendance(false, 0, 1, 5, 5));
+		}
+
+		@Test
+		@DisplayName("오늘 밥을 줬으면 doneToday 이고 칸 배열은 그대로 내린다")
+		void fedToday() {
+			given(attendanceDayRepository.findByMemberIdAndDay(eq(MEMBER_ID), any())).willReturn(Optional.empty());
+			given(feedDayRepository.findByMemberIdAndDay(eq(MEMBER_ID), any()))
+				.willReturn(Optional.of(mock(MemberFeedDay.class)));
+
+			Feed feed = rewardQueryService.getSummary(MEMBER_ID, null).feed();
+
+			assertThat(feed).isEqualTo(new Feed(true, List.of(10, 5, 3, 5, 10, 50)));
+		}
+
+		@Test
+		@DisplayName("게스트는 빈 판과 안 돌린 룰렛을 받는다 — 출석 표를 읽지 않는다")
+		void guest() {
+			given(member.isGuest()).willReturn(true);
+
+			RewardSummaryResponse summary = rewardQueryService.getSummary(MEMBER_ID, null);
+
+			assertThat(summary.attendance()).isEqualTo(new Attendance(false, 0, 1, 5, 5));
+			assertThat(summary.feed().doneToday()).isFalse();
+			then(attendanceDayRepository).shouldHaveNoInteractions();
 		}
 	}
 

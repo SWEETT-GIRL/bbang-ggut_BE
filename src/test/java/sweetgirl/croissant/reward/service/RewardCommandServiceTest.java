@@ -48,6 +48,8 @@ class RewardCommandServiceTest {
 	@Mock
 	private CrumbGrantService crumbGrantService;
 	@Mock
+	private RewardDailyCommandService rewardDailyCommandService;
+	@Mock
 	private RewardPendingService rewardPendingService;
 	@Mock
 	private RewardSettings rewardSettings;
@@ -96,6 +98,8 @@ class RewardCommandServiceTest {
 
 			assertThat(carryOver).contains(new CarryOver(true, expected, (int)recordCount));
 			then(walletRepository).should().markCarriedOver(eq(MEMBER_ID), any(LocalDateTime.class));
+			// 연속 기록 일수도 출석판 자리로 옮긴다
+			then(rewardDailyCommandService).should().seedAttendanceFromRecordStreak(eq(MEMBER_ID), any());
 		}
 
 		@Test
@@ -131,6 +135,7 @@ class RewardCommandServiceTest {
 				.willReturn(new GrantResult(Outcome.ALREADY_GRANTED, 0, 50, 50));
 
 			assertThat(rewardCommandService.carryOverIfNeeded(MEMBER_ID)).isEmpty();
+			then(rewardDailyCommandService).shouldHaveNoInteractions();
 		}
 
 		@Test

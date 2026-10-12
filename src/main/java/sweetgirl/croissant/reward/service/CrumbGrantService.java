@@ -51,6 +51,20 @@ public class CrumbGrantService {
 	}
 
 	/**
+	 * 날짜를 정해 주는 적립. 하루에 한 번 하는 것(출석 · 밥)처럼, 요청이 자정을 걸쳐도 같은 날로 남아야 할 때 쓴다.
+	 *
+	 * @param earnedOn 한국 날짜. 부르는 쪽이 요청 처음에 한 번 정한 값
+	 */
+	public GrantResult grantOn(
+			long memberId,
+			CrumbReason reason,
+			int amount,
+			String idempotencyKey,
+			LocalDate earnedOn) {
+		return grant(new CrumbGrant(memberId, reason, amount, idempotencyKey, null, null, null, null), earnedOn);
+	}
+
+	/**
 	 * 하루 상한이 있는 적립. 그날 이 이유로 받은 횟수가 상한에 닿았으면 주지 않고 {@code CAPPED} 로 답한다.
 	 *
 	 * @param earnedOn 한국 날짜. 요청 하나가 자정을 걸쳐도 날짜가 바뀌지 않게, 부르는 쪽이 한 번 정해 넘긴다

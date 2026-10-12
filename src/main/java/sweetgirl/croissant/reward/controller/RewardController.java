@@ -15,14 +15,17 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.reward.dto.request.PendingRewardAckRequest;
+import sweetgirl.croissant.reward.dto.response.AttendanceResponse;
+import sweetgirl.croissant.reward.dto.response.FeedResponse;
 import sweetgirl.croissant.reward.dto.response.RewardClaimResponse;
 import sweetgirl.croissant.reward.dto.response.RewardHistoryResponse;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.CarryOver;
 import sweetgirl.croissant.reward.service.RewardCommandService;
+import sweetgirl.croissant.reward.service.RewardDailyCommandService;
 import sweetgirl.croissant.reward.service.RewardQueryService;
 
-@Tag(name = "[Client] 리워드", description = "부스러기 잔액 · 받은 내역 · 환영 선물")
+@Tag(name = "[Client] 리워드", description = "부스러기 잔액 · 받은 내역 · 환영 선물 · 출석 · 밥 룰렛")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/members/me/rewards")
@@ -30,6 +33,7 @@ public class RewardController {
 
 	private final RewardCommandService rewardCommandService;
 	private final RewardQueryService rewardQueryService;
+	private final RewardDailyCommandService rewardDailyCommandService;
 
 	@Operation(summary = "리워드 요약", description = "잔액 · 오늘 받은 양 · 보상 수치 · 아직 연출하지 못한 보상을 내린다. "
 		+ "1.x 에서 넘어온 회원은 첫 조회에서 이관 선물을 받고 그 한 번만 carryOver 가 내려간다. 게스트는 빈 요약이다.")
@@ -55,6 +59,20 @@ public class RewardController {
 	public ResponseEntity<ApiResponse<RewardClaimResponse>> claimWelcome(
 			@AuthenticationPrincipal Long memberId) {
 		return ResponseEntity.ok(ApiResponse.ok(rewardCommandService.claimWelcome(memberId)));
+	}
+
+	@Operation(summary = "출석", description = "하루에 한 번(한국 날짜). 오늘 이미 했으면 에러가 아니라 "
+		+ "alreadyDone: true 와 오늘 결과를 그대로 답한다.")
+	@PostMapping("/attendance")
+	public ResponseEntity<ApiResponse<AttendanceResponse>> checkIn(@AuthenticationPrincipal Long memberId) {
+		return ResponseEntity.ok(ApiResponse.ok(rewardDailyCommandService.checkIn(memberId)));
+	}
+
+	@Operation(summary = "밥 룰렛", description = "하루에 한 번(한국 날짜). 서버가 칸을 뽑는다. 오늘 이미 돌렸으면 "
+		+ "alreadyDone: true 와 오늘 결과를 그대로 답한다.")
+	@PostMapping("/feed")
+	public ResponseEntity<ApiResponse<FeedResponse>> feed(@AuthenticationPrincipal Long memberId) {
+		return ResponseEntity.ok(ApiResponse.ok(rewardDailyCommandService.feed(memberId)));
 	}
 
 	@Operation(summary = "연출한 보상 확인", description = "pendingRewards 의 연출을 끝낸 뒤 그 id 들을 보낸다.")

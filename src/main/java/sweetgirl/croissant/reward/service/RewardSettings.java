@@ -3,6 +3,7 @@ package sweetgirl.croissant.reward.service;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -32,6 +33,10 @@ public class RewardSettings {
 		RewardSettingKey.ATTENDANCE_DAY4, RewardSettingKey.ATTENDANCE_DAY5, RewardSettingKey.ATTENDANCE_DAY6,
 		RewardSettingKey.ATTENDANCE_DAY7);
 
+	private static final List<RewardSettingKey> FEED_WEDGES = List.of(
+		RewardSettingKey.FEED_WEDGE0, RewardSettingKey.FEED_WEDGE1, RewardSettingKey.FEED_WEDGE2,
+		RewardSettingKey.FEED_WEDGE3, RewardSettingKey.FEED_WEDGE4, RewardSettingKey.FEED_WEDGE5);
+
 	private final RewardSettingRepository rewardSettingRepository;
 
 	private final AtomicReference<Snapshot> cached = new AtomicReference<>();
@@ -43,6 +48,21 @@ public class RewardSettings {
 	/** 출석 7 일판의 칸별 보상(1 일째부터). */
 	public List<Integer> attendance() {
 		return ATTENDANCE_DAYS.stream().map(this::get).toList();
+	}
+
+	/** 밥 룰렛의 칸별 보상. 시계 방향이고 12 시가 0 번이다 — 앱의 룰렛 그림 순서와 같다. */
+	public List<Integer> feedWedges() {
+		return FEED_WEDGES.stream().map(this::get).toList();
+	}
+
+	/** 밥 룰렛이 뽑는 값과 그 가중치(값 → 가중치). 값이 작은 것부터다. */
+	public Map<Integer, Integer> feedWeights() {
+		Map<Integer, Integer> weights = new LinkedHashMap<>();
+		weights.put(3, get(RewardSettingKey.FEED_WEIGHT_3));
+		weights.put(5, get(RewardSettingKey.FEED_WEIGHT_5));
+		weights.put(10, get(RewardSettingKey.FEED_WEIGHT_10));
+		weights.put(50, get(RewardSettingKey.FEED_WEIGHT_50));
+		return weights;
 	}
 
 	/** 지금 쓰이는 값 전부. 키 선언 순서다. */

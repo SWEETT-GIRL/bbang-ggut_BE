@@ -1,5 +1,6 @@
 package sweetgirl.croissant.reward.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -29,6 +30,7 @@ public class RewardCommandService {
 	static final String WELCOME_KEY = "welcome";
 
 	private final CrumbGrantService crumbGrantService;
+	private final RewardDailyCommandService rewardDailyCommandService;
 	private final RewardPendingService rewardPendingService;
 	private final RewardSettings rewardSettings;
 	private final RewardMemberPolicy rewardMemberPolicy;
@@ -41,6 +43,7 @@ public class RewardCommandService {
 	 *
 	 * <p>방금 줬을 때만 값을 돌려준다 — 앱이 그 한 번에 안내 화면을 띄운다. 멱등 키가 하나라 요약이 동시에 둘 들어와도
 	 * 한쪽만 준다. 제재 중이라 못 줬으면 준 것으로 남기지 않는다 — 제재가 풀린 뒤의 조회에서 받는다.
+	 * 줄 때 1.x 의 연속 기록 일수를 출석판 자리로도 옮긴다.
 	 */
 	public Optional<CarryOver> carryOverIfNeeded(Long memberId) {
 		Member member = memberReader.getMember(memberId);
@@ -67,9 +70,11 @@ public class RewardCommandService {
 			return Optional.empty();
 		}
 		walletRepository.markCarriedOver(memberId, LocalDateTime.now());
-		return result.isGranted()
-			? Optional.of(new CarryOver(true, amount, recordCount))
-			: Optional.empty();
+		if (!result.isGranted()) {
+			return Optional.empty();
+		}
+		rewardDailyCommandService.seedAttendanceFromRecordStreak(memberId, LocalDate.now(CrumbGrantService.ZONE));
+		return Optional.of(new CarryOver(true, amount, recordCount));
 	}
 
 	/**

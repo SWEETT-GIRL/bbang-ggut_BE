@@ -17,18 +17,23 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import sweetgirl.croissant.global.contract.ResponseContractWebMvcTest;
+import sweetgirl.croissant.reward.dto.response.AttendanceResponse;
+import sweetgirl.croissant.reward.dto.response.FeedResponse;
 import sweetgirl.croissant.reward.dto.response.RewardClaimResponse;
 import sweetgirl.croissant.reward.dto.response.RewardHistoryResponse;
 import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
 import sweetgirl.croissant.reward.dto.response.RewardRulesResponse;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Attendance;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.CarryOver;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Feed;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Welcome;
 import sweetgirl.croissant.reward.enums.CrumbReason;
 import sweetgirl.croissant.reward.enums.RewardItemType;
 import sweetgirl.croissant.reward.service.GrantResult;
 import sweetgirl.croissant.reward.service.GrantResult.Outcome;
 import sweetgirl.croissant.reward.service.RewardCommandService;
+import sweetgirl.croissant.reward.service.RewardDailyCommandService;
 import sweetgirl.croissant.reward.service.RewardQueryService;
 
 /**
@@ -40,8 +45,14 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 	private static final RewardRulesResponse RULES = new RewardRulesResponse(
 		25, 10, 5, 3, List.of(5, 5, 10, 5, 10, 10, 30), 2, 3, 10, 20, 2, 100, 10, 3, 8, 30, 30, 600);
 
+	private static final Attendance ATTENDANCE = new Attendance(false, 2, 3, 10, 5);
+	private static final Feed FEED = new Feed(false, List.of(10, 5, 3, 5, 10, 50));
+
 	@MockitoBean
 	private RewardCommandService rewardCommandService;
+
+	@MockitoBean
+	private RewardDailyCommandService rewardDailyCommandService;
 
 	@MockitoBean
 	private RewardQueryService rewardQueryService;
@@ -52,7 +63,7 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 			new GrantResult(Outcome.GRANTED, 100, 185, 285), CrumbReason.INVITE_INVITER).withId(31L);
 		given(rewardCommandService.carryOverIfNeeded(any())).willReturn(Optional.empty());
 		given(rewardQueryService.getSummary(any(), any())).willReturn(new RewardSummaryResponse(
-			285, 26, RULES, new CarryOver(true, 110, 12), new Welcome(false), List.of(pending)));
+			285, 26, RULES, new CarryOver(true, 110, 12), new Welcome(false), List.of(pending), ATTENDANCE, FEED));
 
 		mockMvc.perform(get("/members/me/rewards/summary"))
 			.andExpect(status().isOk())
@@ -78,6 +89,14 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.carryOver.crumbs").isNumber())
 			.andExpect(jsonPath("$.data.carryOver.recordCount").isNumber())
 			.andExpect(jsonPath("$.data.welcome.available").isBoolean())
+			.andExpect(jsonPath("$.data.attendance.doneToday").isBoolean())
+			.andExpect(jsonPath("$.data.attendance.stampedDays").isNumber())
+			.andExpect(jsonPath("$.data.attendance.nextBoardDay").isNumber())
+			.andExpect(jsonPath("$.data.attendance.todayReward").isNumber())
+			.andExpect(jsonPath("$.data.attendance.tomorrowReward").isNumber())
+			.andExpect(jsonPath("$.data.feed.doneToday").isBoolean())
+			// 룰렛 그림의 칸 순서 — 시계 방향, 12 시가 0 번
+			.andExpect(jsonPath("$.data.feed.wedges", hasSize(6)))
 			// rewards[] 한 칸 — 기록 저장·출석 등 뒤 phase 의 응답도 같은 모양을 쓴다
 			.andExpect(jsonPath("$.data.pendingRewards[0].id").isNumber())
 			.andExpect(jsonPath("$.data.pendingRewards[0].type").value("CRUMBS"))
@@ -91,7 +110,8 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 	@Test
 	void summary_keepsCarryOverKeyEvenWhenNull() throws Exception {
 		given(rewardCommandService.carryOverIfNeeded(any())).willReturn(Optional.empty());
-		given(rewardQueryService.getSummary(any(), any())).willReturn(RewardSummaryResponse.guest(RULES));
+		given(rewardQueryService.getSummary(any(), any()))
+			.willReturn(RewardSummaryResponse.guest(RULES, ATTENDANCE, FEED));
 
 		mockMvc.perform(get("/members/me/rewards/summary"))
 			.andExpect(status().isOk())
@@ -105,7 +125,8 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 		given(rewardCommandService.carryOverIfNeeded(any())).willReturn(Optional.empty());
 		given(rewardQueryService.getSummary(any(), any())).willReturn(new RewardSummaryResponse(
 			0, 0, RULES, null, new Welcome(false), List.of(new RewardItemResponse(
-				32L, RewardItemType.LEVEL_UP, null, 2, 3, null, null, "earth", "space", null, null))));
+				32L, RewardItemType.LEVEL_UP, null, 2, 3, null, null, "earth", "space", null, null)),
+			ATTENDANCE, FEED));
 
 		mockMvc.perform(get("/members/me/rewards/summary"))
 			.andExpect(status().isOk())
@@ -131,6 +152,32 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.items[0].balanceAfter").isNumber())
 			.andExpect(jsonPath("$.data.items[0].createdAt").isString())
 			.andExpect(jsonPath("$.data.nextCursor").isNumber());
+	}
+
+	@Test
+	void attendance_keepsFieldsTheAppReads() throws Exception {
+		given(rewardDailyCommandService.checkIn(any())).willReturn(new AttendanceResponse(3, 10, false, List.of(
+			RewardItemResponse.crumbs(new GrantResult(Outcome.GRANTED, 10, 20, 30), CrumbReason.ATTENDANCE))));
+
+		mockMvc.perform(post("/members/me/rewards/attendance"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.boardDay").isNumber())
+			.andExpect(jsonPath("$.data.crumbs").isNumber())
+			.andExpect(jsonPath("$.data.alreadyDone").isBoolean())
+			.andExpect(jsonPath("$.data.rewards[0].reason").value("ATTENDANCE"));
+	}
+
+	@Test
+	void feed_keepsFieldsTheAppReads() throws Exception {
+		given(rewardDailyCommandService.feed(any())).willReturn(new FeedResponse(5, 50, false, List.of(
+			RewardItemResponse.crumbs(new GrantResult(Outcome.GRANTED, 50, 30, 80), CrumbReason.FEED))));
+
+		mockMvc.perform(post("/members/me/rewards/feed"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.wedge").isNumber())
+			.andExpect(jsonPath("$.data.crumbs").isNumber())
+			.andExpect(jsonPath("$.data.alreadyDone").isBoolean())
+			.andExpect(jsonPath("$.data.rewards[0].reason").value("FEED"));
 	}
 
 	@Test
