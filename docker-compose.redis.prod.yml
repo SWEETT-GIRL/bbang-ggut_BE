@@ -1,0 +1,41 @@
+# prod Redis 전용 compose. 급부상(자동완성) 신호·순위표를 담는다.
+#
+# 앱 compose(docker-compose.prod.yml)와 파일을 나눈 이유: 앱은 blue/green 두 스택이 번갈아 뜨고 내려간다.
+# Redis 를 앱과 같은 스택에 두면 배포마다 구 색의 Redis 가 같이 내려가 7일치 신호가 사라진다.
+# 그래서 색과 무관한 프로젝트로 한 번만 띄우고, 두 색은 외부 네트워크(bbang-shared)로 붙는다.
+#   docker network create bbang-shared
+#   docker compose -p bbang-redis -f docker-compose.redis.prod.yml up -d
+#
+# 포트를 호스트에 열지 않는다 — 앱만 bbang-shared 네트워크에서 서비스 이름(redis)으로 찾는다.
+services:
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD:-}
+      - --maxmemory
+      - 128mb
+      # 급부상 신호는 다시 만들 수 없는 데이터다 — 메모리가 차도 임의로 버리지 않는다(쓰기가 실패하고 앱은 경고만 남긴다).
+      # 버려도 되는 자동완성 결과 캐시(ac:*)는 prod 에서 꺼 둔다.
+      - --maxmemory-policy
+      - noeviction
+      # RDB 스냅샷 — 5분 동안 변경이 1건 이상이면 /data 에 저장한다. 재시작해도 7일 창이 이어진다.
+      # 마지막 몇 분을 잃어도 순위가 거의 바뀌지 않아 AOF 는 쓰지 않는다.
+      - --save
+      - "300 1"
+      - --appendonly
+      - "no"
+    volumes:
+      - redis-data:/data
+    networks:
+      - shared
+
+volumes:
+  redis-data:
+
+networks:
+  shared:
+    name: bbang-shared
+    external: true

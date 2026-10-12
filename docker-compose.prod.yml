@@ -60,6 +60,16 @@ services:
       PERF_DASHBOARD_ENABLED: ${PERF_DASHBOARD_ENABLED:-false}
       PERF_DASHBOARD_ACCESS_KEY: ${PERF_DASHBOARD_ACCESS_KEY:-}
       ADMIN_API_KEY: ${ADMIN_API_KEY}
+      # 급부상용 Redis — docker-compose.redis.prod.yml 로 따로 띄우고 bbang-shared 네트워크의 서비스 이름으로 찾는다.
+      # 스위치는 기본 꺼짐. 꺼져 있으면 앱은 Redis 에 붙지 않는다. 자동완성 결과 캐시는 prod 에서 켜지 않는다.
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      TRENDING_ENABLED: ${TRENDING_ENABLED:-false}
+
+    networks:
+      - default
+      - shared
 
     ports:
       # 앞단 Nginx가 bastion(다른 호스트)에 있으므로 127.0.0.1 바인딩은 쓸 수 없다.
@@ -67,3 +77,9 @@ services:
       - "${APP_HOST_PORT}:8080"
       # actuator 관리 포트 — 인증이 없으므로 인바운드를 Prometheus 인스턴스 SG로 제한한다.
       - "${MGMT_HOST_PORT}:8081"
+
+networks:
+  # 색과 무관하게 떠 있는 Redis 와 만나는 네트워크. 배포가 미리 만든다(cd-prod.yml).
+  shared:
+    name: bbang-shared
+    external: true
