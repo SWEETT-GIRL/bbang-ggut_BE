@@ -8,10 +8,19 @@ on:
       - '**.md'
       - 'docs/**'
       - '.claude/**'
+  # PR 검사는 각 PR 을 따로 본다. 둘이 각자 통과해도 합쳐지면 깨질 수 있어(10/12: #895 가 조회를 바꾸고
+  # #896 이 옛 조회를 모킹하는 테스트를 넣어 dev 에서 2건 실패) 머지된 dev 를 한 번 더 돌린다.
+  push:
+    branches: [ dev ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.claude/**'
 
-# 같은 PR 에 연달아 푸시하면 앞선 실행은 결과를 볼 일이 없으니 취소한다
+# 같은 PR 에 연달아 푸시하면 앞선 실행은 결과를 볼 일이 없으니 취소한다.
+# dev 푸시는 PR 번호가 없어 브랜치 이름으로 묶인다 — 연달아 머지하면 마지막 상태만 검사한다.
 concurrency:
-  group: ci-${{ github.event.pull_request.number }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
