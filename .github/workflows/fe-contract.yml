@@ -1,0 +1,173 @@
+name: FE contract
+
+# BE 변경이 앱(FE, daedongbbangmap) 코드를 깨는지 머지 전에 본다.
+# 이 PR 코드로 API 명세(openapi.json)를 뽑고 → 앱 레포를 받아 그 명세로 응답 타입을 다시 만든 뒤 → tsc 를 돌린다.
+# 앱의 src/services/api/contract.ts 가 "앱이 선언한 응답 필드가 서버에 전부 있는가"를 검사한다 (#818 재발 방지).
+#
+# 응답 DTO·컨트롤러가 바뀐 PR 에서만 돈다 — Actions 무료 분량(월 2,000분)을 아낀다.
+# 앱 브랜치: 이 PR 과 같은 이름의 앱 브랜치가 있으면 그걸로(BE·FE 를 같이 바꾸는 작업), 없으면 FE_CONTRACT_DEFAULT_REF(기본 dev).
+# 앱 레포 읽기: 읽기 전용 deploy key 의 개인 키를 FE_REPO_DEPLOY_KEY 시크릿에 둔다. 없으면 검사를 건너뛴다.
+on:
+  pull_request:
+    branches: [ main, dev ]
+    paths:
+      - 'src/main/java/**/dto/**'
+      - 'src/main/java/**/controller/**'
+      - 'src/main/java/sweetgirl/croissant/global/response/**'
+      - 'src/main/java/sweetgirl/croissant/config/docs/**'
+      - 'build.gradle'
+      - '.github/workflows/fe-contract.yml'
+      - 'scripts/ci/fe_contract_summary.py'
+
+concurrency:
+  group: fe-contract-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  fe-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FE_REPO: SWEETT-GIRL/daedongbbangmap
+
+    steps:
+      - name: Check FE repo access
+        id: access
+        env:
+          FE_KEY: ${{ secrets.FE_REPO_DEPLOY_KEY }}
+        run: |
+          if [ -z "$FE_KEY" ]; then
+            echo "::notice::FE_REPO_DEPLOY_KEY 시크릿이 없어 앱 타입 검사를 건너뜁니다"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout BE
+        if: steps.access.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+        with:
+          path: be
+
+      - name: Set up Java 17
+        if: steps.access.outputs.enabled == 'true'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+          cache-dependency-path: be/**/*.gradle*
+
+      - name: Export OpenAPI spec
+        if: steps.access.outputs.enabled == 'true'
+        working-directory: be
+        run: |
+          chmod +x ./gradlew
+          ./gradlew test -PopenapiExport --tests 'sweetgirl.croissant.config.docs.OpenApiSpecExportTest' --no-daemon
+
+      - name: Pick FE branch
+        if: steps.access.outputs.enabled == 'true'
+        id: fe-ref
+        env:
+          FE_KEY: ${{ secrets.FE_REPO_DEPLOY_KEY }}
+          HEAD_REF: ${{ github.head_ref }}
+          DEFAULT_REF: ${{ vars.FE_CONTRACT_DEFAULT_REF || 'dev' }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$FE_KEY" > ~/.ssh/fe_repo_key
+          chmod 600 ~/.ssh/fe_repo_key
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/fe_repo_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          if git ls-remote --exit-code --heads "git@github.com:${FE_REPO}.git" "$HEAD_REF" > /dev/null; then
+            echo "ref=$HEAD_REF" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=$DEFAULT_REF" >> "$GITHUB_OUTPUT"
+          fi
+          rm -f ~/.ssh/fe_repo_key
+
+      - name: Checkout FE
+        if: steps.access.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.FE_REPO }}
+          ref: ${{ steps.fe-ref.outputs.ref }}
+          ssh-key: ${{ secrets.FE_REPO_DEPLOY_KEY }}
+          path: fe
+
+      - name: Check contract file
+        if: steps.access.outputs.enabled == 'true'
+        id: contract
+        env:
+          FE_REF: ${{ steps.fe-ref.outputs.ref }}
+        run: |
+          if [ -f fe/src/services/api/contract.ts ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::앱 브랜치 $FE_REF 에 contract.ts 가 없어 검사를 건너뜁니다"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Node
+        if: steps.contract.outputs.present == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: fe/package-lock.json
+
+      - name: Install FE dependencies
+        if: steps.contract.outputs.present == 'true'
+        working-directory: fe
+        run: npm ci --prefer-offline --no-audit --fund=false
+
+      - name: Regenerate FE API types from this PR
+        if: steps.contract.outputs.present == 'true'
+        working-directory: fe
+        env:
+          OPENAPI_SPEC: ${{ github.workspace }}/be/build/openapi/openapi.json
+        run: npm run gen:api
+
+      - name: Type check FE
+        if: steps.contract.outputs.present == 'true'
+        working-directory: fe
+        run: npx tsc --noEmit > "$RUNNER_TEMP/tsc.txt" 2>&1 || true
+
+      - name: Summarize
+        if: steps.contract.outputs.present == 'true'
+        id: summary
+        env:
+          FE_REF: ${{ steps.fe-ref.outputs.ref }}
+        run: |
+          set +e
+          python3 be/scripts/ci/fe_contract_summary.py "$RUNNER_TEMP/tsc.txt" "$RUNNER_TEMP/summary.md" \
+            fe/src/services/api/contract.ts
+          result=$?
+          set -e
+          printf '\n<sub>앱 브랜치: `%s`</sub>\n' "$FE_REF" >> "$RUNNER_TEMP/summary.md"
+          cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP/tsc.txt"
+          echo "result=$result" >> "$GITHUB_OUTPUT"
+
+      # 실패하면 PR 에 요약을 남기고, 다시 통과하면 그 코멘트를 통과로 고친다
+      - name: Comment on PR
+        if: steps.contract.outputs.present == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RESULT: ${{ steps.summary.outputs.result }}
+        run: |
+          if gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --edit-last --body-file "$RUNNER_TEMP/summary.md" 2>/dev/null; then
+            exit 0
+          fi
+          if [ "$RESULT" != "0" ]; then
+            gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/summary.md"
+          fi
+
+      - name: Fail if FE breaks
+        if: steps.contract.outputs.present == 'true' && steps.summary.outputs.result != '0'
+        run: |
+          echo "::error::이 BE 변경으로 앱(FE) 타입 검사가 실패했습니다 — PR 코멘트·Summary 를 확인하세요"
+          exit 1
