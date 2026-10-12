@@ -83,8 +83,8 @@ jobs:
           spring.security.oauth2.client.provider.kakao.user-info-uri=https://kapi.kakao.com/v2/user/me
           spring.security.oauth2.client.provider.kakao.user-name-attribute=id
 
-          spring.security.oauth2.client.registration.naver.client-id=${NAVER_CLIENT_ID}
-          spring.security.oauth2.client.registration.naver.client-secret=${NAVER_CLIENT_SECRET}
+          spring.security.oauth2.client.registration.naver.client-id=${NAVER_LOGIN_CLIENT_ID}
+          spring.security.oauth2.client.registration.naver.client-secret=${NAVER_LOGIN_CLIENT_SECRET}
           spring.security.oauth2.client.registration.naver.redirect-uri=https://bbang-ggut.site/api/v1/oauth2/naver
           spring.security.oauth2.client.registration.naver.authorization-grant-type=authorization_code
           spring.security.oauth2.client.registration.naver.client-name=Naver
@@ -238,6 +238,8 @@ jobs:
             echo "KAKAO_API_KEY=${{ secrets.KAKAO_API_KEY }}" >> .env
             echo "NAVER_CLIENT_ID=${{ secrets.NAVER_CLIENT_ID }}" >> .env
             echo "NAVER_CLIENT_SECRET=${{ secrets.NAVER_CLIENT_SECRET }}" >> .env
+            echo "NAVER_LOGIN_CLIENT_ID=${{ secrets.NAVER_LOGIN_CLIENT_ID }}" >> .env
+            echo "NAVER_LOGIN_CLIENT_SECRET=${{ secrets.NAVER_LOGIN_CLIENT_SECRET }}" >> .env
             echo "GOOGLE_PLACES_API_KEY=${{ secrets.GOOGLE_PLACES_API_KEY }}" >> .env
             echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
             echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
