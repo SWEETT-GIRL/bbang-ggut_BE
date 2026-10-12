@@ -1,0 +1,565 @@
+[
+  {
+    "section": "metadata",
+    "read_only": "on",
+    "measured_at_kst": "2026-10-12T16:03:52.370021"
+  },
+  {
+    "total": 39352,
+    "section": "eligible_quality",
+    "missing_region1": 3,
+    "missing_region2": 3,
+    "missing_region3": 3,
+    "missing_or_empty_point": 0
+  },
+  {
+    "rows": [
+      {
+        "eligible": 853,
+        "region_1st": "경기",
+        "region_2nd": "고양시",
+        "third_names": 48,
+        "missing_point": 0,
+        "missing_third": 0
+      },
+      {
+        "eligible": 718,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "third_names": 42,
+        "missing_point": 0,
+        "missing_third": 0
+      },
+      {
+        "eligible": 1046,
+        "region_1st": "경기",
+        "region_2nd": "수원시",
+        "third_names": 54,
+        "missing_point": 0,
+        "missing_third": 0
+      }
+    ],
+    "section": "pilot"
+  },
+  {
+    "rows": [
+      {
+        "eligible": 3,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "율동"
+      },
+      {
+        "eligible": 14,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "고등동"
+      },
+      {
+        "eligible": 34,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "구미동"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "궁내동"
+      },
+      {
+        "eligible": 15,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "금곡동"
+      },
+      {
+        "eligible": 28,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "금광동"
+      },
+      {
+        "eligible": 2,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "금토동"
+      },
+      {
+        "eligible": 4,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "단대동"
+      },
+      {
+        "eligible": 5,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "대장동"
+      },
+      {
+        "eligible": 4,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "도촌동"
+      },
+      {
+        "eligible": 59,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "백현동"
+      },
+      {
+        "eligible": 13,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "복정동"
+      },
+      {
+        "eligible": 10,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "분당구"
+      },
+      {
+        "eligible": 4,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "분당동"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "사송동"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "산성동"
+      },
+      {
+        "eligible": 22,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "삼평동"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "상적동"
+      },
+      {
+        "eligible": 62,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "서현동"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "석운동"
+      },
+      {
+        "eligible": 41,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "성남동"
+      },
+      {
+        "eligible": 27,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "수내동"
+      },
+      {
+        "eligible": 12,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "수정구"
+      },
+      {
+        "eligible": 6,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "수진동"
+      },
+      {
+        "eligible": 8,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "시흥동"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "신촌동"
+      },
+      {
+        "eligible": 15,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "신흥동"
+      },
+      {
+        "eligible": 50,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "야탑동"
+      },
+      {
+        "eligible": 2,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "양지동"
+      },
+      {
+        "eligible": 8,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "여수동"
+      },
+      {
+        "eligible": 2,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "오야동"
+      },
+      {
+        "eligible": 20,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "운중동"
+      },
+      {
+        "eligible": 6,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "은행동"
+      },
+      {
+        "eligible": 12,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "이매동"
+      },
+      {
+        "eligible": 90,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "정자동"
+      },
+      {
+        "eligible": 3,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "중앙동"
+      },
+      {
+        "eligible": 4,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "중원구"
+      },
+      {
+        "eligible": 53,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "창곡동"
+      },
+      {
+        "eligible": 31,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "태평동"
+      },
+      {
+        "eligible": 18,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "판교동"
+      },
+      {
+        "eligible": 21,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "상대원동"
+      },
+      {
+        "eligible": 4,
+        "region_1st": "경기",
+        "region_2nd": "성남시",
+        "region_3rd": "하대원동"
+      },
+      {
+        "eligible": 112,
+        "region_1st": "서울",
+        "region_2nd": "성동구",
+        "region_3rd": "성수동1가"
+      },
+      {
+        "eligible": 107,
+        "region_1st": "서울",
+        "region_2nd": "성동구",
+        "region_3rd": "성수동2가"
+      },
+      {
+        "eligible": 23,
+        "region_1st": "세종",
+        "region_2nd": "고운동",
+        "region_3rd": "고운동"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "세종",
+        "region_2nd": "고운동",
+        "region_3rd": "2094"
+      },
+      {
+        "eligible": 10,
+        "region_1st": "세종",
+        "region_2nd": "금남면",
+        "region_3rd": "금남면"
+      },
+      {
+        "eligible": 31,
+        "region_1st": "세종",
+        "region_2nd": "나성동",
+        "region_3rd": "나성동"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "세종",
+        "region_2nd": "나성동",
+        "region_3rd": "712"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "세종",
+        "region_2nd": "나성동",
+        "region_3rd": "730"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "세종",
+        "region_2nd": "나성동",
+        "region_3rd": "747"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "세종",
+        "region_2nd": "나성동",
+        "region_3rd": "757"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "세종",
+        "region_2nd": "나성동",
+        "region_3rd": "792"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "세종",
+        "region_2nd": "나성동",
+        "region_3rd": "797"
+      },
+      {
+        "eligible": 2,
+        "region_1st": "세종",
+        "region_2nd": "다정동",
+        "region_3rd": "다정동"
+      },
+      {
+        "eligible": 6,
+        "region_1st": "세종",
+        "region_2nd": "대평동",
+        "region_3rd": "대평동"
+      },
+      {
+        "eligible": 13,
+        "region_1st": "세종",
+        "region_2nd": "도담동",
+        "region_3rd": "도담동"
+      },
+      {
+        "eligible": 8,
+        "region_1st": "세종",
+        "region_2nd": "반곡동",
+        "region_3rd": "반곡동"
+      },
+      {
+        "eligible": 26,
+        "region_1st": "세종",
+        "region_2nd": "보람동",
+        "region_3rd": "보람동"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "세종",
+        "region_2nd": "부강면",
+        "region_3rd": "노호리"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "세종",
+        "region_2nd": "부강면",
+        "region_3rd": "부강리"
+      },
+      {
+        "eligible": 4,
+        "region_1st": "세종",
+        "region_2nd": "부강면",
+        "region_3rd": "부강면"
+      },
+      {
+        "eligible": 5,
+        "region_1st": "세종",
+        "region_2nd": "산울동",
+        "region_3rd": "산울동"
+      },
+      {
+        "eligible": 12,
+        "region_1st": "세종",
+        "region_2nd": "새롬동",
+        "region_3rd": "새롬동"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "세종",
+        "region_2nd": "새롬동",
+        "region_3rd": "584"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "세종",
+        "region_2nd": "새롬동",
+        "region_3rd": "588"
+      },
+      {
+        "eligible": 9,
+        "region_1st": "세종",
+        "region_2nd": "소담동",
+        "region_3rd": "소담동"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "세종",
+        "region_2nd": "소담동",
+        "region_3rd": "539"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "세종",
+        "region_2nd": "소정면",
+        "region_3rd": "대곡리"
+      },
+      {
+        "eligible": 7,
+        "region_1st": "세종",
+        "region_2nd": "소정면",
+        "region_3rd": "소정면"
+      },
+      {
+        "eligible": 14,
+        "region_1st": "세종",
+        "region_2nd": "아름동",
+        "region_3rd": "아름동"
+      },
+      {
+        "eligible": 18,
+        "region_1st": "세종",
+        "region_2nd": "어진동",
+        "region_3rd": "어진동"
+      },
+      {
+        "eligible": 3,
+        "region_1st": "세종",
+        "region_2nd": "연기면",
+        "region_3rd": "연기면"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "세종",
+        "region_2nd": "연동면",
+        "region_3rd": "연동면"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "세종",
+        "region_2nd": "연서면",
+        "region_3rd": "봉암리"
+      },
+      {
+        "eligible": 5,
+        "region_1st": "세종",
+        "region_2nd": "연서면",
+        "region_3rd": "연서면"
+      },
+      {
+        "eligible": 10,
+        "region_1st": "세종",
+        "region_2nd": "장군면",
+        "region_3rd": "장군면"
+      },
+      {
+        "eligible": 3,
+        "region_1st": "세종",
+        "region_2nd": "전의면",
+        "region_3rd": "전의면"
+      },
+      {
+        "eligible": 7,
+        "region_1st": "세종",
+        "region_2nd": "종촌동",
+        "region_3rd": "종촌동"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "세종",
+        "region_2nd": "종촌동",
+        "region_3rd": "657"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "세종",
+        "region_2nd": "집현동",
+        "region_3rd": "집현동"
+      },
+      {
+        "eligible": 4,
+        "region_1st": "세종",
+        "region_2nd": "한솔동",
+        "region_3rd": "한솔동"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "세종",
+        "region_2nd": "한솔동",
+        "region_3rd": "946"
+      },
+      {
+        "eligible": 5,
+        "region_1st": "세종",
+        "region_2nd": "해밀동",
+        "region_3rd": "해밀동"
+      },
+      {
+        "eligible": 1,
+        "region_1st": "세종",
+        "region_2nd": "조치원읍",
+        "region_3rd": "정리"
+      },
+      {
+        "eligible": 33,
+        "region_1st": "세종",
+        "region_2nd": "조치원읍",
+        "region_3rd": "조치원읍"
+      }
+    ],
+    "section": "projection_examples"
+  }
+]
