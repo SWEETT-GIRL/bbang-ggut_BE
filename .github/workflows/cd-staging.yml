@@ -179,6 +179,9 @@ jobs:
           guest.write-blocked=${GUEST_WRITE_BLOCKED:false}
           # 준비된 첫 기록은 개발 앱에서 실제 저장까지 검증한다. 운영은 기본 비활성 유지.
           tutorial.enabled=true
+          # 리워드: 이 시각(한국 시간) 전에 가입한 회원은 1.x 사용자로 보고 이관 선물을, 뒤에 가입한 회원은 환영 선물을 준다.
+          # 값이 없으면 모두 1.x 사용자로 본다. 개발 서버는 새 회원 흐름을 볼 수 있게 과거 시각을 둔다 — 운영은 2.0 출시 시각을 넣는다.
+          reward.carry-over-before=2026-10-13T00:00:00
 
           perf.dashboard.enabled=${PERF_DASHBOARD_ENABLED:false}
           perf.dashboard.access-key=${PERF_DASHBOARD_ACCESS_KEY:}
