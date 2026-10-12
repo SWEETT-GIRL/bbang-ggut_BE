@@ -79,7 +79,8 @@ class ImagePipelineMetricsSchedulerTest {
 	@DisplayName("S3 정합성 게이지는 삭제 없이 dryRun으로만 수치를 갱신한다")
 	void refreshS3ReconcileGauges_runsDryRunOnly() {
 		given(adminS3ReconcileService.reconcile(true)).willReturn(
-			new AdminS3ReconcileResponse(true, 1000, 990, 12, 0, List.of(), 2, 0, List.of()));
+			AdminS3ReconcileResponse.builder().dryRun(true).s3KeyCount(1000).dbKeyCount(990)
+				.orphanCount(12).orphanKeys(List.of()).missingCount(2).missingKeys(List.of()).build());
 
 		scheduler.refreshS3ReconcileGauges();
 
