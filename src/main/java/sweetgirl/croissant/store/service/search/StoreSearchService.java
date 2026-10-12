@@ -7,7 +7,9 @@ import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -45,6 +47,7 @@ public class StoreSearchService {
 	private static final int DEFAULT_AUTOCOMPLETE_SIZE = 10;
 	private static final int MAX_AUTOCOMPLETE_SIZE = 20;
 	private static final String SEARCH_QUERY_METRIC = "search.query";
+	private static final String SEARCH_FALLBACK_METRIC = "search.fallback";
 	private static final String TYPE_SEARCH = "search";
 	private static final String TYPE_AUTOCOMPLETE = "autocomplete";
 	private static final int SEARCH_TRACE_TOP_HITS = 10;
@@ -62,6 +65,7 @@ public class StoreSearchService {
 
 	private final Map<SearchOutcome, Counter> searchCounters = new EnumMap<>(SearchOutcome.class);
 	private final Map<SearchOutcome, Counter> autocompleteCounters = new EnumMap<>(SearchOutcome.class);
+	private final Map<SearchFallbackStage, Counter> fallbackCounters = new EnumMap<>(SearchFallbackStage.class);
 
 	// Counter는 최초 증가 전까지 /actuator/prometheus에 노출되지 않는다. 대시보드에서 "0건"과
 	// "계측이 안 됨"을 구분할 수 있도록 부팅 시 태그 조합을 미리 등록해 0부터 그려지게 한다.
@@ -74,6 +78,11 @@ public class StoreSearchService {
 		autocompleteCounter(SearchOutcome.HIT);
 		autocompleteCounter(SearchOutcome.EMPTY);
 		autocompleteCounter(SearchOutcome.TIMEOUT);
+		for (SearchFallbackStage stage : SearchFallbackStage.values()) {
+			if (stage != SearchFallbackStage.NONE) {
+				fallbackCounter(stage);
+			}
+		}
 	}
 
 	public SliceResponse<StoreSearchResponse> searchStores(String keyword, Double latitude, Double longitude,
@@ -86,14 +95,31 @@ public class StoreSearchService {
 		// 폴백: 1차가 0건일 때만 붙어쓴 토큰을 분해해 다시 검색한다
 		// ("초코소금빵"→빵 "소금빵", "한남에그타르트"→지역 "한남" + 빵 "에그타르트").
 		// 지역·빵 어느 쪽도 새로 분해되지 않으면 같은 쿼리가 되므로 재검색하지 않는다.
-		boolean fallbackApplied = false;
+		SearchFallbackStage fallbackStage = SearchFallbackStage.NONE;
+		String keptToken = "";
+		List<SearchIntent> relaxableIntents = new ArrayList<>(List.of(intent));
 		if (result.hits().isEmpty()) {
 			SearchIntent fallbackIntent = storeSearchQueryParser.parseWithGluedTokenFallback(keyword);
 			if (isDecomposed(fallbackIntent, intent)) {
 				result = runSearch(fallbackIntent, pageable, latitude, longitude, sort, keyword);
-				fallbackApplied = !result.hits().isEmpty();
+				relaxableIntents.add(fallbackIntent);
+				if (!result.hits().isEmpty()) {
+					fallbackStage = SearchFallbackStage.GLUED_TOKEN;
+				}
 			}
 		}
+		// 토큰 완화: 위 단계가 전부 0건일 때만 탄다. 여러 토큰이 전부 AND 라 "성수 어니언"(가게 "어니언 성수")이나
+		// "사과당 망원"(망원에 지점 없음)이 0건으로 끝나던 것을, 어순 무관 이름 매칭 → 가장 구체적인 토큰 하나 순으로 푼다.
+		if (result.hits().isEmpty()) {
+			Optional<StoreSearchRelaxedResult> relaxed = runRelaxedSearch(relaxableIntents, pageable, latitude,
+				longitude, sort, keyword);
+			if (relaxed.isPresent()) {
+				result = relaxed.get().result();
+				fallbackStage = relaxed.get().stage();
+				keptToken = relaxed.get().keptToken();
+			}
+		}
+		boolean fallbackApplied = fallbackStage != SearchFallbackStage.NONE;
 		// 2페이지 이후는 같은 검색의 연속이므로 세지 않는다. 무한스크롤이 검색 API를 페이지마다
 		// 호출하는데, 이걸 다 세면 "많이 스크롤한 검색어"가 "여러 사람이 찾은 검색어"보다 위로 올라와
 		// 실패 목록의 우선순위가 뒤집힌다. 실제로 "천안시 서북구"가 검색 5회 + 스크롤 6페이지로
@@ -101,8 +127,11 @@ public class StoreSearchService {
 		SearchOutcome outcome = resolveSearchOutcome(result, intent, fallbackApplied);
 		if (pageable.getPageNumber() == FIRST_PAGE) {
 			recordSearchOutcome(outcome, keyword);
+			if (fallbackApplied) {
+				fallbackCounter(fallbackStage).increment();
+			}
 		}
-		logSearchTrace(keyword, intent, result, outcome, fallbackApplied, pageable);
+		logSearchTrace(keyword, intent, result, outcome, fallbackStage, keptToken, pageable);
 		if (result.hits().isEmpty()) {
 			return new SliceResponse<>(List.of(), false);
 		}
@@ -115,8 +144,19 @@ public class StoreSearchService {
 	 */
 	private StoreSearchResult runSearch(SearchIntent intent, Pageable pageable, Double latitude, Double longitude,
 			SearchSort sort, String keyword) {
+		return withSearchTimeout(keyword,
+			() -> storeSearchEngine.searchStores(intent, pageable, latitude, longitude, sort));
+	}
+
+	private Optional<StoreSearchRelaxedResult> runRelaxedSearch(List<SearchIntent> intents, Pageable pageable,
+			Double latitude, Double longitude, SearchSort sort, String keyword) {
+		return withSearchTimeout(keyword,
+			() -> storeSearchEngine.searchStoresRelaxed(intents, pageable, latitude, longitude, sort));
+	}
+
+	private <T> T withSearchTimeout(String keyword, Supplier<T> search) {
 		try {
-			return storeSearchEngine.searchStores(intent, pageable, latitude, longitude, sort);
+			return search.get();
 		} catch (QueryTimeoutException exception) {
 			searchCounter(SearchOutcome.TIMEOUT).increment();
 			log.warn("[검색] 쿼리 타임아웃 keyword={}", keyword);
@@ -130,7 +170,8 @@ public class StoreSearchService {
 	 * key=value 로 grep·집계하기 쉽게 한 줄로 남긴다.
 	 */
 	private void logSearchTrace(String keyword, SearchIntent intent,
-			StoreSearchResult result, SearchOutcome outcome, boolean fallbackApplied, Pageable pageable) {
+			StoreSearchResult result, SearchOutcome outcome, SearchFallbackStage fallbackStage, String keptToken,
+			Pageable pageable) {
 		if (!log.isInfoEnabled()) {
 			return;
 		}
@@ -141,10 +182,11 @@ public class StoreSearchService {
 			.reduce((left, right) -> left + "," + right)
 			.orElse("");
 		log.info("[검색추적] type={} q=\"{}\" regionTokens={} nameTokens={} hits={} hasNext={} outcome={} "
-			+ "fallback={} page={} top={}",
+			+ "fallback={} stage={} kept=\"{}\" page={} top={}",
 			classifyIntent(intent), keyword, intent.regionTokens(),
 			nameTokens(intent), result.hits().size(), result.hasNext(), outcome.tagValue(),
-			fallbackApplied, pageable.getPageNumber(), topHits);
+			fallbackStage != SearchFallbackStage.NONE, fallbackStage.tagValue(), keptToken, pageable.getPageNumber(),
+			topHits);
 	}
 
 	// 검색어 유형 — 지역 사전에 잡힌 토큰과 그 외(가게명·빵 단어) 토큰의 유무로 나눈다.
@@ -205,7 +247,7 @@ public class StoreSearchService {
 		if (result.hits().isEmpty()) {
 			return SearchOutcome.EMPTY;
 		}
-		// 1차가 0건이라 검색어를 깎아서 얻은 결과다. 원문과 다르다는 것을 코드가 이미 알고 있다.
+		// 1차가 0건이라 검색어를 깎거나 풀어서 얻은 결과다. 원문과 다르다는 것을 코드가 이미 알고 있다.
 		if (fallbackApplied) {
 			return SearchOutcome.FALLBACK;
 		}
@@ -251,6 +293,13 @@ public class StoreSearchService {
 
 	private Counter autocompleteCounter(SearchOutcome outcome) {
 		return autocompleteCounters.computeIfAbsent(outcome, key -> outcomeCounter(TYPE_AUTOCOMPLETE, key));
+	}
+
+	private Counter fallbackCounter(SearchFallbackStage stage) {
+		return fallbackCounters.computeIfAbsent(stage, key -> Counter.builder(SEARCH_FALLBACK_METRIC)
+			.description("0건 뒤 폴백으로 결과를 낸 검색 수 — 어느 폴백 단계였는지로 분류")
+			.tag("stage", key.tagValue())
+			.register(meterRegistry));
 	}
 
 	private Counter outcomeCounter(String type, SearchOutcome outcome) {

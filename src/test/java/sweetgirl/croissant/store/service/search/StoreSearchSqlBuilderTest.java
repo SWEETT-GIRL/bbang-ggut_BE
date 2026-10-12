@@ -153,6 +153,23 @@ class StoreSearchSqlBuilderTest {
 	}
 
 	@Test
+	void tokenCandidateCounts_countsEachTokenUpToCap() {
+		SearchSqlQuery query = builder.buildTokenCandidateCounts(List.of("사과당", "베이커리"), 15);
+
+		// 토큰마다 한 행 — 이름 ∪ 구명 후보를 cap 까지만 센다
+		assertThat(count(query.sql(), "UNION ALL")).isEqualTo(1);
+		assertThat(query.sql()).contains(
+			"SELECT 0 AS token_index, count(*) AS candidate_count FROM (SELECT u.id FROM (",
+			"SELECT 1 AS token_index, count(*) AS candidate_count FROM (SELECT u.id FROM (");
+		assertThat(query.sql()).contains("s.name_normalized LIKE '%' || :name0 || '%'",
+			"a.alias_normalized LIKE '%' || :name1 || '%'");
+		assertThat(count(query.sql(), ") u LIMIT :cap) c")).isEqualTo(2);
+		assertThat(query.params().getValue("name0")).isEqualTo("사과당");
+		assertThat(query.params().getValue("name1")).isEqualTo("베이커리");
+		assertThat(query.params().getValue("cap")).isEqualTo(15);
+	}
+
+	@Test
 	void autocomplete_unionsStoreNameAliasAndRegionSources() {
 		SearchSqlQuery query = builder.buildAutocomplete("성심", 24);
 

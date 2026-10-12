@@ -166,6 +166,22 @@ public class StoreSearchSqlBuilder {
 		return nameOrAliasContains("whole");
 	}
 
+	/**
+	 * 토큰 완화 폴백용 — 토큰마다 "이름/구명에 그 토큰이 든 가게" 수를 한 번에 센다. 가장 구체적인 토큰을 고르는 데만 쓰므로
+	 * cap 에서 세기를 멈춘다('베이커리' 같은 일반어의 수천 건을 끝까지 읽지 않는다).
+	 */
+	public SearchSqlQuery buildTokenCandidateCounts(List<String> tokens, int cap) {
+		MapSqlParameterSource params = new MapSqlParameterSource().addValue("cap", cap);
+		List<String> counts = new ArrayList<>();
+		for (int i = 0; i < tokens.size(); i++) {
+			String key = "name" + i;
+			params.addValue(key, tokens.get(i));
+			counts.add("SELECT " + i + " AS token_index, count(*) AS candidate_count FROM (SELECT u.id FROM (\n"
+				+ nameOrAliasContains(key) + ") u LIMIT :cap) c");
+		}
+		return new SearchSqlQuery(String.join("\nUNION ALL\n", counts), params);
+	}
+
 	private String nameOrAliasContains(String paramKey) {
 		return "SELECT s.id FROM store s WHERE s.status = 'ACTIVE' AND s.name_normalized LIKE '%' || :" + paramKey
 			+ " || '%'\n"
