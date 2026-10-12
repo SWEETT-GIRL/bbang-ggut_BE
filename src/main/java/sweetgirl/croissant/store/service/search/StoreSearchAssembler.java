@@ -62,7 +62,9 @@ public class StoreSearchAssembler {
 			.collect(Collectors.toMap(Store::getId, Function.identity()));
 		// 가게/메뉴 썸네일과 대표 메뉴를 각각 벌크로 미리 조회
 		Map<Long, String> storeThumbnailMap = getStoreThumbnails(orderedStoreIds);
-		Map<Long, List<StoreMenuProjection>> topMenusByStore = getTopMenusByStore(orderedStoreIds);
+		// 응답에 실릴 메뉴를 먼저 고르고, 썸네일은 그 메뉴들 것만 읽는다 (가게의 메뉴 전부의 사진을 읽지 않는다)
+		Map<Long, List<StoreMenuProjection>> topMenusByStore = selectMenusByStore(
+			getTopMenusByStore(orderedStoreIds), hitByStoreId);
 		Map<Long, String> menuThumbnailMap = getMenuThumbnails(topMenusByStore);
 
 		// 엔진 순서대로 응답을 조립한다. 조립 중 삭제된 가게 등 RDB에 없는 가게는 걸러낸다.
@@ -72,19 +74,27 @@ public class StoreSearchAssembler {
 			.map(store -> StoreSearchResponse.ofDb(
 				store,
 				storeThumbnailMap.get(store.getId()),
-				orderMenus(topMenusByStore.getOrDefault(store.getId(), Collections.emptyList()),
+				toMenuSummaries(topMenusByStore.getOrDefault(store.getId(), Collections.emptyList()),
 					hitByStoreId.get(store.getId()).matchedMenuIds(),
 					menuThumbnailMap),
 				hitByStoreId.get(store.getId()).matchedFields()))
 			.toList();
 	}
 
+	// 가게마다 응답에 실릴 메뉴만 남긴다 (가게 ID → 고른 메뉴 목록, 순서는 응답에 실리는 순서)
+	private Map<Long, List<StoreMenuProjection>> selectMenusByStore(Map<Long, List<StoreMenuProjection>> menusByStore,
+			Map<Long, StoreSearchHit> hitByStoreId) {
+		Map<Long, List<StoreMenuProjection>> selected = new HashMap<>();
+		menusByStore.forEach((storeId, menus) -> selected.put(storeId,
+			orderMenus(menus, hitByStoreId.get(storeId).matchedMenuIds())));
+		return selected;
+	}
+
 	/**
 	 * 가게의 대표 메뉴를 정렬한다. 검색어에 실제 매칭된 메뉴(matchedMenuIds)를 앞쪽에 오도록 정렬하고,
 	 * 상위 {@link sweetgirl.croissant.store.code.StoreConstants#TOP_MENU_LIMIT}개로 자른다.
 	 */
-	private List<MenuSummaryDto> orderMenus(List<StoreMenuProjection> menus, List<Long> matchedMenuIds,
-			Map<Long, String> menuThumbnailMap) {
+	private List<StoreMenuProjection> orderMenus(List<StoreMenuProjection> menus, List<Long> matchedMenuIds) {
 		// 매칭된 메뉴 ID → 매칭 순서. 작을수록 앞 순위 (중복 ID는 첫 등장 위치를 유지)
 		Map<Long, Integer> matchedOrder = new HashMap<>();
 		for (int i = 0; i < matchedMenuIds.size(); i++) {
@@ -95,14 +105,21 @@ public class StoreSearchAssembler {
 		return menus.stream()
 			.sorted(Comparator.comparingInt(menu -> matchedOrder.getOrDefault(menu.getMenuId(), Integer.MAX_VALUE)))
 			.limit(TOP_MENU_LIMIT)
-			.map(menu -> MenuSummaryDto.of(menu, menuThumbnailMap.get(menu.getMenuId()),
-				matchedOrder.containsKey(menu.getMenuId())))
 			.toList();
 	}
 
-	// 가게 ID → 리사이즈 썸네일 키 맵 (한 가게에 썸네일이 여럿이면 첫 번째만 사용)
+	// 고른 메뉴를 응답 DTO 로 옮긴다 (썸네일을 붙이고, 검색어에 매칭된 메뉴인지 표시)
+	private List<MenuSummaryDto> toMenuSummaries(List<StoreMenuProjection> menus, List<Long> matchedMenuIds,
+			Map<Long, String> menuThumbnailMap) {
+		return menus.stream()
+			.map(menu -> MenuSummaryDto.of(menu, menuThumbnailMap.get(menu.getMenuId()),
+				matchedMenuIds.contains(menu.getMenuId())))
+			.toList();
+	}
+
+	// 가게 ID → 리사이즈 썸네일 키 맵 (한 가게에 썸네일이 여럿이면 첫 번째만 사용 — 쿼리가 가게당 첫 장만 준다)
 	private Map<Long, String> getStoreThumbnails(List<Long> storeIds) {
-		return storeImageFileRepository.findThumbnailsByStoreIdIn(storeIds).stream()
+		return storeImageFileRepository.findFirstThumbnailsByStoreIdIn(storeIds).stream()
 			.collect(Collectors.toMap(
 				StoreImageThumbnailProjection::getStoreId,
 				p -> p.getResizedKey320() != null ? p.getResizedKey320() : p.getAwsKey(),
@@ -119,7 +136,7 @@ public class StoreSearchAssembler {
 					List::copyOf)));
 	}
 
-	// 위에서 모은 대표 메뉴들의 ID를 평탄화해 메뉴 썸네일을 한 번에 조회 (메뉴 ID → resizedKey320)
+	// 위에서 고른 대표 메뉴들의 ID를 평탄화해 메뉴 썸네일을 한 번에 조회 (메뉴 ID → resizedKey320, 메뉴당 첫 장만)
 	private Map<Long, String> getMenuThumbnails(Map<Long, List<StoreMenuProjection>> menusByStore) {
 		List<Long> menuIds = menusByStore.values().stream()
 			.flatMap(List::stream)
@@ -130,7 +147,7 @@ public class StoreSearchAssembler {
 			return Collections.emptyMap();
 		}
 
-		return menuImageFileRepository.findThumbnailsByMenuIdIn(menuIds).stream()
+		return menuImageFileRepository.findFirstThumbnailsByMenuIdIn(menuIds).stream()
 			.collect(Collectors.toMap(
 				MenuImageThumbnailProjection::getMenuId,
 				p -> p.getResizedKey320() != null ? p.getResizedKey320() : p.getAwsKey(),

@@ -32,6 +32,25 @@ public interface MenuImageFileRepository extends JpaRepository<MenuImageFile, Lo
 			""")
 	List<MenuImageThumbnailProjection> findThumbnailsByMenuIdIn(@Param("menuIds") List<Long> menuIds);
 
+	/**
+	 * 메뉴마다 첫 사진(displayOrder → id 순) 한 장만 읽는다 — 목록 썸네일은 첫 장만 쓰는데 위 쿼리는 메뉴의 사진을 전부 읽는다.
+	 * 처리 중(PENDING)·실패 사진은 엔티티의 {@code @SQLRestriction} 으로 위 쿼리와 똑같이 빠진다.
+	 */
+	@Query("""
+			SELECT ranked.imageId AS imageId, ranked.menuId AS menuId, ranked.awsKey AS awsKey,
+			ranked.resizedKey320 AS resizedKey320, ranked.resizedKey640 AS resizedKey640,
+			ranked.resizedKey1024 AS resizedKey1024
+			FROM (
+				SELECT m.id AS imageId, m.menu.id AS menuId, m.awsKey AS awsKey,
+					m.resizedKey320 AS resizedKey320, m.resizedKey640 AS resizedKey640,
+					m.resizedKey1024 AS resizedKey1024,
+					row_number() OVER (PARTITION BY m.menu.id ORDER BY m.displayOrder ASC, m.id ASC) AS rowNumber
+				FROM MenuImageFile m WHERE m.menu.id IN :menuIds
+			) ranked
+			WHERE ranked.rowNumber = 1
+			""")
+	List<MenuImageThumbnailProjection> findFirstThumbnailsByMenuIdIn(@Param("menuIds") List<Long> menuIds);
+
 	@Query("""
 			SELECT m FROM MenuImageFile m WHERE m.menu.id = :menuId
 			ORDER BY m.displayOrder ASC, m.id ASC
