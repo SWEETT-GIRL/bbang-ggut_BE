@@ -20,6 +20,7 @@ import sweetgirl.croissant.external.aws.enums.S3Folder;
 import sweetgirl.croissant.external.aws.exception.S3ErrorCode;
 import sweetgirl.croissant.external.aws.exception.S3StorageException;
 import sweetgirl.croissant.external.aws.metrics.ImagePipelineMetrics;
+import sweetgirl.croissant.external.aws.util.S3PathGenerator;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.review.repository.ReviewImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
@@ -56,11 +57,15 @@ public class ImageCallbackService {
 		// 단건 조회는 2건을 만나는 순간 예외로 죽어 콜백 전체가 유실되므로 있는 만큼 모두 반영한다.
 		if (awsKey.startsWith(S3Folder.BREAD_RECORDS.prefix())) {
 			List<BreadRecordPhoto> photos = breadRecordPhotoRepository.findAllByAwsKey(awsKey);
-			if (!photos.isEmpty()) {
-				imageProcessingCallbackService.applySameKeyPendingCallback(photos);
+			if (!photos.isEmpty() && applyToBreadRecordPhotos(awsKey, status)) {
+				if (status == ImageStatus.FAILED) {
+					log.warn("이미지 lambda 처리 실패 [awsKey: {}] 사유: {}", awsKey, request.getFailReason());
+				}
+				imageProcessingCallbackService.deletePendingCallback(awsKey);
 				imagePipelineMetrics.recordCallback(status, photos.get(0).getMimeType());
 				return;
 			}
+			// 읽은 뒤 행이 사라졌다면 콜백은 보류 테이블에 남겨, 같은 키로 다시 만들어지는 행이 집어가게 한다.
 		} else {
 			Optional<ImageFile> image = findByAwsKey(awsKey);
 			if (image.isPresent()) {
@@ -75,6 +80,28 @@ public class ImageCallbackService {
 		imagePipelineMetrics.recordOrphanCallback();
 		imagePipelineMetrics.recordCallback(status, null);
 		log.info("이미지 row 생성 전 lambda 콜백 수신 [awsKey: {}, status: {}]", awsKey, status);
+	}
+
+	/**
+	 * 읽어 둔 엔티티를 고치지 않고 awsKey로 한 번에 반영한다. 읽은 뒤 전체 교체가 그 행을 지우면
+	 * 엔티티 UPDATE가 0행을 맞아 트랜잭션이 롤백되고, 먼저 저장한 보류 콜백까지 사라진다.
+	 *
+	 * 0행이면 한 번 더 반영한다. 교체 트랜잭션이 지우는 중인 행을 만나면 그 커밋을 기다렸다가 0행으로
+	 * 끝나는데, 같은 키의 새 행은 그때 이미 커밋돼 있어 다음 문장에는 보인다.
+	 */
+	private boolean applyToBreadRecordPhotos(String awsKey, ImageStatus status) {
+		return updateBreadRecordPhotos(awsKey, status) > 0 || updateBreadRecordPhotos(awsKey, status) > 0;
+	}
+
+	private int updateBreadRecordPhotos(String awsKey, ImageStatus status) {
+		if (status == ImageStatus.DONE) {
+			return breadRecordPhotoRepository.markDoneByAwsKey(
+				awsKey,
+				S3PathGenerator.getResizedKey(320, awsKey),
+				S3PathGenerator.getResizedKey(640, awsKey),
+				S3PathGenerator.getResizedKey(1024, awsKey));
+		}
+		return breadRecordPhotoRepository.markFailedByAwsKey(awsKey);
 	}
 
 	private void validateSupportedPrefix(String awsKey) {

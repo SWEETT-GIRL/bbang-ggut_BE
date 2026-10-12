@@ -119,7 +119,7 @@ public class BreadRecordCommandService {
 			throw new BreadLogException(BreadLogErrorCode.TUTORIAL_EDIT_RESTRICTED);
 		}
 		ValidatedRecordData data = validate(memberId, request);
-		List<BreadRecordPhoto> oldPhotos = photoRepository.findAllIncludingPendingByRecordId(recordId);
+		List<BreadRecordPhoto> oldPhotos = photoRepository.findAllIncludingPendingByRecordIdForUpdate(recordId);
 		Map<String, BreadRecordPhoto> originalByRequestedKey = resolveOriginalPhotos(request.photos(), oldPhotos);
 
 		record.update(
@@ -466,7 +466,7 @@ public class BreadRecordCommandService {
 	}
 
 	private BreadRecord getOwnedRecord(Long recordId, Long memberId) {
-		BreadRecord record = breadRecordRepository.findByIdAndDeletedAtIsNull(recordId)
+		BreadRecord record = breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(recordId)
 			.orElseThrow(() -> new BreadLogException(BreadLogErrorCode.BREAD_RECORD_NOT_FOUND));
 		if (!record.getMember().getId().equals(memberId)) {
 			throw new BreadLogException(BreadLogErrorCode.BREAD_RECORD_ACCESS_DENIED);
