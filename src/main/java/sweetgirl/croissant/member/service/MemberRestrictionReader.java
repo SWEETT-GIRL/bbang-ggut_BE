@@ -59,12 +59,21 @@ public class MemberRestrictionReader {
 		if (memberId == null) {
 			throw new MemberException(MemberErrorCode.UNAUTHORIZED);
 		}
-		if (!memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(
-			memberId,
-			WRITE_BLOCKING_TYPES,
-			LocalDateTime.now()).isEmpty()) {
+		if (isWriteRestricted(memberId)) {
 			throw new MemberException(MemberErrorCode.MEMBER_WRITE_RESTRICTED);
 		}
+	}
+
+	/**
+	 * 지금 글쓰기가 막힌 제재 중인가. 던지지 않고 답만 한다.
+	 *
+	 * <p>리워드 적립이 이걸 본다 — 제재 중이면 요청을 실패시키지 않고 부스러기만 주지 않는다.
+	 */
+	public boolean isWriteRestricted(Long memberId) {
+		return !memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(
+			memberId,
+			WRITE_BLOCKING_TYPES,
+			LocalDateTime.now()).isEmpty();
 	}
 
 	/**
