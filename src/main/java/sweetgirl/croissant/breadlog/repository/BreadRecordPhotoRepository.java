@@ -21,6 +21,9 @@ public interface BreadRecordPhotoRepository extends JpaRepository<BreadRecordPho
 			""", nativeQuery = true)
 	List<BreadRecordPhoto> findAllIncludingPendingByRecordId(@Param("recordId") Long recordId);
 
+	/** 이 파일을 가리키는 사진 행이 (처리 상태와 무관하게) 하나라도 있는지. */
+	boolean existsByAwsKey(String awsKey);
+
 	/**
 	 * 같은 awsKey의 사진을 모두 찾는다 — 단건이 아니라 목록인 게 핵심이다.
 	 * 한 키에 row가 2개 이상인 데이터가 실제로 존재했고, 단건 조회는 그 순간
