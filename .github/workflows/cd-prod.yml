@@ -272,8 +272,6 @@ jobs:
           DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
           KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
           KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
-          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
-          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           KAKAO_API_KEY: ${{ secrets.KAKAO_API_KEY }}
           GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
@@ -307,8 +305,6 @@ jobs:
             echo "DB_PASSWORD=${DB_PASSWORD}"
             echo "KAKAO_CLIENT_ID=${KAKAO_CLIENT_ID}"
             echo "KAKAO_CLIENT_SECRET=${KAKAO_CLIENT_SECRET}"
-            echo "NAVER_CLIENT_ID=${NAVER_CLIENT_ID}"
-            echo "NAVER_CLIENT_SECRET=${NAVER_CLIENT_SECRET}"
             echo "JWT_SECRET=${JWT_SECRET}"
             echo "KAKAO_API_KEY=${KAKAO_API_KEY}"
             echo "GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY}"
