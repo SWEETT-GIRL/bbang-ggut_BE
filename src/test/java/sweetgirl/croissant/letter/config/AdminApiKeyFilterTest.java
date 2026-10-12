@@ -108,6 +108,44 @@ class AdminApiKeyFilterTest {
 	}
 
 	@Test
+	@DisplayName("S3 정리는 열쇠가 없으면 막는다 — 지운 파일은 되돌릴 수 없다")
+	void protectsS3ReconcilePath() throws Exception {
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		new AdminApiKeyFilter("secret", false)
+			.doFilter(request("/admin/images/reconcile", null), response, chain);
+
+		assertThat(response.getStatus()).isEqualTo(401);
+		assertThat(chain.getRequest()).isNull();
+	}
+
+	@Test
+	@DisplayName("서버에 열쇠가 비어 있으면 S3 정리는 503 으로 막는다")
+	void blocksS3ReconcileWhenKeyMissing() throws Exception {
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		new AdminApiKeyFilter("", false)
+			.doFilter(request("/admin/images/reconcile/latest", null), response, chain);
+
+		assertThat(response.getStatus()).isEqualTo(503);
+		assertThat(chain.getRequest()).isNull();
+	}
+
+	@Test
+	@DisplayName("S3 정리 말고 다른 이미지 어드민 경로는 건드리지 않는다")
+	void ignoresOtherImageAdminPaths() throws Exception {
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		new AdminApiKeyFilter("secret", false)
+			.doFilter(request("/admin/images/presigned-url", null), response, chain);
+
+		assertThat(chain.getRequest()).isNotNull();
+	}
+
+	@Test
 	@DisplayName("열쇠가 비어도 로컬이면 비용 경로를 통과시킨다 — 개발 편의는 지킨다")
 	void allowsCostIncurringPathOnLocal() throws Exception {
 		MockHttpServletResponse response = new MockHttpServletResponse();
