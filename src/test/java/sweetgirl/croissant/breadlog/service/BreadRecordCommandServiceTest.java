@@ -86,6 +86,44 @@ class BreadRecordCommandServiceTest {
 		assertThat(tutorial.getDeletedAt()).isNull();
 	}
 
+	@Test
+	void delete_removesOriginalAndResizedVariants() {
+		Member member = member(7L);
+		BreadRecord record = record(11L, member);
+		String awsKey = "bread-records/members/7/images/a";
+		BreadRecordPhoto photo = BreadRecordPhoto.builder().record(record).name("a.jpg")
+			.mimeType(MimeType.IMAGE_JPEG).awsKey(awsKey).sortOrder(0).build();
+		given(memberRepository.findActiveForUpdate(7L)).willReturn(Optional.of(member));
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+		given(photoRepository.findAllIncludingPendingByRecordId(11L)).willReturn(List.of(photo));
+
+		commandService.delete(11L, 7L);
+
+		verify(s3Service).deleteObject(awsKey);
+		verify(s3Service).deleteObjects(List.of(
+			"resized/320/" + awsKey, "resized/640/" + awsKey, "resized/1024/" + awsKey));
+		assertThat(record.getDeletedAt()).isNotNull();
+	}
+
+	@Test
+	void delete_keepsFileStillUsedByAnotherPhotoRow() {
+		Member member = member(7L);
+		BreadRecord record = record(11L, member);
+		String awsKey = "bread-records/members/7/images/shared";
+		BreadRecordPhoto photo = BreadRecordPhoto.builder().record(record).name("a.jpg")
+			.mimeType(MimeType.IMAGE_JPEG).awsKey(awsKey).sortOrder(0).build();
+		given(memberRepository.findActiveForUpdate(7L)).willReturn(Optional.of(member));
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+		given(photoRepository.findAllIncludingPendingByRecordId(11L)).willReturn(List.of(photo));
+		given(photoRepository.existsByAwsKey(awsKey)).willReturn(true);
+
+		commandService.delete(11L, 7L);
+
+		verify(photoRepository).deleteAllIncludingPendingByRecordId(11L);
+		org.mockito.Mockito.verifyNoInteractions(s3Service);
+		assertThat(record.getDeletedAt()).isNotNull();
+	}
+
 	@Mock
 	S3Service s3Service;
 	@Mock
@@ -322,6 +360,8 @@ class BreadRecordCommandServiceTest {
 				&& "부드러워".equals(tag.getRatingMemo());
 		}));
 		verify(s3Service).deleteObject(oldKey);
+		verify(s3Service).deleteObjects(List.of(
+			"resized/320/" + oldKey, "resized/640/" + oldKey, "resized/1024/" + oldKey));
 	}
 
 	@Test
