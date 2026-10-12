@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import sweetgirl.croissant.common.enums.ImageStatus;
 import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
@@ -51,6 +52,8 @@ public interface StoreImageFileRepository extends JpaRepository<StoreImageFile, 
 	@Query("SELECT s.awsKey FROM StoreImageFile s")
 	List<String> findAllAwsKeys();
 
+	// S3 정리가 트랜잭션 없이 부른다 — 목록 조회 동안 커넥션을 쥐지 않고 묶음마다 짧게 커밋한다.
+	@Transactional
 	@Modifying(clearAutomatically = true, flushAutomatically = true)
 	@Query("""
 			UPDATE StoreImageFile s
