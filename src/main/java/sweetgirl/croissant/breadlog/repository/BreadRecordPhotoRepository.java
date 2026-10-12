@@ -21,6 +21,9 @@ public interface BreadRecordPhotoRepository extends JpaRepository<BreadRecordPho
 			""", nativeQuery = true)
 	List<BreadRecordPhoto> findAllIncludingPendingByRecordId(@Param("recordId") Long recordId);
 
+	/** 이 파일을 가리키는 사진 행이 (처리 상태와 무관하게) 하나라도 있는지. */
+	boolean existsByAwsKey(String awsKey);
+
 	/**
 	 * 수정이 옛 사진을 지우고 다시 만들기 전에 읽으면서 잠근다 — 읽은 처리 상태를 새 행에 옮기기 때문이다.
 	 * 잠그지 않으면 읽은 뒤 도착한 콜백이 옛 행만 DONE으로 바꾸고 사라져, 새 행이 낡은 PENDING을 물려받는다.

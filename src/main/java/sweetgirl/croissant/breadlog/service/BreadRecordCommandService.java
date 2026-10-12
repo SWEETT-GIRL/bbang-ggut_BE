@@ -494,8 +494,17 @@ public class BreadRecordCommandService {
 	}
 
 	private void safeDelete(String awsKey) {
+		// 같은 파일을 가리키는 사진 행이 다른 기록에 남아 있으면 지우지 않는다 — 한 키에 행이 여럿인 데이터가 실제로 있다.
+		if (photoRepository.existsByAwsKey(awsKey)) {
+			return;
+		}
 		try {
 			s3Service.deleteObject(awsKey);
+			// 원본만 지우면 리사이즈 Lambda 가 만든 크기 조정본이 버킷에 남는다.
+			s3Service.deleteObjects(List.of(
+				S3PathGenerator.getResizedKey(320, awsKey),
+				S3PathGenerator.getResizedKey(640, awsKey),
+				S3PathGenerator.getResizedKey(1024, awsKey)));
 		} catch (RuntimeException exception) {
 			log.warn("빵 기록 이미지 S3 삭제 실패 [key={}]: {}", awsKey, exception.getMessage());
 		}
