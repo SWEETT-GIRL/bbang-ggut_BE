@@ -71,7 +71,7 @@ class BreadRecordCommandServiceTest {
 		tutorial.markTutorial(TutorialRecordTemplate.CODE);
 		given(memberReader.getMember(7L)).willReturn(member);
 		given(memberRepository.findActiveForUpdate(7L)).willReturn(Optional.of(member));
-		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(tutorial));
+		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(tutorial));
 		assertThatThrownBy(() -> commandService.changeVisibility(11L, 7L, true))
 			.isInstanceOf(BreadLogException.class);
 		commandService.delete(11L, 7L);
@@ -84,7 +84,7 @@ class BreadRecordCommandServiceTest {
 		BreadRecord tutorial = record(11L, member(9L));
 		tutorial.markTutorial(TutorialRecordTemplate.CODE);
 		given(memberRepository.findActiveForUpdate(7L)).willReturn(Optional.of(member(7L)));
-		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(tutorial));
+		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(tutorial));
 		assertThatThrownBy(() -> commandService.delete(11L, 7L)).isInstanceOf(BreadLogException.class);
 		assertThat(tutorial.getDeletedAt()).isNull();
 	}
@@ -275,9 +275,9 @@ class BreadRecordCommandServiceTest {
 		oldPhoto.updateResizedKeys(awsKey);
 		BreadRecordUpsertRequest request = request(awsKey, 0);
 		given(memberReader.getMember(7L)).willReturn(member);
-		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
 		given(storeRepository.findById(10L)).willReturn(Optional.of(store(10L)));
-		given(photoRepository.findAllIncludingPendingByRecordId(11L)).willReturn(List.of(oldPhoto));
+		given(photoRepository.findAllIncludingPendingByRecordIdForUpdate(11L)).willReturn(List.of(oldPhoto));
 		given(photoRepository.saveAll(any())).willAnswer(invocation -> invocation.getArgument(0));
 		given(categoryClassifier.classify("우유식빵")).willReturn("식빵");
 
@@ -304,7 +304,7 @@ class BreadRecordCommandServiceTest {
 		ReflectionTestUtils.setField(original, "id", 23L);
 		original.markDone();
 		original.updateResizedKeys(oldKey);
-		given(photoRepository.findAllIncludingPendingByRecordId(11L)).willReturn(List.of(original));
+		given(photoRepository.findAllIncludingPendingByRecordIdForUpdate(11L)).willReturn(List.of(original));
 		BreadRecordTag previous = BreadRecordTag.builder()
 			.record(record).photo(original).name("소금빵").breadCategory("소금빵")
 			.positionX(0.1).positionY(0.1).build();
@@ -340,9 +340,9 @@ class BreadRecordCommandServiceTest {
 			.mimeType(MimeType.IMAGE_JPEG).awsKey("bread-records/members/7/images/a").sortOrder(0).build();
 		ReflectionTestUtils.setField(original, "id", 23L);
 		given(memberReader.getMember(7L)).willReturn(member);
-		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
 		given(storeRepository.findById(10L)).willReturn(Optional.of(store(10L)));
-		given(photoRepository.findAllIncludingPendingByRecordId(11L)).willReturn(List.of(original));
+		given(photoRepository.findAllIncludingPendingByRecordIdForUpdate(11L)).willReturn(List.of(original));
 		for (var photos : List.of(
 			List.of(
 				new BreadRecordPhotoRequest("b", "image/jpeg", "bread-records/members/7/images/b", 0, null, null, 99L)),
@@ -563,7 +563,7 @@ class BreadRecordCommandServiceTest {
 		Member member = member(7L);
 		BreadRecord record = record(11L, member);
 		given(memberReader.getMember(7L)).willReturn(member);
-		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
 
 		commandService.changeVisibility(11L, 7L, true);
 
@@ -578,7 +578,7 @@ class BreadRecordCommandServiceTest {
 		BreadRecord record = record(11L, member);
 		record.changeVisibility(true);
 		given(memberReader.getMember(7L)).willReturn(member);
-		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
 
 		commandService.changeVisibility(11L, 7L, false);
 
@@ -590,7 +590,8 @@ class BreadRecordCommandServiceTest {
 	@DisplayName("changeVisibility: 남의 기록이면 접근 거부")
 	void changeVisibility_othersRecord_throwsAccessDenied() {
 		given(memberReader.getMember(8L)).willReturn(member(8L));
-		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record(11L, member(7L))));
+		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L))
+			.willReturn(Optional.of(record(11L, member(7L))));
 
 		assertThatThrownBy(() -> commandService.changeVisibility(11L, 8L, true))
 			.isInstanceOf(BreadLogException.class)
@@ -603,9 +604,9 @@ class BreadRecordCommandServiceTest {
 		record.changeVisibility(isPublic);
 		Store store = store(10L);
 		given(memberReader.getMember(7L)).willReturn(member);
-		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
 		given(storeRepository.findById(10L)).willReturn(Optional.of(store));
-		given(photoRepository.findAllIncludingPendingByRecordId(11L)).willReturn(List.of());
+		given(photoRepository.findAllIncludingPendingByRecordIdForUpdate(11L)).willReturn(List.of());
 		given(photoRepository.saveAll(any())).willAnswer(invocation -> invocation.getArgument(0));
 		return record;
 	}
@@ -738,7 +739,7 @@ class BreadRecordCommandServiceTest {
 			.record(record).name("우유식빵").breadCategory("식빵").positionX(0.1).positionY(0.1).build();
 		previous.rate(true, List.of(TextureChip.촉촉), List.of(TasteChip.고소), "부드러워");
 		given(memberReader.getMember(7L)).willReturn(member);
-		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
 		given(storeRepository.findById(10L)).willReturn(Optional.of(store(10L)));
 		given(tagRepository.findAllWithChipsByRecordId(11L)).willReturn(List.of(previous));
 		given(photoRepository.saveAll(any())).willAnswer(invocation -> invocation.getArgument(0));
@@ -763,7 +764,7 @@ class BreadRecordCommandServiceTest {
 			.record(record).name("우유식빵").breadCategory("식빵").positionX(0.1).positionY(0.1).build();
 		previous.rate(true, List.of(TextureChip.촉촉), null, null);
 		given(memberReader.getMember(7L)).willReturn(member);
-		given(breadRecordRepository.findByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
 		given(storeRepository.findById(10L)).willReturn(Optional.of(store(10L)));
 		given(tagRepository.findAllWithChipsByRecordId(11L)).willReturn(List.of(previous));
 		given(photoRepository.saveAll(any())).willAnswer(invocation -> invocation.getArgument(0));
