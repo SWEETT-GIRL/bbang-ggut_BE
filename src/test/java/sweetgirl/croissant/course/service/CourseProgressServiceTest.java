@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -259,6 +260,53 @@ class CourseProgressServiceTest {
 
 		assertThat(progress.getStatus()).isEqualTo(CourseProgressStatus.IN_PROGRESS);
 		assertThat(progress.getFinishedAt()).isNull();
+	}
+
+	@Test
+	@DisplayName("refreshForMember 는 이번에 완주가 된 빵투어만 돌려준다")
+	void refreshForMember_returnsNewlyFinished() {
+		Member member = member(7L);
+		CourseProgress finishing = CourseProgress.start(member, course(10L), LocalDateTime.of(2026, 8, 1, 10, 0));
+		CourseProgress ongoing = CourseProgress.start(member, course(11L), LocalDateTime.of(2026, 8, 2, 10, 0));
+		given(courseProgressRepository.findAllByMemberIdAndStatus(7L, CourseProgressStatus.IN_PROGRESS))
+			.willReturn(List.of(finishing, ongoing));
+		given(courseProgressRepository.findAggregates(7L, List.of(10L, 11L)))
+			.willReturn(List.of(aggregate(10L, 3, 3, null), aggregate(11L, 3, 2, null)));
+
+		assertThat(courseProgressService.refreshForMember(7L)).containsExactly(10L);
+	}
+
+	@Test
+	@DisplayName("ensureStartedForVisit: 시작하지 않은 빵투어면 진행을 만들고 처음 다녀온 날을 남긴다")
+	void ensureStartedForVisit_createsProgress() {
+		Member member = member(7L);
+		Course course = course(10L);
+		given(courseProgressRepository.findByMemberIdAndCourseId(7L, 10L)).willReturn(Optional.empty());
+		given(courseProgressRepository.save(any(CourseProgress.class)))
+			.willAnswer(invocation -> invocation.getArgument(0));
+
+		CourseProgress progress = courseProgressService.ensureStartedForVisit(member, course,
+			LocalDate.of(2026, 10, 14));
+
+		assertThat(progress.getStatus()).isEqualTo(CourseProgressStatus.IN_PROGRESS);
+		assertThat(progress.getFirstVisitedOn()).isEqualTo(LocalDate.of(2026, 10, 14));
+	}
+
+	@Test
+	@DisplayName("ensureStartedForVisit: 처음 다녀온 날은 덮지 않고, 멈춰 둔 빵투어는 다시 잇는다")
+	void ensureStartedForVisit_keepsFirstVisitAndResumes() {
+		Member member = member(7L);
+		Course course = course(10L);
+		CourseProgress stopped = CourseProgress.start(member, course, LocalDateTime.of(2026, 8, 1, 10, 0));
+		stopped.markFirstVisit(LocalDate.of(2026, 10, 10));
+		stopped.stop(LocalDateTime.of(2026, 10, 11, 9, 0));
+		given(courseProgressRepository.findByMemberIdAndCourseId(7L, 10L)).willReturn(Optional.of(stopped));
+
+		CourseProgress progress = courseProgressService.ensureStartedForVisit(member, course,
+			LocalDate.of(2026, 10, 14));
+
+		assertThat(progress.getFirstVisitedOn()).isEqualTo(LocalDate.of(2026, 10, 10));
+		assertThat(progress.getStatus()).isEqualTo(CourseProgressStatus.IN_PROGRESS);
 	}
 
 	private Member member(Long id) {

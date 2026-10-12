@@ -1,5 +1,8 @@
 package sweetgirl.croissant.breadlog.service;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -8,6 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -52,7 +56,9 @@ import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.menu.util.MenuNameNormalizer;
 import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
+import sweetgirl.croissant.reward.service.CrumbGrantService;
 import sweetgirl.croissant.reward.service.RecordRewardService;
+import sweetgirl.croissant.reward.service.TourRewardService;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.enums.TrendingSignal;
@@ -82,6 +88,7 @@ public class BreadRecordCommandService {
 	private final CourseProgressService courseProgressService;
 	private final MemberWorldRepository memberWorldRepository;
 	private final RecordRewardService recordRewardService;
+	private final TourRewardService tourRewardService;
 	private final ApplicationEventPublisher eventPublisher;
 
 	public BreadRecordPresignedUrlResponse generatePresignedUrls(
@@ -95,6 +102,23 @@ public class BreadRecordCommandService {
 	}
 
 	public BreadRecordCreateResponse create(Long memberId, BreadRecordUpsertRequest request) {
+		return create(memberId, request, null);
+	}
+
+	/**
+	 * 빵투어에서 한 번 탭으로 만드는 가벼운 기록 — 가게만 있고 사진도 빵도 없다. 나중에 고쳐서 덧붙인다.
+	 *
+	 * <p>보통 기록과 두 가지가 다르다. 기록 보상의 멱등 키가 (빵투어, 가게)라서 지우고 다시 눌러도 한 번만 받고,
+	 * 급부상 신호를 내지 않는다 — 탭 한 번으로 가게 순위를 밀어 올릴 수 있으면 안 된다.
+	 */
+	public BreadRecordCreateResponse createTourQuickRecord(Long memberId, Long courseId, Store store, UUID requestId) {
+		BreadRecordUpsertRequest request = new BreadRecordUpsertRequest(
+			store.getId(), store.getName(), null, null, null, null, null, LocalDateTime.now(), List.of(), List.of(),
+			false, requestId);
+		return create(memberId, request, new TourStop(courseId, store.getId()));
+	}
+
+	private BreadRecordCreateResponse create(Long memberId, BreadRecordUpsertRequest request, TourStop tourStop) {
 		Member member = memberReader.getMember(memberId);
 		memberRestrictionReader.validateCanWrite(memberId);
 		if (request.requestId() != null) {
@@ -129,15 +153,18 @@ public class BreadRecordCommandService {
 		// 빵탑은 기록 수만큼 오른다. 최고 높이는 내려가지 않아서, 기록을 지워도 행성이 밀리지 않는다.
 		long recordCountAfter = breadRecordRepository.countByMemberIdAndDeletedAtIsNull(memberId);
 		memberWorldRepository.raiseMaxRecordCount(memberId, recordCountAfter);
-		List<RewardItemResponse> rewards = recordRewardService.rewardCreated(
-			member, record.getId(), request.photos().size(),
-			(int)Math.max(storedMaxHeight, recordCountBefore),
-			(int)Math.max(storedMaxHeight, recordCountAfter));
+		int heightBefore = (int)Math.max(storedMaxHeight, recordCountBefore);
+		int heightAfter = (int)Math.max(storedMaxHeight, recordCountAfter);
+		List<RewardItemResponse> rewards = new ArrayList<>(tourStop == null
+			? recordRewardService.rewardCreated(member, record.getId(), request.photos().size(), heightBefore,
+				heightAfter)
+			: recordRewardService.rewardTourRecordCreated(member, record.getId(), tourStop.courseId(),
+				tourStop.storeId(), heightBefore, heightAfter));
 		// 찜은 사용자가 직접 풀 때까지 남긴다 — 기록이 생겨도 "또 가고 싶은 가게"일 수 있다.
 		// (기록 시 자동 해제는 정책 변경으로 제거)
-		courseProgressService.refreshForMember(memberId);
+		rewards.addAll(tourRewardsAfterRecordChange(member));
 		// 가게를 고른 기록만 급부상 신호다 — 가게 없이 이름만 적은 기록은 어느 가게인지 모른다
-		if (data.store() != null) {
+		if (data.store() != null && tourStop == null) {
 			eventPublisher.publishEvent(
 				new StoreTrendingSignalEvent(memberId, data.store().getId(), TrendingSignal.RECORD));
 		}
@@ -174,10 +201,25 @@ public class BreadRecordCommandService {
 		savePhotosAndTags(record, request, data.photoBySortOrder(), originalByRequestedKey, data.lovedBreads(),
 			previousRatingByName);
 		deleteRemovedImages(oldPhotos, request.photos());
-		courseProgressService.refreshForMember(memberId);
 		// 사진 없이 쓴 기록에 사진을 붙였으면 보너스를 준다(기록한 지 7 일 안, 기록당 한 번)
-		return new BreadRecordUpdateResponse(recordRewardService.rewardPhotosAttached(
+		List<RewardItemResponse> rewards = new ArrayList<>(recordRewardService.rewardPhotosAttached(
 			member, recordId, record.getCreatedAt(), request.photos().size()));
+		// 이 사진으로 빵투어의 모든 가게에 사진이 채워졌을 수 있다
+		rewards.addAll(tourRewardsAfterRecordChange(member));
+		return new BreadRecordUpdateResponse(rewards);
+	}
+
+	/** 기록이 바뀐 뒤 빵투어의 완주·사진 완주를 다시 보고, 방금 채워진 것의 보상을 돌려준다. */
+	private List<RewardItemResponse> tourRewardsAfterRecordChange(Member member) {
+		LocalDate today = LocalDate.now(CrumbGrantService.ZONE);
+		List<RewardItemResponse> rewards = new ArrayList<>(tourRewardService.rewardCompletions(
+			member, courseProgressService.refreshForMember(member.getId()), today));
+		rewards.addAll(tourRewardService.rewardPhotoCompletions(member, today));
+		return rewards;
+	}
+
+	/** 가벼운 기록이 어느 빵투어의 어느 가게에서 만들어졌는가. */
+	private record TourStop(Long courseId, Long storeId) {
 	}
 
 	public void changeVisibility(Long recordId, Long memberId, boolean isPublic) {

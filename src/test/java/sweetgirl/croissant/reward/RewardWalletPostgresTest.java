@@ -134,6 +134,13 @@ class RewardWalletPostgresTest {
 		jdbc.execute("CREATE TABLE member_world (member_id bigint PRIMARY KEY, updated_at timestamp)");
 		jdbc.execute("CREATE TABLE member_characters (member_id bigint, character_code varchar(30), "
 			+ "PRIMARY KEY (member_id, character_code))");
+		// 빵투어 보상이 고치거나 읽는 표들
+		jdbc.execute("CREATE TABLE course_progress (member_id bigint, course_id bigint, "
+			+ "PRIMARY KEY (member_id, course_id))");
+		jdbc.execute("CREATE TABLE course_stores (course_id bigint, store_id bigint, deleted_at timestamp)");
+		jdbc.execute("CREATE TABLE course_store_visits (course_id bigint, member_id bigint, store_id bigint, "
+			+ "bread_record_id bigint, deleted_at timestamp)");
+		jdbc.execute("CREATE TABLE bread_record_photo (id bigserial PRIMARY KEY, record_id bigint NOT NULL)");
 		for (String migration : List.of(
 			"V20261012200000__create_crumb_wallet_and_ledger.sql",
 			"V20261012200100__create_reward_settings.sql",
@@ -143,7 +150,8 @@ class RewardWalletPostgresTest {
 			"V20261012220100__validate_bread_record_tag_pinned.sql",
 			"V20261012220200__advance_earth_stage_offsets.sql",
 			"V20261012230000__create_bbangdaeng_letters.sql",
-			"V20261013000000__create_reward_shop.sql")) {
+			"V20261013000000__create_reward_shop.sql",
+			"V20261013010000__add_reward_columns_to_course_progress.sql")) {
 			jdbc.execute(new ClassPathResource("db/migration/" + migration).getContentAsString(StandardCharsets.UTF_8));
 		}
 
@@ -437,6 +445,41 @@ class RewardWalletPostgresTest {
 		assertThatThrownBy(() -> jdbc.execute(
 			"INSERT INTO shop_items (code, kind, name, price, sort_order) VALUES ('prop-x', 'PROP', 'x', 0, 1)"))
 			.hasMessageContaining("chk_shop_items_price");
+	}
+
+	@Test
+	@DisplayName("사진 완주 판정 — 모든 가게에 사진 붙은 기록이 달려야 0 이고, 가게 없는 빵투어는 완주가 아니다")
+	void countsStoresWithoutPhotoVisit() {
+		jdbc.execute("INSERT INTO course_stores (course_id, store_id) VALUES (812, 10), (812, 11), (812, 12)");
+		jdbc.execute("UPDATE course_stores SET deleted_at = now() WHERE store_id = 12");
+		jdbc.execute("INSERT INTO bread_record (id, member_id) VALUES (21, 1), (22, 1)");
+		jdbc.execute("INSERT INTO course_store_visits (course_id, member_id, store_id, bread_record_id) "
+			+ "VALUES (812, 1, 10, 21), (812, 1, 11, 22)");
+		jdbc.execute("INSERT INTO bread_record_photo (record_id) VALUES (21)");
+		String query = """
+				SELECT CASE WHEN COUNT(*) = 0 THEN 1 ELSE COUNT(*) FILTER (WHERE NOT EXISTS (
+					SELECT 1 FROM course_store_visits visit
+					JOIN bread_record_photo photo ON photo.record_id = visit.bread_record_id
+					WHERE visit.course_id = course_store.course_id
+						AND visit.store_id = course_store.store_id
+						AND visit.member_id = ?
+						AND visit.deleted_at IS NULL)) END
+				FROM course_stores course_store
+				WHERE course_store.course_id = ? AND course_store.deleted_at IS NULL
+				""";
+
+		// 가게 11 의 기록에 사진이 없다(지운 가게 12 는 세지 않는다)
+		assertThat(jdbc.queryForObject(query, Long.class, 1L, 812L)).isEqualTo(1L);
+		jdbc.execute("INSERT INTO bread_record_photo (record_id) VALUES (22)");
+		assertThat(jdbc.queryForObject(query, Long.class, 1L, 812L)).isZero();
+		// 다른 회원은 다녀오지 않았다
+		assertThat(jdbc.queryForObject(query, Long.class, 2L, 812L)).isEqualTo(2L);
+		// 가게가 하나도 없는 빵투어
+		assertThat(jdbc.queryForObject(query, Long.class, 1L, 999L)).isEqualTo(1L);
+		assertThat(jdbc.queryForObject(
+			"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = current_schema() "
+				+ "AND table_name = 'course_progress' AND column_name IN ('first_visited_on', 'photo_completed_at')",
+			Integer.class)).isEqualTo(2);
 	}
 
 	private LocalDateTime registeredAt(long memberId) {
