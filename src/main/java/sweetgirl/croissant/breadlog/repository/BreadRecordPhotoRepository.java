@@ -22,6 +22,20 @@ public interface BreadRecordPhotoRepository extends JpaRepository<BreadRecordPho
 	List<BreadRecordPhoto> findAllIncludingPendingByRecordId(@Param("recordId") Long recordId);
 
 	/**
+	 * 수정이 옛 사진을 지우고 다시 만들기 전에 읽으면서 잠근다 — 읽은 처리 상태를 새 행에 옮기기 때문이다.
+	 * 잠그지 않으면 읽은 뒤 도착한 콜백이 옛 행만 DONE으로 바꾸고 사라져, 새 행이 낡은 PENDING을 물려받는다.
+	 * 잠가 두면 먼저 온 콜백은 반영된 상태로 읽히고, 늦게 온 콜백은 수정이 끝난 뒤 새 행에 반영된다.
+	 */
+	@Query(value = """
+			SELECT *
+			FROM bread_record_photo
+			WHERE record_id = :recordId
+			ORDER BY sort_order, id
+			FOR UPDATE
+			""", nativeQuery = true)
+	List<BreadRecordPhoto> findAllIncludingPendingByRecordIdForUpdate(@Param("recordId") Long recordId);
+
+	/**
 	 * 같은 awsKey의 사진을 모두 찾는다 — 단건이 아니라 목록인 게 핵심이다.
 	 * 한 키에 row가 2개 이상인 데이터가 실제로 존재했고, 단건 조회는 그 순간
 	 * IncorrectResultSize로 죽어서 콜백 전체가 유실됐다.
