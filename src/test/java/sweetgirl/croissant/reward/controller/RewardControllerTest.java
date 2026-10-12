@@ -30,12 +30,15 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.exception.MemberException;
+import sweetgirl.croissant.reward.code.RewardErrorCode;
 import sweetgirl.croissant.reward.dto.response.AttendanceResponse;
 import sweetgirl.croissant.reward.dto.response.FeedResponse;
 import sweetgirl.croissant.reward.dto.response.RewardClaimResponse;
 import sweetgirl.croissant.reward.dto.response.RewardHistoryResponse;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.CarryOver;
+import sweetgirl.croissant.reward.exception.RewardException;
+import sweetgirl.croissant.reward.service.BbangdaengLetterService;
 import sweetgirl.croissant.reward.service.RewardCommandService;
 import sweetgirl.croissant.reward.service.RewardDailyCommandService;
 import sweetgirl.croissant.reward.service.RewardQueryService;
@@ -51,6 +54,8 @@ class RewardControllerTest {
 	private RewardQueryService rewardQueryService;
 	@Mock
 	private RewardDailyCommandService rewardDailyCommandService;
+	@Mock
+	private BbangdaengLetterService bbangdaengLetterService;
 
 	@InjectMocks
 	private RewardController rewardController;
@@ -72,8 +77,10 @@ class RewardControllerTest {
 
 		mockMvc.perform(get("/members/me/rewards/summary")).andExpect(status().isOk());
 
-		InOrder inOrder = inOrder(rewardCommandService, rewardQueryService);
+		// 이번 주 편지도 읽기 전에 배달한다 — 아니면 월요일 첫 조회에 편지가 안 보인다
+		InOrder inOrder = inOrder(rewardCommandService, bbangdaengLetterService, rewardQueryService);
 		inOrder.verify(rewardCommandService).carryOverIfNeeded(any());
+		inOrder.verify(bbangdaengLetterService).deliverIfDue(any());
 		inOrder.verify(rewardQueryService).getSummary(any(), eq(carryOver));
 	}
 
@@ -149,6 +156,17 @@ class RewardControllerTest {
 			.given(rewardDailyCommandService).checkIn(any());
 
 		mockMvc.perform(post("/members/me/rewards/attendance")).andExpect(status().isForbidden());
+	}
+
+	@Test
+	@DisplayName("남의 편지를 열려 하면 REWARD404_2")
+	void openLetterOfAnother() throws Exception {
+		given(bbangdaengLetterService.open(any(), eq(31L)))
+			.willThrow(new RewardException(RewardErrorCode.REWARD_LETTER_NOT_FOUND));
+
+		mockMvc.perform(post("/members/me/rewards/letters/31/open"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("REWARD404_2"));
 	}
 
 	@Test

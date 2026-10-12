@@ -10,12 +10,16 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.reward.code.RewardErrorCode;
+import sweetgirl.croissant.reward.dto.request.AdminBbangdaengLetterRequest;
 import sweetgirl.croissant.reward.dto.request.AdminCrumbAdjustRequest;
 import sweetgirl.croissant.reward.dto.request.AdminRewardSettingsUpdateRequest;
+import sweetgirl.croissant.reward.dto.response.AdminBbangdaengLetterResponse;
 import sweetgirl.croissant.reward.dto.response.AdminCrumbAdjustResponse;
+import sweetgirl.croissant.reward.entity.BbangdaengLetter;
 import sweetgirl.croissant.reward.entity.RewardSetting;
 import sweetgirl.croissant.reward.enums.RewardSettingKey;
 import sweetgirl.croissant.reward.exception.RewardException;
+import sweetgirl.croissant.reward.repository.BbangdaengLetterRepository;
 import sweetgirl.croissant.reward.repository.RewardSettingRepository;
 
 @Service
@@ -27,6 +31,7 @@ public class AdminRewardCommandService {
 	private final RewardSettingRepository rewardSettingRepository;
 	private final RewardSettings rewardSettings;
 	private final MemberReader memberReader;
+	private final BbangdaengLetterRepository bbangdaengLetterRepository;
 
 	/** 게스트에게는 주지 않는다 — 게스트는 지갑이 없고, 로그인하면 사라질 행을 만들지 않는다. */
 	public AdminCrumbAdjustResponse grant(Long memberId, AdminCrumbAdjustRequest request) {
@@ -56,6 +61,28 @@ public class AdminRewardCommandService {
 				() -> rewardSettingRepository.save(RewardSetting.of(entry.key(), entry.value(), now)));
 		}
 		rewardSettings.evict();
+	}
+
+	/** 편지 글을 묶음 끝에 더한다. */
+	public AdminBbangdaengLetterResponse addLetter(AdminBbangdaengLetterRequest request) {
+		BbangdaengLetter letter = bbangdaengLetterRepository.save(BbangdaengLetter.write(
+			bbangdaengLetterRepository.findMaxSeq() + 1, request.body().strip(), LocalDateTime.now()));
+		return AdminBbangdaengLetterResponse.from(letter);
+	}
+
+	/** 글을 고치거나 끈다. 끈 글은 새로 배달하지 않을 뿐, 이미 받은 편지에서는 그대로 보인다. */
+	public AdminBbangdaengLetterResponse reviseLetter(Long letterId, AdminBbangdaengLetterRequest request) {
+		BbangdaengLetter letter = bbangdaengLetterRepository.findById(letterId)
+			.orElseThrow(() -> new RewardException(RewardErrorCode.REWARD_LETTER_NOT_FOUND));
+		letter.revise(request.body().strip(), !Boolean.FALSE.equals(request.active()));
+		return AdminBbangdaengLetterResponse.from(letter);
+	}
+
+	@Transactional(readOnly = true)
+	public List<AdminBbangdaengLetterResponse> getLetters() {
+		return bbangdaengLetterRepository.findAllByOrderBySeqAsc().stream()
+			.map(AdminBbangdaengLetterResponse::from)
+			.toList();
 	}
 
 	private String idempotencyKey(AdminCrumbAdjustRequest request) {

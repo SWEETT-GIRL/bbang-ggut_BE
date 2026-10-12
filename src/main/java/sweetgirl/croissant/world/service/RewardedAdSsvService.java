@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.member.service.NicknameDrawService;
+import sweetgirl.croissant.reward.service.EarnRewardService;
 import sweetgirl.croissant.world.entity.MemberCharacter;
 import sweetgirl.croissant.world.entity.MemberCharacterId;
 import sweetgirl.croissant.world.enums.AcquiredBy;
@@ -38,6 +39,8 @@ import sweetgirl.croissant.world.repository.RewardedAdTransactionRepository;
 public class RewardedAdSsvService {
 
 	private static final String NICKNAME_PURPOSE = "nickname";
+	/** 부스러기 광고는 {@code crumbs:memberId} 로 온다. 친구 형식은 앞자리가 숫자라 겹치지 않는다. */
+	private static final String CRUMBS_PURPOSE = "crumbs";
 
 	private final RewardedAdSignatureVerifier signatureVerifier;
 	private final MemberCharacterRepository memberCharacterRepository;
@@ -45,6 +48,7 @@ public class RewardedAdSsvService {
 	private final WorldCommandService worldCommandService;
 	private final RewardedAdTransactionRepository rewardedAdTransactionRepository;
 	private final NicknameDrawService nicknameDrawService;
+	private final EarnRewardService earnRewardService;
 
 	/**
 	 * @param query 콜백 쿼리 문자열 원본. 구글이 서명한 그대로여야 해서 다시 조립한 값을 넘기면 안 된다
@@ -67,6 +71,9 @@ public class RewardedAdSsvService {
 		String[] parts = customData.split(":", 2);
 		if (NICKNAME_PURPOSE.equals(parts[0])) {
 			return drawNickname(parts[1], params);
+		}
+		if (CRUMBS_PURPOSE.equals(parts[0])) {
+			return grantCrumbs(parts[1], params);
 		}
 		Long memberId;
 		try {
@@ -146,6 +153,44 @@ public class RewardedAdSsvService {
 		boolean drawn = nicknameDrawService.drawWithAd(memberId);
 		log.info("[AdMob SSV] 닉네임 광고 - member={}, transaction={}, 뽑음={}", memberId, transactionId, drawn);
 		return drawn;
+	}
+
+	/**
+	 * 부스러기 광고. 이력 표에 먼저 남겨 보고, 이미 본 {@code transaction_id} 면 버린다.
+	 * 하루 상한을 넘은 광고도 이력은 남긴다(정산 대조) — 부스러기만 주지 않는다.
+	 */
+	private boolean grantCrumbs(String memberIdText, Map<String, String> params) {
+		Long memberId;
+		try {
+			memberId = Long.valueOf(memberIdText);
+		} catch (NumberFormatException exception) {
+			log.warn("[AdMob SSV] 부스러기 광고의 회원 번호를 읽지 못했다: {}", memberIdText);
+			return false;
+		}
+
+		String transactionId = params.get("transaction_id");
+		if (transactionId == null) {
+			log.warn("[AdMob SSV] transaction_id 가 없어 중복을 가릴 수 없다");
+			return false;
+		}
+		if (!earnRewardService.canEarn(memberId)) {
+			log.warn("[AdMob SSV] 부스러기를 받을 수 없는 회원이다(없거나 게스트) - member={}", memberId);
+			return false;
+		}
+		int recorded = rewardedAdTransactionRepository.recordCrumbsIfFirstTime(
+			transactionId,
+			memberId,
+			params.get("ad_unit"),
+			toInteger(params.get("reward_amount")),
+			params.get("reward_item"));
+		if (recorded == 0) {
+			log.info("[AdMob SSV] 이미 처리한 보상이라 넘어간다 - transaction={}", transactionId);
+			return false;
+		}
+
+		boolean granted = earnRewardService.rewardAdWatched(memberId, transactionId);
+		log.info("[AdMob SSV] 부스러기 광고 - member={}, transaction={}, 지급={}", memberId, transactionId, granted);
+		return granted;
 	}
 
 	/** 필요한 편수를 채웠으면 깨운다. 편수는 그 친구가 사는 행성 행에서 읽은 값이다. */

@@ -3,6 +3,7 @@ package sweetgirl.croissant.world.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
@@ -19,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import sweetgirl.croissant.member.service.NicknameDrawService;
+import sweetgirl.croissant.reward.service.EarnRewardService;
 import sweetgirl.croissant.world.code.WorldErrorCode;
 import sweetgirl.croissant.world.dto.response.WorldPlanetResponse;
 import sweetgirl.croissant.world.entity.MemberCharacterId;
@@ -51,6 +53,9 @@ class RewardedAdSsvServiceTest {
 	private RewardedAdTransactionRepository rewardedAdTransactionRepository;
 	@Mock
 	private NicknameDrawService nicknameDrawService;
+
+	@Mock
+	private EarnRewardService earnRewardService;
 
 	@InjectMocks
 	private RewardedAdSsvService rewardedAdSsvService;
@@ -166,6 +171,68 @@ class RewardedAdSsvServiceTest {
 		given(memberCharacterRepository.addAdView(7L, "frog")).willReturn(0);
 
 		assertThat(rewardedAdSsvService.credit(QUERY)).isFalse();
+	}
+
+	@Test
+	@DisplayName("부스러기 광고(crumbs:회원번호)는 이력을 남기고 부스러기를 준다 — 친구도 닉네임도 건드리지 않는다")
+	void routesCrumbsAdToReward() {
+		String query = "transaction_id=TX9&custom_data=crumbs%3A7&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(true);
+		given(earnRewardService.canEarn(7L)).willReturn(true);
+		given(rewardedAdTransactionRepository.recordCrumbsIfFirstTime(eq("TX9"), eq(7L), any(), any(), any()))
+			.willReturn(1);
+		given(earnRewardService.rewardAdWatched(7L, "TX9")).willReturn(true);
+
+		assertThat(rewardedAdSsvService.credit(query)).isTrue();
+		then(worldCommandService).should(never()).requireWakeable(any(), anyString());
+		then(nicknameDrawService).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("부스러기 광고의 같은 transaction 이 다시 오면 또 주지 않는다")
+	void crumbsAdReplayed() {
+		String query = "transaction_id=TX9&custom_data=crumbs%3A7&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(true);
+		given(earnRewardService.canEarn(7L)).willReturn(true);
+		given(rewardedAdTransactionRepository.recordCrumbsIfFirstTime(eq("TX9"), eq(7L), any(), any(), any()))
+			.willReturn(0);
+
+		assertThat(rewardedAdSsvService.credit(query)).isFalse();
+		then(earnRewardService).should(never()).rewardAdWatched(any(), anyString());
+	}
+
+	@Test
+	@DisplayName("하루 상한을 넘은 부스러기 광고는 이력은 남기되 적립하지 않았다고 답한다")
+	void crumbsAdOverDailyCap() {
+		String query = "transaction_id=TX10&custom_data=crumbs%3A7&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(true);
+		given(earnRewardService.canEarn(7L)).willReturn(true);
+		given(rewardedAdTransactionRepository.recordCrumbsIfFirstTime(eq("TX10"), eq(7L), any(), any(), any()))
+			.willReturn(1);
+		given(earnRewardService.rewardAdWatched(7L, "TX10")).willReturn(false);
+
+		assertThat(rewardedAdSsvService.credit(query)).isFalse();
+	}
+
+	@Test
+	@DisplayName("게스트나 없는 회원의 부스러기 광고는 이력도 남기지 않는다")
+	void crumbsAdForGuest() {
+		String query = "transaction_id=TX11&custom_data=crumbs%3A7&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(true);
+		given(earnRewardService.canEarn(7L)).willReturn(false);
+
+		assertThat(rewardedAdSsvService.credit(query)).isFalse();
+		then(rewardedAdTransactionRepository).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("서명이 맞지 않는 부스러기 광고는 버린다")
+	void crumbsAdWithBadSignature() {
+		String query = "transaction_id=TX12&custom_data=crumbs%3A7&signature=BAD&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(false);
+
+		assertThat(rewardedAdSsvService.credit(query)).isFalse();
+		then(earnRewardService).shouldHaveNoInteractions();
 	}
 
 	@Test

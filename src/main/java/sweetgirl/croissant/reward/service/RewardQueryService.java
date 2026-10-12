@@ -15,6 +15,7 @@ import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.reward.dto.response.RewardHistoryResponse;
 import sweetgirl.croissant.reward.dto.response.RewardRulesResponse;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Ad;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Attendance;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.CarryOver;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Feed;
@@ -40,6 +41,8 @@ public class RewardQueryService {
 	private final MemberReader memberReader;
 	private final MemberAttendanceDayRepository attendanceDayRepository;
 	private final MemberFeedDayRepository feedDayRepository;
+	private final BbangdaengLetterService bbangdaengLetterService;
+	private final EarnRewardService earnRewardService;
 
 	/**
 	 * 홈이 한 번에 읽는 요약.
@@ -68,7 +71,9 @@ public class RewardQueryService {
 				attendanceDayRepository.findByMemberIdAndDay(memberId, today.minusDays(1)),
 				attendanceDayRepository.findByMemberIdAndDay(memberId, today))),
 			new Feed(feedDayRepository.findByMemberIdAndDay(memberId, today).isPresent(),
-				rewardSettings.feedWedges()));
+				rewardSettings.feedWedges()),
+			bbangdaengLetterService.summaryOf(memberId),
+			new Ad(earnRewardService.adsLeftToday(memberId)));
 	}
 
 	/** 판의 자리에 보상 수치를 붙인다. 오늘 했으면 오늘 칸은 찍힌 칸이고, 안 했으면 찍을 칸이다. */

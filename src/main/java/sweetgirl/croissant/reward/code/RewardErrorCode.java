@@ -19,6 +19,8 @@ public enum RewardErrorCode implements BaseErrorCode {
 			"부스러기 수량이 올바르지 않습니다."),
 	REWARD_SETTING_NOT_FOUND(NOT_FOUND, "REWARD404_1",
 			"그런 보상 설정이 없습니다."),
+	REWARD_LETTER_NOT_FOUND(NOT_FOUND, "REWARD404_2",
+			"그런 편지가 없습니다."),
 	REWARD_CRUMBS_INSUFFICIENT(CONFLICT, "REWARD409_1",
 			"부스러기가 부족합니다."),
 	REWARD_PENDING_PAYLOAD_INVALID(INTERNAL_SERVER_ERROR, "REWARD500_1",

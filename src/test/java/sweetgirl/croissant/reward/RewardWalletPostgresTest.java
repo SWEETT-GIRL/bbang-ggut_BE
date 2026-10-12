@@ -40,8 +40,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import jakarta.persistence.EntityManagerFactory;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
+import sweetgirl.croissant.reward.entity.BbangdaengLetter;
 import sweetgirl.croissant.reward.entity.CrumbLedgerEntry;
 import sweetgirl.croissant.reward.entity.MemberAttendanceDay;
+import sweetgirl.croissant.reward.entity.MemberBbangdaengLetter;
 import sweetgirl.croissant.reward.entity.MemberCrumbWallet;
 import sweetgirl.croissant.reward.entity.MemberFeedDay;
 import sweetgirl.croissant.reward.entity.MemberPendingReward;
@@ -129,7 +131,8 @@ class RewardWalletPostgresTest {
 			"V20261012210000__create_reward_daily_tables.sql",
 			"V20261012220000__allow_photoless_bread_record.sql",
 			"V20261012220100__validate_bread_record_tag_pinned.sql",
-			"V20261012220200__advance_earth_stage_offsets.sql")) {
+			"V20261012220200__advance_earth_stage_offsets.sql",
+			"V20261012230000__create_bbangdaeng_letters.sql")) {
 			jdbc.execute(new ClassPathResource("db/migration/" + migration).getContentAsString(StandardCharsets.UTF_8));
 		}
 
@@ -139,7 +142,8 @@ class RewardWalletPostgresTest {
 		factory.setManagedTypes(PersistenceManagedTypes.of(
 			MemberCrumbWallet.class.getName(), CrumbLedgerEntry.class.getName(),
 			MemberPendingReward.class.getName(), RewardSetting.class.getName(),
-			MemberAttendanceDay.class.getName(), MemberFeedDay.class.getName()));
+			MemberAttendanceDay.class.getName(), MemberFeedDay.class.getName(),
+			BbangdaengLetter.class.getName(), MemberBbangdaengLetter.class.getName()));
 		// 마이그레이션이 만든 표와 엔티티가 어긋나면 여기서 터진다 — 운영 기동 실패를 미리 본다
 		// 이름 전략은 앱(Spring Boot 기본값)과 같게 둔다 — balanceAfter 를 balance_after 로 읽는다
 		factory.setJpaPropertyMap(Map.of(
@@ -368,6 +372,29 @@ class RewardWalletPostgresTest {
 		assertThat(jdbc.queryForObject(
 			"SELECT offset_at FROM world_planet_stages WHERE planet_code = 'mars'", Integer.class)).isEqualTo(10);
 		assertThat(jdbc.queryForObject("SELECT version FROM world_catalog", Integer.class)).isEqualTo(8);
+	}
+
+	@Test
+	@DisplayName("빵댕이 편지 12 통이 순서대로 시드되고, 줄바꿈이 글자가 아니라 줄바꿈으로 들어간다")
+	void seedsTwelveLetters() {
+		assertThat(jdbc.queryForList("SELECT seq FROM bbangdaeng_letters ORDER BY seq", Integer.class))
+			.containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
+		String first = jdbc.queryForObject("SELECT body FROM bbangdaeng_letters WHERE seq = 1", String.class);
+		assertThat(first).startsWith("안녕! 나 빵댕이야.\n월요일마다").doesNotContain("\\n");
+		assertThat(first.lines()).hasSize(4);
+	}
+
+	@Test
+	@DisplayName("한 회원은 한 주에 편지 한 통만 받는다")
+	void oneLetterPerMemberPerWeek() {
+		Long letterId = jdbc.queryForObject("SELECT id FROM bbangdaeng_letters WHERE seq = 1", Long.class);
+		String insert = "INSERT INTO member_bbangdaeng_letters "
+			+ "(member_id, letter_id, week_start, visible_from, created_at) VALUES (?, ?, ?, ?, now())";
+		jdbc.update(insert, 1L, letterId, TODAY, TODAY);
+		jdbc.update(insert, 2L, letterId, TODAY, TODAY);
+
+		assertThatThrownBy(() -> jdbc.update(insert, 1L, letterId, TODAY, TODAY.plusDays(1)))
+			.hasMessageContaining("uq_member_bbangdaeng_letters_week");
 	}
 
 	private LocalDateTime registeredAt(long memberId) {

@@ -16,8 +16,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
+import sweetgirl.croissant.reward.dto.request.AdminBbangdaengLetterRequest;
 import sweetgirl.croissant.reward.dto.request.AdminCrumbAdjustRequest;
 import sweetgirl.croissant.reward.dto.request.AdminRewardSettingsUpdateRequest;
+import sweetgirl.croissant.reward.dto.response.AdminBbangdaengLetterResponse;
 import sweetgirl.croissant.reward.dto.response.AdminCrumbAdjustResponse;
 import sweetgirl.croissant.reward.dto.response.AdminRewardSettingResponse;
 import sweetgirl.croissant.reward.service.AdminRewardCommandService;
@@ -50,6 +52,27 @@ public class AdminRewardController {
 			@PathVariable Long memberId,
 			@Valid @RequestBody AdminCrumbAdjustRequest request) {
 		return ResponseEntity.ok(ApiResponse.ok(adminRewardCommandService.revoke(memberId, request)));
+	}
+
+	@Operation(summary = "빵댕이 편지 글 목록")
+	@GetMapping("/letters")
+	public ResponseEntity<ApiResponse<List<AdminBbangdaengLetterResponse>>> getLetters() {
+		return ResponseEntity.ok(ApiResponse.ok(adminRewardCommandService.getLetters()));
+	}
+
+	@Operation(summary = "빵댕이 편지 글 추가", description = "묶음의 끝에 붙는다.")
+	@PostMapping("/letters")
+	public ResponseEntity<ApiResponse<AdminBbangdaengLetterResponse>> addLetter(
+			@Valid @RequestBody AdminBbangdaengLetterRequest request) {
+		return ResponseEntity.ok(ApiResponse.ok(adminRewardCommandService.addLetter(request)));
+	}
+
+	@Operation(summary = "빵댕이 편지 글 수정", description = "active: false 로 끄면 새로 배달하지 않는다.")
+	@PutMapping("/letters/{letterId}")
+	public ResponseEntity<ApiResponse<AdminBbangdaengLetterResponse>> reviseLetter(
+			@PathVariable Long letterId,
+			@Valid @RequestBody AdminBbangdaengLetterRequest request) {
+		return ResponseEntity.ok(ApiResponse.ok(adminRewardCommandService.reviseLetter(letterId, request)));
 	}
 
 	@Operation(summary = "보상 수치 조회", description = "지금 쓰이는 값과 기본값을 내린다.")
