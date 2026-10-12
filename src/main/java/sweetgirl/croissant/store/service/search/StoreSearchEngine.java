@@ -7,6 +7,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -44,6 +45,7 @@ public class StoreSearchEngine {
 	// 토큰 완화 폴백에서 한 토큰만 남길 때 허용하는 후보 가게 수 상한. 운영 14일 검색 재생(2026-10)에서 0건이던 다토큰 검색 202건 중
 	// 132건이 단독 결과 15건 미만인 토큰을 가졌다 — 기본 한 페이지(15건)를 넘기는 토큰은 '베이커리' 같은 일반어라 남기지 않는다.
 	static final int RELAXED_TOKEN_MAX_CANDIDATES = 14;
+	private static final Pattern NUMERIC_ONLY = Pattern.compile("[0-9]+");
 
 	private final StoreSearchSqlBuilder sqlBuilder;
 	private final StoreSearchJdbcRepository storeSearchJdbcRepository;
@@ -113,8 +115,9 @@ public class StoreSearchEngine {
 		if (keptToken.isEmpty()) {
 			return Optional.empty();
 		}
+		// 남긴 토큰이 이름의 맨 앞에 오는 가게만 — 후보 수를 센 조건과 같다
 		StoreSearchPlan singleTokenPlan = new StoreSearchPlan(List.of(), List.of(keptToken.get()), keptToken.get(),
-			false);
+			false, true);
 		StoreSearchResult result = execute(singleTokenPlan, pageable, latitude, longitude, sort);
 		if (result.hits().isEmpty()) {
 			return Optional.empty();
@@ -145,7 +148,7 @@ public class StoreSearchEngine {
 	}
 
 	/**
-	 * 한 토큰만 남긴다면 어느 토큰인지. 후보 가게 수가 1 이상 {@link #RELAXED_TOKEN_MAX_CANDIDATES} 이하인 토큰 중 가장 적은 것을
+	 * 한 토큰만 남긴다면 어느 토큰인지. 후보 가게(이름/구명이 그 토큰으로 시작) 수가 1 이상 {@link #RELAXED_TOKEN_MAX_CANDIDATES} 이하인 토큰 중 가장 적은 것을
 	 * 고르고(같으면 긴 토큰, 그다음 앞선 토큰), 그런 토큰이 없으면 비운다 — 넓은 토큰만 남는 검색은 완화하지 않는다.
 	 */
 	Optional<String> selectMostSpecificToken(SearchIntent intent) {
@@ -170,7 +173,8 @@ public class StoreSearchEngine {
 
 	/**
 	 * 하나만 남겨도 되는 토큰. 지역 토큰은 뺀다 — 지역명만 남기면 이름에 그 지역명이 든 엉뚱한 가게가 나온다. 불용어("맛집")도
-	 * 뺀다(cleanQuery 에 남지 않은 잔여 토큰).
+	 * 뺀다(cleanQuery 에 남지 않은 잔여 토큰). 숫자뿐인 토큰("396", 번지 "489")도 뺀다 — 가게를 가리키는 말이 아니라 이름에 든
+	 * 숫자에 우연히 걸린다.
 	 */
 	private List<String> relaxableTokens(SearchIntent intent) {
 		Set<String> cleanTokens = new LinkedHashSet<>(normalizedDistinct(List.of(intent.cleanQuery().split(" ")), 1));
@@ -180,7 +184,9 @@ public class StoreSearchEngine {
 				tokens.add(token);
 			}
 		}
-		return normalizedDistinct(tokens, MIN_NAME_TOKEN_LENGTH);
+		return normalizedDistinct(tokens, MIN_NAME_TOKEN_LENGTH).stream()
+			.filter(token -> !NUMERIC_ONLY.matcher(token).matches())
+			.toList();
 	}
 
 	private List<String> allTokens(SearchIntent intent) {

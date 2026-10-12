@@ -122,7 +122,7 @@ public class StoreSearchSqlBuilder {
 		for (int i = 0; i < plan.nameTokens().size(); i++) {
 			String key = "name" + i;
 			params.addValue(key, plan.nameTokens().get(i));
-			nameParts.add(nameOrAliasContains(key));
+			nameParts.add(plan.namePrefixOnly() ? nameOrAliasStartsWith(key) : nameOrAliasContains(key));
 		}
 		if (plan.hasRegionTokens()) {
 			params.addValue("regionTokens", plan.regionTokens());
@@ -167,8 +167,9 @@ public class StoreSearchSqlBuilder {
 	}
 
 	/**
-	 * 토큰 완화 폴백용 — 토큰마다 "이름/구명에 그 토큰이 든 가게" 수를 한 번에 센다. 가장 구체적인 토큰을 고르는 데만 쓰므로
-	 * cap 에서 세기를 멈춘다('베이커리' 같은 일반어의 수천 건을 끝까지 읽지 않는다).
+	 * 토큰 완화 폴백용 — 토큰마다 "이름/구명이 그 토큰으로 시작하는 가게" 수를 한 번에 센다. 한 토큰만 남긴 검색
+	 * ({@link StoreSearchPlan#namePrefixOnly()})과 같은 조건이어야 센 수가 실제 결과 수와 맞는다. 가장 구체적인 토큰을 고르는
+	 * 데만 쓰므로 cap 에서 세기를 멈춘다('베이커리' 같은 일반어의 수천 건을 끝까지 읽지 않는다).
 	 */
 	public SearchSqlQuery buildTokenCandidateCounts(List<String> tokens, int cap) {
 		MapSqlParameterSource params = new MapSqlParameterSource().addValue("cap", cap);
@@ -177,7 +178,7 @@ public class StoreSearchSqlBuilder {
 			String key = "name" + i;
 			params.addValue(key, tokens.get(i));
 			counts.add("SELECT " + i + " AS token_index, count(*) AS candidate_count FROM (SELECT u.id FROM (\n"
-				+ nameOrAliasContains(key) + ") u LIMIT :cap) c");
+				+ nameOrAliasStartsWith(key) + ") u LIMIT :cap) c");
 		}
 		return new SearchSqlQuery(String.join("\nUNION ALL\n", counts), params);
 	}
@@ -187,6 +188,15 @@ public class StoreSearchSqlBuilder {
 			+ " || '%'\n"
 			+ "   UNION SELECT a.store_id AS id FROM store_name_alias a WHERE a.alias_normalized LIKE '%' || :"
 			+ paramKey + " || '%'";
+	}
+
+	// 이름/구명이 토큰으로 시작. 접두 패턴만 쓰면 bigm GIN 을 타는지 실측한 적이 없어, 색인을 타는 것이 확인된 부분일치 조건을
+	// 그대로 두고 접두 조건을 AND 로 덧붙인다(접두 일치는 부분일치의 부분집합이라 결과는 접두 조건만 쓴 것과 같다).
+	private String nameOrAliasStartsWith(String paramKey) {
+		return "SELECT s.id FROM store s WHERE s.status = 'ACTIVE' AND s.name_normalized LIKE '%' || :" + paramKey
+			+ " || '%' AND s.name_normalized LIKE :" + paramKey + " || '%'\n"
+			+ "   UNION SELECT a.store_id AS id FROM store_name_alias a WHERE a.alias_normalized LIKE '%' || :"
+			+ paramKey + " || '%' AND a.alias_normalized LIKE :" + paramKey + " || '%'";
 	}
 
 	// 지역 점수 = 매핑 weight × 40 과 "주소에 지역 토큰이 있음" 20 중 큰 것. 후보를 지역 매핑 ∪ 주소로 뽑았으니 판정도 같은 규칙이어야

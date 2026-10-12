@@ -258,10 +258,84 @@ class StoreSearchEngineTest {
 		assertThat(singleTokenQuery.params().getValue("whole")).isEqualTo("사과당");
 		assertThat(singleTokenQuery.params().hasValue("name1")).isFalse();
 		assertThat(singleTokenQuery.sql()).doesNotContain("store_search_region", "INTERSECT");
+		// 남긴 토큰이 이름/구명의 맨 앞에 오는 가게만 — 후보 수를 센 SQL 과 같은 조건이다
+		String prefixCondition = "s.name_normalized LIKE '%' || :name0 || '%' AND s.name_normalized LIKE :name0 || '%'";
+		String aliasPrefixCondition = "a.alias_normalized LIKE '%' || :name0 || '%'"
+			+ " AND a.alias_normalized LIKE :name0 || '%'";
+		assertThat(singleTokenQuery.sql()).contains(prefixCondition, aliasPrefixCondition);
+		assertThat(countCaptor.getValue().sql()).contains(prefixCondition, aliasPrefixCondition);
 		assertThat(relaxed).isPresent();
 		assertThat(relaxed.get().stage()).isEqualTo(SearchFallbackStage.SINGLE_TOKEN);
 		assertThat(relaxed.get().keptToken()).isEqualTo("사과당");
 		assertThat(relaxed.get().result().hits()).extracting(hit -> hit.storeId()).containsExactly(11L, 12L);
+	}
+
+	@Test
+	@DisplayName("완화 ① — 어순 무관 이름 매칭은 접두로 좁히지 않는다(부분일치 그대로)")
+	void searchStoresRelaxed_anyOrderPlanKeepsContainsMatch() {
+		SearchIntent intent = intent("성수 어니언", List.of("성수"), List.of(), List.of("어니언"));
+		given(storeSearchJdbcRepository.search(any())).willReturn(List.of(row(5, 80, 0, 0, 0)));
+
+		engine.searchStoresRelaxed(List.of(intent), PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
+
+		ArgumentCaptor<SearchSqlQuery> captor = ArgumentCaptor.forClass(SearchSqlQuery.class);
+		verify(storeSearchJdbcRepository).search(captor.capture());
+		assertThat(captor.getValue().sql()).doesNotContain("s.name_normalized LIKE :name0 || '%'\n",
+			"a.alias_normalized LIKE :name0 || '%')");
+		assertThat(engine.toAnyOrderNamePlan(intent).get().namePrefixOnly()).isFalse();
+	}
+
+	@Test
+	@DisplayName("완화 ② — 남긴 토큰으로 시작하는 가게가 없으면(다른 단어의 일부로만 걸리면) 0건을 유지한다")
+	void searchStoresRelaxed_staysEmptyWhenTokenOnlyMatchesInsideOtherWords() {
+		// "버티 샌드위치" — '버티'는 "리버티베이글"의 일부일 뿐이다. 접두로 세면 후보 0 이라 폴백하지 않는다.
+		// ("메가커피 첨단"→알파오메가커피센터, "타코메카 히카"→우연히카페, "Gs25 지제"→슬지제빵소 도 같은 경우)
+		SearchIntent intent = intent("버티 샌드위치", List.of(), List.of("샌드위치"), List.of("버티"));
+		given(storeSearchJdbcRepository.countTokenCandidates(any())).willReturn(List.of(
+			new StoreSearchTokenCountRow(0, StoreSearchEngine.RELAXED_TOKEN_MAX_CANDIDATES + 1),
+			new StoreSearchTokenCountRow(1, 0)));
+
+		Optional<StoreSearchRelaxedResult> relaxed = engine.searchStoresRelaxed(List.of(intent),
+			PageRequest.of(0, 15), null, null, SearchSort.RELEVANCE);
+
+		assertThat(relaxed).isEmpty();
+		verify(storeSearchJdbcRepository, never()).search(any());
+	}
+
+	@Test
+	@DisplayName("완화 ② — 숫자뿐인 토큰은 남기지 않는다")
+	void selectMostSpecificToken_skipsNumericOnlyTokens() {
+		// "396 베이커리"→한양도성1396, "양천로 489 상가"→카페489-11 처럼 이름 속 숫자에 걸리던 경우
+		SearchIntent intent = intent("396 베이커리", List.of(), List.of(), List.of("396", "베이커리"));
+		given(storeSearchJdbcRepository.countTokenCandidates(any())).willReturn(List.of(
+			new StoreSearchTokenCountRow(0, StoreSearchEngine.RELAXED_TOKEN_MAX_CANDIDATES + 1)));
+
+		assertThat(engine.selectMostSpecificToken(intent)).isEmpty();
+
+		ArgumentCaptor<SearchSqlQuery> captor = ArgumentCaptor.forClass(SearchSqlQuery.class);
+		verify(storeSearchJdbcRepository).countTokenCandidates(captor.capture());
+		// 세는 대상은 "베이커리"뿐이다
+		assertThat(captor.getValue().params().getValue("name0")).isEqualTo("베이커리");
+		assertThat(captor.getValue().params().hasValue("name1")).isFalse();
+	}
+
+	@Test
+	@DisplayName("완화 ② — 숫자뿐인 토큰만 남으면 후보를 세지도 않는다")
+	void selectMostSpecificToken_emptyWhenOnlyNumericTokensRemain() {
+		SearchIntent intent = intent("489 15", List.of(), List.of(), List.of("489", "15"));
+
+		assertThat(engine.selectMostSpecificToken(intent)).isEmpty();
+		verify(storeSearchJdbcRepository, never()).countTokenCandidates(any());
+	}
+
+	@Test
+	@DisplayName("완화 ② — 숫자가 섞인 가게명 토큰은 남길 수 있다")
+	void selectMostSpecificToken_keepsAlphanumericToken() {
+		SearchIntent intent = intent("237베이커리 장기", List.of("장기"), List.of(), List.of("237베이커리"));
+		given(storeSearchJdbcRepository.countTokenCandidates(any()))
+			.willReturn(List.of(new StoreSearchTokenCountRow(0, 1)));
+
+		assertThat(engine.selectMostSpecificToken(intent)).contains("237베이커리");
 	}
 
 	@Test

@@ -136,11 +136,11 @@ class StoreSearchJdbcRepositoryLabTest {
 	}
 
 	@Test
-	@DisplayName("토큰 완화 ②: 토큰별 후보 수를 상한까지만 센다 — 일반어는 상한, 없는 말은 0")
+	@DisplayName("토큰 완화 ②: 이름/구명이 토큰으로 시작하는 가게 수를 상한까지만 센다 — 일반어는 상한, 없는 말은 0")
 	void tokenCandidateCounts() {
 		int cap = 15;
 		List<StoreSearchTokenCountRow> counts = repository.countTokenCandidates(
-			BUILDER.buildTokenCandidateCounts(List.of("성심당", "베이커리", "없는토큰zzqq"), cap));
+			BUILDER.buildTokenCandidateCounts(List.of("성심당", "카페", "없는토큰zzqq"), cap));
 
 		assertThat(counts).extracting(StoreSearchTokenCountRow::tokenIndex).containsExactlyInAnyOrder(0, 1, 2);
 		assertThat(counts).filteredOn(count -> count.tokenIndex() == 0)
@@ -149,6 +149,24 @@ class StoreSearchJdbcRepositoryLabTest {
 			.allSatisfy(count -> assertThat(count.candidateCount()).isEqualTo(cap));
 		assertThat(counts).filteredOn(count -> count.tokenIndex() == 2)
 			.allSatisfy(count -> assertThat(count.candidateCount()).isZero());
+	}
+
+	@Test
+	@DisplayName("토큰 완화 ②: 한 토큰만 남긴 검색은 이름/구명이 그 토큰으로 시작하는 가게만, 센 수와 결과 수가 같다")
+	void singleTokenPrefixOnly() {
+		int cap = 1000;
+		List<StoreSearchRow> rows = repository.search(BUILDER.buildSearch(
+			new StoreSearchPlan(List.of(), List.of("성심당"), "성심당", false, true), cap, 0, null, null,
+			SearchSort.RELEVANCE));
+		List<StoreSearchTokenCountRow> counts = repository.countTokenCandidates(
+			BUILDER.buildTokenCandidateCounts(List.of("성심당"), cap));
+
+		assertThat(rows).isNotEmpty();
+		// 접두 일치만 — 이름이든 구명이든 접두 계단 이상이어야 한다
+		assertThat(rows).allSatisfy(row -> assertThat(row.nameScore() >= StoreSearchSqlBuilder.NAME_PREFIX
+			|| row.aliasScore() >= 60).isTrue());
+		// 세는 쪽은 구명 가지가 비활성 가게를 거르지 않아 같거나 조금 많다
+		assertThat(counts.get(0).candidateCount()).isGreaterThanOrEqualTo(rows.size());
 	}
 
 	@Test
