@@ -34,18 +34,20 @@ public class AdminApiKeyFilter extends OncePerRequestFilter {
 	/**
 	 * 열쇠가 필요한 경로. 편지는 사용자에게 직접 닿고, 개인화 배치(#663)는 취향 신호를 되돌리기 어렵게 바꾸거나 락을 쥔 채 무거운
 	 * 트랜잭션을 건다 — 신호가 오염되면 추천이 바뀐다(PR #747 리뷰). 이유 문장 실험(#662)은 호출마다 외부 LLM 에 실제 비용이
-	 * 나간다 — 열어 두면 아무나 우리 계정으로 돈을 쓸 수 있다. 여기에 더하면 AdminApiKeyConfig 의 URL 패턴도 같이 더한다.
+	 * 나간다 — 열어 두면 아무나 우리 계정으로 돈을 쓸 수 있다. S3 정리는 버킷의 파일을 되돌릴 수 없게 지운다.
+	 * 여기에 더하면 AdminApiKeyConfig 의 URL 패턴도 같이 더한다.
 	 */
 	static final List<String> PROTECTED_PREFIXES = List.of(
 		"/api/admin/letters", "/admin/personalization", "/admin/recommendations", "/api/admin/monthly-reports",
-		"/api/admin/tutorial-templates");
+		"/api/admin/tutorial-templates", "/admin/images/reconcile");
 
 	/**
 	 * 열쇠가 비었을 때 <b>통과시키지 않고 막는</b> 경로. 호출마다 외부 LLM 에 실제 비용이 나가서, 열려 있으면
 	 * 아무나 우리 계정으로 돈을 쓴다. 편지·개인화는 데이터가 지저분해지는 대가라 기존대로 경고 후 통과시킨다 —
-	 * 열쇠 없이 띄운 로컬·기존 배포를 세우지 않으려는 원래 뜻을 여기까지 넓히지는 않는다.
+	 * 열쇠 없이 띄운 로컬·기존 배포를 세우지 않으려는 원래 뜻을 여기까지 넓히지는 않는다. S3 정리도 같이 막는다 —
+	 * 지운 파일은 돈으로도 되돌릴 수 없다.
 	 */
-	static final List<String> COST_INCURRING_PREFIXES = List.of("/admin/recommendations");
+	static final List<String> COST_INCURRING_PREFIXES = List.of("/admin/recommendations", "/admin/images/reconcile");
 
 	private final String apiKey;
 	private final boolean allowWithoutKey;
