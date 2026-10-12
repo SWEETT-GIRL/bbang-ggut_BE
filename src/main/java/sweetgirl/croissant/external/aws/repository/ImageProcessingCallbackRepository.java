@@ -13,6 +13,10 @@ public interface ImageProcessingCallbackRepository extends JpaRepository<ImagePr
 
 	Optional<ImageProcessingCallback> findByAwsKey(String awsKey);
 
+	@Modifying
+	@Query("DELETE FROM ImageProcessingCallback callback WHERE callback.awsKey = :awsKey")
+	void deleteByAwsKey(@Param("awsKey") String awsKey);
+
 	@Modifying(flushAutomatically = true, clearAutomatically = true)
 	@Query(value = """
 			INSERT INTO image_processing_callback (
