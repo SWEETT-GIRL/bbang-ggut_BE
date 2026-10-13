@@ -66,6 +66,10 @@ CREATE INDEX store_region_resolutions_scope_idx ON store_region_resolutions(vers
 -- 버전 확정 후 geometry/투영을 바꾸면 같은 버전의 판정을 신뢰할 수 없다.
 CREATE FUNCTION guard_region_boundary_version() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
+    IF TG_OP = 'INSERT' THEN
+        IF NEW.ready THEN RAISE EXCEPTION 'A boundary version must be staged before sealing'; END IF;
+        RETURN NEW;
+    END IF;
     IF OLD.ready THEN
         RAISE EXCEPTION 'Ready boundary version is immutable; create a new version';
     END IF;
@@ -76,7 +80,7 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER region_boundary_version_immutable BEFORE UPDATE OR DELETE ON region_boundary_versions
+CREATE TRIGGER region_boundary_version_immutable BEFORE INSERT OR UPDATE OR DELETE ON region_boundary_versions
     FOR EACH ROW EXECUTE FUNCTION guard_region_boundary_version();
 
 CREATE FUNCTION guard_region_boundary_content() RETURNS trigger LANGUAGE plpgsql AS $$

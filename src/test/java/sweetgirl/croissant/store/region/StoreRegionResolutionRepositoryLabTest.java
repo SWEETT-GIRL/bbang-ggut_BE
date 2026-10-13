@@ -37,7 +37,7 @@ class StoreRegionResolutionRepositoryLabTest {
 		jdbcTemplate.execute("SET LOCAL search_path TO " + schema + ", public");
 		jdbcTemplate.execute("CREATE TABLE store (id bigint PRIMARY KEY, location geography(Point,4326))");
 		jdbcTemplate.execute(Files.readString(Path.of(
-			"src/main/resources/db/migration/V20261012200000__create_store_region_boundaries.sql")));
+			"src/main/resources/db/migration/V20261013190000__create_store_region_boundaries.sql")));
 		repository = new StoreRegionResolutionRepository(new NamedParameterJdbcTemplate(jdbcTemplate));
 		version("v1");
 		seal("v1");
@@ -56,6 +56,17 @@ class StoreRegionResolutionRepositoryLabTest {
 			connection.rollback();
 			connection.close();
 		}
+	}
+
+	@Test
+	void cannotInsertAlreadyReadyVersion() {
+		assertThatThrownBy(() -> jdbcTemplate.update(
+			"""
+					INSERT INTO region_boundary_versions(
+					version_key,source_date,reference_sha256,projection_version,metadata,ready)
+					VALUES ('bypass','2026-10-13',repeat('a',64),'v1','{}',true)
+					"""))
+			.isInstanceOf(DataAccessException.class).hasMessageContaining("staged");
 	}
 
 	@Test

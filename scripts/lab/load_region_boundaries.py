@@ -48,7 +48,7 @@ def main():
     if sorted(codes) != sorted(row['code'] for row in mapping):
         raise ValueError('Usable boundaries must match every reference EMD exactly once')
     version = f"vworld-{source['source_date']}-{args.source_id}-{ref_hash}-{PROJECTION}"
-    migration = ROOT / 'src/main/resources/db/migration/V20261012200000__create_store_region_boundaries.sql'
+    migration = ROOT / 'src/main/resources/db/migration/V20261013190000__create_store_region_boundaries.sql'
     exists = query(f"SELECT to_regclass('{RUNTIME_SCHEMA}.region_boundary_versions') IS NOT NULL;") == 't'
     if not exists:
         query(f'BEGIN; CREATE SCHEMA IF NOT EXISTS {RUNTIME_SCHEMA}; '
