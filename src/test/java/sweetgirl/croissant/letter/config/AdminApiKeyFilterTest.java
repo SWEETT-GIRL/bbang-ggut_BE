@@ -82,14 +82,48 @@ class AdminApiKeyFilterTest {
 	}
 
 	@Test
-	@DisplayName("편지가 아닌 어드민 경로는 이 필터가 건드리지 않는다")
-	void ignoresOtherAdminPaths() throws Exception {
+	@DisplayName("편지가 아닌 어드민 경로도 열쇠가 없으면 막는다 — 강퇴·알림 발송이 열려 있으면 안 된다")
+	void blocksOtherAdminPaths() throws Exception {
 		MockHttpServletResponse response = new MockHttpServletResponse();
 		MockFilterChain chain = new MockFilterChain();
 
 		new AdminApiKeyFilter("secret", true).doFilter(request("/api/admin/members/1/ban", null), response, chain);
 
-		assertThat(response.getStatus()).isEqualTo(200);
+		assertThat(response.getStatus()).isEqualTo(401);
+		assertThat(chain.getRequest()).isNull();
+	}
+
+	@Test
+	@DisplayName("어드민이 아닌 경로는 이 필터가 건드리지 않는다")
+	void ignoresNonAdminPaths() throws Exception {
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		new AdminApiKeyFilter("secret", false).doFilter(request("/stores/1", null), response, chain);
+
+		assertThat(chain.getRequest()).isNotNull();
+	}
+
+	@Test
+	@DisplayName("서버에 열쇠가 비어 있으면 어드민 경로는 503 으로 막는다 — 설정이 빠진 서버를 열어 두지 않는다")
+	void blocksOtherAdminPathsWhenKeyMissing() throws Exception {
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		new AdminApiKeyFilter("", false).doFilter(request("/api/admin/notifications", null), response, chain);
+
+		assertThat(response.getStatus()).isEqualTo(503);
+		assertThat(chain.getRequest()).isNull();
+	}
+
+	@Test
+	@DisplayName("서버에 열쇠가 비어 있어도 로컬이면 어드민 경로를 통과시킨다")
+	void passesOtherAdminPathsOnLocalWithoutKey() throws Exception {
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		new AdminApiKeyFilter("", true).doFilter(request("/api/admin/stores/1", null), response, chain);
+
 		assertThat(chain.getRequest()).isNotNull();
 	}
 
@@ -134,15 +168,16 @@ class AdminApiKeyFilterTest {
 	}
 
 	@Test
-	@DisplayName("S3 정리 말고 다른 이미지 어드민 경로는 건드리지 않는다")
-	void ignoresOtherImageAdminPaths() throws Exception {
+	@DisplayName("이미지 업로드 주소 발급도 열쇠가 없으면 막는다")
+	void blocksImagePresignedUrlWithoutKey() throws Exception {
 		MockHttpServletResponse response = new MockHttpServletResponse();
 		MockFilterChain chain = new MockFilterChain();
 
 		new AdminApiKeyFilter("secret", false)
 			.doFilter(request("/admin/images/presigned-url", null), response, chain);
 
-		assertThat(chain.getRequest()).isNotNull();
+		assertThat(response.getStatus()).isEqualTo(401);
+		assertThat(chain.getRequest()).isNull();
 	}
 
 	@Test
