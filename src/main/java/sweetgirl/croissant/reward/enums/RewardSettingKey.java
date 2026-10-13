@@ -62,7 +62,11 @@ public enum RewardSettingKey {
 	/** 위 날짜의 시각(HHmm, 한국 시간). 1430 이면 오후 2 시 30 분이다 */
 	CARRY_OVER_BEFORE_TIME("carry-over.before-time", 0),
 	/** 월요일마다 랭킹 주간 보상 줄을 만드는가(1 = 켬). 2.0 앱이 나오기 전에는 받을 화면이 없어 꺼 둔다 */
-	RANKING_ISSUE("ranking.issue", 0);
+	RANKING_ISSUE("ranking.issue", 0),
+	/** 월요일 빵댕이 편지 도착 푸시를 보내는가(1 = 켬) */
+	PUSH_LETTER("push.letter", 0),
+	/** 저녁 출석 리마인드 푸시를 보내는가(1 = 켬) */
+	PUSH_ATTENDANCE("push.attendance", 0);
 
 	private final String key;
 	private final int defaultValue;

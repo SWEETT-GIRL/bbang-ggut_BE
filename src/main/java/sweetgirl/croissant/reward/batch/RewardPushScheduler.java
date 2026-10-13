@@ -2,20 +2,21 @@ package sweetgirl.croissant.reward.batch;
 
 import java.time.LocalDateTime;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.reward.enums.RewardSettingKey;
 import sweetgirl.croissant.reward.service.CrumbGrantService;
 import sweetgirl.croissant.reward.service.RewardPushService;
+import sweetgirl.croissant.reward.service.RewardSettings;
 
 /**
  * 리워드의 정기 푸시를 제시간에 부른다.
  *
  * <p><b>기본은 꺼져 있다.</b> 실제 사용자 기기로 나가는 알림이라, 2.0 앱이 나가고 받을 화면이 생긴 뒤에
- * 환경마다 스위치({@code reward.push.*-enabled})를 켠다.
+ * 어드민이 스위치({@code push.letter} · {@code push.attendance})를 켠다 — 배포 없이 켜고 끈다.
  */
 @Slf4j
 @Component
@@ -24,16 +25,12 @@ public class RewardPushScheduler {
 
 	private final RewardPushService rewardPushService;
 
-	@Value("${reward.push.letter-enabled:false}")
-	private boolean letterEnabled;
-
-	@Value("${reward.push.attendance-enabled:false}")
-	private boolean attendanceEnabled;
+	private final RewardSettings rewardSettings;
 
 	/** 매일 저녁 8 시 — 어제 출석한 회원의 오늘 도장. */
 	@Scheduled(cron = "0 0 20 * * *", zone = "Asia/Seoul")
 	public void attendanceReminders() {
-		if (!attendanceEnabled) {
+		if (!rewardSettings.isOn(RewardSettingKey.PUSH_ATTENDANCE)) {
 			return;
 		}
 		try {
@@ -46,7 +43,7 @@ public class RewardPushScheduler {
 	/** 월요일 오전 10 시 — 이번 주 빵댕이 편지 도착. */
 	@Scheduled(cron = "0 0 10 * * MON", zone = "Asia/Seoul")
 	public void letterArrivals() {
-		if (!letterEnabled) {
+		if (!rewardSettings.isOn(RewardSettingKey.PUSH_LETTER)) {
 			return;
 		}
 		try {
