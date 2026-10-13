@@ -32,6 +32,7 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Letter;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository;
+import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.AttendanceReminderTarget;
 
 @ExtendWith(MockitoExtension.class)
 class RewardPushServiceTest {
@@ -52,6 +53,8 @@ class RewardPushServiceTest {
 	private BbangdaengLetterService bbangdaengLetterService;
 	@Mock
 	private ApplicationEventPublisher eventPublisher;
+	@Mock
+	private RewardSettings rewardSettings;
 
 	@InjectMocks
 	private RewardPushService rewardPushService;
@@ -147,6 +150,88 @@ class RewardPushServiceTest {
 			given(bbangdaengLetterService.summaryOf(2L, TODAY)).willReturn(new Letter(0, null));
 
 			assertThat(rewardPushService.sendLetterArrivals(MONDAY_TEN)).isZero();
+			then(notificationRecorder).shouldHaveNoInteractions();
+		}
+	}
+
+	@Nested
+	@DisplayName("출석 리마인드")
+	class AttendanceReminders {
+
+		private static final LocalDateTime EVENING = LocalDateTime.of(2026, 10, 14, 20, 0);
+		private static final LocalDate EVENING_DAY = EVENING.toLocalDate();
+
+		private AttendanceReminderTarget target(Long memberId, int yesterdayBoardDay) {
+			AttendanceReminderTarget target = mock(AttendanceReminderTarget.class);
+			given(target.getMemberId()).willReturn(memberId);
+			given(target.getBoardDay()).willReturn(yesterdayBoardDay);
+			return target;
+		}
+
+		private void givenFirstRunOfTheDay() {
+			given(targetRepository.tryAdvisoryXactLock(RewardPushService.ATTENDANCE_LOCK_KEY)).willReturn(true);
+			given(notificationRepository.existsByTypeAndCreatedAtGreaterThanEqual(
+				NotificationType.REWARD_ATTENDANCE, EVENING_DAY.atStartOfDay())).willReturn(false);
+			given(rewardSettings.attendance()).willReturn(List.of(5, 5, 10, 5, 10, 10, 30));
+		}
+
+		@Test
+		@DisplayName("어제 출석하고 오늘 안 한 회원에게, 오늘 찍을 칸과 보상을 알린다 — 칸이 같은 회원은 한 알림으로 묶는다")
+		void remindsByBoardDay() {
+			givenFirstRunOfTheDay();
+			List<AttendanceReminderTarget> targets = List.of(target(1L, 2), target(2L, 2), target(3L, 7));
+			given(targetRepository.findAttendanceReminderTargets(EVENING_DAY.minusDays(1), EVENING_DAY))
+				.willReturn(targets);
+			Member first = member(1L);
+			Member second = member(2L);
+			Member third = member(3L);
+			given(memberRepository.findAllById(List.of(3L))).willReturn(List.of(third));
+			given(memberRepository.findAllById(List.of(1L, 2L))).willReturn(List.of(first, second));
+			givenRecorded(600L);
+
+			assertThat(rewardPushService.sendAttendanceReminders(EVENING)).isEqualTo(3);
+
+			ArgumentCaptor<Notification> notifications = ArgumentCaptor.forClass(Notification.class);
+			then(notificationRecorder).should(org.mockito.Mockito.times(2))
+				.recordForMembers(notifications.capture(), anyList(), eq(EVENING));
+			// 어제 7 일째를 채운 회원은 오늘이 1 일째, 어제 2 일째였던 회원은 오늘이 3 일째다
+			assertThat(notifications.getAllValues()).extracting(Notification::getBody)
+				.containsExactly("1일째 +5", "3일째 +10");
+			assertThat(notifications.getAllValues()).allSatisfy(notification -> {
+				assertThat(notification.getType()).isEqualTo(NotificationType.REWARD_ATTENDANCE);
+				assertThat(notification.getTitle()).isEqualTo("오늘 출석 도장이 아직이에요");
+				assertThat(notification.getDeepLink()).isEqualTo("/bbanglog?open=attendance");
+			});
+		}
+
+		@Test
+		@DisplayName("발송이 밀려 밤 9 시를 넘겼으면 그날은 버린다")
+		void skipsAtNight() {
+			assertThat(rewardPushService.sendAttendanceReminders(EVENING.withHour(21))).isEqualTo(-1);
+			assertThat(rewardPushService.sendAttendanceReminders(EVENING.withHour(7))).isEqualTo(-1);
+
+			then(targetRepository).shouldHaveNoInteractions();
+			then(notificationRecorder).shouldHaveNoInteractions();
+		}
+
+		@Test
+		@DisplayName("오늘 이미 보냈으면 다시 보내지 않는다")
+		void oncePerDay() {
+			given(targetRepository.tryAdvisoryXactLock(RewardPushService.ATTENDANCE_LOCK_KEY)).willReturn(true);
+			given(notificationRepository.existsByTypeAndCreatedAtGreaterThanEqual(
+				NotificationType.REWARD_ATTENDANCE, EVENING_DAY.atStartOfDay())).willReturn(true);
+
+			assertThat(rewardPushService.sendAttendanceReminders(EVENING)).isEqualTo(-1);
+			then(notificationRecorder).shouldHaveNoInteractions();
+		}
+
+		@Test
+		@DisplayName("부를 사람이 없으면 알림을 만들지 않는다")
+		void nobodyToRemind() {
+			givenFirstRunOfTheDay();
+			given(targetRepository.findAttendanceReminderTargets(any(), any())).willReturn(List.of());
+
+			assertThat(rewardPushService.sendAttendanceReminders(EVENING)).isZero();
 			then(notificationRecorder).shouldHaveNoInteractions();
 		}
 	}

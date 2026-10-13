@@ -27,6 +27,22 @@ public class RewardPushScheduler {
 	@Value("${reward.push.letter-enabled:false}")
 	private boolean letterEnabled;
 
+	@Value("${reward.push.attendance-enabled:false}")
+	private boolean attendanceEnabled;
+
+	/** 매일 저녁 8 시 — 어제 출석한 회원의 오늘 도장. */
+	@Scheduled(cron = "0 0 20 * * *", zone = "Asia/Seoul")
+	public void attendanceReminders() {
+		if (!attendanceEnabled) {
+			return;
+		}
+		try {
+			rewardPushService.sendAttendanceReminders(LocalDateTime.now(CrumbGrantService.ZONE));
+		} catch (RuntimeException exception) {
+			log.error("[리워드 푸시] 출석 리마인드 실패 — 오늘은 보내지 않는다", exception);
+		}
+	}
+
 	/** 월요일 오전 10 시 — 이번 주 빵댕이 편지 도착. */
 	@Scheduled(cron = "0 0 10 * * MON", zone = "Asia/Seoul")
 	public void letterArrivals() {

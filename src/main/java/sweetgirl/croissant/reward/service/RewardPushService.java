@@ -4,6 +4,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -20,6 +22,7 @@ import sweetgirl.croissant.alarm.service.NotificationRecorder;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository;
+import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.AttendanceReminderTarget;
 
 /**
  * 리워드의 정기 푸시. 광고가 아니라 서비스 알림이라 마케팅 동의를 보지 않고, 알림 수신을 켠 회원에게만 간다
@@ -40,6 +43,12 @@ public class RewardPushService {
 	static final String LETTER_BODY = "이번 주 편지가 도착했어요.";
 	/** 앱의 홈(app/(tabs)/bbanglog)에서 편지를 연다. */
 	static final String LETTER_LINK = "/bbanglog?open=letter";
+	static final long ATTENDANCE_LOCK_KEY = 7_260_102L;
+	static final String ATTENDANCE_TITLE = "오늘 출석 도장이 아직이에요";
+	static final String ATTENDANCE_LINK = "/bbanglog?open=attendance";
+	/** 밤 9 시 ~ 아침 8 시에는 출석을 알리지 않는다. */
+	static final int QUIET_FROM_HOUR = 21;
+	static final int QUIET_UNTIL_HOUR = 8;
 
 	private final RewardPushTargetRepository targetRepository;
 	private final NotificationRepository notificationRepository;
@@ -47,6 +56,7 @@ public class RewardPushService {
 	private final MemberRepository memberRepository;
 	private final BbangdaengLetterService bbangdaengLetterService;
 	private final ApplicationEventPublisher eventPublisher;
+	private final RewardSettings rewardSettings;
 
 	/**
 	 * 이번 주 편지를 아직 안 연 회원에게 도착을 알린다. 월요일 오전에 부른다.
@@ -75,6 +85,43 @@ public class RewardPushService {
 		return push(Notification.announcement(
 			NotificationType.REWARD_LETTER, NotificationChannel.PUSH, LETTER_TITLE, LETTER_BODY, LETTER_LINK),
 			waitingMemberIds, now);
+	}
+
+	/**
+	 * 어제 출석했고 오늘 아직 안 한 회원에게 도장을 알린다. 매일 저녁 8 시에 부른다.
+	 *
+	 * <p>밤 9 시부터는 보내지 않는다 — 발송이 밀려 그 시각을 넘겼으면 그날은 버린다(다음 날 아침에 보내지도 않는다.
+	 * 그때는 이미 끊겼다). 어제 출석하지 않은 회원은 부르지 않는다. 문구가 칸마다 달라("3일째 +10") 칸별로 한 알림씩 만든다.
+	 *
+	 * @return 알린 회원 수. 오늘 이미 보냈거나, 다른 인스턴스가 보내는 중이거나, 보낼 시간이 지났으면 -1
+	 */
+	@Transactional
+	public int sendAttendanceReminders(LocalDateTime now) {
+		LocalDate today = now.toLocalDate();
+		if (now.getHour() >= QUIET_FROM_HOUR || now.getHour() < QUIET_UNTIL_HOUR
+			|| !targetRepository.tryAdvisoryXactLock(ATTENDANCE_LOCK_KEY)
+			|| notificationRepository.existsByTypeAndCreatedAtGreaterThanEqual(
+				NotificationType.REWARD_ATTENDANCE, today.atStartOfDay())) {
+			return -1;
+		}
+
+		Map<Integer, List<Long>> memberIdsByBoardDay = new TreeMap<>();
+		for (AttendanceReminderTarget target : targetRepository.findAttendanceReminderTargets(
+			today.minusDays(1), today)) {
+			memberIdsByBoardDay
+				.computeIfAbsent(AttendanceBoard.following(target.getBoardDay()), boardDay -> new ArrayList<>())
+				.add(target.getMemberId());
+		}
+		List<Integer> rewards = rewardSettings.attendance();
+		int notified = 0;
+		for (Map.Entry<Integer, List<Long>> group : memberIdsByBoardDay.entrySet()) {
+			int boardDay = group.getKey();
+			String body = boardDay + "일째 +" + AttendanceBoard.rewardOf(boardDay, rewards);
+			notified += push(Notification.announcement(
+				NotificationType.REWARD_ATTENDANCE, NotificationChannel.PUSH, ATTENDANCE_TITLE, body,
+				ATTENDANCE_LINK), group.getValue(), now);
+		}
+		return notified;
 	}
 
 	/** 알림함에 앉히고, 커밋된 뒤 한 사람씩 푸시로 내보내게 한다. 받을 사람이 없으면 알림도 만들지 않는다. */
