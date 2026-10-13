@@ -22,6 +22,7 @@ import sweetgirl.croissant.reward.dto.response.AttendanceResponse;
 import sweetgirl.croissant.reward.dto.response.BbangdaengLetterOpenResponse;
 import sweetgirl.croissant.reward.dto.response.BbangdaengLetterResponse;
 import sweetgirl.croissant.reward.dto.response.FeedResponse;
+import sweetgirl.croissant.reward.dto.response.HomeCardResponse;
 import sweetgirl.croissant.reward.dto.response.RewardClaimResponse;
 import sweetgirl.croissant.reward.dto.response.RewardHistoryResponse;
 import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
@@ -57,6 +58,7 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 	private static final Letter LETTER = new Letter(1, 31L);
 	private static final Ad AD = new Ad(2);
 	private static final RankingReward RANKING_REWARD = new RankingReward(12L, 2, 50);
+	private static final HomeCardResponse HOME_CARD = HomeCardResponse.tourToday(812L, "성수 빵투어", 2, 5);
 
 	@MockitoBean
 	private BbangdaengLetterService bbangdaengLetterService;
@@ -77,7 +79,7 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 		given(rewardCommandService.carryOverIfNeeded(any())).willReturn(Optional.empty());
 		given(rewardQueryService.getSummary(any(), any())).willReturn(new RewardSummaryResponse(
 			285, 26, RULES, new CarryOver(true, 110, 12), new Welcome(false), List.of(pending), ATTENDANCE, FEED,
-			LETTER, AD, RANKING_REWARD));
+			LETTER, AD, RANKING_REWARD, HOME_CARD));
 
 		mockMvc.perform(get("/members/me/rewards/summary"))
 			.andExpect(status().isOk())
@@ -117,6 +119,14 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.rankingReward.pendingId").isNumber())
 			.andExpect(jsonPath("$.data.rankingReward.rank").isNumber())
 			.andExpect(jsonPath("$.data.rankingReward.crumbs").isNumber())
+			// 카드는 종류마다 쓰는 재료만 싣는다 — 문구는 앱이 만든다
+			.andExpect(jsonPath("$.data.homeCard.type").value("TOUR_TODAY"))
+			.andExpect(jsonPath("$.data.homeCard.courseId").isNumber())
+			.andExpect(jsonPath("$.data.homeCard.title").isString())
+			.andExpect(jsonPath("$.data.homeCard.visited").isNumber())
+			.andExpect(jsonPath("$.data.homeCard.total").isNumber())
+			.andExpect(jsonPath("$.data.homeCard.planet").doesNotExist())
+			.andExpect(jsonPath("$.data.homeCard.letterId").doesNotExist())
 			// rewards[] 한 칸 — 기록 저장·출석 등 뒤 phase 의 응답도 같은 모양을 쓴다
 			.andExpect(jsonPath("$.data.pendingRewards[0].id").isNumber())
 			.andExpect(jsonPath("$.data.pendingRewards[0].type").value("CRUMBS"))
@@ -139,6 +149,8 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.carryOver").value((Object)null))
 			// 받을 랭킹 보상이 없으면 null 이다
 			.andExpect(jsonPath("$.data.rankingReward").value((Object)null))
+			// 할 일이 없거나 게스트면 카드가 없다
+			.andExpect(jsonPath("$.data.homeCard").value((Object)null))
 			.andExpect(jsonPath("$.data.pendingRewards").isEmpty());
 	}
 
@@ -148,7 +160,7 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 		given(rewardQueryService.getSummary(any(), any())).willReturn(new RewardSummaryResponse(
 			0, 0, RULES, null, new Welcome(false), List.of(new RewardItemResponse(
 				32L, RewardItemType.LEVEL_UP, null, 2, 3, null, null, "earth", "space", null, null)),
-			ATTENDANCE, FEED, LETTER, AD, RANKING_REWARD));
+			ATTENDANCE, FEED, LETTER, AD, RANKING_REWARD, HOME_CARD));
 
 		mockMvc.perform(get("/members/me/rewards/summary"))
 			.andExpect(status().isOk())

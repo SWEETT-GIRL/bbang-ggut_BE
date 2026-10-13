@@ -1,5 +1,6 @@
 package sweetgirl.croissant.course.repository;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -95,4 +96,23 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 	@Query("UPDATE Course c SET c.member.id = :targetId WHERE c.member.id = :guestId")
 	int moveOwner(@Param("guestId") Long guestId, @Param("targetId") Long targetId);
 
+	/**
+	 * 그 기간에 걸친 내 빵투어 — 내가 만들었거나 일행인 것 가운데 날짜를 정한 것. 시작일이 이른 것부터다.
+	 * 홈의 할 일 카드("오늘 빵투어" · "D-2")가 읽는다.
+	 */
+	@Query("""
+			SELECT course FROM Course course
+			WHERE course.deletedAt IS NULL
+			AND course.startDate IS NOT NULL
+			AND course.startDate <= :to
+			AND COALESCE(course.endDate, course.startDate) >= :from
+			AND (course.member.id = :memberId OR EXISTS (
+				SELECT 1 FROM CourseMember courseMember
+				WHERE courseMember.course = course
+				AND courseMember.member.id = :memberId
+				AND courseMember.deletedAt IS NULL))
+			ORDER BY course.startDate ASC, course.id ASC
+			""")
+	List<Course> findMyDatedCourses(
+			@Param("memberId") Long memberId, @Param("from") LocalDate from, @Param("to") LocalDate to);
 }
