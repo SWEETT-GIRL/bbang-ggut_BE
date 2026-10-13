@@ -153,4 +153,10 @@ public class RecordRewardService {
 		rewards.add(levelUp);
 		rewardPendingService.add(memberId, "level_up:" + after.level(), levelUp);
 	}
+
+	/** 오늘 기록 보상을 받은 횟수. 빵투어의 가벼운 기록도 같은 사유로 적혀 함께 센다. */
+	@Transactional(readOnly = true)
+	public int rewardedToday(Long memberId) {
+		return (int)crumbGrantService.countToday(memberId, CrumbReason.RECORD);
+	}
 }

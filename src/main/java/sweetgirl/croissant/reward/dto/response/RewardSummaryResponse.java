@@ -23,12 +23,13 @@ public record RewardSummaryResponse(
 		Ad ad,
 		RankingReward rankingReward,
 		/** 홈의 할 일 카드. 지금 할 만한 것이 없거나 게스트면 null */
-		HomeCardResponse homeCard) {
+		HomeCardResponse homeCard,
+		RecordReward record) {
 
 	/** 게스트는 보상이 없다. 홈이 매번 부르는 조회라 403 대신 빈 요약으로 답한다. */
 	public static RewardSummaryResponse guest(RewardRulesResponse rules, Attendance attendance, Feed feed) {
 		return new RewardSummaryResponse(0, 0, rules, null, new Welcome(false), List.of(), attendance, feed,
-			new Letter(0, null), new Ad(0), null, null);
+			new Letter(0, null), new Ad(0), null, null, new RecordReward(0, 0));
 	}
 
 	/**
@@ -71,6 +72,15 @@ public record RewardSummaryResponse(
 	 * @param pendingId 받기를 누를 때 보내는 id
 	 */
 	public record RankingReward(Long pendingId, int rank, int crumbs) {
+	}
+
+	/**
+	 * 오늘의 기록 보상. 빵투어의 가벼운 기록도 여기에 센다.
+	 *
+	 * @param rewardedToday 오늘 기록 보상을 받은 횟수
+	 * @param leftToday     오늘 기록 보상을 더 받을 수 있는 횟수. 0 이면 기록해도 레벨 칸만 오른다
+	 */
+	public record RecordReward(int rewardedToday, int leftToday) {
 	}
 
 	/** @param leftToday 오늘 광고로 더 받을 수 있는 횟수 */
