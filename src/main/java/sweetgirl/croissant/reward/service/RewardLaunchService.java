@@ -1,5 +1,7 @@
 package sweetgirl.croissant.reward.service;
 
+import java.time.DateTimeException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import org.springframework.stereotype.Service;
@@ -51,6 +53,34 @@ public class RewardLaunchService {
 		rewardSettings.evict();
 		log.info("[리워드] 출시 시각을 {} 로 적고 랭킹 주간 보상을 켰다", now);
 		return true;
+	}
+
+	/**
+	 * 이 푸시를 보낼 때가 됐는가. 어드민이 스위치를 켰거나, 출시 시각에서 정해 둔 날수가 지났으면 보낸다.
+	 *
+	 * <p>출시 직후에는 2.0 을 아직 안 깐 회원이 많아 눌러도 열 화면이 없다. 그래서 며칠 뒤에 켜지게 한다.
+	 * 저절로 켜지는 것을 막으려면 {@code push.auto-after-days} 를 0 으로 둔다.
+	 *
+	 * @param pushSwitch {@code push.letter} 또는 {@code push.attendance}
+	 * @param today      오늘(한국 날짜)
+	 */
+	public boolean isPushDue(RewardSettingKey pushSwitch, LocalDate today) {
+		if (rewardSettings.isOn(pushSwitch)) {
+			return true;
+		}
+		int afterDays = rewardSettings.get(RewardSettingKey.PUSH_AUTO_AFTER_DAYS);
+		if (afterDays <= 0) {
+			return false;
+		}
+		try {
+			return RewardMemberPolicy
+				.cutoffOf(rewardSettings.get(RewardSettingKey.CARRY_OVER_BEFORE_DATE),
+					rewardSettings.get(RewardSettingKey.CARRY_OVER_BEFORE_TIME))
+				.map(launchedAt -> !today.isBefore(launchedAt.toLocalDate().plusDays(afterDays)))
+				.orElse(false);
+		} catch (DateTimeException exception) {
+			return false;
+		}
 	}
 
 	private void put(RewardSettingKey key, int value, LocalDateTime now) {

@@ -66,7 +66,9 @@ public enum RewardSettingKey {
 	/** 월요일 빵댕이 편지 도착 푸시를 보내는가(1 = 켬) */
 	PUSH_LETTER("push.letter", 0),
 	/** 저녁 출석 리마인드 푸시를 보내는가(1 = 켬) */
-	PUSH_ATTENDANCE("push.attendance", 0);
+	PUSH_ATTENDANCE("push.attendance", 0),
+	/** 출시 시각에서 이만큼 지나면 위 두 푸시가 스위치와 무관하게 켜진다(일). 0 이면 스위치로만 켠다 */
+	PUSH_AUTO_AFTER_DAYS("push.auto-after-days", 7);
 
 	private final String key;
 	private final int defaultValue;

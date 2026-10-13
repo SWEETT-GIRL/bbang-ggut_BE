@@ -1,10 +1,12 @@
 package sweetgirl.croissant.reward.batch;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import org.junit.jupiter.api.DisplayName;
@@ -15,8 +17,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import sweetgirl.croissant.reward.enums.RewardSettingKey;
+import sweetgirl.croissant.reward.service.RewardLaunchService;
 import sweetgirl.croissant.reward.service.RewardPushService;
-import sweetgirl.croissant.reward.service.RewardSettings;
 
 @ExtendWith(MockitoExtension.class)
 class RewardPushSchedulerTest {
@@ -25,15 +27,15 @@ class RewardPushSchedulerTest {
 	private RewardPushService rewardPushService;
 
 	@Mock
-	private RewardSettings rewardSettings;
+	private RewardLaunchService rewardLaunchService;
 
 	@InjectMocks
 	private RewardPushScheduler rewardPushScheduler;
 
 	@Test
-	@DisplayName("편지 스위치가 꺼져 있으면 편지 도착 푸시를 보내지 않는다")
+	@DisplayName("편지 보낼 때가 아니면 편지 도착 푸시를 보내지 않는다")
 	void letterOff() {
-		given(rewardSettings.isOn(RewardSettingKey.PUSH_LETTER)).willReturn(false);
+		given(rewardLaunchService.isPushDue(eq(RewardSettingKey.PUSH_LETTER), any(LocalDate.class))).willReturn(false);
 
 		rewardPushScheduler.letterArrivals();
 
@@ -41,9 +43,9 @@ class RewardPushSchedulerTest {
 	}
 
 	@Test
-	@DisplayName("편지 스위치가 켜져 있으면 편지 도착 푸시를 보낸다")
+	@DisplayName("편지 보낼 때가 됐으면 편지 도착 푸시를 보낸다")
 	void letterOn() {
-		given(rewardSettings.isOn(RewardSettingKey.PUSH_LETTER)).willReturn(true);
+		given(rewardLaunchService.isPushDue(eq(RewardSettingKey.PUSH_LETTER), any(LocalDate.class))).willReturn(true);
 
 		rewardPushScheduler.letterArrivals();
 
@@ -51,9 +53,10 @@ class RewardPushSchedulerTest {
 	}
 
 	@Test
-	@DisplayName("출석 스위치가 꺼져 있으면 출석 리마인드를 보내지 않는다")
+	@DisplayName("출석 보낼 때가 아니면 출석 리마인드를 보내지 않는다")
 	void attendanceOff() {
-		given(rewardSettings.isOn(RewardSettingKey.PUSH_ATTENDANCE)).willReturn(false);
+		given(rewardLaunchService.isPushDue(eq(RewardSettingKey.PUSH_ATTENDANCE), any(LocalDate.class)))
+			.willReturn(false);
 
 		rewardPushScheduler.attendanceReminders();
 
@@ -61,9 +64,10 @@ class RewardPushSchedulerTest {
 	}
 
 	@Test
-	@DisplayName("출석 스위치가 켜져 있으면 출석 리마인드를 보낸다")
+	@DisplayName("출석 보낼 때가 됐으면 출석 리마인드를 보낸다")
 	void attendanceOn() {
-		given(rewardSettings.isOn(RewardSettingKey.PUSH_ATTENDANCE)).willReturn(true);
+		given(rewardLaunchService.isPushDue(eq(RewardSettingKey.PUSH_ATTENDANCE), any(LocalDate.class)))
+			.willReturn(true);
 
 		rewardPushScheduler.attendanceReminders();
 

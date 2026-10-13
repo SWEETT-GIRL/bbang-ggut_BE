@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -20,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import sweetgirl.croissant.reward.entity.RewardSetting;
+import sweetgirl.croissant.reward.enums.RewardSettingKey;
 import sweetgirl.croissant.reward.repository.RewardSettingRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -74,5 +76,42 @@ class RewardLaunchServiceTest {
 
 		then(rewardSettingRepository).should(never()).save(any(RewardSetting.class));
 		then(rewardSettings).should(never()).evict();
+	}
+
+	@Test
+	@DisplayName("어드민이 스위치를 켰으면 출시 시각과 무관하게 푸시를 보낸다")
+	void pushDueBySwitch() {
+		given(rewardSettings.isOn(RewardSettingKey.PUSH_LETTER)).willReturn(true);
+
+		assertThat(rewardLaunchService.isPushDue(RewardSettingKey.PUSH_LETTER, NOW.toLocalDate())).isTrue();
+	}
+
+	@Test
+	@DisplayName("출시 시각에서 정해 둔 날수가 지나면 푸시가 켜진다 — 그 전날까지는 꺼져 있다")
+	void pushDueAfterLaunch() {
+		given(rewardSettings.get(RewardSettingKey.PUSH_AUTO_AFTER_DAYS)).willReturn(7);
+		given(rewardSettings.get(RewardSettingKey.CARRY_OVER_BEFORE_DATE)).willReturn(20261103);
+		given(rewardSettings.get(RewardSettingKey.CARRY_OVER_BEFORE_TIME)).willReturn(1407);
+
+		assertThat(rewardLaunchService.isPushDue(RewardSettingKey.PUSH_ATTENDANCE, LocalDate.of(2026, 11, 9)))
+			.isFalse();
+		assertThat(rewardLaunchService.isPushDue(RewardSettingKey.PUSH_ATTENDANCE, LocalDate.of(2026, 11, 10)))
+			.isTrue();
+	}
+
+	@Test
+	@DisplayName("아직 출시 시각이 없으면 푸시는 꺼져 있다")
+	void pushNotDueBeforeLaunch() {
+		given(rewardSettings.get(RewardSettingKey.PUSH_AUTO_AFTER_DAYS)).willReturn(7);
+
+		assertThat(rewardLaunchService.isPushDue(RewardSettingKey.PUSH_LETTER, NOW.toLocalDate())).isFalse();
+	}
+
+	@Test
+	@DisplayName("날수를 0 으로 두면 저절로 켜지지 않는다")
+	void pushAutoDisabled() {
+		given(rewardSettings.get(RewardSettingKey.PUSH_AUTO_AFTER_DAYS)).willReturn(0);
+
+		assertThat(rewardLaunchService.isPushDue(RewardSettingKey.PUSH_LETTER, LocalDate.of(2027, 1, 1))).isFalse();
 	}
 }
