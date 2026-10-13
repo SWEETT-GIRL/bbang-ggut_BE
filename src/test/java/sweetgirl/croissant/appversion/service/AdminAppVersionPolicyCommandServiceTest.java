@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
@@ -22,12 +24,16 @@ import sweetgirl.croissant.appversion.entity.AppVersionPolicy;
 import sweetgirl.croissant.appversion.enums.AppPlatform;
 import sweetgirl.croissant.appversion.exception.AppVersionException;
 import sweetgirl.croissant.appversion.repository.AppVersionPolicyRepository;
+import sweetgirl.croissant.reward.service.RewardLaunchService;
 
 @ExtendWith(MockitoExtension.class)
 class AdminAppVersionPolicyCommandServiceTest {
 
 	@Mock
 	AppVersionPolicyRepository repository;
+
+	@Mock
+	RewardLaunchService rewardLaunchService;
 
 	@InjectMocks
 	AdminAppVersionPolicyCommandService service;
@@ -89,5 +95,38 @@ class AdminAppVersionPolicyCommandServiceTest {
 		assertThat(AppVersion.compare("1.10.0", "1.9.0")).isPositive();
 		assertThat(AppVersion.compare("1.3.1", "1.3.1")).isZero();
 		assertThat(AppVersion.compare("1.3.0", "1.3.1")).isNegative();
+	}
+
+	@Test
+	@DisplayName("upsert: 강제 업데이트를 2.0 이상으로 올리면 리워드를 연다")
+	void upsert_opensRewardsAtLaunchVersion() {
+		given(repository.findByPlatform(AppPlatform.IOS)).willReturn(Optional.of(
+			AppVersionPolicy.builder().platform(AppPlatform.IOS).minSupportedVersion("1.6.0").build()));
+
+		service.upsert(AppPlatform.IOS, new AppVersionPolicyUpdateRequest("2.0.0", "2.0.1", null, null));
+
+		verify(rewardLaunchService).openIfNotYet(any(LocalDateTime.class));
+	}
+
+	@Test
+	@DisplayName("upsert: 강제 업데이트가 2.0 아래면 리워드를 열지 않는다")
+	void upsert_keepsRewardsClosedBelowLaunchVersion() {
+		given(repository.findByPlatform(AppPlatform.IOS)).willReturn(Optional.of(
+			AppVersionPolicy.builder().platform(AppPlatform.IOS).build()));
+
+		service.upsert(AppPlatform.IOS, new AppVersionPolicyUpdateRequest("1.9.9", "2.0.0", null, null));
+
+		verify(rewardLaunchService, never()).openIfNotYet(any(LocalDateTime.class));
+	}
+
+	@Test
+	@DisplayName("upsert: 강제 업데이트를 비우면 리워드를 열지 않는다")
+	void upsert_keepsRewardsClosedWithoutMinVersion() {
+		given(repository.findByPlatform(AppPlatform.ANDROID)).willReturn(Optional.of(
+			AppVersionPolicy.builder().platform(AppPlatform.ANDROID).build()));
+
+		service.upsert(AppPlatform.ANDROID, new AppVersionPolicyUpdateRequest(null, "2.0.0", null, null));
+
+		verify(rewardLaunchService, never()).openIfNotYet(any(LocalDateTime.class));
 	}
 }
