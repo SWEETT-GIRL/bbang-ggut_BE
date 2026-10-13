@@ -13,7 +13,6 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 
-import java.sql.Date;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -268,9 +267,9 @@ class RewardDailyCommandServiceTest {
 	class SeedAttendanceFromRecordStreak {
 
 		private void givenRecordedDaysAgo(int... daysAgo) {
-			List<Date> days = new ArrayList<>();
+			List<String> days = new ArrayList<>();
 			for (int ago : daysAgo) {
-				days.add(Date.valueOf(today.minusDays(ago)));
+				days.add(today.minusDays(ago).toString());
 			}
 			given(breadRecordRepository.findRecordedDaysSince(eq(MEMBER_ID), any())).willReturn(days);
 		}

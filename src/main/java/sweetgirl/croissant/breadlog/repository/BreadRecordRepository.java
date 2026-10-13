@@ -41,14 +41,18 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 
 	/**
 	 * 보통 기록을 남긴 날들(저장한 날 기준, 최근 것부터). 1.x 홈의 "N일 연속"과 같은 기준이다 — 먹은 날이 아니라 저장한 날.
+	 *
+	 * <p>날짜를 {@code yyyy-MM-dd} 글자로 받는다. 네이티브 쿼리의 DATE 는 Hibernate 버전·설정에 따라
+	 * {@code java.sql.Date} 로도 {@code LocalDate} 로도 오는데, {@code List<java.sql.Date>} 로 받던 때에는
+	 * 실제로는 {@code LocalDate} 가 담겨 와 꺼내는 순간 형 변환에서 터졌다(요약 조회 500).
 	 */
 	@Query(value = """
-			SELECT DISTINCT CAST(created_at AS DATE) AS recorded_on
+			SELECT DISTINCT CAST(CAST(created_at AS DATE) AS VARCHAR) AS recorded_on
 			FROM bread_record
 			WHERE member_id = :memberId AND deleted_at IS NULL AND record_type = 'NORMAL' AND created_at >= :since
 			ORDER BY recorded_on DESC
 			""", nativeQuery = true)
-	List<java.sql.Date> findRecordedDaysSince(@Param("memberId") Long memberId, @Param("since") LocalDateTime since);
+	List<String> findRecordedDaysSince(@Param("memberId") Long memberId, @Param("since") LocalDateTime since);
 
 	/** 종류를 가려 센다. 리워드는 체험(TUTORIAL) 기록을 세지 않는다. */
 	long countByMemberIdAndRecordTypeAndDeletedAtIsNull(Long memberId, RecordType recordType);

@@ -115,7 +115,7 @@ public class RewardDailyCommandService {
 	private int recordStreak(Long memberId, LocalDate today) {
 		Set<LocalDate> recordedDays = new HashSet<>();
 		breadRecordRepository.findRecordedDaysSince(memberId, today.minusDays(STREAK_LOOKBACK_DAYS).atStartOfDay())
-			.forEach(day -> recordedDays.add(day.toLocalDate()));
+			.forEach(day -> recordedDays.add(LocalDate.parse(day)));
 
 		LocalDate cursor = recordedDays.contains(today) ? today : today.minusDays(1);
 		int streak = 0;
