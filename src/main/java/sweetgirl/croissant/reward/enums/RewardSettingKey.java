@@ -60,7 +60,9 @@ public enum RewardSettingKey {
 	/** 이 날짜(yyyyMMdd, 한국 날짜) 전에 가입했으면 기존 사용자다. 0 이면 아직 안 정했다 — 설정 파일의 값을 쓴다 */
 	CARRY_OVER_BEFORE_DATE("carry-over.before-date", 0),
 	/** 위 날짜의 시각(HHmm, 한국 시간). 1430 이면 오후 2 시 30 분이다 */
-	CARRY_OVER_BEFORE_TIME("carry-over.before-time", 0);
+	CARRY_OVER_BEFORE_TIME("carry-over.before-time", 0),
+	/** 월요일마다 랭킹 주간 보상 줄을 만드는가(1 = 켬). 2.0 앱이 나오기 전에는 받을 화면이 없어 꺼 둔다 */
+	RANKING_ISSUE("ranking.issue", 0);
 
 	private final String key;
 	private final int defaultValue;
