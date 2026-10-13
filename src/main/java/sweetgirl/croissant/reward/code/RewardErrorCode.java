@@ -3,6 +3,7 @@ package sweetgirl.croissant.reward.code;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
+import static org.springframework.http.HttpStatus.GONE;
 import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
@@ -44,6 +45,8 @@ public enum RewardErrorCode implements BaseErrorCode {
 			"그런 품목이 없습니다."),
 	REWARD_INVITE_CODE_NOT_FOUND(NOT_FOUND, "REWARD404_4",
 			"그런 초대 코드가 없습니다."),
+	REWARD_RANKING_REWARD_NOT_FOUND(NOT_FOUND, "REWARD404_5",
+			"그런 랭킹 보상이 없습니다."),
 	REWARD_CRUMBS_INSUFFICIENT(CONFLICT, "REWARD409_1",
 			"부스러기가 부족합니다."),
 	REWARD_SHOP_ALREADY_OWNED(CONFLICT, "REWARD409_2",
@@ -54,6 +57,8 @@ public enum RewardErrorCode implements BaseErrorCode {
 			"이미 초대 코드를 넣었습니다."),
 	REWARD_INVITE_CODE_UNAVAILABLE(INTERNAL_SERVER_ERROR, "REWARD500_2",
 			"초대 코드를 만들지 못했습니다. 잠시 뒤 다시 시도해 주세요."),
+	REWARD_RANKING_REWARD_EXPIRED(GONE, "REWARD410_1",
+			"받을 수 있는 기간이 지났습니다."),
 	REWARD_PENDING_PAYLOAD_INVALID(INTERNAL_SERVER_ERROR, "REWARD500_1",
 			"보상 연출 정보를 읽지 못했습니다.");
 
