@@ -16,6 +16,9 @@ public class AsyncConfig implements AsyncConfigurer {
 	/** 취향 신호 적재 전용 (#663 ④) */
 	public static final String SIGNAL_EXECUTOR = "signalExecutor";
 
+	/** 급부상 신호(Redis 카운트) 기록 전용 — 넘치면 버린다 */
+	public static final String TRENDING_EXECUTOR = "trendingExecutor";
+
 	/** 이유 문장 LLM 호출 전용 (#764) */
 	public static final String REASON_LLM_EXECUTOR = "reasonLlmExecutor";
 
@@ -65,6 +68,24 @@ public class AsyncConfig implements AsyncConfigurer {
 		executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
 		executor.setWaitForTasksToCompleteOnShutdown(true);
 		executor.setAwaitTerminationSeconds(10);
+		executor.initialize();
+		return executor;
+	}
+
+	/**
+	 * 급부상 신호를 Redis 에 세는 실행기. 상세 조회마다 불려 가장 잦은 신호다.
+	 *
+	 * <p>signalExecutor 와 달리 넘치면 버린다(DiscardPolicy) — 순위표는 수백 건 중 몇 건이 빠져도 같고, 요청 스레드가 Redis 를 대신
+	 * 기다리게 하는 편이 더 나쁘다.
+	 */
+	@Bean(name = TRENDING_EXECUTOR)
+	public Executor trendingExecutor() {
+		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+		executor.setCorePoolSize(1);
+		executor.setMaxPoolSize(2);
+		executor.setQueueCapacity(500);
+		executor.setThreadNamePrefix("trending-");
+		executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy());
 		executor.initialize();
 		return executor;
 	}

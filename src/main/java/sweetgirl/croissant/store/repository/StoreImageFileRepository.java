@@ -32,6 +32,22 @@ public interface StoreImageFileRepository extends JpaRepository<StoreImageFile, 
 			""")
 	List<StoreImageThumbnailProjection> findThumbnailsByStoreIdIn(@Param("storeIds") List<Long> storeIds);
 
+	/**
+	 * 가게마다 첫 사진(displayOrder → id 순) 한 장만 읽는다 — 목록 썸네일은 첫 장만 쓰는데 위 쿼리는 가게의 사진을 전부 읽는다.
+	 * 처리 중(PENDING)·실패 사진은 엔티티의 {@code @SQLRestriction} 으로 위 쿼리와 똑같이 빠진다.
+	 */
+	@Query("""
+			SELECT ranked.storeId AS storeId, ranked.awsKey AS awsKey, ranked.resizedKey320 AS resizedKey320
+			FROM (
+				SELECT s.store.id AS storeId, s.awsKey AS awsKey, s.resizedKey320 AS resizedKey320,
+					row_number() OVER (PARTITION BY s.store.id ORDER BY s.displayOrder ASC, s.id ASC) AS rowNumber
+				FROM StoreImageFile s
+				WHERE s.store.id IN :storeIds
+			) ranked
+			WHERE ranked.rowNumber = 1
+			""")
+	List<StoreImageThumbnailProjection> findFirstThumbnailsByStoreIdIn(@Param("storeIds") List<Long> storeIds);
+
 	long countByIdInAndStoreId(List<Long> ids, Long storeId);
 
 	@Query("""

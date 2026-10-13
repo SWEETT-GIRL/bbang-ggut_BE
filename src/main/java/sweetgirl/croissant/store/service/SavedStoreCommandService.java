@@ -1,6 +1,7 @@
 package sweetgirl.croissant.store.service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -12,6 +13,8 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.reward.dto.response.SaveStoreResponse;
+import sweetgirl.croissant.reward.service.EarnRewardService;
 import sweetgirl.croissant.store.code.SavedStoreErrorCode;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.SavedStore;
@@ -30,15 +33,16 @@ public class SavedStoreCommandService {
 
 	private final SavedStoreRepository savedStoreRepository;
 	private final MemberReader memberReader;
+	private final EarnRewardService earnRewardService;
 	private final StoreRepository storeRepository;
 	private final MemberRepository memberRepository;
 	private final ApplicationEventPublisher eventPublisher;
 
-	public void saveStore(Long memberId, Long storeId) {
+	public SaveStoreResponse saveStore(Long memberId, Long storeId) {
 		memberReader.requireLoggedIn(memberId);
 		// 이미 찜한 가게면 그대로 — 더블탭·재시도가 400 으로 끝나지 않게. 이벤트도 다시 내지 않는다
 		if (savedStoreRepository.existsByMemberIdAndStoreId(memberId, storeId)) {
-			return;
+			return new SaveStoreResponse(List.of());
 		}
 		Member member = memberRepository.findByIdAndDeletedAtIsNull(memberId)
 			.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_NOT_FOUND));
@@ -49,6 +53,8 @@ public class SavedStoreCommandService {
 		LocalDateTime savedAt = saved != null && saved.getCreatedAt() != null ? saved.getCreatedAt()
 			: LocalDateTime.now();
 		eventPublisher.publishEvent(new StoreSavedEvent(memberId, storeId, savedAt));
+		// 보상은 응답에 실어야 해서 이벤트 리스너가 아니라 여기서 바로 준다
+		return new SaveStoreResponse(earnRewardService.rewardStoreSaved(memberId, storeId));
 	}
 
 	public void unsaveStore(Long memberId, Long storeId) {

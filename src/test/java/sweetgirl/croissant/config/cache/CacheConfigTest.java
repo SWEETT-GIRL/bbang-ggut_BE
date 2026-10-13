@@ -13,13 +13,12 @@ import org.springframework.cache.support.SimpleCacheManager;
 class CacheConfigTest {
 
 	@Test
-	@DisplayName("세 캐시 모두 미스 한 번·히트 한 번을 그대로 센다")
+	@DisplayName("두 캐시 모두 미스 한 번·히트 한 번을 그대로 센다")
 	void everyCacheRecordsStats() {
 		SimpleCacheManager manager = (SimpleCacheManager)new CacheConfig().cacheManager();
 		manager.afterPropertiesSet();
 
-		for (String name : List.of(CacheConfig.BREAD_BOARD, CacheConfig.BREAD_BOARD_CATEGORIES,
-			CacheConfig.STORE_AUTOCOMPLETE)) {
+		for (String name : List.of(CacheConfig.BREAD_BOARD, CacheConfig.BREAD_BOARD_CATEGORIES)) {
 			CaffeineCache cache = (CaffeineCache)manager.getCache(name);
 			assertThat(cache).as(name).isNotNull();
 

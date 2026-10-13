@@ -41,7 +41,11 @@ public enum NotificationType {
 	/** 내 문의에 답변이 달렸다 — 어드민이 편지함에서 답장했다 */
 	INQUIRY_REPLY("INQUIRY_REPLY"),
 	/** 빵별일지 팀이 먼저 편지를 보냈다(설문·안내). 받은 사람에게만 간다 */
-	LETTER("LETTER");
+	LETTER("LETTER"),
+	/** 이번 주 빵댕이 편지가 도착했다(리워드). 광고가 아니라 서비스 알림이다 — 마케팅 동의를 보지 않는다 */
+	REWARD_LETTER("REWARD_LETTER"),
+	/** 오늘 출석 도장을 아직 안 찍었다(리워드). 어제 출석한 회원에게만 간다. 서비스 알림이다 */
+	REWARD_ATTENDANCE("REWARD_ATTENDANCE");
 
 	private final String pushType;
 

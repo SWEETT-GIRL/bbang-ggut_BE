@@ -20,9 +20,7 @@ public class AdminApiKeyConfig {
 		FilterRegistrationBean<AdminApiKeyFilter> bean = new FilterRegistrationBean<>();
 		bean.setFilter(new AdminApiKeyFilter(apiKey, allowWithoutKey));
 		// AdminApiKeyFilter.PROTECTED_PREFIXES 와 짝 — 한쪽만 더하면 필터가 안 걸리거나 헛돈다
-		bean.addUrlPatterns("/api/admin/letters/*", "/admin/personalization/*", "/admin/recommendations/*",
-			"/api/admin/monthly-reports/*", "/api/admin/tutorial-templates", "/api/admin/tutorial-templates/*",
-			"/admin/images/reconcile", "/admin/images/reconcile/*", "/api/admin/world/*");
+		bean.addUrlPatterns("/api/admin/*", "/admin/*");
 		// 인증을 다루므로 요청 로깅보다도 앞이다 — 막을 요청에 일을 시키지 않는다.
 		bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 10);
 		return bean;

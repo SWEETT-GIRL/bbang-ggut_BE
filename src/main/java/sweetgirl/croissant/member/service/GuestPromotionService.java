@@ -1,5 +1,6 @@
 package sweetgirl.croissant.member.service;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -36,11 +37,11 @@ public class GuestPromotionService {
 			.flatMap(guest -> memberRepository.findActiveForUpdate(guest.getId()))
 			.filter(Member::isGuest)
 			.map(guest -> {
-				guest.promoteToUser();
+				guest.promoteToUser(LocalDateTime.now());
 				return guest;
 			})
 			.orElseGet(() -> memberRepository.save(
-				Member.builder().nickname(nicknameGenerator.generate()).build()));
+				Member.registering(nicknameGenerator.generate(), LocalDateTime.now())));
 	}
 
 	/**

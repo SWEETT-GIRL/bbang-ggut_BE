@@ -121,6 +121,55 @@ class StoreSearchJdbcRepositoryLabTest {
 	}
 
 	@Test
+	@DisplayName("토큰 완화 ①: 지역으로 떨어지는 토큰도 이름 토큰으로 보면 어순과 무관하게 '어니언 성수'가 잡힌다")
+	void anyOrderNameTokens() {
+		// "성수 어니언" — 지역 '성수' ∩ 이름 '어니언' 은 0건(가게 주소가 성수 지역 집합 밖), 전체 "성수어니언"도 이름에 없다
+		List<StoreSearchRow> relaxed = repository.search(BUILDER.buildSearch(
+			plan(List.of(), List.of("성수", "어니언"), "성수어니언", false), 16, 0, null, null, SearchSort.RELEVANCE));
+		List<StoreSearchRow> wholeName = repository.search(BUILDER.buildSearch(
+			plan(List.of(), List.of(), "어니언성수", false), 16, 0, null, null, SearchSort.RELEVANCE));
+
+		assertThat(wholeName).isNotEmpty();
+		assertThat(relaxed).extracting(StoreSearchRow::storeId)
+			.containsAll(wholeName.stream().map(StoreSearchRow::storeId).toList());
+		assertThat(relaxed).allSatisfy(row -> assertThat(row.matchedByName()).isTrue());
+	}
+
+	@Test
+	@DisplayName("토큰 완화 ②: 이름/구명이 토큰으로 시작하는 가게 수를 상한까지만 센다 — 일반어는 상한, 없는 말은 0")
+	void tokenCandidateCounts() {
+		int cap = 15;
+		List<StoreSearchTokenCountRow> counts = repository.countTokenCandidates(
+			BUILDER.buildTokenCandidateCounts(List.of("성심당", "카페", "없는토큰zzqq"), cap));
+
+		assertThat(counts).extracting(StoreSearchTokenCountRow::tokenIndex).containsExactlyInAnyOrder(0, 1, 2);
+		assertThat(counts).filteredOn(count -> count.tokenIndex() == 0)
+			.allSatisfy(count -> assertThat(count.candidateCount()).isBetween(1L, (long)cap));
+		assertThat(counts).filteredOn(count -> count.tokenIndex() == 1)
+			.allSatisfy(count -> assertThat(count.candidateCount()).isEqualTo(cap));
+		assertThat(counts).filteredOn(count -> count.tokenIndex() == 2)
+			.allSatisfy(count -> assertThat(count.candidateCount()).isZero());
+	}
+
+	@Test
+	@DisplayName("토큰 완화 ②: 한 토큰만 남긴 검색은 이름/구명이 그 토큰으로 시작하는 가게만, 센 수와 결과 수가 같다")
+	void singleTokenPrefixOnly() {
+		int cap = 1000;
+		List<StoreSearchRow> rows = repository.search(BUILDER.buildSearch(
+			new StoreSearchPlan(List.of(), List.of("성심당"), "성심당", false, true), cap, 0, null, null,
+			SearchSort.RELEVANCE));
+		List<StoreSearchTokenCountRow> counts = repository.countTokenCandidates(
+			BUILDER.buildTokenCandidateCounts(List.of("성심당"), cap));
+
+		assertThat(rows).isNotEmpty();
+		// 접두 일치만 — 이름이든 구명이든 접두 계단 이상이어야 한다
+		assertThat(rows).allSatisfy(row -> assertThat(row.nameScore() >= StoreSearchSqlBuilder.NAME_PREFIX
+			|| row.aliasScore() >= 60).isTrue());
+		// 세는 쪽은 구명 가지가 비활성 가게를 거르지 않아 같거나 조금 많다
+		assertThat(counts.get(0).candidateCount()).isGreaterThanOrEqualTo(rows.size());
+	}
+
+	@Test
 	@DisplayName("거리순: 좌표가 있으면 거리 오름차순, 원거리 가게에서도 underflow 없이 점수가 계산된다")
 	void distanceSortWithCoordinates() {
 		// 성심당은 대전(망원에서 150km) — 거리 감쇠 exp() 클램프 검증

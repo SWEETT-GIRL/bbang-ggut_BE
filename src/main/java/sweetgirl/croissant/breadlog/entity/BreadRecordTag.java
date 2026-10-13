@@ -56,7 +56,8 @@ public class BreadRecordTag extends BaseTimeEntity {
 	private BreadRecord record;
 
 	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "photo_id", nullable = false)
+	/** 이 빵이 찍힌 사진. 사진에 안 붙은 빵 이름이면 비어 있다(그때는 좌표도 없다). */
+	@JoinColumn(name = "photo_id")
 	private BreadRecordPhoto photo;
 
 	@Column(nullable = false, length = 100)
@@ -88,11 +89,11 @@ public class BreadRecordTag extends BaseTimeEntity {
 	@JoinColumn(name = "suggested_menu_id")
 	private Menu suggestedMenu;
 
-	@Column(name = "x", nullable = false)
-	private double positionX;
+	@Column(name = "x")
+	private Double positionX;
 
-	@Column(name = "y", nullable = false)
-	private double positionY;
+	@Column(name = "y")
+	private Double positionY;
 
 	/** 이름표 꾸밈("모양.종이[.up]"). 앱이 정한 이름을 그대로 든다 — 서버는 해석하지 않는다. 없으면 기본 */
 	@Column(length = 50)
@@ -123,8 +124,8 @@ public class BreadRecordTag extends BaseTimeEntity {
 			Menu suggestedMenu,
 			String name,
 			String breadCategory,
-			double positionX,
-			double positionY,
+			Double positionX,
+			Double positionY,
 			String style) {
 		this.record = record;
 		this.photo = photo;

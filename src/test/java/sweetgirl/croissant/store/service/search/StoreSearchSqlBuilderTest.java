@@ -2,9 +2,12 @@ package sweetgirl.croissant.store.service.search;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ClassPathResource;
 
 import sweetgirl.croissant.store.config.StoreSearchProperties;
 import sweetgirl.croissant.store.repository.search.SearchSqlQuery;
@@ -15,6 +18,10 @@ class StoreSearchSqlBuilderTest {
 
 	private static StoreSearchPlan plan(List<String> regions, List<String> names, String whole) {
 		return new StoreSearchPlan(regions, names, whole, false);
+	}
+
+	private static String sqlBeforePrefixFlag(String fileName) throws IOException {
+		return new ClassPathResource("store-search-sql/" + fileName).getContentAsString(StandardCharsets.UTF_8);
 	}
 
 	private static int count(String haystack, String needle) {
@@ -150,6 +157,70 @@ class StoreSearchSqlBuilderTest {
 		assertThat(popularity.sql()).contains("ORDER BY t.popularity_score DESC, score DESC, t.id ASC");
 		assertThat(popularity.params().getValue("limit")).isEqualTo(16);
 		assertThat(popularity.params().getValue("offset")).isEqualTo(32);
+	}
+
+	@Test
+	void namePrefixOnly_requiresTokenAtStartOfNameOrAlias() {
+		SearchSqlQuery query = builder.buildSearch(
+			new StoreSearchPlan(List.of(), List.of("사과당"), "사과당", false, true),
+			16, 0, null, null, SearchSort.RELEVANCE);
+
+		assertThat(query.sql()).contains("WITH cand AS ((SELECT s.id FROM store s WHERE s.status = 'ACTIVE'"
+			+ " AND s.name_normalized LIKE '%' || :name0 || '%' AND s.name_normalized LIKE :name0 || '%'\n"
+			+ "   UNION SELECT a.store_id AS id FROM store_name_alias a"
+			+ " WHERE a.alias_normalized LIKE '%' || :name0 || '%' AND a.alias_normalized LIKE :name0 || '%'))");
+		assertThat(query.sql()).doesNotContain("INTERSECT", "store_search_region");
+		assertThat(query.params().getValue("name0")).isEqualTo("사과당");
+	}
+
+	@Test
+	void namePrefixOnly_onlyChangesCandidateConditionOfThatPlan() {
+		// 플래그를 켠 계획과 끈 계획의 SQL 은 후보 조건의 접두 AND 두 군데만 다르다 — 점수·정렬·바인딩은 같다
+		SearchSqlQuery contains = builder.buildSearch(plan(List.of(), List.of("사과당"), "사과당"),
+			16, 0, null, null, SearchSort.RELEVANCE);
+		SearchSqlQuery prefix = builder.buildSearch(
+			new StoreSearchPlan(List.of(), List.of("사과당"), "사과당", false, true),
+			16, 0, null, null, SearchSort.RELEVANCE);
+
+		assertThat(prefix.sql()
+			.replace(" AND s.name_normalized LIKE :name0 || '%'\n   UNION", "\n   UNION")
+			.replace(" AND a.alias_normalized LIKE :name0 || '%'))", "))"))
+			.isEqualTo(contains.sql());
+		assertThat(prefix.params().getValues()).isEqualTo(contains.params().getValues());
+	}
+
+	@Test
+	void defaultPlan_sqlIsUnchangedByPrefixFlag() throws IOException {
+		// 플래그 기본값(false)에서는 기존 SQL 이 한 글자도 달라지지 않아야 한다 — 플래그를 넣기 전(#902) 빌더가 만든 문장을
+		// src/test/resources/store-search-sql 에 그대로 떠 두고 대조한다
+		SearchSqlQuery nameOnly = builder.buildSearch(plan(List.of(), List.of("우드", "브릭"), "우드앤브릭"),
+			16, 0, null, null, SearchSort.RELEVANCE);
+		SearchSqlQuery regionAndName = builder.buildSearch(plan(List.of("성수"), List.of("어니언"), "어니언성수"),
+			16, 0, null, null, SearchSort.RELEVANCE);
+
+		assertThat(nameOnly.sql()).isEqualTo(sqlBeforePrefixFlag("name-only.sql"));
+		assertThat(regionAndName.sql()).isEqualTo(sqlBeforePrefixFlag("region-and-name.sql"));
+		// 4인자 생성자는 플래그가 꺼진 계획이다
+		assertThat(plan(List.of(), List.of("우드"), "우드").namePrefixOnly()).isFalse();
+	}
+
+	@Test
+	void tokenCandidateCounts_countsEachTokenUpToCap() {
+		SearchSqlQuery query = builder.buildTokenCandidateCounts(List.of("사과당", "베이커리"), 15);
+
+		// 토큰마다 한 행 — 이름 ∪ 구명 후보를 cap 까지만 센다
+		assertThat(count(query.sql(), "UNION ALL")).isEqualTo(1);
+		assertThat(query.sql()).contains(
+			"SELECT 0 AS token_index, count(*) AS candidate_count FROM (SELECT u.id FROM (",
+			"SELECT 1 AS token_index, count(*) AS candidate_count FROM (SELECT u.id FROM (");
+		// 세는 조건 = 한 토큰만 남긴 검색의 조건: 이름/구명이 토큰으로 시작(부분일치로 bigm 색인을 태우고 접두를 AND)
+		assertThat(query.sql()).contains(
+			"s.name_normalized LIKE '%' || :name0 || '%' AND s.name_normalized LIKE :name0 || '%'",
+			"a.alias_normalized LIKE '%' || :name1 || '%' AND a.alias_normalized LIKE :name1 || '%'");
+		assertThat(count(query.sql(), ") u LIMIT :cap) c")).isEqualTo(2);
+		assertThat(query.params().getValue("name0")).isEqualTo("사과당");
+		assertThat(query.params().getValue("name1")).isEqualTo("베이커리");
+		assertThat(query.params().getValue("cap")).isEqualTo(15);
 	}
 
 	@Test

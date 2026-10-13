@@ -12,6 +12,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,8 +29,12 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import sweetgirl.croissant.searchmiss.event.SearchMissEvent;
 import sweetgirl.croissant.store.code.StoreSearchErrorCode;
+import sweetgirl.croissant.store.config.StoreTrendingProperties;
+import sweetgirl.croissant.store.dto.response.StoreAutocompleteResponse;
 import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
 import sweetgirl.croissant.store.exception.StoreSearchException;
+import sweetgirl.croissant.store.service.trending.TrendingRankingReader;
+import sweetgirl.croissant.store.service.trending.TrendingStore;
 
 @ExtendWith(MockitoExtension.class)
 class StoreSearchServiceTest {
@@ -46,6 +51,11 @@ class StoreSearchServiceTest {
 	@Mock
 	private ApplicationEventPublisher eventPublisher;
 
+	@Mock
+	private TrendingRankingReader trendingRankingReader;
+
+	private final StoreTrendingProperties trendingProperties = new StoreTrendingProperties();
+
 	private SimpleMeterRegistry meterRegistry;
 	private StoreSearchService service;
 
@@ -54,7 +64,7 @@ class StoreSearchServiceTest {
 		meterRegistry = new SimpleMeterRegistry();
 		// 판정 규칙은 순수 로직이라 목킹하지 않고 실제 구현을 쓴다.
 		service = new StoreSearchService(storeSearchQueryParser, searchEngine, storeSearchAssembler,
-			meterRegistry, eventPublisher);
+			meterRegistry, eventPublisher, trendingRankingReader, trendingProperties);
 		// 운영에서는 @PostConstruct로 실행되는 시계열 사전 등록을 동일하게 태운다.
 		service.registerSearchOutcomeCounters();
 	}
@@ -257,6 +267,166 @@ class StoreSearchServiceTest {
 
 		assertThat(outcomeCount("search", SearchOutcome.FALLBACK)).isEqualTo(1.0);
 		assertThat(outcomeCount("search", SearchOutcome.EMPTY)).isZero();
+	}
+
+	private double fallbackStageCount(SearchFallbackStage stage) {
+		Counter counter = meterRegistry.find("search.fallback")
+			.tag("stage", stage.tagValue())
+			.counter();
+		return counter == null ? -1 : counter.count();
+	}
+
+	@Test
+	@DisplayName("토큰 완화 — 전부 0건일 때만 타고, 결과는 hit 이 아니라 fallback 으로 집계·적재한다")
+	void searchStores_relaxesTokensWhenEverythingElseIsEmpty() {
+		SearchIntent intent = new SearchIntent("성수 어니언", "성수 어니언", List.of("성수", "어니언"),
+			List.of("성수"), List.of(), List.of("어니언"));
+		PageRequest pageable = PageRequest.of(0, 15);
+		List<StoreSearchHit> hits = List.of(hit());
+		given(storeSearchQueryParser.parse("성수 어니언")).willReturn(intent);
+		given(storeSearchQueryParser.parseWithGluedTokenFallback("성수 어니언")).willReturn(intent);
+		given(searchEngine.searchStores(intent, pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(StoreSearchResult.empty());
+		// 완화 결과는 이름이 실제로 맞아 queryCovered=true 로 오지만, 1차가 0건이었으므로 hit 으로 세지 않는다
+		given(searchEngine.searchStoresRelaxed(List.of(intent), pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(Optional.of(new StoreSearchRelaxedResult(new StoreSearchResult(hits, false, true),
+				SearchFallbackStage.NAME_ANY_ORDER, "")));
+		given(storeSearchAssembler.assemble(hits)).willReturn(List.of());
+
+		service.searchStores("성수 어니언", null, null, SearchSort.RELEVANCE, pageable);
+
+		verify(storeSearchAssembler).assemble(hits);
+		assertThat(outcomeCount("search", SearchOutcome.FALLBACK)).isEqualTo(1.0);
+		assertThat(outcomeCount("search", SearchOutcome.HIT)).isZero();
+		assertThat(outcomeCount("search", SearchOutcome.EMPTY)).isZero();
+		assertThat(fallbackStageCount(SearchFallbackStage.NAME_ANY_ORDER)).isEqualTo(1.0);
+		assertThat(fallbackStageCount(SearchFallbackStage.SINGLE_TOKEN)).isZero();
+		ArgumentCaptor<SearchMissEvent> event = ArgumentCaptor.forClass(SearchMissEvent.class);
+		verify(eventPublisher).publishEvent(event.capture());
+		assertThat(event.getValue().outcome()).isEqualTo(SearchOutcome.FALLBACK);
+		assertThat(event.getValue().keyword()).isEqualTo("성수 어니언");
+	}
+
+	@Test
+	@DisplayName("토큰 완화 — 붙여 쓴 토큰을 분해한 인텐트도 함께 넘긴다")
+	void searchStores_passesDecomposedIntentToRelaxation() {
+		SearchIntent primary = new SearchIntent("성수어니언", "성수어니언", List.of("성수어니언"),
+			List.of(), List.of(), List.of("성수어니언"));
+		SearchIntent decomposed = new SearchIntent("성수어니언", "성수어니언", List.of("성수어니언"),
+			List.of("성수"), List.of(), List.of("어니언"));
+		PageRequest pageable = PageRequest.of(0, 15);
+		List<StoreSearchHit> hits = List.of(hit());
+		given(storeSearchQueryParser.parse("성수어니언")).willReturn(primary);
+		given(storeSearchQueryParser.parseWithGluedTokenFallback("성수어니언")).willReturn(decomposed);
+		given(searchEngine.searchStores(primary, pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(StoreSearchResult.empty());
+		given(searchEngine.searchStores(decomposed, pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(StoreSearchResult.empty());
+		given(searchEngine.searchStoresRelaxed(List.of(primary, decomposed), pageable, null, null,
+			SearchSort.RELEVANCE))
+			.willReturn(Optional.of(new StoreSearchRelaxedResult(new StoreSearchResult(hits, false, true),
+				SearchFallbackStage.SINGLE_TOKEN, "어니언")));
+		given(storeSearchAssembler.assemble(hits)).willReturn(List.of());
+
+		service.searchStores("성수어니언", null, null, SearchSort.RELEVANCE, pageable);
+
+		verify(storeSearchAssembler).assemble(hits);
+		assertThat(outcomeCount("search", SearchOutcome.FALLBACK)).isEqualTo(1.0);
+		assertThat(fallbackStageCount(SearchFallbackStage.SINGLE_TOKEN)).isEqualTo(1.0);
+		assertThat(fallbackStageCount(SearchFallbackStage.GLUED_TOKEN)).isZero();
+	}
+
+	@Test
+	@DisplayName("토큰 완화 — 1차에 결과가 있으면 타지 않는다")
+	void searchStores_doesNotRelaxWhenPrimaryHasResults() {
+		SearchIntent intent = new SearchIntent("어니언 성수", "어니언 성수", List.of("어니언", "성수"),
+			List.of("성수"), List.of(), List.of("어니언"));
+		PageRequest pageable = PageRequest.of(0, 15);
+		List<StoreSearchHit> hits = List.of(hit());
+		given(storeSearchQueryParser.parse("어니언 성수")).willReturn(intent);
+		given(searchEngine.searchStores(intent, pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(new StoreSearchResult(hits, false, true));
+		given(storeSearchAssembler.assemble(hits)).willReturn(List.of());
+
+		service.searchStores("어니언 성수", null, null, SearchSort.RELEVANCE, pageable);
+
+		verify(searchEngine, never()).searchStoresRelaxed(any(), any(), any(), any(), any());
+		assertThat(outcomeCount("search", SearchOutcome.HIT)).isEqualTo(1.0);
+		for (SearchFallbackStage stage : SearchFallbackStage.values()) {
+			if (stage != SearchFallbackStage.NONE) {
+				assertThat(fallbackStageCount(stage)).isZero();
+			}
+		}
+	}
+
+	@Test
+	@DisplayName("토큰 완화 — 붙여 쓴 토큰 분해로 결과가 나오면 타지 않고 glued_token 단계로 센다")
+	void searchStores_doesNotRelaxWhenGluedFallbackHasResults() {
+		SearchIntent primary = new SearchIntent("초코소금빵", "초코소금빵", List.of("초코소금빵"),
+			List.of(), List.of(), List.of("초코소금빵"));
+		SearchIntent fallback = new SearchIntent("초코소금빵", "초코소금빵", List.of("초코소금빵"),
+			List.of(), List.of("소금빵"), List.of("초코"));
+		PageRequest pageable = PageRequest.of(0, 15);
+		List<StoreSearchHit> hits = List.of(hit());
+		given(storeSearchQueryParser.parse("초코소금빵")).willReturn(primary);
+		given(storeSearchQueryParser.parseWithGluedTokenFallback("초코소금빵")).willReturn(fallback);
+		given(searchEngine.searchStores(primary, pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(StoreSearchResult.empty());
+		given(searchEngine.searchStores(fallback, pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(new StoreSearchResult(hits, false, false));
+		given(storeSearchAssembler.assemble(hits)).willReturn(List.of());
+
+		service.searchStores("초코소금빵", null, null, SearchSort.RELEVANCE, pageable);
+
+		verify(searchEngine, never()).searchStoresRelaxed(any(), any(), any(), any(), any());
+		assertThat(fallbackStageCount(SearchFallbackStage.GLUED_TOKEN)).isEqualTo(1.0);
+	}
+
+	@Test
+	@DisplayName("토큰 완화 — 2페이지 이후는 결과는 주되 집계·적재하지 않는다")
+	void searchStores_relaxedLaterPageIsNotRecorded() {
+		SearchIntent intent = new SearchIntent("성수 어니언", "성수 어니언", List.of("성수", "어니언"),
+			List.of("성수"), List.of(), List.of("어니언"));
+		PageRequest secondPage = PageRequest.of(1, 5);
+		List<StoreSearchHit> hits = List.of(hit());
+		given(storeSearchQueryParser.parse("성수 어니언")).willReturn(intent);
+		given(storeSearchQueryParser.parseWithGluedTokenFallback("성수 어니언")).willReturn(intent);
+		given(searchEngine.searchStores(intent, secondPage, null, null, SearchSort.RELEVANCE))
+			.willReturn(StoreSearchResult.empty());
+		given(searchEngine.searchStoresRelaxed(List.of(intent), secondPage, null, null, SearchSort.RELEVANCE))
+			.willReturn(Optional.of(new StoreSearchRelaxedResult(new StoreSearchResult(hits, false, true),
+				SearchFallbackStage.SINGLE_TOKEN, "어니언")));
+		given(storeSearchAssembler.assemble(hits)).willReturn(List.of());
+
+		service.searchStores("성수 어니언", null, null, SearchSort.RELEVANCE, secondPage);
+
+		verify(storeSearchAssembler).assemble(hits);
+		assertThat(outcomeCount("search", SearchOutcome.FALLBACK)).isZero();
+		assertThat(fallbackStageCount(SearchFallbackStage.SINGLE_TOKEN)).isZero();
+		verify(eventPublisher, never()).publishEvent(any(SearchMissEvent.class));
+	}
+
+	@Test
+	@DisplayName("토큰 완화 — 완화 SQL 이 타임아웃돼도 503 으로 끊고 timeout 으로 센다")
+	void searchStores_relaxedTimeout_throwsServiceUnavailableAndCounts() {
+		SearchIntent intent = new SearchIntent("성수 어니언", "성수 어니언", List.of("성수", "어니언"),
+			List.of("성수"), List.of(), List.of("어니언"));
+		PageRequest pageable = PageRequest.of(0, 15);
+		given(storeSearchQueryParser.parse("성수 어니언")).willReturn(intent);
+		given(storeSearchQueryParser.parseWithGluedTokenFallback("성수 어니언")).willReturn(intent);
+		given(searchEngine.searchStores(intent, pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(StoreSearchResult.empty());
+		given(searchEngine.searchStoresRelaxed(List.of(intent), pageable, null, null, SearchSort.RELEVANCE))
+			.willThrow(new QueryTimeoutException("canceling statement due to statement timeout"));
+
+		assertThatThrownBy(() -> service.searchStores("성수 어니언", null, null, SearchSort.RELEVANCE, pageable))
+			.isInstanceOf(StoreSearchException.class)
+			.satisfies(exception -> assertThat(((StoreSearchException)exception).getErrorCode())
+				.isEqualTo(StoreSearchErrorCode.SEARCH_TIMEOUT));
+
+		assertThat(outcomeCount("search", SearchOutcome.TIMEOUT)).isEqualTo(1.0);
+		verify(eventPublisher, never()).publishEvent(any(SearchMissEvent.class));
+		verify(storeSearchAssembler, never()).assemble(any());
 	}
 
 	@Test
@@ -566,5 +736,102 @@ class StoreSearchServiceTest {
 		assertThat(StoreSearchService.isFullyClassified(
 			new SearchIntent("빵", "빵", List.of("빵"), List.of(), List.of(), List.of())))
 			.isFalse();
+	}
+
+	// ───────────────────────── 급부상·스테디 승격 ─────────────────────────
+
+	private static StoreAutocompleteSuggestion region(String name) {
+		return new StoreAutocompleteSuggestion(name, AutocompleteSuggestionType.REGION, null, 37.5, 127.0, 1000, null,
+			0, 0.0);
+	}
+
+	private static StoreAutocompleteSuggestion store(String name, long id, int tier, double steady) {
+		return new StoreAutocompleteSuggestion(name, AutocompleteSuggestionType.STORE, id, null, null, null, null,
+			tier, steady);
+	}
+
+	private static List<String> keywords(List<StoreAutocompleteResponse> responses) {
+		return responses.stream().map(StoreAutocompleteResponse::keyword).toList();
+	}
+
+	@Test
+	@DisplayName("급부상 가게가 있으면 지역보다 위로 올린다 — '한'을 치면 지금 뜨는 한정선이 한남동보다 먼저")
+	void autocomplete_promotesTrendingStoreAboveRegions() {
+		trendingProperties.setEnabled(true);
+		given(searchEngine.autocompleteStores("한", 10)).willReturn(List.of(
+			region("한남동"), region("한양대역"), store("한스베이커리", 1L, 0, 3.0), store("한정선", 2L, 0, 0.5)));
+		given(trendingRankingReader.findStartingWith("한", 2)).willReturn(List.of(
+			new TrendingStore(2L, "한정선", List.of("한정선"), 9.0)));
+
+		var result = service.autocompleteStores("한", 10);
+
+		// 승격한 가게는 한 번만 — 원래 자리에서는 빠진다
+		assertThat(keywords(result)).containsExactly("한정선", "한남동", "한양대역", "한스베이커리");
+	}
+
+	@Test
+	@DisplayName("급부상 가게가 목록에 없어도 끼워 넣는다 — 캐시에 옛 목록이 남아 있어도 뜨는 가게가 보인다")
+	void autocomplete_insertsTrendingStoreMissingFromList() {
+		trendingProperties.setEnabled(true);
+		given(searchEngine.autocompleteStores("폼", 10)).willReturn(List.of(
+			store("폼베이커리", 1L, 0, 0.0), store("폼제과", 3L, 0, 0.0)));
+		given(trendingRankingReader.findStartingWith("폼", 2)).willReturn(List.of(
+			new TrendingStore(9L, "폼포미베이커리", List.of("폼포미베이커리"), 5.0)));
+
+		var result = service.autocompleteStores("폼", 10);
+
+		assertThat(keywords(result)).containsExactly("폼포미베이커리", "폼베이커리", "폼제과");
+		assertThat(result.get(0).storeId()).isEqualTo(9L);
+	}
+
+	@Test
+	@DisplayName("급부상이 없으면 요즘 꾸준히 찾는 가게(평소 수준 1위) 하나를 지역보다 위로 올린다")
+	void autocomplete_promotesSteadyStoreWhenNoTrending() {
+		trendingProperties.setEnabled(true);
+		given(searchEngine.autocompleteStores("한", 10)).willReturn(List.of(
+			region("한남동"), store("한스베이커리", 1L, 0, 3.0), store("한정선", 2L, 0, 0.5)));
+		given(trendingRankingReader.findStartingWith("한", 2)).willReturn(List.of());
+
+		var result = service.autocompleteStores("한", 10);
+
+		assertThat(keywords(result)).containsExactly("한스베이커리", "한남동", "한정선");
+	}
+
+	@Test
+	@DisplayName("스테디 후보가 기준 미달이거나 접두 일치가 아니면 올리지 않는다 — 조회가 거의 없는 가게를 지역 위에 두지 않는다")
+	void autocomplete_keepsOrderWhenNoSteadyCandidate() {
+		trendingProperties.setEnabled(true);
+		given(searchEngine.autocompleteStores("한", 10)).willReturn(List.of(
+			region("한남동"), store("대한제과", 1L, 1, 5.0), store("한빵", 2L, 0, 0.1)));
+		given(trendingRankingReader.findStartingWith("한", 2)).willReturn(List.of());
+
+		var result = service.autocompleteStores("한", 10);
+
+		assertThat(keywords(result)).containsExactly("한남동", "대한제과", "한빵");
+	}
+
+	@Test
+	@DisplayName("가게를 빼고 지역만 요청하면 승격하지 않는다")
+	void autocomplete_skipsPromotionWhenStoresAreFilteredOut() {
+		trendingProperties.setEnabled(true);
+		given(searchEngine.autocompleteStores("한", 20)).willReturn(List.of(
+			region("한남동"), store("한정선", 2L, 0, 3.0)));
+
+		var result = service.autocompleteStores("한", 10, List.of(AutocompleteSuggestionType.REGION));
+
+		assertThat(keywords(result)).containsExactly("한남동");
+		verify(trendingRankingReader, never()).findStartingWith(any(), anyInt());
+	}
+
+	@Test
+	@DisplayName("꺼져 있으면 기존 순서(지역 → 가게) 그대로다")
+	void autocomplete_keepsLegacyOrderWhenDisabled() {
+		given(searchEngine.autocompleteStores("한", 10)).willReturn(List.of(
+			region("한남동"), store("한스베이커리", 1L, 0, 3.0)));
+
+		var result = service.autocompleteStores("한", 10);
+
+		assertThat(keywords(result)).containsExactly("한남동", "한스베이커리");
+		verify(trendingRankingReader, never()).findStartingWith(any(), anyInt());
 	}
 }

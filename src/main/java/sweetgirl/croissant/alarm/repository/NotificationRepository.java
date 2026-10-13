@@ -1,5 +1,6 @@
 package sweetgirl.croissant.alarm.repository;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import org.springframework.data.domain.Pageable;
@@ -25,4 +26,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
 	/** 한 종류의 알림을 최근 것부터 — 어드민의 보낸 편지 목록. */
 	Slice<Notification> findByTypeOrderByIdDesc(NotificationType type, Pageable pageable);
+
+	/** 그 뒤로 이 종류의 알림을 만든 적이 있는가 — 같은 정기 발송을 두 번 내보내지 않으려고 본다. */
+	boolean existsByTypeAndCreatedAtGreaterThanEqual(NotificationType type, LocalDateTime since);
 }

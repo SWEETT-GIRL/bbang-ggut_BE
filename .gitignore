@@ -104,6 +104,9 @@ scripts/perf/member-ids.txt
 scripts/perf/tokens.csv
 scripts/perf/result*.csv
 scripts/perf/server-metrics*.log
+# 자동완성 부하 입력 — 운영 사용자 검색어라 올리지 않는다
+scripts/perf/autocomplete-queries.json
+scripts/perf/summary*.json
 
 ### 동시편집 계획 문서 (원본은 FE 레포, 저장소에 올리지 않음) ###
 docs/course-collab-phases.md

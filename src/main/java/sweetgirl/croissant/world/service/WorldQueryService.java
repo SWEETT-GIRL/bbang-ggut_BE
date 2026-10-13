@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
+import sweetgirl.croissant.reward.service.RankingRewardService;
 import sweetgirl.croissant.world.code.WorldErrorCode;
 import sweetgirl.croissant.world.dto.response.MemberCharacterResponse;
 import sweetgirl.croissant.world.dto.response.MemberWorldResponse;
@@ -41,6 +42,7 @@ public class WorldQueryService {
 	private final BreadRecordRepository breadRecordRepository;
 	private final WorldCatalogService worldCatalogService;
 	private final WorldProgressCalculator worldProgressCalculator;
+	private final RankingRewardService rankingRewardService;
 
 	public MemberWorldResponse getMemberWorld(Long memberId) {
 		MemberWorld memberWorld = memberWorldRepository.findById(memberId)
@@ -52,6 +54,11 @@ public class WorldQueryService {
 
 		List<MemberPlanetArrival> arrivals = memberPlanetArrivalRepository.findAllByIdMemberId(memberId);
 		WorldProgress progress = worldProgressCalculator.calculate(
+			catalog.planets(),
+			reachedHeight,
+			arrivals.stream().map(MemberPlanetArrival::planetCode).toList());
+
+		WorldLevel level = worldProgressCalculator.level(
 			catalog.planets(),
 			reachedHeight,
 			arrivals.stream().map(MemberPlanetArrival::planetCode).toList());
@@ -69,13 +76,25 @@ public class WorldQueryService {
 			pendingRoulettePlanets(catalog, arrivals),
 			memberWakeTicketRepository.countByMemberIdAndUsedAtIsNull(memberId),
 			characters(catalog, memberId),
-			memberWorld.getWelcomedAt());
+			memberWorld.getWelcomedAt(),
+			level.level(),
+			level.levelUpAt(),
+			rankingRewardService.crownedMemberIds().contains(memberId));
 	}
 
 	/**
 	 * 닿았는데 아직 룰렛을 안 돌린 행성. 룰렛 인원이 0 인 행성(첫 친구를 마스코트로 주는 지구)은
 	 * 돌릴 것이 없으므로 빠진다.
 	 */
+	/**
+	 * 닿았는데 아직 룰렛을 안 돌린 행성들. 세계관을 시작하지 않은 회원은 비어 있다.
+	 * 홈의 할 일 카드가 읽는다 — 진행도를 다시 맞추지는 않고 남아 있는 도착 이력만 본다.
+	 */
+	public List<String> pendingRoulettePlanets(Long memberId) {
+		return pendingRoulettePlanets(
+			worldCatalogService.getCatalog(), memberPlanetArrivalRepository.findAllByIdMemberId(memberId));
+	}
+
 	private List<String> pendingRoulettePlanets(
 			WorldCatalogResponse catalog,
 			List<MemberPlanetArrival> arrivals) {

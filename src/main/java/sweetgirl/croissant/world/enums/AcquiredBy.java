@@ -14,7 +14,8 @@ public enum AcquiredBy {
 	ROULETTE("행성 도착 룰렛"),
 	AD("광고 시청"),
 	REFERRAL("친구 추천 지름길"),
-	ADMIN("어드민 지급");
+	ADMIN("어드민 지급"),
+	CRUMBS("부스러기로 깨움");
 
 	private final String description;
 }

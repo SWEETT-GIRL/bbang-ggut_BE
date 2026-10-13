@@ -24,6 +24,10 @@ public interface CourseProgressRepository extends JpaRepository<CourseProgress, 
 	@EntityGraph(attributePaths = "course")
 	List<CourseProgress> findAllByMemberIdAndStatus(Long memberId, CourseProgressStatus status);
 
+	/** 사진 완주를 아직 판정하지 않은 빵투어 — 리워드가 생긴 뒤에 다녀오기 시작한 것만. */
+	List<CourseProgress> findAllByMemberIdAndStatusAndFirstVisitedOnIsNotNullAndPhotoCompletedAtIsNull(
+			Long memberId, CourseProgressStatus status);
+
 	@EntityGraph(attributePaths = "course")
 	Optional<CourseProgress> findByMemberIdAndCourseId(Long memberId, Long courseId);
 

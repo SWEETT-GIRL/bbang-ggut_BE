@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
+import sweetgirl.croissant.reward.dto.response.SaveStoreResponse;
 import sweetgirl.croissant.store.code.SavedStoreErrorCode;
 import sweetgirl.croissant.store.dto.response.SavedStoreResponse;
 import sweetgirl.croissant.store.exception.SavedStoreException;
@@ -67,7 +68,7 @@ class SavedStoreControllerTest {
 
 	@Test
 	void saveStore_returns200() throws Exception {
-		willDoNothing().given(savedStoreCommandService).saveStore(isNull(), anyLong());
+		given(savedStoreCommandService.saveStore(isNull(), anyLong())).willReturn(new SaveStoreResponse(List.of()));
 
 		mockMvc.perform(post("/stores/10/save"))
 			.andExpect(status().isOk())

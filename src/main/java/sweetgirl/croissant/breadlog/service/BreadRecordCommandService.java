@@ -1,15 +1,21 @@
 package sweetgirl.croissant.breadlog.service;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +30,7 @@ import sweetgirl.croissant.breadlog.dto.request.BreadTagRatingRequest;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordCreateResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlInfo;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlResponse;
+import sweetgirl.croissant.breadlog.dto.response.BreadRecordUpdateResponse;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.entity.BreadRecordPhoto;
 import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
@@ -48,8 +55,14 @@ import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.menu.entity.Menu;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.menu.util.MenuNameNormalizer;
+import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
+import sweetgirl.croissant.reward.service.CrumbGrantService;
+import sweetgirl.croissant.reward.service.RecordRewardService;
+import sweetgirl.croissant.reward.service.TourRewardService;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.enums.TrendingSignal;
+import sweetgirl.croissant.store.event.StoreTrendingSignalEvent;
 import sweetgirl.croissant.store.exception.StoreException;
 import sweetgirl.croissant.store.repository.StoreRepository;
 import sweetgirl.croissant.world.repository.MemberWorldRepository;
@@ -74,6 +87,9 @@ public class BreadRecordCommandService {
 	private final ImageProcessingCallbackService imageProcessingCallbackService;
 	private final CourseProgressService courseProgressService;
 	private final MemberWorldRepository memberWorldRepository;
+	private final RecordRewardService recordRewardService;
+	private final TourRewardService tourRewardService;
+	private final ApplicationEventPublisher eventPublisher;
 
 	public BreadRecordPresignedUrlResponse generatePresignedUrls(
 			Long memberId,
@@ -86,9 +102,40 @@ public class BreadRecordCommandService {
 	}
 
 	public BreadRecordCreateResponse create(Long memberId, BreadRecordUpsertRequest request) {
+		return create(memberId, request, null);
+	}
+
+	/**
+	 * 빵투어에서 한 번 탭으로 만드는 가벼운 기록 — 가게만 있고 사진도 빵도 없다. 나중에 고쳐서 덧붙인다.
+	 *
+	 * <p>보통 기록과 두 가지가 다르다. 기록 보상의 멱등 키가 (빵투어, 가게)라서 지우고 다시 눌러도 한 번만 받고,
+	 * 급부상 신호를 내지 않는다 — 탭 한 번으로 가게 순위를 밀어 올릴 수 있으면 안 된다.
+	 */
+	public BreadRecordCreateResponse createTourQuickRecord(Long memberId, Long courseId, Store store, UUID requestId) {
+		BreadRecordUpsertRequest request = new BreadRecordUpsertRequest(
+			store.getId(), store.getName(), null, null, null, null, null, LocalDateTime.now(), List.of(), List.of(),
+			false, requestId);
+		return create(memberId, request, new TourStop(courseId, store.getId()));
+	}
+
+	private BreadRecordCreateResponse create(Long memberId, BreadRecordUpsertRequest request, TourStop tourStop) {
 		Member member = memberReader.getMember(memberId);
 		memberRestrictionReader.validateCanWrite(memberId);
+		if (request.requestId() != null) {
+			// 같은 요청이 나란히 들어와도 한쪽이 끝난 뒤에 찾도록 회원 행을 잠근다(삭제·로그인 이관과 같은 잠금).
+			memberRepository.findActiveForUpdate(memberId)
+				.orElseThrow(() -> new MemberException(MemberErrorCode.MEMBER_DELETED));
+			Optional<BreadRecord> alreadyCreated = breadRecordRepository.findByMemberIdAndClientRequestId(
+				memberId, request.requestId());
+			if (alreadyCreated.isPresent()) {
+				// 응답을 못 받아 다시 보낸 저장이다 — 처음 만든 기록을 그대로 돌려주고 보상은 다시 싣지 않는다
+				return new BreadRecordCreateResponse(
+					alreadyCreated.get().getId(), alreadyCreated.get().getCreatedAt(), List.of());
+			}
+		}
 		ValidatedRecordData data = validate(memberId, request);
+		int storedMaxHeight = memberWorldRepository.findMaxRecordCount(memberId).orElse(0);
+		long recordCountBefore = breadRecordRepository.countByMemberIdAndDeletedAtIsNull(memberId);
 		resolveOriginalPhotos(request.photos(), List.of());
 		BreadRecord record = breadRecordRepository.save(BreadRecord.builder()
 			.member(member)
@@ -100,18 +147,31 @@ public class BreadRecordCommandService {
 			.towerBread(request.towerBread())
 			.eatenAt(request.eatenAt())
 			.isPublic(Boolean.TRUE.equals(request.isPublic()))
+			.clientRequestId(request.requestId())
 			.build());
 		savePhotosAndTags(record, request, data.photoBySortOrder(), Map.of(), data.lovedBreads(), Map.of());
 		// 빵탑은 기록 수만큼 오른다. 최고 높이는 내려가지 않아서, 기록을 지워도 행성이 밀리지 않는다.
-		memberWorldRepository.raiseMaxRecordCount(
-			memberId, breadRecordRepository.countByMemberIdAndDeletedAtIsNull(memberId));
+		long recordCountAfter = breadRecordRepository.countByMemberIdAndDeletedAtIsNull(memberId);
+		memberWorldRepository.raiseMaxRecordCount(memberId, recordCountAfter);
+		int heightBefore = (int)Math.max(storedMaxHeight, recordCountBefore);
+		int heightAfter = (int)Math.max(storedMaxHeight, recordCountAfter);
+		List<RewardItemResponse> rewards = new ArrayList<>(tourStop == null
+			? recordRewardService.rewardCreated(member, record.getId(), request.photos().size(), heightBefore,
+				heightAfter)
+			: recordRewardService.rewardTourRecordCreated(member, record.getId(), tourStop.courseId(),
+				tourStop.storeId(), heightBefore, heightAfter));
 		// 찜은 사용자가 직접 풀 때까지 남긴다 — 기록이 생겨도 "또 가고 싶은 가게"일 수 있다.
 		// (기록 시 자동 해제는 정책 변경으로 제거)
-		courseProgressService.refreshForMember(memberId);
-		return new BreadRecordCreateResponse(record.getId(), record.getCreatedAt());
+		rewards.addAll(tourRewardsAfterRecordChange(member));
+		// 가게를 고른 기록만 급부상 신호다 — 가게 없이 이름만 적은 기록은 어느 가게인지 모른다
+		if (data.store() != null && tourStop == null) {
+			eventPublisher.publishEvent(
+				new StoreTrendingSignalEvent(memberId, data.store().getId(), TrendingSignal.RECORD));
+		}
+		return new BreadRecordCreateResponse(record.getId(), record.getCreatedAt(), rewards);
 	}
 
-	public void replace(Long recordId, Long memberId, BreadRecordUpsertRequest request) {
+	public BreadRecordUpdateResponse replace(Long recordId, Long memberId, BreadRecordUpsertRequest request) {
 		Member member = memberReader.getMember(memberId);
 		memberRestrictionReader.validateCanWrite(memberId);
 		BreadRecord record = getOwnedRecord(recordId, member.getId());
@@ -141,7 +201,25 @@ public class BreadRecordCommandService {
 		savePhotosAndTags(record, request, data.photoBySortOrder(), originalByRequestedKey, data.lovedBreads(),
 			previousRatingByName);
 		deleteRemovedImages(oldPhotos, request.photos());
-		courseProgressService.refreshForMember(memberId);
+		// 사진 없이 쓴 기록에 사진을 붙였으면 보너스를 준다(기록한 지 7 일 안, 기록당 한 번)
+		List<RewardItemResponse> rewards = new ArrayList<>(recordRewardService.rewardPhotosAttached(
+			member, recordId, record.getCreatedAt(), request.photos().size()));
+		// 이 사진으로 빵투어의 모든 가게에 사진이 채워졌을 수 있다
+		rewards.addAll(tourRewardsAfterRecordChange(member));
+		return new BreadRecordUpdateResponse(rewards);
+	}
+
+	/** 기록이 바뀐 뒤 빵투어의 완주·사진 완주를 다시 보고, 방금 채워진 것의 보상을 돌려준다. */
+	private List<RewardItemResponse> tourRewardsAfterRecordChange(Member member) {
+		LocalDate today = LocalDate.now(CrumbGrantService.ZONE);
+		List<RewardItemResponse> rewards = new ArrayList<>(tourRewardService.rewardCompletions(
+			member, courseProgressService.refreshForMember(member.getId()), today));
+		rewards.addAll(tourRewardService.rewardPhotoCompletions(member, today));
+		return rewards;
+	}
+
+	/** 가벼운 기록이 어느 빵투어의 어느 가게에서 만들어졌는가. */
+	private record TourStop(Long courseId, Long storeId) {
 	}
 
 	public void changeVisibility(Long recordId, Long memberId, boolean isPublic) {
@@ -240,6 +318,16 @@ public class BreadRecordCommandService {
 
 	private void validateTags(List<BreadRecordTagRequest> tags, Set<Integer> photoSortOrders) {
 		for (BreadRecordTagRequest tag : tags) {
+			if (tag.photoSortOrder() == null) {
+				// 사진에 안 붙은 빵 이름 — 좌표도 없어야 한다
+				if (tag.positionX() != null || tag.positionY() != null) {
+					throw new BreadLogException(BreadLogErrorCode.INVALID_TAG_POSITION);
+				}
+				continue;
+			}
+			if (tag.positionX() == null || tag.positionY() == null) {
+				throw new BreadLogException(BreadLogErrorCode.INVALID_TAG_POSITION);
+			}
 			if (!photoSortOrders.contains(tag.photoSortOrder())) {
 				throw new BreadLogException(BreadLogErrorCode.TAG_PHOTO_NOT_FOUND);
 			}
@@ -284,7 +372,7 @@ public class BreadRecordCommandService {
 		List<BreadRecordTag> tags = request.tags().stream()
 			.map(tag -> BreadRecordTag.builder()
 				.record(record)
-				.photo(photoBySortOrder.get(tag.photoSortOrder()))
+				.photo(tag.photoSortOrder() == null ? null : photoBySortOrder.get(tag.photoSortOrder()))
 				.menu(resolveMenu(tag, menuById, menuByName))
 				.suggestedMenu(resolveSuggestedMenu(tag, menuById))
 				.name(tag.name().strip())

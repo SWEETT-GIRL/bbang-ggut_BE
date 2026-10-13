@@ -19,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.store.dto.request.KakaoStoreRegisterRequest;
@@ -26,6 +27,7 @@ import sweetgirl.croissant.store.dto.request.NaverStoreRegisterRequest;
 import sweetgirl.croissant.store.dto.response.KakaoStoreRegisterResponse;
 import sweetgirl.croissant.store.dto.response.NaverStoreRegisterResponse;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.event.StoreSearchNameChangedEvent;
 import sweetgirl.croissant.store.repository.StoreRepository;
 import sweetgirl.croissant.store.repository.SubscribedStoreRepository;
 
@@ -40,6 +42,9 @@ class StoreCommandServiceTest {
 
 	@Mock
 	MemberReader memberReader;
+
+	@Mock
+	ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
 	StoreCommandService storeCommandService;
@@ -84,6 +89,24 @@ class StoreCommandServiceTest {
 			any(),
 			anyString(),
 			any());
+		// 기존 가게에 카카오 ID 만 붙였다 — 이름이 그대로라 자동완성 캐시를 건드리지 않는다
+		verify(eventPublisher, never()).publishEvent(any(StoreSearchNameChangedEvent.class));
+	}
+
+	@Test
+	@DisplayName("registerKakaoStore: 새 가게를 넣으면 그 이름으로 자동완성 캐시 무효화 이벤트를 낸다")
+	void registerKakaoStore_publishesNameWhenInserted() {
+		KakaoStoreRegisterRequest request = new KakaoStoreRegisterRequest(
+			"999", "폼포미베이커리", "서울 마포구 숭문4길 6", null, "", "126.9", "37.5");
+		Store inserted = mock(Store.class);
+		given(inserted.getId()).willReturn(900L);
+		given(storeRepository.findByKakaoPlaceId("999")).willReturn(Optional.empty(), Optional.of(inserted));
+		given(storeRepository.findActiveStoresByCompactName("폼포미베이커리")).willReturn(List.of());
+
+		KakaoStoreRegisterResponse result = storeCommandService.registerKakaoStore(request);
+
+		assertThat(result.storeId()).isEqualTo(900L);
+		verify(eventPublisher).publishEvent(StoreSearchNameChangedEvent.of("폼포미베이커리"));
 	}
 
 	@Test
@@ -123,6 +146,7 @@ class StoreCommandServiceTest {
 			any(),
 			eq(null),
 			any());
+		verify(eventPublisher).publishEvent(StoreSearchNameChangedEvent.of("소금집빵"));
 	}
 
 	@Test

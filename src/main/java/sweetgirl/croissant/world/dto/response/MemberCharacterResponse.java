@@ -12,7 +12,11 @@ public record MemberCharacterResponse(
 		CharacterStatus status,
 		int adViews,
 		int adsRequired,
-		AcquiredBy acquiredBy) {
+		AcquiredBy acquiredBy,
+		/** 회원이 붙인 이름. 없으면 null — 카탈로그의 기본 이름으로 부른다 */
+		String nickname,
+		/** 부스러기로 깨울 수 있는가. 광고를 한 편이라도 본 친구와 이미 깨어난 친구는 안 된다 */
+		boolean canWakeWithCrumbs) {
 
 	public static MemberCharacterResponse of(MemberCharacter memberCharacter, int adsRequired) {
 		return new MemberCharacterResponse(
@@ -20,6 +24,8 @@ public record MemberCharacterResponse(
 			memberCharacter.getStatus(),
 			memberCharacter.getAdViews(),
 			adsRequired,
-			memberCharacter.getAcquiredBy());
+			memberCharacter.getAcquiredBy(),
+			memberCharacter.getNickname(),
+			!memberCharacter.isAwake() && memberCharacter.getAdViews() == 0);
 	}
 }

@@ -122,7 +122,7 @@ public class StoreSearchSqlBuilder {
 		for (int i = 0; i < plan.nameTokens().size(); i++) {
 			String key = "name" + i;
 			params.addValue(key, plan.nameTokens().get(i));
-			nameParts.add(nameOrAliasContains(key));
+			nameParts.add(plan.namePrefixOnly() ? nameOrAliasStartsWith(key) : nameOrAliasContains(key));
 		}
 		if (plan.hasRegionTokens()) {
 			params.addValue("regionTokens", plan.regionTokens());
@@ -166,11 +166,37 @@ public class StoreSearchSqlBuilder {
 		return nameOrAliasContains("whole");
 	}
 
+	/**
+	 * 토큰 완화 폴백용 — 토큰마다 "이름/구명이 그 토큰으로 시작하는 가게" 수를 한 번에 센다. 한 토큰만 남긴 검색
+	 * ({@link StoreSearchPlan#namePrefixOnly()})과 같은 조건이어야 센 수가 실제 결과 수와 맞는다. 가장 구체적인 토큰을 고르는
+	 * 데만 쓰므로 cap 에서 세기를 멈춘다('베이커리' 같은 일반어의 수천 건을 끝까지 읽지 않는다).
+	 */
+	public SearchSqlQuery buildTokenCandidateCounts(List<String> tokens, int cap) {
+		MapSqlParameterSource params = new MapSqlParameterSource().addValue("cap", cap);
+		List<String> counts = new ArrayList<>();
+		for (int i = 0; i < tokens.size(); i++) {
+			String key = "name" + i;
+			params.addValue(key, tokens.get(i));
+			counts.add("SELECT " + i + " AS token_index, count(*) AS candidate_count FROM (SELECT u.id FROM (\n"
+				+ nameOrAliasStartsWith(key) + ") u LIMIT :cap) c");
+		}
+		return new SearchSqlQuery(String.join("\nUNION ALL\n", counts), params);
+	}
+
 	private String nameOrAliasContains(String paramKey) {
 		return "SELECT s.id FROM store s WHERE s.status = 'ACTIVE' AND s.name_normalized LIKE '%' || :" + paramKey
 			+ " || '%'\n"
 			+ "   UNION SELECT a.store_id AS id FROM store_name_alias a WHERE a.alias_normalized LIKE '%' || :"
 			+ paramKey + " || '%'";
+	}
+
+	// 이름/구명이 토큰으로 시작. 접두 패턴만 쓰면 bigm GIN 을 타는지 실측한 적이 없어, 색인을 타는 것이 확인된 부분일치 조건을
+	// 그대로 두고 접두 조건을 AND 로 덧붙인다(접두 일치는 부분일치의 부분집합이라 결과는 접두 조건만 쓴 것과 같다).
+	private String nameOrAliasStartsWith(String paramKey) {
+		return "SELECT s.id FROM store s WHERE s.status = 'ACTIVE' AND s.name_normalized LIKE '%' || :" + paramKey
+			+ " || '%' AND s.name_normalized LIKE :" + paramKey + " || '%'\n"
+			+ "   UNION SELECT a.store_id AS id FROM store_name_alias a WHERE a.alias_normalized LIKE '%' || :"
+			+ paramKey + " || '%' AND a.alias_normalized LIKE :" + paramKey + " || '%'";
 	}
 
 	// 지역 점수 = 매핑 weight × 40 과 "주소에 지역 토큰이 있음" 20 중 큰 것. 후보를 지역 매핑 ∪ 주소로 뽑았으니 판정도 같은 규칙이어야
@@ -263,25 +289,28 @@ public class StoreSearchSqlBuilder {
 		String sql = """
 				(SELECT s.name AS keyword, 'STORE' AS type, s.id AS store_id,
 					CASE WHEN s.name_normalized LIKE :q || '%' THEN 0 ELSE 1 END AS tier, s.popularity_score AS pop,
+					s.trending_baseline AS steady,
 					CAST(NULL AS double precision) AS center_lat, CAST(NULL AS double precision) AS center_lng,
 					CAST(NULL AS integer) AS radius_meters, CAST(NULL AS varchar) AS parent_name
 				FROM store s
 				WHERE s.status = 'ACTIVE' AND s.name_normalized LIKE '%' || :q || '%'
-				ORDER BY tier, pop DESC, s.id LIMIT :limit)
+				ORDER BY tier, steady DESC, pop DESC, s.id LIMIT :limit)
 				UNION ALL
 				(SELECT a.alias AS keyword, 'STORE' AS type, a.store_id,
 					CASE WHEN a.alias_normalized LIKE :q || '%' THEN 0 ELSE 1 END AS tier, s.popularity_score AS pop,
+					s.trending_baseline AS steady,
 					CAST(NULL AS double precision) AS center_lat, CAST(NULL AS double precision) AS center_lng,
 					CAST(NULL AS integer) AS radius_meters, CAST(NULL AS varchar) AS parent_name
 				FROM store_name_alias a JOIN store s ON s.id = a.store_id
 				WHERE s.status = 'ACTIVE' AND a.alias_normalized LIKE '%' || :q || '%'
-				ORDER BY tier, pop DESC, a.id LIMIT :limit)
+				ORDER BY tier, steady DESC, pop DESC, a.id LIMIT :limit)
 				UNION ALL
 				-- 지역 후보는 좌표·반경·부모 이름을 함께 준다.
 				-- 좌표·반경: 고르면 지도가 그 자리로 가고 반경만큼 당긴다 — 앱이 동네 이름으로 추측하지 않아도 된다.
 				-- 부모 이름: '중동'이 열세 곳이라 이것 없이는 어느 중동인지 고를 수가 없다.
 				(SELECT ra.alias AS keyword, 'REGION' AS type, CAST(NULL AS bigint) AS store_id,
 					CASE WHEN ra.normalized_alias LIKE :q || '%' THEN 0 ELSE 1 END AS tier, 0 AS pop,
+					CAST(0 AS double precision) AS steady,
 					r.center_lat, r.center_lng, r.radius_meters, parent.name AS parent_name
 				FROM search_region_alias ra
 				JOIN search_region r ON r.id = ra.region_id

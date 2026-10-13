@@ -1,12 +1,16 @@
 package sweetgirl.croissant.store.service.search;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.QueryTimeoutException;
@@ -24,10 +28,13 @@ import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.searchmiss.event.SearchMissEvent;
 import sweetgirl.croissant.store.code.StoreSearchErrorCode;
+import sweetgirl.croissant.store.config.StoreTrendingProperties;
 import sweetgirl.croissant.store.dto.response.StoreAutocompleteResponse;
 import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
 import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
 import sweetgirl.croissant.store.exception.StoreSearchException;
+import sweetgirl.croissant.store.service.trending.TrendingRankingReader;
+import sweetgirl.croissant.store.service.trending.TrendingStore;
 
 @Slf4j
 @Service
@@ -40,6 +47,7 @@ public class StoreSearchService {
 	private static final int DEFAULT_AUTOCOMPLETE_SIZE = 10;
 	private static final int MAX_AUTOCOMPLETE_SIZE = 20;
 	private static final String SEARCH_QUERY_METRIC = "search.query";
+	private static final String SEARCH_FALLBACK_METRIC = "search.fallback";
 	private static final String TYPE_SEARCH = "search";
 	private static final String TYPE_AUTOCOMPLETE = "autocomplete";
 	private static final int SEARCH_TRACE_TOP_HITS = 10;
@@ -52,9 +60,12 @@ public class StoreSearchService {
 	private final StoreSearchAssembler storeSearchAssembler;
 	private final MeterRegistry meterRegistry;
 	private final ApplicationEventPublisher eventPublisher;
+	private final TrendingRankingReader trendingRankingReader;
+	private final StoreTrendingProperties storeTrendingProperties;
 
 	private final Map<SearchOutcome, Counter> searchCounters = new EnumMap<>(SearchOutcome.class);
 	private final Map<SearchOutcome, Counter> autocompleteCounters = new EnumMap<>(SearchOutcome.class);
+	private final Map<SearchFallbackStage, Counter> fallbackCounters = new EnumMap<>(SearchFallbackStage.class);
 
 	// Counter는 최초 증가 전까지 /actuator/prometheus에 노출되지 않는다. 대시보드에서 "0건"과
 	// "계측이 안 됨"을 구분할 수 있도록 부팅 시 태그 조합을 미리 등록해 0부터 그려지게 한다.
@@ -67,6 +78,11 @@ public class StoreSearchService {
 		autocompleteCounter(SearchOutcome.HIT);
 		autocompleteCounter(SearchOutcome.EMPTY);
 		autocompleteCounter(SearchOutcome.TIMEOUT);
+		for (SearchFallbackStage stage : SearchFallbackStage.values()) {
+			if (stage != SearchFallbackStage.NONE) {
+				fallbackCounter(stage);
+			}
+		}
 	}
 
 	public SliceResponse<StoreSearchResponse> searchStores(String keyword, Double latitude, Double longitude,
@@ -79,14 +95,31 @@ public class StoreSearchService {
 		// 폴백: 1차가 0건일 때만 붙어쓴 토큰을 분해해 다시 검색한다
 		// ("초코소금빵"→빵 "소금빵", "한남에그타르트"→지역 "한남" + 빵 "에그타르트").
 		// 지역·빵 어느 쪽도 새로 분해되지 않으면 같은 쿼리가 되므로 재검색하지 않는다.
-		boolean fallbackApplied = false;
+		SearchFallbackStage fallbackStage = SearchFallbackStage.NONE;
+		String keptToken = "";
+		List<SearchIntent> relaxableIntents = new ArrayList<>(List.of(intent));
 		if (result.hits().isEmpty()) {
 			SearchIntent fallbackIntent = storeSearchQueryParser.parseWithGluedTokenFallback(keyword);
 			if (isDecomposed(fallbackIntent, intent)) {
 				result = runSearch(fallbackIntent, pageable, latitude, longitude, sort, keyword);
-				fallbackApplied = !result.hits().isEmpty();
+				relaxableIntents.add(fallbackIntent);
+				if (!result.hits().isEmpty()) {
+					fallbackStage = SearchFallbackStage.GLUED_TOKEN;
+				}
 			}
 		}
+		// 토큰 완화: 위 단계가 전부 0건일 때만 탄다. 여러 토큰이 전부 AND 라 "성수 어니언"(가게 "어니언 성수")이나
+		// "사과당 망원"(망원에 지점 없음)이 0건으로 끝나던 것을, 어순 무관 이름 매칭 → 가장 구체적인 토큰 하나 순으로 푼다.
+		if (result.hits().isEmpty()) {
+			Optional<StoreSearchRelaxedResult> relaxed = runRelaxedSearch(relaxableIntents, pageable, latitude,
+				longitude, sort, keyword);
+			if (relaxed.isPresent()) {
+				result = relaxed.get().result();
+				fallbackStage = relaxed.get().stage();
+				keptToken = relaxed.get().keptToken();
+			}
+		}
+		boolean fallbackApplied = fallbackStage != SearchFallbackStage.NONE;
 		// 2페이지 이후는 같은 검색의 연속이므로 세지 않는다. 무한스크롤이 검색 API를 페이지마다
 		// 호출하는데, 이걸 다 세면 "많이 스크롤한 검색어"가 "여러 사람이 찾은 검색어"보다 위로 올라와
 		// 실패 목록의 우선순위가 뒤집힌다. 실제로 "천안시 서북구"가 검색 5회 + 스크롤 6페이지로
@@ -94,8 +127,11 @@ public class StoreSearchService {
 		SearchOutcome outcome = resolveSearchOutcome(result, intent, fallbackApplied);
 		if (pageable.getPageNumber() == FIRST_PAGE) {
 			recordSearchOutcome(outcome, keyword);
+			if (fallbackApplied) {
+				fallbackCounter(fallbackStage).increment();
+			}
 		}
-		logSearchTrace(keyword, intent, result, outcome, fallbackApplied, pageable);
+		logSearchTrace(keyword, intent, result, outcome, fallbackStage, keptToken, pageable);
 		if (result.hits().isEmpty()) {
 			return new SliceResponse<>(List.of(), false);
 		}
@@ -108,8 +144,19 @@ public class StoreSearchService {
 	 */
 	private StoreSearchResult runSearch(SearchIntent intent, Pageable pageable, Double latitude, Double longitude,
 			SearchSort sort, String keyword) {
+		return withSearchTimeout(keyword,
+			() -> storeSearchEngine.searchStores(intent, pageable, latitude, longitude, sort));
+	}
+
+	private Optional<StoreSearchRelaxedResult> runRelaxedSearch(List<SearchIntent> intents, Pageable pageable,
+			Double latitude, Double longitude, SearchSort sort, String keyword) {
+		return withSearchTimeout(keyword,
+			() -> storeSearchEngine.searchStoresRelaxed(intents, pageable, latitude, longitude, sort));
+	}
+
+	private <T> T withSearchTimeout(String keyword, Supplier<T> search) {
 		try {
-			return storeSearchEngine.searchStores(intent, pageable, latitude, longitude, sort);
+			return search.get();
 		} catch (QueryTimeoutException exception) {
 			searchCounter(SearchOutcome.TIMEOUT).increment();
 			log.warn("[검색] 쿼리 타임아웃 keyword={}", keyword);
@@ -123,7 +170,8 @@ public class StoreSearchService {
 	 * key=value 로 grep·집계하기 쉽게 한 줄로 남긴다.
 	 */
 	private void logSearchTrace(String keyword, SearchIntent intent,
-			StoreSearchResult result, SearchOutcome outcome, boolean fallbackApplied, Pageable pageable) {
+			StoreSearchResult result, SearchOutcome outcome, SearchFallbackStage fallbackStage, String keptToken,
+			Pageable pageable) {
 		if (!log.isInfoEnabled()) {
 			return;
 		}
@@ -134,10 +182,11 @@ public class StoreSearchService {
 			.reduce((left, right) -> left + "," + right)
 			.orElse("");
 		log.info("[검색추적] type={} q=\"{}\" regionTokens={} nameTokens={} hits={} hasNext={} outcome={} "
-			+ "fallback={} page={} top={}",
+			+ "fallback={} stage={} kept=\"{}\" page={} top={}",
 			classifyIntent(intent), keyword, intent.regionTokens(),
 			nameTokens(intent), result.hits().size(), result.hasNext(), outcome.tagValue(),
-			fallbackApplied, pageable.getPageNumber(), topHits);
+			fallbackStage != SearchFallbackStage.NONE, fallbackStage.tagValue(), keptToken, pageable.getPageNumber(),
+			topHits);
 	}
 
 	// 검색어 유형 — 지역 사전에 잡힌 토큰과 그 외(가게명·빵 단어) 토큰의 유무로 나눈다.
@@ -198,7 +247,7 @@ public class StoreSearchService {
 		if (result.hits().isEmpty()) {
 			return SearchOutcome.EMPTY;
 		}
-		// 1차가 0건이라 검색어를 깎아서 얻은 결과다. 원문과 다르다는 것을 코드가 이미 알고 있다.
+		// 1차가 0건이라 검색어를 깎거나 풀어서 얻은 결과다. 원문과 다르다는 것을 코드가 이미 알고 있다.
 		if (fallbackApplied) {
 			return SearchOutcome.FALLBACK;
 		}
@@ -246,6 +295,13 @@ public class StoreSearchService {
 		return autocompleteCounters.computeIfAbsent(outcome, key -> outcomeCounter(TYPE_AUTOCOMPLETE, key));
 	}
 
+	private Counter fallbackCounter(SearchFallbackStage stage) {
+		return fallbackCounters.computeIfAbsent(stage, key -> Counter.builder(SEARCH_FALLBACK_METRIC)
+			.description("0건 뒤 폴백으로 결과를 낸 검색 수 — 어느 폴백 단계였는지로 분류")
+			.tag("stage", key.tagValue())
+			.register(meterRegistry));
+	}
+
 	private Counter outcomeCounter(String type, SearchOutcome outcome) {
 		return Counter.builder(SEARCH_QUERY_METRIC)
 			.description("검색 요청 수 — 사용자가 입력한 말이 결과에 실제로 있었는지로 분류")
@@ -276,26 +332,31 @@ public class StoreSearchService {
 		try {
 			suggestions = storeSearchEngine.autocompleteStores(query, fetchSize);
 		} catch (QueryTimeoutException exception) {
-			// 추천어는 없어도 되는 기능이다 — 500 대신 빈 목록으로 조용히 물러난다. 예외는 엔진에서 던지므로 @Cacheable 이 빈 결과를 캐시하지 않는다.
+			// 추천어는 없어도 되는 기능이다 — 500 대신 빈 목록으로 조용히 물러난다. 예외는 엔진에서 던지므로 Redis 캐시가 빈 결과를 담지 않는다.
 			autocompleteCounter(SearchOutcome.TIMEOUT).increment();
 			log.warn("[자동완성] 쿼리 타임아웃 keyword={}", query);
 			return List.of();
 		}
-		Map<String, StoreAutocompleteResponse> uniqueSuggestions = new LinkedHashMap<>();
+		Map<String, StoreAutocompleteSuggestion> uniqueSuggestions = new LinkedHashMap<>();
 		for (StoreAutocompleteSuggestion suggestion : suggestions) {
-			StoreAutocompleteResponse response = StoreAutocompleteResponse.from(suggestion);
-			if (!allowedTypes.contains(response.type())) {
+			if (!allowedTypes.contains(suggestion.type())) {
 				continue;
 			}
 			// 지역은 이름이 같아도 다른 곳이다 — "중동"만 열세 곳이라 부모까지 넣어야 따로 선다.
 			// 부모 없이 묶으면 사용자가 고를 수 있는 중동이 하나뿐이게 된다.
-			String key = response.type() + ":" + response.keyword()
-				+ (response.parentName() != null ? ":" + response.parentName() : "");
-			uniqueSuggestions.putIfAbsent(key, response);
+			String key = suggestion.type() + ":" + suggestion.keyword()
+				+ (suggestion.parentName() != null ? ":" + suggestion.parentName() : "");
+			uniqueSuggestions.putIfAbsent(key, suggestion);
 		}
-		List<StoreAutocompleteResponse> responses = uniqueSuggestions.values().stream()
-			.sorted((left, right) -> Integer.compare(autocompletePriority(left), autocompletePriority(right)))
+		List<StoreAutocompleteSuggestion> ordered = new ArrayList<>(uniqueSuggestions.values());
+		ordered.sort((left, right) -> Integer.compare(autocompletePriority(left.type()),
+			autocompletePriority(right.type())));
+		if (allowedTypes.contains(AutocompleteSuggestionType.STORE)) {
+			promoteTrendingOrSteady(SearchTextNormalizer.normalize(query), ordered);
+		}
+		List<StoreAutocompleteResponse> responses = ordered.stream()
 			.limit(normalizedSize)
+			.map(StoreAutocompleteResponse::from)
 			.toList();
 		autocompleteCounter(responses.isEmpty() ? SearchOutcome.EMPTY : SearchOutcome.HIT).increment();
 		if (responses.isEmpty()) {
@@ -311,8 +372,38 @@ public class StoreSearchService {
 		return Math.min(size, MAX_AUTOCOMPLETE_SIZE);
 	}
 
-	private int autocompletePriority(StoreAutocompleteResponse response) {
-		return switch (response.type()) {
+	/**
+	 * 디저트는 유행이 빨라 '한'을 치면 지금 뜨는 가게가 지역보다 먼저 보여야 한다. 검색어로 시작하는 급부상 가게가 있으면 그 가게들을, 없으면
+	 * 요즘 꾸준히 찾는 가게(평소 수준 1위) 하나를 맨 앞에 둔다. 나머지 순서는 그대로다.
+	 */
+	private void promoteTrendingOrSteady(String normalizedQuery, List<StoreAutocompleteSuggestion> ordered) {
+		if (!storeTrendingProperties.isEnabled()) {
+			return;
+		}
+		List<TrendingStore> trending = trendingRankingReader.findStartingWith(normalizedQuery,
+			storeTrendingProperties.getMaxPromoted());
+		if (!trending.isEmpty()) {
+			Set<Long> promotedIds = trending.stream().map(TrendingStore::storeId).collect(Collectors.toSet());
+			// 목록에 이미 있으면(가게명·별칭 행) 빼고 맨 앞에 한 번만 둔다. 목록에 없던 가게도 끼워 넣는다 — 캐시가 옛 목록이어도 뜬다
+			ordered.removeIf(suggestion -> suggestion.type() == AutocompleteSuggestionType.STORE
+				&& promotedIds.contains(suggestion.storeId()));
+			ordered.addAll(0, trending.stream()
+				.map(store -> new StoreAutocompleteSuggestion(store.name(), AutocompleteSuggestionType.STORE,
+					store.storeId()))
+				.toList());
+			return;
+		}
+		for (int index = 0; index < ordered.size(); index++) {
+			if (ordered.get(index).isSteadyCandidate(storeTrendingProperties.getSteadyMinBaseline())) {
+				// 엔진이 가게를 평소 수준 순으로 세워 두므로 처음 만나는 접두 일치 가게가 스테디 1위다
+				ordered.add(0, ordered.remove(index));
+				return;
+			}
+		}
+	}
+
+	private int autocompletePriority(AutocompleteSuggestionType type) {
+		return switch (type) {
 			case REGION -> 0;
 			case BREAD_TYPE -> 1;
 			case MENU -> 2;

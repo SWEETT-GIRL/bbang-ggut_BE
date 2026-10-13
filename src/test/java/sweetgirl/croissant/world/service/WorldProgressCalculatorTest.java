@@ -37,6 +37,65 @@ class WorldProgressCalculatorTest {
 		return new WorldStageResponse(code, code, stageOrder, offset, null);
 	}
 
+	/** 리워드 2.0 — 지구의 하늘 3 → 1, 우주 7 → 5 만 앞당긴 값. 레벨이 바뀌는 기록 수는 아래 15 개다. */
+	private static final List<WorldPlanetResponse> REWARD = List.of(
+		planet("earth", 1, 10, null, List.of(stage("village", 1, 0), stage("sky", 2, 1), stage("space", 3, 5))),
+		SOLAR.get(1), SOLAR.get(2), SOLAR.get(3), SOLAR.get(4));
+
+	private static final int[] LEVEL_AT = {0, 1, 5, 10, 20, 30, 40, 53, 67, 80, 100, 120, 140, 160, 180};
+
+	@Nested
+	@DisplayName("레벨")
+	class Level {
+
+		@Test
+		@DisplayName("레벨이 오르는 기록 수는 0 · 1 · 5 · 10 · 20 · 30 · 40 · 53 · 67 · 80 · 100 · 120 · 140 · 160 · 180 이다")
+		void followsTheFifteenThresholds() {
+			for (int index = 0; index < LEVEL_AT.length; index++) {
+				int expectedLevel = index + 1;
+				assertThat(calculator.level(REWARD, LEVEL_AT[index], List.of()).level())
+					.as("기록 %d개", LEVEL_AT[index]).isEqualTo(expectedLevel);
+				if (LEVEL_AT[index] > 0) {
+					assertThat(calculator.level(REWARD, LEVEL_AT[index] - 1, List.of()).level())
+						.as("기록 %d개", LEVEL_AT[index] - 1).isEqualTo(expectedLevel - 1);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("기록 1 개면 Lv.2 지구 하늘, 5 개면 Lv.3, 10 개면 Lv.4 화성 마을이다")
+		void earlyLevels() {
+			assertThat(calculator.level(REWARD, 1, List.of())).isEqualTo(new WorldLevel(2, 5, "earth", "sky"));
+			assertThat(calculator.level(REWARD, 5, List.of())).isEqualTo(new WorldLevel(3, 10, "earth", "space"));
+			assertThat(calculator.level(REWARD, 10, List.of())).isEqualTo(new WorldLevel(4, 20, "mars", "village"));
+		}
+
+		@Test
+		@DisplayName("마지막 레벨이면 다음 레벨이 없다")
+		void lastLevel() {
+			assertThat(calculator.level(REWARD, 500, List.of()))
+				.isEqualTo(new WorldLevel(15, null, "neptune", "space"));
+		}
+
+		@Test
+		@DisplayName("도착 이력이 기록 수보다 멀리 가 있으면 그 행성의 첫 단계 레벨이다 — 레벨은 내려가지 않는다")
+		void arrivalHistoryWins() {
+			assertThat(calculator.level(REWARD, 3, List.of("earth", "mars")))
+				.isEqualTo(new WorldLevel(4, 20, "mars", "village"));
+		}
+
+		@Test
+		@DisplayName("단계를 안 둔 행성은 한 레벨로 센다")
+		void planetWithoutStages() {
+			List<WorldPlanetResponse> planets = List.of(
+				planet("earth", 1, 10, null, List.of()),
+				planet("mars", 2, 30, "earth", List.of(stage("village", 1, 0), stage("sky", 2, 10))));
+
+			assertThat(calculator.level(planets, 0, List.of())).isEqualTo(new WorldLevel(1, 10, "earth", null));
+			assertThat(calculator.level(planets, 20, List.of())).isEqualTo(new WorldLevel(3, null, "mars", "sky"));
+		}
+	}
+
 	@Nested
 	@DisplayName("행성 판정")
 	class PlanetBoundary {

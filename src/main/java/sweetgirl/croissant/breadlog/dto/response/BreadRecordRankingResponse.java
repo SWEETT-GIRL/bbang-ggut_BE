@@ -35,7 +35,14 @@ public record BreadRecordRankingResponse(
 			long score,
 			boolean isMe,
 			Integer rankChange,
-			Boolean isNew) {
+			Boolean isNew,
+			/** 지난주 전국 주간 1 위라 왕관을 쓰고 있는가 */
+			boolean crowned) {
+
+		public Entry(long rank, String nickname, String character, long score, boolean isMe, Integer rankChange,
+				Boolean isNew) {
+			this(rank, nickname, character, score, isMe, rankChange, isNew, false);
+		}
 	}
 
 	/**

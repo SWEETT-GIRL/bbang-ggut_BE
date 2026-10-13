@@ -11,6 +11,8 @@ import java.util.List;
  * @param recordCount      지금 살아 있는 기록 수(지운 것 제외) — 화면에 보여주는 숫자
  * @param maxRecordCount   가장 높이 쌓았던 높이 — 진행도 판정은 이 값으로 한다
  * @param pendingRoulettePlanets 닿았는데 아직 룰렛을 안 돌린 행성
+ * @param level            레벨(1 부터). 행성 순서 × 고도 단계 순서다
+ * @param levelUpAt        다음 레벨이 되는 기록 수. 마지막 레벨이면 null
  * @param welcomedAt       첫 친구 연출을 본 시각. null 이면 아직 못 봤다 — 첫 조회가 마스코트를 쥐여
  *                         주므로 characters 로는 처음 온 회원인지 가릴 수 없다
  */
@@ -27,5 +29,9 @@ public record MemberWorldResponse(
 		List<String> pendingRoulettePlanets,
 		int wakeTickets,
 		List<MemberCharacterResponse> characters,
-		LocalDateTime welcomedAt) {
+		LocalDateTime welcomedAt,
+		int level,
+		Integer levelUpAt,
+		/** 지난주 전국 주간 랭킹 1 위라 왕관을 쓰고 있는가 */
+		boolean crowned) {
 }

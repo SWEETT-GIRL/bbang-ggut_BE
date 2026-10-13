@@ -3,6 +3,7 @@ package sweetgirl.croissant.breadlog.entity;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import org.hibernate.annotations.BatchSize;
 
@@ -104,6 +105,10 @@ public class BreadRecord extends BaseTimeEntity {
 	@Column(nullable = false)
 	private boolean isPublic;
 
+	/** 앱이 저장 요청에 붙인 번호. 같은 번호가 다시 오면 새로 만들지 않는다. 옛 앱의 기록은 비어 있다. */
+	@Column(name = "client_request_id", updatable = false)
+	private UUID clientRequestId;
+
 	@Builder
 	public BreadRecord(
 			Member member,
@@ -114,8 +119,10 @@ public class BreadRecord extends BaseTimeEntity {
 			List<String> lovedBreads,
 			String towerBread,
 			LocalDateTime eatenAt,
-			boolean isPublic) {
+			boolean isPublic,
+			UUID clientRequestId) {
 		this.member = member;
+		this.clientRequestId = clientRequestId;
 		this.store = store;
 		this.storeName = storeName;
 		this.regionKey = regionKey;

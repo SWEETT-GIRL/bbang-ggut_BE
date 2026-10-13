@@ -25,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.course.dto.request.CourseCreateRequest;
 import sweetgirl.croissant.course.dto.request.CourseImageRegisterRequest;
 import sweetgirl.croissant.course.dto.request.CourseMemberNameRequest;
+import sweetgirl.croissant.course.dto.request.CourseQuickVisitRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreAddRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreReorderRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreUpdateRequest;
@@ -48,6 +49,7 @@ import sweetgirl.croissant.course.service.CourseStoreVisitService;
 import sweetgirl.croissant.course.service.SavedCourseCommandService;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.global.response.ApiResponse;
+import sweetgirl.croissant.reward.dto.response.TourRewardResponse;
 
 @Tag(name = "Course", description = "코스 API")
 @RestController
@@ -215,13 +217,25 @@ public class CourseController {
 
 	@Operation(summary = "코스 가게 다녀왔어요 표시", description = "빵로그 기록 하나를 골라 이 코스의 방문으로 잇는다.")
 	@PostMapping("/{courseId}/stores/{storeId}/visit")
-	public ResponseEntity<ApiResponse<Void>> markVisited(
+	public ResponseEntity<ApiResponse<TourRewardResponse>> markVisited(
 			@AuthenticationPrincipal Long memberId,
 			@PathVariable Long courseId,
 			@PathVariable Long storeId,
 			@Valid @RequestBody CourseStoreVisitRequest request) {
-		courseStoreVisitService.markVisited(memberId, courseId, storeId, request.getBreadRecordId());
-		return ResponseEntity.ok(ApiResponse.ok(null));
+		return ResponseEntity.ok(ApiResponse.ok(
+			courseStoreVisitService.markVisited(memberId, courseId, storeId, request.getBreadRecordId())));
+	}
+
+	@Operation(summary = "코스 가게 한 번 탭으로 다녀왔어요", description = "가게만 있는 가벼운 빵로그 기록을 만들고 이 코스의 방문으로 잇는다. "
+		+ "이미 표시한 가게면 기록을 또 만들지 않는다. 기록에는 나중에 빵과 사진을 덧붙일 수 있다.")
+	@PostMapping("/{courseId}/stores/{storeId}/visit-quick")
+	public ResponseEntity<ApiResponse<TourRewardResponse>> markVisitedQuick(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable Long courseId,
+			@PathVariable Long storeId,
+			@RequestBody(required = false) CourseQuickVisitRequest request) {
+		return ResponseEntity.ok(ApiResponse.ok(courseStoreVisitService.markVisitedQuick(
+			memberId, courseId, storeId, request == null ? null : request.requestId())));
 	}
 
 	@Operation(summary = "코스 가게 다녀왔어요 해제")

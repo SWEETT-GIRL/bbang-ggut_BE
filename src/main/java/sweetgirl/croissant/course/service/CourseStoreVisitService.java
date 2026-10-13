@@ -1,19 +1,25 @@
 package sweetgirl.croissant.course.service;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.breadlog.dto.response.BreadRecordCreateResponse;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
+import sweetgirl.croissant.breadlog.service.BreadRecordCommandService;
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.response.CourseVisitCandidateResponse;
 import sweetgirl.croissant.course.entity.Course;
+import sweetgirl.croissant.course.entity.CourseProgress;
 import sweetgirl.croissant.course.entity.CourseStoreVisit;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseRepository;
@@ -21,6 +27,10 @@ import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
+import sweetgirl.croissant.reward.dto.response.TourRewardResponse;
+import sweetgirl.croissant.reward.service.CrumbGrantService;
+import sweetgirl.croissant.reward.service.TourRewardService;
 import sweetgirl.croissant.store.entity.Store;
 
 /**
@@ -41,21 +51,72 @@ public class CourseStoreVisitService {
 	private final MemberReader memberReader;
 	private final CourseProgressService courseProgressService;
 	private final CourseAccessPolicy courseAccessPolicy;
+	private final BreadRecordCommandService breadRecordCommandService;
+	private final TourRewardService tourRewardService;
 
-	public void markVisited(Long memberId, Long courseId, Long storeId, Long breadRecordId) {
+	/** 이미 쓴 기록을 골라 다녀왔다고 표시한다. 기록 보상은 그 기록을 쓸 때 받았으므로 여기서는 다녀옴·완주만 본다. */
+	public TourRewardResponse markVisited(Long memberId, Long courseId, Long storeId, Long breadRecordId) {
 		Member member = memberReader.getMember(memberId);
 		Course course = getViewableCourse(courseId, memberId);
 		Store store = getCourseStore(courseId, storeId);
 		BreadRecord record = getOwnedRecordOfStore(breadRecordId, memberId, storeId);
 
-		courseStoreVisitRepository.findByIdCourseIdAndIdMemberIdAndIdStoreId(courseId, memberId, storeId)
+		link(member, course, store, record);
+		return new TourRewardResponse(record.getId(), rewardVisit(member, course, storeId));
+	}
+
+	/**
+	 * 한 번 탭으로 다녀왔다고 표시한다 — 가게만 있는 가벼운 기록을 만들어 잇는다.
+	 * 이미 표시해 둔 가게면 기록을 또 만들지 않고 지금 상태를 돌려준다(두 번 눌러도 기록은 하나다).
+	 */
+	public TourRewardResponse markVisitedQuick(Long memberId, Long courseId, Long storeId, UUID requestId) {
+		Member member = memberReader.getMember(memberId);
+		Course course = getViewableCourse(courseId, memberId);
+		Store store = getCourseStore(courseId, storeId);
+
+		Optional<CourseStoreVisit> alreadyVisited = courseStoreVisitRepository
+			.findByIdCourseIdAndIdMemberIdAndIdStoreId(courseId, memberId, storeId)
+			.filter(visit -> !visit.isDeleted());
+		if (alreadyVisited.isPresent()) {
+			BreadRecord linked = alreadyVisited.get().getBreadRecord();
+			return new TourRewardResponse(linked == null ? null : linked.getId(), List.of());
+		}
+
+		BreadRecordCreateResponse created = breadRecordCommandService.createTourQuickRecord(
+			memberId, courseId, store, requestId);
+		BreadRecord record = breadRecordRepository.findByIdAndDeletedAtIsNull(created.recordId())
+			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_VISIT_RECORD_MISMATCH));
+		link(member, course, store, record);
+
+		List<RewardItemResponse> rewards = new ArrayList<>(created.rewards());
+		rewards.addAll(rewardVisit(member, course, storeId));
+		return new TourRewardResponse(record.getId(), rewards);
+	}
+
+	private void link(Member member, Course course, Store store, BreadRecord record) {
+		courseStoreVisitRepository
+			.findByIdCourseIdAndIdMemberIdAndIdStoreId(course.getId(), member.getId(), store.getId())
 			.ifPresentOrElse(
 				// 다른 기록으로 바꾸거나, 껐던 체크를 다시 켜는 경우 모두 여기로 온다.
 				visit -> visit.relink(record, record.getEatenAt()),
 				() -> courseStoreVisitRepository.save(
 					CourseStoreVisit.of(course, member, store, record, record.getEatenAt())));
+		courseStoreVisitRepository.flush();
+	}
 
-		courseProgressService.refreshForMember(memberId);
+	/**
+	 * 방문을 표시한 뒤의 보상 — 다녀옴, 그리고 이 표시로 채워진 완주·사진 완주.
+	 * "시작하기"를 누르지 않은 회원도 여기서 진행이 시작된다(그래야 완주가 따라온다).
+	 */
+	private List<RewardItemResponse> rewardVisit(Member member, Course course, Long storeId) {
+		LocalDate today = LocalDate.now(CrumbGrantService.ZONE);
+		CourseProgress progress = courseProgressService.ensureStartedForVisit(member, course, today);
+		List<RewardItemResponse> rewards = new ArrayList<>(
+			tourRewardService.rewardVisit(member, course, storeId, progress, today));
+		rewards.addAll(tourRewardService.rewardCompletions(
+			member, courseProgressService.refreshForMember(member.getId()), today));
+		rewards.addAll(tourRewardService.rewardPhotoCompletions(member, today));
+		return rewards;
 	}
 
 	public void unmarkVisited(Long memberId, Long courseId, Long storeId) {

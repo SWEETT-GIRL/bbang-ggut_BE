@@ -51,6 +51,7 @@ except ImportError:
 	print("playwright 패키지가 필요합니다: pip install playwright && python -m playwright install chromium")
 	sys.exit(1)
 
+import admin_auth
 from naver_match import (
 	classify_menu_texts,
 	extract_best_district,
@@ -66,6 +67,9 @@ from naver_match import (
 	strip_generic_branch_suffix,
 )
 
+
+# 서버의 어드민 API 는 열쇠(ADMIN_API_KEY 환경변수)를 요구한다 — 이 모듈을 가져다 쓰는 스크립트도 함께 적용된다
+admin_auth.install()
 
 # ─── 설정 ─────────────────────────────────────────────────────────────────────
 

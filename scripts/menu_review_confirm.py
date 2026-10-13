@@ -33,6 +33,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import admin_auth
 import localdb
 
 DEFAULT_CSV = Path(__file__).resolve().parent / "menu_review_confirm.csv"
@@ -123,9 +124,10 @@ def export(limit: int, out: Path) -> None:
 
 def post_confirm(server: str, name: str, kind: str, bakery_item: bool) -> tuple[bool, str]:
 	body = json.dumps({"name": name, "kind": kind, "bakeryItem": bakery_item}).encode()
+	url = f"{server}/api/admin/menu-classifications"
 	request = urllib.request.Request(
-		f"{server}/api/admin/menu-classifications", data=body,
-		headers={"Content-Type": "application/json"}, method="POST")
+		url, data=body,
+		headers={"Content-Type": "application/json", **admin_auth.headers_for(url)}, method="POST")
 	try:
 		with urllib.request.urlopen(request, timeout=30) as response:
 			payload = json.loads(response.read())

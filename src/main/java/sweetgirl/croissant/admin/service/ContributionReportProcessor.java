@@ -12,6 +12,7 @@ import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.PrecisionModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -41,6 +42,7 @@ import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.enums.StoreReportType;
 import sweetgirl.croissant.store.enums.StoreSource;
+import sweetgirl.croissant.store.event.StoreSearchNameChangedEvent;
 import sweetgirl.croissant.store.repository.StoreBusinessHourRepository;
 import sweetgirl.croissant.store.repository.StoreImageFileRepository;
 import sweetgirl.croissant.store.repository.StoreRepository;
@@ -64,6 +66,7 @@ public class ContributionReportProcessor {
 	private final S3Service s3Service;
 	private final ObjectMapper objectMapper;
 	private final ImageProcessingCallbackService imageProcessingCallbackService;
+	private final ApplicationEventPublisher eventPublisher;
 
 	// 메뉴 추가 승인 — 새 Menu 생성 + 첨부 이미지를 menus/{menuId}로 S3 이동 후 menu_image_file 등록
 	public void applyMenuAddReportApprove(MenuContributionReport report) {
@@ -179,6 +182,7 @@ public class ContributionReportProcessor {
 			.source(StoreSource.ADMIN_REGISTERED)
 			.build();
 		Store saved = storeRepository.save(store);
+		eventPublisher.publishEvent(StoreSearchNameChangedEvent.of(saved.getName()));
 		return saved;
 	}
 

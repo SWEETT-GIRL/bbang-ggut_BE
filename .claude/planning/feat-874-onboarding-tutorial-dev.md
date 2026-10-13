@@ -2,7 +2,8 @@
 
 작성·갱신: 2026-10-08 · 상태: 구현 및 로컬 자동 검증 완료, PR 검토·개발 서버 통합 QA 대기
 
-- BE: #874 / `feat/874-onboarding-tutorial-record` / origin/main 기반 별도 worktree
+- BE: #874 / `feat/874-onboarding-tutorial-dev` / origin/dev 기반 별도 worktree
+- main에 잘못 머지된 #875는 복구 PR #876으로 되돌린다. 기존 기능 커밋 10개만 dev에 cherry-pick했으며 main 자체를 dev에 병합하지 않는다.
 - FE: SWEETT-GIRL/daedongbbangmap#140 / `feat/140-onboarding-tutorial`
 - Admin: SWEETT-GIRL/bbang-ggut_admin_web#21 / `feat/21-tutorial-template-admin`
 - 기존 백엔드 작업 브랜치와 프론트의 무관한 변경은 포함하지 않는다.
@@ -132,28 +133,17 @@
 
 ### 자동 검증 범위
 
-BE 전체 테스트 2,191개 중 실패 0·오류 0·스킵 1. PostgreSQL 테스트는 일반 실행에서 제외되는 lab 태그로, localhost:5432 테스트 DB의 UUID 스키마에만 데이터를 만들고 정리한다. 공개/가게 연결 금지, 활성 기록 중복, 삭제된 완료 이력의 병합, 월간 보고서 제외, 새 템플릿 카탈로그 migration을 검증한다. 이 검증을 실제 OAuth 또는 앱 전체 통합 테스트로 표현하지 않는다.
+dev 기준 BE 전체 테스트 2,270개 중 실패 0·오류 0·스킵 1. dev 전용 응답 계약 테스트에도 recordType=NORMAL 검증을 추가했다. PostgreSQL 테스트는 일반 실행에서 제외되는 lab 태그로, localhost:5432 테스트 DB의 UUID 스키마에만 데이터를 만들고 정리한다. 공개/가게 연결 금지, 활성 기록 중복, 삭제된 완료 이력의 병합, 월간 보고서 제외, 새 템플릿 카탈로그 migration을 검증한다. 이 검증을 실제 OAuth 또는 앱 전체 통합 테스트로 표현하지 않는다.
 
 관리 API WebMvcTest의 관리자 키·입력·409 충돌, 키 미설정 로컬 503, 템플릿 repository 잠금/발행 유지 테스트를 포함한다. 어드민은 프로덕션 빌드 및 모델/API 5개 테스트를 통과했고 앱은 TypeScript·변경 파일 ESLint·iOS export·기존 사진 회귀 6개 테스트를 통과했다. 브라우저에서 로컬 어드민의 세계관→홈 튜토리얼 연결 화면을 확인했다. 실제 S3 업로드·CDN 노출·발행→앱 저장 통합 QA는 배포 후 남아 있다.
 
 ### 배포·롤백
 
-1. BE main 기반 PR과 FE PR을 함께 검토한다. 서버·DB 배포와 앱 배포는 PR 생성과 별개다.
+1. BE dev 대상 기능 PR과 FE PR을 함께 검토한다. main 복구 PR #876은 예외적인 운영 브랜치 복구용이며 자동으로 머지하지 않는다. 서버·DB 배포와 앱 배포는 PR 생성과 별개다.
 2. 서버 migration/API가 준비된 개발 환경에서 먼저 켠다. cd-staging에 tutorial.enabled=true를 추가하되 실제 배포는 아직 하지 않았다.
 3. 현재 개발 서버가 계약을 지원하지 않으면 초대는 숨긴다. 일반 생성 API로 우회하거나 가짜 성공을 표시하지 않는다.
 4. 운영 flag는 기본 false로 유지한다. 스키마·S3/CDN·앱 호환 및 QA 후 활성화한다. S3 PUT CORS에 어드민 origin, Content-Type, If-None-Match가 허용돼 있어야 한다.
 5. 되돌릴 때 신규 생성 flag만 끄고 저장된 기록·완료 이력은 보존한다.
-6. main과 dev는 분기 이력이 다르다. main 기반 결과물을 공유 dev에 덮어씌우지 않고 개발 배포 시 dev 기준 통합을 별도 확인한다.
+6. main과 dev는 분기 이력이 다르다. dev의 기존 급부상 신호 발행과 staging 설정을 유지한 채 기능 커밋만 이관한다. 앞으로 기능 PR의 base는 dev로 확인한다.
 
 현재 로컬 앱 설정은 개발 API(bbang-ggut.site)다. .env.local은 PR에 포함하지 않는다. 운영 DB 변경·서버 배포·푸시 발송은 이 검증에서 수행하지 않았다.
-
-### 2026-10-08 운영 반영 PR 준비 (위 초기 배포 계획보다 우선)
-
-- #875의 잘못된 main 반영은 #876으로 복구했고, 기능은 #877을 통해 dev에 머지했다.
-- 이제 사용자 요청에 따라 최신 main에서 `feat/874-onboarding-tutorial-main`을 만들고 #877의 기능 커밋 10개만 다시 적용한다. 검색 등 다른 dev 변경은 포함하지 않는다.
-- FE #141의 최신 알림 흐름은 보상 달력 바깥 터치 → 일반 홈 복귀 → 요청 가능한 상태에서 OS 권한 직접 요청이다. 사전 꿀팁 제안 시트·내일 발송 약속은 제거했으며 서버 예약 발송은 여전히 범위 밖이다.
-- main 머지는 기존 운영 CD를 실행한다. PR 생성만으로는 머지·배포·운영 데이터 변경을 하지 않는다.
-- 운영 CD에 `tutorial.enabled` 설정을 추가한다. GitHub Actions 변수 `PROD_TUTORIAL_ENABLED`가 없으면 false다.
-- 2026-10-08 갱신: 기본값을 true로 바꿨다. 변수가 없으면 켜지고, 운영 어드민에 발행된 템플릿이 있을 때만 노출된다. 끄려면 변수를 false로 두고 CD를 다시 실행한다.
-- 운영 배포 후 운영 어드민에서 사진 업로드·템플릿 발행, CDN 접근과 앱 호환을 확인한 뒤 변수를 true로 설정하고 운영 CD를 재실행해야 노출된다. dev의 사진·DB 발행본은 자동으로 운영에 복사되지 않는다.
-- 노출 중단은 운영 어드민에서 활성 템플릿 중단 또는 변수를 false로 바꾸고 CD 재실행으로 처리한다. 기존 빵로그·완료 이력과 migration은 삭제하지 않는다.
