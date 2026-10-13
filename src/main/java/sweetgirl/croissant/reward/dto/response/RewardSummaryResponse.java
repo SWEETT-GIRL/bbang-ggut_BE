@@ -21,12 +21,14 @@ public record RewardSummaryResponse(
 		Feed feed,
 		Letter letter,
 		Ad ad,
-		RankingReward rankingReward) {
+		RankingReward rankingReward,
+		/** 홈의 할 일 카드. 지금 할 만한 것이 없거나 게스트면 null */
+		HomeCardResponse homeCard) {
 
 	/** 게스트는 보상이 없다. 홈이 매번 부르는 조회라 403 대신 빈 요약으로 답한다. */
 	public static RewardSummaryResponse guest(RewardRulesResponse rules, Attendance attendance, Feed feed) {
 		return new RewardSummaryResponse(0, 0, rules, null, new Welcome(false), List.of(), attendance, feed,
-			new Letter(0, null), new Ad(0), null);
+			new Letter(0, null), new Ad(0), null, null);
 	}
 
 	/**

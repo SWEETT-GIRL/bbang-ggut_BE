@@ -27,6 +27,7 @@ import org.springframework.data.domain.PageRequest;
 
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.reward.dto.response.HomeCardResponse;
 import sweetgirl.croissant.reward.dto.response.RankingRewardResponse;
 import sweetgirl.croissant.reward.dto.response.RewardHistoryResponse;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse;
@@ -71,6 +72,8 @@ class RewardQueryServiceTest {
 	private EarnRewardService earnRewardService;
 	@Mock
 	private RankingRewardService rankingRewardService;
+	@Mock
+	private HomeCardService homeCardService;
 
 	@InjectMocks
 	private RewardQueryService rewardQueryService;
@@ -175,6 +178,19 @@ class RewardQueryServiceTest {
 		}
 
 		@Test
+		@DisplayName("이미 읽은 편지 · 밥 상태를 넘겨 할 일 카드를 고르고, 고른 카드를 싣는다")
+		void homeCard() {
+			given(bbangdaengLetterService.summaryOf(MEMBER_ID)).willReturn(new Letter(1, 31L));
+			given(feedDayRepository.findByMemberIdAndDay(eq(MEMBER_ID), any()))
+				.willReturn(Optional.of(mock(MemberFeedDay.class)));
+			given(homeCardService.cardFor(eq(MEMBER_ID), eq(new Letter(1, 31L)), eq(true), any()))
+				.willReturn(Optional.of(HomeCardResponse.letter(31L)));
+
+			assertThat(rewardQueryService.getSummary(MEMBER_ID, null).homeCard())
+				.isEqualTo(HomeCardResponse.letter(31L));
+		}
+
+		@Test
 		@DisplayName("게스트는 편지도 광고도 없다")
 		void guest() {
 			given(member.isGuest()).willReturn(true);
@@ -183,7 +199,9 @@ class RewardQueryServiceTest {
 
 			assertThat(summary.letter()).isEqualTo(new Letter(0, null));
 			assertThat(summary.ad()).isEqualTo(new Ad(0));
+			assertThat(summary.homeCard()).isNull();
 			then(bbangdaengLetterService).shouldHaveNoInteractions();
+			then(homeCardService).shouldHaveNoInteractions();
 		}
 	}
 
