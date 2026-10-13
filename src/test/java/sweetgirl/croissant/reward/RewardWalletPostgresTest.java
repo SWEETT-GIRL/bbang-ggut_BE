@@ -64,6 +64,7 @@ import sweetgirl.croissant.reward.repository.MemberCrumbWalletRepository;
 import sweetgirl.croissant.reward.repository.MemberFeedDayRepository;
 import sweetgirl.croissant.reward.repository.MemberPendingRewardRepository;
 import sweetgirl.croissant.reward.repository.RankingWeeklyRewardRepository;
+import sweetgirl.croissant.reward.repository.RewardPushTargetRepository;
 import sweetgirl.croissant.reward.repository.RewardSettingRepository;
 import sweetgirl.croissant.reward.service.CrumbGrantService;
 import sweetgirl.croissant.reward.service.GrantResult;
@@ -104,7 +105,10 @@ class RewardWalletPostgresTest {
 		jdbc = new JdbcTemplate(source);
 		jdbc.execute("CREATE SCHEMA " + schema);
 		source.setSchema(schema);
-		jdbc.execute("CREATE TABLE member (id bigint PRIMARY KEY, created_at timestamp NOT NULL)");
+		jdbc.execute("CREATE TABLE member (id bigint PRIMARY KEY, created_at timestamp NOT NULL, "
+			+ "deleted_at timestamp, member_type varchar(20) NOT NULL DEFAULT 'USER')");
+		jdbc.execute("CREATE TABLE refresh_token (id bigserial PRIMARY KEY, member_id bigint NOT NULL, "
+			+ "created_at timestamp NOT NULL)");
 		jdbc.execute("CREATE TABLE oauth (id bigint PRIMARY KEY, member_id bigint NOT NULL, "
 			+ "created_at timestamp NOT NULL)");
 		// 1: 처음부터 소셜 가입 / 2: 게스트로 쓰다 승격 / 3: 탈퇴 후 재가입(옛 연결 행이 옮겨 왔다) / 4: 게스트
@@ -199,6 +203,8 @@ class RewardWalletPostgresTest {
 			() -> repositories.getRepository(MemberFeedDayRepository.class));
 		context.registerBean(RankingWeeklyRewardRepository.class,
 			() -> repositories.getRepository(RankingWeeklyRewardRepository.class));
+		context.registerBean(RewardPushTargetRepository.class,
+			() -> repositories.getRepository(RewardPushTargetRepository.class));
 		// 제재 표는 이 스키마에 없다 — 아무도 제재 중이 아닌 것으로 둔다
 		context.registerBean(MemberRestrictionReader.class, () -> mock(MemberRestrictionReader.class));
 		context.registerBean(CrumbGrantService.class);
@@ -550,6 +556,58 @@ class RewardWalletPostgresTest {
 		assertThatThrownBy(() -> transaction.execute(
 			status -> rewards.insertIfAbsent(lastWeek, 3L, 11, 20, null, now)))
 			.hasMessageContaining("chk_ranking_weekly_rewards_rank");
+	}
+
+	@Test
+	@DisplayName("편지 알림 대상 — 최근에 토큰을 받은 회원만, 게스트와 탈퇴한 회원은 빠진다")
+	void membersActiveSince() {
+		jdbc.execute("UPDATE member SET member_type = 'GUEST' WHERE id = 4");
+		jdbc.execute("UPDATE member SET deleted_at = now() WHERE id = 3");
+		jdbc.execute("""
+				INSERT INTO refresh_token (member_id, created_at) VALUES
+					(1, '2026-10-10 09:00:00'), (1, '2026-10-11 09:00:00'), (2, '2026-08-01 09:00:00'),
+					(3, '2026-10-10 09:00:00'), (4, '2026-10-10 09:00:00')
+				""");
+		RewardPushTargetRepository targets = context.getBean(RewardPushTargetRepository.class);
+
+		assertThat(targets.findMemberIdsActiveSince(LocalDateTime.of(2026, 9, 12, 10, 0))).containsExactly(1L);
+	}
+
+	@Test
+	@DisplayName("출석 리마인드 대상 — 어제 출석하고 오늘 안 한 회원과 어제 찍은 칸")
+	void attendanceReminderTargets() {
+		LocalDate yesterday = TODAY.minusDays(1);
+		jdbc.update("INSERT INTO member_attendance_days (attended_on, member_id, board_day, crumbs, created_at) "
+			+ "VALUES (?, 1, 2, 5, now()), (?, 2, 7, 30, now()), (?, 2, 1, 5, now()), (?, 3, 4, 5, now())",
+			yesterday, yesterday, TODAY, yesterday.minusDays(1));
+		RewardPushTargetRepository targets = context.getBean(RewardPushTargetRepository.class);
+
+		// 2 번은 오늘 이미 했고, 3 번은 어제 안 해서 이미 끊겼다
+		assertThat(targets.findAttendanceReminderTargets(yesterday, TODAY))
+			.singleElement()
+			.satisfies(target -> {
+				assertThat(target.getMemberId()).isEqualTo(1L);
+				assertThat(target.getBoardDay()).isEqualTo(2);
+			});
+	}
+
+	@Test
+	@DisplayName("같은 발송을 다른 연결이 돌리고 있으면 잠금을 못 얻는다")
+	void advisoryLockExcludesAnotherRun() {
+		RewardPushTargetRepository targets = context.getBean(RewardPushTargetRepository.class);
+		TransactionTemplate first = new TransactionTemplate(context.getBean(JpaTransactionManager.class));
+
+		Boolean secondGotLock = first.execute(status -> {
+			assertThat(targets.tryAdvisoryXactLock(99_001L)).isTrue();
+			try {
+				return executor.submit(() -> new TransactionTemplate(context.getBean(JpaTransactionManager.class))
+					.execute(other -> targets.tryAdvisoryXactLock(99_001L))).get(30, TimeUnit.SECONDS);
+			} catch (Exception exception) {
+				throw new IllegalStateException(exception);
+			}
+		});
+
+		assertThat(secondGotLock).isFalse();
 	}
 
 	private LocalDateTime registeredAt(long memberId) {
