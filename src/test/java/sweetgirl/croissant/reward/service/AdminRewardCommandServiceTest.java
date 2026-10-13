@@ -9,6 +9,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -31,6 +32,7 @@ import sweetgirl.croissant.reward.dto.request.AdminCrumbAdjustRequest;
 import sweetgirl.croissant.reward.dto.request.AdminRewardSettingsUpdateRequest;
 import sweetgirl.croissant.reward.dto.response.AdminCrumbAdjustResponse;
 import sweetgirl.croissant.reward.entity.RewardSetting;
+import sweetgirl.croissant.reward.enums.RewardSettingKey;
 import sweetgirl.croissant.reward.exception.RewardException;
 import sweetgirl.croissant.reward.repository.RewardSettingRepository;
 import sweetgirl.croissant.reward.service.GrantResult.Outcome;
@@ -147,6 +149,37 @@ class AdminRewardCommandServiceTest {
 				.extracting("errorCode").isEqualTo(RewardErrorCode.REWARD_SETTING_NOT_FOUND);
 			then(rewardSettingRepository).should(never()).findById(anyString());
 			then(rewardSettings).should(never()).evict();
+		}
+
+		@Test
+		@DisplayName("출시 시각이 없는 날짜면 REWARD400_9 이고 아무것도 바꾸지 않는다")
+		void invalidCarryOverBefore() {
+			assertThatThrownBy(() -> adminRewardCommandService.updateSettings(new AdminRewardSettingsUpdateRequest(
+				List.of(new AdminRewardSettingsUpdateRequest.Entry("carry-over.before-date", 20261341)))))
+				.isInstanceOf(RewardException.class)
+				.extracting("errorCode").isEqualTo(RewardErrorCode.REWARD_SETTING_VALUE_INVALID);
+			then(rewardSettingRepository).should(never()).findById(anyString());
+		}
+
+		@Test
+		@DisplayName("출시 시각은 이미 있는 날짜에 시각만 따로 바꿔도 함께 본다")
+		void invalidTimeAgainstStoredDate() {
+			given(rewardSettings.get(RewardSettingKey.CARRY_OVER_BEFORE_DATE)).willReturn(20261201);
+
+			assertThatThrownBy(() -> adminRewardCommandService.updateSettings(new AdminRewardSettingsUpdateRequest(
+				List.of(new AdminRewardSettingsUpdateRequest.Entry("carry-over.before-time", 2460)))))
+				.isInstanceOf(RewardException.class)
+				.extracting("errorCode").isEqualTo(RewardErrorCode.REWARD_SETTING_VALUE_INVALID);
+		}
+
+		@Test
+		@DisplayName("출시 날짜와 시각을 함께 넣는다")
+		void setsCarryOverBefore() {
+			adminRewardCommandService.updateSettings(new AdminRewardSettingsUpdateRequest(
+				List.of(new AdminRewardSettingsUpdateRequest.Entry("carry-over.before-date", 20261201),
+					new AdminRewardSettingsUpdateRequest.Entry("carry-over.before-time", 1430))));
+
+			then(rewardSettingRepository).should(times(2)).save(any(RewardSetting.class));
 		}
 	}
 }

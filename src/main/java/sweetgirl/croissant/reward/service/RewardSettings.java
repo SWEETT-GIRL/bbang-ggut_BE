@@ -45,6 +45,11 @@ public class RewardSettings {
 		return snapshot().values().get(key);
 	}
 
+	/** 스위치 키가 켜져 있는가. 0 이 꺼짐이고 그 밖은 켜짐이다. */
+	public boolean isOn(RewardSettingKey key) {
+		return get(key) > 0;
+	}
+
 	/** 출석 7 일판의 칸별 보상(1 일째부터). */
 	public List<Integer> attendance() {
 		return ATTENDANCE_DAYS.stream().map(this::get).toList();

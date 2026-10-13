@@ -7,7 +7,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 어드민이 바꿀 수 있는 보상 수치({@code reward_settings.setting_key}).
+ * 어드민이 바꿀 수 있는 보상 수치와 출시 스위치({@code reward_settings.setting_key}).
  *
  * <p>기본값은 DB 에 행이 없을 때만 쓴다 — 시드가 빠진 환경에서도 보상이 0 으로 나가지 않게 하는 안전망이다.
  * 앱의 {@code src/constants/rewards.ts} 와 같은 값이어야 한다.
@@ -56,7 +56,17 @@ public enum RewardSettingKey {
 	WAKE_FRIEND("wake-friend", 600),
 	CARRY_OVER_BASE("carry-over.base", 50),
 	CARRY_OVER_PER_RECORD("carry-over.per-record", 5),
-	CARRY_OVER_MAX("carry-over.max", 300);
+	CARRY_OVER_MAX("carry-over.max", 300),
+	/** 이 날짜(yyyyMMdd, 한국 날짜) 전에 가입했으면 기존 사용자다. 0 이면 아직 안 정했다 — 설정 파일의 값을 쓴다 */
+	CARRY_OVER_BEFORE_DATE("carry-over.before-date", 0),
+	/** 위 날짜의 시각(HHmm, 한국 시간). 1430 이면 오후 2 시 30 분이다 */
+	CARRY_OVER_BEFORE_TIME("carry-over.before-time", 0),
+	/** 월요일마다 랭킹 주간 보상 줄을 만드는가(1 = 켬). 2.0 앱이 나오기 전에는 받을 화면이 없어 꺼 둔다 */
+	RANKING_ISSUE("ranking.issue", 0),
+	/** 월요일 빵댕이 편지 도착 푸시를 보내는가(1 = 켬) */
+	PUSH_LETTER("push.letter", 0),
+	/** 저녁 출석 리마인드 푸시를 보내는가(1 = 켬) */
+	PUSH_ATTENDANCE("push.attendance", 0);
 
 	private final String key;
 	private final int defaultValue;
