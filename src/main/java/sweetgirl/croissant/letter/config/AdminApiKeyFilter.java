@@ -35,11 +35,12 @@ public class AdminApiKeyFilter extends OncePerRequestFilter {
 	 * 열쇠가 필요한 경로. 편지는 사용자에게 직접 닿고, 개인화 배치(#663)는 취향 신호를 되돌리기 어렵게 바꾸거나 락을 쥔 채 무거운
 	 * 트랜잭션을 건다 — 신호가 오염되면 추천이 바뀐다(PR #747 리뷰). 이유 문장 실험(#662)은 호출마다 외부 LLM 에 실제 비용이
 	 * 나간다 — 열어 두면 아무나 우리 계정으로 돈을 쓸 수 있다. S3 정리는 버킷의 파일을 되돌릴 수 없게 지운다.
+	 * 세계관은 행성·캐릭터를 고치고 회원에게 친구·깨우기 티켓을 쥐여 준다 — 열려 있으면 아무나 지급한다.
 	 * 여기에 더하면 AdminApiKeyConfig 의 URL 패턴도 같이 더한다.
 	 */
 	static final List<String> PROTECTED_PREFIXES = List.of(
 		"/api/admin/letters", "/admin/personalization", "/admin/recommendations", "/api/admin/monthly-reports",
-		"/api/admin/tutorial-templates", "/admin/images/reconcile");
+		"/api/admin/tutorial-templates", "/admin/images/reconcile", "/api/admin/world");
 
 	/**
 	 * 열쇠가 비었을 때 <b>통과시키지 않고 막는</b> 경로. 호출마다 외부 LLM 에 실제 비용이 나가서, 열려 있으면
@@ -74,6 +75,7 @@ public class AdminApiKeyFilter extends OncePerRequestFilter {
 		if (apiKey.isEmpty()) {
 			if (!request.getRequestURI().startsWith("/api/admin/monthly-reports")
 				&& !request.getRequestURI().startsWith("/api/admin/tutorial-templates")
+				&& !request.getRequestURI().startsWith("/api/admin/world")
 				&& (allowWithoutKey || !isCostIncurring(request.getRequestURI()))) {
 				chain.doFilter(request, response);
 				return;

@@ -197,4 +197,41 @@ class AdminApiKeyFilterTest {
 			response, chain);
 		assertThat(chain.getRequest()).isNotNull();
 	}
+
+	@Test
+	@DisplayName("세계관 어드민은 열쇠가 없으면 막는다 — 회원에게 친구·티켓을 쥐여 주는 경로")
+	void protectsWorldAdminPaths() throws Exception {
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		new AdminApiKeyFilter("secret", false)
+			.doFilter(request("/api/admin/world/members/1/grants", null), response, chain);
+
+		assertThat(response.getStatus()).isEqualTo(401);
+		assertThat(chain.getRequest()).isNull();
+	}
+
+	@Test
+	@DisplayName("세계관 어드민은 올바른 열쇠면 통과시킨다")
+	void passesWorldAdminWithCorrectKey() throws Exception {
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		new AdminApiKeyFilter("secret", false)
+			.doFilter(request("/api/admin/world/planets", "secret"), response, chain);
+
+		assertThat(chain.getRequest()).isNotNull();
+	}
+
+	@Test
+	@DisplayName("서버에 열쇠가 비어 있으면 세계관 어드민은 로컬에서도 503 으로 막는다")
+	void blocksWorldAdminWhenKeyMissingEvenLocally() throws Exception {
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		MockFilterChain chain = new MockFilterChain();
+
+		new AdminApiKeyFilter("", true).doFilter(request("/api/admin/world/planets", null), response, chain);
+
+		assertThat(response.getStatus()).isEqualTo(503);
+		assertThat(chain.getRequest()).isNull();
+	}
 }
