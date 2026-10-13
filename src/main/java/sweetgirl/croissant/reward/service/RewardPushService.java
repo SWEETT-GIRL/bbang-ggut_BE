@@ -40,7 +40,7 @@ public class RewardPushService {
 	static final int ACTIVE_DAYS = 30;
 	static final long LETTER_LOCK_KEY = 7_260_101L;
 	static final String LETTER_TITLE = "빵댕이가 편지를 보냈어요";
-	static final String LETTER_BODY = "이번 주 편지가 도착했어요.";
+	static final String LETTER_BODY = "열어 보면 부스러기도 있어요";
 	/** 앱의 홈(app/(tabs)/bbanglog)에서 편지를 연다. */
 	static final String LETTER_LINK = "/bbanglog?open=letter";
 	static final long ATTENDANCE_LOCK_KEY = 7_260_102L;
