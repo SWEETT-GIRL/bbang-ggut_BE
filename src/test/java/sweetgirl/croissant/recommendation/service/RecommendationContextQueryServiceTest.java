@@ -10,6 +10,7 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -44,6 +45,7 @@ import sweetgirl.croissant.recommendation.enums.RecommendationAreaReason;
 import sweetgirl.croissant.recommendation.enums.RecommendationContextState;
 import sweetgirl.croissant.recommendation.repository.AreaChipStats;
 import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
+import sweetgirl.croissant.recommendation.repository.PolygonAreaBindingRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationCandidateJdbcRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -70,6 +72,9 @@ class RecommendationContextQueryServiceTest {
 	private RecommendationProperties recommendationProperties = new RecommendationProperties();
 	@Spy
 	private PersonalizationProperties personalizationProperties = new PersonalizationProperties();
+
+	@Mock
+	private PolygonAreaBindingRepository polygonAreaBindingRepository;
 
 	@InjectMocks
 	private RecommendationContextQueryService recommendationContextQueryService;
@@ -106,6 +111,22 @@ class RecommendationContextQueryServiceTest {
 			TasteAxis.of(one, one, one, one), null, "PCLN",
 			LocalDateTime.of(2026, 9, 13, 10, 0));
 		return profile;
+	}
+
+	@Test
+	void polygonChipCountsWholeCityOnceAcrossNeighborhoods() {
+		courseInSeoul();
+		recommendationProperties.getPolygon().setEnabled(true);
+		recommendationProperties.getPolygon().setVersionKey("v1");
+		List<CourseArea> neighborhoods = List.of(neighborhood(9L, "서귀포시", "시내"), neighborhood(10L, "서귀포시", "중문"));
+		given(courseAreaRepository.findAllBySidoAndIsActiveTrueOrderByDisplayOrderAscNameAsc("서울"))
+			.willReturn(neighborhoods);
+		given(polygonAreaBindingRepository.findReadyBinding("v1", 9L)).willReturn(Optional.of(90L));
+		given(candidateRepository.findPolygonChipStats(eq(MEMBER_ID), any(), any(), eq(9L), eq(90L)))
+			.willReturn(new AreaChipStats(9L, 500, false));
+		assertThat(recommendationContextQueryService.getContext(MEMBER_ID, COURSE_ID, null).areas())
+			.hasSize(1).extracting("storeCount").containsExactly(500);
+		verify(candidateRepository, never()).findAreaChipStats(any(), any(), any(), anyList());
 	}
 
 	@Test

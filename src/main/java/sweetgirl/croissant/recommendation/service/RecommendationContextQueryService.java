@@ -2,6 +2,7 @@ package sweetgirl.croissant.recommendation.service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +30,7 @@ import sweetgirl.croissant.recommendation.enums.RecommendationAreaReason;
 import sweetgirl.croissant.recommendation.enums.RecommendationContextState;
 import sweetgirl.croissant.recommendation.repository.AreaChipStats;
 import sweetgirl.croissant.recommendation.repository.CourseAreaRepository;
+import sweetgirl.croissant.recommendation.repository.PolygonAreaBindingRepository;
 import sweetgirl.croissant.recommendation.repository.RecommendationCandidateJdbcRepository;
 import sweetgirl.croissant.recommendation.repository.TasteQuery;
 
@@ -55,6 +57,7 @@ public class RecommendationContextQueryService {
 	private final RecommendationCandidateJdbcRepository candidateRepository;
 	private final RecommendationProperties recommendationProperties;
 	private final PersonalizationProperties personalizationProperties;
+	private final PolygonAreaBindingRepository polygonAreaBindingRepository;
 
 	public RecommendationContextResponse getContext(Long memberId, Long courseId, String sessionId) {
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
@@ -103,8 +106,7 @@ public class RecommendationContextQueryService {
 			spots.computeIfAbsent(area.getPassportSpot(), spot -> new ArrayList<>()).add(area);
 		}
 		// 칩마다 두 번 묻지 않고 한 문장으로 — 후보와 같은 소속 규칙로 센다
-		Map<Long, AreaChipStats> stats = candidateRepository.findAreaChipStats(memberId, sessionId, taste,
-			spots.values().stream().flatMap(List::stream).toList());
+		Map<Long, AreaChipStats> stats = chipStats(memberId, sessionId, taste, spots);
 		int minTasteCandidates = recommendationProperties.getScore().getMinTasteCandidates();
 		return spots.values().stream()
 			.map(neighborhoods -> ChipSignal.of(neighborhoods, stats, taste.hasAxis(), minTasteCandidates))
@@ -112,6 +114,27 @@ public class RecommendationContextQueryService {
 			.map(chip -> new RecommendationAreaResponse(chip.primary().getId(), chip.primary().getPassportSpot(),
 				chip.reason(), chip.storeCount()))
 			.toList();
+	}
+
+	private Map<Long, AreaChipStats> chipStats(Long memberId, String sessionId, TasteQuery taste,
+			Map<String, List<CourseArea>> spots) {
+		if (!recommendationProperties.getPolygon().isEnabled()) {
+			return candidateRepository.findAreaChipStats(memberId, sessionId, taste,
+				spots.values().stream().flatMap(List::stream).toList());
+		}
+		Map<Long, AreaChipStats> stats = new HashMap<>();
+		for (List<CourseArea> neighborhoods : spots.values()) {
+			CourseArea primary = neighborhoods.get(0);
+			Optional<Long> binding = polygonAreaBindingRepository.findReadyBinding(
+				recommendationProperties.getPolygon().getVersionKey(), primary.getId());
+			if (binding.isPresent()) {
+				stats.put(primary.getId(), candidateRepository.findPolygonChipStats(memberId, sessionId, taste,
+					primary.getId(), binding.get()));
+			} else {
+				stats.putAll(candidateRepository.findAreaChipStats(memberId, sessionId, taste, neighborhoods));
+			}
+		}
+		return stats;
 	}
 
 	/** 도장 칸 하나의 신호 합과 버킷. reason 이 곧 버킷이라 정렬 키다. */

@@ -22,6 +22,18 @@ public class RecommendationProperties {
 	private final Area area = new Area();
 	private final Anchor anchor = new Anchor();
 	private final Score score = new Score();
+	private final Polygon polygon = new Polygon();
+
+	/** 폴리곤 자료 적재·검증 후 명시적으로 활성화한다. 거리 값은 직선거리 정책이다. */
+	@Getter
+	@Setter
+	public static class Polygon {
+		private boolean enabled = false;
+		private String versionKey = "";
+		private int distancePerLegM = 500;
+		private int singleStoreApproachM = 1500;
+		private int retryRadiusM = 1200;
+	}
 
 	/** 상권 추천(진입점 1). */
 	@Getter
