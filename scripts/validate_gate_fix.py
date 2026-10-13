@@ -15,7 +15,10 @@ from collections import Counter
 
 import requests
 
+import admin_auth
 from naver_match import classify_store, select_match
+
+admin_auth.install()
 
 SERVER = "http://localhost:8080"
 CSV_PATH = "gate_fix_validation.csv"
