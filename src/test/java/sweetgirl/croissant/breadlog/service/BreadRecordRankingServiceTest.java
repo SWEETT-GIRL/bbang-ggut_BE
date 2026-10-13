@@ -46,6 +46,20 @@ class BreadRecordRankingServiceTest {
 	}
 
 	@Test
+	@DisplayName("지난주 전국 주간 1 위였던 사람의 줄에만 왕관이 붙는다 — 이번 판의 등수와는 상관없다")
+	void crowned() {
+		List<RankingRowProjection> rows = List.of(
+			row(3L, "호떡", 4, 1, 1),
+			row(2L, "두쫀쿠", 3, 2, 2));
+
+		BreadRecordRankingResponse response = BreadRecordRankingService.assemble(rows, ME, false, 100, null, null,
+			RankChanges.unknown(), java.util.Set.of(2L));
+
+		assertThat(response.entries()).extracting(BreadRecordRankingResponse.Entry::crowned)
+			.containsExactly(false, true);
+	}
+
+	@Test
 	@DisplayName("점수가 0이면 순위 밖, 1위면 다음 목표가 없다, 게스트는 내 자리가 없다")
 	void edgeCases() {
 		List<RankingRowProjection> rows = List.of(row(ME, "앙버터", 5, 1, 1));

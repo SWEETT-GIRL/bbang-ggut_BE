@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +24,7 @@ import sweetgirl.croissant.breadlog.repository.BreadRecordRankingRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.ranking.service.RankChangeResolver;
 import sweetgirl.croissant.ranking.service.RankChanges;
+import sweetgirl.croissant.reward.service.RankingRewardService;
 
 /**
  * 빵로그 랭킹 — 판·범위에 맞는 쿼리를 골라 부르고, 내 자리와 "N개 더 하면 몇 위"를 붙인다.
@@ -40,6 +42,7 @@ public class BreadRecordRankingService {
 	private final BreadRecordRankingRepository rankingRepository;
 	private final RankingRegionService regionService;
 	private final RankChangeResolver rankChangeResolver;
+	private final RankingRewardService rankingRewardService;
 
 	public BreadRecordRankingResponse getRanking(Long viewerId, RankingBoard board, RankingScope scope, int limit) {
 		boolean guest = memberReader.getMember(viewerId).isGuest();
@@ -59,7 +62,8 @@ public class BreadRecordRankingService {
 		};
 		RankChanges changes = rankChangeResolver.resolve(board.name(), 0,
 			RankChangeResolver.regionKey(sido, sigungu), LocalDate.now(RankingRegionService.ZONE));
-		BreadRecordRankingResponse response = assemble(rows, viewerId, guest, lim, sido, sigungu, changes);
+		BreadRecordRankingResponse response = assemble(rows, viewerId, guest, lim, sido, sigungu, changes,
+			rankingRewardService.crownedMemberIds());
 		return region == null ? response : response.withRegionMemberCount(regionService.countMembers(sido, sigungu));
 	}
 
@@ -71,11 +75,19 @@ public class BreadRecordRankingService {
 	static BreadRecordRankingResponse assemble(
 			List<RankingRowProjection> rows, Long viewerId, boolean guest, int limit, String sido,
 			String sigungu, RankChanges changes) {
+		return assemble(rows, viewerId, guest, limit, sido, sigungu, changes, Set.of());
+	}
+
+	/** @param crownedMemberIds 지난주 전국 주간 1 위라 왕관을 쓰고 있는 회원들. 어느 판에서든 그 사람 줄에 왕관이 붙는다 */
+	static BreadRecordRankingResponse assemble(
+			List<RankingRowProjection> rows, Long viewerId, boolean guest, int limit, String sido,
+			String sigungu, RankChanges changes, Set<Long> crownedMemberIds) {
 		List<Entry> entries = rows.stream()
 			.filter(row -> row.getRank() <= limit)
 			.map(row -> new Entry(row.getRank(), row.getNickname(), row.getSelectedCharacter(), row.getScore(),
 				Objects.equals(row.getMemberId(), viewerId),
-				changes.changeOf(row.getMemberId(), row.getRank()), changes.isNew(row.getMemberId())))
+				changes.changeOf(row.getMemberId(), row.getRank()), changes.isNew(row.getMemberId()),
+				crownedMemberIds.contains(row.getMemberId())))
 			.toList();
 		if (guest) {
 			return new BreadRecordRankingResponse(sido, sigungu, entries, null);
