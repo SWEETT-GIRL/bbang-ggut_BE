@@ -260,7 +260,7 @@ class PolygonMemberCourseLabTest {
 		return rows;
 	}
 
-	private static MemberInput member(ResultSet row, int rowNumber) throws SQLException {
+	static MemberInput member(ResultSet row, int rowNumber) throws SQLException {
 		try {
 			LocalDateTime computedAt = row.getTimestamp("computed_at").toLocalDateTime();
 			UserTasteProfile profile = UserTasteProfile.createEmpty(row.getLong("member_id"), computedAt);
