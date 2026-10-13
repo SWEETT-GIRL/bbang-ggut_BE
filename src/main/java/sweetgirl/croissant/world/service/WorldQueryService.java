@@ -86,6 +86,15 @@ public class WorldQueryService {
 	 * 닿았는데 아직 룰렛을 안 돌린 행성. 룰렛 인원이 0 인 행성(첫 친구를 마스코트로 주는 지구)은
 	 * 돌릴 것이 없으므로 빠진다.
 	 */
+	/**
+	 * 닿았는데 아직 룰렛을 안 돌린 행성들. 세계관을 시작하지 않은 회원은 비어 있다.
+	 * 홈의 할 일 카드가 읽는다 — 진행도를 다시 맞추지는 않고 남아 있는 도착 이력만 본다.
+	 */
+	public List<String> pendingRoulettePlanets(Long memberId) {
+		return pendingRoulettePlanets(
+			worldCatalogService.getCatalog(), memberPlanetArrivalRepository.findAllByIdMemberId(memberId));
+	}
+
 	private List<String> pendingRoulettePlanets(
 			WorldCatalogResponse catalog,
 			List<MemberPlanetArrival> arrivals) {
