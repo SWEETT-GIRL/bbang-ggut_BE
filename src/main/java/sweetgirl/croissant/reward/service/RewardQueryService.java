@@ -21,8 +21,10 @@ import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.CarryOver;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Feed;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Letter;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.RankingReward;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.RecordReward;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Welcome;
 import sweetgirl.croissant.reward.entity.CrumbLedgerEntry;
+import sweetgirl.croissant.reward.enums.RewardSettingKey;
 import sweetgirl.croissant.reward.repository.CrumbLedgerRepository;
 import sweetgirl.croissant.reward.repository.MemberAttendanceDayRepository;
 import sweetgirl.croissant.reward.repository.MemberCrumbWalletRepository;
@@ -47,6 +49,7 @@ public class RewardQueryService {
 	private final EarnRewardService earnRewardService;
 	private final RankingRewardService rankingRewardService;
 	private final HomeCardService homeCardService;
+	private final RecordRewardService recordRewardService;
 
 	/**
 	 * 홈이 한 번에 읽는 요약.
@@ -83,7 +86,14 @@ public class RewardQueryService {
 			rankingRewardService.latestPending(memberId)
 				.map(reward -> new RankingReward(reward.id(), reward.rank(), reward.crumbs()))
 				.orElse(null),
-			homeCardService.cardFor(memberId, letter, feed.doneToday(), today).orElse(null));
+			homeCardService.cardFor(memberId, letter, feed.doneToday(), today).orElse(null),
+			recordOf(memberId));
+	}
+
+	private RecordReward recordOf(Long memberId) {
+		int rewarded = recordRewardService.rewardedToday(memberId);
+		return new RecordReward(rewarded,
+			Math.max(0, rewardSettings.get(RewardSettingKey.RECORD_DAILY_CAP) - rewarded));
 	}
 
 	/** 판의 자리에 보상 수치를 붙인다. 오늘 했으면 오늘 칸은 찍힌 칸이고, 안 했으면 찍을 칸이다. */

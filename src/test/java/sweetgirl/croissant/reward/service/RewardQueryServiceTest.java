@@ -37,9 +37,11 @@ import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.CarryOver;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Feed;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Letter;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.RankingReward;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.RecordReward;
 import sweetgirl.croissant.reward.entity.CrumbLedgerEntry;
 import sweetgirl.croissant.reward.entity.MemberAttendanceDay;
 import sweetgirl.croissant.reward.entity.MemberFeedDay;
+import sweetgirl.croissant.reward.enums.RewardSettingKey;
 import sweetgirl.croissant.reward.repository.CrumbLedgerRepository;
 import sweetgirl.croissant.reward.repository.MemberAttendanceDayRepository;
 import sweetgirl.croissant.reward.repository.MemberCrumbWalletRepository;
@@ -74,6 +76,9 @@ class RewardQueryServiceTest {
 	private RankingRewardService rankingRewardService;
 	@Mock
 	private HomeCardService homeCardService;
+
+	@Mock
+	private RecordRewardService recordRewardService;
 
 	@InjectMocks
 	private RewardQueryService rewardQueryService;
@@ -162,6 +167,24 @@ class RewardQueryServiceTest {
 
 			assertThat(summary.letter()).isEqualTo(new Letter(2, 31L));
 			assertThat(summary.ad()).isEqualTo(new Ad(1));
+		}
+
+		@Test
+		@DisplayName("오늘 기록 보상을 받은 횟수와 남은 횟수를 싣는다")
+		void recordReward() {
+			lenient().when(rewardSettings.get(RewardSettingKey.RECORD_DAILY_CAP)).thenReturn(3);
+			given(recordRewardService.rewardedToday(MEMBER_ID)).willReturn(2);
+
+			assertThat(rewardQueryService.getSummary(MEMBER_ID, null).record()).isEqualTo(new RecordReward(2, 1));
+		}
+
+		@Test
+		@DisplayName("상한을 줄여 이미 받은 횟수가 더 많아도 남은 횟수는 0 이다")
+		void recordRewardNeverNegative() {
+			lenient().when(rewardSettings.get(RewardSettingKey.RECORD_DAILY_CAP)).thenReturn(1);
+			given(recordRewardService.rewardedToday(MEMBER_ID)).willReturn(2);
+
+			assertThat(rewardQueryService.getSummary(MEMBER_ID, null).record()).isEqualTo(new RecordReward(2, 0));
 		}
 
 		@Test
