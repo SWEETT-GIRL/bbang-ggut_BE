@@ -14,6 +14,8 @@ import sweetgirl.croissant.recommendation.entity.Recommendation;
 import sweetgirl.croissant.recommendation.enums.RecommendationMode;
 
 public interface RecommendationRepository extends JpaRepository<Recommendation, Long> {
+	List<Recommendation> findAllByMemberIdAndCourseIdAndModeAndDay(Long memberId, Long courseId,
+			RecommendationMode mode, Short day);
 
 	/**
 	 * 재사용 키(상권 추천): 같은 회원·코스·상권·일차·프로필 버전의 최신 한 건. idx_recommendation_reuse 를 탄다.

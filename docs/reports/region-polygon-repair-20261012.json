@@ -1,0 +1,556 @@
+{
+  "changes": [
+    {
+      "code": "1280025300",
+      "name": "삼호읍",
+      "parts_after": 8,
+      "valid_after": true,
+      "parts_before": 8,
+      "area_delta_m2": -1.4901161193847656e-07,
+      "invalid_reason": "Ring Self-intersection[126.371182233182 34.7492714568245]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "1287031000",
+      "name": "증도면",
+      "parts_after": 78,
+      "valid_after": true,
+      "parts_before": 78,
+      "area_delta_m2": 1.4901161193847656e-08,
+      "invalid_reason": "Ring Self-intersection[126.142387745328 34.9537378869861]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "1287036000",
+      "name": "흑산면",
+      "parts_after": 233,
+      "valid_after": true,
+      "parts_before": 233,
+      "area_delta_m2": 7.450580596923828e-09,
+      "invalid_reason": "Ring Self-intersection[125.429818932217 34.6881391323808]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "1287042000",
+      "name": "암태면",
+      "parts_after": 46,
+      "valid_after": true,
+      "parts_before": 46,
+      "area_delta_m2": 9.685754776000977e-08,
+      "invalid_reason": "Ring Self-intersection[126.072608995293 34.8116476834477]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "2614012300",
+      "name": "남부민동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": 6.984919309616089e-10,
+      "invalid_reason": "Ring Self-intersection[129.027076640746 35.0855215614113]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "2629010700",
+      "name": "용호동",
+      "parts_after": 10,
+      "valid_after": true,
+      "parts_before": 10,
+      "area_delta_m2": 9.313225746154785e-10,
+      "invalid_reason": "Ring Self-intersection[129.113408400878 35.1030580835692]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "2644011000",
+      "name": "화전동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": 0.012038890272378922,
+      "invalid_reason": "Self-intersection[128.888460755067 35.0968782642657]",
+      "boundary_hausdorff_m": 4.316521150348761e-07
+    },
+    {
+      "code": "2644011600",
+      "name": "범방동",
+      "parts_after": 2,
+      "valid_after": true,
+      "parts_before": 2,
+      "area_delta_m2": 0,
+      "invalid_reason": "Ring Self-intersection[128.863875846023 35.1566653565067]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "2827510600",
+      "name": "가정동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": 9.313225746154785e-10,
+      "invalid_reason": "Ring Self-intersection[126.670002868246 37.5392392662081]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "2827511100",
+      "name": "청라동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": -1.862645149230957e-08,
+      "invalid_reason": "Ring Self-intersection[126.598087926914 37.5496215407912]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "3011014200",
+      "name": "구도동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": 9.313225746154785e-10,
+      "invalid_reason": "Ring Self-intersection[127.465672149236 36.2744323896104]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "3020012100",
+      "name": "죽동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": 9.313225746154785e-10,
+      "invalid_reason": "Ring Self-intersection[127.339366767235 36.3813748950845]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "3120010100",
+      "name": "창평동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": -2.7939677238464355e-09,
+      "invalid_reason": "Ring Self-intersection[129.356205223142 35.619856386288]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "3120010300",
+      "name": "매곡동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": -1.862645149230957e-09,
+      "invalid_reason": "Ring Self-intersection[129.35834857535 35.6496205433119]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "3120010700",
+      "name": "상안동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": 5.587935447692871e-09,
+      "invalid_reason": "Ring Self-intersection[129.347045122016 35.6098754121177]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "3120011300",
+      "name": "정자동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": -1.1641532182693481e-09,
+      "invalid_reason": "Ring Self-intersection[129.437848725075 35.6087775025023]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "3120011400",
+      "name": "신명동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": 2.3283064365386963e-10,
+      "invalid_reason": "Ring Self-intersection[129.448090371476 35.6481535837333]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "3120012100",
+      "name": "진장동",
+      "parts_after": 2,
+      "valid_after": true,
+      "parts_before": 2,
+      "area_delta_m2": 4.656612873077393e-10,
+      "invalid_reason": "Ring Self-intersection[129.362526780696 35.5662686992563]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "3120012200",
+      "name": "연암동",
+      "parts_after": 2,
+      "valid_after": true,
+      "parts_before": 2,
+      "area_delta_m2": -1.4901161193847656e-08,
+      "invalid_reason": "Ring Self-intersection[129.360205503902 35.5773490359093]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "3120012300",
+      "name": "효문동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": -7.450580596923828e-09,
+      "invalid_reason": "Ring Self-intersection[129.365489590091 35.5601221857844]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "3120012400",
+      "name": "양정동",
+      "parts_after": 2,
+      "valid_after": true,
+      "parts_before": 2,
+      "area_delta_m2": -6.51925802230835e-09,
+      "invalid_reason": "Ring Self-intersection[129.392293364824 35.5418364974755]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "3611010100",
+      "name": "반곡동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": -4.656612873077393e-10,
+      "invalid_reason": "Ring Self-intersection[127.30054840181 36.4935878649948]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "3611011200",
+      "name": "고운동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": 5.587935447692871e-09,
+      "invalid_reason": "Ring Self-intersection[127.241310770569 36.5106883680691]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "3611011900",
+      "name": "세종동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": -3.3527612686157227e-08,
+      "invalid_reason": "Ring Self-intersection[127.287047205316 36.480494115154]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "3611012300",
+      "name": "용호동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": 1.862645149230957e-09,
+      "invalid_reason": "Ring Self-intersection[127.304859183782 36.5317439746591]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4113510800",
+      "name": "판교동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": -2.3283064365386963e-09,
+      "invalid_reason": "Ring Self-intersection[127.096151300847 37.4033183088309]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4127311300",
+      "name": "선감동",
+      "parts_after": 2,
+      "valid_after": true,
+      "parts_before": 2,
+      "area_delta_m2": 9.313225746154785e-10,
+      "invalid_reason": "Ring Self-intersection[126.647366632841 37.1937289808327]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4128710500",
+      "name": "덕이동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": 6.51925802230835e-09,
+      "invalid_reason": "Ring Self-intersection[126.741366974613 37.7052830601287]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4128710600",
+      "name": "가좌동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": -2.7939677238464355e-09,
+      "invalid_reason": "Ring Self-intersection[126.720921267702 37.7016577914568]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4131010700",
+      "name": "토평동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": -3.725290298461914e-09,
+      "invalid_reason": "Ring Self-intersection[127.130443895686 37.574221235325]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4163025000",
+      "name": "백석읍",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": 5.21540641784668e-08,
+      "invalid_reason": "Ring Self-intersection[126.984886064813 37.8134944800732]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4180033000",
+      "name": "백학면",
+      "parts_after": 30,
+      "valid_after": true,
+      "parts_before": 30,
+      "area_delta_m2": -2.9802322387695312e-08,
+      "invalid_reason": "Ring Self-intersection[126.854318302644 38.0335197020963]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4180035000",
+      "name": "왕징면",
+      "parts_after": 61,
+      "valid_after": true,
+      "parts_before": 61,
+      "area_delta_m2": -2.9802322387695312e-08,
+      "invalid_reason": "Ring Self-intersection[126.90267666276 38.1103204733173]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4311311400",
+      "name": "복대동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": -1.3969838619232178e-09,
+      "invalid_reason": "Ring Self-intersection[127.427423912049 36.6454704713314]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4311313900",
+      "name": "석소동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": -9.313225746154785e-10,
+      "invalid_reason": "Ring Self-intersection[127.381736818945 36.6280125817359]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4373034000",
+      "name": "청성면",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": -1.4901161193847656e-08,
+      "invalid_reason": "Ring Self-intersection[127.763467262902 36.3329510014504]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4420025300",
+      "name": "배방읍",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": -5.960464477539063e-08,
+      "invalid_reason": "Ring Self-intersection[127.088381312939 36.7893620483053]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4715010600",
+      "name": "남산동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": 1.0477378964424133e-09,
+      "invalid_reason": "Ring Self-intersection[128.110977735876 36.1174145604026]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4715043000",
+      "name": "부항면",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": 1.4901161193847656e-08,
+      "invalid_reason": "Ring Self-intersection[128.003117713045 35.9690645239253]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4822025000",
+      "name": "산양읍",
+      "parts_after": 98,
+      "valid_after": true,
+      "parts_before": 98,
+      "area_delta_m2": -1.6391277313232422e-07,
+      "invalid_reason": "Ring Self-intersection[128.419817680147 34.7644237876297]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4822031000",
+      "name": "용남면",
+      "parts_after": 23,
+      "valid_after": true,
+      "parts_before": 23,
+      "area_delta_m2": 3.725290298461914e-09,
+      "invalid_reason": "Ring Self-intersection[128.476786228028 34.9088162740727]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4822035000",
+      "name": "욕지면",
+      "parts_after": 160,
+      "valid_after": true,
+      "parts_before": 160,
+      "area_delta_m2": -2.60770320892334e-08,
+      "invalid_reason": "Ring Self-intersection[128.302139043989 34.620543938243]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4822036000",
+      "name": "한산면",
+      "parts_after": 226,
+      "valid_after": true,
+      "parts_before": 226,
+      "area_delta_m2": -1.862645149230957e-08,
+      "invalid_reason": "Ring Self-intersection[128.470856859923 34.7622376842415]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4822037000",
+      "name": "사량면",
+      "parts_after": 34,
+      "valid_after": true,
+      "parts_before": 34,
+      "area_delta_m2": 3.725290298461914e-09,
+      "invalid_reason": "Ring Self-intersection[128.25101905608 34.8086898665307]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4824033000",
+      "name": "용현면",
+      "parts_after": 3,
+      "valid_after": true,
+      "parts_before": 3,
+      "area_delta_m2": 1.1175870895385742e-07,
+      "invalid_reason": "Ring Self-intersection[128.052695790834 35.0493216205864]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "4824035000",
+      "name": "곤양면",
+      "parts_after": 3,
+      "valid_after": true,
+      "parts_before": 3,
+      "area_delta_m2": -7.450580596923828e-08,
+      "invalid_reason": "Ring Self-intersection[128.032016075885 35.061981838725]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "5113010700",
+      "name": "단구동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": -9.313225746154785e-10,
+      "invalid_reason": "Ring Self-intersection[127.963637356139 37.336310586808]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "5211114000",
+      "name": "효자동1가",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": 9.313225746154785e-10,
+      "invalid_reason": "Ring Self-intersection[127.118175521776 35.8128721624251]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "5218012500",
+      "name": "공평동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": -2.3283064365386963e-10,
+      "invalid_reason": "Ring Self-intersection[126.817317144811 35.5848947079746]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "5219011100",
+      "name": "향교동",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": 1.6298145055770874e-09,
+      "invalid_reason": "Ring Self-intersection[127.370079105153 35.4188519169529]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "5219034000",
+      "name": "주생면",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": -2.9802322387695312e-08,
+      "invalid_reason": "Ring Self-intersection[127.332402056698 35.400206600907]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "5219040000",
+      "name": "보절면",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": 9.685754776000977e-08,
+      "invalid_reason": "Ring Self-intersection[127.406510132054 35.5113627648427]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "5221033000",
+      "name": "백산면",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": -6.705522537231445e-08,
+      "invalid_reason": "Ring Self-intersection[126.885667947802 35.8257031196235]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "5271025600",
+      "name": "용진읍",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": -1.4901161193847656e-08,
+      "invalid_reason": "Ring Self-intersection[127.156750602749 35.9041320542807]",
+      "boundary_hausdorff_m": 0
+    },
+    {
+      "code": "5280025000",
+      "name": "부안읍",
+      "parts_after": 1,
+      "valid_after": true,
+      "parts_before": 1,
+      "area_delta_m2": -1.4901161193847656e-08,
+      "invalid_reason": "Ring Self-intersection[126.718406277208 35.6798137215351]",
+      "boundary_hausdorff_m": 0
+    }
+  ],
+  "source_id": "2f83cb96f1184150859238e4835df12d",
+  "parent_source_id": "043a04d7c07841a1828364572a5ef4d6"
+}

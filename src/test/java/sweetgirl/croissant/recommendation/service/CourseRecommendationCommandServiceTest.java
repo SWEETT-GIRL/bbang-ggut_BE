@@ -113,6 +113,9 @@ class CourseRecommendationCommandServiceTest {
 	@Spy
 	private ReasonMetrics reasonMetrics = new ReasonMetrics(new SimpleMeterRegistry());
 
+	@Mock
+	private PolygonRecommendationCommandService polygonRecommendationCommandService;
+
 	@InjectMocks
 	private CourseRecommendationCommandService courseRecommendationCommandService;
 
@@ -203,6 +206,22 @@ class CourseRecommendationCommandServiceTest {
 		lenient().when(location.getX()).thenReturn(lng);
 		lenient().when(store.getLocation()).thenReturn(location);
 		return store;
+	}
+
+	@Test
+	void polygonFlagDispatchesOnlyAfterCourseAccessCheck() {
+		Course course = course(1);
+		recommendationProperties.getPolygon().setEnabled(true);
+		RecommendationRequest request = new RecommendationRequest(AREA_ID, 4, 1);
+		RecommendationResponse response = new RecommendationResponse(99L, "코스",
+			new RecommendationAreaSummary(AREA_ID, "성수동"), 0, false, List.of());
+		given(polygonRecommendationCommandService.tryRecommend(MEMBER_ID, course, request, 4, "s"))
+			.willReturn(Optional.of(response));
+		assertThat(courseRecommendationCommandService.recommend(MEMBER_ID, COURSE_ID, request, "s"))
+			.isEqualTo(response);
+		var order = org.mockito.Mockito.inOrder(courseAccessPolicy, polygonRecommendationCommandService);
+		order.verify(courseAccessPolicy).requireEditable(course, MEMBER_ID);
+		order.verify(polygonRecommendationCommandService).tryRecommend(MEMBER_ID, course, request, 4, "s");
 	}
 
 	@Test

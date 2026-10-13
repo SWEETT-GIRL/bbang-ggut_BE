@@ -168,6 +168,52 @@ public class RecommendationCandidateJdbcRepository {
 	private final LabelCenterParams labelCenterParams;
 	private final ObjectMapper objectMapper;
 
+	/** 좌표가 갱신된 판정은 즉시 제외한다. 복수 코드도 모두 선택 범위 안일 때만 허용한다. */
+	private static final String POLYGON_MEMBER = """
+			EXISTS (SELECT 1 FROM store_region_resolutions r
+				JOIN course_area_region_bindings binding ON binding.version_id=r.version_id
+				JOIN region_boundary_versions version ON version.id=r.version_id AND version.ready
+				WHERE binding.id=:bindingId AND r.store_id=s.id
+					AND ST_AsEWKB(r.query_location)=ST_AsEWKB(s.location::geometry)
+					AND cardinality(r.legal_codes)>0 AND r.legal_codes <@ binding.legal_codes)
+			""";
+
+	public AreaChipStats findPolygonChipStats(Long memberId, String sessionId, TasteQuery taste,
+			long areaId, long bindingId) {
+		String sql = """
+				SELECT COUNT(*) AS store_count,
+					COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM saved_stores ss
+						WHERE ss.store_id=s.id AND ss.member_id=:memberId)) AS saved_count,
+					COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM request_log rl
+						WHERE rl.store_id=s.id AND rl.member_id=:memberId AND rl.event_type='STORE_VIEW'
+						AND (rl.created_at>=:since OR (:sessionId IS NOT NULL AND rl.session_id=:sessionId
+							AND rl.created_at>=:sessionSince)))) AS viewed_count,
+					COUNT(*) FILTER (WHERE %s > :tasteThreshold) AS taste_count
+				FROM store s JOIN store_profile p ON p.store_id=s.id
+				LEFT JOIN store_recommendation_feature f ON f.store_id=s.id
+				WHERE %s AND %s
+				""".formatted(TASTE_COSINE, ELIGIBLE_STORE, POLYGON_MEMBER);
+		MapSqlParameterSource params = centerParams(memberId, taste, 0, 0, List.of())
+			.addValue("bindingId", bindingId).addValue("sessionId", sessionId, Types.VARCHAR)
+			.addValue("since",
+				LocalDateTime.now().minusMinutes(recommendationProperties.getArea().getSessionWindowMinutes()))
+			.addValue("sessionSince",
+				LocalDateTime.now().minusHours(recommendationProperties.getArea().getSessionMaxAgeHours()));
+		return jdbcTemplate.queryForObject(sql, params, (rs, index) -> new AreaChipStats(areaId,
+			rs.getInt("store_count"), rs.getInt("saved_count"), rs.getInt("viewed_count"), rs.getInt("taste_count"), 0,
+			0));
+	}
+
+	/** 도시 전체를 점수화한 뒤 경로 탐색한다. top-N 선절단은 연결 가능한 저순위 군집을 잃으므로 하지 않는다. */
+	public List<CandidateStoreRow> findPolygonCandidates(Long memberId, TasteQuery taste, long bindingId,
+			double latitude, double longitude, Integer radiusM, Collection<Long> excluded) {
+		String sql = SELECT_STORE + " AND " + POLYGON_MEMBER
+			+ (radiusM == null ? "" : " AND ST_DWithin(s.location, " + CENTER + ", :radiusM)")
+			+ " ORDER BY sc.score DESC, s.id ASC";
+		return jdbcTemplate.query(sql, centerParams(memberId, taste, latitude, longitude, excluded)
+			.addValue("bindingId", bindingId).addValue("radiusM", radiusM, Types.INTEGER), this::mapRow);
+	}
+
 	/**
 	 * 상권 후보: 반경 안이거나(주 규칙) 시·도 + 시군구·동이 맞는(보조) 가게를 점수순으로. region2nd 가 null 이면 반경만 본다.
 	 * 시·도(store.region_1st = course_area.sido)를 같이 보는 이유: 시군구 이름은 전국에서 겹친다 — 중구·서구·동구·남구가

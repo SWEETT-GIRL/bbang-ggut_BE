@@ -1,0 +1,78 @@
+{
+  "rows": [
+    {
+      "no_match": 0,
+      "ambiguous": 0,
+      "candidates": 260,
+      "stored_scope": "세종",
+      "unique_match": 260,
+      "different_scope": 0
+    },
+    {
+      "no_match": 0,
+      "ambiguous": 0,
+      "candidates": 835,
+      "stored_scope": "고양시",
+      "unique_match": 835,
+      "different_scope": 0
+    },
+    {
+      "no_match": 0,
+      "ambiguous": 0,
+      "candidates": 692,
+      "stored_scope": "성남시",
+      "unique_match": 692,
+      "different_scope": 0
+    },
+    {
+      "no_match": 0,
+      "ambiguous": 0,
+      "candidates": 1015,
+      "stored_scope": "수원시",
+      "unique_match": 1015,
+      "different_scope": 0
+    }
+  ],
+  "source_id": "2f83cb96f1184150859238e4835df12d",
+  "measured_at": "2026-10-12T07:36:28.442831+00:00",
+  "boundary_rows": 5373,
+  "source_metadata": {
+    "prj": "PROJCS[\"Korea_2000_Korea_Central_Belt_2010\", GEOGCS[\"GCS_Korea_2000\", DATUM[\"D_Korea_2000\", SPHEROID[\"GRS_1980\", 6378137.0, 298.257222101]], PRIMEM[\"Greenwich\", 0.0], UNIT[\"degree\", 0.017453292519943295], AXIS[\"Longitude\", EAST], AXIS[\"Latitude\", NORTH]], PROJECTION[\"Transverse_Mercator\"], PARAMETER[\"central_meridian\", 127.0], PARAMETER[\"latitude_of_origin\", 38.0], PARAMETER[\"scale_factor\", 1.0], PARAMETER[\"false_easting\", 200000.0], PARAMETER[\"false_northing\", 600000.0], UNIT[\"m\", 1.0], AXIS[\"x\", EAST], AXIS[\"y\", NORTH], AUTHORITY[\"EPSG\",\"5186\"]]",
+    "layer": "LEGAL_EMD",
+    "hashes": {
+      "AL_D001_00_20260909(EMD).dbf": "5f1bb2f356511bd8f62643d7cb6dd059689ebf8c53ebb13971fa7f455bc0a456",
+      "AL_D001_00_20260909(EMD).fix": "a4be69ca4d9d1a6ebdb193a57c3c3d05fa64730c9dc838a409a856489d8055ce",
+      "AL_D001_00_20260909(EMD).prj": "c9e055f0ba3e7d3844883a41ed9dbfc060fabc1fbf09bef13d7de34c0ef788cc",
+      "AL_D001_00_20260909(EMD).shp": "cd0d8b53fef80ca6a9f360ed640fa491ad9fd9f9dc3f1996cd4287697b01f4cb",
+      "AL_D001_00_20260909(EMD).shx": "8759ed7d8c5c6c1af919f617fe0f881355983ae885245b5eb20ff5e54fd7431f"
+    },
+    "encoding": "CP949",
+    "raw_rows": 5373,
+    "raw_table": "region_polygon_lab_742.raw_043a04d7c07841a1828364572a5ef4d6",
+    "source_url": "https://www.vworld.kr/dtmk/dtmk_ntads_s002.do?svcCde=NA&dsId=21",
+    "source_date": "2026-09-09",
+    "source_kind": "DERIVED_REPAIR_CANDIDATE",
+    "source_srid": 5186,
+    "repair_method": "ST_MakeValid default linework; polygon extraction; validity recheck",
+    "repaired_rows": 55,
+    "column_mapping": {
+      "code": "A1",
+      "name": "A2"
+    },
+    "parent_source_id": "043a04d7c07841a1828364572a5ef4d6",
+    "invalid_code_rows": 306,
+    "postgis_full_version": "POSTGIS=\"3.6.1 f533623\" [EXTENSION] PGSQL=\"180\" GEOS=\"3.13.1-CAPI-1.19.2\" PROJ=\"9.6.0 NETWORK_ENABLED=OFF URL_ENDPOINT=https://cdn.proj.org USER_WRITABLE_DIRECTORY=/var/lib/postgresql/.local/share/proj DATABASE_PATH=/usr/share/proj/proj.db\" (compiled against PROJ 9.6.0) LIBXML=\"2.9.14\" LIBJSON=\"0.18\" LIBPROTOBUF=\"1.5.1\" WAGYU=\"0.5.0 (Internal)\""
+  },
+  "local_store_count": 53101,
+  "pilot_reference_codes": 186,
+  "unusable_boundary_rows": 306,
+  "local_store_latest_update": "2026-09-19T11:26:30.140755",
+  "pilot_codes_without_usable_geometry": 0,
+  "reference_sha256": "4333ed7bdb62ed7132e02650936877b848b7fd3168bbb00264534d0694130cb5",
+  "limitations": [
+    "Local lab snapshot, not current production.",
+    "Cohort uses stored pilot-region values; this is not an audit of all mislabelled stores.",
+    "No match can mean stale geometry/code, point error or outside scope; not automatically a store error.",
+    "No store fields updated. Duplicate/edge matches remain ambiguous."
+  ]
+}

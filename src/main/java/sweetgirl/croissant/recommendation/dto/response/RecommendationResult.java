@@ -18,11 +18,18 @@ public record RecommendationResult(
 		boolean fallback,
 		int storeCount,
 		List<RecommendedStoreResponse> stores,
-		boolean lastBatch) {
+		boolean lastBatch,
+		PolygonRecommendationScope polygonScope) {
+
+	public RecommendationResult(String title, RecommendationAreaSummary area, int totalDistanceM, boolean fallback,
+			int storeCount, List<RecommendedStoreResponse> stores, boolean lastBatch) {
+		this(title, area, totalDistanceM, fallback, storeCount, stores, lastBatch, null);
+	}
 
 	/** 이유 문장만 바뀐 사본 (#764) — 제목 · 상권 · 거리 · 폴백 여부는 룰이 정한 그대로 둔다 */
 	public RecommendationResult withStores(List<RecommendedStoreResponse> stores) {
-		return new RecommendationResult(title, area, totalDistanceM, fallback, storeCount, stores, lastBatch);
+		return new RecommendationResult(title, area, totalDistanceM, fallback, storeCount, stores, lastBatch,
+			polygonScope);
 	}
 
 	/** lastBatch 가 없던 행(#661 이전)과 테스트 픽스처 — 더 있을 수 있다고 본다. */
