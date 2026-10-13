@@ -32,6 +32,7 @@ import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Attendance;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.CarryOver;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Feed;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Letter;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.RankingReward;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Welcome;
 import sweetgirl.croissant.reward.enums.CrumbReason;
 import sweetgirl.croissant.reward.enums.RewardItemType;
@@ -55,6 +56,7 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 	private static final Feed FEED = new Feed(false, List.of(10, 5, 3, 5, 10, 50));
 	private static final Letter LETTER = new Letter(1, 31L);
 	private static final Ad AD = new Ad(2);
+	private static final RankingReward RANKING_REWARD = new RankingReward(12L, 2, 50);
 
 	@MockitoBean
 	private BbangdaengLetterService bbangdaengLetterService;
@@ -75,7 +77,7 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 		given(rewardCommandService.carryOverIfNeeded(any())).willReturn(Optional.empty());
 		given(rewardQueryService.getSummary(any(), any())).willReturn(new RewardSummaryResponse(
 			285, 26, RULES, new CarryOver(true, 110, 12), new Welcome(false), List.of(pending), ATTENDANCE, FEED,
-			LETTER, AD));
+			LETTER, AD, RANKING_REWARD));
 
 		mockMvc.perform(get("/members/me/rewards/summary"))
 			.andExpect(status().isOk())
@@ -112,6 +114,9 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.letter.waitingCount").isNumber())
 			.andExpect(jsonPath("$.data.letter.latestId").isNumber())
 			.andExpect(jsonPath("$.data.ad.leftToday").isNumber())
+			.andExpect(jsonPath("$.data.rankingReward.pendingId").isNumber())
+			.andExpect(jsonPath("$.data.rankingReward.rank").isNumber())
+			.andExpect(jsonPath("$.data.rankingReward.crumbs").isNumber())
 			// rewards[] 한 칸 — 기록 저장·출석 등 뒤 phase 의 응답도 같은 모양을 쓴다
 			.andExpect(jsonPath("$.data.pendingRewards[0].id").isNumber())
 			.andExpect(jsonPath("$.data.pendingRewards[0].type").value("CRUMBS"))
@@ -132,6 +137,8 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(status().isOk())
 			// 이관이 없던 조회는 null 로 내려간다 — 앱은 null 이 아닐 때만 안내 화면을 띄운다
 			.andExpect(jsonPath("$.data.carryOver").value((Object)null))
+			// 받을 랭킹 보상이 없으면 null 이다
+			.andExpect(jsonPath("$.data.rankingReward").value((Object)null))
 			.andExpect(jsonPath("$.data.pendingRewards").isEmpty());
 	}
 
@@ -141,7 +148,7 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 		given(rewardQueryService.getSummary(any(), any())).willReturn(new RewardSummaryResponse(
 			0, 0, RULES, null, new Welcome(false), List.of(new RewardItemResponse(
 				32L, RewardItemType.LEVEL_UP, null, 2, 3, null, null, "earth", "space", null, null)),
-			ATTENDANCE, FEED, LETTER, AD));
+			ATTENDANCE, FEED, LETTER, AD, RANKING_REWARD));
 
 		mockMvc.perform(get("/members/me/rewards/summary"))
 			.andExpect(status().isOk())

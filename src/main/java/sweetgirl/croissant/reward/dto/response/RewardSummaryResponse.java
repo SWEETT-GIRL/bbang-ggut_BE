@@ -20,12 +20,13 @@ public record RewardSummaryResponse(
 		Attendance attendance,
 		Feed feed,
 		Letter letter,
-		Ad ad) {
+		Ad ad,
+		RankingReward rankingReward) {
 
 	/** 게스트는 보상이 없다. 홈이 매번 부르는 조회라 403 대신 빈 요약으로 답한다. */
 	public static RewardSummaryResponse guest(RewardRulesResponse rules, Attendance attendance, Feed feed) {
 		return new RewardSummaryResponse(0, 0, rules, null, new Welcome(false), List.of(), attendance, feed,
-			new Letter(0, null), new Ad(0));
+			new Letter(0, null), new Ad(0), null);
 	}
 
 	/**
@@ -60,6 +61,14 @@ public record RewardSummaryResponse(
 	 * @param latestId     그중 가장 최근 편지. 없으면 null
 	 */
 	public record Letter(int waitingCount, Long latestId) {
+	}
+
+	/**
+	 * 받을 수 있는 랭킹 주간 보상(가장 최근 주). 없으면 요약의 이 칸이 null 이다.
+	 *
+	 * @param pendingId 받기를 누를 때 보내는 id
+	 */
+	public record RankingReward(Long pendingId, int rank, int crumbs) {
 	}
 
 	/** @param leftToday 오늘 광고로 더 받을 수 있는 횟수 */
