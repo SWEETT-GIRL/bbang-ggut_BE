@@ -33,6 +33,7 @@ public enum RewardErrorCode implements BaseErrorCode {
 			"내 초대 코드는 넣을 수 없습니다."),
 	REWARD_INVITE_MUTUAL(BAD_REQUEST, "REWARD400_8",
 			"내가 초대한 친구의 코드는 넣을 수 없습니다."),
+	REWARD_SETTING_VALUE_INVALID(BAD_REQUEST, "REWARD400_9", "설정 값이 올바르지 않습니다."),
 	REWARD_SHOP_LEVEL_LOCKED(FORBIDDEN, "REWARD403_1",
 			"아직 살 수 없는 품목입니다."),
 	REWARD_INVITE_REJOINED(FORBIDDEN, "REWARD403_2",

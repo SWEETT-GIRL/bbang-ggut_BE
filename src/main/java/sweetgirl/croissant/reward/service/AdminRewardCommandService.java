@@ -1,5 +1,6 @@
 package sweetgirl.croissant.reward.service;
 
+import java.time.DateTimeException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -61,6 +62,7 @@ public class AdminRewardCommandService {
 		List<AdminRewardSettingsUpdateRequest.Entry> entries = request.settings();
 		entries.forEach(entry -> RewardSettingKey.findByKey(entry.key())
 			.orElseThrow(() -> new RewardException(RewardErrorCode.REWARD_SETTING_NOT_FOUND)));
+		validateCarryOverBefore(entries);
 
 		LocalDateTime now = LocalDateTime.now();
 		for (AdminRewardSettingsUpdateRequest.Entry entry : entries) {
@@ -69,6 +71,25 @@ public class AdminRewardCommandService {
 				() -> rewardSettingRepository.save(RewardSetting.of(entry.key(), entry.value(), now)));
 		}
 		rewardSettings.evict();
+	}
+
+	/** 출시 시각은 날짜와 시각 두 키로 나뉘어 있다 — 바뀐 뒤의 두 값이 실제로 있는 시각이어야 한다. */
+	private void validateCarryOverBefore(List<AdminRewardSettingsUpdateRequest.Entry> entries) {
+		int date = valueAfter(entries, RewardSettingKey.CARRY_OVER_BEFORE_DATE);
+		int time = valueAfter(entries, RewardSettingKey.CARRY_OVER_BEFORE_TIME);
+		try {
+			RewardMemberPolicy.cutoffOf(date, time);
+		} catch (DateTimeException exception) {
+			throw new RewardException(RewardErrorCode.REWARD_SETTING_VALUE_INVALID);
+		}
+	}
+
+	private int valueAfter(List<AdminRewardSettingsUpdateRequest.Entry> entries, RewardSettingKey key) {
+		return entries.stream()
+			.filter(entry -> entry.key().equals(key.getKey()))
+			.map(AdminRewardSettingsUpdateRequest.Entry::value)
+			.reduce((first, second) -> second)
+			.orElseGet(() -> rewardSettings.get(key));
 	}
 
 	/** 편지 글을 묶음 끝에 더한다. */
