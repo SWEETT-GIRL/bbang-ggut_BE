@@ -2,6 +2,7 @@ package sweetgirl.croissant.course.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import org.junit.jupiter.api.DisplayName;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityManager;
 import sweetgirl.croissant.course.entity.Course;
+import sweetgirl.croissant.course.entity.CourseMember;
 import sweetgirl.croissant.course.enums.CourseVisibility;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.member.entity.Member;
@@ -134,5 +136,37 @@ class CourseRepositoryTest {
 
 		assertThat(course.getTitle()).isEqualTo("고친 제목");
 		assertThat(course.getVersion()).isEqualTo(1);
+	}
+
+	@Test
+	@DisplayName("기간에 걸친 내 빵투어 — 내가 만든 것과 일행인 것만, 날짜 없는 것·남의 것·지운 것은 빠지고 시작일 순이다")
+	void findMyDatedCourses_ownAndJoinedWithinRange() {
+		LocalDate today = LocalDate.of(2026, 10, 14);
+		Member me = new Member("나");
+		Member friend = new Member("친구");
+		entityManager.persist(me);
+		entityManager.persist(friend);
+		Course soon = dated("모레 빵투어", me, today.plusDays(2), null);
+		Course ongoing = dated("어제부터 내일까지", me, today.minusDays(1), today.plusDays(1));
+		Course joined = dated("친구가 만든 오늘 빵투어", friend, today, null);
+		entityManager.persist(CourseMember.of(joined, me, "나"));
+		dated("끝난 빵투어", me, today.minusDays(5), today.minusDays(3));
+		dated("한참 뒤 빵투어", me, today.plusDays(20), null);
+		dated("친구만의 빵투어", friend, today, null);
+		entityManager.persist(Course.createCustom("날짜 없는 빵투어", me, false));
+		Course deleted = dated("지운 빵투어", me, today, null);
+		deleted.softDelete();
+		entityManager.flush();
+
+		assertThat(courseRepository.findMyDatedCourses(me.getId(), today, today.plusDays(7)))
+			.extracting(Course::getTitle)
+			.containsExactly(ongoing.getTitle(), joined.getTitle(), soon.getTitle());
+	}
+
+	private Course dated(String title, Member owner, LocalDate startDate, LocalDate endDate) {
+		Course course = Course.createCustom(title, owner, false);
+		course.updateDates(startDate, endDate);
+		entityManager.persist(course);
+		return course;
 	}
 }
