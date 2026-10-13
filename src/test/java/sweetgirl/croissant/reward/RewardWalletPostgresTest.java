@@ -47,6 +47,7 @@ import sweetgirl.croissant.reward.entity.MemberBbangdaengLetter;
 import sweetgirl.croissant.reward.entity.MemberCharacterLook;
 import sweetgirl.croissant.reward.entity.MemberCrumbWallet;
 import sweetgirl.croissant.reward.entity.MemberFeedDay;
+import sweetgirl.croissant.reward.entity.MemberInvite;
 import sweetgirl.croissant.reward.entity.MemberPendingReward;
 import sweetgirl.croissant.reward.entity.MemberShopItem;
 import sweetgirl.croissant.reward.entity.RewardSetting;
@@ -151,7 +152,8 @@ class RewardWalletPostgresTest {
 			"V20261012220200__advance_earth_stage_offsets.sql",
 			"V20261012230000__create_bbangdaeng_letters.sql",
 			"V20261013000000__create_reward_shop.sql",
-			"V20261013010000__add_reward_columns_to_course_progress.sql")) {
+			"V20261013010000__add_reward_columns_to_course_progress.sql",
+			"V20261013020000__create_member_invites.sql")) {
 			jdbc.execute(new ClassPathResource("db/migration/" + migration).getContentAsString(StandardCharsets.UTF_8));
 		}
 
@@ -164,7 +166,7 @@ class RewardWalletPostgresTest {
 			MemberAttendanceDay.class.getName(), MemberFeedDay.class.getName(),
 			BbangdaengLetter.class.getName(), MemberBbangdaengLetter.class.getName(),
 			ShopItem.class.getName(), ShopCatalog.class.getName(), MemberShopItem.class.getName(),
-			MemberCharacterLook.class.getName()));
+			MemberCharacterLook.class.getName(), MemberInvite.class.getName()));
 		// 마이그레이션이 만든 표와 엔티티가 어긋나면 여기서 터진다 — 운영 기동 실패를 미리 본다
 		// 이름 전략은 앱(Spring Boot 기본값)과 같게 둔다 — balanceAfter 를 balance_after 로 읽는다
 		factory.setJpaPropertyMap(Map.of(
@@ -480,6 +482,30 @@ class RewardWalletPostgresTest {
 			"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = current_schema() "
 				+ "AND table_name = 'course_progress' AND column_name IN ('first_visited_on', 'photo_completed_at')",
 			Integer.class)).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("초대 코드는 회원끼리 겹칠 수 없고, 코드가 없는 회원은 몇 명이든 된다")
+	void inviteCodeIsUnique() {
+		jdbc.execute("UPDATE member SET invite_code = 'ABCD2345' WHERE id = 1");
+
+		assertThatThrownBy(() -> jdbc.execute("UPDATE member SET invite_code = 'ABCD2345' WHERE id = 2"))
+			.hasMessageContaining("uq_member_invite_code");
+		assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM member WHERE invite_code IS NULL", Integer.class))
+			.isEqualTo(3);
+	}
+
+	@Test
+	@DisplayName("한 사람은 코드를 한 번만 넣을 수 있고, 자기 자신을 초대할 수 없다")
+	void inviteeEntersOnce() {
+		String accept = "INSERT INTO member_invites (inviter_id, invitee_id, created_at) VALUES (?, ?, now()) "
+			+ "ON CONFLICT DO NOTHING";
+		assertThat(jdbc.update(accept, 1L, 2L)).isEqualTo(1);
+		assertThat(jdbc.update(accept, 3L, 2L)).isZero();
+		assertThat(jdbc.update(accept, 1L, 3L)).isEqualTo(1);
+
+		assertThatThrownBy(() -> jdbc.update(accept, 4L, 4L))
+			.hasMessageContaining("chk_member_invites_not_self");
 	}
 
 	private LocalDateTime registeredAt(long memberId) {

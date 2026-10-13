@@ -51,6 +51,8 @@ class RecordRewardServiceTest {
 	private CrumbLedgerRepository ledgerRepository;
 	@Mock
 	private WorldLevelReader worldLevelReader;
+	@Mock
+	private InviteService inviteService;
 
 	@InjectMocks
 	private RecordRewardService recordRewardService;
@@ -156,6 +158,36 @@ class RecordRewardServiceTest {
 			assertThat(rewards).extracting(RewardItemResponse::type)
 				.containsExactly(RewardItemType.CRUMBS, RewardItemType.CRUMBS);
 			then(worldLevelReader).shouldHaveNoInteractions();
+		}
+
+		@Test
+		@DisplayName("초대받은 회원의 첫 빵이면 초대 보상을 기록 보상 뒤, 레벨업 앞에 싣는다")
+		void invitedMemberFirstRecord() {
+			givenRecordGrant(new GrantResult(Outcome.GRANTED, 10, 0, 10));
+			givenLevels(0, new WorldLevel(1, 1, "earth", "village"), 1, new WorldLevel(2, 5, "earth", "sky"));
+			RewardItemResponse invited = RewardItemResponse.crumbs(
+				new GrantResult(Outcome.GRANTED, 100, 10, 110), CrumbReason.INVITE_INVITEE);
+			given(inviteService.rewardFirstRecord(member)).willReturn(List.of(invited));
+
+			List<RewardItemResponse> rewards = recordRewardService.rewardCreated(member, RECORD_ID, 0, 0, 1);
+
+			assertThat(rewards).extracting(RewardItemResponse::type).containsExactly(
+				RewardItemType.BREAD, RewardItemType.CRUMBS, RewardItemType.CRUMBS, RewardItemType.LEVEL_UP);
+			assertThat(rewards.get(2)).isEqualTo(invited);
+		}
+
+		@Test
+		@DisplayName("빵투어의 가벼운 기록은 (빵투어, 가게)를 멱등 키로 쓰고, 그것도 초대를 성사시키는 첫 빵이다")
+		void tourRecordUsesTourKey() {
+			given(crumbGrantService.grantWithDailyCap(eq(7L), eq(CrumbReason.RECORD), eq(10),
+				eq("tour_record:812:10"), eq(RewardRefType.RECORD), eq(55L), eq(3), any()))
+				.willReturn(new GrantResult(Outcome.GRANTED, 10, 0, 10));
+
+			List<RewardItemResponse> rewards = recordRewardService.rewardTourRecordCreated(
+				member, RECORD_ID, 812L, 10L, 5, 5);
+
+			assertThat(rewards).singleElement().satisfies(reward -> assertThat(reward.amount()).isEqualTo(10));
+			then(inviteService).should().rewardFirstRecord(member);
 		}
 
 		@Test
