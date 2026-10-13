@@ -19,6 +19,7 @@ import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Ad;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Attendance;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.CarryOver;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Feed;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.RankingReward;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Welcome;
 import sweetgirl.croissant.reward.entity.CrumbLedgerEntry;
 import sweetgirl.croissant.reward.repository.CrumbLedgerRepository;
@@ -43,6 +44,7 @@ public class RewardQueryService {
 	private final MemberFeedDayRepository feedDayRepository;
 	private final BbangdaengLetterService bbangdaengLetterService;
 	private final EarnRewardService earnRewardService;
+	private final RankingRewardService rankingRewardService;
 
 	/**
 	 * 홈이 한 번에 읽는 요약.
@@ -73,7 +75,10 @@ public class RewardQueryService {
 			new Feed(feedDayRepository.findByMemberIdAndDay(memberId, today).isPresent(),
 				rewardSettings.feedWedges()),
 			bbangdaengLetterService.summaryOf(memberId),
-			new Ad(earnRewardService.adsLeftToday(memberId)));
+			new Ad(earnRewardService.adsLeftToday(memberId)),
+			rankingRewardService.latestPending(memberId)
+				.map(reward -> new RankingReward(reward.id(), reward.rank(), reward.crumbs()))
+				.orElse(null));
 	}
 
 	/** 판의 자리에 보상 수치를 붙인다. 오늘 했으면 오늘 칸은 찍힌 칸이고, 안 했으면 찍을 칸이다. */

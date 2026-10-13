@@ -50,6 +50,7 @@ import sweetgirl.croissant.reward.entity.MemberFeedDay;
 import sweetgirl.croissant.reward.entity.MemberInvite;
 import sweetgirl.croissant.reward.entity.MemberPendingReward;
 import sweetgirl.croissant.reward.entity.MemberShopItem;
+import sweetgirl.croissant.reward.entity.RankingWeeklyReward;
 import sweetgirl.croissant.reward.entity.RewardSetting;
 import sweetgirl.croissant.reward.entity.ShopCatalog;
 import sweetgirl.croissant.reward.entity.ShopItem;
@@ -62,6 +63,7 @@ import sweetgirl.croissant.reward.repository.MemberAttendanceDayRepository;
 import sweetgirl.croissant.reward.repository.MemberCrumbWalletRepository;
 import sweetgirl.croissant.reward.repository.MemberFeedDayRepository;
 import sweetgirl.croissant.reward.repository.MemberPendingRewardRepository;
+import sweetgirl.croissant.reward.repository.RankingWeeklyRewardRepository;
 import sweetgirl.croissant.reward.repository.RewardSettingRepository;
 import sweetgirl.croissant.reward.service.CrumbGrantService;
 import sweetgirl.croissant.reward.service.GrantResult;
@@ -153,7 +155,8 @@ class RewardWalletPostgresTest {
 			"V20261012230000__create_bbangdaeng_letters.sql",
 			"V20261013000000__create_reward_shop.sql",
 			"V20261013010000__add_reward_columns_to_course_progress.sql",
-			"V20261013020000__create_member_invites.sql")) {
+			"V20261013020000__create_member_invites.sql",
+			"V20261013030000__create_ranking_weekly_rewards.sql")) {
 			jdbc.execute(new ClassPathResource("db/migration/" + migration).getContentAsString(StandardCharsets.UTF_8));
 		}
 
@@ -166,7 +169,8 @@ class RewardWalletPostgresTest {
 			MemberAttendanceDay.class.getName(), MemberFeedDay.class.getName(),
 			BbangdaengLetter.class.getName(), MemberBbangdaengLetter.class.getName(),
 			ShopItem.class.getName(), ShopCatalog.class.getName(), MemberShopItem.class.getName(),
-			MemberCharacterLook.class.getName(), MemberInvite.class.getName()));
+			MemberCharacterLook.class.getName(), MemberInvite.class.getName(),
+			RankingWeeklyReward.class.getName()));
 		// 마이그레이션이 만든 표와 엔티티가 어긋나면 여기서 터진다 — 운영 기동 실패를 미리 본다
 		// 이름 전략은 앱(Spring Boot 기본값)과 같게 둔다 — balanceAfter 를 balance_after 로 읽는다
 		factory.setJpaPropertyMap(Map.of(
@@ -193,6 +197,8 @@ class RewardWalletPostgresTest {
 			() -> repositories.getRepository(MemberAttendanceDayRepository.class));
 		context.registerBean(MemberFeedDayRepository.class,
 			() -> repositories.getRepository(MemberFeedDayRepository.class));
+		context.registerBean(RankingWeeklyRewardRepository.class,
+			() -> repositories.getRepository(RankingWeeklyRewardRepository.class));
 		// 제재 표는 이 스키마에 없다 — 아무도 제재 중이 아닌 것으로 둔다
 		context.registerBean(MemberRestrictionReader.class, () -> mock(MemberRestrictionReader.class));
 		context.registerBean(CrumbGrantService.class);
@@ -506,6 +512,44 @@ class RewardWalletPostgresTest {
 
 		assertThatThrownBy(() -> jdbc.update(accept, 4L, 4L))
 			.hasMessageContaining("chk_member_invites_not_self");
+	}
+
+	@Test
+	@DisplayName("랭킹 주간 보상 — 한 주에 한 사람 한 줄, 받기는 한 번, 기한이 지난 주는 못 받고, 왕관은 받는 주에만 쓴다")
+	void rankingWeeklyRewards() {
+		RankingWeeklyRewardRepository rewards = context.getBean(RankingWeeklyRewardRepository.class);
+		TransactionTemplate transaction = new TransactionTemplate(context.getBean(JpaTransactionManager.class));
+		LocalDate lastWeek = LocalDate.of(2026, 10, 5);
+		LocalDate thisMonday = LocalDate.of(2026, 10, 12);
+		LocalDate crownUntil = lastWeek.plusDays(13);
+		LocalDateTime now = LocalDateTime.now();
+
+		Integer first = transaction.execute(status -> rewards.insertIfAbsent(lastWeek, 1L, 1, 100, crownUntil, now));
+		Integer again = transaction.execute(status -> rewards.insertIfAbsent(lastWeek, 1L, 1, 100, crownUntil, now));
+		assertThat(first).isEqualTo(1);
+		assertThat(again).isZero();
+		transaction.execute(status -> rewards.insertIfAbsent(lastWeek, 2L, 2, 50, null, now));
+		transaction.execute(status -> rewards.insertIfAbsent(lastWeek.minusWeeks(6), 2L, 5, 20, null, now));
+
+		// 왕관: 겨룬 주에는 아직 없고, 받는 주(10/12 ~ 10/18)에만 쓴다
+		assertThat(rewards.findCrownedMemberIds(thisMonday)).containsExactly(1L);
+		assertThat(rewards.findCrownedMemberIds(thisMonday.plusDays(6))).containsExactly(1L);
+		assertThat(rewards.findCrownedMemberIds(thisMonday.plusDays(7))).isEmpty();
+
+		// 6 주 전의 보상은 기한(겨룬 주의 월요일에서 34 일째까지)이 지나 목록에도 없고 받을 수도 없다
+		LocalDate earliestWeek = thisMonday.minusDays(34);
+		List<RankingWeeklyReward> claimable = rewards.findClaimable(2L, earliestWeek);
+		assertThat(claimable).extracting(RankingWeeklyReward::getFinalRank).containsExactly(2);
+		Long rewardId = claimable.get(0).getId();
+		Integer claimed = transaction.execute(status -> rewards.claim(rewardId, 2L, earliestWeek, now));
+		Integer claimedAgain = transaction.execute(status -> rewards.claim(rewardId, 2L, earliestWeek, now));
+		assertThat(claimed).isEqualTo(1);
+		assertThat(claimedAgain).isZero();
+		assertThat(rewards.findClaimable(2L, earliestWeek)).isEmpty();
+
+		assertThatThrownBy(() -> transaction.execute(
+			status -> rewards.insertIfAbsent(lastWeek, 3L, 11, 20, null, now)))
+			.hasMessageContaining("chk_ranking_weekly_rewards_rank");
 	}
 
 	private LocalDateTime registeredAt(long memberId) {

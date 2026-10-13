@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
+import sweetgirl.croissant.reward.service.RankingRewardService;
 import sweetgirl.croissant.world.code.WorldErrorCode;
 import sweetgirl.croissant.world.dto.response.MemberCharacterResponse;
 import sweetgirl.croissant.world.dto.response.MemberWorldResponse;
@@ -41,6 +42,7 @@ public class WorldQueryService {
 	private final BreadRecordRepository breadRecordRepository;
 	private final WorldCatalogService worldCatalogService;
 	private final WorldProgressCalculator worldProgressCalculator;
+	private final RankingRewardService rankingRewardService;
 
 	public MemberWorldResponse getMemberWorld(Long memberId) {
 		MemberWorld memberWorld = memberWorldRepository.findById(memberId)
@@ -76,7 +78,8 @@ public class WorldQueryService {
 			characters(catalog, memberId),
 			memberWorld.getWelcomedAt(),
 			level.level(),
-			level.levelUpAt());
+			level.levelUpAt(),
+			rankingRewardService.crownedMemberIds().contains(memberId));
 	}
 
 	/**

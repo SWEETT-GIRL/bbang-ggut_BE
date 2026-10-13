@@ -31,5 +31,7 @@ public record MemberWorldResponse(
 		List<MemberCharacterResponse> characters,
 		LocalDateTime welcomedAt,
 		int level,
-		Integer levelUpAt) {
+		Integer levelUpAt,
+		/** 지난주 전국 주간 랭킹 1 위라 왕관을 쓰고 있는가 */
+		boolean crowned) {
 }

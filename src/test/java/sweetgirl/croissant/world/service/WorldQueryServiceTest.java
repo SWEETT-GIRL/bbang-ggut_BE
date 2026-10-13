@@ -19,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
+import sweetgirl.croissant.reward.service.RankingRewardService;
 import sweetgirl.croissant.world.dto.response.MemberCharacterResponse;
 import sweetgirl.croissant.world.dto.response.MemberWorldResponse;
 import sweetgirl.croissant.world.dto.response.WorldCatalogResponse;
@@ -53,6 +54,9 @@ class WorldQueryServiceTest {
 	private BreadRecordRepository breadRecordRepository;
 	@Mock
 	private WorldCatalogService worldCatalogService;
+
+	@Mock
+	private RankingRewardService rankingRewardService;
 
 	@InjectMocks
 	private WorldQueryService worldQueryService;

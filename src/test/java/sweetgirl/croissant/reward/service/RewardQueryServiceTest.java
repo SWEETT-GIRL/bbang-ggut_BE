@@ -9,6 +9,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.withSettings;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -26,6 +27,7 @@ import org.springframework.data.domain.PageRequest;
 
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.reward.dto.response.RankingRewardResponse;
 import sweetgirl.croissant.reward.dto.response.RewardHistoryResponse;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Ad;
@@ -33,6 +35,7 @@ import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Attendance;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.CarryOver;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Feed;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Letter;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.RankingReward;
 import sweetgirl.croissant.reward.entity.CrumbLedgerEntry;
 import sweetgirl.croissant.reward.entity.MemberAttendanceDay;
 import sweetgirl.croissant.reward.entity.MemberFeedDay;
@@ -66,6 +69,8 @@ class RewardQueryServiceTest {
 	private BbangdaengLetterService bbangdaengLetterService;
 	@Mock
 	private EarnRewardService earnRewardService;
+	@Mock
+	private RankingRewardService rankingRewardService;
 
 	@InjectMocks
 	private RewardQueryService rewardQueryService;
@@ -154,6 +159,19 @@ class RewardQueryServiceTest {
 
 			assertThat(summary.letter()).isEqualTo(new Letter(2, 31L));
 			assertThat(summary.ad()).isEqualTo(new Ad(1));
+		}
+
+		@Test
+		@DisplayName("받을 랭킹 주간 보상이 있으면 가장 최근 주의 것을 싣고, 없으면 null 이다")
+		void rankingReward() {
+			given(rankingRewardService.latestPending(MEMBER_ID)).willReturn(Optional.of(new RankingRewardResponse(
+				12L, LocalDate.of(2026, 10, 5), 2, 50, false, LocalDate.of(2026, 11, 8))));
+
+			assertThat(rewardQueryService.getSummary(MEMBER_ID, null).rankingReward())
+				.isEqualTo(new RankingReward(12L, 2, 50));
+
+			given(rankingRewardService.latestPending(MEMBER_ID)).willReturn(Optional.empty());
+			assertThat(rewardQueryService.getSummary(MEMBER_ID, null).rankingReward()).isNull();
 		}
 
 		@Test

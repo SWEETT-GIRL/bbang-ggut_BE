@@ -68,7 +68,7 @@ class WorldControllerTest {
 
 	private static final MemberWorldResponse STATE = new MemberWorldResponse(
 		7, 12L, 12, "mars", "village", "jupiter", 28, 0.066, "dog",
-		List.of("mars"), 1, List.of(), null, 4, 20);
+		List.of("mars"), 1, List.of(), null, 4, 20, true);
 
 	@Test
 	@DisplayName("내 세계관 상태를 내린다")
@@ -84,6 +84,7 @@ class WorldControllerTest {
 			.andExpect(jsonPath("$.data.selectedCharacter").value("dog"))
 			.andExpect(jsonPath("$.data.level").value(4))
 			.andExpect(jsonPath("$.data.levelUpAt").value(20))
+			.andExpect(jsonPath("$.data.crowned").value(true))
 			.andExpect(jsonPath("$.data.pendingRoulettePlanets[0]").value("mars"))
 			// 앱은 키가 있는지로 새 서버인지 가린다. null 이어도 빠지면 안 된다
 			.andExpect(content().string(containsString("\"welcomedAt\":null")));
