@@ -173,7 +173,8 @@ public class BbangdaengLetterService {
 			.collect(Collectors.toMap(BbangdaengLetter::getId, Function.identity()));
 		return letters.stream()
 			.map(letter -> new BbangdaengLetterResponse(
-				letter.getId(), letter.getWeekStart(), bodyById.get(letter.getLetterId()).getBody(),
+				letter.getId(), letter.getWeekStart(),
+				letter.isOpened() ? bodyById.get(letter.getLetterId()).getBody() : null,
 				letter.isOpened()))
 			.toList();
 	}

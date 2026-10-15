@@ -220,7 +220,7 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 	@Test
 	void letters_keepFieldsTheAppReads() throws Exception {
 		given(bbangdaengLetterService.getLetters(any())).willReturn(List.of(
-			new BbangdaengLetterResponse(31L, LocalDate.of(2026, 10, 12), "안녕! 나 빵댕이야.", false)));
+			new BbangdaengLetterResponse(31L, LocalDate.of(2026, 10, 12), "안녕! 나 빵댕이야.", true)));
 		given(bbangdaengLetterService.open(any(), any())).willReturn(new BbangdaengLetterOpenResponse(
 			"안녕! 나 빵댕이야.", false, List.of(
 				RewardItemResponse.crumbs(new GrantResult(Outcome.GRANTED, 10, 30, 40), CrumbReason.LETTER))));
