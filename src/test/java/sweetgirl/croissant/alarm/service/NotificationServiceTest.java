@@ -89,6 +89,8 @@ class NotificationServiceTest {
 		assertThat(saved.getType()).isEqualTo(NotificationType.COURSE_SAVED);
 		assertThat(saved.getTargetType()).isEqualTo(NotificationTargetType.COURSE);
 		assertThat(saved.getTargetTitle()).isEqualTo("연남동 한바퀴");
+		// 눌렀을 때 그 빵투어로 — courseId 를 모르는 옛 앱도 link 는 따라간다
+		assertThat(saved.getDeepLink()).isEqualTo("/course/" + COURSE_ID);
 		// 문구는 앱이 조립한다 — 서버가 문장을 박아 내리면 앱에서 못 고친다.
 		assertThat(saved.getTitle()).isNull();
 

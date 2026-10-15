@@ -154,9 +154,7 @@ public class NotificationService {
 			log.info("빵투어 저장 알림 skip — 대상이 사라졌다 [actorId={}, ownerId={}]", actorId, ownerId);
 			return;
 		}
-		Notification notification = Notification.activity(
-			NotificationType.COURSE_SAVED, actor,
-			NotificationTargetType.COURSE, course.getId(), course.getTitle());
+		Notification notification = Notification.courseSaved(actor, course.getId(), course.getTitle());
 		Notification recorded = notificationRecorder.recordFor(notification, owner, now);
 		eventPublisher.publishEvent(PushRequestedEvent.to(recorded.getId(), owner.getId()));
 	}
