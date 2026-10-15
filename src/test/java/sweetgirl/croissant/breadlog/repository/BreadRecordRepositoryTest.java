@@ -113,6 +113,7 @@ class BreadRecordRepositoryTest {
 					deleted_at TIMESTAMP,
 					is_public BOOLEAN NOT NULL DEFAULT FALSE,
 					client_request_id UUID,
+					revisit BOOLEAN,
 					created_at TIMESTAMP NOT NULL,
 					updated_at TIMESTAMP
 				)

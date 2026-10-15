@@ -23,7 +23,11 @@ public record RewardRulesResponse(
 		int tourVisitCap,
 		int tourComplete,
 		int tourPhotoComplete,
-		int wakeFriend) {
+		int wakeFriend,
+		/** 지난주 전국 랭킹 보상 — 1 위 · 2~3 위 · 4~10 위 */
+		int rankingFirst,
+		int rankingSecondThird,
+		int rankingFourthTenth) {
 
 	public static RewardRulesResponse from(RewardSettings settings) {
 		return new RewardRulesResponse(
@@ -43,6 +47,9 @@ public record RewardRulesResponse(
 			settings.get(RewardSettingKey.TOUR_VISIT_DAILY_CAP),
 			settings.get(RewardSettingKey.TOUR_COMPLETE),
 			settings.get(RewardSettingKey.TOUR_PHOTO_COMPLETE),
-			settings.get(RewardSettingKey.WAKE_FRIEND));
+			settings.get(RewardSettingKey.WAKE_FRIEND),
+			settings.get(RewardSettingKey.RANKING_FIRST),
+			settings.get(RewardSettingKey.RANKING_SECOND_THIRD),
+			settings.get(RewardSettingKey.RANKING_FOURTH_TENTH));
 	}
 }

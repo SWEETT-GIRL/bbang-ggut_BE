@@ -149,6 +149,7 @@ public class BreadRecordCommandService {
 			.eatenAt(request.eatenAt())
 			.isPublic(Boolean.TRUE.equals(request.isPublic()))
 			.clientRequestId(request.requestId())
+			.revisit(request.revisit())
 			.build());
 		List<BreadRecordTag> savedTags = savePhotosAndTags(record, request, data.photoBySortOrder(), Map.of(),
 			data.lovedBreads(), Map.of(), Map.of());
@@ -192,7 +193,8 @@ public class BreadRecordCommandService {
 			normalizeNullable(request.memo()),
 			data.lovedBreads(),
 			request.towerBread(),
-			request.eatenAt());
+			request.eatenAt(),
+			request.revisit());
 		if (request.isPublic() != null) {
 			record.changeVisibility(request.isPublic());
 		}

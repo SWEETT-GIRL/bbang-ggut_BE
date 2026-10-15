@@ -191,13 +191,13 @@ class RewardQueryServiceTest {
 		@DisplayName("받을 랭킹 주간 보상이 있으면 가장 최근 주의 것을 싣고, 없으면 null 이다")
 		void rankingReward() {
 			given(rankingRewardService.latestPending(MEMBER_ID)).willReturn(Optional.of(new RankingRewardResponse(
-				12L, LocalDate.of(2026, 10, 5), 2, 50, false, LocalDate.of(2026, 11, 8))));
+				12L, LocalDate.of(2026, 10, 5), 2, 50, false, LocalDate.of(2026, 11, 8), 12)));
 
 			assertThat(rewardQueryService.getSummary(MEMBER_ID, null).rankingReward())
 				.isEqualTo(new RankingReward(12L, 2, 50, false));
 
 			given(rankingRewardService.latestPending(MEMBER_ID)).willReturn(Optional.of(new RankingRewardResponse(
-				13L, LocalDate.of(2026, 10, 5), 1, 100, true, LocalDate.of(2026, 11, 8))));
+				13L, LocalDate.of(2026, 10, 5), 1, 100, true, LocalDate.of(2026, 11, 8), 12)));
 			assertThat(rewardQueryService.getSummary(MEMBER_ID, null).rankingReward())
 				.isEqualTo(new RankingReward(13L, 1, 100, true));
 

@@ -4,12 +4,17 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.course.dto.projection.CourseStoreSummaryProjection;
 import sweetgirl.croissant.course.entity.Course;
+import sweetgirl.croissant.course.entity.CourseImageFile;
+import sweetgirl.croissant.course.repository.CourseImageFileRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
@@ -35,6 +40,7 @@ public class HomeCardService {
 	private final CourseRepository courseRepository;
 	private final CourseStoreRepository courseStoreRepository;
 	private final CourseStoreVisitRepository courseStoreVisitRepository;
+	private final CourseImageFileRepository courseImageFileRepository;
 
 	/**
 	 * @param letter   요약이 이미 읽은 편지 상태
@@ -49,12 +55,7 @@ public class HomeCardService {
 		List<Course> tours = courseRepository.findMyDatedCourses(memberId, today, today.plusDays(SOON_DAYS));
 		Optional<Course> tourToday = tours.stream().filter(tour -> !tour.getStartDate().isAfter(today)).findFirst();
 		if (tourToday.isPresent()) {
-			Course tour = tourToday.get();
-			return Optional.of(HomeCardResponse.tourToday(
-				tour.getId(), tour.getTitle(),
-				courseStoreVisitRepository.findAllByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(tour.getId(), memberId)
-					.size(),
-				(int)courseStoreRepository.countByCourseIdAndDeletedAtIsNull(tour.getId())));
+			return Optional.of(tourTodayCard(tourToday.get(), memberId));
 		}
 		if (letter.waitingCount() > 0) {
 			return Optional.of(HomeCardResponse.letter(letter.latestId()));
@@ -64,6 +65,28 @@ public class HomeCardService {
 		}
 		// 오늘 걸린 빵투어가 없으니 남은 것은 모두 내일 이후에 시작한다 — 가장 이른 것 하나
 		return tours.stream().findFirst().map(tour -> HomeCardResponse.tourSoon(
-			tour.getId(), tour.getTitle(), (int)ChronoUnit.DAYS.between(today, tour.getStartDate())));
+			tour.getId(), tour.getTitle(), (int)ChronoUnit.DAYS.between(today, tour.getStartDate()),
+			(int)courseStoreRepository.countByCourseIdAndDeletedAtIsNull(tour.getId()), coverImageKeyOf(tour.getId())));
+	}
+
+	/** 오늘 빵투어 — 다녀온 가게 수, 다음에 갈 가게(방문 순서에서 아직 안 간 첫 가게), 표지. */
+	private HomeCardResponse tourTodayCard(Course tour, Long memberId) {
+		List<CourseStoreSummaryProjection> stops = courseStoreRepository.findSummariesByCourseIdIn(
+			List.of(tour.getId()));
+		Set<Long> visitedStoreIds = courseStoreVisitRepository
+			.findAllByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(tour.getId(), memberId).stream()
+			.map(visit -> visit.getId().getStoreId())
+			.collect(Collectors.toSet());
+		String nextStoreName = stops.stream()
+			.filter(stop -> !visitedStoreIds.contains(stop.getStoreId()))
+			.map(CourseStoreSummaryProjection::getStoreName)
+			.findFirst()
+			.orElse(null);
+		return HomeCardResponse.tourToday(tour.getId(), tour.getTitle(), visitedStoreIds.size(), stops.size(),
+			nextStoreName, coverImageKeyOf(tour.getId()));
+	}
+
+	private String coverImageKeyOf(Long courseId) {
+		return courseImageFileRepository.findByCourseId(courseId).map(CourseImageFile::getAwsKey).orElse(null);
 	}
 }

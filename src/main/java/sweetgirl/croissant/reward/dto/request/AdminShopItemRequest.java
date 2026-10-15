@@ -15,7 +15,7 @@ public record AdminShopItemRequest(
 		@NotNull ShopItemKind kind,
 		@Size(max = 20) String pose,
 		@NotBlank @Size(max = 30) String name,
-		@NotNull @Min(1) Integer price,
+		@NotNull @Min(0) Integer price,
 		@Min(1) Integer lockLevel,
 		@NotNull Integer sortOrder,
 		boolean isNew,

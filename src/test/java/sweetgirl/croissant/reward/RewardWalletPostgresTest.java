@@ -160,7 +160,9 @@ class RewardWalletPostgresTest {
 			"V20261013000000__create_reward_shop.sql",
 			"V20261013010000__add_reward_columns_to_course_progress.sql",
 			"V20261013020000__create_member_invites.sql",
-			"V20261013030000__create_ranking_weekly_rewards.sql")) {
+			"V20261013030000__create_ranking_weekly_rewards.sql",
+			"V20261016002000__add_ranking_weekly_rewards_score.sql",
+			"V20261016003000__add_shop_default_poses.sql")) {
 			jdbc.execute(new ClassPathResource("db/migration/" + migration).getContentAsString(StandardCharsets.UTF_8));
 		}
 
@@ -530,12 +532,14 @@ class RewardWalletPostgresTest {
 		LocalDate crownUntil = lastWeek.plusDays(13);
 		LocalDateTime now = LocalDateTime.now();
 
-		Integer first = transaction.execute(status -> rewards.insertIfAbsent(lastWeek, 1L, 1, 100, crownUntil, now));
-		Integer again = transaction.execute(status -> rewards.insertIfAbsent(lastWeek, 1L, 1, 100, crownUntil, now));
+		Integer first = transaction
+			.execute(status -> rewards.insertIfAbsent(lastWeek, 1L, 1, 100, crownUntil, 12, now));
+		Integer again = transaction
+			.execute(status -> rewards.insertIfAbsent(lastWeek, 1L, 1, 100, crownUntil, 12, now));
 		assertThat(first).isEqualTo(1);
 		assertThat(again).isZero();
-		transaction.execute(status -> rewards.insertIfAbsent(lastWeek, 2L, 2, 50, null, now));
-		transaction.execute(status -> rewards.insertIfAbsent(lastWeek.minusWeeks(6), 2L, 5, 20, null, now));
+		transaction.execute(status -> rewards.insertIfAbsent(lastWeek, 2L, 2, 50, null, 7, now));
+		transaction.execute(status -> rewards.insertIfAbsent(lastWeek.minusWeeks(6), 2L, 5, 20, null, null, now));
 
 		// 왕관: 겨룬 주에는 아직 없고, 받는 주(10/12 ~ 10/18)에만 쓴다
 		assertThat(rewards.findCrownedMemberIds(thisMonday)).containsExactly(1L);
@@ -546,6 +550,8 @@ class RewardWalletPostgresTest {
 		LocalDate earliestWeek = thisMonday.minusDays(34);
 		List<RankingWeeklyReward> claimable = rewards.findClaimable(2L, earliestWeek);
 		assertThat(claimable).extracting(RankingWeeklyReward::getFinalRank).containsExactly(2);
+		// 그 주 점수도 줄에 남는다 — 앱이 "지난주 빵 N개"를 보여 준다
+		assertThat(claimable.get(0).getScore()).isEqualTo(7);
 		Long rewardId = claimable.get(0).getId();
 		Integer claimed = transaction.execute(status -> rewards.claim(rewardId, 2L, earliestWeek, now));
 		Integer claimedAgain = transaction.execute(status -> rewards.claim(rewardId, 2L, earliestWeek, now));
@@ -554,7 +560,7 @@ class RewardWalletPostgresTest {
 		assertThat(rewards.findClaimable(2L, earliestWeek)).isEmpty();
 
 		assertThatThrownBy(() -> transaction.execute(
-			status -> rewards.insertIfAbsent(lastWeek, 3L, 11, 20, null, now)))
+			status -> rewards.insertIfAbsent(lastWeek, 3L, 11, 20, null, null, now)))
 			.hasMessageContaining("chk_ranking_weekly_rewards_rank");
 	}
 

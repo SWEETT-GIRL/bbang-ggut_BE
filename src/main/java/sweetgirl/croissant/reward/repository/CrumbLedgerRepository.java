@@ -2,6 +2,7 @@ package sweetgirl.croissant.reward.repository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.domain.Pageable;
@@ -15,6 +16,9 @@ import sweetgirl.croissant.reward.enums.CrumbReason;
 import sweetgirl.croissant.reward.enums.RewardRefType;
 
 public interface CrumbLedgerRepository extends JpaRepository<CrumbLedgerEntry, Long> {
+
+	/** 멱등 키로 찾는 장부 줄들 — 편지처럼 "그때 얼마 받았나"를 다시 보여 줄 때. */
+	List<CrumbLedgerEntry> findByMemberIdAndIdempotencyKeyIn(Long memberId, Collection<String> idempotencyKeys);
 
 	/**
 	 * 원장에 한 줄 넣는다. 넣었으면 1, 같은 키로 이미 있으면 0 이다.

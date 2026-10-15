@@ -1,6 +1,7 @@
 package sweetgirl.croissant.breadlog.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.Query;
@@ -8,6 +9,7 @@ import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 
 import sweetgirl.croissant.breadlog.dto.projection.RankingRowProjection;
+import sweetgirl.croissant.breadlog.dto.projection.WeeklyScoreProjection;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 
 /**
@@ -114,6 +116,24 @@ public interface BreadRecordRankingRepository extends Repository<BreadRecord, Lo
 				OR rank = (SELECT rank - 1 FROM with_first WHERE member_id = CAST(:viewer AS BIGINT))
 			ORDER BY rank
 			""";
+
+	/**
+	 * 한 주(월 00:00 ~ 다음 월 00:00 직전)의 점수 — {@link #RECORDS_SCORED} 와 같은 셈(사진 있는 기록 수)이고
+	 * 주의 끝을 자른다. 주간 보상에 그 주 점수를 남길 때 쓴다.
+	 */
+	@Query(value = """
+			SELECT r.member_id AS memberId, COUNT(*) AS score
+			FROM bread_record r
+			WHERE r.deleted_at IS NULL
+				AND EXISTS (SELECT 1 FROM bread_record_photo p WHERE p.record_id = r.id)
+				AND r.created_at >= :weekStart AND r.created_at < :weekEnd
+				AND r.member_id IN (:memberIds)
+			GROUP BY r.member_id
+			""", nativeQuery = true)
+	List<WeeklyScoreProjection> findWeeklyScores(
+			@Param("weekStart") LocalDateTime weekStart,
+			@Param("weekEnd") LocalDateTime weekEnd,
+			@Param("memberIds") Collection<Long> memberIds);
 
 	@Query(value = RECORDS_SCORED + RANK_TAIL, nativeQuery = true)
 	List<RankingRowProjection> findRecordRanking(
