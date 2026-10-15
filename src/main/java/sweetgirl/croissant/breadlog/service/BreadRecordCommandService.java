@@ -129,8 +129,9 @@ public class BreadRecordCommandService {
 				memberId, request.requestId());
 			if (alreadyCreated.isPresent()) {
 				// 응답을 못 받아 다시 보낸 저장이다 — 처음 만든 기록을 그대로 돌려주고 보상은 다시 싣지 않는다
-				return new BreadRecordCreateResponse(
-					alreadyCreated.get().getId(), alreadyCreated.get().getCreatedAt(), List.of());
+				BreadRecord created = alreadyCreated.get();
+				return new BreadRecordCreateResponse(created.getId(), created.getCreatedAt(), List.of(),
+					BreadRecordCreateResponse.tagsOf(tagRepository.findAllWithChipsByRecordId(created.getId())));
 			}
 		}
 		ValidatedRecordData data = validate(memberId, request);
@@ -149,8 +150,8 @@ public class BreadRecordCommandService {
 			.isPublic(Boolean.TRUE.equals(request.isPublic()))
 			.clientRequestId(request.requestId())
 			.build());
-		savePhotosAndTags(record, request, data.photoBySortOrder(), Map.of(), data.lovedBreads(), Map.of(),
-			Map.of());
+		List<BreadRecordTag> savedTags = savePhotosAndTags(record, request, data.photoBySortOrder(), Map.of(),
+			data.lovedBreads(), Map.of(), Map.of());
 		// 빵탑은 기록 수만큼 오른다. 최고 높이는 내려가지 않아서, 기록을 지워도 행성이 밀리지 않는다.
 		long recordCountAfter = breadRecordRepository.countByMemberIdAndDeletedAtIsNull(memberId);
 		memberWorldRepository.raiseMaxRecordCount(memberId, recordCountAfter);
@@ -169,7 +170,8 @@ public class BreadRecordCommandService {
 			eventPublisher.publishEvent(
 				new StoreTrendingSignalEvent(memberId, data.store().getId(), TrendingSignal.RECORD));
 		}
-		return new BreadRecordCreateResponse(record.getId(), record.getCreatedAt(), rewards);
+		return new BreadRecordCreateResponse(record.getId(), record.getCreatedAt(), rewards,
+			BreadRecordCreateResponse.tagsOf(savedTags));
 	}
 
 	public BreadRecordUpdateResponse replace(Long recordId, Long memberId, BreadRecordUpsertRequest request) {
@@ -355,7 +357,7 @@ public class BreadRecordCommandService {
 		}
 	}
 
-	private void savePhotosAndTags(
+	private List<BreadRecordTag> savePhotosAndTags(
 			BreadRecord record,
 			BreadRecordUpsertRequest request,
 			Map<Integer, BreadRecordPhotoRequest> requestedPhotoByOrder,
@@ -391,6 +393,7 @@ public class BreadRecordCommandService {
 			applyRating(tags.get(index), request.tags().get(index).rating(), previousRatingByName, lovedNames);
 		}
 		tagRepository.saveAll(tags);
+		return tags;
 	}
 
 	/**

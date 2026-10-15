@@ -151,6 +151,13 @@ class BreadRecordCommandServiceTest {
 	MenuRepository menuRepository;
 	@Mock
 	BreadCategoryClassifier categoryClassifier;
+
+	/** 분류기는 모르는 이름에도 '빵'을 낸다(bread_category 는 NOT NULL) — 이름별 판정이 필요한 테스트만 따로 스텁한다. */
+	@org.junit.jupiter.api.BeforeEach
+	void classifyUnknownAsBread() {
+		org.mockito.Mockito.lenient().when(categoryClassifier.classify(any())).thenReturn("빵");
+	}
+
 	@Mock
 	BreadRecordRegionResolver regionResolver;
 	@Mock
@@ -746,6 +753,34 @@ class BreadRecordCommandServiceTest {
 			new BreadRecordCreateResponse(11L, LocalDateTime.of(2026, 8, 4, 12, 0), List.of()));
 		verify(breadRecordRepository, never()).save(any());
 		org.mockito.Mockito.verifyNoInteractions(recordRewardService);
+	}
+
+	@Test
+	@DisplayName("create: 응답에 저장된 태그의 이름과 분류를 싣는다 — 앱이 저장 직후 순위 묻기 분류를 고른다")
+	void create_returnsSavedTagCategories() {
+		givenCreatableRecord();
+		given(categoryClassifier.classify("소금빵")).willReturn("소금빵");
+
+		BreadRecordCreateResponse response = commandService.create(7L, requestWithTagMenus(null, null));
+
+		assertThat(response.tags()).containsExactly(new BreadRecordCreateResponse.Tag("소금빵", "소금빵"));
+	}
+
+	@Test
+	@DisplayName("create: 같은 요청의 재전송에도 처음 만든 기록의 태그 분류를 싣는다")
+	void create_replayCarriesTagCategories() {
+		UUID requestId = UUID.fromString("7f1c9a52-0d43-4a0b-9d6e-0f2b6c1a8e11");
+		Member member = member(7L);
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(memberRepository.findActiveForUpdate(7L)).willReturn(Optional.of(member));
+		BreadRecord created = record(11L, member);
+		given(breadRecordRepository.findByMemberIdAndClientRequestId(7L, requestId)).willReturn(Optional.of(created));
+		given(tagRepository.findAllWithChipsByRecordId(11L)).willReturn(List.of(BreadRecordTag.builder()
+			.record(created).name("소금빵").breadCategory("소금빵").build()));
+
+		BreadRecordCreateResponse response = commandService.create(7L, photolessRequest(requestId));
+
+		assertThat(response.tags()).containsExactly(new BreadRecordCreateResponse.Tag("소금빵", "소금빵"));
 	}
 
 	@Test

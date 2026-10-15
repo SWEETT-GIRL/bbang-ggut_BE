@@ -136,7 +136,8 @@ class BreadRecordResponseContractTest extends ResponseContractWebMvcTest {
 			// record.tsx:583 — 없으면 저장 직후 랭킹 묻기·코스 연결이 빠진다
 			.andExpect(jsonPath("$.data.recordId").isNumber())
 			// 보상이 없어도(게스트 · 옛 앱) 배열은 내려간다
-			.andExpect(jsonPath("$.data.rewards").isArray());
+			.andExpect(jsonPath("$.data.rewards").isArray())
+			.andExpect(jsonPath("$.data.tags").isArray());
 	}
 
 	@Test
