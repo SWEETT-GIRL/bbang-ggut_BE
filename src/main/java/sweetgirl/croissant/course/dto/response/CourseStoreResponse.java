@@ -9,6 +9,7 @@ import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.entity.CourseStoreVisit;
 import sweetgirl.croissant.store.RegionFormatter;
 import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.enums.StoreCategory;
 
 public record CourseStoreResponse(
 		Long courseStoreId,
@@ -27,7 +28,9 @@ public record CourseStoreResponse(
 		/** 내가 이 정류장에 쓴 메모. 없으면 null. */
 		String myMemo,
 		/** 참여 순서(course_members.joined_at)로 정렬. 내 메모도 들어 있다. 메모 없는 일행은 안 나온다. */
-		List<CourseStoreMemoResponse> memos) {
+		List<CourseStoreMemoResponse> memos,
+		/** 가게 분류(BAKERY·BAGEL …). 외부 카테고리를 아직 못 받은 가게는 null */
+		StoreCategory category) {
 
 	/** 큐레이션(어드민) 자리 — 메모는 course_stores.memo 한 칸 그대로, 사람별 메모는 없다. */
 	public static CourseStoreResponse from(CourseStore courseStore) {
@@ -62,6 +65,7 @@ public record CourseStoreResponse(
 			visit != null,
 			visit != null && visit.getBreadRecord() != null ? visit.getBreadRecord().getId() : null,
 			myMemo,
-			memos);
+			memos,
+			store.getCategory());
 	}
 }

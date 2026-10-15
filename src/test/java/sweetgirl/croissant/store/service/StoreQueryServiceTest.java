@@ -42,6 +42,7 @@ import sweetgirl.croissant.store.dto.response.TopSubscribedStoreResponse;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.entity.SubscribedStore;
+import sweetgirl.croissant.store.enums.StoreCategory;
 import sweetgirl.croissant.store.enums.StoreStatus;
 import sweetgirl.croissant.store.enums.TrendingSignal;
 import sweetgirl.croissant.store.event.StoreTrendingSignalEvent;
@@ -245,6 +246,7 @@ class StoreQueryServiceTest {
 		given(nearby.getRegion2nd()).willReturn("성동구");
 		given(nearby.getLatitude()).willReturn(37.5446);
 		given(nearby.getLongitude()).willReturn(127.0559);
+		given(nearby.getCategory()).willReturn("BAGEL");
 		given(nearby.getDistanceMeters()).willReturn(349.6);
 		PageRequest pageable = PageRequest.of(0, 10);
 		given(storeRepository.findNearbyStores(127.05, 37.54, StoreConstants.SEARCH_NEARBY_RADIUS, pageable))
@@ -253,7 +255,8 @@ class StoreQueryServiceTest {
 		SliceResponse<NearbyStoreResponse> result = storeQueryService.getNearbyStores(127.05, 37.54, null, pageable);
 
 		assertThat(result.content()).containsExactly(
-			new NearbyStoreResponse(30L, "성수 베이크", "서울 성동구", null, 350, 37.5446, 127.0559));
+			new NearbyStoreResponse(30L, "성수 베이크", "서울 성동구", null, 350, 37.5446, 127.0559,
+				StoreCategory.BAGEL));
 	}
 
 	@Test

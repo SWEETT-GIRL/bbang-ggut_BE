@@ -201,6 +201,7 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 					s.region_2nd AS region2nd,
 					ST_Y(s.location::geometry) AS latitude,
 					ST_X(s.location::geometry) AS longitude,
+					s.category,
 					ST_Distance(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS distance_meters
 				FROM store s
 				WHERE ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radius)
