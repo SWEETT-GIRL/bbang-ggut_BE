@@ -194,7 +194,12 @@ class RewardQueryServiceTest {
 				12L, LocalDate.of(2026, 10, 5), 2, 50, false, LocalDate.of(2026, 11, 8))));
 
 			assertThat(rewardQueryService.getSummary(MEMBER_ID, null).rankingReward())
-				.isEqualTo(new RankingReward(12L, 2, 50));
+				.isEqualTo(new RankingReward(12L, 2, 50, false));
+
+			given(rankingRewardService.latestPending(MEMBER_ID)).willReturn(Optional.of(new RankingRewardResponse(
+				13L, LocalDate.of(2026, 10, 5), 1, 100, true, LocalDate.of(2026, 11, 8))));
+			assertThat(rewardQueryService.getSummary(MEMBER_ID, null).rankingReward())
+				.isEqualTo(new RankingReward(13L, 1, 100, true));
 
 			given(rankingRewardService.latestPending(MEMBER_ID)).willReturn(Optional.empty());
 			assertThat(rewardQueryService.getSummary(MEMBER_ID, null).rankingReward()).isNull();
