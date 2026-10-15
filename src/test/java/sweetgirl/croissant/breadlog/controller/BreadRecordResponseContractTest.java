@@ -69,7 +69,7 @@ class BreadRecordResponseContractTest extends ResponseContractWebMvcTest {
 			.willReturn(new SliceResponse<>(List.of(new BreadRecordResponse(1L, 11L, "성심당", "대전 중구", "맛있다",
 				"튀김소보로", List.of("튀김소보로"), "탑", LocalDateTime.of(2026, 10, 4, 12, 30, 15), true,
 				LocalDateTime.of(2026, 10, 4, 13, 0, 5), LocalDateTime.of(2026, 10, 4, 13, 0, 5), List.of(photo),
-				List.of(tag), RecordType.NORMAL, "대전 중구 대종로480번길 15")), false));
+				List.of(tag), RecordType.NORMAL, "대전 중구 대종로480번길 15", true)), false));
 
 		mockMvc.perform(get("/bread-records"))
 			.andExpect(status().isOk())
@@ -93,6 +93,8 @@ class BreadRecordResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.content[0].towerBread").isString())
 			// bbanglog.ts:153 — 키 이름이 isPublic 여야 한다(public 으로 바뀌면 전부 비공개로 보임)
 			.andExpect(jsonPath("$.data.content[0].isPublic").value(true))
+			.andExpect(jsonPath("$.data.content[0].storeAddress").isString())
+			.andExpect(jsonPath("$.data.content[0].revisit").value(true))
 			// bbanglog.ts:130 — [...r.photos] 라 없으면 목록 전체가 비어 보인다
 			.andExpect(jsonPath("$.data.content[0].photos[0].id").isNumber())
 			.andExpect(jsonPath("$.data.content[0].photos[0].sortOrder").isNumber())
@@ -175,7 +177,7 @@ class BreadRecordResponseContractTest extends ResponseContractWebMvcTest {
 			.willReturn(new SliceResponse<>(List.of(new BreadRecordResponse(1L, 11L, "성심당", "대전 중구", null,
 				null, List.of(), null, LocalDateTime.of(2026, 10, 4, 12, 30, 15), false,
 				LocalDateTime.of(2026, 10, 4, 13, 0, 5), LocalDateTime.of(2026, 10, 4, 13, 0, 5), List.of(),
-				List.of(tag), RecordType.NORMAL, null)), false));
+				List.of(tag), RecordType.NORMAL, null, null)), false));
 
 		mockMvc.perform(get("/bread-records"))
 			.andExpect(status().isOk())

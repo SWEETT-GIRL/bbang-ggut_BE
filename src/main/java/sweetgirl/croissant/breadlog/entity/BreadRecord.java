@@ -109,6 +109,9 @@ public class BreadRecord extends BaseTimeEntity {
 	@Column(name = "client_request_id", updatable = false)
 	private UUID clientRequestId;
 
+	/** "이 집 또 갈래요". 안 보낸 기록(구버전 앱·옛 기록)은 null — 앱이 또 먹을래요로 추정해 보여 준다. */
+	private Boolean revisit;
+
 	@Builder
 	public BreadRecord(
 			Member member,
@@ -120,9 +123,11 @@ public class BreadRecord extends BaseTimeEntity {
 			String towerBread,
 			LocalDateTime eatenAt,
 			boolean isPublic,
-			UUID clientRequestId) {
+			UUID clientRequestId,
+			Boolean revisit) {
 		this.member = member;
 		this.clientRequestId = clientRequestId;
+		this.revisit = revisit;
 		this.store = store;
 		this.storeName = storeName;
 		this.regionKey = regionKey;
@@ -140,7 +145,8 @@ public class BreadRecord extends BaseTimeEntity {
 			String memo,
 			List<String> lovedBreads,
 			String towerBread,
-			LocalDateTime eatenAt) {
+			LocalDateTime eatenAt,
+			Boolean revisit) {
 		this.store = store;
 		this.storeName = storeName;
 		this.regionKey = regionKey;
@@ -149,6 +155,9 @@ public class BreadRecord extends BaseTimeEntity {
 		// 안 보내면 지금 값을 그대로 둔다 — 빵탑 빵을 모르는 구버전 앱이 수정해도 쌓아둔 빵이 사라지지 않게.
 		if (towerBread != null) {
 			this.towerBread = towerBread;
+		}
+		if (revisit != null) {
+			this.revisit = revisit;
 		}
 		replaceLovedBreads(lovedBreads);
 	}

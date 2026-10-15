@@ -1013,6 +1013,38 @@ class BreadRecordCommandServiceTest {
 	}
 
 	@Test
+	@DisplayName("create: 이 집 또 갈래요를 저장한다 — 안 보내면 null(미정)")
+	void create_savesRevisit() {
+		givenCreatableRecord();
+
+		commandService.create(7L, requestWithRevisit(true));
+		verify(breadRecordRepository).save(argThat(record -> Boolean.TRUE.equals(record.getRevisit())));
+
+		commandService.create(7L, requestWithRevisit(null));
+		verify(breadRecordRepository).save(argThat(record -> record.getRevisit() == null));
+	}
+
+	@Test
+	@DisplayName("replace: 또 갈래요를 보내면 바꾸고, 안 보내면(구버전 앱) 지금 값을 그대로 둔다")
+	void replace_keepsRevisitWhenAbsent() {
+		BreadRecord record = givenReplaceableRecord(false);
+		ReflectionTestUtils.setField(record, "revisit", true);
+
+		commandService.replace(11L, 7L, requestWithRevisit(null));
+		assertThat(record.getRevisit()).isTrue();
+
+		commandService.replace(11L, 7L, requestWithRevisit(false));
+		assertThat(record.getRevisit()).isFalse();
+	}
+
+	private BreadRecordUpsertRequest requestWithRevisit(Boolean revisit) {
+		return new BreadRecordUpsertRequest(
+			10L, "클라이언트 가게명", "client_region", null, null, null, null,
+			LocalDateTime.of(2026, 8, 2, 14, 21, 7), List.of(),
+			List.of(new BreadRecordTagRequest(null, "소금빵", null, null, null, null, null, null)), null, null, revisit);
+	}
+
+	@Test
 	@DisplayName("replace: suggestedMenuId 를 안 보내면 이름 같은 이전 태그의 AI 제안 메뉴를 이어간다")
 	void replace_withoutSuggestedMenuId_carriesOverPreviousSuggestion() {
 		BreadRecord record = givenReplaceableRecord(false);

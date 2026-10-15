@@ -105,7 +105,7 @@ class BreadRecordControllerTest {
 		BreadRecordResponse response = new BreadRecordResponse(
 			11L, 10L, "밀도 성수", "서울_성동구_성수동", null, null, List.of(), null,
 			LocalDateTime.of(2026, 8, 2, 14, 21), false, LocalDateTime.of(2026, 8, 4, 12, 0), null,
-			List.of(), List.of(), RecordType.NORMAL, "서울 성동구 서울숲2길 32-14");
+			List.of(), List.of(), RecordType.NORMAL, "서울 성동구 서울숲2길 32-14", null);
 		given(queryService.getRecords(isNull(), any(), any(), eq(10L), eq(0), eq(30)))
 			.willReturn(new SliceResponse<>(List.of(response), false));
 
@@ -330,6 +330,20 @@ class BreadRecordControllerTest {
 			.param("photoKeys", "l0"))
 			.andExpect(status().isTooManyRequests())
 			.andExpect(jsonPath("$.code").value("BREAD_RECORD_PHOTO_ANALYZE_RATE_LIMITED"));
+	}
+
+	// 이 집 또 갈래요 — 2.0 앱이 보내는 스위치 값
+	@Test
+	void create_withRevisit_passesIt() throws Exception {
+		given(commandService.create(isNull(), any(BreadRecordUpsertRequest.class)))
+			.willReturn(new BreadRecordCreateResponse(11L, LocalDateTime.of(2026, 8, 4, 12, 0)));
+
+		mockMvc.perform(post("/bread-records")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(VALID_REQUEST.replace("\"storeId\": 10,", "\"storeId\": 10, \"revisit\": true,")))
+			.andExpect(status().isCreated());
+
+		verify(commandService).create(isNull(), argThat(request -> Boolean.TRUE.equals(request.revisit())));
 	}
 
 	@Test

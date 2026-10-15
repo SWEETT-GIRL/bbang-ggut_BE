@@ -30,7 +30,27 @@ public record BreadRecordUpsertRequest(
 		 * 이 저장 요청의 번호(선택). 응답을 못 받아 다시 보낼 때 같은 값을 쓰면 기록이 둘 생기지 않는다.
 		 * 안 보내는 옛 앱은 지금처럼 요청마다 새 기록이 생긴다. 수정 요청에서는 보지 않는다.
 		 */
-		UUID requestId) {
+		UUID requestId,
+		/** "이 집 또 갈래요". 생성 때 없으면 null(미정), 수정 때 없으면(구버전 앱) 지금 값을 그대로 둔다 */
+		Boolean revisit) {
+
+	/** 또 갈래요를 모르는 쪽에서 만든다. */
+	public BreadRecordUpsertRequest(
+			Long storeId,
+			String storeName,
+			String regionKey,
+			String memo,
+			String lovedBread,
+			List<String> lovedBreads,
+			String towerBread,
+			LocalDateTime eatenAt,
+			List<BreadRecordPhotoRequest> photos,
+			List<BreadRecordTagRequest> tags,
+			Boolean isPublic,
+			UUID requestId) {
+		this(storeId, storeName, regionKey, memo, lovedBread, lovedBreads, towerBread, eatenAt, photos, tags,
+			isPublic, requestId, null);
+	}
 
 	/** 요청 번호를 모르는 쪽(옛 앱의 모양)에서 만든다. */
 	public BreadRecordUpsertRequest(
