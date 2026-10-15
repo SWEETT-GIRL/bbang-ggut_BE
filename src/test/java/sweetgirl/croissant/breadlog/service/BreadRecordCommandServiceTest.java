@@ -977,6 +977,51 @@ class BreadRecordCommandServiceTest {
 		verify(tagRepository).saveAll(argThat(tags -> !firstTag(tags).hasRating()));
 	}
 
+	@Test
+	@DisplayName("replace: suggestedMenuId 를 안 보내면 이름 같은 이전 태그의 AI 제안 메뉴를 이어간다")
+	void replace_withoutSuggestedMenuId_carriesOverPreviousSuggestion() {
+		BreadRecord record = givenReplaceableRecord(false);
+		Menu suggested = Menu.builder().store(store(10L)).name("소금빵").build();
+		givenPreviousTag(record, suggested);
+
+		commandService.replace(11L, 7L, requestWithTagMenus(null, null));
+
+		verify(tagRepository).saveAll(argThat(tags -> firstTag(tags).getSuggestedMenu() == suggested));
+	}
+
+	@Test
+	@DisplayName("replace: 가게를 바꿨으면 이전 가게 메뉴인 AI 제안은 버린다")
+	void replace_dropsPreviousSuggestionOfAnotherStore() {
+		BreadRecord record = givenReplaceableRecord(false);
+		Menu suggested = Menu.builder().store(store(99L)).name("소금빵").build();
+		givenPreviousTag(record, suggested);
+
+		commandService.replace(11L, 7L, requestWithTagMenus(null, null));
+
+		verify(tagRepository).saveAll(argThat(tags -> firstTag(tags).getSuggestedMenu() == null));
+	}
+
+	@Test
+	@DisplayName("replace: suggestedMenuId 를 보내면 이전 제안보다 그 값이 먼저다")
+	void replace_requestedSuggestionBeatsPrevious() {
+		BreadRecord record = givenReplaceableRecord(false);
+		givenPreviousTag(record, Menu.builder().store(store(10L)).name("소금빵").build());
+		Menu requested = menu(77L, "마늘바게트");
+		given(menuRepository.findByStoreIdAndDeletedAtIsNullAndIdIn(10L, Set.of(77L))).willReturn(List.of(requested));
+
+		commandService.replace(11L, 7L, requestWithTagMenus(null, 77L));
+
+		verify(tagRepository).saveAll(argThat(tags -> firstTag(tags).getSuggestedMenu() == requested));
+	}
+
+	private void givenPreviousTag(BreadRecord record, Menu suggestedMenu) {
+		BreadRecordTag previous = BreadRecordTag.builder()
+			.record(record).name("소금빵").breadCategory("소금빵").suggestedMenu(suggestedMenu)
+			.positionX(0.1).positionY(0.1).build();
+		given(tagRepository.findAllWithChipsByRecordId(11L)).willReturn(List.of(previous));
+		given(categoryClassifier.classify("소금빵")).willReturn("소금빵");
+	}
+
 	private BreadRecordUpsertRequest requestWithRating(BreadTagRatingRequest rating, List<String> lovedBreads) {
 		return new BreadRecordUpsertRequest(
 			10L, "클라이언트 가게명", "client_region", null, null, lovedBreads, null,
