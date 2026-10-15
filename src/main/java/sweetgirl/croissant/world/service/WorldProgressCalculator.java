@@ -97,8 +97,10 @@ public class WorldProgressCalculator {
 		} else if (index + 1 < journey.size()) {
 			levelUpAt = arriveAt.get(index + 1);
 		}
+		int levelStartAt = arriveAt.get(index) + (stages.isEmpty() ? 0 : stages.get(stageIndex).offset());
 		return new WorldLevel(
 			level + stageIndex + 1,
+			levelStartAt,
 			levelUpAt,
 			current.code(),
 			stages.isEmpty() ? null : stages.get(stageIndex).code());

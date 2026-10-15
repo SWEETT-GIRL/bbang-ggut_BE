@@ -70,8 +70,9 @@ public record RewardSummaryResponse(
 	 * 받을 수 있는 랭킹 주간 보상(가장 최근 주). 없으면 요약의 이 칸이 null 이다.
 	 *
 	 * @param pendingId 받기를 누를 때 보내는 id
+	 * @param crown     왕관이 딸린 보상인가(1 위)
 	 */
-	public record RankingReward(Long pendingId, int rank, int crumbs) {
+	public record RankingReward(Long pendingId, int rank, int crumbs, boolean crown) {
 	}
 
 	/**

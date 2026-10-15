@@ -84,7 +84,7 @@ public class RewardQueryService {
 			letter,
 			new Ad(earnRewardService.adsLeftToday(memberId)),
 			rankingRewardService.latestPending(memberId)
-				.map(reward -> new RankingReward(reward.id(), reward.rank(), reward.crumbs()))
+				.map(reward -> new RankingReward(reward.id(), reward.rank(), reward.crumbs(), reward.crown()))
 				.orElse(null),
 			homeCardService.cardFor(memberId, letter, feed.doneToday(), today).orElse(null),
 			recordOf(memberId));

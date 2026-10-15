@@ -129,8 +129,9 @@ public class BreadRecordCommandService {
 				memberId, request.requestId());
 			if (alreadyCreated.isPresent()) {
 				// 응답을 못 받아 다시 보낸 저장이다 — 처음 만든 기록을 그대로 돌려주고 보상은 다시 싣지 않는다
-				return new BreadRecordCreateResponse(
-					alreadyCreated.get().getId(), alreadyCreated.get().getCreatedAt(), List.of());
+				BreadRecord created = alreadyCreated.get();
+				return new BreadRecordCreateResponse(created.getId(), created.getCreatedAt(), List.of(),
+					BreadRecordCreateResponse.tagsOf(tagRepository.findAllWithChipsByRecordId(created.getId())));
 			}
 		}
 		ValidatedRecordData data = validate(memberId, request);
@@ -149,7 +150,8 @@ public class BreadRecordCommandService {
 			.isPublic(Boolean.TRUE.equals(request.isPublic()))
 			.clientRequestId(request.requestId())
 			.build());
-		savePhotosAndTags(record, request, data.photoBySortOrder(), Map.of(), data.lovedBreads(), Map.of());
+		List<BreadRecordTag> savedTags = savePhotosAndTags(record, request, data.photoBySortOrder(), Map.of(),
+			data.lovedBreads(), Map.of(), Map.of());
 		// 빵탑은 기록 수만큼 오른다. 최고 높이는 내려가지 않아서, 기록을 지워도 행성이 밀리지 않는다.
 		long recordCountAfter = breadRecordRepository.countByMemberIdAndDeletedAtIsNull(memberId);
 		memberWorldRepository.raiseMaxRecordCount(memberId, recordCountAfter);
@@ -168,7 +170,8 @@ public class BreadRecordCommandService {
 			eventPublisher.publishEvent(
 				new StoreTrendingSignalEvent(memberId, data.store().getId(), TrendingSignal.RECORD));
 		}
-		return new BreadRecordCreateResponse(record.getId(), record.getCreatedAt(), rewards);
+		return new BreadRecordCreateResponse(record.getId(), record.getCreatedAt(), rewards,
+			BreadRecordCreateResponse.tagsOf(savedTags));
 	}
 
 	public BreadRecordUpdateResponse replace(Long recordId, Long memberId, BreadRecordUpsertRequest request) {
@@ -193,13 +196,15 @@ public class BreadRecordCommandService {
 		if (request.isPublic() != null) {
 			record.changeVisibility(request.isPublic());
 		}
-		// 태그는 지우고 다시 만든다 — 평가는 이름으로 이어 줘야 구버전 앱의 수정에 사라지지 않는다
-		Map<String, BreadRecordTag.Rating> previousRatingByName = previousRatingsByName(recordId);
+		// 태그는 지우고 다시 만든다 — 평가·AI 제안 메뉴는 이름으로 이어 줘야 수정에 사라지지 않는다
+		List<BreadRecordTag> previousTags = tagRepository.findAllWithChipsByRecordId(recordId);
+		Map<String, BreadRecordTag.Rating> previousRatingByName = previousRatingsByName(previousTags);
+		Map<String, Menu> previousSuggestedMenuByName = previousSuggestedMenusByName(previousTags, data.store());
 		tagRepository.deleteAllByRecordId(recordId);
 		photoRepository.deleteAllIncludingPendingByRecordId(recordId);
 		photoRepository.flush();
 		savePhotosAndTags(record, request, data.photoBySortOrder(), originalByRequestedKey, data.lovedBreads(),
-			previousRatingByName);
+			previousRatingByName, previousSuggestedMenuByName);
 		deleteRemovedImages(oldPhotos, request.photos());
 		// 사진 없이 쓴 기록에 사진을 붙였으면 보너스를 준다(기록한 지 7 일 안, 기록당 한 번)
 		List<RewardItemResponse> rewards = new ArrayList<>(recordRewardService.rewardPhotosAttached(
@@ -352,13 +357,14 @@ public class BreadRecordCommandService {
 		}
 	}
 
-	private void savePhotosAndTags(
+	private List<BreadRecordTag> savePhotosAndTags(
 			BreadRecord record,
 			BreadRecordUpsertRequest request,
 			Map<Integer, BreadRecordPhotoRequest> requestedPhotoByOrder,
 			Map<String, BreadRecordPhoto> originalByRequestedKey,
 			List<String> lovedBreads,
-			Map<String, BreadRecordTag.Rating> previousRatingByName) {
+			Map<String, BreadRecordTag.Rating> previousRatingByName,
+			Map<String, Menu> previousSuggestedMenuByName) {
 		Map<Integer, BreadRecordPhoto> photoBySortOrder = new HashMap<>();
 		List<BreadRecordPhoto> photos = requestedPhotoByOrder.values().stream()
 			.sorted(java.util.Comparator.comparingInt(BreadRecordPhotoRequest::sortOrder))
@@ -374,7 +380,7 @@ public class BreadRecordCommandService {
 				.record(record)
 				.photo(tag.photoSortOrder() == null ? null : photoBySortOrder.get(tag.photoSortOrder()))
 				.menu(resolveMenu(tag, menuById, menuByName))
-				.suggestedMenu(resolveSuggestedMenu(tag, menuById))
+				.suggestedMenu(resolveSuggestedMenu(tag, menuById, previousSuggestedMenuByName))
 				.name(tag.name().strip())
 				.breadCategory(categoryClassifier.classify(tag.name()))
 				.positionX(tag.positionX())
@@ -387,6 +393,7 @@ public class BreadRecordCommandService {
 			applyRating(tags.get(index), request.tags().get(index).rating(), previousRatingByName, lovedNames);
 		}
 		tagRepository.saveAll(tags);
+		return tags;
 	}
 
 	/**
@@ -409,12 +416,30 @@ public class BreadRecordCommandService {
 	}
 
 	/** 지우기 전의 태그 평가를 이름별로 — 같은 이름이 둘이면 먼저 단 것. */
-	private Map<String, BreadRecordTag.Rating> previousRatingsByName(Long recordId) {
+	private Map<String, BreadRecordTag.Rating> previousRatingsByName(List<BreadRecordTag> previousTags) {
 		Map<String, BreadRecordTag.Rating> ratingByName = new HashMap<>();
-		for (BreadRecordTag tag : tagRepository.findAllWithChipsByRecordId(recordId)) {
+		for (BreadRecordTag tag : previousTags) {
 			tag.rating().ifPresent(rating -> ratingByName.putIfAbsent(tag.getName(), rating));
 		}
 		return ratingByName;
+	}
+
+	/**
+	 * 지우기 전의 AI 제안 메뉴를 이름별로 — 같은 이름이 둘이면 먼저 단 것.
+	 * 앱은 응답에서 이 값을 받지 못해 수정 때 다시 보낼 수 없다. 가게를 바꿨으면 이전 가게 메뉴라 버린다.
+	 */
+	private Map<String, Menu> previousSuggestedMenusByName(List<BreadRecordTag> previousTags, Store store) {
+		Map<String, Menu> suggestedMenuByName = new HashMap<>();
+		if (store == null) {
+			return suggestedMenuByName;
+		}
+		for (BreadRecordTag tag : previousTags) {
+			Menu suggested = tag.getSuggestedMenu();
+			if (suggested != null && store.getId().equals(suggested.getStore().getId())) {
+				suggestedMenuByName.putIfAbsent(tag.getName(), suggested);
+			}
+		}
+		return suggestedMenuByName;
 	}
 
 	/**
@@ -435,11 +460,18 @@ public class BreadRecordCommandService {
 	}
 
 	/**
-	 * 그 자리에 AI 가 제안했던 메뉴. 이름으로 물러서지 않는다 — 제안은 언제나 메뉴 id 로 오고,
+	 * 그 자리에 AI 가 제안했던 메뉴. 메뉴 이름으로 물러서지 않는다 — 제안은 언제나 메뉴 id 로 오고,
 	 * 이 가게 메뉴가 아니면 남길 것도 없다. 쌓아 두기만 하는 값이라 못 찾아도 그냥 null 이다.
+	 * 수정에서 id 를 안 보냈으면 이름 같은 이전 태그의 제안을 이어간다.
 	 */
-	private Menu resolveSuggestedMenu(BreadRecordTagRequest tag, Map<Long, Menu> menuById) {
-		return tag.suggestedMenuId() == null ? null : menuById.get(tag.suggestedMenuId());
+	private Menu resolveSuggestedMenu(
+			BreadRecordTagRequest tag,
+			Map<Long, Menu> menuById,
+			Map<String, Menu> previousSuggestedMenuByName) {
+		if (tag.suggestedMenuId() != null) {
+			return menuById.get(tag.suggestedMenuId());
+		}
+		return previousSuggestedMenuByName.get(tag.name().strip());
 	}
 
 	private Map<Long, Menu> findMenusById(Store store, List<BreadRecordTagRequest> tags) {

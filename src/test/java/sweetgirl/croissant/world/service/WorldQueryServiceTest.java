@@ -109,11 +109,30 @@ class WorldQueryServiceTest {
 		assertThat(response.catalogVersion()).isEqualTo(7);
 		assertThat(response.planet()).isEqualTo("mars");
 		assertThat(response.stage()).isEqualTo("village");
+		// 화성 마을은 화성에 닿은 기록 10 개에서 시작한다
+		assertThat(response.levelStartAt()).isEqualTo(10);
 		assertThat(response.recordCount()).isEqualTo(12L);
 		assertThat(response.selectedCharacter()).isEqualTo("dog");
 		assertThat(response.wakeTickets()).isEqualTo(1);
 		// 지구는 룰렛 인원이 0 이라 돌릴 것이 없다
 		assertThat(response.pendingRoulettePlanets()).containsExactly("mars");
+	}
+
+	@Test
+	@DisplayName("밀린 룰렛은 코드 글자순이 아니라 여정 순서다 — 화성이 목성보다 먼저")
+	void ordersPendingRouletteByJourney() {
+		given(worldCatalogService.getCatalog()).willReturn(new WorldCatalogResponse(
+			7,
+			List.of(
+				planet("earth", 1, 10, null, 0, 2),
+				planet("mars", 2, 30, "earth", 1, 3),
+				planet("jupiter", 3, 30, "mars", 1, 3)),
+			List.of()));
+		given(memberPlanetArrivalRepository.findAllByIdMemberId(MEMBER_ID)).willReturn(List.of(
+			WorldFixtures.arrival(MEMBER_ID, "jupiter"),
+			WorldFixtures.arrival(MEMBER_ID, "mars")));
+
+		assertThat(worldQueryService.pendingRoulettePlanets(MEMBER_ID)).containsExactly("mars", "jupiter");
 	}
 
 	@Test

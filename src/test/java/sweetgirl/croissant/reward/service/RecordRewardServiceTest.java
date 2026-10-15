@@ -93,7 +93,7 @@ class RecordRewardServiceTest {
 		void firstRecordWithPhoto() {
 			givenRecordGrant(new GrantResult(Outcome.GRANTED, 10, 0, 10));
 			givenPhotoGrant(new GrantResult(Outcome.GRANTED, 5, 10, 15));
-			givenLevels(0, new WorldLevel(1, 1, "earth", "village"), 1, new WorldLevel(2, 5, "earth", "sky"));
+			givenLevels(0, new WorldLevel(1, 0, 1, "earth", "village"), 1, new WorldLevel(2, 1, 5, "earth", "sky"));
 
 			List<RewardItemResponse> rewards = recordRewardService.rewardCreated(member, RECORD_ID, 2, 0, 1);
 
@@ -111,7 +111,8 @@ class RecordRewardServiceTest {
 		@DisplayName("레벨업은 앱이 못 보고 꺼졌을 때를 위해 따로도 남긴다")
 		void levelUpIsKeptAsPending() {
 			givenRecordGrant(new GrantResult(Outcome.GRANTED, 10, 0, 10));
-			givenLevels(9, new WorldLevel(3, 10, "earth", "space"), 10, new WorldLevel(4, 20, "mars", "village"));
+			givenLevels(9, new WorldLevel(3, 5, 10, "earth", "space"), 10,
+				new WorldLevel(4, 10, 20, "mars", "village"));
 
 			recordRewardService.rewardCreated(member, RECORD_ID, 0, 9, 10);
 
@@ -123,7 +124,7 @@ class RecordRewardServiceTest {
 		@DisplayName("사진이 없으면 +10 만 받는다")
 		void withoutPhoto() {
 			givenRecordGrant(new GrantResult(Outcome.GRANTED, 10, 20, 30));
-			givenLevels(2, new WorldLevel(2, 5, "earth", "sky"), 3, new WorldLevel(2, 5, "earth", "sky"));
+			givenLevels(2, new WorldLevel(2, 1, 5, "earth", "sky"), 3, new WorldLevel(2, 1, 5, "earth", "sky"));
 
 			List<RewardItemResponse> rewards = recordRewardService.rewardCreated(member, RECORD_ID, 0, 2, 3);
 
@@ -137,7 +138,7 @@ class RecordRewardServiceTest {
 		@DisplayName("하루 상한을 넘은 기록은 빵 칸만 오르고 부스러기는 capped — 사진이 있어도 보너스가 없다")
 		void capped() {
 			givenRecordGrant(new GrantResult(Outcome.CAPPED, 0, 30, 30));
-			givenLevels(3, new WorldLevel(2, 5, "earth", "sky"), 4, new WorldLevel(2, 5, "earth", "sky"));
+			givenLevels(3, new WorldLevel(2, 1, 5, "earth", "sky"), 4, new WorldLevel(2, 1, 5, "earth", "sky"));
 
 			List<RewardItemResponse> rewards = recordRewardService.rewardCreated(member, RECORD_ID, 1, 3, 4);
 
@@ -164,7 +165,7 @@ class RecordRewardServiceTest {
 		@DisplayName("초대받은 회원의 첫 빵이면 초대 보상을 기록 보상 뒤, 레벨업 앞에 싣는다")
 		void invitedMemberFirstRecord() {
 			givenRecordGrant(new GrantResult(Outcome.GRANTED, 10, 0, 10));
-			givenLevels(0, new WorldLevel(1, 1, "earth", "village"), 1, new WorldLevel(2, 5, "earth", "sky"));
+			givenLevels(0, new WorldLevel(1, 0, 1, "earth", "village"), 1, new WorldLevel(2, 1, 5, "earth", "sky"));
 			RewardItemResponse invited = RewardItemResponse.crumbs(
 				new GrantResult(Outcome.GRANTED, 100, 10, 110), CrumbReason.INVITE_INVITEE);
 			given(inviteService.rewardFirstRecord(member)).willReturn(List.of(invited));

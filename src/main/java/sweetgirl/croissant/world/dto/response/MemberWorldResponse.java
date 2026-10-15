@@ -13,6 +13,7 @@ import java.util.List;
  * @param pendingRoulettePlanets 닿았는데 아직 룰렛을 안 돌린 행성
  * @param level            레벨(1 부터). 행성 순서 × 고도 단계 순서다
  * @param levelUpAt        다음 레벨이 되는 기록 수. 마지막 레벨이면 null
+ * @param levelStartAt     지금 레벨이 시작된 기록 수. 레벨 막대는 levelStartAt → levelUpAt 사이를 채운다
  * @param welcomedAt       첫 친구 연출을 본 시각. null 이면 아직 못 봤다 — 첫 조회가 마스코트를 쥐여
  *                         주므로 characters 로는 처음 온 회원인지 가릴 수 없다
  */
@@ -33,5 +34,6 @@ public record MemberWorldResponse(
 		int level,
 		Integer levelUpAt,
 		/** 지난주 전국 주간 랭킹 1 위라 왕관을 쓰고 있는가 */
-		boolean crowned) {
+		boolean crowned,
+		int levelStartAt) {
 }

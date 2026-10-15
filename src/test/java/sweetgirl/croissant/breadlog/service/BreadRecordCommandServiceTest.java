@@ -151,6 +151,13 @@ class BreadRecordCommandServiceTest {
 	MenuRepository menuRepository;
 	@Mock
 	BreadCategoryClassifier categoryClassifier;
+
+	/** 분류기는 모르는 이름에도 '빵'을 낸다(bread_category 는 NOT NULL) — 이름별 판정이 필요한 테스트만 따로 스텁한다. */
+	@org.junit.jupiter.api.BeforeEach
+	void classifyUnknownAsBread() {
+		org.mockito.Mockito.lenient().when(categoryClassifier.classify(any())).thenReturn("빵");
+	}
+
 	@Mock
 	BreadRecordRegionResolver regionResolver;
 	@Mock
@@ -749,6 +756,34 @@ class BreadRecordCommandServiceTest {
 	}
 
 	@Test
+	@DisplayName("create: 응답에 저장된 태그의 이름과 분류를 싣는다 — 앱이 저장 직후 순위 묻기 분류를 고른다")
+	void create_returnsSavedTagCategories() {
+		givenCreatableRecord();
+		given(categoryClassifier.classify("소금빵")).willReturn("소금빵");
+
+		BreadRecordCreateResponse response = commandService.create(7L, requestWithTagMenus(null, null));
+
+		assertThat(response.tags()).containsExactly(new BreadRecordCreateResponse.Tag("소금빵", "소금빵"));
+	}
+
+	@Test
+	@DisplayName("create: 같은 요청의 재전송에도 처음 만든 기록의 태그 분류를 싣는다")
+	void create_replayCarriesTagCategories() {
+		UUID requestId = UUID.fromString("7f1c9a52-0d43-4a0b-9d6e-0f2b6c1a8e11");
+		Member member = member(7L);
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(memberRepository.findActiveForUpdate(7L)).willReturn(Optional.of(member));
+		BreadRecord created = record(11L, member);
+		given(breadRecordRepository.findByMemberIdAndClientRequestId(7L, requestId)).willReturn(Optional.of(created));
+		given(tagRepository.findAllWithChipsByRecordId(11L)).willReturn(List.of(BreadRecordTag.builder()
+			.record(created).name("소금빵").breadCategory("소금빵").build()));
+
+		BreadRecordCreateResponse response = commandService.create(7L, photolessRequest(requestId));
+
+		assertThat(response.tags()).containsExactly(new BreadRecordCreateResponse.Tag("소금빵", "소금빵"));
+	}
+
+	@Test
 	@DisplayName("create: 처음 보는 requestId 면 회원 행을 잠그고 그 번호를 기록에 남긴다")
 	void create_storesRequestId() {
 		UUID requestId = UUID.fromString("7f1c9a52-0d43-4a0b-9d6e-0f2b6c1a8e11");
@@ -975,6 +1010,51 @@ class BreadRecordCommandServiceTest {
 		commandService.replace(11L, 7L, requestWithRating(new BreadTagRatingRequest(null, null, null, null), null));
 
 		verify(tagRepository).saveAll(argThat(tags -> !firstTag(tags).hasRating()));
+	}
+
+	@Test
+	@DisplayName("replace: suggestedMenuId 를 안 보내면 이름 같은 이전 태그의 AI 제안 메뉴를 이어간다")
+	void replace_withoutSuggestedMenuId_carriesOverPreviousSuggestion() {
+		BreadRecord record = givenReplaceableRecord(false);
+		Menu suggested = Menu.builder().store(store(10L)).name("소금빵").build();
+		givenPreviousTag(record, suggested);
+
+		commandService.replace(11L, 7L, requestWithTagMenus(null, null));
+
+		verify(tagRepository).saveAll(argThat(tags -> firstTag(tags).getSuggestedMenu() == suggested));
+	}
+
+	@Test
+	@DisplayName("replace: 가게를 바꿨으면 이전 가게 메뉴인 AI 제안은 버린다")
+	void replace_dropsPreviousSuggestionOfAnotherStore() {
+		BreadRecord record = givenReplaceableRecord(false);
+		Menu suggested = Menu.builder().store(store(99L)).name("소금빵").build();
+		givenPreviousTag(record, suggested);
+
+		commandService.replace(11L, 7L, requestWithTagMenus(null, null));
+
+		verify(tagRepository).saveAll(argThat(tags -> firstTag(tags).getSuggestedMenu() == null));
+	}
+
+	@Test
+	@DisplayName("replace: suggestedMenuId 를 보내면 이전 제안보다 그 값이 먼저다")
+	void replace_requestedSuggestionBeatsPrevious() {
+		BreadRecord record = givenReplaceableRecord(false);
+		givenPreviousTag(record, Menu.builder().store(store(10L)).name("소금빵").build());
+		Menu requested = menu(77L, "마늘바게트");
+		given(menuRepository.findByStoreIdAndDeletedAtIsNullAndIdIn(10L, Set.of(77L))).willReturn(List.of(requested));
+
+		commandService.replace(11L, 7L, requestWithTagMenus(null, 77L));
+
+		verify(tagRepository).saveAll(argThat(tags -> firstTag(tags).getSuggestedMenu() == requested));
+	}
+
+	private void givenPreviousTag(BreadRecord record, Menu suggestedMenu) {
+		BreadRecordTag previous = BreadRecordTag.builder()
+			.record(record).name("소금빵").breadCategory("소금빵").suggestedMenu(suggestedMenu)
+			.positionX(0.1).positionY(0.1).build();
+		given(tagRepository.findAllWithChipsByRecordId(11L)).willReturn(List.of(previous));
+		given(categoryClassifier.classify("소금빵")).willReturn("소금빵");
 	}
 
 	private BreadRecordUpsertRequest requestWithRating(BreadTagRatingRequest rating, List<String> lovedBreads) {
