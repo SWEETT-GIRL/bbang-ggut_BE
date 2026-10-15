@@ -161,6 +161,11 @@ public class BreadRecordTag extends BaseTimeEntity {
 		return MenuCategory.UNCATEGORIZED_KINDS.contains(kind) ? breadCategory : kind.name();
 	}
 
+	/** 분류를 못 정했을 때 룰이 남기는 값들('빵' · '기타') — 인기 집계가 거른다. */
+	public static Set<String> fallbackCategories() {
+		return FALLBACK_CATEGORIES;
+	}
+
 	/** 룰도 메뉴도 '빵'·'기타'에 머문 태그 — 무슨 빵인지 못 정한 것이라 집계에서 뺀다 */
 	public boolean uncategorized() {
 		return FALLBACK_CATEGORIES.contains(resolvedCategory());
