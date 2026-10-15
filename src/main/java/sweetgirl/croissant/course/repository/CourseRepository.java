@@ -115,4 +115,11 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 			""")
 	List<Course> findMyDatedCourses(
 			@Param("memberId") Long memberId, @Param("from") LocalDate from, @Param("to") LocalDate to);
+
+	/** 그날 시작하는 빵투어(지운 것 제외) — 전날 저녁 알림이 부른다. */
+	List<Course> findAllByStartDateAndDeletedAtIsNull(LocalDate startDate);
+
+	/** 다른 인스턴스가 같은 발송을 돌리고 있으면 false. 잠금은 트랜잭션이 끝나면 풀린다. */
+	@Query(value = "SELECT pg_try_advisory_xact_lock(:key)", nativeQuery = true)
+	boolean tryAdvisoryXactLock(@Param("key") long key);
 }

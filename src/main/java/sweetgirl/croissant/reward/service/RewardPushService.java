@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,9 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.AttendanceReminderTarget;
+import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.SecondMorningTarget;
+import sweetgirl.croissant.world.dto.response.WorldCharacterResponse;
+import sweetgirl.croissant.world.service.WorldCatalogService;
 
 /**
  * 리워드의 정기 푸시. 광고가 아니라 서비스 알림이라 마케팅 동의를 보지 않고, 알림 수신을 켠 회원에게만 간다
@@ -49,6 +53,13 @@ public class RewardPushService {
 	/** 밤 9 시 ~ 아침 8 시에는 출석을 알리지 않는다. */
 	static final int QUIET_FROM_HOUR = 21;
 	static final int QUIET_UNTIL_HOUR = 8;
+	static final long ROULETTE_LOCK_KEY = 7_260_103L;
+	static final String ROULETTE_TITLE_SUFFIX = " 아침부터 배고파요";
+	static final String ROULETTE_BODY = "룰렛 돌리러 와요";
+	/** 홈의 밥 룰렛. open=feed 를 모르는 앱은 홈만 연다. */
+	static final String ROULETTE_LINK = "/bbanglog?open=feed";
+	/** 세계관을 아직 시작하지 않아 고른 친구가 없을 때의 이름. */
+	static final String DEFAULT_FRIEND_NAME = "빵댕이";
 
 	private final RewardPushTargetRepository targetRepository;
 	private final NotificationRepository notificationRepository;
@@ -57,6 +68,7 @@ public class RewardPushService {
 	private final BbangdaengLetterService bbangdaengLetterService;
 	private final ApplicationEventPublisher eventPublisher;
 	private final RewardSettings rewardSettings;
+	private final WorldCatalogService worldCatalogService;
 
 	/**
 	 * 이번 주 편지를 아직 안 연 회원에게 도착을 알린다. 월요일 오전에 부른다.
@@ -122,6 +134,52 @@ public class RewardPushService {
 				ATTENDANCE_LINK), group.getValue(), now);
 		}
 		return notified;
+	}
+
+	/**
+	 * 어제 가입했는데 아직 출석 도장을 한 번도 안 찍은 회원을 아침에 부른다. 매일 아침 9 시에 부른다.
+	 *
+	 * <p>첫날 출석을 거른 회원은 저녁 리마인드(어제 출석한 회원만)에 걸리지 않아 둘째 날 아무 푸시도 못 받았다.
+	 * 문구에 그 회원의 친구 이름이 들어가("빵댕이가 아침부터 배고파요") 친구별로 한 알림씩 만든다.
+	 *
+	 * @return 알린 회원 수. 오늘 이미 보냈거나 다른 인스턴스가 보내는 중이면 -1
+	 */
+	@Transactional
+	public int sendSecondMorningRoulette(LocalDateTime now) {
+		LocalDate today = now.toLocalDate();
+		if (!targetRepository.tryAdvisoryXactLock(ROULETTE_LOCK_KEY)
+			|| notificationRepository.existsByTypeAndCreatedAtGreaterThanEqual(
+				NotificationType.REWARD_ROULETTE, today.atStartOfDay())) {
+			return -1;
+		}
+
+		Map<String, String> friendNameByCode = worldCatalogService.getCatalog().characters().stream()
+			.collect(Collectors.toMap(WorldCharacterResponse::code, WorldCharacterResponse::name));
+		Map<String, List<Long>> memberIdsByFriend = new TreeMap<>();
+		for (SecondMorningTarget target : targetRepository.findSecondMorningTargets(
+			today.minusDays(1).atStartOfDay(), today.atStartOfDay())) {
+			String friend = target.getSelectedCharacter() == null ? DEFAULT_FRIEND_NAME
+				: friendNameByCode.getOrDefault(target.getSelectedCharacter(), DEFAULT_FRIEND_NAME);
+			memberIdsByFriend.computeIfAbsent(friend, name -> new ArrayList<>()).add(target.getMemberId());
+		}
+		int notified = 0;
+		for (Map.Entry<String, List<Long>> group : memberIdsByFriend.entrySet()) {
+			String friend = group.getKey();
+			notified += push(Notification.announcement(
+				NotificationType.REWARD_ROULETTE, NotificationChannel.PUSH,
+				friend + subjectParticle(friend) + ROULETTE_TITLE_SUFFIX, ROULETTE_BODY, ROULETTE_LINK),
+				group.getValue(), now);
+		}
+		return notified;
+	}
+
+	/** 주격 조사 — 받침이 있으면 "이", 없으면 "가"("빵댕이가" · "햄찌가" · "빵돌이가"). 한글이 아니면 "가". */
+	static String subjectParticle(String name) {
+		char last = name.charAt(name.length() - 1);
+		if (last < 0xAC00 || last > 0xD7A3) {
+			return "가";
+		}
+		return (last - 0xAC00) % 28 == 0 ? "가" : "이";
 	}
 
 	/** 알림함에 앉히고, 커밋된 뒤 한 사람씩 푸시로 내보내게 한다. 받을 사람이 없으면 알림도 만들지 않는다. */

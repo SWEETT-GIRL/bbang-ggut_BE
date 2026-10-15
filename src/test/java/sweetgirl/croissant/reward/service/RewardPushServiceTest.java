@@ -12,6 +12,7 @@ import static org.mockito.Mockito.never;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -33,6 +34,10 @@ import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Letter;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.AttendanceReminderTarget;
+import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.SecondMorningTarget;
+import sweetgirl.croissant.world.dto.response.WorldCatalogResponse;
+import sweetgirl.croissant.world.dto.response.WorldCharacterResponse;
+import sweetgirl.croissant.world.service.WorldCatalogService;
 
 @ExtendWith(MockitoExtension.class)
 class RewardPushServiceTest {
@@ -55,6 +60,8 @@ class RewardPushServiceTest {
 	private ApplicationEventPublisher eventPublisher;
 	@Mock
 	private RewardSettings rewardSettings;
+	@Mock
+	private WorldCatalogService worldCatalogService;
 
 	@InjectMocks
 	private RewardPushService rewardPushService;
@@ -151,6 +158,90 @@ class RewardPushServiceTest {
 
 			assertThat(rewardPushService.sendLetterArrivals(MONDAY_TEN)).isZero();
 			then(notificationRecorder).shouldHaveNoInteractions();
+		}
+	}
+
+	@Nested
+	@DisplayName("둘째 날 아침 룰렛")
+	class SecondMorningRoulette {
+
+		private static final LocalDateTime MORNING = LocalDateTime.of(2026, 10, 14, 9, 0);
+		private static final LocalDate MORNING_DAY = MORNING.toLocalDate();
+
+		private SecondMorningTarget target(Long memberId, String selectedCharacter) {
+			SecondMorningTarget target = mock(SecondMorningTarget.class);
+			given(target.getMemberId()).willReturn(memberId);
+			given(target.getSelectedCharacter()).willReturn(selectedCharacter);
+			return target;
+		}
+
+		private void givenFirstRunOfTheDay() {
+			given(targetRepository.tryAdvisoryXactLock(RewardPushService.ROULETTE_LOCK_KEY)).willReturn(true);
+			given(notificationRepository.existsByTypeAndCreatedAtGreaterThanEqual(
+				NotificationType.REWARD_ROULETTE, MORNING_DAY.atStartOfDay())).willReturn(false);
+			given(worldCatalogService.getCatalog()).willReturn(new WorldCatalogResponse(7, List.of(), List.of(
+				new WorldCharacterResponse("dog", "빵댕이", null, "earth", 1, true, Map.of()),
+				new WorldCharacterResponse("hamster", "햄찌", null, "mars", 1, false, Map.of()))));
+		}
+
+		@Test
+		@DisplayName("어제 가입하고 아직 출석 안 한 회원을 친구 이름으로 부른다 — 친구가 같으면 한 알림, 친구가 없으면 빵댕이")
+		void callsByFriend() {
+			givenFirstRunOfTheDay();
+			// 헬퍼가 다른 mock 을 스텁하므로 given(...) 안에서 부르면 UnfinishedStubbing 이 난다 — 먼저 만든다.
+			List<SecondMorningTarget> targets = List.of(target(1L, "dog"), target(2L, "hamster"), target(3L, null));
+			given(targetRepository.findSecondMorningTargets(
+				MORNING_DAY.minusDays(1).atStartOfDay(), MORNING_DAY.atStartOfDay())).willReturn(targets);
+			Member first = member(1L);
+			Member second = member(2L);
+			Member third = member(3L);
+			given(memberRepository.findAllById(List.of(1L, 3L))).willReturn(List.of(first, third));
+			given(memberRepository.findAllById(List.of(2L))).willReturn(List.of(second));
+			givenRecorded(700L);
+
+			assertThat(rewardPushService.sendSecondMorningRoulette(MORNING)).isEqualTo(3);
+
+			ArgumentCaptor<Notification> notifications = ArgumentCaptor.forClass(Notification.class);
+			then(notificationRecorder).should(org.mockito.Mockito.times(2))
+				.recordForMembers(notifications.capture(), anyList(), eq(MORNING));
+			assertThat(notifications.getAllValues()).extracting(Notification::getTitle)
+				.containsExactly("빵댕이가 아침부터 배고파요", "햄찌가 아침부터 배고파요");
+			assertThat(notifications.getAllValues()).allSatisfy(notification -> {
+				assertThat(notification.getType()).isEqualTo(NotificationType.REWARD_ROULETTE);
+				assertThat(notification.getBody()).isEqualTo("룰렛 돌리러 와요");
+				assertThat(notification.getDeepLink()).isEqualTo("/bbanglog?open=feed");
+			});
+		}
+
+		@Test
+		@DisplayName("오늘 이미 보냈으면 다시 보내지 않는다")
+		void skipsWhenAlreadySentToday() {
+			given(targetRepository.tryAdvisoryXactLock(RewardPushService.ROULETTE_LOCK_KEY)).willReturn(true);
+			given(notificationRepository.existsByTypeAndCreatedAtGreaterThanEqual(
+				NotificationType.REWARD_ROULETTE, MORNING_DAY.atStartOfDay())).willReturn(true);
+
+			assertThat(rewardPushService.sendSecondMorningRoulette(MORNING)).isEqualTo(-1);
+
+			then(notificationRecorder).shouldHaveNoInteractions();
+		}
+
+		@Test
+		@DisplayName("부를 사람이 없으면 알림을 만들지 않는다")
+		void nobodyToCall() {
+			givenFirstRunOfTheDay();
+			given(targetRepository.findSecondMorningTargets(any(), any())).willReturn(List.of());
+
+			assertThat(rewardPushService.sendSecondMorningRoulette(MORNING)).isZero();
+
+			then(notificationRecorder).shouldHaveNoInteractions();
+		}
+
+		@Test
+		@DisplayName("주격 조사 — 받침 없으면 가, 있으면 이, 한글이 아니면 가")
+		void subjectParticle() {
+			assertThat(RewardPushService.subjectParticle("빵댕이")).isEqualTo("가");
+			assertThat(RewardPushService.subjectParticle("빵돌")).isEqualTo("이");
+			assertThat(RewardPushService.subjectParticle("Bread")).isEqualTo("가");
 		}
 	}
 

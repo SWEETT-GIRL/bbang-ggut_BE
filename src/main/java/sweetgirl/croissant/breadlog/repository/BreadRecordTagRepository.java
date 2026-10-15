@@ -1,14 +1,17 @@
 package sweetgirl.croissant.breadlog.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import sweetgirl.croissant.breadlog.dto.projection.BreadCategoryCountProjection;
 import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
 import sweetgirl.croissant.menu.enums.MenuKind;
 
@@ -75,6 +78,25 @@ public interface BreadRecordTagRepository extends JpaRepository<BreadRecordTag, 
 			@Param("memberId") Long memberId,
 			@Param("from") LocalDateTime from,
 			@Param("to") LocalDateTime to);
+
+	/**
+	 * 요즘 많이 기록된 빵 — {@code since} 이후 붙은 태그를 분류별로 센다. 분류를 못 정한 값('빵' · '기타')은 뺀다.
+	 * 분류는 태그를 저장할 때 룰이 낸 값이다(메뉴 분류로의 폴백은 안 본다 — 인기 순위에는 그 정도면 된다).
+	 */
+	@Query("""
+			SELECT tag.breadCategory AS name, COUNT(tag.id) AS tagCount
+			FROM BreadRecordTag tag
+			WHERE tag.record.deletedAt IS NULL
+			AND tag.record.recordType = sweetgirl.croissant.breadlog.enums.RecordType.NORMAL
+			AND tag.createdAt >= :since
+			AND tag.breadCategory NOT IN :excluded
+			GROUP BY tag.breadCategory
+			ORDER BY COUNT(tag.id) DESC, tag.breadCategory ASC
+			""")
+	List<BreadCategoryCountProjection> findPopularCategories(
+			@Param("since") LocalDateTime since,
+			@Param("excluded") Collection<String> excluded,
+			Pageable pageable);
 
 	/**
 	 * 집계용 태그 — 분류를 태그가 아니라 메뉴에서 읽을 수 있어야 하므로 문자열이 아니라 엔티티를 준다.

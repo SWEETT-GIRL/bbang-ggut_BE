@@ -58,4 +58,30 @@ public interface RewardPushTargetRepository extends Repository<MemberAttendanceD
 
 		Integer getBoardDay();
 	}
+
+	/**
+	 * 어제 가입했고 아직 한 번도 출석하지 않은 회원과, 그 회원이 고른 친구(게스트 · 탈퇴 제외).
+	 * 세계관을 아직 시작하지 않았으면 친구가 비어 있다.
+	 */
+	@Query(value = """
+			SELECT member.id AS memberId, world.selected_character AS selectedCharacter
+			FROM member
+			LEFT JOIN member_world world ON world.member_id = member.id
+			WHERE member.deleted_at IS NULL
+				AND member.member_type <> 'GUEST'
+				AND member.registered_at >= :from
+				AND member.registered_at < :to
+				AND NOT EXISTS (
+					SELECT 1 FROM member_attendance_days day WHERE day.member_id = member.id)
+			ORDER BY member.id
+			""", nativeQuery = true)
+	List<SecondMorningTarget> findSecondMorningTargets(
+			@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+	interface SecondMorningTarget {
+
+		Long getMemberId();
+
+		String getSelectedCharacter();
+	}
 }
