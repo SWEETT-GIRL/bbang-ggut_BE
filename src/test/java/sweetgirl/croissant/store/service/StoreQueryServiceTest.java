@@ -2,6 +2,8 @@ package sweetgirl.croissant.store.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -248,10 +250,24 @@ class StoreQueryServiceTest {
 		given(storeRepository.findNearbyStores(127.05, 37.54, StoreConstants.SEARCH_NEARBY_RADIUS, pageable))
 			.willReturn(new SliceImpl<>(List.of(nearby), pageable, false));
 
-		SliceResponse<NearbyStoreResponse> result = storeQueryService.getNearbyStores(127.05, 37.54, pageable);
+		SliceResponse<NearbyStoreResponse> result = storeQueryService.getNearbyStores(127.05, 37.54, null, pageable);
 
 		assertThat(result.content()).containsExactly(
 			new NearbyStoreResponse(30L, "성수 베이크", "서울 성동구", null, 350, 37.5446, 127.0559));
+	}
+
+	@Test
+	@DisplayName("getNearbyStores: 반경을 주면 그 반경으로, 20km 를 넘으면 20km 로 묻는다")
+	void getNearbyStores_usesGivenRadiusUpToCap() {
+		PageRequest pageable = PageRequest.of(0, 10);
+		given(storeRepository.findNearbyStores(eq(127.05), eq(37.54), anyDouble(), eq(pageable)))
+			.willReturn(new SliceImpl<>(List.of(), pageable, false));
+
+		storeQueryService.getNearbyStores(127.05, 37.54, 5000, pageable);
+		storeQueryService.getNearbyStores(127.05, 37.54, 100_000, pageable);
+
+		verify(storeRepository).findNearbyStores(127.05, 37.54, 5000.0, pageable);
+		verify(storeRepository).findNearbyStores(127.05, 37.54, StoreConstants.MAX_SEARCH_NEARBY_RADIUS, pageable);
 	}
 
 	// ───────────────────────── getTopSubscribedStores ─────────────────────────

@@ -110,14 +110,16 @@ public class StoreController {
 		return ResponseEntity.ok(ApiResponse.ok(storeSearchService.autocompleteStores(query, size, types)));
 	}
 
-	@Operation(summary = "근처 빵집 목록 조회", description = "위도(lat)·경도(lng) 기준 반경 내 빵집을 거리 오름차순으로 반환합니다.")
+	@Operation(summary = "근처 빵집 목록 조회", description = "위도(lat)·경도(lng) 기준 반경 내 빵집을 거리 오름차순으로 반환합니다. "
+		+ "반경(radius, m)은 안 보내면 1km, 최대 20km 입니다.")
 	@GetMapping("/nearby")
 	public ResponseEntity<ApiResponse<SliceResponse<NearbyStoreResponse>>> getNearbyStore(
 			@RequestParam double lat, @RequestParam double lng,
 			@RequestParam(defaultValue = "0") int page,
-			@RequestParam(defaultValue = "10") int size) {
+			@RequestParam(defaultValue = "10") int size,
+			@Parameter(description = "반경(m), 기본 1000·최대 20000") @RequestParam(required = false) Integer radius) {
 		return ResponseEntity.ok(
-			ApiResponse.ok(storeQueryService.getNearbyStores(lng, lat, PageRequest.of(page, size))));
+			ApiResponse.ok(storeQueryService.getNearbyStores(lng, lat, radius, PageRequest.of(page, size))));
 	}
 
 	@Operation(summary = "지도 영역 안 빵집 조회", description = "남서(sw)·북동(ne) 모서리로 준 사각형 안의 빵집을 "

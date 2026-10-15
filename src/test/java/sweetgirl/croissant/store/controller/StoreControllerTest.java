@@ -78,6 +78,27 @@ class StoreControllerTest {
 	}
 
 	@Test
+	void getNearbyStore_passesRadiusToService() throws Exception {
+		given(storeQueryService.getNearbyStores(eq(127.05), eq(37.54), eq(5000), any()))
+			.willReturn(new SliceResponse<>(List.of(), false));
+
+		mockMvc.perform(get("/stores/nearby")
+			.param("lat", "37.54").param("lng", "127.05").param("radius", "5000"))
+			.andExpect(status().isOk());
+
+		verify(storeQueryService).getNearbyStores(eq(127.05), eq(37.54), eq(5000), any());
+	}
+
+	@Test
+	void getNearbyStore_withoutRadius_passesNull() throws Exception {
+		given(storeQueryService.getNearbyStores(eq(127.05), eq(37.54), isNull(), any()))
+			.willReturn(new SliceResponse<>(List.of(), false));
+
+		mockMvc.perform(get("/stores/nearby").param("lat", "37.54").param("lng", "127.05"))
+			.andExpect(status().isOk());
+	}
+
+	@Test
 	void getStoresInBounds_rejectsInvertedBounds() throws Exception {
 		mockMvc.perform(get("/stores/in-bounds")
 			.param("swLat", "37.56").param("swLng", "127.03")
