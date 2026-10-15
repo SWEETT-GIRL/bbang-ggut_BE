@@ -59,7 +59,8 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 	private static final Letter LETTER = new Letter(1, 31L);
 	private static final Ad AD = new Ad(2);
 	private static final RankingReward RANKING_REWARD = new RankingReward(12L, 2, 50, false);
-	private static final HomeCardResponse HOME_CARD = HomeCardResponse.tourToday(812L, "성수 빵투어", 2, 5);
+	private static final HomeCardResponse HOME_CARD = HomeCardResponse.tourToday(812L, "성수 빵투어", 2, 5,
+		"셋째 가게", "courses/812/cover.jpg");
 
 	@MockitoBean
 	private BbangdaengLetterService bbangdaengLetterService;
@@ -132,6 +133,8 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.homeCard.planet").doesNotExist())
 			.andExpect(jsonPath("$.data.homeCard.letterId").doesNotExist())
 			// rewards[] 한 칸 — 기록 저장·출석 등 뒤 phase 의 응답도 같은 모양을 쓴다
+			.andExpect(jsonPath("$.data.homeCard.nextStoreName").isString())
+			.andExpect(jsonPath("$.data.homeCard.coverImageKey").isString())
 			.andExpect(jsonPath("$.data.pendingRewards[0].id").isNumber())
 			.andExpect(jsonPath("$.data.pendingRewards[0].type").value("CRUMBS"))
 			.andExpect(jsonPath("$.data.pendingRewards[0].amount").isNumber())
