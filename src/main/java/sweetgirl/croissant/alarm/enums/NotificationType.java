@@ -27,6 +27,8 @@ public enum NotificationType {
 	NOTICE("NOTICE"),
 	/** 월간 빵일지 발행 알림 */
 	MONTHLY_REPORT("MONTHLY_REPORT"),
+	/** 내일 가는 빵투어가 있다 — 전날 저녁에 방장과 일행 모두에게. 서비스 알림이다 */
+	COURSE_TOMORROW("COURSE_TOMORROW"),
 	/** 광고성 알림. 마케팅 수신 동의가 따로 있어야 나간다 */
 	AD("AD"),
 	/** 내가 올린 기여 제보(메뉴 추가·가게 추가·가게 정보)의 승인·반려 결과 */
