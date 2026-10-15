@@ -54,4 +54,17 @@ public class RewardPushScheduler {
 			log.error("[리워드 푸시] 편지 도착 알림 실패 — 이번 주는 보내지 않는다", exception);
 		}
 	}
+
+	/** 매일 아침 9 시 — 어제 가입하고 아직 출석 안 한 회원에게 룰렛. 출석 스위치를 따른다. */
+	@Scheduled(cron = "0 0 9 * * *", zone = "Asia/Seoul")
+	public void secondMorningRoulette() {
+		if (!rewardLaunchService.isPushDue(RewardSettingKey.PUSH_ATTENDANCE, LocalDate.now(CrumbGrantService.ZONE))) {
+			return;
+		}
+		try {
+			rewardPushService.sendSecondMorningRoulette(LocalDateTime.now(CrumbGrantService.ZONE));
+		} catch (RuntimeException exception) {
+			log.error("[리워드 푸시] 둘째 날 아침 룰렛 알림 실패 — 오늘은 보내지 않는다", exception);
+		}
+	}
 }

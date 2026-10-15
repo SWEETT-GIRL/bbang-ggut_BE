@@ -53,6 +53,28 @@ class RewardPushSchedulerTest {
 	}
 
 	@Test
+	@DisplayName("출석 보낼 때가 아니면 둘째 날 아침 룰렛 알림도 보내지 않는다")
+	void rouletteOff() {
+		given(rewardLaunchService.isPushDue(eq(RewardSettingKey.PUSH_ATTENDANCE), any(LocalDate.class)))
+			.willReturn(false);
+
+		rewardPushScheduler.secondMorningRoulette();
+
+		then(rewardPushService).should(never()).sendSecondMorningRoulette(any(LocalDateTime.class));
+	}
+
+	@Test
+	@DisplayName("출석 보낼 때가 됐으면 둘째 날 아침 룰렛 알림을 보낸다")
+	void rouletteOn() {
+		given(rewardLaunchService.isPushDue(eq(RewardSettingKey.PUSH_ATTENDANCE), any(LocalDate.class)))
+			.willReturn(true);
+
+		rewardPushScheduler.secondMorningRoulette();
+
+		then(rewardPushService).should().sendSecondMorningRoulette(any(LocalDateTime.class));
+	}
+
+	@Test
 	@DisplayName("출석 보낼 때가 아니면 출석 리마인드를 보내지 않는다")
 	void attendanceOff() {
 		given(rewardLaunchService.isPushDue(eq(RewardSettingKey.PUSH_ATTENDANCE), any(LocalDate.class)))
