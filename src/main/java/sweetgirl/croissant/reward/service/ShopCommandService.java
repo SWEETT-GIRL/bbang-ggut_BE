@@ -67,6 +67,13 @@ public class ShopCommandService {
 			LocalDateTime.now()) == 0) {
 			throw new RewardException(RewardErrorCode.REWARD_SHOP_ALREADY_OWNED);
 		}
+		// 기본 모습은 값이 없다 — 치를 것 없이 입히기만 한다
+		if (item.isFree()) {
+			if (item.isPose()) {
+				wear(memberId, characterCode, item.getCode());
+			}
+			return new ShopPurchaseResponse(crumbGrantService.balanceOf(memberId), List.of());
+		}
 		String key = "shop:" + (item.isPose() ? characterCode : "-") + ":" + item.getCode();
 		SpendResult spent = crumbGrantService.spend(memberId, CrumbReason.SHOP_PURCHASE, item.getPrice(), key);
 		if (item.isPose()) {
@@ -76,7 +83,10 @@ public class ShopCommandService {
 			List.of(RewardItemResponse.spent(spent, CrumbReason.SHOP_PURCHASE)));
 	}
 
-	/** 친구에게 가진 모습을 입힌다. {@code itemCode} 가 없으면 기본 모습으로 돌아간다. */
+	/**
+	 * 친구에게 가진 모습을 입힌다. {@code itemCode} 가 없으면 기본 모습(앉기)으로 돌아간다.
+	 * 값 0 인 기본 모습(앉기·눈웃음·갸웃)은 처음부터 누구나 가진 것이라 사지 않아도 입힌다.
+	 */
 	public void changeLook(Long memberId, String characterCode, String itemCode) {
 		memberReader.requireLoggedIn(memberId);
 		if (itemCode == null) {
@@ -85,9 +95,11 @@ public class ShopCommandService {
 		}
 		ShopItem item = shopItemRepository.findById(itemCode)
 			.orElseThrow(() -> new RewardException(RewardErrorCode.REWARD_SHOP_ITEM_NOT_FOUND));
-		if (!item.isPose()
-			|| !memberShopItemRepository.existsByMemberIdAndCharacterCodeAndItemCode(memberId, characterCode,
-				itemCode)) {
+		if (!item.isPose()) {
+			throw new RewardException(RewardErrorCode.REWARD_SHOP_ITEM_NOT_OWNED);
+		}
+		if (!item.isFree() && !memberShopItemRepository.existsByMemberIdAndCharacterCodeAndItemCode(memberId,
+			characterCode, itemCode)) {
 			throw new RewardException(RewardErrorCode.REWARD_SHOP_ITEM_NOT_OWNED);
 		}
 		wear(memberId, characterCode, itemCode);
@@ -109,7 +121,7 @@ public class ShopCommandService {
 		}
 	}
 
-	/** 모습은 깨어 있는 내 친구에게만, 그 친구에게 그 포즈 그림이 있을 때만 산다. */
+	/** 모습은 깨어 있는 내 친구에게만, 그 친구에게 그 포즈 그림이 있을 때만 산다. 기본 모습의 그림은 앱이 들고 있어 서버 그림을 보지 않는다. */
 	private String requireFriendFor(Long memberId, ShopItem item, String characterCode) {
 		if (characterCode == null || characterCode.isBlank()) {
 			throw new RewardException(RewardErrorCode.REWARD_SHOP_CHARACTER_REQUIRED);
@@ -120,7 +132,8 @@ public class ShopCommandService {
 		if (!awake) {
 			throw new WorldException(WorldErrorCode.WORLD_CHARACTER_LOCKED);
 		}
-		if (!worldCharacterAssetRepository.existsById(new WorldCharacterAssetId(characterCode, item.getPose()))) {
+		if (!item.isFree()
+			&& !worldCharacterAssetRepository.existsById(new WorldCharacterAssetId(characterCode, item.getPose()))) {
 			throw new RewardException(RewardErrorCode.REWARD_SHOP_POSE_UNAVAILABLE);
 		}
 		return characterCode;
