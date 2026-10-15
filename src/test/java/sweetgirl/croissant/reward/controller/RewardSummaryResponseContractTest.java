@@ -52,7 +52,7 @@ import sweetgirl.croissant.reward.service.RewardQueryService;
 class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 
 	private static final RewardRulesResponse RULES = new RewardRulesResponse(
-		25, 10, 5, 3, List.of(5, 5, 10, 5, 10, 10, 30), 2, 3, 10, 20, 2, 100, 10, 3, 8, 30, 30, 600);
+		25, 10, 5, 3, List.of(5, 5, 10, 5, 10, 10, 30), 2, 3, 10, 20, 2, 100, 10, 3, 8, 30, 30, 600, 100, 50, 20);
 
 	private static final Attendance ATTENDANCE = new Attendance(false, 2, 3, 10, 5);
 	private static final Feed FEED = new Feed(false, List.of(10, 5, 3, 5, 10, 50));
@@ -92,6 +92,9 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.rules.recordDailyCap").isNumber())
 			.andExpect(jsonPath("$.data.rules.attendance", hasSize(7)))
 			.andExpect(jsonPath("$.data.rules.saveStore").isNumber())
+			.andExpect(jsonPath("$.data.rules.rankingFirst").isNumber())
+			.andExpect(jsonPath("$.data.rules.rankingSecondThird").isNumber())
+			.andExpect(jsonPath("$.data.rules.rankingFourthTenth").isNumber())
 			.andExpect(jsonPath("$.data.rules.saveStoreDailyCap").isNumber())
 			.andExpect(jsonPath("$.data.rules.letter").isNumber())
 			.andExpect(jsonPath("$.data.rules.ad").isNumber())
@@ -130,11 +133,11 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.homeCard.title").isString())
 			.andExpect(jsonPath("$.data.homeCard.visited").isNumber())
 			.andExpect(jsonPath("$.data.homeCard.total").isNumber())
+			.andExpect(jsonPath("$.data.homeCard.nextStoreName").isString())
+			.andExpect(jsonPath("$.data.homeCard.coverImageKey").isString())
 			.andExpect(jsonPath("$.data.homeCard.planet").doesNotExist())
 			.andExpect(jsonPath("$.data.homeCard.letterId").doesNotExist())
 			// rewards[] 한 칸 — 기록 저장·출석 등 뒤 phase 의 응답도 같은 모양을 쓴다
-			.andExpect(jsonPath("$.data.homeCard.nextStoreName").isString())
-			.andExpect(jsonPath("$.data.homeCard.coverImageKey").isString())
 			.andExpect(jsonPath("$.data.pendingRewards[0].id").isNumber())
 			.andExpect(jsonPath("$.data.pendingRewards[0].type").value("CRUMBS"))
 			.andExpect(jsonPath("$.data.pendingRewards[0].amount").isNumber())
