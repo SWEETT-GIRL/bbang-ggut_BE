@@ -98,6 +98,7 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 	@Query("""
 			SELECT record
 			FROM BreadRecord record
+			LEFT JOIN FETCH record.store
 			WHERE record.member.id = :memberId
 			AND record.deletedAt IS NULL
 			AND (CAST(:from AS LocalDateTime) IS NULL OR record.eatenAt >= :from)
