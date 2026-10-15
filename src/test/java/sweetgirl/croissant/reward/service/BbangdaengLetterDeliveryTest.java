@@ -183,11 +183,17 @@ class BbangdaengLetterDeliveryTest {
 		bbangdaengLetterService.deliverIfDue(memberId, MONDAY);
 		Long letterId = bbangdaengLetterService.getLetters(memberId, MONDAY).get(0).id();
 
-		assertThat(bbangdaengLetterService.getLetters(memberId, MONDAY).get(0).body()).isNull();
+		BbangdaengLetterResponse unopened = bbangdaengLetterService.getLetters(memberId, MONDAY).get(0);
+		assertThat(unopened.body()).isNull();
+		// 안 연 편지는 지금 열면 받을 양(규칙값 10)
+		assertThat(unopened.crumbs()).isEqualTo(10);
 
 		bbangdaengLetterService.open(memberId, letterId, MONDAY);
 
-		assertThat(bbangdaengLetterService.getLetters(memberId, MONDAY).get(0).body()).isEqualTo("1번 글");
+		BbangdaengLetterResponse opened = bbangdaengLetterService.getLetters(memberId, MONDAY).get(0);
+		assertThat(opened.body()).isEqualTo("1번 글");
+		// 연 편지는 장부에 적힌 그때 받은 양
+		assertThat(opened.crumbs()).isEqualTo(10);
 	}
 
 	@Test

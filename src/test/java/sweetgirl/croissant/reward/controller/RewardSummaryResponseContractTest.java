@@ -221,7 +221,7 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 	@Test
 	void letters_keepFieldsTheAppReads() throws Exception {
 		given(bbangdaengLetterService.getLetters(any())).willReturn(List.of(
-			new BbangdaengLetterResponse(31L, LocalDate.of(2026, 10, 12), "안녕! 나 빵댕이야.", true)));
+			new BbangdaengLetterResponse(31L, LocalDate.of(2026, 10, 12), "안녕! 나 빵댕이야.", true, 10)));
 		given(bbangdaengLetterService.open(any(), any())).willReturn(new BbangdaengLetterOpenResponse(
 			"안녕! 나 빵댕이야.", false, List.of(
 				RewardItemResponse.crumbs(new GrantResult(Outcome.GRANTED, 10, 30, 40), CrumbReason.LETTER))));
@@ -231,7 +231,8 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data[0].id").isNumber())
 			.andExpect(jsonPath("$.data[0].weekStart").value("2026-10-12"))
 			.andExpect(jsonPath("$.data[0].body").isString())
-			.andExpect(jsonPath("$.data[0].opened").isBoolean());
+			.andExpect(jsonPath("$.data[0].opened").isBoolean())
+			.andExpect(jsonPath("$.data[0].crumbs").isNumber());
 		mockMvc.perform(post("/members/me/rewards/letters/31/open"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.body").isString())
