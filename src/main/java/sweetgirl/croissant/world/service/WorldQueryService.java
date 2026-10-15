@@ -108,7 +108,8 @@ public class WorldQueryService {
 				return planet != null && planet.rouletteSize() > 0;
 			})
 			.map(MemberPlanetArrival::planetCode)
-			.sorted()
+			// 여정 순서 — 코드 글자순이면 목성(jupiter)이 화성(mars)보다 먼저 나온다
+			.sorted(Comparator.comparingInt(code -> planets.get(code).sortOrder()))
 			.toList();
 	}
 

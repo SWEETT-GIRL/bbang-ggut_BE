@@ -117,6 +117,23 @@ class WorldQueryServiceTest {
 	}
 
 	@Test
+	@DisplayName("밀린 룰렛은 코드 글자순이 아니라 여정 순서다 — 화성이 목성보다 먼저")
+	void ordersPendingRouletteByJourney() {
+		given(worldCatalogService.getCatalog()).willReturn(new WorldCatalogResponse(
+			7,
+			List.of(
+				planet("earth", 1, 10, null, 0, 2),
+				planet("mars", 2, 30, "earth", 1, 3),
+				planet("jupiter", 3, 30, "mars", 1, 3)),
+			List.of()));
+		given(memberPlanetArrivalRepository.findAllByIdMemberId(MEMBER_ID)).willReturn(List.of(
+			WorldFixtures.arrival(MEMBER_ID, "jupiter"),
+			WorldFixtures.arrival(MEMBER_ID, "mars")));
+
+		assertThat(worldQueryService.pendingRoulettePlanets(MEMBER_ID)).containsExactly("mars", "jupiter");
+	}
+
+	@Test
 	@DisplayName("보여주는 수는 살아 있는 기록, 진행도는 최고 높이로 나뉜다")
 	void separatesDisplayedCountFromProgressHeight() {
 		givenMember(40, 12L, List.of());
