@@ -50,7 +50,7 @@ class RankingRewardControllerTest {
 	@DisplayName("받을 수 있는 보상을 내린다")
 	void pending() throws Exception {
 		given(rankingRewardService.getPending(any())).willReturn(List.of(new RankingRewardResponse(
-			12L, LocalDate.of(2026, 10, 5), 1, 100, true, LocalDate.of(2026, 11, 8))));
+			12L, LocalDate.of(2026, 10, 5), 1, 100, true, LocalDate.of(2026, 11, 8), 12)));
 
 		mockMvc.perform(get("/members/me/ranking-rewards/pending"))
 			.andExpect(status().isOk())

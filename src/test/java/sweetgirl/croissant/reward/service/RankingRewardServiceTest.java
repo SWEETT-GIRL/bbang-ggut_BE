@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
@@ -28,6 +29,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import sweetgirl.croissant.breadlog.dto.projection.WeeklyScoreProjection;
+import sweetgirl.croissant.breadlog.repository.BreadRecordRankingRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
@@ -55,6 +58,8 @@ class RankingRewardServiceTest {
 	private RankingWeeklyRewardRepository rewardRepository;
 	@Mock
 	private RankingSnapshotJdbcRepository snapshotRepository;
+	@Mock
+	private BreadRecordRankingRepository rankingRepository;
 	@Mock
 	private MemberRestrictionReader memberRestrictionReader;
 	@Mock
@@ -85,7 +90,13 @@ class RankingRewardServiceTest {
 			}
 			given(snapshotRepository.existsForDate(LAST_SUNDAY)).willReturn(true);
 			given(snapshotRepository.findRanks(LAST_SUNDAY, "WEEKLY", 0, "")).willReturn(ranks);
-			lenient().when(rewardRepository.insertIfAbsent(any(), anyLong(), anyInt(), anyInt(), any(), any()))
+			// 1 위의 지난주 점수만 돌려준다 — 나머지는 점수 없이(null) 남는다
+			WeeklyScoreProjection first = mock(WeeklyScoreProjection.class);
+			lenient().when(first.getMemberId()).thenReturn(101L);
+			lenient().when(first.getScore()).thenReturn(12L);
+			lenient().when(rankingRepository.findWeeklyScores(
+				eq(LAST_WEEK.atStartOfDay()), eq(MONDAY.atStartOfDay()), any())).thenReturn(List.of(first));
+			lenient().when(rewardRepository.insertIfAbsent(any(), anyLong(), anyInt(), anyInt(), any(), any(), any()))
 				.thenReturn(1);
 		}
 
@@ -97,12 +108,20 @@ class RankingRewardServiceTest {
 			assertThat(rankingRewardService.issueFor(MONDAY)).isEqualTo(10);
 
 			then(rewardRepository).should().insertIfAbsent(
-				eq(LAST_WEEK), eq(101L), eq(1), eq(100), eq(LAST_WEEK.plusDays(13)), any());
-			then(rewardRepository).should().insertIfAbsent(eq(LAST_WEEK), eq(102L), eq(2), eq(50), isNull(), any());
-			then(rewardRepository).should().insertIfAbsent(eq(LAST_WEEK), eq(103L), eq(3), eq(50), isNull(), any());
-			then(rewardRepository).should().insertIfAbsent(eq(LAST_WEEK), eq(104L), eq(4), eq(20), isNull(), any());
-			then(rewardRepository).should().insertIfAbsent(eq(LAST_WEEK), eq(110L), eq(10), eq(20), isNull(), any());
-			then(rewardRepository).should(never()).insertIfAbsent(any(), eq(111L), anyInt(), anyInt(), any(), any());
+				eq(LAST_WEEK), eq(101L), eq(1), eq(100), eq(LAST_WEEK.plusDays(13)), eq(12), any());
+			then(rewardRepository).should().insertIfAbsent(eq(LAST_WEEK), eq(102L), eq(2), eq(50), isNull(), isNull(),
+				any());
+			then(rewardRepository).should().insertIfAbsent(eq(LAST_WEEK), eq(103L), eq(3), eq(50), isNull(), isNull(),
+				any());
+			then(rewardRepository).should().insertIfAbsent(eq(LAST_WEEK), eq(104L), eq(4), eq(20), isNull(), isNull(),
+				any());
+			then(rewardRepository).should().insertIfAbsent(eq(LAST_WEEK), eq(110L), eq(10), eq(20), isNull(), isNull(),
+				any());
+			then(rewardRepository).should(never()).insertIfAbsent(any(), eq(111L), anyInt(), anyInt(), any(), any(),
+				any());
+			// 점수는 보상을 받는 10 명 것만 묻는다
+			then(rankingRepository).should().findWeeklyScores(eq(LAST_WEEK.atStartOfDay()), eq(MONDAY.atStartOfDay()),
+				argThat(memberIds -> memberIds.size() == 10 && !memberIds.contains(111L)));
 		}
 
 		@Test
@@ -112,7 +131,8 @@ class RankingRewardServiceTest {
 
 			rankingRewardService.issueFor(MONDAY.plusDays(3));
 
-			then(rewardRepository).should().insertIfAbsent(eq(LAST_WEEK), eq(101L), eq(1), eq(100), any(), any());
+			then(rewardRepository).should().insertIfAbsent(eq(LAST_WEEK), eq(101L), eq(1), eq(100), any(), any(),
+				any());
 		}
 
 		@Test
@@ -123,15 +143,18 @@ class RankingRewardServiceTest {
 
 			assertThat(rankingRewardService.issueFor(MONDAY)).isEqualTo(2);
 
-			then(rewardRepository).should(never()).insertIfAbsent(any(), eq(102L), anyInt(), anyInt(), any(), any());
-			then(rewardRepository).should().insertIfAbsent(eq(LAST_WEEK), eq(103L), eq(3), eq(50), isNull(), any());
+			then(rewardRepository).should(never()).insertIfAbsent(any(), eq(102L), anyInt(), anyInt(), any(), any(),
+				any());
+			then(rewardRepository).should().insertIfAbsent(eq(LAST_WEEK), eq(103L), eq(3), eq(50), isNull(), isNull(),
+				any());
 		}
 
 		@Test
 		@DisplayName("두 번 돌려도 줄이 늘지 않는다 — 이미 있으면 0 줄이다")
 		void idempotent() {
 			givenRanks(10);
-			given(rewardRepository.insertIfAbsent(any(), anyLong(), anyInt(), anyInt(), any(), any())).willReturn(0);
+			given(rewardRepository.insertIfAbsent(any(), anyLong(), anyInt(), anyInt(), any(), any(), any()))
+				.willReturn(0);
 
 			assertThat(rankingRewardService.issueFor(MONDAY)).isZero();
 		}

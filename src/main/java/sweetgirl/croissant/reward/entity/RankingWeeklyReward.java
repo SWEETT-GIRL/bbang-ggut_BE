@@ -49,6 +49,9 @@ public class RankingWeeklyReward {
 	@Column(nullable = false)
 	private int crumbs;
 
+	/** 그 주의 점수(사진 있는 기록 수). 점수를 남기기 전에 만든 줄은 null */
+	private Integer score;
+
 	/** 1 위만 있다. 이날까지 왕관을 쓴다. */
 	@Column(name = "crown_until")
 	private LocalDate crownUntil;

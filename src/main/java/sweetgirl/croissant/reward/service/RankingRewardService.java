@@ -9,12 +9,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.breadlog.dto.projection.WeeklyScoreProjection;
+import sweetgirl.croissant.breadlog.repository.BreadRecordRankingRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.ranking.repository.RankingSnapshotJdbcRepository;
@@ -49,6 +52,7 @@ public class RankingRewardService {
 
 	private final RankingWeeklyRewardRepository rewardRepository;
 	private final RankingSnapshotJdbcRepository snapshotRepository;
+	private final BreadRecordRankingRepository rankingRepository;
 	private final MemberRestrictionReader memberRestrictionReader;
 	private final CrumbGrantService crumbGrantService;
 	private final RewardSettings rewardSettings;
@@ -72,6 +76,7 @@ public class RankingRewardService {
 
 		Map<Long, Integer> ranks = snapshotRepository.findRanks(
 			lastSunday, WEEKLY_BOARD, 0, RankChangeResolver.NATIONWIDE);
+		Map<Long, Integer> scores = weeklyScores(lastWeek, thisWeek, ranks);
 		LocalDateTime now = LocalDateTime.now();
 		int issued = 0;
 		for (Map.Entry<Long, Integer> ranked : ranks.entrySet()) {
@@ -81,10 +86,25 @@ public class RankingRewardService {
 				continue;
 			}
 			issued += rewardRepository.insertIfAbsent(
-				lastWeek, memberId, rank, crumbsFor(rank), rank == 1 ? lastWeek.plusDays(CROWN_DAYS) : null, now);
+				lastWeek, memberId, rank, crumbsFor(rank), rank == 1 ? lastWeek.plusDays(CROWN_DAYS) : null,
+				scores.get(memberId), now);
 		}
 		log.info("[랭킹 주간 보상] week={} issued={}", lastWeek, issued);
 		return issued;
+	}
+
+	/** 순위에 든 사람들의 그 주 점수 — 앱이 "지난주 빵 N개"를 보여 준다. 보상 줄에 함께 남긴다. */
+	private Map<Long, Integer> weeklyScores(LocalDate weekStart, LocalDate weekEnd, Map<Long, Integer> ranks) {
+		List<Long> memberIds = ranks.entrySet().stream()
+			.filter(ranked -> ranked.getValue() >= 1 && ranked.getValue() <= TOP)
+			.map(Map.Entry::getKey)
+			.toList();
+		if (memberIds.isEmpty()) {
+			return Map.of();
+		}
+		return rankingRepository.findWeeklyScores(weekStart.atStartOfDay(), weekEnd.atStartOfDay(), memberIds)
+			.stream()
+			.collect(Collectors.toMap(WeeklyScoreProjection::getMemberId, score -> score.getScore().intValue()));
 	}
 
 	/** 받는다. 이미 받은 것을 다시 누르면 에러가 아니라 alreadyDone 으로 답한다. */
