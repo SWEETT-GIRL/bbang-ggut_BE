@@ -9,5 +9,9 @@ public interface NearbyStoreProjection {
 
 	String getRegion2nd();
 
+	Double getLatitude();
+
+	Double getLongitude();
+
 	double getDistanceMeters();
 }

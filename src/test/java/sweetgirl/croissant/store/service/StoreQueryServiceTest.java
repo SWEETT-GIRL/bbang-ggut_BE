@@ -30,8 +30,10 @@ import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.code.StoreConstants;
+import sweetgirl.croissant.store.dto.projection.NearbyStoreProjection;
 import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
 import sweetgirl.croissant.store.dto.projection.TopSubscribedStoreProjection;
+import sweetgirl.croissant.store.dto.response.NearbyStoreResponse;
 import sweetgirl.croissant.store.dto.response.StoreDetailResponse;
 import sweetgirl.croissant.store.dto.response.SubscribedStoreResponse;
 import sweetgirl.croissant.store.dto.response.TopSubscribedStoreResponse;
@@ -227,6 +229,29 @@ class StoreQueryServiceTest {
 		StoreDetailResponse result = storeQueryService.getStoreDetail(memberId, storeId);
 
 		assertThat(result.isSaved()).isFalse();
+	}
+
+	// ───────────────────────── getNearbyStores ─────────────────────────
+
+	@Test
+	@DisplayName("getNearbyStores: 가게 좌표와 반올림한 거리를 싣는다")
+	void getNearbyStores_carriesCoordinates() {
+		NearbyStoreProjection nearby = mock(NearbyStoreProjection.class);
+		given(nearby.getId()).willReturn(30L);
+		given(nearby.getName()).willReturn("성수 베이크");
+		given(nearby.getRegion1st()).willReturn("서울");
+		given(nearby.getRegion2nd()).willReturn("성동구");
+		given(nearby.getLatitude()).willReturn(37.5446);
+		given(nearby.getLongitude()).willReturn(127.0559);
+		given(nearby.getDistanceMeters()).willReturn(349.6);
+		PageRequest pageable = PageRequest.of(0, 10);
+		given(storeRepository.findNearbyStores(127.05, 37.54, StoreConstants.SEARCH_NEARBY_RADIUS, pageable))
+			.willReturn(new SliceImpl<>(List.of(nearby), pageable, false));
+
+		SliceResponse<NearbyStoreResponse> result = storeQueryService.getNearbyStores(127.05, 37.54, pageable);
+
+		assertThat(result.content()).containsExactly(
+			new NearbyStoreResponse(30L, "성수 베이크", "서울 성동구", null, 350, 37.5446, 127.0559));
 	}
 
 	// ───────────────────────── getTopSubscribedStores ─────────────────────────
