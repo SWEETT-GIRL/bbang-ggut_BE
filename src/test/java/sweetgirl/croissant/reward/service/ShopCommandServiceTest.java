@@ -186,7 +186,7 @@ class ShopCommandServiceTest {
 			givenAwakeFriend("dog");
 			given(worldCharacterAssetRepository.existsById(new WorldCharacterAssetId("dog", "bread-tower")))
 				.willReturn(true);
-			given(worldLevelReader.currentLevel(MEMBER_ID)).willReturn(new WorldLevel(4, 20, "mars", "village"));
+			given(worldLevelReader.currentLevel(MEMBER_ID)).willReturn(new WorldLevel(4, 10, 20, "mars", "village"));
 
 			assertThatThrownBy(() -> shopCommandService.purchase(
 				MEMBER_ID, new ShopPurchaseRequest("pose-bread-tower", "dog")))

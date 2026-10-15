@@ -109,6 +109,8 @@ class WorldQueryServiceTest {
 		assertThat(response.catalogVersion()).isEqualTo(7);
 		assertThat(response.planet()).isEqualTo("mars");
 		assertThat(response.stage()).isEqualTo("village");
+		// 화성 마을은 화성에 닿은 기록 10 개에서 시작한다
+		assertThat(response.levelStartAt()).isEqualTo(10);
 		assertThat(response.recordCount()).isEqualTo(12L);
 		assertThat(response.selectedCharacter()).isEqualTo("dog");
 		assertThat(response.wakeTickets()).isEqualTo(1);

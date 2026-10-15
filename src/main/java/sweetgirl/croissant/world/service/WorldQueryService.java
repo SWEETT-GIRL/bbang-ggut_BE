@@ -79,7 +79,8 @@ public class WorldQueryService {
 			memberWorld.getWelcomedAt(),
 			level.level(),
 			level.levelUpAt(),
-			rankingRewardService.crownedMemberIds().contains(memberId));
+			rankingRewardService.crownedMemberIds().contains(memberId),
+			level.levelStartAt());
 	}
 
 	/**
