@@ -16,8 +16,8 @@ public record BreadRecordUpsertRequest(
 		@Size(max = 500) String memo,
 		/** 구버전 앱이 보내는 단일 값. lovedBreads가 오면 무시한다. */
 		@Size(max = 100) String lovedBread,
-		/** 최고였던 빵들 — 각각 tags 중 하나여야 한다 */
-		@Size(max = 10) List<@Size(max = 100) String> lovedBreads,
+		/** 최고였던 빵들 — 각각 tags 중 하나여야 한다. 개수는 tags 를 넘을 수 없어 따로 막지 않는다. */
+		List<@Size(max = 100) String> lovedBreads,
 		/** 빵탑에 쌓을 빵. 빵탑을 모르는 구버전 앱은 안 보낸다. */
 		@Size(max = 20) String towerBread,
 		@NotNull LocalDateTime eatenAt,

@@ -167,6 +167,24 @@ class BreadRecordControllerTest {
 			.andExpect(jsonPath("$.data.rewards").isArray());
 	}
 
+	// 빵을 많이 붙인 기록 — 또 먹을래요가 10개를 넘어도 저장된다
+	@Test
+	void create_withElevenLovedBreads_returns201() throws Exception {
+		given(commandService.create(isNull(), any(BreadRecordUpsertRequest.class)))
+			.willReturn(new BreadRecordCreateResponse(13L, LocalDateTime.of(2026, 8, 2, 14, 21, 7), List.of()));
+		List<String> names = java.util.stream.IntStream.rangeClosed(1, 11).mapToObj(index -> "빵" + index).toList();
+		String tags = names.stream().map(name -> "{\"name\":\"" + name + "\"}")
+			.collect(java.util.stream.Collectors.joining(","));
+		String lovedBreads = names.stream().map(name -> "\"" + name + "\"")
+			.collect(java.util.stream.Collectors.joining(","));
+
+		mockMvc.perform(post("/bread-records")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"storeName\":\"밀도 성수\",\"eatenAt\":\"2026-08-02T14:21:07\",\"photos\":[],"
+				+ "\"tags\":[" + tags + "],\"lovedBreads\":[" + lovedBreads + "]}"))
+			.andExpect(status().isCreated());
+	}
+
 	// 가게는 여전히 필수다
 	@Test
 	void create_withoutStore_returns400() throws Exception {
