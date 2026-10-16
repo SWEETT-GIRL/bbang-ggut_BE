@@ -1,5 +1,6 @@
 package sweetgirl.croissant.member.repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -40,4 +41,10 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
 	// 회원 탈퇴 시 해당 회원의 모든 RefreshToken revoke를 위해 사용
 	List<RefreshToken> findAllByMember(Member member);
+
+	/** 보관 기한이 지난 탈퇴 회원의 토큰 중 아직 살아 있는 것을 무효화한다(탈퇴 때 무효화가 빠진 옛 행 정리). */
+	@Modifying
+	@Query("UPDATE RefreshToken rt SET rt.revokedAt = :now WHERE rt.revokedAt IS NULL "
+		+ "AND rt.member.id IN (SELECT m.id FROM Member m WHERE m.deletedAt < :cutoff)")
+	int revokeAllOfMembersDeletedBefore(@Param("cutoff") LocalDateTime cutoff, @Param("now") LocalDateTime now);
 }

@@ -67,6 +67,14 @@ public class OAuth {
 		this.email = email;
 	}
 
+	/**
+	 * 탈퇴 시 이메일만 지운다. providerId 는 남긴다 — 원문이 아닌 SHA-256 해시라 사람을 바로 알아볼 수 없고, 같은 소셜 계정의
+	 * 재가입을 알아봐야 환영 선물·초대 보상을 두 번 받지 못하고 강퇴(BANNED)도 피하지 못한다.
+	 */
+	public void clearEmail() {
+		this.email = null;
+	}
+
 	public void updateMember(Member newMember) {
 		this.member = newMember;
 	}
