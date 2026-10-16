@@ -86,6 +86,10 @@ public class AdminWorldCharacterService {
 
 		if (Boolean.TRUE.equals(request.mascot()) && !character.isMascot()) {
 			worldCharacterRepository.clearMascot();
+			// 내리는 벌크 UPDATE 가 영속성 컨텍스트를 비워 위에서 읽은 캐릭터는 준영속이다 — 다시 읽어야 아래 변경이
+			// 저장된다. 안 그러면 옛 마스코트만 내려가고 새 마스코트는 안 세워져 마스코트가 0 이 된다.
+			character = worldCharacterRepository.findById(code)
+				.orElseThrow(() -> new WorldException(WorldErrorCode.WORLD_CHARACTER_NOT_FOUND));
 		}
 		character.update(
 			normalize(request.name()),
