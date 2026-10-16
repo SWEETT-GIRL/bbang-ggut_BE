@@ -7,6 +7,13 @@ on:
   # 이게 없으면 변수를 바꿔도 다음 main 머지까지 반영되지 않는다(장애 때 되돌릴 방법이 없다는 뜻이다).
   workflow_dispatch:
 
+# 같은 EC2의 .env·Compose 파일과 Docker 저장소를 동시에 변경하지 않는다.
+# 실행 중인 배포는 끝내고 다음 배포를 시작한다 — 겹치면 둘 다 같은 '새 색'을 고르고,
+# 한쪽의 롤백·prune 이 다른 쪽의 pull·기동을 밟는다(#941·#939 연속 머지에서 pull 이 깨졌다).
+concurrency:
+  group: cd-prod
+  cancel-in-progress: false
+
 # 배포 알림의 PR 타이틀 조회(gh api …/pulls)에 필요 — 없으면 403으로 에러 본문이 제목에 섞인다
 permissions:
   contents: read
@@ -367,9 +374,21 @@ jobs:
         env:
           NEW: ${{ steps.color.outputs.new }}
         run: |
-          ssh was "cd ~/app \
-            && docker compose -p bbang-${NEW} -f docker-compose.prod.yml pull \
-            && docker compose -p bbang-${NEW} -f docker-compose.prod.yml up -d"
+          # 레이어 다운로드의 일시 오류는 재시도하되, 실패한 이미지로 up을 실행하지 않는다.
+          ssh was "
+            cd ~/app || exit 1
+            for attempt in 1 2 3; do
+              if docker compose -p bbang-${NEW} -f docker-compose.prod.yml pull; then
+                break
+              fi
+              if [ \"\$attempt\" -eq 3 ]; then
+                echo 'Docker 이미지 다운로드가 3회 실패했습니다. 기존 컨테이너를 유지합니다.'
+                exit 1
+              fi
+              sleep \$((attempt * 5))
+            done
+            docker compose -p bbang-${NEW} -f docker-compose.prod.yml up -d
+          "
 
       - name: 신규 색 헬스체크
         env:
