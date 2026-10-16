@@ -20,4 +20,6 @@ public interface StoreNameAliasRepository extends JpaRepository<StoreNameAlias, 
 
 	@Query("SELECT a.alias FROM StoreNameAlias a WHERE a.store.id = :storeId")
 	List<String> findAliasesForIndexingByStoreId(@Param("storeId") Long storeId);
+
+	boolean existsByStore_IdAndAlias(Long storeId, String alias);
 }

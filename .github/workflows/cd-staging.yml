@@ -119,6 +119,10 @@ jobs:
           # 하루 상한 200 은 메뉴 분류와 나눠 쓰는 무료 등급(500)의 몫이다.
           recommendation.reason.llm.enabled=true
 
+          # 실패 검색어 자동 판정 — 스테이징도 Repository variables 로 켠다. 없으면 꺼짐(운영과 같은 네이버 일일 한도를 쓴다).
+          search-miss.triage.enabled=${{ vars.STAGING_SEARCH_MISS_TRIAGE || 'false' }}
+          search-miss.triage.auto-apply=${{ vars.STAGING_SEARCH_MISS_TRIAGE_AUTO_APPLY || 'false' }}
+
           # 공식 경계·지역 연결·가게 판정 적재를 확인한 뒤 개발 환경에서만 켠다 (#742).
           # 꺼 두면 기존 추천으로 돌아가며, version-key는 검증한 릴리스 manifest와 같아야 한다.
           recommendation.polygon.enabled=${{ vars.STAGING_POLYGON_RECOMMENDATION_ENABLED || 'false' }}
@@ -176,6 +180,7 @@ jobs:
           slack.notification.report-webhook-url=${SLACK_REPORT_WEBHOOK_URL}
           slack.notification.abuse-webhook-url=${SLACK_ABUSE_WEBHOOK_URL}
           slack.notification.letter-webhook-url=${SLACK_LETTER_WEBHOOK_URL}
+          slack.notification.search-miss-webhook-url=${SLACK_SEARCH_MISS_WEBHOOK_URL:}
           slack.notification.title-prefix=[DEV]
 
           # Lambda 콜백 인증 키
@@ -261,6 +266,7 @@ jobs:
             echo "SLACK_REPORT_WEBHOOK_URL=${{ secrets.SLACK_REPORT_WEBHOOK_URL_DEV }}" >> .env
             echo "SLACK_ABUSE_WEBHOOK_URL=${{ secrets.SLACK_ABUSE_WEBHOOK_URL_DEV }}" >> .env
             echo "SLACK_LETTER_WEBHOOK_URL=${{ secrets.SLACK_LETTER_WEBHOOK_URL_DEV }}" >> .env
+            echo "SLACK_SEARCH_MISS_WEBHOOK_URL=${{ secrets.SLACK_SEARCH_MISS_WEBHOOK_URL_DEV }}" >> .env
             echo "LAMBDA_CALLBACK_SECRET_KEY=${{ secrets.LAMBDA_CALLBACK_SECRET_KEY }}" >> .env
             echo "PERF_DASHBOARD_ENABLED=true" >> .env
             echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env

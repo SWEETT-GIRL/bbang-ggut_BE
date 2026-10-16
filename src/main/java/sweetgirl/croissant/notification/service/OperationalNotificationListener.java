@@ -35,6 +35,7 @@ public class OperationalNotificationListener {
 			case REPORT -> properties.getReportWebhookUrl();
 			case ABUSE -> properties.getAbuseWebhookUrl();
 			case LETTER -> properties.getLetterWebhookUrl();
+			case SEARCH_MISS -> properties.getSearchMissWebhookUrl();
 		};
 	}
 
