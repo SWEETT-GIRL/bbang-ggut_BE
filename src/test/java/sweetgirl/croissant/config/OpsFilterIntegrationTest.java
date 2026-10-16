@@ -40,6 +40,9 @@ class OpsFilterIntegrationTest {
 	@Autowired
 	private ApplicationContext applicationContext;
 
+	@Autowired
+	private sweetgirl.croissant.admin.repository.AdminAuditLogRepository adminAuditLogRepository;
+
 	@MockitoBean
 	private S3Service s3Service;
 
@@ -71,6 +74,20 @@ class OpsFilterIntegrationTest {
 	@DisplayName("ShedLock 을 켜도 스케줄 빈 프록시와 함께 컨텍스트가 뜬다")
 	void schedulerLock_registersLockProvider() {
 		assertThat(applicationContext.getBeansOfType(net.javacrumbs.shedlock.core.LockProvider.class)).hasSize(1);
+	}
+
+	@Test
+	@DisplayName("어드민 쓰기 요청은 결과와 상관없이 감사 로그에 한 줄 남는다")
+	void adminWrite_isAudited() throws Exception {
+		mockMvc.perform(post("/api/admin/letters/no-such-action").contentType(MediaType.APPLICATION_JSON)
+			.content("{}").header("X-Request-Id", "audit-it-1"));
+
+		assertThat(adminAuditLogRepository.findAll())
+			.anySatisfy(row -> {
+				assertThat(row.getRequestId()).isEqualTo("audit-it-1");
+				assertThat(row.getTargetType()).isEqualTo("LETTER");
+				assertThat(row.getStatusCode()).isEqualTo(404);
+			});
 	}
 
 	@Test
