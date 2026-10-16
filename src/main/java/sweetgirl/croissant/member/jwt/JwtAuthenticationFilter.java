@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import org.slf4j.MDC;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -16,6 +17,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.global.logging.filter.RequestIdFilter;
 
 // OncePerRequestFilter: 한 번의 HTTP 요청에 딱 한 번만 실행되도록 보장하는 필터
 @Slf4j
@@ -81,6 +83,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			// SecurityContext에 인증 정보 등록
 			// 이 시점부터 해당 요청은 "인증된 요청"으로 처리됨
 			SecurityContextHolder.getContext().setAuthentication(authentication);
+			// 로그 줄에 누구의 요청인지 남긴다. 지우는 일은 가장 바깥의 RequestIdFilter 가 한다
+			MDC.put(RequestIdFilter.MDC_MEMBER_ID, String.valueOf(memberId));
 		}
 
 		// 다음 필터로 요청 전달 (인증 실패해도 필터 체인은 계속 진행)

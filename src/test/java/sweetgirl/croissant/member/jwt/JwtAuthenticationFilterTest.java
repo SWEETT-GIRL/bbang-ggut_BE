@@ -11,6 +11,8 @@ import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
+import sweetgirl.croissant.global.logging.filter.RequestIdFilter;
+
 /**
  * 토큰을 낸 요청은 경로와 무관하게 유효해야 한다(RFC 6750). 틀리면 401 + WWW-Authenticate 로 갱신을 유도하고,
  * 토큰이 없는 요청만 익명으로 흘려 SecurityConfig 의 permitAll 이 처리하게 둔다.
@@ -130,5 +132,27 @@ class JwtAuthenticationFilterTest {
 			verify(filterChain).doFilter(request, response);
 		}
 		verify(jwtProvider, never()).validateToken(org.mockito.ArgumentMatchers.anyString());
+	}
+
+	// 인증된 요청은 로그 줄에 memberId 가 붙는다 (지우는 일은 RequestIdFilter)
+	@Test
+	void doFilterInternal_putsMemberIdIntoMdcWhenAuthenticated() throws Exception {
+		JwtProvider jwtProvider = mock(JwtProvider.class);
+		given(jwtProvider.validateToken("valid-token")).willReturn(true);
+		given(jwtProvider.getMemberId("valid-token")).willReturn(42L);
+		JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider);
+		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/users/me");
+		request.addHeader("Authorization", "Bearer valid-token");
+		String[] seen = new String[1];
+
+		try {
+			filter.doFilterInternal(request, new MockHttpServletResponse(),
+				(req, res) -> seen[0] = org.slf4j.MDC.get(RequestIdFilter.MDC_MEMBER_ID));
+		} finally {
+			org.slf4j.MDC.clear();
+			org.springframework.security.core.context.SecurityContextHolder.clearContext();
+		}
+
+		assertThat(seen[0]).isEqualTo("42");
 	}
 }

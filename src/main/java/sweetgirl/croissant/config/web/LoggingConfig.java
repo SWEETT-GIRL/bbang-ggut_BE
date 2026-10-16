@@ -8,6 +8,7 @@ import org.springframework.web.filter.CommonsRequestLoggingFilter;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.logging.filter.MaskingRequestLoggingFilter;
+import sweetgirl.croissant.global.logging.filter.RequestIdFilter;
 import sweetgirl.croissant.global.logging.filter.RequestLoggingFilter;
 import sweetgirl.croissant.global.logging.service.RequestLogService;
 
@@ -27,6 +28,15 @@ public class LoggingConfig {
 		filter.setMaxPayloadLength(10000);
 		filter.setIncludeHeaders(false);
 		return filter;
+	}
+
+	@Bean
+	public FilterRegistrationBean<RequestIdFilter> requestIdFilterBean() {
+		FilterRegistrationBean<RequestIdFilter> bean = new FilterRegistrationBean<>(new RequestIdFilter());
+		bean.addUrlPatterns("/*");
+		bean.setOrder(Ordered.HIGHEST_PRECEDENCE); // 가장 바깥 — 뒤쪽 필터들의 로그에도 requestId 가 붙는다
+		bean.setName("requestIdFilter");
+		return bean;
 	}
 
 	@Bean
