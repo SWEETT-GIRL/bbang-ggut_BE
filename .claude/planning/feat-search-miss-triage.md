@@ -38,9 +38,16 @@
 5. alias 반영: 지역·빵 단어가 섞인 검색어는 alias 금지. 대상 가게(체인 지점 포함, 상한 30) → INSERT → 캐시 무효화 → probe(검색어) HIT면 ALREADY_EXISTS, 아니면 alias 삭제 + UNRESOLVED
 6. 기록: `ai_verdict`, `matched_store_id`, `ai_evidence`(jsonb), `ai_triaged_at`, `count_at_triage`
 
+7. 리포트: 매 회차 끝나면 Slack(`SLACK_SEARCH_MISS_WEBHOOK_URL`, `OperationalNotificationEvent.Channel.SEARCH_MISS`)으로 보고
+   - 0건이어도·도중에 멈춰도·실패해도 보낸다 → 06시 리포트가 없으면 안 돈 것. 꺼져 있으면 안 보낸다
+   - 모드(shadow/auto-apply), 꺼낸·판정·실패·못 본 건수, 소요 시간
+   - 판정별 건수 + 자동 처리된 상태(shadow 면 "예정, 미적용")
+   - 별칭 추가(검색어 → 가게, 지점 수), 신규 가게 후보(네이버 이름·카테고리·주소), 삭제된 가게 일치, 판단 보류 상위(사유), 가게 아님, 실패(사유)
+   - 목록은 발생 횟수 순 앞쪽만, 나머지는 "… 외 N건"
+
 ### 범위
-- 1차(이번 브랜치): 위 0~6, 스케줄러, 설정, 단위 테스트
-- 2차: 주간 Slack 다이제스트, 관리자 화면(AI 판정 필터·NEW_STORE 원클릭·alias 되돌리기), 1회성 꼬리 자동 IGNORED, 카카오 교차 확인, 영문명, 정답셋 임계값 튜닝
+- 1차(이번 브랜치): 위 0~7, 스케줄러, 설정, 단위 테스트
+- 2차: 관리자 화면(AI 판정 필터·NEW_STORE 원클릭·alias 되돌리기), 1회성 꼬리 자동 IGNORED, 카카오 교차 확인, 영문명, 정답셋 임계값 튜닝
 
 ## Plan
 
@@ -61,7 +68,8 @@
 | service | `SearchMissPlaceResolver` | 3-a / 3-b |
 | service | `SearchMissTriageService` | 1~5 오케스트레이션 + 배치 |
 | service | `SearchMissTriageCommandService` | alias INSERT/DELETE, 판정 기록 (트랜잭션 경계) |
-| scheduler | `SearchMissTriageScheduler` | 매일 06:00 KST, 한도 초과 시 그 회차만 멈춤 |
+| scheduler | `SearchMissTriageScheduler` | 매일 06:00 KST, 한도 초과 시 그 회차만 멈춤, 끝나면 리포트 발행 |
+| report | `SearchMissTriageReport` | 배치 결과 → Slack 운영 알림(`SEARCH_MISS` 채널) |
 | config | `SearchMissTriageProperties` | enabled=false, auto-apply=false, batch-size=200, 반경, 근거 최소 수, alias 상한, model(ANTHROPIC) |
 | resource | `search-miss-interpret-prompt.txt` | LLM 프롬프트 |
 
