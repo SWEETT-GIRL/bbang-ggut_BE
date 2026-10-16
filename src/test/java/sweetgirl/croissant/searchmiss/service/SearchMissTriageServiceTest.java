@@ -356,7 +356,7 @@ class SearchMissTriageServiceTest {
 	}
 
 	@Test
-	@DisplayName("네이버 한도 초과는 다시 던져 스케줄러가 쉬게 한다")
+	@DisplayName("네이버 한도 초과는 다시 던져 이번 회차를 멈춘다")
 	void triageNextBatch_rethrowsNaverRateLimit() {
 		SearchMiss miss = SearchMiss.firstOccurrence("런베뮤", KEYWORD, SearchOutcome.EMPTY, LocalDateTime.now());
 		given(searchMissRepository.findTriageCandidates(any(Pageable.class))).willReturn(List.of(miss));

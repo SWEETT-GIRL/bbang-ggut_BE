@@ -64,8 +64,8 @@ public class SearchMissTriageService {
 	/**
 	 * 대상 행을 발생 횟수 순으로 꺼내 판정한다.
 	 *
-	 * <p>네이버·LLM 한도 초과는 다시 던진다 — 스케줄러가 쉬어야 한다. 그 밖의 실패는 그 행만 건너뛴다. 건너뛴 행은
-	 * {@code ai_triaged_at}이 안 찍혀 다음 배치에서 다시 집힌다.
+	 * <p>네이버·LLM 한도 초과는 다시 던져 이번 회차를 멈춘다 — 남은 행에 계속 부딪혀 봐야 실패만 쌓인다.
+	 * 그 밖의 실패는 그 행만 건너뛴다. 건너뛴 행은 {@code ai_triaged_at}이 안 찍혀 다음 날 배치에서 다시 집힌다.
 	 */
 	public SearchMissTriageBatchResult triageNextBatch() {
 		List<SearchMiss> candidates = searchMissRepository.findTriageCandidates(

@@ -142,7 +142,7 @@ class SearchMissKeywordInterpreterTest {
 	}
 
 	@Test
-	@DisplayName("LLM 한도 초과는 그대로 던져 스케줄러가 쉬게 한다")
+	@DisplayName("LLM 한도 초과는 그대로 던져 이번 회차를 멈추게 한다")
 	void interpret_rateLimited() {
 		given(naverBlogSearchClient.search(eq("런베뮤"), any(Integer.class))).willReturn(POSTS);
 		given(llmClientRegistry.generateStructured(any(LlmRequest.class), eq(InterpretAnswer.class)))

@@ -18,7 +18,9 @@
 - **shadow mode 기본** — `auto-apply=false`면 판정·근거만 기록하고 alias·status는 건드리지 않는다.
 
 ### 파이프라인 (행 하나)
-0. 꺼내기: `status=PENDING AND (ai_triaged_at IS NULL OR occurrence_count >= count_at_triage*2)` 발생 횟수 순 N건
+0. 꺼내기: **매일 06:00 KST 한 번**(`search-miss.triage.cron`), `status=PENDING AND (ai_triaged_at IS NULL OR occurrence_count >= count_at_triage*2)` 발생 횟수 순 200건
+   - 실시간일 필요가 없고, 새벽에 돌리면 probe 부하가 한산한 시간에 가며 아침에 결과를 한 번에 본다. 04:00 은 interaction 적재 배치
+   - 한도 초과 시 그 회차만 멈추고 남은 행은 다음 날
 1. 쓰레기 필터 → JUNK (IGNORED)
 2. probe(검색어) — 지표·SearchMissEvent 없는 재검색. HIT → NOW_HIT (ALREADY_EXISTS)
    - 파서가 지역·빵 사전 단어로만 이뤄졌다고 보면 → NOT_A_STORE (외부 호출 없음)
@@ -59,15 +61,16 @@
 | service | `SearchMissPlaceResolver` | 3-a / 3-b |
 | service | `SearchMissTriageService` | 1~5 오케스트레이션 + 배치 |
 | service | `SearchMissTriageCommandService` | alias INSERT/DELETE, 판정 기록 (트랜잭션 경계) |
-| scheduler | `SearchMissTriageScheduler` | 한도 초과 시 backoff |
-| config | `SearchMissTriageProperties` | enabled=false, auto-apply=false, batch-size, 반경, 근거 최소 수, alias 상한, model |
+| scheduler | `SearchMissTriageScheduler` | 매일 06:00 KST, 한도 초과 시 그 회차만 멈춤 |
+| config | `SearchMissTriageProperties` | enabled=false, auto-apply=false, batch-size=200, 반경, 근거 최소 수, alias 상한, model(ANTHROPIC) |
 | resource | `search-miss-interpret-prompt.txt` | LLM 프롬프트 |
 
 ### 위험 요소
 - probe가 `searchStores`를 그대로 부르면 SearchMissEvent가 또 발행돼 occurrence_count가 오른다 → 실행부만 공유, 기록 없음.
 - alias 오염: 사전 단어 차단 + 관계 검증 + 재검색 검증 + shadow mode.
 - `store_name_alias`는 dataops 소유(구명 용도) → `source` 컬럼으로 구분, dataops 공유 필요.
-- 외부 호출 실패한 행은 `ai_triaged_at`이 안 찍혀 다음 배치에서 다시 집힌다(의도).
+- 외부 호출 실패한 행은 `ai_triaged_at`이 안 찍혀 다음 날 배치에서 다시 집힌다(의도).
+- `@Scheduled`라 서버가 여러 대면 인스턴스마다 돈다(분산 락 없음). 운영이 한 대인 동안은 문제없고, 늘리면 락 추가 또는 한 대에서만 켠다.
 - 임계값(50m, 유사도 0.7, 근거 2개)은 초기값.
 
 ### 테스트

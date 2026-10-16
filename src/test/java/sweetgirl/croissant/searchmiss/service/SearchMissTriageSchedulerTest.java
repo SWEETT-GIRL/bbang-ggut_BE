@@ -7,8 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import java.time.Duration;
-import java.time.Instant;
+import java.lang.reflect.Method;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -17,7 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import sweetgirl.croissant.external.llm.exception.LlmErrorCode;
 import sweetgirl.croissant.external.llm.exception.LlmException;
@@ -31,14 +30,12 @@ class SearchMissTriageSchedulerTest {
 	@Mock
 	private SearchMissTriageService triageService;
 
-	private SearchMissTriageProperties properties;
 	private SearchMissTriageScheduler scheduler;
 
 	@BeforeEach
 	void setUp() {
-		properties = new SearchMissTriageProperties();
+		SearchMissTriageProperties properties = new SearchMissTriageProperties();
 		properties.setEnabled(true);
-		properties.setRateLimitBackoff(Duration.ofHours(1));
 		scheduler = new SearchMissTriageScheduler(triageService, properties);
 	}
 
@@ -48,7 +45,7 @@ class SearchMissTriageSchedulerTest {
 		SearchMissTriageScheduler defaultScheduler = new SearchMissTriageScheduler(triageService,
 			new SearchMissTriageProperties());
 
-		defaultScheduler.triageNextBatch();
+		defaultScheduler.triageDaily();
 
 		verify(triageService, never()).triageNextBatch();
 	}
@@ -58,42 +55,41 @@ class SearchMissTriageSchedulerTest {
 	void runsWhenEnabled() {
 		given(triageService.triageNextBatch()).willReturn(new SearchMissTriageBatchResult(0, Map.of(), 0));
 
-		scheduler.triageNextBatch();
+		scheduler.triageDaily();
 
 		verify(triageService).triageNextBatch();
 	}
 
 	@Test
-	@DisplayName("네이버 한도에 걸리면 백오프 동안 배치를 건너뛴다")
-	void pausesAfterNaverRateLimited() {
-		willThrow(new NaverSearchException(NaverSearchErrorCode.RATE_LIMITED)).given(triageService).triageNextBatch();
+	@DisplayName("하루 한 번 새벽 6시(KST)에 돈다 — 설정으로 바꿀 수 있다")
+	void runsDailyAtSixInSeoul() throws NoSuchMethodException {
+		Method method = SearchMissTriageScheduler.class.getMethod("triageDaily");
+		Scheduled scheduled = method.getAnnotation(Scheduled.class);
 
-		scheduler.triageNextBatch();
-		scheduler.triageNextBatch();
-
-		verify(triageService, times(1)).triageNextBatch();
-		Instant resumeAt = (Instant)ReflectionTestUtils.getField(scheduler, "resumeAt");
-		assertThat(resumeAt).isAfter(Instant.now().plus(Duration.ofMinutes(50)));
+		assertThat(scheduled.cron()).isEqualTo("${search-miss.triage.cron:0 0 6 * * *}");
+		assertThat(scheduled.zone()).isEqualTo("Asia/Seoul");
 	}
 
 	@Test
-	@DisplayName("LLM 한도에 걸려도 쉰다")
-	void pausesAfterLlmRateLimited() {
-		willThrow(new LlmException(LlmErrorCode.RATE_LIMITED)).given(triageService).triageNextBatch();
+	@DisplayName("네이버·LLM 한도에 걸려도 예외를 밖으로 내지 않고, 다음 회차는 그대로 돈다")
+	void swallowsRateLimitAndRunsNextTime() {
+		willThrow(new NaverSearchException(NaverSearchErrorCode.RATE_LIMITED))
+			.willThrow(new LlmException(LlmErrorCode.RATE_LIMITED))
+			.given(triageService).triageNextBatch();
 
-		scheduler.triageNextBatch();
-		scheduler.triageNextBatch();
+		scheduler.triageDaily();
+		scheduler.triageDaily();
 
-		verify(triageService, times(1)).triageNextBatch();
+		verify(triageService, times(2)).triageNextBatch();
 	}
 
 	@Test
-	@DisplayName("그 밖의 실패는 스케줄러를 멈추지 않고 다음 주기에 다시 돈다")
+	@DisplayName("그 밖의 실패도 스케줄러를 멈추지 않는다")
 	void continuesAfterOtherFailure() {
 		willThrow(new IllegalStateException("DB 끊김")).given(triageService).triageNextBatch();
 
-		scheduler.triageNextBatch();
-		scheduler.triageNextBatch();
+		scheduler.triageDaily();
+		scheduler.triageDaily();
 
 		verify(triageService, times(2)).triageNextBatch();
 	}

@@ -1,7 +1,5 @@
 package sweetgirl.croissant.searchmiss.config;
 
-import java.time.Duration;
-
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -28,15 +26,11 @@ public class SearchMissTriageProperties {
 	 */
 	private boolean autoApply = false;
 
-	/** 한 배치에 꺼내는 행 수. 행마다 네이버 검색 1~3회 + LLM 최대 1회 */
-	private int batchSize = 20;
-
-	private long fixedDelayMs = 300_000L;
-
-	private long initialDelayMs = 120_000L;
-
-	/** 네이버·LLM 한도에 걸리면 이만큼 배치를 건너뛴다 — 메뉴 분류 스케줄러와 같은 이유 */
-	private Duration rateLimitBackoff = Duration.ofHours(1);
+	/**
+	 * 하루 한 번 돌 때 꺼내는 행 수. 행마다 네이버 검색 1~3회 + LLM 최대 1회라 200건이면 네이버 하루 한도(25,000건)의
+	 * 수 % 안쪽이다. 발생 횟수 순으로 꺼내므로 다 못 보는 날에도 많이 찾힌 검색어부터 처리된다.
+	 */
+	private int batchSize = 200;
 
 	/**
 	 * {@code 벤더:모델}. 키는 벤더 공용 설정(Anthropic 은 {@code CLAUDE_API_KEY})을 쓴다.
