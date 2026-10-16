@@ -177,8 +177,13 @@ class GuestDataMigrationServiceTest {
 		visitOrder.verify(courseStoreVisitRepository).moveOwner(GUEST_ID, TARGET_ID);
 		visitOrder.verify(courseProgressService).refreshForMember(TARGET_ID);
 		// 04:00 적재가 회원 id 로 읽는 표도 옮긴다 — 안 옮기면 병합 직전 행동이 닫힌 게스트로 적재된다(#663 ④)
-		then(requestLogRepository).should().moveOwner(GUEST_ID, TARGET_ID);
-		then(recommendationRepository).should().moveOwner(GUEST_ID, TARGET_ID);
+		// 완주 마감은 이 벌크 이관들 뒤여야 한다 — 벌크 쿼리가 영속성 컨텍스트를 비워, 앞에 두면 완주 표시가 버려진다
+		var bulkThenRefresh = inOrder(requestLogRepository, recommendationRepository, userStoreInteractionRepository,
+			courseProgressService);
+		bulkThenRefresh.verify(requestLogRepository).moveOwner(GUEST_ID, TARGET_ID);
+		bulkThenRefresh.verify(recommendationRepository).moveOwner(GUEST_ID, TARGET_ID);
+		bulkThenRefresh.verify(userStoreInteractionRepository).moveOwner(GUEST_ID, TARGET_ID);
+		bulkThenRefresh.verify(courseProgressService).refreshForMember(TARGET_ID);
 		// 취향 신호: 회원과 겹치는 사건은 지우고 옮긴 뒤, 게스트 프로필은 버리고 커밋 뒤 회원 재계산 이벤트를 낸다(#663 ④)
 		var tasteOrder = inOrder(userStoreInteractionRepository, userTasteProfileRepository, eventPublisher);
 		tasteOrder.verify(userStoreInteractionRepository).deleteGuestDuplicates(GUEST_ID, TARGET_ID);
