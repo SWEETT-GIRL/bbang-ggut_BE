@@ -26,6 +26,9 @@ import lombok.NoArgsConstructor;
 @EntityListeners(AuditingEntityListener.class)
 public class Member {
 
+	/** 탈퇴한 회원의 닉네임 자리. 앱·어드민 편지가 이미 이 문구로 보여 준다. */
+	public static final String WITHDRAWN_NICKNAME = "탈퇴한 회원";
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
@@ -159,6 +162,15 @@ public class Member {
 
 	public void softDelete() {
 		this.deletedAt = LocalDateTime.now();
+	}
+
+	/**
+	 * 탈퇴할 때 사람을 알아볼 수 있는 값을 그 자리에서 지운다. 행과 id 는 남긴다 — 리워드 원장·기록·코스가 이 id 를 가리킨다.
+	 * 약관 동의 이력(동의 여부·버전·시각)은 동의를 받았다는 증빙이라 남긴다.
+	 */
+	public void anonymizePersonalInfo() {
+		this.nickname = WITHDRAWN_NICKNAME;
+		this.pendingNickname = null;
 	}
 
 	public void resetNickname(String nickname) {

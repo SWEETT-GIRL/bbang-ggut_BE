@@ -12,7 +12,8 @@ public enum RewardedAdPurpose {
 
 	CHARACTER("친구 깨우기"),
 	NICKNAME("닉네임 뽑기"),
-	CRUMBS("부스러기 받기");
+	CRUMBS("부스러기 받기"),
+	FEED("밥 룰렛 한 판 더");
 
 	private final String description;
 }

@@ -92,4 +92,16 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 			WHERE id = :memberId AND invite_code IS NULL
 			""", nativeQuery = true)
 	int assignInviteCodeIfAbsent(@Param("memberId") Long memberId, @Param("code") String code);
+
+	/**
+	 * 보관 기한이 지난 탈퇴 회원에 아직 남은 닉네임을 지운다 — 탈퇴할 때 바로 지우기 전(이 기능 이전)에 탈퇴한 회원이 대상이다.
+	 * 게스트 병합으로 지워진 게스트(memberType GUEST)는 자동 생성 닉네임이라 건드리지 않는다.
+	 */
+	@Modifying
+	@Query("""
+			UPDATE Member m SET m.nickname = :nickname, m.pendingNickname = NULL
+			WHERE m.deletedAt < :cutoff AND m.memberType = 'USER'
+			AND (m.nickname <> :nickname OR m.pendingNickname IS NOT NULL)
+			""")
+	int anonymizeMembersDeletedBefore(@Param("cutoff") LocalDateTime cutoff, @Param("nickname") String nickname);
 }

@@ -24,6 +24,7 @@ import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.RankingRewa
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.RecordReward;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Welcome;
 import sweetgirl.croissant.reward.entity.CrumbLedgerEntry;
+import sweetgirl.croissant.reward.entity.MemberFeedDay;
 import sweetgirl.croissant.reward.enums.RewardSettingKey;
 import sweetgirl.croissant.reward.repository.CrumbLedgerRepository;
 import sweetgirl.croissant.reward.repository.MemberAttendanceDayRepository;
@@ -63,12 +64,11 @@ public class RewardQueryService {
 		if (member.isGuest()) {
 			return RewardSummaryResponse.guest(rules,
 				attendanceOf(AttendanceBoard.of(Optional.empty(), Optional.empty())),
-				new Feed(false, rewardSettings.feedWedges()));
+				new Feed(false, rewardSettings.feedWedges(), 0, false));
 		}
 		boolean welcomeAvailable = rewardMemberPolicy.isWelcomeTarget(member)
 			&& !ledgerRepository.existsByMemberIdAndIdempotencyKey(memberId, RewardCommandService.WELCOME_KEY);
-		Feed feed = new Feed(feedDayRepository.findByMemberIdAndDay(memberId, today).isPresent(),
-			rewardSettings.feedWedges());
+		Feed feed = feedOf(memberId, today);
 		Letter letter = bbangdaengLetterService.summaryOf(memberId);
 		return new RewardSummaryResponse(
 			walletRepository.findBalance(memberId).orElse(0),
@@ -88,6 +88,16 @@ public class RewardQueryService {
 				.orElse(null),
 			homeCardService.cardFor(memberId, letter, feed.doneToday(), today).orElse(null),
 			recordOf(memberId));
+	}
+
+	/** 오늘 행이 있으면 무료 판은 돌린 것이고, 광고로 더 돌릴 횟수는 그 행에 있다. 없으면 아직 상한 그대로다. */
+	private Feed feedOf(Long memberId, LocalDate today) {
+		Optional<MemberFeedDay> fedToday = feedDayRepository.findByMemberIdAndDay(memberId, today);
+		return new Feed(
+			fedToday.isPresent(),
+			rewardSettings.feedWedges(),
+			fedToday.map(MemberFeedDay::getExtraLeft).orElse(rewardSettings.get(RewardSettingKey.FEED_AD_DAILY_CAP)),
+			fedToday.map(MemberFeedDay::isExtraReady).orElse(false));
 	}
 
 	private RecordReward recordOf(Long memberId) {

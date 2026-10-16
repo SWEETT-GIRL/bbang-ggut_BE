@@ -22,11 +22,14 @@ import sweetgirl.croissant.member.dto.request.ConsentCreateRequest;
 import sweetgirl.croissant.member.dto.request.ConsentUpdateRequest;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
+import sweetgirl.croissant.member.entity.OAuth;
 import sweetgirl.croissant.member.entity.RefreshToken;
+import sweetgirl.croissant.member.enums.OAuthProvider;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.LikedMenuCategoryRepository;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
+import sweetgirl.croissant.member.repository.OAuthRepository;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository;
 import sweetgirl.croissant.menu.repository.MenuCategoryRepository;
 
@@ -53,6 +56,8 @@ class MemberCommandServiceTest {
 	private CourseMemberService courseMemberService;
 	@Mock
 	private NotificationSettingProvider notificationSettingProvider;
+	@Mock
+	private OAuthRepository oAuthRepository;
 
 	@InjectMocks
 	private MemberCommandService memberCommandService;
@@ -71,6 +76,24 @@ class MemberCommandServiceTest {
 		then(courseMemberService).should().leaveAllCourses(1L);
 		then(session).should().revoke();
 		then(fcmTokenRepository).should().deleteAllByMember(member);
+	}
+
+	// 탈퇴 = 개인 정보를 그 자리에서 지운다 — 닉네임은 '탈퇴한 회원', 소셜 이메일은 비우고, providerId 해시는 남긴다
+	@Test
+	void deleteMember_anonymizesNicknameAndSocialEmail() {
+		Member member = Member.builder().nickname("빵순이").build();
+		given(memberRepository.findById(1L)).willReturn(Optional.of(member));
+		OAuth oAuth = OAuth.builder().member(member).provider(OAuthProvider.KAKAO).providerId("hashed")
+			.email("me@example.com").build();
+		given(oAuthRepository.findAllByMember(member)).willReturn(List.of(oAuth));
+
+		memberCommandService.deleteMember(1L);
+
+		assertThat(member.isDeleted()).isTrue();
+		assertThat(member.getNickname()).isEqualTo(Member.WITHDRAWN_NICKNAME);
+		assertThat(member.getPendingNickname()).isNull();
+		assertThat(oAuth.getEmail()).isNull();
+		assertThat(oAuth.getProviderId()).isEqualTo("hashed");
 	}
 
 	// 이미 탈퇴한 회원은 MEMBER_ALREADY_DELETED 이고 코스는 건드리지 않는다

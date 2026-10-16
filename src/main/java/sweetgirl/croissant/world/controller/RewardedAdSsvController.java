@@ -30,7 +30,8 @@ public class RewardedAdSsvController {
 	private final RewardedAdSsvService rewardedAdSsvService;
 
 	@Operation(summary = "보상 검증 콜백", description = "서명을 확인한 뒤 광고 한 편을 적립한다. 누구의 어떤 친구인지는 custom_data "
-		+ "(memberId:characterCode)로 온다. 앱이 보내는 요청은 적립하지 않는다.")
+		+ "(memberId:characterCode)로 온다. nickname:·crumbs:·feed:(밥 룰렛 한 판 더)로 시작하면 그 용도로 간다. "
+		+ "앱이 보내는 요청은 적립하지 않는다.")
 	@GetMapping("/ssv")
 	public ResponseEntity<Void> verify(HttpServletRequest request) {
 		try {

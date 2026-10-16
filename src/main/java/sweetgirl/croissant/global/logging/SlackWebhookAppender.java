@@ -7,6 +7,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 
+import org.slf4j.Marker;
+import org.slf4j.MarkerFactory;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import ch.qos.logback.classic.Level;
@@ -32,6 +35,12 @@ public class SlackWebhookAppender extends AppenderBase<ILoggingEvent> {
 	private static final int HTTP_TIMEOUT_MS = 3000;
 	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
+	/**
+	 * 5xx 알림({@code SlackServerErrorAlerter})이 이미 맡은 오류의 ERROR 로그에 붙는 표식. 이 어펜더는 표식이 붙은 줄을
+	 * 보내지 않는다 — 같은 오류가 두 번 오거나, 알림이 5분에 한 번으로 묶은 폭주가 여기로 새지 않게 한다.
+	 */
+	public static final Marker ALERTED_MARKER = MarkerFactory.getMarker("SERVER_ERROR_ALERTED");
+
 	private String webhookUrl;
 
 	public void setWebhookUrl(String webhookUrl) {
@@ -46,12 +55,20 @@ public class SlackWebhookAppender extends AppenderBase<ILoggingEvent> {
 		if (!event.getLevel().isGreaterOrEqual(Level.ERROR)) {
 			return;
 		}
+		if (isAlreadyAlerted(event)) {
+			return;
+		}
 		try {
 			String payload = OBJECT_MAPPER.writeValueAsString(SlackBlockKitBuilder.build(toMessage(event)));
 			sendToSlack(payload);
 		} catch (Exception e) {
 			addError("Slack 웹훅 전송 실패", e);
 		}
+	}
+
+	static boolean isAlreadyAlerted(ILoggingEvent event) {
+		List<Marker> markers = event.getMarkerList();
+		return markers != null && markers.stream().anyMatch(marker -> marker.contains(ALERTED_MARKER));
 	}
 
 	SlackMessage toMessage(ILoggingEvent event) {

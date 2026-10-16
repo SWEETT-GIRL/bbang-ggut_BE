@@ -6,6 +6,8 @@ import java.time.LocalDateTime;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.reward.enums.RewardSettingKey;
@@ -31,6 +33,7 @@ public class RewardPushScheduler {
 
 	/** 매일 저녁 8 시 — 어제 출석한 회원의 오늘 도장. */
 	@Scheduled(cron = "0 0 20 * * *", zone = "Asia/Seoul")
+	@SchedulerLock(name = "RewardPushScheduler_attendanceReminders", lockAtMostFor = "PT10M")
 	public void attendanceReminders() {
 		if (!rewardLaunchService.isPushDue(RewardSettingKey.PUSH_ATTENDANCE, LocalDate.now(CrumbGrantService.ZONE))) {
 			return;
@@ -44,6 +47,7 @@ public class RewardPushScheduler {
 
 	/** 월요일 오전 10 시 — 이번 주 빵댕이 편지 도착. */
 	@Scheduled(cron = "0 0 10 * * MON", zone = "Asia/Seoul")
+	@SchedulerLock(name = "RewardPushScheduler_letterArrivals", lockAtMostFor = "PT10M")
 	public void letterArrivals() {
 		if (!rewardLaunchService.isPushDue(RewardSettingKey.PUSH_LETTER, LocalDate.now(CrumbGrantService.ZONE))) {
 			return;
@@ -57,6 +61,7 @@ public class RewardPushScheduler {
 
 	/** 매일 아침 9 시 — 어제 가입하고 아직 출석 안 한 회원에게 룰렛. 출석 스위치를 따른다. */
 	@Scheduled(cron = "0 0 9 * * *", zone = "Asia/Seoul")
+	@SchedulerLock(name = "RewardPushScheduler_secondMorningRoulette", lockAtMostFor = "PT10M")
 	public void secondMorningRoulette() {
 		if (!rewardLaunchService.isPushDue(RewardSettingKey.PUSH_ATTENDANCE, LocalDate.now(CrumbGrantService.ZONE))) {
 			return;

@@ -5,6 +5,8 @@ import java.time.Instant;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.external.gemini.exception.GeminiErrorCode;
@@ -38,6 +40,7 @@ public class MenuClassificationScheduler {
 	private volatile Instant resumeAt = Instant.EPOCH;
 
 	@Scheduled(fixedDelayString = FIXED_DELAY, initialDelayString = INITIAL_DELAY)
+	@SchedulerLock(name = "MenuClassificationScheduler_classifyNextBatch", lockAtMostFor = "PT10M")
 	public void classifyNextBatch() {
 		if (!properties.isEnabled() || Instant.now().isBefore(resumeAt)) {
 			return;
