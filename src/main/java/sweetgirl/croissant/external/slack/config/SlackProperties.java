@@ -16,6 +16,7 @@ public class SlackProperties {
 	private String reportWebhookUrl;
 	private String abuseWebhookUrl;
 	private String letterWebhookUrl;
+	private String searchMissWebhookUrl;
 
 	/** 제목 앞에 붙는 환경 표시. dev와 prod가 같은 웹훅을 쓸 때 어느 서버에서 온 건지 가른다. */
 	private String titlePrefix;

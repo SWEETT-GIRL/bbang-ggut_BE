@@ -2,7 +2,6 @@ package sweetgirl.croissant.searchmiss.service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -64,38 +63,45 @@ public class SearchMissTriageService {
 	/**
 	 * 대상 행을 발생 횟수 순으로 꺼내 판정한다.
 	 *
-	 * <p>네이버·LLM 한도 초과는 다시 던져 이번 회차를 멈춘다 — 남은 행에 계속 부딪혀 봐야 실패만 쌓인다.
-	 * 그 밖의 실패는 그 행만 건너뛴다. 건너뛴 행은 {@code ai_triaged_at}이 안 찍혀 다음 날 배치에서 다시 집힌다.
+	 * <p>네이버·LLM 한도 초과면 이번 회차를 멈춘다 — 남은 행에 계속 부딪혀 봐야 실패만 쌓인다. 멈춘 사유는 결과에 담아
+	 * 리포트로 알린다. 그 밖의 실패는 그 행만 건너뛴다. 건너뛴 행은 {@code ai_triaged_at}이 안 찍혀 다음 날 다시 집힌다.
 	 */
 	public SearchMissTriageBatchResult triageNextBatch() {
 		List<SearchMiss> candidates = searchMissRepository.findTriageCandidates(
 			PageRequest.of(0, properties.getBatchSize()));
-		Map<SearchMissVerdict, Integer> verdictCounts = new EnumMap<>(SearchMissVerdict.class);
-		int failed = 0;
+		List<SearchMissTriageItem> items = new ArrayList<>();
+		List<SearchMissTriageFailure> failures = new ArrayList<>();
+		String stoppedReason = null;
 		for (SearchMiss candidate : candidates) {
 			try {
 				TriageDecision decision = triage(candidate.getKeyword());
 				searchMissTriageCommandService.recordDecision(candidate.getId(), decision, properties.isAutoApply(),
 					LocalDateTime.now());
-				verdictCounts.merge(decision.verdict(), 1, Integer::sum);
+				items.add(new SearchMissTriageItem(candidate.getKeyword(), candidate.getOccurrenceCount(), decision));
 			} catch (NaverSearchException exception) {
 				if (exception.isRateLimited()) {
-					throw exception;
+					stoppedReason = "네이버 검색 API 한도 초과";
+					log.warn("[검색어 판정] {} — 이번 회차를 멈춘다 keyword={}", stoppedReason, candidate.getKeyword());
+					break;
 				}
-				failed++;
-				log.warn("[검색어 판정] 네이버 검색 실패 keyword={}", candidate.getKeyword(), exception);
+				failures.add(fail(candidate, "네이버 검색 실패", exception));
 			} catch (LlmException exception) {
 				if (exception.isRetryable()) {
-					throw exception;
+					stoppedReason = "LLM 한도 초과·일시 장애";
+					log.warn("[검색어 판정] {} — 이번 회차를 멈춘다 keyword={}", stoppedReason, candidate.getKeyword());
+					break;
 				}
-				failed++;
-				log.warn("[검색어 판정] LLM 실패 keyword={}", candidate.getKeyword(), exception);
+				failures.add(fail(candidate, "LLM 실패", exception));
 			} catch (RuntimeException exception) {
-				failed++;
-				log.warn("[검색어 판정] 실패 keyword={}", candidate.getKeyword(), exception);
+				failures.add(fail(candidate, "판정 실패", exception));
 			}
 		}
-		return new SearchMissTriageBatchResult(candidates.size(), verdictCounts, failed);
+		return new SearchMissTriageBatchResult(candidates.size(), items, failures, stoppedReason);
+	}
+
+	private SearchMissTriageFailure fail(SearchMiss candidate, String label, RuntimeException exception) {
+		log.warn("[검색어 판정] {} keyword={}", label, candidate.getKeyword(), exception);
+		return new SearchMissTriageFailure(candidate.getKeyword(), label + ": " + exception.getMessage());
 	}
 
 	/** 검색어 하나를 판정한다. auto-apply 면 별칭까지 넣는다(처리 상태 변경은 {@link #triageNextBatch}가 기록하며 한다). */
@@ -195,6 +201,7 @@ public class SearchMissTriageService {
 			return Optional.of(resolveAlias(keyword, activeStores, aliasAllowed, evidence));
 		}
 		if (!stores.isEmpty()) {
+			evidence.put("matchedStoreName", stores.get(0).getName());
 			return Optional.of(decide(SearchMissVerdict.EXISTS_BUT_DELETED, null, stores.get(0).getId(), evidence,
 				"삭제된 가게와 일치"));
 		}
@@ -210,6 +217,7 @@ public class SearchMissTriageService {
 			Map<String, Object> evidence) {
 		Long representativeId = matchedStores.get(0).getId();
 		evidence.put("matchedStoreIds", matchedStores.stream().map(Store::getId).toList());
+		evidence.put("matchedStoreName", matchedStores.get(0).getName());
 		if (!aliasAllowed) {
 			return decide(SearchMissVerdict.UNRESOLVED, null, representativeId, evidence,
 				"지역·빵 단어가 섞인 검색어라 별칭으로 넣지 않음");

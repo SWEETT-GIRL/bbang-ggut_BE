@@ -1,7 +1,6 @@
 package sweetgirl.croissant.searchmiss.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -356,26 +355,90 @@ class SearchMissTriageServiceTest {
 	}
 
 	@Test
-	@DisplayName("네이버 한도 초과는 다시 던져 이번 회차를 멈춘다")
-	void triageNextBatch_rethrowsNaverRateLimit() {
-		SearchMiss miss = SearchMiss.firstOccurrence("런베뮤", KEYWORD, SearchOutcome.EMPTY, LocalDateTime.now());
-		given(searchMissRepository.findTriageCandidates(any(Pageable.class))).willReturn(List.of(miss));
+	@DisplayName("판정한 행은 검색어·발생 횟수·판정을 결과에 담고, 실패한 행은 사유를 담는다 — 리포트 재료다")
+	void triageNextBatch_collectsItemsAndFailures() {
+		LocalDateTime now = LocalDateTime.of(2026, 10, 16, 12, 0);
+		SearchMiss junk = SearchMiss.firstOccurrence("ㅋㅋ", "ㅋㅋㅋ", SearchOutcome.EMPTY, now);
+		SearchMiss broken = SearchMiss.firstOccurrence("런베뮤", KEYWORD, SearchOutcome.EMPTY, now);
+		given(searchMissRepository.findTriageCandidates(any(Pageable.class))).willReturn(List.of(junk, broken));
+		given(storeSearchService.probe(KEYWORD, 1)).willThrow(new IllegalStateException("DB 끊김"));
+
+		SearchMissTriageBatchResult result = triageService.triageNextBatch();
+
+		assertThat(result.items()).singleElement().satisfies(item -> {
+			assertThat(item.keyword()).isEqualTo("ㅋㅋㅋ");
+			assertThat(item.occurrenceCount()).isEqualTo(1L);
+			assertThat(item.decision().verdict()).isEqualTo(SearchMissVerdict.JUNK);
+		});
+		assertThat(result.failures()).singleElement().satisfies(failure -> {
+			assertThat(failure.keyword()).isEqualTo(KEYWORD);
+			assertThat(failure.reason()).contains("DB 끊김");
+		});
+		assertThat(result.isStopped()).isFalse();
+		assertThat(result.skipped()).isZero();
+	}
+
+	@Test
+	@DisplayName("네이버 한도 초과면 이번 회차를 멈추고 사유와 못 본 건수를 결과에 남긴다")
+	void triageNextBatch_stopsOnNaverRateLimit() {
+		SearchMiss limited = SearchMiss.firstOccurrence("런베뮤", KEYWORD, SearchOutcome.EMPTY, LocalDateTime.now());
+		SearchMiss next = SearchMiss.firstOccurrence("새빵집", "새빵집", SearchOutcome.EMPTY, LocalDateTime.now());
+		given(searchMissRepository.findTriageCandidates(any(Pageable.class))).willReturn(List.of(limited, next));
 		givenUnknownKeyword(KEYWORD);
 		given(placeResolver.resolve(eq(KEYWORD), any()))
 			.willThrow(new NaverSearchException(NaverSearchErrorCode.RATE_LIMITED));
 
-		assertThatThrownBy(() -> triageService.triageNextBatch()).isInstanceOf(NaverSearchException.class);
+		SearchMissTriageBatchResult result = triageService.triageNextBatch();
+
+		assertThat(result.isStopped()).isTrue();
+		assertThat(result.stoppedReason()).contains("네이버");
+		assertThat(result.skipped()).isEqualTo(2);
+		// 한도에 걸린 뒤 남은 행에 계속 부딪히지 않는다
+		verify(storeSearchService, never()).probe(eq("새빵집"), anyInt());
+		verify(commandService, never()).recordDecision(any(), any(), anyBoolean(), any());
 	}
 
 	@Test
-	@DisplayName("LLM 한도 초과도 다시 던진다")
-	void triageNextBatch_rethrowsLlmRateLimit() {
+	@DisplayName("LLM 한도 초과도 이번 회차를 멈춘다")
+	void triageNextBatch_stopsOnLlmRateLimit() {
 		SearchMiss miss = SearchMiss.firstOccurrence("런베뮤", KEYWORD, SearchOutcome.EMPTY, LocalDateTime.now());
 		given(searchMissRepository.findTriageCandidates(any(Pageable.class))).willReturn(List.of(miss));
 		givenUnknownKeyword(KEYWORD);
 		given(placeResolver.resolve(eq(KEYWORD), any())).willReturn(PlaceResolution.none());
 		given(interpreter.interpret(KEYWORD)).willThrow(new LlmException(LlmErrorCode.RATE_LIMITED));
 
-		assertThatThrownBy(() -> triageService.triageNextBatch()).isInstanceOf(LlmException.class);
+		SearchMissTriageBatchResult result = triageService.triageNextBatch();
+
+		assertThat(result.stoppedReason()).contains("LLM");
+	}
+
+	@Test
+	@DisplayName("한도와 무관한 네이버 실패는 그 행만 실패로 남기고 계속한다")
+	void triageNextBatch_continuesOnOtherNaverFailure() {
+		SearchMiss miss = SearchMiss.firstOccurrence("런베뮤", KEYWORD, SearchOutcome.EMPTY, LocalDateTime.now());
+		given(searchMissRepository.findTriageCandidates(any(Pageable.class))).willReturn(List.of(miss));
+		givenUnknownKeyword(KEYWORD);
+		given(placeResolver.resolve(eq(KEYWORD), any()))
+			.willThrow(new NaverSearchException(NaverSearchErrorCode.SEARCH_FAILED));
+
+		SearchMissTriageBatchResult result = triageService.triageNextBatch();
+
+		assertThat(result.isStopped()).isFalse();
+		assertThat(result.failures()).singleElement()
+			.satisfies(failure -> assertThat(failure.reason()).startsWith("네이버 검색 실패"));
+	}
+
+	@Test
+	@DisplayName("별칭 판정 근거에 연결한 가게 이름을 남긴다 — 리포트에 \"런베뮤 → 런던베이글뮤지엄\"으로 보인다")
+	void triage_recordsMatchedStoreName() {
+		properties.setAutoApply(false);
+		Store matched = store(1L, OFFICIAL_NAME, StoreStatus.ACTIVE);
+		givenUnknownKeyword(KEYWORD);
+		given(placeResolver.resolve(eq(KEYWORD), any())).willReturn(matchedActive(matched));
+		givenNoOtherBranches(matched);
+
+		TriageDecision decision = triageService.triage(KEYWORD);
+
+		assertThat(decision.evidence()).containsEntry("matchedStoreName", OFFICIAL_NAME);
 	}
 }
