@@ -1,6 +1,10 @@
 package sweetgirl.croissant.searchmiss.entity;
 
 import java.time.LocalDateTime;
+import java.util.Map;
+
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -16,6 +20,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
 import sweetgirl.croissant.searchmiss.enums.SearchMissStatus;
+import sweetgirl.croissant.searchmiss.enums.SearchMissVerdict;
 import sweetgirl.croissant.store.service.search.SearchOutcome;
 
 /**
@@ -86,6 +91,26 @@ public class SearchMiss extends BaseTimeEntity {
 	 */
 	private LocalDateTime handledAt;
 
+	/**
+	 * 자동 판정 결과. {@link #status}와 따로 둔다 — shadow mode 에서는 판정만 남고 상태는 그대로이며,
+	 * 사람 판정과 견줘 오판율을 재려면 둘이 섞이면 안 된다.
+	 */
+	@Enumerated(EnumType.STRING)
+	@Column(length = 30)
+	private SearchMissVerdict aiVerdict;
+
+	/** 판정이 연결한 대표 가게. 되돌리기·감사용이라 연관관계 없이 id 만 둔다. */
+	private Long matchedStoreId;
+
+	/** 판정 단계·네이버 장소·블로그 근거·넣은 별칭. 관리자 화면 표시와 프롬프트 개선에 쓴다. */
+	@JdbcTypeCode(SqlTypes.JSON)
+	private Map<String, Object> aiEvidence;
+
+	private LocalDateTime aiTriagedAt;
+
+	/** 판정 당시 발생 횟수. 이후 두 배 이상 늘면 다시 판정 대상이 된다. */
+	private Long countAtTriage;
+
 	private SearchMiss(String normalizedKeyword, String keyword, SearchOutcome outcome, LocalDateTime occurredAt) {
 		this.normalizedKeyword = normalizedKeyword;
 		this.keyword = keyword;
@@ -117,5 +142,17 @@ public class SearchMiss extends BaseTimeEntity {
 	public void handle(SearchMissStatus status, LocalDateTime handledAt) {
 		this.status = status;
 		this.handledAt = status == SearchMissStatus.PENDING ? null : handledAt;
+	}
+
+	/**
+	 * 자동 판정 결과를 남긴다. 처리 상태는 바꾸지 않는다 — 상태 변경은 auto-apply 일 때 {@link #handle}로 따로 한다.
+	 */
+	public void recordTriage(SearchMissVerdict verdict, Long matchedStoreId, Map<String, Object> evidence,
+			LocalDateTime triagedAt) {
+		this.aiVerdict = verdict;
+		this.matchedStoreId = matchedStoreId;
+		this.aiEvidence = evidence;
+		this.aiTriagedAt = triagedAt;
+		this.countAtTriage = this.occurrenceCount;
 	}
 }

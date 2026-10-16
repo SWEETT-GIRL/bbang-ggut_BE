@@ -399,6 +399,21 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 
 	Optional<Store> findByNaverPlaceId(String naverPlaceId);
 
+	/**
+	 * 좌표 반경 안의 가게를 상태 무관하게 가까운 순으로 — 실패 검색어 판정이 네이버 장소와 우리 가게를 대조할 때 쓴다.
+	 *
+	 * <p>{@code findNearbyStores}와 달리 DELETED 도 돌려준다. 폐업으로 내린 가게를 "없음"으로 보면 다시 등록하게 된다.
+	 */
+	@Query(value = """
+				SELECT s.*
+				FROM store s
+				WHERE ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radius)
+				ORDER BY ST_Distance(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography)
+				LIMIT 20
+			""", nativeQuery = true)
+	List<Store> findAllWithinRadius(@Param("lng") double longitude, @Param("lat") double latitude,
+			@Param("radius") double radiusMeters);
+
 	// naver_matched_at은 place id가 있을 때만 찍는다 — id 없이 NOW()를 찍으면
 	// 네이버 보강 큐(id NULL & matched_at NULL 대상)에서 영영 빠져 사진이 안 채워진다.
 	@Modifying(flushAutomatically = true, clearAutomatically = true)
