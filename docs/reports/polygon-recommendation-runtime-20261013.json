@@ -1,0 +1,814 @@
+{
+  "date": "2026-10-13",
+  "base": "a913ac3f",
+  "activeAreas": 59,
+  "passportChips": 48,
+  "legalEmdBoundaries": 5067,
+  "appScopes": 262,
+  "mappedEmdCodes": 1761,
+  "neutralRequests": 177,
+  "completeNeutralRequests": 177,
+  "candidateCountsMatchDirectPolygonQuery": true,
+  "candidateQueryMs": {
+    "median": 31,
+    "max": 163
+  },
+  "threePlansMs": {
+    "median": 10,
+    "max": 89
+  },
+  "actualProfileSimulation": {
+    "complete": 162,
+    "profiles": 18,
+    "routes": 162,
+    "elapsedMs": 9319
+  },
+  "releaseVerification": {
+    "boundaries": 5067,
+    "bindings": 59,
+    "ready": true,
+    "geometry_differences": 0,
+    "binding_differences": 0,
+    "release_sha256": "5713aab178715faff44b2ca573ce1276200e12a68d8ea6b53ea3c83bf25fa0b0",
+    "production_applied": false,
+    "rolled_back": true
+  },
+  "productionApplied": false,
+  "areas": [
+    {
+      "candidateMs": 38,
+      "chip": "성수동",
+      "threePlansMs": 89,
+      "validationMs": 865,
+      "areaId": 1,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 219
+    },
+    {
+      "candidateMs": 13,
+      "chip": "한남동",
+      "threePlansMs": 5,
+      "validationMs": 717,
+      "areaId": 2,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 56
+    },
+    {
+      "candidateMs": 15,
+      "chip": "연남동",
+      "threePlansMs": 14,
+      "validationMs": 719,
+      "areaId": 3,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 144
+    },
+    {
+      "candidateMs": 16,
+      "chip": "망원동",
+      "threePlansMs": 15,
+      "validationMs": 720,
+      "areaId": 4,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 148
+    },
+    {
+      "candidateMs": 13,
+      "chip": "서교동",
+      "threePlansMs": 10,
+      "validationMs": 712,
+      "areaId": 5,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 119
+    },
+    {
+      "candidateMs": 13,
+      "chip": "공덕동",
+      "threePlansMs": 1,
+      "validationMs": 710,
+      "areaId": 6,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 36
+    },
+    {
+      "candidateMs": 48,
+      "chip": "성남시",
+      "threePlansMs": 34,
+      "validationMs": 818,
+      "areaId": 7,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 692
+    },
+    {
+      "candidateMs": 56,
+      "chip": "수원시",
+      "threePlansMs": 73,
+      "validationMs": 862,
+      "areaId": 8,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 1015
+    },
+    {
+      "candidateMs": 50,
+      "chip": "고양시",
+      "threePlansMs": 47,
+      "validationMs": 825,
+      "areaId": 9,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 835
+    },
+    {
+      "candidateMs": 18,
+      "chip": "연수구",
+      "threePlansMs": 13,
+      "validationMs": 721,
+      "areaId": 10,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 263
+    },
+    {
+      "candidateMs": 18,
+      "chip": "해운대구",
+      "threePlansMs": 18,
+      "validationMs": 733,
+      "areaId": 11,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 296
+    },
+    {
+      "candidateMs": 16,
+      "chip": "수영구",
+      "threePlansMs": 33,
+      "validationMs": 745,
+      "areaId": 12,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 300
+    },
+    {
+      "candidateMs": 35,
+      "chip": "중구",
+      "threePlansMs": 9,
+      "validationMs": 772,
+      "areaId": 13,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 106
+    },
+    {
+      "candidateMs": 44,
+      "chip": "중구",
+      "threePlansMs": 49,
+      "validationMs": 818,
+      "areaId": 14,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 324
+    },
+    {
+      "candidateMs": 27,
+      "chip": "수성구",
+      "threePlansMs": 20,
+      "validationMs": 758,
+      "areaId": 15,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 342
+    },
+    {
+      "candidateMs": 25,
+      "chip": "중구",
+      "threePlansMs": 10,
+      "validationMs": 748,
+      "areaId": 16,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 200
+    },
+    {
+      "candidateMs": 28,
+      "chip": "서구",
+      "threePlansMs": 19,
+      "validationMs": 774,
+      "areaId": 17,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 385
+    },
+    {
+      "candidateMs": 27,
+      "chip": "동구",
+      "threePlansMs": 7,
+      "validationMs": 765,
+      "areaId": 18,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 147
+    },
+    {
+      "candidateMs": 23,
+      "chip": "남구",
+      "threePlansMs": 21,
+      "validationMs": 763,
+      "areaId": 19,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 291
+    },
+    {
+      "candidateMs": 9,
+      "chip": "도담동",
+      "threePlansMs": 0,
+      "validationMs": 710,
+      "areaId": 20,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 13
+    },
+    {
+      "candidateMs": 19,
+      "chip": "속초시",
+      "threePlansMs": 5,
+      "validationMs": 727,
+      "areaId": 21,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 140
+    },
+    {
+      "candidateMs": 33,
+      "chip": "춘천시",
+      "threePlansMs": 8,
+      "validationMs": 781,
+      "areaId": 22,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 268
+    },
+    {
+      "candidateMs": 29,
+      "chip": "아산시",
+      "threePlansMs": 5,
+      "validationMs": 780,
+      "areaId": 23,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 220
+    },
+    {
+      "candidateMs": 65,
+      "chip": "청주시",
+      "threePlansMs": 21,
+      "validationMs": 896,
+      "areaId": 24,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 627
+    },
+    {
+      "candidateMs": 29,
+      "chip": "공주시",
+      "threePlansMs": 1,
+      "validationMs": 776,
+      "areaId": 25,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 104
+    },
+    {
+      "candidateMs": 60,
+      "chip": "전주시",
+      "threePlansMs": 36,
+      "validationMs": 867,
+      "areaId": 26,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 640
+    },
+    {
+      "candidateMs": 33,
+      "chip": "순천시",
+      "threePlansMs": 4,
+      "validationMs": 785,
+      "areaId": 27,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 203
+    },
+    {
+      "candidateMs": 17,
+      "chip": "담양군",
+      "threePlansMs": 1,
+      "validationMs": 732,
+      "areaId": 28,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 79
+    },
+    {
+      "candidateMs": 40,
+      "chip": "경주시",
+      "threePlansMs": 13,
+      "validationMs": 784,
+      "areaId": 29,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 324
+    },
+    {
+      "candidateMs": 163,
+      "chip": "창원시",
+      "threePlansMs": 23,
+      "validationMs": 1129,
+      "areaId": 30,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 655
+    },
+    {
+      "candidateMs": 22,
+      "chip": "통영시",
+      "threePlansMs": 6,
+      "validationMs": 755,
+      "areaId": 31,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 138
+    },
+    {
+      "candidateMs": 38,
+      "chip": "안동시",
+      "threePlansMs": 2,
+      "validationMs": 795,
+      "areaId": 32,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 119
+    },
+    {
+      "candidateMs": 49,
+      "chip": "제주시",
+      "threePlansMs": 33,
+      "validationMs": 835,
+      "areaId": 33,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 892
+    },
+    {
+      "candidateMs": 27,
+      "chip": "서귀포시",
+      "threePlansMs": 6,
+      "validationMs": 764,
+      "areaId": 34,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 355
+    },
+    {
+      "candidateMs": 19,
+      "chip": "중구",
+      "threePlansMs": 5,
+      "validationMs": 736,
+      "areaId": 35,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 146
+    },
+    {
+      "candidateMs": 37,
+      "chip": "진주시",
+      "threePlansMs": 8,
+      "validationMs": 774,
+      "areaId": 36,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 285
+    },
+    {
+      "candidateMs": 20,
+      "chip": "서구",
+      "threePlansMs": 7,
+      "validationMs": 727,
+      "areaId": 37,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 180
+    },
+    {
+      "candidateMs": 40,
+      "chip": "여수시",
+      "threePlansMs": 8,
+      "validationMs": 775,
+      "areaId": 38,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 206
+    },
+    {
+      "candidateMs": 41,
+      "chip": "목포시",
+      "threePlansMs": 2,
+      "validationMs": 784,
+      "areaId": 39,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 133
+    },
+    {
+      "candidateMs": 42,
+      "chip": "군산시",
+      "threePlansMs": 6,
+      "validationMs": 768,
+      "areaId": 40,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 184
+    },
+    {
+      "candidateMs": 40,
+      "chip": "포항시",
+      "threePlansMs": 9,
+      "validationMs": 771,
+      "areaId": 41,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 336
+    },
+    {
+      "candidateMs": 9,
+      "chip": "조치원읍",
+      "threePlansMs": 0,
+      "validationMs": 692,
+      "areaId": 42,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 33
+    },
+    {
+      "candidateMs": 37,
+      "chip": "천안시",
+      "threePlansMs": 14,
+      "validationMs": 769,
+      "areaId": 43,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 432
+    },
+    {
+      "candidateMs": 30,
+      "chip": "충주시",
+      "threePlansMs": 5,
+      "validationMs": 744,
+      "areaId": 44,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 148
+    },
+    {
+      "candidateMs": 36,
+      "chip": "강릉시",
+      "threePlansMs": 16,
+      "validationMs": 767,
+      "areaId": 45,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 296
+    },
+    {
+      "candidateMs": 37,
+      "chip": "중구",
+      "threePlansMs": 3,
+      "validationMs": 778,
+      "areaId": 46,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 180
+    },
+    {
+      "candidateMs": 39,
+      "chip": "용인시",
+      "threePlansMs": 13,
+      "validationMs": 831,
+      "areaId": 47,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 593
+    },
+    {
+      "candidateMs": 31,
+      "chip": "파주시",
+      "threePlansMs": 6,
+      "validationMs": 775,
+      "areaId": 48,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 317
+    },
+    {
+      "candidateMs": 36,
+      "chip": "중구",
+      "threePlansMs": 3,
+      "validationMs": 776,
+      "areaId": 49,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 180
+    },
+    {
+      "candidateMs": 18,
+      "chip": "해운대구",
+      "threePlansMs": 14,
+      "validationMs": 739,
+      "areaId": 50,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 296
+    },
+    {
+      "candidateMs": 36,
+      "chip": "강릉시",
+      "threePlansMs": 10,
+      "validationMs": 794,
+      "areaId": 51,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 296
+    },
+    {
+      "candidateMs": 40,
+      "chip": "경주시",
+      "threePlansMs": 11,
+      "validationMs": 815,
+      "areaId": 52,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 324
+    },
+    {
+      "candidateMs": 45,
+      "chip": "제주시",
+      "threePlansMs": 36,
+      "validationMs": 826,
+      "areaId": 53,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 892
+    },
+    {
+      "candidateMs": 45,
+      "chip": "제주시",
+      "threePlansMs": 33,
+      "validationMs": 821,
+      "areaId": 54,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 892
+    },
+    {
+      "candidateMs": 27,
+      "chip": "서귀포시",
+      "threePlansMs": 4,
+      "validationMs": 738,
+      "areaId": 55,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 355
+    },
+    {
+      "candidateMs": 46,
+      "chip": "제주시",
+      "threePlansMs": 34,
+      "validationMs": 820,
+      "areaId": 56,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 892
+    },
+    {
+      "candidateMs": 27,
+      "chip": "서귀포시",
+      "threePlansMs": 6,
+      "validationMs": 747,
+      "areaId": 57,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 355
+    },
+    {
+      "candidateMs": 27,
+      "chip": "서귀포시",
+      "threePlansMs": 5,
+      "validationMs": 745,
+      "areaId": 58,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 355
+    },
+    {
+      "candidateMs": 18,
+      "chip": "해운대구",
+      "threePlansMs": 20,
+      "validationMs": 738,
+      "areaId": 59,
+      "routeSizes1_4_6": [
+        1,
+        4,
+        6
+      ],
+      "candidateCount": 296
+    }
+  ],
+  "defaultTests": {
+    "tests": 2724,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1
+  },
+  "fullBuildPassed": true,
+  "postgisTests": 10
+}

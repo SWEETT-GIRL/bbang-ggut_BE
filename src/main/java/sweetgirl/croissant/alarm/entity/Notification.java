@@ -134,6 +134,22 @@ public class Notification extends BaseTimeEntity {
 	}
 
 	/**
+	 * 누가 내 빵투어를 찜했다. 눌렀을 때 그 빵투어로 가도록 링크를 단다 — courseId 만 보고는
+	 * 옮겨 가지 못하는 스토어의 옛 앱도 link 는 따라간다.
+	 */
+	public static Notification courseSaved(Member actor, Long courseId, String courseTitle) {
+		return Notification.builder()
+			.type(NotificationType.COURSE_SAVED)
+			.channel(NotificationChannel.PUSH)
+			.actor(actor)
+			.targetType(NotificationTargetType.COURSE)
+			.targetId(courseId)
+			.targetTitle(courseTitle)
+			.deepLink("/course/" + courseId)
+			.build();
+	}
+
+	/**
 	 * 서버가 문구를 들고 있는 알림 — 공지·광고. 앱 배포 없이 고칠 수 있다.
 	 *
 	 * <p>채널을 부르는 쪽이 정한다. "업데이트됐다" 같은 소식은 알림함에만 두고 싶을 때가 있어서,

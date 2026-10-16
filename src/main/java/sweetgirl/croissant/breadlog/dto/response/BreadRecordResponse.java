@@ -21,7 +21,11 @@ public record BreadRecordResponse(
 		LocalDateTime updatedAt,
 		List<BreadRecordPhotoResponse> photos,
 		List<BreadRecordTagResponse> tags,
-		RecordType recordType) {
+		RecordType recordType,
+		/** 고른 가게의 주소. 가게 없이 이름만 적은 기록이면 null */
+		String storeAddress,
+		/** "이 집 또 갈래요". 안 보낸 기록이면 null — 앱이 또 먹을래요로 추정해 보여 준다 */
+		Boolean revisit) {
 
 	/**
 	 * @param lovedBreads 또 먹을래요(again) on 인 태그 이름 — 옛 하트 칩의 자리. 1.5.x 앱이 아직 읽는다
@@ -49,7 +53,9 @@ public record BreadRecordResponse(
 			record.getUpdatedAt(),
 			photos,
 			tags,
-			record.getRecordType());
+			record.getRecordType(),
+			record.getStore() != null ? record.getStore().getAddress() : null,
+			record.getRevisit());
 	}
 
 	static List<String> lovedBreadsOf(List<BreadRecordTagResponse> tags) {

@@ -23,12 +23,14 @@ import sweetgirl.croissant.reward.dto.response.BbangdaengLetterResponse;
 import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Letter;
 import sweetgirl.croissant.reward.entity.BbangdaengLetter;
+import sweetgirl.croissant.reward.entity.CrumbLedgerEntry;
 import sweetgirl.croissant.reward.entity.MemberBbangdaengLetter;
 import sweetgirl.croissant.reward.enums.CrumbReason;
 import sweetgirl.croissant.reward.enums.RewardRefType;
 import sweetgirl.croissant.reward.enums.RewardSettingKey;
 import sweetgirl.croissant.reward.exception.RewardException;
 import sweetgirl.croissant.reward.repository.BbangdaengLetterRepository;
+import sweetgirl.croissant.reward.repository.CrumbLedgerRepository;
 import sweetgirl.croissant.reward.repository.MemberBbangdaengLetterRepository;
 
 /**
@@ -46,10 +48,12 @@ import sweetgirl.croissant.reward.repository.MemberBbangdaengLetterRepository;
 public class BbangdaengLetterService {
 
 	static final int LIST_SIZE = 12;
+	private static final String GRANT_KEY_PREFIX = "letter:";
 
 	private final BbangdaengLetterRepository letterRepository;
 	private final MemberBbangdaengLetterRepository memberLetterRepository;
 	private final CrumbGrantService crumbGrantService;
+	private final CrumbLedgerRepository crumbLedgerRepository;
 	private final RewardSettings rewardSettings;
 	private final MemberReader memberReader;
 
@@ -171,11 +175,34 @@ public class BbangdaengLetterService {
 		Map<Long, BbangdaengLetter> bodyById = letterRepository
 			.findAllById(letters.stream().map(MemberBbangdaengLetter::getLetterId).toList()).stream()
 			.collect(Collectors.toMap(BbangdaengLetter::getId, Function.identity()));
+		Map<Long, Integer> grantedCrumbsById = grantedCrumbsById(memberId, letters);
+		int currentCrumbs = rewardSettings.get(RewardSettingKey.LETTER);
 		return letters.stream()
 			.map(letter -> new BbangdaengLetterResponse(
-				letter.getId(), letter.getWeekStart(), bodyById.get(letter.getLetterId()).getBody(),
-				letter.isOpened()))
+				letter.getId(), letter.getWeekStart(),
+				letter.isOpened() ? bodyById.get(letter.getLetterId()).getBody() : null,
+				letter.isOpened(),
+				grantedCrumbsById.getOrDefault(letter.getId(), currentCrumbs)))
 			.toList();
+	}
+
+	/** 연 편지로 실제 받은 부스러기 — 장부에서 읽는다. 어드민이 규칙값을 바꿔도 지난 편지의 숫자는 그대로다. */
+	private Map<Long, Integer> grantedCrumbsById(Long memberId, List<MemberBbangdaengLetter> letters) {
+		List<String> keys = letters.stream()
+			.filter(MemberBbangdaengLetter::isOpened)
+			.map(letter -> grantKey(letter.getId()))
+			.toList();
+		if (keys.isEmpty()) {
+			return Map.of();
+		}
+		return crumbLedgerRepository.findByMemberIdAndIdempotencyKeyIn(memberId, keys).stream()
+			.collect(Collectors.toMap(
+				entry -> Long.parseLong(entry.getIdempotencyKey().substring(GRANT_KEY_PREFIX.length())),
+				CrumbLedgerEntry::getAmount));
+	}
+
+	private static String grantKey(Long memberLetterId) {
+		return GRANT_KEY_PREFIX + memberLetterId;
 	}
 
 	/** 요약에 싣는 편지 상태. 아직 안 보이는 편지(가입 당일의 첫 통)는 세지 않는다. */
@@ -212,7 +239,7 @@ public class BbangdaengLetterService {
 			return new BbangdaengLetterOpenResponse(body, true, List.of());
 		}
 		GrantResult result = crumbGrantService.grant(
-			memberId, CrumbReason.LETTER, rewardSettings.get(RewardSettingKey.LETTER), "letter:" + memberLetterId,
+			memberId, CrumbReason.LETTER, rewardSettings.get(RewardSettingKey.LETTER), grantKey(memberLetterId),
 			RewardRefType.LETTER, memberLetterId);
 		return new BbangdaengLetterOpenResponse(body, false,
 			result.isGranted() ? List.of(RewardItemResponse.crumbs(result, CrumbReason.LETTER)) : List.of());

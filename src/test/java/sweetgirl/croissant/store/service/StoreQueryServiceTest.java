@@ -2,6 +2,8 @@ package sweetgirl.croissant.store.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -30,14 +32,17 @@ import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.menu.repository.MenuImageFileRepository;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.store.code.StoreConstants;
+import sweetgirl.croissant.store.dto.projection.NearbyStoreProjection;
 import sweetgirl.croissant.store.dto.projection.StoreImageThumbnailProjection;
 import sweetgirl.croissant.store.dto.projection.TopSubscribedStoreProjection;
+import sweetgirl.croissant.store.dto.response.NearbyStoreResponse;
 import sweetgirl.croissant.store.dto.response.StoreDetailResponse;
 import sweetgirl.croissant.store.dto.response.SubscribedStoreResponse;
 import sweetgirl.croissant.store.dto.response.TopSubscribedStoreResponse;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.entity.StoreImageFile;
 import sweetgirl.croissant.store.entity.SubscribedStore;
+import sweetgirl.croissant.store.enums.StoreCategory;
 import sweetgirl.croissant.store.enums.StoreStatus;
 import sweetgirl.croissant.store.enums.TrendingSignal;
 import sweetgirl.croissant.store.event.StoreTrendingSignalEvent;
@@ -227,6 +232,45 @@ class StoreQueryServiceTest {
 		StoreDetailResponse result = storeQueryService.getStoreDetail(memberId, storeId);
 
 		assertThat(result.isSaved()).isFalse();
+	}
+
+	// ───────────────────────── getNearbyStores ─────────────────────────
+
+	@Test
+	@DisplayName("getNearbyStores: 가게 좌표와 반올림한 거리를 싣는다")
+	void getNearbyStores_carriesCoordinates() {
+		NearbyStoreProjection nearby = mock(NearbyStoreProjection.class);
+		given(nearby.getId()).willReturn(30L);
+		given(nearby.getName()).willReturn("성수 베이크");
+		given(nearby.getRegion1st()).willReturn("서울");
+		given(nearby.getRegion2nd()).willReturn("성동구");
+		given(nearby.getLatitude()).willReturn(37.5446);
+		given(nearby.getLongitude()).willReturn(127.0559);
+		given(nearby.getCategory()).willReturn("BAGEL");
+		given(nearby.getDistanceMeters()).willReturn(349.6);
+		PageRequest pageable = PageRequest.of(0, 10);
+		given(storeRepository.findNearbyStores(127.05, 37.54, StoreConstants.SEARCH_NEARBY_RADIUS, pageable))
+			.willReturn(new SliceImpl<>(List.of(nearby), pageable, false));
+
+		SliceResponse<NearbyStoreResponse> result = storeQueryService.getNearbyStores(127.05, 37.54, null, pageable);
+
+		assertThat(result.content()).containsExactly(
+			new NearbyStoreResponse(30L, "성수 베이크", "서울 성동구", null, 350, 37.5446, 127.0559,
+				StoreCategory.BAGEL));
+	}
+
+	@Test
+	@DisplayName("getNearbyStores: 반경을 주면 그 반경으로, 20km 를 넘으면 20km 로 묻는다")
+	void getNearbyStores_usesGivenRadiusUpToCap() {
+		PageRequest pageable = PageRequest.of(0, 10);
+		given(storeRepository.findNearbyStores(eq(127.05), eq(37.54), anyDouble(), eq(pageable)))
+			.willReturn(new SliceImpl<>(List.of(), pageable, false));
+
+		storeQueryService.getNearbyStores(127.05, 37.54, 5000, pageable);
+		storeQueryService.getNearbyStores(127.05, 37.54, 100_000, pageable);
+
+		verify(storeRepository).findNearbyStores(127.05, 37.54, 5000.0, pageable);
+		verify(storeRepository).findNearbyStores(127.05, 37.54, StoreConstants.MAX_SEARCH_NEARBY_RADIUS, pageable);
 	}
 
 	// ───────────────────────── getTopSubscribedStores ─────────────────────────

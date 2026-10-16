@@ -65,23 +65,23 @@ class WorldProgressCalculatorTest {
 		@Test
 		@DisplayName("기록 1 개면 Lv.2 지구 하늘, 5 개면 Lv.3, 10 개면 Lv.4 화성 마을이다")
 		void earlyLevels() {
-			assertThat(calculator.level(REWARD, 1, List.of())).isEqualTo(new WorldLevel(2, 5, "earth", "sky"));
-			assertThat(calculator.level(REWARD, 5, List.of())).isEqualTo(new WorldLevel(3, 10, "earth", "space"));
-			assertThat(calculator.level(REWARD, 10, List.of())).isEqualTo(new WorldLevel(4, 20, "mars", "village"));
+			assertThat(calculator.level(REWARD, 1, List.of())).isEqualTo(new WorldLevel(2, 1, 5, "earth", "sky"));
+			assertThat(calculator.level(REWARD, 5, List.of())).isEqualTo(new WorldLevel(3, 5, 10, "earth", "space"));
+			assertThat(calculator.level(REWARD, 10, List.of())).isEqualTo(new WorldLevel(4, 10, 20, "mars", "village"));
 		}
 
 		@Test
 		@DisplayName("마지막 레벨이면 다음 레벨이 없다")
 		void lastLevel() {
 			assertThat(calculator.level(REWARD, 500, List.of()))
-				.isEqualTo(new WorldLevel(15, null, "neptune", "space"));
+				.isEqualTo(new WorldLevel(15, 180, null, "neptune", "space"));
 		}
 
 		@Test
 		@DisplayName("도착 이력이 기록 수보다 멀리 가 있으면 그 행성의 첫 단계 레벨이다 — 레벨은 내려가지 않는다")
 		void arrivalHistoryWins() {
 			assertThat(calculator.level(REWARD, 3, List.of("earth", "mars")))
-				.isEqualTo(new WorldLevel(4, 20, "mars", "village"));
+				.isEqualTo(new WorldLevel(4, 10, 20, "mars", "village"));
 		}
 
 		@Test
@@ -91,8 +91,8 @@ class WorldProgressCalculatorTest {
 				planet("earth", 1, 10, null, List.of()),
 				planet("mars", 2, 30, "earth", List.of(stage("village", 1, 0), stage("sky", 2, 10))));
 
-			assertThat(calculator.level(planets, 0, List.of())).isEqualTo(new WorldLevel(1, 10, "earth", null));
-			assertThat(calculator.level(planets, 20, List.of())).isEqualTo(new WorldLevel(3, null, "mars", "sky"));
+			assertThat(calculator.level(planets, 0, List.of())).isEqualTo(new WorldLevel(1, 0, 10, "earth", null));
+			assertThat(calculator.level(planets, 20, List.of())).isEqualTo(new WorldLevel(3, 20, null, "mars", "sky"));
 		}
 	}
 

@@ -35,8 +35,9 @@ public interface RankingWeeklyRewardRepository extends JpaRepository<RankingWeek
 	/** 그 주의 보상 줄을 남긴다. 남겼으면 1, 이미 있으면 0 이다 — 스케줄러가 두 번 돌거나 두 인스턴스에서 돌아도 한 줄이다. */
 	@Modifying
 	@Query(value = """
-			INSERT INTO ranking_weekly_rewards (week_start, member_id, final_rank, crumbs, crown_until, created_at)
-			VALUES (:weekStart, :memberId, :finalRank, :crumbs, :crownUntil, :now)
+			INSERT INTO ranking_weekly_rewards
+				(week_start, member_id, final_rank, crumbs, crown_until, score, created_at)
+			VALUES (:weekStart, :memberId, :finalRank, :crumbs, :crownUntil, :score, :now)
 			ON CONFLICT DO NOTHING
 			""", nativeQuery = true)
 	int insertIfAbsent(
@@ -45,6 +46,7 @@ public interface RankingWeeklyRewardRepository extends JpaRepository<RankingWeek
 			@Param("finalRank") int finalRank,
 			@Param("crumbs") int crumbs,
 			@Param("crownUntil") LocalDate crownUntil,
+			@Param("score") Integer score,
 			@Param("now") LocalDateTime now);
 
 	/** 받는다. 받았으면 1, 이미 받았거나 기한이 지났으면 0 이다. */

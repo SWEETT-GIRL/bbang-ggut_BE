@@ -61,7 +61,7 @@ public class RewardLaunchService {
 	 * <p>출시 직후에는 2.0 을 아직 안 깐 회원이 많아 눌러도 열 화면이 없다. 그래서 며칠 뒤에 켜지게 한다.
 	 * 저절로 켜지는 것을 막으려면 {@code push.auto-after-days} 를 0 으로 둔다.
 	 *
-	 * @param pushSwitch {@code push.letter} 또는 {@code push.attendance}
+	 * @param pushSwitch {@code push.letter} · {@code push.attendance} · {@code push.course-tomorrow}
 	 * @param today      오늘(한국 날짜)
 	 */
 	public boolean isPushDue(RewardSettingKey pushSwitch, LocalDate today) {

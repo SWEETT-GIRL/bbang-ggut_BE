@@ -105,7 +105,7 @@ class BreadRecordControllerTest {
 		BreadRecordResponse response = new BreadRecordResponse(
 			11L, 10L, "밀도 성수", "서울_성동구_성수동", null, null, List.of(), null,
 			LocalDateTime.of(2026, 8, 2, 14, 21), false, LocalDateTime.of(2026, 8, 4, 12, 0), null,
-			List.of(), List.of(), RecordType.NORMAL);
+			List.of(), List.of(), RecordType.NORMAL, "서울 성동구 서울숲2길 32-14", null);
 		given(queryService.getRecords(isNull(), any(), any(), eq(10L), eq(0), eq(30)))
 			.willReturn(new SliceResponse<>(List.of(response), false));
 
@@ -118,6 +118,7 @@ class BreadRecordControllerTest {
 			.andExpect(jsonPath("$.data.content[0].storeName").value("밀도 성수"))
 			.andExpect(jsonPath("$.data.content[0].isPublic").value(false))
 			.andExpect(jsonPath("$.data.content[0].recordType").value("NORMAL"))
+			.andExpect(jsonPath("$.data.content[0].storeAddress").value("서울 성동구 서울숲2길 32-14"))
 			.andExpect(jsonPath("$.data.hasNext").value(false));
 	}
 
@@ -165,6 +166,24 @@ class BreadRecordControllerTest {
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.data.recordId").value(12))
 			.andExpect(jsonPath("$.data.rewards").isArray());
+	}
+
+	// 빵을 많이 붙인 기록 — 또 먹을래요가 10개를 넘어도 저장된다
+	@Test
+	void create_withElevenLovedBreads_returns201() throws Exception {
+		given(commandService.create(isNull(), any(BreadRecordUpsertRequest.class)))
+			.willReturn(new BreadRecordCreateResponse(13L, LocalDateTime.of(2026, 8, 2, 14, 21, 7), List.of()));
+		List<String> names = java.util.stream.IntStream.rangeClosed(1, 11).mapToObj(index -> "빵" + index).toList();
+		String tags = names.stream().map(name -> "{\"name\":\"" + name + "\"}")
+			.collect(java.util.stream.Collectors.joining(","));
+		String lovedBreads = names.stream().map(name -> "\"" + name + "\"")
+			.collect(java.util.stream.Collectors.joining(","));
+
+		mockMvc.perform(post("/bread-records")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"storeName\":\"밀도 성수\",\"eatenAt\":\"2026-08-02T14:21:07\",\"photos\":[],"
+				+ "\"tags\":[" + tags + "],\"lovedBreads\":[" + lovedBreads + "]}"))
+			.andExpect(status().isCreated());
 	}
 
 	// 가게는 여전히 필수다
@@ -311,6 +330,20 @@ class BreadRecordControllerTest {
 			.param("photoKeys", "l0"))
 			.andExpect(status().isTooManyRequests())
 			.andExpect(jsonPath("$.code").value("BREAD_RECORD_PHOTO_ANALYZE_RATE_LIMITED"));
+	}
+
+	// 이 집 또 갈래요 — 2.0 앱이 보내는 스위치 값
+	@Test
+	void create_withRevisit_passesIt() throws Exception {
+		given(commandService.create(isNull(), any(BreadRecordUpsertRequest.class)))
+			.willReturn(new BreadRecordCreateResponse(11L, LocalDateTime.of(2026, 8, 4, 12, 0)));
+
+		mockMvc.perform(post("/bread-records")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(VALID_REQUEST.replace("\"storeId\": 10,", "\"storeId\": 10, \"revisit\": true,")))
+			.andExpect(status().isCreated());
+
+		verify(commandService).create(isNull(), argThat(request -> Boolean.TRUE.equals(request.revisit())));
 	}
 
 	@Test

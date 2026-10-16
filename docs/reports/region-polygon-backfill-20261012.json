@@ -1,0 +1,22 @@
+{
+  "versionKey" : "vworld-2026-09-09-2f83cb96f1184150859238e4835df12d-4333ed7bdb62ed7132e02650936877b848b7fd3168bbb00264534d0694130cb5-legal-emd-app-scope-v1",
+  "matchedAuditStores" : 53101,
+  "updatedThisRun" : 53101,
+  "batchesIncludingFinalEmpty" : 108,
+  "elapsedMs" : 3261,
+  "counts" : [ {
+    "legal_status" : "AMBIGUOUS",
+    "stores" : 45,
+    "resolved_scope" : 36
+  }, {
+    "legal_status" : "NO_MATCH",
+    "stores" : 16,
+    "resolved_scope" : 0
+  }, {
+    "legal_status" : "RESOLVED",
+    "stores" : 53040,
+    "resolved_scope" : 53040
+  } ],
+  "storeFingerprintUnchanged" : true,
+  "productionApplied" : false
+}

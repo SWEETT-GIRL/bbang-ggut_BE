@@ -77,4 +77,9 @@ public class ShopItem {
 	public boolean isPose() {
 		return kind == ShopItemKind.POSE;
 	}
+
+	/** 값 0 — 처음부터 누구나 가진 기본 모습. 사지 않아도 입힌다. */
+	public boolean isFree() {
+		return price == 0;
+	}
 }

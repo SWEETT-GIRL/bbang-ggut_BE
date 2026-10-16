@@ -175,9 +175,17 @@ public class StoreQueryService {
 		return SliceResponse.from(responseSlice);
 	}
 
-	public SliceResponse<NearbyStoreResponse> getNearbyStores(double longitude, double latitude, Pageable pageable) {
-		Slice<NearbyStoreProjection> storeSlice = storeRepository.findNearbyStores(longitude, latitude,
-			SEARCH_NEARBY_RADIUS, pageable);
+	/**
+	 * 근처 빵집. 반경을 안 주면 1km 다 — 지역만 정한 빈 빵투어는 도청·시청 좌표로 묻는데,
+	 * 가게가 드문 지방 도청 소재지는 1km 안에 한 곳도 없을 수 있어 앱이 넓혀 물을 수 있게 한다.
+	 */
+	public SliceResponse<NearbyStoreResponse> getNearbyStores(double longitude, double latitude, Integer radiusMeters,
+			Pageable pageable) {
+		double radius = radiusMeters == null || radiusMeters <= 0
+			? SEARCH_NEARBY_RADIUS
+			: Math.min(radiusMeters, MAX_SEARCH_NEARBY_RADIUS);
+		Slice<NearbyStoreProjection> storeSlice = storeRepository.findNearbyStores(longitude, latitude, radius,
+			pageable);
 		if (!storeSlice.hasContent()) {
 			return SliceResponse.from(new SliceImpl<>(Collections.emptyList(), pageable, false));
 		}

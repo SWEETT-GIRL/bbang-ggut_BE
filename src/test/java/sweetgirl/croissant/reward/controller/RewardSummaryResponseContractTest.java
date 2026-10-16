@@ -52,14 +52,15 @@ import sweetgirl.croissant.reward.service.RewardQueryService;
 class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 
 	private static final RewardRulesResponse RULES = new RewardRulesResponse(
-		25, 10, 5, 3, List.of(5, 5, 10, 5, 10, 10, 30), 2, 3, 10, 20, 2, 100, 10, 3, 8, 30, 30, 600);
+		25, 10, 5, 3, List.of(5, 5, 10, 5, 10, 10, 30), 2, 3, 10, 20, 2, 100, 10, 3, 8, 30, 30, 600, 100, 50, 20);
 
 	private static final Attendance ATTENDANCE = new Attendance(false, 2, 3, 10, 5);
 	private static final Feed FEED = new Feed(false, List.of(10, 5, 3, 5, 10, 50));
 	private static final Letter LETTER = new Letter(1, 31L);
 	private static final Ad AD = new Ad(2);
-	private static final RankingReward RANKING_REWARD = new RankingReward(12L, 2, 50);
-	private static final HomeCardResponse HOME_CARD = HomeCardResponse.tourToday(812L, "성수 빵투어", 2, 5);
+	private static final RankingReward RANKING_REWARD = new RankingReward(12L, 2, 50, false);
+	private static final HomeCardResponse HOME_CARD = HomeCardResponse.tourToday(812L, "성수 빵투어", 2, 5,
+		"셋째 가게", "courses/812/cover.jpg");
 
 	@MockitoBean
 	private BbangdaengLetterService bbangdaengLetterService;
@@ -91,6 +92,9 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.rules.recordDailyCap").isNumber())
 			.andExpect(jsonPath("$.data.rules.attendance", hasSize(7)))
 			.andExpect(jsonPath("$.data.rules.saveStore").isNumber())
+			.andExpect(jsonPath("$.data.rules.rankingFirst").isNumber())
+			.andExpect(jsonPath("$.data.rules.rankingSecondThird").isNumber())
+			.andExpect(jsonPath("$.data.rules.rankingFourthTenth").isNumber())
 			.andExpect(jsonPath("$.data.rules.saveStoreDailyCap").isNumber())
 			.andExpect(jsonPath("$.data.rules.letter").isNumber())
 			.andExpect(jsonPath("$.data.rules.ad").isNumber())
@@ -122,12 +126,15 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.rankingReward.pendingId").isNumber())
 			.andExpect(jsonPath("$.data.rankingReward.rank").isNumber())
 			.andExpect(jsonPath("$.data.rankingReward.crumbs").isNumber())
+			.andExpect(jsonPath("$.data.rankingReward.crown").isBoolean())
 			// 카드는 종류마다 쓰는 재료만 싣는다 — 문구는 앱이 만든다
 			.andExpect(jsonPath("$.data.homeCard.type").value("TOUR_TODAY"))
 			.andExpect(jsonPath("$.data.homeCard.courseId").isNumber())
 			.andExpect(jsonPath("$.data.homeCard.title").isString())
 			.andExpect(jsonPath("$.data.homeCard.visited").isNumber())
 			.andExpect(jsonPath("$.data.homeCard.total").isNumber())
+			.andExpect(jsonPath("$.data.homeCard.nextStoreName").isString())
+			.andExpect(jsonPath("$.data.homeCard.coverImageKey").isString())
 			.andExpect(jsonPath("$.data.homeCard.planet").doesNotExist())
 			.andExpect(jsonPath("$.data.homeCard.letterId").doesNotExist())
 			// rewards[] 한 칸 — 기록 저장·출석 등 뒤 phase 의 응답도 같은 모양을 쓴다
@@ -220,7 +227,7 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 	@Test
 	void letters_keepFieldsTheAppReads() throws Exception {
 		given(bbangdaengLetterService.getLetters(any())).willReturn(List.of(
-			new BbangdaengLetterResponse(31L, LocalDate.of(2026, 10, 12), "안녕! 나 빵댕이야.", false)));
+			new BbangdaengLetterResponse(31L, LocalDate.of(2026, 10, 12), "안녕! 나 빵댕이야.", true, 10)));
 		given(bbangdaengLetterService.open(any(), any())).willReturn(new BbangdaengLetterOpenResponse(
 			"안녕! 나 빵댕이야.", false, List.of(
 				RewardItemResponse.crumbs(new GrantResult(Outcome.GRANTED, 10, 30, 40), CrumbReason.LETTER))));
@@ -230,7 +237,8 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data[0].id").isNumber())
 			.andExpect(jsonPath("$.data[0].weekStart").value("2026-10-12"))
 			.andExpect(jsonPath("$.data[0].body").isString())
-			.andExpect(jsonPath("$.data[0].opened").isBoolean());
+			.andExpect(jsonPath("$.data[0].opened").isBoolean())
+			.andExpect(jsonPath("$.data[0].crumbs").isNumber());
 		mockMvc.perform(post("/members/me/rewards/letters/31/open"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.body").isString())

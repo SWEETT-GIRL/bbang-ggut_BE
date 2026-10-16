@@ -100,6 +100,24 @@ class ReasonSentenceCommandServiceTest {
 	}
 
 	@Test
+	void geminiSentenceUpdatePreservesPolygonRetryScope() {
+		Recommendation recommendation = ruleRecommendation();
+		Map<String, Object> scope = Map.of("algorithmVersion", "polygon-hybrid-v1", "boundaryVersion", "v1",
+			"bindingId", 70, "latitude", 37.5, "longitude", 127.0, "radiusM", 1200,
+			"maxHopM", 1500, "distancePerLegM", 500, "singleStoreApproachM", 1500, "exactArea", false);
+		recommendation.getResult().put("polygonScope", scope);
+		given(recommendationRepository.findByIdAndMemberId(RECOMMENDATION_ID, MEMBER_ID))
+			.willReturn(Optional.of(recommendation));
+		givenAnswer(new Reason(1L, "새 문장 1"), new Reason(2L, "새 문장 2"));
+		service().fill(MEMBER_ID, RECOMMENDATION_ID);
+		ArgumentCaptor<Map<String, Object>> saved = ArgumentCaptor.forClass(Map.class);
+		verify(recommendationRepository).fillReasonsIfStillRule(eq(RECOMMENDATION_ID), saved.capture(), any(), any(),
+			any(), any());
+		assertThat(storedOf(saved.getValue()).polygonScope())
+			.isEqualTo(storedOf(recommendation.getResult()).polygonScope());
+	}
+
+	@Test
 	@DisplayName("꺼져 있으면 LLM 을 부르지 않고 룰 문장을 그대로 준다")
 	void fill_disabled_returnsRuleSentences() {
 		properties.setEnabled(false);

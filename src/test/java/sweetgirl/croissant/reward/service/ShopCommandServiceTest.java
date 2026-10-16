@@ -123,6 +123,28 @@ class ShopCommandServiceTest {
 		}
 
 		@Test
+		@DisplayName("값 0 인 기본 모습은 치를 것 없이 바로 입혀지고, 서버 그림이 없어도 산다")
+		void buysFreePoseWithoutSpending() {
+			given(shopItemRepository.findById("pose-curious"))
+				.willReturn(Optional.of(pose("pose-curious", "curious", 0, null)));
+			givenAwakeFriend("dog");
+			given(memberShopItemRepository.insertIfAbsent(eq(MEMBER_ID), eq("dog"), eq("pose-curious"), any()))
+				.willReturn(1);
+			given(crumbGrantService.balanceOf(MEMBER_ID)).willReturn(200);
+			given(memberCharacterLookRepository.findById(new MemberCharacterLookId(MEMBER_ID, "dog")))
+				.willReturn(Optional.empty());
+
+			ShopPurchaseResponse response = shopCommandService.purchase(
+				MEMBER_ID, new ShopPurchaseRequest("pose-curious", "dog"));
+
+			assertThat(response.crumbs()).isEqualTo(200);
+			assertThat(response.rewards()).isEmpty();
+			then(crumbGrantService).should(never()).spend(anyLong(), any(), anyInt(), any());
+			then(worldCharacterAssetRepository).shouldHaveNoInteractions();
+			then(memberCharacterLookRepository).should().save(any(MemberCharacterLook.class));
+		}
+
+		@Test
 		@DisplayName("소품은 친구 없이 사고, 입히는 일도 없다")
 		void buysProp() {
 			given(shopItemRepository.findById("prop-flag")).willReturn(Optional.of(prop("prop-flag", 50)));
@@ -186,7 +208,7 @@ class ShopCommandServiceTest {
 			givenAwakeFriend("dog");
 			given(worldCharacterAssetRepository.existsById(new WorldCharacterAssetId("dog", "bread-tower")))
 				.willReturn(true);
-			given(worldLevelReader.currentLevel(MEMBER_ID)).willReturn(new WorldLevel(4, 20, "mars", "village"));
+			given(worldLevelReader.currentLevel(MEMBER_ID)).willReturn(new WorldLevel(4, 10, 20, "mars", "village"));
 
 			assertThatThrownBy(() -> shopCommandService.purchase(
 				MEMBER_ID, new ShopPurchaseRequest("pose-bread-tower", "dog")))
@@ -252,6 +274,20 @@ class ShopCommandServiceTest {
 
 			assertThatThrownBy(() -> shopCommandService.changeLook(MEMBER_ID, "cat", "pose-joy"))
 				.extracting("errorCode").isEqualTo(RewardErrorCode.REWARD_SHOP_ITEM_NOT_OWNED);
+		}
+
+		@Test
+		@DisplayName("값 0 인 기본 모습(앉기·눈웃음·갸웃)은 사지 않아도 입힌다")
+		void wearsFreeDefaultLook() {
+			given(shopItemRepository.findById("pose-eye-smile"))
+				.willReturn(Optional.of(pose("pose-eye-smile", "eye-smile", 0, null)));
+			given(memberCharacterLookRepository.findById(new MemberCharacterLookId(MEMBER_ID, "dog")))
+				.willReturn(Optional.empty());
+
+			shopCommandService.changeLook(MEMBER_ID, "dog", "pose-eye-smile");
+
+			then(memberCharacterLookRepository).should().save(any(MemberCharacterLook.class));
+			then(memberShopItemRepository).shouldHaveNoInteractions();
 		}
 
 		@Test

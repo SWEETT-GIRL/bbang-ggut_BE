@@ -91,6 +91,7 @@ public class CourseRecommendationCommandService {
 	private final RecommendationProperties recommendationProperties;
 	private final ReasonMetrics reasonMetrics;
 	private final ObjectMapper objectMapper;
+	private final PolygonRecommendationCommandService polygonRecommendationCommandService;
 
 	/**
 	 * 새로 열기(previousRecommendationId 없음)의 재사용(09-15): 키의 최신 묶음이 있으면 reuseOrRefresh 의 세 갈래(같은 자리·유효 →
@@ -105,6 +106,14 @@ public class CourseRecommendationCommandService {
 		}
 		Course course = findCourse(courseId);
 		courseAccessPolicy.requireEditable(course, memberId);
+		if (recommendationProperties.getPolygon().isEnabled()) {
+			Optional<RecommendationResponse> polygon = polygonRecommendationCommandService
+				.tryRecommend(memberId, course, request, storeCount, sessionId);
+			if (polygon.isPresent()) {
+				return polygon.get();
+			}
+		}
+
 		if (request.previousRecommendationId() != null) {
 			return retry(memberId, course, request, storeCount, sessionId);
 		}

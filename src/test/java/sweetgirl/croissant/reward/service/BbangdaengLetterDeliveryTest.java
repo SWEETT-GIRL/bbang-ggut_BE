@@ -75,9 +75,17 @@ class BbangdaengLetterDeliveryTest {
 		return memberRepository.save(Member.registering("신난 두쫀쿠", day.atTime(12, 0))).getId();
 	}
 
+	/** 배달된 글 — 안 연 편지는 응답에 글이 없어 DB 에서 어떤 글이 갔는지 본다. */
 	private List<String> bodies(Long memberId, LocalDate today) {
-		return bbangdaengLetterService.getLetters(memberId, today).stream()
-			.map(BbangdaengLetterResponse::body)
+		return deliveredBodies(bbangdaengLetterService.getLetters(memberId, today));
+	}
+
+	private List<String> deliveredBodies(List<BbangdaengLetterResponse> letters) {
+		return letters.stream()
+			.map(letter -> jdbcTemplate.queryForObject(
+				"SELECT b.body FROM member_bbangdaeng_letters m JOIN bbangdaeng_letters b ON b.id = m.letter_id"
+					+ " WHERE m.id = ?",
+				String.class, letter.id()))
 			.toList();
 	}
 
@@ -144,8 +152,7 @@ class BbangdaengLetterDeliveryTest {
 		assertThat(letters).extracting(BbangdaengLetterResponse::weekStart).containsExactly(
 			tenWeeksLater, tenWeeksLater.minusWeeks(1), tenWeeksLater.minusWeeks(2), tenWeeksLater.minusWeeks(3));
 		// 첫 주에 받고 안 연 1 번 글이 가장 앞 주로 옮겨지고, 이어서 2 · 3 번, 묶음이 끝나 다시 1 번이다
-		assertThat(letters).extracting(BbangdaengLetterResponse::body)
-			.containsExactly("1번 글", "3번 글", "2번 글", "1번 글");
+		assertThat(deliveredBodies(letters)).containsExactly("1번 글", "3번 글", "2번 글", "1번 글");
 		assertThat(bbangdaengLetterService.summaryOf(memberId, tenWeeksLater).waitingCount()).isEqualTo(4);
 	}
 
@@ -167,6 +174,26 @@ class BbangdaengLetterDeliveryTest {
 		assertThat(letters.get(0).weekStart()).isEqualTo(tenWeeksLater.plusWeeks(1));
 		assertThat(letters.get(0).opened()).isFalse();
 		assertThat(letters.subList(1, 5)).allMatch(BbangdaengLetterResponse::opened);
+	}
+
+	@Test
+	@DisplayName("목록에는 연 편지의 글만 실린다 — 안 연 편지 글이 미리보기로 새지 않게")
+	void listHidesBodyUntilOpened() {
+		Long memberId = memberJoinedOn(MONDAY.minusDays(3));
+		bbangdaengLetterService.deliverIfDue(memberId, MONDAY);
+		Long letterId = bbangdaengLetterService.getLetters(memberId, MONDAY).get(0).id();
+
+		BbangdaengLetterResponse unopened = bbangdaengLetterService.getLetters(memberId, MONDAY).get(0);
+		assertThat(unopened.body()).isNull();
+		// 안 연 편지는 지금 열면 받을 양(규칙값 10)
+		assertThat(unopened.crumbs()).isEqualTo(10);
+
+		bbangdaengLetterService.open(memberId, letterId, MONDAY);
+
+		BbangdaengLetterResponse opened = bbangdaengLetterService.getLetters(memberId, MONDAY).get(0);
+		assertThat(opened.body()).isEqualTo("1번 글");
+		// 연 편지는 장부에 적힌 그때 받은 양
+		assertThat(opened.crumbs()).isEqualTo(10);
 	}
 
 	@Test
