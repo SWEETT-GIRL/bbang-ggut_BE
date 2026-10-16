@@ -21,6 +21,9 @@ import org.springframework.web.context.request.async.AsyncRequestNotUsableExcept
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import jakarta.servlet.http.HttpServletRequest;
+import sweetgirl.croissant.global.alert.ServerErrorAlerter;
+import sweetgirl.croissant.global.code.GeneralErrorCode;
+import sweetgirl.croissant.global.exception.CustomException;
 import sweetgirl.croissant.global.logging.filter.RequestLoggingFilter;
 import sweetgirl.croissant.global.response.ApiResponse;
 
@@ -109,6 +112,44 @@ class GlobalExceptionHandlerTest {
 		handler.handleMaxUploadSizeExceededException(new MaxUploadSizeExceededException(5_242_880L), request);
 
 		verify(request).setAttribute(RequestLoggingFilter.ATTR_ERROR_CODE, "COMMON413");
+	}
+
+	@Test
+	void unhandledException_alertsServerError() {
+		ServerErrorAlerter alerter = mock(ServerErrorAlerter.class);
+		GlobalExceptionHandler handler = new GlobalExceptionHandler(alerter);
+		HttpServletRequest request = mock(HttpServletRequest.class);
+		IllegalStateException exception = new IllegalStateException("boom");
+
+		ResponseEntity<ApiResponse<?>> response = handler.handleGenericException(exception, request);
+
+		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+		verify(alerter).alert(request, 500, exception);
+	}
+
+	@Test
+	void customException_alertsOnlyWhenServerError() {
+		ServerErrorAlerter alerter = mock(ServerErrorAlerter.class);
+		GlobalExceptionHandler handler = new GlobalExceptionHandler(alerter);
+		HttpServletRequest request = mock(HttpServletRequest.class);
+		CustomException clientError = new CustomException(GeneralErrorCode._BAD_REQUEST);
+		CustomException serverError = new CustomException(GeneralErrorCode._INTERNAL_SERVER_ERROR);
+
+		handler.handleCustomException(clientError, request);
+		handler.handleCustomException(serverError, request);
+
+		verify(alerter, never()).alert(request, 400, clientError);
+		verify(alerter).alert(request, 500, serverError);
+	}
+
+	@Test
+	void clientAbort_doesNotAlert() {
+		ServerErrorAlerter alerter = mock(ServerErrorAlerter.class);
+		GlobalExceptionHandler handler = new GlobalExceptionHandler(alerter);
+
+		handler.handleGenericException(new IOException("Broken pipe"), mock(HttpServletRequest.class));
+
+		verifyNoInteractions(alerter);
 	}
 
 	@RestController

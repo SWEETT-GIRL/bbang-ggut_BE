@@ -7,6 +7,8 @@ import java.time.ZoneId;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.course.service.CourseReminderPushService;
@@ -30,6 +32,7 @@ public class CourseReminderScheduler {
 	private final RewardLaunchService rewardLaunchService;
 
 	@Scheduled(cron = "0 0 19 * * *", zone = "Asia/Seoul")
+	@SchedulerLock(name = "CourseReminderScheduler_tomorrowReminders", lockAtMostFor = "PT10M")
 	public void tomorrowReminders() {
 		if (!rewardLaunchService.isPushDue(RewardSettingKey.PUSH_COURSE_TOMORROW, LocalDate.now(ZONE))) {
 			return;

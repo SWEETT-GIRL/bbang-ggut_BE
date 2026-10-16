@@ -3,6 +3,8 @@ package sweetgirl.croissant.global.advice;
 import java.io.IOException;
 import java.util.Locale;
 
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -21,8 +23,10 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.global.alert.ServerErrorAlerter;
 import sweetgirl.croissant.global.code.GeneralErrorCode;
 import sweetgirl.croissant.global.exception.CustomException;
+import sweetgirl.croissant.global.logging.SlackWebhookAppender;
 import sweetgirl.croissant.global.logging.filter.RequestLoggingFilter;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.global.response.ValidationErrorResponse;
@@ -36,8 +40,26 @@ public class GlobalExceptionHandler {
 	private static final String CONNECTION_RESET_MESSAGE = "connection reset";
 	private static final String STREAM_CLOSED_MESSAGE = "stream closed";
 
+	private final ServerErrorAlerter serverErrorAlerter;
+
+	/** 알림 없이 쓰는 자리(단위 테스트의 standaloneSetup 등). */
+	public GlobalExceptionHandler() {
+		this(ServerErrorAlerter.NOOP);
+	}
+
+	/** 알림 빈은 운영에서만 생긴다({@code ops.alert.server-error.enabled}). 없으면 알리지 않는다. */
+	@Autowired
+	public GlobalExceptionHandler(ObjectProvider<ServerErrorAlerter> serverErrorAlerter) {
+		this(serverErrorAlerter.getIfAvailable(() -> ServerErrorAlerter.NOOP));
+	}
+
+	GlobalExceptionHandler(ServerErrorAlerter serverErrorAlerter) {
+		this.serverErrorAlerter = serverErrorAlerter;
+	}
+
 	@ExceptionHandler(CustomException.class)
 	public ResponseEntity<ApiResponse<?>> handleCustomException(CustomException ex, HttpServletRequest request) {
+		alertIfServerError(request, ex.getHttpStatus().value(), ex);
 		log.warn("[CustomException] code={}, message={}", ex.getErrorCode().getCode(), ex.getMessage());
 		request.setAttribute(RequestLoggingFilter.ATTR_ERROR_CODE, ex.getErrorCode().getCode());
 		request.setAttribute(RequestLoggingFilter.ATTR_ERROR_MESSAGE, ex.getMessage());
@@ -143,6 +165,7 @@ public class GlobalExceptionHandler {
 			HttpServletRequest request) {
 		GeneralErrorCode errorCode = resolveGeneralErrorCode(ex);
 		String message = ex.getReason() != null ? ex.getReason() : errorCode.getMessage();
+		alertIfServerError(request, ex.getStatusCode().value(), ex);
 		log.warn("[ResponseStatusException] status={}, reason={}", ex.getStatusCode(), message);
 		request.setAttribute(RequestLoggingFilter.ATTR_ERROR_CODE, errorCode.getCode());
 		request.setAttribute(RequestLoggingFilter.ATTR_ERROR_MESSAGE, message);
@@ -183,13 +206,25 @@ public class GlobalExceptionHandler {
 			log.debug("[ClientAbort] {}", ex.getMessage());
 			return null;
 		}
-		log.error("[UnhandledException] method={}, uri={}, message={}",
-			request.getMethod(), request.getRequestURI(), ex.getMessage(), ex);
+		if (serverErrorAlerter.alert(request, HttpStatus.INTERNAL_SERVER_ERROR.value(), ex)) {
+			log.error(SlackWebhookAppender.ALERTED_MARKER, "[UnhandledException] method={}, uri={}, message={}",
+				request.getMethod(), request.getRequestURI(), ex.getMessage(), ex);
+		} else {
+			log.error("[UnhandledException] method={}, uri={}, message={}",
+				request.getMethod(), request.getRequestURI(), ex.getMessage(), ex);
+		}
 		request.setAttribute(RequestLoggingFilter.ATTR_ERROR_CODE, "INTERNAL_SERVER_ERROR");
 		request.setAttribute(RequestLoggingFilter.ATTR_ERROR_MESSAGE, ex.getMessage());
 		return ResponseEntity
 			.status(HttpStatus.INTERNAL_SERVER_ERROR)
 			.body(ApiResponse.fail(GeneralErrorCode._INTERNAL_SERVER_ERROR));
+	}
+
+	/** 예외 처리기가 일부러 5xx 를 고른 경우(외부 연동 실패 등)도 알린다 — 같은 오류는 알림 쪽이 5분에 한 번으로 묶는다. */
+	private void alertIfServerError(HttpServletRequest request, int status, Exception ex) {
+		if (status >= HttpStatus.INTERNAL_SERVER_ERROR.value()) {
+			serverErrorAlerter.alert(request, status, ex);
+		}
 	}
 
 	private boolean isClientAbortException(Throwable ex) {

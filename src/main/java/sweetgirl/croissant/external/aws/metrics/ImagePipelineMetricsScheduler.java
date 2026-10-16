@@ -4,6 +4,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.admin.dto.response.AdminS3ReconcileResponse;
@@ -35,6 +37,7 @@ public class ImagePipelineMetricsScheduler {
 	 */
 	@Scheduled(fixedDelay = 60_000L, initialDelay = 10_000L)
 	@Transactional(readOnly = true)
+	@SchedulerLock(name = "ImagePipelineMetricsScheduler_refreshBacklogGauges", lockAtMostFor = "PT2M")
 	public void refreshBacklogGauges() {
 		try {
 			imagePipelineMetrics.updatePendingCallbacks(imageProcessingCallbackRepository.count());
@@ -54,6 +57,7 @@ public class ImagePipelineMetricsScheduler {
 	 * 아직 도착하지 않은 파일이 고아로 잡히기 때문이다. 유예 기간 판정을 넣기 전까지는 수치만 관찰한다.
 	 */
 	@Scheduled(cron = "0 0 4 * * *", zone = "Asia/Seoul")
+	@SchedulerLock(name = "ImagePipelineMetricsScheduler_refreshS3ReconcileGauges", lockAtMostFor = "PT30M")
 	public void refreshS3ReconcileGauges() {
 		try {
 			AdminS3ReconcileResponse result = adminS3ReconcileService.reconcile(true);

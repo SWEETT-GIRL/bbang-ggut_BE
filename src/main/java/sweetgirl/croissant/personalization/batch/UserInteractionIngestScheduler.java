@@ -3,6 +3,8 @@ package sweetgirl.croissant.personalization.batch;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.personalization.service.UserInteractionIngestCommandService;
@@ -21,6 +23,7 @@ public class UserInteractionIngestScheduler {
 	private final UserTasteProfileCommandService profileCommandService;
 
 	@Scheduled(cron = "0 0 4 * * *", zone = UserInteractionIngestCommandService.ZONE)
+	@SchedulerLock(name = "UserInteractionIngestScheduler_dailyIngestAndRecompute", lockAtMostFor = "PT30M")
 	public void dailyIngestAndRecompute() {
 		log.info("[개인화] 전날 신호 적재 시작");
 		try {

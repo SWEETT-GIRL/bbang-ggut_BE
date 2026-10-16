@@ -52,4 +52,16 @@ class SlackWebhookAppenderTest {
 			.contains("RuntimeException")
 			.contains("boom");
 	}
+
+	@Test
+	@DisplayName("isAlreadyAlerted: 5xx 알림이 맡은 줄(표식)만 건너뛴다")
+	void isAlreadyAlerted_detectsMarker() {
+		ILoggingEvent alerted = mock(ILoggingEvent.class);
+		given(alerted.getMarkerList()).willReturn(java.util.List.of(SlackWebhookAppender.ALERTED_MARKER));
+		ILoggingEvent plain = mock(ILoggingEvent.class);
+		given(plain.getMarkerList()).willReturn(null);
+
+		assertThat(SlackWebhookAppender.isAlreadyAlerted(alerted)).isTrue();
+		assertThat(SlackWebhookAppender.isAlreadyAlerted(plain)).isFalse();
+	}
 }

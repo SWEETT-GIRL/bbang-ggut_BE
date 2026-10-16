@@ -3,6 +3,8 @@ package sweetgirl.croissant.store.batch;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.store.service.StorePopularityCommandService;
@@ -19,6 +21,7 @@ public class StorePopularityScoreScheduler {
 	private final StorePopularityCommandService storePopularityCommandService;
 
 	@Scheduled(cron = "0 0 3 * * MON", zone = "Asia/Seoul")
+	@SchedulerLock(name = "StorePopularityScoreScheduler_weeklyPopularityRefresh", lockAtMostFor = "PT30M")
 	public void weeklyPopularityRefresh() {
 		log.info("[인기도] 주간 popularity_score 배치 시작");
 		try {

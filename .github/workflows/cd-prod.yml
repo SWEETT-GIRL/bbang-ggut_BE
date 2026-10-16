@@ -178,6 +178,8 @@ jobs:
           slack.notification.abuse-webhook-url=${SLACK_ABUSE_WEBHOOK_URL}
           slack.notification.letter-webhook-url=${SLACK_LETTER_WEBHOOK_URL}
           slack.notification.search-miss-webhook-url=${SLACK_SEARCH_MISS_WEBHOOK_URL:}
+          # 5xx 알림 — 장애 채널(slack.webhook.url)로, 같은 오류는 5분에 한 번
+          ops.alert.server-error.enabled=true
 
           # Lambda 콜백 인증 키
           lambda.callback.secret-key=${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}

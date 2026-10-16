@@ -1,5 +1,6 @@
 package sweetgirl.croissant.alarm.repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -20,6 +21,11 @@ public interface FcmTokenRepository extends JpaRepository<FcmToken, Long> {
 
 	// 회원 탈퇴 시 해당 회원의 모든 FCM 토큰 삭제를 위해 사용
 	void deleteAllByMember(Member member);
+
+	/** 보관 기한이 지난 탈퇴 회원에 남은 푸시 토큰을 지운다(탈퇴 때 삭제가 빠진 옛 행 정리). */
+	@Modifying
+	@Query("DELETE FROM FcmToken f WHERE f.member.id IN (SELECT m.id FROM Member m WHERE m.deletedAt < :cutoff)")
+	int deleteAllOfMembersDeletedBefore(@Param("cutoff") LocalDateTime cutoff);
 
 	/**
 	 * 기기 한 대의 토큰을 한 문장으로 넣거나 갱신한다.

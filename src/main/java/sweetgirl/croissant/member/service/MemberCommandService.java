@@ -22,6 +22,7 @@ import sweetgirl.croissant.member.dto.response.NotificationTimeResponse;
 import sweetgirl.croissant.member.entity.LikedMenuCategory;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
+import sweetgirl.croissant.member.entity.OAuth;
 import sweetgirl.croissant.member.entity.RefreshToken; // 탈퇴 시 revoke 처리할 토큰 엔티티
 import sweetgirl.croissant.member.enums.NotificationDay;
 import sweetgirl.croissant.member.enums.NotificationRadius;
@@ -29,6 +30,7 @@ import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.LikedMenuCategoryRepository;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
+import sweetgirl.croissant.member.repository.OAuthRepository;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository; // 탈퇴 시 RefreshToken revoke를 위해 import
 import sweetgirl.croissant.menu.entity.MenuCategory;
 import sweetgirl.croissant.menu.enums.MenuKind;
@@ -46,6 +48,7 @@ public class MemberCommandService {
 	private final MemberReader memberReader;
 	private final RefreshTokenRepository refreshTokenRepository; // 탈퇴 시 해당 회원의 모든 RefreshToken을 revoke하기 위해 주입
 	private final FcmTokenRepository fcmTokenRepository; // 탈퇴 시 해당 회원의 모든 FCM 토큰을 삭제하기 위해 주입
+	private final OAuthRepository oAuthRepository; // 탈퇴 시 소셜 이메일을 지우기 위해 주입
 	private final GuestPromotionService guestPromotionService; // 동의 시점으로 미뤄둔 게스트 이관을 위해 주입
 	private final CourseMemberService courseMemberService; // 탈퇴 시 협업 코스 정리(방장 승계·나가기·메모 삭제)를 위해 주입
 	private final NotificationSettingProvider notificationSettingProvider; // 마케팅 동의를 발송 설정에 맞추기 위해 주입
@@ -181,6 +184,9 @@ public class MemberCommandService {
 		}
 
 		member.softDelete(); // deletedAt = now() 설정 (dirty checking으로 자동 반영)
+		// 사람을 알아볼 수 있는 값은 그 자리에서 지운다 — 닉네임은 '탈퇴한 회원', 소셜 이메일은 비운다(id·FK·providerId 해시는 남긴다)
+		member.anonymizePersonalInfo();
+		oAuthRepository.findAllByMember(member).forEach(OAuth::clearEmail);
 
 		// 같이 편집하던 코스 정리 — 방장이면 가장 오래된 멤버에게 넘기고, 멤버면 나간다. 메모는 지우고 담았던 가게는 남긴다.
 		courseMemberService.leaveAllCourses(memberId);
