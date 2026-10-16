@@ -522,6 +522,41 @@ class StoreSearchServiceTest {
 	}
 
 	@Test
+	@DisplayName("probe — 실패해도 이벤트·지표를 남기지 않는다. 판정이 판정 대상의 발생 횟수를 부풀리면 안 된다")
+	void probe_recordsNothingOnFailure() {
+		SearchIntent intent = new SearchIntent("런베뮤", "런베뮤", List.of("런베뮤"), List.of(), List.of(),
+			List.of("런베뮤"));
+		given(storeSearchQueryParser.parse("런베뮤")).willReturn(intent);
+		given(storeSearchQueryParser.parseWithGluedTokenFallback("런베뮤")).willReturn(intent);
+		given(searchEngine.searchStores(eq(intent), any(), isNull(), isNull(), eq(SearchSort.RELEVANCE)))
+			.willReturn(StoreSearchResult.empty());
+
+		StoreSearchProbe probe = service.probe("런베뮤", 1);
+
+		assertThat(probe.outcome()).isEqualTo(SearchOutcome.EMPTY);
+		assertThat(probe.isHit()).isFalse();
+		verify(eventPublisher, never()).publishEvent(any());
+		assertThat(outcomeCount("search", SearchOutcome.EMPTY)).isZero();
+	}
+
+	@Test
+	@DisplayName("probe — 결과가 검색어를 덮으면 HIT 와 가게 id 를 돌려주고, 상한을 넘으면 더 있다고 알린다")
+	void probe_returnsHitStoreIds() {
+		SearchIntent intent = new SearchIntent("런던베이글뮤지엄", "런던베이글뮤지엄", List.of("런던베이글뮤지엄"),
+			List.of(), List.of(), List.of("런던베이글뮤지엄"));
+		given(storeSearchQueryParser.parse("런던베이글뮤지엄")).willReturn(intent);
+		given(searchEngine.searchStores(intent, PageRequest.of(0, 1), null, null, SearchSort.RELEVANCE))
+			.willReturn(new StoreSearchResult(List.of(hit()), true, true));
+
+		StoreSearchProbe probe = service.probe("런던베이글뮤지엄", 1);
+
+		assertThat(probe.isHit()).isTrue();
+		assertThat(probe.storeIds()).containsExactly(1L);
+		assertThat(probe.hasMore()).isTrue();
+		verify(storeSearchAssembler, never()).assemble(any());
+	}
+
+	@Test
 	@DisplayName("지표 — outcome 시계열은 부팅 시 전부 등록되어 발생 전에도 0으로 노출된다")
 	void registerSearchOutcomeCounters_preRegistersEverySeries() {
 		for (SearchOutcome outcome : SearchOutcome.values()) {
