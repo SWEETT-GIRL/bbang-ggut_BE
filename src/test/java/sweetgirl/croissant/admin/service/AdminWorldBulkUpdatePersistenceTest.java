@@ -103,6 +103,20 @@ class AdminWorldBulkUpdatePersistenceTest {
 			"SELECT name FROM world_characters WHERE code = 'cat'", String.class)).isEqualTo("새 냥이");
 	}
 
+	@Test
+	@DisplayName("캐릭터 지급과 진행도 조정을 한 요청에 보내도 둘 다 저장된다 — 지급 INSERT 가 컨텍스트를 비운 뒤라도")
+	void grant_characterAndProgressTogether_persistsBoth() {
+		adminWorldMemberService.grant(MEMBER_ID, new AdminWorldMemberGrantRequest("cat", 40, null));
+
+		assertThat(jdbcTemplate.queryForObject(
+			"SELECT max_record_count FROM member_world WHERE member_id = ?", Integer.class, MEMBER_ID))
+			.isEqualTo(40);
+		assertThat(jdbcTemplate.queryForObject(
+			"SELECT count(*) FROM member_characters WHERE member_id = ? AND character_code = 'cat'",
+			Integer.class, MEMBER_ID))
+			.isEqualTo(1);
+	}
+
 	private List<String> mascotCodes() {
 		return jdbcTemplate.queryForList(
 			"SELECT code FROM world_characters WHERE mascot = TRUE ORDER BY code", String.class);

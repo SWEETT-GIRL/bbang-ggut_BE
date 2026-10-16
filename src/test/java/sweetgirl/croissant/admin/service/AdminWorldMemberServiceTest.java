@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 
 import java.util.List;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -54,7 +56,12 @@ class AdminWorldMemberServiceTest {
 	@InjectMocks
 	private AdminWorldMemberService adminWorldMemberService;
 
-	private MemberWorld givenStartedMember() {
+	private void givenStartedMember() {
+		given(memberWorldRepository.existsById(MEMBER_ID)).willReturn(true);
+	}
+
+	/** 진행도를 고칠 때만 행을 읽는다 — 캐릭터 지급 뒤에 읽어야 해서다. */
+	private MemberWorld givenProgressRow() {
 		MemberWorld memberWorld = WorldFixtures.memberWorld(MEMBER_ID, "dog", 12);
 		given(memberWorldRepository.findById(MEMBER_ID)).willReturn(Optional.of(memberWorld));
 		return memberWorld;
@@ -88,10 +95,26 @@ class AdminWorldMemberServiceTest {
 	@Test
 	@DisplayName("진행도를 고쳐 준다")
 	void adjustsProgress() {
-		MemberWorld memberWorld = givenStartedMember();
+		givenStartedMember();
+		MemberWorld memberWorld = givenProgressRow();
 
 		adminWorldMemberService.grant(MEMBER_ID, new AdminWorldMemberGrantRequest(null, 40, null));
 
+		assertThat(memberWorld.getMaxRecordCount()).isEqualTo(40);
+	}
+
+	@Test
+	@DisplayName("캐릭터 지급과 진행도 조정을 함께 보내면 지급 뒤에 진행도 행을 읽는다 — 지급 쿼리가 먼저 읽은 행을 준영속으로 만든다")
+	void readsProgressRowAfterGrantingCharacter() {
+		givenStartedMember();
+		given(worldCharacterRepository.existsById("quoka")).willReturn(true);
+		MemberWorld memberWorld = givenProgressRow();
+
+		adminWorldMemberService.grant(MEMBER_ID, new AdminWorldMemberGrantRequest("quoka", 40, null));
+
+		InOrder inOrder = inOrder(memberCharacterRepository, memberWorldRepository);
+		inOrder.verify(memberCharacterRepository).awakeIfSleeping(MEMBER_ID, "quoka", "ADMIN");
+		inOrder.verify(memberWorldRepository).findById(MEMBER_ID);
 		assertThat(memberWorld.getMaxRecordCount()).isEqualTo(40);
 	}
 
@@ -111,11 +134,11 @@ class AdminWorldMemberServiceTest {
 	@Test
 	@DisplayName("비워 보낸 칸은 건드리지 않는다")
 	void leavesOmittedFieldsAlone() {
-		MemberWorld memberWorld = givenStartedMember();
+		givenStartedMember();
 
 		adminWorldMemberService.grant(MEMBER_ID, new AdminWorldMemberGrantRequest(null, null, null));
 
-		assertThat(memberWorld.getMaxRecordCount()).isEqualTo(12);
+		then(memberWorldRepository).should(never()).findById(any());
 		then(memberCharacterRepository).should(never()).grantIfAbsent(any(), any(), any());
 		then(memberWakeTicketRepository).should(never()).saveAll(any());
 	}
@@ -123,7 +146,7 @@ class AdminWorldMemberServiceTest {
 	@Test
 	@DisplayName("여정을 시작하지 않은 회원이면 예외다")
 	void rejectsUnstartedMember() {
-		given(memberWorldRepository.findById(MEMBER_ID)).willReturn(Optional.empty());
+		given(memberWorldRepository.existsById(MEMBER_ID)).willReturn(false);
 
 		assertThatThrownBy(() -> adminWorldMemberService.grant(MEMBER_ID,
 			new AdminWorldMemberGrantRequest("quoka", null, null)))
