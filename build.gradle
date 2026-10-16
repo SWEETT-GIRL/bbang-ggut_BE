@@ -46,6 +46,9 @@ dependencies {
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'
     runtimeOnly 'org.postgresql:postgresql'
+    // 스케줄 작업 중복 실행 방지 — blue-green 배포 겹침·다중 인스턴스에서 같은 cron 이 두 번 돌지 않게 (Spring 7 은 ShedLock 7.x)
+    implementation 'net.javacrumbs.shedlock:shedlock-spring:7.10.1'
+    implementation 'net.javacrumbs.shedlock:shedlock-provider-jdbc-template:7.10.1'
 
     //OAuth
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'

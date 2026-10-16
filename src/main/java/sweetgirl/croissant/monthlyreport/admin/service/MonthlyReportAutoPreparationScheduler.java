@@ -9,6 +9,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.monthlyreport.config.MonthlyReportAutoPreparationProperties;
@@ -24,6 +26,7 @@ public class MonthlyReportAutoPreparationScheduler {
 	// 매월 1일 00:05 KST부터 전월을 등록한다. 중단 중 놓친 실행은 재시작/다음 시간에 회복한다.
 	@EventListener(ApplicationReadyEvent.class)
 	@Scheduled(cron = "${monthly-report.auto-preparation.cron:0 5 * * * *}", zone = "Asia/Seoul")
+	@SchedulerLock(name = "MonthlyReportAutoPreparationScheduler_prepare", lockAtMostFor = "PT10M")
 	public void prepare() {
 		if (!properties.isEnabled()) {
 			return;

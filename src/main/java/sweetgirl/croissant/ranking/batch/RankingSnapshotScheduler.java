@@ -3,6 +3,8 @@ package sweetgirl.croissant.ranking.batch;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.ranking.service.RankingSnapshotCommandService;
@@ -18,6 +20,7 @@ public class RankingSnapshotScheduler {
 	private final RankingSnapshotCommandService snapshotCommandService;
 
 	@Scheduled(cron = "0 5 0 * * *", zone = "Asia/Seoul")
+	@SchedulerLock(name = "RankingSnapshotScheduler_dailySnapshot", lockAtMostFor = "PT10M")
 	public void dailySnapshot() {
 		log.info("[랭킹 스냅샷] 일별 배치 시작");
 		try {
