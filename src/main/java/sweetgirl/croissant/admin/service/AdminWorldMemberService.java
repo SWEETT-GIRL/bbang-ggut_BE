@@ -72,8 +72,9 @@ public class AdminWorldMemberService {
 	}
 
 	public void grant(Long memberId, AdminWorldMemberGrantRequest request) {
-		MemberWorld memberWorld = memberWorldRepository.findById(memberId)
-			.orElseThrow(() -> new WorldException(WorldErrorCode.WORLD_NOT_STARTED));
+		if (!memberWorldRepository.existsById(memberId)) {
+			throw new WorldException(WorldErrorCode.WORLD_NOT_STARTED);
+		}
 
 		if (request.characterCode() != null) {
 			String characterCode = request.characterCode().strip();
@@ -85,7 +86,10 @@ public class AdminWorldMemberService {
 			memberCharacterRepository.awakeIfSleeping(memberId, characterCode, AcquiredBy.ADMIN.name());
 		}
 		if (request.maxRecordCount() != null) {
-			memberWorld.adjustMaxRecordCount(request.maxRecordCount());
+			// 캐릭터 지급 쿼리가 영속성 컨텍스트를 비운다 — 그 뒤에 읽어야 진행도 변경이 저장된다
+			memberWorldRepository.findById(memberId)
+				.orElseThrow(() -> new WorldException(WorldErrorCode.WORLD_NOT_STARTED))
+				.adjustMaxRecordCount(request.maxRecordCount());
 		}
 		if (request.wakeTickets() != null) {
 			List<MemberWakeTicket> tickets = IntStream.range(0, request.wakeTickets())
