@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 
 import java.util.Optional;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -87,6 +89,25 @@ class AdminWorldCharacterServiceTest {
 			// 부분 유니크 인덱스가 둘을 못 버틴다 — 세우기 전에 내려야 한다
 			then(worldCharacterRepository).should().clearMascot();
 			assertThat(cat.isMascot()).isTrue();
+		}
+
+		@Test
+		@DisplayName("마스코트로 세울 땐 내린 뒤 다시 읽은 캐릭터에 변경을 쓴다 — 내리는 벌크 UPDATE 가 먼저 읽은 것을 준영속으로 만든다")
+		void writesToTheCharacterReloadedAfterClearing() {
+			WorldCharacter staleCat = WorldFixtures.character("cat", "냥이", "earth", 2, false);
+			WorldCharacter freshCat = WorldFixtures.character("cat", "냥이", "earth", 2, false);
+			given(worldCharacterRepository.findById("cat"))
+				.willReturn(Optional.of(staleCat), Optional.of(freshCat));
+
+			adminWorldCharacterService.update("cat",
+				new AdminWorldCharacterUpdateRequest("새 냥이", null, null, null, true, null));
+
+			InOrder inOrder = inOrder(worldCharacterRepository);
+			inOrder.verify(worldCharacterRepository).clearMascot();
+			inOrder.verify(worldCharacterRepository).findById("cat");
+			assertThat(freshCat.isMascot()).isTrue();
+			assertThat(freshCat.getName()).isEqualTo("새 냥이");
+			assertThat(staleCat.isMascot()).isFalse();
 		}
 
 		@Test
