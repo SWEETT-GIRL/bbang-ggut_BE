@@ -1,6 +1,7 @@
 package sweetgirl.croissant.searchmiss.repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -41,6 +42,21 @@ public interface SearchMissRepository extends JpaRepository<SearchMiss, Long> {
 			@Param("keyword") String keyword,
 			@Param("outcome") SearchOutcome outcome,
 			@Param("occurredAt") LocalDateTime occurredAt);
+
+	/**
+	 * 자동 판정 대상 — 아직 안 본 것, 또는 본 뒤로 발생이 두 배 이상 늘어난 것. 발생 횟수 순.
+	 *
+	 * <p>판정이 애매해 PENDING 에 남은 검색어도 많이 찾히기 시작하면 다시 볼 가치가 있다. 반대로 늘지 않은 것은
+	 * 같은 결론이 나올 것이라 다시 외부 API 를 태우지 않는다.
+	 */
+	@Query("""
+			select searchMiss from SearchMiss searchMiss
+			where searchMiss.status = sweetgirl.croissant.searchmiss.enums.SearchMissStatus.PENDING
+				and (searchMiss.aiTriagedAt is null
+					or searchMiss.occurrenceCount >= searchMiss.countAtTriage * 2)
+			order by searchMiss.occurrenceCount desc, searchMiss.id asc
+			""")
+	List<SearchMiss> findTriageCandidates(Pageable pageable);
 
 	Page<SearchMiss> findByStatus(SearchMissStatus status, Pageable pageable);
 

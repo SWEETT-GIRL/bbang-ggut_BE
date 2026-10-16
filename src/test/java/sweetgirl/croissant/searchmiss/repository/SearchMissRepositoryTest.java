@@ -3,6 +3,8 @@ package sweetgirl.croissant.searchmiss.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,6 +21,7 @@ import jakarta.persistence.EntityManager;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.searchmiss.entity.SearchMiss;
 import sweetgirl.croissant.searchmiss.enums.SearchMissStatus;
+import sweetgirl.croissant.searchmiss.enums.SearchMissVerdict;
 import sweetgirl.croissant.store.service.search.SearchOutcome;
 
 @SpringBootTest(properties = {
@@ -173,5 +176,43 @@ class SearchMissRepositoryTest {
 
 		assertThat(updated).isEqualTo(1);
 		assertThat(searchMissRepository.count()).isEqualTo(1L);
+	}
+
+	@Test
+	@DisplayName("자동 판정 대상은 안 본 것과 본 뒤로 두 배 이상 늘어난 PENDING 이고, 발생 횟수 순이다")
+	void findTriageCandidates_picksUntriagedOrGrown() {
+		SearchMiss untriaged = persistMiss("런베뮤", "런베뮤", SearchOutcome.EMPTY);
+		SearchMiss triagedNotGrown = persistMiss("새빵집", "새빵집", SearchOutcome.EMPTY);
+		triagedNotGrown.recordTriage(SearchMissVerdict.UNRESOLVED, null, Map.of("reason", "근거 부족"),
+			SECOND_OCCURRED);
+		SearchMiss triagedGrown = persistMiss("두쫀쿠", "두쫀쿠", SearchOutcome.EMPTY);
+		triagedGrown.recordTriage(SearchMissVerdict.UNRESOLVED, null, Map.of(), SECOND_OCCURRED);
+		SearchMiss handled = persistMiss("ㅋㅋ빵", "ㅋㅋ빵", SearchOutcome.EMPTY);
+		handled.handle(SearchMissStatus.IGNORED, SECOND_OCCURRED);
+		entityManager.flush();
+		searchMissRepository.incrementOccurrence("두쫀쿠", "두쫀쿠", SearchOutcome.EMPTY, SECOND_OCCURRED);
+
+		List<SearchMiss> candidates = searchMissRepository.findTriageCandidates(PageRequest.of(0, 10));
+
+		// 두쫀쿠: 판정 때 1회 → 지금 2회라 다시 본다. 횟수가 많아 먼저 나온다
+		assertThat(candidates).extracting(SearchMiss::getNormalizedKeyword).containsExactly("두쫀쿠", "런베뮤");
+		assertThat(untriaged.getAiTriagedAt()).isNull();
+	}
+
+	@Test
+	@DisplayName("판정 근거(JSON)와 판정 결과가 저장되고 다시 읽힌다")
+	void recordTriage_persistsEvidence() {
+		SearchMiss miss = persistMiss("런베뮤", "런베뮤", SearchOutcome.EMPTY);
+		miss.recordTriage(SearchMissVerdict.ALIAS_RESOLVED, 7L, Map.of("reason", "별칭 추가 후 검색됨"),
+			SECOND_OCCURRED);
+		entityManager.flush();
+		entityManager.clear();
+
+		SearchMiss found = searchMissRepository.findByNormalizedKeyword("런베뮤").orElseThrow();
+
+		assertThat(found.getAiVerdict()).isEqualTo(SearchMissVerdict.ALIAS_RESOLVED);
+		assertThat(found.getMatchedStoreId()).isEqualTo(7L);
+		assertThat(found.getAiEvidence()).containsEntry("reason", "별칭 추가 후 검색됨");
+		assertThat(found.getCountAtTriage()).isEqualTo(1L);
 	}
 }
