@@ -153,6 +153,8 @@ public class BreadRecordCommandService {
 			.build());
 		List<BreadRecordTag> savedTags = savePhotosAndTags(record, request, data.photoBySortOrder(), Map.of(),
 			data.lovedBreads(), Map.of(), Map.of());
+		// 분류는 메뉴 분류 프록시를 열 수 있어 영속성 컨텍스트가 살아 있을 때 읽는다 — 아래 빵탑 갱신이 컨텍스트를 비운다
+		List<BreadRecordCreateResponse.Tag> tags = BreadRecordCreateResponse.tagsOf(savedTags);
 		// 빵탑은 기록 수만큼 오른다. 최고 높이는 내려가지 않아서, 기록을 지워도 행성이 밀리지 않는다.
 		long recordCountAfter = breadRecordRepository.countByMemberIdAndDeletedAtIsNull(memberId);
 		memberWorldRepository.raiseMaxRecordCount(memberId, recordCountAfter);
@@ -171,8 +173,7 @@ public class BreadRecordCommandService {
 			eventPublisher.publishEvent(
 				new StoreTrendingSignalEvent(memberId, data.store().getId(), TrendingSignal.RECORD));
 		}
-		return new BreadRecordCreateResponse(record.getId(), record.getCreatedAt(), rewards,
-			BreadRecordCreateResponse.tagsOf(savedTags));
+		return new BreadRecordCreateResponse(record.getId(), record.getCreatedAt(), rewards, tags);
 	}
 
 	public BreadRecordUpdateResponse replace(Long recordId, Long memberId, BreadRecordUpsertRequest request) {

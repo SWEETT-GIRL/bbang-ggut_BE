@@ -3,9 +3,11 @@ package sweetgirl.croissant.breadlog.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -14,8 +16,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.StreamSupport;
 
+import org.hibernate.LazyInitializationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,6 +59,8 @@ import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
 import sweetgirl.croissant.menu.entity.Menu;
+import sweetgirl.croissant.menu.entity.MenuCategory;
+import sweetgirl.croissant.menu.enums.MenuKind;
 import sweetgirl.croissant.menu.repository.MenuRepository;
 import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
 import sweetgirl.croissant.reward.service.RecordRewardService;
@@ -762,6 +768,33 @@ class BreadRecordCommandServiceTest {
 		given(categoryClassifier.classify("소금빵")).willReturn("소금빵");
 
 		BreadRecordCreateResponse response = commandService.create(7L, requestWithTagMenus(null, null));
+
+		assertThat(response.tags()).containsExactly(new BreadRecordCreateResponse.Tag("소금빵", "소금빵"));
+	}
+
+	@Test
+	@DisplayName("create: 빵탑 높이 갱신이 영속성 컨텍스트를 비우기 전에 태그 분류를 읽는다 — 메뉴 분류 프록시가 끊기면 저장 전체가 500")
+	void create_readsTagCategoriesBeforeContextCleared() {
+		givenCreatableRecord();
+		given(categoryClassifier.classify("소금빵")).willReturn("빵");
+		MenuCategory category = mock(MenuCategory.class);
+		Menu menu = menu(99L, "소금빵");
+		ReflectionTestUtils.setField(menu, "menuCategory", category);
+		given(menuRepository.findByStoreIdAndDeletedAtIsNullAndIdIn(10L, Set.of(99L))).willReturn(List.of(menu));
+		// raiseMaxRecordCount 는 clearAutomatically 라 그 뒤로는 초기화 안 된 프록시를 열 수 없다
+		AtomicBoolean contextCleared = new AtomicBoolean(false);
+		given(memberWorldRepository.raiseMaxRecordCount(any(), anyLong())).willAnswer(invocation -> {
+			contextCleared.set(true);
+			return 1;
+		});
+		given(category.getName()).willAnswer(invocation -> {
+			if (contextCleared.get()) {
+				throw new LazyInitializationException("no session");
+			}
+			return MenuKind.소금빵;
+		});
+
+		BreadRecordCreateResponse response = commandService.create(7L, requestWithTagMenuId(99L));
 
 		assertThat(response.tags()).containsExactly(new BreadRecordCreateResponse.Tag("소금빵", "소금빵"));
 	}
