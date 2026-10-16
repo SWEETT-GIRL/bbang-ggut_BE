@@ -50,11 +50,14 @@ public record RewardSummaryResponse(
 	}
 
 	/**
-	 * 밥 룰렛.
+	 * 밥 룰렛. 하루 한 판은 무료고, 그 뒤는 광고를 끝까지 보면 한 판 더다.
 	 *
-	 * @param wedges 칸별 보상. 시계 방향이고 12 시가 0 번이다
+	 * @param doneToday      오늘 무료 판을 돌렸는가
+	 * @param wedges         칸별 보상. 시계 방향이고 12 시가 0 번이다
+	 * @param extraLeftToday 오늘 광고를 보고 더 돌릴 수 있는 남은 횟수(0 ~ rules.feedAdDailyCap). 자정(한국)에 상한으로 돌아온다
+	 * @param extraReady     광고를 끝까지 봐서 한 판이 열려 있다. 룰렛을 돌리면 false 다
 	 */
-	public record Feed(boolean doneToday, List<Integer> wedges) {
+	public record Feed(boolean doneToday, List<Integer> wedges, int extraLeftToday, boolean extraReady) {
 	}
 
 	/**

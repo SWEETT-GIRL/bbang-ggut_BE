@@ -40,6 +40,7 @@ import sweetgirl.croissant.reward.dto.response.FeedResponse;
 import sweetgirl.croissant.reward.entity.MemberAttendanceDay;
 import sweetgirl.croissant.reward.entity.MemberFeedDay;
 import sweetgirl.croissant.reward.enums.CrumbReason;
+import sweetgirl.croissant.reward.enums.RewardSettingKey;
 import sweetgirl.croissant.reward.repository.MemberAttendanceDayRepository;
 import sweetgirl.croissant.reward.repository.MemberFeedDayRepository;
 import sweetgirl.croissant.reward.service.GrantResult.Outcome;
@@ -79,6 +80,7 @@ class RewardDailyCommandServiceTest {
 		weights.put(10, 17);
 		weights.put(50, 3);
 		lenient().when(rewardSettings.feedWeights()).thenReturn(weights);
+		lenient().when(rewardSettings.get(RewardSettingKey.FEED_AD_DAILY_CAP)).thenReturn(3);
 	}
 
 	private MemberAttendanceDay attended(int boardDay, int crumbs) {
@@ -195,8 +197,9 @@ class RewardDailyCommandServiceTest {
 		@DisplayName("가중치 45 · 35 · 17 · 3 으로 값을 뽑고, 멈춘 칸의 값만큼 준다")
 		void picksByWeight(int valueRoll, int wedgeRoll, int expectedWedge, int expectedReward) {
 			givenRolls(valueRoll, wedgeRoll);
+			// 광고로 더 돌릴 횟수는 하루 상한으로 시작한다
 			given(feedDayRepository.insertIfAbsent(eq(MEMBER_ID), eq(today), eq(expectedWedge), eq(expectedReward),
-				any())).willReturn(1);
+				eq(3), any())).willReturn(1);
 			given(crumbGrantService.grantOn(7L, CrumbReason.FEED, expectedReward, "feed:" + today, today))
 				.willReturn(new GrantResult(Outcome.GRANTED, expectedReward, 0, expectedReward));
 
@@ -210,10 +213,12 @@ class RewardDailyCommandServiceTest {
 		}
 
 		@Test
-		@DisplayName("오늘 이미 돌렸으면 새로 뽑은 칸이 아니라 오늘 결과를 돌려준다")
+		@DisplayName("오늘 이미 돌렸고 광고로 연 판도 없으면 새로 뽑은 칸이 아니라 오늘 결과를 돌려준다")
 		void alreadyDone() {
 			givenRolls(0, 0);
-			given(feedDayRepository.insertIfAbsent(eq(MEMBER_ID), eq(today), anyInt(), anyInt(), any())).willReturn(0);
+			given(feedDayRepository.insertIfAbsent(eq(MEMBER_ID), eq(today), anyInt(), anyInt(), anyInt(), any()))
+				.willReturn(0);
+			given(feedDayRepository.closeExtraIfReady(MEMBER_ID, today)).willReturn(0);
 			MemberFeedDay done = mock(MemberFeedDay.class);
 			given(done.getWedge()).willReturn(5);
 			given(done.getCrumbs()).willReturn(50);
@@ -226,10 +231,71 @@ class RewardDailyCommandServiceTest {
 		}
 
 		@Test
+		@DisplayName("무료 판을 쓴 뒤라도 광고로 연 판이 있으면 한 판 더 돌고, 그 판은 닫힌다")
+		void extraSpin() {
+			givenRolls(97, 0);
+			given(feedDayRepository.insertIfAbsent(eq(MEMBER_ID), eq(today), anyInt(), anyInt(), anyInt(), any()))
+				.willReturn(0);
+			given(feedDayRepository.closeExtraIfReady(MEMBER_ID, today)).willReturn(1);
+			MemberFeedDay done = mock(MemberFeedDay.class);
+			given(done.getExtraLeft()).willReturn(2);
+			given(feedDayRepository.findByMemberIdAndDay(MEMBER_ID, today)).willReturn(Optional.of(done));
+			// 멱등 키는 남은 횟수로 가른다 — 무료 판(feed:날짜)과도, 다음 광고 판과도 겹치지 않는다
+			given(crumbGrantService.grantOn(7L, CrumbReason.FEED, 50, "feed:" + today + ":extra:2", today))
+				.willReturn(new GrantResult(Outcome.GRANTED, 50, 30, 80));
+
+			FeedResponse response = rewardDailyCommandService.feed(MEMBER_ID);
+
+			assertThat(response.wedge()).isEqualTo(5);
+			assertThat(response.crumbs()).isEqualTo(50);
+			assertThat(response.alreadyDone()).isFalse();
+			assertThat(response.rewards()).singleElement()
+				.satisfies(reward -> assertThat(reward.reason()).isEqualTo(CrumbReason.FEED));
+			// 무료 판의 결과(wedge · crumbs)는 그대로 둔다
+			then(feedDayRepository).should(never()).updateCrumbs(anyLong(), any(), anyInt());
+		}
+
+		@Test
+		@DisplayName("광고로 연 판도 제재 중이면 돌되 부스러기는 없다 — 무료 판의 결과는 건드리지 않는다")
+		void extraSpinRestricted() {
+			givenRolls(97, 0);
+			given(feedDayRepository.insertIfAbsent(eq(MEMBER_ID), eq(today), anyInt(), anyInt(), anyInt(), any()))
+				.willReturn(0);
+			given(feedDayRepository.closeExtraIfReady(MEMBER_ID, today)).willReturn(1);
+			MemberFeedDay done = mock(MemberFeedDay.class);
+			given(done.getExtraLeft()).willReturn(0);
+			given(feedDayRepository.findByMemberIdAndDay(MEMBER_ID, today)).willReturn(Optional.of(done));
+			given(crumbGrantService.grantOn(7L, CrumbReason.FEED, 50, "feed:" + today + ":extra:0", today))
+				.willReturn(new GrantResult(Outcome.RESTRICTED, 0, 0, 0));
+
+			FeedResponse response = rewardDailyCommandService.feed(MEMBER_ID);
+
+			assertThat(response).isEqualTo(new FeedResponse(5, 0, false, List.of()));
+			then(feedDayRepository).should(never()).updateCrumbs(anyLong(), any(), anyInt());
+		}
+
+		@Test
+		@DisplayName("광고를 끝까지 보면 한 판을 연다 — 열렸는지는 표가 답한다(횟수가 남고 열린 판이 없을 때만)")
+		void openFeedExtra() {
+			given(feedDayRepository.openExtraIfLeft(MEMBER_ID, today)).willReturn(1);
+
+			assertThat(rewardDailyCommandService.openFeedExtra(MEMBER_ID)).isTrue();
+		}
+
+		@Test
+		@DisplayName("횟수를 다 썼거나 이미 열린 판이 있거나 오늘 무료 판을 아직 안 돌렸으면 열지 않는다")
+		void openFeedExtraNoneLeft() {
+			given(feedDayRepository.openExtraIfLeft(MEMBER_ID, today)).willReturn(0);
+
+			assertThat(rewardDailyCommandService.openFeedExtra(MEMBER_ID)).isFalse();
+		}
+
+		@Test
 		@DisplayName("제재 중이면 룰렛은 돌되 부스러기는 0 으로 남는다")
 		void restricted() {
 			givenRolls(97, 0);
-			given(feedDayRepository.insertIfAbsent(eq(MEMBER_ID), eq(today), eq(5), eq(50), any())).willReturn(1);
+			given(feedDayRepository.insertIfAbsent(eq(MEMBER_ID), eq(today), eq(5), eq(50), eq(3), any()))
+				.willReturn(1);
 			given(crumbGrantService.grantOn(7L, CrumbReason.FEED, 50, "feed:" + today, today))
 				.willReturn(new GrantResult(Outcome.RESTRICTED, 0, 0, 0));
 
@@ -244,7 +310,8 @@ class RewardDailyCommandServiceTest {
 		void fallsBackToUniformWedge() {
 			given(rewardSettings.feedWedges()).willReturn(List.of(20, 20, 20, 20, 20, 20));
 			given(rewardRandom.nextInt(6)).willReturn(4);
-			given(feedDayRepository.insertIfAbsent(eq(MEMBER_ID), eq(today), eq(4), eq(20), any())).willReturn(1);
+			given(feedDayRepository.insertIfAbsent(eq(MEMBER_ID), eq(today), eq(4), eq(20), eq(3), any()))
+				.willReturn(1);
 			given(crumbGrantService.grantOn(7L, CrumbReason.FEED, 20, "feed:" + today, today))
 				.willReturn(new GrantResult(Outcome.GRANTED, 20, 0, 20));
 

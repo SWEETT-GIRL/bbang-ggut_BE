@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.member.service.NicknameDrawService;
 import sweetgirl.croissant.reward.service.EarnRewardService;
+import sweetgirl.croissant.reward.service.RewardDailyCommandService;
 import sweetgirl.croissant.world.entity.MemberCharacter;
 import sweetgirl.croissant.world.entity.MemberCharacterId;
 import sweetgirl.croissant.world.enums.AcquiredBy;
@@ -29,6 +30,7 @@ import sweetgirl.croissant.world.repository.RewardedAdTransactionRepository;
  * <p>누구의 어떤 친구인지는 {@code custom_data} 로 온다({@code memberId:characterCode}).
  * 앱이 광고를 띄울 때 실어 보내는 값이라, 형식이 어긋나면 적립할 곳을 알 수 없으므로 버린다.
  * 닉네임 뽑기 광고는 {@code nickname:memberId} 로 온다 — 친구 형식은 앞자리가 숫자라 겹치지 않는다.
+ * 부스러기 광고는 {@code crumbs:memberId}, 밥 룰렛 한 판 더 광고는 {@code feed:memberId} 다.
  *
  * <p>구글은 콜백을 재시도한다. 같은 보상은 재시도돼도 {@code transaction_id} 가 같으므로,
  * 그 번호를 PK 로 둔 표에 먼저 남겨 보고 이미 있으면 버린다 — 중복 적립을 코드가 아니라 DB 가 막는다.
@@ -41,6 +43,8 @@ public class RewardedAdSsvService {
 	private static final String NICKNAME_PURPOSE = "nickname";
 	/** 부스러기 광고는 {@code crumbs:memberId} 로 온다. 친구 형식은 앞자리가 숫자라 겹치지 않는다. */
 	private static final String CRUMBS_PURPOSE = "crumbs";
+	/** 밥 룰렛 한 판 더 광고는 {@code feed:memberId} 로 온다. */
+	private static final String FEED_PURPOSE = "feed";
 
 	private final RewardedAdSignatureVerifier signatureVerifier;
 	private final MemberCharacterRepository memberCharacterRepository;
@@ -49,6 +53,7 @@ public class RewardedAdSsvService {
 	private final RewardedAdTransactionRepository rewardedAdTransactionRepository;
 	private final NicknameDrawService nicknameDrawService;
 	private final EarnRewardService earnRewardService;
+	private final RewardDailyCommandService rewardDailyCommandService;
 
 	/**
 	 * @param query 콜백 쿼리 문자열 원본. 구글이 서명한 그대로여야 해서 다시 조립한 값을 넘기면 안 된다
@@ -74,6 +79,9 @@ public class RewardedAdSsvService {
 		}
 		if (CRUMBS_PURPOSE.equals(parts[0])) {
 			return grantCrumbs(parts[1], params);
+		}
+		if (FEED_PURPOSE.equals(parts[0])) {
+			return openFeedExtra(parts[1], params);
 		}
 		Long memberId;
 		try {
@@ -191,6 +199,44 @@ public class RewardedAdSsvService {
 		boolean granted = earnRewardService.rewardAdWatched(memberId, transactionId);
 		log.info("[AdMob SSV] 부스러기 광고 - member={}, transaction={}, 지급={}", memberId, transactionId, granted);
 		return granted;
+	}
+
+	/**
+	 * 밥 룰렛 한 판 더 광고. 이력 표에 먼저 남겨 보고, 이미 본 {@code transaction_id} 면 버린다.
+	 * 오늘 횟수를 다 썼거나 이미 열린 판이 있어도 이력은 남긴다(정산 대조) — 판만 열지 않는다.
+	 */
+	private boolean openFeedExtra(String memberIdText, Map<String, String> params) {
+		Long memberId;
+		try {
+			memberId = Long.valueOf(memberIdText);
+		} catch (NumberFormatException exception) {
+			log.warn("[AdMob SSV] 밥 룰렛 광고의 회원 번호를 읽지 못했다: {}", memberIdText);
+			return false;
+		}
+
+		String transactionId = params.get("transaction_id");
+		if (transactionId == null) {
+			log.warn("[AdMob SSV] transaction_id 가 없어 중복을 가릴 수 없다");
+			return false;
+		}
+		if (!earnRewardService.canEarn(memberId)) {
+			log.warn("[AdMob SSV] 밥을 더 줄 수 없는 회원이다(없거나 게스트) - member={}", memberId);
+			return false;
+		}
+		int recorded = rewardedAdTransactionRepository.recordFeedIfFirstTime(
+			transactionId,
+			memberId,
+			params.get("ad_unit"),
+			toInteger(params.get("reward_amount")),
+			params.get("reward_item"));
+		if (recorded == 0) {
+			log.info("[AdMob SSV] 이미 처리한 보상이라 넘어간다 - transaction={}", transactionId);
+			return false;
+		}
+
+		boolean opened = rewardDailyCommandService.openFeedExtra(memberId);
+		log.info("[AdMob SSV] 밥 룰렛 광고 - member={}, transaction={}, 한 판 열림={}", memberId, transactionId, opened);
+		return opened;
 	}
 
 	/** 필요한 편수를 채웠으면 깨운다. 편수는 그 친구가 사는 행성 행에서 읽은 값이다. */

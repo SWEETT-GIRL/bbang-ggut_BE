@@ -68,4 +68,22 @@ public interface RewardedAdTransactionRepository
 			@Param("adUnit") String adUnit,
 			@Param("rewardAmount") Integer rewardAmount,
 			@Param("rewardItem") String rewardItem);
+
+	/**
+	 * 밥 룰렛 한 판 더 광고를 처음 보면 이력을 남기고 1 을 준다. 이미 본 번호면 0 이다.
+	 * 친구가 없어 character_code 를 비운다 — 중복을 막는 방식은 {@link #recordIfFirstTime} 과 같다.
+	 */
+	@Modifying(clearAutomatically = true)
+	@Query(value = """
+			INSERT INTO rewarded_ad_transaction
+				(transaction_id, member_id, purpose, ad_unit, reward_amount, reward_item, created_at)
+			VALUES (:transactionId, :memberId, 'FEED', :adUnit, :rewardAmount, :rewardItem, CURRENT_TIMESTAMP)
+			ON CONFLICT (transaction_id) DO NOTHING
+			""", nativeQuery = true)
+	int recordFeedIfFirstTime(
+			@Param("transactionId") String transactionId,
+			@Param("memberId") Long memberId,
+			@Param("adUnit") String adUnit,
+			@Param("rewardAmount") Integer rewardAmount,
+			@Param("rewardItem") String rewardItem);
 }

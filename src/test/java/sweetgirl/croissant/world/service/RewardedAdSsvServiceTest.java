@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import sweetgirl.croissant.member.service.NicknameDrawService;
 import sweetgirl.croissant.reward.service.EarnRewardService;
+import sweetgirl.croissant.reward.service.RewardDailyCommandService;
 import sweetgirl.croissant.world.code.WorldErrorCode;
 import sweetgirl.croissant.world.dto.response.WorldPlanetResponse;
 import sweetgirl.croissant.world.entity.MemberCharacterId;
@@ -56,6 +57,8 @@ class RewardedAdSsvServiceTest {
 
 	@Mock
 	private EarnRewardService earnRewardService;
+	@Mock
+	private RewardDailyCommandService rewardDailyCommandService;
 
 	@InjectMocks
 	private RewardedAdSsvService rewardedAdSsvService;
@@ -223,6 +226,76 @@ class RewardedAdSsvServiceTest {
 
 		assertThat(rewardedAdSsvService.credit(query)).isFalse();
 		then(rewardedAdTransactionRepository).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("밥 룰렛 광고(feed:회원번호)는 이력을 남기고 한 판을 연다 — 친구도 부스러기도 건드리지 않는다")
+	void routesFeedAdToExtraSpin() {
+		String query = "ad_unit=ca-app-pub-1%2F4&reward_amount=1&reward_item=feed"
+			+ "&transaction_id=TX20&custom_data=feed%3A7&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(true);
+		given(earnRewardService.canEarn(7L)).willReturn(true);
+		given(rewardedAdTransactionRepository.recordFeedIfFirstTime(eq("TX20"), eq(7L), any(), any(), any()))
+			.willReturn(1);
+		given(rewardDailyCommandService.openFeedExtra(7L)).willReturn(true);
+
+		assertThat(rewardedAdSsvService.credit(query)).isTrue();
+		then(rewardedAdTransactionRepository).should().recordFeedIfFirstTime("TX20", 7L, "ca-app-pub-1/4", 1, "feed");
+		then(worldCommandService).should(never()).requireWakeable(any(), anyString());
+		then(earnRewardService).should(never()).rewardAdWatched(any(), anyString());
+		then(nicknameDrawService).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("밥 룰렛 광고의 같은 transaction 이 다시 오면 또 열지 않는다 — 구글은 콜백을 재시도한다")
+	void feedAdReplayed() {
+		String query = "transaction_id=TX20&custom_data=feed%3A7&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(true);
+		given(earnRewardService.canEarn(7L)).willReturn(true);
+		given(rewardedAdTransactionRepository.recordFeedIfFirstTime(eq("TX20"), eq(7L), any(), any(), any()))
+			.willReturn(0);
+
+		assertThat(rewardedAdSsvService.credit(query)).isFalse();
+		then(rewardDailyCommandService).should(never()).openFeedExtra(any());
+	}
+
+	@Test
+	@DisplayName("오늘 횟수를 다 썼거나 이미 열린 판이 있으면 이력은 남기되 열지 않았다고 답한다")
+	void feedAdNoneLeft() {
+		String query = "transaction_id=TX21&custom_data=feed%3A7&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(true);
+		given(earnRewardService.canEarn(7L)).willReturn(true);
+		given(rewardedAdTransactionRepository.recordFeedIfFirstTime(eq("TX21"), eq(7L), any(), any(), any()))
+			.willReturn(1);
+		given(rewardDailyCommandService.openFeedExtra(7L)).willReturn(false);
+
+		assertThat(rewardedAdSsvService.credit(query)).isFalse();
+	}
+
+	@Test
+	@DisplayName("게스트나 없는 회원의 밥 룰렛 광고는 이력도 남기지 않는다")
+	void feedAdForGuest() {
+		String query = "transaction_id=TX22&custom_data=feed%3A7&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(query)).willReturn(true);
+		given(earnRewardService.canEarn(7L)).willReturn(false);
+
+		assertThat(rewardedAdSsvService.credit(query)).isFalse();
+		then(rewardedAdTransactionRepository).shouldHaveNoInteractions();
+		then(rewardDailyCommandService).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("밥 룰렛 광고의 회원 번호가 숫자가 아니거나 transaction_id 가 없으면 버린다")
+	void ignoresMalformedFeedAd() {
+		String badMember = "transaction_id=TX23&custom_data=feed%3Aabc&signature=SIG&key_id=1";
+		String noTransaction = "custom_data=feed%3A7&signature=SIG&key_id=1";
+		given(signatureVerifier.verify(badMember)).willReturn(true);
+		given(signatureVerifier.verify(noTransaction)).willReturn(true);
+
+		assertThat(rewardedAdSsvService.credit(badMember)).isFalse();
+		assertThat(rewardedAdSsvService.credit(noTransaction)).isFalse();
+		then(rewardedAdTransactionRepository).shouldHaveNoInteractions();
+		then(rewardDailyCommandService).shouldHaveNoInteractions();
 	}
 
 	@Test

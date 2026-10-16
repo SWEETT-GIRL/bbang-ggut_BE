@@ -76,7 +76,8 @@ public class RewardController {
 		return ResponseEntity.ok(ApiResponse.ok(rewardDailyCommandService.checkIn(memberId)));
 	}
 
-	@Operation(summary = "밥 룰렛", description = "하루에 한 번(한국 날짜). 서버가 칸을 뽑는다. 오늘 이미 돌렸으면 "
+	@Operation(summary = "밥 룰렛", description = "하루에 한 번 무료(한국 날짜). 서버가 칸을 뽑는다. 무료 판을 쓴 뒤에는 "
+		+ "광고를 끝까지 봐서 열린 판(summary.feed.extraReady)이 있을 때만 한 판 더 돌고, 그것도 없으면 "
 		+ "alreadyDone: true 와 오늘 결과를 그대로 답한다.")
 	@PostMapping("/feed")
 	public ResponseEntity<ApiResponse<FeedResponse>> feed(@AuthenticationPrincipal Long memberId) {

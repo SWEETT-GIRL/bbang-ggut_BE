@@ -364,8 +364,8 @@ class RewardWalletPostgresTest {
 		MemberFeedDayRepository feedDays = context.getBean(MemberFeedDayRepository.class);
 		TransactionTemplate transaction = new TransactionTemplate(context.getBean(JpaTransactionManager.class));
 
-		int first = transaction.execute(status -> feedDays.insertIfAbsent(1L, TODAY, 5, 50, LocalDateTime.now()));
-		int second = transaction.execute(status -> feedDays.insertIfAbsent(1L, TODAY, 0, 10, LocalDateTime.now()));
+		int first = transaction.execute(status -> feedDays.insertIfAbsent(1L, TODAY, 5, 50, 3, LocalDateTime.now()));
+		int second = transaction.execute(status -> feedDays.insertIfAbsent(1L, TODAY, 0, 10, 3, LocalDateTime.now()));
 
 		assertThat(first).isEqualTo(1);
 		assertThat(second).isZero();
