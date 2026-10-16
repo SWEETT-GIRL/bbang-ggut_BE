@@ -119,6 +119,13 @@ jobs:
           # 하루 상한 200 은 메뉴 분류와 나눠 쓰는 무료 등급(500)의 몫이다.
           recommendation.reason.llm.enabled=true
 
+          # 공식 경계·지역 연결·가게 판정 적재를 확인한 뒤 개발 환경에서만 켠다 (#742).
+          # 꺼 두면 기존 추천으로 돌아가며, version-key는 검증한 릴리스 manifest와 같아야 한다.
+          recommendation.polygon.enabled=${{ vars.STAGING_POLYGON_RECOMMENDATION_ENABLED || 'false' }}
+          recommendation.polygon.version-key=${{ vars.STAGING_POLYGON_VERSION_KEY || '' }}
+          store.region-resolution.enabled=${{ vars.STAGING_REGION_RESOLUTION_ENABLED || 'false' }}
+          store.region-resolution.version-key=${{ vars.STAGING_POLYGON_VERSION_KEY || '' }}
+
           # 2026-09-09 정지 — prod 와 같은 무료 티어 키를 쓴다. dev 서버까지 스케줄러를 돌리면
           # 하루 500 요청을 둘이 나눠 먹어 양쪽 다 429 를 맞는다. 애초에 dev 에서 68만 건을
           # 분류할 일이 없으므로 여기는 계속 꺼 둔다 (분류 코드를 고칠 때만 잠시 켠다).
