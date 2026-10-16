@@ -163,7 +163,6 @@ public class GuestDataMigrationService {
 		memberWakeTicketRepository.moveOwner(guestId, targetId);
 
 		menuRepository.moveCreator(guestId, targetId);
-		courseProgressService.refreshForMember(targetId);
 
 		// 취향 신호(#663 ④): 게스트 시절 저장·조회·담기 신호를 회원에게 붙이고, 게스트 프로필은 버린다 — PK 가 member_id 라 프로필
 		// 행은 옮길 수 없다. 회원 프로필 재계산은 커밋 뒤 이벤트로(GuestMergedEventListener): 가게 프로필 데이터 문제가 로그인 병합을
@@ -176,6 +175,10 @@ public class GuestDataMigrationService {
 		userStoreInteractionRepository.moveOwner(guestId, targetId);
 		userTasteProfileRepository.findById(guestId).ifPresent(userTasteProfileRepository::delete);
 		eventPublisher.publishEvent(new GuestMergedEvent(guestId, targetId));
+
+		// 옮겨 온 방문으로 완주가 된 빵투어를 마감한다. 위의 벌크 이관 쿼리는 영속성 컨텍스트를 비우므로(clearAutomatically)
+		// 엔티티를 고치는 일은 전부 그 뒤에 와야 한다 — 앞에 두면 완주 표시가 예외 없이 버려진다.
+		courseProgressService.refreshForMember(targetId);
 
 		closeGuest(guestId);
 
