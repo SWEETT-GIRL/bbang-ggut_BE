@@ -89,6 +89,46 @@ public class StoreSearchService {
 			SearchSort sort, Pageable requestedPageable) {
 		validateCoordinates(latitude, longitude);
 		Pageable pageable = clampPageSize(requestedPageable);
+		SearchExecution execution = execute(keyword, latitude, longitude, sort, pageable);
+		StoreSearchResult result = execution.result();
+		boolean fallbackApplied = execution.fallbackStage() != SearchFallbackStage.NONE;
+		// 2페이지 이후는 같은 검색의 연속이므로 세지 않는다. 무한스크롤이 검색 API를 페이지마다
+		// 호출하는데, 이걸 다 세면 "많이 스크롤한 검색어"가 "여러 사람이 찾은 검색어"보다 위로 올라와
+		// 실패 목록의 우선순위가 뒤집힌다. 실제로 "천안시 서북구"가 검색 5회 + 스크롤 6페이지로
+		// 11회가 되어, 2회인 다른 검색어보다 높게 잡혔다.
+		if (pageable.getPageNumber() == FIRST_PAGE) {
+			recordSearchOutcome(execution.outcome(), keyword);
+			if (fallbackApplied) {
+				fallbackCounter(execution.fallbackStage()).increment();
+			}
+		}
+		logSearchTrace(keyword, execution.intent(), result, execution.outcome(), execution.fallbackStage(),
+			execution.keptToken(), pageable);
+		if (result.hits().isEmpty()) {
+			return new SliceResponse<>(List.of(), false);
+		}
+		return new SliceResponse<>(storeSearchAssembler.assemble(result.hits()), result.hasNext());
+	}
+
+	/**
+	 * 사용자 검색과 같은 경로로 돌려 판정만 받는다 — 실패 검색어 자동 판정이 "지금 검색하면 나오나"를 확인할 때 쓴다.
+	 *
+	 * <p>지표·SearchMissEvent·추적 로그를 남기지 않는다. {@link #searchStores}를 그대로 부르면 실패할 때마다
+	 * search_misses 의 발생 횟수가 올라, 판정이 판정 대상을 부풀린다.
+	 *
+	 * @param size 돌려받을 가게 수. 체인 지점을 모으는 용도라 {@link #MAX_SEARCH_PAGE_SIZE}까지
+	 */
+	public StoreSearchProbe probe(String keyword, int size) {
+		Pageable pageable = PageRequest.of(FIRST_PAGE, Math.min(Math.max(size, 1), MAX_SEARCH_PAGE_SIZE));
+		SearchExecution execution = execute(keyword, null, null, SearchSort.RELEVANCE, pageable);
+		List<Long> storeIds = execution.result().hits().stream()
+			.map(StoreSearchHit::storeId)
+			.toList();
+		return new StoreSearchProbe(execution.outcome(), storeIds, execution.result().hasNext());
+	}
+
+	private SearchExecution execute(String keyword, Double latitude, Double longitude, SearchSort sort,
+			Pageable pageable) {
 		// 1차: 가게명 우선 — "브릭베이글"·"소금도화"처럼 붙여쓴 토큰은 통째로 가게명 검색
 		SearchIntent intent = storeSearchQueryParser.parse(keyword);
 		StoreSearchResult result = runSearch(intent, pageable, latitude, longitude, sort, keyword);
@@ -119,23 +159,16 @@ public class StoreSearchService {
 				keptToken = relaxed.get().keptToken();
 			}
 		}
-		boolean fallbackApplied = fallbackStage != SearchFallbackStage.NONE;
-		// 2페이지 이후는 같은 검색의 연속이므로 세지 않는다. 무한스크롤이 검색 API를 페이지마다
-		// 호출하는데, 이걸 다 세면 "많이 스크롤한 검색어"가 "여러 사람이 찾은 검색어"보다 위로 올라와
-		// 실패 목록의 우선순위가 뒤집힌다. 실제로 "천안시 서북구"가 검색 5회 + 스크롤 6페이지로
-		// 11회가 되어, 2회인 다른 검색어보다 높게 잡혔다.
-		SearchOutcome outcome = resolveSearchOutcome(result, intent, fallbackApplied);
-		if (pageable.getPageNumber() == FIRST_PAGE) {
-			recordSearchOutcome(outcome, keyword);
-			if (fallbackApplied) {
-				fallbackCounter(fallbackStage).increment();
-			}
-		}
-		logSearchTrace(keyword, intent, result, outcome, fallbackStage, keptToken, pageable);
-		if (result.hits().isEmpty()) {
-			return new SliceResponse<>(List.of(), false);
-		}
-		return new SliceResponse<>(storeSearchAssembler.assemble(result.hits()), result.hasNext());
+		SearchOutcome outcome = resolveSearchOutcome(result, intent, fallbackStage != SearchFallbackStage.NONE);
+		return new SearchExecution(intent, result, outcome, fallbackStage, keptToken);
+	}
+
+	private record SearchExecution(
+			SearchIntent intent,
+			StoreSearchResult result,
+			SearchOutcome outcome,
+			SearchFallbackStage fallbackStage,
+			String keptToken) {
 	}
 
 	/**
@@ -264,7 +297,7 @@ public class StoreSearchService {
 	 * 검색어가 전부 지역·빵 사전에 잡혔는지 — 판정 신뢰도를 가르는 기준. 불용어로 걸러진 잔여 토큰은 제외한다
 	 * ("성수동 빵집"의 "빵집"을 사전 밖 말로 보면 정상 검색이 실패로 잡힌다).
 	 */
-	static boolean isFullyClassified(SearchIntent intent) {
+	public static boolean isFullyClassified(SearchIntent intent) {
 		String normalizedCleanQuery = SearchTextNormalizer.normalize(intent.cleanQuery());
 		boolean hasMeaningfulRemaining = intent.remainingTokens().stream()
 			.map(SearchTextNormalizer::normalize)
