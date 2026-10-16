@@ -92,6 +92,7 @@ class RewardQueryServiceTest {
 		// 내역 조회는 수치를 읽지 않는다
 		lenient().when(rewardSettings.attendance()).thenReturn(List.of(5, 5, 10, 5, 10, 10, 30));
 		lenient().when(rewardSettings.feedWedges()).thenReturn(List.of(10, 5, 3, 5, 10, 50));
+		lenient().when(rewardSettings.get(RewardSettingKey.FEED_AD_DAILY_CAP)).thenReturn(3);
 	}
 
 	@Nested
@@ -292,15 +293,28 @@ class RewardQueryServiceTest {
 		}
 
 		@Test
-		@DisplayName("오늘 밥을 줬으면 doneToday 이고 칸 배열은 그대로 내린다")
+		@DisplayName("오늘 밥을 줬으면 doneToday 이고, 광고로 더 돌릴 횟수와 열린 판은 오늘 행에서 읽는다")
 		void fedToday() {
 			given(attendanceDayRepository.findByMemberIdAndDay(eq(MEMBER_ID), any())).willReturn(Optional.empty());
-			given(feedDayRepository.findByMemberIdAndDay(eq(MEMBER_ID), any()))
-				.willReturn(Optional.of(mock(MemberFeedDay.class)));
+			MemberFeedDay fed = mock(MemberFeedDay.class);
+			given(fed.getExtraLeft()).willReturn(2);
+			given(fed.isExtraReady()).willReturn(true);
+			given(feedDayRepository.findByMemberIdAndDay(eq(MEMBER_ID), any())).willReturn(Optional.of(fed));
 
 			Feed feed = rewardQueryService.getSummary(MEMBER_ID, null).feed();
 
-			assertThat(feed).isEqualTo(new Feed(true, List.of(10, 5, 3, 5, 10, 50)));
+			assertThat(feed).isEqualTo(new Feed(true, List.of(10, 5, 3, 5, 10, 50), 2, true));
+		}
+
+		@Test
+		@DisplayName("오늘 아직 안 돌렸으면 광고로 더 돌릴 횟수는 하루 상한 그대로다")
+		void notFedToday() {
+			given(attendanceDayRepository.findByMemberIdAndDay(eq(MEMBER_ID), any())).willReturn(Optional.empty());
+			given(feedDayRepository.findByMemberIdAndDay(eq(MEMBER_ID), any())).willReturn(Optional.empty());
+
+			Feed feed = rewardQueryService.getSummary(MEMBER_ID, null).feed();
+
+			assertThat(feed).isEqualTo(new Feed(false, List.of(10, 5, 3, 5, 10, 50), 3, false));
 		}
 
 		@Test
@@ -311,7 +325,7 @@ class RewardQueryServiceTest {
 			RewardSummaryResponse summary = rewardQueryService.getSummary(MEMBER_ID, null);
 
 			assertThat(summary.attendance()).isEqualTo(new Attendance(false, 0, 1, 5, 5));
-			assertThat(summary.feed().doneToday()).isFalse();
+			assertThat(summary.feed()).isEqualTo(new Feed(false, List.of(10, 5, 3, 5, 10, 50), 0, false));
 			then(attendanceDayRepository).shouldHaveNoInteractions();
 		}
 	}

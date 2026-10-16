@@ -21,6 +21,7 @@ import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
 import sweetgirl.croissant.reward.entity.MemberAttendanceDay;
 import sweetgirl.croissant.reward.entity.MemberFeedDay;
 import sweetgirl.croissant.reward.enums.CrumbReason;
+import sweetgirl.croissant.reward.enums.RewardSettingKey;
 import sweetgirl.croissant.reward.repository.MemberAttendanceDayRepository;
 import sweetgirl.croissant.reward.repository.MemberFeedDayRepository;
 
@@ -72,7 +73,12 @@ public class RewardDailyCommandService {
 			List.of(RewardItemResponse.crumbs(result, CrumbReason.ATTENDANCE)));
 	}
 
-	/** 오늘의 밥 룰렛을 돌린다. 값을 가중치로 뽑고, 그 값이 적힌 칸 중 하나에 멈춘다. */
+	/**
+	 * 오늘의 밥 룰렛을 돌린다. 값을 가중치로 뽑고, 그 값이 적힌 칸 중 하나에 멈춘다.
+	 *
+	 * <p>하루 한 판은 무료다. 무료 판을 쓴 뒤에는 광고로 연 판({@link #openFeedExtra})이 있을 때만 한 판 더 돌고,
+	 * 그것도 없으면 오늘 결과를 그대로 돌려준다.
+	 */
 	public FeedResponse feed(Long memberId) {
 		memberReader.requireLoggedIn(memberId);
 		LocalDate today = LocalDate.now(CrumbGrantService.ZONE);
@@ -81,16 +87,39 @@ public class RewardDailyCommandService {
 		int wedge = pickWedge(wedges, rewardSettings.feedWeights());
 		int reward = wedges.get(wedge);
 
-		if (feedDayRepository.insertIfAbsent(memberId, today, wedge, reward, LocalDateTime.now()) == 0) {
-			MemberFeedDay done = feedDayRepository.findByMemberIdAndDay(memberId, today).orElseThrow();
-			return new FeedResponse(done.getWedge(), done.getCrumbs(), true, List.of());
+		int extraCap = rewardSettings.get(RewardSettingKey.FEED_AD_DAILY_CAP);
+		if (feedDayRepository.insertIfAbsent(memberId, today, wedge, reward, extraCap, LocalDateTime.now()) == 0) {
+			if (feedDayRepository.closeExtraIfReady(memberId, today) == 0) {
+				MemberFeedDay done = feedDayRepository.findByMemberIdAndDay(memberId, today).orElseThrow();
+				return new FeedResponse(done.getWedge(), done.getCrumbs(), true, List.of());
+			}
+			// 광고로 연 한 판. 멱등 키는 남은 횟수로 가른다 — 하루 안에서 줄어들기만 하니 겹치지 않는다
+			int extraLeft = feedDayRepository.findByMemberIdAndDay(memberId, today).orElseThrow().getExtraLeft();
+			return spin(memberId, today, wedge, reward, "feed:" + today + ":extra:" + extraLeft);
 		}
 
+		FeedResponse response = spin(memberId, today, wedge, reward, "feed:" + today);
+		if (response.crumbs() == 0) {
+			feedDayRepository.updateCrumbs(memberId, today, 0);
+		}
+		return response;
+	}
+
+	/**
+	 * 광고를 끝까지 봤으니 오늘 한 판을 더 연다. 구글의 서버 검증 콜백에서만 부른다 — 앱의 요청으로는 열지 않는다.
+	 *
+	 * @return 열었는가. 오늘 무료 판을 아직 안 돌렸거나, 횟수를 다 썼거나, 이미 열린 판이 있으면 false
+	 */
+	public boolean openFeedExtra(Long memberId) {
+		return feedDayRepository.openExtraIfLeft(memberId, LocalDate.now(CrumbGrantService.ZONE)) == 1;
+	}
+
+	/** 멈춘 칸의 값을 준다. 제재 중이거나 칸의 값이 0 이면 부스러기 없이 칸만 돌려준다. */
+	private FeedResponse spin(Long memberId, LocalDate today, int wedge, int reward, String idempotencyKey) {
 		GrantResult result = reward > 0
-			? crumbGrantService.grantOn(memberId, CrumbReason.FEED, reward, "feed:" + today, today)
+			? crumbGrantService.grantOn(memberId, CrumbReason.FEED, reward, idempotencyKey, today)
 			: null;
 		if (result == null || !result.isGranted()) {
-			feedDayRepository.updateCrumbs(memberId, today, 0);
 			return new FeedResponse(wedge, 0, false, List.of());
 		}
 		return new FeedResponse(wedge, reward, false, List.of(RewardItemResponse.crumbs(result, CrumbReason.FEED)));

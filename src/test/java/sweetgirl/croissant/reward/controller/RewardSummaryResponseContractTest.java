@@ -52,10 +52,10 @@ import sweetgirl.croissant.reward.service.RewardQueryService;
 class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 
 	private static final RewardRulesResponse RULES = new RewardRulesResponse(
-		25, 10, 5, 3, List.of(5, 5, 10, 5, 10, 10, 30), 2, 3, 10, 20, 2, 100, 10, 3, 8, 30, 30, 600, 100, 50, 20);
+		25, 10, 5, 3, List.of(5, 5, 10, 5, 10, 10, 30), 2, 3, 10, 20, 2, 100, 10, 3, 8, 30, 30, 600, 100, 50, 20, 3);
 
 	private static final Attendance ATTENDANCE = new Attendance(false, 2, 3, 10, 5);
-	private static final Feed FEED = new Feed(false, List.of(10, 5, 3, 5, 10, 50));
+	private static final Feed FEED = new Feed(false, List.of(10, 5, 3, 5, 10, 50), 3, false);
 	private static final Letter LETTER = new Letter(1, 31L);
 	private static final Ad AD = new Ad(2);
 	private static final RankingReward RANKING_REWARD = new RankingReward(12L, 2, 50, false);
@@ -106,6 +106,7 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.rules.tourComplete").isNumber())
 			.andExpect(jsonPath("$.data.rules.tourPhotoComplete").isNumber())
 			.andExpect(jsonPath("$.data.rules.wakeFriend").isNumber())
+			.andExpect(jsonPath("$.data.rules.feedAdDailyCap").isNumber())
 			.andExpect(jsonPath("$.data.carryOver.granted").isBoolean())
 			.andExpect(jsonPath("$.data.carryOver.crumbs").isNumber())
 			.andExpect(jsonPath("$.data.carryOver.recordCount").isNumber())
@@ -118,6 +119,9 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.feed.doneToday").isBoolean())
 			// 룰렛 그림의 칸 순서 — 시계 방향, 12 시가 0 번
 			.andExpect(jsonPath("$.data.feed.wedges", hasSize(6)))
+			// 무료 한 판 뒤 광고로 더 — 앱이 도크의 AD 표시·숨김을 이 둘로 정한다
+			.andExpect(jsonPath("$.data.feed.extraLeftToday").isNumber())
+			.andExpect(jsonPath("$.data.feed.extraReady").isBoolean())
 			.andExpect(jsonPath("$.data.letter.waitingCount").isNumber())
 			.andExpect(jsonPath("$.data.letter.latestId").isNumber())
 			.andExpect(jsonPath("$.data.ad.leftToday").isNumber())

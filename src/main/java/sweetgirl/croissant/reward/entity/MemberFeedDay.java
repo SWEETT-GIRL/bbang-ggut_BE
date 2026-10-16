@@ -40,6 +40,14 @@ public class MemberFeedDay {
 	@Column(nullable = false)
 	private int crumbs;
 
+	/** 오늘 광고를 보고 더 돌릴 수 있는 남은 횟수. 행이 생길 때 하루 상한으로 시작해 광고 한 편마다 하나씩 준다. */
+	@Column(name = "feed_extra_left", nullable = false)
+	private int extraLeft;
+
+	/** 광고를 끝까지 봐서 한 판이 열려 있다. 돌리면 다시 false 다. */
+	@Column(name = "feed_extra_ready", nullable = false)
+	private boolean extraReady;
+
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 }

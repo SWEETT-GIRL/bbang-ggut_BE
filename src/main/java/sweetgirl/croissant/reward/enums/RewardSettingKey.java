@@ -37,6 +37,8 @@ public enum RewardSettingKey {
 	FEED_WEIGHT_5("feed.weight.5", 35),
 	FEED_WEIGHT_10("feed.weight.10", 17),
 	FEED_WEIGHT_50("feed.weight.50", 3),
+	/** 무료 한 판 뒤 광고를 보고 더 돌릴 수 있는 하루 횟수 */
+	FEED_AD_DAILY_CAP("feed.ad-daily-cap", 3),
 	SAVE_STORE("save-store", 2),
 	SAVE_STORE_DAILY_CAP("save-store.daily-cap", 3),
 	LETTER("letter", 10),
