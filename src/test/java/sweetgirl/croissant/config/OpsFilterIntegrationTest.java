@@ -56,6 +56,15 @@ class OpsFilterIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("앞단에서 끝난 응답에도 요청 id 와 서버 시각 헤더가 붙는다")
+	void responseHeaders_presentOnEveryResponse() throws Exception {
+		mockMvc.perform(post("/auth/logout").contentType(MediaType.APPLICATION_JSON).content("{}")
+			.header("X-Request-Id", "it-req-1"))
+			.andExpect(header().string("X-Request-Id", "it-req-1"))
+			.andExpect(header().string("X-Server-Time", org.hamcrest.Matchers.matchesPattern("\\d{13}")));
+	}
+
+	@Test
 	@DisplayName("알림 스위치를 켜면 5xx 알림 빈이 뜬다")
 	void serverErrorAlerter_isRegisteredWhenEnabled() {
 		assertThat(applicationContext.getBeansOfType(SlackServerErrorAlerter.class)).hasSize(1);

@@ -1,5 +1,7 @@
 package sweetgirl.croissant.config.web;
 
+import java.time.Clock;
+
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -7,6 +9,7 @@ import org.springframework.core.Ordered;
 import org.springframework.web.filter.CommonsRequestLoggingFilter;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.global.filter.ServerTimeHeaderFilter;
 import sweetgirl.croissant.global.logging.filter.MaskingRequestLoggingFilter;
 import sweetgirl.croissant.global.logging.filter.RequestIdFilter;
 import sweetgirl.croissant.global.logging.filter.RequestLoggingFilter;
@@ -36,6 +39,16 @@ public class LoggingConfig {
 		bean.addUrlPatterns("/*");
 		bean.setOrder(Ordered.HIGHEST_PRECEDENCE); // 가장 바깥 — 뒤쪽 필터들의 로그에도 requestId 가 붙는다
 		bean.setName("requestIdFilter");
+		return bean;
+	}
+
+	@Bean
+	public FilterRegistrationBean<ServerTimeHeaderFilter> serverTimeHeaderFilterBean() {
+		FilterRegistrationBean<ServerTimeHeaderFilter> bean = new FilterRegistrationBean<>(
+			new ServerTimeHeaderFilter(Clock.systemUTC()));
+		bean.addUrlPatterns("/*");
+		bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 1); // 429·401 처럼 앞단에서 끝나는 응답에도 붙도록 바깥에 둔다
+		bean.setName("serverTimeHeaderFilter");
 		return bean;
 	}
 
