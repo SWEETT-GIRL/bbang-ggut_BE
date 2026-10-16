@@ -6,6 +6,8 @@ import java.time.LocalDateTime;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.store.config.StoreTrendingProperties;
@@ -30,6 +32,7 @@ public class StoreTrendingScheduler {
 	private final StoreTrendingProperties properties;
 
 	@Scheduled(cron = "0 0 5 * * *", zone = "Asia/Seoul")
+	@SchedulerLock(name = "StoreTrendingScheduler_dailyBaselineRefresh", lockAtMostFor = "PT10M")
 	public void dailyBaselineRefresh() {
 		if (!properties.isEnabled()) {
 			return;
@@ -42,6 +45,7 @@ public class StoreTrendingScheduler {
 	}
 
 	@Scheduled(fixedDelayString = "PT5M", initialDelayString = "PT1M")
+	@SchedulerLock(name = "StoreTrendingScheduler_refreshRanking", lockAtMostFor = "PT4M")
 	public void refreshRanking() {
 		if (!properties.isEnabled()) {
 			return;

@@ -4,6 +4,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -19,6 +21,7 @@ public class StoreRegionResolutionScheduler {
 	private final StoreRegionResolutionCommandService commandService;
 
 	@Scheduled(fixedDelayString = POLL_DELAY, initialDelayString = INITIAL_DELAY)
+	@SchedulerLock(name = "StoreRegionResolutionScheduler_refresh", lockAtMostFor = "PT2M", lockAtLeastFor = "PT10S")
 	public void refresh() {
 		int updated = commandService.refreshChangedStores();
 		if (updated > 0) {

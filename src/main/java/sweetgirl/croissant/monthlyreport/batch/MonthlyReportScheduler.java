@@ -3,6 +3,8 @@ package sweetgirl.croissant.monthlyreport.batch;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.monthlyreport.service.MonthlyReportBatchService;
@@ -15,6 +17,7 @@ public class MonthlyReportScheduler {
 
 	/** 시각은 정책 확정 후 설정한다. 기본 '-'는 Spring의 스케줄 비활성 값이다. */
 	@Scheduled(cron = "${monthly-report.batch.cron:-}", zone = "Asia/Seoul")
+	@SchedulerLock(name = "MonthlyReportScheduler_runDue", lockAtMostFor = "PT30M")
 	public void runDue() {
 		try {
 			log.info("[월간 보고서] 작업 처리 완료 result={}", batch.runDue());

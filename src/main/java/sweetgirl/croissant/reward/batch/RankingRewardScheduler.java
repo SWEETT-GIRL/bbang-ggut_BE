@@ -5,6 +5,8 @@ import java.time.LocalDate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.reward.enums.RewardSettingKey;
@@ -31,6 +33,7 @@ public class RankingRewardScheduler {
 
 	@Scheduled(cron = "0 15,45 0 * * MON", zone = "Asia/Seoul")
 	@Scheduled(cron = "0 30 6 * * MON", zone = "Asia/Seoul")
+	@SchedulerLock(name = "RankingRewardScheduler_issueLastWeek", lockAtMostFor = "PT10M")
 	public void issueLastWeek() {
 		if (!rewardSettings.isOn(RewardSettingKey.RANKING_ISSUE)) {
 			return;

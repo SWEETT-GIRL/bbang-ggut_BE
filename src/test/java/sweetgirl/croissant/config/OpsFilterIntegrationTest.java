@@ -25,7 +25,10 @@ import sweetgirl.croissant.global.alert.SlackServerErrorAlerter;
 	"spring.datasource.url=jdbc:h2:mem:ops-filter-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
 	"ops.rate-limit.enabled=true",
 	"ops.rate-limit.auth-refresh=1",
-	"ops.alert.server-error.enabled=true"
+	"ops.alert.server-error.enabled=true",
+	"shedlock.enabled=true",
+	"spring.sql.init.mode=always",
+	"spring.sql.init.schema-locations=classpath:db/shedlock-h2.sql"
 })
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -62,6 +65,12 @@ class OpsFilterIntegrationTest {
 			.header("X-Request-Id", "it-req-1"))
 			.andExpect(header().string("X-Request-Id", "it-req-1"))
 			.andExpect(header().string("X-Server-Time", org.hamcrest.Matchers.matchesPattern("\\d{13}")));
+	}
+
+	@Test
+	@DisplayName("ShedLock 을 켜도 스케줄 빈 프록시와 함께 컨텍스트가 뜬다")
+	void schedulerLock_registersLockProvider() {
+		assertThat(applicationContext.getBeansOfType(net.javacrumbs.shedlock.core.LockProvider.class)).hasSize(1);
 	}
 
 	@Test

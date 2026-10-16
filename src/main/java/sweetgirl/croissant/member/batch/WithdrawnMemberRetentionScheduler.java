@@ -5,6 +5,8 @@ import java.time.LocalDateTime;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.member.service.WithdrawnMemberRetentionService;
@@ -18,6 +20,7 @@ public class WithdrawnMemberRetentionScheduler {
 	private final WithdrawnMemberRetentionService retentionService;
 
 	@Scheduled(cron = "${member.withdrawal-retention.cron:0 40 4 * * *}", zone = "Asia/Seoul")
+	@SchedulerLock(name = "WithdrawnMemberRetentionScheduler_anonymizeExpired", lockAtMostFor = "PT5M")
 	public void anonymizeExpired() {
 		try {
 			retentionService.anonymizeExpired(LocalDateTime.now());
