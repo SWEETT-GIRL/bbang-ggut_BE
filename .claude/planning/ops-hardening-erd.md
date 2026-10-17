@@ -54,7 +54,7 @@ CREATE TABLE shedlock (
 | `ImagePipelineMetricsScheduler_refreshBacklogGauges` | 1분 | 2분 | 30초 | — |
 | `ImagePipelineMetricsScheduler_refreshS3ReconcileGauges` | 매일 04:00 | 30분 | 30초 | — |
 | `WithdrawnMemberRetentionScheduler_anonymizeExpired` (이 브랜치) | 매일 04:40 | 5분 | 30초 | 멱등 UPDATE |
-| `SearchMissTriageScheduler_triageDaily` | 매일 06:00 | **1시간** | 30초 | 없음 — LLM·네이버 호출과 Slack 리포트 중복 막힘 |
+| `SearchMissTriageScheduler_triageDaily` | 매일 06:00 | **2시간** | 30초 | 없음 — LLM·네이버 호출과 Slack 리포트 중복 막힘 |
 | `AdminAuditLogRetentionScheduler_deleteExpired` (이 브랜치) | 매일 04:50 | 10분 | 30초 | 멱등 DELETE |
 
 - 짧은 폴링 3개는 lockAtLeastFor 를 주기보다 짧게 뒀다. 기본 30초를 걸면 5초 폴링이 30초로 느려진다.
