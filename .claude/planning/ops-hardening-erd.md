@@ -31,7 +31,7 @@ CREATE TABLE shedlock (
 - **모든 `@Scheduled` 메서드에 `@SchedulerLock(name = "클래스_메서드")`**. `SchedulerLockConfigTest` 가 클래스패스를 훑어 락 없는 `@Scheduled` 가 생기면 깨진다.
 - 기존 advisory lock · 선점 행 · 유니크는 그대로 둔다(어드민 수동 실행과의 겹침도 막고 있어 지우면 안 된다).
 
-### 작업별 락 (21개)
+### 작업별 락 (22개)
 
 | 락 이름 | 주기 | lockAtMostFor | lockAtLeastFor | 기존 장치 |
 |------|------|:--:|:--:|------|
@@ -55,6 +55,7 @@ CREATE TABLE shedlock (
 | `ImagePipelineMetricsScheduler_refreshS3ReconcileGauges` | 매일 04:00 | 30분 | 30초 | — |
 | `WithdrawnMemberRetentionScheduler_anonymizeExpired` (이 브랜치) | 매일 04:40 | 5분 | 30초 | 멱등 UPDATE |
 | `SearchMissTriageScheduler_triageDaily` | 매일 06:00 | **2시간** | 30초 | 없음 — LLM·네이버 호출과 Slack 리포트 중복 막힘 |
+| `SearchMissRetentionScheduler_deleteHandled` | 매일 04:50 | 10분 | 30초 | 멱등 DELETE |
 | `AdminAuditLogRetentionScheduler_deleteExpired` (이 브랜치) | 매일 04:50 | 10분 | 30초 | 멱등 DELETE |
 
 - 짧은 폴링 3개는 lockAtLeastFor 를 주기보다 짧게 뒀다. 기본 30초를 걸면 5초 폴링이 30초로 느려진다.
