@@ -121,7 +121,7 @@ jobs:
 
           # 실패 검색어 자동 판정 — 스테이징도 Repository variables 로 켠다. 없으면 꺼짐(운영과 같은 네이버 일일 한도를 쓴다).
           search-miss.triage.enabled=${{ vars.STAGING_SEARCH_MISS_TRIAGE || 'false' }}
-          search-miss.triage.auto-apply=${{ vars.STAGING_SEARCH_MISS_TRIAGE_AUTO_APPLY || 'false' }}
+          search-miss.triage.auto-apply-verdicts=${{ vars.STAGING_SEARCH_MISS_TRIAGE_AUTO_APPLY_VERDICTS || '' }}
 
           # 공식 경계·지역 연결·가게 판정 적재를 확인한 뒤 개발 환경에서만 켠다 (#742).
           # 꺼 두면 기존 추천으로 돌아가며, version-key는 검증한 릴리스 manifest와 같아야 한다.
