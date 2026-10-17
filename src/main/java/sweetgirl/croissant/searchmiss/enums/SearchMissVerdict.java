@@ -14,8 +14,11 @@ public enum SearchMissVerdict {
 	/** 다시 검색하니 결과가 나온다 — 그 사이 가게나 별칭이 추가됐다. */
 	NOW_HIT,
 
-	/** 우리 DB 에 있는 가게의 줄임말·오타였다. 별칭을 넣어 다음 검색부터 나오게 했다(또는 shadow mode 에서 넣을 예정). */
-	ALIAS_RESOLVED,
+	/**
+	 * 우리 DB 에 있는 가게(브랜드)의 줄임말·오타·별명이었다. 검색어 교정을 넣어 다음 검색부터 나오게 했다(shadow 면 넣을 예정).
+	 * 처음엔 가게별 별칭(ALIAS_RESOLVED)으로 처리했으나 체인·새 지점 때문에 교정 한 줄로 바꿨다.
+	 */
+	CORRECTED,
 
 	/** 네이버에는 있는 빵집·카페인데 우리 DB 에 없다. 가게 등록은 사람이 한다. */
 	NEW_STORE_CANDIDATE,

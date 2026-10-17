@@ -1,8 +1,9 @@
 package sweetgirl.croissant.searchmiss.service;
 
 import java.time.Duration;
+import java.time.Instant;
+import java.util.Set;
 
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -11,6 +12,7 @@ import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.searchmiss.config.SearchMissTriageProperties;
+import sweetgirl.croissant.searchmiss.enums.SearchMissVerdict;
 
 /**
  * 실패 검색어를 하루 한 번 새벽에 자동 판정하고, 결과를 Slack 으로 보고한다.
@@ -33,7 +35,7 @@ public class SearchMissTriageScheduler {
 
 	private final SearchMissTriageService searchMissTriageService;
 	private final SearchMissTriageProperties properties;
-	private final ApplicationEventPublisher eventPublisher;
+	private final SearchMissTriageReportSender searchMissTriageReportSender;
 
 	@Scheduled(cron = CRON, zone = "Asia/Seoul")
 	@SchedulerLock(name = "SearchMissTriageScheduler_triageDaily", lockAtMostFor = "PT2H")
@@ -42,16 +44,18 @@ public class SearchMissTriageScheduler {
 			return;
 		}
 		long startedAt = System.nanoTime();
-		boolean autoApply = properties.isAutoApply();
+		Set<SearchMissVerdict> autoApplyVerdicts = properties.getAutoApplyVerdicts();
 		try {
 			SearchMissTriageBatchResult result = searchMissTriageService.triageNextBatch();
 			log.info("[검색어 판정] 일일 배치 — total={} verdicts={} failed={} stopped={} autoApply={}",
-				result.total(), result.verdicts(), result.failed(), result.stoppedReason(), autoApply);
-			eventPublisher.publishEvent(SearchMissTriageReport.completed(result, autoApply, elapsedSince(startedAt)));
+				result.total(), result.verdicts(), result.failed(), result.stoppedReason(), autoApplyVerdicts);
+			searchMissTriageReportSender.send(SearchMissTriageReport.completed(result, autoApplyVerdicts,
+				elapsedSince(startedAt), Instant.now()));
 		} catch (RuntimeException exception) {
 			// 배치 실패가 다음 날 스케줄까지 막지 않게 여기서 끊는다
 			log.warn("[검색어 판정] 일일 배치 실패", exception);
-			eventPublisher.publishEvent(SearchMissTriageReport.failed(exception, autoApply, elapsedSince(startedAt)));
+			searchMissTriageReportSender.send(SearchMissTriageReport.failed(exception, autoApplyVerdicts,
+				elapsedSince(startedAt), Instant.now()));
 		}
 	}
 

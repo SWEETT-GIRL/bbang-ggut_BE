@@ -3,41 +3,50 @@ package sweetgirl.croissant.searchmiss.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import sweetgirl.croissant.notification.event.OperationalNotificationEvent;
-import sweetgirl.croissant.notification.event.OperationalNotificationEvent.Channel;
-import sweetgirl.croissant.notification.event.OperationalNotificationEvent.Field;
-import sweetgirl.croissant.searchmiss.enums.SearchMissStatus;
+import sweetgirl.croissant.external.slack.dto.SlackMessage;
+import sweetgirl.croissant.external.slack.dto.SlackMessage.Field;
 import sweetgirl.croissant.searchmiss.enums.SearchMissVerdict;
 
 class SearchMissTriageReportTest {
 
 	private static final Duration ELAPSED = Duration.ofSeconds(252);
+	private static final Instant AT = Instant.parse("2026-10-18T21:00:00Z");
+	private static final Set<SearchMissVerdict> SHADOW = EnumSet.noneOf(SearchMissVerdict.class);
+	private static final Set<SearchMissVerdict> CORRECTION_ON = EnumSet.of(SearchMissVerdict.CORRECTED);
 
 	private static SearchMissTriageItem item(String keyword, long count, SearchMissVerdict verdict,
 			Map<String, Object> evidence) {
 		return new SearchMissTriageItem(keyword, count, new TriageDecision(verdict, null, null, evidence));
 	}
 
-	private static String fieldValue(OperationalNotificationEvent report, String namePrefix) {
-		return report.fields().stream()
+	private static List<Field> allFields(List<SlackMessage> messages) {
+		return messages.stream().flatMap(message -> message.fields().stream()).toList();
+	}
+
+	private static String fieldValue(List<SlackMessage> messages, String namePrefix) {
+		return allFields(messages).stream()
 			.filter(field -> field.name().startsWith(namePrefix))
 			.map(Field::value)
-			.findFirst()
+			.reduce((left, right) -> left + "\n" + right)
 			.orElseThrow();
 	}
 
 	private static SearchMissTriageBatchResult sampleResult() {
-		return new SearchMissTriageBatchResult(5, List.of(
-			item("ㅋㅋㅋ", 1, SearchMissVerdict.JUNK, Map.of()),
-			item("런베뮤", 7, SearchMissVerdict.ALIAS_RESOLVED,
-				Map.of("matchedStoreName", "런던베이글뮤지엄 안국점", "aliasStoreIds", List.of(1L, 2L, 3L))),
+		return new SearchMissTriageBatchResult(6, List.of(
+			item("ㅋㅋㅋ", 1, SearchMissVerdict.JUNK, Map.of("reason", "쓰레기 입력")),
+			item("hohaho2514@gmail.com", 7, SearchMissVerdict.JUNK, Map.of("reason", "개인정보(이메일·전화번호)")),
+			item("콜버", 9, SearchMissVerdict.CORRECTED,
+				Map.of("correctionTarget", "콜드버터베이크샵", "matchedStoreIds", List.of(1L, 2L, 3L))),
 			item("새빵공방", 4, SearchMissVerdict.NEW_STORE_CANDIDATE, Map.of("newStoreCandidates",
 				List.of(Map.of("name", "새빵공방", "category", "베이커리", "address", "서울 마포구")))),
 			item("빵지순례", 9, SearchMissVerdict.UNRESOLVED, Map.of("reason", "근거 부족"))),
@@ -45,53 +54,78 @@ class SearchMissTriageReportTest {
 	}
 
 	@Test
-	@DisplayName("완료 리포트는 실패 검색어 채널로, 모드·건수·소요 시간을 요약한다")
+	@DisplayName("완료 리포트는 모드·건수·소요 시간을 요약하고, 실패가 있으면 경고 색이다")
 	void completed_summary() {
-		OperationalNotificationEvent report = SearchMissTriageReport.completed(sampleResult(), false, ELAPSED);
+		List<SlackMessage> messages = SearchMissTriageReport.completed(sampleResult(), SHADOW, ELAPSED, AT);
 
-		assertThat(report.channel()).isEqualTo(Channel.SEARCH_MISS);
-		assertThat(report.title()).contains("완료");
-		assertThat(report.description()).contains("shadow").contains("꺼낸 5건").contains("판정 4건")
+		SlackMessage first = messages.get(0);
+		assertThat(first.title()).contains("완료");
+		assertThat(first.description()).contains("shadow").contains("꺼낸 6건").contains("판정 5건")
 			.contains("실패 1건").contains("4분 12초");
-		// 실패가 있으면 경고 색
-		assertThat(report.color()).isEqualTo(SearchMissTriageReport.WARNING_COLOR);
+		assertThat(first.color()).isEqualTo(SearchMissTriageReport.WARNING_COLOR);
+		assertThat(first.timestamp()).isEqualTo(AT);
 	}
 
 	@Test
-	@DisplayName("판정별 건수에 자동으로 닫힌(또는 닫힐 예정인) 상태와 사람이 볼 것을 구분해 적는다")
-	void completed_verdictCounts() {
-		String shadow = fieldValue(SearchMissTriageReport.completed(sampleResult(), false, ELAPSED), "판정별 건수");
-		String applied = fieldValue(SearchMissTriageReport.completed(sampleResult(), true, ELAPSED), "판정별 건수");
+	@DisplayName("shadow 면 교정은 '예정 — 미적용'으로, 켠 판정은 바뀐 상태로 적는다")
+	void completed_labelsByAutoApply() {
+		List<SlackMessage> shadow = SearchMissTriageReport.completed(sampleResult(), SHADOW, ELAPSED, AT);
+		List<SlackMessage> applied = SearchMissTriageReport.completed(sampleResult(), CORRECTION_ON, ELAPSED, AT);
 
-		assertThat(shadow).contains("JUNK 1건 → IGNORED 예정 (shadow, 미적용)")
+		assertThat(fieldValue(shadow, "판정별 건수")).contains("CORRECTED 1건 → ALREADY_EXISTS 예정 (미적용)")
 			.contains("NEW_STORE_CANDIDATE 1건 → 사람이 확인");
-		assertThat(applied).contains("ALIAS_RESOLVED 1건 → " + SearchMissStatus.ALREADY_EXISTS.name())
-			.doesNotContain("미적용");
+		assertThat(allFields(shadow)).extracting(Field::name).anyMatch(name -> name.startsWith("검색어 교정 예정"));
+		assertThat(fieldValue(applied, "판정별 건수")).contains("CORRECTED 1건 → ALREADY_EXISTS\n")
+			.contains("JUNK 2건 → IGNORED 예정 (미적용)");
+		assertThat(applied.get(0).description()).contains("자동 적용").contains("CORRECTED");
 	}
 
 	@Test
-	@DisplayName("무엇을 어떻게 처리했는지 검색어별로 보여 준다")
+	@DisplayName("무엇을 어떻게 처리했는지 검색어별로 보여 주고, 개인정보는 가린다")
 	void completed_details() {
-		OperationalNotificationEvent report = SearchMissTriageReport.completed(sampleResult(), true, ELAPSED);
+		List<SlackMessage> messages = SearchMissTriageReport.completed(sampleResult(), CORRECTION_ON, ELAPSED, AT);
 
-		assertThat(fieldValue(report, "별칭 추가")).contains("런베뮤 (7회) → 런던베이글뮤지엄 안국점 (지점 3곳)");
-		assertThat(fieldValue(report, "👀 신규 가게 후보")).contains("새빵공방 (4회) — 네이버: 새빵공방 · 베이커리 · 서울 마포구");
-		assertThat(fieldValue(report, "👀 판단 보류")).contains("빵지순례 (9회) — 근거 부족");
-		assertThat(fieldValue(report, "❌ 실패")).contains("어니온 — 네이버 검색 실패: 503");
+		assertThat(fieldValue(messages, "검색어 교정")).contains("콜버 (9회) → 콜드버터베이크샵 (가게 3곳)");
+		assertThat(fieldValue(messages, "👀 신규 가게 후보")).contains("새빵공방 (4회) — 네이버: 새빵공방 · 베이커리 · 서울 마포구");
+		assertThat(fieldValue(messages, "👀 판단 보류")).contains("빵지순례 (9회) — 근거 부족");
+		assertThat(fieldValue(messages, "쓰레기 입력")).contains("ho***@gmail.com (7회)").doesNotContain("hohaho2514");
+		assertThat(fieldValue(messages, "❌ 실패")).contains("어니온 — 네이버 검색 실패: 503");
 	}
 
 	@Test
-	@DisplayName("목록은 많이 찾힌 순으로 앞쪽만 싣고 나머지는 건수로 줄인다")
-	void completed_truncatesLongLists() {
+	@DisplayName("목록을 줄이지 않는다 — 칸 한도를 넘으면 '(이어서)' 칸으로 나눠 전부 싣는다")
+	void completed_neverTruncates() {
 		List<SearchMissTriageItem> items = new ArrayList<>();
-		for (int index = 1; index <= 8; index++) {
-			items.add(item("보류" + index, index, SearchMissVerdict.UNRESOLVED, Map.of("reason", "근거 부족")));
+		for (int index = 1; index <= 300; index++) {
+			items.add(item("보류검색어" + index, index, SearchMissVerdict.UNRESOLVED, Map.of("reason", "근거 부족")));
 		}
 
-		String unresolved = fieldValue(SearchMissTriageReport.completed(
-			new SearchMissTriageBatchResult(8, items, List.of(), null), true, ELAPSED), "👀 판단 보류");
+		List<SlackMessage> messages = SearchMissTriageReport.completed(
+			new SearchMissTriageBatchResult(300, items, List.of(), null), SHADOW, ELAPSED, AT);
 
-		assertThat(unresolved).startsWith("• 보류8 (8회)").contains("… 외 3건").doesNotContain("보류1 ");
+		String unresolved = fieldValue(messages, "👀 판단 보류");
+		assertThat(unresolved).contains("보류검색어300 (300회)").contains("보류검색어1 (1회)").doesNotContain("외");
+		assertThat(allFields(messages)).allSatisfy(
+			field -> assertThat(field.value().length()).isLessThanOrEqualTo(SearchMissTriageReport.FIELD_VALUE_MAX));
+		assertThat(allFields(messages)).extracting(Field::name).anyMatch(name -> name.endsWith("(이어서)"));
+	}
+
+	@Test
+	@DisplayName("칸이 한 메시지 한도를 넘으면 메시지를 여러 개로 나누고 제목에 (n/N)을 붙인다")
+	void paginate_splitsMessages() {
+		List<Field> fields = new ArrayList<>();
+		for (int index = 0; index < SearchMissTriageReport.FIELDS_PER_MESSAGE * 2 + 1; index++) {
+			fields.add(new Field("칸" + index, "값", false));
+		}
+
+		List<SlackMessage> messages = SearchMissTriageReport.paginate("제목", "요약", 1, AT, fields);
+
+		assertThat(messages).hasSize(3);
+		assertThat(messages.get(0).title()).isEqualTo("제목 (1/3)");
+		assertThat(messages.get(0).description()).isEqualTo("요약");
+		assertThat(messages.get(2).title()).isEqualTo("제목 (3/3)");
+		assertThat(messages.get(2).description()).isEqualTo("이어서 — 3/3");
+		assertThat(messages.get(2).fields()).hasSize(1);
 	}
 
 	@Test
@@ -100,33 +134,37 @@ class SearchMissTriageReportTest {
 		SearchMissTriageBatchResult result = new SearchMissTriageBatchResult(10,
 			List.of(item("ㅋㅋㅋ", 1, SearchMissVerdict.JUNK, Map.of())), List.of(), "네이버 검색 API 한도 초과");
 
-		OperationalNotificationEvent report = SearchMissTriageReport.completed(result, true, ELAPSED);
+		SlackMessage first = SearchMissTriageReport.completed(result, SHADOW, ELAPSED, AT).get(0);
 
-		assertThat(report.title()).contains("중단").contains("네이버 검색 API 한도 초과");
-		assertThat(report.description()).contains("못 본 9건(내일 다시)");
+		assertThat(first.title()).contains("중단").contains("네이버 검색 API 한도 초과");
+		assertThat(first.description()).contains("못 본 9건(내일 다시)");
 	}
 
 	@Test
-	@DisplayName("판정할 행이 없으면 그렇다고 적고 목록은 비운다")
+	@DisplayName("판정할 행이 없어도 메시지 하나를 만든다 — 리포트가 없으면 안 돈 것이다")
 	void completed_empty() {
-		OperationalNotificationEvent report = SearchMissTriageReport.completed(
-			new SearchMissTriageBatchResult(0, List.of(), List.of(), null), false, Duration.ofSeconds(1));
+		List<SlackMessage> messages = SearchMissTriageReport.completed(
+			new SearchMissTriageBatchResult(0, List.of(), List.of(), null), SHADOW, Duration.ofSeconds(1), AT);
 
-		assertThat(report.description()).contains("판정할 검색어가 없었습니다");
-		assertThat(report.fields()).isEmpty();
-		assertThat(report.color()).isEqualTo(SearchMissTriageReport.SUCCESS_COLOR);
+		assertThat(messages).singleElement().satisfies(message -> {
+			assertThat(message.description()).contains("판정할 검색어가 없었습니다");
+			assertThat(message.fields()).isEmpty();
+			assertThat(message.color()).isEqualTo(SearchMissTriageReport.SUCCESS_COLOR);
+		});
 	}
 
 	@Test
 	@DisplayName("배치가 예외로 끝나면 실패 리포트에 오류를 담는다")
 	void failed() {
-		OperationalNotificationEvent report = SearchMissTriageReport.failed(new IllegalStateException("DB 끊김"),
-			true, ELAPSED);
+		List<SlackMessage> messages = SearchMissTriageReport.failed(new IllegalStateException("DB 끊김"),
+			CORRECTION_ON, ELAPSED, AT);
 
-		assertThat(report.title()).contains("실패");
-		assertThat(report.color()).isEqualTo(SearchMissTriageReport.FAILURE_COLOR);
-		assertThat(report.fields()).singleElement()
-			.satisfies(field -> assertThat(field.value()).isEqualTo("IllegalStateException: DB 끊김"));
+		assertThat(messages).singleElement().satisfies(message -> {
+			assertThat(message.title()).contains("실패");
+			assertThat(message.color()).isEqualTo(SearchMissTriageReport.FAILURE_COLOR);
+			assertThat(message.fields()).singleElement()
+				.satisfies(field -> assertThat(field.value()).isEqualTo("IllegalStateException: DB 끊김"));
+		});
 	}
 
 	@Test
