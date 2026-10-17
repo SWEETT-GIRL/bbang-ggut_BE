@@ -18,11 +18,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 
-import sweetgirl.croissant.notification.event.OperationalNotificationEvent;
-import sweetgirl.croissant.notification.event.OperationalNotificationEvent.Channel;
+import sweetgirl.croissant.external.slack.dto.SlackMessage;
 import sweetgirl.croissant.searchmiss.config.SearchMissTriageProperties;
 
 @ExtendWith(MockitoExtension.class)
@@ -32,7 +30,7 @@ class SearchMissTriageSchedulerTest {
 	private SearchMissTriageService triageService;
 
 	@Mock
-	private ApplicationEventPublisher eventPublisher;
+	private SearchMissTriageReportSender reportSender;
 
 	private SearchMissTriageScheduler scheduler;
 
@@ -40,13 +38,13 @@ class SearchMissTriageSchedulerTest {
 	void setUp() {
 		SearchMissTriageProperties properties = new SearchMissTriageProperties();
 		properties.setEnabled(true);
-		scheduler = new SearchMissTriageScheduler(triageService, properties, eventPublisher);
+		scheduler = new SearchMissTriageScheduler(triageService, properties, reportSender);
 	}
 
-	private OperationalNotificationEvent publishedReport() {
-		ArgumentCaptor<OperationalNotificationEvent> captor = ArgumentCaptor
-			.forClass(OperationalNotificationEvent.class);
-		verify(eventPublisher).publishEvent(captor.capture());
+	@SuppressWarnings("unchecked")
+	private List<SlackMessage> sentReport() {
+		ArgumentCaptor<List<SlackMessage>> captor = ArgumentCaptor.forClass(List.class);
+		verify(reportSender).send(captor.capture());
 		return captor.getValue();
 	}
 
@@ -54,12 +52,12 @@ class SearchMissTriageSchedulerTest {
 	@DisplayName("꺼져 있으면 배치도 리포트도 없다 — 기본값이 꺼짐이다")
 	void skipsWhenDisabled() {
 		SearchMissTriageScheduler defaultScheduler = new SearchMissTriageScheduler(triageService,
-			new SearchMissTriageProperties(), eventPublisher);
+			new SearchMissTriageProperties(), reportSender);
 
 		defaultScheduler.triageDaily();
 
 		verify(triageService, never()).triageNextBatch();
-		verify(eventPublisher, never()).publishEvent(any());
+		verify(reportSender, never()).send(any());
 	}
 
 	@Test
@@ -70,10 +68,10 @@ class SearchMissTriageSchedulerTest {
 
 		scheduler.triageDaily();
 
-		OperationalNotificationEvent report = publishedReport();
-		assertThat(report.channel()).isEqualTo(Channel.SEARCH_MISS);
-		assertThat(report.title()).contains("완료");
-		assertThat(report.description()).contains("판정할 검색어가 없었습니다");
+		assertThat(sentReport()).singleElement().satisfies(message -> {
+			assertThat(message.title()).contains("완료");
+			assertThat(message.description()).contains("판정할 검색어가 없었습니다");
+		});
 	}
 
 	@Test
@@ -83,10 +81,11 @@ class SearchMissTriageSchedulerTest {
 
 		scheduler.triageDaily();
 
-		OperationalNotificationEvent report = publishedReport();
-		assertThat(report.title()).contains("실패");
-		assertThat(report.fields()).singleElement()
-			.satisfies(field -> assertThat(field.value()).contains("DB 끊김"));
+		assertThat(sentReport()).singleElement().satisfies(message -> {
+			assertThat(message.title()).contains("실패");
+			assertThat(message.fields()).singleElement()
+				.satisfies(field -> assertThat(field.value()).contains("DB 끊김"));
+		});
 	}
 
 	@Test

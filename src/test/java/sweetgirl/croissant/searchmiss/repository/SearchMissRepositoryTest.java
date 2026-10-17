@@ -203,16 +203,35 @@ class SearchMissRepositoryTest {
 	@DisplayName("판정 근거(JSON)와 판정 결과가 저장되고 다시 읽힌다")
 	void recordTriage_persistsEvidence() {
 		SearchMiss miss = persistMiss("런베뮤", "런베뮤", SearchOutcome.EMPTY);
-		miss.recordTriage(SearchMissVerdict.ALIAS_RESOLVED, 7L, Map.of("reason", "별칭 추가 후 검색됨"),
+		miss.recordTriage(SearchMissVerdict.CORRECTED, 7L, Map.of("reason", "별칭 추가 후 검색됨"),
 			SECOND_OCCURRED);
 		entityManager.flush();
 		entityManager.clear();
 
 		SearchMiss found = searchMissRepository.findByNormalizedKeyword("런베뮤").orElseThrow();
 
-		assertThat(found.getAiVerdict()).isEqualTo(SearchMissVerdict.ALIAS_RESOLVED);
+		assertThat(found.getAiVerdict()).isEqualTo(SearchMissVerdict.CORRECTED);
 		assertThat(found.getMatchedStoreId()).isEqualTo(7L);
 		assertThat(found.getAiEvidence()).containsEntry("reason", "별칭 추가 후 검색됨");
 		assertThat(found.getCountAtTriage()).isEqualTo(1L);
+	}
+
+	@Test
+	@DisplayName("자동 적용으로 켠 판정인데 아직 PENDING 인 행(shadow 로 판정만 된 행)도 다시 꺼낸다")
+	void findTriageCandidatesIncluding_reappliesShadowVerdicts() {
+		SearchMiss shadowCorrected = persistMiss("콜버", "콜버", SearchOutcome.EMPTY);
+		shadowCorrected.recordTriage(SearchMissVerdict.CORRECTED, 427L, Map.of(), SECOND_OCCURRED);
+		SearchMiss shadowNewStore = persistMiss("새빵집", "새빵집", SearchOutcome.EMPTY);
+		shadowNewStore.recordTriage(SearchMissVerdict.NEW_STORE_CANDIDATE, null, Map.of(), SECOND_OCCURRED);
+		SearchMiss appliedCorrected = persistMiss("서심당", "서심당", SearchOutcome.EMPTY);
+		appliedCorrected.recordTriage(SearchMissVerdict.CORRECTED, 1L, Map.of(), SECOND_OCCURRED);
+		appliedCorrected.handle(SearchMissStatus.ALREADY_EXISTS, SECOND_OCCURRED);
+		entityManager.flush();
+
+		List<SearchMiss> candidates = searchMissRepository.findTriageCandidatesIncluding(
+			List.of(SearchMissVerdict.CORRECTED), PageRequest.of(0, 10));
+
+		// 이미 적용된 행(ALREADY_EXISTS)과 자동 적용 대상이 아닌 판정(신규 후보)은 다시 꺼내지 않는다
+		assertThat(candidates).extracting(SearchMiss::getNormalizedKeyword).containsExactly("콜버");
 	}
 }
