@@ -20,7 +20,9 @@ public record KeywordInterpretation(
 		STORE,
 		/** 메뉴·지역 */
 		NOT_A_STORE,
-		/** 근거가 없거나 검증 실패 */
+		/** 블로그 글이 하나도 없다 — 네이버 장소도 없고 한글도 없으면 랜덤 문자열로 본다 */
+		NO_POSTS,
+		/** 근거가 모자라거나 검증 실패 */
 		UNRESOLVED
 	}
 
@@ -30,6 +32,10 @@ public record KeywordInterpretation(
 
 	public static KeywordInterpretation notAStore(String reason) {
 		return new KeywordInterpretation(Kind.NOT_A_STORE, null, List.of(), reason);
+	}
+
+	public static KeywordInterpretation noPosts() {
+		return new KeywordInterpretation(Kind.NO_POSTS, null, List.of(), "블로그 글 없음");
 	}
 
 	public static KeywordInterpretation unresolved(String reason) {

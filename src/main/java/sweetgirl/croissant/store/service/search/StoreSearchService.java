@@ -62,6 +62,7 @@ public class StoreSearchService {
 	private final ApplicationEventPublisher eventPublisher;
 	private final TrendingRankingReader trendingRankingReader;
 	private final StoreTrendingProperties storeTrendingProperties;
+	private final SearchKeywordCorrector searchKeywordCorrector;
 
 	private final Map<SearchOutcome, Counter> searchCounters = new EnumMap<>(SearchOutcome.class);
 	private final Map<SearchOutcome, Counter> autocompleteCounters = new EnumMap<>(SearchOutcome.class);
@@ -102,8 +103,8 @@ public class StoreSearchService {
 				fallbackCounter(execution.fallbackStage()).increment();
 			}
 		}
-		logSearchTrace(keyword, execution.intent(), result, execution.outcome(), execution.fallbackStage(),
-			execution.keptToken(), pageable);
+		logSearchTrace(keyword, execution.correctedKeyword(), execution.intent(), result, execution.outcome(),
+			execution.fallbackStage(), execution.keptToken(), pageable);
 		if (result.hits().isEmpty()) {
 			return new SliceResponse<>(List.of(), false);
 		}
@@ -127,8 +128,13 @@ public class StoreSearchService {
 		return new StoreSearchProbe(execution.outcome(), storeIds, execution.result().hasNext());
 	}
 
-	private SearchExecution execute(String keyword, Double latitude, Double longitude, SearchSort sort,
+	/**
+	 * 검색어 교정("서심당" → "성심당")을 먼저 적용하고 돌린다. 실패 적재·지표는 부르는 쪽이 원문으로 남긴다 — 사람들이 실제로 친
+	 * 말을 봐야 교정이 맞았는지 알 수 있다.
+	 */
+	private SearchExecution execute(String originalKeyword, Double latitude, Double longitude, SearchSort sort,
 			Pageable pageable) {
+		String keyword = searchKeywordCorrector.correct(originalKeyword);
 		// 1차: 가게명 우선 — "브릭베이글"·"소금도화"처럼 붙여쓴 토큰은 통째로 가게명 검색
 		SearchIntent intent = storeSearchQueryParser.parse(keyword);
 		StoreSearchResult result = runSearch(intent, pageable, latitude, longitude, sort, keyword);
@@ -160,10 +166,12 @@ public class StoreSearchService {
 			}
 		}
 		SearchOutcome outcome = resolveSearchOutcome(result, intent, fallbackStage != SearchFallbackStage.NONE);
-		return new SearchExecution(intent, result, outcome, fallbackStage, keptToken);
+		return new SearchExecution(keyword, intent, result, outcome, fallbackStage, keptToken);
 	}
 
+	/** @param correctedKeyword 교정을 거친 실제 검색어. 교정이 없으면 원문과 같다 */
 	private record SearchExecution(
+			String correctedKeyword,
 			SearchIntent intent,
 			StoreSearchResult result,
 			SearchOutcome outcome,
@@ -202,7 +210,7 @@ public class StoreSearchService {
 	 * request_log 에는 응답시간만 남고 결과 내용이 없어, 품질 비교·회귀 확인은 이 줄로 한다.
 	 * key=value 로 grep·집계하기 쉽게 한 줄로 남긴다.
 	 */
-	private void logSearchTrace(String keyword, SearchIntent intent,
+	private void logSearchTrace(String keyword, String correctedKeyword, SearchIntent intent,
 			StoreSearchResult result, SearchOutcome outcome, SearchFallbackStage fallbackStage, String keptToken,
 			Pageable pageable) {
 		if (!log.isInfoEnabled()) {
@@ -214,9 +222,10 @@ public class StoreSearchService {
 				.map(name -> name.substring(0, 1)).reduce("", String::concat))
 			.reduce((left, right) -> left + "," + right)
 			.orElse("");
-		log.info("[검색추적] type={} q=\"{}\" regionTokens={} nameTokens={} hits={} hasNext={} outcome={} "
-			+ "fallback={} stage={} kept=\"{}\" page={} top={}",
-			classifyIntent(intent), keyword, intent.regionTokens(),
+		log.info("[검색추적] type={} q=\"{}\" corrected=\"{}\" regionTokens={} nameTokens={} hits={} hasNext={} "
+			+ "outcome={} fallback={} stage={} kept=\"{}\" page={} top={}",
+			classifyIntent(intent), keyword, correctedKeyword.equals(keyword) ? "" : correctedKeyword,
+			intent.regionTokens(),
 			nameTokens(intent), result.hits().size(), result.hasNext(), outcome.tagValue(),
 			fallbackStage != SearchFallbackStage.NONE, fallbackStage.tagValue(), keptToken, pageable.getPageNumber(),
 			topHits);
@@ -359,11 +368,13 @@ public class StoreSearchService {
 			: EnumSet.allOf(AutocompleteSuggestionType.class);
 
 		int normalizedSize = normalizeAutocompleteSize(size);
+		// 다 친 검색어가 교정 목록에 있으면 교정된 말로 후보를 뽑는다("서심당" → 성심당 후보). 캐시 키도 교정된 말이라 옛 빈 결과에 안 막힌다
+		String autocompleteQuery = searchKeywordCorrector.correctWhole(query);
 		// 타입을 거르면 남는 후보가 줄어드니, 걸러낼 때는 항상 최대치로 가져와 자른다.
 		int fetchSize = filtered ? MAX_AUTOCOMPLETE_SIZE : normalizedSize;
 		List<StoreAutocompleteSuggestion> suggestions;
 		try {
-			suggestions = storeSearchEngine.autocompleteStores(query, fetchSize);
+			suggestions = storeSearchEngine.autocompleteStores(autocompleteQuery, fetchSize);
 		} catch (QueryTimeoutException exception) {
 			// 추천어는 없어도 되는 기능이다 — 500 대신 빈 목록으로 조용히 물러난다. 예외는 엔진에서 던지므로 Redis 캐시가 빈 결과를 담지 않는다.
 			autocompleteCounter(SearchOutcome.TIMEOUT).increment();
@@ -385,7 +396,7 @@ public class StoreSearchService {
 		ordered.sort((left, right) -> Integer.compare(autocompletePriority(left.type()),
 			autocompletePriority(right.type())));
 		if (allowedTypes.contains(AutocompleteSuggestionType.STORE)) {
-			promoteTrendingOrSteady(SearchTextNormalizer.normalize(query), ordered);
+			promoteTrendingOrSteady(SearchTextNormalizer.normalize(autocompleteQuery), ordered);
 		}
 		List<StoreAutocompleteResponse> responses = ordered.stream()
 			.limit(normalizedSize)

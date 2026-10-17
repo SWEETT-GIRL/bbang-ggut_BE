@@ -1,6 +1,7 @@
 package sweetgirl.croissant.searchmiss.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -13,6 +14,7 @@ import org.springframework.data.repository.query.Param;
 
 import sweetgirl.croissant.searchmiss.entity.SearchMiss;
 import sweetgirl.croissant.searchmiss.enums.SearchMissStatus;
+import sweetgirl.croissant.searchmiss.enums.SearchMissVerdict;
 import sweetgirl.croissant.store.service.search.SearchOutcome;
 
 public interface SearchMissRepository extends JpaRepository<SearchMiss, Long> {
@@ -57,6 +59,23 @@ public interface SearchMissRepository extends JpaRepository<SearchMiss, Long> {
 			order by searchMiss.occurrenceCount desc, searchMiss.id asc
 			""")
 	List<SearchMiss> findTriageCandidates(Pageable pageable);
+
+	/**
+	 * 위 대상에 더해, 자동 적용으로 켠 판정인데 아직 PENDING 인 행도 꺼낸다 — shadow 로 판정만 되고 적용되지 않은 행이다.
+	 * 적용되면 처리 상태가 바뀌어 PENDING 에서 빠지므로 같은 행을 계속 집지 않는다.
+	 *
+	 * <p>빈 목록을 IN 에 넘기지 않도록 자동 적용이 꺼져 있으면 {@link #findTriageCandidates}를 쓴다.
+	 */
+	@Query("""
+			select searchMiss from SearchMiss searchMiss
+			where searchMiss.status = sweetgirl.croissant.searchmiss.enums.SearchMissStatus.PENDING
+				and (searchMiss.aiTriagedAt is null
+					or searchMiss.occurrenceCount >= searchMiss.countAtTriage * 2
+					or searchMiss.aiVerdict in :reapplyVerdicts)
+			order by searchMiss.occurrenceCount desc, searchMiss.id asc
+			""")
+	List<SearchMiss> findTriageCandidatesIncluding(
+			@Param("reapplyVerdicts") Collection<SearchMissVerdict> reapplyVerdicts, Pageable pageable);
 
 	Page<SearchMiss> findByStatus(SearchMissStatus status, Pageable pageable);
 

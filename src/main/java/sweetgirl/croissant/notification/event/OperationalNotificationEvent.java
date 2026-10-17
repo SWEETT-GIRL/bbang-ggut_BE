@@ -23,9 +23,7 @@ public record OperationalNotificationEvent(
 	public enum Channel {
 		REPORT,
 		ABUSE,
-		LETTER,
-		/** 실패 검색어 자동 판정 일일 리포트 */
-		SEARCH_MISS
+		LETTER
 	}
 
 	public record Field(String name, String value, boolean inline) {

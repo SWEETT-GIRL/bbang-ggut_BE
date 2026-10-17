@@ -31,8 +31,10 @@ import sweetgirl.croissant.searchmiss.event.SearchMissEvent;
 import sweetgirl.croissant.store.code.StoreSearchErrorCode;
 import sweetgirl.croissant.store.config.StoreTrendingProperties;
 import sweetgirl.croissant.store.dto.response.StoreAutocompleteResponse;
+import sweetgirl.croissant.store.entity.SearchKeywordCorrection;
 import sweetgirl.croissant.store.enums.AutocompleteSuggestionType;
 import sweetgirl.croissant.store.exception.StoreSearchException;
+import sweetgirl.croissant.store.repository.SearchKeywordCorrectionRepository;
 import sweetgirl.croissant.store.service.trending.TrendingRankingReader;
 import sweetgirl.croissant.store.service.trending.TrendingStore;
 
@@ -54,6 +56,10 @@ class StoreSearchServiceTest {
 	@Mock
 	private TrendingRankingReader trendingRankingReader;
 
+	// 교정 목록은 저장소 목으로 준다 — 기본은 빈 목록이라 교정 없이 원래대로 돈다
+	@Mock
+	private SearchKeywordCorrectionRepository correctionRepository;
+
 	private final StoreTrendingProperties trendingProperties = new StoreTrendingProperties();
 
 	private SimpleMeterRegistry meterRegistry;
@@ -64,7 +70,8 @@ class StoreSearchServiceTest {
 		meterRegistry = new SimpleMeterRegistry();
 		// 판정 규칙은 순수 로직이라 목킹하지 않고 실제 구현을 쓴다.
 		service = new StoreSearchService(storeSearchQueryParser, searchEngine, storeSearchAssembler,
-			meterRegistry, eventPublisher, trendingRankingReader, trendingProperties);
+			meterRegistry, eventPublisher, trendingRankingReader, trendingProperties,
+			new SearchKeywordCorrector(correctionRepository));
 		// 운영에서는 @PostConstruct로 실행되는 시계열 사전 등록을 동일하게 태운다.
 		service.registerSearchOutcomeCounters();
 	}
@@ -554,6 +561,39 @@ class StoreSearchServiceTest {
 		assertThat(probe.storeIds()).containsExactly(1L);
 		assertThat(probe.hasMore()).isTrue();
 		verify(storeSearchAssembler, never()).assemble(any());
+	}
+
+	@Test
+	@DisplayName("교정 — 교정 목록에 있는 검색어는 바꿔서 검색하고, 실패 적재는 사람이 친 원문으로 남긴다")
+	void searchStores_appliesCorrectionAndRecordsOriginal() {
+		given(correctionRepository.findAll()).willReturn(
+			List.of(SearchKeywordCorrection.fromSearchMiss("서심당", "서심당", "성심당", 1L)));
+		SearchIntent intent = new SearchIntent("성심당", "성심당", List.of("성심당"), List.of(), List.of(),
+			List.of("성심당"));
+		PageRequest pageable = PageRequest.of(0, 15);
+		given(storeSearchQueryParser.parse("성심당")).willReturn(intent);
+		given(storeSearchQueryParser.parseWithGluedTokenFallback("성심당")).willReturn(intent);
+		given(searchEngine.searchStores(intent, pageable, null, null, SearchSort.RELEVANCE))
+			.willReturn(StoreSearchResult.empty());
+
+		service.searchStores("서심당", null, null, SearchSort.RELEVANCE, pageable);
+
+		verify(storeSearchQueryParser).parse("성심당");
+		ArgumentCaptor<SearchMissEvent> captor = ArgumentCaptor.forClass(SearchMissEvent.class);
+		verify(eventPublisher).publishEvent(captor.capture());
+		assertThat(captor.getValue().keyword()).isEqualTo("서심당");
+	}
+
+	@Test
+	@DisplayName("교정 — 자동완성은 다 친 검색어가 교정 목록과 같을 때만 바꾼다")
+	void autocompleteStores_appliesWholeCorrection() {
+		given(correctionRepository.findAll()).willReturn(
+			List.of(SearchKeywordCorrection.fromSearchMiss("뚜쥬르", "뚜쥬르", "뚜쥬루", 1L)));
+		given(searchEngine.autocompleteStores(eq("뚜쥬루"), anyInt())).willReturn(List.of());
+
+		service.autocompleteStores("뚜쥬르", 10);
+
+		verify(searchEngine).autocompleteStores(eq("뚜쥬루"), anyInt());
 	}
 
 	@Test

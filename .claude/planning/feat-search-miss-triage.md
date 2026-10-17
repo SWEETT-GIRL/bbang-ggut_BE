@@ -18,7 +18,7 @@
 - **shadow mode 기본** — `auto-apply=false`면 판정·근거만 기록하고 alias·status는 건드리지 않는다.
 
 ### 파이프라인 (행 하나)
-0. 꺼내기: **매일 06:00 KST 한 번**(`search-miss.triage.cron`), `status=PENDING AND (ai_triaged_at IS NULL OR occurrence_count >= count_at_triage*2)` 발생 횟수 순 200건
+0. 꺼내기: **매일 06:00 KST 한 번**(`search-miss.triage.cron`), `status=PENDING AND (ai_triaged_at IS NULL OR occurrence_count >= count_at_triage*2)` 발생 횟수 순 2,000건(10/18 상향 — 200건이 2분 51초라 2,000건은 30분 안팎, 미판정 약 2,900건을 이틀에 소진)
    - 실시간일 필요가 없고, 새벽에 돌리면 probe 부하가 한산한 시간에 가며 아침에 결과를 한 번에 본다. 04:00 은 interaction 적재 배치
    - 한도 초과 시 그 회차만 멈추고 남은 행은 다음 날
 1. 쓰레기 필터 → JUNK (IGNORED)
