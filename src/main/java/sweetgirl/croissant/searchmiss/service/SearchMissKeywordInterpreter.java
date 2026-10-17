@@ -23,7 +23,7 @@ import sweetgirl.croissant.searchmiss.config.SearchMissTriageProperties;
  *
  * <p>"런베뮤"는 네이버 지역검색에 장소가 안 나오고, 블로그 글을 읽어야 무엇인지 보인다. 비정형 글에서 관계를 뽑는 일이라 규칙으로는
  * 못 한다. 대신 LLM 답을 그대로 믿지 않는다 — 정식 이름이 근거로 든 글에 <b>글자 그대로</b> 있는지, 검색어와 이름이 줄임말·포함·오타
- * 관계인지를 코드로 확인한다. 지어낸 이름은 여기서 걸러진다.
+ * 관계이거나 <b>같은 글에 함께 나오는지</b>를 코드로 확인한다. 지어낸 이름은 여기서 걸러진다.
  */
 @Component
 public class SearchMissKeywordInterpreter {
@@ -58,7 +58,7 @@ public class SearchMissKeywordInterpreter {
 	public KeywordInterpretation interpret(String keyword) {
 		List<NaverBlogPost> posts = naverBlogSearchClient.search(keyword, properties.getBlogDisplay());
 		if (posts.isEmpty()) {
-			return KeywordInterpretation.unresolved("블로그 글 없음");
+			return KeywordInterpretation.noPosts();
 		}
 		LlmRequest request = new LlmRequest(model.provider(), model.model(), buildPrompt(keyword, posts),
 			RESPONSE_SCHEMA, TEMPERATURE, properties.getMaxOutputTokens());
@@ -100,8 +100,14 @@ public class SearchMissKeywordInterpreter {
 			return KeywordInterpretation.unresolved(
 				"근거 부족: '" + officialName + "'이(가) 들어 있는 근거 글 " + supporting.size() + "개");
 		}
-		if (!SearchMissTextMatcher.isRelated(keyword, officialName)) {
-			return KeywordInterpretation.unresolved("검색어와 '" + officialName + "'의 관계 확인 실패");
+		// 별명 인정: 글자 관계(줄임말·포함·오타)가 아니어도, 검색어와 이름이 같은 글에 함께 나오는 글이 충분하면 같은 대상으로 본다.
+		// "떰즈비" ↔ "카페떰비", "brick bagel" ↔ "브릭베이글" — 사람들이 글에 둘을 나란히 적어 둔 것이 근거다(운영 1회차 22건).
+		long coOccurring = supporting.stream()
+			.filter(post -> SearchMissTextMatcher.appearsIn(keyword, post.text()))
+			.count();
+		if (!SearchMissTextMatcher.isRelated(keyword, officialName) && coOccurring < properties.getMinEvidencePosts()) {
+			return KeywordInterpretation.unresolved("검색어와 '" + officialName + "'의 관계 확인 실패(함께 나온 글 "
+				+ coOccurring + "개)");
 		}
 		return KeywordInterpretation.store(officialName, supporting.stream().map(NaverBlogPost::link).toList());
 	}

@@ -106,11 +106,11 @@ class SearchMissKeywordInterpreterTest {
 	}
 
 	@Test
-	@DisplayName("근거는 충분해도 검색어와 이름이 줄임말·포함·오타 관계가 아니면 확정하지 않는다")
+	@DisplayName("글자 관계가 없고 검색어와 함께 나온 글도 모자라면 확정하지 않는다")
 	void interpret_rejectsUnrelatedName() {
 		List<NaverBlogPost> posts = List.of(
-			new NaverBlogPost("빵지순례", "어니언 들렀다", "link1"),
-			new NaverBlogPost("빵지순례 2", "어니언 또 감", "link2"));
+			new NaverBlogPost("주말 빵투어", "어니언 들렀다", "link1"),
+			new NaverBlogPost("빵지순례 후기", "어니언 또 감", "link2"));
 		given(naverBlogSearchClient.search(eq("빵지순례"), any(Integer.class))).willReturn(posts);
 		given(llmClientRegistry.generateStructured(any(LlmRequest.class), eq(InterpretAnswer.class)))
 			.willReturn(new LlmResult<>(new InterpretAnswer("STORE", "어니언", List.of(1, 2)), LlmProvider.GEMINI,
@@ -119,7 +119,24 @@ class SearchMissKeywordInterpreterTest {
 		KeywordInterpretation result = interpreter.interpret("빵지순례");
 
 		assertThat(result.kind()).isEqualTo(KeywordInterpretation.Kind.UNRESOLVED);
-		assertThat(result.reason()).contains("관계 확인 실패");
+		assertThat(result.reason()).contains("관계 확인 실패").contains("함께 나온 글 1개");
+	}
+
+	@Test
+	@DisplayName("별명 인정 — 글자 관계가 없어도 검색어와 이름이 같은 글에 둘 이상 함께 나오면 확정한다(떰즈비 ↔ 카페떰비)")
+	void interpret_acceptsNicknameByCoOccurrence() {
+		List<NaverBlogPost> posts = List.of(
+			new NaverBlogPost("떰즈비 다녀옴", "카페떰비 크로플 맛집", "link1"),
+			new NaverBlogPost("청주 카페", "떰즈비라고 부르는 카페떰비", "link2"));
+		given(naverBlogSearchClient.search(eq("떰즈비"), any(Integer.class))).willReturn(posts);
+		given(llmClientRegistry.generateStructured(any(LlmRequest.class), eq(InterpretAnswer.class)))
+			.willReturn(new LlmResult<>(new InterpretAnswer("STORE", "카페떰비", List.of(1, 2)), LlmProvider.GEMINI,
+				"model", 0, 0, 0, 0, ""));
+
+		KeywordInterpretation result = interpreter.interpret("떰즈비");
+
+		assertThat(result.kind()).isEqualTo(KeywordInterpretation.Kind.STORE);
+		assertThat(result.officialName()).isEqualTo("카페떰비");
 	}
 
 	@Test
@@ -131,13 +148,13 @@ class SearchMissKeywordInterpreterTest {
 	}
 
 	@Test
-	@DisplayName("블로그 글이 없으면 LLM 을 부르지 않는다")
+	@DisplayName("블로그 글이 없으면 LLM 을 부르지 않고 '글 없음'으로 돌려준다")
 	void interpret_noPosts() {
 		given(naverBlogSearchClient.search(eq("없는말"), any(Integer.class))).willReturn(List.of());
 
 		KeywordInterpretation result = interpreter.interpret("없는말");
 
-		assertThat(result.kind()).isEqualTo(KeywordInterpretation.Kind.UNRESOLVED);
+		assertThat(result.kind()).isEqualTo(KeywordInterpretation.Kind.NO_POSTS);
 		verify(llmClientRegistry, never()).generateStructured(any(), any());
 	}
 
