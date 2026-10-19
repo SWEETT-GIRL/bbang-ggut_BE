@@ -166,15 +166,15 @@ class NicknameDrawServiceTest {
 	}
 
 	@Test
-	void getStatus_returnsPendingAndTomorrowMidnight_whenDrawnToday() {
+	void getStatus_returnsPendingAndCanDrawWithAd_whenFreeDrawnToday() {
 		member.drawNickname("바삭한 츄러스", LocalDateTime.now(ZONE));
 
 		NicknameDrawStatusResponse status = nicknameDrawService.getStatus(1L);
 
 		assertThat(status.canDraw()).isFalse();
-		assertThat(status.canDrawWithAd()).isFalse();
+		assertThat(status.canDrawWithAd()).isTrue();
 		assertThat(status.pendingNickname()).isEqualTo("바삭한 츄러스");
-		assertThat(status.nextDrawAt()).isEqualTo(LocalDate.now(ZONE).plusDays(1).atStartOfDay());
+		assertThat(status.nextDrawAt()).isNull();
 		assertThat(status.nextFreeDrawAt()).isEqualTo(thisMonday().plusWeeks(1).atStartOfDay());
 	}
 
@@ -192,13 +192,13 @@ class NicknameDrawServiceTest {
 	}
 
 	@Test
-	void drawWithAd_drawsOnlyAfterFreeUsedAndNotToday() {
+	void drawWithAd_draws_whenFreeUsedEarlierThisWeek() {
 		assumeFalse(LocalDate.now(ZONE).getDayOfWeek() == DayOfWeek.MONDAY, "월요일엔 '이번 주 어제'가 없다");
 		ReflectionTestUtils.setField(member, "nicknameDrawnAt", thisMonday().atStartOfDay());
 		given(memberRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(member));
 		given(nicknameGenerator.generate()).willReturn("바삭한 츄러스");
 		given(memberRepository.drawNicknameWithAdIfAllowed(eq(1L), eq("바삭한 츄러스"), any(),
-			eq(thisMonday().atStartOfDay()), eq(LocalDate.now(ZONE).atStartOfDay()))).willReturn(1);
+			eq(thisMonday().atStartOfDay()))).willReturn(1);
 
 		assertThat(nicknameDrawService.drawWithAd(1L)).isTrue();
 	}
@@ -213,12 +213,14 @@ class NicknameDrawServiceTest {
 	}
 
 	@Test
-	void drawWithAd_refuses_whenAlreadyDrawnToday() {
+	void drawWithAd_draws_rightAfterFreeDrawOnSameDay() {
 		member.drawNickname("바삭한 츄러스", LocalDateTime.now(ZONE));
 		given(memberRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(member));
+		given(nicknameGenerator.generate()).willReturn("쫀득한 베이글");
+		given(memberRepository.drawNicknameWithAdIfAllowed(eq(1L), eq("쫀득한 베이글"), any(),
+			eq(thisMonday().atStartOfDay()))).willReturn(1);
 
-		assertThat(nicknameDrawService.drawWithAd(1L)).isFalse();
-		then(nicknameGenerator).shouldHaveNoInteractions();
+		assertThat(nicknameDrawService.drawWithAd(1L)).isTrue();
 	}
 
 	private static LocalDate thisMonday() {

@@ -47,22 +47,21 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 	boolean existsByNicknameAndDeletedAtIsNull(String nickname);
 
 	/**
-	 * 광고 보상으로 닉네임 후보를 하나 뽑아 둔다. 이번 주 무료를 이미 썼고 오늘은 아직 안 뽑았을 때만 1 이다.
+	 * 광고 보상으로 닉네임 후보를 하나 뽑아 둔다. 이번 주 무료를 이미 썼을 때만 1 이다.
 	 *
-	 * <p>구글이 같은 콜백을 나란히 재시도해도 조건을 DB 가 보므로 하루 한 번을 넘지 않는다.
+	 * <p>광고 뽑기는 횟수 제한이 없다(10/19). 같은 광고의 재시도는 콜백이 {@code transaction_id} 로 먼저 거른다.
 	 */
 	@Modifying(clearAutomatically = true)
 	@Query("""
 			UPDATE Member m SET m.pendingNickname = :candidate, m.nicknameDrawnAt = :now
 			WHERE m.id = :memberId AND m.deletedAt IS NULL
-				AND m.nicknameDrawnAt >= :weekStart AND m.nicknameDrawnAt < :todayStart
+				AND m.nicknameDrawnAt >= :weekStart
 			""")
 	int drawNicknameWithAdIfAllowed(
 			@Param("memberId") Long memberId,
 			@Param("candidate") String candidate,
 			@Param("now") LocalDateTime now,
-			@Param("weekStart") LocalDateTime weekStart,
-			@Param("todayStart") LocalDateTime todayStart);
+			@Param("weekStart") LocalDateTime weekStart);
 
 	/**
 	 * 어드민이 편지 받을 사람을 고를 때 쓰는 검색. 닉네임 부분일치이고, 검색어가 비면 최근 가입순이다.

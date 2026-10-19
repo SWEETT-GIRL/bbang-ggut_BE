@@ -20,12 +20,12 @@ import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.util.NicknameGenerator;
 
 /**
- * 닉네임 뽑기 — 사용자가 고르지 않고 서버가 랜덤으로 하나 뽑아 준다. 한국 날짜로 하루 한 번이고,
- * 뽑은 후보는 수락해야 닉네임이 된다. "원래대로"를 눌러도 그날 기회는 쓴 것이다.
+ * 닉네임 뽑기 — 사용자가 고르지 않고 서버가 랜덤으로 하나 뽑아 준다. 뽑은 후보는 수락해야 닉네임이 된다.
+ * "원래대로"를 눌러도 그 뽑기는 쓴 것이다.
  *
- * <p>주(월요일 0시 ~ 일요일 24시, Asia/Seoul)의 첫 뽑기는 무료로 앱이 직접 부른다. 그 주에 더 뽑으려면
- * 광고를 봐야 하고, 그 뽑기는 광고 보상 콜백(SSV)이 {@link #drawWithAd} 로 서버에서 한다 — 앱이 "광고 봤어요"라고
- * 말하는 것을 믿으면 그 요청만 흉내 내도 광고 없이 뽑힌다.
+ * <p>주(월요일 0시 ~ 일요일 24시, Asia/Seoul)의 첫 뽑기는 무료로 앱이 직접 부른다. 그 뒤로는 광고를 볼 때마다
+ * 바로 또 뽑는다 — 무료를 뽑은 그날에도, 횟수 제한 없이(10/19, 전엔 하루 한 번이었다).
+ * 광고 뽑기는 광고 보상 콜백(SSV)이 {@link #drawWithAd} 로 서버에서 한다 — 앱이 "광고 봤어요"라고 말하는 것을 믿으면 그 요청만 흉내 내도 광고 없이 뽑힌다.
  */
 @Service
 @Transactional
@@ -45,12 +45,12 @@ public class NicknameDrawService {
 		LocalDate weekStart = weekStart(today);
 		boolean freeUsed = member.usedFreeNicknameDraw(weekStart);
 		boolean canDraw = !freeUsed;
-		boolean canDrawWithAd = freeUsed && member.canDrawNickname(today);
+		// 무료를 썼으면 광고로는 언제든 뽑는다. 그래서 무료로든 광고로든 늘 뽑을 수 있고 nextDrawAt 은 늘 null 이다
 		return new NicknameDrawStatusResponse(
 			canDraw,
-			canDrawWithAd,
+			freeUsed,
 			member.getPendingNickname(),
-			canDraw || canDrawWithAd ? null : today.plusDays(1).atStartOfDay(),
+			null,
 			freeUsed ? weekStart.plusWeeks(1).atStartOfDay() : null);
 	}
 
@@ -69,7 +69,8 @@ public class NicknameDrawService {
 	}
 
 	/**
-	 * 광고 보상 콜백(SSV)에서만 부른다. 이번 주 무료를 이미 썼고 오늘은 아직 안 뽑았을 때만 후보를 뽑아 둔다.
+	 * 광고 보상 콜백(SSV)에서만 부른다. 이번 주 무료를 이미 썼으면 광고 하나에 후보를 하나 뽑아 둔다(남은 후보는 덮는다).
+	 * 같은 광고가 두 번 오는 건 콜백이 {@code transaction_id} 로 먼저 거른다.
 	 * 앱은 광고가 끝나면 상태를 다시 물어 {@code pendingNickname} 이 생겼는지 본다.
 	 *
 	 * <p>던지지 않는다 — 콜백 트랜잭션을 롤백 전용으로 만들지 않도록, 못 뽑으면 false 만 준다.
@@ -78,17 +79,16 @@ public class NicknameDrawService {
 	 */
 	public boolean drawWithAd(Long memberId) {
 		LocalDateTime now = LocalDateTime.now(ZONE);
-		LocalDate today = now.toLocalDate();
-		LocalDate weekStart = weekStart(today);
+		LocalDate weekStart = weekStart(now.toLocalDate());
 		boolean allowed = memberRepository.findByIdAndDeletedAtIsNull(memberId)
-			.map(member -> member.usedFreeNicknameDraw(weekStart) && member.canDrawNickname(today))
+			.map(member -> member.usedFreeNicknameDraw(weekStart))
 			.orElse(false);
 		if (!allowed) {
 			return false;
 		}
 		String candidate = nicknameGenerator.generate();
 		return memberRepository.drawNicknameWithAdIfAllowed(
-			memberId, candidate, now, weekStart.atStartOfDay(), today.atStartOfDay()) == 1;
+			memberId, candidate, now, weekStart.atStartOfDay()) == 1;
 	}
 
 	public MemberProfileResponse accept(Long memberId) {
