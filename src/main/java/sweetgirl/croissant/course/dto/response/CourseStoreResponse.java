@@ -30,7 +30,12 @@ public record CourseStoreResponse(
 		/** 참여 순서(course_members.joined_at)로 정렬. 내 메모도 들어 있다. 메모 없는 일행은 안 나온다. */
 		List<CourseStoreMemoResponse> memos,
 		/** 가게 분류(BAKERY·BAGEL …). 외부 카테고리를 아직 못 받은 가게는 null */
-		StoreCategory category) {
+		StoreCategory category,
+		/**
+		 * 지금 "다녀왔어요"를 누르면 다녀옴 보상을 받는가 — 빵투어 날짜·같은 가게 하루 한 번·하루 상한·(빵투어, 가게) 한 번·제재를
+		 * 지급과 같은 판정으로 본다. 이미 다녀온 가게 · 비로그인 · 게스트 · 상세가 아닌 응답(가게 추가 등)은 false
+		 */
+		boolean visitRewardable) {
 
 	/** 큐레이션(어드민) 자리 — 메모는 course_stores.memo 한 칸 그대로, 사람별 메모는 없다. */
 	public static CourseStoreResponse from(CourseStore courseStore) {
@@ -49,6 +54,17 @@ public record CourseStoreResponse(
 			String memo,
 			String myMemo,
 			List<CourseStoreMemoResponse> memos) {
+		return of(courseStore, visit, memo, myMemo, memos, false);
+	}
+
+	/** 상세 — 다녀옴 보상 약속까지 담는다. */
+	public static CourseStoreResponse of(
+			CourseStore courseStore,
+			CourseStoreVisit visit,
+			String memo,
+			String myMemo,
+			List<CourseStoreMemoResponse> memos,
+			boolean visitRewardable) {
 		Store store = courseStore.getStore();
 		Point location = store.getLocation();
 		return new CourseStoreResponse(
@@ -66,6 +82,7 @@ public record CourseStoreResponse(
 			visit != null && visit.getBreadRecord() != null ? visit.getBreadRecord().getId() : null,
 			myMemo,
 			memos,
-			store.getCategory());
+			store.getCategory(),
+			visitRewardable);
 	}
 }

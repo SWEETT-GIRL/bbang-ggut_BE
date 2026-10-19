@@ -3,6 +3,7 @@ package sweetgirl.croissant.reward.service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -136,6 +137,15 @@ public class CrumbGrantService {
 	}
 
 	/**
+	 * 지금 상한 있는 적립을 하면 제재·하루 상한에 막히지 않는가 — {@link #grantWithDailyCap} 과 같은 판정이다.
+	 * 멱등 키(이미 받은 것)는 부르는 쪽이 본다. 지갑을 잠그지 않으므로 화면에 약속을 보여 줄 때만 쓴다.
+	 */
+	@Transactional(readOnly = true)
+	public boolean canGrantWithDailyCap(long memberId, CrumbReason reason, int dailyCap, LocalDate earnedOn) {
+		return blockingOutcome(memberId, reason, dailyCap, earnedOn).isEmpty();
+	}
+
+	/**
 	 * 이 회원의 리워드 변동을 한 줄로 세운다(지갑 행 잠금). 적립이 아닌 일도 같은 줄에 세워야 할 때 부른다 —
 	 * 한 주에 한 통인 편지를 만드는 일처럼, 나란히 들어온 요청이 같은 것을 두 번 만들면 안 되는 경우다.
 	 */
@@ -153,14 +163,23 @@ public class CrumbGrantService {
 		requirePositive(grant.amount());
 		LocalDateTime now = LocalDateTime.now();
 		int balance = lockWallet(grant.memberId(), now);
-		if (memberRestrictionReader.isWriteRestricted(grant.memberId())) {
-			return GrantResult.notGranted(Outcome.RESTRICTED, balance);
-		}
-		if (grant.dailyCap() != null && ledgerRepository.countByMemberIdAndReasonAndEarnedOn(
-			grant.memberId(), grant.reason(), earnedOn) >= grant.dailyCap()) {
-			return GrantResult.notGranted(Outcome.CAPPED, balance);
+		Optional<Outcome> blocked = blockingOutcome(grant.memberId(), grant.reason(), grant.dailyCap(), earnedOn);
+		if (blocked.isPresent()) {
+			return GrantResult.notGranted(blocked.get(), balance);
 		}
 		return write(grant, balance, earnedOn, now);
+	}
+
+	/** 제재 중이면 RESTRICTED, 그날 상한에 닿았으면 CAPPED. 줄 수 있으면 비어 있다. 상한이 없으면 {@code dailyCap} 이 null 이다. */
+	private Optional<Outcome> blockingOutcome(long memberId, CrumbReason reason, Integer dailyCap, LocalDate earnedOn) {
+		if (memberRestrictionReader.isWriteRestricted(memberId)) {
+			return Optional.of(Outcome.RESTRICTED);
+		}
+		if (dailyCap != null && ledgerRepository.countByMemberIdAndReasonAndEarnedOn(
+			memberId, reason, earnedOn) >= dailyCap) {
+			return Optional.of(Outcome.CAPPED);
+		}
+		return Optional.empty();
 	}
 
 	private GrantResult write(CrumbGrant grant, int balance, LocalDate earnedOn, LocalDateTime now) {
