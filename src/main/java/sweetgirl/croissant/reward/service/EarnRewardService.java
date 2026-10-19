@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.SaveStoreReward;
 import sweetgirl.croissant.reward.enums.CrumbReason;
 import sweetgirl.croissant.reward.enums.RewardRefType;
 import sweetgirl.croissant.reward.enums.RewardSettingKey;
@@ -54,6 +55,14 @@ public class EarnRewardService {
 	public int adsLeftToday(Long memberId) {
 		long watched = crumbGrantService.countToday(memberId, CrumbReason.AD);
 		return (int)Math.max(0, rewardSettings.get(RewardSettingKey.AD_DAILY_CAP) - watched);
+	}
+
+	/** 오늘 빵집 담기로 받은 횟수와 더 받을 수 있는 횟수. 상한은 {@link #rewardStoreSaved} 와 같은 설정값이다. */
+	@Transactional(readOnly = true)
+	public SaveStoreReward saveStoreRewardOf(Long memberId) {
+		int rewarded = (int)crumbGrantService.countToday(memberId, CrumbReason.SAVE_STORE);
+		return new SaveStoreReward(rewarded,
+			Math.max(0, rewardSettings.get(RewardSettingKey.SAVE_STORE_DAILY_CAP) - rewarded));
 	}
 
 	/** 부스러기를 받을 수 있는 회원인가 — 탈퇴하지 않은, 게스트가 아닌 회원. */

@@ -24,12 +24,15 @@ public record RewardSummaryResponse(
 		RankingReward rankingReward,
 		/** 홈의 할 일 카드. 지금 할 만한 것이 없거나 게스트면 null */
 		HomeCardResponse homeCard,
-		RecordReward record) {
+		RecordReward record,
+		TourComplete tourComplete,
+		SaveStoreReward saveStore) {
 
 	/** 게스트는 보상이 없다. 홈이 매번 부르는 조회라 403 대신 빈 요약으로 답한다. */
 	public static RewardSummaryResponse guest(RewardRulesResponse rules, Attendance attendance, Feed feed) {
 		return new RewardSummaryResponse(0, 0, rules, null, new Welcome(false), List.of(), attendance, feed,
-			new Letter(0, null), new Ad(0), null, null, new RecordReward(0, 0));
+			new Letter(0, null), new Ad(0), null, null, new RecordReward(0, 0), new TourComplete(false),
+			new SaveStoreReward(0, 0));
 	}
 
 	/**
@@ -85,6 +88,23 @@ public record RewardSummaryResponse(
 	 * @param leftToday     오늘 기록 보상을 더 받을 수 있는 횟수. 0 이면 기록해도 레벨 칸만 오른다
 	 */
 	public record RecordReward(int rewardedToday, int leftToday) {
+	}
+
+	/**
+	 * 빵투어 완주 보상. 한 주(월~일, 한국 날짜)에 빵투어 하나만 받는다.
+	 *
+	 * @param rewardedThisWeek 이번 주에 이미 받았는가. true 면 이번 주에 또 완주해도 보상이 없다
+	 */
+	public record TourComplete(boolean rewardedThisWeek) {
+	}
+
+	/**
+	 * 오늘의 가고 싶은 빵집 담기 보상. 같은 가게는 평생 한 번이라 남은 횟수가 있어도 전에 담았던 가게는 받지 못한다.
+	 *
+	 * @param rewardedToday 오늘 담기 보상을 받은 횟수
+	 * @param leftToday     오늘 담기 보상을 더 받을 수 있는 횟수. 0 이면 담아도 부스러기가 없다
+	 */
+	public record SaveStoreReward(int rewardedToday, int leftToday) {
 	}
 
 	/** @param leftToday 오늘 광고로 더 받을 수 있는 횟수 */

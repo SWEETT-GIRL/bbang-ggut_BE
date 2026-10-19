@@ -19,6 +19,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -38,6 +40,8 @@ import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Feed;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Letter;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.RankingReward;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.RecordReward;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.SaveStoreReward;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.TourComplete;
 import sweetgirl.croissant.reward.entity.CrumbLedgerEntry;
 import sweetgirl.croissant.reward.entity.MemberAttendanceDay;
 import sweetgirl.croissant.reward.entity.MemberFeedDay;
@@ -79,6 +83,8 @@ class RewardQueryServiceTest {
 
 	@Mock
 	private RecordRewardService recordRewardService;
+	@Mock
+	private TourRewardService tourRewardService;
 
 	@InjectMocks
 	private RewardQueryService rewardQueryService;
@@ -186,6 +192,19 @@ class RewardQueryServiceTest {
 			given(recordRewardService.rewardedToday(MEMBER_ID)).willReturn(2);
 
 			assertThat(rewardQueryService.getSummary(MEMBER_ID, null).record()).isEqualTo(new RecordReward(2, 0));
+		}
+
+		@ParameterizedTest(name = "이번 주 완주 보상 {0}")
+		@CsvSource({"true", "false"})
+		@DisplayName("이번 주 완주 보상을 받았는지와 오늘 담기 보상 횟수를 싣는다")
+		void tourCompleteAndSaveStore(boolean rewardedThisWeek) {
+			given(tourRewardService.completeRewardedThisWeek(eq(MEMBER_ID), any())).willReturn(rewardedThisWeek);
+			given(earnRewardService.saveStoreRewardOf(MEMBER_ID)).willReturn(new SaveStoreReward(1, 2));
+
+			RewardSummaryResponse summary = rewardQueryService.getSummary(MEMBER_ID, null);
+
+			assertThat(summary.tourComplete()).isEqualTo(new TourComplete(rewardedThisWeek));
+			assertThat(summary.saveStore()).isEqualTo(new SaveStoreReward(1, 2));
 		}
 
 		@Test
@@ -326,6 +345,8 @@ class RewardQueryServiceTest {
 
 			assertThat(summary.attendance()).isEqualTo(new Attendance(false, 0, 1, 5, 5));
 			assertThat(summary.feed()).isEqualTo(new Feed(false, List.of(10, 5, 3, 5, 10, 50), 0, false));
+			assertThat(summary.tourComplete()).isEqualTo(new TourComplete(false));
+			assertThat(summary.saveStore()).isEqualTo(new SaveStoreReward(0, 0));
 			then(attendanceDayRepository).shouldHaveNoInteractions();
 		}
 	}
