@@ -25,7 +25,7 @@ public class NicknameDrawController {
 
 	@Operation(summary = "닉네임 뽑기 상태", description = "무료로 뽑을 수 있는지(canDraw), 광고를 보면 뽑을 수 있는지"
 		+ "(canDrawWithAd), 아직 처리 안 한 후보가 있는지 반환합니다. 주(월~일, 한국 시간) 첫 뽑기만 무료이고, "
-		+ "그 뒤로는 광고를 보면 하루 한 번 뽑습니다. 광고 뽑기는 custom_data \"nickname:{memberId}\" 로 광고를 띄우면 "
+		+ "그 뒤로는 광고를 볼 때마다 횟수 제한 없이 뽑습니다. 광고 뽑기는 custom_data \"nickname:{memberId}\" 로 광고를 띄우면 "
 		+ "보상 콜백이 서버에서 뽑아 두므로, 광고가 끝나면 이 API 로 pendingNickname 이 생겼는지 확인하세요.")
 	@GetMapping
 	public ApiResponse<NicknameDrawStatusResponse> getStatus(@AuthenticationPrincipal Long memberId) {
@@ -47,7 +47,7 @@ public class NicknameDrawController {
 		return ApiResponse.ok(nicknameDrawService.accept(memberId));
 	}
 
-	@Operation(summary = "원래대로", description = "뽑은 후보를 버리고 기존 닉네임을 유지합니다. 오늘 뽑기 기회는 돌아오지 않습니다.")
+	@Operation(summary = "원래대로", description = "뽑은 후보를 버리고 기존 닉네임을 유지합니다. 쓴 뽑기 기회는 돌아오지 않습니다.")
 	@PostMapping("/discard")
 	public ApiResponse<MemberProfileResponse> discard(@AuthenticationPrincipal Long memberId) {
 		return ApiResponse.ok(nicknameDrawService.discard(memberId));
