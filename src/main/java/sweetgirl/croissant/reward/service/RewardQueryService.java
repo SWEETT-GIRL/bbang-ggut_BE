@@ -89,7 +89,7 @@ public class RewardQueryService {
 			rankingRewardService.latestPending(memberId)
 				.map(reward -> new RankingReward(reward.id(), reward.rank(), reward.crumbs(), reward.crown()))
 				.orElse(null),
-			homeCardService.cardFor(memberId, letter, feed.doneToday(), today).orElse(null),
+			homeCardService.cardFor(memberId, letter, today).orElse(null),
 			recordOf(memberId),
 			new TourComplete(tourRewardService.completeRewardedThisWeek(memberId, today)),
 			earnRewardService.saveStoreRewardOf(memberId));

@@ -226,12 +226,10 @@ class RewardQueryServiceTest {
 		}
 
 		@Test
-		@DisplayName("이미 읽은 편지 · 밥 상태를 넘겨 할 일 카드를 고르고, 고른 카드를 싣는다")
+		@DisplayName("이미 읽은 편지 상태를 넘겨 할 일 카드를 고르고, 고른 카드를 싣는다")
 		void homeCard() {
 			given(bbangdaengLetterService.summaryOf(MEMBER_ID)).willReturn(new Letter(1, 31L));
-			given(feedDayRepository.findByMemberIdAndDay(eq(MEMBER_ID), any()))
-				.willReturn(Optional.of(mock(MemberFeedDay.class)));
-			given(homeCardService.cardFor(eq(MEMBER_ID), eq(new Letter(1, 31L)), eq(true), any()))
+			given(homeCardService.cardFor(eq(MEMBER_ID), eq(new Letter(1, 31L)), any()))
 				.willReturn(Optional.of(HomeCardResponse.letter(31L)));
 
 			assertThat(rewardQueryService.getSummary(MEMBER_ID, null).homeCard())

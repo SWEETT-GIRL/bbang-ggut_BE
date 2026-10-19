@@ -25,7 +25,8 @@ import sweetgirl.croissant.world.service.WorldQueryService;
 /**
  * 홈의 할 일 카드 — 지금 할 만한 것 가운데 한 장만 고른다.
  *
- * <p>순서는 서버가 정한다: 룰렛 → 오늘 빵투어 → 편지 → 밥 → 다가오는 빵투어. 아무것도 없으면 카드가 없다.
+ * <p>순서는 서버가 정한다: 룰렛 → 오늘 빵투어 → 편지 → 다가오는 빵투어. 아무것도 없으면 카드가 없다.
+ * 밥은 카드로 고르지 않는다 — 앱이 밥을 도크로만 보여 주고, 밥 카드가 뽑히면 그 아래 다가오는 빵투어가 가려진다.
  * "오늘 먹은 빵 기록" 카드는 없다 — 홈의 기록 버튼이 맡는다.
  */
 @Service
@@ -42,11 +43,8 @@ public class HomeCardService {
 	private final CourseStoreVisitRepository courseStoreVisitRepository;
 	private final CourseImageFileRepository courseImageFileRepository;
 
-	/**
-	 * @param letter   요약이 이미 읽은 편지 상태
-	 * @param fedToday 오늘 밥 룰렛을 돌렸는가
-	 */
-	public Optional<HomeCardResponse> cardFor(Long memberId, Letter letter, boolean fedToday, LocalDate today) {
+	/** @param letter 요약이 이미 읽은 편지 상태 */
+	public Optional<HomeCardResponse> cardFor(Long memberId, Letter letter, LocalDate today) {
 		List<String> pendingRoulettePlanets = worldQueryService.pendingRoulettePlanets(memberId);
 		if (!pendingRoulettePlanets.isEmpty()) {
 			return Optional.of(HomeCardResponse.roulette(pendingRoulettePlanets.get(0)));
@@ -59,9 +57,6 @@ public class HomeCardService {
 		}
 		if (letter.waitingCount() > 0) {
 			return Optional.of(HomeCardResponse.letter(letter.latestId()));
-		}
-		if (!fedToday) {
-			return Optional.of(HomeCardResponse.feed());
 		}
 		// 오늘 걸린 빵투어가 없으니 남은 것은 모두 내일 이후에 시작한다 — 가장 이른 것 하나
 		return tours.stream().findFirst().map(tour -> HomeCardResponse.tourSoon(

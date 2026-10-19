@@ -48,10 +48,6 @@ public record HomeCardResponse(
 			null);
 	}
 
-	public static HomeCardResponse feed() {
-		return new HomeCardResponse(HomeCardType.FEED, null, null, null, null, null, null, null, null, null, null);
-	}
-
 	public static HomeCardResponse tourSoon(
 			Long courseId, String title, int daysLeft, int storeCount, String coverImageKey) {
 		return new HomeCardResponse(HomeCardType.TOUR_SOON, null, courseId, title, null, null, null, daysLeft, null,
