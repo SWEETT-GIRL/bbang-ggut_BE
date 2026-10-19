@@ -1,5 +1,6 @@
 package sweetgirl.croissant.course.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -42,6 +43,8 @@ import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
+import sweetgirl.croissant.reward.service.CrumbGrantService;
+import sweetgirl.croissant.reward.service.TourRewardService;
 import sweetgirl.croissant.store.RegionFormatter;
 
 @Service
@@ -62,6 +65,7 @@ public class CourseQueryService {
 	private final CourseStoreMemoRepository courseStoreMemoRepository;
 	private final CourseMemberRepository courseMemberRepository;
 	private final CourseAccessPolicy courseAccessPolicy;
+	private final TourRewardService tourRewardService;
 
 	public List<CourseSummaryResponse> getCurationCourses() {
 		return buildSummaryResponses(courseRepository.findAllPublicOrderedByPinAndSavedCount(), Set.of());
@@ -175,7 +179,8 @@ public class CourseQueryService {
 		Map<Long, List<CourseStoreMemoResponse>> memosByCourseStoreId = memosOf(course, courseStores, members,
 			memberId);
 		List<CourseStoreResponse> courseStoreResponses = toStoreResponses(
-			course, courseStores, visitByStoreId, memosByCourseStoreId);
+			course, courseStores, visitByStoreId, memosByCourseStoreId,
+			visitRewardableStoreIds(course, courseStores, visitByStoreId, memberId));
 
 		CourseImageFile coverImage = courseImageFileRepository.findByCourseId(courseId).orElse(null);
 		boolean isSaved = memberId != null && savedCourseRepository.existsByMemberIdAndCourseId(memberId, courseId);
@@ -204,11 +209,30 @@ public class CourseQueryService {
 	}
 
 	/**
+	 * 지금 다녀왔다고 표시하면 다녀옴 보상을 받을 가게들. 방문 체크는 토큰 없이 볼 수 있어야 하므로(링크로만 들어온 제3자는 못 한다)
+	 * 그 권한이 없으면 비어 있고, 이미 표시한 가게는 다시 눌러도 보상이 없어 뺀다.
+	 */
+	private Set<Long> visitRewardableStoreIds(Course course, List<CourseStore> courseStores,
+			Map<Long, CourseStoreVisit> visitByStoreId, Long memberId) {
+		if (memberId == null || !courseAccessPolicy.canView(course, memberId, null)) {
+			return Set.of();
+		}
+		List<Long> unvisitedStoreIds = courseStores.stream()
+			.map(courseStore -> courseStore.getStore().getId())
+			.filter(storeId -> !visitByStoreId.containsKey(storeId))
+			.distinct()
+			.toList();
+		return tourRewardService.visitRewardableStoreIds(memberId, course, unvisitedStoreIds,
+			LocalDate.now(CrumbGrantService.ZONE));
+	}
+
+	/**
 	 * 정류장 응답. 구버전 앱이 읽는 memo 는 큐레이션이면 course_stores.memo(코스 설명) 그대로, 사용자 코스면 내 메모만 —
 	 * legacy 컬럼을 폴백으로 쓰면 멤버가 방장 메모를 자기 것처럼 본다.
 	 */
 	private List<CourseStoreResponse> toStoreResponses(Course course, List<CourseStore> courseStores,
-			Map<Long, CourseStoreVisit> visitByStoreId, Map<Long, List<CourseStoreMemoResponse>> memosByCourseStoreId) {
+			Map<Long, CourseStoreVisit> visitByStoreId, Map<Long, List<CourseStoreMemoResponse>> memosByCourseStoreId,
+			Set<Long> visitRewardableStoreIds) {
 		return courseStores.stream()
 			.map(courseStore -> {
 				List<CourseStoreMemoResponse> memos = memosByCourseStoreId.getOrDefault(courseStore.getId(), List.of());
@@ -218,8 +242,9 @@ public class CourseQueryService {
 					.findFirst()
 					.orElse(null);
 				String memo = course.getType() == CourseType.CURATED ? courseStore.getMemo() : myMemo;
-				return CourseStoreResponse.of(
-					courseStore, visitByStoreId.get(courseStore.getStore().getId()), memo, myMemo, memos);
+				Long storeId = courseStore.getStore().getId();
+				return CourseStoreResponse.of(courseStore, visitByStoreId.get(storeId), memo, myMemo, memos,
+					visitRewardableStoreIds.contains(storeId));
 			})
 			.toList();
 	}

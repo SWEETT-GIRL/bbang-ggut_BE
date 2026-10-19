@@ -19,6 +19,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -38,6 +40,8 @@ import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Feed;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Letter;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.RankingReward;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.RecordReward;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.SaveStoreReward;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.TourComplete;
 import sweetgirl.croissant.reward.entity.CrumbLedgerEntry;
 import sweetgirl.croissant.reward.entity.MemberAttendanceDay;
 import sweetgirl.croissant.reward.entity.MemberFeedDay;
@@ -79,6 +83,8 @@ class RewardQueryServiceTest {
 
 	@Mock
 	private RecordRewardService recordRewardService;
+	@Mock
+	private TourRewardService tourRewardService;
 
 	@InjectMocks
 	private RewardQueryService rewardQueryService;
@@ -188,6 +194,19 @@ class RewardQueryServiceTest {
 			assertThat(rewardQueryService.getSummary(MEMBER_ID, null).record()).isEqualTo(new RecordReward(2, 0));
 		}
 
+		@ParameterizedTest(name = "이번 주 완주 보상 {0}")
+		@CsvSource({"true", "false"})
+		@DisplayName("이번 주 완주 보상을 받았는지와 오늘 담기 보상 횟수를 싣는다")
+		void tourCompleteAndSaveStore(boolean rewardedThisWeek) {
+			given(tourRewardService.completeRewardedThisWeek(eq(MEMBER_ID), any())).willReturn(rewardedThisWeek);
+			given(earnRewardService.saveStoreRewardOf(MEMBER_ID)).willReturn(new SaveStoreReward(1, 2));
+
+			RewardSummaryResponse summary = rewardQueryService.getSummary(MEMBER_ID, null);
+
+			assertThat(summary.tourComplete()).isEqualTo(new TourComplete(rewardedThisWeek));
+			assertThat(summary.saveStore()).isEqualTo(new SaveStoreReward(1, 2));
+		}
+
 		@Test
 		@DisplayName("받을 랭킹 주간 보상이 있으면 가장 최근 주의 것을 싣고, 없으면 null 이다")
 		void rankingReward() {
@@ -207,12 +226,10 @@ class RewardQueryServiceTest {
 		}
 
 		@Test
-		@DisplayName("이미 읽은 편지 · 밥 상태를 넘겨 할 일 카드를 고르고, 고른 카드를 싣는다")
+		@DisplayName("이미 읽은 편지 상태를 넘겨 할 일 카드를 고르고, 고른 카드를 싣는다")
 		void homeCard() {
 			given(bbangdaengLetterService.summaryOf(MEMBER_ID)).willReturn(new Letter(1, 31L));
-			given(feedDayRepository.findByMemberIdAndDay(eq(MEMBER_ID), any()))
-				.willReturn(Optional.of(mock(MemberFeedDay.class)));
-			given(homeCardService.cardFor(eq(MEMBER_ID), eq(new Letter(1, 31L)), eq(true), any()))
+			given(homeCardService.cardFor(eq(MEMBER_ID), eq(new Letter(1, 31L)), any()))
 				.willReturn(Optional.of(HomeCardResponse.letter(31L)));
 
 			assertThat(rewardQueryService.getSummary(MEMBER_ID, null).homeCard())
@@ -326,6 +343,8 @@ class RewardQueryServiceTest {
 
 			assertThat(summary.attendance()).isEqualTo(new Attendance(false, 0, 1, 5, 5));
 			assertThat(summary.feed()).isEqualTo(new Feed(false, List.of(10, 5, 3, 5, 10, 50), 0, false));
+			assertThat(summary.tourComplete()).isEqualTo(new TourComplete(false));
+			assertThat(summary.saveStore()).isEqualTo(new SaveStoreReward(0, 0));
 			then(attendanceDayRepository).shouldHaveNoInteractions();
 		}
 	}

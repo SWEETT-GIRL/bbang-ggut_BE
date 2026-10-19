@@ -99,7 +99,7 @@ class HomeCardServiceTest {
 	void rouletteFirst() {
 		given(worldQueryService.pendingRoulettePlanets(MEMBER_ID)).willReturn(List.of("mars", "jupiter"));
 
-		Optional<HomeCardResponse> card = homeCardService.cardFor(MEMBER_ID, ONE_LETTER, false, TODAY);
+		Optional<HomeCardResponse> card = homeCardService.cardFor(MEMBER_ID, ONE_LETTER, TODAY);
 
 		assertThat(card).contains(HomeCardResponse.roulette("mars"));
 		then(courseRepository).shouldHaveNoInteractions();
@@ -110,7 +110,7 @@ class HomeCardServiceTest {
 	void tourTodayBeforeLetterAndFeed() {
 		givenTourToday();
 
-		Optional<HomeCardResponse> card = homeCardService.cardFor(MEMBER_ID, ONE_LETTER, false, TODAY);
+		Optional<HomeCardResponse> card = homeCardService.cardFor(MEMBER_ID, ONE_LETTER, TODAY);
 
 		assertThat(card).contains(
 			HomeCardResponse.tourToday(812L, "성수 빵투어", 2, 5, "셋째 가게", "courses/812/cover.jpg"));
@@ -121,16 +121,18 @@ class HomeCardServiceTest {
 	void letterBeforeFeed() {
 		givenTours(tour(900L, "망원 빵투어", TODAY.plusDays(2)));
 
-		assertThat(homeCardService.cardFor(MEMBER_ID, ONE_LETTER, false, TODAY))
+		assertThat(homeCardService.cardFor(MEMBER_ID, ONE_LETTER, TODAY))
 			.contains(HomeCardResponse.letter(31L));
 	}
 
 	@Test
-	@DisplayName("오늘 밥을 안 줬으면 다가오는 빵투어보다 밥이 먼저다")
-	void feedBeforeTourSoon() {
+	@DisplayName("밥은 카드로 고르지 않는다 — 다가오는 빵투어가 밥에 가려지지 않는다")
+	void feedNeverChosen() {
 		givenTours(tour(900L, "망원 빵투어", TODAY.plusDays(2)));
+		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(900L)).willReturn(4L);
 
-		assertThat(homeCardService.cardFor(MEMBER_ID, NO_LETTER, false, TODAY)).contains(HomeCardResponse.feed());
+		assertThat(homeCardService.cardFor(MEMBER_ID, NO_LETTER, TODAY))
+			.contains(HomeCardResponse.tourSoon(900L, "망원 빵투어", 2, 4, null));
 	}
 
 	@Test
@@ -139,7 +141,7 @@ class HomeCardServiceTest {
 		givenTours(tour(900L, "망원 빵투어", TODAY.plusDays(2)), tour(901L, "연남 빵투어", TODAY.plusDays(6)));
 		given(courseStoreRepository.countByCourseIdAndDeletedAtIsNull(900L)).willReturn(4L);
 
-		assertThat(homeCardService.cardFor(MEMBER_ID, NO_LETTER, true, TODAY))
+		assertThat(homeCardService.cardFor(MEMBER_ID, NO_LETTER, TODAY))
 			.contains(HomeCardResponse.tourSoon(900L, "망원 빵투어", 2, 4, null));
 	}
 
@@ -148,6 +150,6 @@ class HomeCardServiceTest {
 	void none() {
 		givenTours();
 
-		assertThat(homeCardService.cardFor(MEMBER_ID, NO_LETTER, true, TODAY)).isEmpty();
+		assertThat(homeCardService.cardFor(MEMBER_ID, NO_LETTER, TODAY)).isEmpty();
 	}
 }

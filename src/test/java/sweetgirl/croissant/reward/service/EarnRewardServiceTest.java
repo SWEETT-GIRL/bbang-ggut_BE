@@ -24,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.SaveStoreReward;
 import sweetgirl.croissant.reward.enums.CrumbReason;
 import sweetgirl.croissant.reward.enums.RewardRefType;
 import sweetgirl.croissant.reward.enums.RewardSettingKey;
@@ -116,6 +117,16 @@ class EarnRewardServiceTest {
 		given(crumbGrantService.countToday(MEMBER_ID, CrumbReason.AD)).willReturn(watched);
 
 		assertThat(earnRewardService.adsLeftToday(MEMBER_ID)).isEqualTo(expectedLeft);
+	}
+
+	@ParameterizedTest(name = "오늘 {0}번 받았으면 {1}번 남는다")
+	@CsvSource({"0, 3", "2, 1", "3, 0", "5, 0"})
+	@DisplayName("오늘 빵집 담기 보상 횟수 — 상한은 설정값이다")
+	void saveStoreRewardOf(long rewarded, int expectedLeft) {
+		given(crumbGrantService.countToday(MEMBER_ID, CrumbReason.SAVE_STORE)).willReturn(rewarded);
+
+		assertThat(earnRewardService.saveStoreRewardOf(MEMBER_ID))
+			.isEqualTo(new SaveStoreReward((int)rewarded, expectedLeft));
 	}
 
 	@Test

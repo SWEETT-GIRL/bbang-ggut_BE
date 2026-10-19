@@ -35,6 +35,8 @@ import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Feed;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Letter;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.RankingReward;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.RecordReward;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.SaveStoreReward;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.TourComplete;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Welcome;
 import sweetgirl.croissant.reward.enums.CrumbReason;
 import sweetgirl.croissant.reward.enums.RewardItemType;
@@ -81,7 +83,8 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 		given(rewardCommandService.carryOverIfNeeded(any())).willReturn(Optional.empty());
 		given(rewardQueryService.getSummary(any(), any())).willReturn(new RewardSummaryResponse(
 			285, 26, RULES, new CarryOver(true, 110, 12), new Welcome(false), List.of(pending), ATTENDANCE, FEED,
-			LETTER, AD, RANKING_REWARD, HOME_CARD, new RecordReward(2, 1)));
+			LETTER, AD, RANKING_REWARD, HOME_CARD, new RecordReward(2, 1), new TourComplete(true),
+			new SaveStoreReward(1, 2)));
 
 		mockMvc.perform(get("/members/me/rewards/summary"))
 			.andExpect(status().isOk())
@@ -127,6 +130,9 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.ad.leftToday").isNumber())
 			.andExpect(jsonPath("$.data.record.rewardedToday").isNumber())
 			.andExpect(jsonPath("$.data.record.leftToday").isNumber())
+			.andExpect(jsonPath("$.data.tourComplete.rewardedThisWeek").isBoolean())
+			.andExpect(jsonPath("$.data.saveStore.rewardedToday").isNumber())
+			.andExpect(jsonPath("$.data.saveStore.leftToday").isNumber())
 			.andExpect(jsonPath("$.data.rankingReward.pendingId").isNumber())
 			.andExpect(jsonPath("$.data.rankingReward.rank").isNumber())
 			.andExpect(jsonPath("$.data.rankingReward.crumbs").isNumber())
@@ -174,7 +180,8 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 		given(rewardQueryService.getSummary(any(), any())).willReturn(new RewardSummaryResponse(
 			0, 0, RULES, null, new Welcome(false), List.of(new RewardItemResponse(
 				32L, RewardItemType.LEVEL_UP, null, 2, 3, null, null, "earth", "space", null, null)),
-			ATTENDANCE, FEED, LETTER, AD, RANKING_REWARD, HOME_CARD, new RecordReward(0, 3)));
+			ATTENDANCE, FEED, LETTER, AD, RANKING_REWARD, HOME_CARD, new RecordReward(0, 3), new TourComplete(false),
+			new SaveStoreReward(0, 3)));
 
 		mockMvc.perform(get("/members/me/rewards/summary"))
 			.andExpect(status().isOk())

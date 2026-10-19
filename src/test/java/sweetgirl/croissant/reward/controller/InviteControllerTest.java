@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +28,7 @@ import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.reward.code.RewardErrorCode;
 import sweetgirl.croissant.reward.dto.response.InviteAcceptResponse;
 import sweetgirl.croissant.reward.dto.response.InviteResponse;
+import sweetgirl.croissant.reward.enums.InviteFriendStatus;
 import sweetgirl.croissant.reward.exception.RewardException;
 import sweetgirl.croissant.reward.service.InviteService;
 
@@ -52,7 +54,12 @@ class InviteControllerTest {
 	@DisplayName("내 초대 현황을 내린다 — 초대받은 적이 없으면 invitedBy 는 null 이다")
 	void myInvite() throws Exception {
 		given(inviteService.getMyInvite(any())).willReturn(new InviteResponse("ABCD2345", 3,
-			List.of(new InviteResponse.Waiting("신난 두쫀쿠", LocalDate.of(2026, 11, 11))), 1, 10, 100, null, false));
+			List.of(new InviteResponse.Waiting("신난 두쫀쿠", LocalDate.of(2026, 11, 11))), 1, 10, 100, null, false,
+			List.of(
+				new InviteResponse.Friend("신난 두쫀쿠", InviteFriendStatus.WAITING, LocalDateTime.of(2026, 10, 12, 9, 0),
+					LocalDate.of(2026, 11, 11), null),
+				new InviteResponse.Friend("졸린 베이글", InviteFriendStatus.REWARDED, LocalDateTime.of(2026, 10, 1, 9, 0),
+					null, LocalDateTime.of(2026, 10, 2, 20, 0)))));
 
 		mockMvc.perform(get("/members/me/invite"))
 			.andExpect(status().isOk())
@@ -63,7 +70,15 @@ class InviteControllerTest {
 			.andExpect(jsonPath("$.data.cap").value(10))
 			.andExpect(jsonPath("$.data.reward").value(100))
 			.andExpect(jsonPath("$.data.invitedBy").value((Object)null))
-			.andExpect(jsonPath("$.data.canEnterCode").value(false));
+			.andExpect(jsonPath("$.data.canEnterCode").value(false))
+			.andExpect(jsonPath("$.data.friends[0].nickname").value("신난 두쫀쿠"))
+			.andExpect(jsonPath("$.data.friends[0].status").value("WAITING"))
+			.andExpect(jsonPath("$.data.friends[0].joinedAt").isString())
+			.andExpect(jsonPath("$.data.friends[0].expiresOn").value("2026-11-11"))
+			.andExpect(jsonPath("$.data.friends[0].rewardedAt").value((Object)null))
+			.andExpect(jsonPath("$.data.friends[1].status").value("REWARDED"))
+			.andExpect(jsonPath("$.data.friends[1].expiresOn").value((Object)null))
+			.andExpect(jsonPath("$.data.friends[1].rewardedAt").isString());
 	}
 
 	@Test

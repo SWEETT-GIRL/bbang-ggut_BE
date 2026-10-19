@@ -8,7 +8,7 @@ public enum HomeCardType {
 	TOUR_TODAY,
 	/** 안 연 빵댕이 편지가 있다. */
 	LETTER,
-	/** 오늘 밥을 안 줬다. */
+	/** 오늘 밥을 안 줬다. 더는 고르지 않는다 — 옛 앱이 이 값을 읽으므로 남겨 둔다. */
 	FEED,
 	/** 7 일 안에 빵투어가 있다. */
 	TOUR_SOON
