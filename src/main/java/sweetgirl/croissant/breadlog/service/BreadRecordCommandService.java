@@ -243,6 +243,15 @@ public class BreadRecordCommandService {
 		record.changeVisibility(isPublic);
 	}
 
+	public void changeTowerBread(Long recordId, Long memberId, String towerBread) {
+		if (!TutorialRecordTemplate.TOWER_BREADS.contains(towerBread)) {
+			throw new BreadLogException(BreadLogErrorCode.INVALID_TUTORIAL);
+		}
+		Member member = memberReader.getMember(memberId);
+		BreadRecord record = getOwnedRecord(recordId, member.getId());
+		record.changeTowerBread(towerBread);
+	}
+
 	public void delete(Long recordId, Long memberId) {
 		if (memberId == null) {
 			throw new MemberException(MemberErrorCode.UNAUTHORIZED);

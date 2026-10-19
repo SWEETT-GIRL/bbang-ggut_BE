@@ -25,6 +25,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.breadlog.dto.request.BreadPhotoAnalyzeRequest;
 import sweetgirl.croissant.breadlog.dto.request.BreadRecordPresignedUrlRequest;
+import sweetgirl.croissant.breadlog.dto.request.BreadRecordTowerBreadRequest;
 import sweetgirl.croissant.breadlog.dto.request.BreadRecordUpsertRequest;
 import sweetgirl.croissant.breadlog.dto.request.BreadRecordVisibilityRequest;
 import sweetgirl.croissant.breadlog.dto.response.BreadPhotoAnalyzeResponse;
@@ -99,6 +100,17 @@ public class BreadRecordController {
 			@AuthenticationPrincipal Long memberId,
 			@Valid @RequestBody BreadRecordVisibilityRequest request) {
 		commandService.changeVisibility(recordId, memberId, request.isPublic());
+		return ResponseEntity.ok(ApiResponse.ok(null));
+	}
+
+	@Operation(summary = "빵 기록 빵탑 빵 변경", description = "빵탑에 쌓을 빵만 바꿉니다. "
+		+ "croissant·melonpan·soboro·bagel·anpan 중 하나여야 하며, 사진·태그·보상은 건드리지 않습니다.")
+	@PatchMapping("/{recordId}/tower-bread")
+	public ResponseEntity<ApiResponse<Void>> changeTowerBread(
+			@PathVariable Long recordId,
+			@AuthenticationPrincipal Long memberId,
+			@Valid @RequestBody BreadRecordTowerBreadRequest request) {
+		commandService.changeTowerBread(recordId, memberId, request.towerBread());
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 

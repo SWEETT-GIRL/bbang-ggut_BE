@@ -174,6 +174,10 @@ public class BreadRecord extends BaseTimeEntity {
 		this.isPublic = isPublic;
 	}
 
+	public void changeTowerBread(String towerBread) {
+		this.towerBread = towerBread;
+	}
+
 	public void softDelete() {
 		this.deletedAt = LocalDateTime.now();
 	}
