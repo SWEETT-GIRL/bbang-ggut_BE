@@ -662,6 +662,52 @@ class BreadRecordCommandServiceTest {
 			.hasFieldOrPropertyWithValue("errorCode", BreadLogErrorCode.BREAD_RECORD_ACCESS_DENIED);
 	}
 
+	@Test
+	@DisplayName("changeTowerBread: 내 기록의 빵탑 빵만 바꾸고 사진·태그는 건드리지 않는다")
+	void changeTowerBread_changesOnlyTowerBread() {
+		Member member = member(7L);
+		BreadRecord record = record(11L, member);
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+
+		commandService.changeTowerBread(11L, 7L, "bagel");
+
+		assertThat(record.getTowerBread()).isEqualTo("bagel");
+		org.mockito.Mockito.verifyNoInteractions(s3Service, photoRepository, tagRepository);
+	}
+
+	@Test
+	@DisplayName("changeTowerBread: 5종이 아닌 빵이면 기록을 읽기 전에 막는다")
+	void changeTowerBread_unknownKind_throwsInvalid() {
+		assertThatThrownBy(() -> commandService.changeTowerBread(11L, 7L, "donut"))
+			.isInstanceOf(BreadLogException.class)
+			.hasFieldOrPropertyWithValue("errorCode", BreadLogErrorCode.INVALID_TUTORIAL);
+		verify(breadRecordRepository, never()).findWithLockByIdAndDeletedAtIsNull(any());
+	}
+
+	@Test
+	@DisplayName("changeTowerBread: 남의 기록이면 접근 거부")
+	void changeTowerBread_othersRecord_throwsAccessDenied() {
+		given(memberReader.getMember(8L)).willReturn(member(8L));
+		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L))
+			.willReturn(Optional.of(record(11L, member(7L))));
+
+		assertThatThrownBy(() -> commandService.changeTowerBread(11L, 8L, "bagel"))
+			.isInstanceOf(BreadLogException.class)
+			.hasFieldOrPropertyWithValue("errorCode", BreadLogErrorCode.BREAD_RECORD_ACCESS_DENIED);
+	}
+
+	@Test
+	@DisplayName("changeTowerBread: 없는 기록이면 찾을 수 없음")
+	void changeTowerBread_missingRecord_throwsNotFound() {
+		given(memberReader.getMember(7L)).willReturn(member(7L));
+		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> commandService.changeTowerBread(11L, 7L, "bagel"))
+			.isInstanceOf(BreadLogException.class)
+			.hasFieldOrPropertyWithValue("errorCode", BreadLogErrorCode.BREAD_RECORD_NOT_FOUND);
+	}
+
 	private BreadRecord givenReplaceableRecord(boolean isPublic) {
 		Member member = member(7L);
 		BreadRecord record = record(11L, member);

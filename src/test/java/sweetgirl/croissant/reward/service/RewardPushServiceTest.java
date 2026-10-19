@@ -34,7 +34,7 @@ import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Letter;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.AttendanceReminderTarget;
-import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.SecondMorningTarget;
+import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.MemberFriend;
 import sweetgirl.croissant.world.dto.response.WorldCatalogResponse;
 import sweetgirl.croissant.world.dto.response.WorldCharacterResponse;
 import sweetgirl.croissant.world.service.WorldCatalogService;
@@ -72,6 +72,12 @@ class RewardPushServiceTest {
 		return member;
 	}
 
+	private void givenCatalog() {
+		given(worldCatalogService.getCatalog()).willReturn(new WorldCatalogResponse(7, List.of(), List.of(
+			new WorldCharacterResponse("dog", "빵댕이", null, "earth", 1, true, Map.of()),
+			new WorldCharacterResponse("hamster", "햄찌", null, "mars", 1, false, Map.of()))));
+	}
+
 	private Notification givenRecorded(Long notificationId) {
 		Notification recorded = mock(Notification.class);
 		given(recorded.getId()).willReturn(notificationId);
@@ -89,6 +95,14 @@ class RewardPushServiceTest {
 				NotificationType.REWARD_LETTER, LocalDateTime.of(2026, 10, 12, 0, 0))).willReturn(false);
 		}
 
+		private MemberFriend friend(Long memberId, String selectedCharacter, String nickname) {
+			MemberFriend friend = mock(MemberFriend.class);
+			given(friend.getMemberId()).willReturn(memberId);
+			given(friend.getSelectedCharacter()).willReturn(selectedCharacter);
+			given(friend.getFriendNickname()).willReturn(nickname);
+			return friend;
+		}
+
 		@Test
 		@DisplayName("최근 30 일 안에 들어온 회원 가운데 이번 주 편지를 안 연 회원에게만 알린다")
 		void notifiesWaitingMembers() {
@@ -96,6 +110,8 @@ class RewardPushServiceTest {
 			given(targetRepository.findMemberIdsActiveSince(MONDAY_TEN.minusDays(30))).willReturn(List.of(1L, 2L));
 			given(bbangdaengLetterService.summaryOf(1L, TODAY)).willReturn(new Letter(1, 31L));
 			given(bbangdaengLetterService.summaryOf(2L, TODAY)).willReturn(new Letter(0, null));
+			givenCatalog();
+			given(targetRepository.findFriendsOf(List.of(1L))).willReturn(List.of());
 			Member waiting = member(1L);
 			given(memberRepository.findAllById(List.of(1L))).willReturn(List.of(waiting));
 			givenRecorded(500L);
@@ -109,11 +125,13 @@ class RewardPushServiceTest {
 		}
 
 		@Test
-		@DisplayName("광고가 아닌 서비스 알림으로, 홈의 편지를 여는 링크와 함께 만든다")
+		@DisplayName("광고가 아닌 서비스 알림으로, 홈의 편지를 여는 링크와 함께 만든다 — 세계관 전이면 빵댕이가 보낸다")
 		void notificationShape() {
 			givenFirstRunOfTheWeek();
 			given(targetRepository.findMemberIdsActiveSince(any())).willReturn(List.of(1L));
 			given(bbangdaengLetterService.summaryOf(1L, TODAY)).willReturn(new Letter(1, 31L));
+			givenCatalog();
+			given(targetRepository.findFriendsOf(List.of(1L))).willReturn(List.of());
 			Member waiting = member(1L);
 			given(memberRepository.findAllById(List.of(1L))).willReturn(List.of(waiting));
 			givenRecorded(500L);
@@ -126,6 +144,38 @@ class RewardPushServiceTest {
 			assertThat(notification.getValue().getType().requiresMarketingConsent()).isFalse();
 			assertThat(notification.getValue().getTitle()).isEqualTo("빵댕이가 편지를 보냈어요");
 			assertThat(notification.getValue().getDeepLink()).isEqualTo("/bbanglog?open=letter");
+		}
+
+		@Test
+		@DisplayName("편지는 회원이 고른 친구가 보낸다 — 지어 준 이름이 있으면 그 이름, 없으면 카탈로그 이름, 이름이 같으면 한 알림")
+		void sentByFriendName() {
+			givenFirstRunOfTheWeek();
+			given(targetRepository.findMemberIdsActiveSince(any())).willReturn(List.of(1L, 2L, 3L, 4L));
+			for (long id = 1; id <= 4; id++) {
+				given(bbangdaengLetterService.summaryOf(id, TODAY)).willReturn(new Letter(1, 31L));
+			}
+			givenCatalog();
+			// 헬퍼가 다른 mock 을 스텁하므로 given(...) 안에서 부르면 UnfinishedStubbing 이 난다 — 먼저 만든다.
+			List<MemberFriend> friends = List.of(friend(1L, "dog", "콩"), friend(2L, "hamster", null),
+				friend(3L, "dog", "콩"));
+			given(targetRepository.findFriendsOf(List.of(1L, 2L, 3L, 4L))).willReturn(friends);
+			Member first = member(1L);
+			Member second = member(2L);
+			Member third = member(3L);
+			Member fourth = member(4L);
+			given(memberRepository.findAllById(List.of(1L, 3L))).willReturn(List.of(first, third));
+			given(memberRepository.findAllById(List.of(2L))).willReturn(List.of(second));
+			given(memberRepository.findAllById(List.of(4L))).willReturn(List.of(fourth));
+			givenRecorded(500L);
+
+			assertThat(rewardPushService.sendLetterArrivals(MONDAY_TEN)).isEqualTo(4);
+
+			ArgumentCaptor<Notification> notifications = ArgumentCaptor.forClass(Notification.class);
+			then(notificationRecorder).should(org.mockito.Mockito.times(3))
+				.recordForMembers(notifications.capture(), anyList(), eq(MONDAY_TEN));
+			// 4 번은 세계관을 시작하지 않아 빵댕이가 보낸다. 받침이 있는 이름은 "이"
+			assertThat(notifications.getAllValues()).extracting(Notification::getTitle)
+				.containsExactlyInAnyOrder("콩이 편지를 보냈어요", "햄찌가 편지를 보냈어요", "빵댕이가 편지를 보냈어요");
 		}
 
 		@Test
@@ -168,10 +218,17 @@ class RewardPushServiceTest {
 		private static final LocalDateTime MORNING = LocalDateTime.of(2026, 10, 14, 9, 0);
 		private static final LocalDate MORNING_DAY = MORNING.toLocalDate();
 
-		private SecondMorningTarget target(Long memberId, String selectedCharacter) {
-			SecondMorningTarget target = mock(SecondMorningTarget.class);
+		private MemberFriend target(Long memberId, String selectedCharacter) {
+			return target(memberId, selectedCharacter, null);
+		}
+
+		private MemberFriend target(Long memberId, String selectedCharacter, String nickname) {
+			MemberFriend target = mock(MemberFriend.class);
 			given(target.getMemberId()).willReturn(memberId);
 			given(target.getSelectedCharacter()).willReturn(selectedCharacter);
+			if (selectedCharacter != null) {
+				given(target.getFriendNickname()).willReturn(nickname);
+			}
 			return target;
 		}
 
@@ -179,9 +236,7 @@ class RewardPushServiceTest {
 			given(targetRepository.tryAdvisoryXactLock(RewardPushService.ROULETTE_LOCK_KEY)).willReturn(true);
 			given(notificationRepository.existsByTypeAndCreatedAtGreaterThanEqual(
 				NotificationType.REWARD_ROULETTE, MORNING_DAY.atStartOfDay())).willReturn(false);
-			given(worldCatalogService.getCatalog()).willReturn(new WorldCatalogResponse(7, List.of(), List.of(
-				new WorldCharacterResponse("dog", "빵댕이", null, "earth", 1, true, Map.of()),
-				new WorldCharacterResponse("hamster", "햄찌", null, "mars", 1, false, Map.of()))));
+			givenCatalog();
 		}
 
 		@Test
@@ -189,7 +244,7 @@ class RewardPushServiceTest {
 		void callsByFriend() {
 			givenFirstRunOfTheDay();
 			// 헬퍼가 다른 mock 을 스텁하므로 given(...) 안에서 부르면 UnfinishedStubbing 이 난다 — 먼저 만든다.
-			List<SecondMorningTarget> targets = List.of(target(1L, "dog"), target(2L, "hamster"), target(3L, null));
+			List<MemberFriend> targets = List.of(target(1L, "dog"), target(2L, "hamster"), target(3L, null));
 			given(targetRepository.findSecondMorningTargets(
 				MORNING_DAY.minusDays(1).atStartOfDay(), MORNING_DAY.atStartOfDay())).willReturn(targets);
 			Member first = member(1L);
@@ -214,6 +269,27 @@ class RewardPushServiceTest {
 		}
 
 		@Test
+		@DisplayName("친구에게 지어 준 이름이 있으면 그 이름으로 부른다")
+		void callsByNickname() {
+			givenFirstRunOfTheDay();
+			List<MemberFriend> targets = List.of(target(1L, "dog", "콩"), target(2L, "hamster", "별이"));
+			given(targetRepository.findSecondMorningTargets(any(), any())).willReturn(targets);
+			Member first = member(1L);
+			Member second = member(2L);
+			given(memberRepository.findAllById(List.of(1L))).willReturn(List.of(first));
+			given(memberRepository.findAllById(List.of(2L))).willReturn(List.of(second));
+			givenRecorded(700L);
+
+			assertThat(rewardPushService.sendSecondMorningRoulette(MORNING)).isEqualTo(2);
+
+			ArgumentCaptor<Notification> notifications = ArgumentCaptor.forClass(Notification.class);
+			then(notificationRecorder).should(org.mockito.Mockito.times(2))
+				.recordForMembers(notifications.capture(), anyList(), eq(MORNING));
+			assertThat(notifications.getAllValues()).extracting(Notification::getTitle)
+				.containsExactlyInAnyOrder("콩이 아침부터 배고파요", "별이가 아침부터 배고파요");
+		}
+
+		@Test
 		@DisplayName("오늘 이미 보냈으면 다시 보내지 않는다")
 		void skipsWhenAlreadySentToday() {
 			given(targetRepository.tryAdvisoryXactLock(RewardPushService.ROULETTE_LOCK_KEY)).willReturn(true);
@@ -234,14 +310,6 @@ class RewardPushServiceTest {
 			assertThat(rewardPushService.sendSecondMorningRoulette(MORNING)).isZero();
 
 			then(notificationRecorder).shouldHaveNoInteractions();
-		}
-
-		@Test
-		@DisplayName("주격 조사 — 받침 없으면 가, 있으면 이, 한글이 아니면 가")
-		void subjectParticle() {
-			assertThat(RewardPushService.subjectParticle("빵댕이")).isEqualTo("가");
-			assertThat(RewardPushService.subjectParticle("빵돌")).isEqualTo("이");
-			assertThat(RewardPushService.subjectParticle("Bread")).isEqualTo("가");
 		}
 	}
 

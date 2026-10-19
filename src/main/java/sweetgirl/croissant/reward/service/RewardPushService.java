@@ -20,11 +20,12 @@ import sweetgirl.croissant.alarm.enums.NotificationType;
 import sweetgirl.croissant.alarm.event.PushRequestedEvent;
 import sweetgirl.croissant.alarm.repository.NotificationRepository;
 import sweetgirl.croissant.alarm.service.NotificationRecorder;
+import sweetgirl.croissant.common.Particles;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.AttendanceReminderTarget;
-import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.SecondMorningTarget;
+import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.MemberFriend;
 import sweetgirl.croissant.world.dto.response.WorldCharacterResponse;
 import sweetgirl.croissant.world.service.WorldCatalogService;
 
@@ -43,7 +44,7 @@ public class RewardPushService {
 	/** 이 기간 안에 앱을 쓴 회원에게만 편지 도착을 알린다. 오래 안 들어온 회원을 매주 깨우지 않는다. */
 	static final int ACTIVE_DAYS = 30;
 	static final long LETTER_LOCK_KEY = 7_260_101L;
-	static final String LETTER_TITLE = "빵댕이가 편지를 보냈어요";
+	static final String LETTER_TITLE_SUFFIX = " 편지를 보냈어요";
 	static final String LETTER_BODY = "열어 보면 부스러기도 있어요";
 	/** 앱의 홈(app/(tabs)/bbanglog)에서 편지를 연다. */
 	static final String LETTER_LINK = "/bbanglog?open=letter";
@@ -58,7 +59,7 @@ public class RewardPushService {
 	static final String ROULETTE_BODY = "룰렛 돌리러 와요";
 	/** 홈의 밥 룰렛. open=feed 를 모르는 앱은 홈만 연다. */
 	static final String ROULETTE_LINK = "/bbanglog?open=feed";
-	/** 세계관을 아직 시작하지 않아 고른 친구가 없을 때의 이름. */
+	/** 세계관을 아직 시작하지 않아 고른 친구가 없을 때의 이름. 회원이 지어 준 이름이 있으면 그 이름으로 부른다. */
 	static final String DEFAULT_FRIEND_NAME = "빵댕이";
 
 	private final RewardPushTargetRepository targetRepository;
@@ -74,6 +75,7 @@ public class RewardPushService {
 	 * 이번 주 편지를 아직 안 연 회원에게 도착을 알린다. 월요일 오전에 부른다.
 	 *
 	 * <p>편지는 회원이 들어올 때 만들어지므로, 알리기 직전에 이번 주 편지를 먼저 배달한다.
+	 * 편지는 회원이 고른 친구가 보낸다 — 제목에 그 친구 이름이 들어가("콩이가 편지를 보냈어요") 이름별로 한 알림씩 만든다.
 	 *
 	 * @return 알린 회원 수. 이번 주에 이미 보냈거나 다른 인스턴스가 보내는 중이면 -1
 	 */
@@ -94,9 +96,27 @@ public class RewardPushService {
 				waitingMemberIds.add(memberId);
 			}
 		}
-		return push(Notification.announcement(
-			NotificationType.REWARD_LETTER, NotificationChannel.PUSH, LETTER_TITLE, LETTER_BODY, LETTER_LINK),
-			waitingMemberIds, now);
+		if (waitingMemberIds.isEmpty()) {
+			return 0;
+		}
+
+		Map<String, String> catalogNames = catalogNameByCode();
+		Map<Long, String> friendByMember = targetRepository.findFriendsOf(waitingMemberIds).stream()
+			.collect(Collectors.toMap(MemberFriend::getMemberId, friend -> friendNameOf(friend, catalogNames)));
+		Map<String, List<Long>> memberIdsByFriend = new TreeMap<>();
+		for (Long memberId : waitingMemberIds) {
+			memberIdsByFriend.computeIfAbsent(friendByMember.getOrDefault(memberId, DEFAULT_FRIEND_NAME),
+				name -> new ArrayList<>()).add(memberId);
+		}
+		int notified = 0;
+		for (Map.Entry<String, List<Long>> group : memberIdsByFriend.entrySet()) {
+			String friend = group.getKey();
+			notified += push(Notification.announcement(
+				NotificationType.REWARD_LETTER, NotificationChannel.PUSH,
+				friend + Particles.subject(friend) + LETTER_TITLE_SUFFIX, LETTER_BODY, LETTER_LINK),
+				group.getValue(), now);
+		}
+		return notified;
 	}
 
 	/**
@@ -140,7 +160,7 @@ public class RewardPushService {
 	 * 어제 가입했는데 아직 출석 도장을 한 번도 안 찍은 회원을 아침에 부른다. 매일 아침 9 시에 부른다.
 	 *
 	 * <p>첫날 출석을 거른 회원은 저녁 리마인드(어제 출석한 회원만)에 걸리지 않아 둘째 날 아무 푸시도 못 받았다.
-	 * 문구에 그 회원의 친구 이름이 들어가("빵댕이가 아침부터 배고파요") 친구별로 한 알림씩 만든다.
+	 * 문구에 그 회원의 친구 이름(지어 준 이름이 있으면 그 이름)이 들어가("빵댕이가 아침부터 배고파요") 이름별로 한 알림씩 만든다.
 	 *
 	 * @return 알린 회원 수. 오늘 이미 보냈거나 다른 인스턴스가 보내는 중이면 -1
 	 */
@@ -153,13 +173,11 @@ public class RewardPushService {
 			return -1;
 		}
 
-		Map<String, String> friendNameByCode = worldCatalogService.getCatalog().characters().stream()
-			.collect(Collectors.toMap(WorldCharacterResponse::code, WorldCharacterResponse::name));
+		Map<String, String> catalogNames = catalogNameByCode();
 		Map<String, List<Long>> memberIdsByFriend = new TreeMap<>();
-		for (SecondMorningTarget target : targetRepository.findSecondMorningTargets(
+		for (MemberFriend target : targetRepository.findSecondMorningTargets(
 			today.minusDays(1).atStartOfDay(), today.atStartOfDay())) {
-			String friend = target.getSelectedCharacter() == null ? DEFAULT_FRIEND_NAME
-				: friendNameByCode.getOrDefault(target.getSelectedCharacter(), DEFAULT_FRIEND_NAME);
+			String friend = friendNameOf(target, catalogNames);
 			memberIdsByFriend.computeIfAbsent(friend, name -> new ArrayList<>()).add(target.getMemberId());
 		}
 		int notified = 0;
@@ -167,19 +185,26 @@ public class RewardPushService {
 			String friend = group.getKey();
 			notified += push(Notification.announcement(
 				NotificationType.REWARD_ROULETTE, NotificationChannel.PUSH,
-				friend + subjectParticle(friend) + ROULETTE_TITLE_SUFFIX, ROULETTE_BODY, ROULETTE_LINK),
+				friend + Particles.subject(friend) + ROULETTE_TITLE_SUFFIX, ROULETTE_BODY, ROULETTE_LINK),
 				group.getValue(), now);
 		}
 		return notified;
 	}
 
-	/** 주격 조사 — 받침이 있으면 "이", 없으면 "가"("빵댕이가" · "햄찌가" · "빵돌이가"). 한글이 아니면 "가". */
-	static String subjectParticle(String name) {
-		char last = name.charAt(name.length() - 1);
-		if (last < 0xAC00 || last > 0xD7A3) {
-			return "가";
+	private Map<String, String> catalogNameByCode() {
+		return worldCatalogService.getCatalog().characters().stream()
+			.collect(Collectors.toMap(WorldCharacterResponse::code, WorldCharacterResponse::name));
+	}
+
+	/** 회원이 지어 준 이름, 없으면 카탈로그 이름. 고른 친구가 없으면 빵댕이. */
+	private static String friendNameOf(MemberFriend friend, Map<String, String> catalogNames) {
+		if (friend.getSelectedCharacter() == null) {
+			return DEFAULT_FRIEND_NAME;
 		}
-		return (last - 0xAC00) % 28 == 0 ? "가" : "이";
+		if (friend.getFriendNickname() != null) {
+			return friend.getFriendNickname();
+		}
+		return catalogNames.getOrDefault(friend.getSelectedCharacter(), DEFAULT_FRIEND_NAME);
 	}
 
 	/** 알림함에 앉히고, 커밋된 뒤 한 사람씩 푸시로 내보내게 한다. 받을 사람이 없으면 알림도 만들지 않는다. */
