@@ -131,7 +131,7 @@ public class RewardedAdSsvService {
 
 	/**
 	 * 닉네임 뽑기 광고. 친구 광고와 같이 이력 표에 먼저 남겨 보고, 이미 본 {@code transaction_id} 면 버린다 —
-	 * 구글의 재시도가 나란히 들어와도 한 번만 뽑는다. 하루 한 번 제한은 그 뒤에 {@link NicknameDrawService} 가 본다.
+	 * 구글의 재시도가 나란히 들어와도 한 번만 뽑는다. 무료를 썼는지는 그 뒤에 {@link NicknameDrawService} 가 본다.
 	 */
 	private boolean drawNickname(String memberIdText, Map<String, String> params) {
 		Long memberId;
