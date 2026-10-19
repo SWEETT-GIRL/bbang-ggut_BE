@@ -19,6 +19,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -222,6 +224,32 @@ class CrumbGrantServiceTest {
 			SpendResult result = crumbGrantService.revokeByAdmin(MEMBER_ID, 100, "admin:ghi", "오지급 회수");
 
 			assertThat(result.spent()).isFalse();
+			then(ledgerRepository).shouldHaveNoInteractions();
+		}
+	}
+
+	@Nested
+	@DisplayName("상한 있는 적립을 할 수 있는가(약속 표시용)")
+	class CanGrantWithDailyCap {
+
+		@ParameterizedTest(name = "오늘 {0}번 받았으면 → {1}")
+		@CsvSource({"7, true", "8, false", "9, false"})
+		@DisplayName("지급과 같은 판정으로 하루 상한을 본다 — 지갑은 잠그지 않는다")
+		void dailyCap(long countToday, boolean expected) {
+			given(ledgerRepository.countByMemberIdAndReasonAndEarnedOn(MEMBER_ID, CrumbReason.TOUR_VISIT, TODAY))
+				.willReturn(countToday);
+
+			assertThat(crumbGrantService.canGrantWithDailyCap(MEMBER_ID, CrumbReason.TOUR_VISIT, 8, TODAY))
+				.isEqualTo(expected);
+			then(walletRepository).shouldHaveNoInteractions();
+		}
+
+		@Test
+		@DisplayName("제재 중이면 상한을 세지 않고 false 다")
+		void restricted() {
+			given(memberRestrictionReader.isWriteRestricted(MEMBER_ID)).willReturn(true);
+
+			assertThat(crumbGrantService.canGrantWithDailyCap(MEMBER_ID, CrumbReason.TOUR_VISIT, 8, TODAY)).isFalse();
 			then(ledgerRepository).shouldHaveNoInteractions();
 		}
 	}

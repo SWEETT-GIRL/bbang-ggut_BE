@@ -22,6 +22,8 @@ import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Feed;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Letter;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.RankingReward;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.RecordReward;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.SaveStoreReward;
+import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.TourComplete;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Welcome;
 import sweetgirl.croissant.reward.entity.CrumbLedgerEntry;
 import sweetgirl.croissant.reward.entity.MemberFeedDay;
@@ -51,6 +53,7 @@ public class RewardQueryService {
 	private final RankingRewardService rankingRewardService;
 	private final HomeCardService homeCardService;
 	private final RecordRewardService recordRewardService;
+	private final TourRewardService tourRewardService;
 
 	/**
 	 * 홈이 한 번에 읽는 요약.
@@ -86,8 +89,10 @@ public class RewardQueryService {
 			rankingRewardService.latestPending(memberId)
 				.map(reward -> new RankingReward(reward.id(), reward.rank(), reward.crumbs(), reward.crown()))
 				.orElse(null),
-			homeCardService.cardFor(memberId, letter, feed.doneToday(), today).orElse(null),
-			recordOf(memberId));
+			homeCardService.cardFor(memberId, letter, today).orElse(null),
+			recordOf(memberId),
+			new TourComplete(tourRewardService.completeRewardedThisWeek(memberId, today)),
+			earnRewardService.saveStoreRewardOf(memberId));
 	}
 
 	/** 오늘 행이 있으면 무료 판은 돌린 것이고, 광고로 더 돌릴 횟수는 그 행에 있다. 없으면 아직 상한 그대로다. */

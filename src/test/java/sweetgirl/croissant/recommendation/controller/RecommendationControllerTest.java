@@ -180,7 +180,7 @@ class RecommendationControllerTest {
 	@DisplayName("여러 곳 담기: 본문 {recommendationId, stores[{storeId, day}]} 를 받아 담긴 가게 배열을 돌려준다")
 	void addRecommendedStores_returnsCourseStores() throws Exception {
 		CourseStoreResponse added = new CourseStoreResponse(1L, 1, 1, 100L, "빵집", 37.5, 127.0, "서울 성동구 성수동",
-			null, null, false, null, null, List.of(), null);
+			null, null, false, null, null, List.of(), null, false);
 		given(courseRecommendationCommandService.addRecommendedStores(eq(null), eq(10L), any()))
 			.willReturn(List.of(added));
 

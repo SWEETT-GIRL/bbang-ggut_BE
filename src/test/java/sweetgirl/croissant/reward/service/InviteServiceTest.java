@@ -37,6 +37,7 @@ import sweetgirl.croissant.reward.dto.response.InviteResponse;
 import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
 import sweetgirl.croissant.reward.entity.MemberInvite;
 import sweetgirl.croissant.reward.enums.CrumbReason;
+import sweetgirl.croissant.reward.enums.InviteFriendStatus;
 import sweetgirl.croissant.reward.enums.RewardRefType;
 import sweetgirl.croissant.reward.enums.RewardSettingKey;
 import sweetgirl.croissant.reward.exception.RewardException;
@@ -319,8 +320,9 @@ class InviteServiceTest {
 			ReflectionTestUtils.setField(rewarded, "inviteeId", 4L);
 			given(memberInviteRepository.findAllByInviterIdOrderByIdAsc(INVITER_ID))
 				.willReturn(List.of(waiting, expired, rewarded));
-			given(memberRepository.findAllById(List.of(INVITEE_ID)))
-				.willReturn(List.of(member(INVITEE_ID, LocalDateTime.now().minusDays(3))));
+			given(memberRepository.findAllById(List.of(INVITEE_ID, 3L, 4L)))
+				.willReturn(List.of(member(INVITEE_ID, LocalDateTime.now().minusDays(3)),
+					member(3L, LocalDateTime.now().minusDays(40)), member(4L, LocalDateTime.now().minusDays(10))));
 			given(memberInviteRepository.findByInviteeId(INVITER_ID)).willReturn(Optional.empty());
 
 			InviteResponse response = inviteService.getMyInvite(INVITER_ID);
@@ -336,6 +338,64 @@ class InviteServiceTest {
 			// 가입한 지 석 달이라 이제 코드를 넣을 수 없다
 			assertThat(response.canEnterCode()).isFalse();
 			then(memberRepository).should().assignInviteCodeIfAbsent(INVITER_ID, "ABCD2345");
+		}
+
+		@Test
+		@DisplayName("friends 는 내 코드를 넣은 친구 전부를 최근 순으로 내리고, WAITING · REWARDED 수가 waiting · rewardedCount 와 같다")
+		void friends() {
+			Member me = member(INVITER_ID, LocalDateTime.now().minusMonths(3));
+			ReflectionTestUtils.setField(me, "inviteCode", "ABCD2345");
+			given(memberReader.getMember(INVITER_ID)).willReturn(me);
+			MemberInvite waiting = invite(LocalDateTime.now().minusDays(3), null);
+			MemberInvite expired = invite(LocalDateTime.now().minusDays(40), null);
+			ReflectionTestUtils.setField(expired, "id", 10L);
+			ReflectionTestUtils.setField(expired, "inviteeId", 3L);
+			LocalDateTime rewardedAt = LocalDateTime.now().minusDays(9);
+			MemberInvite rewarded = invite(LocalDateTime.now().minusDays(10), rewardedAt);
+			ReflectionTestUtils.setField(rewarded, "id", 11L);
+			ReflectionTestUtils.setField(rewarded, "inviteeId", 4L);
+			Member withdrawn = member(4L, LocalDateTime.now().minusDays(10));
+			withdrawn.softDelete();
+			withdrawn.anonymizePersonalInfo();
+			given(memberInviteRepository.findAllByInviterIdOrderByIdAsc(INVITER_ID))
+				.willReturn(List.of(waiting, expired, rewarded));
+			given(memberRepository.findAllById(List.of(INVITEE_ID, 3L, 4L)))
+				.willReturn(List.of(member(INVITEE_ID, LocalDateTime.now().minusDays(3)),
+					member(3L, LocalDateTime.now().minusDays(40)), withdrawn));
+			given(memberInviteRepository.findByInviteeId(INVITER_ID)).willReturn(Optional.empty());
+
+			InviteResponse response = inviteService.getMyInvite(INVITER_ID);
+
+			assertThat(response.friends()).extracting(InviteResponse.Friend::nickname, InviteResponse.Friend::status)
+				.containsExactly(
+					org.assertj.core.groups.Tuple.tuple("회원2", InviteFriendStatus.WAITING),
+					org.assertj.core.groups.Tuple.tuple(Member.WITHDRAWN_NICKNAME, InviteFriendStatus.REWARDED),
+					org.assertj.core.groups.Tuple.tuple("회원3", InviteFriendStatus.EXPIRED));
+			assertThat(response.friends().get(0).expiresOn())
+				.isEqualTo(waiting.getCreatedAt().plusDays(30).toLocalDate());
+			assertThat(response.friends().get(1).expiresOn()).isNull();
+			assertThat(response.friends().get(1).rewardedAt()).isEqualTo(rewardedAt);
+			assertThat(response.friends().get(2).rewardedAt()).isNull();
+			assertThat(response.friends().stream().filter(f -> f.status() == InviteFriendStatus.WAITING).count())
+				.isEqualTo(response.waiting().size());
+			assertThat(response.friends().stream().filter(f -> f.status() == InviteFriendStatus.REWARDED).count())
+				.isEqualTo(response.rewardedCount());
+		}
+
+		@Test
+		@DisplayName("초대한 친구가 없으면 friends 는 빈 목록이다")
+		void noFriends() {
+			Member me = member(INVITER_ID, LocalDateTime.now().minusMonths(3));
+			ReflectionTestUtils.setField(me, "inviteCode", "ABCD2345");
+			given(memberReader.getMember(INVITER_ID)).willReturn(me);
+			given(memberInviteRepository.findAllByInviterIdOrderByIdAsc(INVITER_ID)).willReturn(List.of());
+			given(memberInviteRepository.findByInviteeId(INVITER_ID)).willReturn(Optional.empty());
+
+			InviteResponse response = inviteService.getMyInvite(INVITER_ID);
+
+			assertThat(response.friends()).isEmpty();
+			assertThat(response.waiting()).isEmpty();
+			assertThat(response.rewardedCount()).isZero();
 		}
 	}
 }

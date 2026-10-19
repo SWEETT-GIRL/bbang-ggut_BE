@@ -3,6 +3,7 @@ package sweetgirl.croissant.course.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.lenient;
@@ -14,6 +15,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,6 +42,8 @@ import sweetgirl.croissant.course.entity.CourseMemberId;
 import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.entity.CourseStoreMemo;
 import sweetgirl.croissant.course.entity.CourseStoreMemoId;
+import sweetgirl.croissant.course.entity.CourseStoreVisit;
+import sweetgirl.croissant.course.entity.CourseStoreVisitId;
 import sweetgirl.croissant.course.entity.SavedCourse;
 import sweetgirl.croissant.course.enums.CourseProgressStatus;
 import sweetgirl.croissant.course.enums.CourseType;
@@ -54,6 +58,7 @@ import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.reward.service.TourRewardService;
 import sweetgirl.croissant.store.entity.Store;
 
 @ExtendWith(MockitoExtension.class)
@@ -77,6 +82,8 @@ class CourseQueryServiceTest {
 	CourseStoreMemoRepository courseStoreMemoRepository;
 	@Mock
 	CourseMemberRepository courseMemberRepository;
+	@Mock
+	TourRewardService tourRewardService;
 
 	@InjectMocks
 	CourseQueryService courseQueryService;
@@ -301,6 +308,54 @@ class CourseQueryServiceTest {
 		assertThat(result.imageKey()).isEqualTo("courses/1/cover.jpg");
 		assertThat(result.courseStores()).hasSize(1);
 		assertThat(result.regions()).containsExactly("종로구");
+	}
+
+	@Test
+	@DisplayName("getCourseDetail: 표시하지 않은 가게만 다녀옴 보상 판정에 넘기고, 받을 수 있는 가게에 visitRewardable 을 켠다")
+	void getCourseDetail_visitRewardable() {
+		Long memberId = 10L;
+		Course course = mockCourse(1L, "공개 코스", true, CourseType.CUSTOM, 20L);
+		CourseStore visitedStop = mockCourseStore(1, "빵집A", "종로구");
+		CourseStore rewardableStop = mockCourseStore(2, "빵집B", "종로구");
+		CourseStore blockedStop = mockCourseStore(3, "빵집C", "종로구");
+		given(rewardableStop.getStore().getId()).willReturn(2L);
+		given(blockedStop.getStore().getId()).willReturn(3L);
+		CourseStoreVisit visit = mock(CourseStoreVisit.class);
+		given(visit.getId()).willReturn(new CourseStoreVisitId(1L, memberId, 1L));
+
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(1L))
+			.willReturn(List.of(visitedStop, rewardableStop, blockedStop));
+		given(courseStoreVisitRepository.findAllByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(1L, memberId))
+			.willReturn(List.of(visit));
+		given(tourRewardService.visitRewardableStoreIds(eq(memberId), eq(course), eq(List.of(2L, 3L)), any()))
+			.willReturn(Set.of(2L));
+
+		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, memberId, null);
+
+		assertThat(result.courseStores()).extracting(CourseStoreResponse::visited, CourseStoreResponse::visitRewardable)
+			.containsExactly(
+				org.assertj.core.groups.Tuple.tuple(true, false),
+				org.assertj.core.groups.Tuple.tuple(false, true),
+				org.assertj.core.groups.Tuple.tuple(false, false));
+	}
+
+	@Test
+	@DisplayName("getCourseDetail: 비로그인이거나 토큰 없이는 볼 수 없는(링크로 들어온) 코스면 다녀옴 보상 판정을 하지 않는다")
+	void getCourseDetail_visitRewardable_notCheckable() {
+		Course course = mockCourse(1L, "링크 공개 코스", false, CourseType.CUSTOM, 20L);
+		given(course.getVisibility()).willReturn(CourseVisibility.UNLISTED);
+		given(course.getShareToken()).willReturn("token");
+		CourseStore stop = mockCourseStore(1, "빵집A", "종로구");
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(1L))
+			.willReturn(List.of(stop));
+
+		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, 10L, "token");
+
+		assertThat(result.courseStores()).singleElement()
+			.satisfies(response -> assertThat(response.visitRewardable()).isFalse());
+		then(tourRewardService).shouldHaveNoInteractions();
 	}
 
 	@Test

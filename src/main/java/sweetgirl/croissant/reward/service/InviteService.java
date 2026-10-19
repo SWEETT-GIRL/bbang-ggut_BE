@@ -1,6 +1,8 @@
 package sweetgirl.croissant.reward.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -19,11 +21,13 @@ import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.reward.code.RewardErrorCode;
 import sweetgirl.croissant.reward.dto.response.InviteAcceptResponse;
 import sweetgirl.croissant.reward.dto.response.InviteResponse;
+import sweetgirl.croissant.reward.dto.response.InviteResponse.Friend;
 import sweetgirl.croissant.reward.dto.response.InviteResponse.InvitedBy;
 import sweetgirl.croissant.reward.dto.response.InviteResponse.Waiting;
 import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
 import sweetgirl.croissant.reward.entity.MemberInvite;
 import sweetgirl.croissant.reward.enums.CrumbReason;
+import sweetgirl.croissant.reward.enums.InviteFriendStatus;
 import sweetgirl.croissant.reward.enums.RewardRefType;
 import sweetgirl.croissant.reward.enums.RewardSettingKey;
 import sweetgirl.croissant.reward.exception.RewardException;
@@ -62,30 +66,59 @@ public class InviteService {
 		int expireDays = rewardSettings.get(RewardSettingKey.INVITE_EXPIRE_DAYS);
 
 		List<MemberInvite> invites = memberInviteRepository.findAllByInviterIdOrderByIdAsc(memberId);
-		List<MemberInvite> waiting = invites.stream()
-			.filter(invite -> !invite.isRewarded() && !invite.isExpiredAt(now, expireDays))
-			.toList();
+		// 회원 행이 없는 친구는 waiting · friends 둘 다에서 뺀다(탈퇴는 행이 남아 "탈퇴한 회원"으로 나온다)
 		Map<Long, Member> inviteeById = memberRepository
-			.findAllById(waiting.stream().map(MemberInvite::getInviteeId).toList()).stream()
+			.findAllById(invites.stream().map(MemberInvite::getInviteeId).toList()).stream()
 			.collect(Collectors.toMap(Member::getId, Function.identity()));
+		List<MemberInvite> shown = invites.stream()
+			.filter(invite -> inviteeById.containsKey(invite.getInviteeId()))
+			.toList();
 
 		MemberInvite accepted = memberInviteRepository.findByInviteeId(memberId).orElse(null);
 		return new InviteResponse(
 			ensureCode(member),
 			invites.size(),
-			waiting.stream()
-				.filter(invite -> inviteeById.containsKey(invite.getInviteeId()))
+			shown.stream()
+				.filter(invite -> statusOf(invite, now, expireDays) == InviteFriendStatus.WAITING)
 				.map(invite -> new Waiting(
-					inviteeById.get(invite.getInviteeId()).getNickname(),
-					invite.getCreatedAt().plusDays(expireDays).toLocalDate()))
+					inviteeById.get(invite.getInviteeId()).getNickname(), expiresOn(invite, expireDays)))
 				.toList(),
-			(int)invites.stream().filter(MemberInvite::isRewarded).count(),
+			(int)invites.stream()
+				.filter(invite -> statusOf(invite, now, expireDays) == InviteFriendStatus.REWARDED)
+				.count(),
 			rewardSettings.get(RewardSettingKey.INVITE_INVITER_CAP),
 			rewardSettings.get(RewardSettingKey.INVITE),
 			accepted == null ? null : memberRepository.findById(accepted.getInviterId())
 				.map(inviter -> new InvitedBy(inviter.getNickname()))
 				.orElse(null),
-			accepted == null && canEnterCode(member, now));
+			accepted == null && canEnterCode(member, now),
+			shown.stream()
+				.sorted(Comparator.comparing(MemberInvite::getCreatedAt).thenComparing(MemberInvite::getId)
+					.reversed())
+				.map(invite -> toFriend(invite, inviteeById.get(invite.getInviteeId()), now, expireDays))
+				.toList());
+	}
+
+	/** 성사됐으면 REWARDED, 기한이 지났으면 EXPIRED, 아니면 WAITING. waiting · rewardedCount · friends 가 모두 이것으로 가른다. */
+	static InviteFriendStatus statusOf(MemberInvite invite, LocalDateTime now, int expireDays) {
+		if (invite.isRewarded()) {
+			return InviteFriendStatus.REWARDED;
+		}
+		return invite.isExpiredAt(now, expireDays) ? InviteFriendStatus.EXPIRED : InviteFriendStatus.WAITING;
+	}
+
+	private static LocalDate expiresOn(MemberInvite invite, int expireDays) {
+		return invite.getCreatedAt().plusDays(expireDays).toLocalDate();
+	}
+
+	private static Friend toFriend(MemberInvite invite, Member invitee, LocalDateTime now, int expireDays) {
+		InviteFriendStatus status = statusOf(invite, now, expireDays);
+		return new Friend(
+			invitee.getNickname(),
+			status,
+			invite.getCreatedAt(),
+			status == InviteFriendStatus.REWARDED ? null : expiresOn(invite, expireDays),
+			invite.getRewardedAt());
 	}
 
 	/** 초대 코드를 넣는다. */

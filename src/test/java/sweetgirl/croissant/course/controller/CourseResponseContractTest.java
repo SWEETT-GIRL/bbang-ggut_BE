@@ -83,7 +83,7 @@ class CourseResponseContractTest extends ResponseContractWebMvcTest {
 		CourseStoreResponse stop = new CourseStoreResponse(501L, 1, 1, 11L, "성심당", 36.3276, 127.4273, "대전 중구",
 			"튀김소보로 먼저", LocalTime.of(10, 30), true, 601L, "내 메모",
 			List.of(new CourseStoreMemoResponse(7L, "소보로", "같이 가요", LocalDateTime.of(2026, 10, 1, 9, 0), true)),
-			StoreCategory.BAKERY);
+			StoreCategory.BAKERY, true);
 		CourseDetailResponse detail = new CourseDetailResponse(1L, "대전 빵지순례", "courses/1.jpg", "courses/640/1.jpg",
 			List.of("stores/11/320.jpg"), 1, List.of("대전"), CourseType.CUSTOM, "소보로", 7L, "추천", true, true, true, 12L,
 			3L, LocalDateTime.of(2026, 9, 30, 18, 0), "대전", LocalDate.of(2026, 10, 10), LocalDate.of(2026, 10, 11),
@@ -144,7 +144,8 @@ class CourseResponseContractTest extends ResponseContractWebMvcTest {
 			// [id].tsx:4515
 			.andExpect(jsonPath("$.data.courseStores[0].visitedRecordId").isNumber())
 			// [id].tsx:2713,4475
-			.andExpect(jsonPath("$.data.courseStores[0].memos").isArray());
+			.andExpect(jsonPath("$.data.courseStores[0].memos").isArray())
+			.andExpect(jsonPath("$.data.courseStores[0].visitRewardable").isBoolean());
 	}
 
 	private static List<CourseSummaryResponse> summaries() {

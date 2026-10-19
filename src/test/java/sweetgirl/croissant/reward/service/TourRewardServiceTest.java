@@ -14,6 +14,7 @@ import static org.mockito.Mockito.never;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -35,7 +36,9 @@ import sweetgirl.croissant.course.repository.CourseProgressRepository;
 import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
 import sweetgirl.croissant.course.service.CourseAccessPolicy;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
+import sweetgirl.croissant.reward.entity.CrumbLedgerEntry;
 import sweetgirl.croissant.reward.enums.CrumbReason;
 import sweetgirl.croissant.reward.enums.RewardItemType;
 import sweetgirl.croissant.reward.enums.RewardRefType;
@@ -65,6 +68,8 @@ class TourRewardServiceTest {
 	private CourseStoreVisitRepository courseStoreVisitRepository;
 	@Mock
 	private CourseAccessPolicy courseAccessPolicy;
+	@Mock
+	private MemberRepository memberRepository;
 
 	@InjectMocks
 	private TourRewardService tourRewardService;
@@ -212,6 +217,118 @@ class TourRewardServiceTest {
 			assertThat(tourRewardService.rewardVisit(
 				member, course(CourseType.CUSTOM, null, null), STORE_ID, progress(TODAY), TODAY)).isEmpty();
 			then(crumbGrantService).shouldHaveNoInteractions();
+		}
+	}
+
+	@Nested
+	@DisplayName("다녀옴 보상 약속(상세의 visitRewardable)")
+	class VisitRewardable {
+
+		private static final Long OTHER_STORE_ID = 11L;
+
+		@BeforeEach
+		void member() {
+			lenient().when(memberRepository.findByIdAndDeletedAtIsNull(MEMBER_ID)).thenReturn(Optional.of(member));
+			lenient().when(crumbGrantService.canGrantWithDailyCap(MEMBER_ID, CrumbReason.TOUR_VISIT, 8, TODAY))
+				.thenReturn(true);
+		}
+
+		private void givenProgress(LocalDate firstVisitedOn) {
+			CourseProgress progress = progress(firstVisitedOn);
+			given(courseProgressRepository.findByMemberIdAndCourseId(MEMBER_ID, COURSE_ID))
+				.willReturn(Optional.of(progress));
+		}
+
+		private CrumbLedgerEntry ledgerEntry(String key) {
+			CrumbLedgerEntry entry = mock(CrumbLedgerEntry.class);
+			given(entry.getIdempotencyKey()).willReturn(key);
+			return entry;
+		}
+
+		@Test
+		@DisplayName("막힌 조건이 없으면 표시하지 않은 가게 전부를 받을 수 있다 — 진행이 없으면 오늘을 처음 다녀온 날로 본다")
+		void allOpen() {
+			Course course = course(CourseType.FORKED, null, null);
+
+			assertThat(tourRewardService.visitRewardableStoreIds(
+				MEMBER_ID, course, List.of(STORE_ID, OTHER_STORE_ID), TODAY))
+				.containsExactlyInAnyOrder(STORE_ID, OTHER_STORE_ID);
+		}
+
+		@Test
+		@DisplayName("(빵투어, 가게) 키로 이미 받은 가게와 오늘 다른 빵투어에서 받은 가게는 빠진다")
+		void alreadyRewardedStoresExcluded() {
+			Course course = course(CourseType.FORKED, null, null);
+			CrumbLedgerEntry granted = ledgerEntry("tour_visit:812:10");
+			given(ledgerRepository.findByMemberIdAndIdempotencyKeyIn(MEMBER_ID,
+				List.of("tour_visit:812:10", "tour_visit:812:11")))
+				.willReturn(List.of(granted));
+			given(ledgerRepository.existsByMemberIdAndReasonAndRefTypeAndRefIdAndEarnedOn(
+				MEMBER_ID, CrumbReason.TOUR_VISIT, RewardRefType.STORE, OTHER_STORE_ID, TODAY)).willReturn(true);
+
+			assertThat(tourRewardService.visitRewardableStoreIds(
+				MEMBER_ID, course, List.of(STORE_ID, OTHER_STORE_ID), TODAY)).isEmpty();
+		}
+
+		@Test
+		@DisplayName("하루 8 곳을 채웠거나 제재 중이면(지급과 같은 판정) 아무 가게도 못 받는다")
+		void cappedOrRestricted() {
+			Course course = course(CourseType.FORKED, null, null);
+			given(crumbGrantService.canGrantWithDailyCap(MEMBER_ID, CrumbReason.TOUR_VISIT, 8, TODAY))
+				.willReturn(false);
+
+			assertThat(tourRewardService.visitRewardableStoreIds(MEMBER_ID, course, List.of(STORE_ID), TODAY))
+				.isEmpty();
+		}
+
+		@ParameterizedTest(name = "처음 다녀온 지 {0}일 → {1}")
+		@CsvSource({"1, true", "2, false"})
+		@DisplayName("날짜 없는 빵투어는 처음 다녀온 날 다음 날까지만 — 지급과 같은 날짜 판정")
+		void datelessTourWindow(int daysSinceFirstVisit, boolean rewardable) {
+			Course course = course(CourseType.FORKED, null, null);
+			givenProgress(TODAY.minusDays(daysSinceFirstVisit));
+
+			assertThat(tourRewardService.visitRewardableStoreIds(MEMBER_ID, course, List.of(STORE_ID), TODAY))
+				.hasSize(rewardable ? 1 : 0);
+		}
+
+		@Test
+		@DisplayName("내 빵투어의 날짜가 아직 오지 않았으면 못 받는다")
+		void ownTourNotYet() {
+			Course course = course(CourseType.CUSTOM, TODAY.plusDays(3), TODAY.plusDays(4));
+			given(courseAccessPolicy.isOwner(course, MEMBER_ID)).willReturn(true);
+
+			assertThat(tourRewardService.visitRewardableStoreIds(MEMBER_ID, course, List.of(STORE_ID), TODAY))
+				.isEmpty();
+		}
+
+		@Test
+		@DisplayName("게스트 · 탈퇴 회원 · 비로그인은 못 받는다")
+		void notEarner() {
+			Course course = course(CourseType.FORKED, null, null);
+			member.markAsGuest();
+
+			assertThat(tourRewardService.visitRewardableStoreIds(MEMBER_ID, course, List.of(STORE_ID), TODAY))
+				.isEmpty();
+			given(memberRepository.findByIdAndDeletedAtIsNull(MEMBER_ID)).willReturn(Optional.empty());
+			assertThat(tourRewardService.visitRewardableStoreIds(MEMBER_ID, course, List.of(STORE_ID), TODAY))
+				.isEmpty();
+			assertThat(tourRewardService.visitRewardableStoreIds(null, course, List.of(STORE_ID), TODAY)).isEmpty();
+		}
+	}
+
+	@Nested
+	@DisplayName("이번 주 완주 보상")
+	class CompleteRewardedThisWeek {
+
+		@ParameterizedTest(name = "받은 적 {0}")
+		@CsvSource({"true", "false"})
+		@DisplayName("이번 주(월~일)에 완주 보상 줄이 있는지로 답한다")
+		void byWeek(boolean rewarded) {
+			given(ledgerRepository.existsByMemberIdAndReasonAndEarnedOnBetween(
+				MEMBER_ID, CrumbReason.TOUR_COMPLETE, WEEK_START, WEEK_START.plusDays(6))).willReturn(rewarded);
+
+			assertThat(tourRewardService.completeRewardedThisWeek(MEMBER_ID, TODAY)).isEqualTo(rewarded);
 		}
 	}
 
