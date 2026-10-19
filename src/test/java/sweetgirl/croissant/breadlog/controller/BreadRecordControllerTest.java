@@ -143,6 +143,26 @@ class BreadRecordControllerTest {
 	}
 
 	@Test
+	void changeTowerBread_returns200() throws Exception {
+		mockMvc.perform(patch("/bread-records/11/tower-bread")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"towerBread\": \"bagel\"}"))
+			.andExpect(status().isOk());
+
+		verify(commandService).changeTowerBread(eq(11L), isNull(), eq("bagel"));
+	}
+
+	@Test
+	void changeTowerBread_missingTowerBread_returns400() throws Exception {
+		mockMvc.perform(patch("/bread-records/11/tower-bread")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isBadRequest());
+
+		verify(commandService, never()).changeTowerBread(any(), any(), any());
+	}
+
+	@Test
 	void create_returns201() throws Exception {
 		given(commandService.create(isNull(), any(BreadRecordUpsertRequest.class)))
 			.willReturn(new BreadRecordCreateResponse(11L, LocalDateTime.of(2026, 8, 4, 12, 0)));
