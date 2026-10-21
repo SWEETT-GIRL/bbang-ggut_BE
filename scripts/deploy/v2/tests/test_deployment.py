@@ -12,7 +12,7 @@ import bootstrap
 import deploy
 
 IMAGE = 'example/bbang-ggut-be@sha256:' + 'a' * 64
-SECRET = f'arn:aws:secretsmanager:{deploy.REGION}:{deploy.ACCOUNT}:secret:v2/runtime-abcdef'
+PREFIX = '/sweetgirl/prod/v2/was'
 
 
 class DeploymentTest(unittest.TestCase):
@@ -40,7 +40,7 @@ class DeploymentTest(unittest.TestCase):
         self.asg.start_instance_refresh.return_value = {'InstanceRefreshId': 'refresh-id'}
 
     def invoke(self):
-        return deploy.deploy(self.asg, self.ec2, self.elb, self.sts, IMAGE, SECRET)
+        return deploy.deploy(self.asg, self.ec2, self.elb, self.sts, IMAGE, PREFIX)
 
     def running(self):
         self.group['DesiredCapacity'] = 1
@@ -115,17 +115,23 @@ class DeploymentTest(unittest.TestCase):
         self.asg.update_auto_scaling_group.assert_not_called()
 
     def test_user_data_is_valid_bash_under_limit_and_contains_no_runtime_values(self):
-        raw = base64.b64decode(deploy.user_data(IMAGE, SECRET))
+        raw = base64.b64decode(deploy.user_data(IMAGE, PREFIX))
         self.assertLessEqual(len(raw), 16384)
         subprocess.run(['bash', '-n'], input=raw, check=True)
         self.assertNotIn(b'DB_PASSWORD=', raw)
         self.assertNotIn(b'private_key', raw)
 
-    def test_mutable_image_or_injected_arn_rejected(self):
-        for image, secret in [(IMAGE.split('@')[0] + ':latest', SECRET), (IMAGE, SECRET + "'; echo bad")]:
+    def test_mutable_image_or_injected_prefix_rejected(self):
+        for image, secret in [(IMAGE.split('@')[0] + ':latest', PREFIX), (IMAGE, PREFIX + "'; echo bad")]:
             with self.subTest(image=image):
                 with self.assertRaises(ValueError):
                     deploy.user_data(image, secret)
+
+    def test_wrong_parameter_namespace_is_rejected_before_aws_changes(self):
+        for prefix in ('/sweetgirl/prod/v1/was', PREFIX + '/', PREFIX + '/../v1', 'other'):
+            with self.subTest(prefix=prefix), self.assertRaises(ValueError):
+                deploy.deploy(self.asg, self.ec2, self.elb, self.sts, IMAGE, prefix)
+        self.asg.describe_auto_scaling_groups.assert_not_called()
 
     def test_rollback_is_failure_not_success(self):
         self.asg.describe_instance_refreshes.return_value = {'InstanceRefreshes': [{'Status': 'RollbackSuccessful'}]}
@@ -166,6 +172,68 @@ class SecretTest(unittest.TestCase):
         del self.secret['environment']['ADMIN_API_KEY']
         with self.assertRaises(ValueError):
             bootstrap.validate_secret(self.secret)
+
+
+class ParameterStoreTest(unittest.TestCase):
+    def setUp(self):
+        SecretTest.setUp(self)
+        self.values = {f'{PREFIX}/env/{key}': value
+                       for key, value in self.secret['environment'].items()}
+        self.values[f'{PREFIX}/firebase-service-account'] = json.dumps(self.secret['firebase_service_account'])
+        self.values.update({f'{PREFIX}/dockerhub/{key}': value
+                            for key, value in self.secret['dockerhub'].items()})
+        self.ssm = Mock()
+        self.ssm.get_parameters.side_effect = self.respond
+
+    def respond(self, Names, WithDecryption):
+        self.assertTrue(WithDecryption)
+        self.assertLessEqual(len(Names), 10)
+        return {'Parameters': [{'Name': name, 'Type': 'SecureString', 'Value': self.values[name]}
+                               for name in reversed(Names) if name in self.values],
+                'InvalidParameters': [name for name in Names if name not in self.values]}
+
+    def test_decrypted_batches_are_mapped_by_name_with_optional_parameters_absent(self):
+        self.assertEqual(bootstrap.load_parameters(self.ssm, PREFIX),
+                         bootstrap.validate_secret(self.secret))
+        self.assertEqual(self.ssm.get_parameters.call_count, 3)
+        self.ssm.get_parameters_by_path.assert_not_called()
+
+    def test_optional_parameter_is_loaded_when_present(self):
+        self.values[f'{PREFIX}/env/OPENAI_API_KEY'] = 'optional-test'
+        env, _, _ = bootstrap.load_parameters(self.ssm, PREFIX)
+        self.assertEqual(env['OPENAI_API_KEY'], 'optional-test')
+
+    def test_missing_required_value_fails_without_disclosing_other_values(self):
+        del self.values[f'{PREFIX}/env/DB_PASSWORD']
+        with self.assertRaisesRegex(ValueError, 'Missing runtime parameters') as error:
+            bootstrap.load_parameters(self.ssm, PREFIX)
+        self.assertNotIn('test-token', str(error.exception))
+
+    def test_plaintext_parameter_is_rejected(self):
+        self.ssm.get_parameters.side_effect = None
+        self.ssm.get_parameters.return_value = {'Parameters': [
+            {'Name': f'{PREFIX}/env/ADMIN_API_KEY', 'Type': 'String', 'Value': 'secret-value'}]}
+        with self.assertRaisesRegex(ValueError, 'SecureString') as error:
+            bootstrap.load_parameters(self.ssm, PREFIX)
+        self.assertNotIn('secret-value', str(error.exception))
+
+    def test_firebase_json_and_standard_utf8_size_limits(self):
+        for value in ('not-json-secret', json.dumps([]), '가' * 1366):
+            with self.subTest(length=len(value)), self.assertRaises(ValueError) as error:
+                self.values[f'{PREFIX}/firebase-service-account'] = value
+                bootstrap.load_parameters(self.ssm, PREFIX)
+            self.assertNotIn(value, str(error.exception))
+
+    def test_failed_parameter_access_stops_before_docker_commands(self):
+        sdk = Mock()
+        sdk.client.return_value.get_parameters.side_effect = RuntimeError('AccessDenied')
+        config = json.dumps({'region': deploy.REGION, 'parameter_prefix': PREFIX, 'image': IMAGE})
+        with patch.dict(sys.modules, {'boto3': sdk}), patch('bootstrap.Path.read_text', return_value=config), \
+                patch('bootstrap.os.umask'), patch('bootstrap.run') as run:
+            with self.assertRaisesRegex(RuntimeError, 'AccessDenied'):
+                bootstrap.main()
+            sdk.client.assert_called_once_with('ssm', region_name=deploy.REGION)
+            run.assert_not_called()
 
 
 if __name__ == '__main__':
