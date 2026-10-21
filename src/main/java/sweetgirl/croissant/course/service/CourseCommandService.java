@@ -425,14 +425,11 @@ public class CourseCommandService {
 		return content;
 	}
 
-	/** 코스 안에서 쓰는 이름. 행이 없으면(협업 전 코스) 닉네임. */
+	/** 메모 줄에 보이는 이름 — 회원 닉네임. 응답 필드 이름(displayName)은 설치된 앱이 읽어서 그대로 둔다. */
 	private String displayNameOf(Long courseId, Long memberId) {
-		return courseMemberRepository.findByIdCourseIdAndIdMemberId(courseId, memberId)
-			.filter(row -> !row.isDeleted())
-			.map(CourseMember::getDisplayName)
-			.orElseGet(() -> memberRepository.findByIdAndDeletedAtIsNull(memberId)
-				.map(Member::getNickname)
-				.orElse(null));
+		return memberRepository.findByIdAndDeletedAtIsNull(memberId)
+			.map(Member::getNickname)
+			.orElse(null);
 	}
 
 	public void updateStore(Long memberId, Long courseId, Long storeId, CourseStoreUpdateRequest request) {

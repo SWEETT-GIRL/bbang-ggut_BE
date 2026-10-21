@@ -196,13 +196,10 @@ public class RewardPushService {
 			.collect(Collectors.toMap(WorldCharacterResponse::code, WorldCharacterResponse::name));
 	}
 
-	/** 회원이 지어 준 이름, 없으면 카탈로그 이름. 고른 친구가 없으면 빵댕이. */
+	/** 카탈로그 이름. 고른 친구가 없으면 빵댕이. (지어 준 이름은 2026-10-21 에 없앴다 — 사람 이름은 회원 닉네임 하나다) */
 	private static String friendNameOf(MemberFriend friend, Map<String, String> catalogNames) {
 		if (friend.getSelectedCharacter() == null) {
 			return DEFAULT_FRIEND_NAME;
-		}
-		if (friend.getFriendNickname() != null) {
-			return friend.getFriendNickname();
 		}
 		return catalogNames.getOrDefault(friend.getSelectedCharacter(), DEFAULT_FRIEND_NAME);
 	}

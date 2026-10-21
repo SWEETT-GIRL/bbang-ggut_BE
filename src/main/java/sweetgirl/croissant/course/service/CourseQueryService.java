@@ -253,7 +253,7 @@ public class CourseQueryService {
 		return members.stream()
 			.map(row -> new CourseMemberResponse(
 				row.getId().getMemberId(),
-				row.getDisplayName(),
+				row.getMember().getNickname(),
 				courseAccessPolicy.isOwner(course, row.getId().getMemberId()),
 				row.getId().getMemberId().equals(viewerId)))
 			.toList();
@@ -262,7 +262,7 @@ public class CourseQueryService {
 	private String myDisplayNameOf(List<CourseMember> members, Long viewerId) {
 		return members.stream()
 			.filter(row -> row.getId().getMemberId().equals(viewerId))
-			.map(CourseMember::getDisplayName)
+			.map(row -> row.getMember().getNickname())
 			.findFirst()
 			.orElse(null);
 	}
@@ -288,7 +288,7 @@ public class CourseQueryService {
 		Map<Long, String> displayNameByMemberId = new HashMap<>();
 		for (int i = 0; i < members.size(); i++) {
 			joinOrderByMemberId.put(members.get(i).getId().getMemberId(), i);
-			displayNameByMemberId.put(members.get(i).getId().getMemberId(), members.get(i).getDisplayName());
+			displayNameByMemberId.put(members.get(i).getId().getMemberId(), members.get(i).getMember().getNickname());
 		}
 		Comparator<CourseStoreMemo> byJoinOrder = Comparator
 			.comparing((CourseStoreMemo memo) -> joinOrderByMemberId.getOrDefault(memo.getId().getMemberId(),

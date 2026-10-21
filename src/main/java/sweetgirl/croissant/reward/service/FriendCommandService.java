@@ -23,13 +23,11 @@ import sweetgirl.croissant.world.exception.WorldException;
 import sweetgirl.croissant.world.repository.MemberCharacterRepository;
 import sweetgirl.croissant.world.service.WorldCommandService;
 
-/** 친구에게 부스러기를 쓰는 일 — 광고 대신 부스러기로 깨우기, 이름 붙이기. */
+/** 친구에게 부스러기를 쓰는 일 — 광고 대신 부스러기로 깨우기. */
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class FriendCommandService {
-
-	static final int NICKNAME_MAX_LENGTH = 8;
 
 	private final WorldCommandService worldCommandService;
 	private final MemberCharacterRepository memberCharacterRepository;
@@ -66,18 +64,5 @@ public class FriendCommandService {
 			"wake:" + characterCode);
 		return new WorldWakeResponse(characterCode, 0, planet.adsPerWake(), true,
 			List.of(RewardItemResponse.spent(spent, CrumbReason.WAKE_FRIEND)));
-	}
-
-	/** 깨어 있는 친구에게 이름을 붙인다. 비워 보내면 기본 이름으로 되돌린다. */
-	public void rename(Long memberId, String characterCode, String nickname) {
-		memberReader.requireLoggedIn(memberId);
-		String trimmed = nickname == null ? null : nickname.strip();
-		if (trimmed != null && trimmed.length() > NICKNAME_MAX_LENGTH) {
-			throw new RewardException(RewardErrorCode.REWARD_FRIEND_NICKNAME_INVALID);
-		}
-		String toStore = trimmed == null || trimmed.isEmpty() ? null : trimmed;
-		if (memberCharacterRepository.updateNickname(memberId, characterCode, toStore) == 0) {
-			throw new WorldException(WorldErrorCode.WORLD_CHARACTER_NOT_FOUND);
-		}
 	}
 }

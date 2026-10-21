@@ -25,8 +25,6 @@ public enum RewardErrorCode implements BaseErrorCode {
 			"가지고 있지 않은 품목입니다."),
 	REWARD_SHOP_CHARACTER_REQUIRED(BAD_REQUEST, "REWARD400_4",
 			"모습은 어느 친구의 것인지 골라야 합니다."),
-	REWARD_FRIEND_NICKNAME_INVALID(BAD_REQUEST, "REWARD400_5",
-			"친구 이름은 8자까지입니다."),
 	REWARD_INVITE_TOO_LATE(BAD_REQUEST, "REWARD400_6",
 			"초대 코드는 가입한 지 7일 안, 첫 빵을 기록하기 전에만 넣을 수 있습니다."),
 	REWARD_INVITE_OWN_CODE(BAD_REQUEST, "REWARD400_7",
@@ -60,6 +58,8 @@ public enum RewardErrorCode implements BaseErrorCode {
 			"초대 코드를 만들지 못했습니다. 잠시 뒤 다시 시도해 주세요."),
 	REWARD_RANKING_REWARD_EXPIRED(GONE, "REWARD410_1",
 			"받을 수 있는 기간이 지났습니다."),
+	REWARD_FRIEND_NICKNAME_RETIRED(GONE, "REWARD410_2",
+			"친구 이름 짓기는 끝났습니다. 이제 회원 닉네임 하나로 부릅니다."),
 	REWARD_PENDING_PAYLOAD_INVALID(INTERNAL_SERVER_ERROR, "REWARD500_1",
 			"보상 연출 정보를 읽지 못했습니다.");
 
