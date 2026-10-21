@@ -29,6 +29,8 @@ public class CacheConfig {
 	public static final String BREAD_BOARD_CATEGORIES = "breadBoardCategories";
 	/** 요즘 많이 기록된 빵(size 별) — 30 일 집계라 한 시간은 같은 순위를 본다 */
 	public static final String POPULAR_BREADS = "popularBreads";
+	/** "이런 빵순이 어때요" 후보 id(보는 사람별) — 하루 */
+	public static final String MEMBER_SUGGESTIONS = "memberSuggestions";
 
 	@Bean
 	public CacheManager cacheManager() {
@@ -39,7 +41,9 @@ public class CacheConfig {
 			new CaffeineCache(BREAD_BOARD_CATEGORIES, Caffeine.newBuilder()
 				.expireAfterWrite(Duration.ofMinutes(1)).maximumSize(4).recordStats().build()),
 			new CaffeineCache(POPULAR_BREADS, Caffeine.newBuilder()
-				.expireAfterWrite(Duration.ofHours(1)).maximumSize(32).recordStats().build())));
+				.expireAfterWrite(Duration.ofHours(1)).maximumSize(32).recordStats().build()),
+			new CaffeineCache(MEMBER_SUGGESTIONS, Caffeine.newBuilder()
+				.expireAfterWrite(Duration.ofDays(1)).maximumSize(5_000).recordStats().build())));
 		return manager;
 	}
 }

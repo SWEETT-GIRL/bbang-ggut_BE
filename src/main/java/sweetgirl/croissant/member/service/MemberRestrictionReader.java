@@ -86,6 +86,21 @@ public class MemberRestrictionReader {
 		}
 	}
 
+	/** 프로필 제한(PROFILE_RESTRICTED) 중인가 — 남에게 프로필이 안 보이고 검색 · 추천에서 빠지고 닉네임을 못 바꾼다. */
+	public boolean isProfileRestricted(Long memberId) {
+		return !memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(
+			memberId, List.of(MemberRestrictionType.PROFILE_RESTRICTED), LocalDateTime.now()).isEmpty();
+	}
+
+	public void validateProfileNotRestricted(Long memberId) {
+		if (memberId == null) {
+			throw new MemberException(MemberErrorCode.UNAUTHORIZED);
+		}
+		if (isProfileRestricted(memberId)) {
+			throw new MemberException(MemberErrorCode.MEMBER_PROFILE_RESTRICTED);
+		}
+	}
+
 	/**
 	 * 지금 글쓰기가 막힌 제재 중인가. 던지지 않고 답만 한다.
 	 *

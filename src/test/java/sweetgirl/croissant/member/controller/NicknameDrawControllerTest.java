@@ -81,7 +81,7 @@ class NicknameDrawControllerTest {
 
 	@Test
 	void discard_returns200WithCurrentNickname() throws Exception {
-		given(nicknameDrawService.discard(any())).willReturn(new MemberProfileResponse(1L, "달콤한 소금빵"));
+		given(nicknameDrawService.discard(any())).willReturn(new MemberProfileResponse(1L, "달콤한 소금빵", null));
 
 		mockMvc.perform(post("/users/me/nickname/draw/discard"))
 			.andExpect(status().isOk())

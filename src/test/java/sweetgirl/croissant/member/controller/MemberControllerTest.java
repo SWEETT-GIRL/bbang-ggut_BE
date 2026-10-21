@@ -49,7 +49,7 @@ class MemberControllerTest {
 
 	@Test
 	void getProfile_returns200WithIdAndNickname_whenMemberExists() throws Exception {
-		MemberProfileResponse response = new MemberProfileResponse(1L, "달콤한크루아상");
+		MemberProfileResponse response = new MemberProfileResponse(1L, "달콤한크루아상", null);
 		given(memberQueryService.getProfile(any())).willReturn(response);
 
 		mockMvc.perform(get("/users/me"))

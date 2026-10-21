@@ -29,6 +29,9 @@ public class NicknameGenerator {
 
 	private final MemberRepository memberRepository;
 
+	/** NicknamePolicy.MAX_LENGTH 와 같은 값. 단어 파일 조합이 이걸 넘으면 그 조합은 버린다. */
+	static final int NICKNAME_MAX_LENGTH = 10;
+
 	private final Queue<String> nicknameQueue = new ConcurrentLinkedQueue<>();
 
 	@PostConstruct
@@ -36,17 +39,24 @@ public class NicknameGenerator {
 		List<String> adjectives = loadWords("nickname/adjectives.txt");
 		List<String> nouns = loadWords("nickname/nouns.txt");
 
+		// 새 닉네임 규칙(2026-10-21): 띄어쓰기 없이 붙이고 10자 안. 이미 있는 이름은 정규화해서 비교한다.
 		List<String> all = new ArrayList<>(adjectives.size() * nouns.size());
 		for (String adj : adjectives) {
 			for (String noun : nouns) {
-				all.add(adj + " " + noun);
+				String candidate = adj + noun;
+				if (candidate.length() <= NICKNAME_MAX_LENGTH) {
+					all.add(candidate);
+				}
 			}
 		}
 		Collections.shuffle(all);
 
-		Set<String> usedNicknames = new HashSet<>(memberRepository.findAllNicknames());
+		Set<String> usedNicknames = new HashSet<>();
+		for (String used : memberRepository.findAllNicknames()) {
+			usedNicknames.add(NicknameNormalizer.normalize(used));
+		}
 		for (String nickname : all) {
-			if (!usedNicknames.contains(nickname)) {
+			if (!usedNicknames.contains(NicknameNormalizer.normalize(nickname))) {
 				nicknameQueue.add(nickname);
 			}
 		}
