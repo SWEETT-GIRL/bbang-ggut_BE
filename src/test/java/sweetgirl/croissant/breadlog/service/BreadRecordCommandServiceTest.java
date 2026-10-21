@@ -3,12 +3,14 @@ package sweetgirl.croissant.breadlog.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.time.LocalDateTime;
@@ -777,6 +779,38 @@ class BreadRecordCommandServiceTest {
 	}
 
 	@Test
+	@DisplayName("create: 방금 저장한 내 기록에서 이어 쓰면 연속 기록 보상으로 넘긴다")
+	void create_chainedFromRecentOwnRecord() {
+		givenCreatableRecord();
+		BreadRecord source = record(44L, member(7L));
+		ReflectionTestUtils.setField(source, "createdAt", LocalDateTime.now().minusMinutes(5));
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(44L)).willReturn(Optional.of(source));
+
+		commandService.create(7L, chainedRequest(44L));
+
+		verify(recordRewardService).rewardChainedCreated(any(Member.class), any(), eq(1), anyInt(), anyInt(), eq(44L));
+		verify(recordRewardService, never()).rewardCreated(any(), any(), anyInt(), anyInt(), anyInt());
+	}
+
+	@Test
+	@DisplayName("create: 오래된(30분 넘은) 앞 기록이나 남의 기록이면 평소 보상으로 넘긴다")
+	void create_staleOrForeignChainFallsBack() {
+		givenCreatableRecord();
+		BreadRecord stale = record(44L, member(7L));
+		ReflectionTestUtils.setField(stale, "createdAt", LocalDateTime.now().minusMinutes(31));
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(44L)).willReturn(Optional.of(stale));
+		BreadRecord foreign = record(45L, member(8L));
+		ReflectionTestUtils.setField(foreign, "createdAt", LocalDateTime.now());
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(45L)).willReturn(Optional.of(foreign));
+
+		commandService.create(7L, chainedRequest(44L));
+		commandService.create(7L, chainedRequest(45L));
+
+		verify(recordRewardService, never()).rewardChainedCreated(any(), any(), anyInt(), anyInt(), anyInt(), any());
+		verify(recordRewardService, times(2)).rewardCreated(any(Member.class), any(), eq(1), anyInt(), anyInt());
+	}
+
+	@Test
 	@DisplayName("create: 지웠다 다시 쓴 기록은 빵탑 높이가 오르지 않은 것으로 넘긴다")
 	void create_keepsHeightWhenBelowStoredMax() {
 		givenCreatableRecord();
@@ -944,6 +978,13 @@ class BreadRecordCommandServiceTest {
 		given(regionResolver.resolve(store, "client_region")).willReturn("서울_성동구_성수동");
 		given(breadRecordRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
 		given(photoRepository.saveAll(any())).willAnswer(invocation -> invocation.getArgument(0));
+	}
+
+	private BreadRecordUpsertRequest chainedRequest(Long chainFrom) {
+		BreadRecordUpsertRequest base = requestWithTowerBread("소금빵");
+		return new BreadRecordUpsertRequest(base.storeId(), base.storeName(), base.regionKey(), base.memo(),
+			base.lovedBread(), base.lovedBreads(), base.towerBread(), base.eatenAt(), base.photos(), base.tags(),
+			base.isPublic(), null, null, chainFrom);
 	}
 
 	private BreadRecordUpsertRequest requestWithTowerBread(String towerBread) {
