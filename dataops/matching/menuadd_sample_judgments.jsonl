@@ -1,0 +1,40 @@
+{"storeId": 1970, "verdict": "O", "excluded": [], "reviewedAt": "2026-08-13"}
+{"storeId": 2081, "verdict": "O", "excluded": [], "note": "크림 초코우유는 O 판정이나 음료로 보임 — 개선 필터가 제외 예정 (사용자 확인 필요)", "reviewedAt": "2026-08-13"}
+{"storeId": 4897, "verdict": "부분제외", "excluded": [{"name": "새우 투움바 파스타", "reason": "비디저트"}, {"name": "베이컨 크림 파스타", "reason": "비디저트"}, {"name": "애플시나몬수정과", "reason": "음료"}], "reviewedAt": "2026-08-13"}
+{"storeId": 8206, "verdict": "O", "excluded": [], "reviewedAt": "2026-08-13"}
+{"storeId": 12557, "verdict": "O", "excluded": [], "reviewedAt": "2026-08-13"}
+{"storeId": 17793, "verdict": "부분제외", "excluded": [{"name": "애플시나몬티(시즌메뉴)", "reason": "음료"}, {"name": "자몽티", "reason": "음료"}, {"name": "레몬티", "reason": "음료"}, {"name": "유기농 허브티", "reason": "음료"}], "reviewedAt": "2026-08-13"}
+{"storeId": 18829, "verdict": "O", "excluded": [], "reviewedAt": "2026-08-13"}
+{"storeId": 22552, "verdict": "O", "excluded": [], "reviewedAt": "2026-08-13"}
+{"storeId": 30390, "verdict": "O", "excluded": [], "reviewedAt": "2026-08-13"}
+{"storeId": 45311, "verdict": "O", "excluded": [], "reviewedAt": "2026-08-13"}
+{"storeId": 65380, "verdict": "부분제외", "excluded": [{"name": "와일드 말차", "reason": "음료"}, {"name": "레몬 생강차", "reason": "음료"}, {"name": "잉글리쉬 브렉퍼스트", "reason": "음료"}, {"name": "얼그레이", "reason": "음료"}, {"name": "페퍼민트", "reason": "음료"}, {"name": "캐모마일", "reason": "음료"}, {"name": "쑥 우유(300ml)", "reason": "음료"}, {"name": "와일드 말차(ONLY ICED)", "reason": "음료"}], "reviewedAt": "2026-08-13"}
+{"storeId": 80696, "verdict": "부분제외", "excluded": [{"name": "포레스트아일랜드", "reason": "음료"}, {"name": "하이볼", "reason": "음료"}], "reviewedAt": "2026-08-13"}
+{"storeId": 87895, "verdict": "부분제외", "excluded": [{"name": "착즙 레모네이드", "reason": "음료"}], "reviewedAt": "2026-08-13"}
+{"storeId": 109904, "verdict": "부분제외", "excluded": [{"name": "자몽블랙티", "reason": "음료"}, {"name": "레몬밤 캐모마일", "reason": "음료"}, {"name": "레몬티", "reason": "음료"}, {"name": "망고 루이보스", "reason": "음료"}, {"name": "자몽티", "reason": "음료"}], "note": "전 메뉴 음료", "reviewedAt": "2026-08-13"}
+{"storeId": 115298, "verdict": "부분제외", "excluded": [{"name": "A 에티오피아 고구구 와시드 라이트", "reason": "음료"}, {"name": "B 온두라스 로스피노스 미디엄", "reason": "음료"}, {"name": "C 과테말라 엔트레볼카네스 미디엄다크", "reason": "음료"}, {"name": "D 콜롬비아 마운틴 워터 디카페인", "reason": "음료"}, {"name": "착즙 자몽.오렌지당근,비트당근", "reason": "음료"}, {"name": "티바나 캐모마일,민트,히비스커스", "reason": "음료"}, {"name": "뱅쇼", "reason": "음료"}], "reviewedAt": "2026-08-13"}
+{"storeId": 123267, "verdict": "부분제외", "excluded": [{"name": "식혜 (뚱캔)(1개)", "reason": "음료"}, {"name": "쿨피스 복숭아 (슬림캔)(1개)", "reason": "음료"}, {"name": "쿨피스 파인애플 (슬림캔)(1개)", "reason": "음료"}, {"name": "한라봉 (슬림캔)(1개)", "reason": "음료"}, {"name": "망고 (슬림캔)(1개)", "reason": "음료"}], "reviewedAt": "2026-08-13"}
+{"storeId": 144724, "verdict": "O", "excluded": [], "reviewedAt": "2026-08-13"}
+{"storeId": 158505, "verdict": "부분제외", "excluded": [{"name": "허브티", "reason": "음료"}], "reviewedAt": "2026-08-13"}
+{"storeId": 160285, "verdict": "O", "excluded": [], "reviewedAt": "2026-08-13"}
+{"storeId": 169000, "verdict": "O", "excluded": [], "reviewedAt": "2026-08-13"}
+{"storeId": 197486, "verdict": "부분제외", "excluded": [{"name": "원두판매", "reason": "음료"}, {"name": "월간브루잉", "reason": "음료"}, {"name": "블랜딩 티(tea)", "reason": "음료"}], "note": "전 메뉴 음료(원두 상품 포함)", "reviewedAt": "2026-08-13"}
+{"storeId": 200302, "verdict": "부분제외", "excluded": [{"name": "핸드 드립 / 스페셜티", "reason": "음료"}, {"name": "스페셜티배치브루ONLY TAKEOUT", "reason": "음료"}, {"name": "에티오피아", "reason": "음료"}], "reviewedAt": "2026-08-13"}
+{"storeId": 232898, "verdict": "부분제외", "excluded": [{"name": "포장박스", "reason": "비디저트"}], "reviewedAt": "2026-08-13"}
+{"storeId": 235103, "verdict": "부분제외", "excluded": [{"name": "궁물마늘떡볶이밀키트", "reason": "비디저트"}], "note": "유일 메뉴 제외 → 이 가게 추가 메뉴 0", "reviewedAt": "2026-08-13"}
+{"storeId": 235607, "verdict": "부분제외", "excluded": [{"name": "TWG 홍차", "reason": "음료"}, {"name": "TWG 허브차", "reason": "음료"}, {"name": "NEW 애플시나몬 블랙티", "reason": "음료"}, {"name": "레몬 얼그레이티", "reason": "음료"}, {"name": "NEW 자몽 스파클링", "reason": "음료"}, {"name": "곰돌이초", "reason": "비디저트"}], "note": "사용자 메모의 '마들렌 (레몬, 코코, 얼그레이 등)' 제외는 마들렌(디저트)이라 오기재로 판단 — 유지. 곰돌이초는 음료 아닌 비식품으로 재분류", "reviewedAt": "2026-08-13"}
+{"storeId": 243571, "verdict": "O", "excluded": [], "reviewedAt": "2026-08-13"}
+{"storeId": 252763, "verdict": "O", "excluded": [], "reviewedAt": "2026-08-13"}
+{"storeId": 261097, "verdict": "O", "excluded": [], "reviewedAt": "2026-08-13"}
+{"storeId": 261129, "verdict": "O", "excluded": [], "reviewedAt": "2026-08-13"}
+{"storeId": 262791, "verdict": "O", "excluded": [], "reviewedAt": "2026-08-13"}
+{"storeId": 262970, "verdict": "부분제외", "excluded": [{"name": "오트밀크", "reason": "음료"}], "reviewedAt": "2026-08-13"}
+{"storeId": 277993, "verdict": "부분제외", "excluded": [{"name": "카라멜 마끼야또", "reason": "음료"}, {"name": "허브티", "reason": "음료"}, {"name": "티(Tea)", "reason": "음료"}], "reviewedAt": "2026-08-13"}
+{"storeId": 280493, "verdict": "O", "excluded": [], "reviewedAt": "2026-08-13"}
+{"storeId": 280680, "verdict": "부분제외", "excluded": [{"name": "유자차", "reason": "음료"}], "reviewedAt": "2026-08-13"}
+{"storeId": 288008, "verdict": "부분제외", "excluded": [{"name": "페퍼민트유자차", "reason": "음료"}, {"name": "생강차", "reason": "음료"}, {"name": "레몬차", "reason": "음료"}], "reviewedAt": "2026-08-13"}
+{"storeId": 291336, "verdict": "O", "excluded": [], "reviewedAt": "2026-08-13"}
+{"storeId": 308910, "verdict": "부분제외", "excluded": [{"name": "수제대추차", "reason": "음료"}, {"name": "수제생강차", "reason": "음료"}, {"name": "칡", "reason": "음료"}, {"name": "쌍화차", "reason": "음료"}], "reviewedAt": "2026-08-13"}
+{"storeId": 313865, "verdict": "O", "excluded": [], "reviewedAt": "2026-08-13"}
+{"storeId": 319739, "verdict": "가게제외", "excluded": [], "note": "답례떡·백일/돌상차림 주문제작 — 서비스 제외, service_exclusion_scan 병합", "reviewedAt": "2026-08-13"}
+{"storeId": 405359, "verdict": "가게제외", "excluded": [], "note": "웨딩·돌잔치 문의만 존재 — 서비스 제외, service_exclusion_scan 병합", "reviewedAt": "2026-08-13"}

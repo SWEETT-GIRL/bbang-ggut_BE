@@ -1,0 +1,21 @@
+{
+  "base_commit": "ed2299b0e5b786bf87c671b1a5cba27c7fec16c2",
+  "sources": {
+    "baseline/NaverPlaceParser.java": {
+      "git_path": "src/main/java/sweetgirl/dataops/snapshot/parser/NaverPlaceParser.java",
+      "sha256": "1f55c9ed516248a3c359bbd7e3ec85652cf058febd219ae4ce99f6513d9778c6"
+    },
+    "baseline/NaverPlaceParserTest.java": {
+      "git_path": "src/test/java/sweetgirl/dataops/snapshot/parser/NaverPlaceParserTest.java",
+      "sha256": "4da41d11cc33b0713c3b83e049137f3a39c18d40465fe2fd8f1fc4e289650afb"
+    },
+    "ParsedPlace.java": {
+      "git_path": "src/main/java/sweetgirl/dataops/snapshot/parser/ParsedPlace.java",
+      "sha256": "10256c95fd1f00a0dfaa13c6c066e78a91f3098649ac782663fada7d79996619"
+    },
+    "ParsedMenu.java": {
+      "git_path": "src/main/java/sweetgirl/dataops/snapshot/parser/ParsedMenu.java",
+      "sha256": "488ab77335996240eaeeef38687a9170d87d770e5bd8ff510e7048ee2e687a16"
+    }
+  }
+}

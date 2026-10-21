@@ -1,0 +1,16 @@
+# Copy to a private 0600 file under a private 0700 directory. Replace every placeholder.
+# This file belongs to the collection service, never the separate manifest writer.
+spring.profiles.active=managed
+spring.datasource.url=jdbc:postgresql://127.0.0.1:DATAOPS_PORT/DATAOPS_DATABASE
+spring.datasource.username=DATAOPS_SERVICE_ROLE
+spring.datasource.password=SET_LOCALLY
+spring.flyway.enabled=false
+spring.sql.init.mode=never
+spring.jpa.hibernate.ddl-auto=validate
+spring.jpa.show-sql=false
+spring.jpa.properties.hibernate.format_sql=false
+dataops.prod-db.url=jdbc:postgresql://127.0.0.1:SERVING_TUNNEL_PORT/SERVING_DATABASE
+dataops.prod-db.username=SERVING_READ_ONLY_ROLE
+dataops.prod-db.password=SET_LOCALLY
+dataops.serving.write-enabled=false
+dataops.reconcile.mode=PROPOSAL_ONLY

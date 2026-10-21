@@ -1,0 +1,156 @@
+{
+ "stores": 36904,
+ "gauge_a": [
+  {
+   "axis": "taste",
+   "criterion": "빵 투표 비중 bread/(bread+dessert)",
+   "expect": 1,
+   "corr": 0.48,
+   "n": 33373
+  },
+  {
+   "axis": "taste",
+   "criterion": "건강한 맛 투표 비중",
+   "expect": 1,
+   "corr": 0.264,
+   "n": 36012
+  },
+  {
+   "axis": "vibe",
+   "criterion": "데이트 태그",
+   "expect": 1,
+   "corr": -0.044,
+   "n": 36904
+  },
+  {
+   "axis": "vibe",
+   "criterion": "카페형 태그",
+   "expect": 1,
+   "corr": 0.001,
+   "n": 36904
+  },
+  {
+   "axis": "vibe",
+   "criterion": "동네빵집 태그",
+   "expect": -1,
+   "corr": 0.038,
+   "n": 36904
+  }
+ ],
+ "gauge_b": [
+  {
+   "cluster": 15,
+   "n": 1501,
+   "types": 14,
+   "purity": 0.262,
+   "top_type": 6
+  },
+  {
+   "cluster": 3,
+   "n": 2228,
+   "types": 15,
+   "purity": 0.312,
+   "top_type": 7
+  },
+  {
+   "cluster": 11,
+   "n": 2194,
+   "types": 14,
+   "purity": 0.457,
+   "top_type": 15
+  },
+  {
+   "cluster": 8,
+   "n": 1827,
+   "types": 12,
+   "purity": 0.473,
+   "top_type": 9
+  },
+  {
+   "cluster": 0,
+   "n": 3362,
+   "types": 16,
+   "purity": 0.524,
+   "top_type": 1
+  },
+  {
+   "cluster": 12,
+   "n": 1796,
+   "types": 12,
+   "purity": 0.538,
+   "top_type": 7
+  },
+  {
+   "cluster": 5,
+   "n": 1099,
+   "types": 14,
+   "purity": 0.539,
+   "top_type": 8
+  },
+  {
+   "cluster": 14,
+   "n": 2121,
+   "types": 11,
+   "purity": 0.565,
+   "top_type": 3
+  },
+  {
+   "cluster": 13,
+   "n": 1214,
+   "types": 12,
+   "purity": 0.586,
+   "top_type": 5
+  },
+  {
+   "cluster": 7,
+   "n": 908,
+   "types": 16,
+   "purity": 0.589,
+   "top_type": 16
+  },
+  {
+   "cluster": 6,
+   "n": 1715,
+   "types": 14,
+   "purity": 0.702,
+   "top_type": 2
+  },
+  {
+   "cluster": 4,
+   "n": 548,
+   "types": 16,
+   "purity": 0.77,
+   "top_type": 16
+  },
+  {
+   "cluster": 9,
+   "n": 707,
+   "types": 9,
+   "purity": 0.779,
+   "top_type": 11
+  },
+  {
+   "cluster": 1,
+   "n": 3829,
+   "types": 12,
+   "purity": 0.81,
+   "top_type": 1
+  },
+  {
+   "cluster": 2,
+   "n": 1161,
+   "types": 12,
+   "purity": 0.815,
+   "top_type": 9
+  },
+  {
+   "cluster": 10,
+   "n": 5282,
+   "types": 12,
+   "purity": 0.896,
+   "top_type": 1
+  }
+ ],
+ "type_top_share": 0.402,
+ "mean_purity": 0.601
+}

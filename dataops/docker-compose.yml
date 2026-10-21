@@ -1,0 +1,17 @@
+services:
+  dataops-db:
+    image: postgres:16-alpine
+    container_name: bbanggut-dataops-db
+    ports:
+      - "15433:5432"
+    environment:
+      POSTGRES_DB: dataops
+      POSTGRES_USER: dataops
+      POSTGRES_PASSWORD: dataops
+      TZ: Asia/Seoul
+      PGTZ: Asia/Seoul
+    volumes:
+      - dataops-db-data:/var/lib/postgresql/data
+
+volumes:
+  dataops-db-data:

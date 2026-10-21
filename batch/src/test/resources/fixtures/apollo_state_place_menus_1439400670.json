@@ -1,0 +1,889 @@
+{
+ "ROOT_QUERY": {
+  "__typename": "Query",
+  "placeDetail({\"input\":{\"deviceType\":\"mobile\",\"id\":\"1439400670\",\"isNx\":false}})": {
+   "POS": {
+    "badge": null,
+    "isPOS": false,
+    "today": null,
+    "__typename": "POS",
+    "popularDay": null,
+    "salesCount": null,
+    "averagePrice": null,
+    "durationTime": null,
+    "popularMenus": null,
+    "weeklyPopularity": null
+   },
+   "exp": {
+    "items": [],
+    "total": 0,
+    "__typename": "EventSearchBusinessResult",
+    "queryString": null,
+    "searchParam": null,
+    "isNaverPlusMembership": null
+   },
+   "base": {
+    "__ref": "PlaceDetailBase:1439400670"
+   },
+   "gift": {
+    "__typename": "Gift",
+    "gifticonId": null,
+    "gifticonMoreUrl": null
+   },
+   "mfds": {
+    "hgLv": "적합",
+    "period": "2025.03.12~2027.03.11",
+    "endDate": "2027.03.11",
+    "startDate": "2025.03.12",
+    "__typename": "Mfds"
+   },
+   "tabs": [
+    {
+     "name": "홈",
+     "tabId": "home",
+     "__typename": "PlaceDetailTab",
+     "externalUrl": null
+    },
+    {
+     "name": "메뉴",
+     "tabId": "menu",
+     "__typename": "PlaceDetailTab",
+     "externalUrl": null
+    },
+    {
+     "name": "리뷰",
+     "tabId": "review",
+     "__typename": "PlaceDetailTab",
+     "externalUrl": null
+    },
+    {
+     "name": "사진",
+     "tabId": "photo",
+     "__typename": "PlaceDetailTab",
+     "externalUrl": null
+    },
+    {
+     "name": "지도",
+     "tabId": "location",
+     "__typename": "PlaceDetailTab",
+     "externalUrl": null
+    },
+    {
+     "name": "주변",
+     "tabId": "around",
+     "__typename": "PlaceDetailTab",
+     "externalUrl": null
+    },
+    {
+     "name": "정보",
+     "tabId": "information",
+     "__typename": "PlaceDetailTab",
+     "externalUrl": null
+    }
+   ],
+   "cesco": null,
+   "baemin": null,
+   "images": {
+    "images": [],
+    "__typename": "PlaceDetailImages",
+    "totalImages": 0
+   },
+   "kinQna": {
+    "__typename": "KinQna",
+    "answerList": null,
+    "profileUrl": null,
+    "answerCount": null
+   },
+   "themes": null,
+   "hasFeed": {
+    "blogExist": false,
+    "feedExist": false,
+    "__typename": "HasFeed"
+   },
+   "queuing": {
+    "__typename": "Queuing",
+    "agencyCode": null,
+    "agencyName": null,
+    "queueingUrl": null,
+    "tablePreemptionUrl": null,
+    "tablePreemptionLimitKm": null
+   },
+   "accessor": {
+    "accessor": "",
+    "__typename": "PlaceAccessor",
+    "hasAccessor": false,
+    "accessorBanner": []
+   },
+   "panorama": {
+    "indoor": null,
+    "__typename": "PlacePanorama"
+   },
+   "goodPrice": null,
+   "hasCoupon": {
+    "count": 0,
+    "__typename": "HasCoupon"
+   },
+   "homepages": {
+    "etc": [],
+    "repr": null,
+    "subLinks": null,
+    "__typename": "Homepage",
+    "isSiteData": null
+   },
+   "phoneInfo": {
+    "phone": null,
+    "__typename": "PlacePhoneInfo",
+    "isPrivatePhone": false,
+    "isVirtualPhone": false,
+    "hasMobilePhoneNumber": false
+   },
+   "topPhotos": {
+    "items": [],
+    "total": 0,
+    "__typename": "PlaceDetailTopPhotos"
+   },
+   "__typename": "PlaceDetail",
+   "fineDining": null,
+   "menuImages": [
+    {
+     "imageUrl": "https://ldb-phinf.pstatic.net/20231001_172/1696144179709zlNJT_JPEG/1000022278.jpg",
+     "__typename": "MenuImage"
+    },
+    {
+     "imageUrl": "https://ldb-phinf.pstatic.net/20211103_272/1635947267519ob0Pc_JPEG/FoD_hU1O-8mP8C6uEQYITSM5.jpg",
+     "__typename": "MenuImage"
+    }
+   ],
+   "naverOrder": null,
+   "newOpening": false,
+   "placeMenus": {
+    "items": [
+     {
+      "__ref": "PlaceMenuItem:KgGCB8KzmgRN8mdBMH8N"
+     },
+     {
+      "__ref": "PlaceMenuItem:cdwGDDrWRcCPkDCDLqKL"
+     },
+     {
+      "__ref": "PlaceMenuItem:7jQfmPPPNGgTbKM9QqP6"
+     },
+     {
+      "__ref": "PlaceMenuItem:khgRMd7FcRk7BNLJDzqL"
+     }
+    ],
+    "source": null,
+    "preview": {
+     "menuIds": [
+      "KgGCB8KzmgRN8mdBMH8N",
+      "cdwGDDrWRcCPkDCDLqKL",
+      "7jQfmPPPNGgTbKM9QqP6",
+      "khgRMd7FcRk7BNLJDzqL"
+     ],
+     "__typename": "PlaceMenuPreview",
+     "courseMenuIds": [],
+     "simpleMenuIds": [
+      "KgGCB8KzmgRN8mdBMH8N",
+      "cdwGDDrWRcCPkDCDLqKL",
+      "7jQfmPPPNGgTbKM9QqP6"
+     ]
+    },
+    "menuCount": 4,
+    "updatedAt": null,
+    "__typename": "PlaceMenus",
+    "categories": [
+     {
+      "__ref": "PlaceMenuCategory:u.p.1439400670"
+     }
+    ],
+    "courseMenuCount": 0
+   },
+   "shopWindow": {
+    "url": null,
+    "sales": null,
+    "total": 0,
+    "branchYn": null,
+    "typeName": null,
+    "homepages": {
+     "etc": [],
+     "repr": null,
+     "__typename": "Homepage"
+    },
+    "__typename": "ShopWindow",
+    "branchNews": null,
+    "naverPayYn": null,
+    "description": null,
+    "businessHours": null,
+    "itemsFromChannelNo": [],
+    "isTraditionalMarket": null,
+    "itemsFromInterlockId": null
+   },
+   "busStations": [
+    {
+     "__ref": "BusStation:55019331"
+    },
+    {
+     "__ref": "BusStation:55019356"
+    },
+    {
+     "__ref": "BusStation:55019355"
+    },
+    {
+     "__ref": "BusStation:55055834"
+    },
+    {
+     "__ref": "BusStation:55019344"
+    },
+    {
+     "__ref": "BusStation:55042501"
+    }
+   ],
+   "connectPlus": [],
+   "description": "",
+   "fsasReviews": {
+    "items": [],
+    "total": 0,
+    "__typename": "FsasReviewsResult",
+    "maxItemCount": 0
+   },
+   "isStarbucks": false,
+   "repeatVisit": null,
+   "creditcardAd": null,
+   "houseBanners": [
+    {
+     "__ref": "HouseBanner:https://maps-service.pstatic.net/maps-cms/568f3214-4368-46cc-9ce1-61c1d39aa97c.png"
+    }
+   ],
+   "naverBooking": {
+    "__typename": "PlaceDetailNaverBooking",
+    "hasSmartOrder": false,
+    "nPayPromotion": null,
+    "businessTypeId": null,
+    "promotionTitle": null,
+    "naverBookingUrl": null,
+    "bookingBusinessId": null,
+    "bookingButtonName": "예약",
+    "bookingDisplayName": "방문",
+    "naverBookingHubUrl": null,
+    "bookingHubButtonName": null,
+    "naverBookingPromotion": null
+   },
+   "relatedLinks": [
+    {
+     "url": "https://www.siksinhot.com/P/1392728",
+     "name": "식신",
+     "iconName": "siksin",
+     "clickCode": "siksin",
+     "__typename": "RelatedLink"
+    },
+    {
+     "url": "https://diningcode.com/profile.php?rid=CADdrgiM9cIq",
+     "name": "다이닝코드",
+     "iconName": "diningcode",
+     "clickCode": "dcode",
+     "__typename": "RelatedLink"
+    }
+   ],
+   "staticMapUrl": "https://simg.pstatic.net/static.map/v2/map/staticmap.bin?center=128.7077761%2C36.0708187&level=16&dataversion=178.43&caller=naver_mstore&markers=pos%3A128.7077761%2036.0708187%7Ctype%3Ac%7Ccolor%3Ablue%7Clabel%3Arestaurant",
+   "bookingAwards": null,
+   "businessHours": null,
+   "businessTools": {
+    "tools": [
+     {
+      "link": "https://new.smartplace.naver.com/bizes/place/1439400670/solutions/order",
+      "type": "smartOrder",
+      "title": "네이버 주문",
+      "using": false,
+      "__typename": "BusinessTool",
+      "description": "매장 내 주문부터 포장주문까지 편하게",
+      "countInString": null
+     },
+     {
+      "link": "https://new.smartplace.naver.com/bizes/place/1439400670/solutions/booking",
+      "type": "naverBooking",
+      "title": "네이버예약",
+      "using": false,
+      "__typename": "BusinessTool",
+      "description": "실시간 예약관리를 온라인으로 한번에",
+      "countInString": null
+     },
+     {
+      "link": "https://new-m.smartplace.naver.com/bizes/place/1439400670/smartcall",
+      "type": "smartCall",
+      "title": "스마트콜",
+      "using": false,
+      "__typename": "BusinessTool",
+      "description": "전화를 대신 받고 응대까지 해드려요!",
+      "countInString": "100만"
+     }
+    ],
+    "__typename": "BusinessTools",
+    "hideAnnouncement": false
+   },
+   "hasAiBriefing": null,
+   "michelinGuide": null,
+   "brandPromotion": null,
+   "broadcastInfos": null,
+   "excludeTargets": null,
+   "hasAroundItems": true,
+   "informationTab": {
+    "pet": null,
+    "__typename": "InformationTab",
+    "facilities": [],
+    "noKidsZone": null,
+    "keywordList": null,
+    "parkingInfo": null,
+    "nearbyParking": null
+   },
+   "isAntiqueStore": false,
+   "subwayStations": [],
+   "isKoreaGrandSale": false,
+   "newBusinessHours": [],
+   "isRelaxRestaurant": false,
+   "panoramaThumbnail": {
+    "url": "https://apis.naver.com/place/panorama/thumbnail/1439400670/0?width=800&height=400&msgpad=1790045183135&md=B1h9s2bvIcBpkf18DeHmKKcB34M%3D",
+    "__typename": "PanoramaThumbnailResult"
+   },
+   "relatedPopupstore": [],
+   "topAnimatedPhotos": {
+    "items": [],
+    "total": 0,
+    "__typename": "PlaceDetailTopAnimatedPhotos"
+   },
+   "is100YearCertified": false,
+   "visitorReviewStats": {
+    "__ref": "VisitorReviewStatsResult:1439400670"
+   },
+   "festivalPerformance": {
+    "headInfo": "",
+    "festivals": [],
+    "__typename": "FestivalPerformance",
+    "performances": [],
+    "festivalsTotal": 0,
+    "performancesTotal": 0,
+    "festivalSectionHeadInfo": ""
+   },
+   "isNFASafetyCertified": false,
+   "visitorReviewPenalty": null,
+   "restaurantInfoTabDetails": null,
+   "visitorReviewMediasTotal": 1,
+   "is100YearSmallManufacturer": false,
+   "acceptsCultureDeductionCoupon": false,
+   "badge({\"input\":{\"deviceType\":\"mobile\",\"isNx\":false}})": [],
+   "buttons({\"input\":{\"deviceType\":\"mobile\",\"isNx\":false}})": [
+    {
+     "key": "route",
+     "name": "길찾기",
+     "value": "https://m.search.naver.com/search.naver?where=m&query=%EB%B9%A0%EB%A5%B8%EA%B8%B8%EC%B0%BE%EA%B8%B0&nso_path=placeType%5Eplace%3Bname%5E%3Baddress%5E%3Blatitude%5E%3Blongitude%5E%3Bcode%5E%7Ctype%5Eplace%3Bname%5E%ED%98%B8%EB%91%90%ED%8C%A9%ED%86%A0%EB%A6%AC%3Baddress%5E%3Bcode%5E1439400670%3Blongitude%5E128.7077761%3Blatitude%5E36.0708187%7Cobjtype%5Epath%3Bby%5Epubtrans",
+     "__typename": "PlaceButton"
+    },
+    {
+     "key": "share",
+     "name": "공유",
+     "value": null,
+     "__typename": "PlaceButton"
+    }
+   ]
+  }
+ },
+ "InnerRoute:5004348": {
+  "id": "5004348",
+  "name": "급행9-1",
+  "__typename": "InnerRoute"
+ },
+ "InnerRoute:5004568": {
+  "id": "5004568",
+  "name": "군위9",
+  "__typename": "InnerRoute"
+ },
+ "InnerRoute:5004575": {
+  "id": "5004575",
+  "name": "군위11",
+  "__typename": "InnerRoute"
+ },
+ "BusStation:55019331": {
+  "id": "55019331",
+  "lat": 36.0791288,
+  "lng": 128.702553,
+  "name": "백학1리",
+  "walkTime": 14,
+  "__typename": "BusStation",
+  "displayCode": "10169",
+  "innerRoutes": {
+   "routeType": [
+    {
+     "type": "3",
+     "typeName": "마을",
+     "__typename": "RouteType",
+     "innerRoute": [
+      {
+       "__ref": "InnerRoute:5004568"
+      },
+      {
+       "__ref": "InnerRoute:5004575"
+      }
+     ]
+    }
+   ],
+   "__typename": "InnerRoutes"
+  },
+  "walkingDistance": 866
+ },
+ "BusStation:55019344": {
+  "id": "55019344",
+  "lat": 36.0639542,
+  "lng": 128.6995626,
+  "name": "백학2리",
+  "walkTime": 22,
+  "__typename": "BusStation",
+  "displayCode": null,
+  "innerRoutes": {
+   "routeType": [
+    {
+     "type": "3",
+     "typeName": "마을",
+     "__typename": "RouteType",
+     "innerRoute": [
+      {
+       "__ref": "InnerRoute:5004568"
+      },
+      {
+       "__ref": "InnerRoute:5004575"
+      }
+     ]
+    }
+   ],
+   "__typename": "InnerRoutes"
+  },
+  "walkingDistance": 1340
+ },
+ "BusStation:55019355": {
+  "id": "55019355",
+  "lat": 36.0814216,
+  "lng": 128.701854,
+  "name": "백학삼거리",
+  "walkTime": 18,
+  "__typename": "BusStation",
+  "displayCode": "10654",
+  "innerRoutes": {
+   "routeType": [
+    {
+     "type": "3",
+     "typeName": "마을",
+     "__typename": "RouteType",
+     "innerRoute": [
+      {
+       "__ref": "InnerRoute:5004568"
+      },
+      {
+       "__ref": "InnerRoute:5004575"
+      }
+     ]
+    }
+   ],
+   "__typename": "InnerRoutes"
+  },
+  "walkingDistance": 1099
+ },
+ "BusStation:55019356": {
+  "id": "55019356",
+  "lat": 36.0814785,
+  "lng": 128.7017027,
+  "name": "백학삼거리",
+  "walkTime": 18,
+  "__typename": "BusStation",
+  "displayCode": "10653",
+  "innerRoutes": {
+   "routeType": [
+    {
+     "type": "15",
+     "typeName": "",
+     "__typename": "RouteType",
+     "innerRoute": [
+      {
+       "__ref": "InnerRoute:5004348"
+      }
+     ]
+    },
+    {
+     "type": "3",
+     "typeName": "마을",
+     "__typename": "RouteType",
+     "innerRoute": [
+      {
+       "__ref": "InnerRoute:5004568"
+      },
+      {
+       "__ref": "InnerRoute:5004575"
+      }
+     ]
+    }
+   ],
+   "__typename": "InnerRoutes"
+  },
+  "walkingDistance": 1098
+ },
+ "BusStation:55042501": {
+  "id": "55042501",
+  "lat": 36.0620196,
+  "lng": 128.6998501,
+  "name": "백학2리",
+  "walkTime": 26,
+  "__typename": "BusStation",
+  "displayCode": "10171",
+  "innerRoutes": {
+   "routeType": [
+    {
+     "type": "3",
+     "typeName": "마을",
+     "__typename": "RouteType",
+     "innerRoute": [
+      {
+       "__ref": "InnerRoute:5004575"
+      }
+     ]
+    }
+   ],
+   "__typename": "InnerRoutes"
+  },
+  "walkingDistance": 1532
+ },
+ "BusStation:55055834": {
+  "id": "55055834",
+  "lat": 36.0817809,
+  "lng": 128.7016991,
+  "name": "백학삼거리",
+  "walkTime": 19,
+  "__typename": "BusStation",
+  "displayCode": "10654",
+  "innerRoutes": {
+   "routeType": [
+    {
+     "type": "15",
+     "typeName": "",
+     "__typename": "RouteType",
+     "innerRoute": [
+      {
+       "__ref": "InnerRoute:5004348"
+      }
+     ]
+    },
+    {
+     "type": "3",
+     "typeName": "마을",
+     "__typename": "RouteType",
+     "innerRoute": [
+      {
+       "__ref": "InnerRoute:5004575"
+      }
+     ]
+    }
+   ],
+   "__typename": "InnerRoutes"
+  },
+  "walkingDistance": 1152
+ },
+ "PlaceDetailBase:1439400670": {
+  "id": "1439400670",
+  "name": "호두팩토리",
+  "road": "",
+  "phone": null,
+  "rcode": "0672036021",
+  "isKtis": null,
+  "siteId": "",
+  "address": "대구 군위군 산성면 백학리 산15-2",
+  "poiInfo": {
+   "land": null,
+   "polygon": null,
+   "polyline": null,
+   "relation": null,
+   "__typename": "PoiInfo",
+   "parentRelation": null
+  },
+  "category": "호두과자",
+  "routeUrl": "https://m.search.naver.com/search.naver?where=m&query=%EB%B9%A0%EB%A5%B8%EA%B8%B8%EC%B0%BE%EA%B8%B0&nso_path=placeType%5Eplace%3Bname%5E%3Baddress%5E%3Blatitude%5E%3Blongitude%5E%3Bcode%5E%7Ctype%5Eplace%3Bname%5E%ED%98%B8%EB%91%90%ED%8C%A9%ED%86%A0%EB%A6%AC%3Baddress%5E%3Bcode%5E1439400670%3Blongitude%5E128.7077761%3Blatitude%5E36.0708187%7Cobjtype%5Epath%3Bby%5Epubtrans",
+  "hidePrice": false,
+  "naverBlog": null,
+  "__typename": "PlaceDetailBase",
+  "chatBotUrl": null,
+  "coordinate": {
+   "x": "128.7077761",
+   "y": "36.0708187",
+   "__typename": "Coordinate",
+   "mapZoomLevel": 12
+  },
+  "indoorInfo": null,
+  "beLocalWeek": null,
+  "isGoodStore": false,
+  "missingInfo": {
+   "isBoss": true,
+   "__typename": "MissingInfo",
+   "businessType": "restaurant",
+   "isBizHourMissing": true,
+   "isAccessorMissing": true,
+   "isMenuImageMissing": false,
+   "isDescriptionMissing": true,
+   "isConveniencesMissing": true,
+   "needLargeSuggestionBanner": true
+  },
+  "paymentInfo": null,
+  "roadAddress": "대구 군위군 산성면 치산효령로 865-43",
+  "talktalkUrl": null,
+  "categoryCode": "221204",
+  "conveniences": null,
+  "microReviews": null,
+  "openingHours": null,
+  "virtualPhone": null,
+  "categoryCount": 1,
+  "reviewSettings": {
+   "blog": 1,
+   "cafe": 1,
+   "keyword": null,
+   "__typename": "ReviewSettings",
+   "showVisitorReviewScore": false
+  },
+  "streetPanorama": {
+   "__ref": "Panorama:GTJjYuSlJb/FM02gE469lg=="
+  },
+  "categoryCodeList": [
+   "220036",
+   "220052",
+   "220570",
+   "221204"
+  ],
+  "hideBusinessHours": false,
+  "visitorReviewsScore": 3.75,
+  "visitorReviewsTotal": 2,
+  "cafeBlogReviewsTotal": 0,
+  "hasMobilePhoneNumber": false,
+  "defaultCategoryCodeList": [
+   "220036",
+   "220052",
+   "220570",
+   "221204"
+  ],
+  "visitorReviewsTextReviewTotal": 1
+ },
+ "PlaceMenuCategory:u.p.1439400670": {
+  "id": "u.p.1439400670",
+  "kind": "uncategorized",
+  "name": "",
+  "itemIds": [
+   "KgGCB8KzmgRN8mdBMH8N",
+   "cdwGDDrWRcCPkDCDLqKL",
+   "7jQfmPPPNGgTbKM9QqP6",
+   "khgRMd7FcRk7BNLJDzqL"
+  ],
+  "__typename": "PlaceMenuCategory",
+  "showInNavigation": false
+ },
+ "Panorama:GTJjYuSlJb/FM02gE469lg==": {
+  "id": "GTJjYuSlJb/FM02gE469lg==",
+  "fov": "120",
+  "lat": "36.0710870",
+  "lon": "128.7079770",
+  "pan": "-143.25",
+  "tilt": "10.00",
+  "__typename": "Panorama"
+ },
+ "PlaceMenuItem:7jQfmPPPNGgTbKM9QqP6": {
+  "id": "7jQfmPPPNGgTbKM9QqP6",
+  "name": "통감자튀김",
+  "type": "normal",
+  "price": {
+   "priceType": "fixed",
+   "__typename": "PlaceMenuPrice",
+   "displayText": "4,000원"
+  },
+  "badges": [],
+  "course": null,
+  "images": [],
+  "labels": [],
+  "hasImage": false,
+  "isSetMenu": false,
+  "__typename": "PlaceMenuItem",
+  "description": null,
+  "optionGroups": [],
+  "thumbnailUrl": null
+ },
+ "PlaceMenuItem:KgGCB8KzmgRN8mdBMH8N": {
+  "id": "KgGCB8KzmgRN8mdBMH8N",
+  "name": "호두과자",
+  "type": "normal",
+  "price": {
+   "priceType": "fixed",
+   "__typename": "PlaceMenuPrice",
+   "displayText": "3,000원"
+  },
+  "badges": [],
+  "course": null,
+  "images": [],
+  "labels": [],
+  "hasImage": false,
+  "isSetMenu": false,
+  "__typename": "PlaceMenuItem",
+  "description": null,
+  "optionGroups": [],
+  "thumbnailUrl": null
+ },
+ "PlaceMenuItem:cdwGDDrWRcCPkDCDLqKL": {
+  "id": "cdwGDDrWRcCPkDCDLqKL",
+  "name": "팝콘 중",
+  "type": "normal",
+  "price": {
+   "priceType": "fixed",
+   "__typename": "PlaceMenuPrice",
+   "displayText": "3,500원"
+  },
+  "badges": [],
+  "course": null,
+  "images": [],
+  "labels": [],
+  "hasImage": false,
+  "isSetMenu": false,
+  "__typename": "PlaceMenuItem",
+  "description": null,
+  "optionGroups": [],
+  "thumbnailUrl": null
+ },
+ "PlaceMenuItem:khgRMd7FcRk7BNLJDzqL": {
+  "id": "khgRMd7FcRk7BNLJDzqL",
+  "name": "선물용호두과자",
+  "type": "normal",
+  "price": {
+   "priceType": "fixed",
+   "__typename": "PlaceMenuPrice",
+   "displayText": "10,000원"
+  },
+  "badges": [],
+  "course": null,
+  "images": [],
+  "labels": [],
+  "hasImage": false,
+  "isSetMenu": false,
+  "__typename": "PlaceMenuItem",
+  "description": null,
+  "optionGroups": [],
+  "thumbnailUrl": null
+ },
+ "VisitorReviewStatsResult:1439400670": {
+  "id": "1439400670",
+  "name": null,
+  "review": {
+   "scores": [
+    {
+     "count": 1,
+     "score": null,
+     "__typename": "VisitorReviewScore"
+    },
+    {
+     "count": 1,
+     "score": null,
+     "__typename": "VisitorReviewScore"
+    }
+   ],
+   "avgRating": 3.75,
+   "__typename": "VisitorReviewStats",
+   "totalCount": 2,
+   "authorCount": 2,
+   "imageReviewCount": 1
+  },
+  "analysis": {
+   "menus": [
+    {
+     "count": 1,
+     "label": "호두과자",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    }
+   ],
+   "themes": [
+    {
+     "code": "taste",
+     "count": 1,
+     "label": "맛",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    }
+   ],
+   "__typename": "VisitorReviewStatsAnalysis",
+   "votedKeyword": {
+    "details": [
+     {
+      "code": "special_menu",
+      "count": 2,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/cook20220119222024.png",
+      "category": null,
+      "iconCode": "cook",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "특별한 메뉴가 있어요",
+      "previousRank": null
+     },
+     {
+      "code": "custom_good",
+      "count": 1,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/clipboard20220119222236.png",
+      "category": null,
+      "iconCode": "clipboard",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "주문제작을 잘해줘요",
+      "previousRank": null
+     },
+     {
+      "code": "dessert_good",
+      "count": 1,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/cake20220119222226.png",
+      "category": null,
+      "iconCode": "cake",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "디저트가 맛있어요",
+      "previousRank": null
+     },
+     {
+      "code": "parking_easy",
+      "count": 1,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/park_sign20220119222222.png",
+      "category": null,
+      "iconCode": "park_sign",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "주차하기 편해요",
+      "previousRank": null
+     },
+     {
+      "code": "price_cheap",
+      "count": 1,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/coin20220119222025.png",
+      "category": null,
+      "iconCode": "coin",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "가성비가 좋아요",
+      "previousRank": null
+     },
+     {
+      "code": "price_worthy",
+      "count": 1,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/gem_stone20220119222239.png",
+      "category": null,
+      "iconCode": "gem_stone",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "비싼 만큼 가치있어요",
+      "previousRank": null
+     }
+    ],
+    "userCount": 2,
+    "__typename": "VisitorReviewStatsAnalysisVoteKeyword",
+    "totalCount": 7,
+    "reviewCount": 2
+   }
+  },
+  "__typename": "VisitorReviewStatsResult",
+  "ratingReviewsTotal": 0,
+  "visitorReviewsTotal": 2
+ },
+ "HouseBanner:https://maps-service.pstatic.net/maps-cms/568f3214-4368-46cc-9ce1-61c1d39aa97c.png": {
+  "id": "https://maps-service.pstatic.net/maps-cms/568f3214-4368-46cc-9ce1-61c1d39aa97c.png",
+  "altText": "놓치면 아까운 혜택! 네이버지도에서 예약하세요. ",
+  "bgColor": "#176CFF",
+  "linkUrl": "https://booking.map.naver.com/promotions/home",
+  "imageUrl": "https://maps-service.pstatic.net/maps-cms/568f3214-4368-46cc-9ce1-61c1d39aa97c.png",
+  "slotIndex": 1,
+  "__typename": "HouseBanner"
+ }
+}

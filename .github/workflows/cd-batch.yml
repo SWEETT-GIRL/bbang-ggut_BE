@@ -1,0 +1,133 @@
+name: CD - Batch EC2
+
+# 배치 EC2(EventBridge·Lambda 가 켜고 끄는 고정 인스턴스)에 batch 이미지를 설치한다.
+# 배치 전용(batch·dataops) 변경은 여기서만, 공통(core·빌드 설정) 변경은 cd-v2 와 함께 돈다.
+on:
+  push:
+    branches: [develop-v2]
+    paths:
+      - 'core/**'
+      - 'batch/**'
+      - 'dataops/scripts/**'
+      - 'dataops/matching/**'
+      - 'dataops/reference/**'
+      - 'dataops/requirements.txt'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle/**'
+      - 'config/**'
+      - 'Dockerfile.batch'
+      - 'Dockerfile.batch.dockerignore'
+      - 'scripts/deploy/batch/**'
+      - '.github/workflows/cd-batch.yml'
+
+# 실제 배포는 IAM·Parameter Store 준비 후 Repository variable BATCH_DEPLOY_ENABLED=true 로 연다.
+# 수동 실행은 제공하지 않는다. 재배포는 이미 PR 로 머지된 실행의 Re-run jobs 를 사용한다(cd-v2 와 같다).
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-batch
+  cancel-in-progress: false
+
+jobs:
+  merged-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      allowed: ${{ steps.gate.outputs.allowed }}
+    steps:
+      - name: Require a merged PR targeting develop-v2
+        id: gate
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prs = await github.paginate(github.rest.repos.listPullRequestsAssociatedWithCommit, {
+              ...context.repo, commit_sha: context.sha
+            });
+            const merged = prs.some(pr => pr.merged_at &&
+              pr.base.ref === 'develop-v2' && pr.base.repo.full_name === context.payload.repository.full_name &&
+              pr.merge_commit_sha === context.sha);
+            core.setOutput('allowed', String(merged));
+            if (!merged) core.warning('Merged develop-v2 PR not found: deployment skipped. This is not branch protection.');
+
+  build:
+    needs: merged-pr
+    if: needs.merged-pr.outputs.allowed == 'true' && vars.BATCH_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      # 사용자명이 포함된 전체 이미지 주소는 Secrets 마스킹으로 job output 이 생략될 수 있다(cd-v2 와 같은 이유)
+      digest: ${{ steps.docker.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check required settings
+        env:
+          ROLE: ${{ vars.BATCH_AWS_ROLE_ARN }}
+          INSTANCE_ID: ${{ vars.BATCH_INSTANCE_ID }}
+          PARAMETER_PREFIX: ${{ vars.BATCH_RUNTIME_PARAMETER_PREFIX }}
+          IMAGE_REPOSITORY: ${{ vars.V2_DOCKERHUB_IMAGE }}
+          HUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          HUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          test -n "$ROLE" && test -n "$INSTANCE_ID" && test -n "$PARAMETER_PREFIX" && test -n "$HUB_USERNAME" && test -n "$HUB_TOKEN"
+          [[ "$IMAGE_REPOSITORY" =~ ^[a-z0-9][a-z0-9_-]*/[a-z0-9][a-z0-9._-]*$ ]]
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build batch JAR without repeating CI tests
+        run: |
+          python3 -m unittest discover -s scripts/deploy/batch/tests -v
+          # 전체 자바 테스트는 develop-v2 PR 의 CI 에서 실행한다.
+          ./gradlew :batch:bootJar -x installGitHooks --no-daemon
+          mkdir -p build/batch
+          mapfile -t jars < <(find batch/build/libs -maxdepth 1 -name '*.jar' ! -name '*-plain.jar')
+          test "${#jars[@]}" -eq 1
+          cp "${jars[0]}" build/batch/batch.jar
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build ARM64 and push a batch-only tag
+        id: docker
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.batch
+          platforms: linux/arm64
+          push: true
+          tags: ${{ vars.V2_DOCKERHUB_IMAGE }}:batch-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install 'boto3>=1.35,<2'
+      - name: Assume the batch deployment role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.BATCH_AWS_ROLE_ARN }}
+          aws-region: ap-northeast-2
+          role-duration-seconds: 3600
+      - name: Install the image on the batch EC2 through SSM
+        env:
+          BATCH_IMAGE: ${{ format('{0}@{1}', vars.V2_DOCKERHUB_IMAGE, needs.build.outputs.digest) }}
+          BATCH_INSTANCE_ID: ${{ vars.BATCH_INSTANCE_ID }}
+          BATCH_RUNTIME_PARAMETER_PREFIX: ${{ vars.BATCH_RUNTIME_PARAMETER_PREFIX }}
+        run: python3 scripts/deploy/batch/deploy.py

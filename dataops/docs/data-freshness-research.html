@@ -1,0 +1,1004 @@
+<title>가게·메뉴 데이터 최신화 — 리서치 보고서</title>
+
+<style>
+  :root {
+    --ground:      #FCFCFD;
+    --surface:     #F3F4F7;
+    --surface-2:   #EAECF0;
+    --hairline:    #DCDFE5;
+    --ink:         #191C22;
+    --ink-mid:     #464C57;
+    --ink-dim:     #6E7481;
+    --accent:      #A76A12;
+    --accent-soft: #F2E7D4;
+    --ok:          #2C6E52;
+    --ok-soft:     #DFEDE6;
+    --no:          #9C3B3B;
+    --no-soft:     #F3E0E0;
+    --gap:         #5D6470;
+    --gap-soft:    #E5E7EB;
+    --warn:        #8A6A18;
+    --warn-soft:   #F5EBD3;
+
+    --sans: "Pretendard Variable", Pretendard, system-ui, -apple-system, "Segoe UI",
+            "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", "D2Coding", Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #101216;  --surface: #171A20;  --surface-2: #1E222A;
+      --hairline: #2A2F38; --ink: #E6E8EC;     --ink-mid: #B4BAC4;
+      --ink-dim: #878E9A;  --accent: #D99C3E;  --accent-soft: #33291A;
+      --ok: #5FB08A;       --ok-soft: #17281F;
+      --no: #D2706E;       --no-soft: #2B1A1A;
+      --gap: #949BA6;      --gap-soft: #22262D;
+      --warn: #C9A24A;     --warn-soft: #2A2415;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #101216;  --surface: #171A20;  --surface-2: #1E222A;
+    --hairline: #2A2F38; --ink: #E6E8EC;     --ink-mid: #B4BAC4;
+    --ink-dim: #878E9A;  --accent: #D99C3E;  --accent-soft: #33291A;
+    --ok: #5FB08A;       --ok-soft: #17281F;
+    --no: #D2706E;       --no-soft: #2B1A1A;
+    --gap: #949BA6;      --gap-soft: #22262D;
+    --warn: #C9A24A;     --warn-soft: #2A2415;
+  }
+  :root[data-theme="light"] {
+    --ground: #FCFCFD;  --surface: #F3F4F7;  --surface-2: #EAECF0;
+    --hairline: #DCDFE5; --ink: #191C22;     --ink-mid: #464C57;
+    --ink-dim: #6E7481;  --accent: #A76A12;  --accent-soft: #F2E7D4;
+    --ok: #2C6E52;       --ok-soft: #DFEDE6;
+    --no: #9C3B3B;       --no-soft: #F3E0E0;
+    --gap: #5D6470;      --gap-soft: #E5E7EB;
+    --warn: #8A6A18;     --warn-soft: #F5EBD3;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.72;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 60rem;
+    margin: 0 auto;
+    padding: 4rem 1.5rem 6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+  }
+  .prose { max-width: 44rem; }
+
+  /* ---------- masthead ---------- */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: .74rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  h1 {
+    font-size: clamp(1.9rem, 1.2rem + 2.6vw, 2.9rem);
+    line-height: 1.16;
+    letter-spacing: -.022em;
+    font-weight: 800;
+    text-wrap: balance;
+    margin-top: .5rem;
+  }
+  .standfirst {
+    max-width: 44rem;
+    color: var(--ink-mid);
+    font-size: 1.06rem;
+    margin-top: 1rem;
+  }
+  .runline {
+    font-family: var(--mono);
+    font-size: .78rem;
+    color: var(--ink-dim);
+    margin-top: 1.25rem;
+    line-height: 1.9;
+  }
+
+  /* ---------- epistemic ledger ---------- */
+  .ledger { display: flex; flex-direction: column; gap: .7rem; }
+  .ledger-bar {
+    display: flex; height: .55rem; border-radius: 2px; overflow: hidden;
+    background: var(--surface-2);
+  }
+  .ledger-bar span { display: block; }
+  .ledger-key {
+    display: flex; flex-wrap: wrap; gap: 1.4rem;
+    font-family: var(--mono); font-size: .78rem; color: var(--ink-dim);
+  }
+  .ledger-key b { color: var(--ink); font-weight: 700; }
+  .dot {
+    display: inline-block; width: .55rem; height: .55rem;
+    border-radius: 50%; margin-right: .45rem; vertical-align: baseline;
+  }
+
+  /* ---------- sections ---------- */
+  section { display: flex; flex-direction: column; gap: 1.1rem; }
+  .rule { height: 1px; background: var(--hairline); border: 0; }
+
+  h2 {
+    font-size: 1.45rem; font-weight: 750; letter-spacing: -.015em;
+    line-height: 1.3; text-wrap: balance;
+  }
+  h2 .num {
+    font-family: var(--mono); font-size: .82rem; font-weight: 500;
+    color: var(--accent); display: block; margin-bottom: .35rem;
+    letter-spacing: .06em;
+  }
+  h3 {
+    font-size: 1.1rem; font-weight: 700; letter-spacing: -.01em;
+    margin-top: .6rem; text-wrap: balance;
+  }
+  p { max-width: 44rem; }
+  strong { font-weight: 700; }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px;
+  }
+
+  /* ---------- meta chip row (a finding's epistemic status) ---------- */
+  .meta { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; }
+  .chip {
+    font-family: var(--mono); font-size: .72rem; letter-spacing: .03em;
+    padding: .18rem .5rem; border-radius: 3px; white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .chip.vote-ok   { background: var(--ok-soft);   color: var(--ok);   border-color: var(--ok); }
+  .chip.vote-mid  { background: var(--warn-soft); color: var(--warn); border-color: var(--warn); }
+  .chip.vote-no   { background: var(--no-soft);   color: var(--no);   border-color: var(--no); }
+  .chip.mark      { background: var(--surface-2); color: var(--ink-mid); }
+  .chip.mark-red  { background: var(--no-soft);   color: var(--no); }
+  .chip.mark-amb  { background: var(--warn-soft); color: var(--warn); }
+  .chip.mark-gap  { background: var(--gap-soft);  color: var(--gap); }
+
+  /* ---------- callouts ---------- */
+  .note {
+    border-left: 2px solid var(--hairline);
+    padding: .1rem 0 .1rem 1.1rem;
+    color: var(--ink-mid); font-size: .95rem;
+    display: flex; flex-direction: column; gap: .6rem;
+    max-width: 44rem;
+  }
+  .note.warn   { border-left-color: var(--warn); }
+  .note.danger { border-left-color: var(--no); }
+  .note.key    { border-left-color: var(--accent); }
+  .note b, .note strong { color: var(--ink); }
+  .note .lbl {
+    font-family: var(--mono); font-size: .72rem; letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+  .note.warn .lbl   { color: var(--warn); }
+  .note.danger .lbl { color: var(--no); }
+  .note.key .lbl    { color: var(--accent); }
+
+  .thesis {
+    background: var(--surface); border: 1px solid var(--hairline);
+    padding: 1.5rem 1.6rem; border-radius: 4px;
+    display: flex; flex-direction: column; gap: .8rem; max-width: 46rem;
+  }
+  .thesis p { font-size: 1.05rem; }
+
+  /* ---------- formula ---------- */
+  pre {
+    font-family: var(--mono); font-size: .84rem; line-height: 1.9;
+    background: var(--surface); border: 1px solid var(--hairline);
+    border-radius: 4px; padding: 1rem 1.15rem; overflow-x: auto;
+    color: var(--ink);
+  }
+  code {
+    font-family: var(--mono); font-size: .88em;
+    background: var(--surface-2); padding: .08em .34em; border-radius: 3px;
+  }
+  pre code { background: none; padding: 0; font-size: 1em; }
+
+  /* ---------- tables ---------- */
+  .tw { overflow-x: auto; max-width: 100%; }
+  table {
+    border-collapse: collapse; width: 100%; font-size: .9rem;
+    font-variant-numeric: tabular-nums;
+  }
+  th, td {
+    text-align: left; padding: .58rem .8rem;
+    border-bottom: 1px solid var(--hairline); vertical-align: top;
+  }
+  th {
+    font-family: var(--mono); font-size: .74rem; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--ink-dim); font-weight: 500;
+    border-bottom-color: var(--ink-dim);
+  }
+  td.n { text-align: right; font-family: var(--mono); white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: none; }
+  .hl td { background: var(--warn-soft); }
+
+  /* ---------- stat row ---------- */
+  .stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 1px; background: var(--hairline);
+    border: 1px solid var(--hairline); border-radius: 4px; overflow: hidden;
+  }
+  .stat { background: var(--ground); padding: .95rem 1rem; display: flex; flex-direction: column; gap: .2rem; }
+  .stat .v {
+    font-family: var(--mono); font-size: 1.35rem; font-weight: 700;
+    letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+  }
+  .stat .k { font-size: .78rem; color: var(--ink-dim); line-height: 1.45; }
+  .stat.bad .v { color: var(--no); }
+  .stat.good .v { color: var(--ok); }
+
+  ul, ol { padding-left: 1.3rem; max-width: 44rem; display: flex; flex-direction: column; gap: .45rem; }
+  li::marker { color: var(--ink-dim); }
+
+  details {
+    border: 1px solid var(--hairline); border-radius: 4px;
+    padding: .8rem 1rem; background: var(--surface);
+  }
+  summary { cursor: pointer; font-weight: 650; font-size: .95rem; }
+  details[open] summary { margin-bottom: .7rem; }
+
+  footer {
+    font-family: var(--mono); font-size: .76rem; color: var(--ink-dim);
+    line-height: 1.85; border-top: 1px solid var(--hairline); padding-top: 1.5rem;
+  }
+</style>
+
+<div class="wrap">
+
+  <!-- ══════════ MASTHEAD ══════════ -->
+  <header>
+    <div class="eyebrow">빵긋 DataOps · 리서치 보고서</div>
+    <h1>가게·메뉴 데이터 최신화</h1>
+    <p class="standfirst">
+      점주 입력 채널 없이 45,444개 가게를 최신 상태로 유지하는 방법과 스키마 설계.
+      제외 조건: 카카오 로컬 API 미사용, 점주 클레임 기능 미구축.
+    </p>
+    <div class="runline">
+      조사일 2026-07-31 · 딥리서치 106 에이전트 / 67분 / 1,240 툴 호출<br>
+      웹 검색 200회 전량 소진 — 이번 세션 내 추가 검색 불가
+    </div>
+  </header>
+
+  <!-- ══════════ LEDGER ══════════ -->
+  <div class="ledger">
+    <div class="ledger-bar" role="img"
+         aria-label="리서치 검증 통과 7건, 부결 18건, 미해결 7건. 별도로 직접 실측 3건">
+      <span style="width:21.9%;background:var(--ok)"></span>
+      <span style="width:56.2%;background:var(--no)"></span>
+      <span style="width:21.9%;background:var(--gap)"></span>
+    </div>
+    <div class="ledger-key">
+      <span><i class="dot" style="background:var(--ok)"></i><b>7</b> 검증 통과</span>
+      <span><i class="dot" style="background:var(--no)"></i><b>18</b> 부결</span>
+      <span><i class="dot" style="background:var(--gap)"></i><b>7</b> 미해결 — 근거 0건</span>
+      <span style="color:var(--accent)"><i class="dot" style="background:var(--accent)"></i><b>5</b> 직접 실측으로 대체 (3장)</span>
+    </div>
+  </div>
+
+  <hr class="rule">
+
+  <!-- ══════════ TL;DR ══════════ -->
+  <section>
+    <h2><span class="num">00</span>한 장 요약</h2>
+
+    <p class="prose"><strong>문제를 잘못 정의하고 있었다.</strong> “45,444개를 어떻게 다 최신으로 유지하나”는 달성 불가능한 목표다. 올바른 정의는 <strong>“고정된 크롤 예산 R 안에서 신선도를 최대화하는 자원 배분”</strong>이다.</p>
+
+    <div class="thesis">
+      <div class="eyebrow">이 보고서에서 가장 중요한 문장</div>
+      <p><strong>일부 가게를 재크롤 대상에서 영구 제외하는 것은 타협이 아니라 이론적 최적해다.</strong></p>
+      <p style="color:var(--ink-mid);font-size:.95rem">
+        최적 배분 공식 <code>ρᵢ = √(μᵢΔᵢ/λ) − Δᵢ</code> 에서 <code>μᵢ/Δᵢ ≤ λ</code>인 가게는 최적 크롤률이 <strong>정확히 0</strong>이다.
+        (μ = 조회·수요율, Δ = 변경률, λ = 예산이 결정하는 전역 임계)
+      </p>
+    </div>
+
+    <p class="prose">동시에, <strong>지금은 이 공식을 쓸 수 없다.</strong> 입력이 모두 없기 때문이다 — 예산 R(네이버 지속 가능 요청률)도, μ(가게별 조회·구독 신호가 로깅되는지)도 확인되지 않았고, Δ(변경률)를 계산할 스키마 컬럼조차 없다.</p>
+
+    <div class="note danger">
+      <span class="lbl">답하지 못한 것</span>
+      <p><strong>조사 축 하나가 여전히 비어 있다.</strong> 한국 공공데이터(LOCALDATA·국세청) 기반 폐업 감지는 <strong>검증 통과 근거가 단 한 건도 없어 이 보고서가 답하지 못한다.</strong></p>
+    </div>
+
+    <div class="thesis">
+      <div class="eyebrow">인스타그램 — 리서치가 아니라 실측으로 답이 나왔다 (3.3절)</div>
+      <p><strong>인스타는 비어 있는 걸 채우는 도구가 아니라, 있는 걸 갱신하는 도구다.</strong></p>
+      <p style="color:var(--ink-mid);font-size:.95rem">
+        메뉴 0개 가게의 인스타 보유율 <strong style="color:var(--no)">37.2%</strong>, 메뉴 있는 가게 <strong style="color:var(--ok)">67.2%</strong> — 30%p 차이.
+        <strong>가장 필요한 집단에서 가장 없다.</strong>
+      </p>
+    </div>
+
+    <div class="thesis">
+      <div class="eyebrow">가장 급한 것은 최적화가 아니었다 (3.4절)</div>
+      <p><strong>데이터가 2개월간 낡은 게 아니라, 처음부터 제대로 안 긁혔다.</strong></p>
+      <p style="color:var(--ink-mid);font-size:.95rem">
+        네이버에 있는데 우리 DB에 없는 메뉴 2,978개 중, 판별 가능한 것의 <strong style="color:var(--no)">68.8%가 “최초 수집 누락”</strong>이었다.
+        이건 스케줄링 문제가 아니라 <strong>일회성 백필</strong> 문제다.
+      </p>
+    </div>
+
+    <h3>결론 4줄</h3>
+    <ol class="prose">
+      <li><strong>가장 급한 것</strong> — <strong>네이버 메뉴 재수집.</strong> 최초 누락 복구 + 메뉴 0개 가게의 47.7%를 무료로 채움(~3,170 가게 / ~32,000 메뉴). 유료 API도 인스타도 필요 없다. <strong>단, 출처 컬럼 없이 덮어쓰면 사용자 기여가 유실된다.</strong></li>
+      <li><strong>당장 할 것</strong> — <code>store</code>에 상태변수 4개(<code>last_verified_at</code>, <code>crawl_attempts</code>, <code>change_detected_count</code>, <code>content_hash</code>) 추가.</li>
+      <li><strong>하지 말 것</strong> — ① 변경률을 <code>X/n</code>으로 추정 — 비일관 추정량이다. ② <strong>“메뉴 0개를 인스타로 채운다”</strong> — 네이버 재수집이 더 많이, 더 싸게 한다.</li>
+      <li><strong>다음 세션 1순위</strong> — 한국 공공데이터 폐업 감지. 네이버 경로 폐업 감지가 실패했으므로 이게 유일한 대안일 수 있는데 근거가 0이다.</li>
+    </ol>
+  </section>
+
+  <hr class="rule">
+
+  <!-- ══════════ MEASURED ══════════ -->
+  <section>
+    <h2><span class="num">01</span>우리 실측치</h2>
+    <p class="prose" style="color:var(--ink-mid);font-size:.95rem">프로덕션 DB 직접 쿼리 · port 15432 <code>soboro</code> · 2026-07-31</p>
+
+    <div class="stats">
+      <div class="stat"><span class="v">45,444</span><span class="k">가게 — 전부 2026-05 벌크 임포트</span></div>
+      <div class="stat"><span class="v">68%</span><span class="k">naver_place_id 매칭 (30,944)</span></div>
+      <div class="stat bad"><span class="v">46%</span><span class="k">메뉴 0개 가게 (21,141)</span></div>
+      <div class="stat bad"><span class="v">0.5%</span><span class="k">영업시간 보유 (214)</span></div>
+      <div class="stat bad"><span class="v">171</span><span class="k">유저 제보 총계 — 회원 1,976명 · 2개월</span></div>
+      <div class="stat bad"><span class="v">0</span><span class="k">신선도 관련 컬럼</span></div>
+    </div>
+
+    <div class="note warn">
+      <span class="lbl">크라우드소싱 산술</span>
+      <p>회원 1,976명 × 2개월 = 171건. 이 속도로 45,444개를 한 바퀴 도는 데 <strong>40년 이상</strong>이다. “유저 제보를 활성화하자”는 방향은 규모 문제를 풀지 못한다.</p>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- ══════════ FINDINGS ══════════ -->
+  <section>
+    <h2><span class="num">02</span>검증 통과 발견</h2>
+    <p class="prose" style="color:var(--ink-mid);font-size:.95rem">
+      각 항목의 <code>vote</code>는 3인 독립 검증자의 <em>반박 시도</em> 결과다. <code>3-0</code>은 3명 모두 반박에 실패했다는 뜻.
+    </p>
+
+    <h3>2.1 &nbsp;문제 재정의 — 예산 배분 문제다</h3>
+    <div class="meta">
+      <span class="chip vote-ok">vote 3-0</span>
+      <span class="chip mark-amb">🟠 한국 데이터 없음</span>
+    </div>
+    <p class="prose">웹 문서의 변경은 <strong>포아송 과정</strong>으로 잘 설명된다. 270개 사이트 약 720,000 문서를 4개월간 매일 크롤한 실증 연구다. 개별 대상의 변경 <em>시점</em>은 예측 불가능해도, 대상별 <strong>평균 변경률 λ만 추정하면 최적 재방문 정책을 계산할 수 있다.</strong></p>
+
+    <div class="note">
+      <span class="lbl">함께 읽어야 할 단서</span>
+      <p><strong>검증 구간 한계</strong> — 크롤 granularity가 1일이라 실제 검증된 것은 <strong>10~20일급 중간 주기 대상</strong>이다. 빵집 메뉴·영업시간은 주~월 단위라 검증 구간과 겹쳐 <strong>오히려 유리</strong>하다.</p>
+      <p><strong>흔한 오독 주의</strong> — 이 논문의 결론은 “재방문 빈도를 λ에 비례시키라”가 <strong>아니다.</strong> 균일 정책이 비례 정책보다 낫고, 최적 빈도는 λ에 대해 <strong>비단조적</strong>이다.</p>
+    </div>
+
+    <h3>2.2 &nbsp;핵심 우선순위 공식 ⭐</h3>
+    <div class="meta">
+      <span class="chip vote-mid">vote 2-1</span>
+      <span class="chip mark">PNAS 115(32) · 2018</span>
+      <span class="chip mark">원 PDF만 사용</span>
+    </div>
+
+<pre><code>목적함수   F₂(ρ) = Σᵢ μᵢρᵢ/(ρᵢ + Δᵢ)     제약  Σᵢ ρᵢ = R
+최적해     ρᵢ = √(μᵢΔᵢ/λ) − Δᵢ
+배제 규칙  μᵢ/Δᵢ ≤ λ  ⟹  ρᵢ = 0</code></pre>
+
+    <ul class="prose">
+      <li><code>μᵢ</code> — 가게 i가 <strong>요청되는</strong> 포아송률 (조회수·인기·수요)</li>
+      <li><code>Δᵢ</code> — 가게 i가 <strong>변경되는</strong> 포아송률</li>
+      <li><code>λ</code> — 예산 R과 최종 활성 집합이 <strong>함께</strong> 결정하는 전역 임계</li>
+    </ul>
+
+    <p class="prose"><strong>실무 함의 2가지:</strong> ① 크롤 빈도는 변경률에 <strong>선형이 아니라 제곱근</strong> 비례한다. ② <code>μᵢ/Δᵢ ≤ λ</code>인 가게는 크롤 빈도 0이 최적 — <strong>“전수 재크롤 포기”는 타협이 아니라 최적해다.</strong></p>
+
+    <div class="note danger">
+      <span class="lbl">인용 오염 경고</span>
+      <p>PMC의 HTML 평문 변환이 <strong>근호(√)를 탈락시켜</strong> 호출마다 다른 잘못된 수식을 반환한다 (<code>ρᵢ = μᵢΔᵢ(λ−Δᵢ)</code> 등). 이번 검증에서만 서로 다른 오류 렌더링 2종이 관측됐다. <strong>PMC 렌더링본을 인용하지 말고 반드시 원 PDF를 쓸 것.</strong> 반대 1표도 이 오염이 원인으로 보이며, 검증자가 원 PDF로 축자 확인했다.</p>
+    </div>
+
+    <p class="prose" style="font-size:.95rem;color:var(--ink-mid)">
+      <strong>계산 비용</strong> — <code>μᵢ/Δᵢ</code> 오름차순 정렬 → 임계 미달 항목 0으로 떨굼 → 재계산. Theorem 1이 O(n log n) 유일해를 보장하므로 n≈4.5만은 <strong>정렬 한 번 수준</strong>이다.
+    </p>
+
+    <div class="note key">
+      <span class="lbl">🟡 후속 — 우리에게 더 적합할 수 있음</span>
+      <p>Kolobov et al. SIGIR 2019가 동일 목적함수를 <strong>politeness(요청률 상한) 제약</strong>으로 확장했고 Microsoft가 구현을 오픈소스로 공개했다. 네이버 차단 회피가 실제 제약인 우리에게는 이쪽이 더 맞을 가능성이 높다 <em>(미검증)</em>.</p>
+    </div>
+
+    <h3>2.3 &nbsp;변경률 추정의 함정 — <code>X/n</code>을 쓰지 마라</h3>
+    <div class="meta"><span class="chip vote-ok">vote 3-0</span></div>
+    <p class="prose">변경률을 <strong>“감지된 변경 횟수 / 방문 횟수(X/n)”</strong>로 추정하면 구조적으로 <strong>하향 편향</strong>되며, <strong>표본 수 n을 아무리 늘려도 편향이 전혀 줄지 않는다</strong>(비일관 추정량).</p>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>조건</th><th>결과</th></tr></thead>
+        <tbody>
+          <tr><td>편향 10% 이내로 잡으려면</td><td>방문 빈도 f가 실제 변경률 λ의 <strong>약 5배</strong> (r &lt; 0.21)</td></tr>
+          <tr class="hl"><td>주 1회 변경 대상을 2주에 한 번 관측</td><td><strong>편향 57%</strong> (E[r̂]/r ≈ 0.43)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="prose">→ 네이버 차단 위험 때문에 f를 낮게 유지할 수밖에 없는 우리 조건에서 재크롤 우선순위를 <code>X/n</code>으로 매기면 <strong>변경률을 대폭 과소평가</strong>하게 된다.</p>
+
+    <div class="note warn">
+      <span class="lbl">🟡 보정 대안 — 확정 사실 아님</span>
+      <p>같은 논문 4.2절이 보정 추정량 <code>r̂ = −log((X̄+0.5)/(n+0.5))</code>을 제시한다. <strong>다만 이 추정량의 실효성을 단독 주장으로 세운 클레임은 0-3으로 부결됐다.</strong> 논문 자체가 X̄=0일 때 특이점을 명시하므로, r이 큰 우리 상황에선 보정 추정량조차 포화될 수 있다.</p>
+    </div>
+
+    <h3>2.4 &nbsp;상태 모델 — 이진 플래그로는 안 된다</h3>
+    <div class="meta"><span class="chip vote-ok">vote 3-0 / 3-0</span></div>
+    <p class="prose">대형 POI 사업자들은 영업 여부를 <strong>이진 플래그로 관리하지 않는다.</strong></p>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>사업자</th><th>상태 모델</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Google Maps</strong></td>
+            <td>제보 택소노미 <strong>7종</strong>(Temporarily closed / Permanently closed / Doesn’t exist here / Duplicate / Moved / Not open to the public / Reopened) · 저장 enum <strong>4값</strong>(<code>OPERATIONAL</code> / <code>CLOSED_TEMPORARILY</code> / <code>CLOSED_PERMANENTLY</code> / <code>FUTURE_OPENING</code>) — 영업시간과 <strong>별개 필드</strong></td>
+          </tr>
+          <tr>
+            <td><strong>OpenPOIs</strong></td>
+            <td>“POI가 실존하며 현재 일반에 영업 중일 확률”을 <strong>0~1 연속 점수</strong>로 모델링</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note key">
+      <span class="lbl">인용문보다 강한 근거</span>
+      <p style="font-size:1.02rem"><strong>“Do not mark a place open or closed based on its hours.”</strong></p>
+      <p>hours 기반 판단을 closure로 쓰지 말라는 직접적 분리 지시. <code>OPERATIONAL</code> 설명 <em>“operational, not necessarily open now”</em>가 <strong>“영업중 상태 ≠ 지금 문 열려있음”</strong>을 못박는다.</p>
+    </div>
+
+    <p class="prose"><strong>→ 우리 함의:</strong> <code>store.status(ACTIVE|DELETED)</code> 단일 플래그로는 <strong>임시휴업·이전·중복·미존재를 표현할 수 없다.</strong> <code>business_status</code> enum + 영업시간 별도 컬럼 + <code>existence_confidence</code> 확률 컬럼 분리 설계가 1차 근거로 뒷받침된다.</p>
+
+    <details>
+      <summary>OpenPOIs 4대 한계 — 반드시 병기</summary>
+      <ol>
+        <li><strong>점수 산출기는 이식 불가</strong> — confidence는 “OSM 태그 편집 이력에 적합시킨 베이지안 turnover 모델” 기반인데 우리는 OSM 편집 이력이 없다. <strong>이전 가능한 것은 스키마 패턴이지 추정기가 아니다.</strong></li>
+        <li><strong>폐업 탐지기로는 무력</strong> — 점수 분포가 <code>&lt;30%: 0.2%</code> / <code>30~70%: 24.6%</code> / <code>70~90%: 68.5%</code> / <code>&gt;90%: 6.7%</code>로 저신뢰 구간이 0.2%뿐이라 그대로 필터로 쓰면 거의 아무것도 못 거른다.</li>
+        <li>커버리지 <strong>미국 한정</strong> — 한국·네이버·카카오 사례 아님.</li>
+        <li>캘리브레이션이 <strong>2026-07-30에 방금 변경</strong>됨(조사 시점 하루 전, 이전 릴리스와 비교 불가라고 프로젝트가 명시).</li>
+      </ol>
+    </details>
+
+    <h3>2.5 &nbsp;폐업 감지는 다중 약신호 결합 문제</h3>
+    <div class="meta">
+      <span class="chip vote-ok">vote 3-0</span>
+      <span class="chip mark-amb">🟡 단일 벤더 블로그 · 4.75년 경과</span>
+    </div>
+    <p class="prose">Foursquare는 3,000개 이상의 후보 피처를 만들어 XGBoost 등 분류 모델을 학습시키는 ML 파이프라인으로 폐업을 판정한다. 신호는 서드파티 firmographic 데이터부터 자사 사용자 생성 시계열(방문·체크인·편집·팁·사진)까지 걸쳐 있다.</p>
+
+    <div class="note danger">
+      <span class="lbl">이식성 — 결정적 주의</span>
+      <p>이 클레임은 참이지만 <strong>빵긋으로의 운영 이전 가능성은 낮다.</strong> Foursquare의 최강 피처는 전 지구 규모 자사 체크인 스트림인데, 우리는 45,444개 가게에 회원 1,976명·2개월 제보 171건으로 <strong>그 밀도의 근처에도 없다.</strong></p>
+      <p><strong>이 근거는 원칙(“여러 약한 신호를 결합하라, 단일 소스에 의존하지 말라”)만 지지하며, 3,000피처 XGBoost 구축을 정당화하는 데 인용해서는 안 된다.</strong></p>
+    </div>
+
+    <h3>2.6 &nbsp;크라우드소싱 채널 분리</h3>
+    <div class="meta">
+      <span class="chip vote-ok">vote 3-0</span>
+      <span class="chip mark-amb">🟡 규범적 함의는 논증</span>
+    </div>
+    <p class="prose">Google Maps는 <strong>Fact checked</strong>와 <strong>Reported incorrect</strong>를 리뷰·사진·편집과 구분되는 <strong>독립 기여 유형</strong>으로 정의한다. 폼 작성형 고마찰 채널인 Edit과 표 안에서 <strong>이미 분리되어 있다.</strong></p>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>기여</th><th class="n">점수</th><th>성격</th></tr></thead>
+        <tbody>
+          <tr><td>Place added / Road added</td><td class="n">15</td><td>고비용 신규</td></tr>
+          <tr><td>Review / Caption</td><td class="n">10</td><td>고마찰</td></tr>
+          <tr><td>Photo / <strong>Edit</strong></td><td class="n">5</td><td>폼 작성형</td></tr>
+          <tr class="hl"><td><strong>Fact checked</strong> / <strong>Reported incorrect</strong></td><td class="n">1</td><td>저마찰 · 최하위 티어</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note warn">
+      <span class="lbl">반드시 함께 표기할 미검증 부분</span>
+      <p><strong>🔴 “1탭”, “‘이 정보가 맞나요?’ 형태”라는 UI 서술은 어떤 출처도 뒷받침하지 않는다.</strong> 인용 페이지는 fact check가 무엇인지 정의조차 하지 않는다. 저마찰 검증의 구체적 UI 형태는 <strong>필자 해석</strong>이다.</p>
+      <p><strong>보상 가중치가 함의를 일부 반대로 지지한다</strong> — Google은 마이크로 검증을 <strong>최하위 1점</strong>(Review의 1/10)으로 책정했다. 이는 “신선도 유지의 주력”이 아니라 <strong>게임화 사다리의 저가치 대량 처리 액션</strong>으로 가격 책정했다는 증거이기도 하다.</p>
+    </div>
+
+    <h3>2.7 &nbsp;우리 수치에 인스턴스화한 3단계 설계</h3>
+    <div class="meta">
+      <span class="chip vote-no">검증 없음 — 필자 도출</span>
+      <span class="chip mark-gap">⚪ 실측 필요</span>
+    </div>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>단계</th><th>내용</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>0 — 선행조건</strong><br><span style="color:var(--no)">현재 불가</span></td>
+            <td><code>last_verified_at</code>, <code>crawl_attempts</code>(n), <code>change_detected_count</code>(X), <code>content_hash</code> 4개 컬럼이 없으면 Δ 추정 자체가 불가능하다.</td>
+          </tr>
+          <tr>
+            <td><strong>1 — 콜드스타트</strong><br><span style="color:var(--ink-dim)">Δ 미지</span></td>
+            <td>Δ를 카테고리·지역별 상수로 두면 배분은 <strong>√(조회수)에 단조 비례</strong>한다. 따라서 <strong>“조회·구독 신호의 제곱근 순 랭킹”</strong>이 이론과 모순되지 않는 최소 방어 가능 스케줄.</td>
+          </tr>
+          <tr>
+            <td><strong>2 — Δ 축적 후</strong></td>
+            <td>임계 규칙 <code>μᵢ/Δᵢ ≤ λ</code>를 적용해 저조회 가게를 재크롤 대상에서 <strong>영구 제외</strong>.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="font-size:1rem">세 모집단을 분리하라 — 같은 파이프라인이 아니다</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th>모집단</th><th class="n">규모</th><th>실제 문제</th></tr></thead>
+        <tbody>
+          <tr><td>naver_place_id 미매칭</td><td class="n">14,500 (32%)</td><td>크롤 불가 → 재크롤 스케줄이 아니라 <strong>매칭 문제</strong></td></tr>
+          <tr><td>메뉴 0개</td><td class="n">21,141 (46%)</td><td><strong>최초 채움(backfill)</strong> — freshness 이론의 적용 대상이 <strong>아님</strong></td></tr>
+          <tr><td>영업시간 보유</td><td class="n">214 (0.5%)</td><td>신선도를 논할 <strong>모집단 자체가 없음</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <details>
+      <summary>이 도출을 그대로 신뢰하지 말아야 할 4가지</summary>
+      <ol>
+        <li>“가치비 균일 버킷 내 조회수 비례 스케줄” <strong>유사 주장은 0-3으로 부결됐다.</strong> 위 1단계는 확정된 닫힌 형태로부터 유도했지만 <strong>독립 검증을 통과한 명제는 아니다.</strong></li>
+        <li>⚪ <strong>예산 R을 정할 근거가 없다</strong> — R 없이는 λ도 정해지지 않아 배제 집합을 계산할 수 없다.</li>
+        <li>⚪ <strong>μ가 프로덕션에 로깅되는지 확인되지 않았다.</strong> 없으면 1단계조차 불가능하다.</li>
+        <li>균일 정책이 비례 정책보다 우수하다는 별도 결론을 감안하면, <strong>Δ 인프라 이전 단계의 정교한 스케줄링이 단순 라운드로빈 대비 실이득을 낼지 불확실하다.</strong></li>
+      </ol>
+    </details>
+
+    <div class="note warn">
+      <span class="lbl">제외 조건 반영</span>
+      <p>네이버가 유일 크롤 소스이므로 <strong>미매칭 14,500개(32%)는 어떤 스케줄링 개선으로도 갱신되지 않는다.</strong> 이 32%는 최적화가 아니라 <strong>매칭률 개선으로만</strong> 해결된다.</p>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- ══════════ SESSION MEASUREMENTS ══════════ -->
+  <section>
+    <h2><span class="num">03</span>이번 세션 직접 실측</h2>
+    <p class="prose" style="color:var(--ink-mid);font-size:.95rem">딥리서치와 별개로, 프로덕션 DB와 네이버 플레이스를 직접 찔러본 결과.</p>
+
+    <h3>3.1 &nbsp;네이버 플레이스 — 브라우저 불필요 확인 ✅</h3>
+    <div class="meta">
+      <span class="chip vote-ok">실측 n=400</span>
+      <span class="chip mark">md5(id) 결정적 표본</span>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th>항목</th><th>결과</th></tr></thead>
+        <tbody>
+          <tr><td><code>requests</code>만으로 접근</td><td><strong>HTTP 200 — 400건 중 400건 (100%)</strong> · 차단 0 · 404 0</td></tr>
+          <tr><td><code>__APOLLO_STATE__</code> SSR 데이터</td><td><strong>399/400 (99.8%) 확보</strong> — Playwright 불필요</td></tr>
+          <tr><td>rate limit</td><td>요청당 ~1.5초 (약 0.67 req/s)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose">현재 <code>naver_menu_scraper.py</code>는 stock headless Chromium + 고정 UA + 프록시 없음으로 돌고 있다. 그런데 검색 경로는 이미 <code>allSearch</code> XHR(JSON)을 가로채는 방식이라 <strong>브라우저가 원리적으로 불필요하다.</strong> 걷어내면 처리량이 자릿수 단위로 달라지고 차단 표면도 줄어든다.</p>
+
+    <div class="note key">
+      <span class="lbl">⚡ 부수 발견 — 크롤 예산 R의 하한 실측치</span>
+      <p>4장에서 “네이버 지속 가능 요청률을 몰라 λ를 계산할 수 없다”고 한 문제에 <strong>부분적 답이 나왔다</strong>: <strong>0.67 req/s × 400회 연속, 차단 0건.</strong></p>
+      <p>이는 R의 <strong>하한</strong>이며 상한은 아니다. 다만 이 한 번의 관측으로 다음을 말할 수 있다 — 45,444개를 이 속도로 한 바퀴 도는 데 약 <strong>19시간</strong>이다. 즉 <strong>전수 재크롤이 물리적으로 불가능한 게 아니라, 최적이 아닐 뿐이다</strong>(2.2의 배제 규칙).</p>
+    </div>
+
+    <h3>3.2 &nbsp;폐업 감지 — 계측 실패 ❌</h3>
+    <div class="meta">
+      <span class="chip vote-no">측정 무효</span>
+      <span class="chip mark-gap">⚪ 재설계 필요</span>
+    </div>
+    <p class="prose"><code>businessStatusDescription.status</code>를 폐업 필드로 가정했으나, <strong>틀렸다.</strong> 400건 샘플의 값 분포:</p>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>값</th><th class="n">건수</th><th class="n">비율</th></tr></thead>
+        <tbody>
+          <tr><td>영업 중</td><td class="n">285</td><td class="n">71.2%</td></tr>
+          <tr><td>(빈 값)</td><td class="n">40</td><td class="n">10.0%</td></tr>
+          <tr><td>오늘 휴무</td><td class="n">27</td><td class="n">6.8%</td></tr>
+          <tr><td>곧 영업 시작</td><td class="n">26</td><td class="n">6.5%</td></tr>
+          <tr><td>영업 전</td><td class="n">13</td><td class="n">3.2%</td></tr>
+          <tr><td>24시간 영업</td><td class="n">7</td><td class="n">1.8%</td></tr>
+          <tr><td>브레이크타임</td><td class="n">2</td><td class="n">0.5%</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note danger">
+      <span class="lbl">400건 전부, 폐업 표기가 단 하나도 없다</span>
+      <p>이 필드는 <strong>당일 영업 상태</strong>(지금 문 열려 있나)이지 영구 폐업 상태가 아니다. 공교롭게도 이는 <strong>2.4에서 Google이 명시한 바로 그 함정</strong>이다 — <em>“Do not mark a place open or closed based on its hours.”</em></p>
+      <p><strong>→ 이번 샘플링으로는 폐업률을 산출할 수 없다.</strong> 눈금 없는 자로 잰 값을 보고하지 않았다. 폐업률은 <strong>미측정</strong>이다.</p>
+    </div>
+
+    <p class="prose"><strong>부수 확인:</strong></p>
+    <ul class="prose">
+      <li><strong>HTTP 404 = 0/400</strong> — 네이버는 (이 표본 내에선) 폐업 가게 페이지를 삭제하지 않는다. <strong>404를 폐업 신호로 쓸 수 없다.</strong></li>
+      <li><strong>status 빈 값 40건(10%)</strong> — 영업시간 미등록 가게로 보이나, 상당수가 <code>naver_name</code>도 비어 있어 페이지 구조가 다를 가능성. ⚪ 별도 확인 필요.</li>
+      <li><strong><code>has_hours</code> 파싱 실패 399/400</strong> — Apollo 정규화 캐시의 참조 처리를 못 한 <strong>스크립트 버그</strong>. 데이터는 응답에 실재한다(단건 프로브에서 <code>09:30~20:00</code> 확인). <strong>수정하면 영업시간 0.5% 커버리지를 대폭 올릴 수 있다.</strong></li>
+    </ul>
+
+    <h3 style="font-size:1rem">이름 불일치 — 정규화 후 재계산</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th>구분</th><th class="n">건수</th><th class="n">비율</th></tr></thead>
+        <tbody>
+          <tr><td>공백·기호 정규화 후 불일치</td><td class="n">89 / 400</td><td class="n">22.2%</td></tr>
+          <tr><td>그중 접두 포함 (지점명 차이 등)</td><td class="n">41</td><td class="n">10.2%</td></tr>
+          <tr class="hl"><td><strong>잔여 불일치</strong></td><td class="n"><strong>48</strong></td><td class="n"><strong>12.0%</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note warn">
+      <span class="lbl">12.0%를 오매칭률로 읽으면 안 된다</span>
+      <p>잔여 48건을 눈으로 보면 상당수가 여전히 같은 가게다 — <code>로엘</code>↔<code>카페 로엘</code>, <code>형제꿀빵</code>↔<code>통영형제꿀빵</code>, <code>블루샥 범천점</code>↔<code>블루샥 부산범천점</code>. 반면 진짜 의심스러운 것도 섞여 있다 — <code>스마일찹쌀꽈배기</code>↔<code>스마일찰진꽈배기</code>, <code>빵굼터 행당동점</code>↔<code>빵굼터착한빵집</code>.</p>
+      <p><strong>문자열 비교만으로는 “브랜딩 변형”과 “잘못된 place_id”를 분리할 수 없다.</strong> 12.0%는 진짜 오매칭률의 <strong>상한</strong>이다. ⚪ 좌표·주소 대조로 재판정해야 확정된다.</p>
+    </div>
+
+    <h3>3.3 &nbsp;인스타그램 — 실측으로 판정 ✅</h3>
+    <div class="meta">
+      <span class="chip vote-ok">실측 n=400</span>
+      <span class="chip mark">2.2와 동일 표본</span>
+      <span class="chip mark">추가 크롤 0회</span>
+    </div>
+
+    <p class="prose"><strong>가게↔인스타 계정 매칭은 이미 우리 손에 있다.</strong> 인스타 핸들이 네이버 플레이스의 <strong>“홈페이지” 구조화 필드</strong>에 링크로 박혀 있다. 상호명으로 계정을 추측할 필요가 없고, <strong>이미 받고 있는 응답을 재파싱하면 된다.</strong></p>
+
+<pre><code>&lt;div class="jO09N"&gt;&lt;a href="https://www.instagram.com/millim.flourforest" role="button"&gt;</code></pre>
+
+    <div class="stats">
+      <div class="stat good"><span class="v">60.8%</span><span class="k">인스타 핸들 보유 (243/400)</span></div>
+      <div class="stat"><span class="v">98.3%</span><span class="k">외부 링크 보유 (393/400)</span></div>
+      <div class="stat good"><span class="v">400/400</span><span class="k">HTTP 200 — 차단 0</span></div>
+    </div>
+
+    <div class="note danger">
+      <span class="lbl">⚠️ 교차분석이 이 숫자의 의미를 뒤집는다</span>
+      <div class="tw">
+        <table>
+          <thead><tr><th>집단</th><th class="n">n</th><th class="n">인스타 보유</th></tr></thead>
+          <tbody>
+            <tr class="hl"><td><strong>메뉴 0개 가게</strong></td><td class="n">86</td><td class="n"><strong>32 (37.2%)</strong></td></tr>
+            <tr><td>메뉴 있는 가게</td><td class="n">314</td><td class="n"><strong>211 (67.2%)</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>30%p 차이</strong> (z ≈ 5.1, p &lt; 0.0001 — 표본 노이즈가 아니다). 메뉴가 비어 있는 가게는 애초에 온라인 존재감이 약하다. <strong>네이버에 메뉴를 안 올린 가게가 인스타도 안 한다</strong> — 같은 원인의 두 증상이지 서로를 메워주는 관계가 아니다.</p>
+    </div>
+
+    <div class="note key">
+      <span class="lbl">표본 신뢰성 검증</span>
+      <p>표본 내 “메뉴 0개” 비율 <strong>21.5%</strong>(86/400)가 전수 실측 <strong>6,641/30,917 = 21.5%</strong> 와 정확히 일치. 표본이 모집단을 잘 대표한다.</p>
+    </div>
+
+    <h3 style="font-size:1rem">깔때기 — “메뉴 0개를 인스타로 채운다” 가설의 도달 범위</h3>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>naver 매칭</th><th>메뉴</th><th class="n">가게 수</th></tr></thead>
+        <tbody>
+          <tr class="hl"><td>미매칭</td><td>메뉴 0</td><td class="n"><strong>14,416</strong></td></tr>
+          <tr><td>미매칭</td><td>메뉴 있음</td><td class="n">6</td></tr>
+          <tr><td>매칭</td><td>메뉴 0</td><td class="n">6,641</td></tr>
+          <tr><td>매칭</td><td>메뉴 있음</td><td class="n">24,276</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+<pre><code>메뉴 0개 (ACTIVE)                        21,057
+  ↓ naver_place_id 보유해야 핸들을 읽음     6,641   (31.5%)
+  ↓ × 인스타 보유율 37.2%                 ~2,470
+= 실제 도달 가능                          전체 문제의 11.7%</code></pre>
+
+    <p class="prose"><strong>메뉴 0개 가게의 68.5%(14,416개)는 <code>naver_place_id</code>조차 없다.</strong> 네이버 플레이스 페이지가 없으니 거기서 인스타 링크를 읽을 방법 자체가 없다. 우연이 아니라 같은 원인이다 — 매칭이 안 돼서 메뉴도 못 채웠고, 그래서 이 경로로도 못 잡는다.</p>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>용도</th><th>판정</th><th class="n">대상 모수</th></tr></thead>
+        <tbody>
+          <tr><td><strong>메뉴 0개를 채우는 수단</strong></td><td><span style="color:var(--no)">❌ <strong>아니다</strong> — 문제의 11.7%만 도달</span></td><td class="n">~2,470</td></tr>
+          <tr><td><strong>메뉴 변경을 감지하는 수단</strong></td><td><span style="color:var(--ok)">⭕ <strong>조건부 유효</strong></span></td><td class="n"><strong>~16,300</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="prose">두 번째 모수는 <code>메뉴 있는 naver 매칭 가게 24,276 × 67.2% ≈ 16,300</code>이다. 원래 문제의식(“신메뉴·품절·가격 변경은 네이버보다 인스타로 공지된다”)의 실제 대상이 이 집단이다. <strong>처음 세운 가설에는 맞고, 나중에 붙은 기대(메뉴 0개 채우기)에는 안 맞는다.</strong></p>
+
+    <div class="note warn">
+      <span class="lbl">🟡 플랫폼 제약 — 일부만 공개 출처 확보</span>
+      <ol>
+        <li><strong>비로그인 해시태그 검색 차단</strong> (🟡 공개 출처 미확보) — <strong>다만 우리에겐 무관하다.</strong> 핸들을 네이버에서 이미 받으므로 계정 발굴 없이 프로필로 직행한다.</li>
+        <li><strong>로그인 세션은 계정 정지 리스크</strong> (🟡) — <strong>3.5에서 부분 정정</strong>: Apify 문서는 <em>“Login not required for public data”</em>를 명시한다. 로그인 제약은 <strong>해시태그 검색과 일부 필드</strong>에 걸리는 것이지 공개 프로필 게시물에는 걸리지 않는다.</li>
+        <li><strong>게시물 수집 단계는 유료다</strong> — 핸들 확보(무료)와 별개. ✅ <strong>3.5에서 공개 출처로 검증 완료.</strong></li>
+      </ol>
+      <p><strong>벤더 비교와 실제 비용은 3.5절 참조.</strong></p>
+    </div>
+
+    <div class="note danger">
+      <span class="lbl">핸들 확보 ≠ 메뉴 확보</span>
+      <p>이번 측정이 답한 것은 <strong>첫 관문(계정을 찾을 수 있는가)뿐이다.</strong> 그다음 단계 — 게시물 수집(유료) → 캡션에서 메뉴·가격 추출(LLM) → 기존 메뉴와 대조 — 는 <strong>전부 미검증</strong>이다.</p>
+      <p><strong>⚠️ 3.4 측정 후 이 절의 결론이 약해졌다.</strong> “메뉴 0개를 채우는 수단”으로 인스타가 도달하는 ~2,470 가게보다 <strong>네이버 재수집이 ~3,170 가게를 무료로 채운다.</strong> 인스타 유료 파이프라인은 그 백필을 끝낸 뒤에 판단할 일이다.</p>
+    </div>
+
+    <h3>3.4 &nbsp;메뉴 대조 — 진짜 문제는 노후화가 아니라 최초 수집 누락 ❗</h3>
+    <div class="meta">
+      <span class="chip vote-ok">실측 n=399</span>
+      <span class="chip mark">3.1·3.3과 동일 표본</span>
+      <span class="chip vote-no">판정 뒤집힘</span>
+    </div>
+
+    <p class="prose"><strong>브라우저 없이 메뉴까지 전부 얻을 수 있음이 먼저 확인됐다.</strong> 메뉴명·가격·설명·이미지 URL이 <code>/home</code> 응답 Apollo state에 <code>__typename: "Menu"</code> 엔티티로 정규화돼 있다. <code>/menu/list</code>는 <strong>완전히 동일한 데이터</strong>를 반환하므로 가게당 요청 1회면 충분하고, DOM 셀렉터(<code>a.xPf1B</code>) 파싱이 불필요해진다.</p>
+
+<pre><code>{"name": "☘︎ 생과일 파르페 ☘︎", "price": "12000",
+ "description": "生망고·生키위, 수제 망고소르베와…",
+ "images": ["https://ldb-phinf.pstatic.net/20260505_257/1777912081251…"]}</code></pre>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>1차 집계</th><th class="n">값</th></tr></thead>
+        <tbody>
+          <tr><td>메뉴에 변경이 있는 가게</td><td class="n">295 / 399 = <strong>73.9%</strong></td></tr>
+          <tr><td>— 메뉴 보유 가게(313곳)만</td><td class="n">254 = <strong>81.2%</strong> (완전 일치 59곳)</td></tr>
+          <tr><td>양쪽 공통 메뉴</td><td class="n">3,451 (48.1%)</td></tr>
+          <tr class="hl"><td><strong>네이버에만</strong></td><td class="n"><strong>2,978 (41.5%)</strong></td></tr>
+          <tr><td>DB에만</td><td class="n">748 (10.4%)</td></tr>
+          <tr><td><strong>가격 변경률</strong> (공통 3,345 중)</td><td class="n"><strong>84 = 2.5%</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note danger">
+      <span class="lbl">⚠️ “41.5%가 2개월간 낡았다”로 읽으면 틀린다</span>
+      <p>이미지 URL의 날짜 접두(<code>.../20260505_257/...</code>)로 신규인지 최초 수집 누락인지 갈랐다. <strong>어떤 가게의 최신 메뉴 이미지가 크롤 시점(2026-05-30)보다 오래됐다면, 그 가게의 <code>only_naver</code> 메뉴는 크롤 당시에도 있었던 것</strong> — 우리가 못 긁은 것이다.</p>
+      <div class="tw">
+        <table>
+          <thead><tr><th>판정</th><th class="n">가게</th><th class="n">해당 메뉴</th></tr></thead>
+          <tbody>
+            <tr class="hl"><td>최신 이미지가 <strong>크롤 시점 이전</strong> → <strong>최초 수집 누락 확정</strong></td><td class="n">159 (68.8%)</td><td class="n"><strong>1,364</strong></td></tr>
+            <tr><td>크롤 시점 이후 새 이미지 존재 → 신규 가능성</td><td class="n">72 (31.2%)</td><td class="n">971</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>기존 스크래퍼가 <code>existingMenuCount &gt; 0</code>이면 메뉴를 건드리지 않는 로직이라, <strong>일부만 긁힌 가게는 영영 그 상태로 남았다.</strong></p>
+      <p style="font-size:.9rem">⚪ 한계: <code>newest_img</code>는 그 가게 전체 메뉴 이미지 중 최신값이다. 이미지 없는 메뉴는 이 판별에 안 잡힌다.</p>
+    </div>
+
+    <div class="note key">
+      <span class="lbl">가격은 거의 안 변한다</span>
+      <p>2개월간 <strong>2.5%</strong>. <strong>가격 갱신은 급한 문제가 아니다.</strong> 급한 것은 메뉴 목록 자체의 완전성이다.</p>
+    </div>
+
+    <h3 style="font-size:1rem">백필 기회 — 3.3의 결론을 뒤집는다</h3>
+
+    <div class="stats">
+      <div class="stat"><span class="v">86</span><span class="k">표본 내 DB 메뉴 0개 가게</span></div>
+      <div class="stat good"><span class="v">47.7%</span><span class="k">그중 네이버엔 메뉴가 있는 곳 (41)</span></div>
+      <div class="stat"><span class="v">10</span><span class="k">그 가게들의 네이버 메뉴 수 중앙값</span></div>
+    </div>
+
+<pre><code>naver 매칭 + 메뉴 0개                6,641
+  ↓ × 47.7%                        ~3,170 가게
+  ↓ × 중앙값 10개                   ~32,000 메뉴
+= 유료 API 없이, 인스타 없이, 지금 당장 확보 가능</code></pre>
+
+    <p class="prose"><strong>인스타 경로(~2,470 가게, 유료 + LLM 추출 필요)보다 더 많은 가게를, 무료로, 이미 검증된 방법으로 채운다.</strong> 2.7절이 “메뉴 0개는 freshness 최적화가 아니라 backfill 문제”라고 한 것이 정확히 이 상황이다.</p>
+
+    <div class="note danger">
+      <span class="lbl">⚠️ 재수집 전 반드시 해결할 것 — DB에만 748개(10.4%)</span>
+      <p>이 중에는 <strong>사용자 기여 메뉴</strong>(<code>MENU_ADD</code> 승인 64건 등)가 섞여 있다. 네이버 기준으로 덮어쓰면 <strong>사용자 기여가 소리 없이 사라진다.</strong> <strong>출처(provenance) 컬럼 없이 재수집을 돌려서는 안 된다</strong> — 2.4절의 다중 소스 병합·source precedence 논점이 그대로 적용된다.</p>
+    </div>
+
+    <p class="prose" style="font-size:.95rem;color:var(--ink-mid)">가게당 <code>only_naver</code> 분포: 중앙값 3 · 평균 7.6 · 최대 93. 평균이 중앙값의 2.5배 — <strong>소수 가게가 대량 누락</strong>을 안고 있어 우선순위를 매길 여지가 있다.</p>
+
+    <h3>3.5 &nbsp;인스타 수집 벤더 — 공개 문서 실측 비교 ✅</h3>
+    <div class="meta">
+      <span class="chip vote-ok">공개 문서 직접 확인</span>
+      <span class="chip mark">2026-07-31</span>
+      <span class="chip mark-red">🔴 체계적 시장조사 아님</span>
+    </div>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th></th><th>Apify instagram-scraper</th><th>EnsembleData</th></tr></thead>
+        <tbody>
+          <tr><td><strong>과금 단위</strong></td><td><strong>결과당</strong> (게시물 1개 = 1 result)</td><td><strong>요청당</strong> + 일일 쿼터제</td></tr>
+          <tr><td>가격</td><td>$2.70 → $1.50 / 1,000 results</td><td>$100~1,400/월 (일 1,500~50,000) · 무료 50/일</td></tr>
+          <tr><td>게시물·릴스·댓글·프로필</td><td>⭕</td><td>⭕</td></tr>
+          <tr><td>해시태그·위치</td><td>⭕</td><td>일반 <code>search</code>만</td></tr>
+          <tr class="hl"><td><strong>스토리</strong></td><td><strong>❌</strong></td><td><strong>❌</strong></td></tr>
+          <tr><td>캡션 필드</td><td>✅ 문서 명시</td><td>🔴 미확인</td></tr>
+          <tr><td>로그인</td><td><em>“not required for public data”</em></td><td>🔴 미확인</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="font-size:1rem">우리 시나리오 대입</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th>대상</th><th class="n">Apify</th><th class="n">EnsembleData</th></tr></thead>
+        <tbody>
+          <tr><td>파일럿 20~30곳</td><td class="n">무료 크레딧 내</td><td class="n"><strong>무료</strong> (50/일)</td></tr>
+          <tr class="hl"><td><strong>티어 A</strong> — 구독 107곳 × 최근 3개 × 1일 1회</td><td class="n"><strong>~$26/월</strong></td><td class="n">$100/월</td></tr>
+          <tr><td>티어 A — 1일 3회</td><td class="n">~$78/월</td><td class="n">$100/월</td></tr>
+          <tr><td>전체 16,300곳 매일 × 3개</td><td class="n">$2,200~3,960/월</td><td class="n"><strong>$800/월</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="prose"><strong>소규모는 Apify, 대규모는 EnsembleData가 유리하다</strong> — 결과당 과금은 선형으로 늘고 일일 쿼터제는 상한 안에서 평평하다. <strong>티어 A로 시작하는 우리 설계에서는 Apify가 유리하다.</strong></p>
+
+    <div class="note danger">
+      <span class="lbl">🔴 EnsembleData 계산은 미확인 전제 위에 있다</span>
+      <p>문서에 <em>“일부 엔드포인트는 #posts만큼 과금”</em>이라 돼 있어, <code>user/posts</code>가 여기 해당하면 두 벤더가 사실상 같은 모델이 되고 <strong>대규모 우위가 사라진다.</strong> 첫 호출 한 번으로 판명된다.</p>
+    </div>
+
+    <div class="note warn">
+      <span class="lbl">세 가지 결론</span>
+      <ol>
+        <li><strong>스토리는 살 수 없다</strong> — 독립된 두 벤더 모두 미지원. 표본 2개라 단정은 못 하지만 24시간 만료 + 접근 게이팅이라는 구조적 이유가 있어 <strong>“찾으면 있겠지”로 기대하지 않는 것이 안전하다.</strong></li>
+        <li><strong>Apify는 한 실행에 콘텐츠 타입 혼합 불가</strong> — 게시물과 릴스를 같이 못 받는다. <strong>릴스 공지 비율에 따라 비용이 2배</strong>가 될 수 있어 파일럿에서 함께 측정할 것.</li>
+        <li><strong>벤더를 고르지 말고 갈아끼울 수 있게 만들 것.</strong> 공통 인터페이스 뒤에 두고 <strong>응답 원형(<code>payload jsonb</code>)을 항상 보관</strong>해야 벤더를 바꿔도 과거 데이터를 다시 사지 않는다.</li>
+      </ol>
+    </div>
+
+    <p class="prose" style="color:var(--no)">🔴 <strong>시장 조사는 미완이다.</strong> 위 두 곳은 지목받아 확인한 것이지 체계적 비교가 아니다. Bright Data·ScrapingBee·Zyte 계열 등의 인스타 지원 범위·가격·스토리 여부는 미확인(웹 검색 예산 소진). TODO 17번.</p>
+  </section>
+
+  <hr class="rule">
+
+  <!-- ══════════ GAPS ══════════ -->
+  <section>
+    <h2><span class="num">04</span>답을 얻지 못한 것</h2>
+    <p class="prose">검증 통과 7건은 전부 범위 1(스케줄링 이론) · 2(벤치마크) · 4(스키마 설계)에 몰려 있다. <strong>범위 3·5는 완전히 비었다.</strong></p>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>미해결</th><th>왜 치명적인가</th><th>상태</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>인스타 법적 리스크</strong></td>
+            <td>“쓸 수 있는가”는 <strong>3.3에서 실측으로 답했다</strong>(조건부 유효, ~16,300 가게). 남은 것은 <strong>Meta 약관·한국 저작권법/부정경쟁방지법상 적법 범위와 판례</strong> — 근거 0건. 3.3의 🟡 제약 3가지도 공개 출처 미확보.</td>
+            <td><span class="chip mark-red">🔴 근거 0건</span></td>
+          </tr>
+          <tr>
+            <td><strong>캡션 → 메뉴 추출 정확도</strong></td>
+            <td>신메뉴·가격·품절을 캡션에서 뽑는 LLM 추출의 실제 정밀도·재현율. <strong>유료 수집을 결정하기 전에 반드시 측정해야 한다.</strong></td>
+            <td><span class="chip mark-gap">⚪ 실측 필요</span></td>
+          </tr>
+          <tr>
+            <td><strong>한국 공공데이터 폐업 감지</strong></td>
+            <td>LOCALDATA·국세청 API. 매칭률이 높다면 <strong>크롤 없이 폐업을 감지하는 별도 채널</strong>이 열려, 크롤 예산 R을 메뉴 신선도에만 쓸 수 있다. <strong>3.2에서 네이버 경로가 실패한 지금 가치가 더 올라갔다.</strong></td>
+            <td><span class="chip mark-red">🔴 근거 0건</span></td>
+          </tr>
+          <tr>
+            <td><strong>Δ의 사전분포</strong></td>
+            <td>한국 제과점 폐업률·메뉴 변경 빈도 실측치가 하나도 없다. <strong>확정된 공식이 있어도 입력값을 채울 수 없다.</strong></td>
+            <td><span class="chip mark-amb">🟠 한국 데이터 없음</span></td>
+          </tr>
+          <tr>
+            <td><strong>크롤 예산 R + 법적 범위</strong></td>
+            <td><strong>하한은 3.1에서 확보</strong>(0.67 req/s · 400회 무차단). 남은 것은 <strong>상한 탐색</strong>과 한국 판례상 스크래핑 적법 범위. λ를 확정하려면 상한이 필요하다.</td>
+            <td><span class="chip mark-amb">🟡 하한만 확보</span></td>
+          </tr>
+          <tr>
+            <td><strong>μ 신호 로깅 여부</strong></td>
+            <td>조회수·구독수가 저장되고 있는지 미확인. μ는 콜드스타트 단계의 <strong>유일한</strong> 입력이다. <strong>없다면 스케줄링보다 이벤트 로깅이 선행 과제.</strong></td>
+            <td><span class="chip mark-gap">⚪ 실측 필요</span></td>
+          </tr>
+          <tr>
+            <td><strong>벤치마크 실패 사례</strong></td>
+            <td>통과한 근거가 <strong>전부 벤더 자기 서술 또는 성공 서술</strong>이다. 마이크로 검증이 실제로 커버리지를 만드는지 증거가 없다.</td>
+            <td><span class="chip mark-red">🔴 근거 0건</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note warn">
+      <span class="lbl">“부결” ≠ “거짓”</span>
+      <p>부결 18건 중 상당수는 <code>dl.acm.org 403</code>, <code>ilpubs.stanford.edu 500</code>, <code>ECONNREFUSED</code> 같은 <strong>출처 접근 실패</strong> 때문에 검증자가 확인하지 못한 것으로 보인다. 실제로 부결된 SIGIR-출처 클레임 중 √(μΔ) 공식과 0-클램핑은 <strong>PNAS 원 PDF 대조로 오히려 확인됐다.</strong></p>
+    </div>
+
+    <details>
+      <summary>인용 금지 목록 — 확정 사실로 쓰지 말 것</summary>
+      <div class="tw">
+        <table>
+          <thead><tr><th>부결 주장</th><th class="n">vote</th></tr></thead>
+          <tbody>
+            <tr><td>보정 추정량 <code>−log(X̄/n)</code>의 실효성</td><td class="n">0-3</td></tr>
+            <tr><td>“재방문 간격 = 변경주기 × 1.5”가 최적</td><td class="n">0-3</td></tr>
+            <tr><td>Foursquare의 5단계 버킷 라벨 노출</td><td class="n">1-2</td></tr>
+            <tr><td>absence-of-signal이 폐업 판정 핵심 지표</td><td class="n">1-2</td></tr>
+            <tr><td>Google의 사용자 폐업 신고 경로가 1차 채널</td><td class="n">0-3</td></tr>
+            <tr><td>가치비 균일 버킷 내 조회수 비례 스케줄 정당화</td><td class="n">0-3</td></tr>
+            <tr><td>포인트 가중치 차등이 커버리지 지향 설계를 시사</td><td class="n">0-3</td></tr>
+            <tr><td>OpenPOIs의 “소스 등재 ≠ 영업중” 공식 규칙</td><td class="n">0-3</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <hr class="rule">
+
+  <!-- ══════════ TODO ══════════ -->
+  <section>
+    <h2><span class="num">05</span>다음 세션 보강 TODO</h2>
+
+    <h3>리서치 필요 — 검색 예산 확보 후</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th class="n">#</th><th>항목</th><th>왜 중요한가</th></tr></thead>
+        <tbody>
+          <tr class="hl"><td class="n">1</td><td><strong>한국 공공데이터 폐업 감지</strong></td><td>네이버 경로 실패 → 이 경로가 유일 대안일 수 있음</td></tr>
+          <tr><td class="n">2</td><td><strong>인스타 법적 리스크 + 제약 재검증</strong></td><td>판정은 3.3에서 났으나 <strong>법적 근거 0건</strong></td></tr>
+          <tr><td class="n">3</td><td><strong>네이버 크롤 법적 범위</strong></td><td>실측 R 하한은 3.1에서 확보 — 남은 건 <strong>상한 탐색과 법적 방어 가능성</strong></td></tr>
+          <tr><td class="n">4</td><td>SIGIR 2019 politeness 확장판</td><td>차단이 실제 제약인 우리에게 PNAS 원본보다 적합할 가능성</td></tr>
+          <tr><td class="n">5</td><td>벤치마크 <strong>실패</strong> 사례</td><td>현재 성공 서술만 확보 — 편향된 근거 기반</td></tr>
+          <tr><td class="n">17</td><td><strong>인스타 수집 벤더 시장 조사</strong></td><td>3.5는 지목된 2곳만 확인한 것. <strong>특히 스토리 지원 벤더가 존재하는지</strong> — 임시휴무·품절 커버리지를 좌우한다</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>우리가 직접 확인 — 지금 코드·DB만으로 가능</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th class="n">#</th><th>항목</th><th>방법</th></tr></thead>
+        <tbody>
+          <tr class="hl"><td class="n">0</td><td><strong>네이버 메뉴 재수집 (최우선)</strong></td><td><code>existingMenuCount&gt;0</code> 스킵 제거 + Apollo <code>Menu</code> 파싱. <strong>선행: 출처 컬럼 추가</strong> — 없이 돌리면 사용자 기여가 유실된다</td></tr>
+          <tr><td class="n">6</td><td><strong>μ 로깅 여부</strong></td><td>코드·DB 확인 — 30분이면 답이 나온다. <strong>없으면 스케줄링보다 선행 과제</strong></td></tr>
+          <tr><td class="n">7</td><td><strong>네이버 폐업 신호 재탐색</strong></td><td>Apollo state 전체 덤프 → 폐업 known-sample 확보해 역추적</td></tr>
+          <tr><td class="n">8</td><td><code>has_hours</code> 파싱 버그 수정</td><td>Apollo 참조 정규화 처리 → 영업시간 0.5% 대폭 개선</td></tr>
+          <tr><td class="n">9</td><td><strong>오매칭 좌표·주소 대조 재판정</strong></td><td>문자열로는 상한 12.0%까지만 확인됨 — 좌표 대조로 확정</td></tr>
+          <tr><td class="n">10</td><td>폐업률 재샘플링</td><td><strong>7번 완료 후에만</strong> 의미 있음</td></tr>
+          <tr><td class="n">11</td><td>status 빈 값 40건(10%) 원인 규명</td><td>영업시간 미등록인지 페이지 구조 차이인지</td></tr>
+          <tr><td class="n">12</td><td>크롤 예산 R <strong>상한</strong> 탐색</td><td>0.67 req/s는 하한(800회 무차단) — 속도·시간대 변경하며 차단 임계 탐색</td></tr>
+          <tr class="hl"><td class="n">13</td><td><strong>인스타 핸들 전수 백필</strong></td><td>3.3 파싱을 기존 크롤 경로에 붙이면 <strong>추가 요청 0회</strong>로 ~18,800개 확보. <strong>비용 없는 즉시 실행 항목</strong></td></tr>
+          <tr><td class="n">14</td><td>캡션→메뉴 추출 정확도 파일럿</td><td>LLM 추출 정밀도·재현율 측정. <strong>0번 백필 완료 후 판단</strong> — 우선순위 밀림</td></tr>
+          <tr><td class="n">15</td><td><strong>미매칭 14,500개 검색 경로 검증</strong></td><td>상세 경로는 브라우저 불필요 확인(3.4). <code>allSearch</code> 검색 경로는 미확인 — 이 32%는 매칭 없이는 어떤 갱신도 안 된다</td></tr>
+          <tr><td class="n">16</td><td>스크래퍼 rate limit 명시화</td><td>브라우저를 걷어내면 자연 속도 제한이 사라진다. 0.67 req/s를 코드에 못 박고 차단 감지(exit 3) 이식</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- ══════════ SOURCES ══════════ -->
+  <section>
+    <h2><span class="num">06</span>출처</h2>
+    <h3>1차 — 검증 통과 클레임의 근거</h3>
+    <ul class="prose" style="font-size:.92rem">
+      <li>Cho &amp; Garcia-Molina, <em>“Effective page refresh policies for web crawlers”</em>, ACM TODS 28(4):390–426 (2003) — <a href="https://dl.acm.org/doi/10.1145/958942.958945">ACM</a> · <a href="https://cgi.di.uoa.gr/~ad/MDE519.docs/cho2.pdf">PDF</a></li>
+      <li>Cho &amp; Garcia-Molina, <em>“Estimating Frequency of Change”</em>, ACM TOIT 3(3):256–290 (2003) — <a href="https://dl.acm.org/doi/10.1145/857166.857170">ACM</a> · <a href="https://web.archive.org/web/2019id_/http://ilpubs.stanford.edu:8090/471/1/2000-4.pdf">프리프린트</a></li>
+      <li>Azar et al., <em>“Tractable near-optimal policies for crawling”</em>, <strong>PNAS 115(32):8099–8103 (2018)</strong> — <span style="color:var(--no)">⚠️ 원 PDF만 사용</span></li>
+      <li>Kolobov et al., <em>“Optimal Freshness Crawl Under Politeness Constraints”</em>, SIGIR 2019 — <a href="https://www.microsoft.com/en-us/research/publication/optimal-freshness-crawl-under-politeness-constraints/">MSR</a> · <a href="https://github.com/microsoft/Optimal-Freshness-Crawl-Scheduling">코드</a></li>
+      <li><a href="https://support.google.com/maps/answer/10552932">Google Maps 폐업 제보 택소노미</a> · <a href="https://developers.google.com/maps/documentation/places/web-service/data-fields">Places API 데이터 필드</a> · <a href="https://support.google.com/maps/answer/6225851">Local Guides 포인트</a></li>
+      <li><a href="https://openpois.org/about.html">OpenPOIs</a> · <a href="https://github.com/henryspatialanalysis/openpois">GitHub</a></li>
+      <li><a href="https://foursquare.com/resources/blog/news/fsq-places-introducing-our-improved-closed-model/">Foursquare — improved closed model</a></li>
+    </ul>
+
+    <h3>참고 — 미검증 · 다음 세션 출발점</h3>
+    <ul class="prose" style="font-size:.92rem">
+      <li><a href="https://www.ra.ethz.ch/cdstore/www9/264/264.html">Brewington &amp; Cybenko, WWW9</a> · <a href="http://www.cond.org/wsdm09-change-camready.pdf">Adar et al. WSDM’09</a></li>
+      <li><a href="https://docs.overturemaps.org/guides/places/">Overture Places 가이드</a> · <a href="https://wiki.openstreetmap.org/wiki/Key:check_date">OSM <code>check_date</code></a> · <a href="https://wiki.openstreetmap.org/wiki/StreetComplete">StreetComplete</a></li>
+      <li><span style="color:var(--no)">🔴 인스타그램·한국 법률 관련 URL — <strong>검증 미통과, 인용 금지.</strong> 다음 세션 출발점으로만 사용</span></li>
+    </ul>
+  </section>
+
+  <footer>
+    생성: Claude Code 딥리서치 워크플로우 (106 에이전트 / 4,588,893 토큰 / 1,240 툴 호출 / 67분)<br>
+    + 프로덕션 DB 직접 실측 (port 15432 <code>soboro</code>) + 네이버 플레이스 프로브 1,200건(폐업 400 · 인스타 400 · 메뉴대조 400 · 차단 0)<br>
+    빵긋 DataOps · 2026-07-31
+  </footer>
+
+</div>

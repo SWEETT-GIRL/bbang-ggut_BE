@@ -1,0 +1,81 @@
+{"storeId": 13150, "name": "그랜드머큐어앰버서더호텔앤레지던스 서울용산 알라메종델리", "bucket": "A", "verdict": "X", "confidence": "high", "reason": "인허가 '그랜드'는 나진상가 다방(2009 폐업) — 포함 보너스 아티팩트", "reviewedAt": "2026-08-12"}
+{"storeId": 13993, "name": "요커 동부이촌점", "bucket": "A", "verdict": "O", "confidence": "high", "reason": "동일 상호(Yo.kr 병기)·동일 주소, 2026-04 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 14172, "name": "미트스팟 용산아이파크몰점", "bucket": "A", "verdict": "X", "confidence": "high", "reason": "제주스 — 같은 몰 푸드코트의 다른 매장, 몰명 접미사 아티팩트", "reviewedAt": "2026-08-12"}
+{"storeId": 39360, "name": "퓨로커피 경기대학생회관점", "bucket": "A", "verdict": "X", "confidence": "medium", "reason": "같은 브랜드의 다른 지점(본관점, 2018 폐업) — 지점 불일치", "reviewedAt": "2026-08-12"}
+{"storeId": 42234, "name": "베이커리무흐", "bucket": "A", "verdict": "X", "confidence": "high", "reason": "샤론베이커리(2008 폐업) — '베이커리' 일반어 겹침", "reviewedAt": "2026-08-12"}
+{"storeId": 51534, "name": "언라토커피 김포공항점", "bucket": "A", "verdict": "X", "confidence": "high", "reason": "주커피 — 공항 접미사 겹침, 다른 브랜드", "reviewedAt": "2026-08-12"}
+{"storeId": 55554, "name": "어썸베이글", "bucket": "A", "verdict": "O", "confidence": "high", "reason": "웹 확인: 어썸베이글X도제식빵 신세계 타임스퀘어점 — 동일 매장, 2023-02 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 69656, "name": "핑크래빗메카", "bucket": "A", "verdict": "O", "confidence": "high", "reason": "동일 고유 브랜드, 삼성동 현대백화점 지하, 2024-08 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 102936, "name": "J원수제도나츠&꽈배기", "bucket": "A", "verdict": "O", "confidence": "high", "reason": "동일 상호(제이(J)원 표기 차)·동일 주소, 2026-07 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 109469, "name": "미뉴트빠삐용 신세계백화점대구점", "bucket": "A", "verdict": "O", "confidence": "high", "reason": "동일 고유 브랜드·동일 주소(신세계동대구 지하1층), 2026-07 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 109638, "name": "퍼머넌트커피", "bucket": "A", "verdict": "O", "confidence": "high", "reason": "퍼머먼트 — 동일 상호 오기 수준·동일 주소 6m, 2021-10 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 114924, "name": "빵집오빠 방촌점", "bucket": "A", "verdict": "X", "confidence": "high", "reason": "신떡(방촌점, 2006 폐업) — 지점 접미사 겹침", "reviewedAt": "2026-08-12"}
+{"storeId": 134278, "name": "드림베티 롯데백화점 인천점", "bucket": "A", "verdict": "O", "confidence": "high", "reason": "동일 고유 브랜드·동일 주소(롯데백화점 지하1층), 2023-10 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 171846, "name": "프랑스루브르바게트 팝업 스타필드수원", "bucket": "A", "verdict": "X", "confidence": "medium", "reason": "브레디포스트 — 다른 브랜드, 스타필드 접미사 겹침", "reviewedAt": "2026-08-12"}
+{"storeId": 203491, "name": "픽셀커피 고양능곡점", "bucket": "A", "verdict": "X", "confidence": "high", "reason": "롯데리아(2003 폐업) — 지점 접미사 겹침", "reviewedAt": "2026-08-12"}
+{"storeId": 212723, "name": "뺑오마담 케이크샵", "bucket": "A", "verdict": "O", "confidence": "high", "reason": "상호·주소 완전 일치, 2026-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 214471, "name": "두플 김포풍무점", "bucket": "A", "verdict": "X", "confidence": "high", "reason": "담꾹(반찬 프랜차이즈) — 같은 호수의 전 임차인", "reviewedAt": "2026-08-12"}
+{"storeId": 223680, "name": "단아한블러썸", "bucket": "A", "verdict": "X", "confidence": "low", "reason": "단아한키친(한식, 2021 폐업) — 같은 호수, 리브랜딩 가능성 있으나 업종 상이", "reviewedAt": "2026-08-12"}
+{"storeId": 239066, "name": "월화꽈배기", "bucket": "A", "verdict": "X", "confidence": "high", "reason": "황금꽈배기 — 다른 도로·다른 브랜드, '꽈배기' 일반어 겹침", "reviewedAt": "2026-08-12"}
+{"storeId": 248664, "name": "미스터두브런치", "bucket": "A", "verdict": "O", "confidence": "high", "reason": "미스터두(Mr.Doo)브런치챱챱 — 동일 고유 브랜드, 옆 지번, 2023-12 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 262821, "name": "커피홀베이커리 태안청포대점", "bucket": "A", "verdict": "X", "confidence": "high", "reason": "이마트24(편의점) — 지역 접미사 겹침", "reviewedAt": "2026-08-12"}
+{"storeId": 304253, "name": "빠사삭땅콩빵 합성점", "bucket": "A", "verdict": "X", "confidence": "high", "reason": "콩꼬물(2015 폐업) — 지점 접미사 겹침", "reviewedAt": "2026-08-12"}
+{"storeId": 304659, "name": "숙희앤천사빵", "bucket": "A", "verdict": "O", "confidence": "high", "reason": "수키앤천사 — 동일 상호 로마자 표기차·동일 주소 5m, 2026-07 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 324024, "name": "방가붕어빵", "bucket": "A", "verdict": "X", "confidence": "medium", "reason": "오남매붕어빵 — 다른 브랜드·다른 지번, '붕어빵' 일반어 겹침", "reviewedAt": "2026-08-12"}
+{"storeId": 329192, "name": "라바게트샌드위치 커피 상명대점", "bucket": "A", "verdict": "X", "confidence": "high", "reason": "바른생활 샌드위치(2010 폐업) — 대학 접미사·일반어 겹침", "reviewedAt": "2026-08-12"}
+{"storeId": 3113, "name": "콜드프레임 행궁", "bucket": "B", "verdict": "X", "confidence": "high", "reason": "행궁떡볶이 — 같은 자리 전 임차인", "reviewedAt": "2026-08-12"}
+{"storeId": 17787, "name": "카페 3 Stripes 서울", "bucket": "B", "verdict": "O", "confidence": "high", "reason": "카페 3 스트라입스 서울 — 동일 상호 한/영 표기차, 2026-01 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 40107, "name": "온정케이크&디저트", "bucket": "B", "verdict": "O", "confidence": "high", "reason": "등록명 '온정' 축약형·동일 주소 2층, 2026-04 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 115009, "name": "피넛 수성점", "bucket": "B", "verdict": "O", "confidence": "high", "reason": "피넛(peanut) — 동일 상호·동일 주소, 2026-08-03 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 118690, "name": "애기똥풀 베이커리카페", "bucket": "B", "verdict": "X", "confidence": "high", "reason": "나인엣지베이커리 — 같은 자리 전 베이커리(2020 폐업)", "reviewedAt": "2026-08-12"}
+{"storeId": 128175, "name": "85커피 대구용산점", "bucket": "B", "verdict": "X", "confidence": "high", "reason": "도토리편백집(한식) — 같은 건물 다른 가게", "reviewedAt": "2026-08-12"}
+{"storeId": 130637, "name": "도마구락부", "bucket": "B", "verdict": "O", "confidence": "low", "reason": "도마가베 — '도마' 공유·가베=커피 고어, 동일 주소 1층, 2026-08-05 폐업. 웹 확증 실패", "reviewedAt": "2026-08-12"}
+{"storeId": 130661, "name": "베이커리카페더꿈&스페이스더꿈", "bucket": "B", "verdict": "O", "confidence": "high", "reason": "사단법인 꿈베이커리 — 법인명 등록 케이스, 동일 주소, 2025-11 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 142538, "name": "경기미당 청라점", "bucket": "B", "verdict": "X", "confidence": "high", "reason": "픽커스 — 같은 건물 다른 가게", "reviewedAt": "2026-08-12"}
+{"storeId": 144673, "name": "호이애운", "bucket": "B", "verdict": "X", "confidence": "high", "reason": "이학(일식, 2016 폐업) — 같은 자리 전 임차인", "reviewedAt": "2026-08-12"}
+{"storeId": 182196, "name": "마이몬스터쿠키", "bucket": "B", "verdict": "X", "confidence": "high", "reason": "그레이징어스(김밥) — 같은 건물 다른 가게", "reviewedAt": "2026-08-12"}
+{"storeId": 186504, "name": "유어라이스데이", "bucket": "B", "verdict": "X", "confidence": "medium", "reason": "페어스토어(주)(2020 폐업) — 운영법인 관련성 확증 불가", "reviewedAt": "2026-08-12"}
+{"storeId": 200041, "name": "빵집오빠 용죽점", "bucket": "B", "verdict": "X", "confidence": "high", "reason": "명인만두 — 같은 자리 다른 가게", "reviewedAt": "2026-08-12"}
+{"storeId": 202772, "name": "오잉도넛 식사점", "bucket": "B", "verdict": "X", "confidence": "high", "reason": "휘카페(2021 폐업) — 같은 호수 전 임차인", "reviewedAt": "2026-08-12"}
+{"storeId": 203171, "name": "제니메이커스", "bucket": "B", "verdict": "X", "confidence": "high", "reason": "페퍼케이커리(2022 폐업) — 같은 건물 다른/전 가게", "reviewedAt": "2026-08-12"}
+{"storeId": 205557, "name": "봄송이케이크앤디저트", "bucket": "B", "verdict": "X", "confidence": "high", "reason": "우리동네디저트 — 다른 지번(60-30)·2017 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 215318, "name": "힐링까사빵 동탄", "bucket": "B", "verdict": "X", "confidence": "high", "reason": "고피자 — 같은 복합몰 다른 가게", "reviewedAt": "2026-08-12"}
+{"storeId": 218784, "name": "샐리베이커리공방&카페", "bucket": "B", "verdict": "X", "confidence": "high", "reason": "더스카이카페 — 다른 지번(3-13)·2017 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 230127, "name": "빵아빵아 포천송우리점", "bucket": "B", "verdict": "X", "confidence": "high", "reason": "송우리육회 — 같은 자리 다른 업종", "reviewedAt": "2026-08-12"}
+{"storeId": 245663, "name": "강릉애오란다 청주점", "bucket": "B", "verdict": "X", "confidence": "medium", "reason": "엄마손 오란다(2024-08 폐업) — 같은 품목·같은 자리지만 브랜드 상이(임차 승계 추정)", "reviewedAt": "2026-08-12"}
+{"storeId": 247061, "name": "베이커리&까페더멜", "bucket": "B", "verdict": "O", "confidence": "high", "reason": "등록명 '더멜' 축약형·동일 주소 1~3층, 2024-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 251350, "name": "지아니 카페&디저트", "bucket": "B", "verdict": "O", "confidence": "high", "reason": "카페 지아니 — 어순차 동일 상호, 2023-08 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 251591, "name": "카페뉴슈가", "bucket": "B", "verdict": "O", "confidence": "high", "reason": "newsugar(뉴슈가) — 동일 상호 영문 병기, 2026-01 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 256158, "name": "엑스트라버터 케이크샵", "bucket": "B", "verdict": "O", "confidence": "high", "reason": "엑스트라버터(Extra Butter) — 동일 상호, 2026-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 260954, "name": "M마트 제과점", "bucket": "B", "verdict": "X", "confidence": "high", "reason": "동그리과자점 — 다른 지번(56)·다른 상호", "reviewedAt": "2026-08-12"}
+{"storeId": 22237, "name": "식빵이맛있는집 네모 고대직영점", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "호두당 용산역점 — 직영 본사 대표번호 함정(전화일치), 8.5km 거리", "reviewedAt": "2026-08-12"}
+{"storeId": 35275, "name": "리프베이글&샌드위치", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "베이글앤커피(2011 폐업) — 일반어 겹침", "reviewedAt": "2026-08-12"}
+{"storeId": 53610, "name": "빼로베이크샵", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "짱베이커리(1999 폐업)", "reviewedAt": "2026-08-12"}
+{"storeId": 61382, "name": "구우다", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "선다방(2002 폐업)", "reviewedAt": "2026-08-12"}
+{"storeId": 68292, "name": "엔에치비앤디", "bucket": "C", "verdict": "X", "confidence": "medium", "reason": "(주)디엔비(2007 폐업, 행사장) — 명칭 역순 유사하나 확증 불가·기록 노후", "reviewedAt": "2026-08-12"}
+{"storeId": 73816, "name": "2NaRy플라워케이크", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "스노우플라워(2015 폐업) — 다른 도로", "reviewedAt": "2026-08-12"}
+{"storeId": 76615, "name": "대왕카스테라진 잠실점", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "마리왕(잠실지하도상가) — 다른 상가·다른 브랜드", "reviewedAt": "2026-08-12"}
+{"storeId": 96506, "name": "르뱅1997", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "남포수제비&1972 — 숫자 겹침 아티팩트", "reviewedAt": "2026-08-12"}
+{"storeId": 96552, "name": "카페 나리슬", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "카페 몽상가 — 다른 지번·다른 상호", "reviewedAt": "2026-08-12"}
+{"storeId": 109927, "name": "케이에스밴딩", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "씨앤에스24 — 다른 지번(56)·2017 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 114210, "name": "올인베이커리 수성만촌점", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "부어치킨(2008 폐업)", "reviewedAt": "2026-08-12"}
+{"storeId": 121548, "name": "블루힐즈카페", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "카페밍밍 — 다른 도로·2015 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 130283, "name": "행복울타리해피베이커리", "bucket": "C", "verdict": "O", "confidence": "medium", "reason": "(사)정인사회복지회 행복울타리 — 전화 일치, 동일 법인의 373m 떨어진 옛 주소 기록(2017 폐업) — 현재 폐업 증거로는 부적합(이전·재인허가 추정)", "reviewedAt": "2026-08-12"}
+{"storeId": 138093, "name": "커피사냥꾼 청천점3호", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "세븐일레븐 — 편의점", "reviewedAt": "2026-08-12"}
+{"storeId": 159382, "name": "크루아상포레 본점", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "크로플덕오리아가씨 — 다른 도로·다른 브랜드", "reviewedAt": "2026-08-12"}
+{"storeId": 170388, "name": "방이당 풍세점", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "지에스25 — 편의점", "reviewedAt": "2026-08-12"}
+{"storeId": 172470, "name": "마켓베이커리 수원영화점", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "미니스톱(2008 폐업) — 편의점", "reviewedAt": "2026-08-12"}
+{"storeId": 208101, "name": "요거그라스", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "라이스미(2012 폐업)", "reviewedAt": "2026-08-12"}
+{"storeId": 210874, "name": "무지노베이션", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "유진베이커리(2008 폐업) — 다른 지번", "reviewedAt": "2026-08-12"}
+{"storeId": 210884, "name": "기로띠 본점", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "Kirotti 갤러리아 한시적 팝업(2026-01 폐업) — 본점 아닌 팝업 레코드(전화는 본점 번호), 36km 거리", "reviewedAt": "2026-08-12"}
+{"storeId": 233113, "name": "봄내베이킹", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "베이커 리(2004 폐업)", "reviewedAt": "2026-08-12"}
+{"storeId": 246027, "name": "흐렙베리 베이커리푸드마트", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "준베이커리(2014 폐업) — 다른 도로", "reviewedAt": "2026-08-12"}
+{"storeId": 250947, "name": "농업회사법인 팜엔쿡 본점", "bucket": "C", "verdict": "O", "confidence": "medium", "reason": "www.농가빵.kr — 전화 일치, 동일 사업자의 714m 떨어진 옛 주소 기록(2020 폐업) — 현재 폐업 증거로는 부적합(이전 추정)", "reviewedAt": "2026-08-12"}
+{"storeId": 254920, "name": "풀꽃브런치카페", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "카페 서천상회 — 건너편 지번·다른 상호", "reviewedAt": "2026-08-12"}
+{"storeId": 263036, "name": "원조중앙찹쌀호떡", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "에이스피자(2005 폐업)", "reviewedAt": "2026-08-12"}
+{"storeId": 263066, "name": "안티스 전라감영점", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "베스킨라빈슨(2007 폐업) — 프랜차이즈 유사명", "reviewedAt": "2026-08-12"}
+{"storeId": 275931, "name": "창평동무화과", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "미니스톱(2010 폐업) — 편의점", "reviewedAt": "2026-08-12"}
+{"storeId": 296961, "name": "바빈스커피 영천완산점", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "세븐일레분(2024 폐업) — 편의점", "reviewedAt": "2026-08-12"}
+{"storeId": 300900, "name": "행운의십원빵 칠곡휴게소 부상방향", "bucket": "C", "verdict": "X", "confidence": "medium", "reason": "칠곡(하)휴게소 죠이캠프(2009 폐업) — 휴게소 옛 매점 양허 레코드", "reviewedAt": "2026-08-12"}
+{"storeId": 302115, "name": "빵집오빠 창원직영점", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "델리프랑스(2008 폐업) — 상가 지하 전 매장", "reviewedAt": "2026-08-12"}
+{"storeId": 407018, "name": "모어샌드위치 수영센텀점", "bucket": "C", "verdict": "X", "confidence": "high", "reason": "편의점 '수영점'(2022 폐업) — 건너편 지번", "reviewedAt": "2026-08-12"}
