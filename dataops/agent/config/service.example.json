@@ -1,0 +1,8 @@
+{
+  "service_id": "bbanggut-local",
+  "host_directory": "/Users/YOUR_USER/Library/Application Support/BbanggutDataOps/agent/bbanggut-local",
+  "java": "/ABSOLUTE/PATH/TO/JAVA17/bin/java",
+  "server_properties": "/Users/YOUR_USER/Library/Application Support/BbanggutDataOps/config/server.properties",
+  "server_port": 8090,
+  "registry_directory": "/Users/YOUR_USER/Library/Application Support/BbanggutDataOps/registry"
+}

@@ -1,0 +1,172 @@
+{
+ "stores": 36904,
+ "gauge_a": [
+  {
+   "axis": "taste",
+   "criterion": "빵 투표 비중 bread/(bread+dessert)",
+   "expect": 1,
+   "corr": 0.48,
+   "n": 33373
+  },
+  {
+   "axis": "taste",
+   "criterion": "건강한 맛 투표 비중",
+   "expect": 1,
+   "corr": 0.264,
+   "n": 36012
+  },
+  {
+   "axis": "vibe",
+   "criterion": "데이트 태그",
+   "expect": 1,
+   "corr": 0.849,
+   "n": 36904
+  },
+  {
+   "axis": "vibe",
+   "criterion": "카페형 태그",
+   "expect": 1,
+   "corr": 0.524,
+   "n": 36904
+  },
+  {
+   "axis": "vibe",
+   "criterion": "동네빵집 태그",
+   "expect": -1,
+   "corr": -0.453,
+   "n": 36904
+  }
+ ],
+ "gauge_b": [
+  {
+   "cluster": 5,
+   "n": 2248,
+   "types": 8,
+   "purity": 0.346,
+   "top_type": 4,
+   "top_label": "달콤·바삭·심플"
+  },
+  {
+   "cluster": 1,
+   "n": 3386,
+   "types": 8,
+   "purity": 0.347,
+   "top_type": 1,
+   "top_label": "달콤·부드·풍부"
+  },
+  {
+   "cluster": 2,
+   "n": 1467,
+   "types": 8,
+   "purity": 0.472,
+   "top_type": 3,
+   "top_label": "달콤·바삭·풍부"
+  },
+  {
+   "cluster": 13,
+   "n": 1711,
+   "types": 8,
+   "purity": 0.565,
+   "top_type": 5,
+   "top_label": "담백·부드·풍부"
+  },
+  {
+   "cluster": 12,
+   "n": 2128,
+   "types": 8,
+   "purity": 0.581,
+   "top_type": 2,
+   "top_label": "달콤·부드·심플"
+  },
+  {
+   "cluster": 7,
+   "n": 1043,
+   "types": 8,
+   "purity": 0.618,
+   "top_type": 4,
+   "top_label": "달콤·바삭·심플"
+  },
+  {
+   "cluster": 11,
+   "n": 1211,
+   "types": 8,
+   "purity": 0.62,
+   "top_type": 3,
+   "top_label": "달콤·바삭·풍부"
+  },
+  {
+   "cluster": 14,
+   "n": 1705,
+   "types": 8,
+   "purity": 0.653,
+   "top_type": 4,
+   "top_label": "달콤·바삭·심플"
+  },
+  {
+   "cluster": 15,
+   "n": 2197,
+   "types": 8,
+   "purity": 0.66,
+   "top_type": 8,
+   "top_label": "담백·바삭·심플"
+  },
+  {
+   "cluster": 3,
+   "n": 3842,
+   "types": 8,
+   "purity": 0.721,
+   "top_type": 1,
+   "top_label": "달콤·부드·풍부"
+  },
+  {
+   "cluster": 6,
+   "n": 710,
+   "types": 8,
+   "purity": 0.78,
+   "top_type": 6,
+   "top_label": "담백·부드·심플"
+  },
+  {
+   "cluster": 9,
+   "n": 1853,
+   "types": 8,
+   "purity": 0.798,
+   "top_type": 1,
+   "top_label": "달콤·부드·풍부"
+  },
+  {
+   "cluster": 4,
+   "n": 907,
+   "types": 8,
+   "purity": 0.8,
+   "top_type": 8,
+   "top_label": "담백·바삭·심플"
+  },
+  {
+   "cluster": 10,
+   "n": 1103,
+   "types": 8,
+   "purity": 0.818,
+   "top_type": 5,
+   "top_label": "담백·부드·풍부"
+  },
+  {
+   "cluster": 0,
+   "n": 5433,
+   "types": 8,
+   "purity": 0.883,
+   "top_type": 1,
+   "top_label": "달콤·부드·풍부"
+  },
+  {
+   "cluster": 8,
+   "n": 548,
+   "types": 8,
+   "purity": 0.907,
+   "top_type": 8,
+   "top_label": "담백·바삭·심플"
+  }
+ ],
+ "type_top_share": 0.232,
+ "mean_purity": 0.661
+}

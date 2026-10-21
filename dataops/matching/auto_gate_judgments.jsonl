@@ -1,0 +1,51 @@
+{"storeId": 2139, "bucket": "핵심-약", "verdict": "X", "confidence": "high", "reason": "라누 베이커리 — 더현대대구 지하1층의 다른 베이커리(백화점 접미사 아티팩트)", "reviewedAt": "2026-08-14"}
+{"storeId": 97278, "bucket": "핵심-약", "verdict": "X", "confidence": "medium", "reason": "하루셋 — 하르당과 상호 상이(지점 접미사 겹침), 2018 폐업", "reviewedAt": "2026-08-14"}
+{"storeId": 169838, "bucket": "핵심-약", "verdict": "O", "confidence": "high", "reason": "쉐프 윤찹쌀 꽈배기 고로케&다복이네 — 확장 등록명·동일 주소", "reviewedAt": "2026-08-14"}
+{"storeId": 171777, "bucket": "핵심-약", "verdict": "O", "confidence": "high", "reason": "㈜에키노마에 — 법인명 등록, 스타필드수원 7층, 2026-05 폐업", "reviewedAt": "2026-08-14"}
+{"storeId": 189772, "bucket": "핵심-약", "verdict": "O", "confidence": "high", "reason": "대만언니대왕카스테라 — 완전명 등록·동일 주소", "reviewedAt": "2026-08-14"}
+{"storeId": 200316, "bucket": "핵심-약", "verdict": "O", "confidence": "high", "reason": "3355꽈베기커피 — 축약·오기 변형, 동일 주소, 2025-11 폐업", "reviewedAt": "2026-08-14"}
+{"storeId": 209031, "bucket": "핵심-약", "verdict": "O", "confidence": "high", "reason": "네온몬스터즈 — 업태 서술부만 다른 동일 상호, 2026-07 폐업", "reviewedAt": "2026-08-14"}
+{"storeId": 210998, "bucket": "핵심-약", "verdict": "O", "confidence": "high", "reason": "카페 일리터 — 지점표기(영덕/흥덕)만 다름, 동일 주소, 2024-06 폐업", "reviewedAt": "2026-08-14"}
+{"storeId": 247065, "bucket": "핵심-약", "verdict": "X", "confidence": "high", "reason": "간코(일식) — 현대백화점충청 지하1층의 다른 매장", "reviewedAt": "2026-08-14"}
+{"storeId": 286246, "bucket": "핵심-약", "verdict": "O", "confidence": "high", "reason": "원더풀명품찹쌀 꽈배기 — 동일 상호 변형·동일 주소", "reviewedAt": "2026-08-14"}
+{"storeId": 323769, "bucket": "핵심-약", "verdict": "O", "confidence": "high", "reason": "뽀루뽀라/뽀르뽀라 — 표기 오차·동일 주소", "reviewedAt": "2026-08-14"}
+{"storeId": 4920, "bucket": "핵심-중", "verdict": "O", "confidence": "high", "reason": "웰로우 베이커리 — 영문 병기 차이", "reviewedAt": "2026-08-14"}
+{"storeId": 7331, "bucket": "핵심-중", "verdict": "O", "confidence": "high", "reason": "야미주디(YUMMY JUDY)", "reviewedAt": "2026-08-14"}
+{"storeId": 8058, "bucket": "핵심-중", "verdict": "O", "confidence": "high", "reason": "빅그린 베이커리 — 동일 상호 축약, 2026-06 폐업", "reviewedAt": "2026-08-14"}
+{"storeId": 39810, "bucket": "핵심-중", "verdict": "O", "confidence": "high", "reason": "보보위영(步步爲營)", "reviewedAt": "2026-08-14"}
+{"storeId": 45991, "bucket": "핵심-중", "verdict": "O", "confidence": "high", "reason": "발도스/반도스커피 — 표기 오차, 행복한백화점 지하1층", "reviewedAt": "2026-08-14"}
+{"storeId": 53750, "bucket": "핵심-중", "verdict": "O", "confidence": "high", "reason": "앙쥬브런치&베이커리카페", "reviewedAt": "2026-08-14"}
+{"storeId": 67305, "bucket": "핵심-중", "verdict": "O", "confidence": "high", "reason": "너쳐커피(nurture coffee), 2026-05 폐업", "reviewedAt": "2026-08-14"}
+{"storeId": 90482, "bucket": "핵심-중", "verdict": "O", "confidence": "high", "reason": "베러먼데이 대동병원점, 2026-07 폐업", "reviewedAt": "2026-08-14"}
+{"storeId": 137882, "bucket": "핵심-중", "verdict": "O", "confidence": "high", "reason": "글로어도넛 — 지점명 생략·동일 주소, 2025-12 폐업", "reviewedAt": "2026-08-14"}
+{"storeId": 142330, "bucket": "핵심-중", "verdict": "O", "confidence": "high", "reason": "구스카토커피인천계산점, 2026-04 폐업", "reviewedAt": "2026-08-14"}
+{"storeId": 144774, "bucket": "핵심-중", "verdict": "O", "confidence": "high", "reason": "본3파티세리(bon3patisserie) — 한/영 표기", "reviewedAt": "2026-08-14"}
+{"storeId": 146213, "bucket": "핵심-중", "verdict": "O", "confidence": "high", "reason": "와이구야(Y9-YA) — 한/영 표기, 2025-02 폐업", "reviewedAt": "2026-08-14"}
+{"storeId": 159454, "bucket": "핵심-중", "verdict": "O", "confidence": "high", "reason": "원더풀명품찹쌀꽈배기 — 지점명 생략, 2025-11 폐업", "reviewedAt": "2026-08-14"}
+{"storeId": 166020, "bucket": "핵심-중", "verdict": "O", "confidence": "high", "reason": "에아오(aeao), 2026-05 폐업", "reviewedAt": "2026-08-14"}
+{"storeId": 173408, "bucket": "핵심-중", "verdict": "O", "confidence": "high", "reason": "카페 이비자(CAFE IBIZA)", "reviewedAt": "2026-08-14"}
+{"storeId": 174095, "bucket": "핵심-중", "verdict": "O", "confidence": "high", "reason": "날쌘카페 수원탑동점", "reviewedAt": "2026-08-14"}
+{"storeId": 253905, "bucket": "핵심-중", "verdict": "O", "confidence": "high", "reason": "등록명 '아마미' 축약, 2026-03 폐업", "reviewedAt": "2026-08-14"}
+{"storeId": 257063, "bucket": "핵심-중", "verdict": "O", "confidence": "high", "reason": "명장박여수제빵소까페 — 표기차", "reviewedAt": "2026-08-14"}
+{"storeId": 279983, "bucket": "핵심-중", "verdict": "O", "confidence": "high", "reason": "메르시마망 — 병기 상호의 한쪽, 동일 주소 2층", "reviewedAt": "2026-08-14"}
+{"storeId": 312762, "bucket": "핵심-중", "verdict": "O", "confidence": "high", "reason": "도쿄빙수 샵인샵 김해율하점", "reviewedAt": "2026-08-14"}
+{"storeId": 2245, "bucket": "핵심-강", "verdict": "O", "confidence": "high", "reason": "사바나 코끼리 — 상호·주소 일치", "reviewedAt": "2026-08-14"}
+{"storeId": 86727, "bucket": "핵심-강", "verdict": "O", "confidence": "high", "reason": "텅 서면 스페이스 — 일치, 2026-07 폐업", "reviewedAt": "2026-08-14"}
+{"storeId": 92561, "bucket": "핵심-강", "verdict": "O", "confidence": "high", "reason": "광안튀김도나쓰 — 일치, 2025-05 폐업", "reviewedAt": "2026-08-14"}
+{"storeId": 148879, "bucket": "핵심-강", "verdict": "O", "confidence": "high", "reason": "텃밭 붕어빵 — 일치, 2026-04 폐업", "reviewedAt": "2026-08-14"}
+{"storeId": 152888, "bucket": "핵심-강", "verdict": "O", "confidence": "high", "reason": "비멜트 — 일치", "reviewedAt": "2026-08-14"}
+{"storeId": 173922, "bucket": "핵심-강", "verdict": "O", "confidence": "high", "reason": "스윗앤샷 고색산업단지점 — 일치, 2026-06 폐업", "reviewedAt": "2026-08-14"}
+{"storeId": 208389, "bucket": "핵심-강", "verdict": "O", "confidence": "high", "reason": "스튜디오 오아오 — 일치, 2025-12 폐업", "reviewedAt": "2026-08-14"}
+{"storeId": 235065, "bucket": "핵심-강", "verdict": "O", "confidence": "high", "reason": "이채베이크 — 일치, 2026-07 폐업", "reviewedAt": "2026-08-14"}
+{"storeId": 237903, "bucket": "핵심-강", "verdict": "O", "confidence": "high", "reason": "마시벤빵 — 일치", "reviewedAt": "2026-08-14"}
+{"storeId": 293157, "bucket": "핵심-강", "verdict": "O", "confidence": "high", "reason": "케이쿠다 — 일치", "reviewedAt": "2026-08-14"}
+{"storeId": 3800, "bucket": "일반-약", "verdict": "O", "confidence": "high", "reason": "플레어비 제과본점 — 지점표기 차·동일 주소", "reviewedAt": "2026-08-14"}
+{"storeId": 10156, "bucket": "일반-약", "verdict": "O", "confidence": "high", "reason": "카페아이엠티 을지로점 — 지점표기 축약", "reviewedAt": "2026-08-14"}
+{"storeId": 87395, "bucket": "일반-약", "verdict": "O", "confidence": "high", "reason": "그레이핍플 연산점 — 지점표기 축약", "reviewedAt": "2026-08-14"}
+{"storeId": 134257, "bucket": "일반-약", "verdict": "X", "confidence": "medium", "reason": "펍피맥 — 커피로드뷰와 상호 상이(주야 겸업/전 임차 확증 불가)", "reviewedAt": "2026-08-14"}
+{"storeId": 140058, "bucket": "일반-약", "verdict": "O", "confidence": "high", "reason": "베이크샵(Bake#)192 — 표기차", "reviewedAt": "2026-08-14"}
+{"storeId": 154591, "bucket": "일반-약", "verdict": "X", "confidence": "medium", "reason": "첨단찹쌀꽈배기 — 경성찹쌀꽈배기와 브랜드어 상이(개명 확증 불가)", "reviewedAt": "2026-08-14"}
+{"storeId": 189667, "bucket": "일반-약", "verdict": "O", "confidence": "high", "reason": "딥(Deep)치즈스마일 — 표기차", "reviewedAt": "2026-08-14"}
+{"storeId": 244745, "bucket": "일반-약", "verdict": "O", "confidence": "high", "reason": "일호까페 — 표기차", "reviewedAt": "2026-08-14"}
+{"storeId": 292054, "bucket": "일반-약", "verdict": "O", "confidence": "high", "reason": "리치(Rich) 520 — 표기차", "reviewedAt": "2026-08-14"}
+{"storeId": 323949, "bucket": "일반-약", "verdict": "O", "confidence": "high", "reason": "노바운더리카페 — 접미사 차·동일 주소", "reviewedAt": "2026-08-14"}

@@ -1,0 +1,210 @@
+{"storeId": 1892, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "선다방(1999 폐업) — 포함 아티팩트", "reviewedAt": "2026-08-12"}
+{"storeId": 2371, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "올드몬트 베이글 — 동일 브랜드·주소, 2026-05 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 6448, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "네마 — 다른 도로·다른 상호", "reviewedAt": "2026-08-12"}
+{"storeId": 9389, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "오케이 프로틴바 — 표기차·동일 주소", "reviewedAt": "2026-08-12"}
+{"storeId": 12340, "bucket": "A", "verdict": "X", "confidence": "medium", "reason": "자매제과 — 같은 건물, 상호 상이('제과' 겹침)", "reviewedAt": "2026-08-12"}
+{"storeId": 12982, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "사나이커피 — 다른 도로", "reviewedAt": "2026-08-12"}
+{"storeId": 14746, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "오넛티(Ohnutty) — 동일 상호·주소", "reviewedAt": "2026-08-12"}
+{"storeId": 19503, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "이타르트 군자역점 — 동일 상호, 군자역 구내, 2026-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 20426, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "코코플랑(COCOFLAN) — 동일 상호·주소, 2026-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 22215, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "나리꼬모 청량리역점 — 동일 상호·주소", "reviewedAt": "2026-08-12"}
+{"storeId": 24105, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "息,꽃 — 동일 상호·주소 0m, 2026-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 29197, "bucket": "A", "verdict": "X", "confidence": "medium", "reason": "우아한과일&커피 — 같은 호수, 상호 상이(전 임차/개명 확증 불가)", "reviewedAt": "2026-08-12"}
+{"storeId": 29348, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "할리스커피 — 프랜차이즈, 다른 지번", "reviewedAt": "2026-08-12"}
+{"storeId": 31620, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "디저트얌 — 다른 도로·다른 상호", "reviewedAt": "2026-08-12"}
+{"storeId": 32736, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "아딸 — 다른 지번·다른 브랜드", "reviewedAt": "2026-08-12"}
+{"storeId": 32739, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "등록명 '공감' 축약·동일 주소 0m", "reviewedAt": "2026-08-12"}
+{"storeId": 35114, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "고려당(2002 폐업) — 다른 브랜드", "reviewedAt": "2026-08-12"}
+{"storeId": 36082, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "커피온리 — 다른 매장", "reviewedAt": "2026-08-12"}
+{"storeId": 36803, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "황금찹쌀꽈배기 — 다른 브랜드('찹쌀꽈배기' 겹침)", "reviewedAt": "2026-08-12"}
+{"storeId": 45367, "bucket": "A", "verdict": "X", "confidence": "medium", "reason": "또바기 다방(2008 폐업) — 업종·시대 상이", "reviewedAt": "2026-08-12"}
+{"storeId": 45440, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "헬로(Hello)어.빵 — 동일 상호 표기차·동일 주소", "reviewedAt": "2026-08-12"}
+{"storeId": 51642, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "베이글리스트 롯데백 김포공항점 — 동일 팝업, 2026-05 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 59101, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "몽소 — 다른 지번·다른 상호", "reviewedAt": "2026-08-12"}
+{"storeId": 65066, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "삼송빵집 강남양재점 — 상호·주소 완전 일치, 2026-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 65150, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "커피집(2013 폐업) — 다른 상호", "reviewedAt": "2026-08-12"}
+{"storeId": 66958, "bucket": "A", "verdict": "O", "confidence": "medium", "reason": "와플반트 강남고속터미널점 — 동일 브랜드 지점(2014 폐업 — 노후 레코드)", "reviewedAt": "2026-08-12"}
+{"storeId": 69226, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "디핀다트 — 다른 브랜드", "reviewedAt": "2026-08-12"}
+{"storeId": 69548, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "'코엑스'(2006 폐업) — 일반명", "reviewedAt": "2026-08-12"}
+{"storeId": 69709, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "삼청동 에그롤 — 동일 브랜드, 파르나스 지하, 2026-02 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 69848, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "그린하우스 — 다른 지번·상호", "reviewedAt": "2026-08-12"}
+{"storeId": 71442, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "아나카롱 — 상호·주소 일치(은마상가)", "reviewedAt": "2026-08-12"}
+{"storeId": 72261, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "굿베이커리 — 다른 도로", "reviewedAt": "2026-08-12"}
+{"storeId": 75985, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "마카나이(일식) — 다른 지번", "reviewedAt": "2026-08-12"}
+{"storeId": 76658, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "코만스 — 동일 브랜드, 롯데백 잠실 지하1층", "reviewedAt": "2026-08-12"}
+{"storeId": 76853, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "오베르캄프 — 동일 브랜드, 롯데월드타워, 2026-01 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 76948, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "브뤼셀프라이 — 동일 브랜드, 롯데월드몰, 2026-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 76960, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "태극당 롯데월드몰 — 동일 브랜드 지점, 2025-12 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 77558, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "디아망(키즈카페) — 다른 지번·업종", "reviewedAt": "2026-08-12"}
+{"storeId": 80733, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "비비큐(치킨) — 같은 건물 다른 가게", "reviewedAt": "2026-08-12"}
+{"storeId": 80767, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "호두스토리 — 다른 지번·브랜드", "reviewedAt": "2026-08-12"}
+{"storeId": 81489, "bucket": "A", "verdict": "X", "confidence": "medium", "reason": "(주)와플반트 롯데백 광복점 — 같은 브랜드의 다른 지점 레코드(414m)", "reviewedAt": "2026-08-12"}
+{"storeId": 95288, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "빠아앙 — 동일 상호, 덕천지하상가", "reviewedAt": "2026-08-12"}
+{"storeId": 96501, "bucket": "A", "verdict": "H", "confidence": "low", "reason": "원베이크 팩토리 vs 치즈케이크팩토리 — 신세계센텀 지하, 동일 여부 확증 불가", "reviewedAt": "2026-08-12", "humanResult": "폐업 직접 확인(네이버 검색, 2026-08-14) — 매핑 미확정, eyeball_judgments 편입"}
+{"storeId": 96590, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "파스쿠찌 — 프랜차이즈, 같은 건물", "reviewedAt": "2026-08-12"}
+{"storeId": 97022, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "미친베이글 — 같은 푸드홀 다른 매장", "reviewedAt": "2026-08-12"}
+{"storeId": 97299, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "도나스다방 — 상호·주소 일치", "reviewedAt": "2026-08-12"}
+{"storeId": 102930, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "웨스트사이드 명지점 — 상호·주소 일치, 2024-12 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 109285, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "계란빵클럽 — 동일 브랜드, 부산프리미엄아울렛, 2026-07 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 109500, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "노티드 대구신세계 — 동일 브랜드 지점, 2026-07 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 110028, "bucket": "A", "verdict": "O", "confidence": "medium", "reason": "디저트39(=디저트 편집샵 표방) 롯데백 대구 — 동일 추정", "reviewedAt": "2026-08-12"}
+{"storeId": 110502, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "서문십원빵 — 다른 지번·다른 품목(땅콩빵)", "reviewedAt": "2026-08-12"}
+{"storeId": 115128, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "출장스낵카1994 — 상호·주소 일치(푸드트럭)", "reviewedAt": "2026-08-12"}
+{"storeId": 125993, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "코리아세븐(세븐일레븐) — 편의점", "reviewedAt": "2026-08-12"}
+{"storeId": 128878, "bucket": "A", "verdict": "O", "confidence": "medium", "reason": "한빵울 — 동일 브랜드('미니' 접두), 동일 주소", "reviewedAt": "2026-08-12"}
+{"storeId": 130535, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "잼이과자점 — 상호·주소 일치, 2026-04 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 130600, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "몽글다 — '카페' 접두 차이·동일 주소", "reviewedAt": "2026-08-12"}
+{"storeId": 131451, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "맘스케익 영종도운서점 — 상호·주소 일치(중구→영종구 개편)", "reviewedAt": "2026-08-12"}
+{"storeId": 134252, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "라뚜셩트 — 동일 브랜드, 롯데백 인천 지하1층", "reviewedAt": "2026-08-12"}
+{"storeId": 134303, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "잣품은 그집 호두과자 — 동일 상호·주소", "reviewedAt": "2026-08-12"}
+{"storeId": 134466, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "몽베베디저트샵 — 상호·주소 일치, 2026-01 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 134529, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "설빙 — 프랜차이즈, 다른 지번", "reviewedAt": "2026-08-12"}
+{"storeId": 134920, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "더스탈릿(주) — 법인명 등록·동일 주소", "reviewedAt": "2026-08-12"}
+{"storeId": 135141, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "피자얀(2007 폐업)", "reviewedAt": "2026-08-12"}
+{"storeId": 135535, "bucket": "A", "verdict": "X", "confidence": "medium", "reason": "트윈스키친 — 다른 브랜드(아울렛 접미사 겹침)", "reviewedAt": "2026-08-12"}
+{"storeId": 135736, "bucket": "A", "verdict": "O", "confidence": "medium", "reason": "쁘띠렌 — 동일 브랜드, 현대아울렛 송도(2018 폐업 — 노후 레코드)", "reviewedAt": "2026-08-12"}
+{"storeId": 135903, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "온정 — 다른 브랜드, 아울렛 접미사 겹침", "reviewedAt": "2026-08-12"}
+{"storeId": 135921, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "커스텀커피 — 다른 브랜드·다른 층", "reviewedAt": "2026-08-12"}
+{"storeId": 135923, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "뮤제크로플 — 상호·주소 일치", "reviewedAt": "2026-08-12"}
+{"storeId": 142501, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "디저트랑 빙수랑 — 상호·주소 일치, 2025-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 142573, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "라이크 폴 — 상호·주소 일치", "reviewedAt": "2026-08-12"}
+{"storeId": 142579, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "요글루 — 상호·주소 일치, 2026-03 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 142606, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "어드반커피 — 상호·주소 일치, 2024-11 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 142615, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "황황팥빙수&디저트 — 상호·주소 일치, 2025-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 143428, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "달콤함에 빠지다 — 상호·주소 일치, 2024-12 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 143507, "bucket": "A", "verdict": "O", "confidence": "medium", "reason": "베이킹리베 — 상호·주소 일치(2017 폐업 — 노후 레코드)", "reviewedAt": "2026-08-12"}
+{"storeId": 144322, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "스토리오브라망 김포풍무점 — 상호·주소 일치, 2025-09 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 144506, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "햇님 별님 베이커리 카페 — 상호·주소 일치, 2026-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 144523, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "꽈배기상회 강화읍점 — 상호·주소 일치, 2025-03 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 144537, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "휴앤릴랙스 — 표기차·동일 주소", "reviewedAt": "2026-08-12"}
+{"storeId": 144552, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "해안368 — '더' 접두 차·동일 주소", "reviewedAt": "2026-08-12"}
+{"storeId": 144620, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "마녀키키 — 동일 상호·주소, 2024-12 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 147660, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "떡볶당 — 다른 지번·다른 업종", "reviewedAt": "2026-08-12"}
+{"storeId": 147731, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "라라브레드 — 다른 도로·다른 브랜드", "reviewedAt": "2026-08-12"}
+{"storeId": 148828, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "브레드정j — 동일 상호·주소 1m, 2025-12 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 155258, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "국수나무 — 같은 건물 다른 가게", "reviewedAt": "2026-08-12"}
+{"storeId": 155373, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "멜리(2002 폐업)", "reviewedAt": "2026-08-12"}
+{"storeId": 156965, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "트리플에이커피 — 동일 상호·주소, 2026-04 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 159780, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "호아빈 — 같은 건물 다른 업종", "reviewedAt": "2026-08-12"}
+{"storeId": 163602, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "아웃호반 휴게소 — 상호·주소 일치, 2026-01 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 164438, "bucket": "A", "verdict": "O", "confidence": "medium", "reason": "오직아뜰리에 — 고유 상호 일치, 주소 상이(1555↔1584, 이전 가능성)", "reviewedAt": "2026-08-12"}
+{"storeId": 165527, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "쥬벨베이커리 — 다른 도로·상호", "reviewedAt": "2026-08-12"}
+{"storeId": 168996, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "간이역(호프) — 같은 건물 다른 업종", "reviewedAt": "2026-08-12"}
+{"storeId": 169036, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "꿀복이찹쌀꽈배기 울산중산점 — 동일 상호, 인접 주소", "reviewedAt": "2026-08-12"}
+{"storeId": 170607, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "등록명 '단추' 축약·동일 주소 0m", "reviewedAt": "2026-08-12"}
+{"storeId": 171546, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "픽베이크 — 스타필드수원 팝업, 2026-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 171894, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "레자미오네뜨 — 스타필드수원, 2026-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 171984, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "푸노야 — 스타필드수원 팝업, 2026-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 173473, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "카페드파리 — 다른 브랜드, 백화점 접미사 겹침", "reviewedAt": "2026-08-12"}
+{"storeId": 176394, "bucket": "A", "verdict": "O", "confidence": "medium", "reason": "휴반 — 동일 브랜드 추정('어스' 접미), 동일 주소", "reviewedAt": "2026-08-12"}
+{"storeId": 178427, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "놀숲 — 프랜차이즈 보드카페", "reviewedAt": "2026-08-12"}
+{"storeId": 180654, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "퍼치드 커피 컴퍼니 — 상호·주소 일치, 2026-04 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 182309, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "마듀 — 다른 브랜드, 백화점 접미사 겹침", "reviewedAt": "2026-08-12"}
+{"storeId": 184902, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "김세규베이커리(2006 폐업)", "reviewedAt": "2026-08-12"}
+{"storeId": 185222, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "범계역푸드점(2010 폐업) — 역구내 일반명", "reviewedAt": "2026-08-12"}
+{"storeId": 191976, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "소복 — 다른 브랜드, 백화점 접미사 겹침", "reviewedAt": "2026-08-12"}
+{"storeId": 192078, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "슈니발렌 — 다른 브랜드", "reviewedAt": "2026-08-12"}
+{"storeId": 192225, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "더벤티 — 프랜차이즈", "reviewedAt": "2026-08-12"}
+{"storeId": 197205, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "카페지엠 — 동일 상호·주소, 2026-07 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 197235, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "계란빵클럽 — 롯데몰광명 팝업, 2025-10 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 197343, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "커피# — 다른 도로·상호", "reviewedAt": "2026-08-12"}
+{"storeId": 197345, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "뚜레쥬르 — 프랜차이즈(2012 폐업)", "reviewedAt": "2026-08-12"}
+{"storeId": 199871, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "차스텔라와이블랙 — 동일 상호·주소, 2026-05 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 201877, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "천안당 — 다른 브랜드", "reviewedAt": "2026-08-12"}
+{"storeId": 201921, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "글로어 초지역점 — 상호·주소 일치, 2026-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 203263, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "시오팡야 — 스타필드고양, 지점명 표기차, 2026-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 203561, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "후식 — 역구내 다른 매장", "reviewedAt": "2026-08-12"}
+{"storeId": 205137, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "커피빈 — 프랜차이즈, 다른 지번", "reviewedAt": "2026-08-12"}
+{"storeId": 205577, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "에이지드 — 다른 브랜드, 백화점 접미사 겹침", "reviewedAt": "2026-08-12"}
+{"storeId": 209007, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "시아북카페 — 다른 매장", "reviewedAt": "2026-08-12"}
+{"storeId": 209901, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "이마트24 — 편의점, 다른 도로", "reviewedAt": "2026-08-12"}
+{"storeId": 210597, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "아트인홀 베이커리 — 상호·주소 일치, 2026-05 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 211308, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "선데이 케이커리 — 상호·주소 일치, 2026-04 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 211894, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "카페1253 — 다른 도로·상호", "reviewedAt": "2026-08-12"}
+{"storeId": 212054, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "뉴욕러브베이글 — 롯데몰수지 지하1층, 2026-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 213451, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "블럭제빵소 — 동일 브랜드·주소, 2026-05 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 213452, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "디파브 케이크 — 상호·주소 일치, 2024-09 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 214239, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "카페우디움 2호점 — 상호·주소 일치(조강전망대)", "reviewedAt": "2026-08-12"}
+{"storeId": 214980, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "베이크인유 — 상호·주소 일치, 2026-05 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 215419, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "베이글리스트 동탄 — 다른 브랜드(버터풀앤크리멀러스 아님)", "reviewedAt": "2026-08-12"}
+{"storeId": 215910, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "백미당 — 다른 브랜드, 타임테라스 접미사 겹침", "reviewedAt": "2026-08-12"}
+{"storeId": 217671, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "홍루이젠 — 프랜차이즈, 다른 도로", "reviewedAt": "2026-08-12"}
+{"storeId": 218948, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "모찌이야기 금정점 — 동일 브랜드 지점·동일 주소, 2025-07 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 220754, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "B.B Baking house — 동일 상호·주소, 2025-12 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 222521, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "장단콩팥소빵Cafe — 동일 상호(문산역), 2026-03 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 230163, "bucket": "A", "verdict": "O", "confidence": "medium", "reason": "빵명장 아트밸리 — 동일 브랜드, 인접 지번(189-1↔189-2)", "reviewedAt": "2026-08-12"}
+{"storeId": 235461, "bucket": "A", "verdict": "X", "confidence": "medium", "reason": "카페드림 학생회관점 — 같은 캠퍼스 다른 건물 지점(395m)", "reviewedAt": "2026-08-12"}
+{"storeId": 239121, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "'디저트'(한식, 2006 폐업) — 일반명", "reviewedAt": "2026-08-12"}
+{"storeId": 240582, "bucket": "A", "verdict": "O", "confidence": "medium", "reason": "강릉커피콩빵 — 동일 브랜드, 7m(월화거리=중앙시장 옆), 2024-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 241761, "bucket": "A", "verdict": "X", "confidence": "medium", "reason": "속초문어강정 — 브랜드 상이(사형제 아님)", "reviewedAt": "2026-08-12"}
+{"storeId": 244041, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "워니베이크샵 — 상호·주소 일치, 2024-02 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 247002, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "제이지 케이크 — 상호·주소 일치, 2026-08-05 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 247022, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "요거트맨 — 다른 브랜드, 백화점 접미사 겹침", "reviewedAt": "2026-08-12"}
+{"storeId": 247783, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "로로디 — 다른 브랜드, 커넥트현대 접미사 겹침", "reviewedAt": "2026-08-12"}
+{"storeId": 248181, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "메종보이드 — 상호·주소 일치(문화제조창), 2025-04 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 249125, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "무프 MOOF — 상호·주소 일치, 2026-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 250921, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "sicompany(서인컴퍼니) — 상호·주소 일치(푸드트럭), 2026-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 252594, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "오규당 — 다른 브랜드, 백화점 접미사 겹침", "reviewedAt": "2026-08-12"}
+{"storeId": 253472, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "카페마마스버켓 — 상호·주소 일치(종합운동장), 2024-10 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 254224, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "꽈배기방앗간신불당점 — 상호·주소 일치, 2025-12 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 254277, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "빈스마카롱앤디저트 — 상호·주소 일치, 2026-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 256214, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "이디야 — 프랜차이즈, 다른 지번", "reviewedAt": "2026-08-12"}
+{"storeId": 258212, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "에그토스트 — 다른 도로·다른 품목", "reviewedAt": "2026-08-12"}
+{"storeId": 259346, "bucket": "A", "verdict": "H", "confidence": "low", "reason": "점순이호떡 — 동일 브랜드이나 441m 주소 상이(이전 vs 별개 지점 판단 필요)", "reviewedAt": "2026-08-12", "humanResult": "폐업 직접 확인(네이버 검색, 2026-08-14) — 매핑 미확정, eyeball_judgments 편입"}
+{"storeId": 273336, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "리본샌디 cafe — 상호·주소 일치, 2026-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 274848, "bucket": "A", "verdict": "O", "confidence": "medium", "reason": "커피브루 — 동일 상호, 진안읍 내 도로명/지번 표기차", "reviewedAt": "2026-08-12"}
+{"storeId": 277892, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "등록명 '니드' 축약·동일 주소 3m, 2023-11 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 277954, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "바바루아 LF스퀘어점 — 동일 브랜드·주소, 2023-10 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 280795, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "카페 너풀 — 다른 상호·위치", "reviewedAt": "2026-08-12"}
+{"storeId": 288190, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "파리바게트(2001 폐업) — 프랜차이즈", "reviewedAt": "2026-08-12"}
+{"storeId": 289339, "bucket": "A", "verdict": "X", "confidence": "medium", "reason": "이상복명과 양남면 — 대표번호 일치이나 39km 다른 매장 레코드", "reviewedAt": "2026-08-12"}
+{"storeId": 291195, "bucket": "A", "verdict": "O", "confidence": "medium", "reason": "이모션캐슬스토어 구미 — 동일 브랜드(금오랜드), 2026-08-07 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 293169, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "더리터 — 프랜차이즈, 다른 지번", "reviewedAt": "2026-08-12"}
+{"storeId": 293604, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "크라운베이커리(2010 폐업) — 같은 상가 전 매장", "reviewedAt": "2026-08-12"}
+{"storeId": 297787, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "문경하루 — 다른 도로·상호", "reviewedAt": "2026-08-12"}
+{"storeId": 301862, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "모리커피 — 울릉 엘도라도 선내점, 2026-03 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 301921, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "씨유 — 편의점, 다른 도로", "reviewedAt": "2026-08-12"}
+{"storeId": 301949, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "롯데리아 — 프랜차이즈, 다른 도로", "reviewedAt": "2026-08-12"}
+{"storeId": 304922, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "설레노커피 — 건너편 다른 카페", "reviewedAt": "2026-08-12"}
+{"storeId": 304928, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "예다손 — 다른 브랜드(2011 폐업)", "reviewedAt": "2026-08-12"}
+{"storeId": 305469, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "구공구(909) — 동일 상호 표기차·동일 주소, 2024-08 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 306167, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "옥루몽 — 다른 지번·상호", "reviewedAt": "2026-08-12"}
+{"storeId": 312823, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "아떼모야 샘빛 — 상호·주소 일치, 2026-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 312905, "bucket": "A", "verdict": "X", "confidence": "medium", "reason": "손수(2020 폐업) — 다른 호수, 동일성 확증 불가", "reviewedAt": "2026-08-12"}
+{"storeId": 313394, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "다인경주빵밀양역사점 — 상호·주소 일치, 2024-09 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 319356, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "띠아모(2012 폐업) — 다른 지번, 프랜차이즈 시대 상이", "reviewedAt": "2026-08-12"}
+{"storeId": 323944, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "씨유 — 리조트 내 편의점", "reviewedAt": "2026-08-12"}
+{"storeId": 324022, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "서귀포올레마늘통닭 — '서귀포올레' 지역명 겹침, 다른 업종", "reviewedAt": "2026-08-12"}
+{"storeId": 375352, "bucket": "A", "verdict": "X", "confidence": "high", "reason": "라이스존(2008 폐업)", "reviewedAt": "2026-08-12"}
+{"storeId": 426093, "bucket": "A", "verdict": "O", "confidence": "high", "reason": "위트커피연경점 — 상호·주소 일치, 2026-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 4285, "bucket": "B", "verdict": "O", "confidence": "high", "reason": "에이카페(ACAFE) — 동일 매장(바이 프리퍼=운영사 병기), 전화 인접회선, 2026-04 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 7437, "bucket": "B", "verdict": "O", "confidence": "high", "reason": "호텔뮤제 — 동일 상호·주소, 2026-07 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 8507, "bucket": "B", "verdict": "O", "confidence": "high", "reason": "스프레드(spread) — 동일 상호(DB에 '휴업중' 표기), 2025-07 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 14320, "bucket": "B", "verdict": "O", "confidence": "high", "reason": "ACPS = Artcrew Propshop 두문자 — 동일 주소, 2026-04 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 73410, "bucket": "B", "verdict": "H", "confidence": "low", "reason": "콜프로스터스 — 스트릿팬케이크와 동일/입점 여부 확증 불가", "reviewedAt": "2026-08-12", "humanResult": "폐업 직접 확인(네이버 검색, 2026-08-14) — 매핑 미확정, eyeball_judgments 편입"}
+{"storeId": 75557, "bucket": "B", "verdict": "H", "confidence": "low", "reason": "소보심 vs 소보소보 — '소보' 공유, 동일 여부 확증 불가", "reviewedAt": "2026-08-12", "humanResult": "폐업 직접 확인(네이버 검색, 2026-08-14) — 매핑 미확정, eyeball_judgments 편입"}
+{"storeId": 125912, "bucket": "B", "verdict": "O", "confidence": "high", "reason": "코올드(Co.old) — 등록명 축약·동일 주소(2019 폐업 — 노후 레코드)", "reviewedAt": "2026-08-12"}
+{"storeId": 134725, "bucket": "B", "verdict": "X", "confidence": "high", "reason": "삼겹살이야기 — 같은 건물 다른 업종", "reviewedAt": "2026-08-12"}
+{"storeId": 148853, "bucket": "B", "verdict": "X", "confidence": "high", "reason": "호호만두 — 같은 상가 다른 가게", "reviewedAt": "2026-08-12"}
+{"storeId": 154453, "bucket": "B", "verdict": "X", "confidence": "high", "reason": "영자클럽 — 같은 자리 다른 가게", "reviewedAt": "2026-08-12"}
+{"storeId": 162014, "bucket": "B", "verdict": "X", "confidence": "high", "reason": "엄마가바쁘다(한식) — 같은 상가 다른 가게", "reviewedAt": "2026-08-12"}
+{"storeId": 192340, "bucket": "B", "verdict": "X", "confidence": "high", "reason": "홍당디저트부띠끄 — 같은 호수 전/다른 가게", "reviewedAt": "2026-08-12"}
+{"storeId": 200295, "bucket": "B", "verdict": "O", "confidence": "high", "reason": "포낸(PONAEN) — 등록명 축약·동일 주소, 2025-06 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 211571, "bucket": "B", "verdict": "O", "confidence": "medium", "reason": "포레디엠 — '포레' 공유·전화 끝자리 8188 일치·동일 주소(리브랜딩 추정), 2026-03 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 213009, "bucket": "B", "verdict": "X", "confidence": "high", "reason": "세븐일레븐 — 편의점", "reviewedAt": "2026-08-12"}
+{"storeId": 214044, "bucket": "B", "verdict": "X", "confidence": "medium", "reason": "데이지케이크 — 상호 상이, 동일성 확증 불가", "reviewedAt": "2026-08-12"}
+{"storeId": 214869, "bucket": "B", "verdict": "X", "confidence": "medium", "reason": "바비큐보스(2013 폐업) — 노후·상호 상이", "reviewedAt": "2026-08-12"}
+{"storeId": 219710, "bucket": "B", "verdict": "X", "confidence": "high", "reason": "의왕휴게소(하)(2013 폐업) — 휴게소 운영 레코드, 매대와 별개", "reviewedAt": "2026-08-12"}
+{"storeId": 228129, "bucket": "B", "verdict": "X", "confidence": "high", "reason": "커피베이 — 프랜차이즈 전 임차", "reviewedAt": "2026-08-12"}
+{"storeId": 230482, "bucket": "B", "verdict": "X", "confidence": "high", "reason": "GS25 — 편의점", "reviewedAt": "2026-08-12"}
+{"storeId": 238625, "bucket": "B", "verdict": "X", "confidence": "high", "reason": "홍탕 — 다른 동·상호(2015 폐업)", "reviewedAt": "2026-08-12"}
+{"storeId": 243760, "bucket": "B", "verdict": "X", "confidence": "medium", "reason": "그언니디저트(2021 폐업) — 협동조합과 동일성 확증 불가", "reviewedAt": "2026-08-12"}
+{"storeId": 248132, "bucket": "B", "verdict": "X", "confidence": "high", "reason": "명동와플하우스 — 청주↔정읍 '중앙로 137' 도로명 충돌(133km) — road_key 시군구 미포함 버그", "reviewedAt": "2026-08-12"}
+{"storeId": 282840, "bucket": "B", "verdict": "O", "confidence": "high", "reason": "위스테리아(WISTERIA) — 상호·주소 일치, 2024-04 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 289363, "bucket": "B", "verdict": "X", "confidence": "high", "reason": "두찜 — 같은 자리 다른 업종", "reviewedAt": "2026-08-12"}
+{"storeId": 289611, "bucket": "B", "verdict": "X", "confidence": "high", "reason": "이마트24 — 편의점", "reviewedAt": "2026-08-12"}
+{"storeId": 301027, "bucket": "B", "verdict": "X", "confidence": "high", "reason": "휴게소 한식당 레코드 — 매대와 별개", "reviewedAt": "2026-08-12"}
+{"storeId": 312925, "bucket": "B", "verdict": "X", "confidence": "high", "reason": "돈치킨(2015 폐업) — 같은 호수 전 임차", "reviewedAt": "2026-08-12"}
+{"storeId": 317440, "bucket": "B", "verdict": "O", "confidence": "medium", "reason": "서문마을카페 — 마을 협동조합 카페, 동일 주소(서변/서문 표기 혼선 추정), 2023-10 폐업", "reviewedAt": "2026-08-12"}
+{"storeId": 319138, "bucket": "B", "verdict": "X", "confidence": "high", "reason": "수일통닭 — 같은 자리 다른 업종", "reviewedAt": "2026-08-12"}
+{"storeId": 323613, "bucket": "B", "verdict": "X", "confidence": "high", "reason": "제주팜카페 — 같은 건물 다른 가게", "reviewedAt": "2026-08-12"}
