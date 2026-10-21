@@ -1,10 +1,10 @@
 """배치 EC2 에서 실행(/usr/local/bin/bbang-batch). 비밀값을 stdout·이미지·디스크(임시 파일 외)에 남기지 않는다.
 
   bbang-batch install                    배포 — Docker Hub 로그인 후 config.json 의 이미지(digest)를 받는다
-  bbang-batch job <이름>                 WAS 배치 작업 하나 (EventBridge → Lambda → SSM 이 부른다)
+  bbang-batch job <이름>                 WAS 배치 작업 하나 (Scheduler → Step Functions → SSM 문서 SweetgirlBatchRun 이 부른다)
   bbang-batch dataops-nightly [시간]     dataops 수집
   bbang-batch dataops <스크립트> [인자]  dataops 수동 작업(승인·반영)
-  bbang-batch busy                       작업 컨테이너가 돌고 있으면 0 — 배포가 끝난 뒤 EC2 를 끌지 판단한다
+  bbang-batch busy                       작업 컨테이너가 돌고 있으면 0 — 수동 점검용
 
 실행 시점에 Parameter Store 를 읽는다 — 값을 바꾸면 다음 실행부터 바로 반영된다(재배포 불필요).
 """
