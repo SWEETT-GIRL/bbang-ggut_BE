@@ -157,13 +157,18 @@ sweetgirl.croissant
 
 ## 주요 명령어
 
+모듈: `core`(도메인·서비스·리포지토리) · `api`(컨트롤러·보안·상시 스케줄러, 로컬 설정 `api/src/main/resources/application-local.properties`) · `batch`(하루·주 단위 작업 + dataops 앱)
+
 ```bash
-./gradlew bootRun                  # 실행 (기본 프로파일: local)
-./gradlew build                    # 빌드 (checkstyle 포함)
+./gradlew :api:bootRun             # API 실행 (기본 프로파일: local)
+./gradlew :batch:bootRun --args='--batch.job=<작업이름>'  # 배치 작업 1회 실행
+./gradlew build                    # 전체 빌드 (checkstyle 포함)
 ./gradlew test                     # 전체 테스트
-./gradlew test --tests "sweetgirl.croissant.<패키지>.<클래스>"  # 단일 테스트
+./gradlew :core:test --tests "sweetgirl.croissant.<패키지>.<클래스>"  # 단일 테스트 (모듈 지정)
 ./gradlew spotlessApply            # 포맷 적용 (Naver)
 ./gradlew checkstyleMain checkstyleTest  # 스타일 검사
 ```
+
+> 배치 서버 운영(배포·Parameter Store·EventBridge)은 `docs/batch-server-runbook.md` 참고
 
 > 첫 clone 후 `./gradlew compileJava` 실행 필요 — pre-commit 훅 자동 등록됨 (`spotlessApply` + `checkstyle`)
