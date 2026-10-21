@@ -80,7 +80,6 @@ jobs:
           kakao.api.base-url=https://dapi.kakao.com
           kakao.api.key=${KAKAO_API_KEY}
 
-          google.places.api-key=${GOOGLE_PLACES_API_KEY}
 
           gemini.api.key=${GEMINI_API_KEY}
 
@@ -298,7 +297,6 @@ jobs:
           KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           KAKAO_API_KEY: ${{ secrets.KAKAO_API_KEY }}
-          GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
@@ -334,7 +332,6 @@ jobs:
             echo "KAKAO_CLIENT_SECRET=${KAKAO_CLIENT_SECRET}"
             echo "JWT_SECRET=${JWT_SECRET}"
             echo "KAKAO_API_KEY=${KAKAO_API_KEY}"
-            echo "GOOGLE_PLACES_API_KEY=${GOOGLE_PLACES_API_KEY}"
             echo "GEMINI_API_KEY=${GEMINI_API_KEY}"
             echo "OPENAI_API_KEY=${OPENAI_API_KEY}"
             echo "CLAUDE_API_KEY=${CLAUDE_API_KEY}"
