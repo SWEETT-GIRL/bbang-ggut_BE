@@ -3,6 +3,7 @@ package sweetgirl.croissant.admin.bulkimport.service;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
@@ -26,6 +27,9 @@ public class BulkImportOrchestrator {
 
 	private final AtomicBoolean running = new AtomicBoolean(false);
 	private final AtomicBoolean shouldStop = new AtomicBoolean(false);
+
+	@Value("${app.startup-data-maintenance.enabled:true}")
+	private boolean startupDataMaintenanceEnabled = true;
 
 	public boolean tryStart() {
 		boolean acquired = running.compareAndSet(false, true);
@@ -113,6 +117,10 @@ public class BulkImportOrchestrator {
 
 	@EventListener
 	public void recoverStaleOnStartup(ApplicationReadyEvent event) {
+		if (!startupDataMaintenanceEnabled) {
+			return;
+		}
+
 		int recovered = progressService.recoverStaleInProgress();
 		if (recovered > 0) {
 			log.info("[BulkImport] 시작 시 stale IN_PROGRESS {} 건을 PENDING으로 복구", recovered);
