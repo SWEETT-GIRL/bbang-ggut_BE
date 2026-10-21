@@ -2,6 +2,7 @@ package sweetgirl.croissant.member.service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -83,6 +84,24 @@ public class MemberRestrictionReader {
 			memberId, INTERACTION_BLOCKING_TYPES, LocalDateTime.now()).isEmpty();
 		if (suspended) {
 			throw new MemberException(MemberErrorCode.MEMBER_WRITE_RESTRICTED);
+		}
+	}
+
+	/**
+	 * 정지(SUSPENDED) 중이면 풀리는 때. 무기한이면 {@code Optional.of(null)} 이 아니라 {@link Suspension#indefinite()} 다.
+	 * 정지가 아니면 비어 있다.
+	 */
+	public Optional<Suspension> currentSuspension(Long memberId) {
+		return memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(
+			memberId, List.of(MemberRestrictionType.SUSPENDED), LocalDateTime.now()).stream()
+			.findFirst()
+			.map(restriction -> new Suspension(restriction.getEndsAt()));
+	}
+
+	/** 정지 상태. {@code until} 이 null 이면 무기한. */
+	public record Suspension(LocalDateTime until) {
+		public boolean indefinite() {
+			return until == null;
 		}
 	}
 

@@ -93,7 +93,8 @@ class AuthResponseContractTest extends ResponseContractWebMvcTest {
 
 	@Test
 	void myProfile_keepsFieldsTheAppReads() throws Exception {
-		given(memberQueryService.getProfile(any())).willReturn(new MemberProfileResponse(7L, "고소한 소보로", null));
+		given(memberQueryService.getProfile(any()))
+			.willReturn(new MemberProfileResponse(7L, "고소한 소보로", null, false, null));
 
 		mockMvc.perform(get("/users/me"))
 			.andExpect(status().isOk())

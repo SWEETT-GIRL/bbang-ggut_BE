@@ -71,7 +71,7 @@ public class ProfileQueryService {
 			memberId, false, isMe, member.getNickname(),
 			characterCode, characterImageKey,
 			memberWorldRepository.findHomePropItem(memberId).orElse(null),
-			level.level(), planetNameOf(level.planet()),
+			level.level(), level.planet(), planetNameOf(level.planet()),
 			memberTitleReader.titleOf(memberId).orElse(null),
 			breadRecordRepository.countPublicByMemberId(memberId),
 			memberFollowRepository.countByIdFolloweeId(memberId),

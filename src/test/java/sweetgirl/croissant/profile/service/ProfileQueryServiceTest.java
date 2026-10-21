@@ -118,6 +118,7 @@ class ProfileQueryServiceTest {
 		assertThat(response.characterImageKey()).isEqualTo("world/dog/front.png");
 		assertThat(response.homePropItem()).isEqualTo("lamp");
 		assertThat(response.level()).isEqualTo(3);
+		assertThat(response.planetId()).isEqualTo("mars");
 		assertThat(response.planetName()).isEqualTo("화성");
 		assertThat(response.title()).isEqualTo("성수동 빵순이");
 		assertThat(response.publicRecordCount()).isEqualTo(12);

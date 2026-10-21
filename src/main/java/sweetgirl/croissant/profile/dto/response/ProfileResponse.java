@@ -16,6 +16,8 @@ public record ProfileResponse(
 		/** 홈에 놓은 소품 코드. 없으면 null */
 		String homePropItem,
 		Integer level,
+		/** 행성 코드 — 앱이 홈(/members/me/world)과 같은 그림을 고를 때 쓴다 */
+		String planetId,
 		String planetName,
 		/** "성수동 빵순이". 공개 빵로그가 한 동네에 3개 이상이어야 생긴다. 없으면 null */
 		String title,
@@ -26,7 +28,7 @@ public record ProfileResponse(
 		boolean followsMe) {
 
 	public static ProfileResponse blocked(Long memberId) {
-		return new ProfileResponse(memberId, true, false, null, null, null, null, null, null, null,
+		return new ProfileResponse(memberId, true, false, null, null, null, null, null, null, null, null,
 			0, 0, 0, false, false);
 	}
 }

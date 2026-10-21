@@ -54,7 +54,7 @@ class NicknameControllerTest {
 	@DisplayName("PATCH /users/me/nickname — 바뀐 프로필을 돌려준다")
 	void change() throws Exception {
 		given(nicknameCommandService.change(any(), eq("빵순이")))
-			.willReturn(new MemberProfileResponse(1L, "빵순이", null));
+			.willReturn(new MemberProfileResponse(1L, "빵순이", null, false, null));
 
 		mockMvc.perform(patch("/users/me/nickname")
 			.contentType(MediaType.APPLICATION_JSON)

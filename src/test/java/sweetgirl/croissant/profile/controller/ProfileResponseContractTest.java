@@ -30,7 +30,7 @@ class ProfileResponseContractTest extends ResponseContractWebMvcTest {
 	@Test
 	void profile_keepsFieldsTheAppReads() throws Exception {
 		given(profileQueryService.getProfile(any(), any())).willReturn(new ProfileResponse(
-			2L, false, false, "빵순이", "dog", "world/dog/front.png", "lamp", 3, "화성", "성수동 빵순이",
+			2L, false, false, "빵순이", "dog", "world/dog/front.png", "lamp", 3, "mars", "화성", "성수동 빵순이",
 			12, 30, 7, true, false));
 
 		mockMvc.perform(get("/members/2/profile"))
@@ -43,6 +43,7 @@ class ProfileResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.characterImageKey").isString())
 			.andExpect(jsonPath("$.data.homePropItem").isString())
 			.andExpect(jsonPath("$.data.level").isNumber())
+			.andExpect(jsonPath("$.data.planetId").isString())
 			.andExpect(jsonPath("$.data.planetName").isString())
 			.andExpect(jsonPath("$.data.title").isString())
 			.andExpect(jsonPath("$.data.publicRecordCount").isNumber())

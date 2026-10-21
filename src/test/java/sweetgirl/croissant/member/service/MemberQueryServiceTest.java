@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
@@ -47,6 +48,9 @@ class MemberQueryServiceTest {
 	@Mock
 	MemberReader memberReader;
 
+	@Mock
+	MemberRestrictionReader memberRestrictionReader;
+
 	@InjectMocks
 	MemberQueryService memberQueryService;
 
@@ -59,11 +63,30 @@ class MemberQueryServiceTest {
 		given(member.getId()).willReturn(MEMBER_ID);
 		given(member.getNickname()).willReturn("빵돌이");
 		given(memberReader.getMember(MEMBER_ID)).willReturn(member);
+		given(memberRestrictionReader.currentSuspension(MEMBER_ID)).willReturn(Optional.empty());
 
 		MemberProfileResponse result = memberQueryService.getProfile(MEMBER_ID);
 
 		assertThat(result.memberId()).isEqualTo(MEMBER_ID);
 		assertThat(result.nickname()).isEqualTo("빵돌이");
+		assertThat(result.suspended()).isFalse();
+		assertThat(result.suspendedUntil()).isNull();
+	}
+
+	@Test
+	@DisplayName("getProfile: 정지 중이면 suspended 와 풀리는 때가 실린다 — 마이 위 정지 배너")
+	void getProfile_suspended() {
+		Member member = mock(Member.class);
+		given(member.getId()).willReturn(MEMBER_ID);
+		given(memberReader.getMember(MEMBER_ID)).willReturn(member);
+		LocalDateTime until = LocalDateTime.of(2026, 11, 1, 0, 0);
+		given(memberRestrictionReader.currentSuspension(MEMBER_ID))
+			.willReturn(Optional.of(new MemberRestrictionReader.Suspension(until)));
+
+		MemberProfileResponse result = memberQueryService.getProfile(MEMBER_ID);
+
+		assertThat(result.suspended()).isTrue();
+		assertThat(result.suspendedUntil()).isEqualTo(until);
 	}
 
 	@Test

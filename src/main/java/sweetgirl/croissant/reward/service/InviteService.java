@@ -151,7 +151,7 @@ public class InviteService {
 		}
 		// 코드를 넣은 순간 둘은 서로 팔로우한다(성사 여부와 무관). 차단 관계면 조용히 건너뛴다.
 		followCommandService.followEachOther(inviter.getId(), memberId);
-		return new InviteAcceptResponse(inviter.getNickname());
+		return new InviteAcceptResponse(inviter.getId(), inviter.getNickname());
 	}
 
 	/**
