@@ -42,7 +42,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     outputs:
-      image: ${{ steps.image.outputs.ref }}
+      # 사용자명이 포함된 전체 이미지 주소는 Secrets 마스킹으로 job output이 생략될 수 있다.
+      digest: ${{ steps.docker.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
       - name: Check required settings
@@ -60,10 +61,11 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Build and test before publishing
+      - name: Build deployment JAR without repeating CI tests
         run: |
           python3 -m unittest discover -s scripts/deploy/v2/tests -v
-          ./gradlew build -x installGitHooks --no-daemon
+          # 전체 자바 테스트는 develop-v2 PR의 CI에서 실행한다.
+          ./gradlew build -x test -x installGitHooks --no-daemon
           mkdir -p build/v2
           mapfile -t jars < <(find build/libs -maxdepth 1 -name '*.jar' ! -name '*-plain.jar')
           test "${#jars[@]}" -eq 1
@@ -85,12 +87,6 @@ jobs:
           platforms: linux/arm64
           push: true
           tags: ${{ vars.V2_DOCKERHUB_IMAGE }}:v2-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-      - name: Pin the image digest
-        id: image
-        env:
-          REPOSITORY: ${{ vars.V2_DOCKERHUB_IMAGE }}
-          DIGEST: ${{ steps.docker.outputs.digest }}
-        run: echo "ref=$REPOSITORY@$DIGEST" >> "$GITHUB_OUTPUT"
 
   deploy:
     needs: build
@@ -113,6 +109,6 @@ jobs:
           role-duration-seconds: 9000
       - name: Prepare the next launch template or refresh running instances
         env:
-          V2_IMAGE: ${{ needs.build.outputs.image }}
+          V2_IMAGE: ${{ format('{0}@{1}', vars.V2_DOCKERHUB_IMAGE, needs.build.outputs.digest) }}
           V2_RUNTIME_PARAMETER_PREFIX: ${{ vars.V2_RUNTIME_PARAMETER_PREFIX }}
         run: python3 scripts/deploy/v2/deploy.py
