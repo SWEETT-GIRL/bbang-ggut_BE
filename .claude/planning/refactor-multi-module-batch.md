@@ -50,9 +50,8 @@
 - ~~Q1 배치 EC2 시작·중지~~ → **EventBridge 규칙 + Lambda 가 EC2 를 켜고 끈다** (2026-10-21)
 - ~~Q2 WAS 스케줄러 활성 시점~~ → **사용자가 EventBridge 규칙으로 정한다. 코드에서 켜지 않는다**
 - ~~Q3 `matching/`·`reference/`~~ → **레포에 그대로 넣는다**
-- **Q4 (2단계 전 필요). EC2 가 켜진 뒤 작업을 누가 실행하나**
-  - (A) 앱의 `@Scheduled` cron 그대로 — EventBridge 는 그 시각 앞뒤로 켜고 끄기만
-  - (B) Lambda 가 켠 뒤 SSM 으로 "작업 X 실행" — batch 에 작업별 실행 진입점 필요
+- ~~Q4 EC2 가 켜진 뒤 작업 실행 주체~~ → **(B) Lambda 가 켠 뒤 SSM 으로 `--batch.job=<이름>` 실행**
+- ~~Q5 수 초~수 분 주기 작업~~ → **(가) 실행 위치 기준 — 상시 작업은 api 모듈(ASG), 하루·주 단위만 batch**
 
 ---
 
@@ -142,6 +141,37 @@ dataops/                Python — scripts/, agent/ (Gradle 밖, 배치 이미�
   - `.gitignore` 의 `src/main/resources/firebase/` → `**/...` (루트 고정 패턴이라 api 아래 Firebase 키가 무시되지 않았음)
 - 경로 수정: `cd-prod`/`cd-staging`(properties·firebase → `api/src/main/resources`), `cd-v2`(`api/build/libs`), `ci.yml` 리포트, `fe-contract`(paths·`:api:test`·openapi 경로), v1 `Dockerfile`(`:api:bootJar`), `scripts/` 18곳
 - 로컬 개발: `application-local.properties` 를 `api/src/main/resources/` 로 옮겨야 한다. 실행은 `./gradlew :api:bootRun`
+
+### 2.7.2 2단계 결과 (완료, 미커밋)
+- `batch` 모듈: `BatchApplication`(웹 없음, `batch` 프로필) + `@BatchJob` / `BatchJobRegistry` / `BatchJobRunner`
+  - `java -jar batch.jar --batch.job=<이름>` → 작업 하나 실행 후 종료. 성공 0 · 실패(예외·모르는 이름) 1 — 실제 JAR 로 확인
+  - 작업 메서드는 프록시 빈으로 호출 → `@SchedulerLock`(기존 락 이름 그대로) 이 걸려 v1 cron 과 겹쳐도 한 곳에서만 돈다
+- 스케줄러 이동
+  - batch(12 클래스·14 작업): `@Scheduled` → `@BatchJob`. 급부상은 평소 수준만 `StoreTrendingBaselineScheduler` 로 분리
+  - api(상시 6): 월간 리포트 관리자·자동 준비, 메뉴 분류, 이미지 파이프라인 지표(Prometheus 게이지라 상시 프로세스여야 함), 급부상 순위표, 지역 해소 + `SchedulerConfig`. v2 에서 꺼 둔 스위치는 그대로(켜는 건 별도 판단)
+- 로그인 클러스터(`member/jwt`, `member/oauth`, Auth·Apple·Guest·Kakao·Naver AuthService, CustomOAuth2UserService)를 api 로 — batch 에 JWT 비밀키를 넘기지 않으려고. api 에서만 쓰이던 것이라 core 컴파일 영향 없음
+- 기타: S3 빈 `@Profile` 에 `batch` 추가, `logback-spring.xml` 에 `batch` 콘솔 출력(없으면 로그가 한 줄도 안 찍힘 — 회귀 테스트 추가), api 의 안 쓰는 cron 키 2개 삭제
+- 테스트: 3,004개 통과. develop-v2 대비 차이는 의도한 것뿐(cron 검사 1·급부상 통합 2 → 분리·재작성, batch 신규)
+- batch 필수 Parameter Store 값(기동 테스트로 확정): `env/DB_URL`, `env/DB_USERNAME`, `env/DB_PASSWORD`, `env/ENCRYPT_SECRET_KEY`, `env/AWS_S3_BUCKET`, `firebase-service-account`
+  - 작업에 따라 필요: `REDIS_*`(급부상), `TRENDING_ENABLED`, `SEARCH_MISS_TRIAGE_*`·`CLAUDE_API_KEY`·`NAVER_CLIENT_*`(검색어 판정), `SLACK_*`, `KAKAO_API_KEY`, `GEMINI/OPENAI_API_KEY`
+
+#### EventBridge 규칙용 작업 목록 (기존 cron 시각, KST)
+| 작업 이름 (`--batch.job=`) | 기존 시각 | 비고 |
+|---|---|---|
+| `ranking-snapshot` | 매일 00:05 | |
+| `ranking-reward-issue` | 월 00:15·00:45·06:30 | 재시도 겸 3회 |
+| `store-popularity-score` | 월 03:00 | |
+| `user-interaction-ingest` | 매일 04:00 | 취향 신호 적재 → 급부상 평소 수준보다 먼저 |
+| `withdrawn-member-retention` | 매일 04:40 | |
+| `admin-audit-log-retention` | 매일 04:50 | |
+| `search-miss-retention` | 매일 04:50 | |
+| `store-trending-baseline` | 매일 05:00 | `TRENDING_ENABLED=true` 일 때만 실제 계산 |
+| `search-miss-triage` | 매일 06:00 | `SEARCH_MISS_TRIAGE_ENABLED=true` 일 때만, 락 상한 2시간 |
+| `reward-second-morning-roulette` | 매일 09:00 | |
+| `reward-letter-arrival` | 월 10:00 | |
+| `course-reminder` | 매일 19:00 | |
+| `reward-attendance-reminder` | 매일 20:00 | |
+| `monthly-report-run-due` | (꺼져 있었음, `-`) | 규칙 없이 두면 안 돈다 |
 
 ### 2.8 위험 요소
 | 위험 | 대응 |

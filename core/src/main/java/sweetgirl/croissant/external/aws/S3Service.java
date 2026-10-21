@@ -35,7 +35,7 @@ import sweetgirl.croissant.external.aws.exception.S3ErrorCode;
 import sweetgirl.croissant.external.aws.exception.S3StorageException;
 
 @Service
-@Profile({"local", "staging", "prod", "v2"})
+@Profile({"local", "staging", "prod", "v2", "batch"})
 @RequiredArgsConstructor
 // 이미지 업로드(presigned URL 발급 등)가 사용자 요청 경로에 있어 S3 지연을 별도로 본다.
 @Timed(value = "aws.s3", histogram = true)

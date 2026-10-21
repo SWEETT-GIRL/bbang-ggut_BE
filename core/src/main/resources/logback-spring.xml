@@ -23,7 +23,7 @@
 		<includeCallerData>true</includeCallerData>
 	</appender>
 
-	<springProfile name="local,v2">
+	<springProfile name="local,v2,batch">
 		<root level="INFO">
 			<appender-ref ref="CONSOLE"/>
 		</root>

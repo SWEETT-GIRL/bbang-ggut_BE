@@ -16,7 +16,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 @Configuration
-@Profile({"local", "staging", "prod", "v2"})
+@Profile({"local", "staging", "prod", "v2", "batch"})
 @RequiredArgsConstructor
 public class S3Config {
 
