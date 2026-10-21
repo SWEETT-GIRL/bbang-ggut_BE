@@ -17,11 +17,15 @@ PORT = int(os.environ.get("DATAOPS_DB_PORT", "15433"))
 NAME = os.environ.get("DATAOPS_DB_NAME", "dataops")
 USER = os.environ.get("DATAOPS_DB_USER", "dataops")
 PASSWORD = os.environ.get("DATAOPS_DB_PASSWORD", "dataops")
+# 배치 EC2 는 운영 RDS 의 dataops 스키마를 쓴다(로컬 도커는 public). 비어 있으면 서버 기본 search_path
+SCHEMA = os.environ.get("DATAOPS_DB_SCHEMA", "").strip()
 
 
 def connect(**kwargs):
+    if SCHEMA and "options" not in kwargs:
+        kwargs["options"] = f"-c search_path={SCHEMA}"
     return psycopg2.connect(host=HOST, port=PORT, dbname=NAME, user=USER, password=PASSWORD, **kwargs)
 
 
 def describe():
-    return f"{HOST}:{PORT}/{NAME}"
+    return f"{HOST}:{PORT}/{NAME}" + (f"?schema={SCHEMA}" if SCHEMA else "")

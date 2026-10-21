@@ -1,0 +1,75 @@
+#!/bin/bash
+# 배치 이미지 진입점. EC2 의 bbang-batch(runner.py)가 아래 명령 중 하나로 컨테이너를 띄운다.
+#   job <이름>                 WAS 배치 작업 하나 (예: ranking-snapshot) — 끝나면 종료 코드로 성공·실패를 알린다
+#   dataops-nightly [시간]     dataops 서버를 띄워 수집(weekly_refresh nightly)을 돌리고 서버를 내린다
+#   dataops-server             dataops 판정 서버만 띄운다 (사람이 승인 스크립트를 따로 돌릴 때)
+#   dataops <스크립트> [인자]  dataops/scripts 의 스크립트 하나 (승인·반영 등 수동 작업)
+set -euo pipefail
+
+DATAOPS_PORT=8090
+DATAOPS_SERVER="http://127.0.0.1:${DATAOPS_PORT}"
+
+# Java 용 JDBC URL 을 Python 접속 변수로 푼다
+eval "$(python3 /app/jdbc_env.py)"
+
+start_dataops_server() {
+	java -Dloader.main=sweetgirl.dataops.DataopsApplication -cp /app/batch.jar \
+		org.springframework.boot.loader.launch.PropertiesLauncher \
+		--spring.profiles.active=prod --server.port="${DATAOPS_PORT}" &
+	DATAOPS_PID=$!
+	# 마이그레이션까지 끝나야 UP 이다 — 최대 5분
+	for _ in $(seq 1 60); do
+		if python3 -c "import json,sys,urllib.request as u; sys.exit(json.load(u.urlopen('${DATAOPS_SERVER}/actuator/health', timeout=3)).get('status') != 'UP')" 2>/dev/null; then
+			return 0
+		fi
+		if ! kill -0 "${DATAOPS_PID}" 2>/dev/null; then
+			echo "dataops 서버가 기동 중 종료됐다" >&2
+			wait "${DATAOPS_PID}" || true
+			return 1
+		fi
+		sleep 5
+	done
+	echo "dataops 서버가 5분 안에 UP 이 되지 않았다" >&2
+	return 1
+}
+
+stop_dataops_server() {
+	if [ -n "${DATAOPS_PID:-}" ] && kill -0 "${DATAOPS_PID}" 2>/dev/null; then
+		kill "${DATAOPS_PID}"
+		wait "${DATAOPS_PID}" || true
+	fi
+}
+
+command="${1:-}"
+shift || true
+case "${command}" in
+	job)
+		[ -n "${1:-}" ] || { echo "작업 이름이 필요하다: job <이름>" >&2; exit 64; }
+		exec java -jar /app/batch.jar --batch.job="$1"
+		;;
+	dataops-server)
+		exec java -Dloader.main=sweetgirl.dataops.DataopsApplication -cp /app/batch.jar \
+			org.springframework.boot.loader.launch.PropertiesLauncher \
+			--spring.profiles.active=prod --server.port="${DATAOPS_PORT}"
+		;;
+	dataops-nightly)
+		hours="${1:-6}"
+		trap stop_dataops_server EXIT
+		start_dataops_server
+		cd /app/dataops
+		# 쓰기 계정 서버를 켜 둔 채 두지 않는다 — 수집만 하고 끝나면 trap 이 서버를 내린다
+		python3 scripts/weekly_refresh.py nightly --crawl-hours "${hours}" --server "${DATAOPS_SERVER}"
+		;;
+	dataops)
+		[ -n "${1:-}" ] || { echo "스크립트 이름이 필요하다: dataops <스크립트> [인자]" >&2; exit 64; }
+		script="$1"
+		shift
+		[[ "${script}" =~ ^[a-z0-9_]+\.py$ ]] || { echo "허용하지 않는 스크립트 이름: ${script}" >&2; exit 64; }
+		cd /app/dataops
+		exec python3 "scripts/${script}" "$@"
+		;;
+	*)
+		echo "사용: job <이름> | dataops-nightly [시간] | dataops-server | dataops <스크립트> [인자]" >&2
+		exit 64
+		;;
+esac

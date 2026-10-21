@@ -80,6 +80,10 @@ def db_now():
         conn.close()
 
 
+# 로컬은 사람이 연 터널(127.0.0.1), 배치 EC2 는 RDS 주소를 PROD_DB_HOST 로 준다
+PROD_DB_HOST = os.environ.get("PROD_DB_HOST", "127.0.0.1")
+
+
 def preflight(server, prod_port, collect_only=False):
     """→ 문제 목록(비었으면 통과). 터널은 사람이 연다 — 닫혀 있으면 건너뛰고 알린다"""
     problems = []
@@ -89,9 +93,9 @@ def preflight(server, prod_port, collect_only=False):
         problems.append(f"로컬 dataops DB 접속 실패({local_db.describe()}): {str(e)[:120]}")
     if not collect_only:
         try:
-            socket.create_connection(("127.0.0.1", prod_port), timeout=5).close()
+            socket.create_connection((PROD_DB_HOST, prod_port), timeout=5).close()
         except OSError:
-            problems.append(f"운영 DB 터널(127.0.0.1:{prod_port})이 닫혀 있다 — 터널을 연 뒤 다시 돌린다")
+            problems.append(f"운영 DB({PROD_DB_HOST}:{prod_port})에 닿지 않는다 — 터널(로컬) 또는 RDS 접근(배치 EC2)을 확인한다")
     if collect_only:
         from sync_worker import safe_server
         try:

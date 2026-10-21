@@ -1,0 +1,11 @@
+**
+!build/batch/batch.jar
+!scripts/deploy/batch/entrypoint.sh
+!scripts/deploy/batch/jdbc_env.py
+!dataops/requirements.txt
+!dataops/scripts/
+!dataops/matching/
+!dataops/reference/
+!batch/src/main/java/sweetgirl/dataops/reconcile/policy/MenuCategoryClassifier.java
+dataops/scripts/__pycache__/
+dataops/scripts/tests/

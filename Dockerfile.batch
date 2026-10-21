@@ -1,0 +1,39 @@
+# 배치 EC2(t4g.small, ARM64) 이미지 — WAS 배치 작업 + dataops 판정 서버(같은 JAR) + dataops Python(크롤·승인).
+# JAR 는 CI 에서 Java 17 로 빌드한다(build/batch/batch.jar). 운영 비밀값은 이미지에 넣지 않는다.
+# Ubuntu 24.04(noble) 기반 — dataops 스크립트가 Python 3.12 를 쓴다.
+FROM eclipse-temurin:17-jre-noble
+
+ENV DEBIAN_FRONTEND=noninteractive \
+	TZ=Asia/Seoul \
+	PYTHONUNBUFFERED=1 \
+	PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright \
+	PATH=/opt/dataops-venv/bin:$PATH \
+	JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=70.0 -Duser.timezone=Asia/Seoul"
+
+RUN apt-get update -qq \
+	&& apt-get install -y --no-install-recommends python3 python3-venv \
+	&& rm -rf /var/lib/apt/lists/*
+
+COPY dataops/requirements.txt /tmp/requirements.txt
+# 시스템 Python 은 PEP 668 로 pip 설치를 막는다 — 가상환경에 설치한다. Chromium 은 ARM64 리눅스 빌드를 받는다
+RUN python3 -m venv /opt/dataops-venv \
+	&& pip install --no-cache-dir -r /tmp/requirements.txt \
+	&& playwright install --with-deps chromium \
+	&& chmod -R a+rX /opt/ms-playwright \
+	&& rm -rf /var/lib/apt/lists/* /tmp/requirements.txt
+
+RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home app
+WORKDIR /app
+COPY --chown=app:app build/batch/batch.jar /app/batch.jar
+COPY --chown=app:app scripts/deploy/batch/entrypoint.sh scripts/deploy/batch/jdbc_env.py /app/
+COPY --chown=app:app dataops/scripts /app/dataops/scripts
+COPY --chown=app:app dataops/matching /app/dataops/matching
+COPY --chown=app:app dataops/reference /app/dataops/reference
+# menu_classifier 가 Java 사전(MenuCategoryClassifier)을 직접 읽는다 — 레포와 같은 상대 경로에 둔다
+COPY --chown=app:app batch/src/main/java/sweetgirl/dataops/reconcile/policy/MenuCategoryClassifier.java \
+	/app/batch/src/main/java/sweetgirl/dataops/reconcile/policy/MenuCategoryClassifier.java
+# 수집 상태·보고서·캡처 스풀 — EC2 의 /opt/bbang-batch/dataops-logs 를 마운트해 컨테이너가 바뀌어도 남긴다
+RUN mkdir -p /app/dataops/dataops-logs && chown app:app /app/dataops/dataops-logs && chmod 755 /app/entrypoint.sh
+
+USER 10001:10001
+ENTRYPOINT ["/app/entrypoint.sh"]
