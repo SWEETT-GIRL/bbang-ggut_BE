@@ -56,7 +56,9 @@ public class TutorialRecordCommandService {
 		if (!enabled) {
 			throw new BreadLogException(BreadLogErrorCode.TUTORIAL_UNAVAILABLE);
 		}
-		if (!member.isAgreeToTerms() || !member.isAgreeToPrivacy() || !member.isAgreeToAgeOver14()) {
+		// 게스트는 약관 동의 없이 체험한다 — 약관은 체험 끝의 로그인에서 받는다(앱 온보딩 순서). 회원은 그대로 확인한다
+		if (!member.isGuest()
+			&& (!member.isAgreeToTerms() || !member.isAgreeToPrivacy() || !member.isAgreeToAgeOver14())) {
 			throw new BreadLogException(BreadLogErrorCode.INVALID_TUTORIAL);
 		}
 		templates.published(request.templateCode());

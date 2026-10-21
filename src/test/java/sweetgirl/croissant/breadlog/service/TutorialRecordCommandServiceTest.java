@@ -112,7 +112,20 @@ class TutorialRecordCommandServiceTest {
 	}
 
 	@Test
-	void noConsentCannotComplete() {
+	void guestWithoutConsentCanComplete() {
+		ReflectionTestUtils.setField(member, "agreeToTerms", false);
+		ReflectionTestUtils.setField(member, "agreeToPrivacy", false);
+		ReflectionTestUtils.setField(member, "agreeToAgeOver14", false);
+		when(templates.published(TutorialRecordTemplate.CODE)).thenReturn(TutorialTemplateFixture.content());
+		when(completions.findById(1L)).thenReturn(Optional.empty());
+		var response = service.complete(1L, request(TutorialRecordTemplate.CODE));
+		assertThat(response.created()).isTrue();
+		verify(completions).save(any());
+	}
+
+	@Test
+	void memberWithoutConsentCannotComplete() {
+		ReflectionTestUtils.setField(member, "memberType", "USER");
 		ReflectionTestUtils.setField(member, "agreeToTerms", false);
 		assertThatThrownBy(() -> service.complete(1L, request(TutorialRecordTemplate.CODE)))
 			.isInstanceOf(BreadLogException.class);
