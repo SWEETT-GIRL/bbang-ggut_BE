@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "version": "naver-menu-structure-v1",
+  "entities": [
+    {"typename": "Menu", "priceShape": "SCALAR", "imageShapes": ["STRING", "URL_OBJECT"]},
+    {"typename": "PlaceMenuItem", "priceShape": "DISPLAY_TEXT_WON", "imageShapes": ["STRING", "URL_OBJECT"]}
+  ],
+  "containers": [
+    {"field": "menus", "itemsField": "items", "totalFields": ["total", "totalCount", "menuCount"]},
+    {"field": "placeMenus", "itemsField": "items", "totalFields": ["total", "totalCount", "menuCount"]}
+  ]
+}

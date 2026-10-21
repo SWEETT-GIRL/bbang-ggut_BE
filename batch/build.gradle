@@ -7,5 +7,35 @@ plugins {
 dependencies {
     implementation project(':core')
 
+    // dataops 판정 서버의 Swagger(사람이 제안·스냅샷을 볼 때). 운영 프로필에선 끈다
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.4'
+
     testImplementation testFixtures(project(':core'))
+}
+
+// dataops(sweetgirl.dataops) 는 별도 레포에서 옮겨 온 코드다 — 원본과 같게 두려고 포맷·스타일 검사에서 뺀다.
+// 응답 구조 대응 에이전트가 파서 소스를 원본 이력과 대조하므로 일괄 재포맷하지 않는다. 정리는 별도 작업으로 한다.
+spotless {
+    java {
+        targetExclude 'src/*/java/sweetgirl/dataops/**'
+    }
+}
+tasks.withType(Checkstyle).configureEach {
+    exclude 'sweetgirl/dataops/**'
+}
+
+// JAR 안에 진입점이 여럿이다(WAS 배치 · dataops 서버 · dataops 에이전트용 러너). 기본은 WAS 배치 작업 실행기,
+// dataops 쪽은 PropertiesLauncher 의 -Dloader.main 으로 고른다.
+springBoot {
+    mainClass = 'sweetgirl.croissant.BatchApplication'
+}
+
+// dataops 응답 진단 — ./gradlew :batch:diagnoseResponses -PdiagnosticInput=... -PdiagnosticOutput=...
+tasks.register('diagnoseResponses', JavaExec) {
+    dependsOn classes
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'sweetgirl.dataops.snapshot.service.ResponseDiagnosticCli'
+    doFirst {
+        args = [providers.gradleProperty('diagnosticInput').get(), providers.gradleProperty('diagnosticOutput').get()]
+    }
 }

@@ -1,0 +1,976 @@
+{
+ "ROOT_QUERY": {
+  "__typename": "Query",
+  "placeDetail({\"input\":{\"deviceType\":\"mobile\",\"id\":\"2008297455\",\"isNx\":false}})": {
+   "base": {
+    "__ref": "PlaceDetailBase:2008297455"
+   },
+   "menus": [
+    {
+     "__ref": "Menu:2008297455_6"
+    },
+    {
+     "__ref": "Menu:2008297455_7"
+    },
+    {
+     "__ref": "Menu:2008297455_35"
+    },
+    {
+     "__ref": "Menu:2008297455_36"
+    },
+    {
+     "__ref": "Menu:2008297455_37"
+    },
+    {
+     "__ref": "Menu:2008297455_38"
+    },
+    {
+     "__ref": "Menu:2008297455_39"
+    },
+    {
+     "__ref": "Menu:2008297455_40"
+    },
+    {
+     "__ref": "Menu:2008297455_0"
+    },
+    {
+     "__ref": "Menu:2008297455_1"
+    },
+    {
+     "__ref": "Menu:2008297455_2"
+    }
+   ],
+   "images": {
+    "images": [
+     {
+      "url": null,
+      "desc": null,
+      "width": 2896,
+      "height": 4096,
+      "number": null,
+      "origin": "https://ldb-phinf.pstatic.net/20260803_292/1785732007236aVBo4_JPEG/IMG_9681.jpg",
+      "source": null,
+      "infoTitle": null,
+      "__typename": "Image"
+     }
+    ],
+    "__typename": "PlaceDetailImages",
+    "totalImages": 16
+   },
+   "themes": null,
+   "topPhotos": {
+    "__typename": "PlaceDetailTopPhotos",
+    "total": 56,
+    "items": [
+     {
+      "__ref": "PlaceDetailTopPhotoItem:video_1"
+     },
+     {
+      "__ref": "PlaceDetailTopPhotoItem:visitor_1"
+     },
+     {
+      "__ref": "PlaceDetailTopPhotoItem:visitor_2"
+     }
+    ]
+   },
+   "__typename": "PlaceDetail",
+   "newOpening": false,
+   "description": "프렌치 베이커리 르모멍입니다.\n작고 소중한 행복한 <순간>을 르모멍과 함께하세요.\n서울시 성동구 성수일로 12길 19-1,1층",
+   "fsasReviews": {
+    "items": [
+     {
+      "__ref": "FsasReview:blog_RoyalMilkTea 로얄밀크티의 맛집 여행_224297965128_기대 없이 잘랐다가 꽉 찬 단면에 반한 곳 — 성수 르모멍 구움과자 맛집"
+     }
+    ],
+    "total": 38,
+    "__typename": "FsasReviewsResult",
+    "maxItemCount": 38
+   },
+   "broadcastInfos": null,
+   "informationTab": {
+    "__typename": "InformationTab",
+    "keywordList": [
+     "케이크",
+     "선물",
+     "답례품",
+     "베이커리",
+     "고구마휘낭시에"
+    ]
+   },
+   "newBusinessHours": [
+    {
+     "name": "",
+     "freeText": "재고 소진 시 영업 종료",
+     "__typename": "NewBusinessHour",
+     "businessHours": [
+      {
+       "day": "금",
+       "__typename": "WorkingHoursInfo",
+       "breakHours": [],
+       "description": null,
+       "businessHours": {
+        "end": "20:30",
+        "start": "10:30",
+        "__typename": "StartEndTime"
+       },
+       "lastOrderTimes": null,
+       "showEndsNextDay": false
+      },
+      {
+       "day": "토",
+       "__typename": "WorkingHoursInfo",
+       "breakHours": null,
+       "description": "정기휴무 (매주 토요일)",
+       "businessHours": null,
+       "lastOrderTimes": null,
+       "showEndsNextDay": null
+      },
+      {
+       "day": "일",
+       "__typename": "WorkingHoursInfo",
+       "breakHours": null,
+       "description": "정기휴무 (매주 일요일)",
+       "businessHours": null,
+       "lastOrderTimes": null,
+       "showEndsNextDay": null
+      },
+      {
+       "day": "월",
+       "__typename": "WorkingHoursInfo",
+       "breakHours": [],
+       "description": null,
+       "businessHours": {
+        "end": "20:30",
+        "start": "10:30",
+        "__typename": "StartEndTime"
+       },
+       "lastOrderTimes": null,
+       "showEndsNextDay": false
+      },
+      {
+       "day": "화",
+       "__typename": "WorkingHoursInfo",
+       "breakHours": [],
+       "description": null,
+       "businessHours": {
+        "end": "20:30",
+        "start": "10:30",
+        "__typename": "StartEndTime"
+       },
+       "lastOrderTimes": null,
+       "showEndsNextDay": false
+      },
+      {
+       "day": "수",
+       "__typename": "WorkingHoursInfo",
+       "breakHours": [],
+       "description": null,
+       "businessHours": {
+        "end": "20:30",
+        "start": "10:30",
+        "__typename": "StartEndTime"
+       },
+       "lastOrderTimes": null,
+       "showEndsNextDay": false
+      },
+      {
+       "day": "목",
+       "__typename": "WorkingHoursInfo",
+       "breakHours": [],
+       "description": null,
+       "businessHours": {
+        "end": "20:30",
+        "start": "10:30",
+        "__typename": "StartEndTime"
+       },
+       "lastOrderTimes": null,
+       "showEndsNextDay": false
+      }
+     ],
+     "comingRegularClosedDays": "",
+     "businessStatusDescription": {
+      "status": "영업 전",
+      "__typename": "BusinessStatusDescription",
+      "description": "10:30에 영업 시작",
+      "showEndsNextDay": null,
+      "blindDescription": "10시 30분에 영업 시작"
+     },
+     "comingIrregularClosedDays": []
+    }
+   ],
+   "visitorReviewStats": {
+    "__ref": "VisitorReviewStatsResult:2008297455"
+   }
+  }
+ },
+ "PlaceDetailBase:2008297455": {
+  "id": "2008297455",
+  "name": "르모멍",
+  "phone": null,
+  "address": "서울 성동구 성수동2가 299-155",
+  "category": "베이커리",
+  "__typename": "PlaceDetailBase",
+  "coordinate": {
+   "x": "127.0534303",
+   "y": "37.54842",
+   "__typename": "Coordinate",
+   "mapZoomLevel": 12
+  },
+  "roadAddress": "서울 성동구 성수일로12길 19-1 1층",
+  "categoryCode": "221161",
+  "conveniences": [
+   "포장",
+   "예약",
+   "무선 인터넷",
+   "간편결제"
+  ],
+  "microReviews": [
+   "특별한 날 어울리는 시즌 케이크"
+  ],
+  "visitorReviewsScore": 4.9,
+  "visitorReviewsTotal": 129
+ },
+ "VisitorReviewStatsResult:2008297455": {
+  "id": "2008297455",
+  "name": null,
+  "analysis": {
+   "menus": [
+    {
+     "count": 16,
+     "label": "케이크",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 14,
+     "label": "휘낭시에",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 13,
+     "label": "까눌레",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 11,
+     "label": "커피",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 9,
+     "label": "구움과자",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 9,
+     "label": "마들렌",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 7,
+     "label": "타르트",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 6,
+     "label": "쿠키",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 4,
+     "label": "에그타르트",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 3,
+     "label": "당근케이크",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 3,
+     "label": "라떼",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 3,
+     "label": "뺑오쇼콜라",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 3,
+     "label": "파운드케이크",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 3,
+     "label": "헤이즐넛",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 2,
+     "label": "크로와상",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 2,
+     "label": "포카치아",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 1,
+     "label": "과일",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 1,
+     "label": "딸기케이크",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 1,
+     "label": "레몬파운드",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 1,
+     "label": "말차라떼",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 1,
+     "label": "밀크티",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 1,
+     "label": "바게트",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 1,
+     "label": "바닐라라떼",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 1,
+     "label": "수제케이크",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 1,
+     "label": "시나몬롤",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 1,
+     "label": "아메리카노",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 1,
+     "label": "얼그레이",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 1,
+     "label": "얼그레이케이크",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 1,
+     "label": "우유",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "count": 1,
+     "label": "푸딩",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    }
+   ],
+   "themes": [
+    {
+     "code": "taste",
+     "count": 105,
+     "label": "맛",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "code": "total",
+     "count": 65,
+     "label": "만족도",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "code": "service",
+     "count": 18,
+     "label": "서비스",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "code": "purpose",
+     "count": 16,
+     "label": "목적",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "code": "menu",
+     "count": 9,
+     "label": "메뉴",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "code": "mood",
+     "count": 5,
+     "label": "분위기",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "code": "location",
+     "count": 4,
+     "label": "위치",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "code": "cleanliness",
+     "count": 3,
+     "label": "청결도",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "code": "amount",
+     "count": 2,
+     "label": "음식량",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "code": "delivery",
+     "count": 1,
+     "label": "배달",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "code": "price",
+     "count": 1,
+     "label": "가격",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    },
+    {
+     "code": "waitingtime",
+     "count": 1,
+     "label": "대기시간",
+     "__typename": "VisitorReviewStatsAnalysisThemes"
+    }
+   ],
+   "__typename": "VisitorReviewStatsAnalysis",
+   "votedKeyword": {
+    "details": [
+     {
+      "code": "bread_good",
+      "count": 108,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/bread20220119222229.png",
+      "category": null,
+      "iconCode": "bread",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "빵이 맛있어요",
+      "previousRank": null
+     },
+     {
+      "code": "special_menu",
+      "count": 68,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/cook20220119222024.png",
+      "category": null,
+      "iconCode": "cook",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "특별한 메뉴가 있어요",
+      "previousRank": null
+     },
+     {
+      "code": "dessert_good",
+      "count": 62,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/cake20220119222226.png",
+      "category": null,
+      "iconCode": "cake",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "디저트가 맛있어요",
+      "previousRank": null
+     },
+     {
+      "code": "kind",
+      "count": 50,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/beating_heart20220119222223.png",
+      "category": null,
+      "iconCode": "beating_heart",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "친절해요",
+      "previousRank": null
+     },
+     {
+      "code": "store_clean",
+      "count": 29,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/sparkles20220119222028.png",
+      "category": null,
+      "iconCode": "sparkles",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "매장이 청결해요",
+      "previousRank": null
+     },
+     {
+      "code": "coffee_good",
+      "count": 26,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/coffee20220119222225.png",
+      "category": null,
+      "iconCode": "coffee",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "커피가 맛있어요",
+      "previousRank": null
+     },
+     {
+      "code": "drink_good",
+      "count": 26,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/juice20220119222226.png",
+      "category": null,
+      "iconCode": "juice",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "음료가 맛있어요",
+      "previousRank": null
+     },
+     {
+      "code": "interior_cool",
+      "count": 24,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/couch_and_lamp20220119222025.png",
+      "category": null,
+      "iconCode": "couch_and_lamp",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "인테리어가 멋져요",
+      "previousRank": null
+     },
+     {
+      "code": "price_cheap",
+      "count": 18,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/coin20220119222025.png",
+      "category": null,
+      "iconCode": "coin",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "가성비가 좋아요",
+      "previousRank": null
+     },
+     {
+      "code": "cozy",
+      "count": 16,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/face_smiling20220119222244.png",
+      "category": null,
+      "iconCode": "face_smiling",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "아늑해요",
+      "previousRank": null
+     },
+     {
+      "code": "food_good",
+      "count": 9,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/face_savoring_food20220119222022.png",
+      "category": null,
+      "iconCode": "face_savoring_food",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "음식이 맛있어요",
+      "previousRank": null
+     },
+     {
+      "code": "price_worthy",
+      "count": 8,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/gem_stone20220119222239.png",
+      "category": null,
+      "iconCode": "gem_stone",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "비싼 만큼 가치있어요",
+      "previousRank": null
+     },
+     {
+      "code": "fresh",
+      "count": 7,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/leaf20220119222023.png",
+      "category": null,
+      "iconCode": "leaf",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "재료가 신선해요",
+      "previousRank": null
+     },
+     {
+      "code": "atmosphere_calm",
+      "count": 6,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/face_relieved20220119222233.png",
+      "category": null,
+      "iconCode": "face_relieved",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "차분한 분위기예요",
+      "previousRank": null
+     },
+     {
+      "code": "menu_good",
+      "count": 6,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/green_heart20220119222224.png",
+      "category": null,
+      "iconCode": "green_heart",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "메뉴 구성이 알차요",
+      "previousRank": null
+     },
+     {
+      "code": "talk_good",
+      "count": 6,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/speaking_head20220119222227.png",
+      "category": null,
+      "iconCode": "speaking_head",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "대화하기 좋아요",
+      "previousRank": null
+     },
+     {
+      "code": "types_various",
+      "count": 6,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/green_heart20220119222224.png",
+      "category": null,
+      "iconCode": "green_heart",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "종류가 다양해요",
+      "previousRank": null
+     },
+     {
+      "code": "photo_good",
+      "count": 4,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/camera_with_flash20220119222227.png",
+      "category": null,
+      "iconCode": "camera_with_flash",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "사진이 잘 나와요",
+      "previousRank": null
+     },
+     {
+      "code": "food_fast",
+      "count": 2,
+      "iconUrl": "https://ssl.pstatic.net/static/pup/emoji/stopwatch20220119222225.png",
+      "category": null,
+      "iconCode": "stopwatch",
+      "__typename": "VisitorReviewStatsAnalysisVoteKeywordDetail",
+      "displayName": "음식이 빨리 나와요",
+      "previousRank": null
+     }
+    ],
+    "userCount": 109,
+    "__typename": "VisitorReviewStatsAnalysisVoteKeyword",
+    "totalCount": 481,
+    "reviewCount": 127
+   }
+  },
+  "__typename": "VisitorReviewStatsResult",
+  "ratingReviewsTotal": 1,
+  "visitorReviewsTotal": 129
+ },
+ "Menu:2008297455_6": {
+  "id": "2008297455_6",
+  "name": "파운드 케이크 세트",
+  "index": 6,
+  "price": "",
+  "change": true,
+  "images": [
+   "https://ldb-phinf.pstatic.net/20260709_45/1783581211463eTRsH_JPEG/IMG_9861.jpg"
+  ],
+  "priority": null,
+  "priceType": null,
+  "recommend": true,
+  "__typename": "Menu",
+  "description": "선물, 답례품으로 제격인 파운드 케이크 선물세트",
+  "nameForBlogReview": "파운드 케이크 세트"
+ },
+ "Menu:2008297455_7": {
+  "id": "2008297455_7",
+  "name": "구움과자 선물세트",
+  "index": 7,
+  "price": "",
+  "change": true,
+  "images": [
+   "https://ldb-phinf.pstatic.net/20260504_25/1777865208986zQycF_JPEG/IMG_9554.jpeg",
+   "https://ldb-phinf.pstatic.net/20260504_76/1777865209956Ik4Ro_JPEG/IMG_9557.jpeg",
+   "https://ldb-phinf.pstatic.net/20260504_193/17778652097686sHpH_JPEG/IMG_9559.jpeg"
+  ],
+  "priority": null,
+  "priceType": null,
+  "recommend": true,
+  "__typename": "Menu",
+  "description": "6가지 마들렌과 5가지 휘낭시에, 까눌레, 쿠키브라운 등 원하시는 구성으로 가능하세요😉",
+  "nameForBlogReview": "구움과자 선물세트"
+ },
+ "Menu:2008297455_35": {
+  "id": "2008297455_35",
+  "name": "[NEW]샤인머스캣 케이크",
+  "index": 35,
+  "price": "8500",
+  "change": false,
+  "images": [
+   "https://ldb-phinf.pstatic.net/20260818_122/1787047214114qN8k1_JPEG/IMG_0071.jpg"
+  ],
+  "priority": null,
+  "priceType": null,
+  "recommend": true,
+  "__typename": "Menu",
+  "description": "상콤달콤 샤인머스캣 톡톡💚",
+  "nameForBlogReview": "[NEW]샤인머스캣 케이크"
+ },
+ "Menu:2008297455_36": {
+  "id": "2008297455_36",
+  "name": "멜론 케이크",
+  "index": 36,
+  "price": "8500",
+  "change": false,
+  "images": [
+   "https://ldb-phinf.pstatic.net/20260720_157/17845179317321Lawa_JPEG/IMG_9895.jpg",
+   "https://ldb-phinf.pstatic.net/20260720_233/1784517919886mWtbl_JPEG/IMG_9919.jpg"
+  ],
+  "priority": null,
+  "priceType": null,
+  "recommend": true,
+  "__typename": "Menu",
+  "description": "더운 여름 수분 보충 최고인 멜론케이크🍈",
+  "nameForBlogReview": "멜론 케이크"
+ },
+ "Menu:2008297455_37": {
+  "id": "2008297455_37",
+  "name": "자몽 얼그레이 케이크",
+  "index": 37,
+  "price": "8500",
+  "change": false,
+  "images": [
+   "https://ldb-phinf.pstatic.net/20260720_5/1784517974426vR6Bi_JPEG/IMG_9723.jpg",
+   "https://ldb-phinf.pstatic.net/20260720_142/1784517959277ABAmx_JPEG/IMG_9828.jpg"
+  ],
+  "priority": null,
+  "priceType": null,
+  "recommend": true,
+  "__typename": "Menu",
+  "description": "상큼한 자몽과 향긋한 얼그레이의 만남🧡",
+  "nameForBlogReview": "자몽 얼그레이 케이크"
+ },
+ "Menu:2008297455_38": {
+  "id": "2008297455_38",
+  "name": "[NEW]당근 케이크🥕",
+  "index": 38,
+  "price": "7500",
+  "change": false,
+  "images": [
+   "https://ldb-phinf.pstatic.net/20260803_225/17857320675915L2Bn_JPEG/IMG_9994.jpg"
+  ],
+  "priority": null,
+  "priceType": null,
+  "recommend": true,
+  "__typename": "Menu",
+  "description": "고소한 피칸 듬뿍, 꾸덕한 크림치즈와 달콤한 당근의 만남🧡",
+  "nameForBlogReview": "[NEW]당근 케이크🥕"
+ },
+ "Menu:2008297455_39": {
+  "id": "2008297455_39",
+  "name": "누와(초코 무스 케이크)",
+  "index": 39,
+  "price": "10800",
+  "change": false,
+  "images": [
+   "https://ldb-phinf.pstatic.net/20260413_69/1776039293586POSai_JPEG/IMG_9432.jpeg"
+  ],
+  "priority": null,
+  "priceType": null,
+  "recommend": true,
+  "__typename": "Menu",
+  "description": "꾸덕 쫀득한 리얼 초코의 맛🍫",
+  "nameForBlogReview": "누와(초코 무스 케이크)"
+ },
+ "Menu:2008297455_40": {
+  "id": "2008297455_40",
+  "name": "플랑",
+  "index": 40,
+  "price": "5500",
+  "change": false,
+  "images": [
+   "https://ldb-phinf.pstatic.net/20251217_184/17659290337564RRWu_JPEG/IMG_8621.jpeg"
+  ],
+  "priority": null,
+  "priceType": null,
+  "recommend": true,
+  "__typename": "Menu",
+  "description": "프랑스식 에그타르트로 계란이 첨가되지 않고,\n우유와 크림만을 넣어 크리미하고 풍미 가득",
+  "nameForBlogReview": "플랑"
+ },
+ "Menu:2008297455_0": {
+  "id": "2008297455_0",
+  "name": "레몬케이크",
+  "index": 0,
+  "price": "3800",
+  "change": false,
+  "images": [
+   "https://ldb-phinf.pstatic.net/20260721_157/178459886306126spS_JPEG/1A83C6D4-FFF1-4610-AAE6-F8D497AA0597.jpg",
+   "https://ldb-phinf.pstatic.net/20260721_96/1784598848689IPQNo_JPEG/IMG_9934.jpg"
+  ],
+  "priority": null,
+  "priceType": null,
+  "recommend": false,
+  "__typename": "Menu",
+  "description": "상큼 부드러운 레몬케이크🍋",
+  "nameForBlogReview": "레몬케이크"
+ },
+ "Menu:2008297455_1": {
+  "id": "2008297455_1",
+  "name": "바나나 브레드",
+  "index": 1,
+  "price": "4300",
+  "change": false,
+  "images": [
+   "https://ldb-phinf.pstatic.net/20260721_260/1784598883586xdIqR_JPEG/DA7F0FE1-F6D0-4A12-B282-9B4CB4428867.jpg",
+   "https://ldb-phinf.pstatic.net/20260721_291/1784598873975Y2Q7c_JPEG/IMG_9935.jpg"
+  ],
+  "priority": null,
+  "priceType": null,
+  "recommend": false,
+  "__typename": "Menu",
+  "description": "달콤한 바나나와 고소한 피칸의 만남💛🤎",
+  "nameForBlogReview": "바나나 브레드"
+ },
+ "Menu:2008297455_2": {
+  "id": "2008297455_2",
+  "name": "얼그레이 케이크",
+  "index": 2,
+  "price": "4300",
+  "change": false,
+  "images": [
+   "https://ldb-phinf.pstatic.net/20260721_100/1784598925268w24vT_JPEG/IMG_9904.jpg",
+   "https://ldb-phinf.pstatic.net/20260721_214/1784598895896jvefM_JPEG/IMG_9947.jpg"
+  ],
+  "priority": null,
+  "priceType": null,
+  "recommend": false,
+  "__typename": "Menu",
+  "description": "향긋한 얼그레이의 진한 맛🤎",
+  "nameForBlogReview": "얼그레이 케이크"
+ },
+ "PlaceDetailTopPhotoItem:video_1": {
+  "id": "video_1",
+  "clip": null,
+  "date": "2026.08.12",
+  "price": null,
+  "title": null,
+  "video": {
+   "videoId": "A7A8295A20DA1F358766A32CD701D7D0FE18",
+   "videoUrl": "vod3://2040:V127a36e9ef2a590aa0608879c2f89d8e49241657fcc7c38674fdfa991cfde849f8028879c2f89d8e4924@A7A8295A20DA1F358766A32CD701D7D0FE18?env=real#track=720",
+   "__typename": "VideoItemInfo",
+   "trailerUrl": "https://a01-g-naver-vod.akamaized.net/place/c/read/v2/VOD_ALPHA/place/A7A8295A20DA1F358766A32CD701D7D0FE18/trailer/1786502663835/c088d743-95f7-11f1-be2b-a0369ffab1cc.mp4?__gda__=1787293899_a2d8638cbd7134fe7594401218db9b59"
+  },
+  "width": null,
+  "height": null,
+  "option": null,
+  "viewId": "video_1_2",
+  "linkUrl": null,
+  "filterId": null,
+  "__typename": "PlaceDetailTopPhotoItem",
+  "originType": "cp0",
+  "description": null,
+  "mediaFormat": "video",
+  "mediaSource": "cp0",
+  "originalUrl": "https://video-phinf.pstatic.net/20260812_243/1786502671829j0b4c_JPEG/z65F0siiAI_01.jpg",
+  "sourceTitle": "소식",
+  "subFilterId": null,
+  "externalLink": null,
+  "thumbnailUrl": "https://video-phinf.pstatic.net/20260812_243/1786502671829j0b4c_JPEG/z65F0siiAI_01.jpg",
+  "isPopularStyle": null
+ },
+ "PlaceDetailTopPhotoItem:visitor_1": {
+  "id": "visitor_1",
+  "clip": null,
+  "date": "2026.07.07",
+  "price": null,
+  "title": "내부",
+  "video": null,
+  "width": 3024,
+  "height": 4032,
+  "option": null,
+  "viewId": "visitor_1_4",
+  "linkUrl": "https://blog.naver.com/onaive/224339080205",
+  "filterId": "aiView",
+  "__typename": "PlaceDetailTopPhotoItem",
+  "originType": "aiView",
+  "description": "[성수] 성수디저트 선물하기 좋은 베이커리, 르모멍",
+  "mediaFormat": "image",
+  "mediaSource": "aiView",
+  "originalUrl": "https://blogfiles.pstatic.net/MjAyNjA3MDdfMjk3/MDAxNzgzMzg2MzUxNzUx.QBbCTSFV3asyhe66PRe9hnQZN1zHrd4DD4-_0bTIvoYg.kzsAeF9iiX4rbNqek7e3ppkvPXbWdHihX5YH-pQnrGIg.JPEG/IMG%EF%BC%BF7801.jpg/3024x4032",
+  "sourceTitle": "블로그",
+  "subFilterId": "INTERIOR",
+  "externalLink": {
+   "url": "https://blog.naver.com/onaive/224339080205",
+   "title": "블로그",
+   "__typename": "PhotoViewerExternalLink"
+  },
+  "thumbnailUrl": "https://blogfiles.pstatic.net/MjAyNjA3MDdfMjk3/MDAxNzgzMzg2MzUxNzUx.QBbCTSFV3asyhe66PRe9hnQZN1zHrd4DD4-_0bTIvoYg.kzsAeF9iiX4rbNqek7e3ppkvPXbWdHihX5YH-pQnrGIg.JPEG/IMG%EF%BC%BF7801.jpg/3024x4032",
+  "isPopularStyle": null
+ },
+ "PlaceDetailTopPhotoItem:visitor_2": {
+  "id": "visitor_2",
+  "clip": null,
+  "date": "2026.05.27",
+  "price": null,
+  "title": "음식·음료",
+  "video": null,
+  "width": 2000,
+  "height": 2664,
+  "option": null,
+  "viewId": "visitor_2_5",
+  "linkUrl": "https://blog.naver.com/royalmilktea0117/224297965128",
+  "filterId": "aiView",
+  "__typename": "PlaceDetailTopPhotoItem",
+  "originType": "aiView",
+  "description": "기대 없이 잘랐다가 꽉 찬 단면에 반한 곳 — 성수 르모멍 구움과자 맛집",
+  "mediaFormat": "image",
+  "mediaSource": "aiView",
+  "originalUrl": "https://blogfiles.pstatic.net/MjAyNjA1MjdfMTAy/MDAxNzc5ODYwODQ0MzYx.VwqjF3dmhNuMP8XwDNy6IS-bLtnFdUSidO1zheNheQwg.UyyCMWAwd_gbR1mkyCA1ayBS6b1RlRxqbXw4VbAU22kg.JPEG/P2398996.jpg/2000x2664",
+  "sourceTitle": "블로그",
+  "subFilterId": "FOOD",
+  "externalLink": {
+   "url": "https://blog.naver.com/royalmilktea0117/224297965128",
+   "title": "블로그",
+   "__typename": "PhotoViewerExternalLink"
+  },
+  "thumbnailUrl": "https://blogfiles.pstatic.net/MjAyNjA1MjdfMTAy/MDAxNzc5ODYwODQ0MzYx.VwqjF3dmhNuMP8XwDNy6IS-bLtnFdUSidO1zheNheQwg.UyyCMWAwd_gbR1mkyCA1ayBS6b1RlRxqbXw4VbAU22kg.JPEG/P2398996.jpg/2000x2664",
+  "isPopularStyle": null
+ },
+ "FsasReview:blog_RoyalMilkTea 로얄밀크티의 맛집 여행_224297965128_기대 없이 잘랐다가 꽉 찬 단면에 반한 곳 — 성수 르모멍 구움과자 맛집": {
+  "id": "blog_RoyalMilkTea 로얄밀크티의 맛집 여행_224297965128_기대 없이 잘랐다가 꽉 찬 단면에 반한 곳 — 성수 르모멍 구움과자 맛집",
+  "url": "https://m.blog.naver.com/royalmilktea0117/224297965128",
+  "date": "2026.05.27.",
+  "home": "https://m.blog.naver.com/royalmilktea0117",
+  "name": "RoyalMilkTea 로얄밀크티의 맛집 여행",
+  "rank": "1",
+  "type": "blog",
+  "title": "기대 없이 잘랐다가 꽉 찬 단면에 반한 곳 — 성수 르모멍 구움과자 맛집",
+  "contents": "나는 화려한 장식으로 덮인 디저트보다 투박한 단면을 더 신뢰한다. 겉은 속일 수 있어도, 빵을 반으로 갈랐을 때 드러나는 결의 밀도는 절대 거짓말을 하지 않기 때문이다. 성수동 골목에서 만난 르모멍의 구움과자들이 딱 내 기준을 충족시키는 곳이었다. 르모멍 Le Moment 서울 성동구 성수일로12길 19-1 1층 성수동 골목에 숨겨진 밀도 높은 구움과자와 시나몬롤 전문 베이커리 나는 화려한 핫플레이스보다 후미진 골목에 숨겨진 조용한 공간에 더 마음이 끌린다. 북적이는 성수역에서 한참을 걸어 벗어났을 때, 마감 시간의 쓸쓸함마저 특유의 분위기로 다가오는 짙은 초록색 외관의 베이커리를 하나 발견했다. 5종의 구움과자를 테이크아웃해 품에 안고 왔다. 시나몬롤 위에서 내려다보면 매듭처럼 꼬인 형태다. 표면 전체가 짙은 카라멜 빛으로 덮여있고, 군데군데 더 어두운 색이 보인다. 뚜껑처럼 올라온 부분이 손끝을 건드리면 살짝 끈적인다. 반으로 가르면 겹겹이 말려있는 빵 결 사이로 시나몬 슈거가 촘촘히 배어있다. 입안에 달라붙는 끈적임보다는 폭신하게 찢어지는 빵결의 촉감과 코끝에 은은하게 맴도는 계피 향의 밸런스가 훌륭하다. 커피피칸, 흑임자 마들렌 두 마들렌을 나란히 놓으면 색이 대비된다. 커피피칸은 짙은 갈색, 가장자리를 피칸 조각이 두르고 있다. 흑임자는 회색빛이 도는 어두운 색, 흑임자 입자가 표면 곳곳에 박혀있다. 크고 통통한 편이다. 커피피칸 마들렌은 커피 향은 강하지 않고, 피칸이 씹힐 때 고소함이 마지막에 올라온다. 흑임자 마들렌은 씹을수록 흑임자 특유의 구수하고 약간 쓴 뒷맛이 남는다. 초코, 코코넛 휘낭시에 직사각형 휘낭시에 두 종류. 코코넛은 위면이 토스트된 코코넛 플레이크로 덮여있고, 초코는 아무 장식 없이 진한 다크 브라운이다. 둘 다 가장자리가 선명하게 각이 잡혀있다. 코코넛 휘낭시에를 잘라보면 속이 아주 연한 크림색이다. 버터 케이크에 가까운 질감, 촘촘하고 섬세하다. 코코넛 플레이크의 바삭한 식감이 먼저 오고, 안쪽은 촉촉하다. 코코넛 향은 생각보다 강하지 않아서 오히려 부담이 없다. 초코 휘낭시에는 단면도 균일하게 어둡다. 초콜릿 향이 진하지만 달지 않다. 카카오 비율이 높은 편인 듯 쓴 끝 맛이 살짝 남는다. 화려한 기교로 시선을 끄는 디저트는 많지만, 기본에 충실한 단면을 가진 곳은 흔치 않다. 쓸쓸했던 밤 골목의 기억을 꽉 찬 달콤함으로 바꿔준 정직한 맛이었다. ● 추천대상 성수에서 구움 과자를 조용히 먹고... ",
+  "reviewId": "224297965128",
+  "typeName": "블로그",
+  "__typename": "FsasReview",
+  "authorName": "로얄밀크티",
+  "isOfficial": false,
+  "bypassToken": null,
+  "thumbnailUrl": "http://blogfiles.naver.net/MjAyNjA1MjdfMjQ4/MDAxNzc5ODYzMTMwMjQw.KsZuEgGm3L4tRm2Y9crSfOZSztSrg5Fw0_f5pyMQIkEg.CJ2nK9TT82E5UDmiXxhYWHGRCfbq_RRkm7Eg6C-3tIgg.JPEG/output%A3%DF1567394403.jpg#900x900",
+  "createdString": "5.27.수",
+  "bySmartEditor3": false,
+  "thumbnailCount": "38",
+  "profileImageUrl": "http://blogpfthumb.phinf.naver.net/MjAyNjA0MTFfOTcg/MDAxNzc1ODc5OTY3MTg1.i5-Smjh7fJSlsMNzN3I14p6Uic3S30DggxyKNr52w-wg.c-UWPAd8wyur3ikIXByHWKqSScY5vKyA2clOMrVoHMog.JPEG/KakaoTalk_20260411_125841100.jpg/KakaoTalk_20260411_125841100.jpg",
+  "isRepresentative": false,
+  "isVideoThumbnail": false,
+  "thumbnailUrlList": [
+   "http://blogfiles.naver.net/MjAyNjA1MjdfMjQ4/MDAxNzc5ODYzMTMwMjQw.KsZuEgGm3L4tRm2Y9crSfOZSztSrg5Fw0_f5pyMQIkEg.CJ2nK9TT82E5UDmiXxhYWHGRCfbq_RRkm7Eg6C-3tIgg.JPEG/output%A3%DF1567394403.jpg#900x900",
+   "http://blogfiles.naver.net/MjAyNjA1MjdfNjMg/MDAxNzc5ODU4ODQzMDg2.4BK2-uIUrwf_n33HDiyhHgi9eoNAUGiF8h683K0sQ3cg.ifYyrYt1FGcvgVR2Q_EZOZLKpRuvWaILnb9_tbl4At0g.JPEG/P2398991.jpg#2000x1501",
+   "http://blogfiles.naver.net/MjAyNjA1MjdfMjM0/MDAxNzc5ODYwMzAwNDE5.tAV7xG3iYiwiW84P7dJyK1nE58jkfsdHlFzSbENnnvUg.bk5qsgTq_S0K0ER10mlyp0TTcRCGtQOGX2oSsZghJA0g.JPEG/P2398961.jpg#2000x2664",
+   "http://blogfiles.naver.net/MjAyNjA1MjdfMTMx/MDAxNzc5ODYwMzAwMTUx.52PHTR5YDPNi7EsVIMuP_2efq5oT_5PKDerKoItS5EYg.d9T-s0Wld18AnVcgz5y-shSLl-lg8KwYOEixQWggDRgg.JPEG/P2398962.jpg#2000x2664",
+   "http://blogfiles.naver.net/MjAyNjA1MjdfMjE1/MDAxNzc5ODYwMzAwMDYw.U0LBVMn6KucXLcYGVCRRAuiFui9BYdf66MAdX-Zp_vsg.QCjS6as_MwCyj2qx8Dy-WntvBGCICc5MhOLRw6T8aXwg.JPEG/P2398964.jpg#2000x2664",
+   "http://blogfiles.naver.net/MjAyNjA1MjdfMjM5/MDAxNzc5ODYwMzIyNjY3.VNzMcSlWeilVzUm8oziw_bJXKcn02uWn2Yu2h8QQJsEg.3taJjNSrWmufCK7deCyBc8h_okLUjXDkyRapdy3qI0kg.JPEG/P2398971.jpg#2000x1501",
+   "http://blogfiles.naver.net/MjAyNjA1MjdfMTQ2/MDAxNzc5ODYwMzIyNjYy.fS0sDLiXvu1kZeg04kSlEI4YWlPw6LwayCqc6tzW7rIg.SaeGCTbh4rkAx_SicvcJF5LoVmtid8-1stN-VUQwo2wg.JPEG/P2398967.jpg#2000x1501",
+   "http://blogfiles.naver.net/MjAyNjA1MjdfODMg/MDAxNzc5ODYwMzIyNzk4.qnoNldDrm1JMRAdRtku7EHqDqZUI6RLvvdKgo9ejTpgg.RnQ8vhuAc1gDm2slbQconapBiBm_9Y0AjbV4Yn3-Rdkg.JPEG/P2398968.jpg#2000x2664",
+   "http://blogfiles.naver.net/MjAyNjA1MjdfMjcy/MDAxNzc5ODYwMzIyNzE4.c8Ax6cl5ej7HLC2iHvm5zvW4jtBuijGdzubM86tcXYIg.Ja6RekULSWcFVxrTctheKcKn5DF_GJLjne75RCL8z_Qg.JPEG/P2398972.jpg#2000x1501",
+   "http://blogfiles.naver.net/MjAyNjA1MjdfMTE2/MDAxNzc5ODYwNzUzMDc4.PXckCxKzlefnkwBu6Ey90lG0SB8-BdH5taGYptr-AWkg.ix2fKJRcp5Vm-rzuTeyzHPAfKCCiMbZ2-y0p1sgDDDEg.JPEG/P2398974.jpg#2000x2664"
+  ],
+  "buyWithMyMoneyType": null,
+  "hasNaverReservation": false
+ }
+}
