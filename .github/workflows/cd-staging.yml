@@ -98,7 +98,6 @@ jobs:
           kakao.api.base-url=https://dapi.kakao.com
           kakao.api.key=${KAKAO_API_KEY}
 
-          google.places.api-key=${GOOGLE_PLACES_API_KEY}
 
           gemini.api.key=${GEMINI_API_KEY}
 
@@ -255,7 +254,6 @@ jobs:
             echo "NAVER_CLIENT_SECRET=${{ secrets.NAVER_CLIENT_SECRET }}" >> .env
             echo "NAVER_LOGIN_CLIENT_ID=${{ secrets.NAVER_LOGIN_CLIENT_ID }}" >> .env
             echo "NAVER_LOGIN_CLIENT_SECRET=${{ secrets.NAVER_LOGIN_CLIENT_SECRET }}" >> .env
-            echo "GOOGLE_PLACES_API_KEY=${{ secrets.GOOGLE_PLACES_API_KEY }}" >> .env
             echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
             echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
             echo "CLAUDE_API_KEY=${{ secrets.CLAUDE_API_KEY }}" >> .env
