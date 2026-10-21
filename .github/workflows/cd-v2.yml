@@ -48,12 +48,12 @@ jobs:
       - name: Check required settings
         env:
           ROLE: ${{ vars.V2_AWS_ROLE_ARN }}
-          SECRET_ARN: ${{ vars.V2_RUNTIME_SECRET_ARN }}
+          PARAMETER_PREFIX: ${{ vars.V2_RUNTIME_PARAMETER_PREFIX }}
           IMAGE_REPOSITORY: ${{ vars.V2_DOCKERHUB_IMAGE }}
           HUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           HUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
-          test -n "$ROLE" && test -n "$SECRET_ARN" && test -n "$HUB_USERNAME" && test -n "$HUB_TOKEN"
+          test -n "$ROLE" && test -n "$PARAMETER_PREFIX" && test -n "$HUB_USERNAME" && test -n "$HUB_TOKEN"
           [[ "$IMAGE_REPOSITORY" =~ ^[a-z0-9][a-z0-9_-]*/[a-z0-9][a-z0-9._-]*$ ]]
       - uses: actions/setup-java@v4
         with:
@@ -114,5 +114,5 @@ jobs:
       - name: Prepare the next launch template or refresh running instances
         env:
           V2_IMAGE: ${{ needs.build.outputs.image }}
-          V2_RUNTIME_SECRET_ARN: ${{ vars.V2_RUNTIME_SECRET_ARN }}
+          V2_RUNTIME_PARAMETER_PREFIX: ${{ vars.V2_RUNTIME_PARAMETER_PREFIX }}
         run: python3 scripts/deploy/v2/deploy.py

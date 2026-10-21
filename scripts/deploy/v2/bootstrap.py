@@ -40,6 +40,41 @@ def validate_secret(secret):
     return env, firebase, hub
 
 
+def load_parameters(ssm, prefix):
+    # 경로 전체를 재귀 조회하지 않고 앱에 허용한 이름만 최대 10개씩 읽는다.
+    suffixes = [f'env/{key}' for key in sorted(REQUIRED | OPTIONAL)]
+    suffixes += ['firebase-service-account', 'dockerhub/username', 'dockerhub/token']
+    names = [f'{prefix}/{suffix}' for suffix in suffixes]
+    values = {}
+    for offset in range(0, len(names), 10):
+        batch = names[offset:offset + 10]
+        response = ssm.get_parameters(Names=batch, WithDecryption=True)
+        for param in response.get('Parameters', []):
+            name, value = param['Name'], param['Value']
+            if name not in batch or name in values:
+                raise ValueError('Unexpected runtime parameter response')
+            if param['Type'] != 'SecureString':
+                raise ValueError(f'Runtime parameter must use SecureString: {name}')
+            if len(value.encode('utf-8')) > 4096:
+                raise ValueError(f'Runtime parameter exceeds Standard 4 KiB limit: {name}')
+            values[name] = value
+    required = {f'{prefix}/env/{key}' for key in REQUIRED}
+    required.update(f'{prefix}/{suffix}' for suffix in suffixes[-3:])
+    missing = required - values.keys()
+    if missing:
+        raise ValueError('Missing runtime parameters: ' + ', '.join(sorted(missing)))
+    try:
+        firebase = json.loads(values[f'{prefix}/firebase-service-account'])
+    except json.JSONDecodeError:
+        raise ValueError('Firebase parameter must contain valid JSON') from None
+    return validate_secret({
+        'environment': {key: values[f'{prefix}/env/{key}'] for key in REQUIRED | OPTIONAL
+                        if f'{prefix}/env/{key}' in values},
+        'firebase_service_account': firebase,
+        'dockerhub': {key: values[f'{prefix}/dockerhub/{key}'] for key in ('username', 'token')},
+    })
+
+
 def run(*args, **kwargs):
     return subprocess.run(args, check=True, **kwargs)
 
@@ -49,9 +84,8 @@ def main():
 
     os.umask(0o077)
     config = json.loads(Path('/opt/bbang-v2/config.json').read_text())
-    response = boto3.client('secretsmanager', region_name=config['region']).get_secret_value(
-        SecretId=config['secret_arn'])
-    env, firebase, hub = validate_secret(json.loads(response['SecretString']))
+    env, firebase, hub = load_parameters(
+        boto3.client('ssm', region_name=config['region']), config['parameter_prefix'])
     secret_dir = Path('/opt/bbang-v2/secrets')
     secret_dir.mkdir(mode=0o700, exist_ok=True)
     # 컨테이너 uid만 읽을 수 있는 파일. 부모 디렉터리는 root 전용이다.

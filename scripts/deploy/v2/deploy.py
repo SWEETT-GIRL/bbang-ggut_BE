@@ -21,12 +21,12 @@ def encode(value):
     return base64.b64encode(value).decode()
 
 
-def user_data(image, secret_arn):
+def user_data(image, parameter_prefix):
     if not re.fullmatch(r'(?:docker\.io/)?[a-z0-9][a-z0-9_-]*/[a-z0-9][a-z0-9._-]*@sha256:[0-9a-f]{64}', image):
         raise ValueError('Use a Docker Hub image pinned by SHA256 digest')
-    if not re.fullmatch(rf'arn:aws:secretsmanager:{REGION}:{ACCOUNT}:secret:[A-Za-z0-9/_+=.@-]+', secret_arn):
-        raise ValueError('Use a runtime secret ARN in the expected account/region')
-    config = encode(json.dumps({'region': REGION, 'secret_arn': secret_arn, 'image': image}).encode())
+    if not re.fullmatch(r'/sweetgirl/prod/v2/was(?:/[A-Za-z0-9_-]+){0,8}', parameter_prefix):
+        raise ValueError('Use a parameter prefix under /sweetgirl/prod/v2/was without a trailing slash')
+    config = encode(json.dumps({'region': REGION, 'parameter_prefix': parameter_prefix, 'image': image}).encode())
     bootstrap = encode(gzip.compress(Path(__file__).with_name('bootstrap.py').read_bytes(), mtime=0))
     script = f'''#!/bin/bash
 set -euo pipefail
@@ -111,8 +111,8 @@ def preflight(asg, ec2, elb, sts):
     return group, version
 
 
-def deploy(asg, ec2, elb, sts, image, secret_arn):
-    payload = user_data(image, secret_arn)
+def deploy(asg, ec2, elb, sts, image, parameter_prefix):
+    payload = user_data(image, parameter_prefix)
     group, version = preflight(asg, ec2, elb, sts)
     old_version = str(version['VersionNumber'])
     # $Latest/$Default는 자동 롤백 대상이 될 수 없다. 같은 현재 버전의 숫자로 먼저 고정한다.
@@ -163,7 +163,7 @@ def main():
     session = boto3.Session(region_name=REGION)
     asg = session.client('autoscaling')
     refresh_id = deploy(asg, session.client('ec2'), session.client('elbv2'), session.client('sts'),
-                        os.environ['V2_IMAGE'], os.environ['V2_RUNTIME_SECRET_ARN'])
+                        os.environ['V2_IMAGE'], os.environ['V2_RUNTIME_PARAMETER_PREFIX'])
     if refresh_id:
         wait_for_refresh(asg, refresh_id)
 
