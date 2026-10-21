@@ -5,3 +5,5 @@
 # dataops 응답 구조 대응 에이전트의 신뢰 소스 사본 — 원래 레포 이력과 바이트 단위로 대조하므로 줄바꿈을 바꾸지 않는다
 dataops/agent/response_change/trusted/*.java -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 dataops/agent/response_change/trusted/baseline/*.java -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+# 법정동 폐지 이력(cp949·CRLF)은 bjd_reference.py 가 sha256 으로 대조하므로 줄바꿈을 바꾸지 않는다
+dataops/reference/bjd_code_20260813.csv -text
