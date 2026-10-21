@@ -179,4 +179,43 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			@Param("memberId") Long memberId,
 			@Param("from") LocalDateTime from,
 			@Param("to") LocalDateTime to);
+
+	/** 프로필의 공개 빵로그 수. */
+	@Query("""
+			SELECT COUNT(r) FROM BreadRecord r
+			WHERE r.member.id = :memberId AND r.isPublic = true AND r.deletedAt IS NULL
+			""")
+	long countPublicByMemberId(@Param("memberId") Long memberId);
+
+	/** 칭호용 — 공개 빵로그가 가장 많은 동네(region_key) 하나. {@code minCount} 개 미만이면 비어 있다. */
+	@Query(value = """
+			SELECT r.region_key AS regionKey, COUNT(*) AS recordCount
+			FROM bread_record r
+			WHERE r.member_id = :memberId AND r.is_public = true AND r.deleted_at IS NULL AND r.region_key IS NOT NULL
+			GROUP BY r.region_key
+			HAVING COUNT(*) >= :minCount
+			ORDER BY COUNT(*) DESC, r.region_key ASC
+			LIMIT 1
+			""", nativeQuery = true)
+	Optional<BreadRecordTownProjection> findTopPublicTown(@Param("memberId") Long memberId,
+			@Param("minCount") int minCount);
+
+	/**
+	 * 추천 후보 — {@code since} 뒤에 공개 빵로그를 남긴 일반 회원, 보는 사람과 같은 빵집을 기록한 사람 우선, 그다음 최근순.
+	 * 보는 사람 본인은 뺀다. 팔로우 중 · 차단은 부르는 쪽이 거른다.
+	 */
+	@Query(value = """
+			SELECT r.member_id
+			FROM bread_record r
+			JOIN member m ON m.id = r.member_id AND m.deleted_at IS NULL AND m.member_type = 'USER'
+			WHERE r.is_public = true AND r.deleted_at IS NULL AND r.created_at >= :since AND r.member_id <> :viewerId
+			GROUP BY r.member_id
+			ORDER BY COUNT(*) FILTER (WHERE r.store_id IN (
+					SELECT mine.store_id FROM bread_record mine
+					WHERE mine.member_id = :viewerId AND mine.deleted_at IS NULL AND mine.store_id IS NOT NULL)) DESC,
+				MAX(r.created_at) DESC
+			LIMIT :limit
+			""", nativeQuery = true)
+	List<Long> findRecentPublicRecorderIds(@Param("viewerId") Long viewerId, @Param("since") LocalDateTime since,
+			@Param("limit") int limit);
 }
