@@ -121,6 +121,35 @@ class RecordRewardServiceTest {
 		}
 
 		@Test
+		@DisplayName("연속 기록 — 기록 보상을 받았으면 같은 만큼(+10)을 앞 기록 기준으로 한 번 더 준다")
+		void chainedRecordGetsDouble() {
+			givenRecordGrant(new GrantResult(Outcome.GRANTED, 10, 20, 30));
+			given(
+				crumbGrantService.grant(7L, CrumbReason.RECORD_CHAIN, 10, "record_chain:44", RewardRefType.RECORD, 55L))
+				.willReturn(new GrantResult(Outcome.GRANTED, 10, 30, 40));
+			givenLevels(2, new WorldLevel(2, 1, 5, "earth", "sky"), 3, new WorldLevel(2, 1, 5, "earth", "sky"));
+
+			List<RewardItemResponse> rewards = recordRewardService.rewardChainedCreated(member, RECORD_ID, 0, 2, 3,
+				44L);
+
+			assertThat(rewards).extracting(RewardItemResponse::reason)
+				.containsExactly(null, CrumbReason.RECORD, CrumbReason.RECORD_CHAIN);
+			assertThat(rewards.get(2).amount()).isEqualTo(10);
+		}
+
+		@Test
+		@DisplayName("연속 기록이어도 하루 상한에 걸린 기록은 2배 보너스가 없다")
+		void chainedButCappedGetsNoBonus() {
+			givenRecordGrant(new GrantResult(Outcome.CAPPED, 0, 30, 30));
+			givenLevels(3, new WorldLevel(2, 1, 5, "earth", "sky"), 4, new WorldLevel(2, 1, 5, "earth", "sky"));
+
+			recordRewardService.rewardChainedCreated(member, RECORD_ID, 0, 3, 4, 44L);
+
+			then(crumbGrantService).should(never()).grant(anyLong(), eq(CrumbReason.RECORD_CHAIN), anyInt(),
+				anyString(), any(), any());
+		}
+
+		@Test
 		@DisplayName("사진이 없으면 +10 만 받는다")
 		void withoutPhoto() {
 			givenRecordGrant(new GrantResult(Outcome.GRANTED, 10, 20, 30));
