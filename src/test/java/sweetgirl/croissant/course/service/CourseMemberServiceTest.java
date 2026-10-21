@@ -45,6 +45,7 @@ import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.course.util.CollabTokenGenerator;
+import sweetgirl.croissant.follow.service.FollowCommandService;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.exception.MemberException;
@@ -75,6 +76,8 @@ class CourseMemberServiceTest {
 	private MemberReader memberReader;
 	@Mock
 	private MemberRestrictionReader memberRestrictionReader;
+	@Mock
+	private FollowCommandService followCommandService;
 
 	@InjectMocks
 	private CourseMemberService courseMemberService;
@@ -496,11 +499,18 @@ class CourseMemberServiceTest {
 				.willReturn(Optional.empty());
 			SavedCourse saved = mock(SavedCourse.class);
 			given(savedCourseRepository.findByMemberIdAndCourseId(MEMBER_ID, COURSE_ID)).willReturn(Optional.of(saved));
+			// 헬퍼가 다른 mock 을 스텁하므로 given(...) 안에서 부르면 UnfinishedStubbing 이 난다 — 먼저 만든다.
+			List<CourseMember> members = List.of(row(course, OWNER_ID), row(course, MEMBER_ID));
+			given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(COURSE_ID))
+				.willReturn(members);
 
 			CourseInviteAcceptResponse response = courseMemberService.acceptInvite(MEMBER_ID, TOKEN);
 
 			assertThat(response.courseId()).isEqualTo(COURSE_ID);
 			assertThat(response.alreadyMember()).isFalse();
+			// 일행 전원과 서로 팔로우한다 — 나 자신은 빼고
+			then(followCommandService).should().followEachOther(MEMBER_ID, OWNER_ID);
+			then(followCommandService).should(never()).followEachOther(MEMBER_ID, MEMBER_ID);
 			ArgumentCaptor<CourseMember> rowCaptor = ArgumentCaptor.forClass(CourseMember.class);
 			then(courseMemberRepository).should().save(rowCaptor.capture());
 			assertThat(rowCaptor.getValue().getId().getMemberId()).isEqualTo(MEMBER_ID);

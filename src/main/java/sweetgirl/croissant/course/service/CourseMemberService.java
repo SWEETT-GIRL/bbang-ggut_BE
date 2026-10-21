@@ -27,6 +27,7 @@ import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.course.util.CollabTokenGenerator;
+import sweetgirl.croissant.follow.service.FollowCommandService;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
@@ -56,6 +57,7 @@ public class CourseMemberService {
 	private final MemberReader memberReader;
 	private final MemberRestrictionReader memberRestrictionReader;
 	private final CourseAccessPolicy courseAccessPolicy;
+	private final FollowCommandService followCommandService;
 
 	public CourseInviteResponse createInvite(Long memberId, Long courseId) {
 		memberRestrictionReader.validateCanWrite(memberId);
@@ -160,6 +162,11 @@ public class CourseMemberService {
 		}
 
 		joinOrRejoin(course, member);
+		// 일행이 되면 기존 활성 멤버 전원과 서로 팔로우한다. 차단 관계 · 게스트 쌍은 followEachOther 가 건너뛴다.
+		courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(course.getId()).stream()
+			.map(row -> row.getId().getMemberId())
+			.filter(otherId -> !otherId.equals(memberId))
+			.forEach(otherId -> followCommandService.followEachOther(memberId, otherId));
 		// 멤버가 되면 찜은 모순이다 — 내 빵투어에 '함께' 배지로 뜬다.
 		savedCourseRepository.findByMemberIdAndCourseId(memberId, course.getId())
 			.ifPresent(savedCourseRepository::delete);

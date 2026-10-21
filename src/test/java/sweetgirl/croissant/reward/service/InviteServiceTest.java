@@ -29,6 +29,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.breadlog.enums.RecordType;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
+import sweetgirl.croissant.follow.service.FollowCommandService;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
@@ -67,6 +68,8 @@ class InviteServiceTest {
 	private RewardSettings rewardSettings;
 	@Mock
 	private MemberReader memberReader;
+	@Mock
+	private FollowCommandService followCommandService;
 
 	@InjectMocks
 	private InviteService inviteService;
@@ -118,6 +121,8 @@ class InviteServiceTest {
 			given(memberInviteRepository.insertIfAbsent(eq(INVITER_ID), eq(INVITEE_ID), any())).willReturn(1);
 
 			assertThat(inviteService.accept(INVITEE_ID, " abcd2345 ").inviterNickname()).isEqualTo("회원1");
+			// 코드를 넣은 순간 서로 팔로우한다
+			org.mockito.Mockito.verify(followCommandService).followEachOther(INVITER_ID, INVITEE_ID);
 		}
 
 		@Test
