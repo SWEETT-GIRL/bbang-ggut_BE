@@ -61,16 +61,13 @@ public interface RewardPushTargetRepository extends Repository<MemberAttendanceD
 	}
 
 	/**
-	 * 어제 가입했고 아직 한 번도 출석하지 않은 회원과, 그 회원이 고른 친구와 그 친구에게 지어 준 이름(게스트 · 탈퇴 제외).
+	 * 어제 가입했고 아직 한 번도 출석하지 않은 회원과, 그 회원이 고른 친구(게스트 · 탈퇴 제외).
 	 * 세계관을 아직 시작하지 않았으면 친구가 비어 있다.
 	 */
 	@Query(value = """
-			SELECT member.id AS memberId, world.selected_character AS selectedCharacter,
-				friend.nickname AS friendNickname
+			SELECT member.id AS memberId, world.selected_character AS selectedCharacter
 			FROM member
 			LEFT JOIN member_world world ON world.member_id = member.id
-			LEFT JOIN member_characters friend
-				ON friend.member_id = member.id AND friend.character_code = world.selected_character
 			WHERE member.deleted_at IS NULL
 				AND member.member_type <> 'GUEST'
 				AND member.registered_at >= :from
@@ -82,24 +79,19 @@ public interface RewardPushTargetRepository extends Repository<MemberAttendanceD
 	List<MemberFriend> findSecondMorningTargets(
 			@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
-	/** 이 회원들이 고른 친구와 그 친구에게 지어 준 이름. 세계관을 아직 시작하지 않은 회원은 빠진다. */
+	/** 이 회원들이 고른 친구. 세계관을 아직 시작하지 않은 회원은 빠진다. */
 	@Query(value = """
-			SELECT world.member_id AS memberId, world.selected_character AS selectedCharacter,
-				friend.nickname AS friendNickname
+			SELECT world.member_id AS memberId, world.selected_character AS selectedCharacter
 			FROM member_world world
-			LEFT JOIN member_characters friend
-				ON friend.member_id = world.member_id AND friend.character_code = world.selected_character
 			WHERE world.member_id IN (:memberIds)
 			""", nativeQuery = true)
 	List<MemberFriend> findFriendsOf(@Param("memberIds") Collection<Long> memberIds);
 
-	/** 회원이 고른 친구. 이름을 지어 주지 않았으면 {@code friendNickname} 이 비어 있다. */
+	/** 회원이 고른 친구. 세계관을 시작하지 않았으면 {@code selectedCharacter} 가 비어 있다. */
 	interface MemberFriend {
 
 		Long getMemberId();
 
 		String getSelectedCharacter();
-
-		String getFriendNickname();
 	}
 }

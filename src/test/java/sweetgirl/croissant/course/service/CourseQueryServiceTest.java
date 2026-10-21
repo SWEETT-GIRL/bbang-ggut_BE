@@ -766,10 +766,13 @@ class CourseQueryServiceTest {
 		return memo;
 	}
 
-	private CourseMember mockMemberRow(Long courseId, Long memberId, String displayName) {
+	/** 세 번째 인자는 회원 닉네임이다 — 코스 안 이름 짓기는 없어졌고 응답의 displayName 은 닉네임을 비춘다. */
+	private CourseMember mockMemberRow(Long courseId, Long memberId, String nickname) {
 		CourseMember row = mock(CourseMember.class);
+		Member rowMember = mock(Member.class);
+		lenient().when(rowMember.getNickname()).thenReturn(nickname);
 		lenient().when(row.getId()).thenReturn(new CourseMemberId(courseId, memberId));
-		lenient().when(row.getDisplayName()).thenReturn(displayName);
+		lenient().when(row.getMember()).thenReturn(rowMember);
 		return row;
 	}
 

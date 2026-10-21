@@ -45,6 +45,7 @@ import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.course.util.CollabTokenGenerator;
+import sweetgirl.croissant.follow.service.FollowCommandService;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.exception.MemberException;
@@ -75,6 +76,8 @@ class CourseMemberServiceTest {
 	private MemberReader memberReader;
 	@Mock
 	private MemberRestrictionReader memberRestrictionReader;
+	@Mock
+	private FollowCommandService followCommandService;
 
 	@InjectMocks
 	private CourseMemberService courseMemberService;
@@ -113,8 +116,8 @@ class CourseMemberServiceTest {
 		return CourseInvite.of(course, owner(), TOKEN, expiresAt);
 	}
 
-	private CourseMember row(Course course, Long memberId, String displayName) {
-		return CourseMember.of(course, mockMember(memberId, "닉" + memberId), displayName);
+	private CourseMember row(Course course, Long memberId) {
+		return CourseMember.of(course, mockMember(memberId, "닉" + memberId));
 	}
 
 	private void givenLockedCourse(Course course) {
@@ -122,7 +125,7 @@ class CourseMemberServiceTest {
 	}
 
 	private void givenOwnerRowExists(Course course) {
-		CourseMember ownerRow = row(course, OWNER_ID, "다나");
+		CourseMember ownerRow = row(course, OWNER_ID);
 		lenient().when(courseMemberRepository.findByIdCourseIdAndIdMemberId(COURSE_ID, OWNER_ID))
 			.thenReturn(Optional.of(ownerRow));
 	}
@@ -155,7 +158,6 @@ class CourseMemberServiceTest {
 			ArgumentCaptor<CourseMember> rowCaptor = ArgumentCaptor.forClass(CourseMember.class);
 			then(courseMemberRepository).should().save(rowCaptor.capture());
 			assertThat(rowCaptor.getValue().getId().getMemberId()).isEqualTo(OWNER_ID);
-			assertThat(rowCaptor.getValue().getDisplayName()).isEqualTo("다나");
 
 			ArgumentCaptor<CourseInvite> inviteCaptor = ArgumentCaptor.forClass(CourseInvite.class);
 			then(courseInviteRepository).should().save(inviteCaptor.capture());
@@ -168,25 +170,6 @@ class CourseMemberServiceTest {
 			assertThat(response.expiresAt()).isEqualTo(issued.getExpiresAt());
 			assertThat(response.reused()).isFalse();
 			then(courseRepository).should().bumpVersion(COURSE_ID);
-		}
-
-		@Test
-		@DisplayName("닉네임이 10자를 넘으면 방장 이름은 앞 10자만 쓴다 — display_name 은 VARCHAR(10)")
-		void longNickname_truncatedToTen() {
-			Member courseOwner = mockMember(OWNER_ID, "가나다라마바사아자차카타");
-			Course course = mockCourse(CourseType.CUSTOM, courseOwner, false);
-			given(memberReader.getMember(OWNER_ID)).willReturn(courseOwner);
-			givenLockedCourse(course);
-			given(courseMemberRepository.findByIdCourseIdAndIdMemberId(COURSE_ID, OWNER_ID))
-				.willReturn(Optional.empty());
-			given(courseInviteRepository.findFirstByCourseIdAndDeletedAtIsNullOrderByCreatedAtDesc(COURSE_ID))
-				.willReturn(Optional.empty());
-
-			courseMemberService.createInvite(OWNER_ID, COURSE_ID);
-
-			ArgumentCaptor<CourseMember> rowCaptor = ArgumentCaptor.forClass(CourseMember.class);
-			then(courseMemberRepository).should().save(rowCaptor.capture());
-			assertThat(rowCaptor.getValue().getDisplayName()).isEqualTo("가나다라마바사아자차");
 		}
 
 		@Test
@@ -301,7 +284,7 @@ class CourseMemberServiceTest {
 			given(memberReader.getMember(MEMBER_ID)).willReturn(member);
 			givenLockedCourse(course);
 			givenActiveMember(MEMBER_ID, true);
-			CourseMember closedOwnerRow = row(course, OWNER_ID, "다나");
+			CourseMember closedOwnerRow = row(course, OWNER_ID);
 			closedOwnerRow.leave();
 			lenient().when(courseMemberRepository.findByIdCourseIdAndIdMemberId(COURSE_ID, OWNER_ID))
 				.thenReturn(Optional.of(closedOwnerRow));
@@ -516,15 +499,21 @@ class CourseMemberServiceTest {
 				.willReturn(Optional.empty());
 			SavedCourse saved = mock(SavedCourse.class);
 			given(savedCourseRepository.findByMemberIdAndCourseId(MEMBER_ID, COURSE_ID)).willReturn(Optional.of(saved));
+			// 헬퍼가 다른 mock 을 스텁하므로 given(...) 안에서 부르면 UnfinishedStubbing 이 난다 — 먼저 만든다.
+			List<CourseMember> members = List.of(row(course, OWNER_ID), row(course, MEMBER_ID));
+			given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(COURSE_ID))
+				.willReturn(members);
 
-			CourseInviteAcceptResponse response = courseMemberService.acceptInvite(MEMBER_ID, TOKEN, "지수");
+			CourseInviteAcceptResponse response = courseMemberService.acceptInvite(MEMBER_ID, TOKEN);
 
 			assertThat(response.courseId()).isEqualTo(COURSE_ID);
 			assertThat(response.alreadyMember()).isFalse();
+			// 일행 전원과 서로 팔로우한다 — 나 자신은 빼고
+			then(followCommandService).should().followEachOther(MEMBER_ID, OWNER_ID);
+			then(followCommandService).should(never()).followEachOther(MEMBER_ID, MEMBER_ID);
 			ArgumentCaptor<CourseMember> rowCaptor = ArgumentCaptor.forClass(CourseMember.class);
 			then(courseMemberRepository).should().save(rowCaptor.capture());
 			assertThat(rowCaptor.getValue().getId().getMemberId()).isEqualTo(MEMBER_ID);
-			assertThat(rowCaptor.getValue().getDisplayName()).isEqualTo("지수");
 			then(savedCourseRepository).should().delete(saved);
 			then(course).should().updateVisibility(CourseVisibility.PRIVATE);
 			then(courseRepository).should().bumpVersion(COURSE_ID);
@@ -544,7 +533,7 @@ class CourseMemberServiceTest {
 				.willReturn(Optional.empty());
 			given(savedCourseRepository.findByMemberIdAndCourseId(MEMBER_ID, COURSE_ID)).willReturn(Optional.empty());
 
-			courseMemberService.acceptInvite(MEMBER_ID, TOKEN, "지수");
+			courseMemberService.acceptInvite(MEMBER_ID, TOKEN);
 
 			then(course).should(never()).updateVisibility(any());
 			then(savedCourseRepository).should(never()).delete(any());
@@ -559,18 +548,17 @@ class CourseMemberServiceTest {
 			givenLockedCourse(course);
 			givenActiveMember(MEMBER_ID, false);
 			givenOwnerRowExists(course);
-			CourseMember left = row(course, MEMBER_ID, "옛이름");
+			CourseMember left = row(course, MEMBER_ID);
 			left.leave();
 			given(courseMemberRepository.countByIdCourseIdAndDeletedAtIsNull(COURSE_ID)).willReturn(1L);
 			given(courseMemberRepository.findByIdCourseIdAndIdMemberId(COURSE_ID, MEMBER_ID))
 				.willReturn(Optional.of(left));
 			given(savedCourseRepository.findByMemberIdAndCourseId(MEMBER_ID, COURSE_ID)).willReturn(Optional.empty());
 
-			CourseInviteAcceptResponse response = courseMemberService.acceptInvite(MEMBER_ID, TOKEN, "새이름");
+			CourseInviteAcceptResponse response = courseMemberService.acceptInvite(MEMBER_ID, TOKEN);
 
 			assertThat(response.alreadyMember()).isFalse();
 			assertThat(left.isDeleted()).isFalse();
-			assertThat(left.getDisplayName()).isEqualTo("새이름");
 			then(courseMemberRepository).should(never()).save(any());
 			then(courseRepository).should().bumpVersion(COURSE_ID);
 		}
@@ -590,13 +578,12 @@ class CourseMemberServiceTest {
 			given(courseMemberRepository.countByIdCourseIdAndDeletedAtIsNull(COURSE_ID)).willReturn(1L);
 			given(savedCourseRepository.findByMemberIdAndCourseId(MEMBER_ID, COURSE_ID)).willReturn(Optional.empty());
 
-			courseMemberService.acceptInvite(MEMBER_ID, TOKEN, "지수");
+			courseMemberService.acceptInvite(MEMBER_ID, TOKEN);
 
 			ArgumentCaptor<CourseMember> rowCaptor = ArgumentCaptor.forClass(CourseMember.class);
 			then(courseMemberRepository).should(org.mockito.Mockito.times(2)).save(rowCaptor.capture());
 			assertThat(rowCaptor.getAllValues()).extracting(saved -> saved.getId().getMemberId())
 				.containsExactly(OWNER_ID, MEMBER_ID);
-			assertThat(rowCaptor.getAllValues().get(0).getDisplayName()).isEqualTo("다나");
 			then(courseRepository).should().bumpVersion(COURSE_ID);
 		}
 
@@ -611,7 +598,7 @@ class CourseMemberServiceTest {
 				.willReturn(Optional.empty());
 			givenLockedCourse(course);
 
-			assertThatThrownBy(() -> courseMemberService.acceptInvite(MEMBER_ID, TOKEN, "지수"))
+			assertThatThrownBy(() -> courseMemberService.acceptInvite(MEMBER_ID, TOKEN))
 				.isInstanceOf(CourseException.class)
 				.hasMessageContaining(CourseErrorCode.COURSE_INVITE_INVALID.getMessage());
 			then(courseMemberRepository).should(never()).save(any());
@@ -627,7 +614,7 @@ class CourseMemberServiceTest {
 			givenValidInvite(course);
 			givenLockedCourse(course);
 
-			assertThatThrownBy(() -> courseMemberService.acceptInvite(MEMBER_ID, TOKEN, "지수"))
+			assertThatThrownBy(() -> courseMemberService.acceptInvite(MEMBER_ID, TOKEN))
 				.isInstanceOf(CourseException.class)
 				.hasMessageContaining(CourseErrorCode.COURSE_INVITE_INVALID.getMessage());
 			then(courseMemberRepository).should(never()).save(any());
@@ -639,7 +626,7 @@ class CourseMemberServiceTest {
 			joiner();
 			given(courseInviteRepository.findByTokenAndDeletedAtIsNull(TOKEN)).willReturn(Optional.empty());
 
-			assertThatThrownBy(() -> courseMemberService.acceptInvite(MEMBER_ID, TOKEN, "지수"))
+			assertThatThrownBy(() -> courseMemberService.acceptInvite(MEMBER_ID, TOKEN))
 				.isInstanceOf(CourseException.class)
 				.hasMessageContaining(CourseErrorCode.COURSE_INVITE_INVALID.getMessage());
 		}
@@ -652,7 +639,7 @@ class CourseMemberServiceTest {
 			CourseInvite expired = inviteExpiringAt(course, LocalDateTime.now().minusMinutes(1));
 			given(courseInviteRepository.findByTokenAndDeletedAtIsNull(TOKEN)).willReturn(Optional.of(expired));
 
-			assertThatThrownBy(() -> courseMemberService.acceptInvite(MEMBER_ID, TOKEN, "지수"))
+			assertThatThrownBy(() -> courseMemberService.acceptInvite(MEMBER_ID, TOKEN))
 				.isInstanceOf(CourseException.class)
 				.hasMessageContaining(CourseErrorCode.COURSE_INVITE_EXPIRED.getMessage());
 			then(courseRepository).shouldHaveNoInteractions();
@@ -665,7 +652,7 @@ class CourseMemberServiceTest {
 			givenValidInvite(mockCourse(CourseType.CUSTOM, owner(), false));
 			given(courseRepository.findWithLockByIdAndDeletedAtIsNull(COURSE_ID)).willReturn(Optional.empty());
 
-			assertThatThrownBy(() -> courseMemberService.acceptInvite(MEMBER_ID, TOKEN, "지수"))
+			assertThatThrownBy(() -> courseMemberService.acceptInvite(MEMBER_ID, TOKEN))
 				.isInstanceOf(CourseException.class)
 				.hasMessageContaining(CourseErrorCode.COURSE_NOT_FOUND.getMessage());
 		}
@@ -678,7 +665,7 @@ class CourseMemberServiceTest {
 			givenValidInvite(course);
 			givenLockedCourse(course);
 
-			assertThatThrownBy(() -> courseMemberService.acceptInvite(MEMBER_ID, TOKEN, "지수"))
+			assertThatThrownBy(() -> courseMemberService.acceptInvite(MEMBER_ID, TOKEN))
 				.isInstanceOf(CourseException.class)
 				.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
 			then(courseMemberRepository).shouldHaveNoInteractions();
@@ -694,7 +681,7 @@ class CourseMemberServiceTest {
 			givenValidInvite(course);
 			givenLockedCourse(course);
 
-			CourseInviteAcceptResponse response = courseMemberService.acceptInvite(OWNER_ID, TOKEN, "다나");
+			CourseInviteAcceptResponse response = courseMemberService.acceptInvite(OWNER_ID, TOKEN);
 
 			assertThat(response.alreadyMember()).isTrue();
 			then(courseMemberRepository).should(never()).save(any());
@@ -711,7 +698,7 @@ class CourseMemberServiceTest {
 			givenLockedCourse(course);
 			givenActiveMember(MEMBER_ID, true);
 
-			CourseInviteAcceptResponse response = courseMemberService.acceptInvite(MEMBER_ID, TOKEN, "지수");
+			CourseInviteAcceptResponse response = courseMemberService.acceptInvite(MEMBER_ID, TOKEN);
 
 			assertThat(response.alreadyMember()).isTrue();
 			then(courseMemberRepository).should(never()).save(any());
@@ -733,7 +720,7 @@ class CourseMemberServiceTest {
 				.willReturn(Optional.empty());
 			given(savedCourseRepository.findByMemberIdAndCourseId(MEMBER_ID, COURSE_ID)).willReturn(Optional.empty());
 
-			CourseInviteAcceptResponse response = courseMemberService.acceptInvite(MEMBER_ID, TOKEN, "지수");
+			CourseInviteAcceptResponse response = courseMemberService.acceptInvite(MEMBER_ID, TOKEN);
 
 			assertThat(response.alreadyMember()).isFalse();
 			then(courseMemberRepository).should().save(any(CourseMember.class));
@@ -750,7 +737,7 @@ class CourseMemberServiceTest {
 			givenOwnerRowExists(course);
 			given(courseMemberRepository.countByIdCourseIdAndDeletedAtIsNull(COURSE_ID)).willReturn(8L);
 
-			assertThatThrownBy(() -> courseMemberService.acceptInvite(MEMBER_ID, TOKEN, "지수"))
+			assertThatThrownBy(() -> courseMemberService.acceptInvite(MEMBER_ID, TOKEN))
 				.isInstanceOf(CourseException.class)
 				.hasMessageContaining(CourseErrorCode.COURSE_MEMBER_LIMIT.getMessage());
 			then(courseMemberRepository).should(never()).save(any());
@@ -765,7 +752,7 @@ class CourseMemberServiceTest {
 			given(guest.isGuest()).willReturn(true);
 			given(memberReader.getMember(MEMBER_ID)).willReturn(guest);
 
-			assertThatThrownBy(() -> courseMemberService.acceptInvite(MEMBER_ID, TOKEN, "지수"))
+			assertThatThrownBy(() -> courseMemberService.acceptInvite(MEMBER_ID, TOKEN))
 				.isInstanceOf(CourseException.class)
 				.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
 			then(courseInviteRepository).shouldHaveNoInteractions();
@@ -777,7 +764,7 @@ class CourseMemberServiceTest {
 			willThrow(new MemberException(MemberErrorCode.MEMBER_WRITE_RESTRICTED))
 				.given(memberRestrictionReader).validateCanWrite(MEMBER_ID);
 
-			assertThatThrownBy(() -> courseMemberService.acceptInvite(MEMBER_ID, TOKEN, "지수"))
+			assertThatThrownBy(() -> courseMemberService.acceptInvite(MEMBER_ID, TOKEN))
 				.isInstanceOf(MemberException.class);
 			then(courseInviteRepository).shouldHaveNoInteractions();
 		}
@@ -798,7 +785,7 @@ class CourseMemberServiceTest {
 		void member_leavesOwnRow() {
 			Course course = mockCourse(CourseType.CUSTOM, owner(), false);
 			givenCourse(course);
-			CourseMember mine = row(course, MEMBER_ID, "지수");
+			CourseMember mine = row(course, MEMBER_ID);
 			given(courseMemberRepository.findByIdCourseIdAndIdMemberId(COURSE_ID, MEMBER_ID))
 				.willReturn(Optional.of(mine));
 
@@ -816,9 +803,9 @@ class CourseMemberServiceTest {
 		void owner_transfersToOldestMember() {
 			Course course = mockCourse(CourseType.CUSTOM, owner(), false);
 			givenCourse(course);
-			CourseMember ownerRow = row(course, OWNER_ID, "다나");
-			CourseMember oldest = row(course, MEMBER_ID, "지수");
-			CourseMember newer = row(course, OTHER_ID, "민지");
+			CourseMember ownerRow = row(course, OWNER_ID);
+			CourseMember oldest = row(course, MEMBER_ID);
+			CourseMember newer = row(course, OTHER_ID);
 			given(courseMemberRepository.findByIdCourseIdAndIdMemberId(COURSE_ID, OWNER_ID))
 				.willReturn(Optional.of(ownerRow));
 			given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(COURSE_ID))
@@ -839,7 +826,7 @@ class CourseMemberServiceTest {
 		void owner_noSuccessor() {
 			Course course = mockCourse(CourseType.CUSTOM, owner(), false);
 			givenCourse(course);
-			CourseMember ownerRow = row(course, OWNER_ID, "다나");
+			CourseMember ownerRow = row(course, OWNER_ID);
 			given(courseMemberRepository.findByIdCourseIdAndIdMemberId(COURSE_ID, OWNER_ID))
 				.willReturn(Optional.of(ownerRow));
 			given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(COURSE_ID))
@@ -859,7 +846,7 @@ class CourseMemberServiceTest {
 		void notMember() {
 			Course course = mockCourse(CourseType.CUSTOM, owner(), false);
 			givenCourse(course);
-			CourseMember left = row(course, OTHER_ID, "민지");
+			CourseMember left = row(course, OTHER_ID);
 			left.leave();
 			given(courseMemberRepository.findByIdCourseIdAndIdMemberId(COURSE_ID, MEMBER_ID))
 				.willReturn(Optional.empty());
@@ -900,10 +887,10 @@ class CourseMemberServiceTest {
 		@DisplayName("방장이 탈퇴하면 코스 락을 잡고 참여 순서가 가장 빠른 멤버에게 넘긴 뒤 행·메모를 닫는다. 새 방장의 행은 남는다")
 		void owner_transfersToOldestMember() {
 			Course course = mockCourse(CourseType.CUSTOM, owner(), false);
-			CourseMember ownerRow = row(course, OWNER_ID, "다나");
+			CourseMember ownerRow = row(course, OWNER_ID);
 			givenActiveRows(OWNER_ID, ownerRow);
 			givenLockedCourse(course);
-			CourseMember oldest = row(course, MEMBER_ID, "지수");
+			CourseMember oldest = row(course, MEMBER_ID);
 			given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(COURSE_ID))
 				.willReturn(List.of(ownerRow, oldest));
 
@@ -921,7 +908,7 @@ class CourseMemberServiceTest {
 		@DisplayName("넘길 멤버가 없는 방장은 행만 닫고 살아있는 초대 링크를 끈다 — 그 링크로 들어오면 탈퇴자가 방장으로 되살아난다")
 		void owner_noSuccessor_closesRowAndRevokesInvite() {
 			Course course = mockCourse(CourseType.CUSTOM, owner(), false);
-			CourseMember ownerRow = row(course, OWNER_ID, "다나");
+			CourseMember ownerRow = row(course, OWNER_ID);
 			givenActiveRows(OWNER_ID, ownerRow);
 			givenLockedCourse(course);
 			given(courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(COURSE_ID))
@@ -947,8 +934,8 @@ class CourseMemberServiceTest {
 			Member secondOwner = owner();
 			lenient().when(second.getId()).thenReturn(11L);
 			lenient().when(second.getMember()).thenReturn(secondOwner);
-			CourseMember firstRow = row(first, MEMBER_ID, "지수");
-			CourseMember secondRow = row(second, MEMBER_ID, "지수");
+			CourseMember firstRow = row(first, MEMBER_ID);
+			CourseMember secondRow = row(second, MEMBER_ID);
 			givenActiveRows(MEMBER_ID, firstRow, secondRow);
 			givenLockedCourse(first);
 			given(courseRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(second));
@@ -971,7 +958,7 @@ class CourseMemberServiceTest {
 		@DisplayName("지운 코스의 행은 닫기만 한다 — 락 조회가 비어 있고, 승계도 version 도 메모 정리도 없다")
 		void deletedCourse_closesRowOnly() {
 			Course course = mockCourse(CourseType.CUSTOM, owner(), false);
-			CourseMember ownerRow = row(course, OWNER_ID, "다나");
+			CourseMember ownerRow = row(course, OWNER_ID);
 			givenActiveRows(OWNER_ID, ownerRow);
 			given(courseRepository.findWithLockByIdAndDeletedAtIsNull(COURSE_ID)).willReturn(Optional.empty());
 
@@ -993,64 +980,5 @@ class CourseMemberServiceTest {
 			then(courseRepository).shouldHaveNoInteractions();
 			then(courseStoreMemoRepository).shouldHaveNoInteractions();
 		}
-	}
-
-	// ───────────────────────── rename ─────────────────────────
-
-	@Nested
-	@DisplayName("rename")
-	class Rename {
-
-		@Test
-		@DisplayName("활성 멤버(방장 포함)는 코스 안 이름을 바꿀 수 있다")
-		void success() {
-			Course course = mockCourse(CourseType.CUSTOM, owner(), false);
-			given(courseRepository.findByIdAndDeletedAtIsNull(COURSE_ID)).willReturn(Optional.of(course));
-			CourseMember mine = row(course, OWNER_ID, "다나");
-			given(courseMemberRepository.findByIdCourseIdAndIdMemberId(COURSE_ID, OWNER_ID))
-				.willReturn(Optional.of(mine));
-
-			courseMemberService.rename(OWNER_ID, COURSE_ID, "빵순이");
-
-			assertThat(mine.getDisplayName()).isEqualTo("빵순이");
-			then(courseRepository).should().bumpVersion(COURSE_ID);
-		}
-
-		@Test
-		@DisplayName("쓰기 제한(밴) 계정은 코스 안 이름을 못 바꾼다 — 일행에게 보이는 글이다")
-		void restricted_blocked() {
-			willThrow(new MemberException(MemberErrorCode.MEMBER_WRITE_RESTRICTED))
-				.given(memberRestrictionReader).validateCanWrite(MEMBER_ID);
-
-			assertThatThrownBy(() -> courseMemberService.rename(MEMBER_ID, COURSE_ID, "새이름"))
-				.isInstanceOf(MemberException.class);
-			then(courseRepository).shouldHaveNoInteractions();
-		}
-
-		@Test
-		@DisplayName("나간 사람은 COURSE_MEMBER_NOT_FOUND")
-		void leftMember() {
-			Course course = mockCourse(CourseType.CUSTOM, owner(), false);
-			given(courseRepository.findByIdAndDeletedAtIsNull(COURSE_ID)).willReturn(Optional.of(course));
-			CourseMember left = row(course, MEMBER_ID, "지수");
-			left.leave();
-			given(courseMemberRepository.findByIdCourseIdAndIdMemberId(COURSE_ID, MEMBER_ID))
-				.willReturn(Optional.of(left));
-
-			assertThatThrownBy(() -> courseMemberService.rename(MEMBER_ID, COURSE_ID, "새이름"))
-				.isInstanceOf(CourseException.class)
-				.hasMessageContaining(CourseErrorCode.COURSE_MEMBER_NOT_FOUND.getMessage());
-			assertThat(left.getDisplayName()).isEqualTo("지수");
-			then(courseRepository).should(never()).bumpVersion(any());
-		}
-	}
-
-	@Test
-	@DisplayName("defaultDisplayName: 닉네임이 비어 있으면 '방장', 공백은 걷어내고 10자로 자른다")
-	void defaultDisplayName_fallbacks() {
-		assertThat(CourseMemberService.defaultDisplayName(mockMember(1L, null))).isEqualTo("방장");
-		assertThat(CourseMemberService.defaultDisplayName(mockMember(1L, "   "))).isEqualTo("방장");
-		assertThat(CourseMemberService.defaultDisplayName(mockMember(1L, "  다나  "))).isEqualTo("다나");
-		assertThat(CourseMemberService.defaultDisplayName(mockMember(1L, "12345678901"))).isEqualTo("1234567890");
 	}
 }

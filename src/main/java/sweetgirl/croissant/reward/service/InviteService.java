@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.breadlog.enums.RecordType;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
+import sweetgirl.croissant.follow.service.FollowCommandService;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
@@ -57,6 +58,7 @@ public class InviteService {
 	private final RewardPendingService rewardPendingService;
 	private final RewardSettings rewardSettings;
 	private final MemberReader memberReader;
+	private final FollowCommandService followCommandService;
 
 	/** 내 초대 현황. 코드가 아직 없으면 여기서 만든다. */
 	public InviteResponse getMyInvite(Long memberId) {
@@ -147,6 +149,8 @@ public class InviteService {
 		if (memberInviteRepository.insertIfAbsent(inviter.getId(), memberId, LocalDateTime.now()) == 0) {
 			throw new RewardException(RewardErrorCode.REWARD_INVITE_ALREADY_ACCEPTED);
 		}
+		// 코드를 넣은 순간 둘은 서로 팔로우한다(성사 여부와 무관). 차단 관계면 조용히 건너뛴다.
+		followCommandService.followEachOther(inviter.getId(), memberId);
 		return new InviteAcceptResponse(inviter.getNickname());
 	}
 

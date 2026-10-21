@@ -11,6 +11,7 @@ import sweetgirl.croissant.global.code.BaseErrorCode;
 public enum CourseErrorCode implements BaseErrorCode {
 
 	COURSE_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_1", "코스를 찾을 수 없습니다."),
+	COURSE_DISPLAY_NAME_RETIRED(HttpStatus.GONE, "COURSE410_1", "빵투어 안 이름 짓기는 끝났습니다. 이제 회원 닉네임으로 보입니다."),
 	COURSE_STORE_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_2", "코스 가게를 찾을 수 없습니다."),
 	COURSE_IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_3", "코스 이미지를 찾을 수 없습니다."),
 	COURSE_FORBIDDEN(HttpStatus.FORBIDDEN, "COURSE403_1", "코스에 대한 권한이 없습니다."),

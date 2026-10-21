@@ -219,4 +219,9 @@ public class Member {
 		return "GUEST".equals(this.memberType);
 	}
 
+	/** 일반 회원인가 — 게스트도 블로그 봇(BLOG_BOT)도 아니다. 팔로우 · 프로필 같은 사람 사이 기능은 이 회원끼리만이다. */
+	public boolean isUser() {
+		return "USER".equals(this.memberType);
+	}
+
 }

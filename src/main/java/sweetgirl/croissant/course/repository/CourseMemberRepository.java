@@ -24,6 +24,8 @@ public interface CourseMemberRepository extends JpaRepository<CourseMember, Cour
 	Optional<CourseMember> findByIdCourseIdAndIdMemberId(Long courseId, Long memberId);
 
 	/** 참여자 목록 · 메모 정렬 · 방장 승계 순서. 방장은 첫 초대 때 행이 생기므로 항상 맨 앞이다. */
+	/** 응답이 닉네임을 읽으므로 member 를 같이 가져온다(정원 8이라 작지만 N+1 은 피한다). */
+	@EntityGraph(attributePaths = "member")
 	List<CourseMember> findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(Long courseId);
 
 	/** 정원(방장 포함 8명) 판정. */

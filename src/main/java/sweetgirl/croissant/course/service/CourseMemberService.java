@@ -27,6 +27,7 @@ import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
 import sweetgirl.croissant.course.util.CollabTokenGenerator;
+import sweetgirl.croissant.follow.service.FollowCommandService;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
@@ -56,6 +57,7 @@ public class CourseMemberService {
 	private final MemberReader memberReader;
 	private final MemberRestrictionReader memberRestrictionReader;
 	private final CourseAccessPolicy courseAccessPolicy;
+	private final FollowCommandService followCommandService;
 
 	public CourseInviteResponse createInvite(Long memberId, Long courseId) {
 		memberRestrictionReader.validateCanWrite(memberId);
@@ -121,7 +123,7 @@ public class CourseMemberService {
 		return CourseInviteState.OK;
 	}
 
-	public CourseInviteAcceptResponse acceptInvite(Long memberId, String token, String displayName) {
+	public CourseInviteAcceptResponse acceptInvite(Long memberId, String token) {
 		memberRestrictionReader.validateCanWrite(memberId);
 		Member member = memberReader.getMember(memberId);
 		// 게스트는 참여할 수 없다(로그인 필수). 401 을 쓰지 않는 이유: 앱의 apiClient 는 401 을 받으면
@@ -159,7 +161,12 @@ public class CourseMemberService {
 			throw new CourseException(CourseErrorCode.COURSE_MEMBER_LIMIT);
 		}
 
-		joinOrRejoin(course, member, displayName);
+		joinOrRejoin(course, member);
+		// 일행이 되면 기존 활성 멤버 전원과 서로 팔로우한다. 차단 관계 · 게스트 쌍은 followEachOther 가 건너뛴다.
+		courseMemberRepository.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(course.getId()).stream()
+			.map(row -> row.getId().getMemberId())
+			.filter(otherId -> !otherId.equals(memberId))
+			.forEach(otherId -> followCommandService.followEachOther(memberId, otherId));
 		// 멤버가 되면 찜은 모순이다 — 내 빵투어에 '함께' 배지로 뜬다.
 		savedCourseRepository.findByMemberIdAndCourseId(memberId, course.getId())
 			.ifPresent(savedCourseRepository::delete);
@@ -171,16 +178,16 @@ public class CourseMemberService {
 		return new CourseInviteAcceptResponse(course.getId(), false);
 	}
 
-	private void joinOrRejoin(Course course, Member member, String displayName) {
+	private void joinOrRejoin(Course course, Member member) {
 		// 나갔던 사람은 같은 PK 행을 되살린다 — 새 행이 아니다.
 		courseMemberRepository.findByIdCourseIdAndIdMemberId(course.getId(), member.getId())
 			.ifPresentOrElse(
-				left -> left.rejoin(displayName),
-				() -> courseMemberRepository.save(CourseMember.of(course, member, displayName)));
+				CourseMember::rejoin,
+				() -> courseMemberRepository.save(CourseMember.of(course, member)));
 	}
 
 	/**
-	 * 방장 행이 없으면 만든다. 이름 기본값은 닉네임(길이 제한에 맞춰 자른다).
+	 * 방장 행이 없으면 만든다.
 	 *
 	 * @return 행을 새로 만들거나 되살렸으면 true
 	 */
@@ -193,24 +200,14 @@ public class CourseMemberService {
 		Optional<CourseMember> existing = courseMemberRepository
 			.findByIdCourseIdAndIdMemberId(course.getId(), owner.getId());
 		if (existing.isEmpty()) {
-			courseMemberRepository.save(CourseMember.of(course, owner, defaultDisplayName(owner)));
+			courseMemberRepository.save(CourseMember.of(course, owner));
 			return true;
 		}
 		if (existing.get().isDeleted()) {
-			existing.get().rejoin(defaultDisplayName(owner));
+			existing.get().rejoin();
 			return true;
 		}
 		return false;
-	}
-
-	static String defaultDisplayName(Member member) {
-		String nickname = member.getNickname() == null ? "" : member.getNickname().strip();
-		if (nickname.isEmpty()) {
-			return "방장";
-		}
-		return nickname.length() > CourseMember.DISPLAY_NAME_MAX_LENGTH
-			? nickname.substring(0, CourseMember.DISPLAY_NAME_MAX_LENGTH)
-			: nickname;
 	}
 
 	/**
@@ -303,15 +300,6 @@ public class CourseMemberService {
 
 	private boolean isOwnerDeleted(Course course) {
 		return course.getMember() != null && course.getMember().isDeleted();
-	}
-
-	public void rename(Long memberId, Long courseId, String displayName) {
-		// 코스 안 이름은 일행에게 보이는 글이다 — 쓰기 제한(밴) 회원은 초대 생성·수락처럼 막는다
-		memberRestrictionReader.validateCanWrite(memberId);
-		courseRepository.findByIdAndDeletedAtIsNull(courseId)
-			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
-		getActiveMemberRow(courseId, memberId).rename(displayName);
-		courseRepository.bumpVersion(courseId);
 	}
 
 	private CourseMember getActiveMemberRow(Long courseId, Long memberId) {

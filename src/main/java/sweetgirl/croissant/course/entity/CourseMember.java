@@ -22,7 +22,8 @@ import sweetgirl.croissant.member.entity.Member;
  * 코스를 같이 편집하는 사람. 방장도 행을 갖는다(첫 초대 링크를 만들 때 생긴다).
  *
  * role 이 없다 — 전원 편집자다. 방장 여부는 courses.member_id 로만 판정한다.
- * 나갔다 다시 들어오면 같은 PK 라 새 행이 아니라 {@link #rejoin(String)} 으로 되살린다.
+ * 나갔다 다시 들어오면 같은 PK 라 새 행이 아니라 {@link #rejoin()} 으로 되살린다.
+ * 사람 이름은 {@code member.nickname} 이다 — 코스 안 이름 짓기(display_name)는 2026-10-21 에 없앴고 컬럼만 남아 있다.
  */
 @Entity
 @Table(name = "course_members")
@@ -30,9 +31,6 @@ import sweetgirl.croissant.member.entity.Member;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CourseMember extends BaseTimeEntity {
-
-	/** 코스 안에서 쓰는 이름의 최대 길이. DB VARCHAR(10) 과 요청 DTO 의 @Size 가 같은 값을 본다. */
-	public static final int DISPLAY_NAME_MAX_LENGTH = 10;
 
 	/** 방장 포함 정원. */
 	public static final int MEMBER_LIMIT = 8;
@@ -50,7 +48,8 @@ public class CourseMember extends BaseTimeEntity {
 	@JoinColumn(name = "member_id", nullable = false)
 	private Member member;
 
-	@Column(nullable = false, length = DISPLAY_NAME_MAX_LENGTH)
+	/** 더 쓰지 않는다. 옛 행에만 값이 있고 새 행은 비운다. 컬럼 삭제는 앱이 다 올라온 뒤 별도 PR. */
+	@Column(length = 10)
 	private String displayName;
 
 	/** 참여 순서의 기준 — 메모 정렬과 방장 승계 순서가 여기에 기댄다. */
@@ -60,20 +59,15 @@ public class CourseMember extends BaseTimeEntity {
 	/** 나가기·탈퇴. */
 	private LocalDateTime deletedAt;
 
-	private CourseMember(Course course, Member member, String displayName, LocalDateTime joinedAt) {
+	private CourseMember(Course course, Member member, LocalDateTime joinedAt) {
 		this.id = new CourseMemberId(course.getId(), member.getId());
 		this.course = course;
 		this.member = member;
-		this.displayName = displayName;
 		this.joinedAt = joinedAt;
 	}
 
-	public static CourseMember of(Course course, Member member, String displayName) {
-		return new CourseMember(course, member, displayName, LocalDateTime.now());
-	}
-
-	public void rename(String displayName) {
-		this.displayName = displayName;
+	public static CourseMember of(Course course, Member member) {
+		return new CourseMember(course, member, LocalDateTime.now());
 	}
 
 	public void leave() {
@@ -81,8 +75,8 @@ public class CourseMember extends BaseTimeEntity {
 	}
 
 	/** 나갔던 사람이 다시 들어온다. 참여 순서는 다시 들어온 시점으로 잡는다. */
-	public void rejoin(String displayName) {
-		this.displayName = displayName;
+	public void rejoin() {
+		this.displayName = null;
 		this.joinedAt = LocalDateTime.now();
 		this.deletedAt = null;
 	}

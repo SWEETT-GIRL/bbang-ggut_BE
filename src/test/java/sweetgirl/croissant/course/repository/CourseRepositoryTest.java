@@ -149,7 +149,7 @@ class CourseRepositoryTest {
 		Course soon = dated("모레 빵투어", me, today.plusDays(2), null);
 		Course ongoing = dated("어제부터 내일까지", me, today.minusDays(1), today.plusDays(1));
 		Course joined = dated("친구가 만든 오늘 빵투어", friend, today, null);
-		entityManager.persist(CourseMember.of(joined, me, "나"));
+		entityManager.persist(CourseMember.of(joined, me));
 		dated("끝난 빵투어", me, today.minusDays(5), today.minusDays(3));
 		dated("한참 뒤 빵투어", me, today.plusDays(20), null);
 		dated("친구만의 빵투어", friend, today, null);
