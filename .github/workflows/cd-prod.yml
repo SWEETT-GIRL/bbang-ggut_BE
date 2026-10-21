@@ -3,6 +3,9 @@ name: CD - Production
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - 'infra/redis/**'
+      - '.github/workflows/cd-redis-prod.yml'
   # 코드 변경 없이 설정만 바꿔 다시 띄울 때 — Repository variables 를 고친 뒤 여기서 수동 실행한다.
   # 이게 없으면 변수를 바꿔도 다음 main 머지까지 반영되지 않는다(장애 때 되돌릴 방법이 없다는 뜻이다).
   workflow_dispatch:

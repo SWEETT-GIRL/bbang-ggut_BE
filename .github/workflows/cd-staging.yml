@@ -5,6 +5,8 @@ on:
     branches: [ dev ]
     # 문서·Claude 설정만 바뀐 머지는 다시 띄울 이유가 없다
     paths-ignore:
+      - 'infra/redis/**'
+      - '.github/workflows/cd-redis-prod.yml'
       - '**.md'
       - 'docs/**'
       - '.claude/**'

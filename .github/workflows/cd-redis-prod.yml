@@ -1,0 +1,124 @@
+name: CD - Redis Production
+
+on:
+  push:
+    branches: [develop-v2]
+    paths:
+      - 'infra/redis/**'
+      - '.github/workflows/cd-redis-prod.yml'
+  pull_request:
+    branches: [develop-v2]
+    paths:
+      - 'infra/redis/**'
+      - '.github/workflows/cd-redis-prod.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: redis-prod-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'deploy' }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Redis deployment files
+        run: |
+          bash -n infra/redis/deploy.sh
+          # ACL은 배포 시 생성된다. 검증용 파일에는 자격 증명을 넣지 않는다.
+          printf 'user default off\n' > infra/redis/users.acl
+          docker compose -f infra/redis/compose.yaml config --quiet
+
+  deploy:
+    needs: validate
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/develop-v2'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure SSH through bastion
+        env:
+          BASTION_KEY: ${{ secrets.PROD_SSH_KEY }}
+          REDIS_KEY: ${{ secrets.PROD_REDIS_SSH_KEY || secrets.PROD_SSH_KEY }}
+          BASTION_HOST: ${{ secrets.PROD_BASTION_HOST }}
+          REDIS_HOST: ${{ secrets.PROD_REDIS_HOST }}
+          BASTION_USER: ${{ secrets.PROD_SSH_USER }}
+          REDIS_USER: ${{ vars.PROD_REDIS_SSH_USER || 'ubuntu' }}
+          KNOWN_HOSTS: ${{ secrets.PROD_REDIS_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for value in "$BASTION_KEY" "$REDIS_KEY" "$BASTION_HOST" "$REDIS_HOST" "$BASTION_USER" "$KNOWN_HOSTS"; do
+            test -n "$value" || { echo 'Required Redis deployment secret is missing.' >&2; exit 1; }
+          done
+          for host in "$BASTION_HOST" "$REDIS_HOST"; do
+            [[ "$host" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]] || exit 1
+          done
+          for user in "$BASTION_USER" "$REDIS_USER"; do
+            [[ "$user" =~ ^[a-zA-Z_][a-zA-Z0-9_-]*$ ]] || exit 1
+          done
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          umask 077
+          printf '%s\n' "$BASTION_KEY" > ~/.ssh/redis_bastion_key
+          printf '%s\n' "$REDIS_KEY" > ~/.ssh/redis_deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/redis_known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host redis-bastion
+            HostName ${BASTION_HOST}
+            User ${BASTION_USER}
+            IdentityFile ~/.ssh/redis_bastion_key
+          Host redis-prod
+            HostName ${REDIS_HOST}
+            User ${REDIS_USER}
+            IdentityFile ~/.ssh/redis_deploy_key
+            ProxyJump redis-bastion
+          Host *
+            BatchMode yes
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            UserKnownHostsFile ~/.ssh/redis_known_hosts
+            ConnectTimeout 15
+          EOF
+
+      - name: Generate password ACL
+        env:
+          REDIS_PASSWORD: ${{ secrets.PROD_REDIS_PASSWORD }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, os, pathlib
+          password = os.environ['REDIS_PASSWORD']
+          if len(password) < 32 or '\n' in password or '\r' in password:
+              raise SystemExit('PROD_REDIS_PASSWORD must contain at least 32 characters and no newlines.')
+          digest = hashlib.sha256(password.encode()).hexdigest()
+          # health 계정은 PING만 허용하며 데이터 접근 권한은 없다.
+          pathlib.Path('infra/redis/users.acl').write_text(
+              f'user default reset on #{digest} ~* &* +@all\n'
+              'user health reset on nopass -@all +ping\n'
+          )
+          PY
+
+      - name: Deploy only to Redis EC2
+        shell: bash
+        run: |
+          set -euo pipefail
+          release="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          # release 디렉터리는 같은 redis/ 하위에 두어 current와 lock을 공유한다.
+          remote_dir="redis/$release"
+          # The release path is generated on the runner and intentionally expanded here.
+          # shellcheck disable=SC2029
+          ssh redis-prod "mkdir -p ~/$remote_dir && chmod 700 ~/redis ~/$remote_dir"
+          # shellcheck disable=SC2029
+          tar -C infra/redis -czf - compose.yaml redis.conf deploy.sh users.acl |
+            ssh redis-prod "tar -xzf - -C ~/$remote_dir && chmod 644 ~/$remote_dir/redis.conf ~/$remote_dir/users.acl"
+          # shellcheck disable=SC2029
+          ssh redis-prod "bash ~/$remote_dir/deploy.sh"
+
+      - name: Remove runner credentials
+        if: always()
+        run: |
+          rm -f ~/.ssh/redis_bastion_key ~/.ssh/redis_deploy_key ~/.ssh/redis_known_hosts ~/.ssh/config
+          rm -f infra/redis/users.acl

@@ -5,7 +5,43 @@ on:
 permissions:
   contents: read
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.diff.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect backend changes
+        id: diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 - <<'PYCODE'
+          import os, subprocess
+          workflow_files = {
+              '.github/workflows/cd-redis-prod.yml', '.github/workflows/cd-v2.yml',
+              '.github/workflows/cd-prod.yml', '.github/workflows/cd-staging.yml',
+              '.github/workflows/ci-v2.yml',
+          }
+          files = subprocess.check_output([
+              'git', 'diff', '--no-renames', '--name-only', '-z',
+              os.environ['BASE_SHA'] + '...' + os.environ['HEAD_SHA'],
+          ]).decode().split('\0')
+          paths = [path for path in files if path]
+          touches_redis = any(path.startswith('infra/redis/') or
+              path == '.github/workflows/cd-redis-prod.yml' for path in paths)
+          redis_only = touches_redis and all(path.startswith('infra/redis/') or
+              path in workflow_files for path in paths)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f'backend={str(not redis_only).lower()}\n')
+          PYCODE
+
   build-v2:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
