@@ -1,0 +1,118 @@
+name: CD - V2 ASG
+
+on:
+  push:
+    branches: [develop-v2]
+
+# 실제 배포는 준비 완료 후 Repository variable V2_DEPLOY_ENABLED=true로 명시적으로 연다.
+# 수동 실행은 제공하지 않는다. 재배포는 이미 PR로 머지된 실행의 Re-run jobs를 사용한다.
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-v2-asg
+  cancel-in-progress: false
+
+jobs:
+  merged-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      allowed: ${{ steps.gate.outputs.allowed }}
+    steps:
+      - name: Require a merged PR targeting develop-v2
+        id: gate
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prs = await github.paginate(github.rest.repos.listPullRequestsAssociatedWithCommit, {
+              ...context.repo, commit_sha: context.sha
+            });
+            const merged = prs.some(pr => pr.merged_at &&
+              pr.base.ref === 'develop-v2' && pr.base.repo.full_name === context.payload.repository.full_name &&
+              pr.merge_commit_sha === context.sha);
+            core.setOutput('allowed', String(merged));
+            if (!merged) core.warning('Merged develop-v2 PR not found: deployment skipped. This is not branch protection.');
+
+  build:
+    needs: merged-pr
+    if: needs.merged-pr.outputs.allowed == 'true' && vars.V2_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      image: ${{ steps.image.outputs.ref }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check required settings
+        env:
+          ROLE: ${{ vars.V2_AWS_ROLE_ARN }}
+          PARAMETER_PREFIX: ${{ vars.V2_RUNTIME_PARAMETER_PREFIX }}
+          IMAGE_REPOSITORY: ${{ vars.V2_DOCKERHUB_IMAGE }}
+          HUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          HUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          test -n "$ROLE" && test -n "$PARAMETER_PREFIX" && test -n "$HUB_USERNAME" && test -n "$HUB_TOKEN"
+          [[ "$IMAGE_REPOSITORY" =~ ^[a-z0-9][a-z0-9_-]*/[a-z0-9][a-z0-9._-]*$ ]]
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build and test before publishing
+        run: |
+          python3 -m unittest discover -s scripts/deploy/v2/tests -v
+          ./gradlew build -x installGitHooks --no-daemon
+          mkdir -p build/v2
+          mapfile -t jars < <(find build/libs -maxdepth 1 -name '*.jar' ! -name '*-plain.jar')
+          test "${#jars[@]}" -eq 1
+          cp "${jars[0]}" build/v2/app.jar
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build ARM64 and push a v2-only tag
+        id: docker
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.v2
+          platforms: linux/arm64
+          push: true
+          tags: ${{ vars.V2_DOCKERHUB_IMAGE }}:v2-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Pin the image digest
+        id: image
+        env:
+          REPOSITORY: ${{ vars.V2_DOCKERHUB_IMAGE }}
+          DIGEST: ${{ steps.docker.outputs.digest }}
+        run: echo "ref=$REPOSITORY@$DIGEST" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 130
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install 'boto3>=1.35,<2'
+      - name: Assume the v2 deployment role
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.V2_AWS_ROLE_ARN }}
+          aws-region: ap-northeast-2
+          role-duration-seconds: 9000
+      - name: Prepare the next launch template or refresh running instances
+        env:
+          V2_IMAGE: ${{ needs.build.outputs.image }}
+          V2_RUNTIME_PARAMETER_PREFIX: ${{ vars.V2_RUNTIME_PARAMETER_PREFIX }}
+        run: python3 scripts/deploy/v2/deploy.py

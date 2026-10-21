@@ -5,6 +5,7 @@ import java.util.Set;
 
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +23,7 @@ import sweetgirl.croissant.menu.enums.MenuKind;
  */
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "app.startup-data-maintenance.enabled", havingValue = "true", matchIfMissing = true)
 @RequiredArgsConstructor
 public class BreadCategorySeeder implements ApplicationRunner {
 

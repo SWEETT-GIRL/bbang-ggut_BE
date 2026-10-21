@@ -1,0 +1,26 @@
+name: CI - V2 Build & Test
+on:
+  pull_request:
+    branches: [develop-v2]
+permissions:
+  contents: read
+jobs:
+  build-v2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew build -x installGitHooks --no-daemon
+  deployment-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate deployment behavior without AWS credentials
+        run: python3 -m unittest discover -s scripts/deploy/v2/tests -v
+      - name: Check workflow syntax
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -color .github/workflows/cd-v2.yml .github/workflows/ci-v2.yml
