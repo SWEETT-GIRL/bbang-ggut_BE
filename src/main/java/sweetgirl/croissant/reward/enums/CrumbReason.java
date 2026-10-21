@@ -17,6 +17,7 @@ public enum CrumbReason {
 	FEED("밥 룰렛"),
 	RECORD("빵 기록"),
 	RECORD_PHOTO("기록에 사진"),
+	RECORD_CHAIN("연속 기록 2배"),
 	SAVE_STORE("빵집 담기"),
 	LETTER("빵댕이 편지"),
 	AD("광고 보기"),

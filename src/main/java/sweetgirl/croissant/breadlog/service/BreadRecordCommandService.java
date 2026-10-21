@@ -160,11 +160,15 @@ public class BreadRecordCommandService {
 		memberWorldRepository.raiseMaxRecordCount(memberId, recordCountAfter);
 		int heightBefore = (int)Math.max(storedMaxHeight, recordCountBefore);
 		int heightAfter = (int)Math.max(storedMaxHeight, recordCountAfter);
-		List<RewardItemResponse> rewards = new ArrayList<>(tourStop == null
-			? recordRewardService.rewardCreated(member, record.getId(), request.photos().size(), heightBefore,
-				heightAfter)
-			: recordRewardService.rewardTourRecordCreated(member, record.getId(), tourStop.courseId(),
-				tourStop.storeId(), heightBefore, heightAfter));
+		Long chainFrom = tourStop == null ? validChainSource(memberId, request.chainFromRecordId()) : null;
+		List<RewardItemResponse> rewards = new ArrayList<>(tourStop != null
+			? recordRewardService.rewardTourRecordCreated(member, record.getId(), tourStop.courseId(),
+				tourStop.storeId(), heightBefore, heightAfter)
+			: chainFrom != null
+				? recordRewardService.rewardChainedCreated(member, record.getId(), request.photos().size(),
+					heightBefore, heightAfter, chainFrom)
+				: recordRewardService.rewardCreated(member, record.getId(), request.photos().size(), heightBefore,
+					heightAfter));
 		// 찜은 사용자가 직접 풀 때까지 남긴다 — 기록이 생겨도 "또 가고 싶은 가게"일 수 있다.
 		// (기록 시 자동 해제는 정책 변경으로 제거)
 		rewards.addAll(tourRewardsAfterRecordChange(member));
@@ -174,6 +178,22 @@ public class BreadRecordCommandService {
 				new StoreTrendingSignalEvent(memberId, data.store().getId(), TrendingSignal.RECORD));
 		}
 		return new BreadRecordCreateResponse(record.getId(), record.getCreatedAt(), rewards, tags);
+	}
+
+	/**
+	 * 연속 기록의 앞 기록 — 내 기록이고, 지우지 않았고, 저장한 지 {@link RecordRewardService#CHAIN_WINDOW} 안일 때만 인정한다.
+	 * 아니면 null — 기록은 그대로 저장되고 보상만 평소대로다(완료 화면을 오래 열어 뒀다 눌러도 실패시키지 않는다).
+	 */
+	private Long validChainSource(Long memberId, Long chainFromRecordId) {
+		if (chainFromRecordId == null) {
+			return null;
+		}
+		LocalDateTime since = LocalDateTime.now().minus(RecordRewardService.CHAIN_WINDOW);
+		return breadRecordRepository.findByIdAndDeletedAtIsNull(chainFromRecordId)
+			.filter(source -> source.getMember().getId().equals(memberId))
+			.filter(source -> source.getCreatedAt() != null && source.getCreatedAt().isAfter(since))
+			.map(BreadRecord::getId)
+			.orElse(null);
 	}
 
 	public BreadRecordUpdateResponse replace(Long recordId, Long memberId, BreadRecordUpsertRequest request) {

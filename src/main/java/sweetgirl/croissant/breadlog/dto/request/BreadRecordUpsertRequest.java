@@ -32,7 +32,31 @@ public record BreadRecordUpsertRequest(
 		 */
 		UUID requestId,
 		/** "이 집 또 갈래요". 생성 때 없으면 null(미정), 수정 때 없으면(구버전 앱) 지금 값을 그대로 둔다 */
-		Boolean revisit) {
+		Boolean revisit,
+		/**
+		 * 바로 앞에 저장한 기록 번호(선택). 기록 완료 화면의 "연속 기록하고 2배 받기"로 이어 쓴 기록이면 앱이 싣는다 —
+		 * 그 기록이 내 것이고 방금(30분 안) 저장됐으면 이번 기록 보상을 한 번 더 준다. 생성에서만 보고 수정에서는 보지 않는다.
+		 */
+		Long chainFromRecordId) {
+
+	/** 연속 기록을 모르는 쪽에서 만든다. */
+	public BreadRecordUpsertRequest(
+			Long storeId,
+			String storeName,
+			String regionKey,
+			String memo,
+			String lovedBread,
+			List<String> lovedBreads,
+			String towerBread,
+			LocalDateTime eatenAt,
+			List<BreadRecordPhotoRequest> photos,
+			List<BreadRecordTagRequest> tags,
+			Boolean isPublic,
+			UUID requestId,
+			Boolean revisit) {
+		this(storeId, storeName, regionKey, memo, lovedBread, lovedBreads, towerBread, eatenAt, photos, tags,
+			isPublic, requestId, revisit, null);
+	}
 
 	/** 또 갈래요를 모르는 쪽에서 만든다. */
 	public BreadRecordUpsertRequest(
