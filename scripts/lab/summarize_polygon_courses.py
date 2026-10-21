@@ -60,10 +60,10 @@ def main():
                 same=sum(abs(d)<=1e-9 for d in deltas), minScoreDelta=min(deltas),
                 meanScoreDelta=statistics.mean(deltas)))
     root=Path(__file__).resolve().parents[2]
-    sources=['src/test/java/sweetgirl/croissant/recommendation/PolygonCourseComparisonLabTest.java',
-             'src/main/java/sweetgirl/croissant/recommendation/repository/RecommendationCandidateJdbcRepository.java',
-             'src/main/java/sweetgirl/croissant/recommendation/service/CourseRecommendationCommandService.java',
-             'src/main/java/sweetgirl/croissant/recommendation/config/RecommendationProperties.java',
+    sources=['core/src/test/java/sweetgirl/croissant/recommendation/PolygonCourseComparisonLabTest.java',
+             'core/src/main/java/sweetgirl/croissant/recommendation/repository/RecommendationCandidateJdbcRepository.java',
+             'core/src/main/java/sweetgirl/croissant/recommendation/service/CourseRecommendationCommandService.java',
+             'core/src/main/java/sweetgirl/croissant/recommendation/config/RecommendationProperties.java',
              'scripts/lab/course_polygon_input.py', 'scripts/lab/summarize_polygon_courses.py']
     result={'gitBase':subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip(),
             'inputSha256':hashlib.sha256(args.input.read_bytes()).hexdigest(),

@@ -39,7 +39,7 @@ from google import genai
 from google.genai import types
 
 ROOT = Path(__file__).resolve().parent.parent
-MENU_KIND_JAVA = ROOT / "src/main/java/sweetgirl/croissant/menu/enums/MenuKind.java"
+MENU_KIND_JAVA = ROOT / "core/src/main/java/sweetgirl/croissant/menu/enums/MenuKind.java"
 OUT_CSV = Path(__file__).resolve().parent / "menu_ai_eval.csv"
 
 # 크롤러가 분류에 실패했을 때 떨어지는 통 — naver_match.DEFAULT_CATEGORY 및 과거 유입분

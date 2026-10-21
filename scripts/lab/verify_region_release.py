@@ -24,7 +24,7 @@ def main():
         raise ValueError('Unexpected release transaction shape')
     release = release.replace('BEGIN; SET LOCAL lock_timeout=', 'SET LOCAL lock_timeout=', 1).rstrip()[:-len('COMMIT;')]
     schema = 'region_release_test_' + uuid.uuid4().hex
-    migrations = '\n'.join((ROOT / 'src/main/resources/db/migration' / name).read_text() for name in (
+    migrations = '\n'.join((ROOT / 'core/src/main/resources/db/migration' / name).read_text() for name in (
         'V20261013190000__create_store_region_boundaries.sql', 'V20261013200000__bind_course_areas_to_regions.sql'))
     statement = f'BEGIN; CREATE SCHEMA {schema}; SET LOCAL search_path TO {schema},public;\n{migrations}\n{release}\n'
     statement += f"""SELECT json_build_object(

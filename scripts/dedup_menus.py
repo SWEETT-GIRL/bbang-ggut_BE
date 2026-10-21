@@ -15,7 +15,7 @@
   - cutoff 이전끼리 중복이 남는 그룹은 인덱스 생성을 막으므로 별도 집계해 경고
 
 기본은 dry-run(변경 없음). 실제 적용은 --apply.
-DB 접속 정보는 src/main/resources/application-local.properties 에서 읽음.
+DB 접속 정보는 api/src/main/resources/application-local.properties 에서 읽음.
 
 실행:
   scripts/.venv/bin/python scripts/dedup_menus.py            # dry-run 리포트
@@ -41,7 +41,7 @@ def jnorm(s: str) -> str:
 
 def load_props() -> dict:
 	props = (Path(__file__).resolve().parent.parent
-			/ "src/main/resources/application-local.properties")
+			/ "api/src/main/resources/application-local.properties")
 	cfg = {}
 	for line in props.read_text(encoding="utf-8").splitlines():
 		line = line.strip()

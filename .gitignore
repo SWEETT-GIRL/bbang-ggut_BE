@@ -40,7 +40,7 @@ out/
 .omc/
 
 ### Firebase credentials ###
-src/main/resources/firebase/
+**/src/main/resources/firebase/
 
 ### AWS credentials — 프로젝트 안에 두지 말 것 (~/.aws/credentials 사용) ###
 .aws/

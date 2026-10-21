@@ -49,7 +49,7 @@ jobs:
 
       - name: Create application-prod.properties
         run: |
-          cat > src/main/resources/application-prod.properties << 'EOF'
+          cat > api/src/main/resources/application-prod.properties << 'EOF'
           spring.datasource.url=${DB_URL}
           spring.datasource.username=${DB_USERNAME}
           spring.datasource.password=${DB_PASSWORD}
@@ -199,8 +199,8 @@ jobs:
         env:
           FIREBASE_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
         run: |
-          mkdir -p src/main/resources/firebase
-          echo "$FIREBASE_JSON" > src/main/resources/firebase/firebase-service-account.json
+          mkdir -p api/src/main/resources/firebase
+          echo "$FIREBASE_JSON" > api/src/main/resources/firebase/firebase-service-account.json
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5

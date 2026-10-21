@@ -1,0 +1,63 @@
+// 공통 도메인 — api·batch 가 함께 쓴다. 실행 JAR 이 아니라 라이브러리로 만든다.
+// 의존성은 단일 모듈 시절 그대로 두고(api 로 노출), 모듈 분리가 끝난 뒤 쓰는 쪽으로 옮긴다.
+plugins {
+    id 'java-library'
+    // 테스트 설정(application.properties)·픽스처를 api 테스트도 함께 쓴다
+    id 'java-test-fixtures'
+}
+
+dependencies {
+    // Spring Boot Starters
+    api 'org.springframework.boot:spring-boot-starter'
+    api 'org.springframework.boot:spring-boot-starter-web'
+    api 'org.springframework.boot:spring-boot-starter-actuator'
+    api 'org.springframework.boot:spring-boot-starter-data-jpa'
+    api 'org.springframework.boot:spring-boot-starter-validation'
+    api 'org.springframework.boot:spring-boot-starter-security'
+    api 'org.springframework.boot:spring-boot-starter-restclient'
+    api 'org.springframework.boot:spring-boot-starter-cache'
+    api 'com.github.ben-manes.caffeine:caffeine'
+    // 자동완성 캐시 — 배포(blue/green 전환)로 JVM 이 바뀌어도 남아야 해서 앱 밖에 둔다
+    api 'org.springframework.boot:spring-boot-starter-data-redis'
+    // @Timed 등 애노테이션 기반 계측용 (Boot 4부터 starter-aop → starter-aspectj)
+    api 'org.springframework.boot:spring-boot-starter-aspectj'
+    api 'com.nimbusds:nimbus-jose-jwt:9.37.3'
+
+    // Metrics & Monitoring
+    api 'io.micrometer:micrometer-registry-prometheus'
+
+    // Database & Persistence
+    api 'org.hibernate.orm:hibernate-spatial'
+    api 'org.springframework.boot:spring-boot-flyway'
+    api 'org.flywaydb:flyway-core'
+    api 'org.flywaydb:flyway-database-postgresql'
+    runtimeOnly 'org.postgresql:postgresql'
+    // 스케줄 작업 중복 실행 방지 — blue-green 배포 겹침·다중 인스턴스에서 같은 cron 이 두 번 돌지 않게 (Spring 7 은 ShedLock 7.x)
+    api 'net.javacrumbs.shedlock:shedlock-spring:7.10.1'
+    api 'net.javacrumbs.shedlock:shedlock-provider-jdbc-template:7.10.1'
+
+    //OAuth
+    api 'org.springframework.boot:spring-boot-starter-oauth2-client'
+
+    // JSON & JWT
+    api 'com.fasterxml.jackson.core:jackson-databind'
+    // 단일 모듈 시절엔 springdoc(swagger-core) 을 통해 딸려 왔다 — springdoc 이 api 로 가면서 직접 선언한다
+    api 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+    api 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+    // DTO 의 @Schema — Swagger UI(springdoc) 자체는 api 모듈에만 둔다. 버전은 springdoc 2.8.4 가 쓰는 것과 맞춘다
+    api 'io.swagger.core.v3:swagger-annotations-jakarta:2.2.28'
+
+    // Firebase
+    api 'com.google.firebase:firebase-admin:9.4.2'
+
+    //AWS S3
+    api 'software.amazon.awssdk:s3:2.42.41'
+
+    // 픽스처가 ReflectionTestUtils 로 엔티티 id 를 채운다
+    testFixturesImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testFixturesCompileOnly 'org.projectlombok:lombok'
+    testFixturesAnnotationProcessor 'org.projectlombok:lombok'
+}

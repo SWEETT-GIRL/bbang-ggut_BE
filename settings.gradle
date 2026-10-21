@@ -1,1 +1,4 @@
 rootProject.name = 'Croissant'
+
+// core = 엔티티·리포지토리·서비스 등 공통 도메인, api = 앱이 부르는 HTTP 서버(v2 ASG)
+include 'core', 'api'

@@ -13,7 +13,7 @@ source_url 로 저장해 (1) 278px 썸네일이 S3 에 올라갔고 (2) 같은 �
   3) 다운로드 실패한 행은 기존 저화질 유지(건너뜀).
 
 기본은 dry-run(변경 없음). 실제 적용은 --apply.
-DB/S3 접속 정보는 src/main/resources/application-local.properties 에서 읽음.
+DB/S3 접속 정보는 api/src/main/resources/application-local.properties 에서 읽음.
 
 실행:
   scripts/.venv/bin/python scripts/upgrade_store_photos.py            # dry-run 리포트
@@ -63,7 +63,7 @@ def canonicalize_pstatic(src: str) -> str:
 
 def load_props() -> dict:
 	props = (Path(__file__).resolve().parent.parent
-			/ "src/main/resources/application-local.properties")
+			/ "api/src/main/resources/application-local.properties")
 	cfg = {}
 	for line in props.read_text(encoding="utf-8").splitlines():
 		line = line.strip()

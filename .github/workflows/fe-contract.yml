@@ -11,11 +11,12 @@ on:
   pull_request:
     branches: [ main, dev ]
     paths:
-      - 'src/main/java/**/dto/**'
-      - 'src/main/java/**/controller/**'
-      - 'src/main/java/sweetgirl/croissant/global/response/**'
-      - 'src/main/java/sweetgirl/croissant/config/docs/**'
-      - 'build.gradle'
+      - 'core/src/main/java/**/dto/**'
+      - 'api/src/main/java/**/controller/**'
+      - 'core/src/main/java/sweetgirl/croissant/global/response/**'
+      - 'api/src/main/java/sweetgirl/croissant/config/docs/**'
+      - '**/build.gradle'
+      - 'settings.gradle'
       - '.github/workflows/fe-contract.yml'
       - 'scripts/ci/fe_contract_summary.py'
 
@@ -67,7 +68,7 @@ jobs:
         working-directory: be
         run: |
           chmod +x ./gradlew
-          ./gradlew test -PopenapiExport --tests 'sweetgirl.croissant.config.docs.OpenApiSpecExportTest' --no-daemon
+          ./gradlew :api:test -PopenapiExport --tests 'sweetgirl.croissant.config.docs.OpenApiSpecExportTest' --no-daemon
 
       - name: Pick FE branch
         if: steps.access.outputs.enabled == 'true'
@@ -127,7 +128,7 @@ jobs:
         if: steps.contract.outputs.present == 'true'
         working-directory: fe
         env:
-          OPENAPI_SPEC: ${{ github.workspace }}/be/build/openapi/openapi.json
+          OPENAPI_SPEC: ${{ github.workspace }}/be/api/build/openapi/openapi.json
         run: npm run gen:api
 
       - name: Type check FE
