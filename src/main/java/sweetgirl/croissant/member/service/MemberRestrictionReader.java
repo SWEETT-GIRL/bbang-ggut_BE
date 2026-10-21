@@ -21,6 +21,11 @@ public class MemberRestrictionReader {
 		MemberRestrictionType.SUSPENDED,
 		MemberRestrictionType.BANNED);
 
+	/** 글이 아닌 상호작용(팔로우 · 좋아요)까지 막는 제재. 작성 제한은 글만 막으므로 여기 없다. */
+	private static final List<MemberRestrictionType> INTERACTION_BLOCKING_TYPES = List.of(
+		MemberRestrictionType.SUSPENDED,
+		MemberRestrictionType.BANNED);
+
 	private final MemberRestrictionRepository memberRestrictionRepository;
 	private final MemberReader memberReader;
 
@@ -60,6 +65,23 @@ public class MemberRestrictionReader {
 			throw new MemberException(MemberErrorCode.UNAUTHORIZED);
 		}
 		if (isWriteRestricted(memberId)) {
+			throw new MemberException(MemberErrorCode.MEMBER_WRITE_RESTRICTED);
+		}
+	}
+
+	/**
+	 * 팔로우 · 좋아요처럼 글을 남기지 않는 상호작용을 할 수 있는가 — 정지(SUSPENDED) · 강퇴(BANNED)만 막는다.
+	 *
+	 * <p>정지는 "로그인은 되지만 읽기 전용"이다. 작성 제한(WRITE_RESTRICTED)은 남에게 보이는 글(댓글 · 공개 전환 · 태그 · 톡)만
+	 * 못 쓰고 팔로우 · 좋아요는 된다. 게스트 여부는 부르는 쪽이 {@link MemberReader#requireLoggedIn} 으로 먼저 본다.
+	 */
+	public void validateCanInteract(Long memberId) {
+		if (memberId == null) {
+			throw new MemberException(MemberErrorCode.UNAUTHORIZED);
+		}
+		boolean suspended = !memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(
+			memberId, INTERACTION_BLOCKING_TYPES, LocalDateTime.now()).isEmpty();
+		if (suspended) {
 			throw new MemberException(MemberErrorCode.MEMBER_WRITE_RESTRICTED);
 		}
 	}
