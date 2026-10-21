@@ -27,7 +27,7 @@ from google import genai
 from google.genai import errors, types
 
 ROOT = Path(__file__).resolve().parent.parent
-MENU_KIND_JAVA = ROOT / "src/main/java/sweetgirl/croissant/menu/enums/MenuKind.java"
+MENU_KIND_JAVA = ROOT / "core/src/main/java/sweetgirl/croissant/menu/enums/MenuKind.java"
 OUT_CSV = Path(__file__).resolve().parent / "menu_kind_suggestions.csv"
 
 JUNK_KINDS = ("빵", "기타")

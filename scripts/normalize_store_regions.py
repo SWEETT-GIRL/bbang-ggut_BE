@@ -27,7 +27,7 @@ BATCH_SIZE = 50
 
 
 def _load_properties() -> dict[str, str]:
-    path = Path(__file__).resolve().parent.parent / "src/main/resources/application-local.properties"
+    path = Path(__file__).resolve().parent.parent / "api/src/main/resources/application-local.properties"
     cfg: dict[str, str] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()

@@ -57,8 +57,8 @@ def main():
                     meanScoreDelta=average(deltas),
                     controlFits=sum(new['controlFits'] for new,old in values)))
     root=Path(__file__).resolve().parents[2]
-    sources=['src/test/java/sweetgirl/croissant/recommendation/PolygonCourseComparisonLabTest.java',
-             'src/test/java/sweetgirl/croissant/recommendation/PolygonMemberCourseLabTest.java',
+    sources=['core/src/test/java/sweetgirl/croissant/recommendation/PolygonCourseComparisonLabTest.java',
+             'core/src/test/java/sweetgirl/croissant/recommendation/PolygonMemberCourseLabTest.java',
              'scripts/lab/summarize_polygon_members.py']
     result=dict(gitBase=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip(),
                 inputSha256=hashlib.sha256(args.input.read_bytes()).hexdigest(),

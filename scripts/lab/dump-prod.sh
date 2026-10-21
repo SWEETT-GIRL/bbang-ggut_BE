@@ -25,7 +25,7 @@ PII_TABLES=(
 )
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-PROPS="${PROPS:-$REPO_ROOT/src/main/resources/application-local.properties}"
+PROPS="${PROPS:-$REPO_ROOT/api/src/main/resources/application-local.properties}"
 OUT_DIR="${LAB_DUMP_DIR:-$HOME/bbanggut-lab/dumps}"
 mkdir -p "$OUT_DIR"
 

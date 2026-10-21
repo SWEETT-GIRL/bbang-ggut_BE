@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+	<springProperty name="slackWebhookUrl" source="slack.webhook.url" defaultValue=""/>
+
+	<appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+		<encoder>
+			<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{requestId:-}] [%X{memberId:-}] %logger{36} - %msg%n</pattern>
+		</encoder>
+	</appender>
+
+	<appender name="SLACK" class="sweetgirl.croissant.global.logging.SlackWebhookAppender">
+		<webhookUrl>${slackWebhookUrl}</webhookUrl>
+		<filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+			<level>ERROR</level>
+		</filter>
+	</appender>
+
+	<appender name="ASYNC_SLACK" class="ch.qos.logback.classic.AsyncAppender">
+		<appender-ref ref="SLACK"/>
+		<queueSize>256</queueSize>
+		<discardingThreshold>0</discardingThreshold>
+		<includeCallerData>true</includeCallerData>
+	</appender>
+
+	<springProfile name="local,v2,batch">
+		<root level="INFO">
+			<appender-ref ref="CONSOLE"/>
+		</root>
+	</springProfile>
+
+	<springProfile name="staging,prod">
+		<root level="INFO">
+			<appender-ref ref="CONSOLE"/>
+			<appender-ref ref="ASYNC_SLACK"/>
+		</root>
+	</springProfile>
+
+</configuration>

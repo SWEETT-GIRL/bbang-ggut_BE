@@ -29,13 +29,13 @@ from pathlib import Path
 import psycopg2
 
 ENUM_FILE = Path(__file__).resolve().parent.parent \
-    / "src/main/java/sweetgirl/croissant/store/enums/Region3rd.java"
+    / "core/src/main/java/sweetgirl/croissant/store/enums/Region3rd.java"
 DEFAULT_OUT = Path(__file__).resolve().parent.parent \
     / "scripts/region_tree.json"
 
 
 def _load_properties() -> dict[str, str]:
-    path = Path(__file__).resolve().parent.parent / "src/main/resources/application-local.properties"
+    path = Path(__file__).resolve().parent.parent / "api/src/main/resources/application-local.properties"
     cfg: dict[str, str] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()

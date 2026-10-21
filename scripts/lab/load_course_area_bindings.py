@@ -83,7 +83,7 @@ def main():
                              'FROM public.course_area WHERE is_active) a;'))
     bindings = course_area_bindings(areas, args.reference, args.historical_reference)
     if query(f"SELECT to_regclass('{RUNTIME_SCHEMA}.course_area_region_bindings') IS NOT NULL;") != 't':
-        migration = ROOT / 'src/main/resources/db/migration/V20261013200000__bind_course_areas_to_regions.sql'
+        migration = ROOT / 'core/src/main/resources/db/migration/V20261013200000__bind_course_areas_to_regions.sql'
         query(f'BEGIN; SET LOCAL search_path TO {RUNTIME_SCHEMA}, public; {migration.read_text()} COMMIT;')
     query(f"""BEGIN; SET LOCAL search_path TO {RUNTIME_SCHEMA}, public;
         CREATE TEMP TABLE binding_import ON COMMIT DROP AS

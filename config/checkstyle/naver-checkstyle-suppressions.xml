@@ -8,4 +8,6 @@
     <suppress files=".*Tests?\.java" checks="RightCurly"/>
     <!-- spotless collapses empty interface body to `{}` which conflicts with WhitespaceAround rule -->
     <suppress files=".*RequestLogRepository\.java" checks="WhitespaceAround"/>
+    <!-- spotless removes the space before an annotation type body (`@interface Name{`) which conflicts with WhitespaceAround -->
+    <suppress files=".*[\\/]batch[\\/]job[\\/]BatchJob\.java" checks="WhitespaceAround"/>
 </suppressions>

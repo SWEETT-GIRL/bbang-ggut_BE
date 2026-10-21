@@ -89,7 +89,7 @@ jobs:
           # 전체 자바 테스트는 develop-v2 PR의 CI에서 실행한다.
           ./gradlew build -x test -x installGitHooks --no-daemon
           mkdir -p build/v2
-          mapfile -t jars < <(find build/libs -maxdepth 1 -name '*.jar' ! -name '*-plain.jar')
+          mapfile -t jars < <(find api/build/libs -maxdepth 1 -name '*.jar' ! -name '*-plain.jar')
           test "${#jars[@]}" -eq 1
           cp "${jars[0]}" build/v2/app.jar
       - uses: docker/setup-qemu-action@v3

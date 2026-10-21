@@ -22,7 +22,7 @@ CSV = Path(__file__).resolve().parent / "placeid_mismatch.csv"
 
 def load_props() -> dict:
 	props = (Path(__file__).resolve().parent.parent
-			/ "src/main/resources/application-local.properties")
+			/ "api/src/main/resources/application-local.properties")
 	cfg = {}
 	for line in props.read_text(encoding="utf-8").splitlines():
 		line = line.strip()

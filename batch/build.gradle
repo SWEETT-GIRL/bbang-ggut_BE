@@ -1,0 +1,11 @@
+// 배치 EC2 에서 도는 앱 — EventBridge 가 EC2 를 켜면 Lambda 가 SSM 으로 작업 하나를 지정해 실행한다.
+// 예: java -jar batch.jar --batch.job=ranking-snapshot
+plugins {
+    id 'org.springframework.boot'
+}
+
+dependencies {
+    implementation project(':core')
+
+    testImplementation testFixtures(project(':core'))
+}

@@ -69,5 +69,5 @@ jobs:
         with:
           name: test-reports
           path: |
-            build/reports/tests/test
-            build/test-results/test
+            */build/reports/tests/test
+            */build/test-results/test

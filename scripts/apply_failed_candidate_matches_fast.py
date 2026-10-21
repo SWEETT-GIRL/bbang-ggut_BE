@@ -22,7 +22,7 @@ from apply_failed_candidate_matches import choose_candidate, update_naver_place_
 from naver_menu_scraper import DEFAULT_SERVER
 
 
-DEFAULT_DB_PROPS = Path("src/main/resources/application-local.properties")
+DEFAULT_DB_PROPS = Path("api/src/main/resources/application-local.properties")
 
 
 def read_props(path: Path) -> dict[str, str]:

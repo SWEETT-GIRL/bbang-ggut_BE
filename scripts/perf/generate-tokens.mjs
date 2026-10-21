@@ -20,7 +20,7 @@
 import { createHmac } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 
-const PROPERTIES = "src/main/resources/application-local.properties";
+const PROPERTIES = "api/src/main/resources/application-local.properties";
 const EXPIRY_KEY = "jwt.access-token-expiry";
 const SECRET_KEY = "jwt.secret";
 
