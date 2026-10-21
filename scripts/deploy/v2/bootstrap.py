@@ -101,12 +101,12 @@ def main():
             input=hub['token'], text=True, env=docker_env)
         run('docker', 'pull', config['image'], env=docker_env)
         # 재부팅 시에도 같은 digest를 사용한다. 이미지 pull 실패 시 기존 컨테이너를 먼저 지우지 않는다.
-        existing = run('docker', 'ps', '-a', '--filter', 'name=^/bbang-v2$',
+        existing = run('docker', 'ps', '-a', '--filter', 'name=^/bbang-ggut-v2$',
                        '--format', '{{.Names}}', capture_output=True, text=True).stdout.strip()
         if existing:
-            run('docker', 'stop', '--time', '30', 'bbang-v2')
-            run('docker', 'rm', 'bbang-v2')
-        run('docker', 'run', '-d', '--name', 'bbang-v2', '--restart', 'unless-stopped',
+            run('docker', 'stop', '--time', '30', 'bbang-ggut-v2')
+            run('docker', 'rm', 'bbang-ggut-v2')
+        run('docker', 'run', '-d', '--name', 'bbang-ggut-v2', '--restart', 'unless-stopped',
             '--memory', '1536m', '--log-opt', 'max-size=10m', '--log-opt', 'max-file=3',
             '--stop-timeout', '30', '--env-file', str(env_path),
             '-e', 'SPRING_PROFILES_ACTIVE=v2', '-e', 'AWS_REGION=ap-northeast-2',
@@ -125,7 +125,7 @@ def main():
         except OSError:
             pass
         time.sleep(5)
-    raise RuntimeError('v2 readiness did not pass; inspect docker logs bbang-v2')
+    raise RuntimeError('v2 readiness did not pass; inspect docker logs bbang-ggut-v2')
 
 
 if __name__ == '__main__':
