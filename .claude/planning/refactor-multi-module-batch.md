@@ -173,6 +173,18 @@ dataops/                Python — scripts/, agent/ (Gradle 밖, 배치 이미�
 | `reward-attendance-reminder` | 매일 20:00 | |
 | `monthly-report-run-due` | (꺼져 있었음, `-`) | 규칙 없이 두면 안 돈다 |
 
+### 2.7.3 3~6단계 결과 (브랜치 `feat/dataops-into-batch`)
+- **3단계 — dataops Java → batch 모듈** (계획 변경: 패키지 `sweetgirl.dataops` 유지)
+  - WAS 배치 앱 컨텍스트에 섞으면 `@Transactional` 32곳·`PlatformTransactionManager`/`DataSource` 타입 주입 10곳·엔티티/리포지토리 스캔을 전부 둘로 갈라야 하고, 하나라도 놓치면 dataops 쓰기가 WAS 트랜잭션으로 새는 조용한 버그가 된다
+  - 그래서 같은 JAR 안의 **별도 Spring 앱**으로 둔다 — `sweetgirl.croissant` 스캔 밖이라 서로 안 섞이고, 트랜잭션·DataSource 코드는 무변경
+  - 설정 `dataops.properties`(+`-local`·`-prod`), Flyway `db/dataops-migration`, 운영은 RDS `dataops` 스키마
+  - Security 가 클래스패스에 들어와 `X-Dataops-Key` API 키 필터(키 없으면 로컬처럼 통과)
+  - 원본 대비 수정: main 3·test 8 파일. dataops 테스트 489개 원본과 같은 결과(통과 424·건너뜀 65). dataops 패키지는 spotless·checkstyle 제외(원본 유지)
+- **4단계 — Python·데이터 → `dataops/`**: 서버 호출 19곳 `X-Dataops-Key`, Java·WAS 소스 경로를 batch·core 기준으로, `requirements.txt` 신설, `local_db` 스키마(`DATAOPS_DB_SCHEMA`)·운영 DB 호스트(`PROD_DB_HOST`) 환경 변수. agent 는 옮기기만(신뢰 소스 사본 줄바꿈 보존)
+- **5단계 — 이미지·CD**: `Dockerfile.batch`(temurin 17 noble + Python 3.12 venv + Playwright Chromium), `entrypoint.sh`(job·dataops-nightly·dataops-server·dataops), EC2 `bbang-batch`(runner.py: 실행 시 Parameter Store 읽기), `deploy.py`(꺼져 있으면 켜서 설치 후 다시 끔, 작업 중이면 안 끔), `cd-batch.yml`(`BATCH_DEPLOY_ENABLED` 게이트), `cd-v2` 는 배치 전용 경로 무시, `ci-v2` 에 Python·배포 테스트·이미지 빌드
+- **6단계 — runbook**: `docs/batch-server-runbook.md` (IAM·Parameter Store·RDS 스키마·데이터 이전·Lambda 명령·EventBridge 표·차단 감시)
+  - 수집은 10:10 권장 — t4g.small 은 컨테이너 하나만 감당하므로 04:00~09:00 작업과 겹치면 안 된다
+
 ### 2.8 위험 요소
 | 위험 | 대응 |
 |---|---|
