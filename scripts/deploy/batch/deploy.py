@@ -1,10 +1,11 @@
 """배치 EC2 배포(GitHub Actions 에서 실행). main() 외에는 AWS 호출을 하지 않는다.
 
-1. 인스턴스가 꺼져 있으면 켠다(EventBridge·Lambda 가 평소에 끄고 켜는 EC2).
-2. SSM Run Command 로 runner.py(bbang-batch)와 config.json(이미지 digest·파라미터 경로)을 설치하고 `bbang-batch install` 로 이미지를 받는다.
-3. 이 배포가 켠 인스턴스면 다시 끈다 — 단, 그 사이 Lambda 가 띄운 작업이 돌고 있으면 끄지 않는다.
+1. 예약 작업(Scheduler → Step Functions sweetgirl-batch-lifecycle)과 같은 DynamoDB 락을 잡는다 — 작업이 도는 중이면 끝날 때까지 기다린다.
+2. 인스턴스가 꺼져 있으면 켜고, SSM Run Command 로 runner.py(bbang-batch)와 config.json(이미지 digest·파라미터 경로)을 설치한 뒤 `bbang-batch install` 로 이미지를 받는다.
+3. 이 배포가 켠 인스턴스면 다시 끄고, 꺼진 걸 확인한 뒤 락을 놓는다.
 """
 import base64
+from datetime import datetime, timezone
 import gzip
 import json
 import os
@@ -16,6 +17,9 @@ REGION = 'ap-northeast-2'
 INSTANCE = re.compile(r'i-[0-9a-f]{8,17}')
 IMAGE = re.compile(r'(?:docker\.io/)?[a-z0-9][a-z0-9_-]*/[a-z0-9][a-z0-9._-]*@sha256:[0-9a-f]{64}')
 PREFIX = re.compile(r'/sweetgirl/prod/v2/batch(?:/[A-Za-z0-9_-]+){0,8}')
+LOCK_TABLE = 'sweetgirl-batch-execution-lock'
+# 배포 락 주인 접두어 — lambda-sweetgirl-batch-stop 이 이 접두어를 보고 복구 대상에서 뺀다
+DEPLOY_OWNER_PREFIX = 'github-deploy:'
 TERMINAL = {'Success', 'Cancelled', 'TimedOut', 'Failed', 'Cancelling', 'Undeliverable', 'Terminated'}
 
 
@@ -91,6 +95,37 @@ def wait_ssm_online(ssm, instance_id, timeout_seconds=600):
     raise TimeoutError('SSM agent did not come online')
 
 
+def lease_owner(environ):
+    return f"{DEPLOY_OWNER_PREFIX}{environ.get('GITHUB_RUN_ID', 'local')}-{environ.get('GITHUB_RUN_ATTEMPT', '1')}"
+
+
+def acquire_lease(dynamodb, instance_id, owner, wait_seconds=3600, poll_seconds=15):
+    deadline = time.time() + wait_seconds
+    while True:
+        try:
+            dynamodb.put_item(
+                TableName=LOCK_TABLE,
+                Item={'lock_id': {'S': instance_id}, 'owner': {'S': owner}, 'job_id': {'S': 'deploy'},
+                      'started_at': {'S': datetime.now(timezone.utc).isoformat()}},
+                ConditionExpression='attribute_not_exists(lock_id)')
+            return
+        except dynamodb.exceptions.ConditionalCheckFailedException:
+            if time.time() >= deadline:
+                raise TimeoutError('A batch job kept the execution lock; deployment skipped')
+            print('a batch job owns the execution lock — waiting')
+            time.sleep(poll_seconds)
+
+
+def release_lease(dynamodb, instance_id, owner):
+    try:
+        dynamodb.delete_item(TableName=LOCK_TABLE, Key={'lock_id': {'S': instance_id}},
+                             ConditionExpression='#owner = :owner',
+                             ExpressionAttributeNames={'#owner': 'owner'},
+                             ExpressionAttributeValues={':owner': {'S': owner}})
+    except dynamodb.exceptions.ConditionalCheckFailedException:
+        print('execution lock changed owner — leaving it')
+
+
 def main():
     import boto3
 
@@ -100,7 +135,17 @@ def main():
     validate(instance_id, image, prefix)
     ec2 = boto3.client('ec2', region_name=REGION)
     ssm = boto3.client('ssm', region_name=REGION)
+    dynamodb = boto3.client('dynamodb', region_name=REGION)
+    owner = lease_owner(os.environ)
 
+    acquire_lease(dynamodb, instance_id, owner)
+    try:
+        install(ec2, ssm, instance_id, image, prefix)
+    finally:
+        release_lease(dynamodb, instance_id, owner)
+
+
+def install(ec2, ssm, instance_id, image, prefix):
     state = instance_state(ec2, instance_id)
     started_here = False
     if state == 'stopping':
@@ -112,10 +157,9 @@ def main():
         started_here = True
     elif state not in ('pending', 'running'):
         raise RuntimeError(f'Unexpected instance state: {state}')
-    ec2.get_waiter('instance_running').wait(InstanceIds=[instance_id])
-    wait_ssm_online(ssm, instance_id)
-
     try:
+        ec2.get_waiter('instance_running').wait(InstanceIds=[instance_id])
+        wait_ssm_online(ssm, instance_id)
         result = send(ssm, instance_id, install_script(image, prefix), timeout_seconds=1800)
         print(result.get('StandardOutputContent', '')[-4000:])
         if result['Status'] != 'Success':
@@ -123,13 +167,10 @@ def main():
             raise RuntimeError(f'Batch install failed: {result["Status"]}')
     finally:
         if started_here:
-            busy = send(ssm, instance_id, 'bbang-batch busy', timeout_seconds=120)
-            if busy['Status'] == 'Success':
-                print('a batch job started meanwhile — leaving the instance running (Lambda stops it)')
-            else:
-                print('stopping the batch EC2 started for this deployment')
-                ec2.stop_instances(InstanceIds=[instance_id])
-
+            # 락을 쥐고 있으니 예약 작업이 끼어들 수 없다 — 꺼진 걸 확인한 뒤에 락을 놓는다
+            print('stopping the batch EC2 started for this deployment')
+            ec2.stop_instances(InstanceIds=[instance_id])
+            ec2.get_waiter('instance_stopped').wait(InstanceIds=[instance_id])
 
 if __name__ == '__main__':
     main()

@@ -58,6 +58,51 @@ class DeployTest(unittest.TestCase):
         self.assertNotIn('token', script.lower().replace('--password-stdin', ''))
 
 
+class FakeDynamo:
+
+    class exceptions:
+        class ConditionalCheckFailedException(Exception):
+            pass
+
+    def __init__(self, owner=None):
+        self.owner = owner
+        self.puts = 0
+
+    def put_item(self, TableName, Item, ConditionExpression):
+        assert TableName == deploy.LOCK_TABLE and ConditionExpression == 'attribute_not_exists(lock_id)'
+        self.puts += 1
+        if self.owner is not None:
+            raise self.exceptions.ConditionalCheckFailedException()
+        self.owner = Item['owner']['S']
+
+    def delete_item(self, TableName, Key, ConditionExpression, ExpressionAttributeNames, ExpressionAttributeValues):
+        if self.owner != ExpressionAttributeValues[':owner']['S']:
+            raise self.exceptions.ConditionalCheckFailedException()
+        self.owner = None
+
+
+class DeployLeaseTest(unittest.TestCase):
+
+    def test_락_주인은_배포_접두어와_실행_번호다(self):
+        self.assertEqual(deploy.lease_owner({'GITHUB_RUN_ID': '42', 'GITHUB_RUN_ATTEMPT': '2'}), 'github-deploy:42-2')
+
+    def test_비어_있으면_잡고_내_락만_놓는다(self):
+        dynamo = FakeDynamo()
+        deploy.acquire_lease(dynamo, 'i-0743d492943fec320', 'github-deploy:1-1')
+        self.assertEqual(dynamo.owner, 'github-deploy:1-1')
+
+        deploy.release_lease(dynamo, 'i-0743d492943fec320', 'github-deploy:other')
+        self.assertEqual(dynamo.owner, 'github-deploy:1-1')
+        deploy.release_lease(dynamo, 'i-0743d492943fec320', 'github-deploy:1-1')
+        self.assertIsNone(dynamo.owner)
+
+    def test_예약_작업이_쥐고_있으면_기다리다_실패한다(self):
+        dynamo = FakeDynamo(owner='arn:aws:states:ap-northeast-2:1:execution:sweetgirl-batch-lifecycle:x')
+        with self.assertRaises(TimeoutError):
+            deploy.acquire_lease(dynamo, 'i-0743d492943fec320', 'github-deploy:1-1', wait_seconds=0, poll_seconds=0)
+        self.assertEqual(dynamo.puts, 1)
+
+
 class RunnerArgumentsTest(unittest.TestCase):
 
     def test_작업_이름은_kebab_case_만_받는다(self):

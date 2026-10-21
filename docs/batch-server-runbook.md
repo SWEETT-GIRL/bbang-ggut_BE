@@ -1,23 +1,21 @@
 # 배치 EC2 runbook
 
-배치 EC2(`i-0743d492943fec320`, t4g.small ARM64, 퍼블릭 IP 없음)는 평소 꺼져 있다. EventBridge 규칙이 시각마다 Lambda 를 부르고,
-Lambda 가 EC2 를 켜 SSM 으로 `bbang-batch <명령>` 을 보낸 뒤 끝나면 끈다. 이미지 설치는 `develop-v2` 머지 시 `cd-batch.yml` 이 한다.
+배치 EC2(`i-0743d492943fec320`, t4g.small ARM64 Ubuntu, 퍼블릭 IP 없음)는 평소 꺼져 있다. AWS 에 만들어 둔 파이프라인(§7)이
+작업 시각마다 EC2 를 켜 `bbang-batch <명령>` 을 돌리고 끈다. 이미지 설치는 `develop-v2` 머지 시 `cd-batch.yml` 이 한다.
 
 ```
-EventBridge ─▶ Lambda ─(StartInstances, SSM SendCommand)─▶ 배치 EC2
-                                                             └ bbang-batch job ranking-snapshot
-                                                                └ docker run <batch 이미지@digest> job ranking-snapshot
-                                                                   └ java -jar batch.jar --batch.job=ranking-snapshot  (종료 코드 0/1)
+Scheduler ─▶ Lambda start ─▶ Step Functions(락·EC2 켜기) ─▶ SSM 문서 SweetgirlBatchRun ─▶ 배치 EC2 ─▶ Lambda stop(EC2 끄기·락 풀기)
+                                                                                  └ bbang-batch job ranking-snapshot
+                                                                                     └ docker run <batch 이미지@digest> job ranking-snapshot
+                                                                                        └ java -jar batch.jar --batch.job=ranking-snapshot  (종료 코드 0/1)
 ```
 
 ## 1. 준비 순서 (처음 한 번)
 
-1. RDS 에 `dataops` 스키마·계정 만들기 (§4) → 기존 dataops 데이터 옮기기 (§5)
-2. IAM 역할 두 개 (§2) — 배포 역할 ARN 을 GitHub Variable `BATCH_AWS_ROLE_ARN` 에
-3. Parameter Store 등록 (§3)
-4. GitHub Variables: `BATCH_INSTANCE_ID=i-0743d492943fec320`, `BATCH_RUNTIME_PARAMETER_PREFIX=/sweetgirl/prod/v2/batch`, `BATCH_AWS_ROLE_ARN`
-5. `BATCH_DEPLOY_ENABLED=true` → 다음 develop-v2 머지(또는 마지막 cd-batch 실행 Re-run)로 설치
-6. 수동 점검 (§6) 후 EventBridge 규칙·Lambda (§7)
+1. IAM(§2) · Parameter Store(§3) · SSM 문서 · Step Functions · Lambda · Scheduler 작업 이름 · GitHub Variables — 레포 밖 리소스라 콘솔·CLI 로 맞춘다
+2. dataops 스키마·테이블은 첫 `dataops-nightly` 때 Flyway 가 만든다(WAS DB 계정 사용, §4). 기존 데이터를 이어 쓰려면 그 전에 §5
+3. `BATCH_DEPLOY_ENABLED=true` 뒤 develop-v2 머지(또는 마지막 cd-batch Re-run)로 설치
+4. Step Functions 를 손으로 한 번 실행해 확인(§6) → v1 cron 을 끈 날 Scheduler 일정을 켠다(§7)
 
 > EC2 OS 는 Ubuntu 를 가정한다(배포가 없으면 `apt-get install docker.io python3-boto3`). Amazon Linux 면 설치 줄을 바꿔야 한다.
 > 컨테이너가 인스턴스 역할로 S3 에 접근하려면 IMDSv2 **hop limit 을 2** 로 둔다(v2 WAS 와 같다): `aws ec2 modify-instance-metadata-options --instance-id i-0743d492943fec320 --http-put-response-hop-limit 2 --http-tokens required`
@@ -70,12 +68,14 @@ EventBridge ─▶ Lambda ─(StartInstances, SSM SendCommand)─▶ 배치 EC2
 
 ## 4. RDS — dataops 스키마
 
+지금은 `DATAOPS_DB_*` 에 WAS DB 계정을 넣고 URL 에 `currentSchema=dataops` 를 붙인다. 첫 기동 때 Flyway(`batch/src/main/resources/db/dataops-migration`)가
+`dataops` 스키마를 만들고(`spring.flyway.schemas`) 그 안에만 테이블을 만든다 — `public` 은 건드리지 않는다.
+
+운영 테이블 권한을 떼어 내려면 전용 계정으로 바꾼다(그 뒤 Parameter Store 의 `DATAOPS_DB_USERNAME`·`DATAOPS_DB_PASSWORD` 만 갈아 끼운다):
 ```sql
-CREATE ROLE dataops_service LOGIN PASSWORD '<Parameter Store 의 DATAOPS_DB_PASSWORD>';
-CREATE SCHEMA dataops AUTHORIZATION dataops_service;
--- 판정 서버가 운영 테이블을 읽는 건 DB_* 계정(별도 커넥션)이다. dataops_service 에 운영 테이블 권한을 주지 않는다
+CREATE ROLE dataops_service LOGIN PASSWORD '<새 비밀번호>';
+ALTER SCHEMA dataops OWNER TO dataops_service;   -- 테이블 소유자도 함께 옮긴다
 ```
-테이블은 판정 서버가 처음 뜰 때 Flyway(`batch/src/main/resources/db/dataops-migration`)가 `dataops` 스키마에만 만든다.
 
 ## 5. 기존 dataops 데이터 옮기기 (오라클 PG → RDS)
 
@@ -93,7 +93,16 @@ pg_restore --no-owner --no-acl --role=dataops_service -h <RDS> -U <관리 계정
 - 복원 전 `SELECT pg_size_pretty(sum(pg_total_relation_size(c.oid))) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public';` 로 옛 DB 크기를 보고 RDS 여유 공간을 확인한다(`place_snapshot` 원본 JSON 이 크다)
 - `flyway_schema_history` 도 함께 옮겨지므로 서버가 뜰 때 이미 적용된 것으로 본다
 
-## 6. 수동 점검 (bastion SSH 또는 SSM)
+## 6. 수동 점검
+
+예약과 같은 경로로 한 번 돌려 본다(EC2 켜기 → 작업 → 끄기까지):
+```bash
+aws lambda invoke --function-name lambda-sweetgirl-batch-start --cli-binary-format raw-in-base64-out \
+  --payload '{"job_id":"admin-audit-log-retention","request_id":"manual-'$(date +%s)'"}' /dev/stdout
+# Step Functions 콘솔에서 실행 상태, CloudWatch /sweetgirl/batch/ssm 에서 출력
+```
+
+EC2 가 켜져 있을 때 bastion SSH 또는 SSM 세션으로:
 
 ```bash
 bbang-batch job ranking-snapshot; echo "exit=$?"     # 0 성공 · 1 실패/모르는 작업
@@ -104,37 +113,39 @@ bbang-batch dataops weekly_refresh.py preflight --server http://127.0.0.1:8090  
 - 수집 상태·보고서·캡처 스풀은 `/opt/bbang-batch/dataops-logs` 에 남는다(`weekly/report_*.md`)
 - 반영(apply)·승인 스크립트는 사람이 판단해 `bbang-batch dataops <스크립트> ...` 로 돌린다
 
-## 7. EventBridge·Lambda
+## 7. 예약 실행 — Scheduler → Lambda → Step Functions → SSM 문서
 
-Lambda 는 EC2 를 켜고 SSM 명령을 보낸 뒤 바로 끝낸다(수집은 6시간이라 Lambda 15분 제한을 넘는다). 끄기는 명령 끝에 EC2 가 스스로 한다:
+AWS 에 이미 만들어 둔 파이프라인을 쓴다(레포 밖 리소스):
 
-```bash
-bbang-batch job ranking-snapshot; code=$?
-bbang-batch busy || shutdown -h +1      # 다른 작업이 돌고 있으면 끄지 않는다
-exit $code
-```
-(인스턴스 종료 동작이 `stop` 이어야 한다 — 기본값.) SSM 명령 결과(종료 코드·출력)는 Run Command 기록·CloudWatch 에 남는다.
+1. EventBridge Scheduler 그룹 `sweetgirl-batch` 의 일정이 `lambda-sweetgirl-batch-start` 를 `{"job_id": "<작업>"}` 으로 부른다. Lambda 는 `READY_JOBS` 에 있는 이름만 받는다.
+2. Step Functions `sweetgirl-batch-lifecycle` 이 DynamoDB `sweetgirl-batch-execution-lock` 락을 잡고(최대 1시간 대기) EC2 를 켠 뒤 SSM 이 붙기를 기다린다.
+3. SSM 문서 `SweetgirlBatchRun` 이 EC2 에서 `bbang-batch job <작업>`(수집은 `bbang-batch dataops-nightly`)을 돌린다. 출력은 CloudWatch `/sweetgirl/batch/ssm` 에 남는다.
+4. 끝나면(성공·실패·시간 초과 모두) `lambda-sweetgirl-batch-stop` 이 EC2 를 끄고 락을 놓는다. 비정상 종료는 `sweetgirl-batch-*-recovery` 규칙이 같은 Lambda 로 치운다.
 
-| 작업 (`bbang-batch ...`) | 기존 시각(KST) | 비고 |
+**배포(cd-batch)도 같은 락을 잡는다**(주인 `github-deploy:<run id>`) — 작업이 도는 중이면 끝날 때까지 기다리고, 배포가 켠 EC2 는 끈 뒤 락을 놓는다. stop Lambda 는 이 락을 복구 대상에서 빼고 2시간 넘게 남으면 치운다.
+
+새 작업을 더하면 `@BatchJob` 이름을 세 곳에 함께 넣는다: Lambda `READY_JOBS`, SSM 문서 `jobId.allowedValues`(새 버전 → Step Functions `RunJob.DocumentVersion`), Scheduler 일정.
+
+| `job_id` | 기존 시각(KST) | 비고 |
 |---|---|---|
-| `job ranking-snapshot` | 매일 00:05 | |
-| `job ranking-reward-issue` | 월 00:15·00:45·06:30 | 재시도 겸 3회 |
-| `job store-popularity-score` | 월 03:00 | |
-| `job user-interaction-ingest` | 매일 04:00 | 급부상 평소 수준보다 먼저 |
-| `job withdrawn-member-retention` | 매일 04:40 | |
-| `job admin-audit-log-retention` · `job search-miss-retention` | 매일 04:50 | |
-| `job store-trending-baseline` | 매일 05:00 | `TRENDING_ENABLED` |
-| `job search-miss-triage` | 매일 06:00 | `SEARCH_MISS_TRIAGE_ENABLED`, 최대 2시간 |
-| `job reward-second-morning-roulette` | 매일 09:00 | |
-| `job reward-letter-arrival` | 월 10:00 | |
-| `dataops-nightly 6` | **매일 10:10 권장** (집 PC 시절 03:00) | 최대 6시간 — 다른 작업과 겹치지 않는 빈 시간대 |
-| `job course-reminder` | 매일 19:00 | |
-| `job reward-attendance-reminder` | 매일 20:00 | |
-| `job monthly-report-run-due` | (꺼져 있었음) | 규칙 없이 둔다 |
+| `ranking-snapshot` | 매일 00:05 | |
+| `ranking-reward-issue` | 월 00:15·00:45·06:30 | 재시도 겸 3회 |
+| `store-popularity-score` | 월 03:00 | |
+| `user-interaction-ingest` | 매일 04:00 | 급부상 평소 수준보다 먼저 |
+| `withdrawn-member-retention` | 매일 04:40 | |
+| `admin-audit-log-retention` · `search-miss-retention` | 매일 04:50 | |
+| `store-trending-baseline` | 매일 05:00 | `TRENDING_ENABLED` |
+| `search-miss-triage` | 매일 06:00 | `SEARCH_MISS_TRIAGE_ENABLED`, 최대 2시간 |
+| `reward-second-morning-roulette` | 매일 09:00 | |
+| `reward-letter-arrival` | 월 10:00 | |
+| `dataops-nightly` | **매일 10:10 권장** (집 PC 시절 03:00) | 최대 6시간 — 다른 작업과 겹치지 않는 빈 시간대 |
+| `course-reminder` | 매일 19:00 | |
+| `reward-attendance-reminder` | 매일 20:00 | |
+| `monthly-report-run-due` | (꺼져 있었음) | 규칙 없이 둔다 |
 
 **t4g.small(2GB)에는 컨테이너가 한 번에 하나만 떠야 한다**(각 1.6GB 제한·JVM 하나). 수집을 03:00 에 두면 04:00~09:00 작업과 겹쳐 메모리가 모자란다 — 그래서 빈 시간대인 10:10~16:10 에 둔다. 겹치게 하려면 t4g.medium 으로 올린다.
 
-v1 WAS 가 같은 작업을 cron 으로 돌리는 동안에는 ShedLock 이 한 곳에서만 돌게 막는다(같은 락 이름). v1 을 내릴 때까지는 규칙을 켜지 않아도 된다.
+일정은 모두 DISABLED 로 둔다. **v1 WAS 가 같은 작업을 cron 으로 돌리는 동안 켜면 하루 두 번 돈다**(ShedLock 은 같은 순간의 중복만 막는다 — 알림이 두 번 간다). v1 cron 을 끈 날 함께 켠다. `trending-ranking`·`image-backlog-metrics`·`menu-classification`·`monthly-report-prepare`·`s3-reconcile` 일정은 api 모듈(상시 서버) 작업이라 켜지 않는다.
 
 ## 8. 네이버 차단 감시 (첫 주 매일)
 
