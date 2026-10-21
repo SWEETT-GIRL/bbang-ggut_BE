@@ -3,6 +3,9 @@ name: CD - V2 ASG
 on:
   push:
     branches: [develop-v2]
+    paths-ignore:
+      - 'infra/redis/**'
+      - '.github/workflows/cd-redis-prod.yml'
 
 # 실제 배포는 준비 완료 후 Repository variable V2_DEPLOY_ENABLED=true로 명시적으로 연다.
 # 수동 실행은 제공하지 않는다. 재배포는 이미 PR로 머지된 실행의 Re-run jobs를 사용한다.
@@ -33,7 +36,26 @@ jobs:
             const merged = prs.some(pr => pr.merged_at &&
               pr.base.ref === 'develop-v2' && pr.base.repo.full_name === context.payload.repository.full_name &&
               pr.merge_commit_sha === context.sha);
-            core.setOutput('allowed', String(merged));
+            const relevant = prs.filter(pr => pr.merged_at && pr.base.ref === 'develop-v2' &&
+              pr.merge_commit_sha === context.sha);
+            const deploymentFiles = new Set([
+              '.github/workflows/cd-redis-prod.yml', '.github/workflows/cd-v2.yml',
+              '.github/workflows/cd-prod.yml', '.github/workflows/cd-staging.yml',
+              '.github/workflows/ci-v2.yml'
+            ]);
+            const redisConfig = path => path.startsWith('infra/redis/') || deploymentFiles.has(path);
+            let redisOnly = relevant.length > 0;
+            for (const pr of relevant) {
+              const files = await github.paginate(github.rest.pulls.listFiles, {
+                ...context.repo, pull_number: pr.number
+              });
+              const touchesRedis = files.some(file => file.filename.startsWith('infra/redis/') ||
+                file.filename === '.github/workflows/cd-redis-prod.yml');
+              redisOnly = redisOnly && touchesRedis && files.length > 0 && files.every(file =>
+                redisConfig(file.filename) && (!file.previous_filename || redisConfig(file.previous_filename)));
+            }
+            core.setOutput('allowed', String(merged && !redisOnly));
+            if (redisOnly) core.notice('Redis-only configuration PR: WAS build and deployment skipped.');
             if (!merged) core.warning('Merged develop-v2 PR not found: deployment skipped. This is not branch protection.');
 
   build:
