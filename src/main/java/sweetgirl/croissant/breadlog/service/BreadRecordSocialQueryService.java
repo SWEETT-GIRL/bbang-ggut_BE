@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.abuse.enums.AbuseReportTargetType;
+import sweetgirl.croissant.abuse.service.ReportedTargetReader;
 import sweetgirl.croissant.breadlog.code.BreadLogErrorCode;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordDetailResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPhotoResponse;
@@ -59,6 +61,7 @@ public class BreadRecordSocialQueryService {
 	private final TowerBreadPicker towerBreadPicker;
 	private final BreadRecordCommentRepository commentRepository;
 	private final CommentQueryService commentQueryService;
+	private final ReportedTargetReader reportedTargetReader;
 
 	/**
 	 * 프로필의 공개 빵로그. 본인이면 숨긴 것도 "검토 중"으로 보인다. 상대가 게스트 · 봇 · 탈퇴면 404,
@@ -91,7 +94,10 @@ public class BreadRecordSocialQueryService {
 			records = slice.getContent();
 			hasNext = slice.hasNext();
 		}
-		return new SliceResponse<>(toRows(viewerId, records), hasNext);
+		// 신고한 사람 화면에선 그 빵로그가 바로 빠진다(기각되면 다시 보임)
+		List<BreadRecord> visible = ReportedTargetReader.without(records, BreadRecord::getId,
+			reportedTargetReader.reportedIds(viewerId, AbuseReportTargetType.RECORD));
+		return new SliceResponse<>(toRows(viewerId, visible), hasNext);
 	}
 
 	/** 남의 것은 공개 · 숨김 아님 · 차단 아님일 때만. 아니면 403 "볼 수 없어요". 내 것은 비공개여도 본다. */
@@ -99,6 +105,9 @@ public class BreadRecordSocialQueryService {
 		BreadRecord record = breadRecordRepository.findByIdAndDeletedAtIsNull(recordId)
 			.orElseThrow(() -> new BreadLogException(BreadLogErrorCode.BREAD_RECORD_NOT_FOUND));
 		visibilityPolicy.validateCanView(viewerId, record);
+		if (reportedTargetReader.hasReported(viewerId, AbuseReportTargetType.RECORD, record.getId())) {
+			throw new BreadLogException(BreadLogErrorCode.BREAD_RECORD_NOT_VISIBLE);
+		}
 		List<Long> ids = List.of(record.getId());
 		boolean likedByMe = viewerId != null
 			&& breadRecordLikeRepository.existsByIdRecordIdAndIdMemberId(record.getId(), viewerId);

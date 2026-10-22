@@ -87,6 +87,12 @@ public class BreadRecordComment extends BaseTimeEntity {
 		this.deletedBy = deletedBy;
 	}
 
+	/** 어드민이 지운 댓글의 이의제기가 받아들여졌을 때. */
+	public void restoreDeleted() {
+		this.deletedAt = null;
+		this.deletedBy = null;
+	}
+
 	public void hide(String reason, String hiddenBy) {
 		this.hiddenAt = LocalDateTime.now();
 		this.hiddenReason = reason;

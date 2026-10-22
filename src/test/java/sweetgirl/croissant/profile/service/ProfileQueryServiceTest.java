@@ -69,6 +69,9 @@ class ProfileQueryServiceTest {
 	@Mock
 	private WorldCatalogService worldCatalogService;
 
+	@Mock
+	private sweetgirl.croissant.abuse.service.ReportedTargetReader reportedTargetReader;
+
 	@InjectMocks
 	private ProfileQueryService profileQueryService;
 

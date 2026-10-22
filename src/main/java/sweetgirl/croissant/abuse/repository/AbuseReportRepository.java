@@ -46,6 +46,31 @@ public interface AbuseReportRepository extends JpaRepository<AbuseReport, Long> 
 
 	long countByStatus(AbuseReportStatus status);
 
+	/** 같은 대상을 신고한 서로 다른 사람 수 — 3명이면 자동 숨김. */
+	@Query("""
+			SELECT COUNT(DISTINCT r.reporter.id) FROM AbuseReport r
+			WHERE r.targetType = :targetType AND r.targetId = :targetId AND r.status IN :statuses
+			""")
+	long countDistinctReporters(@Param("targetType") AbuseReportTargetType targetType,
+			@Param("targetId") Long targetId, @Param("statuses") List<AbuseReportStatus> statuses);
+
+	/** 이 사람이 신고한(처리 전 · 받아들여진) 대상 id — 신고자 화면에서 바로 숨기려고. */
+	@Query("""
+			SELECT r.targetId FROM AbuseReport r
+			WHERE r.reporter.id = :reporterId AND r.targetType = :targetType AND r.status IN :statuses
+			""")
+	List<Long> findTargetIdsByReporter(@Param("reporterId") Long reporterId,
+			@Param("targetType") AbuseReportTargetType targetType, @Param("statuses") List<AbuseReportStatus> statuses);
+
+	/** 24시간 넘게 처리 안 된 신고 중 아직 재알림 안 한 것. */
+	@EntityGraph(attributePaths = {"reporter", "reportedMember"})
+	@Query("""
+			SELECT r FROM AbuseReport r
+			WHERE r.status = :status AND r.createdAt < :before AND r.remindedAt IS NULL
+			ORDER BY r.createdAt ASC
+			""")
+	List<AbuseReport> findOverdue(@Param("status") AbuseReportStatus status, @Param("before") LocalDateTime before);
+
 	long countByCreatedAtGreaterThanEqual(LocalDateTime since);
 
 	@Query("""

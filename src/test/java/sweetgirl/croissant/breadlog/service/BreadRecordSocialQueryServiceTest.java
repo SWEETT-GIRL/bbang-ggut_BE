@@ -77,6 +77,9 @@ class BreadRecordSocialQueryServiceTest {
 	@Mock
 	private sweetgirl.croissant.comment.service.CommentQueryService commentQueryService;
 
+	@Mock
+	private sweetgirl.croissant.abuse.service.ReportedTargetReader reportedTargetReader;
+
 	@InjectMocks
 	private BreadRecordSocialQueryService queryService;
 
