@@ -72,6 +72,10 @@ class BreadRecordSocialQueryServiceTest {
 	private MemberSearchQueryService memberSearchQueryService;
 	@Mock
 	private TowerBreadPicker towerBreadPicker;
+	@Mock
+	private sweetgirl.croissant.comment.repository.BreadRecordCommentRepository commentRepository;
+	@Mock
+	private sweetgirl.croissant.comment.service.CommentQueryService commentQueryService;
 
 	@InjectMocks
 	private BreadRecordSocialQueryService queryService;
@@ -111,6 +115,7 @@ class BreadRecordSocialQueryServiceTest {
 		given(breadRecordRepository.findPublicByMemberIdLatest(eq(AUTHOR), eq(false), any()))
 			.willReturn(new SliceImpl<>(List.of(record(10L, true), record(11L, true)), Pageable.ofSize(20), true));
 		given(breadRecordLikeRepository.countByRecordIdIn(List.of(10L, 11L))).willReturn(List.of(likeCount(10L, 3)));
+		given(commentRepository.countVisibleByRecordIdIn(List.of(10L, 11L))).willReturn(List.of());
 		given(breadRecordLikeRepository.findRecordIdsLikedBy(VIEWER, List.of(10L, 11L))).willReturn(List.of(11L));
 
 		SliceResponse<MemberBreadRecordResponse> result = queryService.getMemberRecords(VIEWER, AUTHOR,
@@ -133,6 +138,7 @@ class BreadRecordSocialQueryServiceTest {
 		hidden.hide("신고 3건", "SYSTEM");
 		given(breadRecordRepository.findAllById(List.of(11L, 10L))).willReturn(List.of(record(10L, true), hidden));
 		given(breadRecordLikeRepository.countByRecordIdIn(List.of(11L, 10L))).willReturn(List.of());
+		given(commentRepository.countVisibleByRecordIdIn(List.of(11L, 10L))).willReturn(List.of());
 		given(breadRecordLikeRepository.findRecordIdsLikedBy(AUTHOR, List.of(11L, 10L))).willReturn(List.of());
 
 		SliceResponse<MemberBreadRecordResponse> result = queryService.getMemberRecords(AUTHOR, AUTHOR,
@@ -171,6 +177,8 @@ class BreadRecordSocialQueryServiceTest {
 		given(breadRecordLikeRepository.existsByIdRecordIdAndIdMemberId(10L, VIEWER)).willReturn(true);
 		given(breadRecordLikeRepository.countByIdRecordId(10L)).willReturn(5L);
 		given(towerBreadPicker.resolve(10L, null)).willReturn("소금빵");
+		given(commentRepository.countVisibleByRecordId(10L)).willReturn(2L);
+		given(commentQueryService.firstComment(VIEWER, record)).willReturn(null);
 
 		BreadRecordDetailResponse response = queryService.getDetail(VIEWER, 10L);
 
@@ -179,7 +187,7 @@ class BreadRecordSocialQueryServiceTest {
 		assertThat(response.likeCount()).isEqualTo(5);
 		assertThat(response.likedByMe()).isTrue();
 		assertThat(response.towerBread()).isEqualTo("소금빵");
-		assertThat(response.commentCount()).isZero();
+		assertThat(response.commentCount()).isEqualTo(2);
 		assertThat(response.firstComment()).isNull();
 		assertThat(response.companions()).isEmpty();
 		assertThat(response.hiddenStatus()).isNull();

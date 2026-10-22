@@ -28,7 +28,7 @@ public record MemberBreadRecordResponse(
 	public static final String UNDER_REVIEW = "UNDER_REVIEW";
 
 	public static MemberBreadRecordResponse of(BreadRecord record, List<BreadRecordPhotoResponse> photos,
-			List<BreadRecordTagResponse> tags, long likeCount, boolean likedByMe) {
+			List<BreadRecordTagResponse> tags, long likeCount, long commentCount, boolean likedByMe) {
 		return new MemberBreadRecordResponse(
 			record.getId(),
 			record.getStore() != null ? record.getStore().getId() : null,
@@ -41,7 +41,7 @@ public record MemberBreadRecordResponse(
 			photos,
 			tags,
 			likeCount,
-			0,
+			commentCount,
 			likedByMe,
 			record.isHidden() ? UNDER_REVIEW : null);
 	}

@@ -182,6 +182,10 @@ class BreadRecordCommandServiceTest {
 
 	@Mock
 	ApplicationEventPublisher eventPublisher;
+	@Mock
+	sweetgirl.croissant.comment.service.CommunityAgreementService communityAgreementService;
+	@Mock
+	sweetgirl.croissant.comment.service.CommentContentPolicy commentContentPolicy;
 
 	@InjectMocks
 	BreadRecordCommandService commandService;
@@ -635,6 +639,9 @@ class BreadRecordCommandServiceTest {
 
 		assertThat(record.isPublic()).isTrue();
 		verify(memberRestrictionReader).validateCanWrite(7L);
+		// 공개는 댓글과 같은 문을 지난다 — 규칙 동의, 후기 금칙어
+		verify(communityAgreementService).validateAgreed(7L);
+		verify(commentContentPolicy).validateWords(record.getMemo());
 	}
 
 	@Test

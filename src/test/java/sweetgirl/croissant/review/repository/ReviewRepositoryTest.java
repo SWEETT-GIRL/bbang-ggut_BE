@@ -54,6 +54,8 @@ class ReviewRepositoryTest {
 					nickname_drawn_at TIMESTAMP,
 					nickname_normalized VARCHAR(100),
 					nickname_changed_at TIMESTAMP,
+					community_agreed_at TIMESTAMP,
+					community_terms_version VARCHAR(20),
 					deleted_at TIMESTAMP,
 					agree_to_terms BOOLEAN NOT NULL DEFAULT TRUE,
 					agree_to_marketing BOOLEAN NOT NULL DEFAULT FALSE,
