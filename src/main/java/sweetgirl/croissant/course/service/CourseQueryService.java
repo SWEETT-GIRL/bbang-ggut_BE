@@ -301,6 +301,8 @@ public class CourseQueryService {
 			.comparing((CourseStoreMemo memo) -> joinOrderByMemberId.getOrDefault(memo.getId().getMemberId(),
 				Integer.MAX_VALUE))
 			.thenComparing(memo -> memo.getId().getMemberId());
+		Map<Long, CharacterFace> faces = characterFaceReader.facesOf(
+			memos.stream().map(memo -> memo.getId().getMemberId()).distinct().toList());
 		return memos.stream()
 			.sorted(byJoinOrder)
 			.collect(Collectors.groupingBy(
@@ -310,7 +312,10 @@ public class CourseQueryService {
 					displayNameByMemberId.getOrDefault(memo.getId().getMemberId(), memo.getMember().getNickname()),
 					memo.getContent(),
 					memo.getUpdatedAt(),
-					Objects.equals(memo.getId().getMemberId(), viewerId)), Collectors.toList())));
+					Objects.equals(memo.getId().getMemberId(), viewerId),
+					faces.getOrDefault(memo.getId().getMemberId(), CharacterFace.NONE).characterCode(),
+					faces.getOrDefault(memo.getId().getMemberId(), CharacterFace.NONE).characterImageKey()),
+					Collectors.toList())));
 	}
 
 	/**

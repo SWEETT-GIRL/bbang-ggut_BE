@@ -58,6 +58,7 @@ import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
+import sweetgirl.croissant.profile.service.CharacterFaceReader;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.exception.StoreException;
@@ -83,6 +84,7 @@ public class CourseCommandService {
 	private final MemberRestrictionReader memberRestrictionReader;
 	private final CourseAccessPolicy courseAccessPolicy;
 	private final ApplicationEventPublisher eventPublisher;
+	private final CharacterFaceReader characterFaceReader;
 
 	public Long createCourse(Long memberId, CourseCreateRequest request) {
 		memberReader.requireLoggedIn(memberId);
@@ -260,7 +262,9 @@ public class CourseCommandService {
 		List<CourseStoreMemoResponse> memos = myMemo == null
 			? List.of()
 			: List.of(new CourseStoreMemoResponse(
-				memberId, displayNameOf(courseId, memberId), myMemo, LocalDateTime.now(), true));
+				memberId, displayNameOf(courseId, memberId), myMemo, LocalDateTime.now(), true,
+				characterFaceReader.faceOf(memberId).characterCode(),
+				characterFaceReader.faceOf(memberId).characterImageKey()));
 		return CourseStoreResponse.of(courseStore, null, myMemo, myMemo, memos);
 	}
 
