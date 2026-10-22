@@ -85,6 +85,24 @@ class CommunityNotificationServiceTest {
 	}
 
 	@Test
+	@DisplayName("톡: 날마다 새로 알린다(있는지 찾지 않음), 대상은 받는 사람, 링크는 톡 목록")
+	void pat() {
+		Member actor = member(1L, "빵순이");
+		Member target = member(2L, "빵돌이");
+
+		service.notifyPat(actor, target);
+
+		ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+		then(notificationRecorder).should().recordForMembers(captor.capture(), eq(List.of(target)), any());
+		assertThat(captor.getValue().getType()).isEqualTo(NotificationType.PAT);
+		assertThat(captor.getValue().getTitle()).isEqualTo("빵순이님이 회원님에게 톡을 쳤어요");
+		assertThat(captor.getValue().getTargetId()).isEqualTo(2L);
+		assertThat(captor.getValue().getDeepLink()).isEqualTo("/pats");
+		then(notificationRepository).shouldHaveNoInteractions();
+		then(eventPublisher).should().publishEvent(PushRequestedEvent.to(500L, 2L));
+	}
+
+	@Test
 	@DisplayName("같은 사람이 같은 대상에 이미 알림을 만들었으면 다시 만들지 않는다 — 팔로우/언팔 반복 도배 방지")
 	void once() {
 		Member actor = member(1L, "빵순이");

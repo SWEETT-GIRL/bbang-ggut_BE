@@ -33,11 +33,14 @@ public class CommunityNotificationService {
 
 	static final String FOLLOW_TITLE = "%s님이 회원님을 팔로우해요";
 	static final String MUTUAL_TITLE = "%s님과 서로 팔로우해요";
+	static final String PAT_TITLE = "%s님이 회원님에게 톡을 쳤어요";
 	static final String LIKE_TITLE = "%s님이 회원님의 빵로그를 좋아해요";
 	static final String COMMENT_TITLE = "%s님이 댓글을 남겼어요";
 	static final String MENTION_TITLE = "%s님이 회원님을 언급했어요";
 	static final String FOLLOWING_RECORD_TITLE = "%s님이 새 빵로그를 올렸어요";
 	static final int COMMENT_PREVIEW_LENGTH = 40;
+	/** 톡 친 사람 목록 화면 */
+	static final String PATS_LINK = "/pats";
 
 	private final NotificationRepository notificationRepository;
 	private final NotificationRecorder notificationRecorder;
@@ -57,6 +60,19 @@ public class CommunityNotificationService {
 		once(NotificationType.INVITE_MUTUAL, second, NotificationTargetType.MEMBER, second.getId(),
 			second.getNickname(), MUTUAL_TITLE.formatted(second.getNickname()), null, profileLink(second.getId()),
 			List.of(first));
+	}
+
+	/**
+	 * 톡은 날마다 새로 알린다 — 하루 1번은 member_pat 이 막고, 유니크 인덱스(uk_notification_actor_target)도 PAT 는 뺐다.
+	 * 대상은 받는 사람(MEMBER)이라 알림함에서 같은 날 톡들이 "OO님 외 N명"으로 묶인다.
+	 */
+	public void notifyPat(Member actor, Member target) {
+		LocalDateTime now = LocalDateTime.now();
+		Notification saved = notificationRecorder.recordForMembers(
+			Notification.communityActivity(NotificationType.PAT, actor, NotificationTargetType.MEMBER, target.getId(),
+				target.getNickname(), PAT_TITLE.formatted(actor.getNickname()), null, PATS_LINK),
+			List.of(target), now);
+		eventPublisher.publishEvent(PushRequestedEvent.to(saved.getId(), target.getId()));
 	}
 
 	public void notifyRecordLike(Member actor, BreadRecord record) {
