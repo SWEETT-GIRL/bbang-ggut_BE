@@ -15,6 +15,7 @@ import sweetgirl.croissant.alarm.event.PushRequestedEvent;
 import sweetgirl.croissant.alarm.repository.NotificationRepository;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.comment.entity.BreadRecordComment;
+import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.follow.repository.MemberFollowRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
@@ -39,6 +40,7 @@ public class CommunityNotificationService {
 	static final String MENTION_TITLE = "%s님이 회원님을 언급했어요";
 	static final String FOLLOWING_RECORD_TITLE = "%s님이 새 빵로그를 올렸어요";
 	static final String COMPANION_TITLE = "%s님이 회원님과 같이 간 빵로그를 올렸어요";
+	static final String COURSE_INVITE_TITLE = "%s님이 빵투어에 초대했어요";
 	static final int COMMENT_PREVIEW_LENGTH = 40;
 	/** 톡 친 사람 목록 화면 */
 	static final String PATS_LINK = "/pats";
@@ -151,6 +153,37 @@ public class CommunityNotificationService {
 		}
 	}
 
+	/**
+	 * 앱 안 일행 초대 — 받는 사람이 알림에서 [수락]/[거절]한다(대상 COURSE, 수락 · 거절 API 는 courseId 로 부른다).
+	 * 초대한 사람 · 빵투어당 알림 한 행이고, 나중에 더 부르면 그 행에 받는 사람만 늘린다.
+	 */
+	public void notifyCourseMemberInvite(Member inviter, Course course, List<Member> invitees) {
+		if (invitees.isEmpty()) {
+			return;
+		}
+		LocalDateTime now = LocalDateTime.now();
+		Notification notification = notificationRepository
+			.findByActorIdAndTypeAndTargetTypeAndTargetId(inviter.getId(), NotificationType.INVITE,
+				NotificationTargetType.COURSE, course.getId())
+			.orElse(null);
+		if (notification == null) {
+			notification = notificationRecorder.recordForMembers(
+				Notification.communityActivity(NotificationType.INVITE, inviter, NotificationTargetType.COURSE,
+					course.getId(), course.getTitle(), COURSE_INVITE_TITLE.formatted(inviter.getNickname()),
+					course.getTitle(), courseInviteLink(course.getId())),
+				invitees, now);
+			for (Member member : invitees) {
+				eventPublisher.publishEvent(PushRequestedEvent.to(notification.getId(), member.getId()));
+			}
+			return;
+		}
+		for (Member member : invitees) {
+			if (notificationRecorder.addRecipient(notification, member, now)) {
+				eventPublisher.publishEvent(PushRequestedEvent.to(notification.getId(), member.getId()));
+			}
+		}
+	}
+
 	private void once(NotificationType type, Member actor, NotificationTargetType targetType, Long targetId,
 			String targetTitle, String title, String body, String deepLink, List<Member> recipients) {
 		if (recipients.isEmpty() || notificationRepository
@@ -180,6 +213,10 @@ public class CommunityNotificationService {
 
 	private static String recordLink(Long recordId) {
 		return "/bbanglog/post/" + recordId;
+	}
+
+	private static String courseInviteLink(Long courseId) {
+		return "/courses/" + courseId + "/member-invite";
 	}
 
 	private static String commentLink(BreadRecordComment comment) {

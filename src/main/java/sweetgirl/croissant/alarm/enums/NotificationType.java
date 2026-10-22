@@ -18,7 +18,7 @@ public enum NotificationType {
 	COURSE_SAVED("COURSE_SAVED"),
 	/** 아직 기능이 없다. 좋아요가 저장과 갈라지면 그때 쓴다 */
 	COURSE_LIKED("COURSE_LIKED"),
-	/** 아직 기능이 없다. 빵투어에 누군가를 부르게 되면 그때 쓴다 */
+	/** OO님이 빵투어에 초대했어요 — 앱 안 일행 초대(2026-10-22). 받는 사람이 [수락]/[거절]한다 */
 	INVITE("INVITE"),
 	// ── 팔로우 · 커뮤니티 활동 알림(2026-10-22): 서버가 문구도 같이 둔다 — 구버전 앱은 모르는 타입을 title · body 로 그린다 ──
 	/** OO님이 회원님을 팔로우해요 */
