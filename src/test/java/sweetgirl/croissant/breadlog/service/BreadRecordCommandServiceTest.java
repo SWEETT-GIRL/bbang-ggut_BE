@@ -187,6 +187,8 @@ class BreadRecordCommandServiceTest {
 	@Mock
 	sweetgirl.croissant.comment.service.CommunityAgreementService communityAgreementService;
 	@Mock
+	sweetgirl.croissant.comment.service.CommunityAgreementGate communityAgreementGate;
+	@Mock
 	sweetgirl.croissant.comment.service.CommentContentPolicy commentContentPolicy;
 
 	@Mock
@@ -644,12 +646,30 @@ class BreadRecordCommandServiceTest {
 		given(memberReader.getMember(7L)).willReturn(member);
 		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
 
+		given(communityAgreementGate.requiresAgreementForPublishing()).willReturn(true);
+
 		commandService.changeVisibility(11L, 7L, true);
 
 		assertThat(record.isPublic()).isTrue();
 		verify(memberRestrictionReader).validateCanWrite(7L);
 		// 공개는 댓글과 같은 문을 지난다 — 규칙 동의, 후기 금칙어
 		verify(communityAgreementService).validateAgreed(7L);
+		verify(commentContentPolicy).validateWords(record.getMemo());
+	}
+
+	@Test
+	@DisplayName("changeVisibility: 강제 업데이트 전(옛 앱이 남아 있음)엔 규칙 동의를 묻지 않고 공개한다")
+	void changeVisibility_toPublic_skipsAgreementBeforeForcedUpdate() {
+		Member member = member(7L);
+		BreadRecord record = record(11L, member);
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+		given(communityAgreementGate.requiresAgreementForPublishing()).willReturn(false);
+
+		commandService.changeVisibility(11L, 7L, true);
+
+		assertThat(record.isPublic()).isTrue();
+		verify(communityAgreementService, never()).validateAgreed(any());
 		verify(commentContentPolicy).validateWords(record.getMemo());
 	}
 
