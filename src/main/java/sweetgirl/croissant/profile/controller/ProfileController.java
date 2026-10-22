@@ -15,9 +15,11 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.follow.dto.response.FollowMemberResponse;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.profile.dto.response.ProfileResponse;
+import sweetgirl.croissant.profile.dto.response.VisitedStoreResponse;
 import sweetgirl.croissant.profile.service.MemberSearchQueryService;
 import sweetgirl.croissant.profile.service.MemberSuggestionQueryService;
 import sweetgirl.croissant.profile.service.ProfileQueryService;
+import sweetgirl.croissant.profile.service.VisitedStoreQueryService;
 
 @Tag(name = "[Client] 프로필", description = "공개 프로필 · 빵순이 찾기 · 추천")
 @RestController
@@ -28,6 +30,7 @@ public class ProfileController {
 	private final ProfileQueryService profileQueryService;
 	private final MemberSearchQueryService memberSearchQueryService;
 	private final MemberSuggestionQueryService memberSuggestionQueryService;
+	private final VisitedStoreQueryService visitedStoreQueryService;
 
 	@Operation(summary = "빵순이 찾기", description = "닉네임 앞글자 일치(공백 · 대소문자 무시), 2자부터, 20명. "
 		+ "차단 관계 · 탈퇴 · 게스트 · 프로필 제한 중인 사람은 빠진다.")
@@ -52,5 +55,14 @@ public class ProfileController {
 			@AuthenticationPrincipal Long viewerId,
 			@PathVariable Long memberId) {
 		return ApiResponse.ok(profileQueryService.getProfile(viewerId, memberId));
+	}
+
+	@Operation(summary = "다녀간 빵집", description = "그 사람의 공개 빵로그가 있는 가게를 핀으로(칭호를 누르면 여는 지도). "
+		+ "보는 사람에게 보이는 기록만 센다(내가 신고한 것 제외). 차단 관계 403 PROFILE403_BLOCKED, 없음 404 PROFILE404_MEMBER.")
+	@GetMapping("/{memberId}/visited-stores")
+	public ApiResponse<List<VisitedStoreResponse>> getVisitedStores(
+			@AuthenticationPrincipal Long viewerId,
+			@PathVariable Long memberId) {
+		return ApiResponse.ok(visitedStoreQueryService.getVisitedStores(viewerId, memberId));
 	}
 }

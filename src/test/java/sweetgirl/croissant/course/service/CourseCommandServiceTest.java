@@ -60,6 +60,7 @@ import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
+import sweetgirl.croissant.profile.dto.response.CharacterFace;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.repository.StoreRepository;
 
@@ -93,6 +94,8 @@ class CourseCommandServiceTest {
 	@Mock
 	ApplicationEventPublisher eventPublisher;
 	@Mock
+	sweetgirl.croissant.profile.service.CharacterFaceReader characterFaceReader;
+	@Mock
 	MemberReader memberReader;
 
 	@InjectMocks
@@ -103,6 +106,12 @@ class CourseCommandServiceTest {
 	void injectAccessPolicy() {
 		ReflectionTestUtils.setField(courseCommandService, "courseAccessPolicy",
 			new CourseAccessPolicy(courseMemberRepository));
+	}
+
+	/** 메모 줄 얼굴 — 테스트마다 세계관을 꾸미지 않으니 마스코트(NONE)로. */
+	@BeforeEach
+	void faceless() {
+		lenient().when(characterFaceReader.faceOf(any())).thenReturn(CharacterFace.NONE);
 	}
 
 	// ───────────────────────── createCourse ─────────────────────────

@@ -73,7 +73,7 @@ class BreadRecordSocialResponseContractTest extends ResponseContractWebMvcTest {
 		given(queryService.getMemberRecords(any(), any(), any(), anyInt(), anyInt()))
 			.willReturn(new SliceResponse<>(List.of(new MemberBreadRecordResponse(10L, 5L, "밀도 성수", "서울_성동구_성수동",
 				"소금빵 최고", List.of("소금빵"), LocalDateTime.of(2026, 10, 1, 12, 0), true, List.of(), List.of(), 3, 0, false,
-				null)), true));
+				null, true)), true));
 
 		mockMvc.perform(get("/members/1/bread-records"))
 			.andExpect(status().isOk())

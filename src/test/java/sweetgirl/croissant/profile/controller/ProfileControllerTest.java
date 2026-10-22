@@ -23,10 +23,12 @@ import sweetgirl.croissant.follow.dto.response.FollowMemberResponse;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.profile.code.ProfileErrorCode;
 import sweetgirl.croissant.profile.dto.response.ProfileResponse;
+import sweetgirl.croissant.profile.dto.response.VisitedStoreResponse;
 import sweetgirl.croissant.profile.exception.ProfileException;
 import sweetgirl.croissant.profile.service.MemberSearchQueryService;
 import sweetgirl.croissant.profile.service.MemberSuggestionQueryService;
 import sweetgirl.croissant.profile.service.ProfileQueryService;
+import sweetgirl.croissant.profile.service.VisitedStoreQueryService;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ProfileController")
@@ -40,6 +42,8 @@ class ProfileControllerTest {
 	private MemberSearchQueryService memberSearchQueryService;
 	@Mock
 	private MemberSuggestionQueryService memberSuggestionQueryService;
+	@Mock
+	private VisitedStoreQueryService visitedStoreQueryService;
 
 	@InjectMocks
 	private ProfileController profileController;
@@ -81,5 +85,18 @@ class ProfileControllerTest {
 		mockMvc.perform(get("/members/suggestions"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data").isArray());
+	}
+
+	@Test
+	@DisplayName("GET /members/{id}/visited-stores — 핀 목록")
+	void visitedStores() throws Exception {
+		given(visitedStoreQueryService.getVisitedStores(any(), eq(2L))).willReturn(List.of(
+			new VisitedStoreResponse(5L, "밀도 성수", 37.54, 127.05, 3, "resized/320/a", List.of("소금빵", "식빵"))));
+
+		mockMvc.perform(get("/members/2/visited-stores"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data[0].storeId").value(5))
+			.andExpect(jsonPath("$.data[0].publicRecordCount").value(3))
+			.andExpect(jsonPath("$.data[0].topBreads[0]").value("소금빵"));
 	}
 }

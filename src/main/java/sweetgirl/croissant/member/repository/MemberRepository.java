@@ -62,6 +62,7 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 			SELECT m FROM Member m
 			WHERE m.deletedAt IS NULL AND m.memberType = 'USER'
 				AND m.nicknameNormalized LIKE CONCAT(:prefix, '%')
+				AND (:viewerId IS NULL OR m.id <> :viewerId)
 				AND NOT EXISTS (SELECT 1 FROM MemberBlock b
 					WHERE (b.blocker.id = :viewerId AND b.blockedMember.id = m.id)
 						OR (b.blocker.id = m.id AND b.blockedMember.id = :viewerId))

@@ -23,7 +23,9 @@ public record MemberBreadRecordResponse(
 		long likeCount,
 		long commentCount,
 		boolean likedByMe,
-		String hiddenStatus) {
+		String hiddenStatus,
+		/** "이 집 또 갈래요"(10/22 추가) — 상세와 같은 값 */
+		Boolean revisit) {
 
 	public static final String UNDER_REVIEW = "UNDER_REVIEW";
 
@@ -43,6 +45,7 @@ public record MemberBreadRecordResponse(
 			likeCount,
 			commentCount,
 			likedByMe,
-			record.isHidden() ? UNDER_REVIEW : null);
+			record.isHidden() ? UNDER_REVIEW : null,
+			record.getRevisit());
 	}
 }

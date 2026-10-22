@@ -42,6 +42,10 @@ class CommunityNotificationServiceTest {
 	@Mock
 	private NotificationRepository notificationRepository;
 	@Mock
+	private sweetgirl.croissant.alarm.repository.NotificationRecipientRepository notificationRecipientRepository;
+	@Mock
+	private sweetgirl.croissant.alarm.repository.NotificationDeliveryRepository notificationDeliveryRepository;
+	@Mock
 	private NotificationRecorder notificationRecorder;
 	@Mock
 	private ApplicationEventPublisher eventPublisher;

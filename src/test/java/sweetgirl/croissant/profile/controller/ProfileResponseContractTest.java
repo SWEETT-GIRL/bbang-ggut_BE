@@ -15,6 +15,7 @@ import sweetgirl.croissant.profile.dto.response.ProfileResponse;
 import sweetgirl.croissant.profile.service.MemberSearchQueryService;
 import sweetgirl.croissant.profile.service.MemberSuggestionQueryService;
 import sweetgirl.croissant.profile.service.ProfileQueryService;
+import sweetgirl.croissant.profile.service.VisitedStoreQueryService;
 
 /** 프로필 응답 모양을 고정한다. 앱 사용처는 FE F1(남의 프로필, 피그마 01-A1)이 붙으면 파일:라인으로 적는다. 필드는 더하기만. */
 @ContextConfiguration(classes = ProfileController.class)
@@ -26,6 +27,8 @@ class ProfileResponseContractTest extends ResponseContractWebMvcTest {
 	private MemberSearchQueryService memberSearchQueryService;
 	@MockitoBean
 	private MemberSuggestionQueryService memberSuggestionQueryService;
+	@MockitoBean
+	private VisitedStoreQueryService visitedStoreQueryService;
 
 	@Test
 	void profile_keepsFieldsTheAppReads() throws Exception {
