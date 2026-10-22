@@ -3,6 +3,7 @@ package sweetgirl.croissant.breadlog.service;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.PageRequest;
@@ -18,8 +19,10 @@ import sweetgirl.croissant.breadlog.code.BreadLogErrorCode;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPhotoResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordTagResponse;
+import sweetgirl.croissant.breadlog.dto.response.StoreBreadRecordListResponse;
 import sweetgirl.croissant.breadlog.dto.response.StoreBreadRecordResponse;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
+import sweetgirl.croissant.breadlog.enums.BreadRecordSort;
 import sweetgirl.croissant.breadlog.exception.BreadLogException;
 import sweetgirl.croissant.breadlog.repository.BreadRecordLikeRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordLikeRepository.RecordLikeCountProjection;
@@ -72,24 +75,36 @@ public class BreadRecordQueryService {
 		return new SliceResponse<>(buildResponses(recordSlice.getContent()), recordSlice.hasNext());
 	}
 
-	public SliceResponse<StoreBreadRecordResponse> getStorePublicRecords(
+	/** 정렬은 최신순(기본, 구버전 앱) · 추천순. 전체 수는 목록과 같은 조건으로 센다(내가 신고한 것은 목록에서만 빠진다). */
+	public StoreBreadRecordListResponse getStorePublicRecords(
 			Long storeId,
 			Long viewerMemberId,
+			BreadRecordSort sort,
 			int page,
 			int size) {
 		validatePageRequest(page, size);
-		// 하나 더 읽어 다음 페이지가 있는지 본다 — 가게 리뷰 목록과 같은 방식.
-		List<BreadRecord> records = breadRecordRepository.findPublicByStoreId(
-			storeId,
-			viewerMemberId,
-			PageRequest.of(page, size + 1));
+		List<BreadRecord> records;
+		if (sort == BreadRecordSort.RECOMMENDED) {
+			LocalDateTime now = LocalDateTime.now();
+			List<Long> ids = breadRecordRepository.findPublicIdsByStoreIdRecommended(storeId, viewerMemberId,
+				now.minusDays(7), now.minusDays(30), size + 1, page * size);
+			Map<Long, BreadRecord> byId = breadRecordRepository.findAllById(ids).stream()
+				.collect(Collectors.toMap(BreadRecord::getId, Function.identity()));
+			records = ids.stream().map(byId::get).filter(record -> record != null).toList();
+		} else {
+			// 하나 더 읽어 다음 페이지가 있는지 본다 — 가게 리뷰 목록과 같은 방식.
+			records = breadRecordRepository.findPublicByStoreId(storeId, viewerMemberId,
+				PageRequest.of(page, size + 1));
+		}
 		boolean hasNext = records.size() > size;
+		long totalCount = breadRecordRepository.countPublicByStoreId(storeId, viewerMemberId);
 		// 신고한 사람 화면에선 그 빵로그가 바로 빠진다(기각되면 다시 보임)
 		List<BreadRecord> pageRecords = ReportedTargetReader.without(
 			hasNext ? records.subList(0, size) : records, BreadRecord::getId,
 			reportedTargetReader.reportedIds(viewerMemberId, AbuseReportTargetType.RECORD));
 		if (pageRecords.isEmpty()) {
-			return new SliceResponse<>(List.of(), false);
+			// 한 쪽을 전부 내가 신고했어도 다음 쪽은 있을 수 있다
+			return new StoreBreadRecordListResponse(List.of(), hasNext, totalCount);
 		}
 		List<Long> recordIds = pageRecords.stream().map(BreadRecord::getId).toList();
 		Map<Long, List<BreadRecordPhotoResponse>> photosByRecordId = loadPhotos(recordIds);
@@ -107,7 +122,7 @@ public class BreadRecordQueryService {
 				commentCounts.getOrDefault(record.getId(), 0L),
 				faces.get(record.getMember().getId())))
 			.toList();
-		return new SliceResponse<>(content, hasNext);
+		return new StoreBreadRecordListResponse(content, hasNext, totalCount);
 	}
 
 	private List<BreadRecordResponse> buildResponses(List<BreadRecord> records) {

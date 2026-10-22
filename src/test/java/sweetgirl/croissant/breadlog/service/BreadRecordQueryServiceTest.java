@@ -27,10 +27,12 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.breadlog.code.BreadLogErrorCode;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordResponse;
+import sweetgirl.croissant.breadlog.dto.response.StoreBreadRecordListResponse;
 import sweetgirl.croissant.breadlog.dto.response.StoreBreadRecordResponse;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.entity.BreadRecordPhoto;
 import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
+import sweetgirl.croissant.breadlog.enums.BreadRecordSort;
 import sweetgirl.croissant.breadlog.exception.BreadLogException;
 import sweetgirl.croissant.breadlog.repository.BreadRecordPhotoRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
@@ -138,7 +140,7 @@ class BreadRecordQueryServiceTest {
 		given(breadRecordRepository.findPublicByStoreId(10L, 3L, PageRequest.of(0, 2)))
 			.willReturn(List.of(first, second));
 
-		SliceResponse<StoreBreadRecordResponse> result = queryService.getStorePublicRecords(10L, 3L, 0, 1);
+		StoreBreadRecordListResponse result = queryService.getStorePublicRecords(10L, 3L, BreadRecordSort.LATEST, 0, 1);
 
 		assertThat(result.hasNext()).isTrue();
 		assertThat(result.content()).hasSize(1);
@@ -151,11 +153,31 @@ class BreadRecordQueryServiceTest {
 	}
 
 	@Test
+	@DisplayName("getStorePublicRecords: 추천순은 점수 id 순서대로 돌려주고 전체 수를 같이 준다")
+	void getStorePublicRecords_recommended() {
+		BreadRecord first = record(11L);
+		BreadRecord second = record(12L);
+		given(breadRecordRepository.findPublicIdsByStoreIdRecommended(eq(10L), eq(3L), any(), any(), eq(3), eq(0)))
+			.willReturn(List.of(12L, 11L));
+		given(breadRecordRepository.findAllById(List.of(12L, 11L))).willReturn(List.of(first, second));
+		given(breadRecordRepository.countPublicByStoreId(10L, 3L)).willReturn(7L);
+
+		StoreBreadRecordListResponse result = queryService.getStorePublicRecords(10L, 3L, BreadRecordSort.RECOMMENDED,
+			0, 2);
+
+		assertThat(result.content()).extracting(StoreBreadRecordResponse::id).containsExactly(12L, 11L);
+		assertThat(result.hasNext()).isFalse();
+		assertThat(result.totalCount()).isEqualTo(7L);
+		verify(breadRecordRepository, never()).findPublicByStoreId(any(), any(), any());
+	}
+
+	@Test
 	@DisplayName("getStorePublicRecords: 공개 기록이 없으면 사진·태그를 조회하지 않고 빈 목록")
 	void getStorePublicRecords_empty() {
 		given(breadRecordRepository.findPublicByStoreId(10L, null, PageRequest.of(0, 21))).willReturn(List.of());
 
-		SliceResponse<StoreBreadRecordResponse> result = queryService.getStorePublicRecords(10L, null, 0, 20);
+		StoreBreadRecordListResponse result = queryService.getStorePublicRecords(10L, null, BreadRecordSort.LATEST, 0,
+			20);
 
 		assertThat(result.content()).isEmpty();
 		assertThat(result.hasNext()).isFalse();
@@ -165,7 +187,7 @@ class BreadRecordQueryServiceTest {
 	@Test
 	@DisplayName("getStorePublicRecords: 페이지 크기가 범위를 벗어나면 예외")
 	void getStorePublicRecords_invalidPage_throwsException() {
-		assertThatThrownBy(() -> queryService.getStorePublicRecords(10L, null, 0, 101))
+		assertThatThrownBy(() -> queryService.getStorePublicRecords(10L, null, BreadRecordSort.LATEST, 0, 101))
 			.isInstanceOf(BreadLogException.class)
 			.hasFieldOrPropertyWithValue("errorCode", BreadLogErrorCode.INVALID_PAGE_REQUEST);
 	}
