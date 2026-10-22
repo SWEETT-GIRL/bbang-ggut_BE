@@ -1,6 +1,7 @@
 package sweetgirl.croissant.follow.service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -20,6 +21,8 @@ import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberBlockRepository;
 import sweetgirl.croissant.member.service.SocialMemberReader;
+import sweetgirl.croissant.profile.dto.response.CharacterFace;
+import sweetgirl.croissant.profile.service.CharacterFaceReader;
 
 @Service
 @RequiredArgsConstructor
@@ -31,19 +34,34 @@ public class FollowQueryService {
 	private final MemberFollowRepository memberFollowRepository;
 	private final MemberBlockRepository memberBlockRepository;
 	private final SocialMemberReader socialMemberReader;
+	private final CharacterFaceReader characterFaceReader;
 
-	/** {@code memberId} 의 팔로워. 보는 사람({@code viewerId})은 게스트여도 되고, 비로그인이면 null 이다. */
-	public SliceResponse<FollowMemberResponse> getFollowers(Long viewerId, Long memberId, int page, int size) {
+	/**
+	 * {@code memberId} 의 팔로워. 보는 사람({@code viewerId})은 게스트여도 되고, 비로그인이면 null 이다.
+	 * {@code nicknamePrefix} 는 닉네임 앞글자 거르기(비면 전부).
+	 */
+	public SliceResponse<FollowMemberResponse> getFollowers(Long viewerId, Long memberId, String nicknamePrefix,
+			int page,
+			int size) {
 		validateVisible(viewerId, memberId);
-		Slice<MemberFollow> rows = memberFollowRepository.findFollowers(memberId, viewerId, pageable(page, size));
+		Slice<MemberFollow> rows = memberFollowRepository.findFollowers(memberId, viewerId, prefixOf(nicknamePrefix),
+			pageable(page, size));
 		return toResponse(viewerId, rows, MemberFollow::getFollower);
 	}
 
 	/** {@code memberId} 가 팔로우하는 사람. */
-	public SliceResponse<FollowMemberResponse> getFollowings(Long viewerId, Long memberId, int page, int size) {
+	public SliceResponse<FollowMemberResponse> getFollowings(Long viewerId, Long memberId, String nicknamePrefix,
+			int page,
+			int size) {
 		validateVisible(viewerId, memberId);
-		Slice<MemberFollow> rows = memberFollowRepository.findFollowings(memberId, viewerId, pageable(page, size));
+		Slice<MemberFollow> rows = memberFollowRepository.findFollowings(memberId, viewerId, prefixOf(nicknamePrefix),
+			pageable(page, size));
 		return toResponse(viewerId, rows, MemberFollow::getFollowee);
+	}
+
+	/** 공백만이면 거르지 않는다(null). */
+	static String prefixOf(String nicknamePrefix) {
+		return nicknamePrefix == null || nicknamePrefix.isBlank() ? null : nicknamePrefix.strip();
 	}
 
 	/** 상대가 없거나 게스트 · 봇 · 탈퇴면 404, 보는 사람과 차단 관계면 403 — 프로필과 같은 규칙이다. */
@@ -63,9 +81,10 @@ public class FollowQueryService {
 			? Set.of() : Set.copyOf(memberFollowRepository.findFolloweeIdsIn(viewerId, ids));
 		Set<Long> followsMe = viewerId == null || ids.isEmpty()
 			? Set.of() : Set.copyOf(memberFollowRepository.findFollowerIdsIn(viewerId, ids));
+		Map<Long, CharacterFace> faces = characterFaceReader.facesOf(ids);
 		List<FollowMemberResponse> content = people.stream()
 			.map(person -> FollowMemberResponse.of(person,
-				followedByMe.contains(person.getId()), followsMe.contains(person.getId())))
+				followedByMe.contains(person.getId()), followsMe.contains(person.getId()), faces.get(person.getId())))
 			.toList();
 		return new SliceResponse<>(content, rows.hasNext());
 	}

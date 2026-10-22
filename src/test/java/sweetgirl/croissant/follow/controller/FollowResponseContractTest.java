@@ -34,8 +34,9 @@ class FollowResponseContractTest extends ResponseContractWebMvcTest {
 
 	@Test
 	void followers_keepsFieldsTheAppReads() throws Exception {
-		given(followQueryService.getFollowers(any(), any(), anyInt(), anyInt()))
-			.willReturn(new SliceResponse<>(List.of(new FollowMemberResponse(10L, "에이", true, false)), true));
+		given(followQueryService.getFollowers(any(), any(), any(), anyInt(), anyInt()))
+			.willReturn(new SliceResponse<>(
+				List.of(new FollowMemberResponse(10L, "에이", true, false, "CROISSANT", "world/croissant.png")), true));
 
 		mockMvc.perform(get("/members/2/followers"))
 			.andExpect(status().isOk())

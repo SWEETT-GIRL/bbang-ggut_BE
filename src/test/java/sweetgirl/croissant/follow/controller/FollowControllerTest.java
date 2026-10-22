@@ -90,8 +90,9 @@ class FollowControllerTest {
 	@Test
 	@DisplayName("GET /members/{id}/followers — page · size 기본값 0 · 20")
 	void followers() throws Exception {
-		given(followQueryService.getFollowers(null, 2L, 0, 20))
-			.willReturn(new SliceResponse<>(List.of(new FollowMemberResponse(10L, "에이", true, false)), false));
+		given(followQueryService.getFollowers(null, 2L, null, 0, 20))
+			.willReturn(new SliceResponse<>(
+				List.of(new FollowMemberResponse(10L, "에이", true, false, "CROISSANT", "world/croissant.png")), false));
 
 		mockMvc.perform(get("/members/2/followers"))
 			.andExpect(status().isOk())
@@ -103,7 +104,7 @@ class FollowControllerTest {
 	@Test
 	@DisplayName("GET /members/{id}/followings — 차단 관계면 403 FOLLOW403_BLOCKED")
 	void followingsBlocked() throws Exception {
-		given(followQueryService.getFollowings(null, 2L, 1, 10))
+		given(followQueryService.getFollowings(null, 2L, null, 1, 10))
 			.willThrow(new FollowException(FollowErrorCode.FOLLOW_BLOCKED));
 
 		mockMvc.perform(get("/members/2/followings").param("page", "1").param("size", "10"))

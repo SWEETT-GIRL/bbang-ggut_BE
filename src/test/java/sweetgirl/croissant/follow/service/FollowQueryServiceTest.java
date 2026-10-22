@@ -4,11 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
@@ -31,6 +33,8 @@ import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberBlockRepository;
 import sweetgirl.croissant.member.service.SocialMemberReader;
+import sweetgirl.croissant.profile.dto.response.CharacterFace;
+import sweetgirl.croissant.profile.service.CharacterFaceReader;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("FollowQueryService")
@@ -45,6 +49,8 @@ class FollowQueryServiceTest {
 	private MemberBlockRepository memberBlockRepository;
 	@Mock
 	private SocialMemberReader socialMemberReader;
+	@Mock
+	private CharacterFaceReader characterFaceReader;
 
 	@InjectMocks
 	private FollowQueryService followQueryService;
@@ -66,18 +72,18 @@ class FollowQueryServiceTest {
 		givenTargetVisible();
 		Member first = member(10L, "에이");
 		Member second = member(11L, "비");
-		given(memberFollowRepository.findFollowers(eq(TARGET), eq(VIEWER), any()))
+		given(memberFollowRepository.findFollowers(eq(TARGET), eq(VIEWER), isNull(), any()))
 			.willReturn(new SliceImpl<>(List.of(MemberFollow.of(first, member(TARGET, "대상")),
 				MemberFollow.of(second, member(TARGET, "대상"))), Pageable.ofSize(20), true));
 		given(memberFollowRepository.findFolloweeIdsIn(VIEWER, List.of(10L, 11L))).willReturn(List.of(10L));
 		given(memberFollowRepository.findFollowerIdsIn(VIEWER, List.of(10L, 11L))).willReturn(List.of(11L));
 
-		SliceResponse<FollowMemberResponse> result = followQueryService.getFollowers(VIEWER, TARGET, 0, 20);
+		SliceResponse<FollowMemberResponse> result = followQueryService.getFollowers(VIEWER, TARGET, null, 0, 20);
 
 		assertThat(result.hasNext()).isTrue();
 		assertThat(result.content()).containsExactly(
-			new FollowMemberResponse(10L, "에이", true, false),
-			new FollowMemberResponse(11L, "비", false, true));
+			new FollowMemberResponse(10L, "에이", true, false, null, null),
+			new FollowMemberResponse(11L, "비", false, true, null, null));
 	}
 
 	@Test
@@ -85,28 +91,46 @@ class FollowQueryServiceTest {
 	void followings_withoutViewer() {
 		given(socialMemberReader.findSocial(TARGET)).willReturn(Optional.of(member(TARGET, "대상")));
 		Member first = member(10L, "에이");
-		given(memberFollowRepository.findFollowings(eq(TARGET), eq(null), any()))
+		given(memberFollowRepository.findFollowings(eq(TARGET), eq(null), isNull(), any()))
 			.willReturn(
 				new SliceImpl<>(List.of(MemberFollow.of(member(TARGET, "대상"), first)), Pageable.ofSize(20), false));
 
-		SliceResponse<FollowMemberResponse> result = followQueryService.getFollowings(null, TARGET, 0, 20);
+		SliceResponse<FollowMemberResponse> result = followQueryService.getFollowings(null, TARGET, null, 0, 20);
 
-		assertThat(result.content()).containsExactly(new FollowMemberResponse(10L, "에이", false, false));
+		assertThat(result.content()).containsExactly(new FollowMemberResponse(10L, "에이", false, false, null, null));
 		then(memberFollowRepository).should(never()).findFolloweeIdsIn(any(), any());
 		then(memberBlockRepository).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("q 는 다듬어 앞글자로 넘기고(공백만이면 null), 줄마다 얼굴을 붙인다")
+	void followers_filtersByPrefixAndAddsFace() {
+		givenTargetVisible();
+		Member first = member(10L, "에이");
+		given(memberFollowRepository.findFollowers(eq(TARGET), eq(VIEWER), eq("에"), any()))
+			.willReturn(new SliceImpl<>(List.of(MemberFollow.of(first, member(TARGET, "대상"))), Pageable.ofSize(20),
+				false));
+		given(characterFaceReader.facesOf(List.of(10L)))
+			.willReturn(Map.of(10L, new CharacterFace("CROISSANT", "world/croissant.png")));
+
+		SliceResponse<FollowMemberResponse> result = followQueryService.getFollowers(VIEWER, TARGET, " 에 ", 0, 20);
+
+		assertThat(result.content()).containsExactly(
+			new FollowMemberResponse(10L, "에이", false, false, "CROISSANT", "world/croissant.png"));
+		assertThat(FollowQueryService.prefixOf("   ")).isNull();
 	}
 
 	@Test
 	@DisplayName("page 음수 · size 초과는 0 · 50 으로 눌러 넘긴다")
 	void clampsPageable() {
 		givenTargetVisible();
-		given(memberFollowRepository.findFollowers(eq(TARGET), eq(VIEWER), any()))
+		given(memberFollowRepository.findFollowers(eq(TARGET), eq(VIEWER), isNull(), any()))
 			.willReturn(new SliceImpl<>(List.of(), Pageable.ofSize(50), false));
 
-		followQueryService.getFollowers(VIEWER, TARGET, -3, 500);
+		followQueryService.getFollowers(VIEWER, TARGET, null, -3, 500);
 
 		ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
-		then(memberFollowRepository).should().findFollowers(eq(TARGET), eq(VIEWER), pageable.capture());
+		then(memberFollowRepository).should().findFollowers(eq(TARGET), eq(VIEWER), isNull(), pageable.capture());
 		assertThat(pageable.getValue().getPageNumber()).isZero();
 		assertThat(pageable.getValue().getPageSize()).isEqualTo(FollowQueryService.MAX_PAGE_SIZE);
 	}
@@ -116,7 +140,7 @@ class FollowQueryServiceTest {
 	void targetNotFound() {
 		given(socialMemberReader.findSocial(TARGET)).willReturn(Optional.empty());
 
-		assertThatThrownBy(() -> followQueryService.getFollowers(VIEWER, TARGET, 0, 20))
+		assertThatThrownBy(() -> followQueryService.getFollowers(VIEWER, TARGET, null, 0, 20))
 			.isInstanceOf(FollowException.class)
 			.extracting("errorCode").isEqualTo(FollowErrorCode.FOLLOW_TARGET_NOT_FOUND);
 		then(memberFollowRepository).shouldHaveNoInteractions();
@@ -128,14 +152,14 @@ class FollowQueryServiceTest {
 		given(socialMemberReader.findSocial(TARGET)).willReturn(Optional.of(member(TARGET, "대상")));
 		given(memberBlockRepository.existsBetween(VIEWER, TARGET)).willReturn(true);
 
-		assertThatThrownBy(() -> followQueryService.getFollowings(VIEWER, TARGET, 0, 20))
+		assertThatThrownBy(() -> followQueryService.getFollowings(VIEWER, TARGET, null, 0, 20))
 			.isInstanceOf(FollowException.class)
 			.extracting("errorCode").isEqualTo(FollowErrorCode.FOLLOW_BLOCKED);
 
 		given(socialMemberReader.findSocial(VIEWER)).willReturn(Optional.of(member(VIEWER, "나")));
-		given(memberFollowRepository.findFollowings(eq(VIEWER), eq(VIEWER), any()))
+		given(memberFollowRepository.findFollowings(eq(VIEWER), eq(VIEWER), isNull(), any()))
 			.willReturn(new SliceImpl<>(List.of(), Pageable.ofSize(20), false));
-		followQueryService.getFollowings(VIEWER, VIEWER, 0, 20);
+		followQueryService.getFollowings(VIEWER, VIEWER, null, 0, 20);
 		then(memberBlockRepository).should(never()).existsBetween(VIEWER, VIEWER);
 	}
 }

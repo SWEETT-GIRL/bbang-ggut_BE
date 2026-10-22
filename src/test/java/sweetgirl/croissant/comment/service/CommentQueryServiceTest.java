@@ -3,6 +3,7 @@ package sweetgirl.croissant.comment.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
@@ -125,9 +126,9 @@ class CommentQueryServiceTest {
 		given(breadRecordRepository.findByIdAndDeletedAtIsNull(RECORD)).willReturn(Optional.of(record));
 		Member following = member(3L, "빵순이");
 		Member follower = member(4L, "빵돌이");
-		given(memberFollowRepository.findFollowings(eq(ME), eq(ME), any()))
+		given(memberFollowRepository.findFollowings(eq(ME), eq(ME), isNull(), any()))
 			.willReturn(new SliceImpl<>(List.of(MemberFollow.of(member(ME, "나"), following))));
-		given(memberFollowRepository.findFollowers(eq(ME), eq(ME), any()))
+		given(memberFollowRepository.findFollowers(eq(ME), eq(ME), isNull(), any()))
 			.willReturn(new SliceImpl<>(List.of(MemberFollow.of(follower, member(ME, "나")),
 				MemberFollow.of(following, member(ME, "나")))));
 		given(commentRepository.findCommenterIds(RECORD)).willReturn(List.of(ME, AUTHOR));

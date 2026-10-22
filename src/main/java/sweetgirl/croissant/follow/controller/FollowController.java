@@ -48,14 +48,15 @@ public class FollowController {
 	}
 
 	@Operation(summary = "팔로워 목록", description = "최신순. 보는 사람과 차단 관계인 사람 · 탈퇴한 사람은 빠진다. "
-		+ "줄마다 followedByMe(내가 팔로우하나) · followsMe(나를 팔로우하나).")
+		+ "줄마다 followedByMe(내가 팔로우하나) · followsMe(나를 팔로우하나) · 얼굴. q 는 닉네임 앞글자 거르기.")
 	@GetMapping("/{memberId}/followers")
 	public ApiResponse<SliceResponse<FollowMemberResponse>> getFollowers(
 			@AuthenticationPrincipal Long viewerId,
 			@PathVariable Long memberId,
+			@Parameter(description = "닉네임 앞글자(선택)") @RequestParam(name = "q", required = false) String nicknamePrefix,
 			@Parameter(description = "0부터 시작하는 페이지 번호") @RequestParam(defaultValue = "0") int page,
 			@Parameter(description = "페이지 크기(최대 50)") @RequestParam(defaultValue = "20") int size) {
-		return ApiResponse.ok(followQueryService.getFollowers(viewerId, memberId, page, size));
+		return ApiResponse.ok(followQueryService.getFollowers(viewerId, memberId, nicknamePrefix, page, size));
 	}
 
 	@Operation(summary = "팔로잉 목록", description = "조건은 팔로워 목록과 같다.")
@@ -63,8 +64,9 @@ public class FollowController {
 	public ApiResponse<SliceResponse<FollowMemberResponse>> getFollowings(
 			@AuthenticationPrincipal Long viewerId,
 			@PathVariable Long memberId,
+			@Parameter(description = "닉네임 앞글자(선택)") @RequestParam(name = "q", required = false) String nicknamePrefix,
 			@Parameter(description = "0부터 시작하는 페이지 번호") @RequestParam(defaultValue = "0") int page,
 			@Parameter(description = "페이지 크기(최대 50)") @RequestParam(defaultValue = "20") int size) {
-		return ApiResponse.ok(followQueryService.getFollowings(viewerId, memberId, page, size));
+		return ApiResponse.ok(followQueryService.getFollowings(viewerId, memberId, nicknamePrefix, page, size));
 	}
 }
