@@ -72,6 +72,7 @@ class PatCommandServiceTest {
 
 		patCommandService.pat(ME, TARGET);
 
+		verify(memberReader).requireLoggedIn(ME);
 		verify(memberRestrictionReader).validateCanWrite(ME);
 		verify(communityNotificationService).notifyPat(me, target);
 	}
