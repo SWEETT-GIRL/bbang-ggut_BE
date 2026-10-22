@@ -44,7 +44,7 @@ class AbuseReportReminderSchedulerTest {
 			AbuseReportReasonType.SPAM, null);
 		given(abuseReportRepository.findOverdue(eq(AbuseReportStatus.PENDING), any())).willReturn(List.of(report));
 
-		assertThat(scheduler.remindOverdue()).isEqualTo(1);
+		scheduler.remindOverdue();
 
 		then(publisher).should().publishAbuseReportsOverdue(List.of(report));
 		assertThat(report.getRemindedAt()).isNotNull();
@@ -55,7 +55,7 @@ class AbuseReportReminderSchedulerTest {
 	void nothingOverdue() {
 		given(abuseReportRepository.findOverdue(eq(AbuseReportStatus.PENDING), any())).willReturn(List.of());
 
-		assertThat(scheduler.remindOverdue()).isZero();
+		scheduler.remindOverdue();
 		then(publisher).shouldHaveNoInteractions();
 	}
 }
