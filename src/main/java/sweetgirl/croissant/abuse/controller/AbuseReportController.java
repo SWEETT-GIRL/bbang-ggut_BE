@@ -25,7 +25,7 @@ public class AbuseReportController {
 
 	private final AbuseReportCommandService abuseReportCommandService;
 
-	@Operation(summary = "사용자 신고 등록", description = "targetType: REVIEW | MEMBER_PROFILE")
+	@Operation(summary = "사용자 신고 등록", description = "targetType: REVIEW | MEMBER_PROFILE | COURSE | RECORD | COMMENT")
 	@PostMapping
 	public ResponseEntity<ApiResponse<AbuseReportCreateResponse>> createReport(
 			@AuthenticationPrincipal Long memberId,

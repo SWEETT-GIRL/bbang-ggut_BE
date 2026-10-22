@@ -47,10 +47,11 @@ public interface AbuseReportRepository extends JpaRepository<AbuseReport, Long> 
 
 	long countByStatus(AbuseReportStatus status);
 
-	/** 같은 대상을 신고한 서로 다른 사람 수 — 3명이면 자동 숨김. */
+	/** 같은 대상을 신고한 서로 다른 사람(로그인 회원) 수 — 3명이면 자동 숨김. 게스트 표는 세지 않는다. */
 	@Query("""
 			SELECT COUNT(DISTINCT r.reporter.id) FROM AbuseReport r
 			WHERE r.targetType = :targetType AND r.targetId = :targetId AND r.status IN :statuses
+				AND r.reporter.memberType = 'USER'
 			""")
 	long countDistinctReporters(@Param("targetType") AbuseReportTargetType targetType,
 			@Param("targetId") Long targetId, @Param("statuses") List<AbuseReportStatus> statuses);
