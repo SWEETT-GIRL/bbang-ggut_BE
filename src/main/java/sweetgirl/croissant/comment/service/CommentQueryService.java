@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.abuse.enums.AbuseReportTargetType;
+import sweetgirl.croissant.abuse.service.ReportedTargetReader;
 import sweetgirl.croissant.breadlog.code.BreadLogErrorCode;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.exception.BreadLogException;
@@ -52,18 +54,25 @@ public class CommentQueryService {
 	private final MemberFollowRepository memberFollowRepository;
 	private final MemberRepository memberRepository;
 	private final MemberReader memberReader;
+	private final ReportedTargetReader reportedTargetReader;
 
 	/** 오래된 순. 기록을 볼 수 있어야 댓글도 본다. */
 	public SliceResponse<CommentResponse> getComments(Long viewerId, Long recordId, int page, int size) {
 		BreadRecord record = visibleRecord(viewerId, recordId);
 		Slice<BreadRecordComment> comments = commentRepository.findVisibleByRecordId(record.getId(), viewerId,
 			PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_PAGE_SIZE)));
-		return new SliceResponse<>(toResponses(viewerId, record, comments.getContent()), comments.hasNext());
+		// 신고한 댓글은 신고자 화면에서 바로 빠진다
+		List<BreadRecordComment> visible = ReportedTargetReader.without(comments.getContent(),
+			BreadRecordComment::getId,
+			reportedTargetReader.reportedIds(viewerId, AbuseReportTargetType.COMMENT));
+		return new SliceResponse<>(toResponses(viewerId, record, visible), comments.hasNext());
 	}
 
 	/** 상세에 넣는 첫 댓글 1개. 없으면 null. */
 	public CommentResponse firstComment(Long viewerId, BreadRecord record) {
 		return commentRepository.findFirstVisibleByRecordId(record.getId(), viewerId)
+			.filter(
+				comment -> !reportedTargetReader.hasReported(viewerId, AbuseReportTargetType.COMMENT, comment.getId()))
 			.map(comment -> toResponses(viewerId, record, List.of(comment)).get(0))
 			.orElse(null);
 	}

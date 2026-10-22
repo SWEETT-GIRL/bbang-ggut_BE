@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.abuse.enums.AbuseReportTargetType;
+import sweetgirl.croissant.abuse.service.ReportedTargetReader;
 import sweetgirl.croissant.breadlog.code.BreadLogErrorCode;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordPhotoResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordResponse;
@@ -40,6 +42,7 @@ public class BreadRecordQueryService {
 	private final BreadRecordPhotoRepository photoRepository;
 	private final BreadRecordTagRepository tagRepository;
 	private final TowerBreadPicker towerBreadPicker;
+	private final ReportedTargetReader reportedTargetReader;
 
 	public SliceResponse<BreadRecordResponse> getRecords(
 			Long memberId,
@@ -72,7 +75,10 @@ public class BreadRecordQueryService {
 			viewerMemberId,
 			PageRequest.of(page, size + 1));
 		boolean hasNext = records.size() > size;
-		List<BreadRecord> pageRecords = hasNext ? records.subList(0, size) : records;
+		// 신고한 사람 화면에선 그 빵로그가 바로 빠진다(기각되면 다시 보임)
+		List<BreadRecord> pageRecords = ReportedTargetReader.without(
+			hasNext ? records.subList(0, size) : records, BreadRecord::getId,
+			reportedTargetReader.reportedIds(viewerMemberId, AbuseReportTargetType.RECORD));
 		if (pageRecords.isEmpty()) {
 			return new SliceResponse<>(List.of(), false);
 		}

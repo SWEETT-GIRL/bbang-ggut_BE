@@ -63,6 +63,9 @@ class CommentQueryServiceTest {
 	@Mock
 	private MemberReader memberReader;
 
+	@Mock
+	private sweetgirl.croissant.abuse.service.ReportedTargetReader reportedTargetReader;
+
 	@InjectMocks
 	private CommentQueryService queryService;
 

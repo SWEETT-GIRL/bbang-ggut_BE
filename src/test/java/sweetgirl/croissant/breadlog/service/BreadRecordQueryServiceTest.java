@@ -55,6 +55,9 @@ class BreadRecordQueryServiceTest {
 	@Spy
 	TowerBreadPicker towerBreadPicker = new TowerBreadPicker();
 
+	@Mock
+	private sweetgirl.croissant.abuse.service.ReportedTargetReader reportedTargetReader;
+
 	@InjectMocks
 	BreadRecordQueryService queryService;
 

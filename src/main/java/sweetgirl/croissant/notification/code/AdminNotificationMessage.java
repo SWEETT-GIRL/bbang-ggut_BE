@@ -32,6 +32,10 @@ public class AdminNotificationMessage {
 	public static final String MENU_UPDATE_SUBJECT = "메뉴 수정 제보";
 	public static final String REVIEW_ABUSE_SUBJECT = "리뷰 신고";
 	public static final String PROFILE_ABUSE_SUBJECT = "프로필 신고";
+	public static final String COURSE_ABUSE_SUBJECT = "빵투어 신고";
+	public static final String RECORD_ABUSE_SUBJECT = "빵로그 신고";
+	public static final String COMMENT_ABUSE_SUBJECT = "댓글 신고";
+	public static final String ABUSE_OVERDUE_SUBJECT = "24시간 넘게 처리 안 된 신고";
 	public static final String INQUIRY_SUBJECT = "문의";
 	public static final String LETTER_SUBJECT = "새 편지";
 

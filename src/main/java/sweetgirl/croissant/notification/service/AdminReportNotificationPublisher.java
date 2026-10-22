@@ -2,7 +2,9 @@ package sweetgirl.croissant.notification.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
@@ -30,6 +32,10 @@ public class AdminReportNotificationPublisher {
 	private static final int DETAIL_PREVIEW_LENGTH = 500;
 
 	private final ApplicationEventPublisher eventPublisher;
+
+	/** 어드민 웹 주소. 비어 있으면 링크 없이 보낸다. */
+	@Value("${admin.web-base-url:}")
+	private String adminWebBaseUrl;
 
 	public void publishStoreContributionReportCreated(StoreContributionReport report) {
 		ContributionReport contributionReport = report.getContributionReport();
@@ -90,17 +96,53 @@ public class AdminReportNotificationPublisher {
 		addField(fields, "신고자 ID", memberId(report.getReporter()), true);
 		addField(fields, "피신고자 ID", memberId(report.getReportedMember()), true);
 		addField(fields, "상세", report.getReasonDetail(), false);
+		addField(fields, "어드민", adminReportLink(report.getId()), false);
 
-		boolean isReview = report.getTargetType() == AbuseReportTargetType.REVIEW;
-		String subject = isReview
-			? AdminNotificationMessage.REVIEW_ABUSE_SUBJECT
-			: AdminNotificationMessage.PROFILE_ABUSE_SUBJECT;
+		String subject = abuseSubjectOf(report.getTargetType());
 		publish(
 			Channel.ABUSE,
 			AdminNotificationMessage.title(AdminNotificationMessage.ABUSE_EMOJI, subject),
 			AdminNotificationMessage.description(subject),
 			AdminNotificationMessage.ABUSE_COLOR,
 			fields);
+	}
+
+	/** 24시간 안에 처리 안 된 신고를 다시 알린다 — 애플 1.2 "24시간 안 조치"의 안전장치. */
+	public void publishAbuseReportsOverdue(List<AbuseReport> reports) {
+		if (reports.isEmpty()) {
+			return;
+		}
+		List<OperationalNotificationEvent.Field> fields = new ArrayList<>();
+		addField(fields, "건수", reports.size(), true);
+		String lines = reports.stream()
+			.map(report -> "#" + report.getId() + " " + abuseSubjectOf(report.getTargetType())
+				+ " · " + report.getReasonType() + " · " + adminReportLink(report.getId()))
+			.collect(Collectors.joining("\n"));
+		addField(fields, "목록", lines, false);
+		String subject = AdminNotificationMessage.ABUSE_OVERDUE_SUBJECT;
+		publish(
+			Channel.ABUSE,
+			AdminNotificationMessage.title(AdminNotificationMessage.ABUSE_EMOJI, subject),
+			subject + " — 지금 처리해 주세요.",
+			AdminNotificationMessage.ABUSE_COLOR,
+			fields);
+	}
+
+	static String abuseSubjectOf(AbuseReportTargetType targetType) {
+		return switch (targetType) {
+			case REVIEW -> AdminNotificationMessage.REVIEW_ABUSE_SUBJECT;
+			case COURSE -> AdminNotificationMessage.COURSE_ABUSE_SUBJECT;
+			case RECORD -> AdminNotificationMessage.RECORD_ABUSE_SUBJECT;
+			case COMMENT -> AdminNotificationMessage.COMMENT_ABUSE_SUBJECT;
+			case MEMBER_PROFILE -> AdminNotificationMessage.PROFILE_ABUSE_SUBJECT;
+		};
+	}
+
+	private String adminReportLink(Long reportId) {
+		if (adminWebBaseUrl == null || adminWebBaseUrl.isBlank()) {
+			return null;
+		}
+		return adminWebBaseUrl.replaceAll("/+$", "") + "/reports/" + reportId + "?kind=ABUSE_REPORT";
 	}
 
 	public void publishInquiryCreated(Inquiry inquiry) {

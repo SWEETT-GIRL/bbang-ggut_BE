@@ -38,6 +38,8 @@ import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
 import sweetgirl.croissant.admin.exception.AdminException;
 import sweetgirl.croissant.alarm.enums.ReportNotificationAction;
 import sweetgirl.croissant.alarm.service.ReportNotificationService;
+import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
+import sweetgirl.croissant.comment.repository.BreadRecordCommentRepository;
 import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.common.enums.ReportKind;
 import sweetgirl.croissant.contribution.entity.ContributionReport;
@@ -87,6 +89,10 @@ class AdminReportCommandServiceTest {
 	@Mock
 	ModerationActionRepository moderationActionRepository;
 	@Mock
+	BreadRecordRepository breadRecordRepository;
+	@Mock
+	BreadRecordCommentRepository commentRepository;
+	@Mock
 	StoreContributionReportImageFileRepository storeContributionReportImageFileRepository;
 	@Mock
 	MenuContributionReportImageFileRepository menuContributionReportImageFileRepository;
@@ -131,6 +137,8 @@ class AdminReportCommandServiceTest {
 			abuseReportRepository,
 			moderationActionRepository,
 			reviewRepository,
+			breadRecordRepository,
+			commentRepository,
 			reportNotificationService,
 			contributionReportProcessor);
 	}

@@ -4,6 +4,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.abuse.enums.AbuseReportTargetType;
+import sweetgirl.croissant.abuse.service.ReportedTargetReader;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.follow.repository.MemberFollowRepository;
 import sweetgirl.croissant.member.entity.Member;
@@ -41,6 +43,7 @@ public class ProfileQueryService {
 	private final WorldCharacterAssetRepository worldCharacterAssetRepository;
 	private final WorldLevelReader worldLevelReader;
 	private final WorldCatalogService worldCatalogService;
+	private final ReportedTargetReader reportedTargetReader;
 
 	/**
 	 * 보는 사람({@code viewerId})은 게스트여도 되고 비로그인이면 null. 상대가 게스트 · 봇 · 탈퇴면 404,
@@ -51,7 +54,8 @@ public class ProfileQueryService {
 			.orElseThrow(() -> new ProfileException(ProfileErrorCode.PROFILE_MEMBER_NOT_FOUND));
 		boolean isMe = memberId.equals(viewerId);
 		if (!isMe && (viewerId != null && memberBlockRepository.existsBetween(viewerId, memberId)
-			|| memberRestrictionReader.isProfileRestricted(memberId))) {
+			|| memberRestrictionReader.isProfileRestricted(memberId)
+			|| reportedTargetReader.hasReported(viewerId, AbuseReportTargetType.MEMBER_PROFILE, memberId))) {
 			return ProfileResponse.blocked(memberId);
 		}
 		WorldCharacter character = memberWorldRepository.findById(memberId)
