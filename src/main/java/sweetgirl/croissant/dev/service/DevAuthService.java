@@ -17,6 +17,7 @@ import sweetgirl.croissant.member.entity.RefreshToken;
 import sweetgirl.croissant.member.jwt.JwtProvider;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository;
+import sweetgirl.croissant.member.util.NicknameNormalizer;
 
 /**
  * 카카오 없이 쓰는 테스트 회원 로그인. <b>local·staging 에서만 뜬다 — prod 에는 올라가지 않는다.</b>
@@ -41,7 +42,9 @@ public class DevAuthService {
 	@Transactional
 	public DevTestLoginResponse login(String nickname, String deviceId) {
 		LocalDateTime now = LocalDateTime.now();
-		Optional<Member> existing = memberRepository.findByNicknameAndDeletedAtIsNull(nickname);
+		// 회원 유니크는 정규화 닉네임(uq_member_nickname_normalized_alive)이라 같은 기준으로 찾는다 — 아니면 save 가 유니크 충돌
+		Optional<Member> existing = memberRepository.findByNicknameNormalizedAndDeletedAtIsNull(
+			NicknameNormalizer.normalize(nickname));
 		Member member = existing.orElseGet(() -> memberRepository.save(Member.registering(nickname, now)));
 		Long memberId = member.getId();
 		notificationSettingProvider.getOrCreate(memberId);

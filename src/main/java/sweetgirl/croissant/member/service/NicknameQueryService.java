@@ -22,7 +22,7 @@ public class NicknameQueryService {
 	private final NicknamePolicy nicknamePolicy;
 
 	public NicknameAvailabilityResponse checkAvailability(String rawNickname) {
-		String nickname = rawNickname == null ? "" : rawNickname.strip();
+		String nickname = NicknamePolicy.cleanInput(rawNickname);
 		if (!nicknamePolicy.isWellFormed(nickname)) {
 			return NicknameAvailabilityResponse.rejected("FORMAT", List.of());
 		}

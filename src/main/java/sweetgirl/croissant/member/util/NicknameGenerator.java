@@ -31,6 +31,7 @@ public class NicknameGenerator {
 
 	/** NicknamePolicy.MAX_LENGTH 와 같은 값. 단어 파일 조합이 이걸 넘으면 그 조합은 버린다. */
 	static final int NICKNAME_MAX_LENGTH = 10;
+	static final int GENERATE_ATTEMPTS = 5;
 
 	private final Queue<String> nicknameQueue = new ConcurrentLinkedQueue<>();
 
@@ -62,7 +63,22 @@ public class NicknameGenerator {
 		}
 	}
 
+	/**
+	 * 큐는 기동 때의 이름만 뺀 것이라, 그 뒤 누가 같은 이름으로 바꿨거나 다른 인스턴스가 먼저 줬을 수 있다 —
+	 * 살아 있는 회원 유니크(uq_member_nickname_normalized_alive)에 걸리기 전에 DB 로 한 번 더 본다.
+	 */
 	public String generate() {
+		for (int attempt = 0; attempt < GENERATE_ATTEMPTS; attempt++) {
+			String nickname = pollOrRebuild();
+			if (!memberRepository
+				.existsByNicknameNormalizedAndDeletedAtIsNull(NicknameNormalizer.normalize(nickname))) {
+				return nickname;
+			}
+		}
+		throw new NicknameException(NicknameErrorCode.NICKNAME_EXHAUSTED);
+	}
+
+	private String pollOrRebuild() {
 		String nickname = nicknameQueue.poll();
 		if (nickname == null) {
 			rebuild();
