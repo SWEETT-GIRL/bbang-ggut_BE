@@ -71,7 +71,7 @@ class ProfileControllerTest {
 	@DisplayName("GET /members/search?q= 와 GET /members/suggestions")
 	void searchAndSuggestions() throws Exception {
 		given(memberSearchQueryService.search(any(), eq("빵순")))
-			.willReturn(List.of(new FollowMemberResponse(10L, "빵순이", false, true)));
+			.willReturn(List.of(new FollowMemberResponse(10L, "빵순이", false, true, "CROISSANT", "world/croissant.png")));
 		mockMvc.perform(get("/members/search").param("q", "빵순"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data[0].memberId").value(10))

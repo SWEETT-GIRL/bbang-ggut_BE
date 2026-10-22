@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,8 @@ import sweetgirl.croissant.follow.dto.response.FollowMemberResponse;
 import sweetgirl.croissant.follow.repository.MemberFollowRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.profile.dto.response.CharacterFace;
+import sweetgirl.croissant.profile.service.CharacterFaceReader;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("MemberSearchQueryService")
@@ -29,6 +32,8 @@ class MemberSearchQueryServiceTest {
 	private MemberRepository memberRepository;
 	@Mock
 	private MemberFollowRepository memberFollowRepository;
+	@Mock
+	private CharacterFaceReader characterFaceReader;
 
 	@InjectMocks
 	private MemberSearchQueryService memberSearchQueryService;
@@ -46,12 +51,14 @@ class MemberSearchQueryServiceTest {
 			.willReturn(List.of(member(10L, "빵순이"), member(11L, "빵순찌")));
 		given(memberFollowRepository.findFolloweeIdsIn(1L, List.of(10L, 11L))).willReturn(List.of(10L));
 		given(memberFollowRepository.findFollowerIdsIn(1L, List.of(10L, 11L))).willReturn(List.of());
+		given(characterFaceReader.facesOf(List.of(10L, 11L)))
+			.willReturn(Map.of(10L, new CharacterFace("CROISSANT", "world/croissant.png")));
 
 		List<FollowMemberResponse> result = memberSearchQueryService.search(1L, " 빵 순 ");
 
 		assertThat(result).containsExactly(
-			new FollowMemberResponse(10L, "빵순이", true, false),
-			new FollowMemberResponse(11L, "빵순찌", false, false));
+			new FollowMemberResponse(10L, "빵순이", true, false, "CROISSANT", "world/croissant.png"),
+			new FollowMemberResponse(11L, "빵순찌", false, false, null, null));
 	}
 
 	@Test

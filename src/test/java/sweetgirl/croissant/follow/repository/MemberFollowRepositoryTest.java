@@ -89,7 +89,7 @@ class MemberFollowRepositoryTest {
 		entityManager.flush();
 		entityManager.clear();
 
-		Slice<MemberFollow> followers = memberFollowRepository.findFollowers(me.getId(), me.getId(),
+		Slice<MemberFollow> followers = memberFollowRepository.findFollowers(me.getId(), me.getId(), null,
 			PageRequest.of(0, 10));
 
 		assertThat(followers.getContent()).extracting(row -> row.getFollower().getNickname())
@@ -106,12 +106,17 @@ class MemberFollowRepositoryTest {
 		entityManager.flush();
 		entityManager.clear();
 
-		Slice<MemberFollow> firstPage = memberFollowRepository.findFollowings(me.getId(), me.getId(),
+		Slice<MemberFollow> firstPage = memberFollowRepository.findFollowings(me.getId(), me.getId(), null,
 			PageRequest.of(0, 2));
 
 		assertThat(firstPage.getContent()).extracting(row -> row.getFollowee().getNickname())
 			.containsExactly("셋째", "둘째");
 		assertThat(firstPage.hasNext()).isTrue();
+
+		// q 는 닉네임 앞글자 — "둘" 이면 둘째만
+		Slice<MemberFollow> filtered = memberFollowRepository.findFollowings(me.getId(), me.getId(), "둘",
+			PageRequest.of(0, 10));
+		assertThat(filtered.getContent()).extracting(row -> row.getFollowee().getNickname()).containsExactly("둘째");
 	}
 
 	@Test

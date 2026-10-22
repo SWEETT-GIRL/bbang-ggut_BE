@@ -87,9 +87,9 @@ public class CommentQueryService {
 		String prefix = NicknameNormalizer.normalize(query);
 		Map<Long, String> relationById = new LinkedHashMap<>();
 		Pageable scan = PageRequest.of(0, RELATION_SCAN_LIMIT);
-		memberFollowRepository.findFollowings(viewerId, viewerId, scan).getContent().stream()
+		memberFollowRepository.findFollowings(viewerId, viewerId, null, scan).getContent().stream()
 			.map(MemberFollow::getFollowee).forEach(member -> relationById.putIfAbsent(member.getId(), "FOLLOWING"));
-		memberFollowRepository.findFollowers(viewerId, viewerId, scan).getContent().stream()
+		memberFollowRepository.findFollowers(viewerId, viewerId, null, scan).getContent().stream()
 			.map(MemberFollow::getFollower).forEach(member -> relationById.putIfAbsent(member.getId(), "FOLLOWER"));
 		commentRepository.findCommenterIds(record.getId())
 			.forEach(memberId -> relationById.putIfAbsent(memberId, "COMMENTER"));
