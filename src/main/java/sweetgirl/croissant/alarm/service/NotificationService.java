@@ -104,16 +104,26 @@ public class NotificationService {
 		}
 		List<NotificationRecipient> picked = recipientRepository.findByMemberIdAndIdIn(memberId,
 			request.getNotificationIds());
+		// 알림함에서 묶인 줄의 대표 id 하나로 읽음이 오면 같은 묶음(같은 날 · 종류 · 대상)도 같이 읽는다.
+		// 묶음 열쇠는 벌크 UPDATE(clearAutomatically) 전에 다 읽어 둔다 — 비워진 컨텍스트에서 지연 프록시를 열면 터진다
+		List<GroupKey> groups = picked.stream()
+			.filter(recipient -> recipient.getNotifiedAt() != null
+				&& recipient.getNotification().getType().isCommunityActivity())
+			.map(recipient -> new GroupKey(recipient.getNotification().getType(),
+				recipient.getNotification().getTargetType(), recipient.getNotification().getTargetId(),
+				recipient.getNotifiedAt().toLocalDate()))
+			.distinct()
+			.toList();
 		picked.forEach(recipient -> recipient.markAsRead(now));
-		// 알림함에서 묶인 줄의 대표 id 하나로 읽음이 오면 같은 묶음(같은 날 · 종류 · 대상)도 같이 읽는다
-		for (NotificationRecipient recipient : picked) {
-			Notification notification = recipient.getNotification();
-			if (notification.getType().isCommunityActivity() && recipient.getNotifiedAt() != null) {
-				LocalDate day = recipient.getNotifiedAt().toLocalDate();
-				recipientRepository.markGroupAsRead(memberId, notification.getType(), notification.getTargetType(),
-					notification.getTargetId(), day.atStartOfDay(), day.plusDays(1).atStartOfDay(), now);
-			}
+		recipientRepository.flush();
+		for (GroupKey group : groups) {
+			recipientRepository.markGroupAsRead(memberId, group.type(), group.targetType(), group.targetId(),
+				group.day().atStartOfDay(), group.day().plusDays(1).atStartOfDay(), now);
 		}
+	}
+
+	/** 알림함 묶음 하나 — 같은 날 · 종류 · 대상. */
+	private record GroupKey(NotificationType type, NotificationTargetType targetType, Long targetId, LocalDate day) {
 	}
 
 	/**

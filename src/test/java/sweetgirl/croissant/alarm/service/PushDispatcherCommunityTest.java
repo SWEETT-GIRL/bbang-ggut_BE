@@ -89,4 +89,17 @@ class PushDispatcherCommunityTest {
 		pushDispatcher.dispatchWithResult(notification(NotificationType.RECORD_COMMENT), member, LocalDateTime.now());
 		then(fcmTokenRepository).should().findByMemberAndIsActive(member, true);
 	}
+
+	@Test
+	@DisplayName("설정 행이 없는 사람(설정 화면을 연 적 없음)에게도 하루 상한은 건다")
+	void capAppliesWithoutSetting() {
+		given(notificationSettingRepository.findByMemberId(2L)).willReturn(Optional.empty());
+		given(deliveryRepository.countSentPushSince(anyLong(), any(), any())).willReturn(5L);
+
+		PushDispatcher.Result result = pushDispatcher.dispatchWithResult(notification(NotificationType.RECORD_LIKE),
+			member, LocalDateTime.now());
+
+		assertThat(result).isEqualTo(PushDispatcher.Result.SKIPPED);
+		then(fcmTokenRepository).shouldHaveNoInteractions();
+	}
 }

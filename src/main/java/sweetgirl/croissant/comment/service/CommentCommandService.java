@@ -85,7 +85,7 @@ public class CommentCommandService {
 				CommentMention.of(comment, mentioned.get(i), mention.start(), mention.length())));
 		}
 		communityNotificationService.notifyRecordComment(comment);
-		mentioned.forEach(target -> communityNotificationService.notifyMention(comment, target));
+		communityNotificationService.notifyMention(comment, mentioned);
 		return CommentResponse.of(comment, mentions, characterFaceReader.faceOf(memberId),
 			record.getMember().getId(), memberId);
 	}

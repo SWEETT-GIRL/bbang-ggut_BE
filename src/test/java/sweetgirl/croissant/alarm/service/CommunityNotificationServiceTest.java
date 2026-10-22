@@ -74,7 +74,7 @@ class CommunityNotificationServiceTest {
 		Member actor = member(1L, "빵순이");
 		Member target = member(2L, "빵돌이");
 		given(notificationRepository.findByActorIdAndTypeAndTargetTypeAndTargetId(1L, NotificationType.FOLLOW,
-			NotificationTargetType.MEMBER, 1L)).willReturn(Optional.empty());
+			NotificationTargetType.MEMBER, 2L)).willReturn(Optional.empty());
 
 		service.notifyFollow(actor, target);
 
@@ -82,6 +82,8 @@ class CommunityNotificationServiceTest {
 		then(notificationRecorder).should().recordForMembers(captor.capture(), eq(List.of(target)), any());
 		assertThat(captor.getValue().getTitle()).isEqualTo("빵순이님이 회원님을 팔로우해요");
 		assertThat(captor.getValue().getTargetType()).isEqualTo(NotificationTargetType.MEMBER);
+		// 대상은 받는 사람 — 같은 사람이 다른 사람을 팔로우하면 새 알림이어야 한다(키가 actor 였던 10/22 버그)
+		assertThat(captor.getValue().getTargetId()).isEqualTo(2L);
 		assertThat(captor.getValue().getDeepLink()).isEqualTo("/profile/1");
 		then(eventPublisher).should().publishEvent(PushRequestedEvent.to(500L, 2L));
 	}
@@ -152,6 +154,26 @@ class CommunityNotificationServiceTest {
 		assertThat(captor.getValue().getBody()).isEqualTo("성수 빵투어");
 		assertThat(captor.getValue().getDeepLink()).isEqualTo("/courses/10/member-invite");
 		then(eventPublisher).should().publishEvent(PushRequestedEvent.to(500L, 2L));
+	}
+
+	@Test
+	@DisplayName("멘션: 댓글 하나에 여러 명을 언급하면 한 행에 받는 사람 전부, 댓글 쓴 사람 자신은 뺀다")
+	void mentionManyAtOnce() {
+		Member commenter = member(1L, "빵순이");
+		BreadRecord record = BreadRecord.builder().member(member(9L, "글쓴이")).storeName("빵집").build();
+		ReflectionTestUtils.setField(record, "id", 10L);
+		BreadRecordComment comment = BreadRecordComment.of(record, commenter, "@빵돌이 @빵삼이 가자");
+		ReflectionTestUtils.setField(comment, "id", 77L);
+		given(notificationRepository.findByActorIdAndTypeAndTargetTypeAndTargetId(1L,
+			NotificationType.COMMENT_MENTION, NotificationTargetType.COMMENT, 77L)).willReturn(Optional.empty());
+		Member second = member(2L, "빵돌이");
+		Member third = member(3L, "빵삼이");
+
+		service.notifyMention(comment, List.of(second, third, commenter));
+
+		then(notificationRecorder).should().recordForMembers(any(), eq(List.of(second, third)), any());
+		then(eventPublisher).should().publishEvent(PushRequestedEvent.to(500L, 2L));
+		then(eventPublisher).should().publishEvent(PushRequestedEvent.to(500L, 3L));
 	}
 
 	@Test

@@ -120,21 +120,20 @@ public class PushDispatcher {
 	private boolean isEligible(Notification notification, Member member, LocalDateTime now) {
 		NotificationSetting setting = notificationSettingRepository.findByMemberId(member.getId())
 			.orElse(null);
+		NotificationType type = notification.getType();
+		// 하루 상한은 설정이 없는 사람(설정 화면을 연 적 없음)에게도 건다 — 톡 · 좋아요 · 팔로잉 소식 도배 방지
+		if (type.isDailyCapped() && deliveryRepository.countSentPushSince(member.getId(),
+			LocalDate.now(KST).atStartOfDay(), DAILY_CAPPED_TYPES) >= DAILY_PUSH_CAP) {
+			return false;
+		}
 		if (setting == null) {
-			return !notification.getType().requiresMarketingConsent();
+			return !type.requiresMarketingConsent();
 		}
 		if (!setting.isNotificationEnabled()) {
 			return false;
 		}
-		NotificationType type = notification.getType();
-		if (type.isCommunityActivity()) {
-			if (!setting.allowsCommunity(type)) {
-				return false;
-			}
-			if (type.isDailyCapped() && deliveryRepository.countSentPushSince(member.getId(),
-				LocalDate.now(KST).atStartOfDay(), DAILY_CAPPED_TYPES) >= DAILY_PUSH_CAP) {
-				return false;
-			}
+		if (type.isCommunityActivity() && !setting.allowsCommunity(type)) {
+			return false;
 		}
 		if (!type.requiresMarketingConsent()) {
 			return true;
