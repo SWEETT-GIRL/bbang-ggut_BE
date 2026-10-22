@@ -1,6 +1,10 @@
 package sweetgirl.croissant.alarm.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +34,8 @@ import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.profile.dto.response.CharacterFace;
+import sweetgirl.croissant.profile.service.CharacterFaceReader;
 
 /**
  * 알림의 적재·조회. 종류가 무엇이든 한 알림함에 쌓이고 한 목록으로 나간다.
@@ -60,6 +66,7 @@ public class NotificationService {
 	private final ApplicationEventPublisher eventPublisher;
 	private final CourseRepository courseRepository;
 	private final MemberRepository memberRepository;
+	private final CharacterFaceReader characterFaceReader;
 
 	// ── 조회 ────────────────────────────────────────────────────────────────
 
@@ -95,8 +102,18 @@ public class NotificationService {
 			recipientRepository.markAllAsRead(memberId, now);
 			return;
 		}
-		recipientRepository.findByMemberIdAndIdIn(memberId, request.getNotificationIds())
-			.forEach(recipient -> recipient.markAsRead(now));
+		List<NotificationRecipient> picked = recipientRepository.findByMemberIdAndIdIn(memberId,
+			request.getNotificationIds());
+		picked.forEach(recipient -> recipient.markAsRead(now));
+		// 알림함에서 묶인 줄의 대표 id 하나로 읽음이 오면 같은 묶음(같은 날 · 종류 · 대상)도 같이 읽는다
+		for (NotificationRecipient recipient : picked) {
+			Notification notification = recipient.getNotification();
+			if (notification.getType().isCommunityActivity() && recipient.getNotifiedAt() != null) {
+				LocalDate day = recipient.getNotifiedAt().toLocalDate();
+				recipientRepository.markGroupAsRead(memberId, notification.getType(), notification.getTargetType(),
+					notification.getTargetId(), day.atStartOfDay(), day.plusDays(1).atStartOfDay(), now);
+			}
+		}
 	}
 
 	/**
@@ -192,8 +209,57 @@ public class NotificationService {
 	}
 
 	private NotificationListResponse toListResponse(Slice<NotificationRecipient> slice) {
-		return new NotificationListResponse(
-			slice.getContent().stream().map(NotificationResponse::from).toList(),
-			slice.hasNext());
+		List<NotificationResponse> rows = slice.getContent().stream().map(NotificationResponse::from).toList();
+		return new NotificationListResponse(withFaces(groupCommunityRows(rows)), slice.hasNext());
+	}
+
+	/**
+	 * 사람 사이 활동 알림은 같은 날 · 같은 종류 · 같은 대상이 이어지면 한 줄로 묶는다("OO님 외 2명이 좋아해요").
+	 * 댓글 · 멘션은 하나씩이라 묶지 않는다(대상이 댓글 id 라 어차피 안 겹친다). 페이지 경계는 넘지 않는다.
+	 */
+	static List<NotificationResponse> groupCommunityRows(List<NotificationResponse> rows) {
+		List<NotificationResponse> result = new ArrayList<>();
+		int index = 0;
+		while (index < rows.size()) {
+			NotificationResponse head = rows.get(index);
+			int end = index + 1;
+			if (head.type().isCommunityActivity() && head.targetType() != NotificationTargetType.COMMENT) {
+				while (end < rows.size() && sameGroup(head, rows.get(end))) {
+					end++;
+				}
+			}
+			result.add(end - index == 1 ? head : head.merged(rows.subList(index, end)));
+			index = end;
+		}
+		return result;
+	}
+
+	private static boolean sameGroup(NotificationResponse head, NotificationResponse other) {
+		return head.type() == other.type()
+			&& head.targetType() == other.targetType()
+			&& java.util.Objects.equals(head.targetId(), other.targetId())
+			&& head.notifiedAt() != null && other.notifiedAt() != null
+			&& head.notifiedAt().toLocalDate().equals(other.notifiedAt().toLocalDate());
+	}
+
+	/** 얼굴은 한 번에 읽는다 — 줄마다 쿼리하지 않는다. */
+	private List<NotificationResponse> withFaces(List<NotificationResponse> rows) {
+		List<Long> memberIds = rows.stream()
+			.flatMap(row -> row.actors().stream())
+			.map(NotificationResponse.ActorResponse::memberId)
+			.filter(java.util.Objects::nonNull)
+			.distinct()
+			.toList();
+		if (memberIds.isEmpty()) {
+			return rows;
+		}
+		Map<Long, CharacterFace> faces = characterFaceReader.facesOf(memberIds);
+		return rows.stream()
+			.map(row -> row.withActors(row.actors().stream()
+				.map(face -> new NotificationResponse.ActorResponse(face.memberId(), face.nickname(),
+					face.memberId() == null ? null
+						: faces.getOrDefault(face.memberId(), CharacterFace.NONE).characterCode()))
+				.toList()))
+			.toList();
 	}
 }

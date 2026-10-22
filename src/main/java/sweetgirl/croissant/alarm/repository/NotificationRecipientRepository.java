@@ -12,6 +12,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import sweetgirl.croissant.alarm.entity.NotificationRecipient;
+import sweetgirl.croissant.alarm.enums.NotificationTargetType;
 import sweetgirl.croissant.alarm.enums.NotificationType;
 
 /**
@@ -35,6 +36,19 @@ public interface NotificationRecipientRepository extends JpaRepository<Notificat
 			ORDER BY r.notifiedAt DESC
 			""")
 	Slice<NotificationRecipient> findMine(@Param("memberId") Long memberId, Pageable pageable);
+
+	/** 알림함 묶음의 대표 id 로 읽음이 오면 같은 날 · 종류 · 대상의 나머지도 읽음 처리. */
+	@Modifying(clearAutomatically = true)
+	@Query("""
+			UPDATE NotificationRecipient r SET r.readAt = :now
+			WHERE r.member.id = :memberId AND r.readAt IS NULL
+				AND r.notifiedAt >= :from AND r.notifiedAt < :to
+				AND r.notification.id IN (SELECT n.id FROM Notification n
+					WHERE n.type = :type AND n.targetType = :targetType AND n.targetId = :targetId)
+			""")
+	int markGroupAsRead(@Param("memberId") Long memberId, @Param("type") NotificationType type,
+			@Param("targetType") NotificationTargetType targetType, @Param("targetId") Long targetId,
+			@Param("from") LocalDateTime from, @Param("to") LocalDateTime to, @Param("now") LocalDateTime now);
 
 	/** 구버전 앱이 쓰는 경로 — 저장 알림만 골라 준다. */
 	@Query("""
