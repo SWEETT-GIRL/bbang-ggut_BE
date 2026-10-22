@@ -34,6 +34,11 @@ public interface BreadRecordLikeRepository extends JpaRepository<BreadRecordLike
 	@Query("DELETE FROM BreadRecordLike l WHERE l.id.recordId = :recordId AND l.id.memberId = :memberId")
 	int deleteByPair(@Param("recordId") Long recordId, @Param("memberId") Long memberId);
 
+	/** 한 사람이 누른 좋아요를 전부 지운다 — 탈퇴 때. 받은 좋아요는 기록에 남는다(기록도 안 보일 뿐 남으니). */
+	@Modifying
+	@Query("DELETE FROM BreadRecordLike l WHERE l.id.memberId = :memberId")
+	int deleteAllByMemberId(@Param("memberId") Long memberId);
+
 	/** 목록 줄마다 좋아요 수 — 한 번에. */
 	@Query("SELECT l.id.recordId AS recordId, COUNT(l) AS likeCount FROM BreadRecordLike l "
 		+ "WHERE l.id.recordId IN :recordIds GROUP BY l.id.recordId")

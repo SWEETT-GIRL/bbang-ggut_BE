@@ -50,6 +50,11 @@ public interface MemberFollowRepository extends JpaRepository<MemberFollow, Memb
 			""")
 	int deleteBetween(@Param("memberId") Long memberId, @Param("otherId") Long otherId);
 
+	/** 한 사람의 팔로우를 양방향으로 전부 지운다 — 탈퇴 때. */
+	@Modifying
+	@Query("DELETE FROM MemberFollow f WHERE f.id.followerId = :memberId OR f.id.followeeId = :memberId")
+	int deleteAllOf(@Param("memberId") Long memberId);
+
 	/**
 	 * {@code memberId} 의 팔로워. 최신순. 탈퇴한 사람과 보는 사람({@code viewerId})과 차단 관계인 사람은 뺀다.
 	 * 보는 사람이 없으면(비로그인) 차단 조건은 아무도 안 거른다.

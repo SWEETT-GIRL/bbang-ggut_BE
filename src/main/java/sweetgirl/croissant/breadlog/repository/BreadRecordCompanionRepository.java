@@ -35,12 +35,23 @@ public interface BreadRecordCompanionRepository extends JpaRepository<BreadRecor
 			""")
 	List<Long> findMemberIdsTaggedSince(@Param("ownerId") Long ownerId, @Param("since") LocalDateTime since);
 
-	/** 두 사람 사이의 태그를 양방향으로 지운다 — 차단 · 탈퇴 때(한쪽이 쓴 기록에 다른 쪽이 태그된 행). */
+	/** 두 사람 사이의 태그를 양방향으로 지운다 — 차단 때(한쪽이 쓴 기록에 다른 쪽이 태그된 행). 벌크 삭제라 조인 대신 서브쿼리. */
 	@Modifying
 	@Query("""
 			DELETE FROM BreadRecordCompanion c
-			WHERE (c.id.memberId = :memberId AND c.record.member.id = :otherId)
-				OR (c.id.memberId = :otherId AND c.record.member.id = :memberId)
+			WHERE (c.id.memberId = :memberId
+					AND c.id.recordId IN (SELECT r.id FROM BreadRecord r WHERE r.member.id = :otherId))
+				OR (c.id.memberId = :otherId
+					AND c.id.recordId IN (SELECT r.id FROM BreadRecord r WHERE r.member.id = :memberId))
 			""")
 	int deleteBetween(@Param("memberId") Long memberId, @Param("otherId") Long otherId);
+
+	/** 한 사람의 태그를 전부 지운다 — 탈퇴 때. 그 사람이 태그된 행과 그 사람 기록에 달린 행 모두. */
+	@Modifying
+	@Query("""
+			DELETE FROM BreadRecordCompanion c
+			WHERE c.id.memberId = :memberId
+				OR c.id.recordId IN (SELECT r.id FROM BreadRecord r WHERE r.member.id = :memberId)
+			""")
+	int deleteAllOf(@Param("memberId") Long memberId);
 }

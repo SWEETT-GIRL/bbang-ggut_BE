@@ -13,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
 import sweetgirl.croissant.alarm.service.NotificationSettingProvider;
@@ -25,6 +26,7 @@ import sweetgirl.croissant.member.entity.NotificationSetting;
 import sweetgirl.croissant.member.entity.OAuth;
 import sweetgirl.croissant.member.entity.RefreshToken;
 import sweetgirl.croissant.member.enums.OAuthProvider;
+import sweetgirl.croissant.member.event.MemberWithdrawnEvent;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.LikedMenuCategoryRepository;
 import sweetgirl.croissant.member.repository.MemberRepository;
@@ -58,6 +60,8 @@ class MemberCommandServiceTest {
 	private NotificationSettingProvider notificationSettingProvider;
 	@Mock
 	private OAuthRepository oAuthRepository;
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
 	private MemberCommandService memberCommandService;
@@ -76,6 +80,8 @@ class MemberCommandServiceTest {
 		then(courseMemberService).should().leaveAllCourses(1L);
 		then(session).should().revoke();
 		then(fcmTokenRepository).should().deleteAllByMember(member);
+		// 팔로우 · 좋아요 · 톡 · 멘션 · 태그는 각 도메인이 이 이벤트로 지운다
+		then(eventPublisher).should().publishEvent(new MemberWithdrawnEvent(1L));
 	}
 
 	// 탈퇴 = 개인 정보를 그 자리에서 지운다 — 닉네임은 '탈퇴한 회원', 소셜 이메일은 비우고, providerId 해시는 남긴다
