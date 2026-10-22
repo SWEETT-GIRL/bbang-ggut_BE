@@ -17,6 +17,7 @@ import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.repository.MemberRestrictionRepository;
 import sweetgirl.croissant.member.repository.OAuthRepository;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository;
+import sweetgirl.croissant.member.util.NicknameNormalizer;
 
 /**
  * 탈퇴한 지 {@code member.withdrawal-retention.days}(기본 30)일이 지난 회원에게 아직 남은 개인 정보를 지운다.
@@ -75,6 +76,8 @@ public class WithdrawnMemberRetentionService {
 	@Transactional
 	public ModerationPurge purgeExpiredModerationRecords(LocalDateTime now) {
 		LocalDateTime cutoff = now.minusDays(moderationRetentionDays);
+		// 신고자만 탈퇴한 신고에서 비롯된 활성 회원의 조치 · 이의제기는 남긴다 — 신고 행만 끊는다(report = null)
+		moderationActionRepository.detachReportsOfMembersDeletedBefore(cutoff);
 		ModerationPurge purge = new ModerationPurge(
 			moderationAppealRepository.deleteAllOfMembersDeletedBefore(cutoff),
 			moderationActionRepository.deleteAllOfMembersDeletedBefore(cutoff),
@@ -93,7 +96,8 @@ public class WithdrawnMemberRetentionService {
 	public Result anonymizeExpired(LocalDateTime now) {
 		LocalDateTime cutoff = now.minusDays(retentionDays);
 		Result result = new Result(
-			memberRepository.anonymizeMembersDeletedBefore(cutoff, Member.WITHDRAWN_NICKNAME),
+			memberRepository.anonymizeMembersDeletedBefore(cutoff, Member.WITHDRAWN_NICKNAME,
+				NicknameNormalizer.normalize(Member.WITHDRAWN_NICKNAME)),
 			oAuthRepository.clearEmailOfMembersDeletedBefore(cutoff),
 			refreshTokenRepository.revokeAllOfMembersDeletedBefore(cutoff, now),
 			fcmTokenRepository.deleteAllOfMembersDeletedBefore(cutoff));

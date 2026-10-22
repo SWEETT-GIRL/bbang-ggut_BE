@@ -212,6 +212,10 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			JOIN member m ON m.id = r.member_id AND m.deleted_at IS NULL AND m.member_type = 'USER'
 			WHERE r.is_public = true AND r.deleted_at IS NULL AND r.hidden_at IS NULL
 				AND r.created_at >= :since AND r.member_id <> :viewerId
+				AND NOT EXISTS (SELECT 1 FROM member_restriction mr
+					WHERE mr.member_id = r.member_id AND mr.restriction_type = 'PROFILE_RESTRICTED'
+						AND mr.starts_at <= CURRENT_TIMESTAMP
+						AND (mr.ends_at IS NULL OR mr.ends_at > CURRENT_TIMESTAMP))
 			GROUP BY r.member_id
 			ORDER BY COUNT(*) FILTER (WHERE r.store_id IN (
 					SELECT mine.store_id FROM bread_record mine

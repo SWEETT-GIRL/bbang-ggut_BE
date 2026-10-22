@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,11 +32,12 @@ public class MemberBlockQueryService {
 		}
 		Member blocker = memberReader.getMember(memberId);
 
-		List<MemberBlock> memberBlocks = memberBlockRepository.findAllByBlockerIdOrderByCreatedAtDescIdDesc(
+		// size+1 로 page 를 넘기면 offset 이 page×(size+1) 로 밀려 쪽마다 page 개 행이 빠졌다 — Slice 가 다음 쪽 여부를 센다
+		Slice<MemberBlock> slice = memberBlockRepository.findAllByBlockerIdOrderByCreatedAtDescIdDesc(
 			blocker.getId(),
-			PageRequest.of(page, size + 1));
-		boolean hasNext = memberBlocks.size() > size;
-		List<MemberBlock> pageBlocks = hasNext ? memberBlocks.subList(0, size) : memberBlocks;
+			PageRequest.of(page, size));
+		boolean hasNext = slice.hasNext();
+		List<MemberBlock> pageBlocks = slice.getContent();
 
 		Map<Long, CharacterFace> faces = characterFaceReader.facesOf(
 			pageBlocks.stream().map(block -> block.getBlockedMember().getId()).toList());
