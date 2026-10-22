@@ -273,6 +273,8 @@ jobs:
             echo "ADMIN_API_KEY=${{ secrets.STAGING_ADMIN_API_KEY }}" >> .env
             # 신고 슬랙 메시지의 어드민 링크 바탕 주소 — 저장소 변수로 두고 비면 링크만 빠진다
             echo "ADMIN_WEB_BASE_URL=${{ vars.STAGING_ADMIN_WEB_BASE_URL }}" >> .env
+            # 카카오 없이 테스트 회원 토큰을 받는 /dev/auth/test-login 의 열쇠(저장소 변수, dev 전용)
+            echo "DEV_TEST_LOGIN_KEY=${{ vars.STAGING_DEV_TEST_LOGIN_KEY }}" >> .env
             echo "REDIS_PASSWORD=${{ secrets.STAGING_REDIS_PASSWORD }}" >> .env
             # 자동완성 Redis 캐시 스위치 — 저장소 변수로 켠다(없으면 꺼짐, 매번 DB)
             echo "AUTOCOMPLETE_CACHE_ENABLED=${{ vars.STAGING_AUTOCOMPLETE_CACHE_ENABLED || 'false' }}" >> .env
