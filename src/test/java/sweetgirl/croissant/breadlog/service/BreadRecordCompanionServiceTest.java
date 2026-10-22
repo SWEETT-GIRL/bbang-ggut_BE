@@ -34,6 +34,7 @@ import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.follow.repository.MemberFollowRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberBlockRepository;
+import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.SocialMemberReader;
 import sweetgirl.croissant.profile.dto.response.CharacterFace;
 import sweetgirl.croissant.profile.service.CharacterFaceReader;
@@ -55,6 +56,8 @@ class BreadRecordCompanionServiceTest {
 	private MemberBlockRepository memberBlockRepository;
 	@Mock
 	private SocialMemberReader socialMemberReader;
+	@Mock
+	private MemberReader memberReader;
 	@Mock
 	private CharacterFaceReader characterFaceReader;
 	@Mock

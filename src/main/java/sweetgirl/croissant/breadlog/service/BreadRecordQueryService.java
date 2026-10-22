@@ -80,7 +80,8 @@ public class BreadRecordQueryService {
 			hasNext ? records.subList(0, size) : records, BreadRecord::getId,
 			reportedTargetReader.reportedIds(viewerMemberId, AbuseReportTargetType.RECORD));
 		if (pageRecords.isEmpty()) {
-			return new SliceResponse<>(List.of(), false);
+			// 한 쪽을 전부 내가 신고했어도 다음 쪽은 있을 수 있다
+			return new SliceResponse<>(List.of(), hasNext);
 		}
 		List<Long> recordIds = pageRecords.stream().map(BreadRecord::getId).toList();
 		Map<Long, List<BreadRecordPhotoResponse>> photosByRecordId = loadPhotos(recordIds);

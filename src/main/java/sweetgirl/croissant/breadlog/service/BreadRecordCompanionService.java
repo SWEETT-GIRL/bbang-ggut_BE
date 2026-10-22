@@ -27,6 +27,7 @@ import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.follow.repository.MemberFollowRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberBlockRepository;
+import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.SocialMemberReader;
 import sweetgirl.croissant.profile.dto.response.CharacterFace;
 import sweetgirl.croissant.profile.service.CharacterFaceReader;
@@ -50,6 +51,7 @@ public class BreadRecordCompanionService {
 	private final CourseMemberRepository courseMemberRepository;
 	private final MemberBlockRepository memberBlockRepository;
 	private final SocialMemberReader socialMemberReader;
+	private final MemberReader memberReader;
 	private final CharacterFaceReader characterFaceReader;
 	private final CommunityNotificationService communityNotificationService;
 
@@ -63,6 +65,10 @@ public class BreadRecordCompanionService {
 		}
 		Long ownerId = record.getMember().getId();
 		Set<Long> requested = new LinkedHashSet<>(requestedIds);
+		if (!requested.isEmpty()) {
+			// 태그는 남에게 닿는 소셜 행동 — 게스트는 스위치(guest.write-blocked)와 무관하게 막는다
+			memberReader.requireLoggedIn(ownerId);
+		}
 		if (requested.contains(ownerId)) {
 			throw new BreadLogException(BreadLogErrorCode.COMPANION_SELF);
 		}

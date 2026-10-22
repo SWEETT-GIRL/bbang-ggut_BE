@@ -34,6 +34,7 @@ import sweetgirl.croissant.follow.entity.MemberFollow;
 import sweetgirl.croissant.follow.repository.MemberFollowRepository;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.repository.MemberBlockRepository;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.profile.dto.response.CharacterFace;
@@ -63,6 +64,8 @@ class CommentQueryServiceTest {
 	private MemberRepository memberRepository;
 	@Mock
 	private MemberReader memberReader;
+	@Mock
+	private MemberBlockRepository memberBlockRepository;
 
 	@Mock
 	private sweetgirl.croissant.abuse.service.ReportedTargetReader reportedTargetReader;
