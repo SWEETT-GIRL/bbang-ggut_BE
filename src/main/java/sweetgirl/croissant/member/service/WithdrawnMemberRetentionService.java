@@ -7,9 +7,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.abuse.repository.AbuseReportRepository;
+import sweetgirl.croissant.abuse.repository.ModerationActionRepository;
+import sweetgirl.croissant.abuse.repository.ModerationAppealRepository;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.repository.MemberBlockRepository;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.repository.MemberRestrictionRepository;
 import sweetgirl.croissant.member.repository.OAuthRepository;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository;
 
@@ -30,19 +35,58 @@ public class WithdrawnMemberRetentionService {
 	private final OAuthRepository oAuthRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
 	private final FcmTokenRepository fcmTokenRepository;
+	private final AbuseReportRepository abuseReportRepository;
+	private final ModerationActionRepository moderationActionRepository;
+	private final ModerationAppealRepository moderationAppealRepository;
+	private final MemberRestrictionRepository memberRestrictionRepository;
+	private final MemberBlockRepository memberBlockRepository;
 	private final int retentionDays;
+	private final int moderationRetentionDays;
 
 	public WithdrawnMemberRetentionService(
 			MemberRepository memberRepository,
 			OAuthRepository oAuthRepository,
 			RefreshTokenRepository refreshTokenRepository,
 			FcmTokenRepository fcmTokenRepository,
-			@Value("${member.withdrawal-retention.days:30}") int retentionDays) {
+			AbuseReportRepository abuseReportRepository,
+			ModerationActionRepository moderationActionRepository,
+			ModerationAppealRepository moderationAppealRepository,
+			MemberRestrictionRepository memberRestrictionRepository,
+			MemberBlockRepository memberBlockRepository,
+			@Value("${member.withdrawal-retention.days:30}") int retentionDays,
+			@Value("${member.withdrawal-retention.moderation-days:365}") int moderationRetentionDays) {
 		this.memberRepository = memberRepository;
 		this.oAuthRepository = oAuthRepository;
 		this.refreshTokenRepository = refreshTokenRepository;
 		this.fcmTokenRepository = fcmTokenRepository;
+		this.abuseReportRepository = abuseReportRepository;
+		this.moderationActionRepository = moderationActionRepository;
+		this.moderationAppealRepository = moderationAppealRepository;
+		this.memberRestrictionRepository = memberRestrictionRepository;
+		this.memberBlockRepository = memberBlockRepository;
 		this.retentionDays = retentionDays;
+		this.moderationRetentionDays = moderationRetentionDays;
+	}
+
+	/**
+	 * 탈퇴한 지 {@code member.withdrawal-retention.moderation-days}(기본 365)일이 지난 회원의 신고 · 제재 · 차단 기록을 지운다 —
+	 * 개인정보처리방침의 "신고 · 제재 기록은 탈퇴 후 1년" 과 같은 숫자다. 이의제기 → 조치 → 신고 순으로 지워 FK 가 걸리지 않게 한다.
+	 */
+	@Transactional
+	public ModerationPurge purgeExpiredModerationRecords(LocalDateTime now) {
+		LocalDateTime cutoff = now.minusDays(moderationRetentionDays);
+		ModerationPurge purge = new ModerationPurge(
+			moderationAppealRepository.deleteAllOfMembersDeletedBefore(cutoff),
+			moderationActionRepository.deleteAllOfMembersDeletedBefore(cutoff),
+			abuseReportRepository.deleteAllOfMembersDeletedBefore(cutoff),
+			memberRestrictionRepository.deleteAllOfMembersDeletedBefore(cutoff),
+			memberBlockRepository.deleteAllOfMembersDeletedBefore(cutoff));
+		log.info("[탈퇴 회원 신고 · 제재 기록 정리] cutoff={} appeals={} actions={} reports={} restrictions={} blocks={}",
+			cutoff, purge.appeals(), purge.actions(), purge.reports(), purge.restrictions(), purge.blocks());
+		return purge;
+	}
+
+	public record ModerationPurge(int appeals, int actions, int reports, int restrictions, int blocks) {
 	}
 
 	@Transactional

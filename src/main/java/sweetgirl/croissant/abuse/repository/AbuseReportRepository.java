@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -114,4 +115,13 @@ public interface AbuseReportRepository extends JpaRepository<AbuseReport, Long> 
 			@Param("targetType") AbuseReportTargetType targetType,
 			@Param("since") LocalDateTime since,
 			@Param("status") AbuseReportStatus status);
+
+	/** 탈퇴한 지 cutoff 를 넘긴 사람이 한 신고 · 받은 신고를 지운다 — 보관 기한 뒤. 조치 · 이의제기를 먼저 지운다. */
+	@Modifying
+	@Query("""
+			DELETE FROM AbuseReport r
+			WHERE r.reporter.id IN (SELECT m.id FROM Member m WHERE m.deletedAt < :cutoff)
+				OR r.reportedMember.id IN (SELECT m.id FROM Member m WHERE m.deletedAt < :cutoff)
+			""")
+	int deleteAllOfMembersDeletedBefore(@Param("cutoff") LocalDateTime cutoff);
 }
