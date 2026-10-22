@@ -21,11 +21,17 @@ import sweetgirl.croissant.breadlog.dto.response.BreadRecordTagResponse;
 import sweetgirl.croissant.breadlog.dto.response.StoreBreadRecordResponse;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.exception.BreadLogException;
+import sweetgirl.croissant.breadlog.repository.BreadRecordLikeRepository;
+import sweetgirl.croissant.breadlog.repository.BreadRecordLikeRepository.RecordLikeCountProjection;
 import sweetgirl.croissant.breadlog.repository.BreadRecordPhotoRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
+import sweetgirl.croissant.comment.repository.BreadRecordCommentRepository;
+import sweetgirl.croissant.comment.repository.BreadRecordCommentRepository.RecordCommentCountProjection;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.profile.dto.response.CharacterFace;
+import sweetgirl.croissant.profile.service.CharacterFaceReader;
 
 @Service
 @RequiredArgsConstructor
@@ -43,6 +49,9 @@ public class BreadRecordQueryService {
 	private final BreadRecordTagRepository tagRepository;
 	private final TowerBreadPicker towerBreadPicker;
 	private final ReportedTargetReader reportedTargetReader;
+	private final BreadRecordLikeRepository breadRecordLikeRepository;
+	private final BreadRecordCommentRepository commentRepository;
+	private final CharacterFaceReader characterFaceReader;
 
 	public SliceResponse<BreadRecordResponse> getRecords(
 			Long memberId,
@@ -85,11 +94,18 @@ public class BreadRecordQueryService {
 		List<Long> recordIds = pageRecords.stream().map(BreadRecord::getId).toList();
 		Map<Long, List<BreadRecordPhotoResponse>> photosByRecordId = loadPhotos(recordIds);
 		Map<Long, List<BreadRecordTagResponse>> tagsByRecordId = loadTags(recordIds);
+		Map<Long, Long> likeCounts = likeCountsOf(recordIds);
+		Map<Long, Long> commentCounts = commentCountsOf(recordIds);
+		Map<Long, CharacterFace> faces = characterFaceReader.facesOf(
+			pageRecords.stream().map(record -> record.getMember().getId()).distinct().toList());
 		List<StoreBreadRecordResponse> content = pageRecords.stream()
 			.map(record -> StoreBreadRecordResponse.of(
 				record,
 				photosByRecordId.getOrDefault(record.getId(), List.of()),
-				tagsByRecordId.getOrDefault(record.getId(), List.of())))
+				tagsByRecordId.getOrDefault(record.getId(), List.of()),
+				likeCounts.getOrDefault(record.getId(), 0L),
+				commentCounts.getOrDefault(record.getId(), 0L),
+				faces.get(record.getMember().getId())))
 			.toList();
 		return new SliceResponse<>(content, hasNext);
 	}
@@ -101,14 +117,29 @@ public class BreadRecordQueryService {
 		List<Long> recordIds = records.stream().map(BreadRecord::getId).toList();
 		Map<Long, List<BreadRecordPhotoResponse>> photosByRecordId = loadPhotos(recordIds);
 		Map<Long, List<BreadRecordTagResponse>> tagsByRecordId = loadTags(recordIds);
+		Map<Long, Long> likeCounts = likeCountsOf(recordIds);
+		Map<Long, Long> commentCounts = commentCountsOf(recordIds);
 
 		return records.stream()
 			.map(record -> BreadRecordResponse.of(
 				record,
 				photosByRecordId.getOrDefault(record.getId(), List.of()),
 				tagsByRecordId.getOrDefault(record.getId(), List.of()),
-				towerBreadPicker.resolve(record.getId(), record.getTowerBread())))
+				towerBreadPicker.resolve(record.getId(), record.getTowerBread()),
+				likeCounts.getOrDefault(record.getId(), 0L),
+				commentCounts.getOrDefault(record.getId(), 0L)))
 			.toList();
+	}
+
+	private Map<Long, Long> likeCountsOf(List<Long> recordIds) {
+		return breadRecordLikeRepository.countByRecordIdIn(recordIds).stream()
+			.collect(Collectors.toMap(RecordLikeCountProjection::getRecordId, RecordLikeCountProjection::getLikeCount));
+	}
+
+	private Map<Long, Long> commentCountsOf(List<Long> recordIds) {
+		return commentRepository.countVisibleByRecordIdIn(recordIds).stream()
+			.collect(Collectors.toMap(RecordCommentCountProjection::getRecordId,
+				RecordCommentCountProjection::getCommentCount));
 	}
 
 	private Map<Long, List<BreadRecordPhotoResponse>> loadPhotos(List<Long> recordIds) {

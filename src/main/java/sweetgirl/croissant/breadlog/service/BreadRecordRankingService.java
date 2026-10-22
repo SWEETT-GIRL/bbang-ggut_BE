@@ -87,7 +87,7 @@ public class BreadRecordRankingService {
 			.map(row -> new Entry(row.getRank(), row.getNickname(), row.getSelectedCharacter(), row.getScore(),
 				Objects.equals(row.getMemberId(), viewerId),
 				changes.changeOf(row.getMemberId(), row.getRank()), changes.isNew(row.getMemberId()),
-				crownedMemberIds.contains(row.getMemberId())))
+				crownedMemberIds.contains(row.getMemberId()), row.getMemberId()))
 			.toList();
 		if (guest) {
 			return new BreadRecordRankingResponse(sido, sigungu, entries, null);

@@ -1,6 +1,7 @@
 package sweetgirl.croissant.breadlog.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -187,6 +188,15 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			WHERE r.member.id = :memberId AND r.isPublic = true AND r.deletedAt IS NULL AND r.hiddenAt IS NULL
 			""")
 	long countPublicByMemberId(@Param("memberId") Long memberId);
+
+	/** 보는 사람이 신고해 안 보이는 빵로그를 뺀 수 — 프로필의 수와 목록이 어긋나지 않게. */
+	@Query("""
+			SELECT COUNT(r) FROM BreadRecord r
+			WHERE r.member.id = :memberId AND r.isPublic = true AND r.deletedAt IS NULL AND r.hiddenAt IS NULL
+				AND r.id NOT IN :excludedIds
+			""")
+	long countPublicByMemberIdExcluding(@Param("memberId") Long memberId,
+			@Param("excludedIds") Collection<Long> excludedIds);
 
 	/** 칭호용 — 공개 빵로그가 가장 많은 동네(region_key) 하나. {@code minCount} 개 미만이면 비어 있다. */
 	@Query(value = """

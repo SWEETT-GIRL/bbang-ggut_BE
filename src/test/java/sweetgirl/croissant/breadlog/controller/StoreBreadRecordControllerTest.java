@@ -45,7 +45,8 @@ class StoreBreadRecordControllerTest {
 	@Test
 	void getStorePublicRecords_returns200() throws Exception {
 		StoreBreadRecordResponse response = new StoreBreadRecordResponse(
-			11L, 7L, "달콤한 소금빵", "맛있었다", List.of("소금빵"), LocalDate.of(2026, 8, 2), List.of(), List.of());
+			11L, 7L, "달콤한 소금빵", "맛있었다", List.of("소금빵"), LocalDate.of(2026, 8, 2), List.of(), List.of(), 2, 1,
+			"dog", null);
 		given(queryService.getStorePublicRecords(eq(10L), isNull(), eq(0), eq(20)))
 			.willReturn(new SliceResponse<>(List.of(response), false));
 

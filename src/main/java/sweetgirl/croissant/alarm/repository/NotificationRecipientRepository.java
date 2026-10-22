@@ -1,6 +1,7 @@
 package sweetgirl.croissant.alarm.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -145,4 +146,9 @@ public interface NotificationRecipientRepository extends JpaRepository<Notificat
 			""", countQuery = "SELECT COUNT(r) FROM NotificationRecipient r WHERE r.notification.id = :notificationId")
 	Slice<NotificationRecipient> findByNotificationId(@Param("notificationId") Long notificationId,
 			Pageable pageable);
+
+	/** 알림 행을 거둘 때(지운 댓글) 우편함 줄부터 지운다. */
+	@Modifying
+	@Query("DELETE FROM NotificationRecipient r WHERE r.notification.id IN :notificationIds")
+	int deleteAllByNotificationIdIn(@Param("notificationIds") Collection<Long> notificationIds);
 }

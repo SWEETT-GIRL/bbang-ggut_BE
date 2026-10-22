@@ -97,13 +97,13 @@ public class CommentCommandService {
 			.orElseThrow(() -> new CommentException(CommentErrorCode.COMMENT_NOT_FOUND));
 		if (comment.getMember().getId().equals(memberId)) {
 			comment.delete(BreadRecordComment.DELETED_BY_AUTHOR);
-			return;
-		}
-		if (comment.getRecord().getMember().getId().equals(memberId)) {
+		} else if (comment.getRecord().getMember().getId().equals(memberId)) {
 			comment.delete(BreadRecordComment.DELETED_BY_RECORD_OWNER);
-			return;
+		} else {
+			throw new CommentException(CommentErrorCode.COMMENT_DELETE_DENIED);
 		}
-		throw new CommentException(CommentErrorCode.COMMENT_DELETE_DENIED);
+		// 지운 글이 알림함에 미리보기로 남지 않게 — 댓글 · 멘션 알림을 거둔다
+		communityNotificationService.retractCommentNotifications(comment.getId());
 	}
 
 	/** 최대 3명 · 같은 사람 한 번 · 본문 안 오프셋 · 상대가 될 수 있는 사람(탈퇴 · 게스트 · 봇 아님) · 나 · 빵로그 작성자와 차단 관계 아님. */

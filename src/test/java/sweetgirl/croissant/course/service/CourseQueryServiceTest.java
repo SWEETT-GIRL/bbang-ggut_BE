@@ -84,6 +84,8 @@ class CourseQueryServiceTest {
 	CourseMemberRepository courseMemberRepository;
 	@Mock
 	TourRewardService tourRewardService;
+	@Mock
+	sweetgirl.croissant.profile.service.CharacterFaceReader characterFaceReader;
 
 	@InjectMocks
 	CourseQueryService courseQueryService;

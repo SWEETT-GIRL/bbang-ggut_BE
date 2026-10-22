@@ -76,7 +76,7 @@ class AlarmControllerTest {
 			"MODERATION_ACTION",
 			null,
 			null,
-			"운영 정책 위반으로 콘텐츠가 제한되었습니다.",
+			"운영 정책을 어겨 콘텐츠가 제한됐어요",
 			"결정에 동의하지 않는 경우 30일 이내에 이의제기를 요청할 수 있습니다.",
 			false,
 			null,
@@ -94,7 +94,7 @@ class AlarmControllerTest {
 			.andExpect(jsonPath("$.data[0].moderationActionId").value(77))
 			.andExpect(jsonPath("$.data[0].reportKind").value("ABUSE_REPORT"))
 			.andExpect(jsonPath("$.data[0].action").value("MODERATION_ACTION"))
-			.andExpect(jsonPath("$.data[0].title").value("운영 정책 위반으로 콘텐츠가 제한되었습니다."))
+			.andExpect(jsonPath("$.data[0].title").value("운영 정책을 어겨 콘텐츠가 제한됐어요"))
 			.andExpect(jsonPath("$.data[0].read").value(false))
 			.andExpect(jsonPath("$.data[0].sentAt").value("2026-06-12T11:30:00"));
 	}
