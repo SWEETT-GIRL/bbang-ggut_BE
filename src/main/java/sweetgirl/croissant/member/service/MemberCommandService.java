@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.List; // RefreshToken 목록을 받아오기 위해 import
 import java.util.stream.Collectors;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,7 @@ import sweetgirl.croissant.member.entity.OAuth;
 import sweetgirl.croissant.member.entity.RefreshToken; // 탈퇴 시 revoke 처리할 토큰 엔티티
 import sweetgirl.croissant.member.enums.NotificationDay;
 import sweetgirl.croissant.member.enums.NotificationRadius;
+import sweetgirl.croissant.member.event.MemberWithdrawnEvent;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.LikedMenuCategoryRepository;
 import sweetgirl.croissant.member.repository.MemberRepository;
@@ -52,6 +54,7 @@ public class MemberCommandService {
 	private final GuestPromotionService guestPromotionService; // 동의 시점으로 미뤄둔 게스트 이관을 위해 주입
 	private final CourseMemberService courseMemberService; // 탈퇴 시 협업 코스 정리(방장 승계·나가기·메모 삭제)를 위해 주입
 	private final NotificationSettingProvider notificationSettingProvider; // 마케팅 동의를 발송 설정에 맞추기 위해 주입
+	private final ApplicationEventPublisher eventPublisher; // 탈퇴 시 팔로우 · 좋아요 · 톡 · 멘션 · 태그 정리를 각 도메인에 알리기 위해 주입
 
 	public void createConsent(Long memberId, ConsentCreateRequest request) {
 		Member member = memberReader.getMember(memberId);
@@ -195,5 +198,7 @@ public class MemberCommandService {
 		refreshTokens.forEach(RefreshToken::revoke); // 각 토큰의 revokedAt = now() 설정 → 재로그인 차단
 
 		fcmTokenRepository.deleteAllByMember(member); // 해당 회원의 FCM 토큰 전체 삭제 → 탈퇴 후 푸시 알림 차단
+		// 팔로우 · 좋아요 · 톡 · 멘션 · 같이 간 사람은 사람과 함께 사라진다(각 도메인 리스너). 빵로그 · 댓글은 안 보이게만.
+		eventPublisher.publishEvent(new MemberWithdrawnEvent(memberId));
 	}
 }

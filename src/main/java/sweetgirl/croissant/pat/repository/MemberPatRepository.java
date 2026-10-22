@@ -52,4 +52,9 @@ public interface MemberPatRepository extends JpaRepository<MemberPat, MemberPatI
 				OR (p.id.fromMemberId = :otherId AND p.id.toMemberId = :memberId)
 			""")
 	int deleteBetween(@Param("memberId") Long memberId, @Param("otherId") Long otherId);
+
+	/** 한 사람의 톡을 양방향으로 전부 지운다 — 탈퇴 때. */
+	@Modifying
+	@Query("DELETE FROM MemberPat p WHERE p.id.fromMemberId = :memberId OR p.id.toMemberId = :memberId")
+	int deleteAllOf(@Param("memberId") Long memberId);
 }
