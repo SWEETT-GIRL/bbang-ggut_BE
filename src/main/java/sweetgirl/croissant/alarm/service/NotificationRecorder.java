@@ -63,6 +63,20 @@ public class NotificationRecorder {
 	}
 
 	/**
+	 * 이미 있는 알림에 받는 사람을 더한다 — 같이 간 사람을 나중에 더 태그했을 때처럼, 알림 한 행에 사람이 늘어나는 경우.
+	 * 이미 받은 사람은 건너뛴다.
+	 */
+	@Transactional
+	public boolean addRecipient(Notification notification, Member member, LocalDateTime now) {
+		if (recipientRepository.existsByNotificationIdAndMemberId(notification.getId(), member.getId())) {
+			return false;
+		}
+		recipientRepository.save(NotificationRecipient.of(notification, member, now));
+		deliveryRepository.save(NotificationDelivery.sent(notification, member, NotificationChannel.IN_APP, now));
+		return true;
+	}
+
+	/**
 	 * 전 회원에게 가는 알림. 내용은 한 행이고 우편함만 사람 수만큼 늘어난다.
 	 *
 	 * <p>회원을 전부 엔티티로 올려 saveAll 하면 만 명이면 만 개를 메모리에 얹는다. 넣을 값이

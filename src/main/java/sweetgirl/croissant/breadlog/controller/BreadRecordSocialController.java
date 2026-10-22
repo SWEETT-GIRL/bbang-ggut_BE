@@ -4,6 +4,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -13,8 +14,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordDetailResponse;
+import sweetgirl.croissant.breadlog.dto.response.BreadRecordImportDraftResponse;
 import sweetgirl.croissant.breadlog.dto.response.MemberBreadRecordResponse;
 import sweetgirl.croissant.breadlog.enums.BreadRecordSort;
+import sweetgirl.croissant.breadlog.service.BreadRecordCompanionService;
+import sweetgirl.croissant.breadlog.service.BreadRecordImportService;
 import sweetgirl.croissant.breadlog.service.BreadRecordLikeCommandService;
 import sweetgirl.croissant.breadlog.service.BreadRecordSocialQueryService;
 import sweetgirl.croissant.follow.dto.response.FollowMemberResponse;
@@ -29,6 +33,8 @@ public class BreadRecordSocialController {
 
 	private final BreadRecordSocialQueryService breadRecordSocialQueryService;
 	private final BreadRecordLikeCommandService breadRecordLikeCommandService;
+	private final BreadRecordCompanionService companionService;
+	private final BreadRecordImportService importService;
 
 	@Operation(summary = "빵로그 상세", description = "남의 것은 공개 · 숨김 아님 · 차단 아님일 때만. "
 		+ "아니면 403 BREAD_RECORD403_NOT_VISIBLE. 없으면 404. 내 것은 비공개여도 보이고 신고로 숨겨졌으면 hiddenStatus UNDER_REVIEW.")
@@ -37,6 +43,24 @@ public class BreadRecordSocialController {
 			@AuthenticationPrincipal Long viewerId,
 			@PathVariable Long recordId) {
 		return ApiResponse.ok(breadRecordSocialQueryService.getDetail(viewerId, recordId));
+	}
+
+	@Operation(summary = "같이 간 사람 태그에서 나 빼기", description = "태그된 사람이 스스로 뺀다 — 알림 없음, 작성자 화면에서도 빠지고 "
+		+ "같은 빵로그에 다시 태그되지 않는다. 태그된 적 없으면 404 COMPANION404_NOT_TAGGED, 이미 뺐으면 그대로 200.")
+	@DeleteMapping("/bread-records/{recordId}/companions/me")
+	public ApiResponse<Void> removeMeFromCompanions(@AuthenticationPrincipal Long viewerId,
+			@PathVariable Long recordId) {
+		companionService.removeBySelf(recordId, viewerId);
+		return ApiResponse.ok(null);
+	}
+
+	@Operation(summary = "기록 가져오기(초안)", description = "같이 간 사람으로 태그된 빵로그의 사진 · 가게 · 빵을 내 쓰기 화면 재료로. "
+		+ "기록을 만들지 않는다 — 응답의 photos · tags 를 그대로 POST /bread-records 에 실으면 된다(보상 평소와 같음). "
+		+ "사진은 내 경로로 복사된 새 키. 게스트 · 작성 제한 403 · 볼 수 없으면 403 · 태그된 사람이 아니면 403 IMPORT403_NOT_COMPANION.")
+	@PostMapping("/bread-records/{recordId}/import")
+	public ApiResponse<BreadRecordImportDraftResponse> importDraft(@AuthenticationPrincipal Long viewerId,
+			@PathVariable Long recordId) {
+		return ApiResponse.ok(importService.draft(viewerId, recordId));
 	}
 
 	@Operation(summary = "좋아요", description = "공개 빵로그만, 멱등 200, 부스러기 없음. "

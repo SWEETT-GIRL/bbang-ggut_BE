@@ -142,6 +142,15 @@ public class CourseMemberService {
 		// 락을 기다리는 동안 방장이 링크를 재발급했을 수 있다 — 관리 중인 invite 인스턴스는 낡을 수 있으니 SQL 로 다시 본다
 		courseInviteRepository.findByTokenAndDeletedAtIsNull(token)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_INVITE_INVALID));
+		return joinLockedCourse(member, course);
+	}
+
+	/**
+	 * 잠근 코스에 합류시킨다 — 링크 초대 수락과 앱 안 일행 초대 수락이 같은 규칙을 탄다.
+	 * 큐레이션 거부 · 방장 탈퇴 거부 · 이미 멤버면 200 · 정원 · 일행 전원과 서로 팔로우 · 찜 해제 · 공개→PRIVATE.
+	 */
+	public CourseInviteAcceptResponse joinLockedCourse(Member member, Course course) {
+		Long memberId = member.getId();
 		// 큐레이션 코스에는 초대가 생기지 않지만, 행이 심겨도 편집자가 늘지 않게 2차 방어.
 		if (course.getType() == CourseType.CURATED) {
 			throw new CourseException(CourseErrorCode.COURSE_FORBIDDEN);

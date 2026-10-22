@@ -85,6 +85,8 @@ public interface NotificationRecipientRepository extends JpaRepository<Notificat
 
 	List<NotificationRecipient> findByMemberIdAndIdIn(Long memberId, List<Long> ids);
 
+	boolean existsByNotificationIdAndMemberId(Long notificationId, Long memberId);
+
 	/** 활동 알림의 재알림용 — 이미 만들어둔 우편함 줄을 집어 시각만 되돌린다. */
 	Optional<NotificationRecipient> findByNotificationIdAndMemberId(Long notificationId, Long memberId);
 

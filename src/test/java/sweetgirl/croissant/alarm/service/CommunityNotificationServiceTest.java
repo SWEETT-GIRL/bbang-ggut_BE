@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 
 import java.util.List;
 import java.util.Optional;
@@ -29,6 +30,7 @@ import sweetgirl.croissant.alarm.event.PushRequestedEvent;
 import sweetgirl.croissant.alarm.repository.NotificationRepository;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.comment.entity.BreadRecordComment;
+import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.follow.repository.MemberFollowRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
@@ -81,6 +83,74 @@ class CommunityNotificationServiceTest {
 		assertThat(captor.getValue().getTitle()).isEqualTo("빵순이님이 회원님을 팔로우해요");
 		assertThat(captor.getValue().getTargetType()).isEqualTo(NotificationTargetType.MEMBER);
 		assertThat(captor.getValue().getDeepLink()).isEqualTo("/profile/1");
+		then(eventPublisher).should().publishEvent(PushRequestedEvent.to(500L, 2L));
+	}
+
+	@Test
+	@DisplayName("톡: 날마다 새로 알린다(있는지 찾지 않음), 대상은 받는 사람, 링크는 톡 목록")
+	void pat() {
+		Member actor = member(1L, "빵순이");
+		Member target = member(2L, "빵돌이");
+
+		service.notifyPat(actor, target);
+
+		ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+		then(notificationRecorder).should().recordForMembers(captor.capture(), eq(List.of(target)), any());
+		assertThat(captor.getValue().getType()).isEqualTo(NotificationType.PAT);
+		assertThat(captor.getValue().getTitle()).isEqualTo("빵순이님이 회원님에게 톡을 쳤어요");
+		assertThat(captor.getValue().getTargetId()).isEqualTo(2L);
+		assertThat(captor.getValue().getDeepLink()).isEqualTo("/pats");
+		then(notificationRepository).shouldHaveNoInteractions();
+		then(eventPublisher).should().publishEvent(PushRequestedEvent.to(500L, 2L));
+	}
+
+	@Test
+	@DisplayName("같이 간 사람: 기록당 알림 한 행, 나중에 더 태그하면 그 행에 받는 사람만 늘린다")
+	void companionTag() {
+		Member author = member(1L, "빵순이");
+		BreadRecord record = BreadRecord.builder().member(author).storeName("빵집").build();
+		ReflectionTestUtils.setField(record, "id", 10L);
+		given(notificationRepository.findByActorIdAndTypeAndTargetTypeAndTargetId(1L,
+			NotificationType.COMPANION_TAG, NotificationTargetType.RECORD, 10L)).willReturn(Optional.empty());
+
+		service.notifyCompanionTag(record, List.of(member(2L, "빵돌이")));
+
+		ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+		then(notificationRecorder).should().recordForMembers(captor.capture(), anyList(), any());
+		assertThat(captor.getValue().getTitle()).isEqualTo("빵순이님이 회원님과 같이 간 빵로그를 올렸어요");
+		assertThat(captor.getValue().getDeepLink()).isEqualTo("/bbanglog/post/10");
+		then(eventPublisher).should().publishEvent(PushRequestedEvent.to(500L, 2L));
+
+		Notification existing = captor.getValue();
+		given(notificationRepository.findByActorIdAndTypeAndTargetTypeAndTargetId(1L,
+			NotificationType.COMPANION_TAG, NotificationTargetType.RECORD, 10L)).willReturn(Optional.of(existing));
+		Member third = member(3L, "빵삼이");
+		given(notificationRecorder.addRecipient(eq(existing), eq(third), any())).willReturn(true);
+
+		service.notifyCompanionTag(record, List.of(third));
+
+		then(notificationRecorder).should().addRecipient(eq(existing), eq(third), any());
+		then(eventPublisher).should().publishEvent(PushRequestedEvent.to(500L, 3L));
+	}
+
+	@Test
+	@DisplayName("일행 초대: 대상은 빵투어(COURSE), 문장은 초대한 사람, 링크는 초대 화면")
+	void courseMemberInvite() {
+		Member inviter = member(1L, "빵순이");
+		Course course = mock(Course.class);
+		given(course.getId()).willReturn(10L);
+		given(course.getTitle()).willReturn("성수 빵투어");
+		given(notificationRepository.findByActorIdAndTypeAndTargetTypeAndTargetId(1L, NotificationType.INVITE,
+			NotificationTargetType.COURSE, 10L)).willReturn(Optional.empty());
+
+		service.notifyCourseMemberInvite(inviter, course, List.of(member(2L, "빵돌이")));
+
+		ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+		then(notificationRecorder).should().recordForMembers(captor.capture(), anyList(), any());
+		assertThat(captor.getValue().getType()).isEqualTo(NotificationType.INVITE);
+		assertThat(captor.getValue().getTitle()).isEqualTo("빵순이님이 빵투어에 초대했어요");
+		assertThat(captor.getValue().getBody()).isEqualTo("성수 빵투어");
+		assertThat(captor.getValue().getDeepLink()).isEqualTo("/courses/10/member-invite");
 		then(eventPublisher).should().publishEvent(PushRequestedEvent.to(500L, 2L));
 	}
 
