@@ -7,10 +7,12 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -24,9 +26,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import sweetgirl.croissant.breadlog.code.BreadLogErrorCode;
+import sweetgirl.croissant.breadlog.dto.response.BreadRecordImportDraftResponse;
 import sweetgirl.croissant.breadlog.enums.BreadRecordSort;
 import sweetgirl.croissant.breadlog.exception.BreadLogException;
 import sweetgirl.croissant.breadlog.service.BreadRecordCompanionService;
+import sweetgirl.croissant.breadlog.service.BreadRecordImportService;
 import sweetgirl.croissant.breadlog.service.BreadRecordLikeCommandService;
 import sweetgirl.croissant.breadlog.service.BreadRecordSocialQueryService;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
@@ -44,6 +48,8 @@ class BreadRecordSocialControllerTest {
 	private BreadRecordLikeCommandService likeCommandService;
 	@Mock
 	private BreadRecordCompanionService companionService;
+	@Mock
+	private BreadRecordImportService importService;
 
 	@InjectMocks
 	private BreadRecordSocialController controller;
@@ -113,5 +119,27 @@ class BreadRecordSocialControllerTest {
 		mockMvc.perform(delete("/bread-records/11/companions/me"))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.code").value("COMPANION404_NOT_TAGGED"));
+	}
+
+	@Test
+	@DisplayName("POST /bread-records/{id}/import — 초안 200, 태그된 사람이 아니면 403 IMPORT403_NOT_COMPANION")
+	void importDraft() throws Exception {
+		given(importService.draft(any(), eq(10L))).willReturn(new BreadRecordImportDraftResponse(10L, 5L, "밀도",
+			"서울_성동구_성수동", LocalDateTime.of(2026, 10, 1, 12, 0), List.of("소금빵"), "소금빵",
+			List.of(new BreadRecordImportDraftResponse.Photo("f", "image/jpeg", "bread-records/members/2/images/f", 0,
+				100, 100)),
+			List.of(new BreadRecordImportDraftResponse.Tag(0, "소금빵", 7L, 0.5, 0.5, null))));
+
+		mockMvc.perform(post("/bread-records/10/import"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.sourceRecordId").value(10))
+			.andExpect(jsonPath("$.data.photos[0].awsKey").value("bread-records/members/2/images/f"))
+			.andExpect(jsonPath("$.data.tags[0].x").value(0.5));
+
+		given(importService.draft(any(), eq(11L)))
+			.willThrow(new BreadLogException(BreadLogErrorCode.IMPORT_NOT_COMPANION));
+		mockMvc.perform(post("/bread-records/11/import"))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("IMPORT403_NOT_COMPANION"));
 	}
 }

@@ -17,6 +17,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordDetailResponse;
 import sweetgirl.croissant.breadlog.dto.response.MemberBreadRecordResponse;
 import sweetgirl.croissant.breadlog.service.BreadRecordCompanionService;
+import sweetgirl.croissant.breadlog.service.BreadRecordImportService;
 import sweetgirl.croissant.breadlog.service.BreadRecordLikeCommandService;
 import sweetgirl.croissant.breadlog.service.BreadRecordSocialQueryService;
 import sweetgirl.croissant.global.contract.ResponseContractWebMvcTest;
@@ -33,6 +34,8 @@ class BreadRecordSocialResponseContractTest extends ResponseContractWebMvcTest {
 	private BreadRecordLikeCommandService likeCommandService;
 	@MockitoBean
 	private BreadRecordCompanionService companionService;
+	@MockitoBean
+	private BreadRecordImportService importService;
 
 	@Test
 	void detail_keepsFieldsTheAppReads() throws Exception {
