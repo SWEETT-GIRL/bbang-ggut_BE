@@ -237,16 +237,19 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 
 	/**
 	 * 프로필의 공개 빵로그 — 추천순 id. 점수 = (좋아요 + 댓글 × 2) × 날짜 가중(7일 안 1.0 / 30일 안 0.6 / 그 뒤 0.3),
-	 * 동점은 최신. 댓글은 P3 에서 더한다. 점수가 시간에 따라 변해 커서 대신 offset 이다.
+	 * 동점은 최신. 점수가 시간에 따라 변해 커서 대신 offset 이다.
 	 */
 	@Query(value = """
 			SELECT r.id
 			FROM bread_record r
 			LEFT JOIN (SELECT record_id, COUNT(*) AS like_count FROM record_like GROUP BY record_id) l
 				ON l.record_id = r.id
+			LEFT JOIN (SELECT record_id, COUNT(*) AS comment_count FROM record_comment
+				WHERE deleted_at IS NULL AND hidden_at IS NULL GROUP BY record_id) c
+				ON c.record_id = r.id
 			WHERE r.member_id = :memberId AND r.is_public = true AND r.deleted_at IS NULL
 				AND (:includeHidden = true OR r.hidden_at IS NULL)
-			ORDER BY COALESCE(l.like_count, 0)
+			ORDER BY (COALESCE(l.like_count, 0) + COALESCE(c.comment_count, 0) * 2)
 					* CASE WHEN r.created_at >= :recent THEN 1.0 WHEN r.created_at >= :older THEN 0.6 ELSE 0.3 END DESC,
 				r.created_at DESC, r.id DESC
 			LIMIT :limit OFFSET :offset

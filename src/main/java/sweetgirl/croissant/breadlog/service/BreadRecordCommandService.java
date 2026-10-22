@@ -38,6 +38,8 @@ import sweetgirl.croissant.breadlog.exception.BreadLogException;
 import sweetgirl.croissant.breadlog.repository.BreadRecordPhotoRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
+import sweetgirl.croissant.comment.service.CommentContentPolicy;
+import sweetgirl.croissant.comment.service.CommunityAgreementService;
 import sweetgirl.croissant.common.enums.ImageStatus;
 import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.course.service.CourseProgressService;
@@ -85,6 +87,8 @@ public class BreadRecordCommandService {
 	private final BreadCategoryClassifier categoryClassifier;
 	private final BreadRecordRegionResolver regionResolver;
 	private final ImageProcessingCallbackService imageProcessingCallbackService;
+	private final CommunityAgreementService communityAgreementService;
+	private final CommentContentPolicy commentContentPolicy;
 	private final CourseProgressService courseProgressService;
 	private final MemberWorldRepository memberWorldRepository;
 	private final RecordRewardService recordRewardService;
@@ -255,10 +259,15 @@ public class BreadRecordCommandService {
 		// 공개는 남에게 보이는 글을 올리는 것과 같다 — 작성 제한 중엔 공개로 못 돌린다. 비공개로 내리는 건 막지 않는다.
 		if (isPublic) {
 			memberRestrictionReader.validateCanWrite(memberId);
+			// 남에게 보이는 글이 되므로 댓글과 같은 문을 지난다 — 커뮤니티 규칙 동의, 후기 금칙어
+			communityAgreementService.validateAgreed(memberId);
 		}
 		BreadRecord record = getOwnedRecord(recordId, member.getId());
 		if (record.isTutorial() && isPublic) {
 			throw new BreadLogException(BreadLogErrorCode.TUTORIAL_EDIT_RESTRICTED);
+		}
+		if (isPublic) {
+			commentContentPolicy.validateWords(record.getMemo());
 		}
 		record.changeVisibility(isPublic);
 	}

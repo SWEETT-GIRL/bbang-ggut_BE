@@ -48,6 +48,13 @@ public class Member {
 	@Column
 	private LocalDateTime nicknameChangedAt;
 
+	// 커뮤니티 규칙 동의(첫 댓글 · 첫 공개 전환 전). 버전이 오르면 다시 받는다.
+	@Column
+	private LocalDateTime communityAgreedAt;
+
+	@Column(length = 20)
+	private String communityTermsVersion;
+
 	// 닉네임 뽑기로 받은 후보. 수락해야 nickname 이 되고, "원래대로"를 누르면 비운다.
 	@Column(length = 100)
 	private String pendingNickname;
@@ -197,6 +204,15 @@ public class Member {
 		this.nickname = nickname;
 		this.nicknameNormalized = NicknameNormalizer.normalize(nickname);
 		this.nicknameChangedAt = now;
+	}
+
+	public void agreeToCommunityRules(String version, LocalDateTime now) {
+		this.communityTermsVersion = version;
+		this.communityAgreedAt = now;
+	}
+
+	public boolean hasAgreedToCommunityRules(String currentVersion) {
+		return currentVersion.equals(this.communityTermsVersion);
 	}
 
 	public boolean canChangeNickname(LocalDateTime now, int intervalDays) {

@@ -4,10 +4,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
+import sweetgirl.croissant.comment.dto.response.CommentResponse;
 import sweetgirl.croissant.profile.dto.response.AuthorCardResponse;
 
 /**
- * 빵로그 상세(남의 것 · 내 것). 댓글 · 같이 간 사람은 P3 · P6 에서 채운다 — 자리만 먼저 둔다(0 · null · 빈 배열).
+ * 빵로그 상세(남의 것 · 내 것). 같이 간 사람은 P6 에서 채운다 — 자리만 먼저 둔다(빈 배열).
  */
 public record BreadRecordDetailResponse(
 		Long id,
@@ -27,13 +28,13 @@ public record BreadRecordDetailResponse(
 		long likeCount,
 		boolean likedByMe,
 		long commentCount,
-		Object firstComment,
+		CommentResponse firstComment,
 		List<Object> companions,
 		String hiddenStatus) {
 
 	public static BreadRecordDetailResponse of(BreadRecord record, AuthorCardResponse author,
 			List<BreadRecordPhotoResponse> photos, List<BreadRecordTagResponse> tags, String towerBread,
-			long likeCount, boolean likedByMe) {
+			long likeCount, boolean likedByMe, long commentCount, CommentResponse firstComment) {
 		return new BreadRecordDetailResponse(
 			record.getId(),
 			author,
@@ -51,8 +52,8 @@ public record BreadRecordDetailResponse(
 			tags,
 			likeCount,
 			likedByMe,
-			0,
-			null,
+			commentCount,
+			firstComment,
 			List.of(),
 			record.isHidden() ? MemberBreadRecordResponse.UNDER_REVIEW : null);
 	}

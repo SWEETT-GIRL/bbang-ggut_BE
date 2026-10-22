@@ -27,6 +27,9 @@ import sweetgirl.croissant.breadlog.repository.BreadRecordLikeRepository.RecordL
 import sweetgirl.croissant.breadlog.repository.BreadRecordPhotoRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
+import sweetgirl.croissant.comment.repository.BreadRecordCommentRepository;
+import sweetgirl.croissant.comment.repository.BreadRecordCommentRepository.RecordCommentCountProjection;
+import sweetgirl.croissant.comment.service.CommentQueryService;
 import sweetgirl.croissant.follow.dto.response.FollowMemberResponse;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.repository.MemberBlockRepository;
@@ -54,6 +57,8 @@ public class BreadRecordSocialQueryService {
 	private final AuthorCardReader authorCardReader;
 	private final MemberSearchQueryService memberSearchQueryService;
 	private final TowerBreadPicker towerBreadPicker;
+	private final BreadRecordCommentRepository commentRepository;
+	private final CommentQueryService commentQueryService;
 
 	/**
 	 * 프로필의 공개 빵로그. 본인이면 숨긴 것도 "검토 중"으로 보인다. 상대가 게스트 · 봇 · 탈퇴면 404,
@@ -104,7 +109,9 @@ public class BreadRecordSocialQueryService {
 			loadTags(ids).getOrDefault(record.getId(), List.of()),
 			towerBreadPicker.resolve(record.getId(), record.getTowerBread()),
 			breadRecordLikeRepository.countByIdRecordId(record.getId()),
-			likedByMe);
+			likedByMe,
+			commentRepository.countVisibleByRecordId(record.getId()),
+			commentQueryService.firstComment(viewerId, record));
 	}
 
 	/** 좋아요 누른 사람. 기록을 볼 수 있어야 목록도 본다. */
@@ -130,12 +137,16 @@ public class BreadRecordSocialQueryService {
 			.collect(Collectors.toMap(RecordLikeCountProjection::getRecordId, RecordLikeCountProjection::getLikeCount));
 		Set<Long> likedByMe = viewerId == null ? Set.of()
 			: Set.copyOf(breadRecordLikeRepository.findRecordIdsLikedBy(viewerId, ids));
+		Map<Long, Long> commentCounts = commentRepository.countVisibleByRecordIdIn(ids).stream()
+			.collect(Collectors.toMap(RecordCommentCountProjection::getRecordId,
+				RecordCommentCountProjection::getCommentCount));
 		return records.stream()
 			.map(record -> MemberBreadRecordResponse.of(
 				record,
 				photos.getOrDefault(record.getId(), List.of()),
 				tags.getOrDefault(record.getId(), List.of()),
 				likeCounts.getOrDefault(record.getId(), 0L),
+				commentCounts.getOrDefault(record.getId(), 0L),
 				likedByMe.contains(record.getId())))
 			.toList();
 	}
