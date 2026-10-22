@@ -91,6 +91,7 @@ public class BreadRecordCommandService {
 	private final CommunityAgreementService communityAgreementService;
 	private final CommentContentPolicy commentContentPolicy;
 	private final CommunityNotificationService communityNotificationService;
+	private final BreadRecordCompanionService companionService;
 	private final CourseProgressService courseProgressService;
 	private final MemberWorldRepository memberWorldRepository;
 	private final RecordRewardService recordRewardService;
@@ -159,6 +160,7 @@ public class BreadRecordCommandService {
 			.build());
 		List<BreadRecordTag> savedTags = savePhotosAndTags(record, request, data.photoBySortOrder(), Map.of(),
 			data.lovedBreads(), Map.of(), Map.of());
+		companionService.replace(record, request.companionMemberIds());
 		// 분류는 메뉴 분류 프록시를 열 수 있어 영속성 컨텍스트가 살아 있을 때 읽는다 — 아래 빵탑 갱신이 컨텍스트를 비운다
 		List<BreadRecordCreateResponse.Tag> tags = BreadRecordCreateResponse.tagsOf(savedTags);
 		// 빵탑은 기록 수만큼 오른다. 최고 높이는 내려가지 않아서, 기록을 지워도 행성이 밀리지 않는다.
@@ -234,6 +236,7 @@ public class BreadRecordCommandService {
 		photoRepository.flush();
 		savePhotosAndTags(record, request, data.photoBySortOrder(), originalByRequestedKey, data.lovedBreads(),
 			previousRatingByName, previousSuggestedMenuByName);
+		companionService.replace(record, request.companionMemberIds());
 		deleteRemovedImages(oldPhotos, request.photos());
 		// 사진 없이 쓴 기록에 사진을 붙였으면 보너스를 준다(기록한 지 7 일 안, 기록당 한 번)
 		List<RewardItemResponse> rewards = new ArrayList<>(recordRewardService.rewardPhotosAttached(

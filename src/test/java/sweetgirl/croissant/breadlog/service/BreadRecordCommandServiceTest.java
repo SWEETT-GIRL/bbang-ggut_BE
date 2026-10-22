@@ -7,7 +7,9 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -189,6 +191,8 @@ class BreadRecordCommandServiceTest {
 
 	@Mock
 	sweetgirl.croissant.alarm.service.CommunityNotificationService communityNotificationService;
+	@Mock
+	BreadRecordCompanionService companionService;
 
 	@InjectMocks
 	BreadRecordCommandService commandService;
@@ -214,6 +218,8 @@ class BreadRecordCommandServiceTest {
 		BreadRecordCreateResponse result = commandService.create(7L, request);
 
 		assertThat(result.recordId()).isEqualTo(11L);
+		// 같이 간 사람은 요청 그대로 넘긴다(여기선 null — 구버전 앱 모양이라 손대지 않는다)
+		then(companionService).should().replace(any(BreadRecord.class), isNull());
 		verify(breadRecordRepository).save(argThat(record -> record.getEatenAt().equals(request.eatenAt())
 			&& record.getStoreName().equals("밀도 성수")
 			&& record.getRegionKey().equals("서울_성동구_성수동")));

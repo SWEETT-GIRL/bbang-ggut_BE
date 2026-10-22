@@ -26,6 +26,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import sweetgirl.croissant.breadlog.code.BreadLogErrorCode;
 import sweetgirl.croissant.breadlog.enums.BreadRecordSort;
 import sweetgirl.croissant.breadlog.exception.BreadLogException;
+import sweetgirl.croissant.breadlog.service.BreadRecordCompanionService;
 import sweetgirl.croissant.breadlog.service.BreadRecordLikeCommandService;
 import sweetgirl.croissant.breadlog.service.BreadRecordSocialQueryService;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
@@ -41,6 +42,8 @@ class BreadRecordSocialControllerTest {
 	private BreadRecordSocialQueryService queryService;
 	@Mock
 	private BreadRecordLikeCommandService likeCommandService;
+	@Mock
+	private BreadRecordCompanionService companionService;
 
 	@InjectMocks
 	private BreadRecordSocialController controller;
@@ -96,5 +99,19 @@ class BreadRecordSocialControllerTest {
 		mockMvc.perform(get("/bread-records/10/likes"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.content").isArray());
+	}
+
+	@Test
+	@DisplayName("DELETE /bread-records/{id}/companions/me — 200, 태그된 적 없으면 404")
+	void removeMeFromCompanions() throws Exception {
+		mockMvc.perform(delete("/bread-records/10/companions/me"))
+			.andExpect(status().isOk());
+		then(companionService).should().removeBySelf(10L, null);
+
+		willThrow(new BreadLogException(BreadLogErrorCode.COMPANION_NOT_TAGGED))
+			.given(companionService).removeBySelf(11L, null);
+		mockMvc.perform(delete("/bread-records/11/companions/me"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("COMPANION404_NOT_TAGGED"));
 	}
 }

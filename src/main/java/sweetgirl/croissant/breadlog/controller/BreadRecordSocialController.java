@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordDetailResponse;
 import sweetgirl.croissant.breadlog.dto.response.MemberBreadRecordResponse;
 import sweetgirl.croissant.breadlog.enums.BreadRecordSort;
+import sweetgirl.croissant.breadlog.service.BreadRecordCompanionService;
 import sweetgirl.croissant.breadlog.service.BreadRecordLikeCommandService;
 import sweetgirl.croissant.breadlog.service.BreadRecordSocialQueryService;
 import sweetgirl.croissant.follow.dto.response.FollowMemberResponse;
@@ -29,6 +30,7 @@ public class BreadRecordSocialController {
 
 	private final BreadRecordSocialQueryService breadRecordSocialQueryService;
 	private final BreadRecordLikeCommandService breadRecordLikeCommandService;
+	private final BreadRecordCompanionService companionService;
 
 	@Operation(summary = "빵로그 상세", description = "남의 것은 공개 · 숨김 아님 · 차단 아님일 때만. "
 		+ "아니면 403 BREAD_RECORD403_NOT_VISIBLE. 없으면 404. 내 것은 비공개여도 보이고 신고로 숨겨졌으면 hiddenStatus UNDER_REVIEW.")
@@ -37,6 +39,15 @@ public class BreadRecordSocialController {
 			@AuthenticationPrincipal Long viewerId,
 			@PathVariable Long recordId) {
 		return ApiResponse.ok(breadRecordSocialQueryService.getDetail(viewerId, recordId));
+	}
+
+	@Operation(summary = "같이 간 사람 태그에서 나 빼기", description = "태그된 사람이 스스로 뺀다 — 알림 없음, 작성자 화면에서도 빠지고 "
+		+ "같은 빵로그에 다시 태그되지 않는다. 태그된 적 없으면 404 COMPANION404_NOT_TAGGED, 이미 뺐으면 그대로 200.")
+	@DeleteMapping("/bread-records/{recordId}/companions/me")
+	public ApiResponse<Void> removeMeFromCompanions(@AuthenticationPrincipal Long viewerId,
+			@PathVariable Long recordId) {
+		companionService.removeBySelf(recordId, viewerId);
+		return ApiResponse.ok(null);
 	}
 
 	@Operation(summary = "좋아요", description = "공개 빵로그만, 멱등 200, 부스러기 없음. "

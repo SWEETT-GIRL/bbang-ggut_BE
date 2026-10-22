@@ -38,6 +38,7 @@ public class CommunityNotificationService {
 	static final String COMMENT_TITLE = "%s님이 댓글을 남겼어요";
 	static final String MENTION_TITLE = "%s님이 회원님을 언급했어요";
 	static final String FOLLOWING_RECORD_TITLE = "%s님이 새 빵로그를 올렸어요";
+	static final String COMPANION_TITLE = "%s님이 회원님과 같이 간 빵로그를 올렸어요";
 	static final int COMMENT_PREVIEW_LENGTH = 40;
 	/** 톡 친 사람 목록 화면 */
 	static final String PATS_LINK = "/pats";
@@ -116,6 +117,38 @@ public class CommunityNotificationService {
 		once(NotificationType.FOLLOWING_NEW_RECORD, author, NotificationTargetType.RECORD, record.getId(),
 			record.getStoreName(), FOLLOWING_RECORD_TITLE.formatted(author.getNickname()), record.getStoreName(),
 			recordLink(record.getId()), followers);
+	}
+
+	/**
+	 * 같이 간 사람으로 태그됐다 — 알림을 누르면 [기록 가져오기]로 이어진다. 기록당 알림은 한 행이고, 나중에 사람을 더 태그하면
+	 * 그 행에 받는 사람만 늘린다(태그를 뺐다가 다시 넣는 건 안 되니 같은 사람에게 두 번 가지 않는다).
+	 */
+	public void notifyCompanionTag(BreadRecord record, List<Member> tagged) {
+		if (tagged.isEmpty()) {
+			return;
+		}
+		Member author = record.getMember();
+		LocalDateTime now = LocalDateTime.now();
+		Notification notification = notificationRepository
+			.findByActorIdAndTypeAndTargetTypeAndTargetId(author.getId(), NotificationType.COMPANION_TAG,
+				NotificationTargetType.RECORD, record.getId())
+			.orElse(null);
+		if (notification == null) {
+			notification = notificationRecorder.recordForMembers(
+				Notification.communityActivity(NotificationType.COMPANION_TAG, author, NotificationTargetType.RECORD,
+					record.getId(), record.getStoreName(), COMPANION_TITLE.formatted(author.getNickname()),
+					record.getStoreName(), recordLink(record.getId())),
+				tagged, now);
+			for (Member member : tagged) {
+				eventPublisher.publishEvent(PushRequestedEvent.to(notification.getId(), member.getId()));
+			}
+			return;
+		}
+		for (Member member : tagged) {
+			if (notificationRecorder.addRecipient(notification, member, now)) {
+				eventPublisher.publishEvent(PushRequestedEvent.to(notification.getId(), member.getId()));
+			}
+		}
 	}
 
 	private void once(NotificationType type, Member actor, NotificationTargetType targetType, Long targetId,

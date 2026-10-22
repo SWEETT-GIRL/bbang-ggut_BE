@@ -37,7 +37,32 @@ public record BreadRecordUpsertRequest(
 		 * 바로 앞에 저장한 기록 번호(선택). 기록 완료 화면의 "연속 기록하고 2배 받기"로 이어 쓴 기록이면 앱이 싣는다 —
 		 * 그 기록이 내 것이고 방금(30분 안) 저장됐으면 이번 기록 보상을 한 번 더 준다. 생성에서만 보고 수정에서는 보지 않는다.
 		 */
-		Long chainFromRecordId) {
+		Long chainFromRecordId,
+		/**
+		 * 같이 간 사람(회원 id, 최대 5). 팔로우 관계(팔로잉 · 팔로워)이거나 빵투어 일행인 사람만. 안 보내면(null, 구버전 앱)
+		 * 지금 태그를 그대로 두고, 빈 배열이면 전부 뺀다. 태그된 사람이 스스로 뺀 사람은 다시 넣을 수 없다(400).
+		 */
+		@Size(max = 5) List<Long> companionMemberIds) {
+
+	/** 같이 간 사람을 모르는 쪽에서 만든다. */
+	public BreadRecordUpsertRequest(
+			Long storeId,
+			String storeName,
+			String regionKey,
+			String memo,
+			String lovedBread,
+			List<String> lovedBreads,
+			String towerBread,
+			LocalDateTime eatenAt,
+			List<BreadRecordPhotoRequest> photos,
+			List<BreadRecordTagRequest> tags,
+			Boolean isPublic,
+			UUID requestId,
+			Boolean revisit,
+			Long chainFromRecordId) {
+		this(storeId, storeName, regionKey, memo, lovedBread, lovedBreads, towerBread, eatenAt, photos, tags,
+			isPublic, requestId, revisit, chainFromRecordId, null);
+	}
 
 	/** 연속 기록을 모르는 쪽에서 만든다. */
 	public BreadRecordUpsertRequest(

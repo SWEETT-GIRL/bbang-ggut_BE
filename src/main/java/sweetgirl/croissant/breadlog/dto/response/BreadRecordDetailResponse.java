@@ -8,7 +8,7 @@ import sweetgirl.croissant.comment.dto.response.CommentResponse;
 import sweetgirl.croissant.profile.dto.response.AuthorCardResponse;
 
 /**
- * 빵로그 상세(남의 것 · 내 것). 같이 간 사람은 P6 에서 채운다 — 자리만 먼저 둔다(빈 배열).
+ * 빵로그 상세(남의 것 · 내 것). 같이 간 사람은 스스로 뺀 사람 · 탈퇴한 사람을 뺀 나머지.
  */
 public record BreadRecordDetailResponse(
 		Long id,
@@ -29,12 +29,13 @@ public record BreadRecordDetailResponse(
 		boolean likedByMe,
 		long commentCount,
 		CommentResponse firstComment,
-		List<Object> companions,
+		List<CompanionResponse> companions,
 		String hiddenStatus) {
 
 	public static BreadRecordDetailResponse of(BreadRecord record, AuthorCardResponse author,
 			List<BreadRecordPhotoResponse> photos, List<BreadRecordTagResponse> tags, String towerBread,
-			long likeCount, boolean likedByMe, long commentCount, CommentResponse firstComment) {
+			long likeCount, boolean likedByMe, long commentCount, CommentResponse firstComment,
+			List<CompanionResponse> companions) {
 		return new BreadRecordDetailResponse(
 			record.getId(),
 			author,
@@ -54,7 +55,7 @@ public record BreadRecordDetailResponse(
 			likedByMe,
 			commentCount,
 			firstComment,
-			List.of(),
+			companions,
 			record.isHidden() ? MemberBreadRecordResponse.UNDER_REVIEW : null);
 	}
 }

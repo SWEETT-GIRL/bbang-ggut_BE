@@ -44,6 +44,16 @@ public interface CourseMemberRepository extends JpaRepository<CourseMember, Cour
 			""")
 	List<Long> findActiveCourseIdsByMemberId(@Param("memberId") Long memberId);
 
+	/** 두 사람이 같은 빵투어의 활성 일행인가 — 같이 간 사람 태그의 "빵투어 일행" 조건. */
+	@Query("""
+			SELECT COUNT(mine) > 0
+			FROM CourseMember mine, CourseMember other
+			WHERE mine.id.courseId = other.id.courseId
+				AND mine.id.memberId = :memberId AND other.id.memberId = :otherId
+				AND mine.deletedAt IS NULL AND other.deletedAt IS NULL
+			""")
+	boolean existsSharedActiveCourse(@Param("memberId") Long memberId, @Param("otherId") Long otherId);
+
 	/**
 	 * 탈퇴 정리용 — 참여 중인 행 전부를 코스 id 오름차순으로. 코스마다 락을 잡을 때 순서를 고정해 데드락을 피한다.
 	 * 코스를 fetch 하지 않는다 — 락 조회 전에 코스가 영속성 컨텍스트에 실리면 락 조회가 낡은 상태를 돌려준다.

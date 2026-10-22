@@ -62,6 +62,7 @@ public class BreadRecordSocialQueryService {
 	private final BreadRecordCommentRepository commentRepository;
 	private final CommentQueryService commentQueryService;
 	private final ReportedTargetReader reportedTargetReader;
+	private final BreadRecordCompanionService companionService;
 
 	/**
 	 * 프로필의 공개 빵로그. 본인이면 숨긴 것도 "검토 중"으로 보인다. 상대가 게스트 · 봇 · 탈퇴면 404,
@@ -120,7 +121,8 @@ public class BreadRecordSocialQueryService {
 			breadRecordLikeRepository.countByIdRecordId(record.getId()),
 			likedByMe,
 			commentRepository.countVisibleByRecordId(record.getId()),
-			commentQueryService.firstComment(viewerId, record));
+			commentQueryService.firstComment(viewerId, record),
+			companionService.companionsOf(record.getId()));
 	}
 
 	/** 좋아요 누른 사람. 기록을 볼 수 있어야 목록도 본다. */

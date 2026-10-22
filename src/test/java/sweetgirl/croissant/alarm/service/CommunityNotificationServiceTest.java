@@ -103,6 +103,35 @@ class CommunityNotificationServiceTest {
 	}
 
 	@Test
+	@DisplayName("같이 간 사람: 기록당 알림 한 행, 나중에 더 태그하면 그 행에 받는 사람만 늘린다")
+	void companionTag() {
+		Member author = member(1L, "빵순이");
+		BreadRecord record = BreadRecord.builder().member(author).storeName("빵집").build();
+		ReflectionTestUtils.setField(record, "id", 10L);
+		given(notificationRepository.findByActorIdAndTypeAndTargetTypeAndTargetId(1L,
+			NotificationType.COMPANION_TAG, NotificationTargetType.RECORD, 10L)).willReturn(Optional.empty());
+
+		service.notifyCompanionTag(record, List.of(member(2L, "빵돌이")));
+
+		ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+		then(notificationRecorder).should().recordForMembers(captor.capture(), anyList(), any());
+		assertThat(captor.getValue().getTitle()).isEqualTo("빵순이님이 회원님과 같이 간 빵로그를 올렸어요");
+		assertThat(captor.getValue().getDeepLink()).isEqualTo("/bbanglog/post/10");
+		then(eventPublisher).should().publishEvent(PushRequestedEvent.to(500L, 2L));
+
+		Notification existing = captor.getValue();
+		given(notificationRepository.findByActorIdAndTypeAndTargetTypeAndTargetId(1L,
+			NotificationType.COMPANION_TAG, NotificationTargetType.RECORD, 10L)).willReturn(Optional.of(existing));
+		Member third = member(3L, "빵삼이");
+		given(notificationRecorder.addRecipient(eq(existing), eq(third), any())).willReturn(true);
+
+		service.notifyCompanionTag(record, List.of(third));
+
+		then(notificationRecorder).should().addRecipient(eq(existing), eq(third), any());
+		then(eventPublisher).should().publishEvent(PushRequestedEvent.to(500L, 3L));
+	}
+
+	@Test
 	@DisplayName("같은 사람이 같은 대상에 이미 알림을 만들었으면 다시 만들지 않는다 — 팔로우/언팔 반복 도배 방지")
 	void once() {
 		Member actor = member(1L, "빵순이");
