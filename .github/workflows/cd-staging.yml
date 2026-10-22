@@ -271,6 +271,8 @@ jobs:
             echo "PERF_DASHBOARD_ENABLED=true" >> .env
             echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env
             echo "ADMIN_API_KEY=${{ secrets.STAGING_ADMIN_API_KEY }}" >> .env
+            # 신고 슬랙 메시지의 어드민 링크 바탕 주소 — 저장소 변수로 두고 비면 링크만 빠진다
+            echo "ADMIN_WEB_BASE_URL=${{ vars.STAGING_ADMIN_WEB_BASE_URL }}" >> .env
             echo "REDIS_PASSWORD=${{ secrets.STAGING_REDIS_PASSWORD }}" >> .env
             # 자동완성 Redis 캐시 스위치 — 저장소 변수로 켠다(없으면 꺼짐, 매번 DB)
             echo "AUTOCOMPLETE_CACHE_ENABLED=${{ vars.STAGING_AUTOCOMPLETE_CACHE_ENABLED || 'false' }}" >> .env
