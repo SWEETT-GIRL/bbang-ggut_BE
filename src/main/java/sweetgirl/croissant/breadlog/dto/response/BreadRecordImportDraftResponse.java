@@ -21,11 +21,12 @@ public record BreadRecordImportDraftResponse(
 		List<String> lovedBreads,
 		String towerBread,
 		/** 그대로 {@code photos} 요청에 실을 수 있는 모양 */
-		List<Photo> photos,
+		List<ImportDraftPhoto> photos,
 		/** 그대로 {@code tags} 요청에 실을 수 있는 모양 */
-		List<Tag> tags) {
+		List<ImportDraftTag> tags) {
 
-	public static BreadRecordImportDraftResponse of(BreadRecord record, List<Photo> photos, List<Tag> tags) {
+	public static BreadRecordImportDraftResponse of(BreadRecord record, List<ImportDraftPhoto> photos,
+			List<ImportDraftTag> tags) {
 		return new BreadRecordImportDraftResponse(
 			record.getId(),
 			record.getStore() != null ? record.getStore().getId() : null,
@@ -38,7 +39,8 @@ public record BreadRecordImportDraftResponse(
 			tags);
 	}
 
-	public record Photo(
+	/** 이름이 Tag · Photo 면 OpenAPI 스키마 이름이 다른 응답과 겹쳐 FE 타입 생성이 틀어진다(10/22) — 그래서 긴 이름. */
+	public record ImportDraftPhoto(
 			String fileName,
 			String contentType,
 			String awsKey,
@@ -47,15 +49,15 @@ public record BreadRecordImportDraftResponse(
 			Integer height) {
 	}
 
-	public record Tag(
+	public record ImportDraftTag(
 			Integer photoSortOrder,
 			String name,
 			Long menuId,
 			@JsonProperty("x") Double positionX,
 			@JsonProperty("y") Double positionY,
 			String style) {
-		public static Tag from(BreadRecordTag tag) {
-			return new Tag(
+		public static ImportDraftTag from(BreadRecordTag tag) {
+			return new ImportDraftTag(
 				tag.getPhoto() == null ? null : tag.getPhoto().getSortOrder(),
 				tag.getName(),
 				tag.getMenu() == null ? null : tag.getMenu().getId(),

@@ -56,21 +56,22 @@ public class BreadRecordImportService {
 			throw new BreadLogException(BreadLogErrorCode.IMPORT_NOT_COMPANION);
 		}
 		String myPath = S3PathGenerator.getBreadRecordImagePath(memberId);
-		List<BreadRecordImportDraftResponse.Photo> photos = photoRepository
+		List<BreadRecordImportDraftResponse.ImportDraftPhoto> photos = photoRepository
 			.findByRecordIdInOrderByRecordIdAscSortOrderAscIdAsc(List.of(recordId)).stream()
 			.map(photo -> copy(photo, myPath))
 			.toList();
-		List<BreadRecordImportDraftResponse.Tag> tags = tagRepository.findAllWithChipsByRecordId(recordId).stream()
-			.map(BreadRecordImportDraftResponse.Tag::from)
+		List<BreadRecordImportDraftResponse.ImportDraftTag> tags = tagRepository.findAllWithChipsByRecordId(recordId)
+			.stream()
+			.map(BreadRecordImportDraftResponse.ImportDraftTag::from)
 			.toList();
 		return BreadRecordImportDraftResponse.of(record, photos, tags);
 	}
 
-	private BreadRecordImportDraftResponse.Photo copy(BreadRecordPhoto photo, String myPath) {
+	private BreadRecordImportDraftResponse.ImportDraftPhoto copy(BreadRecordPhoto photo, String myPath) {
 		String fileName = UUID.randomUUID().toString();
 		String awsKey = myPath + "/" + fileName;
 		s3Service.copyObject(photo.getAwsKey(), awsKey);
-		return new BreadRecordImportDraftResponse.Photo(fileName, photo.getMimeType().getValue(), awsKey,
+		return new BreadRecordImportDraftResponse.ImportDraftPhoto(fileName, photo.getMimeType().getValue(), awsKey,
 			photo.getSortOrder(), photo.getWidth(), photo.getHeight());
 	}
 }

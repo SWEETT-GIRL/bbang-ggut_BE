@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -73,7 +74,8 @@ class PatControllerTest {
 	void received() throws Exception {
 		given(patQueryService.getReceived(any(), anyInt())).willReturn(new PatListResponse(
 			new PatListResponse.TodaySummary(3L, "회원3", 2),
-			List.of(new PatListResponse.PatResponse(LocalDate.of(2026, 10, 22), 3L, "회원3", "CROISSANT", null))));
+			List.of(new PatListResponse.PatResponse(LocalDate.of(2026, 10, 22), 3L, "회원3", "CROISSANT", null,
+				LocalDateTime.of(2026, 10, 22, 9, 30), true, false))));
 
 		mockMvc.perform(get("/members/me/pats").param("days", "7"))
 			.andExpect(status().isOk())

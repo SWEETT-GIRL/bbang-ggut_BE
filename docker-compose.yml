@@ -46,6 +46,9 @@ services:
       PERF_DASHBOARD_ENABLED: ${PERF_DASHBOARD_ENABLED:-false}
       PERF_DASHBOARD_ACCESS_KEY: ${PERF_DASHBOARD_ACCESS_KEY:-}
       ADMIN_API_KEY: ${ADMIN_API_KEY}
+      # 신고 슬랙 어드민 링크 바탕 주소(비면 링크 없음) · dev 테스트 로그인 키(local·staging 전용 컨트롤러)
+      ADMIN_WEB_BASE_URL: ${ADMIN_WEB_BASE_URL:-}
+      DEV_TEST_LOGIN_KEY: ${DEV_TEST_LOGIN_KEY:-}
       MANAGEMENT_PORT: ${MANAGEMENT_PORT:-8081}
       # 자동완성 Redis 캐시 — redis 는 아래 같은 컴포즈 네트워크의 서비스 이름으로 찾는다.
       # 스위치는 기본 꺼짐. 켜고 끄며 부하를 비교할 때는 서버 .env 의 값을 바꾸고 app 만 다시 띄운다.

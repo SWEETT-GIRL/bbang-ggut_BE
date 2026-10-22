@@ -89,7 +89,7 @@ class MemberFollowRepositoryTest {
 		entityManager.flush();
 		entityManager.clear();
 
-		Slice<MemberFollow> followers = memberFollowRepository.findFollowers(me.getId(), me.getId(), null,
+		Slice<MemberFollow> followers = memberFollowRepository.findFollowers(me.getId(), me.getId(), "",
 			PageRequest.of(0, 10));
 
 		assertThat(followers.getContent()).extracting(row -> row.getFollower().getNickname())
@@ -106,7 +106,7 @@ class MemberFollowRepositoryTest {
 		entityManager.flush();
 		entityManager.clear();
 
-		Slice<MemberFollow> firstPage = memberFollowRepository.findFollowings(me.getId(), me.getId(), null,
+		Slice<MemberFollow> firstPage = memberFollowRepository.findFollowings(me.getId(), me.getId(), "",
 			PageRequest.of(0, 2));
 
 		assertThat(firstPage.getContent()).extracting(row -> row.getFollowee().getNickname())

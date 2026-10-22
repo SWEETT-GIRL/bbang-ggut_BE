@@ -126,9 +126,10 @@ class BreadRecordSocialControllerTest {
 	void importDraft() throws Exception {
 		given(importService.draft(any(), eq(10L))).willReturn(new BreadRecordImportDraftResponse(10L, 5L, "밀도",
 			"서울_성동구_성수동", LocalDateTime.of(2026, 10, 1, 12, 0), List.of("소금빵"), "소금빵",
-			List.of(new BreadRecordImportDraftResponse.Photo("f", "image/jpeg", "bread-records/members/2/images/f", 0,
+			List.of(new BreadRecordImportDraftResponse.ImportDraftPhoto("f", "image/jpeg",
+				"bread-records/members/2/images/f", 0,
 				100, 100)),
-			List.of(new BreadRecordImportDraftResponse.Tag(0, "소금빵", 7L, 0.5, 0.5, null))));
+			List.of(new BreadRecordImportDraftResponse.ImportDraftTag(0, "소금빵", 7L, 0.5, 0.5, null))));
 
 		mockMvc.perform(post("/bread-records/10/import"))
 			.andExpect(status().isOk())

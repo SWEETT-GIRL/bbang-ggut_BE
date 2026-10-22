@@ -30,6 +30,8 @@ class MemberBlockQueryServiceTest {
 	MemberReader memberReader;
 	@Mock
 	MemberBlockRepository memberBlockRepository;
+	@Mock
+	sweetgirl.croissant.profile.service.CharacterFaceReader characterFaceReader;
 
 	@InjectMocks
 	MemberBlockQueryService memberBlockQueryService;

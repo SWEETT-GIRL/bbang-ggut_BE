@@ -1,6 +1,7 @@
 package sweetgirl.croissant.pat.dto.response;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import sweetgirl.croissant.pat.entity.MemberPat;
@@ -27,11 +28,17 @@ public record PatListResponse(
 			Long memberId,
 			String nickname,
 			String characterCode,
-			String characterImageKey) {
-		public static PatResponse of(MemberPat pat, CharacterFace face) {
+			String characterImageKey,
+			/** 친 시각 — "N시간 전" 용(10/22 추가) */
+			LocalDateTime pattedAt,
+			/** 내가 이 사람을 팔로우하나 — 줄 오른쪽 [팔로우] 용 */
+			boolean followedByMe,
+			boolean followsMe) {
+		public static PatResponse of(MemberPat pat, CharacterFace face, boolean followedByMe, boolean followsMe) {
 			CharacterFace resolved = face == null ? CharacterFace.NONE : face;
 			return new PatResponse(pat.getId().getKstDate(), pat.getFromMember().getId(),
-				pat.getFromMember().getNickname(), resolved.characterCode(), resolved.characterImageKey());
+				pat.getFromMember().getNickname(), resolved.characterCode(), resolved.characterImageKey(),
+				pat.getCreatedAt(), followedByMe, followsMe);
 		}
 	}
 }
