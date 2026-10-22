@@ -115,15 +115,16 @@ class AlarmControllerTest {
 		NotificationResponse saved = new NotificationResponse(
 			812L, NotificationType.COURSE_SAVED, false, LocalDateTime.of(2026, 8, 19, 10, 31),
 			2437L, "포실한 까눌레", NotificationTargetType.COURSE, 352L, "8월 20일 부산 빵투어",
-			null, null, null);
+			null, null, null, null, java.util.List.of(), 0);
 		NotificationResponse notice = new NotificationResponse(
 			900L, NotificationType.NOTICE, false, LocalDateTime.of(2026, 9, 3, 9, 0),
 			null, null, null, null, null,
-			"일차 나누기가 생겼어요", "1박 2일 빵투어를 나눠 담아보세요", "/course/12");
+			"일차 나누기가 생겼어요", "1박 2일 빵투어를 나눠 담아보세요", "/course/12", null, java.util.List.of(), 0);
 		NotificationResponse monthly = new NotificationResponse(
 			901L, NotificationType.MONTHLY_REPORT, false, LocalDateTime.of(2026, 10, 1, 10, 0),
 			null, null, null, null, null,
-			"🪐 9월 빵별일지가 도착했어요!", "우리 9월엔 어떤 빵을 만났을까? 빵로그와 활동을 함께 돌아봐요.", "/reports/monthly/2026-09");
+			"🪐 9월 빵별일지가 도착했어요!", "우리 9월엔 어떤 빵을 만났을까? 빵로그와 활동을 함께 돌아봐요.", "/reports/monthly/2026-09", null,
+			java.util.List.of(), 0);
 		// standalone MockMvc엔 @AuthenticationPrincipal 리졸버가 없어 memberId는 null로 들어온다
 		// (이 파일의 다른 테스트들과 같은 전제). 여기서 보는 건 경로·기본 페이징·응답 모양이다.
 		given(notificationService.getMine(null, 0, 20))
@@ -170,7 +171,7 @@ class AlarmControllerTest {
 		NotificationResponse saved = new NotificationResponse(
 			812L, NotificationType.COURSE_SAVED, false, LocalDateTime.of(2026, 8, 19, 10, 31),
 			2437L, "포실한 까눌레", NotificationTargetType.COURSE, 352L, "8월 20일 부산 빵투어",
-			null, null, null);
+			null, null, null, null, java.util.List.of(), 0);
 		given(notificationService.getMineByType(null, NotificationType.COURSE_SAVED, 0, 20))
 			.willReturn(new NotificationListResponse(List.of(saved), true));
 

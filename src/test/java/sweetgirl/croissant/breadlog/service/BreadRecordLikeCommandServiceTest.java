@@ -46,6 +46,9 @@ class BreadRecordLikeCommandServiceTest {
 	@Mock
 	private MemberRestrictionReader memberRestrictionReader;
 
+	@Mock
+	private sweetgirl.croissant.alarm.service.CommunityNotificationService communityNotificationService;
+
 	@InjectMocks
 	private BreadRecordLikeCommandService likeCommandService;
 

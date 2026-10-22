@@ -49,6 +49,9 @@ class FollowCommandServiceTest {
 	@Mock
 	private SocialMemberReader socialMemberReader;
 
+	@Mock
+	private sweetgirl.croissant.alarm.service.CommunityNotificationService communityNotificationService;
+
 	@InjectMocks
 	private FollowCommandService followCommandService;
 

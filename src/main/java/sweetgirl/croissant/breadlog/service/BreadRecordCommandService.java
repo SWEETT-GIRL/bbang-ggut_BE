@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.alarm.service.CommunityNotificationService;
 import sweetgirl.croissant.breadlog.code.BreadLogErrorCode;
 import sweetgirl.croissant.breadlog.dto.request.BreadRecordPhotoRequest;
 import sweetgirl.croissant.breadlog.dto.request.BreadRecordPresignedUrlRequest;
@@ -89,6 +90,7 @@ public class BreadRecordCommandService {
 	private final ImageProcessingCallbackService imageProcessingCallbackService;
 	private final CommunityAgreementService communityAgreementService;
 	private final CommentContentPolicy commentContentPolicy;
+	private final CommunityNotificationService communityNotificationService;
 	private final CourseProgressService courseProgressService;
 	private final MemberWorldRepository memberWorldRepository;
 	private final RecordRewardService recordRewardService;
@@ -269,7 +271,12 @@ public class BreadRecordCommandService {
 		if (isPublic) {
 			commentContentPolicy.validateWords(record.getMemo());
 		}
+		boolean becamePublic = isPublic && !record.isPublic();
 		record.changeVisibility(isPublic);
+		if (becamePublic) {
+			// 팔로워에게 "새 빵로그" — 기록당 한 번이라 토글을 반복해도 다시 가지 않는다
+			communityNotificationService.notifyFollowingNewRecord(record);
+		}
 	}
 
 	public void changeTowerBread(Long recordId, Long memberId, String towerBread) {

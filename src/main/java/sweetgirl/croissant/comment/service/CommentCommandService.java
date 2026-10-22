@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.alarm.service.CommunityNotificationService;
 import sweetgirl.croissant.breadlog.code.BreadLogErrorCode;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.exception.BreadLogException;
@@ -50,6 +51,7 @@ public class CommentCommandService {
 	private final SocialMemberReader socialMemberReader;
 	private final MemberBlockRepository memberBlockRepository;
 	private final CharacterFaceReader characterFaceReader;
+	private final CommunityNotificationService communityNotificationService;
 
 	/**
 	 * 공개 빵로그에만. 게스트 403 MEMBER403_GUEST → 작성 제한 · 정지 403 → 규칙 동의 전 403 COMMUNITY_AGREEMENT_REQUIRED →
@@ -82,6 +84,8 @@ public class CommentCommandService {
 			mentions.add(mentionRepository.save(
 				CommentMention.of(comment, mentioned.get(i), mention.start(), mention.length())));
 		}
+		communityNotificationService.notifyRecordComment(comment);
+		mentioned.forEach(target -> communityNotificationService.notifyMention(comment, target));
 		return CommentResponse.of(comment, mentions, characterFaceReader.faceOf(memberId),
 			record.getMember().getId(), memberId);
 	}

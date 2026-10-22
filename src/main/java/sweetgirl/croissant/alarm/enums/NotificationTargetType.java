@@ -6,5 +6,9 @@ public enum NotificationTargetType {
 	RECORD,
 	STORE,
 	/** 문의 스레드 */
-	LETTER
+	LETTER,
+	/** 사람(프로필) */
+	MEMBER,
+	/** 빵로그 댓글 */
+	COMMENT
 }
