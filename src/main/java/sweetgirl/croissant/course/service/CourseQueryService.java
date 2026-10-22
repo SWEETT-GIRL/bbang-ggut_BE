@@ -43,6 +43,8 @@ import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
+import sweetgirl.croissant.profile.dto.response.CharacterFace;
+import sweetgirl.croissant.profile.service.CharacterFaceReader;
 import sweetgirl.croissant.reward.service.CrumbGrantService;
 import sweetgirl.croissant.reward.service.TourRewardService;
 import sweetgirl.croissant.store.RegionFormatter;
@@ -66,6 +68,7 @@ public class CourseQueryService {
 	private final CourseMemberRepository courseMemberRepository;
 	private final CourseAccessPolicy courseAccessPolicy;
 	private final TourRewardService tourRewardService;
+	private final CharacterFaceReader characterFaceReader;
 
 	public List<CourseSummaryResponse> getCurationCourses() {
 		return buildSummaryResponses(courseRepository.findAllPublicOrderedByPinAndSavedCount(), Set.of());
@@ -250,12 +253,16 @@ public class CourseQueryService {
 	}
 
 	private List<CourseMemberResponse> toMemberResponses(Course course, List<CourseMember> members, Long viewerId) {
+		Map<Long, CharacterFace> faces = characterFaceReader.facesOf(
+			members.stream().map(row -> row.getId().getMemberId()).toList());
 		return members.stream()
 			.map(row -> new CourseMemberResponse(
 				row.getId().getMemberId(),
 				row.getMember().getNickname(),
 				courseAccessPolicy.isOwner(course, row.getId().getMemberId()),
-				row.getId().getMemberId().equals(viewerId)))
+				row.getId().getMemberId().equals(viewerId),
+				faces.getOrDefault(row.getId().getMemberId(), CharacterFace.NONE).characterCode(),
+				faces.getOrDefault(row.getId().getMemberId(), CharacterFace.NONE).characterImageKey()))
 			.toList();
 	}
 

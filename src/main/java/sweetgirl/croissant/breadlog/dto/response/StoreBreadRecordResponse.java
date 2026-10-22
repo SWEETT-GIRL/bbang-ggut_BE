@@ -4,10 +4,11 @@ import java.time.LocalDate;
 import java.util.List;
 
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
+import sweetgirl.croissant.profile.dto.response.CharacterFace;
 
 /**
  * 가게 상세에 쌓이는 남의 공개 빵로그. 누가 언제 어디 있었는지 드러나지 않게 먹은 시각은 날짜까지만,
- * 지역 키는 내려주지 않는다.
+ * 지역 키는 내려주지 않는다. 좋아요 · 댓글 수와 작성자 얼굴은 10/22 에 더했다 — 지우거나 이름을 바꾸지 않는다.
  */
 public record StoreBreadRecordResponse(
 		Long id,
@@ -17,12 +18,20 @@ public record StoreBreadRecordResponse(
 		List<String> lovedBreads,
 		LocalDate eatenOn,
 		List<BreadRecordPhotoResponse> photos,
-		List<BreadRecordTagResponse> tags) {
+		List<BreadRecordTagResponse> tags,
+		long likeCount,
+		long commentCount,
+		String authorCharacterCode,
+		String authorCharacterImageKey) {
 
 	public static StoreBreadRecordResponse of(
 			BreadRecord record,
 			List<BreadRecordPhotoResponse> photos,
-			List<BreadRecordTagResponse> tags) {
+			List<BreadRecordTagResponse> tags,
+			long likeCount,
+			long commentCount,
+			CharacterFace authorFace) {
+		CharacterFace face = authorFace == null ? CharacterFace.NONE : authorFace;
 		return new StoreBreadRecordResponse(
 			record.getId(),
 			record.getMember().getId(),
@@ -31,6 +40,10 @@ public record StoreBreadRecordResponse(
 			BreadRecordResponse.lovedBreadsOf(tags),
 			record.getEatenAt().toLocalDate(),
 			photos,
-			tags);
+			tags,
+			likeCount,
+			commentCount,
+			face.characterCode(),
+			face.characterImageKey());
 	}
 }

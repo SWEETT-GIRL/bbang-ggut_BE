@@ -5,5 +5,12 @@ public record CourseMemberResponse(
 		Long memberId,
 		String displayName,
 		boolean isOwner,
-		boolean isMe) {
+		boolean isMe,
+		/** 일행 얼굴(10/22 추가) — 세계관이 없으면 null → 앱은 마스코트 */
+		String characterCode,
+		String characterImageKey) {
+
+	public CourseMemberResponse(Long memberId, String displayName, boolean isOwner, boolean isMe) {
+		this(memberId, displayName, isOwner, isMe, null, null);
+	}
 }
