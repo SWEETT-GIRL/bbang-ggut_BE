@@ -38,7 +38,8 @@ public class MemberSearchQueryService {
 		return withRelations(viewerId, found);
 	}
 
-	List<FollowMemberResponse> withRelations(Long viewerId, List<Member> people) {
+	/** 줄마다 followedByMe · followsMe 를 id 묶음 두 번으로 채운다. 좋아요 누른 사람 목록도 쓴다. */
+	public List<FollowMemberResponse> withRelations(Long viewerId, List<Member> people) {
 		List<Long> ids = people.stream().map(Member::getId).toList();
 		Set<Long> followedByMe = viewerId == null || ids.isEmpty()
 			? Set.of() : Set.copyOf(memberFollowRepository.findFolloweeIdsIn(viewerId, ids));

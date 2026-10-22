@@ -121,6 +121,7 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			WHERE record.store.id = :storeId
 			AND record.isPublic = true
 			AND record.deletedAt IS NULL
+			AND record.hiddenAt IS NULL
 			AND member.deletedAt IS NULL
 			AND EXISTS (SELECT 1 FROM BreadRecordPhoto photo WHERE photo.record.id = record.id)
 			AND (:viewerMemberId IS NULL OR NOT EXISTS (
@@ -183,7 +184,7 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 	/** 프로필의 공개 빵로그 수. */
 	@Query("""
 			SELECT COUNT(r) FROM BreadRecord r
-			WHERE r.member.id = :memberId AND r.isPublic = true AND r.deletedAt IS NULL
+			WHERE r.member.id = :memberId AND r.isPublic = true AND r.deletedAt IS NULL AND r.hiddenAt IS NULL
 			""")
 	long countPublicByMemberId(@Param("memberId") Long memberId);
 
@@ -191,7 +192,8 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 	@Query(value = """
 			SELECT r.region_key AS regionKey, COUNT(*) AS recordCount
 			FROM bread_record r
-			WHERE r.member_id = :memberId AND r.is_public = true AND r.deleted_at IS NULL AND r.region_key IS NOT NULL
+			WHERE r.member_id = :memberId AND r.is_public = true AND r.deleted_at IS NULL AND r.hidden_at IS NULL
+				AND r.region_key IS NOT NULL
 			GROUP BY r.region_key
 			HAVING COUNT(*) >= :minCount
 			ORDER BY COUNT(*) DESC, r.region_key ASC
@@ -208,7 +210,8 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			SELECT r.member_id
 			FROM bread_record r
 			JOIN member m ON m.id = r.member_id AND m.deleted_at IS NULL AND m.member_type = 'USER'
-			WHERE r.is_public = true AND r.deleted_at IS NULL AND r.created_at >= :since AND r.member_id <> :viewerId
+			WHERE r.is_public = true AND r.deleted_at IS NULL AND r.hidden_at IS NULL
+				AND r.created_at >= :since AND r.member_id <> :viewerId
 			GROUP BY r.member_id
 			ORDER BY COUNT(*) FILTER (WHERE r.store_id IN (
 					SELECT mine.store_id FROM bread_record mine
@@ -218,4 +221,37 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			""", nativeQuery = true)
 	List<Long> findRecentPublicRecorderIds(@Param("viewerId") Long viewerId, @Param("since") LocalDateTime since,
 			@Param("limit") int limit);
+
+	/**
+	 * 프로필의 공개 빵로그 — 최신순(먹은 날). 본인({@code includeHidden})은 숨긴 것도 본다.
+	 * 사진이 없어도 내린다(새 앱 화면).
+	 */
+	@Query("""
+			SELECT r FROM BreadRecord r
+			WHERE r.member.id = :memberId AND r.isPublic = true AND r.deletedAt IS NULL
+				AND (:includeHidden = true OR r.hiddenAt IS NULL)
+			ORDER BY r.eatenAt DESC, r.id DESC
+			""")
+	Slice<BreadRecord> findPublicByMemberIdLatest(@Param("memberId") Long memberId,
+			@Param("includeHidden") boolean includeHidden, Pageable pageable);
+
+	/**
+	 * 프로필의 공개 빵로그 — 추천순 id. 점수 = (좋아요 + 댓글 × 2) × 날짜 가중(7일 안 1.0 / 30일 안 0.6 / 그 뒤 0.3),
+	 * 동점은 최신. 댓글은 P3 에서 더한다. 점수가 시간에 따라 변해 커서 대신 offset 이다.
+	 */
+	@Query(value = """
+			SELECT r.id
+			FROM bread_record r
+			LEFT JOIN (SELECT record_id, COUNT(*) AS like_count FROM record_like GROUP BY record_id) l
+				ON l.record_id = r.id
+			WHERE r.member_id = :memberId AND r.is_public = true AND r.deleted_at IS NULL
+				AND (:includeHidden = true OR r.hidden_at IS NULL)
+			ORDER BY COALESCE(l.like_count, 0)
+					* CASE WHEN r.created_at >= :recent THEN 1.0 WHEN r.created_at >= :older THEN 0.6 ELSE 0.3 END DESC,
+				r.created_at DESC, r.id DESC
+			LIMIT :limit OFFSET :offset
+			""", nativeQuery = true)
+	List<Long> findPublicIdsByMemberIdRecommended(@Param("memberId") Long memberId,
+			@Param("includeHidden") boolean includeHidden, @Param("recent") LocalDateTime recent,
+			@Param("older") LocalDateTime older, @Param("limit") int limit, @Param("offset") int offset);
 }
