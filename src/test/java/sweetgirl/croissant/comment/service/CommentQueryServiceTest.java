@@ -126,9 +126,9 @@ class CommentQueryServiceTest {
 		given(breadRecordRepository.findByIdAndDeletedAtIsNull(RECORD)).willReturn(Optional.of(record));
 		Member following = member(3L, "빵순이");
 		Member follower = member(4L, "빵돌이");
-		given(memberFollowRepository.findFollowings(eq(ME), eq(ME), isNull(), any()))
+		given(memberFollowRepository.findFollowings(eq(ME), eq(ME), eq(""), any()))
 			.willReturn(new SliceImpl<>(List.of(MemberFollow.of(member(ME, "나"), following))));
-		given(memberFollowRepository.findFollowers(eq(ME), eq(ME), isNull(), any()))
+		given(memberFollowRepository.findFollowers(eq(ME), eq(ME), eq(""), any()))
 			.willReturn(new SliceImpl<>(List.of(MemberFollow.of(follower, member(ME, "나")),
 				MemberFollow.of(following, member(ME, "나")))));
 		given(commentRepository.findCommenterIds(RECORD)).willReturn(List.of(ME, AUTHOR));

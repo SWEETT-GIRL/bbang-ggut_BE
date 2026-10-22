@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.BeanUtils;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import sweetgirl.croissant.follow.repository.MemberFollowRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.pat.dto.response.PatListResponse;
 import sweetgirl.croissant.pat.entity.MemberPat;
@@ -40,6 +41,8 @@ class PatQueryServiceTest {
 	private MemberPatRepository memberPatRepository;
 	@Mock
 	private CharacterFaceReader characterFaceReader;
+	@Mock
+	private MemberFollowRepository memberFollowRepository;
 
 	@InjectMocks
 	private PatQueryService patQueryService;
@@ -61,6 +64,8 @@ class PatQueryServiceTest {
 			.willReturn(List.of(pat(3L, TODAY), pat(2L, TODAY), pat(2L, TODAY.minusDays(1))));
 		given(characterFaceReader.facesOf(anyCollection()))
 			.willReturn(Map.of(3L, new CharacterFace("CROISSANT", "world/croissant.png"), 2L, CharacterFace.NONE));
+		given(memberFollowRepository.findFolloweeIdsIn(ME, List.of(3L, 2L))).willReturn(List.of(3L));
+		given(memberFollowRepository.findFollowerIdsIn(ME, List.of(3L, 2L))).willReturn(List.of());
 
 		PatListResponse response = patQueryService.getReceived(ME, 7);
 
@@ -70,6 +75,10 @@ class PatQueryServiceTest {
 		assertThat(response.items()).hasSize(3);
 		assertThat(response.items().get(0).characterCode()).isEqualTo("CROISSANT");
 		assertThat(response.items().get(1).characterCode()).isNull();
+		assertThat(response.items().get(0).followedByMe()).isTrue();
+		assertThat(response.items().get(0).followsMe()).isFalse();
+		assertThat(response.items().get(1).followedByMe()).isFalse();
+		assertThat(response.items().get(0).pattedAt()).isNotNull();
 	}
 
 	@Test
@@ -78,6 +87,8 @@ class PatQueryServiceTest {
 		given(memberPatRepository.findReceivedSince(eq(ME), any()))
 			.willReturn(List.of(pat(2L, TODAY.minusDays(2))));
 		given(characterFaceReader.facesOf(anyCollection())).willReturn(Map.of());
+		given(memberFollowRepository.findFolloweeIdsIn(eq(ME), any())).willReturn(List.of());
+		given(memberFollowRepository.findFollowerIdsIn(eq(ME), any())).willReturn(List.of());
 
 		PatListResponse response = patQueryService.getReceived(ME, 7);
 

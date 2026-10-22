@@ -57,7 +57,8 @@ public interface MemberFollowRepository extends JpaRepository<MemberFollow, Memb
 
 	/**
 	 * {@code memberId} 의 팔로워. 최신순. 탈퇴한 사람과 보는 사람({@code viewerId})과 차단 관계인 사람은 뺀다.
-	 * 보는 사람이 없으면(비로그인) 차단 조건은 아무도 안 거른다. {@code nicknamePrefix} 가 있으면 닉네임 앞글자(대소문자 무시)로 거른다.
+	 * 보는 사람이 없으면(비로그인) 차단 조건은 아무도 안 거른다. {@code nicknamePrefix} 는 닉네임 앞글자(대소문자 무시) — 비면("") 전부.
+	 * null 을 넘기면 안 된다: Postgres 는 {@code :q IS NULL} 의 파라미터 타입을 못 정해 500 이 난다(10/22 dev).
 	 */
 	@Query("""
 			SELECT f FROM MemberFollow f
@@ -67,7 +68,7 @@ public interface MemberFollowRepository extends JpaRepository<MemberFollow, Memb
 				AND NOT EXISTS (SELECT 1 FROM MemberBlock b
 					WHERE (b.blocker.id = :viewerId AND b.blockedMember.id = follower.id)
 						OR (b.blocker.id = follower.id AND b.blockedMember.id = :viewerId))
-				AND (:q IS NULL OR LOWER(follower.nickname) LIKE LOWER(CONCAT(:q, '%')))
+				AND LOWER(follower.nickname) LIKE LOWER(CONCAT(:q, '%'))
 			ORDER BY f.createdAt DESC, f.id.followerId DESC
 			""")
 	Slice<MemberFollow> findFollowers(@Param("memberId") Long memberId, @Param("viewerId") Long viewerId,
@@ -82,7 +83,7 @@ public interface MemberFollowRepository extends JpaRepository<MemberFollow, Memb
 				AND NOT EXISTS (SELECT 1 FROM MemberBlock b
 					WHERE (b.blocker.id = :viewerId AND b.blockedMember.id = followee.id)
 						OR (b.blocker.id = followee.id AND b.blockedMember.id = :viewerId))
-				AND (:q IS NULL OR LOWER(followee.nickname) LIKE LOWER(CONCAT(:q, '%')))
+				AND LOWER(followee.nickname) LIKE LOWER(CONCAT(:q, '%'))
 			ORDER BY f.createdAt DESC, f.id.followeeId DESC
 			""")
 	Slice<MemberFollow> findFollowings(@Param("memberId") Long memberId, @Param("viewerId") Long viewerId,

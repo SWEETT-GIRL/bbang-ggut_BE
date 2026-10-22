@@ -1,6 +1,7 @@
 package sweetgirl.croissant.member.service;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -12,6 +13,8 @@ import sweetgirl.croissant.member.dto.response.BlockResponse;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.MemberBlock;
 import sweetgirl.croissant.member.repository.MemberBlockRepository;
+import sweetgirl.croissant.profile.dto.response.CharacterFace;
+import sweetgirl.croissant.profile.service.CharacterFaceReader;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +23,7 @@ public class MemberBlockQueryService {
 
 	private final MemberReader memberReader;
 	private final MemberBlockRepository memberBlockRepository;
+	private final CharacterFaceReader characterFaceReader;
 
 	public BlockListResponse getBlocks(Long memberId, int page, int size) {
 		if (page < 0 || size < 1) {
@@ -33,9 +37,11 @@ public class MemberBlockQueryService {
 		boolean hasNext = memberBlocks.size() > size;
 		List<MemberBlock> pageBlocks = hasNext ? memberBlocks.subList(0, size) : memberBlocks;
 
+		Map<Long, CharacterFace> faces = characterFaceReader.facesOf(
+			pageBlocks.stream().map(block -> block.getBlockedMember().getId()).toList());
 		return new BlockListResponse(
 			pageBlocks.stream()
-				.map(BlockResponse::from)
+				.map(block -> BlockResponse.from(block, faces.get(block.getBlockedMember().getId())))
 				.toList(),
 			hasNext);
 	}

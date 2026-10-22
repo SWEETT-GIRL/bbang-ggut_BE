@@ -59,9 +59,9 @@ public class FollowQueryService {
 		return toResponse(viewerId, rows, MemberFollow::getFollowee);
 	}
 
-	/** 공백만이면 거르지 않는다(null). */
+	/** 공백만이면 거르지 않는다("" — 빈 앞글자는 전부에 맞는다). null 은 쿼리에 못 넘긴다(Postgres 파라미터 타입). */
 	static String prefixOf(String nicknamePrefix) {
-		return nicknamePrefix == null || nicknamePrefix.isBlank() ? null : nicknamePrefix.strip();
+		return nicknamePrefix == null || nicknamePrefix.isBlank() ? "" : nicknamePrefix.strip();
 	}
 
 	/** 상대가 없거나 게스트 · 봇 · 탈퇴면 404, 보는 사람과 차단 관계면 403 — 프로필과 같은 규칙이다. */
