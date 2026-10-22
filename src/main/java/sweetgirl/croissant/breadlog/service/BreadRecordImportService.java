@@ -18,6 +18,7 @@ import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.util.S3PathGenerator;
+import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
 
 /**
@@ -36,11 +37,14 @@ public class BreadRecordImportService {
 	private final BreadRecordTagRepository tagRepository;
 	private final BreadRecordCompanionRepository companionRepository;
 	private final BreadRecordVisibilityPolicy visibilityPolicy;
+	private final MemberReader memberReader;
 	private final MemberRestrictionReader memberRestrictionReader;
 	private final S3Service s3Service;
 
 	/** 게스트 · 작성 제한 403, 없으면 404, 볼 수 없으면 403, 태그된 사람이 아니면(스스로 뺀 사람 포함) 403. */
 	public BreadRecordImportDraftResponse draft(Long memberId, Long recordId) {
+		// 게스트는 스위치(guest.write-blocked)와 무관하게 늘 막는다
+		memberReader.requireLoggedIn(memberId);
 		memberRestrictionReader.validateCanWrite(memberId);
 		BreadRecord record = breadRecordRepository.findByIdAndDeletedAtIsNull(recordId)
 			.orElseThrow(() -> new BreadLogException(BreadLogErrorCode.BREAD_RECORD_NOT_FOUND));

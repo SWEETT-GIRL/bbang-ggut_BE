@@ -37,6 +37,7 @@ import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
 import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
 
 @ExtendWith(MockitoExtension.class)
@@ -57,6 +58,8 @@ class BreadRecordImportServiceTest {
 	private BreadRecordCompanionRepository companionRepository;
 	@Mock
 	private BreadRecordVisibilityPolicy visibilityPolicy;
+	@Mock
+	private MemberReader memberReader;
 	@Mock
 	private MemberRestrictionReader memberRestrictionReader;
 	@Mock
@@ -95,6 +98,7 @@ class BreadRecordImportServiceTest {
 
 		BreadRecordImportDraftResponse draft = importService.draft(ME, RECORD);
 
+		then(memberReader).should().requireLoggedIn(ME);
 		then(memberRestrictionReader).should().validateCanWrite(ME);
 		then(visibilityPolicy).should().validateCanView(ME, record);
 		then(s3Service).should().copyObject(eq("bread-records/members/1/images/a"),

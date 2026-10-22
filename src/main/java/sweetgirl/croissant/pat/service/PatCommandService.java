@@ -39,6 +39,8 @@ public class PatCommandService {
 	 * 나 자신 400, 상대가 없거나 게스트 · 봇 · 탈퇴면 404, 어느 쪽이든 차단했으면 403.
 	 */
 	public void pat(Long memberId, Long targetId) {
+		// 게스트는 스위치(guest.write-blocked)와 무관하게 늘 막는다 — 소셜 행동은 로그인한 사람만
+		memberReader.requireLoggedIn(memberId);
 		memberRestrictionReader.validateCanWrite(memberId);
 		if (memberId.equals(targetId)) {
 			throw new PatException(PatErrorCode.PAT_SELF);

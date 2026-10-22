@@ -47,6 +47,8 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 
 	boolean existsByNicknameAndDeletedAtIsNull(String nickname);
 
+	Optional<Member> findByNicknameAndDeletedAtIsNull(String nickname);
+
 	/** 살아 있는 회원 중 같은 이름(정규화)이 있나 — 직접 바꾸기 · 뽑기 수락이 본다. */
 	boolean existsByNicknameNormalizedAndDeletedAtIsNull(String nicknameNormalized);
 
