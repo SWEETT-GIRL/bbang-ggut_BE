@@ -1,5 +1,7 @@
 package sweetgirl.croissant.profile.service;
 
+import java.util.Set;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -77,10 +79,17 @@ public class ProfileQueryService {
 			memberWorldRepository.findHomePropItem(memberId).orElse(null),
 			level.level(), level.planet(), planetNameOf(level.planet()),
 			memberTitleReader.titleOf(memberId).orElse(null),
-			breadRecordRepository.countPublicByMemberId(memberId),
+			visiblePublicRecordCount(viewerId, memberId),
 			memberFollowRepository.countByIdFolloweeId(memberId),
 			memberFollowRepository.countByIdFollowerId(memberId),
 			followedByMe, followsMe);
+	}
+
+	/** 보는 사람이 신고한 빵로그는 목록에서 빠지므로 수에서도 뺀다. */
+	private long visiblePublicRecordCount(Long viewerId, Long memberId) {
+		Set<Long> reported = reportedTargetReader.reportedIds(viewerId, AbuseReportTargetType.RECORD);
+		return reported.isEmpty() ? breadRecordRepository.countPublicByMemberId(memberId)
+			: breadRecordRepository.countPublicByMemberIdExcluding(memberId, reported);
 	}
 
 	private String planetNameOf(String planetCode) {

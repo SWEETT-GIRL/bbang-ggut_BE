@@ -12,6 +12,8 @@ import sweetgirl.croissant.alarm.entity.Notification;
 import sweetgirl.croissant.alarm.enums.NotificationTargetType;
 import sweetgirl.croissant.alarm.enums.NotificationType;
 import sweetgirl.croissant.alarm.event.PushRequestedEvent;
+import sweetgirl.croissant.alarm.repository.NotificationDeliveryRepository;
+import sweetgirl.croissant.alarm.repository.NotificationRecipientRepository;
 import sweetgirl.croissant.alarm.repository.NotificationRepository;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.comment.entity.BreadRecordComment;
@@ -46,6 +48,8 @@ public class CommunityNotificationService {
 	static final String PATS_LINK = "/pats";
 
 	private final NotificationRepository notificationRepository;
+	private final NotificationRecipientRepository notificationRecipientRepository;
+	private final NotificationDeliveryRepository notificationDeliveryRepository;
 	private final NotificationRecorder notificationRecorder;
 	private final ApplicationEventPublisher eventPublisher;
 	private final MemberRepository memberRepository;
@@ -182,6 +186,20 @@ public class CommunityNotificationService {
 				eventPublisher.publishEvent(PushRequestedEvent.to(notification.getId(), member.getId()));
 			}
 		}
+	}
+
+	/** 댓글을 지우면 그 댓글이 대상인 알림(댓글 · 멘션)을 받는 사람 우편함 · 발송 대장 · 알림 행까지 거둔다. */
+	public void retractCommentNotifications(Long commentId) {
+		List<Long> notificationIds = notificationRepository
+			.findAllByTargetTypeAndTargetId(NotificationTargetType.COMMENT, commentId).stream()
+			.map(Notification::getId)
+			.toList();
+		if (notificationIds.isEmpty()) {
+			return;
+		}
+		notificationDeliveryRepository.deleteAllByNotificationIdIn(notificationIds);
+		notificationRecipientRepository.deleteAllByNotificationIdIn(notificationIds);
+		notificationRepository.deleteAllByIdInBatch(notificationIds);
 	}
 
 	private void once(NotificationType type, Member actor, NotificationTargetType targetType, Long targetId,
