@@ -18,10 +18,12 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.alarm.dto.request.CommunityNotificationSettingUpdateRequest;
 import sweetgirl.croissant.alarm.dto.request.CourseNotificationReadRequest;
 import sweetgirl.croissant.alarm.dto.request.FcmTokenDeleteRequest;
 import sweetgirl.croissant.alarm.dto.request.FcmTokenRequest;
 import sweetgirl.croissant.alarm.dto.request.GeofenceEnterRequest;
+import sweetgirl.croissant.alarm.dto.response.CommunityNotificationSettingResponse;
 import sweetgirl.croissant.alarm.dto.response.CourseSaveNotificationListResponse;
 import sweetgirl.croissant.alarm.dto.response.GeofenceCandidatesResponse;
 import sweetgirl.croissant.alarm.dto.response.MarketingEnabledResponse;
@@ -103,6 +105,22 @@ public class AlarmController {
 	@PatchMapping("/settings/marketing") // PATCH /alarm/settings/marketing — request body 없이 호출
 	public ApiResponse<MarketingEnabledResponse> toggleMarketingEnabled(@AuthenticationPrincipal Long memberId) {
 		return ApiResponse.ok(alarmCommandService.toggleMarketingEnabled(memberId)); // 토글 후 변경된 상태 응답
+	}
+
+	@Operation(summary = "커뮤니티 알림 스위치 조회", description = "팔로우 · 톡 · 좋아요 · 댓글 · 팔로잉 소식(기본 켜짐). "
+		+ "알림함엔 스위치와 무관하게 남고 푸시만 가른다.")
+	@GetMapping("/settings/community")
+	public ApiResponse<CommunityNotificationSettingResponse> getCommunitySettings(
+			@AuthenticationPrincipal Long memberId) {
+		return ApiResponse.ok(alarmQueryService.getCommunitySettings(memberId));
+	}
+
+	@Operation(summary = "커뮤니티 알림 스위치 수정", description = "바뀌는 키만 보낸다(null 은 그대로). 바뀐 전체를 돌려준다.")
+	@PatchMapping("/settings/community")
+	public ApiResponse<CommunityNotificationSettingResponse> updateCommunitySettings(
+			@AuthenticationPrincipal Long memberId,
+			@RequestBody CommunityNotificationSettingUpdateRequest request) {
+		return ApiResponse.ok(alarmCommandService.updateCommunitySettings(memberId, request));
 	}
 
 	@Operation(summary = "내 제보 알림 목록 조회", description = "사용자가 제출한 제보의 승인/거절 알림 목록을 최신순으로 반환합니다.")

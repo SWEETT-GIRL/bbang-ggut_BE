@@ -81,6 +81,10 @@ public interface MemberFollowRepository extends JpaRepository<MemberFollow, Memb
 	Slice<MemberFollow> findFollowings(@Param("memberId") Long memberId, @Param("viewerId") Long viewerId,
 			Pageable pageable);
 
+	/** 팔로잉 소식 팬아웃용 — 이 사람을 팔로우하는 사람 전부. */
+	@Query("SELECT f.id.followerId FROM MemberFollow f WHERE f.id.followeeId = :memberId")
+	List<Long> findFollowerIds(@Param("memberId") Long memberId);
+
 	/** {@code followerId} 가 이 사람들 중 누구를 팔로우하나 — 목록 줄의 followedByMe 를 한 번에 채운다. */
 	@Query("""
 			SELECT f.id.followeeId FROM MemberFollow f

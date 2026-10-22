@@ -76,6 +76,9 @@ class CommentCommandServiceTest {
 	@Mock
 	private CharacterFaceReader characterFaceReader;
 
+	@Mock
+	private sweetgirl.croissant.alarm.service.CommunityNotificationService communityNotificationService;
+
 	@InjectMocks
 	private CommentCommandService commandService;
 

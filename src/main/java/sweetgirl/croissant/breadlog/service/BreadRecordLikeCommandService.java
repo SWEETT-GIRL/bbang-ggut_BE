@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.alarm.service.CommunityNotificationService;
 import sweetgirl.croissant.breadlog.code.BreadLogErrorCode;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.exception.BreadLogException;
@@ -25,6 +26,7 @@ public class BreadRecordLikeCommandService {
 	private final BreadRecordVisibilityPolicy visibilityPolicy;
 	private final MemberReader memberReader;
 	private final MemberRestrictionReader memberRestrictionReader;
+	private final CommunityNotificationService communityNotificationService;
 
 	/** 게스트 403 MEMBER403_GUEST · 정지 403 · 없음 404 · 볼 수 없는 기록(비공개 · 숨김 · 차단) 403. 내 기록도 누를 수 있다. */
 	public void like(Long memberId, Long recordId) {
@@ -36,7 +38,9 @@ public class BreadRecordLikeCommandService {
 		if (!record.isPublic()) {
 			throw new BreadLogException(BreadLogErrorCode.BREAD_RECORD_NOT_VISIBLE);
 		}
-		breadRecordLikeRepository.insertIfAbsent(record.getId(), memberId, LocalDateTime.now());
+		if (breadRecordLikeRepository.insertIfAbsent(record.getId(), memberId, LocalDateTime.now()) == 1) {
+			communityNotificationService.notifyRecordLike(memberReader.getMember(memberId), record);
+		}
 	}
 
 	/** 안 눌렀어도 200. 비공개로 돌아간 기록의 좋아요도 뗄 수 있다. */

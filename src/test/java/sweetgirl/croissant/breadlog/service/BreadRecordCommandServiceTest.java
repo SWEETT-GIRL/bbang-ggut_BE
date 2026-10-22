@@ -187,6 +187,9 @@ class BreadRecordCommandServiceTest {
 	@Mock
 	sweetgirl.croissant.comment.service.CommentContentPolicy commentContentPolicy;
 
+	@Mock
+	sweetgirl.croissant.alarm.service.CommunityNotificationService communityNotificationService;
+
 	@InjectMocks
 	BreadRecordCommandService commandService;
 

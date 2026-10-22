@@ -20,6 +20,23 @@ public enum NotificationType {
 	COURSE_LIKED("COURSE_LIKED"),
 	/** 아직 기능이 없다. 빵투어에 누군가를 부르게 되면 그때 쓴다 */
 	INVITE("INVITE"),
+	// ── 팔로우 · 커뮤니티 활동 알림(2026-10-22): 서버가 문구도 같이 둔다 — 구버전 앱은 모르는 타입을 title · body 로 그린다 ──
+	/** OO님이 회원님을 팔로우해요 */
+	FOLLOW("FOLLOW"),
+	/** OO님이 톡을 쳤어요(P6) */
+	PAT("PAT"),
+	/** OO님이 회원님의 빵로그를 좋아해요 — 하루 상한 5 */
+	RECORD_LIKE("RECORD_LIKE"),
+	/** OO님이 댓글을 남겼어요: … — 상한 밖, 하나씩 */
+	RECORD_COMMENT("RECORD_COMMENT"),
+	/** OO님이 회원님을 언급했어요 — 상한 밖, 하나씩 */
+	COMMENT_MENTION("COMMENT_MENTION"),
+	/** OO님과 OO에 같이 갔어요(P6) */
+	COMPANION_TAG("COMPANION_TAG"),
+	/** 팔로잉이 새 빵로그를 올렸어요 — 하루 상한 5 */
+	FOLLOWING_NEW_RECORD("FOLLOWING_NEW_RECORD"),
+	/** OO님과 서로 팔로우해요(초대 코드 · 일행 합류) */
+	INVITE_MUTUAL("INVITE_MUTUAL"),
 
 	// ── 서버가 문구를 갖는 알림 ──────────────────────────────────────────────
 
@@ -63,6 +80,18 @@ public enum NotificationType {
 	}
 
 	/** 마케팅 수신 동의를 따로 받아야 나가는 알림인가. */
+	/** 하루 푸시 상한(5)을 세는 종류 — 톡 · 좋아요 · 팔로잉 소식. 댓글 · 멘션은 상한 밖이라 하나씩 다 간다. */
+	public boolean isDailyCapped() {
+		return this == PAT || this == RECORD_LIKE || this == FOLLOWING_NEW_RECORD;
+	}
+
+	/** 사람 사이 활동 알림인가 — 알림함에서 같은 날 · 같은 대상끼리 묶고, 종류별 스위치를 본다. */
+	public boolean isCommunityActivity() {
+		return this == FOLLOW || this == PAT || this == RECORD_LIKE || this == RECORD_COMMENT
+			|| this == COMMENT_MENTION || this == COMPANION_TAG || this == FOLLOWING_NEW_RECORD
+			|| this == INVITE_MUTUAL;
+	}
+
 	public boolean requiresMarketingConsent() {
 		return this == AD;
 	}

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.alarm.service.CommunityNotificationService;
 import sweetgirl.croissant.follow.code.FollowErrorCode;
 import sweetgirl.croissant.follow.exception.FollowException;
 import sweetgirl.croissant.follow.repository.MemberFollowRepository;
@@ -32,6 +33,7 @@ public class FollowCommandService {
 	private final MemberReader memberReader;
 	private final MemberRestrictionReader memberRestrictionReader;
 	private final SocialMemberReader socialMemberReader;
+	private final CommunityNotificationService communityNotificationService;
 
 	/**
 	 * 팔로우한다. 이미 하고 있으면 그대로 200 이다(멱등).
@@ -59,7 +61,9 @@ public class FollowCommandService {
 			startOfToday) >= DAILY_FOLLOW_LIMIT) {
 			throw new FollowException(FollowErrorCode.FOLLOW_DAILY_LIMIT);
 		}
-		memberFollowRepository.insertIfAbsent(memberId, target.getId(), now);
+		if (memberFollowRepository.insertIfAbsent(memberId, target.getId(), now) == 1) {
+			communityNotificationService.notifyFollow(memberReader.getMember(memberId), target);
+		}
 	}
 
 	/** 팔로우를 끊는다. 안 하고 있었어도 200 이다. 정지 중이어도 끊는 건 된다 — 남에게 닿는 행동이 아니다. */
@@ -85,7 +89,11 @@ public class FollowCommandService {
 			return;
 		}
 		LocalDateTime now = LocalDateTime.now(KST);
-		memberFollowRepository.insertIfAbsent(memberId, otherId, now);
-		memberFollowRepository.insertIfAbsent(otherId, memberId, now);
+		int inserted = memberFollowRepository.insertIfAbsent(memberId, otherId, now)
+			+ memberFollowRepository.insertIfAbsent(otherId, memberId, now);
+		if (inserted > 0) {
+			communityNotificationService.notifyMutualFollow(memberReader.getMember(memberId),
+				memberReader.getMember(otherId));
+		}
 	}
 }
