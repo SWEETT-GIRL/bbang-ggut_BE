@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -20,7 +21,7 @@ public interface MemberBlockRepository extends JpaRepository<MemberBlock, Long> 
 	void deleteByBlockerIdAndBlockedMemberId(Long blockerId, Long blockedMemberId);
 
 	@EntityGraph(attributePaths = "blockedMember")
-	List<MemberBlock> findAllByBlockerIdOrderByCreatedAtDescIdDesc(Long blockerId, Pageable pageable);
+	Slice<MemberBlock> findAllByBlockerIdOrderByCreatedAtDescIdDesc(Long blockerId, Pageable pageable);
 
 	/** 어느 쪽이든 차단했는가. 팔로우 · 좋아요 · 댓글 · 톡은 차단한 쪽도 당한 쪽도 못 한다. */
 	@Query("""

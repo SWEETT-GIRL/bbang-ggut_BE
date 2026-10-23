@@ -28,15 +28,15 @@ public class AbuseReportReminderScheduler {
 	@Scheduled(cron = "${abuse.reminder.cron:0 10 * * * *}", zone = "Asia/Seoul")
 	@SchedulerLock(name = "AbuseReportReminderScheduler_remindOverdue", lockAtMostFor = "PT10M")
 	@Transactional
-	public int remindOverdue() {
+	public void remindOverdue() {
+		// shedlock 은 원시값을 돌려주는 메서드를 잠그지 못한다(LockingNotSupportedException, dev 10/22) — void 로 둔다
 		LocalDateTime now = LocalDateTime.now();
 		List<AbuseReport> overdue = abuseReportRepository.findOverdue(
 			AbuseReportStatus.PENDING, now.minusHours(OVERDUE_HOURS));
 		if (overdue.isEmpty()) {
-			return 0;
+			return;
 		}
 		adminReportNotificationPublisher.publishAbuseReportsOverdue(overdue);
 		overdue.forEach(report -> report.markReminded(now));
-		return overdue.size();
 	}
 }

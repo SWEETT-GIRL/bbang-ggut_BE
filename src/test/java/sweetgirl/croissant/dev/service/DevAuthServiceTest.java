@@ -62,7 +62,7 @@ class DevAuthServiceTest {
 	@Test
 	@DisplayName("닉네임이 없으면 USER 회원을 만들고 토큰을 준다")
 	void createsWhenMissing() {
-		given(memberRepository.findByNicknameAndDeletedAtIsNull("테스트빵순이")).willReturn(Optional.empty());
+		given(memberRepository.findByNicknameNormalizedAndDeletedAtIsNull("테스트빵순이")).willReturn(Optional.empty());
 		given(memberRepository.save(any())).willAnswer(invocation -> {
 			Member saved = invocation.getArgument(0);
 			ReflectionTestUtils.setField(saved, "id", 10L);
@@ -84,7 +84,7 @@ class DevAuthServiceTest {
 	@Test
 	@DisplayName("닉네임이 있으면 그 회원으로 다시 로그인한다(새로 만들지 않음)")
 	void reusesExisting() {
-		given(memberRepository.findByNicknameAndDeletedAtIsNull("테스트빵순이"))
+		given(memberRepository.findByNicknameNormalizedAndDeletedAtIsNull("테스트빵순이"))
 			.willReturn(Optional.of(member(10L, "테스트빵순이")));
 
 		DevTestLoginResponse response = devAuthService.login("테스트빵순이", "iphone");

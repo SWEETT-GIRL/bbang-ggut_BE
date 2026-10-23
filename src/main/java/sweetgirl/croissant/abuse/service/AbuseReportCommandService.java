@@ -53,11 +53,16 @@ public class AbuseReportCommandService {
 	private final ReportNotificationService reportNotificationService;
 
 	/** 서로 다른 사람이 이만큼 신고하면 어드민이 보기 전에 임시로 숨긴다(빵로그 · 댓글). 프로필은 어드민 판단만. */
-	static final int AUTO_HIDE_REPORTER_THRESHOLD = 3;
+	public static final int AUTO_HIDE_REPORTER_THRESHOLD = 3;
 	static final String AUTO_HIDE_REASON = "신고 3명 자동 숨김";
-	static final String HIDDEN_BY_SYSTEM = "SYSTEM";
+	public static final String HIDDEN_BY_SYSTEM = "SYSTEM";
 
 	public AbuseReportCreateResponse createReport(Long memberId, AbuseReportCreateRequest request) {
+		// 빵로그 · 댓글 신고는 3명이면 자동 숨김이라 익명(게스트) 표를 받지 않는다 — 기기마다 자동 발급되는 게스트 3개면 아무거나 숨길 수 있다
+		if (request.targetType() == AbuseReportTargetType.RECORD
+			|| request.targetType() == AbuseReportTargetType.COMMENT) {
+			memberReader.requireLoggedIn(memberId);
+		}
 		Member reporter = memberReader.getMember(memberId);
 		ReportTarget target = resolveTarget(request.targetType(), request.targetId());
 

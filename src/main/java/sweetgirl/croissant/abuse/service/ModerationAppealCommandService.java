@@ -30,7 +30,11 @@ public class ModerationAppealCommandService {
 		AbuseReportAction.DELETE_REVIEW,
 		AbuseReportAction.RESET_PROFILE,
 		AbuseReportAction.RESTRICT_MEMBER,
-		AbuseReportAction.SUSPEND_MEMBER);
+		AbuseReportAction.SUSPEND_MEMBER,
+		// 빵로그 · 댓글 숨김 · 삭제 — 자동 숨김 알림이 "이의제기" 로 이어지는 입구(10/22 리뷰에서 빠져 있던 것)
+		AbuseReportAction.HIDE_RECORD,
+		AbuseReportAction.HIDE_COMMENT,
+		AbuseReportAction.DELETE_COMMENT);
 
 	private final MemberReader memberReader;
 	private final ModerationActionRepository moderationActionRepository;

@@ -55,17 +55,18 @@ public class CommunityNotificationService {
 	private final MemberRepository memberRepository;
 	private final MemberFollowRepository memberFollowRepository;
 
+	/** 대상은 받는 사람 — (actor, FOLLOW, MEMBER, target) 이 "이 사람을 이미 알렸나"의 키다. 링크는 팔로우한 사람 프로필. */
 	public void notifyFollow(Member actor, Member target) {
-		once(NotificationType.FOLLOW, actor, NotificationTargetType.MEMBER, actor.getId(), actor.getNickname(),
+		once(NotificationType.FOLLOW, actor, NotificationTargetType.MEMBER, target.getId(), target.getNickname(),
 			FOLLOW_TITLE.formatted(actor.getNickname()), null, profileLink(actor.getId()), List.of(target));
 	}
 
 	/** 초대 코드 · 일행 합류로 서로 팔로우됐을 때 — 둘 다 받는다. */
 	public void notifyMutualFollow(Member first, Member second) {
-		once(NotificationType.INVITE_MUTUAL, first, NotificationTargetType.MEMBER, first.getId(), first.getNickname(),
+		once(NotificationType.INVITE_MUTUAL, first, NotificationTargetType.MEMBER, second.getId(), second.getNickname(),
 			MUTUAL_TITLE.formatted(first.getNickname()), null, profileLink(first.getId()), List.of(second));
-		once(NotificationType.INVITE_MUTUAL, second, NotificationTargetType.MEMBER, second.getId(),
-			second.getNickname(), MUTUAL_TITLE.formatted(second.getNickname()), null, profileLink(second.getId()),
+		once(NotificationType.INVITE_MUTUAL, second, NotificationTargetType.MEMBER, first.getId(),
+			first.getNickname(), MUTUAL_TITLE.formatted(second.getNickname()), null, profileLink(second.getId()),
 			List.of(first));
 	}
 
@@ -101,13 +102,14 @@ public class CommunityNotificationService {
 			preview(comment.getContent()), commentLink(comment), List.of(author));
 	}
 
-	public void notifyMention(BreadRecordComment comment, Member mentioned) {
-		if (mentioned.getId().equals(comment.getMember().getId())) {
-			return;
-		}
+	/** 댓글 하나에 언급된 사람 전부에게 한 번에 — 댓글당 알림 한 행이라 사람마다 따로 부르면 둘째부터 묻힌다. */
+	public void notifyMention(BreadRecordComment comment, List<Member> mentioned) {
+		List<Member> recipients = mentioned.stream()
+			.filter(member -> !member.getId().equals(comment.getMember().getId()))
+			.toList();
 		once(NotificationType.COMMENT_MENTION, comment.getMember(), NotificationTargetType.COMMENT, comment.getId(),
 			comment.getRecord().getStoreName(), MENTION_TITLE.formatted(comment.getMember().getNickname()),
-			preview(comment.getContent()), commentLink(comment), List.of(mentioned));
+			preview(comment.getContent()), commentLink(comment), recipients);
 	}
 
 	/** 공개로 올린 빵로그를 팔로워 전원에게 — 기록당 한 번(공개/비공개 토글 반복 무시). */

@@ -1,5 +1,6 @@
 package sweetgirl.croissant.admin.service;
 
+import java.util.List;
 import java.util.Locale;
 
 import org.springframework.stereotype.Service;
@@ -13,6 +14,7 @@ import sweetgirl.croissant.abuse.enums.AbuseReportStatus;
 import sweetgirl.croissant.abuse.enums.AbuseReportTargetType;
 import sweetgirl.croissant.abuse.repository.AbuseReportRepository;
 import sweetgirl.croissant.abuse.repository.ModerationActionRepository;
+import sweetgirl.croissant.abuse.service.AbuseReportCommandService;
 import sweetgirl.croissant.admin.code.AdminErrorCode;
 import sweetgirl.croissant.admin.dto.request.AdminModerationActionRequest;
 import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
@@ -188,8 +190,34 @@ public class AdminReportCommandService {
 			report.accept();
 		} else {
 			report.reject();
+			restoreSystemHiddenIfNoLongerReported(report);
 		}
 		reportNotificationService.notifyAbuseReportResult(report);
+	}
+
+	/**
+	 * 신고 3명 자동 숨김(hidden_by = SYSTEM)은 기각이 쌓여 남은 신고자가 3명 밑으로 내려가면 되살린다 —
+	 * 기각 뒤엔 RESTORE 조치를 걸 수 없어(ACCEPTED 에서만) 이 길이 유일한 복구 경로다. 어드민이 직접 숨긴 건 안 건드린다.
+	 */
+	private void restoreSystemHiddenIfNoLongerReported(AbuseReport report) {
+		if (report.getTargetType() != AbuseReportTargetType.RECORD
+			&& report.getTargetType() != AbuseReportTargetType.COMMENT) {
+			return;
+		}
+		long remaining = abuseReportRepository.countDistinctReporters(report.getTargetType(), report.getTargetId(),
+			List.of(AbuseReportStatus.PENDING, AbuseReportStatus.ACCEPTED));
+		if (remaining >= AbuseReportCommandService.AUTO_HIDE_REPORTER_THRESHOLD) {
+			return;
+		}
+		if (report.getTargetType() == AbuseReportTargetType.RECORD) {
+			breadRecordRepository.findById(report.getTargetId())
+				.filter(record -> AbuseReportCommandService.HIDDEN_BY_SYSTEM.equals(record.getHiddenBy()))
+				.ifPresent(BreadRecord::restoreHidden);
+			return;
+		}
+		commentRepository.findById(report.getTargetId())
+			.filter(comment -> AbuseReportCommandService.HIDDEN_BY_SYSTEM.equals(comment.getHiddenBy()))
+			.ifPresent(BreadRecordComment::restoreHidden);
 	}
 
 	/** 대상 종류에 맞는 조치만 받는다 — 리뷰 조치를 빵로그 신고에 걸 수 없다. */

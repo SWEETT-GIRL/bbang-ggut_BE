@@ -36,7 +36,7 @@ public class NicknameCommandService {
 		memberRestrictionReader.validateCanWrite(memberId);
 		memberRestrictionReader.validateProfileNotRestricted(memberId);
 		Member member = memberReader.getMember(memberId);
-		String nickname = rawNickname == null ? "" : rawNickname.strip();
+		String nickname = NicknamePolicy.cleanInput(rawNickname);
 		if (nickname.equals(member.getNickname())) {
 			return MemberProfileResponse.from(member);
 		}
@@ -44,7 +44,7 @@ public class NicknameCommandService {
 		if (!member.canChangeNickname(now, Member.NICKNAME_CHANGE_INTERVAL_DAYS)) {
 			throw new NicknameException(NicknameErrorCode.NICKNAME_COOLDOWN);
 		}
-		nicknamePolicy.validate(nickname);
+		nicknamePolicy.validateForChange(nickname, member.getNicknameNormalized());
 		nicknameHistoryRepository.save(NicknameHistory.of(memberId, member.getNickname(), now));
 		member.changeNickname(nickname, now);
 		return MemberProfileResponse.from(member);

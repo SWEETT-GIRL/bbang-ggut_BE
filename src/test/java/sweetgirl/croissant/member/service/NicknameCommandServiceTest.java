@@ -3,6 +3,7 @@ package sweetgirl.croissant.member.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
@@ -69,7 +70,7 @@ class NicknameCommandServiceTest {
 		ArgumentCaptor<NicknameHistory> history = ArgumentCaptor.forClass(NicknameHistory.class);
 		then(nicknameHistoryRepository).should().save(history.capture());
 		assertThat(history.getValue().getNickname()).isEqualTo("여린 바타르");
-		then(nicknamePolicy).should().validate("빵순이");
+		then(nicknamePolicy).should().validateForChange("빵순이", "여린바타르");
 	}
 
 	@Test
@@ -100,7 +101,8 @@ class NicknameCommandServiceTest {
 	@Test
 	@DisplayName("규칙 위반은 정책이 던진 그대로 나가고 아무것도 바뀌지 않는다")
 	void policyRejects() {
-		willThrow(new NicknameException(NicknameErrorCode.NICKNAME_TAKEN)).given(nicknamePolicy).validate("빵순이");
+		willThrow(new NicknameException(NicknameErrorCode.NICKNAME_TAKEN)).given(nicknamePolicy)
+			.validateForChange(eq("빵순이"), any());
 
 		assertThatThrownBy(() -> nicknameCommandService.change(MEMBER_ID, "빵순이"))
 			.isInstanceOf(NicknameException.class);

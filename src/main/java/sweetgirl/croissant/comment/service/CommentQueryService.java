@@ -31,6 +31,7 @@ import sweetgirl.croissant.follow.entity.MemberFollow;
 import sweetgirl.croissant.follow.repository.MemberFollowRepository;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.repository.MemberBlockRepository;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.util.NicknameNormalizer;
@@ -54,6 +55,7 @@ public class CommentQueryService {
 	private final MemberFollowRepository memberFollowRepository;
 	private final MemberRepository memberRepository;
 	private final MemberReader memberReader;
+	private final MemberBlockRepository memberBlockRepository;
 	private final ReportedTargetReader reportedTargetReader;
 
 	/** 오래된 순. 기록을 볼 수 있어야 댓글도 본다. */
@@ -91,7 +93,9 @@ public class CommentQueryService {
 			.map(MemberFollow::getFollowee).forEach(member -> relationById.putIfAbsent(member.getId(), "FOLLOWING"));
 		memberFollowRepository.findFollowers(viewerId, viewerId, "", scan).getContent().stream()
 			.map(MemberFollow::getFollower).forEach(member -> relationById.putIfAbsent(member.getId(), "FOLLOWER"));
-		commentRepository.findCommenterIds(record.getId())
+		// 댓글 단 사람은 팔로우 목록과 달리 차단 관계를 안 거르고 오므로 여기서 거른다(고르면 400 이 나는 사람을 보여 주지 않게)
+		commentRepository.findCommenterIds(record.getId()).stream()
+			.filter(memberId -> !memberBlockRepository.existsBetween(viewerId, memberId))
 			.forEach(memberId -> relationById.putIfAbsent(memberId, "COMMENTER"));
 		relationById.remove(viewerId);
 		if (relationById.isEmpty()) {

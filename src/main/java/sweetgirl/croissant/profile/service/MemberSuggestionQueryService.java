@@ -1,15 +1,12 @@
 package sweetgirl.croissant.profile.service;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
-import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.config.cache.CacheConfig;
 import sweetgirl.croissant.follow.dto.response.FollowMemberResponse;
 import sweetgirl.croissant.follow.repository.MemberFollowRepository;
@@ -30,10 +27,8 @@ import sweetgirl.croissant.member.service.MemberReader;
 public class MemberSuggestionQueryService {
 
 	static final int RESULT_SIZE = 3;
-	static final int CANDIDATE_SIZE = 30;
-	static final int RECENT_DAYS = 7;
 
-	private final BreadRecordRepository breadRecordRepository;
+	private final MemberSuggestionCandidateReader candidateReader;
 	private final MemberRepository memberRepository;
 	private final MemberFollowRepository memberFollowRepository;
 	private final MemberBlockRepository memberBlockRepository;
@@ -60,10 +55,8 @@ public class MemberSuggestionQueryService {
 		return memberSearchQueryService.withRelations(viewerId, ordered);
 	}
 
-	/** 하루 캐시. 키는 보는 사람. */
-	@Cacheable(cacheNames = CacheConfig.MEMBER_SUGGESTIONS, key = "#viewerId")
+	/** 하루 캐시(별도 빈 — 프록시를 타야 캐시가 먹는다). */
 	public List<Long> candidateIds(Long viewerId) {
-		return breadRecordRepository.findRecentPublicRecorderIds(
-			viewerId, LocalDateTime.now().minusDays(RECENT_DAYS), CANDIDATE_SIZE);
+		return candidateReader.candidateIds(viewerId);
 	}
 }

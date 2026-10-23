@@ -32,11 +32,6 @@ public interface ModerationAppealRepository extends JpaRepository<ModerationAppe
 	@Query("""
 			DELETE FROM ModerationAppeal a
 			WHERE a.member.id IN (SELECT m.id FROM Member m WHERE m.deletedAt < :cutoff)
-				OR a.moderationAction.id IN (SELECT ma.id FROM ModerationAction ma
-					WHERE ma.member.id IN (SELECT m.id FROM Member m WHERE m.deletedAt < :cutoff)
-						OR ma.report.id IN (SELECT r.id FROM AbuseReport r
-							WHERE r.reporter.id IN (SELECT m.id FROM Member m WHERE m.deletedAt < :cutoff)
-								OR r.reportedMember.id IN (SELECT m.id FROM Member m WHERE m.deletedAt < :cutoff)))
 			""")
 	int deleteAllOfMembersDeletedBefore(@Param("cutoff") LocalDateTime cutoff);
 }

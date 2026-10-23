@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,7 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.MemberRestriction;
 import sweetgirl.croissant.member.entity.RefreshToken;
 import sweetgirl.croissant.member.enums.MemberRestrictionType;
+import sweetgirl.croissant.member.event.MemberWithdrawnEvent;
 import sweetgirl.croissant.member.repository.MemberRestrictionRepository;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository;
 import sweetgirl.croissant.member.service.MemberReader;
@@ -40,6 +42,7 @@ public class AdminMemberCommandService {
 	private final ModerationActionRepository moderationActionRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
 	private final FcmTokenRepository fcmTokenRepository;
+	private final ApplicationEventPublisher eventPublisher;
 
 	public AdminMemberBanResponse banMember(Long memberId, AdminMemberBanRequest request) {
 
@@ -61,6 +64,9 @@ public class AdminMemberCommandService {
 			new MemberRestriction(member, MemberRestrictionType.BANNED, request.normalizedReason(), now, null));
 
 		member.softDelete();
+		// 탈퇴와 같은 정리 — 닉네임 · 이메일을 비우고, 팔로우 · 좋아요 · 톡 · 멘션 · 태그를 각 도메인이 지운다(팔로워 수와 목록이 어긋나지 않게)
+		member.anonymizePersonalInfo();
+		eventPublisher.publishEvent(new MemberWithdrawnEvent(memberId));
 
 		List<RefreshToken> refreshTokens = refreshTokenRepository.findAllByMember(member);
 		refreshTokens.forEach(RefreshToken::revoke);
@@ -82,7 +88,8 @@ public class AdminMemberCommandService {
 	public AdminProfileResetResponse resetProfile(Long memberId, AdminProfileResetRequest request) {
 		Member member = memberReader.getMember(memberId);
 
-		member.resetNickname(DEFAULT_RESET_NICKNAME);
+		// 살아 있는 회원끼리 닉네임이 유일해야 해서(uq_member_nickname_normalized_alive) 번호를 붙인다
+		member.resetNickname(DEFAULT_RESET_NICKNAME + memberId);
 		ModerationAction action = moderationActionRepository.save(request.toModerationAction(member));
 		return AdminProfileResetResponse.of(member, action);
 	}

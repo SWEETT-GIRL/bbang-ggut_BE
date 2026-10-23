@@ -52,6 +52,8 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 	/** 살아 있는 회원 중 같은 이름(정규화)이 있나 — 직접 바꾸기 · 뽑기 수락이 본다. */
 	boolean existsByNicknameNormalizedAndDeletedAtIsNull(String nicknameNormalized);
 
+	Optional<Member> findByNicknameNormalizedAndDeletedAtIsNull(String nicknameNormalized);
+
 	/**
 	 * 빵순이 찾기 — 정규화 닉네임 앞글자 일치. 일반 회원 · 탈퇴 아님 · 보는 사람과 차단 관계 아님 · 프로필 제한 아님.
 	 * 보는 사람이 없으면(비로그인) 차단 조건은 아무도 안 거른다.
@@ -133,9 +135,12 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 	 */
 	@Modifying
 	@Query("""
-			UPDATE Member m SET m.nickname = :nickname, m.pendingNickname = NULL
+			UPDATE Member m
+			SET m.nickname = :nickname, m.nicknameNormalized = :nicknameNormalized, m.pendingNickname = NULL
 			WHERE m.deletedAt < :cutoff AND m.memberType = 'USER'
-			AND (m.nickname <> :nickname OR m.pendingNickname IS NOT NULL)
+			AND (m.nickname <> :nickname OR m.nicknameNormalized <> :nicknameNormalized
+				OR m.pendingNickname IS NOT NULL)
 			""")
-	int anonymizeMembersDeletedBefore(@Param("cutoff") LocalDateTime cutoff, @Param("nickname") String nickname);
+	int anonymizeMembersDeletedBefore(@Param("cutoff") LocalDateTime cutoff, @Param("nickname") String nickname,
+			@Param("nicknameNormalized") String nicknameNormalized);
 }
