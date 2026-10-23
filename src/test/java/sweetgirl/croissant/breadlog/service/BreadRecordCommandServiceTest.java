@@ -7,7 +7,9 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -182,6 +184,17 @@ class BreadRecordCommandServiceTest {
 
 	@Mock
 	ApplicationEventPublisher eventPublisher;
+	@Mock
+	sweetgirl.croissant.comment.service.CommunityAgreementService communityAgreementService;
+	@Mock
+	sweetgirl.croissant.comment.service.CommunityAgreementGate communityAgreementGate;
+	@Mock
+	sweetgirl.croissant.comment.service.CommentContentPolicy commentContentPolicy;
+
+	@Mock
+	sweetgirl.croissant.alarm.service.CommunityNotificationService communityNotificationService;
+	@Mock
+	BreadRecordCompanionService companionService;
 
 	@InjectMocks
 	BreadRecordCommandService commandService;
@@ -207,6 +220,8 @@ class BreadRecordCommandServiceTest {
 		BreadRecordCreateResponse result = commandService.create(7L, request);
 
 		assertThat(result.recordId()).isEqualTo(11L);
+		// 같이 간 사람은 요청 그대로 넘긴다(여기선 null — 구버전 앱 모양이라 손대지 않는다)
+		then(companionService).should().replace(any(BreadRecord.class), isNull());
 		verify(breadRecordRepository).save(argThat(record -> record.getEatenAt().equals(request.eatenAt())
 			&& record.getStoreName().equals("밀도 성수")
 			&& record.getRegionKey().equals("서울_성동구_성수동")));
@@ -631,10 +646,31 @@ class BreadRecordCommandServiceTest {
 		given(memberReader.getMember(7L)).willReturn(member);
 		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
 
+		given(communityAgreementGate.requiresAgreementForPublishing()).willReturn(true);
+
 		commandService.changeVisibility(11L, 7L, true);
 
 		assertThat(record.isPublic()).isTrue();
 		verify(memberRestrictionReader).validateCanWrite(7L);
+		// 공개는 댓글과 같은 문을 지난다 — 규칙 동의, 후기 금칙어
+		verify(communityAgreementService).validateAgreed(7L);
+		verify(commentContentPolicy).validateWords(record.getMemo());
+	}
+
+	@Test
+	@DisplayName("changeVisibility: 강제 업데이트 전(옛 앱이 남아 있음)엔 규칙 동의를 묻지 않고 공개한다")
+	void changeVisibility_toPublic_skipsAgreementBeforeForcedUpdate() {
+		Member member = member(7L);
+		BreadRecord record = record(11L, member);
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+		given(communityAgreementGate.requiresAgreementForPublishing()).willReturn(false);
+
+		commandService.changeVisibility(11L, 7L, true);
+
+		assertThat(record.isPublic()).isTrue();
+		verify(communityAgreementService, never()).validateAgreed(any());
+		verify(commentContentPolicy).validateWords(record.getMemo());
 	}
 
 	@Test

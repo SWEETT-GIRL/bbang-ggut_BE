@@ -16,7 +16,10 @@ public enum NicknameErrorCode implements BaseErrorCode {
 	NICKNAME_FREE_DRAW_USED(HttpStatus.TOO_MANY_REQUESTS, "NICKNAME429_FREE_USED",
 			"이번 주 무료 뽑기를 이미 썼습니다. 광고를 보면 더 뽑을 수 있습니다."),
 	NICKNAME_NO_PENDING(HttpStatus.BAD_REQUEST, "NICKNAME400_NO_PENDING", "적용할 닉네임이 없습니다."),
-	NICKNAME_TAKEN(HttpStatus.CONFLICT, "NICKNAME409_TAKEN", "이미 다른 사람이 쓰고 있는 닉네임입니다.");
+	NICKNAME_TAKEN(HttpStatus.CONFLICT, "NICKNAME409_TAKEN", "이미 다른 사람이 쓰고 있는 닉네임입니다."),
+	NICKNAME_FORMAT_INVALID(HttpStatus.BAD_REQUEST, "NICKNAME400_FORMAT", "닉네임은 한글 · 영문 · 숫자 2~10자, 띄어쓰기 없이 지어 주세요."),
+	NICKNAME_FORBIDDEN(HttpStatus.BAD_REQUEST, "NICKNAME400_FORBIDDEN", "쓸 수 없는 말이 들어 있어요."),
+	NICKNAME_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS, "NICKNAME429_COOLDOWN", "닉네임은 14일에 한 번 바꿀 수 있어요.");
 
 	private final HttpStatus httpStatus;
 	private final String code;

@@ -1,6 +1,8 @@
 package sweetgirl.croissant.alarm.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,8 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.entity.FcmToken;
 import sweetgirl.croissant.alarm.entity.Notification;
+import sweetgirl.croissant.alarm.enums.NotificationType;
 import sweetgirl.croissant.alarm.exception.AlarmException;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
+import sweetgirl.croissant.alarm.repository.NotificationDeliveryRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
@@ -45,6 +49,13 @@ public class PushDispatcher {
 	private final FcmTokenRepository fcmTokenRepository;
 	private final NotificationDeliveryCommandService deliveryCommandService;
 	private final FcmService fcmService;
+	private final NotificationDeliveryRepository deliveryRepository;
+
+	/** 톡 · 좋아요 · 팔로잉 소식은 하루(KST)에 이만큼만 울린다. 알림함에는 다 남는다. */
+	static final int DAILY_PUSH_CAP = 5;
+	private static final List<NotificationType> DAILY_CAPPED_TYPES = List.of(
+		NotificationType.PAT, NotificationType.RECORD_LIKE, NotificationType.FOLLOWING_NEW_RECORD);
+	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
 	/**
 	 * 외부 호출에는 트랜잭션을 열지 않는다. 호출자는 DB 작업을 먼저 커밋하고 호출해야 한다.
@@ -109,13 +120,22 @@ public class PushDispatcher {
 	private boolean isEligible(Notification notification, Member member, LocalDateTime now) {
 		NotificationSetting setting = notificationSettingRepository.findByMemberId(member.getId())
 			.orElse(null);
+		NotificationType type = notification.getType();
+		// 하루 상한은 설정이 없는 사람(설정 화면을 연 적 없음)에게도 건다 — 톡 · 좋아요 · 팔로잉 소식 도배 방지
+		if (type.isDailyCapped() && deliveryRepository.countSentPushSince(member.getId(),
+			LocalDate.now(KST).atStartOfDay(), DAILY_CAPPED_TYPES) >= DAILY_PUSH_CAP) {
+			return false;
+		}
 		if (setting == null) {
-			return !notification.getType().requiresMarketingConsent();
+			return !type.requiresMarketingConsent();
 		}
 		if (!setting.isNotificationEnabled()) {
 			return false;
 		}
-		if (!notification.getType().requiresMarketingConsent()) {
+		if (type.isCommunityActivity() && !setting.allowsCommunity(type)) {
+			return false;
+		}
+		if (!type.requiresMarketingConsent()) {
 			return true;
 		}
 		return setting.isMarketingEnabled() && (!isNightTime(now) || member.isAgreeToNightMarketing());
@@ -175,6 +195,8 @@ public class PushDispatcher {
 			case COURSE -> "courseId";
 			case RECORD -> "recordId";
 			case LETTER -> "letterId";
+			case MEMBER -> "memberId";
+			case COMMENT -> "commentId";
 		};
 	}
 }

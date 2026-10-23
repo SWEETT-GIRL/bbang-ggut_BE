@@ -1,6 +1,7 @@
 package sweetgirl.croissant.alarm.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -12,6 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import sweetgirl.croissant.alarm.entity.NotificationRecipient;
+import sweetgirl.croissant.alarm.enums.NotificationTargetType;
 import sweetgirl.croissant.alarm.enums.NotificationType;
 
 /**
@@ -35,6 +37,19 @@ public interface NotificationRecipientRepository extends JpaRepository<Notificat
 			ORDER BY r.notifiedAt DESC
 			""")
 	Slice<NotificationRecipient> findMine(@Param("memberId") Long memberId, Pageable pageable);
+
+	/** 알림함 묶음의 대표 id 로 읽음이 오면 같은 날 · 종류 · 대상의 나머지도 읽음 처리. */
+	@Modifying(clearAutomatically = true)
+	@Query("""
+			UPDATE NotificationRecipient r SET r.readAt = :now
+			WHERE r.member.id = :memberId AND r.readAt IS NULL
+				AND r.notifiedAt >= :from AND r.notifiedAt < :to
+				AND r.notification.id IN (SELECT n.id FROM Notification n
+					WHERE n.type = :type AND n.targetType = :targetType AND n.targetId = :targetId)
+			""")
+	int markGroupAsRead(@Param("memberId") Long memberId, @Param("type") NotificationType type,
+			@Param("targetType") NotificationTargetType targetType, @Param("targetId") Long targetId,
+			@Param("from") LocalDateTime from, @Param("to") LocalDateTime to, @Param("now") LocalDateTime now);
 
 	/** 구버전 앱이 쓰는 경로 — 저장 알림만 골라 준다. */
 	@Query("""
@@ -70,6 +85,8 @@ public interface NotificationRecipientRepository extends JpaRepository<Notificat
 	long countUnreadByType(@Param("memberId") Long memberId, @Param("type") NotificationType type);
 
 	List<NotificationRecipient> findByMemberIdAndIdIn(Long memberId, List<Long> ids);
+
+	boolean existsByNotificationIdAndMemberId(Long notificationId, Long memberId);
 
 	/** 활동 알림의 재알림용 — 이미 만들어둔 우편함 줄을 집어 시각만 되돌린다. */
 	Optional<NotificationRecipient> findByNotificationIdAndMemberId(Long notificationId, Long memberId);
@@ -129,4 +146,9 @@ public interface NotificationRecipientRepository extends JpaRepository<Notificat
 			""", countQuery = "SELECT COUNT(r) FROM NotificationRecipient r WHERE r.notification.id = :notificationId")
 	Slice<NotificationRecipient> findByNotificationId(@Param("notificationId") Long notificationId,
 			Pageable pageable);
+
+	/** 알림 행을 거둘 때(지운 댓글) 우편함 줄부터 지운다. */
+	@Modifying
+	@Query("DELETE FROM NotificationRecipient r WHERE r.notification.id IN :notificationIds")
+	int deleteAllByNotificationIdIn(@Param("notificationIds") Collection<Long> notificationIds);
 }

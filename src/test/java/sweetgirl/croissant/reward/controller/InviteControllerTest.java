@@ -84,7 +84,7 @@ class InviteControllerTest {
 	@Test
 	@DisplayName("코드를 넣으면 초대한 사람의 이름을 내린다")
 	void accept() throws Exception {
-		given(inviteService.accept(any(), eq("ABCD2345"))).willReturn(new InviteAcceptResponse("청순한 포카치아"));
+		given(inviteService.accept(any(), eq("ABCD2345"))).willReturn(new InviteAcceptResponse(3L, "청순한 포카치아"));
 
 		mockMvc.perform(post("/members/me/invite/accept")
 			.contentType(MediaType.APPLICATION_JSON)

@@ -1,6 +1,10 @@
 package sweetgirl.croissant.alarm.dto.response;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.List;
 
 import sweetgirl.croissant.alarm.entity.Notification;
 import sweetgirl.croissant.alarm.entity.NotificationRecipient;
@@ -36,7 +40,22 @@ public record NotificationResponse(
 		/** 서버가 문구를 갖는 알림용. 활동 알림에는 없다 */
 		String title,
 		String body,
-		String link) {
+		String link,
+
+		/** 알림함 묶음(2026-10-22): TODAY · THIS_WEEK · EARLIER(KST). 앱은 그룹 헤더만 그린다 */
+		String group,
+		/** 같은 날 · 같은 종류 · 같은 대상을 한 줄로 묶었을 때 얼굴 2개까지. 사람이 한 일이 아니면 빈 배열 */
+		List<ActorResponse> actors,
+		/** 묶인 인원. 묶이지 않은 줄은 1(사람이 한 일이 아니면 0) */
+		int actorCount) {
+
+	public static final String GROUP_TODAY = "TODAY";
+	public static final String GROUP_THIS_WEEK = "THIS_WEEK";
+	public static final String GROUP_EARLIER = "EARLIER";
+	public static final int MAX_ACTORS = 2;
+
+	public record ActorResponse(Long memberId, String nickname, String characterCode) {
+	}
 
 	/** 탈퇴한 사람의 행동도 일어난 일이다 — 줄을 없애는 대신 이름만 가린다. */
 	private static final String WITHDRAWN_NICKNAME = "알 수 없음";
@@ -56,7 +75,50 @@ public record NotificationResponse(
 			notification.getTargetTitle(),
 			notification.getTitle(),
 			notification.getBody(),
-			notification.getDeepLink());
+			notification.getDeepLink(),
+			groupOf(recipient.getNotifiedAt(), LocalDate.now(KST)),
+			actor == null ? List.of() : List.of(new ActorResponse(actorId(actor), actorNickname(actor), null)),
+			actor == null ? 0 : 1);
+	}
+
+	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
+	/** 오늘 / 이번 주(최근 7일) / 그 전. */
+	public static String groupOf(LocalDateTime notifiedAt, LocalDate today) {
+		if (notifiedAt == null) {
+			return GROUP_EARLIER;
+		}
+		LocalDate day = notifiedAt.toLocalDate();
+		if (!day.isBefore(today)) {
+			return GROUP_TODAY;
+		}
+		return day.isAfter(today.minusDays(7)) ? GROUP_THIS_WEEK : GROUP_EARLIER;
+	}
+
+	/** 같은 묶음에 든 줄들을 한 줄로 — 대표는 첫 줄, 얼굴은 2개까지, 읽음은 전부 읽었을 때만. */
+	public NotificationResponse merged(List<NotificationResponse> group) {
+		List<ActorResponse> faces = new ArrayList<>();
+		java.util.Set<Long> seen = new java.util.HashSet<>();
+		int count = 0;
+		boolean allRead = true;
+		for (NotificationResponse row : group) {
+			allRead &= row.read();
+			for (ActorResponse face : row.actors()) {
+				if (face.memberId() == null || seen.add(face.memberId())) {
+					count++;
+					if (faces.size() < MAX_ACTORS) {
+						faces.add(face);
+					}
+				}
+			}
+		}
+		return new NotificationResponse(notificationId, type, allRead, notifiedAt, actorId, actorNickname, targetType,
+			targetId, targetTitle, title, body, link, this.group, faces, count);
+	}
+
+	public NotificationResponse withActors(List<ActorResponse> replaced) {
+		return new NotificationResponse(notificationId, type, read, notifiedAt, actorId, actorNickname, targetType,
+			targetId, targetTitle, title, body, link, group, replaced, actorCount);
 	}
 
 	private static Long actorId(Member actor) {

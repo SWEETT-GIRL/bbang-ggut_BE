@@ -95,11 +95,10 @@ class RewardPushServiceTest {
 				NotificationType.REWARD_LETTER, LocalDateTime.of(2026, 10, 12, 0, 0))).willReturn(false);
 		}
 
-		private MemberFriend friend(Long memberId, String selectedCharacter, String nickname) {
+		private MemberFriend friend(Long memberId, String selectedCharacter) {
 			MemberFriend friend = mock(MemberFriend.class);
 			given(friend.getMemberId()).willReturn(memberId);
 			given(friend.getSelectedCharacter()).willReturn(selectedCharacter);
-			given(friend.getFriendNickname()).willReturn(nickname);
 			return friend;
 		}
 
@@ -156,26 +155,25 @@ class RewardPushServiceTest {
 			}
 			givenCatalog();
 			// 헬퍼가 다른 mock 을 스텁하므로 given(...) 안에서 부르면 UnfinishedStubbing 이 난다 — 먼저 만든다.
-			List<MemberFriend> friends = List.of(friend(1L, "dog", "콩"), friend(2L, "hamster", null),
-				friend(3L, "dog", "콩"));
+			List<MemberFriend> friends = List.of(friend(1L, "dog"), friend(2L, "hamster"),
+				friend(3L, "dog"));
 			given(targetRepository.findFriendsOf(List.of(1L, 2L, 3L, 4L))).willReturn(friends);
 			Member first = member(1L);
 			Member second = member(2L);
 			Member third = member(3L);
 			Member fourth = member(4L);
-			given(memberRepository.findAllById(List.of(1L, 3L))).willReturn(List.of(first, third));
+			given(memberRepository.findAllById(List.of(1L, 3L, 4L))).willReturn(List.of(first, third, fourth));
 			given(memberRepository.findAllById(List.of(2L))).willReturn(List.of(second));
-			given(memberRepository.findAllById(List.of(4L))).willReturn(List.of(fourth));
 			givenRecorded(500L);
 
 			assertThat(rewardPushService.sendLetterArrivals(MONDAY_TEN)).isEqualTo(4);
 
 			ArgumentCaptor<Notification> notifications = ArgumentCaptor.forClass(Notification.class);
-			then(notificationRecorder).should(org.mockito.Mockito.times(3))
+			then(notificationRecorder).should(org.mockito.Mockito.times(2))
 				.recordForMembers(notifications.capture(), anyList(), eq(MONDAY_TEN));
-			// 4 번은 세계관을 시작하지 않아 빵댕이가 보낸다. 받침이 있는 이름은 "이"
+			// 4 번은 세계관을 시작하지 않아 빵댕이가 보낸다. 카탈로그 이름이 같은 1 · 3 과 한 묶음이다
 			assertThat(notifications.getAllValues()).extracting(Notification::getTitle)
-				.containsExactlyInAnyOrder("콩이 편지를 보냈어요", "햄찌가 편지를 보냈어요", "빵댕이가 편지를 보냈어요");
+				.containsExactlyInAnyOrder("빵댕이가 편지를 보냈어요", "햄찌가 편지를 보냈어요");
 		}
 
 		@Test
@@ -219,16 +217,9 @@ class RewardPushServiceTest {
 		private static final LocalDate MORNING_DAY = MORNING.toLocalDate();
 
 		private MemberFriend target(Long memberId, String selectedCharacter) {
-			return target(memberId, selectedCharacter, null);
-		}
-
-		private MemberFriend target(Long memberId, String selectedCharacter, String nickname) {
 			MemberFriend target = mock(MemberFriend.class);
 			given(target.getMemberId()).willReturn(memberId);
 			given(target.getSelectedCharacter()).willReturn(selectedCharacter);
-			if (selectedCharacter != null) {
-				given(target.getFriendNickname()).willReturn(nickname);
-			}
 			return target;
 		}
 
@@ -266,27 +257,6 @@ class RewardPushServiceTest {
 				assertThat(notification.getBody()).isEqualTo("룰렛 돌리러 와요");
 				assertThat(notification.getDeepLink()).isEqualTo("/bbanglog?open=feed");
 			});
-		}
-
-		@Test
-		@DisplayName("친구에게 지어 준 이름이 있으면 그 이름으로 부른다")
-		void callsByNickname() {
-			givenFirstRunOfTheDay();
-			List<MemberFriend> targets = List.of(target(1L, "dog", "콩"), target(2L, "hamster", "별이"));
-			given(targetRepository.findSecondMorningTargets(any(), any())).willReturn(targets);
-			Member first = member(1L);
-			Member second = member(2L);
-			given(memberRepository.findAllById(List.of(1L))).willReturn(List.of(first));
-			given(memberRepository.findAllById(List.of(2L))).willReturn(List.of(second));
-			givenRecorded(700L);
-
-			assertThat(rewardPushService.sendSecondMorningRoulette(MORNING)).isEqualTo(2);
-
-			ArgumentCaptor<Notification> notifications = ArgumentCaptor.forClass(Notification.class);
-			then(notificationRecorder).should(org.mockito.Mockito.times(2))
-				.recordForMembers(notifications.capture(), anyList(), eq(MORNING));
-			assertThat(notifications.getAllValues()).extracting(Notification::getTitle)
-				.containsExactlyInAnyOrder("콩이 아침부터 배고파요", "별이가 아침부터 배고파요");
 		}
 
 		@Test

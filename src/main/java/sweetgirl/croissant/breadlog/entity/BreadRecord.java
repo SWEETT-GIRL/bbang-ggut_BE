@@ -105,6 +105,15 @@ public class BreadRecord extends BaseTimeEntity {
 	@Column(nullable = false)
 	private boolean isPublic;
 
+	// 신고로 숨김(review 와 같은 방식). 남에게는 안 보이고 본인에겐 "검토 중"으로 보인다. hidden_by 는 SYSTEM(신고 3명 자동) 또는 ADMIN.
+	private LocalDateTime hiddenAt;
+
+	@Column(length = 500)
+	private String hiddenReason;
+
+	@Column(length = 30)
+	private String hiddenBy;
+
 	/** 앱이 저장 요청에 붙인 번호. 같은 번호가 다시 오면 새로 만들지 않는다. 옛 앱의 기록은 비어 있다. */
 	@Column(name = "client_request_id", updatable = false)
 	private UUID clientRequestId;
@@ -172,6 +181,22 @@ public class BreadRecord extends BaseTimeEntity {
 
 	public void changeVisibility(boolean isPublic) {
 		this.isPublic = isPublic;
+	}
+
+	public boolean isHidden() {
+		return this.hiddenAt != null;
+	}
+
+	public void hide(String reason, String hiddenBy) {
+		this.hiddenAt = LocalDateTime.now();
+		this.hiddenReason = reason;
+		this.hiddenBy = hiddenBy;
+	}
+
+	public void restoreHidden() {
+		this.hiddenAt = null;
+		this.hiddenReason = null;
+		this.hiddenBy = null;
 	}
 
 	public void changeTowerBread(String towerBread) {

@@ -117,14 +117,15 @@ class WorldControllerTest {
 	}
 
 	@Test
-	@DisplayName("친구 이름을 붙인다")
-	void renamesFriend() throws Exception {
+	@DisplayName("친구 이름 짓기는 끝난 기능 — 410 REWARD410_2")
+	void renameFriendIsRetired() throws Exception {
 		mockMvc.perform(patch("/members/me/world/characters/dog/nickname")
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"nickname\":\"초코\"}"))
-			.andExpect(status().isOk());
+			.andExpect(status().isGone())
+			.andExpect(jsonPath("$.code").value("REWARD410_2"));
 
-		then(friendCommandService).should().rename(any(), eq("dog"), eq("초코"));
+		then(friendCommandService).shouldHaveNoInteractions();
 	}
 
 	@Test

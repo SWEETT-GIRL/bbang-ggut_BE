@@ -58,7 +58,7 @@ class PushDispatcherTest {
 	@BeforeEach
 	void setUpDispatcher() {
 		pushDispatcher = new PushDispatcher(notificationSettingRepository, fcmTokenRepository,
-			new NotificationDeliveryCommandService(deliveryRepository), fcmService);
+			new NotificationDeliveryCommandService(deliveryRepository), fcmService, deliveryRepository);
 	}
 
 	@Test

@@ -31,9 +31,14 @@ public class MemberQueryService {
 	private final LikedMenuCategoryRepository likedMenuCategoryRepository;
 	private final NotificationSettingRepository notificationSettingRepository;
 	private final MemberReader memberReader;
+	private final MemberRestrictionReader memberRestrictionReader;
 
 	public MemberProfileResponse getProfile(Long memberId) {
-		return MemberProfileResponse.from(memberReader.getMember(memberId));
+		MemberProfileResponse profile = MemberProfileResponse.from(memberReader.getMember(memberId));
+		// 정지 중이면 앱이 마이 위에 배너를 그린다(로그인은 되고 읽기만 된다)
+		return memberRestrictionReader.currentSuspension(memberId)
+			.map(suspension -> profile.withSuspension(true, suspension.until()))
+			.orElse(profile);
 	}
 
 	public long getSubscribedStoreCount(Long memberId) {

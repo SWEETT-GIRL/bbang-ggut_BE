@@ -24,11 +24,8 @@ import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAppearanceRe
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
 import sweetgirl.croissant.world.dto.response.WorldCatalogResponse;
 import sweetgirl.croissant.world.dto.response.WorldPlanetResponse;
-import sweetgirl.croissant.world.entity.MemberCharacter;
-import sweetgirl.croissant.world.entity.MemberCharacterId;
 import sweetgirl.croissant.world.entity.MemberWorld;
 import sweetgirl.croissant.world.entity.WorldCharacter;
-import sweetgirl.croissant.world.repository.MemberCharacterRepository;
 import sweetgirl.croissant.world.repository.MemberPlanetArrivalRepository;
 import sweetgirl.croissant.world.repository.MemberWorldRepository;
 import sweetgirl.croissant.world.repository.WorldCharacterAssetRepository;
@@ -47,8 +44,6 @@ class MonthlyReportAppearanceReaderTest {
 	private MemberWorldRepository worlds;
 	@Mock
 	private WorldCharacterRepository characters;
-	@Mock
-	private MemberCharacterRepository memberCharacters;
 	@Mock
 	private WorldCharacterAssetRepository characterAssets;
 	@Mock
@@ -82,23 +77,10 @@ class MonthlyReportAppearanceReaderTest {
 	}
 
 	@Test
-	@DisplayName("지금 데리고 다니는 친구에게 지어 준 이름이 있으면 리포트에 그 친구와 그 이름으로 싣는다")
-	void usesNickname() {
-		MemberCharacter friend = mock(MemberCharacter.class);
-		given(friend.getNickname()).willReturn("콩");
-		given(memberCharacters.findById(new MemberCharacterId(MEMBER_ID, "hamster"))).willReturn(Optional.of(friend));
-
+	@DisplayName("지금 데리고 다니는 친구를 카탈로그 이름으로 싣는다")
+	void usesCatalogName() {
 		MonthlyReportResponse.Character character = reader.createAppearanceDraft(MEMBER_ID, "2026-09").character();
 		assertThat(character.code()).isEqualTo("hamster");
-		assertThat(character.name()).isEqualTo("콩");
-	}
-
-	@Test
-	@DisplayName("지어 준 이름이 없으면 카탈로그 이름으로 싣는다")
-	void fallsBackToCatalogName() {
-		MemberCharacter friend = mock(MemberCharacter.class);
-		given(memberCharacters.findById(new MemberCharacterId(MEMBER_ID, "hamster"))).willReturn(Optional.of(friend));
-
-		assertThat(reader.createAppearanceDraft(MEMBER_ID, "2026-09").character().name()).isEqualTo("햄찌");
+		assertThat(character.name()).isEqualTo("햄찌");
 	}
 }

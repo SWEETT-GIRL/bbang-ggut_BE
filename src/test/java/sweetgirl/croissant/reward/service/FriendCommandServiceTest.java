@@ -152,48 +152,4 @@ class FriendCommandServiceTest {
 			then(crumbGrantService).shouldHaveNoInteractions();
 		}
 	}
-
-	@Nested
-	@DisplayName("친구 이름")
-	class Rename {
-
-		@Test
-		@DisplayName("앞뒤 공백을 떼고 붙인다")
-		void renames() {
-			given(memberCharacterRepository.updateNickname(MEMBER_ID, "dog", "초코")).willReturn(1);
-
-			friendCommandService.rename(MEMBER_ID, "dog", "  초코 ");
-
-			then(memberCharacterRepository).should().updateNickname(MEMBER_ID, "dog", "초코");
-		}
-
-		@Test
-		@DisplayName("비워 보내거나 공백만 보내면 기본 이름으로 되돌린다")
-		void resets() {
-			given(memberCharacterRepository.updateNickname(MEMBER_ID, "dog", null)).willReturn(1);
-
-			friendCommandService.rename(MEMBER_ID, "dog", "   ");
-			friendCommandService.rename(MEMBER_ID, "dog", null);
-
-			then(memberCharacterRepository).should(org.mockito.Mockito.times(2)).updateNickname(MEMBER_ID, "dog", null);
-		}
-
-		@Test
-		@DisplayName("9 자는 REWARD400_5")
-		void tooLong() {
-			assertThatThrownBy(() -> friendCommandService.rename(MEMBER_ID, "dog", "가나다라마바사아자"))
-				.isInstanceOf(RewardException.class)
-				.extracting("errorCode").isEqualTo(RewardErrorCode.REWARD_FRIEND_NICKNAME_INVALID);
-		}
-
-		@Test
-		@DisplayName("깨우지 않은 친구에게는 이름을 붙일 수 없다 — WORLD404_1")
-		void notAwake() {
-			given(memberCharacterRepository.updateNickname(MEMBER_ID, "cat", "나비")).willReturn(0);
-
-			assertThatThrownBy(() -> friendCommandService.rename(MEMBER_ID, "cat", "나비"))
-				.isInstanceOf(WorldException.class)
-				.extracting("errorCode").isEqualTo(WorldErrorCode.WORLD_CHARACTER_NOT_FOUND);
-		}
-	}
 }

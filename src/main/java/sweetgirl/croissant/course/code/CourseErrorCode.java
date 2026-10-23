@@ -11,6 +11,7 @@ import sweetgirl.croissant.global.code.BaseErrorCode;
 public enum CourseErrorCode implements BaseErrorCode {
 
 	COURSE_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_1", "코스를 찾을 수 없습니다."),
+	COURSE_DISPLAY_NAME_RETIRED(HttpStatus.GONE, "COURSE410_1", "빵투어 안 이름 짓기는 끝났습니다. 이제 회원 닉네임으로 보입니다."),
 	COURSE_STORE_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_2", "코스 가게를 찾을 수 없습니다."),
 	COURSE_IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_3", "코스 이미지를 찾을 수 없습니다."),
 	COURSE_FORBIDDEN(HttpStatus.FORBIDDEN, "COURSE403_1", "코스에 대한 권한이 없습니다."),
@@ -37,7 +38,13 @@ public enum CourseErrorCode implements BaseErrorCode {
 	COURSE_NO_SUCCESSOR(HttpStatus.BAD_REQUEST, "COURSE400_17", "넘겨줄 일행이 없어요. 빵투어를 삭제해주세요."),
 	COURSE_DAY_COUNT_INVALID(HttpStatus.BAD_REQUEST, "COURSE400_18", "일차 수는 줄일 수 없어요."),
 	COURSE_CATEGORY_INVALID(HttpStatus.BAD_REQUEST, "COURSE400_19", "분류는 그룹과 값을 함께 보내야 합니다."),
-	COURSE_STALE(HttpStatus.CONFLICT, "COURSE409_1", "일행이 방금 수정했어요. 다시 불러올게요.");
+	COURSE_STALE(HttpStatus.CONFLICT, "COURSE409_1", "일행이 방금 수정했어요. 다시 불러올게요."),
+	// 앱 안 일행 초대(팔로잉 · 팔로워에서 고름)
+	COURSE_INVITEE_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_8", "초대할 회원을 찾을 수 없어요."),
+	COURSE_INVITEE_SELF(HttpStatus.BAD_REQUEST, "COURSE400_20", "나 자신은 초대할 수 없어요."),
+	COURSE_INVITEE_NOT_RELATED(HttpStatus.BAD_REQUEST, "COURSE400_21", "팔로우 관계인 사람만 초대할 수 있어요."),
+	COURSE_INVITEE_BLOCKED(HttpStatus.FORBIDDEN, "COURSE403_2", "차단 관계인 사람은 초대할 수 없어요."),
+	COURSE_MEMBER_INVITE_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_9", "받은 초대가 없어요.");
 
 	private final HttpStatus httpStatus;
 	private final String code;

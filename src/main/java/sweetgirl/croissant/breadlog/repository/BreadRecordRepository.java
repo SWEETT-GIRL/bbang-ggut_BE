@@ -1,6 +1,7 @@
 package sweetgirl.croissant.breadlog.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -121,6 +122,7 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			WHERE record.store.id = :storeId
 			AND record.isPublic = true
 			AND record.deletedAt IS NULL
+			AND record.hiddenAt IS NULL
 			AND member.deletedAt IS NULL
 			AND EXISTS (SELECT 1 FROM BreadRecordPhoto photo WHERE photo.record.id = record.id)
 			AND (:viewerMemberId IS NULL OR NOT EXISTS (
@@ -134,6 +136,61 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			@Param("storeId") Long storeId,
 			@Param("viewerMemberId") Long viewerMemberId,
 			Pageable pageable);
+
+	/** 가게 공개 빵로그 전체 수 — 목록과 같은 조건(사진 1장 이상 · 숨김 제외 · 보는 사람이 차단한 작성자 제외). */
+	@Query("""
+			SELECT COUNT(record)
+			FROM BreadRecord record
+			JOIN record.member member
+			WHERE record.store.id = :storeId
+			AND record.isPublic = true
+			AND record.deletedAt IS NULL
+			AND record.hiddenAt IS NULL
+			AND member.deletedAt IS NULL
+			AND EXISTS (SELECT 1 FROM BreadRecordPhoto photo WHERE photo.record.id = record.id)
+			AND (:viewerMemberId IS NULL OR NOT EXISTS (
+				SELECT 1 FROM MemberBlock mb
+				WHERE mb.blocker.id = :viewerMemberId
+				AND mb.blockedMember.id = member.id
+			))
+			""")
+	long countPublicByStoreId(@Param("storeId") Long storeId, @Param("viewerMemberId") Long viewerMemberId);
+
+	/**
+	 * 가게 공개 빵로그 — 추천순 id. 프로필 추천순과 같은 점수((좋아요 + 댓글 × 2) × 날짜 가중), 조건은 최신순 목록과 같다.
+	 * 네이티브라 null 보는 사람은 CAST 로 타입을 준다.
+	 */
+	@Query(value = """
+			SELECT r.id
+			FROM bread_record r
+			JOIN member m ON m.id = r.member_id AND m.deleted_at IS NULL
+			LEFT JOIN (SELECT record_id, COUNT(*) AS like_count FROM record_like GROUP BY record_id) l
+				ON l.record_id = r.id
+			LEFT JOIN (SELECT record_id, COUNT(*) AS comment_count FROM record_comment
+				WHERE deleted_at IS NULL AND hidden_at IS NULL GROUP BY record_id) c
+				ON c.record_id = r.id
+			WHERE r.store_id = :storeId AND r.is_public = true AND r.deleted_at IS NULL AND r.hidden_at IS NULL
+				AND EXISTS (SELECT 1 FROM bread_record_photo p WHERE p.record_id = r.id)
+				AND (CAST(:viewerMemberId AS BIGINT) IS NULL OR NOT EXISTS (
+					SELECT 1 FROM member_block mb
+					WHERE mb.blocker_id = CAST(:viewerMemberId AS BIGINT) AND mb.blocked_member_id = r.member_id))
+			ORDER BY (COALESCE(l.like_count, 0) + COALESCE(c.comment_count, 0) * 2)
+					* CASE WHEN r.created_at >= :recent THEN 1.0 WHEN r.created_at >= :older THEN 0.6 ELSE 0.3 END DESC,
+				r.eaten_at DESC, r.id DESC
+			LIMIT :limit OFFSET :offset
+			""", nativeQuery = true)
+	List<Long> findPublicIdsByStoreIdRecommended(@Param("storeId") Long storeId,
+			@Param("viewerMemberId") Long viewerMemberId, @Param("recent") LocalDateTime recent,
+			@Param("older") LocalDateTime older, @Param("limit") int limit, @Param("offset") int offset);
+
+	/** 다녀간 빵집 지도 — 가게를 고른 공개 빵로그 전부(최신순). 가게별 묶기는 서비스가 한다. */
+	@Query("""
+			SELECT r FROM BreadRecord r
+			JOIN FETCH r.store store
+			WHERE r.member.id = :memberId AND r.isPublic = true AND r.deletedAt IS NULL AND r.hiddenAt IS NULL
+			ORDER BY r.eatenAt DESC, r.id DESC
+			""")
+	List<BreadRecord> findPublicWithStoreByMemberId(@Param("memberId") Long memberId);
 
 	@Modifying(clearAutomatically = true)
 	@Query("UPDATE BreadRecord record SET record.member.id = :targetId WHERE record.member.id = :guestId")
@@ -179,4 +236,94 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			@Param("memberId") Long memberId,
 			@Param("from") LocalDateTime from,
 			@Param("to") LocalDateTime to);
+
+	/** 프로필의 공개 빵로그 수. */
+	@Query("""
+			SELECT COUNT(r) FROM BreadRecord r
+			WHERE r.member.id = :memberId AND r.isPublic = true AND r.deletedAt IS NULL AND r.hiddenAt IS NULL
+			""")
+	long countPublicByMemberId(@Param("memberId") Long memberId);
+
+	/** 보는 사람이 신고해 안 보이는 빵로그를 뺀 수 — 프로필의 수와 목록이 어긋나지 않게. */
+	@Query("""
+			SELECT COUNT(r) FROM BreadRecord r
+			WHERE r.member.id = :memberId AND r.isPublic = true AND r.deletedAt IS NULL AND r.hiddenAt IS NULL
+				AND r.id NOT IN :excludedIds
+			""")
+	long countPublicByMemberIdExcluding(@Param("memberId") Long memberId,
+			@Param("excludedIds") Collection<Long> excludedIds);
+
+	/** 칭호용 — 공개 빵로그가 가장 많은 동네(region_key) 하나. {@code minCount} 개 미만이면 비어 있다. */
+	@Query(value = """
+			SELECT r.region_key AS regionKey, COUNT(*) AS recordCount
+			FROM bread_record r
+			WHERE r.member_id = :memberId AND r.is_public = true AND r.deleted_at IS NULL AND r.hidden_at IS NULL
+				AND r.region_key IS NOT NULL
+			GROUP BY r.region_key
+			HAVING COUNT(*) >= :minCount
+			ORDER BY COUNT(*) DESC, r.region_key ASC
+			LIMIT 1
+			""", nativeQuery = true)
+	Optional<BreadRecordTownProjection> findTopPublicTown(@Param("memberId") Long memberId,
+			@Param("minCount") int minCount);
+
+	/**
+	 * 추천 후보 — {@code since} 뒤에 공개 빵로그를 남긴 일반 회원, 보는 사람과 같은 빵집을 기록한 사람 우선, 그다음 최근순.
+	 * 보는 사람 본인은 뺀다. 팔로우 중 · 차단은 부르는 쪽이 거른다.
+	 */
+	@Query(value = """
+			SELECT r.member_id
+			FROM bread_record r
+			JOIN member m ON m.id = r.member_id AND m.deleted_at IS NULL AND m.member_type = 'USER'
+			WHERE r.is_public = true AND r.deleted_at IS NULL AND r.hidden_at IS NULL
+				AND r.created_at >= :since AND r.member_id <> :viewerId
+				AND NOT EXISTS (SELECT 1 FROM member_restriction mr
+					WHERE mr.member_id = r.member_id AND mr.restriction_type = 'PROFILE_RESTRICTED'
+						AND mr.starts_at <= CURRENT_TIMESTAMP
+						AND (mr.ends_at IS NULL OR mr.ends_at > CURRENT_TIMESTAMP))
+			GROUP BY r.member_id
+			ORDER BY COUNT(*) FILTER (WHERE r.store_id IN (
+					SELECT mine.store_id FROM bread_record mine
+					WHERE mine.member_id = :viewerId AND mine.deleted_at IS NULL AND mine.store_id IS NOT NULL)) DESC,
+				MAX(r.created_at) DESC
+			LIMIT :limit
+			""", nativeQuery = true)
+	List<Long> findRecentPublicRecorderIds(@Param("viewerId") Long viewerId, @Param("since") LocalDateTime since,
+			@Param("limit") int limit);
+
+	/**
+	 * 프로필의 공개 빵로그 — 최신순(먹은 날). 본인({@code includeHidden})은 숨긴 것도 본다.
+	 * 사진이 없어도 내린다(새 앱 화면).
+	 */
+	@Query("""
+			SELECT r FROM BreadRecord r
+			WHERE r.member.id = :memberId AND r.isPublic = true AND r.deletedAt IS NULL
+				AND (:includeHidden = true OR r.hiddenAt IS NULL)
+			ORDER BY r.eatenAt DESC, r.id DESC
+			""")
+	Slice<BreadRecord> findPublicByMemberIdLatest(@Param("memberId") Long memberId,
+			@Param("includeHidden") boolean includeHidden, Pageable pageable);
+
+	/**
+	 * 프로필의 공개 빵로그 — 추천순 id. 점수 = (좋아요 + 댓글 × 2) × 날짜 가중(7일 안 1.0 / 30일 안 0.6 / 그 뒤 0.3),
+	 * 동점은 최신. 점수가 시간에 따라 변해 커서 대신 offset 이다.
+	 */
+	@Query(value = """
+			SELECT r.id
+			FROM bread_record r
+			LEFT JOIN (SELECT record_id, COUNT(*) AS like_count FROM record_like GROUP BY record_id) l
+				ON l.record_id = r.id
+			LEFT JOIN (SELECT record_id, COUNT(*) AS comment_count FROM record_comment
+				WHERE deleted_at IS NULL AND hidden_at IS NULL GROUP BY record_id) c
+				ON c.record_id = r.id
+			WHERE r.member_id = :memberId AND r.is_public = true AND r.deleted_at IS NULL
+				AND (:includeHidden = true OR r.hidden_at IS NULL)
+			ORDER BY (COALESCE(l.like_count, 0) + COALESCE(c.comment_count, 0) * 2)
+					* CASE WHEN r.created_at >= :recent THEN 1.0 WHEN r.created_at >= :older THEN 0.6 ELSE 0.3 END DESC,
+				r.created_at DESC, r.id DESC
+			LIMIT :limit OFFSET :offset
+			""", nativeQuery = true)
+	List<Long> findPublicIdsByMemberIdRecommended(@Param("memberId") Long memberId,
+			@Param("includeHidden") boolean includeHidden, @Param("recent") LocalDateTime recent,
+			@Param("older") LocalDateTime older, @Param("limit") int limit, @Param("offset") int offset);
 }

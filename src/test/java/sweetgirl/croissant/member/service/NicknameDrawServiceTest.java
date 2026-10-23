@@ -119,7 +119,7 @@ class NicknameDrawServiceTest {
 	@Test
 	void accept_changesNicknameAndClearsPending() {
 		member.drawNickname("바삭한 츄러스", LocalDateTime.now(ZONE));
-		given(memberRepository.existsByNicknameAndDeletedAtIsNull("바삭한 츄러스")).willReturn(false);
+		given(memberRepository.existsByNicknameNormalizedAndDeletedAtIsNull("바삭한츄러스")).willReturn(false);
 
 		MemberProfileResponse response = nicknameDrawService.accept(1L);
 
@@ -138,7 +138,7 @@ class NicknameDrawServiceTest {
 	@Test
 	void accept_throws409AndKeepsNickname_whenSomeoneElseTookIt() {
 		member.drawNickname("바삭한 츄러스", LocalDateTime.now(ZONE));
-		given(memberRepository.existsByNicknameAndDeletedAtIsNull("바삭한 츄러스")).willReturn(true);
+		given(memberRepository.existsByNicknameNormalizedAndDeletedAtIsNull("바삭한츄러스")).willReturn(true);
 
 		assertThatThrownBy(() -> nicknameDrawService.accept(1L))
 			.isInstanceOf(NicknameException.class)

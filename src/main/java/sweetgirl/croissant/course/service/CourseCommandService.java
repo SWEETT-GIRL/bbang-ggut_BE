@@ -58,6 +58,7 @@ import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
+import sweetgirl.croissant.profile.service.CharacterFaceReader;
 import sweetgirl.croissant.store.code.StoreErrorCode;
 import sweetgirl.croissant.store.entity.Store;
 import sweetgirl.croissant.store.exception.StoreException;
@@ -83,6 +84,7 @@ public class CourseCommandService {
 	private final MemberRestrictionReader memberRestrictionReader;
 	private final CourseAccessPolicy courseAccessPolicy;
 	private final ApplicationEventPublisher eventPublisher;
+	private final CharacterFaceReader characterFaceReader;
 
 	public Long createCourse(Long memberId, CourseCreateRequest request) {
 		memberReader.requireLoggedIn(memberId);
@@ -260,7 +262,9 @@ public class CourseCommandService {
 		List<CourseStoreMemoResponse> memos = myMemo == null
 			? List.of()
 			: List.of(new CourseStoreMemoResponse(
-				memberId, displayNameOf(courseId, memberId), myMemo, LocalDateTime.now(), true));
+				memberId, displayNameOf(courseId, memberId), myMemo, LocalDateTime.now(), true,
+				characterFaceReader.faceOf(memberId).characterCode(),
+				characterFaceReader.faceOf(memberId).characterImageKey()));
 		return CourseStoreResponse.of(courseStore, null, myMemo, myMemo, memos);
 	}
 
@@ -425,14 +429,11 @@ public class CourseCommandService {
 		return content;
 	}
 
-	/** 코스 안에서 쓰는 이름. 행이 없으면(협업 전 코스) 닉네임. */
+	/** 메모 줄에 보이는 이름 — 회원 닉네임. 응답 필드 이름(displayName)은 설치된 앱이 읽어서 그대로 둔다. */
 	private String displayNameOf(Long courseId, Long memberId) {
-		return courseMemberRepository.findByIdCourseIdAndIdMemberId(courseId, memberId)
-			.filter(row -> !row.isDeleted())
-			.map(CourseMember::getDisplayName)
-			.orElseGet(() -> memberRepository.findByIdAndDeletedAtIsNull(memberId)
-				.map(Member::getNickname)
-				.orElse(null));
+		return memberRepository.findByIdAndDeletedAtIsNull(memberId)
+			.map(Member::getNickname)
+			.orElse(null);
 	}
 
 	public void updateStore(Long memberId, Long courseId, Long storeId, CourseStoreUpdateRequest request) {

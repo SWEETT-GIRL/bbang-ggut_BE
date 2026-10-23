@@ -22,6 +22,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.dto.request.CourseCreateRequest;
 import sweetgirl.croissant.course.dto.request.CourseImageRegisterRequest;
 import sweetgirl.croissant.course.dto.request.CourseMemberNameRequest;
@@ -41,6 +42,7 @@ import sweetgirl.croissant.course.dto.response.CourseStoreResponse;
 import sweetgirl.croissant.course.dto.response.CourseSummaryResponse;
 import sweetgirl.croissant.course.dto.response.CourseUpdateResponse;
 import sweetgirl.croissant.course.dto.response.CourseVisitCandidateResponse;
+import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.service.CourseCommandService;
 import sweetgirl.croissant.course.service.CourseMemberService;
 import sweetgirl.croissant.course.service.CourseProgressService;
@@ -332,14 +334,14 @@ public class CourseController {
 		return ResponseEntity.ok(ApiResponse.ok(courseMemberService.previewInvite(token, memberId)));
 	}
 
-	@Operation(summary = "초대 수락", description = "로그인 필수. 이미 멤버이거나 방장이면 아무것도 안 하고 alreadyMember 로 200.")
+	@Operation(summary = "초대 수락", description = "로그인 필수. 이미 멤버이거나 방장이면 아무것도 안 하고 alreadyMember 로 200. "
+		+ "본문의 displayName 은 받기만 하고 쓰지 않는다(이름은 회원 닉네임).")
 	@PostMapping("/invites/{token}/accept")
 	public ResponseEntity<ApiResponse<CourseInviteAcceptResponse>> acceptInvite(
 			@AuthenticationPrincipal Long memberId,
 			@PathVariable String token,
-			@Valid @RequestBody CourseMemberNameRequest request) {
-		return ResponseEntity.ok(ApiResponse.ok(
-			courseMemberService.acceptInvite(memberId, token, request.getDisplayName())));
+			@RequestBody(required = false) CourseMemberNameRequest request) {
+		return ResponseEntity.ok(ApiResponse.ok(courseMemberService.acceptInvite(memberId, token)));
 	}
 
 	@Operation(summary = "빵투어 나가기", description = "방장은 참여 순서가 가장 빠른 멤버에게 넘기고 나간다. 담았던 가게는 코스에 남는다.")
@@ -351,13 +353,13 @@ public class CourseController {
 		return ResponseEntity.ok(ApiResponse.ok(null));
 	}
 
-	@Operation(summary = "코스 안에서 쓰는 내 이름 변경")
+	/** 코스 안 이름 짓기는 끝난 기능이다(2026-10-21). 앱은 원래 안 부르지만 경로는 410 으로 답해 둔다. */
+	@Operation(summary = "[끝난 기능] 코스 안에서 쓰는 내 이름 변경", description = "항상 410 COURSE410_1 을 돌려준다.")
 	@PatchMapping("/{courseId}/members/me")
 	public ResponseEntity<ApiResponse<Void>> renameMember(
 			@AuthenticationPrincipal Long memberId,
 			@PathVariable Long courseId,
-			@Valid @RequestBody CourseMemberNameRequest request) {
-		courseMemberService.rename(memberId, courseId, request.getDisplayName());
-		return ResponseEntity.ok(ApiResponse.ok(null));
+			@RequestBody(required = false) CourseMemberNameRequest request) {
+		throw new CourseException(CourseErrorCode.COURSE_DISPLAY_NAME_RETIRED);
 	}
 }

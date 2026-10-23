@@ -8,5 +8,13 @@ public record CourseStoreMemoResponse(
 		String displayName,
 		String content,
 		LocalDateTime updatedAt,
-		boolean isMine) {
+		boolean isMine,
+		/** 메모 쓴 사람 얼굴(10/22 추가) — 세계관이 없으면 null → 앱은 이니셜 */
+		String characterCode,
+		String characterImageKey) {
+
+	public CourseStoreMemoResponse(Long memberId, String displayName, String content, LocalDateTime updatedAt,
+			boolean isMine) {
+		this(memberId, displayName, content, updatedAt, isMine, null, null);
+	}
 }

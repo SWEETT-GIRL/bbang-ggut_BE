@@ -105,7 +105,7 @@ class BreadRecordControllerTest {
 		BreadRecordResponse response = new BreadRecordResponse(
 			11L, 10L, "밀도 성수", "서울_성동구_성수동", null, null, List.of(), null,
 			LocalDateTime.of(2026, 8, 2, 14, 21), false, LocalDateTime.of(2026, 8, 4, 12, 0), null,
-			List.of(), List.of(), RecordType.NORMAL, "서울 성동구 서울숲2길 32-14", null);
+			List.of(), List.of(), RecordType.NORMAL, "서울 성동구 서울숲2길 32-14", null, 0, 0, null);
 		given(queryService.getRecords(isNull(), any(), any(), eq(10L), eq(0), eq(30)))
 			.willReturn(new SliceResponse<>(List.of(response), false));
 
