@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.course.code.CourseErrorCode;
+import sweetgirl.croissant.course.draft.MemoDraftDiscarder;
 import sweetgirl.croissant.course.dto.request.CourseCreateRequest;
 import sweetgirl.croissant.course.dto.request.CourseImageRegisterRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreAddRequest;
@@ -85,6 +86,7 @@ public class CourseCommandService {
 	private final CourseAccessPolicy courseAccessPolicy;
 	private final ApplicationEventPublisher eventPublisher;
 	private final CharacterFaceReader characterFaceReader;
+	private final MemoDraftDiscarder memoDraftDiscarder;
 
 	public Long createCourse(Long memberId, CourseCreateRequest request) {
 		memberReader.requireLoggedIn(memberId);
@@ -461,9 +463,12 @@ public class CourseCommandService {
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_STORE_NOT_FOUND));
 
 		// memo 는 내 메모만 바꾼다(사람별). visitTime 은 공통 한 개라 정류장에 그대로.
-		upsertMyMemo(courseStore, memberId, request.getMemo(), resolveMemoSeq(request.getMemoSeq()));
+		long memoSeq = resolveMemoSeq(request.getMemoSeq());
+		upsertMyMemo(courseStore, memberId, request.getMemo(), memoSeq);
 		courseStore.updateVisitTime(request.getVisitTime());
 		courseRepository.bumpVersion(courseId);
+		// "완료" 가 DB 에 갔으니 같은 칸의 그보다 새롭지 않은 초안은 Redis 에서 지운다(커밋 뒤)
+		memoDraftDiscarder.discardAfterCommit(courseId, storeId, memberId, memoSeq);
 	}
 
 	public void removeStore(Long memberId, Long courseId, Long storeId) {

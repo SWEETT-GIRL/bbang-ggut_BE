@@ -30,6 +30,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.course.code.CourseErrorCode;
+import sweetgirl.croissant.course.draft.MemoDraftDiscarder;
 import sweetgirl.croissant.course.dto.request.CourseCreateRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreAddRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreReorderRequest;
@@ -95,6 +96,8 @@ class CourseCommandServiceTest {
 	ApplicationEventPublisher eventPublisher;
 	@Mock
 	sweetgirl.croissant.profile.service.CharacterFaceReader characterFaceReader;
+	@Mock
+	private MemoDraftDiscarder memoDraftDiscarder;
 	@Mock
 	MemberReader memberReader;
 
@@ -1344,6 +1347,8 @@ class CourseCommandServiceTest {
 		courseCommandService.updateStore(memberId, courseId, storeId, request);
 
 		then(courseStoreMemoRepository).should().save(argThat(memo -> memo.getSeq() == 777L));
+		// 완료가 DB 에 갔으니 같은 칸의 초안은 지운다
+		then(memoDraftDiscarder).should().discardAfterCommit(courseId, storeId, memberId, 777L);
 	}
 
 	@Test
@@ -1377,7 +1382,6 @@ class CourseCommandServiceTest {
 		givenEditableStore(memberId, courseId, storeId);
 		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
 		lenient().when(request.getMemoSeq()).thenReturn(null);
-		given(request.getMemo()).willReturn("새 메모");
 		given(request.getMemoSeq()).willReturn(System.currentTimeMillis() + CourseStoreMemo.SEQ_MAX_AHEAD.toMillis()
 			+ 60_000L);
 
