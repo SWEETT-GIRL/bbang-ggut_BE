@@ -211,7 +211,7 @@ public class CourseQueryService {
 			isMember,
 			myDisplayNameOf(members, memberId),
 			shareTokenForViewer,
-			courseDraftProperties.isWriteEnabled());
+			courseDraftProperties.isDraftEnabled());
 	}
 
 	/**

@@ -316,12 +316,12 @@ class CourseQueryServiceTest {
 	}
 
 	@Test
-	@DisplayName("getCourseDetail: 초안 자동저장 스위치(course.draft.write-enabled)가 draftEnabled 로 그대로 내려간다")
+	@DisplayName("getCourseDetail: 초안 자동저장 가능 여부(스위치 + Redis 설정)가 draftEnabled 로 내려간다")
 	void getCourseDetail_draftEnabled_followsSwitch() {
 		Course course = mockCourse(1L, "공개 코스", true, CourseType.CURATED, null);
 		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
 		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(1L)).willReturn(List.of());
-		given(courseDraftProperties.isWriteEnabled()).willReturn(true);
+		given(courseDraftProperties.isDraftEnabled()).willReturn(true);
 
 		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, null, null);
 
