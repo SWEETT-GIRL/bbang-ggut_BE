@@ -23,8 +23,7 @@ import sweetgirl.croissant.member.entity.Member;
  *
  * role 이 없다 — 전원 편집자다. 방장 여부는 courses.member_id 로만 판정한다.
  * 나갔다 다시 들어오면 같은 PK 라 새 행이 아니라 {@link #rejoin()} 으로 되살린다.
- * 사람 이름은 {@code member.nickname} 이다 — 코스 안 이름 짓기(display_name)는 2026-10-21 에 없앴다. 컬럼은 이 코드가
- * 운영에 깔린 뒤 다음 마이그레이션에서 지운다(블루그린 겹침 동안 옛 컨테이너가 그 컬럼을 읽는다).
+ * 사람 이름은 {@code member.nickname} 이다 — 코스 안 이름 짓기(display_name)는 2026-10-21 에 없앴다.
  */
 @Entity
 @Table(name = "course_members")
