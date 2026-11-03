@@ -65,6 +65,11 @@ public class MemoDraftRedis implements AutoCloseable {
 		return template;
 	}
 
+	/** pub/sub 리스너 컨테이너용. 빈으로 노출하지 않는다 — 캐시 Redis 자동 구성이 물러나지 않게. */
+	public LettuceConnectionFactory connectionFactory() {
+		return connectionFactory;
+	}
+
 	@Override
 	public void close() {
 		connectionFactory.destroy();

@@ -40,6 +40,7 @@ import sweetgirl.croissant.course.entity.CourseStoreMemo;
 import sweetgirl.croissant.course.entity.SavedCourse;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.enums.CourseVisibility;
+import sweetgirl.croissant.course.event.CourseDeletedEvent;
 import sweetgirl.croissant.course.event.CourseStoreAddedEvent;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
@@ -87,6 +88,7 @@ public class CourseCommandService {
 	private final ApplicationEventPublisher eventPublisher;
 	private final CharacterFaceReader characterFaceReader;
 	private final MemoDraftDiscarder memoDraftDiscarder;
+	private final CourseVersionBumper courseVersionBumper;
 
 	public Long createCourse(Long memberId, CourseCreateRequest request) {
 		memberReader.requireLoggedIn(memberId);
@@ -149,7 +151,7 @@ public class CourseCommandService {
 		if (request.getDayCount() != null) {
 			updateDayCount(course, request.getDayCount());
 		}
-		courseRepository.bumpVersion(courseId);
+		courseVersionBumper.bump(courseId);
 		return new CourseUpdateResponse(course.getVisibility(), shareTokenFor(course, memberId));
 	}
 
@@ -229,6 +231,8 @@ public class CourseCommandService {
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		courseAccessPolicy.requireOwner(course, memberId);
 		course.softDelete();
+		// 커밋 뒤 이 코스의 신호 구독을 전원 끊는다
+		eventPublisher.publishEvent(new CourseDeletedEvent(courseId));
 	}
 
 	public CourseStoreResponse addStore(Long memberId, Long courseId, CourseStoreAddRequest request) {
@@ -260,7 +264,7 @@ public class CourseCommandService {
 		String myMemo = savedMemo.map(CourseStoreMemo::getContent).orElse(null);
 		// 가게가 늘었다 — 분모가 커졌으니 완주 승격을 허용해도 안전하다
 		courseProgressService.refreshForCourse(courseId, true);
-		courseRepository.bumpVersion(courseId);
+		courseVersionBumper.bump(courseId);
 
 		List<CourseStoreMemoResponse> memos = savedMemo
 			.map(memo -> List.of(new CourseStoreMemoResponse(
@@ -306,7 +310,7 @@ public class CourseCommandService {
 			added.add(courseStore);
 		}
 		courseProgressService.refreshForCourse(courseId, true);
-		courseRepository.bumpVersion(courseId);
+		courseVersionBumper.bump(courseId);
 		return added.stream()
 			.map(courseStore -> CourseStoreResponse.of(courseStore, null, null, null, List.of()))
 			.toList();
@@ -466,7 +470,7 @@ public class CourseCommandService {
 		long memoSeq = resolveMemoSeq(request.getMemoSeq());
 		upsertMyMemo(courseStore, memberId, request.getMemo(), memoSeq);
 		courseStore.updateVisitTime(request.getVisitTime());
-		courseRepository.bumpVersion(courseId);
+		courseVersionBumper.bump(courseId);
 		// "완료" 가 DB 에 갔으니 같은 칸의 그보다 새롭지 않은 초안은 Redis 에서 지운다(커밋 뒤)
 		memoDraftDiscarder.discardAfterCommit(courseId, storeId, memberId, memoSeq);
 	}
@@ -485,7 +489,7 @@ public class CourseCommandService {
 		courseStoreMemoRepository.softDeleteAllByCourseStoreId(courseStore.getId());
 		// 가게가 줄었다 — 방문 수는 그대로인데 분모만 작아지므로 완주 승격을 막는다(안 간 코스가 완주 처리된다)
 		courseProgressService.refreshForCourse(courseId, false);
-		courseRepository.bumpVersion(courseId);
+		courseVersionBumper.bump(courseId);
 	}
 
 	public void reorderStores(Long memberId, Long courseId, CourseStoreReorderRequest request) {
@@ -541,7 +545,7 @@ public class CourseCommandService {
 					orderedCourseStores.get(i).updateDay(orderItems.get(i).getDay());
 				}
 			});
-		courseRepository.bumpVersion(courseId);
+		courseVersionBumper.bump(courseId);
 	}
 
 	private void validateCompleteOrder(int activeStoreCount, List<Long> courseStoreIds) {
@@ -601,7 +605,7 @@ public class CourseCommandService {
 			.displayOrder(1)
 			.build();
 		imageProcessingCallbackService.applyPendingCallback(courseImageFileRepository.save(imageFile));
-		courseRepository.bumpVersion(courseId);
+		courseVersionBumper.bump(courseId);
 	}
 
 	public void deleteImage(Long memberId, Long courseId) {
@@ -615,7 +619,7 @@ public class CourseCommandService {
 
 		s3Service.deleteObject(imageFile.getAwsKey());
 		courseImageFileRepository.delete(imageFile);
-		courseRepository.bumpVersion(courseId);
+		courseVersionBumper.bump(courseId);
 	}
 
 	public Long forkCourse(Long memberId, Long courseId, String shareToken) {

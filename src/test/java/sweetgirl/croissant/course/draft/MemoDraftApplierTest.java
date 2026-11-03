@@ -28,6 +28,7 @@ import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.service.CourseAccessPolicy;
+import sweetgirl.croissant.course.service.CourseVersionBumper;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
@@ -55,6 +56,8 @@ class MemoDraftApplierTest {
 	private CourseAccessPolicy courseAccessPolicy;
 	@Mock
 	private MemberRestrictionReader memberRestrictionReader;
+	@Mock
+	private CourseVersionBumper courseVersionBumper;
 
 	@InjectMocks
 	private MemoDraftApplier applier;
@@ -99,7 +102,7 @@ class MemoDraftApplierTest {
 
 		assertThat(handled).containsEntry(FIELD, 5L);
 		then(courseStoreMemoRepository).shouldHaveNoInteractions();
-		then(courseRepository).should(never()).bumpVersion(any());
+		then(courseVersionBumper).should(never()).bump(any());
 	}
 
 	@Test
@@ -119,7 +122,7 @@ class MemoDraftApplierTest {
 
 		assertThat(handled).hasSize(1);
 		then(courseStoreMemoRepository).shouldHaveNoInteractions();
-		then(courseRepository).should(never()).bumpVersion(any());
+		then(courseVersionBumper).should(never()).bump(any());
 	}
 
 	@Test
@@ -136,7 +139,7 @@ class MemoDraftApplierTest {
 		applier.apply(COURSE_ID, entries);
 
 		then(courseStoreMemoRepository).shouldHaveNoInteractions();
-		then(courseRepository).should(never()).bumpVersion(any());
+		then(courseVersionBumper).should(never()).bump(any());
 	}
 
 	@Test
@@ -154,7 +157,7 @@ class MemoDraftApplierTest {
 		assertThat(memo.getSeq()).isEqualTo(5L);
 		assertThat(handled).containsEntry(FIELD, 5L);
 		then(courseStoreMemoRepository).should(never()).save(any());
-		then(courseRepository).should(times(1)).bumpVersion(COURSE_ID);
+		then(courseVersionBumper).should(times(1)).bump(COURSE_ID);
 	}
 
 	@Test
@@ -169,7 +172,7 @@ class MemoDraftApplierTest {
 		applier.apply(COURSE_ID, List.of(new DraftEntry(FIELD, "늦은 초안", 5L, 1L)));
 
 		assertThat(memo.getContent()).isEqualTo("PATCH 로 먼저 간 글");
-		then(courseRepository).should(never()).bumpVersion(any());
+		then(courseVersionBumper).should(never()).bump(any());
 	}
 
 	@Test
@@ -187,7 +190,7 @@ class MemoDraftApplierTest {
 
 		then(courseStoreMemoRepository).should().save(org.mockito.ArgumentMatchers.argThat(
 			saved -> saved.getSeq() == 5L && saved.getContent().equals("첫 메모")));
-		then(courseRepository).should(times(1)).bumpVersion(COURSE_ID);
+		then(courseVersionBumper).should(times(1)).bump(COURSE_ID);
 	}
 
 	@Test
@@ -202,7 +205,7 @@ class MemoDraftApplierTest {
 
 		assertThat(handled).containsEntry(FIELD, 5L);
 		then(courseStoreMemoRepository).should(never()).save(any());
-		then(courseRepository).should(never()).bumpVersion(any());
+		then(courseVersionBumper).should(never()).bump(any());
 	}
 
 	@Test
@@ -229,6 +232,6 @@ class MemoDraftApplierTest {
 			new DraftEntry(new DraftField(200L, MEMBER_ID), "b2", 6L, 1L)));
 
 		then(courseAccessPolicy).should(times(1)).canEdit(course, MEMBER_ID);
-		then(courseRepository).should(times(1)).bumpVersion(COURSE_ID);
+		then(courseVersionBumper).should(times(1)).bump(COURSE_ID);
 	}
 }

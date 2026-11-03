@@ -33,6 +33,8 @@ dependencies {
     implementation 'com.github.ben-manes.caffeine:caffeine'
     // 자동완성 캐시 — 배포(blue/green 전환)로 JVM 이 바뀌어도 남아야 해서 앱 밖에 둔다
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    // 코스 신호(STOMP) — 메모 초안을 일행 화면에 바로 보이게. 서버 사이는 초안 Redis pub/sub 로 잇는다
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
     // @Timed 등 애노테이션 기반 계측용 (Boot 4부터 starter-aop → starter-aspectj)
     implementation 'org.springframework.boot:spring-boot-starter-aspectj'
     implementation 'com.nimbusds:nimbus-jose-jwt:9.37.3'

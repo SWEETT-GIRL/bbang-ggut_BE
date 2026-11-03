@@ -20,6 +20,7 @@ import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.service.CourseAccessPolicy;
+import sweetgirl.croissant.course.service.CourseVersionBumper;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
@@ -44,6 +45,7 @@ public class MemoDraftApplier {
 	private final MemberRepository memberRepository;
 	private final CourseAccessPolicy courseAccessPolicy;
 	private final MemberRestrictionReader memberRestrictionReader;
+	private final CourseVersionBumper courseVersionBumper;
 
 	/** @return 처리한(반영했거나 버린) 필드 → seq. 호출자가 이 seq 이하의 초안만 Redis 에서 지운다 */
 	public Map<DraftField, Long> apply(long courseId, List<DraftEntry> entries) {
@@ -77,7 +79,7 @@ public class MemoDraftApplier {
 			changed |= applyEntry(stop, entry);
 		}
 		if (changed) {
-			courseRepository.bumpVersion(courseId);
+			courseVersionBumper.bump(courseId);
 		}
 		return handled;
 	}
