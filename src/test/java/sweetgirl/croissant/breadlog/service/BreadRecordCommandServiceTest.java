@@ -46,6 +46,7 @@ import sweetgirl.croissant.breadlog.dto.response.BreadRecordUpdateResponse;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.entity.BreadRecordPhoto;
 import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
+import sweetgirl.croissant.breadlog.enums.RecordType;
 import sweetgirl.croissant.breadlog.enums.TasteChip;
 import sweetgirl.croissant.breadlog.enums.TextureChip;
 import sweetgirl.croissant.breadlog.exception.BreadLogException;
@@ -58,7 +59,9 @@ import sweetgirl.croissant.course.service.CourseProgressService;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
+import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
@@ -235,6 +238,41 @@ class BreadRecordCommandServiceTest {
 		verify(courseProgressService).refreshForMember(7L);
 		// 가게를 고른 기록은 급부상 신호다
 		verify(eventPublisher).publishEvent(new StoreTrendingSignalEvent(7L, 10L, TrendingSignal.RECORD));
+	}
+
+	@Test
+	@DisplayName("create: 게스트도 비공개 기록 한 건은 남긴다 — 게스트 금지 문은 공개 저장에만 걸린다")
+	void create_guestFirstPrivateRecord() {
+		Member guest = member(7L);
+		ReflectionTestUtils.setField(guest, "memberType", "GUEST");
+		Store store = store(10L);
+		given(memberReader.getMember(7L)).willReturn(guest);
+		given(breadRecordRepository.countByMemberIdAndRecordTypeAndDeletedAtIsNull(7L, RecordType.NORMAL))
+			.willReturn(0L);
+		given(storeRepository.findById(10L)).willReturn(Optional.of(store));
+		given(regionResolver.resolve(store, "client_region")).willReturn("서울_성동구_성수동");
+		given(breadRecordRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+		given(photoRepository.saveAll(any())).willAnswer(invocation -> invocation.getArgument(0));
+
+		commandService.create(7L, requestWithTowerBread("소금빵"));
+
+		verify(memberRestrictionReader).validateCanWriteRecord(7L, false);
+		verify(breadRecordRepository).save(any());
+	}
+
+	@Test
+	@DisplayName("create: 게스트의 두 번째 기록은 MEMBER403_GUEST — 로그인 게이트")
+	void create_guestSecondRecordIsBlocked() {
+		Member guest = member(7L);
+		ReflectionTestUtils.setField(guest, "memberType", "GUEST");
+		given(memberReader.getMember(7L)).willReturn(guest);
+		given(breadRecordRepository.countByMemberIdAndRecordTypeAndDeletedAtIsNull(7L, RecordType.NORMAL))
+			.willReturn(1L);
+
+		assertThatThrownBy(() -> commandService.create(7L, requestWithTowerBread("소금빵")))
+			.isInstanceOf(MemberException.class)
+			.extracting("errorCode").isEqualTo(MemberErrorCode.GUEST_LOGIN_REQUIRED);
+		verify(breadRecordRepository, never()).save(any());
 	}
 
 	@Test

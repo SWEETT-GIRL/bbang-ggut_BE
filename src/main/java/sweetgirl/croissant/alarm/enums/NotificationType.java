@@ -66,7 +66,9 @@ public enum NotificationType {
 	/** 오늘 출석 도장을 아직 안 찍었다(리워드). 어제 출석한 회원에게만 간다. 서비스 알림이다 */
 	REWARD_ATTENDANCE("REWARD_ATTENDANCE"),
 	/** 어제 가입하고 아직 출석 안 한 회원에게 아침에 친구가 배고프다고 룰렛을 부른다(리워드). 서비스 알림이다 */
-	REWARD_ROULETTE("REWARD_ROULETTE");
+	REWARD_ROULETTE("REWARD_ROULETTE"),
+	/** 기록이 한 건뿐인 회원에게 2 · 3 일 뒤 저녁에 "두 번째 빵로그" 를 권한다(리워드). 서비스 알림이다 */
+	RECORD_NUDGE("RECORD_NUDGE");
 
 	private final String pushType;
 

@@ -46,12 +46,14 @@ import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlResponse
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordSummaryResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordUpdateResponse;
+import sweetgirl.croissant.breadlog.dto.response.NextStoreResponse;
 import sweetgirl.croissant.breadlog.enums.RecordType;
 import sweetgirl.croissant.breadlog.exception.BreadLogException;
 import sweetgirl.croissant.breadlog.service.BreadPhotoTagSuggestionService;
 import sweetgirl.croissant.breadlog.service.BreadRecordCommandService;
 import sweetgirl.croissant.breadlog.service.BreadRecordQueryService;
 import sweetgirl.croissant.breadlog.service.BreadRecordSummaryService;
+import sweetgirl.croissant.breadlog.service.NextStoreQueryService;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.global.response.SliceResponse;
 
@@ -90,6 +92,9 @@ class BreadRecordControllerTest {
 	@Mock
 	BreadPhotoTagSuggestionService photoTagSuggestionService;
 
+	@Mock
+	NextStoreQueryService nextStoreQueryService;
+
 	@InjectMocks
 	BreadRecordController controller;
 
@@ -98,6 +103,20 @@ class BreadRecordControllerTest {
 		mockMvc = MockMvcBuilders.standaloneSetup(controller)
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.build();
+	}
+
+	@Test
+	void getNextStores_passesStoreAndCoordinates() throws Exception {
+		given(nextStoreQueryService.nextStores(isNull(), eq(10L), eq(37.5), eq(127.0)))
+			.willReturn(List.of(new NextStoreResponse(20L, "밀도 성수", "서울 성동구", 37.5, 127.0, 300,
+				NextStoreResponse.Reason.SAVED)));
+
+		mockMvc.perform(get("/bread-records/next-stores")
+			.param("storeId", "10").param("latitude", "37.5").param("longitude", "127.0"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data[0].storeId").value(20))
+			.andExpect(jsonPath("$.data[0].reason").value("SAVED"))
+			.andExpect(jsonPath("$.data[0].distanceMeters").value(300));
 	}
 
 	@Test

@@ -2,6 +2,7 @@ package sweetgirl.croissant.breadlog.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -213,6 +214,28 @@ class BreadRecordRepositoryTest {
 			.extracting(BreadRecord::getId)
 			.containsExactly(2L, 1L);
 		assertThat(breadRecordRepository.countPublicByStoreId(STORE_ID, null)).isEqualTo(2L);
+	}
+
+	@Test
+	@DisplayName("findFirstNonTutorialCreatedAt: 체험 기록은 빼고 가장 먼저 저장한 때, 없으면 비어 있다")
+	void findFirstNonTutorialCreatedAt() {
+		assertThat(breadRecordRepository.findFirstNonTutorialCreatedAt(AUTHOR_ID)).isEmpty();
+		execute(
+			"""
+					INSERT INTO bread_record
+						(id, member_id, store_id, store_name, eaten_at, is_public, record_type, created_at)
+					VALUES
+						(1, ?, ?, '가게', TIMESTAMP '2026-09-01 10:00:00', false, 'TUTORIAL',
+							TIMESTAMP '2026-09-01 09:00:00'),
+						(2, ?, ?, '가게', TIMESTAMP '2026-09-02 10:00:00', false, 'NORMAL',
+							TIMESTAMP '2026-09-02 09:00:00'),
+						(3, ?, ?, '가게', TIMESTAMP '2026-09-03 10:00:00', false, 'NORMAL',
+							TIMESTAMP '2026-09-03 09:00:00')
+					""",
+			AUTHOR_ID, STORE_ID, AUTHOR_ID, STORE_ID, AUTHOR_ID, STORE_ID);
+
+		assertThat(breadRecordRepository.findFirstNonTutorialCreatedAt(AUTHOR_ID))
+			.contains(LocalDateTime.of(2026, 9, 2, 9, 0));
 	}
 
 	private void saveMember(Long id, String nickname) {

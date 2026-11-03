@@ -129,7 +129,8 @@ class RewardControllerTest {
 	@Test
 	@DisplayName("오늘 이미 출석했으면 에러가 아니라 alreadyDone 과 오늘 결과로 답한다")
 	void attendanceAlreadyDone() throws Exception {
-		given(rewardDailyCommandService.checkIn(any())).willReturn(new AttendanceResponse(3, 10, true, List.of()));
+		given(rewardDailyCommandService.checkIn(any()))
+			.willReturn(new AttendanceResponse(3, 10, true, List.of(), 4, 5));
 
 		mockMvc.perform(post("/members/me/rewards/attendance"))
 			.andExpect(status().isOk())

@@ -19,8 +19,10 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.common.util.MapBounds;
+import sweetgirl.croissant.follow.dto.response.FollowMemberResponse;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.global.response.SliceResponse;
+import sweetgirl.croissant.profile.service.StoreRecorderQueryService;
 import sweetgirl.croissant.store.dto.request.KakaoStoreRegisterRequest;
 import sweetgirl.croissant.store.dto.request.NaverStoreRegisterRequest;
 import sweetgirl.croissant.store.dto.response.KakaoStoreRegisterResponse;
@@ -49,12 +51,23 @@ public class StoreController {
 	private final StoreCommandService storeCommandService;
 	private final StoreSearchService storeSearchService;
 	private final StoreInBoundsQueryService storeInBoundsQueryService;
+	private final StoreRecorderQueryService storeRecorderQueryService;
 
 	@Operation(summary = "빵집 상세 조회", description = "빵집 ID로 상세 정보를 조회합니다.")
 	@GetMapping("/{storeId}")
 	public ResponseEntity<ApiResponse<StoreDetailResponse>> getStoreDetail(@AuthenticationPrincipal Long memberId,
 			@PathVariable Long storeId) {
 		return ResponseEntity.ok(ApiResponse.ok(storeQueryService.getStoreDetail(memberId, storeId)));
+	}
+
+	@Operation(summary = "이 빵집 다녀간 사람", description = "이 가게에 공개 빵로그를 남긴 사람을 최근 기록순으로. "
+		+ "본인 · 이미 팔로우 중 · 차단 관계는 뺀다. 기록 완료 화면의 팔로우 제안. limit 최대 20.")
+	@GetMapping("/{storeId}/recorders")
+	public ResponseEntity<ApiResponse<List<FollowMemberResponse>>> getRecorders(
+			@AuthenticationPrincipal Long memberId,
+			@PathVariable Long storeId,
+			@RequestParam(defaultValue = "5") int limit) {
+		return ResponseEntity.ok(ApiResponse.ok(storeRecorderQueryService.recorders(memberId, storeId, limit)));
 	}
 
 	@Operation(summary = "알림받는 빵집 목록 조회", description = "사용자 ID로 알림받는 빵집 목록을 조회합니다.")
