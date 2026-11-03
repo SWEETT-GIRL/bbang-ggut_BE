@@ -61,7 +61,8 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 	/** 체험이 아닌 기록 중 가장 먼저 저장한 때. 하나도 없으면 비어 있다. */
 	@Query("""
 			SELECT MIN(r.createdAt) FROM BreadRecord r
-			WHERE r.member.id = :memberId AND r.deletedAt IS NULL AND r.recordType <> sweetgirl.croissant.breadlog.enums.RecordType.TUTORIAL
+			WHERE r.member.id = :memberId AND r.deletedAt IS NULL
+				AND r.recordType <> sweetgirl.croissant.breadlog.enums.RecordType.TUTORIAL
 			""")
 	Optional<LocalDateTime> findFirstNonTutorialCreatedAt(@Param("memberId") Long memberId);
 

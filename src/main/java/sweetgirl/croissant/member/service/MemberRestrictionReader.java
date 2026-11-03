@@ -60,6 +60,22 @@ public class MemberRestrictionReader {
 		validateNotRestricted(memberId);
 	}
 
+	/**
+	 * 빵 기록을 쓸 자격이 있는가 — 게스트도 비공개 기록은 쓴다. 공개로 저장 · 전환하는 것만 {@link #validateNotGuest} 를 지난다.
+	 *
+	 * <p>로그인 게이트에서 27% 가 닫고 나간다(11/3). 게스트가 기록 한 건은 남겨 보고 두 번째에서 로그인하게 하려는 것이다.
+	 * 게스트가 몇 건까지 쓰는지는 부르는 쪽({@code BreadRecordCommandService.GUEST_RECORD_CAP})이 센다.
+	 */
+	public void validateCanWriteRecord(Long memberId, boolean publishing) {
+		if (memberId == null) {
+			throw new MemberException(MemberErrorCode.UNAUTHORIZED);
+		}
+		if (publishing) {
+			validateNotGuest(memberId);
+		}
+		validateNotRestricted(memberId);
+	}
+
 	/** 준비된 비공개 튜토리얼만 게스트 여부와 무관하게 허용한다. 제재 검증은 유지한다. */
 	public void validateNotRestricted(Long memberId) {
 		if (memberId == null) {
