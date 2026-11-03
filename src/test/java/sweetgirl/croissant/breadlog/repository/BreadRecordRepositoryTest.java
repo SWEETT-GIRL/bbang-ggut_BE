@@ -204,14 +204,15 @@ class BreadRecordRepositoryTest {
 	}
 
 	@Test
-	@DisplayName("사진이 없는 기록은 공개로 저장했어도 남에게 내리지 않는다")
-	void findPublicByStoreId_excludesPhotolessRecord() {
+	@DisplayName("사진이 없는 기록도 공개면 가게 목록과 전체 수에 들어간다")
+	void findPublicByStoreId_includesPhotolessRecord() {
 		saveRecord(1L, AUTHOR_ID, STORE_ID, true, "2026-09-01 10:00:00", false);
 		saveRecordWithoutPhoto(2L, AUTHOR_ID, STORE_ID, true, "2026-09-02 10:00:00");
 
 		assertThat(breadRecordRepository.findPublicByStoreId(STORE_ID, null, PageRequest.of(0, 10)))
 			.extracting(BreadRecord::getId)
-			.containsExactly(1L);
+			.containsExactly(2L, 1L);
+		assertThat(breadRecordRepository.countPublicByStoreId(STORE_ID, null)).isEqualTo(2L);
 	}
 
 	private void saveMember(Long id, String nickname) {
@@ -228,7 +229,7 @@ class BreadRecordRepositoryTest {
 				""", id, name);
 	}
 
-	/** 사진 한 장이 붙은 기록. 지금까지의 모든 기록이 이 모양이다. */
+	/** 사진 한 장이 붙은 기록. */
 	private void saveRecord(Long id, Long memberId, Long storeId, boolean isPublic, String eatenAt, boolean deleted) {
 		saveRecordRow(id, memberId, storeId, isPublic, eatenAt, deleted);
 		execute(
