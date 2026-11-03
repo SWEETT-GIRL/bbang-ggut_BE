@@ -24,7 +24,7 @@ import sweetgirl.croissant.alarm.enums.NotificationType;
  * 일에 엔티티를 끌어올 이유가 없다.
  */
 @Entity
-@Table(name = "push_batch_item", uniqueConstraints = @UniqueConstraint(name = "uk_push_batch_item_member_notification", columnNames = {
+@Table(name = "push_batch_item", uniqueConstraints = @UniqueConstraint(name = "uk_push_batch_item", columnNames = {
 	"member_id", "notification_id"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

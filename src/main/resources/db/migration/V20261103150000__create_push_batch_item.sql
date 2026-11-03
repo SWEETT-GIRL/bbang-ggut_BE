@@ -7,7 +7,7 @@ CREATE TABLE push_batch_item (
     type            VARCHAR(40)  NOT NULL,
     actor_id        BIGINT       NOT NULL,
     created_at      TIMESTAMP    NOT NULL,
-    CONSTRAINT uk_push_batch_item_member_notification UNIQUE (member_id, notification_id)
+    CONSTRAINT uk_push_batch_item UNIQUE (member_id, notification_id)
 );
 
 CREATE INDEX idx_push_batch_item_group ON push_batch_item (member_id, type, actor_id, created_at);

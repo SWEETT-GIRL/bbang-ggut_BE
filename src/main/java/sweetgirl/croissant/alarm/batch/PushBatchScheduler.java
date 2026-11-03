@@ -5,9 +5,10 @@ import java.time.LocalDateTime;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import sweetgirl.croissant.alarm.service.PushBatchService;
 
 /** 모아 둔 푸시 묶음을 매분 내보낸다. 서버가 둘이어도 한쪽만 돈다(ShedLock). */

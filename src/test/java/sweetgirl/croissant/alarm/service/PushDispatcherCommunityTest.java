@@ -22,8 +22,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.alarm.entity.FcmToken;
-import sweetgirl.croissant.alarm.enums.DeviceOs;
 import sweetgirl.croissant.alarm.entity.Notification;
+import sweetgirl.croissant.alarm.enums.DeviceOs;
 import sweetgirl.croissant.alarm.enums.NotificationTargetType;
 import sweetgirl.croissant.alarm.enums.NotificationType;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
