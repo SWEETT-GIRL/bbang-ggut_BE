@@ -81,10 +81,12 @@ public enum NotificationType {
 		return this.pushType;
 	}
 
-	/** 마케팅 수신 동의를 따로 받아야 나가는 알림인가. */
-	/** 하루 푸시 상한(5)을 세는 종류 — 톡 · 좋아요 · 팔로잉 소식. 댓글 · 멘션은 상한 밖이라 하나씩 다 간다. */
-	public boolean isDailyCapped() {
-		return this == PAT || this == RECORD_LIKE || this == FOLLOWING_NEW_RECORD;
+	/**
+	 * 같은 사람이 같은 사람에게 짧은 시간에 여러 번 만들 수 있는 종류 — 팔로잉 새 빵로그 · 좋아요. 이건 바로 울리지 않고
+	 * 창(10분) 동안 모았다가 "N개" 로 한 번 울린다. 톡은 이미 하루 1번이고 댓글 · 멘션 · 팔로우는 하나씩 다 간다.
+	 */
+	public boolean isBatched() {
+		return this == RECORD_LIKE || this == FOLLOWING_NEW_RECORD;
 	}
 
 	/** 사람 사이 활동 알림인가 — 알림함에서 같은 날 · 같은 대상끼리 묶고, 종류별 스위치를 본다. */
@@ -94,6 +96,7 @@ public enum NotificationType {
 			|| this == INVITE_MUTUAL;
 	}
 
+	/** 마케팅 수신 동의를 따로 받아야 나가는 알림인가. */
 	public boolean requiresMarketingConsent() {
 		return this == AD;
 	}

@@ -1,8 +1,6 @@
 package sweetgirl.croissant.alarm.service;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,7 +18,6 @@ import sweetgirl.croissant.alarm.entity.Notification;
 import sweetgirl.croissant.alarm.enums.NotificationType;
 import sweetgirl.croissant.alarm.exception.AlarmException;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
-import sweetgirl.croissant.alarm.repository.NotificationDeliveryRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
 import sweetgirl.croissant.member.repository.NotificationSettingRepository;
@@ -49,13 +46,6 @@ public class PushDispatcher {
 	private final FcmTokenRepository fcmTokenRepository;
 	private final NotificationDeliveryCommandService deliveryCommandService;
 	private final FcmService fcmService;
-	private final NotificationDeliveryRepository deliveryRepository;
-
-	/** 톡 · 좋아요 · 팔로잉 소식은 하루(KST)에 이만큼만 울린다. 알림함에는 다 남는다. */
-	static final int DAILY_PUSH_CAP = 5;
-	private static final List<NotificationType> DAILY_CAPPED_TYPES = List.of(
-		NotificationType.PAT, NotificationType.RECORD_LIKE, NotificationType.FOLLOWING_NEW_RECORD);
-	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
 	/**
 	 * 외부 호출에는 트랜잭션을 열지 않는다. 호출자는 DB 작업을 먼저 커밋하고 호출해야 한다.
@@ -71,20 +61,37 @@ public class PushDispatcher {
 
 	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	public Result dispatchWithResult(Notification notification, Member member, LocalDateTime now) {
-		if (!isEligible(notification, member, now)) {
+		return send(List.of(notification), member, notification.getTitle(), notification.getBody(),
+			pushDataOf(notification), now);
+	}
+
+	/**
+	 * 모아 둔 알림 여럿을 한 번에 울린다. 자격 · 토큰은 보낼 때 본다(쌓을 때가 아니라). 대장에는 묶음에 든 알림마다
+	 * PUSH 한 줄씩 — "이 알림은 (묶여서) 울렸다"가 건마다 남아야 어드민 수가 맞는다.
+	 */
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
+	public Result dispatchDigest(List<Notification> notifications, Member member, PushDigest digest,
+			LocalDateTime now) {
+		Map<String, String> data = pushDataOf(digest.representative());
+		if (digest.link() != null) {
+			data.put("link", digest.link());
+		}
+		return send(notifications, member, digest.title(), digest.body(), data, now);
+	}
+
+	private Result send(List<Notification> notifications, Member member, String title, String body,
+			Map<String, String> data, LocalDateTime now) {
+		Notification representative = notifications.get(notifications.size() - 1);
+		if (!isEligible(representative, member, now)) {
 			return Result.SKIPPED;
 		}
 
 		List<String> tokens = activeTokensOf(member);
 		if (tokens.isEmpty()) {
 			log.info("푸시 skip — 활성 토큰 없음 [memberId={}, type={}]",
-				member.getId(), notification.getType());
+				member.getId(), representative.getType());
 			return Result.SKIPPED;
 		}
-
-		Map<String, String> data = pushDataOf(notification);
-		String title = notification.getTitle();
-		String body = notification.getBody();
 
 		// FCM이 한 기기의 요청이라도 접수하면 성공이다. 실제 기기 표시 여부는 별도다.
 		boolean anySent = false;
@@ -106,7 +113,9 @@ public class PushDispatcher {
 		if (!anySent && lastFailure == null) {
 			return Result.SKIPPED;
 		}
-		deliveryCommandService.recordDelivery(notification, member, anySent, lastFailure, now);
+		for (Notification notification : notifications) {
+			deliveryCommandService.recordDelivery(notification, member, anySent, lastFailure, now);
+		}
 		return anySent ? Result.SENT : Result.FAILED;
 	}
 
@@ -121,11 +130,6 @@ public class PushDispatcher {
 		NotificationSetting setting = notificationSettingRepository.findByMemberId(member.getId())
 			.orElse(null);
 		NotificationType type = notification.getType();
-		// 하루 상한은 설정이 없는 사람(설정 화면을 연 적 없음)에게도 건다 — 톡 · 좋아요 · 팔로잉 소식 도배 방지
-		if (type.isDailyCapped() && deliveryRepository.countSentPushSince(member.getId(),
-			LocalDate.now(KST).atStartOfDay(), DAILY_CAPPED_TYPES) >= DAILY_PUSH_CAP) {
-			return false;
-		}
 		if (setting == null) {
 			return !type.requiresMarketingConsent();
 		}

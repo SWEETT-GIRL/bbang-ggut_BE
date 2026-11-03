@@ -13,20 +13,9 @@ import org.springframework.data.repository.query.Param;
 import sweetgirl.croissant.alarm.entity.NotificationDelivery;
 import sweetgirl.croissant.alarm.enums.DeliveryStatus;
 import sweetgirl.croissant.alarm.enums.NotificationChannel;
-import sweetgirl.croissant.alarm.enums.NotificationType;
 
 /** 발송 대장. 쌓기만 하고 목록 조회에는 쓰이지 않는다. */
 public interface NotificationDeliveryRepository extends JpaRepository<NotificationDelivery, Long> {
-
-	/** 오늘 이 사람에게 실제로 울린 푸시 수(종류 한정) — 하루 상한용. */
-	@Query("""
-			SELECT COUNT(d) FROM NotificationDelivery d
-			WHERE d.member.id = :memberId AND d.channel = sweetgirl.croissant.alarm.enums.NotificationChannel.PUSH
-				AND d.status = sweetgirl.croissant.alarm.enums.DeliveryStatus.SENT
-				AND d.sentAt >= :since AND d.notification.type IN :types
-			""")
-	long countSentPushSince(@Param("memberId") Long memberId, @Param("since") LocalDateTime since,
-			@Param("types") Collection<NotificationType> types);
 
 	boolean existsByNotificationIdAndMemberIdAndChannelAndStatus(Long notificationId, Long memberId,
 			NotificationChannel channel, DeliveryStatus status);
