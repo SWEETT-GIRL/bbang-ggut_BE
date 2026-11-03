@@ -19,6 +19,9 @@ public interface FcmTokenRepository extends JpaRepository<FcmToken, Long> {
 
 	List<FcmToken> findAllByTokenAndIsActiveTrue(String token);
 
+	/** 이 회원에게 {@code token} 말고 살아 있는 토큰이 또 있는가 — APNs 환경이 안 맞는 토큰을 버려도 되는지 볼 때 */
+	boolean existsByMemberAndIsActiveTrueAndTokenNot(Member member, String token);
+
 	// 회원 탈퇴 시 해당 회원의 모든 FCM 토큰 삭제를 위해 사용
 	void deleteAllByMember(Member member);
 
