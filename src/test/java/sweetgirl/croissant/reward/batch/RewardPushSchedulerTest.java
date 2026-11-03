@@ -95,4 +95,26 @@ class RewardPushSchedulerTest {
 
 		then(rewardPushService).should().sendAttendanceReminders(any(LocalDateTime.class));
 	}
+
+	@Test
+	@DisplayName("두 번째 빵로그 스위치가 꺼져 있으면 보내지 않는다")
+	void recordNudgeOff() {
+		given(rewardLaunchService.isPushDue(eq(RewardSettingKey.PUSH_RECORD_NUDGE), any(LocalDate.class)))
+			.willReturn(false);
+
+		rewardPushScheduler.secondRecordNudges();
+
+		then(rewardPushService).should(never()).sendSecondRecordNudges(any(LocalDateTime.class));
+	}
+
+	@Test
+	@DisplayName("두 번째 빵로그 스위치가 켜져 있으면 보낸다")
+	void recordNudgeOn() {
+		given(rewardLaunchService.isPushDue(eq(RewardSettingKey.PUSH_RECORD_NUDGE), any(LocalDate.class)))
+			.willReturn(true);
+
+		rewardPushScheduler.secondRecordNudges();
+
+		then(rewardPushService).should().sendSecondRecordNudges(any(LocalDateTime.class));
+	}
 }

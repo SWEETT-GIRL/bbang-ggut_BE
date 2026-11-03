@@ -23,6 +23,7 @@ import sweetgirl.croissant.alarm.service.NotificationRecorder;
 import sweetgirl.croissant.common.Particles;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.reward.enums.RewardSettingKey;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.AttendanceReminderTarget;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.MemberFriend;
@@ -51,6 +52,17 @@ public class RewardPushService {
 	static final long ATTENDANCE_LOCK_KEY = 7_260_102L;
 	static final String ATTENDANCE_TITLE = "오늘 출석 도장이 아직이에요";
 	static final String ATTENDANCE_LINK = "/bbanglog?open=attendance";
+	static final String LAPSED_TITLE = "하루 쉬었죠? 오늘 오면 이어져요";
+	static final String LAPSED_BODY_SUFFIX = " 그대로";
+	static final long RECORD_NUDGE_LOCK_KEY = 7_260_104L;
+	static final String RECORD_NUDGE_TITLE = "두 번째 빵로그 어때요?";
+	static final String RECORD_NUDGE_BODY_PREFIX = "지금 남기면 +";
+	static final String RECORD_NUDGE_BODY_SUFFIX = " 부스러기";
+	/** 첫 기록 뒤 이 날짜 범위(일)에 있는 회원을 부른다 — 2 일 전과 3 일 전. */
+	static final int RECORD_NUDGE_FROM_DAYS = 3;
+	static final int RECORD_NUDGE_TO_DAYS = 1;
+	/** 앱의 기록 쓰기 화면. */
+	static final String RECORD_NUDGE_LINK = "/bbanglog/record";
 	/** 밤 9 시 ~ 아침 8 시에는 출석을 알리지 않는다. */
 	static final int QUIET_FROM_HOUR = 21;
 	static final int QUIET_UNTIL_HOUR = 8;
@@ -153,7 +165,46 @@ public class RewardPushService {
 				NotificationType.REWARD_ATTENDANCE, NotificationChannel.PUSH, ATTENDANCE_TITLE, body,
 				ATTENDANCE_LINK), group.getValue(), now);
 		}
+		// 하루 쉰 회원 — 유예 안이라 오늘 오면 그제 칸에 이어진다. 칸별로 한 알림씩
+		Map<Integer, List<Long>> lapsedByBoardDay = new TreeMap<>();
+		for (AttendanceReminderTarget target : targetRepository.findLapsedAttendanceTargets(
+			today.minusDays(2), today.minusDays(1), today)) {
+			lapsedByBoardDay
+				.computeIfAbsent(AttendanceBoard.following(target.getBoardDay()), boardDay -> new ArrayList<>())
+				.add(target.getMemberId());
+		}
+		for (Map.Entry<Integer, List<Long>> group : lapsedByBoardDay.entrySet()) {
+			int boardDay = group.getKey();
+			String body = boardDay + "일째 +" + AttendanceBoard.rewardOf(boardDay, rewards) + LAPSED_BODY_SUFFIX;
+			notified += push(Notification.announcement(
+				NotificationType.REWARD_ATTENDANCE, NotificationChannel.PUSH, LAPSED_TITLE, body,
+				ATTENDANCE_LINK), group.getValue(), now);
+		}
 		return notified;
+	}
+
+	/**
+	 * 2 · 3 일 전에 첫 기록을 남기고 두 번째가 없는 회원에게 저녁에 "두 번째 빵로그" 를 권한다.
+	 * 첫 주 기록 1 건은 0 건과 리텐션이 같고 2 건부터 남는다(11/3) — 두 번째 기록이 첫 주 보너스 안에 있을 때 부른다.
+	 *
+	 * @return 알린 회원 수. 오늘 이미 보냈거나 다른 인스턴스가 보내는 중이면 -1
+	 */
+	@Transactional
+	public int sendSecondRecordNudges(LocalDateTime now) {
+		LocalDate today = now.toLocalDate();
+		if (!targetRepository.tryAdvisoryXactLock(RECORD_NUDGE_LOCK_KEY)
+			|| notificationRepository.existsByTypeAndCreatedAtGreaterThanEqual(
+				NotificationType.RECORD_NUDGE, today.atStartOfDay())) {
+			return -1;
+		}
+		List<Long> memberIds = targetRepository.findSecondRecordNudgeTargets(
+			today.minusDays(RECORD_NUDGE_FROM_DAYS).atStartOfDay(),
+			today.minusDays(RECORD_NUDGE_TO_DAYS).atStartOfDay());
+		String body = RECORD_NUDGE_BODY_PREFIX + rewardSettings.get(RewardSettingKey.RECORD_SECOND_WEEK)
+			+ RECORD_NUDGE_BODY_SUFFIX;
+		return push(Notification.announcement(
+			NotificationType.RECORD_NUDGE, NotificationChannel.PUSH, RECORD_NUDGE_TITLE, body, RECORD_NUDGE_LINK),
+			memberIds, now);
 	}
 
 	/**

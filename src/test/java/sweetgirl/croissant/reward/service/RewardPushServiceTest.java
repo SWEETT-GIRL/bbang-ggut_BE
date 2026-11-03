@@ -32,6 +32,7 @@ import sweetgirl.croissant.alarm.service.NotificationRecorder;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.reward.dto.response.RewardSummaryResponse.Letter;
+import sweetgirl.croissant.reward.enums.RewardSettingKey;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.AttendanceReminderTarget;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.MemberFriend;
@@ -334,6 +335,29 @@ class RewardPushServiceTest {
 		}
 
 		@Test
+		@DisplayName("그제 출석하고 어제 · 오늘 안 한 회원은 '하루 쉬었죠' 로 따로 부른다 — 오늘 오면 그제 칸에 이어진다")
+		void remindsLapsedSeparately() {
+			givenFirstRunOfTheDay();
+			given(targetRepository.findAttendanceReminderTargets(EVENING_DAY.minusDays(1), EVENING_DAY))
+				.willReturn(List.of());
+			AttendanceReminderTarget lapsed = target(4L, 3);
+			given(targetRepository.findLapsedAttendanceTargets(
+				EVENING_DAY.minusDays(2), EVENING_DAY.minusDays(1), EVENING_DAY))
+				.willReturn(List.of(lapsed));
+			Member fourth = member(4L);
+			given(memberRepository.findAllById(List.of(4L))).willReturn(List.of(fourth));
+			givenRecorded(601L);
+
+			assertThat(rewardPushService.sendAttendanceReminders(EVENING)).isEqualTo(1);
+
+			ArgumentCaptor<Notification> notifications = ArgumentCaptor.forClass(Notification.class);
+			then(notificationRecorder).should().recordForMembers(notifications.capture(), anyList(), eq(EVENING));
+			assertThat(notifications.getValue().getTitle()).isEqualTo("하루 쉬었죠? 오늘 오면 이어져요");
+			assertThat(notifications.getValue().getBody()).isEqualTo("4일째 +5 그대로");
+			assertThat(notifications.getValue().getType()).isEqualTo(NotificationType.REWARD_ATTENDANCE);
+		}
+
+		@Test
 		@DisplayName("발송이 밀려 밤 9 시를 넘겼으면 그날은 버린다")
 		void skipsAtNight() {
 			assertThat(rewardPushService.sendAttendanceReminders(EVENING.withHour(21))).isEqualTo(-1);
@@ -361,6 +385,65 @@ class RewardPushServiceTest {
 			given(targetRepository.findAttendanceReminderTargets(any(), any())).willReturn(List.of());
 
 			assertThat(rewardPushService.sendAttendanceReminders(EVENING)).isZero();
+			then(notificationRecorder).shouldHaveNoInteractions();
+		}
+	}
+
+	@Nested
+	@DisplayName("두 번째 빵로그")
+	class SecondRecordNudges {
+
+		private static final LocalDateTime EVENING = LocalDateTime.of(2026, 11, 5, 19, 0);
+		private static final LocalDate EVENING_DAY = EVENING.toLocalDate();
+
+		private void givenFirstRunOfTheDay() {
+			given(targetRepository.tryAdvisoryXactLock(RewardPushService.RECORD_NUDGE_LOCK_KEY)).willReturn(true);
+			given(notificationRepository.existsByTypeAndCreatedAtGreaterThanEqual(
+				NotificationType.RECORD_NUDGE, EVENING_DAY.atStartOfDay())).willReturn(false);
+		}
+
+		@Test
+		@DisplayName("2 · 3 일 전에 첫 기록을 남기고 두 번째가 없는 회원을 한 알림으로 부른다 — 보너스 양을 문구에 넣는다")
+		void nudges() {
+			givenFirstRunOfTheDay();
+			given(targetRepository.findSecondRecordNudgeTargets(
+				EVENING_DAY.minusDays(3).atStartOfDay(), EVENING_DAY.minusDays(1).atStartOfDay()))
+				.willReturn(List.of(1L, 2L));
+			given(rewardSettings.get(RewardSettingKey.RECORD_SECOND_WEEK)).willReturn(20);
+			Member first = member(1L);
+			Member second = member(2L);
+			given(memberRepository.findAllById(List.of(1L, 2L))).willReturn(List.of(first, second));
+			givenRecorded(700L);
+
+			assertThat(rewardPushService.sendSecondRecordNudges(EVENING)).isEqualTo(2);
+
+			ArgumentCaptor<Notification> notifications = ArgumentCaptor.forClass(Notification.class);
+			then(notificationRecorder).should().recordForMembers(notifications.capture(), anyList(), eq(EVENING));
+			assertThat(notifications.getValue().getType()).isEqualTo(NotificationType.RECORD_NUDGE);
+			assertThat(notifications.getValue().getTitle()).isEqualTo("두 번째 빵로그 어때요?");
+			assertThat(notifications.getValue().getBody()).isEqualTo("지금 남기면 +20 부스러기");
+			assertThat(notifications.getValue().getDeepLink()).isEqualTo("/bbanglog/record");
+		}
+
+		@Test
+		@DisplayName("오늘 이미 보냈으면 다시 보내지 않는다")
+		void oncePerDay() {
+			given(targetRepository.tryAdvisoryXactLock(RewardPushService.RECORD_NUDGE_LOCK_KEY)).willReturn(true);
+			given(notificationRepository.existsByTypeAndCreatedAtGreaterThanEqual(
+				NotificationType.RECORD_NUDGE, EVENING_DAY.atStartOfDay())).willReturn(true);
+
+			assertThat(rewardPushService.sendSecondRecordNudges(EVENING)).isEqualTo(-1);
+			then(notificationRecorder).shouldHaveNoInteractions();
+		}
+
+		@Test
+		@DisplayName("부를 사람이 없으면 알림을 만들지 않는다")
+		void nobody() {
+			givenFirstRunOfTheDay();
+			given(targetRepository.findSecondRecordNudgeTargets(any(), any())).willReturn(List.of());
+			given(rewardSettings.get(RewardSettingKey.RECORD_SECOND_WEEK)).willReturn(20);
+
+			assertThat(rewardPushService.sendSecondRecordNudges(EVENING)).isZero();
 			then(notificationRecorder).shouldHaveNoInteractions();
 		}
 	}
