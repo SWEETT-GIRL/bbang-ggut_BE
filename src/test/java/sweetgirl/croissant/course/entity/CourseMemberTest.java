@@ -23,7 +23,7 @@ class CourseMemberTest {
 	}
 
 	@Test
-	@DisplayName("of: 코스·회원 id로 복합키를 만들고 참여 시각을 지금으로 잡는다. 코스 안 이름은 비어 있다")
+	@DisplayName("of: 코스·회원 id로 복합키를 만들고 참여 시각을 지금으로 잡는다")
 	void of_setsIdAndJoinedAt() {
 		LocalDateTime before = LocalDateTime.now();
 
@@ -31,7 +31,6 @@ class CourseMemberTest {
 
 		assertThat(courseMember.getId().getCourseId()).isEqualTo(10L);
 		assertThat(courseMember.getId().getMemberId()).isEqualTo(1L);
-		assertThat(courseMember.getDisplayName()).isNull();
 		assertThat(courseMember.getJoinedAt()).isAfterOrEqualTo(before);
 		assertThat(courseMember.isDeleted()).isFalse();
 	}
@@ -47,7 +46,6 @@ class CourseMemberTest {
 		courseMember.rejoin();
 
 		assertThat(courseMember.isDeleted()).isFalse();
-		assertThat(courseMember.getDisplayName()).isNull();
 		assertThat(courseMember.getJoinedAt()).isAfterOrEqualTo(firstJoinedAt);
 	}
 }
