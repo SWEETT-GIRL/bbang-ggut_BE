@@ -254,17 +254,19 @@ public class CourseCommandService {
 		CourseStore courseStore = insertStore(course, store, activeStores, day, request.getVisitTime());
 		publishAdded(memberId, courseId, courseStore, null);
 		// 메모는 사람별이다 — course_stores.memo 가 아니라 내 메모 행으로 들어간다
-		String myMemo = saveMyMemo(courseStore, memberId, request.getMemo());
+		Optional<CourseStoreMemo> savedMemo = saveMyMemo(courseStore, memberId, request.getMemo());
+		String myMemo = savedMemo.map(CourseStoreMemo::getContent).orElse(null);
 		// 가게가 늘었다 — 분모가 커졌으니 완주 승격을 허용해도 안전하다
 		courseProgressService.refreshForCourse(courseId, true);
 		courseRepository.bumpVersion(courseId);
 
-		List<CourseStoreMemoResponse> memos = myMemo == null
-			? List.of()
-			: List.of(new CourseStoreMemoResponse(
-				memberId, displayNameOf(courseId, memberId), myMemo, LocalDateTime.now(), true,
+		List<CourseStoreMemoResponse> memos = savedMemo
+			.map(memo -> List.of(new CourseStoreMemoResponse(
+				memberId, displayNameOf(courseId, memberId), memo.getContent(), LocalDateTime.now(), true,
 				characterFaceReader.faceOf(memberId).characterCode(),
-				characterFaceReader.faceOf(memberId).characterImageKey()));
+				characterFaceReader.faceOf(memberId).characterImageKey(),
+				memo.getSeq())))
+			.orElse(List.of());
 		return CourseStoreResponse.of(courseStore, null, myMemo, myMemo, memos);
 	}
 
@@ -390,14 +392,15 @@ public class CourseCommandService {
 	}
 
 	/** 방금 만든 정류장의 내 메모 — 기존 행이 있을 수 없으니 조회 없이 저장한다. 빈 값이면 아무것도 안 한다. */
-	private String saveMyMemo(CourseStore courseStore, Long memberId, String content) {
+	private Optional<CourseStoreMemo> saveMyMemo(CourseStore courseStore, Long memberId, String content) {
 		if (content == null || content.isBlank()) {
-			return null;
+			return Optional.empty();
 		}
 		memberRestrictionReader.validateCanWrite(memberId);
 		Member author = memberRepository.getReferenceById(memberId);
-		courseStoreMemoRepository.save(CourseStoreMemo.of(courseStore, author, content, resolveMemoSeq(null)));
-		return content;
+		CourseStoreMemo memo = CourseStoreMemo.of(courseStore, author, content, resolveMemoSeq(null));
+		courseStoreMemoRepository.save(memo);
+		return Optional.of(memo);
 	}
 
 	/**
