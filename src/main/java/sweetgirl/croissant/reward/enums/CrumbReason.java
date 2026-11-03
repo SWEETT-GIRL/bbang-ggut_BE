@@ -18,6 +18,7 @@ public enum CrumbReason {
 	RECORD("빵 기록"),
 	RECORD_PHOTO("기록에 사진"),
 	RECORD_CHAIN("연속 기록 2배"),
+	RECORD_SECOND_WEEK("첫 주 두 번째 기록"),
 	SAVE_STORE("빵집 담기"),
 	LETTER("빵댕이 편지"),
 	AD("광고 보기"),

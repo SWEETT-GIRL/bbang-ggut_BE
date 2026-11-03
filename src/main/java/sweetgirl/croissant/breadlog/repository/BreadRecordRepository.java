@@ -58,6 +58,13 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 	/** 종류를 가려 센다. 리워드는 체험(TUTORIAL) 기록을 세지 않는다. */
 	long countByMemberIdAndRecordTypeAndDeletedAtIsNull(Long memberId, RecordType recordType);
 
+	/** 체험이 아닌 기록 중 가장 먼저 저장한 때. 하나도 없으면 비어 있다. */
+	@Query("""
+			SELECT MIN(r.createdAt) FROM BreadRecord r
+			WHERE r.member.id = :memberId AND r.deletedAt IS NULL AND r.recordType <> sweetgirl.croissant.breadlog.enums.RecordType.TUTORIAL
+			""")
+	Optional<LocalDateTime> findFirstNonTutorialCreatedAt(@Param("memberId") Long memberId);
+
 	@Modifying
 	@Query(value = """
 			UPDATE bread_record SET deleted_at = CURRENT_TIMESTAMP

@@ -54,7 +54,8 @@ import sweetgirl.croissant.reward.service.RewardQueryService;
 class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 
 	private static final RewardRulesResponse RULES = new RewardRulesResponse(
-		25, 10, 5, 3, List.of(5, 5, 10, 5, 10, 10, 30), 2, 3, 10, 20, 2, 100, 10, 3, 8, 30, 30, 600, 100, 50, 20, 3);
+		25, 10, 5, 3, List.of(5, 5, 10, 5, 10, 10, 30), 2, 3, 10, 20, 2, 100, 10, 3, 8, 30, 30, 600, 100, 50, 20, 3,
+		20);
 
 	private static final Attendance ATTENDANCE = new Attendance(false, 2, 3, 10, 5);
 	private static final Feed FEED = new Feed(false, List.of(10, 5, 3, 5, 10, 50), 3, false);
