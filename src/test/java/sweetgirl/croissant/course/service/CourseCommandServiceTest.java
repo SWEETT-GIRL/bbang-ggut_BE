@@ -498,6 +498,7 @@ class CourseCommandServiceTest {
 		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
 		CourseStore courseStore = mock(CourseStore.class);
 		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
 		given(request.getMemo()).willReturn("새 메모");
 		given(request.getVisitTime()).willReturn(LocalTime.of(14, 30));
 
@@ -1220,8 +1221,12 @@ class CourseCommandServiceTest {
 	// ───────────────────────── 사람별 메모 ─────────────────────────
 
 	private CourseStoreMemo realMemo(CourseStore courseStore, Long memberId, String content) {
+		return realMemo(courseStore, memberId, content, 0L);
+	}
+
+	private CourseStoreMemo realMemo(CourseStore courseStore, Long memberId, String content, long seq) {
 		Member author = mockMember(memberId);
-		return CourseStoreMemo.of(courseStore, author, content);
+		return CourseStoreMemo.of(courseStore, author, content, seq);
 	}
 
 	private CourseStore givenEditableStore(Long memberId, Long courseId, Long storeId) {
@@ -1245,6 +1250,7 @@ class CourseCommandServiceTest {
 		given(courseStoreMemoRepository.findByIdCourseStoreIdAndIdMemberId(501L, memberId))
 			.willReturn(Optional.of(mine));
 		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
 		given(request.getMemo()).willReturn("새 메모");
 
 		courseCommandService.updateStore(memberId, courseId, storeId, request);
@@ -1265,6 +1271,7 @@ class CourseCommandServiceTest {
 		given(courseStoreMemoRepository.findByIdCourseStoreIdAndIdMemberId(501L, memberId))
 			.willReturn(Optional.of(mine));
 		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
 		given(request.getMemo()).willReturn("   ");
 
 		courseCommandService.updateStore(memberId, courseId, storeId, request);
@@ -1286,6 +1293,7 @@ class CourseCommandServiceTest {
 		given(courseStoreMemoRepository.findByIdCourseStoreIdAndIdMemberId(501L, memberId))
 			.willReturn(Optional.of(mine));
 		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
 		given(request.getMemo()).willReturn("다시 쓴 메모");
 
 		courseCommandService.updateStore(memberId, courseId, storeId, request);
@@ -1293,6 +1301,91 @@ class CourseCommandServiceTest {
 		assertThat(mine.isDeleted()).isFalse();
 		assertThat(mine.getContent()).isEqualTo("다시 쓴 메모");
 		then(courseStoreMemoRepository).should(never()).save(any());
+	}
+
+	@Test
+	@DisplayName("updateStore: memoSeq 를 안 보내면(구버전 앱) 서버 시각(ms)을 seq 로 쓴다")
+	void updateStore_withoutMemoSeq_usesServerMillis() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Long storeId = 100L;
+		givenEditableStore(memberId, courseId, storeId);
+		given(courseStoreMemoRepository.findByIdCourseStoreIdAndIdMemberId(501L, memberId))
+			.willReturn(Optional.empty());
+		Member author = mockMember(memberId);
+		given(memberRepository.getReferenceById(memberId)).willReturn(author);
+		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
+		given(request.getMemo()).willReturn("새 메모");
+		long before = System.currentTimeMillis();
+
+		courseCommandService.updateStore(memberId, courseId, storeId, request);
+
+		then(courseStoreMemoRepository).should().save(argThat(memo -> memo.getSeq() >= before
+			&& memo.getSeq() <= System.currentTimeMillis()));
+	}
+
+	@Test
+	@DisplayName("updateStore: memoSeq 를 보내면 그 값이 메모의 seq 가 된다")
+	void updateStore_withMemoSeq_storesIt() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Long storeId = 100L;
+		givenEditableStore(memberId, courseId, storeId);
+		given(courseStoreMemoRepository.findByIdCourseStoreIdAndIdMemberId(501L, memberId))
+			.willReturn(Optional.empty());
+		Member author = mockMember(memberId);
+		given(memberRepository.getReferenceById(memberId)).willReturn(author);
+		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
+		given(request.getMemo()).willReturn("새 메모");
+		given(request.getMemoSeq()).willReturn(777L);
+
+		courseCommandService.updateStore(memberId, courseId, storeId, request);
+
+		then(courseStoreMemoRepository).should().save(argThat(memo -> memo.getSeq() == 777L));
+	}
+
+	@Test
+	@DisplayName("updateStore: 저장된 seq 보다 작은 memoSeq 의 PATCH 는 메모를 바꾸지 않는다 — 초안이 먼저 더 새 글을 반영한 경우")
+	void updateStore_olderMemoSeq_keepsNewerMemo() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Long storeId = 100L;
+		CourseStore courseStore = givenEditableStore(memberId, courseId, storeId);
+		CourseStoreMemo mine = realMemo(courseStore, memberId, "초안으로 먼저 간 최신 글", 2_000L);
+		given(courseStoreMemoRepository.findByIdCourseStoreIdAndIdMemberId(501L, memberId))
+			.willReturn(Optional.of(mine));
+		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
+		given(request.getMemo()).willReturn("늦게 도착한 옛 글");
+		given(request.getMemoSeq()).willReturn(1_000L);
+
+		courseCommandService.updateStore(memberId, courseId, storeId, request);
+
+		assertThat(mine.getContent()).isEqualTo("초안으로 먼저 간 최신 글");
+		assertThat(mine.getSeq()).isEqualTo(2_000L);
+		then(courseStoreMemoRepository).should(never()).save(any());
+	}
+
+	@Test
+	@DisplayName("updateStore: memoSeq 가 서버 시각보다 하루 넘게 미래면 COURSE_MEMO_SEQ_INVALID — 시계가 틀린 기기")
+	void updateStore_memoSeqTooFarAhead_rejected() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Long storeId = 100L;
+		givenEditableStore(memberId, courseId, storeId);
+		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
+		given(request.getMemo()).willReturn("새 메모");
+		given(request.getMemoSeq()).willReturn(System.currentTimeMillis() + CourseStoreMemo.SEQ_MAX_AHEAD.toMillis()
+			+ 60_000L);
+
+		assertThatThrownBy(() -> courseCommandService.updateStore(memberId, courseId, storeId, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_MEMO_SEQ_INVALID.getMessage());
+		then(courseStoreMemoRepository).should(never()).save(any());
+		then(courseRepository).should(never()).bumpVersion(any());
 	}
 
 	@Test
@@ -1415,6 +1508,7 @@ class CourseCommandServiceTest {
 		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, ownerId, null);
 		CourseStore courseStore = mock(CourseStore.class);
 		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
 		given(request.getMemo()).willReturn("멤버 메모");
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
@@ -1499,6 +1593,7 @@ class CourseCommandServiceTest {
 		willThrow(new MemberException(MemberErrorCode.MEMBER_WRITE_RESTRICTED))
 			.given(memberRestrictionReader).validateCanWrite(memberId);
 		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
 		given(request.getMemo()).willReturn("남에게 보이는 메모");
 
 		assertThatThrownBy(() -> courseCommandService.updateStore(memberId, courseId, storeId, request))
@@ -1518,6 +1613,7 @@ class CourseCommandServiceTest {
 		given(courseStoreMemoRepository.findByIdCourseStoreIdAndIdMemberId(501L, memberId))
 			.willReturn(Optional.of(mine));
 		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
 		given(request.getMemo()).willReturn("");
 
 		courseCommandService.updateStore(memberId, courseId, storeId, request);

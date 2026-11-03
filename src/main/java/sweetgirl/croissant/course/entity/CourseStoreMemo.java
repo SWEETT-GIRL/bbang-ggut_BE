@@ -1,5 +1,6 @@
 package sweetgirl.croissant.course.entity;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 
 import org.hibernate.annotations.DynamicUpdate;
@@ -35,6 +36,9 @@ public class CourseStoreMemo extends BaseTimeEntity {
 	/** DB VARCHAR(200) 과 요청 DTO 의 @Size 가 같은 값을 본다. 방문계획 메모와 같은 제한. */
 	public static final int CONTENT_MAX_LENGTH = 200;
 
+	/** seq 가 서버 시각보다 이만큼 넘게 미래면 시계가 크게 틀린 기기다 — 받으면 그 필드가 영영 그 값 아래로 못 돌아온다. */
+	public static final Duration SEQ_MAX_AHEAD = Duration.ofDays(1);
+
 	@EmbeddedId
 	private CourseStoreMemoId id;
 
@@ -69,10 +73,6 @@ public class CourseStoreMemo extends BaseTimeEntity {
 		this.seq = seq;
 	}
 
-	public static CourseStoreMemo of(CourseStore courseStore, Member member, String content) {
-		return new CourseStoreMemo(courseStore, member, content, 0L);
-	}
-
 	public static CourseStoreMemo of(CourseStore courseStore, Member member, String content, long seq) {
 		return new CourseStoreMemo(courseStore, member, content, seq);
 	}
@@ -100,18 +100,8 @@ public class CourseStoreMemo extends BaseTimeEntity {
 		return true;
 	}
 
-	public void updateContent(String content) {
-		this.content = content;
-	}
-
 	public void softDelete() {
 		this.deletedAt = LocalDateTime.now();
-	}
-
-	/** 지웠던 메모를 같은 PK 로 다시 쓴다 — 새 행이 아니다. */
-	public void restore(String content) {
-		this.content = content;
-		this.deletedAt = null;
 	}
 
 	public boolean isDeleted() {

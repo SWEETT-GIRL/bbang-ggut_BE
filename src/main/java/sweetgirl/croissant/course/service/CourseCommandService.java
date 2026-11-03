@@ -396,37 +396,47 @@ public class CourseCommandService {
 		}
 		memberRestrictionReader.validateCanWrite(memberId);
 		Member author = memberRepository.getReferenceById(memberId);
-		courseStoreMemoRepository.save(CourseStoreMemo.of(courseStore, author, content));
+		courseStoreMemoRepository.save(CourseStoreMemo.of(courseStore, author, content, resolveMemoSeq(null)));
 		return content;
 	}
 
 	/**
 	 * 내 메모 upsert. 빈 값이면 내 메모를 지운다. 지웠던 행은 같은 PK 로 되살린다.
+	 * seq 가 저장된 것보다 크지 않으면(초안 플러시가 먼저 더 새 글을 반영한 뒤 도착한 옛 PATCH) 아무것도 바꾸지 않는다.
 	 * 큐레이션 코스는 이 경로에 못 온다(validateCanEdit) — 그쪽 메모는 course_stores.memo 그대로다.
-	 *
-	 * @return 저장된 내용. 지웠거나 없으면 null
 	 */
-	private String upsertMyMemo(CourseStore courseStore, Long memberId, String content) {
+	private void upsertMyMemo(CourseStore courseStore, Long memberId, String content, long seq) {
 		Optional<CourseStoreMemo> existing = courseStoreMemoRepository
 			.findByIdCourseStoreIdAndIdMemberId(courseStore.getId(), memberId);
-		if (content == null || content.isBlank()) {
-			existing.filter(memo -> !memo.isDeleted()).ifPresent(CourseStoreMemo::softDelete);
-			return null;
+		boolean deleting = content == null || content.isBlank();
+		if (!deleting) {
+			// 메모는 일행에게 보이는 글이다 — 쓰기 제한(밴) 회원은 초대 생성·수락처럼 막는다. 지우는 건 된다.
+			memberRestrictionReader.validateCanWrite(memberId);
 		}
-		// 메모는 일행에게 보이는 글이다 — 쓰기 제한(밴) 회원은 초대 생성·수락처럼 막는다. 지우는 건 된다.
-		memberRestrictionReader.validateCanWrite(memberId);
 		if (existing.isPresent()) {
-			CourseStoreMemo memo = existing.get();
-			if (memo.isDeleted()) {
-				memo.restore(content);
-			} else {
-				memo.updateContent(content);
-			}
-			return content;
+			existing.get().applyIfNewer(content, seq);
+			return;
+		}
+		if (deleting) {
+			return;
 		}
 		Member author = memberRepository.getReferenceById(memberId);
-		courseStoreMemoRepository.save(CourseStoreMemo.of(courseStore, author, content));
-		return content;
+		courseStoreMemoRepository.save(CourseStoreMemo.of(courseStore, author, content, seq));
+	}
+
+	/**
+	 * 메모 순서 기준. 앱이 안 보내면(구버전) 서버 시각(ms) — 초안 버퍼와 같은 시계라 그대로 비교된다.
+	 * 하루 넘게 미래인 값은 시계가 크게 틀린 기기라 거절한다 — 그 사람 필드가 영영 그 값 아래로 못 돌아오기 때문.
+	 */
+	private long resolveMemoSeq(Long requested) {
+		long now = System.currentTimeMillis();
+		if (requested == null) {
+			return now;
+		}
+		if (requested <= 0 || requested > now + CourseStoreMemo.SEQ_MAX_AHEAD.toMillis()) {
+			throw new CourseException(CourseErrorCode.COURSE_MEMO_SEQ_INVALID);
+		}
+		return requested;
 	}
 
 	/** 메모 줄에 보이는 이름 — 회원 닉네임. 응답 필드 이름(displayName)은 설치된 앱이 읽어서 그대로 둔다. */
@@ -448,7 +458,7 @@ public class CourseCommandService {
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_STORE_NOT_FOUND));
 
 		// memo 는 내 메모만 바꾼다(사람별). visitTime 은 공통 한 개라 정류장에 그대로.
-		upsertMyMemo(courseStore, memberId, request.getMemo());
+		upsertMyMemo(courseStore, memberId, request.getMemo(), resolveMemoSeq(request.getMemoSeq()));
 		courseStore.updateVisitTime(request.getVisitTime());
 		courseRepository.bumpVersion(courseId);
 	}

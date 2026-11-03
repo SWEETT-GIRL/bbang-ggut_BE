@@ -44,7 +44,8 @@ public enum CourseErrorCode implements BaseErrorCode {
 	COURSE_INVITEE_SELF(HttpStatus.BAD_REQUEST, "COURSE400_20", "나 자신은 초대할 수 없어요."),
 	COURSE_INVITEE_NOT_RELATED(HttpStatus.BAD_REQUEST, "COURSE400_21", "팔로우 관계인 사람만 초대할 수 있어요."),
 	COURSE_INVITEE_BLOCKED(HttpStatus.FORBIDDEN, "COURSE403_2", "차단 관계인 사람은 초대할 수 없어요."),
-	COURSE_MEMBER_INVITE_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_9", "받은 초대가 없어요.");
+	COURSE_MEMBER_INVITE_NOT_FOUND(HttpStatus.NOT_FOUND, "COURSE404_9", "받은 초대가 없어요."),
+	COURSE_MEMO_SEQ_INVALID(HttpStatus.BAD_REQUEST, "COURSE400_22", "메모 순서 값이 올바르지 않아요. 기기 시간을 확인해주세요.");
 
 	private final HttpStatus httpStatus;
 	private final String code;
