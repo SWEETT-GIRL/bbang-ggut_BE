@@ -96,6 +96,8 @@ class RewardDailyCommandServiceTest {
 
 		private void givenYesterday(Optional<MemberAttendanceDay> yesterday) {
 			given(attendanceDayRepository.findByMemberIdAndDay(MEMBER_ID, today.minusDays(1))).willReturn(yesterday);
+			lenient().when(attendanceDayRepository.findByMemberIdAndDay(MEMBER_ID, today.minusDays(2)))
+				.thenReturn(Optional.empty());
 		}
 
 		private void givenGranted(int amount) {
@@ -125,12 +127,32 @@ class RewardDailyCommandServiceTest {
 		}
 
 		@Test
-		@DisplayName("어제 안 했으면(하루라도 빠지면) 1 일째다")
+		@DisplayName("어제 안 했어도 그제 했으면 그제 칸에 이어진다 — 하루 유예")
+		void oneDayGrace() {
+			givenYesterday(Optional.empty());
+			MemberAttendanceDay dayBeforeYesterday = attended(3, 10);
+			given(attendanceDayRepository.findByMemberIdAndDay(MEMBER_ID, today.minusDays(2)))
+				.willReturn(Optional.of(dayBeforeYesterday));
+			givenGranted(5);
+
+			AttendanceResponse response = rewardDailyCommandService.checkIn(MEMBER_ID);
+
+			assertThat(response.boardDay()).isEqualTo(4);
+			assertThat(response.nextBoardDay()).isEqualTo(5);
+			assertThat(response.nextCrumbs()).isEqualTo(10);
+		}
+
+		@Test
+		@DisplayName("이틀 빠지면 1 일째다")
 		void broken() {
 			givenYesterday(Optional.empty());
 			givenGranted(5);
 
-			assertThat(rewardDailyCommandService.checkIn(MEMBER_ID).boardDay()).isEqualTo(1);
+			AttendanceResponse response = rewardDailyCommandService.checkIn(MEMBER_ID);
+
+			assertThat(response.boardDay()).isEqualTo(1);
+			assertThat(response.nextBoardDay()).isEqualTo(2);
+			assertThat(response.nextCrumbs()).isEqualTo(5);
 		}
 
 		@Test
@@ -150,7 +172,7 @@ class RewardDailyCommandServiceTest {
 
 			AttendanceResponse response = rewardDailyCommandService.checkIn(MEMBER_ID);
 
-			assertThat(response).isEqualTo(new AttendanceResponse(3, 10, true, List.of()));
+			assertThat(response).isEqualTo(new AttendanceResponse(3, 10, true, List.of(), 4, 5));
 			then(crumbGrantService).shouldHaveNoInteractions();
 		}
 
@@ -164,7 +186,7 @@ class RewardDailyCommandServiceTest {
 
 			AttendanceResponse response = rewardDailyCommandService.checkIn(MEMBER_ID);
 
-			assertThat(response).isEqualTo(new AttendanceResponse(1, 0, false, List.of()));
+			assertThat(response).isEqualTo(new AttendanceResponse(1, 0, false, List.of(), 2, 5));
 			then(attendanceDayRepository).should().updateCrumbs(MEMBER_ID, today, 0);
 		}
 

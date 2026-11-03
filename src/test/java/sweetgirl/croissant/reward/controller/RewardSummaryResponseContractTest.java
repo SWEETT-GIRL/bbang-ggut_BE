@@ -213,7 +213,7 @@ class RewardSummaryResponseContractTest extends ResponseContractWebMvcTest {
 	@Test
 	void attendance_keepsFieldsTheAppReads() throws Exception {
 		given(rewardDailyCommandService.checkIn(any())).willReturn(new AttendanceResponse(3, 10, false, List.of(
-			RewardItemResponse.crumbs(new GrantResult(Outcome.GRANTED, 10, 20, 30), CrumbReason.ATTENDANCE))));
+			RewardItemResponse.crumbs(new GrantResult(Outcome.GRANTED, 10, 20, 30), CrumbReason.ATTENDANCE)), 4, 5));
 
 		mockMvc.perform(post("/members/me/rewards/attendance"))
 			.andExpect(status().isOk())
