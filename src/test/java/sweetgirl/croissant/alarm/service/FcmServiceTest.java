@@ -281,17 +281,65 @@ class FcmServiceTest {
 	}
 
 	@Test
-	@DisplayName("sendPushNotification: THIRD_PARTY_AUTH_ERROR 에러 시 토큰을 비활성화하지 않는다")
-	void sendPushNotification_doesNotDeactivate_whenThirdPartyAuthError() throws FirebaseMessagingException {
+	@DisplayName("sendPushNotification: THIRD_PARTY_AUTH_ERROR 인데 그 회원의 다른 토큰이 살아 있으면 이 토큰만 비활성화한다")
+	void sendPushNotification_deactivatesStaleToken_whenThirdPartyAuthErrorAndMemberHasAnother()
+			throws FirebaseMessagingException {
+		Member member = mock(Member.class);
+		FcmToken devBuildToken = FcmToken.builder()
+			.member(member)
+			.deviceId("device-dev-build")
+			.deviceOs(DeviceOs.IOS)
+			.token("sandbox-token")
+			.build();
 		FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
 		given(exception.getMessagingErrorCode()).willReturn(MessagingErrorCode.THIRD_PARTY_AUTH_ERROR);
-
 		given(firebaseMessaging.send(any())).willThrow(exception);
+		given(fcmTokenRepository.findAllByTokenAndIsActiveTrue("sandbox-token")).willReturn(List.of(devBuildToken));
+		given(fcmTokenRepository.existsByMemberAndIsActiveTrueAndTokenNot(member, "sandbox-token")).willReturn(true);
+
+		FcmService.SendResult result = fcmService.sendPushNotification("sandbox-token", "제목", "내용", Map.of());
+
+		assertThat(result).isEqualTo(FcmService.SendResult.INVALID_TOKEN);
+		assertThat(devBuildToken.isActive()).isFalse();
+		verify(fcmTokenRepository).saveAll(List.of(devBuildToken));
+	}
+
+	@Test
+	@DisplayName("sendPushNotification: THIRD_PARTY_AUTH_ERROR 인데 그 회원의 유일한 토큰이면 비활성화하지 않고 예외를 던진다")
+	void sendPushNotification_doesNotDeactivate_whenThirdPartyAuthErrorAndOnlyToken()
+			throws FirebaseMessagingException {
+		Member member = mock(Member.class);
+		FcmToken onlyToken = FcmToken.builder()
+			.member(member)
+			.deviceId("device-only")
+			.deviceOs(DeviceOs.IOS)
+			.token("only-token")
+			.build();
+		FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
+		given(exception.getMessagingErrorCode()).willReturn(MessagingErrorCode.THIRD_PARTY_AUTH_ERROR);
+		given(firebaseMessaging.send(any())).willThrow(exception);
+		given(fcmTokenRepository.findAllByTokenAndIsActiveTrue("only-token")).willReturn(List.of(onlyToken));
+		given(fcmTokenRepository.existsByMemberAndIsActiveTrueAndTokenNot(member, "only-token")).willReturn(false);
+
+		assertThatThrownBy(() -> fcmService.sendPushNotification("only-token", "제목", "내용", Map.of()))
+			.isInstanceOf(AlarmException.class);
+
+		assertThat(onlyToken.isActive()).isTrue();
+		verify(fcmTokenRepository, never()).saveAll(any());
+	}
+
+	@Test
+	@DisplayName("sendPushNotification: THIRD_PARTY_AUTH_ERROR 인데 활성 행이 없으면 예외만 던진다")
+	void sendPushNotification_throws_whenThirdPartyAuthErrorAndNoActiveRow() throws FirebaseMessagingException {
+		FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
+		given(exception.getMessagingErrorCode()).willReturn(MessagingErrorCode.THIRD_PARTY_AUTH_ERROR);
+		given(firebaseMessaging.send(any())).willThrow(exception);
+		given(fcmTokenRepository.findAllByTokenAndIsActiveTrue("some-token")).willReturn(List.of());
 
 		assertThatThrownBy(() -> fcmService.sendPushNotification("some-token", "제목", "내용", Map.of()))
 			.isInstanceOf(AlarmException.class);
 
-		verify(fcmTokenRepository, never()).findAllByToken(any());
+		verify(fcmTokenRepository, never()).saveAll(any());
 	}
 
 	@Test
