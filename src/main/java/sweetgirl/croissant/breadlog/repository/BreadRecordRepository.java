@@ -297,6 +297,27 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			@Param("limit") int limit);
 
 	/**
+	 * 이 가게에 공개 빵로그를 남긴 일반 회원 — 최근 기록순. 보는 사람 본인은 뺀다(없으면 0 을 넘긴다).
+	 * 팔로우 중 · 차단은 부르는 쪽이 거른다. 기록 완료 화면의 "이 빵집 다녀간 사람" 팔로우 제안.
+	 */
+	@Query(value = """
+			SELECT r.member_id
+			FROM bread_record r
+			JOIN member m ON m.id = r.member_id AND m.deleted_at IS NULL AND m.member_type = 'USER'
+			WHERE r.store_id = :storeId AND r.is_public = true AND r.deleted_at IS NULL AND r.hidden_at IS NULL
+				AND r.member_id <> :viewerId
+				AND NOT EXISTS (SELECT 1 FROM member_restriction mr
+					WHERE mr.member_id = r.member_id AND mr.restriction_type = 'PROFILE_RESTRICTED'
+						AND mr.starts_at <= CURRENT_TIMESTAMP
+						AND (mr.ends_at IS NULL OR mr.ends_at > CURRENT_TIMESTAMP))
+			GROUP BY r.member_id
+			ORDER BY MAX(r.created_at) DESC
+			LIMIT :limit
+			""", nativeQuery = true)
+	List<Long> findPublicRecorderIdsByStore(@Param("storeId") Long storeId, @Param("viewerId") Long viewerId,
+			@Param("limit") int limit);
+
+	/**
 	 * 프로필의 공개 빵로그 — 최신순(먹은 날). 본인({@code includeHidden})은 숨긴 것도 본다.
 	 * 사진이 없어도 내린다(새 앱 화면).
 	 */

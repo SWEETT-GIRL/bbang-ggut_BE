@@ -18,8 +18,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import sweetgirl.croissant.common.util.MapBounds;
+import sweetgirl.croissant.follow.dto.response.FollowMemberResponse;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.global.response.SliceResponse;
+import sweetgirl.croissant.profile.service.StoreRecorderQueryService;
 import sweetgirl.croissant.store.dto.response.StoreAutocompleteResponse;
 import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
 import sweetgirl.croissant.store.dto.response.StoresInBoundsResponse;
@@ -48,6 +50,9 @@ class StoreControllerTest {
 	@Mock
 	private StoreInBoundsQueryService storeInBoundsQueryService;
 
+	@Mock
+	private StoreRecorderQueryService storeRecorderQueryService;
+
 	@InjectMocks
 	private StoreController storeController;
 
@@ -75,6 +80,17 @@ class StoreControllerTest {
 			.andExpect(jsonPath("$.data.content[0].id").value(102))
 			.andExpect(jsonPath("$.data.content[0].x").value("127.05"))
 			.andExpect(jsonPath("$.data.total").value(412));
+	}
+
+	@Test
+	void getRecorders_returnsPeopleWhoRecordedAtStore() throws Exception {
+		given(storeRecorderQueryService.recorders(isNull(), eq(10L), eq(3)))
+			.willReturn(List.of(new FollowMemberResponse(21L, "빵순이", false, false, null, null)));
+
+		mockMvc.perform(get("/stores/10/recorders").param("limit", "3"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data[0].memberId").value(21))
+			.andExpect(jsonPath("$.data[0].nickname").value("빵순이"));
 	}
 
 	@Test
