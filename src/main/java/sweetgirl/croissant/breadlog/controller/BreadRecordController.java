@@ -35,10 +35,12 @@ import sweetgirl.croissant.breadlog.dto.response.BreadRecordPresignedUrlResponse
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordSummaryResponse;
 import sweetgirl.croissant.breadlog.dto.response.BreadRecordUpdateResponse;
+import sweetgirl.croissant.breadlog.dto.response.NextStoreResponse;
 import sweetgirl.croissant.breadlog.service.BreadPhotoTagSuggestionService;
 import sweetgirl.croissant.breadlog.service.BreadRecordCommandService;
 import sweetgirl.croissant.breadlog.service.BreadRecordQueryService;
 import sweetgirl.croissant.breadlog.service.BreadRecordSummaryService;
+import sweetgirl.croissant.breadlog.service.NextStoreQueryService;
 import sweetgirl.croissant.global.response.ApiResponse;
 import sweetgirl.croissant.global.response.SliceResponse;
 
@@ -52,6 +54,7 @@ public class BreadRecordController {
 	private final BreadRecordCommandService commandService;
 	private final BreadRecordSummaryService summaryService;
 	private final BreadPhotoTagSuggestionService photoTagSuggestionService;
+	private final NextStoreQueryService nextStoreQueryService;
 
 	@Operation(summary = "내 빵 기록 목록 조회", description = "기간은 eatenAt 기준이며 from 이상, to 미만으로 조회합니다.")
 	@GetMapping
@@ -72,6 +75,18 @@ public class BreadRecordController {
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
 		return ResponseEntity.ok(ApiResponse.ok(summaryService.getSummary(memberId, from, to)));
+	}
+
+	@Operation(summary = "다음 빵집 제안", description = "기록 완료 화면의 다음 행동 — 담아 뒀는데 아직 기록 없는 가게 먼저, "
+		+ "모자라면 보낸 좌표 2km 안 공개 빵로그 많은 가게. 최대 3곳. storeId 는 방금 기록한 가게(뺀다).")
+	@GetMapping("/next-stores")
+	public ResponseEntity<ApiResponse<List<NextStoreResponse>>> getNextStores(
+			@AuthenticationPrincipal Long memberId,
+			@RequestParam(required = false) Long storeId,
+			@RequestParam(required = false) Double latitude,
+			@RequestParam(required = false) Double longitude) {
+		return ResponseEntity.ok(ApiResponse.ok(
+			nextStoreQueryService.nextStores(memberId, storeId, latitude, longitude)));
 	}
 
 	@Operation(summary = "빵 기록 생성")
