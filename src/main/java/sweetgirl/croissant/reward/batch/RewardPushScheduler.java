@@ -59,6 +59,20 @@ public class RewardPushScheduler {
 		}
 	}
 
+	/** 매일 저녁 7 시 — 2 · 3 일 전에 첫 기록을 남기고 두 번째가 없는 회원에게 "두 번째 빵로그". */
+	@Scheduled(cron = "0 0 19 * * *", zone = "Asia/Seoul")
+	@SchedulerLock(name = "RewardPushScheduler_secondRecordNudges", lockAtMostFor = "PT10M")
+	public void secondRecordNudges() {
+		if (!rewardLaunchService.isPushDue(RewardSettingKey.PUSH_RECORD_NUDGE, LocalDate.now(CrumbGrantService.ZONE))) {
+			return;
+		}
+		try {
+			rewardPushService.sendSecondRecordNudges(LocalDateTime.now(CrumbGrantService.ZONE));
+		} catch (RuntimeException exception) {
+			log.error("[리워드 푸시] 두 번째 빵로그 알림 실패 — 오늘은 보내지 않는다", exception);
+		}
+	}
+
 	/** 매일 아침 9 시 — 어제 가입하고 아직 출석 안 한 회원에게 룰렛. 출석 스위치를 따른다. */
 	@Scheduled(cron = "0 0 9 * * *", zone = "Asia/Seoul")
 	@SchedulerLock(name = "RewardPushScheduler_secondMorningRoulette", lockAtMostFor = "PT10M")

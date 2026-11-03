@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.breadlog.enums.RecordType;
+import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
 import sweetgirl.croissant.reward.enums.CrumbReason;
@@ -35,6 +37,8 @@ public class RecordRewardService {
 
 	/** 기록한 뒤 이 기간 안에 사진을 붙이면 사진 보너스를 준다. */
 	static final int PHOTO_BONUS_DAYS = 7;
+	/** 첫 기록 뒤 이 기간 안에 두 번째 기록을 남기면 보너스를 준다. 첫 주 기록 1 건은 0 건과 리텐션이 같고 2 건부터 남는다(11/3). */
+	static final int SECOND_RECORD_DAYS = 7;
 
 	private final CrumbGrantService crumbGrantService;
 	private final RewardPendingService rewardPendingService;
@@ -42,6 +46,7 @@ public class RecordRewardService {
 	private final CrumbLedgerRepository ledgerRepository;
 	private final WorldLevelReader worldLevelReader;
 	private final InviteService inviteService;
+	private final BreadRecordRepository breadRecordRepository;
 
 	/**
 	 * 새 기록의 보상.
@@ -131,6 +136,7 @@ public class RecordRewardService {
 
 		// 초대받은 회원의 첫 빵이면 초대가 성사된다
 		rewards.addAll(inviteService.rewardFirstRecord(member));
+		grantSecondRecordBonus(memberId, recordId, rewards);
 
 		if (heightAfter > heightBefore) {
 			addLevelUp(memberId, heightBefore, heightAfter, rewards);
@@ -158,6 +164,26 @@ public class RecordRewardService {
 		List<RewardItemResponse> rewards = new ArrayList<>();
 		grantPhotoBonus(member.getId(), recordId, rewards);
 		return rewards;
+	}
+
+	/**
+	 * 첫 주 두 번째 기록 보너스 — 체험이 아닌 기록이 이 기록으로 2 건이 되고, 첫 기록이 {@link #SECOND_RECORD_DAYS} 안이면 한 번.
+	 * 멱등 키가 회원 하나라 지우고 다시 써도 또 받지 않는다. 하루 상한과 무관하다 — 둘째 기록을 미루게 할 이유가 없다.
+	 */
+	private void grantSecondRecordBonus(Long memberId, Long recordId, List<RewardItemResponse> rewards) {
+		if (breadRecordRepository.countByMemberIdAndRecordTypeAndDeletedAtIsNull(memberId, RecordType.NORMAL) != 2) {
+			return;
+		}
+		LocalDateTime firstRecordedAt = breadRecordRepository.findFirstNonTutorialCreatedAt(memberId).orElse(null);
+		if (firstRecordedAt == null || firstRecordedAt.plusDays(SECOND_RECORD_DAYS).isBefore(LocalDateTime.now())) {
+			return;
+		}
+		GrantResult second = crumbGrantService.grant(
+			memberId, CrumbReason.RECORD_SECOND_WEEK, rewardSettings.get(RewardSettingKey.RECORD_SECOND_WEEK),
+			"record_second:" + memberId, RewardRefType.RECORD, recordId);
+		if (second.isGranted()) {
+			rewards.add(RewardItemResponse.crumbs(second, CrumbReason.RECORD_SECOND_WEEK));
+		}
 	}
 
 	private void grantPhotoBonus(Long memberId, Long recordId, List<RewardItemResponse> rewards) {

@@ -58,6 +58,14 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 	/** 종류를 가려 센다. 리워드는 체험(TUTORIAL) 기록을 세지 않는다. */
 	long countByMemberIdAndRecordTypeAndDeletedAtIsNull(Long memberId, RecordType recordType);
 
+	/** 체험이 아닌 기록 중 가장 먼저 저장한 때. 하나도 없으면 비어 있다. */
+	@Query("""
+			SELECT MIN(r.createdAt) FROM BreadRecord r
+			WHERE r.member.id = :memberId AND r.deletedAt IS NULL
+				AND r.recordType <> sweetgirl.croissant.breadlog.enums.RecordType.TUTORIAL
+			""")
+	Optional<LocalDateTime> findFirstNonTutorialCreatedAt(@Param("memberId") Long memberId);
+
 	@Modifying
 	@Query(value = """
 			UPDATE bread_record SET deleted_at = CURRENT_TIMESTAMP
@@ -114,7 +122,7 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			Pageable pageable);
 
 	// 가게 상세에 쌓이는 공개 기록 — 탈퇴한 작성자와 보는 사람이 차단한 작성자는 뺀다.
-	// 사진이 없는 기록은 공개로 저장했어도 남에게 내리지 않는다(옛 앱은 사진 없는 기록을 열면 꺼진다).
+	// 사진이 없어도 내린다(2.1.0 강제 업데이트 뒤 — 2.0.x 는 사진 없는 기록을 열면 꺼졌다).
 	@Query("""
 			SELECT record
 			FROM BreadRecord record
@@ -124,7 +132,6 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			AND record.deletedAt IS NULL
 			AND record.hiddenAt IS NULL
 			AND member.deletedAt IS NULL
-			AND EXISTS (SELECT 1 FROM BreadRecordPhoto photo WHERE photo.record.id = record.id)
 			AND (:viewerMemberId IS NULL OR NOT EXISTS (
 				SELECT 1 FROM MemberBlock mb
 				WHERE mb.blocker.id = :viewerMemberId
@@ -137,7 +144,7 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			@Param("viewerMemberId") Long viewerMemberId,
 			Pageable pageable);
 
-	/** 가게 공개 빵로그 전체 수 — 목록과 같은 조건(사진 1장 이상 · 숨김 제외 · 보는 사람이 차단한 작성자 제외). */
+	/** 가게 공개 빵로그 전체 수 — 목록과 같은 조건(숨김 제외 · 보는 사람이 차단한 작성자 제외). */
 	@Query("""
 			SELECT COUNT(record)
 			FROM BreadRecord record
@@ -147,7 +154,6 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			AND record.deletedAt IS NULL
 			AND record.hiddenAt IS NULL
 			AND member.deletedAt IS NULL
-			AND EXISTS (SELECT 1 FROM BreadRecordPhoto photo WHERE photo.record.id = record.id)
 			AND (:viewerMemberId IS NULL OR NOT EXISTS (
 				SELECT 1 FROM MemberBlock mb
 				WHERE mb.blocker.id = :viewerMemberId
@@ -170,7 +176,6 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 				WHERE deleted_at IS NULL AND hidden_at IS NULL GROUP BY record_id) c
 				ON c.record_id = r.id
 			WHERE r.store_id = :storeId AND r.is_public = true AND r.deleted_at IS NULL AND r.hidden_at IS NULL
-				AND EXISTS (SELECT 1 FROM bread_record_photo p WHERE p.record_id = r.id)
 				AND (CAST(:viewerMemberId AS BIGINT) IS NULL OR NOT EXISTS (
 					SELECT 1 FROM member_block mb
 					WHERE mb.blocker_id = CAST(:viewerMemberId AS BIGINT) AND mb.blocked_member_id = r.member_id))
@@ -289,6 +294,27 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			LIMIT :limit
 			""", nativeQuery = true)
 	List<Long> findRecentPublicRecorderIds(@Param("viewerId") Long viewerId, @Param("since") LocalDateTime since,
+			@Param("limit") int limit);
+
+	/**
+	 * 이 가게에 공개 빵로그를 남긴 일반 회원 — 최근 기록순. 보는 사람 본인은 뺀다(없으면 0 을 넘긴다).
+	 * 팔로우 중 · 차단은 부르는 쪽이 거른다. 기록 완료 화면의 "이 빵집 다녀간 사람" 팔로우 제안.
+	 */
+	@Query(value = """
+			SELECT r.member_id
+			FROM bread_record r
+			JOIN member m ON m.id = r.member_id AND m.deleted_at IS NULL AND m.member_type = 'USER'
+			WHERE r.store_id = :storeId AND r.is_public = true AND r.deleted_at IS NULL AND r.hidden_at IS NULL
+				AND r.member_id <> :viewerId
+				AND NOT EXISTS (SELECT 1 FROM member_restriction mr
+					WHERE mr.member_id = r.member_id AND mr.restriction_type = 'PROFILE_RESTRICTED'
+						AND mr.starts_at <= CURRENT_TIMESTAMP
+						AND (mr.ends_at IS NULL OR mr.ends_at > CURRENT_TIMESTAMP))
+			GROUP BY r.member_id
+			ORDER BY MAX(r.created_at) DESC
+			LIMIT :limit
+			""", nativeQuery = true)
+	List<Long> findPublicRecorderIdsByStore(@Param("storeId") Long storeId, @Param("viewerId") Long viewerId,
 			@Param("limit") int limit);
 
 	/**

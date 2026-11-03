@@ -53,6 +53,50 @@ public interface RewardPushTargetRepository extends Repository<MemberAttendanceD
 	List<AttendanceReminderTarget> findAttendanceReminderTargets(
 			@Param("yesterday") LocalDate yesterday, @Param("today") LocalDate today);
 
+	/**
+	 * 그제 출석했는데 어제도 오늘도 안 한 회원과, 그제 찍은 칸(게스트 · 탈퇴 제외). 하루 유예 안이라 오늘 오면 그제 칸에 이어진다.
+	 * 이틀 빠진 회원은 끊긴 것이라 부르지 않는다.
+	 */
+	@Query(value = """
+			SELECT lapsed.member_id AS memberId, lapsed.board_day AS boardDay
+			FROM member_attendance_days lapsed
+			JOIN member ON member.id = lapsed.member_id
+			WHERE lapsed.attended_on = :dayBeforeYesterday
+				AND member.deleted_at IS NULL
+				AND member.member_type <> 'GUEST'
+				AND NOT EXISTS (
+					SELECT 1 FROM member_attendance_days since
+					WHERE since.member_id = lapsed.member_id AND since.attended_on IN (:yesterday, :today))
+			ORDER BY lapsed.member_id
+			""", nativeQuery = true)
+	List<AttendanceReminderTarget> findLapsedAttendanceTargets(
+			@Param("dayBeforeYesterday") LocalDate dayBeforeYesterday, @Param("yesterday") LocalDate yesterday,
+			@Param("today") LocalDate today);
+
+	/**
+	 * 체험이 아닌 기록이 정확히 한 건이고 그 기록을 {@code from} 이상 {@code to} 미만에 남긴 일반 회원(탈퇴 제외).
+	 * 2 · 3 일 전에 첫 기록을 남기고 두 번째가 없는 사람을 저녁에 부른다.
+	 */
+	@Query(value = """
+			SELECT r.member_id AS memberId, MIN(r.store_name) AS storeName
+			FROM bread_record r
+			JOIN member m ON m.id = r.member_id AND m.deleted_at IS NULL AND m.member_type = 'USER'
+			WHERE r.deleted_at IS NULL AND r.record_type = 'NORMAL'
+			GROUP BY r.member_id
+			HAVING COUNT(*) = 1 AND MIN(r.created_at) >= :from AND MIN(r.created_at) < :to
+			ORDER BY r.member_id
+			""", nativeQuery = true)
+	List<SecondRecordTarget> findSecondRecordNudgeTargets(@Param("from") LocalDateTime from,
+			@Param("to") LocalDateTime to);
+
+	/** 첫 기록 하나뿐인 회원과 그 기록의 가게 이름(가게를 안 골랐으면 비어 있을 수 있다). */
+	interface SecondRecordTarget {
+
+		Long getMemberId();
+
+		String getStoreName();
+	}
+
 	interface AttendanceReminderTarget {
 
 		Long getMemberId();

@@ -20,6 +20,8 @@ public enum RewardSettingKey {
 	RECORD("record", 10),
 	RECORD_PHOTO("record.photo", 5),
 	RECORD_DAILY_CAP("record.daily-cap", 3),
+	/** 첫 주 두 번째 기록 보너스 — 튜토리얼 아닌 기록이 2 건이 되는 순간, 첫 기록이 7 일 안이면 한 번 */
+	RECORD_SECOND_WEEK("record.second-week", 20),
 	ATTENDANCE_DAY1("attendance.day1", 5),
 	ATTENDANCE_DAY2("attendance.day2", 5),
 	ATTENDANCE_DAY3("attendance.day3", 10),
@@ -71,6 +73,8 @@ public enum RewardSettingKey {
 	PUSH_ATTENDANCE("push.attendance", 0),
 	/** 빵투어 전날 저녁 푸시를 보내는가(1 = 켬). 2.0 전 앱은 알림함에서 이 타입을 '찜'으로 그려 2.0 뒤에 켠다 */
 	PUSH_COURSE_TOMORROW("push.course-tomorrow", 0),
+	/** 기록이 1 건뿐인 회원에게 2 · 3 일 뒤 저녁 "두 번째 빵로그" 푸시를 보내는가(1 = 켬) */
+	PUSH_RECORD_NUDGE("push.record-nudge", 0),
 	/** 출시 시각에서 이만큼 지나면 위 푸시들이 스위치와 무관하게 켜진다(일). 0 이면 스위치로만 켠다 */
 	PUSH_AUTO_AFTER_DAYS("push.auto-after-days", 7);
 

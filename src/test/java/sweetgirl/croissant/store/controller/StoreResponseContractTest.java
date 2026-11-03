@@ -15,6 +15,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import sweetgirl.croissant.global.contract.ResponseContractWebMvcTest;
 import sweetgirl.croissant.global.dto.ImageResponse;
 import sweetgirl.croissant.global.response.SliceResponse;
+import sweetgirl.croissant.profile.service.StoreRecorderQueryService;
 import sweetgirl.croissant.store.dto.response.StoreAutocompleteResponse;
 import sweetgirl.croissant.store.dto.response.StoreDetailResponse;
 import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
@@ -43,6 +44,9 @@ class StoreResponseContractTest extends ResponseContractWebMvcTest {
 
 	@MockitoBean
 	private StoreInBoundsQueryService storeInBoundsQueryService;
+
+	@MockitoBean
+	private StoreRecorderQueryService storeRecorderQueryService;
 
 	@Test
 	void popular_keepsFieldsTheAppReads() throws Exception {

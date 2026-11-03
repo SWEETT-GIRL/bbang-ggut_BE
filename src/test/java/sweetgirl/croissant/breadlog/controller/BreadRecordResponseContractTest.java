@@ -30,6 +30,7 @@ import sweetgirl.croissant.breadlog.service.BreadPhotoTagSuggestionService;
 import sweetgirl.croissant.breadlog.service.BreadRecordCommandService;
 import sweetgirl.croissant.breadlog.service.BreadRecordQueryService;
 import sweetgirl.croissant.breadlog.service.BreadRecordSummaryService;
+import sweetgirl.croissant.breadlog.service.NextStoreQueryService;
 import sweetgirl.croissant.global.contract.ResponseContractWebMvcTest;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
@@ -57,6 +58,9 @@ class BreadRecordResponseContractTest extends ResponseContractWebMvcTest {
 
 	@MockitoBean
 	private BreadPhotoTagSuggestionService photoTagSuggestionService;
+
+	@MockitoBean
+	private NextStoreQueryService nextStoreQueryService;
 
 	@Test
 	void records_keepsFieldsTheAppReads() throws Exception {

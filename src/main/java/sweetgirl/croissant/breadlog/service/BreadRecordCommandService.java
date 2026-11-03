@@ -35,6 +35,7 @@ import sweetgirl.croissant.breadlog.dto.response.BreadRecordUpdateResponse;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.entity.BreadRecordPhoto;
 import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
+import sweetgirl.croissant.breadlog.enums.RecordType;
 import sweetgirl.croissant.breadlog.exception.BreadLogException;
 import sweetgirl.croissant.breadlog.repository.BreadRecordPhotoRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
@@ -76,6 +77,8 @@ import sweetgirl.croissant.world.repository.MemberWorldRepository;
 @RequiredArgsConstructor
 @Transactional
 public class BreadRecordCommandService {
+	/** 게스트가 남길 수 있는 체험 아닌 기록 수. 그 다음은 로그인 게이트. */
+	static final int GUEST_RECORD_CAP = 1;
 
 	private final S3Service s3Service;
 	private final MemberReader memberReader;
@@ -129,7 +132,10 @@ public class BreadRecordCommandService {
 
 	private BreadRecordCreateResponse create(Long memberId, BreadRecordUpsertRequest request, TourStop tourStop) {
 		Member member = memberReader.getMember(memberId);
-		memberRestrictionReader.validateCanWrite(memberId);
+		// 공개로 저장하는 것도 공개 전환과 같은 문을 지난다 — 게스트 금지 · 규칙 동의(강제 업데이트 뒤) · 후기 금칙어 · 팔로워 알림
+		boolean publishing = Boolean.TRUE.equals(request.isPublic());
+		memberRestrictionReader.validateCanWriteRecord(memberId, publishing);
+		validateGuestRecordCap(member);
 		if (request.requestId() != null) {
 			// 같은 요청이 나란히 들어와도 한쪽이 끝난 뒤에 찾도록 회원 행을 잠근다(삭제·로그인 이관과 같은 잠금).
 			memberRepository.findActiveForUpdate(memberId)
@@ -144,8 +150,6 @@ public class BreadRecordCommandService {
 			}
 		}
 		ValidatedRecordData data = validate(memberId, request);
-		// 공개로 저장하는 것도 공개 전환과 같은 문을 지난다 — 규칙 동의(강제 업데이트 뒤) · 후기 금칙어 · 팔로워 알림
-		boolean publishing = Boolean.TRUE.equals(request.isPublic());
 		if (publishing) {
 			validatePublishable(memberId, normalizeNullable(request.memo()));
 		}
@@ -199,6 +203,17 @@ public class BreadRecordCommandService {
 	}
 
 	/**
+	 * 게스트는 체험이 아닌 기록을 {@link #GUEST_RECORD_CAP} 건까지만 남긴다. 그 다음은 로그인 게이트(403 {@code MEMBER403_GUEST}).
+	 * 로그인하면 게스트의 기록은 그 회원에게 이관된다({@code GuestDataMigrationService}).
+	 */
+	private void validateGuestRecordCap(Member member) {
+		if (member.isGuest() && breadRecordRepository.countByMemberIdAndRecordTypeAndDeletedAtIsNull(
+			member.getId(), RecordType.NORMAL) >= GUEST_RECORD_CAP) {
+			throw new MemberException(MemberErrorCode.GUEST_LOGIN_REQUIRED);
+		}
+	}
+
+	/**
 	 * 연속 기록의 앞 기록 — 내 기록이고, 지우지 않았고, 저장한 지 {@link RecordRewardService#CHAIN_WINDOW} 안일 때만 인정한다.
 	 * 아니면 null — 기록은 그대로 저장되고 보상만 평소대로다(완료 화면을 오래 열어 뒀다 눌러도 실패시키지 않는다).
 	 */
@@ -216,13 +231,14 @@ public class BreadRecordCommandService {
 
 	public BreadRecordUpdateResponse replace(Long recordId, Long memberId, BreadRecordUpsertRequest request) {
 		Member member = memberReader.getMember(memberId);
-		memberRestrictionReader.validateCanWrite(memberId);
 		BreadRecord record = getOwnedRecord(recordId, member.getId());
+		boolean becamePublic = Boolean.TRUE.equals(request.isPublic()) && !record.isPublic();
+		// 게스트도 제 비공개 기록은 고친다. 공개로 돌리는 고치기만 게스트 금지를 지난다
+		memberRestrictionReader.validateCanWriteRecord(memberId, becamePublic);
 		if (record.isTutorial()) {
 			throw new BreadLogException(BreadLogErrorCode.TUTORIAL_EDIT_RESTRICTED);
 		}
 		ValidatedRecordData data = validate(memberId, request);
-		boolean becamePublic = Boolean.TRUE.equals(request.isPublic()) && !record.isPublic();
 		if (becamePublic) {
 			validatePublishable(memberId, normalizeNullable(request.memo()));
 		}
