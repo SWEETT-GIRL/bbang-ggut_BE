@@ -9,6 +9,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,10 +24,12 @@ import sweetgirl.croissant.alarm.service.NotificationRecorder;
 import sweetgirl.croissant.common.Particles;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
-import sweetgirl.croissant.reward.enums.RewardSettingKey;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.AttendanceReminderTarget;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.MemberFriend;
+import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.SecondRecordTarget;
+import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.repository.SavedStoreRepository;
 import sweetgirl.croissant.world.dto.response.WorldCharacterResponse;
 import sweetgirl.croissant.world.service.WorldCatalogService;
 
@@ -56,8 +59,13 @@ public class RewardPushService {
 	static final String LAPSED_BODY_SUFFIX = " 그대로";
 	static final long RECORD_NUDGE_LOCK_KEY = 7_260_104L;
 	static final String RECORD_NUDGE_TITLE = "두 번째 빵로그 어때요?";
-	static final String RECORD_NUDGE_BODY_PREFIX = "지금 남기면 +";
-	static final String RECORD_NUDGE_BODY_SUFFIX = " 부스러기";
+	/** 담아 둔 가게가 있으면 그 이름으로, 없으면 첫 기록의 가게 이름으로 부른다 — 보상 액수가 아니라 빵집 하나를 쥐여 준다. */
+	static final String RECORD_NUDGE_SAVED_PREFIX = "담아 둔 ";
+	static final String RECORD_NUDGE_SAVED_SUFFIX = ", 다녀왔으면 남겨 봐요";
+	static final String RECORD_NUDGE_NEXT_SUFFIX = " 다음 빵집도 남겨 봐요";
+	static final String RECORD_NUDGE_PLAIN_BODY = "다음 빵집도 남겨 봐요";
+	/** 뺄 가게가 없을 때 담은 가게 조회에 넘기는 값. */
+	static final long NO_STORE = -1L;
 	/** 첫 기록 뒤 이 날짜 범위(일)에 있는 회원을 부른다 — 2 일 전과 3 일 전. */
 	static final int RECORD_NUDGE_FROM_DAYS = 3;
 	static final int RECORD_NUDGE_TO_DAYS = 1;
@@ -82,6 +90,7 @@ public class RewardPushService {
 	private final ApplicationEventPublisher eventPublisher;
 	private final RewardSettings rewardSettings;
 	private final WorldCatalogService worldCatalogService;
+	private final SavedStoreRepository savedStoreRepository;
 
 	/**
 	 * 이번 주 편지를 아직 안 연 회원에게 도착을 알린다. 월요일 오전에 부른다.
@@ -197,14 +206,32 @@ public class RewardPushService {
 				NotificationType.RECORD_NUDGE, today.atStartOfDay())) {
 			return -1;
 		}
-		List<Long> memberIds = targetRepository.findSecondRecordNudgeTargets(
+		Map<String, List<Long>> memberIdsByBody = new TreeMap<>();
+		for (SecondRecordTarget target : targetRepository.findSecondRecordNudgeTargets(
 			today.minusDays(RECORD_NUDGE_FROM_DAYS).atStartOfDay(),
-			today.minusDays(RECORD_NUDGE_TO_DAYS).atStartOfDay());
-		String body = RECORD_NUDGE_BODY_PREFIX + rewardSettings.get(RewardSettingKey.RECORD_SECOND_WEEK)
-			+ RECORD_NUDGE_BODY_SUFFIX;
-		return push(Notification.announcement(
-			NotificationType.RECORD_NUDGE, NotificationChannel.PUSH, RECORD_NUDGE_TITLE, body, RECORD_NUDGE_LINK),
-			memberIds, now);
+			today.minusDays(RECORD_NUDGE_TO_DAYS).atStartOfDay())) {
+			memberIdsByBody.computeIfAbsent(nudgeBodyOf(target), body -> new ArrayList<>()).add(target.getMemberId());
+		}
+		int notified = 0;
+		for (Map.Entry<String, List<Long>> group : memberIdsByBody.entrySet()) {
+			notified += push(Notification.announcement(
+				NotificationType.RECORD_NUDGE, NotificationChannel.PUSH, RECORD_NUDGE_TITLE, group.getKey(),
+				RECORD_NUDGE_LINK), group.getValue(), now);
+		}
+		return notified;
+	}
+
+	/** 담아 뒀는데 아직 기록 없는 가게가 있으면 그 가게, 없으면 첫 기록의 가게 이름, 그것도 없으면 가게 없이. */
+	private String nudgeBodyOf(SecondRecordTarget target) {
+		List<Store> saved = savedStoreRepository.findUnrecordedActiveStores(
+			target.getMemberId(), NO_STORE, PageRequest.of(0, 1));
+		if (!saved.isEmpty()) {
+			return RECORD_NUDGE_SAVED_PREFIX + saved.get(0).getName() + RECORD_NUDGE_SAVED_SUFFIX;
+		}
+		if (target.getStoreName() == null || target.getStoreName().isBlank()) {
+			return RECORD_NUDGE_PLAIN_BODY;
+		}
+		return target.getStoreName() + RECORD_NUDGE_NEXT_SUFFIX;
 	}
 
 	/**

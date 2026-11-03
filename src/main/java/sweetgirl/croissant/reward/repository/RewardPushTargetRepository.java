@@ -78,7 +78,7 @@ public interface RewardPushTargetRepository extends Repository<MemberAttendanceD
 	 * 2 · 3 일 전에 첫 기록을 남기고 두 번째가 없는 사람을 저녁에 부른다.
 	 */
 	@Query(value = """
-			SELECT r.member_id
+			SELECT r.member_id AS memberId, MIN(r.store_name) AS storeName
 			FROM bread_record r
 			JOIN member m ON m.id = r.member_id AND m.deleted_at IS NULL AND m.member_type = 'USER'
 			WHERE r.deleted_at IS NULL AND r.record_type = 'NORMAL'
@@ -86,7 +86,16 @@ public interface RewardPushTargetRepository extends Repository<MemberAttendanceD
 			HAVING COUNT(*) = 1 AND MIN(r.created_at) >= :from AND MIN(r.created_at) < :to
 			ORDER BY r.member_id
 			""", nativeQuery = true)
-	List<Long> findSecondRecordNudgeTargets(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+	List<SecondRecordTarget> findSecondRecordNudgeTargets(@Param("from") LocalDateTime from,
+			@Param("to") LocalDateTime to);
+
+	/** 첫 기록 하나뿐인 회원과 그 기록의 가게 이름(가게를 안 골랐으면 비어 있을 수 있다). */
+	interface SecondRecordTarget {
+
+		Long getMemberId();
+
+		String getStoreName();
+	}
 
 	interface AttendanceReminderTarget {
 
