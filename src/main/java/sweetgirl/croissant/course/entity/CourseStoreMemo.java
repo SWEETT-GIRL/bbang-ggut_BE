@@ -51,18 +51,53 @@ public class CourseStoreMemo extends BaseTimeEntity {
 	@Column(nullable = false, length = CONTENT_MAX_LENGTH)
 	private String content;
 
-	/** 가게 뺄 때 · 나가기 · 탈퇴. */
+	/**
+	 * 순서 기준. 앱이 (정류장 × 회원) 필드마다 만드는 하이브리드 논리 시계 — 초안 버퍼에서 오는 글과 PATCH 로 바로 오는 글을
+	 * 같은 자로 비교한다. 0 은 seq 를 모르던 옛 행: 어떤 새 seq 보다 작아 다음 글이 그대로 반영된다.
+	 */
+	@Column(nullable = false)
+	private long seq;
+
+	/** 가게 뺄 때 · 나가기 · 탈퇴 · 빈 내용으로 지우기. */
 	private LocalDateTime deletedAt;
 
-	private CourseStoreMemo(CourseStore courseStore, Member member, String content) {
+	private CourseStoreMemo(CourseStore courseStore, Member member, String content, long seq) {
 		this.id = new CourseStoreMemoId(courseStore.getId(), member.getId());
 		this.courseStore = courseStore;
 		this.member = member;
 		this.content = content;
+		this.seq = seq;
 	}
 
 	public static CourseStoreMemo of(CourseStore courseStore, Member member, String content) {
-		return new CourseStoreMemo(courseStore, member, content);
+		return new CourseStoreMemo(courseStore, member, content, 0L);
+	}
+
+	public static CourseStoreMemo of(CourseStore courseStore, Member member, String content, long seq) {
+		return new CourseStoreMemo(courseStore, member, content, seq);
+	}
+
+	/**
+	 * 더 새로운 글만 반영한다 — 초안 플러시와 PATCH 가 함께 쓰는 쓰기 경로.
+	 * 빈 내용은 지우기, 지워진 행에 글이 오면 되살리기. seq 가 작거나 같으면 아무것도 바꾸지 않는다.
+	 * 지운 뒤에도 seq 는 남으므로, 뒤늦게 도착한 옛 글이 지운 메모를 되살리지 못한다.
+	 *
+	 * @return 반영했으면 true
+	 */
+	public boolean applyIfNewer(String content, long seq) {
+		if (seq <= this.seq) {
+			return false;
+		}
+		this.seq = seq;
+		if (content == null || content.isBlank()) {
+			if (!isDeleted()) {
+				softDelete();
+			}
+			return true;
+		}
+		this.content = content;
+		this.deletedAt = null;
+		return true;
 	}
 
 	public void updateContent(String content) {
