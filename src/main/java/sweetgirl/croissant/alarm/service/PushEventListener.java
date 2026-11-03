@@ -47,6 +47,7 @@ public class PushEventListener {
 	private final NotificationRecipientRepository recipientRepository;
 	private final MemberRepository memberRepository;
 	private final PushDispatcher pushDispatcher;
+	private final PushBatchService pushBatchService;
 
 	// AFTER_COMMIT 시점에는 붙을 트랜잭션이 이미 끝나 있다. REQUIRES_NEW 로 새로 연다 --
 	// 기본 전파를 쓰면 스프링이 아예 기동을 막는다(조용히 트랜잭션 없이 도는 것보다 낫다).
@@ -83,6 +84,11 @@ public class PushEventListener {
 		Member member = memberRepository.findByIdAndDeletedAtIsNull(memberId).orElse(null);
 		if (member == null) {
 			log.info("푸시 skip — 받을 사람이 사라졌다 [memberId={}]", memberId);
+			return;
+		}
+		// 팔로잉 새 빵로그 · 좋아요는 바로 울리지 않고 모은다 — 한 사람이 연달아 올려도 폰은 한 번만 울리게
+		if (notification.getType().isBatched()) {
+			pushBatchService.enqueue(notification, memberId, LocalDateTime.now());
 			return;
 		}
 		pushDispatcher.dispatch(notification, member, LocalDateTime.now());

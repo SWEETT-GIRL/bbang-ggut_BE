@@ -18,6 +18,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.alarm.entity.Notification;
 import sweetgirl.croissant.alarm.enums.NotificationChannel;
+import sweetgirl.croissant.alarm.enums.NotificationTargetType;
 import sweetgirl.croissant.alarm.enums.NotificationType;
 import sweetgirl.croissant.alarm.event.PushRequestedEvent;
 import sweetgirl.croissant.alarm.repository.NotificationRecipientRepository;
@@ -39,6 +40,8 @@ class PushEventListenerTest {
 	private MemberRepository memberRepository;
 	@Mock
 	private PushDispatcher pushDispatcher;
+	@Mock
+	private PushBatchService pushBatchService;
 
 	@InjectMocks
 	private PushEventListener pushEventListener;
@@ -76,6 +79,24 @@ class PushEventListenerTest {
 
 		pushEventListener.handle(PushRequestedEvent.to(NOTIFICATION_ID, MEMBER_ID));
 
+		verify(pushDispatcher, never()).dispatch(any(), any(), any());
+	}
+
+	@Test
+	@DisplayName("팔로잉 새 빵로그처럼 모아서 울리는 종류는 바로 쏘지 않고 대기열에 넣는다")
+	void handle_batchedType_enqueues() {
+		Member member = member();
+		Member actor = Member.builder().nickname("보낸 사람").build();
+		ReflectionTestUtils.setField(actor, "id", 7L);
+		Notification notification = Notification.communityActivity(NotificationType.FOLLOWING_NEW_RECORD, actor,
+			NotificationTargetType.RECORD, 10L, "밀도", "제목", "밀도", "/bbanglog/post/10");
+		ReflectionTestUtils.setField(notification, "id", NOTIFICATION_ID);
+		given(notificationRepository.findById(NOTIFICATION_ID)).willReturn(Optional.of(notification));
+		given(memberRepository.findByIdAndDeletedAtIsNull(MEMBER_ID)).willReturn(Optional.of(member));
+
+		pushEventListener.handle(PushRequestedEvent.to(NOTIFICATION_ID, MEMBER_ID));
+
+		verify(pushBatchService).enqueue(eq(notification), eq(MEMBER_ID), any());
 		verify(pushDispatcher, never()).dispatch(any(), any(), any());
 	}
 
