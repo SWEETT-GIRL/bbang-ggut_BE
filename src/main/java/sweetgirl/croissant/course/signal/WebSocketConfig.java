@@ -78,6 +78,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 		RedisMessageListenerContainer container = new RedisMessageListenerContainer();
 		container.setConnectionFactory(redis.connectionFactory());
 		container.addMessageListener(relay, new ChannelTopic(CourseSignalPublisher.CHANNEL));
+		// 기동 시점에 Redis 에 못 붙어도 앱이 떠야 한다 — CourseSignalSubscriptionStarter 가 재시도하며 시작한다
+		container.setAutoStartup(false);
 		return container;
 	}
 }
