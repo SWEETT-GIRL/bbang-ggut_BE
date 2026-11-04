@@ -82,7 +82,11 @@ public class CourseDraftProperties {
 		/** SENTINEL 모드: {@code host:port} 목록. */
 		private List<String> sentinelNodes = List.of();
 
-		private Duration commandTimeout = Duration.ofMillis(200);
+		/**
+		 * 200ms 였는데 2vCPU dev 박스에서 320명 부하 때 Redis command timed out 이 1초에 수십 건 났다(2026-11-04).
+		 * 쓰기는 Lua 한 번이라 1초면 넉넉하고, 넘기면 503 → 앱이 PATCH 로 물러난다.
+		 */
+		private Duration commandTimeout = Duration.ofSeconds(1);
 
 		private Duration connectTimeout = Duration.ofMillis(500);
 	}
