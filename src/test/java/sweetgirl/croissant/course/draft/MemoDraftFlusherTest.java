@@ -34,6 +34,8 @@ class MemoDraftFlusherTest {
 	private MemoDraftBuffer buffer;
 	@Mock
 	private MemoDraftApplier applier;
+	@Mock
+	private MemoDraftMetrics metrics;
 
 	private CourseDraftProperties properties;
 	private MemoDraftFlusher flusher;
@@ -43,7 +45,7 @@ class MemoDraftFlusherTest {
 		properties = new CourseDraftProperties();
 		properties.setQuietWindow(QUIET);
 		properties.setRetryDelay(RETRY);
-		flusher = new MemoDraftFlusher(properties, buffer, applier);
+		flusher = new MemoDraftFlusher(properties, buffer, applier, metrics);
 	}
 
 	@Test
@@ -68,6 +70,7 @@ class MemoDraftFlusherTest {
 
 		then(buffer).should().reclaimExpired(anyLong());
 		then(buffer).should().release(eq(COURSE_ID), eq(Map.of(FIELD, 5L)), anyLong(), eq(QUIET));
+		then(metrics).should().recordFlush(eq(entries), anyLong());
 	}
 
 	@Test

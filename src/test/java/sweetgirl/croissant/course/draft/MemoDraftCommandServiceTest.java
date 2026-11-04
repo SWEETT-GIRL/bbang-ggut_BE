@@ -51,6 +51,8 @@ class MemoDraftCommandServiceTest {
 	private MemoDraftBuffer buffer;
 	@Mock
 	private ApplicationEventPublisher eventPublisher;
+	@Mock
+	private MemoDraftMetrics metrics;
 
 	@InjectMocks
 	private MemoDraftCommandService memoDraftCommandService;

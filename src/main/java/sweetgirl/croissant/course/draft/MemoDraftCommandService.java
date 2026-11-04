@@ -32,6 +32,7 @@ public class MemoDraftCommandService {
 	private final MemoDraftAccessCache accessCache;
 	private final MemoDraftBuffer buffer;
 	private final ApplicationEventPublisher eventPublisher;
+	private final MemoDraftMetrics metrics;
 
 	/**
 	 * @return 받아들여진 seq. 옛 seq 였으면 Redis 의 현재 seq — 앱은 자기 시계를 그 위로 올린다
@@ -62,6 +63,7 @@ public class MemoDraftCommandService {
 				exception.toString());
 			throw new CourseException(CourseErrorCode.COURSE_DRAFT_UNAVAILABLE);
 		}
+		metrics.recordWrite(accepted == seq);
 		if (accepted == seq) {
 			eventPublisher.publishEvent(new MemoDraftWrittenEvent(courseId, storeId, memberId, content, seq));
 		}

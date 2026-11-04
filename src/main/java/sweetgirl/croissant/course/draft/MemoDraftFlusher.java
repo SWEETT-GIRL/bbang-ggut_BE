@@ -32,15 +32,18 @@ public class MemoDraftFlusher implements SmartLifecycle {
 	private final CourseDraftProperties properties;
 	private final MemoDraftBuffer buffer;
 	private final MemoDraftApplier applier;
+	private final MemoDraftMetrics metrics;
 
 	private ThreadPoolTaskScheduler scheduler;
 	private volatile boolean running;
 	private volatile boolean stopping;
 
-	public MemoDraftFlusher(CourseDraftProperties properties, MemoDraftBuffer buffer, MemoDraftApplier applier) {
+	public MemoDraftFlusher(CourseDraftProperties properties, MemoDraftBuffer buffer, MemoDraftApplier applier,
+			MemoDraftMetrics metrics) {
 		this.properties = properties;
 		this.buffer = buffer;
 		this.applier = applier;
+		this.metrics = metrics;
 	}
 
 	@Override
@@ -80,6 +83,7 @@ public class MemoDraftFlusher implements SmartLifecycle {
 		try {
 			long reclaimed = buffer.reclaimExpired(now);
 			if (reclaimed > 0) {
+				metrics.recordReclaimed(reclaimed);
 				log.warn("[메모 초안] 임대가 만료된 코스 {}건을 되돌렸다 — 플러셔가 죽었거나 반영이 {}를 넘겼다", reclaimed,
 					properties.getLease());
 			}
@@ -109,7 +113,9 @@ public class MemoDraftFlusher implements SmartLifecycle {
 			buffer.release(courseId, Map.of(), System.currentTimeMillis(), properties.getRetryDelay());
 			return;
 		}
-		long remaining = buffer.release(courseId, handled, System.currentTimeMillis(), properties.getQuietWindow());
+		long flushedAt = System.currentTimeMillis();
+		metrics.recordFlush(entries, flushedAt);
+		long remaining = buffer.release(courseId, handled, flushedAt, properties.getQuietWindow());
 		log.debug("[메모 초안] 반영 courseId={} applied={} remaining={}", courseId, handled.size(), remaining);
 	}
 }
