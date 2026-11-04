@@ -140,6 +140,17 @@ class MemoDraftQueryServiceTest {
 	}
 
 	@Test
+	@DisplayName("DB(커넥션 풀)가 바쁘면 503 — 앱은 초안 없이 그리고 폴링으로 메운다")
+	void getDrafts_dbFailure_unavailable() {
+		given(courseRepository.findByIdAndDeletedAtIsNull(COURSE_ID))
+			.willThrow(new org.springframework.transaction.CannotCreateTransactionException("pool exhausted"));
+
+		assertThatThrownBy(() -> memoDraftQueryService.getDrafts(ME, COURSE_ID))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_DRAFT_UNAVAILABLE.getMessage());
+	}
+
+	@Test
 	@DisplayName("없는 코스는 404")
 	void getDrafts_courseNotFound() {
 		given(courseRepository.findByIdAndDeletedAtIsNull(COURSE_ID)).willReturn(Optional.empty());
