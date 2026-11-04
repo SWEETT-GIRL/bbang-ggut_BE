@@ -4,7 +4,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
@@ -18,7 +18,7 @@ import sweetgirl.croissant.course.draft.CourseDraftConfig;
  * <p>세션은 한 인스턴스에만 붙으므로 인스턴스 메모리로 충분하다. 나가기·삭제는 REVOKE 신호로 모든 인스턴스에 돌아 각자 자기 명단에서 뺀다.
  */
 @Component
-@ConditionalOnProperty(name = CourseDraftConfig.REDIS_MODE_PROPERTY)
+@ConditionalOnExpression(CourseDraftConfig.REDIS_CONFIGURED)
 public class CourseSubscriptionRegistry {
 
 	public record Subscriber(String sessionId, Long memberId) {

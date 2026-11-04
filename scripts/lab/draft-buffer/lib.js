@@ -5,6 +5,7 @@
  * tokens.csv:  memberId,token                              (scripts/perf/generate-tokens.mjs)
  */
 import {SharedArray} from 'k6/data';
+import exec from 'k6/execution';
 
 export const baseUrl = __ENV.BASE_URL || 'http://localhost:8080';
 if (baseUrl.includes('bbang-ggut.cloud') || (baseUrl.includes('bbang-ggut.site') && __ENV.ALLOW_STAGING !== 'true')) {
@@ -68,4 +69,28 @@ export function rampStages() {
 
 export function memoText(prefix) {
   return `${prefix} ${Date.now()} ${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** 지금 램프업의 몇 번째 단계인가. 요청에 {stage} 태그로 붙여 단계별 p95 를 요약에서 본다. */
+export function currentStage() {
+  const elapsedMs = Date.now() - exec.scenario.startTime;
+  let acc = 0;
+  const stages = rampStages();
+  for (let i = 0; i < stages.length; i++) {
+    acc += Number(stages[i].duration.replace('s', '')) * 1000;
+    if (elapsedMs < acc) {
+      return `${i + 1}:${stages[i].target}`;
+    }
+  }
+  return `${stages.length}:${stages[stages.length - 1].target}`;
+}
+
+/** 단계별 p95·에러율 문턱 — 깨지는 단계가 요약에 ✗ 로 드러난다. */
+export function stageThresholds() {
+  const thresholds = {memo_save_duration: ['p(95)<500'], memo_save_failed: ['rate<0.01']};
+  rampStages().forEach((stage, i) => {
+    thresholds[`memo_save_duration{stage:${i + 1}:${stage.target}}`] = ['p(95)<500'];
+    thresholds[`memo_save_failed{stage:${i + 1}:${stage.target}}`] = ['rate<0.01'];
+  });
+  return thresholds;
 }

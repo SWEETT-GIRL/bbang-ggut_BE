@@ -4,7 +4,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.dao.DataAccessException;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
@@ -24,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(name = CourseDraftConfig.REDIS_MODE_PROPERTY)
+@ConditionalOnExpression(CourseDraftConfig.REDIS_CONFIGURED)
 public class MemoDraftFlusher implements SmartLifecycle {
 
 	static final Duration TICK = Duration.ofSeconds(1);

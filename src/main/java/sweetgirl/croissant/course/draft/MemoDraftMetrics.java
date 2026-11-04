@@ -3,7 +3,7 @@ package sweetgirl.croissant.course.draft;
 import java.time.Duration;
 import java.util.List;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
 
@@ -30,7 +30,7 @@ import sweetgirl.croissant.course.signal.CourseSubscriptionRegistry;
  */
 @Slf4j
 @Component
-@ConditionalOnProperty(name = CourseDraftConfig.REDIS_MODE_PROPERTY)
+@ConditionalOnExpression(CourseDraftConfig.REDIS_CONFIGURED)
 public class MemoDraftMetrics {
 
 	private final Counter accepted;

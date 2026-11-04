@@ -9,7 +9,7 @@
 import http from 'k6/http';
 import {check, sleep} from 'k6';
 import {Trend, Rate, Counter} from 'k6/metrics';
-import {assignment, baseUrl, headers, memoText, nextSeq, rampStages} from './lib.js';
+import {assignment, baseUrl, currentStage, headers, memoText, nextSeq, rampStages, stageThresholds} from './lib.js';
 
 const saveDuration = new Trend('memo_save_duration', true);
 const saveFailed = new Rate('memo_save_failed');
@@ -34,10 +34,7 @@ export const options = {
       preAllocatedVUs: 5,
     },
   },
-  thresholds: {
-    memo_save_duration: ['p(95)<500'],
-    memo_save_failed: ['rate<0.01'],
-  },
+  thresholds: stageThresholds(),
 };
 
 function totalDuration() {
@@ -57,8 +54,9 @@ export function editor() {
     JSON.stringify({content: memoText(`d${memberId}`), seq}),
     {headers: headers(token), tags: {name: 'PUT memo-draft'}},
   );
-  saveDuration.add(response.timings.duration);
-  saveFailed.add(response.status !== 200);
+  const stage = currentStage();
+  saveDuration.add(response.timings.duration, {stage});
+  saveFailed.add(response.status !== 200, {stage});
   if (response.status === 503) {
     unavailable.add(1);
   }

@@ -1,6 +1,6 @@
 package sweetgirl.croissant.course.signal;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.listener.ChannelTopic;
@@ -23,7 +23,7 @@ import sweetgirl.croissant.course.draft.MemoDraftRedis;
 @Configuration
 @EnableWebSocketMessageBroker
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = CourseDraftConfig.REDIS_MODE_PROPERTY)
+@ConditionalOnExpression(CourseDraftConfig.REDIS_CONFIGURED)
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
 	private final StompAuthInterceptor stompAuthInterceptor;

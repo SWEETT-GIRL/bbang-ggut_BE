@@ -8,13 +8,17 @@ set -euo pipefail
 
 OUT="${1:?사용: observe.sh <출력파일>}"
 MGMT_PORT="${MGMT_PORT:-8091}"
-PG="docker exec postgres-lab psql -U sweetgirl -d soboro -At -c"
+# 랩은 postgres-lab, dev 서버에서 돌릴 땐 PG_CONTAINER=staging-postgres MGMT_PORT=8081
+PG_CONTAINER="${PG_CONTAINER:-postgres-lab}"
+PG_USER="${PG_USER:-sweetgirl}"
+PG="docker exec ${PG_CONTAINER} psql -U ${PG_USER} -d soboro -At -c"
 
 mkdir -p "$(dirname "${OUT}")"
 echo "time,lock_waits,active_backends,hikari_pending,hikari_active,draft_backlog,draft_write_accepted,draft_write_stale,draft_flush_total,draft_flush_batch_sum,draft_lag_p95" >> "${OUT}"
 
+# 표준입력(프로메테우스 본문)에서 이름이 $1 로 시작하는 줄의 값을 합친다
 metric() {
-	grep "^$1" "$2" | awk '{s+=$NF} END {print s+0}'
+	grep "^$1" | awk '{s+=$NF} END {print s+0}'
 }
 
 while true; do

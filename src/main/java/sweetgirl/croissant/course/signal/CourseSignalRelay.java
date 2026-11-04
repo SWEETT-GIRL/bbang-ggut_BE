@@ -2,7 +2,7 @@ package sweetgirl.croissant.course.signal;
 
 import java.nio.charset.StandardCharsets;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.messaging.MessageHeaders;
@@ -24,7 +24,7 @@ import sweetgirl.croissant.course.draft.CourseDraftConfig;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = CourseDraftConfig.REDIS_MODE_PROPERTY)
+@ConditionalOnExpression(CourseDraftConfig.REDIS_CONFIGURED)
 public class CourseSignalRelay implements MessageListener {
 
 	private final ObjectMapper objectMapper;

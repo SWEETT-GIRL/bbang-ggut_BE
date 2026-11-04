@@ -2,7 +2,7 @@ package sweetgirl.croissant.course.draft;
 
 import java.util.List;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,7 +28,7 @@ import sweetgirl.croissant.global.response.ApiResponse;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/courses")
-@ConditionalOnProperty(name = CourseDraftConfig.REDIS_MODE_PROPERTY)
+@ConditionalOnExpression(CourseDraftConfig.REDIS_CONFIGURED)
 public class MemoDraftController {
 
 	private final MemoDraftCommandService memoDraftCommandService;

@@ -1,6 +1,6 @@
 package sweetgirl.croissant.course.signal;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.event.EventListener;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
@@ -27,7 +27,7 @@ import sweetgirl.croissant.course.event.MemoDraftWrittenEvent;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = CourseDraftConfig.REDIS_MODE_PROPERTY)
+@ConditionalOnExpression(CourseDraftConfig.REDIS_CONFIGURED)
 public class CourseSignalPublisher {
 
 	public static final String CHANNEL = "course:signal";

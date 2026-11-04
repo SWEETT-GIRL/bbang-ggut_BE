@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.MessageDeliveryException;
@@ -35,7 +35,7 @@ import sweetgirl.croissant.member.jwt.JwtProvider;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = CourseDraftConfig.REDIS_MODE_PROPERTY)
+@ConditionalOnExpression(CourseDraftConfig.REDIS_CONFIGURED)
 public class StompAuthInterceptor implements ChannelInterceptor {
 
 	static final String DESTINATION_PREFIX = "/user/queue/courses/";

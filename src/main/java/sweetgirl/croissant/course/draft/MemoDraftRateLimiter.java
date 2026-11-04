@@ -4,7 +4,7 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
 import com.github.benmanes.caffeine.cache.Cache;
@@ -21,7 +21,7 @@ import sweetgirl.croissant.course.exception.CourseException;
  * 인스턴스 메모리라 서버 2대면 한도가 2배다(이중화 때 Redis 로 옮길 항목).
  */
 @Component
-@ConditionalOnProperty(name = CourseDraftConfig.REDIS_MODE_PROPERTY)
+@ConditionalOnExpression(CourseDraftConfig.REDIS_CONFIGURED)
 public class MemoDraftRateLimiter {
 
 	private final int ratePerSecond;

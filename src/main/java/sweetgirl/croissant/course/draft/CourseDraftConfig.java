@@ -1,6 +1,6 @@
 package sweetgirl.croissant.course.draft;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,8 +15,14 @@ public class CourseDraftConfig {
 
 	public static final String REDIS_MODE_PROPERTY = "course.draft.redis.mode";
 
+	/**
+	 * 초안 빈의 조건. {@code @ConditionalOnProperty(name = ...)} 는 빈 문자열도 "있다"로 본다 — compose 가
+	 * {@code COURSE_DRAFT_REDIS_MODE: ${...:-}} 로 빈 값을 넘기면 초안 빈이 전부 떠서 없는 Redis 를 찌른다. 그래서 "비어 있지 않음"을 식으로 본다.
+	 */
+	public static final String REDIS_CONFIGURED = "!'${course.draft.redis.mode:}'.isBlank()";
+
 	@Bean(destroyMethod = "close")
-	@ConditionalOnProperty(name = REDIS_MODE_PROPERTY)
+	@ConditionalOnExpression(REDIS_CONFIGURED)
 	public MemoDraftRedis memoDraftRedis(CourseDraftProperties properties) {
 		return MemoDraftRedis.connect(properties.getRedis());
 	}

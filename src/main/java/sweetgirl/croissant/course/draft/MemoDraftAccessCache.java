@@ -1,7 +1,7 @@
 package sweetgirl.croissant.course.draft;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
 import com.github.benmanes.caffeine.cache.Cache;
@@ -23,7 +23,7 @@ import sweetgirl.croissant.member.service.MemberRestrictionReader;
  * 최대 10초 Redis 에 머문다. 플러셔가 반영 직전에 다시 판정해 버린다.
  */
 @Component
-@ConditionalOnProperty(name = CourseDraftConfig.REDIS_MODE_PROPERTY)
+@ConditionalOnExpression(CourseDraftConfig.REDIS_CONFIGURED)
 public class MemoDraftAccessCache {
 
 	private final CourseRepository courseRepository;

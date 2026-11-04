@@ -1,6 +1,6 @@
 package sweetgirl.croissant.course.draft;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
@@ -23,7 +23,7 @@ import sweetgirl.croissant.member.service.MemberReader;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = CourseDraftConfig.REDIS_MODE_PROPERTY)
+@ConditionalOnExpression(CourseDraftConfig.REDIS_CONFIGURED)
 public class MemoDraftCommandService {
 
 	private final CourseDraftProperties properties;
