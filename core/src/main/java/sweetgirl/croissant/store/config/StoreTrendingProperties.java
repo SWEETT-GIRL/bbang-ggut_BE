@@ -63,10 +63,6 @@ public class StoreTrendingProperties {
 	@Min(0)
 	private int maxPromoted = 2;
 
-	/** 급부상이 없을 때 스테디 1위를 올리는 최소 평소 수준(하루 가중 신호) — 조회가 거의 없는 가게를 올리지 않는다 */
-	@DecimalMin("0.0")
-	private double steadyMinBaseline = 0.2;
-
 	/** 순위표에 담는 최대 가게 수 */
 	@Min(1)
 	private int topSize = 300;

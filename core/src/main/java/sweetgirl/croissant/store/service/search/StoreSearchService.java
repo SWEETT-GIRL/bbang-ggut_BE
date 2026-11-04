@@ -2,8 +2,10 @@ package sweetgirl.croissant.store.service.search;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.searchmiss.event.SearchMissEvent;
 import sweetgirl.croissant.store.code.StoreSearchErrorCode;
+import sweetgirl.croissant.store.config.StoreSearchProperties;
 import sweetgirl.croissant.store.config.StoreTrendingProperties;
 import sweetgirl.croissant.store.dto.response.StoreAutocompleteResponse;
 import sweetgirl.croissant.store.dto.response.StoreSearchResponse;
@@ -62,6 +65,7 @@ public class StoreSearchService {
 	private final ApplicationEventPublisher eventPublisher;
 	private final TrendingRankingReader trendingRankingReader;
 	private final StoreTrendingProperties storeTrendingProperties;
+	private final StoreSearchProperties storeSearchProperties;
 	private final SearchKeywordCorrector searchKeywordCorrector;
 
 	private final Map<SearchOutcome, Counter> searchCounters = new EnumMap<>(SearchOutcome.class);
@@ -396,7 +400,7 @@ public class StoreSearchService {
 		ordered.sort((left, right) -> Integer.compare(autocompletePriority(left.type()),
 			autocompletePriority(right.type())));
 		if (allowedTypes.contains(AutocompleteSuggestionType.STORE)) {
-			promoteTrendingOrSteady(SearchTextNormalizer.normalize(autocompleteQuery), ordered);
+			applyPopularityOrder(SearchTextNormalizer.normalize(autocompleteQuery), ordered);
 		}
 		List<StoreAutocompleteResponse> responses = ordered.stream()
 			.limit(normalizedSize)
@@ -417,33 +421,40 @@ public class StoreSearchService {
 	}
 
 	/**
-	 * 디저트는 유행이 빨라 '한'을 치면 지금 뜨는 가게가 지역보다 먼저 보여야 한다. 검색어로 시작하는 급부상 가게가 있으면 그 가게들을, 없으면
-	 * 요즘 꾸준히 찾는 가게(평소 수준 1위) 하나를 맨 앞에 둔다. 나머지 순서는 그대로다.
+	 * '한'을 치면 지역이 앞자리를 다 차지하지 않고 찾는 사람이 많은 가게가 먼저 보이게 한다. 순서는 급부상 → 접두 일치 인기 가게(인기순) → 나머지
+	 * 기존 순서다. 사용자에게 별도 표시는 하지 않는다 — 판정이 조금 틀려도 순서만 달라지게 하려는 것이다.
 	 */
-	private void promoteTrendingOrSteady(String normalizedQuery, List<StoreAutocompleteSuggestion> ordered) {
+	private void applyPopularityOrder(String normalizedQuery, List<StoreAutocompleteSuggestion> ordered) {
+		List<StoreAutocompleteSuggestion> promoted = new ArrayList<>(trendingSuggestions(normalizedQuery));
+		Set<Long> promotedIds = promoted.stream().map(StoreAutocompleteSuggestion::storeId)
+			.collect(Collectors.toCollection(HashSet::new));
+		if (storeSearchProperties.isAutocompletePopularityOrderEnabled()) {
+			double minScore = storeSearchProperties.getAutocompletePopularMinScore();
+			ordered.stream()
+				.filter(suggestion -> suggestion.isPopularCandidate(minScore))
+				.sorted(Comparator.comparingDouble(StoreAutocompleteSuggestion::popularityScore).reversed())
+				.filter(suggestion -> promotedIds.add(suggestion.storeId())) // 가게명·별칭이 둘 다 맞아도 한 줄만
+				.limit(storeSearchProperties.getAutocompletePopularMaxPromoted())
+				.forEach(promoted::add);
+		}
+		if (promoted.isEmpty()) {
+			return;
+		}
+		// 올린 가게는 원래 자리에서 뺀다. 급부상 가게는 목록에 없어도 끼워 넣는다 — 캐시가 옛 목록이어도 뜬다
+		ordered.removeIf(suggestion -> suggestion.type() == AutocompleteSuggestionType.STORE
+			&& promotedIds.contains(suggestion.storeId()));
+		ordered.addAll(0, promoted);
+	}
+
+	private List<StoreAutocompleteSuggestion> trendingSuggestions(String normalizedQuery) {
 		if (!storeTrendingProperties.isEnabled()) {
-			return;
+			return List.of();
 		}
-		List<TrendingStore> trending = trendingRankingReader.findStartingWith(normalizedQuery,
-			storeTrendingProperties.getMaxPromoted());
-		if (!trending.isEmpty()) {
-			Set<Long> promotedIds = trending.stream().map(TrendingStore::storeId).collect(Collectors.toSet());
-			// 목록에 이미 있으면(가게명·별칭 행) 빼고 맨 앞에 한 번만 둔다. 목록에 없던 가게도 끼워 넣는다 — 캐시가 옛 목록이어도 뜬다
-			ordered.removeIf(suggestion -> suggestion.type() == AutocompleteSuggestionType.STORE
-				&& promotedIds.contains(suggestion.storeId()));
-			ordered.addAll(0, trending.stream()
-				.map(store -> new StoreAutocompleteSuggestion(store.name(), AutocompleteSuggestionType.STORE,
-					store.storeId()))
-				.toList());
-			return;
-		}
-		for (int index = 0; index < ordered.size(); index++) {
-			if (ordered.get(index).isSteadyCandidate(storeTrendingProperties.getSteadyMinBaseline())) {
-				// 엔진이 가게를 평소 수준 순으로 세워 두므로 처음 만나는 접두 일치 가게가 스테디 1위다
-				ordered.add(0, ordered.remove(index));
-				return;
-			}
-		}
+		return trendingRankingReader.findStartingWith(normalizedQuery, storeTrendingProperties.getMaxPromoted())
+			.stream()
+			.map(store -> new StoreAutocompleteSuggestion(store.name(), AutocompleteSuggestionType.STORE,
+				store.storeId()))
+			.toList();
 	}
 
 	private int autocompletePriority(AutocompleteSuggestionType type) {
