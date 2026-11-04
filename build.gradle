@@ -90,6 +90,8 @@ dependencies {
 }
 
 tasks.named('test') {
+    // 전체 컨텍스트(@SpringBootTest)가 여럿 캐시된다 — 기본 512m 이면 CI 러너에서 OutOfMemoryError(2026-11-04 PR #1005)
+    maxHeapSize = '1g'
     useJUnitPlatform {
         // 'lab' 태그 = 로컬 랩 PG(docker-compose.lab-postgres.yml, 운영 덤프 복제본)에 붙는 통합 테스트.
         // CI/기본 빌드에서는 제외하고, 랩이 떠 있을 때 ./gradlew test -PlabTests 로 돌린다.

@@ -14,9 +14,10 @@ import sweetgirl.croissant.external.aws.S3Service;
 
 /**
  * compose 가 {@code COURSE_DRAFT_REDIS_MODE: ${...:-}} 로 빈 값을 넘기는 환경 — 초안·소켓 빈이 하나도 떠서는 안 된다.
+ * 빈 mode 는 테스트 공용 application.properties 에 있어 기본 컨텍스트를 그대로 쓴다(컨텍스트를 하나 더 만들면 CI 메모리가 터진다).
  * {@code @ConditionalOnProperty} 였다면 빈 문자열도 "있다"로 봐서 없는 Redis 를 1초마다 찔렀을 것이다.
  */
-@SpringBootTest(properties = {"course.draft.redis.mode=", "course.draft.write-enabled=true"})
+@SpringBootTest
 @DisplayName("초안 Redis mode 가 빈 값인 컨텍스트")
 class CourseDraftDisabledWhenModeBlankTest {
 
