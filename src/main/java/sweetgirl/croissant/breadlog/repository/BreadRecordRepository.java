@@ -122,6 +122,7 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 			Pageable pageable);
 
 	// 가게 상세에 쌓이는 공개 기록 — 탈퇴한 작성자와 보는 사람이 차단한 작성자는 뺀다.
+	// 비공개 계정의 기록은 그 사람의 팔로워(와 본인)에게만 보인다(2026-11-04).
 	// 사진이 없어도 내린다(2.1.0 강제 업데이트 뒤 — 2.0.x 는 사진 없는 기록을 열면 꺼졌다).
 	@Query("""
 			SELECT record
@@ -136,6 +137,10 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 				SELECT 1 FROM MemberBlock mb
 				WHERE mb.blocker.id = :viewerMemberId
 				AND mb.blockedMember.id = member.id
+			))
+			AND (member.isPrivate = false OR member.id = :viewerMemberId OR EXISTS (
+				SELECT 1 FROM MemberFollow follow
+				WHERE follow.id.followerId = :viewerMemberId AND follow.id.followeeId = member.id
 			))
 			ORDER BY record.eatenAt DESC, record.id DESC
 			""")
@@ -159,6 +164,10 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 				WHERE mb.blocker.id = :viewerMemberId
 				AND mb.blockedMember.id = member.id
 			))
+			AND (member.isPrivate = false OR member.id = :viewerMemberId OR EXISTS (
+				SELECT 1 FROM MemberFollow follow
+				WHERE follow.id.followerId = :viewerMemberId AND follow.id.followeeId = member.id
+			))
 			""")
 	long countPublicByStoreId(@Param("storeId") Long storeId, @Param("viewerMemberId") Long viewerMemberId);
 
@@ -179,6 +188,9 @@ public interface BreadRecordRepository extends JpaRepository<BreadRecord, Long> 
 				AND (CAST(:viewerMemberId AS BIGINT) IS NULL OR NOT EXISTS (
 					SELECT 1 FROM member_block mb
 					WHERE mb.blocker_id = CAST(:viewerMemberId AS BIGINT) AND mb.blocked_member_id = r.member_id))
+				AND (m.is_private = false OR m.id = CAST(:viewerMemberId AS BIGINT) OR EXISTS (
+					SELECT 1 FROM member_follow f
+					WHERE f.follower_id = CAST(:viewerMemberId AS BIGINT) AND f.followee_id = r.member_id))
 			ORDER BY (COALESCE(l.like_count, 0) + COALESCE(c.comment_count, 0) * 2)
 					* CASE WHEN r.created_at >= :recent THEN 1.0 WHEN r.created_at >= :older THEN 0.6 ELSE 0.3 END DESC,
 				r.eaten_at DESC, r.id DESC

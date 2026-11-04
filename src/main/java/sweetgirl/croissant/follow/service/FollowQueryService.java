@@ -17,6 +17,7 @@ import sweetgirl.croissant.follow.dto.response.FollowMemberResponse;
 import sweetgirl.croissant.follow.entity.MemberFollow;
 import sweetgirl.croissant.follow.exception.FollowException;
 import sweetgirl.croissant.follow.repository.MemberFollowRepository;
+import sweetgirl.croissant.follow.repository.MemberFollowRequestRepository;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberBlockRepository;
@@ -32,6 +33,7 @@ public class FollowQueryService {
 	static final int MAX_PAGE_SIZE = 50;
 
 	private final MemberFollowRepository memberFollowRepository;
+	private final MemberFollowRequestRepository memberFollowRequestRepository;
 	private final MemberBlockRepository memberBlockRepository;
 	private final SocialMemberReader socialMemberReader;
 	private final CharacterFaceReader characterFaceReader;
@@ -81,10 +83,13 @@ public class FollowQueryService {
 			? Set.of() : Set.copyOf(memberFollowRepository.findFolloweeIdsIn(viewerId, ids));
 		Set<Long> followsMe = viewerId == null || ids.isEmpty()
 			? Set.of() : Set.copyOf(memberFollowRepository.findFollowerIdsIn(viewerId, ids));
+		Set<Long> requestedByMe = viewerId == null || ids.isEmpty()
+			? Set.of() : Set.copyOf(memberFollowRequestRepository.findTargetIdsIn(viewerId, ids));
 		Map<Long, CharacterFace> faces = characterFaceReader.facesOf(ids);
 		List<FollowMemberResponse> content = people.stream()
 			.map(person -> FollowMemberResponse.of(person,
-				followedByMe.contains(person.getId()), followsMe.contains(person.getId()), faces.get(person.getId())))
+				followedByMe.contains(person.getId()), followsMe.contains(person.getId()), faces.get(person.getId()),
+				requestedByMe.contains(person.getId())))
 			.toList();
 		return new SliceResponse<>(content, rows.hasNext());
 	}

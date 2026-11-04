@@ -20,6 +20,7 @@ import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.dto.response.ConsentResponse;
 import sweetgirl.croissant.member.dto.response.MemberProfileResponse;
 import sweetgirl.croissant.member.dto.response.MenuCategoryResponse;
+import sweetgirl.croissant.member.dto.response.PrivacyResponse;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.service.MemberCommandService;
 import sweetgirl.croissant.member.service.MemberQueryService;
@@ -49,7 +50,7 @@ class MemberControllerTest {
 
 	@Test
 	void getProfile_returns200WithIdAndNickname_whenMemberExists() throws Exception {
-		MemberProfileResponse response = new MemberProfileResponse(1L, "달콤한크루아상", null, false, null);
+		MemberProfileResponse response = new MemberProfileResponse(1L, "달콤한크루아상", null, false, null, false);
 		given(memberQueryService.getProfile(any())).willReturn(response);
 
 		mockMvc.perform(get("/users/me"))
@@ -224,5 +225,32 @@ class MemberControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.agreeToMarketing").value(true))
 			.andExpect(jsonPath("$.data.agreeToNightMarketing").value(true));
+	}
+
+	// GET · PATCH /users/me/privacy
+
+	@Test
+	void getPrivacy_returns200() throws Exception {
+		given(memberQueryService.getPrivacy(any())).willReturn(new PrivacyResponse(true));
+
+		mockMvc.perform(get("/users/me/privacy"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.isPrivate").value(true));
+	}
+
+	@Test
+	void updatePrivacy_returns200_andBadRequestWhenMissing() throws Exception {
+		given(memberCommandService.updatePrivacy(any(), any())).willReturn(new PrivacyResponse(true));
+
+		mockMvc.perform(patch("/users/me/privacy")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"isPrivate\": true}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.isPrivate").value(true));
+
+		mockMvc.perform(patch("/users/me/privacy")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isBadRequest());
 	}
 }

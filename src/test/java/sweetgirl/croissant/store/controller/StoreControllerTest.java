@@ -85,7 +85,7 @@ class StoreControllerTest {
 	@Test
 	void getRecorders_returnsPeopleWhoRecordedAtStore() throws Exception {
 		given(storeRecorderQueryService.recorders(isNull(), eq(10L), eq(3)))
-			.willReturn(List.of(new FollowMemberResponse(21L, "빵순이", false, false, null, null)));
+			.willReturn(List.of(new FollowMemberResponse(21L, "빵순이", false, false, null, null, false, false)));
 
 		mockMvc.perform(get("/stores/10/recorders").param("limit", "3"))
 			.andExpect(status().isOk())

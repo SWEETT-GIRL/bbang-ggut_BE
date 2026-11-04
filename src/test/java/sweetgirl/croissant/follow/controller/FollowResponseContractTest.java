@@ -36,7 +36,9 @@ class FollowResponseContractTest extends ResponseContractWebMvcTest {
 	void followers_keepsFieldsTheAppReads() throws Exception {
 		given(followQueryService.getFollowers(any(), any(), any(), anyInt(), anyInt()))
 			.willReturn(new SliceResponse<>(
-				List.of(new FollowMemberResponse(10L, "에이", true, false, "CROISSANT", "world/croissant.png")), true));
+				List.of(
+					new FollowMemberResponse(10L, "에이", true, false, "CROISSANT", "world/croissant.png", false, false)),
+				true));
 
 		mockMvc.perform(get("/members/2/followers"))
 			.andExpect(status().isOk())
@@ -46,6 +48,8 @@ class FollowResponseContractTest extends ResponseContractWebMvcTest {
 			// FollowButton 상태 셋(팔로우 · 팔로잉 · 맞팔로우)이 이 둘로 갈린다
 			.andExpect(jsonPath("$.data.content[0].followedByMe").isBoolean())
 			.andExpect(jsonPath("$.data.content[0].followsMe").isBoolean())
+			.andExpect(jsonPath("$.data.content[0].isPrivate").isBoolean())
+			.andExpect(jsonPath("$.data.content[0].followRequestedByMe").isBoolean())
 			.andExpect(jsonPath("$.data.hasNext").isBoolean());
 	}
 }

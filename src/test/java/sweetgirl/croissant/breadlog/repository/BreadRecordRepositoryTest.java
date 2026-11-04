@@ -77,6 +77,7 @@ class BreadRecordRepositoryTest {
 					registered_at TIMESTAMP,
 					previous_member_id BIGINT,
 					invite_code VARCHAR(8),
+					is_private BOOLEAN NOT NULL DEFAULT FALSE,
 					created_at TIMESTAMP NOT NULL,
 					updated_at TIMESTAMP
 				)

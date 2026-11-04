@@ -241,4 +241,84 @@ class CommunityNotificationServiceTest {
 		service.notifyFollowingNewRecord(record);
 		then(notificationRecorder).shouldHaveNoMoreInteractions();
 	}
+
+	@Test
+	@DisplayName("팔로우 요청: 받는 사람에게, 링크는 받은 요청 목록 · 수락: 요청한 사람에게, 링크는 수락한 사람 프로필")
+	void followRequestAndAccepted() {
+		Member requester = member(1L, "빵순이");
+		Member target = member(2L, "빵돌이");
+		given(notificationRepository.findByActorIdAndTypeAndTargetTypeAndTargetId(eq(1L), any(), any(), any()))
+			.willReturn(Optional.empty());
+		given(notificationRepository.findByActorIdAndTypeAndTargetTypeAndTargetId(eq(2L), any(), any(), any()))
+			.willReturn(Optional.empty());
+
+		service.notifyFollowRequest(requester, target);
+
+		ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+		then(notificationRecorder).should().recordForMembers(captor.capture(), eq(List.of(target)), any());
+		assertThat(captor.getValue().getType()).isEqualTo(NotificationType.FOLLOW_REQUEST);
+		assertThat(captor.getValue().getTitle()).isEqualTo("빵순이님이 팔로우를 요청했어요");
+		assertThat(captor.getValue().getTargetId()).isEqualTo(2L);
+		assertThat(captor.getValue().getDeepLink()).isEqualTo("/follow-requests");
+		then(eventPublisher).should().publishEvent(PushRequestedEvent.to(500L, 2L));
+
+		service.notifyFollowAccepted(target, requester);
+
+		ArgumentCaptor<Notification> accepted = ArgumentCaptor.forClass(Notification.class);
+		then(notificationRecorder).should().recordForMembers(accepted.capture(), eq(List.of(requester)), any());
+		assertThat(accepted.getValue().getType()).isEqualTo(NotificationType.FOLLOW_ACCEPTED);
+		assertThat(accepted.getValue().getTitle()).isEqualTo("빵돌이님이 팔로우 요청을 수락했어요");
+		assertThat(accepted.getValue().getDeepLink()).isEqualTo("/profile/2");
+		then(eventPublisher).should().publishEvent(PushRequestedEvent.to(500L, 1L));
+	}
+
+	@Test
+	@DisplayName("요청 알림 거두기: 있으면 우편함 · 발송 대장 · 알림 행을 지우고, 없으면 아무것도 안 한다")
+	void retractFollowRequest() {
+		Member requester = member(1L, "빵순이");
+		Notification notification = Notification.activity(NotificationType.FOLLOW_REQUEST, requester,
+			NotificationTargetType.MEMBER, 2L, "빵돌이");
+		ReflectionTestUtils.setField(notification, "id", 700L);
+		given(notificationRepository.findByActorIdAndTypeAndTargetTypeAndTargetId(1L, NotificationType.FOLLOW_REQUEST,
+			NotificationTargetType.MEMBER, 2L)).willReturn(Optional.of(notification));
+
+		service.retractFollowRequestNotification(1L, 2L);
+
+		then(notificationDeliveryRepository).should().deleteAllByNotificationIdIn(List.of(700L));
+		then(notificationRecipientRepository).should().deleteAllByNotificationIdIn(List.of(700L));
+		then(notificationRepository).should().deleteAllByIdInBatch(List.of(700L));
+
+		given(notificationRepository.findByActorIdAndTypeAndTargetTypeAndTargetId(1L, NotificationType.FOLLOW_REQUEST,
+			NotificationTargetType.MEMBER, 3L)).willReturn(Optional.empty());
+		service.retractFollowRequestNotification(1L, 3L);
+		then(notificationRepository).shouldHaveNoMoreInteractions();
+	}
+
+	@Test
+	@DisplayName("답글: 부모 댓글 작성자에게 — 내 댓글에 내가 단 답글 · 부모 작성자가 빵로그 작성자면 알리지 않는다")
+	void commentReply() {
+		Member author = member(1L, "작성자");
+		BreadRecord record = BreadRecord.builder().member(author).storeName("밀도").isPublic(true).build();
+		ReflectionTestUtils.setField(record, "id", 10L);
+		Member parentAuthor = member(2L, "빵순이");
+		Member replier = member(3L, "빵돌이");
+		BreadRecordComment parent = BreadRecordComment.of(record, parentAuthor, "소금빵 최고");
+		ReflectionTestUtils.setField(parent, "id", 100L);
+		BreadRecordComment reply = BreadRecordComment.reply(record, replier, "저도요", parent);
+		ReflectionTestUtils.setField(reply, "id", 101L);
+		given(notificationRepository.findByActorIdAndTypeAndTargetTypeAndTargetId(3L, NotificationType.COMMENT_REPLY,
+			NotificationTargetType.COMMENT, 101L)).willReturn(Optional.empty());
+
+		service.notifyCommentReply(reply, parentAuthor);
+
+		ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+		then(notificationRecorder).should().recordForMembers(captor.capture(), eq(List.of(parentAuthor)), any());
+		assertThat(captor.getValue().getTitle()).isEqualTo("빵돌이님이 회원님의 댓글에 답글을 남겼어요");
+		assertThat(captor.getValue().getBody()).isEqualTo("저도요");
+		assertThat(captor.getValue().getDeepLink()).isEqualTo("/bbanglog/post/10?comments=1&commentId=101");
+
+		service.notifyCommentReply(reply, replier);
+		service.notifyCommentReply(reply, author);
+		then(notificationRecorder).shouldHaveNoMoreInteractions();
+	}
 }

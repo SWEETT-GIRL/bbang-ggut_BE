@@ -17,9 +17,11 @@ import sweetgirl.croissant.member.dto.request.ConsentCreateRequest;
 import sweetgirl.croissant.member.dto.request.ConsentUpdateRequest;
 import sweetgirl.croissant.member.dto.request.NotificationRadiusRequest;
 import sweetgirl.croissant.member.dto.request.NotificationTimeRequest;
+import sweetgirl.croissant.member.dto.request.PrivacyUpdateRequest;
 import sweetgirl.croissant.member.dto.response.ConsentResponse;
 import sweetgirl.croissant.member.dto.response.NotificationRadiusResponse;
 import sweetgirl.croissant.member.dto.response.NotificationTimeResponse;
+import sweetgirl.croissant.member.dto.response.PrivacyResponse;
 import sweetgirl.croissant.member.entity.LikedMenuCategory;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
@@ -27,6 +29,7 @@ import sweetgirl.croissant.member.entity.OAuth;
 import sweetgirl.croissant.member.entity.RefreshToken; // 탈퇴 시 revoke 처리할 토큰 엔티티
 import sweetgirl.croissant.member.enums.NotificationDay;
 import sweetgirl.croissant.member.enums.NotificationRadius;
+import sweetgirl.croissant.member.event.MemberPrivacyChangedEvent;
 import sweetgirl.croissant.member.event.MemberWithdrawnEvent;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.LikedMenuCategoryRepository;
@@ -175,6 +178,21 @@ public class MemberCommandService {
 	}
 
 	// 회원 탈퇴 (soft delete) — deletedAt 설정 후 토큰 무효화
+	/**
+	 * 계정 공개 ↔ 비공개. 비공개로 돌려도 기존 팔로워는 그대로다. 공개로 돌리면 대기 중인 팔로우 요청이 전부 팔로워가 된다
+	 * (follow 가 이벤트로 받아 처리). 게스트는 403 MEMBER403_GUEST. 같은 값이면 아무것도 안 한다.
+	 */
+	public PrivacyResponse updatePrivacy(Long memberId, PrivacyUpdateRequest request) {
+		memberReader.requireLoggedIn(memberId);
+		Member member = memberReader.getMember(memberId);
+		boolean isPrivate = request.isPrivate();
+		if (member.isPrivate() != isPrivate) {
+			member.changePrivacy(isPrivate);
+			eventPublisher.publishEvent(new MemberPrivacyChangedEvent(memberId, isPrivate));
+		}
+		return new PrivacyResponse(member.isPrivate());
+	}
+
 	public void deleteMember(Long memberId) {
 		if (memberId == null) {
 			throw new MemberException(MemberErrorCode.UNAUTHORIZED);

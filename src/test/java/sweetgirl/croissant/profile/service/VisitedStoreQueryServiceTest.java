@@ -32,6 +32,7 @@ import sweetgirl.croissant.breadlog.repository.BreadRecordPhotoRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
 import sweetgirl.croissant.common.enums.MimeType;
+import sweetgirl.croissant.follow.service.FollowVisibilityReader;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberBlockRepository;
 import sweetgirl.croissant.member.service.SocialMemberReader;
@@ -60,9 +61,27 @@ class VisitedStoreQueryServiceTest {
 	private MemberBlockRepository memberBlockRepository;
 	@Mock
 	private ReportedTargetReader reportedTargetReader;
+	@Mock
+	private FollowVisibilityReader followVisibilityReader;
 
 	@InjectMocks
 	private VisitedStoreQueryService service;
+
+	@org.junit.jupiter.api.BeforeEach
+	void publicAccountByDefault() {
+		lenient().when(followVisibilityReader.canViewRecords(any(), any())).thenReturn(true);
+	}
+
+	@Test
+	@DisplayName("상대가 비공개 계정이고 내가 팔로워가 아니면 빈 목록")
+	void privateAccountHidesStores() {
+		given(socialMemberReader.findSocial(TARGET)).willReturn(Optional.of(member(TARGET)));
+		given(memberBlockRepository.existsBetween(VIEWER, TARGET)).willReturn(false);
+		given(followVisibilityReader.canViewRecords(any(), any())).willReturn(false);
+
+		assertThat(service.getVisitedStores(VIEWER, TARGET)).isEmpty();
+		org.mockito.BDDMockito.then(breadRecordRepository).shouldHaveNoInteractions();
+	}
 
 	private Member member(Long id) {
 		Member member = Member.builder().nickname("회원" + id).build();
