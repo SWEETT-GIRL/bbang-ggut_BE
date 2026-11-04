@@ -11,7 +11,8 @@ if (baseUrl.includes('bbang-ggut.cloud') || (baseUrl.includes('bbang-ggut.site')
   throw new Error('운영·dev 는 때리지 않는다. 로컬 랩에서만 돈다.');
 }
 
-const dir = __ENV.DATA_DIR || 'scripts/lab/draft-buffer';
+// k6 의 open() 은 이 스크립트 파일 위치 기준이다 — 데이터 파일은 같은 폴더에 둔다
+const dir = __ENV.DATA_DIR || '.';
 
 export const courses = new SharedArray('courses', () =>
   open(`${dir}/courses.csv`).trim().split('\n').filter(Boolean).map((line) => {

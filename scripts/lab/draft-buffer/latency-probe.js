@@ -20,7 +20,8 @@ const mode = __ENV.MODE || 'push';
 const duration = __ENV.DURATION || '120s';
 const latency = new Trend('companion_visible_latency_ms', true);
 
-const dir = __ENV.DATA_DIR || 'scripts/lab/draft-buffer';
+// k6 의 open() 은 이 스크립트 파일 위치 기준이다 — 데이터 파일은 같은 폴더에 둔다
+const dir = __ENV.DATA_DIR || '.';
 const tokens = new SharedArray('probe-tokens', () =>
   open(`${dir}/tokens.csv`).trim().split('\n').filter(Boolean).map((line) => {
     const [memberId, token] = line.split(',');

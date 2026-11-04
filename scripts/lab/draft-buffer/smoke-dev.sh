@@ -100,7 +100,7 @@ echo "-- Redis 잔량 (비어 있어야 함):"; redis-cli -n 1 keys 'draft:*'
 echo "-- 지표:"; curl -s "${MGMT}/actuator/prometheus" | grep -E '^draft_(write_total|flush_total|backlog|socket_sessions)' || true
 
 step "5. STOMP 실연결 — k6 push 모드 20초: 쓰는 쪽 PUT → 받는 쪽 /ws DRAFT 도착 지연"
-MODE=push DURATION=20s DATA_DIR="${DIR}" k6 run "${DIR}/latency-probe.js" 2>&1 | grep -E "companion_visible_latency|ERROR|checks|iterations" | head -8
+MODE=push DURATION=20s k6 run "${DIR}/latency-probe.js" 2>&1 | grep -E "companion_visible_latency|ERROR|checks|iterations" | head -8
 
 echo
 echo "끝. 앱 종료:  kill \$(cat ${PID_FILE})"
