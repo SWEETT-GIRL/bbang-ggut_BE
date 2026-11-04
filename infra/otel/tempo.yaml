@@ -1,0 +1,22 @@
+# 단일 프로세스·로컬 디스크. 디스크를 지키려고 3일만 보관한다.
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+
+compactor:
+  compaction:
+    block_retention: 72h
+
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /var/tempo/wal
+    local:
+      path: /var/tempo/blocks

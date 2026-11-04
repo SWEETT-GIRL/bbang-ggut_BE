@@ -1,0 +1,50 @@
+# 저장 전에 민감한 값을 지운다. Tempo 로 바로 보내면 외부 API 키가 url.full 에 그대로 남는다.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 150
+    spike_limit_mib: 30
+  # 헬스체크·스크랩은 trace 로 볼 이유가 없고 양만 늘린다.
+  filter/noise:
+    error_mode: ignore
+    traces:
+      span:
+        - 'IsMatch(attributes["url.path"], "^/actuator(/.*)?$")'
+  transform/redact:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          # 쿼리 문자열: 서버 쪽은 검색어, 외부 호출 쪽은 API 키가 들어 있을 수 있다.
+          - delete_key(attributes, "url.query")
+          - replace_pattern(attributes["url.full"], "\\?.*$", "")
+          - replace_pattern(attributes["http.target"], "\\?.*$", "")
+          - replace_pattern(attributes["http.url"], "\\?.*$", "")
+          # 사용자를 특정할 수 있는 접속 정보
+          - delete_key(attributes, "client.address")
+          - delete_key(attributes, "network.peer.address")
+          - delete_key(attributes, "user_agent.original")
+          # DB 접속 계정·주소
+          - delete_key(attributes, "db.user")
+          - delete_key(attributes, "db.connection_string")
+  batch:
+    timeout: 5s
+
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, filter/noise, transform/redact, batch]
+      exporters: [otlp/tempo]

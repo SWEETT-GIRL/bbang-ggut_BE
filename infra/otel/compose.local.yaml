@@ -1,0 +1,12 @@
+# 로컬 확인 전용 — 운영에는 쓰지 않는다. 운영은 기존 Grafana 에 Tempo 데이터소스를 추가한다.
+#   docker compose -f compose.yaml -f compose.local.yaml up -d
+services:
+  grafana:
+    image: grafana/grafana:12.3.0
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - ./grafana-datasource.local.yaml:/etc/grafana/provisioning/datasources/tempo.yaml:ro
+    ports:
+      - "127.0.0.1:3000:3000"
