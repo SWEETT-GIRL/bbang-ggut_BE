@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.TransactionException;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
@@ -50,6 +51,16 @@ public class MemoDraftQueryService {
 	private final MemoDraftBuffer buffer;
 
 	public List<MemoDraftResponse> getDrafts(Long memberId, Long courseId) {
+		try {
+			return drafts(memberId, courseId);
+		} catch (DataAccessException | TransactionException exception) {
+			// 화면 진입·재연결 때 한 번 부르는 경로 — DB(커넥션 풀)가 바쁘면 500 이 아니라 503. 앱은 초안 없이 그리고 폴링으로 메운다
+			log.warn("[메모 초안] 초안 조회 DB 실패 — 503 courseId={} cause={}", courseId, exception.toString());
+			throw new CourseException(CourseErrorCode.COURSE_DRAFT_UNAVAILABLE);
+		}
+	}
+
+	private List<MemoDraftResponse> drafts(Long memberId, Long courseId) {
 		memberReader.requireLoggedIn(memberId);
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
