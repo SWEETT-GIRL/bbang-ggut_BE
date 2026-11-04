@@ -34,7 +34,7 @@ public class AdminStoreTrendingController {
 	}
 
 	@PostMapping("/ranking/refresh")
-	@Operation(summary = "급부상 순위표 갱신", description = "Redis 의 최근 7일 신호로 순위표(trend:top)를 바로 다시 만듭니다.")
+	@Operation(summary = "급부상 순위표 갱신", description = "Redis 의 최근 7일 신호로 순위표(trend:ranking)를 바로 다시 만듭니다.")
 	public ApiResponse<AdminStoreTrendingRefreshResponse> refreshRanking() {
 		return ApiResponse.ok(new AdminStoreTrendingRefreshResponse(rankingService.refresh(LocalDateTime.now())));
 	}

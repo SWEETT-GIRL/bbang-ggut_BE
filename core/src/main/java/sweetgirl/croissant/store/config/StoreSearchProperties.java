@@ -30,4 +30,17 @@ public class StoreSearchProperties {
 	 */
 	@Positive
 	private int queryTimeoutSeconds = 2;
+
+	/**
+	 * 자동완성에서 접두 일치 인기 가게를 인기도 순으로 지역보다 위에 둔다. 인기도(주간 배치)만 쓰므로 Redis 없이 켤 수 있다. 끄면 기존 순서(지역 → 가게)다.
+	 */
+	private boolean autocompletePopularityOrderEnabled = false;
+
+	/** 지역보다 위에 둘 최소 인기도. 운영 실측(2026-11)에서 5 이상은 활성 가게 55,700곳 중 429곳이다 — 활동이 적은 가게가 지역을 밀어내지 않게 한다 */
+	@PositiveOrZero
+	private double autocompletePopularMinScore = 5;
+
+	/** 지역보다 위에 둘 인기 가게 수. 운영의 '성'은 기준을 넘는 가게가 10곳이라, 상한이 없으면 지역이 10위 밖으로 밀린다 */
+	@PositiveOrZero
+	private int autocompletePopularMaxPromoted = 5;
 }
