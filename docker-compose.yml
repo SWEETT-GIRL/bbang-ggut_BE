@@ -8,7 +8,16 @@ services:
     stop_grace_period: 30s
     environment:
       TZ: Asia/Seoul
-      JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Seoul"
+      JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Seoul ${OTEL_JAVA_AGENT_OPTION:-}"
+      # 오텔 — OTEL_JAVA_AGENT_OPTION 이 비어 있으면 에이전트가 붙지 않아 아래 값은 읽히지 않는다.
+      # 메트릭은 기존 Prometheus, 로그는 기존 수집을 쓰므로 trace 만 보낸다.
+      OTEL_SERVICE_NAME: bbang-ggut-be
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=${OTEL_ENVIRONMENT:-unknown}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      OTEL_TRACES_SAMPLER: parentbased_always_on
       # 부하 측정에서 발급 방식을 코드 변경 없이 갈아끼우기 위한 노브.
       # 기본값은 현재 동작 그대로다 — 명시하지 않으면 아무것도 바뀌지 않는다.
       COUPON_ISSUER: ${COUPON_ISSUER:-pessimistic}
