@@ -135,6 +135,30 @@ class RunnerArgumentsTest(unittest.TestCase):
 
 class RunnerParametersTest(unittest.TestCase):
 
+    def test_마이그레이션_계정은_마이그레이션_명령에만_전달한다(self):
+        env = {'DATAOPS_DB_URL': 'jdbc:postgresql://db.internal/dataops?currentSchema=public&sslmode=require',
+               'DATAOPS_DB_USERNAME': 'dataops_service', 'DATAOPS_DB_PASSWORD': 'runtime', 'DATAOPS_API_KEY': 'api',
+               'DATAOPS_MIGRATION_DB_USERNAME': 'dataops_migrator', 'DATAOPS_MIGRATION_DB_PASSWORD': 'ddl',
+               'DB_PASSWORD': 'serving'}
+        migration = runner.execution_environment(env, ['dataops-migrate'])
+        self.assertEqual(set(migration), {'DATAOPS_DB_URL'} | runner.MIGRATION_SECRETS)
+        runtime = runner.execution_environment(env, ['dataops-nightly'])
+        self.assertFalse(runner.MIGRATION_SECRETS & runtime.keys())
+        self.assertFalse(runner.MIGRATION_SECRETS & runner.execution_environment(env, ['job', 'ranking-snapshot']).keys())
+
+    def test_서비스_DB_또는_다른_스키마로_잘못_기동하지_않는다(self):
+        env = {key: 'value' for key in runner.DATAOPS_REQUIRED | runner.MIGRATION_SECRETS}
+        for url in ('jdbc:postgresql://db/soboro?currentSchema=dataops',
+                    'jdbc:postgresql://db/dataops?currentSchema=other',
+                    'jdbc:postgresql://db/dataops?user=sweetgirl'):
+            env['DATAOPS_DB_URL'] = url
+            for command in (['dataops-migrate'], ['dataops-nightly']):
+                with self.assertRaises(ValueError):
+                    runner.execution_environment(env, command)
+        self.assertEqual(runner.container_args(['dataops-migrate']), (['dataops-migrate'], 'dataops-migrate', False))
+        with self.assertRaises(ValueError):
+            runner.container_args(['dataops-migrate', '--clean'])
+
     def test_허용한_이름만_읽고_필수값을_검사한다(self):
         env, firebase, hub = runner.load_parameters(FakeSsm(parameters(DATAOPS_API_KEY='k')), PREFIX)
 
@@ -162,6 +186,14 @@ class RunnerParametersTest(unittest.TestCase):
 
 
 class JdbcEnvTest(unittest.TestCase):
+
+    def test_Python_접속도_JDBC_TLS_정책을_유지한다(self):
+        out = jdbc_env.exports({'DATAOPS_DB_URL': 'jdbc:postgresql://db:5432/dataops?currentSchema=public&sslmode=require'})
+        self.assertIn('export DATAOPS_DB_NAME=dataops\n', out)
+        self.assertIn('export DATAOPS_DB_SCHEMA=public\n', out)
+        self.assertIn('export DATAOPS_DB_SSLMODE=require\n', out)
+        with self.assertRaises(ValueError):
+            jdbc_env.exports({'DATAOPS_DB_URL': 'jdbc:postgresql://db/dataops?sslmode=disable'})
 
     def test_JDBC_URL_을_Python_접속_변수로_푼다(self):
         out = jdbc_env.exports({

@@ -22,6 +22,8 @@ SCHEMA = os.environ.get("DATAOPS_DB_SCHEMA", "").strip()
 
 
 def connect(**kwargs):
+    if os.environ.get("DATAOPS_DB_SSLMODE") and "sslmode" not in kwargs:
+        kwargs["sslmode"] = os.environ["DATAOPS_DB_SSLMODE"]
     if SCHEMA and "options" not in kwargs:
         kwargs["options"] = f"-c search_path={SCHEMA}"
     return psycopg2.connect(host=HOST, port=PORT, dbname=NAME, user=USER, password=PASSWORD, **kwargs)

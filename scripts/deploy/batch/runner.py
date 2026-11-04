@@ -3,6 +3,7 @@
   bbang-batch install                    배포 — Docker Hub 로그인 후 config.json 의 이미지(digest)를 받는다
   bbang-batch job <이름>                 WAS 배치 작업 하나 (Scheduler → Step Functions → SSM 문서 SweetgirlBatchRun 이 부른다)
   bbang-batch dataops-nightly [시간]     dataops 수집
+  bbang-batch dataops-migrate            별도 dataops DB의 Flyway (DDL 계정 전용)
   bbang-batch dataops <스크립트> [인자]  dataops 수동 작업(승인·반영)
   bbang-batch busy                       작업 컨테이너가 돌고 있으면 0 — 수동 점검용
 
@@ -30,11 +31,14 @@ OPTIONAL = {
     'SLACK_SEARCH_MISS_WEBHOOK_URL', 'SLACK_NOTIFICATION_ENABLED',
     # dataops — 판정 서버(dataops 스키마)·API 키·반영용 운영 쓰기 계정·사진 반영(본 앱 어드민 API)
     'DATAOPS_DB_URL', 'DATAOPS_DB_USERNAME', 'DATAOPS_DB_PASSWORD', 'DATAOPS_API_KEY',
+    'DATAOPS_PUSHGATEWAY_URL',
+    'DATAOPS_MIGRATION_DB_USERNAME', 'DATAOPS_MIGRATION_DB_PASSWORD',
     'DATAOPS_PROD_DB_URL', 'DATAOPS_PROD_DB_USERNAME', 'DATAOPS_PROD_DB_PASSWORD',
     'ADMIN_API_KEY', 'WAS_SERVER_URL',
 }
 # dataops 명령은 dataops 스키마 없이는 의미가 없다
 DATAOPS_REQUIRED = {'DATAOPS_DB_URL', 'DATAOPS_DB_USERNAME', 'DATAOPS_DB_PASSWORD', 'DATAOPS_API_KEY'}
+MIGRATION_SECRETS = {'DATAOPS_MIGRATION_DB_USERNAME', 'DATAOPS_MIGRATION_DB_PASSWORD'}
 IMAGE = re.compile(r'(?:docker\.io/)?[a-z0-9][a-z0-9_-]*/[a-z0-9][a-z0-9._-]*@sha256:[0-9a-f]{64}')
 PREFIX = re.compile(r'/sweetgirl/prod/v2/batch(?:/[A-Za-z0-9_-]+){0,8}')
 JOB_NAME = re.compile(r'[a-z0-9][a-z0-9-]{0,62}')
@@ -99,6 +103,8 @@ def container_args(command):
     if not command:
         raise ValueError('Command required')
     head, rest = command[0], command[1:]
+    if head == 'dataops-migrate' and not rest:
+        return ['dataops-migrate'], 'dataops-migrate', False
     if head == 'job':
         if len(rest) != 1 or not JOB_NAME.fullmatch(rest[0]):
             raise ValueError('Usage: job <name>')
@@ -118,8 +124,9 @@ def docker_run_args(image, env_path, firebase_path, logs_dir, command):
     args, label, needs_logs = container_args(command)
     run = ['docker', 'run', '--rm', '--label', f'{JOB_LABEL}={label}',
         '--memory', MEMORY_LIMIT, '--log-opt', 'max-size=10m', '--log-opt', 'max-file=3',
-        '--env-file', str(env_path), '-e', 'AWS_REGION=ap-northeast-2', '-e', 'TZ=Asia/Seoul',
-        '--mount', f'type=bind,source={firebase_path},target=/run/secrets/firebase.json,readonly']
+        '--env-file', str(env_path), '-e', 'AWS_REGION=ap-northeast-2', '-e', 'TZ=Asia/Seoul']
+    if command[0] != 'dataops-migrate':
+        run += ['--mount', f'type=bind,source={firebase_path},target=/run/secrets/firebase.json,readonly']
     if needs_logs:
         run += ['--mount', f'type=bind,source={logs_dir},target=/app/dataops/dataops-logs']
     return run + [image, *args], needs_logs
@@ -150,10 +157,7 @@ def install(config):
 def execute(config, command):
     import boto3
     env, firebase, _ = load_parameters(boto3.client('ssm', region_name=config['region']), config['parameter_prefix'])
-    if command[0] != 'job':
-        missing = DATAOPS_REQUIRED - env.keys()
-        if missing:
-            raise ValueError('Missing dataops parameters: ' + ', '.join(sorted(missing)))
+    env = execution_environment(env, command)
     os.umask(0o077)
     with tempfile.TemporaryDirectory(prefix='bbang-batch-') as tmp:
         env_path = Path(tmp) / 'app.env'
@@ -171,6 +175,25 @@ def busy():
     output = subprocess.run(['docker', 'ps', '--filter', f'label={JOB_LABEL}', '--format', '{{.ID}}'],
         capture_output=True, text=True, check=True).stdout.strip()
     return 0 if output else 1
+
+
+def execution_environment(env, command):
+    """Never give DDL credentials to a collection/application container."""
+    if command[0] == 'dataops-migrate':
+        required = {'DATAOPS_DB_URL'} | MIGRATION_SECRETS
+        selected = {key: value for key, value in env.items() if key in required}
+    else:
+        required = DATAOPS_REQUIRED if command[0] != 'job' else set()
+        selected = {key: value for key, value in env.items() if key not in MIGRATION_SECRETS}
+    missing = required - selected.keys()
+    if missing:
+        raise ValueError('Missing dataops parameters: ' + ', '.join(sorted(missing)))
+    if command[0] != 'job':
+        target = r'jdbc:postgresql://[A-Za-z0-9.-]+(?::[0-9]+)?/dataops'
+        options = r'(?:\?(?:currentSchema=public|sslmode=require|sslmode=verify-full)(?:&(?:currentSchema=public|sslmode=require|sslmode=verify-full))*)?'
+        if not re.fullmatch(target + options, selected['DATAOPS_DB_URL']):
+            raise ValueError('DATAOPS_DB_URL must target separate database dataops with public schema')
+    return selected
 
 
 def main(argv):

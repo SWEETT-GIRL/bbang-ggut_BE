@@ -3,6 +3,7 @@
 #   job <이름>                 WAS 배치 작업 하나 (예: ranking-snapshot) — 끝나면 종료 코드로 성공·실패를 알린다
 #   dataops-nightly [시간]     dataops 서버를 띄워 수집(weekly_refresh nightly)을 돌리고 서버를 내린다
 #   dataops-server             dataops 판정 서버만 띄운다 (사람이 승인 스크립트를 따로 돌릴 때)
+#   dataops-migrate            별도 dataops DB의 Flyway만 실행한다 (수집·운영 반영 없음)
 #   dataops <스크립트> [인자]  dataops/scripts 의 스크립트 하나 (승인·반영 등 수동 작업)
 set -euo pipefail
 
@@ -17,7 +18,7 @@ start_dataops_server() {
 		org.springframework.boot.loader.launch.PropertiesLauncher \
 		--spring.profiles.active=prod --server.port="${DATAOPS_PORT}" &
 	DATAOPS_PID=$!
-	# 마이그레이션까지 끝나야 UP 이다 — 최대 5분
+	# 별도 마이그레이션 후 스키마 검증·서버 준비를 기다린다 — 최대 5분
 	for _ in $(seq 1 60); do
 		if python3 -c "import json,sys,urllib.request as u; sys.exit(json.load(u.urlopen('${DATAOPS_SERVER}/actuator/health', timeout=3)).get('status') != 'UP')" 2>/dev/null; then
 			return 0
@@ -34,6 +35,10 @@ start_dataops_server() {
 }
 
 stop_dataops_server() {
+	if [ -n "${WORKER_PID:-}" ] && kill -0 "${WORKER_PID}" 2>/dev/null; then
+		kill -TERM "${WORKER_PID}"
+		wait "${WORKER_PID}" || true
+	fi
 	if [ -n "${DATAOPS_PID:-}" ] && kill -0 "${DATAOPS_PID}" 2>/dev/null; then
 		kill "${DATAOPS_PID}"
 		wait "${DATAOPS_PID}" || true
@@ -43,6 +48,11 @@ stop_dataops_server() {
 command="${1:-}"
 shift || true
 case "${command}" in
+	dataops-migrate)
+		[ "$#" -eq 0 ] || { echo "dataops-migrate는 추가 인자를 받지 않는다" >&2; exit 64; }
+		exec java -Dloader.main=sweetgirl.dataops.migration.DataopsMigrationMain -cp /app/batch.jar \
+			org.springframework.boot.loader.launch.PropertiesLauncher
+		;;
 	job)
 		[ -n "${1:-}" ] || { echo "작업 이름이 필요하다: job <이름>" >&2; exit 64; }
 		exec java -jar /app/batch.jar --batch.job="$1"
@@ -55,10 +65,14 @@ case "${command}" in
 	dataops-nightly)
 		hours="${1:-6}"
 		trap stop_dataops_server EXIT
+		trap 'exit 143' TERM
+		trap 'exit 130' INT
 		start_dataops_server
 		cd /app/dataops
 		# 쓰기 계정 서버를 켜 둔 채 두지 않는다 — 수집만 하고 끝나면 trap 이 서버를 내린다
-		python3 scripts/weekly_refresh.py nightly --crawl-hours "${hours}" --server "${DATAOPS_SERVER}"
+		python3 scripts/weekly_refresh.py nightly --crawl-hours "${hours}" --server "${DATAOPS_SERVER}" &
+		WORKER_PID=$!
+		wait "${WORKER_PID}"
 		;;
 	dataops)
 		[ -n "${1:-}" ] || { echo "스크립트 이름이 필요하다: dataops <스크립트> [인자]" >&2; exit 64; }
@@ -69,7 +83,7 @@ case "${command}" in
 		exec python3 "scripts/${script}" "$@"
 		;;
 	*)
-		echo "사용: job <이름> | dataops-nightly [시간] | dataops-server | dataops <스크립트> [인자]" >&2
+		echo "사용: job <이름> | dataops-nightly [시간] | dataops-server | dataops-migrate | dataops <스크립트> [인자]" >&2
 		exit 64
 		;;
 esac
