@@ -12,6 +12,7 @@ import sweetgirl.croissant.alarm.service.CommunityNotificationService;
 import sweetgirl.croissant.follow.code.FollowErrorCode;
 import sweetgirl.croissant.follow.exception.FollowException;
 import sweetgirl.croissant.follow.repository.MemberFollowRepository;
+import sweetgirl.croissant.follow.repository.MemberFollowRequestRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberBlockRepository;
 import sweetgirl.croissant.member.service.MemberReader;
@@ -29,6 +30,7 @@ public class FollowCommandService {
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
 	private final MemberFollowRepository memberFollowRepository;
+	private final MemberFollowRequestRepository memberFollowRequestRepository;
 	private final MemberBlockRepository memberBlockRepository;
 	private final MemberReader memberReader;
 	private final MemberRestrictionReader memberRestrictionReader;
@@ -38,10 +40,13 @@ public class FollowCommandService {
 	/**
 	 * 팔로우한다. 이미 하고 있으면 그대로 200 이다(멱등).
 	 *
+	 * <p>상대가 비공개 계정이면 바로 팔로우되지 않고 <b>요청</b>이 남는다(상대가 수락해야 팔로우). 이미 요청해 뒀으면 그대로 200.
+	 * 하루 상한은 요청도 같이 센다.
+	 *
 	 * <p>게스트는 403(MEMBER403_GUEST), 정지 · 강퇴는 403, 나 자신은 400, 상대가 없거나 게스트 · 봇 · 탈퇴면 404,
 	 * 어느 쪽이든 차단했으면 403, 오늘 {@value #DAILY_FOLLOW_LIMIT} 명을 넘기면 429.
 	 */
-	public void follow(Long memberId, Long targetId) {
+	public FollowResult follow(Long memberId, Long targetId) {
 		memberReader.requireLoggedIn(memberId);
 		memberRestrictionReader.validateCanInteract(memberId);
 		if (memberId.equals(targetId)) {
@@ -53,23 +58,41 @@ public class FollowCommandService {
 			throw new FollowException(FollowErrorCode.FOLLOW_BLOCKED);
 		}
 		if (memberFollowRepository.existsByIdFollowerIdAndIdFolloweeId(memberId, target.getId())) {
-			return;
+			return FollowResult.FOLLOWING;
+		}
+		if (target.isPrivate() && memberFollowRequestRepository.existsByIdRequesterIdAndIdTargetId(memberId,
+			target.getId())) {
+			return FollowResult.REQUESTED;
 		}
 		LocalDateTime now = LocalDateTime.now(KST);
 		LocalDateTime startOfToday = LocalDate.now(KST).atStartOfDay();
-		if (memberFollowRepository.countByIdFollowerIdAndCreatedAtGreaterThanEqual(memberId,
-			startOfToday) >= DAILY_FOLLOW_LIMIT) {
+		long today = memberFollowRepository.countByIdFollowerIdAndCreatedAtGreaterThanEqual(memberId, startOfToday)
+			+ memberFollowRequestRepository.countByIdRequesterIdAndCreatedAtGreaterThanEqual(memberId, startOfToday);
+		if (today >= DAILY_FOLLOW_LIMIT) {
 			throw new FollowException(FollowErrorCode.FOLLOW_DAILY_LIMIT);
+		}
+		if (target.isPrivate()) {
+			if (memberFollowRequestRepository.insertIfAbsent(memberId, target.getId(), now) == 1) {
+				communityNotificationService.notifyFollowRequest(memberReader.getMember(memberId), target);
+			}
+			return FollowResult.REQUESTED;
 		}
 		if (memberFollowRepository.insertIfAbsent(memberId, target.getId(), now) == 1) {
 			communityNotificationService.notifyFollow(memberReader.getMember(memberId), target);
 		}
+		return FollowResult.FOLLOWING;
 	}
 
-	/** 팔로우를 끊는다. 안 하고 있었어도 200 이다. 정지 중이어도 끊는 건 된다 — 남에게 닿는 행동이 아니다. */
+	/**
+	 * 팔로우를 끊는다. 안 하고 있었어도 200 이다. 정지 중이어도 끊는 건 된다 — 남에게 닿는 행동이 아니다.
+	 * 비공개 계정에 보내 둔 요청이 있으면 그 요청도 거둔다(알림도 함께).
+	 */
 	public void unfollow(Long memberId, Long targetId) {
 		memberReader.requireLoggedIn(memberId);
 		memberFollowRepository.deleteByPair(memberId, targetId);
+		if (memberFollowRequestRepository.deleteByPair(memberId, targetId) > 0) {
+			communityNotificationService.retractFollowRequestNotification(memberId, targetId);
+		}
 	}
 
 	/**

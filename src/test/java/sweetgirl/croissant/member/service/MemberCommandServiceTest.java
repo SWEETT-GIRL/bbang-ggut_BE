@@ -21,11 +21,13 @@ import sweetgirl.croissant.course.service.CourseMemberService;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.dto.request.ConsentCreateRequest;
 import sweetgirl.croissant.member.dto.request.ConsentUpdateRequest;
+import sweetgirl.croissant.member.dto.request.PrivacyUpdateRequest;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
 import sweetgirl.croissant.member.entity.OAuth;
 import sweetgirl.croissant.member.entity.RefreshToken;
 import sweetgirl.croissant.member.enums.OAuthProvider;
+import sweetgirl.croissant.member.event.MemberPrivacyChangedEvent;
 import sweetgirl.croissant.member.event.MemberWithdrawnEvent;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.LikedMenuCategoryRepository;
@@ -221,5 +223,39 @@ class MemberCommandServiceTest {
 
 		assertThat(member.isAgreeToMarketing()).isFalse();
 		assertThat(member.isAgreeToNightMarketing()).isFalse();
+	}
+
+	// 비공개로 바꾸면 플래그가 켜지고 follow 가 들을 이벤트가 나간다
+	@Test
+	void updatePrivacy_toPrivate_publishesEvent() {
+		Member member = Member.builder().nickname("테스터").build();
+		given(memberReader.getMember(1L)).willReturn(member);
+
+		assertThat(memberCommandService.updatePrivacy(1L, new PrivacyUpdateRequest(true)).isPrivate()).isTrue();
+
+		assertThat(member.isPrivate()).isTrue();
+		then(memberReader).should().requireLoggedIn(1L);
+		then(eventPublisher).should().publishEvent(new MemberPrivacyChangedEvent(1L, true));
+	}
+
+	// 같은 값이면 이벤트가 나가지 않는다(공개 전환의 "전부 수락"이 헛돌지 않게)
+	@Test
+	void updatePrivacy_sameValue_doesNothing() {
+		Member member = Member.builder().nickname("테스터").build();
+		given(memberReader.getMember(1L)).willReturn(member);
+
+		memberCommandService.updatePrivacy(1L, new PrivacyUpdateRequest(false));
+
+		then(eventPublisher).shouldHaveNoInteractions();
+	}
+
+	// 게스트는 막힌다
+	@Test
+	void updatePrivacy_guest_isRejected() {
+		willThrow(new MemberException(MemberErrorCode.GUEST_LOGIN_REQUIRED)).given(memberReader).requireLoggedIn(1L);
+
+		assertThatThrownBy(() -> memberCommandService.updatePrivacy(1L, new PrivacyUpdateRequest(true)))
+			.isInstanceOf(MemberException.class);
+		then(eventPublisher).shouldHaveNoInteractions();
 	}
 }

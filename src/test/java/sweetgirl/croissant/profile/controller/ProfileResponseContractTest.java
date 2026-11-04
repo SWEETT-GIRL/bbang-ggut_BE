@@ -34,7 +34,7 @@ class ProfileResponseContractTest extends ResponseContractWebMvcTest {
 	void profile_keepsFieldsTheAppReads() throws Exception {
 		given(profileQueryService.getProfile(any(), any())).willReturn(new ProfileResponse(
 			2L, false, false, "빵순이", "dog", "world/dog/front.png", "lamp", 3, "mars", "화성", "성수동 빵순이",
-			12, 30, 7, true, false));
+			12, 30, 7, true, false, false, false, true));
 
 		mockMvc.perform(get("/members/2/profile"))
 			.andExpect(status().isOk())
@@ -53,6 +53,9 @@ class ProfileResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.followerCount").isNumber())
 			.andExpect(jsonPath("$.data.followingCount").isNumber())
 			.andExpect(jsonPath("$.data.followedByMe").isBoolean())
-			.andExpect(jsonPath("$.data.followsMe").isBoolean());
+			.andExpect(jsonPath("$.data.followsMe").isBoolean())
+			.andExpect(jsonPath("$.data.isPrivate").isBoolean())
+			.andExpect(jsonPath("$.data.followRequestedByMe").isBoolean())
+			.andExpect(jsonPath("$.data.canViewRecords").isBoolean());
 	}
 }

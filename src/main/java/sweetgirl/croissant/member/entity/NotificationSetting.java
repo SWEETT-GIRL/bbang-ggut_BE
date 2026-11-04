@@ -98,10 +98,10 @@ public class NotificationSetting extends BaseTimeEntity {
 	/** 이 종류의 커뮤니티 알림을 받겠다고 했나. 알림함엔 스위치와 무관하게 남고 푸시만 가른다. */
 	public boolean allowsCommunity(NotificationType type) {
 		return switch (type) {
-			case FOLLOW, INVITE_MUTUAL -> followEnabled;
+			case FOLLOW, INVITE_MUTUAL, FOLLOW_REQUEST, FOLLOW_ACCEPTED -> followEnabled;
 			case PAT -> patEnabled;
 			case RECORD_LIKE -> likeEnabled;
-			case RECORD_COMMENT, COMMENT_MENTION, COMPANION_TAG -> commentEnabled;
+			case RECORD_COMMENT, COMMENT_MENTION, COMMENT_REPLY, COMPANION_TAG -> commentEnabled;
 			case FOLLOWING_NEW_RECORD -> followingRecordEnabled;
 			default -> true;
 		};

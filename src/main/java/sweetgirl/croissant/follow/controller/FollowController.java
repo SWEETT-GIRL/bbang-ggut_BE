@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.follow.dto.response.FollowMemberResponse;
+import sweetgirl.croissant.follow.dto.response.FollowStatusResponse;
 import sweetgirl.croissant.follow.service.FollowCommandService;
 import sweetgirl.croissant.follow.service.FollowQueryService;
 import sweetgirl.croissant.global.response.ApiResponse;
@@ -28,17 +29,17 @@ public class FollowController {
 	private final FollowCommandService followCommandService;
 	private final FollowQueryService followQueryService;
 
-	@Operation(summary = "팔로우", description = "한쪽이 누르면 끝이고 수락이 없다. 이미 팔로우 중이면 그대로 200. "
+	@Operation(summary = "팔로우", description = "공개 계정이면 바로 팔로우(status FOLLOWING), 비공개 계정이면 요청만 남는다(status REQUESTED — "
+		+ "상대가 수락해야 팔로우). 이미 팔로우 중 · 이미 요청해 뒀으면 그대로 200. "
 		+ "게스트 403 MEMBER403_GUEST · 정지 403 · 나 자신 400 · 상대 없음 404 · 차단 관계 403 · 하루 100명 넘으면 429.")
 	@PostMapping("/{memberId}/follow")
-	public ApiResponse<Void> follow(
+	public ApiResponse<FollowStatusResponse> follow(
 			@AuthenticationPrincipal Long viewerId,
 			@PathVariable Long memberId) {
-		followCommandService.follow(viewerId, memberId);
-		return ApiResponse.ok(null);
+		return ApiResponse.ok(FollowStatusResponse.from(followCommandService.follow(viewerId, memberId)));
 	}
 
-	@Operation(summary = "팔로우 취소", description = "안 하고 있었어도 200.")
+	@Operation(summary = "팔로우 취소", description = "안 하고 있었어도 200. 비공개 계정에 보내 둔 요청이 있으면 그 요청도 거둔다.")
 	@DeleteMapping("/{memberId}/follow")
 	public ApiResponse<Void> unfollow(
 			@AuthenticationPrincipal Long viewerId,

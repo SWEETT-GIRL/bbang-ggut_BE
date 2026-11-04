@@ -45,6 +45,8 @@ class FollowQueryServiceTest {
 	@Mock
 	private MemberFollowRepository memberFollowRepository;
 	@Mock
+	private sweetgirl.croissant.follow.repository.MemberFollowRequestRepository memberFollowRequestRepository;
+	@Mock
 	private MemberBlockRepository memberBlockRepository;
 	@Mock
 	private SocialMemberReader socialMemberReader;
@@ -81,8 +83,8 @@ class FollowQueryServiceTest {
 
 		assertThat(result.hasNext()).isTrue();
 		assertThat(result.content()).containsExactly(
-			new FollowMemberResponse(10L, "에이", true, false, null, null),
-			new FollowMemberResponse(11L, "비", false, true, null, null));
+			new FollowMemberResponse(10L, "에이", true, false, null, null, false, false),
+			new FollowMemberResponse(11L, "비", false, true, null, null, false, false));
 	}
 
 	@Test
@@ -96,7 +98,8 @@ class FollowQueryServiceTest {
 
 		SliceResponse<FollowMemberResponse> result = followQueryService.getFollowings(null, TARGET, null, 0, 20);
 
-		assertThat(result.content()).containsExactly(new FollowMemberResponse(10L, "에이", false, false, null, null));
+		assertThat(result.content())
+			.containsExactly(new FollowMemberResponse(10L, "에이", false, false, null, null, false, false));
 		then(memberFollowRepository).should(never()).findFolloweeIdsIn(any(), any());
 		then(memberBlockRepository).shouldHaveNoInteractions();
 	}
@@ -115,7 +118,7 @@ class FollowQueryServiceTest {
 		SliceResponse<FollowMemberResponse> result = followQueryService.getFollowers(VIEWER, TARGET, " 에 ", 0, 20);
 
 		assertThat(result.content()).containsExactly(
-			new FollowMemberResponse(10L, "에이", false, false, "CROISSANT", "world/croissant.png"));
+			new FollowMemberResponse(10L, "에이", false, false, "CROISSANT", "world/croissant.png", false, false));
 		assertThat(FollowQueryService.prefixOf("   ")).isEmpty();
 	}
 

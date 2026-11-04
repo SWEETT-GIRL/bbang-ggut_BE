@@ -79,6 +79,18 @@ public interface BreadRecordCommentRepository extends JpaRepository<BreadRecordC
 			""")
 	Optional<BreadRecordComment> findActiveByIdWithRecord(@Param("commentId") Long commentId);
 
+	/** 답글을 달 부모 — 같은 빵로그의, 지우지도 숨기지도 않은 댓글. 부모의 부모까지 같이 읽는다(깊이 1 로 접으려고). */
+	@Query("""
+			SELECT c FROM BreadRecordComment c
+			JOIN FETCH c.member LEFT JOIN FETCH c.parent
+			WHERE c.id = :commentId AND c.record.id = :recordId AND c.deletedAt IS NULL AND c.hiddenAt IS NULL
+			""")
+	Optional<BreadRecordComment> findReplyTarget(@Param("commentId") Long commentId, @Param("recordId") Long recordId);
+
+	/** 부모를 지울 때 같이 지울 답글 — 아직 안 지운 것. */
+	@Query("SELECT c FROM BreadRecordComment c WHERE c.parent.id = :parentId AND c.deletedAt IS NULL")
+	List<BreadRecordComment> findActiveReplies(@Param("parentId") Long parentId);
+
 	interface RecordCommentCountProjection {
 
 		Long getRecordId();

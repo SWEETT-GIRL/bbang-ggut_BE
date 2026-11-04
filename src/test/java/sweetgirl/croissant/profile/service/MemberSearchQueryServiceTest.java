@@ -33,6 +33,8 @@ class MemberSearchQueryServiceTest {
 	@Mock
 	private MemberFollowRepository memberFollowRepository;
 	@Mock
+	private sweetgirl.croissant.follow.repository.MemberFollowRequestRepository memberFollowRequestRepository;
+	@Mock
 	private CharacterFaceReader characterFaceReader;
 
 	@InjectMocks
@@ -57,8 +59,8 @@ class MemberSearchQueryServiceTest {
 		List<FollowMemberResponse> result = memberSearchQueryService.search(1L, " 빵 순 ");
 
 		assertThat(result).containsExactly(
-			new FollowMemberResponse(10L, "빵순이", true, false, "CROISSANT", "world/croissant.png"),
-			new FollowMemberResponse(11L, "빵순찌", false, false, null, null));
+			new FollowMemberResponse(10L, "빵순이", true, false, "CROISSANT", "world/croissant.png", false, false),
+			new FollowMemberResponse(11L, "빵순찌", false, false, null, null, false, false));
 	}
 
 	@Test

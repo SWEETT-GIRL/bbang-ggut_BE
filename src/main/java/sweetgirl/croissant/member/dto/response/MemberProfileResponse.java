@@ -15,16 +15,19 @@ public record MemberProfileResponse(
 		String nickname,
 		LocalDate nicknameChangeableAt,
 		boolean suspended,
-		LocalDateTime suspendedUntil) {
+		LocalDateTime suspendedUntil,
+		/** 비공개 계정인가(2026-11-04) */
+		boolean isPrivate) {
 
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
 	public static MemberProfileResponse from(Member member) {
 		return new MemberProfileResponse(member.getId(), member.getNickname(),
-			member.nicknameChangeableAt(LocalDateTime.now(KST), Member.NICKNAME_CHANGE_INTERVAL_DAYS), false, null);
+			member.nicknameChangeableAt(LocalDateTime.now(KST), Member.NICKNAME_CHANGE_INTERVAL_DAYS), false, null,
+			member.isPrivate());
 	}
 
 	public MemberProfileResponse withSuspension(boolean isSuspended, LocalDateTime until) {
-		return new MemberProfileResponse(memberId, nickname, nicknameChangeableAt, isSuspended, until);
+		return new MemberProfileResponse(memberId, nickname, nicknameChangeableAt, isSuspended, until, isPrivate);
 	}
 }

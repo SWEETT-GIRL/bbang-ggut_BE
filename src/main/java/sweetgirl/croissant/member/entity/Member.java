@@ -116,6 +116,13 @@ public class Member {
 	@Column(name = "invite_code", length = 8, updatable = false, insertable = false)
 	private String inviteCode;
 
+	/**
+	 * 비공개 계정(인스타식, 2026-11-04). 팔로워만 내 공개 빵로그를 본다. 팔로우는 요청 · 수락을 거친다.
+	 * 프로필(닉네임 · 캐릭터 · 수)은 누구나 본다.
+	 */
+	@Column(name = "is_private", nullable = false, columnDefinition = "boolean default false")
+	private boolean isPrivate;
+
 	@CreatedDate
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
@@ -248,6 +255,11 @@ public class Member {
 
 	public void discardPendingNickname() {
 		this.pendingNickname = null;
+	}
+
+	/** 공개 ↔ 비공개. 공개 전환 때 대기 중인 요청을 전부 수락하는 건 follow 쪽이 이벤트로 한다. */
+	public void changePrivacy(boolean isPrivate) {
+		this.isPrivate = isPrivate;
 	}
 
 	public void markAsGuest() {

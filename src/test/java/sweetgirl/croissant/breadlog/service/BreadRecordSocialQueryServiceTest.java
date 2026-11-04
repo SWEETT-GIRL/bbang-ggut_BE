@@ -63,6 +63,8 @@ class BreadRecordSocialQueryServiceTest {
 	@Mock
 	private BreadRecordVisibilityPolicy visibilityPolicy;
 	@Mock
+	private sweetgirl.croissant.follow.service.FollowVisibilityReader followVisibilityReader;
+	@Mock
 	private SocialMemberReader socialMemberReader;
 	@Mock
 	private MemberBlockRepository memberBlockRepository;
@@ -84,6 +86,29 @@ class BreadRecordSocialQueryServiceTest {
 
 	@InjectMocks
 	private BreadRecordSocialQueryService queryService;
+
+	@org.junit.jupiter.api.BeforeEach
+	void publicAccountByDefault() {
+		org.mockito.Mockito.lenient().when(followVisibilityReader.canViewRecords(org.mockito.ArgumentMatchers.any(),
+			org.mockito.ArgumentMatchers.any())).thenReturn(true);
+	}
+
+	@Test
+	@DisplayName("상대가 비공개 계정이고 내가 팔로워가 아니면 빈 목록 — 쿼리를 타지 않는다")
+	void privateAccountHidesRecords() {
+		Member author = Member.builder().nickname("작성자").build();
+		ReflectionTestUtils.setField(author, "id", AUTHOR);
+		given(socialMemberReader.findSocial(AUTHOR)).willReturn(java.util.Optional.of(author));
+		given(memberBlockRepository.existsBetween(VIEWER, AUTHOR)).willReturn(false);
+		given(followVisibilityReader.canViewRecords(VIEWER, author)).willReturn(false);
+
+		SliceResponse<MemberBreadRecordResponse> result = queryService.getMemberRecords(VIEWER, AUTHOR,
+			BreadRecordSort.LATEST, 0, 20);
+
+		assertThat(result.content()).isEmpty();
+		assertThat(result.hasNext()).isFalse();
+		then(breadRecordRepository).shouldHaveNoInteractions();
+	}
 
 	private Member author() {
 		Member author = Member.builder().nickname("작성자").build();

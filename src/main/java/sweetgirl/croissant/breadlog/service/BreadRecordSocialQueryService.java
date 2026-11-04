@@ -33,7 +33,9 @@ import sweetgirl.croissant.comment.repository.BreadRecordCommentRepository;
 import sweetgirl.croissant.comment.repository.BreadRecordCommentRepository.RecordCommentCountProjection;
 import sweetgirl.croissant.comment.service.CommentQueryService;
 import sweetgirl.croissant.follow.dto.response.FollowMemberResponse;
+import sweetgirl.croissant.follow.service.FollowVisibilityReader;
 import sweetgirl.croissant.global.response.SliceResponse;
+import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberBlockRepository;
 import sweetgirl.croissant.member.service.SocialMemberReader;
 import sweetgirl.croissant.profile.code.ProfileErrorCode;
@@ -54,6 +56,7 @@ public class BreadRecordSocialQueryService {
 	private final BreadRecordPhotoRepository photoRepository;
 	private final BreadRecordTagRepository tagRepository;
 	private final BreadRecordVisibilityPolicy visibilityPolicy;
+	private final FollowVisibilityReader followVisibilityReader;
 	private final SocialMemberReader socialMemberReader;
 	private final MemberBlockRepository memberBlockRepository;
 	private final AuthorCardReader authorCardReader;
@@ -66,15 +69,18 @@ public class BreadRecordSocialQueryService {
 
 	/**
 	 * 프로필의 공개 빵로그. 본인이면 숨긴 것도 "검토 중"으로 보인다. 상대가 게스트 · 봇 · 탈퇴면 404,
-	 * 보는 사람과 차단 관계면 403 — 프로필과 같은 규칙.
+	 * 보는 사람과 차단 관계면 403 — 프로필과 같은 규칙. 상대가 비공개 계정이고 내가 팔로워가 아니면 빈 목록.
 	 */
 	public SliceResponse<MemberBreadRecordResponse> getMemberRecords(Long viewerId, Long memberId,
 			BreadRecordSort sort, int page, int size) {
-		socialMemberReader.findSocial(memberId)
+		Member owner = socialMemberReader.findSocial(memberId)
 			.orElseThrow(() -> new ProfileException(ProfileErrorCode.PROFILE_MEMBER_NOT_FOUND));
 		boolean isMe = memberId.equals(viewerId);
 		if (!isMe && viewerId != null && memberBlockRepository.existsBetween(viewerId, memberId)) {
 			throw new ProfileException(ProfileErrorCode.PROFILE_BLOCKED);
+		}
+		if (!followVisibilityReader.canViewRecords(viewerId, owner)) {
+			return new SliceResponse<>(List.of(), false);
 		}
 		int safePage = Math.max(page, 0);
 		int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);

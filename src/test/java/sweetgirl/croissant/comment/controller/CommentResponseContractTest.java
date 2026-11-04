@@ -38,7 +38,7 @@ class CommentResponseContractTest extends ResponseContractWebMvcTest {
 			new CommentResponse(100L, 2L, "빵순이", "dog", "world/dog/front.png", "@작성자 맛있어요",
 				List.of(new CommentResponse.MentionResponse(1L, 0, 4)), LocalDateTime.of(2026, 10, 22, 9, 0), false,
 				true,
-				null)),
+				null, null)),
 			false));
 
 		mockMvc.perform(get("/bread-records/10/comments"))
@@ -54,6 +54,7 @@ class CommentResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.content[0].createdAt").isString())
 			.andExpect(jsonPath("$.data.content[0].isAuthor").isBoolean())
 			.andExpect(jsonPath("$.data.content[0].isMine").isBoolean())
+			.andExpect(jsonPath("$.data.content[0].parentId").doesNotExist())
 			.andExpect(jsonPath("$.data.hasNext").isBoolean());
 	}
 }
