@@ -13,12 +13,11 @@ import sweetgirl.croissant.course.dto.response.MemoDraftWriteResponse;
 import sweetgirl.croissant.course.entity.CourseStoreMemo;
 import sweetgirl.croissant.course.event.MemoDraftWrittenEvent;
 import sweetgirl.croissant.course.exception.CourseException;
-import sweetgirl.croissant.member.service.MemberReader;
 
 /**
  * 메모 초안 쓰기 — Redis 만 쓴다. 코스 행 락·DB 쓰기가 없어서 한 코스의 편집자 전원이 0.5초마다 불러도 줄을 서지 않는다.
  * 정류장이 이 코스 것인지는 여기서 보지 않는다 — 플러셔와 GET drafts 가 거른다(틀려도 엉뚱한 초안이 최대 10초 머물 뿐).
- * 트랜잭션이 없다: DB 는 권한 캐시가 빠졌을 때만 읽는다.
+ * 트랜잭션이 없다: DB 는 권한 캐시가 빠졌을 때만 읽는다 — 로그인 판정까지 캐시 안에 있다(밖에 두면 요청마다 DB 1회).
  */
 @Slf4j
 @Service
@@ -27,7 +26,6 @@ import sweetgirl.croissant.member.service.MemberReader;
 public class MemoDraftCommandService {
 
 	private final CourseDraftProperties properties;
-	private final MemberReader memberReader;
 	private final MemoDraftRateLimiter rateLimiter;
 	private final MemoDraftAccessCache accessCache;
 	private final MemoDraftBuffer buffer;
@@ -39,7 +37,6 @@ public class MemoDraftCommandService {
 	 * @throws CourseException 스위치 꺼짐·Redis 장애 503(앱은 PATCH 로 물러난다), 초당 한도 429, seq 가 하루 넘게 미래 400
 	 */
 	public MemoDraftWriteResponse write(Long memberId, Long courseId, Long storeId, MemoDraftWriteRequest request) {
-		memberReader.requireLoggedIn(memberId);
 		if (!properties.isWriteEnabled()) {
 			throw new CourseException(CourseErrorCode.COURSE_DRAFT_UNAVAILABLE);
 		}

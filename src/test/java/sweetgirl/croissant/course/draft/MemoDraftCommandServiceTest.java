@@ -28,7 +28,6 @@ import sweetgirl.croissant.course.dto.response.MemoDraftWriteResponse;
 import sweetgirl.croissant.course.entity.CourseStoreMemo;
 import sweetgirl.croissant.course.event.MemoDraftWrittenEvent;
 import sweetgirl.croissant.course.exception.CourseException;
-import sweetgirl.croissant.member.service.MemberReader;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("MemoDraftCommandService")
@@ -41,8 +40,6 @@ class MemoDraftCommandServiceTest {
 
 	@Mock
 	private CourseDraftProperties properties;
-	@Mock
-	private MemberReader memberReader;
 	@Mock
 	private MemoDraftRateLimiter rateLimiter;
 	@Mock
@@ -79,7 +76,6 @@ class MemoDraftCommandServiceTest {
 		MemoDraftWriteResponse response = memoDraftCommandService.write(MEMBER_ID, COURSE_ID, STORE_ID, request);
 
 		assertThat(response.acceptedSeq()).isEqualTo(1_000L);
-		then(memberReader).should().requireLoggedIn(MEMBER_ID);
 		then(rateLimiter).should().check(MEMBER_ID);
 		then(accessCache).should().requireEditable(COURSE_ID, MEMBER_ID);
 		ArgumentCaptor<MemoDraftWrittenEvent> event = ArgumentCaptor.forClass(MemoDraftWrittenEvent.class);
