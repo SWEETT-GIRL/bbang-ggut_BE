@@ -19,7 +19,7 @@ import sweetgirl.croissant.store.enums.TrendingSignal;
  * 자동완성 급부상·스테디 노출의 손잡이. 계산은 {@code TrendingRankingCalculator}, 노출은 {@code StoreSearchService} 에 있다.
  *
  * <p>운영 실측(2026-10): 가게 하나가 하루에 받는 고유 방문자는 최대 1~4명, 28일 일평균 1위 가게도 0.71명이었다. 24시간 창으로는 판정할
- * 신호가 없어 7일 창 + 시간 감쇠로 넓히고, 조회 말고 찜·빵로그 등도 센다. 갱신은 5분마다라 실시간성은 그대로다.
+ * 신호가 없어 7일 창 + 시간 감쇠로 넓히고, 조회 말고 찜·빵로그 등도 센다.
  */
 @Getter
 @Setter
@@ -70,6 +70,17 @@ public class StoreTrendingProperties {
 	/** 순위표에 담는 최대 가게 수 */
 	@Min(1)
 	private int topSize = 300;
+
+	/**
+	 * 순위표를 다시 만드는 주기. 운영 실측(2026-11)이 신호 하루 약 190건·자동완성 약 120건이라 5분은 대부분 같은 결과를 다시 만들었다.
+	 * 트래픽이 늘면 배포 없이 줄인다.
+	 */
+	@NotNull
+	private Duration refreshInterval = Duration.ofMinutes(30);
+
+	/** Redis 를 못 읽을 때 직전 순위표를 계속 쓰는 최대 시간 — 지나면 급부상 없이 정렬한다. 갱신 두 번을 놓칠 때까지 버틴다 */
+	@NotNull
+	private Duration staleSnapshotLimit = Duration.ofMinutes(60);
 
 	private static Map<TrendingSignal, Double> defaultWeights() {
 		Map<TrendingSignal, Double> weights = new EnumMap<>(TrendingSignal.class);

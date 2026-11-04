@@ -2,14 +2,12 @@ package sweetgirl.croissant.store.service.trending;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -18,11 +16,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.RedisConnectionFailureException;
-import org.springframework.data.redis.core.DefaultTypedTuple;
-import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ZSetOperations;
-import org.springframework.data.redis.core.ZSetOperations.TypedTuple;
+import org.springframework.data.redis.core.ValueOperations;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -34,29 +29,25 @@ class TrendingRankingReaderTest {
 	@Mock
 	private StringRedisTemplate redisTemplate;
 	@Mock
-	private ZSetOperations<String, String> zSetOperations;
-	@Mock
-	private HashOperations<String, Object, Object> hashOperations;
+	private ValueOperations<String, String> valueOperations;
 
 	private final StoreTrendingProperties properties = new StoreTrendingProperties();
+	private final AtomicLong clock = new AtomicLong(1_000_000L);
 	private TrendingRankingReader reader;
 
 	@BeforeEach
 	void setUp() {
 		properties.setEnabled(true);
-		reader = new TrendingRankingReader(redisTemplate, properties, new ObjectMapper());
+		reader = new TrendingRankingReader(redisTemplate, properties, new ObjectMapper(), clock::get);
 	}
 
 	private void givenRanking() {
-		Set<TypedTuple<String>> top = new LinkedHashSet<>(List.of(
-			new DefaultTypedTuple<>("2", 9.0), new DefaultTypedTuple<>("7", 5.0), new DefaultTypedTuple<>("3", 4.0)));
-		given(redisTemplate.opsForZSet()).willReturn(zSetOperations);
-		given(zSetOperations.reverseRangeWithScores("trend:top", 0, -1)).willReturn(top);
-		given(redisTemplate.<Object, Object>opsForHash()).willReturn(hashOperations);
-		given(hashOperations.entries("trend:names")).willReturn(Map.of(
-			"2", "{\"name\":\"한정선\",\"keys\":[\"한정선\"]}",
-			"7", "{\"name\":\"성심당 본점\",\"keys\":[\"성심당본점\",\"성심\"]}",
-			"3", "{\"name\":\"한스베이커리\",\"keys\":[\"한스베이커리\"]}"));
+		given(redisTemplate.opsForValue()).willReturn(valueOperations);
+		given(valueOperations.get("trend:ranking")).willReturn("""
+				[{"storeId":2,"score":9.0,"name":"한정선","keys":["한정선"]},
+				{"storeId":7,"score":5.0,"name":"성심당 본점","keys":["성심당본점","성심"]},
+				{"storeId":3,"score":4.0,"name":"한스베이커리","keys":["한스베이커리"]}]
+				""");
 	}
 
 	@Test
@@ -85,13 +76,80 @@ class TrendingRankingReaderTest {
 		reader.findStartingWith("한", 2);
 		reader.findStartingWith("성", 2);
 
-		verify(zSetOperations, times(1)).reverseRangeWithScores("trend:top", 0, -1);
+		verify(valueOperations, times(1)).get("trend:ranking");
+	}
+
+	private void expireSnapshot() {
+		clock.addAndGet(TrendingRankingReader.SNAPSHOT_TTL.toMillis());
 	}
 
 	@Test
-	@DisplayName("Redis 를 못 읽으면 빈 순위표로 본다 — 자동완성은 급부상 없이 정렬된다")
+	@DisplayName("Redis 를 못 읽으면 직전 순위표를 계속 쓴다 — 페일오버 동안 급부상이 사라지지 않는다")
+	void redisFailure_keepsLastSnapshot() {
+		givenRanking();
+		reader.findStartingWith("한", 2);
+		expireSnapshot();
+		given(redisTemplate.opsForValue()).willThrow(new RedisConnectionFailureException("down"));
+
+		assertThat(reader.findStartingWith("한", 1)).extracting(TrendingStore::name).containsExactly("한정선");
+	}
+
+	@Test
+	@DisplayName("장애 중에도 TTL 동안은 다시 시도하지 않는다 — 요청마다 Redis 타임아웃을 기다리지 않게")
+	void redisFailure_doesNotRetryWithinTtl() {
+		given(redisTemplate.opsForValue()).willThrow(new RedisConnectionFailureException("down"));
+
+		reader.findStartingWith("한", 2);
+		reader.findStartingWith("성", 2);
+
+		verify(redisTemplate, times(1)).opsForValue();
+	}
+
+	@Test
+	@DisplayName("마지막으로 읽은 지 보관 한도를 넘기면 직전 순위표를 버린다")
+	void redisFailure_dropsSnapshotAfterStaleLimit() {
+		givenRanking();
+		reader.findStartingWith("한", 2);
+		clock.addAndGet(properties.getStaleSnapshotLimit().toMillis() + 1);
+		given(redisTemplate.opsForValue()).willThrow(new RedisConnectionFailureException("down"));
+
+		assertThat(reader.findStartingWith("한", 2)).isEmpty();
+	}
+
+	@Test
+	@DisplayName("Redis 가 복구되면 다음 갱신 때 새 순위표로 돌아온다")
+	void redisRecovery_replacesSnapshot() {
+		givenRanking();
+		reader.findStartingWith("한", 2);
+		expireSnapshot();
+		reset(redisTemplate);
+		given(redisTemplate.opsForValue()).willThrow(new RedisConnectionFailureException("down"));
+		reader.findStartingWith("한", 2);
+		expireSnapshot();
+		reset(redisTemplate, valueOperations);
+		given(redisTemplate.opsForValue()).willReturn(valueOperations);
+		given(valueOperations.get("trend:ranking")).willReturn("""
+				[{"storeId":3,"score":4.0,"name":"한스베이커리","keys":["한스베이커리"]}]
+				""");
+
+		assertThat(reader.findStartingWith("한", 2)).extracting(TrendingStore::name).containsExactly("한스베이커리");
+	}
+
+	@Test
+	@DisplayName("순위표 키가 없으면 그대로 받아들인다 — 지금 뜨는 가게가 없거나 갱신이 오래 멈춰 만료됐다는 뜻이다")
+	void emptyRanking_replacesSnapshot() {
+		givenRanking();
+		reader.findStartingWith("한", 2);
+		expireSnapshot();
+		given(valueOperations.get("trend:ranking")).willReturn(null);
+
+		assertThat(reader.findStartingWith("한", 2)).isEmpty();
+	}
+
+	@Test
+	@DisplayName("읽은 적 없이 Redis 를 못 읽으면 빈 순위표로 본다 — 자동완성은 급부상 없이 정렬된다")
 	void redisFailure_returnsEmpty() {
-		given(redisTemplate.opsForZSet()).willThrow(new RedisConnectionFailureException("down"));
+		given(redisTemplate.opsForValue()).willThrow(new RedisConnectionFailureException("down"));
 
 		assertThat(reader.findStartingWith("한", 2)).isEmpty();
 	}
@@ -103,5 +161,16 @@ class TrendingRankingReaderTest {
 
 		assertThat(reader.findStartingWith("한", 2)).isEmpty();
 		verifyNoInteractions(redisTemplate);
+	}
+
+	@Test
+	@DisplayName("순위표 값을 해석하지 못하면 읽기 실패로 보고 직전 순위표를 쓴다")
+	void malformedRanking_keepsLastSnapshot() {
+		givenRanking();
+		reader.findStartingWith("한", 2);
+		expireSnapshot();
+		given(valueOperations.get("trend:ranking")).willReturn("not-json");
+
+		assertThat(reader.findStartingWith("한", 1)).extracting(TrendingStore::name).containsExactly("한정선");
 	}
 }

@@ -26,7 +26,7 @@ import sweetgirl.croissant.store.repository.trending.StoreTrendingRepository;
 import sweetgirl.croissant.store.repository.trending.TrendingStoreName;
 
 /**
- * 신호 기록 → 순위표 계산 → 자동완성 읽기를 진짜 Redis 로 끝까지 돈다. ZUNIONSTORE 가중치·PFCOUNT 합치기·RENAME 교체는 목으로 못 본다.
+ * 신호 기록 → 순위표 계산 → 자동완성 읽기를 진짜 Redis 로 끝까지 돈다. ZUNIONSTORE 가중치·PFCOUNT 합치기·순위표 직렬화는 목으로 못 본다.
  * 로컬 Redis(localhost:6379)가 떠 있을 때 {@code ./gradlew test -PlabTests} 로 돈다. DB 는 목이다(평소 수준·이름).
  */
 @Tag("lab")
@@ -90,7 +90,8 @@ class TrendingRankingRedisLabTest {
 		int published = rankingService.refresh(NOW);
 
 		assertThat(published).isEqualTo(1);
-		assertThat(redisTemplate.opsForZSet().range("trend:top", 0, -1)).containsExactly("900");
+		assertThat(redisTemplate.opsForValue().get("trend:ranking")).contains("폼포미베이커리");
+		assertThat(redisTemplate.getExpire("trend:ranking")).isPositive();
 		assertThat(reader.findStartingWith("폼", 2)).extracting(TrendingStore::name).containsExactly("폼포미베이커리");
 		assertThat(redisTemplate.hasKey("lock:trend:refresh")).isFalse();
 	}
@@ -98,14 +99,40 @@ class TrendingRankingRedisLabTest {
 	@Test
 	@DisplayName("뜨는 가게가 없으면 순위표를 비운다 — 지난 순위가 남아 계속 승격되지 않게")
 	void emptyRankingClearsPreviousTop() {
-		redisTemplate.opsForZSet().add("trend:top", "1", 3.0);
-		redisTemplate.opsForHash().put("trend:names", "1", "{\"name\":\"옛\",\"keys\":[\"옛\"]}");
+		redisTemplate.opsForValue().set("trend:ranking",
+			"[{\"storeId\":1,\"score\":3.0,\"name\":\"옛\",\"keys\":[\"옛\"]}]");
 
 		int published = rankingService.refresh(NOW);
 
 		assertThat(published).isZero();
-		assertThat(redisTemplate.hasKey("trend:top")).isFalse();
-		assertThat(redisTemplate.hasKey("trend:names")).isFalse();
+		assertThat(redisTemplate.hasKey("trend:ranking")).isFalse();
+	}
+
+	@Test
+	@DisplayName("신호 하나를 기록하면 판정·버킷·회원 키가 모두 생기고 전부 TTL 이 걸린다")
+	void recordScript_writesAllKeysWithTtl() {
+		recorder.record(7L, 10L, TrendingSignal.SAVE, NOW);
+		recorder.record(7L, 10L, TrendingSignal.SAVE, NOW);
+
+		assertThat(redisTemplate.opsForZSet().score("trend:h:2026100515", "10")).isEqualTo(2.0);
+		assertThat(redisTemplate.opsForHyperLogLog().size("trend:uv:10:20261005")).isEqualTo(1);
+		assertThat(redisTemplate.getExpire("seen:SAVE:10:7:20261005")).isPositive();
+		assertThat(redisTemplate.getExpire("trend:h:2026100515")).isPositive();
+		assertThat(redisTemplate.getExpire("trend:uv:10:20261005")).isPositive();
+	}
+
+	@Test
+	@DisplayName("스크립트 캐시가 빈 Redis(갓 승격한 노드)에서도 기록된다 — NOSCRIPT 로 신호를 잃지 않는다")
+	void recordScript_survivesEmptyScriptCache() {
+		recorder.record(7L, 10L, TrendingSignal.SAVE, NOW);
+		redisTemplate.execute((org.springframework.data.redis.core.RedisCallback<Void>)connection -> {
+			connection.scriptingCommands().scriptFlush();
+			return null;
+		});
+
+		recorder.record(8L, 10L, TrendingSignal.SAVE, NOW);
+
+		assertThat(redisTemplate.opsForZSet().score("trend:h:2026100515", "10")).isEqualTo(4.0);
 	}
 
 	@Test

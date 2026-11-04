@@ -5,7 +5,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,12 +27,12 @@ import sweetgirl.croissant.store.repository.trending.StoreTrendingRepository;
 import sweetgirl.croissant.store.repository.trending.TrendingStoreName;
 
 /**
- * 급부상 순위표(trend:top · trend:names)를 다시 만든다. 5분마다 스케줄러가 부른다.
+ * 급부상 순위표(trend:ranking)를 다시 만든다. 스케줄러가 주기마다 부른다.
  *
  * <ol>
  * <li>최근 창(7일)의 시간 버킷을 감쇠 가중치로 합친다(ZUNIONSTORE) → 가게별 recent</li>
  * <li>가게별 7일 고유 회원 수(PFCOUNT 로 7일치 HLL 을 합쳐 셈), 평소 수준(DB)을 붙인다</li>
- * <li>자격·순위를 계산하고 이름·별칭을 붙여 임시 키에 쓴 뒤 RENAME — 읽는 쪽이 반쯤 찬 순위표를 보지 않는다</li>
+ * <li>자격·순위를 계산하고 이름·별칭을 붙여 키 하나에 통째로 쓴다 — 읽는 쪽이 반쯤 찬 순위표를 보지 않는다</li>
  * </ol>
  * blue/green 전환 중 두 JVM 이 함께 돌아도 한쪽만 계산하도록 Redis 락을 건다.
  */
@@ -42,8 +41,10 @@ import sweetgirl.croissant.store.repository.trending.TrendingStoreName;
 @RequiredArgsConstructor
 public class TrendingRankingService {
 
-	/** 주기(5분)보다 짧게 — 계산하던 인스턴스가 죽어도 다음 주기에는 풀린다 */
+	/** 주기보다 짧게 — 계산하던 인스턴스가 죽어도 다음 주기에는 풀린다 */
 	static final Duration LOCK_TTL = Duration.ofMinutes(4);
+	/** 갱신이 세 번 연속 실패하면 만료된다 — 옛 순위표가 끝없이 승격되지 않고 인기순 정렬로 돌아간다 */
+	static final int RANKING_TTL_CYCLES = 3;
 	private static final String RECENT_UNION = "trend:recent:work";
 
 	private final StringRedisTemplate redisTemplate;
@@ -59,7 +60,7 @@ public class TrendingRankingService {
 		try {
 			Map<Long, Double> recent = sumRecentBuckets(now);
 			if (recent.isEmpty()) {
-				redisTemplate.delete(List.of(TrendingKeys.TOP, TrendingKeys.NAMES));
+				redisTemplate.delete(TrendingKeys.RANKING);
 				return 0;
 			}
 			Map<Long, Double> baselines = storeTrendingRepository.findBaselines(recent.keySet());
@@ -113,37 +114,28 @@ public class TrendingRankingService {
 			ranked.stream().map(TrendingRankingCalculator.Ranked::storeId)
 				.collect(Collectors.toCollection(HashSet::new)))
 			.stream().collect(Collectors.toMap(TrendingStoreName::storeId, Function.identity()));
-		String topWork = TrendingKeys.staging(TrendingKeys.TOP);
-		String namesWork = TrendingKeys.staging(TrendingKeys.NAMES);
-		redisTemplate.delete(List.of(topWork, namesWork));
-		Map<String, String> nameEntries = new LinkedHashMap<>();
+		List<TrendingRankingEntry> entries = new ArrayList<>();
 		for (TrendingRankingCalculator.Ranked store : ranked) {
 			TrendingStoreName name = names.get(store.storeId());
 			if (name == null) {
 				continue; // 숨긴 가게는 올리지 않는다
 			}
-			redisTemplate.opsForZSet().add(topWork, String.valueOf(store.storeId()), store.score());
-			nameEntries.put(String.valueOf(store.storeId()), toJson(name));
+			entries.add(new TrendingRankingEntry(store.storeId(), store.score(), name.name(), name.normalizedKeys()));
 		}
-		if (nameEntries.isEmpty()) {
-			redisTemplate.delete(List.of(TrendingKeys.TOP, TrendingKeys.NAMES));
+		if (entries.isEmpty()) {
+			redisTemplate.delete(TrendingKeys.RANKING);
 			return 0;
 		}
-		redisTemplate.opsForHash().putAll(namesWork, nameEntries);
-		redisTemplate.rename(topWork, TrendingKeys.TOP);
-		redisTemplate.rename(namesWork, TrendingKeys.NAMES);
-		return nameEntries.size();
+		redisTemplate.opsForValue().set(TrendingKeys.RANKING, toJson(entries),
+			properties.getRefreshInterval().multipliedBy(RANKING_TTL_CYCLES));
+		return entries.size();
 	}
 
-	private String toJson(TrendingStoreName name) {
+	private String toJson(List<TrendingRankingEntry> entries) {
 		try {
-			return objectMapper.writeValueAsString(new TrendingNameEntry(name.name(), name.normalizedKeys()));
+			return objectMapper.writeValueAsString(entries);
 		} catch (JsonProcessingException exception) {
-			throw new IllegalStateException("급부상 이름을 JSON 으로 못 바꿨다 store=" + name.storeId(), exception);
+			throw new IllegalStateException("급부상 순위표를 JSON 으로 못 바꿨다", exception);
 		}
-	}
-
-	/** trend:names 의 값 */
-	record TrendingNameEntry(String name, List<String> keys) {
 	}
 }
