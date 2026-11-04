@@ -57,6 +57,9 @@ class CourseDraftWiringLabTest {
 		assertThat(context.getBean(CourseSignalRelay.class)).isNotNull();
 		assertThat(context.getBean(RedisMessageListenerContainer.class).isRunning()).isTrue();
 		assertThat(context.getBean(SimpMessagingTemplate.class)).isNotNull();
+		// simple broker 하트비트 — 없으면 CONNECTED 가 heart-beat:0,0 이라 앱 하트비트가 꺼진다
+		assertThat(context.getBean(org.springframework.messaging.simp.broker.SimpleBrokerMessageHandler.class)
+			.getHeartbeatValue()).containsExactly(25_000L, 25_000L);
 		assertThat(context.getBean(CourseDraftProperties.class).isDraftEnabled()).isTrue();
 	}
 
