@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,7 @@ import sweetgirl.croissant.course.entity.CourseMember;
 import sweetgirl.croissant.course.enums.CourseInviteState;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.enums.CourseVisibility;
+import sweetgirl.croissant.course.event.CourseMemberLeftEvent;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseInviteRepository;
 import sweetgirl.croissant.course.repository.CourseMemberRepository;
@@ -58,6 +60,8 @@ public class CourseMemberService {
 	private final MemberRestrictionReader memberRestrictionReader;
 	private final CourseAccessPolicy courseAccessPolicy;
 	private final FollowCommandService followCommandService;
+	private final CourseVersionBumper courseVersionBumper;
+	private final ApplicationEventPublisher eventPublisher;
 
 	public CourseInviteResponse createInvite(Long memberId, Long courseId) {
 		memberRestrictionReader.validateCanWrite(memberId);
@@ -68,7 +72,7 @@ public class CourseMemberService {
 
 		// 협업은 이 호출로 시작된다 — 방장도 코스 안에서 쓰는 이름을 갖는다. 행이 생기면 참여자 목록이 바뀐 것이다.
 		if (ensureOwnerRow(course)) {
-			courseRepository.bumpVersion(courseId);
+			courseVersionBumper.bump(courseId);
 		}
 
 		LocalDateTime now = LocalDateTime.now();
@@ -183,7 +187,7 @@ public class CourseMemberService {
 		if (course.isPublic()) {
 			course.updateVisibility(CourseVisibility.PRIVATE);
 		}
-		courseRepository.bumpVersion(course.getId());
+		courseVersionBumper.bump(course.getId());
 		return new CourseInviteAcceptResponse(course.getId(), false);
 	}
 
@@ -231,10 +235,12 @@ public class CourseMemberService {
 			transferOwnership(course, memberId);
 		} else {
 			me.leave();
-			courseRepository.bumpVersion(courseId);
+			courseVersionBumper.bump(courseId);
 		}
 		// 나간 사람의 메모는 삭제(확정). 탈퇴한 멤버·방장도 같은 규칙이다
 		courseStoreMemoRepository.softDeleteAllByCourseIdAndMemberId(courseId, memberId);
+		// 커밋 뒤 이 코스의 신호 구독을 끊는다 — DRAFT 에 일행 메모 내용이 실린다
+		eventPublisher.publishEvent(new CourseMemberLeftEvent(courseId, memberId));
 	}
 
 	/** 나가기 전용 — 넘길 멤버가 없으면 COURSE_NO_SUCCESSOR(앱은 그때 "삭제"만 보여준다). 탈퇴는 예외 대신 행만 닫는다. */
@@ -264,7 +270,7 @@ public class CourseMemberService {
 			.filter(row -> row.getId().getMemberId().equals(fromMemberId))
 			.findFirst()
 			.ifPresent(CourseMember::leave);
-		courseRepository.bumpVersion(course.getId());
+		courseVersionBumper.bump(course.getId());
 		return true;
 	}
 
@@ -288,6 +294,7 @@ public class CourseMemberService {
 				continue;
 			}
 			Course course = locked.get();
+			eventPublisher.publishEvent(new CourseMemberLeftEvent(courseId, memberId));
 			if (courseAccessPolicy.isOwner(course, memberId)) {
 				if (!transferOwnershipIfPossible(course, memberId)) {
 					row.leave();
@@ -296,7 +303,7 @@ public class CourseMemberService {
 				}
 			} else {
 				row.leave();
-				courseRepository.bumpVersion(courseId);
+				courseVersionBumper.bump(courseId);
 			}
 			courseStoreMemoRepository.softDeleteAllByCourseIdAndMemberId(courseId, memberId);
 		}

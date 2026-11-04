@@ -57,6 +57,13 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       AUTOCOMPLETE_CACHE_ENABLED: ${AUTOCOMPLETE_CACHE_ENABLED:-false}
       TRENDING_ENABLED: ${TRENDING_ENABLED:-false}
+      # 빵투어 메모 초안 자동저장 — mode 가 비어 있으면 초안·소켓 빈이 전부 안 뜬다. dev 는 캐시 Redis 를 1번 DB 로 나눠 쓴다(allkeys-lru 라 운영 기준은 아님).
+      COURSE_DRAFT_REDIS_MODE: ${COURSE_DRAFT_REDIS_MODE:-}
+      COURSE_DRAFT_REDIS_HOST: redis
+      COURSE_DRAFT_REDIS_PORT: 6379
+      COURSE_DRAFT_REDIS_DATABASE: ${COURSE_DRAFT_REDIS_DATABASE:-1}
+      COURSE_DRAFT_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      COURSE_DRAFT_WRITE_ENABLED: ${COURSE_DRAFT_WRITE_ENABLED:-false}
 
     ports:
       - "8080:8080"

@@ -30,6 +30,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.course.code.CourseErrorCode;
+import sweetgirl.croissant.course.draft.MemoDraftDiscarder;
 import sweetgirl.croissant.course.dto.request.CourseCreateRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreAddRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreReorderRequest;
@@ -43,6 +44,7 @@ import sweetgirl.croissant.course.entity.CourseStore;
 import sweetgirl.croissant.course.entity.CourseStoreMemo;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.enums.CourseVisibility;
+import sweetgirl.croissant.course.event.CourseDeletedEvent;
 import sweetgirl.croissant.course.event.CourseStoreAddedEvent;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
@@ -51,6 +53,7 @@ import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
+import sweetgirl.croissant.course.service.CourseVersionBumper;
 import sweetgirl.croissant.course.util.CollabTokenGenerator;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
@@ -95,6 +98,10 @@ class CourseCommandServiceTest {
 	ApplicationEventPublisher eventPublisher;
 	@Mock
 	sweetgirl.croissant.profile.service.CharacterFaceReader characterFaceReader;
+	@Mock
+	private MemoDraftDiscarder memoDraftDiscarder;
+	@Mock
+	private CourseVersionBumper courseVersionBumper;
 	@Mock
 	MemberReader memberReader;
 
@@ -208,7 +215,7 @@ class CourseCommandServiceTest {
 
 		then(course).should().updateTitle("수정된 제목");
 		then(course).should().updateVisibility(CourseVisibility.PUBLIC);
-		then(courseRepository).should().bumpVersion(courseId);
+		then(courseVersionBumper).should().bump(courseId);
 	}
 
 	@Test
@@ -225,7 +232,7 @@ class CourseCommandServiceTest {
 		assertThatThrownBy(() -> courseCommandService.updateCourse(otherId, courseId, request))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
-		then(courseRepository).should(never()).bumpVersion(any());
+		then(courseVersionBumper).should(never()).bump(any());
 	}
 
 	@Test
@@ -285,6 +292,8 @@ class CourseCommandServiceTest {
 		courseCommandService.deleteCourse(memberId, courseId);
 
 		then(course).should().softDelete();
+		// 커밋 뒤 이 코스의 신호 구독을 전원 끊는다
+		then(eventPublisher).should().publishEvent(new CourseDeletedEvent(courseId));
 	}
 
 	// ───────────────────────── addStore ─────────────────────────
@@ -317,7 +326,7 @@ class CourseCommandServiceTest {
 
 		assertThat(result).isNotNull();
 		then(courseStoreRepository).should().save(any(CourseStore.class));
-		then(courseRepository).should().bumpVersion(courseId);
+		then(courseVersionBumper).should().bump(courseId);
 		// 가게가 늘었으니 완주 승격 허용
 		then(courseProgressService).should().refreshForCourse(courseId, true);
 		// 메모는 course_stores.memo 가 아니라 내 메모 행으로 들어가고, 응답엔 myMemo·memos 로 실린다
@@ -498,6 +507,7 @@ class CourseCommandServiceTest {
 		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, memberId, null);
 		CourseStore courseStore = mock(CourseStore.class);
 		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
 		given(request.getMemo()).willReturn("새 메모");
 		given(request.getVisitTime()).willReturn(LocalTime.of(14, 30));
 
@@ -513,7 +523,7 @@ class CourseCommandServiceTest {
 		then(courseStoreMemoRepository).should().save(any(CourseStoreMemo.class));
 		then(courseStore).should(never()).updateMemo(any());
 		then(courseStore).should().updateVisitTime(LocalTime.of(14, 30));
-		then(courseRepository).should().bumpVersion(courseId);
+		then(courseVersionBumper).should().bump(courseId);
 	}
 
 	// ───────────────────────── removeStore ─────────────────────────
@@ -540,7 +550,7 @@ class CourseCommandServiceTest {
 		then(courseStoreMemoRepository).should().softDeleteAllByCourseStoreId(501L);
 		// 가게가 줄었으니 완주 승격 금지 — 분모만 작아져 안 간 코스가 완주 처리되면 안 된다
 		then(courseProgressService).should().refreshForCourse(courseId, false);
-		then(courseRepository).should().bumpVersion(courseId);
+		then(courseVersionBumper).should().bump(courseId);
 	}
 
 	// ───────────────────────── reorderStores ─────────────────────────
@@ -591,7 +601,7 @@ class CourseCommandServiceTest {
 		// day 미전송이면 기존 일차 유지
 		then(courseStore1).should(never()).updateDay(any());
 		then(courseStore2).should(never()).updateDay(any());
-		then(courseRepository).should().bumpVersion(courseId);
+		then(courseVersionBumper).should().bump(courseId);
 		// 활성 정류장 목록 하나로 집합 검증·행 조회를 다 한다 — count·findAllById 는 나가지 않는다
 		then(courseStoreRepository).should(never()).countByCourseIdAndDeletedAtIsNull(any());
 		then(courseStoreRepository).should(never()).findAllById(any());
@@ -732,7 +742,7 @@ class CourseCommandServiceTest {
 		assertThatThrownBy(() -> courseCommandService.reorderStores(memberId, courseId, request))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_STORE_ORDER_INVALID.getMessage());
-		then(courseRepository).should(never()).bumpVersion(any());
+		then(courseVersionBumper).should(never()).bump(any());
 	}
 
 	@Test
@@ -801,7 +811,7 @@ class CourseCommandServiceTest {
 		courseCommandService.registerImage(memberId, courseId, request);
 
 		then(courseImageFileRepository).should().save(any(CourseImageFile.class));
-		then(courseRepository).should().bumpVersion(courseId);
+		then(courseVersionBumper).should().bump(courseId);
 	}
 
 	@Test
@@ -820,7 +830,7 @@ class CourseCommandServiceTest {
 
 		then(s3Service).should().deleteObject("courses/10/abc.jpg");
 		then(courseImageFileRepository).should().delete(imageFile);
-		then(courseRepository).should().bumpVersion(courseId);
+		then(courseVersionBumper).should().bump(courseId);
 	}
 
 	@Test
@@ -838,7 +848,7 @@ class CourseCommandServiceTest {
 			.hasMessageContaining(CourseErrorCode.COURSE_IMAGE_NOT_FOUND.getMessage());
 
 		then(s3Service).should(never()).deleteObject(any());
-		then(courseRepository).should(never()).bumpVersion(any());
+		then(courseVersionBumper).should(never()).bump(any());
 	}
 
 	// ───────────────────────── forkCourse ─────────────────────────
@@ -1059,7 +1069,7 @@ class CourseCommandServiceTest {
 		courseCommandService.reorderStores(memberId, courseId, request);
 
 		then(courseStoreRepository).should().flush();
-		then(courseRepository).should().bumpVersion(courseId);
+		then(courseVersionBumper).should().bump(courseId);
 	}
 
 	@Test
@@ -1074,7 +1084,7 @@ class CourseCommandServiceTest {
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_STALE.getMessage());
 		then(courseStoreRepository).should(never()).flush();
-		then(courseRepository).should(never()).bumpVersion(any());
+		then(courseVersionBumper).should(never()).bump(any());
 	}
 
 	@Test
@@ -1089,7 +1099,7 @@ class CourseCommandServiceTest {
 
 		// 현재 순서(1 → 2)와 요청(2 → 1)이 달라도 CAS 가 없으니 저장된다
 		then(courseStoreRepository).should().flush();
-		then(courseRepository).should().bumpVersion(courseId);
+		then(courseVersionBumper).should().bump(courseId);
 	}
 
 	@Test
@@ -1127,7 +1137,7 @@ class CourseCommandServiceTest {
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_COLLAB_CANNOT_BE_PUBLIC.getMessage());
 		then(course).should(never()).updateVisibility(any());
-		then(courseRepository).should(never()).bumpVersion(any());
+		then(courseVersionBumper).should(never()).bump(any());
 	}
 
 	@Test
@@ -1178,7 +1188,7 @@ class CourseCommandServiceTest {
 		courseCommandService.updateCourse(memberId, courseId, request);
 
 		then(course).should().updateDayCount(3);
-		then(courseRepository).should().bumpVersion(courseId);
+		then(courseVersionBumper).should().bump(courseId);
 	}
 
 	@Test
@@ -1197,7 +1207,7 @@ class CourseCommandServiceTest {
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_DAY_COUNT_INVALID.getMessage());
 		then(course).should(never()).updateDayCount(any(Integer.class));
-		then(courseRepository).should(never()).bumpVersion(any());
+		then(courseVersionBumper).should(never()).bump(any());
 	}
 
 	@Test
@@ -1220,8 +1230,12 @@ class CourseCommandServiceTest {
 	// ───────────────────────── 사람별 메모 ─────────────────────────
 
 	private CourseStoreMemo realMemo(CourseStore courseStore, Long memberId, String content) {
+		return realMemo(courseStore, memberId, content, 0L);
+	}
+
+	private CourseStoreMemo realMemo(CourseStore courseStore, Long memberId, String content, long seq) {
 		Member author = mockMember(memberId);
-		return CourseStoreMemo.of(courseStore, author, content);
+		return CourseStoreMemo.of(courseStore, author, content, seq);
 	}
 
 	private CourseStore givenEditableStore(Long memberId, Long courseId, Long storeId) {
@@ -1245,6 +1259,7 @@ class CourseCommandServiceTest {
 		given(courseStoreMemoRepository.findByIdCourseStoreIdAndIdMemberId(501L, memberId))
 			.willReturn(Optional.of(mine));
 		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
 		given(request.getMemo()).willReturn("새 메모");
 
 		courseCommandService.updateStore(memberId, courseId, storeId, request);
@@ -1265,6 +1280,7 @@ class CourseCommandServiceTest {
 		given(courseStoreMemoRepository.findByIdCourseStoreIdAndIdMemberId(501L, memberId))
 			.willReturn(Optional.of(mine));
 		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
 		given(request.getMemo()).willReturn("   ");
 
 		courseCommandService.updateStore(memberId, courseId, storeId, request);
@@ -1286,6 +1302,7 @@ class CourseCommandServiceTest {
 		given(courseStoreMemoRepository.findByIdCourseStoreIdAndIdMemberId(501L, memberId))
 			.willReturn(Optional.of(mine));
 		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
 		given(request.getMemo()).willReturn("다시 쓴 메모");
 
 		courseCommandService.updateStore(memberId, courseId, storeId, request);
@@ -1293,6 +1310,92 @@ class CourseCommandServiceTest {
 		assertThat(mine.isDeleted()).isFalse();
 		assertThat(mine.getContent()).isEqualTo("다시 쓴 메모");
 		then(courseStoreMemoRepository).should(never()).save(any());
+	}
+
+	@Test
+	@DisplayName("updateStore: memoSeq 를 안 보내면(구버전 앱) 서버 시각(ms)을 seq 로 쓴다")
+	void updateStore_withoutMemoSeq_usesServerMillis() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Long storeId = 100L;
+		givenEditableStore(memberId, courseId, storeId);
+		given(courseStoreMemoRepository.findByIdCourseStoreIdAndIdMemberId(501L, memberId))
+			.willReturn(Optional.empty());
+		Member author = mockMember(memberId);
+		given(memberRepository.getReferenceById(memberId)).willReturn(author);
+		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
+		given(request.getMemo()).willReturn("새 메모");
+		long before = System.currentTimeMillis();
+
+		courseCommandService.updateStore(memberId, courseId, storeId, request);
+
+		then(courseStoreMemoRepository).should().save(argThat(memo -> memo.getSeq() >= before
+			&& memo.getSeq() <= System.currentTimeMillis()));
+	}
+
+	@Test
+	@DisplayName("updateStore: memoSeq 를 보내면 그 값이 메모의 seq 가 된다")
+	void updateStore_withMemoSeq_storesIt() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Long storeId = 100L;
+		givenEditableStore(memberId, courseId, storeId);
+		given(courseStoreMemoRepository.findByIdCourseStoreIdAndIdMemberId(501L, memberId))
+			.willReturn(Optional.empty());
+		Member author = mockMember(memberId);
+		given(memberRepository.getReferenceById(memberId)).willReturn(author);
+		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
+		given(request.getMemo()).willReturn("새 메모");
+		given(request.getMemoSeq()).willReturn(777L);
+
+		courseCommandService.updateStore(memberId, courseId, storeId, request);
+
+		then(courseStoreMemoRepository).should().save(argThat(memo -> memo.getSeq() == 777L));
+		// 완료가 DB 에 갔으니 같은 칸의 초안은 지운다
+		then(memoDraftDiscarder).should().discardAfterCommit(courseId, storeId, memberId, 777L);
+	}
+
+	@Test
+	@DisplayName("updateStore: 저장된 seq 보다 작은 memoSeq 의 PATCH 는 메모를 바꾸지 않는다 — 초안이 먼저 더 새 글을 반영한 경우")
+	void updateStore_olderMemoSeq_keepsNewerMemo() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Long storeId = 100L;
+		CourseStore courseStore = givenEditableStore(memberId, courseId, storeId);
+		CourseStoreMemo mine = realMemo(courseStore, memberId, "초안으로 먼저 간 최신 글", 2_000L);
+		given(courseStoreMemoRepository.findByIdCourseStoreIdAndIdMemberId(501L, memberId))
+			.willReturn(Optional.of(mine));
+		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
+		given(request.getMemo()).willReturn("늦게 도착한 옛 글");
+		given(request.getMemoSeq()).willReturn(1_000L);
+
+		courseCommandService.updateStore(memberId, courseId, storeId, request);
+
+		assertThat(mine.getContent()).isEqualTo("초안으로 먼저 간 최신 글");
+		assertThat(mine.getSeq()).isEqualTo(2_000L);
+		then(courseStoreMemoRepository).should(never()).save(any());
+	}
+
+	@Test
+	@DisplayName("updateStore: memoSeq 가 서버 시각보다 하루 넘게 미래면 COURSE_MEMO_SEQ_INVALID — 시계가 틀린 기기")
+	void updateStore_memoSeqTooFarAhead_rejected() {
+		Long memberId = 1L;
+		Long courseId = 10L;
+		Long storeId = 100L;
+		givenEditableStore(memberId, courseId, storeId);
+		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
+		given(request.getMemoSeq()).willReturn(System.currentTimeMillis() + CourseStoreMemo.SEQ_MAX_AHEAD.toMillis()
+			+ 60_000L);
+
+		assertThatThrownBy(() -> courseCommandService.updateStore(memberId, courseId, storeId, request))
+			.isInstanceOf(CourseException.class)
+			.hasMessageContaining(CourseErrorCode.COURSE_MEMO_SEQ_INVALID.getMessage());
+		then(courseStoreMemoRepository).should(never()).save(any());
+		then(courseVersionBumper).should(never()).bump(any());
 	}
 
 	@Test
@@ -1415,6 +1518,7 @@ class CourseCommandServiceTest {
 		Course course = mockCourse(courseId, "코스", CourseType.CUSTOM, ownerId, null);
 		CourseStore courseStore = mock(CourseStore.class);
 		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
 		given(request.getMemo()).willReturn("멤버 메모");
 		given(courseRepository.findWithLockByIdAndDeletedAtIsNull(courseId)).willReturn(Optional.of(course));
 		given(courseMemberRepository.existsByIdCourseIdAndIdMemberIdAndDeletedAtIsNull(courseId, memberId))
@@ -1427,7 +1531,7 @@ class CourseCommandServiceTest {
 		courseCommandService.updateStore(memberId, courseId, storeId, request);
 
 		then(courseStoreMemoRepository).should().save(any(CourseStoreMemo.class));
-		then(courseRepository).should().bumpVersion(courseId);
+		then(courseVersionBumper).should().bump(courseId);
 	}
 
 	@Test
@@ -1444,7 +1548,7 @@ class CourseCommandServiceTest {
 		assertThatThrownBy(() -> courseCommandService.removeStore(memberId, courseId, 100L))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_FORBIDDEN.getMessage());
-		then(courseRepository).should(never()).bumpVersion(any());
+		then(courseVersionBumper).should(never()).bump(any());
 	}
 
 	@Test
@@ -1465,7 +1569,7 @@ class CourseCommandServiceTest {
 		courseCommandService.updateCourse(memberId, courseId, request);
 
 		then(course).should().updateTitle("멤버가 고친 제목");
-		then(courseRepository).should().bumpVersion(courseId);
+		then(courseVersionBumper).should().bump(courseId);
 	}
 
 	@Test
@@ -1499,12 +1603,13 @@ class CourseCommandServiceTest {
 		willThrow(new MemberException(MemberErrorCode.MEMBER_WRITE_RESTRICTED))
 			.given(memberRestrictionReader).validateCanWrite(memberId);
 		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
 		given(request.getMemo()).willReturn("남에게 보이는 메모");
 
 		assertThatThrownBy(() -> courseCommandService.updateStore(memberId, courseId, storeId, request))
 			.isInstanceOf(MemberException.class);
 		then(courseStoreMemoRepository).should(never()).save(any());
-		then(courseRepository).should(never()).bumpVersion(any());
+		then(courseVersionBumper).should(never()).bump(any());
 	}
 
 	@Test
@@ -1518,6 +1623,7 @@ class CourseCommandServiceTest {
 		given(courseStoreMemoRepository.findByIdCourseStoreIdAndIdMemberId(501L, memberId))
 			.willReturn(Optional.of(mine));
 		CourseStoreUpdateRequest request = mock(CourseStoreUpdateRequest.class);
+		lenient().when(request.getMemoSeq()).thenReturn(null);
 		given(request.getMemo()).willReturn("");
 
 		courseCommandService.updateStore(memberId, courseId, storeId, request);
