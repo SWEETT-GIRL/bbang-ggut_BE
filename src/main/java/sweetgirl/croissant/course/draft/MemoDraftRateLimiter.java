@@ -3,6 +3,7 @@ package sweetgirl.croissant.course.draft;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -26,6 +27,8 @@ public class MemoDraftRateLimiter {
 	private final int ratePerSecond;
 	private final Cache<Long, AtomicInteger> counters;
 
+	/** 생성자가 둘(테스트용 Ticker 주입)이라 Spring 이 쓸 쪽을 가리킨다 — 없으면 기본 생성자를 찾다 죽는다. */
+	@Autowired
 	public MemoDraftRateLimiter(CourseDraftProperties properties) {
 		this(properties, Ticker.systemTicker());
 	}

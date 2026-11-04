@@ -1,5 +1,6 @@
 package sweetgirl.croissant.course.draft;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -30,6 +31,8 @@ public class MemoDraftAccessCache {
 	private final MemberRestrictionReader memberRestrictionReader;
 	private final Cache<String, Boolean> allowed;
 
+	/** 생성자가 둘(테스트용 Ticker 주입)이라 Spring 이 쓸 쪽을 가리킨다 — 없으면 기본 생성자를 찾다 죽는다. */
+	@Autowired
 	public MemoDraftAccessCache(CourseRepository courseRepository, CourseAccessPolicy courseAccessPolicy,
 			MemberRestrictionReader memberRestrictionReader, CourseDraftProperties properties) {
 		this(courseRepository, courseAccessPolicy, memberRestrictionReader, properties, Ticker.systemTicker());
