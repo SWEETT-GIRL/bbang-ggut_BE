@@ -15,8 +15,8 @@
 \set stops_per_course 5
 
 -- 회원
-INSERT INTO member (nickname, created_at, updated_at, member_type)
-SELECT '[초안]회원' || g, now(), now(), 'USER'
+INSERT INTO member (nickname, nickname_normalized, created_at, updated_at, member_type)
+SELECT '[초안]회원' || g, lower('[초안]회원' || g), now(), now(), 'USER'
 FROM generate_series(
     (SELECT count(*) FROM member WHERE nickname LIKE '[초안]회원%')::int + 1,
     :courses * :members_per_course
@@ -64,7 +64,7 @@ picks AS (
            row_number() OVER (PARTITION BY c.id ORDER BY random()) AS visit_order
     FROM numbered_courses c
     CROSS JOIN LATERAL (
-        SELECT id FROM stores WHERE deleted_at IS NULL ORDER BY random() LIMIT :stops_per_course
+        SELECT id FROM store WHERE status <> 'DELETED' ORDER BY random() LIMIT :stops_per_course
     ) s
 )
 INSERT INTO course_stores (course_id, store_id, visit_order, day, created_at, updated_at)
