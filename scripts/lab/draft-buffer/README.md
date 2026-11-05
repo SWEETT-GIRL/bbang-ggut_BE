@@ -60,6 +60,10 @@ MODE=poll k6 run --summary-export scripts/lab/draft-buffer/results/${D}-latency-
 MODE=push k6 run --summary-export scripts/lab/draft-buffer/results/${D}-latency-push/summary.json scripts/lab/draft-buffer/latency-probe.js
 ```
 
+## Docker 없이 페일오버 재기
+
+`failover-native.sh` 머리 주석 참고. 끝나기 3초 전에 마스터를 죽이고, Redis 1번 DB 가 빌 때까지 기다린 뒤 `compare-loss.py` 로 칸 단위 유실을 센다.
+
 ## 읽을 때
 
 - 깨지는 단계는 k6 가 단계마다 찍는 `memo_save_duration p(95)` 와 `memo_save_failed` 로 본다 — 두 기준 중 하나라도 넘긴 첫 단계의 **직전 target** 이 답이다. 기준(500ms · 1%)은 결과를 보고 바꾸지 않는다.

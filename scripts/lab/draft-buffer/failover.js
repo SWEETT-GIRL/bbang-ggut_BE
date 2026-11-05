@@ -6,7 +6,8 @@
  *   - 마지막 쓰기 뒤 DB 반영을 기다린다(teardown 의 SETTLE_SECONDS, 기본 15초 = 플러시 상한 10초 + 여유).
  * PROMISE=off 는 한 번 실패하면 그 글을 포기한다 — 약속이 없을 때 얼마나 잃는지 보는 대조군.
  *
- * 끝나면 handleSummary 가 필드별 마지막 seq 를 results/last-seq.csv 로 남긴다 → verify-loss.sql 이 DB 와 비교한다.
+ * 시도마다 `R,코스:가게:회원,보낸 seq,받은 seq` 를 콘솔에 남긴다. --console-output 파일을 compare-loss.py 가 DB 와 칸 단위로 비교한다.
+ * 마스터는 끝나기 직전에 죽여야 한다. 중간에 죽이면 뒤이은 글이 유실을 덮어 유실이 안 보인다.
  *
  *   PROMISE=on  k6 run --summary-export results/<날짜>-failover-on/summary.json scripts/lab/draft-buffer/failover.js
  *   (돌아가는 동안 다른 터미널에서) scripts/lab/draft-buffer/kill-master.sh
@@ -58,6 +59,7 @@ export function editor() {
         firstFailureAt = null;
       }
       const accepted = response.json('data.acceptedSeq');
+      console.log(`R,${key},${seq},${accepted}`);
       lastAccepted[key] = Math.max(lastAccepted[key] || 0, accepted);
       if (accepted > seq) {
         seqState[key] = accepted;
@@ -72,6 +74,7 @@ export function editor() {
     }
     if (!promise || Date.now() > deadline) {
       givenUp.add(1);
+      console.log(`R,${key},${seq},0`);
       break;
     }
     retries.add(1);
