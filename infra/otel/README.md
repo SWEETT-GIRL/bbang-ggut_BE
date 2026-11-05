@@ -7,9 +7,9 @@ Collector 를 거치지 않으면 외부 API 호출의 `url.full` 에 API 키가
 ## 모니터링 서버 적용
 
 1. 여유 확인: Collector 192MB + Tempo 384MB 를 더 쓴다. `free -m`, `df -h /`
-2. 이 폴더를 서버로 옮겨 `docker compose up -d`
+2. 이 폴더를 서버로 옮겨 `docker compose -f compose.yaml -f compose.server.yaml up -d`
 3. 보안그룹: 4318 인바운드를 WAS 보안그룹에만 허용. 3200 은 열지 않는다
-4. 기존 Grafana 에 Tempo 데이터소스 추가 (Grafana 가 호스트 네트워크가 아니면 주소를 맞춘다)
+4. 기존 Grafana 에 Tempo 데이터소스 추가 (URL `http://tempo:3200`). `compose.server.yaml` 이 Tempo 를 Grafana 네트워크(`monitoring_default`)에 넣는다
 
 ## 앱에서 켜고 끄기
 
