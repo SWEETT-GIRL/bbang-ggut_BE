@@ -28,12 +28,15 @@ class CourseDraftDisabledWhenModeBlankTest {
 	ApplicationContext context;
 
 	@Test
-	@DisplayName("초안·소켓 빈이 전부 빠지고 draftEnabled 는 false 다 — 쓰기 스위치가 켜져 있어도")
+	@DisplayName("초안 서비스·소켓 빈이 빠지고(컨트롤러만 남아 503) draftEnabled 는 false 다 — 쓰기 스위치가 켜져 있어도")
 	void draftBeansAbsent() {
 		assertThat(context.getBeansOfType(MemoDraftRedis.class)).isEmpty();
 		assertThat(context.getBeansOfType(MemoDraftBuffer.class)).isEmpty();
 		assertThat(context.getBeansOfType(MemoDraftFlusher.class)).isEmpty();
-		assertThat(context.getBeansOfType(MemoDraftController.class)).isEmpty();
+		// 컨트롤러는 항상 뜬다(OpenAPI 명세·FE 계약 고정) — 서비스 빈이 없어 503 을 준다
+		assertThat(context.getBeansOfType(MemoDraftController.class)).hasSize(1);
+		assertThat(context.getBeansOfType(MemoDraftCommandService.class)).isEmpty();
+		assertThat(context.getBeansOfType(MemoDraftQueryService.class)).isEmpty();
 		assertThat(context.getBeansOfType(WebSocketConfig.class)).isEmpty();
 		assertThat(context.getBean(CourseDraftProperties.class).isDraftEnabled()).isFalse();
 	}
