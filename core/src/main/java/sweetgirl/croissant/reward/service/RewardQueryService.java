@@ -81,6 +81,7 @@ public class RewardQueryService {
 			new Welcome(welcomeAvailable),
 			rewardPendingService.list(memberId),
 			attendanceOf(AttendanceBoard.of(
+				attendanceDayRepository.findByMemberIdAndDay(memberId, today.minusDays(2)),
 				attendanceDayRepository.findByMemberIdAndDay(memberId, today.minusDays(1)),
 				attendanceDayRepository.findByMemberIdAndDay(memberId, today))),
 			feed,

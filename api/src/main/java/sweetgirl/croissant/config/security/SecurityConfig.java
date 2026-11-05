@@ -58,6 +58,8 @@ public class SecurityConfig {
 			.requestMatchers(HttpMethod.GET, "/app/version-policy").permitAll()
 			.requestMatchers(HttpMethod.PATCH, "/callback/images/status").permitAll()
 			.requestMatchers(HttpMethod.GET, "/dev/**").permitAll()
+			// 테스트 회원 로그인(local·staging 전용 컨트롤러) — 토큰이 없어서 부르는 것이라 열어 둔다. 키 검사는 컨트롤러가 한다
+			.requestMatchers(HttpMethod.POST, "/dev/auth/**").permitAll()
 			// actuator는 management.server.port(8081)로 분리되어 있으나 요청은 이 필터체인을 거친다.
 			// prometheus는 스크랩 주체가 인증 정보를 붙이지 않으므로 인증을 면제한다.
 			// health 하위 그룹(readiness/liveness)도 열어둔다 — 배포 파이프라인과 ALB가
@@ -66,6 +68,8 @@ public class SecurityConfig {
 				"/actuator/metrics/**", "/actuator/prometheus")
 			.permitAll()
 			.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+			// 코스 신호 STOMP 핸드셰이크 — RN 의 WebSocket 은 헤더를 못 붙여서 인증은 CONNECT 프레임(StompAuthInterceptor)이 한다
+			.requestMatchers("/ws", "/ws/**").permitAll()
 			.requestMatchers(HttpMethod.GET, "/trend/**", "/menu-categories", "/banners", "/banners/**").permitAll()
 			// 지도의 '요즘 뜨는 디저트'는 회원과 무관한 전역 콘텐츠다 — 지도는 로그인 전에도 보인다
 			.requestMatchers(HttpMethod.GET, "/desserts", "/desserts/**").permitAll()

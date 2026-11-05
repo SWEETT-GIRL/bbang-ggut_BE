@@ -16,6 +16,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.abuse.entity.ModerationAction;
@@ -43,6 +44,8 @@ class AdminMemberCommandServiceTest {
 	MemberRestrictionRepository memberRestrictionRepository;
 	@Mock
 	ModerationActionRepository moderationActionRepository;
+	@Mock
+	ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
 	AdminMemberCommandService adminMemberCommandService;
@@ -64,8 +67,9 @@ class AdminMemberCommandServiceTest {
 			new AdminProfileResetRequest(" 부적절한 닉네임 "));
 
 		assertThat(response.memberId()).isEqualTo(20L);
-		assertThat(response.nickname()).isEqualTo("빵긋 사용자");
-		assertThat(member.getNickname()).isEqualTo("빵긋 사용자");
+		// 살아 있는 회원끼리 유일해야 해서 번호가 붙는다
+		assertThat(response.nickname()).isEqualTo("빵긋 사용자20");
+		assertThat(member.getNickname()).isEqualTo("빵긋 사용자20");
 		verify(moderationActionRepository)
 			.save(argThat(action -> action.getTargetType() == ModerationTargetType.MEMBER_PROFILE
 				&& action.getTargetId().equals(20L)

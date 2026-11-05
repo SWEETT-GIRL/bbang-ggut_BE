@@ -14,7 +14,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.global.response.ApiResponse;
+import sweetgirl.croissant.reward.code.RewardErrorCode;
 import sweetgirl.croissant.reward.dto.request.FriendNicknameRequest;
+import sweetgirl.croissant.reward.exception.RewardException;
 import sweetgirl.croissant.reward.service.FriendCommandService;
 import sweetgirl.croissant.world.dto.response.MemberWorldResponse;
 import sweetgirl.croissant.world.dto.response.WorldRouletteResponse;
@@ -77,15 +79,17 @@ public class WorldController {
 		return ResponseEntity.ok(ApiResponse.ok(friendCommandService.wakeWithCrumbs(memberId, code)));
 	}
 
-	@Operation(summary = "친구 이름 붙이기", description = "깨어 있는 친구에게 1~8자 이름을 붙인다. "
-		+ "비워 보내면 기본 이름으로 되돌린다.")
+	/**
+	 * 친구 이름 짓기는 끝난 기능이다(2026-10-21, 팔로우 · 커뮤니티). 사람 이름은 회원 닉네임 하나다.
+	 * 경로는 구버전 앱이 아직 부르므로 410 으로 답한다 — 앱이 다 올라오면 지운다.
+	 */
+	@Operation(summary = "[끝난 기능] 친구 이름 붙이기", description = "항상 410 REWARD410_2 를 돌려준다.")
 	@PatchMapping("/characters/{code}/nickname")
 	public ResponseEntity<ApiResponse<Void>> renameFriend(
 			@AuthenticationPrincipal Long memberId,
 			@PathVariable String code,
-			@RequestBody FriendNicknameRequest request) {
-		friendCommandService.rename(memberId, code, request.nickname());
-		return ResponseEntity.ok(ApiResponse.ok(null));
+			@RequestBody(required = false) FriendNicknameRequest request) {
+		throw new RewardException(RewardErrorCode.REWARD_FRIEND_NICKNAME_RETIRED);
 	}
 
 	@Operation(summary = "첫 친구 연출 확인", description = "처음 본 때를 남긴다. 두 번 불러도 그 때가 덮이지 않는다.")

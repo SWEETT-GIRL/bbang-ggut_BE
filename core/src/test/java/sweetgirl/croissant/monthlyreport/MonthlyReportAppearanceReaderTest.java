@@ -21,13 +21,11 @@ import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.monthlyreport.admin.service.MonthlyReportAppearanceReader;
+import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
 import sweetgirl.croissant.world.dto.response.WorldCatalogResponse;
 import sweetgirl.croissant.world.dto.response.WorldPlanetResponse;
-import sweetgirl.croissant.world.entity.MemberCharacter;
-import sweetgirl.croissant.world.entity.MemberCharacterId;
 import sweetgirl.croissant.world.entity.MemberWorld;
 import sweetgirl.croissant.world.entity.WorldCharacter;
-import sweetgirl.croissant.world.repository.MemberCharacterRepository;
 import sweetgirl.croissant.world.repository.MemberPlanetArrivalRepository;
 import sweetgirl.croissant.world.repository.MemberWorldRepository;
 import sweetgirl.croissant.world.repository.WorldCharacterAssetRepository;
@@ -47,8 +45,6 @@ class MonthlyReportAppearanceReaderTest {
 	@Mock
 	private WorldCharacterRepository characters;
 	@Mock
-	private MemberCharacterRepository memberCharacters;
-	@Mock
 	private WorldCharacterAssetRepository characterAssets;
 	@Mock
 	private MemberPlanetArrivalRepository arrivals;
@@ -64,7 +60,9 @@ class MonthlyReportAppearanceReaderTest {
 
 	@BeforeEach
 	void setUp() {
-		MemberWorld world = MemberWorld.start(MEMBER_ID, "hamster");
+		// 마스코트(dog)로 시작해 지금은 햄찌를 데리고 다닌다 — 리포트는 지금 데리고 다니는 친구로 만든다
+		MemberWorld world = MemberWorld.start(MEMBER_ID, "dog");
+		world.selectCharacter("hamster");
 		given(worlds.findById(MEMBER_ID)).willReturn(Optional.of(world));
 		given(characters.findById("hamster"))
 			.willReturn(Optional.of(WorldCharacter.create("hamster", "햄찌", null, "earth", 1, false)));
@@ -79,21 +77,10 @@ class MonthlyReportAppearanceReaderTest {
 	}
 
 	@Test
-	@DisplayName("친구에게 지어 준 이름이 있으면 리포트에 그 이름으로 싣는다")
-	void usesNickname() {
-		MemberCharacter friend = mock(MemberCharacter.class);
-		given(friend.getNickname()).willReturn("콩");
-		given(memberCharacters.findById(new MemberCharacterId(MEMBER_ID, "hamster"))).willReturn(Optional.of(friend));
-
-		assertThat(reader.createAppearanceDraft(MEMBER_ID, "2026-09").character().name()).isEqualTo("콩");
-	}
-
-	@Test
-	@DisplayName("지어 준 이름이 없으면 카탈로그 이름으로 싣는다")
-	void fallsBackToCatalogName() {
-		MemberCharacter friend = mock(MemberCharacter.class);
-		given(memberCharacters.findById(new MemberCharacterId(MEMBER_ID, "hamster"))).willReturn(Optional.of(friend));
-
-		assertThat(reader.createAppearanceDraft(MEMBER_ID, "2026-09").character().name()).isEqualTo("햄찌");
+	@DisplayName("지금 데리고 다니는 친구를 카탈로그 이름으로 싣는다")
+	void usesCatalogName() {
+		MonthlyReportResponse.Character character = reader.createAppearanceDraft(MEMBER_ID, "2026-09").character();
+		assertThat(character.code()).isEqualTo("hamster");
+		assertThat(character.name()).isEqualTo("햄찌");
 	}
 }

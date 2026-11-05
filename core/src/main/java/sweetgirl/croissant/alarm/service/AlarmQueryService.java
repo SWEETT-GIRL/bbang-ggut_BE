@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.alarm.dto.response.CommunityNotificationSettingResponse;
 import sweetgirl.croissant.alarm.dto.response.GeofenceCandidateResponse;
 import sweetgirl.croissant.alarm.dto.response.GeofenceCandidatesResponse;
 import sweetgirl.croissant.alarm.dto.response.MarketingEnabledResponse;
@@ -34,6 +35,10 @@ public class AlarmQueryService {
 	public NotificationEnabledResponse getNotificationEnabled(Long memberId) {
 		NotificationSetting setting = notificationSettingProvider.getOrCreate(memberId); // 알림 설정 조회, 없으면 예외
 		return NotificationEnabledResponse.from(setting); // 현재 빵알람 여부를 DTO 로 변환해 반환
+	}
+
+	public CommunityNotificationSettingResponse getCommunitySettings(Long memberId) {
+		return CommunityNotificationSettingResponse.from(notificationSettingProvider.getOrCreate(memberId));
 	}
 
 	// 마케팅 알람 수신 여부 조회

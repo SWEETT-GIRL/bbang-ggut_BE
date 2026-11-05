@@ -24,6 +24,8 @@ public interface CourseMemberRepository extends JpaRepository<CourseMember, Cour
 	Optional<CourseMember> findByIdCourseIdAndIdMemberId(Long courseId, Long memberId);
 
 	/** 참여자 목록 · 메모 정렬 · 방장 승계 순서. 방장은 첫 초대 때 행이 생기므로 항상 맨 앞이다. */
+	/** 응답이 닉네임을 읽으므로 member 를 같이 가져온다(정원 8이라 작지만 N+1 은 피한다). */
+	@EntityGraph(attributePaths = "member")
 	List<CourseMember> findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(Long courseId);
 
 	/** 정원(방장 포함 8명) 판정. */
@@ -41,6 +43,16 @@ public interface CourseMemberRepository extends JpaRepository<CourseMember, Cour
 			ORDER BY m.id.courseId
 			""")
 	List<Long> findActiveCourseIdsByMemberId(@Param("memberId") Long memberId);
+
+	/** 두 사람이 같은 빵투어의 활성 일행인가 — 같이 간 사람 태그의 "빵투어 일행" 조건. */
+	@Query("""
+			SELECT COUNT(mine) > 0
+			FROM CourseMember mine, CourseMember other
+			WHERE mine.id.courseId = other.id.courseId
+				AND mine.id.memberId = :memberId AND other.id.memberId = :otherId
+				AND mine.deletedAt IS NULL AND other.deletedAt IS NULL
+			""")
+	boolean existsSharedActiveCourse(@Param("memberId") Long memberId, @Param("otherId") Long otherId);
 
 	/**
 	 * 탈퇴 정리용 — 참여 중인 행 전부를 코스 id 오름차순으로. 코스마다 락을 잡을 때 순서를 고정해 데드락을 피한다.

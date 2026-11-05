@@ -288,13 +288,12 @@ public class StoreSearchEngine {
 		SearchSqlQuery sqlQuery = sqlBuilder.buildAutocomplete(normalizedQuery, size);
 		List<StoreAutocompleteRow> rows = storeSearchJdbcRepository.autocomplete(sqlQuery);
 		return rows.stream()
-			// 접두 일치 → 요즘 꾸준히 찾는 가게(평소 수준) → 누적 인기도
+			// 접두 일치 → 인기도
 			.sorted(Comparator.comparingInt(StoreAutocompleteRow::tier)
-				.thenComparing(StoreAutocompleteRow::steadyScore, Comparator.reverseOrder())
 				.thenComparing(StoreAutocompleteRow::popularityScore, Comparator.reverseOrder()))
 			.map(row -> new StoreAutocompleteSuggestion(row.keyword(), AutocompleteSuggestionType.valueOf(row.type()),
 				row.storeId(), row.centerLat(), row.centerLng(), row.radiusMeters(), row.parentName(), row.tier(),
-				row.steadyScore()))
+				row.popularityScore()))
 			.toList();
 	}
 }

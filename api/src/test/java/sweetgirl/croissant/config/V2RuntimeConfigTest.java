@@ -42,13 +42,13 @@ class V2RuntimeConfigTest {
 	}
 
 	@Test
-	@DisplayName("v2 프로필은 스케줄러·시더·마이그레이션을 끄고 데이터 보정도 막는다")
+	@DisplayName("v2 프로필은 마이그레이션만 직접 돌리고 스케줄러·시더·데이터 보정은 막는다")
 	void v2DisablesAutomaticWriters() throws IOException {
 		Properties properties = new Properties();
 		try (var input = new ClassPathResource("application-v2.properties").getInputStream()) {
 			properties.load(input);
 		}
-		assertThat(properties.getProperty("spring.flyway.enabled")).isEqualTo("false");
+		assertThat(properties.getProperty("spring.flyway.enabled")).isEqualTo("true");
 		assertThat(properties.getProperty("monthly-report.auto-preparation.enabled")).isEqualTo("false");
 		assertThat(properties.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("validate");
 		context.withPropertyValues(

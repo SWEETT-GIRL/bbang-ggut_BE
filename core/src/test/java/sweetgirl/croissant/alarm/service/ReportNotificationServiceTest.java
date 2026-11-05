@@ -47,6 +47,8 @@ class ReportNotificationServiceTest {
 	NotificationRecorder notificationRecorder;
 	@Mock
 	ApplicationEventPublisher eventPublisher;
+	@Mock
+	sweetgirl.croissant.comment.repository.BreadRecordCommentRepository commentRepository;
 
 	@InjectMocks
 	ReportNotificationService reportNotificationService;

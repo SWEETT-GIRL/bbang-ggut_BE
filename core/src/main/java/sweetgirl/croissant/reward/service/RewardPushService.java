@@ -9,6 +9,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,9 @@ import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.AttendanceReminderTarget;
 import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.MemberFriend;
+import sweetgirl.croissant.reward.repository.RewardPushTargetRepository.SecondRecordTarget;
+import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.repository.SavedStoreRepository;
 import sweetgirl.croissant.world.dto.response.WorldCharacterResponse;
 import sweetgirl.croissant.world.service.WorldCatalogService;
 
@@ -51,6 +55,22 @@ public class RewardPushService {
 	static final long ATTENDANCE_LOCK_KEY = 7_260_102L;
 	static final String ATTENDANCE_TITLE = "오늘 출석 도장이 아직이에요";
 	static final String ATTENDANCE_LINK = "/bbanglog?open=attendance";
+	static final String LAPSED_TITLE = "하루 쉬었죠? 오늘 오면 이어져요";
+	static final String LAPSED_BODY_SUFFIX = " 그대로";
+	static final long RECORD_NUDGE_LOCK_KEY = 7_260_104L;
+	static final String RECORD_NUDGE_TITLE = "두 번째 빵로그 어때요?";
+	/** 담아 둔 가게가 있으면 그 이름으로, 없으면 첫 기록의 가게 이름으로 부른다 — 보상 액수가 아니라 빵집 하나를 쥐여 준다. */
+	static final String RECORD_NUDGE_SAVED_PREFIX = "담아 둔 ";
+	static final String RECORD_NUDGE_SAVED_SUFFIX = ", 다녀왔으면 남겨 봐요";
+	static final String RECORD_NUDGE_NEXT_SUFFIX = " 다음 빵집도 남겨 봐요";
+	static final String RECORD_NUDGE_PLAIN_BODY = "다음 빵집도 남겨 봐요";
+	/** 뺄 가게가 없을 때 담은 가게 조회에 넘기는 값. */
+	static final long NO_STORE = -1L;
+	/** 첫 기록 뒤 이 날짜 범위(일)에 있는 회원을 부른다 — 2 일 전과 3 일 전. */
+	static final int RECORD_NUDGE_FROM_DAYS = 3;
+	static final int RECORD_NUDGE_TO_DAYS = 1;
+	/** 앱의 기록 쓰기 화면. */
+	static final String RECORD_NUDGE_LINK = "/bbanglog/record";
 	/** 밤 9 시 ~ 아침 8 시에는 출석을 알리지 않는다. */
 	static final int QUIET_FROM_HOUR = 21;
 	static final int QUIET_UNTIL_HOUR = 8;
@@ -70,6 +90,7 @@ public class RewardPushService {
 	private final ApplicationEventPublisher eventPublisher;
 	private final RewardSettings rewardSettings;
 	private final WorldCatalogService worldCatalogService;
+	private final SavedStoreRepository savedStoreRepository;
 
 	/**
 	 * 이번 주 편지를 아직 안 연 회원에게 도착을 알린다. 월요일 오전에 부른다.
@@ -153,7 +174,64 @@ public class RewardPushService {
 				NotificationType.REWARD_ATTENDANCE, NotificationChannel.PUSH, ATTENDANCE_TITLE, body,
 				ATTENDANCE_LINK), group.getValue(), now);
 		}
+		// 하루 쉰 회원 — 유예 안이라 오늘 오면 그제 칸에 이어진다. 칸별로 한 알림씩
+		Map<Integer, List<Long>> lapsedByBoardDay = new TreeMap<>();
+		for (AttendanceReminderTarget target : targetRepository.findLapsedAttendanceTargets(
+			today.minusDays(2), today.minusDays(1), today)) {
+			lapsedByBoardDay
+				.computeIfAbsent(AttendanceBoard.following(target.getBoardDay()), boardDay -> new ArrayList<>())
+				.add(target.getMemberId());
+		}
+		for (Map.Entry<Integer, List<Long>> group : lapsedByBoardDay.entrySet()) {
+			int boardDay = group.getKey();
+			String body = boardDay + "일째 +" + AttendanceBoard.rewardOf(boardDay, rewards) + LAPSED_BODY_SUFFIX;
+			notified += push(Notification.announcement(
+				NotificationType.REWARD_ATTENDANCE, NotificationChannel.PUSH, LAPSED_TITLE, body,
+				ATTENDANCE_LINK), group.getValue(), now);
+		}
 		return notified;
+	}
+
+	/**
+	 * 2 · 3 일 전에 첫 기록을 남기고 두 번째가 없는 회원에게 저녁에 "두 번째 빵로그" 를 권한다.
+	 * 첫 주 기록 1 건은 0 건과 리텐션이 같고 2 건부터 남는다(11/3) — 두 번째 기록이 첫 주 보너스 안에 있을 때 부른다.
+	 *
+	 * @return 알린 회원 수. 오늘 이미 보냈거나 다른 인스턴스가 보내는 중이면 -1
+	 */
+	@Transactional
+	public int sendSecondRecordNudges(LocalDateTime now) {
+		LocalDate today = now.toLocalDate();
+		if (!targetRepository.tryAdvisoryXactLock(RECORD_NUDGE_LOCK_KEY)
+			|| notificationRepository.existsByTypeAndCreatedAtGreaterThanEqual(
+				NotificationType.RECORD_NUDGE, today.atStartOfDay())) {
+			return -1;
+		}
+		Map<String, List<Long>> memberIdsByBody = new TreeMap<>();
+		for (SecondRecordTarget target : targetRepository.findSecondRecordNudgeTargets(
+			today.minusDays(RECORD_NUDGE_FROM_DAYS).atStartOfDay(),
+			today.minusDays(RECORD_NUDGE_TO_DAYS).atStartOfDay())) {
+			memberIdsByBody.computeIfAbsent(nudgeBodyOf(target), body -> new ArrayList<>()).add(target.getMemberId());
+		}
+		int notified = 0;
+		for (Map.Entry<String, List<Long>> group : memberIdsByBody.entrySet()) {
+			notified += push(Notification.announcement(
+				NotificationType.RECORD_NUDGE, NotificationChannel.PUSH, RECORD_NUDGE_TITLE, group.getKey(),
+				RECORD_NUDGE_LINK), group.getValue(), now);
+		}
+		return notified;
+	}
+
+	/** 담아 뒀는데 아직 기록 없는 가게가 있으면 그 가게, 없으면 첫 기록의 가게 이름, 그것도 없으면 가게 없이. */
+	private String nudgeBodyOf(SecondRecordTarget target) {
+		List<Store> saved = savedStoreRepository.findUnrecordedActiveStores(
+			target.getMemberId(), NO_STORE, PageRequest.of(0, 1));
+		if (!saved.isEmpty()) {
+			return RECORD_NUDGE_SAVED_PREFIX + saved.get(0).getName() + RECORD_NUDGE_SAVED_SUFFIX;
+		}
+		if (target.getStoreName() == null || target.getStoreName().isBlank()) {
+			return RECORD_NUDGE_PLAIN_BODY;
+		}
+		return target.getStoreName() + RECORD_NUDGE_NEXT_SUFFIX;
 	}
 
 	/**
@@ -196,13 +274,10 @@ public class RewardPushService {
 			.collect(Collectors.toMap(WorldCharacterResponse::code, WorldCharacterResponse::name));
 	}
 
-	/** 회원이 지어 준 이름, 없으면 카탈로그 이름. 고른 친구가 없으면 빵댕이. */
+	/** 카탈로그 이름. 고른 친구가 없으면 빵댕이. (지어 준 이름은 2026-10-21 에 없앴다 — 사람 이름은 회원 닉네임 하나다) */
 	private static String friendNameOf(MemberFriend friend, Map<String, String> catalogNames) {
 		if (friend.getSelectedCharacter() == null) {
 			return DEFAULT_FRIEND_NAME;
-		}
-		if (friend.getFriendNickname() != null) {
-			return friend.getFriendNickname();
 		}
 		return catalogNames.getOrDefault(friend.getSelectedCharacter(), DEFAULT_FRIEND_NAME);
 	}

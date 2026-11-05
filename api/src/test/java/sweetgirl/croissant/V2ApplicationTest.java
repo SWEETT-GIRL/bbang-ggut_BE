@@ -28,6 +28,8 @@ import sweetgirl.croissant.external.aws.config.S3Config;
 	"spring.datasource.driver-class-name=org.h2.Driver",
 	"spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
 	"spring.jpa.hibernate.ddl-auto=create-drop",
+	// 마이그레이션은 PostgreSQL 전용이라 H2 로 띄우는 이 테스트에서만 끈다
+	"spring.flyway.enabled=false",
 	"KAKAO_CLIENT_ID=test", "KAKAO_CLIENT_SECRET=test",
 	"NAVER_LOGIN_CLIENT_ID=test", "NAVER_LOGIN_CLIENT_SECRET=test",
 	"KAKAO_API_KEY=test",

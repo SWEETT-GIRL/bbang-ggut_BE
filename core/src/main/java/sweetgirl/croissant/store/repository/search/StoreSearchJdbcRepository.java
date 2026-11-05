@@ -41,8 +41,7 @@ public class StoreSearchJdbcRepository {
 				nullableDouble(rs, "center_lat"),
 				nullableDouble(rs, "center_lng"),
 				nullableInteger(rs, "radius_meters"),
-				rs.getString("parent_name"),
-				rs.getDouble("steady"));
+				rs.getString("parent_name"));
 
 	private static final RowMapper<StoreSearchTokenCountRow> TOKEN_COUNT_ROW_MAPPER = (rs,
 			rowNum) -> new StoreSearchTokenCountRow(

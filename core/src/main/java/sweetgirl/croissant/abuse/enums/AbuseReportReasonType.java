@@ -6,5 +6,7 @@ public enum AbuseReportReasonType {
 	HATE,
 	PRIVACY,
 	SEXUAL,
+	/** 다른 사람 사칭 */
+	IMPERSONATION,
 	ETC
 }

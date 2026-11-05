@@ -21,7 +21,7 @@ class NicknameGeneratorTest {
 	// 테스트 classpath adjectives.txt(2개, '달콤한'은 일부러 두 줄) × nouns.txt(2개) = 조합 4개
 	private static final int TOTAL_COMBINATIONS = 4;
 	private static final List<String> ALL_COMBINATIONS = List.of(
-		"달콤한 망고시루", "달콤한 두쫀쿠", "신난 망고시루", "신난 두쫀쿠");
+		"달콤한망고시루", "달콤한두쫀쿠", "신난망고시루", "신난두쫀쿠");
 
 	@Mock
 	private MemberRepository memberRepository;
@@ -36,7 +36,8 @@ class NicknameGeneratorTest {
 
 		String nickname = nicknameGenerator.generate();
 
-		assertThat(nickname.split(" ")).hasSize(2);
+		// 띄어쓰기 없이 붙이고 10자 안이다(새 닉네임 규칙)
+		assertThat(nickname).matches("^[가-힣A-Za-z0-9]{2,10}$");
 	}
 
 	@Test
@@ -57,7 +58,7 @@ class NicknameGeneratorTest {
 	@Test
 	void generate_rebuildsQueueAndSucceeds_whenFreedCombinationsExistAfterExhaustion() {
 		given(memberRepository.findAllNicknames())
-			.willReturn(List.of("달콤한 망고시루"))
+			.willReturn(List.of("달콤한망고시루"))
 			.willReturn(List.of());
 		nicknameGenerator.init();
 
@@ -83,6 +84,7 @@ class NicknameGeneratorTest {
 
 	@Test
 	void init_excludesAlreadyUsedNicknames() {
+		// 옛 닉네임은 띄어쓰기가 있다 — 정규화해서 비교하므로 "달콤한망고시루" 도 막힌다
 		given(memberRepository.findAllNicknames()).willReturn(List.of("달콤한 망고시루"));
 		nicknameGenerator.init();
 
@@ -91,6 +93,6 @@ class NicknameGeneratorTest {
 			nicknameGenerator.generate(),
 			nicknameGenerator.generate());
 
-		assertThat(generated).doesNotContain("달콤한 망고시루");
+		assertThat(generated).doesNotContain("달콤한망고시루");
 	}
 }

@@ -15,6 +15,8 @@ import sweetgirl.croissant.admin.code.AdminErrorCode;
 import sweetgirl.croissant.admin.dto.request.AdminModerationAppealReviewRequest;
 import sweetgirl.croissant.admin.dto.response.AdminModerationAppealResponse;
 import sweetgirl.croissant.admin.exception.AdminException;
+import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
+import sweetgirl.croissant.comment.repository.BreadRecordCommentRepository;
 import sweetgirl.croissant.member.entity.MemberRestriction;
 import sweetgirl.croissant.member.repository.MemberRestrictionRepository;
 import sweetgirl.croissant.review.entity.Review;
@@ -28,6 +30,8 @@ public class AdminModerationAppealCommandService {
 	private final ModerationAppealRepository moderationAppealRepository;
 	private final ReviewRepository reviewRepository;
 	private final MemberRestrictionRepository memberRestrictionRepository;
+	private final BreadRecordRepository breadRecordRepository;
+	private final BreadRecordCommentRepository commentRepository;
 
 	public AdminModerationAppealResponse reviewAppeal(
 			Long appealId,
@@ -53,6 +57,15 @@ public class AdminModerationAppealCommandService {
 			case HIDE_REVIEW -> restoreHiddenReview(action);
 			case DELETE_REVIEW -> restoreDeletedReview(action);
 			case RESTRICT_MEMBER, SUSPEND_MEMBER -> releaseMemberRestriction(action);
+			case HIDE_RECORD -> breadRecordRepository.findById(action.getTargetId())
+				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_TARGET_NOT_FOUND))
+				.restoreHidden();
+			case HIDE_COMMENT -> commentRepository.findById(action.getTargetId())
+				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_TARGET_NOT_FOUND))
+				.restoreHidden();
+			case DELETE_COMMENT -> commentRepository.findById(action.getTargetId())
+				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_TARGET_NOT_FOUND))
+				.restoreDeleted();
 			case RESET_PROFILE -> {
 				// 초기 닉네임은 별도 저장하지 않으므로 자동 복구 대신 승인 상태와 관리자 메모만 남긴다.
 			}

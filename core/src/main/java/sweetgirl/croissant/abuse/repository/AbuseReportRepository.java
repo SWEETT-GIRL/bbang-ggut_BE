@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -45,6 +46,32 @@ public interface AbuseReportRepository extends JpaRepository<AbuseReport, Long> 
 	Optional<AbuseReport> findByIdWithMembers(@Param("reportId") Long reportId);
 
 	long countByStatus(AbuseReportStatus status);
+
+	/** 같은 대상을 신고한 서로 다른 사람(로그인 회원) 수 — 3명이면 자동 숨김. 게스트 표는 세지 않는다. */
+	@Query("""
+			SELECT COUNT(DISTINCT r.reporter.id) FROM AbuseReport r
+			WHERE r.targetType = :targetType AND r.targetId = :targetId AND r.status IN :statuses
+				AND r.reporter.memberType = 'USER'
+			""")
+	long countDistinctReporters(@Param("targetType") AbuseReportTargetType targetType,
+			@Param("targetId") Long targetId, @Param("statuses") List<AbuseReportStatus> statuses);
+
+	/** 이 사람이 신고한(처리 전 · 받아들여진) 대상 id — 신고자 화면에서 바로 숨기려고. */
+	@Query("""
+			SELECT r.targetId FROM AbuseReport r
+			WHERE r.reporter.id = :reporterId AND r.targetType = :targetType AND r.status IN :statuses
+			""")
+	List<Long> findTargetIdsByReporter(@Param("reporterId") Long reporterId,
+			@Param("targetType") AbuseReportTargetType targetType, @Param("statuses") List<AbuseReportStatus> statuses);
+
+	/** 24시간 넘게 처리 안 된 신고 중 아직 재알림 안 한 것. */
+	@EntityGraph(attributePaths = {"reporter", "reportedMember"})
+	@Query("""
+			SELECT r FROM AbuseReport r
+			WHERE r.status = :status AND r.createdAt < :before AND r.remindedAt IS NULL
+			ORDER BY r.createdAt ASC
+			""")
+	List<AbuseReport> findOverdue(@Param("status") AbuseReportStatus status, @Param("before") LocalDateTime before);
 
 	long countByCreatedAtGreaterThanEqual(LocalDateTime since);
 
@@ -89,4 +116,13 @@ public interface AbuseReportRepository extends JpaRepository<AbuseReport, Long> 
 			@Param("targetType") AbuseReportTargetType targetType,
 			@Param("since") LocalDateTime since,
 			@Param("status") AbuseReportStatus status);
+
+	/** 탈퇴한 지 cutoff 를 넘긴 사람이 한 신고 · 받은 신고를 지운다 — 보관 기한 뒤. 조치 · 이의제기를 먼저 지운다. */
+	@Modifying
+	@Query("""
+			DELETE FROM AbuseReport r
+			WHERE r.reporter.id IN (SELECT m.id FROM Member m WHERE m.deletedAt < :cutoff)
+				OR r.reportedMember.id IN (SELECT m.id FROM Member m WHERE m.deletedAt < :cutoff)
+			""")
+	int deleteAllOfMembersDeletedBefore(@Param("cutoff") LocalDateTime cutoff);
 }

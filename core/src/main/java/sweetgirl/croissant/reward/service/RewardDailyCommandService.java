@@ -47,19 +47,25 @@ public class RewardDailyCommandService {
 	private final BreadRecordRepository breadRecordRepository;
 	private final MemberReader memberReader;
 
-	/** 오늘 출석한다. 어제에 이어지면 다음 칸, 끊겼거나 어제가 7 일째였으면 1 일째다. */
+	/** 오늘 출석한다. 어제(하루 쉬었으면 그제)에 이어지면 다음 칸, 이틀 끊겼거나 7 일째 다음이면 1 일째다. */
 	public AttendanceResponse checkIn(Long memberId) {
 		memberReader.requireLoggedIn(memberId);
 		LocalDate today = LocalDate.now(CrumbGrantService.ZONE);
 
+		List<Integer> rewards = rewardSettings.attendance();
 		AttendanceBoard board = AttendanceBoard.of(
+			attendanceDayRepository.findByMemberIdAndDay(memberId, today.minusDays(2)),
 			attendanceDayRepository.findByMemberIdAndDay(memberId, today.minusDays(1)), Optional.empty());
 		int boardDay = board.nextBoardDay();
-		int reward = AttendanceBoard.rewardOf(boardDay, rewardSettings.attendance());
+		int reward = AttendanceBoard.rewardOf(boardDay, rewards);
+		int nextBoardDay = AttendanceBoard.following(boardDay);
+		int nextCrumbs = AttendanceBoard.rewardOf(nextBoardDay, rewards);
 
 		if (attendanceDayRepository.insertIfAbsent(memberId, today, boardDay, reward, LocalDateTime.now()) == 0) {
 			MemberAttendanceDay done = attendanceDayRepository.findByMemberIdAndDay(memberId, today).orElseThrow();
-			return new AttendanceResponse(done.getBoardDay(), done.getCrumbs(), true, List.of());
+			int doneNext = AttendanceBoard.following(done.getBoardDay());
+			return new AttendanceResponse(done.getBoardDay(), done.getCrumbs(), true, List.of(), doneNext,
+				AttendanceBoard.rewardOf(doneNext, rewards));
 		}
 
 		GrantResult result = crumbGrantService.grantOn(
@@ -67,10 +73,10 @@ public class RewardDailyCommandService {
 		if (!result.isGranted()) {
 			// 제재 중이면 도장은 찍히되 부스러기는 없다 — 판이 끊기지는 않는다
 			attendanceDayRepository.updateCrumbs(memberId, today, 0);
-			return new AttendanceResponse(boardDay, 0, false, List.of());
+			return new AttendanceResponse(boardDay, 0, false, List.of(), nextBoardDay, nextCrumbs);
 		}
 		return new AttendanceResponse(boardDay, reward, false,
-			List.of(RewardItemResponse.crumbs(result, CrumbReason.ATTENDANCE)));
+			List.of(RewardItemResponse.crumbs(result, CrumbReason.ATTENDANCE)), nextBoardDay, nextCrumbs);
 	}
 
 	/**

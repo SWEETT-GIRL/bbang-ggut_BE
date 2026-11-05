@@ -29,6 +29,7 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import sweetgirl.croissant.searchmiss.event.SearchMissEvent;
 import sweetgirl.croissant.store.code.StoreSearchErrorCode;
+import sweetgirl.croissant.store.config.StoreSearchProperties;
 import sweetgirl.croissant.store.config.StoreTrendingProperties;
 import sweetgirl.croissant.store.dto.response.StoreAutocompleteResponse;
 import sweetgirl.croissant.store.entity.SearchKeywordCorrection;
@@ -61,6 +62,7 @@ class StoreSearchServiceTest {
 	private SearchKeywordCorrectionRepository correctionRepository;
 
 	private final StoreTrendingProperties trendingProperties = new StoreTrendingProperties();
+	private final StoreSearchProperties searchProperties = new StoreSearchProperties();
 
 	private SimpleMeterRegistry meterRegistry;
 	private StoreSearchService service;
@@ -70,8 +72,10 @@ class StoreSearchServiceTest {
 		meterRegistry = new SimpleMeterRegistry();
 		// 판정 규칙은 순수 로직이라 목킹하지 않고 실제 구현을 쓴다.
 		service = new StoreSearchService(storeSearchQueryParser, searchEngine, storeSearchAssembler,
-			meterRegistry, eventPublisher, trendingRankingReader, trendingProperties,
+			meterRegistry, eventPublisher, trendingRankingReader, trendingProperties, searchProperties,
 			new SearchKeywordCorrector(correctionRepository));
+		// 인기 가게 판정 기준은 눈금과 무관하게 작게 둔다
+		searchProperties.setAutocompletePopularMinScore(0.2);
 		// 운영에서는 @PostConstruct로 실행되는 시계열 사전 등록을 동일하게 태운다.
 		service.registerSearchOutcomeCounters();
 	}
@@ -813,16 +817,16 @@ class StoreSearchServiceTest {
 			.isFalse();
 	}
 
-	// ───────────────────────── 급부상·스테디 승격 ─────────────────────────
+	// ───────────────────────── 급부상·인기순 정렬 ─────────────────────────
 
 	private static StoreAutocompleteSuggestion region(String name) {
 		return new StoreAutocompleteSuggestion(name, AutocompleteSuggestionType.REGION, null, 37.5, 127.0, 1000, null,
 			0, 0.0);
 	}
 
-	private static StoreAutocompleteSuggestion store(String name, long id, int tier, double steady) {
+	private static StoreAutocompleteSuggestion store(String name, long id, int tier, double popularity) {
 		return new StoreAutocompleteSuggestion(name, AutocompleteSuggestionType.STORE, id, null, null, null, null,
-			tier, steady);
+			tier, popularity);
 	}
 
 	private static List<String> keywords(List<StoreAutocompleteResponse> responses) {
@@ -860,8 +864,8 @@ class StoreSearchServiceTest {
 	}
 
 	@Test
-	@DisplayName("급부상이 없으면 요즘 꾸준히 찾는 가게(평소 수준 1위) 하나를 지역보다 위로 올린다")
-	void autocomplete_promotesSteadyStoreWhenNoTrending() {
+	@DisplayName("인기순이 꺼져 있으면 급부상이 없을 때 기존 순서 그대로다")
+	void autocomplete_keepsOrderWhenNoTrendingAndPopularityOrderDisabled() {
 		trendingProperties.setEnabled(true);
 		given(searchEngine.autocompleteStores("한", 10)).willReturn(List.of(
 			region("한남동"), store("한스베이커리", 1L, 0, 3.0), store("한정선", 2L, 0, 0.5)));
@@ -869,16 +873,44 @@ class StoreSearchServiceTest {
 
 		var result = service.autocompleteStores("한", 10);
 
-		assertThat(keywords(result)).containsExactly("한스베이커리", "한남동", "한정선");
+		assertThat(keywords(result)).containsExactly("한남동", "한스베이커리", "한정선");
 	}
 
 	@Test
-	@DisplayName("스테디 후보가 기준 미달이거나 접두 일치가 아니면 올리지 않는다 — 조회가 거의 없는 가게를 지역 위에 두지 않는다")
-	void autocomplete_keepsOrderWhenNoSteadyCandidate() {
+	@DisplayName("인기순을 켜면 급부상 → 인기 가게(인기순) → 지역 → 나머지 순이다")
+	void autocomplete_ordersTrendingThenPopularThenRegions() {
 		trendingProperties.setEnabled(true);
+		searchProperties.setAutocompletePopularityOrderEnabled(true);
+		given(searchEngine.autocompleteStores("한", 10)).willReturn(List.of(
+			region("한남동"), store("한빵", 4L, 0, 0.1), store("한정선", 2L, 0, 0.5), store("한과자", 3L, 0, 1.0),
+			store("한스베이커리", 1L, 0, 3.0), store("대한제과", 5L, 1, 9.0)));
+		given(trendingRankingReader.findStartingWith("한", 2)).willReturn(List.of(
+			new TrendingStore(2L, "한정선", List.of("한정선"), 9.0)));
+
+		var result = service.autocompleteStores("한", 10);
+
+		assertThat(keywords(result)).containsExactly("한정선", "한스베이커리", "한과자", "한남동", "한빵", "대한제과");
+	}
+
+	@Test
+	@DisplayName("인기순은 급부상 스위치와 따로 켠다 — Redis 없이도 정렬되고 순위표를 읽지 않는다")
+	void autocomplete_ordersByPopularityWithoutTrending() {
+		searchProperties.setAutocompletePopularityOrderEnabled(true);
+		given(searchEngine.autocompleteStores("한", 10)).willReturn(List.of(
+			region("한남동"), store("한정선", 2L, 0, 0.5), store("한스베이커리", 1L, 0, 3.0)));
+
+		var result = service.autocompleteStores("한", 10);
+
+		assertThat(keywords(result)).containsExactly("한스베이커리", "한정선", "한남동");
+		verify(trendingRankingReader, never()).findStartingWith(any(), anyInt());
+	}
+
+	@Test
+	@DisplayName("기준 미달이거나 접두 일치가 아니면 올리지 않는다 — 조회가 거의 없는 가게가 지역을 밀어내지 않는다")
+	void autocomplete_keepsOrderWhenNoPopularCandidate() {
+		searchProperties.setAutocompletePopularityOrderEnabled(true);
 		given(searchEngine.autocompleteStores("한", 10)).willReturn(List.of(
 			region("한남동"), store("대한제과", 1L, 1, 5.0), store("한빵", 2L, 0, 0.1)));
-		given(trendingRankingReader.findStartingWith("한", 2)).willReturn(List.of());
 
 		var result = service.autocompleteStores("한", 10);
 
@@ -886,9 +918,35 @@ class StoreSearchServiceTest {
 	}
 
 	@Test
+	@DisplayName("가게명과 별칭이 모두 맞는 인기 가게는 한 줄만 남긴다 — 앞자리를 같은 가게가 차지하지 않게")
+	void autocomplete_keepsOneRowPerPopularStore() {
+		searchProperties.setAutocompletePopularityOrderEnabled(true);
+		given(searchEngine.autocompleteStores("성", 10)).willReturn(List.of(
+			region("성수동"), store("성심당", 1L, 0, 3.0), store("성심", 1L, 0, 3.0), store("성모빵집", 2L, 0, 1.0)));
+
+		var result = service.autocompleteStores("성", 10);
+
+		assertThat(keywords(result)).containsExactly("성심당", "성모빵집", "성수동");
+	}
+
+	@Test
+	@DisplayName("인기 가게는 상한까지만 올린다 — 후보가 많은 글자에서 지역이 목록 밖으로 밀려나지 않게")
+	void autocomplete_capsPopularStores() {
+		searchProperties.setAutocompletePopularityOrderEnabled(true);
+		searchProperties.setAutocompletePopularMaxPromoted(2);
+		given(searchEngine.autocompleteStores("성", 10)).willReturn(List.of(
+			region("성수동"), store("성심당", 1L, 0, 9.0), store("성모빵집", 2L, 0, 7.0), store("성림제과", 3L, 0, 5.0)));
+
+		var result = service.autocompleteStores("성", 10);
+
+		assertThat(keywords(result)).containsExactly("성심당", "성모빵집", "성수동", "성림제과");
+	}
+
+	@Test
 	@DisplayName("가게를 빼고 지역만 요청하면 승격하지 않는다")
 	void autocomplete_skipsPromotionWhenStoresAreFilteredOut() {
 		trendingProperties.setEnabled(true);
+		searchProperties.setAutocompletePopularityOrderEnabled(true);
 		given(searchEngine.autocompleteStores("한", 20)).willReturn(List.of(
 			region("한남동"), store("한정선", 2L, 0, 3.0)));
 

@@ -271,10 +271,18 @@ jobs:
             echo "PERF_DASHBOARD_ENABLED=true" >> .env
             echo "PERF_DASHBOARD_ACCESS_KEY=${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}" >> .env
             echo "ADMIN_API_KEY=${{ secrets.STAGING_ADMIN_API_KEY }}" >> .env
+            # 신고 슬랙 메시지의 어드민 링크 바탕 주소 — 저장소 변수로 두고 비면 링크만 빠진다
+            echo "ADMIN_WEB_BASE_URL=${{ vars.STAGING_ADMIN_WEB_BASE_URL }}" >> .env
+            # 카카오 없이 테스트 회원 토큰을 받는 /dev/auth/test-login 의 열쇠(저장소 변수, dev 전용)
+            echo "DEV_TEST_LOGIN_KEY=${{ vars.STAGING_DEV_TEST_LOGIN_KEY }}" >> .env
             echo "REDIS_PASSWORD=${{ secrets.STAGING_REDIS_PASSWORD }}" >> .env
             # 자동완성 Redis 캐시 스위치 — 저장소 변수로 켠다(없으면 꺼짐, 매번 DB)
             echo "AUTOCOMPLETE_CACHE_ENABLED=${{ vars.STAGING_AUTOCOMPLETE_CACHE_ENABLED || 'false' }}" >> .env
             echo "TRENDING_ENABLED=${{ vars.STAGING_TRENDING_ENABLED || 'false' }}" >> .env
+            echo "AUTOCOMPLETE_POPULARITY_ORDER_ENABLED=${{ vars.STAGING_AUTOCOMPLETE_POPULARITY_ORDER_ENABLED || 'false' }}" >> .env
+            # 빵투어 메모 초안 자동저장 — 저장소 변수로 켠다(없으면 꺼짐). standalone 이면 캐시 Redis 1번 DB 를 쓴다
+            echo "COURSE_DRAFT_REDIS_MODE=${{ vars.STAGING_COURSE_DRAFT_REDIS_MODE || '' }}" >> .env
+            echo "COURSE_DRAFT_WRITE_ENABLED=${{ vars.STAGING_COURSE_DRAFT_WRITE_ENABLED || 'false' }}" >> .env
             echo "SCOUTER_OBJ_NAME=bbang-staging" >> .env
             echo "SCOUTER_SERVER_PORT=6100" >> .env
             echo "SCOUTER_WEB_PORT=6188" >> .env

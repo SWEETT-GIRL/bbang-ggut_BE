@@ -28,6 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.course.code.CourseErrorCode;
+import sweetgirl.croissant.course.draft.CourseDraftProperties;
 import sweetgirl.croissant.course.dto.projection.CourseStoreSummaryProjection;
 import sweetgirl.croissant.course.dto.response.CourseDetailLookup;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
@@ -84,6 +85,10 @@ class CourseQueryServiceTest {
 	CourseMemberRepository courseMemberRepository;
 	@Mock
 	TourRewardService tourRewardService;
+	@Mock
+	sweetgirl.croissant.profile.service.CharacterFaceReader characterFaceReader;
+	@Mock
+	CourseDraftProperties courseDraftProperties;
 
 	@InjectMocks
 	CourseQueryService courseQueryService;
@@ -308,6 +313,19 @@ class CourseQueryServiceTest {
 		assertThat(result.imageKey()).isEqualTo("courses/1/cover.jpg");
 		assertThat(result.courseStores()).hasSize(1);
 		assertThat(result.regions()).containsExactly("종로구");
+	}
+
+	@Test
+	@DisplayName("getCourseDetail: 초안 자동저장 가능 여부(스위치 + Redis 설정)가 draftEnabled 로 내려간다")
+	void getCourseDetail_draftEnabled_followsSwitch() {
+		Course course = mockCourse(1L, "공개 코스", true, CourseType.CURATED, null);
+		given(courseRepository.findByIdAndDeletedAtIsNull(1L)).willReturn(Optional.of(course));
+		given(courseStoreRepository.findAllByCourseIdAndDeletedAtIsNullOrderByVisitOrderAsc(1L)).willReturn(List.of());
+		given(courseDraftProperties.isDraftEnabled()).willReturn(true);
+
+		CourseDetailResponse result = courseQueryService.getCourseDetail(1L, null, null);
+
+		assertThat(result.draftEnabled()).isTrue();
 	}
 
 	@Test
@@ -766,10 +784,13 @@ class CourseQueryServiceTest {
 		return memo;
 	}
 
-	private CourseMember mockMemberRow(Long courseId, Long memberId, String displayName) {
+	/** 세 번째 인자는 회원 닉네임이다 — 코스 안 이름 짓기는 없어졌고 응답의 displayName 은 닉네임을 비춘다. */
+	private CourseMember mockMemberRow(Long courseId, Long memberId, String nickname) {
 		CourseMember row = mock(CourseMember.class);
+		Member rowMember = mock(Member.class);
+		lenient().when(rowMember.getNickname()).thenReturn(nickname);
 		lenient().when(row.getId()).thenReturn(new CourseMemberId(courseId, memberId));
-		lenient().when(row.getDisplayName()).thenReturn(displayName);
+		lenient().when(row.getMember()).thenReturn(rowMember);
 		return row;
 	}
 

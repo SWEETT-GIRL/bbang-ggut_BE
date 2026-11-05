@@ -148,7 +148,7 @@ class CourseControllerTest {
 		return new CourseDetailResponse(
 			1L, "소금빵 투어", null, null, List.of(), 0, List.of(), CourseType.CUSTOM, "다나", 1L, null, false, true,
 			false, 0L, 0L, LocalDateTime.of(2026, 1, 1, 0, 0), null, null, null, List.of(),
-			true, true, false, 0, List.of(), null, 1, CourseVisibility.PRIVATE, null, version);
+			true, true, false, 0, List.of(), null, 1, CourseVisibility.PRIVATE, null, version, false);
 	}
 
 	@Test
@@ -240,7 +240,7 @@ class CourseControllerTest {
 			1L, "소금빵 투어", null, null, List.of(), 2, List.of("마포구"), CourseType.CURATED, "어드민", null, null, true, false,
 			false, 5L, 37L, LocalDateTime.of(2026, 1, 1, 0, 0), "서울", LocalDate.of(2026, 8, 20),
 			LocalDate.of(2026, 8, 21), List.of(),
-			false, false, false, 0, List.of(), null, 1, CourseVisibility.PUBLIC, null, 41L);
+			false, false, false, 0, List.of(), null, 1, CourseVisibility.PUBLIC, null, 41L, false);
 		givenDetailLookup(response);
 
 		mockMvc.perform(get("/courses/1"))
@@ -338,7 +338,7 @@ class CourseControllerTest {
 		return new CourseDetailResponse(
 			1L, "링크 공개 코스", null, null, List.of(), 0, List.of(), CourseType.CUSTOM, "다나", 10L, null, false, false,
 			false, 0L, 0L, LocalDateTime.of(2026, 1, 1, 0, 0), null, null, null, List.of(),
-			false, false, false, 0, List.of(), null, 1, CourseVisibility.UNLISTED, null, 1L);
+			false, false, false, 0, List.of(), null, 1, CourseVisibility.UNLISTED, null, 1L, false);
 	}
 
 	@Test
@@ -620,7 +620,7 @@ class CourseControllerTest {
 
 	@Test
 	void acceptInvite_returns200() throws Exception {
-		given(courseMemberService.acceptInvite(isNull(), eq("abc"), eq("지수")))
+		given(courseMemberService.acceptInvite(isNull(), eq("abc")))
 			.willReturn(new CourseInviteAcceptResponse(12L, false));
 
 		mockMvc.perform(post("/courses/invites/abc/accept")
@@ -631,17 +631,19 @@ class CourseControllerTest {
 			.andExpect(jsonPath("$.data.alreadyMember").value(false));
 	}
 
+	// 코스 안 이름은 없어졌다 — 본문이 비어도, 옛 앱이 이름을 보내도 그대로 받아들인다
 	@Test
-	void acceptInvite_blankOrTooLongName_returns400() throws Exception {
-		mockMvc.perform(post("/courses/invites/abc/accept")
-			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"displayName\":\"   \"}"))
-			.andExpect(status().isBadRequest());
+	void acceptInvite_ignoresDisplayName() throws Exception {
+		given(courseMemberService.acceptInvite(isNull(), eq("abc")))
+			.willReturn(new CourseInviteAcceptResponse(12L, false));
+
+		mockMvc.perform(post("/courses/invites/abc/accept"))
+			.andExpect(status().isOk());
 		mockMvc.perform(post("/courses/invites/abc/accept")
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"displayName\":\"12345678901\"}"))
-			.andExpect(status().isBadRequest());
-		then(courseMemberService).shouldHaveNoInteractions();
+			.andExpect(status().isOk());
+		then(courseMemberService).should(org.mockito.Mockito.times(2)).acceptInvite(isNull(), eq("abc"));
 	}
 
 	@Test
@@ -665,12 +667,13 @@ class CourseControllerTest {
 	}
 
 	@Test
-	void renameMember_returns200() throws Exception {
+	void renameMember_isRetired_returns410() throws Exception {
 		mockMvc.perform(patch("/courses/10/members/me")
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"displayName\":\"빵순이\"}"))
-			.andExpect(status().isOk());
-		then(courseMemberService).should().rename(null, 10L, "빵순이");
+			.andExpect(status().isGone())
+			.andExpect(jsonPath("$.code").value("COURSE410_1"));
+		then(courseMemberService).shouldHaveNoInteractions();
 	}
 
 	@Test
@@ -685,18 +688,11 @@ class CourseControllerTest {
 			.andExpect(jsonPath("$.code").value("COURSE409_1"));
 	}
 
-	// 길이 경계 — 이름 10자·메모 200자는 통과한다 (11자·201자는 400)
+	// 길이 경계 — 메모 200자는 통과한다 (201자는 400)
 	@Test
-	void displayNameAndMemo_atMaxLength_pass() throws Exception {
-		String tenChars = "가".repeat(10);
+	void memo_atMaxLength_pass() throws Exception {
 		String twoHundredChars = "가".repeat(200);
-		given(courseMemberService.acceptInvite(isNull(), eq("tok"), eq(tenChars)))
-			.willReturn(new CourseInviteAcceptResponse(1L, false));
 
-		mockMvc.perform(post("/courses/invites/tok/accept")
-			.contentType(MediaType.APPLICATION_JSON)
-			.content("{\"displayName\":\"" + tenChars + "\"}"))
-			.andExpect(status().isOk());
 		mockMvc.perform(patch("/courses/1/stores/10")
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"memo\":\"" + twoHundredChars + "\"}"))

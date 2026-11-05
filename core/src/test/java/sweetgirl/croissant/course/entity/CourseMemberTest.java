@@ -19,7 +19,7 @@ class CourseMemberTest {
 		given(course.getId()).willReturn(10L);
 		Member member = mock(Member.class);
 		given(member.getId()).willReturn(1L);
-		return CourseMember.of(course, member, "다나");
+		return CourseMember.of(course, member);
 	}
 
 	@Test
@@ -31,35 +31,21 @@ class CourseMemberTest {
 
 		assertThat(courseMember.getId().getCourseId()).isEqualTo(10L);
 		assertThat(courseMember.getId().getMemberId()).isEqualTo(1L);
-		assertThat(courseMember.getDisplayName()).isEqualTo("다나");
 		assertThat(courseMember.getJoinedAt()).isAfterOrEqualTo(before);
 		assertThat(courseMember.isDeleted()).isFalse();
 	}
 
 	@Test
-	@DisplayName("leave 뒤 rejoin 하면 같은 행이 되살아나고 이름·참여 시각이 새로 잡힌다")
+	@DisplayName("leave 뒤 rejoin 하면 같은 행이 되살아나고 참여 시각이 새로 잡힌다")
 	void rejoin_revivesSameRow() {
 		CourseMember courseMember = newMember();
 		LocalDateTime firstJoinedAt = courseMember.getJoinedAt();
 		courseMember.leave();
 		assertThat(courseMember.isDeleted()).isTrue();
 
-		courseMember.rejoin("지수");
+		courseMember.rejoin();
 
 		assertThat(courseMember.isDeleted()).isFalse();
-		assertThat(courseMember.getDisplayName()).isEqualTo("지수");
 		assertThat(courseMember.getJoinedAt()).isAfterOrEqualTo(firstJoinedAt);
-	}
-
-	@Test
-	@DisplayName("rename 은 이름만 바꾸고 참여 시각은 건드리지 않는다")
-	void rename_keepsJoinedAt() {
-		CourseMember courseMember = newMember();
-		LocalDateTime joinedAt = courseMember.getJoinedAt();
-
-		courseMember.rename("빵순이");
-
-		assertThat(courseMember.getDisplayName()).isEqualTo("빵순이");
-		assertThat(courseMember.getJoinedAt()).isEqualTo(joinedAt);
 	}
 }

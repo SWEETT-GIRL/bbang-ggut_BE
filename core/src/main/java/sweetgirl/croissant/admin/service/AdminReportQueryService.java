@@ -21,6 +21,12 @@ import sweetgirl.croissant.admin.dto.response.AdminHighPriorityReportResponse;
 import sweetgirl.croissant.admin.dto.response.AdminReportDetailResponse;
 import sweetgirl.croissant.admin.dto.response.AdminReportResponse;
 import sweetgirl.croissant.admin.exception.AdminException;
+import sweetgirl.croissant.breadlog.entity.BreadRecord;
+import sweetgirl.croissant.breadlog.entity.BreadRecordPhoto;
+import sweetgirl.croissant.breadlog.repository.BreadRecordPhotoRepository;
+import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
+import sweetgirl.croissant.comment.entity.BreadRecordComment;
+import sweetgirl.croissant.comment.repository.BreadRecordCommentRepository;
 import sweetgirl.croissant.contribution.entity.ContributionReport;
 import sweetgirl.croissant.contribution.entity.MenuContributionReport;
 import sweetgirl.croissant.contribution.entity.MenuContributionReportImageFile;
@@ -52,6 +58,9 @@ public class AdminReportQueryService {
 	private final MenuContributionReportImageFileRepository menuContributionReportImageFileRepository;
 	private final ReviewRepository reviewRepository;
 	private final ReviewImageFileRepository reviewImageFileRepository;
+	private final BreadRecordRepository breadRecordRepository;
+	private final BreadRecordPhotoRepository breadRecordPhotoRepository;
+	private final BreadRecordCommentRepository commentRepository;
 	private final AbuseReportPriorityAnalyzer priorityAnalyzer;
 
 	public Page<AdminReportResponse> getReports(String kind, String statusStr, int page, int size) {
@@ -218,6 +227,20 @@ public class AdminReportQueryService {
 				.map(ReviewImageFile::getAwsKey)
 				.toList();
 			return AdminAbuseReportDetailResponse.ReviewTarget.of(review, images);
+		}
+		if (report.getTargetType() == AbuseReportTargetType.RECORD) {
+			BreadRecord record = breadRecordRepository.findById(report.getTargetId())
+				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
+			List<String> photos = breadRecordPhotoRepository
+				.findByRecordIdInOrderByRecordIdAscSortOrderAscIdAsc(List.of(record.getId())).stream()
+				.map(BreadRecordPhoto::getAwsKey)
+				.toList();
+			return AdminAbuseReportDetailResponse.RecordTarget.of(record, photos);
+		}
+		if (report.getTargetType() == AbuseReportTargetType.COMMENT) {
+			BreadRecordComment comment = commentRepository.findById(report.getTargetId())
+				.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_NOT_FOUND));
+			return AdminAbuseReportDetailResponse.CommentTarget.from(comment);
 		}
 		return AdminAbuseReportDetailResponse.MemberProfileTarget.from(report.getReportedMember());
 	}

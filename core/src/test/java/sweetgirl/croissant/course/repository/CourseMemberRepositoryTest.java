@@ -68,8 +68,8 @@ class CourseMemberRepositoryTest {
 		return created;
 	}
 
-	private CourseMember persistMemberRow(Course target, Member member, String displayName) {
-		CourseMember row = CourseMember.of(target, member, displayName);
+	private CourseMember persistMemberRow(Course target, Member member) {
+		CourseMember row = CourseMember.of(target, member);
 		entityManager.persist(row);
 		entityManager.flush();
 		return row;
@@ -78,8 +78,8 @@ class CourseMemberRepositoryTest {
 	@Test
 	@DisplayName("활성 멤버 판정과 정원 카운트는 나간 사람을 세지 않는다")
 	void activeQueries_ignoreLeftMembers() {
-		persistMemberRow(course, owner, "방장");
-		CourseMember left = persistMemberRow(course, first, "첫째");
+		persistMemberRow(course, owner);
+		CourseMember left = persistMemberRow(course, first);
 		left.leave();
 		entityManager.flush();
 
@@ -97,11 +97,11 @@ class CourseMemberRepositoryTest {
 	@Test
 	@DisplayName("방장 말고 활성 멤버가 있는지 — 방장 행만 있거나 나머지가 다 나갔으면 false")
 	void existsOtherActiveMember() {
-		persistMemberRow(course, owner, "방장");
+		persistMemberRow(course, owner);
 		assertThat(courseMemberRepository.existsByIdCourseIdAndIdMemberIdNotAndDeletedAtIsNull(
 			course.getId(), owner.getId())).isFalse();
 
-		CourseMember joined = persistMemberRow(course, first, "첫째");
+		CourseMember joined = persistMemberRow(course, first);
 		assertThat(courseMemberRepository.existsByIdCourseIdAndIdMemberIdNotAndDeletedAtIsNull(
 			course.getId(), owner.getId())).isTrue();
 
@@ -114,16 +114,16 @@ class CourseMemberRepositoryTest {
 	@Test
 	@DisplayName("참여자 목록은 참여 시각 오름차순이다")
 	void findAllActive_orderedByJoinedAt() throws InterruptedException {
-		persistMemberRow(course, owner, "방장");
+		persistMemberRow(course, owner);
 		Thread.sleep(2);
-		persistMemberRow(course, second, "둘째");
+		persistMemberRow(course, second);
 		Thread.sleep(2);
-		persistMemberRow(course, first, "첫째");
+		persistMemberRow(course, first);
 
 		List<CourseMember> members = courseMemberRepository
 			.findAllByIdCourseIdAndDeletedAtIsNullOrderByJoinedAtAsc(course.getId());
 
-		assertThat(members).extracting(CourseMember::getDisplayName)
+		assertThat(members).extracting(row -> row.getMember().getNickname())
 			.containsExactly("방장", "둘째", "첫째");
 	}
 
@@ -133,9 +133,9 @@ class CourseMemberRepositoryTest {
 		Member guest = persistMember("게스트");
 		Member target = persistMember("회원");
 		Course otherCourse = persistCourse(guest, "게스트가 만든 코스");
-		persistMemberRow(course, guest, "게스트");
-		persistMemberRow(course, target, "회원"); // 같은 코스에 둘 다 있다 → 충돌
-		persistMemberRow(otherCourse, guest, "게스트"); // 게스트만 있다 → 이관
+		persistMemberRow(course, guest);
+		persistMemberRow(course, target); // 같은 코스에 둘 다 있다 → 충돌
+		persistMemberRow(otherCourse, guest); // 게스트만 있다 → 이관
 
 		int removed = courseMemberRepository.deleteGuestDuplicates(guest.getId(), target.getId());
 		int moved = courseMemberRepository.moveOwner(guest.getId(), target.getId());
@@ -153,9 +153,9 @@ class CourseMemberRepositoryTest {
 	void findActiveCourseIds_orderedAndExcludesLeft() {
 		Course later = persistCourse(owner, "나중에 만든 코스");
 		Course left = persistCourse(owner, "나간 코스");
-		persistMemberRow(later, first, "첫째");
-		persistMemberRow(course, first, "첫째");
-		CourseMember leftRow = persistMemberRow(left, first, "첫째");
+		persistMemberRow(later, first);
+		persistMemberRow(course, first);
+		CourseMember leftRow = persistMemberRow(left, first);
 		leftRow.leave();
 		entityManager.flush();
 
@@ -168,9 +168,9 @@ class CourseMemberRepositoryTest {
 	void findAllActiveRows_orderedByCourseIdWithoutFetchingCourse() {
 		Course later = persistCourse(owner, "나중에 만든 코스");
 		Course left = persistCourse(owner, "나간 코스");
-		persistMemberRow(later, first, "첫째");
-		persistMemberRow(course, first, "첫째");
-		CourseMember leftRow = persistMemberRow(left, first, "첫째");
+		persistMemberRow(later, first);
+		persistMemberRow(course, first);
+		CourseMember leftRow = persistMemberRow(left, first);
 		leftRow.leave();
 		entityManager.flush();
 		// 영속성 컨텍스트에 남아 있으면 프록시 없이 그대로 돌아오므로 비우고 다시 읽는다

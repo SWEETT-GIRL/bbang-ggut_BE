@@ -125,6 +125,11 @@ public class FcmService {
 				deactivateFcmToken(fcmToken);
 				return SendResult.INVALID_TOKEN;
 			} else if (errorCode == MessagingErrorCode.THIRD_PARTY_AUTH_ERROR) {
+				if (deactivateIfMemberHasAnotherActiveToken(fcmToken)) {
+					log.warn("FCM APNs 환경이 안 맞는 토큰 비활성화 — 같은 회원의 다른 토큰은 살아 있다 [token={}]",
+						maskToken(fcmToken));
+					return SendResult.INVALID_TOKEN;
+				}
 				log.error("FCM APNs 인증/환경 오류 [token={}, errorCode={}]", maskToken(fcmToken), errorCode, e);
 				throw new AlarmException(AlarmErrorCode.FCM_SEND_FAILED);
 			} else {
@@ -136,6 +141,26 @@ public class FcmService {
 
 	public enum SendResult {
 		SENT, INVALID_TOKEN
+	}
+
+	/**
+	 * APNs 인증 오류(THIRD_PARTY_AUTH_ERROR)는 두 경우다. Firebase 의 APNs 키가 잘못됐거나, 그 토큰이 로컬 개발 빌드가
+	 * 받은 샌드박스 토큰이라 운영 APNs 로 못 보내는 것. 앞의 경우는 회원의 토큰이 전부 실패하니 손대면 안 되고,
+	 * 뒤의 경우는 같은 회원의 스토어 빌드 토큰이 멀쩡히 살아 있다. 그래서 다른 살아 있는 토큰이 있을 때만 이 토큰을 버린다.
+	 */
+	private boolean deactivateIfMemberHasAnotherActiveToken(String fcmToken) {
+		List<FcmToken> stale = fcmTokenRepository.findAllByTokenAndIsActiveTrue(fcmToken);
+		if (stale.isEmpty()) {
+			return false;
+		}
+		boolean everyOwnerHasAnother = stale.stream()
+			.allMatch(row -> fcmTokenRepository.existsByMemberAndIsActiveTrueAndTokenNot(row.getMember(), fcmToken));
+		if (!everyOwnerHasAnother) {
+			return false;
+		}
+		stale.forEach(FcmToken::deactivate);
+		fcmTokenRepository.saveAll(stale);
+		return true;
 	}
 
 	private boolean isInvalidTokenError(MessagingErrorCode errorCode) {

@@ -12,8 +12,9 @@ test -s "$release_dir/users.acl"
 compose() { docker compose --project-name sweetgirl-prod-redis -f "$1/compose.yaml" "${@:2}"; }
 compose "$release_dir" config --quiet
 # 이미지를 먼저 가져오므로 다운로드 실패는 기존 컨테이너에 영향을 주지 않는다.
-compose "$release_dir" pull redis
+compose "$release_dir" pull redis redis-draft
 docker volume create sweetgirl-prod-redis-data >/dev/null
+docker volume create sweetgirl-prod-redis-draft-data >/dev/null
 
 previous=''
 if [ -L "$deploy_root/current" ]; then previous=$(readlink -f "$deploy_root/current"); fi
@@ -31,7 +32,7 @@ rollback() {
 }
 trap rollback ERR
 # bind mount한 redis.conf만 바뀌어도 Redis가 다시 읽도록 재생성한다.
-compose "$release_dir" up -d --no-deps --force-recreate --wait --wait-timeout 120 redis
+compose "$release_dir" up -d --no-deps --force-recreate --wait --wait-timeout 120 redis redis-draft
 ln -sfn "$release_dir" "$deploy_root/current.next"
 mv -Tf "$deploy_root/current.next" "$deploy_root/current"
 trap - ERR

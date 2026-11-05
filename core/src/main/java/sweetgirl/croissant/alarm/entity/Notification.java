@@ -134,6 +134,26 @@ public class Notification extends BaseTimeEntity {
 	}
 
 	/**
+	 * 사람 사이 활동(팔로우 · 좋아요 · 댓글 · 멘션 · 팔로잉 소식). 문구도 같이 둔다 — 스토어의 옛 앱(2.0.x)은 모르는
+	 * 타입을 title · body 로 그리고, 새 앱은 actor · target 으로 자기 문장을 만든다.
+	 */
+	public static Notification communityActivity(NotificationType type, Member actor,
+			NotificationTargetType targetType, Long targetId, String targetTitle,
+			String title, String body, String deepLink) {
+		return Notification.builder()
+			.type(type)
+			.channel(NotificationChannel.PUSH)
+			.actor(actor)
+			.targetType(targetType)
+			.targetId(targetId)
+			.targetTitle(targetTitle)
+			.title(title)
+			.body(body)
+			.deepLink(deepLink)
+			.build();
+	}
+
+	/**
 	 * 누가 내 빵투어를 찜했다. 눌렀을 때 그 빵투어로 가도록 링크를 단다 — courseId 만 보고는
 	 * 옮겨 가지 못하는 스토어의 옛 앱도 link 는 따라간다.
 	 */
