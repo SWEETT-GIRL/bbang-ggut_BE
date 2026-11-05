@@ -1,0 +1,10 @@
+# 기존 prometheus.yml의 scrape_configs에 병합한다. 전체 설정을 대체하지 않는다.
+# Pushgateway는 배치 EC2가 꺼져도 살아 있는 모니터링 서버에 둔다.
+scrape_configs:
+  - job_name: dataops-pushgateway
+    honor_labels: true
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['PUSHGATEWAY_PRIVATE_HOST:9091']
+# API의 기존 /actuator/prometheus scrape는 유지한다.
+# dataops 서버는 현재 health만 공개한다. 이 파일은 dataops:8090을 scrape하지 않는다.

@@ -49,12 +49,13 @@ class DataopsConfigTest {
 	}
 
 	@Test
-	@DisplayName("운영 프로필은 dataops 스키마를 주 DB 로 쓰고 API 키를 필수로 받는다")
-	void prodProfileUsesDataopsSchemaAndRequiresKey() throws IOException {
+	@DisplayName("운영 프로필은 별도 dataops DB의 public 스키마를 쓰고 런타임 DDL을 끈다")
+	void prodProfileSeparatesMigrationAndRequiresKey() throws IOException {
 		Properties properties = load("dataops-prod.properties");
 
 		assertThat(properties.getProperty("spring.datasource.url")).isEqualTo("${DATAOPS_DB_URL}");
-		assertThat(properties.getProperty("spring.flyway.default-schema")).isEqualTo("dataops");
+		assertThat(properties.getProperty("spring.flyway.default-schema")).isEqualTo("public");
+		assertThat(properties.getProperty("spring.flyway.enabled")).isEqualTo("false");
 		assertThat(properties.getProperty("dataops.api-key")).isEqualTo("${DATAOPS_API_KEY}");
 		assertThat(properties.getProperty("dataops.serving.write-enabled")).isNull();
 	}

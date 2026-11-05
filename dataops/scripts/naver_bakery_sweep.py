@@ -42,16 +42,19 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from match_worker import CONSECUTIVE_FAILURE_LIMIT, search_places  # noqa: E402
-from store_tags import prod_csv  # noqa: E402
+from cloud_runtime import serving_csv as prod_csv  # noqa: E402
 from bakery_gate import category_pass, leaf_of  # noqa: E402
 
 from playwright.sync_api import sync_playwright  # noqa: E402
 
+from cloud_runtime import matching_dir
+
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_OUT = ROOT / "matching" / f"naver_bakery_sweep_{dt.date.today():%Y%m%d}.jsonl"
+MATCHING = matching_dir()
+DEFAULT_OUT = MATCHING / f"naver_bakery_sweep_{dt.date.today():%Y%m%d}.jsonl"
 DEFAULT_QUERIES = ["베이커리"]
 # 지역 목록과 우리 place id 는 운영에서 한 번만 읽고 캐시한다 — 터널이 끊겨도(이동·재부팅) 이어서 돌 수 있게
-CACHE = ROOT / "matching" / "naver_sweep_cache.json"
+CACHE = MATCHING / "naver_sweep_cache.json"
 
 
 MAX_PAGE = 5            # 목록에 페이지 버튼이 5개까지 보인다. '다음페이지' 는 클릭이 안 먹어 쓰지 않는다
@@ -173,6 +176,7 @@ def main() -> int:
           f"(완료 {len(done):,}) · 우리 place id {len(known):,}", flush=True)
 
     found = new_places = 0
+    unresolved = 0
     consecutive_failures = cooldowns = 0
     with sync_playwright() as pw, io.open(out_path, "a", encoding="utf-8") as out:
         def launch():
@@ -197,6 +201,7 @@ def main() -> int:
                 time.sleep(args.cooldown_minutes * 60)
                 browser, page = launch()
                 consecutive_failures = 0
+                unresolved += 1
                 continue
             consecutive_failures = 0 if places else consecutive_failures + 1
             items = []
@@ -222,7 +227,7 @@ def main() -> int:
             time.sleep(args.interval)
         browser.close()
     print(f"[sweep] 끝 — 검색 {len(todo):,} · 결과 {found:,} · 우리 DB 에 없는 곳 {new_places:,} → {out_path}", flush=True)
-    return 0
+    return 4 if unresolved else 0
 
 
 if __name__ == "__main__":

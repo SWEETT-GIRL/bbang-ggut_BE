@@ -18,9 +18,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from localdata_match import DATASET_LABEL, TR_5174, is_franchise, norm_name
 
+from cloud_runtime import matching_dir
+
 ROOT = Path(__file__).resolve().parent.parent
-DELTA_DIR = ROOT / "matching" / "localdata_raw" / "delta"
-CANDIDATES = ROOT / "matching" / "localdata_new_candidates.tsv"
+MATCHING = matching_dir()
+DELTA_DIR = MATCHING / "localdata_raw" / "delta"
+CANDIDATES = MATCHING / "localdata_new_candidates.tsv"
 
 EXCLUDE_CATEGORY = ("편의점", "키즈카페", "극장", "PC방", "노래", "당구")
 
@@ -30,7 +33,7 @@ def main() -> int:
     with open(CANDIDATES, encoding="utf-8") as f:
         for r in csv.DictReader(f, delimiter="\t"):
             known.add(r["mgmt_no"])
-    with open(ROOT / "matching" / "localdata_mapping.tsv", encoding="utf-8") as f:
+    with open(MATCHING / "localdata_mapping.tsv", encoding="utf-8") as f:
         for r in csv.DictReader(f, delimiter="\t"):
             if r["mgmt_no"]:
                 known.add(r["mgmt_no"])

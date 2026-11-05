@@ -44,12 +44,15 @@ from localdata_match import METRO_SIDOS, building_key, city_of, name_sim, norm_n
 from localdata_new_confirmed import is_franchise  # noqa: E402  — 유입이 쓰는 것과 같은 브랜드 목록
 from store_tags import read_env  # noqa: E402
 
+from cloud_runtime import matching_dir, raw_dir
+
 ROOT = Path(__file__).resolve().parent.parent
-RAW_DIR = ROOT / "matching" / "localdata_raw"
-SWEEP_GLOB = str(ROOT / "matching" / "naver_bakery_sweep_2*.jsonl")
-OUT_MATCHED = ROOT / "matching" / "naver_sweep_matched.tsv"
-OUT_UNMATCHED = ROOT / "matching" / "naver_sweep_unmatched.tsv"
-OUT_CANDIDATES = ROOT / "matching" / "naver_sweep_new_candidates.tsv"
+MATCHING = matching_dir()
+RAW_DIR = raw_dir()
+SWEEP_GLOB = str(MATCHING / "naver_bakery_sweep_2*.jsonl")
+OUT_MATCHED = MATCHING / "naver_sweep_matched.tsv"
+OUT_UNMATCHED = MATCHING / "naver_sweep_unmatched.tsv"
+OUT_CANDIDATES = MATCHING / "naver_sweep_new_candidates.tsv"
 NAME_SIM_MIN = 0.85
 # 인허가 상호가 '시설' 이고 그 이름이 네이버 상호 안에 통째로 들어 있으면, 시설 인허가에 잘못 붙은 것이다.
 #   예: '베이크 롯데백화점 잠실점' → '롯데백화점 잠실점'(백화점 자신의 인허가)
@@ -188,12 +191,8 @@ def load_prod_stores(env_path, source):
                                 user="sweetgirl", password="soboro-lab", dbname="soboro",
                                 connect_timeout=10, application_name="naver_sweep_match")
     else:
-        conn = psycopg2.connect(host="127.0.0.1", port=int(os.environ.get("PROD_DB_PORT", "15432")),
-                                user=read_env(env_path, "PROD_DB_USERNAME"),
-                                password=read_env(env_path, "PROD_DB_PASSWORD"),
-                                dbname="soboro", sslmode="require", connect_timeout=10,
-                                options="-c default_transaction_read_only=on",
-                                application_name="naver_sweep_match")
+        from cloud_runtime import serving_connect
+        conn = serving_connect(env_path)
     cur = conn.cursor()
     cur.execute("SELECT id, name, address FROM store WHERE status = 'ACTIVE'")
     rows = cur.fetchall()
@@ -249,12 +248,15 @@ def dedupe_by_license(rows, counts):
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--sweep", help="이번 실행의 검색 JSONL만 대조")
     ap.add_argument("--env", default=str(ROOT / ".env"))
     ap.add_argument("--include-unknown", action="store_true", help="하위분류 없는 잎까지 대조한다")
     ap.add_argument("--stores", choices=("prod", "lab"), default="prod",
                     help="우리 가게 목록을 어디서 읽나 (터널이 없으면 lab — 덤프 뒤 등록분이 빠진다)")
     ap.add_argument("--out-dir", default=None, help="산출 TSV 를 둘 곳 (기본 matching/ — 측정할 때는 다른 곳으로)")
     args = ap.parse_args()
+    global SWEEP_GLOB
+    if args.sweep: SWEEP_GLOB = glob.escape(args.sweep)
     out_dir = Path(args.out_dir) if args.out_dir else OUT_CANDIDATES.parent
     out_candidates, out_matched, out_unmatched = (out_dir / p.name for p in (OUT_CANDIDATES, OUT_MATCHED, OUT_UNMATCHED))
 

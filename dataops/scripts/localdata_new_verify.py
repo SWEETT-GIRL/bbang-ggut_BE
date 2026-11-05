@@ -43,10 +43,13 @@ from bakery_gate import category_pass, leaf_of
 
 from playwright.sync_api import sync_playwright
 
+from cloud_runtime import matching_dir, raw_dir
+
 ROOT = Path(__file__).resolve().parent.parent
-CANDIDATES = ROOT / "matching" / "localdata_new_candidates.tsv"
-RAW_DIR = ROOT / "matching" / "localdata_raw"
-OUTPUT_PATH = ROOT / "matching" / "new_verify_results.jsonl"
+MATCHING = matching_dir()
+CANDIDATES = MATCHING / "localdata_new_candidates.tsv"
+RAW_DIR = raw_dir()
+OUTPUT_PATH = MATCHING / "new_verify_results.jsonl"
 # --candidates·--out 으로 갈아끼운다 (표본 측정처럼 본 후보표·결과에 섞으면 안 되는 실험용)
 
 IMPORT_CUTOFF = "20260501"
@@ -123,7 +126,7 @@ def load_retry_set() -> set:
             except (json.JSONDecodeError, KeyError):
                 continue
     retry = {m for m, j in latest.items() if j == "NOT_FOUND"}
-    judgments = ROOT / "matching" / "new_review_judgments.jsonl"
+    judgments = MATCHING / "new_review_judgments.jsonl"
     if judgments.exists():
         for line in io.open(judgments, encoding="utf-8"):
             j = json.loads(line)
@@ -230,6 +233,9 @@ def run(only_recent: bool, max_items: int | None, interval: float,
     written = 0
     attempts = 0
 
+    if not queue:
+        OUTPUT_PATH.touch(exist_ok=True)
+        return 0
     with sync_playwright() as playwright_api, \
             io.open(OUTPUT_PATH, "a", encoding="utf-8") as output:
 
@@ -296,16 +302,13 @@ def run(only_recent: bool, max_items: int | None, interval: float,
                       f"NOT_FOUND {counts['NOT_FOUND']}", flush=True)
             time.sleep(interval)
 
-        for _, pending_line in pending_empty:
-            output.write(pending_line)
-            counts["NOT_FOUND"] += 1
-            written += 1
+        # 정상 검색 응답으로 확인하지 못한 마지막 빈 결과는 부재로 확정하지 않는다.
         browser.close()
 
     print(f"[verify] 세션 종료 — 기록 {written}, EXIST {counts['EXIST']} "
           f"(BAKERY {hints['BAKERY']} / CAFE {hints['CAFE']} / OTHER {hints['OTHER']} / "
           f"UNKNOWN {hints['UNKNOWN']}), REVIEW {counts['REVIEW']}, NOT_FOUND {counts['NOT_FOUND']}", flush=True)
-    return 0
+    return 4 if queue or pending_empty else 0
 
 
 def main() -> int:

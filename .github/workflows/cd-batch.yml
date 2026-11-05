@@ -131,3 +131,18 @@ jobs:
           BATCH_INSTANCE_ID: ${{ vars.BATCH_INSTANCE_ID }}
           BATCH_RUNTIME_PARAMETER_PREFIX: ${{ vars.BATCH_RUNTIME_PARAMETER_PREFIX }}
         run: python3 scripts/deploy/batch/deploy.py
+
+  notify-result:
+    needs: [merged-pr, build, deploy]
+    if: >-
+      always() && vars.BATCH_DEPLOY_ENABLED == 'true' &&
+      (needs.merged-pr.result == 'failure' || needs.build.result == 'failure' ||
+       needs.build.result == 'cancelled' || needs.deploy.result != 'skipped')
+    uses: ./.github/workflows/slack-notify.yml
+    with:
+      component: DataOps 배치
+      kind: CD
+      results: ${{ toJSON(needs) }}
+      deployment-state: installed
+    secrets:
+      webhook-url: ${{ secrets.SLACK_BATCH_DEPLOY_WEBHOOK_URL }}

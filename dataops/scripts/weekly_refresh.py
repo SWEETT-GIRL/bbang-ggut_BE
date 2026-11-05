@@ -32,6 +32,7 @@ import json
 import os
 import re
 import socket
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -41,6 +42,7 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import local_db  # noqa: E402
 from dataops_server import server_headers
+from batch_execution import AlreadyRunning, CURRENT_RUN, Interrupted, WorkflowRun, atomic_json, termination_signals
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "scripts"
@@ -51,7 +53,9 @@ DEFAULT_CRAWL_HOURS = 6.0  # 03:00 시작이면 09:00 전에 끝난다
 
 
 def log(message):
-    line = f"{dt.datetime.now():%Y-%m-%d %H:%M:%S} {message}"
+    execution = CURRENT_RUN.get()
+    identity = f" run_id={execution.record['run_id']}" if execution else ""
+    line = f"{dt.datetime.now():%Y-%m-%d %H:%M:%S}{identity} {message}"
     print(line, flush=True)
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     with open(LOG_DIR / "weekly_refresh.log", "a", encoding="utf-8") as f:
@@ -66,8 +70,7 @@ def load_state():
 
 
 def save_state(state):
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
-    STATE.write_text(json.dumps(state, ensure_ascii=False, indent=1), encoding="utf-8")
+    atomic_json(STATE, state)
 
 
 def db_now():
@@ -111,28 +114,67 @@ def preflight(server, prod_port, collect_only=False):
     return problems
 
 
-def run_script(name, *args):
+def run_script(name, *args, env=None):
     """하위 스크립트 실행 — 출력을 그대로 로그에 흘리고 (종료 코드, 마지막 몇 줄)을 돌려준다"""
+    execution = CURRENT_RUN.get()
+    if execution is None:
+        return _run_script(name, args, env=env)
+    with execution.step(name) as step:
+        result = _run_script(name, args, execution.lock_fd, env=env)
+        step["exit_code"] = result[0]
+        return result
+
+
+def _run_script(name, args, lock_fd=None, env=None):
     cmd = [PY, "-u", str(SCRIPTS / name), *[str(a) for a in args]]
     log(f"실행: {name} {' '.join(str(a) for a in args)}")
     # 윈도우는 하위 파이썬의 표준 출력이 cp949 라 한글 로그가 깨진다 — UTF-8 모드로 띄운다
-    env = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
+    env = {**os.environ, **(env or {}), "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
     proc = subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                            encoding="utf-8", errors="replace", env=env)
+                            encoding="utf-8", errors="replace", env=env, start_new_session=True,
+                            pass_fds=(lock_fd,) if lock_fd is not None else ())
     tail = []
-    with open(LOG_DIR / "weekly_refresh.log", "a", encoding="utf-8") as f:
-        for line in proc.stdout:
-            f.write(line)
-            print(line, end="", flush=True)
-            tail = (tail + [line.rstrip()])[-8:]
-    code = proc.wait()
+    try:
+        with proc.stdout, open(LOG_DIR / "weekly_refresh.log", "a", encoding="utf-8") as f:
+            for line in proc.stdout:
+                f.write(line)
+                print(line, end="", flush=True)
+                tail = (tail + [line.rstrip()])[-8:]
+        code = proc.wait()
+    except BaseException:
+        if proc.poll() is None:
+            try:
+                os.killpg(proc.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                os.killpg(proc.pid, signal.SIGKILL)
+                proc.wait()
+        raise
     log(f"종료: {name} → {code}")
     return code, tail
 
 
 def crawl(server, hours, max_stores=None):
     extra = ["--max", max_stores] if max_stores is not None else []
-    return run_script("sync_worker.py", "--server", server, "--max-hours", hours, *extra)
+    execution = CURRENT_RUN.get()
+    summary = LOG_DIR / "attempts" / execution.record['run_id'] / 'refresh-summary.json' if execution else None
+    if summary: extra += ['--summary', summary]
+    try:
+        code, tail = run_script("sync_worker.py", "--server", server, "--max-hours", hours, *extra)
+    finally:
+        if summary and summary.exists():
+            execution.record['items_current'] = json.loads(summary.read_text())
+            execution.record['items'] = execution.record['items_current']
+            execution.persist()
+    if summary and code == 0:
+        if not summary.exists(): raise ValueError('worker did not write this attempt summary')
+        items = execution.record['items_current']
+        if items['failed']: code = 1
+        elif items['attempted'] == 0: code = 4
+    return code, tail
 
 
 def approved_store_ids(since):
@@ -171,7 +213,9 @@ def apply(server, since, dry_run):
     result["steps"]["메뉴 추가 승인"] = {"code": code, "tail": tail}
 
     store_ids = pending_store_ids(since) if dry_run else approved_store_ids(started)
-    ids_file = LOG_DIR / f"image_targets_{started:%Y%m%d}.json"
+    execution = CURRENT_RUN.get()
+    identity = execution.record["run_id"] if execution else started.strftime("%Y%m%d_%H%M%S_%f")
+    ids_file = LOG_DIR / f"image_targets_{identity}.json"
     ids_file.write_text(json.dumps({"store_ids": store_ids}), encoding="utf-8")
     if store_ids:
         code, tail = run_script("image_backfill_worker.py", "--all", "--store-ids-file", ids_file, *extra)
@@ -246,7 +290,9 @@ def write_report(kind, since, problems, crawl_result, apply_result):
         lines += ["", "## 사람 검토 대기 (이번 기간에 새로 생긴 PENDING)", "", "| 종류 | 제안 | 가게 |", "|---|---|---|"]
         lines += [f"| {k} | {n:,} | {s:,} |" for k, n, s in summary["review"]]
     LOG_DIR.mkdir(parents=True, exist_ok=True)
-    path = LOG_DIR / f"report_{now:%Y%m%d_%H%M}_{kind}.md"
+    execution = CURRENT_RUN.get()
+    identity = execution.record["run_id"] if execution else now.strftime("%Y%m%d_%H%M%S_%f")
+    path = LOG_DIR / f"report_{identity}_{kind}.md"
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     log(f"보고서: {path}")
     return path
@@ -267,6 +313,22 @@ def main():
         ap.error("수집과 반영은 분리합니다. 검수 뒤 별도의 apply 실행을 사용하세요.")
     if args.crawl_hours <= 0 or (args.max_stores is not None and args.max_stores < 1):
         ap.error("crawl-hours/max-stores must be positive")
+
+    command = "apply-dry-run" if args.command == "apply" and args.dry_run else args.command
+    execution = WorkflowRun(LOG_DIR, command)
+    try:
+        with execution.exclusive(), execution, termination_signals():
+            code = execute(args, ap)
+            execution.finish(code)
+            return code
+    except AlreadyRunning:
+        log("이미 주간 작업이 실행 중이다 — 중복 실행 거절 (exit 75)")
+        return 75
+    except Interrupted as error:
+        return error.code
+
+
+def execute(args, ap):
 
     state = load_state()
     if args.command == "init":
@@ -299,17 +361,24 @@ def main():
         since = str(db_now() - dt.timedelta(days=1))   # 보고서 기간 표시용
     if collect_only:
         crawl_result = crawl(args.server, args.crawl_hours, args.max_stores)
-        if crawl_result[0] not in (0, 3):   # 3 = 차단 쿨다운 소진; 수집과 반영은 독립이다
+        if crawl_result[0] == 3:
+            problems.append("수집 차단 쿨다운 소진 — 이번 실행은 BLOCKED이며 수집 완료가 아니다")
+        elif crawl_result[0] != 0:
             problems.append(f"수집 워커 비정상 종료 {crawl_result[0]}")
     apply_result = None
     if do_apply:
         apply_result = apply(args.server, since, args.dry_run)
-        if not args.dry_run and all(v["code"] in (0,) for v in apply_result["steps"].values()):
+        all_succeeded = all(v["code"] == 0 for v in apply_result["steps"].values())
+        if not args.dry_run and all_succeeded:
             state["last_apply_at"] = apply_result["started"]
             save_state(state)
-        elif not args.dry_run:
+        elif not all_succeeded:
             problems.append("자동 반영 중 실패한 단계가 있다 — 다음 실행이 같은 기간을 이어서 본다")
     write_report(args.command if not args.dry_run else "apply-dry-run", since, problems, crawl_result, apply_result)
+    if crawl_result and crawl_result[0] == 3:
+        return 3
+    if crawl_result and crawl_result[0] == 4:
+        return 4
     return 0 if not problems else 1
 
 

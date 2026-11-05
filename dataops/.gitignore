@@ -43,6 +43,8 @@ matching/*
 scripts/__pycache__/
 dataops-logs/captures/
 dataops-logs/registration-captures/
+dataops-logs/weekly/runs/
+dataops-logs/weekly/.workflow.lock
 artifacts/response-agent/
 .venv-agent/
 !matching/course_testset_20260904.tsv
