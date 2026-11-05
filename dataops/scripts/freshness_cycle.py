@@ -10,7 +10,7 @@ import sys
 from zoneinfo import ZoneInfo
 
 import requests
-from batch_execution import AlreadyRunning, WorkflowRun, atomic_json, termination_signals, utc_now
+from batch_execution import AlreadyRunning, CURRENT_RUN, WorkflowRun, atomic_json, termination_signals, utc_now
 from cloud_public_pull import DATASETS, file_hash
 from cloud_runtime import cycle_id
 from cloud_seed import FACTS, validate
@@ -213,6 +213,10 @@ def execute_track(track, root, seed, manifest, args, lock_fd):
     if state and all(state['stages'].get(node['name'], {}).get('exit_code') == 0 for node in stages):
         for saved in state['stages'].values(): verify_completed(root, saved)
         print(f'{track}: cycle already completed; last success time is retained', flush=True)
+        parent = CURRENT_RUN.get()
+        if parent:
+            parent.record.setdefault('skipped_tracks', []).append(track)
+            parent.persist()
         return 0
     env = {**os.environ, 'DATAOPS_MATCHING_DIR': str(matching),
            'DATAOPS_RAW_DIR': str((seed / 'matching/localdata_raw') if track == 'discovery' else matching / 'localdata_raw')}
@@ -222,7 +226,22 @@ def execute_track(track, root, seed, manifest, args, lock_fd):
         execution.record['cycle_id'] = root.name
         execution.persist()
         def invoke(node):
-            return weekly_refresh.run_script(node['script'], *node['arguments'], env=env)[0]
+            if track != 'refresh':
+                return weekly_refresh.run_script(node['script'], *node['arguments'], env=env)[0]
+            # A fresh path distinguishes this attempt from a prior cycle artifact,
+            # including failures before sync_worker can write its summary.
+            current = root / 'attempts' / execution.record['run_id'] / 'refresh-summary.json'
+            arguments = list(node['arguments'])
+            arguments[arguments.index('--summary') + 1] = current
+            try:
+                code = weekly_refresh.run_script(node['script'], *arguments, env=env)[0]
+            finally:
+                if current.exists():
+                    execution.record['items_current'] = json.loads(current.read_text())
+                    atomic_json(root / 'refresh-summary.json', execution.record['items_current'])
+            if code == 0 and not current.exists():
+                raise ValueError('refresh did not write this attempt summary')
+            return code
         try:
             code = execute_graph(root, stages, invoke, state)
         finally:

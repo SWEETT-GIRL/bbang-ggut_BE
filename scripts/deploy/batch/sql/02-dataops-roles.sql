@@ -3,14 +3,10 @@
 -- 역할은 비밀번호 미설정 상태다. 비밀번호를 레포에 넣지 않는다.
 -- 생성 후 IntelliJ에서는 ALTER ROLE <역할명> PASSWORD '<본인이 정한 비밀번호>'; 로 설정한다.
 -- psql 터미널이라면 \password dataops_migrator / \password dataops_worker를 쓸 수 있다.
--- 예전 02 SQL로 dataops_service를 이미 만들었다면 03-rename-dataops-worker.sql을 대신 사용한다.
 DO $$
 BEGIN
     IF current_database() <> 'dataops' THEN
         RAISE EXCEPTION 'Connect to database dataops before provisioning roles';
-    END IF;
-    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'dataops_service') THEN
-        RAISE EXCEPTION 'Legacy dataops_service exists; verify its owner/use and use 03-rename-dataops-worker.sql only for the previous batch role';
     END IF;
     CREATE ROLE dataops_migrator LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
     CREATE ROLE dataops_worker LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;

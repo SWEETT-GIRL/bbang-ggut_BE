@@ -18,6 +18,8 @@ import subprocess
 import sys
 import tempfile
 
+from batch_notifications import BatchNotification, selected_command
+
 BASE = Path('/opt/bbang-batch')
 CONTAINER_UID = 10001
 JOB_LABEL = 'bbang-batch.job'
@@ -32,7 +34,7 @@ OPTIONAL = {
     'SLACK_SEARCH_MISS_WEBHOOK_URL', 'SLACK_NOTIFICATION_ENABLED',
     # dataops — 판정 서버(dataops 스키마)·API 키·반영용 운영 쓰기 계정·사진 반영(본 앱 어드민 API)
     'DATAOPS_DB_URL', 'DATAOPS_DB_USERNAME', 'DATAOPS_DB_PASSWORD', 'DATAOPS_API_KEY',
-    'DATAOPS_PUSHGATEWAY_URL',
+    'DATAOPS_PUSHGATEWAY_URL', 'DATAOPS_SLACK_WEBHOOK_URL',
     'DATA_GO_KR_SERVICE_KEY', 'DATAOPS_FULL_CYCLE_ENABLED', 'DATAOPS_BASELINE_VERSION',
     'DATAOPS_PUBLIC_DATASETS', 'DATAOPS_PUBLIC_MAX_PAGES', 'DATAOPS_CYCLE_MAX_ITEMS', 'DATAOPS_SWEEP_MAX_REGIONS',
     'DATAOPS_MIGRATION_DB_USERNAME', 'DATAOPS_MIGRATION_DB_PASSWORD',
@@ -165,6 +167,11 @@ def execute(config, command):
     import boto3
     env, firebase, _ = load_parameters(boto3.client('ssm', region_name=config['region']), config['parameter_prefix'])
     env = execution_environment(env, command)
+    notification_command = selected_command(command)
+    webhook = env.pop('DATAOPS_SLACK_WEBHOOK_URL', '')  # 호스트에서만 전송한다.
+    notification = BatchNotification(BASE / 'dataops-logs', notification_command, webhook) if notification_command else None
+    if notification:
+        env['DATAOPS_INVOCATION_ID'] = notification.record['invocation_id']
     os.umask(0o077)
     with tempfile.TemporaryDirectory(prefix='bbang-batch-') as tmp:
         env_path = Path(tmp) / 'app.env'
@@ -175,7 +182,16 @@ def execute(config, command):
         os.chown(firebase_path, CONTAINER_UID, CONTAINER_UID)
         firebase_path.chmod(0o400)
         args, _ = docker_run_args(config['image'], env_path, firebase_path, BASE / 'dataops-logs', command)
-        return subprocess.run(args, check=False).returncode
+        if notification: notification.notify('start')
+        code = 1
+        try:
+            code = subprocess.run(args, check=False).returncode
+            return code
+        except KeyboardInterrupt:
+            code = 130
+            raise
+        finally:
+            if notification: notification.finish(code)
 
 
 def busy():

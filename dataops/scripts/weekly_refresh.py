@@ -159,7 +159,22 @@ def _run_script(name, args, lock_fd=None, env=None):
 
 def crawl(server, hours, max_stores=None):
     extra = ["--max", max_stores] if max_stores is not None else []
-    return run_script("sync_worker.py", "--server", server, "--max-hours", hours, *extra)
+    execution = CURRENT_RUN.get()
+    summary = LOG_DIR / "attempts" / execution.record['run_id'] / 'refresh-summary.json' if execution else None
+    if summary: extra += ['--summary', summary]
+    try:
+        code, tail = run_script("sync_worker.py", "--server", server, "--max-hours", hours, *extra)
+    finally:
+        if summary and summary.exists():
+            execution.record['items_current'] = json.loads(summary.read_text())
+            execution.record['items'] = execution.record['items_current']
+            execution.persist()
+    if summary and code == 0:
+        if not summary.exists(): raise ValueError('worker did not write this attempt summary')
+        items = execution.record['items_current']
+        if items['failed']: code = 1
+        elif items['attempted'] == 0: code = 4
+    return code, tail
 
 
 def approved_store_ids(since):
@@ -362,6 +377,8 @@ def execute(args, ap):
     write_report(args.command if not args.dry_run else "apply-dry-run", since, problems, crawl_result, apply_result)
     if crawl_result and crawl_result[0] == 3:
         return 3
+    if crawl_result and crawl_result[0] == 4:
+        return 4
     return 0 if not problems else 1
 
 

@@ -17,7 +17,7 @@ import tempfile
 import time
 from urllib.parse import quote, urlsplit
 from urllib.request import Request, urlopen
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 CURRENT_RUN = ContextVar("dataops_workflow_run", default=None)
 
@@ -89,6 +89,13 @@ class WorkflowRun:
                        "command": command, "started_at": utc_now(), "finished_at": None,
                        "duration_seconds": None, "status": "RUNNING", "exit_code": None, "steps": []}
         self.path = self.directory / "runs" / (self.record["run_id"] + ".json")
+        invocation = os.environ.get("DATAOPS_INVOCATION_ID", "")
+        try:
+            if str(UUID(invocation)) == invocation:
+                self.record["invocation_id"] = invocation
+                self.path = self.path.with_name(invocation + "_" + self.path.name)
+        except ValueError:
+            pass  # Old/local callers do not have a host invocation ID.
         self.lock_fd = None
 
     def persist(self):

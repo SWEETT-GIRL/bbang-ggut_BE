@@ -40,6 +40,7 @@ def install_script(image, prefix):
     """SSM AWS-RunShellScript 로 보낼 셸. 비밀값은 담지 않는다 — 이미지 주소·파라미터 경로·runner 코드뿐"""
     config = encode(json.dumps({'region': REGION, 'parameter_prefix': prefix, 'image': image}).encode())
     runner = encode(gzip.compress(Path(__file__).with_name('runner.py').read_bytes(), mtime=0))
+    notifications = encode(gzip.compress(Path(__file__).with_name('batch_notifications.py').read_bytes(), mtime=0))
     return f'''#!/bin/bash
 set -euo pipefail
 umask 077
@@ -52,6 +53,7 @@ systemctl enable --now docker
 install -d -m 700 /opt/bbang-batch
 printf '%s' '{config}' | base64 -d > /opt/bbang-batch/config.json
 printf '%s' '{runner}' | base64 -d | gzip -d > /opt/bbang-batch/runner.py
+printf '%s' '{notifications}' | base64 -d | gzip -d > /opt/bbang-batch/batch_notifications.py
 cat > /usr/local/bin/bbang-batch <<'WRAPPER'
 #!/bin/bash
 exec /usr/bin/python3 /opt/bbang-batch/runner.py "$@"

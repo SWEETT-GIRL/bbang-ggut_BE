@@ -57,6 +57,8 @@ class DeployTest(unittest.TestCase):
 
         self.assertEqual(config, {'region': 'ap-northeast-2', 'parameter_prefix': PREFIX, 'image': IMAGE})
         self.assertEqual(installed_runner, (Path(deploy.__file__).with_name('runner.py')).read_bytes())
+        installed_notifications = gzip.decompress(base64.b64decode(encoded[2]))
+        self.assertEqual(installed_notifications, (Path(deploy.__file__).with_name('batch_notifications.py')).read_bytes())
         self.assertIn('bbang-batch install', script)
         self.assertNotIn('token', script.lower().replace('--password-stdin', ''))
 
