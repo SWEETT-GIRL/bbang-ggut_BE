@@ -18,6 +18,14 @@ WEBHOOK = 'https://hooks.slack.com/services/TEST/TEST/test-secret'
 ITEMS = dict(attempted=20, changed=7, unchanged=10, partial=1, held=1, failed=1)
 
 
+def content(payload):
+    """Read rendered text across fields, sections and context instead of a single block."""
+    blocks = payload['attachments'][0]['blocks']
+    return '\n'.join(part['text'] for block in blocks
+                     for part in ([block['text']] if 'text' in block else []) + block.get('fields', []) + block.get('elements', [])
+                     if part.get('type') in ('plain_text', 'mrkdwn'))
+
+
 class NotificationTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -42,9 +50,16 @@ class NotificationTest(unittest.TestCase):
         notice.notify('start'); notice.notify('start')
         notice.finish(1); notice.finish(0)
         self.assertEqual(len(self.events), 2)
-        text = self.events[1]['blocks'][0]['text']['text']
-        self.assertIn('실패', self.events[1]['text'])
-        self.assertIn('시도 20건 · 정상 17 · 실패 1 · 부분 1 · 보류 1 · 미확정 0', text)
+        text = content(self.events[1])
+        self.assertIn('배치 종료 · 실패', text)
+        self.assertIn('*이번 수집 · 시도*\n20건', text)
+        self.assertIn('*정상*\n17건 (변경 7 · 무변경 10)', text)
+        for label in ('실패', '부분 수집', '보류'):
+            self.assertIn(f'*{label}*\n1건', text)
+        self.assertIn('*미확정*\n0건', text)
+        self.assertEqual(self.events[0]['attachments'][0]['color'], '#3498DB')
+        self.assertEqual(self.events[1]['attachments'][0]['color'], '#E74C3C')
+        self.assertIn('시도 20건', self.events[1]['attachments'][0]['fallback'])
         self.assertIn('회차 산출물(이번 실행 처리량 아님): 후보 저장 8', text)
         self.assertIn('KST', text)
         self.assertNotIn('9999', text)
@@ -56,8 +71,10 @@ class NotificationTest(unittest.TestCase):
             with self.subTest(code=code):
                 notice = notices.BatchNotification(self.logs, 'dataops-nightly', WEBHOOK)
                 notice.notify('start'); notice.finish(code)
-                self.assertIn(label, self.events[-1]['text'])
-                self.assertIn('미집계 또는 수집 단계 미실행', self.events[-1]['blocks'][0]['text']['text'])
+                self.assertIn(label, content(self.events[-1]))
+                self.assertIn('미집계 또는 수집 단계 미실행', content(self.events[-1]))
+                expected_color = '#2ECC71' if code == 0 else '#E74C3C' if code == 1 else '#F2C744'
+                self.assertEqual(self.events[-1]['attachments'][0]['color'], expected_color)
 
     def test_delivery_failure_keeps_result_and_does_not_leak_or_retry(self):
         notice = notices.BatchNotification(self.logs, 'dataops-nightly', WEBHOOK)
@@ -91,9 +108,27 @@ class NotificationTest(unittest.TestCase):
         self.journal(notice.record['invocation_id'], 'a', command='freshness-cycle', status='COMPLETED',
                      skipped_tracks=['refresh', 'public'], items=ITEMS)
         notice.finish(0)
-        text = self.events[-1]['blocks'][0]['text']['text']
+        text = content(self.events[-1])
         self.assertIn('이미 완료되어 재처리하지 않음: refresh, public', text)
-        self.assertNotIn('시도 20건', text)
+        self.assertNotIn('*이번 수집 · 시도*', text)
+
+    def test_long_summary_stays_deliverable_and_dynamic_values_cannot_mention(self):
+        notice = notices.BatchNotification(self.logs, 'dataops-cycle <!channel> & run', WEBHOOK)
+        for index in range(20):
+            self.journal(notice.record['invocation_id'], str(index), items_current=ITEMS,
+                         items={'candidates_inserted': 8}, skipped_tracks=['public'])
+        notice.finish(1)
+        payload = self.events[-1]
+        self.assertIn('&lt;!channel&gt; &amp; run', content(payload))
+        self.assertNotIn('<!channel>', content(payload))
+        blocks = payload['attachments'][0]['blocks']
+        self.assertLessEqual(len(blocks), 50)
+        self.assertIn('추가 작업 12개', content(payload))
+        for block in blocks:
+            self.assertLessEqual(len(block.get('fields', [])), 10)
+            for value in block.get('fields', []):
+                self.assertLessEqual(len(value['text']), 2000)
+                self.assertTrue(value['verbatim'])
 
 
 class TransportTest(unittest.TestCase):

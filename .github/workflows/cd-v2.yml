@@ -31,6 +31,8 @@ jobs:
       pull-requests: read
     outputs:
       allowed: ${{ steps.gate.outputs.allowed }}
+      pr_title: ${{ steps.gate.outputs.pr_title }}
+      pr_number: ${{ steps.gate.outputs.pr_number }}
     steps:
       - name: Require a merged PR targeting develop-v2
         id: gate
@@ -40,7 +42,7 @@ jobs:
             const prs = await github.paginate(github.rest.repos.listPullRequestsAssociatedWithCommit, {
               ...context.repo, commit_sha: context.sha
             });
-            const merged = prs.some(pr => pr.merged_at &&
+            const merged = prs.find(pr => pr.merged_at &&
               pr.base.ref === 'develop-v2' && pr.base.repo.full_name === context.payload.repository.full_name &&
               pr.merge_commit_sha === context.sha);
             const relevant = prs.filter(pr => pr.merged_at && pr.base.ref === 'develop-v2' &&
@@ -61,7 +63,9 @@ jobs:
               redisOnly = redisOnly && touchesRedis && files.length > 0 && files.every(file =>
                 redisConfig(file.filename) && (!file.previous_filename || redisConfig(file.previous_filename)));
             }
-            core.setOutput('allowed', String(merged && !redisOnly));
+            core.setOutput('allowed', String(Boolean(merged) && !redisOnly));
+            core.setOutput('pr_title', merged?.title || '');
+            core.setOutput('pr_number', merged?.number || '');
             if (redisOnly) core.notice('Redis-only configuration PR: WAS build and deployment skipped.');
             if (!merged) core.warning('Merged develop-v2 PR not found: deployment skipped. This is not branch protection.');
 
@@ -73,6 +77,7 @@ jobs:
     outputs:
       # 사용자명이 포함된 전체 이미지 주소는 Secrets 마스킹으로 job output이 생략될 수 있다.
       digest: ${{ steps.docker.outputs.digest }}
+      image_tag: ${{ steps.docker.outcome == 'success' && format('v2-{0}-{1}-{2}', github.sha, github.run_id, github.run_attempt) || '' }}
     steps:
       - uses: actions/checkout@v4
       - name: Check required settings
