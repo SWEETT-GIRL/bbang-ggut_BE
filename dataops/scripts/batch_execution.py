@@ -52,6 +52,8 @@ def outcome(code):
         return "COMPLETED"
     if code == 3:
         return "BLOCKED"
+    if code == 4:
+        return "INCOMPLETE"
     if code == 75:
         return "REJECTED_OVERLAP"
     if code < 0 or code in (130, 143):
@@ -181,7 +183,7 @@ def read_records(directory):
                 raise ValueError("unsupported record")
             datetime.fromisoformat(value["started_at"])
             if not isinstance(value["command"], str) or value["status"] not in {
-                "RUNNING", "COMPLETED", "FAILED", "BLOCKED", "INTERRUPTED", "REJECTED_OVERLAP"
+                "RUNNING", "COMPLETED", "FAILED", "BLOCKED", "INCOMPLETE", "INTERRUPTED", "REJECTED_OVERLAP"
             }:
                 raise ValueError("invalid record")
             if value["status"] != "RUNNING":
@@ -236,7 +238,7 @@ def metrics(directory, command):
         name = "bbang_dataops_workflow_" + suffix
         lines.extend([f"# HELP {name} Latest observed workflow {suffix}; see monitoring README for scope.",
                       f"# TYPE {name} gauge", f"{name} {value}"])
-    for status in ("COMPLETED", "FAILED", "BLOCKED", "INTERRUPTED", "REJECTED_OVERLAP", "RUNNING"):
+    for status in ("COMPLETED", "FAILED", "BLOCKED", "INCOMPLETE", "INTERRUPTED", "REJECTED_OVERLAP", "RUNNING"):
         count = sum(row["command"] == command and row["status"] == status for row in records)
         name = "bbang_dataops_workflow_observed_runs"
         if status == "COMPLETED":
@@ -244,6 +246,18 @@ def metrics(directory, command):
             lines.append(f"# TYPE {name} gauge")
         lines.append(f'{name}{{outcome="{status}"}} {count}')
     if last:
+        item_names = {"attempted", "changed", "unchanged", "partial", "held", "failed", "pages_fetched",
+                      "baseline_stores", "baseline_mapped", "baseline_unmapped", "baseline_ambiguous",
+                      "gate_passed", "gate_held", "gate_blocked", "gate_need_menu", "gate_review_pending",
+                      "public_raw", "public_new", "public_upd", "public_unobserved",
+                      "candidates_input", "candidates_inserted", "candidates_existing", "candidates_registered", "candidates_held",
+                      "closures_matched_changes", "closures_observed", "closures_attempted", "closures_proposed",
+                      "closures_held", "closures_unknown", "closures_deferred"}
+        name = "bbang_dataops_workflow_last_items"
+        lines.extend([f"# HELP {name} Latest cycle artifact counts; gauge, not a distributed counter.", f"# TYPE {name} gauge"])
+        for kind, value in sorted(last.get("items", {}).items()):
+            if kind in item_names and type(value) in (int, float) and math.isfinite(value) and value >= 0:
+                lines.append(f'{name}{{result="{kind}"}} {value}')
         for metric in ("duration_seconds", "exit_code"):
             name = "bbang_dataops_step_last_" + metric
             lines.append(f"# HELP {name} Latest completed workflow step {metric}.")

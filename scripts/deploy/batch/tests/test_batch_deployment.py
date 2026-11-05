@@ -154,7 +154,7 @@ class NightlyEntrypointTest(unittest.TestCase):
             python.write_text('''#!/bin/bash
 case "$1" in
     /app/jdbc_env.py|-c) exit 0 ;;
-    scripts/weekly_refresh.py) printf '%s\\n' "$@" > "$DATAOPS_TEST_ARGUMENTS" ;;
+    scripts/weekly_refresh.py|scripts/freshness_cycle.py) printf '%s\\n' "$@" > "$DATAOPS_TEST_ARGUMENTS" ;;
     *) exit 99 ;;
 esac
 ''')
@@ -172,6 +172,15 @@ esac
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(output.read_text().splitlines(), ['scripts/weekly_refresh.py', 'nightly',
                              '--crawl-hours', '0.25', '--server', 'http://127.0.0.1:8090', '--max-stores', '20'])
+            full_env = {**env, 'DATAOPS_FULL_CYCLE_ENABLED': 'true'}
+            result = subprocess.run([*invocation, '20'], env=full_env, capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(output.read_text().splitlines(), ['scripts/freshness_cycle.py', 'run',
+                             '--crawl-hours', '0.25', '--server', 'http://127.0.0.1:8090', '--max-items', '20'])
+            for selected_env, expected_hours in ((env, '6'), (full_env, '0.25')):
+                result = subprocess.run(invocation[:-1], env=selected_env, capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(output.read_text().splitlines()[3], expected_hours)
             for arguments in (['0'], ['-1'], ['1.5'], ['20', 'extra']):
                 with self.subTest(arguments=arguments):
                     result = subprocess.run([*invocation, *arguments], env=env,
@@ -180,6 +189,23 @@ esac
 
 
 class RunnerParametersTest(unittest.TestCase):
+
+    def test_전체_루프는_조회_계정을_요구하고_로컬_이관없이_원본을_영속_볼륨에_저장한다(self):
+        env = {key: 'value' for key in runner.DATAOPS_REQUIRED}
+        env.update(DATAOPS_DB_URL='jdbc:postgresql://rds/dataops?sslmode=require',
+                   DATAOPS_FULL_CYCLE_ENABLED='true', DATAOPS_BASELINE_VERSION='20261105')
+        with self.assertRaises(ValueError): runner.execution_environment(env, ['dataops-nightly'])
+        env.update(DATAOPS_PROD_DB_URL='jdbc:postgresql://rds/soboro?sslmode=require', DATAOPS_PROD_DB_USERNAME='reader',
+                   DATAOPS_PROD_DB_PASSWORD='test', DATA_GO_KR_SERVICE_KEY='test')
+        self.assertEqual(runner.execution_environment(env, ['dataops-cycle'])['DATAOPS_PROD_DB_USERNAME'], 'reader')
+        command = ['dataops-cycle', 'run', '--tracks', 'public', '--cycle-id', 'smoke']
+        args, logs = runner.docker_run_args(IMAGE, '/tmp/app.env', '/tmp/firebase.json', '/opt/logs', command)
+        self.assertTrue(logs)
+        self.assertFalse(any('dataops-seed' in arg for arg in args))
+        self.assertTrue(any('target=/app/dataops/dataops-logs' in arg for arg in args))
+        self.assertEqual(args[-len(command):], command)
+        env['DATAOPS_BASELINE_VERSION'] = '../other'
+        with self.assertRaises(ValueError): runner.execution_environment(env, ['dataops-cycle'])
 
     def test_마이그레이션_계정은_마이그레이션_명령에만_전달한다(self):
         env = {'DATAOPS_DB_URL': 'jdbc:postgresql://db.internal/dataops?currentSchema=public&sslmode=require',

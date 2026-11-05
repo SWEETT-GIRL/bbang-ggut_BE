@@ -47,18 +47,18 @@ def variable(name, label, query):
 
 
 def spring_batch_dashboard():
-    dashboard = base("bbang-dataops-v0", "빵긋 · DataOps 실행과 Spring 영향 · V0", "DS_PROMETHEUS", "prometheus")
+    dashboard = base("bbang-dataops-v0", "빵긋 · DataOps 최신화와 Spring 영향", "DS_PROMETHEUS", "prometheus")
     dashboard["templating"]["list"] = [
         variable("spring_job", "Spring scrape job", "label_values(jvm_memory_used_bytes, job)"),
         variable("spring_instance", "Spring 인스턴스", 'label_values(jvm_memory_used_bytes{job=~"$spring_job"}, instance)'),
-        {"name": "workflow", "label": "DataOps 실행", "type": "custom", "query": "nightly,collect-only,apply,apply-dry-run,preflight,init,review-only",
-         "current": {"text": "nightly", "value": "nightly"}, "includeAll": False, "multi": False,
-         "options": [{"text": value, "value": value, "selected": value == "nightly"}
-                     for value in ("nightly", "collect-only", "apply", "apply-dry-run", "preflight", "init", "review-only")]},
+        {"name": "workflow", "label": "DataOps 실행", "type": "custom", "query": "freshness-baseline,freshness-refresh,freshness-public,freshness-discovery,nightly,collect-only,apply,apply-dry-run,preflight,init,review-only",
+         "current": {"text": "freshness-refresh", "value": "freshness-refresh"}, "includeAll": False, "multi": False,
+         "options": [{"text": value, "value": value, "selected": value == "freshness-refresh"}
+                     for value in ("freshness-baseline", "freshness-refresh", "freshness-public", "freshness-discovery", "nightly", "collect-only", "apply", "apply-dry-run", "preflight", "init", "review-only")]},
     ]
     dashboard["links"] = [{"title": "RDS CloudWatch — 같은 시간 범위", "url": "/d/bbang-dataops-rds", "type": "link", "includeVars": False, "keepTime": True}]
     text(dashboard, "먼저 읽기 · 지표가 없으면 정상 0이 아닙니다",
-         "API Spring의 기존 `/actuator/prometheus` 지표와 **weekly_refresh** 실행 지표를 같은 시간축으로 비교합니다. "
+         "API Spring의 기존 `/actuator/prometheus` 지표와 **최신화 트랙과 weekly_refresh** 실행 지표를 같은 시간축으로 비교합니다. "
          "Spring scrape job에서 **API 대상**을 선택하세요. 다른 EC2라도 같은 RDS의 I/O·락·연결을 공유할 수 있습니다.\n\n"
          "배치 지표는 이 코드 배포 + `DATAOPS_PUSHGATEWAY_URL` + Prometheus scrape 설정 이후 나타납니다. "
          "**WAS의 단발성 `--batch.job` 작업은 이번 배치 지표에 포함되지 않습니다.** "
@@ -67,7 +67,7 @@ def spring_batch_dashboard():
     scope = '{job=~"${spring_job:regex}",instance=~"${spring_instance:regex}"}'
     http_scope = scope[:-1] + ',uri!~"/actuator.*"}'
     batch = '{job="dataops-workflow",workflow="$workflow"}'
-    chart(dashboard, "마지막 종료 코드 · 0 완료 / 3 차단 / 1·2 실패", "bbang_dataops_workflow_last_exit_code" + batch, 0, 5, kind="stat",
+    chart(dashboard, "마지막 종료 코드 · 0 완료 / 3 차단 / 4 미완료 / 1·2 실패", "bbang_dataops_workflow_last_exit_code" + batch, 0, 5, kind="stat",
           description="-1은 종료 이력 없음. 130/143은 중단. 종료 0은 프로세스 완료이며 수집 전량 성공·운영 반영 완료와 다릅니다.")
     chart(dashboard, "현재 실행 또는 종료 미확정 · 1 / 비실행 · 0", "bbang_dataops_workflow_running" + batch, 8, 5, kind="stat",
           description="SIGKILL/EC2 중단/최종 push 실패 시 1이 남을 수 있습니다. 실행 나이와 SSM 로그를 함께 확인하세요.")
@@ -99,13 +99,16 @@ def spring_batch_dashboard():
     chart(dashboard, "Spring scrape 상태", 'up{job=~"${spring_job:regex}",instance=~"${spring_instance:regex}"}', 0, 50, kind="stat", width=12)
     chart(dashboard, "Pushgateway scrape 상태", 'up{job="dataops-pushgateway"}', 12, 50, kind="stat", width=12,
           description="README의 scrape job 이름 기준. Pushgateway가 UP이어도 배치가 살아 있다는 뜻은 아닙니다.")
+    chart(dashboard, "최신화 처리·실패·보류 건수", "bbang_dataops_workflow_last_items" + batch, 0, 57, width=24,
+          description="선택한 트랙의 마지막 실행/사이클 산출물 집계(gauge). result별 의미가 다르며 합계나 rate로 처리량을 만들지 않습니다. 신규 후보는 신규 개업만을 뜻하지 않습니다.")
+    dashboard['panels'][-1]['targets'][0]['legendFormat'] = '{{result}}'
     text(dashboard, "다음 버전 · 아직 생성하지 않은 지표",
          "**V1 Spring Batch:** Job/Step 성공·실패, 재시작, read/write/skip/rollback. "
          "**V2 승인 반영:** outbox 대기 수·최고 대기 나이, 요청→반영 지연, 중복 차단·버전 충돌·미확정 대사. "
          "**V3 Kafka Consumer:** 파티션별 lag, 처리 시간, 재시도/DLT, 리밸런스. "
          "**V4 브로커:** ISR·미복제 파티션·리더 장애 복구.\n\n"
          "현재 이 기능들은 구현 전입니다. 임의의 메트릭 이름으로 정상 0 패널을 만들지 않았습니다. "
-         "실험 시작·종료·배포 시각은 Grafana annotation으로 남기고 같은 입력/부하에서 비교하세요.", 57, 5)
+         "실험 시작·종료·배포 시각은 Grafana annotation으로 남기고 같은 입력/부하에서 비교하세요.", 64, 5)
     return dashboard
 
 

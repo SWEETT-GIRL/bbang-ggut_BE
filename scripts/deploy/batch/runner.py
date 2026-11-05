@@ -3,6 +3,7 @@
   bbang-batch install                    배포 — Docker Hub 로그인 후 config.json 의 이미지(digest)를 받는다
   bbang-batch job <이름>                 WAS 배치 작업 하나 (Scheduler → Step Functions → SSM 문서 SweetgirlBatchRun 이 부른다)
   bbang-batch dataops-nightly [시간] [최대가게수]     dataops 수집
+  bbang-batch dataops-cycle [run|plan|seed-refresh] [옵션]  전체 최신화 독립 트랙
   bbang-batch dataops-migrate            별도 dataops DB의 Flyway (DDL 계정 전용)
   bbang-batch dataops <스크립트> [인자]  dataops 수동 작업(승인·반영)
   bbang-batch busy                       작업 컨테이너가 돌고 있으면 0 — 수동 점검용
@@ -32,6 +33,8 @@ OPTIONAL = {
     # dataops — 판정 서버(dataops 스키마)·API 키·반영용 운영 쓰기 계정·사진 반영(본 앱 어드민 API)
     'DATAOPS_DB_URL', 'DATAOPS_DB_USERNAME', 'DATAOPS_DB_PASSWORD', 'DATAOPS_API_KEY',
     'DATAOPS_PUSHGATEWAY_URL',
+    'DATA_GO_KR_SERVICE_KEY', 'DATAOPS_FULL_CYCLE_ENABLED', 'DATAOPS_BASELINE_VERSION',
+    'DATAOPS_PUBLIC_DATASETS', 'DATAOPS_PUBLIC_MAX_PAGES', 'DATAOPS_CYCLE_MAX_ITEMS', 'DATAOPS_SWEEP_MAX_REGIONS',
     'DATAOPS_MIGRATION_DB_USERNAME', 'DATAOPS_MIGRATION_DB_PASSWORD',
     'DATAOPS_PROD_DB_URL', 'DATAOPS_PROD_DB_USERNAME', 'DATAOPS_PROD_DB_PASSWORD',
     'ADMIN_API_KEY', 'WAS_SERVER_URL',
@@ -105,6 +108,8 @@ def container_args(command):
     head, rest = command[0], command[1:]
     if head == 'dataops-migrate' and not rest:
         return ['dataops-migrate'], 'dataops-migrate', False
+    if head == 'dataops-cycle':
+        return ['dataops-cycle', *rest], 'dataops-cycle', True
     if head == 'job':
         if len(rest) != 1 or not JOB_NAME.fullmatch(rest[0]):
             raise ValueError('Usage: job <name>')
@@ -125,7 +130,8 @@ def docker_run_args(image, env_path, firebase_path, logs_dir, command):
     args, label, needs_logs = container_args(command)
     run = ['docker', 'run', '--rm', '--label', f'{JOB_LABEL}={label}',
         '--memory', MEMORY_LIMIT, '--log-opt', 'max-size=10m', '--log-opt', 'max-file=3',
-        '--env-file', str(env_path), '-e', 'AWS_REGION=ap-northeast-2', '-e', 'TZ=Asia/Seoul']
+        '--env-file', str(env_path), '-e', 'AWS_REGION=ap-northeast-2', '-e', 'TZ=Asia/Seoul',
+        '-e', 'DATAOPS_IMAGE_REF=' + image]
     if command[0] != 'dataops-migrate':
         run += ['--mount', f'type=bind,source={firebase_path},target=/run/secrets/firebase.json,readonly']
     if needs_logs:
@@ -186,7 +192,15 @@ def execution_environment(env, command):
     else:
         required = DATAOPS_REQUIRED if command[0] != 'job' else set()
         selected = {key: value for key, value in env.items() if key not in MIGRATION_SECRETS}
-    missing = required - selected.keys()
+        full = env.get('DATAOPS_FULL_CYCLE_ENABLED', 'false')
+        if full not in ('true', 'false'):
+            raise ValueError('DATAOPS_FULL_CYCLE_ENABLED must be true or false')
+        if command[0] == 'dataops-cycle' or (command[0] == 'dataops-nightly' and full == 'true'):
+            required = required | {'DATAOPS_PROD_DB_URL', 'DATAOPS_PROD_DB_USERNAME', 'DATAOPS_PROD_DB_PASSWORD',
+                                   'DATA_GO_KR_SERVICE_KEY'}
+            if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,63}', env.get('DATAOPS_BASELINE_VERSION', 'cloud-001')):
+                raise ValueError('DATAOPS_BASELINE_VERSION must be a safe version identifier')
+    missing = {key for key in required if not selected.get(key, "").strip()}
     if missing:
         raise ValueError('Missing dataops parameters: ' + ', '.join(sorted(missing)))
     if command[0] != 'job':

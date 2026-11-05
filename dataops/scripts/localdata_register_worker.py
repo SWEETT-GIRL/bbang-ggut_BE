@@ -45,8 +45,11 @@ from localdata_match import DATASET_LABEL
 from region_resolver import PointResolver
 from dataops_server import server_headers
 
+from cloud_runtime import matching_dir, raw_dir
+
 ROOT = Path(__file__).resolve().parent.parent
-RAW_DIR = ROOT / "matching" / "localdata_raw"
+MATCHING = matching_dir()
+RAW_DIR = raw_dir()
 
 BATCH_SIZE = 20
 COOLDOWN_MINUTES = 45

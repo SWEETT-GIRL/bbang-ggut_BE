@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -47,7 +48,12 @@ def validate(prometheus, grafana):
                 counts["promql_queries"] += 1
         plugin = dashboard["__inputs"][0]["pluginId"]
         datasource_uid = "bbang-test-" + plugin
-        request(grafana, "/api/datasources", {"name": datasource_uid, "uid": datasource_uid, "type": plugin,
+        try:
+            existing = request(grafana, "/api/datasources/uid/" + datasource_uid, grafana=True)
+            assert existing['type'] == plugin
+        except HTTPError as error:
+            if error.code != 404: raise
+            request(grafana, "/api/datasources", {"name": datasource_uid, "uid": datasource_uid, "type": plugin,
                                               "access": "proxy", "url": "http://localhost:9090" if plugin == "prometheus" else "",
                                               "jsonData": {"defaultRegion": "ap-northeast-2"} if plugin == "cloudwatch" else {}}, grafana=True)
         result = request(grafana, "/api/dashboards/import", {"dashboard": dashboard, "overwrite": True,

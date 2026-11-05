@@ -25,9 +25,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from sync_worker import fetch_place
 from bakery_gate import category_pass, leaf_of
 
+from cloud_runtime import matching_dir
+
 ROOT = Path(__file__).resolve().parent.parent
-INPUT = ROOT / "matching" / "new_verify_results.jsonl"
-OUTPUT = ROOT / "matching" / "bread_check_results.jsonl"
+MATCHING = matching_dir()
+INPUT = MATCHING / "new_verify_results.jsonl"
+OUTPUT = MATCHING / "bread_check_results.jsonl"
 
 # 빵류 제품 키워드 — 메뉴명 판정용 (음료·식사류는 제외)
 BREAD_PAT = re.compile(
@@ -86,7 +89,7 @@ def main() -> int:
     targets = [r for r in rows if r["judgment"] == "EXIST" and r.get("candidate")
                and not category_pass(leaf_of(r["candidate"].get("category")))]
     # REVIEW 검수에서 매핑 O로 편입됐지만 카테고리가 비빵(OTHER/CAFE)인 큐도 확인 대상
-    queue_file = ROOT / "matching" / "_tmp_bread_queue.json"
+    queue_file = MATCHING / "_tmp_bread_queue.json"
     if queue_file.exists():
         queued = set(json.load(io.open(queue_file, encoding="utf-8")))
         targets += [r for r in rows if r["judgment"] == "REVIEW" and r["mgmtNo"] in queued]
@@ -97,9 +100,12 @@ def main() -> int:
                 rec = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if "menus" in rec:   # 09-20 이전 기록은 메뉴 전체가 없어 G1 을 못 가른다 — 다시 긁는다
+            if "menus" in rec and rec.get("fetchKind", "SUCCESS") == "SUCCESS":   # 09-20 이전 기록은 메뉴 전체가 없어 G1 을 못 가른다 — 다시 긁는다
                 done.add(rec["placeId"])
     queue = [r for r in targets if r["candidate"]["placeId"] not in done]
+    queue = list({r["candidate"]["placeId"]: r for r in queue}.values())
+    remaining = max(0, len(queue) - args.max) if args.max else 0
+    unresolved = 0
     if args.max:
         queue = queue[:args.max]
     print(f"[bread] 대상 {len(queue)} (전체 {len(targets)}, 완료 {len(done)})", flush=True)
@@ -108,7 +114,8 @@ def main() -> int:
     with io.open(OUTPUT, "a", encoding="utf-8") as output:
         for i, r in enumerate(queue, 1):
             place_id = r["candidate"]["placeId"]
-            apollo, blocked = fetch_place(place_id)
+            fetched = fetch_place(place_id)
+            apollo, blocked = fetched
             if blocked:
                 print(f"[bread] 차단 감지 — 중단 (재실행 시 재개). 처리 {i-1}", flush=True)
                 return 3
@@ -120,7 +127,10 @@ def main() -> int:
             text_match = SUMMARY_PAT.search(text) if text else None
             name_hit = BREAD_PAT.search(r["name"]) or BREAD_PAT.search(r["candidate"]["name"] or "")
             # 증거 강도 티어: 메뉴 실물 > 소개 텍스트 > 상호명
-            if bread_items:
+            if fetched.kind != "SUCCESS":
+                verdict = "UNKNOWN"
+                unresolved += 1
+            elif bread_items:
                 verdict = "BREAD_MENU"
             elif text_match:
                 verdict = "BREAD_TEXT"
@@ -138,7 +148,7 @@ def main() -> int:
             output.write(json.dumps({
                 "placeId": place_id, "name": r["name"], "naverName": r["candidate"]["name"],
                 "naverCategory": r["candidate"]["category"], "bakeryHint": r["bakeryHint"],
-                "verdict": verdict, "menuCount": len(menus),
+                "verdict": verdict, "fetchKind": fetched.kind, "menuCount": len(menus),
                 "breadItems": bread_items[:10], "textSnippet": snippet, "menus": menus[:MAX_MENUS],
             }, ensure_ascii=False) + "\n")
             output.flush()
@@ -147,7 +157,7 @@ def main() -> int:
             time.sleep(1.5)
 
     print(f"[bread] 완료 — {counts}", flush=True)
-    return 0
+    return 4 if remaining or unresolved else 0
 
 
 if __name__ == "__main__":

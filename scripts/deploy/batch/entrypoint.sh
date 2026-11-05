@@ -2,6 +2,7 @@
 # 배치 이미지 진입점. EC2 의 bbang-batch(runner.py)가 아래 명령 중 하나로 컨테이너를 띄운다.
 #   job <이름>                 WAS 배치 작업 하나 (예: ranking-snapshot) — 끝나면 종료 코드로 성공·실패를 알린다
 #   dataops-nightly [시간] [최대가게수]     dataops 서버를 띄워 제한 수집을 돌리고 서버를 내린다
+#   dataops-cycle [옵션]       갱신·공공데이터 신규/폐업·네이버 검색을 독립 트랙으로 실행
 #   dataops-server             dataops 판정 서버만 띄운다 (사람이 승인 스크립트를 따로 돌릴 때)
 #   dataops-migrate            별도 dataops DB의 Flyway만 실행한다 (수집·운영 반영 없음)
 #   dataops <스크립트> [인자]  dataops/scripts 의 스크립트 하나 (승인·반영 등 수동 작업)
@@ -65,10 +66,21 @@ case "${command}" in
 	dataops-nightly)
 		[ "$#" -le 2 ] || { echo "사용: dataops-nightly [시간] [최대가게수]" >&2; exit 64; }
 		hours="${1:-6}"
+		worker_script=scripts/weekly_refresh.py
 		worker_args=(nightly --crawl-hours "${hours}" --server "${DATAOPS_SERVER}")
+		if [ "${DATAOPS_FULL_CYCLE_ENABLED:-false}" = true ]; then
+			# 공공데이터·검색 트랙의 실행 시간을 남긴다. 기존 nightly 기본 6시간은 유지한다.
+			hours="${1:-0.25}"
+			worker_script=scripts/freshness_cycle.py
+			worker_args=(run --crawl-hours "${hours}" --server "${DATAOPS_SERVER}")
+		fi
 		if [ "$#" -eq 2 ]; then
 			[[ "$2" =~ ^[1-9][0-9]*$ ]] || { echo "최대가게수는 양의 정수여야 한다" >&2; exit 64; }
-			worker_args+=(--max-stores "$2")
+			if [ "${DATAOPS_FULL_CYCLE_ENABLED:-false}" = true ]; then
+				worker_args+=(--max-items "$2")
+			else
+				worker_args+=(--max-stores "$2")
+			fi
 		fi
 		trap stop_dataops_server EXIT
 		trap 'exit 143' TERM
@@ -76,7 +88,21 @@ case "${command}" in
 		start_dataops_server
 		cd /app/dataops
 		# 쓰기 계정 서버를 켜 둔 채 두지 않는다 — 수집만 하고 끝나면 trap 이 서버를 내린다
-		python3 scripts/weekly_refresh.py "${worker_args[@]}" &
+		python3 "${worker_script}" "${worker_args[@]}" &
+		WORKER_PID=$!
+		wait "${WORKER_PID}"
+		;;
+	dataops-cycle)
+		if [ "${1:-}" = plan ] || [ "${1:-}" = baseline ] || [ "${1:-}" = start-cycle ]; then
+			cd /app/dataops
+			exec python3 scripts/freshness_cycle.py "$@"
+		fi
+		trap stop_dataops_server EXIT
+		trap 'exit 143' TERM
+		trap 'exit 130' INT
+		start_dataops_server
+		cd /app/dataops
+		python3 scripts/freshness_cycle.py "$@" &
 		WORKER_PID=$!
 		wait "${WORKER_PID}"
 		;;
@@ -89,7 +115,7 @@ case "${command}" in
 		exec python3 "scripts/${script}" "$@"
 		;;
 	*)
-		echo "사용: job <이름> | dataops-nightly [시간] [최대가게수] | dataops-server | dataops-migrate | dataops <스크립트> [인자]" >&2
+		echo "사용: job <이름> | dataops-nightly [시간] [최대가게수] | dataops-cycle [옵션] | dataops-server | dataops-migrate | dataops <스크립트> [인자]" >&2
 		exit 64
 		;;
 esac

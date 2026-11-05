@@ -114,22 +114,22 @@ def preflight(server, prod_port, collect_only=False):
     return problems
 
 
-def run_script(name, *args):
+def run_script(name, *args, env=None):
     """하위 스크립트 실행 — 출력을 그대로 로그에 흘리고 (종료 코드, 마지막 몇 줄)을 돌려준다"""
     execution = CURRENT_RUN.get()
     if execution is None:
-        return _run_script(name, args)
+        return _run_script(name, args, env=env)
     with execution.step(name) as step:
-        result = _run_script(name, args, execution.lock_fd)
+        result = _run_script(name, args, execution.lock_fd, env=env)
         step["exit_code"] = result[0]
         return result
 
 
-def _run_script(name, args, lock_fd=None):
+def _run_script(name, args, lock_fd=None, env=None):
     cmd = [PY, "-u", str(SCRIPTS / name), *[str(a) for a in args]]
     log(f"실행: {name} {' '.join(str(a) for a in args)}")
     # 윈도우는 하위 파이썬의 표준 출력이 cp949 라 한글 로그가 깨진다 — UTF-8 모드로 띄운다
-    env = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
+    env = {**os.environ, **(env or {}), "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
     proc = subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                             encoding="utf-8", errors="replace", env=env, start_new_session=True,
                             pass_fds=(lock_fd,) if lock_fd is not None else ())

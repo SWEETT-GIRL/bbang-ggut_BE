@@ -21,6 +21,7 @@
 import argparse
 import csv
 import json
+import os
 from collections import Counter
 from pathlib import Path
 
@@ -29,8 +30,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from localdata_match import FRANCHISE_BRANDS, NONWORD
 from bakery_gate import NON_BAKERY_CHAINS, gate
 
+from cloud_runtime import matching_dir
+from batch_execution import atomic_json
+
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "matching" / "localdata_new_confirmed.tsv"
+MATCHING = matching_dir()
+OUT = MATCHING / "localdata_new_confirmed.tsv"
 
 EXTRA_FRANCHISE = ["닥터로빈", "런던베이글뮤지엄", "팀홀튼", "디저트39", "코코호도"]
 _FR = [NONWORD.sub("", b.lower()) for b in FRANCHISE_BRANDS + EXTRA_FRANCHISE + NON_BAKERY_CHAINS]
@@ -75,9 +80,9 @@ def row_of(r, why):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--verify", default=str(ROOT / "matching" / "new_verify_results.jsonl"))
-    ap.add_argument("--judgments", default=str(ROOT / "matching" / "new_review_judgments.jsonl"))
-    ap.add_argument("--bread", default=str(ROOT / "matching" / "bread_check_results.jsonl"))
+    ap.add_argument("--verify", default=str(MATCHING / "new_verify_results.jsonl"))
+    ap.add_argument("--judgments", default=str(MATCHING / "new_review_judgments.jsonl"))
+    ap.add_argument("--bread", default=str(MATCHING / "bread_check_results.jsonl"))
     ap.add_argument("--out", default=str(OUT))
     args = ap.parse_args()
 
@@ -103,7 +108,8 @@ def main():
         if is_franchise(r["name"]) or is_franchise(c["name"]):
             franchise.append(r["name"])
             continue
-        if r["judgment"] == "EXIST" and r["name"] in CURATED:
+        # 클라우드의 새 회차에는 예전 로컬의 상호명만 있는 검수 결과를 승계하지 않는다.
+        if not os.environ.get('DATAOPS_MATCHING_DIR') and r["judgment"] == "EXIST" and r["name"] in CURATED:
             final.append((r, "1차 경계 눈확정"))
             continue
         verdict, why = gate(c.get("category"), c.get("name") or r["name"], menus_by_place.get(c["placeId"]))
@@ -122,6 +128,10 @@ def main():
     write_tsv(out, HEADER, [row_of(r, why) for r, why in rows])
     for suffix, items in (("hold", held), ("blocked", blocked), ("need_menu", need_menu)):
         write_tsv(out.with_name(f"{out.stem}_{suffix}.tsv"), HEADER, [row_of(r, why) for r, why in items])
+    atomic_json(out.with_name('confirmation-summary.json'), {
+        'passed': len(rows), 'held': len(held), 'blocked': len(blocked), 'need_menu': len(need_menu),
+        'review_pending': sum(r['judgment'] == 'REVIEW' and r['mgmtNo'] not in review_include for r in results),
+    })
 
     print(f"확정(PASS) {len(rows)} (편입 {len(final)} − placeId 중복 {len(final) - len(rows)}) → {out}")
     print(f"사람 검수(HOLD) {len(held)} · 차단(BLOCK) {len(blocked)} · 메뉴 확인 필요(NEED_MENU) {len(need_menu)}"
