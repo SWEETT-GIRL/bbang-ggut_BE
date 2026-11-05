@@ -50,7 +50,9 @@ public record CourseDetailResponse(
 		/** 링크 공개 공유 토큰. 방장에게만, UNLISTED 일 때만. 그 외엔 null */
 		String shareToken,
 		/** 폴링 ETag 와 같은 값. 앱이 If-None-Match 에 되돌려 보낸다 */
-		long version) {
+		long version,
+		/** 메모 초안 자동저장(PUT memo-draft · STOMP) 을 쓸 수 있는가. 서버 스위치 — false 면 앱은 PATCH 만 쓴다 */
+		boolean draftEnabled) {
 
 	public static CourseDetailResponse of(
 			Course course,
@@ -65,7 +67,8 @@ public record CourseDetailResponse(
 			List<CourseMemberResponse> members,
 			boolean isMember,
 			String myDisplayName,
-			String shareToken) {
+			String shareToken,
+			boolean draftEnabled) {
 		String authorName = course.getMember() != null ? course.getMember().getNickname() : null;
 		Long authorId = course.getMember() != null ? course.getMember().getId() : null;
 		boolean canEdit = course.getType() != CourseType.CURATED && (isMine || isMember);
@@ -100,6 +103,7 @@ public record CourseDetailResponse(
 			course.getDayCount(),
 			course.getVisibility(),
 			shareToken,
-			course.getVersion());
+			course.getVersion(),
+			draftEnabled);
 	}
 }

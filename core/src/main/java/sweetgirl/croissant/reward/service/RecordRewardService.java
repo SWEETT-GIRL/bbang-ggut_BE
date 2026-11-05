@@ -1,5 +1,6 @@
 package sweetgirl.croissant.reward.service;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -9,6 +10,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.breadlog.enums.RecordType;
+import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
 import sweetgirl.croissant.reward.enums.CrumbReason;
@@ -29,8 +32,13 @@ import sweetgirl.croissant.world.service.WorldLevelReader;
 @Transactional
 public class RecordRewardService {
 
+	/** 연속 기록 2배 — 앞 기록을 저장한 뒤 이 시간 안에 이어 쓴 기록만 보너스를 받는다. */
+	public static final Duration CHAIN_WINDOW = Duration.ofMinutes(30);
+
 	/** 기록한 뒤 이 기간 안에 사진을 붙이면 사진 보너스를 준다. */
 	static final int PHOTO_BONUS_DAYS = 7;
+	/** 첫 기록 뒤 이 기간 안에 두 번째 기록을 남기면 보너스를 준다. 첫 주 기록 1 건은 0 건과 리텐션이 같고 2 건부터 남는다(11/3). */
+	static final int SECOND_RECORD_DAYS = 7;
 
 	private final CrumbGrantService crumbGrantService;
 	private final RewardPendingService rewardPendingService;
@@ -38,6 +46,7 @@ public class RecordRewardService {
 	private final CrumbLedgerRepository ledgerRepository;
 	private final WorldLevelReader worldLevelReader;
 	private final InviteService inviteService;
+	private final BreadRecordRepository breadRecordRepository;
 
 	/**
 	 * 새 기록의 보상.
@@ -52,7 +61,24 @@ public class RecordRewardService {
 			int photoCount,
 			int heightBefore,
 			int heightAfter) {
-		return rewardCreated(member, recordId, photoCount, heightBefore, heightAfter, "record:" + recordId);
+		return rewardCreated(member, recordId, photoCount, heightBefore, heightAfter, "record:" + recordId, null);
+	}
+
+	/**
+	 * 완료 화면의 "연속 기록하고 2배 받기"로 이어 쓴 새 기록의 보상. 기록 보상을 받았으면 같은 만큼을 한 번 더 준다.
+	 * 앞 기록 하나에 보너스는 한 번뿐이다(멱등 키가 앞 기록). 앞 기록이 내 것이고 방금 저장됐는지는 부르는 쪽이 확인한다.
+	 *
+	 * @param chainFromRecordId 이어 쓴 앞 기록
+	 */
+	public List<RewardItemResponse> rewardChainedCreated(
+			Member member,
+			Long recordId,
+			int photoCount,
+			int heightBefore,
+			int heightAfter,
+			Long chainFromRecordId) {
+		return rewardCreated(member, recordId, photoCount, heightBefore, heightAfter, "record:" + recordId,
+			chainFromRecordId);
 	}
 
 	/**
@@ -67,7 +93,7 @@ public class RecordRewardService {
 			int heightBefore,
 			int heightAfter) {
 		return rewardCreated(member, recordId, 0, heightBefore, heightAfter,
-			"tour_record:" + courseId + ":" + storeId);
+			"tour_record:" + courseId + ":" + storeId, null);
 	}
 
 	private List<RewardItemResponse> rewardCreated(
@@ -76,7 +102,8 @@ public class RecordRewardService {
 			int photoCount,
 			int heightBefore,
 			int heightAfter,
-			String recordRewardKey) {
+			String recordRewardKey,
+			Long chainFromRecordId) {
 		if (member.isGuest()) {
 			return List.of();
 		}
@@ -93,6 +120,15 @@ public class RecordRewardService {
 		if (record.isGranted() || record.isCapped()) {
 			rewards.add(RewardItemResponse.crumbs(record, CrumbReason.RECORD));
 		}
+		// 연속 기록 2배 — 기록 보상을 받은 기록에만, 같은 만큼 한 번 더. 하루 상한에 걸린 기록은 0의 2배라 없다
+		if (record.isGranted() && chainFromRecordId != null) {
+			GrantResult chain = crumbGrantService.grant(
+				memberId, CrumbReason.RECORD_CHAIN, rewardSettings.get(RewardSettingKey.RECORD),
+				"record_chain:" + chainFromRecordId, RewardRefType.RECORD, recordId);
+			if (chain.isGranted()) {
+				rewards.add(RewardItemResponse.crumbs(chain, CrumbReason.RECORD_CHAIN));
+			}
+		}
 		// 사진 보너스는 기록 보상을 받은 기록에만 붙는다 — 상한에 걸린 기록은 사진이 있어도 없다
 		if (record.isGranted() && photoCount > 0) {
 			grantPhotoBonus(memberId, recordId, rewards);
@@ -100,6 +136,7 @@ public class RecordRewardService {
 
 		// 초대받은 회원의 첫 빵이면 초대가 성사된다
 		rewards.addAll(inviteService.rewardFirstRecord(member));
+		grantSecondRecordBonus(memberId, recordId, rewards);
 
 		if (heightAfter > heightBefore) {
 			addLevelUp(memberId, heightBefore, heightAfter, rewards);
@@ -127,6 +164,26 @@ public class RecordRewardService {
 		List<RewardItemResponse> rewards = new ArrayList<>();
 		grantPhotoBonus(member.getId(), recordId, rewards);
 		return rewards;
+	}
+
+	/**
+	 * 첫 주 두 번째 기록 보너스 — 체험이 아닌 기록이 이 기록으로 2 건이 되고, 첫 기록이 {@link #SECOND_RECORD_DAYS} 안이면 한 번.
+	 * 멱등 키가 회원 하나라 지우고 다시 써도 또 받지 않는다. 하루 상한과 무관하다 — 둘째 기록을 미루게 할 이유가 없다.
+	 */
+	private void grantSecondRecordBonus(Long memberId, Long recordId, List<RewardItemResponse> rewards) {
+		if (breadRecordRepository.countByMemberIdAndRecordTypeAndDeletedAtIsNull(memberId, RecordType.NORMAL) != 2) {
+			return;
+		}
+		LocalDateTime firstRecordedAt = breadRecordRepository.findFirstNonTutorialCreatedAt(memberId).orElse(null);
+		if (firstRecordedAt == null || firstRecordedAt.plusDays(SECOND_RECORD_DAYS).isBefore(LocalDateTime.now())) {
+			return;
+		}
+		GrantResult second = crumbGrantService.grant(
+			memberId, CrumbReason.RECORD_SECOND_WEEK, rewardSettings.get(RewardSettingKey.RECORD_SECOND_WEEK),
+			"record_second:" + memberId, RewardRefType.RECORD, recordId);
+		if (second.isGranted()) {
+			rewards.add(RewardItemResponse.crumbs(second, CrumbReason.RECORD_SECOND_WEEK));
+		}
 	}
 
 	private void grantPhotoBonus(Long memberId, Long recordId, List<RewardItemResponse> rewards) {

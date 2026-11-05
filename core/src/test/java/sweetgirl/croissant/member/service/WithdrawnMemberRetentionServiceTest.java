@@ -14,15 +14,30 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityManager;
+import sweetgirl.croissant.abuse.entity.AbuseReport;
+import sweetgirl.croissant.abuse.entity.ModerationAction;
+import sweetgirl.croissant.abuse.entity.ModerationAppeal;
+import sweetgirl.croissant.abuse.enums.AbuseReportAction;
+import sweetgirl.croissant.abuse.enums.AbuseReportReasonType;
+import sweetgirl.croissant.abuse.enums.AbuseReportTargetType;
+import sweetgirl.croissant.abuse.enums.ModerationTargetType;
+import sweetgirl.croissant.abuse.repository.AbuseReportRepository;
+import sweetgirl.croissant.abuse.repository.ModerationActionRepository;
+import sweetgirl.croissant.abuse.repository.ModerationAppealRepository;
 import sweetgirl.croissant.alarm.entity.FcmToken;
 import sweetgirl.croissant.alarm.enums.DeviceOs;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.entity.MemberBlock;
+import sweetgirl.croissant.member.entity.MemberRestriction;
 import sweetgirl.croissant.member.entity.OAuth;
 import sweetgirl.croissant.member.entity.RefreshToken;
+import sweetgirl.croissant.member.enums.MemberRestrictionType;
 import sweetgirl.croissant.member.enums.OAuthProvider;
+import sweetgirl.croissant.member.repository.MemberBlockRepository;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.member.repository.MemberRestrictionRepository;
 import sweetgirl.croissant.member.repository.OAuthRepository;
 import sweetgirl.croissant.member.repository.RefreshTokenRepository;
 
@@ -51,6 +66,16 @@ class WithdrawnMemberRetentionServiceTest {
 	private FcmTokenRepository fcmTokenRepository;
 	@Autowired
 	private EntityManager entityManager;
+	@Autowired
+	private AbuseReportRepository abuseReportRepository;
+	@Autowired
+	private ModerationActionRepository moderationActionRepository;
+	@Autowired
+	private ModerationAppealRepository moderationAppealRepository;
+	@Autowired
+	private MemberRestrictionRepository memberRestrictionRepository;
+	@Autowired
+	private MemberBlockRepository memberBlockRepository;
 
 	@Test
 	@DisplayName("30일 넘은 탈퇴 회원의 남은 닉네임·이메일·토큰을 지우고, providerId 와 행은 남긴다")
@@ -90,6 +115,44 @@ class WithdrawnMemberRetentionServiceTest {
 		assertThat(memberRepository.findById(recent.getId()).orElseThrow().getNickname()).isEqualTo("최근탈퇴");
 		assertThat(memberRepository.findById(active.getId()).orElseThrow().getNickname()).isEqualTo("활동중");
 		assertThat(memberRepository.findById(mergedGuest.getId()).orElseThrow().getNickname()).isEqualTo("게스트123");
+	}
+
+	@Test
+	@DisplayName("탈퇴 1년이 지난 사람의 신고 · 조치 · 이의제기 · 제재 · 차단은 지우고, 1년 안 된 사람 것은 남긴다")
+	void purgeExpiredModerationRecords() {
+		Member old = saveUser("옛날탈퇴", NOW.minusDays(366));
+		Member recent = saveUser("최근탈퇴", NOW.minusDays(100));
+		Member other = saveUser("활동중", null);
+		saveModerationTrail(old, other);
+		saveModerationTrail(recent, other);
+
+		WithdrawnMemberRetentionService.ModerationPurge purge = retentionService.purgeExpiredModerationRecords(NOW);
+		entityManager.clear();
+
+		assertThat(purge).isEqualTo(new WithdrawnMemberRetentionService.ModerationPurge(1, 1, 1, 1, 1));
+		assertThat(abuseReportRepository.count()).isEqualTo(1);
+		assertThat(moderationActionRepository.count()).isEqualTo(1);
+		assertThat(moderationAppealRepository.count()).isEqualTo(1);
+		assertThat(memberRestrictionRepository.count()).isEqualTo(1);
+		assertThat(memberBlockRepository.count()).isEqualTo(1);
+		assertThat(memberRestrictionRepository.findAll())
+			.allMatch(row -> row.getMember().getId().equals(recent.getId()));
+	}
+
+	/** 탈퇴자가 신고당하고 → 조치(작성 제한) → 이의제기, 그리고 탈퇴자가 남을 차단한 흔적. */
+	private void saveModerationTrail(Member withdrawn, Member other) {
+		AbuseReport report = abuseReportRepository.save(AbuseReport.builder().reporter(other)
+			.targetType(AbuseReportTargetType.MEMBER_PROFILE).targetId(withdrawn.getId()).reportedMember(withdrawn)
+			.reasonType(AbuseReportReasonType.SPAM).build());
+		ModerationAction action = moderationActionRepository.save(new ModerationAction(report,
+			ModerationTargetType.MEMBER_PROFILE, withdrawn.getId(), withdrawn, AbuseReportAction.RESTRICT_MEMBER,
+			"스팸"));
+		moderationAppealRepository.save(ModerationAppeal.builder().moderationAction(action).member(withdrawn)
+			.content("억울해요").build());
+		memberRestrictionRepository.save(MemberRestriction.builder().member(withdrawn)
+			.restrictionType(MemberRestrictionType.WRITE_RESTRICTED).reason("스팸").build());
+		memberBlockRepository.save(MemberBlock.builder().blocker(withdrawn).blockedMember(other).build());
+		entityManager.flush();
 	}
 
 	private Member saveUser(String nickname, LocalDateTime deletedAt) {

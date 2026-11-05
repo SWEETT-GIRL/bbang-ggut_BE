@@ -25,7 +25,11 @@ public record BreadRecordResponse(
 		/** 고른 가게의 주소. 가게 없이 이름만 적은 기록이면 null */
 		String storeAddress,
 		/** "이 집 또 갈래요". 안 보낸 기록이면 null — 앱이 또 먹을래요로 추정해 보여 준다 */
-		Boolean revisit) {
+		Boolean revisit,
+		/** 10/22 추가 — 타임라인 줄의 ♡ · 💬, 신고로 숨겨졌으면 UNDER_REVIEW */
+		long likeCount,
+		long commentCount,
+		String hiddenStatus) {
 
 	/**
 	 * @param lovedBreads 또 먹을래요(again) on 인 태그 이름 — 옛 하트 칩의 자리. 1.5.x 앱이 아직 읽는다
@@ -37,6 +41,16 @@ public record BreadRecordResponse(
 			List<BreadRecordPhotoResponse> photos,
 			List<BreadRecordTagResponse> tags,
 			String towerBread) {
+		return of(record, photos, tags, towerBread, 0, 0);
+	}
+
+	public static BreadRecordResponse of(
+			BreadRecord record,
+			List<BreadRecordPhotoResponse> photos,
+			List<BreadRecordTagResponse> tags,
+			String towerBread,
+			long likeCount,
+			long commentCount) {
 		List<String> lovedBreads = lovedBreadsOf(tags);
 		return new BreadRecordResponse(
 			record.getId(),
@@ -55,7 +69,10 @@ public record BreadRecordResponse(
 			tags,
 			record.getRecordType(),
 			record.getStore() != null ? record.getStore().getAddress() : null,
-			record.getRevisit());
+			record.getRevisit(),
+			likeCount,
+			commentCount,
+			record.isHidden() ? MemberBreadRecordResponse.UNDER_REVIEW : null);
 	}
 
 	static List<String> lovedBreadsOf(List<BreadRecordTagResponse> tags) {

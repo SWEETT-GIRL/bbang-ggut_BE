@@ -2,6 +2,7 @@ package sweetgirl.croissant.member.service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -18,6 +19,11 @@ public class MemberRestrictionReader {
 
 	private static final List<MemberRestrictionType> WRITE_BLOCKING_TYPES = List.of(
 		MemberRestrictionType.WRITE_RESTRICTED,
+		MemberRestrictionType.SUSPENDED,
+		MemberRestrictionType.BANNED);
+
+	/** 글이 아닌 상호작용(팔로우 · 좋아요)까지 막는 제재. 작성 제한은 글만 막으므로 여기 없다. */
+	private static final List<MemberRestrictionType> INTERACTION_BLOCKING_TYPES = List.of(
 		MemberRestrictionType.SUSPENDED,
 		MemberRestrictionType.BANNED);
 
@@ -54,6 +60,22 @@ public class MemberRestrictionReader {
 		validateNotRestricted(memberId);
 	}
 
+	/**
+	 * 빵 기록을 쓸 자격이 있는가 — 게스트도 비공개 기록은 쓴다. 공개로 저장 · 전환하는 것만 {@link #validateNotGuest} 를 지난다.
+	 *
+	 * <p>로그인 게이트에서 27% 가 닫고 나간다(11/3). 게스트가 기록 한 건은 남겨 보고 두 번째에서 로그인하게 하려는 것이다.
+	 * 게스트가 몇 건까지 쓰는지는 부르는 쪽({@code BreadRecordCommandService.GUEST_RECORD_CAP})이 센다.
+	 */
+	public void validateCanWriteRecord(Long memberId, boolean publishing) {
+		if (memberId == null) {
+			throw new MemberException(MemberErrorCode.UNAUTHORIZED);
+		}
+		if (publishing) {
+			validateNotGuest(memberId);
+		}
+		validateNotRestricted(memberId);
+	}
+
 	/** 준비된 비공개 튜토리얼만 게스트 여부와 무관하게 허용한다. 제재 검증은 유지한다. */
 	public void validateNotRestricted(Long memberId) {
 		if (memberId == null) {
@@ -61,6 +83,56 @@ public class MemberRestrictionReader {
 		}
 		if (isWriteRestricted(memberId)) {
 			throw new MemberException(MemberErrorCode.MEMBER_WRITE_RESTRICTED);
+		}
+	}
+
+	/**
+	 * 팔로우 · 좋아요처럼 글을 남기지 않는 상호작용을 할 수 있는가 — 정지(SUSPENDED) · 강퇴(BANNED)만 막는다.
+	 *
+	 * <p>정지는 "로그인은 되지만 읽기 전용"이다. 작성 제한(WRITE_RESTRICTED)은 남에게 보이는 글(댓글 · 공개 전환 · 태그 · 톡)만
+	 * 못 쓰고 팔로우 · 좋아요는 된다. 게스트 여부는 부르는 쪽이 {@link MemberReader#requireLoggedIn} 으로 먼저 본다.
+	 */
+	public void validateCanInteract(Long memberId) {
+		if (memberId == null) {
+			throw new MemberException(MemberErrorCode.UNAUTHORIZED);
+		}
+		boolean suspended = !memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(
+			memberId, INTERACTION_BLOCKING_TYPES, LocalDateTime.now()).isEmpty();
+		if (suspended) {
+			throw new MemberException(MemberErrorCode.MEMBER_WRITE_RESTRICTED);
+		}
+	}
+
+	/**
+	 * 정지(SUSPENDED) 중이면 풀리는 때. 무기한이면 {@code Optional.of(null)} 이 아니라 {@link Suspension#indefinite()} 다.
+	 * 정지가 아니면 비어 있다.
+	 */
+	public Optional<Suspension> currentSuspension(Long memberId) {
+		return memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(
+			memberId, List.of(MemberRestrictionType.SUSPENDED), LocalDateTime.now()).stream()
+			.findFirst()
+			.map(restriction -> new Suspension(restriction.getEndsAt()));
+	}
+
+	/** 정지 상태. {@code until} 이 null 이면 무기한. */
+	public record Suspension(LocalDateTime until) {
+		public boolean indefinite() {
+			return until == null;
+		}
+	}
+
+	/** 프로필 제한(PROFILE_RESTRICTED) 중인가 — 남에게 프로필이 안 보이고 검색 · 추천에서 빠지고 닉네임을 못 바꾼다. */
+	public boolean isProfileRestricted(Long memberId) {
+		return !memberRestrictionRepository.findActiveByMemberIdAndRestrictionTypes(
+			memberId, List.of(MemberRestrictionType.PROFILE_RESTRICTED), LocalDateTime.now()).isEmpty();
+	}
+
+	public void validateProfileNotRestricted(Long memberId) {
+		if (memberId == null) {
+			throw new MemberException(MemberErrorCode.UNAUTHORIZED);
+		}
+		if (isProfileRestricted(memberId)) {
+			throw new MemberException(MemberErrorCode.MEMBER_PROFILE_RESTRICTED);
 		}
 	}
 

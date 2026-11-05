@@ -2,12 +2,14 @@ package sweetgirl.croissant.store.repository;
 
 import java.util.List;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import sweetgirl.croissant.store.entity.SavedStore;
+import sweetgirl.croissant.store.entity.Store;
 
 public interface SavedStoreRepository extends JpaRepository<SavedStore, Long> {
 
@@ -17,6 +19,18 @@ public interface SavedStoreRepository extends JpaRepository<SavedStore, Long> {
 	long countByMemberId(Long memberId);
 
 	boolean existsByMemberIdAndStoreId(Long memberId, Long storeId);
+
+	/** 담아 뒀는데 아직 기록이 없는 활성 가게 — 최근 담은 것부터. 방금 기록한 가게({@code excludeStoreId}, 없으면 -1)는 뺀다. */
+	@Query("""
+			SELECT s.store FROM SavedStore s
+			WHERE s.member.id = :memberId AND s.store.id <> :excludeStoreId
+				AND s.store.status = sweetgirl.croissant.store.enums.StoreStatus.ACTIVE
+				AND NOT EXISTS (SELECT 1 FROM BreadRecord r
+					WHERE r.member.id = :memberId AND r.store.id = s.store.id AND r.deletedAt IS NULL)
+			ORDER BY s.id DESC
+			""")
+	List<Store> findUnrecordedActiveStores(@Param("memberId") Long memberId,
+			@Param("excludeStoreId") Long excludeStoreId, Pageable pageable);
 
 	void deleteByMemberIdAndStoreId(Long memberId, Long storeId);
 

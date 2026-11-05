@@ -1,6 +1,7 @@
 package sweetgirl.croissant.member.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -45,6 +46,42 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 	List<String> findAllNicknames();
 
 	boolean existsByNicknameAndDeletedAtIsNull(String nickname);
+
+	Optional<Member> findByNicknameAndDeletedAtIsNull(String nickname);
+
+	/** 살아 있는 회원 중 같은 이름(정규화)이 있나 — 직접 바꾸기 · 뽑기 수락이 본다. */
+	boolean existsByNicknameNormalizedAndDeletedAtIsNull(String nicknameNormalized);
+
+	Optional<Member> findByNicknameNormalizedAndDeletedAtIsNull(String nicknameNormalized);
+
+	/**
+	 * 빵순이 찾기 — 정규화 닉네임 앞글자 일치. 일반 회원 · 탈퇴 아님 · 보는 사람과 차단 관계 아님 · 프로필 제한 아님.
+	 * 보는 사람이 없으면(비로그인) 차단 조건은 아무도 안 거른다.
+	 */
+	@Query("""
+			SELECT m FROM Member m
+			WHERE m.deletedAt IS NULL AND m.memberType = 'USER'
+				AND m.nicknameNormalized LIKE CONCAT(:prefix, '%')
+				AND (:viewerId IS NULL OR m.id <> :viewerId)
+				AND NOT EXISTS (SELECT 1 FROM MemberBlock b
+					WHERE (b.blocker.id = :viewerId AND b.blockedMember.id = m.id)
+						OR (b.blocker.id = m.id AND b.blockedMember.id = :viewerId))
+				AND NOT EXISTS (SELECT 1 FROM MemberRestriction r
+					WHERE r.member.id = m.id
+						AND r.restrictionType
+							= sweetgirl.croissant.member.enums.MemberRestrictionType.PROFILE_RESTRICTED
+						AND r.startsAt <= :now AND (r.endsAt IS NULL OR r.endsAt > :now))
+			ORDER BY m.nicknameNormalized ASC, m.id ASC
+			""")
+	List<Member> searchSocialByNicknamePrefix(
+			@Param("prefix") String prefix,
+			@Param("viewerId") Long viewerId,
+			@Param("now") LocalDateTime now,
+			Pageable pageable);
+
+	/** 추천 후보 id 로 사람을 읽는다. 일반 회원 · 탈퇴 아님만. */
+	@Query("SELECT m FROM Member m WHERE m.id IN :memberIds AND m.deletedAt IS NULL AND m.memberType = 'USER'")
+	List<Member> findSocialByIdIn(@Param("memberIds") Collection<Long> memberIds);
 
 	/**
 	 * 광고 보상으로 닉네임 후보를 하나 뽑아 둔다. 이번 주 무료를 이미 썼을 때만 1 이다.
@@ -98,9 +135,12 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 	 */
 	@Modifying
 	@Query("""
-			UPDATE Member m SET m.nickname = :nickname, m.pendingNickname = NULL
+			UPDATE Member m
+			SET m.nickname = :nickname, m.nicknameNormalized = :nicknameNormalized, m.pendingNickname = NULL
 			WHERE m.deletedAt < :cutoff AND m.memberType = 'USER'
-			AND (m.nickname <> :nickname OR m.pendingNickname IS NOT NULL)
+			AND (m.nickname <> :nickname OR m.nicknameNormalized <> :nicknameNormalized
+				OR m.pendingNickname IS NOT NULL)
 			""")
-	int anonymizeMembersDeletedBefore(@Param("cutoff") LocalDateTime cutoff, @Param("nickname") String nickname);
+	int anonymizeMembersDeletedBefore(@Param("cutoff") LocalDateTime cutoff, @Param("nickname") String nickname,
+			@Param("nicknameNormalized") String nicknameNormalized);
 }

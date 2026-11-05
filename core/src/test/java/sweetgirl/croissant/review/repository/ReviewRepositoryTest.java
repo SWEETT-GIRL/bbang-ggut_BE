@@ -52,6 +52,10 @@ class ReviewRepositoryTest {
 					nickname VARCHAR(100) NOT NULL,
 					pending_nickname VARCHAR(100),
 					nickname_drawn_at TIMESTAMP,
+					nickname_normalized VARCHAR(100),
+					nickname_changed_at TIMESTAMP,
+					community_agreed_at TIMESTAMP,
+					community_terms_version VARCHAR(20),
 					deleted_at TIMESTAMP,
 					agree_to_terms BOOLEAN NOT NULL DEFAULT TRUE,
 					agree_to_marketing BOOLEAN NOT NULL DEFAULT FALSE,
@@ -67,6 +71,7 @@ class ReviewRepositoryTest {
 					registered_at TIMESTAMP,
 					previous_member_id BIGINT,
 					invite_code VARCHAR(8),
+					is_private BOOLEAN NOT NULL DEFAULT FALSE,
 					created_at TIMESTAMP NOT NULL,
 					updated_at TIMESTAMP
 				)

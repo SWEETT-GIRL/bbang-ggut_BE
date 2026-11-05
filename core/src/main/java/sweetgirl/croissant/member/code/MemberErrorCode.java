@@ -23,7 +23,8 @@ public enum MemberErrorCode implements BaseErrorCode {
 			"로그인하면 지금까지 쌓은 것이 그대로 따라옵니다."),
 	MEMBER_BLOCK_SELF_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "MEMBER_BLOCK_SELF_NOT_ALLOWED", "본인은 차단할 수 없습니다."),
 	MEMBER_BLOCK_TARGET_NOT_FOUND(HttpStatus.NOT_FOUND, "MEMBER_BLOCK_TARGET_NOT_FOUND", "차단할 회원을 찾을 수 없습니다."),
-	MEMBER_BANNED(HttpStatus.FORBIDDEN, "MEMBER403_BANNED", "강퇴된 회원입니다.");
+	MEMBER_BANNED(HttpStatus.FORBIDDEN, "MEMBER403_BANNED", "강퇴된 회원입니다."),
+	MEMBER_PROFILE_RESTRICTED(HttpStatus.FORBIDDEN, "MEMBER403_PROFILE_RESTRICTED", "지금은 프로필을 바꿀 수 없습니다.");
 
 	private final HttpStatus httpStatus;
 	private final String code;

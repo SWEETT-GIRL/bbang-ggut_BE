@@ -16,6 +16,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.member.code.MemberErrorCode;
@@ -23,6 +24,7 @@ import sweetgirl.croissant.member.dto.request.BlockCreateRequest;
 import sweetgirl.croissant.member.dto.response.BlockResponse;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.MemberBlock;
+import sweetgirl.croissant.member.event.MemberBlockedEvent;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.MemberBlockRepository;
 import sweetgirl.croissant.member.repository.MemberRepository;
@@ -36,6 +38,8 @@ class MemberBlockCommandServiceTest {
 	MemberRepository memberRepository;
 	@Mock
 	MemberBlockRepository memberBlockRepository;
+	@Mock
+	ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
 	MemberBlockCommandService memberBlockCommandService;
@@ -64,6 +68,8 @@ class MemberBlockCommandServiceTest {
 		verify(memberBlockRepository).save(captor.capture());
 		assertThat(captor.getValue().getBlocker()).isEqualTo(blocker);
 		assertThat(captor.getValue().getBlockedMember()).isEqualTo(blockedMember);
+		// 팔로우가 끊기도록 알린다
+		verify(eventPublisher).publishEvent(new MemberBlockedEvent(1L, 2L));
 	}
 
 	@Test
@@ -81,6 +87,7 @@ class MemberBlockCommandServiceTest {
 		assertThat(response.memberId()).isEqualTo(2L);
 		assertThat(response.nickname()).isEqualTo("대상자");
 		verify(memberBlockRepository, never()).save(any());
+		verify(eventPublisher, never()).publishEvent(any());
 	}
 
 	@Test

@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.entity.FcmToken;
 import sweetgirl.croissant.alarm.entity.Notification;
+import sweetgirl.croissant.alarm.enums.NotificationType;
 import sweetgirl.croissant.alarm.exception.AlarmException;
 import sweetgirl.croissant.alarm.repository.FcmTokenRepository;
 import sweetgirl.croissant.member.entity.Member;
@@ -60,20 +61,37 @@ public class PushDispatcher {
 
 	@Transactional(propagation = Propagation.NOT_SUPPORTED)
 	public Result dispatchWithResult(Notification notification, Member member, LocalDateTime now) {
-		if (!isEligible(notification, member, now)) {
+		return send(List.of(notification), member, notification.getTitle(), notification.getBody(),
+			pushDataOf(notification), now);
+	}
+
+	/**
+	 * 모아 둔 알림 여럿을 한 번에 울린다. 자격 · 토큰은 보낼 때 본다(쌓을 때가 아니라). 대장에는 묶음에 든 알림마다
+	 * PUSH 한 줄씩 — "이 알림은 (묶여서) 울렸다"가 건마다 남아야 어드민 수가 맞는다.
+	 */
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
+	public Result dispatchDigest(List<Notification> notifications, Member member, PushDigest digest,
+			LocalDateTime now) {
+		Map<String, String> data = pushDataOf(digest.representative());
+		if (digest.link() != null) {
+			data.put("link", digest.link());
+		}
+		return send(notifications, member, digest.title(), digest.body(), data, now);
+	}
+
+	private Result send(List<Notification> notifications, Member member, String title, String body,
+			Map<String, String> data, LocalDateTime now) {
+		Notification representative = notifications.get(notifications.size() - 1);
+		if (!isEligible(representative, member, now)) {
 			return Result.SKIPPED;
 		}
 
 		List<String> tokens = activeTokensOf(member);
 		if (tokens.isEmpty()) {
 			log.info("푸시 skip — 활성 토큰 없음 [memberId={}, type={}]",
-				member.getId(), notification.getType());
+				member.getId(), representative.getType());
 			return Result.SKIPPED;
 		}
-
-		Map<String, String> data = pushDataOf(notification);
-		String title = notification.getTitle();
-		String body = notification.getBody();
 
 		// FCM이 한 기기의 요청이라도 접수하면 성공이다. 실제 기기 표시 여부는 별도다.
 		boolean anySent = false;
@@ -95,7 +113,9 @@ public class PushDispatcher {
 		if (!anySent && lastFailure == null) {
 			return Result.SKIPPED;
 		}
-		deliveryCommandService.recordDelivery(notification, member, anySent, lastFailure, now);
+		for (Notification notification : notifications) {
+			deliveryCommandService.recordDelivery(notification, member, anySent, lastFailure, now);
+		}
 		return anySent ? Result.SENT : Result.FAILED;
 	}
 
@@ -109,13 +129,17 @@ public class PushDispatcher {
 	private boolean isEligible(Notification notification, Member member, LocalDateTime now) {
 		NotificationSetting setting = notificationSettingRepository.findByMemberId(member.getId())
 			.orElse(null);
+		NotificationType type = notification.getType();
 		if (setting == null) {
-			return !notification.getType().requiresMarketingConsent();
+			return !type.requiresMarketingConsent();
 		}
 		if (!setting.isNotificationEnabled()) {
 			return false;
 		}
-		if (!notification.getType().requiresMarketingConsent()) {
+		if (type.isCommunityActivity() && !setting.allowsCommunity(type)) {
+			return false;
+		}
+		if (!type.requiresMarketingConsent()) {
 			return true;
 		}
 		return setting.isMarketingEnabled() && (!isNightTime(now) || member.isAgreeToNightMarketing());
@@ -175,6 +199,8 @@ public class PushDispatcher {
 			case COURSE -> "courseId";
 			case RECORD -> "recordId";
 			case LETTER -> "letterId";
+			case MEMBER -> "memberId";
+			case COMMENT -> "commentId";
 		};
 	}
 }

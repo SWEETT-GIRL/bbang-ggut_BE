@@ -11,13 +11,10 @@ import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.monthlyreport.dto.MonthlyReportResponse;
 import sweetgirl.croissant.world.dto.response.WorldCatalogResponse;
 import sweetgirl.croissant.world.dto.response.WorldPlanetResponse;
-import sweetgirl.croissant.world.entity.MemberCharacter;
-import sweetgirl.croissant.world.entity.MemberCharacterId;
 import sweetgirl.croissant.world.entity.MemberPlanetArrival;
 import sweetgirl.croissant.world.entity.MemberWorld;
 import sweetgirl.croissant.world.entity.WorldCharacter;
 import sweetgirl.croissant.world.entity.WorldCharacterAssetId;
-import sweetgirl.croissant.world.repository.MemberCharacterRepository;
 import sweetgirl.croissant.world.repository.MemberPlanetArrivalRepository;
 import sweetgirl.croissant.world.repository.MemberWorldRepository;
 import sweetgirl.croissant.world.repository.WorldCharacterAssetRepository;
@@ -33,7 +30,6 @@ public class MonthlyReportAppearanceReader {
 	private final MemberReader members;
 	private final MemberWorldRepository worlds;
 	private final WorldCharacterRepository characters;
-	private final MemberCharacterRepository memberCharacters;
 	private final WorldCharacterAssetRepository characterAssets;
 	private final MemberPlanetArrivalRepository arrivals;
 	private final BreadRecordRepository records;
@@ -53,11 +49,8 @@ public class MonthlyReportAppearanceReader {
 			.findFirst().orElseThrow();
 		String imageKey = characterAssets.findById(new WorldCharacterAssetId(character.getCode(), "front"))
 			.map(asset -> asset.getImageKey()).orElse(null);
-		// 회원이 친구에게 지어 준 이름이 있으면 그 이름으로 부른다
-		String characterName = memberCharacters.findById(new MemberCharacterId(memberId, character.getCode()))
-			.map(MemberCharacter::getNickname).orElse(character.getName());
 		return new MonthlyReportResponse(1, month, memberId, members.getMember(memberId).getNickname(),
-			new MonthlyReportResponse.Character(character.getCode(), characterName, imageKey),
+			new MonthlyReportResponse.Character(character.getCode(), character.getName(), imageKey),
 			new MonthlyReportResponse.Planet(planet.code(), planet.name()),
 			new MonthlyReportResponse.Summary(0L, 0L, 0L), new MonthlyReportResponse.Stores(0L, 0L, 0L, 0L),
 			List.of(), new MonthlyReportResponse.Activity("seed", null, null, null),

@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import sweetgirl.croissant.alarm.service.CommunityNotificationService;
 import sweetgirl.croissant.breadlog.code.BreadLogErrorCode;
 import sweetgirl.croissant.breadlog.dto.request.BreadRecordPhotoRequest;
 import sweetgirl.croissant.breadlog.dto.request.BreadRecordPresignedUrlRequest;
@@ -34,10 +35,14 @@ import sweetgirl.croissant.breadlog.dto.response.BreadRecordUpdateResponse;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.entity.BreadRecordPhoto;
 import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
+import sweetgirl.croissant.breadlog.enums.RecordType;
 import sweetgirl.croissant.breadlog.exception.BreadLogException;
 import sweetgirl.croissant.breadlog.repository.BreadRecordPhotoRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
+import sweetgirl.croissant.comment.service.CommentContentPolicy;
+import sweetgirl.croissant.comment.service.CommunityAgreementGate;
+import sweetgirl.croissant.comment.service.CommunityAgreementService;
 import sweetgirl.croissant.common.enums.ImageStatus;
 import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.course.service.CourseProgressService;
@@ -72,6 +77,8 @@ import sweetgirl.croissant.world.repository.MemberWorldRepository;
 @RequiredArgsConstructor
 @Transactional
 public class BreadRecordCommandService {
+	/** 게스트가 남길 수 있는 체험 아닌 기록 수. 그 다음은 로그인 게이트. */
+	static final int GUEST_RECORD_CAP = 1;
 
 	private final S3Service s3Service;
 	private final MemberReader memberReader;
@@ -85,6 +92,11 @@ public class BreadRecordCommandService {
 	private final BreadCategoryClassifier categoryClassifier;
 	private final BreadRecordRegionResolver regionResolver;
 	private final ImageProcessingCallbackService imageProcessingCallbackService;
+	private final CommunityAgreementService communityAgreementService;
+	private final CommunityAgreementGate communityAgreementGate;
+	private final CommentContentPolicy commentContentPolicy;
+	private final CommunityNotificationService communityNotificationService;
+	private final BreadRecordCompanionService companionService;
 	private final CourseProgressService courseProgressService;
 	private final MemberWorldRepository memberWorldRepository;
 	private final RecordRewardService recordRewardService;
@@ -120,7 +132,10 @@ public class BreadRecordCommandService {
 
 	private BreadRecordCreateResponse create(Long memberId, BreadRecordUpsertRequest request, TourStop tourStop) {
 		Member member = memberReader.getMember(memberId);
-		memberRestrictionReader.validateCanWrite(memberId);
+		// 공개로 저장하는 것도 공개 전환과 같은 문을 지난다 — 게스트 금지 · 규칙 동의(강제 업데이트 뒤) · 후기 금칙어 · 팔로워 알림
+		boolean publishing = Boolean.TRUE.equals(request.isPublic());
+		memberRestrictionReader.validateCanWriteRecord(memberId, publishing);
+		validateGuestRecordCap(member);
 		if (request.requestId() != null) {
 			// 같은 요청이 나란히 들어와도 한쪽이 끝난 뒤에 찾도록 회원 행을 잠근다(삭제·로그인 이관과 같은 잠금).
 			memberRepository.findActiveForUpdate(memberId)
@@ -135,6 +150,9 @@ public class BreadRecordCommandService {
 			}
 		}
 		ValidatedRecordData data = validate(memberId, request);
+		if (publishing) {
+			validatePublishable(memberId, normalizeNullable(request.memo()));
+		}
 		int storedMaxHeight = memberWorldRepository.findMaxRecordCount(memberId).orElse(0);
 		long recordCountBefore = breadRecordRepository.countByMemberIdAndDeletedAtIsNull(memberId);
 		resolveOriginalPhotos(request.photos(), List.of());
@@ -153,6 +171,10 @@ public class BreadRecordCommandService {
 			.build());
 		List<BreadRecordTag> savedTags = savePhotosAndTags(record, request, data.photoBySortOrder(), Map.of(),
 			data.lovedBreads(), Map.of(), Map.of());
+		companionService.replace(record, request.companionMemberIds());
+		if (publishing) {
+			communityNotificationService.notifyFollowingNewRecord(record);
+		}
 		// 분류는 메뉴 분류 프록시를 열 수 있어 영속성 컨텍스트가 살아 있을 때 읽는다 — 아래 빵탑 갱신이 컨텍스트를 비운다
 		List<BreadRecordCreateResponse.Tag> tags = BreadRecordCreateResponse.tagsOf(savedTags);
 		// 빵탑은 기록 수만큼 오른다. 최고 높이는 내려가지 않아서, 기록을 지워도 행성이 밀리지 않는다.
@@ -160,11 +182,15 @@ public class BreadRecordCommandService {
 		memberWorldRepository.raiseMaxRecordCount(memberId, recordCountAfter);
 		int heightBefore = (int)Math.max(storedMaxHeight, recordCountBefore);
 		int heightAfter = (int)Math.max(storedMaxHeight, recordCountAfter);
-		List<RewardItemResponse> rewards = new ArrayList<>(tourStop == null
-			? recordRewardService.rewardCreated(member, record.getId(), request.photos().size(), heightBefore,
-				heightAfter)
-			: recordRewardService.rewardTourRecordCreated(member, record.getId(), tourStop.courseId(),
-				tourStop.storeId(), heightBefore, heightAfter));
+		Long chainFrom = tourStop == null ? validChainSource(memberId, request.chainFromRecordId()) : null;
+		List<RewardItemResponse> rewards = new ArrayList<>(tourStop != null
+			? recordRewardService.rewardTourRecordCreated(member, record.getId(), tourStop.courseId(),
+				tourStop.storeId(), heightBefore, heightAfter)
+			: chainFrom != null
+				? recordRewardService.rewardChainedCreated(member, record.getId(), request.photos().size(),
+					heightBefore, heightAfter, chainFrom)
+				: recordRewardService.rewardCreated(member, record.getId(), request.photos().size(), heightBefore,
+					heightAfter));
 		// 찜은 사용자가 직접 풀 때까지 남긴다 — 기록이 생겨도 "또 가고 싶은 가게"일 수 있다.
 		// (기록 시 자동 해제는 정책 변경으로 제거)
 		rewards.addAll(tourRewardsAfterRecordChange(member));
@@ -176,14 +202,46 @@ public class BreadRecordCommandService {
 		return new BreadRecordCreateResponse(record.getId(), record.getCreatedAt(), rewards, tags);
 	}
 
+	/**
+	 * 게스트는 체험이 아닌 기록을 {@link #GUEST_RECORD_CAP} 건까지만 남긴다. 그 다음은 로그인 게이트(403 {@code MEMBER403_GUEST}).
+	 * 로그인하면 게스트의 기록은 그 회원에게 이관된다({@code GuestDataMigrationService}).
+	 */
+	private void validateGuestRecordCap(Member member) {
+		if (member.isGuest() && breadRecordRepository.countByMemberIdAndRecordTypeAndDeletedAtIsNull(
+			member.getId(), RecordType.NORMAL) >= GUEST_RECORD_CAP) {
+			throw new MemberException(MemberErrorCode.GUEST_LOGIN_REQUIRED);
+		}
+	}
+
+	/**
+	 * 연속 기록의 앞 기록 — 내 기록이고, 지우지 않았고, 저장한 지 {@link RecordRewardService#CHAIN_WINDOW} 안일 때만 인정한다.
+	 * 아니면 null — 기록은 그대로 저장되고 보상만 평소대로다(완료 화면을 오래 열어 뒀다 눌러도 실패시키지 않는다).
+	 */
+	private Long validChainSource(Long memberId, Long chainFromRecordId) {
+		if (chainFromRecordId == null) {
+			return null;
+		}
+		LocalDateTime since = LocalDateTime.now().minus(RecordRewardService.CHAIN_WINDOW);
+		return breadRecordRepository.findByIdAndDeletedAtIsNull(chainFromRecordId)
+			.filter(source -> source.getMember().getId().equals(memberId))
+			.filter(source -> source.getCreatedAt() != null && source.getCreatedAt().isAfter(since))
+			.map(BreadRecord::getId)
+			.orElse(null);
+	}
+
 	public BreadRecordUpdateResponse replace(Long recordId, Long memberId, BreadRecordUpsertRequest request) {
 		Member member = memberReader.getMember(memberId);
-		memberRestrictionReader.validateCanWrite(memberId);
 		BreadRecord record = getOwnedRecord(recordId, member.getId());
+		boolean becamePublic = Boolean.TRUE.equals(request.isPublic()) && !record.isPublic();
+		// 게스트도 제 비공개 기록은 고친다. 공개로 돌리는 고치기만 게스트 금지를 지난다
+		memberRestrictionReader.validateCanWriteRecord(memberId, becamePublic);
 		if (record.isTutorial()) {
 			throw new BreadLogException(BreadLogErrorCode.TUTORIAL_EDIT_RESTRICTED);
 		}
 		ValidatedRecordData data = validate(memberId, request);
+		if (becamePublic) {
+			validatePublishable(memberId, normalizeNullable(request.memo()));
+		}
 		List<BreadRecordPhoto> oldPhotos = photoRepository.findAllIncludingPendingByRecordIdForUpdate(recordId);
 		Map<String, BreadRecordPhoto> originalByRequestedKey = resolveOriginalPhotos(request.photos(), oldPhotos);
 
@@ -208,6 +266,10 @@ public class BreadRecordCommandService {
 		photoRepository.flush();
 		savePhotosAndTags(record, request, data.photoBySortOrder(), originalByRequestedKey, data.lovedBreads(),
 			previousRatingByName, previousSuggestedMenuByName);
+		companionService.replace(record, request.companionMemberIds());
+		if (becamePublic) {
+			communityNotificationService.notifyFollowingNewRecord(record);
+		}
 		deleteRemovedImages(oldPhotos, request.photos());
 		// 사진 없이 쓴 기록에 사진을 붙였으면 보너스를 준다(기록한 지 7 일 안, 기록당 한 번)
 		List<RewardItemResponse> rewards = new ArrayList<>(recordRewardService.rewardPhotosAttached(
@@ -240,7 +302,23 @@ public class BreadRecordCommandService {
 		if (record.isTutorial() && isPublic) {
 			throw new BreadLogException(BreadLogErrorCode.TUTORIAL_EDIT_RESTRICTED);
 		}
+		if (isPublic) {
+			validatePublishable(memberId, record.getMemo());
+		}
+		boolean becamePublic = isPublic && !record.isPublic();
 		record.changeVisibility(isPublic);
+		if (becamePublic) {
+			// 팔로워에게 "새 빵로그" — 기록당 한 번이라 토글을 반복해도 다시 가지 않는다
+			communityNotificationService.notifyFollowingNewRecord(record);
+		}
+	}
+
+	/** 남에게 보이는 글이 되는 문 — 댓글과 같다. 커뮤니티 규칙 동의(강제 업데이트 뒤부터), 후기 금칙어. 저장 · 고치기 · 공개 전환이 같이 쓴다. */
+	private void validatePublishable(Long memberId, String memo) {
+		if (communityAgreementGate.requiresAgreementForPublishing()) {
+			communityAgreementService.validateAgreed(memberId);
+		}
+		commentContentPolicy.validateWords(memo);
 	}
 
 	public void changeTowerBread(Long recordId, Long memberId, String towerBread) {

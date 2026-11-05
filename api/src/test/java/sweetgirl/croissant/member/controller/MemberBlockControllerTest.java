@@ -54,7 +54,7 @@ class MemberBlockControllerTest {
 	@Test
 	void blockMember_returns201WithBlockedMember() throws Exception {
 		given(memberBlockCommandService.blockMember(any(), any()))
-			.willReturn(new BlockResponse(2L, "대상자", LocalDateTime.of(2026, 6, 5, 10, 0)));
+			.willReturn(new BlockResponse(2L, "대상자", LocalDateTime.of(2026, 6, 5, 10, 0), null, null));
 
 		mockMvc.perform(post("/blocks")
 			.contentType(MediaType.APPLICATION_JSON)
@@ -90,7 +90,7 @@ class MemberBlockControllerTest {
 	void getBlocks_returns200WithBlockList() throws Exception {
 		given(memberBlockQueryService.getBlocks(any(), any(Integer.class), any(Integer.class)))
 			.willReturn(new BlockListResponse(
-				List.of(new BlockResponse(2L, "대상자", LocalDateTime.of(2026, 6, 5, 10, 0))),
+				List.of(new BlockResponse(2L, "대상자", LocalDateTime.of(2026, 6, 5, 10, 0), null, null)),
 				false));
 
 		mockMvc.perform(get("/blocks")

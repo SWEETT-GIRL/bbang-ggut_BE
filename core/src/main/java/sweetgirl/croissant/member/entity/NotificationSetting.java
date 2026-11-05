@@ -17,6 +17,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import sweetgirl.croissant.alarm.enums.NotificationType;
 import sweetgirl.croissant.common.entity.BaseTimeEntity;
 import sweetgirl.croissant.member.enums.NotificationRadius;
 
@@ -53,11 +54,59 @@ public class NotificationSetting extends BaseTimeEntity {
 	@Column(nullable = false)
 	private boolean isMarketingEnabled;
 
+	// 팔로우 · 커뮤니티 종류별 스위치(기본 켜짐). 광고성이 아니라 야간 동의 대상이 아니다.
+	@Column(nullable = false)
+	private boolean followEnabled = true;
+
+	@Column(nullable = false)
+	private boolean patEnabled = true;
+
+	@Column(nullable = false)
+	private boolean likeEnabled = true;
+
+	@Column(nullable = false)
+	private boolean commentEnabled = true;
+
+	@Column(nullable = false)
+	private boolean followingRecordEnabled = true;
+
 	public void setDaysOfWeekList(String dayList) {
 		this.daysOfWeek = dayList;
 	}
 
 	// 빵알람 수신 여부를 현재 값의 반대로 토글
+	/** 바뀌는 키만 보낸다(null 은 그대로). */
+	public void updateCommunitySwitches(Boolean follow, Boolean pat, Boolean like, Boolean comment,
+			Boolean followingRecord) {
+		if (follow != null) {
+			this.followEnabled = follow;
+		}
+		if (pat != null) {
+			this.patEnabled = pat;
+		}
+		if (like != null) {
+			this.likeEnabled = like;
+		}
+		if (comment != null) {
+			this.commentEnabled = comment;
+		}
+		if (followingRecord != null) {
+			this.followingRecordEnabled = followingRecord;
+		}
+	}
+
+	/** 이 종류의 커뮤니티 알림을 받겠다고 했나. 알림함엔 스위치와 무관하게 남고 푸시만 가른다. */
+	public boolean allowsCommunity(NotificationType type) {
+		return switch (type) {
+			case FOLLOW, INVITE_MUTUAL, FOLLOW_REQUEST, FOLLOW_ACCEPTED -> followEnabled;
+			case PAT -> patEnabled;
+			case RECORD_LIKE -> likeEnabled;
+			case RECORD_COMMENT, COMMENT_MENTION, COMMENT_REPLY, COMPANION_TAG -> commentEnabled;
+			case FOLLOWING_NEW_RECORD -> followingRecordEnabled;
+			default -> true;
+		};
+	}
+
 	public void toggleNotificationEnabled() {
 		this.isNotificationEnabled = !this.isNotificationEnabled; // true → false, false → true
 	}

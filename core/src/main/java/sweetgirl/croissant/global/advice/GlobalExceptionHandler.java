@@ -5,6 +5,7 @@ import java.util.Locale;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -136,6 +137,19 @@ public class GlobalExceptionHandler {
 		return ResponseEntity
 			.status(HttpStatus.BAD_REQUEST)
 			.body(ApiResponse.fail(GeneralErrorCode._BAD_REQUEST));
+	}
+
+	/** 유니크 · FK 충돌 — 같은 닉네임 동시 변경, 같은 알림 동시 생성처럼 "방금 누가 먼저" 인 경우. 500 이 아니라 409 로 답한다. */
+	@ExceptionHandler(DataIntegrityViolationException.class)
+	public ResponseEntity<ApiResponse<?>> handleDataIntegrityViolation(DataIntegrityViolationException ex,
+			HttpServletRequest request) {
+		log.warn("[DataIntegrityViolation] method={}, uri={}, message={}", request.getMethod(),
+			request.getRequestURI(), ex.getMostSpecificCause().getMessage());
+		request.setAttribute(RequestLoggingFilter.ATTR_ERROR_CODE, GeneralErrorCode._CONFLICT.getCode());
+		request.setAttribute(RequestLoggingFilter.ATTR_ERROR_MESSAGE, ex.getMostSpecificCause().getMessage());
+		return ResponseEntity
+			.status(HttpStatus.CONFLICT)
+			.body(ApiResponse.fail(GeneralErrorCode._CONFLICT));
 	}
 
 	@ExceptionHandler(NoResourceFoundException.class)

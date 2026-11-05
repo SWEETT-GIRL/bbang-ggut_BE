@@ -30,6 +30,7 @@ import sweetgirl.croissant.breadlog.service.BreadPhotoTagSuggestionService;
 import sweetgirl.croissant.breadlog.service.BreadRecordCommandService;
 import sweetgirl.croissant.breadlog.service.BreadRecordQueryService;
 import sweetgirl.croissant.breadlog.service.BreadRecordSummaryService;
+import sweetgirl.croissant.breadlog.service.NextStoreQueryService;
 import sweetgirl.croissant.global.contract.ResponseContractWebMvcTest;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
@@ -58,6 +59,9 @@ class BreadRecordResponseContractTest extends ResponseContractWebMvcTest {
 	@MockitoBean
 	private BreadPhotoTagSuggestionService photoTagSuggestionService;
 
+	@MockitoBean
+	private NextStoreQueryService nextStoreQueryService;
+
 	@Test
 	void records_keepsFieldsTheAppReads() throws Exception {
 		BreadRecordPhotoResponse photo = new BreadRecordPhotoResponse(101L, "a.jpg", "image/jpeg",
@@ -69,7 +73,7 @@ class BreadRecordResponseContractTest extends ResponseContractWebMvcTest {
 			.willReturn(new SliceResponse<>(List.of(new BreadRecordResponse(1L, 11L, "성심당", "대전 중구", "맛있다",
 				"튀김소보로", List.of("튀김소보로"), "탑", LocalDateTime.of(2026, 10, 4, 12, 30, 15), true,
 				LocalDateTime.of(2026, 10, 4, 13, 0, 5), LocalDateTime.of(2026, 10, 4, 13, 0, 5), List.of(photo),
-				List.of(tag), RecordType.NORMAL, "대전 중구 대종로480번길 15", true)), false));
+				List.of(tag), RecordType.NORMAL, "대전 중구 대종로480번길 15", true, 2, 1, null)), false));
 
 		mockMvc.perform(get("/bread-records"))
 			.andExpect(status().isOk())
@@ -177,7 +181,7 @@ class BreadRecordResponseContractTest extends ResponseContractWebMvcTest {
 			.willReturn(new SliceResponse<>(List.of(new BreadRecordResponse(1L, 11L, "성심당", "대전 중구", null,
 				null, List.of(), null, LocalDateTime.of(2026, 10, 4, 12, 30, 15), false,
 				LocalDateTime.of(2026, 10, 4, 13, 0, 5), LocalDateTime.of(2026, 10, 4, 13, 0, 5), List.of(),
-				List.of(tag), RecordType.NORMAL, null, null)), false));
+				List.of(tag), RecordType.NORMAL, null, null, 0, 0, null)), false));
 
 		mockMvc.perform(get("/bread-records"))
 			.andExpect(status().isOk())

@@ -18,6 +18,7 @@ import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.exception.NicknameException;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.util.NicknameGenerator;
+import sweetgirl.croissant.member.util.NicknameNormalizer;
 
 /**
  * 닉네임 뽑기 — 사용자가 고르지 않고 서버가 랜덤으로 하나 뽑아 준다. 뽑은 후보는 수락해야 닉네임이 된다.
@@ -98,7 +99,7 @@ public class NicknameDrawService {
 			throw new NicknameException(NicknameErrorCode.NICKNAME_NO_PENDING);
 		}
 		// 큐는 서버마다 따로라 다른 서버가 같은 이름을 먼저 줬을 수 있다. 후보는 남겨 두고 "원래대로"로 비우게 한다.
-		if (memberRepository.existsByNicknameAndDeletedAtIsNull(pending)) {
+		if (memberRepository.existsByNicknameNormalizedAndDeletedAtIsNull(NicknameNormalizer.normalize(pending))) {
 			throw new NicknameException(NicknameErrorCode.NICKNAME_TAKEN);
 		}
 		member.acceptPendingNickname();

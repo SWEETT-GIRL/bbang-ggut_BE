@@ -1,17 +1,15 @@
 package sweetgirl.croissant.course.dto.request;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import sweetgirl.croissant.course.entity.CourseMember;
 
-/** 초대 수락·이름 변경이 같이 쓴다. 코스 안에서만 쓰는 이름이라 닉네임과 무관하다. */
+/**
+ * 초대 수락 요청 본문. {@code displayName} 은 설치된 앱이 아직 보내므로 받기만 하고 쓰지 않는다 —
+ * 코스 안 이름 짓기는 2026-10-21 에 없앴고 사람 이름은 회원 닉네임이다.
+ */
 @Getter
 @NoArgsConstructor
 public class CourseMemberNameRequest {
 
-	@NotBlank(message = "이름은 필수입니다.")
-	@Size(max = CourseMember.DISPLAY_NAME_MAX_LENGTH, message = "이름은 {max}자 이내여야 합니다.")
 	private String displayName;
 }

@@ -45,6 +45,9 @@ services:
       PERF_DASHBOARD_ENABLED: ${PERF_DASHBOARD_ENABLED:-false}
       PERF_DASHBOARD_ACCESS_KEY: ${PERF_DASHBOARD_ACCESS_KEY:-}
       ADMIN_API_KEY: ${ADMIN_API_KEY}
+      # 신고 슬랙 어드민 링크 바탕 주소(비면 링크 없음) · dev 테스트 로그인 키(local·staging 전용 컨트롤러)
+      ADMIN_WEB_BASE_URL: ${ADMIN_WEB_BASE_URL:-}
+      DEV_TEST_LOGIN_KEY: ${DEV_TEST_LOGIN_KEY:-}
       MANAGEMENT_PORT: ${MANAGEMENT_PORT:-8081}
       # 자동완성 Redis 캐시 — redis 는 아래 같은 컴포즈 네트워크의 서비스 이름으로 찾는다.
       # 스위치는 기본 꺼짐. 켜고 끄며 부하를 비교할 때는 서버 .env 의 값을 바꾸고 app 만 다시 띄운다.
@@ -54,6 +57,13 @@ services:
       AUTOCOMPLETE_CACHE_ENABLED: ${AUTOCOMPLETE_CACHE_ENABLED:-false}
       TRENDING_ENABLED: ${TRENDING_ENABLED:-false}
       AUTOCOMPLETE_POPULARITY_ORDER_ENABLED: ${AUTOCOMPLETE_POPULARITY_ORDER_ENABLED:-false}
+      # 빵투어 메모 초안 자동저장 — mode 가 비어 있으면 초안·소켓 빈이 전부 안 뜬다. dev 는 캐시 Redis 를 1번 DB 로 나눠 쓴다(allkeys-lru 라 운영 기준은 아님).
+      COURSE_DRAFT_REDIS_MODE: ${COURSE_DRAFT_REDIS_MODE:-}
+      COURSE_DRAFT_REDIS_HOST: redis
+      COURSE_DRAFT_REDIS_PORT: 6379
+      COURSE_DRAFT_REDIS_DATABASE: ${COURSE_DRAFT_REDIS_DATABASE:-1}
+      COURSE_DRAFT_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      COURSE_DRAFT_WRITE_ENABLED: ${COURSE_DRAFT_WRITE_ENABLED:-false}
 
     ports:
       - "8080:8080"

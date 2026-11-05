@@ -49,11 +49,13 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
+      # spotlessCheck 는 Eclipse 포매터를 download.eclipse.org 에서 받아야 해 외부 장애에 CI 가 묶인다(2026-10-22 Eclipse 재단 일시 중단).
+      # 포맷은 pre-commit 훅이 로컬에서 spotlessApply 로 맞추고, 스타일 검사는 checkstyle 이 build 안에서 그대로 돈다.
       - name: Build with Gradle
         shell: bash
         run: |
           for attempt in 1 2 3; do
-            ./gradlew build -x test --no-daemon && exit 0
+            ./gradlew build -x test -x spotlessCheck --no-daemon && exit 0
             sleep $((attempt * 10))
           done
 

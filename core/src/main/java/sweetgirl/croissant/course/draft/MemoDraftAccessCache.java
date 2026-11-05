@@ -1,0 +1,99 @@
+package sweetgirl.croissant.course.draft;
+
+import java.util.concurrent.ThreadLocalRandom;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.stereotype.Component;
+
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Expiry;
+import com.github.benmanes.caffeine.cache.Ticker;
+
+import sweetgirl.croissant.course.code.CourseErrorCode;
+import sweetgirl.croissant.course.entity.Course;
+import sweetgirl.croissant.course.exception.CourseException;
+import sweetgirl.croissant.course.repository.CourseRepository;
+import sweetgirl.croissant.course.service.CourseAccessPolicy;
+import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.member.service.MemberRestrictionReader;
+
+/**
+ * PUT memo-draft 의 "이 사람이 이 코스에 메모를 써도 되는가" — 편집 권한(방장·활성 멤버, 큐레이션 제외) 과 쓰기 제한(밴).
+ *
+ * <p>0.5초마다 오는 요청마다 DB 를 읽지 않도록 통과한 판정만 10초 들고 있다. 거절은 캐시하지 않는다 — 초대를 막 수락한 사람이
+ * 10초 동안 막히면 안 되고, 거절을 반복하는 요청은 레이트리밋이 막는다. 틀리는 방향은 하나다: 나간 사람·방금 밴된 사람의 초안이
+ * 최대 10초 Redis 에 머문다. 플러셔가 반영 직전에 다시 판정해 버린다.
+ */
+@Component
+@ConditionalOnExpression(CourseDraftConfig.REDIS_CONFIGURED)
+public class MemoDraftAccessCache {
+
+	private final CourseRepository courseRepository;
+	private final CourseAccessPolicy courseAccessPolicy;
+	private final MemberReader memberReader;
+	private final MemberRestrictionReader memberRestrictionReader;
+	private final Cache<String, Boolean> allowed;
+
+	/** 생성자가 둘(테스트용 Ticker 주입)이라 Spring 이 쓸 쪽을 가리킨다 — 없으면 기본 생성자를 찾다 죽는다. */
+	@Autowired
+	public MemoDraftAccessCache(CourseRepository courseRepository, CourseAccessPolicy courseAccessPolicy,
+			MemberReader memberReader, MemberRestrictionReader memberRestrictionReader,
+			CourseDraftProperties properties) {
+		this(courseRepository, courseAccessPolicy, memberReader, memberRestrictionReader, properties,
+			Ticker.systemTicker());
+	}
+
+	MemoDraftAccessCache(CourseRepository courseRepository, CourseAccessPolicy courseAccessPolicy,
+			MemberReader memberReader, MemberRestrictionReader memberRestrictionReader,
+			CourseDraftProperties properties,
+			Ticker ticker) {
+		this.courseRepository = courseRepository;
+		this.courseAccessPolicy = courseAccessPolicy;
+		this.memberReader = memberReader;
+		this.memberRestrictionReader = memberRestrictionReader;
+		// 만료에 지터(TTL ~ 1.5 TTL)를 준다 — 320명이 같은 시각에 시작하면 캐시가 한꺼풀에 빠져 1,000개 넘는 쿼리가 같은 초에
+		// 풀 10개로 몰렸다(2026-11-04 dev 측정, PUT 500). 만료 시각을 흩어 놓으면 초당 미스가 평평해진다
+		long ttlNanos = properties.getAccessCacheTtl().toNanos();
+		this.allowed = Caffeine.newBuilder()
+			.expireAfter(new Expiry<String, Boolean>() {
+				@Override
+				public long expireAfterCreate(String key, Boolean value, long currentTime) {
+					return ttlNanos + ThreadLocalRandom.current().nextLong(ttlNanos / 2 + 1);
+				}
+
+				@Override
+				public long expireAfterUpdate(String key, Boolean value, long currentTime, long currentDuration) {
+					return expireAfterCreate(key, value, currentTime);
+				}
+
+				@Override
+				public long expireAfterRead(String key, Boolean value, long currentTime, long currentDuration) {
+					return currentDuration;
+				}
+			})
+			.maximumSize(100_000)
+			.ticker(ticker)
+			.build();
+	}
+
+	/**
+	 * 못 쓰면 던진다 — 게스트 403, 코스 없음 404, 권한 없음 403, 쓰기 제한 403.
+	 * 로그인 판정(게스트 여부)도 이 안에서 한다 — 밖에서 매 요청 부르면 그것만으로 요청마다 DB 를 한 번 읽어
+	 * 320명 × 초당 2회에서 커넥션 풀이 마른다(2026-11-04 dev 측정에서 발견, Hikari pending 125).
+	 */
+	public void requireEditable(Long courseId, Long memberId) {
+		String key = courseId + ":" + memberId;
+		if (Boolean.TRUE.equals(allowed.getIfPresent(key))) {
+			return;
+		}
+		memberReader.requireLoggedIn(memberId);
+		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
+			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
+		courseAccessPolicy.requireEditable(course, memberId);
+		// 초안은 DRAFT 신호로 일행에게 바로 보이는 글이다 — PATCH 의 메모 저장과 같은 문을 지난다
+		memberRestrictionReader.validateCanWrite(memberId);
+		allowed.put(key, Boolean.TRUE);
+	}
+}

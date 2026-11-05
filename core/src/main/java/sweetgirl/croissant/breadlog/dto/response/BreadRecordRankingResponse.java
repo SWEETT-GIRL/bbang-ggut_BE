@@ -37,11 +37,18 @@ public record BreadRecordRankingResponse(
 			Integer rankChange,
 			Boolean isNew,
 			/** 지난주 전국 주간 1 위라 왕관을 쓰고 있는가 */
-			boolean crowned) {
+			boolean crowned,
+			/** 닉네임을 누르면 가는 프로필(10/22 추가). 구버전 응답을 만드는 자리엔 null */
+			Long memberId) {
 
 		public Entry(long rank, String nickname, String character, long score, boolean isMe, Integer rankChange,
 				Boolean isNew) {
-			this(rank, nickname, character, score, isMe, rankChange, isNew, false);
+			this(rank, nickname, character, score, isMe, rankChange, isNew, false, null);
+		}
+
+		public Entry(long rank, String nickname, String character, long score, boolean isMe, Integer rankChange,
+				Boolean isNew, boolean crowned) {
+			this(rank, nickname, character, score, isMe, rankChange, isNew, crowned, null);
 		}
 	}
 
