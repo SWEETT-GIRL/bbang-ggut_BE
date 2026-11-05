@@ -75,6 +75,13 @@ users.acl은 비밀번호 해시를 포함하므로 Git에 커밋하지 않는�
 - 배포 시 volume 삭제, compose down, 이미지 일괄 정리는 실행하지 않는다.
   오래된 릴리스는 current와 복구에 필요한 릴리스를 보존하며 추후 정리한다.
 
+## 메모 초안 Redis
+
+- 같은 EC2에 `redis-draft`를 6380으로 함께 띄운다. 보안그룹에서 6380도 WAS SG만 허용한다.
+- 저장 전 글의 원본이라 `noeviction`이고, maxmemory 256MB, 컨테이너 상한 384MiB다. 캐시와 볼륨도 나눈다.
+- 비밀번호는 캐시와 같은 `users.acl`을 쓴다. 앱은 `COURSE_DRAFT_REDIS_*`로 연결한다.
+- 지금은 서버 1대라 서버 장애 때 저장 전 글은 앱 재전송에 의존한다. 서버를 늘리면 복제본과 Sentinel을 추가한다.
+
 ## 첫 배포 확인
 
 Secret 등록 → 변경 사항을 develop-v2에 반영 → Actions의 Redis 배포 성공 여부 확인.
