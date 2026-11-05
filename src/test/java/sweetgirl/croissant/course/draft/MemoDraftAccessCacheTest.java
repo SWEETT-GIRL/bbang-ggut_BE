@@ -25,7 +25,6 @@ import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.service.CourseAccessPolicy;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.exception.MemberException;
-import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,8 +39,6 @@ class MemoDraftAccessCacheTest {
 	@Mock
 	private CourseAccessPolicy courseAccessPolicy;
 	@Mock
-	private MemberReader memberReader;
-	@Mock
 	private MemberRestrictionReader memberRestrictionReader;
 
 	private FakeTicker ticker;
@@ -53,8 +50,9 @@ class MemoDraftAccessCacheTest {
 		CourseDraftProperties properties = new CourseDraftProperties();
 		properties.setAccessCacheTtl(Duration.ofSeconds(10));
 		ticker = new FakeTicker();
-		accessCache = new MemoDraftAccessCache(courseRepository, courseAccessPolicy, memberReader,
-			memberRestrictionReader, properties, ticker);
+		accessCache = new MemoDraftAccessCache(courseRepository, courseAccessPolicy, memberRestrictionReader,
+			properties,
+			ticker);
 		course = mock(Course.class);
 	}
 
@@ -70,8 +68,6 @@ class MemoDraftAccessCacheTest {
 
 		then(courseRepository).should(times(1)).findByIdAndDeletedAtIsNull(COURSE_ID);
 		then(courseAccessPolicy).should(times(1)).requireEditable(course, MEMBER_ID);
-		// 로그인 판정도 캐시 안 — 매 요청 DB 를 읽지 않는다
-		then(memberReader).should(times(1)).requireLoggedIn(MEMBER_ID);
 		then(memberRestrictionReader).should(times(1)).validateCanWrite(MEMBER_ID);
 	}
 

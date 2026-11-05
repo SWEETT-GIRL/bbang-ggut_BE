@@ -13,7 +13,6 @@ import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.service.CourseAccessPolicy;
-import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
 
 /**
@@ -29,26 +28,20 @@ public class MemoDraftAccessCache {
 
 	private final CourseRepository courseRepository;
 	private final CourseAccessPolicy courseAccessPolicy;
-	private final MemberReader memberReader;
 	private final MemberRestrictionReader memberRestrictionReader;
 	private final Cache<String, Boolean> allowed;
 
 	/** 생성자가 둘(테스트용 Ticker 주입)이라 Spring 이 쓸 쪽을 가리킨다 — 없으면 기본 생성자를 찾다 죽는다. */
 	@Autowired
 	public MemoDraftAccessCache(CourseRepository courseRepository, CourseAccessPolicy courseAccessPolicy,
-			MemberReader memberReader, MemberRestrictionReader memberRestrictionReader,
-			CourseDraftProperties properties) {
-		this(courseRepository, courseAccessPolicy, memberReader, memberRestrictionReader, properties,
-			Ticker.systemTicker());
+			MemberRestrictionReader memberRestrictionReader, CourseDraftProperties properties) {
+		this(courseRepository, courseAccessPolicy, memberRestrictionReader, properties, Ticker.systemTicker());
 	}
 
 	MemoDraftAccessCache(CourseRepository courseRepository, CourseAccessPolicy courseAccessPolicy,
-			MemberReader memberReader, MemberRestrictionReader memberRestrictionReader,
-			CourseDraftProperties properties,
-			Ticker ticker) {
+			MemberRestrictionReader memberRestrictionReader, CourseDraftProperties properties, Ticker ticker) {
 		this.courseRepository = courseRepository;
 		this.courseAccessPolicy = courseAccessPolicy;
-		this.memberReader = memberReader;
 		this.memberRestrictionReader = memberRestrictionReader;
 		this.allowed = Caffeine.newBuilder()
 			.expireAfterWrite(properties.getAccessCacheTtl())
@@ -57,17 +50,12 @@ public class MemoDraftAccessCache {
 			.build();
 	}
 
-	/**
-	 * 못 쓰면 던진다 — 게스트 403, 코스 없음 404, 권한 없음 403, 쓰기 제한 403.
-	 * 로그인 판정(게스트 여부)도 이 안에서 한다 — 밖에서 매 요청 부르면 그것만으로 요청마다 DB 를 한 번 읽어
-	 * 320명 × 초당 2회에서 커넥션 풀이 마른다(2026-11-04 dev 측정에서 발견, Hikari pending 125).
-	 */
+	/** 못 쓰면 던진다 — 코스 없음 404, 권한 없음 403, 쓰기 제한 403. */
 	public void requireEditable(Long courseId, Long memberId) {
 		String key = courseId + ":" + memberId;
 		if (Boolean.TRUE.equals(allowed.getIfPresent(key))) {
 			return;
 		}
-		memberReader.requireLoggedIn(memberId);
 		Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		courseAccessPolicy.requireEditable(course, memberId);
