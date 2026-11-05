@@ -209,7 +209,7 @@ class RunnerParametersTest(unittest.TestCase):
 
     def test_마이그레이션_계정은_마이그레이션_명령에만_전달한다(self):
         env = {'DATAOPS_DB_URL': 'jdbc:postgresql://db.internal/dataops?currentSchema=public&sslmode=require',
-               'DATAOPS_DB_USERNAME': 'dataops_service', 'DATAOPS_DB_PASSWORD': 'runtime', 'DATAOPS_API_KEY': 'api',
+               'DATAOPS_DB_USERNAME': 'dataops_worker', 'DATAOPS_DB_PASSWORD': 'runtime', 'DATAOPS_API_KEY': 'api',
                'DATAOPS_MIGRATION_DB_USERNAME': 'dataops_migrator', 'DATAOPS_MIGRATION_DB_PASSWORD': 'ddl',
                'DB_PASSWORD': 'serving'}
         migration = runner.execution_environment(env, ['dataops-migrate'])
@@ -270,7 +270,7 @@ class JdbcEnvTest(unittest.TestCase):
     def test_JDBC_URL_을_Python_접속_변수로_푼다(self):
         out = jdbc_env.exports({
             'DATAOPS_DB_URL': 'jdbc:postgresql://db.internal:5432/soboro?currentSchema=dataops',
-            'DATAOPS_DB_USERNAME': 'dataops_service', 'DATAOPS_DB_PASSWORD': "p'w",
+            'DATAOPS_DB_USERNAME': 'dataops_worker', 'DATAOPS_DB_PASSWORD': "p'w",
             'DB_URL': 'jdbc:postgresql://db.internal/soboro',
         })
         self.assertIn('export DATAOPS_DB_HOST=db.internal\n', out)
