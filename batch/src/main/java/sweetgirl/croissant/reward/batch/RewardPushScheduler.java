@@ -60,7 +60,7 @@ public class RewardPushScheduler {
 	}
 
 	/** 매일 저녁 7 시 — 2 · 3 일 전에 첫 기록을 남기고 두 번째가 없는 회원에게 "두 번째 빵로그". */
-	@Scheduled(cron = "0 0 19 * * *", zone = "Asia/Seoul")
+	@BatchJob("reward-second-record-nudge")
 	@SchedulerLock(name = "RewardPushScheduler_secondRecordNudges", lockAtMostFor = "PT10M")
 	public void secondRecordNudges() {
 		if (!rewardLaunchService.isPushDue(RewardSettingKey.PUSH_RECORD_NUDGE, LocalDate.now(CrumbGrantService.ZONE))) {

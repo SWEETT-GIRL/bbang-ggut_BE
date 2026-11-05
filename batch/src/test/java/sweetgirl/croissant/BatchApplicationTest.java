@@ -66,6 +66,7 @@ class BatchApplicationTest {
 			"reward-attendance-reminder",
 			"reward-letter-arrival",
 			"reward-second-morning-roulette",
+			"reward-second-record-nudge",
 			"search-miss-retention",
 			"search-miss-triage",
 			"store-popularity-score",
