@@ -198,6 +198,13 @@ class ParameterStoreTest(unittest.TestCase):
         self.assertEqual(self.ssm.get_parameters.call_count, 3)
         self.ssm.get_parameters_by_path.assert_not_called()
 
+    def test_draft_redis_parameters_reach_the_app_when_present(self):
+        self.values[f'{PREFIX}/env/COURSE_DRAFT_REDIS_MODE'] = 'standalone'
+        self.values[f'{PREFIX}/env/COURSE_DRAFT_REDIS_PORT'] = '6380'
+        env = bootstrap.load_parameters(self.ssm, PREFIX)['environment']
+        self.assertEqual(env['COURSE_DRAFT_REDIS_MODE'], 'standalone')
+        self.assertEqual(env['COURSE_DRAFT_REDIS_PORT'], '6380')
+
     def test_google_places_key_is_not_needed_to_load_runtime_parameters(self):
         google_parameter = f'{PREFIX}/env/GOOGLE_PLACES_API_KEY'
         self.values.pop(google_parameter, None)
