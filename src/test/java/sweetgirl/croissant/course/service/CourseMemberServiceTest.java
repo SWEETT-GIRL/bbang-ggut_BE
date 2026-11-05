@@ -25,7 +25,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.course.code.CourseErrorCode;
@@ -39,14 +38,12 @@ import sweetgirl.croissant.course.entity.SavedCourse;
 import sweetgirl.croissant.course.enums.CourseInviteState;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.enums.CourseVisibility;
-import sweetgirl.croissant.course.event.CourseMemberLeftEvent;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseInviteRepository;
 import sweetgirl.croissant.course.repository.CourseMemberRepository;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
-import sweetgirl.croissant.course.service.CourseVersionBumper;
 import sweetgirl.croissant.course.util.CollabTokenGenerator;
 import sweetgirl.croissant.follow.service.FollowCommandService;
 import sweetgirl.croissant.member.code.MemberErrorCode;
@@ -81,10 +78,6 @@ class CourseMemberServiceTest {
 	private MemberRestrictionReader memberRestrictionReader;
 	@Mock
 	private FollowCommandService followCommandService;
-	@Mock
-	private CourseVersionBumper courseVersionBumper;
-	@Mock
-	private ApplicationEventPublisher eventPublisher;
 
 	@InjectMocks
 	private CourseMemberService courseMemberService;
@@ -176,7 +169,7 @@ class CourseMemberServiceTest {
 			assertThat(response.token()).isEqualTo(issued.getToken());
 			assertThat(response.expiresAt()).isEqualTo(issued.getExpiresAt());
 			assertThat(response.reused()).isFalse();
-			then(courseVersionBumper).should().bump(COURSE_ID);
+			then(courseRepository).should().bumpVersion(COURSE_ID);
 		}
 
 		@Test
@@ -198,7 +191,7 @@ class CourseMemberServiceTest {
 			assertThat(current.getDeletedAt()).isNull();
 			then(courseInviteRepository).should(never()).save(any());
 			then(courseMemberRepository).should(never()).save(any());
-			then(courseVersionBumper).should(never()).bump(any());
+			then(courseRepository).should(never()).bumpVersion(any());
 		}
 
 		@Test
@@ -278,7 +271,7 @@ class CourseMemberServiceTest {
 			then(courseInviteRepository).should().save(inviteCaptor.capture());
 			assertThat(inviteCaptor.getValue().getCreatedBy()).isSameAs(member);
 			then(courseMemberRepository).should(never()).save(any());
-			then(courseVersionBumper).should(never()).bump(any());
+			then(courseRepository).should(never()).bumpVersion(any());
 		}
 
 		@Test
@@ -301,7 +294,7 @@ class CourseMemberServiceTest {
 			courseMemberService.createInvite(MEMBER_ID, COURSE_ID);
 
 			assertThat(closedOwnerRow.isDeleted()).isTrue();
-			then(courseVersionBumper).should(never()).bump(any());
+			then(courseRepository).should(never()).bumpVersion(any());
 		}
 
 		@Test
@@ -523,7 +516,7 @@ class CourseMemberServiceTest {
 			assertThat(rowCaptor.getValue().getId().getMemberId()).isEqualTo(MEMBER_ID);
 			then(savedCourseRepository).should().delete(saved);
 			then(course).should().updateVisibility(CourseVisibility.PRIVATE);
-			then(courseVersionBumper).should().bump(COURSE_ID);
+			then(courseRepository).should().bumpVersion(COURSE_ID);
 		}
 
 		@Test
@@ -567,7 +560,7 @@ class CourseMemberServiceTest {
 			assertThat(response.alreadyMember()).isFalse();
 			assertThat(left.isDeleted()).isFalse();
 			then(courseMemberRepository).should(never()).save(any());
-			then(courseVersionBumper).should().bump(COURSE_ID);
+			then(courseRepository).should().bumpVersion(COURSE_ID);
 		}
 
 		@Test
@@ -591,7 +584,7 @@ class CourseMemberServiceTest {
 			then(courseMemberRepository).should(org.mockito.Mockito.times(2)).save(rowCaptor.capture());
 			assertThat(rowCaptor.getAllValues()).extracting(saved -> saved.getId().getMemberId())
 				.containsExactly(OWNER_ID, MEMBER_ID);
-			then(courseVersionBumper).should().bump(COURSE_ID);
+			then(courseRepository).should().bumpVersion(COURSE_ID);
 		}
 
 		@Test
@@ -693,7 +686,7 @@ class CourseMemberServiceTest {
 			assertThat(response.alreadyMember()).isTrue();
 			then(courseMemberRepository).should(never()).save(any());
 			then(course).should(never()).updateVisibility(any());
-			then(courseVersionBumper).should(never()).bump(any());
+			then(courseRepository).should(never()).bumpVersion(any());
 		}
 
 		@Test
@@ -710,7 +703,7 @@ class CourseMemberServiceTest {
 			assertThat(response.alreadyMember()).isTrue();
 			then(courseMemberRepository).should(never()).save(any());
 			then(savedCourseRepository).shouldHaveNoInteractions();
-			then(courseVersionBumper).should(never()).bump(any());
+			then(courseRepository).should(never()).bumpVersion(any());
 		}
 
 		@Test
@@ -749,7 +742,7 @@ class CourseMemberServiceTest {
 				.hasMessageContaining(CourseErrorCode.COURSE_MEMBER_LIMIT.getMessage());
 			then(courseMemberRepository).should(never()).save(any());
 			then(course).should(never()).updateVisibility(any());
-			then(courseVersionBumper).should(never()).bump(any());
+			then(courseRepository).should(never()).bumpVersion(any());
 		}
 
 		@Test
@@ -800,11 +793,9 @@ class CourseMemberServiceTest {
 
 			assertThat(mine.isDeleted()).isTrue();
 			then(course).should(never()).changeOwner(any());
-			then(courseVersionBumper).should().bump(COURSE_ID);
+			then(courseRepository).should().bumpVersion(COURSE_ID);
 			// 나간 사람의 메모는 지운다(확정). 가게는 남는다
 			then(courseStoreMemoRepository).should().softDeleteAllByCourseIdAndMemberId(COURSE_ID, MEMBER_ID);
-			// 커밋 뒤 이 코스의 신호 구독을 끊는다
-			then(eventPublisher).should().publishEvent(new CourseMemberLeftEvent(COURSE_ID, MEMBER_ID));
 		}
 
 		@Test
@@ -826,7 +817,7 @@ class CourseMemberServiceTest {
 			assertThat(ownerRow.isDeleted()).isTrue();
 			assertThat(oldest.isDeleted()).isFalse();
 			assertThat(newer.isDeleted()).isFalse();
-			then(courseVersionBumper).should().bump(COURSE_ID);
+			then(courseRepository).should().bumpVersion(COURSE_ID);
 			then(courseStoreMemoRepository).should().softDeleteAllByCourseIdAndMemberId(COURSE_ID, OWNER_ID);
 		}
 
@@ -846,7 +837,7 @@ class CourseMemberServiceTest {
 				.hasMessageContaining(CourseErrorCode.COURSE_NO_SUCCESSOR.getMessage());
 			assertThat(ownerRow.isDeleted()).isFalse();
 			then(course).should(never()).changeOwner(any());
-			then(courseVersionBumper).should(never()).bump(any());
+			then(courseRepository).should(never()).bumpVersion(any());
 			then(courseStoreMemoRepository).shouldHaveNoInteractions();
 		}
 
@@ -908,7 +899,7 @@ class CourseMemberServiceTest {
 			then(course).should().changeOwner(oldest.getMember());
 			assertThat(ownerRow.isDeleted()).isTrue();
 			assertThat(oldest.isDeleted()).isFalse();
-			then(courseVersionBumper).should().bump(COURSE_ID);
+			then(courseRepository).should().bumpVersion(COURSE_ID);
 			then(courseStoreMemoRepository).should().softDeleteAllByCourseIdAndMemberId(COURSE_ID, OWNER_ID);
 			then(courseInviteRepository).shouldHaveNoInteractions();
 		}
@@ -931,7 +922,7 @@ class CourseMemberServiceTest {
 			assertThat(ownerRow.isDeleted()).isTrue();
 			assertThat(invite.isActive(LocalDateTime.now())).isFalse();
 			then(course).should(never()).changeOwner(any());
-			then(courseVersionBumper).should(never()).bump(any());
+			then(courseRepository).should(never()).bumpVersion(any());
 			then(courseStoreMemoRepository).should().softDeleteAllByCourseIdAndMemberId(COURSE_ID, OWNER_ID);
 		}
 
@@ -957,8 +948,8 @@ class CourseMemberServiceTest {
 			then(courseMemberRepository).should(never()).findByIdCourseIdAndIdMemberId(any(), any());
 			then(first).should(never()).changeOwner(any());
 			then(second).should(never()).changeOwner(any());
-			then(courseVersionBumper).should().bump(COURSE_ID);
-			then(courseVersionBumper).should().bump(11L);
+			then(courseRepository).should().bumpVersion(COURSE_ID);
+			then(courseRepository).should().bumpVersion(11L);
 			then(courseStoreMemoRepository).should().softDeleteAllByCourseIdAndMemberId(COURSE_ID, MEMBER_ID);
 			then(courseStoreMemoRepository).should().softDeleteAllByCourseIdAndMemberId(11L, MEMBER_ID);
 		}
@@ -975,7 +966,7 @@ class CourseMemberServiceTest {
 
 			assertThat(ownerRow.isDeleted()).isTrue();
 			then(course).should(never()).changeOwner(any());
-			then(courseVersionBumper).should(never()).bump(any());
+			then(courseRepository).should(never()).bumpVersion(any());
 			then(courseStoreMemoRepository).shouldHaveNoInteractions();
 		}
 

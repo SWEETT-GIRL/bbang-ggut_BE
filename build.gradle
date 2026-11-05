@@ -33,8 +33,6 @@ dependencies {
     implementation 'com.github.ben-manes.caffeine:caffeine'
     // 자동완성 캐시 — 배포(blue/green 전환)로 JVM 이 바뀌어도 남아야 해서 앱 밖에 둔다
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-    // 코스 신호(STOMP) — 메모 초안을 일행 화면에 바로 보이게. 서버 사이는 초안 Redis pub/sub 로 잇는다
-    implementation 'org.springframework.boot:spring-boot-starter-websocket'
     // @Timed 등 애노테이션 기반 계측용 (Boot 4부터 starter-aop → starter-aspectj)
     implementation 'org.springframework.boot:spring-boot-starter-aspectj'
     implementation 'com.nimbusds:nimbus-jose-jwt:9.37.3'
@@ -90,8 +88,6 @@ dependencies {
 }
 
 tasks.named('test') {
-    // 전체 컨텍스트(@SpringBootTest)가 여럿 캐시된다 — 기본 512m 이면 CI 러너에서 OutOfMemoryError(2026-11-04 PR #1005)
-    maxHeapSize = '1g'
     useJUnitPlatform {
         // 'lab' 태그 = 로컬 랩 PG(docker-compose.lab-postgres.yml, 운영 덤프 복제본)에 붙는 통합 테스트.
         // CI/기본 빌드에서는 제외하고, 랩이 떠 있을 때 ./gradlew test -PlabTests 로 돌린다.

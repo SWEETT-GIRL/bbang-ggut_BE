@@ -83,13 +83,13 @@ class CourseResponseContractTest extends ResponseContractWebMvcTest {
 		CourseStoreResponse stop = new CourseStoreResponse(501L, 1, 1, 11L, "성심당", 36.3276, 127.4273, "대전 중구",
 			"튀김소보로 먼저", LocalTime.of(10, 30), true, 601L, "내 메모",
 			List.of(new CourseStoreMemoResponse(7L, "소보로", "같이 가요", LocalDateTime.of(2026, 10, 1, 9, 0), true, "dog",
-				null, 1_762_000_000_000L)),
+				null)),
 			StoreCategory.BAKERY, true);
 		CourseDetailResponse detail = new CourseDetailResponse(1L, "대전 빵지순례", "courses/1.jpg", "courses/640/1.jpg",
 			List.of("stores/11/320.jpg"), 1, List.of("대전"), CourseType.CUSTOM, "소보로", 7L, "추천", true, true, true, 12L,
 			3L, LocalDateTime.of(2026, 9, 30, 18, 0), "대전", LocalDate.of(2026, 10, 10), LocalDate.of(2026, 10, 11),
 			List.of(stop), true, true, true, 2, List.of(new CourseMemberResponse(7L, "소보로", true, true)), "소보로", 2,
-			CourseVisibility.PUBLIC, "share-token", 4L, true);
+			CourseVisibility.PUBLIC, "share-token", 4L);
 		given(courseQueryService.getCourseDetail(eq(1L), any(), isNull(), any()))
 			.willReturn(CourseDetailLookup.of(detail));
 
@@ -146,9 +146,6 @@ class CourseResponseContractTest extends ResponseContractWebMvcTest {
 			.andExpect(jsonPath("$.data.courseStores[0].visitedRecordId").isNumber())
 			// [id].tsx:2713,4475
 			.andExpect(jsonPath("$.data.courseStores[0].memos").isArray())
-			// 초안 자동저장(11/3) — 앱이 초안·로컬 글과 비교하는 순서 기준, 서버 스위치
-			.andExpect(jsonPath("$.data.courseStores[0].memos[0].seq").isNumber())
-			.andExpect(jsonPath("$.data.draftEnabled").isBoolean())
 			.andExpect(jsonPath("$.data.courseStores[0].visitRewardable").isBoolean());
 	}
 
