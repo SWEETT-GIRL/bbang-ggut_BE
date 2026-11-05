@@ -166,6 +166,10 @@ def main():
                         os.environ['V2_IMAGE'], os.environ['V2_RUNTIME_PARAMETER_PREFIX'])
     if refresh_id:
         wait_for_refresh(asg, refresh_id)
+    # 정상 반환 뒤에만 알린다. 용량 0의 준비 완료를 실제 서비스 교체와 구분한다.
+    if os.environ.get('GITHUB_OUTPUT'):
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+            output.write('deployment_state=' + ('refreshed' if refresh_id else 'prepared') + '\n')
 
 
 if __name__ == '__main__':

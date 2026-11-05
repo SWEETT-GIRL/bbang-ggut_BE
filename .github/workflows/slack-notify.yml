@@ -1,0 +1,90 @@
+name: Slack - Workflow Result
+
+on:
+  workflow_call:
+    inputs:
+      component:
+        required: true
+        type: string
+      kind:
+        required: true
+        type: string
+      results:
+        required: true
+        type: string
+      deployment-state:
+        required: false
+        default: ''
+        type: string
+    secrets:
+      webhook-url:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      # checkout/PR 코드 실행 없이 결과 메타데이터만 전달한다. 포크 PR에서는 호출하지 않는다.
+      - name: Send workflow result without changing deployment outcome
+        continue-on-error: true
+        uses: actions/github-script@v7
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.webhook-url }}
+          NOTIFY_COMPONENT: ${{ inputs.component }}
+          NOTIFY_KIND: ${{ inputs.kind }}
+          NOTIFY_RESULTS: ${{ inputs.results }}
+          DEPLOYMENT_STATE: ${{ inputs.deployment-state }}
+        with:
+          script: |
+            const webhook = process.env.SLACK_WEBHOOK_URL;
+            if (!webhook) {
+              core.notice('Slack webhook is not configured; notification skipped.');
+              await core.summary.addRaw('Slack: 수신처 Secret 미설정으로 알림을 보내지 않았습니다.').write();
+              return;
+            }
+            try {
+              const url = new URL(webhook);
+              if (url.protocol !== 'https:' || url.hostname !== 'hooks.slack.com' ||
+                  !url.pathname.startsWith('/services/') || url.username || url.password || url.search || url.hash) {
+                throw new Error('InvalidWebhook');
+              }
+              const jobs = Object.entries(JSON.parse(process.env.NOTIFY_RESULTS));
+              const failed = jobs.filter(([, job]) => job.result === 'failure').map(([name]) => name);
+              const cancelled = jobs.filter(([, job]) => job.result === 'cancelled').map(([name]) => name);
+              let status = failed.length ? '실패' : cancelled.length ? '취소' : '완료';
+              const state = process.env.DEPLOYMENT_STATE;
+              if (!failed.length && !cancelled.length && process.env.NOTIFY_KIND === 'CD') {
+                status = state === 'prepared' ? '배포 준비 완료 — 실행 중 서비스 검증 없음' :
+                         state === 'refreshed' ? 'ASG 인스턴스 교체 완료' :
+                         state === 'installed' ? '배치 이미지 설치 완료 — 배치 실행 결과와 별개' : '파이프라인 완료';
+              }
+              const title = `[${process.env.NOTIFY_COMPONENT}] ${process.env.NOTIFY_KIND} ${status}`;
+              const pr = context.payload.pull_request;
+              const revision = pr?.head?.sha || context.sha;
+              const branch = pr ? `${pr.head.ref} → ${pr.base.ref}` : context.ref;
+              const runUrl = `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+              const lines = [title, `저장소: ${context.repo.owner}/${context.repo.repo}`,
+                `브랜치: ${branch}`, `커밋: ${revision.slice(0, 12)}`, `실행 시도: ${process.env.GITHUB_RUN_ATTEMPT}`,
+                ...(pr ? [`PR: #${pr.number}`] : []),
+                ...(failed.length ? [`실패 단계: ${failed.join(', ')}`] : []),
+                ...(cancelled.length ? [`취소 단계: ${cancelled.join(', ')}`] : []),
+                ...(process.env.NOTIFY_KIND === 'CD' && (failed.length || cancelled.length) ?
+                  ['실제 AWS 상태와 롤백 결과는 실행 로그에서 확인하세요. 파이프라인 중단이 AWS 작업 중단을 보장하지 않습니다.'] : []), runUrl];
+              const message = lines.join('\n').slice(0, 2900);
+              const response = await fetch(webhook, {
+                method: 'POST', redirect: 'error', signal: AbortSignal.timeout(10000),
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({text: title, mrkdwn: false, unfurl_links: false, unfurl_media: false,
+                  blocks: [{type: 'section', text: {type: 'plain_text', text: message, emoji: true}}]})
+              });
+              if (!response.ok || (await response.text()).trim() !== 'ok') throw new Error('SlackRejected');
+              await core.summary.addRaw('Slack: 실행 결과 알림을 전송했습니다.').write();
+            } catch {
+              // URL·응답 본문·예외 메시지에는 비밀값이 섞일 수 있어 로그에 쓰지 않는다.
+              core.warning('Slack notification failed. Check the webhook and network; the original job result is unchanged.');
+              await core.summary.addRaw('Slack: 알림 전송 실패. 원래 CI/CD 결과는 변경하지 않았습니다.').write();
+            }
