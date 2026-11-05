@@ -60,9 +60,10 @@ jobs:
         run: |
           python3 -m unittest discover -s scripts/deploy/v2/tests -v
           python3 -m unittest discover -s scripts/deploy/batch/tests -v
+          python3 -m unittest discover -s scripts/ci/tests -v
           bash -n scripts/deploy/batch/entrypoint.sh
       - name: Check workflow syntax
-        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -color .github/workflows/cd-v2.yml .github/workflows/ci-v2.yml .github/workflows/cd-batch.yml
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -color .github/workflows/cd-v2.yml .github/workflows/ci-v2.yml .github/workflows/cd-batch.yml .github/workflows/migration-guard.yml
   # dataops 크롤·승인 스크립트(배치 EC2 에서 돈다). 에이전트 스모크 테스트도 import 되도록 그 lock 을 함께 설치한다
   dataops-python:
     needs: changes
