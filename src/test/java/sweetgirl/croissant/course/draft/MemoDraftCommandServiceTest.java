@@ -159,19 +159,6 @@ class MemoDraftCommandServiceTest {
 	}
 
 	@Test
-	@DisplayName("권한 판정 중 DB(커넥션 풀)가 바쁘면 503 — 앱이 PATCH 로 물러난다")
-	void write_accessDbFailure_unavailable() {
-		given(properties.isWriteEnabled()).willReturn(true);
-		willThrow(new org.springframework.transaction.CannotCreateTransactionException("pool exhausted"))
-			.given(accessCache).requireEditable(COURSE_ID, MEMBER_ID);
-
-		assertThatThrownBy(() -> memoDraftCommandService.write(MEMBER_ID, COURSE_ID, STORE_ID, request))
-			.isInstanceOf(CourseException.class)
-			.hasMessageContaining(CourseErrorCode.COURSE_DRAFT_UNAVAILABLE.getMessage());
-		then(buffer).shouldHaveNoInteractions();
-	}
-
-	@Test
 	@DisplayName("권한 없음·쓰기 제한은 그대로 올라가고 Redis 에 쓰지 않는다")
 	void write_forbidden_propagates() {
 		given(properties.isWriteEnabled()).willReturn(true);

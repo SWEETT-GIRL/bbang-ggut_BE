@@ -76,12 +76,12 @@ class MemoDraftAccessCacheTest {
 	}
 
 	@Test
-	@DisplayName("TTL 의 1.5배(지터 상한)가 지나면 반드시 다시 판정한다 — 나간 사람의 초안이 머무는 상한")
+	@DisplayName("10초가 지나면 다시 판정한다 — 나간 사람의 초안이 머무는 상한")
 	void afterTtl_reevaluates() {
 		given(courseRepository.findByIdAndDeletedAtIsNull(COURSE_ID)).willReturn(Optional.of(course));
 
 		accessCache.requireEditable(COURSE_ID, MEMBER_ID);
-		ticker.advance(Duration.ofSeconds(16));
+		ticker.advance(Duration.ofSeconds(11));
 		accessCache.requireEditable(COURSE_ID, MEMBER_ID);
 
 		then(courseRepository).should(times(2)).findByIdAndDeletedAtIsNull(COURSE_ID);

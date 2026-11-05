@@ -1,14 +1,11 @@
 package sweetgirl.croissant.course.draft;
 
-import java.util.concurrent.ThreadLocalRandom;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.Expiry;
 import com.github.benmanes.caffeine.cache.Ticker;
 
 import sweetgirl.croissant.course.code.CourseErrorCode;
@@ -53,26 +50,8 @@ public class MemoDraftAccessCache {
 		this.courseAccessPolicy = courseAccessPolicy;
 		this.memberReader = memberReader;
 		this.memberRestrictionReader = memberRestrictionReader;
-		// 만료에 지터(TTL ~ 1.5 TTL)를 준다 — 320명이 같은 시각에 시작하면 캐시가 한꺼풀에 빠져 1,000개 넘는 쿼리가 같은 초에
-		// 풀 10개로 몰렸다(2026-11-04 dev 측정, PUT 500). 만료 시각을 흩어 놓으면 초당 미스가 평평해진다
-		long ttlNanos = properties.getAccessCacheTtl().toNanos();
 		this.allowed = Caffeine.newBuilder()
-			.expireAfter(new Expiry<String, Boolean>() {
-				@Override
-				public long expireAfterCreate(String key, Boolean value, long currentTime) {
-					return ttlNanos + ThreadLocalRandom.current().nextLong(ttlNanos / 2 + 1);
-				}
-
-				@Override
-				public long expireAfterUpdate(String key, Boolean value, long currentTime, long currentDuration) {
-					return expireAfterCreate(key, value, currentTime);
-				}
-
-				@Override
-				public long expireAfterRead(String key, Boolean value, long currentTime, long currentDuration) {
-					return currentDuration;
-				}
-			})
+			.expireAfterWrite(properties.getAccessCacheTtl())
 			.maximumSize(100_000)
 			.ticker(ticker)
 			.build();

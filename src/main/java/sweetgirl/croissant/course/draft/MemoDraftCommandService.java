@@ -4,7 +4,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.TransactionException;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,14 +41,7 @@ public class MemoDraftCommandService {
 			throw new CourseException(CourseErrorCode.COURSE_DRAFT_UNAVAILABLE);
 		}
 		rateLimiter.check(memberId);
-		try {
-			accessCache.requireEditable(courseId, memberId);
-		} catch (DataAccessException | TransactionException exception) {
-			// 캐시가 빠진 순간 DB(커넥션 풀)가 바쁘면 — 500 이 아니라 503 으로 물려 앱이 PATCH 로 물러나게
-			log.warn("[메모 초안] 권한 판정 DB 실패 — 503 courseId={} memberId={} cause={}", courseId, memberId,
-				exception.toString());
-			throw new CourseException(CourseErrorCode.COURSE_DRAFT_UNAVAILABLE);
-		}
+		accessCache.requireEditable(courseId, memberId);
 
 		long now = System.currentTimeMillis();
 		long seq = request.getSeq();
