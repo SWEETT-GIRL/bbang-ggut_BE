@@ -53,6 +53,50 @@ public interface RewardPushTargetRepository extends Repository<MemberAttendanceD
 	List<AttendanceReminderTarget> findAttendanceReminderTargets(
 			@Param("yesterday") LocalDate yesterday, @Param("today") LocalDate today);
 
+	/**
+	 * 그제 출석했는데 어제도 오늘도 안 한 회원과, 그제 찍은 칸(게스트 · 탈퇴 제외). 하루 유예 안이라 오늘 오면 그제 칸에 이어진다.
+	 * 이틀 빠진 회원은 끊긴 것이라 부르지 않는다.
+	 */
+	@Query(value = """
+			SELECT lapsed.member_id AS memberId, lapsed.board_day AS boardDay
+			FROM member_attendance_days lapsed
+			JOIN member ON member.id = lapsed.member_id
+			WHERE lapsed.attended_on = :dayBeforeYesterday
+				AND member.deleted_at IS NULL
+				AND member.member_type <> 'GUEST'
+				AND NOT EXISTS (
+					SELECT 1 FROM member_attendance_days since
+					WHERE since.member_id = lapsed.member_id AND since.attended_on IN (:yesterday, :today))
+			ORDER BY lapsed.member_id
+			""", nativeQuery = true)
+	List<AttendanceReminderTarget> findLapsedAttendanceTargets(
+			@Param("dayBeforeYesterday") LocalDate dayBeforeYesterday, @Param("yesterday") LocalDate yesterday,
+			@Param("today") LocalDate today);
+
+	/**
+	 * 체험이 아닌 기록이 정확히 한 건이고 그 기록을 {@code from} 이상 {@code to} 미만에 남긴 일반 회원(탈퇴 제외).
+	 * 2 · 3 일 전에 첫 기록을 남기고 두 번째가 없는 사람을 저녁에 부른다.
+	 */
+	@Query(value = """
+			SELECT r.member_id AS memberId, MIN(r.store_name) AS storeName
+			FROM bread_record r
+			JOIN member m ON m.id = r.member_id AND m.deleted_at IS NULL AND m.member_type = 'USER'
+			WHERE r.deleted_at IS NULL AND r.record_type = 'NORMAL'
+			GROUP BY r.member_id
+			HAVING COUNT(*) = 1 AND MIN(r.created_at) >= :from AND MIN(r.created_at) < :to
+			ORDER BY r.member_id
+			""", nativeQuery = true)
+	List<SecondRecordTarget> findSecondRecordNudgeTargets(@Param("from") LocalDateTime from,
+			@Param("to") LocalDateTime to);
+
+	/** 첫 기록 하나뿐인 회원과 그 기록의 가게 이름(가게를 안 골랐으면 비어 있을 수 있다). */
+	interface SecondRecordTarget {
+
+		Long getMemberId();
+
+		String getStoreName();
+	}
+
 	interface AttendanceReminderTarget {
 
 		Long getMemberId();
@@ -61,16 +105,13 @@ public interface RewardPushTargetRepository extends Repository<MemberAttendanceD
 	}
 
 	/**
-	 * 어제 가입했고 아직 한 번도 출석하지 않은 회원과, 그 회원이 고른 친구와 그 친구에게 지어 준 이름(게스트 · 탈퇴 제외).
+	 * 어제 가입했고 아직 한 번도 출석하지 않은 회원과, 그 회원이 고른 친구(게스트 · 탈퇴 제외).
 	 * 세계관을 아직 시작하지 않았으면 친구가 비어 있다.
 	 */
 	@Query(value = """
-			SELECT member.id AS memberId, world.selected_character AS selectedCharacter,
-				friend.nickname AS friendNickname
+			SELECT member.id AS memberId, world.selected_character AS selectedCharacter
 			FROM member
 			LEFT JOIN member_world world ON world.member_id = member.id
-			LEFT JOIN member_characters friend
-				ON friend.member_id = member.id AND friend.character_code = world.selected_character
 			WHERE member.deleted_at IS NULL
 				AND member.member_type <> 'GUEST'
 				AND member.registered_at >= :from
@@ -82,24 +123,19 @@ public interface RewardPushTargetRepository extends Repository<MemberAttendanceD
 	List<MemberFriend> findSecondMorningTargets(
 			@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
-	/** 이 회원들이 고른 친구와 그 친구에게 지어 준 이름. 세계관을 아직 시작하지 않은 회원은 빠진다. */
+	/** 이 회원들이 고른 친구. 세계관을 아직 시작하지 않은 회원은 빠진다. */
 	@Query(value = """
-			SELECT world.member_id AS memberId, world.selected_character AS selectedCharacter,
-				friend.nickname AS friendNickname
+			SELECT world.member_id AS memberId, world.selected_character AS selectedCharacter
 			FROM member_world world
-			LEFT JOIN member_characters friend
-				ON friend.member_id = world.member_id AND friend.character_code = world.selected_character
 			WHERE world.member_id IN (:memberIds)
 			""", nativeQuery = true)
 	List<MemberFriend> findFriendsOf(@Param("memberIds") Collection<Long> memberIds);
 
-	/** 회원이 고른 친구. 이름을 지어 주지 않았으면 {@code friendNickname} 이 비어 있다. */
+	/** 회원이 고른 친구. 세계관을 시작하지 않았으면 {@code selectedCharacter} 가 비어 있다. */
 	interface MemberFriend {
 
 		Long getMemberId();
 
 		String getSelectedCharacter();
-
-		String getFriendNickname();
 	}
 }

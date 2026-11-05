@@ -16,6 +16,7 @@ import org.springframework.data.repository.query.Param;
 
 import jakarta.persistence.LockModeType;
 import sweetgirl.croissant.store.dto.projection.NearbyStoreProjection;
+import sweetgirl.croissant.store.dto.projection.NextStoreCandidateProjection;
 import sweetgirl.croissant.store.dto.projection.RegionByDistanceProjection;
 import sweetgirl.croissant.store.dto.projection.RegionBySubscribeProjection;
 import sweetgirl.croissant.store.dto.projection.StoreDistanceProjection;
@@ -210,6 +211,28 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 			""", nativeQuery = true)
 	Slice<NearbyStoreProjection> findNearbyStores(@Param("lng") double longitude, @Param("lat") double latitude,
 			@Param("radius") double radiusMeters, Pageable pageable);
+
+	/**
+	 * 다음 빵집 제안 — 근처 {@code radius} m 안 활성 가게 중 내가 아직 기록하지 않은 곳. 공개 빵로그 많은 순, 가까운 순.
+	 * 방금 기록한 가게({@code excludeStoreId}, 없으면 -1)는 뺀다.
+	 */
+	@Query(value = """
+				SELECT s.id AS id, s.name AS name, s.address AS address,
+					ST_Y(s.location::geometry) AS latitude, ST_X(s.location::geometry) AS longitude,
+					ST_Distance(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS distanceMeters,
+					(SELECT COUNT(*) FROM bread_record r WHERE r.store_id = s.id AND r.is_public = true
+						AND r.deleted_at IS NULL AND r.hidden_at IS NULL) AS publicRecordCount
+				FROM store s
+				WHERE ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radius)
+					AND s.status = 'ACTIVE' AND s.id <> :excludeStoreId
+					AND NOT EXISTS (SELECT 1 FROM bread_record mine
+						WHERE mine.member_id = :memberId AND mine.store_id = s.id AND mine.deleted_at IS NULL)
+				ORDER BY publicRecordCount DESC, distanceMeters ASC
+				LIMIT :limit
+			""", nativeQuery = true)
+	List<NextStoreCandidateProjection> findNearbyUnrecordedPopular(@Param("memberId") Long memberId,
+			@Param("excludeStoreId") Long excludeStoreId, @Param("lng") double longitude, @Param("lat") double latitude,
+			@Param("radius") double radiusMeters, @Param("limit") int limit);
 
 	// 구독(빵알람)은 더 쓰지 않는 기능이라 인기도(popularity_score) 순으로 뽑는다.
 	// idx_store_popularity_score 를 순서대로 읽다가 limit 에서 멈춘다 — 정렬 없음(운영 EXPLAIN 2026-09-28).

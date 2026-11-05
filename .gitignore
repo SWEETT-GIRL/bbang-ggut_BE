@@ -114,3 +114,10 @@ docs/be-tasks-course-collab.md
 .claude/planning/feat-course-visibility.md
 .claude/planning/refactor-course-access-policy.md
 .claude/planning/feat-course-category.md
+
+# 초안 버퍼 측정 산출물 — 토큰·매핑은 랩 데이터, results 는 ENV.md 템플릿만 올린다
+scripts/lab/draft-buffer/tokens.csv
+scripts/lab/draft-buffer/courses.csv
+scripts/lab/draft-buffer/member-ids.txt
+scripts/lab/draft-buffer/results/*
+!scripts/lab/draft-buffer/results/ENV.md

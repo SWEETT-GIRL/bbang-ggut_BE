@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -25,4 +26,13 @@ public interface MemberRestrictionRepository extends JpaRepository<MemberRestric
 			@Param("memberId") Long memberId,
 			@Param("restrictionTypes") Collection<MemberRestrictionType> restrictionTypes,
 			@Param("now") LocalDateTime now);
+
+	/** 탈퇴한 지 cutoff 를 넘긴 사람의 제재 기록을 지운다 — 보관 기한 뒤. 강퇴(BANNED)는 재가입 차단 근거라 남긴다. */
+	@Modifying
+	@Query("""
+			DELETE FROM MemberRestriction mr
+			WHERE mr.member.id IN (SELECT m.id FROM Member m WHERE m.deletedAt < :cutoff)
+				AND mr.restrictionType <> sweetgirl.croissant.member.enums.MemberRestrictionType.BANNED
+			""")
+	int deleteAllOfMembersDeletedBefore(@Param("cutoff") LocalDateTime cutoff);
 }

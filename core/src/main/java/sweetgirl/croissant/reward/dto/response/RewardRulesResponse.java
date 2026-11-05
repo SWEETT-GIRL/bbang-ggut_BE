@@ -29,7 +29,9 @@ public record RewardRulesResponse(
 		int rankingSecondThird,
 		int rankingFourthTenth,
 		/** 밥 룰렛을 무료 한 판 뒤 광고로 더 돌릴 수 있는 하루 횟수 */
-		int feedAdDailyCap) {
+		int feedAdDailyCap,
+		/** 첫 주 두 번째 기록 보너스 — 첫 기록 7 일 안에 두 번째를 남기면 한 번 */
+		int recordSecondWeek) {
 
 	public static RewardRulesResponse from(RewardSettings settings) {
 		return new RewardRulesResponse(
@@ -53,6 +55,7 @@ public record RewardRulesResponse(
 			settings.get(RewardSettingKey.RANKING_FIRST),
 			settings.get(RewardSettingKey.RANKING_SECOND_THIRD),
 			settings.get(RewardSettingKey.RANKING_FOURTH_TENTH),
-			settings.get(RewardSettingKey.FEED_AD_DAILY_CAP));
+			settings.get(RewardSettingKey.FEED_AD_DAILY_CAP),
+			settings.get(RewardSettingKey.RECORD_SECOND_WEEK));
 	}
 }

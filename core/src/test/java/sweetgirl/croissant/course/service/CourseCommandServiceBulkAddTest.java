@@ -33,6 +33,7 @@ import sweetgirl.croissant.course.event.CourseStoreAddedEvent;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
+import sweetgirl.croissant.course.service.CourseVersionBumper;
 import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.service.MemberReader;
@@ -66,6 +67,9 @@ class CourseCommandServiceBulkAddTest {
 	private ApplicationEventPublisher eventPublisher;
 	@Mock
 	private MemberReader memberReader;
+
+	@Mock
+	private CourseVersionBumper courseVersionBumper;
 
 	@InjectMocks
 	private CourseCommandService courseCommandService;
@@ -133,7 +137,7 @@ class CourseCommandServiceBulkAddTest {
 			.isEqualTo(RECOMMENDATION_ID));
 		then(courseAccessPolicy).should().requireEditable(course, MEMBER_ID);
 		then(courseProgressService).should().refreshForCourse(COURSE_ID, true);
-		then(courseRepository).should().bumpVersion(COURSE_ID);
+		then(courseVersionBumper).should().bump(COURSE_ID);
 		// 담은 사람 기준 COURSE_ADD 신호 — 가게마다 하나, 추천 출처를 실어(#663)
 		ArgumentCaptor<CourseStoreAddedEvent> events = ArgumentCaptor.forClass(CourseStoreAddedEvent.class);
 		then(eventPublisher).should(org.mockito.Mockito.times(2)).publishEvent(events.capture());
@@ -177,7 +181,7 @@ class CourseCommandServiceBulkAddTest {
 		assertThatThrownBy(() -> courseCommandService.addStores(MEMBER_ID, COURSE_ID, items(100L, 100L), null))
 			.isInstanceOfSatisfying(CourseException.class, e -> assertThat(e.getErrorCode())
 				.isEqualTo(CourseErrorCode.COURSE_STORE_ALREADY_EXISTS));
-		then(courseRepository).should(never()).bumpVersion(any());
+		then(courseVersionBumper).should(never()).bump(any());
 		then(courseProgressService).should(never()).refreshForCourse(any(), org.mockito.ArgumentMatchers.anyBoolean());
 	}
 

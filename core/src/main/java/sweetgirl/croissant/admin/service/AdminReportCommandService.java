@@ -1,5 +1,6 @@
 package sweetgirl.croissant.admin.service;
 
+import java.util.List;
 import java.util.Locale;
 
 import org.springframework.stereotype.Service;
@@ -13,6 +14,7 @@ import sweetgirl.croissant.abuse.enums.AbuseReportStatus;
 import sweetgirl.croissant.abuse.enums.AbuseReportTargetType;
 import sweetgirl.croissant.abuse.repository.AbuseReportRepository;
 import sweetgirl.croissant.abuse.repository.ModerationActionRepository;
+import sweetgirl.croissant.abuse.service.AbuseReportCommandService;
 import sweetgirl.croissant.admin.code.AdminErrorCode;
 import sweetgirl.croissant.admin.dto.request.AdminModerationActionRequest;
 import sweetgirl.croissant.admin.dto.request.AdminReportReviewRequest;
@@ -20,6 +22,10 @@ import sweetgirl.croissant.admin.dto.response.AdminModerationActionResponse;
 import sweetgirl.croissant.admin.exception.AdminException;
 import sweetgirl.croissant.alarm.enums.ReportNotificationAction;
 import sweetgirl.croissant.alarm.service.ReportNotificationService;
+import sweetgirl.croissant.breadlog.entity.BreadRecord;
+import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
+import sweetgirl.croissant.comment.entity.BreadRecordComment;
+import sweetgirl.croissant.comment.repository.BreadRecordCommentRepository;
 import sweetgirl.croissant.common.enums.ReportKind;
 import sweetgirl.croissant.contribution.entity.ContributionReport;
 import sweetgirl.croissant.contribution.entity.MenuContributionReport;
@@ -38,11 +44,15 @@ import sweetgirl.croissant.store.enums.StoreReportType;
 @Transactional
 public class AdminReportCommandService {
 
+	private static final String HIDDEN_BY_ADMIN = "ADMIN";
+
 	private final StoreContributionReportRepository storeContributionReportRepository;
 	private final MenuContributionReportRepository menuContributionReportRepository;
 	private final AbuseReportRepository abuseReportRepository;
 	private final ModerationActionRepository moderationActionRepository;
 	private final ReviewRepository reviewRepository;
+	private final BreadRecordRepository breadRecordRepository;
+	private final BreadRecordCommentRepository commentRepository;
 	private final ReportNotificationService reportNotificationService;
 	private final ContributionReportProcessor contributionReportProcessor;
 
@@ -57,7 +67,7 @@ public class AdminReportCommandService {
 
 		AbuseReportAction action = toModerationAction(request.action());
 		String reason = request.moderationReason();
-		applyReviewModeration(report, action, reason);
+		applyTargetModeration(report, action, reason);
 		report.applyModerationAction(action);
 
 		ModerationAction savedAction = moderationActionRepository.save(request.toModerationAction(report, action));
@@ -180,14 +190,80 @@ public class AdminReportCommandService {
 			report.accept();
 		} else {
 			report.reject();
+			restoreSystemHiddenIfNoLongerReported(report);
 		}
 		reportNotificationService.notifyAbuseReportResult(report);
 	}
 
-	private void applyReviewModeration(AbuseReport report, AbuseReportAction action, String reason) {
+	/**
+	 * 신고 3명 자동 숨김(hidden_by = SYSTEM)은 기각이 쌓여 남은 신고자가 3명 밑으로 내려가면 되살린다 —
+	 * 기각 뒤엔 RESTORE 조치를 걸 수 없어(ACCEPTED 에서만) 이 길이 유일한 복구 경로다. 어드민이 직접 숨긴 건 안 건드린다.
+	 */
+	private void restoreSystemHiddenIfNoLongerReported(AbuseReport report) {
+		if (report.getTargetType() != AbuseReportTargetType.RECORD
+			&& report.getTargetType() != AbuseReportTargetType.COMMENT) {
+			return;
+		}
+		long remaining = abuseReportRepository.countDistinctReporters(report.getTargetType(), report.getTargetId(),
+			List.of(AbuseReportStatus.PENDING, AbuseReportStatus.ACCEPTED));
+		if (remaining >= AbuseReportCommandService.AUTO_HIDE_REPORTER_THRESHOLD) {
+			return;
+		}
+		if (report.getTargetType() == AbuseReportTargetType.RECORD) {
+			breadRecordRepository.findById(report.getTargetId())
+				.filter(record -> AbuseReportCommandService.HIDDEN_BY_SYSTEM.equals(record.getHiddenBy()))
+				.ifPresent(BreadRecord::restoreHidden);
+			return;
+		}
+		commentRepository.findById(report.getTargetId())
+			.filter(comment -> AbuseReportCommandService.HIDDEN_BY_SYSTEM.equals(comment.getHiddenBy()))
+			.ifPresent(BreadRecordComment::restoreHidden);
+	}
+
+	/** 대상 종류에 맞는 조치만 받는다 — 리뷰 조치를 빵로그 신고에 걸 수 없다. */
+	private void applyTargetModeration(AbuseReport report, AbuseReportAction action, String reason) {
 		if (action == AbuseReportAction.NONE) {
 			return;
 		}
+		if (isRecordModerationAction(action)) {
+			applyRecordModeration(report, action, reason);
+			return;
+		}
+		if (isCommentModerationAction(action)) {
+			applyCommentModeration(report, action, reason);
+			return;
+		}
+		applyReviewModeration(report, action, reason);
+	}
+
+	private void applyRecordModeration(AbuseReport report, AbuseReportAction action, String reason) {
+		if (report.getTargetType() != AbuseReportTargetType.RECORD) {
+			throw new AdminException(AdminErrorCode.REPORT_TARGET_TYPE_MISMATCH);
+		}
+		BreadRecord record = breadRecordRepository.findByIdAndDeletedAtIsNull(report.getTargetId())
+			.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_TARGET_NOT_FOUND));
+		switch (action) {
+			case HIDE_RECORD -> record.hide(reason, HIDDEN_BY_ADMIN);
+			case RESTORE_RECORD -> record.restoreHidden();
+			default -> throw new AdminException(AdminErrorCode.REPORT_INVALID_MODERATION_ACTION);
+		}
+	}
+
+	private void applyCommentModeration(AbuseReport report, AbuseReportAction action, String reason) {
+		if (report.getTargetType() != AbuseReportTargetType.COMMENT) {
+			throw new AdminException(AdminErrorCode.REPORT_TARGET_TYPE_MISMATCH);
+		}
+		BreadRecordComment comment = commentRepository.findById(report.getTargetId())
+			.orElseThrow(() -> new AdminException(AdminErrorCode.REPORT_TARGET_NOT_FOUND));
+		switch (action) {
+			case HIDE_COMMENT -> comment.hide(reason, HIDDEN_BY_ADMIN);
+			case RESTORE_COMMENT -> comment.restoreHidden();
+			case DELETE_COMMENT -> comment.delete(BreadRecordComment.DELETED_BY_ADMIN);
+			default -> throw new AdminException(AdminErrorCode.REPORT_INVALID_MODERATION_ACTION);
+		}
+	}
+
+	private void applyReviewModeration(AbuseReport report, AbuseReportAction action, String reason) {
 		if (!isReviewModerationAction(action)) {
 			throw new AdminException(AdminErrorCode.REPORT_INVALID_MODERATION_ACTION);
 		}
@@ -222,9 +298,23 @@ public class AdminReportCommandService {
 			|| action == AbuseReportAction.RESTORE_REVIEW;
 	}
 
+	private boolean isRecordModerationAction(AbuseReportAction action) {
+		return action == AbuseReportAction.HIDE_RECORD || action == AbuseReportAction.RESTORE_RECORD;
+	}
+
+	private boolean isCommentModerationAction(AbuseReportAction action) {
+		return action == AbuseReportAction.HIDE_COMMENT
+			|| action == AbuseReportAction.RESTORE_COMMENT
+			|| action == AbuseReportAction.DELETE_COMMENT;
+	}
+
+	/** 피조치자에게 알리는 조치 — 숨김 · 삭제. 복구는 알리지 않는다. */
 	private boolean shouldNotifyModeratedMember(AbuseReportAction action) {
 		return action == AbuseReportAction.HIDE_REVIEW
-			|| action == AbuseReportAction.DELETE_REVIEW;
+			|| action == AbuseReportAction.DELETE_REVIEW
+			|| action == AbuseReportAction.HIDE_RECORD
+			|| action == AbuseReportAction.HIDE_COMMENT
+			|| action == AbuseReportAction.DELETE_COMMENT;
 	}
 
 	private void assertContributionPending(ContributionReport contributionReport, StoreReportStatus sourceStatus) {
@@ -240,7 +330,8 @@ public class AdminReportCommandService {
 		}
 		try {
 			AbuseReportAction parsed = AbuseReportAction.valueOf(action.trim().toUpperCase(Locale.ROOT));
-			if (parsed == AbuseReportAction.NONE || isReviewModerationAction(parsed)) {
+			if (parsed == AbuseReportAction.NONE || isReviewModerationAction(parsed)
+				|| isRecordModerationAction(parsed) || isCommentModerationAction(parsed)) {
 				return parsed;
 			}
 		} catch (IllegalArgumentException e) {

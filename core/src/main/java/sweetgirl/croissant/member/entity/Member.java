@@ -18,6 +18,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import sweetgirl.croissant.member.util.NicknameNormalizer;
 
 @Entity
 @Table(name = "member")
@@ -29,12 +30,30 @@ public class Member {
 	/** 탈퇴한 회원의 닉네임 자리. 앱·어드민 편지가 이미 이 문구로 보여 준다. */
 	public static final String WITHDRAWN_NICKNAME = "탈퇴한 회원";
 
+	/** 닉네임을 직접 바꾼 뒤 다시 바꾸기까지. 겹쳐서 번호가 붙은 회원(changedAt NULL)은 바로 바꿀 수 있다. */
+	public static final int NICKNAME_CHANGE_INTERVAL_DAYS = 14;
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
 	@Column(nullable = false, length = 100)
 	private String nickname;
+
+	// 유일 비교 · 검색용(NFC · 소문자 · 공백 제거). 살아 있는 회원끼리 유일하다(부분 unique 인덱스).
+	@Column(nullable = false, length = 100)
+	private String nicknameNormalized;
+
+	// 닉네임을 직접 바꾼 마지막 시각(KST 벽시계). 뽑기 수락은 세지 않는다.
+	@Column
+	private LocalDateTime nicknameChangedAt;
+
+	// 커뮤니티 규칙 동의(첫 댓글 · 첫 공개 전환 전). 버전이 오르면 다시 받는다.
+	@Column
+	private LocalDateTime communityAgreedAt;
+
+	@Column(length = 20)
+	private String communityTermsVersion;
 
 	// 닉네임 뽑기로 받은 후보. 수락해야 nickname 이 되고, "원래대로"를 누르면 비운다.
 	@Column(length = 100)
@@ -97,6 +116,13 @@ public class Member {
 	@Column(name = "invite_code", length = 8, updatable = false, insertable = false)
 	private String inviteCode;
 
+	/**
+	 * 비공개 계정(인스타식, 2026-11-04). 팔로워만 내 공개 빵로그를 본다. 팔로우는 요청 · 수락을 거친다.
+	 * 프로필(닉네임 · 캐릭터 · 수)은 누구나 본다.
+	 */
+	@Column(name = "is_private", nullable = false, columnDefinition = "boolean default false")
+	private boolean isPrivate;
+
 	@CreatedDate
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
@@ -110,6 +136,7 @@ public class Member {
 	@Builder
 	public Member(String nickname) {
 		this.nickname = nickname;
+		this.nicknameNormalized = NicknameNormalizer.normalize(nickname);
 	}
 
 	/** 소셜 계정으로 처음 가입하는 회원. */
@@ -170,11 +197,39 @@ public class Member {
 	 */
 	public void anonymizePersonalInfo() {
 		this.nickname = WITHDRAWN_NICKNAME;
+		this.nicknameNormalized = NicknameNormalizer.normalize(WITHDRAWN_NICKNAME);
 		this.pendingNickname = null;
 	}
 
 	public void resetNickname(String nickname) {
 		this.nickname = nickname;
+		this.nicknameNormalized = NicknameNormalizer.normalize(nickname);
+	}
+
+	/** 직접 바꾸기. 규칙 검사는 {@code NicknamePolicy} 가 먼저 한다. */
+	public void changeNickname(String nickname, LocalDateTime now) {
+		this.nickname = nickname;
+		this.nicknameNormalized = NicknameNormalizer.normalize(nickname);
+		this.nicknameChangedAt = now;
+	}
+
+	public void agreeToCommunityRules(String version, LocalDateTime now) {
+		this.communityTermsVersion = version;
+		this.communityAgreedAt = now;
+	}
+
+	public boolean hasAgreedToCommunityRules(String currentVersion) {
+		return currentVersion.equals(this.communityTermsVersion);
+	}
+
+	public boolean canChangeNickname(LocalDateTime now, int intervalDays) {
+		return this.nicknameChangedAt == null || !this.nicknameChangedAt.plusDays(intervalDays).isAfter(now);
+	}
+
+	/** 다시 바꿀 수 있는 날. 지금 바꿀 수 있으면 null. */
+	public LocalDate nicknameChangeableAt(LocalDateTime now, int intervalDays) {
+		return canChangeNickname(now, intervalDays) ? null
+			: this.nicknameChangedAt.plusDays(intervalDays).toLocalDate();
 	}
 
 	public boolean canDrawNickname(LocalDate today) {
@@ -194,11 +249,17 @@ public class Member {
 
 	public void acceptPendingNickname() {
 		this.nickname = this.pendingNickname;
+		this.nicknameNormalized = NicknameNormalizer.normalize(this.pendingNickname);
 		this.pendingNickname = null;
 	}
 
 	public void discardPendingNickname() {
 		this.pendingNickname = null;
+	}
+
+	/** 공개 ↔ 비공개. 공개 전환 때 대기 중인 요청을 전부 수락하는 건 follow 쪽이 이벤트로 한다. */
+	public void changePrivacy(boolean isPrivate) {
+		this.isPrivate = isPrivate;
 	}
 
 	public void markAsGuest() {
@@ -217,6 +278,11 @@ public class Member {
 
 	public boolean isGuest() {
 		return "GUEST".equals(this.memberType);
+	}
+
+	/** 일반 회원인가 — 게스트도 블로그 봇(BLOG_BOT)도 아니다. 팔로우 · 프로필 같은 사람 사이 기능은 이 회원끼리만이다. */
+	public boolean isUser() {
+		return "USER".equals(this.memberType);
 	}
 
 }

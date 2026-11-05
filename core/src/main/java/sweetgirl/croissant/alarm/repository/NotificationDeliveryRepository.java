@@ -63,4 +63,9 @@ public interface NotificationDeliveryRepository extends JpaRepository<Notificati
 			""")
 	List<Object[]> countByNotificationIdsAndChannel(@Param("notificationIds") Collection<Long> notificationIds,
 			@Param("channel") NotificationChannel channel);
+
+	/** 알림 행을 거둘 때(지운 댓글) 발송 대장부터 지운다. */
+	@Modifying
+	@Query("DELETE FROM NotificationDelivery d WHERE d.notification.id IN :notificationIds")
+	int deleteAllByNotificationIdIn(@Param("notificationIds") Collection<Long> notificationIds);
 }

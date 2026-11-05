@@ -1,0 +1,293 @@
+package sweetgirl.croissant.alarm.service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import lombok.RequiredArgsConstructor;
+import sweetgirl.croissant.alarm.entity.Notification;
+import sweetgirl.croissant.alarm.enums.NotificationTargetType;
+import sweetgirl.croissant.alarm.enums.NotificationType;
+import sweetgirl.croissant.alarm.event.PushRequestedEvent;
+import sweetgirl.croissant.alarm.repository.NotificationDeliveryRepository;
+import sweetgirl.croissant.alarm.repository.NotificationRecipientRepository;
+import sweetgirl.croissant.alarm.repository.NotificationRepository;
+import sweetgirl.croissant.breadlog.entity.BreadRecord;
+import sweetgirl.croissant.comment.entity.BreadRecordComment;
+import sweetgirl.croissant.course.entity.Course;
+import sweetgirl.croissant.follow.repository.MemberFollowRepository;
+import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.repository.MemberRepository;
+
+/**
+ * 팔로우 · 커뮤니티 활동 알림. 문장은 "회원님"(피그마 05).
+ *
+ * <p>같은 사람이 같은 대상에 같은 알림을 두 번 만들지 않는다 — 팔로우/언팔 · 좋아요/취소 · 공개/비공개를 반복해도 알림은 한 번.
+ * DB 의 부분 유니크(uk_notification_actor_target)가 마지막 방어선이고, 여기서는 먼저 찾아보고 있으면 아무것도 안 한다.
+ * 차단 관계는 부르는 쪽(팔로우 · 좋아요 · 댓글)이 이미 막아 여기까지 오지 않는다.
+ */
+@Service
+@RequiredArgsConstructor
+@Transactional
+public class CommunityNotificationService {
+
+	static final String FOLLOW_TITLE = "%s님이 회원님을 팔로우해요";
+	static final String MUTUAL_TITLE = "%s님과 서로 팔로우해요";
+	static final String PAT_TITLE = "%s님이 회원님에게 톡을 쳤어요";
+	static final String LIKE_TITLE = "%s님이 회원님의 빵로그를 좋아해요";
+	static final String COMMENT_TITLE = "%s님이 댓글을 남겼어요";
+	static final String MENTION_TITLE = "%s님이 회원님을 언급했어요";
+	static final String FOLLOWING_RECORD_TITLE = "%s님이 새 빵로그를 올렸어요";
+	static final String COMPANION_TITLE = "%s님이 회원님과 같이 간 빵로그를 올렸어요";
+	static final String COURSE_INVITE_TITLE = "%s님이 빵투어에 초대했어요";
+	static final String FOLLOW_REQUEST_TITLE = "%s님이 팔로우를 요청했어요";
+	static final String FOLLOW_ACCEPTED_TITLE = "%s님이 팔로우 요청을 수락했어요";
+	static final String REPLY_TITLE = "%s님이 회원님의 댓글에 답글을 남겼어요";
+	/** 받은 팔로우 요청 목록 화면 */
+	static final String FOLLOW_REQUESTS_LINK = "/follow-requests";
+	static final int COMMENT_PREVIEW_LENGTH = 40;
+	/** 톡 친 사람 목록 화면 */
+	static final String PATS_LINK = "/pats";
+
+	private final NotificationRepository notificationRepository;
+	private final NotificationRecipientRepository notificationRecipientRepository;
+	private final NotificationDeliveryRepository notificationDeliveryRepository;
+	private final NotificationRecorder notificationRecorder;
+	private final ApplicationEventPublisher eventPublisher;
+	private final MemberRepository memberRepository;
+	private final MemberFollowRepository memberFollowRepository;
+
+	/** 대상은 받는 사람 — (actor, FOLLOW, MEMBER, target) 이 "이 사람을 이미 알렸나"의 키다. 링크는 팔로우한 사람 프로필. */
+	public void notifyFollow(Member actor, Member target) {
+		once(NotificationType.FOLLOW, actor, NotificationTargetType.MEMBER, target.getId(), target.getNickname(),
+			FOLLOW_TITLE.formatted(actor.getNickname()), null, profileLink(actor.getId()), List.of(target));
+	}
+
+	/** 초대 코드 · 일행 합류로 서로 팔로우됐을 때 — 둘 다 받는다. */
+	public void notifyMutualFollow(Member first, Member second) {
+		once(NotificationType.INVITE_MUTUAL, first, NotificationTargetType.MEMBER, second.getId(), second.getNickname(),
+			MUTUAL_TITLE.formatted(first.getNickname()), null, profileLink(first.getId()), List.of(second));
+		once(NotificationType.INVITE_MUTUAL, second, NotificationTargetType.MEMBER, first.getId(),
+			first.getNickname(), MUTUAL_TITLE.formatted(second.getNickname()), null, profileLink(second.getId()),
+			List.of(first));
+	}
+
+	/**
+	 * 비공개 계정에 팔로우를 눌렀다 — 받는 사람에게. 링크는 받은 요청 목록(거기서 수락 · 거절). 요청 · 취소를 반복해도 한 번.
+	 */
+	public void notifyFollowRequest(Member requester, Member target) {
+		once(NotificationType.FOLLOW_REQUEST, requester, NotificationTargetType.MEMBER, target.getId(),
+			target.getNickname(), FOLLOW_REQUEST_TITLE.formatted(requester.getNickname()), null, FOLLOW_REQUESTS_LINK,
+			List.of(target));
+	}
+
+	/** 요청을 수락했다 — 요청한 사람에게. 링크는 수락한 사람 프로필. */
+	public void notifyFollowAccepted(Member acceptor, Member requester) {
+		once(NotificationType.FOLLOW_ACCEPTED, acceptor, NotificationTargetType.MEMBER, requester.getId(),
+			requester.getNickname(), FOLLOW_ACCEPTED_TITLE.formatted(acceptor.getNickname()), null,
+			profileLink(acceptor.getId()), List.of(requester));
+	}
+
+	/** 요청을 취소 · 거절하면 받은 사람 알림함에서 "요청했어요"를 거둔다 — 눌러도 없는 요청이 안 보이게. */
+	public void retractFollowRequestNotification(Long requesterId, Long targetId) {
+		notificationRepository.findByActorIdAndTypeAndTargetTypeAndTargetId(requesterId,
+			NotificationType.FOLLOW_REQUEST, NotificationTargetType.MEMBER, targetId)
+			.ifPresent(notification -> {
+				List<Long> ids = List.of(notification.getId());
+				notificationDeliveryRepository.deleteAllByNotificationIdIn(ids);
+				notificationRecipientRepository.deleteAllByNotificationIdIn(ids);
+				notificationRepository.deleteAllByIdInBatch(ids);
+			});
+	}
+
+	/**
+	 * 톡은 날마다 새로 알린다 — 하루 1번은 member_pat 이 막고, 유니크 인덱스(uk_notification_actor_target)도 PAT 는 뺐다.
+	 * 대상은 받는 사람(MEMBER)이라 알림함에서 같은 날 톡들이 "OO님 외 N명"으로 묶인다.
+	 */
+	public void notifyPat(Member actor, Member target) {
+		LocalDateTime now = LocalDateTime.now();
+		Notification saved = notificationRecorder.recordForMembers(
+			Notification.communityActivity(NotificationType.PAT, actor, NotificationTargetType.MEMBER, target.getId(),
+				target.getNickname(), PAT_TITLE.formatted(actor.getNickname()), null, PATS_LINK),
+			List.of(target), now);
+		eventPublisher.publishEvent(PushRequestedEvent.to(saved.getId(), target.getId()));
+	}
+
+	public void notifyRecordLike(Member actor, BreadRecord record) {
+		if (record.getMember().getId().equals(actor.getId())) {
+			return;
+		}
+		once(NotificationType.RECORD_LIKE, actor, NotificationTargetType.RECORD, record.getId(), record.getStoreName(),
+			LIKE_TITLE.formatted(actor.getNickname()), null, recordLink(record.getId()), List.of(record.getMember()));
+	}
+
+	/** 댓글 하나에 알림 하나(묶지 않음). 내 빵로그에 내가 쓴 댓글은 알리지 않는다. */
+	public void notifyRecordComment(BreadRecordComment comment) {
+		Member author = comment.getRecord().getMember();
+		if (author.getId().equals(comment.getMember().getId())) {
+			return;
+		}
+		once(NotificationType.RECORD_COMMENT, comment.getMember(), NotificationTargetType.COMMENT, comment.getId(),
+			comment.getRecord().getStoreName(), COMMENT_TITLE.formatted(comment.getMember().getNickname()),
+			preview(comment.getContent()), commentLink(comment), List.of(author));
+	}
+
+	/**
+	 * 답글 하나에 알림 하나 — 부모 댓글 작성자에게. 내 댓글에 내가 단 답글은 알리지 않고, 부모 작성자가 빵로그 작성자면
+	 * 그 사람은 댓글 알림(RECORD_COMMENT)을 이미 받으므로 여기서는 뺀다.
+	 */
+	public void notifyCommentReply(BreadRecordComment reply, Member parentAuthor) {
+		Member recordAuthor = reply.getRecord().getMember();
+		if (parentAuthor.getId().equals(reply.getMember().getId())
+			|| parentAuthor.getId().equals(recordAuthor.getId()) || parentAuthor.isDeleted()) {
+			return;
+		}
+		once(NotificationType.COMMENT_REPLY, reply.getMember(), NotificationTargetType.COMMENT, reply.getId(),
+			reply.getRecord().getStoreName(), REPLY_TITLE.formatted(reply.getMember().getNickname()),
+			preview(reply.getContent()), commentLink(reply), List.of(parentAuthor));
+	}
+
+	/** 댓글 하나에 언급된 사람 전부에게 한 번에 — 댓글당 알림 한 행이라 사람마다 따로 부르면 둘째부터 묻힌다. */
+	public void notifyMention(BreadRecordComment comment, List<Member> mentioned) {
+		List<Member> recipients = mentioned.stream()
+			.filter(member -> !member.getId().equals(comment.getMember().getId()))
+			.toList();
+		once(NotificationType.COMMENT_MENTION, comment.getMember(), NotificationTargetType.COMMENT, comment.getId(),
+			comment.getRecord().getStoreName(), MENTION_TITLE.formatted(comment.getMember().getNickname()),
+			preview(comment.getContent()), commentLink(comment), recipients);
+	}
+
+	/** 공개로 올린 빵로그를 팔로워 전원에게 — 기록당 한 번(공개/비공개 토글 반복 무시). */
+	public void notifyFollowingNewRecord(BreadRecord record) {
+		Member author = record.getMember();
+		List<Long> followerIds = memberFollowRepository.findFollowerIds(author.getId());
+		if (followerIds.isEmpty()) {
+			return;
+		}
+		List<Member> followers = memberRepository.findAllById(followerIds).stream()
+			.filter(member -> !member.isDeleted())
+			.toList();
+		once(NotificationType.FOLLOWING_NEW_RECORD, author, NotificationTargetType.RECORD, record.getId(),
+			record.getStoreName(), FOLLOWING_RECORD_TITLE.formatted(author.getNickname()), record.getStoreName(),
+			recordLink(record.getId()), followers);
+	}
+
+	/**
+	 * 같이 간 사람으로 태그됐다 — 알림을 누르면 [기록 가져오기]로 이어진다. 기록당 알림은 한 행이고, 나중에 사람을 더 태그하면
+	 * 그 행에 받는 사람만 늘린다(태그를 뺐다가 다시 넣는 건 안 되니 같은 사람에게 두 번 가지 않는다).
+	 */
+	public void notifyCompanionTag(BreadRecord record, List<Member> tagged) {
+		if (tagged.isEmpty()) {
+			return;
+		}
+		Member author = record.getMember();
+		LocalDateTime now = LocalDateTime.now();
+		Notification notification = notificationRepository
+			.findByActorIdAndTypeAndTargetTypeAndTargetId(author.getId(), NotificationType.COMPANION_TAG,
+				NotificationTargetType.RECORD, record.getId())
+			.orElse(null);
+		if (notification == null) {
+			notification = notificationRecorder.recordForMembers(
+				Notification.communityActivity(NotificationType.COMPANION_TAG, author, NotificationTargetType.RECORD,
+					record.getId(), record.getStoreName(), COMPANION_TITLE.formatted(author.getNickname()),
+					record.getStoreName(), recordLink(record.getId())),
+				tagged, now);
+			for (Member member : tagged) {
+				eventPublisher.publishEvent(PushRequestedEvent.to(notification.getId(), member.getId()));
+			}
+			return;
+		}
+		for (Member member : tagged) {
+			if (notificationRecorder.addRecipient(notification, member, now)) {
+				eventPublisher.publishEvent(PushRequestedEvent.to(notification.getId(), member.getId()));
+			}
+		}
+	}
+
+	/**
+	 * 앱 안 일행 초대 — 받는 사람이 알림에서 [수락]/[거절]한다(대상 COURSE, 수락 · 거절 API 는 courseId 로 부른다).
+	 * 초대한 사람 · 빵투어당 알림 한 행이고, 나중에 더 부르면 그 행에 받는 사람만 늘린다.
+	 */
+	public void notifyCourseMemberInvite(Member inviter, Course course, List<Member> invitees) {
+		if (invitees.isEmpty()) {
+			return;
+		}
+		LocalDateTime now = LocalDateTime.now();
+		Notification notification = notificationRepository
+			.findByActorIdAndTypeAndTargetTypeAndTargetId(inviter.getId(), NotificationType.INVITE,
+				NotificationTargetType.COURSE, course.getId())
+			.orElse(null);
+		if (notification == null) {
+			notification = notificationRecorder.recordForMembers(
+				Notification.communityActivity(NotificationType.INVITE, inviter, NotificationTargetType.COURSE,
+					course.getId(), course.getTitle(), COURSE_INVITE_TITLE.formatted(inviter.getNickname()),
+					course.getTitle(), courseInviteLink(course.getId())),
+				invitees, now);
+			for (Member member : invitees) {
+				eventPublisher.publishEvent(PushRequestedEvent.to(notification.getId(), member.getId()));
+			}
+			return;
+		}
+		for (Member member : invitees) {
+			if (notificationRecorder.addRecipient(notification, member, now)) {
+				eventPublisher.publishEvent(PushRequestedEvent.to(notification.getId(), member.getId()));
+			}
+		}
+	}
+
+	/** 댓글을 지우면 그 댓글이 대상인 알림(댓글 · 멘션)을 받는 사람 우편함 · 발송 대장 · 알림 행까지 거둔다. */
+	public void retractCommentNotifications(Long commentId) {
+		List<Long> notificationIds = notificationRepository
+			.findAllByTargetTypeAndTargetId(NotificationTargetType.COMMENT, commentId).stream()
+			.map(Notification::getId)
+			.toList();
+		if (notificationIds.isEmpty()) {
+			return;
+		}
+		notificationDeliveryRepository.deleteAllByNotificationIdIn(notificationIds);
+		notificationRecipientRepository.deleteAllByNotificationIdIn(notificationIds);
+		notificationRepository.deleteAllByIdInBatch(notificationIds);
+	}
+
+	private void once(NotificationType type, Member actor, NotificationTargetType targetType, Long targetId,
+			String targetTitle, String title, String body, String deepLink, List<Member> recipients) {
+		if (recipients.isEmpty() || notificationRepository
+			.findByActorIdAndTypeAndTargetTypeAndTargetId(actor.getId(), type, targetType, targetId).isPresent()) {
+			return;
+		}
+		LocalDateTime now = LocalDateTime.now();
+		Notification saved = notificationRecorder.recordForMembers(
+			Notification.communityActivity(type, actor, targetType, targetId, targetTitle, title, body, deepLink),
+			recipients, now);
+		for (Member recipient : recipients) {
+			eventPublisher.publishEvent(PushRequestedEvent.to(saved.getId(), recipient.getId()));
+		}
+	}
+
+	static String preview(String content) {
+		if (content == null) {
+			return null;
+		}
+		return content.length() <= COMMENT_PREVIEW_LENGTH ? content
+			: content.substring(0, COMMENT_PREVIEW_LENGTH) + "…";
+	}
+
+	private static String profileLink(Long memberId) {
+		return "/profile/" + memberId;
+	}
+
+	private static String recordLink(Long recordId) {
+		return "/bbanglog/post/" + recordId;
+	}
+
+	private static String courseInviteLink(Long courseId) {
+		return "/courses/" + courseId + "/member-invite";
+	}
+
+	private static String commentLink(BreadRecordComment comment) {
+		return recordLink(comment.getRecord().getId()) + "?comments=1&commentId=" + comment.getId();
+	}
+}

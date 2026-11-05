@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.course.code.CourseErrorCode;
+import sweetgirl.croissant.course.draft.CourseDraftProperties;
 import sweetgirl.croissant.course.dto.projection.CourseStoreSummaryProjection;
 import sweetgirl.croissant.course.dto.response.CourseDetailLookup;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
@@ -43,6 +44,8 @@ import sweetgirl.croissant.course.repository.CourseStoreMemoRepository;
 import sweetgirl.croissant.course.repository.CourseStoreRepository;
 import sweetgirl.croissant.course.repository.CourseStoreVisitRepository;
 import sweetgirl.croissant.course.repository.SavedCourseRepository;
+import sweetgirl.croissant.profile.dto.response.CharacterFace;
+import sweetgirl.croissant.profile.service.CharacterFaceReader;
 import sweetgirl.croissant.reward.service.CrumbGrantService;
 import sweetgirl.croissant.reward.service.TourRewardService;
 import sweetgirl.croissant.store.RegionFormatter;
@@ -66,6 +69,8 @@ public class CourseQueryService {
 	private final CourseMemberRepository courseMemberRepository;
 	private final CourseAccessPolicy courseAccessPolicy;
 	private final TourRewardService tourRewardService;
+	private final CharacterFaceReader characterFaceReader;
+	private final CourseDraftProperties courseDraftProperties;
 
 	public List<CourseSummaryResponse> getCurationCourses() {
 		return buildSummaryResponses(courseRepository.findAllPublicOrderedByPinAndSavedCount(), Set.of());
@@ -205,7 +210,8 @@ public class CourseQueryService {
 			toMemberResponses(course, members, memberId),
 			isMember,
 			myDisplayNameOf(members, memberId),
-			shareTokenForViewer);
+			shareTokenForViewer,
+			courseDraftProperties.isDraftEnabled());
 	}
 
 	/**
@@ -250,19 +256,23 @@ public class CourseQueryService {
 	}
 
 	private List<CourseMemberResponse> toMemberResponses(Course course, List<CourseMember> members, Long viewerId) {
+		Map<Long, CharacterFace> faces = characterFaceReader.facesOf(
+			members.stream().map(row -> row.getId().getMemberId()).toList());
 		return members.stream()
 			.map(row -> new CourseMemberResponse(
 				row.getId().getMemberId(),
-				row.getDisplayName(),
+				row.getMember().getNickname(),
 				courseAccessPolicy.isOwner(course, row.getId().getMemberId()),
-				row.getId().getMemberId().equals(viewerId)))
+				row.getId().getMemberId().equals(viewerId),
+				faces.getOrDefault(row.getId().getMemberId(), CharacterFace.NONE).characterCode(),
+				faces.getOrDefault(row.getId().getMemberId(), CharacterFace.NONE).characterImageKey()))
 			.toList();
 	}
 
 	private String myDisplayNameOf(List<CourseMember> members, Long viewerId) {
 		return members.stream()
 			.filter(row -> row.getId().getMemberId().equals(viewerId))
-			.map(CourseMember::getDisplayName)
+			.map(row -> row.getMember().getNickname())
 			.findFirst()
 			.orElse(null);
 	}
@@ -288,12 +298,14 @@ public class CourseQueryService {
 		Map<Long, String> displayNameByMemberId = new HashMap<>();
 		for (int i = 0; i < members.size(); i++) {
 			joinOrderByMemberId.put(members.get(i).getId().getMemberId(), i);
-			displayNameByMemberId.put(members.get(i).getId().getMemberId(), members.get(i).getDisplayName());
+			displayNameByMemberId.put(members.get(i).getId().getMemberId(), members.get(i).getMember().getNickname());
 		}
 		Comparator<CourseStoreMemo> byJoinOrder = Comparator
 			.comparing((CourseStoreMemo memo) -> joinOrderByMemberId.getOrDefault(memo.getId().getMemberId(),
 				Integer.MAX_VALUE))
 			.thenComparing(memo -> memo.getId().getMemberId());
+		Map<Long, CharacterFace> faces = characterFaceReader.facesOf(
+			memos.stream().map(memo -> memo.getId().getMemberId()).distinct().toList());
 		return memos.stream()
 			.sorted(byJoinOrder)
 			.collect(Collectors.groupingBy(
@@ -303,7 +315,11 @@ public class CourseQueryService {
 					displayNameByMemberId.getOrDefault(memo.getId().getMemberId(), memo.getMember().getNickname()),
 					memo.getContent(),
 					memo.getUpdatedAt(),
-					Objects.equals(memo.getId().getMemberId(), viewerId)), Collectors.toList())));
+					Objects.equals(memo.getId().getMemberId(), viewerId),
+					faces.getOrDefault(memo.getId().getMemberId(), CharacterFace.NONE).characterCode(),
+					faces.getOrDefault(memo.getId().getMemberId(), CharacterFace.NONE).characterImageKey(),
+					memo.getSeq()),
+					Collectors.toList())));
 	}
 
 	/**

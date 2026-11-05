@@ -40,6 +40,7 @@ import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.repository.CourseRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
+import sweetgirl.croissant.profile.service.CharacterFaceReader;
 
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceTest {
@@ -61,6 +62,9 @@ class NotificationServiceTest {
 	private CourseRepository courseRepository;
 	@Mock
 	private MemberRepository memberRepository;
+
+	@Mock
+	private CharacterFaceReader characterFaceReader;
 
 	@InjectMocks
 	private NotificationService notificationService;

@@ -2,8 +2,8 @@ package sweetgirl.croissant.appversion.service;
 
 import java.util.regex.Pattern;
 
-/** "1.2.3" 세 자리 버전 — 어드민 입력 검증과 min ≤ latest 비교에만 쓴다. */
-final class AppVersion {
+/** "1.2.3" 세 자리 버전 — 어드민 입력 검증, min ≤ latest 비교, 강제 업데이트 기준 비교(커뮤니티 규칙 동의 문)에 쓴다. */
+public final class AppVersion {
 
 	private static final Pattern FORMAT = Pattern.compile("^\\d+\\.\\d+\\.\\d+$");
 
@@ -11,12 +11,12 @@ final class AppVersion {
 
 	}
 
-	static boolean isValid(String version) {
+	public static boolean isValid(String version) {
 		return version != null && FORMAT.matcher(version).matches();
 	}
 
 	/** 둘 다 유효한 형식이라고 가정한다 */
-	static int compare(String left, String right) {
+	public static int compare(String left, String right) {
 		String[] leftParts = left.split("\\.");
 		String[] rightParts = right.split("\\.");
 		for (int i = 0; i < 3; i++) {

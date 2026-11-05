@@ -2,6 +2,7 @@ package sweetgirl.croissant.alarm.service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,6 +61,23 @@ public class NotificationRecorder {
 				NotificationDelivery.sent(saved, member, NotificationChannel.IN_APP, now));
 		}
 		return saved;
+	}
+
+	/**
+	 * 이미 있는 알림에 받는 사람을 더한다 — 같이 간 사람을 나중에 더 태그했을 때처럼, 알림 한 행에 사람이 늘어나는 경우.
+	 * 이미 받은 사람이면 그 줄을 안 읽음으로 되살려 맨 위로 올린다(거절했던 일행 초대를 다시 받았을 때) — 푸시도 다시 간다.
+	 */
+	@Transactional
+	public boolean addRecipient(Notification notification, Member member, LocalDateTime now) {
+		Optional<NotificationRecipient> existing = recipientRepository.findByNotificationIdAndMemberId(
+			notification.getId(), member.getId());
+		if (existing.isPresent()) {
+			existing.get().renew(now);
+			return true;
+		}
+		recipientRepository.save(NotificationRecipient.of(notification, member, now));
+		deliveryRepository.save(NotificationDelivery.sent(notification, member, NotificationChannel.IN_APP, now));
+		return true;
 	}
 
 	/**

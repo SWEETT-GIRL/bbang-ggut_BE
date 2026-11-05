@@ -319,6 +319,8 @@ jobs:
           PERF_DASHBOARD_ENABLED: ${{ secrets.PERF_DASHBOARD_ENABLED }}
           PERF_DASHBOARD_ACCESS_KEY: ${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}
           ADMIN_API_KEY: ${{ secrets.PROD_ADMIN_API_KEY }}
+          # 신고 슬랙 메시지의 어드민 링크 바탕 주소 — 저장소 변수로 두고 비면 링크만 빠진다
+          ADMIN_WEB_BASE_URL: ${{ vars.PROD_ADMIN_WEB_BASE_URL }}
         run: |
           umask 077
           {
@@ -355,6 +357,7 @@ jobs:
             echo "PERF_DASHBOARD_ENABLED=${PERF_DASHBOARD_ENABLED:-false}"
             echo "PERF_DASHBOARD_ACCESS_KEY=${PERF_DASHBOARD_ACCESS_KEY}"
             echo "ADMIN_API_KEY=${ADMIN_API_KEY}"
+            echo "ADMIN_WEB_BASE_URL=${ADMIN_WEB_BASE_URL}"
           } > env.prod
 
           ssh was 'mkdir -p ~/app'

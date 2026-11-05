@@ -67,6 +67,10 @@ public class AbuseReport extends BaseTimeEntity {
 	@Column
 	private LocalDateTime reviewedAt;
 
+	/** 24시간 안에 처리 안 돼 슬랙에 다시 알린 때. 한 번만 알린다. */
+	@Column
+	private LocalDateTime remindedAt;
+
 	@Builder
 	public AbuseReport(
 			Member reporter,
@@ -97,5 +101,9 @@ public class AbuseReport extends BaseTimeEntity {
 
 	public void applyModerationAction(AbuseReportAction action) {
 		this.moderationAction = action;
+	}
+
+	public void markReminded(LocalDateTime now) {
+		this.remindedAt = now;
 	}
 }

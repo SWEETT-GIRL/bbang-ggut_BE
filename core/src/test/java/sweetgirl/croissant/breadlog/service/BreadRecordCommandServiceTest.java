@@ -3,12 +3,16 @@ package sweetgirl.croissant.breadlog.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.time.LocalDateTime;
@@ -42,6 +46,7 @@ import sweetgirl.croissant.breadlog.dto.response.BreadRecordUpdateResponse;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.entity.BreadRecordPhoto;
 import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
+import sweetgirl.croissant.breadlog.enums.RecordType;
 import sweetgirl.croissant.breadlog.enums.TasteChip;
 import sweetgirl.croissant.breadlog.enums.TextureChip;
 import sweetgirl.croissant.breadlog.exception.BreadLogException;
@@ -54,7 +59,9 @@ import sweetgirl.croissant.course.service.CourseProgressService;
 import sweetgirl.croissant.external.aws.S3Service;
 import sweetgirl.croissant.external.aws.dto.PresignedUrlResponse;
 import sweetgirl.croissant.external.aws.service.ImageProcessingCallbackService;
+import sweetgirl.croissant.member.code.MemberErrorCode;
 import sweetgirl.croissant.member.entity.Member;
+import sweetgirl.croissant.member.exception.MemberException;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
@@ -180,6 +187,17 @@ class BreadRecordCommandServiceTest {
 
 	@Mock
 	ApplicationEventPublisher eventPublisher;
+	@Mock
+	sweetgirl.croissant.comment.service.CommunityAgreementService communityAgreementService;
+	@Mock
+	sweetgirl.croissant.comment.service.CommunityAgreementGate communityAgreementGate;
+	@Mock
+	sweetgirl.croissant.comment.service.CommentContentPolicy commentContentPolicy;
+
+	@Mock
+	sweetgirl.croissant.alarm.service.CommunityNotificationService communityNotificationService;
+	@Mock
+	BreadRecordCompanionService companionService;
 
 	@InjectMocks
 	BreadRecordCommandService commandService;
@@ -205,6 +223,8 @@ class BreadRecordCommandServiceTest {
 		BreadRecordCreateResponse result = commandService.create(7L, request);
 
 		assertThat(result.recordId()).isEqualTo(11L);
+		// 같이 간 사람은 요청 그대로 넘긴다(여기선 null — 구버전 앱 모양이라 손대지 않는다)
+		then(companionService).should().replace(any(BreadRecord.class), isNull());
 		verify(breadRecordRepository).save(argThat(record -> record.getEatenAt().equals(request.eatenAt())
 			&& record.getStoreName().equals("밀도 성수")
 			&& record.getRegionKey().equals("서울_성동구_성수동")));
@@ -218,6 +238,41 @@ class BreadRecordCommandServiceTest {
 		verify(courseProgressService).refreshForMember(7L);
 		// 가게를 고른 기록은 급부상 신호다
 		verify(eventPublisher).publishEvent(new StoreTrendingSignalEvent(7L, 10L, TrendingSignal.RECORD));
+	}
+
+	@Test
+	@DisplayName("create: 게스트도 비공개 기록 한 건은 남긴다 — 게스트 금지 문은 공개 저장에만 걸린다")
+	void create_guestFirstPrivateRecord() {
+		Member guest = member(7L);
+		ReflectionTestUtils.setField(guest, "memberType", "GUEST");
+		Store store = store(10L);
+		given(memberReader.getMember(7L)).willReturn(guest);
+		given(breadRecordRepository.countByMemberIdAndRecordTypeAndDeletedAtIsNull(7L, RecordType.NORMAL))
+			.willReturn(0L);
+		given(storeRepository.findById(10L)).willReturn(Optional.of(store));
+		given(regionResolver.resolve(store, "client_region")).willReturn("서울_성동구_성수동");
+		given(breadRecordRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+		given(photoRepository.saveAll(any())).willAnswer(invocation -> invocation.getArgument(0));
+
+		commandService.create(7L, requestWithTowerBread("소금빵"));
+
+		verify(memberRestrictionReader).validateCanWriteRecord(7L, false);
+		verify(breadRecordRepository).save(any());
+	}
+
+	@Test
+	@DisplayName("create: 게스트의 두 번째 기록은 MEMBER403_GUEST — 로그인 게이트")
+	void create_guestSecondRecordIsBlocked() {
+		Member guest = member(7L);
+		ReflectionTestUtils.setField(guest, "memberType", "GUEST");
+		given(memberReader.getMember(7L)).willReturn(guest);
+		given(breadRecordRepository.countByMemberIdAndRecordTypeAndDeletedAtIsNull(7L, RecordType.NORMAL))
+			.willReturn(1L);
+
+		assertThatThrownBy(() -> commandService.create(7L, requestWithTowerBread("소금빵")))
+			.isInstanceOf(MemberException.class)
+			.extracting("errorCode").isEqualTo(MemberErrorCode.GUEST_LOGIN_REQUIRED);
+		verify(breadRecordRepository, never()).save(any());
 	}
 
 	@Test
@@ -629,10 +684,31 @@ class BreadRecordCommandServiceTest {
 		given(memberReader.getMember(7L)).willReturn(member);
 		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
 
+		given(communityAgreementGate.requiresAgreementForPublishing()).willReturn(true);
+
 		commandService.changeVisibility(11L, 7L, true);
 
 		assertThat(record.isPublic()).isTrue();
 		verify(memberRestrictionReader).validateCanWrite(7L);
+		// 공개는 댓글과 같은 문을 지난다 — 규칙 동의, 후기 금칙어
+		verify(communityAgreementService).validateAgreed(7L);
+		verify(commentContentPolicy).validateWords(record.getMemo());
+	}
+
+	@Test
+	@DisplayName("changeVisibility: 강제 업데이트 전(옛 앱이 남아 있음)엔 규칙 동의를 묻지 않고 공개한다")
+	void changeVisibility_toPublic_skipsAgreementBeforeForcedUpdate() {
+		Member member = member(7L);
+		BreadRecord record = record(11L, member);
+		given(memberReader.getMember(7L)).willReturn(member);
+		given(breadRecordRepository.findWithLockByIdAndDeletedAtIsNull(11L)).willReturn(Optional.of(record));
+		given(communityAgreementGate.requiresAgreementForPublishing()).willReturn(false);
+
+		commandService.changeVisibility(11L, 7L, true);
+
+		assertThat(record.isPublic()).isTrue();
+		verify(communityAgreementService, never()).validateAgreed(any());
+		verify(commentContentPolicy).validateWords(record.getMemo());
 	}
 
 	@Test
@@ -774,6 +850,38 @@ class BreadRecordCommandServiceTest {
 		BreadRecordCreateResponse response = commandService.create(7L, requestWithTowerBread("소금빵"));
 
 		assertThat(response.rewards()).isEqualTo(rewards);
+	}
+
+	@Test
+	@DisplayName("create: 방금 저장한 내 기록에서 이어 쓰면 연속 기록 보상으로 넘긴다")
+	void create_chainedFromRecentOwnRecord() {
+		givenCreatableRecord();
+		BreadRecord source = record(44L, member(7L));
+		ReflectionTestUtils.setField(source, "createdAt", LocalDateTime.now().minusMinutes(5));
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(44L)).willReturn(Optional.of(source));
+
+		commandService.create(7L, chainedRequest(44L));
+
+		verify(recordRewardService).rewardChainedCreated(any(Member.class), any(), eq(1), anyInt(), anyInt(), eq(44L));
+		verify(recordRewardService, never()).rewardCreated(any(), any(), anyInt(), anyInt(), anyInt());
+	}
+
+	@Test
+	@DisplayName("create: 오래된(30분 넘은) 앞 기록이나 남의 기록이면 평소 보상으로 넘긴다")
+	void create_staleOrForeignChainFallsBack() {
+		givenCreatableRecord();
+		BreadRecord stale = record(44L, member(7L));
+		ReflectionTestUtils.setField(stale, "createdAt", LocalDateTime.now().minusMinutes(31));
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(44L)).willReturn(Optional.of(stale));
+		BreadRecord foreign = record(45L, member(8L));
+		ReflectionTestUtils.setField(foreign, "createdAt", LocalDateTime.now());
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(45L)).willReturn(Optional.of(foreign));
+
+		commandService.create(7L, chainedRequest(44L));
+		commandService.create(7L, chainedRequest(45L));
+
+		verify(recordRewardService, never()).rewardChainedCreated(any(), any(), anyInt(), anyInt(), anyInt(), any());
+		verify(recordRewardService, times(2)).rewardCreated(any(Member.class), any(), eq(1), anyInt(), anyInt());
 	}
 
 	@Test
@@ -944,6 +1052,13 @@ class BreadRecordCommandServiceTest {
 		given(regionResolver.resolve(store, "client_region")).willReturn("서울_성동구_성수동");
 		given(breadRecordRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
 		given(photoRepository.saveAll(any())).willAnswer(invocation -> invocation.getArgument(0));
+	}
+
+	private BreadRecordUpsertRequest chainedRequest(Long chainFrom) {
+		BreadRecordUpsertRequest base = requestWithTowerBread("소금빵");
+		return new BreadRecordUpsertRequest(base.storeId(), base.storeName(), base.regionKey(), base.memo(),
+			base.lovedBread(), base.lovedBreads(), base.towerBread(), base.eatenAt(), base.photos(), base.tags(),
+			base.isPublic(), null, null, chainFrom);
 	}
 
 	private BreadRecordUpsertRequest requestWithTowerBread(String towerBread) {

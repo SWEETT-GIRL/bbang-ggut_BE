@@ -13,7 +13,7 @@ public record MemberCharacterResponse(
 		int adViews,
 		int adsRequired,
 		AcquiredBy acquiredBy,
-		/** 회원이 붙인 이름. 없으면 null — 카탈로그의 기본 이름으로 부른다 */
+		/** 늘 null. 친구 이름 짓기는 2026-10-21 에 없앴고, 설치된 앱이 이 필드를 읽어서 자리만 남겼다 */
 		String nickname,
 		/** 부스러기로 깨울 수 있는가. 광고를 한 편이라도 본 친구와 이미 깨어난 친구는 안 된다 */
 		boolean canWakeWithCrumbs) {
@@ -25,7 +25,7 @@ public record MemberCharacterResponse(
 			memberCharacter.getAdViews(),
 			adsRequired,
 			memberCharacter.getAcquiredBy(),
-			memberCharacter.getNickname(),
+			null,
 			!memberCharacter.isAwake() && memberCharacter.getAdViews() == 0);
 	}
 }

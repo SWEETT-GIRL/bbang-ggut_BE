@@ -141,6 +141,7 @@ AWS 에 이미 만들어 둔 파이프라인을 쓴다(레포 밖 리소스):
 | `dataops-nightly` | **매일 10:10 권장** (집 PC 시절 03:00) | 최대 6시간 — 다른 작업과 겹치지 않는 빈 시간대 |
 | `course-reminder` | 매일 19:00 | |
 | `reward-attendance-reminder` | 매일 20:00 | |
+| `reward-second-record-nudge` | 매일 19:00 | 2·3일 전 첫 기록 뒤 두 번째가 없는 회원에게 "두 번째 빵로그" 넛지(dev 11/3 리텐션 루프). **EventBridge 일정·Lambda READY_JOBS·SSM allowedValues 아직 미등록** |
 | `monthly-report-run-due` | (꺼져 있었음) | 규칙 없이 둔다 |
 
 **t4g.small(2GB)에는 컨테이너가 한 번에 하나만 떠야 한다**(각 1.6GB 제한·JVM 하나). 수집을 03:00 에 두면 04:00~09:00 작업과 겹쳐 메모리가 모자란다 — 그래서 빈 시간대인 10:10~16:10 에 둔다. 겹치게 하려면 t4g.medium 으로 올린다.

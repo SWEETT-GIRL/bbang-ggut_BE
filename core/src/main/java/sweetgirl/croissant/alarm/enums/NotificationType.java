@@ -18,8 +18,31 @@ public enum NotificationType {
 	COURSE_SAVED("COURSE_SAVED"),
 	/** 아직 기능이 없다. 좋아요가 저장과 갈라지면 그때 쓴다 */
 	COURSE_LIKED("COURSE_LIKED"),
-	/** 아직 기능이 없다. 빵투어에 누군가를 부르게 되면 그때 쓴다 */
+	/** OO님이 빵투어에 초대했어요 — 앱 안 일행 초대(2026-10-22). 받는 사람이 [수락]/[거절]한다 */
 	INVITE("INVITE"),
+	// ── 팔로우 · 커뮤니티 활동 알림(2026-10-22): 서버가 문구도 같이 둔다 — 구버전 앱은 모르는 타입을 title · body 로 그린다 ──
+	/** OO님이 회원님을 팔로우해요 */
+	FOLLOW("FOLLOW"),
+	/** OO님이 톡을 쳤어요(P6) */
+	PAT("PAT"),
+	/** OO님이 회원님의 빵로그를 좋아해요 — 하루 상한 5 */
+	RECORD_LIKE("RECORD_LIKE"),
+	/** OO님이 댓글을 남겼어요: … — 상한 밖, 하나씩 */
+	RECORD_COMMENT("RECORD_COMMENT"),
+	/** OO님이 회원님을 언급했어요 — 상한 밖, 하나씩 */
+	COMMENT_MENTION("COMMENT_MENTION"),
+	/** OO님과 OO에 같이 갔어요(P6) */
+	COMPANION_TAG("COMPANION_TAG"),
+	/** 팔로잉이 새 빵로그를 올렸어요 — 하루 상한 5 */
+	FOLLOWING_NEW_RECORD("FOLLOWING_NEW_RECORD"),
+	/** OO님과 서로 팔로우해요(초대 코드 · 일행 합류) */
+	INVITE_MUTUAL("INVITE_MUTUAL"),
+	/** OO님이 팔로우를 요청했어요 — 비공개 계정에 팔로우를 누르면(2026-11-04). 받는 사람이 요청 목록에서 수락 · 거절한다 */
+	FOLLOW_REQUEST("FOLLOW_REQUEST"),
+	/** OO님이 팔로우 요청을 수락했어요 — 요청한 사람에게 */
+	FOLLOW_ACCEPTED("FOLLOW_ACCEPTED"),
+	/** OO님이 회원님의 댓글에 답글을 남겼어요 — 부모 댓글 작성자에게, 하나씩 */
+	COMMENT_REPLY("COMMENT_REPLY"),
 
 	// ── 서버가 문구를 갖는 알림 ──────────────────────────────────────────────
 
@@ -49,7 +72,9 @@ public enum NotificationType {
 	/** 오늘 출석 도장을 아직 안 찍었다(리워드). 어제 출석한 회원에게만 간다. 서비스 알림이다 */
 	REWARD_ATTENDANCE("REWARD_ATTENDANCE"),
 	/** 어제 가입하고 아직 출석 안 한 회원에게 아침에 친구가 배고프다고 룰렛을 부른다(리워드). 서비스 알림이다 */
-	REWARD_ROULETTE("REWARD_ROULETTE");
+	REWARD_ROULETTE("REWARD_ROULETTE"),
+	/** 기록이 한 건뿐인 회원에게 2 · 3 일 뒤 저녁에 "두 번째 빵로그" 를 권한다(리워드). 서비스 알림이다 */
+	RECORD_NUDGE("RECORD_NUDGE");
 
 	private final String pushType;
 
@@ -60,6 +85,21 @@ public enum NotificationType {
 	/** 푸시 data의 {@code type} 키로 나가는 값. */
 	public String pushType() {
 		return this.pushType;
+	}
+
+	/**
+	 * 같은 사람이 같은 사람에게 짧은 시간에 여러 번 만들 수 있는 종류 — 팔로잉 새 빵로그 · 좋아요. 이건 바로 울리지 않고
+	 * 창(10분) 동안 모았다가 "N개" 로 한 번 울린다. 톡은 이미 하루 1번이고 댓글 · 멘션 · 팔로우는 하나씩 다 간다.
+	 */
+	public boolean isBatched() {
+		return this == RECORD_LIKE || this == FOLLOWING_NEW_RECORD;
+	}
+
+	/** 사람 사이 활동 알림인가 — 알림함에서 같은 날 · 같은 대상끼리 묶고, 종류별 스위치를 본다. */
+	public boolean isCommunityActivity() {
+		return this == FOLLOW || this == PAT || this == RECORD_LIKE || this == RECORD_COMMENT
+			|| this == COMMENT_MENTION || this == COMPANION_TAG || this == FOLLOWING_NEW_RECORD
+			|| this == INVITE_MUTUAL || this == FOLLOW_REQUEST || this == FOLLOW_ACCEPTED || this == COMMENT_REPLY;
 	}
 
 	/** 마케팅 수신 동의를 따로 받아야 나가는 알림인가. */

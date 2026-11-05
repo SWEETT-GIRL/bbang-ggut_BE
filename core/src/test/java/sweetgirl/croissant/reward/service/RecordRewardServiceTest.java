@@ -13,6 +13,7 @@ import static org.mockito.Mockito.never;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -24,6 +25,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import sweetgirl.croissant.breadlog.enums.RecordType;
+import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.reward.dto.response.RewardItemResponse;
 import sweetgirl.croissant.reward.enums.CrumbReason;
@@ -53,6 +56,9 @@ class RecordRewardServiceTest {
 	private WorldLevelReader worldLevelReader;
 	@Mock
 	private InviteService inviteService;
+
+	@Mock
+	private BreadRecordRepository breadRecordRepository;
 
 	@InjectMocks
 	private RecordRewardService recordRewardService;
@@ -118,6 +124,35 @@ class RecordRewardServiceTest {
 
 			then(rewardPendingService).should()
 				.add(MEMBER_ID, "level_up:4", RewardItemResponse.levelUp(3, 4, "mars", "village"));
+		}
+
+		@Test
+		@DisplayName("연속 기록 — 기록 보상을 받았으면 같은 만큼(+10)을 앞 기록 기준으로 한 번 더 준다")
+		void chainedRecordGetsDouble() {
+			givenRecordGrant(new GrantResult(Outcome.GRANTED, 10, 20, 30));
+			given(
+				crumbGrantService.grant(7L, CrumbReason.RECORD_CHAIN, 10, "record_chain:44", RewardRefType.RECORD, 55L))
+				.willReturn(new GrantResult(Outcome.GRANTED, 10, 30, 40));
+			givenLevels(2, new WorldLevel(2, 1, 5, "earth", "sky"), 3, new WorldLevel(2, 1, 5, "earth", "sky"));
+
+			List<RewardItemResponse> rewards = recordRewardService.rewardChainedCreated(member, RECORD_ID, 0, 2, 3,
+				44L);
+
+			assertThat(rewards).extracting(RewardItemResponse::reason)
+				.containsExactly(null, CrumbReason.RECORD, CrumbReason.RECORD_CHAIN);
+			assertThat(rewards.get(2).amount()).isEqualTo(10);
+		}
+
+		@Test
+		@DisplayName("연속 기록이어도 하루 상한에 걸린 기록은 2배 보너스가 없다")
+		void chainedButCappedGetsNoBonus() {
+			givenRecordGrant(new GrantResult(Outcome.CAPPED, 0, 30, 30));
+			givenLevels(3, new WorldLevel(2, 1, 5, "earth", "sky"), 4, new WorldLevel(2, 1, 5, "earth", "sky"));
+
+			recordRewardService.rewardChainedCreated(member, RECORD_ID, 0, 3, 4, 44L);
+
+			then(crumbGrantService).should(never()).grant(anyLong(), eq(CrumbReason.RECORD_CHAIN), anyInt(),
+				anyString(), any(), any());
 		}
 
 		@Test
@@ -198,6 +233,60 @@ class RecordRewardServiceTest {
 
 			assertThat(recordRewardService.rewardCreated(member, RECORD_ID, 1, 0, 1)).isEmpty();
 			then(crumbGrantService).shouldHaveNoInteractions();
+		}
+	}
+
+	@Nested
+	@DisplayName("첫 주 두 번째 기록 보너스")
+	class SecondRecordBonus {
+
+		@BeforeEach
+		void setUpBonus() {
+			givenRecordGrant(new GrantResult(Outcome.GRANTED, 10, 0, 10));
+			lenient().when(rewardSettings.get(RewardSettingKey.RECORD_SECOND_WEEK)).thenReturn(20);
+		}
+
+		@Test
+		@DisplayName("체험 아닌 기록이 2 건이 되고 첫 기록이 7 일 안이면 +20 을 한 번 싣는다")
+		void grantsOnSecondRecordWithinWeek() {
+			given(breadRecordRepository.countByMemberIdAndRecordTypeAndDeletedAtIsNull(MEMBER_ID, RecordType.NORMAL))
+				.willReturn(2L);
+			given(breadRecordRepository.findFirstNonTutorialCreatedAt(MEMBER_ID))
+				.willReturn(Optional.of(LocalDateTime.now().minusDays(3)));
+			given(crumbGrantService.grant(MEMBER_ID, CrumbReason.RECORD_SECOND_WEEK, 20, "record_second:7",
+				RewardRefType.RECORD, RECORD_ID)).willReturn(new GrantResult(Outcome.GRANTED, 20, 10, 30));
+
+			List<RewardItemResponse> rewards = recordRewardService.rewardCreated(member, RECORD_ID, 0, 1, 1);
+
+			assertThat(rewards).extracting(RewardItemResponse::reason)
+				.containsExactly(CrumbReason.RECORD, CrumbReason.RECORD_SECOND_WEEK);
+			assertThat(rewards.get(1).amount()).isEqualTo(20);
+		}
+
+		@Test
+		@DisplayName("첫 기록이 7 일을 넘겼으면 주지 않는다")
+		void skipsWhenFirstRecordIsOld() {
+			given(breadRecordRepository.countByMemberIdAndRecordTypeAndDeletedAtIsNull(MEMBER_ID, RecordType.NORMAL))
+				.willReturn(2L);
+			given(breadRecordRepository.findFirstNonTutorialCreatedAt(MEMBER_ID))
+				.willReturn(Optional.of(LocalDateTime.now().minusDays(8)));
+
+			List<RewardItemResponse> rewards = recordRewardService.rewardCreated(member, RECORD_ID, 0, 1, 1);
+
+			assertThat(rewards).extracting(RewardItemResponse::reason).containsExactly(CrumbReason.RECORD);
+			then(crumbGrantService).should(never())
+				.grant(eq(MEMBER_ID), eq(CrumbReason.RECORD_SECOND_WEEK), anyInt(), anyString(), any(), any());
+		}
+
+		@Test
+		@DisplayName("세 번째 기록부터는 보지 않는다")
+		void skipsFromThirdRecord() {
+			given(breadRecordRepository.countByMemberIdAndRecordTypeAndDeletedAtIsNull(MEMBER_ID, RecordType.NORMAL))
+				.willReturn(3L);
+
+			recordRewardService.rewardCreated(member, RECORD_ID, 0, 1, 1);
+
+			then(breadRecordRepository).should(never()).findFirstNonTutorialCreatedAt(any());
 		}
 	}
 

@@ -15,7 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.alarm.code.AlarmErrorCode;
+import sweetgirl.croissant.alarm.dto.request.CommunityNotificationSettingUpdateRequest;
 import sweetgirl.croissant.alarm.dto.request.GeofenceEnterRequest;
+import sweetgirl.croissant.alarm.dto.response.CommunityNotificationSettingResponse;
 import sweetgirl.croissant.alarm.dto.response.MarketingEnabledResponse;
 import sweetgirl.croissant.alarm.dto.response.NotificationEnabledResponse;
 import sweetgirl.croissant.alarm.entity.FcmToken;
@@ -53,6 +55,15 @@ public class AlarmCommandService {
 		NotificationSetting setting = notificationSettingProvider.getOrCreate(memberId); // 알림 설정 조회, 없으면 예외
 		setting.toggleNotificationEnabled(); // true → false 또는 false → true 로 반전
 		return NotificationEnabledResponse.from(setting); // 변경된 빵알람 여부를 DTO 로 반환
+	}
+
+	/** 팔로우 · 톡 · 좋아요 · 댓글 · 팔로잉 소식 스위치 — 바뀌는 키만 받는다. */
+	public CommunityNotificationSettingResponse updateCommunitySettings(Long memberId,
+			CommunityNotificationSettingUpdateRequest request) {
+		NotificationSetting setting = notificationSettingProvider.getOrCreate(memberId);
+		setting.updateCommunitySwitches(request.follow(), request.pat(), request.like(), request.comment(),
+			request.followingRecord());
+		return CommunityNotificationSettingResponse.from(setting);
 	}
 
 	// 마케팅 알람 수신 여부 토글 — 현재 값을 반전시키고 변경된 상태 반환
