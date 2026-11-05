@@ -122,4 +122,4 @@ jobs:
       kind: CI
       results: ${{ toJSON(needs) }}
     secrets:
-      webhook-url: ${{ secrets.SLACK_CI_WEBHOOK_URL || secrets.SLACK_DEPLOY_WEBHOOK_URL_PROD }}
+      webhook-url: ${{ secrets.SLACK_CI_WEBHOOK_URL }}

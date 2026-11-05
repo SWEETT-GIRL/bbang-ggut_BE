@@ -158,4 +158,4 @@ jobs:
       results: ${{ toJSON(needs) }}
       deployment-state: ${{ needs.deploy.outputs.deployment_state }}
     secrets:
-      webhook-url: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL_PROD }}
+      webhook-url: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL_V2 }}
