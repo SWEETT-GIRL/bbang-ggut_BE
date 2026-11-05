@@ -7,13 +7,10 @@ import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.course.draft.CourseDraftConfig;
 import sweetgirl.croissant.course.draft.MemoDraftRedis;
@@ -29,8 +26,6 @@ import sweetgirl.croissant.course.draft.MemoDraftRedis;
 @ConditionalOnExpression(CourseDraftConfig.REDIS_CONFIGURED)
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-	static final long HEARTBEAT_MS = 25_000L;
-
 	private final StompAuthInterceptor stompAuthInterceptor;
 
 	@Override
@@ -39,31 +34,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 		registry.addEndpoint("/ws").setAllowedOriginPatterns("*");
 	}
 
-	/**
-	 * STOMP 하트비트용 스케줄러. simple broker 는 스케줄러가 없으면 CONNECTED 에 {@code heart-beat:0,0} 으로 답해 앱의 하트비트가 꺼지고,
-	 * nginx 유휴 300초에 끊겨 5분마다 재연결하게 된다. {@code TaskScheduler} 빈으로 두지 않는다 — Boot 가 모든 {@code @Scheduled} 의
-	 * 스케줄러로 삼는다(플러셔와 같은 이유).
-	 */
-	private final ThreadPoolTaskScheduler heartbeatScheduler = new ThreadPoolTaskScheduler();
-
-	@PostConstruct
-	void startHeartbeatScheduler() {
-		heartbeatScheduler.setPoolSize(1);
-		heartbeatScheduler.setThreadNamePrefix("stomp-heartbeat-");
-		heartbeatScheduler.initialize();
-	}
-
-	@PreDestroy
-	void stopHeartbeatScheduler() {
-		heartbeatScheduler.shutdown();
-	}
-
 	@Override
 	public void configureMessageBroker(MessageBrokerRegistry registry) {
-		// 서버 → 앱 25초마다, 앱 → 서버 25초마다 기대. 앱(stompjs)은 협상 결과로 자기 하트비트를 켠다
-		registry.enableSimpleBroker("/queue")
-			.setHeartbeatValue(new long[] {HEARTBEAT_MS, HEARTBEAT_MS})
-			.setTaskScheduler(heartbeatScheduler);
+		registry.enableSimpleBroker("/queue");
 		registry.setUserDestinationPrefix("/user");
 	}
 
