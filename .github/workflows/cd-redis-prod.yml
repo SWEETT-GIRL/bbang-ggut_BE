@@ -112,8 +112,8 @@ jobs:
           # shellcheck disable=SC2029
           ssh redis-prod "mkdir -p ~/$remote_dir && chmod 700 ~/redis ~/$remote_dir"
           # shellcheck disable=SC2029
-          tar -C infra/redis -czf - compose.yaml redis.conf deploy.sh users.acl |
-            ssh redis-prod "tar -xzf - -C ~/$remote_dir && chmod 644 ~/$remote_dir/redis.conf ~/$remote_dir/users.acl"
+          tar -C infra/redis -czf - compose.yaml redis.conf redis-draft.conf deploy.sh users.acl |
+            ssh redis-prod "tar -xzf - -C ~/$remote_dir && chmod 644 ~/$remote_dir/redis.conf ~/$remote_dir/redis-draft.conf ~/$remote_dir/users.acl"
           # shellcheck disable=SC2029
           ssh redis-prod "bash ~/$remote_dir/deploy.sh"
 

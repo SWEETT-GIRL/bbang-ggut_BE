@@ -26,7 +26,36 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # 메모 초안 전용. 저장 전 글의 원본이라 캐시와 메모리 규칙을 나눈다.
+  redis-draft:
+    image: redis:7.4.11-bookworm
+    platform: linux/arm64
+    restart: unless-stopped
+    command: [redis-server, /usr/local/etc/redis/redis.conf]
+    ports:
+      - "6380:6380"
+    volumes:
+      - ./redis-draft.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./users.acl:/usr/local/etc/redis/users.acl:ro
+      - redis-draft-data:/data
+    mem_limit: 384m
+    stop_grace_period: 60s
+    healthcheck:
+      test: [CMD-SHELL, "redis-cli -p 6380 --user health --pass '' --no-auth-warning ping | grep -qx PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
   redis-data:
     external: true
     name: sweetgirl-prod-redis-data
+  redis-draft-data:
+    external: true
+    name: sweetgirl-prod-redis-draft-data
