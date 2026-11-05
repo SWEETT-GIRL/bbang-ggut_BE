@@ -19,6 +19,7 @@ services:
         -Dnet_collector_ip=${SCOUTER_COLLECTOR_IP:-172.31.24.193}
         -Dnet_collector_udp_port=6100
         -Dnet_collector_tcp_port=6100
+        ${OTEL_JAVA_AGENT_OPTION:-}
     volumes:
       - scouter-agent-data:/scouter:ro
 

@@ -1,0 +1,39 @@
+# trace 수집 스택 — 모니터링 서버에 올린다. 앱 → Collector(개인정보 제거) → Tempo → 기존 Grafana.
+# 설명은 README.md. 로컬 확인은 compose.local.yaml 을 함께 쓴다.
+name: sweetgirl-otel
+
+services:
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.164.0
+    restart: unless-stopped
+    command: [--config=/etc/otelcol/collector.yaml]
+    volumes:
+      - ./collector.yaml:/etc/otelcol/collector.yaml:ro
+    ports:
+      # 인바운드는 보안그룹에서 WAS 만 허용한다.
+      - "4318:4318"
+    depends_on:
+      - tempo
+    mem_limit: 192m
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  tempo:
+    image: grafana/tempo:2.10.10
+    restart: unless-stopped
+    command: [-config.file=/etc/tempo/tempo.yaml]
+    user: "0"
+    volumes:
+      - ./tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      # Grafana 만 읽는다. 외부에 열지 않는다.
+      - "127.0.0.1:3200:3200"
+    mem_limit: 384m
+    logging: *logging
+
+volumes:
+  tempo-data:
