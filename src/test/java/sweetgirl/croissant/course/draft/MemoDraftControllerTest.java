@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -18,9 +19,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -41,12 +42,18 @@ class MemoDraftControllerTest {
 	private MemoDraftCommandService memoDraftCommandService;
 	@Mock
 	private MemoDraftQueryService memoDraftQueryService;
+	@Mock
+	private ObjectProvider<MemoDraftCommandService> commandServiceProvider;
+	@Mock
+	private ObjectProvider<MemoDraftQueryService> queryServiceProvider;
 
-	@InjectMocks
 	private MemoDraftController memoDraftController;
 
 	@BeforeEach
 	void setUp() {
+		lenient().when(commandServiceProvider.getIfAvailable()).thenReturn(memoDraftCommandService);
+		lenient().when(queryServiceProvider.getIfAvailable()).thenReturn(memoDraftQueryService);
+		memoDraftController = new MemoDraftController(commandServiceProvider, queryServiceProvider);
 		mockMvc = MockMvcBuilders
 			.standaloneSetup(memoDraftController)
 			.setControllerAdvice(new GlobalExceptionHandler())
@@ -139,6 +146,21 @@ class MemoDraftControllerTest {
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"content\":\"소금빵\",\"seq\":1}"))
 			.andExpect(status().isForbidden());
+	}
+
+	@Test
+	@DisplayName("초안 Redis 가 없는 환경(서비스 빈 없음)에서는 PUT·GET 둘 다 503 — 404 가 아니다")
+	void withoutDraftBeans_returns503() throws Exception {
+		given(commandServiceProvider.getIfAvailable()).willReturn(null);
+		given(queryServiceProvider.getIfAvailable()).willReturn(null);
+
+		mockMvc.perform(put("/courses/1/stores/10/memo-draft")
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"content\":\"소금빵\",\"seq\":1}"))
+			.andExpect(status().isServiceUnavailable())
+			.andExpect(jsonPath("$.code").value("COURSE503_1"));
+		mockMvc.perform(get("/courses/1/drafts"))
+			.andExpect(status().isServiceUnavailable());
 	}
 
 	@Test
