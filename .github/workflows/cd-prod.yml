@@ -320,6 +320,9 @@ jobs:
           ADMIN_API_KEY: ${{ secrets.PROD_ADMIN_API_KEY }}
           # 신고 슬랙 메시지의 어드민 링크 바탕 주소 — 저장소 변수로 두고 비면 링크만 빠진다
           ADMIN_WEB_BASE_URL: ${{ vars.PROD_ADMIN_WEB_BASE_URL }}
+          # 오텔 스위치 — 켜도 주소가 없으면 붙지 않는다. 문제가 생기면 false 로 두고 CD 를 다시 실행한다.
+          OTEL_ENABLED: ${{ vars.PROD_OTEL_ENABLED }}
+          OTEL_ENDPOINT: ${{ vars.PROD_OTEL_ENDPOINT }}
         run: |
           umask 077
           {
@@ -358,6 +361,11 @@ jobs:
             echo "PERF_DASHBOARD_ACCESS_KEY=${PERF_DASHBOARD_ACCESS_KEY}"
             echo "ADMIN_API_KEY=${ADMIN_API_KEY}"
             echo "ADMIN_WEB_BASE_URL=${ADMIN_WEB_BASE_URL}"
+            echo "OTEL_ENVIRONMENT=prod"
+            if [ "${OTEL_ENABLED}" = "true" ] && [ -n "${OTEL_ENDPOINT}" ]; then
+              echo "OTEL_JAVA_AGENT_OPTION=-javaagent:/app/opentelemetry-javaagent.jar"
+              echo "OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_ENDPOINT}"
+            fi
           } > env.prod
 
           ssh was 'mkdir -p ~/app'

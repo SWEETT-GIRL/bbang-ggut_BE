@@ -24,7 +24,16 @@ services:
       com.bbang.color: ${COLOR}
     environment:
       TZ: Asia/Seoul
-      JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Seoul"
+      JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Seoul ${OTEL_JAVA_AGENT_OPTION:-}"
+      # 오텔 — OTEL_JAVA_AGENT_OPTION 이 비어 있으면 에이전트가 붙지 않아 아래 값은 읽히지 않는다.
+      # 메트릭은 기존 Prometheus, 로그는 기존 수집을 쓰므로 trace 만 보낸다.
+      OTEL_SERVICE_NAME: bbang-ggut-be
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=${OTEL_ENVIRONMENT:-unknown}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      OTEL_TRACES_SAMPLER: parentbased_always_on
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILE}
       # 컨테이너 내부 관리 포트 — 호스트 매핑만 색깔별로 다르다.
       MANAGEMENT_PORT: 8081
