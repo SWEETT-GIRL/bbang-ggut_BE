@@ -26,9 +26,9 @@ def settings(env_file=None):
 
 def serving_parameters(env_file=None):
     values = settings(env_file)
-    url = values.get("DATAOPS_PROD_DB_URL") or values.get("PROD_DB_URL")
+    url = values.get("DB_URL") or values.get("PROD_DB_URL")
     if not url or not url.startswith("jdbc:postgresql://"):
-        raise ValueError("DATAOPS_PROD_DB_URL must be a PostgreSQL JDBC URL")
+        raise ValueError("DB_URL must be a PostgreSQL JDBC URL")
     parsed = urlsplit(url[5:])
     query = parse_qs(parsed.query)
     if (not parsed.hostname or parsed.username or parsed.fragment or parsed.path != "/soboro"

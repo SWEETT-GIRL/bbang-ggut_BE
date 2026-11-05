@@ -38,7 +38,7 @@ OPTIONAL = {
     'DATA_GO_KR_SERVICE_KEY', 'DATAOPS_FULL_CYCLE_ENABLED', 'DATAOPS_BASELINE_VERSION',
     'DATAOPS_PUBLIC_DATASETS', 'DATAOPS_PUBLIC_MAX_PAGES', 'DATAOPS_CYCLE_MAX_ITEMS', 'DATAOPS_SWEEP_MAX_REGIONS',
     'DATAOPS_MIGRATION_DB_USERNAME', 'DATAOPS_MIGRATION_DB_PASSWORD',
-    'DATAOPS_PROD_DB_URL', 'DATAOPS_PROD_DB_USERNAME', 'DATAOPS_PROD_DB_PASSWORD',
+    'DATAOPS_PROD_DB_USERNAME', 'DATAOPS_PROD_DB_PASSWORD',
     'ADMIN_API_KEY', 'WAS_SERVER_URL',
 }
 # dataops 명령은 dataops 스키마 없이는 의미가 없다
@@ -212,7 +212,7 @@ def execution_environment(env, command):
         if full not in ('true', 'false'):
             raise ValueError('DATAOPS_FULL_CYCLE_ENABLED must be true or false')
         if command[0] == 'dataops-cycle' or (command[0] == 'dataops-nightly' and full == 'true'):
-            required = required | {'DATAOPS_PROD_DB_URL', 'DATAOPS_PROD_DB_USERNAME', 'DATAOPS_PROD_DB_PASSWORD',
+            required = required | {'DB_URL', 'DATAOPS_PROD_DB_USERNAME', 'DATAOPS_PROD_DB_PASSWORD',
                                    'DATA_GO_KR_SERVICE_KEY'}
             if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,63}', env.get('DATAOPS_BASELINE_VERSION', 'cloud-001')):
                 raise ValueError('DATAOPS_BASELINE_VERSION must be a safe version identifier')

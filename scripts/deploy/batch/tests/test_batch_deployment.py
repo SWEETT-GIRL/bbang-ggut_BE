@@ -197,7 +197,7 @@ class RunnerParametersTest(unittest.TestCase):
         env.update(DATAOPS_DB_URL='jdbc:postgresql://rds/dataops?sslmode=require',
                    DATAOPS_FULL_CYCLE_ENABLED='true', DATAOPS_BASELINE_VERSION='20261105')
         with self.assertRaises(ValueError): runner.execution_environment(env, ['dataops-nightly'])
-        env.update(DATAOPS_PROD_DB_URL='jdbc:postgresql://rds/soboro?sslmode=require', DATAOPS_PROD_DB_USERNAME='reader',
+        env.update(DB_URL='jdbc:postgresql://rds/soboro?sslmode=require', DATAOPS_PROD_DB_USERNAME='reader',
                    DATAOPS_PROD_DB_PASSWORD='test', DATA_GO_KR_SERVICE_KEY='test')
         self.assertEqual(runner.execution_environment(env, ['dataops-cycle'])['DATAOPS_PROD_DB_USERNAME'], 'reader')
         command = ['dataops-cycle', 'run', '--tracks', 'public', '--cycle-id', 'smoke']
