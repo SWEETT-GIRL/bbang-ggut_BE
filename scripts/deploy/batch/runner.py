@@ -2,7 +2,7 @@
 
   bbang-batch install                    배포 — Docker Hub 로그인 후 config.json 의 이미지(digest)를 받는다
   bbang-batch job <이름>                 WAS 배치 작업 하나 (Scheduler → Step Functions → SSM 문서 SweetgirlBatchRun 이 부른다)
-  bbang-batch dataops-nightly [시간]     dataops 수집
+  bbang-batch dataops-nightly [시간] [최대가게수]     dataops 수집
   bbang-batch dataops-migrate            별도 dataops DB의 Flyway (DDL 계정 전용)
   bbang-batch dataops <스크립트> [인자]  dataops 수동 작업(승인·반영)
   bbang-batch busy                       작업 컨테이너가 돌고 있으면 0 — 수동 점검용
@@ -110,8 +110,9 @@ def container_args(command):
             raise ValueError('Usage: job <name>')
         return ['job', rest[0]], rest[0], False
     if head == 'dataops-nightly':
-        if len(rest) > 1 or (rest and not re.fullmatch(r'\d+(?:\.\d+)?', rest[0])):
-            raise ValueError('Usage: dataops-nightly [hours]')
+        if (len(rest) > 2 or (rest and not re.fullmatch(r'\d+(?:\.\d+)?', rest[0]))
+                or (len(rest) == 2 and not re.fullmatch(r'[1-9][0-9]*', rest[1]))):
+            raise ValueError('Usage: dataops-nightly [hours] [max-stores]')
         return ['dataops-nightly', *rest], 'dataops-nightly', True
     if head == 'dataops':
         if not rest or not SCRIPT_NAME.fullmatch(rest[0]):

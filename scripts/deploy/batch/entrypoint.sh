@@ -1,7 +1,7 @@
 #!/bin/bash
 # 배치 이미지 진입점. EC2 의 bbang-batch(runner.py)가 아래 명령 중 하나로 컨테이너를 띄운다.
 #   job <이름>                 WAS 배치 작업 하나 (예: ranking-snapshot) — 끝나면 종료 코드로 성공·실패를 알린다
-#   dataops-nightly [시간]     dataops 서버를 띄워 수집(weekly_refresh nightly)을 돌리고 서버를 내린다
+#   dataops-nightly [시간] [최대가게수]     dataops 서버를 띄워 제한 수집을 돌리고 서버를 내린다
 #   dataops-server             dataops 판정 서버만 띄운다 (사람이 승인 스크립트를 따로 돌릴 때)
 #   dataops-migrate            별도 dataops DB의 Flyway만 실행한다 (수집·운영 반영 없음)
 #   dataops <스크립트> [인자]  dataops/scripts 의 스크립트 하나 (승인·반영 등 수동 작업)
@@ -63,14 +63,20 @@ case "${command}" in
 			--spring.profiles.active=prod --server.port="${DATAOPS_PORT}"
 		;;
 	dataops-nightly)
+		[ "$#" -le 2 ] || { echo "사용: dataops-nightly [시간] [최대가게수]" >&2; exit 64; }
 		hours="${1:-6}"
+		worker_args=(nightly --crawl-hours "${hours}" --server "${DATAOPS_SERVER}")
+		if [ "$#" -eq 2 ]; then
+			[[ "$2" =~ ^[1-9][0-9]*$ ]] || { echo "최대가게수는 양의 정수여야 한다" >&2; exit 64; }
+			worker_args+=(--max-stores "$2")
+		fi
 		trap stop_dataops_server EXIT
 		trap 'exit 143' TERM
 		trap 'exit 130' INT
 		start_dataops_server
 		cd /app/dataops
 		# 쓰기 계정 서버를 켜 둔 채 두지 않는다 — 수집만 하고 끝나면 trap 이 서버를 내린다
-		python3 scripts/weekly_refresh.py nightly --crawl-hours "${hours}" --server "${DATAOPS_SERVER}" &
+		python3 scripts/weekly_refresh.py "${worker_args[@]}" &
 		WORKER_PID=$!
 		wait "${WORKER_PID}"
 		;;
@@ -83,7 +89,7 @@ case "${command}" in
 		exec python3 "scripts/${script}" "$@"
 		;;
 	*)
-		echo "사용: job <이름> | dataops-nightly [시간] | dataops-server | dataops-migrate | dataops <스크립트> [인자]" >&2
+		echo "사용: job <이름> | dataops-nightly [시간] [최대가게수] | dataops-server | dataops-migrate | dataops <스크립트> [인자]" >&2
 		exit 64
 		;;
 esac

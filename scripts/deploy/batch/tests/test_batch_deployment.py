@@ -2,9 +2,12 @@
 import base64
 import gzip
 import json
+import os
 from pathlib import Path
 import re
+import subprocess
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -111,11 +114,18 @@ class RunnerArgumentsTest(unittest.TestCase):
             with self.assertRaises(ValueError, msg=bad):
                 runner.container_args(bad)
 
-    def test_dataops_명령은_스크립트_이름과_시간만_받는다(self):
+    def test_dataops_명령은_스크립트_이름과_수집_제한을_받는다(self):
+        self.assertEqual(runner.container_args(['dataops-nightly'])[0], ['dataops-nightly'])
         self.assertEqual(runner.container_args(['dataops-nightly', '6'])[0], ['dataops-nightly', '6'])
+        command = ['dataops-nightly', '0.25', '20']
+        docker, _ = runner.docker_run_args(IMAGE, '/tmp/app.env', '/tmp/firebase.json', '/opt/logs', command)
+        self.assertEqual(docker[-4:], [IMAGE, *command])
         self.assertEqual(runner.container_args(['dataops', 'approve_fill_pending.py', '--max', '10'])[0],
                          ['dataops', 'approve_fill_pending.py', '--max', '10'])
-        for bad in (['dataops-nightly', '6; reboot'], ['dataops', '../x.py'], ['dataops', 'run.sh'], ['dataops']):
+        for bad in (['dataops-nightly', '6; reboot'], ['dataops-nightly', '0.25', '0'],
+                    ['dataops-nightly', '0.25', '-1'], ['dataops-nightly', '0.25', '1.5'],
+                    ['dataops-nightly', '0.25', '20; reboot'], ['dataops-nightly', '0.25', '20', 'extra'],
+                    ['dataops', '../x.py'], ['dataops', 'run.sh'], ['dataops']):
             with self.assertRaises(ValueError, msg=bad):
                 runner.container_args(bad)
 
@@ -131,6 +141,42 @@ class RunnerArgumentsTest(unittest.TestCase):
         self.assertFalse(job_logs)
         self.assertTrue(nightly_logs)
         self.assertIn('type=bind,source=/opt/logs,target=/app/dataops/dataops-logs', nightly)
+
+
+class NightlyEntrypointTest(unittest.TestCase):
+
+    def test_실제_진입점이_건수_제한을_워커에_전달하고_잘못된_값을_거부한다(self):
+        # 실제 Java/DB/수집 대신 프로세스 경계의 인자를 기록한다.
+        entrypoint = Path(runner.__file__).with_name('entrypoint.sh')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            python = root / 'python3'
+            python.write_text('''#!/bin/bash
+case "$1" in
+    /app/jdbc_env.py|-c) exit 0 ;;
+    scripts/weekly_refresh.py) printf '%s\\n' "$@" > "$DATAOPS_TEST_ARGUMENTS" ;;
+    *) exit 99 ;;
+esac
+''')
+            java = root / 'java'
+            java.write_text('#!/bin/sh\nexec /bin/sleep 60\n')
+            python.chmod(0o700)
+            java.chmod(0o700)
+            output = root / 'worker-arguments.txt'
+            env = {**os.environ, 'PATH': str(root) + os.pathsep + os.environ['PATH'],
+                   'DATAOPS_TEST_ARGUMENTS': str(output), 'DATAOPS_TEST_DIRECTORY': str(root)}
+            # /app/dataops로의 이동만 격리 임시 디렉터리로 바꾼다.
+            invocation = ['bash', '-c', 'cd() { builtin cd "$DATAOPS_TEST_DIRECTORY"; }; source "$@"',
+                          'entrypoint-test', str(entrypoint), 'dataops-nightly', '0.25']
+            result = subprocess.run([*invocation, '20'], env=env, capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(output.read_text().splitlines(), ['scripts/weekly_refresh.py', 'nightly',
+                             '--crawl-hours', '0.25', '--server', 'http://127.0.0.1:8090', '--max-stores', '20'])
+            for arguments in (['0'], ['-1'], ['1.5'], ['20', 'extra']):
+                with self.subTest(arguments=arguments):
+                    result = subprocess.run([*invocation, *arguments], env=env,
+                                            capture_output=True, text=True, timeout=10)
+                    self.assertEqual(result.returncode, 64)
 
 
 class RunnerParametersTest(unittest.TestCase):
