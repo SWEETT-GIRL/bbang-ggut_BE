@@ -201,7 +201,7 @@ class ParameterStoreTest(unittest.TestCase):
     def test_draft_redis_parameters_reach_the_app_when_present(self):
         self.values[f'{PREFIX}/env/COURSE_DRAFT_REDIS_MODE'] = 'standalone'
         self.values[f'{PREFIX}/env/COURSE_DRAFT_REDIS_PORT'] = '6380'
-        env = bootstrap.load_parameters(self.ssm, PREFIX)['environment']
+        env, _, _ = bootstrap.load_parameters(self.ssm, PREFIX)
         self.assertEqual(env['COURSE_DRAFT_REDIS_MODE'], 'standalone')
         self.assertEqual(env['COURSE_DRAFT_REDIS_PORT'], '6380')
 
