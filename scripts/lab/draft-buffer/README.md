@@ -62,7 +62,7 @@ MODE=push k6 run --summary-export scripts/lab/draft-buffer/results/${D}-latency-
 
 ## Docker 없이 페일오버 재기
 
-`failover-native.sh` 머리 주석 참고. 끝나기 3초 전에 마스터를 죽이고, Redis 1번 DB 가 빌 때까지 기다린 뒤 `compare-loss.py` 로 칸 단위 유실을 센다. 결과 예: `results/1105-failover-native/`.
+`failover-native.sh` 머리 주석 참고. 끝나기 3초 전에 마스터를 죽이고, Redis 1번 DB 가 빌 때까지 기다린 뒤 `compare-loss.py` 로 칸 단위 유실을 센다.
 
 ## 읽을 때
 
