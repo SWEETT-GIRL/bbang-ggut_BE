@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.course.code.CourseErrorCode;
+import sweetgirl.croissant.course.draft.MemoDraftDiscarder;
 import sweetgirl.croissant.course.dto.request.CourseCreateRequest;
 import sweetgirl.croissant.course.dto.request.CourseImageRegisterRequest;
 import sweetgirl.croissant.course.dto.request.CourseStoreAddRequest;
@@ -39,6 +40,7 @@ import sweetgirl.croissant.course.entity.CourseStoreMemo;
 import sweetgirl.croissant.course.entity.SavedCourse;
 import sweetgirl.croissant.course.enums.CourseType;
 import sweetgirl.croissant.course.enums.CourseVisibility;
+import sweetgirl.croissant.course.event.CourseDeletedEvent;
 import sweetgirl.croissant.course.event.CourseStoreAddedEvent;
 import sweetgirl.croissant.course.exception.CourseException;
 import sweetgirl.croissant.course.repository.CourseImageFileRepository;
@@ -85,6 +87,8 @@ public class CourseCommandService {
 	private final CourseAccessPolicy courseAccessPolicy;
 	private final ApplicationEventPublisher eventPublisher;
 	private final CharacterFaceReader characterFaceReader;
+	private final MemoDraftDiscarder memoDraftDiscarder;
+	private final CourseVersionBumper courseVersionBumper;
 
 	public Long createCourse(Long memberId, CourseCreateRequest request) {
 		memberReader.requireLoggedIn(memberId);
@@ -147,7 +151,7 @@ public class CourseCommandService {
 		if (request.getDayCount() != null) {
 			updateDayCount(course, request.getDayCount());
 		}
-		courseRepository.bumpVersion(courseId);
+		courseVersionBumper.bump(courseId);
 		return new CourseUpdateResponse(course.getVisibility(), shareTokenFor(course, memberId));
 	}
 
@@ -227,6 +231,8 @@ public class CourseCommandService {
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_NOT_FOUND));
 		courseAccessPolicy.requireOwner(course, memberId);
 		course.softDelete();
+		// 커밋 뒤 이 코스의 신호 구독을 전원 끊는다
+		eventPublisher.publishEvent(new CourseDeletedEvent(courseId));
 	}
 
 	public CourseStoreResponse addStore(Long memberId, Long courseId, CourseStoreAddRequest request) {
@@ -254,17 +260,19 @@ public class CourseCommandService {
 		CourseStore courseStore = insertStore(course, store, activeStores, day, request.getVisitTime());
 		publishAdded(memberId, courseId, courseStore, null);
 		// 메모는 사람별이다 — course_stores.memo 가 아니라 내 메모 행으로 들어간다
-		String myMemo = saveMyMemo(courseStore, memberId, request.getMemo());
+		Optional<CourseStoreMemo> savedMemo = saveMyMemo(courseStore, memberId, request.getMemo());
+		String myMemo = savedMemo.map(CourseStoreMemo::getContent).orElse(null);
 		// 가게가 늘었다 — 분모가 커졌으니 완주 승격을 허용해도 안전하다
 		courseProgressService.refreshForCourse(courseId, true);
-		courseRepository.bumpVersion(courseId);
+		courseVersionBumper.bump(courseId);
 
-		List<CourseStoreMemoResponse> memos = myMemo == null
-			? List.of()
-			: List.of(new CourseStoreMemoResponse(
-				memberId, displayNameOf(courseId, memberId), myMemo, LocalDateTime.now(), true,
+		List<CourseStoreMemoResponse> memos = savedMemo
+			.map(memo -> List.of(new CourseStoreMemoResponse(
+				memberId, displayNameOf(courseId, memberId), memo.getContent(), LocalDateTime.now(), true,
 				characterFaceReader.faceOf(memberId).characterCode(),
-				characterFaceReader.faceOf(memberId).characterImageKey()));
+				characterFaceReader.faceOf(memberId).characterImageKey(),
+				memo.getSeq())))
+			.orElse(List.of());
 		return CourseStoreResponse.of(courseStore, null, myMemo, myMemo, memos);
 	}
 
@@ -302,7 +310,7 @@ public class CourseCommandService {
 			added.add(courseStore);
 		}
 		courseProgressService.refreshForCourse(courseId, true);
-		courseRepository.bumpVersion(courseId);
+		courseVersionBumper.bump(courseId);
 		return added.stream()
 			.map(courseStore -> CourseStoreResponse.of(courseStore, null, null, null, List.of()))
 			.toList();
@@ -390,43 +398,54 @@ public class CourseCommandService {
 	}
 
 	/** 방금 만든 정류장의 내 메모 — 기존 행이 있을 수 없으니 조회 없이 저장한다. 빈 값이면 아무것도 안 한다. */
-	private String saveMyMemo(CourseStore courseStore, Long memberId, String content) {
+	private Optional<CourseStoreMemo> saveMyMemo(CourseStore courseStore, Long memberId, String content) {
 		if (content == null || content.isBlank()) {
-			return null;
+			return Optional.empty();
 		}
 		memberRestrictionReader.validateCanWrite(memberId);
 		Member author = memberRepository.getReferenceById(memberId);
-		courseStoreMemoRepository.save(CourseStoreMemo.of(courseStore, author, content));
-		return content;
+		CourseStoreMemo memo = CourseStoreMemo.of(courseStore, author, content, resolveMemoSeq(null));
+		courseStoreMemoRepository.save(memo);
+		return Optional.of(memo);
 	}
 
 	/**
 	 * 내 메모 upsert. 빈 값이면 내 메모를 지운다. 지웠던 행은 같은 PK 로 되살린다.
+	 * seq 가 저장된 것보다 크지 않으면(초안 플러시가 먼저 더 새 글을 반영한 뒤 도착한 옛 PATCH) 아무것도 바꾸지 않는다.
 	 * 큐레이션 코스는 이 경로에 못 온다(validateCanEdit) — 그쪽 메모는 course_stores.memo 그대로다.
-	 *
-	 * @return 저장된 내용. 지웠거나 없으면 null
 	 */
-	private String upsertMyMemo(CourseStore courseStore, Long memberId, String content) {
+	private void upsertMyMemo(CourseStore courseStore, Long memberId, String content, long seq) {
 		Optional<CourseStoreMemo> existing = courseStoreMemoRepository
 			.findByIdCourseStoreIdAndIdMemberId(courseStore.getId(), memberId);
-		if (content == null || content.isBlank()) {
-			existing.filter(memo -> !memo.isDeleted()).ifPresent(CourseStoreMemo::softDelete);
-			return null;
+		boolean deleting = content == null || content.isBlank();
+		if (!deleting) {
+			// 메모는 일행에게 보이는 글이다 — 쓰기 제한(밴) 회원은 초대 생성·수락처럼 막는다. 지우는 건 된다.
+			memberRestrictionReader.validateCanWrite(memberId);
 		}
-		// 메모는 일행에게 보이는 글이다 — 쓰기 제한(밴) 회원은 초대 생성·수락처럼 막는다. 지우는 건 된다.
-		memberRestrictionReader.validateCanWrite(memberId);
 		if (existing.isPresent()) {
-			CourseStoreMemo memo = existing.get();
-			if (memo.isDeleted()) {
-				memo.restore(content);
-			} else {
-				memo.updateContent(content);
-			}
-			return content;
+			existing.get().applyIfNewer(content, seq);
+			return;
+		}
+		if (deleting) {
+			return;
 		}
 		Member author = memberRepository.getReferenceById(memberId);
-		courseStoreMemoRepository.save(CourseStoreMemo.of(courseStore, author, content));
-		return content;
+		courseStoreMemoRepository.save(CourseStoreMemo.of(courseStore, author, content, seq));
+	}
+
+	/**
+	 * 메모 순서 기준. 앱이 안 보내면(구버전) 서버 시각(ms) — 초안 버퍼와 같은 시계라 그대로 비교된다.
+	 * 하루 넘게 미래인 값은 시계가 크게 틀린 기기라 거절한다 — 그 사람 필드가 영영 그 값 아래로 못 돌아오기 때문.
+	 */
+	private long resolveMemoSeq(Long requested) {
+		long now = System.currentTimeMillis();
+		if (requested == null) {
+			return now;
+		}
+		if (requested <= 0 || requested > now + CourseStoreMemo.SEQ_MAX_AHEAD.toMillis()) {
+			throw new CourseException(CourseErrorCode.COURSE_MEMO_SEQ_INVALID);
+		}
+		return requested;
 	}
 
 	/** 메모 줄에 보이는 이름 — 회원 닉네임. 응답 필드 이름(displayName)은 설치된 앱이 읽어서 그대로 둔다. */
@@ -448,9 +467,12 @@ public class CourseCommandService {
 			.orElseThrow(() -> new CourseException(CourseErrorCode.COURSE_STORE_NOT_FOUND));
 
 		// memo 는 내 메모만 바꾼다(사람별). visitTime 은 공통 한 개라 정류장에 그대로.
-		upsertMyMemo(courseStore, memberId, request.getMemo());
+		long memoSeq = resolveMemoSeq(request.getMemoSeq());
+		upsertMyMemo(courseStore, memberId, request.getMemo(), memoSeq);
 		courseStore.updateVisitTime(request.getVisitTime());
-		courseRepository.bumpVersion(courseId);
+		courseVersionBumper.bump(courseId);
+		// "완료" 가 DB 에 갔으니 같은 칸의 그보다 새롭지 않은 초안은 Redis 에서 지운다(커밋 뒤)
+		memoDraftDiscarder.discardAfterCommit(courseId, storeId, memberId, memoSeq);
 	}
 
 	public void removeStore(Long memberId, Long courseId, Long storeId) {
@@ -467,7 +489,7 @@ public class CourseCommandService {
 		courseStoreMemoRepository.softDeleteAllByCourseStoreId(courseStore.getId());
 		// 가게가 줄었다 — 방문 수는 그대로인데 분모만 작아지므로 완주 승격을 막는다(안 간 코스가 완주 처리된다)
 		courseProgressService.refreshForCourse(courseId, false);
-		courseRepository.bumpVersion(courseId);
+		courseVersionBumper.bump(courseId);
 	}
 
 	public void reorderStores(Long memberId, Long courseId, CourseStoreReorderRequest request) {
@@ -523,7 +545,7 @@ public class CourseCommandService {
 					orderedCourseStores.get(i).updateDay(orderItems.get(i).getDay());
 				}
 			});
-		courseRepository.bumpVersion(courseId);
+		courseVersionBumper.bump(courseId);
 	}
 
 	private void validateCompleteOrder(int activeStoreCount, List<Long> courseStoreIds) {
@@ -583,7 +605,7 @@ public class CourseCommandService {
 			.displayOrder(1)
 			.build();
 		imageProcessingCallbackService.applyPendingCallback(courseImageFileRepository.save(imageFile));
-		courseRepository.bumpVersion(courseId);
+		courseVersionBumper.bump(courseId);
 	}
 
 	public void deleteImage(Long memberId, Long courseId) {
@@ -597,7 +619,7 @@ public class CourseCommandService {
 
 		s3Service.deleteObject(imageFile.getAwsKey());
 		courseImageFileRepository.delete(imageFile);
-		courseRepository.bumpVersion(courseId);
+		courseVersionBumper.bump(courseId);
 	}
 
 	public Long forkCourse(Long memberId, Long courseId, String shareToken) {

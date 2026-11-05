@@ -197,4 +197,14 @@ class MemberQueryServiceTest {
 		assertThat(result.getStartTime()).isEqualTo("08:00");
 		assertThat(result.getEndTime()).isEqualTo("21:00");
 	}
+
+	@Test
+	@DisplayName("getPrivacy: 비공개 계정 여부를 돌려준다")
+	void getPrivacy() {
+		Member member = Member.builder().nickname("빵돌이").build();
+		member.changePrivacy(true);
+		given(memberReader.getMember(MEMBER_ID)).willReturn(member);
+
+		assertThat(memberQueryService.getPrivacy(MEMBER_ID).isPrivate()).isTrue();
+	}
 }

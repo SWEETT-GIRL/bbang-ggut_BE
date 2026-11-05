@@ -148,7 +148,7 @@ class CourseControllerTest {
 		return new CourseDetailResponse(
 			1L, "소금빵 투어", null, null, List.of(), 0, List.of(), CourseType.CUSTOM, "다나", 1L, null, false, true,
 			false, 0L, 0L, LocalDateTime.of(2026, 1, 1, 0, 0), null, null, null, List.of(),
-			true, true, false, 0, List.of(), null, 1, CourseVisibility.PRIVATE, null, version);
+			true, true, false, 0, List.of(), null, 1, CourseVisibility.PRIVATE, null, version, false);
 	}
 
 	@Test
@@ -240,7 +240,7 @@ class CourseControllerTest {
 			1L, "소금빵 투어", null, null, List.of(), 2, List.of("마포구"), CourseType.CURATED, "어드민", null, null, true, false,
 			false, 5L, 37L, LocalDateTime.of(2026, 1, 1, 0, 0), "서울", LocalDate.of(2026, 8, 20),
 			LocalDate.of(2026, 8, 21), List.of(),
-			false, false, false, 0, List.of(), null, 1, CourseVisibility.PUBLIC, null, 41L);
+			false, false, false, 0, List.of(), null, 1, CourseVisibility.PUBLIC, null, 41L, false);
 		givenDetailLookup(response);
 
 		mockMvc.perform(get("/courses/1"))
@@ -338,7 +338,7 @@ class CourseControllerTest {
 		return new CourseDetailResponse(
 			1L, "링크 공개 코스", null, null, List.of(), 0, List.of(), CourseType.CUSTOM, "다나", 10L, null, false, false,
 			false, 0L, 0L, LocalDateTime.of(2026, 1, 1, 0, 0), null, null, null, List.of(),
-			false, false, false, 0, List.of(), null, 1, CourseVisibility.UNLISTED, null, 1L);
+			false, false, false, 0, List.of(), null, 1, CourseVisibility.UNLISTED, null, 1L, false);
 	}
 
 	@Test

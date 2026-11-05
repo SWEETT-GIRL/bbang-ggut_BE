@@ -37,6 +37,12 @@ public enum NotificationType {
 	FOLLOWING_NEW_RECORD("FOLLOWING_NEW_RECORD"),
 	/** OO님과 서로 팔로우해요(초대 코드 · 일행 합류) */
 	INVITE_MUTUAL("INVITE_MUTUAL"),
+	/** OO님이 팔로우를 요청했어요 — 비공개 계정에 팔로우를 누르면(2026-11-04). 받는 사람이 요청 목록에서 수락 · 거절한다 */
+	FOLLOW_REQUEST("FOLLOW_REQUEST"),
+	/** OO님이 팔로우 요청을 수락했어요 — 요청한 사람에게 */
+	FOLLOW_ACCEPTED("FOLLOW_ACCEPTED"),
+	/** OO님이 회원님의 댓글에 답글을 남겼어요 — 부모 댓글 작성자에게, 하나씩 */
+	COMMENT_REPLY("COMMENT_REPLY"),
 
 	// ── 서버가 문구를 갖는 알림 ──────────────────────────────────────────────
 
@@ -93,7 +99,7 @@ public enum NotificationType {
 	public boolean isCommunityActivity() {
 		return this == FOLLOW || this == PAT || this == RECORD_LIKE || this == RECORD_COMMENT
 			|| this == COMMENT_MENTION || this == COMPANION_TAG || this == FOLLOWING_NEW_RECORD
-			|| this == INVITE_MUTUAL;
+			|| this == INVITE_MUTUAL || this == FOLLOW_REQUEST || this == FOLLOW_ACCEPTED || this == COMMENT_REPLY;
 	}
 
 	/** 마케팅 수신 동의를 따로 받아야 나가는 알림인가. */

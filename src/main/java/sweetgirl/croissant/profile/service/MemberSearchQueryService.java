@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.follow.dto.response.FollowMemberResponse;
 import sweetgirl.croissant.follow.repository.MemberFollowRepository;
+import sweetgirl.croissant.follow.repository.MemberFollowRequestRepository;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberRepository;
 import sweetgirl.croissant.member.util.NicknameNormalizer;
@@ -28,6 +29,7 @@ public class MemberSearchQueryService {
 
 	private final MemberRepository memberRepository;
 	private final MemberFollowRepository memberFollowRepository;
+	private final MemberFollowRequestRepository memberFollowRequestRepository;
 	private final CharacterFaceReader characterFaceReader;
 
 	/** 보는 사람과 차단 관계 · 탈퇴 · 게스트 · 봇 · 프로필 제한 중인 사람은 빠진다. 2자 미만이면 빈 목록. */
@@ -48,10 +50,13 @@ public class MemberSearchQueryService {
 			? Set.of() : Set.copyOf(memberFollowRepository.findFolloweeIdsIn(viewerId, ids));
 		Set<Long> followsMe = viewerId == null || ids.isEmpty()
 			? Set.of() : Set.copyOf(memberFollowRepository.findFollowerIdsIn(viewerId, ids));
+		Set<Long> requestedByMe = viewerId == null || ids.isEmpty()
+			? Set.of() : Set.copyOf(memberFollowRequestRepository.findTargetIdsIn(viewerId, ids));
 		Map<Long, CharacterFace> faces = characterFaceReader.facesOf(ids);
 		return people.stream()
 			.map(person -> FollowMemberResponse.of(person,
-				followedByMe.contains(person.getId()), followsMe.contains(person.getId()), faces.get(person.getId())))
+				followedByMe.contains(person.getId()), followsMe.contains(person.getId()), faces.get(person.getId()),
+				requestedByMe.contains(person.getId())))
 			.toList();
 	}
 }

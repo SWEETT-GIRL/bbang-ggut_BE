@@ -10,6 +10,7 @@ import sweetgirl.croissant.profile.dto.response.CharacterFace;
 /**
  * 댓글 한 줄. 탈퇴한 사람의 댓글은 남고 작성자가 비어 온다(memberId · nickname · 얼굴 null → "알 수 없는 사용자").
  * {@code isAuthor} 는 빵로그 쓴 사람의 댓글([작성자] 뱃지), {@code isMine} 은 보는 사람 것.
+ * {@code parentId} 가 있으면 그 댓글의 답글(2026-11-04) — 목록은 평면 · 오래된 순 그대로이고 앱이 이 값으로 묶는다.
  */
 public record CommentResponse(
 		Long id,
@@ -22,7 +23,8 @@ public record CommentResponse(
 		LocalDateTime createdAt,
 		boolean isAuthor,
 		boolean isMine,
-		String hiddenStatus) {
+		String hiddenStatus,
+		Long parentId) {
 
 	public static final String UNDER_REVIEW = "UNDER_REVIEW";
 
@@ -48,6 +50,7 @@ public record CommentResponse(
 			comment.getCreatedAt(),
 			memberId.equals(recordAuthorId),
 			memberId.equals(viewerId),
-			comment.isHidden() ? UNDER_REVIEW : null);
+			comment.isHidden() ? UNDER_REVIEW : null,
+			comment.getParentId());
 	}
 }

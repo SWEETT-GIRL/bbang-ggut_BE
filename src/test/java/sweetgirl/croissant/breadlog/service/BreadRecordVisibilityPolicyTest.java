@@ -2,8 +2,11 @@ package sweetgirl.croissant.breadlog.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,6 +18,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import sweetgirl.croissant.breadlog.code.BreadLogErrorCode;
 import sweetgirl.croissant.breadlog.entity.BreadRecord;
 import sweetgirl.croissant.breadlog.exception.BreadLogException;
+import sweetgirl.croissant.follow.service.FollowVisibilityReader;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberBlockRepository;
 
@@ -27,9 +31,16 @@ class BreadRecordVisibilityPolicyTest {
 
 	@Mock
 	private MemberBlockRepository memberBlockRepository;
+	@Mock
+	private FollowVisibilityReader followVisibilityReader;
 
 	@InjectMocks
 	private BreadRecordVisibilityPolicy policy;
+
+	@BeforeEach
+	void publicAccountByDefault() {
+		lenient().when(followVisibilityReader.canViewRecords(any(), any())).thenReturn(true);
+	}
 
 	private BreadRecord record(boolean isPublic) {
 		Member author = Member.builder().nickname("작성자").build();
@@ -67,6 +78,15 @@ class BreadRecordVisibilityPolicyTest {
 		BreadRecord withdrawn = record(true);
 		withdrawn.getMember().softDelete();
 		assertThat(policy.canView(null, withdrawn)).isFalse();
+	}
+
+	@Test
+	@DisplayName("작성자가 비공개 계정이고 내가 팔로워가 아니면 공개 기록도 못 본다")
+	void privateAccount() {
+		BreadRecord record = record(true);
+		given(followVisibilityReader.canViewRecords(VIEWER, record.getMember())).willReturn(false);
+
+		assertThat(policy.canView(VIEWER, record)).isFalse();
 	}
 
 	@Test

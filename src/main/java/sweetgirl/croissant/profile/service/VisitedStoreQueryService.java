@@ -20,6 +20,8 @@ import sweetgirl.croissant.breadlog.entity.BreadRecordTag;
 import sweetgirl.croissant.breadlog.repository.BreadRecordPhotoRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.breadlog.repository.BreadRecordTagRepository;
+import sweetgirl.croissant.follow.service.FollowVisibilityReader;
+import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberBlockRepository;
 import sweetgirl.croissant.member.service.SocialMemberReader;
 import sweetgirl.croissant.profile.code.ProfileErrorCode;
@@ -43,14 +45,21 @@ public class VisitedStoreQueryService {
 	private final BreadRecordTagRepository tagRepository;
 	private final SocialMemberReader socialMemberReader;
 	private final MemberBlockRepository memberBlockRepository;
+	private final FollowVisibilityReader followVisibilityReader;
 	private final ReportedTargetReader reportedTargetReader;
 
-	/** 상대가 게스트 · 봇 · 탈퇴면 404 PROFILE404_MEMBER, 차단 관계면 403 PROFILE403_BLOCKED — 프로필과 같은 규칙. */
+	/**
+	 * 상대가 게스트 · 봇 · 탈퇴면 404 PROFILE404_MEMBER, 차단 관계면 403 PROFILE403_BLOCKED — 프로필과 같은 규칙.
+	 * 상대가 비공개 계정이고 내가 팔로워가 아니면 빈 목록.
+	 */
 	public List<VisitedStoreResponse> getVisitedStores(Long viewerId, Long memberId) {
-		socialMemberReader.findSocial(memberId)
+		Member owner = socialMemberReader.findSocial(memberId)
 			.orElseThrow(() -> new ProfileException(ProfileErrorCode.PROFILE_MEMBER_NOT_FOUND));
 		if (viewerId != null && !viewerId.equals(memberId) && memberBlockRepository.existsBetween(viewerId, memberId)) {
 			throw new ProfileException(ProfileErrorCode.PROFILE_BLOCKED);
+		}
+		if (!followVisibilityReader.canViewRecords(viewerId, owner)) {
+			return List.of();
 		}
 		Set<Long> reported = reportedTargetReader.reportedIds(viewerId, AbuseReportTargetType.RECORD);
 		List<BreadRecord> records = breadRecordRepository.findPublicWithStoreByMemberId(memberId).stream()

@@ -13,6 +13,7 @@ import sweetgirl.croissant.member.dto.response.MemberProfileResponse;
 import sweetgirl.croissant.member.dto.response.MenuCategoryResponse;
 import sweetgirl.croissant.member.dto.response.NotificationRadiusResponse;
 import sweetgirl.croissant.member.dto.response.NotificationTimeResponse;
+import sweetgirl.croissant.member.dto.response.PrivacyResponse;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.entity.NotificationSetting;
 import sweetgirl.croissant.member.enums.NotificationRadius;
@@ -39,6 +40,10 @@ public class MemberQueryService {
 		return memberRestrictionReader.currentSuspension(memberId)
 			.map(suspension -> profile.withSuspension(true, suspension.until()))
 			.orElse(profile);
+	}
+
+	public PrivacyResponse getPrivacy(Long memberId) {
+		return new PrivacyResponse(memberReader.getMember(memberId).isPrivate());
 	}
 
 	public long getSubscribedStoreCount(Long memberId) {

@@ -43,6 +43,11 @@ public class CommunityNotificationService {
 	static final String FOLLOWING_RECORD_TITLE = "%s님이 새 빵로그를 올렸어요";
 	static final String COMPANION_TITLE = "%s님이 회원님과 같이 간 빵로그를 올렸어요";
 	static final String COURSE_INVITE_TITLE = "%s님이 빵투어에 초대했어요";
+	static final String FOLLOW_REQUEST_TITLE = "%s님이 팔로우를 요청했어요";
+	static final String FOLLOW_ACCEPTED_TITLE = "%s님이 팔로우 요청을 수락했어요";
+	static final String REPLY_TITLE = "%s님이 회원님의 댓글에 답글을 남겼어요";
+	/** 받은 팔로우 요청 목록 화면 */
+	static final String FOLLOW_REQUESTS_LINK = "/follow-requests";
 	static final int COMMENT_PREVIEW_LENGTH = 40;
 	/** 톡 친 사람 목록 화면 */
 	static final String PATS_LINK = "/pats";
@@ -68,6 +73,34 @@ public class CommunityNotificationService {
 		once(NotificationType.INVITE_MUTUAL, second, NotificationTargetType.MEMBER, first.getId(),
 			first.getNickname(), MUTUAL_TITLE.formatted(second.getNickname()), null, profileLink(second.getId()),
 			List.of(first));
+	}
+
+	/**
+	 * 비공개 계정에 팔로우를 눌렀다 — 받는 사람에게. 링크는 받은 요청 목록(거기서 수락 · 거절). 요청 · 취소를 반복해도 한 번.
+	 */
+	public void notifyFollowRequest(Member requester, Member target) {
+		once(NotificationType.FOLLOW_REQUEST, requester, NotificationTargetType.MEMBER, target.getId(),
+			target.getNickname(), FOLLOW_REQUEST_TITLE.formatted(requester.getNickname()), null, FOLLOW_REQUESTS_LINK,
+			List.of(target));
+	}
+
+	/** 요청을 수락했다 — 요청한 사람에게. 링크는 수락한 사람 프로필. */
+	public void notifyFollowAccepted(Member acceptor, Member requester) {
+		once(NotificationType.FOLLOW_ACCEPTED, acceptor, NotificationTargetType.MEMBER, requester.getId(),
+			requester.getNickname(), FOLLOW_ACCEPTED_TITLE.formatted(acceptor.getNickname()), null,
+			profileLink(acceptor.getId()), List.of(requester));
+	}
+
+	/** 요청을 취소 · 거절하면 받은 사람 알림함에서 "요청했어요"를 거둔다 — 눌러도 없는 요청이 안 보이게. */
+	public void retractFollowRequestNotification(Long requesterId, Long targetId) {
+		notificationRepository.findByActorIdAndTypeAndTargetTypeAndTargetId(requesterId,
+			NotificationType.FOLLOW_REQUEST, NotificationTargetType.MEMBER, targetId)
+			.ifPresent(notification -> {
+				List<Long> ids = List.of(notification.getId());
+				notificationDeliveryRepository.deleteAllByNotificationIdIn(ids);
+				notificationRecipientRepository.deleteAllByNotificationIdIn(ids);
+				notificationRepository.deleteAllByIdInBatch(ids);
+			});
 	}
 
 	/**
@@ -100,6 +133,21 @@ public class CommunityNotificationService {
 		once(NotificationType.RECORD_COMMENT, comment.getMember(), NotificationTargetType.COMMENT, comment.getId(),
 			comment.getRecord().getStoreName(), COMMENT_TITLE.formatted(comment.getMember().getNickname()),
 			preview(comment.getContent()), commentLink(comment), List.of(author));
+	}
+
+	/**
+	 * 답글 하나에 알림 하나 — 부모 댓글 작성자에게. 내 댓글에 내가 단 답글은 알리지 않고, 부모 작성자가 빵로그 작성자면
+	 * 그 사람은 댓글 알림(RECORD_COMMENT)을 이미 받으므로 여기서는 뺀다.
+	 */
+	public void notifyCommentReply(BreadRecordComment reply, Member parentAuthor) {
+		Member recordAuthor = reply.getRecord().getMember();
+		if (parentAuthor.getId().equals(reply.getMember().getId())
+			|| parentAuthor.getId().equals(recordAuthor.getId()) || parentAuthor.isDeleted()) {
+			return;
+		}
+		once(NotificationType.COMMENT_REPLY, reply.getMember(), NotificationTargetType.COMMENT, reply.getId(),
+			reply.getRecord().getStoreName(), REPLY_TITLE.formatted(reply.getMember().getNickname()),
+			preview(reply.getContent()), commentLink(reply), List.of(parentAuthor));
 	}
 
 	/** 댓글 하나에 언급된 사람 전부에게 한 번에 — 댓글당 알림 한 행이라 사람마다 따로 부르면 둘째부터 묻힌다. */

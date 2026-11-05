@@ -207,4 +207,61 @@ class CommentCommandServiceTest {
 			.extracting("errorCode").isEqualTo(CommentErrorCode.COMMENT_DELETE_DENIED);
 		assertThat(untouchable.isDeleted()).isFalse();
 	}
+
+	@Test
+	@DisplayName("답글: parentCommentId 가 있으면 그 댓글에 붙이고(깊이 1) 부모 작성자에게 답글 알림을 보낸다")
+	void replies() {
+		BreadRecord record = publicRecord();
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(RECORD)).willReturn(Optional.of(record));
+		given(commentRepository.countByMemberIdAndCreatedAtAfter(eq(ME), any())).willReturn(0L);
+		BreadRecordComment root = BreadRecordComment.of(record, member(FRIEND), "소금빵 최고");
+		ReflectionTestUtils.setField(root, "id", 50L);
+		BreadRecordComment childOfRoot = BreadRecordComment.reply(record, member(AUTHOR), "맞아요", root);
+		ReflectionTestUtils.setField(childOfRoot, "id", 51L);
+		given(commentRepository.findReplyTarget(51L, RECORD)).willReturn(Optional.of(childOfRoot));
+
+		CommentResponse response = commandService.create(ME, RECORD, new CommentCreateRequest("저도요", null, 51L));
+
+		// 답글의 답글은 최상위(50)에 붙고, 알림은 내가 고른 댓글(51)의 작성자에게
+		assertThat(response.parentId()).isEqualTo(50L);
+		then(communityNotificationService).should().notifyCommentReply(any(), eq(childOfRoot.getMember()));
+	}
+
+	@Test
+	@DisplayName("답글 대상이 없거나(지움 · 숨김 · 다른 빵로그) 404 COMMENT404")
+	void replyTargetMissing() {
+		given(breadRecordRepository.findByIdAndDeletedAtIsNull(RECORD)).willReturn(Optional.of(publicRecord()));
+		given(commentRepository.countByMemberIdAndCreatedAtAfter(eq(ME), any())).willReturn(0L);
+		given(commentRepository.findReplyTarget(99L, RECORD)).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> commandService.create(ME, RECORD, new CommentCreateRequest("저도요", null, 99L)))
+			.isInstanceOf(CommentException.class)
+			.extracting("errorCode").isEqualTo(CommentErrorCode.COMMENT_NOT_FOUND);
+		then(commentRepository).should(org.mockito.Mockito.never()).save(any());
+	}
+
+	@Test
+	@DisplayName("최상위 댓글을 지우면 답글도 같은 사유로 지우고 알림을 거둔다 — 답글을 지울 땐 형제를 건드리지 않는다")
+	void deleteCascadesToReplies() {
+		BreadRecord record = publicRecord();
+		BreadRecordComment root = BreadRecordComment.of(record, member(ME), "내 댓글");
+		ReflectionTestUtils.setField(root, "id", 100L);
+		BreadRecordComment reply = BreadRecordComment.reply(record, member(FRIEND), "답글", root);
+		ReflectionTestUtils.setField(reply, "id", 101L);
+		given(commentRepository.findActiveByIdWithRecord(100L)).willReturn(Optional.of(root));
+		given(commentRepository.findActiveReplies(100L)).willReturn(List.of(reply));
+
+		commandService.delete(ME, 100L);
+
+		assertThat(root.getDeletedBy()).isEqualTo(BreadRecordComment.DELETED_BY_AUTHOR);
+		assertThat(reply.getDeletedBy()).isEqualTo(BreadRecordComment.DELETED_BY_AUTHOR);
+		then(communityNotificationService).should().retractCommentNotifications(100L);
+		then(communityNotificationService).should().retractCommentNotifications(101L);
+
+		BreadRecordComment lone = BreadRecordComment.reply(record, member(ME), "내 답글", root);
+		ReflectionTestUtils.setField(lone, "id", 102L);
+		given(commentRepository.findActiveByIdWithRecord(102L)).willReturn(Optional.of(lone));
+		commandService.delete(ME, 102L);
+		then(commentRepository).should(org.mockito.Mockito.never()).findActiveReplies(102L);
+	}
 }

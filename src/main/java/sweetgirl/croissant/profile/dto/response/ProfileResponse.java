@@ -25,10 +25,16 @@ public record ProfileResponse(
 		long followerCount,
 		long followingCount,
 		boolean followedByMe,
-		boolean followsMe) {
+		boolean followsMe,
+		/** 비공개 계정인가(2026-11-04). 비공개면 팔로워만 빵로그를 본다 */
+		boolean isPrivate,
+		/** 보는 사람이 팔로우 요청을 보내 두고 수락을 기다리는 중인가 */
+		boolean followRequestedByMe,
+		/** 보는 사람이 이 사람의 빵로그 목록을 볼 수 있나 — 공개 계정이거나 본인이거나 팔로워 */
+		boolean canViewRecords) {
 
 	public static ProfileResponse blocked(Long memberId) {
 		return new ProfileResponse(memberId, true, false, null, null, null, null, null, null, null, null,
-			0, 0, 0, false, false);
+			0, 0, 0, false, false, false, false, false);
 	}
 }

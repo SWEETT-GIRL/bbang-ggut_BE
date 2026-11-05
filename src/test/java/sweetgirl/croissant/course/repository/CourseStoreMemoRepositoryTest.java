@@ -132,7 +132,7 @@ class CourseStoreMemoRepositoryTest {
 	}
 
 	private CourseStoreMemo persistMemo(CourseStore stop, Member author, String content) {
-		CourseStoreMemo memo = CourseStoreMemo.of(stop, author, content);
+		CourseStoreMemo memo = CourseStoreMemo.of(stop, author, content, 1L);
 		entityManager.persist(memo);
 		entityManager.flush();
 		return memo;

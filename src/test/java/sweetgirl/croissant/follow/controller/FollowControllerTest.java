@@ -28,6 +28,7 @@ import sweetgirl.croissant.follow.dto.response.FollowMemberResponse;
 import sweetgirl.croissant.follow.exception.FollowException;
 import sweetgirl.croissant.follow.service.FollowCommandService;
 import sweetgirl.croissant.follow.service.FollowQueryService;
+import sweetgirl.croissant.follow.service.FollowResult;
 import sweetgirl.croissant.global.advice.GlobalExceptionHandler;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.code.MemberErrorCode;
@@ -55,12 +56,28 @@ class FollowControllerTest {
 	}
 
 	@Test
-	@DisplayName("POST /members/{id}/follow — 200")
+	@DisplayName("POST /members/{id}/follow — 200, 공개 계정이면 status FOLLOWING")
 	void follow() throws Exception {
+		given(followCommandService.follow(null, 2L)).willReturn(FollowResult.FOLLOWING);
+
 		mockMvc.perform(post("/members/2/follow"))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.success").value(true));
+			.andExpect(jsonPath("$.success").value(true))
+			.andExpect(jsonPath("$.data.status").value("FOLLOWING"))
+			.andExpect(jsonPath("$.data.following").value(true))
+			.andExpect(jsonPath("$.data.requested").value(false));
 		then(followCommandService).should().follow(null, 2L);
+	}
+
+	@Test
+	@DisplayName("POST /members/{id}/follow — 비공개 계정이면 status REQUESTED")
+	void followPrivate() throws Exception {
+		given(followCommandService.follow(null, 2L)).willReturn(FollowResult.REQUESTED);
+
+		mockMvc.perform(post("/members/2/follow"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.status").value("REQUESTED"))
+			.andExpect(jsonPath("$.data.requested").value(true));
 	}
 
 	@Test
@@ -92,7 +109,9 @@ class FollowControllerTest {
 	void followers() throws Exception {
 		given(followQueryService.getFollowers(null, 2L, null, 0, 20))
 			.willReturn(new SliceResponse<>(
-				List.of(new FollowMemberResponse(10L, "에이", true, false, "CROISSANT", "world/croissant.png")), false));
+				List.of(
+					new FollowMemberResponse(10L, "에이", true, false, "CROISSANT", "world/croissant.png", false, false)),
+				false));
 
 		mockMvc.perform(get("/members/2/followers"))
 			.andExpect(status().isOk())

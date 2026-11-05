@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import sweetgirl.croissant.course.code.CourseErrorCode;
+import sweetgirl.croissant.course.draft.CourseDraftProperties;
 import sweetgirl.croissant.course.dto.projection.CourseStoreSummaryProjection;
 import sweetgirl.croissant.course.dto.response.CourseDetailLookup;
 import sweetgirl.croissant.course.dto.response.CourseDetailResponse;
@@ -69,6 +70,7 @@ public class CourseQueryService {
 	private final CourseAccessPolicy courseAccessPolicy;
 	private final TourRewardService tourRewardService;
 	private final CharacterFaceReader characterFaceReader;
+	private final CourseDraftProperties courseDraftProperties;
 
 	public List<CourseSummaryResponse> getCurationCourses() {
 		return buildSummaryResponses(courseRepository.findAllPublicOrderedByPinAndSavedCount(), Set.of());
@@ -208,7 +210,8 @@ public class CourseQueryService {
 			toMemberResponses(course, members, memberId),
 			isMember,
 			myDisplayNameOf(members, memberId),
-			shareTokenForViewer);
+			shareTokenForViewer,
+			courseDraftProperties.isDraftEnabled());
 	}
 
 	/**
@@ -314,7 +317,8 @@ public class CourseQueryService {
 					memo.getUpdatedAt(),
 					Objects.equals(memo.getId().getMemberId(), viewerId),
 					faces.getOrDefault(memo.getId().getMemberId(), CharacterFace.NONE).characterCode(),
-					faces.getOrDefault(memo.getId().getMemberId(), CharacterFace.NONE).characterImageKey()),
+					faces.getOrDefault(memo.getId().getMemberId(), CharacterFace.NONE).characterImageKey(),
+					memo.getSeq()),
 					Collectors.toList())));
 	}
 

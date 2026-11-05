@@ -61,7 +61,7 @@ class BreadRecordCommentControllerTest {
 	@DisplayName("POST 댓글 — 201, 사유 코드는 그대로 나간다(TOO_FAST 429 · COMMUNITY_AGREEMENT_REQUIRED 403 · LINK 400)")
 	void create() throws Exception {
 		given(commentCommandService.create(any(), eq(10L), any())).willReturn(new CommentResponse(100L, 2L, "나",
-			null, null, "소금빵 최고", List.of(), LocalDateTime.now(), false, true, null));
+			null, null, "소금빵 최고", List.of(), LocalDateTime.now(), false, true, null, null));
 		mockMvc.perform(post("/bread-records/10/comments").contentType(MediaType.APPLICATION_JSON)
 			.content("{\"content\":\"소금빵 최고\"}"))
 			.andExpect(status().isCreated())

@@ -76,8 +76,13 @@ public class CommentCommandService {
 		}
 		List<Member> mentioned = validateMentions(memberId, record.getMember().getId(), content,
 			request.mentionsOrEmpty());
+		BreadRecordComment parent = request.parentCommentId() == null ? null
+			: commentRepository.findReplyTarget(request.parentCommentId(), record.getId())
+				.orElseThrow(() -> new CommentException(CommentErrorCode.COMMENT_NOT_FOUND));
 		Member writer = memberReader.getMember(memberId);
-		BreadRecordComment comment = commentRepository.save(BreadRecordComment.of(record, writer, content));
+		BreadRecordComment comment = commentRepository.save(parent == null
+			? BreadRecordComment.of(record, writer, content)
+			: BreadRecordComment.reply(record, writer, content, parent));
 		List<CommentMention> mentions = new java.util.ArrayList<>();
 		for (int i = 0; i < mentioned.size(); i++) {
 			MentionRequest mention = request.mentionsOrEmpty().get(i);
@@ -85,25 +90,40 @@ public class CommentCommandService {
 				CommentMention.of(comment, mentioned.get(i), mention.start(), mention.length())));
 		}
 		communityNotificationService.notifyRecordComment(comment);
+		if (parent != null) {
+			// 답글은 내가 고른 댓글의 작성자에게 간다 — 깊이 1 로 접혀 부모가 바뀌어도 알림은 고른 사람에게
+			communityNotificationService.notifyCommentReply(comment, parent.getMember());
+		}
 		communityNotificationService.notifyMention(comment, mentioned);
 		return CommentResponse.of(comment, mentions, characterFaceReader.faceOf(memberId),
 			record.getMember().getId(), memberId);
 	}
 
-	/** 내 댓글이거나 내 빵로그의 남의 댓글. 행은 남기고 누가 지웠는지만 적는다. 없거나 이미 지웠으면 404. */
+	/**
+	 * 내 댓글이거나 내 빵로그의 남의 댓글. 행은 남기고 누가 지웠는지만 적는다. 없거나 이미 지웠으면 404.
+	 * 최상위 댓글을 지우면 그 답글도 같은 사유로 같이 지운다(부모 없는 답글이 남지 않게).
+	 */
 	public void delete(Long memberId, Long commentId) {
 		memberReader.requireLoggedIn(memberId);
 		BreadRecordComment comment = commentRepository.findActiveByIdWithRecord(commentId)
 			.orElseThrow(() -> new CommentException(CommentErrorCode.COMMENT_NOT_FOUND));
+		String deletedBy;
 		if (comment.getMember().getId().equals(memberId)) {
-			comment.delete(BreadRecordComment.DELETED_BY_AUTHOR);
+			deletedBy = BreadRecordComment.DELETED_BY_AUTHOR;
 		} else if (comment.getRecord().getMember().getId().equals(memberId)) {
-			comment.delete(BreadRecordComment.DELETED_BY_RECORD_OWNER);
+			deletedBy = BreadRecordComment.DELETED_BY_RECORD_OWNER;
 		} else {
 			throw new CommentException(CommentErrorCode.COMMENT_DELETE_DENIED);
 		}
-		// 지운 글이 알림함에 미리보기로 남지 않게 — 댓글 · 멘션 알림을 거둔다
+		comment.delete(deletedBy);
+		// 지운 글이 알림함에 미리보기로 남지 않게 — 댓글 · 멘션 · 답글 알림을 거둔다
 		communityNotificationService.retractCommentNotifications(comment.getId());
+		if (!comment.isReply()) {
+			for (BreadRecordComment reply : commentRepository.findActiveReplies(comment.getId())) {
+				reply.delete(deletedBy);
+				communityNotificationService.retractCommentNotifications(reply.getId());
+			}
+		}
 	}
 
 	/** 최대 3명 · 같은 사람 한 번 · 본문 안 오프셋 · 상대가 될 수 있는 사람(탈퇴 · 게스트 · 봇 아님) · 나 · 빵로그 작성자와 차단 관계 아님. */

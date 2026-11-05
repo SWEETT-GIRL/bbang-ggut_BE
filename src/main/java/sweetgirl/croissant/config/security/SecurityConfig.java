@@ -68,6 +68,8 @@ public class SecurityConfig {
 				"/actuator/metrics/**", "/actuator/prometheus")
 			.permitAll()
 			.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+			// 코스 신호 STOMP 핸드셰이크 — RN 의 WebSocket 은 헤더를 못 붙여서 인증은 CONNECT 프레임(StompAuthInterceptor)이 한다
+			.requestMatchers("/ws", "/ws/**").permitAll()
 			.requestMatchers(HttpMethod.GET, "/trend/**", "/menu-categories", "/banners", "/banners/**").permitAll()
 			// 지도의 '요즘 뜨는 디저트'는 회원과 무관한 전역 콘텐츠다 — 지도는 로그인 전에도 보인다
 			.requestMatchers(HttpMethod.GET, "/desserts", "/desserts/**").permitAll()

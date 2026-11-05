@@ -10,6 +10,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import sweetgirl.croissant.follow.repository.MemberFollowRepository;
+import sweetgirl.croissant.follow.repository.MemberFollowRequestRepository;
 import sweetgirl.croissant.member.event.MemberWithdrawnEvent;
 
 @ExtendWith(MockitoExtension.class)
@@ -18,6 +19,8 @@ class FollowWithdrawalListenerTest {
 
 	@Mock
 	private MemberFollowRepository memberFollowRepository;
+	@Mock
+	private MemberFollowRequestRepository memberFollowRequestRepository;
 
 	@InjectMocks
 	private FollowWithdrawalListener listener;
@@ -28,5 +31,6 @@ class FollowWithdrawalListenerTest {
 		listener.onWithdrawn(new MemberWithdrawnEvent(1L));
 
 		then(memberFollowRepository).should().deleteAllOf(1L);
+		then(memberFollowRequestRepository).should().deleteAllOf(1L);
 	}
 }

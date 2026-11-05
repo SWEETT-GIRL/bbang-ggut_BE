@@ -1,0 +1,106 @@
+# 메모 초안 전용 Redis — 로컬 HA 측정용 (master 1 · replica 1 · sentinel 3, quorum 2).
+#
+# 캐시 Redis(docker-compose.yml, allkeys-lru · --save "")와 따로 둔다. 초안은 잠깐이지만 원본이라
+# noeviction + AOF everysec 이고, 마스터가 죽으면 Sentinel 이 레플리카를 승격한다.
+# min-replicas-to-write 는 켜지 않는다 — 레플리카가 1대라 켜면 레플리카 하나만 죽어도 모든 쓰기가 실패한다.
+# 유실 0건은 앱의 약속(DB 반영 확인까지 재전송)이 보장하고, HA 는 유실 확률만 줄인다.
+#
+# 호스트의 앱이 Sentinel 에 붙는 함정: Sentinel 은 마스터 주소를 컨테이너 안 이름/포트로 알려준다.
+# 그래서 (1) 각 노드가 호스트에 공개하는 포트 = 컨테이너 안 포트(6380/6381)로 맞추고,
+#        (2) 호스트 /etc/hosts 에 아래 두 줄을 넣어 컨테이너 이름이 127.0.0.1 로 풀리게 한다.
+#            127.0.0.1 redis-draft-master
+#            127.0.0.1 redis-draft-replica
+#
+#   docker compose -f docker-compose.draft-ha.yml up -d
+#   앱: --course.draft.redis.mode=sentinel --course.draft.redis.sentinel-master=draft \
+#       --course.draft.redis.sentinel-nodes=localhost:26379,localhost:26380,localhost:26381 \
+#       --course.draft.write-enabled=true
+#   장애 주입: scripts/lab/draft-buffer/kill-master.sh
+services:
+  redis-draft-master:
+    image: redis:7-alpine
+    container_name: redis-draft-master
+    hostname: redis-draft-master
+    command:
+      - redis-server
+      - --port
+      - "6380"
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - noeviction
+    ports:
+      - "6380:6380"
+    volumes:
+      - redis-draft-master-data:/data
+
+  redis-draft-replica:
+    image: redis:7-alpine
+    container_name: redis-draft-replica
+    hostname: redis-draft-replica
+    command:
+      - redis-server
+      - --port
+      - "6381"
+      - --replicaof
+      - redis-draft-master
+      - "6380"
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - noeviction
+    ports:
+      - "6381:6381"
+    volumes:
+      - redis-draft-replica-data:/data
+    depends_on:
+      - redis-draft-master
+
+  # Sentinel 은 자기 conf 파일을 고쳐 쓰므로 템플릿을 복사해 각자 쓴다.
+  redis-draft-sentinel-1:
+    image: redis:7-alpine
+    container_name: redis-draft-sentinel-1
+    command: ["sh", "-c", "cp /tmp/sentinel.conf /etc/sentinel.conf && redis-sentinel /etc/sentinel.conf --port 26379"]
+    ports:
+      - "26379:26379"
+    volumes:
+      - ./docker/redis-draft/sentinel.conf:/tmp/sentinel.conf:ro
+    depends_on:
+      - redis-draft-master
+      - redis-draft-replica
+
+  redis-draft-sentinel-2:
+    image: redis:7-alpine
+    container_name: redis-draft-sentinel-2
+    command: ["sh", "-c", "cp /tmp/sentinel.conf /etc/sentinel.conf && redis-sentinel /etc/sentinel.conf --port 26380"]
+    ports:
+      - "26380:26380"
+    volumes:
+      - ./docker/redis-draft/sentinel.conf:/tmp/sentinel.conf:ro
+    depends_on:
+      - redis-draft-master
+      - redis-draft-replica
+
+  redis-draft-sentinel-3:
+    image: redis:7-alpine
+    container_name: redis-draft-sentinel-3
+    command: ["sh", "-c", "cp /tmp/sentinel.conf /etc/sentinel.conf && redis-sentinel /etc/sentinel.conf --port 26381"]
+    ports:
+      - "26381:26381"
+    volumes:
+      - ./docker/redis-draft/sentinel.conf:/tmp/sentinel.conf:ro
+    depends_on:
+      - redis-draft-master
+      - redis-draft-replica
+
+volumes:
+  redis-draft-master-data:
+  redis-draft-replica-data:

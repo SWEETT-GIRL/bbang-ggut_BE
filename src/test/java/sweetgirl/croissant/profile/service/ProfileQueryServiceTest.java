@@ -2,6 +2,8 @@ package sweetgirl.croissant.profile.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
@@ -19,6 +21,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import sweetgirl.croissant.breadlog.repository.BreadRecordRepository;
 import sweetgirl.croissant.follow.repository.MemberFollowRepository;
+import sweetgirl.croissant.follow.repository.MemberFollowRequestRepository;
+import sweetgirl.croissant.follow.service.FollowVisibilityReader;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.repository.MemberBlockRepository;
 import sweetgirl.croissant.member.service.MemberRestrictionReader;
@@ -54,6 +58,10 @@ class ProfileQueryServiceTest {
 	private MemberRestrictionReader memberRestrictionReader;
 	@Mock
 	private MemberFollowRepository memberFollowRepository;
+	@Mock
+	private MemberFollowRequestRepository memberFollowRequestRepository;
+	@Mock
+	private FollowVisibilityReader followVisibilityReader;
 	@Mock
 	private BreadRecordRepository breadRecordRepository;
 	@Mock
@@ -111,10 +119,14 @@ class ProfileQueryServiceTest {
 		given(memberFollowRepository.countByIdFollowerId(TARGET)).willReturn(7L);
 		given(memberFollowRepository.existsByIdFollowerIdAndIdFolloweeId(VIEWER, TARGET)).willReturn(true);
 		given(memberFollowRepository.existsByIdFollowerIdAndIdFolloweeId(TARGET, VIEWER)).willReturn(false);
+		given(followVisibilityReader.canViewRecords(eq(VIEWER), any())).willReturn(true);
 
 		ProfileResponse response = profileQueryService.getProfile(VIEWER, TARGET);
 
 		assertThat(response.blocked()).isFalse();
+		assertThat(response.isPrivate()).isFalse();
+		assertThat(response.followRequestedByMe()).isFalse();
+		assertThat(response.canViewRecords()).isTrue();
 		assertThat(response.isMe()).isFalse();
 		assertThat(response.nickname()).isEqualTo("빵순이");
 		assertThat(response.characterCode()).isEqualTo("dog");
@@ -129,6 +141,31 @@ class ProfileQueryServiceTest {
 		assertThat(response.followingCount()).isEqualTo(7);
 		assertThat(response.followedByMe()).isTrue();
 		assertThat(response.followsMe()).isFalse();
+	}
+
+	@Test
+	@DisplayName("비공개 계정: 프로필은 보이되 canViewRecords 가 거짓이고, 요청해 뒀으면 followRequestedByMe")
+	void privateAccount() {
+		Member target = member(TARGET, "빵순이");
+		target.changePrivacy(true);
+		given(socialMemberReader.findSocial(TARGET)).willReturn(Optional.of(target));
+		given(memberBlockRepository.existsBetween(VIEWER, TARGET)).willReturn(false);
+		given(memberRestrictionReader.isProfileRestricted(TARGET)).willReturn(false);
+		givenWorld(TARGET, "dog");
+		given(memberTitleReader.titleOf(TARGET)).willReturn(Optional.empty());
+		given(breadRecordRepository.countPublicByMemberId(TARGET)).willReturn(12L);
+		given(memberFollowRepository.existsByIdFollowerIdAndIdFolloweeId(VIEWER, TARGET)).willReturn(false);
+		given(memberFollowRequestRepository.existsByIdRequesterIdAndIdTargetId(VIEWER, TARGET)).willReturn(true);
+		given(followVisibilityReader.canViewRecords(VIEWER, target)).willReturn(false);
+
+		ProfileResponse response = profileQueryService.getProfile(VIEWER, TARGET);
+
+		assertThat(response.blocked()).isFalse();
+		assertThat(response.nickname()).isEqualTo("빵순이");
+		assertThat(response.publicRecordCount()).isEqualTo(12);
+		assertThat(response.isPrivate()).isTrue();
+		assertThat(response.followRequestedByMe()).isTrue();
+		assertThat(response.canViewRecords()).isFalse();
 	}
 
 	@Test

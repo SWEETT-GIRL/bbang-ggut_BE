@@ -22,12 +22,14 @@ import sweetgirl.croissant.member.dto.request.ConsentCreateRequest;
 import sweetgirl.croissant.member.dto.request.ConsentUpdateRequest;
 import sweetgirl.croissant.member.dto.request.NotificationRadiusRequest;
 import sweetgirl.croissant.member.dto.request.NotificationTimeRequest;
+import sweetgirl.croissant.member.dto.request.PrivacyUpdateRequest;
 import sweetgirl.croissant.member.dto.response.ConsentResponse;
 import sweetgirl.croissant.member.dto.response.DayOfWeekResponse;
 import sweetgirl.croissant.member.dto.response.MemberProfileResponse;
 import sweetgirl.croissant.member.dto.response.MenuCategoryResponse;
 import sweetgirl.croissant.member.dto.response.NotificationRadiusResponse;
 import sweetgirl.croissant.member.dto.response.NotificationTimeResponse;
+import sweetgirl.croissant.member.dto.response.PrivacyResponse;
 import sweetgirl.croissant.member.service.MemberCommandService;
 import sweetgirl.croissant.member.service.MemberQueryService;
 import sweetgirl.croissant.menu.entity.MenuCategory;
@@ -141,6 +143,21 @@ public class MemberController {
 			@AuthenticationPrincipal Long memberId,
 			@RequestBody @Valid NotificationTimeRequest request) {
 		return ApiResponse.ok(memberCommandService.updateNotificationTime(memberId, request));
+	}
+
+	@Operation(summary = "계정 공개 범위 조회", description = "isPrivate 가 true 면 비공개 계정 — 팔로워만 내 공개 빵로그를 본다.")
+	@GetMapping("/me/privacy")
+	public ApiResponse<PrivacyResponse> getPrivacy(@AuthenticationPrincipal Long memberId) {
+		return ApiResponse.ok(memberQueryService.getPrivacy(memberId));
+	}
+
+	@Operation(summary = "계정 공개 범위 변경", description = "{ \"isPrivate\": true } 면 비공개. 비공개로 돌려도 기존 팔로워는 그대로이고, "
+		+ "공개로 돌리면 대기 중인 팔로우 요청이 전부 팔로워가 된다. 게스트 403 MEMBER403_GUEST.")
+	@PatchMapping("/me/privacy")
+	public ApiResponse<PrivacyResponse> updatePrivacy(
+			@AuthenticationPrincipal Long memberId,
+			@RequestBody @Valid PrivacyUpdateRequest request) {
+		return ApiResponse.ok(memberCommandService.updatePrivacy(memberId, request));
 	}
 
 	@Operation(summary = "회원 탈퇴", description = "로그인한 사용자의 계정을 탈퇴 처리합니다. 탈퇴 시 모든 RefreshToken이 revoke되고 FCM 토큰이 삭제됩니다.")
