@@ -51,6 +51,9 @@ subprojects {
     tasks.named('test') {
         // 기존 프로필과 v2 전체 기동 컨텍스트를 함께 검사할 때 기본 512MB를 넘는다.
         maxHeapSize = '1g'
+        // 테스트 JVM 을 CPU 절반만큼, 최대 4개 띄운다(CI 4 vCPU → 2개). 포크마다 JVM 이 따로라 H2 인메모리 DB·시스템 프로퍼티가
+        // 섞이지 않는다. core 테스트 231초가 build-v2 의 가장 큰 덩어리였다(2026-11-09).
+        maxParallelForks = Math.min(4, Math.max(1, (Runtime.runtime.availableProcessors() / 2) as int))
         useJUnitPlatform {
             // 'lab' 태그 = 로컬 랩 PG(docker-compose.lab-postgres.yml, 운영 덤프 복제본)에 붙는 통합 테스트.
             // CI/기본 빌드에서는 제외하고, 랩이 떠 있을 때 ./gradlew test -PlabTests 로 돌린다.
