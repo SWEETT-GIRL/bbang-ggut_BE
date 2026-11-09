@@ -78,6 +78,8 @@ jobs:
       - run: pip install -r dataops/requirements.txt -r dataops/scripts/requirements-agent-smoke.lock
       - working-directory: dataops
         run: python -m unittest discover -s scripts/tests
+      # 초안 버퍼 Grafana 대시보드·알림 생성기 — 커밋된 JSON 이 생성기와 같은지 본다
+      - run: python -m unittest discover -s scripts/monitoring/tests
   # 배치 이미지가 빌드되는지만 본다(푸시 없음). 배포는 cd-batch 가 ARM64 로 다시 빌드한다
   batch-image:
     needs: changes

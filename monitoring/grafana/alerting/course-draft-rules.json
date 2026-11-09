@@ -1,0 +1,265 @@
+{
+  "apiVersion": 1,
+  "groups": [
+    {
+      "orgId": 1,
+      "name": "course-draft-operations",
+      "folder": "CourseDraft",
+      "interval": "1m",
+      "rules": [
+        {
+          "uid": "bbang-course-draft-backlog",
+          "title": "CourseDraftBacklogStuck",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "dfutc56whwh6of",
+              "model": {
+                "refId": "A",
+                "expr": "max(draft_backlog) > bool 10",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "query": {
+                      "params": [
+                        "B"
+                      ]
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Alerting",
+          "for": "2m",
+          "annotations": {
+            "summary": "초안 반영 대기 코스가 10개 넘게 2분 지속",
+            "description": "플러셔가 멈췄거나 DB 반영이 계속 실패하는 것. 앱 로그 `[메모 초안] DB 반영 실패`·`임대가 만료된 코스` 와 Hikari pending 을 본다. 설계상 정상이면 backlog 는 2~10초 안에 0으로 돌아온다.",
+            "dashboard_url": "https://grafana.bbangmapbbang.shop/d/bbang-course-draft-v0",
+            "recovery_note": "Resolved 는 조건 해제다. 밀린 초안이 DB 에 들어갔는지는 backlog 0 과 flush 횟수 증가로 확인한다."
+          },
+          "labels": {
+            "service": "course-draft",
+            "environment": "prod",
+            "severity": "warning"
+          },
+          "isPaused": true,
+          "notification_settings": {
+            "receiver": "dataops-slack",
+            "group_by": [
+              "grafana_folder",
+              "alertname"
+            ],
+            "group_wait": "30s",
+            "group_interval": "5m",
+            "repeat_interval": "4h"
+          }
+        },
+        {
+          "uid": "bbang-course-draft-redis",
+          "title": "CourseDraftRedisUnreadable",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "dfutc56whwh6of",
+              "model": {
+                "refId": "A",
+                "expr": "(min(draft_backlog) < bool 0) or vector(0)",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "query": {
+                      "params": [
+                        "B"
+                      ]
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Alerting",
+          "for": "2m",
+          "annotations": {
+            "summary": "초안 Redis 를 읽지 못함 (draft_backlog = -1)",
+            "description": "Redis EC2 의 redis-draft 컨테이너(6380)·보안그룹·비밀번호를 본다. 그동안 초안 PUT 은 503 이고 앱은 PATCH 로 물러난다 — 유실은 아니다.",
+            "dashboard_url": "https://grafana.bbangmapbbang.shop/d/bbang-course-draft-v0",
+            "recovery_note": "Resolved 는 조건 해제다. 밀린 초안이 DB 에 들어갔는지는 backlog 0 과 flush 횟수 증가로 확인한다."
+          },
+          "labels": {
+            "service": "course-draft",
+            "environment": "prod",
+            "severity": "warning"
+          },
+          "isPaused": true,
+          "notification_settings": {
+            "receiver": "dataops-slack",
+            "group_by": [
+              "grafana_folder",
+              "alertname"
+            ],
+            "group_wait": "30s",
+            "group_interval": "5m",
+            "repeat_interval": "4h"
+          }
+        },
+        {
+          "uid": "bbang-course-draft-write503",
+          "title": "CourseDraftWrite503Ratio",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "dfutc56whwh6of",
+              "model": {
+                "refId": "A",
+                "expr": "(sum(rate(http_server_requests_seconds_count{uri=\"/courses/{courseId}/stores/{storeId}/memo-draft\",method=\"PUT\",status=\"503\"}[5m])) / sum(rate(http_server_requests_seconds_count{uri=\"/courses/{courseId}/stores/{storeId}/memo-draft\",method=\"PUT\"}[5m])) > bool 0.05) * (sum(rate(http_server_requests_seconds_count{uri=\"/courses/{courseId}/stores/{storeId}/memo-draft\",method=\"PUT\"}[5m])) > bool 0.1)",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "query": {
+                      "params": [
+                        "B"
+                      ]
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Alerting",
+          "for": "5m",
+          "annotations": {
+            "summary": "초안 PUT 의 5% 넘게 503, 5분 지속 (요청이 초당 0.1 이상일 때만)",
+            "description": "Redis command timeout(1초)·연결 끊김·권한 판정 DB 실패. 요청이 거의 없을 때 한두 건으로 울리지 않게 최소 트래픽 조건을 둔다.",
+            "dashboard_url": "https://grafana.bbangmapbbang.shop/d/bbang-course-draft-v0",
+            "recovery_note": "Resolved 는 조건 해제다. 밀린 초안이 DB 에 들어갔는지는 backlog 0 과 flush 횟수 증가로 확인한다."
+          },
+          "labels": {
+            "service": "course-draft",
+            "environment": "prod",
+            "severity": "warning"
+          },
+          "isPaused": true,
+          "notification_settings": {
+            "receiver": "dataops-slack",
+            "group_by": [
+              "grafana_folder",
+              "alertname"
+            ],
+            "group_wait": "30s",
+            "group_interval": "5m",
+            "repeat_interval": "4h"
+          }
+        }
+      ]
+    }
+  ]
+}

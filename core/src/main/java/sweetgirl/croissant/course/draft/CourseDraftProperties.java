@@ -30,8 +30,11 @@ public class CourseDraftProperties {
 	/** 첫 미반영 입력 뒤 이만큼 지나면 계속 치는 사람이 있어도 반영한다. */
 	private Duration maxWait = Duration.ofSeconds(10);
 
-	/** 플러셔가 코스를 꺼내 들고 있을 수 있는 시간. 지나면 죽은 플러셔로 보고 다른 인스턴스가 회수한다. */
-	private Duration lease = Duration.ofSeconds(30);
+	/**
+	 * 플러셔가 코스를 꺼내 들고 있을 수 있는 시간. 지나면 죽은 플러셔로 보고 다른 인스턴스가 회수한다.
+	 * 반영 한 번은 1초 안쪽이라 15초면 충분하다 — 30초일 때 페일오버 뒤 마지막 글이 DB 에 가기까지 17~39초가 걸렸다(11/5 측정).
+	 */
+	private Duration lease = Duration.ofSeconds(15);
 
 	/** DB 반영이 실패한 코스를 다시 시도하기까지. */
 	private Duration retryDelay = Duration.ofSeconds(5);
