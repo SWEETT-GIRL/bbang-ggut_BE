@@ -1,6 +1,7 @@
 """배치 EC2 에서 실행(/usr/local/bin/bbang-batch). 비밀값을 stdout·이미지·디스크(임시 파일 외)에 남기지 않는다.
 
-  bbang-batch install                    배포 — Docker Hub 로그인 후 config.json 의 이미지(digest)를 받는다
+  bbang-batch install                    배포 — 옛 이미지를 정리하고 config.json.next 의 이미지(digest)를 받은 뒤 config.json 으로 승격
+                                         (서버에는 현재·다음 이미지 2개만 남는다)
   bbang-batch job <이름>                 WAS 배치 작업 하나 (Scheduler → Step Functions → SSM 문서 SweetgirlBatchRun 이 부른다)
   bbang-batch dataops-nightly [시간] [최대가게수]     dataops 수집
   bbang-batch dataops-cycle [run|plan|seed-refresh] [옵션]  전체 최신화 독립 트랙
@@ -143,26 +144,78 @@ def docker_run_args(image, env_path, firebase_path, logs_dir, command):
     return run + [image, *args], needs_logs
 
 
-def run(*args, **kwargs):
-    return subprocess.run(args, check=True, **kwargs)
+NEXT_CONFIG_NAME = 'config.json.next'   # 배포가 먼저 두는 다음 설정. pull 이 끝나야 config.json 이 된다
 
 
 def load_config():
     return validate_config(json.loads((BASE / 'config.json').read_text()))
 
 
+def load_next_config(base=BASE):
+    """설치용 설정 — 배포 스크립트가 둔 config.json.next 를 우선 읽는다. 없으면(수동 재설치) 현재 config.json."""
+    path = base / NEXT_CONFIG_NAME
+    if not path.exists():
+        path = base / 'config.json'
+    return validate_config(json.loads(path.read_text()))
+
+
+def current_image(base=BASE):
+    """지금 작업이 쓰는 이미지(config.json 의 image). 첫 설치면 None."""
+    path = base / 'config.json'
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text()).get('image')
+    except ValueError:
+        return None
+
+
+def image_repository(image):
+    return image.split('@', 1)[0]
+
+
+def images_to_remove(listed, keep):
+    """같은 저장소의 digest 참조 중 keep 에 없는 것. digest 가 없는 줄(<none>)은 건드리지 않는다."""
+    return [ref for ref in listed if '@sha256:' in ref and ref not in keep]
+
+
+def prune_images(repository, keep, run_command=subprocess.run):
+    """현재·다음 이미지만 남기고 같은 저장소의 나머지를 지운다 — pull 전에 돌려 디스크 최대치를 이미지 2개로 묶는다.
+    20GB 디스크에 이미지 하나가 2.5GB 라 "7일 보관"은 6개(15GB)가 쌓여 pull 도중 디스크가 찼다(2026-11-09)."""
+    listed = run_command(['docker', 'images', '--digests', '--format', '{{.Repository}}@{{.Digest}}', repository],
+                         check=False, capture_output=True, text=True).stdout.split()
+    removed = []
+    for ref in images_to_remove(listed, keep):
+        run_command(['docker', 'rmi', ref], check=False)
+        removed.append(ref)
+    return removed
+
+
+def install_image(config, hub, base=BASE, run_command=subprocess.run):
+    """로그인 → 옛 이미지 정리 → pull → config.json 승격.
+    pull 이 실패하면 config.json 은 그대로라 예약 작업은 계속 현재 이미지로 돈다(설정만 앞서가는 어긋남을 막는다)."""
+    image = config['image']
+    previous = current_image(base)
+    with tempfile.TemporaryDirectory(prefix='bbang-batch-') as tmp:
+        docker_env = {**os.environ, 'DOCKER_CONFIG': tmp}
+        run_command(['docker', 'login', '--username', hub['username'], '--password-stdin'],
+                    check=True, input=hub['token'], text=True, env=docker_env)
+        removed = prune_images(image_repository(image), {previous, image} - {None}, run_command)
+        run_command(['docker', 'pull', image], check=True, env=docker_env)
+    next_path = base / NEXT_CONFIG_NAME
+    if next_path.exists():
+        os.replace(next_path, base / 'config.json')
+    for ref in removed:
+        print(f'removed old image: {ref}')
+    print(f'batch image ready: {image}')
+
+
 def install(config):
     import boto3  # EC2 의 python3-boto3; 단위 테스트에는 AWS SDK·인증이 필요 없다
     _, _, hub = load_parameters(boto3.client('ssm', region_name=config['region']), config['parameter_prefix'])
-    with tempfile.TemporaryDirectory(prefix='bbang-batch-') as tmp:
-        docker_env = {**os.environ, 'DOCKER_CONFIG': tmp}
-        run('docker', 'login', '--username', hub['username'], '--password-stdin', input=hub['token'], text=True, env=docker_env)
-        run('docker', 'pull', config['image'], env=docker_env)
+    install_image(config, hub)
     (BASE / 'dataops-logs').mkdir(mode=0o755, exist_ok=True)
     os.chown(BASE / 'dataops-logs', CONTAINER_UID, CONTAINER_UID)
-    # 직전 이미지는 남긴다(롤백 대상) — 일주일 넘은 것만 지운다
-    subprocess.run(['docker', 'image', 'prune', '-af', '--filter', 'until=168h'], check=False)
-    print(f'batch image ready: {config["image"]}')
 
 
 def execute(config, command):
@@ -234,10 +287,10 @@ def main(argv):
         sys.exit(__doc__)
     if argv[0] == 'busy':
         return busy()
-    config = load_config()
     if argv[0] == 'install':
-        install(config)
+        install(load_next_config())
         return 0
+    config = load_config()
     container_args(argv)   # 잘못된 인자는 Parameter Store 를 읽기 전에 거른다
     return execute(config, argv)
 
