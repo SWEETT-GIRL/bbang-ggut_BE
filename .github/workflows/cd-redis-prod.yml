@@ -31,11 +31,13 @@ jobs:
           # ACL·복제 설정은 배포 시 생성된다. 검증용 파일에는 자격 증명을 넣지 않는다.
           printf 'user default off\n' > infra/redis/users.acl
           : > infra/redis/replication.conf
+          : > infra/redis/replication-cache.conf
           for role in master replica sentinel; do
             docker compose --profile "$role" -f infra/redis/compose.yaml config --quiet
           done
           grep -q '__ANNOUNCE_IP__' infra/redis/sentinel.conf
           grep -q '__MASTER_HOST__' infra/redis/sentinel.conf
+          grep -q '^sentinel monitor cache ' infra/redis/sentinel.conf
           grep -q '__REPLICATION_PASSWORD__' infra/redis/sentinel.conf
 
   deploy:
@@ -165,13 +167,22 @@ jobs:
               [ "$role" = replica ] && printf 'replicaof %s 6380\n' "$REDIS_HOST"
               true
             } > "$stage/replication.conf"
+            # 캐시(6379)도 같은 방식으로 복제한다. 포트만 다르다.
+            {
+              printf 'masteruser replica\n'
+              printf 'masterauth %s\n' "$REPLICATION_PASSWORD"
+              printf 'replica-announce-ip %s\n' "$announce_ip"
+              printf 'replica-announce-port 6379\n'
+              [ "$role" = replica ] && printf 'replicaof %s 6379\n' "$REDIS_HOST"
+              true
+            } > "$stage/replication-cache.conf"
             echo "== $role ($announce_ip)"
             # The release path is generated on the runner and intentionally expanded here.
             # shellcheck disable=SC2029
             ssh "$alias" "mkdir -p ~/$remote_dir && chmod 700 ~/redis ~/$remote_dir"
             # shellcheck disable=SC2029
             tar -C "$stage" -czf - . |
-              ssh "$alias" "tar -xzf - -C ~/$remote_dir && chmod 644 ~/$remote_dir/redis.conf ~/$remote_dir/redis-draft.conf ~/$remote_dir/users.acl ~/$remote_dir/sentinel.conf ~/$remote_dir/replication.conf"
+              ssh "$alias" "tar -xzf - -C ~/$remote_dir && chmod 644 ~/$remote_dir/redis.conf ~/$remote_dir/redis-draft.conf ~/$remote_dir/users.acl ~/$remote_dir/sentinel.conf ~/$remote_dir/replication.conf ~/$remote_dir/replication-cache.conf"
             # shellcheck disable=SC2029
             ssh "$alias" "bash ~/$remote_dir/deploy.sh $role"
           done
@@ -180,4 +191,4 @@ jobs:
         if: always()
         run: |
           rm -f ~/.ssh/redis_bastion_key ~/.ssh/redis_deploy_key ~/.ssh/redis_known_hosts ~/.ssh/config
-          rm -f infra/redis/users.acl infra/redis/replication.conf
+          rm -f infra/redis/users.acl infra/redis/replication.conf infra/redis/replication-cache.conf
