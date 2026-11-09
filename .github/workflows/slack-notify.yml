@@ -52,34 +52,65 @@ jobs:
                   !url.pathname.startsWith('/services/') || url.username || url.password || url.search || url.hash) {
                 throw new Error('InvalidWebhook');
               }
-              const jobs = Object.entries(JSON.parse(process.env.NOTIFY_RESULTS));
+              const results = JSON.parse(process.env.NOTIFY_RESULTS);
+              const jobs = Object.entries(results);
               const failed = jobs.filter(([, job]) => job.result === 'failure').map(([name]) => name);
               const cancelled = jobs.filter(([, job]) => job.result === 'cancelled').map(([name]) => name);
-              let status = failed.length ? '실패' : cancelled.length ? '취소' : '완료';
+              const isCD = process.env.NOTIFY_KIND === 'CD';
               const state = process.env.DEPLOYMENT_STATE;
-              if (!failed.length && !cancelled.length && process.env.NOTIFY_KIND === 'CD') {
-                status = state === 'prepared' ? '배포 준비 완료 — 실행 중 서비스 검증 없음' :
-                         state === 'refreshed' ? 'ASG 인스턴스 교체 완료' :
-                         state === 'installed' ? '배치 이미지 설치 완료 — 배치 실행 결과와 별개' : '파이프라인 완료';
-              }
-              const title = `[${process.env.NOTIFY_COMPONENT}] ${process.env.NOTIFY_KIND} ${status}`;
+              const component = process.env.NOTIFY_COMPONENT === 'DataOps 배치' ? 'BATCH' : process.env.NOTIFY_COMPONENT;
+              const status = failed.length ? '실패' : cancelled.length ? '취소' :
+                isCD && state === 'prepared' ? '준비 완료' : '완료';
+              const icon = failed.length ? '❌' : cancelled.length || state === 'prepared' ? '⏸️' : isCD ? '🚀' : '✅';
+              const color = failed.length ? '#E74C3C' : cancelled.length || state === 'prepared' ? '#F2C744' : '#2ECC71';
+              const operation = !isCD ? 'CI' : failed.length || cancelled.length ||
+                ['installed', 'refreshed', 'prepared'].includes(state) ? '배포' : '파이프라인';
+              const title = `${icon} ${operation} ${status} [${component}]`.slice(0, 150);
               const pr = context.payload.pull_request;
+              const gate = results['merged-pr']?.outputs || {};
+              const prNumber = pr?.number || gate.pr_number;
+              const prTitle = pr?.title || gate.pr_title;
               const revision = pr?.head?.sha || context.sha;
-              const branch = pr ? `${pr.head.ref} → ${pr.base.ref}` : context.ref;
+              const branch = pr ? `${pr.head.ref} → ${pr.base.ref}` : context.ref.replace(/^refs\/heads\//, '');
               const runUrl = `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-              const lines = [title, `저장소: ${context.repo.owner}/${context.repo.repo}`,
-                `브랜치: ${branch}`, `커밋: ${revision.slice(0, 12)}`, `실행 시도: ${process.env.GITHUB_RUN_ATTEMPT}`,
-                ...(pr ? [`PR: #${pr.number}`] : []),
-                ...(failed.length ? [`실패 단계: ${failed.join(', ')}`] : []),
-                ...(cancelled.length ? [`취소 단계: ${cancelled.join(', ')}`] : []),
-                ...(process.env.NOTIFY_KIND === 'CD' && (failed.length || cancelled.length) ?
-                  ['실제 AWS 상태와 롤백 결과는 실행 로그에서 확인하세요. 파이프라인 중단이 AWS 작업 중단을 보장하지 않습니다.'] : []), runUrl];
-              const message = lines.join('\n').slice(0, 2900);
+              // 동적 메타데이터의 멘션·링크 해석을 막고 Slack field 길이 제한을 지킨다.
+              const escape = value => String(value).slice(0, 350).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+              const field = (label, value) => ({type: 'mrkdwn', text: `*${label}*\n${escape(value)}`, verbatim: true});
+              const plain = text => ({type: 'plain_text', text, emoji: true});
+              const method = state === 'installed' ? '배치 EC2 · 이미지 설치' :
+                state === 'refreshed' ? 'ASG · 인스턴스 교체' : state === 'prepared' ? 'ASG · Launch Template 준비' : '실행 로그 확인';
+              const blocks = [
+                {type: 'header', text: plain(title)},
+                {type: 'section', fields: [
+                  field('PR', prNumber ? `#${prNumber} ${prTitle || ''}`.trim() : '연결된 PR 정보 없음'),
+                  field('Commit', revision.slice(0, 12)),
+                  field('Branch', branch),
+                  field(isCD ? '배포 방식' : '실행', isCD ? method : `CI · ${process.env.GITHUB_RUN_ATTEMPT}번째 시도`)
+                ]}
+              ];
+              // 빌드 job의 출력을 사용해 알림 job만 재실행해도 원래 이미지 태그를 유지한다.
+              const imageTag = results.build?.outputs?.image_tag;
+              if (isCD && imageTag) blocks.push({type: 'section', fields: [field('Image Tag', imageTag)]});
+              if (failed.length || cancelled.length) {
+                blocks.push({type: 'section', fields: [
+                  ...(failed.length ? [field('실패 단계', failed.join(', '))] : []),
+                  ...(cancelled.length ? [field('취소 단계', cancelled.join(', '))] : [])
+                ]});
+              }
+              const note = isCD && (failed.length || cancelled.length) ?
+                '실제 AWS 상태와 롤백 결과는 실행 로그에서 확인하세요. 파이프라인 중단이 AWS 작업 중단을 보장하지 않습니다.' :
+                isCD && state === 'installed' ? '배치 이미지 설치 완료 · 배치 실행 결과는 시작·종료 알림으로 안내합니다.' :
+                isCD && state === 'prepared' ? 'Launch Template 준비 완료 · 실행 중 서비스 검증 없음' :
+                isCD && state === 'refreshed' ? 'ASG 인스턴스 교체 완료' : '';
+              if (note) blocks.push({type: 'context', elements: [plain(note)]});
+              blocks.push({type: 'actions', elements: [{type: 'button', text: plain('실행 로그 보기'), url: runUrl}]});
+              blocks.push({type: 'context', elements: [plain(
+                `${context.repo.owner}/${context.repo.repo} · 실행 #${context.runId} · 시도 ${process.env.GITHUB_RUN_ATTEMPT}`.slice(0, 1000))]});
               const response = await fetch(webhook, {
                 method: 'POST', redirect: 'error', signal: AbortSignal.timeout(10000),
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({text: title, mrkdwn: false, unfurl_links: false, unfurl_media: false,
-                  blocks: [{type: 'section', text: {type: 'plain_text', text: message, emoji: true}}]})
+                body: JSON.stringify({mrkdwn: false, unfurl_links: false, unfurl_media: false,
+                  attachments: [{color, fallback: title + (note ? ` · ${note}` : ''), blocks}]})
               });
               if (!response.ok || (await response.text()).trim() !== 'ok') throw new Error('SlackRejected');
               await core.summary.addRaw('Slack: 실행 결과 알림을 전송했습니다.').write();
