@@ -230,6 +230,19 @@ class ParameterStoreTest(unittest.TestCase):
         self.assertEqual(env['COURSE_DRAFT_REDIS_MODE'], 'standalone')
         self.assertEqual(env['COURSE_DRAFT_REDIS_PORT'], '6380')
 
+    def test_cache_redis_sentinel_parameters_reach_the_app_when_present(self):
+        nodes = '10.0.0.1:26380,10.0.0.2:26380,10.0.0.3:26380'
+        self.values[f'{PREFIX}/env/SPRING_DATA_REDIS_SENTINEL_MASTER'] = 'cache'
+        self.values[f'{PREFIX}/env/SPRING_DATA_REDIS_SENTINEL_NODES'] = nodes
+        env, _, _ = bootstrap.load_parameters(self.ssm, PREFIX)
+        self.assertEqual(env['SPRING_DATA_REDIS_SENTINEL_MASTER'], 'cache')
+        self.assertEqual(env['SPRING_DATA_REDIS_SENTINEL_NODES'], nodes)
+
+    def test_cache_redis_stays_off_when_parameters_are_absent(self):
+        env, _, _ = bootstrap.load_parameters(self.ssm, PREFIX)
+        self.assertNotIn('SPRING_DATA_REDIS_SENTINEL_MASTER', env)
+        self.assertNotIn('REDIS_HOST', env)
+
     def test_google_places_key_is_not_needed_to_load_runtime_parameters(self):
         google_parameter = f'{PREFIX}/env/GOOGLE_PLACES_API_KEY'
         self.values.pop(google_parameter, None)

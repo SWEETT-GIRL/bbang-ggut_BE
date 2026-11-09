@@ -13,7 +13,7 @@ docker info >/dev/null
 docker compose version
 test -s "$release_dir/users.acl"
 test -s "$release_dir/sentinel.conf"
-[ "$role" = sentinel ] || test -s "$release_dir/replication.conf"
+[ "$role" = sentinel ] || { test -s "$release_dir/replication.conf" && test -s "$release_dir/replication-cache.conf"; }
 # 역할은 릴리스 폴더에 남겨 롤백 때 같은 역할로 되돌린다.
 printf '%s\n' "$role" > "$release_dir/role"
 compose() { docker compose --project-name sweetgirl-prod-redis --profile "$(cat "$1/role")" -f "$1/compose.yaml" "${@:2}"; }

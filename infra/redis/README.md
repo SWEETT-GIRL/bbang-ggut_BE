@@ -1,13 +1,13 @@
 # 운영 Redis 배포
 
-대상: Redis EC2 3대. 캐시 Redis(6379)는 `ec2-sweetgirl-prod-redis-kafka-1` 한 대이고,
-메모 초안 Redis(6380)는 마스터 1 · 복제본 1 · Sentinel 3 으로 그 서버와 새 서버 2대에 걸친다. Cluster 구성은 아니다.
+대상: Redis EC2 3대. 캐시 Redis(6379)와 메모 초안 Redis(6380)는 각각 마스터 1 · 복제본 1 이고,
+두 Redis 를 같은 Sentinel 3개가 함께 감시한다(마스터 이름 `cache` · `draft`). Cluster 구성은 아니다.
 WAS와 다른 EC2에 배포하며, 기존 운영 배포의 배스천을 경유한다.
 
 | 서버 | 역할(`deploy.sh <role>` = compose profile) | 뜨는 것 |
 | --- | --- | --- |
-| `ec2-sweetgirl-prod-redis-kafka-1` (`PROD_REDIS_HOST`) | `master` | 캐시 redis 6379 · 초안 redis-draft 6380(마스터) · 감시자 26380 |
-| `ec2-sweetgirl-prod-redis-2` (`PROD_REDIS_REPLICA_HOST`) | `replica` | 초안 redis-draft 6380(복제본) · 감시자 26380 |
+| `ec2-sweetgirl-prod-redis-kafka-1` (`PROD_REDIS_HOST`) | `master` | 캐시 redis 6379(마스터) · 초안 redis-draft 6380(마스터) · 감시자 26380 |
+| `ec2-sweetgirl-prod-redis-2` (`PROD_REDIS_REPLICA_HOST`) | `replica` | 캐시 redis 6379(복제본) · 초안 redis-draft 6380(복제본) · 감시자 26380 |
 | `ec2-sweetgirl-prod-redis-3` (`PROD_REDIS_SENTINEL_HOST`) | `sentinel` | 감시자 26380 |
 
 ## 실행 조건
@@ -33,7 +33,7 @@ Redis 검증을 새 필수 검사로 지정하려면 백엔드만 수정한 PR�
 2. 배포 사용자는 기본 `ubuntu`이며 sudo 없이 `docker info`가 실행되어야 한다.
    Docker 그룹 권한 추가 후에는 새 SSH 세션에서 확인한다.
 3. 배스천에서 Redis EC2의 사설 IP로 SSH 접속이 되어야 한다.
-   Redis 보안그룹: 22는 배스천 SG, 6379·6380은 WAS SG, **6380과 26380은 Redis SG 자기 자신**(복제·감시자 투표),
+   Redis 보안그룹: 22는 배스천 SG, 6379·6380은 WAS SG, **6379·6380과 26380은 Redis SG 자기 자신**(복제·감시자 투표),
    **26380은 WAS SG**(앱이 감시자에게 마스터 주소를 묻는다)를 허용한다. 세 서버 모두 같은 SG 를 쓴다.
 4. EC2에서 Docker Hub로 접속 가능해야 한다. 퍼블릭 IP가 없다면 NAT 등 경로를 준비한다.
 5. Redis 권장 호스트 설정 `vm.overcommit_memory=1`을 `/etc/sysctl.d/`에 저장하고 적용한다.
@@ -69,12 +69,12 @@ Actions에서 SHA-256 해시를 생성해 릴리스별 `users.acl`로 전달한�
 `default`(앱, 전체 권한) · `health`(PING만) · `replica`(복제 프로토콜만) · `sentinel`(Sentinel 최소 권한).
 복제·감시 계정의 비밀번호 원문은 Redis 구조상 서버의 `replication.conf`(masterauth)와 `sentinel.conf`(auth-pass)에
 들어간다 — 제한 계정이라 그 파일이 새도 앱 데이터는 읽을 수 없다.
-users.acl · replication.conf · 채워진 sentinel.conf 는 Git에 커밋하지 않는다.
+users.acl · replication.conf · replication-cache.conf · 채워진 sentinel.conf 는 Git에 커밋하지 않는다.
 
 ## 동작과 데이터
 
 - 공식 ARM64 이미지 `redis:7.4.11-bookworm` 사용. 버전 변경은 별도 검토 후 진행한다.
-- Redis maxmemory 1GiB, 컨테이너 메모리 상한 1.5GiB. 실제 사용량을 보고 조정한다.
+- 캐시 Redis maxmemory 512MB, 컨테이너 메모리 상한 768MiB. 복제본이 t4g.small(2GB)에 초안 Redis·감시자와 같이 뜨기 때문이다.
 - 캐시 용도에 맞춰 `allkeys-lru` 사용. 세션, 큐, 락처럼 키 유실을 허용하지 않는 용도라면
   메모리 정책과 저장소 분리를 다시 설계한다.
 - AOF everysec + RDB를 사용한다. AOF everysec는 장애 시 최근 약 1초 쓰기 유실 가능성이 있다.
@@ -111,6 +111,32 @@ users.acl · replication.conf · 채워진 sentinel.conf 는 Git에 커밋하지
 | `COURSE_DRAFT_REDIS_PASSWORD` | 그대로(앱 계정 `default`) |
 
 `HOST`·`PORT` 는 sentinel 모드에서 읽지 않는다. 바꾼 뒤 v2 를 한 번 배포해야 반영된다.
+
+## 캐시 Redis Sentinel
+
+- 초안과 같은 방식이다. CD 가 서버마다 `replication-cache.conf`(포트 6379)를 만들고, 복제본 서버만 `replicaof` 로 시작한다.
+- 감시자 설정의 `sentinel monitor cache` 가 마스터 이름 `cache`, quorum 2, 5초 무응답 승격이다.
+- 캐시는 유실돼도 DB 로 다시 채우므로 `min-replicas-to-write` 는 켜지 않는다.
+
+### WAS · 배치를 Sentinel 로 돌리기
+
+Spring Boot 기본 Redis 연결을 쓰므로 환경변수만 넣으면 된다. `SPRING_DATA_REDIS_SENTINEL_MASTER` 가 있으면 `REDIS_HOST` 는 읽지 않는다.
+
+| 키 (v2 WAS `/sweetgirl/prod/v2/was/env/`, 배치도 같은 이름) | 값 |
+| --- | --- |
+| `SPRING_DATA_REDIS_SENTINEL_MASTER` | `cache` |
+| `SPRING_DATA_REDIS_SENTINEL_NODES` | `마스터IP:26380,복제본IP:26380,감시자IP:26380` |
+| `REDIS_PASSWORD` | 앱 계정(`default`) 비밀번호 |
+
+**빈 값으로 만들지 않는다.** 키가 있는데 비어 있으면 Spring 이 Sentinel 모드로 뜨려다 실패한다. 안 쓸 때는 키를 지운다.
+WAS SG 와 배치 SG 에서 Redis SG 의 26380 으로 가는 길이 열려 있어야 한다.
+
+### 재배포와 페일오버
+
+페일오버로 복제본 서버가 마스터가 된 뒤 Redis CD 가 다시 돌면, 감시자는 템플릿을 새로 복사하고 각 Redis 는
+`replication*.conf` 의 처음 역할로 뜬다. 그래서 **처음 구성(마스터 서버 = 마스터)으로 되돌아간다.**
+로컬 실험(Docker, 이 폴더의 설정 그대로)에서 승격 7초, 재배포 뒤 처음 구성 복귀와 승격 중 쓴 키 보존을 확인했다.
+다만 마스터 서버 배포와 복제본 서버 배포 사이에 승격된 쪽에 쓴 값은, 복제본 서버가 다시 동기화하면서 사라질 수 있다.
 
 ## 첫 배포 확인
 
