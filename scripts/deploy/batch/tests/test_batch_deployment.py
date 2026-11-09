@@ -2,9 +2,12 @@
 import base64
 import gzip
 import json
+import os
 from pathlib import Path
 import re
+import subprocess
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -54,6 +57,8 @@ class DeployTest(unittest.TestCase):
 
         self.assertEqual(config, {'region': 'ap-northeast-2', 'parameter_prefix': PREFIX, 'image': IMAGE})
         self.assertEqual(installed_runner, (Path(deploy.__file__).with_name('runner.py')).read_bytes())
+        installed_notifications = gzip.decompress(base64.b64decode(encoded[2]))
+        self.assertEqual(installed_notifications, (Path(deploy.__file__).with_name('batch_notifications.py')).read_bytes())
         self.assertIn('bbang-batch install', script)
         self.assertNotIn('token', script.lower().replace('--password-stdin', ''))
 
@@ -111,11 +116,18 @@ class RunnerArgumentsTest(unittest.TestCase):
             with self.assertRaises(ValueError, msg=bad):
                 runner.container_args(bad)
 
-    def test_dataops_명령은_스크립트_이름과_시간만_받는다(self):
+    def test_dataops_명령은_스크립트_이름과_수집_제한을_받는다(self):
+        self.assertEqual(runner.container_args(['dataops-nightly'])[0], ['dataops-nightly'])
         self.assertEqual(runner.container_args(['dataops-nightly', '6'])[0], ['dataops-nightly', '6'])
+        command = ['dataops-nightly', '0.25', '20']
+        docker, _ = runner.docker_run_args(IMAGE, '/tmp/app.env', '/tmp/firebase.json', '/opt/logs', command)
+        self.assertEqual(docker[-4:], [IMAGE, *command])
         self.assertEqual(runner.container_args(['dataops', 'approve_fill_pending.py', '--max', '10'])[0],
                          ['dataops', 'approve_fill_pending.py', '--max', '10'])
-        for bad in (['dataops-nightly', '6; reboot'], ['dataops', '../x.py'], ['dataops', 'run.sh'], ['dataops']):
+        for bad in (['dataops-nightly', '6; reboot'], ['dataops-nightly', '0.25', '0'],
+                    ['dataops-nightly', '0.25', '-1'], ['dataops-nightly', '0.25', '1.5'],
+                    ['dataops-nightly', '0.25', '20; reboot'], ['dataops-nightly', '0.25', '20', 'extra'],
+                    ['dataops', '../x.py'], ['dataops', 'run.sh'], ['dataops']):
             with self.assertRaises(ValueError, msg=bad):
                 runner.container_args(bad)
 
@@ -133,7 +145,93 @@ class RunnerArgumentsTest(unittest.TestCase):
         self.assertIn('type=bind,source=/opt/logs,target=/app/dataops/dataops-logs', nightly)
 
 
+class NightlyEntrypointTest(unittest.TestCase):
+
+    def test_실제_진입점이_건수_제한을_워커에_전달하고_잘못된_값을_거부한다(self):
+        # 실제 Java/DB/수집 대신 프로세스 경계의 인자를 기록한다.
+        entrypoint = Path(runner.__file__).with_name('entrypoint.sh')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            python = root / 'python3'
+            python.write_text('''#!/bin/bash
+case "$1" in
+    /app/jdbc_env.py|-c) exit 0 ;;
+    scripts/weekly_refresh.py|scripts/freshness_cycle.py) printf '%s\\n' "$@" > "$DATAOPS_TEST_ARGUMENTS" ;;
+    *) exit 99 ;;
+esac
+''')
+            java = root / 'java'
+            java.write_text('#!/bin/sh\nexec /bin/sleep 60\n')
+            python.chmod(0o700)
+            java.chmod(0o700)
+            output = root / 'worker-arguments.txt'
+            env = {**os.environ, 'PATH': str(root) + os.pathsep + os.environ['PATH'],
+                   'DATAOPS_TEST_ARGUMENTS': str(output), 'DATAOPS_TEST_DIRECTORY': str(root)}
+            # /app/dataops로의 이동만 격리 임시 디렉터리로 바꾼다.
+            invocation = ['bash', '-c', 'cd() { builtin cd "$DATAOPS_TEST_DIRECTORY"; }; source "$@"',
+                          'entrypoint-test', str(entrypoint), 'dataops-nightly', '0.25']
+            result = subprocess.run([*invocation, '20'], env=env, capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(output.read_text().splitlines(), ['scripts/weekly_refresh.py', 'nightly',
+                             '--crawl-hours', '0.25', '--server', 'http://127.0.0.1:8090', '--max-stores', '20'])
+            full_env = {**env, 'DATAOPS_FULL_CYCLE_ENABLED': 'true'}
+            result = subprocess.run([*invocation, '20'], env=full_env, capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(output.read_text().splitlines(), ['scripts/freshness_cycle.py', 'run',
+                             '--crawl-hours', '0.25', '--server', 'http://127.0.0.1:8090', '--max-items', '20'])
+            for selected_env, expected_hours in ((env, '6'), (full_env, '0.25')):
+                result = subprocess.run(invocation[:-1], env=selected_env, capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(output.read_text().splitlines()[3], expected_hours)
+            for arguments in (['0'], ['-1'], ['1.5'], ['20', 'extra']):
+                with self.subTest(arguments=arguments):
+                    result = subprocess.run([*invocation, *arguments], env=env,
+                                            capture_output=True, text=True, timeout=10)
+                    self.assertEqual(result.returncode, 64)
+
+
 class RunnerParametersTest(unittest.TestCase):
+
+    def test_전체_루프는_조회_계정을_요구하고_로컬_이관없이_원본을_영속_볼륨에_저장한다(self):
+        env = {key: 'value' for key in runner.DATAOPS_REQUIRED}
+        env.update(DATAOPS_DB_URL='jdbc:postgresql://rds/dataops?sslmode=require',
+                   DATAOPS_FULL_CYCLE_ENABLED='true', DATAOPS_BASELINE_VERSION='20261105')
+        with self.assertRaises(ValueError): runner.execution_environment(env, ['dataops-nightly'])
+        env.update(DB_URL='jdbc:postgresql://rds/soboro?sslmode=require', DATAOPS_PROD_DB_USERNAME='reader',
+                   DATAOPS_PROD_DB_PASSWORD='test', DATA_GO_KR_SERVICE_KEY='test')
+        self.assertEqual(runner.execution_environment(env, ['dataops-cycle'])['DATAOPS_PROD_DB_USERNAME'], 'reader')
+        command = ['dataops-cycle', 'run', '--tracks', 'public', '--cycle-id', 'smoke']
+        args, logs = runner.docker_run_args(IMAGE, '/tmp/app.env', '/tmp/firebase.json', '/opt/logs', command)
+        self.assertTrue(logs)
+        self.assertFalse(any('dataops-seed' in arg for arg in args))
+        self.assertTrue(any('target=/app/dataops/dataops-logs' in arg for arg in args))
+        self.assertEqual(args[-len(command):], command)
+        env['DATAOPS_BASELINE_VERSION'] = '../other'
+        with self.assertRaises(ValueError): runner.execution_environment(env, ['dataops-cycle'])
+
+    def test_마이그레이션_계정은_마이그레이션_명령에만_전달한다(self):
+        env = {'DATAOPS_DB_URL': 'jdbc:postgresql://db.internal/dataops?currentSchema=public&sslmode=require',
+               'DATAOPS_DB_USERNAME': 'dataops_worker', 'DATAOPS_DB_PASSWORD': 'runtime', 'DATAOPS_API_KEY': 'api',
+               'DATAOPS_MIGRATION_DB_USERNAME': 'dataops_migrator', 'DATAOPS_MIGRATION_DB_PASSWORD': 'ddl',
+               'DB_PASSWORD': 'serving'}
+        migration = runner.execution_environment(env, ['dataops-migrate'])
+        self.assertEqual(set(migration), {'DATAOPS_DB_URL'} | runner.MIGRATION_SECRETS)
+        runtime = runner.execution_environment(env, ['dataops-nightly'])
+        self.assertFalse(runner.MIGRATION_SECRETS & runtime.keys())
+        self.assertFalse(runner.MIGRATION_SECRETS & runner.execution_environment(env, ['job', 'ranking-snapshot']).keys())
+
+    def test_서비스_DB_또는_다른_스키마로_잘못_기동하지_않는다(self):
+        env = {key: 'value' for key in runner.DATAOPS_REQUIRED | runner.MIGRATION_SECRETS}
+        for url in ('jdbc:postgresql://db/soboro?currentSchema=dataops',
+                    'jdbc:postgresql://db/dataops?currentSchema=other',
+                    'jdbc:postgresql://db/dataops?user=sweetgirl'):
+            env['DATAOPS_DB_URL'] = url
+            for command in (['dataops-migrate'], ['dataops-nightly']):
+                with self.assertRaises(ValueError):
+                    runner.execution_environment(env, command)
+        self.assertEqual(runner.container_args(['dataops-migrate']), (['dataops-migrate'], 'dataops-migrate', False))
+        with self.assertRaises(ValueError):
+            runner.container_args(['dataops-migrate', '--clean'])
 
     def test_허용한_이름만_읽고_필수값을_검사한다(self):
         env, firebase, hub = runner.load_parameters(FakeSsm(parameters(DATAOPS_API_KEY='k')), PREFIX)
@@ -163,10 +261,18 @@ class RunnerParametersTest(unittest.TestCase):
 
 class JdbcEnvTest(unittest.TestCase):
 
+    def test_Python_접속도_JDBC_TLS_정책을_유지한다(self):
+        out = jdbc_env.exports({'DATAOPS_DB_URL': 'jdbc:postgresql://db:5432/dataops?currentSchema=public&sslmode=require'})
+        self.assertIn('export DATAOPS_DB_NAME=dataops\n', out)
+        self.assertIn('export DATAOPS_DB_SCHEMA=public\n', out)
+        self.assertIn('export DATAOPS_DB_SSLMODE=require\n', out)
+        with self.assertRaises(ValueError):
+            jdbc_env.exports({'DATAOPS_DB_URL': 'jdbc:postgresql://db/dataops?sslmode=disable'})
+
     def test_JDBC_URL_을_Python_접속_변수로_푼다(self):
         out = jdbc_env.exports({
             'DATAOPS_DB_URL': 'jdbc:postgresql://db.internal:5432/soboro?currentSchema=dataops',
-            'DATAOPS_DB_USERNAME': 'dataops_service', 'DATAOPS_DB_PASSWORD': "p'w",
+            'DATAOPS_DB_USERNAME': 'dataops_worker', 'DATAOPS_DB_PASSWORD': "p'w",
             'DB_URL': 'jdbc:postgresql://db.internal/soboro',
         })
         self.assertIn('export DATAOPS_DB_HOST=db.internal\n', out)

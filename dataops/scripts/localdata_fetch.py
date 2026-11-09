@@ -13,6 +13,7 @@
 - 쿼터 소진(에러코드 22) 감지 시 상태 저장 후 종료 — 다음 날 재실행하면 이어받는다
 """
 import json
+import os
 import sys
 import threading
 import time
@@ -75,7 +76,11 @@ _key_lock = threading.Lock()
 def load_service_key() -> str:
     """`.env`의 DATA_GO_KR_SERVICE_KEY(+_2, _3…) 전부를 키링에 적재하고 1번 키를 반환.
     쿼터 소진 시 call()이 rotate_key()로 다음 계정 키로 자동 전환한다."""
-    global _KEYS
+    global _KEYS, _key_idx
+    if os.environ.get("DATA_GO_KR_SERVICE_KEY"):
+        _KEYS = [urllib.parse.unquote(os.environ["DATA_GO_KR_SERVICE_KEY"].strip())]
+        _key_idx = 0
+        return _KEYS[0]
     keys = {}
     for line in (ROOT / ".env").read_text(encoding="utf-8").splitlines():
         line = line.strip()
@@ -135,23 +140,25 @@ def call(session: requests.Session, dataset: str, key: str, page: int, cond: dic
                     if rotate_key(use_key):  # 예비 키로 전환 후 같은 페이지 재시도
                         continue
                     raise QuotaExceeded(dataset)
-                raise RuntimeError(f"게이트웨이 응답: {text[:300]}")
+                raise RuntimeError("공공데이터 게이트웨이 오류")
             data = resp.json()
             header = data["response"]["header"]
+            if str(header.get("resultCode")) == "22":
+                raise QuotaExceeded(dataset)
             if header.get("resultCode") not in ("00", "0"):
-                raise RuntimeError(f"resultCode={header}")
+                raise RuntimeError("공공데이터 resultCode 오류")
             return data["response"]["body"]
         except (requests.RequestException, json.JSONDecodeError) as e:
             wait = 2 ** attempt
-            print(f"  재시도 {attempt + 1}/5 ({e}) — {wait}s 대기", flush=True)
+            print(f"  재시도 {attempt + 1}/5 ({type(e).__name__}) — {wait}s 대기", flush=True)
             time.sleep(wait)
     raise RuntimeError(f"{dataset} p{page}: 5회 재시도 실패")
 
 
 def items_of(body: dict) -> list[dict]:
     items = body.get("items") or {}
-    if isinstance(items, list):  # 빈 결과가 []로 오는 경우
-        return []
+    if isinstance(items, list):  # 빈 결과 또는 목록이 직접 오는 경우
+        return items
     item = items.get("item") or []
     return item if isinstance(item, list) else [item]
 

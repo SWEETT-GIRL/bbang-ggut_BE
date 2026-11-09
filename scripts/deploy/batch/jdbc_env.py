@@ -27,6 +27,12 @@ def exports(env):
     if env.get('DATAOPS_DB_URL'):
         host, port, name, schema = parse(env['DATAOPS_DB_URL'])
         values.update(DATAOPS_DB_HOST=host, DATAOPS_DB_PORT=port, DATAOPS_DB_NAME=name, DATAOPS_DB_SCHEMA=schema)
+        query = parse_qs((env['DATAOPS_DB_URL'].split('?', 1) + [''])[1])
+        if query.get('sslmode'):
+            mode = query['sslmode'][0]
+            if mode not in ('require', 'verify-full'):
+                raise ValueError('Unsupported dataops TLS mode')
+            values['DATAOPS_DB_SSLMODE'] = mode
         if env.get('DATAOPS_DB_USERNAME'):
             values['DATAOPS_DB_USER'] = env['DATAOPS_DB_USERNAME']
         if env.get('DATAOPS_DB_PASSWORD'):

@@ -25,8 +25,11 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import local_db  # noqa: E402
 
+from cloud_runtime import matching_dir
+
 ROOT = Path(__file__).resolve().parent.parent
-SRC = ROOT / "matching" / "naver_sweep_new_candidates.tsv"
+MATCHING = matching_dir()
+SRC = MATCHING / "naver_sweep_new_candidates.tsv"
 
 
 def ymd(value):

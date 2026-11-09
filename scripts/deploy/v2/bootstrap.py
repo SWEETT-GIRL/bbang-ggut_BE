@@ -15,7 +15,7 @@ REQUIRED = {
     'LAMBDA_CALLBACK_SECRET_KEY', 'ADMIN_API_KEY',
 }
 OPTIONAL = {'NAVER_CLIENT_ID', 'NAVER_CLIENT_SECRET', 'GEMINI_API_KEY',
-            'OPENAI_API_KEY', 'CLAUDE_API_KEY',
+            'OPENAI_API_KEY', 'CLAUDE_API_KEY', 'SLACK_ERROR_WEBHOOK_URL', 'OPS_SERVER_ERROR_ALERT_ENABLED',
             # 메모 초안 Redis. MODE 가 없으면 초안 기능은 뜨지 않는다.
             'COURSE_DRAFT_REDIS_MODE', 'COURSE_DRAFT_REDIS_HOST', 'COURSE_DRAFT_REDIS_PORT',
             'COURSE_DRAFT_REDIS_DATABASE', 'COURSE_DRAFT_REDIS_PASSWORD',
@@ -34,6 +34,11 @@ def validate_secret(secret):
             raise ValueError(f'Invalid env-file value for {key}')
         if key in REQUIRED and not value.strip():
             raise ValueError(f'Empty required value for {key}')
+    alert_enabled = env.get('OPS_SERVER_ERROR_ALERT_ENABLED', 'false')
+    if alert_enabled not in ('true', 'false'):
+        raise ValueError('OPS_SERVER_ERROR_ALERT_ENABLED must be true or false')
+    if alert_enabled == 'true' and not env.get('SLACK_ERROR_WEBHOOK_URL', '').strip():
+        raise ValueError('Enabled server-error alerts require SLACK_ERROR_WEBHOOK_URL')
     firebase = secret.get('firebase_service_account', {})
     if not isinstance(firebase, dict) or not {'project_id', 'private_key', 'client_email'} <= firebase.keys():
         raise ValueError('Missing Firebase service account')

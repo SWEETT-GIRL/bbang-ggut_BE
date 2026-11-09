@@ -1,0 +1,19 @@
+# 모니터링 EC2에서만 실행. 먼저 /opt/monitoring/pushgateway를 UID 65534 소유로 준비한다.
+# PUSHGATEWAY_BIND_IP는 모니터링 EC2의 private IPv4로 지정한다.
+services:
+  pushgateway:
+    image: prom/pushgateway:v1.11.4
+    user: "65534:65534"
+    restart: unless-stopped
+    mem_limit: 128m
+    ports:
+      - "${PUSHGATEWAY_BIND_IP:?set monitoring private IPv4}:9091:9091"
+    volumes:
+      - /opt/monitoring/pushgateway:/data
+    command:
+      - --persistence.file=/data/metrics
+      - --persistence.interval=30s
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"

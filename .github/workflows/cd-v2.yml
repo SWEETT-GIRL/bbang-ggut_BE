@@ -118,6 +118,8 @@ jobs:
           tags: ${{ vars.V2_DOCKERHUB_IMAGE }}:v2-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
 
   deploy:
+    outputs:
+      deployment_state: ${{ steps.rollout.outputs.deployment_state }}
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 130
@@ -137,7 +139,23 @@ jobs:
           aws-region: ap-northeast-2
           role-duration-seconds: 9000
       - name: Prepare the next launch template or refresh running instances
+        id: rollout
         env:
           V2_IMAGE: ${{ format('{0}@{1}', vars.V2_DOCKERHUB_IMAGE, needs.build.outputs.digest) }}
           V2_RUNTIME_PARAMETER_PREFIX: ${{ vars.V2_RUNTIME_PARAMETER_PREFIX }}
         run: python3 scripts/deploy/v2/deploy.py
+
+  notify-result:
+    needs: [merged-pr, build, deploy]
+    if: >-
+      always() && vars.V2_DEPLOY_ENABLED == 'true' &&
+      (needs.merged-pr.result == 'failure' || needs.build.result == 'failure' ||
+       needs.build.result == 'cancelled' || needs.deploy.result != 'skipped')
+    uses: ./.github/workflows/slack-notify.yml
+    with:
+      component: V2 API
+      kind: CD
+      results: ${{ toJSON(needs) }}
+      deployment-state: ${{ needs.deploy.outputs.deployment_state }}
+    secrets:
+      webhook-url: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL_V2 }}

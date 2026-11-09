@@ -1,6 +1,7 @@
 """Collection must never inherit the old Sunday approval behavior."""
 import datetime
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -16,6 +17,13 @@ class Sunday(datetime.datetime):
 
 
 class WeeklyCollectionTest(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        patcher = patch.object(weekly, "LOG_DIR", Path(directory.name))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_sunday_nightly_and_collect_only_never_apply(self):
         for command in ("nightly", "collect-only"):
             with self.subTest(command=command), \

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
@@ -147,6 +148,28 @@ class DeploymentTest(unittest.TestCase):
         sleep.assert_called_once_with(30)
 
 
+class DeploymentOutputTest(unittest.TestCase):
+    def test_only_verified_terminal_results_are_exposed_to_notifications(self):
+        for refresh_id, failure, expected in ((None, False, 'prepared'), ('refresh-id', False, 'refreshed'),
+                                              ('refresh-id', True, None)):
+            with self.subTest(refresh_id=refresh_id, failure=failure), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / 'output'
+                sdk = Mock()
+                with patch.dict(sys.modules, {'boto3': sdk}), \
+                        patch.dict('os.environ', {'V2_IMAGE': IMAGE, 'V2_RUNTIME_PARAMETER_PREFIX': PREFIX,
+                                                 'GITHUB_OUTPUT': str(output)}), \
+                        patch.object(deploy, 'deploy', return_value=refresh_id), \
+                        patch.object(deploy, 'wait_for_refresh', side_effect=RuntimeError('rollback') if failure else None) as wait:
+                    if failure:
+                        with self.assertRaises(RuntimeError): deploy.main()
+                        self.assertFalse(output.exists())
+                    else:
+                        deploy.main()
+                        self.assertEqual(output.read_text(), 'deployment_state=' + expected + '\n')
+                    if refresh_id: wait.assert_called_once()
+                    else: wait.assert_not_called()
+
+
 class SecretTest(unittest.TestCase):
     def setUp(self):
         self.secret = {
@@ -195,7 +218,9 @@ class ParameterStoreTest(unittest.TestCase):
     def test_decrypted_batches_are_mapped_by_name_with_optional_parameters_absent(self):
         self.assertEqual(bootstrap.load_parameters(self.ssm, PREFIX),
                          bootstrap.validate_secret(self.secret))
-        self.assertEqual(self.ssm.get_parameters.call_count, 3)
+        # 환경 변수 이름 + firebase + dockerhub 2개를 10개씩 묶어 부른다
+        names = len(bootstrap.REQUIRED | bootstrap.OPTIONAL) + 3
+        self.assertEqual(self.ssm.get_parameters.call_count, -(-names // 10))
         self.ssm.get_parameters_by_path.assert_not_called()
 
     def test_draft_redis_parameters_reach_the_app_when_present(self):
@@ -220,6 +245,24 @@ class ParameterStoreTest(unittest.TestCase):
         self.values[f'{PREFIX}/env/OPENAI_API_KEY'] = 'optional-test'
         env, _, _ = bootstrap.load_parameters(self.ssm, PREFIX)
         self.assertEqual(env['OPENAI_API_KEY'], 'optional-test')
+
+    def test_server_error_alert_credentials_are_loaded_only_from_explicit_parameters(self):
+        self.values[f'{PREFIX}/env/SLACK_ERROR_WEBHOOK_URL'] = 'https://hooks.slack.com/services/test-only'
+        self.values[f'{PREFIX}/env/OPS_SERVER_ERROR_ALERT_ENABLED'] = 'true'
+        env, _, _ = bootstrap.load_parameters(self.ssm, PREFIX)
+        self.assertEqual(env['OPS_SERVER_ERROR_ALERT_ENABLED'], 'true')
+        self.assertEqual(env['SLACK_ERROR_WEBHOOK_URL'], 'https://hooks.slack.com/services/test-only')
+        self.ssm.get_parameters_by_path.assert_not_called()
+
+    def test_enabling_error_alerts_without_a_receiver_is_rejected(self):
+        self.values[f'{PREFIX}/env/OPS_SERVER_ERROR_ALERT_ENABLED'] = 'true'
+        with self.assertRaisesRegex(ValueError, 'require SLACK_ERROR_WEBHOOK_URL'):
+            bootstrap.load_parameters(self.ssm, PREFIX)
+
+    def test_alert_switch_typo_is_rejected(self):
+        self.values[f'{PREFIX}/env/OPS_SERVER_ERROR_ALERT_ENABLED'] = 'treu'
+        with self.assertRaisesRegex(ValueError, 'must be true or false'):
+            bootstrap.load_parameters(self.ssm, PREFIX)
 
     def test_missing_required_value_fails_without_disclosing_other_values(self):
         del self.values[f'{PREFIX}/env/DB_PASSWORD']
