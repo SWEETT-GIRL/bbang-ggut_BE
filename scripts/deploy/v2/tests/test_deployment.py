@@ -218,8 +218,17 @@ class ParameterStoreTest(unittest.TestCase):
     def test_decrypted_batches_are_mapped_by_name_with_optional_parameters_absent(self):
         self.assertEqual(bootstrap.load_parameters(self.ssm, PREFIX),
                          bootstrap.validate_secret(self.secret))
-        self.assertEqual(self.ssm.get_parameters.call_count, 3)
+        # 환경 변수 이름 + firebase + dockerhub 2개를 10개씩 묶어 부른다
+        names = len(bootstrap.REQUIRED | bootstrap.OPTIONAL) + 3
+        self.assertEqual(self.ssm.get_parameters.call_count, -(-names // 10))
         self.ssm.get_parameters_by_path.assert_not_called()
+
+    def test_draft_redis_parameters_reach_the_app_when_present(self):
+        self.values[f'{PREFIX}/env/COURSE_DRAFT_REDIS_MODE'] = 'standalone'
+        self.values[f'{PREFIX}/env/COURSE_DRAFT_REDIS_PORT'] = '6380'
+        env, _, _ = bootstrap.load_parameters(self.ssm, PREFIX)
+        self.assertEqual(env['COURSE_DRAFT_REDIS_MODE'], 'standalone')
+        self.assertEqual(env['COURSE_DRAFT_REDIS_PORT'], '6380')
 
     def test_google_places_key_is_not_needed_to_load_runtime_parameters(self):
         google_parameter = f'{PREFIX}/env/GOOGLE_PLACES_API_KEY'
