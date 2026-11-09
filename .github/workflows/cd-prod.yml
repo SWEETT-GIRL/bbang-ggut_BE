@@ -368,7 +368,8 @@ jobs:
             fi
           } > env.prod
 
-          ssh was 'mkdir -p ~/app'
+          # 힙 덤프 폴더 — docker-compose.prod.yml 의 volumes 참고
+          ssh was 'mkdir -p ~/app/dumps/blue ~/app/dumps/green'
           scp docker-compose.prod.yml was:~/app/docker-compose.prod.yml
           scp env.prod was:~/app/.env
           rm -f env.prod
