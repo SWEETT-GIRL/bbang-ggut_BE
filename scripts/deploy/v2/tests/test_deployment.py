@@ -67,6 +67,7 @@ class DeploymentTest(unittest.TestCase):
         self.assertTrue(request['Preferences']['AutoRollback'])
         self.assertEqual(request['Preferences']['MinHealthyPercentage'], 100)
         self.assertEqual(request['Preferences']['MaxHealthyPercentage'], 200)
+        self.assertEqual(request['Preferences']['InstanceWarmup'], 90)
 
     def test_wrong_account_or_network_never_mutates(self):
         for key, bad in [('VPCZoneIdentifier', 'v1-subnet'), ('TargetGroupARNs', ['v1-target']),
