@@ -28,9 +28,15 @@ jobs:
       - name: Validate Redis deployment files
         run: |
           bash -n infra/redis/deploy.sh
-          # ACL은 배포 시 생성된다. 검증용 파일에는 자격 증명을 넣지 않는다.
+          # ACL·복제 설정은 배포 시 생성된다. 검증용 파일에는 자격 증명을 넣지 않는다.
           printf 'user default off\n' > infra/redis/users.acl
-          docker compose -f infra/redis/compose.yaml config --quiet
+          : > infra/redis/replication.conf
+          for role in master replica sentinel; do
+            docker compose --profile "$role" -f infra/redis/compose.yaml config --quiet
+          done
+          grep -q '__ANNOUNCE_IP__' infra/redis/sentinel.conf
+          grep -q '__MASTER_HOST__' infra/redis/sentinel.conf
+          grep -q '__REPLICATION_PASSWORD__' infra/redis/sentinel.conf
 
   deploy:
     needs: validate
@@ -45,17 +51,23 @@ jobs:
           REDIS_KEY: ${{ secrets.PROD_REDIS_SSH_KEY || secrets.PROD_SSH_KEY }}
           BASTION_HOST: ${{ secrets.PROD_BASTION_HOST }}
           REDIS_HOST: ${{ secrets.PROD_REDIS_HOST }}
+          REPLICA_HOST: ${{ secrets.PROD_REDIS_REPLICA_HOST }}
+          SENTINEL_HOST: ${{ secrets.PROD_REDIS_SENTINEL_HOST }}
           BASTION_USER: ${{ secrets.PROD_SSH_USER }}
           REDIS_USER: ${{ vars.PROD_REDIS_SSH_USER || 'ubuntu' }}
           KNOWN_HOSTS: ${{ secrets.PROD_REDIS_KNOWN_HOSTS }}
         shell: bash
         run: |
           set -euo pipefail
-          for value in "$BASTION_KEY" "$REDIS_KEY" "$BASTION_HOST" "$REDIS_HOST" "$BASTION_USER" "$KNOWN_HOSTS"; do
+          for value in "$BASTION_KEY" "$REDIS_KEY" "$BASTION_HOST" "$REDIS_HOST" "$REPLICA_HOST" "$SENTINEL_HOST" "$BASTION_USER" "$KNOWN_HOSTS"; do
             test -n "$value" || { echo 'Required Redis deployment secret is missing.' >&2; exit 1; }
           done
-          for host in "$BASTION_HOST" "$REDIS_HOST"; do
+          for host in "$BASTION_HOST" "$REDIS_HOST" "$REPLICA_HOST" "$SENTINEL_HOST"; do
             [[ "$host" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]] || exit 1
+          done
+          # 감시자·복제본 announce 주소로 그대로 쓰므로 Redis 서버 3대는 사설 IPv4 여야 한다.
+          for host in "$REDIS_HOST" "$REPLICA_HOST" "$SENTINEL_HOST"; do
+            [[ "$host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Redis hosts must be private IPv4 addresses: $host" >&2; exit 1; }
           done
           for user in "$BASTION_USER" "$REDIS_USER"; do
             [[ "$user" =~ ^[a-zA-Z_][a-zA-Z0-9_-]*$ ]] || exit 1
@@ -71,8 +83,18 @@ jobs:
             HostName ${BASTION_HOST}
             User ${BASTION_USER}
             IdentityFile ~/.ssh/redis_bastion_key
-          Host redis-prod
+          Host redis-master
             HostName ${REDIS_HOST}
+            User ${REDIS_USER}
+            IdentityFile ~/.ssh/redis_deploy_key
+            ProxyJump redis-bastion
+          Host redis-replica
+            HostName ${REPLICA_HOST}
+            User ${REDIS_USER}
+            IdentityFile ~/.ssh/redis_deploy_key
+            ProxyJump redis-bastion
+          Host redis-sentinel
+            HostName ${SENTINEL_HOST}
             User ${REDIS_USER}
             IdentityFile ~/.ssh/redis_deploy_key
             ProxyJump redis-bastion
@@ -87,38 +109,75 @@ jobs:
       - name: Generate password ACL
         env:
           REDIS_PASSWORD: ${{ secrets.PROD_REDIS_PASSWORD }}
+          REPLICATION_PASSWORD: ${{ secrets.PROD_REDIS_REPLICATION_PASSWORD }}
         run: |
           python3 - <<'PY'
           import hashlib, os, pathlib
           password = os.environ['REDIS_PASSWORD']
-          if len(password) < 32 or '\n' in password or '\r' in password:
-              raise SystemExit('PROD_REDIS_PASSWORD must contain at least 32 characters and no newlines.')
+          replication = os.environ['REPLICATION_PASSWORD']
+          for name, value in (('PROD_REDIS_PASSWORD', password), ('PROD_REDIS_REPLICATION_PASSWORD', replication)):
+              if len(value) < 32 or '\n' in value or '\r' in value or ' ' in value:
+                  raise SystemExit(f'{name} must contain at least 32 characters and no spaces or newlines.')
+          if password == replication:
+              raise SystemExit('Replication password must differ from the application password.')
           digest = hashlib.sha256(password.encode()).hexdigest()
-          # health 계정은 PING만 허용하며 데이터 접근 권한은 없다.
+          replication_digest = hashlib.sha256(replication.encode()).hexdigest()
+          # health 는 PING 만. replica 는 복제 프로토콜만. sentinel 은 Redis 문서의 Sentinel 최소 권한(+ hello 채널).
+          # 앱 비밀번호(default)는 해시로만 남고, 서버 파일에 평문으로 가는 것은 제한 계정(replica·sentinel)의 비밀번호뿐이다.
           pathlib.Path('infra/redis/users.acl').write_text(
               f'user default reset on #{digest} ~* &* +@all\n'
               'user health reset on nopass -@all +ping\n'
+              f'user replica reset on #{replication_digest} -@all +psync +replconf +ping\n'
+              f'user sentinel reset on #{replication_digest} allchannels -@all +multi +slaveof +ping +exec +subscribe '
+              '+config|rewrite +role +publish +info +client|setname +client|kill +script|kill\n'
           )
           PY
 
-      - name: Deploy only to Redis EC2
+      - name: Deploy to the three Redis EC2 hosts
         shell: bash
+        env:
+          REDIS_HOST: ${{ secrets.PROD_REDIS_HOST }}
+          REPLICA_HOST: ${{ secrets.PROD_REDIS_REPLICA_HOST }}
+          SENTINEL_HOST: ${{ secrets.PROD_REDIS_SENTINEL_HOST }}
+          REPLICATION_PASSWORD: ${{ secrets.PROD_REDIS_REPLICATION_PASSWORD }}
         run: |
           set -euo pipefail
           release="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           # release 디렉터리는 같은 redis/ 하위에 두어 current와 lock을 공유한다.
           remote_dir="redis/$release"
-          # The release path is generated on the runner and intentionally expanded here.
-          # shellcheck disable=SC2029
-          ssh redis-prod "mkdir -p ~/$remote_dir && chmod 700 ~/redis ~/$remote_dir"
-          # shellcheck disable=SC2029
-          tar -C infra/redis -czf - compose.yaml redis.conf redis-draft.conf deploy.sh users.acl |
-            ssh redis-prod "tar -xzf - -C ~/$remote_dir && chmod 644 ~/$remote_dir/redis.conf ~/$remote_dir/redis-draft.conf ~/$remote_dir/users.acl"
-          # shellcheck disable=SC2029
-          ssh redis-prod "bash ~/$remote_dir/deploy.sh"
+          work=$(mktemp -d)
+          trap 'rm -rf "$work"' EXIT
+          # 순서: 마스터(새 ACL 계정이 먼저 있어야 복제본·감시자가 붙는다) → 복제본 → 감시자 전용.
+          # 마스터 배포는 redis-draft 를 재생성하므로 몇 초 503 이 난다. 앱은 PATCH 저장으로 물러난다.
+          for entry in "master:redis-master:$REDIS_HOST" "replica:redis-replica:$REPLICA_HOST" "sentinel:redis-sentinel:$SENTINEL_HOST"; do
+            IFS=: read -r role alias announce_ip <<< "$entry"
+            stage="$work/$role"; mkdir -p "$stage"
+            cp infra/redis/compose.yaml infra/redis/redis.conf infra/redis/redis-draft.conf infra/redis/deploy.sh infra/redis/users.acl "$stage/"
+            # 감시자 설정: 서버 IP 와 마스터 주소, 제한 계정 비밀번호를 채운다.
+            sed -e "s|__ANNOUNCE_IP__|$announce_ip|" -e "s|__MASTER_HOST__|$REDIS_HOST|" -e "s|__REPLICATION_PASSWORD__|$REPLICATION_PASSWORD|" \
+              infra/redis/sentinel.conf > "$stage/sentinel.conf"
+            # 복제 설정: 마스터도 승격·강등을 오가므로 masterauth 와 announce 를 가진다. 복제본만 replicaof 로 시작한다.
+            {
+              printf 'masteruser replica\n'
+              printf 'masterauth %s\n' "$REPLICATION_PASSWORD"
+              printf 'replica-announce-ip %s\n' "$announce_ip"
+              printf 'replica-announce-port 6380\n'
+              [ "$role" = replica ] && printf 'replicaof %s 6380\n' "$REDIS_HOST"
+              true
+            } > "$stage/replication.conf"
+            echo "== $role ($announce_ip)"
+            # The release path is generated on the runner and intentionally expanded here.
+            # shellcheck disable=SC2029
+            ssh "$alias" "mkdir -p ~/$remote_dir && chmod 700 ~/redis ~/$remote_dir"
+            # shellcheck disable=SC2029
+            tar -C "$stage" -czf - . |
+              ssh "$alias" "tar -xzf - -C ~/$remote_dir && chmod 644 ~/$remote_dir/redis.conf ~/$remote_dir/redis-draft.conf ~/$remote_dir/users.acl ~/$remote_dir/sentinel.conf ~/$remote_dir/replication.conf"
+            # shellcheck disable=SC2029
+            ssh "$alias" "bash ~/$remote_dir/deploy.sh $role"
+          done
 
       - name: Remove runner credentials
         if: always()
         run: |
           rm -f ~/.ssh/redis_bastion_key ~/.ssh/redis_deploy_key ~/.ssh/redis_known_hosts ~/.ssh/config
-          rm -f infra/redis/users.acl
+          rm -f infra/redis/users.acl infra/redis/replication.conf
