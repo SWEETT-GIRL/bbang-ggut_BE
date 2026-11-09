@@ -2,6 +2,7 @@ import base64
 import copy
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -122,6 +123,32 @@ class DeploymentTest(unittest.TestCase):
         subprocess.run(['bash', '-n'], input=raw, check=True)
         self.assertNotIn(b'DB_PASSWORD=', raw)
         self.assertNotIn(b'private_key', raw)
+
+    def test_user_data_installs_docker_and_boto3_only_when_the_ami_lacks_them(self):
+        raw = base64.b64decode(deploy.user_data(IMAGE, PREFIX))
+        # apt 설치는 조건 블록 안에 한 번만 있다. 선설치 AMI 에서는 건너뛰고, 일반 Ubuntu AMI 에서는 지금처럼 설치한다.
+        self.assertEqual(raw.count(b'apt-get install'), 1)
+        guard = re.search(rb"^if ! command -v docker >/dev/null \|\| ! python3 -c 'import boto3' 2>/dev/null; then\n"
+                          rb"(?:  .+\n)+?fi\n", raw, re.M)
+        self.assertIsNotNone(guard)
+        self.assertIn(b'apt-get install -y docker.io python3-boto3', guard.group(0))
+        self.assertLessEqual(guard.end(), raw.index(b'systemctl enable --now docker'))
+        # 블록만 떼어 PATH 에 스텁만 둔 채 실행해 본다. docker 가 없거나 boto3 를 못 불러오면 설치하고, 둘 다 있으면 apt 를 부르지 않는다.
+        for docker_installed, boto3_importable, expect_install in ((True, True, False), (False, True, True), (True, False, True)):
+            with self.subTest(docker=docker_installed, boto3=boto3_importable), tempfile.TemporaryDirectory() as directory:
+                stubs = Path(directory)
+                if docker_installed:
+                    (stubs / 'docker').write_text('#!/bin/sh\nexit 0\n')
+                (stubs / 'python3').write_text(f'#!/bin/sh\nexit {0 if boto3_importable else 1}\n')
+                (stubs / 'apt-get').write_text('#!/bin/sh\necho "$@" >> "$APT_LOG"\n')
+                for stub in stubs.iterdir():
+                    stub.chmod(0o755)
+                log = stubs / 'apt.log'
+                subprocess.run(['/bin/bash', '-c', guard.group(0)], check=True,
+                               env={'PATH': str(stubs), 'APT_LOG': str(log)})
+                self.assertEqual(log.exists(), expect_install)
+                if expect_install:
+                    self.assertEqual(log.read_text(), 'update -qq\ninstall -y docker.io python3-boto3\n')
 
     def test_mutable_image_or_injected_prefix_rejected(self):
         for image, secret in [(IMAGE.split('@')[0] + ':latest', PREFIX), (IMAGE, PREFIX + "'; echo bad")]:

@@ -28,12 +28,16 @@ def user_data(image, parameter_prefix):
         raise ValueError('Use a parameter prefix under /sweetgirl/prod/v2/was without a trailing slash')
     config = encode(json.dumps({'region': REGION, 'parameter_prefix': parameter_prefix, 'image': image}).encode())
     bootstrap = encode(gzip.compress(Path(__file__).with_name('bootstrap.py').read_bytes(), mtime=0))
+    # Docker·boto3 가 AMI 에 이미 있으면 apt 설치(부팅당 60~90초)를 건너뛴다. 일반 Ubuntu AMI 에서는 지금처럼 설치하므로
+    # 선설치 AMI 로 바꾸기 전에도, 바꾼 뒤 이전 템플릿 버전으로 롤백해도 그대로 뜬다(docs/v2-docker-ami-runbook.md).
     script = f'''#!/bin/bash
 set -euo pipefail
 umask 077
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq
-apt-get install -y docker.io python3-boto3
+if ! command -v docker >/dev/null || ! python3 -c 'import boto3' 2>/dev/null; then
+  apt-get update -qq
+  apt-get install -y docker.io python3-boto3
+fi
 systemctl enable --now docker
 install -d -m 700 /opt/bbang-v2
 printf '%s' '{config}' | base64 -d > /opt/bbang-v2/config.json
