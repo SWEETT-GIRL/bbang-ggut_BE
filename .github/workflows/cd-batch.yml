@@ -79,6 +79,16 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # dataops 크롤·승인 스크립트 테스트. PR CI(ci-v2)에서 옮겨 왔다 — 배포 직전 한 번만 돈다.
+      # 에이전트 스모크 테스트도 import 되도록 그 lock 을 함께 설치한다.
+      - name: Install dataops Python dependencies
+        run: pip install -r dataops/requirements.txt -r dataops/scripts/requirements-agent-smoke.lock
+      - name: Run dataops Python tests before building
+        working-directory: dataops
+        run: python -m unittest discover -s scripts/tests
       - name: Build batch JAR without repeating CI tests
         run: |
           python3 -m unittest discover -s scripts/deploy/batch/tests -v
