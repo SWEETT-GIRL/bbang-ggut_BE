@@ -18,6 +18,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # 가드 스크립트의 단위 테스트. ci-v2 에서 옮겨 왔다 — 이 워크플로가 scripts/ci/** 변경에 반응하므로 여기서 돈다.
+      - name: Run the guard's own tests
+        run: python3 -m unittest discover -s scripts/ci/tests -v
       - name: Check migrations against the current base
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
