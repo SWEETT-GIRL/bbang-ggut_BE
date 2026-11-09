@@ -2,6 +2,7 @@ package sweetgirl.croissant.course.draft;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.core.NestedExceptionUtils;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.TransactionException;
@@ -64,8 +65,9 @@ public class MemoDraftCommandService {
 			accepted = buffer.write(courseId, field, content, seq, now);
 		} catch (DataAccessException exception) {
 			// 연결 실패·타임아웃·noeviction 메모리 초과 전부 — 앱은 로컬에 들고 있다가 PATCH 로 물러난다
-			log.warn("[메모 초안] Redis 쓰기 실패 — 503 으로 물린다 courseId={} memberId={} cause={}", courseId, memberId,
-				exception.toString());
+			// 바깥 예외는 늘 RedisSystemException 이라 뿌리 원인(READONLY·NOSCRIPT·timeout …)을 같이 남긴다 — 페일오버 분석용
+			log.warn("[메모 초안] Redis 쓰기 실패 — 503 으로 물린다 courseId={} memberId={} cause={} root={}", courseId,
+				memberId, exception.toString(), NestedExceptionUtils.getMostSpecificCause(exception).toString());
 			throw new CourseException(CourseErrorCode.COURSE_DRAFT_UNAVAILABLE);
 		}
 		metrics.recordWrite(accepted == seq);
