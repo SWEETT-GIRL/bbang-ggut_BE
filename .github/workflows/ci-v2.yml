@@ -9,11 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       backend: ${{ steps.diff.outputs.backend }}
+      batch: ${{ steps.diff.outputs.batch }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Detect backend changes
+      - name: Detect backend and batch changes
         id: diff
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -35,8 +36,19 @@ jobs:
               path == '.github/workflows/cd-redis-prod.yml' for path in paths)
           redis_only = touches_redis and all(path.startswith('infra/redis/') or
               path in workflow_files for path in paths)
+          # 배치 이미지(batch-image)는 배치 관련 경로가 바뀐 PR 에서만 빌드한다.
+          # core/·config/ 는 넣지 않는다 — core 컴파일·테스트는 build-v2 의 루트 ./gradlew build 가
+          # 전 모듈로 이미 돌고, batch-image 는 이미지 조립(Dockerfile.batch·엔트리포인트)만 본다.
+          batch_prefixes = ('batch/', 'dataops/', 'scripts/deploy/batch/', 'gradle/')
+          batch_files = {
+              'Dockerfile.batch', 'Dockerfile.batch.dockerignore', 'build.gradle', 'settings.gradle',
+              '.github/workflows/ci-v2.yml', '.github/workflows/cd-batch.yml',
+          }
+          touches_batch = not redis_only and any(
+              path.startswith(batch_prefixes) or path in batch_files for path in paths)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
               out.write(f'backend={str(not redis_only).lower()}\n')
+              out.write(f'batch={str(touches_batch).lower()}\n')
           PYCODE
 
   build-v2:
@@ -56,32 +68,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate deployment behavior without AWS credentials
-        run: |
-          python3 -m unittest discover -s scripts/deploy/v2/tests -v
-          python3 -m unittest discover -s scripts/deploy/batch/tests -v
-          python3 -m unittest discover -s scripts/ci/tests -v
-          bash -n scripts/deploy/batch/entrypoint.sh
+      # 배포 스크립트 테스트는 각 CD 가 빌드 직전에 돌리고(cd-v2·cd-batch), 가드 테스트는 migration-guard 가 돌린다.
       - name: Check workflow syntax
         run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -color .github/workflows/cd-v2.yml .github/workflows/ci-v2.yml .github/workflows/cd-batch.yml .github/workflows/migration-guard.yml .github/workflows/slack-notify.yml
-  # dataops 크롤·승인 스크립트(배치 EC2 에서 돈다). 에이전트 스모크 테스트도 import 되도록 그 lock 을 함께 설치한다
-  dataops-python:
-    needs: changes
-    if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: pip install -r dataops/requirements.txt -r dataops/scripts/requirements-agent-smoke.lock
-      - working-directory: dataops
-        run: python -m unittest discover -s scripts/tests
-  # 배치 이미지가 빌드되는지만 본다(푸시 없음). 배포는 cd-batch 가 ARM64 로 다시 빌드한다
+  # 배치 이미지가 빌드되는지만 본다(푸시 없음). 배포는 cd-batch 가 ARM64 로 다시 빌드한다.
+  # 배치 관련 경로가 바뀐 PR 에서만 돈다(changes 잡의 batch 출력).
   batch-image:
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    if: needs.changes.outputs.batch == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -113,7 +107,7 @@ jobs:
           test "$?" -eq 64
 
   notify-failure:
-    needs: [changes, build-v2, deployment-config, dataops-python, batch-image]
+    needs: [changes, build-v2, deployment-config, batch-image]
     if: >-
       always() && github.event.pull_request.head.repo.full_name == github.repository &&
       github.actor != 'dependabot[bot]' && contains(needs.*.result, 'failure')

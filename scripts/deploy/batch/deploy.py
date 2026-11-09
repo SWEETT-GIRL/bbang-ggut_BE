@@ -51,7 +51,8 @@ if ! command -v docker >/dev/null || ! python3 -c 'import boto3' 2>/dev/null; th
 fi
 systemctl enable --now docker
 install -d -m 700 /opt/bbang-batch
-printf '%s' '{config}' | base64 -d > /opt/bbang-batch/config.json
+# 다음 설정은 .next 로 둔다 — bbang-batch install 이 pull 에 성공해야 config.json 이 된다(실패해도 작업은 현재 이미지로)
+printf '%s' '{config}' | base64 -d > /opt/bbang-batch/config.json.next
 printf '%s' '{runner}' | base64 -d | gzip -d > /opt/bbang-batch/runner.py
 printf '%s' '{notifications}' | base64 -d | gzip -d > /opt/bbang-batch/batch_notifications.py
 cat > /usr/local/bin/bbang-batch <<'WRAPPER'

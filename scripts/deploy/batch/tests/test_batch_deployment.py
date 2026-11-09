@@ -60,6 +60,9 @@ class DeployTest(unittest.TestCase):
         installed_notifications = gzip.decompress(base64.b64decode(encoded[2]))
         self.assertEqual(installed_notifications, (Path(deploy.__file__).with_name('batch_notifications.py')).read_bytes())
         self.assertIn('bbang-batch install', script)
+        # 설정은 .next 로만 둔다 — pull 성공 전에는 config.json 을 건드리지 않는다
+        self.assertIn("> /opt/bbang-batch/config.json.next", script)
+        self.assertNotIn("> /opt/bbang-batch/config.json\n", script)
         self.assertNotIn('token', script.lower().replace('--password-stdin', ''))
 
 
@@ -106,6 +109,90 @@ class DeployLeaseTest(unittest.TestCase):
         with self.assertRaises(TimeoutError):
             deploy.acquire_lease(dynamo, 'i-0743d492943fec320', 'github-deploy:1-1', wait_seconds=0, poll_seconds=0)
         self.assertEqual(dynamo.puts, 1)
+
+
+PREVIOUS = 'kimnayoungg/bbang-ggut-be@sha256:' + 'b' * 64
+OLD_IMAGES = ['kimnayoungg/bbang-ggut-be@sha256:' + 'c' * 64, 'kimnayoungg/bbang-ggut-be@sha256:' + 'd' * 64]
+HUB = {'username': 'hub-user', 'token': 'hub-token'}
+
+
+class FakeDocker:
+    """subprocess.run 대역 — docker images 는 주어진 목록을 돌려주고, 나머지는 기록만 한다."""
+
+    def __init__(self, listed, fail_pull=False):
+        self.listed = listed
+        self.fail_pull = fail_pull
+        self.calls = []
+
+    def __call__(self, args, **kwargs):
+        self.calls.append(list(args))
+        if args[:2] == ['docker', 'images']:
+            return subprocess.CompletedProcess(args, 0, stdout=''.join(f'{ref}\n' for ref in self.listed), stderr='')
+        if args[:2] == ['docker', 'pull'] and self.fail_pull:
+            raise subprocess.CalledProcessError(1, args)
+        return subprocess.CompletedProcess(args, 0, stdout='', stderr='')
+
+
+class RunnerInstallTest(unittest.TestCase):
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self.tmp.name)
+        self.addCleanup(self.tmp.cleanup)
+
+    def write(self, name, image):
+        (self.base / name).write_text(json.dumps({'region': 'ap-northeast-2', 'parameter_prefix': PREFIX, 'image': image}))
+
+    def test_현재와_다음_이미지만_남기고_pull_전에_지운다(self):
+        self.write('config.json', PREVIOUS)
+        self.write('config.json.next', IMAGE)
+        docker = FakeDocker([PREVIOUS, *OLD_IMAGES, 'kimnayoungg/bbang-ggut-be@<none>'])
+
+        runner.install_image(runner.load_next_config(self.base), HUB, base=self.base, run_command=docker)
+
+        kinds = [call[1] for call in docker.calls]
+        self.assertEqual(kinds, ['login', 'images', 'rmi', 'rmi', 'pull'])   # 정리가 pull 보다 먼저
+        self.assertEqual([call[2] for call in docker.calls if call[1] == 'rmi'], OLD_IMAGES)
+        self.assertEqual(docker.calls[-1], ['docker', 'pull', IMAGE])
+        self.assertEqual(json.loads((self.base / 'config.json').read_text())['image'], IMAGE)
+        self.assertFalse((self.base / 'config.json.next').exists())
+        self.assertNotIn('hub-token', ' '.join(' '.join(call) for call in docker.calls))
+
+    def test_pull_이_실패하면_config_json_은_현재_이미지_그대로다(self):
+        self.write('config.json', PREVIOUS)
+        self.write('config.json.next', IMAGE)
+        docker = FakeDocker([PREVIOUS, *OLD_IMAGES], fail_pull=True)
+
+        with self.assertRaises(subprocess.CalledProcessError):
+            runner.install_image(runner.load_next_config(self.base), HUB, base=self.base, run_command=docker)
+
+        self.assertEqual(json.loads((self.base / 'config.json').read_text())['image'], PREVIOUS)
+        self.assertTrue((self.base / 'config.json.next').exists())
+
+    def test_첫_설치는_현재_이미지_없이_다음_이미지만_남긴다(self):
+        self.write('config.json.next', IMAGE)
+        docker = FakeDocker(OLD_IMAGES)
+
+        runner.install_image(runner.load_next_config(self.base), HUB, base=self.base, run_command=docker)
+
+        self.assertEqual([call[2] for call in docker.calls if call[1] == 'rmi'], OLD_IMAGES)
+        self.assertEqual(json.loads((self.base / 'config.json').read_text())['image'], IMAGE)
+
+    def test_next_가_없으면_현재_config_로_재설치한다(self):
+        self.write('config.json', PREVIOUS)
+        docker = FakeDocker([PREVIOUS, *OLD_IMAGES])
+
+        config = runner.load_next_config(self.base)
+        runner.install_image(config, HUB, base=self.base, run_command=docker)
+
+        self.assertEqual(config['image'], PREVIOUS)
+        self.assertEqual([call[2] for call in docker.calls if call[1] == 'rmi'], OLD_IMAGES)
+        self.assertEqual(json.loads((self.base / 'config.json').read_text())['image'], PREVIOUS)
+
+    def test_digest_없는_줄과_남길_이미지는_지우지_않는다(self):
+        listed = [IMAGE, PREVIOUS, 'kimnayoungg/bbang-ggut-be@<none>', *OLD_IMAGES]
+        self.assertEqual(runner.images_to_remove(listed, {IMAGE, PREVIOUS}), OLD_IMAGES)
+        self.assertEqual(runner.image_repository(IMAGE), 'kimnayoungg/bbang-ggut-be')
 
 
 class RunnerArgumentsTest(unittest.TestCase):

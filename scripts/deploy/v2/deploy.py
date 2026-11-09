@@ -130,10 +130,12 @@ def deploy(asg, ec2, elb, sts, image, parameter_prefix):
         asg.update_auto_scaling_group(AutoScalingGroupName=ASG, **desired)
         print('Prepared only: desired capacity remains 0; no live application was verified.')
         return None
+    # 워밍업 90초: ALB 헬스체크(10초×2회)가 readiness 를 이미 보므로, 새 서버가 healthy 가 된 뒤
+    # 구 서버를 살려 두는 관찰 창만 남긴다. 300초일 때는 교체의 실행 구간이 매번 305초에 묶였다(2026-11-09 측정).
     result = asg.start_instance_refresh(
         AutoScalingGroupName=ASG, Strategy='Rolling', DesiredConfiguration=desired,
         Preferences={'MinHealthyPercentage': 100, 'MaxHealthyPercentage': 200,
-                     'InstanceWarmup': 300, 'AutoRollback': True, 'SkipMatching': False,
+                     'InstanceWarmup': 90, 'AutoRollback': True, 'SkipMatching': False,
                      'ScaleInProtectedInstances': 'Wait', 'StandbyInstances': 'Wait'})
     print(f"Instance refresh: {result['InstanceRefreshId']}")
     return result['InstanceRefreshId']

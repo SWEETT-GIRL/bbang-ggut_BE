@@ -158,7 +158,8 @@ AWS 에 이미 만들어 둔 파이프라인을 쓴다(레포 밖 리소스):
 
 ## 9. 롤백
 
-- 이미지: 이전 cd-batch 실행을 Re-run 하면 그 digest 로 다시 설치된다(직전 이미지는 일주일 남는다)
+- 이미지: 이전 cd-batch 실행을 Re-run 하면 그 digest 로 다시 설치된다. 서버에는 **현재·직전 이미지 두 개만** 남고(20GB 디스크에 이미지 하나가 2.5GB), 더 오래된 digest 는 Docker Hub 에서 다시 받는다
+- 설치 순서: 배포가 `config.json.next` 를 두면 `bbang-batch install` 이 옛 이미지 정리 → pull → `config.json` 승격 순으로 돈다. pull 이 실패하면 `config.json` 은 그대로라 예약 작업은 현재 이미지로 계속 돈다
 - 작업 하나가 문제면 그 EventBridge 규칙만 끈다
 
 ## 알려진 한계
