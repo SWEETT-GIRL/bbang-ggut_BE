@@ -146,6 +146,23 @@ def deploy(asg, ec2, elb, sts, image, parameter_prefix):
     return result['InstanceRefreshId']
 
 
+def replacement_settled(group, desired_version):
+    """새 버전 인스턴스가 전부 InService 이고 옛 버전 인스턴스가 전부 종료 단계에 들어갔는가.
+
+    Instance Refresh 는 새 서버를 healthy 로 판단한 뒤에만 구 서버를 뺀다. 그래서 구 서버가 Terminating 에 들어간 순간이
+    교체가 결정된 시점이고, 그 뒤 남는 것은 등록 해제 30초와 EC2 종료, 상태가 Successful 로 바뀌는 지연(합쳐 약 95초)뿐이다
+    (2026-11-10 실측). 롤백 중에는 옛 버전이 다시 뜨므로(Pending) 이 조건이 참이 되지 않는다.
+    """
+    instances = group.get('Instances', [])
+    fresh = [i for i in instances if i.get('LaunchTemplate', {}).get('Version') == desired_version]
+    stale = [i for i in instances if i.get('LaunchTemplate', {}).get('Version') != desired_version]
+    if not fresh or len(fresh) < group['DesiredCapacity']:
+        return False
+    if any(i['LifecycleState'] != 'InService' or i['HealthStatus'] != 'Healthy' for i in fresh):
+        return False
+    return all(i['LifecycleState'].startswith('Terminating') or i['LifecycleState'] == 'Terminated' for i in stale)
+
+
 def wait_for_refresh(asg, refresh_id, timeout=7200):
     deadline = time.monotonic() + timeout
     previous = None
@@ -159,7 +176,16 @@ def wait_for_refresh(asg, refresh_id, timeout=7200):
             return
         if state['Status'] in TERMINAL:
             raise RuntimeError(f"Refresh ended with {state['Status']}: {state.get('StatusReason', '')}")
-        # 10초: 교체가 끝난 뒤 Successful 을 알아채기까지의 지연(평균 폴링 간격의 절반)을 줄인다. 호출은 무료다.
+        # 구 서버가 종료 단계에 들어가면 Successful 을 기다리지 않고 반환한다 — 종료 완료까지의 약 95초는 서비스와 무관하다.
+        # 대가: 종료 단계에서 refresh 가 실패하는 드문 경우를 이 잡이 보지 못한다(Slack 은 성공으로 간다). 바로 다음 배포의
+        # preflight 가 "Another instance refresh is active" 로 막을 수 있지만, 다음 run 의 build 잡(2분 안팎)이 그 시간을 덮는다.
+        desired_version = state.get('DesiredConfiguration', {}).get('LaunchTemplate', {}).get('Version')
+        if state['Status'] == 'InProgress' and desired_version and replacement_settled(
+                asg.describe_auto_scaling_groups(AutoScalingGroupNames=[ASG])['AutoScalingGroups'][0], desired_version):
+            print('Replacement settled: new instances are InService and old instances are terminating; '
+                  'not waiting for the termination to finish', flush=True)
+            return
+        # 10초: 상태 변화를 알아채기까지의 지연(평균 폴링 간격의 절반)을 줄인다. 호출은 무료다.
         time.sleep(10)
     # 파이프라인 중단만으로 AWS 작업은 취소되지 않는다. 상태를 확인하고 수동 롤백한다.
     raise TimeoutError('AWS refresh is still active; inspect ASG and roll back if needed')
