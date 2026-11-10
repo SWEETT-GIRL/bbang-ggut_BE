@@ -63,6 +63,14 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          # 기본값은 기본 브랜치(main)에서만 캐시를 쓴다. develop-v2 는 기본 브랜치가 아니라 매 실행이 캐시 미스였다
+          # (Gradle 배포판·의존성 내려받기 약 100초). push 와 PR 모두 쓰게 한다.
+          cache-read-only: false
+      # 러너 사양(CPU·메모리) — 병렬·포크 설정은 이 값에 맞춰야 한다(비공개 저장소 기본 러너는 2 vCPU 로 보인다)
+      - name: Runner spec
+        run: |
+          echo "nproc=$(nproc)"; free -m | head -2; df -h / | tail -1
       - run: ./gradlew build -x installGitHooks --no-daemon
   deployment-config:
     runs-on: ubuntu-latest
@@ -85,6 +93,10 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          # 기본값은 기본 브랜치(main)에서만 캐시를 쓴다. develop-v2 는 기본 브랜치가 아니라 매 실행이 캐시 미스였다
+          # (Gradle 배포판·의존성 내려받기 약 100초). push 와 PR 모두 쓰게 한다.
+          cache-read-only: false
       - name: Build batch JAR
         run: |
           ./gradlew :batch:bootJar -x installGitHooks --no-daemon
