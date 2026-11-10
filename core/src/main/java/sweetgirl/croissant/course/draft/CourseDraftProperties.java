@@ -50,6 +50,13 @@ public class CourseDraftProperties {
 	/** 회원당 초당 PUT 허용 횟수. 넘으면 429. */
 	private int ratePerSecond = 10;
 
+	/**
+	 * 인스턴스 하나가 동시에 처리하는 PUT 수의 상한. 넘치면 기다리지 않고 429 — 받은 요청은 평소 속도로 끝난다.
+	 * 0 이하면 상한 없음(기본). 앱이 429 에 0.5초 뒤 바로 재시도하는 동안은 켜지 않는다 — 거절이 재요청이 되어 처리량이
+	 * 준다({@link MemoDraftLoadShedFilter}).
+	 */
+	private int maxConcurrentWrites = 0;
+
 	/** PUT 의 권한·쓰기 제한 판정을 들고 있는 시간. 틀려도 "나간 사람 초안이 이만큼 Redis 에 머무는" 방향뿐이다. */
 	private Duration accessCacheTtl = Duration.ofSeconds(10);
 
