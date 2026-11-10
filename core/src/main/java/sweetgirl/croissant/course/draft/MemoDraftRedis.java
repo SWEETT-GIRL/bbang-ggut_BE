@@ -12,6 +12,7 @@ import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactor
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.util.StringUtils;
 
+import io.lettuce.core.ClientOptions;
 import io.lettuce.core.resource.ClientResources;
 import io.lettuce.core.resource.Delay;
 
@@ -48,6 +49,7 @@ public class MemoDraftRedis implements AutoCloseable {
 		ClientResources clientResources = clientResourcesOf(redis);
 		LettuceClientConfiguration clientConfiguration = LettuceClientConfiguration.builder()
 			.clientResources(clientResources)
+			.clientOptions(clientOptionsOf(redis))
 			.commandTimeout(redis.getCommandTimeout())
 			.build();
 		LettuceConnectionFactory connectionFactory = new LettuceConnectionFactory(configurationOf(redis),
@@ -62,6 +64,16 @@ public class MemoDraftRedis implements AutoCloseable {
 		Duration delay = redis.getReconnectDelay();
 		return ClientResources.builder()
 			.reconnectDelay(Delay.constant(delay))
+			.build();
+	}
+
+	/** 끊긴 동안의 명령 — 쌓아 둘지(기본) 바로 거절할지. 자동 재연결은 어느 쪽이든 켜 둔다. */
+	static ClientOptions clientOptionsOf(CourseDraftProperties.Redis redis) {
+		return ClientOptions.builder()
+			.autoReconnect(true)
+			.disconnectedBehavior(redis.isRejectWhenDisconnected()
+				? ClientOptions.DisconnectedBehavior.REJECT_COMMANDS
+				: ClientOptions.DisconnectedBehavior.DEFAULT)
 			.build();
 	}
 

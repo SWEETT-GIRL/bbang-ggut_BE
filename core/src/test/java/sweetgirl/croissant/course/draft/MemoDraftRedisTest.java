@@ -7,6 +7,7 @@ import java.time.Duration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import io.lettuce.core.ClientOptions;
 import io.lettuce.core.resource.ClientResources;
 
 class MemoDraftRedisTest {
@@ -33,5 +34,19 @@ class MemoDraftRedisTest {
 
 		assertThat(properties.getRedis().getReconnectDelay()).isEqualTo(Duration.ofMillis(250));
 		assertThat(properties.getLease()).isEqualTo(Duration.ofSeconds(5));
+	}
+
+	@Test
+	@DisplayName("끊긴 동안의 명령은 기본으로 쌓아 두고, 설정을 켜면 바로 거절한다 — 재연결은 어느 쪽이든 켜져 있다")
+	void disconnectedBehavior_followsSetting() {
+		CourseDraftProperties.Redis redis = new CourseDraftProperties.Redis();
+
+		assertThat(MemoDraftRedis.clientOptionsOf(redis).getDisconnectedBehavior())
+			.isEqualTo(ClientOptions.DisconnectedBehavior.DEFAULT);
+
+		redis.setRejectWhenDisconnected(true);
+		ClientOptions options = MemoDraftRedis.clientOptionsOf(redis);
+		assertThat(options.getDisconnectedBehavior()).isEqualTo(ClientOptions.DisconnectedBehavior.REJECT_COMMANDS);
+		assertThat(options.isAutoReconnect()).isTrue();
 	}
 }
