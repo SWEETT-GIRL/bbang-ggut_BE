@@ -3,7 +3,8 @@ name: sweetgirl-prod-redis
 # 역할(profile)로 한 파일을 세 서버에 쓴다. deploy.sh <role> 이 --profile 로 고른다.
 #   master   : 캐시 redis(마스터) + 초안 redis-draft(마스터) + 감시자  (ec2-sweetgirl-prod-redis-kafka-1)
 #   replica  : 캐시 redis(복제본) + 초안 redis-draft(복제본) + 감시자  (ec2-sweetgirl-prod-redis-2)
-#   sentinel : 감시자만                                                (ec2-sweetgirl-prod-redis-3)
+#   replica  : (같은 역할)                                             (ec2-sweetgirl-prod-redis-3)
+#   sentinel : 감시자만 — 지금은 쓰는 서버가 없다. 감시자 전용 서버를 다시 둘 때 쓴다
 # 마스터·복제본의 차이는 CD 가 서버마다 만들어 주는 replication.conf(replicaof 유무)뿐이다.
 services:
   # 자동완성·급부상 캐시. 감시자의 마스터 이름은 cache.
