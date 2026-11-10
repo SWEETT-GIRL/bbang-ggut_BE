@@ -4,11 +4,11 @@ v2 WAS 는 ASG `sweetgirl-was-auto-scaling`(t4g.small, ARM64) 이 시작 템플�
 digest 를 고정한 user_data 로 시작 템플릿 **새 버전**을 만들고 Instance Refresh 로 EC2 를 교체한다. 새 EC2 는 **일반 Ubuntu ARM64 AMI** 로 부팅해
 user_data 에서 `apt-get install docker.io python3-boto3` 를 한 뒤 `bootstrap.py` 가 Parameter Store 를 읽어 컨테이너를 띄운다.
 
-이 문서는 그 AMI 를 **Docker 와 python3-boto3 가 미리 들어간 AMI** 로 바꾸는 절차다. 아직 AWS 리소스는 만들지 않았다(2026-11-09).
+이 문서는 그 AMI 를 **Docker 와 python3-boto3 가 미리 들어간 AMI** 로 바꾸는 절차다. 2026-11-09 에 첫 AMI `ami-025ac2e24452a97b6` 를 만들어 운영에 적용했다(측정 §3.1, 이력 §4).
 수치는 2026-11-09 cd-v2 로그·콘솔 조회 기준이며 "기대"라고 적은 값은 추정이다.
 
 ```
-지금:   EC2 시작 ─▶ Ubuntu 부팅 ─▶ user_data: apt-get update/install docker.io python3-boto3 (60~90초) ─▶ bootstrap.py ─▶ readiness ─▶ ALB healthy
+AMI 전: EC2 시작 ─▶ Ubuntu 부팅 ─▶ user_data: apt-get update/install docker.io python3-boto3 (60~90초) ─▶ bootstrap.py ─▶ readiness ─▶ ALB healthy
 AMI 뒤: EC2 시작 ─▶ Ubuntu+Docker 부팅 ─▶ user_data: docker·boto3 있음 → apt 건너뜀 (수초)           ─▶ bootstrap.py ─▶ readiness ─▶ ALB healthy
 ```
 
@@ -54,7 +54,8 @@ AMI 뒤: EC2 시작 ─▶ Ubuntu+Docker 부팅 ─▶ user_data: docker·boto3 
 
 ### 2.2 임시 EC2 에 Docker·boto3 설치
 
-1. 시작 템플릿 `lt-005c5f2006720a57c` → 작업 → **템플릿에서 인스턴스 시작** → 소스 템플릿 버전 **N**. 템플릿 값(AMI·유형·서브넷·SG·IAM 프로파일·IMDSv2)을 그대로 쓰면 운영과 같은 아웃바운드 경로로 apt 가 되는지도 함께 확인된다.
+1. 시작 템플릿 `lt-005c5f2006720a57c` → 작업 → **템플릿에서 인스턴스 시작** → 소스 템플릿 버전 **N**. 템플릿 값(AMI·유형·SG·IAM 프로파일·IMDSv2)을 그대로 쓰면 운영과 같은 아웃바운드 경로로 apt 가 되는지도 함께 확인된다.
+   템플릿에는 서브넷이 없어(ASG 가 정한다) 그대로 시작하면 **"기본 VPC 없음"** 오류가 난다. 네트워크 설정에서 서브넷을 ASG 와 같은 `subnet-0078f9aaf3051fcd3` 으로 고른다 — 보안 그룹·IAM 프로파일·IMDSv2 는 템플릿 값이 그대로 남는다(2026-11-09 실측).
 2. 고급 세부 정보 → **사용자 데이터를 아래로 교체한다.** 원래 user_data 를 두면 `bbang-v2` 서비스가 운영 Parameter Store 를 읽어 **운영 DB 에 붙는 컨테이너를 띄운다** — 반드시 교체.
    ```bash
    #!/bin/bash
@@ -66,7 +67,7 @@ AMI 뒤: EC2 시작 ─▶ Ubuntu+Docker 부팅 ─▶ user_data: docker·boto3 
    apt-get clean
    ```
 3. 태그 `Name=bbang-v2-ami-builder-YYYYMMDD`. ASG 밖에서 띄운 인스턴스라 타깃그룹에는 등록되지 않는다.
-4. 시작 후 2~3분 뒤 접속해 확인한다. 접속은 SSM Session Manager(인스턴스 역할에 `AmazonSSMManagedInstanceCore` 가 있을 때) 또는 bastion SSH. 둘 다 안 되면 EC2 콘솔 → 모니터링 및 문제 해결 → **시스템 로그**에서 cloud-init 종료 줄만 확인한다.
+4. 시작 후 2~3분 뒤 접속해 확인한다. 접속은 SSM Session Manager(인스턴스 역할에 `AmazonSSMManagedInstanceCore` 가 있을 때) 또는 bastion SSH. 세션 대신 Systems Manager → Run Command(`AWS-RunShellScript`)로 4·5 의 명령을 보내도 된다(2026-11-09 는 이 방식). 둘 다 안 되면 EC2 콘솔 → 모니터링 및 문제 해결 → **시스템 로그**에서 cloud-init 종료 줄만 확인한다.
    ```bash
    cloud-init status --wait                       # status: done
    docker --version && systemctl is-enabled docker   # enabled
@@ -110,9 +111,23 @@ AMI 뒤: EC2 시작 ─▶ Ubuntu+Docker 부팅 ─▶ user_data: docker·boto3 
    | (ASG) 상태 확인 유형에 `ELB` 포함, 원하는 용량 ≤ 2, 최대 == 2 | 유지 | ASG 세부 정보 |
    | (ASG) 진행 중 Instance Refresh 없음, 마지막 refresh 가 `RollbackFailed` 아님 | 배포 중이 아닐 것 | ASG → 인스턴스 새로 고침 |
    | (타깃그룹) 8080/HTTP, 헬스체크 포트 8081 경로 `/actuator/health/readiness` | 유지 | 타깃 그룹 |
+   | (IAM, preflight 는 안 봄) 배포 역할이 X 로 `ec2:RunInstances` 가능 | `UseOwnBakedImages` 문(아래 7) | IAM → 역할 `role-sweetgirl-prod-github-v2` → 인라인 정책 `policy-sweetgirl-prod-github-v2-deploy` |
    | (인스턴스) 용량 > 0 이면 전부 `InService`·`Healthy`·타깃그룹 healthy | 확인 | ASG 인스턴스 관리 · 타깃 그룹 |
 
 6. 생성 → **새 버전 번호 M**. "기본 버전으로 설정"은 하지 않아도 된다 — `deploy.py` 는 `$Default`/`$Latest` 를 보지 않고 **ASG 가 가리키는 숫자 버전**을 복제한다(§6).
+7. **배포 역할 정책(처음 한 번만).** 배포 역할 `role-sweetgirl-prod-github-v2` 의 인라인 정책 `policy-sweetgirl-prod-github-v2-deploy` 는 `ec2:RunInstances` 를 베이스 AMI ID 하나에만 허용한다.
+   그대로 두면 `preflight()` 는 통과하지만 §2.6 의 `StartInstanceRefresh` 가 `AccessDenied … not authorized to use launch template` 으로 실패한다(2026-11-09 attempt 2 — refresh 를 시작하는 쪽이 템플릿의 AMI 로 인스턴스를 띄울 권한을 가져야 한다).
+   IAM → 역할 → 인라인 정책 → JSON 편집에서 **계정이 소유한 AMI 전부**를 허용하는 문을 추가한다. 이후 X' 로 갱신할 때는 다시 손댈 필요가 없다.
+   ```json
+   {
+     "Sid": "UseOwnBakedImages",
+     "Effect": "Allow",
+     "Action": "ec2:RunInstances",
+     "Resource": "arn:aws:ec2:ap-northeast-2::image/ami-*",
+     "Condition": { "StringEquals": { "ec2:Owner": "210447604031" } }
+   }
+   ```
+   기존 문(베이스 AMI ID 줄 포함)은 지우지 않는다 — §2.7 롤백으로 베이스 AMI 버전을 쓸 때 필요하다. 콘솔 JSON 편집기는 괄호를 자동으로 닫으니 저장 전 오류 0 을 확인한다.
 
 ### 2.5 ASG 가 M 을 가리키게 하기
 
@@ -133,8 +148,9 @@ AMI 뒤: EC2 시작 ─▶ Ubuntu+Docker 부팅 ─▶ user_data: docker·boto3 
    | 새 EC2 (SSM) | `grep -c 'Setting up docker.io' /var/log/cloud-init-output.log` | **0**(설치를 건너뜀) |
    | 새 EC2 (SSM) | `sudo journalctl -u bbang-v2 -o short-iso --no-pager \| tail -3` | `v2 container readiness passed` |
    | 새 EC2 (SSM) | `dpkg-query -W docker.io python3-boto3` | §2.2 에서 적은 버전과 같음 |
+   | 새 EC2 (SSM 없이) | EC2 → 인스턴스 → **인스턴스 진단 → 시스템 로그**: `running 'modules:final' … Up A seconds` 줄과 바로 다음 `Created symlink … bbang-v2.service` 줄의 초 차이 | 수초(apt 를 건너뜀). `Cloud-init … finished … Up N seconds` 는 이미지 pull·컨테이너 기동까지 기다린 시각이라 100초를 넘어도 정상 |
 
-3. 결과를 §4 이력 표에 적는다.
+3. 결과를 §4 이력 표와 §3.1 에 적는다. 운영 인스턴스에 SSM 명령을 보낼 수 없을 때는 위 "SSM 없이" 행과 ASG → 활동의 시각으로 읽는다.
 
 ### 2.7 롤백
 
@@ -160,6 +176,24 @@ AMI 뒤: EC2 시작 ─▶ Ubuntu+Docker 부팅 ─▶ user_data: docker·boto3 
 | 구 인스턴스 등록 해제 30초 + 종료 ~20초 | ~50초 | 같음 | |
 | **deploy 스텝 합계** | **283초** | **약 200초** | cd-v2 워크플로 전체에서는 그 다음 병목이 `build` 잡의 Gradle 3~4.5분 |
 
+### 3.1 첫 적용 측정 (2026-11-09)
+
+cd-v2 run 42601024884 attempt 3, 새 EC2 `i-075262291265f3d3a`(AMI `ami-025ac2e24452a97b6`). 운영 인스턴스라 SSM 은 쓰지 않았고 콘솔 시스템 로그와 ASG 활동(KST)으로 읽었다.
+
+| 구간 | 측정 | 근거 |
+|---|---:|---|
+| EC2 시작 → ASG `InService` | 94초 | ASG 활동 20:24:16 → 20:25:50 |
+| 부팅 → cloud-init `modules:final`(user_data 시작) | 43초 | 시스템 로그 `Up 42.55 seconds`. 그 전은 Ubuntu 첫 부팅(네트워크 15초·config 17초·snapd 시딩) |
+| user_data: docker·boto3 확인 → systemd 유닛 등록 | **1.5초** | `Up 42.58` → `Created symlink … bbang-v2.service` 44.11초. **apt 설치를 건너뛴 것 확인** |
+| `bbang-v2` 부트스트랩(Parameter Store·`docker pull`·컨테이너 시작) | 72초 | 44초 → `Cloud-init … finished … Up 116.67 seconds` |
+| `InService` → healthy(구 인스턴스 종료 시작) | 105초 | ASG 활동 20:25:50 → 20:27:35. Spring 기동 + readiness 10초×2회. warmup 90초는 병렬 |
+| 구 인스턴스 종료 | 72초 | ASG 활동 20:27:35 → 20:28:47 |
+| **deploy 스텝 합계** | **315초** | 직전 배포들은 222~314초 |
+
+- 설치 건너뛰기는 동작한다. 그러나 deploy 스텝은 이전 범위 안이라 **한 번으로는 효과를 가를 수 없다** — 배포마다 90초쯤 편차가 있다. 다음 배포 몇 번의 스텝 시간을 §4 에 모아 비교한다.
+- 시스템 로그의 `Up 116초` 는 부팅 지연이 아니라 cloud-init 가 컨테이너 부트스트랩이 끝나기를 기다린 시각이다. `cloud-init clean --machine-id` 로 인한 첫 부팅 지연은 없었다.
+- 다음 후보(미검증): 72초의 `docker pull` — temurin JRE 레이어를 AMI 에 미리 pull 하거나 Docker Hub 대신 같은 리전 ECR; `InService` 까지 94초가 걸리는 구간.
+
 부수 효과:
 - 매 부팅마다 Ubuntu apt 미러(`ports.ubuntu.com`)에 의존하던 경로가 배포 경로에서 빠진다. 미러 장애로 user_data 가 실패해 refresh 가 롤백되는 경우가 사라진다.
 - 지금은 배포할 때마다 그 시점 저장소의 docker.io 가 깔려 **코드 변경 없이 Docker 버전이 바뀔 수 있다.** AMI 뒤에는 버전이 AMI 에 고정되고, 올리는 일이 §2 의 명시적 작업이 된다(패치가 늦어질 수 있다는 뜻이기도 하다 — §5).
@@ -168,7 +202,7 @@ AMI 뒤: EC2 시작 ─▶ Ubuntu+Docker 부팅 ─▶ user_data: docker·boto3 
 
 | 날짜 | AMI ID | 베이스 AMI | docker.io / python3-boto3 | 시작 템플릿 버전 | 적용 배포(run) | 비고 |
 |---|---|---|---|---|---|---|
-| (예정) | | | | | | |
+| 2026-11-09 | `ami-025ac2e24452a97b6` (`bbang-v2-was-docker-20261109`) | `ami-019e063f3fff5d27f` | 29.1.3-0ubuntu4.1 / 1.40.72-1build1 | 24 → **25**(AMI 만). 배포가 27 생성(26 은 IAM 거부로 실패한 attempt 2 의 것) | run 42601024884 attempt 3 | deploy 스텝 315초(§3.1). 배포 역할 정책에 `UseOwnBakedImages` 추가(§2.4-7) |
 
 ## 5. 갱신 주기와 정리
 
