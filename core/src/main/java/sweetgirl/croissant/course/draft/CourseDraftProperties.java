@@ -32,9 +32,11 @@ public class CourseDraftProperties {
 
 	/**
 	 * 플러셔가 코스를 꺼내 들고 있을 수 있는 시간. 지나면 죽은 플러셔로 보고 다른 인스턴스가 회수한다.
-	 * 반영 한 번은 1초 안쪽이라 15초면 충분하다 — 30초일 때 페일오버 뒤 마지막 글이 DB 에 가기까지 17~39초가 걸렸다(11/5 측정).
+	 * 반영 한 번은 1초 안쪽이라 짧아도 된다 — 30초일 때 페일오버 뒤 마지막 글이 DB 에 가기까지 17~39초(11/5), 15초일 때
+	 * 14~22초(11/9 운영)가 걸렸고 그 대부분이 이 임대를 기다린 시간이다. 임대가 지나 다른 플러셔가 같은 코스를 다시 잡아도
+	 * 코스 행 락과 seq 비교가 중복 반영을 막는다.
 	 */
-	private Duration lease = Duration.ofSeconds(15);
+	private Duration lease = Duration.ofSeconds(5);
 
 	/** DB 반영이 실패한 코스를 다시 시도하기까지. */
 	private Duration retryDelay = Duration.ofSeconds(5);
@@ -92,6 +94,12 @@ public class CourseDraftProperties {
 		private Duration commandTimeout = Duration.ofSeconds(1);
 
 		private Duration connectTimeout = Duration.ofMillis(500);
+
+		/**
+		 * 연결이 끊긴 뒤 다시 붙기를 시도하는 간격(고정). Lettuce 기본 지수 백오프는 페일오버 승격(5~6초) 뒤에도 몇 초를
+		 * 더 기다리게 한다(2026-11-09 측정: 승격 5.6초, 앱 재연결 9초). 250ms 면 감시자·마스터에 부담 없이 승격 직후 붙는다.
+		 */
+		private Duration reconnectDelay = Duration.ofMillis(250);
 	}
 
 	public enum Mode {

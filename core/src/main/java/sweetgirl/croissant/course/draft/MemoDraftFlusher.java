@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.SmartLifecycle;
+import org.springframework.core.NestedExceptionUtils;
 import org.springframework.dao.DataAccessException;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Component;
@@ -97,7 +98,8 @@ public class MemoDraftFlusher implements SmartLifecycle {
 				flushCourse(courseId);
 			}
 		} catch (DataAccessException exception) {
-			log.warn("[메모 초안] Redis 접근 실패 — 다음 틱에 다시 cause={}", exception.toString());
+			log.warn("[메모 초안] Redis 접근 실패 — 다음 틱에 다시 cause={} root={}", exception.toString(),
+				NestedExceptionUtils.getMostSpecificCause(exception).toString());
 		}
 	}
 
