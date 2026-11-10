@@ -30,6 +30,8 @@ import sweetgirl.croissant.course.draft.MemoDraftRedis;
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
 	static final long HEARTBEAT_MS = 25_000L;
+	/** 인스턴스 하나가 받을 소켓 수보다 넉넉히 — 32GB 한 대에 10만 접속까지 확인했다 */
+	static final int BROKER_CACHE_LIMIT = 200_000;
 
 	private final StompAuthInterceptor stompAuthInterceptor;
 
@@ -65,6 +67,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 			.setHeartbeatValue(new long[] {HEARTBEAT_MS, HEARTBEAT_MS})
 			.setTaskScheduler(heartbeatScheduler);
 		registry.setUserDestinationPrefix("/user");
+		// simple broker 는 "목적지 → 구독 세션" 을 캐시하는데 기본 1,024개다. 신호는 세션마다 다른 목적지
+		// (/queue/courses/{id}-user{session})로 가므로 소켓이 그보다 많으면 캐시가 계속 밀려나고, 밀려난 목적지는 보낼 때마다
+		// 전체 세션의 구독을 처음부터 훑는다 — 소켓 12,000개에서 초당 신호 2만 건이 3~4천 건으로 막혔다(2026-11-10).
+		registry.setCacheLimit(BROKER_CACHE_LIMIT);
 	}
 
 	@Override

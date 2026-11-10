@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
-import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.Message;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -78,13 +78,9 @@ class CourseSignalLabTest {
 
 		publisher.onDraftWritten(new MemoDraftWrittenEvent(COURSE_ID, 100L, 1L, "소금빵 꼭", 1_000L));
 
-		CourseSignal expected = CourseSignal.draft(COURSE_ID, 100L, 1L, "소금빵 꼭", 1_000L);
-		then(messagingTemplate).should(timeout(3_000)).convertAndSendToUser(eq("s-1"), eq("/queue/courses/77"),
-			eq(expected), any(MessageHeaders.class));
-		then(messagingTemplate).should(timeout(3_000)).convertAndSendToUser(eq("s-2"), eq("/queue/courses/77"),
-			eq(expected), any(MessageHeaders.class));
-		then(messagingTemplate).should(never()).convertAndSendToUser(eq("s-3"), any(), any(),
-			any(MessageHeaders.class));
+		then(messagingTemplate).should(timeout(3_000)).send(eq("/user/s-1/queue/courses/77"), any(Message.class));
+		then(messagingTemplate).should(timeout(3_000)).send(eq("/user/s-2/queue/courses/77"), any(Message.class));
+		then(messagingTemplate).should(never()).send(eq("/user/s-3/queue/courses/77"), any(Message.class));
 	}
 
 	@Test
@@ -98,10 +94,8 @@ class CourseSignalLabTest {
 
 		publisher.onDraftWritten(new MemoDraftWrittenEvent(COURSE_ID, 100L, 1L, "둘만 남은 글", 2_000L));
 
-		then(messagingTemplate).should(timeout(3_000)).convertAndSendToUser(eq("s-1"), eq("/queue/courses/77"),
-			any(), any(MessageHeaders.class));
-		then(messagingTemplate).should(never()).convertAndSendToUser(eq("s-2"), any(), any(),
-			any(MessageHeaders.class));
+		then(messagingTemplate).should(timeout(3_000)).send(eq("/user/s-1/queue/courses/77"), any(Message.class));
+		then(messagingTemplate).should(never()).send(eq("/user/s-2/queue/courses/77"), any(Message.class));
 		assertThat(registry.subscribers(COURSE_ID)).extracting(CourseSubscriptionRegistry.Subscriber::memberId)
 			.containsExactly(1L);
 	}
