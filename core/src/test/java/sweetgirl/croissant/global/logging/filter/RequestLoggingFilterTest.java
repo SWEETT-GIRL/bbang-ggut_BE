@@ -31,4 +31,14 @@ class RequestLoggingFilterTest {
 		assertThat(RequestLoggingFilter.resolveEventType("GET", "/stores/1090", 404)).isNull();
 		assertThat(RequestLoggingFilter.resolveEventType("GET", "/stores/1090", 500)).isNull();
 	}
+
+	@Test
+	@DisplayName("body 는 POST·PUT·PATCH 만 남기고, 메모 초안 PUT 은 남기지 않는다")
+	void shouldStoreBody_skipsMemoDraft() {
+		assertThat(RequestLoggingFilter.shouldStoreBody("POST", "/courses")).isTrue();
+		assertThat(RequestLoggingFilter.shouldStoreBody("PATCH", "/courses/12/stores/1090/memo")).isTrue();
+		assertThat(RequestLoggingFilter.shouldStoreBody("PUT", "/members/me")).isTrue();
+		assertThat(RequestLoggingFilter.shouldStoreBody("GET", "/courses/12/drafts")).isFalse();
+		assertThat(RequestLoggingFilter.shouldStoreBody("PUT", "/courses/12/stores/1090/memo-draft")).isFalse();
+	}
 }
