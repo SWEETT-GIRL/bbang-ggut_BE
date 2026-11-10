@@ -46,9 +46,12 @@ jobs:
           # 배치 이미지(batch-image)는 배치 관련 경로가 바뀐 PR 에서만 빌드한다.
           # core/·config/ 는 넣지 않는다 — core 컴파일·테스트는 build-v2 의 루트 ./gradlew build 가
           # 전 모듈로 이미 돌고, batch-image 는 이미지 조립(Dockerfile.batch·엔트리포인트)만 본다.
-          batch_prefixes = ('batch/', 'dataops/', 'scripts/deploy/batch/', 'gradle/')
+          # build.gradle·settings.gradle·gradle/ 도 넣지 않는다 — 이 잡은 java 를 띄우지 않아 의존성 변경은
+          # build-v2 의 테스트가 보고, JAR 개수 검사는 cd-batch 가 머지 뒤에 한다(실패해도 옛 이미지가 그대로 돈다).
+          # batch/·dataops/ 는 남긴다 — Dockerfile.batch 가 그 안의 파일을 경로로 COPY 하므로 옮기면 조립이 깨진다.
+          batch_prefixes = ('batch/', 'dataops/', 'scripts/deploy/batch/')
           batch_files = {
-              'Dockerfile.batch', 'Dockerfile.batch.dockerignore', 'build.gradle', 'settings.gradle',
+              'Dockerfile.batch', 'Dockerfile.batch.dockerignore',
               '.github/workflows/ci-v2.yml', '.github/workflows/cd-batch.yml',
           }
           touches_batch = not redis_only and any(
