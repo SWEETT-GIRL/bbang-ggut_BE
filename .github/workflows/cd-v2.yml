@@ -106,8 +106,9 @@ jobs:
       - name: Build deployment JAR without repeating CI tests
         run: |
           python3 -m unittest discover -s scripts/deploy/v2/tests -v
-          # 전체 자바 테스트는 develop-v2 PR의 CI에서 실행한다.
-          ./gradlew build -x test -x installGitHooks --no-daemon
+          # 전체 자바 테스트·checkstyle 은 develop-v2 PR 의 CI(build-v2)가 한다. 여기서는 API 이미지에 들어갈
+          # api 의 실행 JAR 만 만든다 — `build -x test` 는 3모듈 checkstyle(86초)과 batch 모듈까지 돌렸다(2026-11-10 측정).
+          ./gradlew :api:bootJar -x installGitHooks --no-daemon
           mkdir -p build/v2
           mapfile -t jars < <(find api/build/libs -maxdepth 1 -name '*.jar' ! -name '*-plain.jar')
           test "${#jars[@]}" -eq 1
