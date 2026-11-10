@@ -2,6 +2,12 @@ name: CI - V2 Build & Test
 on:
   pull_request:
     branches: [develop-v2]
+    # 문서·Claude 설정만 바꾼 PR 은 빌드할 게 없다 — v1 의 ci.yml 과 같은 예외.
+    # 필수 체크(브랜치 보호)가 없어, 건너뛴 워크플로가 머지를 막지는 않는다.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.claude/**'
 permissions:
   contents: read
 jobs:
@@ -10,6 +16,7 @@ jobs:
     outputs:
       backend: ${{ steps.diff.outputs.backend }}
       batch: ${{ steps.diff.outputs.batch }}
+      workflows: ${{ steps.diff.outputs.workflows }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,16 +46,21 @@ jobs:
           # 배치 이미지(batch-image)는 배치 관련 경로가 바뀐 PR 에서만 빌드한다.
           # core/·config/ 는 넣지 않는다 — core 컴파일·테스트는 build-v2 의 루트 ./gradlew build 가
           # 전 모듈로 이미 돌고, batch-image 는 이미지 조립(Dockerfile.batch·엔트리포인트)만 본다.
-          batch_prefixes = ('batch/', 'dataops/', 'scripts/deploy/batch/', 'gradle/')
+          # build.gradle·settings.gradle·gradle/ 도 넣지 않는다 — 이 잡은 java 를 띄우지 않아 의존성 변경은
+          # build-v2 의 테스트가 보고, JAR 개수 검사는 cd-batch 가 머지 뒤에 한다(실패해도 옛 이미지가 그대로 돈다).
+          # batch/·dataops/ 는 남긴다 — Dockerfile.batch 가 그 안의 파일을 경로로 COPY 하므로 옮기면 조립이 깨진다.
+          batch_prefixes = ('batch/', 'dataops/', 'scripts/deploy/batch/')
           batch_files = {
-              'Dockerfile.batch', 'Dockerfile.batch.dockerignore', 'build.gradle', 'settings.gradle',
+              'Dockerfile.batch', 'Dockerfile.batch.dockerignore',
               '.github/workflows/ci-v2.yml', '.github/workflows/cd-batch.yml',
           }
           touches_batch = not redis_only and any(
               path.startswith(batch_prefixes) or path in batch_files for path in paths)
+          touches_workflows = any(path.startswith('.github/workflows/') for path in paths)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
               out.write(f'backend={str(not redis_only).lower()}\n')
               out.write(f'batch={str(touches_batch).lower()}\n')
+              out.write(f'workflows={str(touches_workflows).lower()}\n')
           PYCODE
 
   build-v2:
@@ -72,7 +84,10 @@ jobs:
         run: |
           echo "nproc=$(nproc)"; free -m | head -2; df -h / | tail -1
       - run: ./gradlew build -x installGitHooks --no-daemon
+  # 워크플로 파일이 바뀐 PR 에서만 돈다 — 입력이 같으면 결과도 지난 실행과 같다.
   deployment-config:
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

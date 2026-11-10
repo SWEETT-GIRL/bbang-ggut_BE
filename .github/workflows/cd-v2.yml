@@ -13,6 +13,10 @@ on:
       - 'Dockerfile.batch.dockerignore'
       - 'scripts/deploy/batch/**'
       - '.github/workflows/cd-batch.yml'
+      # 문서·Claude 설정만 바뀐 머지는 다시 띄울 이유가 없다(cd-staging 과 같다)
+      - '**.md'
+      - 'docs/**'
+      - '.claude/**'
 
 # 실제 배포는 준비 완료 후 Repository variable V2_DEPLOY_ENABLED=true로 명시적으로 연다.
 # 수동 실행은 제공하지 않는다. 재배포는 이미 PR로 머지된 실행의 Re-run jobs를 사용한다.
