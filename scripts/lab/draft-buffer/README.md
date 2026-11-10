@@ -71,3 +71,32 @@ MODE=push k6 run --summary-export scripts/lab/draft-buffer/results/${D}-latency-
 - 합치기 비율 = `draft_write_accepted` 증가분 / `draft_flush_batch_sum` 증가분.
 - 한 머신에서 앱·DB·Redis·k6 를 같이 돌리면 수치는 "구조 비교용"이다(`scripts/perf/README.md` 의 교훈). 절대값을 말할 땐 그렇게 적는다.
 - 결과는 `results/<날짜>-<시나리오>/` 에 k6 원본(summary.json)·server.log·kill-master 출력을 그대로 둔다. 3회 중앙값을 계획 문서 "측정 결과"에 적는다.
+
+## 운영 VPC 실험 (2026-11-09 ~ 10)
+
+노트북 한 대가 아니라 운영 VPC 안의 서버들(앱 서버 1 · 부하 발생기 1 · 초안 Redis 3)에서 돌린 것. `infra/` 의 스크립트는 노트북에서
+bastion 을 거쳐 각 서버에 명령을 보낸다. **측정 당시 스크립트 그대로이고 호스트 · 경로만 환경 변수로 바꿨다** — `infra/env.example.sh`
+를 채워 `source` 한 뒤 돌린다. 숫자와 해석은 `.claude/planning/feat-course-draft-buffer.md`.
+
+| 무엇 | 스크립트 | k6 · 클라이언트 |
+|---|---|---|
+| 복제 지연과 유실 경계 · `min-replicas-to-write` | `infra/r1-replication.sh` | `loss.js` |
+| AOF `everysec` 대 `always` | `infra/r2-fsync.sh` | `buffered.js` |
+| 코스 하나가 Redis 에서 차지하는 메모리 · 가득 찼을 때 | `infra/r3-memory.sh` · `infra/r3-full.sh` | — |
+| 네트워크 분리(split-brain) — standalone 앱 / sentinel 앱 | `infra/n1-partition.sh` · `infra/n1-partition-sentinel.sh` | `loss.js` |
+| VM 정지 페일오버 | `infra/v1-vmstop.sh` | `loss.js` |
+| 페일오버 체감 복구 전후(readFrom 제거 · 재연결 간격) | `infra/f3-failover-lab.sh` · `infra/big-failover.sh` | `loss.js` |
+| 앱 2대 — 유실 · 중복 · 초당 제한 · 인스턴스 간 신호 | `infra/two-instance.sh` | `loss.js` · `ratelimit.js` · `cross-probe.js` |
+| 소켓 수 한계 · 재접속 폭주 · 느린 소비자 | `infra/w1-*.sh` · `infra/w2-storm.sh` · `infra/w3-slow.sh` | `sockets.js` · `storm.js` · `slow_consumers.py` |
+| 큰 사양 한 대의 한계와 병목(램프 · 덤프 · JFR) | `infra/big-ramp.sh` · `infra/big-diag.sh` · `infra/big-jfr.sh` | `buffered.js` |
+| 동시 접속 4만 · 8만 | `infra/big-sockets.sh` · `infra/big-sockets80k.sh` | `mass_sockets.py` |
+| 요청 로그 묶어 쓰기 전후 | `infra/reqlog-ab.sh` (`reqlog-ramp.sh` 를 전 · 후 번갈아) | `buffered.js` |
+| 배포 중 소켓 끊김 · 재접속 | `infra/deploy_probe.mjs` | — |
+
+주의:
+
+- 복제본 kill · `CONFIG SET` · iptables · EC2 정지처럼 **운영 Redis 를 건드리는 스크립트**(`r1` · `r2` · `n1*` · `v1`)는 같은 서버의
+  캐시 Redis 도 같이 흔든다. 팀에 알리고 돌린다.
+- 발생기 한 대는 출발 포트 수(기본 28,232개)만큼만 접속을 만든다. 그 이상은 `net.ipv4.ip_local_port_range` 를 넓히거나 발생기를 늘린다
+  (`big-sockets80k.sh` 가 둘 다 한다).
+- k6 는 `ramping-vus` 의 최대 VU 를 미리 만든다(소켓 VU 하나 ≈ 0.67MB). 수천 VU 는 `--compatibility-mode=base` 로 돌린다.

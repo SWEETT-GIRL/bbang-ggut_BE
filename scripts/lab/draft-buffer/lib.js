@@ -32,18 +32,26 @@ const tokenByMember = new SharedArray('tokens', () =>
     return {memberId: Number(memberId), token};
   }),
 );
-const tokenIndex = {};
-for (const row of tokenByMember) {
-  tokenIndex[row.memberId] = row.token;
+// VU 마다 전체 토큰 색인을 만들면 수천 VU 에서 메모리가 터진다(12,000토큰 × VU 수). 공유 배열을 이분 탐색하고 VU 는 자기 것만 기억한다.
+const tokenCache = {};
+function tokenOf(memberId) {
+  if (tokenCache[memberId]) return tokenCache[memberId];
+  let lo = 0, hi = tokenByMember.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1; const row = tokenByMember[mid];
+    if (row.memberId === memberId) { tokenCache[memberId] = row.token; return row.token; }
+    if (row.memberId < memberId) lo = mid + 1; else hi = mid - 1;
+  }
+  return undefined;
 }
 
-/** VU 하나 = 한 코스의 한 멤버. 코스 i 의 멤버 j 는 VU 번호 i*8+j. 멤버가 8명이 아니면 있는 만큼 돈다. */
 export function assignment(vu) {
+  vu = vu + Number(__ENV.VU_OFFSET || 0); // 생성기·프로세스를 나눌 때 회원이 겹치지 않게
   const membersPerCourse = Number(__ENV.MEMBERS_PER_COURSE || 8);
   const courseIndex = Math.floor((vu - 1) / membersPerCourse) % courses.length;
   const course = courses[courseIndex];
   const member = course.memberIds[(vu - 1) % Math.min(membersPerCourse, course.memberIds.length)];
-  return {course, memberId: member, token: tokenIndex[member]};
+  return {course, memberId: member, token: tokenOf(member)};
 }
 
 /** 앱의 seq 시계 — max(직전 + 1, 서버에서 본 최대 + 1, 현재 ms). 필드마다 하나. */
