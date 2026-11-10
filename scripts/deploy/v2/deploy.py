@@ -134,12 +134,14 @@ def deploy(asg, ec2, elb, sts, image, parameter_prefix):
         asg.update_auto_scaling_group(AutoScalingGroupName=ASG, **desired)
         print('Prepared only: desired capacity remains 0; no live application was verified.')
         return None
-    # 워밍업 90초: ALB 헬스체크(10초×2회)가 readiness 를 이미 보므로, 새 서버가 healthy 가 된 뒤
-    # 구 서버를 살려 두는 관찰 창만 남긴다. 300초일 때는 교체의 실행 구간이 매번 305초에 묶였다(2026-11-09 측정).
+    # 워밍업 45초: ALB 헬스체크(10초×2회)가 readiness 를 이미 보므로, 새 서버가 healthy 가 된 뒤
+    # 구 서버를 살려 두는 관찰 창만 남긴다. 300초일 때는 교체의 실행 구간이 매번 305초에 묶였고(2026-11-09),
+    # Docker 선설치 AMI 뒤에는 앱이 InService 28초 뒤에 준비되는데 90초 워밍업이 끝나기를 55초 더 기다렸다(2026-11-10).
+    # 워밍업은 InService 부터 세므로 healthy(InService+50초 안팎)보다 짧으면 효과가 없다 — 45초가 그 경계다.
     result = asg.start_instance_refresh(
         AutoScalingGroupName=ASG, Strategy='Rolling', DesiredConfiguration=desired,
         Preferences={'MinHealthyPercentage': 100, 'MaxHealthyPercentage': 200,
-                     'InstanceWarmup': 90, 'AutoRollback': True, 'SkipMatching': False,
+                     'InstanceWarmup': 45, 'AutoRollback': True, 'SkipMatching': False,
                      'ScaleInProtectedInstances': 'Wait', 'StandbyInstances': 'Wait'})
     print(f"Instance refresh: {result['InstanceRefreshId']}")
     return result['InstanceRefreshId']
@@ -158,7 +160,8 @@ def wait_for_refresh(asg, refresh_id, timeout=7200):
             return
         if state['Status'] in TERMINAL:
             raise RuntimeError(f"Refresh ended with {state['Status']}: {state.get('StatusReason', '')}")
-        time.sleep(30)
+        # 10초: 교체가 끝난 뒤 Successful 을 알아채기까지의 지연(평균 폴링 간격의 절반)을 줄인다. 호출은 무료다.
+        time.sleep(10)
     # 파이프라인 중단만으로 AWS 작업은 취소되지 않는다. 상태를 확인하고 수동 롤백한다.
     raise TimeoutError('AWS refresh is still active; inspect ASG and roll back if needed')
 
