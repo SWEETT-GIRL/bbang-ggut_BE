@@ -46,7 +46,8 @@ class AlertTest(unittest.TestCase):
 
     def test_rules_are_paused_bool_and_route_to_given_contact_point(self):
         self.assertEqual([rule["title"] for rule in self.rules],
-                         ["CourseDraftBacklogStuck", "CourseDraftRedisUnreadable", "CourseDraftWrite503Ratio"])
+                         ["CourseDraftBacklogStuck", "CourseDraftRedisUnreadable", "CourseDraftWrite503Ratio",
+                          "CourseDraftSocketSessionsHigh"])
         for rule in self.rules:
             self.assertTrue(rule["isPaused"])
             self.assertEqual(rule["notification_settings"]["receiver"], "slack")
@@ -56,7 +57,12 @@ class AlertTest(unittest.TestCase):
 
     def test_committed_json_matches_generator_defaults(self):
         committed = json.loads((HERE.parents[1] / "monitoring/grafana/alerting/course-draft-rules.json").read_text())
-        self.assertEqual(committed, generate_draft_alerts.provision("dfutc56whwh6of", "dataops-slack"))
+        self.assertEqual(committed, generate_draft_alerts.provision("dfutc56whwh6of", "slack-metric"))
+
+    def test_session_alert_watches_the_busiest_instance(self):
+        sessions = next(rule for rule in self.rules if rule["title"] == "CourseDraftSocketSessionsHigh")
+        self.assertEqual(sessions["data"][0]["model"]["expr"], "max(draft_socket_sessions) > bool 2000")
+        self.assertEqual(sessions["for"], "5m")
 
 
 if __name__ == "__main__":
