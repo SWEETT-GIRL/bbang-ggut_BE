@@ -149,9 +149,10 @@ jobs:
           remote_dir="redis/$release"
           work=$(mktemp -d)
           trap 'rm -rf "$work"' EXIT
-          # 순서: 마스터(새 ACL 계정이 먼저 있어야 복제본·감시자가 붙는다) → 복제본 → 감시자 전용.
+          # 순서: 마스터(새 ACL 계정이 먼저 있어야 복제본·감시자가 붙는다) → 복제본(redis-2) → 복제본(redis-3).
+          # redis-3 도 복제본이라 role 은 replica 다. Secret 이름(PROD_REDIS_SENTINEL_HOST)과 별칭은 예전 이름 그대로 둔다.
           # 마스터 배포는 redis-draft 를 재생성하므로 몇 초 503 이 난다. 앱은 PATCH 저장으로 물러난다.
-          for entry in "master:redis-master:$REDIS_HOST" "replica:redis-replica:$REPLICA_HOST" "sentinel:redis-sentinel:$SENTINEL_HOST"; do
+          for entry in "master:redis-master:$REDIS_HOST" "replica:redis-replica:$REPLICA_HOST" "replica:redis-sentinel:$SENTINEL_HOST"; do
             IFS=: read -r role alias announce_ip <<< "$entry"
             stage="$work/$role"; mkdir -p "$stage"
             cp infra/redis/compose.yaml infra/redis/redis.conf infra/redis/redis-draft.conf infra/redis/deploy.sh infra/redis/users.acl "$stage/"

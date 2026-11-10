@@ -1,6 +1,6 @@
 # 운영 Redis 배포
 
-대상: Redis EC2 3대. 캐시 Redis(6379)와 메모 초안 Redis(6380)는 각각 마스터 1 · 복제본 1 이고,
+대상: Redis EC2 3대. 캐시 Redis(6379)와 메모 초안 Redis(6380)는 각각 마스터 1 · 복제본 2 이고,
 두 Redis 를 같은 Sentinel 3개가 함께 감시한다(마스터 이름 `cache` · `draft`). Cluster 구성은 아니다.
 WAS와 다른 EC2에 배포하며, 기존 운영 배포의 배스천을 경유한다.
 
@@ -8,7 +8,10 @@ WAS와 다른 EC2에 배포하며, 기존 운영 배포의 배스천을 경유�
 | --- | --- | --- |
 | `ec2-sweetgirl-prod-redis-kafka-1` (`PROD_REDIS_HOST`) | `master` | 캐시 redis 6379(마스터) · 초안 redis-draft 6380(마스터) · 감시자 26380 |
 | `ec2-sweetgirl-prod-redis-2` (`PROD_REDIS_REPLICA_HOST`) | `replica` | 캐시 redis 6379(복제본) · 초안 redis-draft 6380(복제본) · 감시자 26380 |
-| `ec2-sweetgirl-prod-redis-3` (`PROD_REDIS_SENTINEL_HOST`) | `sentinel` | 감시자 26380 |
+| `ec2-sweetgirl-prod-redis-3` (`PROD_REDIS_SENTINEL_HOST`) | `replica` | 캐시 redis 6379(복제본) · 초안 redis-draft 6380(복제본) · 감시자 26380 |
+
+redis-3 은 처음에 감시자 전용(`sentinel`)이었다가 복제본 서버가 됐다. Secret 이름은 그대로 둔다.
+`sentinel` 역할은 compose 에 남아 있지만 지금은 쓰는 서버가 없다.
 
 ## 실행 조건
 
@@ -51,7 +54,7 @@ Settings → Secrets and variables → Actions에서 등록한다.
 ### 새 Secret
 
 - `PROD_REDIS_HOST`: 마스터 서버(redis-kafka-1)의 **사설 IPv4**. 감시자 announce 주소로도 쓰여 DNS 는 안 된다
-- `PROD_REDIS_REPLICA_HOST` / `PROD_REDIS_SENTINEL_HOST`: 복제본 서버, 감시자 전용 서버의 사설 IPv4
+- `PROD_REDIS_REPLICA_HOST` / `PROD_REDIS_SENTINEL_HOST`: 복제본 서버(redis-2), 두 번째 복제본 서버(redis-3)의 사설 IPv4
 - `PROD_REDIS_REPLICATION_PASSWORD`: 32자 이상, 공백·줄바꿈 없는 무작위. 복제본과 감시자가 마스터에 붙을 때 쓰는
   **제한 계정(replica · sentinel)** 의 비밀번호다. 앱 비밀번호와 달라야 하며, 이것만 서버 파일에 평문으로 간다
 - `PROD_REDIS_PASSWORD`: 32자 이상, 줄바꿈 없는 무작위 비밀번호
@@ -93,12 +96,13 @@ users.acl · replication.conf · replication-cache.conf · 채워진 sentinel.co
 - `redis-draft`는 6380. 저장 전 글의 원본이라 `noeviction`이고, maxmemory 256MB, 컨테이너 상한 384MiB다. 캐시와 볼륨도 나눈다.
 - 비밀번호는 캐시와 같은 `users.acl`을 쓴다. 앱은 `COURSE_DRAFT_REDIS_*`로 연결한다.
 - **Sentinel**: 마스터 이름 `draft`, quorum 2, 5초 무응답이면 승격(`sentinel.conf`). `min-replicas-to-write`는 켜지 않는다 —
-  복제본이 1대라 켜면 복제본 하나만 죽어도 모든 쓰기가 막힌다. 유실 0은 앱의 재전송 약속이 맡는다(설계 결정 12).
+  복제본이 1대일 때 정한 것이다(켜면 복제본 하나만 죽어도 모든 쓰기가 막혔다). 유실 0은 앱의 재전송 약속이 맡는다(설계 결정 12).
+  복제본이 2대가 된 지금은 `min-replicas-to-write 1` 을 켜도 복제본 하나가 죽는 것까지는 버틴다. 켤지는 따로 정한다.
 - 감시자는 host 네트워크로 떠서 서버 IP 를 서로에게 알린다. 비밀번호는 없고 보안그룹(26380)으로만 막는다.
 - 초안 Redis 설정 파일은 읽기 전용 마운트라 Sentinel 의 `CONFIG REWRITE` 는 실패한다. 승격·강등(REPLICAOF)은 그대로 적용되고,
   컨테이너가 다시 뜨면 `replication.conf` 의 역할(마스터 서버 = 마스터)로 시작했다가 Sentinel 이 현재 마스터에 맞춰 곧 바로잡는다.
   그 몇 초 동안 앱은 감시자가 가리키는 마스터에만 쓰므로 엇갈린 쓰기는 생기지 않는다.
-- 배포 순서는 마스터 → 복제본 → 감시자 전용. 마스터 배포는 redis-draft 를 재생성해 몇 초 503 이 나고, 앱은 PATCH 로 물러난다.
+- 배포 순서는 마스터 → 복제본(redis-2) → 복제본(redis-3). 마스터 배포는 redis-draft 를 재생성해 몇 초 503 이 나고, 앱은 PATCH 로 물러난다.
 - 서버 1대로 돌아가려면 Secret 을 지우는 게 아니라 WAS 쪽 `COURSE_DRAFT_REDIS_MODE` 를 `standalone` 으로 되돌리면 된다. Redis 쪽은 그대로 둬도 된다.
 
 ### WAS 를 Sentinel 로 돌리기 (Parameter Store `/sweetgirl/prod/v2/was/env/`)
