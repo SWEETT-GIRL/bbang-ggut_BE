@@ -175,6 +175,47 @@ class DeploymentTest(unittest.TestCase):
         deploy.wait_for_refresh(self.asg, 'refresh-id')
         sleep.assert_called_once_with(10)
 
+    def in_progress_with(self, instances):
+        self.group['DesiredCapacity'] = 1
+        self.group['Instances'] = [
+            {'InstanceId': instance_id, 'LifecycleState': state, 'HealthStatus': 'Healthy',
+             'LaunchTemplate': {'LaunchTemplateId': deploy.TEMPLATE, 'Version': version}}
+            for instance_id, version, state in instances]
+        return {'InstanceRefreshes': [{'Status': 'InProgress', 'DesiredConfiguration': {
+            'LaunchTemplate': {'LaunchTemplateId': deploy.TEMPLATE, 'Version': '4'}}}]}
+
+    @patch('deploy.time.sleep')
+    def test_refresh_returns_once_old_instance_is_terminating(self, sleep):
+        self.asg.describe_instance_refreshes.return_value = self.in_progress_with(
+            [('i-new', '4', 'InService'), ('i-old', '3', 'Terminating')])
+        deploy.wait_for_refresh(self.asg, 'refresh-id')
+        sleep.assert_not_called()
+
+    @patch('deploy.time.sleep')
+    def test_refresh_keeps_waiting_while_old_instance_still_serves(self, sleep):
+        self.asg.describe_instance_refreshes.side_effect = [
+            self.in_progress_with([('i-new', '4', 'InService'), ('i-old', '3', 'InService')]),
+            {'InstanceRefreshes': [{'Status': 'Successful'}]}]
+        deploy.wait_for_refresh(self.asg, 'refresh-id')
+        sleep.assert_called_once_with(10)
+
+    @patch('deploy.time.sleep')
+    def test_refresh_keeps_waiting_while_new_instance_is_still_launching(self, sleep):
+        self.asg.describe_instance_refreshes.side_effect = [
+            self.in_progress_with([('i-new', '4', 'Pending'), ('i-old', '3', 'InService')]),
+            {'InstanceRefreshes': [{'Status': 'Successful'}]}]
+        deploy.wait_for_refresh(self.asg, 'refresh-id')
+        sleep.assert_called_once_with(10)
+
+    @patch('deploy.time.sleep')
+    def test_rollback_relaunching_old_version_is_not_settled(self, sleep):
+        self.asg.describe_instance_refreshes.side_effect = [
+            self.in_progress_with([('i-new', '4', 'Terminating'), ('i-old', '3', 'Pending')]),
+            {'InstanceRefreshes': [{'Status': 'RollbackSuccessful'}]}]
+        with self.assertRaisesRegex(RuntimeError, 'RollbackSuccessful'):
+            deploy.wait_for_refresh(self.asg, 'refresh-id')
+        sleep.assert_called_once_with(10)
+
 
 class DeploymentOutputTest(unittest.TestCase):
     def test_only_verified_terminal_results_are_exposed_to_notifications(self):

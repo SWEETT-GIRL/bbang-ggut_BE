@@ -134,10 +134,9 @@ def deploy(asg, ec2, elb, sts, image, parameter_prefix):
         asg.update_auto_scaling_group(AutoScalingGroupName=ASG, **desired)
         print('Prepared only: desired capacity remains 0; no live application was verified.')
         return None
-    # 워밍업 45초: ALB 헬스체크(10초×2회)가 readiness 를 이미 보므로, 새 서버가 healthy 가 된 뒤
-    # 구 서버를 살려 두는 관찰 창만 남긴다. 300초일 때는 교체의 실행 구간이 매번 305초에 묶였고(2026-11-09),
-    # Docker 선설치 AMI 뒤에는 앱이 InService 28초 뒤에 준비되는데 90초 워밍업이 끝나기를 55초 더 기다렸다(2026-11-10).
-    # 워밍업은 InService 부터 세므로 healthy(InService+50초 안팎)보다 짧으면 효과가 없다 — 45초가 그 경계다.
+    # 워밍업 45초. 실측(2026-11-09·11-10, 배포 세 번)에서 새 서버가 healthy 가 된 뒤 구 서버가 빠지기까지 37~95초가 걸렸고
+    # 그 대기는 warmup 값(90·45)과 무관했다 — refresh 가 상태를 보는 주기로 보인다. 300초일 때만 그 값이 하한이 됐다(교체 305초).
+    # 그래서 45초는 줄여 주는 게 없지만 해롭지도 않아 둔다. 교체 시간에서 우리가 손댈 수 있는 건 wait_for_refresh 의 조기 반환이다.
     result = asg.start_instance_refresh(
         AutoScalingGroupName=ASG, Strategy='Rolling', DesiredConfiguration=desired,
         Preferences={'MinHealthyPercentage': 100, 'MaxHealthyPercentage': 200,
@@ -145,6 +144,23 @@ def deploy(asg, ec2, elb, sts, image, parameter_prefix):
                      'ScaleInProtectedInstances': 'Wait', 'StandbyInstances': 'Wait'})
     print(f"Instance refresh: {result['InstanceRefreshId']}")
     return result['InstanceRefreshId']
+
+
+def replacement_settled(group, desired_version):
+    """새 버전 인스턴스가 전부 InService 이고 옛 버전 인스턴스가 전부 종료 단계에 들어갔는가.
+
+    Instance Refresh 는 새 서버를 healthy 로 판단한 뒤에만 구 서버를 뺀다. 그래서 구 서버가 Terminating 에 들어간 순간이
+    교체가 결정된 시점이고, 그 뒤 남는 것은 등록 해제 30초와 EC2 종료, 상태가 Successful 로 바뀌는 지연(합쳐 약 95초)뿐이다
+    (2026-11-10 실측). 롤백 중에는 옛 버전이 다시 뜨므로(Pending) 이 조건이 참이 되지 않는다.
+    """
+    instances = group.get('Instances', [])
+    fresh = [i for i in instances if i.get('LaunchTemplate', {}).get('Version') == desired_version]
+    stale = [i for i in instances if i.get('LaunchTemplate', {}).get('Version') != desired_version]
+    if not fresh or len(fresh) < group['DesiredCapacity']:
+        return False
+    if any(i['LifecycleState'] != 'InService' or i['HealthStatus'] != 'Healthy' for i in fresh):
+        return False
+    return all(i['LifecycleState'].startswith('Terminating') or i['LifecycleState'] == 'Terminated' for i in stale)
 
 
 def wait_for_refresh(asg, refresh_id, timeout=7200):
@@ -160,7 +176,16 @@ def wait_for_refresh(asg, refresh_id, timeout=7200):
             return
         if state['Status'] in TERMINAL:
             raise RuntimeError(f"Refresh ended with {state['Status']}: {state.get('StatusReason', '')}")
-        # 10초: 교체가 끝난 뒤 Successful 을 알아채기까지의 지연(평균 폴링 간격의 절반)을 줄인다. 호출은 무료다.
+        # 구 서버가 종료 단계에 들어가면 Successful 을 기다리지 않고 반환한다 — 종료 완료까지의 약 95초는 서비스와 무관하다.
+        # 대가: 종료 단계에서 refresh 가 실패하는 드문 경우를 이 잡이 보지 못한다(Slack 은 성공으로 간다). 바로 다음 배포의
+        # preflight 가 "Another instance refresh is active" 로 막을 수 있지만, 다음 run 의 build 잡(2분 안팎)이 그 시간을 덮는다.
+        desired_version = state.get('DesiredConfiguration', {}).get('LaunchTemplate', {}).get('Version')
+        if state['Status'] == 'InProgress' and desired_version and replacement_settled(
+                asg.describe_auto_scaling_groups(AutoScalingGroupNames=[ASG])['AutoScalingGroups'][0], desired_version):
+            print('Replacement settled: new instances are InService and old instances are terminating; '
+                  'not waiting for the termination to finish', flush=True)
+            return
+        # 10초: 상태 변화를 알아채기까지의 지연(평균 폴링 간격의 절반)을 줄인다. 호출은 무료다.
         time.sleep(10)
     # 파이프라인 중단만으로 AWS 작업은 취소되지 않는다. 상태를 확인하고 수동 롤백한다.
     raise TimeoutError('AWS refresh is still active; inspect ASG and roll back if needed')
