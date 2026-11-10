@@ -2,6 +2,12 @@ name: CI - V2 Build & Test
 on:
   pull_request:
     branches: [develop-v2]
+    # 문서·Claude 설정만 바꾼 PR 은 빌드할 게 없다 — v1 의 ci.yml 과 같은 예외.
+    # 필수 체크(브랜치 보호)가 없어, 건너뛴 워크플로가 머지를 막지는 않는다.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.claude/**'
 permissions:
   contents: read
 jobs:
