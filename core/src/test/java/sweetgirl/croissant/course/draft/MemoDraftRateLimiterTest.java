@@ -58,4 +58,32 @@ class MemoDraftRateLimiterTest {
 
 		assertThatCode(() -> rateLimiter.check(2L)).doesNotThrowAnyException();
 	}
+
+	@Test
+	@DisplayName("공유 카운터가 있으면 그 값으로 판정한다 — 다른 인스턴스가 쓴 횟수도 한도에 든다")
+	void sharedCounter_decides() {
+		CourseDraftProperties properties = new CourseDraftProperties();
+		properties.setRatePerSecond(3);
+		java.util.concurrent.atomic.AtomicLong shared = new java.util.concurrent.atomic.AtomicLong(2); // 다른 인스턴스가 이미 2회
+		MemoDraftRateLimiter limiter = new MemoDraftRateLimiter(properties, ticker,
+			memberId -> shared.incrementAndGet());
+
+		assertThatCode(() -> limiter.check(1L)).doesNotThrowAnyException();
+		assertThatThrownBy(() -> limiter.check(1L)).isInstanceOf(CourseException.class);
+	}
+
+	@Test
+	@DisplayName("공유 카운터(Redis)가 실패하면 인스턴스 카운터로 물러나 계속 제한한다")
+	void sharedCounterFails_fallsBackToLocal() {
+		CourseDraftProperties properties = new CourseDraftProperties();
+		properties.setRatePerSecond(3);
+		MemoDraftRateLimiter limiter = new MemoDraftRateLimiter(properties, ticker, memberId -> {
+			throw new org.springframework.dao.QueryTimeoutException("redis down");
+		});
+
+		limiter.check(1L);
+		limiter.check(1L);
+		limiter.check(1L);
+		assertThatThrownBy(() -> limiter.check(1L)).isInstanceOf(CourseException.class);
+	}
 }
