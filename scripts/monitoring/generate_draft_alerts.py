@@ -26,6 +26,11 @@ RULES = (
      "(sum(" + PUT_503_RATE + ") / sum(" + PUT_RATE + ") > bool 0.05) * (sum(" + PUT_RATE + ") > bool 0.1)",
      "초안 PUT 의 5% 넘게 503, 5분 지속 (요청이 초당 0.1 이상일 때만)",
      "Redis command timeout(1초)·연결 끊김·권한 판정 DB 실패. 요청이 거의 없을 때 한두 건으로 울리지 않게 최소 트래픽 조건을 둔다."),
+    ("sessions", "CourseDraftSocketSessionsHigh", "5m",
+     "max(draft_socket_sessions) > bool 2000",
+     "한 인스턴스의 초안 소켓 세션이 2,000개 넘게 5분 지속",
+     "2GB 인스턴스(힙 25%)는 2,000~2,500 접속에서 메모리가 바닥난다(11/9 측정, 힙 50% 면 3,000). "
+     "인스턴스를 늘리거나 힙 비율을 올린다 — 세션은 인스턴스마다 따로 세므로 max 로 본다."),
 )
 
 
@@ -57,7 +62,7 @@ def provision(datasource_uid, contact_point):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--datasource-uid", default="dfutc56whwh6of", help="운영 Prometheus 데이터소스 UID (dataops 와 같은 값)")
-    parser.add_argument("--contact-point", default="dataops-slack", help="기존 Grafana Slack contact point 이름")
+    parser.add_argument("--contact-point", default="slack-metric", help="기존 Grafana Slack contact point 이름 (운영 Grafana 에 있는 이름이어야 provisioning 이 통과한다)")
     parser.add_argument("--output", type=Path, default=ROOT / "monitoring/grafana/alerting/course-draft-rules.json")
     args = parser.parse_args()
     args.output.parent.mkdir(parents=True, exist_ok=True)

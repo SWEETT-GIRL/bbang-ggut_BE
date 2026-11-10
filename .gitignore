@@ -121,3 +121,4 @@ scripts/lab/draft-buffer/courses.csv
 scripts/lab/draft-buffer/member-ids.txt
 scripts/lab/draft-buffer/results/*
 !scripts/lab/draft-buffer/results/ENV.md
+scripts/lab/draft-buffer/infra/env.sh

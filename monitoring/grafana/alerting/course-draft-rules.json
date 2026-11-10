@@ -81,7 +81,7 @@
           },
           "isPaused": true,
           "notification_settings": {
-            "receiver": "dataops-slack",
+            "receiver": "slack-metric",
             "group_by": [
               "grafana_folder",
               "alertname"
@@ -165,7 +165,7 @@
           },
           "isPaused": true,
           "notification_settings": {
-            "receiver": "dataops-slack",
+            "receiver": "slack-metric",
             "group_by": [
               "grafana_folder",
               "alertname"
@@ -249,7 +249,91 @@
           },
           "isPaused": true,
           "notification_settings": {
-            "receiver": "dataops-slack",
+            "receiver": "slack-metric",
+            "group_by": [
+              "grafana_folder",
+              "alertname"
+            ],
+            "group_wait": "30s",
+            "group_interval": "5m",
+            "repeat_interval": "4h"
+          }
+        },
+        {
+          "uid": "bbang-course-draft-sessions",
+          "title": "CourseDraftSocketSessionsHigh",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "dfutc56whwh6of",
+              "model": {
+                "refId": "A",
+                "expr": "max(draft_socket_sessions) > bool 2000",
+                "instant": true,
+                "range": false,
+                "intervalMs": 1000,
+                "maxDataPoints": 43200
+              }
+            },
+            {
+              "refId": "B",
+              "relativeTimeRange": {
+                "from": 0,
+                "to": 0
+              },
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    },
+                    "operator": {
+                      "type": "and"
+                    },
+                    "reducer": {
+                      "type": "last",
+                      "params": []
+                    },
+                    "query": {
+                      "params": [
+                        "B"
+                      ]
+                    },
+                    "type": "query"
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Alerting",
+          "for": "5m",
+          "annotations": {
+            "summary": "한 인스턴스의 초안 소켓 세션이 2,000개 넘게 5분 지속",
+            "description": "2GB 인스턴스(힙 25%)는 2,000~2,500 접속에서 메모리가 바닥난다(11/9 측정, 힙 50% 면 3,000). 인스턴스를 늘리거나 힙 비율을 올린다 — 세션은 인스턴스마다 따로 세므로 max 로 본다.",
+            "dashboard_url": "https://grafana.bbangmapbbang.shop/d/bbang-course-draft-v0",
+            "recovery_note": "Resolved 는 조건 해제다. 밀린 초안이 DB 에 들어갔는지는 backlog 0 과 flush 횟수 증가로 확인한다."
+          },
+          "labels": {
+            "service": "course-draft",
+            "environment": "prod",
+            "severity": "warning"
+          },
+          "isPaused": true,
+          "notification_settings": {
+            "receiver": "slack-metric",
             "group_by": [
               "grafana_folder",
               "alertname"
