@@ -134,10 +134,9 @@ def deploy(asg, ec2, elb, sts, image, parameter_prefix):
         asg.update_auto_scaling_group(AutoScalingGroupName=ASG, **desired)
         print('Prepared only: desired capacity remains 0; no live application was verified.')
         return None
-    # 워밍업 45초: ALB 헬스체크(10초×2회)가 readiness 를 이미 보므로, 새 서버가 healthy 가 된 뒤
-    # 구 서버를 살려 두는 관찰 창만 남긴다. 300초일 때는 교체의 실행 구간이 매번 305초에 묶였고(2026-11-09),
-    # Docker 선설치 AMI 뒤에는 앱이 InService 28초 뒤에 준비되는데 90초 워밍업이 끝나기를 55초 더 기다렸다(2026-11-10).
-    # 워밍업은 InService 부터 세므로 healthy(InService+50초 안팎)보다 짧으면 효과가 없다 — 45초가 그 경계다.
+    # 워밍업 45초. 실측(2026-11-09·11-10, 배포 세 번)에서 새 서버가 healthy 가 된 뒤 구 서버가 빠지기까지 37~95초가 걸렸고
+    # 그 대기는 warmup 값(90·45)과 무관했다 — refresh 가 상태를 보는 주기로 보인다. 300초일 때만 그 값이 하한이 됐다(교체 305초).
+    # 그래서 45초는 줄여 주는 게 없지만 해롭지도 않아 둔다. 교체 시간에서 우리가 손댈 수 있는 건 wait_for_refresh 의 조기 반환이다.
     result = asg.start_instance_refresh(
         AutoScalingGroupName=ASG, Strategy='Rolling', DesiredConfiguration=desired,
         Preferences={'MinHealthyPercentage': 100, 'MaxHealthyPercentage': 200,
