@@ -16,6 +16,7 @@ jobs:
     outputs:
       backend: ${{ steps.diff.outputs.backend }}
       batch: ${{ steps.diff.outputs.batch }}
+      workflows: ${{ steps.diff.outputs.workflows }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,9 +53,11 @@ jobs:
           }
           touches_batch = not redis_only and any(
               path.startswith(batch_prefixes) or path in batch_files for path in paths)
+          touches_workflows = any(path.startswith('.github/workflows/') for path in paths)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
               out.write(f'backend={str(not redis_only).lower()}\n')
               out.write(f'batch={str(touches_batch).lower()}\n')
+              out.write(f'workflows={str(touches_workflows).lower()}\n')
           PYCODE
 
   build-v2:
@@ -78,7 +81,10 @@ jobs:
         run: |
           echo "nproc=$(nproc)"; free -m | head -2; df -h / | tail -1
       - run: ./gradlew build -x installGitHooks --no-daemon
+  # 워크플로 파일이 바뀐 PR 에서만 돈다 — 입력이 같으면 결과도 지난 실행과 같다.
   deployment-config:
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
