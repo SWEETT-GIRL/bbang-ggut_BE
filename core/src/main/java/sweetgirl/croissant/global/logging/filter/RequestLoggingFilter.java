@@ -39,6 +39,9 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 	/** 가게 상세(및 그 하위 /menus · /reviews) — 앞에 다른 자원이 붙은 경로는 제외 */
 	private static final Pattern STORE_VIEW_PATTERN = Pattern.compile("^/stores/\\d+");
 
+	/** PUT /courses/{id}/stores/{id}/memo-draft — 타자 0.5초마다 오는 메모 초안. 본문은 로그에 남기지 않는다 */
+	private static final Pattern MEMO_DRAFT_PATTERN = Pattern.compile("^/courses/\\d+/stores/\\d+/memo-draft$");
+
 	// body 저장 최대 길이 (10KB 초과분은 잘라냄)
 	private static final int MAX_BODY_LENGTH = 10_000;
 
@@ -112,7 +115,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 			clientIp,
 			normalizeLogValue(userAgent, 300));
 
-		requestLogService.save(requestLog); // @Async("logExecutor") — 별도 스레드에서 저장 (응답 지연 없음)
+		requestLogService.save(requestLog); // 대기열에 넣기만 한다 — RequestLogWriter 가 0.5초마다 묶어서 INSERT
 	}
 
 	// SecurityContextHolder에서 memberId 꺼내기 — JwtAuthenticationFilter가 Long으로 저장함
@@ -150,10 +153,20 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 		return uri.startsWith("/admin/") || uri.startsWith("/api/admin/");
 	}
 
-	// POST/PUT/PATCH body만 저장 (GET은 body 없음)
-	private String resolveBody(ContentCachingRequestWrapper request) {
-		String method = request.getMethod();
+	/**
+	 * body 를 로그에 남길 요청인가 — POST/PUT/PATCH 만(GET 은 body 가 없다), 그중 메모 초안 PUT 은 뺀다. 초안은 편집자 한 명이
+	 * 0.5초마다 보내고 본문이 메모 전체(최대 10KB)라, 남기면 "타자를 DB 에서 뺐다"가 request_log 에서 도로 깨진다. 행 자체
+	 * (경로 · 상태 · 응답 시간)는 남는다.
+	 */
+	static boolean shouldStoreBody(String method, String uri) {
 		if (!"POST".equals(method) && !"PUT".equals(method) && !"PATCH".equals(method)) {
+			return false;
+		}
+		return !("PUT".equals(method) && MEMO_DRAFT_PATTERN.matcher(uri).matches());
+	}
+
+	private String resolveBody(ContentCachingRequestWrapper request) {
+		if (!shouldStoreBody(request.getMethod(), request.getRequestURI())) {
 			return null;
 		}
 		byte[] buf = request.getContentAsByteArray(); // 컨트롤러가 이미 읽은 body를 캐시에서 꺼냄
