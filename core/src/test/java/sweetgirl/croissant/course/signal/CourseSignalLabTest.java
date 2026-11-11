@@ -20,6 +20,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import sweetgirl.croissant.course.draft.CourseDraftProperties;
 import sweetgirl.croissant.course.draft.MemoDraftRedis;
 import sweetgirl.croissant.course.event.CourseMemberLeftEvent;
@@ -38,6 +39,7 @@ class CourseSignalLabTest {
 
 	private MemoDraftRedis redis;
 	private RedisMessageListenerContainer container;
+	private CourseSignalRelay relay;
 	private CourseSubscriptionRegistry registry;
 	private SimpMessagingTemplate messagingTemplate;
 	private CourseSignalPublisher publisher;
@@ -54,7 +56,8 @@ class CourseSignalLabTest {
 		ObjectMapper objectMapper = new ObjectMapper();
 		registry = new CourseSubscriptionRegistry();
 		messagingTemplate = mock(SimpMessagingTemplate.class);
-		CourseSignalRelay relay = new CourseSignalRelay(objectMapper, registry, messagingTemplate);
+		relay = new CourseSignalRelay(objectMapper, registry, messagingTemplate, new SimpleMeterRegistry(), () -> 0);
+		relay.start();
 		container = new RedisMessageListenerContainer();
 		container.setConnectionFactory(redis.connectionFactory());
 		container.addMessageListener(relay, new ChannelTopic(CourseSignalPublisher.CHANNEL));
@@ -66,6 +69,7 @@ class CourseSignalLabTest {
 	@AfterEach
 	void tearDown() {
 		container.stop();
+		relay.stop();
 		redis.close();
 	}
 

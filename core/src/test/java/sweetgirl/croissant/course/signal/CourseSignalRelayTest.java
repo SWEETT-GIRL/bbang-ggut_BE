@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
@@ -27,6 +28,7 @@ import org.springframework.util.MimeTypeUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import sweetgirl.croissant.course.signal.CourseSubscriptionRegistry.Subscriber;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,16 +42,24 @@ class CourseSignalRelayTest {
 	@Mock
 	private SimpMessagingTemplate messagingTemplate;
 
+	private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 	private CourseSignalRelay relay;
 
 	@BeforeEach
 	void setUp() {
-		relay = new CourseSignalRelay(objectMapper, registry, messagingTemplate);
+		relay = new CourseSignalRelay(objectMapper, registry, messagingTemplate, meterRegistry, () -> 0);
 	}
 
 	@SuppressWarnings("unchecked")
 	private static ArgumentCaptor<Message<byte[]>> messageCaptor() {
 		return ArgumentCaptor.forClass(Message.class);
+	}
+
+	/** 전송 스레드를 띄우지 않고, 칸에 든 것을 이 스레드에서 전부 보낸다 */
+	private void dispatchAll() throws InterruptedException {
+		while (relay.dispatchNext(0)) {
+			// 칸이 빌 때까지
+		}
 	}
 
 	private DefaultMessage redisMessage(CourseSignal signal) throws Exception {
@@ -65,6 +75,7 @@ class CourseSignalRelayTest {
 		given(registry.subscribers(10L)).willReturn(Set.of(new Subscriber("s-1", 1L), new Subscriber("s-2", 2L)));
 
 		relay.onMessage(redisMessage, null);
+		dispatchAll();
 
 		ArgumentCaptor<Message<byte[]>> sent = messageCaptor();
 		then(messagingTemplate).should().send(eq("/user/s-1/queue/courses/10"), sent.capture());
@@ -84,6 +95,7 @@ class CourseSignalRelayTest {
 		given(registry.subscribers(10L)).willReturn(Set.of());
 
 		relay.onMessage(redisMessage(CourseSignal.version(10L)), null);
+		dispatchAll();
 
 		then(messagingTemplate).shouldHaveNoInteractions();
 	}
@@ -106,5 +118,67 @@ class CourseSignalRelayTest {
 
 		assertThatCode(() -> relay.onMessage(broken, null)).doesNotThrowAnyException();
 		then(messagingTemplate).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("밀려 있는 동안 같은 칸(코스 · 정류장 · 회원)에 온 DRAFT 는 최신 하나만 보낸다 — 다른 칸은 그대로 간다")
+	void draft_sameSlotConflatedToLatest() throws Exception {
+		given(registry.subscribers(10L)).willReturn(Set.of(new Subscriber("s-1", 1L)));
+		CourseSignal latest = CourseSignal.draft(10L, 100L, 7L, "소금빵 꼭", 3_000L);
+
+		relay.onMessage(redisMessage(CourseSignal.draft(10L, 100L, 7L, "소", 1_000L)), null);
+		relay.onMessage(redisMessage(CourseSignal.draft(10L, 100L, 7L, "소금", 2_000L)), null);
+		relay.onMessage(redisMessage(latest), null);
+		relay.onMessage(redisMessage(CourseSignal.draft(10L, 200L, 7L, "다른 정류장", 1_500L)), null);
+		dispatchAll();
+
+		ArgumentCaptor<Message<byte[]>> sent = messageCaptor();
+		then(messagingTemplate).should(times(2)).send(eq("/user/s-1/queue/courses/10"), sent.capture());
+		assertThat(sent.getAllValues())
+			.extracting(message -> objectMapper.readValue(message.getPayload(), CourseSignal.class).content())
+			.containsExactly("소금빵 꼭", "다른 정류장");
+		assertThat(meterRegistry.counter("course_signal_conflated_total").count()).isEqualTo(2.0);
+	}
+
+	@Test
+	@DisplayName("늦게 도착한 옛 seq 는 기다리던 더 새 글을 덮어쓰지 못한다")
+	void draft_olderSeqDoesNotReplaceNewer() throws Exception {
+		given(registry.subscribers(10L)).willReturn(Set.of(new Subscriber("s-1", 1L)));
+
+		relay.onMessage(redisMessage(CourseSignal.draft(10L, 100L, 7L, "새 글", 2_000L)), null);
+		relay.onMessage(redisMessage(CourseSignal.draft(10L, 100L, 7L, "옛 글", 1_000L)), null);
+		dispatchAll();
+
+		ArgumentCaptor<Message<byte[]>> sent = messageCaptor();
+		then(messagingTemplate).should().send(eq("/user/s-1/queue/courses/10"), sent.capture());
+		assertThat(objectMapper.readValue(sent.getValue().getPayload(), CourseSignal.class).content())
+			.isEqualTo("새 글");
+	}
+
+	@Test
+	@DisplayName("VERSION 은 코스 하나에 하나로 합치고, 같은 코스의 DRAFT 와는 섞지 않는다")
+	void version_conflatedPerCourse() throws Exception {
+		given(registry.subscribers(10L)).willReturn(Set.of(new Subscriber("s-1", 1L)));
+
+		relay.onMessage(redisMessage(CourseSignal.version(10L)), null);
+		relay.onMessage(redisMessage(CourseSignal.version(10L)), null);
+		relay.onMessage(redisMessage(CourseSignal.draft(10L, 100L, 7L, "소금빵", 1_000L)), null);
+		dispatchAll();
+
+		then(messagingTemplate).should(times(2)).send(eq("/user/s-1/queue/courses/10"), any(Message.class));
+	}
+
+	@Test
+	@DisplayName("보낸 뒤 같은 칸에 다시 온 신호는 새로 보낸다 — 한 번 보낸 칸이 막히지 않는다")
+	void slotReusableAfterDispatch() throws Exception {
+		given(registry.subscribers(10L)).willReturn(Set.of(new Subscriber("s-1", 1L)));
+
+		relay.onMessage(redisMessage(CourseSignal.draft(10L, 100L, 7L, "소", 1_000L)), null);
+		dispatchAll();
+		relay.onMessage(redisMessage(CourseSignal.draft(10L, 100L, 7L, "소금", 2_000L)), null);
+		dispatchAll();
+
+		then(messagingTemplate).should(times(2)).send(eq("/user/s-1/queue/courses/10"), any(Message.class));
+		assertThat(meterRegistry.counter("course_signal_conflated_total").count()).isZero();
 	}
 }
