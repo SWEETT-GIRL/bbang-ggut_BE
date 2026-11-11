@@ -1,5 +1,7 @@
 package sweetgirl.croissant.course.draft;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -17,7 +19,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataAccessResourceFailureException;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import sweetgirl.croissant.course.code.CourseErrorCode;
 import sweetgirl.croissant.course.entity.Course;
 import sweetgirl.croissant.course.exception.CourseException;
@@ -44,6 +49,7 @@ class MemoDraftAccessCacheTest {
 	@Mock
 	private MemberRestrictionReader memberRestrictionReader;
 
+	private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 	private FakeTicker ticker;
 	private MemoDraftAccessCache accessCache;
 	private Course course;
@@ -52,9 +58,11 @@ class MemoDraftAccessCacheTest {
 	void setUp() {
 		CourseDraftProperties properties = new CourseDraftProperties();
 		properties.setAccessCacheTtl(Duration.ofSeconds(10));
+		properties.setAccessStaleGrace(Duration.ofMinutes(5));
+		properties.setAccessDbBackoff(Duration.ofSeconds(2));
 		ticker = new FakeTicker();
 		accessCache = new MemoDraftAccessCache(courseRepository, courseAccessPolicy, memberReader,
-			memberRestrictionReader, properties, ticker);
+			memberRestrictionReader, properties, meterRegistry, ticker);
 		course = mock(Course.class);
 	}
 
@@ -123,5 +131,98 @@ class MemoDraftAccessCacheTest {
 		assertThatThrownBy(() -> accessCache.requireEditable(COURSE_ID, MEMBER_ID))
 			.isInstanceOf(CourseException.class)
 			.hasMessageContaining(CourseErrorCode.COURSE_NOT_FOUND.getMessage());
+	}
+
+	private static final DataAccessResourceFailureException DB_DOWN = new DataAccessResourceFailureException(
+		"Connection is not available");
+
+	private void passOnce() {
+		given(courseRepository.findByIdAndDeletedAtIsNull(COURSE_ID)).willReturn(Optional.of(course));
+		accessCache.requireEditable(COURSE_ID, MEMBER_ID);
+	}
+
+	@Test
+	@DisplayName("DB 가 죽어도 쓰던 사람은 계속 쓴다 — 캐시가 빠진 뒤 DB 실패는 마지막으로 통과한 판정으로 받는다")
+	void dbDown_servesLastDecision() {
+		passOnce();
+		ticker.advance(Duration.ofSeconds(16));
+		willThrow(DB_DOWN).given(memberReader).requireLoggedIn(MEMBER_ID);
+
+		assertThatCode(() -> accessCache.requireEditable(COURSE_ID, MEMBER_ID)).doesNotThrowAnyException();
+
+		assertThat(meterRegistry.counter("draft_access_stale_total").count()).isEqualTo(1.0);
+	}
+
+	@Test
+	@DisplayName("DB 가 실패한 뒤 미루는 동안은 DB 를 다시 두드리지 않는다 — 요청마다 커넥션을 기다리지 않게")
+	void dbDown_doesNotTouchDbDuringBackoff() {
+		passOnce();
+		ticker.advance(Duration.ofSeconds(16));
+		willThrow(DB_DOWN).given(memberReader).requireLoggedIn(MEMBER_ID);
+		accessCache.requireEditable(COURSE_ID, MEMBER_ID);
+
+		ticker.advance(Duration.ofSeconds(1));
+		accessCache.requireEditable(COURSE_ID, MEMBER_ID);
+		accessCache.requireEditable(COURSE_ID, MEMBER_ID);
+
+		// 처음 통과 1번 + 실패한 1번뿐 — 미루는 동안의 두 요청은 DB 를 부르지 않았다
+		then(memberReader).should(times(2)).requireLoggedIn(MEMBER_ID);
+		assertThat(meterRegistry.counter("draft_access_stale_total").count()).isEqualTo(3.0);
+	}
+
+	@Test
+	@DisplayName("통과한 이력이 없는 사람은 DB 가 죽어 있으면 바로 실패한다(→ 503) — 미루는 동안에도 기다리지 않고")
+	void dbDown_withoutHistory_fails() {
+		willThrow(DB_DOWN).given(memberReader).requireLoggedIn(MEMBER_ID);
+
+		assertThatThrownBy(() -> accessCache.requireEditable(COURSE_ID, MEMBER_ID))
+			.isInstanceOf(DataAccessException.class);
+		assertThatThrownBy(() -> accessCache.requireEditable(COURSE_ID, MEMBER_ID))
+			.isInstanceOf(DataAccessException.class);
+
+		then(memberReader).should(times(1)).requireLoggedIn(MEMBER_ID);
+	}
+
+	@Test
+	@DisplayName("미룬 시간이 지나면 다시 DB 에 묻고, 돌아와 있으면 평소대로 판정한다")
+	void dbBack_checksAgain() {
+		passOnce();
+		ticker.advance(Duration.ofSeconds(16));
+		willThrow(DB_DOWN).willDoNothing().given(memberReader).requireLoggedIn(MEMBER_ID);
+		accessCache.requireEditable(COURSE_ID, MEMBER_ID);
+
+		ticker.advance(Duration.ofSeconds(3));
+		accessCache.requireEditable(COURSE_ID, MEMBER_ID);
+		accessCache.requireEditable(COURSE_ID, MEMBER_ID);
+
+		// 통과 1 + 실패 1 + 복귀 확인 1. 그 뒤는 다시 10초 캐시
+		then(memberReader).should(times(3)).requireLoggedIn(MEMBER_ID);
+		then(courseAccessPolicy).should(times(2)).requireEditable(course, MEMBER_ID);
+	}
+
+	@Test
+	@DisplayName("DB 가 답한 거절은 그대로 거절이고, 그 뒤 DB 가 죽어도 옛 통과로 되살아나지 않는다")
+	void deniedThenDbDown_staysDenied() {
+		passOnce();
+		ticker.advance(Duration.ofSeconds(16));
+		willThrow(new CourseException(CourseErrorCode.COURSE_FORBIDDEN)).given(courseAccessPolicy)
+			.requireEditable(course, MEMBER_ID);
+		assertThatThrownBy(() -> accessCache.requireEditable(COURSE_ID, MEMBER_ID)).isInstanceOf(CourseException.class);
+
+		willThrow(DB_DOWN).given(memberReader).requireLoggedIn(MEMBER_ID);
+
+		assertThatThrownBy(() -> accessCache.requireEditable(COURSE_ID, MEMBER_ID))
+			.isInstanceOf(DataAccessException.class);
+	}
+
+	@Test
+	@DisplayName("마지막 통과가 인정 기간(5분)보다 오래됐으면 DB 가 죽어 있을 때 받지 않는다")
+	void dbDown_afterGrace_fails() {
+		passOnce();
+		ticker.advance(Duration.ofMinutes(6));
+		willThrow(DB_DOWN).given(memberReader).requireLoggedIn(MEMBER_ID);
+
+		assertThatThrownBy(() -> accessCache.requireEditable(COURSE_ID, MEMBER_ID))
+			.isInstanceOf(DataAccessException.class);
 	}
 }
