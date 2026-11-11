@@ -7,6 +7,7 @@ import java.util.Map;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -42,10 +43,12 @@ public class MemoDraftBuffer {
 	private static final RedisScript<Long> RECLAIM = script("draft-reclaim.lua", Long.class);
 	private static final RedisScript<Long> DISCARD = script("draft-discard.lua", Long.class);
 
+	private final MemoDraftRedis memoDraftRedis;
 	private final StringRedisTemplate redis;
 	private final CourseDraftProperties properties;
 
 	public MemoDraftBuffer(MemoDraftRedis memoDraftRedis, CourseDraftProperties properties) {
+		this.memoDraftRedis = memoDraftRedis;
 		this.redis = memoDraftRedis.template();
 		this.properties = properties;
 	}
@@ -72,11 +75,20 @@ public class MemoDraftBuffer {
 	 * @return 받아들여진 seq. 옛 글이었으면 지금 저장돼 있는 seq
 	 */
 	public long write(long courseId, DraftField field, String content, long seq, long nowMs) {
-		Long accepted = redis.execute(WRITE,
-			List.of(courseKey(courseId), metaKey(courseId), DUE_KEY, INFLIGHT_KEY),
-			field.key(), Long.toString(seq), Long.toString(nowMs), content,
-			Long.toString(properties.getQuietWindow().toMillis()), Long.toString(properties.getMaxWait().toMillis()),
-			Long.toString(properties.getTtl().toMillis()), Long.toString(courseId));
+		Long accepted;
+		try {
+			accepted = redis.execute(WRITE,
+				List.of(courseKey(courseId), metaKey(courseId), DUE_KEY, INFLIGHT_KEY),
+				field.key(), Long.toString(seq), Long.toString(nowMs), content,
+				Long.toString(properties.getQuietWindow().toMillis()),
+				Long.toString(properties.getMaxWait().toMillis()),
+				Long.toString(properties.getTtl().toMillis()), Long.toString(courseId));
+		} catch (QueryTimeoutException exception) {
+			// 멈춘 Redis 에 붙어 있을 수 있다 — 연달아 나면 연결을 다시 맺는다
+			memoDraftRedis.commandTimedOut();
+			throw exception;
+		}
+		memoDraftRedis.commandSucceeded();
 		return accepted == null ? seq : accepted;
 	}
 

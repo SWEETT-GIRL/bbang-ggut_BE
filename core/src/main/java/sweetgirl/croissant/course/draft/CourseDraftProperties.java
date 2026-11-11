@@ -101,6 +101,19 @@ public class CourseDraftProperties {
 		private List<String> sentinelNodes = List.of();
 
 		/**
+		 * 연결이 끊긴 동안 온 명령을 쌓아 두지 않고 바로 실패시킬지. 끄면(Lettuce 기본) 다시 붙을 때까지 쌓아 두고 command-timeout
+		 * 만큼 기다린 뒤 실패한다 — 페일오버 몇 초 동안 요청마다 스레드가 그만큼 묶인다. 켜면 그 요청들이 바로 503 을 받는다.
+		 */
+		private boolean rejectWhenDisconnected = false;
+
+		/**
+		 * 명령 타임아웃이 이만큼 연달아 나면 연결을 끊고 다시 맺는다(0 이면 안 함). Redis 가 죽지 않고 <b>멈춘</b> 장애에서는
+		 * 연결이 살아 있어 앱이 다시 붙을 계기가 없다 — 감시자가 새 마스터를 뽑아도 멈춘 옛 마스터에 계속 명령을 보낸다.
+		 * 다시 맺을 때 감시자에게 마스터를 새로 묻는다.
+		 */
+		private int resetAfterTimeouts = 20;
+
+		/**
 		 * 200ms 였는데 2vCPU dev 박스에서 320명 부하 때 Redis command timed out 이 1초에 수십 건 났다(2026-11-04).
 		 * 쓰기는 Lua 한 번이라 1초면 넉넉하고, 넘기면 503 → 앱이 PATCH 로 물러난다.
 		 */
