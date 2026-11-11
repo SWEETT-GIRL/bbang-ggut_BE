@@ -10,3 +10,7 @@ export DRAFT_REDIS_1=         # 초안 Redis 마스터 + 감시자
 export DRAFT_REDIS_2=         # 복제본 + 감시자 (앱 2대 실험에서는 두 번째 앱 · 두 번째 발생기로도 쓴다)
 export DRAFT_REDIS_3=         # 감시자 (두 번째 발생기로도 쓴다)
 export DRAFT_MONITORING=      # Grafana 가 도는 모니터링 서버 사설 IP
+export DRAFT_LAB_APP_1=       # 추가 앱 서버 · 받는 쪽 서버(수평 확장 · 전달 지연을 발생기와 분리해 잴 때). 같은 서브넷 · 보안그룹
+export DRAFT_LAB_APP_2=
+export DRAFT_LAB_APP_3=
+export DRAFT_LAB_APP_4=
