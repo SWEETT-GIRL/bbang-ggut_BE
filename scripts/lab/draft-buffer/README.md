@@ -72,7 +72,7 @@ MODE=push k6 run --summary-export scripts/lab/draft-buffer/results/${D}-latency-
 - 한 머신에서 앱·DB·Redis·k6 를 같이 돌리면 수치는 "구조 비교용"이다(`scripts/perf/README.md` 의 교훈). 절대값을 말할 땐 그렇게 적는다.
 - 결과는 `results/<날짜>-<시나리오>/` 에 k6 원본(summary.json)·server.log·kill-master 출력을 그대로 둔다. 3회 중앙값을 계획 문서 "측정 결과"에 적는다.
 
-## 운영 VPC 실험 (2026-11-09 ~ 10)
+## 운영 VPC 실험 (2026-11-09 ~ 11)
 
 노트북 한 대가 아니라 운영 VPC 안의 서버들(앱 서버 1 · 부하 발생기 1 · 초안 Redis 3)에서 돌린 것. `infra/` 의 스크립트는 노트북에서
 bastion 을 거쳐 각 서버에 명령을 보낸다. **측정 당시 스크립트 그대로이고 호스트 · 경로만 환경 변수로 바꿨다** — `infra/env.example.sh`
@@ -92,6 +92,15 @@ bastion 을 거쳐 각 서버에 명령을 보낸다. **측정 당시 스크립�
 | 동시 접속 4만 · 8만 | `infra/big-sockets.sh` · `infra/big-sockets80k.sh` | `mass_sockets.py` |
 | 요청 로그 묶어 쓰기 전후 | `infra/reqlog-ab.sh` (`reqlog-ramp.sh` 를 전 · 후 번갈아) | `buffered.js` |
 | 배포 중 소켓 끊김 · 재접속 | `infra/deploy_probe.mjs` | — |
+| 신호가 흐르는 상태의 전달 지연(받는 쪽을 다른 서버로) | `infra/fanout-dist.sh` (한 서버에서 다 돌리던 옛 방식은 `infra/fanout-single-host.sh`) | `fanout_probe.py` · `shed.js` |
+| DB 를 죽였다 살리기 | `infra/db-outage.sh` | `loss.js` · `sample-db.sh` |
+| 수평 확장 1 · 2 · 4대 / 발생기 2대로 3대 | `infra/scale.sh` · `infra/scale-two-generators.sh` | `scale.js` |
+| Redis 가 죽을 때와 멈출 때 · 끊김 중 즉시 거절 | `infra/redis-kill-pause.sh` | `failfast.js` · `sample-fo.sh` |
+| 멈춘 Redis 에서 재연결(40초 pause 전 · 후) | `infra/redis-pause-reset.sh` | `failfast.js` |
+| 인기 코스 쏠림 | `infra/hot-course.sh` | `fanout_probe.py`(`HOT_COURSE`) · `scale.js` |
+| 대규모 재접속 폭주 | `infra/reconnect-storm.sh` | `storm_sockets.py` |
+| 장기 부하(새는 것) | `drive-soak.sh`(발생기) + `soak-sample.sh`(앱 서버) | `fanout_probe.py` · `failfast.js` |
+| 노트북 없이 서버끼리 묶음 실행 | `night-lab.sh`(앱 서버) + `night-gen.sh`(발생기) | — |
 
 주의:
 
@@ -99,4 +108,10 @@ bastion 을 거쳐 각 서버에 명령을 보낸다. **측정 당시 스크립�
   캐시 Redis 도 같이 흔든다. 팀에 알리고 돌린다.
 - 발생기 한 대는 출발 포트 수(기본 28,232개)만큼만 접속을 만든다. 그 이상은 `net.ipv4.ip_local_port_range` 를 넓히거나 발생기를 늘린다
   (`big-sockets80k.sh` 가 둘 다 한다).
+- **받는 쪽 측정 프로그램을 쓰는 쪽(k6)과 같은 서버에 두지 않는다.** 받는 쪽이 CPU 를 못 받아 밀리면 "서버가 늦게 보냈다"와 구분되지 않는다.
+  `fanout_probe.py` 한 프로세스에 소켓 1,000개쯤, 서버를 나눠서 돌린다(`infra/fanout-dist.sh`). 시계는 chrony 동기(1ms 안쪽)를 시작 때 찍어 둔다.
+- **토큰은 1시간짜리다.** 서버끼리 파일을 넘기는 단계가 조용히 실패하면 만료된 토큰으로 돈다 — 시작 전에 토큰으로 API 를 한 번 불러 200 을 확인한다(`infra/hot-course.sh`).
+- **원격 명령줄에 `pkill -f` 의 대상 문자열을 넣지 않는다.** 그 명령을 실행하는 셸 자신이 걸려 죽는다(`pkill -f 'watch-queue[s]'` 처럼 한 글자를 대괄호로 감싼다).
+- **도는 스크립트 파일을 고치지 않는다.** bash 는 파일을 읽어 가며 실행한다 — 복사본을 고쳐 다음 회차에 쓴다.
+- 보안그룹이 서버끼리 22번을 막아 두었다. 서버끼리 주고받을 때는 8080~8091(같은 보안그룹 안에서 열림)의 HTTP 를 쓴다(`night-lab.sh`).
 - k6 는 `ramping-vus` 의 최대 VU 를 미리 만든다(소켓 VU 하나 ≈ 0.67MB). 수천 VU 는 `--compatibility-mode=base` 로 돌린다.
