@@ -46,6 +46,9 @@ import sweetgirl.croissant.course.draft.CourseDraftConfig;
  * 칸에서 꺼내 보낸다. 칸은 DRAFT 면 (코스 · 정류장 · 회원), VERSION 이면 코스다 — 같은 칸에 새 신호가 오면 덮어쓴다.
  * 쌓이는 양이 "지금 편집 중인 칸 수"를 넘지 못하므로 지연이 멈춘다. DRAFT 는 최신 글만 의미가 있고 앱도 seq 로 옛 글을
  * 버리므로 건너뛴 글은 잃은 것이 아니다. 밀리지 않을 때는 넣자마자 꺼내져 그대로 다 간다.
+ *
+ * <p>{@link #onMessage} 는 채널을 읽는 스레드(Lettuce I/O, 하나뿐)에서 바로 불린다 — 여기서 오래 걸리면 읽기가 막힌다.
+ * 그래서 파싱하고 칸에 넣는 일만 한다.
  */
 @Slf4j
 @Component
@@ -56,7 +59,8 @@ public class CourseSignalRelay implements MessageListener, SmartLifecycle {
 	static final String USER_PREFIX = "/user/";
 	/** 소켓으로 나가는 줄(clientOutboundChannel)이 이만큼 밀려 있으면 더 넣지 않고 기다린다 — 그동안 칸에서 덮어써진다 */
 	static final int OUTBOUND_BACKLOG_LIMIT = 5_000;
-	private static final int DISPATCHERS = Math.max(2, Runtime.getRuntime().availableProcessors() / 2);
+	/** 보내는 일은 CPU 를 쓴다(목적지 해석 · 브로커 · STOMP 인코딩) — 코어 수만큼 */
+	private static final int DISPATCHERS = Math.max(2, Runtime.getRuntime().availableProcessors());
 
 	/** VERSION 은 storeId · memberId 가 null — 코스 하나에 칸 하나 */
 	private record Slot(CourseSignal.Type type, Long courseId, Long storeId, Long memberId) {

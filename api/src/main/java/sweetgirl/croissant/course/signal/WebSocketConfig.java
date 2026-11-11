@@ -3,6 +3,7 @@ package sweetgirl.croissant.course.signal;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.messaging.simp.config.ChannelRegistration;
@@ -84,6 +85,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 		RedisMessageListenerContainer container = new RedisMessageListenerContainer();
 		container.setConnectionFactory(redis.connectionFactory());
 		container.addMessageListener(relay, new ChannelTopic(CourseSignalPublisher.CHANNEL));
+		// 컨테이너 기본값(SimpleAsyncTaskExecutor)은 메시지마다 스레드를 새로 만든다. 채널을 읽는 스레드는 하나(Lettuce I/O)인데
+		// 그 스레드가 초당 천 번 넘게 스레드를 만들다 보니 읽는 속도가 초당 1,250~1,500건에서 막혔고, 그보다 빨리 오는 신호는
+		// Redis 와 앱 사이에 쌓여 전달 지연이 67초까지 늘었다(2026-11-11: 스레드 시작 수가 신호 수와 같이 늘고, 덤프에서 I/O
+		// 스레드의 1/4 이 스레드 생성 중). 리스너(CourseSignalRelay)는 칸에 넣기만 하고 바로 돌아오므로 읽는 스레드에서 그대로 부른다.
+		container.setTaskExecutor(new SyncTaskExecutor());
 		// 기동 시점에 Redis 에 못 붙어도 앱이 떠야 한다 — CourseSignalSubscriptionStarter 가 재시도하며 시작한다
 		container.setAutoStartup(false);
 		return container;
