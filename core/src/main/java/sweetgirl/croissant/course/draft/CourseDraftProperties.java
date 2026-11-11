@@ -60,6 +60,12 @@ public class CourseDraftProperties {
 	/** PUT 의 권한·쓰기 제한 판정을 들고 있는 시간. 틀려도 "나간 사람 초안이 이만큼 Redis 에 머무는" 방향뿐이다. */
 	private Duration accessCacheTtl = Duration.ofSeconds(10);
 
+	/** DB 를 못 읽을 때, 마지막으로 통과한 판정을 이만큼 지난 것까지 인정한다. 이보다 오래 DB 가 죽어 있으면 503. */
+	private Duration accessStaleGrace = Duration.ofMinutes(5);
+
+	/** 권한 판정 DB 가 실패한 뒤 다시 두드리기까지. 그동안 캐시가 빠진 요청은 커넥션을 기다리지 않는다. */
+	private Duration accessDbBackoff = Duration.ofSeconds(2);
+
 	private Redis redis = new Redis();
 
 	public boolean isRedisConfigured() {
