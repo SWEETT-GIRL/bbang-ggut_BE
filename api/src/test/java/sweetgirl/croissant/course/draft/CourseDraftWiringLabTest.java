@@ -71,4 +71,15 @@ class CourseDraftWiringLabTest {
 		assertThat(context.getBeanNamesForType(
 			org.springframework.data.redis.connection.RedisConnectionFactory.class)).hasSize(1);
 	}
+
+	@Test
+	@DisplayName("STOMP 수신 · 송신 채널은 전용 스레드 풀을 쓴다 — 추천 문장 LLM 풀을 나눠 쓰지 않는다")
+	void stompChannelsDoNotShareTheLlmExecutor() {
+		Object llmExecutor = context.getBean("reasonLlmExecutor");
+
+		assertThat(context.getBean("clientInboundChannelExecutor")).isNotSameAs(llmExecutor);
+		assertThat(context.getBean("clientOutboundChannelExecutor")).isNotSameAs(llmExecutor);
+		assertThat(context.getBean("clientInboundChannelExecutor"))
+			.isNotSameAs(context.getBean("clientOutboundChannelExecutor"));
+	}
 }

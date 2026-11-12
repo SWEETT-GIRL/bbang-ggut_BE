@@ -8,6 +8,7 @@ import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
@@ -49,6 +50,32 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 	 */
 	private final ThreadPoolTaskScheduler heartbeatScheduler = new ThreadPoolTaskScheduler();
 
+	/**
+	 * STOMP 프레임을 받고 보내는 전용 스레드 풀. 직접 주지 않으면 Spring Boot 가 "앱에 하나뿐인 AsyncTaskExecutor 빈"을 두 채널에
+	 * 꽂는데, 이 앱에서는 그게 추천 문장 LLM 호출용 풀(스레드 4 · 대기열 0 · 넘치면 거절)이었다 — 지표에서
+	 * clientInboundChannelExecutor · clientOutboundChannelExecutor · reasonLlmExecutor 의 처리 건수가 한 자리까지 같았다
+	 * (2026-11-12). 소켓이 바쁘면 LLM 호출이 스레드를 못 얻어 룰 문장으로 물러나고, LLM 이 스레드를 쥐면 프레임이 밀린다.
+	 * Spring 기본값(코어 수 × 2, 대기열 있음)과 같은 크기로 따로 둔다. 빈으로 두지 않는 이유는 하트비트 스케줄러와 같다 —
+	 * 빈이면 다른 자동 설정이 "하나뿐인 실행기"로 집어 갈 수 있다.
+	 */
+	private final ThreadPoolTaskExecutor inboundExecutor = channelExecutor("stomp-in-");
+	private final ThreadPoolTaskExecutor outboundExecutor = channelExecutor("stomp-out-");
+
+	private static ThreadPoolTaskExecutor channelExecutor(String threadNamePrefix) {
+		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+		executor.setCorePoolSize(Runtime.getRuntime().availableProcessors() * 2);
+		executor.setAllowCoreThreadTimeOut(true);
+		executor.setThreadNamePrefix(threadNamePrefix);
+		executor.initialize();
+		return executor;
+	}
+
+	@PreDestroy
+	void stopChannelExecutors() {
+		inboundExecutor.shutdown();
+		outboundExecutor.shutdown();
+	}
+
 	@PostConstruct
 	void startHeartbeatScheduler() {
 		heartbeatScheduler.setPoolSize(1);
@@ -77,6 +104,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 	@Override
 	public void configureClientInboundChannel(ChannelRegistration registration) {
 		registration.interceptors(stompAuthInterceptor);
+		registration.executor(inboundExecutor);
+	}
+
+	@Override
+	public void configureClientOutboundChannel(ChannelRegistration registration) {
+		registration.executor(outboundExecutor);
 	}
 
 	/** Redis 채널 구독 — 모든 인스턴스가 같은 채널을 들고 자기 세션에만 흘린다. */
