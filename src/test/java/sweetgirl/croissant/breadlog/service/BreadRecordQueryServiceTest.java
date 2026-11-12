@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,6 +42,8 @@ import sweetgirl.croissant.common.enums.MimeType;
 import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.entity.Member;
 import sweetgirl.croissant.member.service.MemberReader;
+import sweetgirl.croissant.store.entity.Store;
+import sweetgirl.croissant.store.service.StoreThumbnailReader;
 
 @ExtendWith(MockitoExtension.class)
 class BreadRecordQueryServiceTest {
@@ -65,6 +68,9 @@ class BreadRecordQueryServiceTest {
 	private sweetgirl.croissant.comment.repository.BreadRecordCommentRepository commentRepository;
 	@Mock
 	private sweetgirl.croissant.profile.service.CharacterFaceReader characterFaceReader;
+
+	@Mock
+	StoreThumbnailReader storeThumbnailReader;
 
 	@InjectMocks
 	BreadRecordQueryService queryService;
@@ -110,6 +116,32 @@ class BreadRecordQueryServiceTest {
 		assertThat(result.content().get(0).tags().get(0).breadCategory()).isEqualTo("식빵");
 		verify(photoRepository).findByRecordIdInOrderByRecordIdAscSortOrderAscIdAsc(eq(List.of(11L)));
 		verify(tagRepository).findByRecordIdInWithPhoto(eq(List.of(11L)));
+	}
+
+	@Test
+	@DisplayName("getRecords: 가게 썸네일은 중복 없이 일괄 조회하고 가게·사진이 없으면 null")
+	void getRecords_loadsStoreThumbnailsInBulk() {
+		BreadRecord first = record(11L);
+		BreadRecord repeat = record(12L);
+		BreadRecord withoutPhoto = record(13L);
+		BreadRecord withoutStore = record(14L);
+		Store store = org.mockito.Mockito.mock(Store.class);
+		Store noPhotoStore = org.mockito.Mockito.mock(Store.class);
+		given(store.getId()).willReturn(545L);
+		given(noPhotoStore.getId()).willReturn(546L);
+		ReflectionTestUtils.setField(first, "store", store);
+		ReflectionTestUtils.setField(repeat, "store", store);
+		ReflectionTestUtils.setField(withoutPhoto, "store", noPhotoStore);
+		given(breadRecordRepository.findRecords(eq(7L), isNull(), isNull(), isNull(), any(Pageable.class)))
+			.willReturn(new SliceImpl<>(List.of(first, repeat, withoutPhoto, withoutStore)));
+		given(storeThumbnailReader.thumbnailsOf(List.of(545L, 546L)))
+			.willReturn(Map.of(545L, "stores/545/320.jpg"));
+
+		SliceResponse<BreadRecordResponse> result = queryService.getRecords(7L, null, null, null, 0, 30);
+
+		assertThat(result.content()).extracting(BreadRecordResponse::storeThumbnailImageKey)
+			.containsExactly("stores/545/320.jpg", "stores/545/320.jpg", null, null);
+		verify(storeThumbnailReader).thumbnailsOf(List.of(545L, 546L));
 	}
 
 	@Test
