@@ -14,16 +14,20 @@ OUT=$S/dist-results/$L; mkdir -p $OUT
 up $S/lab-k6/tokens.csv $S/lab-k6/courses.csv $S/lab-k6/lib.js $S/lab-k6/shed.js $S/lab-k6/fanout_probe.py $S/lab-k6/drive-k6.sh ubuntu@$GEN:k6/ || exit 1
 rsh $GEN "chmod +x ~/k6/drive-k6.sh; pgrep -f 'http.server 809[0]' > /dev/null || (cd ~/k6 && nohup python3 -m http.server 8090 --bind $GEN > /dev/null 2>&1 < /dev/null &); sleep 1; echo 발생기준비" || exit 1
 rsh $LAB "cp ~/lab/$JAR ~/lab/api-0.0.1-SNAPSHO?.jar" || exit 1
-rsh $LAB "cd ~/lab && HEAP_PCT=50 APP_EXTRA='${APP_ARGS:-} --server.tomcat.max-connections=100000 --server.tomcat.accept-count=10000 --server.tomcat.threads.max=${TOMCAT_THREADS:-400} --logging.level.org.springframework.web=INFO --logging.level.org.springframework.messaging=INFO --logging.level.org.hibernate.type.descriptor.sql=INFO --logging.level.org.hibernate.SQL=INFO --spring.jpa.show-sql=false' ./run-app.sh sentinel none | tail -1" || exit 1
+rsh $LAB "cd ~/lab && ${APP_ENV:-} HEAP_PCT=50 APP_EXTRA='${APP_ARGS:-} --server.tomcat.max-connections=100000 --server.tomcat.accept-count=10000 --server.tomcat.threads.max=${TOMCAT_THREADS:-400} --logging.level.org.springframework.web=INFO --logging.level.org.springframework.messaging=INFO --logging.level.org.hibernate.type.descriptor.sql=INFO --logging.level.org.hibernate.SQL=INFO --spring.jpa.show-sql=false' ./run-app.sh sentinel none | tail -1" || exit 1
 echo "===== $L jar=$JAR 받는 서버=$(echo $PROBES | wc -w)대 × ${PP}프로세스 × ${PER}소켓  stages=$STAGES  $(date +%T)"
 j=0
 for h in $PROBES; do
-  rsh $h "mkdir -p ~/probe && cd ~/probe && for f in tokens.csv courses.csv fanout_probe.py; do curl -s -m 20 -o \$f http://$GEN:8090/\$f; done; ulimit -n 100000; sudo sysctl -q -w net.ipv4.ip_local_port_range='1024 65535'; for p in \$(seq 0 $((PP - 1))); do nohup python3 fanout_probe.py $LAB:8080 $PER \$(( ($j * $PP + p) * $PER )) $((TOTAL + 45)) tokens.csv courses.csv h${j}p\$p > probe-\$p.log 2>&1 < /dev/null & done; echo \"받는 서버 $h 시작, 시계차 \$(chronyc tracking 2>/dev/null | awk '/System time/{print \$4*1000\"ms\", \$6}')\"" || exit 1
+  rsh $h "mkdir -p ~/probe; pkill -f 'fanout_probe.p[y]'; true" >/dev/null
+  # 파일은 노트북에서 직접 올린다 — 발생기 경유 내려받기가 조용히 실패하면 만료된 토큰으로 붙지도 못한다(2026-11-12)
+  up $S/lab-k6/tokens.csv $S/lab-k6/courses.csv $S/lab-k6/fanout_probe.py ubuntu@$h:probe/ || exit 1
+  rsh $h "cd ~/probe; ulimit -n 100000; sudo sysctl -q -w net.ipv4.ip_local_port_range='1024 65535'; for p in \$(seq 0 $((PP - 1))); do nohup python3 fanout_probe.py $LAB:8080 $PER \$(( ($j * $PP + p) * $PER )) $((TOTAL + 45)) tokens.csv courses.csv h${j}p\$p > probe-\$p.log 2>&1 < /dev/null & done; echo \"받는 서버 $h 시작, 시계차 \$(chronyc tracking 2>/dev/null | awk '/System time/{print \$4*1000\"ms\", \$6}')\"" || exit 1
   j=$((j + 1))
 done
 rsh $GEN "chronyc tracking 2>/dev/null | awk '/System time/{print \"발생기 시계차\", \$4*1000\"ms\", \$6}'"
 sleep 30
-for h in $PROBES; do rsh $h "grep -h READY ~/probe/probe-*.log | tr '\n' ' '"; echo; done
+OPEN=0; for h in $PROBES; do R=$(rsh $h "grep -h READY ~/probe/probe-*.log | tr '\n' ' '"); echo "$R"; for n in $(echo "$R" | grep -o 'open=[0-9]*' | cut -d= -f2); do OPEN=$((OPEN + n)); done; done
+WANT=$(( $(echo $PROBES | wc -w) * PP * PER )); echo "붙은 소켓 $OPEN / $WANT"; [ "$OPEN" -ge "$WANT" ] || { echo "!! 받는 소켓이 다 붙지 않았다 — 중단"; for h in $PROBES; do rsh $h "pkill -f 'fanout_probe.p[y]'; true"; done; exit 1; }
 rsh $LAB "pkill vmstat; echo 정리" >/dev/null
 ssh $SSHO -o ProxyCommand="$PJ" ubuntu@$LAB "cd ~/lab; setsid nohup ./watch-queues.sh $L 40 > /dev/null 2>&1 < /dev/null & nohup vmstat 10 60 > /tmp/vm-$L.txt 2>&1 < /dev/null & sleep 1; echo 감시" >/dev/null
 rsh $GEN "nohup ~/k6/drive-k6.sh $LAB:8080 $L '$STAGES' > /dev/null 2>&1 < /dev/null & echo 부하시작"
