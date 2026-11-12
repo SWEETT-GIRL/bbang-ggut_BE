@@ -225,4 +225,44 @@ class MemoDraftAccessCacheTest {
 		assertThatThrownBy(() -> accessCache.requireEditable(COURSE_ID, MEMBER_ID))
 			.isInstanceOf(DataAccessException.class);
 	}
+
+	@Test
+	@DisplayName("DB 가 돌아온 직후에는 미뤄 둔 갱신을 DB 로 몰아 보내지 않는다 — 마지막 판정으로 캐시를 되채운다")
+	void dbBack_doesNotRefreshEveryoneAtOnce() {
+		Long otherMember = 2L;
+		passOnce();
+		accessCache.requireEditable(COURSE_ID, otherMember);
+		ticker.advance(Duration.ofSeconds(16));
+		willThrow(DB_DOWN).willDoNothing().given(memberReader).requireLoggedIn(MEMBER_ID);
+		accessCache.requireEditable(COURSE_ID, MEMBER_ID);
+		ticker.advance(Duration.ofSeconds(3));
+		accessCache.requireEditable(COURSE_ID, MEMBER_ID); // 확인하러 간 한 스레드 — DB 복귀를 본다
+
+		// 그동안 캐시가 빠진 다른 사람 — DB 를 읽지 않고 통과하고, 다시 캐시에 들어간다
+		accessCache.requireEditable(COURSE_ID, otherMember);
+		accessCache.requireEditable(COURSE_ID, otherMember);
+
+		then(memberReader).should(times(1)).requireLoggedIn(otherMember);
+	}
+
+	@Test
+	@DisplayName("복귀 뒤 되채운 판정도 캐시 TTL 이 지나면 DB 에 다시 묻는다 — 거절로 바뀌었으면 거절한다")
+	void dbBack_refreshedAfterTtl() {
+		Long otherMember = 2L;
+		passOnce();
+		accessCache.requireEditable(COURSE_ID, otherMember);
+		ticker.advance(Duration.ofSeconds(16));
+		willThrow(DB_DOWN).willDoNothing().given(memberReader).requireLoggedIn(MEMBER_ID);
+		accessCache.requireEditable(COURSE_ID, MEMBER_ID);
+		ticker.advance(Duration.ofSeconds(3));
+		accessCache.requireEditable(COURSE_ID, MEMBER_ID);
+		accessCache.requireEditable(COURSE_ID, otherMember);
+
+		ticker.advance(Duration.ofSeconds(16));
+		willThrow(new CourseException(CourseErrorCode.COURSE_FORBIDDEN)).given(courseAccessPolicy)
+			.requireEditable(course, otherMember);
+
+		assertThatThrownBy(() -> accessCache.requireEditable(COURSE_ID, otherMember))
+			.isInstanceOf(CourseException.class);
+	}
 }
