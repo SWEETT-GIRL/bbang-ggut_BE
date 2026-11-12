@@ -47,6 +47,12 @@ import sweetgirl.croissant.course.draft.CourseDraftConfig;
  * 쌓이는 양이 "지금 편집 중인 칸 수"를 넘지 못하므로 지연이 멈춘다. DRAFT 는 최신 글만 의미가 있고 앱도 seq 로 옛 글을
  * 버리므로 건너뛴 글은 잃은 것이 아니다. 밀리지 않을 때는 넣자마자 꺼내져 그대로 다 간다.
  *
+ * <p><b>구독자가 많은 코스는 끊어서 보낸다.</b> 신호 하나를 맡은 전송 스레드가 그 코스의 구독자 전원에게 다 보낼 때까지
+ * 붙잡히면, 구독자 2,000명짜리 코스 하나가 전송 스레드를 전부 차지해 다른 코스의 신호가 그 뒤에서 기다린다(다른 코스 전달
+ * p95 0.02 → 0.4초, 2026-11-11). 그래서 한 번에 {@link #CHUNK} 명까지만 보내고 남은 몫은 줄 맨 뒤로 보낸다 — 그 사이에 다른
+ * 코스가 끼어든다. 남은 몫을 보내려는 순간 같은 칸에 더 새 신호가 와 있으면 남은 몫은 버리고(새 신호가 전원에게 간다), 다음
+ * 차례는 멈춘 자리부터 시작한다 — 늘 앞사람부터 보내면 밀릴 때 뒷사람이 계속 못 받는다.
+ *
  * <p>{@link #onMessage} 는 채널을 읽는 스레드(Lettuce I/O, 하나뿐)에서 바로 불린다 — 여기서 오래 걸리면 읽기가 막힌다.
  * 그래서 파싱하고 칸에 넣는 일만 한다.
  */
@@ -59,6 +65,8 @@ public class CourseSignalRelay implements MessageListener, SmartLifecycle {
 	static final String USER_PREFIX = "/user/";
 	/** 소켓으로 나가는 줄(clientOutboundChannel)이 이만큼 밀려 있으면 더 넣지 않고 기다린다 — 그동안 칸에서 덮어써진다 */
 	static final int OUTBOUND_BACKLOG_LIMIT = 5_000;
+	/** 한 번에 보내는 구독자 수. 이보다 많은 코스는 끊어서 보낸다 */
+	static final int CHUNK = 200;
 	/** 보내는 일은 CPU 를 쓴다(목적지 해석 · 브로커 · STOMP 인코딩) — 코어 수만큼 */
 	private static final int DISPATCHERS = Math.max(2, Runtime.getRuntime().availableProcessors());
 
@@ -69,6 +77,20 @@ public class CourseSignalRelay implements MessageListener, SmartLifecycle {
 	private record Pending(CourseSignal signal, byte[] body) {
 	}
 
+	/**
+	 * 전송 스레드가 꺼내는 일 하나. {@code pending} 이 없으면 칸에 새로 온 신호(칸에서 꺼내 보낸다), 있으면 끊어 보내던 것의 남은 몫.
+	 *
+	 * @param from 이번에 보낼 첫 구독자의 자리
+	 * @param remaining 아직 못 받은 구독자 수
+	 */
+	private record Work(Slot slot, Pending pending, List<CourseSubscriptionRegistry.Subscriber> subscribers, int from,
+			int remaining) {
+
+		static Work fresh(Slot slot) {
+			return new Work(slot, null, List.of(), 0, 0);
+		}
+	}
+
 	private final ObjectMapper objectMapper;
 	private final CourseSubscriptionRegistry registry;
 	private final SimpMessagingTemplate messagingTemplate;
@@ -77,7 +99,9 @@ public class CourseSignalRelay implements MessageListener, SmartLifecycle {
 
 	private final ConcurrentHashMap<Slot, Pending> slots = new ConcurrentHashMap<>();
 	/** 보낼 것이 든 칸의 차례. 칸이 비어 있다가 채워질 때만 한 번 들어간다 */
-	private final LinkedBlockingQueue<Slot> ready = new LinkedBlockingQueue<>();
+	private final LinkedBlockingQueue<Work> ready = new LinkedBlockingQueue<>();
+	/** 끊어 보내다 멈춘 자리(칸별). 구독자가 {@link #CHUNK} 를 넘는 코스의 칸만 든다 */
+	private final ConcurrentHashMap<Slot, Integer> cursors = new ConcurrentHashMap<>();
 	private final List<Thread> dispatchers = new ArrayList<>();
 	private volatile boolean running;
 
@@ -140,7 +164,7 @@ public class CourseSignalRelay implements MessageListener, SmartLifecycle {
 			return newer(waiting, incoming);
 		});
 		if (wasEmpty[0]) {
-			ready.add(slot);
+			ready.add(Work.fresh(slot));
 		}
 	}
 
@@ -155,29 +179,55 @@ public class CourseSignalRelay implements MessageListener, SmartLifecycle {
 	}
 
 	/**
-	 * 칸 하나를 꺼내 구독 세션들에 보낸다.
+	 * 일 하나를 꺼내 구독 세션들에 보낸다 — 한 번에 {@link #CHUNK} 명까지.
 	 *
-	 * @return 꺼낼 칸이 있었으면 true
+	 * @return 꺼낼 일이 있었으면 true
 	 */
 	boolean dispatchNext(long waitMillis) throws InterruptedException {
-		Slot slot = ready.poll(waitMillis, TimeUnit.MILLISECONDS);
-		if (slot == null) {
+		Work work = ready.poll(waitMillis, TimeUnit.MILLISECONDS);
+		if (work == null) {
 			return false;
 		}
-		Pending pending = slots.remove(slot);
-		if (pending != null) {
-			send(pending.signal(), pending.body());
+		Slot slot = work.slot();
+		Pending pending = work.pending();
+		List<CourseSubscriptionRegistry.Subscriber> subscribers = work.subscribers();
+		int from = work.from();
+		int remaining = work.remaining();
+		if (pending == null) {
+			pending = slots.remove(slot);
+			if (pending == null) {
+				return true;
+			}
+			subscribers = List.copyOf(registry.subscribers(slot.courseId()));
+			remaining = subscribers.size();
+			if (remaining == 0) {
+				return true;
+			}
+			// 지난번에 끊어 보내다 멈춘 자리부터 — 작은 코스는 늘 처음부터
+			from = remaining > CHUNK ? Math.floorMod(cursors.getOrDefault(slot, 0), remaining) : 0;
+		} else if (slots.containsKey(slot)) {
+			// 남은 몫을 보내려는데 더 새 신호가 와 있다 — 그 신호가 전원에게 간다. 다음 차례는 여기서부터
+			cursors.put(slot, from);
+			conflated.increment();
+			return true;
+		}
+		int size = subscribers.size();
+		int count = Math.min(CHUNK, remaining);
+		String destination = "/queue/courses/" + slot.courseId();
+		for (int index = 0; index < count; index++) {
+			CourseSubscriptionRegistry.Subscriber subscriber = subscribers.get((from + index) % size);
+			messagingTemplate.send(USER_PREFIX + subscriber.sessionId() + destination,
+				MessageBuilder.createMessage(pending.body(), sessionHeaders(subscriber.sessionId())));
+		}
+		int next = (from + count) % size;
+		if (remaining > count) {
+			ready.add(new Work(slot, pending, subscribers, next, remaining - count));
+		} else if (size > CHUNK) {
+			cursors.put(slot, next);
+		} else {
+			cursors.remove(slot);
 		}
 		return true;
-	}
-
-	/** @param body 앱에 보낼 본문 — 신호의 JSON. 구독자마다 다시 만들지 않는다 */
-	private void send(CourseSignal signal, byte[] body) {
-		String destination = "/queue/courses/" + signal.courseId();
-		for (CourseSubscriptionRegistry.Subscriber subscriber : registry.subscribers(signal.courseId())) {
-			messagingTemplate.send(USER_PREFIX + subscriber.sessionId() + destination,
-				MessageBuilder.createMessage(body, sessionHeaders(subscriber.sessionId())));
-		}
 	}
 
 	private void dispatchLoop() {
