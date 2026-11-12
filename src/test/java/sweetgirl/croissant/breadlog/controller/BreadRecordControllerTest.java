@@ -124,7 +124,7 @@ class BreadRecordControllerTest {
 		BreadRecordResponse response = new BreadRecordResponse(
 			11L, 10L, "밀도 성수", "서울_성동구_성수동", null, null, List.of(), null,
 			LocalDateTime.of(2026, 8, 2, 14, 21), false, LocalDateTime.of(2026, 8, 4, 12, 0), null,
-			List.of(), List.of(), RecordType.NORMAL, "서울 성동구 서울숲2길 32-14", null, 0, 0, null);
+			List.of(), List.of(), RecordType.NORMAL, "서울 성동구 서울숲2길 32-14", null, 0, 0, null, "stores/10/320.jpg");
 		given(queryService.getRecords(isNull(), any(), any(), eq(10L), eq(0), eq(30)))
 			.willReturn(new SliceResponse<>(List.of(response), false));
 
@@ -135,6 +135,7 @@ class BreadRecordControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.content[0].id").value(11))
 			.andExpect(jsonPath("$.data.content[0].storeName").value("밀도 성수"))
+			.andExpect(jsonPath("$.data.content[0].storeThumbnailImageKey").value("stores/10/320.jpg"))
 			.andExpect(jsonPath("$.data.content[0].isPublic").value(false))
 			.andExpect(jsonPath("$.data.content[0].recordType").value("NORMAL"))
 			.andExpect(jsonPath("$.data.content[0].storeAddress").value("서울 성동구 서울숲2길 32-14"))

@@ -35,6 +35,7 @@ import sweetgirl.croissant.global.response.SliceResponse;
 import sweetgirl.croissant.member.service.MemberReader;
 import sweetgirl.croissant.profile.dto.response.CharacterFace;
 import sweetgirl.croissant.profile.service.CharacterFaceReader;
+import sweetgirl.croissant.store.service.StoreThumbnailReader;
 
 @Service
 @RequiredArgsConstructor
@@ -55,6 +56,7 @@ public class BreadRecordQueryService {
 	private final BreadRecordLikeRepository breadRecordLikeRepository;
 	private final BreadRecordCommentRepository commentRepository;
 	private final CharacterFaceReader characterFaceReader;
+	private final StoreThumbnailReader storeThumbnailReader;
 
 	public SliceResponse<BreadRecordResponse> getRecords(
 			Long memberId,
@@ -135,6 +137,10 @@ public class BreadRecordQueryService {
 		Map<Long, Long> likeCounts = likeCountsOf(recordIds);
 		Map<Long, Long> commentCounts = commentCountsOf(recordIds);
 
+		Map<Long, String> storeThumbnails = storeThumbnailReader.thumbnailsOf(records.stream()
+			.filter(record -> record.getStore() != null)
+			.map(record -> record.getStore().getId()).distinct().toList());
+
 		return records.stream()
 			.map(record -> BreadRecordResponse.of(
 				record,
@@ -142,7 +148,8 @@ public class BreadRecordQueryService {
 				tagsByRecordId.getOrDefault(record.getId(), List.of()),
 				towerBreadPicker.resolve(record.getId(), record.getTowerBread()),
 				likeCounts.getOrDefault(record.getId(), 0L),
-				commentCounts.getOrDefault(record.getId(), 0L)))
+				commentCounts.getOrDefault(record.getId(), 0L),
+				record.getStore() == null ? null : storeThumbnails.get(record.getStore().getId())))
 			.toList();
 	}
 
