@@ -6,11 +6,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -180,5 +184,58 @@ class CourseSignalRelayTest {
 
 		then(messagingTemplate).should(times(2)).send(eq("/user/s-1/queue/courses/10"), any(Message.class));
 		assertThat(meterRegistry.counter("course_signal_conflated_total").count()).isZero();
+	}
+
+	private static Set<Subscriber> subscribers(int count) {
+		return IntStream.range(0, count).mapToObj(index -> new Subscriber("s-" + index, (long)index))
+			.collect(Collectors.toSet());
+	}
+
+	private List<String> sentSessions() {
+		ArgumentCaptor<String> destination = ArgumentCaptor.forClass(String.class);
+		then(messagingTemplate).should(atLeast(0)).send(destination.capture(), any(Message.class));
+		return destination.getAllValues().stream().map(value -> value.split("/")[2]).toList();
+	}
+
+	@Test
+	@DisplayName("구독자가 많은 코스는 끊어서 보낸다 — 한 번에 200명, 남은 몫은 줄 뒤로 가서 다른 코스가 먼저 나간다")
+	void bigCourse_sentInChunksLettingOthersInterleave() throws Exception {
+		given(registry.subscribers(10L)).willReturn(subscribers(450));
+		given(registry.subscribers(20L)).willReturn(Set.of(new Subscriber("small", 1L)));
+
+		relay.onMessage(redisMessage(CourseSignal.draft(10L, 100L, 7L, "인기 코스", 1_000L)), null);
+		relay.onMessage(redisMessage(CourseSignal.draft(20L, 100L, 7L, "작은 코스", 1_000L)), null);
+
+		relay.dispatchNext(0);
+		assertThat(sentSessions()).hasSize(CourseSignalRelay.CHUNK).doesNotContain("small");
+
+		relay.dispatchNext(0);
+		assertThat(sentSessions()).hasSize(CourseSignalRelay.CHUNK + 1).contains("small");
+
+		dispatchAll();
+		List<String> all = sentSessions();
+		assertThat(all).hasSize(451);
+		assertThat(Set.copyOf(all)).hasSize(451); // 한 사람에게 두 번 가지 않았다
+	}
+
+	@Test
+	@DisplayName("끊어 보내는 중에 더 새 신호가 오면 남은 몫은 버리고, 새 신호는 멈춘 자리부터 보낸다 — 뒷사람이 굶지 않는다")
+	void bigCourse_newerSignalResumesFromCursor() throws Exception {
+		given(registry.subscribers(10L)).willReturn(subscribers(450));
+
+		relay.onMessage(redisMessage(CourseSignal.draft(10L, 100L, 7L, "소", 1_000L)), null);
+		relay.dispatchNext(0);
+		List<String> firstChunk = sentSessions();
+
+		relay.onMessage(redisMessage(CourseSignal.draft(10L, 100L, 7L, "소금", 2_000L)), null);
+		relay.dispatchNext(0); // 옛 신호의 남은 몫 — 버린다
+		assertThat(sentSessions()).hasSize(CourseSignalRelay.CHUNK);
+		relay.dispatchNext(0); // 새 신호의 첫 몫 — 아직 못 받은 사람부터
+		List<String> secondChunk = sentSessions().subList(CourseSignalRelay.CHUNK, 2 * CourseSignalRelay.CHUNK);
+
+		assertThat(secondChunk).doesNotContainAnyElementsOf(firstChunk);
+		dispatchAll();
+		// 새 신호는 결국 전원에게 갔다(멈춘 자리부터 한 바퀴)
+		assertThat(Set.copyOf(sentSessions().subList(CourseSignalRelay.CHUNK, sentSessions().size()))).hasSize(450);
 	}
 }
