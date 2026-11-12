@@ -41,7 +41,10 @@ import sweetgirl.croissant.member.service.MemberRestrictionReader;
  * <li>DB 판정이 실패하면 {@code access-db-backoff} 동안은 DB 를 다시 두드리지 않는다. 그 뒤에도 한 스레드만 확인하러 간다.</li>
  * <li>그동안은 마지막으로 통과했던 판정({@code access-stale-grace} 안쪽)을 인정한다. 이력이 없으면 바로 실패(→ 503)한다.</li>
  * </ul>
- * 틀리는 방향은 캐시와 같다 — DB 가 죽어 있는 동안 나간 사람의 초안이 Redis 에 머물 수 있고, 반영 때 다시 판정해 버린다.
+ * DB 가 돌아온 직후에는 미뤄 둔 갱신이 한꺼번에 몰린다(복귀 뒤 2초간 처리량 2,500 → 1,054건/초, Hikari 대기 389 — 같은 측정).
+ * 그래서 복귀 뒤 캐시 TTL 한 번 동안은 마지막 판정으로 캐시를 되채우고, 갱신은 캐시 만료의 지터에 맡겨 흩는다.
+ *
+ * <p>틀리는 방향은 캐시와 같다 — DB 가 죽어 있는 동안 나간 사람의 초안이 Redis 에 머물 수 있고, 반영 때 다시 판정해 버린다.
  */
 @Slf4j
 @Component
@@ -60,6 +63,9 @@ public class MemoDraftAccessCache {
 	private final Counter staleServed;
 	private volatile boolean dbDown;
 	private volatile long dbRetryAtNanos;
+	/** DB 가 돌아온 직후 이 시각까지는 미뤄 둔 갱신을 DB 로 보내지 않는다. 0 이면 복귀 중이 아니다 */
+	private volatile long recoveringUntilNanos;
+	private final long recoverySpreadNanos;
 	private final AtomicBoolean probing = new AtomicBoolean();
 
 	/** 생성자가 둘(테스트용 Ticker 주입)이라 Spring 이 쓸 쪽을 가리킨다 — 없으면 기본 생성자를 찾다 죽는다. */
@@ -81,6 +87,8 @@ public class MemoDraftAccessCache {
 		this.memberRestrictionReader = memberRestrictionReader;
 		this.ticker = ticker;
 		this.dbBackoffNanos = properties.getAccessDbBackoff().toNanos();
+		// 복귀 직후 한 번에 몰리는 것은 "그동안 만료된 캐시 전부"다. 캐시 TTL 한 번만큼만 미루면 그 뒤는 평소의 만료 속도가 된다
+		this.recoverySpreadNanos = properties.getAccessCacheTtl().toNanos();
 		this.staleServed = Counter.builder("draft_access_stale_total")
 			.description("DB 를 못 읽어 마지막 판정으로 통과시킨 초안 PUT 수").register(meterRegistry);
 		this.lastAllowed = Caffeine.newBuilder()
@@ -127,6 +135,14 @@ public class MemoDraftAccessCache {
 			allowFromLastDecision(key, null);
 			return;
 		}
+		if (recoveringUntilNanos != 0 && ticker.read() < recoveringUntilNanos
+			&& Boolean.TRUE.equals(lastAllowed.getIfPresent(key))) {
+			// DB 가 막 돌아왔다 — 미뤄 둔 갱신을 한꺼번에 DB 로 보내지 않고, 마지막 판정으로 캐시에 되돌려 넣는다.
+			// 캐시 만료에 지터가 있어 다음 갱신은 TTL ~ 1.5 TTL 에 걸쳐 흩어진다
+			allowed.put(key, Boolean.TRUE);
+			staleServed.increment();
+			return;
+		}
 		try {
 			memberReader.requireLoggedIn(memberId);
 			Course course = courseRepository.findByIdAndDeletedAtIsNull(courseId)
@@ -162,7 +178,9 @@ public class MemoDraftAccessCache {
 
 	private void recovered() {
 		if (dbDown) {
-			log.info("[메모 초안] 권한 판정 DB 복귀");
+			log.info("[메모 초안] 권한 판정 DB 복귀 — {} 동안은 마지막 판정으로 캐시를 채워 갱신을 흩는다",
+				Duration.ofNanos(recoverySpreadNanos));
+			recoveringUntilNanos = ticker.read() + recoverySpreadNanos;
 		}
 		dbDown = false;
 		probing.set(false);
