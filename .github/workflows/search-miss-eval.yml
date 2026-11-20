@@ -1,0 +1,75 @@
+name: LLM Eval - 실패 검색어 해석
+
+# 실패 검색어 해석의 프롬프트·모델·검증 코드를 건드린 PR 에서만 돈다. 진짜 LLM 을 불러 비용이 나가므로
+# 평소 PR 에는 붙지 않는다(ci.yml 은 @Tag("llm") 을 뺀다). 결과 표는 Actions 요약(Step Summary)에 남는다.
+on:
+  pull_request:
+    branches: [ main, dev ]
+    paths:
+      - 'src/main/resources/search-miss-interpret-prompt.txt'
+      - 'src/main/java/sweetgirl/croissant/searchmiss/**'
+      - 'src/main/java/sweetgirl/croissant/external/llm/**'
+      - 'src/main/java/sweetgirl/croissant/external/anthropic/**'
+      - 'src/main/java/sweetgirl/croissant/external/openai/**'
+      - 'src/main/java/sweetgirl/croissant/external/gemini/**'
+      - 'src/test/resources/searchmiss/**'
+      - 'src/test/java/sweetgirl/croissant/searchmiss/service/SearchMissInterpreterEvalTest.java'
+      - '.github/workflows/search-miss-eval.yml'
+  workflow_dispatch:
+    inputs:
+      models:
+        description: "벤더:모델[@출력토큰상한] 쉼표 목록 (비우면 테스트의 기본 후보)"
+        required: false
+        default: ''
+      runs:
+        description: "케이스마다 반복 횟수"
+        required: false
+        default: '3'
+
+concurrency:
+  group: search-miss-eval-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      # 포크 PR 은 시크릿을 못 받는다 — 키가 없으면 테스트가 스스로 건너뛴다(assume)
+      - name: Run eval
+        env:
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          EVAL_MODELS: ${{ inputs.models }}
+          EVAL_RUNS: ${{ inputs.runs || '3' }}
+        run: ./gradlew test -PllmTests --tests "*SearchMissInterpreterEvalTest" -x spotlessCheck --no-daemon
+
+      - name: Upload eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: search-miss-eval
+          path: build/reports/search-miss-eval
