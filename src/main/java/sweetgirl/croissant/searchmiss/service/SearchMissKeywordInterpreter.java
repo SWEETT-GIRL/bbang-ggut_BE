@@ -112,7 +112,8 @@ public class SearchMissKeywordInterpreter {
 		return KeywordInterpretation.store(officialName, supporting.stream().map(NaverBlogPost::link).toList());
 	}
 
-	private String buildPrompt(String keyword, List<NaverBlogPost> posts) {
+	/** 평가 러너(SearchMissInterpreterEvalTest)가 운영과 같은 프롬프트로 모델을 견주려고 패키지 범위로 연다. */
+	String buildPrompt(String keyword, List<NaverBlogPost> posts) {
 		String numberedPosts = IntStream.range(0, posts.size())
 			.mapToObj(index -> (index + 1) + ". " + posts.get(index).title() + " — " + posts.get(index).description())
 			.collect(Collectors.joining("\n"));
