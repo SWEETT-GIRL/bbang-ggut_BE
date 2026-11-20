@@ -62,7 +62,10 @@ import sweetgirl.croissant.searchmiss.service.SearchMissKeywordInterpreter.Inter
 @Tag("llm")
 class SearchMissInterpreterEvalTest {
 
-	private static final String CASES_FILE = "/searchmiss/eval-cases.json";
+	private static final String DEV_CASES_FILE = "/searchmiss/eval-cases.json";
+	/** 프롬프트를 고칠 때 보지 않는 셋. 고친 결과가 개발셋 밖에서도 버티는지 본다 */
+	private static final String HOLDOUT_CASES_FILE = "/searchmiss/eval-cases-holdout.json";
+	private static final List<String> LABELS = List.of("STORE", "MENU", "REGION", "UNKNOWN");
 	private static final double MIN_ACCURACY = 0.80;
 	private static final int DEFAULT_RUNS = 3;
 	private static final int DEFAULT_CONCURRENCY = 4;
@@ -105,7 +108,8 @@ class SearchMissInterpreterEvalTest {
 		String gateModel = envOrDefault("SEARCH_MISS_TRIAGE_MODEL", properties.getModel());
 		SearchMissKeywordInterpreter interpreter = new SearchMissKeywordInterpreter(registry, null, properties);
 
-		List<EvalCase> cases = loadCases();
+		List<EvalCase> cases = loadCases(DEV_CASES_FILE);
+		List<EvalCase> holdoutCases = loadCases(HOLDOUT_CASES_FILE);
 		int runs = Integer.parseInt(envOrDefault("EVAL_RUNS", String.valueOf(DEFAULT_RUNS)));
 		List<ModelSpec> models = modelSpecs(properties.getMaxOutputTokens()).stream()
 			.filter(spec -> registry.configuredProviders().contains(spec.ref().provider()))
@@ -113,10 +117,15 @@ class SearchMissInterpreterEvalTest {
 		assumeThat(models).as("키가 있는 벤더의 모델이 하나도 없다").isNotEmpty();
 
 		Map<ModelSpec, List<Outcome>> outcomes = run(registry, interpreter, models, cases, runs);
-		String report = report(outcomes, cases, runs, gateModel);
-		writeReport(report, outcomes);
+		Map<ModelSpec, List<Outcome>> holdoutOutcomes = run(registry, interpreter, models, holdoutCases, runs);
+		String report = report("개발셋 — 프롬프트를 고칠 때 보는 셋", outcomes, cases, runs, gateModel)
+			+ "\n" + report("홀드아웃 — 고칠 때 보지 않는 셋 (일반화 확인용, 게이트 아님)", holdoutOutcomes, holdoutCases,
+				runs, gateModel)
+			+ "\n" + generalizationGap(outcomes, holdoutOutcomes);
+		writeReport(report, Map.of("dev", outcomes, "holdout", holdoutOutcomes));
 		System.out.println(report);
 
+		// 게이트는 개발셋으로만 건다. 홀드아웃까지 게이트에 걸면 홀드아웃을 보고 고치게 되어 홀드아웃이 아니게 된다
 		outcomes.entrySet().stream()
 			.filter(entry -> entry.getKey().label().equals(gateModel))
 			.findFirst()
@@ -205,10 +214,57 @@ class SearchMissInterpreterEvalTest {
 		}
 	}
 
-	private static String report(Map<ModelSpec, List<Outcome>> outcomes, List<EvalCase> cases, int runs,
-			String gateModel) {
+	/** 라벨마다 Precision·Recall. 허용 라벨이 둘인 케이스는 허용 안에서 답하면 그 라벨의 정답으로 센다 */
+	private static String labelMetrics(Map<ModelSpec, List<Outcome>> outcomes) {
+		StringBuilder table = new StringBuilder("\n### 라벨별 Precision / Recall (refersTo, 호출 오류 제외)\n\n| 모델 |");
+		LABELS.forEach(label -> table.append(' ').append(label).append(" P / R |"));
+		table.append("\n|---|");
+		LABELS.forEach(label -> table.append("---|"));
+		table.append('\n');
+		outcomes.forEach((model, modelOutcomes) -> {
+			List<Outcome> answered = modelOutcomes.stream().filter(outcome -> outcome.error() == null).toList();
+			table.append("| `").append(model.label()).append("` |");
+			for (String label : LABELS) {
+				long truePositive = answered.stream()
+					.filter(outcome -> label.equals(outcome.refersTo()) && outcome.refersToCorrect()).count();
+				long predicted = answered.stream().filter(outcome -> label.equals(outcome.refersTo())).count();
+				long actual = answered.stream().filter(outcome -> label.equals(goldLabel(outcome))).count();
+				table.append(String.format(Locale.ROOT, " %s / %s |", ratioText(truePositive, predicted),
+					ratioText(truePositive, actual)));
+			}
+			table.append('\n');
+		});
+		return table.toString();
+	}
+
+	private static String goldLabel(Outcome outcome) {
+		List<String> expected = outcome.evalCase().expectedRefersTo();
+		return expected.contains(outcome.refersTo()) ? outcome.refersTo() : expected.get(0);
+	}
+
+	private static String ratioText(long count, long total) {
+		return total == 0 ? "—" : String.format(Locale.ROOT, "%.2f (%d/%d)", (double)count / total, count, total);
+	}
+
+	/** 개발셋과 홀드아웃의 점수 차이. 개발셋만 높으면 프롬프트가 개발셋에 과적합된 것이다 */
+	private static String generalizationGap(Map<ModelSpec, List<Outcome>> dev, Map<ModelSpec, List<Outcome>> holdout) {
+		StringBuilder gap = new StringBuilder("## 일반화 확인 — 개발셋 vs 홀드아웃\n\n"
+			+ "| 모델 | refersTo 정확도 (개발 → 홀드아웃) | 파이프라인 정답 (개발 → 홀드아웃) | 치명 (개발 / 홀드아웃) |\n"
+			+ "|---|---|---|---|\n");
+		dev.forEach((model, devOutcomes) -> {
+			Summary devSummary = Summary.of(devOutcomes);
+			Summary holdoutSummary = Summary.of(holdout.get(model));
+			gap.append(String.format(Locale.ROOT, "| `%s` | %.2f → %.2f | %.2f → %.2f | %d / %d |%n", model.label(),
+				devSummary.accuracy(), holdoutSummary.accuracy(), devSummary.pipelineAccuracy(),
+				holdoutSummary.pipelineAccuracy(), devSummary.critical(), holdoutSummary.critical()));
+		});
+		return gap.toString();
+	}
+
+	private static String report(String title, Map<ModelSpec, List<Outcome>> outcomes, List<EvalCase> cases,
+			int runs, String gateModel) {
 		StringBuilder report = new StringBuilder();
-		report.append("## 실패 검색어 해석 평가\n\n")
+		report.append("## 실패 검색어 해석 평가 — ").append(title).append("\n\n")
 			.append(String.format(Locale.ROOT, "평가셋 %d건 × %d회. 운영 모델 `%s` 기준: 치명 0, refersTo 정확도 ≥ %.2f%n%n",
 				cases.size(), runs, gateModel, MIN_ACCURACY))
 			.append("| 모델 | refersTo 정확도 | 파이프라인 정답 | 치명 | 놓침 | 오류 | 지연 p50 / p95 (ms) | 평균 토큰 입력/출력 | 1,000건당 비용 |\n")
@@ -224,6 +280,7 @@ class SearchMissInterpreterEvalTest {
 					summary.critical(), summary.missed(), summary.errors(), summary.latencyP50(), summary.latencyP95(),
 					summary.avgInputTokens(), summary.avgOutputTokens(), summary.costPerThousand()));
 			});
+		report.append(labelMetrics(outcomes));
 
 		report.append("\n### 케이스별 (맞힌 횟수 / 실행 횟수, ✗ = 치명 포함)\n\n| 검색어 | 유형 | 정답 |");
 		outcomes.keySet().forEach(model -> report.append(" `").append(model.label()).append("` |"));
@@ -253,11 +310,17 @@ class SearchMissInterpreterEvalTest {
 		return report.toString();
 	}
 
-	private static void writeReport(String report, Map<ModelSpec, List<Outcome>> outcomes) throws IOException {
+	private static void writeReport(String report, Map<String, Map<ModelSpec, List<Outcome>>> outcomesBySet)
+			throws IOException {
 		Files.createDirectories(REPORT_DIR);
 		Files.writeString(REPORT_DIR.resolve("report.md"), report, StandardCharsets.UTF_8);
 		List<Map<String, Object>> rows = new ArrayList<>();
-		outcomes.forEach((model, modelOutcomes) -> modelOutcomes.forEach(outcome -> rows.add(outcome.toRow(model))));
+		outcomesBySet.forEach((set, outcomes) -> outcomes.forEach((model, modelOutcomes) -> modelOutcomes
+			.forEach(outcome -> {
+				Map<String, Object> row = outcome.toRow(model);
+				row.put("set", set);
+				rows.add(row);
+			})));
 		new ObjectMapper().writerWithDefaultPrettyPrinter()
 			.writeValue(REPORT_DIR.resolve("results.json").toFile(), rows);
 		String stepSummary = System.getenv("GITHUB_STEP_SUMMARY");
@@ -267,9 +330,9 @@ class SearchMissInterpreterEvalTest {
 		}
 	}
 
-	private static List<EvalCase> loadCases() throws IOException {
-		try (InputStream input = SearchMissInterpreterEvalTest.class.getResourceAsStream(CASES_FILE)) {
-			assertThat(input).as("평가셋 파일 %s", CASES_FILE).isNotNull();
+	private static List<EvalCase> loadCases(String file) throws IOException {
+		try (InputStream input = SearchMissInterpreterEvalTest.class.getResourceAsStream(file)) {
+			assertThat(input).as("평가셋 파일 %s", file).isNotNull();
 			return new ObjectMapper().readValue(input, EvalCaseFile.class).cases();
 		}
 	}
