@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -23,6 +24,7 @@ import java.util.concurrent.Future;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.client.RestClientResponseException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -32,6 +34,7 @@ import sweetgirl.croissant.external.llm.client.LlmClientRegistry;
 import sweetgirl.croissant.external.llm.dto.LlmModelRef;
 import sweetgirl.croissant.external.llm.dto.LlmRequest;
 import sweetgirl.croissant.external.llm.dto.LlmResult;
+import sweetgirl.croissant.external.llm.exception.LlmErrorCode;
 import sweetgirl.croissant.external.llm.exception.LlmException;
 import sweetgirl.croissant.external.naver.dto.NaverBlogPost;
 import sweetgirl.croissant.searchmiss.config.SearchMissTriageProperties;
@@ -49,7 +52,7 @@ import sweetgirl.croissant.searchmiss.service.SearchMissKeywordInterpreter.Inter
  * <ul>
  *   <li>{@code EVAL_MODELS} — {@code 벤더:모델[@출력토큰상한]} 쉼표 목록. 비우면 {@link #DEFAULT_MODELS}</li>
  *   <li>{@code EVAL_RUNS} — 케이스마다 몇 번 돌릴지(기본 3). LLM 은 같은 입력에도 답이 흔들려 한 번으로는 판단하지 않는다</li>
- *   <li>{@code EVAL_CONCURRENCY} — 동시 호출 수(기본 8)</li>
+ *   <li>{@code EVAL_CONCURRENCY} — 동시 호출 수(기본 4)</li>
  * </ul>
  *
  * <p>채점은 운영 코드 기준이다. 모델 답을 {@link SearchMissKeywordInterpreter#verify}에 그대로 통과시켜
@@ -62,8 +65,12 @@ class SearchMissInterpreterEvalTest {
 	private static final String CASES_FILE = "/searchmiss/eval-cases.json";
 	private static final double MIN_ACCURACY = 0.80;
 	private static final int DEFAULT_RUNS = 3;
-	private static final int DEFAULT_CONCURRENCY = 8;
+	private static final int DEFAULT_CONCURRENCY = 4;
 	private static final Path REPORT_DIR = Path.of("build", "reports", "search-miss-eval");
+	private static final int MAX_ATTEMPTS = 4;
+	private static final long RETRY_BACKOFF_MS = 2_000;
+	private static final int ERROR_BODY_LIMIT = 300;
+	private static final Set<LlmErrorCode> RETRYABLE = Set.of(LlmErrorCode.RATE_LIMITED, LlmErrorCode.UNAVAILABLE);
 
 	/**
 	 * 비교 후보. 사고(thinking)하는 모델은 운영 상한(300)에서 잘리므로 상한을 따로 준다.
@@ -156,15 +163,46 @@ class SearchMissInterpreterEvalTest {
 		LlmRequest request = new LlmRequest(model.ref().provider(), model.ref().model(),
 			interpreter.buildPrompt(evalCase.keyword(), posts), SearchMissKeywordInterpreter.RESPONSE_SCHEMA, 0.0,
 			model.maxOutputTokens());
-		LlmResult<InterpretAnswer> result;
-		try {
-			result = registry.generateStructured(request, InterpretAnswer.class);
-		} catch (LlmException e) {
-			return Outcome.error(evalCase, e.getLlmErrorCode().getCode());
+		LlmResult<InterpretAnswer> result = null;
+		LlmException lastError = null;
+		// 한도 초과·일시 장애는 모델 품질이 아니라 실행 환경 문제라 잠깐 쉬고 다시 부른다
+		for (int attempt = 0; attempt < MAX_ATTEMPTS && result == null; attempt++) {
+			try {
+				result = registry.generateStructured(request, InterpretAnswer.class);
+			} catch (LlmException e) {
+				lastError = e;
+				if (!RETRYABLE.contains(e.getLlmErrorCode())) {
+					break;
+				}
+				sleep(RETRY_BACKOFF_MS * (1L << attempt));
+			}
+		}
+		if (result == null) {
+			return Outcome.error(evalCase, describe(lastError));
 		}
 		InterpretAnswer answer = result.value();
 		KeywordInterpretation verified = interpreter.verify(evalCase.keyword(), posts, answer);
 		return Outcome.graded(evalCase, answer, verified, result, model.costUsd(result));
+	}
+
+	/** 오류 코드만으로는 원인을 못 찾는다 — HTTP 상태와 응답 본문 앞부분을 같이 남긴다(키는 본문에 실리지 않는다) */
+	private static String describe(LlmException error) {
+		String code = error.getLlmErrorCode().getCode();
+		Throwable cause = error.getCause();
+		if (cause instanceof RestClientResponseException response) {
+			String body = response.getResponseBodyAsString();
+			return code + " HTTP " + response.getStatusCode().value() + " "
+				+ body.substring(0, Math.min(body.length(), ERROR_BODY_LIMIT)).replace('\n', ' ');
+		}
+		return cause == null ? code : code + " " + cause.getClass().getSimpleName() + ": " + cause.getMessage();
+	}
+
+	private static void sleep(long millis) {
+		try {
+			Thread.sleep(millis);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+		}
 	}
 
 	private static String report(Map<ModelSpec, List<Outcome>> outcomes, List<EvalCase> cases, int runs,
@@ -206,6 +244,12 @@ class SearchMissInterpreterEvalTest {
 			}
 			report.append('\n');
 		}
+		report.append("\n### 오류 예시 (모델마다 첫 오류)\n\n");
+		outcomes.forEach((model, modelOutcomes) -> modelOutcomes.stream()
+			.filter(outcome -> outcome.error() != null)
+			.findFirst()
+			.ifPresent(outcome -> report.append("- `").append(model.label()).append("`: ")
+				.append(outcome.error()).append('\n')));
 		return report.toString();
 	}
 
