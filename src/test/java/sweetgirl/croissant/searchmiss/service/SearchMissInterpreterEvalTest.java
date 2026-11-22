@@ -58,6 +58,9 @@ import sweetgirl.croissant.searchmiss.service.SearchMissKeywordInterpreter.Inter
  * <p>채점은 운영 코드 기준이다. 모델 답을 {@link SearchMissKeywordInterpreter#verify}에 그대로 통과시켜
  * <b>치명</b>(가게가 아닌데 STORE로 통과, 다른 가게 이름으로 통과)과 <b>놓침</b>(가게인데 통과 못 해 사람 검토로 감)을 가른다.
  * 운영 모델이 치명 0 · refersTo 정확도 {@value #MIN_ACCURACY} 이상을 못 넘기면 테스트가 실패한다(CI 게이트).
+ *
+ * <p>추출은 필드마다 따로 채점한다(검증 전 모델 원래 답 기준). 기준 1 refersTo, 기준 2 officialName, 기준 3 evidence.
+ * 가게를 놓친 실행은 원인(분류 / 상호 / 근거 번호 / 검색 한계 / 별명 확인)으로 나눠 센다.
  */
 @Tag("llm")
 class SearchMissInterpreterEvalTest {
@@ -74,6 +77,8 @@ class SearchMissInterpreterEvalTest {
 	private static final long RETRY_BACKOFF_MS = 2_000;
 	private static final int ERROR_BODY_LIMIT = 300;
 	private static final Set<LlmErrorCode> RETRYABLE = Set.of(LlmErrorCode.RATE_LIMITED, LlmErrorCode.UNAVAILABLE);
+	/** 운영 검증과 같은 값 — 상호가 적힌 근거 글이 이만큼 있어야 STORE로 확정된다 */
+	private static final int MIN_EVIDENCE_POSTS = new SearchMissTriageProperties().getMinEvidencePosts();
 
 	/**
 	 * 비교 후보. 사고(thinking)하는 모델은 운영 상한(300)에서 잘리므로 상한을 따로 준다.
@@ -191,7 +196,7 @@ class SearchMissInterpreterEvalTest {
 		}
 		InterpretAnswer answer = result.value();
 		KeywordInterpretation verified = interpreter.verify(evalCase.keyword(), posts, answer);
-		return Outcome.graded(evalCase, answer, verified, result, model.costUsd(result));
+		return Outcome.graded(evalCase, posts, answer, verified, result, model.costUsd(result));
 	}
 
 	/** 오류 코드만으로는 원인을 못 찾는다 — HTTP 상태와 응답 본문 앞부분을 같이 남긴다(키는 본문에 실리지 않는다) */
@@ -233,6 +238,54 @@ class SearchMissInterpreterEvalTest {
 					ratioText(truePositive, actual)));
 			}
 			table.append('\n');
+		});
+		return table.toString();
+	}
+
+	/**
+	 * 추출을 필드마다 따로 채점한다 — 정확도 하나로 보면 상호를 틀렸는지, 근거를 못 댔는지가 섞인다.
+	 * 분류는 정답이 STORE인 실행 전체, 추출 필드는 그중 모델이 STORE로 답한(추출을 시도한) 실행이 분모다.
+	 * evidence 기준이 "상호가 글자 그대로 적힌 글"을 세므로, 글에 없는 상호를 지어낸 경우도 여기서 떨어진다.
+	 */
+	private static String fieldMetrics(Map<ModelSpec, List<Outcome>> outcomes) {
+		StringBuilder table = new StringBuilder("\n### 필드별 채점 (정답이 STORE인 실행, 호출 오류 제외)\n\n"
+			+ "분류는 정답이 STORE인 실행 전체, 추출 필드는 그중 모델이 STORE로 답한 실행이 분모다.\n\n"
+			+ "| 모델 | 기준 1 · refersTo = STORE (분류) | 기준 2 · officialName 정답 (추출) "
+			+ "| 기준 3 · evidence 범위 안 + 상호 적힌 글 " + MIN_EVIDENCE_POSTS + "개 이상 (추출) |\n|---|---|---|---|\n");
+		outcomes.forEach((model, modelOutcomes) -> {
+			List<Outcome> storeRuns = modelOutcomes.stream()
+				.filter(outcome -> outcome.error() == null && outcome.evalCase().expectsStore())
+				.toList();
+			List<Outcome> extracted = storeRuns.stream().filter(outcome -> "STORE".equals(outcome.refersTo())).toList();
+			table.append(String.format(Locale.ROOT, "| `%s` | %s | %s | %s |%n", model.label(),
+				ratioText(extracted.size(), storeRuns.size()),
+				ratioText(extracted.stream().filter(outcome -> Boolean.TRUE.equals(outcome.nameCorrect())).count(),
+					extracted.size()),
+				ratioText(extracted.stream().filter(outcome -> Boolean.TRUE.equals(outcome.evidenceValid())).count(),
+					extracted.size())));
+		});
+		return table.toString();
+	}
+
+	/** 가게를 놓친 실행을 원인별로 센다. 분류 실패(특히 MENU·REGION)는 검증 없이 묻혀 가장 비싸고, 검색 한계는 프롬프트로 못 고친다 */
+	private static String missReasons(Map<ModelSpec, List<Outcome>> outcomes) {
+		StringBuilder table = new StringBuilder("\n### 놓친 원인 (정답이 STORE인데 STORE로 확정 못 한 실행)\n\n| 모델 |");
+		Arrays.stream(MissReason.values()).forEach(reason -> table.append(' ').append(reason.label()).append(" |"));
+		table.append(" 호출 오류 |\n|---|");
+		Arrays.stream(MissReason.values()).forEach(reason -> table.append("---|"));
+		table.append("---|\n");
+		outcomes.forEach((model, modelOutcomes) -> {
+			table.append("| `").append(model.label()).append("` |");
+			for (MissReason reason : MissReason.values()) {
+				table.append(' ')
+					.append(modelOutcomes.stream().filter(outcome -> outcome.missReason() == reason).count())
+					.append(" |");
+			}
+			table.append(' ')
+				.append(modelOutcomes.stream()
+					.filter(outcome -> outcome.error() != null && outcome.evalCase().expectsStore())
+					.count())
+				.append(" |\n");
 		});
 		return table.toString();
 	}
@@ -281,6 +334,8 @@ class SearchMissInterpreterEvalTest {
 					summary.avgInputTokens(), summary.avgOutputTokens(), summary.costPerThousand()));
 			});
 		report.append(labelMetrics(outcomes));
+		report.append(fieldMetrics(outcomes));
+		report.append(missReasons(outcomes));
 
 		report.append("\n### 케이스별 (맞힌 횟수 / 실행 횟수, ✗ = 치명 포함)\n\n| 검색어 | 유형 | 정답 |");
 		outcomes.keySet().forEach(model -> report.append(" `").append(model.label()).append("` |"));
@@ -392,11 +447,33 @@ class SearchMissInterpreterEvalTest {
 	private record Post(String title, String description) {
 	}
 
+	/** 가게를 놓친 이유. 위에서부터 먼저 걸리는 것 하나로 센다 */
+	private enum MissReason {
+		CLASSIFIED_MENU_REGION("분류: MENU·REGION으로 샘"),
+		CLASSIFIED_UNKNOWN("분류: UNKNOWN"),
+		WRONG_NAME("추출: 상호 틀림"),
+		SEARCH_LIMIT("검색 한계: 정답 상호가 적힌 글 " + MIN_EVIDENCE_POSTS + "개 미만"),
+		WEAK_EVIDENCE("추출: 근거 번호 부족"),
+		ALIAS_UNCONFIRMED("별명 확인 실패: 검색어와 상호가 함께 나온 글 부족");
+
+		private final String label;
+
+		MissReason(String label) {
+			this.label = label;
+		}
+
+		String label() {
+			return label;
+		}
+	}
+
 	/**
 	 * 한 번 실행의 채점 결과.
 	 *
 	 * @param critical 가게가 아닌데 STORE로 통과했거나, 다른 가게 이름으로 통과했다 — 잘못된 가게가 후보에 오른다
 	 * @param missed 가게인데 STORE로 통과하지 못했다 — 사람 검토로 넘어가는 안전한 실패
+	 * @param nameCorrect 기준 2. 정답이 STORE이고 모델이 STORE로 답했을 때만 채점(아니면 null). 검증 전 모델 원래 답 기준
+	 * @param evidenceValid 기준 3. 근거 번호가 모두 범위 안이고, 그중 상호가 글자 그대로 적힌 글이 기준 개수 이상인가
 	 */
 	private record Outcome(
 			EvalCase evalCase,
@@ -407,30 +484,89 @@ class SearchMissInterpreterEvalTest {
 			boolean pipelineCorrect,
 			boolean critical,
 			boolean missed,
+			Boolean nameCorrect,
+			Boolean evidenceValid,
+			MissReason missReason,
 			String error,
 			long latencyMs,
 			int inputTokens,
 			int outputTokens,
 			Double costUsd) {
 
-		static Outcome graded(EvalCase evalCase, InterpretAnswer answer, KeywordInterpretation verified,
-				LlmResult<?> result, Double costUsd) {
+		static Outcome graded(EvalCase evalCase, List<NaverBlogPost> posts, InterpretAnswer answer,
+				KeywordInterpretation verified, LlmResult<?> result, Double costUsd) {
 			boolean refersToCorrect = evalCase.expectedRefersTo().contains(answer.refersTo());
 			boolean passedAsStore = verified.kind() == KeywordInterpretation.Kind.STORE;
-			boolean nameMatches = passedAsStore && evalCase.expectedNames().stream()
-				.anyMatch(name -> SearchMissTextMatcher.baseName(name)
-					.equals(SearchMissTextMatcher.baseName(verified.officialName())));
+			boolean nameMatches = passedAsStore && matchesExpectedName(evalCase, verified.officialName());
 			boolean critical = passedAsStore && (!evalCase.expectsStore() || !nameMatches);
 			boolean missed = evalCase.expectsStore() && !passedAsStore;
 			boolean pipelineCorrect = evalCase.expectsStore() ? nameMatches : !passedAsStore;
+
+			Boolean nameCorrect = null;
+			Boolean evidenceValid = null;
+			if (evalCase.expectsStore() && "STORE".equals(answer.refersTo())) {
+				nameCorrect = matchesExpectedName(evalCase, answer.officialName());
+				evidenceValid = isEvidenceValid(posts, answer);
+			}
+			MissReason missReason = missed ? missReason(evalCase, posts, answer, nameCorrect, evidenceValid) : null;
 			return new Outcome(evalCase, answer.refersTo(), answer.officialName(), verified.kind(), refersToCorrect,
-				pipelineCorrect, critical, missed, null, result.latencyMs(), result.inputTokens(),
-				result.outputTokens(), costUsd);
+				pipelineCorrect, critical, missed, nameCorrect, evidenceValid, missReason, null, result.latencyMs(),
+				result.inputTokens(), result.outputTokens(), costUsd);
 		}
 
 		static Outcome error(EvalCase evalCase, String error) {
-			return new Outcome(evalCase, null, null, null, false, false, false, evalCase.expectsStore(), error, 0L,
-				0, 0, null);
+			return new Outcome(evalCase, null, null, null, false, false, false, evalCase.expectsStore(), null, null,
+				null, error, 0L, 0, 0, null);
+		}
+
+		private static boolean matchesExpectedName(EvalCase evalCase, String officialName) {
+			if (officialName == null || officialName.isBlank()) {
+				return false;
+			}
+			String actual = SearchMissTextMatcher.baseName(officialName);
+			return evalCase.expectedNames().stream()
+				.anyMatch(name -> SearchMissTextMatcher.baseName(name).equals(actual));
+		}
+
+		/**
+		 * 기준 3. 같은 글은 한 번만 센다. 운영 verifyStore 는 범위 밖 번호를 조용히 버리지만, 채점에서는 없는 글 번호를 댄 것 자체를
+		 * 실패로 본다 — 출력 품질을 보는 기준이라서다.
+		 */
+		private static boolean isEvidenceValid(List<NaverBlogPost> posts, InterpretAnswer answer) {
+			List<Integer> cited = answer.evidence() == null ? List.of() : answer.evidence();
+			boolean allInRange = cited.stream().allMatch(number -> number != null && number >= 1
+				&& number <= posts.size());
+			long supporting = cited.stream()
+				.filter(number -> number != null && number >= 1 && number <= posts.size())
+				.distinct()
+				.filter(number -> SearchMissTextMatcher.appearsIn(answer.officialName(), posts.get(number - 1).text()))
+				.count();
+			return allInRange && supporting >= MIN_EVIDENCE_POSTS;
+		}
+
+		private static MissReason missReason(EvalCase evalCase, List<NaverBlogPost> posts, InterpretAnswer answer,
+				Boolean nameCorrect, Boolean evidenceValid) {
+			if ("MENU".equals(answer.refersTo()) || "REGION".equals(answer.refersTo())) {
+				return MissReason.CLASSIFIED_MENU_REGION;
+			}
+			if (!"STORE".equals(answer.refersTo())) {
+				return MissReason.CLASSIFIED_UNKNOWN;
+			}
+			if (!Boolean.TRUE.equals(nameCorrect)) {
+				return MissReason.WRONG_NAME;
+			}
+			// 정답 상호가 적힌 글이 원래 모자라면 모델이 무엇을 해도 검증을 못 넘는다 — 프롬프트가 아니라 검색 결과의 한계
+			long postsWithName = posts.stream()
+				.filter(post -> evalCase.expectedNames().stream()
+					.anyMatch(name -> SearchMissTextMatcher.appearsIn(name, post.text())))
+				.count();
+			if (postsWithName < MIN_EVIDENCE_POSTS) {
+				return MissReason.SEARCH_LIMIT;
+			}
+			if (!Boolean.TRUE.equals(evidenceValid)) {
+				return MissReason.WEAK_EVIDENCE;
+			}
+			return MissReason.ALIAS_UNCONFIRMED;
 		}
 
 		Map<String, Object> toRow(ModelSpec model) {
@@ -444,6 +580,9 @@ class SearchMissInterpreterEvalTest {
 			row.put("refersToCorrect", refersToCorrect);
 			row.put("critical", critical);
 			row.put("missed", missed);
+			row.put("nameCorrect", nameCorrect);
+			row.put("evidenceValid", evidenceValid);
+			row.put("missReason", missReason == null ? null : missReason.name());
 			row.put("error", error);
 			row.put("latencyMs", latencyMs);
 			row.put("inputTokens", inputTokens);
