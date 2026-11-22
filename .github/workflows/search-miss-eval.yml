@@ -25,6 +25,10 @@ on:
         description: "케이스마다 반복 횟수"
         required: false
         default: '3'
+      max_posts:
+        description: "프롬프트에 넣을 블로그 글 최대 개수 (비우면 전부)"
+        required: false
+        default: ''
 
 concurrency:
   group: search-miss-eval-${{ github.event.pull_request.number || github.ref }}
@@ -65,6 +69,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           EVAL_MODELS: ${{ inputs.models }}
           EVAL_RUNS: ${{ inputs.runs || '3' }}
+          EVAL_MAX_POSTS: ${{ inputs.max_posts }}
         run: ./gradlew test -PllmTests --tests "*SearchMissInterpreterEvalTest" -x spotlessCheck --no-daemon
 
       - name: Upload eval report

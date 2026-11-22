@@ -53,6 +53,7 @@ import sweetgirl.croissant.searchmiss.service.SearchMissKeywordInterpreter.Inter
  *   <li>{@code EVAL_MODELS} — {@code 벤더:모델[@출력토큰상한]} 쉼표 목록. 비우면 {@link #DEFAULT_MODELS}</li>
  *   <li>{@code EVAL_RUNS} — 케이스마다 몇 번 돌릴지(기본 3). LLM 은 같은 입력에도 답이 흔들려 한 번으로는 판단하지 않는다</li>
  *   <li>{@code EVAL_CONCURRENCY} — 동시 호출 수(기본 4)</li>
+ *   <li>{@code EVAL_MAX_POSTS} — 프롬프트에 넣을 블로그 글 최대 개수(기본 전부). 입력 토큰과 정확도의 트레이드오프를 잴 때 쓴다</li>
  * </ul>
  *
  * <p>채점은 운영 코드 기준이다. 모델 답을 {@link SearchMissKeywordInterpreter#verify}에 그대로 통과시켜
@@ -173,7 +174,9 @@ class SearchMissInterpreterEvalTest {
 
 	private Outcome evaluateOne(LlmClientRegistry registry, SearchMissKeywordInterpreter interpreter,
 			ModelSpec model, EvalCase evalCase) {
-		List<NaverBlogPost> posts = evalCase.blogPosts();
+		// 저장된 글은 관련도순이라 앞 N개만 쓰면 운영에서 N개만 받은 것과 같은 조건이 된다
+		List<NaverBlogPost> allPosts = evalCase.blogPosts();
+		List<NaverBlogPost> posts = allPosts.subList(0, Math.min(allPosts.size(), maxPosts()));
 		LlmRequest request = new LlmRequest(model.ref().provider(), model.ref().model(),
 			interpreter.buildPrompt(evalCase.keyword(), posts), SearchMissKeywordInterpreter.RESPONSE_SCHEMA, 0.0,
 			model.maxOutputTokens());
@@ -318,8 +321,9 @@ class SearchMissInterpreterEvalTest {
 			int runs, String gateModel) {
 		StringBuilder report = new StringBuilder();
 		report.append("## 실패 검색어 해석 평가 — ").append(title).append("\n\n")
-			.append(String.format(Locale.ROOT, "평가셋 %d건 × %d회. 운영 모델 `%s` 기준: 치명 0, refersTo 정확도 ≥ %.2f%n%n",
-				cases.size(), runs, gateModel, MIN_ACCURACY))
+			.append(String.format(Locale.ROOT, "평가셋 %d건 × %d회, 블로그 글 %s. 운영 모델 `%s` 기준: 치명 0, refersTo 정확도 ≥ %.2f%n%n",
+				cases.size(), runs, maxPosts() == Integer.MAX_VALUE ? "전부" : "최대 " + maxPosts() + "개", gateModel,
+				MIN_ACCURACY))
 			.append("| 모델 | refersTo 정확도 | 파이프라인 정답 | 치명 | 놓침 | 오류 | 지연 p50 / p95 (ms) | 평균 토큰 입력/출력 | 1,000건당 비용 |\n")
 			.append("|---|---|---|---|---|---|---|---|---|\n");
 		outcomes.entrySet().stream()
@@ -398,6 +402,11 @@ class SearchMissInterpreterEvalTest {
 			? DEFAULT_MODELS
 			: Arrays.stream(configured.split(",")).map(String::trim).filter(value -> !value.isEmpty()).toList();
 		return values.stream().map(value -> ModelSpec.parse(value, defaultMaxOutputTokens)).toList();
+	}
+
+	/** 프롬프트에 넣을 블로그 글 최대 개수. 비우면 저장된 글 전부(운영 기본 10개와 같음) */
+	private static int maxPosts() {
+		return Integer.parseInt(envOrDefault("EVAL_MAX_POSTS", String.valueOf(Integer.MAX_VALUE)));
 	}
 
 	private static String envOrDefault(String name, String defaultValue) {
