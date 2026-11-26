@@ -65,12 +65,23 @@ services:
       SLACK_ABUSE_WEBHOOK_URL: ${SLACK_ABUSE_WEBHOOK_URL}
       SLACK_LETTER_WEBHOOK_URL: ${SLACK_LETTER_WEBHOOK_URL}
       SLACK_SEARCH_MISS_WEBHOOK_URL: ${SLACK_SEARCH_MISS_WEBHOOK_URL:-}
-      LAMBDA_CALLBACK_SECRET_KEY: ${LAMBDA_CALLBACK_SECRET_KEY}
-      AWS_REGION: ${AWS_REGION}
-      OPENSEARCH_REGION: ${OPENSEARCH_REGION:-ap-northeast-2}
-      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      IMAGE_CALLBACK_SECRET_KEY: ${IMAGE_CALLBACK_SECRET_KEY}
+      # 이미지 저장소 — OCI Object Storage 를 S3 호환 API 로 쓴다. 주소를 비우면 AWS S3 로 붙는다.
+      STORAGE_REGION: ${STORAGE_REGION}
+      STORAGE_BUCKET: ${STORAGE_BUCKET}
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-}
+      STORAGE_PATH_STYLE: ${STORAGE_PATH_STYLE:-false}
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:-}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:-}
+      # Redis — 같은 서버의 docker-compose.infra.yml 이 띄운다. 스위치는 기본 꺼짐(지금 운영과 같다).
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      AUTOCOMPLETE_CACHE_ENABLED: ${AUTOCOMPLETE_CACHE_ENABLED:-false}
+      # 예약 작업 전체 스위치. 기본값을 두지 않는다 — 비면 기동을 막아, 켤지 끌지를 반드시 정하게 한다.
+      SCHEDULING_ENABLED: ${SCHEDULING_ENABLED:?SCHEDULING_ENABLED 를 true 나 false 로 정해야 한다}
+      TRENDING_ENABLED: ${TRENDING_ENABLED:-false}
       POSTHOG_API_KEY: ${PROD_POSTHOG_API_KEY}
-      OPENSEARCH_DEBUG_LOGGING: ${OPENSEARCH_DEBUG_LOGGING:-INFO}
       GUEST_WRITE_BLOCKED: ${GUEST_WRITE_BLOCKED:-false}
       PERF_DASHBOARD_ENABLED: ${PERF_DASHBOARD_ENABLED:-false}
       PERF_DASHBOARD_ACCESS_KEY: ${PERF_DASHBOARD_ACCESS_KEY:-}
@@ -79,12 +90,19 @@ services:
       ADMIN_WEB_BASE_URL: ${ADMIN_WEB_BASE_URL:-}
 
     ports:
-      # 앞단 Nginx가 bastion(다른 호스트)에 있으므로 127.0.0.1 바인딩은 쓸 수 없다.
-      # 대신 WAS 보안그룹 인바운드를 bastion 보안그룹으로만 제한한다.
-      - "${APP_HOST_PORT}:8080"
-      # actuator 관리 포트 — 인증이 없으므로 인바운드를 Prometheus 인스턴스 SG로 제한한다.
-      - "${MGMT_HOST_PORT}:8081"
+      # 앞단 Nginx 가 같은 호스트에 있으므로 127.0.0.1 에만 연다.
+      # Docker 가 여는 포트는 호스트 방화벽(iptables INPUT)을 거치지 않는다 — 주소를 빼면 인터넷에 그대로 열린다.
+      - "127.0.0.1:${APP_HOST_PORT}:8080"
+      # actuator 관리 포트 — 인증이 없으므로 서버 안에서만 본다.
+      - "127.0.0.1:${MGMT_HOST_PORT}:8081"
     volumes:
       # 컨테이너가 교체되면 안의 파일은 사라지므로 호스트(~/app/dumps/<색>)에 남긴다.
       # 두 색 모두 pid 1 이라 파일 이름이 같아서 폴더를 색깔별로 나눈다.
       - ./dumps/${COLOR}:/app/dumps
+
+# postgres · redis 는 docker-compose.infra.yml 이 띄우고 이 네트워크에 붙어 있다.
+# 앱은 색깔(blue/green)마다 다른 compose 프로젝트라 기본 네트워크가 갈리므로, 공용 네트워크에 직접 붙인다.
+networks:
+  default:
+    name: bbang-infra
+    external: true

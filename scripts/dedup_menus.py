@@ -27,8 +27,9 @@ import csv
 from collections import defaultdict
 from pathlib import Path
 
-import boto3
 import psycopg2
+
+from storage_client import s3_client
 
 REVIEW_CSV = Path(__file__).resolve().parent / "menu_dedup_manual_review.csv"
 CUTOFF = "2026-05-27"  # 이 날짜 이전 created_at 은 수기 데이터 — 건드리지 않음
@@ -87,10 +88,7 @@ def main() -> None:
 	conn = psycopg2.connect(**db_config(cfg), connect_timeout=10)
 	conn.autocommit = False
 	cur = conn.cursor()
-	s3 = boto3.client(
-		"s3", region_name=cfg["aws.region"],
-		aws_access_key_id=cfg["aws.credentials.access-key"],
-		aws_secret_access_key=cfg["aws.credentials.secret-key"])
+	s3 = s3_client(cfg)
 
 	cur.execute("SELECT id, store_id, name, price, description, created_at FROM menu WHERE deleted_at IS NULL")
 	rows = cur.fetchall()
@@ -183,7 +181,7 @@ def main() -> None:
 	s3_deleted = 0
 	if args.apply:
 		conn.commit()
-		bucket = cfg["aws.s3.bucket"]
+		bucket = cfg["storage.bucket"]
 		for i in range(0, len(orphan_keys), 1000):
 			batch = [{"Key": k} for k in orphan_keys[i:i + 1000]]
 			if batch:

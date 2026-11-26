@@ -259,7 +259,7 @@
 
 ## 부록 A. 변경하지 않는 것 (합의된 예외)
 
-- `@ConfigurationProperties` 클래스의 `@Setter` (`AwsProperties` 등) — 허용 패턴, 유지.
+- `@ConfigurationProperties` 클래스의 `@Setter` (`StorageProperties` 등) — 허용 패턴, 유지.
 - `member/entity/NotificationSetting.java`의 `setDaysOfWeekList` — String↔List 변환 헬퍼, 유지.
 - 정상 흐름 null 반환(필터/DTO 팩토리) — Phase 5에서 개별 판정.
 - `contribution`(service 없음)·`dev`(개발용) — CQRS 제외.
