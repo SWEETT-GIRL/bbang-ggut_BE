@@ -17,7 +17,7 @@ package sweetgirl.dataops.serving.dto;
  */
 public record MenuUpsertResult(Long menuId, Outcome outcome, Integer previousPrice, String previousDescription) {
 
-	public enum Outcome { INSERTED, UPDATED, BLOCKED_USER_MENU, BLOCKED_DISTINCT_NAME }
+	public enum Outcome { INSERTED, UPDATED, BLOCKED_USER_MENU, BLOCKED_DISTINCT_NAME, BLOCKED_EXISTING_MENU }
 
 	public static MenuUpsertResult inserted(Long menuId) {
 		return new MenuUpsertResult(menuId, Outcome.INSERTED, null, null);
@@ -35,6 +35,10 @@ public record MenuUpsertResult(Long menuId, Outcome outcome, Integer previousPri
 		return new MenuUpsertResult(menuId, Outcome.BLOCKED_DISTINCT_NAME, null, null);
 	}
 
+	public static MenuUpsertResult blockedByExistingMenu(Long menuId) {
+		return new MenuUpsertResult(menuId, Outcome.BLOCKED_EXISTING_MENU, null, null);
+	}
+
 	public boolean inserted() {
 		return outcome == Outcome.INSERTED;
 	}
@@ -44,6 +48,7 @@ public record MenuUpsertResult(Long menuId, Outcome outcome, Integer previousPri
 	}
 
 	public boolean blocked() {
-		return outcome == Outcome.BLOCKED_USER_MENU || outcome == Outcome.BLOCKED_DISTINCT_NAME;
+		return outcome == Outcome.BLOCKED_USER_MENU || outcome == Outcome.BLOCKED_DISTINCT_NAME
+			|| outcome == Outcome.BLOCKED_EXISTING_MENU;
 	}
 }

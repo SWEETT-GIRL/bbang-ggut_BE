@@ -67,7 +67,7 @@ class CaptureReplayServiceTest {
 		when(journal.receipt(any(), anyString(), anyString())).thenAnswer(call -> Optional.ofNullable(receipts.get(call.getArgument(2))));
 		doAnswer(call -> { receipts.put(call.getArgument(1), call.getArgument(3)); return null; }).when(journal).append(any(), anyString(), any(), any(), anyList());
 		when(journal.canaryPassed(any())).thenAnswer(call -> receipts.containsKey("CANARY") && "PARSED".equals(receipts.get("CANARY").status()));
-		when(reconcile.reconcileCapturedReplay(anyLong(), any(), anyBoolean())).thenReturn(List.of());
+		when(reconcile.reconcileCapturedReplay(anyLong(), any(), anyBoolean(), anyBoolean())).thenReturn(List.of());
 		var manager = mock(PlatformTransactionManager.class);
 		when(manager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
 		service = new CaptureReplayService(authorities, journal, barrier, states, diagnostics, parser, reconcile, mapper, manager);
@@ -90,7 +90,7 @@ class CaptureReplayServiceTest {
 		when(authorities.getIfAvailable()).thenReturn(null);
 		assertThatThrownBy(() -> service.canary(plan.operationId(), HASH)).hasMessage("AUTHENTICATED_REPLAY_APPROVAL_REQUIRED");
 		verifyNoInteractions(journal, barrier, states);
-		verify(reconcile, never()).reconcileCapturedReplay(any(), any(), anyBoolean());
+		verify(reconcile, never()).reconcileCapturedReplay(any(), any(), anyBoolean(), anyBoolean());
 	}
 	@Test void runtime_mismatch_never_starts_replay() {
 		when(authority.currentRuntime()).thenReturn(new VerifiedReplayAuthority.RuntimeIdentity("other-release", HASH));
@@ -99,7 +99,7 @@ class CaptureReplayServiceTest {
 	}
 	@Test void canary_must_precede_expansion() {
 		assertThatThrownBy(() -> service.replay(plan.operationId(), HASH)).hasMessage("CANARY_NOT_PASSED");
-		verify(reconcile, never()).reconcileCapturedReplay(any(), any(), anyBoolean());
+		verify(reconcile, never()).reconcileCapturedReplay(any(), any(), anyBoolean(), anyBoolean());
 	}
 	@Test void canary_and_replay_preserve_original_raw_state_and_duplicate_receipts() {
 		var original = capture;
@@ -107,14 +107,14 @@ class CaptureReplayServiceTest {
 		var canary = service.canary(plan.operationId(), HASH);
 		assertThat(canary.passed()).isTrue();
 		assertThat(canary.operatingWrites()).isZero();
-		verify(reconcile, never()).reconcileCapturedReplay(any(), any(), anyBoolean());
+		verify(reconcile, never()).reconcileCapturedReplay(any(), any(), anyBoolean(), anyBoolean());
 		var first = service.replay(plan.operationId(), HASH);
 		var repeated = service.replay(plan.operationId(), HASH);
 		assertThat(first).isEqualTo(repeated);
 		assertThat(first.items().get(0).status()).isEqualTo("NO_CHANGE");
 		assertThat(capture).isEqualTo(original);
 		assertThat(state.getAttemptSeq()).isEqualTo(attempt);
-		verify(reconcile, times(1)).reconcileCapturedReplay(eq(1L), any(), eq(true));
+		verify(reconcile, times(1)).reconcileCapturedReplay(eq(1L), any(), eq(true), eq(false));
 		verify(states, never()).save(any());
 		verify(journal, times(2)).append(any(), anyString(), any(), any(), anyList());
 	}
@@ -124,12 +124,12 @@ class CaptureReplayServiceTest {
 		var result = service.replay(plan.operationId(), HASH);
 		assertThat(result.passed()).isFalse();
 		assertThat(result.items().get(0).reason()).isEqualTo("STALE_CAPTURE");
-		verify(reconcile, never()).reconcileCapturedReplay(any(), any(), anyBoolean());
+		verify(reconcile, never()).reconcileCapturedReplay(any(), any(), anyBoolean(), anyBoolean());
 	}
 	@Test void later_attempt_or_identity_change_cannot_replay_old_raw() {
 		ReflectionTestUtils.setField(state, "attemptSeq", 1L);
 		assertThat(service.canary(plan.operationId(), HASH).items().get(0).status()).isEqualTo("STALE");
-		verify(reconcile, never()).reconcileCapturedReplay(any(), any(), anyBoolean());
+		verify(reconcile, never()).reconcileCapturedReplay(any(), any(), anyBoolean(), anyBoolean());
 	}
 	@Test void tampered_raw_or_original_metadata_is_held() {
 		capture = new ReplayJournal.Capture(capture.captureId(), 1, "NAVER", "123", capture.observedAt(), capture.receivedAt(), 0L,
@@ -140,13 +140,13 @@ class CaptureReplayServiceTest {
 		var target = plan.targets().get(0);
 		plan = withTargets(List.of(new ReplayPlan.Target(target.captureId(), target.payloadDigest(), 1, "123", target.observedAt(), 0L, HASH)));
 		assertThat(service.canary(plan.operationId(), HASH).items().get(0).reason()).isEqualTo("CANDIDATE_RESULT_MISMATCH");
-		verify(reconcile, never()).reconcileCapturedReplay(any(), any(), anyBoolean());
+		verify(reconcile, never()).reconcileCapturedReplay(any(), any(), anyBoolean(), anyBoolean());
 	}
 	@Test void created_and_reused_proposals_are_distinct_and_removal_is_explicitly_held() {
 		var created = new ReconcileService.ReplayProposal(11L, true, "NAVER_SNAPSHOT_RECONCILE", null, UUID.randomUUID(), "store.name", "old", "new", null);
 		var reused = new ReconcileService.ReplayProposal(12L, false, "LEGACY_UNKNOWN", 88L, UUID.randomUUID(), "menu.9.removed", "old", null,
 			"REPLAY_MENU_REMOVAL_REQUIRES_MANIFEST_GATE");
-		when(reconcile.reconcileCapturedReplay(anyLong(), any(), anyBoolean())).thenReturn(List.of(created, reused));
+		when(reconcile.reconcileCapturedReplay(anyLong(), any(), anyBoolean(), anyBoolean())).thenReturn(List.of(created, reused));
 		service.canary(plan.operationId(), HASH);
 		var receipt = service.replay(plan.operationId(), HASH).items().get(0);
 		assertThat(receipt.createdProposalIds()).containsExactly(11L);

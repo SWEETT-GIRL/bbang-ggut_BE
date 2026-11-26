@@ -81,6 +81,23 @@ class ChangeProposalRepositoryTest {
 		return repository.findById(proposal.getId()).orElseThrow().getStatus();
 	}
 
+	@Test void source_expiration_keeps_other_sources_unseen_targets_and_non_pending_proposals() {
+		var observed = save(1L, "menu.501.price", ProvenanceSource.BAEMIN, ProposalProducer.NAVER_SNAPSHOT_RECONCILE);
+		var unseen = save(1L, "menu.502.price", ProvenanceSource.BAEMIN, ProposalProducer.NAVER_SNAPSHOT_RECONCILE);
+		var naver = save(1L, "menu.503.price", ProvenanceSource.NAVER, ProposalProducer.NAVER_SNAPSHOT_RECONCILE);
+		var inFlight = save(1L, "menu.504.price", ProvenanceSource.BAEMIN, ProposalProducer.NAVER_SNAPSHOT_RECONCILE);
+		inFlight.beginApply(UUID.randomUUID()); repository.flush();
+		int expired = repository.expireMenuSourceOutOfGeneration(1L, ProposalProducer.NAVER_SNAPSHOT_RECONCILE,
+			ProvenanceSource.BAEMIN, List.of(ProposalTargetFamily.MENU_CONTENT), true,
+			List.of("menu.501.price", "menu.503.price", "menu.504.price"), List.of(0L), 0, "검토");
+		repository.flush();
+		assertThat(expired).isEqualTo(1);
+		assertThat(statusOf(observed)).isEqualTo(ProposalStatus.SUPERSEDED);
+		assertThat(statusOf(unseen)).isEqualTo(ProposalStatus.PENDING);
+		assertThat(statusOf(naver)).isEqualTo(ProposalStatus.PENDING);
+		assertThat(statusOf(inFlight)).isEqualTo(ProposalStatus.APPLYING);
+	}
+
 	@Test
 	void 범위_정리는_같은_가게_같은_producer_의_이번_판정에_안_나온_PENDING_만_넘긴다() {
 		int expired = repository.expireOutOfGeneration(1L, ProposalProducer.NAVER_SNAPSHOT_RECONCILE, JUDGED,

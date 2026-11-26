@@ -376,6 +376,13 @@ class CurrentParserBundleProvider:
             codes = {item["code"] for item in issues}
         except (ValueError, KeyError, TypeError):
             raise Hold("INVALID_DIAGNOSTIC_CONTRACT") from None
+        # Diagnostics enqueue structural suspicions, but missing data is not a license
+        # to invent mappings or price semantics. Persist an explicit review reason
+        # before any model request when no independently reviewed repair contract exists.
+        if codes & {"MENU_CONTAINER_MISSING", "MENU_CONTAINER_UNRECOGNIZED"}:
+            raise Hold("MENU_PATH_CHANGE_REVIEW_REQUIRED")
+        if any(code.startswith("BAEMIN_") for code in codes):
+            raise Hold("BAEMIN_STRUCTURE_REVIEW_REQUIRED")
         if "MENU_ENTITY_UNSUPPORTED" not in codes or not codes <= ALLOWED_ISSUES:
             raise Hold("UNSUPPORTED_REPAIR_FAMILY_REVIEW_REQUIRED")
         snapshot = self.path.parent / "snapshot"

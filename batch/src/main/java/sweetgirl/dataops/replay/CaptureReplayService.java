@@ -128,7 +128,7 @@ public class CaptureReplayService {
 			new ReplayJournal.ItemReceipt(capture.captureId(), "PARSED", null, parsedDigest, parsedJson, List.of(), List.of()), List.of());
 		if (!plan.equals(authorized(plan.operationId(), plan.manifestDigest()))) throw new IllegalStateException("REPLAY_PLAN_CHANGED");
 		// The same transaction still owns raw-observation and sync-state locks; no visit counters, signal refresh or receipts change.
-		var proposals = reconcile.reconcileCapturedReplay(capture.storeId(), parsed, diagnostic.menuAllowed());
+		var proposals = reconcile.reconcileCapturedReplay(capture.storeId(), parsed, diagnostic.menuAllowed(), diagnostic.baeminAllowed());
 		List<Long> created = proposals.stream().filter(ReconcileService.ReplayProposal::created).map(ReconcileService.ReplayProposal::proposalId).toList();
 		List<Long> reused = proposals.stream().filter(p -> !p.created()).map(ReconcileService.ReplayProposal::proposalId).toList();
 		String reason = proposals.stream().map(ReconcileService.ReplayProposal::reviewHoldReason).filter(Objects::nonNull).findFirst().orElse(null);

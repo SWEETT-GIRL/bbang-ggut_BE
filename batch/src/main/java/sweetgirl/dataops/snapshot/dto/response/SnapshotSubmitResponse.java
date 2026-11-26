@@ -1,6 +1,6 @@
 package sweetgirl.dataops.snapshot.dto.response;
 
-/** PARTIAL completes store/hours only; HELD acknowledges durable evidence without downstream processing. */
+/** PARTIAL completes store/hours and individually verified menu sources; HELD acknowledges durable evidence without downstream processing. */
 public record SnapshotSubmitResponse(
 		Long snapshotId,
 		boolean changed,

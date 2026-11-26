@@ -98,6 +98,11 @@ public class StoreSyncState extends BaseTimeEntity {
 	@Column(name = "menu_observed_at")
 	private LocalDateTime menuObservedAt;
 
+	@Column(name = "baemin_menu_hash", length = 64)
+	private String baeminMenuHash;
+	@Column(name = "baemin_menu_observed_at")
+	private LocalDateTime baeminMenuObservedAt;
+
 	/**
 	 * 정기 영업시간 기억 (v3 P2) — 요일별로 마지막에 본 날짜 없는 정기 값. 영업시간 변경은 해시가 아니라 이것과
 	 * 공통 요일끼리 비교해 판정한다(RegularHoursTracker). NULL 이면 아직 추적 전이다.
@@ -181,6 +186,12 @@ public class StoreSyncState extends BaseTimeEntity {
 			this.menuHash = menuHash;
 			this.menuObservedAt = observedAt;
 		}
+	}
+
+	public void recordBaeminObservation(String hash, LocalDateTime observedAt) {
+		if (hash == null) return;
+		this.baeminMenuHash = hash;
+		this.baeminMenuObservedAt = observedAt;
 	}
 
 	/** fetch 실패 — 지수 백오프(1일→2→4…), 연속 10회면 place_id 무효로 판단해 UNLINKED */

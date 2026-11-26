@@ -15,7 +15,7 @@ from agent.response_change.runtime import LEGACY_TEST
 from agent.response_change.worker_cli import make_current_executor
 from agent.tests.test_runtime import ScriptedModel, call, response, result_from, validation
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4] / "batch"
 PROFILE = json.loads((ROOT / PROFILE_PATH).read_text())
 
 
@@ -74,6 +74,13 @@ class CurrentBundleTest(unittest.TestCase):
         self.assertEqual(2, self.verify.call_count)
         self.assertIn('controlled', result.case['normal_evidence'])
         self.assertFalse(result.fixtures[2]['expected']['evidence']['menuComplete'])
+
+    def test_structural_suspicions_enter_review_without_inventing_a_repair_contract(self):
+        for code, reason in [("MENU_CONTAINER_MISSING", "MENU_PATH_CHANGE_REVIEW_REQUIRED"),
+                             ("MENU_CONTAINER_UNRECOGNIZED", "MENU_PATH_CHANGE_REVIEW_REQUIRED"),
+                             ("BAEMIN_FIELD_TYPE_UNSUPPORTED", "BAEMIN_STRUCTURE_REVIEW_REQUIRED")]:
+            with self.subTest(code=code), self.assertRaisesRegex(Hold, reason):
+                self.provider().prepare(incident(diagnostics=[{"code": code}]), [sample()])
 
     def test_mixed_entity_order_is_preserved_in_control(self):
         row = sample()

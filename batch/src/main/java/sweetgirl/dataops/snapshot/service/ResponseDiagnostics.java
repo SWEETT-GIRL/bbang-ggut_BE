@@ -21,7 +21,7 @@ import tools.jackson.databind.node.MissingNode;
 @Component
 public class ResponseDiagnostics {
 	public static final String CONTRACT = "naver-response-v1";
-	public static final String VERSION = "menu-scope-v3-profile";
+	public static final String VERSION = "menu-scope-v4-sources";
 	private final ObjectMapper mapper;
 	private final NaverPlaceParser parser;
 	private final BusinessHoursParser hoursParser;
@@ -57,10 +57,12 @@ public class ResponseDiagnostics {
 			+ "\n" + structureProfile.digest());
 	}
 	public record Issue(String path, String code, String actualType, boolean modelEligible) {}
-	public record Report(String parserDigest, List<Issue> issues) {
-		public boolean held() { return issues.stream().anyMatch(i -> !"MENU_INCOMPLETE".equals(i.code())); }
-		public boolean menuAllowed() { return issues.isEmpty(); }
-		public String assessment() { return held() ? "HELD" : menuAllowed() ? "READY" : "PARTIAL"; }
+	public record Report(String parserDigest, List<Issue> issues, boolean baeminVerified) {
+		public Report(String parserDigest, List<Issue> issues) { this(parserDigest, issues, false); }
+		public boolean baeminAllowed() { return baeminVerified && !held(); }
+		public boolean held() { return issues.stream().anyMatch(i -> !Set.of("MENU_INCOMPLETE", "BAEMIN_INCOMPLETE").contains(i.code())); }
+		public boolean menuAllowed() { return !held() && issues.stream().noneMatch(i -> "MENU_INCOMPLETE".equals(i.code())); }
+		public String assessment() { return held() ? "HELD" : issues.isEmpty() ? "READY" : "PARTIAL"; }
 		public boolean targetVerified() {
 			return issues.stream().noneMatch(i -> Set.of("UNVERIFIED_INPUT", "ROOT_UNKNOWN",
 				"ARGUMENTS_UNSUPPORTED", "ROOT_TYPE_CHANGED", "AMBIGUOUS_BASE", "IDENTITY_UNKNOWN",
@@ -72,12 +74,13 @@ public class ResponseDiagnostics {
 	public Report inspect(SnapshotSubmitRequest request) {
 		List<Issue> issues = new ArrayList<>();
 		String digest = runtimeParserDigest();
-		try { inspect(request, issues); }
+		boolean baeminVerified = false;
+		try { baeminVerified = inspect(request, issues); }
 		catch (RuntimeException e) {
 			boolean mutated = "PARSER_INPUT_MUTATION".equals(e.getMessage());
 			issues.add(new Issue("$", mutated ? "PARSER_INPUT_MUTATION" : "PARSER_EXCEPTION", e.getClass().getSimpleName(), !mutated));
 		}
-		return new Report(digest, List.copyOf(issues));
+		return new Report(digest, List.copyOf(issues), baeminVerified);
 	}
 
 	/** Candidate parsers may normalize their own copy, but must not mutate their caller's input. */
@@ -89,7 +92,7 @@ public class ResponseDiagnostics {
 		}
 	}
 
-	private void inspect(SnapshotSubmitRequest request, List<Issue> issues) {
+	private boolean inspect(SnapshotSubmitRequest request, List<Issue> issues) {
 		JsonNode payload = request.payload();
 		if (!payload.isObject() || request.externalId() == null || request.externalId().isBlank()
 			|| request.observationId() == null || request.observationId().isBlank() || request.observedAt() == null
@@ -97,7 +100,7 @@ public class ResponseDiagnostics {
 			|| request.observedAt().toInstant().isAfter(java.time.Instant.now().plusSeconds(300))
 			|| !"NAVER".equals(request.source().name())) {
 			issues.add(new Issue("$", "UNVERIFIED_INPUT", type(payload), false));
-			return;
+			return false;
 		}
 		if (payload.has("errors") && !payload.path("errors").isEmpty()) {
 			issues.add(new Issue("$.errors", "PARTIAL_RESPONSE", type(payload.path("errors")), false));
@@ -117,14 +120,14 @@ public class ResponseDiagnostics {
 		// NaverPlaceParser currently chooses the first root: do not accept ambiguous cache contents.
 		if (roots.size() != 1 || allRoots != 1) {
 			issues.add(new Issue("placeDetail", "ROOT_UNKNOWN", "ambiguous-or-missing", true));
-			return;
+			return false;
 		}
 		JsonNode root = roots.get(0);
 		if (root.isNull()) {
 			issues.add(new Issue("placeDetail", "EXPLICIT_PAGE_ABSENT", "null", false));
-			return;
+			return false;
 		}
-		if (!root.isObject()) { issues.add(new Issue("placeDetail", "ROOT_TYPE_CHANGED", type(root), true)); return; }
+		if (!root.isObject()) { issues.add(new Issue("placeDetail", "ROOT_TYPE_CHANGED", type(root), true)); return false; }
 		ParsedPlace parsed = parsePreservingInput(parser, payload);
 		if (parsed.name() == null || parsed.name().isBlank()) {
 			issues.add(new Issue("PlaceDetailBase.name", "REQUIRED_FIELD_UNREADABLE", "missing-output", true));
@@ -146,10 +149,12 @@ public class ResponseDiagnostics {
 		parsed.menus().forEach(m -> { if (m.name() != null) names.add(m.name()); });
 		if (!names.equals(new TreeSet<>(evidence.menuNames()))) issues.add(new Issue("menus", "MENU_OUTPUT_MISMATCH", "names", true));
 		int hoursFields = 0;
+		boolean menuContainerPresent = false;
 		for (var field : root.properties()) {
 			String key = field.getKey();
 			MenuStructureProfile.Container mapping = structureProfile.container(key);
 			if (mapping != null) {
+				menuContainerPresent = true;
 				JsonNode container = resolve(payload, field.getValue(), issues);
 				// Known null/missing data cannot prove completeness, but is not an unfamiliar shape.
 				// MENU_INCOMPLETE restricts menu processing without requesting an LLM fix.
@@ -157,6 +162,10 @@ public class ResponseDiagnostics {
 				JsonNode items = resolve(payload, mapping.items(container), issues);
 				if (!items.isArray()) issues.add(new Issue("menus.items", "MENU_CONTAINER_UNSUPPORTED", type(items), true));
 				else for (JsonNode item : items) inspectMenu(resolve(payload, item, issues), issues);
+			}
+			if (mapping == null && !field(key, "menuImages") && !field(key, "baemin")
+				&& looksLikeMenuContainer(payload, key, field.getValue())) {
+				issues.add(new Issue("placeDetail." + key, "MENU_CONTAINER_UNRECOGNIZED", type(field.getValue()), true));
 			}
 			if (field(key, "newBusinessHours")) {
 				hoursFields++;
@@ -171,7 +180,88 @@ public class ResponseDiagnostics {
 			}
 		}
 		if (hoursFields > 1) issues.add(new Issue("newBusinessHours", "AMBIGUOUS_HOURS", "multiple", false));
+		if (!menuContainerPresent) issues.add(new Issue("placeDetail.menus", "MENU_CONTAINER_MISSING", "MISSING", true));
 		inspectHours(parsed.businessHoursRaw(), issues);
+		return inspectBaemin(payload, root, parsed, issues);
+	}
+
+	/** Missing expected fields are a structural suspicion; explicit null remains ordinary unavailable data. */
+	private boolean looksLikeMenuContainer(JsonNode payload, String key, JsonNode value) {
+		if (value.isNull() || value.isMissingNode()) return false;
+		if (key.toLowerCase(java.util.Locale.ROOT).contains("menu")) return true;
+		JsonNode container = resolve(payload, value, new ArrayList<>());
+		if (container.path("__typename").asString("").startsWith("PlaceDetail_Baemin")) return true;
+		JsonNode items = container.isArray() ? container : container.path("items");
+		if (!items.isArray()) return false;
+		for (JsonNode item : items) {
+			String typename = resolve(payload, item, new ArrayList<>()).path("__typename").asString("");
+			if (typename.toLowerCase(java.util.Locale.ROOT).contains("menu")) return true;
+		}
+		return false;
+	}
+
+	private boolean inspectBaemin(JsonNode payload, JsonNode root, ParsedPlace parsed, List<Issue> issues) {
+		JsonNode baemin = resolve(payload, root.path("baemin"), issues);
+		if (baemin.isNull() || baemin.isMissingNode()) return false; // Optional source, not proof of deletion.
+		int before = issues.size();
+		if (!baemin.isObject() || !"PlaceDetail_BaeminData".equals(baemin.path("__typename").asString(""))) {
+			issues.add(new Issue("placeDetail.baemin", "BAEMIN_CONTAINER_UNSUPPORTED", type(baemin), true));
+			return false;
+		}
+		JsonNode items = resolve(payload, baemin.path("menus"), issues);
+		if (!items.isArray()) {
+			issues.add(new Issue("baemin.menus", items.isNull() ? "BAEMIN_INCOMPLETE" : "BAEMIN_MENU_CONTAINER_UNSUPPORTED", type(items), !items.isNull()));
+			return false;
+		}
+		Set<String> ids = new HashSet<>();
+		List<String> names = new ArrayList<>();
+		for (JsonNode item : items) {
+			JsonNode menu = resolve(payload, item, issues);
+			String id = menu.path("id").asString("");
+			if (id.isBlank() || !ids.add(id)) issues.add(new Issue("baemin.menus[].id", "BAEMIN_IDENTITY_AMBIGUOUS", "missing-or-duplicate", false));
+			if (!"PlaceDetail_BaeminMenu".equals(menu.path("__typename").asString("")))
+				issues.add(new Issue("baemin.menus[].__typename", "BAEMIN_ENTITY_UNSUPPORTED", type(menu.path("__typename")), true));
+			if (!menu.path("name").isString() || menu.path("name").asString().isBlank())
+				issues.add(new Issue("baemin.menus[].name", "BAEMIN_NAME_UNREADABLE", type(menu.path("name")), true));
+			names.add(menu.path("name").asString(""));
+			for (String field : List.of("price", "desc")) {
+				JsonNode value = menu.path(field);
+				if (!value.isNull() && !value.isMissingNode() && !value.isString()
+					&& !(field.equals("price") && value.isIntegralNumber()))
+					issues.add(new Issue("baemin.menus[]." + field, "BAEMIN_FIELD_TYPE_UNSUPPORTED", type(value), true));
+			}
+			JsonNode images = menu.path("images");
+			if (!images.isMissingNode() && !images.isNull() && !images.isArray())
+				issues.add(new Issue("baemin.menus[].images", "BAEMIN_IMAGE_UNSUPPORTED", type(images), true));
+			if (images.isArray()) for (JsonNode image : images) {
+				if (!image.isString() && !image.path("url").isString())
+					issues.add(new Issue("baemin.menus[].images[]", "BAEMIN_IMAGE_UNSUPPORTED", type(image), true));
+			}
+		}
+		inspectBaeminGroups(payload, baemin, ids, issues);
+		if (!names.equals(parsed.baeminMenus().stream().map(m -> m.name()).toList()))
+			issues.add(new Issue("baemin.menus", "BAEMIN_OUTPUT_MISMATCH", "names", true));
+		return issues.size() == before;
+	}
+
+	private void inspectBaeminGroups(JsonNode payload, JsonNode baemin, Set<String> ids, List<Issue> issues) {
+		JsonNode groups = resolve(payload, baemin.path("menuGroups"), issues);
+		if (groups.isMissingNode() || groups.isNull()) return;
+		if (!groups.isArray()) {
+			issues.add(new Issue("baemin.menuGroups", "BAEMIN_GROUP_UNSUPPORTED", type(groups), true));
+			return;
+		}
+		for (JsonNode item : groups) {
+			JsonNode group = resolve(payload, item, issues);
+			JsonNode members = resolve(payload, group.path("menus"), issues);
+			if (!"PlaceDetail_BaeminMenuGroup".equals(group.path("__typename").asString(""))
+				|| !group.path("name").isString() || !members.isArray()) {
+				issues.add(new Issue("baemin.menuGroups[]", "BAEMIN_GROUP_UNSUPPORTED", type(group), true));
+				continue;
+			}
+			for (JsonNode member : members) if (!ids.contains(resolve(payload, member, issues).path("id").asString("")))
+				issues.add(new Issue("baemin.menuGroups[].menus", "BAEMIN_GROUP_OUT_OF_SCOPE", "reference", false));
+		}
 	}
 
 	private void inspectMenu(JsonNode menu, List<Issue> issues) {

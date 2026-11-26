@@ -34,6 +34,7 @@ public final class ResponseDiagnosticCli {
 					availability.put("address", parsed.address() != null && !parsed.address().isBlank());
 					availability.put("instagram", parsed.instagramHandle() != null && !parsed.instagramHandle().isBlank());
 					availability.put("menuCount", parsed.menus().size());
+					availability.put("baeminMenuCount", parsed.baeminMenus().size());
 					var hours = new BusinessHoursParser().parse(parsed.businessHoursRaw());
 					availability.put("hoursRows", hours.size());
 					availability.put("hoursValues", hours);
@@ -43,7 +44,7 @@ public final class ResponseDiagnosticCli {
 				var report = diagnostic.inspect(request);
 				output.write(mapper.writeValueAsString(Map.of("sourceSnapshotId", node.path("sourceSnapshotId").asLong(),
 					"observationId", request.observationId(), "parsedAvailability", availability,
-					"report", report, "assessment", report.assessment(), "menuAllowed", report.menuAllowed(), "payloadDigest", ResponseDigests.sha256(ResponseDigests.canonical(request.payload(), mapper)))));
+					"report", report, "assessment", report.assessment(), "menuAllowed", report.menuAllowed(), "baeminAllowed", report.baeminAllowed(), "payloadDigest", ResponseDigests.sha256(ResponseDigests.canonical(request.payload(), mapper)))));
 				output.newLine();
 			}
 		}
