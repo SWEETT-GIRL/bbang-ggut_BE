@@ -17,13 +17,13 @@ import sweetgirl.croissant.external.aws.dto.ImageStatusUpdateRequest;
 import sweetgirl.croissant.external.aws.service.ImageCallbackService;
 import sweetgirl.croissant.global.response.ApiResponse;
 
-@Tag(name = "Callback", description = "Lambda 콜백 수신 API")
+@Tag(name = "Callback", description = "이미지 리사이즈 콜백 수신 API")
 @RestController
 @RequestMapping("/callback")
 @RequiredArgsConstructor
 public class ImageCallbackController {
 
-	@Value("${lambda.callback.secret-key}")
+	@Value("${image.callback.secret-key}")
 	private String secretKey;
 
 	private final ImageCallbackService imageCallbackService;

@@ -163,8 +163,8 @@ jobs:
           spring.flyway.baseline-description=Existing schema before nationwide ranking tables
           spring.flyway.out-of-order=true
           
-          aws.region=ap-northeast-2
-          aws.s3.bucket=${{ secrets.STAGING_AWS_S3_BUCKET }}
+          storage.region=ap-northeast-2
+          storage.bucket=${{ secrets.STAGING_AWS_S3_BUCKET }}
 
 
           springdoc.swagger-ui.enabled=true
@@ -184,7 +184,7 @@ jobs:
           slack.notification.title-prefix=[DEV]
 
           # Lambda 콜백 인증 키
-          lambda.callback.secret-key=${{secrets.LAMBDA_CALLBACK_SECRET_KEY}}
+          image.callback.secret-key=${{secrets.LAMBDA_CALLBACK_SECRET_KEY}}
 
           # 성능 측정 대시보드
           # 게스트 쓰기 차단 — 새 앱 출시 뒤에 GUEST_WRITE_BLOCKED=true 로 켠다

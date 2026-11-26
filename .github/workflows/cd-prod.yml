@@ -7,7 +7,8 @@ on:
   # 이게 없으면 변수를 바꿔도 다음 main 머지까지 반영되지 않는다(장애 때 되돌릴 방법이 없다는 뜻이다).
   workflow_dispatch:
 
-# 같은 EC2의 .env·Compose 파일과 Docker 저장소를 동시에 변경하지 않는다.
+# 배포 대상은 OCI 단일 서버다(앱 · PostgreSQL · Redis · Nginx 가 한 호스트). 서버 준비는 deploy/oci/README.md.
+# 같은 서버의 .env·Compose 파일과 Docker 저장소를 동시에 변경하지 않는다.
 # 실행 중인 배포는 끝내고 다음 배포를 시작한다 — 겹치면 둘 다 같은 '새 색'을 고르고,
 # 한쪽의 롤백·prune 이 다른 쪽의 pull·기동을 밟는다(#941·#939 연속 머지에서 pull 이 깨졌다).
 concurrency:
@@ -168,8 +169,13 @@ jobs:
           spring.flyway.baseline-description=Existing schema before nationwide ranking tables
           spring.flyway.out-of-order=true
 
-          aws.region=ap-northeast-2
-          aws.s3.bucket=${{ secrets.PROD_AWS_S3_BUCKET }}
+          # 이미지 저장소 — OCI Object Storage(S3 호환). 주소를 비우면 AWS S3 로 붙는다.
+          storage.region=${STORAGE_REGION}
+          storage.bucket=${STORAGE_BUCKET}
+          storage.endpoint=${STORAGE_ENDPOINT:}
+          storage.path-style-access=${STORAGE_PATH_STYLE:false}
+          storage.credentials.access-key=${STORAGE_ACCESS_KEY:}
+          storage.credentials.secret-key=${STORAGE_SECRET_KEY:}
 
 
           encrypt.secret-key=${ENCRYPT_SECRET_KEY}
@@ -182,8 +188,8 @@ jobs:
           # 5xx 알림 — 장애 채널(slack.webhook.url)로, 같은 오류는 5분에 한 번
           ops.alert.server-error.enabled=true
 
-          # Lambda 콜백 인증 키
-          lambda.callback.secret-key=${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}
+          # 이미지 리사이즈 콜백 인증 키(리사이즈 함수의 WEBHOOK_SECRET 과 같은 값)
+          image.callback.secret-key=${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}
 
 
           # 게스트 쓰기 차단 — 새 앱 출시 뒤에 GUEST_WRITE_BLOCKED=true 로 켠다
@@ -204,15 +210,17 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          # 운영 서버가 arm64 다. 빌드 단계는 Dockerfile 이 러너 아키텍처에서 돌리므로 에뮬레이션이 필요 없다.
+          platforms: linux/arm64
           push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/bbang-ggut-be:${{ steps.tag.outputs.IMAGE_TAG }}
             ${{ secrets.DOCKERHUB_USERNAME }}/bbang-ggut-be:latest
 
-  # 단일 WAS 안에서 blue-green으로 교체한다.
-  #   1) 현재 활성 색을 bastion의 Nginx upstream에서 읽는다 (단일 진실 공급원)
-  #   2) 반대 색 컨테이너를 WAS에 띄우고 헬스체크
-  #   3) bastion Nginx upstream을 새 색으로 전환
+  # 단일 서버 안에서 blue-green으로 교체한다.
+  #   1) 현재 활성 색을 Nginx upstream에서 읽는다 (단일 진실 공급원)
+  #   2) 반대 색 컨테이너를 띄우고 헬스체크
+  #   3) Nginx upstream을 새 색으로 전환
   #   4) 도메인으로 실제 응답 확인 후 구 색 정리
   # 어느 단계에서 실패하든 구 색 스택은 살아있으므로 upstream만 되돌리면 복구된다.
   deploy:
@@ -223,48 +231,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # bastion과 WAS를 오가며 값을 주고받아야 해서 액션 대신 ssh를 직접 쓴다.
-      # WAS는 프라이빗 서브넷에 있으므로 ProxyJump로 bastion을 경유한다.
+      # 여러 단계에서 값을 주고받아야 해서 액션 대신 ssh를 직접 쓴다.
+      # Nginx 와 앱이 같은 서버라 경유(ProxyJump) 없이 바로 붙는다.
       - name: SSH 설정
         env:
-          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
-          BASTION_HOST: ${{ secrets.PROD_BASTION_HOST }}
-          WAS_HOST: ${{ secrets.PROD_WAS_HOST_1 }}
-          SSH_USER: ${{ secrets.PROD_SSH_USER }}
+          SSH_KEY: ${{ secrets.OCI_SSH_KEY }}
+          OCI_HOST: ${{ secrets.OCI_HOST }}
+          SSH_USER: ${{ secrets.OCI_SSH_USER }}
         run: |
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
           chmod 600 ~/.ssh/id_deploy
           cat > ~/.ssh/config <<EOF
-          Host bastion
-            HostName ${BASTION_HOST}
+          Host oci
+            HostName ${OCI_HOST}
             User ${SSH_USER}
             IdentityFile ~/.ssh/id_deploy
-            StrictHostKeyChecking accept-new
-            ConnectTimeout 10
-          Host was
-            HostName ${WAS_HOST}
-            User ${SSH_USER}
-            IdentityFile ~/.ssh/id_deploy
-            ProxyJump bastion
             StrictHostKeyChecking accept-new
             ConnectTimeout 10
           EOF
           chmod 600 ~/.ssh/config
 
-      # 활성 색은 bastion의 upstream 설정에만 기록된다.
-      # WAS에 떠 있는 컨테이너로 판단하지 않는 이유: 배포가 중간에 실패하면
+      # 활성 색은 Nginx upstream 설정에만 기록된다.
+      # 떠 있는 컨테이너로 판단하지 않는 이유: 배포가 중간에 실패하면
       # 두 색이 모두 떠 있을 수 있어 "실제로 트래픽을 받는 쪽"과 어긋나기 때문이다.
       - name: 배포 대상 색 결정
         id: color
         run: |
-          ACTIVE=$(ssh bastion \
+          ACTIVE=$(ssh oci \
             "grep -oE 'ACTIVE_COLOR=[a-z]+' /etc/nginx/conf.d/bbang-upstream.conf | cut -d= -f2" \
             2>/dev/null || true)
 
           if [ "$ACTIVE" != "blue" ] && [ "$ACTIVE" != "green" ]; then
-            echo "❌ bastion에서 활성 색을 읽지 못했다 (읽은 값: '${ACTIVE}')." >&2
-            echo "   deploy/bastion/setup-nginx.sh 를 먼저 1회 실행했는지 확인할 것." >&2
+            echo "❌ 서버에서 활성 색을 읽지 못했다 (읽은 값: '${ACTIVE}')." >&2
+            echo "   deploy/oci/setup-nginx.sh 를 먼저 1회 실행했는지 확인할 것." >&2
             exit 1
           fi
 
@@ -291,9 +291,11 @@ jobs:
           COLOR: ${{ steps.color.outputs.new }}
           APP_HOST_PORT: ${{ steps.color.outputs.new_app_port }}
           MGMT_HOST_PORT: ${{ steps.color.outputs.new_mgmt_port }}
-          DB_URL: ${{ secrets.PROD_DB_URL }}
-          DB_USERNAME: ${{ secrets.PROD_DB_USERNAME }}
-          DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
+          # DB · Redis 는 같은 서버의 docker-compose.infra.yml 이 띄운다 — 주소는 네트워크 이름(postgres, redis).
+          DB_URL: ${{ secrets.OCI_DB_URL }}
+          DB_USERNAME: ${{ secrets.OCI_DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.OCI_DB_PASSWORD }}
+          REDIS_PASSWORD: ${{ secrets.OCI_REDIS_PASSWORD }}
           KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
           KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
@@ -306,14 +308,24 @@ jobs:
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           NAVER_LOGIN_CLIENT_ID: ${{ secrets.NAVER_LOGIN_CLIENT_ID }}
           NAVER_LOGIN_CLIENT_SECRET: ${{ secrets.NAVER_LOGIN_CLIENT_SECRET }}
-          AWS_S3_BUCKET: ${{ secrets.PROD_AWS_S3_BUCKET }}
+          # 이미지 저장소 — OCI Object Storage 의 S3 호환 API. 리전·주소는 비밀이 아니라 저장소 변수로 둔다.
+          STORAGE_REGION: ${{ vars.OCI_S3_REGION }}
+          STORAGE_ENDPOINT: ${{ vars.OCI_S3_ENDPOINT }}
+          STORAGE_BUCKET: ${{ secrets.OCI_S3_BUCKET }}
+          STORAGE_ACCESS_KEY: ${{ secrets.OCI_S3_ACCESS_KEY }}
+          STORAGE_SECRET_KEY: ${{ secrets.OCI_S3_SECRET_KEY }}
+          # 캐시 스위치 — 지금 운영과 같이 기본은 꺼 둔다. 켤 때는 변수만 바꾸고 CD 를 다시 실행한다.
+          AUTOCOMPLETE_CACHE_ENABLED: ${{ vars.PROD_AUTOCOMPLETE_CACHE_ENABLED }}
+          # 예약 작업(@Scheduled) 전체 스위치 — 아래 run 에서 true/false 가 아니면 배포를 멈춘다.
+          SCHEDULING_ENABLED: ${{ vars.PROD_SCHEDULING_ENABLED }}
+          TRENDING_ENABLED: ${{ vars.PROD_TRENDING_ENABLED }}
           ENCRYPT_SECRET_KEY: ${{ secrets.ENCRYPT_SECRET_KEY }}
           SLACK_ERROR_WEBHOOK_URL: ${{ secrets.SLACK_ERROR_WEBHOOK_URL_PROD }}
           SLACK_REPORT_WEBHOOK_URL: ${{ secrets.SLACK_REPORT_WEBHOOK_URL_PROD }}
           SLACK_ABUSE_WEBHOOK_URL: ${{ secrets.SLACK_ABUSE_WEBHOOK_URL_PROD }}
           SLACK_LETTER_WEBHOOK_URL: ${{ secrets.SLACK_LETTER_WEBHOOK_URL_PROD }}
           SLACK_SEARCH_MISS_WEBHOOK_URL: ${{ secrets.SLACK_SEARCH_MISS_WEBHOOK_URL_PROD }}
-          LAMBDA_CALLBACK_SECRET_KEY: ${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}
+          IMAGE_CALLBACK_SECRET_KEY: ${{ secrets.PROD_LAMBDA_CALLBACK_SECRET_KEY }}
           GUEST_WRITE_BLOCKED: ${{ secrets.GUEST_WRITE_BLOCKED }}
           PERF_DASHBOARD_ENABLED: ${{ secrets.PERF_DASHBOARD_ENABLED }}
           PERF_DASHBOARD_ACCESS_KEY: ${{ secrets.PERF_DASHBOARD_ACCESS_KEY }}
@@ -324,6 +336,13 @@ jobs:
           OTEL_ENABLED: ${{ vars.PROD_OTEL_ENABLED }}
           OTEL_ENDPOINT: ${{ vars.PROD_OTEL_ENDPOINT }}
         run: |
+          # 이 값은 기본값으로 넘어가면 안 된다. 다른 서버가 같은 운영 데이터로 떠 있는 동안 켜지면
+          # 푸시가 두 번 나가고, 이전이 끝난 뒤에도 꺼져 있으면 푸시·집계가 조용히 멈춘다.
+          if [ "${SCHEDULING_ENABLED}" != "true" ] && [ "${SCHEDULING_ENABLED}" != "false" ]; then
+            echo "❌ 저장소 변수 PROD_SCHEDULING_ENABLED 를 true 또는 false 로 정해야 한다 (지금: '${SCHEDULING_ENABLED}')." >&2
+            echo "   서버 이전 전(다른 서버가 운영 중)에는 false, 이 서버가 운영을 받는 순간부터 true." >&2
+            exit 1
+          fi
           umask 077
           {
             echo "DOCKER_USERNAME=${DOCKERHUB_USERNAME}"
@@ -347,15 +366,23 @@ jobs:
             echo "NAVER_CLIENT_SECRET=${NAVER_CLIENT_SECRET}"
             echo "NAVER_LOGIN_CLIENT_ID=${NAVER_LOGIN_CLIENT_ID}"
             echo "NAVER_LOGIN_CLIENT_SECRET=${NAVER_LOGIN_CLIENT_SECRET}"
-            echo "AWS_REGION=ap-northeast-2"
-            echo "AWS_S3_BUCKET=${AWS_S3_BUCKET}"
+            echo "REDIS_PASSWORD=${REDIS_PASSWORD}"
+            echo "AUTOCOMPLETE_CACHE_ENABLED=${AUTOCOMPLETE_CACHE_ENABLED:-false}"
+            echo "SCHEDULING_ENABLED=${SCHEDULING_ENABLED}"
+            echo "TRENDING_ENABLED=${TRENDING_ENABLED:-false}"
+            echo "STORAGE_REGION=${STORAGE_REGION}"
+            echo "STORAGE_BUCKET=${STORAGE_BUCKET}"
+            echo "STORAGE_ENDPOINT=${STORAGE_ENDPOINT}"
+            echo "STORAGE_PATH_STYLE=true"
+            echo "STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY}"
+            echo "STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}"
             echo "ENCRYPT_SECRET_KEY=${ENCRYPT_SECRET_KEY}"
             echo "SLACK_ERROR_WEBHOOK_URL=${SLACK_ERROR_WEBHOOK_URL}"
             echo "SLACK_REPORT_WEBHOOK_URL=${SLACK_REPORT_WEBHOOK_URL}"
             echo "SLACK_ABUSE_WEBHOOK_URL=${SLACK_ABUSE_WEBHOOK_URL}"
             echo "SLACK_LETTER_WEBHOOK_URL=${SLACK_LETTER_WEBHOOK_URL}"
             echo "SLACK_SEARCH_MISS_WEBHOOK_URL=${SLACK_SEARCH_MISS_WEBHOOK_URL}"
-            echo "LAMBDA_CALLBACK_SECRET_KEY=${LAMBDA_CALLBACK_SECRET_KEY}"
+            echo "IMAGE_CALLBACK_SECRET_KEY=${IMAGE_CALLBACK_SECRET_KEY}"
             echo "GUEST_WRITE_BLOCKED=${GUEST_WRITE_BLOCKED:-false}"
             echo "PERF_DASHBOARD_ENABLED=${PERF_DASHBOARD_ENABLED:-false}"
             echo "PERF_DASHBOARD_ACCESS_KEY=${PERF_DASHBOARD_ACCESS_KEY}"
@@ -369,9 +396,9 @@ jobs:
           } > env.prod
 
           # 힙 덤프 폴더 — docker-compose.prod.yml 의 volumes 참고
-          ssh was 'mkdir -p ~/app/dumps/blue ~/app/dumps/green'
-          scp docker-compose.prod.yml was:~/app/docker-compose.prod.yml
-          scp env.prod was:~/app/.env
+          ssh oci 'mkdir -p ~/app/dumps/blue ~/app/dumps/green'
+          scp docker-compose.prod.yml oci:~/app/docker-compose.prod.yml
+          scp env.prod oci:~/app/.env
           rm -f env.prod
 
       # 정리를 pull 앞에 둔다 — 디스크가 찬 뒤에는 pull 이 "no space left on device" 로 먼저 죽고,
@@ -383,7 +410,7 @@ jobs:
       # 대상이 아니므로, 공간이 급해 -a 까지 가도 롤백 대상 이미지는 그대로 남는다.
       - name: 기동 전 디스크 정리
         run: |
-          ssh was "
+          ssh oci "
             docker image prune -af --filter 'until=168h' || true
             AVAILABLE_MB=\$(df -Pm / | awk 'NR==2 {print \$4}')
             echo \"여유 공간 \${AVAILABLE_MB}MB\"
@@ -399,7 +426,7 @@ jobs:
           NEW: ${{ steps.color.outputs.new }}
         run: |
           # 레이어 다운로드의 일시 오류는 재시도하되, 실패한 이미지로 up을 실행하지 않는다.
-          ssh was "
+          ssh oci "
             cd ~/app || exit 1
             for attempt in 1 2 3; do
               if docker compose -p bbang-${NEW} -f docker-compose.prod.yml pull; then
@@ -420,7 +447,7 @@ jobs:
           MGMT: ${{ steps.color.outputs.new_mgmt_port }}
         run: |
           echo "⏳ ${NEW} 헬스체크 시작 (최대 180초)..."
-          ssh was "
+          ssh oci "
             for i in \$(seq 1 18); do
               if curl -sf http://localhost:${MGMT}/actuator/health/readiness \
                    | grep -q '\"status\":\"UP\"'; then
@@ -439,17 +466,22 @@ jobs:
       - name: Nginx upstream 전환
         env:
           NEW: ${{ steps.color.outputs.new }}
-          WAS_HOST: ${{ secrets.PROD_WAS_HOST_1 }}
         run: |
-          ssh bastion "sudo /opt/bbang/switch-upstream.sh ${NEW} ${WAS_HOST}"
+          ssh oci "sudo /opt/bbang/switch-upstream.sh ${NEW} 127.0.0.1"
 
       # 서버 안에서 자기 자신을 본 헬스체크는 Nginx 경로가 정상인지 알려주지 않는다.
       # 도메인으로 실제 한 바퀴 돌려 확인한 뒤에야 구 색을 내린다.
+      # 도메인 이름으로 요청하되 접속 대상은 이 서버로 고정한다(--resolve).
+      # DNS 가 아직 다른 곳(이전 전의 AWS)을 가리키고 있어도 "방금 배포한 서버"를 검사해야 한다.
+      # 고정하지 않으면 옛 서버의 200 을 보고 통과해 버린다. OCI_HOST 는 IP 여야 한다.
       - name: 도메인 스모크 테스트
+        env:
+          OCI_HOST: ${{ secrets.OCI_HOST }}
         run: |
-          echo "⏳ https://bbang-ggut.cloud 응답 확인..."
+          echo "⏳ https://bbang-ggut.cloud (→ 배포 서버) 응답 확인..."
           for i in $(seq 1 10); do
             CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+              --resolve "bbang-ggut.cloud:443:${OCI_HOST}" \
               https://bbang-ggut.cloud/menu-categories || echo "000")
             if [ "$CODE" = "200" ]; then
               echo "✅ 도메인 응답 정상 (200)"
@@ -465,21 +497,15 @@ jobs:
         env:
           OLD: ${{ steps.color.outputs.old }}
         run: |
-          ssh was "cd ~/app \
-            && docker compose -p bbang-${OLD} -f docker-compose.prod.yml down --remove-orphans"
-
-          # 단일 서버 전환 이전의 배포가 남긴 구 방식 스택(compose 프로젝트 'app')을
-          # 함께 정리한다. 그 컨테이너가 8080을 점유한 채로 남으면 다음 blue 배포가
-          # 포트 충돌로 실패한다. 트래픽은 이미 신규 색으로 넘어간 뒤라 영향이 없다.
-          # 전환 후 첫 배포에서 한 번만 지워지고, 이후에는 대상이 없어 조용히 넘어간다.
-          ssh was "cd ~/app \
-            && docker compose -f docker-compose.yml down --remove-orphans 2>/dev/null || true"
+          # --remove-orphans 를 쓰지 않는다 — 앱이 붙는 네트워크(bbang-infra)는 postgres · redis 와 함께 쓴다.
+          ssh oci "cd ~/app \
+            && docker compose -p bbang-${OLD} -f docker-compose.prod.yml down"
           # 직전 버전 이미지는 남긴다 — 신규 컨테이너가 기동에 실패했을 때
           # IMAGE_TAG만 되돌려 즉시 롤백할 수 있어야 한다.
           # -a 가 없으면 dangling 만 지운다. 배포마다 새 태그가 붙어 dangling 이 생기지 않으니
           # 이 명령으로는 한 장도 안 지워졌고, 종전 이미지가 무한히 쌓여 디스크가 찼다.
           # until 은 168h 그대로 둔다 — 일주일 치 롤백 대상은 남긴다.
-          ssh was "docker image prune -af --filter 'until=168h'"
+          ssh oci "docker image prune -af --filter 'until=168h'"
 
       # 어느 단계에서 실패했든 구 색 스택은 아직 살아있다. upstream만 되돌리면 복구된다.
       - name: 실패 시 롤백
@@ -487,11 +513,10 @@ jobs:
         env:
           OLD: ${{ steps.color.outputs.old }}
           NEW: ${{ steps.color.outputs.new }}
-          WAS_HOST: ${{ secrets.PROD_WAS_HOST_1 }}
         run: |
           echo "⚠️ 배포 실패 — upstream을 ${OLD}로 되돌린다"
-          ssh bastion "sudo /opt/bbang/switch-upstream.sh ${OLD} ${WAS_HOST}" || true
-          ssh was "cd ~/app \
+          ssh oci "sudo /opt/bbang/switch-upstream.sh ${OLD} 127.0.0.1" || true
+          ssh oci "cd ~/app \
             && docker compose -p bbang-${NEW} -f docker-compose.prod.yml down" || true
           echo "롤백 완료 — 활성 색: ${OLD}"
 
@@ -529,10 +554,14 @@ jobs:
           PR_TITLE: ${{ steps.pr_info.outputs.title }}
           IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
           WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL_PROD }}
+          SCHEDULING_ENABLED: ${{ vars.PROD_SCHEDULING_ENABLED }}
         run: |
+          # 꺼진 채 운영에 남는 일을 막으려고 배포 알림마다 상태를 적는다.
+          if [ "$SCHEDULING_ENABLED" = "true" ]; then SCHEDULING="켜짐"; else SCHEDULING="⚠️ 꺼짐 (푸시·배치 안 돎)"; fi
           RESPONSE=$(jq -n \
             --arg pr "$PR_TITLE" \
             --arg tag "$IMAGE_TAG" \
+            --arg scheduling "$SCHEDULING" \
             '{attachments: [{
               "color": "#2ECC71",
               "blocks": [
@@ -541,7 +570,8 @@ jobs:
                   {"type": "mrkdwn", "text": "*PR*\n\($pr)"},
                   {"type": "mrkdwn", "text": "*Image Tag*\n\($tag)"},
                   {"type": "mrkdwn", "text": "*Branch*\nmain"},
-                  {"type": "mrkdwn", "text": "*배포 방식*\nblue-green (단일 WAS)"}
+                  {"type": "mrkdwn", "text": "*배포 방식*\nblue-green (OCI 단일 서버)"},
+                  {"type": "mrkdwn", "text": "*예약 작업*\n\($scheduling)"}
                 ]}
               ]
             }]}' | \

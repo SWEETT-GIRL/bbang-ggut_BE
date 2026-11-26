@@ -1,0 +1,81 @@
+# 운영 서버(OCI 단일 인스턴스)의 PostgreSQL · Redis.
+#
+# 앱(docker-compose.prod.yml)과 수명이 다르다 — 배포 때마다 내렸다 올리지 않는다.
+# CD 가 건드리지 않고, 서버에서 한 번 띄워 둔다. 절차는 deploy/oci/README.md.
+#
+#   cd ~/infra && docker compose -f docker-compose.infra.yml up -d
+#
+# 값은 같은 폴더의 .env 에서 읽는다(서버에만 둔다 — 저장소에 올리지 않는다).
+#   POSTGRES_USER, POSTGRES_PASSWORD, REDIS_PASSWORD
+# 프로젝트 이름을 고정한다 — 없으면 폴더 이름(infra)으로 떠서, -p 를 빠뜨린 실행이 같은 서비스를 하나 더 만든다.
+name: bbang-infra
+
+services:
+  postgres:
+    # PostGIS + pg_bigm. 공식 postgis 이미지는 amd64 전용이라 arm64 를 지원하는 빌드를 쓴다(Dockerfile 주석 참고).
+    build:
+      context: .
+      dockerfile: postgres.Dockerfile
+    image: bbang-postgres:18
+    restart: always
+    environment:
+      TZ: Asia/Seoul
+      POSTGRES_DB: soboro
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER 가 필요하다}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 가 필요하다}
+    # 서버 메모리 12GB 를 앱(배포 중 2벌) · Redis 와 나눠 쓴다. 실측 후 조정한다.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=2GB
+      - -c
+      - effective_cache_size=5GB
+      - -c
+      - maintenance_work_mem=256MB
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+    # 병렬 쿼리가 /dev/shm 을 쓴다 — 기본 64MB 로는 큰 정렬·해시에서 실패한다.
+    shm_size: 1g
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    ports:
+      # 서버 안에서만 연다 — 운영자가 SSH 터널로 붙을 때 쓴다. 앱은 네트워크 이름(postgres)으로 붙는다.
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d soboro"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  # 캐시 전용. 디스크에 남기지 않고(비어도 DB 가 다시 채운다) 상한에 닿으면 오래 안 쓴 키부터 버린다.
+  # 메모 초안처럼 잃으면 안 되는 데이터를 여기에 두지 말 것 — 그 용도는 따로 띄워야 한다.
+  redis:
+    image: redis:7-alpine
+    restart: always
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD 가 필요하다}
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD}
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+# 앱(blue/green)이 붙는 공용 네트워크. 이름을 고정해야 다른 compose 프로젝트에서 찾을 수 있다.
+networks:
+  default:
+    name: bbang-infra
+
+volumes:
+  postgres-data:

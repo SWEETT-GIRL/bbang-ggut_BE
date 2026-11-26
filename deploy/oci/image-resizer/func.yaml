@@ -1,0 +1,7 @@
+schema_version: 20180708
+name: image-resizer
+version: 0.0.1
+runtime: docker
+# 원본 2.6~9MB 사진이 1GB 에서 OOM 으로 죽었다(AWS Lambda, 2026-11-26). 상한은 3072 다.
+memory: 2048
+timeout: 120

@@ -1,5 +1,9 @@
 # Build stage
-FROM eclipse-temurin:17-jdk-alpine AS builder
+# 운영 서버(OCI Ampere)는 arm64 인데 러너는 amd64 다. jar 는 아키텍처와 무관하므로 빌드 단계는
+# 러너의 아키텍처($BUILDPLATFORM)에서 그대로 돌리고, 실행 단계만 대상 아키텍처로 만든다.
+# 이 줄이 없으면 gradle 빌드 전체가 에뮬레이션으로 돌아 몇 배 느려진다.
+# Temurin 17 의 alpine 이미지는 amd64 로만 나온다 — arm64 가 있는 Ubuntu(jammy) 기반을 쓴다.
+FROM --platform=$BUILDPLATFORM eclipse-temurin:17-jdk-jammy AS builder
 WORKDIR /app
 COPY gradlew .
 COPY gradle gradle
@@ -20,7 +24,7 @@ RUN wget -q -O /app/opentelemetry-javaagent.jar \
     && echo "${OTEL_AGENT_SHA256}  /app/opentelemetry-javaagent.jar" | sha256sum -c -
 
 # Run stage
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 COPY --from=builder /app/build/libs/*.jar app.jar
 COPY --from=builder /app/opentelemetry-javaagent.jar opentelemetry-javaagent.jar
