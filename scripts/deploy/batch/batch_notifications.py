@@ -12,6 +12,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 from uuid import uuid4
 
 COUNTS = ('attempted', 'changed', 'unchanged', 'partial', 'held', 'failed')
+AUTO_COUNTS = ('auto_apply_applied', 'auto_apply_already_applied', 'auto_apply_held', 'auto_apply_failed', 'auto_apply_unknown')
 ARTIFACT_COUNTS = {
     'public_raw': '공공 원본', 'public_new': '신규 관리번호', 'public_upd': '상태 변경',
     'candidates_inserted': '후보 저장', 'candidates_existing': '기존 후보', 'candidates_held': '후보 보류',
@@ -61,6 +62,7 @@ def summaries(logs, invocation_id):
                 raise ValueError('mismatched journal')
             row = {'workflow': record['command'], 'status': record.get('status', 'RUNNING'),
                    'current': counts(record.get('items_current'), COUNTS),
+                   'automatic': counts(record.get('items_current'), AUTO_COUNTS),
                    'artifacts': counts(record.get('items'), ARTIFACT_COUNTS)}
             if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,63}', str(record.get('cycle_id', ''))):
                 row['cycle_id'] = record['cycle_id']
@@ -119,6 +121,14 @@ def message(record, event):
                         field('보류', f"{current['held']}건"), field('미확정', f"{current['attempted'] - accounted}건")
                     ]})
                     fallback.append(f"{row['workflow']}: 시도 {current['attempted']}건 · 정상 {normal} · 실패 {current['failed']}")
+            automatic = row.get('automatic', {})
+            if set(automatic) == set(AUTO_COUNTS):
+                blocks.append({'type': 'section', 'fields': [
+                    field('운영 반영 · 변경 항목', f"{automatic['auto_apply_applied']}건"),
+                    field('이미 반영됨', f"{automatic['auto_apply_already_applied']}건"),
+                    field('반영 보류', f"{automatic['auto_apply_held']}건"),
+                    field('반영 실패 / 결과 미확정', f"{automatic['auto_apply_failed']} / {automatic['auto_apply_unknown']}건")
+                ]})
             if row['artifacts']:
                 blocks.append(context('회차 산출물(이번 실행 처리량 아님): ' + ' · '.join(
                     ARTIFACT_COUNTS[key] + ' ' + str(value) for key, value in row['artifacts'].items())))

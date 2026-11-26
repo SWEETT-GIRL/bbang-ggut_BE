@@ -57,6 +57,7 @@ public class RuntimeControlFilter implements Filter {
             required(environment,"generation"),required(environment,"launch-nonce"),readToken(Path.of(required(environment,"token-file"))),
             admissionFile(Path.of(required(environment,"admission-file"))));
         if(environment.getProperty("dataops.serving.write-enabled",Boolean.class,false)
+            || environment.getProperty("dataops.auto-apply.enabled",Boolean.class,false)
             || environment.getProperty("dataops.agent.apply.enabled",Boolean.class,false)
             || environment.getProperty("dataops.agent.replay.enabled",Boolean.class,false)
             || !"PROPOSAL_ONLY".equals(environment.getProperty("dataops.reconcile.mode")))

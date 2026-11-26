@@ -24,6 +24,16 @@ class BatchExecutionTest(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
+    def test_automatic_apply_metrics_are_item_counts_and_exclude_identifiers(self):
+        execution = journal.WorkflowRun(self.directory, 'freshness-refresh')
+        with execution:
+            execution.record['items'] = {'auto_apply_applied': 91, 'auto_apply_unknown': 1, 'proposal_id': 1234}
+            execution.finish(1)
+        metrics = journal.metrics(self.directory / 'runs', 'freshness-refresh')
+        self.assertIn('result="auto_apply_applied"} 91', metrics)
+        self.assertIn('result="auto_apply_unknown"} 1', metrics)
+        self.assertNotIn('proposal_id', metrics)
+
     def test_failure_records_step_and_run_without_exception_message(self):
         execution = journal.WorkflowRun(self.directory, "nightly")
         with self.assertRaises(ValueError):

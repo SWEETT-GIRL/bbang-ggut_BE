@@ -174,16 +174,19 @@ public class ProposalCommandService {
 		return ChangeProposalResponse.from(proposal);
 	}
 
-	/** Approval stays explicit; source uncertainty is visible in the existing review workflow. */
+	/** Both automatic policy and explicit review see the source uncertainty before writing. */
 	public void noteMenuSourceComparison(Long proposalId, ProvenanceSource previous, ProvenanceSource observed) {
 		ChangeProposal proposal = getProposal(proposalId);
 		if (proposal.getStatus() != ProposalStatus.PENDING || proposal.getSource() != observed) return;
+		String previousNote = Objects.toString(proposal.getReviewNote(), "");
+		if (previousNote.contains("SOURCE_CONFLICT") || previousNote.contains("PRODUCER_CONFLICT")
+			|| previousNote.contains("다른 값을 제안")) return;
 		String reason = previous == observed ? "MENU_SAME_SOURCE_UPDATE"
 			: previous == null ? "MENU_SOURCE_UNKNOWN" : "MENU_SOURCE_CONFLICT";
 		changeProposalRepository.updatePendingReviewNote(proposalId, observed,
 			reason + ": 기존 " + (previous == null ? "미기록" : previous)
 			+ " / 관측 " + observed + (observed == ProvenanceSource.BAEMIN ? " (배달 가격으로 매장 가격과 다를 수 있음)" : "")
-			+ " — 검토·승인 후 반영");
+			+ " — 출처·현재 값 정책 검증 후 반영");
 	}
 
 	/**
@@ -221,6 +224,24 @@ public class ProposalCommandService {
 
 	private ChangeProposalResponse approveGuarded(Long proposalId, ChangeProposal candidate,
 			ServingWriter servingWriter, StoreObservationBarrier.ApprovalScope barrier, AgentApplyRequest manifestRequest) {
+		return approveGuarded(proposalId, candidate, servingWriter, barrier, manifestRequest, null);
+	}
+
+	public record AutomaticApproval(String externalId, java.util.function.Consumer<ChangeProposal> verify) {}
+
+	@Transactional(propagation = Propagation.NOT_SUPPORTED)
+	public ChangeProposalResponse approveAutomatically(Long proposalId, ServingWriter writer,
+			StoreObservationBarrier.ApprovalScope barrier, AutomaticApproval approval) {
+		if (manifestApplyGate != null || writer == null || barrier == null || approval == null
+			|| approval.externalId() == null || approval.externalId().isBlank())
+			throw new sweetgirl.dataops.autoapply.AutomaticApplyHold("AUTOMATIC_SCOPE_REQUIRED");
+		barrier.assertHeld();
+		return approveGuarded(proposalId, getProposal(proposalId), writer, barrier, null, approval);
+	}
+
+	private ChangeProposalResponse approveGuarded(Long proposalId, ChangeProposal candidate,
+			ServingWriter servingWriter, StoreObservationBarrier.ApprovalScope barrier, AgentApplyRequest manifestRequest,
+			AutomaticApproval automatic) {
 		// ⓪ 위치·메뉴 부재 제안 보류 게이트 — 점유 전에 본다. 보류는 실패가 아니라 "아직 승인하지 않는다"이므로
 		//    제안은 PENDING 으로 남아야 한다 (근거가 붙으면 그때 승인).
 		//    근거 부족은 점유·apply_log·운영 쓰기 전에 멈춘다.
@@ -238,8 +259,8 @@ public class ProposalCommandService {
 		if (barrier != null) barrier.assertHeld();
 
 		// ① 점유 — 운영 쓰기 전에 확정한다. 비PENDING(중복 요청·거절 제안 재승인·이미 반영된 건)은 여기서 막힌다
-		UUID operationId = manifestRequest == null ? applyStateService.claim(proposalId)
-			: applyStateService.claimExactManifest(proposalId, manifestRequest);
+		UUID operationId = automatic != null ? applyStateService.claimAutomatic(proposalId, automatic.verify())
+			: manifestRequest == null ? applyStateService.claim(proposalId) : applyStateService.claimExactManifest(proposalId, manifestRequest);
 		ChangeProposal proposal = getProposal(proposalId);
 
 		// ② apply_log 선기록 — 운영 값 대사의 기준선. 위치 제안은 실제로 쓸 지역·근거까지 실어 둔다
@@ -253,7 +274,8 @@ public class ProposalCommandService {
 		ApplyOutcome outcome;
 		try {
 			if (barrier != null) barrier.assertHeld();
-			String verifiedExternalId = manifestRequest == null ? null : manifestApplyGate.verifyBeforeWrite(proposal, manifestRequest);
+			String verifiedExternalId = automatic != null ? automatic.externalId()
+				: manifestRequest == null ? null : manifestApplyGate.verifyBeforeWrite(proposal, manifestRequest);
 			if (manifestRequest != null && (verifiedExternalId == null || verifiedExternalId.isBlank()))
 				throw new AgentApplyHold("VERIFIED_EXTERNAL_ID_REQUIRED");
 			outcome = applyToServing(servingWriter, proposal, evidence, verifiedExternalId);
@@ -368,6 +390,10 @@ public class ProposalCommandService {
 		if ("store.address".equals(target)) {
 			// 주소·좌표·지역은 한 문장. 지역은 게이트가 찾은 새 좌표의 법정동 근거에서 온다 — 근거 없이는 여기 오지 않는다
 			requireEvidence(target, evidence);
+			if (exactManifest) return requireApplied(target, servingWriter.updateObservedStoreAddress(storeId, verifiedExternalId,
+				textOrNull(oldValue.path("address")), oldValue.path("lon").asDouble(), oldValue.path("lat").asDouble(),
+				newValue.path("address").asString(), newValue.path("lon").asDouble(), newValue.path("lat").asDouble(),
+				evidence.region1st(), evidence.region2nd(), evidence.region3rd()), "address");
 			return requireApplied(target, servingWriter.updateStoreAddress(storeId,
 				textOrNull(oldValue.path("address")),
 				newValue.path("address").asString(null),
@@ -401,7 +427,9 @@ public class ProposalCommandService {
 			Integer menuPrice = newValue.path("price").isNumber() ? newValue.path("price").asInt() : null;
 			String description = newValue.path("description").isNull() ? null : newValue.path("description").asString(null);
 			String category = menuCategoryClassifier.classify(menuName);
-			MenuUpsertResult result = proposal.getSource() == ProvenanceSource.BAEMIN
+			MenuUpsertResult result = exactManifest
+				? servingWriter.insertObservedMenu(storeId, verifiedExternalId, menuName, menuPrice, description, category)
+				: proposal.getSource() == ProvenanceSource.BAEMIN
 				? servingWriter.upsertMenu(storeId, menuName, menuPrice, description, category, false)
 				: servingWriter.upsertMenu(storeId, menuName, menuPrice, description, category);
 			if (result.outcome() == MenuUpsertResult.Outcome.BLOCKED_EXISTING_MENU)
@@ -438,8 +466,9 @@ public class ProposalCommandService {
 		if (category.matches()) {
 			// 정책 재판정의 재분류 — old_value 의 categoryId(NULL 포함)가 운영에 그대로일 때만 바꾼다
 			Long expectedCategoryId = oldValue.path("categoryId").isNumber() ? oldValue.path("categoryId").asLong() : null;
-			int updated = servingWriter.updateMenuCategory(Long.parseLong(category.group(1)), expectedCategoryId,
-				newValue.path("category").asString());
+			int updated = exactManifest ? servingWriter.updateObservedMenuCategory(Long.parseLong(category.group(1)), storeId,
+				verifiedExternalId, expectedCategoryId, newValue.path("category").asString())
+				: servingWriter.updateMenuCategory(Long.parseLong(category.group(1)), expectedCategoryId, newValue.path("category").asString());
 			if (updated == 0) {
 				throw new ProposalException(ProposalErrorCode.MENU_CATEGORY_CHANGED, target);
 			}
@@ -447,6 +476,10 @@ public class ProposalCommandService {
 		}
 		Matcher removed = MENU_REMOVED_TARGET.matcher(target);
 		if (removed.matches()) {
+			if (exactManifest) return requireApplied(target, servingWriter.softDeleteObservedMenu(Long.parseLong(removed.group(1)),
+				storeId, verifiedExternalId, textOrNull(oldValue.path("name")),
+				oldValue.path("price").isNumber() ? oldValue.path("price").asInt() : null,
+				textOrNull(oldValue.path("description"))), "menu." + removed.group(1));
 			// old_value 는 소멸 관측 당시의 메뉴 — 이름이 바뀐 행은 다른 상품으로 재사용된 것일 수 있어 지우지 않는다
 			return requireApplied(target, servingWriter.softDeleteMenu(
 				Long.parseLong(removed.group(1)), textOrNull(oldValue.path("name"))),

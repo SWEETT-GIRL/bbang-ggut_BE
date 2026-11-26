@@ -866,6 +866,31 @@ class ProposalCommandServiceTest {
 		then(changeProposalRepository).should(never()).save(any());
 	}
 
+	@Test void automatic_price_uses_locked_claim_and_store_bound_cas() {
+		ChangeProposal proposal = createProposal("menu.10.price", "3000", "3500");
+		given(changeProposalRepository.findById(5L)).willReturn(Optional.of(proposal));
+		UUID operation = stubApplyState(proposal);
+		given(applyStateService.claimAutomatic(eq(5L), any())).willAnswer(invocation -> {
+			java.util.function.Consumer<ChangeProposal> guard = invocation.getArgument(1);
+			guard.accept(proposal); proposal.beginApply(operation); return operation;
+		});
+		proposalCommandService.approveAutomatically(5L, servingWriter, approvalBarrierScope,
+			new ProposalCommandService.AutomaticApproval("123", candidate -> assertThat(candidate).isSameAs(proposal)));
+		then(servingWriter).should().updateMenuPrice(10L, 1L, "123", 3000, 3500);
+		then(applyStateService).should(never()).claim(anyLong());
+		assertThat(proposal.getStatus()).isEqualTo(ProposalStatus.APPROVED);
+	}
+
+	@Test void automatic_conflict_before_claim_never_writes_or_logs() {
+		ChangeProposal proposal = createProposal("menu.10.price", "3000", "3500");
+		given(changeProposalRepository.findById(5L)).willReturn(Optional.of(proposal));
+		given(applyStateService.claimAutomatic(eq(5L), any())).willThrow(new sweetgirl.dataops.autoapply.AutomaticApplyHold("SOURCE_CONFLICT"));
+		assertThatThrownBy(() -> proposalCommandService.approveAutomatically(5L, servingWriter, approvalBarrierScope,
+			new ProposalCommandService.AutomaticApproval("123", candidate -> {}))).hasMessage("SOURCE_CONFLICT");
+		then(servingWriter).shouldHaveNoInteractions();
+		then(applyLogCommandService).shouldHaveNoInteractions();
+	}
+
 	@Test
 	void reject_는_운영에_아무것도_쓰지_않는다() {
 		ChangeProposal proposal = createProposal("store.phone", "\"02-1\"");

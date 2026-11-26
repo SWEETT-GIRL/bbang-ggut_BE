@@ -71,6 +71,17 @@ public class ProposalApplyStateService {
 		return claimPending(proposalId);
 	}
 
+	/** Recheck policy while the proposal row is locked; review-note updates cannot race this claim. */
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	public UUID claimAutomatic(Long proposalId, java.util.function.Consumer<ChangeProposal> verify) {
+		if (manifestApplyGate != null || changeProposalRepository.requiresAgentManifest(proposalId))
+			throw new sweetgirl.dataops.autoapply.AutomaticApplyHold("AGENT_APPROVAL_REQUIRED");
+		ChangeProposal proposal = changeProposalRepository.findForApplyUpdate(proposalId)
+			.orElseThrow(() -> new ProposalException(ProposalErrorCode.PROPOSAL_NOT_FOUND));
+		verify.accept(proposal);
+		return claimPending(proposalId);
+	}
+
 	private UUID claimPending(Long proposalId) {
 		if (changeProposalRepository.hasUnresolvedTarget(proposalId))
 			throw new ProposalException(ProposalErrorCode.PROPOSAL_TARGET_UNRESOLVED);

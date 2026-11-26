@@ -66,6 +66,18 @@ class NotificationTest(unittest.TestCase):
         self.assertNotIn(WEBHOOK, notice.path.read_text() + json.dumps(self.events))
         self.assertEqual(notice.record['status'], 'FAILED')
 
+    def test_automatic_apply_counts_are_distinct_from_crawled_store_counts(self):
+        notice = notices.BatchNotification(self.logs, 'dataops-nightly', WEBHOOK)
+        self.journal(notice.record['invocation_id'], 'a', items_current={**ITEMS,
+                     'auto_apply_applied': 91, 'auto_apply_already_applied': 2, 'auto_apply_held': 3,
+                     'auto_apply_failed': 0, 'auto_apply_unknown': 1})
+        notice.finish(1)
+        text = content(self.events[-1])
+        self.assertIn('*이번 수집 · 시도*\n20건', text)
+        self.assertIn('*운영 반영 · 변경 항목*\n91건', text)
+        self.assertIn('*이미 반영됨*\n2건', text)
+        self.assertIn('*반영 실패 / 결과 미확정*\n0 / 1건', text)
+
     def test_failures_and_missing_counts_do_not_become_success_or_zero(self):
         for code, label in ((0, '성공'), (1, '실패'), (3, '차단'), (4, '미완료'), (75, '중복 실행 거절'), (143, '중단')):
             with self.subTest(code=code):
@@ -154,6 +166,7 @@ class RunnerNotificationTest(unittest.TestCase):
                 base = Path(directory)
                 env = {key: 'test' for key in runner.REQUIRED | runner.DATAOPS_REQUIRED}
                 env.update(DATAOPS_DB_URL='jdbc:postgresql://db/dataops?sslmode=require', DATAOPS_SLACK_WEBHOOK_URL=WEBHOOK)
+                env.update(DATAOPS_AUTO_APPLY_DB_USERNAME='dataops_writer', DATAOPS_AUTO_APPLY_DB_PASSWORD='writer')
                 events = []
                 def process(args, **kwargs):
                     app_env = Path(args[args.index('--env-file') + 1]).read_text()

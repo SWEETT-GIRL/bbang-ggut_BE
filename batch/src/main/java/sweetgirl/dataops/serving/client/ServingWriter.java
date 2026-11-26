@@ -316,6 +316,55 @@ public class ServingWriter {
 		return MenuUpsertResult.inserted(menuId);
 	}
 
+	/** Automatic additions never upsert a row that appeared after observation. */
+	public MenuUpsertResult insertObservedMenu(long storeId, String externalId, String name, Integer price,
+			String description, String categoryName) {
+		List<Long> inserted = prodJdbcTemplate.queryForList("""
+			WITH observed_store AS MATERIALIZED (
+			    SELECT id FROM store WHERE id = ? AND naver_place_id = ? AND status = 'ACTIVE' FOR UPDATE
+			)
+			INSERT INTO menu (store_id, name, normalized_name, price, description, menu_category_id,
+			    like_count, created_at, updated_at)
+			SELECT s.id, ?, lower(regexp_replace(?, '[^[:alnum:]]+', '', 'g')), ?, LEFT(?, 255),
+			    (SELECT id FROM menu_category WHERE name = ?), 0, now(), now()
+			FROM observed_store s WHERE NOT EXISTS (
+			    SELECT 1 FROM menu m WHERE m.store_id = s.id AND m.deleted_at IS NULL
+			    AND lower(regexp_replace(m.name, '[^[:alnum:]]+', '', 'g'))
+			        = lower(regexp_replace(?, '[^[:alnum:]]+', '', 'g'))
+			) ON CONFLICT DO NOTHING RETURNING id
+			""", Long.class, storeId, externalId, name, name, price, description, categoryName, name);
+		return inserted.isEmpty() ? MenuUpsertResult.blockedByExistingMenu(null) : MenuUpsertResult.inserted(inserted.get(0));
+	}
+
+	public int updateObservedStoreAddress(long storeId, String externalId, String expectedAddress, double expectedLon,
+			double expectedLat, String address, double lon, double lat, String region1st, String region2nd, String region3rd) {
+		return prodJdbcTemplate.update("""
+			UPDATE store SET address=?, location=ST_SetSRID(ST_MakePoint(?,?),4326)::geography,
+			region_1st=?, region_2nd=?, region_3rd=?, updated_at=now()
+			WHERE id=? AND naver_place_id=? AND status='ACTIVE' AND address IS NOT DISTINCT FROM CAST(? AS text)
+			AND ST_X(location::geometry)=? AND ST_Y(location::geometry)=?
+			""", address, lon, lat, region1st, region2nd, region3rd, storeId, externalId, expectedAddress, expectedLon, expectedLat);
+	}
+
+	public int updateObservedMenuCategory(long menuId, long storeId, String externalId, Long expectedCategoryId, String category) {
+		return prodJdbcTemplate.update("""
+			WITH observed_store AS MATERIALIZED (SELECT id FROM store WHERE id=? AND naver_place_id=? AND status='ACTIVE' FOR UPDATE)
+			UPDATE menu m SET menu_category_id=c.id, updated_at=now() FROM menu_category c, observed_store s
+			WHERE m.id=? AND m.store_id=s.id AND c.name=? AND m.menu_category_id IS NOT DISTINCT FROM CAST(? AS bigint)
+			AND m.deleted_at IS NULL AND m.created_by_member_id IS NULL
+			""", storeId, externalId, menuId, category, expectedCategoryId);
+	}
+
+	public int softDeleteObservedMenu(long menuId, long storeId, String externalId, String name, Integer price, String description) {
+		return prodJdbcTemplate.update("""
+			WITH observed_store AS MATERIALIZED (SELECT id FROM store WHERE id=? AND naver_place_id=? AND status='ACTIVE' FOR UPDATE)
+			UPDATE menu m SET deleted_at=now(), updated_at=now() FROM observed_store s
+			WHERE m.id=? AND m.store_id=s.id AND m.name IS NOT DISTINCT FROM CAST(? AS text)
+			AND m.price IS NOT DISTINCT FROM CAST(? AS integer) AND m.description IS NOT DISTINCT FROM CAST(? AS text)
+			AND m.deleted_at IS NULL AND m.created_by_member_id IS NULL
+			""", storeId, externalId, menuId, name, price, description);
+	}
+
 	/** 재판정과 같은 유니코드 정규화(\p{L}\p{N}, 소문자) — 공백·기호·대소문자만 다른 이름은 같은 상품으로 본다 */
 	static boolean sameName(String a, String b) {
 		return normalizeUnicode(a).equals(normalizeUnicode(b));

@@ -13,9 +13,12 @@ import sweetgirl.dataops.snapshot.service.ResponseDiagnostics;
 @RequiredArgsConstructor
 public class ResponseCapabilitiesController {
 	private final ObjectProvider<ServingWriter> writer;
+	@org.springframework.beans.factory.annotation.Value("${dataops.auto-apply.enabled:false}")
+	private boolean automaticApplyEnabled;
 	@GetMapping("/api/snapshots/capabilities")
 	public ApiResponse<Map<String, Object>> capabilities() {
 		return ApiResponse.ok(Map.of("captureProtocol", 1, "wholeObservationHold", true,
-			"menuScopedHold", true, "writesEnabled", writer.getIfAvailable() != null, "contractVersion", ResponseDiagnostics.CONTRACT));
+			"menuScopedHold", true, "writesEnabled", writer.getIfAvailable() != null,
+			"automaticApplyProtocol", automaticApplyEnabled ? 1 : 0, "contractVersion", ResponseDiagnostics.CONTRACT));
 	}
 }
