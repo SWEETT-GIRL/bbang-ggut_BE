@@ -15,6 +15,7 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.checksums.RequestChecksumCalculation;
 import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.LegacyMd5Plugin;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
@@ -61,7 +62,10 @@ public class S3Config {
 			// AWS 를 쓸 때의 동작은 바꾸지 않도록 주소를 따로 준 경우에만 "필요할 때만"으로 낮춘다.
 			builder.endpointOverride(URI.create(storageProperties.getEndpoint()))
 				.requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED)
-				.responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
+				.responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED)
+				// 일괄 삭제(DeleteObjects)는 체크섬이 필수인 요청이라 위 설정으로도 CRC32 가 붙는다.
+				// S3 호환 스토리지가 받는 Content-MD5 를 함께 싣는다.
+				.addPlugin(LegacyMd5Plugin.create());
 		}
 		return builder.build();
 	}

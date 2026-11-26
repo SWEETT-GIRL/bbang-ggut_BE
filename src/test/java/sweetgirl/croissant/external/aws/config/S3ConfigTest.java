@@ -6,11 +6,20 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.net.URI;
 import java.net.URL;
 import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import software.amazon.awssdk.core.interceptor.Context;
+import software.amazon.awssdk.core.interceptor.ExecutionAttributes;
+import software.amazon.awssdk.core.interceptor.ExecutionInterceptor;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.Delete;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
+import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
@@ -71,6 +80,26 @@ class S3ConfigTest {
 	}
 
 	@Test
+	@DisplayName("주소를 주면 일괄 삭제 요청에 Content-MD5 가 실린다 — S3 호환 스토리지는 CRC32 만으로는 받지 않을 수 있다")
+	void client_withEndpoint_sendsContentMd5OnBulkDelete() {
+		StorageProperties properties = properties("ap-tokyo-1");
+		properties.setEndpoint(OCI_ENDPOINT);
+		properties.setPathStyleAccess(true);
+
+		Map<String, List<String>> headers = bulkDeleteHeaders(new S3Config(properties).s3Client());
+
+		assertThat(headers).containsKey("Content-MD5");
+	}
+
+	@Test
+	@DisplayName("주소를 주지 않으면 일괄 삭제 요청은 AWS 기본 체크섬 그대로다")
+	void client_withoutEndpoint_keepsDefaultChecksumOnBulkDelete() {
+		Map<String, List<String>> headers = bulkDeleteHeaders(new S3Config(properties("ap-northeast-2")).s3Client());
+
+		assertThat(headers).containsKey("x-amz-checksum-crc32").doesNotContainKey("Content-MD5");
+	}
+
+	@Test
 	@DisplayName("주소를 주지 않으면 S3 클라이언트는 주소를 덮어쓰지 않는다")
 	void client_withoutEndpoint_keepsDefaultEndpoint() {
 		StorageProperties properties = properties("ap-northeast-2");
@@ -97,6 +126,30 @@ class S3ConfigTest {
 		properties.getCredentials().setAccessKey("test-access-key");
 		properties.getCredentials().setSecretKey("test-secret-key");
 		return properties;
+	}
+
+	/** 전송 직전의 헤더를 잡고 요청을 끊는다 — 네트워크로는 나가지 않는다. */
+	private Map<String, List<String>> bulkDeleteHeaders(S3Client client) {
+		Map<String, List<String>> captured = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+		ExecutionInterceptor captor = new ExecutionInterceptor() {
+			@Override
+			public void beforeTransmission(Context.BeforeTransmission context, ExecutionAttributes attributes) {
+				captured.putAll(context.httpRequest().headers());
+				throw new IllegalStateException("captured");
+			}
+		};
+		DeleteObjectsRequest request = DeleteObjectsRequest.builder()
+			.bucket("test-bucket")
+			.delete(Delete.builder().objects(ObjectIdentifier.builder().key("stores/1/photo").build()).build())
+			.overrideConfiguration(override -> override.addPlugin(
+				config -> config
+					.overrideConfiguration(clientOverride -> clientOverride.addExecutionInterceptor(captor))))
+			.build();
+
+		try (client) {
+			assertThatThrownBy(() -> client.deleteObjects(request)).hasStackTraceContaining("captured");
+		}
+		return captured;
 	}
 
 	private URL presignPut(S3Presigner presigner) {
