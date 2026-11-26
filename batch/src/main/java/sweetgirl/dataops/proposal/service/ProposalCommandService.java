@@ -138,12 +138,13 @@ public class ProposalCommandService {
 			return null;
 		}
 		if (existing != null && target.startsWith("menu.") && existing.getSource() != source) {
-			existing.noteProducerConflict("MENU_SOURCE_CONFLICT: 기존 후보 " + existing.getSource() + " / 새 관측 " + source
+			changeProposalRepository.updatePendingReviewNote(existing.getId(), existing.getSource(),
+				"MENU_SOURCE_CONFLICT: 기존 후보 " + existing.getSource() + " / 새 관측 " + source
 				+ " — 출처가 다른 후보를 자동 교체하지 않습니다");
 			return ChangeProposalResponse.from(existing);
 		}
 		if (existing != null && conflictsAcrossProducers(existing, producer, newValue)) {
-			existing.noteProducerConflict(String.format(
+			changeProposalRepository.updatePendingReviewNote(existing.getId(), existing.getSource(), String.format(
 				"%s 가 같은 대상에 다른 값을 제안했으나 보존을 위해 접었습니다 — 어느 판정이 맞는지 사람이 정해야 합니다",
 				producer));
 			log.warn("producer 충돌 — store {} target {} : 기존 {} 유지, {} 제안 접음",
@@ -179,7 +180,8 @@ public class ProposalCommandService {
 		if (proposal.getStatus() != ProposalStatus.PENDING || proposal.getSource() != observed) return;
 		String reason = previous == observed ? "MENU_SAME_SOURCE_UPDATE"
 			: previous == null ? "MENU_SOURCE_UNKNOWN" : "MENU_SOURCE_CONFLICT";
-		proposal.noteProducerConflict(reason + ": 기존 " + (previous == null ? "미기록" : previous)
+		changeProposalRepository.updatePendingReviewNote(proposalId, observed,
+			reason + ": 기존 " + (previous == null ? "미기록" : previous)
 			+ " / 관측 " + observed + (observed == ProvenanceSource.BAEMIN ? " (배달 가격으로 매장 가격과 다를 수 있음)" : "")
 			+ " — 검토·승인 후 반영");
 	}

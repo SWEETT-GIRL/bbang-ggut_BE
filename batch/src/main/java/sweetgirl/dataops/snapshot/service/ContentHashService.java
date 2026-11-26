@@ -83,7 +83,12 @@ public class ContentHashService {
 
 	/** Baemin observations cannot advance the standard-menu completeness baseline. */
 	public String baeminMenuHash(ParsedPlace place) {
-		return sha256Hex("baemin-menu-v1\n" + objectMapper.writeValueAsString(canonicalMenus(place.baeminMenus())));
+		List<String> menus = place.baeminMenus().stream()
+			.map(menu -> objectMapper.writeValueAsString(List.of(
+				nullSafe(menu.name()), nullSafe(menu.price()), nullSafe(menu.description()),
+				nullSafe(menu.groupName()), menu.imageUrls())))
+			.sorted().toList();
+		return sha256Hex("baemin-menu-v2\n" + objectMapper.writeValueAsString(menus));
 	}
 
 	/**

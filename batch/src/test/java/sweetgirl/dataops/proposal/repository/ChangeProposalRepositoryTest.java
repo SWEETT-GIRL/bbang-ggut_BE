@@ -8,10 +8,12 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.transaction.annotation.Transactional;
 
 import sweetgirl.dataops.DataopsApplication;
+import sweetgirl.dataops.config.persistence.JpaConfig;
 import sweetgirl.dataops.proposal.entity.ChangeProposal;
 import sweetgirl.dataops.proposal.enums.ProposalProducer;
 import sweetgirl.dataops.proposal.enums.ProposalStatus;
@@ -22,12 +24,15 @@ import sweetgirl.dataops.sync.enums.SyncSource;
 import sweetgirl.dataops.sync.enums.SyncTier;
 import sweetgirl.dataops.sync.repository.StoreSyncStateRepository;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
+import org.springframework.test.context.transaction.TestTransaction;
 
 /**
  * 재판정 범위 정리의 경계 (v3 P1-2 · AC-09) — 전역 PENDING 삭제를 대체한 쿼리가 범위 밖을 건드리지 않는지 본다.
  * 이전 구현은 네이버 스냅샷 재판정 한 번이 공공데이터 폐업 제안·매칭 제안·지역 제안까지 함께 날렸다.
  */
-@SpringBootTest(properties = "spring.config.name=" + DataopsApplication.CONFIG_NAME)
+@DataJpaTest(properties = "spring.config.name=" + DataopsApplication.CONFIG_NAME)
+@Import(JpaConfig.class)
 @Transactional
 class ChangeProposalRepositoryTest {
 
@@ -43,6 +48,8 @@ class ChangeProposalRepositoryTest {
 	private StoreSyncStateRepository storeSyncStateRepository;
 	@Autowired
 	private EntityManager entityManager;
+	@Autowired
+	private EntityManagerFactory entityManagerFactory;
 
 	private ChangeProposal reconcileSurvivor;
 	private ChangeProposal reconcileStale;
@@ -79,6 +86,57 @@ class ChangeProposalRepositoryTest {
 	private ProposalStatus statusOf(ChangeProposal proposal) {
 		entityManager.clear();
 		return repository.findById(proposal.getId()).orElseThrow().getStatus();
+	}
+
+	@Test void pending_note_update_preserves_other_managed_state_and_requires_matching_source() {
+		var proposal = save(1L, "menu.501.price", ProvenanceSource.BAEMIN, ProposalProducer.NAVER_SNAPSHOT_RECONCILE);
+		var state = storeSyncStateRepository.saveAndFlush(StoreSyncState.builder()
+			.storeId(901L).source(SyncSource.NAVER).externalId("nv-901").tier(SyncTier.T1).build());
+		state.recordSuccess(true, "pending-note-hash");
+		assertThat(repository.updatePendingReviewNote(proposal.getId(), ProvenanceSource.NAVER, "wrong source")).isZero();
+		assertThat(repository.updatePendingReviewNote(proposal.getId(), ProvenanceSource.BAEMIN, "검토")).isEqualTo(1);
+		assertThat(entityManager.contains(state)).isTrue();
+		entityManager.flush(); entityManager.clear();
+		var reread = repository.findById(proposal.getId()).orElseThrow();
+		assertThat(reread.getReviewNote()).isEqualTo("검토");
+		assertThat(reread.getStatus()).isEqualTo(ProposalStatus.PENDING);
+		assertThat(reread.getOperationId()).isNull();
+		assertThat(storeSyncStateRepository.findById(state.getId()).orElseThrow().getContentHash()).isEqualTo("pending-note-hash");
+	}
+
+	@Test void stale_pending_read_cannot_overwrite_a_claim_committed_by_another_transaction() {
+		EntityManager claimant = entityManagerFactory.createEntityManager();
+		Long proposalId = null;
+		try {
+			claimant.getTransaction().begin();
+			var committed = ChangeProposal.builder().storeId(99001L).target("menu.1.price")
+				.newValue("3500").source(ProvenanceSource.BAEMIN).build();
+			claimant.persist(committed); claimant.getTransaction().commit();
+			proposalId = committed.getId();
+			var stale = repository.findById(proposalId).orElseThrow();
+			assertThat(stale.getStatus()).isEqualTo(ProposalStatus.PENDING);
+			UUID operationId = UUID.randomUUID();
+			claimant.getTransaction().begin();
+			committed.beginApply(operationId); claimant.getTransaction().commit();
+			// This transaction still holds the earlier PENDING entity, while the independent claim has committed.
+			assertThat(stale.getStatus()).isEqualTo(ProposalStatus.PENDING);
+			assertThat(repository.updatePendingReviewNote(proposalId, ProvenanceSource.BAEMIN, "늦은 메모")).isZero();
+			entityManager.flush(); entityManager.refresh(stale);
+			assertThat(stale.getStatus()).isEqualTo(ProposalStatus.APPLYING);
+			assertThat(stale.getOperationId()).isEqualTo(operationId);
+			assertThat(stale.getApplyStartedAt()).isNotNull();
+			assertThat(stale.getReviewNote()).isNull();
+		} finally {
+			// End the test transaction before cleaning up the independently committed row.
+			TestTransaction.flagForRollback(); TestTransaction.end();
+			if (claimant.getTransaction().isActive()) claimant.getTransaction().rollback();
+			if (proposalId != null) {
+				claimant.getTransaction().begin();
+				claimant.remove(claimant.find(ChangeProposal.class, proposalId));
+				claimant.getTransaction().commit();
+			}
+			claimant.close();
+		}
 	}
 
 	@Test void source_expiration_keeps_other_sources_unseen_targets_and_non_pending_proposals() {

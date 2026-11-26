@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -531,20 +532,13 @@ public class ReconcileService {
 				ParsedMenu menu = naver.containsKey(name) ? naver.get(name) : baemin.get(name);
 				ProvenanceSource source = naver.containsKey(name) ? ProvenanceSource.NAVER : ProvenanceSource.BAEMIN;
 				String target = "menu.add." + truncate(name, 50);
-				if (baemin.containsKey(name)) observedBaeminTargets.add(target);
+				if (source == ProvenanceSource.BAEMIN) observedBaeminTargets.add(target);
 				if (!beverageFilter.isExcluded(menu.name(), menu.groupName()))
 					proposeMenu(storeId, generation, target, null, menuJson(menu), source, provenance.get(target));
 				continue;
 			}
-			if (baemin.containsKey(name)) {
-				ParsedMenu deliveryMenu = baemin.get(name);
-				if (parsePrice(deliveryMenu.price()) != null)
-					observedBaeminTargets.add("menu." + current.menuId() + ".price");
-				if (!normalizeDescription(deliveryMenu.description()).isEmpty())
-					observedBaeminTargets.add("menu." + current.menuId() + ".description");
-			}
-			reconcileMenuField(storeId, generation, current, naver.get(name), baemin.get(name), provenance, "price");
-			if (!current.userAdded()) reconcileMenuField(storeId, generation, current, naver.get(name), baemin.get(name), provenance, "description");
+			reconcileMenuField(storeId, generation, current, naver.get(name), baemin.get(name), provenance, "price", observedBaeminTargets);
+			if (!current.userAdded()) reconcileMenuField(storeId, generation, current, naver.get(name), baemin.get(name), provenance, "description", observedBaeminTargets);
 		}
 		// Delivery-list absence never authorizes deletion, including menus previously imported from Baemin.
 		if (naverAllowed && !naver.isEmpty()) for (var entry : currentByName.entrySet()) {
@@ -577,23 +571,32 @@ public class ReconcileService {
 	}
 
 	private void reconcileMenuField(Long storeId, ReconcileGeneration generation, MenuCurrentValues current,
-			ParsedMenu naver, ParsedMenu baemin, Map<String, ProvenanceSource> provenance, String field) {
+			ParsedMenu naver, ParsedMenu baemin, Map<String, ProvenanceSource> provenance, String field, Set<String> evaluatedBaeminTargets) {
 		String target = "menu." + current.menuId() + "." + field;
 		ProvenanceSource existing = provenance.getOrDefault(target, provenance.get("menu." + current.menuId()));
-		// Prefer continuity of the known field source. Never infer source from optional groupName.
-		boolean useBaemin = baemin != null && (existing == ProvenanceSource.BAEMIN || naver == null);
+		// 필드가 사용 가능할 때 출처 연속성을 우선한다. 빈 필드는 다른 출처의 검토 후보로 보완한다.
+		boolean naverUsable = usableMenuField(naver, field);
+		boolean baeminUsable = usableMenuField(baemin, field);
+		if (!naverUsable && !baeminUsable) return;
+		boolean useBaemin = baeminUsable && (existing == ProvenanceSource.BAEMIN || !naverUsable);
 		ParsedMenu observed = useBaemin ? baemin : naver;
-		if (observed == null) return;
 		ProvenanceSource source = useBaemin ? ProvenanceSource.BAEMIN : ProvenanceSource.NAVER;
+		if (useBaemin) evaluatedBaeminTargets.add(target);
 		if (field.equals("price")) {
-			Integer price = parsePrice(observed.price());
-			if (price != null && !price.equals(current.price()))
+			int price = parsePrice(observed.price()).orElseThrow();
+			if (!Integer.valueOf(price).equals(current.price()))
 				proposeMenu(storeId, generation, target, jsonNumber(current.price()), jsonNumber(price), source, existing);
 		} else {
 			String description = normalizeDescription(observed.description());
 			if (!description.isEmpty() && !description.equals(normalizeDescription(current.description())))
 				proposeMenu(storeId, generation, target, jsonText(current.description()), jsonText(description), source, existing);
 		}
+	}
+
+	private boolean usableMenuField(ParsedMenu menu, String field) {
+		if (menu == null) return false;
+		return field.equals("price") ? parsePrice(menu.price()).isPresent()
+			: !normalizeDescription(menu.description()).isEmpty();
 	}
 
 	private void proposeMenu(Long storeId, ReconcileGeneration generation, String target, String oldValue,
@@ -725,9 +728,9 @@ public class ReconcileService {
 		return phone == null ? "" : phone.replaceAll("\\D", "");
 	}
 
-	private Integer parsePrice(String price) {
-		if (price == null || !price.matches("\\d{1,9}")) return null;
-		return Integer.parseInt(price);
+	private OptionalInt parsePrice(String price) {
+		if (price == null || !price.matches("\\d{1,9}")) return OptionalInt.empty();
+		return OptionalInt.of(Integer.parseInt(price));
 	}
 
 	private String jsonText(String value) {
@@ -741,7 +744,8 @@ public class ReconcileService {
 	private String menuJson(ParsedMenu menu) {
 		Map<String, Object> body = new LinkedHashMap<>();
 		body.put("name", withoutStock(menu.name()));
-		body.put("price", parsePrice(menu.price()));
+		OptionalInt price = parsePrice(menu.price());
+		body.put("price", price.isPresent() ? price.getAsInt() : null);
 		body.put("description", menu.description());
 		return objectMapper.writeValueAsString(body);
 	}

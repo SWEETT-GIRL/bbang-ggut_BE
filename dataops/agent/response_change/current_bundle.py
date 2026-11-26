@@ -381,6 +381,7 @@ class CurrentParserBundleProvider:
         # before any model request when no independently reviewed repair contract exists.
         if codes & {"MENU_CONTAINER_MISSING", "MENU_CONTAINER_UNRECOGNIZED"}:
             raise Hold("MENU_PATH_CHANGE_REVIEW_REQUIRED")
+        codes = codes - {"BAEMIN_INCOMPLETE"}
         if any(code.startswith("BAEMIN_") for code in codes):
             raise Hold("BAEMIN_STRUCTURE_REVIEW_REQUIRED")
         if "MENU_ENTITY_UNSUPPORTED" not in codes or not codes <= ALLOWED_ISSUES:

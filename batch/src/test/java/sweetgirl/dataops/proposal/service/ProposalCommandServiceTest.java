@@ -147,6 +147,8 @@ class ProposalCommandServiceTest {
 			.willReturn(MenuUpsertResult.blockedByExistingMenu(77L));
 		assertThatThrownBy(() -> proposalCommandService.approve(5L)).isInstanceOf(ProposalException.class);
 		then(servingWriter).should(never()).upsertMenu(anyLong(), any(), any(), any(), any());
+		assertThat(proposal.getStatus()).isEqualTo(ProposalStatus.FAILED);
+		then(applyStateService).should().settleFailed(eq(5L), eq(ApplyOutcomeReason.VALUE_DRIFTED.name()), any());
 		then(applyStateService).should(never()).settleApplied(any(), any(), any());
 	}
 
@@ -158,7 +160,9 @@ class ProposalCommandServiceTest {
 		assertThat(response.source()).isEqualTo(ProvenanceSource.NAVER);
 		assertThat(existing.getNewValue()).isEqualTo("3100");
 		assertThat(existing.getStatus()).isEqualTo(ProposalStatus.PENDING);
-		assertThat(existing.getReviewNote()).contains("MENU_SOURCE_CONFLICT", "BAEMIN");
+		assertThat(existing.getReviewNote()).isNull();
+		then(changeProposalRepository).should().updatePendingReviewNote(eq(existing.getId()), eq(ProvenanceSource.NAVER),
+			argThat(note -> note.contains("MENU_SOURCE_CONFLICT") && note.contains("BAEMIN")));
 		then(changeProposalRepository).should(never()).save(any());
 	}
 
@@ -167,11 +171,14 @@ class ProposalCommandServiceTest {
 			.newValue("3500").source(ProvenanceSource.BAEMIN).build();
 		given(changeProposalRepository.findById(5L)).willReturn(Optional.of(proposal));
 		proposalCommandService.noteMenuSourceComparison(5L, ProvenanceSource.BAEMIN, ProvenanceSource.BAEMIN);
-		assertThat(proposal.getReviewNote()).contains("MENU_SAME_SOURCE_UPDATE", "배달 가격");
+		then(changeProposalRepository).should().updatePendingReviewNote(eq(5L), eq(ProvenanceSource.BAEMIN),
+			argThat(note -> note.contains("MENU_SAME_SOURCE_UPDATE") && note.contains("배달 가격")));
 		proposalCommandService.noteMenuSourceComparison(5L, null, ProvenanceSource.BAEMIN);
-		assertThat(proposal.getReviewNote()).contains("MENU_SOURCE_UNKNOWN");
+		then(changeProposalRepository).should().updatePendingReviewNote(eq(5L), eq(ProvenanceSource.BAEMIN), contains("MENU_SOURCE_UNKNOWN"));
 		proposalCommandService.noteMenuSourceComparison(5L, ProvenanceSource.USER, ProvenanceSource.BAEMIN);
-		assertThat(proposal.getReviewNote()).contains("MENU_SOURCE_CONFLICT", "USER");
+		then(changeProposalRepository).should().updatePendingReviewNote(eq(5L), eq(ProvenanceSource.BAEMIN),
+			argThat(note -> note.contains("MENU_SOURCE_CONFLICT") && note.contains("USER")));
+		assertThat(proposal.getReviewNote()).isNull();
 		assertThat(proposal.getStatus()).isEqualTo(ProposalStatus.PENDING);
 		then(servingWriterProvider).shouldHaveNoInteractions();
 	}
@@ -807,7 +814,9 @@ class ProposalCommandServiceTest {
 
 		assertThat(response).isNull();
 		assertThat(otherProducer.getStatus()).isEqualTo(ProposalStatus.PENDING);
-		assertThat(otherProducer.getReviewNote()).contains("NAVER_SNAPSHOT_RECONCILE").contains("사람이 정해야");
+		assertThat(otherProducer.getReviewNote()).isNull();
+		then(changeProposalRepository).should().updatePendingReviewNote(eq(otherProducer.getId()), eq(ProvenanceSource.LOCALDATA),
+			argThat(note -> note.contains("NAVER_SNAPSHOT_RECONCILE") && note.contains("사람이 정해야")));
 		then(changeProposalRepository).should(never()).save(any());
 	}
 

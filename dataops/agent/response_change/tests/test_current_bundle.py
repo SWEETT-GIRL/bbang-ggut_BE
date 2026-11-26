@@ -82,6 +82,19 @@ class CurrentBundleTest(unittest.TestCase):
             with self.subTest(code=code), self.assertRaisesRegex(Hold, reason):
                 self.provider().prepare(incident(diagnostics=[{"code": code}]), [sample()])
 
+    def test_null_baemin_does_not_block_supported_naver_alias_repair(self):
+        raw = json.loads(sample()['payload'])
+        next(iter(raw['ROOT_QUERY'].values()))['baemin'] = {
+            '__typename': 'PlaceDetail_BaeminData', 'menus': None}
+        result = self.provider().prepare(incident(diagnostics=[
+            {'code': 'MENU_ENTITY_UNSUPPORTED'}, {'code': 'BAEMIN_INCOMPLETE'}]),
+            [sample(payload=json.dumps(raw))])
+        self.assertEqual('NEW_STRUCTURE', result.fixtures[1]['role'])
+        with self.assertRaisesRegex(Hold, 'BAEMIN_STRUCTURE_REVIEW_REQUIRED'):
+            self.provider().prepare(incident(diagnostics=[
+                {'code': 'MENU_ENTITY_UNSUPPORTED'}, {'code': 'BAEMIN_INCOMPLETE'},
+                {'code': 'BAEMIN_FIELD_TYPE_UNSUPPORTED'}]), [sample()])
+
     def test_mixed_entity_order_is_preserved_in_control(self):
         row = sample()
         raw = json.loads(row['payload'])
