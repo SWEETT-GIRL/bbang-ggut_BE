@@ -39,10 +39,20 @@ ALTER DATABASE soboro RESET search_path;
 
 DB 데이터는 운영 DB 를 덤프해 복원한다. 2026-11-26 리허설 기준 덤프 294초 · 복원 158초.
 
+DB 는 컨테이너 안에 있고 서버에는 PostgreSQL 클라이언트를 깔지 않는다. 덤프를 컨테이너에 넣어 그 안에서 복원한다.
+
 ```bash
-pg_dump -Fc --no-owner --no-acl -f prod.dump ...        # 원본에서
-pg_restore --no-owner --no-acl -j 2 -d soboro prod.dump # 이 서버에서
+# 원본 DB 에 닿는 곳에서
+pg_dump -Fc --no-owner --no-acl -f prod.dump ...
+
+# 이 서버에서 (prod.dump 를 올려 둔 폴더에서)
+docker cp prod.dump bbang-infra-postgres-1:/tmp/prod.dump
+docker exec bbang-infra-postgres-1 pg_restore --no-owner --no-acl -j 2 -U "$POSTGRES_USER" -d soboro /tmp/prod.dump
+docker exec bbang-infra-postgres-1 unlink /tmp/prod.dump
 ```
+
+`$POSTGRES_USER` 는 `~/infra/.env` 의 값이다(`set -a; . ~/infra/.env; set +a` 로 읽는다).
+컨테이너 안의 로컬 접속이라 비밀번호는 묻지 않는다.
 
 ### 2. 인증서
 
@@ -61,7 +71,11 @@ sudo tar xzf letsencrypt.tgz -C /etc
 
 ### 3. Nginx · 방화벽
 
+저장소를 받아 둔 폴더에서 실행한다 — 스크립트가 옆의 `deploy/nginx/` · `deploy/bastion/` 파일을 읽으므로 스크립트만 따로 복사하면 안 된다.
+(1단계에서 `~/infra` 로 옮겨 와 있으므로 위치를 바꾼다.)
+
 ```bash
+cd <저장소를 받은 폴더>
 sudo ./deploy/oci/setup-nginx.sh ubuntu
 ```
 
