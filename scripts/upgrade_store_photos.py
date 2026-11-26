@@ -28,9 +28,10 @@ import urllib.parse
 from collections import defaultdict
 from pathlib import Path
 
-import boto3
 import psycopg2
 import requests
+
+from storage_client import s3_client
 
 UA = {
 	"User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -99,10 +100,7 @@ def main() -> None:
 
 	cfg = load_props()
 	bucket = cfg["storage.bucket"]
-	s3 = boto3.client(
-		"s3", region_name=cfg["storage.region"],
-		aws_access_key_id=cfg["storage.credentials.access-key"],
-		aws_secret_access_key=cfg["storage.credentials.secret-key"])
+	s3 = s3_client(cfg)
 
 	conn = db_conn(cfg)
 	conn.autocommit = False
