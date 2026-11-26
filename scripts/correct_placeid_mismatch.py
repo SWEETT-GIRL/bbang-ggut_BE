@@ -55,10 +55,10 @@ def main() -> None:
 		connect_timeout=15)
 	conn.autocommit = False
 	cur = conn.cursor()
-	s3 = boto3.client("s3", region_name=cfg["aws.region"],
-		aws_access_key_id=cfg["aws.credentials.access-key"],
-		aws_secret_access_key=cfg["aws.credentials.secret-key"])
-	bucket = cfg["aws.s3.bucket"]
+	s3 = boto3.client("s3", region_name=cfg["storage.region"],
+		aws_access_key_id=cfg["storage.credentials.access-key"],
+		aws_secret_access_key=cfg["storage.credentials.secret-key"])
+	bucket = cfg["storage.bucket"]
 
 	cur.execute("SELECT aws_key FROM store_image_file WHERE store_id = ANY(%s) AND source_url IS NOT NULL", (ids,))
 	keys = [r[0] for r in cur.fetchall()]

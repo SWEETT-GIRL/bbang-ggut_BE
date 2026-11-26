@@ -98,11 +98,11 @@ def main() -> None:
 	fkcol = "store_id" if args.domain == "stores" else "menu_id"
 
 	cfg = load_props()
-	bucket = cfg["aws.s3.bucket"]
+	bucket = cfg["storage.bucket"]
 	s3 = boto3.client(
-		"s3", region_name=cfg["aws.region"],
-		aws_access_key_id=cfg["aws.credentials.access-key"],
-		aws_secret_access_key=cfg["aws.credentials.secret-key"])
+		"s3", region_name=cfg["storage.region"],
+		aws_access_key_id=cfg["storage.credentials.access-key"],
+		aws_secret_access_key=cfg["storage.credentials.secret-key"])
 
 	conn = db_conn(cfg)
 	conn.autocommit = False

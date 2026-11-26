@@ -44,7 +44,7 @@ public class S3Service {
 	private final S3Presigner s3Presigner;
 	private final S3Client s3Client;
 
-	@Value("${aws.s3.bucket}")
+	@Value("${storage.bucket}")
 	private String bucketName;
 
 	public PresignedUrlResponse generatePresignedUrl(String path, String mimeTypeStr) {

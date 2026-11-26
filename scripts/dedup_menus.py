@@ -88,9 +88,9 @@ def main() -> None:
 	conn.autocommit = False
 	cur = conn.cursor()
 	s3 = boto3.client(
-		"s3", region_name=cfg["aws.region"],
-		aws_access_key_id=cfg["aws.credentials.access-key"],
-		aws_secret_access_key=cfg["aws.credentials.secret-key"])
+		"s3", region_name=cfg["storage.region"],
+		aws_access_key_id=cfg["storage.credentials.access-key"],
+		aws_secret_access_key=cfg["storage.credentials.secret-key"])
 
 	cur.execute("SELECT id, store_id, name, price, description, created_at FROM menu WHERE deleted_at IS NULL")
 	rows = cur.fetchall()
@@ -183,7 +183,7 @@ def main() -> None:
 	s3_deleted = 0
 	if args.apply:
 		conn.commit()
-		bucket = cfg["aws.s3.bucket"]
+		bucket = cfg["storage.bucket"]
 		for i in range(0, len(orphan_keys), 1000):
 			batch = [{"Key": k} for k in orphan_keys[i:i + 1000]]
 			if batch:
