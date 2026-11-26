@@ -7,6 +7,9 @@
  * 실패를 둘로 나눈다.
  *  - 결정적 실패(이미지가 아님, 디코딩 불가, 원본이 사라짐): 다시 해도 같다. BE 에 FAILED 를 알리고 정상 종료한다.
  *  - 일시적 실패(저장소·콜백 오류): throw 한다 → Events 가 다시 전달한다. 처리는 멱등이라 다시 돌아도 무해하다.
+ *
+ * FAILED 통보가 닿지 못한 것도 일시적 실패다 — 삼키면 BE 는 실패를 모르고 이미지가 처리 중으로 남는다.
+ * 단, 콜백이 요청을 거부한 경우(error.rejected — 인증 키 오류 등 4xx)는 다시 보내도 같으므로 올리지 않는다.
  */
 
 const sharp = require("sharp");
@@ -137,13 +140,19 @@ async function createResizedImages(imageBuffer, objectName, storage) {
   }
 }
 
-/** FAILED 통보. 통보 자체가 실패해도 결정적 실패의 흐름을 막지 않는다 — 다시 해봐야 같은 실패가 반복된다. */
+/**
+ * FAILED 통보. 통보가 닿지 못하면 throw 한다 — 다시 전달되면 같은 검증 실패를 거쳐 FAILED 를 다시 보낸다.
+ * 콜백이 요청을 거부했으면(error.rejected) 다시 해봐야 같으므로 기록만 남긴다.
+ */
 async function reportFailure(webhook, objectName, failReason, log) {
   log.error(`Image processing failed: ${objectName} — ${failReason}`);
   try {
     await webhook.send(objectName, "FAILED", failReason);
   } catch (error) {
-    log.error(`Could not report FAILED for ${objectName}: ${error.message}`);
+    if (!error?.rejected) {
+      throw error;
+    }
+    log.error(`FAILED callback was rejected for ${objectName}, not retrying: ${error.message}`);
   }
 }
 

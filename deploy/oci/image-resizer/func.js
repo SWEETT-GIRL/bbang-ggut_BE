@@ -82,7 +82,7 @@ function storageFor(namespaceName, bucketName) {
 }
 
 const webhook = {
-  /** 4xx 는 다시 보내도 같으므로 즉시 포기한다(인증 키 오류 등). 그 밖에는 짧게 재시도한다. */
+  /** 4xx 는 다시 보내도 같으므로 즉시 포기한다(인증 키 오류 등, error.rejected). 그 밖에는 짧게 재시도하고, 끝내 실패하면 throw 한다. */
   async send(awsKey, status, failReason) {
     if (WEBHOOK_DISABLED) {
       console.log(`Webhook disabled, not sent: ${awsKey} ${status}`);
@@ -103,11 +103,12 @@ const webhook = {
         }
         const text = await response.text().catch(() => "");
         if (response.status >= 400 && response.status < 500) {
-          throw new Error(`Webhook rejected: ${response.status} ${text}`);
+          // rejected 표시는 resizer 가 본다 — FAILED 통보가 거부됐을 때 다시 전달받지 않기 위해서다.
+          throw Object.assign(new Error(`Webhook rejected: ${response.status} ${text}`), { rejected: true });
         }
         lastError = new Error(`Webhook failed: ${response.status} ${text}`);
       } catch (error) {
-        if (error.message?.startsWith("Webhook rejected: ")) {
+        if (error.rejected) {
           throw error;
         }
         lastError = error;

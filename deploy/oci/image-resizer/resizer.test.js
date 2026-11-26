@@ -160,6 +160,36 @@ test("DONE 통보가 실패하면 throw 해서 다시 전달받는다(FAILED 로
   assert.deepEqual(webhook.calls.map((call) => call.status), ["DONE"]);
 });
 
+test("FAILED 통보가 닿지 못하면 throw 해서 다시 전달받는다 — 삼키면 BE 가 실패를 모른다", async () => {
+  const key = "reviews/1/not-image";
+  const storage = fakeStorage(new Map([[key, Buffer.from("<html>not an image</html>")]]));
+  const webhook = fakeWebhook({ failWith: new Error("Webhook failed: 503") });
+
+  await assert.rejects(() => processObject(key, storage, webhook, silent), /Webhook failed: 503/);
+
+  assert.deepEqual(webhook.calls.map((call) => call.status), ["FAILED"]);
+});
+
+test("리사이즈 실패의 FAILED 통보가 닿지 못해도 throw 한다", async () => {
+  const key = "stores/1/broken";
+  const png = await sharp({ create: { width: 10, height: 10, channels: 3, background: "#fff" } }).png().toBuffer();
+  const storage = fakeStorage(new Map([[key, png.subarray(0, 24)]]));
+  const webhook = fakeWebhook({ failWith: new Error("Webhook failed: 503") });
+
+  await assert.rejects(() => processObject(key, storage, webhook, silent), /Webhook failed: 503/);
+});
+
+test("FAILED 통보가 거부되면(4xx) 다시 전달받지 않고 정상 종료한다", async () => {
+  const key = "reviews/1/not-image";
+  const storage = fakeStorage(new Map([[key, Buffer.from("<html>not an image</html>")]]));
+  const rejected = Object.assign(new Error("Webhook rejected: 401"), { rejected: true });
+  const webhook = fakeWebhook({ failWith: rejected });
+
+  const result = await processObject(key, storage, webhook, silent);
+
+  assert.equal(result, "FAILED");
+});
+
 test("저장 실패는 일시적 실패로 올린다", async () => {
   const key = "stores/1/photo";
   const storage = fakeStorage(new Map([[key, await jpeg(800, 600)]]));
