@@ -119,7 +119,7 @@ class SnapshotCommandServiceTest {
 		assertThat(state.getContentHash()).isEqualTo(fullHash);
 		assertThat(state.getMenuHash()).isEqualTo(menuHash);
 		assertThat(state.getMenuObservedAt()).isEqualTo(menuTime);
-		then(reconcileService).should().reconcile(eq(1L), any(), any(), eq(false));
+		then(reconcileService).should().reconcile(eq(1L), any(), any(), eq(false), eq(false));
 		then(storeSignalService).should(times(1)).refreshFromObservation(any(), any(), any(), any(), any(), anyBoolean());
 		var again = snapshotCommandService.submit(createRequest(partialRaw.toString()));
 		assertThat(again.changed()).isFalse();
@@ -128,6 +128,34 @@ class SnapshotCommandServiceTest {
 		assertThat(fullB.changed()).isFalse();
 		assertThat(state.getChangeCount()).isEqualTo(2);
 		then(placeSnapshotRepository).should(times(2)).save(any());
+	}
+
+	@Test void baemin_changes_advance_only_their_own_baseline_and_repeated_capture_does_not_reconcile_again() throws Exception {
+		var state = createSyncState();
+		given(storeSyncStateRepository.findForSnapshotUpdate(1L, SyncSource.NAVER)).willReturn(Optional.of(state));
+		given(placeSnapshotRepository.save(any())).willAnswer(i -> i.getArgument(0));
+		given(responseDiagnostics.inspect(any())).willReturn(new ResponseDiagnostics.Report("parser", java.util.List.of(
+			new ResponseDiagnostics.Issue("placeMenus", "MENU_INCOMPLETE", "NULL", false)), true));
+		String raw;
+		try (var input = getClass().getResourceAsStream("/response-agent/baemin-only.json")) {
+			raw = new String(input.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+		}
+		var first = snapshotCommandService.submit(createRequest(raw));
+		String initialHash = state.getBaeminMenuHash();
+		assertThat(first.changed()).isTrue(); assertThat(first.assessment()).isEqualTo("PARTIAL");
+		assertThat(state.getMenuHash()).isNull(); assertThat(state.getMenuObservedAt()).isNull();
+		assertThat(initialHash).isNotBlank();
+		assertThat(snapshotCommandService.submit(createRequest(raw)).changed()).isFalse();
+		assertThat(snapshotCommandService.submit(createRequest(raw.replace("3500", "3700"))).changed()).isTrue();
+		assertThat(state.getBaeminMenuHash()).isNotEqualTo(initialHash);
+		assertThat(state.getMenuHash()).isNull();
+		then(reconcileService).should(times(2)).reconcile(eq(1L), any(), any(), eq(false), eq(true));
+		then(storeSignalService).shouldHaveNoInteractions();
+		var receipt = new SnapshotSubmitResponse(10L, true, null, "capture", "PARTIAL", java.util.List.of());
+		given(responseCaptureService.findProcessedResponse("capture")).willReturn(Optional.of(receipt));
+		int visits = state.getVisitCount();
+		assertThat(snapshotCommandService.submit(createRequest(raw))).isEqualTo(receipt);
+		assertThat(state.getVisitCount()).isEqualTo(visits);
 	}
 
 	@Test void newer_held_capture_blocks_old_complete_submission() {
@@ -263,7 +291,7 @@ class SnapshotCommandServiceTest {
 
 		assertThat(second.changed()).isTrue();
 		then(placeSnapshotRepository).should(times(2)).save(any(PlaceSnapshot.class));
-		then(reconcileService).should(times(2)).reconcile(eq(1L), any(), any(), eq(true));
+		then(reconcileService).should(times(2)).reconcile(eq(1L), any(), any(), eq(true), eq(false));
 	}
 
 	@Test
@@ -339,7 +367,7 @@ class SnapshotCommandServiceTest {
 
 		assertThat(later.changed()).isTrue();
 		assertThat(syncState.getChangeCount()).isEqualTo(2);
-		then(reconcileService).should(times(2)).reconcile(eq(1L), any(), any(), eq(true));
+		then(reconcileService).should(times(2)).reconcile(eq(1L), any(), any(), eq(true), eq(false));
 		assertThat(syncState.getHoursKnown()).contains("\"close\":\"22:00\"");
 	}
 
@@ -471,7 +499,7 @@ class SnapshotCommandServiceTest {
 		snapshotCommandService.submit(createRequest("{\"name\":\"빵집\"}"));
 		snapshotCommandService.submit(createRequest("{\"name\":\"빵집\"}"));
 
-		then(reconcileService).should(times(1)).reconcile(eq(1L), any(), any(), eq(true));
+		then(reconcileService).should(times(1)).reconcile(eq(1L), any(), any(), eq(true), eq(false));
 	}
 
 	@Test
@@ -534,13 +562,13 @@ class SnapshotCommandServiceTest {
 		StoreSyncState syncState = createSyncState();
 		given(storeSyncStateRepository.findForSnapshotUpdate(1L, SyncSource.NAVER)).willReturn(Optional.of(syncState));
 		given(placeSnapshotRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
-		willThrow(new IllegalStateException("reconcile failed")).given(reconcileService).reconcile(eq(1L), any(), any(), eq(true));
+		willThrow(new IllegalStateException("reconcile failed")).given(reconcileService).reconcile(eq(1L), any(), any(), eq(true), eq(false));
 
 		assertThatThrownBy(() -> snapshotCommandService.submit(createRequest("{}"))).isInstanceOf(IllegalStateException.class);
 
 		var order = inOrder(menuEvidenceService, reconcileService);
 		order.verify(menuEvidenceService).record(any());
 		order.verify(menuEvidenceService).isLatest(any(), any());
-		order.verify(reconcileService).reconcile(eq(1L), any(), any(), eq(true));
+		order.verify(reconcileService).reconcile(eq(1L), any(), any(), eq(true), eq(false));
 	}
 }

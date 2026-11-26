@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -106,7 +107,7 @@ public class ReconcileService {
 	 * 이 판정에 쓴 정책의 버전 — 병합 정책(MergePolicy)·제외 필터(BeverageFilter)·종류 분류(MenuCategoryClassifier)
 	 * 중 하나라도 바뀌면 올린다. 같은 결과가 나왔을 때 "정책이 바뀌었는데 결과가 같다"와 "판정을 안 했다"를 가른다.
 	 */
-	private static final String POLICY_VERSION = "naver-reconcile-2026-10-13-scoped";
+	private static final String POLICY_VERSION = "naver-reconcile-2026-11-26-menu-sources";
 
 	/**
 	 * 이 판정이 실제로 다시 보는 묶음 — 범위 정리의 경계다.
@@ -165,7 +166,7 @@ public class ReconcileService {
 					}
 					ValidatedSnapshot validated = validateSnapshot(storeId, latest);
 					if (validated == null) return 0;
-					reconcile(storeId, latest.getId(), validated.parsed(), validated.menuAllowed());
+					reconcile(storeId, latest.getId(), validated.parsed(), validated.menuAllowed(), validated.baeminAllowed());
 					return 1;
 				});
 				reconciled += done != null ? done : 0;
@@ -265,11 +266,15 @@ public class ReconcileService {
 		if (!enabled) return;
 		PlaceSnapshot snapshot = placeSnapshotRepository.findById(snapshotId).orElse(null);
 		ValidatedSnapshot validated = snapshot == null ? null : validateSnapshot(storeId, snapshot);
-		if (validated != null) reconcile(storeId, snapshotId, validated.parsed(), validated.menuAllowed());
+		if (validated != null) reconcile(storeId, snapshotId, validated.parsed(), validated.menuAllowed(), validated.baeminAllowed());
 	}
 
 	/** Live submission entry; menuAllowed must come from the same raw's ResponseDiagnostics report. */
 	public void reconcile(Long storeId, Long snapshotId, ParsedPlace parsedPlace, boolean menuAllowed) {
+		reconcile(storeId, snapshotId, parsedPlace, menuAllowed, menuAllowed);
+	}
+
+	public void reconcile(Long storeId, Long snapshotId, ParsedPlace parsedPlace, boolean menuAllowed, boolean baeminAllowed) {
 		if (!enabled) {
 			return;
 		}
@@ -293,15 +298,15 @@ public class ReconcileService {
 		ReconcileGeneration generation = new ReconcileGeneration(snapshotId, UUID.randomUUID(), new HashSet<>());
 		reconcileStoreFields(storeId, generation, parsedPlace, current.get(), provenanceByField);
 		reconcileBusinessHours(storeId, generation, parsedPlace, servingReader, provenanceByField);
-		if (menuAllowed) {
-			reconcileMenus(storeId, generation, parsedPlace, servingReader.findMenus(storeId), provenanceByField);
+		if (menuAllowed || baeminAllowed) {
+			reconcileMenus(storeId, generation, parsedPlace, servingReader.findMenus(storeId), provenanceByField, menuAllowed, baeminAllowed);
 		}
 		upsertInstagramHandle(storeId, parsedPlace.instagramHandle());
 
 		// 이 가게의 판정이 전부 끝난 뒤에만 이전 세대를 정리한다 — 중간에 예외가 나면 여기 오지 않으므로
 		// 그 가게의 이전 제안이 그대로 남는다 (AC-09). 범위는 이 가게 × 이 producer × 이번에 본 묶음뿐이다
 		int expired = changeProposalRepository.expireOutOfGeneration(storeId,
-			ProposalProducer.NAVER_SNAPSHOT_RECONCILE, menuAllowed ? JUDGED_FAMILIES : STORE_JUDGED_FAMILIES,
+			ProposalProducer.NAVER_SNAPSHOT_RECONCILE, STORE_JUDGED_FAMILIES,
 			generation.survivors().isEmpty() ? List.of(0L) : generation.survivors(),
 			generation.survivors().size(), "재판정에서 더 이상 나오지 않음 — run " + generation.runId());
 		if (expired > 0) {
@@ -321,6 +326,10 @@ public class ReconcileService {
 
 	/** Internal proposal-only hook. Caller must verify approval and hold the store observation/state locks. */
 	public List<ReplayProposal> reconcileCapturedReplay(Long storeId, ParsedPlace parsedPlace, boolean menuAllowed) {
+		return reconcileCapturedReplay(storeId, parsedPlace, menuAllowed, menuAllowed);
+	}
+
+	public List<ReplayProposal> reconcileCapturedReplay(Long storeId, ParsedPlace parsedPlace, boolean menuAllowed, boolean baeminAllowed) {
 		if (!enabled) throw new IllegalStateException("RECONCILE_DISABLED");
 		if (parsedPlace.pageMissing()) throw new IllegalStateException("REPLAY_PAGE_ABSENT");
 		ServingReader reader = servingReaderProvider.getIfAvailable();
@@ -332,7 +341,7 @@ public class ReconcileService {
 		Map<String, ProvenanceSource> provenance = provenanceByField(storeId);
 		reconcileStoreFields(storeId, generation, parsedPlace, current, provenance);
 		reconcileBusinessHours(storeId, generation, parsedPlace, reader, provenance);
-		if (menuAllowed) reconcileMenus(storeId, generation, parsedPlace, reader.findMenus(storeId), provenance);
+		if (menuAllowed || baeminAllowed) reconcileMenus(storeId, generation, parsedPlace, reader.findMenus(storeId), provenance, menuAllowed, baeminAllowed);
 		// No Instagram sync-state mutation and no out-of-generation expiration in scoped replay.
 		return generation.survivors().stream().sorted().map(id -> {
 			var proposal = changeProposalRepository.findById(id)
@@ -345,7 +354,7 @@ public class ReconcileService {
 		}).toList();
 	}
 
-	private record ValidatedSnapshot(ParsedPlace parsed, boolean menuAllowed) {}
+	private record ValidatedSnapshot(ParsedPlace parsed, boolean menuAllowed, boolean baeminAllowed) {}
 
 	/** Replays share the live submit state lock, then recheck current identity, raw evidence and diagnostics. */
 	private ValidatedSnapshot validateSnapshot(Long storeId, PlaceSnapshot snapshot) {
@@ -368,7 +377,7 @@ public class ReconcileService {
 			log.info("응답 검증 실패 — 재판정 보류: store {} snapshot {}", storeId, snapshot.getId());
 			return null;
 		}
-		return new ValidatedSnapshot(ResponseDiagnostics.parsePreservingInput(naverPlaceParser, payload), report.menuAllowed());
+		return new ValidatedSnapshot(ResponseDiagnostics.parsePreservingInput(naverPlaceParser, payload), report.menuAllowed(), report.baeminAllowed());
 	}
 
 	/** 한 가게의 한 판정 실행 — 이번 세대에서 살아남은 제안 id 를 모은다 (v3 P1-2) */
@@ -508,71 +517,104 @@ public class ReconcileService {
 	}
 
 	private void reconcileMenus(Long storeId, ReconcileGeneration generation, ParsedPlace parsedPlace,
-			List<MenuCurrentValues> currentMenus, Map<String, ProvenanceSource> provenanceByField) {
+			List<MenuCurrentValues> currentMenus, Map<String, ProvenanceSource> provenance,
+			boolean naverAllowed, boolean baeminAllowed) {
 		Map<String, MenuCurrentValues> currentByName = new LinkedHashMap<>();
-		for (MenuCurrentValues menu : currentMenus) {
-			currentByName.putIfAbsent(menuKey(menu.name()), menu);
-		}
-
-		// 네이버 일반 메뉴 + 배민 단독 메뉴(이름 dedup)를 신규 후보 풀로 합친다
-		Map<String, ParsedMenu> parsedByName = new LinkedHashMap<>();
-		for (ParsedMenu menu : parsedPlace.menus()) {
-			if (menu.name() != null) {
-				parsedByName.putIfAbsent(menuKey(menu.name()), menu);
-			}
-		}
-		for (ParsedMenu menu : parsedPlace.baeminMenus()) {
-			if (menu.name() != null) {
-				parsedByName.putIfAbsent(menuKey(menu.name()), menu);
-			}
-		}
-
-		for (Map.Entry<String, ParsedMenu> entry : parsedByName.entrySet()) {
-			ParsedMenu parsedMenu = entry.getValue();
-			MenuCurrentValues currentMenu = currentByName.get(entry.getKey());
-			if (currentMenu == null) {
-				if (beverageFilter.isExcluded(parsedMenu.name(), parsedMenu.groupName())) {
-					continue;
-				}
-				// target 은 VARCHAR(60) — 'menu.add.' 9자를 빼고 정규화 이름을 자른다
-				String target = "menu.add." + truncate(entry.getKey(), 50);
-				propose(storeId, generation, target, null, menuJson(parsedMenu), provenanceByField.get(target));
+		for (MenuCurrentValues menu : currentMenus) currentByName.putIfAbsent(menuKey(menu.name()), menu);
+		Map<String, ParsedMenu> naver = menusByName(naverAllowed ? parsedPlace.menus() : List.of());
+		Map<String, ParsedMenu> baemin = menusByName(baeminAllowed ? parsedPlace.baeminMenus() : List.of());
+		Set<String> observedBaeminTargets = new HashSet<>();
+		Set<String> names = new java.util.LinkedHashSet<>(naver.keySet());
+		names.addAll(baemin.keySet());
+		for (String name : names) {
+			MenuCurrentValues current = currentByName.get(name);
+			if (current == null) {
+				ParsedMenu menu = naver.containsKey(name) ? naver.get(name) : baemin.get(name);
+				ProvenanceSource source = naver.containsKey(name) ? ProvenanceSource.NAVER : ProvenanceSource.BAEMIN;
+				String target = "menu.add." + truncate(name, 50);
+				if (source == ProvenanceSource.BAEMIN) observedBaeminTargets.add(target);
+				if (!beverageFilter.isExcluded(menu.name(), menu.groupName()))
+					proposeMenu(storeId, generation, target, null, menuJson(menu), source, provenance.get(target));
 				continue;
 			}
-			Integer parsedPrice = parsePrice(parsedMenu.price());
-			boolean naverMenu = parsedMenu.groupName() == null;
-			if (naverMenu && parsedPrice != null && !parsedPrice.equals(currentMenu.price())) {
-				String target = "menu." + currentMenu.menuId() + ".price";
-				propose(storeId, generation, target,
-					jsonNumber(currentMenu.price()), jsonNumber(parsedPrice), provenanceByField.get(target));
-			}
-			// 설명 변경 (2026-09-06 추가) — 네이버 값이 있고 운영과 다를 때만. 사용자 등록 메뉴는 덮지 않고,
-			// 운영 컬럼이 255자라 같은 길이로 자른 뒤 비교해 매 스윕 되풀이되는 가짜 diff 를 막는다
-			String parsedDescription = normalizeDescription(parsedMenu.description());
-			if (naverMenu && !parsedDescription.isEmpty() && !currentMenu.userAdded()
-				&& !parsedDescription.equals(normalizeDescription(currentMenu.description()))) {
-				String target = "menu." + currentMenu.menuId() + ".description";
-				propose(storeId, generation, target,
-					jsonText(currentMenu.description()), jsonText(parsedDescription), provenanceByField.get(target));
+			reconcileMenuField(storeId, generation, current, naver.get(name), baemin.get(name), provenance, "price", observedBaeminTargets);
+			if (!current.userAdded()) reconcileMenuField(storeId, generation, current, naver.get(name), baemin.get(name), provenance, "description", observedBaeminTargets);
+		}
+		// Delivery-list absence never authorizes deletion, including menus previously imported from Baemin.
+		if (naverAllowed && !naver.isEmpty()) for (var entry : currentByName.entrySet()) {
+			MenuCurrentValues menu = entry.getValue();
+			if (!names.contains(entry.getKey()) && !excludedByPolicy(menu)
+				&& !hasBaeminProvenance(menu.menuId(), provenance)) {
+				propose(storeId, generation, "menu." + menu.menuId() + ".removed", menuJson(menu), null,
+					provenance.get("menu." + menu.menuId()));
 			}
 		}
-
-		// 이 경로는 완전성이 확인된 메뉴 관측에서만 호출된다(menuAllowed). 추가로 빈 목록은 기존 보수적 정책을 유지한다.
-		// 네이버 메뉴를 하나도 못 읽었으면 소멸을 판정하지 않는다 — 배민 연동 가게는 09-20 개편 뒤 홈에 네이버 메뉴가 오지 않는다
-		// (placeMenus null · 96674 76→0개). 그대로 비교하면 운영 메뉴 전부가 '네이버에서 사라짐'으로 읽힌다
-		boolean naverMenusRead = parsedPlace.menus().stream().anyMatch(menu -> menu.name() != null);
-		for (Map.Entry<String, MenuCurrentValues> entry : currentByName.entrySet()) {
-			if (naverMenusRead && !parsedByName.containsKey(entry.getKey())) {
-				MenuCurrentValues removedMenu = entry.getValue();
-				if (excludedByPolicy(removedMenu)) {
-					continue; // 같은 target 을 아래 정책 재판정이 reason 을 실어 제안한다
-				}
-				propose(storeId, generation, "menu." + removedMenu.menuId() + ".removed",
-					menuJson(removedMenu), null, provenanceByField.get("menu." + removedMenu.menuId()));
-			}
+		if (naverAllowed) reconcileMenuPolicy(storeId, generation, currentMenus, provenance);
+		if (generation.snapshotId() != null) {
+			if (naverAllowed) expireMenuSource(storeId, generation, ProvenanceSource.NAVER, false, List.of(""),
+				List.of(ProposalTargetFamily.MENU_CONTENT, ProposalTargetFamily.MENU_REMOVAL, ProposalTargetFamily.MENU_CATEGORY));
+			if (baeminAllowed && !observedBaeminTargets.isEmpty()) expireMenuSource(storeId, generation, ProvenanceSource.BAEMIN,
+				true, observedBaeminTargets, List.of(ProposalTargetFamily.MENU_CONTENT));
 		}
+	}
 
-		reconcileMenuPolicy(storeId, generation, currentMenus, provenanceByField);
+	private boolean hasBaeminProvenance(Long menuId, Map<String, ProvenanceSource> provenance) {
+		String target = "menu." + menuId;
+		return List.of(target, target + ".price", target + ".description").stream()
+			.anyMatch(field -> provenance.get(field) == ProvenanceSource.BAEMIN);
+	}
+
+	private Map<String, ParsedMenu> menusByName(List<ParsedMenu> menus) {
+		Map<String, ParsedMenu> byName = new LinkedHashMap<>();
+		for (ParsedMenu menu : menus) if (menu.name() != null) byName.putIfAbsent(menuKey(menu.name()), menu);
+		return byName;
+	}
+
+	private void reconcileMenuField(Long storeId, ReconcileGeneration generation, MenuCurrentValues current,
+			ParsedMenu naver, ParsedMenu baemin, Map<String, ProvenanceSource> provenance, String field, Set<String> evaluatedBaeminTargets) {
+		String target = "menu." + current.menuId() + "." + field;
+		ProvenanceSource existing = provenance.getOrDefault(target, provenance.get("menu." + current.menuId()));
+		// 필드가 사용 가능할 때 출처 연속성을 우선한다. 빈 필드는 다른 출처의 검토 후보로 보완한다.
+		boolean naverUsable = usableMenuField(naver, field);
+		boolean baeminUsable = usableMenuField(baemin, field);
+		if (!naverUsable && !baeminUsable) return;
+		boolean useBaemin = baeminUsable && (existing == ProvenanceSource.BAEMIN || !naverUsable);
+		ParsedMenu observed = useBaemin ? baemin : naver;
+		ProvenanceSource source = useBaemin ? ProvenanceSource.BAEMIN : ProvenanceSource.NAVER;
+		if (useBaemin) evaluatedBaeminTargets.add(target);
+		if (field.equals("price")) {
+			int price = parsePrice(observed.price()).orElseThrow();
+			if (!Integer.valueOf(price).equals(current.price()))
+				proposeMenu(storeId, generation, target, jsonNumber(current.price()), jsonNumber(price), source, existing);
+		} else {
+			String description = normalizeDescription(observed.description());
+			if (!description.isEmpty() && !description.equals(normalizeDescription(current.description())))
+				proposeMenu(storeId, generation, target, jsonText(current.description()), jsonText(description), source, existing);
+		}
+	}
+
+	private boolean usableMenuField(ParsedMenu menu, String field) {
+		if (menu == null) return false;
+		return field.equals("price") ? parsePrice(menu.price()).isPresent()
+			: !normalizeDescription(menu.description()).isEmpty();
+	}
+
+	private void proposeMenu(Long storeId, ReconcileGeneration generation, String target, String oldValue,
+			String newValue, ProvenanceSource source, ProvenanceSource existing) {
+		if (mergePolicy.decide(target, source, existing) == MergeDecision.IGNORE) return;
+		var response = proposalCommandService.propose(storeId, target, oldValue, newValue, source,
+			generation.snapshotId(), ProposalProducer.NAVER_SNAPSHOT_RECONCILE, POLICY_VERSION, generation.runId());
+		if (response == null) return;
+		generation.survivors().add(response.proposalId());
+		if (!target.startsWith("menu.add."))
+			proposalCommandService.noteMenuSourceComparison(response.proposalId(), existing, source);
+	}
+
+	private void expireMenuSource(Long storeId, ReconcileGeneration generation, ProvenanceSource source,
+			boolean observedOnly, java.util.Collection<String> targets, List<ProposalTargetFamily> families) {
+		changeProposalRepository.expireMenuSourceOutOfGeneration(storeId, ProposalProducer.NAVER_SNAPSHOT_RECONCILE,
+			source, families, observedOnly, targets, generation.survivors().isEmpty() ? List.of(0L) : generation.survivors(),
+			generation.survivors().size(), "출처별 재판정 — " + source + " run " + generation.runId());
 	}
 
 	/**
@@ -686,8 +728,9 @@ public class ReconcileService {
 		return phone == null ? "" : phone.replaceAll("\\D", "");
 	}
 
-	private Integer parsePrice(String price) {
-		return price != null && price.matches("\\d+") ? Integer.parseInt(price) : null;
+	private OptionalInt parsePrice(String price) {
+		if (price == null || !price.matches("\\d{1,9}")) return OptionalInt.empty();
+		return OptionalInt.of(Integer.parseInt(price));
 	}
 
 	private String jsonText(String value) {
@@ -701,7 +744,8 @@ public class ReconcileService {
 	private String menuJson(ParsedMenu menu) {
 		Map<String, Object> body = new LinkedHashMap<>();
 		body.put("name", withoutStock(menu.name()));
-		body.put("price", parsePrice(menu.price()));
+		OptionalInt price = parsePrice(menu.price());
+		body.put("price", price.isPresent() ? price.getAsInt() : null);
 		body.put("description", menu.description());
 		return objectMapper.writeValueAsString(body);
 	}

@@ -137,8 +137,14 @@ public class ProposalCommandService {
 			// 반영이 끝나면 다음 스윕이 지금 운영 값과 다시 비교한다 — supersede 도 신규도 하지 않는다
 			return null;
 		}
+		if (existing != null && target.startsWith("menu.") && existing.getSource() != source) {
+			changeProposalRepository.updatePendingReviewNote(existing.getId(), existing.getSource(),
+				"MENU_SOURCE_CONFLICT: 기존 후보 " + existing.getSource() + " / 새 관측 " + source
+				+ " — 출처가 다른 후보를 자동 교체하지 않습니다");
+			return ChangeProposalResponse.from(existing);
+		}
 		if (existing != null && conflictsAcrossProducers(existing, producer, newValue)) {
-			existing.noteProducerConflict(String.format(
+			changeProposalRepository.updatePendingReviewNote(existing.getId(), existing.getSource(), String.format(
 				"%s 가 같은 대상에 다른 값을 제안했으나 보존을 위해 접었습니다 — 어느 판정이 맞는지 사람이 정해야 합니다",
 				producer));
 			log.warn("producer 충돌 — store {} target {} : 기존 {} 유지, {} 제안 접음",
@@ -166,6 +172,18 @@ public class ProposalCommandService {
 			.reconcileRunId(reconcileRunId)
 			.build());
 		return ChangeProposalResponse.from(proposal);
+	}
+
+	/** Approval stays explicit; source uncertainty is visible in the existing review workflow. */
+	public void noteMenuSourceComparison(Long proposalId, ProvenanceSource previous, ProvenanceSource observed) {
+		ChangeProposal proposal = getProposal(proposalId);
+		if (proposal.getStatus() != ProposalStatus.PENDING || proposal.getSource() != observed) return;
+		String reason = previous == observed ? "MENU_SAME_SOURCE_UPDATE"
+			: previous == null ? "MENU_SOURCE_UNKNOWN" : "MENU_SOURCE_CONFLICT";
+		changeProposalRepository.updatePendingReviewNote(proposalId, observed,
+			reason + ": 기존 " + (previous == null ? "미기록" : previous)
+			+ " / 관측 " + observed + (observed == ProvenanceSource.BAEMIN ? " (배달 가격으로 매장 가격과 다를 수 있음)" : "")
+			+ " — 검토·승인 후 반영");
 	}
 
 	/**
@@ -381,11 +399,14 @@ public class ProposalCommandService {
 		if (target.startsWith(MENU_ADD_TARGET_PREFIX)) {
 			String menuName = newValue.path("name").asString();
 			Integer menuPrice = newValue.path("price").isNumber() ? newValue.path("price").asInt() : null;
-			MenuUpsertResult result = servingWriter.upsertMenu(storeId,
-				menuName,
-				menuPrice,
-				newValue.path("description").isNull() ? null : newValue.path("description").asString(null),
-				menuCategoryClassifier.classify(menuName));
+			String description = newValue.path("description").isNull() ? null : newValue.path("description").asString(null);
+			String category = menuCategoryClassifier.classify(menuName);
+			MenuUpsertResult result = proposal.getSource() == ProvenanceSource.BAEMIN
+				? servingWriter.upsertMenu(storeId, menuName, menuPrice, description, category, false)
+				: servingWriter.upsertMenu(storeId, menuName, menuPrice, description, category);
+			if (result.outcome() == MenuUpsertResult.Outcome.BLOCKED_EXISTING_MENU)
+				throw new ProposalException(ProposalErrorCode.SERVING_VALUE_DRIFTED, target);
+
 			if (result.blocked()) {
 				ProposalErrorCode code = result.outcome() == MenuUpsertResult.Outcome.BLOCKED_USER_MENU
 					? ProposalErrorCode.MENU_CONFLICTS_USER_MENU

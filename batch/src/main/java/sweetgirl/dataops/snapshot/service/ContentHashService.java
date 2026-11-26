@@ -81,6 +81,16 @@ public class ContentHashService {
 			canonicalMenus(place.baeminMenus()))));
 	}
 
+	/** Baemin observations cannot advance the standard-menu completeness baseline. */
+	public String baeminMenuHash(ParsedPlace place) {
+		List<String> menus = place.baeminMenus().stream()
+			.map(menu -> objectMapper.writeValueAsString(List.of(
+				nullSafe(menu.name()), nullSafe(menu.price()), nullSafe(menu.description()),
+				nullSafe(menu.groupName()), menu.imageUrls())))
+			.sorted().toList();
+		return sha256Hex("baemin-menu-v2\n" + objectMapper.writeValueAsString(menus));
+	}
+
 	/**
 	 * 저장된 해시의 세대에 맞춰 계산한다 — 세대가 올라간 직후의 재방문을 전부 "변경"으로 만들지 않기 위해서다.
 	 * 알 수 없는 세대는 현재 세대로 계산한다(비교가 달라져 스냅샷이 저장되는 쪽 — 놓치지 않는 쪽으로 기운다).

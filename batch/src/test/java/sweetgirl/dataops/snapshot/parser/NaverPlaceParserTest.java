@@ -20,6 +20,9 @@ class NaverPlaceParserTest {
 				  "ROOT_QUERY": {
 				    "__typename": "Query",
 				    "placeDetail({id:38427733})": {
+				      "baemin": {"__typename":"PlaceDetail_BaeminData",
+				        "menus":[{"__ref":"PlaceDetail_BaeminMenu:1105447685"},{"__ref":"PlaceDetail_BaeminMenu:1105447686"}],
+				        "menuGroups":[{"__ref":"PlaceDetail_BaeminMenuGroup:g0"},{"__ref":"PlaceDetail_BaeminMenuGroup:g1"}]},
 				      "newBusinessHours({format:restaurant})": [
 				        {
 				          "businessHours": [{"day": "월", "businessHours": {"start": "09:30", "end": "20:00"}}],
@@ -52,14 +55,14 @@ class NaverPlaceParserTest {
 				    "images": []
 				  },
 				  "PlaceDetail_BaeminMenu:1105447685": {
-				    "__typename": "PlaceDetail_BaeminMenu",
+				    "__typename": "PlaceDetail_BaeminMenu", "id": "1105447685",
 				    "name": "[인기폭발]아메리카노",
 				    "price": "1900",
 				    "desc": "산미가 없고 고소하며 묵직한 원두",
 				    "images": ["http://imagefarm.baemin.com/a.jpg"]
 				  },
 				  "PlaceDetail_BaeminMenu:1105447686": {
-				    "__typename": "PlaceDetail_BaeminMenu",
+				    "__typename": "PlaceDetail_BaeminMenu", "id": "1105447686",
 				    "name": "소금빵 세트",
 				    "price": "8900",
 				    "desc": null,

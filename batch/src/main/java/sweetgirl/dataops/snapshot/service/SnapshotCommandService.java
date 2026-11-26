@@ -64,7 +64,7 @@ public class SnapshotCommandService {
 			return new SnapshotSubmitResponse(null, false, null, captureId, "HELD",
 				diagnostic.issues().stream().map(ResponseDiagnostics.Issue::code).distinct().toList());
 		}
-		SnapshotSubmitResponse processed = processValidated(request, diagnostic.menuAllowed(), captureId);
+		SnapshotSubmitResponse processed = processValidated(request, diagnostic, captureId);
 		var response = new SnapshotSubmitResponse(processed.snapshotId(), processed.changed(), processed.contentHash(),
 			captureId, "HELD".equals(processed.assessment()) ? "HELD" : diagnostic.assessment(),
 			java.util.stream.Stream.concat(processed.reasons().stream(), diagnostic.issues().stream()
@@ -73,7 +73,9 @@ public class SnapshotCommandService {
 		return response;
 	}
 
-	private SnapshotSubmitResponse processValidated(SnapshotSubmitRequest request, boolean menuAllowed, String captureId) {
+	private SnapshotSubmitResponse processValidated(SnapshotSubmitRequest request, ResponseDiagnostics.Report diagnostic, String captureId) {
+		boolean menuAllowed = diagnostic.menuAllowed();
+		boolean baeminAllowed = diagnostic.baeminAllowed();
 		// This separate REQUIRES_NEW service commits even if parsing/reconcile below rolls back.
 		MenuEvidenceService.Recorded observation = menuEvidenceService.record(request);
 		StoreSyncState syncState = storeSyncStateRepository
@@ -100,6 +102,7 @@ public class SnapshotCommandService {
 		String contentHash = menuAllowed ? contentHashService.canonicalHash(parsedPlace) : syncState.getContentHash();
 		String nonMenuHash = contentHashService.nonMenuHash(parsedPlace);
 		String menuHash = menuAllowed ? contentHashService.menuHash(parsedPlace) : null;
+		String baeminHash = baeminAllowed ? contentHashService.baeminMenuHash(parsedPlace) : null;
 		LocalDateTime observedAt = observation.legacy() && request.fetchedAt() != null
 			? request.fetchedAt() : observation.observedAt();
 		RegularHoursTracker.Observation hours = regularHoursTracker.observe(
@@ -122,11 +125,14 @@ public class SnapshotCommandService {
 				.equals(syncState.getContentHash());
 		}
 
+		changed |= baeminAllowed && !baeminHash.equals(syncState.getBaeminMenuHash());
+
 		if (!changed) {
 			if (menuAllowed) refreshSignal(request, parsedPlace, null, observedAt, observation.observationId(), false);
 			syncState.recordScopedSuccess(false, menuAllowed ? contentHash : null, ContentHashService.VERSION,
 				nonMenuHash, menuHash, ContentHashService.SCOPE_VERSION, observedAt);
 			syncState.rememberHours(hours.knownAfter());
+			syncState.recordBaeminObservation(baeminHash, observedAt);
 			return new SnapshotSubmitResponse(null, false, contentHash);
 		}
 
@@ -141,8 +147,9 @@ public class SnapshotCommandService {
 		syncState.recordScopedSuccess(true, menuAllowed ? contentHash : null, ContentHashService.VERSION,
 			nonMenuHash, menuHash, ContentHashService.SCOPE_VERSION, observedAt);
 		syncState.rememberHours(hours.knownAfter());
+		syncState.recordBaeminObservation(baeminHash, observedAt);
 		if (menuAllowed) refreshSignal(request, parsedPlace, snapshot.getId(), observedAt, observation.observationId(), true);
-		reconcileService.reconcile(request.storeId(), snapshot.getId(), parsedPlace, menuAllowed);
+		reconcileService.reconcile(request.storeId(), snapshot.getId(), parsedPlace, menuAllowed, baeminAllowed);
 		return new SnapshotSubmitResponse(snapshot.getId(), true, contentHash);
 	}
 

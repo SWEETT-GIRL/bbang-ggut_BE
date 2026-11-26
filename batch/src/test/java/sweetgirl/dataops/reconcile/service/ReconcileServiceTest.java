@@ -629,13 +629,111 @@ class ReconcileServiceTest {
 	}
 
 	@Test
-	void 배민_가격은_배달가라서_가격_diff_를_내지_않는다() {
+	void 배민_가격_변경은_배민_출처의_검토_후보로_남긴다() {
 		givenStore("빵집", null, List.of(classifiedMenu(77L, "소금빵", 2900, null, false)));
 
 		reconcileTrusted(1L, 10L,
 			parsedPlace("빵집", null, List.of(), List.of(baeminMenu("소금빵", "3500", "대표메뉴")), null));
 
+		then(proposalCommandService).should().propose(eq(1L), eq("menu.77.price"), eq("2900"), eq("3500"),
+			eq(sweetgirl.dataops.reconcile.enums.ProvenanceSource.BAEMIN), eq(10L), any(), any(), any());
+	}
+
+	@Test void baemin_updates_follow_field_provenance_even_when_naver_is_also_present_and_group_is_null() {
+		givenStore("빵집", null, List.of(classifiedMenu(77L, "소금빵", 2900, "옛 설명", false)));
+		given(provenanceRepository.findByStoreId(1L)).willReturn(List.of(
+			sweetgirl.dataops.reconcile.entity.StoreFieldProvenance.builder().storeId(1L).field("menu.77.price")
+				.source(sweetgirl.dataops.reconcile.enums.ProvenanceSource.BAEMIN).build()));
+		reconcileService.reconcile(1L, 10L, parsedPlace("빵집", null,
+			List.of(naverMenu("소금빵", "3200")),
+			List.of(new ParsedMenu("소금빵", "3500", "새 설명", List.of(), null)), null), true, true);
+		then(proposalCommandService).should().propose(eq(1L), eq("menu.77.price"), eq("2900"), eq("3500"),
+			eq(sweetgirl.dataops.reconcile.enums.ProvenanceSource.BAEMIN), eq(10L), any(), any(), any());
+		then(proposalCommandService).should(never()).propose(eq(1L), eq("menu.77.price"), any(), eq("3200"), any(), any(), any(), any(), any());
+	}
+
+	@Test void baemin_only_partial_observation_adds_updates_but_never_deletes_or_expires_naver_candidates() {
+		givenStore("빵집", null, List.of(classifiedMenu(77L, "소금빵", 2900, "옛 설명", false),
+			classifiedMenu(78L, "안 보이는 빵", 5000, null, false)));
+		var observed = parsedPlace("빵집", null, List.of(), List.of(
+			new ParsedMenu("소금빵", "3500", "새 설명", List.of(), null), baeminMenu("통밀빵", "4000", "빵")), null);
+		reconcileService.reconcile(1L, 10L, observed, false, true);
+		then(proposalCommandService).should().propose(eq(1L), eq("menu.77.price"), eq("2900"), eq("3500"),
+			eq(sweetgirl.dataops.reconcile.enums.ProvenanceSource.BAEMIN), eq(10L), any(), any(), any());
+		then(proposalCommandService).should().propose(eq(1L), eq("menu.77.description"), any(), contains("새 설명"),
+			eq(sweetgirl.dataops.reconcile.enums.ProvenanceSource.BAEMIN), eq(10L), any(), any(), any());
+		then(proposalCommandService).should().propose(eq(1L), eq("menu.add.통밀빵"), isNull(), any(),
+			eq(sweetgirl.dataops.reconcile.enums.ProvenanceSource.BAEMIN), eq(10L), any(), any(), any());
+		then(proposalCommandService).should(never()).propose(any(), endsWith(".removed"), any(), any(), any(), any(), any(), any(), any());
+		then(changeProposalRepository).should().expireMenuSourceOutOfGeneration(eq(1L), any(),
+			eq(sweetgirl.dataops.reconcile.enums.ProvenanceSource.BAEMIN), any(), eq(true),
+			argThat(targets -> targets.contains("menu.77.price") && !targets.contains("menu.78.price")), any(), anyInt(), any());
+		then(changeProposalRepository).should(never()).expireMenuSourceOutOfGeneration(any(), any(),
+			eq(sweetgirl.dataops.reconcile.enums.ProvenanceSource.NAVER), any(), anyBoolean(), any(), any(), anyInt(), any());
+	}
+
+	@Test void unusable_naver_fields_fall_back_to_verified_baemin_fields() {
+		givenStore("빵집", null, List.of(classifiedMenu(77L, "소금빵", 2900, "옛 설명", false)));
+		reconcileService.reconcile(1L, 10L, parsedPlace("빵집", null,
+			List.of(new ParsedMenu("소금빵", "시가", "  ", List.of(), null)),
+			List.of(new ParsedMenu("소금빵", "3500", "배민 설명", List.of(), null)), null), true, true);
+		then(proposalCommandService).should().propose(eq(1L), eq("menu.77.price"), eq("2900"), eq("3500"),
+			eq(sweetgirl.dataops.reconcile.enums.ProvenanceSource.BAEMIN), eq(10L), any(), any(), any());
+		then(proposalCommandService).should().propose(eq(1L), eq("menu.77.description"), any(), contains("배민 설명"),
+			eq(sweetgirl.dataops.reconcile.enums.ProvenanceSource.BAEMIN), eq(10L), any(), any(), any());
+		then(changeProposalRepository).should().expireMenuSourceOutOfGeneration(eq(1L), any(),
+			eq(sweetgirl.dataops.reconcile.enums.ProvenanceSource.BAEMIN), any(), eq(true),
+			argThat(targets -> targets.containsAll(List.of("menu.77.price", "menu.77.description"))), any(), anyInt(), any());
+	}
+
+	@Test void unselected_baemin_fields_and_user_descriptions_are_not_expired() {
+		givenStore("빵집", null, List.of(classifiedMenu(77L, "소금빵", 2900, "기존 설명", false),
+			classifiedMenu(78L, "통밀빵", 4000, "사용자 설명", true)));
+		reconcileService.reconcile(1L, 10L, parsedPlace("빵집", null,
+			List.of(new ParsedMenu("소금빵", "2900", "기존 설명", List.of(), null)),
+			List.of(new ParsedMenu("소금빵", "3500", "배민 설명", List.of(), null),
+				new ParsedMenu("통밀빵", "4000", "바뀐 설명", List.of(), null)), null), true, true);
+		then(changeProposalRepository).should().expireMenuSourceOutOfGeneration(eq(1L), any(),
+			eq(sweetgirl.dataops.reconcile.enums.ProvenanceSource.BAEMIN), any(), eq(true),
+			argThat(targets -> targets.equals(java.util.Set.of("menu.78.price"))), any(), anyInt(), any());
+	}
+
+	@Test void unusable_preferred_baemin_fields_fall_back_without_expiring_baemin_candidates() {
+		givenStore("빵집", null, List.of(classifiedMenu(77L, "소금빵", 2900, "옛 설명", false)));
+		given(provenanceRepository.findByStoreId(1L)).willReturn(List.of(
+			sweetgirl.dataops.reconcile.entity.StoreFieldProvenance.builder().storeId(1L).field("menu.77")
+				.source(sweetgirl.dataops.reconcile.enums.ProvenanceSource.BAEMIN).build()));
+		reconcileService.reconcile(1L, 10L, parsedPlace("빵집", null,
+			List.of(new ParsedMenu("소금빵", "3200", "네이버 설명", List.of(), null)),
+			List.of(new ParsedMenu("소금빵", "999999999999999", null, List.of(), null)), null), true, true);
+		then(proposalCommandService).should().propose(eq(1L), eq("menu.77.price"), any(), eq("3200"),
+			eq(sweetgirl.dataops.reconcile.enums.ProvenanceSource.NAVER), eq(10L), any(), any(), any());
+		then(proposalCommandService).should().propose(eq(1L), eq("menu.77.description"), any(), contains("네이버 설명"),
+			eq(sweetgirl.dataops.reconcile.enums.ProvenanceSource.NAVER), eq(10L), any(), any(), any());
+		then(changeProposalRepository).should(never()).expireMenuSourceOutOfGeneration(any(), any(),
+			eq(sweetgirl.dataops.reconcile.enums.ProvenanceSource.BAEMIN), any(), anyBoolean(), any(), any(), anyInt(), any());
+	}
+
+	@Test void missing_baemin_values_do_not_expire_pending_field_candidates() {
+		givenStore("빵집", null, List.of(classifiedMenu(77L, "소금빵", 2900, "옛 설명", false)));
+		reconcileService.reconcile(1L, 10L, parsedPlace("빵집", null, List.of(),
+			List.of(new ParsedMenu("소금빵", null, null, List.of(), null)), null), false, true);
 		then(proposalCommandService).shouldHaveNoInteractions();
+		then(changeProposalRepository).should(never()).expireMenuSourceOutOfGeneration(any(), any(),
+			any(), any(), anyBoolean(), any(), any(), anyInt(), any());
+	}
+
+	@Test void absence_from_naver_never_removes_menus_with_baemin_row_or_field_provenance() {
+		givenStore("빵집", null, List.of(classifiedMenu(77L, "소금빵", 2900, null, false),
+			classifiedMenu(78L, "통밀빵", 5000, null, false)));
+		given(provenanceRepository.findByStoreId(1L)).willReturn(List.of(
+			sweetgirl.dataops.reconcile.entity.StoreFieldProvenance.builder().storeId(1L).field("menu.77")
+				.source(sweetgirl.dataops.reconcile.enums.ProvenanceSource.BAEMIN).build(),
+			sweetgirl.dataops.reconcile.entity.StoreFieldProvenance.builder().storeId(1L).field("menu.78.price")
+				.source(sweetgirl.dataops.reconcile.enums.ProvenanceSource.BAEMIN).build()));
+		reconcileService.reconcile(1L, 10L, parsedPlace("빵집", null,
+			List.of(naverMenu("새 빵", "3000")), List.of(), null), true, false);
+		then(proposalCommandService).should(never()).propose(any(), endsWith(".removed"), any(), any(), any(), any(), any(), any(), any());
 	}
 
 	@Test

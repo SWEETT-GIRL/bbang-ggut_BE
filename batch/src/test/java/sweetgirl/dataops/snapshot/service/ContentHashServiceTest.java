@@ -3,6 +3,9 @@ package sweetgirl.dataops.snapshot.service;
 import static org.assertj.core.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
+import java.util.List;
+import sweetgirl.dataops.snapshot.parser.ParsedMenu;
+import sweetgirl.dataops.snapshot.parser.ParsedPlace;
 
 import sweetgirl.dataops.snapshot.parser.NaverPlaceParser;
 import tools.jackson.databind.ObjectMapper;
@@ -11,6 +14,31 @@ class ContentHashServiceTest {
 
 	private final ObjectMapper objectMapper = new ObjectMapper();
 	private final ContentHashService contentHashService = new ContentHashService(new NaverPlaceParser(), objectMapper);
+
+	private ParsedPlace baeminPlace(ParsedMenu... menus) {
+		return new ParsedPlace("빵집", null, null, null, null, null, null, null, null, List.of(), List.of(menus));
+	}
+
+	@Test void baemin_hash_distinguishes_delimiters_between_fields_and_image_urls() {
+		var before = baeminPlace(new ParsedMenu("bread", "3500", "sweet|fresh", List.of(), "bakery"));
+		var after = baeminPlace(new ParsedMenu("bread", "3500", "sweet", List.of(), "fresh|bakery"));
+		assertThat(contentHashService.baeminMenuHash(before)).isNotEqualTo(contentHashService.baeminMenuHash(after));
+		// Existing hash formats stay unchanged; only the independent Baemin baseline changes its encoding.
+		assertThat(contentHashService.menuHash(before)).isEqualTo(contentHashService.menuHash(after));
+		var singleImage = baeminPlace(new ParsedMenu("bread", "3500", null, List.of("a,b"), null));
+		var twoImages = baeminPlace(new ParsedMenu("bread", "3500", null, List.of("a", "b"), null));
+		assertThat(contentHashService.baeminMenuHash(singleImage)).isNotEqualTo(contentHashService.baeminMenuHash(twoImages));
+	}
+
+	@Test void baemin_hash_normalizes_menu_order_but_keeps_image_order() {
+		var bread = new ParsedMenu("bread", "3500", "sweet", List.of("a", "b"), "bakery");
+		var cake = new ParsedMenu("cake", "5000", null, List.of(), null);
+		assertThat(contentHashService.baeminMenuHash(baeminPlace(bread, cake)))
+			.isEqualTo(contentHashService.baeminMenuHash(baeminPlace(cake, bread)));
+		var reversed = new ParsedMenu("bread", "3500", "sweet", List.of("b", "a"), "bakery");
+		assertThat(contentHashService.baeminMenuHash(baeminPlace(bread)))
+			.isNotEqualTo(contentHashService.baeminMenuHash(baeminPlace(reversed)));
+	}
 
 	private String hashOf(String apolloJson) {
 		return contentHashService.canonicalHash(objectMapper.readTree(apolloJson));

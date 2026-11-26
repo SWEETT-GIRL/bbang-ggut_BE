@@ -1,0 +1,17 @@
+{
+  "ROOT_QUERY": {
+    "placeDetail({\"input\":{\"id\":\"123\"}})": {
+      "id": "123", "base": {"__ref": "PlaceDetailBase:123"}, "placeMenus": null,
+      "menuImages": [{"imageUrl": "https://images.invalid/menu.jpg"}],
+      "baemin": {
+        "__typename": "PlaceDetail_BaeminData",
+        "menus": [{"__ref": "PlaceDetail_BaeminMenu:a"}, {"__ref": "PlaceDetail_BaeminMenu:b"}],
+        "menuGroups": [{"__ref": "PlaceDetail_BaeminMenuGroup:bread"}]
+      }
+    }
+  },
+  "PlaceDetailBase:123": {"id": "123", "name": "표본 빵집"},
+  "PlaceDetail_BaeminMenu:a": {"__typename": "PlaceDetail_BaeminMenu", "id": "a", "name": "소금빵", "price": "3500", "desc": "버터 소금빵", "images": []},
+  "PlaceDetail_BaeminMenu:b": {"__typename": "PlaceDetail_BaeminMenu", "id": "b", "name": "통밀빵", "price": "5000", "desc": "통밀", "images": []},
+  "PlaceDetail_BaeminMenuGroup:bread": {"__typename": "PlaceDetail_BaeminMenuGroup", "name": "BAKERY", "menus": [{"__ref": "PlaceDetail_BaeminMenu:a"}, {"__ref": "PlaceDetail_BaeminMenu:b"}]}
+}

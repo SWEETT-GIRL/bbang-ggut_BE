@@ -268,6 +268,12 @@ public class ServingWriter {
 	 */
 	public MenuUpsertResult upsertMenu(long storeId, String name, Integer price, String description,
 			String categoryName) {
+		return upsertMenu(storeId, name, price, description, categoryName, true);
+	}
+
+	/** A delivery-menu addition approval never authorizes updating a menu created in the meantime. */
+	public MenuUpsertResult upsertMenu(long storeId, String name, Integer price, String description,
+			String categoryName, boolean allowExistingUpdate) {
 		// 1) 유니크 인덱스(uq_menu_store_normalized_name)와 같은 식으로 겹치는 살아 있는 메뉴를 먼저 찾는다.
 		//    재판정(자바 \p{L}\p{N})과 운영([[:alnum:]])의 정규화가 한자·가나에서 갈려 "새 메뉴"로 제안된 것이
 		//    여기서 잡힌다 (2026-09-06 실측: 일본어 병기 가게 6건 + 한 스냅샷 안 동명 17건).
@@ -284,6 +290,7 @@ public class ServingWriter {
 		if (!existing.isEmpty()) {
 			Object[] row = existing.get(0);
 			long menuId = (Long) row[0];
+			if (!allowExistingUpdate) return MenuUpsertResult.blockedByExistingMenu(menuId);
 			if (Boolean.TRUE.equals(row[4])) {
 				return MenuUpsertResult.blockedByUserMenu(menuId);   // 사용자 등록 메뉴는 네이버 값으로 덮지 않는다
 			}

@@ -137,6 +137,57 @@ class ProposalCommandServiceTest {
 			.build();
 	}
 
+	@Test void approving_baemin_addition_never_uses_existing_menu_update_path() {
+		var proposal = ChangeProposal.builder().storeId(1L).target("menu.add.소금빵").source(ProvenanceSource.BAEMIN)
+			.newValue("{\"name\":\"소금빵\",\"price\":3500,\"description\":\"배달 메뉴\"}").build();
+		given(changeProposalRepository.findById(5L)).willReturn(Optional.of(proposal));
+		given(servingWriterProvider.getIfAvailable()).willReturn(servingWriter);
+		stubApplyState(proposal);
+		given(servingWriter.upsertMenu(eq(1L), eq("소금빵"), eq(3500), any(), any(), eq(false)))
+			.willReturn(MenuUpsertResult.blockedByExistingMenu(77L));
+		assertThatThrownBy(() -> proposalCommandService.approve(5L)).isInstanceOf(ProposalException.class);
+		then(servingWriter).should(never()).upsertMenu(anyLong(), any(), any(), any(), any());
+		assertThat(proposal.getStatus()).isEqualTo(ProposalStatus.FAILED);
+		then(applyStateService).should().settleFailed(eq(5L), eq(ApplyOutcomeReason.VALUE_DRIFTED.name()), any());
+		then(applyStateService).should(never()).settleApplied(any(), any(), any());
+	}
+
+	@Test void another_menu_source_keeps_the_pending_candidate_and_records_review_conflict() {
+		ChangeProposal existing = createProposal("menu.77.price", "2900", "3100");
+		given(changeProposalRepository.findFirstByStoreIdAndTargetAndStatusIn(eq(1L), eq("menu.77.price"), any()))
+			.willReturn(Optional.of(existing));
+		var response = proposalCommandService.propose(1L, "menu.77.price", "2900", "3500", ProvenanceSource.BAEMIN, 8L);
+		assertThat(response.source()).isEqualTo(ProvenanceSource.NAVER);
+		assertThat(existing.getNewValue()).isEqualTo("3100");
+		assertThat(existing.getStatus()).isEqualTo(ProposalStatus.PENDING);
+		assertThat(existing.getReviewNote()).isNull();
+		then(changeProposalRepository).should().updatePendingReviewNote(eq(existing.getId()), eq(ProvenanceSource.NAVER),
+			argThat(note -> note.contains("MENU_SOURCE_CONFLICT") && note.contains("BAEMIN")));
+		then(changeProposalRepository).should(never()).save(any());
+	}
+
+	@Test void menu_source_review_distinguishes_same_unknown_and_conflicting_sources_without_applying() {
+		var proposal = ChangeProposal.builder().storeId(1L).target("menu.77.price").oldValue("2900")
+			.newValue("3500").source(ProvenanceSource.BAEMIN).build();
+		given(changeProposalRepository.findById(5L)).willReturn(Optional.of(proposal));
+		proposalCommandService.noteMenuSourceComparison(5L, ProvenanceSource.BAEMIN, ProvenanceSource.BAEMIN);
+		then(changeProposalRepository).should().updatePendingReviewNote(eq(5L), eq(ProvenanceSource.BAEMIN),
+			argThat(note -> note.contains("MENU_SAME_SOURCE_UPDATE") && note.contains("배달 가격")));
+		proposalCommandService.noteMenuSourceComparison(5L, null, ProvenanceSource.BAEMIN);
+		then(changeProposalRepository).should().updatePendingReviewNote(eq(5L), eq(ProvenanceSource.BAEMIN), contains("MENU_SOURCE_UNKNOWN"));
+		proposalCommandService.noteMenuSourceComparison(5L, ProvenanceSource.USER, ProvenanceSource.BAEMIN);
+		then(changeProposalRepository).should().updatePendingReviewNote(eq(5L), eq(ProvenanceSource.BAEMIN),
+			argThat(note -> note.contains("MENU_SOURCE_CONFLICT") && note.contains("USER")));
+		assertThat(proposal.getReviewNote()).isNull();
+		assertThat(proposal.getStatus()).isEqualTo(ProposalStatus.PENDING);
+		then(servingWriterProvider).shouldHaveNoInteractions();
+	}
+
+	@Test void missing_source_review_proposal_is_rejected() {
+		assertThatThrownBy(() -> proposalCommandService.noteMenuSourceComparison(5L, null, ProvenanceSource.BAEMIN))
+			.isInstanceOf(sweetgirl.dataops.proposal.exception.ProposalException.class);
+	}
+
 	@Test
 	void propose_같은_대상의_동일_제안은_스킵한다() {
 		ChangeProposal existing = createProposal("store.phone", "\"02-1\"");
@@ -763,7 +814,9 @@ class ProposalCommandServiceTest {
 
 		assertThat(response).isNull();
 		assertThat(otherProducer.getStatus()).isEqualTo(ProposalStatus.PENDING);
-		assertThat(otherProducer.getReviewNote()).contains("NAVER_SNAPSHOT_RECONCILE").contains("사람이 정해야");
+		assertThat(otherProducer.getReviewNote()).isNull();
+		then(changeProposalRepository).should().updatePendingReviewNote(eq(otherProducer.getId()), eq(ProvenanceSource.LOCALDATA),
+			argThat(note -> note.contains("NAVER_SNAPSHOT_RECONCILE") && note.contains("사람이 정해야")));
 		then(changeProposalRepository).should(never()).save(any());
 	}
 

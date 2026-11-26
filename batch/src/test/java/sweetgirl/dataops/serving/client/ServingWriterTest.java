@@ -232,6 +232,17 @@ class ServingWriterTest {
 
 	@Test
 	@SuppressWarnings("unchecked")
+	void delivery_addition_cannot_turn_into_an_update_of_an_existing_menu() {
+		given(prodJdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class)))
+			.willReturn(List.<Object[]>of(new Object[] {88L, "소금빵", 2900, "매장 메뉴", false}));
+		var result = servingWriter.upsertMenu(1L, "소금빵", 3500, "배달 메뉴", "소금빵", false);
+		assertThat(result.outcome()).isEqualTo(MenuUpsertResult.Outcome.BLOCKED_EXISTING_MENU);
+		then(prodJdbcTemplate).should(never()).update(anyString(), any(Object[].class));
+		then(prodJdbcTemplate).should(never()).queryForObject(anyString(), eq(Long.class), any(Object[].class));
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
 	void upsertMenu_는_사용자_등록_메뉴와_겹치면_아무것도_쓰지_않는다() {
 		given(prodJdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class)))
 			.willReturn(List.<Object[]>of(new Object[] {99L, "소금빵", 3000, null, true}));

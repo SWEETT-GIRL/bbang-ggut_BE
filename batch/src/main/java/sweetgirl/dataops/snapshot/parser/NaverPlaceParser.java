@@ -166,45 +166,52 @@ public class NaverPlaceParser {
 		return matcher.matches() ? matcher.group(1).replace(",", "") : null;
 	}
 
-	/** 배민 연동 가게의 배달 메뉴 — 그룹명을 붙여 추출한다 (음료 제외 필터의 판별 입력). desc 필드명 주의 */
+	/** Read only menus reachable from this place's Baemin root, never unrelated Apollo cache entries. */
 	private List<ParsedMenu> parseBaeminMenus(JsonNode apolloState) {
-		Map<String, String> groupNameByMenuKey = mapBaeminGroups(apolloState);
-		List<ParsedMenu> baeminMenus = new ArrayList<>();
-		for (Map.Entry<String, JsonNode> entry : apolloState.properties()) {
-			JsonNode candidate = entry.getValue();
-			if (BAEMIN_MENU_TYPENAME.equals(textOrNull(candidate, TYPENAME_FIELD))) {
-				baeminMenus.add(new ParsedMenu(
-					textOrNull(candidate, "name"),
-					textOrNull(candidate, "price"),
-					textOrNull(candidate, "desc"),
-					parseImageUrls(candidate.path("images")),
-					groupNameByMenuKey.get(entry.getKey())));
-			}
+		JsonNode root = resolveReference(apolloState, findFieldByPrefix(apolloState.path("ROOT_QUERY"), "placeDetail("));
+		JsonNode baemin = resolveReference(apolloState, root.path("baemin"));
+		Map<String, String> groupNames = mapBaeminGroups(apolloState, baemin);
+		List<ParsedMenu> menus = new ArrayList<>();
+		JsonNode items = resolveReference(apolloState, baemin.path("menus"));
+		if (!items.isArray()) return menus;
+		for (JsonNode item : items) {
+			JsonNode menu = resolveReference(apolloState, item);
+			if (!BAEMIN_MENU_TYPENAME.equals(textOrNull(menu, TYPENAME_FIELD))) continue;
+			menus.add(new ParsedMenu(textOrNull(menu, "name"), textOrNull(menu, "price"),
+				textOrNull(menu, "desc"), parseImageUrls(menu.path("images")),
+				groupNames.get(textOrNull(menu, "id"))));
 		}
-		return baeminMenus;
+		return menus;
 	}
 
-	/** 메뉴가 "대표메뉴"와 실제 그룹에 중복 소속되면 실제 그룹명이 이긴다 */
-	private Map<String, String> mapBaeminGroups(JsonNode apolloState) {
-		Map<String, String> groupNameByMenuKey = new HashMap<>();
-		for (Map.Entry<String, JsonNode> entry : apolloState.properties()) {
-			JsonNode group = entry.getValue();
-			if (!BAEMIN_GROUP_TYPENAME.equals(textOrNull(group, TYPENAME_FIELD))) {
-				continue;
+	private Map<String, String> mapBaeminGroups(JsonNode payload, JsonNode baemin) {
+		Map<String, String> names = new HashMap<>();
+		JsonNode groups = resolveReference(payload, baemin.path("menuGroups"));
+		if (!groups.isArray()) return names;
+		for (JsonNode reference : groups) {
+			JsonNode group = resolveReference(payload, reference);
+			if (!BAEMIN_GROUP_TYPENAME.equals(textOrNull(group, TYPENAME_FIELD))) continue;
+			String name = textOrNull(group, "name");
+			JsonNode items = resolveReference(payload, group.path("menus"));
+			if (!items.isArray()) continue;
+			for (JsonNode item : items) {
+				String id = textOrNull(resolveReference(payload, item), "id");
+				if (id != null && (names.get(id) == null || BAEMIN_REPRESENTATIVE_GROUP.equals(names.get(id)))) {
+					names.put(id, name);
+				}
 			}
-			String groupName = textOrNull(group, "name");
-			group.path("menus").forEach(menuRef -> {
-				String menuKey = menuRef.path(REF_FIELD).asString(null);
-				if (menuKey == null) {
-					return;
-				}
-				String existing = groupNameByMenuKey.get(menuKey);
-				if (existing == null || BAEMIN_REPRESENTATIVE_GROUP.equals(existing)) {
-					groupNameByMenuKey.put(menuKey, groupName);
-				}
-			});
 		}
-		return groupNameByMenuKey;
+		return names;
+	}
+
+	private JsonNode resolveReference(JsonNode payload, JsonNode node) {
+		var seen = new java.util.HashSet<String>();
+		while (node.isObject() && node.has(REF_FIELD)) {
+			String ref = node.path(REF_FIELD).asString("");
+			if (seen.size() >= 8 || !seen.add(ref) || !payload.has(ref)) return MissingNode.getInstance();
+			node = payload.path(ref);
+		}
+		return node;
 	}
 
 	private List<String> parseImageUrls(JsonNode images, MenuStructureProfile.Entity entity) {
