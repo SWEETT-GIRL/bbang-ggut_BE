@@ -1,5 +1,7 @@
 package sweetgirl.dataops.proposal.service;
 
+import sweetgirl.dataops.autoapply.AutomaticApplyException;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -75,7 +77,7 @@ public class ProposalApplyStateService {
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public UUID claimAutomatic(Long proposalId, java.util.function.Consumer<ChangeProposal> verify) {
 		if (manifestApplyGate != null || changeProposalRepository.requiresAgentManifest(proposalId))
-			throw new sweetgirl.dataops.autoapply.AutomaticApplyHold("AGENT_APPROVAL_REQUIRED");
+			throw new AutomaticApplyException.Hold(AutomaticApplyException.Reason.AGENT_APPROVAL_REQUIRED);
 		ChangeProposal proposal = changeProposalRepository.findForApplyUpdate(proposalId)
 			.orElseThrow(() -> new ProposalException(ProposalErrorCode.PROPOSAL_NOT_FOUND));
 		verify.accept(proposal);

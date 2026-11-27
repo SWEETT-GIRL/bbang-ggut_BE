@@ -15,7 +15,7 @@ class AutomaticClaimTest {
 		var repository = mock(ChangeProposalRepository.class);
 		var service = new ProposalApplyStateService(repository, mock(StoreFieldProvenanceRepository.class));
 		when(repository.findForApplyUpdate(7L)).thenReturn(Optional.of(mock(ChangeProposal.class)));
-		assertThatThrownBy(() -> service.claimAutomatic(7L, candidate -> { throw new AutomaticApplyHold("SOURCE_CONFLICT"); }))
+		assertThatThrownBy(() -> service.claimAutomatic(7L, candidate -> { throw new AutomaticApplyException.Hold(AutomaticApplyException.Reason.SOURCE_CONFLICT); }))
 			.hasMessage("SOURCE_CONFLICT");
 		verify(repository, never()).claimForApply(anyLong(), any(), any());
 		when(repository.claimForApply(eq(7L), any(), any())).thenReturn(1);

@@ -1,5 +1,7 @@
 package sweetgirl.dataops.proposal.service;
 
+import sweetgirl.dataops.autoapply.AutomaticApplyException;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -234,7 +236,7 @@ public class ProposalCommandService {
 			StoreObservationBarrier.ApprovalScope barrier, AutomaticApproval approval) {
 		if (manifestApplyGate != null || writer == null || barrier == null || approval == null
 			|| approval.externalId() == null || approval.externalId().isBlank())
-			throw new sweetgirl.dataops.autoapply.AutomaticApplyHold("AUTOMATIC_SCOPE_REQUIRED");
+			throw new AutomaticApplyException.Hold(AutomaticApplyException.Reason.AUTOMATIC_SCOPE_REQUIRED);
 		barrier.assertHeld();
 		return approveGuarded(proposalId, getProposal(proposalId), writer, barrier, null, approval);
 	}

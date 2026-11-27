@@ -1,5 +1,7 @@
 package sweetgirl.dataops.reconcile.service;
 
+import sweetgirl.dataops.autoapply.AutomaticApplyException;
+
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,7 +53,7 @@ import tools.jackson.databind.ObjectMapper;
 
 /**
  * 판정층 오케스트레이터 — ParsedPlace vs 운영 현재값(ServingReader) 필드 단위 diff →
- * 병합 정책 적용 → proposal 수납. 자동 반영은 수집 트랜잭션 커밋 뒤 AutomaticApplyService가 별도로 검증한다.
+ * 병합 정책 적용 → proposal 수납. 자동 반영은 수집 트랜잭션 커밋 뒤 AutomaticApplyCommandService가 별도로 검증한다.
  *
  * diff 범위: store.name / store.phone / store.instagram_handle / store.business_hours(요일 세트 비교) /
  * 신규 메뉴(음료 제외, 배민 단독 포함) / 메뉴 가격(네이버만 — 배민 가격은 배달가라 제외) / 메뉴 소멸.
@@ -384,12 +386,12 @@ public class ReconcileService {
 	/** Called with a verified, completed live capture under the store observation barrier. */
 	public List<sweetgirl.dataops.autoapply.AutomaticCandidate> reconcileAutomatic(Long storeId, Long snapshotId,
 			ParsedPlace parsed, boolean menuAllowed, boolean baeminAllowed) {
-		if (!enabled || parsed.pageMissing()) throw new sweetgirl.dataops.autoapply.AutomaticApplyHold("OBSERVATION_UNUSABLE");
+		if (!enabled || parsed.pageMissing()) throw new AutomaticApplyException.Hold(AutomaticApplyException.Reason.OBSERVATION_UNUSABLE);
 		ServingReader reader = servingReaderProvider.getIfAvailable();
 		if (reader == null) throw new IllegalStateException("SERVING_READ_UNAVAILABLE");
 		StoreCurrentValues current = reader.findStore(storeId)
-			.orElseThrow(() -> new sweetgirl.dataops.autoapply.AutomaticApplyHold("STORE_MISSING"));
-		if (!"ACTIVE".equals(current.status())) throw new sweetgirl.dataops.autoapply.AutomaticApplyHold("STORE_INACTIVE");
+			.orElseThrow(() -> new AutomaticApplyException.Hold(AutomaticApplyException.Reason.STORE_MISSING));
+		if (!"ACTIVE".equals(current.status())) throw new AutomaticApplyException.Hold(AutomaticApplyException.Reason.STORE_INACTIVE);
 		var generation = new ReconcileGeneration(snapshotId, UUID.randomUUID(), new HashSet<>());
 		var provenance = provenanceByField(storeId);
 		reconcileStoreFields(storeId, generation, parsed, current, provenance);

@@ -874,8 +874,11 @@ class ProposalCommandServiceTest {
 			java.util.function.Consumer<ChangeProposal> guard = invocation.getArgument(1);
 			guard.accept(proposal); proposal.beginApply(operation); return operation;
 		});
-		proposalCommandService.approveAutomatically(5L, servingWriter, approvalBarrierScope,
-			new ProposalCommandService.AutomaticApproval("123", candidate -> assertThat(candidate).isSameAs(proposal)));
+        @SuppressWarnings("unchecked")
+        java.util.function.Consumer<ChangeProposal> candidateGuard = mock(java.util.function.Consumer.class);
+        proposalCommandService.approveAutomatically(5L, servingWriter, approvalBarrierScope,
+            new ProposalCommandService.AutomaticApproval("123", candidateGuard));
+        then(candidateGuard).should().accept(proposal);
 		then(servingWriter).should().updateMenuPrice(10L, 1L, "123", 3000, 3500);
 		then(applyStateService).should(never()).claim(anyLong());
 		assertThat(proposal.getStatus()).isEqualTo(ProposalStatus.APPROVED);
@@ -884,7 +887,7 @@ class ProposalCommandServiceTest {
 	@Test void automatic_conflict_before_claim_never_writes_or_logs() {
 		ChangeProposal proposal = createProposal("menu.10.price", "3000", "3500");
 		given(changeProposalRepository.findById(5L)).willReturn(Optional.of(proposal));
-		given(applyStateService.claimAutomatic(eq(5L), any())).willThrow(new sweetgirl.dataops.autoapply.AutomaticApplyHold("SOURCE_CONFLICT"));
+		given(applyStateService.claimAutomatic(eq(5L), any())).willThrow(new sweetgirl.dataops.autoapply.AutomaticApplyException.Hold(sweetgirl.dataops.autoapply.AutomaticApplyException.Reason.SOURCE_CONFLICT));
 		assertThatThrownBy(() -> proposalCommandService.approveAutomatically(5L, servingWriter, approvalBarrierScope,
 			new ProposalCommandService.AutomaticApproval("123", candidate -> {}))).hasMessage("SOURCE_CONFLICT");
 		then(servingWriter).shouldHaveNoInteractions();

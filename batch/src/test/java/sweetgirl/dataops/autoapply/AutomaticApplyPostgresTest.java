@@ -12,6 +12,17 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import java.util.Arrays;
+import java.util.stream.Stream;
+import org.springframework.aop.framework.ProxyFactory;
+import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
+import org.springframework.transaction.interceptor.TransactionInterceptor;
+import sweetgirl.dataops.snapshot.service.ResponseDigests;
+import sweetgirl.dataops.reconcile.policy.BeverageFilter;
+import sweetgirl.dataops.reconcile.policy.MergePolicy;
+import sweetgirl.dataops.reconcile.policy.MenuCategoryClassifier;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -34,8 +45,12 @@ import tools.jackson.databind.ObjectMapper;
 @EnabledIfEnvironmentVariable(named = "DATAOPS_AUTO_APPLY_TEST_JDBC_URL", matches = "jdbc:postgresql://127\\.0\\.0\\.1:[0-9]+/.*")
 class AutomaticApplyPostgresTest {
 	private JdbcTemplate admin, jdbc;
+	private DriverManagerDataSource source;
+	private ObjectMapper mapper;
+	private ChangeProposalRepository repository;
+	private AutomaticApplyWriter writer;
 	private String schema;
-	private AutomaticApplyService service;
+	private AutomaticApplyCommandService service;
 	private ProposalCommandService commands;
 	private ReconcileService reconcile;
 	private ChangeProposal proposal;
@@ -47,7 +62,7 @@ class AutomaticApplyPostgresTest {
 		admin = new JdbcTemplate(new DriverManagerDataSource(base, "postgres", ""));
 		schema = "automatic_" + UUID.randomUUID().toString().replace("-", "");
 		admin.execute("CREATE SCHEMA " + schema);
-		var source = new DriverManagerDataSource(base + "?currentSchema=" + schema, "postgres", "");
+		source = new DriverManagerDataSource(base + "?currentSchema=" + schema, "postgres", "");
 		jdbc = new JdbcTemplate(source);
 		jdbc.execute("CREATE TABLE response_capture(capture_id varchar(64) primary key, store_id bigint, source text, external_id text, payload text, observed_at timestamptz, received_at timestamptz default now(), attempt_seq bigint, target_verified boolean, status text, processed_response text)");
 		jdbc.execute(Files.readString(Path.of("src/main/resources/db/dataops-migration/V20261127010000__automatic_capture_apply.sql")));
@@ -58,7 +73,7 @@ class AutomaticApplyPostgresTest {
 		jdbc.execute("INSERT INTO store VALUES(1,'123','ACTIVE')");
 		jdbc.execute("INSERT INTO menu(store_id,name,normalized_name,price) VALUES(1,'소금빵','소금빵',3000)");
 		capture("current", "READY", true);
-		var mapper = new ObjectMapper();
+		mapper = new ObjectMapper();
 		diagnostics = mock(ResponseDiagnostics.class);
 		when(diagnostics.inspect(any())).thenReturn(new ResponseDiagnostics.Report("parser", List.of()));
 		reconcile = mock(ReconcileService.class);
@@ -67,13 +82,15 @@ class AutomaticApplyPostgresTest {
 		proposal = ChangeProposal.builder().storeId(1L).target("menu.1.price").oldValue("3000").newValue("3500")
 			.source(ProvenanceSource.NAVER).producer(ProposalProducer.NAVER_SNAPSHOT_RECONCILE).build();
 		ReflectionTestUtils.setField(proposal, "id", 7L);
-		var repository = mock(ChangeProposalRepository.class);
+		repository = mock(ChangeProposalRepository.class);
 		when(repository.findById(7L)).thenAnswer(invocation -> Optional.of(proposal));
 		commands = mock(ProposalCommandService.class);
 		serving = new ServingWriter(jdbc);
-		var writer = mock(AutomaticApplyWriter.class);
+		writer = mock(AutomaticApplyWriter.class);
 		when(writer.writer()).thenReturn(serving);
 		when(commands.approveAutomatically(eq(7L), eq(serving), any(), any())).thenAnswer(invocation -> {
+            assertThat(org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM response_auto_apply", Integer.class)).isEqualTo(1);
 			ProposalCommandService.AutomaticApproval approval = invocation.getArgument(3);
 			approval.verify().accept(proposal);
 			proposal.beginApply(UUID.randomUUID());
@@ -82,10 +99,58 @@ class AutomaticApplyPostgresTest {
 			return null;
 		});
 		provenance = mock(StoreFieldProvenanceRepository.class);
-		service = new AutomaticApplyService(source, new DataSourceTransactionManager(source), mapper,
-			new StoreObservationBarrier(source, source), diagnostics, new NaverPlaceParser(), reconcile, repository,
-			provenance, new AutomaticApplyPolicy(mapper), commands, writer);
+		service = newService();
 	}
+	private AutomaticApplyCommandService newService() {
+		var queries = transactional(new AutomaticApplyQueryService(source, mapper, repository, provenance));
+		return transactional(new AutomaticApplyCommandService(source, new DataSourceTransactionManager(source), mapper,
+			new StoreObservationBarrier(source, source), diagnostics, new NaverPlaceParser(), reconcile,
+			queries, new AutomaticApplyPolicy(mapper), commands, writer));
+	}
+
+	@SuppressWarnings("unchecked")
+	private <T> T transactional(T target) {
+		var proxy = new ProxyFactory(target);
+		proxy.setProxyTargetClass(true);
+		proxy.addAdvice(new TransactionInterceptor(new DataSourceTransactionManager(source), new AnnotationTransactionAttributeSource()));
+		return (T)proxy.getProxy();
+	}
+
+	static Stream<Class<?>> changedPolicies() {
+		return Stream.of(BeverageFilter.class, MergePolicy.class, MenuCategoryClassifier.class);
+	}
+
+	@ParameterizedTest
+	@MethodSource("changedPolicies")
+	void changed_menu_policy_blocks_an_unfinished_saved_plan(Class<?> changedClass) {
+		when(commands.approveAutomatically(anyLong(), any(), any(), any()))
+			.thenThrow(new IllegalStateException("interrupted before claim"));
+		assertThatThrownBy(() -> service.apply("current")).hasMessage("interrupted before claim");
+		assertThat(jdbc.queryForObject("SELECT results::text FROM response_auto_apply", String.class)).isEqualTo("{}");
+		try (var digests = mockStatic(ResponseDigests.class, CALLS_REAL_METHODS)) {
+			digests.when(() -> ResponseDigests.classes(any(Class[].class))).thenAnswer(invocation -> {
+				Class<?>[] measured = (Class<?>[])invocation.getRawArguments()[0];
+				String original = (String)invocation.callRealMethod();
+				return Arrays.asList(measured).contains(changedClass) ? original + ":changed-policy-bytecode" : original;
+			});
+			service = newService();
+		}
+		var result = service.apply("current");
+		assertThat(result.held()).isEqualTo(1);
+		assertThat(result.items().get(0).reason()).isEqualTo("POLICY_CHANGED");
+		assertThat(jdbc.queryForObject("SELECT price FROM menu WHERE id=1", Integer.class)).isEqualTo(3000);
+		verify(commands, times(1)).approveAutomatically(anyLong(), any(), any(), any());
+	}
+
+	@Test void missing_capture_and_plan_queries_do_not_guess_an_observation() {
+		var queries = transactional(new AutomaticApplyQueryService(source, mapper, repository, provenance));
+		assertThat(queries.findPlan("missing")).isEmpty();
+		assertThatThrownBy(() -> queries.findCapture("missing"))
+			.isInstanceOf(AutomaticApplyException.class).hasMessage("CAPTURE_MISSING");
+		assertThatThrownBy(() -> queries.findProposal(999))
+			.isInstanceOf(AutomaticApplyException.class).hasMessage("PROPOSAL_MISSING");
+	}
+
 	@AfterEach void cleanup() { admin.execute("DROP SCHEMA " + schema + " CASCADE"); }
 	private void capture(String id, String status, boolean complete) {
 		jdbc.update("INSERT INTO response_capture(capture_id,store_id,source,external_id,payload,observed_at,target_verified,status,processed_response) VALUES(?,1,'NAVER','123','{}',now(),true,?,?)",
@@ -98,6 +163,16 @@ class AutomaticApplyPostgresTest {
 		verify(commands, times(1)).approveAutomatically(anyLong(), any(), any(), any());
 		assertThat(jdbc.queryForObject("SELECT results->'7'->>'status' FROM response_auto_apply", String.class)).isEqualTo("APPLIED");
 	}
+    @Test void outer_transaction_rollback_does_not_undo_the_committed_apply_plan_or_serving_write() {
+        var outer = new org.springframework.transaction.support.TransactionTemplate(new DataSourceTransactionManager(source));
+        outer.executeWithoutResult(status -> {
+            assertThat(service.apply("current").applied()).isEqualTo(1);
+            status.setRollbackOnly();
+        });
+        assertThat(jdbc.queryForObject("SELECT price FROM menu WHERE id=1", Integer.class)).isEqualTo(3500);
+        assertThat(jdbc.queryForObject("SELECT results->'7'->>'status' FROM response_auto_apply", String.class)).isEqualTo("APPLIED");
+    }
+
 	@Test void newer_unassessed_response_blocks_old_automatic_apply() {
 		capture("newer", "RECEIVED", false);
 		assertThat(service.apply("current").observationHold()).isEqualTo("STALE_OBSERVATION");

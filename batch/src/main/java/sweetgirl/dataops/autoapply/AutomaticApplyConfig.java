@@ -12,9 +12,12 @@ public class AutomaticApplyConfig {
 	public AutomaticApplyWriter automaticApplyWriter(@Value("${dataops.prod-db.url}") String url,
 			@Value("${DATAOPS_AUTO_APPLY_DB_USERNAME:}") String username,
 			@Value("${DATAOPS_AUTO_APPLY_DB_PASSWORD:}") String password, org.springframework.core.env.Environment environment) {
-		for (String mode : new String[] {"apply", "replay", "runtime"})
+		if (environment.getProperty("dataops.api-key", "").isBlank())
+			throw new IllegalStateException("Automatic apply requires dataops.api-key");
+		for (String mode : new String[] {"apply", "replay", "runtime"}) {
 			if (environment.getProperty("dataops.agent." + mode + ".enabled", Boolean.class, false))
 				throw new IllegalStateException("Automatic live apply cannot run inside an agent approval process");
+		}
 		return new AutomaticApplyWriter(url, username, password);
 	}
 }
