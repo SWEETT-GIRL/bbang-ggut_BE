@@ -1,9 +1,11 @@
 import json
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import sync_worker as worker
 from capture_spool import CaptureSpool
 
