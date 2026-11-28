@@ -60,6 +60,16 @@ class AutomaticApplyPolicyTest {
 	@Test void new_delivery_menu_is_allowed_without_replacing_an_existing_price() {
 		verify(proposal("menu.add.test", null, "{\"name\":\"소금빵\",\"price\":3500}", ProvenanceSource.BAEMIN), Map.of());
 	}
+	@Test void food_classification_is_distinct_from_parser_repair_and_source_deletion_evidence() {
+		for (String name : new String[] {"베이글 연어 포케", "베이글 새우 포케"}) {
+			assertThatThrownBy(() -> verify(proposal("menu.9.removed",
+				"{\"name\":\"" + name + "\",\"price\":11500,\"description\":\"\",\"reason\":\"제외 필터\"}",
+				null, ProvenanceSource.NAVER), Map.of())).hasMessage("MENU_POLICY_REVIEW_REQUIRED");
+		}
+		// Missing historical provenance is not established by an empty current description.
+		assertThatThrownBy(() -> verify(proposal("menu.9.description", "null", "\"설명\"", ProvenanceSource.BAEMIN), Map.of()))
+			.hasMessage("SOURCE_UNKNOWN");
+	}
 	@Test void address_requires_bounded_distance_and_menu_deletion_requires_absence_evidence_shape() {
 		verify(proposal("store.address", "{\"address\":\"이전\",\"lon\":127,\"lat\":37}",
 			"{\"address\":\"새주소\",\"lon\":127.001,\"lat\":37,\"distanceM\":100}", ProvenanceSource.NAVER), Map.of());

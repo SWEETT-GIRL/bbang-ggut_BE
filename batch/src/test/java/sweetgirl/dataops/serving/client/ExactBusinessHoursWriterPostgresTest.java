@@ -147,6 +147,25 @@ class ExactBusinessHoursWriterPostgresTest {
 		} finally {admin.execute("DROP OWNED BY "+role);admin.execute("DROP ROLE "+role);}
 	}
 
+	@Test void readiness_detects_missing_child_lock_privilege_and_minimal_column_grant() {
+		String role="hours_probe_"+UUID.randomUUID().toString().replace("-","");
+		admin.execute("CREATE ROLE "+role+" LOGIN");
+		try {
+			admin.execute("GRANT USAGE ON SCHEMA "+schema+" TO "+role);
+			jdbc.execute("GRANT SELECT,UPDATE ON store TO "+role);
+			jdbc.execute("GRANT SELECT,INSERT,DELETE ON store_business_hour TO "+role);
+			jdbc.execute("GRANT USAGE ON ALL SEQUENCES IN SCHEMA "+schema+" TO "+role);
+			try(var automatic=new sweetgirl.dataops.autoapply.AutomaticApplyWriter(source.getUrl(),role,"test-only")) {
+				assertThat(automatic.hoursPermissionsReady()).isFalse();
+				assertThat(hours()).containsExactly("MONDAY:08:00:00");
+				jdbc.execute("GRANT UPDATE(day_of_week) ON store_business_hour TO "+role);
+				assertThat(automatic.hoursPermissionsReady()).isTrue();
+				assertThat(automatic.writer().replaceBusinessHours(1,"123",old,next)).isEqualTo(1);
+				assertThat(hours()).containsExactly("MONDAY:10:00:00");
+			}
+		} finally {admin.execute("DROP OWNED BY "+role);admin.execute("DROP ROLE "+role);}
+	}
+
 	@Test void lock_timeout_rolls_back_and_the_connection_can_be_used_for_a_later_attempt() throws Exception {
 		try(var editor=source.getConnection()) {
 			editor.setAutoCommit(false);try(var statement=editor.createStatement()){statement.executeUpdate("UPDATE store SET status='ACTIVE' WHERE id=1");}

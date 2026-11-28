@@ -8,6 +8,7 @@ import sweetgirl.dataops.serving.client.ServingWriter;
 public class AutomaticApplyWriter implements AutoCloseable {
 	private final HikariDataSource pool;
 	private final ServingWriter writer;
+	private final JdbcTemplate jdbc;
 	public AutomaticApplyWriter(String url, String username, String password) {
 		if (username == null || username.isBlank() || password == null || password.isBlank())
 			throw new IllegalStateException("Automatic apply requires dedicated serving writer credentials");
@@ -17,8 +18,21 @@ public class AutomaticApplyWriter implements AutoCloseable {
 		pool.setUsername(username);
 		pool.setPassword(password);
 		pool.setMaximumPoolSize(2);
+		jdbc = new JdbcTemplate(pool);
+		jdbc.setQueryTimeout(5);
 		writer = new ServingWriter(new JdbcTemplate(pool));
 	}
 	public ServingWriter writer() { return writer; }
+	/** Catalog-only probe: a positive result does not replace the transactional write-time checks. */
+	public boolean hoursPermissionsReady() {
+		return Boolean.TRUE.equals(jdbc.queryForObject("""
+			SELECT has_table_privilege(current_user, 'store', 'SELECT')
+			 AND has_any_column_privilege(current_user, 'store', 'UPDATE')
+			 AND has_table_privilege(current_user, 'store_business_hour', 'SELECT')
+			 AND has_table_privilege(current_user, 'store_business_hour', 'INSERT')
+			 AND has_table_privilege(current_user, 'store_business_hour', 'DELETE')
+			 AND has_any_column_privilege(current_user, 'store_business_hour', 'UPDATE')
+			""", Boolean.class));
+	}
 	@Override public void close() { pool.close(); }
 }
