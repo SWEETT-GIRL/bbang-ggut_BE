@@ -27,12 +27,17 @@ class BatchExecutionTest(unittest.TestCase):
     def test_automatic_apply_metrics_are_item_counts_and_exclude_identifiers(self):
         execution = journal.WorkflowRun(self.directory, 'freshness-refresh')
         with execution:
-            execution.record['items'] = {'auto_apply_applied': 91, 'auto_apply_unknown': 1, 'proposal_id': 1234}
+            execution.record['items'] = {'auto_apply_applied': 91, 'auto_apply_unknown': 1, 'proposal_id': 1234,
+                                        'recovery_attempted': 9, 'hold_permission_required': 9,
+                                        'recovery_menu_decision_required': 1}
             execution.finish(1)
         metrics = journal.metrics(self.directory / 'runs', 'freshness-refresh')
         self.assertIn('result="auto_apply_applied"} 91', metrics)
         self.assertIn('result="auto_apply_unknown"} 1', metrics)
         self.assertNotIn('proposal_id', metrics)
+        self.assertIn('result="recovery_attempted"} 9', metrics)
+        self.assertIn('result="hold_permission_required"} 9', metrics)
+        self.assertIn('result="recovery_menu_decision_required"} 1', metrics)
 
     def test_failure_records_step_and_run_without_exception_message(self):
         execution = journal.WorkflowRun(self.directory, "nightly")

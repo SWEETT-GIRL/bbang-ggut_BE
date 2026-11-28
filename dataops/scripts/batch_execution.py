@@ -255,6 +255,11 @@ def metrics(directory, command):
     if last:
         item_names = {"attempted", "changed", "unchanged", "partial", "held", "failed", "pages_fetched",
                       "auto_apply_applied", "auto_apply_already_applied", "auto_apply_held", "auto_apply_failed", "auto_apply_unknown",
+                      "recovery_attempted", "recovery_resolved", "recovery_waiting", "recovery_configuration_blocked",
+                      "recovery_exhausted", "recovery_expired", "recovery_review_required", "recovery_agent_required",
+                      "recovery_audit_required", "recovery_incomplete", "recovery_superseded",
+                      "recovery_menu_decision_required", "hold_menu_policy_review",
+                      "hold_permission_required", "hold_source_unknown", "hold_deletion_review", "hold_source_conflict",
                       "baseline_stores", "baseline_mapped", "baseline_unmapped", "baseline_ambiguous",
                       "gate_passed", "gate_held", "gate_blocked", "gate_need_menu", "gate_review_pending",
                       "public_raw", "public_new", "public_upd", "public_unobserved",

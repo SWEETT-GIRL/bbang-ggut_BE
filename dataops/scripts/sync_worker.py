@@ -27,6 +27,7 @@ from html.parser import HTMLParser
 
 import requests
 from capture_spool import CaptureSpool
+from hold_recovery import HoldRecovery, classify, receipt_reasons
 from dataops_server import server_headers
 
 REQUEST_INTERVAL_SECONDS = 1.5
@@ -203,13 +204,16 @@ def safe_server(server, auto_apply=False):
         raise RuntimeError("server must support durable capture, menu-scoped hold and whole-error hold with serving writes disabled")
     if auto_apply and data.get("automaticApplyProtocol") != 1:
         raise RuntimeError("server must support capture-scoped automatic apply; refusing collection-only fallback")
+    return data
 
 
 def run(server: str, limit: int, max_stores: int | None,
         cooldown_minutes: int, max_cooldowns: int, max_hours: float | None = None, spool=None, summary_path=None,
-        auto_apply=False) -> int:
+        auto_apply=False, capabilities=None) -> int:
     processed = changed = unchanged = failed = 0
     held = partial = 0
+    recovery = None
+    recovery_attempted = recovery_resolved = 0
     applied_counts = {"auto_apply_" + key: 0 for key in ("applied", "already_applied", "held", "failed", "unknown")}
     def account(result):
         applied = result.get("automaticApply", {})
@@ -232,21 +236,32 @@ def run(server: str, limit: int, max_stores: int | None,
                 result = submit_retained(server, record, auto_apply=auto_apply)
                 account(result)
                 spool.acknowledge(record, result)
+                if (auto_apply and record.get("recovery", {}).get("parentCaptureId")
+                        and classify(result, receipt_reasons(result)) == "RESOLVED"):
+                    recovery_resolved += 1
                 if applied_counts["auto_apply_failed"] or applied_counts["auto_apply_unknown"]:
                     return EXIT_SERVER_ERROR
             except requests.RequestException:
                 return EXIT_SERVER_ERROR
+        # Existing receipts (including pre-upgrade holds) are automatically inventoried.
+        # Acknowledged APPLIED outcomes are never replayed as a recovery operation.
+        recovery = HoldRecovery(spool, time.time()) if auto_apply else None
+        recovery_due = recovery.due(time.time(), (capabilities or {}).get("automaticHoursPermissionsReady") is True) if recovery else []
         while True:
             if deadline is not None and time.monotonic() >= deadline:
                 print(f"[worker] 시간 상자 {max_hours}시간 도달 — 새 배치를 받지 않고 끝낸다", flush=True)
                 break
             # --max 보다 큰 배치를 받으면 초과분이 소프트 리스에 걸려 2시간 due 에서 사라진다
             batch_limit = limit if max_stores is None else max(1, min(limit, max_stores - processed))
-            try:
-                due_list = fetch_due(server, batch_limit)
-            except requests.RequestException as error:
-                print(f"[worker] due 조회 실패 — 서버 확인 필요: {error}", flush=True)
-                return EXIT_SERVER_ERROR
+            if recovery_due:
+                due_list = [{**record["request"], "_recovery": record} for record in recovery_due[:batch_limit]]
+                recovery_due = recovery_due[batch_limit:]
+            else:
+                try:
+                    due_list = fetch_due(server, batch_limit)
+                except requests.RequestException as error:
+                    print(f"[worker] due 조회 실패 — 서버 확인 필요: {error}", flush=True)
+                    return EXIT_SERVER_ERROR
             if not due_list:
                 break
 
@@ -259,6 +274,12 @@ def run(server: str, limit: int, max_stores: int | None,
                 if due["source"] != "NAVER" or not due.get("externalId"):
                     continue
 
+                parent = due.get("_recovery")
+                if parent is not None:
+                    parent = recovery.reserve(parent, time.time())
+                    if parent is None:
+                        continue
+                    recovery_attempted += 1
                 processed += 1
                 try:
                     fetched = fetch_place(due["externalId"])
@@ -276,9 +297,15 @@ def run(server: str, limit: int, max_stores: int | None,
                         "observedAt": observed_at, "attemptSeq": due.get("attemptSeq")}
                 metadata = asdict(fetched)
                 metadata.pop("payload")
-                record = spool.retain(observation_id, body, metadata)
+                record = spool.retain(observation_id, body, metadata,
+                                      recovery=recovery.metadata(body, parent) if recovery else None)
+                if recovery:
+                    recovery.observe(record, time.time())
 
                 if blocked:
+                    if parent is not None:
+                        # No extra challenge requests in the recovery loop; retain evidence and stop.
+                        return EXIT_BLOCKED
                     cooldowns_used += 1
                     if cooldowns_used > max_cooldowns:
                         print(f"[worker] 쿨다운 {max_cooldowns}회 소진 — 종료. "
@@ -294,16 +321,22 @@ def run(server: str, limit: int, max_stores: int | None,
 
                 if apollo_state is None:
                     failed += 1
-                    try:
-                        report_failure(server, due["syncStateId"])
-                    except requests.RequestException:
-                        return EXIT_SERVER_ERROR
+                    if parent is None:
+                        try:
+                            report_failure(server, due["syncStateId"])
+                        except requests.RequestException:
+                            return EXIT_SERVER_ERROR
                 else:
                     # Fetch identity is independent of semantic hash and assigned only once per successful fetch.
                     try:
                         result = submit_retained(server, record, auto_apply=auto_apply)
                         account(result)
                         spool.acknowledge(record, result)
+                        if recovery:
+                            acknowledged = spool.read(spool.path(observation_id))
+                            recovery.observe(acknowledged, time.time())
+                            if parent is not None and spool.read(spool.path(observation_id))["recovery"]["status"] == "RESOLVED":
+                                recovery_resolved += 1
                         if result.get("assessment") == "HELD":
                             held += 1
                         elif result.get("assessment") == "PARTIAL":
@@ -329,12 +362,15 @@ def run(server: str, limit: int, max_stores: int | None,
         print(f"[worker] 세션 종료 — 처리 {processed}, 변경 {changed}, 무변경 {unchanged}, 부분처리 {partial}, 보류 {held}, 실패 {failed}", flush=True)
         if auto_apply:
             print("[worker] 운영 반영 — " + ", ".join(f"{key}={value}" for key, value in applied_counts.items()), flush=True)
+            print("[worker] 보류 복구 — recovery_* 가게 / hold_* 변경 후보: " + json.dumps(recovery.counts(), ensure_ascii=False), flush=True)
         return EXIT_SERVER_ERROR if applied_counts["auto_apply_failed"] or applied_counts["auto_apply_unknown"] else EXIT_OK
     finally:
         if summary_path:
             from batch_execution import atomic_json
             atomic_json(summary_path, {"attempted": processed, "changed": changed, "unchanged": unchanged,
-                                       "partial": partial, "held": held, "failed": failed, **applied_counts})
+                                       "partial": partial, "held": held, "failed": failed, **applied_counts,
+                                       **(recovery.counts() if recovery else {}),
+                                       "recovery_attempted": recovery_attempted, "recovery_resolved": recovery_resolved})
 
 
 
@@ -357,12 +393,12 @@ def main() -> int:
     if arguments.limit < 1 or (arguments.max_stores is not None and arguments.max_stores < 1) or (arguments.max_hours is not None and arguments.max_hours <= 0):
         argument_parser.error("limit/max/max-hours must be positive")
     try:
-        safe_server(arguments.server, auto_apply=auto_apply)
+        capabilities = safe_server(arguments.server, auto_apply=auto_apply)
         spool = CaptureSpool()
         with spool.exclusive():
             return run(arguments.server, arguments.limit, arguments.max_stores,
                        arguments.cooldown_minutes, arguments.max_cooldowns, arguments.max_hours, spool, arguments.summary,
-                       auto_apply=auto_apply)
+                       auto_apply=auto_apply, capabilities=capabilities)
     except (OSError, ValueError, RuntimeError, requests.RequestException) as error:
         print(f"[worker] 실행 보류: {type(error).__name__}", flush=True)
         return EXIT_SERVER_ERROR

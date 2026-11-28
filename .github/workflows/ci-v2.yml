@@ -15,53 +15,21 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       backend: ${{ steps.diff.outputs.backend }}
+      build_scope: ${{ steps.diff.outputs.build_scope }}
       batch: ${{ steps.diff.outputs.batch }}
       workflows: ${{ steps.diff.outputs.workflows }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Test CI scope selection
+        run: python3 -m unittest discover -s scripts/ci/tests -p test_select_v2_checks.py -v
       - name: Detect backend and batch changes
         id: diff
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          python3 - <<'PYCODE'
-          import os, subprocess
-          workflow_files = {
-              '.github/workflows/cd-redis-prod.yml', '.github/workflows/cd-v2.yml',
-              '.github/workflows/cd-prod.yml', '.github/workflows/cd-staging.yml',
-              '.github/workflows/ci-v2.yml',
-          }
-          files = subprocess.check_output([
-              'git', 'diff', '--no-renames', '--name-only', '-z',
-              os.environ['BASE_SHA'] + '...' + os.environ['HEAD_SHA'],
-          ]).decode().split('\0')
-          paths = [path for path in files if path]
-          touches_redis = any(path.startswith('infra/redis/') or
-              path == '.github/workflows/cd-redis-prod.yml' for path in paths)
-          redis_only = touches_redis and all(path.startswith('infra/redis/') or
-              path in workflow_files for path in paths)
-          # 배치 이미지(batch-image)는 배치 관련 경로가 바뀐 PR 에서만 빌드한다.
-          # core/·config/ 는 넣지 않는다 — core 컴파일·테스트는 build-v2 의 루트 ./gradlew build 가
-          # 전 모듈로 이미 돌고, batch-image 는 이미지 조립(Dockerfile.batch·엔트리포인트)만 본다.
-          # build.gradle·settings.gradle·gradle/ 도 넣지 않는다 — 이 잡은 java 를 띄우지 않아 의존성 변경은
-          # build-v2 의 테스트가 보고, JAR 개수 검사는 cd-batch 가 머지 뒤에 한다(실패해도 옛 이미지가 그대로 돈다).
-          # batch/·dataops/ 는 남긴다 — Dockerfile.batch 가 그 안의 파일을 경로로 COPY 하므로 옮기면 조립이 깨진다.
-          batch_prefixes = ('batch/', 'dataops/', 'scripts/deploy/batch/')
-          batch_files = {
-              'Dockerfile.batch', 'Dockerfile.batch.dockerignore',
-              '.github/workflows/ci-v2.yml', '.github/workflows/cd-batch.yml',
-          }
-          touches_batch = not redis_only and any(
-              path.startswith(batch_prefixes) or path in batch_files for path in paths)
-          touches_workflows = any(path.startswith('.github/workflows/') for path in paths)
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
-              out.write(f'backend={str(not redis_only).lower()}\n')
-              out.write(f'batch={str(touches_batch).lower()}\n')
-              out.write(f'workflows={str(touches_workflows).lower()}\n')
-          PYCODE
+        run: python3 scripts/ci/select_v2_checks.py
 
   build-v2:
     needs: changes
@@ -79,11 +47,20 @@ jobs:
           # 기본값은 기본 브랜치(main)에서만 캐시를 쓴다. develop-v2 는 기본 브랜치가 아니라 매 실행이 캐시 미스였다
           # (Gradle 배포판·의존성 내려받기 약 100초). push 와 PR 모두 쓰게 한다.
           cache-read-only: false
-      # 러너 사양(CPU·메모리) — 병렬·포크 설정은 이 값에 맞춰야 한다(비공개 저장소 기본 러너는 2 vCPU 로 보인다)
+      # 러너 사양(CPU·메모리) — 병렬·포크 설정은 이 값에 맞춰야 한다.
       - name: Runner spec
         run: |
           echo "nproc=$(nproc)"; free -m | head -2; df -h / | tail -1
-      - run: ./gradlew build -x installGitHooks --no-daemon
+      - name: Build and test selected scope
+        env:
+          BUILD_SCOPE: ${{ needs.changes.outputs.build_scope }}
+        run: |
+          # :batch:build도 배치 테스트 전체를 실행한다. 개별 테스트·태그를 제외하지 않는다.
+          case "$BUILD_SCOPE" in
+            batch) ./gradlew :batch:build -x installGitHooks --no-daemon ;;
+            full) ./gradlew build -x installGitHooks --no-daemon ;;
+            *) echo "::error::Unknown build scope"; exit 1 ;;
+          esac
   # 워크플로 파일이 바뀐 PR 에서만 돈다 — 입력이 같으면 결과도 지난 실행과 같다.
   deployment-config:
     needs: changes
@@ -95,7 +72,7 @@ jobs:
       - name: Check workflow syntax
         run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -color .github/workflows/cd-v2.yml .github/workflows/ci-v2.yml .github/workflows/cd-batch.yml .github/workflows/migration-guard.yml .github/workflows/slack-notify.yml
   # 배치 이미지가 빌드되는지만 본다(푸시 없음). 배포는 cd-batch 가 ARM64 로 다시 빌드한다.
-  # 배치 관련 경로가 바뀐 PR 에서만 돈다(changes 잡의 batch 출력).
+  # 배치 경로 또는 배치 JAR에 영향을 주는 공통 코드·빌드 설정 변경에 실행한다.
   batch-image:
     needs: changes
     if: needs.changes.outputs.batch == 'true'
@@ -124,9 +101,13 @@ jobs:
         with:
           context: .
           file: Dockerfile.batch
+          platforms: linux/amd64
           push: false
           load: true
           tags: bbang-batch:ci
+          # PR 재실행에서 apt·venv·Chromium 레이어를 재사용한다. CD의 ARM64 캐시와 분리한다.
+          cache-from: type=gha,scope=ci-batch-amd64,version=2
+          cache-to: type=gha,scope=ci-batch-amd64,version=2,mode=max,ignore-error=true
       - name: Entrypoint rejects unknown commands
         run: |
           set +e

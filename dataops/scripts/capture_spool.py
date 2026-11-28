@@ -82,10 +82,10 @@ class CaptureSpool:
             if os.path.exists(temporary):
                 os.unlink(temporary)
 
-    def retain(self, capture_id, request, fetch):
+    def retain(self, capture_id, request, fetch, *, recovery=None):
         if not self._owns_lock():
             with self.exclusive():
-                return self.retain(capture_id, request, fetch)
+                return self.retain(capture_id, request, fetch, recovery=recovery)
         digest = hashlib.sha256(encoded(request)).hexdigest()
         path = self.path(capture_id)
         if path.exists():
@@ -95,6 +95,8 @@ class CaptureSpool:
             return record
         record = {"capture_id": capture_id, "request": request, "request_digest": digest,
                   "fetch": fetch, "state": "PENDING" if request.get("payload") is not None else "FETCH_FAILURE"}
+        if recovery is not None:
+            record["recovery"] = recovery
         self.save(record)
         return record
 

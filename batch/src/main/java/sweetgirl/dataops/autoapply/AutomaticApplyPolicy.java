@@ -73,6 +73,9 @@ public class AutomaticApplyPolicy {
 			return;
 		}
 		if (target.matches("menu\\.\\d+\\.removed")) {
+			// Semantic inclusion policy is not evidence that the source removed this menu.
+			if ("제외 필터".equals(old.path("reason").asString("")))
+				hold(AutomaticApplyException.Reason.MENU_POLICY_REVIEW_REQUIRED);
 			if (!value.isNull() || !text(old.path("name")) || !old.has("price") || !old.has("description")
 				|| old.hasNonNull("reason")) hold(AutomaticApplyException.Reason.DELETION_EVIDENCE_REQUIRES_REVIEW);
 			// MenuRemovalProposalGate verifies complete, latest absence before claim.
