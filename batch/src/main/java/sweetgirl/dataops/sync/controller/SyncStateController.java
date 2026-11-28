@@ -44,8 +44,10 @@ public class SyncStateController {
 	@Operation(summary = "due 목록 export", description = "워커 워크리스트 — 배부 시 last_attempt_at 스탬프(소프트 리스 2시간)")
 	@GetMapping("/due")
 	public ResponseEntity<ApiResponse<List<DueStoreResponse>>> exportDue(
-			@RequestParam(defaultValue = "50") int limit) {
-		return ResponseEntity.ok(ApiResponse.ok(syncStateCommandService.exportDue(limit)));
+			@RequestParam(defaultValue = "50") int limit,
+			@RequestParam(required = false) List<Long> storeIds) {
+		return ResponseEntity.ok(ApiResponse.ok(storeIds == null ? syncStateCommandService.exportDue(limit)
+			: syncStateCommandService.exportSelectedDue(limit, storeIds)));
 	}
 
 	@Operation(summary = "fetch 실패 보고", description = "지수 백오프(1일→2→4…), 연속 10회면 UNLINKED 전환")

@@ -82,6 +82,21 @@ class SyncStateCommandServiceTest {
 		assertThat(response.consecutiveFailures()).isEqualTo(1);
 	}
 
+	@Test void selected_stores_use_fresh_atomic_claim_and_keep_two_hour_lease() {
+		given(storeSyncStateRepository.claimSelectedDue(eq(List.of(1L, 2L)), any(), any(), eq(2), any()))
+			.willAnswer(invocation -> {
+				LocalDateTime now = invocation.getArgument(1);
+				assertThat((LocalDateTime) invocation.getArgument(2)).isEqualTo(now.minusHours(2));
+				return 1;
+			});
+		given(storeSyncStateRepository.findByClaimTokenOrderByNextDueAtAsc(any())).willReturn(List.of(createState()));
+		assertThat(syncStateCommandService.exportSelectedDue(2, List.of(1L, 2L, 1L))).hasSize(1);
+		then(storeSyncStateRepository).should(never()).claimDue(any(), any(), any(), anyInt(), any());
+		assertThatThrownBy(() -> syncStateCommandService.exportSelectedDue(50, List.of())).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> syncStateCommandService.exportSelectedDue(50, List.of(-1L))).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> syncStateCommandService.exportSelectedDue(51, List.of(1L))).isInstanceOf(IllegalArgumentException.class);
+	}
+
 	@Test
 	void reportFailure_없는_id_면_예외를_던진다() {
 		given(storeSyncStateRepository.findById(99L)).willReturn(Optional.empty());

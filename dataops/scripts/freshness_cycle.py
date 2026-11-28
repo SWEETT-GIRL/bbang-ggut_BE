@@ -92,8 +92,10 @@ def stage(name, script, arguments, outputs, depends=()):
 def plan(track, root, seed, args):
     matching = root / 'matching'
     if track == 'refresh':
+        selected = getattr(args, 'store_ids', None)
         return [stage('refresh', 'sync_worker.py', ['--server', args.server, '--max', args.max_items,
-                      '--max-hours', args.crawl_hours, '--max-cooldowns', '0', '--summary', root / 'refresh-summary.json'],
+                      '--max-hours', args.crawl_hours, '--max-cooldowns', '0', '--summary', root / 'refresh-summary.json']
+                      + (['--store-ids', *sorted(set(selected))] if selected else []),
                       ['refresh-summary.json'])]
     if track == 'discovery':
         sweep = matching / 'naver_bakery_sweep_current.jsonl'
@@ -200,6 +202,8 @@ def execute_track(track, root, seed, manifest, args, lock_fd):
              'refresh_max_items': args.max_items if track == 'refresh' else None,
              'image': os.environ.get('DATAOPS_IMAGE_REF', 'local'), 'serving_database': 'soboro'}
     if track == 'refresh':
+        if getattr(args, 'store_ids', None):
+            scope['store_ids'] = sorted(set(args.store_ids))
         root.mkdir(parents=True, exist_ok=True)
         if (root / 'scope.json').exists() and json.loads((root / 'scope.json').read_text()) != scope:
             raise ValueError('cycle scope changed; use a new cycle ID')
@@ -266,6 +270,7 @@ def main(argv=None):
     parser.add_argument('--crawl-hours', type=float, default=0.25)
     parser.add_argument('--queries', nargs='+', default=['베이커리', '빵집'])
     parser.add_argument('--server', default='http://127.0.0.1:8090')
+    parser.add_argument('--store-ids', nargs='+', type=int, help='refresh 대상 가게 제한; due/리스 조건은 유지')
     parser.add_argument('--seed', type=Path, help='optional explicit baseline directory; no local import is required')
     parser.add_argument('--baseline-version', type=cycle_id, default=os.environ.get('DATAOPS_BASELINE_VERSION', 'cloud-001'))
     parser.add_argument('--state-dir', type=Path, default=weekly_refresh.LOG_DIR.parent / 'freshness')
@@ -273,6 +278,9 @@ def main(argv=None):
     if min(args.max_pages, args.max_items, args.max_regions, args.public_seconds, args.crawl_hours) <= 0:
         parser.error('all budgets must be positive')
     if not args.datasets or set(args.datasets) - set(DATASETS): parser.error('invalid datasets')
+    if args.store_ids is not None and (set(args.tracks) != {'refresh'} or len(args.store_ids) > 50
+                                       or any(value <= 0 for value in args.store_ids)):
+        parser.error('--store-ids requires --tracks refresh and 1-50 positive IDs')
     lock = WorkflowRun(weekly_refresh.LOG_DIR, 'freshness-cycle')
     try:
         with lock.exclusive(), lock, termination_signals():

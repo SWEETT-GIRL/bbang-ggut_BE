@@ -40,6 +40,19 @@ public interface StoreSyncStateRepository extends JpaRepository<StoreSyncState, 
 			@Param("leaseExpiry") LocalDateTime leaseExpiry, @Param("limit") int limit,
 			@Param("token") java.util.UUID token);
 
+	/** Bounded repair runs use the same due/lease/attempt fence, restricted to explicit NAVER stores. */
+	@Modifying(clearAutomatically = true, flushAutomatically = true)
+	@Query(value = "UPDATE store_sync_state target "
+		+ "SET last_attempt_at = :now, claimed_at = :now, claim_token = :token, attempt_seq = target.attempt_seq + 1 "
+		+ "FROM (SELECT id FROM store_sync_state "
+		+ "      WHERE state = 'ACTIVE' AND source = 'NAVER' AND store_id IN (:storeIds) AND next_due_at <= :now "
+		+ "        AND (last_attempt_at IS NULL OR last_attempt_at < :leaseExpiry) "
+		+ "      ORDER BY next_due_at ASC LIMIT :limit FOR UPDATE SKIP LOCKED) picked "
+		+ "WHERE target.id = picked.id", nativeQuery = true)
+	int claimSelectedDue(@Param("storeIds") List<Long> storeIds, @Param("now") LocalDateTime now,
+			@Param("leaseExpiry") LocalDateTime leaseExpiry, @Param("limit") int limit,
+			@Param("token") java.util.UUID token);
+
 	/** 방금 클레임한 항목 — claimDue 직후 같은 토큰으로 읽는다 */
 	List<StoreSyncState> findByClaimTokenOrderByNextDueAtAsc(java.util.UUID claimToken);
 

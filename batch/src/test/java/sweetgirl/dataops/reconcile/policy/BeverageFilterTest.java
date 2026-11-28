@@ -9,6 +9,26 @@ class BeverageFilterTest {
 	private final BeverageFilter beverageFilter = new BeverageFilter();
 
 	@Test
+	void 제품명_뒤의_맛은_음료로_제외하지_않는다() {
+		for (String name : new String[] {"버터바 말차", "말차 버터바", "버터바 - 말차", "쿠키 말차",
+			"쿠키 얼그레이", "버터바 말차 (1개)", "버터바 말차맛"}) {
+			assertThat(beverageFilter.isExcluded(name, null)).as(name).isFalse();
+		}
+		for (String name : new String[] {"말차", "와일드 말차", "버터바 말차라떼", "쿠키 말차 300ml"}) {
+			assertThat(beverageFilter.isExcluded(name, null)).as(name).isTrue();
+		}
+		assertThat(beverageFilter.isExcluded("버터바 말차", "BEVERAGE")).isTrue();
+	}
+
+	@Test
+	void 포케는_베이글이나_디저트_그룹과_함께_표기해도_식사다() {
+		for (String name : new String[] {"베이글 연어 포케", "베이글 새우 포케", "연어포케", "포케 베이글", "Salmon Poke"}) {
+			assertThat(beverageFilter.isExcluded(name, "BAKERY")).as(name).isTrue();
+		}
+		assertThat(beverageFilter.isExcluded("포켓 브레드", null)).isFalse();
+	}
+
+	@Test
 	void 배민_그룹명이_음료면_제외한다() {
 		assertThat(beverageFilter.isExcluded("따뜻한 아이스크림", "COFFEE")).isTrue();
 		assertThat(beverageFilter.isExcluded("수제청", "에이드")).isTrue();

@@ -33,6 +33,26 @@ class AutomaticApplyPolicyTest {
 		assertThatThrownBy(() -> verify(proposal, Map.of("menu.9", ProvenanceSource.NAVER))).hasMessage("SOURCE_CONFLICT");
 		assertThatThrownBy(() -> verify(proposal, Map.of("menu.9.price", ProvenanceSource.USER))).hasMessage("PROTECTED_SOURCE");
 	}
+	@Test void restored_description_does_not_authorize_price_or_override_protected_menu() {
+		var description = proposal("menu.9.description", "\"\"", "\"새 설명\"", ProvenanceSource.BAEMIN);
+		verify(description, Map.of("menu.9.description", ProvenanceSource.BAEMIN));
+		assertThatThrownBy(() -> verify(proposal("menu.9.price", "3000", "3500", ProvenanceSource.BAEMIN),
+			Map.of("menu.9.description", ProvenanceSource.BAEMIN))).hasMessage("SOURCE_UNKNOWN");
+		for (var source : new ProvenanceSource[] {ProvenanceSource.USER, ProvenanceSource.ADMIN}) {
+			assertThatThrownBy(() -> verify(description, Map.of("menu.9.description", ProvenanceSource.BAEMIN, "menu.9", source)))
+				.hasMessage("PROTECTED_SOURCE");
+			assertThatThrownBy(() -> verify(proposal("menu.9.removed",
+				"{\"name\":\"베이글 연어 포케\",\"price\":11500,\"description\":\"\",\"reason\":\"제외 필터\"}",
+				null, ProvenanceSource.NAVER), Map.of("menu.9", source))).hasMessage("PROTECTED_SOURCE");
+		}
+	}
+	@Test void policy_exclusion_protects_contributed_fields_and_mixed_sources() {
+		var removed = proposal("menu.9.removed",
+			"{\"name\":\"베이글 연어 포케\",\"price\":11500,\"description\":\"\",\"reason\":\"제외 필터\"}", null, ProvenanceSource.NAVER);
+		for (var source : new ProvenanceSource[] {ProvenanceSource.USER, ProvenanceSource.ADMIN})
+			assertThatThrownBy(() -> verify(removed, Map.of("menu.9.description", source))).hasMessage("PROTECTED_SOURCE");
+		assertThatThrownBy(() -> verify(removed, Map.of("menu.9.price", ProvenanceSource.BAEMIN))).hasMessage("SOURCE_CONFLICT");
+	}
 	@Test void null_negative_fractional_and_overflow_prices_are_held() {
 		for (String value : new String[] {"null", "-1", "1.5", "2147483648", "\"3500\""}) {
 			assertThatThrownBy(() -> verify(proposal("menu.9.price", "3000", value, ProvenanceSource.NAVER), Map.of()))
@@ -62,10 +82,17 @@ class AutomaticApplyPolicyTest {
 	}
 	@Test void food_classification_is_distinct_from_parser_repair_and_source_deletion_evidence() {
 		for (String name : new String[] {"베이글 연어 포케", "베이글 새우 포케"}) {
-			assertThatThrownBy(() -> verify(proposal("menu.9.removed",
+			verify(proposal("menu.9.removed",
 				"{\"name\":\"" + name + "\",\"price\":11500,\"description\":\"\",\"reason\":\"제외 필터\"}",
-				null, ProvenanceSource.NAVER), Map.of())).hasMessage("MENU_POLICY_REVIEW_REQUIRED");
+				null, ProvenanceSource.NAVER), Map.of());
+			assertThatThrownBy(() -> verify(proposal("menu.add.poke", null,
+				"{\"name\":\"" + name + "\",\"price\":11500}", ProvenanceSource.NAVER), Map.of()))
+				.hasMessage("MENU_POLICY_REVIEW_REQUIRED");
 		}
+		assertThatThrownBy(() -> verify(proposal("menu.9.removed",
+			"{\"name\":\"버터바 말차\",\"price\":5500,\"description\":null,\"reason\":\"제외 필터\"}",
+			null, ProvenanceSource.NAVER), Map.of())).hasMessage("MENU_POLICY_REVIEW_REQUIRED");
+		verify(proposal("menu.add.butterbar", null, "{\"name\":\"버터바 말차\",\"price\":5500}", ProvenanceSource.NAVER), Map.of());
 		// Missing historical provenance is not established by an empty current description.
 		assertThatThrownBy(() -> verify(proposal("menu.9.description", "null", "\"설명\"", ProvenanceSource.BAEMIN), Map.of()))
 			.hasMessage("SOURCE_UNKNOWN");

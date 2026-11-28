@@ -782,6 +782,35 @@ class ReconcileServiceTest {
 		assertThat(captor.getValue().getNextDueAt()).isNull();
 	}
 
+	@Test void butterbar_flavor_is_kept_and_added_while_poke_is_only_removed() {
+		givenStore("빵집", null, List.of(
+			menuInCategory(77L, "버터바 말차", false, 30L, "버터바"),
+			menuInCategory(78L, "베이글 연어 포케", false, 31L, "베이글")));
+		reconcileTrusted(1L, 10L, parsedPlace("빵집", null, List.of(
+			naverMenu("버터바 말차", "3000"), naverMenu("버터바 얼그레이", "3000"),
+			new ParsedMenu("베이글 연어 포케", "12000", "새 설명", List.of(), null), naverMenu("베이글 새우 포케", "3000")), List.of(), null));
+		then(proposalCommandService).should(never()).propose(anyLong(), eq("menu.77.removed"), any(), any(), any(), any(), any(), any(), any());
+		then(proposalCommandService).should().propose(eq(1L), eq("menu.add.버터바얼그레이"), isNull(), any(), any(), any(), any(), any(), any());
+		then(proposalCommandService).should().propose(eq(1L), eq("menu.78.removed"), contains("제외 필터"), isNull(), any(), any(), any(), any(), any());
+		then(proposalCommandService).should(never()).propose(anyLong(), eq("menu.add.베이글새우포케"), any(), any(), any(), any(), any(), any(), any());
+		then(proposalCommandService).should(never()).propose(anyLong(), eq("menu.78.price"), any(), any(), any(), any(), any(), any(), any());
+		then(proposalCommandService).should(never()).propose(anyLong(), eq("menu.78.description"), any(), any(), any(), any(), any(), any(), any());
+	}
+
+	@Test void unchanged_live_capture_retires_old_butterbar_removal_but_replay_does_not() {
+		givenStore("빵집", null, List.of(menuInCategory(77L, "버터바 말차", false, 30L, "버터바")));
+		var parsed = parsedPlace("빵집", null, List.of(naverMenu("버터바 말차", "3000")), List.of(), null);
+		reconcileService.reconcileAutomatic(1L, null, parsed, true, false);
+		then(proposalCommandService).should(never()).propose(anyLong(), eq("menu.77.removed"), any(), any(), any(), any(), any(), any(), any());
+		then(changeProposalRepository).should().expireMenuSourceOutOfGeneration(eq(1L), any(),
+			eq(sweetgirl.dataops.reconcile.enums.ProvenanceSource.NAVER),
+			argThat(families -> families.contains(sweetgirl.dataops.proposal.enums.ProposalTargetFamily.MENU_REMOVAL)),
+			eq(false), any(), any(), anyInt(), any());
+		org.mockito.Mockito.clearInvocations(changeProposalRepository);
+		reconcileService.reconcileCapturedReplay(1L, parsed, true, false);
+		then(changeProposalRepository).should(never()).expireMenuSourceOutOfGeneration(any(), any(), any(), any(), anyBoolean(), any(), any(), anyInt(), any());
+	}
+
 	// ---- 기존 메뉴 정책 재판정 (2026-09-19) — 제외 필터·종류 분류를 이미 있는 메뉴에 다시 적용해 제안한다 ----
 
 	@Test

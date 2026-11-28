@@ -48,6 +48,19 @@ public class SyncStateCommandService {
 			.map(DueStoreResponse::from).toList();
 	}
 
+	public List<DueStoreResponse> exportSelectedDue(int limit, List<Long> storeIds) {
+		if (limit < 1 || limit > 50 || storeIds == null || storeIds.isEmpty() || storeIds.size() > 50
+			|| storeIds.stream().anyMatch(id -> id == null || id <= 0)) {
+			throw new IllegalArgumentException("Select 1-50 positive store IDs and limit 1-50");
+		}
+		LocalDateTime now = LocalDateTime.now();
+		UUID token = UUID.randomUUID();
+		if (storeSyncStateRepository.claimSelectedDue(storeIds.stream().distinct().toList(), now,
+			now.minus(DISPATCH_LEASE), limit, token) == 0) return List.of();
+		return storeSyncStateRepository.findByClaimTokenOrderByNextDueAtAsc(token).stream()
+			.map(DueStoreResponse::from).toList();
+	}
+
 	/** 워커 fetch 실패 보고 — 백오프, 연속 10회면 UNLINKED */
 	public SyncStateResponse reportFailure(Long syncStateId) {
 		StoreSyncState syncState = getSyncState(syncStateId);

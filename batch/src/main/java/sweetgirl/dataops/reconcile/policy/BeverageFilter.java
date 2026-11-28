@@ -67,6 +67,7 @@ public class BeverageFilter {
 
 	/** 디저트·빵 제품 타입어 */
 	private static final List<String> DESSERT_TYPE = List.of(
+		"버터바",
 		"빵", "번", "케이크", "케잌", "케익", "쿠키", "마카롱", "마들렌", "휘낭시에", "휘낭", "스콘", "파이",
 		"타르트", "크로플", "크로와상", "크루아상", "베이글", "도넛", "도너츠", "브라우니", "갸또",
 		"쇼콜라", "사브레", "다쿠아즈", "롤케익", "롤케이크", "티라미수", "푸딩", "젤라또", "빙수",
@@ -99,6 +100,16 @@ public class BeverageFilter {
 
 	/** 이름 끝 검사 전 제거할 꼬리 문자 (닫는 괄호는 괄호 층 처리를 위해 남긴다) */
 	private static final String TRAILING_NOISE = " \t.,-_~!/&+*·]";
+	/** A flavor after an explicit product is not a second product (버터바 말차, 쿠키 얼그레이). */
+	private static final java.util.regex.Pattern DESSERT_FLAVOR_SUFFIX = java.util.regex.Pattern.compile(
+		"\\s*(?:[-:/]\\s*)?(말차|녹차|얼그레이|초코|초콜릿|바닐라|딸기|레몬|흑임자)(?:맛)?\\s*");
+	private static final java.util.regex.Pattern POKE = java.util.regex.Pattern.compile(
+		"포케|(?<![a-z])poke(?![a-z])", java.util.regex.Pattern.CASE_INSENSITIVE);
+
+	/** Explicit service policy: poke is a meal, including names that also contain 베이글. */
+	public boolean isPoke(String menuName) {
+		return menuName != null && POKE.matcher(menuName).find();
+	}
 
 	/**
 	 * 용량 표기(350ml·1리터·1L)·테이크아웃 표기 — 병입 음료/보틀 신호 (2026-08-14 실측 354+14건 전량 음료).
@@ -108,6 +119,7 @@ public class BeverageFilter {
 		"\\d+(\\.\\d+)?\\s*(ml|리터|l\\b)|take\\s*-?\\s*out|테이크\\s*아웃");
 
 	public boolean isExcluded(String menuName, String groupName) {
+		if (isPoke(menuName)) return true;
 		// 1. 배민 그룹명 — 가장 정확
 		if (groupName != null) {
 			String group = groupName.toLowerCase(Locale.ROOT).strip();
@@ -129,6 +141,10 @@ public class BeverageFilter {
 		String flat = stripParenGroups(name);
 		int lastExcluded = Math.max(lastEndOfAny(flat, BEVERAGE_TYPE), lastEndOfAny(flat, NON_DESSERT_TYPE));
 		int lastDessert = lastEndOfAny(flat, DESSERT_TYPE);
+		if (lastDessert > lastExcluded && lastDessert > 0
+			&& DESSERT_FLAVOR_SUFFIX.matcher(flat.substring(lastDessert).strip()).matches()) {
+			return false;
+		}
 		if (lastExcluded >= 0 && lastExcluded >= lastDessert) {
 			return true;
 		}

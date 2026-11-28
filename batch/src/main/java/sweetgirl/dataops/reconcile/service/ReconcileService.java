@@ -109,7 +109,7 @@ public class ReconcileService {
 	 * 이 판정에 쓴 정책의 버전 — 병합 정책(MergePolicy)·제외 필터(BeverageFilter)·종류 분류(MenuCategoryClassifier)
 	 * 중 하나라도 바뀌면 올린다. 같은 결과가 나왔을 때 "정책이 바뀌었는데 결과가 같다"와 "판정을 안 했다"를 가른다.
 	 */
-	private static final String POLICY_VERSION = "naver-reconcile-2026-11-26-menu-sources";
+	private static final String POLICY_VERSION = "naver-reconcile-2026-11-28-menu-policy";
 
 	/**
 	 * 이 판정이 실제로 다시 보는 묶음 — 범위 정리의 경계다.
@@ -392,7 +392,8 @@ public class ReconcileService {
 		StoreCurrentValues current = reader.findStore(storeId)
 			.orElseThrow(() -> new AutomaticApplyException.Hold(AutomaticApplyException.Reason.STORE_MISSING));
 		if (!"ACTIVE".equals(current.status())) throw new AutomaticApplyException.Hold(AutomaticApplyException.Reason.STORE_INACTIVE);
-		var generation = new ReconcileGeneration(snapshotId, UUID.randomUUID(), new HashSet<>());
+		// A fresh verified capture can retire stale menu proposals even when its content hash is unchanged.
+		var generation = new ReconcileGeneration(snapshotId, UUID.randomUUID(), new HashSet<>(), new LinkedHashMap<>(), true);
 		var provenance = provenanceByField(storeId);
 		reconcileStoreFields(storeId, generation, parsed, current, provenance);
 		reconcileBusinessHours(storeId, generation, parsed, reader, provenance);
@@ -402,9 +403,9 @@ public class ReconcileService {
 	}
 
 	private record ReconcileGeneration(Long snapshotId, UUID runId, Set<Long> survivors,
-			Map<Long, sweetgirl.dataops.autoapply.AutomaticCandidate> candidates) {
+			Map<Long, sweetgirl.dataops.autoapply.AutomaticCandidate> candidates, boolean expireMenus) {
 		ReconcileGeneration(Long snapshotId, UUID runId, Set<Long> survivors) {
-			this(snapshotId, runId, survivors, new LinkedHashMap<>());
+			this(snapshotId, runId, survivors, new LinkedHashMap<>(), snapshotId != null);
 		}
 		void candidate(Long id, String target, String oldValue, String newValue, ProvenanceSource source) {
 			candidates.put(id, new sweetgirl.dataops.autoapply.AutomaticCandidate(id, target, oldValue, newValue, source));
@@ -564,6 +565,8 @@ public class ReconcileService {
 					proposeMenu(storeId, generation, target, null, menuJson(menu), source, provenance.get(target));
 				continue;
 			}
+			// Exclusion is one operation: do not update price/description first and invalidate its old-value CAS.
+			if (!current.userAdded() && beverageFilter.isPoke(current.name())) continue;
 			reconcileMenuField(storeId, generation, current, naver.get(name), baemin.get(name), provenance, "price", observedBaeminTargets);
 			if (!current.userAdded()) reconcileMenuField(storeId, generation, current, naver.get(name), baemin.get(name), provenance, "description", observedBaeminTargets);
 		}
@@ -577,7 +580,7 @@ public class ReconcileService {
 			}
 		}
 		if (naverAllowed) reconcileMenuPolicy(storeId, generation, currentMenus, provenance);
-		if (generation.snapshotId() != null) {
+		if (generation.expireMenus()) {
 			if (naverAllowed) expireMenuSource(storeId, generation, ProvenanceSource.NAVER, false, List.of(""),
 				List.of(ProposalTargetFamily.MENU_CONTENT, ProposalTargetFamily.MENU_REMOVAL, ProposalTargetFamily.MENU_CATEGORY));
 			if (baeminAllowed && !observedBaeminTargets.isEmpty()) expireMenuSource(storeId, generation, ProvenanceSource.BAEMIN,

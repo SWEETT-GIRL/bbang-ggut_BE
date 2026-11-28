@@ -86,6 +86,13 @@ class SyncStateControllerTest {
 			.andExpect(jsonPath("$.data.state").value("ACTIVE"));
 	}
 
+	@Test void selected_store_filter_is_forwarded_without_claiming_global_backlog() throws Exception {
+		given(syncStateCommandService.exportSelectedDue(2, List.of(102848L, 123631L))).willReturn(List.of());
+		mockMvc.perform(get("/api/sync-states/due").param("limit", "2").param("storeIds", "102848,123631"))
+			.andExpect(status().isOk()).andExpect(jsonPath("$.data").isEmpty());
+		then(syncStateCommandService).should(never()).exportDue(anyInt());
+	}
+
 	@Test
 	void seed_시딩_결과를_반환한다() throws Exception {
 		given(syncSeedService.seed()).willReturn(new SeedResultResponse(30944, 30944, 0, 64));

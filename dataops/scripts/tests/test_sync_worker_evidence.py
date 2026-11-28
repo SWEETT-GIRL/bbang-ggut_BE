@@ -86,6 +86,39 @@ class SyncWorkerEvidenceTest(unittest.TestCase):
             self.assertEqual(values["external_id"], "123")
             self.assertIsNotNone(datetime.fromisoformat(values["observed_at"]).utcoffset())
 
+    def test_selected_scope_does_not_replay_unrelated_spool_or_hold_recovery(self):
+        spool = sync_worker.CaptureSpool()
+        unrelated_id = '7ba801cd-c154-4b7f-93d4-0dc600657c50'
+        spool.retain(unrelated_id, {'storeId': 99, 'source': 'NAVER', 'externalId': '999',
+                     'observationId': unrelated_id, 'observedAt': '2026-11-28T00:00:00Z', 'payload': {}}, {'kind': 'SUCCESS'})
+        due = {'storeId': 7, 'source': 'NAVER', 'externalId': '123', 'syncStateId': 8, 'attemptSeq': 6}
+        with patch.object(sync_worker, 'fetch_due', return_value=[due]) as fetch, \
+             patch.object(sync_worker, 'fetch_place', return_value=({'a': 1}, False)), \
+             patch.object(sync_worker, 'submit_retained', return_value={'changed': False}) as submit, \
+             patch.object(sync_worker.time, 'sleep'):
+            self.assertEqual(sync_worker.run('http://unused', 1, 20, 0, 0, spool=spool, store_ids=[7]), 0)
+        self.assertEqual(fetch.call_count, 1)
+        self.assertEqual(submit.call_count, 1)
+        self.assertEqual(submit.call_args.args[1]['request']['attemptSeq'], 6)
+        self.assertEqual([row['request']['storeId'] for row in spool.pending()], [99])
+
+    def test_selected_not_due_is_reported_as_incomplete_not_success(self):
+        with patch.object(sync_worker, 'fetch_due', return_value=[]), \
+             patch.object(sync_worker, 'fetch_place') as crawl:
+            self.assertEqual(sync_worker.run('http://unused', 1, 20, 0, 0, store_ids=[7]), 1)
+        crawl.assert_not_called()
+
+    def test_selected_request_sends_filter_and_rejects_out_of_scope_response(self):
+        response = Mock(); response.json.return_value = {'data': []}
+        with patch.object(sync_worker.requests, 'get', return_value=response) as get:
+            sync_worker.fetch_due('http://unused', 2, {7, 8})
+        self.assertEqual(get.call_args.kwargs['params'], {'limit': 2, 'storeIds': '7,8'})
+        with patch.object(sync_worker, 'fetch_due', return_value=[{'storeId': 99, 'source': 'NAVER', 'externalId': '999'}]), \
+             patch.object(sync_worker, 'fetch_place') as crawl:
+            with self.assertRaisesRegex(ValueError, 'outside'):
+                sync_worker.run('http://unused', 1, 20, 0, 0, store_ids=[7])
+        crawl.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
