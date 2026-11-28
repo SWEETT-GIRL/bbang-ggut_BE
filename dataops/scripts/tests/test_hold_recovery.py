@@ -92,6 +92,71 @@ class HoldRecoveryTest(unittest.TestCase):
         self.assertEqual(HoldRecovery(self.spool, self.now + MAX_AGE_SECONDS).due(self.now + MAX_AGE_SECONDS, True), [])
         self.assertEqual(HoldRecovery(self.spool, self.now + MAX_AGE_SECONDS).counts()['recovery_expired'], 1)
 
+    def test_reservation_expiry_is_skipped_without_spending_an_attempt(self):
+        old = self.record()
+        recovery = HoldRecovery(self.spool, self.now)
+        due = recovery.due(self.now, True)[0]
+        expires_at = due['recovery']['startedAt'] + MAX_AGE_SECONDS
+        self.assertIsNone(recovery.reserve(due, expires_at))
+        persisted = self.spool.read(self.spool.path(old['capture_id']))['recovery']
+        self.assertEqual(persisted['status'], 'EXPIRED')
+        self.assertEqual(persisted['attempts'], 0)
+
+    def test_counts_use_publication_time_and_preserve_non_retryable_states(self):
+        self.record()
+        self.record(['VALUE_DRIFTED'], store=2)
+        self.record(['SOURCE_UNKNOWN'], store=3)
+        self.record((), store=4, applied=1)
+        recovery = HoldRecovery(self.spool, self.now)
+        expires_at = self.now - 1800 + MAX_AGE_SECONDS
+        with patch('time.time', return_value=expires_at - 1):
+            counts = recovery.counts()
+            self.assertEqual(counts['recovery_configuration_blocked'], 1)
+            self.assertEqual(counts['recovery_waiting'], 1)
+            self.assertEqual(counts['recovery_expired'], 0)
+        with patch('time.time', return_value=expires_at):
+            counts = recovery.counts()
+            self.assertEqual(counts['recovery_configuration_blocked'], 0)
+            self.assertEqual(counts['recovery_waiting'], 0)
+            self.assertEqual(counts['recovery_expired'], 2)
+            self.assertEqual(counts['recovery_review_required'], 1)
+            self.assertEqual(counts['hold_permission_required'], 1)
+        self.assertEqual(recovery.due(expires_at, True), [])
+
+    def test_queued_expiry_does_not_stop_other_recoveries_or_server_due_items(self):
+        old = self.record()
+        self.now += 3600
+        self.record(store=2)
+        self.now += MAX_AGE_SECONDS - 5401
+        summary = Path(self.temp.name) / 'expiry-summary.json'
+        clock = [self.now]
+        original_reserve = HoldRecovery.reserve
+        def reserve(recovery, record, now):
+            if record['request']['storeId'] == 1:
+                clock[0] += 1  # The queued record expires after selection, before I/O.
+            return original_reserve(recovery, record, clock[0])
+        def submit(server, record, auto_apply):
+            self.assertIn(record['request']['storeId'], (2, 3))
+            return self.receipt(record['capture_id'], applied=1)
+        server_due = {'storeId': 3, 'source': 'NAVER', 'externalId': '456', 'attemptSeq': 8}
+        with patch.object(worker.time, 'time', side_effect=lambda: clock[0]), \
+             patch.object(worker.time, 'sleep'), patch.object(HoldRecovery, 'reserve', new=reserve), \
+             patch.object(worker, 'fetch_due', side_effect=[[server_due], []]) as due, \
+             patch.object(worker, 'fetch_place', return_value=worker.FetchResult({}, False, 'SUCCESS')) as fetch, \
+             patch.object(worker, 'submit_retained', side_effect=submit):
+            self.assertEqual(worker.run('unused', 50, 2, 0, 0, spool=self.spool, summary_path=summary,
+                auto_apply=True, capabilities={'automaticHoursPermissionsReady': True}), 0)
+        self.assertEqual(fetch.call_count, 2)
+        due.assert_called_once()
+        persisted = self.spool.read(self.spool.path(old['capture_id']))['recovery']
+        self.assertEqual(persisted['attempts'], 0)
+        self.assertEqual(persisted['status'], 'EXPIRED')
+        data = json.loads(summary.read_text())
+        self.assertEqual(data['attempted'], 2)
+        self.assertEqual(data['recovery_attempted'], 1)
+        self.assertEqual(data['recovery_resolved'], 1)
+        self.assertEqual(data['recovery_expired'], 1)
+
     def test_legacy_receipt_without_a_dispatch_generation_is_not_recollected(self):
         capture = str(uuid4())
         request = {'storeId': 1, 'source': 'NAVER', 'externalId': '123', 'payload': {},
@@ -141,6 +206,7 @@ class HoldRecoveryTest(unittest.TestCase):
 
     def test_lost_ack_child_carries_budget_and_replays_same_identity_after_restart(self):
         self.record()
+        summary = Path(self.temp.name) / 'replay-summary.json'
         with patch.object(worker.time, 'time', return_value=self.now), patch.object(worker.time, 'sleep'), \
              patch.object(worker, 'fetch_place', return_value=worker.FetchResult({}, False, 'SUCCESS')), \
              patch.object(worker, 'submit_retained', side_effect=worker.requests.Timeout()):
@@ -153,10 +219,22 @@ class HoldRecoveryTest(unittest.TestCase):
         with patch.object(worker.time, 'time', return_value=self.now), \
              patch.object(worker, 'fetch_due', return_value=[]), patch.object(worker, 'fetch_place') as fetch, \
              patch.object(worker, 'submit_retained', return_value=self.receipt(capture, alreadyApplied=1)) as submit:
-            self.assertEqual(worker.run('unused', 1, 1, 0, 0, spool=self.spool, auto_apply=True), 0)
+            self.assertEqual(worker.run('unused', 1, 1, 0, 0, spool=self.spool, summary_path=summary, auto_apply=True), 0)
         self.assertEqual(submit.call_args.args[1]['capture_id'], capture)
         fetch.assert_not_called()
         self.assertEqual(HoldRecovery(self.spool, self.now).counts()['recovery_configuration_blocked'], 0)
+        data = json.loads(summary.read_text())
+        self.assertEqual(data['recovery_resolved'], 1)
+        self.assertEqual(data['recovery_attempted'], 0)
+        self.assertEqual(data['attempted'], 0)
+        self.assertEqual(data['auto_apply_already_applied'], 1)
+        # A completed delivery is not counted again in the following run.
+        with patch.object(worker, 'fetch_due', return_value=[]), patch.object(worker, 'fetch_place') as fetch, \
+             patch.object(worker, 'submit_retained') as submit:
+            self.assertEqual(worker.run('unused', 1, 1, 0, 0, spool=self.spool, summary_path=summary, auto_apply=True), 0)
+        fetch.assert_not_called()
+        submit.assert_not_called()
+        self.assertEqual(json.loads(summary.read_text())['recovery_resolved'], 0)
 
     def test_fetch_failure_keeps_budget_and_a_new_due_observation_does_not_reset_it(self):
         self.record()
@@ -170,6 +248,32 @@ class HoldRecoveryTest(unittest.TestCase):
         self.assertEqual(restarted.due(self.now, True), [])
         self.assertEqual(restarted.counts()['hold_permission_required'], 1)
         self.assertEqual(restarted.metadata({'storeId': 1, 'source': 'NAVER', 'externalId': '123'})['attempts'], 1)
+
+    def test_pending_delivery_counts_only_resolved_recovery_captures(self):
+        cases = [(False, (), {}, 0),
+                 (True, ('SOURCE_UNKNOWN',), {}, 0),
+                 (True, (), {'unknown': 1}, 1),
+                 (True, (), {'failed': 1}, 1)]
+        for index, (is_recovery, reasons, counts, exit_code) in enumerate(cases):
+            with self.subTest(is_recovery=is_recovery, reasons=reasons, counts=counts):
+                self.spool = CaptureSpool(Path(self.temp.name) / f'pending-{index}')
+                old = self.record()
+                recovery = HoldRecovery(self.spool, self.now)
+                parent = recovery.reserve(recovery.due(self.now, True)[0], self.now) if is_recovery else None
+                capture = str(uuid4())
+                request = {**old['request'], 'observationId': capture,
+                           'observedAt': datetime.fromtimestamp(self.now, timezone.utc).isoformat()}
+                self.spool.retain(capture, request, {},
+                                  recovery=recovery.metadata(request, parent) if is_recovery else None)
+                summary = Path(self.temp.name) / f'pending-{index}.json'
+                with patch.object(worker, 'fetch_due', return_value=[]), patch.object(worker, 'fetch_place') as fetch, \
+                     patch.object(worker, 'submit_retained', return_value=self.receipt(capture, reasons, **counts)):
+                    self.assertEqual(worker.run('unused', 1, 1, 0, 0, spool=self.spool,
+                        summary_path=summary, auto_apply=True), exit_code)
+                fetch.assert_not_called()
+                data = json.loads(summary.read_text())
+                self.assertEqual(data['recovery_resolved'], 0)
+                self.assertEqual(data['recovery_attempted'], 0)
 
     def test_time_box_blocks_recovery_before_new_fetch(self):
         self.record()

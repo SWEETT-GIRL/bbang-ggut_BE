@@ -32,6 +32,13 @@ public class AutomaticApplyWriter implements AutoCloseable {
 			 AND has_table_privilege(current_user, 'store_business_hour', 'INSERT')
 			 AND has_table_privilege(current_user, 'store_business_hour', 'DELETE')
 			 AND has_any_column_privilege(current_user, 'store_business_hour', 'UPDATE')
+			 AND EXISTS (
+			   SELECT 1 FROM pg_attribute
+			   WHERE attrelid = 'store_business_hour'::regclass
+			     AND attname = 'id' AND attnum > 0 AND NOT attisdropped
+			     AND (attidentity IN ('a', 'd') OR COALESCE(has_sequence_privilege(
+			       current_user, pg_get_serial_sequence('store_business_hour', 'id'), 'USAGE,UPDATE'), false))
+			 )
 			""", Boolean.class));
 	}
 	@Override public void close() { pool.close(); }

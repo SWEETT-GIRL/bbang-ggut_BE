@@ -11,6 +11,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import sweetgirl.dataops.snapshot.parser.BusinessHourRow;
@@ -159,6 +161,50 @@ class ExactBusinessHoursWriterPostgresTest {
 				assertThat(automatic.hoursPermissionsReady()).isFalse();
 				assertThat(hours()).containsExactly("MONDAY:08:00:00");
 				jdbc.execute("GRANT UPDATE(day_of_week) ON store_business_hour TO "+role);
+				assertThat(automatic.hoursPermissionsReady()).isTrue();
+				assertThat(automatic.writer().replaceBusinessHours(1,"123",old,next)).isEqualTo(1);
+				assertThat(hours()).containsExactly("MONDAY:10:00:00");
+			}
+		} finally {admin.execute("DROP OWNED BY "+role);admin.execute("DROP ROLE "+role);}
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings={"USAGE","UPDATE"})
+	void readiness_requires_nextval_privilege_for_serial_ids(String sequencePrivilege) {
+		String role="hours_sequence_"+UUID.randomUUID().toString().replace("-","");
+		admin.execute("CREATE ROLE "+role+" LOGIN");
+		try {
+			admin.execute("GRANT USAGE ON SCHEMA "+schema+" TO "+role);
+			jdbc.execute("GRANT SELECT,UPDATE ON store TO "+role);
+			jdbc.execute("GRANT SELECT,INSERT,DELETE,UPDATE(day_of_week) ON store_business_hour TO "+role);
+			try(var automatic=new sweetgirl.dataops.autoapply.AutomaticApplyWriter(source.getUrl(),role,"test-only")) {
+				assertThat(automatic.hoursPermissionsReady()).isFalse();
+				jdbc.execute("GRANT SELECT ON SEQUENCE store_business_hour_id_seq TO "+role);
+				assertThat(automatic.hoursPermissionsReady()).isFalse();
+				assertThatThrownBy(()->automatic.writer().replaceBusinessHours(1,"123",old,next))
+					.isInstanceOf(org.springframework.dao.DataAccessException.class);
+				assertThat(hours()).containsExactly("MONDAY:08:00:00");
+				jdbc.execute("GRANT "+sequencePrivilege+" ON SEQUENCE store_business_hour_id_seq TO "+role);
+				assertThat(automatic.hoursPermissionsReady()).isTrue();
+				assertThat(automatic.writer().replaceBusinessHours(1,"123",old,next)).isEqualTo(1);
+				assertThat(hours()).containsExactly("MONDAY:10:00:00");
+			}
+		} finally {admin.execute("DROP OWNED BY "+role);admin.execute("DROP ROLE "+role);}
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings={"ALWAYS","BY DEFAULT"})
+	void readiness_accepts_identity_ids_without_an_explicit_sequence_grant(String generation) {
+		jdbc.execute("ALTER TABLE store_business_hour DROP COLUMN id");
+		jdbc.execute("ALTER TABLE store_business_hour ADD COLUMN id bigint GENERATED "+generation+" AS IDENTITY PRIMARY KEY");
+		String role="hours_identity_"+UUID.randomUUID().toString().replace("-","");
+		admin.execute("CREATE ROLE "+role+" LOGIN");
+		try {
+			admin.execute("GRANT USAGE ON SCHEMA "+schema+" TO "+role);
+			jdbc.execute("GRANT SELECT,UPDATE ON store TO "+role);
+			jdbc.execute("GRANT SELECT,INSERT,DELETE,UPDATE(day_of_week) ON store_business_hour TO "+role);
+			try(var automatic=new sweetgirl.dataops.autoapply.AutomaticApplyWriter(source.getUrl(),role,"test-only")) {
+				assertThat(jdbc.queryForObject("SELECT has_sequence_privilege(?,pg_get_serial_sequence('store_business_hour','id'),'USAGE,UPDATE')",Boolean.class,role)).isFalse();
 				assertThat(automatic.hoursPermissionsReady()).isTrue();
 				assertThat(automatic.writer().replaceBusinessHours(1,"123",old,next)).isEqualTo(1);
 				assertThat(hours()).containsExactly("MONDAY:10:00:00");

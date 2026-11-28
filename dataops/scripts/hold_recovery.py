@@ -6,6 +6,7 @@ validation and all writes. Delivery retries keep their original capture ID.
 """
 from datetime import datetime
 from collections import Counter
+import time
 
 
 BACKOFF_SECONDS = (900, 3600, 21600)
@@ -79,6 +80,16 @@ def identity(record):
     return request.get("storeId"), request.get("source"), request.get("externalId")
 
 
+def bounded_status(recovery, now):
+    status = recovery.get("status", "")
+    if status in ("WAITING", "CONFIGURATION_BLOCKED"):
+        if now >= recovery["startedAt"] + MAX_AGE_SECONDS:
+            return "EXPIRED"
+        if recovery["attempts"] >= len(BACKOFF_SECONDS):
+            return "EXHAUSTED"
+    return status
+
+
 class HoldRecovery:
     def __init__(self, spool, now):
         self.spool = spool
@@ -119,11 +130,7 @@ class HoldRecovery:
         if "MENU_POLICY_REVIEW_REQUIRED" in reasons: tasks.append("MENU_CLASSIFICATION")
         recovery = {**previous, "version": 1, "reasons": reasons, "status": status, "heldCounts": held_counts,
                     "analysisTasks": tasks}
-        if status in ("WAITING", "CONFIGURATION_BLOCKED"):
-            if now >= recovery["startedAt"] + MAX_AGE_SECONDS:
-                recovery["status"] = "EXPIRED"
-            elif recovery["attempts"] >= len(BACKOFF_SECONDS):
-                recovery["status"] = "EXHAUSTED"
+        recovery["status"] = bounded_status(recovery, now)
         if record.get("recovery") != recovery:
             record = {**record, "recovery": recovery}
             self.spool.save(record)
@@ -155,14 +162,16 @@ class HoldRecovery:
         return result
 
     def reserve(self, record, now):
-        """Consume the retry BEFORE I/O, so a crash cannot replenish the budget."""
+        """Return None when no longer due; otherwise consume the retry BEFORE I/O."""
         record = self.spool.read(self.spool.path(record["capture_id"]))
         recovery = dict(record["recovery"])
+        status = bounded_status(recovery, now)
+        if status != recovery["status"]:
+            recovery["status"] = status
+            self.spool.save({**record, "recovery": recovery})
         if (recovery["status"] not in ("WAITING", "CONFIGURATION_BLOCKED")
-                or recovery["attempts"] >= len(BACKOFF_SECONDS)
-                or now >= recovery["startedAt"] + MAX_AGE_SECONDS
                 or now < recovery["nextAttemptAt"]):
-            raise RuntimeError("recovery reservation is no longer due")
+            return None
         recovery["attempts"] += 1
         recovery["nextAttemptAt"] = now + BACKOFF_SECONDS[min(recovery["attempts"], len(BACKOFF_SECONDS) - 1)]
         if recovery["attempts"] >= len(BACKOFF_SECONDS):
@@ -180,7 +189,9 @@ class HoldRecovery:
             return {**parent["recovery"], "parentCaptureId": parent["capture_id"]}
         return None
 
-    def counts(self):
+    def counts(self, now=None):
+        """Report retry states at publication time without modifying capture receipts."""
+        now = time.time() if now is None else now
         states = ("waiting", "configuration_blocked", "exhausted", "expired", "review_required",
                   "agent_required", "menu_decision_required", "audit_required", "incomplete", "superseded")
         result = {"recovery_" + state: 0 for state in states}
@@ -190,7 +201,7 @@ class HoldRecovery:
         result.update({kind: 0 for kind in held_kinds.values()})
         for _, path in self.latest.values():
             record = self.spool.read(path)
-            key = "recovery_" + record.get("recovery", {}).get("status", "").lower()
+            key = "recovery_" + bounded_status(record.get("recovery", {}), now).lower()
             if key in result:
                 result[key] += 1
             for reason, count in record.get("recovery", {}).get("heldCounts", {}).items():

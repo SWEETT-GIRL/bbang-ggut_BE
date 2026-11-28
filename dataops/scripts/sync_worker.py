@@ -27,7 +27,7 @@ from html.parser import HTMLParser
 
 import requests
 from capture_spool import CaptureSpool
-from hold_recovery import HoldRecovery
+from hold_recovery import HoldRecovery, classify, receipt_reasons
 from dataops_server import server_headers
 
 REQUEST_INTERVAL_SECONDS = 1.5
@@ -236,6 +236,9 @@ def run(server: str, limit: int, max_stores: int | None,
                 result = submit_retained(server, record, auto_apply=auto_apply)
                 account(result)
                 spool.acknowledge(record, result)
+                if (auto_apply and record.get("recovery", {}).get("parentCaptureId")
+                        and classify(result, receipt_reasons(result)) == "RESOLVED"):
+                    recovery_resolved += 1
                 if applied_counts["auto_apply_failed"] or applied_counts["auto_apply_unknown"]:
                     return EXIT_SERVER_ERROR
             except requests.RequestException:
@@ -274,6 +277,8 @@ def run(server: str, limit: int, max_stores: int | None,
                 parent = due.get("_recovery")
                 if parent is not None:
                     parent = recovery.reserve(parent, time.time())
+                    if parent is None:
+                        continue
                     recovery_attempted += 1
                 processed += 1
                 try:
