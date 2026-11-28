@@ -51,7 +51,7 @@ class HoldRecoveryTest(unittest.TestCase):
         self.assertEqual(len(recovery.due(self.now, True)), 10)
 
     def test_normal_null_source_unknown_deletion_and_structural_changes_do_not_refetch(self):
-        cases = [((), ("MENU_INCOMPLETE",), "INCOMPLETE"),
+        cases = [((), ("MENU_INCOMPLETE",), "SOURCE_UNVERIFIED"),
                  (("SOURCE_UNKNOWN",), (), "REVIEW_REQUIRED"),
                  (("SOURCE_CONFLICT",), (), "REVIEW_REQUIRED"),
                  (("DELETION_EVIDENCE_REQUIRES_REVIEW",), (), "REVIEW_REQUIRED"),
@@ -64,6 +64,116 @@ class HoldRecoveryTest(unittest.TestCase):
             self.assertEqual(classify(record['receipt'], receipt_reasons(record['receipt'])), expected)
         recovery = HoldRecovery(self.spool, self.now)
         self.assertEqual(recovery.due(self.now, True), [])
+
+    def source_record(self, store, naver='NOT_PROVIDED', baemin='NOT_PROVIDED', reasons=(), **counts):
+        record = self.record(reasons, ('MENU_INCOMPLETE',), store=store, **counts)
+        record['receipt']['menuSources'] = {'version': 1, 'naver': naver, 'baemin': baemin}
+        self.spool.save(record)
+        return record
+
+    def test_two_fallbacks_five_missing_sources_and_actual_recovery_are_separate(self):
+        for store in (1, 2): self.source_record(store, baemin='AVAILABLE', applied=10)
+        for store in range(3, 8): self.source_record(store)
+        self.record(['VALUE_DRIFTED'], store=8)
+        recovery = HoldRecovery(self.spool, self.now)
+        counts = recovery.counts()
+        self.assertEqual(counts['menu_fallback_completed'], 2)
+        self.assertEqual(counts['menu_source_not_provided'], 5)
+        self.assertEqual(counts['menu_source_unverified'], 0)
+        self.assertEqual(counts['recovery_pending'], 1)
+        self.assertEqual(counts['recovery_waiting'], 1)
+        self.assertEqual([r['request']['storeId'] for r in recovery.due(self.now, True)], [8])
+        self.assertNotIn('recovery_incomplete', counts)
+        # Normal unavailable data survives retry expiry; no false failure or spent retry budget.
+        later = HoldRecovery(self.spool, self.now + MAX_AGE_SECONDS)
+        self.assertEqual(later.counts()['menu_source_not_provided'], 5)
+        self.assertIsNone(later.metadata({'storeId': 3, 'source': 'NAVER', 'externalId': '123'}))
+
+    def test_fallback_completion_needs_verified_sources_and_a_successful_apply_receipt(self):
+        record = self.source_record(1, baemin='AVAILABLE')
+        receipt = record['receipt']
+        self.assertEqual(classify(receipt, receipt_reasons(receipt)), 'FALLBACK_COMPLETED')
+        for mutate in (
+            lambda r: r.pop('automaticApply'),
+            lambda r: r['automaticApply'].pop('unknown'),
+            lambda r: r['automaticApply'].update(captureId='other'),
+            lambda r: r['menuSources'].update(version=2),
+            lambda r: r['menuSources'].update(naver=[]),
+        ):
+            candidate = json.loads(json.dumps(receipt)); mutate(candidate)
+            self.assertEqual(classify(candidate, receipt_reasons(candidate)), 'SOURCE_UNVERIFIED')
+        for reasons, values, expected in (
+            (['SOURCE_CONFLICT'], {}, 'REVIEW_REQUIRED'),
+            (['MENU_POLICY_REVIEW_REQUIRED'], {}, 'MENU_DECISION_REQUIRED'),
+            (['VALUE_DRIFTED'], {}, 'WAITING'),
+            ([], {'failed': 1}, 'AUDIT_REQUIRED'),
+            ([], {'unknown': 1}, 'AUDIT_REQUIRED'),
+        ):
+            candidate = self.source_record(2, baemin='AVAILABLE', reasons=reasons, **values)['receipt']
+            self.assertEqual(classify(candidate, receipt_reasons(candidate)), expected)
+
+    def test_empty_verified_list_is_not_a_fallback_and_incomplete_list_keeps_retry_budget(self):
+        empty = self.source_record(1, baemin='EMPTY')['receipt']
+        self.assertEqual(classify(empty, receipt_reasons(empty)), 'SOURCE_NOT_PROVIDED')
+        full = self.source_record(2, naver='EMPTY', baemin='NOT_PROVIDED')['receipt']
+        full['reasons'] = ['BAEMIN_INCOMPLETE']
+        self.assertEqual(classify(full, receipt_reasons(full)), 'RESOLVED')
+        self.source_record(3, naver='INCOMPLETE', baemin='AVAILABLE')
+        recovery = HoldRecovery(self.spool, self.now)
+        due = recovery.due(self.now, True)
+        self.assertEqual([r['request']['storeId'] for r in due], [3])
+        self.assertEqual(recovery.reserve(due[0], self.now)['recovery']['attempts'], 1)
+
+    def test_legacy_partial_is_unverified_until_fresh_regular_collection_replaces_it(self):
+        old = self.record((), ('MENU_INCOMPLETE',), store=1)
+        recovery = HoldRecovery(self.spool, self.now)
+        self.assertEqual(recovery.counts()['menu_source_unverified'], 1)
+        self.assertEqual(recovery.counts()['recovery_pending'], 0)
+        self.assertEqual(recovery.due(self.now, True), [])
+        self.now += 3600
+        fresh = self.source_record(1, baemin='AVAILABLE')
+        recovery = HoldRecovery(self.spool, self.now)
+        self.assertEqual(recovery.counts()['menu_source_unverified'], 0)
+        self.assertEqual(recovery.counts()['menu_fallback_completed'], 1)
+        self.assertEqual(self.spool.read(self.spool.path(old['capture_id']))['receipt'], old['receipt'])
+        self.assertIsNone(recovery.metadata(fresh['request']))
+
+    def test_legacy_unverified_inventory_does_not_expire_a_new_actual_recovery(self):
+        old = self.record((), ('MENU_INCOMPLETE',), store=1)
+        recovery = HoldRecovery(self.spool, self.now + MAX_AGE_SECONDS)
+        self.assertIsNone(recovery.metadata(old['request']))
+        self.now += MAX_AGE_SECONDS
+        self.source_record(1, naver='INCOMPLETE', baemin='AVAILABLE')
+        fresh = HoldRecovery(self.spool, self.now)
+        self.assertEqual(fresh.counts()['recovery_waiting'], 1)
+        self.assertEqual(fresh.counts()['recovery_expired'], 0)
+        self.assertEqual(len(fresh.due(self.now, True)), 1)
+
+    def test_source_outcomes_do_not_remove_stores_from_regular_due_collection(self):
+        self.source_record(1, baemin='AVAILABLE')
+        self.source_record(2)
+        due = [{'storeId': store, 'source': 'NAVER', 'externalId': '123', 'attemptSeq': 8}
+               for store in (1, 2)]
+        def submit(server, record, auto_apply):
+            result = self.receipt(record['capture_id'], observation=('MENU_INCOMPLETE',), applied=0)
+            result['menuSources'] = {'version': 1, 'naver': 'NOT_PROVIDED',
+                                     'baemin': 'AVAILABLE' if record['request']['storeId'] == 1 else 'NOT_PROVIDED'}
+            return result
+        summary = Path(self.temp.name) / 'summary.json'
+        with patch.object(worker.time, 'sleep'), patch.object(worker, 'fetch_due', return_value=due) as fetch_due, \
+                patch.object(worker, 'fetch_place', return_value=worker.FetchResult({}, False, 'SUCCESS')) as fetch, \
+                patch.object(worker, 'submit_retained', side_effect=submit):
+            self.assertEqual(worker.run('unused', 50, 2, 0, 0, spool=self.spool,
+                summary_path=summary, auto_apply=True), 0)
+        fetch_due.assert_called_once_with('unused', 2)
+        self.assertEqual(fetch.call_count, 2)
+        result = json.loads(summary.read_text())
+        self.assertEqual(result['attempted'], 2)
+        self.assertEqual(result['partial'], 2)  # Raw completeness is not rewritten as full success.
+        self.assertEqual(result['recovery_attempted'], 0)
+        self.assertEqual(result['recovery_pending'], 0)
+        self.assertEqual(result['menu_fallback_completed'], 1)
+        self.assertEqual(result['menu_source_not_provided'], 1)
 
     def test_unknown_and_failed_override_even_retryable_reasons(self):
         self.record(unknown=1)

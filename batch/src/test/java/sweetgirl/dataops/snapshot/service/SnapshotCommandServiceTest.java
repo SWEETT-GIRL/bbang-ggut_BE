@@ -112,9 +112,14 @@ class SnapshotCommandServiceTest {
 		String menuHash = state.getMenuHash();
 		var menuTime = state.getMenuObservedAt();
 		given(responseDiagnostics.inspect(any())).willReturn(new ResponseDiagnostics.Report("parser", java.util.List.of(
-			new ResponseDiagnostics.Issue("menus", "MENU_INCOMPLETE", "NULL", false))));
+			new ResponseDiagnostics.Issue("menus", "MENU_INCOMPLETE", "NULL", false)), false,
+			new sweetgirl.dataops.snapshot.dto.response.MenuSourceAvailability(
+				sweetgirl.dataops.snapshot.dto.response.MenuSourceAvailability.State.NOT_PROVIDED,
+				sweetgirl.dataops.snapshot.dto.response.MenuSourceAvailability.State.NOT_PROVIDED)));
 		var partial = snapshotCommandService.submit(createRequest(partialRaw.toString()));
 		assertThat(partial.assessment()).isEqualTo("PARTIAL");
+		assertThat(partial.menuSources().naver().name()).isEqualTo("NOT_PROVIDED");
+		assertThat(state.getNextDueAt()).isAfter(state.getLastSuccessAt());
 		assertThat(partial.changed()).isTrue();
 		assertThat(state.getContentHash()).isEqualTo(fullHash);
 		assertThat(state.getMenuHash()).isEqualTo(menuHash);

@@ -88,6 +88,25 @@ class NotificationTest(unittest.TestCase):
                 expected_color = '#2ECC71' if code == 0 else '#E74C3C' if code == 1 else '#F2C744'
                 self.assertEqual(self.events[-1]['attachments'][0]['color'], expected_color)
 
+    def test_source_coverage_counts_are_global_and_not_added_to_current_processed_count(self):
+        notice = notices.BatchNotification(self.logs, 'dataops-nightly', WEBHOOK)
+        self.journal(notice.record['invocation_id'], 'a', items_current={**ITEMS,
+                     'menu_fallback_completed': 2, 'menu_source_not_provided': 5,
+                     'menu_source_unverified': 7, 'recovery_pending': 1})
+        notice.finish(0)
+        text = content(self.events[-1])
+        self.assertIn('보관된 가게·출처별 최신 상태 · 이번 실행 처리량과 별도', text)
+        for label, count in [('대체 출처 반영 완료', 2), ('메뉴 원본 미제공', 5),
+                             ('출처 판정 미확인', 7), ('실제 복구 대기', 1)]:
+            self.assertIn(f'*{label}*\n{count}곳', text)
+        self.assertIn('*이번 수집 · 시도*\n20건', text)
+        # A failed attempt without its own summary cannot reuse a previous source inventory.
+        another = notices.BatchNotification(self.logs, 'dataops-nightly', WEBHOOK)
+        self.journal(another.record['invocation_id'], 'a', items_current=ITEMS,
+                     items={'menu_source_not_provided': 999})
+        another.finish(1)
+        self.assertNotIn('메뉴 원본 미제공', content(self.events[-1]))
+
     def test_delivery_failure_keeps_result_and_does_not_leak_or_retry(self):
         notice = notices.BatchNotification(self.logs, 'dataops-nightly', WEBHOOK)
         with patch.object(notices, 'send', side_effect=OSError(WEBHOOK)) as send, redirect_stdout(io.StringIO()) as log:
@@ -127,7 +146,8 @@ class NotificationTest(unittest.TestCase):
     def test_long_summary_stays_deliverable_and_dynamic_values_cannot_mention(self):
         notice = notices.BatchNotification(self.logs, 'dataops-cycle <!channel> & run', WEBHOOK)
         for index in range(20):
-            self.journal(notice.record['invocation_id'], str(index), items_current=ITEMS,
+            self.journal(notice.record['invocation_id'], str(index), items_current={**ITEMS,
+                         **{key: 1 for key in notices.AUTO_COUNTS}, **{key: 1 for key in notices.SOURCE_COUNTS}},
                          items={'candidates_inserted': 8}, skipped_tracks=['public'])
         notice.finish(1)
         payload = self.events[-1]
@@ -135,7 +155,7 @@ class NotificationTest(unittest.TestCase):
         self.assertNotIn('<!channel>', content(payload))
         blocks = payload['attachments'][0]['blocks']
         self.assertLessEqual(len(blocks), 50)
-        self.assertIn('추가 작업 12개', content(payload))
+        self.assertIn('추가 작업 13개', content(payload))
         for block in blocks:
             self.assertLessEqual(len(block.get('fields', [])), 10)
             for value in block.get('fields', []):

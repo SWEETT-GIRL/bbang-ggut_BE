@@ -8,7 +8,7 @@
     "v0"
   ],
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "editable": true,
   "timezone": "Asia/Seoul",
   "refresh": "30s",
@@ -1299,7 +1299,7 @@
     {
       "type": "timeseries",
       "title": "최신화 처리·실패·보류 건수",
-      "description": "선택한 트랙의 마지막 실행/사이클 산출물 집계(gauge). result별 의미가 다르며 합계나 rate로 처리량을 만들지 않습니다. 신규 후보는 신규 개업만을 뜻하지 않습니다.",
+      "description": "선택한 트랙의 마지막 실행/사이클 산출물 집계(gauge). result별 의미가 다르며 합계나 rate로 처리량을 만들지 않습니다. 신규 후보는 신규 개업만을 뜻하지 않습니다. PARTIAL은 수집 범위 판정이며 자동 반영 실패와 다릅니다. 아래 출처 가용성·실제 복구 대기를 함께 확인합니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -1529,9 +1529,9 @@
       "id": 26
     },
     {
-      "type": "timeseries",
-      "title": "자동 복구 대기·소진 / 구조·메뉴 판단 대상",
-      "description": "가게·출처·외부 ID별 최신 복구 상태 수입니다. agent_required는 구조 분석 필요 상태이며 실제 에이전트 실행 수가 아닙니다. menu_decision_required는 음식 의미 판단 대상입니다. 같은 가게의 여러 보류 사유는 별도 후보 수 패널에서 확인합니다. 읽기 실패·미수집을 0으로 채우지 않습니다.",
+      "type": "stat",
+      "title": "대체 출처 반영 완료 · 가게 수",
+      "description": "네이버 메뉴 미제공 시 검증된 배민 메뉴로 자동 반영 절차가 완료된 최신 가게 수입니다. 변경 없음·기반영도 포함합니다. 네이버 메뉴 완전성·신선도가 확보됐다는 뜻은 아닙니다. 전체 최신 가게 상태이며 이번 실행 처리량과 다릅니다. 지표가 없으면 정상 0으로 간주하지 않습니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
@@ -1539,13 +1539,261 @@
       "gridPos": {
         "x": 0,
         "y": 85,
-        "w": 24,
+        "w": 8,
         "h": 7
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "bbang_dataops_workflow_last_items{job=\"dataops-workflow\",workflow=\"$workflow\",result=~\"recovery_(waiting|configuration_blocked|exhausted|expired|review_required|agent_required|menu_decision_required|audit_required|incomplete|superseded)\"}",
+          "expr": "bbang_dataops_workflow_last_items{job=\"dataops-workflow\",workflow=\"$workflow\",result=\"menu_fallback_completed\"}",
+          "legendFormat": "대체 출처 반영 완료 · 가게 수",
+          "range": false,
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "수집 확인 필요",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "id": 28
+    },
+    {
+      "type": "stat",
+      "title": "메뉴 원본 미제공 · 가게 수",
+      "description": "현재 수집 응답에 이용 가능한 텍스트 메뉴 원본이 없는 가게 수입니다. 수집·반영 실패가 아니며 기존 메뉴를 지우지 않고 정기 재수집을 유지합니다. 다른 페이지에도 메뉴가 없다는 뜻은 아닙니다. 전체 최신 가게 상태이며 이번 실행 처리량과 다릅니다. 지표가 없으면 정상 0으로 간주하지 않습니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 85,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "bbang_dataops_workflow_last_items{job=\"dataops-workflow\",workflow=\"$workflow\",result=\"menu_source_not_provided\"}",
+          "legendFormat": "메뉴 원본 미제공 · 가게 수",
+          "range": false,
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "수집 확인 필요",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "id": 29
+    },
+    {
+      "type": "stat",
+      "title": "실제 복구 대기 · 가게 수",
+      "description": "자동 재시도·설정 조치·검토·결과 대사가 필요한 최신 가게 수입니다. 아래 원인별 복구 상태의 합계이며 메뉴 원본 미제공과 대체 출처 처리 완료는 제외합니다. 전체 최신 가게 상태이며 이번 실행 처리량과 다릅니다. 지표가 없으면 정상 0으로 간주하지 않습니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 85,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "bbang_dataops_workflow_last_items{job=\"dataops-workflow\",workflow=\"$workflow\",result=\"recovery_pending\"}",
+          "legendFormat": "실제 복구 대기 · 가게 수",
+          "range": false,
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "수집 확인 필요",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      },
+      "id": 30
+    },
+    {
+      "type": "timeseries",
+      "title": "메뉴 출처 가용성 · 최신 가게 상태",
+      "description": "대체 출처 반영 완료·원본 미제공·출처 미확인을 분리합니다. 구버전 영수증에는 출처 근거가 없으므로 menu_source_unverified로 표시하며 정기 재수집의 새 영수증으로 대체됩니다. 원본 상태 PARTIAL은 그대로 보존합니다. 실제 복구 대기와 별도 집계입니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 92,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "bbang_dataops_workflow_last_items{job=\"dataops-workflow\",workflow=\"$workflow\",result=~\"menu_(fallback_completed|source_not_provided|source_unverified)\"}",
+          "legendFormat": "{{result}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "수집 확인 필요",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 31
+    },
+    {
+      "type": "timeseries",
+      "title": "실제 복구 대기 · 원인별 가게 수",
+      "description": "보관된 가게·출처·외부 ID별 최신 상태의 조치 필요 건수입니다. 재시도 대기, 권한 설정, 소진·만료, 구조·메뉴 판단·결과 대사를 구분합니다. 원본 미제공·대체 출처 완료·구버전 출처 미확인은 포함하지 않습니다. agent_required는 실제 에이전트 실행 수가 아닙니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 92,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "bbang_dataops_workflow_last_items{job=\"dataops-workflow\",workflow=\"$workflow\",result=~\"recovery_(waiting|configuration_blocked|exhausted|expired|review_required|agent_required|menu_decision_required|audit_required)\"}",
           "legendFormat": "{{result}}",
           "range": true,
           "instant": false,
@@ -1591,7 +1839,7 @@
       "title": "다음 버전 · 아직 생성하지 않은 지표",
       "gridPos": {
         "x": 0,
-        "y": 92,
+        "y": 99,
         "w": 24,
         "h": 5
       },

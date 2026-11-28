@@ -7,11 +7,16 @@ public record SnapshotSubmitResponse(
 		String contentHash,
 		String captureId,
 		String assessment,
-		java.util.List<String> reasons) {
+		java.util.List<String> reasons,
+		MenuSourceAvailability menuSources) {
+	public SnapshotSubmitResponse(Long snapshotId, boolean changed, String contentHash, String captureId,
+			String assessment, java.util.List<String> reasons) {
+		this(snapshotId, changed, contentHash, captureId, assessment, reasons, null);
+	}
 	public SnapshotSubmitResponse(Long snapshotId, boolean changed, String contentHash) {
 		this(snapshotId, changed, contentHash, null, "READY", java.util.List.of());
 	}
 	public SnapshotSubmitResponse withCaptureId(String id) {
-		return new SnapshotSubmitResponse(snapshotId, changed, contentHash, id, assessment, reasons);
+		return new SnapshotSubmitResponse(snapshotId, changed, contentHash, id, assessment, reasons, menuSources);
 	}
 }
