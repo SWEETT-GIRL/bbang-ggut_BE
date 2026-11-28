@@ -23,6 +23,7 @@ import sweetgirl.dataops.sync.enums.SyncSource;
 import sweetgirl.dataops.sync.enums.SyncStateStatus;
 import sweetgirl.dataops.sync.enums.SyncTier;
 import sweetgirl.dataops.sync.exception.SyncStateException;
+import sweetgirl.dataops.sync.code.SyncStateErrorCode;
 import sweetgirl.dataops.sync.repository.StoreSyncStateRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -80,6 +81,33 @@ class SyncStateCommandServiceTest {
 		SyncStateResponse response = syncStateCommandService.reportFailure(1L);
 
 		assertThat(response.consecutiveFailures()).isEqualTo(1);
+	}
+
+	@Test void selected_stores_use_fresh_atomic_claim_and_keep_two_hour_lease() {
+		given(storeSyncStateRepository.claimSelectedDue(eq(List.of(1L, 2L)), any(), any(), eq(2), any()))
+			.willAnswer(invocation -> {
+				LocalDateTime now = invocation.getArgument(1);
+				assertThat((LocalDateTime) invocation.getArgument(2)).isEqualTo(now.minusHours(2));
+				return 1;
+			});
+		given(storeSyncStateRepository.findByClaimTokenOrderByNextDueAtAsc(any())).willReturn(List.of(createState()));
+		assertThat(syncStateCommandService.exportSelectedDue(2, List.of(1L, 2L, 1L))).hasSize(1);
+		then(storeSyncStateRepository).should(never()).claimDue(any(), any(), any(), anyInt(), any());
+	}
+
+	@Test void invalid_selection_returns_domain_error_without_claiming_work() {
+		for (List<Long> selection : java.util.Arrays.asList(null, List.<Long>of(), List.of(-1L),
+			java.util.Arrays.asList(1L, null), java.util.Collections.nCopies(51, 1L))) {
+			assertThatThrownBy(() -> syncStateCommandService.exportSelectedDue(50, selection))
+				.isInstanceOfSatisfying(SyncStateException.class,
+					error -> assertThat(error.getErrorCode()).isEqualTo(SyncStateErrorCode.INVALID_DUE_SELECTION));
+		}
+		for (int limit : new int[] {0, 51}) {
+			assertThatThrownBy(() -> syncStateCommandService.exportSelectedDue(limit, List.of(1L)))
+				.isInstanceOfSatisfying(SyncStateException.class,
+					error -> assertThat(error.getErrorCode()).isEqualTo(SyncStateErrorCode.INVALID_DUE_SELECTION));
+		}
+		then(storeSyncStateRepository).shouldHaveNoInteractions();
 	}
 
 	@Test

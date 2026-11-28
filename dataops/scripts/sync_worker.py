@@ -43,8 +43,11 @@ EXIT_SERVER_ERROR = 1
 EXIT_BLOCKED = 3
 
 
-def fetch_due(server: str, limit: int) -> list:
-    response = requests.get(f"{server}/api/sync-states/due", headers=server_headers(), params={"limit": limit}, timeout=10)
+def fetch_due(server: str, limit: int, store_ids=None) -> list:
+    params = {"limit": limit}
+    if store_ids is not None:
+        params["storeIds"] = ','.join(map(str, sorted(store_ids)))
+    response = requests.get(f"{server}/api/sync-states/due", headers=server_headers(), params=params, timeout=10)
     response.raise_for_status()
     return response.json()["data"]
 
@@ -209,11 +212,14 @@ def safe_server(server, auto_apply=False):
 
 def run(server: str, limit: int, max_stores: int | None,
         cooldown_minutes: int, max_cooldowns: int, max_hours: float | None = None, spool=None, summary_path=None,
-        auto_apply=False, capabilities=None) -> int:
+        auto_apply=False, capabilities=None, store_ids=None) -> int:
     processed = changed = unchanged = failed = 0
     held = partial = 0
     recovery = None
     recovery_attempted = recovery_resolved = 0
+    remaining = set(store_ids) if store_ids is not None else None
+    if remaining is not None and (not remaining or len(store_ids) > 50 or any(type(x) is not int or x <= 0 for x in remaining)):
+        raise ValueError('store IDs must contain 1-50 positive integers')
     applied_counts = {"auto_apply_" + key: 0 for key in ("applied", "already_applied", "held", "failed", "unknown")}
     def account(result):
         applied = result.get("automaticApply", {})
@@ -230,8 +236,10 @@ def run(server: str, limit: int, max_stores: int | None,
         deadline = time.monotonic() + max_hours * 3600 if max_hours else None
         # Complete lost-ack submissions before taking a new lease. Identity/timestamp are unchanged.
         for record in spool.pending():
+            if remaining is not None and record['request']['storeId'] not in remaining:
+                continue
             if deadline is not None and time.monotonic() >= deadline:
-                return EXIT_OK
+                return EXIT_SERVER_ERROR if remaining else EXIT_OK
             try:
                 result = submit_retained(server, record, auto_apply=auto_apply)
                 account(result)
@@ -246,8 +254,11 @@ def run(server: str, limit: int, max_stores: int | None,
         # Existing receipts (including pre-upgrade holds) are automatically inventoried.
         # Acknowledged APPLIED outcomes are never replayed as a recovery operation.
         recovery = HoldRecovery(spool, time.time()) if auto_apply else None
-        recovery_due = recovery.due(time.time(), (capabilities or {}).get("automaticHoursPermissionsReady") is True) if recovery else []
+        # Targeted repairs always obtain a fresh lease; unrelated recovery work stays in its normal cycle.
+        recovery_due = recovery.due(time.time(), (capabilities or {}).get("automaticHoursPermissionsReady") is True) if recovery and remaining is None else []
         while True:
+            if remaining is not None and not remaining:
+                break
             if deadline is not None and time.monotonic() >= deadline:
                 print(f"[worker] 시간 상자 {max_hours}시간 도달 — 새 배치를 받지 않고 끝낸다", flush=True)
                 break
@@ -258,7 +269,7 @@ def run(server: str, limit: int, max_stores: int | None,
                 recovery_due = recovery_due[batch_limit:]
             else:
                 try:
-                    due_list = fetch_due(server, batch_limit)
+                    due_list = fetch_due(server, batch_limit) if remaining is None else fetch_due(server, min(batch_limit, 50), remaining)
                 except requests.RequestException as error:
                     print(f"[worker] due 조회 실패 — 서버 확인 필요: {error}", flush=True)
                     return EXIT_SERVER_ERROR
@@ -273,6 +284,10 @@ def run(server: str, limit: int, max_stores: int | None,
                     break
                 if due["source"] != "NAVER" or not due.get("externalId"):
                     continue
+
+                if remaining is not None:
+                    if due['storeId'] not in remaining:
+                        raise ValueError('server returned a store outside the selected scope')
 
                 parent = due.get("_recovery")
                 if parent is not None:
@@ -315,8 +330,8 @@ def run(server: str, limit: int, max_stores: int | None,
                     processed -= 1
                     print(f"[worker] 차단 감지 (storeId={due['storeId']}) — "
                           f"{cooldown_minutes}분 쿨다운 ({cooldowns_used}/{max_cooldowns}) 후 재개", flush=True)
-                    remaining = cooldown_minutes * 60 if deadline is None else max(0, deadline - time.monotonic())
-                    time.sleep(min(cooldown_minutes * 60, remaining))
+                    cooldown_remaining = cooldown_minutes * 60 if deadline is None else max(0, deadline - time.monotonic())
+                    time.sleep(min(cooldown_minutes * 60, cooldown_remaining))
                     break  # due 목록을 새로 받아 이어간다
 
                 if apollo_state is None:
@@ -332,6 +347,9 @@ def run(server: str, limit: int, max_stores: int | None,
                         result = submit_retained(server, record, auto_apply=auto_apply)
                         account(result)
                         spool.acknowledge(record, result)
+                        # A claim/fetch attempt is not completion. Blocked or failed stores stay unfinished.
+                        if remaining is not None:
+                            remaining.remove(due['storeId'])
                         if recovery:
                             acknowledged = spool.read(spool.path(observation_id))
                             recovery.observe(acknowledged, time.time())
@@ -363,13 +381,16 @@ def run(server: str, limit: int, max_stores: int | None,
         if auto_apply:
             print("[worker] 운영 반영 — " + ", ".join(f"{key}={value}" for key, value in applied_counts.items()), flush=True)
             print("[worker] 보류 복구 — recovery_* 가게 / hold_* 변경 후보: " + json.dumps(recovery.counts(), ensure_ascii=False), flush=True)
-        return EXIT_SERVER_ERROR if applied_counts["auto_apply_failed"] or applied_counts["auto_apply_unknown"] else EXIT_OK
+        if remaining:
+            print(f"[worker] 선택 가게 미처리(리스·스케줄·상태 확인): {sorted(remaining)}", flush=True)
+        return EXIT_SERVER_ERROR if remaining or applied_counts["auto_apply_failed"] or applied_counts["auto_apply_unknown"] else EXIT_OK
     finally:
         if summary_path:
             from batch_execution import atomic_json
             atomic_json(summary_path, {"attempted": processed, "changed": changed, "unchanged": unchanged,
                                        "partial": partial, "held": held, "failed": failed, **applied_counts,
                                        **(recovery.counts() if recovery else {}),
+                                       **({"selected_store_ids": sorted(set(store_ids)), "unattempted_store_ids": sorted(remaining)} if remaining is not None else {}),
                                        "recovery_attempted": recovery_attempted, "recovery_resolved": recovery_resolved})
 
 
@@ -385,6 +406,7 @@ def main() -> int:
     argument_parser.add_argument("--max-hours", type=float, default=None,
                                  help="이 시간이 지나면 새 가게를 받지 않고 끝낸다 (야간 수집 시간 상자)")
     argument_parser.add_argument("--summary", help="실제 처리 결과 JSON 경로")
+    argument_parser.add_argument("--store-ids", type=int, nargs='+', help="선택 가게만 새 리스로 재수집 (최대 50곳, 기존 due/리스 조건 유지)")
     arguments = argument_parser.parse_args()
     automatic = os.environ.get('DATAOPS_AUTO_APPLY_ENABLED', 'false')
     if automatic not in ('true', 'false'):
@@ -398,7 +420,7 @@ def main() -> int:
         with spool.exclusive():
             return run(arguments.server, arguments.limit, arguments.max_stores,
                        arguments.cooldown_minutes, arguments.max_cooldowns, arguments.max_hours, spool, arguments.summary,
-                       auto_apply=auto_apply, capabilities=capabilities)
+                       auto_apply=auto_apply, capabilities=capabilities, store_ids=arguments.store_ids)
     except (OSError, ValueError, RuntimeError, requests.RequestException) as error:
         print(f"[worker] 실행 보류: {type(error).__name__}", flush=True)
         return EXIT_SERVER_ERROR

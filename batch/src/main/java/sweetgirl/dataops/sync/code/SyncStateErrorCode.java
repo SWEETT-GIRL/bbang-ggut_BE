@@ -13,6 +13,7 @@ import sweetgirl.dataops.global.code.BaseErrorCode;
 public enum SyncStateErrorCode implements BaseErrorCode {
 
 	SYNC_STATE_NOT_FOUND(NOT_FOUND, "SYNC_STATE_NOT_FOUND", "동기화 상태를 찾을 수 없습니다."),
+	INVALID_DUE_SELECTION(BAD_REQUEST, "INVALID_DUE_SELECTION", "대상 가게 ID는 양수 1~50개, 조회 한도는 1~50이어야 합니다."),
 	SYNC_STATE_TRANSITION_NOT_ALLOWED(
 			BAD_REQUEST, "SYNC_STATE_TRANSITION_NOT_ALLOWED", "허용되지 않는 동기화 상태 전이입니다.");
 

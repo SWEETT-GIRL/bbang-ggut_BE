@@ -256,4 +256,35 @@ class AutomaticApplyPostgresTest {
 		assertThat(serving.softDeleteObservedMenu(1, 1, "123", "소금빵", 3000, null)).isEqualTo(1);
 		assertThat(serving.softDeleteObservedMenu(1, 1, "123", "소금빵", 3000, null)).isZero();
 	}
+
+	@Test void poke_policy_soft_deletes_once_and_preserves_row_and_history() {
+		jdbc.execute("UPDATE menu SET name='베이글 연어 포케',price=11500,description='' WHERE id=1");
+		jdbc.execute("CREATE TABLE menu_history(menu_id bigint REFERENCES menu(id))");
+		jdbc.execute("INSERT INTO menu_history VALUES(1)");
+		String old = "{\"name\":\"베이글 연어 포케\",\"price\":11500,\"description\":\"\",\"reason\":\"제외 필터\"}";
+		proposal = ChangeProposal.builder().storeId(1L).target("menu.1.removed").oldValue(old).newValue(null)
+			.source(ProvenanceSource.NAVER).producer(ProposalProducer.NAVER_SNAPSHOT_RECONCILE).build();
+		ReflectionTestUtils.setField(proposal, "id", 7L);
+		when(reconcile.reconcileAutomatic(eq(1L), any(), any(), anyBoolean(), anyBoolean()))
+			.thenReturn(List.of(new AutomaticCandidate(7, "menu.1.removed", old, null, ProvenanceSource.NAVER)));
+		when(commands.approveAutomatically(eq(7L), eq(serving), any(), any())).thenAnswer(invocation -> {
+			ProposalCommandService.AutomaticApproval approval = invocation.getArgument(3);
+			approval.verify().accept(proposal);
+			assertThat(serving.softDeleteObservedMenu(1, 1, approval.externalId(), "베이글 연어 포케", 11500, "")).isEqualTo(1);
+			proposal.beginApply(UUID.randomUUID()); proposal.completeApply(null);
+			return null;
+		});
+		assertThat(service.apply("current").applied()).isEqualTo(1);
+		assertThat(service.apply("current").alreadyApplied()).isEqualTo(1);
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM menu WHERE deleted_at IS NOT NULL", Integer.class)).isEqualTo(1);
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM menu_history", Integer.class)).isEqualTo(1);
+	}
+
+	@Test void changed_description_or_user_contribution_prevents_policy_exclusion() {
+		jdbc.execute("UPDATE menu SET name='베이글 연어 포케',price=11500,description='사용자 설명' WHERE id=1");
+		assertThat(serving.softDeleteObservedMenu(1, 1, "123", "베이글 연어 포케", 11500, "")).isZero();
+		jdbc.execute("UPDATE menu SET created_by_member_id=42 WHERE id=1");
+		assertThat(serving.softDeleteObservedMenu(1, 1, "123", "베이글 연어 포케", 11500, "사용자 설명")).isZero();
+		assertThat(jdbc.queryForObject("SELECT count(*) FROM menu WHERE deleted_at IS NULL", Integer.class)).isEqualTo(1);
+	}
 }

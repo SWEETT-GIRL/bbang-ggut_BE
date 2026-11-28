@@ -5,8 +5,43 @@ import static org.assertj.core.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 
 class BeverageFilterTest {
+	@Test void poke_cakes_are_not_poke_meals_and_mixed_names_remain_excluded() {
+		for (String name : new String[] {"Chocolate Poke Cake", "Pudding POKE-CAKE", "Strawberry poke cakes"}) {
+			assertThat(beverageFilter.isPoke(name)).as(name).isFalse();
+			assertThat(beverageFilter.isExcluded(name, null)).as(name).isFalse();
+		}
+		for (String name : new String[] {"Salmon Poke", "포케 베이글", "Salmon Poke + Chocolate Poke Cake", "Poke Cake + 포케"})
+			assertThat(beverageFilter.isExcluded(name, null)).as(name).isTrue();
+	}
+
+	@Test void dessert_flavor_does_not_hide_parenthetical_beverage_container() {
+		for (String name : new String[] {"쿠키 말차 (슬림캔)", "버터바 말차 (슬림캔) (1개)", "쿠키 말차 (포장 (슬림캔))"})
+			assertThat(beverageFilter.isExcluded(name, null)).as(name).isTrue();
+		for (String name : new String[] {"쿠키 말차 (1개)", "버터바 말차 (1개)", "쿠키 말차 (우유식빵)"})
+			assertThat(beverageFilter.isExcluded(name, null)).as(name).isFalse();
+	}
 
 	private final BeverageFilter beverageFilter = new BeverageFilter();
+
+	@Test
+	void 제품명_뒤의_맛은_음료로_제외하지_않는다() {
+		for (String name : new String[] {"버터바 말차", "말차 버터바", "버터바 - 말차", "쿠키 말차",
+			"쿠키 얼그레이", "버터바 말차 (1개)", "버터바 말차맛"}) {
+			assertThat(beverageFilter.isExcluded(name, null)).as(name).isFalse();
+		}
+		for (String name : new String[] {"말차", "와일드 말차", "버터바 말차라떼", "쿠키 말차 300ml"}) {
+			assertThat(beverageFilter.isExcluded(name, null)).as(name).isTrue();
+		}
+		assertThat(beverageFilter.isExcluded("버터바 말차", "BEVERAGE")).isTrue();
+	}
+
+	@Test
+	void 포케는_베이글이나_디저트_그룹과_함께_표기해도_식사다() {
+		for (String name : new String[] {"베이글 연어 포케", "베이글 새우 포케", "연어포케", "포케 베이글", "Salmon Poke"}) {
+			assertThat(beverageFilter.isExcluded(name, "BAKERY")).as(name).isTrue();
+		}
+		assertThat(beverageFilter.isExcluded("포켓 브레드", null)).isFalse();
+	}
 
 	@Test
 	void 배민_그룹명이_음료면_제외한다() {

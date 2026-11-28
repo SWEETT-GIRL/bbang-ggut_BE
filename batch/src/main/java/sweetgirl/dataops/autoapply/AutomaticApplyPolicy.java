@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import sweetgirl.dataops.proposal.entity.ChangeProposal;
 import sweetgirl.dataops.proposal.enums.ProposalProducer;
 import sweetgirl.dataops.reconcile.enums.ProvenanceSource;
+import sweetgirl.dataops.reconcile.policy.BeverageFilter;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -20,6 +21,7 @@ import tools.jackson.databind.ObjectMapper;
 public class AutomaticApplyPolicy {
 	public static final String VERSION = "live-capture-auto-v1";
 	private final ObjectMapper mapper;
+	private final BeverageFilter menuFilter = new BeverageFilter();
 
 	public void verify(ChangeProposal proposal, AutomaticCandidate candidate, long storeId,
 			Map<String, ProvenanceSource> provenance) {
@@ -42,9 +44,22 @@ public class AutomaticApplyPolicy {
 			hold(AutomaticApplyException.Reason.SOURCE_UNSUPPORTED);
 		String field = target.startsWith("store.") ? target.substring(6) : target;
 		ProvenanceSource previous = provenance.get(field);
-		if (previous == null && target.matches("menu\\.\\d+\\..+"))
-			previous = provenance.get(target.substring(0, target.lastIndexOf('.')));
+		if (target.matches("menu\\.\\d+\\..+")) {
+			ProvenanceSource menuSource = provenance.get(target.substring(0, target.lastIndexOf('.')));
+			if (menuSource == ProvenanceSource.ADMIN || menuSource == ProvenanceSource.USER)
+				hold(AutomaticApplyException.Reason.PROTECTED_SOURCE);
+			if (previous == null) previous = menuSource;
+		}
 		if (previous == ProvenanceSource.ADMIN || previous == ProvenanceSource.USER) hold(AutomaticApplyException.Reason.PROTECTED_SOURCE);
+		if (target.matches("menu\\.\\d+\\.removed")) {
+			String prefix = target.substring(0, target.lastIndexOf('.') + 1);
+			for (var entry : provenance.entrySet()) {
+				if (!entry.getKey().startsWith(prefix)) continue;
+				if (entry.getValue() == ProvenanceSource.ADMIN || entry.getValue() == ProvenanceSource.USER)
+					hold(AutomaticApplyException.Reason.PROTECTED_SOURCE);
+				if (entry.getValue() != candidate.source()) hold(AutomaticApplyException.Reason.SOURCE_CONFLICT);
+			}
+		}
 		if (previous != null && previous != candidate.source()) hold(AutomaticApplyException.Reason.SOURCE_CONFLICT);
 		if (candidate.source() == ProvenanceSource.BAEMIN && !target.startsWith("menu.add.") && previous == null)
 			hold(AutomaticApplyException.Reason.SOURCE_UNKNOWN);
@@ -55,6 +70,8 @@ public class AutomaticApplyPolicy {
 		JsonNode value = json(candidate.newValue());
 		JsonNode old = json(candidate.oldValue());
 		if (target.startsWith("menu.add.")) {
+			if (menuFilter.isExcluded(value.path("name").asString(""), null))
+				hold(AutomaticApplyException.Reason.MENU_POLICY_REVIEW_REQUIRED);
 			if (!value.isObject() || !text(value.path("name")) || value.path("name").asString().length() > 255
 				|| !(value.path("price").isNull() || price(value.path("price")))) hold(AutomaticApplyException.Reason.INVALID_MENU);
 			return;
@@ -73,11 +90,12 @@ public class AutomaticApplyPolicy {
 			return;
 		}
 		if (target.matches("menu\\.\\d+\\.removed")) {
-			// Semantic inclusion policy is not evidence that the source removed this menu.
-			if ("제외 필터".equals(old.path("reason").asString("")))
+			// Only the explicit poke policy permits automatic exclusion without source disappearance.
+			boolean policyExclusion = "제외 필터".equals(old.path("reason").asString(""));
+			if (policyExclusion && !menuFilter.isPoke(old.path("name").asString("")))
 				hold(AutomaticApplyException.Reason.MENU_POLICY_REVIEW_REQUIRED);
 			if (!value.isNull() || !text(old.path("name")) || !old.has("price") || !old.has("description")
-				|| old.hasNonNull("reason")) hold(AutomaticApplyException.Reason.DELETION_EVIDENCE_REQUIRES_REVIEW);
+				|| (old.hasNonNull("reason") && !policyExclusion)) hold(AutomaticApplyException.Reason.DELETION_EVIDENCE_REQUIRES_REVIEW);
 			// MenuRemovalProposalGate verifies complete, latest absence before claim.
 			return;
 		}
