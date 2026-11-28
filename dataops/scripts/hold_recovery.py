@@ -18,8 +18,13 @@ RECOLLECT_REASONS = frozenset({
     "OBSERVATION_EXPIRED", "STALE_OBSERVATION", "STALE_EVIDENCE", "POLICY_CHANGED",
     "BAEMIN_GROUP_OUT_OF_SCOPE",
 })
-# Explicit null/empty menu fields are ordinary unavailable data, not schema drift.
-NORMAL_EMPTY = frozenset({"MENU_INCOMPLETE", "BAEMIN_INCOMPLETE"})
+# These coarse legacy reasons need server source evidence to distinguish null from truncation.
+MENU_AVAILABILITY_REASONS = frozenset({"MENU_INCOMPLETE", "BAEMIN_INCOMPLETE"})
+COMPLETED_STATES = frozenset({"RESOLVED", "FALLBACK_COMPLETED", "SOURCE_NOT_PROVIDED"})
+ACTIONABLE_STATES = frozenset({"WAITING", "CONFIGURATION_BLOCKED", "EXHAUSTED", "EXPIRED",
+    "REVIEW_REQUIRED", "AGENT_REQUIRED", "MENU_DECISION_REQUIRED", "AUDIT_REQUIRED"})
+SOURCE_METRICS = {"FALLBACK_COMPLETED": "menu_fallback_completed",
+                  "SOURCE_NOT_PROVIDED": "menu_source_not_provided", "SOURCE_UNVERIFIED": "menu_source_unverified"}
 STRUCTURE_REASONS = frozenset({
     "PARSER_EXCEPTION", "ARGUMENTS_UNSUPPORTED", "ROOT_UNKNOWN", "ROOT_TYPE_CHANGED",
     "REQUIRED_FIELD_UNREADABLE", "FIELD_TYPE_UNSUPPORTED", "MENU_CONTAINER_UNRECOGNIZED",
@@ -62,13 +67,36 @@ def classify(receipt, reasons):
         return "WAITING"
     if "MENU_POLICY_REVIEW_REQUIRED" in reasons:
         return "MENU_DECISION_REQUIRED"
-    if reasons - NORMAL_EMPTY:
+    if reasons - MENU_AVAILABILITY_REASONS:
         return "REVIEW_REQUIRED"
-    if reasons:
-        return "INCOMPLETE"
     if receipt.get("assessment") == "HELD":
         return "REVIEW_REQUIRED"
+    if reasons:
+        return source_outcome(receipt)
     return "RESOLVED"
+
+
+def source_outcome(receipt):
+    """Use server evidence, never reparse raw menus or infer success from an old receipt."""
+    sources = receipt.get("menuSources")
+    if not isinstance(sources, dict) or type(sources.get("version")) is not int or sources["version"] != 1:
+        return "SOURCE_UNVERIFIED"
+    states = {"AVAILABLE", "EMPTY", "NOT_PROVIDED", "INCOMPLETE"}
+    naver, baemin = sources.get("naver"), sources.get("baemin")
+    if not isinstance(naver, str) or not isinstance(baemin, str) or naver not in states or baemin not in states:
+        return "SOURCE_UNVERIFIED"
+    if "INCOMPLETE" in (naver, baemin):
+        return "WAITING"  # A real truncated/filtered list uses the existing finite retry budget.
+    automatic = receipt.get("automaticApply", {})
+    keys = ("applied", "alreadyApplied", "held", "failed", "unknown")
+    if (not receipt.get("captureId") or automatic.get("captureId") != receipt["captureId"]
+            or any(type(automatic.get(key)) is not int or automatic[key] < 0 for key in keys)
+            or any(automatic[key] for key in ("held", "failed", "unknown"))
+            or automatic.get("observationHold")):
+        return "SOURCE_UNVERIFIED"
+    if naver in ("AVAILABLE", "EMPTY"):
+        return "RESOLVED"
+    return "FALLBACK_COMPLETED" if baemin == "AVAILABLE" else "SOURCE_NOT_PROVIDED"
 
 
 def observed_time(record):
@@ -116,6 +144,7 @@ class HoldRecovery:
                    else record["recovery"]["reasons"])
         status = (classify(record["receipt"], reasons) if "receipt" in record
                   else record["recovery"]["status"])
+        if status == "INCOMPLETE": status = "SOURCE_UNVERIFIED"
         previous = record.get("recovery", {})
         if not previous:
             previous = {"originCaptureId": record["capture_id"], "attempts": 0,
@@ -128,7 +157,7 @@ class HoldRecovery:
         tasks = []
         if set(reasons) & STRUCTURE_REASONS: tasks.append("PARSER_REPAIR")
         if "MENU_POLICY_REVIEW_REQUIRED" in reasons: tasks.append("MENU_CLASSIFICATION")
-        recovery = {**previous, "version": 1, "reasons": reasons, "status": status, "heldCounts": held_counts,
+        recovery = {**previous, "version": 2, "reasons": reasons, "status": status, "heldCounts": held_counts,
                     "analysisTasks": tasks}
         recovery["status"] = bounded_status(recovery, now)
         if record.get("recovery") != recovery:
@@ -185,7 +214,8 @@ class HoldRecovery:
         key = (request.get("storeId"), request.get("source"), request.get("externalId"))
         if parent is None and key in self.latest:
             parent = self.spool.read(self.latest[key][1])
-        if parent and parent.get("recovery", {}).get("status") != "RESOLVED" and parent.get("recovery"):
+        if (parent and parent.get("recovery")
+                and parent["recovery"]["status"] not in COMPLETED_STATES | {"SOURCE_UNVERIFIED"}):
             return {**parent["recovery"], "parentCaptureId": parent["capture_id"]}
         return None
 
@@ -193,17 +223,23 @@ class HoldRecovery:
         """Report retry states at publication time without modifying capture receipts."""
         now = time.time() if now is None else now
         states = ("waiting", "configuration_blocked", "exhausted", "expired", "review_required",
-                  "agent_required", "menu_decision_required", "audit_required", "incomplete", "superseded")
+                  "agent_required", "menu_decision_required", "audit_required", "superseded")
         result = {"recovery_" + state: 0 for state in states}
+        result.update({metric: 0 for metric in SOURCE_METRICS.values()})
+        result["recovery_pending"] = 0
         held_kinds = {PERMISSION_REASON: "hold_permission_required", "SOURCE_UNKNOWN": "hold_source_unknown",
                       "DELETION_EVIDENCE_REQUIRES_REVIEW": "hold_deletion_review", "SOURCE_CONFLICT": "hold_source_conflict",
                       "MENU_POLICY_REVIEW_REQUIRED": "hold_menu_policy_review"}
         result.update({kind: 0 for kind in held_kinds.values()})
         for _, path in self.latest.values():
             record = self.spool.read(path)
-            key = "recovery_" + bounded_status(record.get("recovery", {}), now).lower()
+            status = bounded_status(record.get("recovery", {}), now)
+            # Old fetch failures may carry a pre-upgrade INCOMPLETE without a receipt.
+            key = SOURCE_METRICS.get("SOURCE_UNVERIFIED" if status == "INCOMPLETE" else status, "recovery_" + status.lower())
             if key in result:
                 result[key] += 1
+            if status in ACTIONABLE_STATES:
+                result["recovery_pending"] += 1
             for reason, count in record.get("recovery", {}).get("heldCounts", {}).items():
                 if reason in held_kinds:
                     result[held_kinds[reason]] += count

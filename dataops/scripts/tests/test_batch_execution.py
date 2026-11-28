@@ -29,7 +29,9 @@ class BatchExecutionTest(unittest.TestCase):
         with execution:
             execution.record['items'] = {'auto_apply_applied': 91, 'auto_apply_unknown': 1, 'proposal_id': 1234,
                                         'recovery_attempted': 9, 'hold_permission_required': 9,
-                                        'recovery_menu_decision_required': 1}
+                                        'recovery_menu_decision_required': 1, 'recovery_pending': 10,
+                                        'menu_fallback_completed': 2, 'menu_source_not_provided': 5,
+                                        'menu_source_unverified': 0, 'recovery_incomplete': 7}
             execution.finish(1)
         metrics = journal.metrics(self.directory / 'runs', 'freshness-refresh')
         self.assertIn('result="auto_apply_applied"} 91', metrics)
@@ -38,6 +40,26 @@ class BatchExecutionTest(unittest.TestCase):
         self.assertIn('result="recovery_attempted"} 9', metrics)
         self.assertIn('result="hold_permission_required"} 9', metrics)
         self.assertIn('result="recovery_menu_decision_required"} 1', metrics)
+        self.assertIn('result="recovery_pending"} 10', metrics)
+        self.assertIn('result="menu_fallback_completed"} 2', metrics)
+        self.assertIn('result="menu_source_not_provided"} 5', metrics)
+        self.assertIn('result="menu_source_unverified"} 0', metrics)
+        self.assertNotIn('result="recovery_incomplete"', metrics)
+
+    def test_dashboard_separates_menu_coverage_and_actionable_recovery_without_fake_zero(self):
+        dashboard = json.loads((Path(__file__).resolve().parents[3] /
+            'monitoring/grafana/dataops-spring-v0.json').read_text())
+        panels = {panel['id']: panel for panel in dashboard['panels']}
+        for panel_id, key in ((28, 'menu_fallback_completed'), (29, 'menu_source_not_provided'),
+                              (30, 'recovery_pending')):
+            expression = panels[panel_id]['targets'][0]['expr']
+            self.assertIn('result="' + key + '"', expression)
+            self.assertNotIn('or vector(0)', expression)
+            self.assertEqual(panels[panel_id]['fieldConfig']['defaults']['noValue'], '수집 확인 필요')
+        recovery = panels[27]['targets'][0]['expr']
+        for excluded in ('incomplete', 'superseded', 'menu_fallback_completed', 'menu_source_not_provided'):
+            self.assertNotIn(excluded, recovery)
+        self.assertIn('source_unverified', panels[31]['targets'][0]['expr'])
 
     def test_failure_records_step_and_run_without_exception_message(self):
         execution = journal.WorkflowRun(self.directory, "nightly")

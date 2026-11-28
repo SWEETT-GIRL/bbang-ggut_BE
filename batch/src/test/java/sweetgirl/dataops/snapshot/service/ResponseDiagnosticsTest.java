@@ -10,6 +10,58 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 class ResponseDiagnosticsTest {
+	@Test void source_availability_distinguishes_null_empty_incomplete_and_verified_fallback() {
+		var payload = payload();
+		var root = (ObjectNode)payload.path("ROOT_QUERY").path(ROOT);
+		assertThat(inspect(payload).menuSources().naver().name()).isEqualTo("AVAILABLE");
+		assertThat(inspect(payload).menuSources().baemin().name()).isEqualTo("NOT_PROVIDED");
+		((ObjectNode)root.path("placeMenus")).put("menuCount", 2);
+		assertThat(inspect(payload).menuSources().naver().name()).isEqualTo("INCOMPLETE");
+		root.putNull("placeMenus");
+		payload.remove("PlaceMenuItem:a");
+		assertThat(inspect(payload).menuSources().naver().name()).isEqualTo("NOT_PROVIDED");
+		root.set("baemin", mapper.readTree("""
+			{"__typename":"PlaceDetail_BaeminData","menus":[
+			 {"__typename":"PlaceDetail_BaeminMenu","id":"b1","name":"버터바","price":"5000"}]}
+			"""));
+		var fallback = inspect(payload);
+		assertThat(fallback.assessment()).isEqualTo("PARTIAL");
+		assertThat(fallback.baeminAllowed()).isTrue();
+		assertThat(fallback.menuSources().baemin().name()).isEqualTo("AVAILABLE");
+		((ObjectNode)root.path("baemin")).putArray("menus");
+		assertThat(inspect(payload).menuSources().baemin().name()).isEqualTo("EMPTY");
+		root.set("placeMenus", mapper.readTree("{\"menuCount\":0,\"items\":[]}"));
+		assertThat(inspect(payload).menuSources().naver().name()).isEqualTo("EMPTY");
+		assertThat(inspect(payload).menuAllowed()).isTrue();
+	}
+
+	@Test void filtered_null_and_missing_or_broken_menu_fields_never_claim_source_not_provided() {
+		var payload = payload();
+		var root = (ObjectNode)payload.path("ROOT_QUERY").path(ROOT);
+		root.remove("placeMenus");
+		payload.remove("PlaceMenuItem:a");
+		root.putNull("placeMenus({\"page\":2})");
+		assertThat(inspect(payload).menuSources().naver().name()).isEqualTo("INCOMPLETE");
+		root.remove("placeMenus({\"page\":2})");
+		var missing = inspect(payload);
+		assertThat(missing.held()).isTrue();
+		assertThat(missing.menuSources().naver().name()).isEqualTo("UNVERIFIED");
+		root.set("placeMenus", mapper.readTree("{\"__ref\":\"missing\"}"));
+		assertThat(inspect(payload).menuSources().naver().name()).isEqualTo("UNVERIFIED");
+	}
+
+	@Test void legacy_receipt_is_readable_without_inventing_source_availability() {
+		var legacy = mapper.readValue("""
+			{"snapshotId":7,"changed":true,"contentHash":null,"captureId":"old",
+			 "assessment":"PARTIAL","reasons":["MENU_INCOMPLETE"]}
+			""", sweetgirl.dataops.snapshot.dto.response.SnapshotSubmitResponse.class);
+		assertThat(legacy.menuSources()).isNull();
+		var sources = inspect(payload()).menuSources();
+		var current = new sweetgirl.dataops.snapshot.dto.response.SnapshotSubmitResponse(
+			7L, true, "hash", "new", "READY", java.util.List.of(), sources);
+		assertThat(mapper.readValue(mapper.writeValueAsString(current), current.getClass())).isEqualTo(current);
+		assertThat(current.withCaptureId("another").menuSources()).isEqualTo(sources);
+	}
 	private final ObjectMapper mapper = new ObjectMapper();
 	private final ResponseDiagnostics diagnostics = new ResponseDiagnostics(mapper, new NaverPlaceParser(),
 		new BusinessHoursParser(), new MenuEvidenceParser(mapper));

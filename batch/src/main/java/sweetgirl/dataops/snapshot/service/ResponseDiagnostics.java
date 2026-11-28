@@ -1,5 +1,7 @@
 package sweetgirl.dataops.snapshot.service;
 
+import static sweetgirl.dataops.snapshot.dto.response.MenuSourceAvailability.State.*;
+import sweetgirl.dataops.snapshot.dto.response.MenuSourceAvailability;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -21,7 +23,7 @@ import tools.jackson.databind.node.MissingNode;
 @Component
 public class ResponseDiagnostics {
 	public static final String CONTRACT = "naver-response-v1";
-	public static final String VERSION = "menu-scope-v4-sources";
+	public static final String VERSION = "menu-scope-v5-availability";
 	private final ObjectMapper mapper;
 	private final NaverPlaceParser parser;
 	private final BusinessHoursParser hoursParser;
@@ -52,12 +54,13 @@ public class ResponseDiagnostics {
 	public String runtimeParserDigest() {
 		return ResponseDigests.sha256("response-parser-profile-v1\n" + ResponseDigests.classes(
 			NaverPlaceParser.class, BusinessHoursParser.class, MenuEvidenceParser.class, ParsedPlace.class,
-			ResponseDiagnostics.class, MenuStructureProfile.class, MenuStructureProfile.Entity.class,
+			ResponseDiagnostics.class, MenuSourceAvailability.class, MenuSourceAvailability.State.class, MenuStructureProfile.class, MenuStructureProfile.Entity.class,
 			MenuStructureProfile.Container.class, MenuStructureProfile.PriceShape.class, MenuStructureProfile.ImageShape.class)
 			+ "\n" + structureProfile.digest());
 	}
 	public record Issue(String path, String code, String actualType, boolean modelEligible) {}
-	public record Report(String parserDigest, List<Issue> issues, boolean baeminVerified) {
+	public record Report(String parserDigest, List<Issue> issues, boolean baeminVerified, MenuSourceAvailability menuSources) {
+		public Report(String parserDigest, List<Issue> issues, boolean baeminVerified) { this(parserDigest, issues, baeminVerified, MenuSourceAvailability.unverified()); }
 		public Report(String parserDigest, List<Issue> issues) { this(parserDigest, issues, false); }
 		public boolean baeminAllowed() { return baeminVerified && !held(); }
 		public boolean held() { return issues.stream().anyMatch(i -> !Set.of("MENU_INCOMPLETE", "BAEMIN_INCOMPLETE").contains(i.code())); }
@@ -74,13 +77,14 @@ public class ResponseDiagnostics {
 	public Report inspect(SnapshotSubmitRequest request) {
 		List<Issue> issues = new ArrayList<>();
 		String digest = runtimeParserDigest();
-		boolean baeminVerified = false;
-		try { baeminVerified = inspect(request, issues); }
+		SourceInspection sources = SourceInspection.unverified();
+		try { sources = inspect(request, issues); }
 		catch (RuntimeException e) {
 			boolean mutated = "PARSER_INPUT_MUTATION".equals(e.getMessage());
 			issues.add(new Issue("$", mutated ? "PARSER_INPUT_MUTATION" : "PARSER_EXCEPTION", e.getClass().getSimpleName(), !mutated));
 		}
-		return new Report(digest, List.copyOf(issues), baeminVerified);
+		var report = new Report(digest, List.copyOf(issues), sources.baeminVerified(), sources.availability());
+		return report.held() ? new Report(digest, report.issues(), sources.baeminVerified(), MenuSourceAvailability.unverified()) : report;
 	}
 
 	/** Candidate parsers may normalize their own copy, but must not mutate their caller's input. */
@@ -92,7 +96,7 @@ public class ResponseDiagnostics {
 		}
 	}
 
-	private boolean inspect(SnapshotSubmitRequest request, List<Issue> issues) {
+	private SourceInspection inspect(SnapshotSubmitRequest request, List<Issue> issues) {
 		JsonNode payload = request.payload();
 		if (!payload.isObject() || request.externalId() == null || request.externalId().isBlank()
 			|| request.observationId() == null || request.observationId().isBlank() || request.observedAt() == null
@@ -100,7 +104,7 @@ public class ResponseDiagnostics {
 			|| request.observedAt().toInstant().isAfter(java.time.Instant.now().plusSeconds(300))
 			|| !"NAVER".equals(request.source().name())) {
 			issues.add(new Issue("$", "UNVERIFIED_INPUT", type(payload), false));
-			return false;
+			return SourceInspection.unverified();
 		}
 		if (payload.has("errors") && !payload.path("errors").isEmpty()) {
 			issues.add(new Issue("$.errors", "PARTIAL_RESPONSE", type(payload.path("errors")), false));
@@ -120,14 +124,14 @@ public class ResponseDiagnostics {
 		// NaverPlaceParser currently chooses the first root: do not accept ambiguous cache contents.
 		if (roots.size() != 1 || allRoots != 1) {
 			issues.add(new Issue("placeDetail", "ROOT_UNKNOWN", "ambiguous-or-missing", true));
-			return false;
+			return SourceInspection.unverified();
 		}
 		JsonNode root = roots.get(0);
 		if (root.isNull()) {
 			issues.add(new Issue("placeDetail", "EXPLICIT_PAGE_ABSENT", "null", false));
-			return false;
+			return SourceInspection.unverified();
 		}
-		if (!root.isObject()) { issues.add(new Issue("placeDetail", "ROOT_TYPE_CHANGED", type(root), true)); return false; }
+		if (!root.isObject()) { issues.add(new Issue("placeDetail", "ROOT_TYPE_CHANGED", type(root), true)); return SourceInspection.unverified(); }
 		ParsedPlace parsed = parsePreservingInput(parser, payload);
 		if (parsed.name() == null || parsed.name().isBlank()) {
 			issues.add(new Issue("PlaceDetailBase.name", "REQUIRED_FIELD_UNREADABLE", "missing-output", true));
@@ -182,7 +186,20 @@ public class ResponseDiagnostics {
 		if (hoursFields > 1) issues.add(new Issue("newBusinessHours", "AMBIGUOUS_HOURS", "multiple", false));
 		if (!menuContainerPresent) issues.add(new Issue("placeDetail.menus", "MENU_CONTAINER_MISSING", "MISSING", true));
 		inspectHours(parsed.businessHoursRaw(), issues);
-		return inspectBaemin(payload, root, parsed, issues);
+		boolean baeminVerified = inspectBaemin(payload, root, parsed, issues);
+		var naver = evidence.menuComplete() ? (evidence.menuNames().isEmpty() ? EMPTY : AVAILABLE) : INCOMPLETE;
+		var containers = root.properties().stream().filter(e -> structureProfile.container(e.getKey()) != null).toList();
+		if (!evidence.menuComplete() && containers.size() == 1 && !containers.get(0).getKey().contains("(")
+			&& resolve(payload, containers.get(0).getValue(), issues).isNull()) naver = NOT_PROVIDED;
+		JsonNode baemin = resolve(payload, root.path("baemin"), issues);
+		JsonNode baeminMenus = resolve(payload, baemin.path("menus"), issues);
+		var baeminState = baemin.isNull() || baemin.isMissingNode() || baeminMenus.isNull() ? NOT_PROVIDED
+			: baeminVerified ? (baeminMenus.isEmpty() ? EMPTY : AVAILABLE) : UNVERIFIED;
+		return new SourceInspection(baeminVerified, new MenuSourceAvailability(naver, baeminState));
+	}
+
+	private record SourceInspection(boolean baeminVerified, MenuSourceAvailability availability) {
+		static SourceInspection unverified() { return new SourceInspection(false, MenuSourceAvailability.unverified()); }
 	}
 
 	/** Missing expected fields are a structural suspicion; explicit null remains ordinary unavailable data. */

@@ -13,6 +13,8 @@ from uuid import uuid4
 
 COUNTS = ('attempted', 'changed', 'unchanged', 'partial', 'held', 'failed')
 AUTO_COUNTS = ('auto_apply_applied', 'auto_apply_already_applied', 'auto_apply_held', 'auto_apply_failed', 'auto_apply_unknown')
+SOURCE_COUNTS = {'menu_fallback_completed': '대체 출처 반영 완료', 'menu_source_not_provided': '메뉴 원본 미제공',
+                 'recovery_pending': '실제 복구 대기', 'menu_source_unverified': '출처 판정 미확인'}
 ARTIFACT_COUNTS = {
     'public_raw': '공공 원본', 'public_new': '신규 관리번호', 'public_upd': '상태 변경',
     'candidates_inserted': '후보 저장', 'candidates_existing': '기존 후보', 'candidates_held': '후보 보류',
@@ -63,6 +65,7 @@ def summaries(logs, invocation_id):
             row = {'workflow': record['command'], 'status': record.get('status', 'RUNNING'),
                    'current': counts(record.get('items_current'), COUNTS),
                    'automatic': counts(record.get('items_current'), AUTO_COUNTS),
+                   'latest_sources': counts(record.get('items_current'), SOURCE_COUNTS),
                    'artifacts': counts(record.get('items'), ARTIFACT_COUNTS)}
             if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,63}', str(record.get('cycle_id', ''))):
                 row['cycle_id'] = record['cycle_id']
@@ -105,7 +108,7 @@ def message(record, event):
         has_counts = False
         workflows = record.get('workflows', [])
         # 긴 실행도 Slack block 제한을 넘기지 않는다. 전체 이력은 JSON에 남는다.
-        for row in workflows[:8]:
+        for row in workflows[:7]:
             label = row['workflow'] + ((' / ' + row['cycle_id']) if row.get('cycle_id') else '')
             blocks.append({'type': 'section', 'text': plain(label + ' · ' + LABELS.get(row['status'], '미확인'))})
             current = row['current']
@@ -129,13 +132,18 @@ def message(record, event):
                     field('반영 보류', f"{automatic['auto_apply_held']}건"),
                     field('반영 실패 / 결과 미확정', f"{automatic['auto_apply_failed']} / {automatic['auto_apply_unknown']}건")
                 ]})
+            latest_sources = row.get('latest_sources', {})
+            if set(latest_sources) == set(SOURCE_COUNTS):
+                blocks.append({'type': 'section',
+                    'text': plain('보관된 가게·출처별 최신 상태 · 이번 실행 처리량과 별도'),
+                    'fields': [field(label, f'{latest_sources[key]}곳') for key, label in SOURCE_COUNTS.items()]})
             if row['artifacts']:
                 blocks.append(context('회차 산출물(이번 실행 처리량 아님): ' + ' · '.join(
                     ARTIFACT_COUNTS[key] + ' ' + str(value) for key, value in row['artifacts'].items())))
             if row['skipped_tracks']:
                 blocks.append(context('이미 완료되어 재처리하지 않음: ' + ', '.join(row['skipped_tracks'])))
-        if len(workflows) > 8:
-            blocks.append(context(f'추가 작업 {len(workflows) - 8}개의 결과는 실행 이력 JSON에서 확인하세요.'))
+        if len(workflows) > 7:
+            blocks.append(context(f'추가 작업 {len(workflows) - 7}개의 결과는 실행 이력 JSON에서 확인하세요.'))
         if not has_counts:
             blocks.append(context('이번 수집 건수: 미집계 또는 수집 단계 미실행(0건으로 추정하지 않음)'))
         if record.get('invalid_journals'):

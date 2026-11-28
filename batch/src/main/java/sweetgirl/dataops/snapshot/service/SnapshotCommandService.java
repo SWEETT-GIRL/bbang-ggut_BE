@@ -62,13 +62,14 @@ public class SnapshotCommandService {
 		responseCaptureService.assess(captureId, request.source().name(), diagnostic);
 		if (diagnostic.held()) {
 			return new SnapshotSubmitResponse(null, false, null, captureId, "HELD",
-				diagnostic.issues().stream().map(ResponseDiagnostics.Issue::code).distinct().toList());
+				diagnostic.issues().stream().map(ResponseDiagnostics.Issue::code).distinct().toList(), diagnostic.menuSources());
 		}
 		SnapshotSubmitResponse processed = processValidated(request, diagnostic, captureId);
 		var response = new SnapshotSubmitResponse(processed.snapshotId(), processed.changed(), processed.contentHash(),
 			captureId, "HELD".equals(processed.assessment()) ? "HELD" : diagnostic.assessment(),
 			java.util.stream.Stream.concat(processed.reasons().stream(), diagnostic.issues().stream()
-				.map(ResponseDiagnostics.Issue::code)).distinct().toList());
+				.map(ResponseDiagnostics.Issue::code)).distinct().toList(),
+			"HELD".equals(processed.assessment()) ? sweetgirl.dataops.snapshot.dto.response.MenuSourceAvailability.unverified() : diagnostic.menuSources());
 		responseCaptureService.complete(captureId, response);
 		return response;
 	}

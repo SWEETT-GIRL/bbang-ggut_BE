@@ -27,7 +27,7 @@ from html.parser import HTMLParser
 
 import requests
 from capture_spool import CaptureSpool
-from hold_recovery import HoldRecovery, classify, receipt_reasons
+from hold_recovery import HoldRecovery, classify, receipt_reasons, COMPLETED_STATES
 from dataops_server import server_headers
 
 REQUEST_INTERVAL_SECONDS = 1.5
@@ -245,7 +245,7 @@ def run(server: str, limit: int, max_stores: int | None,
                 account(result)
                 spool.acknowledge(record, result)
                 if (auto_apply and record.get("recovery", {}).get("parentCaptureId")
-                        and classify(result, receipt_reasons(result)) == "RESOLVED"):
+                        and classify(result, receipt_reasons(result)) in COMPLETED_STATES):
                     recovery_resolved += 1
                 if applied_counts["auto_apply_failed"] or applied_counts["auto_apply_unknown"]:
                     return EXIT_SERVER_ERROR
@@ -353,7 +353,7 @@ def run(server: str, limit: int, max_stores: int | None,
                         if recovery:
                             acknowledged = spool.read(spool.path(observation_id))
                             recovery.observe(acknowledged, time.time())
-                            if parent is not None and spool.read(spool.path(observation_id))["recovery"]["status"] == "RESOLVED":
+                            if parent is not None and spool.read(spool.path(observation_id))["recovery"]["status"] in COMPLETED_STATES:
                                 recovery_resolved += 1
                         if result.get("assessment") == "HELD":
                             held += 1
@@ -380,7 +380,7 @@ def run(server: str, limit: int, max_stores: int | None,
         print(f"[worker] 세션 종료 — 처리 {processed}, 변경 {changed}, 무변경 {unchanged}, 부분처리 {partial}, 보류 {held}, 실패 {failed}", flush=True)
         if auto_apply:
             print("[worker] 운영 반영 — " + ", ".join(f"{key}={value}" for key, value in applied_counts.items()), flush=True)
-            print("[worker] 보류 복구 — recovery_* 가게 / hold_* 변경 후보: " + json.dumps(recovery.counts(), ensure_ascii=False), flush=True)
+            print("[worker] 최신 전체 상태 — menu_* 출처 상태 / recovery_* 복구 대상 가게 / hold_* 변경 후보: " + json.dumps(recovery.counts(), ensure_ascii=False), flush=True)
         if remaining:
             print(f"[worker] 선택 가게 미처리(리스·스케줄·상태 확인): {sorted(remaining)}", flush=True)
         return EXIT_SERVER_ERROR if remaining or applied_counts["auto_apply_failed"] or applied_counts["auto_apply_unknown"] else EXIT_OK
