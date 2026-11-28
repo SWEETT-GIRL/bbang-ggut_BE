@@ -112,18 +112,28 @@ class RestorationPostgresTest(unittest.TestCase):
         self.assertEqual(self.run_repair()['already_restored'], 1)
         self.assertEqual(self.scalar('SELECT count(*) FROM menu_provenance_restoration'), 1)
 
-    def test_changed_revision_or_user_menu_blocks_all_writes(self):
-        for mutation in ("UPDATE menu SET updated_at=now()", "UPDATE menu SET created_by_member_id=5"):
-            self.mutate(mutation)
-            with self.assertRaises(ValueError): self.run_repair()
-            self.assertEqual(self.scalar('SELECT count(*) FROM menu_provenance_restoration'), 0)
-            self.assertEqual(self.scalar('SELECT count(*) FROM store_field_provenance'), 0)
+    def assert_rejected_without_writes(self, reason):
+        provenance_before = self.scalar('SELECT count(*) FROM store_field_provenance')
+        with self.assertRaisesRegex(ValueError, reason): self.run_repair()
+        self.assertEqual(self.scalar('SELECT count(*) FROM menu_provenance_restoration'), 0)
+        self.assertEqual(self.scalar('SELECT count(*) FROM store_field_provenance'), provenance_before)
+        self.assertIsNone(self.scalar('SELECT next_due_at FROM store_sync_state'))
 
-    def test_existing_whole_or_field_provenance_is_not_overwritten(self):
-        for field in ('menu.7', 'menu.7.description'):
-            self.mutate(f"INSERT INTO store_field_provenance VALUES(1,'{field}','USER',NULL)")
-            with self.assertRaisesRegex(ValueError, 'existing provenance'): self.run_repair()
-            self.assertEqual(self.scalar('SELECT count(*) FROM menu_provenance_restoration'), 0)
+    def test_changed_revision_blocks_all_writes(self):
+        self.mutate("UPDATE menu SET updated_at=now()")
+        self.assert_rejected_without_writes('serving value/revision changed')
+
+    def test_user_created_menu_blocks_all_writes(self):
+        self.mutate("UPDATE menu SET created_by_member_id=5")
+        self.assert_rejected_without_writes('user or deleted menu is protected')
+
+    def test_existing_whole_provenance_is_not_overwritten(self):
+        self.mutate("INSERT INTO store_field_provenance VALUES(1,'menu.7','USER',NULL)")
+        self.assert_rejected_without_writes('existing provenance')
+
+    def test_existing_field_provenance_is_not_overwritten(self):
+        self.mutate("INSERT INTO store_field_provenance VALUES(1,'menu.7.description','USER',NULL)")
+        self.assert_rejected_without_writes('existing provenance')
 
     def test_active_lease_or_observation_prevents_repair(self):
         self.mutate("UPDATE store_sync_state SET last_attempt_at=timezone('Asia/Seoul', now())")

@@ -105,10 +105,13 @@ public class BeverageFilter {
 		"\\s*(?:[-:/]\\s*)?(말차|녹차|얼그레이|초코|초콜릿|바닐라|딸기|레몬|흑임자)(?:맛)?\\s*");
 	private static final java.util.regex.Pattern POKE = java.util.regex.Pattern.compile(
 		"포케|(?<![a-z])poke(?![a-z])", java.util.regex.Pattern.CASE_INSENSITIVE);
+	private static final java.util.regex.Pattern POKE_CAKE = java.util.regex.Pattern.compile(
+		"(?<![a-z])poke[\\s-]+cakes?(?![a-z])", java.util.regex.Pattern.CASE_INSENSITIVE);
+	private static final java.util.regex.Pattern PAREN_CONTENT = java.util.regex.Pattern.compile("\\(([^()]*)\\)");
 
-	/** Explicit service policy: poke is a meal, including names that also contain 베이글. */
+	/** Poke meals are excluded; the distinct "poke cake" product is not a meal signal. */
 	public boolean isPoke(String menuName) {
-		return menuName != null && POKE.matcher(menuName).find();
+		return menuName != null && POKE.matcher(POKE_CAKE.matcher(menuName).replaceAll(" ")).find();
 	}
 
 	/**
@@ -143,7 +146,7 @@ public class BeverageFilter {
 		int lastDessert = lastEndOfAny(flat, DESSERT_TYPE);
 		if (lastDessert > lastExcluded && lastDessert > 0
 			&& DESSERT_FLAVOR_SUFFIX.matcher(flat.substring(lastDessert).strip()).matches()) {
-			return false;
+			return hasParentheticalBeverageSuffix(name);
 		}
 		if (lastExcluded >= 0 && lastExcluded >= lastDessert) {
 			return true;
@@ -173,6 +176,16 @@ public class BeverageFilter {
 				continue;
 			}
 			break;
+		}
+		return false;
+	}
+
+	/** Preserve drink/container evidence that stripping flavor annotations would otherwise hide. */
+	private boolean hasParentheticalBeverageSuffix(String name) {
+		var groups = PAREN_CONTENT.matcher(name);
+		while (groups.find()) {
+			String inner = trimTrailingNoise(groups.group(1).strip());
+			if (!endsWithAny(inner, DESSERT_TYPE) && endsWithAny(inner, BEVERAGE_SUFFIX_ONLY)) return true;
 		}
 		return false;
 	}

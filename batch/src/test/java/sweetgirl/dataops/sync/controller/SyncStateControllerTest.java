@@ -93,6 +93,14 @@ class SyncStateControllerTest {
 		then(syncStateCommandService).should(never()).exportDue(anyInt());
 	}
 
+	@Test void invalid_selected_limit_returns_http_400_and_sync_error_code() throws Exception {
+		given(syncStateCommandService.exportSelectedDue(51, List.of(1L)))
+			.willThrow(new SyncStateException(SyncStateErrorCode.INVALID_DUE_SELECTION));
+		mockMvc.perform(get("/api/sync-states/due").param("limit", "51").param("storeIds", "1"))
+			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_DUE_SELECTION"));
+		then(syncStateCommandService).should(never()).exportDue(anyInt());
+	}
+
 	@Test
 	void seed_시딩_결과를_반환한다() throws Exception {
 		given(syncSeedService.seed()).willReturn(new SeedResultResponse(30944, 30944, 0, 64));

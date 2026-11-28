@@ -80,6 +80,12 @@ class AutomaticApplyPolicyTest {
 	@Test void new_delivery_menu_is_allowed_without_replacing_an_existing_price() {
 		verify(proposal("menu.add.test", null, "{\"name\":\"소금빵\",\"price\":3500}", ProvenanceSource.BAEMIN), Map.of());
 	}
+	@Test void poke_cake_is_addable_but_cannot_be_removed_by_the_meal_policy() {
+		verify(proposal("menu.add.cake", null, "{\"name\":\"Chocolate Poke Cake\",\"price\":5500}", ProvenanceSource.NAVER), Map.of());
+		assertThatThrownBy(() -> verify(proposal("menu.9.removed",
+			"{\"name\":\"Chocolate Poke Cake\",\"price\":5500,\"description\":null,\"reason\":\"제외 필터\"}",
+			null, ProvenanceSource.NAVER), Map.of())).hasMessage("MENU_POLICY_REVIEW_REQUIRED");
+	}
 	@Test void food_classification_is_distinct_from_parser_repair_and_source_deletion_evidence() {
 		for (String name : new String[] {"베이글 연어 포케", "베이글 새우 포케"}) {
 			verify(proposal("menu.9.removed",

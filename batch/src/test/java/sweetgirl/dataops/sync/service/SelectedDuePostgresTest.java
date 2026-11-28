@@ -23,15 +23,15 @@ class SelectedDuePostgresTest {
 		var source = new DriverManagerDataSource(base + "?currentSchema=" + schema, "postgres", "");
 		var jdbc = new JdbcTemplate(source);
 		try {
+			var now = LocalDateTime.of(2026, 11, 28, 17, 0);
 			jdbc.execute("CREATE TABLE store_sync_state(id bigint primary key,store_id bigint,source text,state text,next_due_at timestamp,last_attempt_at timestamp,claimed_at timestamp,claim_token uuid,attempt_seq bigint default 0)");
-			jdbc.execute("INSERT INTO store_sync_state(id,store_id,source,state,next_due_at) SELECT n,n,'NAVER','ACTIVE',localtimestamp-interval '1 day' FROM generate_series(1,7) n");
-			jdbc.execute("UPDATE store_sync_state SET last_attempt_at=localtimestamp WHERE id=3");
+			jdbc.update("INSERT INTO store_sync_state(id,store_id,source,state,next_due_at) SELECT n,n,'NAVER','ACTIVE',CAST(? AS timestamp) FROM generate_series(1,7) n", now.minusDays(1));
+			jdbc.update("UPDATE store_sync_state SET last_attempt_at=? WHERE id=3", now);
 			jdbc.execute("UPDATE store_sync_state SET state='PARKED' WHERE id=4");
-			jdbc.execute("UPDATE store_sync_state SET next_due_at=localtimestamp+interval '1 day' WHERE id=5");
+			jdbc.update("UPDATE store_sync_state SET next_due_at=? WHERE id=5", now.plusDays(1));
 			jdbc.execute("UPDATE store_sync_state SET source='BAEMIN' WHERE id=6");
 			String query = StoreSyncStateRepository.class.getMethod("claimSelectedDue", List.class, LocalDateTime.class,
 				LocalDateTime.class, int.class, UUID.class).getAnnotation(Query.class).value();
-			var now = LocalDateTime.now();
 			var params = Map.of("storeIds", List.of(1L, 3L, 4L, 5L, 6L, 7L), "now", now,
 				"leaseExpiry", now.minusHours(2), "limit", 50, "token", UUID.randomUUID());
 			try (var held = source.getConnection()) {

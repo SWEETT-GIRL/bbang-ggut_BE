@@ -5,6 +5,21 @@ import static org.assertj.core.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 
 class BeverageFilterTest {
+	@Test void poke_cakes_are_not_poke_meals_and_mixed_names_remain_excluded() {
+		for (String name : new String[] {"Chocolate Poke Cake", "Pudding POKE-CAKE", "Strawberry poke cakes"}) {
+			assertThat(beverageFilter.isPoke(name)).as(name).isFalse();
+			assertThat(beverageFilter.isExcluded(name, null)).as(name).isFalse();
+		}
+		for (String name : new String[] {"Salmon Poke", "포케 베이글", "Salmon Poke + Chocolate Poke Cake", "Poke Cake + 포케"})
+			assertThat(beverageFilter.isExcluded(name, null)).as(name).isTrue();
+	}
+
+	@Test void dessert_flavor_does_not_hide_parenthetical_beverage_container() {
+		for (String name : new String[] {"쿠키 말차 (슬림캔)", "버터바 말차 (슬림캔) (1개)", "쿠키 말차 (포장 (슬림캔))"})
+			assertThat(beverageFilter.isExcluded(name, null)).as(name).isTrue();
+		for (String name : new String[] {"쿠키 말차 (1개)", "버터바 말차 (1개)", "쿠키 말차 (우유식빵)"})
+			assertThat(beverageFilter.isExcluded(name, null)).as(name).isFalse();
+	}
 
 	private final BeverageFilter beverageFilter = new BeverageFilter();
 

@@ -1,5 +1,6 @@
 """Offline tests: requests, fetch, and sleeps are mocked; no source/API/database calls."""
 import sys
+import json
 import unittest
 import tempfile
 from datetime import datetime
@@ -107,6 +108,25 @@ class SyncWorkerEvidenceTest(unittest.TestCase):
              patch.object(sync_worker, 'fetch_place') as crawl:
             self.assertEqual(sync_worker.run('http://unused', 1, 20, 0, 0, store_ids=[7]), 1)
         crawl.assert_not_called()
+
+    def test_blocked_or_failed_selected_fetch_remains_unfinished(self):
+        due = {'storeId': 7, 'source': 'NAVER', 'externalId': '123', 'syncStateId': 8, 'attemptSeq': 6}
+        for blocked, cooldowns, expected in ((True, 1, sync_worker.EXIT_SERVER_ERROR),
+                                             (True, 0, sync_worker.EXIT_BLOCKED),
+                                             (False, 0, sync_worker.EXIT_SERVER_ERROR)):
+            with self.subTest(blocked=blocked, cooldowns=cooldowns), tempfile.TemporaryDirectory() as root:
+                summary = Path(root) / 'summary.json'
+                with patch.object(sync_worker, 'fetch_due', side_effect=[[due], []]), \
+                     patch.object(sync_worker, 'fetch_place', return_value=(None, blocked)), \
+                     patch.object(sync_worker, 'report_failure'), \
+                     patch.object(sync_worker, 'submit_retained') as submit, \
+                     patch.object(sync_worker.time, 'sleep'):
+                    code = sync_worker.run('http://unused', 1, 20, 0, cooldowns,
+                                           spool=sync_worker.CaptureSpool(Path(root) / 'captures'),
+                                           summary_path=summary, store_ids=[7])
+                self.assertEqual(code, expected)
+                self.assertEqual(json.loads(summary.read_text())['unattempted_store_ids'], [7])
+                submit.assert_not_called()
 
     def test_selected_request_sends_filter_and_rejects_out_of_scope_response(self):
         response = Mock(); response.json.return_value = {'data': []}

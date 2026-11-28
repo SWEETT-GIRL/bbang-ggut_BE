@@ -51,7 +51,7 @@ public class SyncStateCommandService {
 	public List<DueStoreResponse> exportSelectedDue(int limit, List<Long> storeIds) {
 		if (limit < 1 || limit > 50 || storeIds == null || storeIds.isEmpty() || storeIds.size() > 50
 			|| storeIds.stream().anyMatch(id -> id == null || id <= 0)) {
-			throw new IllegalArgumentException("Select 1-50 positive store IDs and limit 1-50");
+			throw new SyncStateException(SyncStateErrorCode.INVALID_DUE_SELECTION);
 		}
 		LocalDateTime now = LocalDateTime.now();
 		UUID token = UUID.randomUUID();

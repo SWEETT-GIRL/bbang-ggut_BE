@@ -288,7 +288,6 @@ def run(server: str, limit: int, max_stores: int | None,
                 if remaining is not None:
                     if due['storeId'] not in remaining:
                         raise ValueError('server returned a store outside the selected scope')
-                    remaining.remove(due['storeId'])
 
                 parent = due.get("_recovery")
                 if parent is not None:
@@ -348,6 +347,9 @@ def run(server: str, limit: int, max_stores: int | None,
                         result = submit_retained(server, record, auto_apply=auto_apply)
                         account(result)
                         spool.acknowledge(record, result)
+                        # A claim/fetch attempt is not completion. Blocked or failed stores stay unfinished.
+                        if remaining is not None:
+                            remaining.remove(due['storeId'])
                         if recovery:
                             acknowledged = spool.read(spool.path(observation_id))
                             recovery.observe(acknowledged, time.time())
