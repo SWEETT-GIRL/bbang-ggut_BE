@@ -27,7 +27,7 @@ import sweetgirl.dataops.proposal.exception.ProposalException;
 import sweetgirl.dataops.reconcile.enums.ProvenanceSource;
 
 /**
- * 자동 반영 불가 diff 의 수납함 — 어드민 승인으로만 운영에 반영된다.
+ * 변경 diff 의 수납함 — 수집별 자동 검증 또는 명시적 승인 경로로 운영에 반영된다.
  * 같은 store×target 의 진행 중 제안(PENDING·APPLYING·UNKNOWN)은 1건만 (새 diff 도착 시 기존 PENDING 을 supersede 후 insert).
  *
  * 반영 상태는 두 단계다 (v3 P1-1): 운영 DML 전에 PENDING → APPLYING 으로 점유하고,

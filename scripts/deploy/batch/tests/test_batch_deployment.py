@@ -285,7 +285,8 @@ class RunnerParametersTest(unittest.TestCase):
                    DATAOPS_FULL_CYCLE_ENABLED='true', DATAOPS_BASELINE_VERSION='20261105')
         with self.assertRaises(ValueError): runner.execution_environment(env, ['dataops-nightly'])
         env.update(DB_URL='jdbc:postgresql://rds/soboro?sslmode=require', DATAOPS_PROD_DB_USERNAME='reader',
-                   DATAOPS_PROD_DB_PASSWORD='test', DATA_GO_KR_SERVICE_KEY='test')
+                   DATAOPS_PROD_DB_PASSWORD='test', DATA_GO_KR_SERVICE_KEY='test',
+                   DATAOPS_AUTO_APPLY_DB_USERNAME='dataops_writer', DATAOPS_AUTO_APPLY_DB_PASSWORD='test')
         self.assertEqual(runner.execution_environment(env, ['dataops-cycle'])['DATAOPS_PROD_DB_USERNAME'], 'reader')
         command = ['dataops-cycle', 'run', '--tracks', 'public', '--cycle-id', 'smoke']
         args, logs = runner.docker_run_args(IMAGE, '/tmp/app.env', '/tmp/firebase.json', '/opt/logs', command)
@@ -301,11 +302,26 @@ class RunnerParametersTest(unittest.TestCase):
                'DATAOPS_DB_USERNAME': 'dataops_worker', 'DATAOPS_DB_PASSWORD': 'runtime', 'DATAOPS_API_KEY': 'api',
                'DATAOPS_MIGRATION_DB_USERNAME': 'dataops_migrator', 'DATAOPS_MIGRATION_DB_PASSWORD': 'ddl',
                'DB_PASSWORD': 'serving'}
+        env.update(DATAOPS_AUTO_APPLY_DB_USERNAME='dataops_writer', DATAOPS_AUTO_APPLY_DB_PASSWORD='writer')
         migration = runner.execution_environment(env, ['dataops-migrate'])
         self.assertEqual(set(migration), {'DATAOPS_DB_URL'} | runner.MIGRATION_SECRETS)
         runtime = runner.execution_environment(env, ['dataops-nightly'])
         self.assertFalse(runner.MIGRATION_SECRETS & runtime.keys())
         self.assertFalse(runner.MIGRATION_SECRETS & runner.execution_environment(env, ['job', 'ranking-snapshot']).keys())
+
+    def test_자동_반영은_별도_쓰기_계정_없이_조용히_수집만_하지_않는다(self):
+        env = {key: 'value' for key in runner.DATAOPS_REQUIRED}
+        env['DATAOPS_DB_URL'] = 'jdbc:postgresql://db/dataops?sslmode=require'
+        with self.assertRaisesRegex(ValueError, 'DATAOPS_AUTO_APPLY_DB'):
+            runner.execution_environment(env, ['dataops-nightly'])
+        env.update(DATAOPS_AUTO_APPLY_DB_USERNAME='dataops_writer', DATAOPS_AUTO_APPLY_DB_PASSWORD='writer')
+        self.assertEqual(runner.execution_environment(env, ['dataops-nightly'])['DATAOPS_AUTO_APPLY_ENABLED'], 'true')
+        for command in (['job', 'ranking-snapshot'], ['dataops-server']):
+            selected = runner.execution_environment(env, command)
+            self.assertEqual(selected['DATAOPS_AUTO_APPLY_ENABLED'], 'false')
+            self.assertNotIn('DATAOPS_AUTO_APPLY_DB_PASSWORD', selected)
+        env['DATAOPS_AUTO_APPLY_ENABLED'] = 'false'
+        self.assertNotIn('DATAOPS_AUTO_APPLY_DB_PASSWORD', runner.execution_environment(env, ['dataops-nightly']))
 
     def test_서비스_DB_또는_다른_스키마로_잘못_기동하지_않는다(self):
         env = {key: 'value' for key in runner.DATAOPS_REQUIRED | runner.MIGRATION_SECRETS}

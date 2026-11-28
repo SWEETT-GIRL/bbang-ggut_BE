@@ -254,6 +254,7 @@ def metrics(directory, command):
         lines.append(f'{name}{{outcome="{status}"}} {count}')
     if last:
         item_names = {"attempted", "changed", "unchanged", "partial", "held", "failed", "pages_fetched",
+                      "auto_apply_applied", "auto_apply_already_applied", "auto_apply_held", "auto_apply_failed", "auto_apply_unknown",
                       "baseline_stores", "baseline_mapped", "baseline_unmapped", "baseline_ambiguous",
                       "gate_passed", "gate_held", "gate_blocked", "gate_need_menu", "gate_review_pending",
                       "public_raw", "public_new", "public_upd", "public_unobserved",

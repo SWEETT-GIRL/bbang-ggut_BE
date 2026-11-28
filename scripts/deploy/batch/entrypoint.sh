@@ -87,7 +87,7 @@ case "${command}" in
 		trap 'exit 130' INT
 		start_dataops_server
 		cd /app/dataops
-		# 쓰기 계정 서버를 켜 둔 채 두지 않는다 — 수집만 하고 끝나면 trap 이 서버를 내린다
+		# 수집·검증·자동 반영이 끝나면 trap 이 서버를 내린다.
 		python3 "${worker_script}" "${worker_args[@]}" &
 		WORKER_PID=$!
 		wait "${WORKER_PID}"

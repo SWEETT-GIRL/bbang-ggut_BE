@@ -1313,7 +1313,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "bbang_dataops_workflow_last_items{job=\"dataops-workflow\",workflow=\"$workflow\"}",
+          "expr": "bbang_dataops_workflow_last_items{job=\"dataops-workflow\",workflow=\"$workflow\",result!~\"auto_apply_.*\"}",
           "legendFormat": "{{result}}",
           "range": true,
           "instant": false,
@@ -1355,11 +1355,69 @@
       "id": 22
     },
     {
+      "type": "timeseries",
+      "title": "운영 자동 반영 · 반영/기반영/보류/실패/미확정 항목 수",
+      "description": "가게 수가 아니라 변경 항목 수입니다. 수집 changed는 반영 건수가 아닙니다. 최신 회차 결과(gauge)이며 재전달의 기반영 항목은 already_applied로 분리합니다. 값이 없으면 미수집입니다.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 64,
+        "w": 24,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "bbang_dataops_workflow_last_items{job=\"dataops-workflow\",workflow=\"$workflow\",result=~\"auto_apply_.*\"}",
+          "legendFormat": "{{result}}",
+          "range": true,
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "수집 확인 필요",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 24
+    },
+    {
       "type": "text",
       "title": "다음 버전 · 아직 생성하지 않은 지표",
       "gridPos": {
         "x": 0,
-        "y": 64,
+        "y": 71,
         "w": 24,
         "h": 5
       },

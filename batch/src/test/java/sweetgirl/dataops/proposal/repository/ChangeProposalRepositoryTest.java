@@ -7,6 +7,10 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.Arguments;
+import java.util.stream.Stream;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
@@ -138,6 +142,44 @@ class ChangeProposalRepositoryTest {
 			claimant.close();
 		}
 	}
+
+    static Stream<Arguments> conflictNotes() {
+        return Stream.of("MENU_SOURCE_CONFLICT: NAVER / BAEMIN", "PRODUCER_CONFLICT: other", "다른 값을 제안했습니다")
+            .flatMap(existing -> Stream.of("MENU_SAME_SOURCE_UPDATE", "MENU_SOURCE_UNKNOWN", "PRODUCER_CONFLICT: later")
+                .map(replacement -> Arguments.of(existing, replacement)));
+    }
+
+    @ParameterizedTest
+    @MethodSource("conflictNotes")
+    void stale_note_read_cannot_erase_a_conflict_committed_by_another_transaction(String conflict, String replacement) {
+        EntityManager competing = entityManagerFactory.createEntityManager();
+        Long proposalId = null;
+        try {
+            competing.getTransaction().begin();
+            var committed = ChangeProposal.builder().storeId(99002L).target("menu.1.price")
+                .newValue("3500").source(ProvenanceSource.BAEMIN).build();
+            competing.persist(committed); competing.getTransaction().commit();
+            proposalId = committed.getId();
+            var stale = repository.findById(proposalId).orElseThrow();
+            assertThat(stale.getReviewNote()).isNull();
+            competing.getTransaction().begin();
+            committed.noteProducerConflict(conflict); competing.getTransaction().commit();
+            assertThat(stale.getReviewNote()).isNull();
+            assertThat(repository.updatePendingReviewNote(proposalId, ProvenanceSource.BAEMIN, replacement)).isZero();
+            entityManager.refresh(stale);
+            assertThat(stale.getReviewNote()).isEqualTo(conflict);
+            assertThat(stale.getStatus()).isEqualTo(ProposalStatus.PENDING);
+        } finally {
+            TestTransaction.flagForRollback(); TestTransaction.end();
+            if (competing.getTransaction().isActive()) competing.getTransaction().rollback();
+            if (proposalId != null) {
+                competing.getTransaction().begin();
+                competing.remove(competing.find(ChangeProposal.class, proposalId));
+                competing.getTransaction().commit();
+            }
+            competing.close();
+        }
+    }
 
 	@Test void source_expiration_keeps_other_sources_unseen_targets_and_non_pending_proposals() {
 		var observed = save(1L, "menu.501.price", ProvenanceSource.BAEMIN, ProposalProducer.NAVER_SNAPSHOT_RECONCILE);

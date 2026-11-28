@@ -1,5 +1,7 @@
 package sweetgirl.dataops.reconcile.service;
 
+import sweetgirl.dataops.autoapply.AutomaticApplyException;
+
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,7 +53,7 @@ import tools.jackson.databind.ObjectMapper;
 
 /**
  * 판정층 오케스트레이터 — ParsedPlace vs 운영 현재값(ServingReader) 필드 단위 diff →
- * 병합 정책 적용 → proposal 수납 (2단계: 전 필드 PROPOSAL — AUTO 경로는 3단계 AutoApplyService).
+ * 병합 정책 적용 → proposal 수납. 자동 반영은 수집 트랜잭션 커밋 뒤 AutomaticApplyCommandService가 별도로 검증한다.
  *
  * diff 범위: store.name / store.phone / store.instagram_handle / store.business_hours(요일 세트 비교) /
  * 신규 메뉴(음료 제외, 배민 단독 포함) / 메뉴 가격(네이버만 — 배민 가격은 배달가라 제외) / 메뉴 소멸.
@@ -381,7 +383,32 @@ public class ReconcileService {
 	}
 
 	/** 한 가게의 한 판정 실행 — 이번 세대에서 살아남은 제안 id 를 모은다 (v3 P1-2) */
-	private record ReconcileGeneration(Long snapshotId, UUID runId, Set<Long> survivors) {
+	/** Called with a verified, completed live capture under the store observation barrier. */
+	public List<sweetgirl.dataops.autoapply.AutomaticCandidate> reconcileAutomatic(Long storeId, Long snapshotId,
+			ParsedPlace parsed, boolean menuAllowed, boolean baeminAllowed) {
+		if (!enabled || parsed.pageMissing()) throw new AutomaticApplyException.Hold(AutomaticApplyException.Reason.OBSERVATION_UNUSABLE);
+		ServingReader reader = servingReaderProvider.getIfAvailable();
+		if (reader == null) throw new IllegalStateException("SERVING_READ_UNAVAILABLE");
+		StoreCurrentValues current = reader.findStore(storeId)
+			.orElseThrow(() -> new AutomaticApplyException.Hold(AutomaticApplyException.Reason.STORE_MISSING));
+		if (!"ACTIVE".equals(current.status())) throw new AutomaticApplyException.Hold(AutomaticApplyException.Reason.STORE_INACTIVE);
+		var generation = new ReconcileGeneration(snapshotId, UUID.randomUUID(), new HashSet<>());
+		var provenance = provenanceByField(storeId);
+		reconcileStoreFields(storeId, generation, parsed, current, provenance);
+		reconcileBusinessHours(storeId, generation, parsed, reader, provenance);
+		if (menuAllowed || baeminAllowed)
+			reconcileMenus(storeId, generation, parsed, reader.findMenus(storeId), provenance, menuAllowed, baeminAllowed);
+		return List.copyOf(generation.candidates().values());
+	}
+
+	private record ReconcileGeneration(Long snapshotId, UUID runId, Set<Long> survivors,
+			Map<Long, sweetgirl.dataops.autoapply.AutomaticCandidate> candidates) {
+		ReconcileGeneration(Long snapshotId, UUID runId, Set<Long> survivors) {
+			this(snapshotId, runId, survivors, new LinkedHashMap<>());
+		}
+		void candidate(Long id, String target, String oldValue, String newValue, ProvenanceSource source) {
+			candidates.put(id, new sweetgirl.dataops.autoapply.AutomaticCandidate(id, target, oldValue, newValue, source));
+		}
 	}
 
 	private void reconcileStoreFields(Long storeId, ReconcileGeneration generation, ParsedPlace parsedPlace,
@@ -604,8 +631,12 @@ public class ReconcileService {
 		if (mergePolicy.decide(target, source, existing) == MergeDecision.IGNORE) return;
 		var response = proposalCommandService.propose(storeId, target, oldValue, newValue, source,
 			generation.snapshotId(), ProposalProducer.NAVER_SNAPSHOT_RECONCILE, POLICY_VERSION, generation.runId());
-		if (response == null) return;
+		if (response == null) {
+			rememberBlockedCandidate(storeId, generation, target, oldValue, newValue, source);
+			return;
+		}
 		generation.survivors().add(response.proposalId());
+		generation.candidate(response.proposalId(), target, oldValue, newValue, source);
 		if (!target.startsWith("menu.add."))
 			proposalCommandService.noteMenuSourceComparison(response.proposalId(), existing, source);
 	}
@@ -664,14 +695,26 @@ public class ReconcileService {
 		if (decision == MergeDecision.IGNORE) {
 			return;
 		}
-		// AUTO 는 3단계 AutoApplyService 도입 전까지 proposal 로 수납한다.
+		// 수집 트랜잭션은 후보까지만 저장한다. 운영 쓰기는 별도 자동 반영 경로의 검증·점유 뒤 실행한다.
 		// 살아남은 제안 id 를 모아 두면, 이번 판정에서 나오지 않은 이전 세대만 골라 expire 할 수 있다 (v3 P1-2)
 		ChangeProposalResponse response = proposalCommandService.propose(storeId, target, oldValue, newValue,
 			ProvenanceSource.NAVER, generation.snapshotId(), ProposalProducer.NAVER_SNAPSHOT_RECONCILE,
 			POLICY_VERSION, generation.runId());
 		if (response != null) {
 			generation.survivors().add(response.proposalId());
+			generation.candidate(response.proposalId(), target, oldValue, newValue, ProvenanceSource.NAVER);
+		} else {
+			rememberBlockedCandidate(storeId, generation, target, oldValue, newValue, ProvenanceSource.NAVER);
 		}
+	}
+
+	/** Include an unresolved/conflicting target in automatic results without granting it write authority. */
+	private void rememberBlockedCandidate(Long storeId, ReconcileGeneration generation, String target,
+			String oldValue, String newValue, ProvenanceSource source) {
+		changeProposalRepository.findFirstByStoreIdAndTargetAndStatusIn(storeId, target, List.of(
+			sweetgirl.dataops.proposal.enums.ProposalStatus.PENDING, sweetgirl.dataops.proposal.enums.ProposalStatus.APPLYING,
+			sweetgirl.dataops.proposal.enums.ProposalStatus.UNKNOWN))
+			.ifPresent(candidate -> generation.candidate(candidate.getId(), target, oldValue, newValue, source));
 	}
 
 	/** 인스타 핸들 — 운영 스키마 불가침이라 sync_state(source=INSTAGRAM) 에만 저장, 스케줄은 잡지 않는다 */

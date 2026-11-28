@@ -16,6 +16,7 @@
 
 import argparse
 import json
+import os
 import sys
 import time
 import uuid
@@ -175,27 +176,49 @@ def fetch_place(place_id: str) -> FetchResult:
                            failure_excerpt=html[position:position + 65536])
 
 
-def submit_retained(server, record):
+def submit_retained(server, record, auto_apply=False):
     request = record["request"]
     result = submit_snapshot(server, request["storeId"], request["source"], request["payload"],
                              external_id=request["externalId"], observation_id=request["observationId"],
                              observed_at=request["observedAt"], attempt_seq=request.get("attemptSeq"))
+    if auto_apply:
+        response = requests.post(f"{server}/api/snapshots/{request['observationId']}/auto-apply",
+                                 headers=server_headers(), timeout=120)
+        response.raise_for_status()
+        applied = response.json()["data"]
+        if (applied.get("captureId") != request["observationId"]
+                or any(type(applied.get(key)) is not int or applied[key] < 0
+                       for key in ("applied", "alreadyApplied", "held", "failed", "unknown"))):
+            raise ValueError("automatic apply receipt does not confirm this observation")
+        result = {**result, "automaticApply": applied}
     return result
 
 
-def safe_server(server):
+def safe_server(server, auto_apply=False):
     response = requests.get(f"{server}/api/snapshots/capabilities", headers=server_headers(), timeout=10)
     response.raise_for_status()
     data = response.json()["data"]
     if (data.get("captureProtocol") != 1 or not data.get("wholeObservationHold")
             or data.get("menuScopedHold") is not True or data.get("writesEnabled") is not False):
         raise RuntimeError("server must support durable capture, menu-scoped hold and whole-error hold with serving writes disabled")
+    if auto_apply and data.get("automaticApplyProtocol") != 1:
+        raise RuntimeError("server must support capture-scoped automatic apply; refusing collection-only fallback")
 
 
 def run(server: str, limit: int, max_stores: int | None,
-        cooldown_minutes: int, max_cooldowns: int, max_hours: float | None = None, spool=None, summary_path=None) -> int:
+        cooldown_minutes: int, max_cooldowns: int, max_hours: float | None = None, spool=None, summary_path=None,
+        auto_apply=False) -> int:
     processed = changed = unchanged = failed = 0
     held = partial = 0
+    applied_counts = {"auto_apply_" + key: 0 for key in ("applied", "already_applied", "held", "failed", "unknown")}
+    def account(result):
+        applied = result.get("automaticApply", {})
+        for key, source in (("already_applied", "alreadyApplied"), ("applied", "applied"),
+                            ("held", "held"), ("failed", "failed"), ("unknown", "unknown")):
+            applied_counts["auto_apply_" + key] += applied.get(source, 0)
+        if applied.get('failed', 0) or applied.get('unknown', 0):
+            print(f"[worker] 운영 반영 중단 — capture={applied.get('captureId')} "
+                  f"실패 {applied.get('failed', 0)}, 미확정 {applied.get('unknown', 0)}", flush=True)
     try:
         spool = spool or CaptureSpool()
         cooldowns_used = 0
@@ -206,7 +229,11 @@ def run(server: str, limit: int, max_stores: int | None,
             if deadline is not None and time.monotonic() >= deadline:
                 return EXIT_OK
             try:
-                spool.acknowledge(record, submit_retained(server, record))
+                result = submit_retained(server, record, auto_apply=auto_apply)
+                account(result)
+                spool.acknowledge(record, result)
+                if applied_counts["auto_apply_failed"] or applied_counts["auto_apply_unknown"]:
+                    return EXIT_SERVER_ERROR
             except requests.RequestException:
                 return EXIT_SERVER_ERROR
         while True:
@@ -274,7 +301,8 @@ def run(server: str, limit: int, max_stores: int | None,
                 else:
                     # Fetch identity is independent of semantic hash and assigned only once per successful fetch.
                     try:
-                        result = submit_retained(server, record)
+                        result = submit_retained(server, record, auto_apply=auto_apply)
+                        account(result)
                         spool.acknowledge(record, result)
                         if result.get("assessment") == "HELD":
                             held += 1
@@ -284,6 +312,8 @@ def run(server: str, limit: int, max_stores: int | None,
                             changed += 1
                         else:
                             unchanged += 1
+                        if applied_counts["auto_apply_failed"] or applied_counts["auto_apply_unknown"]:
+                            return EXIT_SERVER_ERROR
                     except requests.RequestException as error:
                         failed += 1
                         print(f"[worker] 제출 실패 (storeId={due['storeId']}): {error}", flush=True)
@@ -297,12 +327,14 @@ def run(server: str, limit: int, max_stores: int | None,
                 break
 
         print(f"[worker] 세션 종료 — 처리 {processed}, 변경 {changed}, 무변경 {unchanged}, 부분처리 {partial}, 보류 {held}, 실패 {failed}", flush=True)
-        return EXIT_OK
+        if auto_apply:
+            print("[worker] 운영 반영 — " + ", ".join(f"{key}={value}" for key, value in applied_counts.items()), flush=True)
+        return EXIT_SERVER_ERROR if applied_counts["auto_apply_failed"] or applied_counts["auto_apply_unknown"] else EXIT_OK
     finally:
         if summary_path:
             from batch_execution import atomic_json
             atomic_json(summary_path, {"attempted": processed, "changed": changed, "unchanged": unchanged,
-                                       "partial": partial, "held": held, "failed": failed})
+                                       "partial": partial, "held": held, "failed": failed, **applied_counts})
 
 
 
@@ -318,14 +350,19 @@ def main() -> int:
                                  help="이 시간이 지나면 새 가게를 받지 않고 끝낸다 (야간 수집 시간 상자)")
     argument_parser.add_argument("--summary", help="실제 처리 결과 JSON 경로")
     arguments = argument_parser.parse_args()
+    automatic = os.environ.get('DATAOPS_AUTO_APPLY_ENABLED', 'false')
+    if automatic not in ('true', 'false'):
+        argument_parser.error('DATAOPS_AUTO_APPLY_ENABLED must be true or false')
+    auto_apply = automatic == 'true'
     if arguments.limit < 1 or (arguments.max_stores is not None and arguments.max_stores < 1) or (arguments.max_hours is not None and arguments.max_hours <= 0):
         argument_parser.error("limit/max/max-hours must be positive")
     try:
-        safe_server(arguments.server)
+        safe_server(arguments.server, auto_apply=auto_apply)
         spool = CaptureSpool()
         with spool.exclusive():
             return run(arguments.server, arguments.limit, arguments.max_stores,
-                       arguments.cooldown_minutes, arguments.max_cooldowns, arguments.max_hours, spool, arguments.summary)
+                       arguments.cooldown_minutes, arguments.max_cooldowns, arguments.max_hours, spool, arguments.summary,
+                       auto_apply=auto_apply)
     except (OSError, ValueError, RuntimeError, requests.RequestException) as error:
         print(f"[worker] 실행 보류: {type(error).__name__}", flush=True)
         return EXIT_SERVER_ERROR

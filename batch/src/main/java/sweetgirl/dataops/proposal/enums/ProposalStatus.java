@@ -1,7 +1,7 @@
 package sweetgirl.dataops.proposal.enums;
 
 public enum ProposalStatus {
-	/** 승인 대기 — 같은 store×target 의 진행 중 제안은 1건만 (부분 유니크 uq_proposal_in_flight, APPLYING 포함) */
+	/** 반영 대기 — 자동 정책 검증 또는 명시적 승인을 거친다. 같은 store×target 진행 중 제안은 1건만. */
 	PENDING,
 	/**
 	 * 운영 반영 점유 중 — 운영 DML 직전에 독립 트랜잭션으로 확정한다.

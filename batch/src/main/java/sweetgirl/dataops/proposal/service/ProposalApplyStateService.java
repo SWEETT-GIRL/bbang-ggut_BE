@@ -1,5 +1,7 @@
 package sweetgirl.dataops.proposal.service;
 
+import sweetgirl.dataops.autoapply.AutomaticApplyException;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -68,6 +70,17 @@ public class ProposalApplyStateService {
 		// must enforce this too. REUSED retains the pre-existing proposal's manual authority.
 		if (changeProposalRepository.requiresAgentManifest(proposalId))
 			throw new AgentApplyHold("AGENT_CREATED_PROPOSAL_REQUIRES_MANIFEST");
+		return claimPending(proposalId);
+	}
+
+	/** Recheck policy while the proposal row is locked; review-note updates cannot race this claim. */
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	public UUID claimAutomatic(Long proposalId, java.util.function.Consumer<ChangeProposal> verify) {
+		if (manifestApplyGate != null || changeProposalRepository.requiresAgentManifest(proposalId))
+			throw new AutomaticApplyException.Hold(AutomaticApplyException.Reason.AGENT_APPROVAL_REQUIRED);
+		ChangeProposal proposal = changeProposalRepository.findForApplyUpdate(proposalId)
+			.orElseThrow(() -> new ProposalException(ProposalErrorCode.PROPOSAL_NOT_FOUND));
+		verify.accept(proposal);
 		return claimPending(proposalId);
 	}
 

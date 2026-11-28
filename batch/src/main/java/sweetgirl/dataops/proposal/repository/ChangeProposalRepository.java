@@ -63,11 +63,13 @@ public interface ChangeProposalRepository extends JpaRepository<ChangeProposal, 
 	int claimForApply(@Param("id") Long id, @Param("operationId") UUID operationId,
 			@Param("startedAt") LocalDateTime startedAt);
 
-	/** 메모만 갱신한다. 승인 점유가 먼저 끝났으면 건너뛰고, 다른 관리 엔티티의 변경은 보존한다. */
+	/** 메모만 갱신한다. 먼저 기록된 충돌은 우선 보존하며, DB의 현재 값으로 확인한다. */
 	@Modifying(flushAutomatically = true, clearAutomatically = false)
 	@Query("UPDATE ChangeProposal p SET p.reviewNote = :note, p.updatedAt = CURRENT_TIMESTAMP "
 		+ "WHERE p.id = :id AND p.source = :source "
-		+ "AND p.status = sweetgirl.dataops.proposal.enums.ProposalStatus.PENDING")
+		+ "AND p.status = sweetgirl.dataops.proposal.enums.ProposalStatus.PENDING "
+		+ "AND (p.reviewNote IS NULL OR (LOCATE('SOURCE_CONFLICT', p.reviewNote) = 0 "
+		+ "AND LOCATE('PRODUCER_CONFLICT', p.reviewNote) = 0 AND LOCATE('다른 값을 제안', p.reviewNote) = 0))")
 	int updatePendingReviewNote(@Param("id") Long id,
 		@Param("source") sweetgirl.dataops.reconcile.enums.ProvenanceSource source, @Param("note") String note);
 
